@@ -20,12 +20,12 @@ export interface VersionStampV1 {
   readonly engineCommit: string | null;
 }
 
-export const emptyVersionStampV1: VersionStampV1 = Object.freeze({
+export const emptyVersionStampV1: VersionStampV1 = {
   applicationVersion: null,
   applicationCommit: null,
   engineVersion: null,
   engineCommit: null,
-});
+};
 
 export const versionStampGlobalKeyV1 = "__SILLYMAKER_VERSIONS__";
 
@@ -59,12 +59,12 @@ export function normalizeVersionStampInternalV1(source: unknown): VersionStampV1
   let normalized: VersionStampV1;
   try {
     const fields = source as Readonly<Record<string, unknown>>;
-    normalized = Object.freeze({
+    normalized = {
       applicationVersion: fieldV1(fields, "applicationVersion"),
       applicationCommit: fieldV1(fields, "applicationCommit"),
       engineVersion: fieldV1(fields, "engineVersion"),
       engineCommit: fieldV1(fields, "engineCommit"),
-    });
+    };
   } catch {
     // Diagnostic metadata must never make a runtime or Save unreadable.
     return null;

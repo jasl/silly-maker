@@ -4,17 +4,17 @@ import { resolve } from "node:path";
 
 import { buildImportClosureRecordsV1, collectImportClosure } from "./collect-import-closure.mjs";
 
-const engineEntriesV1 = Object.freeze([
+const engineEntriesV1 = [
   "engine/packages/base/src/index.ts",
   "engine/packages/base/src/runtime/index.ts",
-]);
+];
 const basePackageManifestV1 = "engine/packages/base/package.json";
-const identityRecordKeysV1 = Object.freeze([
+const identityRecordKeysV1 = [
   "engine",
   "storySimulation",
   "storyPresentation",
   "application",
-]);
+];
 const testPathPatternV1 = /(?:^|\/)(?:(?:__tests__|tests?)(?:\/|$)|[^/]+\.(?:test|spec)\.[^/]+$)/u;
 
 function requireNonEmptyStringV1(value, label) {
@@ -39,20 +39,20 @@ function requireStringArrayV1(value, label) {
   ) {
     throw new TypeError(`${label} is invalid`);
   }
-  return Object.freeze([...value]);
+  return [...value];
 }
 
 function normalizeFacetInputV1(value, label) {
   if (typeof value !== "object" || value === null) {
     throw new TypeError(`${label} is invalid`);
   }
-  return Object.freeze({
+  return {
     entry: requireNonEmptyStringV1(Reflect.get(value, "entry"), `${label} entry`),
     forbiddenPrefixes: requireStringArrayV1(
       Reflect.get(value, "forbiddenPrefixes"),
       `${label} forbidden prefixes`,
     ),
-  });
+  };
 }
 
 function normalizeOwnerInputV1(input) {
@@ -70,7 +70,7 @@ function normalizeOwnerInputV1(input) {
   if (typeof virtual !== "object" || virtual === null) {
     throw new TypeError("Story BuildIdentity virtual module input is invalid");
   }
-  return Object.freeze({
+  return {
     label: requireNonEmptyStringV1(Reflect.get(input, "label"), "Story BuildIdentity label"),
     storySourceRoot,
     applicationSourceRoot: `${storySourceRoot}application/`,
@@ -83,7 +83,7 @@ function normalizeOwnerInputV1(input) {
       Reflect.get(input, "applicationEntries"),
       "Story application entries",
     ),
-    virtual: Object.freeze({
+    virtual: {
       specifier: requireNonEmptyStringV1(
         Reflect.get(virtual, "specifier"),
         "Story BuildIdentity virtual specifier",
@@ -96,8 +96,8 @@ function normalizeOwnerInputV1(input) {
         Reflect.get(virtual, "pluginName"),
         "Story BuildIdentity plugin name",
       ),
-    }),
-  });
+    },
+  };
 }
 
 function throwClosureErrorsV1(label, errors) {
@@ -226,7 +226,7 @@ function collectIdentityWatchPathsV1(root, identity, label) {
       paths.add(resolve(root, path));
     }
   }
-  return Object.freeze([...paths].sort());
+  return [...paths].sort();
 }
 
 /**
@@ -257,13 +257,13 @@ export function createStoryBuildIdentityOwnerV1(input) {
         collectApplicationRecordsV1(root, config),
       ]);
 
-    return Object.freeze({
+    return {
       engineVersion,
       engine,
       storySimulation,
       storyPresentation,
       application,
-    });
+    };
   }
 
   function renderVirtualModuleV1(identity) {
@@ -311,7 +311,7 @@ export function createStoryBuildIdentityOwnerV1(input) {
       return context.modules;
     }
 
-    return Object.freeze({
+    return {
       name: config.virtual.pluginName,
       // Intercept the physical package fallback before Vite's package
       // resolver turns it into an /@fs/ URL. The fallback remains available
@@ -337,12 +337,12 @@ export function createStoryBuildIdentityOwnerV1(input) {
         );
         return refresh;
       },
-    });
+    };
   }
 
-  return Object.freeze({
+  return {
     collectBuildIdentityV1,
     renderVirtualModuleV1,
     createVirtualPluginV1,
-  });
+  };
 }

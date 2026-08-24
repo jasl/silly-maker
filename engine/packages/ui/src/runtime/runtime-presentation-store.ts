@@ -76,7 +76,7 @@ export interface CreateRuntimePresentationStoreInputV1<
   reportFailure(failure: DeepReadonly<PresentationRuntimeFailureV1>): void;
 }
 
-const emptyFailureDetailsV1: StrictJsonObjectV1 = Object.freeze({});
+const emptyFailureDetailsV1: StrictJsonObjectV1 = {};
 
 function presentationFailureV1(
   code: PresentationRuntimeFailureV1["code"],
@@ -88,15 +88,16 @@ function presentationFailureV1(
     : code === "presentation.subscriber_failed"
     ? "Runtime presentation subscriber failed."
     : "Runtime presentation asset preload failed.";
-  return Object.freeze({ code, summary, details: emptyFailureDetailsV1 });
+  return { code, summary, details: emptyFailureDetailsV1 };
 }
 
-function freezeRequiredAssetIdsV1<TAssetId>(assetIds: readonly TAssetId[]): readonly TAssetId[] {
-  const frozen = Object.freeze([...assetIds]);
-  if (new Set(frozen).size !== frozen.length) {
+function requireDistinctRequiredAssetIdsV1<TAssetId>(
+  assetIds: readonly TAssetId[],
+): readonly TAssetId[] {
+  if (new Set(assetIds).size !== assetIds.length) {
     throw new TypeError("presentation.duplicate_required_asset_id");
   }
-  return frozen;
+  return assetIds;
 }
 
 export function createRuntimePresentationStoreV1<
@@ -136,19 +137,19 @@ export function createRuntimePresentationStoreV1<
     const semantic = input.semantic.getSnapshot();
     const contentPreference = input.contentPreference.observe();
     const uiState = input.uiState.getCurrent();
-    const projectionInput = Object.freeze({
+    const projectionInput = {
       semantic,
       resolvedCatalog: input.resolvedCatalog,
       contentPreference,
       uiState,
-    });
+    };
     const projection = input.project(projectionInput);
-    const publication = Object.freeze({
+    const publication = {
       revision,
       semantic,
       view: projection.view,
-      requiredAssetIds: freezeRequiredAssetIdsV1(projection.requiredAssetIds),
-    }) satisfies PublicationV1;
+      requiredAssetIds: requireDistinctRequiredAssetIdsV1(projection.requiredAssetIds),
+    } satisfies PublicationV1;
     return publication as DeepReadonly<PublicationV1>;
   };
 
@@ -198,7 +199,7 @@ export function createRuntimePresentationStoreV1<
     throw new RuntimePresentationConstructionErrorV1();
   }
 
-  return Object.freeze({
+  return {
     getSnapshot: () => current,
     subscribe(listener: () => void) {
       if (disposed) throw new TypeError("ui.runtime_presentation_store_disposed");
@@ -216,5 +217,5 @@ export function createRuntimePresentationStoreV1<
       cleanupUpstream();
       listeners.clear();
     },
-  });
+  };
 }

@@ -591,14 +591,14 @@ export function OverlayHostV1<TOverlayId extends string>(
       if (entry.readiness !== "ready") continue;
       const handle = props.session.getHandleInternalV1(entry.surfaceInstanceId);
       if (handle === null) continue;
-      entries.push(Object.freeze({
+      entries.push({
         entry,
         resolution: resolveLatestV1(props.rendererResolver, entry),
         handle,
         depth: entries.length,
-      }));
+      });
     }
-    return Object.freeze(entries);
+    return entries;
   }, [props.rendererResolver, props.session, snapshot]);
   const preparingEntries = snapshot.entries.filter((entry) => entry.readiness === "preparing");
   const active = blocking || readyEntries.length > 0;

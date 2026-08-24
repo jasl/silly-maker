@@ -26,7 +26,7 @@ export function catcafeUiTextV1(textId: string): string {
 }
 
 /** Theme tokens: warm wood panels + amber highlights, matching the art style. */
-export const catcafeThemeV1 = Object.freeze({
+export const catcafeThemeV1 = {
   panel: "rgba(24, 18, 12, 0.82)",
   panelSoft: "rgba(24, 18, 12, 0.62)",
   panelBorder: "1px solid rgba(214, 168, 96, 0.35)",
@@ -34,7 +34,7 @@ export const catcafeThemeV1 = Object.freeze({
   inkSoft: "#cdbb99",
   amber: "#e8b465",
   radius: "14px",
-});
+};
 
 export type CatcafeAssetRegistryV1 = AssetRegistryV1<string, never, string>;
 export type CatcafeSemanticPublicationV1 = ReturnType<

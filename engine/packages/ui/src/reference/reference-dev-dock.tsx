@@ -12,7 +12,11 @@ import type { ReactElement, ReactNode } from "react";
 
 import type { RuntimeCapabilityPortV1, SessionFaultCauseV1 } from "@sillymaker/base";
 
-import { createDevDockContributionSetV1, DevDockV1 } from "../debug/dev-dock.tsx";
+import {
+  combineDevDockContributionSetsInternalV1,
+  createDevDockContributionSetV1,
+  DevDockV1,
+} from "../debug/dev-dock.tsx";
 import type {
   DevDockContributionSetV1,
   DevDockOpenStateV1,
@@ -33,8 +37,8 @@ import {
 } from "../composer/dev-dock-contribution-acceptance.ts";
 import styles from "./reference-dev-dock.module.css";
 
-const closedDevDockStateV1 = Object.freeze({ open: false }) satisfies DevDockOpenStateV1;
-const openedDevDockStateV1 = Object.freeze({ open: true }) satisfies DevDockOpenStateV1;
+const closedDevDockStateV1 = { open: false } satisfies DevDockOpenStateV1;
+const openedDevDockStateV1 = { open: true } satisfies DevDockOpenStateV1;
 const devDockLoadFailureDiagnosticV1 = "ui.devdock_contribution_load_failed";
 
 type DevDockLazyLoadStateV1 =
@@ -159,11 +163,13 @@ export function ReferenceDevDockV1(props: ReferenceDevDockPropsV1): ReactElement
         .then((loaded) => {
           let admitted: DevDockContributionSetV1;
           try {
+            const admittedLoaded = createDevDockContributionSetV1(loaded);
             admitted = inheritDevDockContributionAcceptanceInternalV1(
               loaded,
-              createDevDockContributionSetV1({
-                panels: [...props.contributions.panels, ...loaded.panels],
-              }),
+              combineDevDockContributionSetsInternalV1([
+                props.contributions,
+                admittedLoaded,
+              ]),
             );
           } catch (error) {
             releaseDevDockContributionsObservationallyV1(loaded);
@@ -260,7 +266,7 @@ export function ReferenceDevDockV1(props: ReferenceDevDockPropsV1): ReactElement
   if (!debugTools) return null;
   const contributions = inheritDevDockContributionAcceptanceInternalV1(
     storyContributions,
-    createDevDockContributionSetV1({ panels: mergedPanels }),
+    combineDevDockContributionSetsInternalV1([{ panels: mergedPanels }]),
   );
   return (
     <>

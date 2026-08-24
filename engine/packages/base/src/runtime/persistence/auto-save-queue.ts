@@ -208,7 +208,7 @@ export function createAutoSaveQueueInternalV1<TCandidate, TResult>(
   };
 
   const supersedeV1 = (entry: AutoSaveCandidateV1<TCandidate, TResult>): void => {
-    entry.settleReceipt?.(Object.freeze({ kind: "superseded" }));
+    entry.settleReceipt?.({ kind: "superseded" });
   };
 
   const startV1 = (entry: AutoSaveCandidateV1<TCandidate, TResult>): void => {
@@ -221,8 +221,8 @@ export function createAutoSaveQueueInternalV1<TCandidate, TResult>(
     }
 
     void write.then(
-      (result) => settleV1(entry, Object.freeze({ kind: "fulfilled", result })),
-      (error: unknown) => settleV1(entry, Object.freeze({ kind: "rejected", error })),
+      (result) => settleV1(entry, { kind: "fulfilled", result }),
+      (error: unknown) => settleV1(entry, { kind: "rejected", error }),
     );
   };
 
@@ -234,7 +234,7 @@ export function createAutoSaveQueueInternalV1<TCandidate, TResult>(
     if (running !== entry) {
       const error = new TypeError("Auto Save queue settled an inactive write");
       reportFailureV1(error);
-      entry.settleReceipt?.(Object.freeze({ kind: "rejected", error }));
+      entry.settleReceipt?.({ kind: "rejected", error });
       return;
     }
 
@@ -258,17 +258,17 @@ export function createAutoSaveQueueInternalV1<TCandidate, TResult>(
       supersedeV1(entry);
     } else if (settlement.kind === "fulfilled") {
       entry.settleReceipt?.(
-        Object.freeze({
+        {
           kind: "fulfilled",
           result: settlement.result,
-        }),
+        },
       );
     } else {
       entry.settleReceipt?.(
-        Object.freeze({
+        {
           kind: "rejected",
           error: settlement.error,
-        }),
+        },
       );
     }
 
@@ -296,11 +296,11 @@ export function createAutoSaveQueueInternalV1<TCandidate, TResult>(
     settleReceipt?: (receipt: AutoSaveAttemptReceiptInternalV1<TResult>) => void,
   ): void => {
     mutationRevision += 1n;
-    const entry = Object.freeze({
+    const entry = {
       candidate,
       epoch,
       ...(settleReceipt === undefined ? {} : { settleReceipt }),
-    });
+    };
     if (running === null) {
       if (repairOutstanding) requiredRepair = null;
       startV1(entry);
@@ -319,11 +319,11 @@ export function createAutoSaveQueueInternalV1<TCandidate, TResult>(
     epoch = nextEpoch;
     if (pending !== null) supersedeV1(pending);
     pending = null;
-    const repair = Object.freeze({
+    const repair = {
       candidate,
       epoch: nextEpoch,
       ...(settleReceipt === undefined ? {} : { settleReceipt }),
-    });
+    };
     if (running === null) {
       if (requiredRepair !== null) supersedeV1(requiredRepair);
       if (repairOutstanding) {
@@ -340,7 +340,7 @@ export function createAutoSaveQueueInternalV1<TCandidate, TResult>(
     requiredRepair = repair;
   };
 
-  const queue: AutoSaveQueueV1<TCandidate> = Object.freeze({
+  const queue: AutoSaveQueueV1<TCandidate> = {
     enqueue: (candidate: DeepReadonly<TCandidate>) => enqueueV1(candidate),
     establishAnchor: (candidate: DeepReadonly<TCandidate>) => establishAnchorV1(candidate),
 
@@ -357,7 +357,7 @@ export function createAutoSaveQueueInternalV1<TCandidate, TResult>(
         idleResolvers.add(resolve);
       });
     },
-  });
+  };
 
   const createReceiptV1 = (
     operation: (settle: (receipt: AutoSaveAttemptReceiptInternalV1<TResult>) => void) => void,
@@ -394,12 +394,12 @@ export function createAutoSaveQueueInternalV1<TCandidate, TResult>(
         resolve(value);
       };
     });
-    const repair = Object.freeze({
+    const repair = {
       candidate,
       epoch: nextEpoch,
       settleReceipt,
-    });
-    const prepared = Object.freeze({}) as PreparedAutoSaveAnchorInternalV1;
+    };
+    const prepared = {} as PreparedAutoSaveAnchorInternalV1;
     const control: PreparedAutoSaveAnchorControlInternalV1 = {
       status: "prepared",
       commit() {
@@ -433,16 +433,16 @@ export function createAutoSaveQueueInternalV1<TCandidate, TResult>(
       },
     };
     preparedAnchorControlsInternalV1.set(prepared, control);
-    return Object.freeze({
+    return {
       prepared,
       receipt: receipt as Promise<AutoSaveAttemptReceiptInternalV1<unknown>>,
       anchorEpoch: nextEpoch,
-    });
+    };
   };
 
   receiptControlsInternalV1.set(
     queue,
-    Object.freeze({
+    {
       enqueue: (candidate: unknown) =>
         createReceiptV1((settle) => enqueueV1(candidate as DeepReadonly<TCandidate>, settle)),
       establishAnchor: (candidate: unknown) =>
@@ -450,7 +450,7 @@ export function createAutoSaveQueueInternalV1<TCandidate, TResult>(
           establishAnchorV1(candidate as DeepReadonly<TCandidate>, settle)
         ),
       prepareAnchor: (candidate: unknown) => prepareAnchorV1(candidate as DeepReadonly<TCandidate>),
-    }),
+    },
   );
 
   return queue;

@@ -52,7 +52,7 @@ export interface InstalledResolvedGameHmrV1 {
 export function createResolvedGameHmrIdentityV1(
   provenance: DeepReadonly<BuildProvenanceV1>,
 ): ResolvedGameHmrIdentityV1 {
-  return Object.freeze({
+  return ({
     storyId: provenance.story.id,
     storyRevision: provenance.story.revision,
     storyDigest: provenance.story.digest,
@@ -139,7 +139,7 @@ export function installResolvedGameHmrV1<TModule, THandoff>(input: {
       return;
     }
     try {
-      await input.rebootstrap(Object.freeze({ module, reason, handoff: settledHandoff }));
+      await input.rebootstrap({ module, reason, handoff: settledHandoff });
       boundaryClosed = true;
     } catch (error) {
       let retryable = true;
@@ -185,11 +185,11 @@ export function installResolvedGameHmrV1<TModule, THandoff>(input: {
         if (invalidationReason === undefined) return;
         reason = invalidationReason;
       } else {
-        reason = Object.freeze({
+        reason = {
           kind: "identity_changed",
           previous: currentIdentity,
           next: nextIdentity,
-        });
+        };
       }
     } catch (error) {
       // An unresolved candidate cannot prove a compatible/migratable
@@ -202,7 +202,7 @@ export function installResolvedGameHmrV1<TModule, THandoff>(input: {
     if (input.isRebootstrapEligible !== undefined) {
       let eligible: boolean;
       try {
-        eligible = input.isRebootstrapEligible(Object.freeze({ module, reason }));
+        eligible = input.isRebootstrapEligible({ module, reason });
       } catch (error) {
         reportFailure(error);
         return;
@@ -226,7 +226,7 @@ export function installResolvedGameHmrV1<TModule, THandoff>(input: {
     scheduleTransition(module, reason);
   });
 
-  return Object.freeze({
+  return ({
     waitForTransition: () => transition,
   });
 }

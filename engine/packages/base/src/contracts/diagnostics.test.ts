@@ -67,9 +67,13 @@ describe("diagnostic contracts", () => {
       mediaType: "application/json",
       digest: digestBytes(bytes),
       bytes,
+      contentSummary: { failure: false, uiContext: true },
     };
     expect(exportedDebugBundleSchemaV1.parse(valid)).toEqual(valid);
-    expect(() => exportedDebugBundleSchemaV1.parse({ ...valid, summary: {} })).toThrow();
+    expect(() => exportedDebugBundleSchemaV1.parse({ ...valid, extra: true })).toThrow();
+    expect(() =>
+      exportedDebugBundleSchemaV1.parse({ ...valid, contentSummary: { failure: false } })
+    ).toThrow();
   });
 
   it("parses only exact runtime fault branches", () => {
@@ -250,47 +254,6 @@ describe("diagnostic contracts", () => {
   it.each(
     [
       [
-        "foreign root prototype",
-        () => Object.setPrototypeOf(createValidDebugUiContextV1(), { inherited: true }),
-      ],
-      [
-        "null nested prototype",
-        () => {
-          const value = createValidDebugUiContextV1();
-          Object.setPrototypeOf(value.session.devDock, null);
-          return value;
-        },
-      ],
-      [
-        "accessor",
-        () => {
-          const value = createValidDebugUiContextV1();
-          Object.defineProperty(value.session, "routeId", {
-            enumerable: true,
-            get: () => "route.e2e.accessor",
-          });
-          return value;
-        },
-      ],
-      [
-        "symbol key",
-        () => {
-          const value = createValidDebugUiContextV1();
-          Object.defineProperty(value.presentation, Symbol("private"), {
-            enumerable: true,
-            value: true,
-          });
-          return value;
-        },
-      ],
-    ] as const,
-  )("rejects a %s instead of accepting non-plain data", (_name, createValue) => {
-    expect(() => createDebugUiContextSchemaV1().parse(createValue())).toThrow(TypeError);
-  });
-
-  it.each(
-    [
-      [
         "renderer list",
         (value: ReturnType<typeof createValidDebugUiContextV1>) =>
           Reflect.deleteProperty(value.presentation.renderers, "0"),
@@ -315,23 +278,6 @@ describe("diagnostic contracts", () => {
     const value = createValidDebugUiContextV1();
     mutate(value);
     expect(() => createDebugUiContextSchemaV1().parse(value)).toThrow(TypeError);
-  });
-
-  it("rejects arrays with extra properties, accessors, or foreign prototypes", () => {
-    const extraProperty = createValidDebugUiContextV1();
-    Reflect.set(extraProperty.presentation.renderers, "private", true);
-    expect(() => createDebugUiContextSchemaV1().parse(extraProperty)).toThrow(TypeError);
-
-    const accessor = createValidDebugUiContextV1();
-    Object.defineProperty(accessor.session.detailOverlayIds, "0", {
-      enumerable: true,
-      get: () => "overlay.e2e.accessor",
-    });
-    expect(() => createDebugUiContextSchemaV1().parse(accessor)).toThrow(TypeError);
-
-    const foreignPrototype = createValidDebugUiContextV1();
-    Object.setPrototypeOf(foreignPrototype.presentation.visibleInteractionSurfaceIds, {});
-    expect(() => createDebugUiContextSchemaV1().parse(foreignPrototype)).toThrow(TypeError);
   });
 
   it("applies the UTF-8 diagnostic ceiling before branded ID parsing", () => {

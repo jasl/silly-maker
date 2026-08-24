@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import type { TimelineDefinitionV1, TimelineSampleV1 } from "@sillymaker/base";
-import { evaluateTimelineAtV1, timelineDurationV1 } from "@sillymaker/base";
+import { compileTimelineEvaluationInternalV1 } from "@sillymaker/base/runtime/internal";
 
 import type { PresentationClockV1 } from "../presentation-run/presentation-clock.ts";
 import type { PresentationRunOutcomeV1 } from "../presentation-run/presentation-run.ts";
@@ -73,12 +73,12 @@ function createScaledClockV1(base: PresentationClockV1): {
   let anchorScaled = 0;
   let anchorBase = base.now();
   const scaledNow = (): number => anchorScaled + (base.now() - anchorBase) * rate;
-  return Object.freeze({
-    clock: Object.freeze({
+  return {
+    clock: {
       now: scaledNow,
       requestTick: (callback: (now: number) => void) =>
         base.requestTick(() => callback(scaledNow())),
-    }),
+    },
     setRate(next: number): void {
       if (!Number.isFinite(next) || next <= 0) {
         throw new TypeError("timeline playback rate must be > 0");
@@ -88,7 +88,7 @@ function createScaledClockV1(base: PresentationClockV1): {
       rate = next;
     },
     rate: () => rate,
-  });
+  };
 }
 
 export function createTimelinePlayerV1(options: CreateTimelinePlayerOptionsV1): TimelinePlayerV1 {
@@ -99,29 +99,41 @@ export function createTimelinePlayerV1(options: CreateTimelinePlayerOptionsV1): 
   const play = (playOptions: PlayTimelineOptionsV1): TimelineCueRunV1 => {
     if (disposed) throw new TypeError("timeline player is disposed");
     const definition = playOptions.definition;
-    const durationMs = timelineDurationV1(definition);
+    const evaluation = compileTimelineEvaluationInternalV1(definition);
+    const durationMs = evaluation.durationMs;
     const runId = `timeline-run.${String(nextRunSequence)}`;
     nextRunSequence += 1;
     const scaled = createScaledClockV1(options.clock);
     const listeners = new Set<() => void>();
 
     let eventWatermark = 0;
+    const firedEventIds: string[] = [];
     let finished = false;
 
-    const emitEventsUpTo = (sample: TimelineSampleV1): void => {
-      while (eventWatermark < sample.firedEventIds.length) {
-        const eventId = sample.firedEventIds[eventWatermark];
+    const emitEventsUpTo = (elapsed: number): void => {
+      while (true) {
+        const occurrence = evaluation.eventsInternalV1[eventWatermark];
+        if (occurrence === undefined || occurrence.atMs > elapsed) return;
         eventWatermark += 1;
-        if (eventId !== undefined) playOptions.onEvent?.(eventId);
+        firedEventIds.push(occurrence.eventId);
+        playOptions.onEvent?.(occurrence.eventId);
       }
+    };
+
+    const sampleAt = (elapsed: number): TimelineSampleV1 => {
+      emitEventsUpTo(elapsed);
+      return {
+        values: evaluation.sampleValuesInternalV1(elapsed),
+        firedEventIds: [...firedEventIds],
+        completed: elapsed >= durationMs,
+      };
     };
 
     const finishWith = (outcome: PresentationRunOutcomeV1): void => {
       if (finished) return;
       finished = true;
       if (outcome === "completed" || outcome === "skipped" || outcome === "interrupted") {
-        // Settling a cue delivers its full event trail exactly once …
-        emitEventsUpTo(evaluateTimelineAtV1(definition, durationMs));
+        emitEventsUpTo(durationMs);
       }
       // … and every ending clears the overlay back to the settled rendering.
       playOptions.onSample?.(null);
@@ -152,25 +164,23 @@ export function createTimelinePlayerV1(options: CreateTimelinePlayerOptionsV1): 
 
     const unsubscribeRun = run.subscribe(() => {
       if (finished) return;
-      const sample = evaluateTimelineAtV1(definition, elapsedMs());
-      emitEventsUpTo(sample);
+      const sample = sampleAt(elapsedMs());
       playOptions.onSample?.(sample);
       notify();
     });
 
-    const cueRun: TimelineCueRunV1 = Object.freeze({
+    const cueRun: TimelineCueRunV1 = {
       runId,
       cueId: definition.timelineId,
       epoch: playOptions.epoch,
       status: () => run.status(),
-      observe: () =>
-        Object.freeze({
-          cueId: definition.timelineId,
-          status: run.status(),
-          elapsedMs: Math.round(elapsedMs()),
-          durationMs,
-          playbackRate: scaled.rate(),
-        }),
+      observe: () => ({
+        cueId: definition.timelineId,
+        status: run.status(),
+        elapsedMs: Math.round(elapsedMs()),
+        durationMs,
+        playbackRate: scaled.rate(),
+      }),
       pause: () => run.pause(),
       resume: () => run.resume(),
       skipToEnd: () => run.skipToEnd(),
@@ -189,18 +199,18 @@ export function createTimelinePlayerV1(options: CreateTimelinePlayerOptionsV1): 
         listeners.clear();
         active.delete(cueRun);
       },
-    });
+    };
     active.add(cueRun);
     run.start();
     return cueRun;
   };
 
-  return Object.freeze({
+  return {
     play,
     dispose(): void {
       disposed = true;
       for (const cueRun of [...active]) cueRun.dispose();
       active.clear();
     },
-  });
+  };
 }

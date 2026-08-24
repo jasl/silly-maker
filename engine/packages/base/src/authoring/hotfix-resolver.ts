@@ -15,7 +15,6 @@ import type {
 } from "../contracts/hotfix.ts";
 import type { StorySourceIdentityV1 } from "../contracts/game-package.ts";
 import { parseDigest, parseModuleId, parsePositiveSafeInteger } from "../contracts/values.ts";
-import { deepFreezeAuthoringValueV1 } from "./define-gameplay-module.ts";
 
 type Slot = PatchSlotDescriptorV1<PatchSymbolKindV1, unknown>;
 interface NormalizedSurface {
@@ -45,58 +44,36 @@ class HotfixResolutionErrorV1 extends TypeError {
   constructor(code: HotfixResolutionFailureCodeV1, message: string) {
     super(message);
     this.code = code;
-    hotfixResolutionErrorsV1.add(this);
   }
 }
-
-const hotfixResolutionErrorsV1 = new WeakSet<object>();
 
 function hotfixFailure(code: HotfixResolutionFailureCodeV1, message: string): never {
   throw new HotfixResolutionErrorV1(code, message);
 }
 
 function isHotfixResolutionErrorV1(value: unknown): value is HotfixResolutionErrorV1 {
-  return value !== null && typeof value === "object" && hotfixResolutionErrorsV1.has(value);
+  return value instanceof HotfixResolutionErrorV1;
 }
 
-function isThenableWithoutInvokingV1(value: unknown): boolean {
+function isThenableV1(value: unknown): boolean {
   if (value === null || (typeof value !== "object" && typeof value !== "function")) {
     return false;
   }
-  let current: object | null = value;
-  while (current !== null) {
-    const descriptor = Object.getOwnPropertyDescriptor(current, "then");
-    if (descriptor?.get !== undefined || descriptor?.set !== undefined) return true;
-    if (descriptor !== undefined) return typeof descriptor.value === "function";
-    current = Object.getPrototypeOf(current);
-  }
-  return false;
+  return typeof (value as { readonly then?: unknown }).then === "function";
 }
 
 function requirePlainRecordV1(value: unknown, label: string): Record<string, unknown> {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype ||
-    Reflect.ownKeys(value).some((key) => typeof key !== "string")
-  ) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
     hotfixFailure("hotfix.output_invalid", `invalid ${label}`);
   }
   return value as Record<string, unknown>;
 }
 
 function ownDataValueV1(record: Record<string, unknown>, key: string, label: string): unknown {
-  const descriptor = Object.getOwnPropertyDescriptor(record, key);
-  if (
-    descriptor === undefined ||
-    descriptor.get !== undefined ||
-    descriptor.set !== undefined ||
-    !("value" in descriptor)
-  ) {
+  if (!Object.hasOwn(record, key)) {
     hotfixFailure("hotfix.output_invalid", `invalid ${label}.${key}`);
   }
-  return descriptor.value;
+  return record[key];
 }
 
 function requireExactKeysV1(
@@ -104,7 +81,7 @@ function requireExactKeysV1(
   expected: readonly string[],
   label: string,
 ): void {
-  const actual = Object.keys(Object.getOwnPropertyDescriptors(record)).sort();
+  const actual = Object.keys(record).sort();
   const sortedExpected = [...expected].sort();
   if (
     actual.length !== sortedExpected.length ||
@@ -115,34 +92,10 @@ function requireExactKeysV1(
 }
 
 function requireDataArrayV1(value: unknown, label: string): readonly unknown[] {
-  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) {
+  if (!Array.isArray(value)) {
     hotfixFailure("hotfix.output_invalid", `invalid ${label}`);
   }
-  const ownKeys = Reflect.ownKeys(value);
-  const expectedKeys = new Set([
-    "length",
-    ...Array.from({ length: value.length }, (_, index) => String(index)),
-  ]);
-  if (
-    ownKeys.some((key) => typeof key !== "string" || !expectedKeys.has(key)) ||
-    ownKeys.length !== expectedKeys.size
-  ) {
-    hotfixFailure("hotfix.output_invalid", `invalid ${label}`);
-  }
-  const result: unknown[] = [];
-  for (let index = 0; index < value.length; index += 1) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
-    if (
-      descriptor === undefined ||
-      descriptor.get !== undefined ||
-      descriptor.set !== undefined ||
-      !("value" in descriptor)
-    ) {
-      hotfixFailure("hotfix.output_invalid", `invalid ${label}`);
-    }
-    result.push(descriptor.value);
-  }
-  return result;
+  return [...value];
 }
 
 function parseStableIdV1(value: unknown, label: string): string {
@@ -181,7 +134,7 @@ function normalizeSurface(value: unknown, expectedSurface: PatchSurfaceKindV1): 
   );
   const slots: Record<string, Slot> = {};
   const symbolIds = new Set<string>();
-  for (const key of Object.keys(Object.getOwnPropertyDescriptors(slotsRecord))) {
+  for (const key of Object.keys(slotsRecord)) {
     const slotRecord = requirePlainRecordV1(
       ownDataValueV1(slotsRecord, key, `${expectedSurface} PatchSurface slots`),
       `${expectedSurface} Patch slot`,
@@ -260,7 +213,7 @@ function parseUniqueIdListV1(value: unknown, label: string): readonly string[] {
   if (new Set(ids).size !== ids.length) {
     hotfixFailure("hotfix.output_invalid", `duplicate ${label}`);
   }
-  return Object.freeze(ids);
+  return ids;
 }
 
 function validateHotfixEntryV1<TSimulationPatchSurface, TPresentationPatchSurface>(
@@ -294,13 +247,13 @@ function validateHotfixEntryV1<TSimulationPatchSurface, TPresentationPatchSurfac
     "Hotfix identity",
   );
   requireExactKeysV1(identityValue, ["id", "revision"], "Hotfix identity");
-  const identity = Object.freeze({
+  const identity = {
     id: parseStableIdV1(ownDataValueV1(identityValue, "id", "Hotfix identity"), "Hotfix ID"),
     revision: parsePositiveV1(
       ownDataValueV1(identityValue, "revision", "Hotfix identity"),
       "Hotfix revision",
     ),
-  });
+  };
   const targets = requireDataArrayV1(
     ownDataValueV1(manifestValue, "targets", "Hotfix manifest"),
     "Hotfix targets",
@@ -311,8 +264,8 @@ function validateHotfixEntryV1<TSimulationPatchSurface, TPresentationPatchSurfac
     if (surface !== "simulation" && surface !== "presentation") {
       hotfixFailure("hotfix.output_invalid", "invalid Hotfix target surface");
     }
-    return Object.freeze({
-      surface,
+    return {
+      surface: surface as PatchSurfaceKindV1,
       symbolId: parseStableIdV1(
         ownDataValueV1(target, "symbolId", "Hotfix target"),
         "Hotfix target symbol ID",
@@ -321,13 +274,13 @@ function validateHotfixEntryV1<TSimulationPatchSurface, TPresentationPatchSurfac
         ownDataValueV1(target, "expectedProviderDigest", "Hotfix target"),
         "Hotfix target provider digest",
       ),
-    });
+    };
   });
   const targetKeys = targets.map((target) => `${target.surface}:${target.symbolId}`);
   if (new Set(targetKeys).size !== targetKeys.length) {
     hotfixFailure("hotfix.output_invalid", `duplicate Hotfix target: ${identity.id}`);
   }
-  const manifest = deepFreezeAuthoringValueV1({
+  const manifest = {
     identity,
     targetStoryId: parseStableIdV1(
       ownDataValueV1(manifestValue, "targetStoryId", "Hotfix manifest"),
@@ -350,7 +303,7 @@ function validateHotfixEntryV1<TSimulationPatchSurface, TPresentationPatchSurfac
       ownDataValueV1(manifestValue, "supersedes", "Hotfix manifest"),
       "Hotfix supersedes",
     ),
-  }) satisfies HotfixManifestV1;
+  } satisfies HotfixManifestV1;
   return {
     source: value,
     manifest,
@@ -418,7 +371,7 @@ export function resolveHotfixesV1<TSimulationPatchSurface, TPresentationPatchSur
     const replacePort = <TPatchSurface>(
       surface: PatchSurfaceKindV1,
     ): PatchReplacementPortV1<PatchReplacementValuesV1<TPatchSurface>> =>
-      Object.freeze({
+      ({
         replace(symbolId: string, value: unknown): void {
           if (!replacementPortsActive) {
             throw new TypeError("Hotfix replacement port is revoked");
@@ -469,13 +422,13 @@ export function resolveHotfixesV1<TSimulationPatchSurface, TPresentationPatchSur
               `hotfix replacement is not canonical: ${symbolId}`,
             );
           }
-          const trace = Object.freeze({
+          const trace = {
             surface,
             symbolId,
             kind: state.slot.kind,
             previousProviderDigest: state.digest,
             nextProviderDigest: nextDigest,
-          });
+          };
           traces.push(trace);
           replacedTargets.add(targetKey);
           state.digest = nextDigest;
@@ -487,18 +440,16 @@ export function resolveHotfixesV1<TSimulationPatchSurface, TPresentationPatchSur
     try {
       let result: unknown;
       try {
-        result = Reflect.apply(hotfix.source.install, hotfix.source, [
-          {
-            simulation: replacePort<TSimulationPatchSurface>("simulation"),
-            presentation: replacePort<TPresentationPatchSurface>("presentation"),
-          },
-        ]);
+        result = hotfix.source.install({
+          simulation: replacePort<TSimulationPatchSurface>("simulation"),
+          presentation: replacePort<TPresentationPatchSurface>("presentation"),
+        });
       } catch (error) {
         if (isHotfixResolutionErrorV1(error)) throw error;
         hotfixFailure("hotfix.install_threw", `hotfix install threw: ${id}`);
       }
       try {
-        if (isThenableWithoutInvokingV1(result)) {
+        if (isThenableV1(result)) {
           hotfixFailure("hotfix.install_thenable", `hotfix install returned thenable: ${id}`);
         }
       } catch (error) {
@@ -518,17 +469,17 @@ export function resolveHotfixesV1<TSimulationPatchSurface, TPresentationPatchSur
     }
     seen.add(id);
     applied.push(
-      Object.freeze({
-        identity: Object.freeze({
+      {
+        identity: {
           ...hotfix.manifest.identity,
           digest: digestCanonical("sillymaker:hotfix:v1", {
             manifest: hotfix.manifest,
             sourceDigest: hotfix.sourceDigest,
           }),
-        }),
+        },
         ordinal: parsePositiveSafeInteger(hotfixIndex + 1),
-        replacements: Object.freeze([...traces]),
-      }),
+        replacements: [...traces],
+      },
     );
   }
 
@@ -540,13 +491,13 @@ export function resolveHotfixesV1<TSimulationPatchSurface, TPresentationPatchSur
         replacements: hotfix.replacements.filter((replacement) => replacement.surface === surface),
       }))
       .filter((hotfix) => hotfix.replacements.length > 0);
-  const frozenApplied = Object.freeze([...applied]);
-  const patchSet = Object.freeze({
-    digest: digestCanonical("sillymaker:patch-set:v1", frozenApplied),
+  const appliedHotfixes = [...applied];
+  const patchSet = {
+    digest: digestCanonical("sillymaker:patch-set:v1", appliedHotfixes),
     simulationDigest: digestCanonical("sillymaker:patch-set:v1", facetProjection("simulation")),
     presentationDigest: digestCanonical("sillymaker:patch-set:v1", facetProjection("presentation")),
-    appliedHotfixes: frozenApplied,
-  });
+    appliedHotfixes,
+  };
   const appliedById = new Map(applied.map((hotfix) => [hotfix.identity.id, hotfix]));
   const assetReplacements = [...presentation.providers.values()]
     .filter((state) => state.slot.kind === "asset" && state.hotfixId !== null)
@@ -555,20 +506,20 @@ export function resolveHotfixesV1<TSimulationPatchSurface, TPresentationPatchSur
       if (!hotfix) {
         return hotfixFailure("hotfix.output_invalid", "asset Hotfix identity is missing");
       }
-      return Object.freeze({
+      return {
         assetId: state.slot.symbolId,
         provider: presentation.values[state.key],
         hotfixIdentity: hotfix.identity,
-      });
+      };
     });
   const assetPatchSymbols = [...presentation.providers.values()]
     .filter((state) => state.slot.kind === "asset")
     .map((state) => state.slot.symbolId);
-  return deepFreezeAuthoringValueV1({
+  return {
     simulationValues: simulation.values,
     presentationValues: presentation.values,
     assetPatchSymbols,
     assetReplacements,
     patchSet,
-  });
+  };
 }

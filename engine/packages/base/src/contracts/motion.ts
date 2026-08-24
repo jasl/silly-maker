@@ -137,18 +137,18 @@ const motionMaxDurationMsV1 = 60_000;
 const motionMaxDelayMsV1 = 60_000;
 const motionMaxKeyframesV1 = 32;
 
-const motionChannelsV1: readonly MotionChannelV1[] = Object.freeze([
+const motionChannelsV1: readonly MotionChannelV1[] = [
   "offsetX",
   "offsetY",
   "scalePermille",
   "opacityPermille",
   "frame",
-]);
+];
 
 /** Editor-facing frame index cap; the runtime clamps to the content's frame set anyway. */
 const motionMaxFrameIndexV1 = 255;
 
-const motionNamedEasingsV1: readonly MotionNamedEasingV1[] = Object.freeze([
+const motionNamedEasingsV1: readonly MotionNamedEasingV1[] = [
   "linear",
   "ease_in",
   "ease_out",
@@ -156,7 +156,7 @@ const motionNamedEasingsV1: readonly MotionNamedEasingV1[] = Object.freeze([
   "ease_in_cubic",
   "ease_out_cubic",
   "ease_out_back",
-]);
+];
 
 /**
  * The numeric editor baseline for a channel (a new track starts here). The
@@ -213,7 +213,7 @@ function parseMotionEasingV1(value: unknown, path: string): MotionEasingV1 {
     path,
   );
   if (record.kind !== "cubic_bezier") return dataFailure(`${path}/kind`, "motion_easing_invalid");
-  return Object.freeze({
+  return {
     kind: "cubic_bezier" as const,
     x1Permille: requireMotionIntV1(
       record.x1Permille,
@@ -243,7 +243,7 @@ function parseMotionEasingV1(value: unknown, path: string): MotionEasingV1 {
       `${path}/y2Permille`,
       "motion_easing_invalid",
     ),
-  });
+  };
 }
 
 function parseMotionKeyframeV1(
@@ -269,7 +269,7 @@ function parseMotionKeyframeV1(
   }
   const bounds = motionChannelValueBoundsV1(channel);
   const easing = hasEasing ? parseMotionEasingV1(record.easing, `${path}/easing`) : undefined;
-  return Object.freeze({
+  return {
     atPermille: requireMotionIntV1(
       record.atPermille,
       0,
@@ -285,7 +285,7 @@ function parseMotionKeyframeV1(
       "motion_keyframe_value_invalid",
     ),
     ...(easing === undefined ? {} : { easing }),
-  });
+  };
 }
 
 function parseMotionTrackV1(value: unknown, path: string): MotionTrackV1 {
@@ -328,7 +328,7 @@ function parseMotionTrackV1(value: unknown, path: string): MotionTrackV1 {
       );
     }
   }
-  return Object.freeze({ channel, keyframes: Object.freeze(keyframes) });
+  return { channel, keyframes };
 }
 
 function parseMotionIdV1(value: unknown, path: string): string {
@@ -357,29 +357,21 @@ function parseMotionTracksV1(value: unknown, path: string): readonly MotionTrack
     }
     seen.add(track.channel);
   });
-  return Object.freeze(tracks);
+  return tracks;
 }
 
 function parseMotionAuthoringV1(value: unknown, path: string): MotionAuthoringV1 {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype
-  ) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return dataFailure(path, "motion_authoring_invalid");
   }
   const allowed = new Set(["status", "locked", "notes"]);
+  const record = value as Record<string, unknown>;
   const result: { status?: MotionAuthoringStatusV1; locked?: boolean; notes?: string } = {};
-  for (const key of Reflect.ownKeys(value)) {
-    if (typeof key === "symbol" || !allowed.has(key)) {
+  for (const key of Object.keys(record)) {
+    if (!allowed.has(key)) {
       return dataFailure(path, "motion_authoring_invalid");
     }
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    if (descriptor === undefined || descriptor.get !== undefined || descriptor.set !== undefined) {
-      return dataFailure(`${path}/${key}`, "motion_authoring_invalid");
-    }
-    const memberValue: unknown = descriptor.value;
+    const memberValue = record[key];
     if (key === "status") {
       if (memberValue !== "generated" && memberValue !== "human_tuned") {
         return dataFailure(`${path}/status`, "motion_authoring_status_invalid");
@@ -401,13 +393,13 @@ function parseMotionAuthoringV1(value: unknown, path: string): MotionAuthoringV1
       result.notes = memberValue;
     }
   }
-  return Object.freeze(result);
+  return result;
 }
 
 /** Parses the stripped runtime payload embedded in transition definitions. */
 export function parseMotionDefinitionV1(value: unknown, path = "/motion"): MotionDefinitionV1 {
   const record = readExactRecord(value, ["motionId", "durationMs", "delayMs", "tracks"], path);
-  return Object.freeze({
+  return {
     motionId: parseMotionIdV1(record.motionId, `${path}/motionId`),
     durationMs: requireMotionIntV1(
       record.durationMs,
@@ -424,7 +416,7 @@ export function parseMotionDefinitionV1(value: unknown, path = "/motion"): Motio
       "motion_delay_invalid",
     ),
     tracks: parseMotionTracksV1(record.tracks, `${path}/tracks`),
-  });
+  };
 }
 
 /**
@@ -457,7 +449,7 @@ export function parseMotionDocumentV1(value: unknown, path = ""): MotionDocument
   const authoring = hasAuthoring
     ? parseMotionAuthoringV1(record.authoring, `${path}/authoring`)
     : undefined;
-  return Object.freeze({
+  return {
     format: motionDocumentFormatV1,
     version: motionDocumentVersionV1,
     motionId: parseMotionIdV1(record.motionId, `${path}/motionId`),
@@ -478,19 +470,19 @@ export function parseMotionDocumentV1(value: unknown, path = ""): MotionDocument
     ),
     tracks: parseMotionTracksV1(record.tracks, `${path}/tracks`),
     ...(authoring === undefined ? {} : { authoring }),
-  });
+  };
 }
 
 /** Strips authoring metadata into the runtime transition payload. */
 export function motionDefinitionFromDocumentV1(
   motionDocument: MotionDocumentV1,
 ): MotionDefinitionV1 {
-  return Object.freeze({
+  return {
     motionId: motionDocument.motionId,
     durationMs: motionDocument.durationMs,
     delayMs: motionDocument.delayMs,
     tracks: motionDocument.tracks,
-  });
+  };
 }
 
 /** The full run length: delay hold plus the animated span. */
@@ -653,5 +645,5 @@ export function sampleMotionAtV1(
       }
     }
   }
-  return Object.freeze({ offsetX, offsetY, scalePermille, opacityPermille, frameIndex });
+  return { offsetX, offsetY, scalePermille, opacityPermille, frameIndex };
 }

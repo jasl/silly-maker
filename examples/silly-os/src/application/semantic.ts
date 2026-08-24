@@ -65,12 +65,12 @@ export function parseOsInvocationV1(value: unknown): OsInvocationV1 {
       ) {
         throw new TypeError("invalid silly-os fs_write invocation");
       }
-      return Object.freeze({ kind: "fs_write", name: record.name, content: record.content });
+      return ({ kind: "fs_write", name: record.name, content: record.content });
     case "fs_remove":
       if (keys !== "kind\u0000name" || typeof record.name !== "string") {
         throw new TypeError("invalid silly-os fs_remove invocation");
       }
-      return Object.freeze({ kind: "fs_remove", name: record.name });
+      return ({ kind: "fs_remove", name: record.name });
     case "mine_new":
       if (
         keys !== "height\u0000kind\u0000mines\u0000width" ||
@@ -80,7 +80,7 @@ export function parseOsInvocationV1(value: unknown): OsInvocationV1 {
       ) {
         throw new TypeError("invalid silly-os mine_new invocation");
       }
-      return Object.freeze({
+      return ({
         kind: "mine_new",
         width: record.width,
         height: record.height,
@@ -91,12 +91,12 @@ export function parseOsInvocationV1(value: unknown): OsInvocationV1 {
       if (keys !== "kind\u0000x\u0000y" || !isCoordinate(record.x) || !isCoordinate(record.y)) {
         throw new TypeError("invalid silly-os mine invocation");
       }
-      return Object.freeze({ kind: record.kind, x: record.x, y: record.y });
+      return ({ kind: record.kind, x: record.x, y: record.y });
     case "set_wallpaper":
       if (keys !== "kind\u0000wallpaperId" || typeof record.wallpaperId !== "string") {
         throw new TypeError("invalid silly-os wallpaper invocation");
       }
-      return Object.freeze({ kind: "set_wallpaper", wallpaperId: record.wallpaperId });
+      return ({ kind: "set_wallpaper", wallpaperId: record.wallpaperId });
     default:
       throw new TypeError("invalid silly-os invocation");
   }
@@ -105,26 +105,26 @@ export function parseOsInvocationV1(value: unknown): OsInvocationV1 {
 function commandForInvocationV1(invocation: OsInvocationV1): OsCommandV1 {
   switch (invocation.kind) {
     case "fs_write":
-      return Object.freeze({
+      return ({
         kind: "os.fs.write",
         name: invocation.name,
         content: invocation.content,
       });
     case "fs_remove":
-      return Object.freeze({ kind: "os.fs.remove", name: invocation.name });
+      return ({ kind: "os.fs.remove", name: invocation.name });
     case "mine_new":
-      return Object.freeze({
+      return ({
         kind: "os.mine.new",
         width: invocation.width,
         height: invocation.height,
         mines: invocation.mines,
       });
     case "mine_reveal":
-      return Object.freeze({ kind: "os.mine.reveal", x: invocation.x, y: invocation.y });
+      return ({ kind: "os.mine.reveal", x: invocation.x, y: invocation.y });
     case "mine_flag":
-      return Object.freeze({ kind: "os.mine.flag", x: invocation.x, y: invocation.y });
+      return ({ kind: "os.mine.flag", x: invocation.x, y: invocation.y });
     case "set_wallpaper":
-      return Object.freeze({
+      return ({
         kind: "os.desktop.set_wallpaper",
         wallpaperId: invocation.wallpaperId,
       });
@@ -142,24 +142,24 @@ export function projectOsTransientEffectsV1(
     switch (event.kind) {
       case "os.mine.exploded":
         return [
-          Object.freeze({
+          {
             effectId: "effect.os.mine",
-            payload: Object.freeze({ outcome: "exploded", x: event.x, y: event.y }),
-          }),
+            payload: { outcome: "exploded", x: event.x, y: event.y },
+          },
         ];
       case "os.mine.won":
         return [
-          Object.freeze({
+          {
             effectId: "effect.os.mine",
-            payload: Object.freeze({ outcome: "won" }),
-          }),
+            payload: { outcome: "won" },
+          },
         ];
       case "os.fs.saved":
         return [
-          Object.freeze({
+          {
             effectId: "effect.os.saved",
-            payload: Object.freeze({ name: event.name }),
-          }),
+            payload: { name: event.name },
+          },
         ];
       default:
         return [];
@@ -179,26 +179,28 @@ export const osSemanticAdapterV1: CoreSemanticAdapterV1<
 > = {
   createQueries: (state) => simulationForSemanticV1.createQueries(state as never),
   projectGameView: (queries) => simulationForSemanticV1.projectGameView(queries),
-  projectNarrativeView: () => Object.freeze({ pending: null }),
-  actions: () => Object.freeze([]),
-  preview: () => Object.freeze({ kind: "allowed" as const }),
+  projectNarrativeView: () => ({ pending: null }),
+  actions: () => [],
+  preview: () => ({ kind: "allowed" as const }),
   parseInvocation: parseOsInvocationV1,
   commandForInvocation: commandForInvocationV1,
   projectDispatchResult: (result) => {
     if (result.kind === "not_executed") {
-      return Object.freeze({ kind: "not_executed" as const, code: result.code });
+      return ({ kind: "not_executed" as const, code: result.code });
     }
     const execution = result.execution;
-    if (execution.kind === "committed") return Object.freeze({ kind: "committed" as const });
+    if (execution.kind === "committed") return ({ kind: "committed" as const });
     if (execution.kind === "rejected") {
-      return Object.freeze({
+      return ({
         kind: "rejected" as const,
-        codes: Object.freeze(execution.reasons.map((reason) => reason.code)),
+        codes: execution.reasons.map((reason) => reason.code),
       });
     }
-    return Object.freeze({ kind: "faulted" as const, code: execution.fault.code });
+    return ({ kind: "faulted" as const, code: execution.fault.code });
   },
-  invalidInvocationResult: () =>
-    Object.freeze({ kind: "not_executed" as const, code: "validation_failed" as const }),
+  invalidInvocationResult: () => ({
+    kind: "not_executed" as const,
+    code: "validation_failed" as const,
+  }),
   projectTransientEffects: (events) => projectOsTransientEffectsV1(events as readonly OsEventV1[]),
 };

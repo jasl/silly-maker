@@ -24,22 +24,22 @@ const reservedEngineStatePanelIdsV1 = new Set<string>([
 export function createEngineStateTunerPanelsV1(
   port: StateTunerPortV1,
 ): readonly DevDockPanelV1[] {
-  return Object.freeze([
-    Object.freeze({
+  return [
+    {
       id: engineStateInspectorPanelIdV1,
       side: "left" as const,
       title: "状态查看",
       authority: "read_only" as const,
       render: () => <SuspendedEnginePanelV1 port={port} kind="inspector" />,
-    }),
-    Object.freeze({
+    },
+    {
       id: engineStateTunerPanelIdV1,
       side: "left" as const,
       title: "状态编辑",
       authority: "cheat" as const,
       render: () => <SuspendedEnginePanelV1 port={port} kind="tuner" />,
-    }),
-  ]);
+    },
+  ];
 }
 
 export function mergeEngineStateTunerPanelsV1(
@@ -48,7 +48,7 @@ export function mergeEngineStateTunerPanelsV1(
 ): readonly DevDockPanelV1[] {
   if (port === undefined) return storyPanels;
   const filtered = storyPanels.filter((panel) => !reservedEngineStatePanelIdsV1.has(panel.id));
-  return Object.freeze([...createEngineStateTunerPanelsV1(port), ...filtered]);
+  return [...createEngineStateTunerPanelsV1(port), ...filtered];
 }
 
 function SuspendedEnginePanelV1(props: {

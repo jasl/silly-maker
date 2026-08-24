@@ -75,12 +75,12 @@ export function parseAudioAssetSlotV1(value: unknown, path = "/slot"): AudioAsse
   ) {
     return dataFailure(`${path}/loadGroup`, "audio_load_group_invalid");
   }
-  return Object.freeze({
+  return {
     assetId: parseAudioAssetIdV1(record.assetId, `${path}/assetId`),
     kind: record.kind,
     fallback: record.fallback,
     loadGroup: record.loadGroup,
-  });
+  };
 }
 
 export function parseAudioProviderEntryV1(
@@ -103,12 +103,12 @@ export function parseAudioProviderEntryV1(
   if (typeof record.runtimePath !== "string" || record.runtimePath.length === 0) {
     return dataFailure(`${path}/runtimePath`, "audio_runtime_path_invalid");
   }
-  return Object.freeze({
+  return {
     assetId: parseAudioAssetIdV1(record.assetId, `${path}/assetId`),
     runtimePath: record.runtimePath,
     mediaType: record.mediaType,
     durationMs: record.durationMs === null ? null : parsePositiveSafeInteger(record.durationMs),
-  });
+  };
 }
 
 /**
@@ -143,16 +143,14 @@ export function resolveAudioManifestV1(
     providersById.set(provider.assetId, provider);
   }
 
-  return Object.freeze({
-    entries: Object.freeze(
-      slots.map((slot) => {
-        const provider = providersById.get(slot.assetId);
-        return provider === undefined
-          ? Object.freeze({ ...slot, delivery: "silence_fallback" as const, provider: null })
-          : Object.freeze({ ...slot, delivery: "runtime_audio" as const, provider });
-      }),
-    ),
-  });
+  return {
+    entries: slots.map((slot) => {
+      const provider = providersById.get(slot.assetId);
+      return provider === undefined
+        ? { ...slot, delivery: "silence_fallback" as const, provider: null }
+        : { ...slot, delivery: "runtime_audio" as const, provider };
+    }),
+  };
 }
 
 /**
@@ -185,11 +183,11 @@ export interface AudioIntentV1 {
   readonly voice: VoiceIntentV1 | null;
 }
 
-export const silentAudioIntentV1: AudioIntentV1 = Object.freeze({
+export const silentAudioIntentV1: AudioIntentV1 = {
   bgm: null,
   ambient: null,
   voice: null,
-});
+};
 
 function parseGainPermilleV1(value: unknown, path: string): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0 || value > 1000) {
@@ -208,12 +206,12 @@ function parseFadeMsV1(value: unknown, path: string): number {
 export function parseAudioChannelIntentV1(value: unknown, path = "/channel"): AudioChannelIntentV1 {
   const record = readExactRecord(value, ["assetId", "loop", "gainPermille", "fadeMs"], path);
   if (typeof record.loop !== "boolean") return dataFailure(`${path}/loop`, "boolean_expected");
-  return Object.freeze({
+  return {
     assetId: parseAudioAssetIdV1(record.assetId, `${path}/assetId`),
     loop: record.loop,
     gainPermille: parseGainPermilleV1(record.gainPermille, `${path}/gainPermille`),
     fadeMs: parseFadeMsV1(record.fadeMs, `${path}/fadeMs`),
-  });
+  };
 }
 
 export function parseVoiceIntentV1(value: unknown, path = "/voice"): VoiceIntentV1 {
@@ -228,7 +226,7 @@ export function parseVoiceIntentV1(value: unknown, path = "/voice"): VoiceIntent
   if (typeof record.occurrenceId !== "string" || record.occurrenceId.length === 0) {
     return dataFailure(`${path}/occurrenceId`, "occurrence_invalid");
   }
-  return Object.freeze({
+  return {
     assetId: parseAudioAssetIdV1(record.assetId, `${path}/assetId`),
     interactionDefinitionId: parseAudioAssetIdV1(
       record.interactionDefinitionId,
@@ -236,16 +234,16 @@ export function parseVoiceIntentV1(value: unknown, path = "/voice"): VoiceIntent
     ),
     occurrenceId: record.occurrenceId,
     stopPolicy: record.stopPolicy,
-  });
+  };
 }
 
 export function parseAudioIntentV1(value: unknown, path = "/audio"): AudioIntentV1 {
   const record = readExactRecord(value, ["bgm", "ambient", "voice"], path);
-  return Object.freeze({
+  return {
     bgm: record.bgm === null ? null : parseAudioChannelIntentV1(record.bgm, `${path}/bgm`),
     ambient: record.ambient === null
       ? null
       : parseAudioChannelIntentV1(record.ambient, `${path}/ambient`),
     voice: record.voice === null ? null : parseVoiceIntentV1(record.voice, `${path}/voice`),
-  });
+  };
 }

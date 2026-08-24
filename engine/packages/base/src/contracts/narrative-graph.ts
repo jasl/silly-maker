@@ -34,11 +34,11 @@ export interface NarrativeGraphDependenciesV1 {
   readonly stageContentIds: readonly string[];
 }
 
-export const emptyNarrativeDependenciesV1: NarrativeGraphDependenciesV1 = Object.freeze({
-  textIds: Object.freeze([]),
-  assetIds: Object.freeze([]),
-  stageContentIds: Object.freeze([]),
-});
+export const emptyNarrativeDependenciesV1: NarrativeGraphDependenciesV1 = {
+  textIds: [],
+  assetIds: [],
+  stageContentIds: [],
+};
 
 export interface NarrativeGraphNodeV1 {
   readonly nodeId: string;
@@ -64,9 +64,7 @@ export interface NarrativeGraphV1 {
 
 function parseIdListV1(value: unknown, path: string, reason: string): readonly string[] {
   const items = readArray(value, path);
-  return Object.freeze(
-    items.map((item, index) => parseGraphIdV1(item, `${path}/${String(index)}`, reason)),
-  );
+  return items.map((item, index) => parseGraphIdV1(item, `${path}/${String(index)}`, reason));
 }
 
 export function parseNarrativeGraphNodeV1(value: unknown, path = "/node"): NarrativeGraphNodeV1 {
@@ -96,14 +94,14 @@ export function parseNarrativeGraphNodeV1(value: unknown, path = "/node"): Narra
     ) {
       return dataFailure(`${path}/interaction/seenRevision`, "seen_revision_invalid");
     }
-    return Object.freeze({
+    return {
       definitionId: parseGraphIdV1(
         interactionRecord.definitionId,
         `${path}/interaction/definitionId`,
         "definition_id_invalid",
       ),
       seenRevision: interactionRecord.seenRevision,
-    });
+    };
   })();
   if ((record.kind === "interaction") !== (interaction !== null)) {
     return dataFailure(`${path}/interaction`, "narrative_interaction_identity_invalid");
@@ -119,7 +117,7 @@ export function parseNarrativeGraphNodeV1(value: unknown, path = "/node"): Narra
   if (record.source !== null && (typeof record.source !== "string" || record.source.length > 256)) {
     return dataFailure(`${path}/source`, "narrative_source_invalid");
   }
-  return Object.freeze({
+  return {
     nodeId: parseGraphIdV1(record.nodeId, `${path}/nodeId`, "node_id_invalid"),
     kind: record.kind,
     successors: parseIdListV1(record.successors, `${path}/successors`, "node_id_invalid"),
@@ -127,7 +125,7 @@ export function parseNarrativeGraphNodeV1(value: unknown, path = "/node"): Narra
       ? null
       : parseGraphIdV1(record.callTarget, `${path}/callTarget`, "node_id_invalid"),
     interaction,
-    dependencies: Object.freeze({
+    dependencies: {
       textIds: parseIdListV1(
         dependenciesRecord.textIds,
         `${path}/dependencies/textIds`,
@@ -143,9 +141,9 @@ export function parseNarrativeGraphNodeV1(value: unknown, path = "/node"): Narra
         `${path}/dependencies/stageContentIds`,
         "content_id_invalid",
       ),
-    }),
+    },
     source: record.source,
-  });
+  };
 }
 
 export function parseNarrativeGraphV1(value: unknown, path = ""): NarrativeGraphV1 {
@@ -154,14 +152,12 @@ export function parseNarrativeGraphV1(value: unknown, path = ""): NarrativeGraph
   if (nodesValue.length === 0 || nodesValue.length > 10_000) {
     return dataFailure(`${path}/nodes`, "narrative_nodes_invalid");
   }
-  return Object.freeze({
+  return {
     entryNodeId: parseGraphIdV1(record.entryNodeId, `${path}/entryNodeId`, "node_id_invalid"),
-    nodes: Object.freeze(
-      nodesValue.map((node, index) =>
-        parseNarrativeGraphNodeV1(node, `${path}/nodes/${String(index)}`)
-      ),
+    nodes: nodesValue.map((node, index) =>
+      parseNarrativeGraphNodeV1(node, `${path}/nodes/${String(index)}`)
     ),
-  });
+  };
 }
 
 export type NarrativeLintCodeV1 =
@@ -347,5 +343,5 @@ export function lintNarrativeGraphV1(graph: NarrativeGraphV1): readonly Diagnost
     );
   }
 
-  return Object.freeze(diagnostics);
+  return diagnostics;
 }

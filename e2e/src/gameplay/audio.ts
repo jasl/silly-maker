@@ -14,17 +14,15 @@ import { labStageContentIdsV1, labStageTagsV1 } from "../stage-ids.ts";
  * commit-only transient effect stream.
  */
 
-export const labAudioAssetIdsV1 = Object.freeze(
-  {
-    bgmLab: "audio.e2e.bgm.lab",
-    bgmStoreroom: "audio.e2e.bgm.storeroom",
-    ambientHum: "audio.e2e.ambient.hum",
-    voiceIntro: "audio.e2e.voice.cal-intro",
-    voiceDone: "audio.e2e.voice.cal-done",
-    sfxChime: "audio.e2e.sfx.chime",
-    sfxFanfare: "audio.e2e.sfx.fanfare",
-  } as const,
-);
+export const labAudioAssetIdsV1 = {
+  bgmLab: "audio.e2e.bgm.lab",
+  bgmStoreroom: "audio.e2e.bgm.storeroom",
+  ambientHum: "audio.e2e.ambient.hum",
+  voiceIntro: "audio.e2e.voice.cal-intro",
+  voiceDone: "audio.e2e.voice.cal-done",
+  sfxChime: "audio.e2e.sfx.chime",
+  sfxFanfare: "audio.e2e.sfx.fanfare",
+} as const;
 
 export function labVoiceForSayV1(
   definitionId: string,
@@ -34,16 +32,16 @@ export function labVoiceForSayV1(
 
 const labVoiceBySayDefinitionV1: Readonly<
   Record<string, { readonly assetId: string; readonly stopPolicy: "stop_on_advance" | "sustain" }>
-> = Object.freeze({
-  "interaction.e2e.cal-intro": Object.freeze({
+> = {
+  "interaction.e2e.cal-intro": {
     assetId: labAudioAssetIdsV1.voiceIntro,
     stopPolicy: "stop_on_advance" as const,
-  }),
-  "interaction.e2e.cal-done": Object.freeze({
+  },
+  "interaction.e2e.cal-done": {
     assetId: labAudioAssetIdsV1.voiceDone,
     stopPolicy: "sustain" as const,
-  }),
-});
+  },
+};
 
 /** The one background-to-BGM rule shared by playback and prediction. */
 export function labBgmForBackgroundV1(contentId: string | undefined): string {
@@ -85,20 +83,20 @@ export function projectLabTransientEffectsV1(
   for (const event of events) {
     if (event.kind === "lab.sample_collected") {
       requests.push(
-        Object.freeze({
+        {
           effectId: "audio.sfx",
-          payload: Object.freeze({ assetId: labAudioAssetIdsV1.sfxChime }),
-        }),
+          payload: { assetId: labAudioAssetIdsV1.sfxChime },
+        },
       );
     }
     if (event.kind === "lab.procedure_advanced" && event.phase === "complete") {
       requests.push(
-        Object.freeze({
+        {
           effectId: "audio.sfx",
-          payload: Object.freeze({ assetId: labAudioAssetIdsV1.sfxFanfare }),
-        }),
+          payload: { assetId: labAudioAssetIdsV1.sfxFanfare },
+        },
       );
     }
   }
-  return Object.freeze(requests);
+  return requests;
 }

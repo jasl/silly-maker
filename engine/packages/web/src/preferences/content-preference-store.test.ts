@@ -105,7 +105,7 @@ function preferenceRecordValueV1(
     readonly allowedFlags?: number;
   } = {},
 ) {
-  return Object.freeze({
+  return ({
     contractRevision: 1,
     storyId: input.storyId ?? e2eStoryIdV1,
     policyRevision: input.policyRevision ?? 1,
@@ -114,7 +114,7 @@ function preferenceRecordValueV1(
 }
 
 function cloneRecordV1(record: HostStoredRecordV1): HostStoredRecordV1 {
-  return Object.freeze({ ...record, bytes: Uint8Array.from(record.bytes) });
+  return ({ ...record, bytes: Uint8Array.from(record.bytes) });
 }
 
 type PreferenceRecordFixtureInputV1 =
@@ -128,13 +128,13 @@ function createPreferenceRecordFixtureV1(
   const bytes = input.bytes !== undefined
     ? Uint8Array.from(input.bytes)
     : canonicalJsonBytes(input.value);
-  const record: HostStoredRecordV1 = Object.freeze({
+  const record: HostStoredRecordV1 = {
     namespace: "settings",
     key,
     revision: parseNonNegativeSafeInteger(1),
     bytes,
-  });
-  return Object.freeze({
+  };
+  return ({
     async read(
       namespace: Parameters<HostAtomicRecordStoreV1["read"]>[0],
       requestedKey: HostRecordKeyV1,
@@ -144,9 +144,7 @@ function createPreferenceRecordFixtureV1(
         : null;
     },
     async list(namespace: Parameters<HostAtomicRecordStoreV1["list"]>[0]) {
-      return namespace === record.namespace
-        ? Object.freeze([cloneRecordV1(record)])
-        : Object.freeze([]);
+      return namespace === record.namespace ? [cloneRecordV1(record)] : [];
     },
     async commit() {
       throw new Error("unexpected bootstrap write");
@@ -158,7 +156,7 @@ function createInstrumentedRecordStoreV1(delegate = createMemoryHostRecordStoreV
   let commitCount = 0;
   let readCount = 0;
   const expectedRevisions: Array<HostRecordRevisionV1 | null> = [];
-  const records: HostAtomicRecordStoreV1 = Object.freeze({
+  const records: HostAtomicRecordStoreV1 = {
     async read(namespace: Parameters<HostAtomicRecordStoreV1["read"]>[0], key: HostRecordKeyV1) {
       readCount += 1;
       return await delegate.read(namespace, key);
@@ -169,12 +167,12 @@ function createInstrumentedRecordStoreV1(delegate = createMemoryHostRecordStoreV
       expectedRevisions.push(mutations[0].expectedRevision);
       return await delegate.commit(mutations);
     },
-  });
-  return Object.freeze({
+  };
+  return ({
     records,
     commits: () => commitCount,
     reads: () => readCount,
-    expectedRevisions: () => Object.freeze([...expectedRevisions]),
+    expectedRevisions: () => [...expectedRevisions],
   });
 }
 
@@ -211,7 +209,7 @@ async function createHighestBitPreferencePortV1(records: HostAtomicRecordStoreV1
 async function createE2ePreferenceFixtureV1() {
   const instrumented = createInstrumentedRecordStoreV1();
   const port = await createE2ePreferencePortV1(instrumented.records);
-  return Object.freeze({ ...instrumented, port });
+  return ({ ...instrumented, port });
 }
 
 async function createNoFlagPreferenceFixtureV1() {
@@ -222,7 +220,7 @@ async function createNoFlagPreferenceFixtureV1() {
     policy: emptyFlagPolicyV1,
     reportWarning: vi.fn(),
   });
-  return Object.freeze({ ...instrumented, port });
+  return ({ ...instrumented, port });
 }
 
 async function decodeStoredPreferenceRecordV1(
@@ -242,7 +240,7 @@ async function createRetryingPreferenceStorageFixtureV1() {
   const key = contentPreferenceKeyV1(e2eStoryIdV1);
   const expectedRevisions: Array<HostRecordRevisionV1 | null> = [];
   let commitCount = 0;
-  const records: HostAtomicRecordStoreV1 = Object.freeze({
+  const records: HostAtomicRecordStoreV1 = {
     read: delegate.read,
     list: delegate.list,
     async commit(mutations: Parameters<HostAtomicRecordStoreV1["commit"]>[0]) {
@@ -250,7 +248,7 @@ async function createRetryingPreferenceStorageFixtureV1() {
       expectedRevisions.push(mutations[0].expectedRevision);
       if (commitCount === 1) {
         const seeded = await delegate.commit([
-          Object.freeze({
+          {
             kind: "put" as const,
             namespace: "settings" as const,
             key,
@@ -258,10 +256,10 @@ async function createRetryingPreferenceStorageFixtureV1() {
             bytes: canonicalJsonBytes(
               preferenceRecordValueV1({ allowedFlags: emptyContentMaturityFlagsV1 }),
             ),
-          }),
+          },
         ]);
         if (seeded.kind !== "committed") throw new TypeError("failed to seed CAS conflict");
-        return Object.freeze({
+        return ({
           kind: "conflict" as const,
           namespace: "settings" as const,
           key,
@@ -270,13 +268,13 @@ async function createRetryingPreferenceStorageFixtureV1() {
       }
       return await delegate.commit(mutations);
     },
-  });
+  };
   const port = await createE2ePreferencePortV1(records);
-  return Object.freeze({
+  return ({
     records,
     port,
     commits: () => commitCount,
-    expectedRevisions: () => Object.freeze([...expectedRevisions]),
+    expectedRevisions: () => [...expectedRevisions],
   });
 }
 
@@ -286,45 +284,45 @@ async function createFailingPreferenceStorageFixtureV1(input: {
   let commitCount = 0;
   const listener = vi.fn();
   const key = contentPreferenceKeyV1(e2eStoryIdV1);
-  const records: HostAtomicRecordStoreV1 = Object.freeze({
+  const records: HostAtomicRecordStoreV1 = {
     async read() {
       return null;
     },
     async list() {
-      return Object.freeze([]);
+      return [];
     },
     async commit() {
       commitCount += 1;
-      return Object.freeze({
+      return ({
         kind: "conflict" as const,
         namespace: "settings" as const,
         key,
         actualRevision: null,
       });
     },
-  });
+  };
   const port = await createE2ePreferencePortV1(records);
   expect(port.observe()).toEqual({ allowedFlags: input.allowedFlags });
   port.subscribe(listener);
-  return Object.freeze({ port, listener, commits: () => commitCount });
+  return ({ port, listener, commits: () => commitCount });
 }
 
 async function createThrowingStorageFixtureV1() {
   let commitCount = 0;
-  const records: HostAtomicRecordStoreV1 = Object.freeze({
+  const records: HostAtomicRecordStoreV1 = {
     async read() {
       return null;
     },
     async list() {
-      return Object.freeze([]);
+      return [];
     },
     async commit() {
       commitCount += 1;
       throw new Error("storage offline");
     },
-  });
+  };
   const port = await createE2ePreferencePortV1(records);
-  return Object.freeze({ port, commits: () => commitCount });
+  return ({ port, commits: () => commitCount });
 }
 
 async function createThrowingPreferenceSubscriberFixtureV1() {
@@ -338,80 +336,78 @@ async function createThrowingPreferenceSubscriberFixtureV1() {
       throw new Error("warning reporter");
     },
   });
-  return Object.freeze({ records, port, secondListener });
+  return ({ records, port, secondListener });
 }
 
-const invalidStoredPreferenceCasesV1 = Object.freeze(
-  [
-    Object.freeze({
-      name: "non-canonical bytes",
-      record: Object.freeze({
-        bytes: new TextEncoder().encode(
-          '{"contractRevision":1,"storyId":"story.e2e","policyRevision":1,"allowedFlags":2}',
-        ),
-      }),
-      policy: neutralTwoFlagPolicyV1,
-      warning: Object.freeze({
-        code: "content_preference.record_invalid",
-        storyId: e2eStoryIdV1,
-        reason: "non_canonical",
-      }),
-    }),
-    Object.freeze({
-      name: "extra field",
-      record: Object.freeze({ value: { ...preferenceRecordValueV1(), extra: true } }),
-      policy: neutralTwoFlagPolicyV1,
-      warning: Object.freeze({
-        code: "content_preference.record_invalid",
-        storyId: e2eStoryIdV1,
-        reason: "shape",
-      }),
-    }),
-    Object.freeze({
-      name: "unsupported contract revision",
-      record: Object.freeze({
-        value: { ...preferenceRecordValueV1(), contractRevision: 2 },
-      }),
-      policy: neutralTwoFlagPolicyV1,
-      warning: Object.freeze({
-        code: "content_preference.record_invalid",
-        storyId: e2eStoryIdV1,
-        reason: "contract_revision",
-      }),
-    }),
-    Object.freeze({
-      name: "foreign Story",
-      record: Object.freeze({ value: preferenceRecordValueV1({ storyId: "story.other" }) }),
-      policy: neutralTwoFlagPolicyV1,
-      warning: Object.freeze({
-        code: "content_preference.story_mismatch",
-        storyId: e2eStoryIdV1,
-        storedStoryId: "story.other",
-      }),
-    }),
-    Object.freeze({
-      name: "non-uint32 mask",
-      record: Object.freeze({ value: preferenceRecordValueV1({ allowedFlags: -1 }) }),
-      policy: neutralTwoFlagPolicyV1,
-      warning: Object.freeze({
-        code: "content_preference.record_invalid",
-        storyId: e2eStoryIdV1,
-        reason: "mask",
-      }),
-    }),
-    Object.freeze({
-      name: "unknown high bit",
-      record: Object.freeze({ value: preferenceRecordValueV1({ allowedFlags: 0x8000_0000 }) }),
-      policy: emptyFlagPolicyV1,
-      warning: Object.freeze({
-        code: "content_preference.unknown_flags",
-        storyId: e2eStoryIdV1,
-        storedAllowedFlags: 2_147_483_648,
-        unknownFlags: 2_147_483_648,
-      }),
-    }),
-  ] as const,
-);
+const invalidStoredPreferenceCasesV1 = [
+  {
+    name: "non-canonical bytes",
+    record: {
+      bytes: new TextEncoder().encode(
+        '{"contractRevision":1,"storyId":"story.e2e","policyRevision":1,"allowedFlags":2}',
+      ),
+    },
+    policy: neutralTwoFlagPolicyV1,
+    warning: {
+      code: "content_preference.record_invalid",
+      storyId: e2eStoryIdV1,
+      reason: "non_canonical",
+    },
+  },
+  {
+    name: "extra field",
+    record: { value: { ...preferenceRecordValueV1(), extra: true } },
+    policy: neutralTwoFlagPolicyV1,
+    warning: {
+      code: "content_preference.record_invalid",
+      storyId: e2eStoryIdV1,
+      reason: "shape",
+    },
+  },
+  {
+    name: "unsupported contract revision",
+    record: {
+      value: { ...preferenceRecordValueV1(), contractRevision: 2 },
+    },
+    policy: neutralTwoFlagPolicyV1,
+    warning: {
+      code: "content_preference.record_invalid",
+      storyId: e2eStoryIdV1,
+      reason: "contract_revision",
+    },
+  },
+  {
+    name: "foreign Story",
+    record: { value: preferenceRecordValueV1({ storyId: "story.other" }) },
+    policy: neutralTwoFlagPolicyV1,
+    warning: {
+      code: "content_preference.story_mismatch",
+      storyId: e2eStoryIdV1,
+      storedStoryId: "story.other",
+    },
+  },
+  {
+    name: "non-uint32 mask",
+    record: { value: preferenceRecordValueV1({ allowedFlags: -1 }) },
+    policy: neutralTwoFlagPolicyV1,
+    warning: {
+      code: "content_preference.record_invalid",
+      storyId: e2eStoryIdV1,
+      reason: "mask",
+    },
+  },
+  {
+    name: "unknown high bit",
+    record: { value: preferenceRecordValueV1({ allowedFlags: 0x8000_0000 }) },
+    policy: emptyFlagPolicyV1,
+    warning: {
+      code: "content_preference.unknown_flags",
+      storyId: e2eStoryIdV1,
+      storedAllowedFlags: 2_147_483_648,
+      unknownFlags: 2_147_483_648,
+    },
+  },
+] as const;
 
 async function collectProductionImportsV1(directory: string): Promise<string> {
   const repositoryRoot = resolve(import.meta.dirname, "../../../../..");
@@ -462,7 +458,7 @@ describe("Web ContentPreferencePort", () => {
     });
 
     expect(port.observe()).toEqual({ allowedFlags: 0 });
-    expect(Object.isFrozen(port.observe())).toBe(true);
+
     expect(await instrumented.records.list("settings")).toEqual([]);
     expect(instrumented.commits()).toBe(0);
   });

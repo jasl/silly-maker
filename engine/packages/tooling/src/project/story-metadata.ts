@@ -61,7 +61,7 @@ export function parseStoryMetadataV1(value: unknown, source: string): StoryMetad
       return fail(source, `"${key}" must be a story-relative path`);
     }
   }
-  return Object.freeze({
+  return {
     name: record.name,
     description: record.description,
     ...(record.lang === undefined ? {} : { lang: record.lang as string }),
@@ -69,7 +69,7 @@ export function parseStoryMetadataV1(value: unknown, source: string): StoryMetad
     ...(record.themeColor === undefined ? {} : { themeColor: record.themeColor as string }),
     ...(record.shareImage === undefined ? {} : { shareImage: record.shareImage as string }),
     ...(record.icon === undefined ? {} : { icon: record.icon as string }),
-  });
+  };
 }
 
 function escapeHtmlV1(text: string): string {

@@ -165,15 +165,9 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
   input: CreateManagedSurfaceRuntimeKernelInputInternalV1<TState>,
 ): ManagedSurfaceRuntimeKernelInternalV1<TState> {
   const stateAdapter = input.stateAdapter;
-  const getTransientState = stateAdapter.getTransientState;
-  const replaceTransientState = stateAdapter.replaceTransientState;
-  const finalizeTransientTransition = stateAdapter.finalizeTransientTransition;
-  const prepareTerminalTransientTransition = stateAdapter.prepareTerminalTransientTransition;
-  const validateInstallState = stateAdapter.validateInstallState;
-  const finalizeInstallState = stateAdapter.finalizeInstallState;
   const reportSubscriberFailure = input.reportSubscriberFailure;
   let state = input.initialState;
-  let stateInstallGeneration: object = Object.freeze({});
+  let stateInstallGeneration: object = {};
   let transitionInProgress = false;
   const transientListeners = new Set<() => void>();
   const stateListeners = new Set<() => void>();
@@ -181,10 +175,10 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
     ManagedSurfaceRuntimePreparedStateInstallInternalV1<TState>,
     ManagedSurfaceRuntimePreparedStateInstallRecordInternalV1<TState>
   >();
-  const emptyListenerVector = Object.freeze([]) as readonly (() => void)[];
+  const emptyListenerVector: readonly (() => void)[] = [];
 
   const transientStateFor = (stateValue: TState): ManagedSurfaceReducerStateV1 =>
-    Reflect.apply(getTransientState, stateAdapter, [stateValue]) as ManagedSurfaceReducerStateV1;
+    stateAdapter.getTransientState(stateValue);
 
   const currentTransientState = (): ManagedSurfaceReducerStateV1 => transientStateFor(state);
   let stateInstallParticipant:
@@ -316,9 +310,7 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
       stateInstallGeneration = prepared.nextInstallGeneration;
     }
     if (prepared.nextCoordinatorDisposed) fenceTerminalStateInstallParticipant();
-    if (finalizeInstallState !== undefined) {
-      Reflect.apply(finalizeInstallState, stateAdapter, [prepared.nextState]);
-    }
+    stateAdapter.finalizeInstallState?.(prepared.nextState);
   };
 
   const currentTransientFailureReceipt = (
@@ -326,12 +318,12 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
     code: "surface.invalid_transition" | "surface.transition_faulted",
   ): ManagedSurfaceTransitionReceiptV1 => {
     const topologyRevision = currentTransientState().publication.topologyRevision;
-    return Object.freeze({
+    return {
       kind,
       code,
       beforeTopologyRevision: topologyRevision,
       afterTopologyRevision: topologyRevision,
-    });
+    };
   };
 
   const prepareInstallRecord = (
@@ -341,33 +333,28 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
   ): ManagedSurfaceRuntimePreparedStateInstallRecordInternalV1<TState> => {
     const previousPublication = (previousTransientState ?? transientStateFor(expectedState))
       .publication;
-    if (validateInstallState !== undefined) {
-      Reflect.apply(validateInstallState, stateAdapter, [expectedState, nextState]);
-    }
+    stateAdapter.validateInstallState?.(expectedState, nextState);
     const nextPublication = transientStateFor(nextState).publication;
-    return Object.freeze({
+    return {
       expectedState,
       expectedInstallGeneration: stateInstallGeneration,
-      nextInstallGeneration: Object.freeze({}),
+      nextInstallGeneration: {},
       nextState,
       transientPublicationChanged: nextPublication !== previousPublication,
       stateChanged: nextState !== expectedState,
       nextCoordinatorDisposed: nextPublication.coordinatorDisposed,
-    });
+    };
   };
 
   const captureInstallNotification = (
     prepared: ManagedSurfaceRuntimePreparedStateInstallRecordInternalV1<TState>,
-  ): ManagedSurfaceRuntimeInstallNotificationInternalV1 =>
-    Object.freeze({
-      transientListeners: prepared.transientPublicationChanged
-        ? Object.freeze([...transientListeners])
-        : emptyListenerVector,
-      stateListeners: prepared.stateChanged
-        ? Object.freeze([...stateListeners])
-        : emptyListenerVector,
-      nextCoordinatorDisposed: prepared.nextCoordinatorDisposed,
-    });
+  ): ManagedSurfaceRuntimeInstallNotificationInternalV1 => ({
+    transientListeners: prepared.transientPublicationChanged
+      ? [...transientListeners]
+      : emptyListenerVector,
+    stateListeners: prepared.stateChanged ? [...stateListeners] : emptyListenerVector,
+    nextCoordinatorDisposed: prepared.nextCoordinatorDisposed,
+  });
 
   const deliverInstallNotification = (
     notification: ManagedSurfaceRuntimeInstallNotificationInternalV1,
@@ -393,7 +380,7 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
     };
   };
 
-  const kernel: ManagedSurfaceRuntimeKernelInternalV1<TState> = Object.freeze({
+  const kernel: ManagedSurfaceRuntimeKernelInternalV1<TState> = {
     getStateInternalV1: (): TState => state,
     getTransientStateInternalV1: currentTransientState,
     getTransientSnapshotInternalV1: (): DeepReadonly<ManagedSurfacePublicationV1> =>
@@ -412,17 +399,17 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
         transientState.publication.applicationEpoch,
         sequence,
       );
-      return Object.freeze({
+      return {
         identityAllocation: identity.allocation,
         definition: request.definition,
-        target: Object.freeze({
+        target: {
           kind: "transient" as const,
           occurrenceId: identity.occurrenceId,
-        }),
+        },
         surfaceInstanceId: identity.surfaceInstanceId,
         routingLeaseId: identity.routingLeaseId,
         semanticOccurrenceId: request.semanticOccurrenceId,
-      });
+      };
     },
     transitionTransientInternalV1(
       operation: ManagedSurfaceOperationV1,
@@ -437,10 +424,10 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
         const reducerResult = reduceManagedSurfaceV1(previousTransientState, operation);
         const reducerSuccessorState = reducerResult.state === previousTransientState
           ? previousState
-          : Reflect.apply(replaceTransientState, stateAdapter, [
+          : stateAdapter.replaceTransientState(
             previousState,
             reducerResult.state,
-          ]) as TState;
+          );
         const firstTerminalCoordinatorReceipt = reducerResult.receipt.kind === "applied" &&
           reducerResult.receipt.code === "surface.coordinator_disposed";
         const terminalCoordinatorReceipt = reducerResult.receipt.code ===
@@ -449,37 +436,27 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
         let finalizedState: TState;
         if (
           firstTerminalCoordinatorReceipt &&
-          prepareTerminalTransientTransition !== undefined
+          stateAdapter.prepareTerminalTransientTransition !== undefined
         ) {
-          const preparedTerminal = Reflect.apply(
-            prepareTerminalTransientTransition,
-            stateAdapter,
-            [
-              previousState,
-              reducerSuccessorState,
-              operation,
-              reducerResult.receipt,
-            ],
-          ) as Readonly<{
-            readonly state: TState;
-            readonly commitGate: () => void;
-          }>;
+          const preparedTerminal = stateAdapter.prepareTerminalTransientTransition(
+            previousState,
+            reducerSuccessorState,
+            operation,
+            reducerResult.receipt,
+          );
           finalizedState = preparedTerminal.state;
           terminalCommitGate = preparedTerminal.commitGate;
           finalizedReceipt = reducerResult.receipt;
         } else {
-          const finalized = finalizeTransientTransition === undefined ||
+          const finalized = stateAdapter.finalizeTransientTransition === undefined ||
               terminalCoordinatorReceipt
-            ? Object.freeze({ state: reducerSuccessorState, receipt: reducerResult.receipt })
-            : Reflect.apply(finalizeTransientTransition, stateAdapter, [
+            ? { state: reducerSuccessorState, receipt: reducerResult.receipt }
+            : stateAdapter.finalizeTransientTransition(
               previousState,
               reducerSuccessorState,
               operation,
               reducerResult.receipt,
-            ]) as Readonly<{
-              readonly state: TState;
-              readonly receipt: ManagedSurfaceTransitionReceiptV1;
-            }>;
+            );
           finalizedState = finalized.state;
           finalizedReceipt = finalized.receipt;
         }
@@ -520,7 +497,7 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
         notification = captureInstallNotification(prepared);
         if (terminalCommitGate !== undefined) {
           try {
-            Reflect.apply(terminalCommitGate, undefined, []);
+            terminalCommitGate();
           } catch (error) {
             abortPreparedParticipant(participantPhase);
             throw error;
@@ -617,9 +594,7 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
           nextState,
           previousTransientState,
         );
-        const token = Object.freeze(
-          {},
-        ) as ManagedSurfaceRuntimePreparedStateInstallInternalV1<TState>;
+        const token = {} as ManagedSurfaceRuntimePreparedStateInstallInternalV1<TState>;
         preparedStateInstalls.set(token, prepared);
         return token;
       } finally {
@@ -686,8 +661,7 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
       participant: ManagedSurfaceRuntimeStateInstallParticipantInternalV1<TState>,
     ): void {
       if (
-        stateInstallParticipantTerminal || stateInstallParticipant !== null ||
-        typeof participant?.prepareStateInstallInternalV1 !== "function"
+        stateInstallParticipantTerminal || stateInstallParticipant !== null
       ) {
         stateInstallParticipantInvalidInternalV1();
       }
@@ -699,7 +673,7 @@ export function createManagedSurfaceRuntimeKernelInternalV1<TState>(
     subscribeStateInternalV1(listener: () => void): () => void {
       return subscribe(stateListeners, listener);
     },
-  });
+  };
 
   return kernel;
 }
@@ -710,13 +684,13 @@ export function createManagedSurfaceTransientRuntimeKernelInternalV1(
 ): ManagedSurfaceRuntimeKernelInternalV1<ManagedSurfaceReducerStateV1> {
   return createManagedSurfaceRuntimeKernelInternalV1({
     initialState,
-    stateAdapter: Object.freeze({
+    stateAdapter: {
       getTransientState: (state: ManagedSurfaceReducerStateV1) => state,
       replaceTransientState: (
         _state: ManagedSurfaceReducerStateV1,
         nextTransientState: ManagedSurfaceReducerStateV1,
       ) => nextTransientState,
-    }),
+    },
     ...(reportSubscriberFailure === undefined ? {} : { reportSubscriberFailure }),
   });
 }

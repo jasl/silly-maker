@@ -19,13 +19,13 @@ function fakeLeaseV1(initial: { ownerId: string | null; token: number }) {
   const calls = { takeOver: 0, takeOverUnowned: 0 };
   const statusV1 = (): SessionLeaseStatusV1 => {
     if (record.ownerId === null) {
-      return Object.freeze({
+      return ({
         kind: "unowned",
         ownerId: null,
         fencingToken: record.token as unknown as PositiveSafeInteger,
       }) as SessionLeaseStatusV1;
     }
-    return Object.freeze({
+    return ({
       kind: record.ownerId === SELF ? "owned" : "readonly",
       ownerId: record.ownerId,
       fencingToken: record.token as unknown as PositiveSafeInteger,
@@ -42,17 +42,17 @@ function fakeLeaseV1(initial: { ownerId: string | null; token: number }) {
       takeOver: async (): Promise<SessionLeaseOperationResultV1> => {
         calls.takeOver += 1;
         record = { ownerId: SELF, token: record.token + 1 };
-        return Object.freeze({ kind: "updated", status: statusV1() });
+        return ({ kind: "updated", status: statusV1() });
       },
       takeOverUnowned: async (
         expected: PositiveSafeInteger,
       ): Promise<SessionLeaseOperationResultV1> => {
         calls.takeOverUnowned += 1;
         if (record.ownerId !== null || record.token !== Number(expected)) {
-          return Object.freeze({ kind: "rejected", code: "conflict" });
+          return ({ kind: "rejected", code: "conflict" });
         }
         record = { ownerId: SELF, token: record.token + 1 };
-        return Object.freeze({ kind: "updated", status: statusV1() });
+        return ({ kind: "updated", status: statusV1() });
       },
     },
   };
@@ -200,13 +200,13 @@ describe("createWebInstanceLeaseCoordinatorV1", () => {
     fakeB.lease.getStatus = async () => {
       const record = fakeA.getRecord();
       if (record.ownerId === null) {
-        return Object.freeze({
+        return ({
           kind: "unowned",
           ownerId: null,
           fencingToken: record.token as unknown as PositiveSafeInteger,
         }) as SessionLeaseStatusV1;
       }
-      return Object.freeze({
+      return ({
         // From B's perspective A's ownership reads as readonly.
         kind: "readonly",
         ownerId: record.ownerId,

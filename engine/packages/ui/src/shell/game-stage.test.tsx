@@ -282,8 +282,7 @@ describe("GameStageV1", () => {
     expect(screen.getByTestId("stage-scene-interaction")).not.toHaveAttribute("inert");
   });
 
-  it("exports the exact frozen layer ID sequence", () => {
-    expect(Object.isFrozen(stageLayerIdsV1)).toBe(true);
+  it("exports the layer ID sequence", () => {
     expect(stageLayerIdsV1).toEqual(
       [
         "background",

@@ -26,7 +26,7 @@ import {
   parseInteractionOccurrenceId,
   parseInteractionResolution,
   parseStageMutation,
-  reduceStageMutations,
+  reduceAdmittedStageMutations,
 } from "@sillymaker/base/story";
 
 import type { BookshopGameStateV1 } from "./state.ts";
@@ -164,7 +164,7 @@ export type BookshopAttemptV1 = CommandExecutionAttemptEnvelopeV1<
   RngDrawTraceV1
 >;
 
-const commandSchemaV1: RuntimeSchemaV1<BookshopCommandV1> = Object.freeze({
+const commandSchemaV1: RuntimeSchemaV1<BookshopCommandV1> = {
   parse(value: unknown): BookshopCommandV1 {
     if (value === null || typeof value !== "object" || Array.isArray(value)) {
       throw new TypeError("invalid bookshop command");
@@ -178,7 +178,7 @@ const commandSchemaV1: RuntimeSchemaV1<BookshopCommandV1> = Object.freeze({
         readonly expectedOccurrenceId?: unknown;
         readonly resolution?: unknown;
       };
-      return Object.freeze({
+      return ({
         kind,
         expectedOccurrenceId: parseInteractionOccurrenceId(record.expectedOccurrenceId),
         resolution: parseInteractionResolution(record.resolution),
@@ -190,9 +190,9 @@ const commandSchemaV1: RuntimeSchemaV1<BookshopCommandV1> = Object.freeze({
     if (kind !== "bookshop.begin_story" && kind !== "bookshop.earn_coin") {
       throw new TypeError("invalid bookshop command kind");
     }
-    return Object.freeze({ kind });
+    return ({ kind });
   },
-});
+};
 
 function keysV1(value: object): string {
   return Object.keys(value).toSorted().join("\0");
@@ -209,7 +209,7 @@ function parseIntegerV1(value: unknown, label: string): number {
  * Domain-event admission: every emitted event is validated once here before
  * any reducer folds it, so reducers consume ordinary typed data.
  */
-const bookshopEventSchemaV1: RuntimeSchemaV1<BookshopEventV1> = Object.freeze({
+const bookshopEventSchemaV1: RuntimeSchemaV1<BookshopEventV1> = {
   parse(value: unknown): BookshopEventV1 {
     if (value === null || typeof value !== "object" || Array.isArray(value)) {
       throw new TypeError("invalid bookshop event");
@@ -223,7 +223,7 @@ const bookshopEventSchemaV1: RuntimeSchemaV1<BookshopEventV1> = Object.freeze({
       const delta = parseIntegerV1(record.delta, "delta");
       const balance = parseIntegerV1(record.balance, "balance");
       if (delta === 0 || balance < 0) throw new TypeError("invalid bookshop coins event");
-      return Object.freeze({ kind, delta, balance });
+      return ({ kind, delta, balance });
     }
     if (kind === "bookshop.stage_changed") {
       if (keysV1(value) !== "kind\0mutations") {
@@ -233,12 +233,10 @@ const bookshopEventSchemaV1: RuntimeSchemaV1<BookshopEventV1> = Object.freeze({
       if (!Array.isArray(record.mutations) || record.mutations.length === 0) {
         throw new TypeError("invalid bookshop stage event mutations");
       }
-      return Object.freeze({
+      return ({
         kind,
-        mutations: Object.freeze(
-          record.mutations.map((mutation, index) =>
-            parseStageMutation(mutation, `/mutations/${String(index)}`)
-          ),
+        mutations: record.mutations.map((mutation, index) =>
+          parseStageMutation(mutation, `/mutations/${String(index)}`)
         ),
       });
     }
@@ -246,7 +244,7 @@ const bookshopEventSchemaV1: RuntimeSchemaV1<BookshopEventV1> = Object.freeze({
       if (keysV1(value) !== "kind\0next") {
         throw new TypeError("invalid bookshop narrative event");
       }
-      return Object.freeze({
+      return ({
         kind,
         next: bookshopNarrativeStateSchemaV1.parse((value as { readonly next?: unknown }).next),
       });
@@ -262,7 +260,7 @@ const bookshopEventSchemaV1: RuntimeSchemaV1<BookshopEventV1> = Object.freeze({
       ) {
         throw new TypeError("invalid bookshop interaction event");
       }
-      return Object.freeze({
+      return ({
         kind,
         definitionId: record.definitionId,
         occurrenceId: record.occurrenceId,
@@ -270,17 +268,17 @@ const bookshopEventSchemaV1: RuntimeSchemaV1<BookshopEventV1> = Object.freeze({
     }
     throw new TypeError("invalid bookshop event kind");
   },
-});
+};
 
 function passthroughSchemaV1<T>(): RuntimeSchemaV1<T> {
-  return Object.freeze({ parse: (value: unknown) => value as T });
+  return ({ parse: (value: unknown) => value as T });
 }
 
-const debugCommandSchemaV1: RuntimeSchemaV1<never> = Object.freeze({
+const debugCommandSchemaV1: RuntimeSchemaV1<never> = {
   parse(): never {
     throw new TypeError("bookshop debug commands are unsupported");
   },
-});
+};
 
 const kit = createGameAuthoringKit<BookshopSimulationTypesV1>();
 
@@ -305,7 +303,7 @@ const inventoryModuleV1 = kit.defineStatefulModule({
   state: {
     slot: "simulation.inventory",
     schema: bookshopInventoryStateSchemaV1,
-    initial: () => Object.freeze({ coins: 0 }),
+    initial: () => ({ coins: 0 }),
   },
   commandSchema: commandSchemaV1,
   provides: (provide) => [
@@ -314,7 +312,7 @@ const inventoryModuleV1 = kit.defineStatefulModule({
     })),
   ],
   reducers: {
-    "bookshop.coins_changed": (_state, event) => Object.freeze({ coins: event.balance }),
+    "bookshop.coins_changed": (_state, event) => ({ coins: event.balance }),
   },
 });
 
@@ -348,7 +346,7 @@ const stageModuleV1 = kit.defineStatefulModule({
     "bookshop.stage_changed": (state, event) => {
       // Handlers validate applicability before emitting, so a rejected fold
       // here is a programming fault, not a player-visible rejection.
-      const outcome = reduceStageMutations(state, event.mutations);
+      const outcome = reduceAdmittedStageMutations(state, event.mutations);
       if (outcome.kind !== "applied") {
         throw new TypeError("validated bookshop stage mutations must apply");
       }
@@ -389,13 +387,12 @@ export type BookshopGameSimulationV1 = GameSimulation<
 >;
 
 const transactionRunnerV1 = compositionV1.createTransactionRunner({
-  stateSchema: bookshopGameStateSchemaV1,
   eventSchema: bookshopEventSchemaV1,
-  createFault: () => Object.freeze({ code: "bookshop.executor_failed" as const }),
+  createFault: () => ({ code: "bookshop.executor_failed" as const }),
 });
 
 export function createBookshopGameSimulationV1(): BookshopGameSimulationV1 {
-  const commandExecutor: BookshopCommandExecutorV1 = Object.freeze({
+  const commandExecutor: BookshopCommandExecutorV1 = {
     executeAttempt(snapshot, command) {
       const rng = createTransactionalRngV1(snapshot.rng);
       const state = snapshot.state.simulation;
@@ -407,7 +404,7 @@ export function createBookshopGameSimulationV1(): BookshopGameSimulationV1 {
         if (mutations.length === 0) return null;
         // Validate applicability at the decision point so an unappliable
         // mutation rejects the command instead of faulting the fold.
-        const outcome = reduceStageMutations(state.stage, mutations);
+        const outcome = reduceAdmittedStageMutations(state.stage, mutations);
         if (outcome.kind === "rejected") return "bookshop.stage_rejected" as const;
         transaction.emit({ kind: "bookshop.stage_changed", mutations });
         return null;
@@ -490,21 +487,21 @@ export function createBookshopGameSimulationV1(): BookshopGameSimulationV1 {
         return transaction.complete();
       });
     },
-  });
+  };
 
-  const debugCommandExecutor: BookshopDebugCommandExecutorV1 = Object.freeze({
+  const debugCommandExecutor: BookshopDebugCommandExecutorV1 = {
     validate() {
-      return Object.freeze({
+      return ({
         kind: "validation_failed" as const,
-        errors: Object.freeze([
-          Object.freeze({ code: "bookshop.debug_command_unsupported" as const }),
-        ]),
+        errors: [
+          { code: "bookshop.debug_command_unsupported" as const },
+        ],
       });
     },
     executeAttempt() {
       throw new TypeError("bookshop debug commands are unsupported");
     },
-  });
+  };
 
   return defineGameSimulation<BookshopSimulationTypesV1>()({
     contractRevision: 1,
@@ -518,20 +515,20 @@ export function createBookshopGameSimulationV1(): BookshopGameSimulationV1 {
     commandExecutor,
     debugCommandExecutor,
     createBootstrapInput(entropy: BootstrapEntropyV1) {
-      return Object.freeze({ rngSeed: entropy.nextNonZeroUint32() });
+      return ({ rngSeed: entropy.nextNonZeroUint32() });
     },
     createInitialState() {
       return createInitialBookshopGameStateV1();
     },
     createQueries(state: BookshopGameStateV1) {
-      return Object.freeze({
+      return ({
         coins: state.simulation.inventory.coins,
         stage: state.simulation.stage,
         narrative: state.simulation.narrative,
       });
     },
     projectGameView(queries: BookshopQueriesV1) {
-      return Object.freeze({
+      return ({
         coins: queries.coins,
         stage: queries.stage,
       });

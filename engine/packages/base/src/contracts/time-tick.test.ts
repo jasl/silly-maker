@@ -45,7 +45,6 @@ describe("TimeTickV1", () => {
     const unfenced = parseTimeTickV1({ elapsedMs: 500 });
     expect(unfenced).toEqual({ elapsedMs: 500 });
     expect(Object.hasOwn(unfenced, "expectedHoldOccurrenceId")).toBe(false);
-    expect(Object.isFrozen(unfenced)).toBe(true);
 
     const fenced = parseTimeTickV1({
       elapsedMs: 250,
@@ -109,8 +108,6 @@ describe("TimeTickV1", () => {
     expect(afterFirst.pending.totalMs).toBe(1500);
     expect(afterFirst.pending.occurrenceId).toBe(hold.occurrenceId);
     expect(afterFirst.pending.definitionId).toBe(hold.definitionId);
-    expect(Object.isFrozen(afterFirst.pending)).toBe(true);
-
     const afterSecond = applyElapsedToHoldV1(afterFirst.pending, 500);
     if (afterSecond.kind !== "holding") throw new Error("expected holding");
     expect(afterSecond.pending.remainingMs).toBe(500);

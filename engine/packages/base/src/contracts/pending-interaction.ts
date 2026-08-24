@@ -96,7 +96,7 @@ export function parseInteractionJsonObjectV1(value: unknown, path = "/params"): 
         parseValue(item, `${valuePath}/${String(index)}`, depth + 1)
       );
     }
-    if (typeof candidate === "object" && Object.getPrototypeOf(candidate) === Object.prototype) {
+    if (typeof candidate === "object") {
       const keys = Object.keys(candidate);
       if (keys.length > 64) return dataFailure(valuePath, "interaction_json_too_large");
       return Object.fromEntries(
@@ -116,12 +116,7 @@ export function parseInteractionJsonObjectV1(value: unknown, path = "/params"): 
     return dataFailure(valuePath, "interaction_json_value_invalid");
   };
 
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype
-  ) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return dataFailure(path, "object_expected");
   }
   return parseValue(value, path, 0) as StrictJsonObjectV1;

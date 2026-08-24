@@ -214,16 +214,7 @@ describe("TextCatalogSetV1 contracts", () => {
     ]);
   });
 
-  it("requires exact plain-data catalog, locale, and entry records without invoking accessors", () => {
-    let getterCalls = 0;
-    const accessorCatalog = createRawTextCatalogSetV1();
-    Object.defineProperty(accessorCatalog, "defaultLocale", {
-      enumerable: true,
-      get() {
-        getterCalls += 1;
-        return "zh-CN";
-      },
-    });
+  it("requires exact catalog, locale, and entry fields", () => {
     const extraSetField = { ...createRawTextCatalogSetV1(), extra: true };
     const extraCatalogField = createRawTextCatalogSetV1();
     extraCatalogField.catalogs[0] = { ...extraCatalogField.catalogs[0]!, extra: true } as never;
@@ -234,17 +225,10 @@ describe("TextCatalogSetV1 contracts", () => {
     } as never;
 
     for (
-      const invalid of [
-        Object.assign(Object.create(null), createRawTextCatalogSetV1()),
-        extraSetField,
-        extraCatalogField,
-        extraEntryField,
-        accessorCatalog,
-      ]
+      const invalid of [extraSetField, extraCatalogField, extraEntryField]
     ) {
       expect(() => parsePendingTextCatalogSetV1(invalid)).toThrow();
     }
-    expect(getterCalls).toBe(0);
   });
 
   it("rejects duplicate locales and duplicate TextIds within one locale", () => {

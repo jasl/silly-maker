@@ -18,10 +18,10 @@ import { labUiTextV1 } from "./ui-text.ts";
 
 type LabSemanticPublicationV1 = ReturnType<LabApplicationInstanceV1["semantic"]["observe"]>;
 
-const noChoiceReasonsV1 = Object.freeze([]);
-const lockedChoiceReasonsV1 = Object.freeze([
+const noChoiceReasonsV1: readonly string[] = [];
+const lockedChoiceReasonsV1 = [
   "text.e2e.lab.narrative.cal.precise.locked",
-]);
+];
 
 /** Projects the current semantic publication into the one production Narrative selection. */
 export function projectLabNarrativeSurfaceSelectionV1(
@@ -30,19 +30,17 @@ export function projectLabNarrativeSurfaceSelectionV1(
   const narrative = publication.narrative;
   const pending = narrative.pending;
   const choiceAvailability = pending?.kind === "choice"
-    ? Object.freeze(
-      pending.options.map((option, index) => {
-        const observed = narrative.choiceOptions?.[index];
-        const enabled = observed?.choiceId === option.choiceId && observed.enabled;
-        return Object.freeze({
-          choiceId: option.choiceId,
-          status: enabled ? "enabled" as const : "disabled" as const,
-          reasonTextIds: enabled ? noChoiceReasonsV1 : lockedChoiceReasonsV1,
-        });
-      }),
-    )
+    ? (pending.options.map((option, index) => {
+      const observed = narrative.choiceOptions?.[index];
+      const enabled = observed?.choiceId === option.choiceId && observed.enabled;
+      return ({
+        choiceId: option.choiceId,
+        status: enabled ? "enabled" as const : "disabled" as const,
+        reasonTextIds: enabled ? noChoiceReasonsV1 : lockedChoiceReasonsV1,
+      });
+    }))
     : null;
-  return Object.freeze({
+  return ({
     pending,
     history: narrative.history,
     choiceAvailability,
@@ -56,25 +54,25 @@ export function createLabNarrativeSurfaceDefinitionV1(
     readonly replayCurrentVoice: () => boolean;
   }>,
 ): NarrativeSurfaceDefinitionV1<LabSemanticPublicationV1> {
-  return defineNarrativeSurfaceV1(Object.freeze({
+  return defineNarrativeSurfaceV1({
     selectNarrative: projectLabNarrativeSurfaceSelectionV1,
     dispatchResolution: async (request: NarrativeSurfaceResolutionRequestV1) => {
-      await input.semantic.dispatch(Object.freeze({
+      await input.semantic.dispatch({
         kind: "resolve" as const,
         expectedOccurrenceId: request.expectedOccurrenceId,
         resolution: request.resolution,
-      }));
+      });
     },
     dispatchTime: async (tick: DeepReadonly<TimeTickV1>) => {
-      await input.semantic.dispatch(Object.freeze({
+      await input.semantic.dispatch({
         kind: "time" as const,
         tick,
-      }));
+      });
     },
     renderer: LabNarrativeRendererV1,
     resolveText: (_locale: string | null, textId: string) => labUiTextV1(textId),
     replayCurrentVoice: input.replayCurrentVoice,
-  }));
+  });
 }
 
 /** Passive Story skin over composition-owned player state and fenced callbacks. */
@@ -258,8 +256,7 @@ function LabPendingNarrativeV1(
             <Button
               key={value}
               data-lab-dial-value={value}
-              onClick={() =>
-                props.onSubmitCustom(Object.freeze({ value }) satisfies StrictJsonObjectV1)}
+              onClick={() => props.onSubmitCustom(({ value }) satisfies StrictJsonObjectV1)}
             >
               {String(value)}
             </Button>

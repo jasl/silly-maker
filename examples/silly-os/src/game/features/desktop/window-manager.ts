@@ -60,11 +60,11 @@ export function clampOsWindowRectV1(rect: OsWindowRectV1, bounds: OsWindowRectV1
   const height = Math.min(rect.height, bounds.height);
   const x = Math.min(Math.max(rect.x, bounds.x), bounds.x + bounds.width - width);
   const y = Math.min(Math.max(rect.y, bounds.y), bounds.y + bounds.height - height);
-  return Object.freeze({ x, y, width, height });
+  return ({ x, y, width, height });
 }
 
 export function createOsWindowManagerV1(): OsWindowManagerV1 {
-  let windows: readonly OsWindowV1[] = Object.freeze([]);
+  let windows: readonly OsWindowV1[] = [];
   let revision = 0;
   let nextWindow = 1;
   let nextZ = 1;
@@ -82,7 +82,7 @@ export function createOsWindowManagerV1(): OsWindowManagerV1 {
   }
 
   function commit(next: readonly OsWindowV1[]): void {
-    windows = Object.freeze(next);
+    windows = next;
     revision += 1;
     snapshotCache = null;
     for (const listener of [...listeners]) listener();
@@ -94,11 +94,11 @@ export function createOsWindowManagerV1(): OsWindowManagerV1 {
 
   const manager: OsWindowManagerV1 = {
     snapshot() {
-      snapshotCache ??= Object.freeze({
+      snapshotCache ??= {
         windows,
         focusedWindowId: focusedIdOf(windows),
         revision,
-      });
+      };
       return snapshotCache;
     },
     subscribe(listener: () => void) {
@@ -120,14 +120,14 @@ export function createOsWindowManagerV1(): OsWindowManagerV1 {
       const windowId = `window.${String(nextWindow++)}`;
       // Cascade-offset new windows to avoid exact overlap; the caller's desktop rect clamps strays back in.
       const offset = ((nextOrder - 1) % 5) * 24;
-      const cascaded = Object.freeze({
+      const cascaded = {
         ...options.rect,
         x: options.rect.x + offset,
         y: options.rect.y + offset,
-      });
+      };
       commit([
         ...windows,
-        Object.freeze({
+        {
           windowId,
           appId,
           rect: options.bounds === undefined
@@ -137,7 +137,7 @@ export function createOsWindowManagerV1(): OsWindowManagerV1 {
           restoreRect: null,
           z: nextZ++,
           order: nextOrder++,
-        }),
+        },
       ]);
       return windowId;
     },
@@ -189,9 +189,7 @@ export function createOsWindowManagerV1(): OsWindowManagerV1 {
       update(
         windowId,
         (window) =>
-          window.mode === "maximized"
-            ? window
-            : { ...window, rect: Object.freeze({ ...window.rect, x, y }) },
+          window.mode === "maximized" ? window : { ...window, rect: { ...window.rect, x, y } },
       );
     },
     clampToBounds(bounds) {
@@ -204,5 +202,5 @@ export function createOsWindowManagerV1(): OsWindowManagerV1 {
       );
     },
   };
-  return Object.freeze(manager);
+  return manager;
 }

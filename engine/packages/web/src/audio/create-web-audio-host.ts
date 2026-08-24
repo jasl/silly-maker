@@ -295,7 +295,7 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
     });
   };
 
-  return Object.freeze({
+  return ({
     play(input: AudioHostPlayInputV1): void {
       if (disposed) return;
       startChannelV1(input);

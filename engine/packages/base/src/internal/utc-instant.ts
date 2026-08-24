@@ -27,7 +27,7 @@ export function scanUtcInstantFieldsInternalV1(
   ) {
     return null;
   }
-  return Object.freeze({
+  return {
     year: Number(year),
     month: Number(month),
     day: Number(day),
@@ -35,7 +35,7 @@ export function scanUtcInstantFieldsInternalV1(
     minute: Number(minute),
     second: Number(second),
     fraction: fraction ?? "",
-  });
+  };
 }
 
 export function isUtcLeapYearInternalV1(year: number): boolean {
@@ -54,7 +54,7 @@ export function incrementUtcDayInternalV1(
 ): { readonly year: number; readonly month: number; readonly day: number } {
   // Preserve loose day overflow for the legacy filename policy. Its separate
   // forward-normalization pass owns month/year rollover.
-  return Object.freeze({ year, month, day: day + 1 });
+  return { year, month, day: day + 1 };
 }
 
 function hasOnlyZeroFractionDigitsInternalV1(fraction: string): boolean {

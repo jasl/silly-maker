@@ -9,7 +9,7 @@ Active documentation describes the code and decisions maintained after the first
 - [Development](engine/development.md) — setup, repository layout, testing policy, and maintenance workflow.
 - [Story authoring](engine/story-authoring.md) — composing a Story from gameplay and presentation facets.
 - [Agent game guide](engine/agent-game-guide.md) — how to have a coding agent generate a game here.
-- [Windowing and the UI component system](engine/design/window-model.md) — the layered UI contract, windowing recipes, and product slot semantics; the unified Surface lifecycle authority is owned by the [Surface Contract Harness design](engine/design/surface-contract-harness.md).
+- [Windowing and the UI component system](engine/design/window-model.md) — the layered UI contract, windowing recipes, and product slot semantics; the unified Surface lifecycle authority is owned by the [Managed Surface lifecycle contract](engine/design/surface-contract-harness.md).
 - [Feature slices proposal](engine/proposals/feature-slices.md) — extending Module cohesion to whole gameplay verticals; the code-organization answer to layer-file bloat.
 - [Build and release](engine/build-and-release.md) — development server, Player build, optional local handoff Artifact, desktop save server, and smoke verification.
 - [Authoring quickstart](engine/authoring-quickstart.md) — the layered playbook agents and humans follow for Story edits.
@@ -30,10 +30,10 @@ The public documentation site lives in `website/` (VitePress, English and Chines
 - [Desktop persistence durability plan](engine/plans/2026-07-30-desktop-persistence-durability.md) — independent Host-record conformance, crash/cross-process transaction backend, recovery, and real packaged-app promotion before desktop leaves preview.
 - [Snapshot commit performance plan](engine/plans/2026-07-30-snapshot-commit-performance.md) — baseline, digest/serialization reuse, and byte-equivalence gates.
 - [Save migration plan](engine/plans/2026-07-30-save-migration.md) — bounded envelope load order, migration registry, product path, and maintained fixtures.
-- [Managed Surface lifecycle plan](engine/plans/2026-07-30-surface-contract-harness.md) — concise live Surface contracts, Complexity Reset boundaries, and evidence-gated PF6 candidates; the completed micro-slice ledger is archived.
+- [Managed Surface lifecycle plan](engine/plans/2026-07-30-surface-contract-harness.md) — execution status, Complexity Reset boundaries, and evidence-gated PF6 candidates; the deleted micro-slice ledger remains in Git history.
 - [Authoritative determinism guardrails plan](engine/plans/2026-07-31-authoritative-determinism-guardrails.md) — zero-state RNG repair, exact numeric import plus canonical bootstrap/command/evidence admission, simulation-closure diagnostics, isolated probes, and four-runtime parity.
 - [Scene authoring and SillyMaker Studio](engine/design/scene-authoring-and-studio.md) — the accepted Human Authoring Model: first-class Scene documents, authoring geometry with explicit anchors, cue-to-motion binding, and the project-level Studio product split.
-- [Managed Surface lifecycle and contract harness](engine/design/surface-contract-harness.md) — the accepted Surface contract behind the plan above.
+- [Managed Surface lifecycle contract](engine/design/surface-contract-harness.md) — the accepted live Surface contract behind the plan above.
 - [Authoritative simulation determinism boundary](engine/design/deterministic-simulation-boundary.md) — the accepted numeric, entropy, external-oracle, runtime-admission, and non-sandbox contract.
 - [Save migration design](engine/design/save-migration.md) — first-class migration registry and the reworked load order.
 - [Mod composition and distribution](engine/design/mod-system.md) — accepted incubation design; activation is gated behind the production floor and proven reusable capability slices.

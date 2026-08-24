@@ -61,79 +61,65 @@ export function parseRngSeedInternalV1(value: unknown): NonZeroUint32 {
   return parseRngCursorV1(value);
 }
 
-export const rngStateV1Schema: RuntimeSchemaV1<RngStateV1> = Object.freeze({
+export const rngStateV1Schema: RuntimeSchemaV1<RngStateV1> = {
   parse(value: unknown): RngStateV1 {
     try {
       if (
         value === null ||
         typeof value !== "object" ||
-        Array.isArray(value) ||
-        Object.getPrototypeOf(value) !== Object.prototype ||
-        Object.getOwnPropertySymbols(value).length > 0
+        Array.isArray(value)
       ) {
         throw new TypeError("invalid RngStateV1");
       }
-      const descriptors = Object.getOwnPropertyDescriptors(value);
-      if (Object.keys(descriptors).sort().join("\0") !== "algorithm\0cursor\0rawDrawCount") {
+      const record = value as Record<string, unknown>;
+      if (Object.keys(record).sort().join("\0") !== "algorithm\0cursor\0rawDrawCount") {
         throw new TypeError("invalid RngStateV1 fields");
       }
-      for (const descriptor of Object.values(descriptors)) {
-        if (descriptor.get !== undefined || descriptor.set !== undefined) {
-          throw new TypeError("RngStateV1 accessors are forbidden");
-        }
-      }
-      if (descriptors.algorithm?.value !== "xorshift32-v1") {
+      if (record.algorithm !== "xorshift32-v1") {
         throw new TypeError("invalid RngStateV1 algorithm");
       }
-      return Object.freeze({
+      return {
         algorithm: "xorshift32-v1",
-        cursor: parseRngCursorV1(descriptors.cursor?.value),
-        rawDrawCount: parseNonNegativeSafeInteger(descriptors.rawDrawCount?.value),
-      });
+        cursor: parseRngCursorV1(record.cursor),
+        rawDrawCount: parseNonNegativeSafeInteger(record.rawDrawCount),
+      };
     } catch (error) {
       if (error instanceof RngStateSchemaFailureInternalV1) throw error;
       throw new RngStateSchemaFailureInternalV1("invalid RngStateV1", error);
     }
   },
-});
+};
 
 /** @internal Standard-Core finalized-evidence guard; intentionally absent from package barrels. */
 export function parseRngDrawTraceInternalV1(value: unknown): RngDrawTraceV1 {
   if (
     value === null ||
     typeof value !== "object" ||
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype ||
-    Object.getOwnPropertySymbols(value).length !== 0
+    Array.isArray(value)
   ) {
     throw new TypeError("invalid RngDrawTraceV1");
   }
-  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const record = value as Record<string, unknown>;
   if (
-    Object.keys(descriptors).sort().join("\0") !==
+    Object.keys(record).sort().join("\0") !==
       "after\0before\0exclusiveMax\0ordinal\0purpose\0result"
   ) {
     throw new TypeError("invalid RngDrawTraceV1 fields");
   }
-  for (const descriptor of Object.values(descriptors)) {
-    if (descriptor.get !== undefined || descriptor.set !== undefined) {
-      throw new TypeError("RngDrawTraceV1 accessors are forbidden");
-    }
-  }
-  const exclusiveMax = parsePositiveSafeInteger(descriptors.exclusiveMax?.value);
+  const exclusiveMax = parsePositiveSafeInteger(record.exclusiveMax);
   if (exclusiveMax > 0x1_0000_0000) {
     throw new TypeError("RngDrawTraceV1 exclusiveMax exceeds uint32 range");
   }
-  const result = parseNonNegativeSafeInteger(descriptors.result?.value);
+  const result = parseNonNegativeSafeInteger(record.result);
   if (result >= exclusiveMax) throw new TypeError("RngDrawTraceV1 result is out of range");
-  return Object.freeze({
-    ordinal: parsePositiveSafeInteger(descriptors.ordinal?.value),
-    purpose: parsePurpose(descriptors.purpose?.value),
+  return {
+    ordinal: parsePositiveSafeInteger(record.ordinal),
+    purpose: parsePurpose(record.purpose),
     exclusiveMax,
     result,
-    before: rngStateV1Schema.parse(descriptors.before?.value),
-    after: rngStateV1Schema.parse(descriptors.after?.value),
-  });
+    before: rngStateV1Schema.parse(record.before),
+    after: rngStateV1Schema.parse(record.after),
+  };
 }
 
 function parsePurpose(value: unknown): string {
@@ -149,11 +135,11 @@ function parsePurpose(value: unknown): string {
 }
 
 function state(cursor: number, rawDrawCount: number): RngStateV1 {
-  return Object.freeze({
+  return {
     algorithm: "xorshift32-v1",
     cursor: parseRngCursorV1(cursor),
     rawDrawCount: parseNonNegativeSafeInteger(rawDrawCount),
-  });
+  };
 }
 
 export function createTransactionalRngV1(input: NonZeroUint32): RuleRngV1;
@@ -161,7 +147,7 @@ export function createTransactionalRngV1(input: DeepReadonly<RngStateV1>): RuleR
 export function createTransactionalRngV1(
   input: NonZeroUint32 | DeepReadonly<RngStateV1>,
 ): RuleRngV1 {
-  const initial = typeof input === "number" ? state(input, 0) : rngStateV1Schema.parse(input);
+  const initial = typeof input === "number" ? state(input, 0) : input;
   let cursor = initial.cursor as number;
   let rawDrawCount = initial.rawDrawCount as number;
   const traces: RngDrawTraceV1[] = [];
@@ -175,30 +161,19 @@ export function createTransactionalRngV1(
     cursor = next;
     rawDrawCount += 1;
     const after = state(cursor, rawDrawCount);
-    traces.push(
-      Object.freeze({
-        ordinal: parsePositiveSafeInteger(traces.length + 1),
-        purpose,
-        exclusiveMax,
-        result: parseNonNegativeSafeInteger(next % exclusiveMax),
-        before,
-        after,
-      }),
-    );
+    traces.push({
+      ordinal: parsePositiveSafeInteger(traces.length + 1),
+      purpose,
+      exclusiveMax,
+      result: parseNonNegativeSafeInteger(next % exclusiveMax),
+      before,
+      after,
+    });
     return next;
   };
 
-  return Object.freeze({
+  return {
     nextInt(request: DeepReadonly<RuleDrawRequestV1>): NonNegativeSafeInteger {
-      if (
-        request === null ||
-        typeof request !== "object" ||
-        Array.isArray(request) ||
-        Object.getPrototypeOf(request) !== Object.prototype ||
-        Object.keys(request).sort().join("\0") !== "exclusiveMax\0purpose"
-      ) {
-        throw new TypeError("invalid RuleDrawRequestV1");
-      }
       const exclusiveMax = parsePositiveSafeInteger(request.exclusiveMax);
       if (exclusiveMax > 0x1_0000_0000) {
         throw new TypeError("exclusiveMax exceeds uint32 range");
@@ -215,7 +190,7 @@ export function createTransactionalRngV1(
       return state(cursor, rawDrawCount);
     },
     attemptedDraws(): readonly RngDrawTraceV1[] {
-      return Object.freeze([...traces]);
+      return traces.slice();
     },
-  });
+  };
 }

@@ -42,14 +42,18 @@ own external inputs. A Strict Canonical Data violation rejects with
 Story fault normalizer. Use integer, plain, cycle-free command data and do not
 depend on object identity as command semantics.
 
-Finalization validates result kind, candidate Snapshot RNG and run-integrity data, non-commit Snapshot
-identity, declared event/rejection/Debug-error schemas, RNG evidence, and
-Snapshot-free canonical representability once. The Session-owned CommandLog
-trusts that result; the public low-level log performs the same admission at its
-own boundary. Snapshot identities are not cloned by evidence admission. Runtime
-values otherwise follow ordinary JavaScript semantics: `DeepReadonly` is the
-supported author contract, while deliberate mutation through casts or Proxy
-tricks is unsupported rather than defended by recursive freezing.
+Standard Core treats a resolved Simulation executor as a trusted typed
+collaborator. Finalization still enforces result-kind and fallback constraints,
+candidate Snapshot RNG and run-integrity validation, non-commit Snapshot
+identity, digest, and install ordering, but it does not reparse or canonically
+project the executor's event/rejection/RNG evidence. Kit events already crossed
+their one Story `eventSchema` boundary at `emit`; Debug validation errors cross
+their Story schema once at the Debug callback boundary. The public low-level
+`GameSession` and `CommandLog` keep strict canonical evidence admission at their
+external construction boundaries. Runtime values otherwise follow ordinary
+JavaScript semantics: `DeepReadonly` is the supported author contract, while
+deliberate mutation through casts or Proxy tricks is unsupported rather than
+defended by recursive freezing.
 
 For module wiring, `createGameAuthoringKitV1` captures the Game type family once and provides `defineCapability` (typed tokens), `defineStatefulModule`/`defineStatelessModule` helpers (omit absent command/query surfaces; a stateful module declares a `reducers` map from domain-event kinds to folds over its own slice), `provides` factories that build narrow read-only ports from the module's own State slice, `requires` declarations that feed the validated capability DAG and the module's serialized dependency vector (`transaction.read(token)` resolves any composed provider; the declaration documents and validates the dependency, it does not gate the read), and `initializesAfter` for startup order. `composeModules` validates disjoint State-slot ownership, the capability DAG, and the lifecycle DAG with stable diagnostic codes, compiles event kinds directly to their ordered subscribers, and emits ordinary low-level bindings for `defineGameSimulation`, so kit and hand-written modules never form two authorities.
 
@@ -68,7 +72,7 @@ Use `defineGameSimulation` to bind:
 
 Cross-module commands remain Story-owned orchestration. The handler decides against the command-start Snapshot, emits domain events for every decided outcome, and commits a complete candidate or rejects without changing the current Snapshot. Deterministic rule code uses the supplied serializable RNG capabilities rather than ambient time or `Math.random()`.
 
-The kit composition's `createTransactionRunner` owns the mechanics of that orchestration: the Story handler reads capabilities against the command-start Snapshot, performs every gameplay refusal via `reject(...)` before emitting, and journals decided outcomes with `emit(event)` (validated once against the Story `eventSchema` at emit time); `emit` never rejects — an event is a decided fact of the commit. After `complete()`, the engine folds the journal deterministically through the cold-compiled subscriber plan: events replay in emission order, and within one event the subscribed module reducers run in locale-independent UTF-16 code-unit module-ID order, each folding its own current slice forward. Handlers read the command-start snapshot; repeated events for one owner read that owner's running proposal. Each touched owner then re-validates once, and all admitted slices materialize into one aggregate candidate in a single batched parent copy before aggregate validation. The engine produces the commit/reject/fault attempt envelope (the committed envelope carries the event journal) with full RNG and sequence rollback. The same order reaches the candidate Snapshot, CommandLog evidence, and authoritative replay; Host locale never chooses gameplay order. Events with no subscribed reducer are journal-only broadcast evidence for UI projections and tests. The transaction surface exists only inside command executors; UI and automation never receive it.
+The kit composition's `createTransactionRunner` owns the mechanics of that orchestration: the Story handler reads capabilities against the command-start Snapshot, performs every gameplay refusal via `reject(...)` before emitting, and journals decided outcomes with `emit(event)` (validated once against the Story `eventSchema` at emit time); `emit` never rejects — an event is a decided fact of the commit. After `complete()`, the engine folds the journal deterministically through the cold-compiled subscriber plan: events replay in emission order, and within one event the subscribed module reducers run in locale-independent UTF-16 code-unit module-ID order, each folding its own current slice forward. Handlers read the command-start snapshot; repeated events for one owner read that owner's running proposal. Each touched owner then re-validates once, and all admitted slices materialize into one aggregate candidate in a single batched parent copy. `validateCandidate` is the only aggregate cross-slice invariant seam; the runner does not reparse the whole candidate through the aggregate State schema. The engine produces the commit/reject/fault attempt envelope (the committed envelope carries the event journal) with full RNG and sequence rollback. The same order reaches the candidate Snapshot, CommandLog evidence, and authoritative replay; Host locale never chooses gameplay order. Events with no subscribed reducer are journal-only broadcast evidence for UI projections and tests. The transaction surface exists only inside command executors; UI and automation never receive it.
 
 ### Design queries and semantic actions
 
@@ -148,9 +152,9 @@ Discrete frame swaps (blinks, breathing sheets, burst frame runs) are the same M
 
 Clickable body/prop zones are authored as Regions documents: a `sillymaker.regions` JSON file (`*.regions.json`, strictly admitted) declaring named regions — bounding box plus accessible name, optionally refined by a `polygonPoints` shape (pointer hits then follow the polygon via CSS clip-path; keyboard activation keeps the box) and a `hoverAssetId` silhouette highlight the host reveals on hover/focus when the Story passes an `assets` registry. Story code imports the document, runs `parseRegionsDocumentV1` once, and hands `document.regions` to the content catalog's `resolveContent` (`hitRegions`); activations arrive through the stage's `onHitRegionActivate` and become ordinary semantic invocations — regions never carry gameplay authority, and hover state never enters State, Saves, or replay. `story check` lints every regions file (admission, unique ids, filename↔id agreement); Studio's Regions workspace edits them against the compiled scene's real rendering, and `story regions trace <image.png>` bootstraps a document from a bitmap alpha silhouette (status `generated`) for hand tuning.
 
-Chrome placement (HUD icons, docked boards, tab hot zones, sheet return anchors — the DOM chrome outside the semantic stage) is authored as Chrome-layout documents: a `sillymaker.chrome-layout` JSON file (`*.chrome-layout.json`, strictly admitted) carrying one surface's hand-tuned geometry in logical canvas space — `boxes` (position + size; negative positions are legal for parked/peeking elements), `anchors` (position-only points for self-sizing elements), and `offsets` (named integer scalars such as font-metric nudges). Story code imports the document, runs `parseChromeLayoutDocument` once, and reads named entries as frozen typed data (fail fast on unknown names); behavior — board exclusivity, occupancy gates, intent legality — stays in Story code, and layout documents never enter State, Saves, digests, or replay. `story check` lints every layout file (admission, unique ids, filename↔id agreement), and the dev server exposes the same CAS write-back ports as motion and regions documents. Studio's Chrome workspace (界面布局) edits them visually: every discovered layout document lists in the panel, boxes drag and corner-scale on the canvas, anchors drag as points, offsets edit as numbers, and saving graduates `authoring.status` to `human_tuned` through CAS. Declaring an optional `chrome` fixture on the Studio binding (`StudioChromeFixtureV1`: `layoutId` + `render(draft)` — render the real chrome component with frozen sample data, geometry read from the passed draft) previews the actual UI under the handles; documents without a fixture stay fully editable as a wireframe.
+Chrome placement (HUD icons, docked boards, tab hot zones, sheet return anchors — the DOM chrome outside the semantic stage) is authored as Chrome-layout documents: a `sillymaker.chrome-layout` JSON file (`*.chrome-layout.json`, strictly admitted) carrying one surface's hand-tuned geometry in logical canvas space — `boxes` (position + size; negative positions are legal for parked/peeking elements), `anchors` (position-only points for self-sizing elements), and `offsets` (named integer scalars such as font-metric nudges). Story code imports the document, runs `parseChromeLayoutDocument` once, and reads named entries as ordinary typed data (fail fast on unknown names); behavior — board exclusivity, occupancy gates, intent legality — stays in Story code, and layout documents never enter State, Saves, digests, or replay. `story check` lints every layout file (admission, unique ids, filename↔id agreement), and the dev server exposes the same CAS write-back ports as motion and regions documents. Studio's Chrome workspace (界面布局) edits them visually: every discovered layout document lists in the panel, boxes drag and corner-scale on the canvas, anchors drag as points, offsets edit as numbers, and saving graduates `authoring.status` to `human_tuned` through CAS. Declaring an optional `chrome` fixture on the Studio binding (`StudioChromeFixtureV1`: `layoutId` + `render(draft)` — render the real chrome component with typed sample data, geometry read from the passed draft) previews the actual UI under the handles; documents without a fixture stay fully editable as a wireframe.
 
-Visual scene composition now has two explicit source authorities. Prefer an Authoring Scene (`sillymaker.authoring-scene` V1, `*.authoring-scene.json`) for new hierarchical work: it declares ordered layers, ordered root/child object trees, local transforms, at most one Visual per object, named cues, and closed references to hit regions, motions, timelines, GUI controls, and semantic intents. A stable `objectId` is also the runtime Stage tag; a group may carry transform and children without becoming a Stage entry. The byte source is Strict-JSON/schema admitted once into normalized frozen IR, then a pure compiler flattens each layer by depth-first preorder, composes transforms with deterministic integer/permille rounding, and emits dense z-order.
+Visual scene composition now has two explicit source authorities. Prefer an Authoring Scene (`sillymaker.authoring-scene` V1, `*.authoring-scene.json`) for new hierarchical work: it declares ordered layers, ordered root/child object trees, local transforms, at most one Visual per object, named cues, and closed references to hit regions, motions, timelines, GUI controls, and semantic intents. A stable `objectId` is also the runtime Stage tag; a group may carry transform and children without becoming a Stage entry. The byte source is Strict-JSON/schema admitted once into normalized typed IR, then a pure compiler flattens each layer by depth-first preorder, composes transforms with deterministic integer/permille rounding, and emits dense z-order.
 
 The compiler keeps Player and authoring concerns separate. `runtimePlan` contains only the existing low-level `SceneDocumentV1` plus ordered layer IDs. Object targets, inspection (including transparent and off-canvas objects), JSON-pointer source locations, and catalog-backed hit-region/Motion/Timeline/GUI/intent facets stay on the authoring side and never enter State, Snapshot, Save, or replay. Story code constructs the ordinary Scene accessor with `sceneFromAuthoringRuntimePlan`, then continues to use `cueMutations`, `openMutations`, `cueMayShow`, `sceneStageTransitionBindings`, and `sceneAmbientCatalog`. Authoring paint order is layer order plus DFS preorder. The inspection projection exposes pointer picks explicitly topmost-first—within one object, later catalog regions precede earlier ones after reversal—while keyboard focus stays with the existing input/focus contract and is not derived from z-order.
 
@@ -184,11 +188,14 @@ Reuse the engine pattern, not the Tavern-specific ten-module partition, names, n
 
 A Story ships one `WebGameApplicationV1` declaration (core definition with the semantic adapter, validators, and optional Story extensions; projector; optional Narrative and WholeCanvas definitions; UI slots; Workspace Overlay definitions; labels; input maps) and boots it with `startWebGameApplicationV1`. The composers own the Session, persistence, capability session, startup/runtime diagnostics, input adapters, automation, and disposal — an entry never assembles engine services by hand. Eligible component-only presentation modules may receive Vite React Fast Refresh; application declaration, core/domain, config, ineligible, and unclassified changes fall back to full-page reload unless the product owns an admitted R2 boundary. `installWebGameApplicationHmrV1` is the opt-in successor/persistence-handoff helper. Engine Lab is its first maintained dev-only consumer: a Story-owned Vite identity plugin injects real `BuildIdentity` into a literal-self-accepting composition candidate, then the Web composer replaces Game/Session on the same Host/root. This is conformance evidence, not the default for every Story; ordinary product entries still contain no HMR construction.
 
-When a Story has Narrative, create one frozen five-key input with
-`selectNarrative`, `dispatchResolution`, `renderer`, `resolveText`, and
-`replayCurrentVoice`, pass it to `defineNarrativeSurfaceV1`, and return the
-opaque `NarrativeSurfaceDefinitionV1` as `ui.narrative`. The renderer receives
-immutable pending/history/choice availability plus the current player profile
+When a Story has Narrative, create one six-field input with
+`selectNarrative`, `dispatchResolution`, nullable `dispatchTime`, `renderer`,
+`resolveText`, and nullable `replayCurrentVoice`, pass it to
+`defineNarrativeSurfaceV1`, and return the admitted typed
+`NarrativeSurfaceDefinitionV1` as `ui.narrative`. The public factory validates
+the definition once; internal composition trusts that typed value without
+brand/origin re-admission. The renderer receives read-only typed
+pending/history/choice availability plus the current player profile
 and player view. It can invoke only the supplied occurrence-fenced actions; it
 does not own a player controller, clock, Host, Semantic Stage, Session, or
 writable lifecycle store. `DefaultGameRootV1` mounts the production Host from
@@ -341,8 +348,8 @@ Loads stay available mid-span, and a barrier's `loadRecovery` still owns what
 a restored barrier does. This is orchestration policy, not data safety: every
 commit remains complete, valid, and replayable.
 
-For a whole-canvas primary or exact-parent detail, freeze the seven-key input
-to `defineWholeCanvasSurfaceV1`: `catalog`, `source`, `resolveTarget`,
+For a whole-canvas primary or exact-parent detail, pass one ordinary seven-key
+input to `defineWholeCanvasSurfaceV1`: `catalog`, `source`, `resolveTarget`,
 `dispatchAction`, `renderer`, `prepareTarget`, and `resolveText`. Use a
 publication source when semantic state selects the primary, as Cat Cafe does
 for `catcafe.ending`; use `createWholeCanvasApplicationSourceV1` when local
@@ -394,8 +401,8 @@ finalizer that could target the successor.
 
 `startWebGameApplicationV1` then:
 
-1. for the default document entry, admits the exact frozen runtime Browser/Desktop
-   bootstrap receipt, cross-checks the Desktop Host marker, and attaches to the
+1. for the default document entry, strictly admits the runtime Browser/Desktop
+   bootstrap data once, cross-checks the Desktop Host marker, and attaches to the
    static startup shell; it then creates neutral `ApplicationHostCapabilitiesV1`
    (records, files, metadata clock, and logging) and admits Game bootstrap entropy
    separately;

@@ -31,7 +31,7 @@ function observeStartupSignalsV1(shell: HTMLElement): ApplicationStartupSignalDe
   const details: ApplicationStartupSignalDetailInternalV1[] = [];
   shell.addEventListener(applicationStartupSignalEventNameInternalV1, (event) => {
     const detail = (event as CustomEvent<ApplicationStartupSignalDetailInternalV1>).detail;
-    expect(Object.isFrozen(detail)).toBe(true);
+
     details.push(detail);
   });
   return details;

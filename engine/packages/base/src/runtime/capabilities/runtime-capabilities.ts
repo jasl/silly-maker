@@ -16,48 +16,11 @@ type CapabilityPersistenceResultV1 =
   }
   | { readonly kind: "unavailable" };
 
-const capabilityKeysV1 = ["automationBridge", "cheats", "debugTools"] as const;
-const capabilityFieldsV1 = Object.freeze(
-  {
-    debug_tools: "debugTools",
-    cheats: "cheats",
-    automation_bridge: "automationBridge",
-  } satisfies Record<RuntimeCapabilityIdV1, keyof RuntimeCapabilitiesV1>,
-);
-
-function parseRuntimeCapabilitiesV1(value: unknown): DeepReadonly<RuntimeCapabilitiesV1> {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype ||
-    Reflect.ownKeys(value).length !== capabilityKeysV1.length
-  ) {
-    throw new TypeError("invalid RuntimeCapabilitiesV1");
-  }
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  if (
-    Object.keys(descriptors).toSorted().join("\0") !== capabilityKeysV1.join("\0") ||
-    capabilityKeysV1.some((key) => {
-      const descriptor = descriptors[key];
-      return (
-        descriptor === undefined ||
-        descriptor.get !== undefined ||
-        descriptor.set !== undefined ||
-        !descriptor.enumerable ||
-        typeof descriptor.value !== "boolean"
-      );
-    })
-  ) {
-    throw new TypeError("invalid RuntimeCapabilitiesV1");
-  }
-  const input = value as RuntimeCapabilitiesV1;
-  return Object.freeze({
-    debugTools: input.debugTools,
-    cheats: input.cheats,
-    automationBridge: input.automationBridge,
-  });
-}
+const capabilityFieldsV1 = {
+  debug_tools: "debugTools",
+  cheats: "cheats",
+  automation_bridge: "automationBridge",
+} satisfies Record<RuntimeCapabilityIdV1, keyof RuntimeCapabilitiesV1>;
 
 function parseCapabilityIdV1(value: unknown): RuntimeCapabilityIdV1 {
   if (value !== "debug_tools" && value !== "cheats" && value !== "automation_bridge") {
@@ -73,9 +36,9 @@ export function createRuntimeCapabilityPortV1(input: {
     next: DeepReadonly<RuntimeCapabilitiesV1>,
   ): Promise<CapabilityPersistenceResultV1>;
 }): RuntimeCapabilityPortV1 {
-  let current = parseRuntimeCapabilitiesV1(input.initialState);
+  let current = input.initialState;
   const listeners = new Set<() => void>();
-  const state: ReadonlyViewSourceV1<RuntimeCapabilitiesV1> = Object.freeze({
+  const state: ReadonlyViewSourceV1<RuntimeCapabilitiesV1> = {
     getCurrent: () => current,
     subscribe(listener: () => void) {
       listeners.add(listener);
@@ -83,7 +46,7 @@ export function createRuntimeCapabilityPortV1(input: {
         listeners.delete(listener);
       };
     },
-  });
+  };
   const publish = (next: DeepReadonly<RuntimeCapabilitiesV1>): void => {
     current = next;
     for (const listener of [...listeners]) {
@@ -108,34 +71,25 @@ export function createRuntimeCapabilityPortV1(input: {
       const field = capabilityFieldsV1[capability];
       const previous = current;
       if (previous[field] === enabledValue) {
-        return Object.freeze({ kind: "unchanged" as const, state: previous });
+        return { kind: "unchanged" as const, state: previous };
       }
-      const next = parseRuntimeCapabilitiesV1({ ...previous, [field]: enabledValue });
+      const next = { ...previous, [field]: enabledValue };
       let persistence: CapabilityPersistenceResultV1;
       try {
         persistence = await input.persist(previous, next);
       } catch {
-        return Object.freeze({
+        return {
           kind: "rejected" as const,
           code: "unavailable" as const,
           state: previous,
-        });
+        };
       }
       if (persistence.kind === "committed") {
         publish(next);
-        return Object.freeze({ kind: "updated" as const, state: next });
+        return { kind: "updated" as const, state: next };
       }
       if (persistence.kind === "conflict") {
-        let authoritative: DeepReadonly<RuntimeCapabilitiesV1>;
-        try {
-          authoritative = parseRuntimeCapabilitiesV1(persistence.state);
-        } catch {
-          return Object.freeze({
-            kind: "rejected" as const,
-            code: "unavailable" as const,
-            state: previous,
-          });
-        }
+        const authoritative = persistence.state;
         if (
           authoritative.debugTools !== previous.debugTools ||
           authoritative.cheats !== previous.cheats ||
@@ -143,17 +97,17 @@ export function createRuntimeCapabilityPortV1(input: {
         ) {
           publish(authoritative);
         }
-        return Object.freeze({
+        return {
           kind: "rejected" as const,
           code: "conflict" as const,
           state: authoritative,
-        });
+        };
       }
-      return Object.freeze({
+      return {
         kind: "rejected" as const,
         code: "unavailable" as const,
         state: previous,
-      });
+      };
     });
     tail = operation.then(
       () => undefined,
@@ -162,5 +116,5 @@ export function createRuntimeCapabilityPortV1(input: {
     return operation;
   };
 
-  return Object.freeze({ state, setEnabled });
+  return { state, setEnabled };
 }

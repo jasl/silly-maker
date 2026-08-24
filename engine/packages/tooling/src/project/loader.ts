@@ -11,10 +11,10 @@ import type { ProjectModuleLoaderV1 } from "./commands.ts";
  * resolve them natively.
  */
 export function createImportProjectModuleLoaderV1(repositoryRoot: string): ProjectModuleLoaderV1 {
-  return Object.freeze({
+  return {
     loadModule: async (repositoryRelativePath: string) => {
       const url = pathToFileURL(join(repositoryRoot, repositoryRelativePath)).href;
       return (await import(url)) as Record<string, unknown>;
     },
-  });
+  };
 }

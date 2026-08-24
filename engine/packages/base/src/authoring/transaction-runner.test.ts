@@ -77,20 +77,6 @@ function exactNumberSchemaV1<TState>(key: string): RuntimeSchemaV1<TState> {
   });
 }
 
-const bankStateSchemaV1: RuntimeSchemaV1<BankStateV1> = Object.freeze({
-  parse(value: unknown): BankStateV1 {
-    const record = value as BankStateV1;
-    parseNonNegativeSafeInteger(record.simulation.vault.coins);
-    parseNonNegativeSafeInteger(record.simulation.ledger.entries);
-    return Object.freeze({
-      simulation: Object.freeze({
-        vault: Object.freeze({ coins: record.simulation.vault.coins }),
-        ledger: Object.freeze({ entries: record.simulation.ledger.entries }),
-      }),
-    });
-  },
-});
-
 // Admits shapes only: value ranges stay with each module's slice schema so
 // tests can drive slice-schema faults through admitted events.
 const bankEventSchemaV1: RuntimeSchemaV1<BankEventV1> = Object.freeze({
@@ -154,7 +140,6 @@ function createBankFixtureV1(foldOrder?: string[]) {
   });
   const composition = kit.composeModules([vault, ledger]);
   const runner = composition.createTransactionRunner({
-    stateSchema: bankStateSchemaV1,
     eventSchema: bankEventSchemaV1,
     createFault: (cause) =>
       Object.freeze({
@@ -246,17 +231,12 @@ function createStructuralFixtureV1(moduleCount: number) {
       },
     });
   });
-  let aggregateParses = 0;
+  let eventParses = 0;
   const runner = kit.composeModules(modules as unknown as readonly AuthoringKitAnyModuleV1[])
     .createTransactionRunner({
-      stateSchema: Object.freeze({
-        parse(value: unknown): StructuralStateV1 {
-          aggregateParses += 1;
-          return value as StructuralStateV1;
-        },
-      }),
       eventSchema: Object.freeze({
         parse(value: unknown): StructuralEventV1 {
+          eventParses += 1;
           const event = value as StructuralEventV1;
           if (typeof event.kind !== "string" || !Number.isSafeInteger(event.delta)) {
             throw new TypeError("invalid structural event");
@@ -276,8 +256,8 @@ function createStructuralFixtureV1(moduleCount: number) {
     integrity: createPristineRunIntegrityV1(),
   });
   return {
-    aggregateParses: () => aggregateParses,
     counter,
+    eventParses: () => eventParses,
     eventKinds,
     foldOrder,
     moduleIds,
@@ -519,7 +499,6 @@ describe("kit transaction runner", () => {
       reducers: {},
     });
     const runner = kit.composeModules([vault, ledger]).createTransactionRunner({
-      stateSchema: bankStateSchemaV1,
       // A pass-through schema abdicates kind validation; the kit still
       // refuses kindless events with its own stable diagnostic.
       eventSchema: Object.freeze({ parse: (value: unknown) => value as BankEventV1 }),
@@ -635,7 +614,6 @@ describe("kit transaction runner", () => {
       },
     });
     const runner = kit.composeModules([vault, ledger]).createTransactionRunner({
-      stateSchema: bankStateSchemaV1,
       eventSchema: bankEventSchemaV1,
       createFault: () =>
         Object.freeze({ code: "bank.transaction_failed" as const, diagnosticCode: null }),
@@ -740,7 +718,7 @@ describe("kit transaction runner", () => {
       aggregateMaterializations: 1,
     });
     expect(fixture.sliceParses.reduce((sum, count) => sum + count, 0)).toBe(1);
-    expect(fixture.aggregateParses()).toBe(1);
+    expect(fixture.eventParses()).toBe(1);
   });
 
   it("folds repeated events in order and validates/materializes their owner once", () => {
@@ -765,7 +743,7 @@ describe("kit transaction runner", () => {
       aggregateMaterializations: 1,
     });
     expect(fixture.sliceParses[0]).toBe(1);
-    expect(fixture.aggregateParses()).toBe(1);
+    expect(fixture.eventParses()).toBe(3);
   });
 
   it("keeps UTF-16 subscriber order while batching sixteen owner writes", () => {
@@ -787,7 +765,7 @@ describe("kit transaction runner", () => {
       aggregateMaterializations: 1,
     });
     expect(fixture.sliceParses).toEqual(Array.from({ length: 16 }, () => 1));
-    expect(fixture.aggregateParses()).toBe(1);
+    expect(fixture.eventParses()).toBe(1);
   });
 
   it("does no reducer or materialization work for a journal-only event", () => {
@@ -807,7 +785,7 @@ describe("kit transaction runner", () => {
       slotMaterializations: 0,
       aggregateMaterializations: 0,
     });
-    expect(fixture.aggregateParses()).toBe(1);
+    expect(fixture.eventParses()).toBe(1);
   });
 
   it("rejects exact and parent/child State slots as conflicting module ownership", () => {

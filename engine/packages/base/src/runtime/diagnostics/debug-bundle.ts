@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 import type { PlayerDiagnosticsPortV1 } from "../../contracts/application.ts";
-import { canonicalJsonBytes } from "../../contracts/canonical-json.ts";
 import {
   DebugBundleEnvelopeSchemaFailureV1,
   debugBundleJsonLimitsV1,
@@ -13,7 +12,10 @@ import type {
 import { digestBytes, digestCanonical } from "../../contracts/digest.ts";
 import { RngStateSchemaFailureInternalV1 } from "../../contracts/rng.ts";
 import type { IsoUtcInstant } from "../../contracts/host.ts";
-import { parseStrictJson } from "../../contracts/strict-json.ts";
+import {
+  canonicalJsonBytesWithStrictLimitsInternalV1,
+  parseStrictJson,
+} from "../../contracts/strict-json.ts";
 import type { StrictJsonErrorCodeV1 } from "../../contracts/strict-json.ts";
 import type { DeepReadonly, Digest, RuntimeSchemaV1 } from "../../contracts/values.ts";
 import { scrubRuntimeOperationFaultV1 } from "./privacy.ts";
@@ -143,15 +145,15 @@ function parseBundleV1<TSnapshot, TBundle extends DebugBundleDigestEnvelopeV1<TS
   try {
     const bundle = context.bundleSchema.parse(value);
     context.validateEnvelope(bundle);
-    return Object.freeze({ kind: "parsed" as const, bundle });
+    return { kind: "parsed" as const, bundle };
   } catch (error) {
     if (error instanceof RngStateSchemaFailureInternalV1) {
-      return Object.freeze({ kind: "rejected" as const, code: error.code });
+      return { kind: "rejected" as const, code: error.code };
     }
     if (error instanceof DebugBundleEnvelopeSchemaFailureV1) {
-      return Object.freeze({ kind: "rejected" as const, code: error.code });
+      return { kind: "rejected" as const, code: error.code };
     }
-    return Object.freeze({ kind: "rejected" as const, code: "envelope.schema_invalid" as const });
+    return { kind: "rejected" as const, code: "envelope.schema_invalid" as const };
   }
 }
 
@@ -164,25 +166,24 @@ function validateStateDigestsV1<TSnapshot, TBundle extends DebugBundleDigestEnve
     readonly code: "digest.replay_base_state_mismatch" | "digest.current_state_mismatch";
   } {
   if (!hasMatchingStateDigestV1(bundle.replayBase, bundle.replayBaseStateDigest)) {
-    return Object.freeze({
+    return {
       kind: "rejected" as const,
       code: "digest.replay_base_state_mismatch" as const,
-    });
+    };
   }
   if (!hasMatchingStateDigestV1(bundle.currentSnapshot, bundle.currentStateDigest)) {
-    return Object.freeze({
+    return {
       kind: "rejected" as const,
       code: "digest.current_state_mismatch" as const,
-    });
+    };
   }
-  return Object.freeze({ kind: "valid" as const });
+  return { kind: "valid" as const };
 }
 
-/** Encodes one schema-validated Debug Bundle to its canonical Strict JSON representation. */
-export function encodeDebugBundleV1<
+function encodeDebugBundleInputV1<
   TSnapshot,
   TBundle extends DebugBundleDigestEnvelopeV1<TSnapshot>,
->(bundle: TBundle, context: DebugBundleCodecContextV1<TSnapshot, TBundle>): Uint8Array {
+>(bundle: unknown, context: DebugBundleCodecContextV1<TSnapshot, TBundle>): Uint8Array {
   const parsed = parseBundleV1(bundle, context);
   if (parsed.kind === "rejected") {
     throw new TypeError(`invalid Debug Bundle: ${parsed.code}`);
@@ -195,12 +196,22 @@ export function encodeDebugBundleV1<
         : "Debug Bundle current Snapshot digest mismatch",
     );
   }
-  const bytes = canonicalJsonBytes(parsed.bundle);
-  const preflight = parseStrictJson(bytes, debugBundleJsonLimitsV1);
-  if (!preflight.ok) {
-    throw new TypeError(`Debug Bundle violates Strict JSON constraints: ${preflight.error.code}`);
+  const encoded = canonicalJsonBytesWithStrictLimitsInternalV1(
+    parsed.bundle,
+    debugBundleJsonLimitsV1,
+  );
+  if (!encoded.ok) {
+    throw new TypeError(`Debug Bundle violates Strict JSON constraints: ${encoded.error.code}`);
   }
-  return bytes;
+  return encoded.bytes;
+}
+
+/** Encodes one Debug Bundle through a single admission into canonical Strict JSON. */
+export function encodeDebugBundleV1<
+  TSnapshot,
+  TBundle extends DebugBundleDigestEnvelopeV1<TSnapshot>,
+>(bundle: TBundle, context: DebugBundleCodecContextV1<TSnapshot, TBundle>): Uint8Array {
+  return encodeDebugBundleInputV1(bundle, context);
 }
 
 /** Strictly decodes an untrusted Debug Bundle and checks both authoritative Snapshot digests. */
@@ -213,13 +224,13 @@ export function decodeDebugBundleV1<
 ): DebugBundleDecodeResultV1<TBundle> {
   const decoded = parseStrictJson(bytes, debugBundleJsonLimitsV1);
   if (!decoded.ok) {
-    return Object.freeze({ kind: "rejected", code: decoded.error.code });
+    return { kind: "rejected", code: decoded.error.code };
   }
   const parsed = parseBundleV1(decoded.value, context);
   if (parsed.kind === "rejected") return parsed;
   const digests = validateStateDigestsV1(parsed.bundle);
   if (digests.kind === "rejected") return digests;
-  return Object.freeze({ kind: "decoded", bundle: parsed.bundle as DeepReadonly<TBundle> });
+  return { kind: "decoded", bundle: parsed.bundle as DeepReadonly<TBundle> };
 }
 
 /**
@@ -260,9 +271,9 @@ export function createGameDiagnosticsServiceV1<
   }
   const uiContextProvider = uiContextSchema === undefined || readUiContext === undefined
     ? undefined
-    : Object.freeze({ schema: uiContextSchema, read: readUiContext });
+    : { schema: uiContextSchema, read: readUiContext };
 
-  return Object.freeze({
+  return {
     async exportDebugBundle(): Promise<ExportedDebugBundleV1> {
       try {
         return await input.readAtQueueFront((currentSnapshot) => {
@@ -272,13 +283,11 @@ export function createGameDiagnosticsServiceV1<
           const uiContext = rawUiContext === undefined
             ? undefined
             : uiContextProvider?.schema.parse(rawUiContext);
-          const runtimeFailures = Object.freeze(
-            input
-              .getRuntimeFailures()
-              .slice(-50)
-              .map((entry) => scrubRuntimeOperationFaultV1(entry as RuntimeOperationFaultV1)),
-          );
-          const bundle = input.codec.bundleSchema.parse({
+          const runtimeFailures = input
+            .getRuntimeFailures()
+            .slice(-50)
+            .map((entry) => scrubRuntimeOperationFaultV1(entry as RuntimeOperationFaultV1));
+          const bytes = encodeDebugBundleInputV1({
             formatRevision: 1,
             provenance: input.provenance,
             ...(input.appBuildId === undefined ? {} : { appBuildId: input.appBuildId }),
@@ -294,18 +303,21 @@ export function createGameDiagnosticsServiceV1<
             runtimeFailures,
             ...(failure === undefined ? {} : { failure: input.scrubFailure(failure) }),
             ...(uiContext === undefined ? {} : { uiContext }),
-          });
-          const bytes = encodeDebugBundleV1(bundle, input.codec);
-          return Object.freeze({
+          }, input.codec);
+          return {
             filename: input.exportFilename,
             mediaType: "application/json" as const,
             digest: digestBytes(bytes),
             bytes,
-          });
+            contentSummary: {
+              failure: failure !== undefined,
+              uiContext: uiContext !== undefined,
+            },
+          };
         });
       } catch {
         throw new TypeError("Debug Bundle export failed");
       }
     },
-  });
+  };
 }

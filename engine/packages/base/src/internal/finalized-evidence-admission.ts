@@ -9,18 +9,9 @@ interface SnapshotWithCommandEvidenceV1 {
   readonly commandSequence: number;
 }
 
-export interface FinalizedEvidencePolicyInternalV1<
-  TEvent,
-  TRejection,
-  TRngState,
-  TRngDrawTrace,
-  TDebugValidationError,
-> {
+export interface CoreTypedEvidencePolicyInternalV1<TRejection, TDebugValidationError> {
   readonly validateCandidateSnapshot?: (value: unknown) => void;
-  readonly parseEvent?: (value: unknown) => TEvent;
-  readonly parseRejection?: (value: unknown) => TRejection;
-  readonly parseRngState?: (value: unknown) => TRngState;
-  readonly parseRngDrawTrace?: (value: unknown) => TRngDrawTrace;
+  readonly parseRejection: (value: unknown) => TRejection;
   readonly parseDebugValidationError?: (value: unknown) => TDebugValidationError;
 }
 
@@ -71,13 +62,6 @@ function requireArrayV1(value: unknown, label: string): readonly unknown[] {
   return value;
 }
 
-function normalizeItemsV1<T>(
-  values: readonly unknown[],
-  parser: ((value: unknown) => T) | undefined,
-): readonly T[] {
-  return values.map((value) => parser === undefined ? value as T : parser(value));
-}
-
 function admitAttemptEvidenceV1<
   TSnapshot extends SnapshotWithCommandEvidenceV1,
   TEvent,
@@ -85,17 +69,9 @@ function admitAttemptEvidenceV1<
   TFault,
   TRngState,
   TRngDrawTrace,
-  TDebugValidationError,
 >(
   before: DeepReadonly<TSnapshot>,
   candidate: AttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>,
-  policy: FinalizedEvidencePolicyInternalV1<
-    TEvent,
-    TRejection,
-    TRngState,
-    TRngDrawTrace,
-    TDebugValidationError
-  >,
   instrumentation?: SnapshotWorkInstrumentationV1,
   receipt?: Readonly<{ readonly preStateDigest: Digest; readonly postStateDigest: Digest }>,
   resultConstraint?: FinalizedEvidenceResultConstraintInternalV1,
@@ -109,7 +85,6 @@ function admitAttemptEvidenceV1<
   const kind = candidateResult.kind;
   const snapshot = candidateResult.snapshot as TSnapshot;
 
-  policy.validateCandidateSnapshot?.(snapshot);
   if (
     (resultConstraint?.kind === "require" && kind !== resultConstraint.resultKind) ||
     (resultConstraint?.kind === "forbid" && kind === resultConstraint.resultKind)
@@ -121,10 +96,7 @@ function admitAttemptEvidenceV1<
   if (kind === "committed") {
     evidenceResult = {
       kind,
-      events: normalizeItemsV1(
-        requireArrayV1(candidateResult.events, "Committed command events"),
-        policy.parseEvent,
-      ),
+      events: requireArrayV1(candidateResult.events, "Committed command events"),
     };
   } else if (kind === "rejected") {
     if (snapshot !== before) {
@@ -132,10 +104,7 @@ function admitAttemptEvidenceV1<
     }
     evidenceResult = {
       kind,
-      reasons: normalizeItemsV1(
-        requireArrayV1(candidateResult.reasons, "Rejected command reasons"),
-        policy.parseRejection,
-      ),
+      reasons: requireArrayV1(candidateResult.reasons, "Rejected command reasons"),
     };
   } else if (kind === "faulted") {
     if (snapshot !== before) {
@@ -146,23 +115,16 @@ function admitAttemptEvidenceV1<
     throw new TypeError("Command attempt result has an invalid kind");
   }
 
-  const parseRngState = policy.parseRngState;
-  const committedRngBefore = parseRngState === undefined
-    ? candidateDiagnostics.committedRngBefore as TRngState
-    : parseRngState(candidateDiagnostics.committedRngBefore);
-  const attemptedDraws = normalizeItemsV1(
-    requireArrayV1(candidateDiagnostics.attemptedDraws, "Attempted RNG draws"),
-    policy.parseRngDrawTrace,
-  );
+  const committedRngBefore = candidateDiagnostics.committedRngBefore as TRngState;
+  const attemptedDraws = requireArrayV1(
+    candidateDiagnostics.attemptedDraws,
+    "Attempted RNG draws",
+  ) as readonly TRngDrawTrace[];
   const hasCandidateRngAfter = Object.hasOwn(candidateDiagnostics, "candidateRngAfter");
   const candidateRngAfter = hasCandidateRngAfter
-    ? parseRngState === undefined
-      ? candidateDiagnostics.candidateRngAfter as TRngState
-      : parseRngState(candidateDiagnostics.candidateRngAfter)
+    ? candidateDiagnostics.candidateRngAfter as TRngState
     : undefined;
-  const committedRngAfter = parseRngState === undefined
-    ? candidateDiagnostics.committedRngAfter as TRngState
-    : parseRngState(candidateDiagnostics.committedRngAfter);
+  const committedRngAfter = candidateDiagnostics.committedRngAfter as TRngState;
   const diagnostics = {
     committedRngBefore,
     attemptedDraws,
@@ -193,7 +155,7 @@ function admitAttemptEvidenceV1<
   >;
 }
 
-/** @internal Admits executor evidence once before Session finalization. */
+/** @internal Strict public Session boundary for arbitrary executor evidence. */
 export function admitCommandAttemptEvidenceInternalV1<
   TSnapshot extends SnapshotWithCommandEvidenceV1,
   TEvent,
@@ -201,28 +163,68 @@ export function admitCommandAttemptEvidenceInternalV1<
   TFault,
   TRngState,
   TRngDrawTrace,
-  TDebugValidationError = unknown,
 >(
   before: DeepReadonly<TSnapshot>,
   candidate: AttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>,
-  policy: FinalizedEvidencePolicyInternalV1<
-    TEvent,
-    TRejection,
-    TRngState,
-    TRngDrawTrace,
-    TDebugValidationError
-  > = {},
   instrumentation?: SnapshotWorkInstrumentationV1,
   resultConstraint?: FinalizedEvidenceResultConstraintInternalV1,
 ): DeepReadonly<AttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>> {
   return admitAttemptEvidenceV1(
     before,
     candidate,
-    policy,
     instrumentation,
     undefined,
     resultConstraint,
   );
+}
+
+/**
+ * @internal Trusts a resolved Core executor's typed attempt after real
+ * invariants; rejected reasons cross the Story callback boundary here and are
+ * normalized once through the declared schema.
+ */
+export function acceptCoreTypedCommandAttemptInternalV1<
+  TSnapshot extends SnapshotWithCommandEvidenceV1,
+  TEvent,
+  TRejection,
+  TFault,
+  TRngState,
+  TRngDrawTrace,
+>(
+  before: DeepReadonly<TSnapshot>,
+  candidate: AttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>,
+  validateCandidateSnapshot: ((value: unknown) => void) | undefined,
+  parseRejection: (value: unknown) => TRejection,
+  resultConstraint?: FinalizedEvidenceResultConstraintInternalV1,
+): DeepReadonly<AttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>> {
+  const result = candidate.result;
+  validateCandidateSnapshot?.(result.snapshot);
+  if (
+    (resultConstraint?.kind === "require" && result.kind !== resultConstraint.resultKind) ||
+    (resultConstraint?.kind === "forbid" && result.kind === resultConstraint.resultKind)
+  ) {
+    throw new TypeError(resultConstraint.message);
+  }
+  if (result.kind !== "committed" && result.kind !== "rejected" && result.kind !== "faulted") {
+    throw new TypeError("Command attempt result has an invalid kind");
+  }
+  if (result.kind !== "committed" && result.snapshot !== before) {
+    throw new TypeError("Non-committed command attempt changed the Snapshot");
+  }
+  if (result.kind === "rejected") {
+    return {
+      ...candidate,
+      result: {
+        ...result,
+        reasons: result.reasons.map((reason) => parseRejection(reason)),
+      },
+    } as unknown as DeepReadonly<
+      AttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>
+    >;
+  }
+  return candidate as DeepReadonly<
+    AttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>
+  >;
 }
 
 /** @internal Admits Debug validation errors at the Session boundary. */
@@ -231,10 +233,11 @@ export function admitDebugValidationErrorsInternalV1<TValidationError>(
   parse: ((value: unknown) => TValidationError) | undefined,
   instrumentation?: SnapshotWorkInstrumentationV1,
 ): readonly DeepReadonly<TValidationError>[] {
-  const normalized = normalizeItemsV1(
-    requireArrayV1(errors, "Debug validation errors"),
-    parse,
-  );
+  const values = requireArrayV1(errors, "Debug validation errors");
+  const normalized = parse === undefined
+    ? values as readonly TValidationError[]
+    : values.map((value) => parse(value));
+  if (parse !== undefined) return normalized as readonly DeepReadonly<TValidationError>[];
   return projectCanonicalJsonInternalV1(
     { errors: normalized },
     instrumentation,
@@ -300,7 +303,6 @@ export function admitFinalizedCommandAttemptEvidenceInternalV1<
       result: finalizedAttempt.result,
       diagnostics: finalizedAttempt.diagnostics,
     } as AttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>,
-    {},
     instrumentation,
     { preStateDigest, postStateDigest },
   );

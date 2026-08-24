@@ -57,13 +57,12 @@ describe("readApplicationBootstrapConfigFromDocumentInternalV1", () => {
       ["author", "browser"],
       ["author", "deno_desktop"],
     ] as const,
-  )("admits and freezes an inert %s/%s receipt", (entry, target) => {
+  )("admits an inert %s/%s receipt", (entry, target) => {
     appendBootstrapScriptV1(JSON.stringify({ revision: 1, entry, target }));
 
     const config = readApplicationBootstrapConfigFromDocumentInternalV1(document, entry);
 
     expect(config).toEqual({ revision: 1, entry, target });
-    expect(Object.isFrozen(config)).toBe(true);
   });
 
   it("rejects a missing reserved source", () => {

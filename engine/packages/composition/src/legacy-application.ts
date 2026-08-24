@@ -57,13 +57,13 @@ interface ApplicationRecordV1<TApplication> {
   failure: unknown;
 }
 
-interface LegacyFactoryControlV1 {
-  activate(): void;
+const activateLegacyFactoryInternalV1 = Symbol("sillymaker.composition.activate-legacy-factory");
+
+interface LegacyFactoryInternalV1<TApplication> extends LegacyApplicationFactoryV1<TApplication> {
+  [activateLegacyFactoryInternalV1](): void;
 }
 
-const legacyFactoryControlsV1 = new WeakMap<object, LegacyFactoryControlV1>();
-
-class LegacyApplicationControllerV1<TApplication, TPrepared> implements LegacyFactoryControlV1 {
+class LegacyApplicationControllerV1<TApplication, TPrepared> {
   readonly #lateCleanupFailures: unknown[] = [];
   #active = false;
   #closing = false;
@@ -179,10 +179,10 @@ class LegacyApplicationControllerV1<TApplication, TPrepared> implements LegacyFa
           failure: undefined,
         };
         this.#record = record;
-        return Object.freeze({
+        return {
           application,
           dispose: () => this.#disposeLease(record),
-        });
+        };
       } finally {
         releaseActivity();
       }
@@ -295,10 +295,10 @@ export function defineLegacyApplicationPluginV1<TApplication, TPrepared = void>(
           compositionLifecycleActivityV1
         ],
       );
-      const factory: LegacyApplicationFactoryV1<TApplication> = Object.freeze({
+      const factory: LegacyFactoryInternalV1<TApplication> = {
         create: () => controller.create(),
-      });
-      legacyFactoryControlsV1.set(factory, controller);
+        [activateLegacyFactoryInternalV1]: () => controller.activate(),
+      };
       await scope.effect(() => () => controller.disposeAll());
       scope.provide(options.factory, factory);
     },
@@ -337,13 +337,15 @@ export function compileLegacyApplicationFactoryV1<TApplication>(
     );
   }
   const factory = snapshot.compileDirectPlan((resolver) => resolver.use(token));
-  const control = legacyFactoryControlsV1.get(factory);
-  if (control === undefined) {
+  const activate = (factory as Partial<LegacyFactoryInternalV1<TApplication>>)[
+    activateLegacyFactoryInternalV1
+  ];
+  if (activate === undefined) {
     throw new CompositionErrorV1(
       "composition.invalid_definition",
       `service ${token.id} is not a legacy application factory`,
     );
   }
-  control.activate();
+  activate.call(factory);
   return factory;
 }

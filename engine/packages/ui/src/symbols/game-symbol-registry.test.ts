@@ -24,7 +24,7 @@ function providerV1(
   symbolId: GameSymbolIdV1,
   component: GameSymbolProviderV1["component"] = EmptySymbolV1,
 ): GameSymbolProviderV1 {
-  return Object.freeze({ symbolId, component });
+  return { symbolId, component };
 }
 
 describe("GameSymbolIdV1", () => {
@@ -61,7 +61,7 @@ describe("GameSymbolRegistryV1", () => {
     ).toThrow(firstId);
   });
 
-  it("resolves authored providers exactly and freezes public registry records", () => {
+  it("resolves authored providers without changing component identity", () => {
     const firstId = parseGameSymbolIdV1("symbol.e2e.first");
     const secondId = parseGameSymbolIdV1("symbol.e2e.second");
     const registry = createGameSymbolRegistryV1([
@@ -74,9 +74,6 @@ describe("GameSymbolRegistryV1", () => {
 
     expect(first).toEqual({ kind: "found", component: FirstStorySymbolV1 });
     expect(second).toEqual({ kind: "found", component: SecondStorySymbolV1 });
-    expect(Object.isFrozen(registry)).toBe(true);
-    expect(Object.isFrozen(first)).toBe(true);
-    expect(Object.isFrozen(second)).toBe(true);
   });
 
   it("returns the typed not-found result for an unknown symbol ID", () => {
@@ -88,7 +85,6 @@ describe("GameSymbolRegistryV1", () => {
       kind: "not_found",
       code: "ui.game_symbol_not_found",
     });
-    expect(Object.isFrozen(result)).toBe(true);
   });
 
   it("keeps Story registries independent even when they bind the same symbol ID", () => {

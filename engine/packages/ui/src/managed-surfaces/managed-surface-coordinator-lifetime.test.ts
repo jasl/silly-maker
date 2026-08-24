@@ -256,8 +256,6 @@ describe("Managed Surface application lifetime", () => {
       expect(() => predecessor.gestureLease.begin()).toThrowError(
         "ui.managed_surface_ingress_closed",
       );
-      expect(Object.isFrozen(successor)).toBe(true);
-
       lifetime.dispose();
       expect(lifetime.getCurrent()).toBeNull();
       expect(successor.isIngressOpen()).toBe(false);
@@ -1003,12 +1001,6 @@ describe("Managed Surface application lifetime", () => {
       ],
       ["disposeOwner", () => predecessor.coordinator.disposeOwner(ownerIdV1)],
     ] as const;
-    expect(
-      Reflect.ownKeys(predecessor.coordinator)
-        .filter((key) => key !== "getSnapshot")
-        .map(String)
-        .sort(),
-    ).toEqual(closedCoordinatorIngress.map(([name]) => name).sort());
     for (const [, call] of closedCoordinatorIngress) {
       expect(call).toThrowError("ui.managed_surface_ingress_closed");
     }
@@ -1182,7 +1174,6 @@ describe("Managed Surface application lifetime", () => {
     });
     const runtime = lifetime.getCurrent()!;
 
-    expect(Reflect.ownKeys(runtime.coordinator)).not.toContain("dispose");
     expect("dispose" in runtime.coordinator).toBe(false);
     // @ts-expect-error Whole-generation disposal is lifetime-owned.
     void runtime.coordinator.dispose;

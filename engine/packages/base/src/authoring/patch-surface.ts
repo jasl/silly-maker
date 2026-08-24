@@ -6,7 +6,6 @@ import type {
   PatchSymbolKindV1,
 } from "../contracts/hotfix.ts";
 import { parseDigest, parsePositiveSafeInteger } from "../contracts/values.ts";
-import { deepFreezeAuthoringValueV1 } from "./define-gameplay-module.ts";
 
 type SlotRecordV1 = Readonly<Record<string, PatchSlotDescriptorV1<PatchSymbolKindV1, unknown>>>;
 type ValuesForSlotsV1<TSlots extends SlotRecordV1> = {
@@ -33,7 +32,7 @@ export function definePatchSlot<
   }
   parsePositiveSafeInteger(slot.contractRevision);
   parseDigest(slot.defaultProviderSourceDigest);
-  return deepFreezeAuthoringValueV1({ ...slot, replaceable: true as const });
+  return { ...slot, replaceable: true as const };
 }
 
 function defineSurface<TSlots extends SlotRecordV1>(
@@ -57,7 +56,7 @@ function defineSurface<TSlots extends SlotRecordV1>(
       throw new TypeError("invalid presentation Patch kind");
     }
   }
-  return deepFreezeAuthoringValueV1({ surface, slots });
+  return { surface, slots };
 }
 
 export function defineSimulationPatchSurface<TSlots extends SlotRecordV1>(

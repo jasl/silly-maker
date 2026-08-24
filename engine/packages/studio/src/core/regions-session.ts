@@ -14,7 +14,7 @@ import type { RegionsSourceIoV1 } from "./regions-io.ts";
 export function createRegionsDocumentSessionV1(
   io: RegionsSourceIoV1,
 ): AuthoringDocumentSessionV1<RegionsDocumentV1> {
-  const adapted: AuthoringDocumentIoV1<RegionsDocumentV1> = Object.freeze({
+  const adapted: AuthoringDocumentIoV1<RegionsDocumentV1> = {
     read: (path: string) =>
       io.read(path).then((result) =>
         result.kind === "ok"
@@ -31,6 +31,6 @@ export function createRegionsDocumentSessionV1(
         expectedDigest: input.expectedDigest,
         regionsDocument: input.document,
       }),
-  });
+  };
   return createAuthoringDocumentSessionV1({ io: adapted });
 }

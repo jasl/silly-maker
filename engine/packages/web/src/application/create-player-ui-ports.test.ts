@@ -18,16 +18,16 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import { createPlayerUiPortsV1 } from "./create-player-ui-ports.ts";
 
-const readyStatusV1 = Object.freeze({
+const readyStatusV1 = {
   available: true,
   busy: false,
   safelySavedCommandSequence: null,
   lastFailureCode: null,
-});
+};
 
 function exportedSaveV1(filename = "save.json"): ExportedSaveV1 {
   const bytes = Uint8Array.of(1, 2, 3);
-  return Object.freeze({
+  return ({
     filename,
     mediaType: "application/json",
     digest: digestBytes(bytes),
@@ -55,11 +55,15 @@ function exportedDebugBundleV1(input?: {
     ...(input?.failure === true ? { failure: { code: "runtime.synthetic" } } : {}),
     ...(input?.uiContext === true ? { uiContext: { routeId: "route.synthetic" } } : {}),
   });
-  return Object.freeze({
+  return ({
     filename: "diagnostics.json",
     mediaType: "application/json",
     digest: digestBytes(bytes),
     bytes,
+    contentSummary: {
+      failure: input?.failure === true,
+      uiContext: input?.uiContext === true,
+    },
   });
 }
 
@@ -70,7 +74,7 @@ function deferredV1<TValue>() {
     resolve = resolvePromise;
     reject = rejectPromise;
   });
-  return Object.freeze({ promise, resolve, reject });
+  return ({ promise, resolve, reject });
 }
 
 function fixtureV1(input?: {
@@ -80,44 +84,44 @@ function fixtureV1(input?: {
   readonly exportedDiagnostics?: ExportedDebugBundleV1;
   readonly importResult?: PersistenceOperationResultV1;
 }) {
-  const selection = input?.selection ?? Object.freeze({ kind: "cancelled" as const });
+  const selection = input?.selection ?? ({ kind: "cancelled" as const });
   const exportSaveResult = input?.exportSaveResult ??
-    Object.freeze({ kind: "exported" as const, slotId: "quick" as const, file: exportedSaveV1() });
+    ({ kind: "exported" as const, slotId: "quick" as const, file: exportedSaveV1() });
   const exportBackupResult = input?.exportBackupResult ??
-    Object.freeze({
+    ({
       kind: "exported" as const,
       slotId: "quick" as const,
       file: exportedSaveV1("quick-backup.json"),
     });
   const importResult = input?.importResult ??
-    Object.freeze({ kind: "rejected" as const, code: "incompatible" as const });
-  const files = Object.freeze({
+    ({ kind: "rejected" as const, code: "incompatible" as const });
+  const files = ({
     selectOne: vi.fn(async () => selection),
     download: vi.fn(async (_request: Parameters<HostFilePortV1["download"]>[0]) => undefined),
   }) satisfies HostFilePortV1;
-  const persistence = Object.freeze({
+  const persistence = {
     getStatus: vi.fn(async () => readyStatusV1),
-    listSlots: vi.fn(async () => Object.freeze([])),
+    listSlots: vi.fn(async () => []),
     inspectSave: vi.fn(async (
       _slotId: "auto.current" | "auto.previous" | "quick" | `manual.${number}`,
     ) =>
-      Object.freeze({
+      ({
         kind: "rejected" as const,
         slotId: "quick" as const,
         code: "empty_slot" as const,
-        diagnostics: Object.freeze({
-          codes: Object.freeze([]),
+        diagnostics: {
+          codes: [],
           migrationAttempt: null,
           migrationReasonCode: null,
           storedStateContractRevision: null,
           currentStateContractRevision: null,
-        }),
+        },
       }) satisfies SaveInspectionResultV1
     ),
     inspectBackup: vi.fn(async (
       _slotId: "auto.current" | "auto.previous" | "quick" | `manual.${number}`,
     ) =>
-      Object.freeze({
+      ({
         kind: "available" as const,
         slotId: "quick" as const,
       }) satisfies SaveBackupInspectionResultV1
@@ -125,7 +129,7 @@ function fixtureV1(input?: {
     upgradeSave: vi.fn(async (
       _slotId: "auto.current" | "auto.previous" | "quick" | `manual.${number}`,
     ) =>
-      Object.freeze({
+      ({
         kind: "upgraded" as const,
         slotId: "quick" as const,
         compatibility: "exact" as const,
@@ -134,7 +138,7 @@ function fixtureV1(input?: {
     reanchorSave: vi.fn(async (
       _slotId: "auto.current" | "auto.previous" | "quick" | `manual.${number}`,
     ) =>
-      Object.freeze({
+      ({
         kind: "reanchored" as const,
         slotId: "quick" as const,
       }) satisfies SaveRewriteOperationResultV1
@@ -142,7 +146,7 @@ function fixtureV1(input?: {
     restoreBackup: vi.fn(async (
       _slotId: "auto.current" | "auto.previous" | "quick" | `manual.${number}`,
     ) =>
-      Object.freeze({
+      ({
         kind: "restored" as const,
         slotId: "quick" as const,
       }) satisfies SaveBackupOperationResultV1
@@ -153,51 +157,39 @@ function fixtureV1(input?: {
     discardBackup: vi.fn(async (
       _slotId: "auto.current" | "auto.previous" | "quick" | `manual.${number}`,
     ) =>
-      Object.freeze({
+      ({
         kind: "discarded" as const,
         slotId: "quick" as const,
       }) satisfies SaveBackupOperationResultV1
     ),
-    save: vi.fn(async (slotId: "quick" | `manual.${number}`) =>
-      Object.freeze({ kind: "saved" as const, slotId })
-    ),
-    load: vi.fn(async () =>
-      Object.freeze({ kind: "rejected" as const, code: "empty_slot" as const })
-    ),
-    clear: vi.fn(async (slotId: "auto.current" | "auto.previous" | "quick" | `manual.${number}`) =>
-      Object.freeze({ kind: "cleared" as const, slotId })
-    ),
-    annotateSave: vi.fn(async (slotId: "quick" | `manual.${number}`, _note: string) =>
-      Object.freeze({ kind: "saved" as const, slotId })
-    ),
+    save: vi.fn(async (slotId: "quick" | `manual.${number}`) => ({
+      kind: "saved" as const,
+      slotId,
+    })),
+    load: vi.fn(async () => ({ kind: "rejected" as const, code: "empty_slot" as const })),
+    clear: vi.fn(async (
+      slotId: "auto.current" | "auto.previous" | "quick" | `manual.${number}`,
+    ) => ({ kind: "cleared" as const, slotId })),
+    annotateSave: vi.fn(async (slotId: "quick" | `manual.${number}`, _note: string) => ({
+      kind: "saved" as const,
+      slotId,
+    })),
     importSave: vi.fn(async (_bytes: Uint8Array) => importResult),
     exportSave: vi.fn(async () => exportSaveResult),
     exportCurrentSave: vi.fn(async () => exportedSaveV1("current.json")),
-  });
+  };
   const exportedDiagnostics = input?.exportedDiagnostics ?? exportedDebugBundleV1();
-  const diagnostics = Object.freeze({
+  const diagnostics = {
     exportDebugBundle: vi.fn(async () => exportedDiagnostics),
-  });
+  };
   const ports = createPlayerUiPortsV1({ files, persistence, diagnostics });
   return { diagnostics, exportedDiagnostics, files, persistence, ports };
 }
 
 describe("createPlayerUiPortsV1", () => {
-  it("returns frozen narrow ports and delegates non-file persistence operations unchanged", async () => {
+  it("returns narrow ports and delegates non-file persistence operations unchanged", async () => {
     const fixture = fixtureV1();
-    expect(Object.isFrozen(fixture.ports)).toBe(true);
-    expect(Object.isFrozen(fixture.ports.save)).toBe(true);
-    expect(Object.isFrozen(fixture.ports.save.recovery)).toBe(true);
-    expect(Object.isFrozen(fixture.ports.diagnostics)).toBe(true);
-    expect(Reflect.ownKeys(fixture.ports.save.recovery ?? {})).toEqual([
-      "inspectSave",
-      "inspectBackup",
-      "upgradeSave",
-      "reanchorSave",
-      "restoreBackup",
-      "exportBackup",
-      "discardBackup",
-    ]);
+
     expect(fixture.ports.save).not.toHaveProperty("inspectSave");
     expect(fixture.ports.save).not.toHaveProperty("exportBackup");
 
@@ -269,13 +261,13 @@ describe("createPlayerUiPortsV1", () => {
 
   it("passes selected bounded JSON bytes to persistence import exactly once", async () => {
     const bytes = Uint8Array.of(9, 8, 7);
-    const imported = Object.freeze({
+    const imported = {
       kind: "imported" as const,
       compatibility: "exact" as const,
       commandSequence: parseNonNegativeSafeInteger(3),
-    });
+    };
     const fixture = fixtureV1({
-      selection: Object.freeze({ kind: "selected", name: "save.json", bytes }),
+      selection: { kind: "selected", name: "save.json", bytes },
       importResult: imported,
     });
 
@@ -290,9 +282,9 @@ describe("createPlayerUiPortsV1", () => {
   });
 
   it.each([
-    Object.freeze({ kind: "cancelled" as const }),
-    Object.freeze({ kind: "rejected" as const, code: "too_large" as const }),
-    Object.freeze({ kind: "rejected" as const, code: "unsupported_type" as const }),
+    { kind: "cancelled" as const },
+    { kind: "rejected" as const, code: "too_large" as const },
+    { kind: "rejected" as const, code: "unsupported_type" as const },
   ])("does not dispatch import for $kind file selection", async (selection) => {
     const fixture = fixtureV1({ selection });
 
@@ -304,7 +296,7 @@ describe("createPlayerUiPortsV1", () => {
 
   it("downloads an exported slot only after persistence returns its exact file", async () => {
     const file = exportedSaveV1("quick.json");
-    const exported = Object.freeze({ kind: "exported" as const, slotId: "quick" as const, file });
+    const exported = { kind: "exported" as const, slotId: "quick" as const, file };
     const fixture = fixtureV1({ exportSaveResult: exported });
 
     await expect(fixture.ports.save.exportSave("quick")).resolves.toBe(exported);
@@ -317,8 +309,8 @@ describe("createPlayerUiPortsV1", () => {
   });
 
   it.each([
-    Object.freeze({ kind: "rejected" as const, code: "empty_slot" as const }),
-    Object.freeze({ kind: "faulted" as const, code: "persistence.unavailable" }),
+    { kind: "rejected" as const, code: "empty_slot" as const },
+    { kind: "faulted" as const, code: "persistence.unavailable" },
   ])("does not download a $kind slot export", async (unsuccessful) => {
     const fixture = fixtureV1({ exportSaveResult: unsuccessful });
 
@@ -329,12 +321,12 @@ describe("createPlayerUiPortsV1", () => {
 
   it("downloads a migration backup only after persistence exports its exact file", async () => {
     const file = exportedSaveV1("quick-backup.json");
-    const exported = Object.freeze({ kind: "exported" as const, slotId: "quick" as const, file });
+    const exported = { kind: "exported" as const, slotId: "quick" as const, file };
     const fixture = fixtureV1({ exportBackupResult: exported });
 
     const result = await fixture.ports.save.recovery?.exportBackup("quick");
     expect(result).toEqual({ kind: "exported", slotId: "quick" });
-    expect(Object.isFrozen(result)).toBe(true);
+
     expect(result).not.toHaveProperty("file");
     expect(result).not.toHaveProperty("bytes");
     expect(result).not.toHaveProperty("digest");
@@ -348,8 +340,8 @@ describe("createPlayerUiPortsV1", () => {
   });
 
   it.each([
-    Object.freeze({ kind: "rejected" as const, code: "empty_backup" as const }),
-    Object.freeze({ kind: "faulted" as const, code: "persistence.unavailable" }),
+    { kind: "rejected" as const, code: "empty_backup" as const },
+    { kind: "faulted" as const, code: "persistence.unavailable" },
   ])("does not download a $kind backup export", async (unsuccessful) => {
     const fixture = fixtureV1({ exportBackupResult: unsuccessful });
 
@@ -361,11 +353,11 @@ describe("createPlayerUiPortsV1", () => {
 
   it("rejects a mismatched backup export before any Host download", async () => {
     const fixture = fixtureV1({
-      exportBackupResult: Object.freeze({
+      exportBackupResult: {
         kind: "exported",
         slotId: "manual.1",
         file: exportedSaveV1("foreign-backup.json"),
-      }),
+      },
     });
 
     await expect(fixture.ports.save.recovery?.exportBackup("quick")).resolves.toEqual({
@@ -377,7 +369,7 @@ describe("createPlayerUiPortsV1", () => {
 
   it("bounds a backup download failure and re-exports the still-pending backup on retry", async () => {
     const file = exportedSaveV1("quick-backup.json");
-    const exported = Object.freeze({ kind: "exported" as const, slotId: "quick" as const, file });
+    const exported = { kind: "exported" as const, slotId: "quick" as const, file };
     const fixture = fixtureV1({ exportBackupResult: exported });
     fixture.files.download.mockRejectedValueOnce(new Error("secret host download failure"));
 
@@ -386,7 +378,7 @@ describe("createPlayerUiPortsV1", () => {
       kind: "faulted",
       code: "file.download_failed",
     });
-    expect(Object.isFrozen(failedDownload)).toBe(true);
+
     expect(failedDownload).not.toHaveProperty("error");
     expect(failedDownload).not.toHaveProperty("file");
     await expect(fixture.ports.save.recovery?.exportBackup("quick")).resolves.toEqual({
@@ -495,22 +487,6 @@ describe("createPlayerUiPortsV1", () => {
     pending.resolve(fixture.exportedDiagnostics);
 
     await expect(prepare).rejects.toThrow("prepared Debug Bundle was discarded");
-    await expect(fixture.ports.diagnostics.savePreparedDebugBundle()).rejects.toThrow(TypeError);
-    expect(fixture.files.download).not.toHaveBeenCalled();
-  });
-
-  it("does not retain bytes when the content preview cannot be decoded", async () => {
-    const bytes = Uint8Array.of(0x7b);
-    const fixture = fixtureV1({
-      exportedDiagnostics: Object.freeze({
-        filename: "diagnostics.json",
-        mediaType: "application/json" as const,
-        digest: digestBytes(bytes),
-        bytes,
-      }),
-    });
-
-    await expect(fixture.ports.diagnostics.prepareDebugBundle()).rejects.toThrow(TypeError);
     await expect(fixture.ports.diagnostics.savePreparedDebugBundle()).rejects.toThrow(TypeError);
     expect(fixture.files.download).not.toHaveBeenCalled();
   });

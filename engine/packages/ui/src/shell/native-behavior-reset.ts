@@ -161,12 +161,12 @@ export function installNativeBehaviorResetV1(
   }
 
   let disposed = false;
-  return Object.freeze({
+  return {
     dispose() {
       if (disposed) return;
       disposed = true;
       removeContextMenu?.();
       removeSelectionReset?.();
     },
-  });
+  };
 }

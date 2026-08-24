@@ -82,17 +82,17 @@ export type CatcafeGameSimulationV1 = GameSimulation<
 >;
 
 /** Full assembly of feature handlers: covers every command kind at the type level. */
-const commandHandlersV1: CatcafeCommandHandlerMapV1 = Object.freeze({
+const commandHandlersV1: CatcafeCommandHandlerMapV1 = {
   ...dialogueCommandHandlersV1,
   ...calendarCommandHandlersV1,
   ...endingsCommandHandlersV1,
   ...shopCommandHandlersV1,
   ...pettingCommandHandlersV1,
   ...contestCommandHandlersV1,
-});
+};
 
 export function createCatcafeGameSimulationV1(): CatcafeGameSimulationV1 {
-  const commandExecutor: CatcafeCommandExecutorV1 = Object.freeze({
+  const commandExecutor: CatcafeCommandExecutorV1 = {
     executeAttempt(snapshot, command) {
       const handler = commandHandlersV1[command.kind] as (
         input: CatcafeHandlerInputV1<CatcafeCommandV1>,
@@ -104,7 +104,7 @@ export function createCatcafeGameSimulationV1(): CatcafeGameSimulationV1 {
         command,
       });
     },
-  });
+  };
 
   return defineGameSimulation<CatcafeSimulationTypesV1>()({
     contractRevision: 1,
@@ -118,13 +118,13 @@ export function createCatcafeGameSimulationV1(): CatcafeGameSimulationV1 {
     commandExecutor,
     debugCommandExecutor: catcafeDebugCommandExecutorV1,
     createBootstrapInput(entropy: BootstrapEntropyV1) {
-      return Object.freeze({ rngSeed: entropy.nextNonZeroUint32() });
+      return ({ rngSeed: entropy.nextNonZeroUint32() });
     },
     createInitialState() {
       return createInitialCatcafeGameStateV1();
     },
     createQueries(state: CatcafeGameStateV1) {
-      return Object.freeze({
+      return ({
         calendar: state.simulation.calendar,
         cat: state.simulation.cat,
         shop: state.simulation.shop,
@@ -143,7 +143,7 @@ export function createCatcafeGameSimulationV1(): CatcafeGameSimulationV1 {
         ending: catcafeEndingForV1(queries),
         stage: queries.stage,
       };
-      return Object.freeze({ ...base, audio: projectCatcafeAudioIntentV1(base) });
+      return ({ ...base, audio: projectCatcafeAudioIntentV1(base) });
     },
   });
 }

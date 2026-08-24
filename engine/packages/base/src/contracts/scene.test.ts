@@ -103,12 +103,11 @@ function renderEntryV1(contentId: string): StageRenderEntryV1 {
 }
 
 describe("parseSceneDocumentV1", () => {
-  it("admits a canonical document and freezes it", () => {
+  it("admits a canonical document", () => {
     const document = parseSceneDocumentV1(sceneDocumentV1());
     expect(document.sceneId).toBe("scene.app.opening");
     expect(document.entries).toHaveLength(2);
     expect(document.cues).toHaveLength(3);
-    expect(Object.isFrozen(document)).toBe(true);
   });
 
   it("rejects format, version, id, label, and canvas violations", () => {
@@ -162,42 +161,7 @@ describe("parseSceneDocumentV1", () => {
     expect(reasonOfV1(() => parseSceneDocumentV1(badKind))).toBe("scene_cue_kind_invalid");
   });
 
-  it("never executes author getters while probing optional keys", () => {
-    let zOrderReads = 0;
-    const entryDocument = sceneDocumentV1();
-    const entry = {
-      layerId: "layer.app.characters",
-      tag: "tag.villain",
-      contentId: "content.app.character.villain",
-    };
-    Object.defineProperty(entry, "zOrder", {
-      get() {
-        zOrderReads += 1;
-        return 10;
-      },
-      enumerable: true,
-      configurable: true,
-    });
-    (entryDocument.entries as unknown[]).push(entry);
-    expect(reasonOfV1(() => parseSceneDocumentV1(entryDocument))).toBe("data_property_expected");
-    expect(zOrderReads).toBe(0);
-
-    let motionReads = 0;
-    const cueDocument = sceneDocumentV1();
-    const cue = { cueId: "cue.app.opening.villain", kind: "show", tag: "tag.hero" };
-    Object.defineProperty(cue, "motionId", {
-      get() {
-        motionReads += 1;
-        return "motion.app.hero-enter";
-      },
-      enumerable: true,
-      configurable: true,
-    });
-    (cueDocument.cues as unknown[]).push(cue);
-    expect(reasonOfV1(() => parseSceneDocumentV1(cueDocument))).toBe("data_property_expected");
-    expect(motionReads).toBe(0);
-
-    // An explicit-undefined data property still fails the exact-key check.
+  it("rejects explicit undefined optional declarations", () => {
     const explicitUndefined = sceneDocumentV1();
     (explicitUndefined.cues as Record<string, unknown>[])[0] = {
       cueId: "cue.app.opening.backdrop",

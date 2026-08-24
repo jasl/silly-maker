@@ -10,10 +10,10 @@ export const minesweeperModuleV1 = kit.defineStatefulModule({
   state: {
     slot: "simulation.minesweeper",
     schema: osMinesweeperStateSchemaV1,
-    initial: (): OsMinesweeperStateV1 => Object.freeze({ board: null }),
+    initial: (): OsMinesweeperStateV1 => ({ board: null }),
   },
   commandSchema: commandSchemaV1,
   reducers: {
-    "os.mine.board_set": (_state, event) => Object.freeze({ board: event.board }),
+    "os.mine.board_set": (_state, event) => ({ board: event.board }),
   },
 });

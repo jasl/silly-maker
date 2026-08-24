@@ -14,17 +14,17 @@ import type { TemplateApplicationInstanceV1 } from "../application/core-definiti
 
 afterEach(cleanup);
 
-const hudPublicationV1 = Object.freeze({
-  view: Object.freeze({ coins: 2 }),
-  semantic: Object.freeze({
-    narrative: Object.freeze({ phase: "running" }),
-    actions: Object.freeze([
-      Object.freeze({ actionId: "template.earn_coin", enabled: true }),
-    ]),
-  }),
+const hudPublicationV1 = ({
+  view: { coins: 2 },
+  semantic: {
+    narrative: { phase: "running" },
+    actions: [
+      { actionId: "template.earn_coin", enabled: true },
+    ],
+  },
 }) as unknown as DeepReadonly<TemplateUiPublicationV1>;
 
-const hudSemanticV1 = Object.freeze({
+const hudSemanticV1 = ({
   dispatch: () => Promise.reject(new Error("template.test_semantic_stub")),
 }) as unknown as TemplateApplicationInstanceV1["semantic"];
 

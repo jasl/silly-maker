@@ -49,9 +49,6 @@ describe("parseRegionsDocumentV1", () => {
     ]);
     expect(parsed.regions[0]?.hoverAssetId).toBe("asset.test.chest-glow");
     expect(parsed.regions[1]?.polygonPoints).toBeUndefined();
-    expect(Object.isFrozen(parsed)).toBe(true);
-    expect(Object.isFrozen(parsed.regions)).toBe(true);
-    expect(Object.isFrozen(parsed.regions[0]?.polygonPoints)).toBe(true);
   });
 
   it("accepts an empty region list (a freshly created document)", () => {

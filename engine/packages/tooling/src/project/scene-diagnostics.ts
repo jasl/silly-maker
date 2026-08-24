@@ -38,7 +38,7 @@ export function collectSceneSourceDiagnosticsV1(
   sourceRoot: string,
 ): readonly DiagnosticEnvelopeV1[] {
   const files = listAuthoringSourceFilesV1(sourceRoot, sceneFileSuffixV1);
-  if (files.length === 0) return Object.freeze([]);
+  if (files.length === 0) return [];
 
   // Motion ids declared by parseable motion sources; broken files are the
   // motion lint's job.
@@ -230,5 +230,5 @@ export function collectSceneSourceDiagnosticsV1(
     }
   }
 
-  return Object.freeze(diagnostics);
+  return diagnostics;
 }

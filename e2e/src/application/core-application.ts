@@ -42,7 +42,7 @@ export async function createLabApplicationInstanceV1(
   }
   const seeds = options.seeds ?? [labDefaultSeedV1];
   return createCoreGameApplicationInstanceV1(resolved.application, {
-    host: Object.freeze({
+    host: {
       entropy: createFixedBootstrapEntropyV1({
         uuids: seeds.map(() => labUuidV1),
         seeds,
@@ -51,7 +51,7 @@ export async function createLabApplicationInstanceV1(
       now: options.now ?? (() => labFixedInstantV1),
       ownerId: labOwnerIdV1,
       nextHandoffRequestId: () => "handoff.sillymaker.e2e.lab",
-    }),
+    },
     ...(options.autosave === undefined ? {} : { autosave: options.autosave }),
     ...(options.scheduler === undefined ? {} : { scheduler: options.scheduler }),
     ...(options.capabilities === undefined ? {} : { capabilities: options.capabilities }),

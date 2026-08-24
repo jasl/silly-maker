@@ -41,7 +41,7 @@ export async function resolveStaticFilePathV1(
   try {
     pathname = decodeURIComponent(encodedPathname);
   } catch {
-    return Object.freeze({ kind: "bad_request" });
+    return { kind: "bad_request" };
   }
 
   if (
@@ -50,35 +50,35 @@ export async function resolveStaticFilePathV1(
     pathname.includes("\0") ||
     pathname.includes("\\")
   ) {
-    return Object.freeze({ kind: "bad_request" });
+    return { kind: "bad_request" };
   }
 
   const root = resolve(rootDirectory);
   const relativePath = pathname === "/" ? "index.html" : pathname.slice(1);
   let candidate = resolve(root, relativePath);
-  if (escapesRootV1(root, candidate)) return Object.freeze({ kind: "not_found" });
+  if (escapesRootV1(root, candidate)) return { kind: "not_found" };
 
   try {
     if (await rejectSymlinkedPathV1(root, candidate)) {
-      return Object.freeze({ kind: "not_found" });
+      return { kind: "not_found" };
     }
     const candidateStat = await lstat(candidate);
     if (candidateStat.isDirectory()) {
       candidate = resolve(candidate, "index.html");
       if (await rejectSymlinkedPathV1(root, candidate)) {
-        return Object.freeze({ kind: "not_found" });
+        return { kind: "not_found" };
       }
     }
     const fileStat = await lstat(candidate);
     if (!fileStat.isFile() || fileStat.isSymbolicLink()) {
-      return Object.freeze({ kind: "not_found" });
+      return { kind: "not_found" };
     }
 
     const realRoot = await realpath(root);
     const realFile = await realpath(candidate);
-    if (escapesRootV1(realRoot, realFile)) return Object.freeze({ kind: "not_found" });
-    return Object.freeze({ kind: "file", filePath: candidate });
+    if (escapesRootV1(realRoot, realFile)) return { kind: "not_found" };
+    return { kind: "file", filePath: candidate };
   } catch {
-    return Object.freeze({ kind: "not_found" });
+    return { kind: "not_found" };
   }
 }

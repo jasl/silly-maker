@@ -9,18 +9,18 @@ import { studioPageUrlV1 } from "./studio.ts";
 
 export const applicationRuntimeBootShellElementIdInternalV1 = "sillymaker-application-boot-shell";
 
-const browserRuntimeBootstrapV1: ApplicationBootstrapHtmlConfigV1 = Object.freeze({
+const browserRuntimeBootstrapV1 = {
   revision: 1,
   entry: "runtime",
   target: "browser",
-});
+} as const satisfies ApplicationBootstrapHtmlConfigV1;
 
-const reservedRuntimeBootstrapMarkersV1 = Object.freeze([
+const reservedRuntimeBootstrapMarkersV1 = [
   "sillymaker-application-bootstrap",
   "data-sillymaker-bootstrap-config",
   applicationRuntimeBootShellElementIdInternalV1,
   "data-sillymaker-boot-shell",
-]);
+] as const;
 
 function insertionFailureV1(code: string): never {
   throw new TypeError(`application_entry_bootstrap.${code}`);

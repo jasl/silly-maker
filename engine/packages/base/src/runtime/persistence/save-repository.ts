@@ -25,6 +25,7 @@ import { recordSnapshotWorkV1 } from "../../internal/snapshot-work-instrumentati
 import {
   decodeSaveRecordEnvelopeShellInternalV1,
   decodeSaveRecordInternalV1,
+  encodeAdmittedSaveRecordInternalV1,
   encodeSaveRecordInternalV1,
 } from "./save-codec.ts";
 import { decodeSessionLeaseRecordV1 } from "./session-lease.ts";
@@ -306,34 +307,30 @@ type LeaseTouchResultV1 =
 const expectedWriteReasonV1 = (slotId: SaveSlotIdV1): SaveWriteReasonV1 =>
   slotId === "auto.current" || slotId === "auto.previous" ? "auto" : slotId;
 
-const indexedDbFailureCodesV1 = Object.freeze(
-  [
-    "indexeddb.unavailable",
-    "indexeddb.database_newer",
-    "indexeddb.upgrade_blocked",
-    "indexeddb.quota_exceeded",
-    "indexeddb.transaction_aborted",
-    "indexeddb.request_failed",
-    "indexeddb.schema_invalid",
-  ] as const,
-);
-const indexedDbFailureOperationsV1 = Object.freeze(["open", "read", "list", "commit"] as const);
-
-function dataPropertyValueV1(value: object, key: string): unknown {
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  return descriptor !== undefined &&
-      descriptor.get === undefined &&
-      descriptor.set === undefined &&
-      "value" in descriptor
-    ? descriptor.value
-    : undefined;
-}
+const indexedDbFailureCodesV1 = [
+  "indexeddb.unavailable",
+  "indexeddb.database_newer",
+  "indexeddb.upgrade_blocked",
+  "indexeddb.quota_exceeded",
+  "indexeddb.transaction_aborted",
+  "indexeddb.request_failed",
+  "indexeddb.schema_invalid",
+] as const;
+const indexedDbFailureOperationsV1 = ["open", "read", "list", "commit"] as const;
 
 function stableHostFailureCodeV1(error: unknown): string | null {
   if (!(error instanceof Error)) return null;
-  const name = dataPropertyValueV1(error, "name");
-  const code = dataPropertyValueV1(error, "code");
-  const operation = dataPropertyValueV1(error, "operation");
+  let name: unknown;
+  let code: unknown;
+  let operation: unknown;
+  try {
+    ({ name, code, operation } = error as Error & {
+      readonly code?: unknown;
+      readonly operation?: unknown;
+    });
+  } catch {
+    return null;
+  }
   return name === "IndexedDbRecordStoreFailureV1" &&
       indexedDbFailureCodesV1.some((candidate) => candidate === code) &&
       indexedDbFailureOperationsV1.some((candidate) => candidate === operation)
@@ -400,6 +397,8 @@ export function createSaveRepositoryInternalV1<
   options: CreateSaveRepositoryOptionsV1<TSnapshot, TSaveRecord>,
   instrumentation?: SnapshotWorkInstrumentationV1,
   internalOptions?: {
+    /** Standard service candidates have already passed the shared codec boundary. */
+    readonly admittedWriteCandidates?: boolean;
     readonly writeReceiptEvidence?: boolean;
   },
 ): SaveRepositoryV1<TSaveRecord> {
@@ -414,7 +413,7 @@ export function createSaveRepositoryInternalV1<
   ): PhysicalDecodeResultV1<TSaveRecord> => {
     const decoded = decodeSaveRecordInternalV1(stored.bytes, options.codec, instrumentation);
     if (decoded.kind === "rejected") {
-      return Object.freeze({ kind: "invalid", code: decoded.code });
+      return { kind: "invalid", code: decoded.code };
     }
     const physicalFailure = physicalFailureV1(
       slotId,
@@ -422,9 +421,9 @@ export function createSaveRepositoryInternalV1<
       decoded.record,
     );
     if (physicalFailure !== null) {
-      return Object.freeze({ kind: "invalid", code: physicalFailure });
+      return { kind: "invalid", code: physicalFailure };
     }
-    return Object.freeze({ kind: "valid", record: decoded.record });
+    return { kind: "valid", record: decoded.record };
   };
 
   const physicalFailureV1 = (
@@ -460,17 +459,19 @@ export function createSaveRepositoryInternalV1<
     slotId: SaveSlotIdV1,
     recordRevision: PositiveSafeInteger,
   ): Uint8Array => {
-    const normalized = Object.freeze({
+    const normalized = {
       ...candidate,
       recordRevision,
-      slot: Object.freeze({
+      slot: {
         storyId: options.storyId,
         slotId,
         writeReason: expectedWriteReasonV1(slotId),
         capturedCommandSequence: candidate.slot.capturedCommandSequence,
-      }),
-    }) as DeepReadonly<TSaveRecord>;
-    return encodeSaveRecordInternalV1(normalized, options.codec, instrumentation);
+      },
+    } as DeepReadonly<TSaveRecord>;
+    return internalOptions?.admittedWriteCandidates === true
+      ? encodeAdmittedSaveRecordInternalV1(normalized, instrumentation)
+      : encodeSaveRecordInternalV1(normalized, options.codec, instrumentation);
   };
 
   const encodeRestoredBackupV1 = (
@@ -479,7 +480,7 @@ export function createSaveRepositoryInternalV1<
   ): Uint8Array | null => {
     recordSnapshotWorkV1(instrumentation, "save_canonical_serialization");
     const encoded = canonicalJsonBytesWithStrictLimitsInternalV1(
-      Object.freeze({ ...backup, recordRevision }),
+      { ...backup, recordRevision },
       saveJsonLimitsV1,
       instrumentation,
     );
@@ -490,31 +491,33 @@ export function createSaveRepositoryInternalV1<
     fence: DeepReadonly<SessionLeaseFenceV1>,
   ): Promise<LeaseTouchResultV1> => {
     const stored = await callHostRecordStoreV1(() => options.records.read("lease", leaseKey));
-    if (stored === null) return Object.freeze({ kind: "rejected", code: "conflict" });
+    if (stored === null) return { kind: "rejected", code: "conflict" };
     const decoded = decodeSessionLeaseRecordV1(stored.bytes);
     if (decoded.kind === "invalid") {
-      return Object.freeze({ kind: "rejected", code: "invalid_record" });
+      return { kind: "rejected", code: "invalid_record" };
     }
     if (
       decoded.record.ownerId !== fence.ownerId ||
       decoded.record.fencingToken !== fence.fencingToken
     ) {
-      return Object.freeze({ kind: "rejected", code: "conflict" });
+      return { kind: "rejected", code: "conflict" };
     }
-    return Object.freeze({
+    return {
       kind: "ready",
-      mutation: Object.freeze({
+      mutation: {
         kind: "put",
         namespace: "lease",
         key: leaseKey,
         expectedRevision: stored.revision,
         bytes: Uint8Array.from(stored.bytes),
-      }),
-    });
+      },
+    };
   };
 
-  const rejectedV1 = (code: "conflict" | "unavailable" | "invalid_record" | "empty_slot") =>
-    Object.freeze({ kind: "rejected" as const, code });
+  const rejectedV1 = (code: "conflict" | "unavailable" | "invalid_record" | "empty_slot") => ({
+    kind: "rejected" as const,
+    code,
+  });
 
   const migrationBackupRejectedV1 = (
     code:
@@ -523,7 +526,7 @@ export function createSaveRepositoryInternalV1<
       | "unavailable"
       | "invalid_backup"
       | "invalid_record",
-  ) => Object.freeze({ kind: "rejected" as const, code });
+  ) => ({ kind: "rejected" as const, code });
 
   let repository: SaveRepositoryV1<TSaveRecord>;
 
@@ -532,16 +535,16 @@ export function createSaveRepositoryInternalV1<
     recordRevision: PositiveSafeInteger,
     bytes: Uint8Array | null,
   ): Extract<SaveRepositoryWriteResultV1, { readonly kind: "saved" }> => {
-    const saved = Object.freeze({
+    const saved = {
       kind: "saved" as const,
       slotId,
       recordRevision,
-    });
+    };
     if (bytes === null) return saved;
     rememberCommittedSaveWriteReceiptV1(
       repository,
       saved,
-      Object.freeze({ slotId, recordRevision, bytes }),
+      { slotId, recordRevision, bytes },
     );
     return saved;
   };
@@ -581,13 +584,13 @@ export function createSaveRepositoryInternalV1<
       const key = createSaveSlotRecordKeyV1(options.storyId, slotId);
       const result = await callHostRecordStoreV1(() =>
         options.records.commit([
-          Object.freeze({
+          {
             kind: "put",
             namespace: "save",
             key,
             expectedRevision: current?.revision ?? null,
             bytes,
-          }),
+          },
           lease.mutation,
         ])
       );
@@ -625,13 +628,13 @@ export function createSaveRepositoryInternalV1<
         : null;
       const result = await callHostRecordStoreV1(() =>
         options.records.commit([
-          Object.freeze({
+          {
             kind: "put",
             namespace: "save",
             key,
             expectedRevision: current.revision,
             bytes,
-          }),
+          },
           lease.mutation,
         ])
       );
@@ -648,26 +651,26 @@ export function createSaveRepositoryInternalV1<
           options.records.read("save", createSaveSlotRecordKeyV1(options.storyId, slotId))
         );
         if (stored === null) {
-          return Object.freeze({
+          return {
             health: "empty" as const,
             slotId,
             hostRevision: null,
-          });
+          };
         }
-        return Object.freeze({
+        return {
           health: "stored" as const,
           slotId,
           hostRevision: stored.revision,
           bytes: Uint8Array.from(stored.bytes),
-        });
+        };
       } catch (error) {
         if (!(error instanceof HostRecordStoreUnavailableV1)) throw error;
-        return Object.freeze({
+        return {
           health: "unavailable" as const,
           slotId,
           hostRevision: null,
           code: error.code,
-        });
+        };
       }
     },
 
@@ -681,41 +684,41 @@ export function createSaveRepositoryInternalV1<
           options.records.read("save", createSaveSlotRecordKeyV1(options.storyId, slotId))
         );
         if (stored === null) {
-          return Object.freeze({
+          return {
             health: "empty" as const,
             slotId,
             hostRevision: null,
             record: null,
             code: null,
-          });
+          };
         }
         const decoded = decodePhysicalV1(stored, slotId);
         if (decoded.kind === "invalid") {
-          return Object.freeze({
+          return {
             health: "invalid" as const,
             slotId,
             hostRevision: stored.revision,
             record: null,
             code: decoded.code,
-          });
+          };
         }
-        return Object.freeze({
+        return {
           health: "valid" as const,
           slotId,
           hostRevision: stored.revision,
           record: decoded.record,
           bytes: Uint8Array.from(stored.bytes),
           code: null,
-        });
+        };
       } catch (error) {
         if (!(error instanceof HostRecordStoreUnavailableV1)) throw error;
-        return Object.freeze({
+        return {
           health: "unavailable" as const,
           slotId,
           hostRevision: null,
           record: null,
           code: error.code,
-        });
+        };
       }
     },
 
@@ -737,13 +740,13 @@ export function createSaveRepositoryInternalV1<
           const previousRevision = nextRecordRevisionV1(previous?.revision ?? null);
           if (previousRevision === null) return rejectedV1("invalid_record");
           mutations.push(
-            Object.freeze({
+            {
               kind: "put",
               namespace: "save",
               key: previousKey,
               expectedRevision: previous?.revision ?? null,
               bytes: encodeForSlotV1(decodedCurrent.record, "auto.previous", previousRevision),
-            }),
+            },
           );
         }
         const currentBytes = encodeForSlotV1(candidate, "auto.current", currentRevision);
@@ -751,13 +754,13 @@ export function createSaveRepositoryInternalV1<
           ? Uint8Array.from(currentBytes)
           : null;
         mutations.push(
-          Object.freeze({
+          {
             kind: "put",
             namespace: "save",
             key: currentKey,
             expectedRevision: current?.revision ?? null,
             bytes: currentBytes,
-          }),
+          },
           lease.mutation,
         );
         const result = await callHostRecordStoreV1(() =>
@@ -786,11 +789,11 @@ export function createSaveRepositoryInternalV1<
           )
         );
         if (stored === null) {
-          return Object.freeze({
+          return {
             health: "empty" as const,
             slotId,
             hostRevision: null,
-          });
+          };
         }
         const decoded = decodeSaveRecordEnvelopeShellInternalV1(
           stored.bytes,
@@ -798,37 +801,37 @@ export function createSaveRepositoryInternalV1<
           instrumentation,
         );
         if (decoded.kind === "rejected") {
-          return Object.freeze({
+          return {
             health: "invalid" as const,
             slotId,
             hostRevision: stored.revision,
             code: decoded.code,
-          });
+          };
         }
         const identityFailure = backupIdentityFailureV1(slotId, decoded.record);
         if (identityFailure !== null) {
-          return Object.freeze({
+          return {
             health: "invalid" as const,
             slotId,
             hostRevision: stored.revision,
             code: identityFailure,
-          });
+          };
         }
-        return Object.freeze({
+        return {
           health: "stored" as const,
           slotId,
           hostRevision: stored.revision,
           bytes: Uint8Array.from(stored.bytes),
           envelope: decoded.record,
-        });
+        };
       } catch (error) {
         if (!(error instanceof HostRecordStoreUnavailableV1)) throw error;
-        return Object.freeze({
+        return {
           health: "unavailable" as const,
           slotId,
           hostRevision: null,
           code: error.code,
-        });
+        };
       }
     },
 
@@ -841,7 +844,7 @@ export function createSaveRepositoryInternalV1<
           options.records.read("save", backupKey)
         );
         if (existingBackup !== null) {
-          return Object.freeze({ kind: "rejected" as const, code: "backup_pending" as const });
+          return { kind: "rejected" as const, code: "backup_pending" as const };
         }
 
         const targetKey = createSaveSlotRecordKeyV1(options.storyId, slotId);
@@ -881,20 +884,20 @@ export function createSaveRepositoryInternalV1<
           : null;
         const result = await callHostRecordStoreV1(() =>
           options.records.commit([
-            Object.freeze({
+            {
               kind: "put",
               namespace: "save",
               key: backupKey,
               expectedRevision: null,
               bytes: Uint8Array.from(current.bytes),
-            }),
-            Object.freeze({
+            },
+            {
               kind: "put",
               namespace: "save",
               key: targetKey,
               expectedRevision: current.revision,
               bytes: targetBytes,
-            }),
+            },
             lease.mutation,
           ])
         );
@@ -914,10 +917,10 @@ export function createSaveRepositoryInternalV1<
           readLeaseTouchV1(fence),
         ]);
         if (lease.kind === "rejected") {
-          return Object.freeze({ kind: "rejected" as const, code: lease.code });
+          return { kind: "rejected" as const, code: lease.code };
         }
         if (backup === null) {
-          return Object.freeze({ kind: "rejected" as const, code: "empty_backup" as const });
+          return { kind: "rejected" as const, code: "empty_backup" as const };
         }
 
         const decoded = decodeSaveRecordEnvelopeShellInternalV1(
@@ -938,25 +941,25 @@ export function createSaveRepositoryInternalV1<
         if (targetBytes === null) return migrationBackupRejectedV1("invalid_record");
         const result = await callHostRecordStoreV1(() =>
           options.records.commit([
-            Object.freeze({
+            {
               kind: "put",
               namespace: "save",
               key: targetKey,
               expectedRevision: target?.revision ?? null,
               bytes: targetBytes,
-            }),
-            Object.freeze({
+            },
+            {
               kind: "delete",
               namespace: "save",
               key: backupKey,
               expectedRevision: backup.revision,
-            }),
+            },
             lease.mutation,
           ])
         );
         return result.kind === "conflict"
           ? migrationBackupRejectedV1("conflict")
-          : Object.freeze({ kind: "restored" as const, slotId, recordRevision });
+          : { kind: "restored" as const, slotId, recordRevision };
       });
     },
 
@@ -968,25 +971,25 @@ export function createSaveRepositoryInternalV1<
           readLeaseTouchV1(fence),
         ]);
         if (lease.kind === "rejected") {
-          return Object.freeze({ kind: "rejected" as const, code: lease.code });
+          return { kind: "rejected" as const, code: lease.code };
         }
         if (backup === null) {
-          return Object.freeze({ kind: "rejected" as const, code: "empty_backup" as const });
+          return { kind: "rejected" as const, code: "empty_backup" as const };
         }
         const result = await callHostRecordStoreV1(() =>
           options.records.commit([
-            Object.freeze({
+            {
               kind: "delete",
               namespace: "save",
               key: backupKey,
               expectedRevision: backup.revision,
-            }),
+            },
             lease.mutation,
           ])
         );
         return result.kind === "conflict"
-          ? Object.freeze({ kind: "rejected" as const, code: "conflict" as const })
-          : Object.freeze({ kind: "discarded" as const, slotId });
+          ? { kind: "rejected" as const, code: "conflict" as const }
+          : { kind: "discarded" as const, slotId };
       });
     },
 
@@ -1001,20 +1004,20 @@ export function createSaveRepositoryInternalV1<
         if (stored === null) return rejectedV1("empty_slot");
         const result = await callHostRecordStoreV1(() =>
           options.records.commit([
-            Object.freeze({
+            {
               kind: "delete",
               namespace: "save",
               key,
               expectedRevision: stored.revision,
-            }),
+            },
             lease.mutation,
           ])
         );
         return result.kind === "conflict"
           ? rejectedV1("conflict")
-          : Object.freeze({ kind: "cleared" as const, slotId });
+          : { kind: "cleared" as const, slotId };
       });
     },
   };
-  return Object.freeze(repository);
+  return repository;
 }

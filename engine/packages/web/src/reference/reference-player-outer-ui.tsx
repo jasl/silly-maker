@@ -70,33 +70,33 @@ function createReferenceStateTunerPortV1(input: {
   readonly prepareMutation: () => Promise<void>;
 }): StateTunerPortV1 {
   const { instance, capabilities } = input;
-  return Object.freeze({
+  return ({
     read: () => instance.admin.inspectForTest().snapshot.state,
     subscribe: (listener: () => void) => instance.semantic.subscribe(listener),
     async patch(path: readonly string[], value: string | number | boolean | null) {
       const debugControl = instance.admin.debugControl;
       if (debugControl === undefined) {
-        return Object.freeze({
+        return ({
           kind: "rejected" as const,
           message: "需要重新加载后才能写入（启动时未开启开发者工具）",
         });
       }
       const capabilityState = capabilities.state.getCurrent();
       if (!capabilityState.debugTools || !capabilityState.cheats) {
-        return Object.freeze({ kind: "capability_disabled" as const });
+        return ({ kind: "capability_disabled" as const });
       }
       try {
         await input.prepareMutation();
       } catch {
-        return Object.freeze({
+        return ({
           kind: "rejected" as const,
           message: "所需文本内容尚未就绪",
         });
       }
       const result = await debugControl.execute(
-        Object.freeze({
+        ({
           kind: engineDebugPatchStateKindV1,
-          path: Object.freeze([...path]),
+          path: [...path],
           value,
         }) as never,
         () => {
@@ -107,17 +107,17 @@ function createReferenceStateTunerPortV1(input: {
       switch (result.kind) {
         case "executed":
           return result.attempt.result.kind === "committed"
-            ? Object.freeze({ kind: "committed" as const })
-            : Object.freeze({ kind: "rejected" as const, message: result.attempt.result.kind });
+            ? ({ kind: "committed" as const })
+            : ({ kind: "rejected" as const, message: result.attempt.result.kind });
         case "validation_failed":
-          return Object.freeze({
+          return ({
             kind: "validation_failed" as const,
             message: formatDebugValidationErrorsV1(result.errors),
           });
         case "capability_disabled":
-          return Object.freeze({ kind: "capability_disabled" as const });
+          return ({ kind: "capability_disabled" as const });
         case "not_executed":
-          return Object.freeze({ kind: "rejected" as const, message: result.code });
+          return ({ kind: "rejected" as const, message: result.code });
         default: {
           const exhaustive: never = result;
           throw new TypeError(`unknown debug result ${String(exhaustive)}`);
@@ -147,13 +147,15 @@ export function createReferencePlayerOuterUiV1(input: {
   readonly info?: ReactNode;
 }): WebGameOuterUiV1 {
   const control = input.control ?? createDevDockControlV1();
-  const contributions = input.contributions ?? createDevDockContributionSetV1({ panels: [] });
-  const settingsLabels = Object.freeze({
+  const contributions = createDevDockContributionSetV1(
+    input.contributions ?? { panels: [] },
+  );
+  const settingsLabels = {
     ...defaultSettingsLabelsV1,
     ...input.settingsLabels,
-  });
+  };
   const loadContributions = input.loadContributions;
-  return Object.freeze({
+  return ({
     bindHost(host: WebGameOuterUiHostInputV1): BoundWebGameOuterUiV1 {
       const stateTuner = createReferenceStateTunerPortV1({
         instance: input.instance,
@@ -167,14 +169,14 @@ export function createReferencePlayerOuterUiV1(input: {
             await loadContributions(),
             host.signalOptionalCapabilityReady,
           );
-      return Object.freeze({
-        settingsSections: Object.freeze([
+      return ({
+        settingsSections: [
           <DefaultSettingsSectionsV1
             key="sillymaker-reference-settings"
             playerProfile={input.playerProfile}
             capabilities={input.capabilities}
             showDeveloperTools={input.showDeveloperTools !== false}
-            labels={Object.freeze({
+            labels={{
               bgmVolumeLabel: settingsLabels.bgmVolumeLabel,
               voiceVolumeLabel: settingsLabels.voiceVolumeLabel,
               sfxVolumeLabel: settingsLabels.sfxVolumeLabel,
@@ -186,9 +188,9 @@ export function createReferencePlayerOuterUiV1(input: {
               autoWaitLabel: settingsLabels.autoWaitLabel,
               fullscreenLabel: settingsLabels.fullscreenLabel,
               developerToolsLabel: settingsLabels.developerToolsLabel,
-            })}
+            }}
           />,
-        ]),
+        ],
         renderAuxiliarySurface({ returnToTitle }: {
           readonly returnToTitle: () => Promise<void>;
         }): ReactNode {

@@ -90,7 +90,7 @@ export function createSemanticGamePortV1<
     const actionValues = requireSynchronousResult(input.actions(queries), "Semantic actions");
     if (!Array.isArray(actionValues)) throw new TypeError("Semantic actions must return an array");
     const actions = [...actionValues] as readonly DeepReadonly<TActionDescriptor>[];
-    return Object.freeze({ game, narrative, actions });
+    return { game, narrative, actions };
   };
 
   const createPublication = (
@@ -100,7 +100,7 @@ export function createSemanticGamePortV1<
     narrative: DeepReadonly<TNarrativeView>,
     actions: readonly DeepReadonly<TActionDescriptor>[],
   ): Publication =>
-    Object.freeze({
+    ({
       revision,
       status,
       game,
@@ -172,7 +172,7 @@ export function createSemanticGamePortV1<
     notify();
   });
 
-  return Object.freeze({
+  return {
     observe: () => publication,
     subscribe(listener: () => void) {
       listeners.add(listener);
@@ -218,8 +218,8 @@ export function createSemanticGamePortV1<
         return Promise.reject(new RangeError("Semantic idle waiter limit exceeded"));
       }
       return new Promise<Publication>((resolve) => {
-        idleWaiters.add(Object.freeze({ afterRevision: parsedRevision, resolve }));
+        idleWaiters.add({ afterRevision: parsedRevision, resolve });
       });
     },
-  });
+  };
 }

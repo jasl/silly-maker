@@ -12,7 +12,7 @@ import { createWebHostV1 } from "../host/create-web-host.ts";
 import { createWebCapabilityPreferencesV1 } from "./web-capability-preferences.ts";
 
 const capabilityKeyV1 = "runtime-capabilities.v1" as Parameters<HostAtomicRecordStoreV1["read"]>[1];
-const allDisabledV1 = Object.freeze({
+const allDisabledV1 = ({
   debugTools: false,
   cheats: false,
   automationBridge: false,
@@ -21,12 +21,12 @@ const allDisabledV1 = Object.freeze({
 function createHostFixtureV1(records?: HostAtomicRecordStoreV1) {
   const source = createWebHostV1({ records: createMemoryHostRecordStoreV1() });
   const write = vi.fn<ApplicationHostCapabilitiesV1["log"]["write"]>();
-  const host: ApplicationHostCapabilitiesV1 = Object.freeze({
+  const host: ApplicationHostCapabilitiesV1 = {
     ...source,
     records: records ?? source.records,
-    log: Object.freeze({ write }),
-  });
-  return Object.freeze({ host, write });
+    log: { write },
+  };
+  return ({ host, write });
 }
 
 async function seedPreferenceV1(
@@ -34,24 +34,24 @@ async function seedPreferenceV1(
   bytes: Uint8Array,
 ): Promise<void> {
   const result = await host.records.commit([
-    Object.freeze({
+    {
       kind: "put" as const,
       namespace: "settings" as const,
       key: capabilityKeyV1,
       expectedRevision: null,
       bytes,
-    }),
+    },
   ]);
   expect(result.kind).toBe("committed");
 }
 
 describe("Web capability preferences", () => {
-  it("hydrates an absent record to frozen all-false state without writing", async () => {
+  it("hydrates an absent record to all-false state without writing", async () => {
     const fixture = createHostFixtureV1();
     const port = await createWebCapabilityPreferencesV1(fixture.host);
 
     expect(port.state.getCurrent()).toEqual(allDisabledV1);
-    expect(Object.isFrozen(port.state.getCurrent())).toBe(true);
+
     expect(await fixture.host.records.read("settings", capabilityKeyV1)).toBeNull();
     expect(fixture.write).not.toHaveBeenCalled();
     expect(Object.hasOwn(globalThis, "__SILLYMAKER_AUTOMATION_V1__")).toBe(false);
@@ -59,7 +59,7 @@ describe("Web capability preferences", () => {
 
   it("restores exact saved booleans and writes canonical bytes at the fixed key", async () => {
     const fixture = createHostFixtureV1();
-    const saved = Object.freeze({ debugTools: true, cheats: false, automationBridge: true });
+    const saved = { debugTools: true, cheats: false, automationBridge: true };
     await seedPreferenceV1(fixture.host, canonicalJsonBytes(saved));
 
     const port = await createWebCapabilityPreferencesV1(fixture.host);
@@ -155,13 +155,13 @@ describe("Web capability preferences", () => {
 
   it("maps record-store failures to unavailable without rejecting or changing state", async () => {
     const source = createWebHostV1({ records: createMemoryHostRecordStoreV1() }).records;
-    const records: HostAtomicRecordStoreV1 = Object.freeze({
+    const records: HostAtomicRecordStoreV1 = {
       read: source.read,
       list: source.list,
       async commit() {
         throw new Error("storage offline");
       },
-    });
+    };
     const fixture = createHostFixtureV1(records);
     const port = await createWebCapabilityPreferencesV1(fixture.host);
 

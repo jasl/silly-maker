@@ -42,39 +42,39 @@ export type ContentScaleProfileV1 = "content-reference" | "content-scale";
 export const contentScaleEntriesPerPackV1 = 1_000;
 export const contentScaleProfilePackCountsV1: Readonly<
   Record<ContentScaleProfileV1, number>
-> = Object.freeze({
+> = {
   "content-reference": 1,
   "content-scale": 100,
-});
+};
 export const contentScaleProfileEntryCountsV1: Readonly<
   Record<ContentScaleProfileV1, number>
-> = Object.freeze({
+> = {
   "content-reference": contentScaleEntriesPerPackV1,
   "content-scale": 100 * contentScaleEntriesPerPackV1,
-});
+};
 
-const contentScaleMinimalMutableStateV1 = Object.freeze({
-  narrative: Object.freeze({
+const contentScaleMinimalMutableStateV1 = {
+  narrative: {
     cursor: "node.scale.line-000000",
-    flags: Object.freeze([]) as readonly string[],
-  }),
-});
+    flags: [] as readonly string[],
+  },
+};
 
-const contentScaleControlDocV1: TemplateInteractionDocV1 = Object.freeze({
+const contentScaleControlDocV1: TemplateInteractionDocV1 = {
   prefix: "scale",
   docId: "doc.scale.content",
   entry: "line-000000",
-  blocks: Object.freeze([
-    Object.freeze({
+  blocks: [
+    {
       kind: "say" as const,
       name: "line-000000",
       speaker: null,
       textId: "text.scale.line.000000",
       next: "end",
-    }),
-    Object.freeze({ kind: "end" as const, name: "end" }),
-  ]),
-});
+    },
+    { kind: "end" as const, name: "end" },
+  ],
+};
 
 export interface ContentScaleFixtureV1 {
   readonly profile: ContentScaleProfileV1;
@@ -137,9 +137,7 @@ interface GeneratedContentV1 {
 
 const repositoryRootV1 = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const execFile = promisify(execFileCallback);
-const profileNamesV1 = Object.freeze(
-  Object.keys(contentScaleProfileEntryCountsV1) as ContentScaleProfileV1[],
-);
+const profileNamesV1 = Object.keys(contentScaleProfileEntryCountsV1) as ContentScaleProfileV1[];
 const usageV1 = "usage: deno run -A --v8-flags=--expose-gc template/bench/content-scale.ts " +
   "--profile <content-reference|content-scale> [--warmup <count>] " +
   "[--samples <count>=5+] [--output <path>]";
@@ -161,10 +159,10 @@ function packBytesV1(packIndex: number): Uint8Array {
   const firstEntryIndex = packIndex * contentScaleEntriesPerPackV1;
   const entries = Array.from({ length: contentScaleEntriesPerPackV1 }, (_, offset) => {
     const index = firstEntryIndex + offset;
-    return Object.freeze({
+    return {
       textId: entryIdV1(index),
       text: `Synthetic content line ${String(index).padStart(6, "0")}`,
-    });
+    };
   });
   return encoderV1.encode(JSON.stringify({
     format: "sillymaker.text-content-pack",
@@ -180,15 +178,14 @@ function packBytesV1(packIndex: number): Uint8Array {
 function generateContentV1(fixture: ContentScaleFixtureV1): GeneratedContentV1 {
   // This benchmark retains the logical manifest and initially demanded payload;
   // the bundle benchmark separately materializes every external pack.
-  const descriptors = Array.from({ length: fixture.packCount }, (_, packIndex) =>
-    Object.freeze({
-      packId: packIdV1(packIndex),
-      runtimePath: `assets/content/scale-${String(packIndex).padStart(3, "0")}.json`,
-    }));
-  return Object.freeze({
+  const descriptors = Array.from({ length: fixture.packCount }, (_, packIndex) => ({
+    packId: packIdV1(packIndex),
+    runtimePath: `assets/content/scale-${String(packIndex).padStart(3, "0")}.json`,
+  }));
+  return {
     manifest: defineTextContentManifestV1({ revision: 1, packs: descriptors }),
     firstPackBytes: packBytesV1(0),
-  });
+  };
 }
 
 function createSessionV1(content: GeneratedContentV1): TextContentSessionV1 {
@@ -207,13 +204,13 @@ function createSessionV1(content: GeneratedContentV1): TextContentSessionV1 {
 export function createContentScaleFixtureV1(
   profile: ContentScaleProfileV1,
 ): ContentScaleFixtureV1 {
-  return Object.freeze({
+  return {
     profile,
     packCount: contentScaleProfilePackCountsV1[profile],
     entryCount: contentScaleProfileEntryCountsV1[profile],
     doc: contentScaleControlDocV1,
     mutableState: contentScaleMinimalMutableStateV1,
-  });
+  };
 }
 
 export async function compileContentScaleFixtureV1(
@@ -224,11 +221,11 @@ export async function compileContentScaleFixtureV1(
   const session = createSessionV1(content);
   await session.ensure(parseTextContentPackIdV1(packIdV1(0)));
   const firstTextId = entryIdV1(0);
-  return Object.freeze({
+  return {
     fixture,
     manifest: content.manifest,
     session,
-    correctness: Object.freeze({
+    correctness: {
       runtimeNodeCount: compiled.nodes.length,
       inlineTextEntryCount: compiled.textEntries.length,
       manifestPackCount: content.manifest.packs.length,
@@ -240,8 +237,8 @@ export async function compileContentScaleFixtureV1(
       firstText: session.resolveText(null, parseTextId(firstTextId)),
       mutableStateCanonicalBytes: canonicalJsonBytes(fixture.mutableState).byteLength,
       mutableStateDigest: digestCanonical("sillymaker:state:v1", fixture.mutableState),
-    }),
-  });
+    },
+  };
 }
 
 function optionErrorV1(message: string): never {
@@ -292,12 +289,12 @@ function parseOptionsV1(argv: readonly string[]): ContentScaleOptionsV1 {
     }
   }
   if (profile === undefined) return optionErrorV1("--profile is required");
-  return Object.freeze({
+  return {
     profile,
     warmup,
     samples,
     ...(output === undefined ? {} : { output }),
-  });
+  };
 }
 
 function requireExplicitGarbageCollectorV1(): () => void {
@@ -316,12 +313,12 @@ async function collectGarbageV1(gc: () => void): Promise<void> {
 
 function readMemoryUsageV1(): MemoryUsageV1 {
   const usage = Deno.memoryUsage();
-  return Object.freeze({
+  return {
     rssBytes: usage.rss,
     heapTotalBytes: usage.heapTotal,
     heapUsedBytes: usage.heapUsed,
     externalBytes: usage.external,
-  });
+  };
 }
 
 async function repositoryStateV1(): Promise<
@@ -333,10 +330,10 @@ async function repositoryStateV1(): Promise<
       cwd: repositoryRootV1,
     }),
   ]);
-  return Object.freeze({
+  return {
     head: head.stdout.trim(),
     workingTreeModified: status.stdout.trim().length > 0,
-  });
+  };
 }
 
 async function measureDurationSampleV1(
@@ -352,7 +349,7 @@ async function measureDurationSampleV1(
   if (session.loadedPackIds().length !== 1 || session.loadedEntryCount() !== 1_000) {
     throw new TypeError("content scale initial pack invariant failed");
   }
-  return Object.freeze({ manifestBuild, initialPackAdmission });
+  return { manifestBuild, initialPackAdmission };
 }
 
 function durationDistributionV1(raw: readonly number[]): DurationDistributionV1 {
@@ -365,11 +362,11 @@ function durationDistributionV1(raw: readonly number[]): DurationDistributionV1 
     if (value === undefined) throw new TypeError("duration percentile is unavailable");
     return value;
   };
-  return Object.freeze({
-    raw: Object.freeze([...raw]),
+  return {
+    raw: [...raw],
     p50: nearestRank(0.5),
     p95: nearestRank(0.95),
-  });
+  };
 }
 
 async function outputPathV1(requested: string | undefined): Promise<string> {
@@ -401,21 +398,21 @@ async function mainV1(): Promise<void> {
   const retained = await compileContentScaleFixtureV1(fixture);
   await collectGarbageV1(gc);
   const afterInitialPack = readMemoryUsageV1();
-  const report = Object.freeze({
+  const report = {
     schemaVersion: 3,
     generatedAt: new Date().toISOString(),
     profile: fixture.profile,
     packCount: fixture.packCount,
     entryCount: fixture.entryCount,
     repository: await repositoryStateV1(),
-    environment: Object.freeze({
+    environment: {
       deno: Deno.version.deno,
       v8: Deno.version.v8,
       typescript: Deno.version.typescript,
       os: Deno.build.os,
       arch: Deno.build.arch,
-    }),
-    protocol: Object.freeze({
+    },
+    protocol: {
       profilesPerProcess: 1,
       entriesPerPack: contentScaleEntriesPerPackV1,
       initiallyLoadedPacks: 1,
@@ -424,14 +421,14 @@ async function mainV1(): Promise<void> {
       warmupSamples: options.warmup,
       measuredSamples: options.samples,
       status: "trend_only" as const,
-    }),
-    durationMs: Object.freeze({
+    },
+    durationMs: {
       manifestBuild: durationDistributionV1(samples.map((sample) => sample.manifestBuild)),
       initialPackAdmission: durationDistributionV1(
         samples.map((sample) => sample.initialPackAdmission),
       ),
-    }),
-    retainedMemory: Object.freeze({
+    },
+    retainedMemory: {
       processBaseline,
       afterFixture,
       beforeRetainedSession,
@@ -439,9 +436,9 @@ async function mainV1(): Promise<void> {
       fixtureHeapDeltaBytes: afterFixture.heapUsedBytes - processBaseline.heapUsedBytes,
       sessionHeapDeltaBytes: afterInitialPack.heapUsedBytes - beforeRetainedSession.heapUsedBytes,
       totalHeapDeltaBytes: afterInitialPack.heapUsedBytes - processBaseline.heapUsedBytes,
-    }),
+    },
     correctness: retained.correctness,
-  });
+  };
   const path = await outputPathV1(options.output);
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify(report, null, 2)}\n`, "utf8");

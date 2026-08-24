@@ -6,6 +6,7 @@ import {
   emptyNarrativeHistoryV1,
   parseNonNegativeSafeInteger,
   type NarrativeHistoryV1,
+  type PendingInteractionV1,
 } from "@sillymaker/base";
 import { defaultPlayerProfileV1, type PlayerProfileV1 } from "@sillymaker/base/runtime";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -69,7 +70,7 @@ const toggleHistoryActionIdV1 = parseManagedSurfaceActionIdV1(
   playerInputActionIdsV1.toggleHistory,
 );
 
-const emptyStageLayersV1 = Object.freeze({
+const emptyStageLayersV1 = ({
   background: null,
   character: null,
   sceneInteraction: null,
@@ -86,7 +87,9 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function pendingSayV1(sequence = 1): unknown {
+function pendingSayV1(
+  sequence = 1,
+): Extract<PendingInteractionV1, { readonly kind: "say" }> {
   return {
     kind: "say",
     definitionId: "narrative.test.say",
@@ -111,7 +114,7 @@ function mutableHistoryObservationV1(): MutableHistoryObservationV1 {
   let readError: unknown = null;
   let started = 0;
   const listeners = new Set<() => void>();
-  const port = Object.freeze({
+  const port = ({
     getSnapshotInternalV1: () => {
       if (readError !== null) throw readError;
       return snapshot;
@@ -157,7 +160,7 @@ function passiveDialoguePlayerViewV1(
   phase: "preparing" | "active" | "suspended",
   playerProfile = defaultPlayerProfileV1,
 ): NarrativeStableDialoguePlayerSnapshotInternalV1 {
-  return Object.freeze({
+  return ({
     kind: "passive" as const,
     phase,
     playbackMode: "normal" as const,
@@ -177,7 +180,7 @@ function mutableDialoguePlayerObservationV1(
   let subscribeError: unknown;
   let started = 0;
   const listeners = new Set<() => void>();
-  const port = Object.freeze({
+  const port = {
     getSnapshotInternalV1: () => {
       if (readFailed) throw readError;
       return snapshot;
@@ -193,7 +196,7 @@ function mutableDialoguePlayerObservationV1(
         listeners.delete(listener);
       };
     },
-  });
+  };
   return {
     port,
     started: () => started,
@@ -227,55 +230,54 @@ function hostHarnessV1(
     definitionSidecars: contract.stableDefinitionSidecars,
   });
   const kernel = kernelBundle.compositeRuntimeKernel;
-  const semanticDispatchPort = Object.freeze({
+  const semanticDispatchPort = ({
     dispatchResolutionInternalV1: (_request: unknown) => Promise.resolve(undefined),
   }) satisfies NarrativeStableSemanticResolutionPortInternalV1;
   let currentPlayerProfile: PlayerProfileV1 = defaultPlayerProfileV1;
   const playerProfileListeners = new Set<() => void>();
-  const playerProfile = Object.freeze({
+  const playerProfile = {
     getSnapshotInternalV1: () => currentPlayerProfile,
     subscribeInternalV1: (listener: () => void) => {
       playerProfileListeners.add(listener);
       let active = true;
-      return Object.freeze(() => {
+      return (() => {
         if (!active) return;
         active = false;
         playerProfileListeners.delete(listener);
       });
     },
     markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
-  });
+  };
   let tickRequests = 0;
-  const presentationClock = Object.freeze({
+  const presentationClock = {
     nowInternalV1: () => 0,
     requestTickInternalV1: (_callback: (nowMs: number) => void) => {
       tickRequests += 1;
-      return Object.freeze(() => {});
+      return (() => {});
     },
     prefersReducedMotionInternalV1: () => false,
-  });
-  const textResolver = Object.freeze({
+  };
+  const textResolver = {
     resolveTextInternalV1: (textId: string) => textId,
-  });
-  const candidatePreflight = Object.freeze({
-    preflightCandidateInternalV1: () =>
-      Object.freeze({
-        kind: "captured" as const,
-        candidateSnapshot: Object.freeze({
-          rendererComponent,
-          visualConfig: Object.freeze({ skin: "host-test" }),
-          semanticDispatchPort,
-          historyObservationPort: historyObservation.port,
-          historyAvailabilityPort: Object.freeze({
-            readHistoryAvailabilityInternalV1: () => true,
-          }),
-          playerProfile,
-          presentationClock,
-          textResolver,
-          voiceReplayPort: null,
-          quickMenuContribution: null,
-        }),
-      }),
+  };
+  const candidatePreflight = ({
+    preflightCandidateInternalV1: () => ({
+      kind: "captured" as const,
+      candidateSnapshot: {
+        rendererComponent,
+        visualConfig: { skin: "host-test" },
+        semanticDispatchPort,
+        historyObservationPort: historyObservation.port,
+        historyAvailabilityPort: {
+          readHistoryAvailabilityInternalV1: () => true,
+        },
+        playerProfile,
+        presentationClock,
+        textResolver,
+        voiceReplayPort: null,
+        quickMenuContribution: null,
+      },
+    }),
   }) satisfies NarrativeStableCandidatePreflightInternalV1;
   const bridge = createNarrativeStablePublisherBridgeInternalV1({
     kernelBundle,
@@ -362,7 +364,7 @@ function routeActionV1(
   harness: ReturnType<typeof hostHarnessV1>,
   actionId: InputActionIdV1,
 ) {
-  return harness.inputRouter.route(Object.freeze({ kind: "action" as const, actionId }));
+  return harness.inputRouter.route({ kind: "action" as const, actionId });
 }
 
 function narrativeRenderShellV1(descendant: Element | null): HTMLDivElement {
@@ -393,7 +395,7 @@ function StagedNarrativeHostV1(
   return (
     <GameStageV1
       accessibleName="Narrative Host gesture stage"
-      layers={Object.freeze({
+      layers={{
         ...emptyStageLayersV1,
         sceneInteraction: (
           <button type="button" data-testid="narrative-lower-action" onClick={props.onLowerAction}>
@@ -408,7 +410,7 @@ function StagedNarrativeHostV1(
             isGestureCurrent={props.isGestureCurrent}
           />
         ),
-      })}
+      }}
     />
   );
 }
@@ -416,7 +418,7 @@ function StagedNarrativeHostV1(
 function historyWithOneEntryV1(): NarrativeHistoryV1 {
   return appendNarrativeHistoryV1(
     emptyNarrativeHistoryV1,
-    Object.freeze({
+    {
       kind: "say" as const,
       occurrenceId: "interaction-occurrence.2",
       definitionId: "interaction.host-test.line",
@@ -424,7 +426,7 @@ function historyWithOneEntryV1(): NarrativeHistoryV1 {
       speakerTextId: null,
       textId: "text.host-test.line",
       voiceAssetId: null,
-    }),
+    },
   );
 }
 
@@ -442,7 +444,7 @@ function syntheticDialogueRenderEntryV1(
     readonly playerObservation?: MutableDialoguePlayerObservationV1["port"];
   }>,
 ): SyntheticDialogueRenderEntryV1 {
-  return Object.freeze({
+  return ({
     kind: "dialogue",
     phase: input.phase,
     renderKey: input.renderKey ?? "narrative-host-render.synthetic-repair",
@@ -451,14 +453,14 @@ function syntheticDialogueRenderEntryV1(
       "surface-focus.narrative.primary",
     ),
     rendererComponent: input.rendererComponent,
-    rendererProps: Object.freeze({
+    rendererProps: {
       kind: "dialogue",
       pending: pendingSayV1(),
-      visualConfig: Object.freeze({ skin: "synthetic-repair" }),
+      visualConfig: { skin: "synthetic-repair" },
       playerProfile: defaultPlayerProfileV1,
       textResolver: (textId: string) => textId,
       quickMenuContribution: null,
-    }),
+    },
     playerObservation: input.playerObservation ?? mutableDialoguePlayerObservationV1().port,
   }) as unknown as SyntheticDialogueRenderEntryV1;
 }
@@ -470,23 +472,23 @@ function mutableHostRenderSourceV1(
   publish(entry: NarrativeStableHostRenderEntryInternalV1): void;
   selectWithoutNotify(entry: NarrativeStableHostRenderEntryInternalV1): void;
 }> {
-  let snapshot = Object.freeze({ entries: Object.freeze([initialEntry]) });
+  let snapshot = { entries: [initialEntry] };
   const listeners = new Set<() => void>();
-  const source = Object.freeze({
+  const source = ({
     getSnapshotInternalV1: () => snapshot,
     subscribeInternalV1(listener: () => void): () => void {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
   }) satisfies NarrativeStableHostRenderSourceInternalV1;
-  return Object.freeze({
+  return ({
     source,
     publish(entry: NarrativeStableHostRenderEntryInternalV1): void {
-      snapshot = Object.freeze({ entries: Object.freeze([entry]) });
+      snapshot = { entries: [entry] };
       for (const listener of [...listeners]) listener();
     },
     selectWithoutNotify(entry: NarrativeStableHostRenderEntryInternalV1): void {
-      snapshot = Object.freeze({ entries: Object.freeze([entry]) });
+      snapshot = { entries: [entry] };
     },
   });
 }
@@ -501,22 +503,22 @@ function syntheticHostRuntimeV1(
   readonly release: ReturnType<typeof vi.fn>;
 }> {
   const renderSource = mutableHostRenderSourceV1(initialEntry);
-  const settleReady = vi.fn(() => Object.freeze({ kind: "settled" as const, completion: null }));
-  const settleFailed = vi.fn(() => Object.freeze({ kind: "settled" as const, completion: null }));
+  const settleReady = vi.fn(() => ({ kind: "settled" as const, completion: null }));
+  const settleFailed = vi.fn(() => ({ kind: "settled" as const, completion: null }));
   const release = vi.fn();
-  const runtime = Object.freeze({
-    attachment: Object.freeze({
+  const runtime = ({
+    attachment: {
       settleRootReadinessReadyInternalV1: settleReady,
       settleRootReadinessFailedInternalV1: settleFailed,
       settleHistoryReadinessReadyInternalV1: vi.fn(),
       settleHistoryReadinessFailedInternalV1: vi.fn(),
       releaseInternalV1: release,
-    }),
+    },
     renderSource: renderSource.source,
   }) as unknown as NarrativeStableHostRuntimeInternalV1;
   vi.spyOn(narrativeFamilyModuleV1, "createNarrativeStableHostRuntimeInternalV1")
     .mockReturnValue(runtime);
-  return Object.freeze({ runtime, renderSource, settleReady, settleFailed, release });
+  return ({ runtime, renderSource, settleReady, settleFailed, release });
 }
 
 function emptySyntheticHostRuntimeV1(
@@ -530,31 +532,31 @@ function emptySyntheticHostRuntimeV1(
   readonly retire: () => void;
 }> {
   let active = true;
-  const snapshot = Object.freeze({ entries: Object.freeze([]) });
+  const snapshot = { entries: [] };
   const getSnapshot = vi.fn(() => snapshot);
-  const subscribe = vi.fn((_listener: () => void) => Object.freeze(() => {}));
+  const subscribe = vi.fn((_listener: () => void) => (() => {}));
   const release = vi.fn(() => {
     releaseObservation?.();
     active = false;
   });
-  const runtime = Object.freeze({
-    attachment: Object.freeze({
+  const runtime = ({
+    attachment: {
       settleRootReadinessReadyInternalV1: vi.fn(),
       settleRootReadinessFailedInternalV1: vi.fn(),
       settleHistoryReadinessReadyInternalV1: vi.fn(),
       settleHistoryReadinessFailedInternalV1: vi.fn(),
       releaseInternalV1: release,
-    }),
-    renderSource: Object.freeze({
+    },
+    renderSource: {
       getSnapshotInternalV1: getSnapshot,
       subscribeInternalV1: subscribe,
-    }),
+    },
   }) as unknown as NarrativeStableHostRuntimeInternalV1;
   vi.spyOn(narrativeFamilyModuleV1, "createNarrativeStableHostRuntimeInternalV1")
     .mockReturnValue(runtime);
   vi.spyOn(narrativeFamilyModuleV1, "isNarrativeStableHostRuntimeCurrentInternalV1")
     .mockImplementation((candidate) => candidate === runtime && active);
-  return Object.freeze({
+  return ({
     runtime,
     release,
     getSnapshot,
@@ -578,9 +580,9 @@ function freshEmptySyntheticHostRuntimeFactoryV1(): Readonly<{
   vi.spyOn(narrativeFamilyModuleV1, "createNarrativeStableHostRuntimeInternalV1")
     .mockImplementation(() => {
       created += 1;
-      const snapshot = Object.freeze({ entries: Object.freeze([]) });
-      const runtime = Object.freeze({
-        attachment: Object.freeze({
+      const snapshot = { entries: [] };
+      const runtime = ({
+        attachment: {
           settleRootReadinessReadyInternalV1: vi.fn(),
           settleRootReadinessFailedInternalV1: vi.fn(),
           settleHistoryReadinessReadyInternalV1: vi.fn(),
@@ -589,21 +591,21 @@ function freshEmptySyntheticHostRuntimeFactoryV1(): Readonly<{
             if (!activeRuntimes.delete(runtime)) return;
             released += 1;
           },
-        }),
-        renderSource: Object.freeze({
+        },
+        renderSource: {
           getSnapshotInternalV1: () => {
             observed += 1;
             return snapshot;
           },
-          subscribeInternalV1: (_listener: () => void) => Object.freeze(() => {}),
-        }),
+          subscribeInternalV1: (_listener: () => void) => (() => {}),
+        },
       }) as unknown as NarrativeStableHostRuntimeInternalV1;
       activeRuntimes.add(runtime);
       return runtime;
     });
   vi.spyOn(narrativeFamilyModuleV1, "isNarrativeStableHostRuntimeCurrentInternalV1")
     .mockImplementation((runtime) => activeRuntimes.has(runtime));
-  return Object.freeze({
+  return ({
     created: () => created,
     observed: () => observed,
     released: () => released,
@@ -613,7 +615,7 @@ function freshEmptySyntheticHostRuntimeFactoryV1(): Readonly<{
 function physicalIngressRegistrationInputV1(
   input: RegisterNarrativeSurfaceHostPhysicalIngressInputInternalV1,
 ): RegisterNarrativeSurfaceHostPhysicalIngressInputInternalV1 {
-  return Object.freeze({
+  return ({
     session: input.session,
     portalContainer: input.portalContainer,
     inputRouter: input.inputRouter,
@@ -701,10 +703,10 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     });
     const runtime = syntheticHostRuntimeV1(firstEntry);
     vi.spyOn(narrativeFamilyModuleV1, "prepareNarrativeStableHostReadyCommitInternalV1")
-      .mockReturnValue(Object.freeze({ kind: "reattached" as const, completion: null }));
+      .mockReturnValue({ kind: "reattached" as const, completion: null });
     const portalContainer = document.createElement("div");
     document.body.append(portalContainer);
-    const session = Object.freeze({}) as unknown as NarrativeStableSessionInternalV1;
+    const session = ({}) as unknown as NarrativeStableSessionInternalV1;
     const inputRouter = createInputRouterV1();
     const isGestureCurrent = () => true;
     const never = new Promise<void>(() => {});
@@ -769,104 +771,22 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     portalContainer.remove();
   });
 
-  it("freezes the physical-ingress source-relative API and rejects malformed registration before Host work", () => {
-    expectTypeOf<keyof NarrativeSurfaceHostPhysicalIngressContextInternalV1>()
-      .toEqualTypeOf<"inputRouter" | "isGestureCurrent" | "isCurrentInternalV1">();
-    expectTypeOf<keyof RegisterNarrativeSurfaceHostPhysicalIngressInputInternalV1>()
-      .toEqualTypeOf<"session" | "portalContainer" | "inputRouter" | "attachInternalV1">();
-
+  it("rejects a non-div physical-ingress portal before Host work", () => {
     const harness = hostHarnessV1(() => null);
-    const portalContainer = document.createElement("div");
-    const attachInternalV1 = vi.fn(() => Object.freeze(() => {}));
+    const attachInternalV1 = vi.fn(() => (() => {}));
     const createRuntime = vi.spyOn(
       narrativeFamilyModuleV1,
       "createNarrativeStableHostRuntimeInternalV1",
     );
-    const valid = physicalIngressRegistrationInputV1({
-      session: harness.session,
-      portalContainer,
-      inputRouter: harness.inputRouter,
-      attachInternalV1,
-    });
-    const cleanupRegistration = registerNarrativeSurfaceHostPhysicalIngressInternalV1(valid);
+    expect(() =>
+      registerNarrativeSurfaceHostPhysicalIngressInternalV1({
+        session: harness.session,
+        portalContainer: document.createElement("span") as unknown as HTMLDivElement,
+        inputRouter: harness.inputRouter,
+        attachInternalV1,
+      })
+    ).toThrowError(new TypeError("ui.narrative_surface_host_physical_ingress_invalid"));
     expect(attachInternalV1).not.toHaveBeenCalled();
-    expect(createRuntime).not.toHaveBeenCalled();
-    cleanupRegistration();
-    cleanupRegistration();
-
-    const registrationKeys = [
-      "session",
-      "portalContainer",
-      "inputRouter",
-      "attachInternalV1",
-    ] as const satisfies readonly (keyof RegisterNarrativeSurfaceHostPhysicalIngressInputInternalV1)[];
-    const unreadAccessors: Array<ReturnType<typeof vi.fn>> = [];
-    const accessorInputs = registrationKeys.map((key) => {
-      const getter = vi.fn(() => valid[key]);
-      unreadAccessors.push(getter);
-      const candidate = { ...valid };
-      Reflect.defineProperty(candidate, key, {
-        get: getter,
-        enumerable: true,
-        configurable: true,
-      });
-      return Object.freeze(candidate);
-    });
-    const missingInputs = registrationKeys.map((key) => {
-      const candidate: Record<string, unknown> = { ...valid };
-      Reflect.deleteProperty(candidate, key);
-      return Object.freeze(candidate);
-    });
-    class RegistrationInputClassV1 {
-      readonly session = harness.session;
-      readonly portalContainer = portalContainer;
-      readonly inputRouter = harness.inputRouter;
-      readonly attachInternalV1 = attachInternalV1;
-    }
-    const classInput = Object.freeze(new RegistrationInputClassV1());
-    const callableThenableAttach = Object.freeze(Object.assign(
-      vi.fn(() => Object.freeze(() => {})),
-      // oxlint-disable-next-line unicorn/no-thenable -- Intentional hostile registration fixture.
-      { then: vi.fn() },
-    ));
-    const revoked = Proxy.revocable(valid, {});
-    revoked.revoke();
-    const revokedPortalContainer = Proxy.revocable(portalContainer, {});
-    revokedPortalContainer.revoke();
-    const throwingPortalContainer = new Proxy(portalContainer, {
-      getPrototypeOf: () => {
-        throw new Error("portal-container-prototype-trap");
-      },
-    });
-    const trappingProxy = new Proxy(valid, {
-      ownKeys: () => {
-        throw new Error("registration-own-keys-trap");
-      },
-    });
-    const invalidInputs: readonly unknown[] = [
-      { ...valid },
-      Object.freeze({ ...valid, extra: true }),
-      ...missingInputs,
-      ...accessorInputs,
-      classInput,
-      revoked.proxy,
-      trappingProxy,
-      Object.freeze({ ...valid, session: Object.freeze({}) }),
-      Object.freeze({ ...valid, portalContainer: document.createElement("span") }),
-      Object.freeze({ ...valid, portalContainer: throwingPortalContainer }),
-      Object.freeze({ ...valid, portalContainer: revokedPortalContainer.proxy }),
-      Object.freeze({ ...valid, inputRouter: Object.freeze({}) }),
-      Object.freeze({ ...valid, attachInternalV1: null }),
-      Object.freeze({ ...valid, attachInternalV1: callableThenableAttach }),
-    ];
-    for (const candidate of invalidInputs) {
-      expect(() =>
-        registerNarrativeSurfaceHostPhysicalIngressInternalV1(
-          candidate as RegisterNarrativeSurfaceHostPhysicalIngressInputInternalV1,
-        )
-      ).toThrowError(new TypeError("ui.narrative_surface_host_physical_ingress_invalid"));
-    }
-    for (const unreadAccessor of unreadAccessors) expect(unreadAccessor).not.toHaveBeenCalled();
     expect(createRuntime).not.toHaveBeenCalled();
   });
 
@@ -876,14 +796,14 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     const portalContainer = document.createElement("div");
     const otherPortalContainer = document.createElement("div");
     const otherInputRouter = createInputRouterV1();
-    const attachInternalV1 = vi.fn(() => Object.freeze(() => {}));
+    const attachInternalV1 = vi.fn(() => (() => {}));
     const exactInput = physicalIngressRegistrationInputV1({
       session: firstHarness.session,
       portalContainer,
       inputRouter: firstHarness.inputRouter,
       attachInternalV1,
     });
-    const conflictingAttachInternalV1 = vi.fn(() => Object.freeze(() => {}));
+    const conflictingAttachInternalV1 = vi.fn(() => (() => {}));
     const conflictingInput = physicalIngressRegistrationInputV1({
       session: firstHarness.session,
       portalContainer,
@@ -940,8 +860,8 @@ describe("NarrativeSurfaceHostInternalV1", () => {
       const otherHarness = hostHarnessV1(() => null);
       const portalContainer = document.createElement("div");
       document.body.append(portalContainer);
-      const attachInternalV1 = vi.fn(() => Object.freeze(() => {}));
-      let cleanupRegistration = Object.freeze(() => {});
+      const attachInternalV1 = vi.fn(() => (() => {}));
+      let cleanupRegistration = () => {};
       if (mismatchKind !== "unregistered") {
         cleanupRegistration = registerNarrativeSurfaceHostPhysicalIngressInternalV1(
           physicalIngressRegistrationInputV1({
@@ -979,7 +899,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     },
   );
 
-  it("hands off the exact stable Host callback in a frozen current-generation context", () => {
+  it("hands off the stable Host callback in a current-generation context", () => {
     const harness = hostHarnessV1(() => null);
     const portalContainer = document.createElement("div");
     document.body.append(portalContainer);
@@ -989,7 +909,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
       (context: NarrativeSurfaceHostPhysicalIngressContextInternalV1) => {
         expect(context.isCurrentInternalV1()).toBe(true);
         contexts.push(context);
-        return Object.freeze(detachInternalV1);
+        return detachInternalV1;
       },
     );
     const cleanupRegistration = registerNarrativeSurfaceHostPhysicalIngressInternalV1(
@@ -1020,21 +940,6 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     expect(createRuntime).toHaveBeenCalledOnce();
     const context = contexts[0]!;
     const runtimeInput = createRuntime.mock.calls[0]![0];
-    expect(Object.isFrozen(context)).toBe(true);
-    expect(Reflect.getPrototypeOf(context)).toBe(Object.prototype);
-    expect(Reflect.ownKeys(context)).toHaveLength(3);
-    expect(Reflect.ownKeys(context)).toEqual(expect.arrayContaining([
-      "inputRouter",
-      "isGestureCurrent",
-      "isCurrentInternalV1",
-    ]));
-    for (const key of Reflect.ownKeys(context)) {
-      expect(Reflect.getOwnPropertyDescriptor(context, key)).toMatchObject({
-        configurable: false,
-        enumerable: true,
-        writable: false,
-      });
-    }
     expect(context.inputRouter).toBe(harness.inputRouter);
     expect(context.isGestureCurrent).toBe(runtimeInput.isGestureCurrent);
     expect(context.isGestureCurrent).not.toBe(firstGesturePredicate);
@@ -1069,90 +974,58 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     portalContainer.remove();
   });
 
-  it("rolls back attach faults and invalid cleanup without publishing a mounted runtime", () => {
-    const callableThenableCleanup = Object.freeze(Object.assign(
-      vi.fn(),
-      // oxlint-disable-next-line unicorn/no-thenable -- Intentional hostile cleanup fixture.
-      { then: vi.fn() },
-    ));
-    const cases = [
-      Object.freeze({
-        name: "attach throw",
-        expected: new Error("physical-ingress-attach-fault"),
-        attach: vi.fn(() => {
-          throw new Error("physical-ingress-attach-fault");
-        }),
-      }),
-      Object.freeze({
-        name: "non-callable cleanup",
-        expected: new TypeError("ui.narrative_surface_host_physical_ingress_invalid"),
-        attach: vi.fn(() => null),
-      }),
-      Object.freeze({
-        name: "Promise cleanup",
-        expected: new TypeError("ui.narrative_surface_host_physical_ingress_invalid"),
-        attach: vi.fn(() => Promise.resolve()),
-      }),
-      Object.freeze({
-        name: "callable thenable cleanup",
-        expected: new TypeError("ui.narrative_surface_host_physical_ingress_invalid"),
-        attach: vi.fn(() => callableThenableCleanup),
-      }),
-    ];
+  it("rolls back attach faults without publishing a mounted runtime", () => {
+    const harness = hostHarnessV1(() => null);
+    const portalContainer = document.createElement("div");
+    document.body.append(portalContainer);
+    const contexts: NarrativeSurfaceHostPhysicalIngressContextInternalV1[] = [];
+    const runtime = emptySyntheticHostRuntimeV1(() => {
+      expect(contexts).toHaveLength(1);
+      expect(contexts[0]!.isCurrentInternalV1()).toBe(false);
+    });
+    const attachInternalV1 = vi.fn(
+      (context: NarrativeSurfaceHostPhysicalIngressContextInternalV1) => {
+        contexts.push(context);
+        throw new Error("physical-ingress-attach-fault");
+      },
+    );
+    const registrationInput = physicalIngressRegistrationInputV1({
+      session: harness.session,
+      portalContainer,
+      inputRouter: harness.inputRouter,
+      attachInternalV1,
+    });
+    const cleanupRegistration = registerNarrativeSurfaceHostPhysicalIngressInternalV1(
+      registrationInput,
+    );
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    for (const testCase of cases) {
-      vi.restoreAllMocks();
-      const harness = hostHarnessV1(() => null);
-      const portalContainer = document.createElement("div");
-      document.body.append(portalContainer);
-      const contexts: NarrativeSurfaceHostPhysicalIngressContextInternalV1[] = [];
-      const runtime = emptySyntheticHostRuntimeV1(() => {
-        expect(contexts).toHaveLength(1);
-        expect(contexts[0]!.isCurrentInternalV1()).toBe(false);
-      });
-      const registrationInput = physicalIngressRegistrationInputV1({
-        session: harness.session,
-        portalContainer,
-        inputRouter: harness.inputRouter,
-        attachInternalV1: (context) => {
-          contexts.push(context);
-          return testCase.attach() as () => void;
-        },
-      });
-      const cleanupRegistration = registerNarrativeSurfaceHostPhysicalIngressInternalV1(
-        registrationInput,
-      );
-      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() =>
+      render(
+        <NarrativeSurfaceHostInternalV1
+          session={harness.session}
+          portalContainer={portalContainer}
+          inputRouter={harness.inputRouter}
+          isGestureCurrent={harness.isGestureCurrent}
+        />,
+      )
+    ).toThrowError(new Error("physical-ingress-attach-fault"));
+    expect(attachInternalV1).toHaveBeenCalledOnce();
+    expect(runtime.release).toHaveBeenCalledOnce();
+    expect(runtime.isActive()).toBe(false);
+    expect(contexts).toHaveLength(1);
+    expect(contexts[0]!.isCurrentInternalV1()).toBe(false);
+    expect(runtime.getSnapshot).not.toHaveBeenCalled();
+    expect(runtime.subscribe).not.toHaveBeenCalled();
+    expect(portalContainer).toBeEmptyDOMElement();
+    expect(() => registerNarrativeSurfaceHostPhysicalIngressInternalV1(registrationInput))
+      .toThrowError(new TypeError("ui.narrative_surface_host_physical_ingress_invalid"));
 
-      expect(() =>
-        render(
-          <NarrativeSurfaceHostInternalV1
-            session={harness.session}
-            portalContainer={portalContainer}
-            inputRouter={harness.inputRouter}
-            isGestureCurrent={harness.isGestureCurrent}
-          />,
-        )
-      ).toThrowError(testCase.expected);
-      expect(testCase.attach, testCase.name).toHaveBeenCalledOnce();
-      expect(runtime.release, testCase.name).toHaveBeenCalledOnce();
-      expect(runtime.isActive(), testCase.name).toBe(false);
-      expect(contexts, testCase.name).toHaveLength(1);
-      expect(contexts[0]!.isCurrentInternalV1(), testCase.name).toBe(false);
-      expect(runtime.getSnapshot, testCase.name).not.toHaveBeenCalled();
-      expect(runtime.subscribe, testCase.name).not.toHaveBeenCalled();
-      expect(portalContainer, testCase.name).toBeEmptyDOMElement();
-      expect(() => registerNarrativeSurfaceHostPhysicalIngressInternalV1(registrationInput))
-        .toThrowError(new TypeError("ui.narrative_surface_host_physical_ingress_invalid"));
-
-      consoleError.mockRestore();
-      cleanupRegistration();
-      const cleanupRetry = registerNarrativeSurfaceHostPhysicalIngressInternalV1(
-        registrationInput,
-      );
-      cleanupRetry();
-      portalContainer.remove();
-    }
+    consoleError.mockRestore();
+    cleanupRegistration();
+    const cleanupRetry = registerNarrativeSurfaceHostPhysicalIngressInternalV1(registrationInput);
+    cleanupRetry();
+    portalContainer.remove();
   });
 
   it("rolls back a cleanup returned after attach synchronously released its registration", () => {
@@ -1162,7 +1035,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     const runtime = emptySyntheticHostRuntimeV1();
     const detachInternalV1 = vi.fn();
     const contexts: NarrativeSurfaceHostPhysicalIngressContextInternalV1[] = [];
-    let cleanupRegistration = Object.freeze(() => {});
+    let cleanupRegistration = () => {};
     cleanupRegistration = registerNarrativeSurfaceHostPhysicalIngressInternalV1(
       physicalIngressRegistrationInputV1({
         session: harness.session,
@@ -1171,7 +1044,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
         attachInternalV1: (context) => {
           contexts.push(context);
           cleanupRegistration();
-          return Object.freeze(detachInternalV1);
+          return detachInternalV1;
         },
       }),
     );
@@ -1202,7 +1075,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     const harness = hostHarnessV1(() => null);
     const portalContainer = document.createElement("div");
     const runtimeError = new Error("host-runtime-create-before-physical-ingress");
-    const attachInternalV1 = vi.fn(() => Object.freeze(() => {}));
+    const attachInternalV1 = vi.fn(() => (() => {}));
     const cleanupRegistration = registerNarrativeSurfaceHostPhysicalIngressInternalV1(
       physicalIngressRegistrationInputV1({
         session: harness.session,
@@ -1247,7 +1120,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
         inputRouter: harness.inputRouter,
         attachInternalV1: (nextContext) => {
           context = nextContext;
-          return Object.freeze(detachInternalV1);
+          return detachInternalV1;
         },
       }),
     );
@@ -1279,7 +1152,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     const order: string[] = [];
     const runtime = emptySyntheticHostRuntimeV1(() => order.push("release"));
     let context!: NarrativeSurfaceHostPhysicalIngressContextInternalV1;
-    let cleanupRegistration = Object.freeze(() => {});
+    let cleanupRegistration = () => {};
     const detachInternalV1 = vi.fn(() => {
       order.push(`detach:${String(context.isCurrentInternalV1())}:${String(runtime.isActive())}`);
       cleanupRegistration();
@@ -1292,7 +1165,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
         inputRouter: harness.inputRouter,
         attachInternalV1: (nextContext) => {
           context = nextContext;
-          return Object.freeze(detachInternalV1);
+          return detachInternalV1;
         },
       }),
     );
@@ -1334,7 +1207,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
         inputRouter: harness.inputRouter,
         attachInternalV1: (nextContext) => {
           context = nextContext;
-          return Object.freeze(detachInternalV1);
+          return detachInternalV1;
         },
       }),
     );
@@ -1362,25 +1235,24 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     const portalContainer = document.createElement("div");
     document.body.append(portalContainer);
     const runtime = emptySyntheticHostRuntimeV1();
-    const successorAttach = vi.fn(() => Object.freeze(() => {}));
-    let oldCleanup = Object.freeze(() => {});
-    let successorCleanup = Object.freeze(() => {});
+    const successorAttach = vi.fn(() => (() => {}));
+    let oldCleanup = () => {};
+    let successorCleanup = () => {};
     const oldInput = physicalIngressRegistrationInputV1({
       session: harness.session,
       portalContainer,
       inputRouter: harness.inputRouter,
-      attachInternalV1: () =>
-        Object.freeze(() => {
-          oldCleanup();
-          successorCleanup = registerNarrativeSurfaceHostPhysicalIngressInternalV1(
-            physicalIngressRegistrationInputV1({
-              session: harness.session,
-              portalContainer,
-              inputRouter: harness.inputRouter,
-              attachInternalV1: successorAttach,
-            }),
-          );
-        }),
+      attachInternalV1: () => (() => {
+        oldCleanup();
+        successorCleanup = registerNarrativeSurfaceHostPhysicalIngressInternalV1(
+          physicalIngressRegistrationInputV1({
+            session: harness.session,
+            portalContainer,
+            inputRouter: harness.inputRouter,
+            attachInternalV1: successorAttach,
+          }),
+        );
+      }),
     });
     oldCleanup = registerNarrativeSurfaceHostPhysicalIngressInternalV1(oldInput);
     const view = render(
@@ -1410,7 +1282,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     const attachInternalV1 = vi.fn(
       (context: NarrativeSurfaceHostPhysicalIngressContextInternalV1) => {
         const index = contexts.push(context) - 1;
-        return Object.freeze(() => detachCalls.push(index));
+        return (() => detachCalls.push(index));
       },
     );
     const cleanupRegistration = registerNarrativeSurfaceHostPhysicalIngressInternalV1(
@@ -1465,7 +1337,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     const runtimeFactory = freshEmptySyntheticHostRuntimeFactoryV1();
     const contexts: NarrativeSurfaceHostPhysicalIngressContextInternalV1[] = [];
     const detachInternalV1 = vi.fn();
-    let cleanupRegistration = Object.freeze(() => {});
+    let cleanupRegistration = () => {};
     cleanupRegistration = registerNarrativeSurfaceHostPhysicalIngressInternalV1(
       physicalIngressRegistrationInputV1({
         session: harness.session,
@@ -1474,7 +1346,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
         attachInternalV1: (context) => {
           contexts.push(context);
           if (contexts.length === 2) cleanupRegistration();
-          return Object.freeze(detachInternalV1);
+          return detachInternalV1;
         },
       }),
     );
@@ -1523,7 +1395,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     const attachInternalV1 = vi.fn(
       (context: NarrativeSurfaceHostPhysicalIngressContextInternalV1) => {
         contexts.push(context);
-        return Object.freeze(detachInternalV1);
+        return detachInternalV1;
       },
     );
     const cleanupRegistration = registerNarrativeSurfaceHostPhysicalIngressInternalV1(
@@ -1596,7 +1468,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
         attachCount += 1;
         firstContext ??= context;
         currentContext = context;
-        return Object.freeze(() => {
+        return (() => {
           detachCount += 1;
         });
       };
@@ -1729,17 +1601,6 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     }));
     const preparingEntry = readyMint.mock.calls[0]?.[0].renderEntry;
     if (preparingEntry?.kind !== "dialogue") throw new Error("expected preparing Dialogue entry");
-    expect(Reflect.ownKeys(preparingEntry).map(String).sort()).toEqual([
-      "initialFocusTargetId",
-      "kind",
-      "phase",
-      "playerObservation",
-      "preparation",
-      "renderKey",
-      "rendererComponent",
-      "rendererProps",
-    ]);
-    expect(Object.isFrozen(preparingEntry.playerObservation)).toBe(true);
 
     await flushHostMicrotasksV1();
 
@@ -1758,15 +1619,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     expect(harness.kernel.getStateInternalV1().stableRuntimeBindings[0]?.binding.kind)
       .toBe("ready_instance");
     expect(rendererProps.at(-1)).toMatchObject({ kind: "dialogue" });
-    expect(Reflect.ownKeys(rendererProps.at(-1) ?? {})).toEqual([
-      "kind",
-      "pending",
-      "visualConfig",
-      "playerProfile",
-      "textResolver",
-      "quickMenuContribution",
-      "playerView",
-    ]);
+
     expect("playerObservation" in (rendererProps.at(-1) ?? {})).toBe(false);
 
     view.unmount();
@@ -1775,13 +1628,13 @@ describe("NarrativeSurfaceHostInternalV1", () => {
   });
 
   it("materializes the exact passive player view through one keyed Dialogue subscription", () => {
-    const currentProfile = Object.freeze({
+    const currentProfile = {
       ...defaultPlayerProfileV1,
-      preferences: Object.freeze({
+      preferences: {
         ...defaultPlayerProfileV1.preferences,
         locale: "zh-Hans",
-      }),
-    });
+      },
+    };
     const initialView = passiveDialoguePlayerViewV1("active", currentProfile);
     const playerObservation = mutableDialoguePlayerObservationV1(initialView);
     const renderedProps: NarrativeStableRendererPropsInternalV1[] = [];
@@ -1797,13 +1650,13 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     });
     const runtime = syntheticHostRuntimeV1(entry);
     vi.spyOn(narrativeFamilyModuleV1, "prepareNarrativeStableHostReadyCommitInternalV1")
-      .mockReturnValue(Object.freeze({ kind: "reattached" as const, completion: null }));
+      .mockReturnValue({ kind: "reattached" as const, completion: null });
     const portalContainer = document.createElement("div");
     document.body.append(portalContainer);
 
     const view = render(
       <NarrativeSurfaceHostInternalV1
-        session={Object.freeze({}) as unknown as NarrativeStableSessionInternalV1}
+        session={({}) as unknown as NarrativeStableSessionInternalV1}
         portalContainer={portalContainer}
         inputRouter={createInputRouterV1()}
         isGestureCurrent={() => true}
@@ -1816,15 +1669,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     const firstPlayerView = (firstProps as unknown as {
       readonly playerView: NarrativeStableDialoguePlayerSnapshotInternalV1;
     }).playerView;
-    expect(Reflect.ownKeys(firstProps)).toEqual([
-      "kind",
-      "pending",
-      "visualConfig",
-      "playerProfile",
-      "textResolver",
-      "quickMenuContribution",
-      "playerView",
-    ]);
+
     expect(firstPlayerView).toBe(initialView);
     expect(firstProps.playerProfile).toBe(currentProfile);
     expect(firstProps.textResolver("text.player-view")).toBe("text.player-view");
@@ -1894,7 +1739,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
   it.each(["read", "subscribe"] as const)(
     "settles a pre-ready Dialogue observation %s fault exactly once, including throw null",
     async (faultKind) => {
-      const preparation = Object.freeze({}) as unknown as NarrativeStableRootPreparationInternalV1;
+      const preparation = ({}) as unknown as NarrativeStableRootPreparationInternalV1;
       const playerObservation = mutableDialoguePlayerObservationV1();
       if (faultKind === "read") {
         playerObservation.failReads(null);
@@ -1918,7 +1763,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
 
       const view = render(
         <NarrativeSurfaceHostInternalV1
-          session={Object.freeze({}) as unknown as NarrativeStableSessionInternalV1}
+          session={({}) as unknown as NarrativeStableSessionInternalV1}
           portalContainer={portalContainer}
           inputRouter={createInputRouterV1()}
           isGestureCurrent={() => true}
@@ -1957,7 +1802,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     });
     const runtime = syntheticHostRuntimeV1(entry);
     vi.spyOn(narrativeFamilyModuleV1, "prepareNarrativeStableHostReadyCommitInternalV1")
-      .mockReturnValue(Object.freeze({ kind: "reattached" as const, completion: null }));
+      .mockReturnValue({ kind: "reattached" as const, completion: null });
     const captured: unknown[] = [];
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     const portalContainer = document.createElement("div");
@@ -1966,7 +1811,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     const view = render(
       <CapturedErrorBoundaryV1 onError={(error) => captured.push(error)}>
         <NarrativeSurfaceHostInternalV1
-          session={Object.freeze({}) as unknown as NarrativeStableSessionInternalV1}
+          session={({}) as unknown as NarrativeStableSessionInternalV1}
           portalContainer={portalContainer}
           inputRouter={createInputRouterV1()}
           isGestureCurrent={() => true}
@@ -2065,10 +1910,8 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     if (latestHistoryProps?.kind !== "history") {
       throw new Error("expected rendered History props");
     }
-    const canonicalHistory = latestHistoryProps.history;
-    expect(canonicalHistory).not.toBe(initialRawHistory);
-    expect(Object.isFrozen(canonicalHistory)).toBe(true);
-    expect(Object.isFrozen(canonicalHistory?.entries)).toBe(true);
+    const admittedHistory = latestHistoryProps.history;
+    expect(admittedHistory).toBe(initialRawHistory);
 
     const beforeEqual = historyRenderCount;
     act(() => {
@@ -2128,23 +1971,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
       entry.kind === "history"
     );
     if (preparingEntry?.kind !== "history") throw new Error("expected preparing History entry");
-    expect(Reflect.ownKeys(preparingEntry).map(String).sort()).toEqual([
-      "controller",
-      "historyObservation",
-      "initialFocusTargetId",
-      "kind",
-      "parentRenderKey",
-      "phase",
-      "preparation",
-      "renderKey",
-      "rendererComponent",
-      "rendererProps",
-    ]);
-    expect(Object.isFrozen(preparingEntry.controller)).toBe(true);
-    expect(Reflect.ownKeys(preparingEntry.controller).map(String).sort()).toEqual([
-      "closeInternalV1",
-      "dismissInternalV1",
-    ]);
+
     const controller = preparingEntry.controller;
 
     await flushHostMicrotasksV1();
@@ -2168,13 +1995,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     expect(currentHistoryRenderEntryV1(runtime).controller).toBe(controller);
     const latestHistoryProps = renderedHistoryProps.at(-1);
     if (latestHistoryProps?.kind !== "history") throw new Error("expected History props");
-    expect(Reflect.ownKeys(latestHistoryProps).map(String).sort()).toEqual([
-      "history",
-      "kind",
-      "playerProfile",
-      "textResolver",
-      "visualConfig",
-    ]);
+
     expect("controller" in latestHistoryProps).toBe(false);
 
     view.unmount();
@@ -2248,13 +2069,13 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     const stateNotificationsBeforeProfile = harness.stateNotificationCount();
     const tickRequestsBeforeProfile = harness.tickRequestCount();
     const renderedPropsBeforeProfile = renderedHistoryProps.length;
-    const nextProfile = Object.freeze({
+    const nextProfile = {
       ...defaultPlayerProfileV1,
-      preferences: Object.freeze({
+      preferences: {
         ...defaultPlayerProfileV1.preferences,
         locale: "ja",
-      }),
-    });
+      },
+    };
 
     act(() => harness.publishPlayerProfile(nextProfile));
 
@@ -2349,13 +2170,13 @@ describe("NarrativeSurfaceHostInternalV1", () => {
       });
 
       lowerInput.mockClear();
-      const viewportAfterClose = Object.freeze({
+      const viewportAfterClose = {
         kind: "viewport_point" as const,
         phase: "begin" as const,
-        point: Object.freeze({ x: 4, y: 9 }),
+        point: { x: 4, y: 9 },
         pointerId: parseNonNegativeSafeInteger(1),
         pointerType: "mouse" as const,
-      });
+      };
       expect(harness.inputRouter.route(viewportAfterClose)).toEqual({
         kind: "handled",
         context: "gameplay",
@@ -3361,14 +3182,14 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     });
     const runtime = syntheticHostRuntimeV1(entry);
     vi.spyOn(narrativeFamilyModuleV1, "prepareNarrativeStableHostReadyCommitInternalV1")
-      .mockReturnValue(Object.freeze({ kind: "reattached" as const, completion: null }));
+      .mockReturnValue({ kind: "reattached" as const, completion: null });
     const disconnect = vi.spyOn(MutationObserver.prototype, "disconnect");
     const portalContainer = document.createElement("div");
     document.body.append(portalContainer);
 
     const view = render(
       <NarrativeSurfaceHostInternalV1
-        session={Object.freeze({}) as unknown as NarrativeStableSessionInternalV1}
+        session={({}) as unknown as NarrativeStableSessionInternalV1}
         portalContainer={portalContainer}
         inputRouter={createInputRouterV1()}
         isGestureCurrent={() => true}
@@ -3384,7 +3205,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
   });
 
   it("does not reopen a cancelled readiness gate from an abandoned successor render", async () => {
-    const preparation = Object.freeze({}) as unknown as NarrativeStableRootPreparationInternalV1;
+    const preparation = ({}) as unknown as NarrativeStableRootPreparationInternalV1;
     const Renderer = () => <button type="button">Cancelled narrative</button>;
     const firstEntry = syntheticDialogueRenderEntryV1({
       phase: "preparing",
@@ -3398,16 +3219,16 @@ describe("NarrativeSurfaceHostInternalV1", () => {
       rendererComponent: successorRenderer,
     });
     const renderSource = mutableHostRenderSourceV1(firstEntry);
-    const settleReady = vi.fn(() => Object.freeze({ kind: "stale" as const, completion: null }));
+    const settleReady = vi.fn(() => ({ kind: "stale" as const, completion: null }));
     const release = vi.fn();
-    const runtime = Object.freeze({
-      attachment: Object.freeze({
+    const runtime = ({
+      attachment: {
         settleRootReadinessReadyInternalV1: settleReady,
         settleRootReadinessFailedInternalV1: vi.fn(),
         settleHistoryReadinessReadyInternalV1: vi.fn(),
         settleHistoryReadinessFailedInternalV1: vi.fn(),
         releaseInternalV1: release,
-      }),
+      },
       renderSource: renderSource.source,
     }) as unknown as NarrativeStableHostRuntimeInternalV1;
     vi.spyOn(narrativeFamilyModuleV1, "createNarrativeStableHostRuntimeInternalV1")
@@ -3415,14 +3236,14 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     const readyMint = vi.spyOn(
       narrativeFamilyModuleV1,
       "prepareNarrativeStableHostReadyCommitInternalV1",
-    ).mockReturnValue(Object.freeze({
+    ).mockReturnValue({
       kind: "prepared" as const,
-      readyCommit: Object.freeze({}) as unknown as NarrativeStableHostReadyCommitInternalV1,
+      readyCommit: ({}) as unknown as NarrativeStableHostReadyCommitInternalV1,
       completion: null,
-    }));
+    });
     const portalContainer = document.createElement("div");
     document.body.append(portalContainer);
-    const session = Object.freeze({}) as unknown as NarrativeStableSessionInternalV1;
+    const session = ({}) as unknown as NarrativeStableSessionInternalV1;
     const inputRouter = createInputRouterV1();
     const isGestureCurrent = () => true;
     const never = new Promise<void>(() => {});
@@ -3508,7 +3329,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
   });
 
   it("remints only after a stale ready settlement publishes a fresh current entry", async () => {
-    const preparation = Object.freeze({}) as unknown as NarrativeStableRootPreparationInternalV1;
+    const preparation = ({}) as unknown as NarrativeStableRootPreparationInternalV1;
     const Renderer = () => <button type="button" data-testid="repaired-dialogue">Dialogue</button>;
     const firstEntry = syntheticDialogueRenderEntryV1({
       phase: "preparing",
@@ -3535,25 +3356,25 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     const settleReady = vi.fn(() => {
       readySettlements += 1;
       if (readySettlements === 1) {
-        return Object.freeze({ kind: "stale" as const, completion: null });
+        return ({ kind: "stale" as const, completion: null });
       }
       if (readySettlements === 2) {
         renderSource.publish(synchronouslyRefreshedEntry);
-        return Object.freeze({ kind: "stale" as const, completion: null });
+        return ({ kind: "stale" as const, completion: null });
       }
       renderSource.publish(activeEntry);
-      return Object.freeze({ kind: "settled" as const, completion: null });
+      return ({ kind: "settled" as const, completion: null });
     });
-    const settleFailed = vi.fn(() => Object.freeze({ kind: "settled" as const, completion: null }));
+    const settleFailed = vi.fn(() => ({ kind: "settled" as const, completion: null }));
     const release = vi.fn();
-    const runtime = Object.freeze({
-      attachment: Object.freeze({
+    const runtime = ({
+      attachment: {
         settleRootReadinessReadyInternalV1: settleReady,
         settleRootReadinessFailedInternalV1: settleFailed,
         settleHistoryReadinessReadyInternalV1: vi.fn(),
         settleHistoryReadinessFailedInternalV1: vi.fn(),
         releaseInternalV1: release,
-      }),
+      },
       renderSource: renderSource.source,
     }) as unknown as NarrativeStableHostRuntimeInternalV1;
     vi.spyOn(narrativeFamilyModuleV1, "createNarrativeStableHostRuntimeInternalV1")
@@ -3561,18 +3382,16 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     const readyMint = vi.spyOn(
       narrativeFamilyModuleV1,
       "prepareNarrativeStableHostReadyCommitInternalV1",
-    ).mockImplementation(() =>
-      Object.freeze({
-        kind: "prepared" as const,
-        readyCommit: Object.freeze({}) as unknown as NarrativeStableHostReadyCommitInternalV1,
-        completion: null,
-      })
-    );
+    ).mockImplementation(() => ({
+      kind: "prepared" as const,
+      readyCommit: ({}) as unknown as NarrativeStableHostReadyCommitInternalV1,
+      completion: null,
+    }));
     const portalContainer = document.createElement("div");
     document.body.append(portalContainer);
     const view = render(
       <NarrativeSurfaceHostInternalV1
-        session={Object.freeze({}) as unknown as NarrativeStableSessionInternalV1}
+        session={({}) as unknown as NarrativeStableSessionInternalV1}
         portalContainer={portalContainer}
         inputRouter={createInputRouterV1()}
         isGestureCurrent={() => true}
@@ -3606,7 +3425,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
 
   it("retries a failed settlement only when the errored candidate receives a fresh entry", async () => {
     const rendererError = new Error("repairable pre-ready renderer failure");
-    const preparation = Object.freeze({}) as unknown as NarrativeStableRootPreparationInternalV1;
+    const preparation = ({}) as unknown as NarrativeStableRootPreparationInternalV1;
     const Renderer = () => {
       throw rendererError;
     };
@@ -3630,24 +3449,24 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     const settleFailed = vi.fn(() => {
       failedSettlements += 1;
       if (failedSettlements === 1) {
-        return Object.freeze({ kind: "stale" as const, completion: null });
+        return ({ kind: "stale" as const, completion: null });
       }
       if (failedSettlements === 2) {
         renderSource.publish(synchronouslyRefreshedEntry);
-        return Object.freeze({ kind: "stale" as const, completion: null });
+        return ({ kind: "stale" as const, completion: null });
       }
-      return Object.freeze({ kind: "settled" as const, completion: null });
+      return ({ kind: "settled" as const, completion: null });
     });
     const settleReady = vi.fn();
     const release = vi.fn();
-    const runtime = Object.freeze({
-      attachment: Object.freeze({
+    const runtime = ({
+      attachment: {
         settleRootReadinessReadyInternalV1: settleReady,
         settleRootReadinessFailedInternalV1: settleFailed,
         settleHistoryReadinessReadyInternalV1: vi.fn(),
         settleHistoryReadinessFailedInternalV1: vi.fn(),
         releaseInternalV1: release,
-      }),
+      },
       renderSource: renderSource.source,
     }) as unknown as NarrativeStableHostRuntimeInternalV1;
     vi.spyOn(narrativeFamilyModuleV1, "createNarrativeStableHostRuntimeInternalV1")
@@ -3661,7 +3480,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     document.body.append(portalContainer);
     const view = render(
       <NarrativeSurfaceHostInternalV1
-        session={Object.freeze({}) as unknown as NarrativeStableSessionInternalV1}
+        session={({}) as unknown as NarrativeStableSessionInternalV1}
         portalContainer={portalContainer}
         inputRouter={createInputRouterV1()}
         isGestureCurrent={() => true}
@@ -3854,7 +3673,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     expect(portalContainer).toBeEmptyDOMElement();
     expect(() =>
       harness.session.attachHostInternalV1({
-        hostIdentity: Object.freeze({ host: "grace-competitor" }),
+        hostIdentity: { host: "grace-competitor" },
       })
     ).toThrowError("ui.narrative_stable_host_lease_conflict");
 
@@ -3865,7 +3684,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     expect(harness.session.getReadinessSnapshotInternalV1().entries).toEqual([]);
     expect(() =>
       harness.session.attachHostInternalV1({
-        hostIdentity: Object.freeze({ host: "after-terminal" }),
+        hostIdentity: { host: "after-terminal" },
       })
     ).toThrowError("ui.narrative_stable_host_attachment_invalid");
     portalContainer.remove();

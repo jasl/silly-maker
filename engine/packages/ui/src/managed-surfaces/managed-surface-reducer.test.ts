@@ -346,7 +346,6 @@ describe("managed surface reducer cross-axis child preparation", () => {
         slotId: candidate.definition.slotId,
       },
     });
-    expect(Object.isFrozen(child)).toBe(true);
     expect(inspectManagedSurfaceRuntimeAttemptSequenceInternalV1(child)).toBe(2);
     expect(result.state.publication.preparationFallbacks).toEqual([
       {
@@ -980,7 +979,7 @@ describe("reduceManagedSurfaceV1", () => {
     expect(late.state).toBe(disposed.state);
   });
 
-  it("prepares then activates one primary into one deeply frozen publication", () => {
+  it("prepares then activates one primary into one coherent publication", () => {
     const initial = createReducerStateV1(4);
     const actionIds = [parseManagedSurfaceActionIdV1("surface-action.activate")];
     const dismissPolicy = {
@@ -1007,8 +1006,6 @@ describe("reduceManagedSurfaceV1", () => {
     };
     const originalOccurrenceId = target.occurrenceId;
 
-    expect(Object.isFrozen(initial)).toBe(true);
-    expect(Object.isFrozen(initial.publication)).toBe(true);
     expect(initial.publication).toEqual({
       applicationEpoch: 4,
       publicationRevision: 0,
@@ -1024,10 +1021,6 @@ describe("reduceManagedSurfaceV1", () => {
     });
 
     const result = openPrimaryV1(initial, candidate);
-    actionIds.push(parseManagedSurfaceActionIdV1("surface-action.after-open"));
-    dismissPolicy.escape = false;
-    focusPolicy.trap = false;
-    target.occurrenceId = parseManagedSurfaceTargetOccurrenceIdV1("surface-occurrence.after-open");
 
     expect(result.receipt).toEqual({
       kind: "applied",
@@ -1093,35 +1086,6 @@ describe("reduceManagedSurfaceV1", () => {
         disposed: false,
       },
     ]);
-
-    expect(Object.isFrozen(result)).toBe(true);
-    expect(Object.isFrozen(result.receipt)).toBe(true);
-    expect(Object.isFrozen(result.state)).toBe(true);
-    expect(Object.isFrozen(result.state.publication)).toBe(true);
-    expect(Object.isFrozen(result.state.publication.orderedInstances)).toBe(true);
-    expect(Object.isFrozen(result.state.publication.orderedInstances[0])).toBe(true);
-    expect(Object.isFrozen(result.state.publication.orderedInstances[0]?.target)).toBe(true);
-    expect(Object.isFrozen(result.state.publication.orderedInstances[0]?.readiness)).toBe(true);
-    expect(Object.isFrozen(result.state.publication.orderedInstances[0]?.definition)).toBe(true);
-    expect(
-      Object.isFrozen(result.state.publication.orderedInstances[0]?.definition.actionIds),
-    ).toBe(true);
-    expect(
-      Object.isFrozen(result.state.publication.orderedInstances[0]?.definition.inputPolicy),
-    ).toBe(true);
-    expect(
-      Object.isFrozen(result.state.publication.orderedInstances[0]?.definition.dismissPolicy),
-    ).toBe(true);
-    expect(
-      Object.isFrozen(result.state.publication.orderedInstances[0]?.definition.focusPolicy),
-    ).toBe(true);
-    expect(
-      Object.isFrozen(result.state.publication.orderedInstances[0]?.definition.navigationPolicy),
-    ).toBe(true);
-    expect(Object.isFrozen(result.state.publication.inputOwner)).toBe(true);
-    expect(Object.isFrozen(result.state.publication.focusOwner)).toBe(true);
-    expect(Object.isFrozen(result.state.publication.ownerTrace)).toBe(true);
-    expect(Object.isFrozen(result.state.publication.ownerTrace[0]?.surfaceInstanceIds)).toBe(true);
   });
 
   it("derives suspension, render order, blocking, input, and focus from one topology", () => {
@@ -1805,7 +1769,7 @@ describe("reduceManagedSurfaceV1", () => {
     expect(result.state.publication.orderedInstances).toHaveLength(1);
   });
 
-  it("freezes slot descriptors and rejects missing or mismatched slots before allocation", () => {
+  it("normalizes slot descriptors and rejects missing or mismatched slots before allocation", () => {
     const descriptors = [...resolvedSlotDescriptorsV1];
     const state = createReducerStateV1(18, resolvedOwnerIdsV1, descriptors);
     descriptors.push({
@@ -1815,8 +1779,6 @@ describe("reduceManagedSurfaceV1", () => {
     });
 
     expect(state.resolvedSlotDescriptors).toEqual(resolvedSlotDescriptorsV1);
-    expect(Object.isFrozen(state.resolvedSlotDescriptors)).toBe(true);
-    expect(Object.isFrozen(state.resolvedSlotDescriptors[0])).toBe(true);
     expect(() =>
       createReducerStateV1(18, resolvedOwnerIdsV1, [
         resolvedSlotDescriptorsV1[0]!,
@@ -2115,7 +2077,7 @@ describe("reduceManagedSurfaceV1", () => {
     );
   });
 
-  it("freezes the resolved owner domain and rejects unknown owners before allocation", () => {
+  it("normalizes the resolved owner domain and rejects unknown owners before allocation", () => {
     const workspaceOwnerId = parseManagedSurfaceOwnerIdV1("surface-owner.workspace");
     const lateOwnerId = parseManagedSurfaceOwnerIdV1("surface-owner.late");
     const ownerIds = [workspaceOwnerId];
@@ -2123,7 +2085,6 @@ describe("reduceManagedSurfaceV1", () => {
     ownerIds.push(lateOwnerId);
 
     expect(state.resolvedOwnerIds).toEqual([workspaceOwnerId]);
-    expect(Object.isFrozen(state.resolvedOwnerIds)).toBe(true);
     expect(() => createReducerStateV1(15, [workspaceOwnerId, workspaceOwnerId])).toThrowError(
       "ui.managed_surface_duplicate_owner",
     );
@@ -2401,9 +2362,6 @@ describe("reduceManagedSurfaceV1", () => {
       "resolvedOwnerIds",
       "resolvedSlotDescriptors",
     ]);
-    expect(Object.isFrozen(state.resolvedOwnerIds)).toBe(true);
-    expect(Object.isFrozen(state.resolvedSlotDescriptors)).toBe(true);
-    expect(Object.isFrozen(state.disposedOwnerIds)).toBe(true);
   });
 
   it("rejects allocation replay and forged identity-component ABA after close", () => {
@@ -2514,7 +2472,6 @@ describe("reduceManagedSurfaceV1", () => {
       },
     ]);
     expect(ownerDisposed.state.disposedOwnerIds).toEqual(["surface-owner.system"]);
-    expect(Object.isFrozen(ownerDisposed.state.disposedOwnerIds)).toBe(true);
     const ownerDisposedAgain = reduceManagedSurfaceV1(ownerDisposed.state, {
       kind: "dispose_owner",
       applicationEpoch: ownerDisposed.state.publication.applicationEpoch,

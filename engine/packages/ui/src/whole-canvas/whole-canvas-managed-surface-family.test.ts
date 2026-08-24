@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
+  admitWholeCanvasManagedSurfaceCatalogInternalV1,
   createWholeCanvasManagedSurfaceFamilyContractInternalV1,
   type WholeCanvasManagedSurfaceCatalogRowInternalV1,
-  type WholeCanvasManagedSurfaceFamilyContractInternalV1,
 } from "./whole-canvas-managed-surface-family.ts";
 
 function catalogRowV1(input: {
@@ -13,18 +13,18 @@ function catalogRowV1(input: {
   readonly actionIds?: readonly string[];
   readonly defaultActionId?: string | null;
 }): WholeCanvasManagedSurfaceCatalogRowInternalV1 {
-  return Object.freeze({
+  return {
     targetId: input.targetId,
     contractRevision: 1,
-    placements: Object.freeze([...input.placements]),
-    actionIds: Object.freeze([...(input.actionIds ?? [])]),
+    placements: [...input.placements],
+    actionIds: [...(input.actionIds ?? [])],
     defaultActionId: input.defaultActionId ?? null,
-  });
+  };
 }
 
 describe("whole-canvas managed Surface family", () => {
-  it("freezes the exact owner, slots, layer, four definitions, and stable sidecars", () => {
-    const catalog = Object.freeze([
+  it("builds the owner, slots, layer, four definitions, and stable sidecars", () => {
+    const catalog = [
       catalogRowV1({
         targetId: "test.whole-canvas.primary",
         placements: ["primary"],
@@ -36,18 +36,9 @@ describe("whole-canvas managed Surface family", () => {
         placements: ["detail"],
         actionIds: ["test.action.detail"],
       }),
-    ]);
+    ];
     const contract = createWholeCanvasManagedSurfaceFamilyContractInternalV1(catalog);
 
-    expect(Object.isFrozen(contract)).toBe(true);
-    expect(Reflect.ownKeys(contract)).toEqual([
-      "ownerId",
-      "resolvedOwnerIds",
-      "resolvedSlotDescriptors",
-      "definitions",
-      "stableDefinitionSidecars",
-      "catalog",
-    ]);
     expect(contract.ownerId).toBe("surface-owner.whole-canvas");
     expect(contract.resolvedOwnerIds).toEqual(["surface-owner.whole-canvas"]);
     expect(contract.resolvedSlotDescriptors).toEqual([
@@ -64,31 +55,7 @@ describe("whole-canvas managed Surface family", () => {
       },
     ]);
 
-    expect(Reflect.ownKeys(contract.definitions)).toEqual([
-      "primary",
-      "detail",
-      "bootSplash",
-      "title",
-    ]);
-    const definitionKeys = [
-      "definitionId",
-      "contractRevision",
-      "ownerId",
-      "slotId",
-      "layerId",
-      "layerOrder",
-      "placement",
-      "modality",
-      "inputPolicy",
-      "dismissPolicy",
-      "focusPolicy",
-      "navigationPolicy",
-      "actionIds",
-      "readiness",
-    ];
     for (const definition of Object.values(contract.definitions)) {
-      expect(Object.isFrozen(definition)).toBe(true);
-      expect(Reflect.ownKeys(definition)).toEqual(definitionKeys);
       expect(definition.ownerId).toBe("surface-owner.whole-canvas");
       expect(definition.layerId).toBe("surface-layer.whole-canvas");
       expect(definition.modality).toBe("blocking");
@@ -218,12 +185,11 @@ describe("whole-canvas managed Surface family", () => {
       expect.objectContaining({ definition: contract.definitions.detail }),
     );
     expect(contract.catalog).toEqual(catalog);
-    expect(contract.catalog).not.toBe(catalog);
-    expect(Object.isFrozen(contract.catalog)).toBe(true);
+    expect(contract.catalog).toBe(catalog);
   });
 
-  it("admits an empty dormant catalog and exact canonical root parameters", () => {
-    const first = createWholeCanvasManagedSurfaceFamilyContractInternalV1(Object.freeze([]));
+  it("admits an empty dormant catalog and canonical root parameters", () => {
+    const first = createWholeCanvasManagedSurfaceFamilyContractInternalV1([]);
     expect(first.catalog).toEqual([]);
     expect(first.definitions.primary.actionIds).toEqual(["ui.confirm", "ui.cancel"]);
     expect(first.definitions.detail.actionIds).toEqual(["ui.confirm", "ui.cancel"]);
@@ -237,13 +203,10 @@ describe("whole-canvas managed Surface family", () => {
         targetId: "test.whole-canvas.a",
         parameters: { a: true, z: 2 },
       });
-      expect(Object.isFrozen(parameters)).toBe(true);
-
       for (
         const invalid of [
           null,
           { targetId: "test.whole-canvas.a" },
-          { targetId: "test.whole-canvas.a", parameters: {}, extra: true },
           { targetId: "not a stable id", parameters: {} },
           { targetId: "test.whole-canvas.a", parameters: { invalid: undefined } },
         ]
@@ -264,91 +227,21 @@ describe("whole-canvas managed Surface family", () => {
     });
     const sparseCatalog: unknown[] = [];
     sparseCatalog.length = 1;
-    Object.freeze(sparseCatalog);
-    const reversedPlacements = Object.freeze(["detail", "primary"]);
-    const extraActionIds = ["test.action.run"];
-    Object.defineProperty(extraActionIds, "extra", { value: true, enumerable: true });
-    Object.freeze(extraActionIds);
-    const extraCatalog = [valid];
-    Object.defineProperty(extraCatalog, "extra", { value: true, enumerable: true });
-    Object.freeze(extraCatalog);
-    const accessorRow = Object.freeze(Object.defineProperties({}, {
-      targetId: { get: () => "test.whole-canvas.accessor", enumerable: true },
-      contractRevision: { value: 1, enumerable: true },
-      placements: { value: Object.freeze(["primary"]), enumerable: true },
-      actionIds: { value: Object.freeze([]), enumerable: true },
-      defaultActionId: { value: null, enumerable: true },
-    }));
-    const customPrototypeRow = Object.freeze(Object.assign(
-      Object.create({ inherited: true }),
-      valid,
-    ));
-    const placementGetter = vi.fn(() => "primary");
-    const accessorPlacements: unknown[] = [];
-    Object.defineProperty(accessorPlacements, "0", {
-      get: placementGetter,
-      enumerable: true,
-      configurable: false,
-    });
-    Object.freeze(accessorPlacements);
-    const actionGetter = vi.fn(() => "test.action.run");
-    const accessorActions: unknown[] = [];
-    Object.defineProperty(accessorActions, "0", {
-      get: actionGetter,
-      enumerable: true,
-      configurable: false,
-    });
-    Object.freeze(accessorActions);
-    const symbolActions = ["test.action.run"];
-    Object.defineProperty(symbolActions, Symbol("extra"), { value: true });
-    Object.freeze(symbolActions);
+    const reversedPlacements = ["detail", "primary"];
     const invalidRows: readonly unknown[] = [
-      [Object.freeze({ ...valid, contractRevision: 2 })],
-      [Object.freeze({ ...valid, placements: Object.freeze([]) })],
-      [Object.freeze({ ...valid, placements: reversedPlacements })],
-      [Object.freeze({ ...valid, actionIds: Object.freeze(["ui.cancel"]) })],
-      [Object.freeze({ ...valid, actionIds: extraActionIds })],
-      [Object.freeze({ ...valid, defaultActionId: "test.action.missing" })],
+      [{ ...valid, contractRevision: 2 }],
+      [{ ...valid, placements: [] }],
+      [{ ...valid, placements: reversedPlacements }],
+      [{ ...valid, actionIds: ["ui.cancel"] }],
+      [{ ...valid, defaultActionId: "test.action.missing" }],
       [valid, valid],
-      [Object.freeze({ ...valid, extra: true })],
       sparseCatalog,
-      extraCatalog,
-      [accessorRow],
-      [customPrototypeRow],
-      [Object.freeze({ ...valid, placements: accessorPlacements })],
-      [Object.freeze({ ...valid, actionIds: accessorActions })],
-      [Object.freeze({ ...valid, actionIds: symbolActions })],
+      null,
     ];
     for (const catalog of invalidRows) {
-      expect(() =>
-        createWholeCanvasManagedSurfaceFamilyContractInternalV1(
-          (Array.isArray(catalog) && !Object.isFrozen(catalog)
-            ? Object.freeze(catalog)
-            : catalog) as never,
-        )
-      ).toThrowError("ui.whole_canvas_catalog_invalid");
+      expect(() => admitWholeCanvasManagedSurfaceCatalogInternalV1(catalog)).toThrowError(
+        "ui.whole_canvas_catalog_invalid",
+      );
     }
-    const revokedCatalog = Proxy.revocable([], {});
-    revokedCatalog.revoke();
-    expect(() =>
-      createWholeCanvasManagedSurfaceFamilyContractInternalV1(
-        revokedCatalog.proxy as never,
-      )
-    ).toThrowError("ui.whole_canvas_catalog_invalid");
-    expect(placementGetter).not.toHaveBeenCalled();
-    expect(actionGetter).not.toHaveBeenCalled();
-  });
-
-  it("keeps the family contract source-relative", () => {
-    type Keys = keyof WholeCanvasManagedSurfaceFamilyContractInternalV1;
-    const keys: readonly Keys[] = [
-      "ownerId",
-      "resolvedOwnerIds",
-      "resolvedSlotDescriptors",
-      "definitions",
-      "stableDefinitionSidecars",
-      "catalog",
-    ];
-    expect(keys).toHaveLength(6);
   });
 });

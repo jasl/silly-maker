@@ -14,7 +14,7 @@ import type { ChromeLayoutSourceIoV1 } from "./chrome-layout-io.ts";
 export function createChromeLayoutDocumentSessionV1(
   io: ChromeLayoutSourceIoV1,
 ): AuthoringDocumentSessionV1<ChromeLayoutDocumentV1> {
-  const adapted: AuthoringDocumentIoV1<ChromeLayoutDocumentV1> = Object.freeze({
+  const adapted: AuthoringDocumentIoV1<ChromeLayoutDocumentV1> = {
     read: (path: string) =>
       io.read(path).then((result) =>
         result.kind === "ok"
@@ -31,6 +31,6 @@ export function createChromeLayoutDocumentSessionV1(
         expectedDigest: input.expectedDigest,
         chromeLayoutDocument: input.document,
       }),
-  });
+  };
   return createAuthoringDocumentSessionV1({ io: adapted });
 }

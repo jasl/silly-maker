@@ -52,7 +52,7 @@ it("keeps the active Say frame and skin stable while locale-live labels change",
       ),
     ).toBe(true);
 
-    const pending = Object.freeze({
+    const pending = {
       kind: "say" as const,
       definitionId: "interaction.catcafe.locale-test",
       seenRevision: 1,
@@ -60,12 +60,12 @@ it("keeps the active Say frame and skin stable while locale-live labels change",
       speakerTextId: "text.cc.speaker.cat",
       textId: "text.cc.line.greeting",
       advancePolicy: "confirm" as const,
-    });
-    const base = Object.freeze({
+    };
+    const base = {
       kind: "dialogue" as const,
       pending,
       choiceAvailability: null,
-      playerView: Object.freeze({
+      playerView: {
         kind: "say" as const,
         phase: "active" as const,
         playbackMode: "normal" as const,
@@ -74,7 +74,7 @@ it("keeps the active Say frame and skin stable while locale-live labels change",
         revealedCharacters: 10,
         revealLength: 10,
         revealComplete: true,
-      }),
+      },
       onActivate: vi.fn(),
       onChoose: vi.fn(),
       onResume: vi.fn(),
@@ -83,19 +83,18 @@ it("keeps the active Say frame and skin stable while locale-live labels change",
       onToggleSkip: vi.fn(),
       onOpenHistory: vi.fn(),
       onReplayVoice: vi.fn(),
+    };
+    const propsForLocale = (locale: string): NarrativeSurfaceDialogueRendererPropsV1 => ({
+      ...base,
+      playerProfile: {
+        ...playerProfile.current(),
+        preferences: {
+          ...playerProfile.current().preferences,
+          locale,
+        },
+      },
+      resolveText: (textId: string) => catcafeTextForLocaleV1(locale, textId),
     });
-    const propsForLocale = (locale: string): NarrativeSurfaceDialogueRendererPropsV1 =>
-      Object.freeze({
-        ...base,
-        playerProfile: Object.freeze({
-          ...playerProfile.current(),
-          preferences: Object.freeze({
-            ...playerProfile.current().preferences,
-            locale,
-          }),
-        }),
-        resolveText: (textId: string) => catcafeTextForLocaleV1(locale, textId),
-      });
 
     const view = render(<CatcafeNarrativeRendererV1 {...propsForLocale("zh-CN")} />);
     const root = view.container.querySelector("[data-cc-narrative='say']");

@@ -58,7 +58,7 @@ Read only the documents relevant to the change:
   direct/Cordis-core A/B,
   structured authoring operations, an embeddable Authoring Host, and a typed RPC
   plus experimental Agent/UiArtifact seam. AR0 delivered 2026-08-22: neutral
-  Application Host capabilities, admitted/frozen runtime and author bootstrap,
+  Application Host capabilities, once-admitted runtime and author bootstrap,
   static GUI startup/readiness/recovery evidence, final-output dependency
   attribution, and a truthful Browser/Deno Desktop R0–R3 baseline. It did not
   promote native Desktop launch, persistence/signing, or RPC readiness. AR1
@@ -448,6 +448,9 @@ documented migration path.
 - Use `deno task test` for automated product/engine tests, `deno task test:e2e`
   when browser behavior is affected, and the commands documented in
   `docs/engine/build-and-release.md` for Player builds.
+- Playwright specs use the repository test fixture so browser tests stay silent
+  by default while exercising the real audio lifecycle. Opt into audible output
+  only for a test whose observable contract requires it.
 - At the close of a slice that changes React/TSX behavior, run
   `deno task audit:react --base <slice-start-ref>` with the exact recorded base.
   The on-demand React Doctor scan is an advisory audit outside `deno task check`:
@@ -506,6 +509,15 @@ documented migration path.
   boundaries. Cold authoring definitions and resolved graphs may remain sealed
   where that preserves validated registration/digest identity; this is not a
   general runtime immutability policy.
+- Compile cold configuration and registries into direct plans before hot
+  execution. Command, reducer, selector, input, and render paths trust those
+  plans and do not repeat schema admission, redundant whole-tree traversal,
+  dynamic service/registry lookup, or platform branching; retain only work
+  required by observable Snapshot/digest/Save/CAS/generation contracts.
+- Add a Host/platform seam only when a platform difference changes an
+  engine/application-observable result. Keep API-shape adaptation inside the
+  owning Host, leave watcher/module-graph/HMR mechanics to Vite/Deno/React, and
+  let SillyMaker own only the admitted application response.
 - Treat the delivered authoritative-determinism checker as scope-frozen. Do not
   extend syntax proofs, diagnostic precedence, or hypothetical capability
   escapes unless authoritative code exposes a reproducible false negative or

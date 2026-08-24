@@ -16,7 +16,7 @@ export function createReadonlyViewSourceV1<TViewModel>(
 ): MutableViewPublisherV1<TViewModel> {
   let current = initial;
   const listeners = new Set<() => void>();
-  return Object.freeze({
+  return {
     getCurrent: () => current,
     subscribe(listener: () => void) {
       listeners.add(listener);
@@ -26,7 +26,7 @@ export function createReadonlyViewSourceV1<TViewModel>(
       current = value;
       for (const listener of [...listeners]) listener();
     },
-  });
+  };
 }
 
 export type RuntimeCapabilityIdV1 = "debug_tools" | "cheats" | "automation_bridge";
@@ -175,7 +175,7 @@ export function createSaveSlotIdsV1(manualSlotCount: number): readonly SaveSlotI
   const count = parseManualSaveSlotCountV1(manualSlotCount);
   const slotIds: SaveSlotIdV1[] = ["auto.current", "auto.previous", "quick"];
   for (let index = 1; index <= count; index += 1) slotIds.push(manualSaveSlotIdV1(index));
-  return Object.freeze(slotIds);
+  return slotIds;
 }
 export type SessionLeaseOwnerId = Brand<string, "SessionLeaseOwnerId">;
 export type LeaseHandoffRequestId = Brand<string, "LeaseHandoffRequestId">;

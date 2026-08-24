@@ -33,13 +33,13 @@ export interface InstanceLeaseBannerLabelsV1 {
   readonly takeOverBusyLabel: string;
 }
 
-export const defaultInstanceLeaseBannerLabelsV1: InstanceLeaseBannerLabelsV1 = Object.freeze({
+export const defaultInstanceLeaseBannerLabelsV1: InstanceLeaseBannerLabelsV1 = {
   lostText: "存档已被另一个游戏窗口接管——本窗口已停止写档。",
   waitingText: "等待另一个游戏窗口退出——本窗口暂为只读。",
   readOnlyText: "另一个游戏窗口正在写档——本窗口为只读。",
   takeOverLabel: "接管",
   takeOverBusyLabel: "接管中…",
-});
+};
 
 export interface InstanceLeaseBannerPropsV1 {
   readonly port: InstanceLeaseBannerPortV1;

@@ -25,7 +25,7 @@ export interface SaveStateMigrationStepIdentityV1 {
 }
 
 /**
- * Immutable provenance for one successful migrated replacement.
+ * Normalized provenance for one successful migrated replacement.
  *
  * `sourceStateDigest` identifies the admitted source raw Snapshot;
  * `migratedStateDigest` identifies the final normalized migrated Snapshot.
@@ -56,7 +56,7 @@ export type SaveStateMigrationFailurePhaseV1 =
   | "replacement_prepare"
   | "replacement_commit";
 
-/** Immutable diagnostics for one failed migration attempt. */
+/** Normalized diagnostics for one failed migration attempt. */
 export interface SaveStateMigrationAttemptV1 {
   readonly namespace: SaveStateMigrationNamespaceV1;
   readonly source: SaveStateContractIdentityV1;
@@ -115,14 +115,18 @@ export interface SaveStateMigrationStepV1 {
   ) => SaveStateMigrationStepResultV1;
 }
 
-declare const saveStateMigrationRegistryBrandV1: unique symbol;
+const saveStateMigrationRegistryDeclarationV1 = Symbol(
+  "SaveStateMigrationRegistryV1.declaration",
+);
 
 /**
- * An opaque, factory-owned State-migration declaration. Runtime consumers
- * admit the exact object identity through package-internal metadata.
+ * A normalized State-migration declaration. The public type exposes no
+ * writable declaration fields; package-internal consumers trust the typed
+ * value created after the registry input boundary is admitted.
  */
 export interface SaveStateMigrationRegistryV1 {
-  readonly [saveStateMigrationRegistryBrandV1]: true;
+  readonly [saveStateMigrationRegistryDeclarationV1]:
+    SaveStateMigrationRegistryDeclarationInternalV1;
 }
 
 export interface DefineSaveStateMigrationRegistryInputV1 {
@@ -143,11 +147,6 @@ const maximumSaveStateMigrationStepsV1 = 16;
 const maximumSaveStateMigrationIdentifierBytesV1 = 128;
 const stableMigrationIdentifierPatternV1 = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/u;
 
-/** @internal One captured exact own-data field vector. */
-export type ExactDataDescriptorsInternalV1 = Readonly<
-  Record<string, PropertyDescriptor>
->;
-
 function sameExactFieldVectorV1(
   fields: readonly string[],
   expected: readonly string[],
@@ -158,72 +157,29 @@ function sameExactFieldVectorV1(
   );
 }
 
-function isCanonicalArrayIndexKeyV1(value: string): boolean {
-  if (value.length === 0 || value.length > 10) return false;
-  if (value.length > 1 && value.charCodeAt(0) === 0x30) return false;
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    if (code < 0x30 || code > 0x39) return false;
-  }
-  return true;
-}
-
-/** @internal Captures one own-key snapshot without rereading accessors or key vectors. */
-export function captureExactDataDescriptorsInternalV1(
+function exactObjectFieldsV1(
   value: unknown,
   expectedFieldVectors: readonly (readonly string[])[],
   label: string,
-  observedPrototype?: { readonly value: object | null },
-): ExactDataDescriptorsInternalV1 {
-  try {
-    if (
-      value === null ||
-      typeof value !== "object" ||
-      Array.isArray(value) ||
-      (observedPrototype === undefined ? Object.getPrototypeOf(value) : observedPrototype.value) !==
-        Object.prototype
-    ) {
-      throw new TypeError(`invalid ${label}`);
-    }
-    const keys = Reflect.ownKeys(value);
-    if (keys.some((key) => typeof key === "symbol")) {
-      throw new TypeError(`invalid ${label} fields`);
-    }
-    const fields = keys as string[];
-    if (!expectedFieldVectors.some((expected) => sameExactFieldVectorV1(fields, expected))) {
-      throw new TypeError(`invalid ${label} fields`);
-    }
-    const descriptors = Object.create(null) as Record<string, PropertyDescriptor>;
-    for (const field of fields) {
-      const descriptor = Object.getOwnPropertyDescriptor(value, field);
-      if (
-        descriptor === undefined ||
-        descriptor.get !== undefined ||
-        descriptor.set !== undefined ||
-        !("value" in descriptor)
-      ) {
-        throw new TypeError(`${label} accessors are forbidden`);
-      }
-      Object.defineProperty(descriptors, field, {
-        configurable: false,
-        enumerable: true,
-        writable: false,
-        value: descriptor,
-      });
-    }
-    return Object.freeze(descriptors);
-  } catch (error) {
-    if (error instanceof TypeError) throw error;
-    throw new TypeError(`invalid ${label}`, { cause: error });
+): Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError(`invalid ${label}`);
   }
+  const fields = Object.keys(value);
+  if (!expectedFieldVectors.some((expected) => sameExactFieldVectorV1(fields, expected))) {
+    throw new TypeError(`invalid ${label} fields`);
+  }
+  return Object.fromEntries(
+    fields.map((field) => [field, (value as Record<string, unknown>)[field]]),
+  );
 }
 
-function exactDataDescriptorsV1(
+function exactObjectV1(
   value: unknown,
   expectedFields: readonly string[],
   label: string,
-): ExactDataDescriptorsInternalV1 {
-  return captureExactDataDescriptorsInternalV1(value, [expectedFields], label);
+): Record<string, unknown> {
+  return exactObjectFieldsV1(value, [expectedFields], label);
 }
 
 function exactArrayValuesV1(
@@ -231,77 +187,21 @@ function exactArrayValuesV1(
   label: string,
   maximumLength?: number,
 ): readonly unknown[] {
-  try {
-    if (
-      !Array.isArray(value) ||
-      Object.getPrototypeOf(value) !== Array.prototype
-    ) {
-      throw new TypeError(`invalid ${label}`);
-    }
-    const lengthDescriptor = Object.getOwnPropertyDescriptor(value, "length");
-    if (
-      lengthDescriptor === undefined ||
-      lengthDescriptor.get !== undefined ||
-      lengthDescriptor.set !== undefined ||
-      !("value" in lengthDescriptor) ||
-      typeof lengthDescriptor.value !== "number"
-    ) {
-      throw new TypeError(`invalid ${label} length`);
-    }
-    const length = lengthDescriptor.value;
-    if (
-      !Number.isSafeInteger(length) ||
-      length < 0 ||
-      (maximumLength !== undefined && length > maximumLength)
-    ) {
-      throw new TypeError(`invalid ${label} length`);
-    }
-    const keys = Reflect.ownKeys(value);
-    if (keys.some((key) => typeof key === "symbol")) {
-      throw new TypeError(`${label} must be dense and exact`);
-    }
-    const stringKeys = keys as string[];
-    if (stringKeys.length !== length + 1) {
-      throw new TypeError(`${label} must be dense and exact`);
-    }
-    let hasLength = false;
-    for (const key of stringKeys) {
-      if (key.length === 6 && key === "length") {
-        hasLength = true;
-        continue;
-      }
-      if (!isCanonicalArrayIndexKeyV1(key)) {
-        throw new TypeError(`${label} must be dense and exact`);
-      }
-      const index = Number(key);
-      if (
-        !Number.isInteger(index) ||
-        index < 0 ||
-        index >= length ||
-        String(index) !== key
-      ) {
-        throw new TypeError(`${label} must be dense and exact`);
-      }
-    }
-    if (!hasLength) throw new TypeError(`${label} must be dense and exact`);
-    const normalized: unknown[] = [];
-    for (let index = 0; index < length; index += 1) {
-      const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
-      if (
-        descriptor === undefined ||
-        descriptor.get !== undefined ||
-        descriptor.set !== undefined ||
-        !("value" in descriptor)
-      ) {
-        throw new TypeError(`${label} accessors are forbidden`);
-      }
-      normalized.push(descriptor.value);
-    }
-    return Object.freeze(normalized);
-  } catch (error) {
-    if (error instanceof TypeError) throw error;
-    throw new TypeError(`invalid ${label}`, { cause: error });
+  if (!Array.isArray(value)) {
+    throw new TypeError(`invalid ${label}`);
   }
+  const { length } = value;
+  if (maximumLength !== undefined && length > maximumLength) {
+    throw new TypeError(`invalid ${label} length`);
+  }
+  const fields = Object.keys(value);
+  if (
+    fields.length !== length ||
+    fields.some((field, index) => field !== String(index))
+  ) {
+    throw new TypeError(`${label} must be dense and exact`);
+  }
+  return fields.map((field) => value[Number(field)]);
 }
 
 function parseMigrationIdentifierV1(value: unknown, label: string): string {
@@ -341,15 +241,15 @@ function parseStateContractIdentityV1(
   value: unknown,
   label: string,
 ): SaveStateContractIdentityV1 {
-  const fields = exactDataDescriptorsV1(
+  const fields = exactObjectV1(
     value,
     ["stateContractRevision", "stateContractDigest"],
     label,
   );
-  return Object.freeze({
-    stateContractRevision: parsePositiveSafeInteger(fields.stateContractRevision?.value),
-    stateContractDigest: parseDigest(fields.stateContractDigest?.value),
-  });
+  return {
+    stateContractRevision: parsePositiveSafeInteger(fields.stateContractRevision),
+    stateContractDigest: parseDigest(fields.stateContractDigest),
+  };
 }
 
 function parseStableReferenceIdV1(value: unknown, label: string): string {
@@ -376,34 +276,34 @@ function referenceSourceKeyV1(referenceSetId: string, sourceId: string): string 
 }
 
 function parseReferenceRenameV1(value: unknown): SaveStateMigrationReferenceRenameV1 {
-  const fields = exactDataDescriptorsV1(
+  const fields = exactObjectV1(
     value,
     ["referenceSetId", "fromId", "toId"],
     "Save State migration reference rename",
   );
   const referenceSetId = parseStableReferenceIdV1(
-    fields.referenceSetId?.value,
+    fields.referenceSetId,
     "migration reference set ID",
   );
   const fromId = parseStableReferenceIdV1(
-    fields.fromId?.value,
+    fields.fromId,
     "migration reference source ID",
   );
   const toId = parseStableReferenceIdV1(
-    fields.toId?.value,
+    fields.toId,
     "migration reference target ID",
   );
   if (fromId === toId) {
     throw new TypeError("Save State migration reference rename must change identity");
   }
-  return Object.freeze({ referenceSetId, fromId, toId });
+  return { referenceSetId, fromId, toId };
 }
 
 function parseReferenceDeletionResolutionV1(
   value: unknown,
   deletedId: string,
 ): SaveStateMigrationReferenceDeletionV1["resolution"] {
-  const kindFields = captureExactDataDescriptorsInternalV1(
+  const kindFields = exactObjectFieldsV1(
     value,
     [
       ["kind", "toId"],
@@ -411,56 +311,56 @@ function parseReferenceDeletionResolutionV1(
     ],
     "Save State migration reference deletion resolution",
   );
-  const kind = kindFields.kind?.value;
+  const kind = kindFields.kind;
   if (kind === "fallback") {
     const toId = parseStableReferenceIdV1(
-      kindFields.toId?.value,
+      kindFields.toId,
       "migration deletion fallback ID",
     );
     if (toId === deletedId) {
       throw new TypeError("Save State migration deletion fallback must change identity");
     }
-    return Object.freeze({ kind, toId });
+    return { kind, toId };
   }
   if (kind === "reject") {
-    return Object.freeze({
+    return {
       kind,
-      reasonCode: parseSaveStateMigrationReasonCodeV1(kindFields.reasonCode?.value),
-    });
+      reasonCode: parseSaveStateMigrationReasonCodeV1(kindFields.reasonCode),
+    };
   }
   throw new TypeError("invalid Save State migration reference deletion resolution kind");
 }
 
 function parseReferenceDeletionV1(value: unknown): SaveStateMigrationReferenceDeletionV1 {
-  const fields = exactDataDescriptorsV1(
+  const fields = exactObjectV1(
     value,
     ["referenceSetId", "id", "resolution"],
     "Save State migration reference deletion",
   );
   const referenceSetId = parseStableReferenceIdV1(
-    fields.referenceSetId?.value,
+    fields.referenceSetId,
     "migration reference set ID",
   );
-  const id = parseStableReferenceIdV1(fields.id?.value, "migration deletion source ID");
-  return Object.freeze({
+  const id = parseStableReferenceIdV1(fields.id, "migration deletion source ID");
+  return {
     referenceSetId,
     id,
-    resolution: parseReferenceDeletionResolutionV1(fields.resolution?.value, id),
-  });
+    resolution: parseReferenceDeletionResolutionV1(fields.resolution, id),
+  };
 }
 
 function parseReferenceChangesV1(value: unknown): SaveStateMigrationReferenceChangesV1 {
-  const fields = exactDataDescriptorsV1(
+  const fields = exactObjectV1(
     value,
     ["renames", "deletions"],
     "Save State migration reference changes",
   );
   const renames = exactArrayValuesV1(
-    fields.renames?.value,
+    fields.renames,
     "Save State migration reference renames",
   ).map(parseReferenceRenameV1);
   const deletions = exactArrayValuesV1(
-    fields.deletions?.value,
+    fields.deletions,
     "Save State migration reference deletions",
   ).map(parseReferenceDeletionV1);
   renames.sort((left, right) =>
@@ -486,37 +386,34 @@ function parseReferenceChangesV1(value: unknown): SaveStateMigrationReferenceCha
     if (sources.has(key)) throw new TypeError("duplicate Save State migration reference source");
     sources.add(key);
   }
-  return Object.freeze({
-    renames: Object.freeze(renames),
-    deletions: Object.freeze(deletions),
-  });
+  return { renames, deletions };
 }
 
 function parseStepV1(
   value: unknown,
   registryNamespace: SaveStateMigrationNamespaceV1,
 ): SaveStateMigrationStepV1 {
-  const fields = exactDataDescriptorsV1(
+  const fields = exactObjectV1(
     value,
     ["migrationId", "namespace", "from", "to", "references", "migrate"],
     "Save State migration step",
   );
-  const namespace = parseSaveStateMigrationNamespaceV1(fields.namespace?.value);
+  const namespace = parseSaveStateMigrationNamespaceV1(fields.namespace);
   if (namespace !== registryNamespace) {
     throw new TypeError("Save State migration step namespace mismatch");
   }
-  const migrate = fields.migrate?.value;
+  const migrate = fields.migrate;
   if (typeof migrate !== "function") {
     throw new TypeError("Save State migration callback must be a function");
   }
-  return Object.freeze({
-    migrationId: parseSaveStateMigrationIdV1(fields.migrationId?.value),
+  return {
+    migrationId: parseSaveStateMigrationIdV1(fields.migrationId),
     namespace,
-    from: parseStateContractIdentityV1(fields.from?.value, "migration source identity"),
-    to: parseStateContractIdentityV1(fields.to?.value, "migration target identity"),
-    references: parseReferenceChangesV1(fields.references?.value),
+    from: parseStateContractIdentityV1(fields.from, "migration source identity"),
+    to: parseStateContractIdentityV1(fields.to, "migration target identity"),
+    references: parseReferenceChangesV1(fields.references),
     migrate: migrate as SaveStateMigrationStepV1["migrate"],
-  });
+  };
 }
 
 function sameStateContractIdentityV1(
@@ -525,14 +422,6 @@ function sameStateContractIdentityV1(
 ): boolean {
   return left.stateContractRevision === right.stateContractRevision &&
     left.stateContractDigest === right.stateContractDigest;
-}
-
-/** @internal Descriptor-safe identity admission for Base runtime/tooling. */
-export function parseSaveStateContractIdentityInternalV1(
-  value: unknown,
-  label = "Save State contract identity",
-): SaveStateContractIdentityV1 {
-  return parseStateContractIdentityV1(value, label);
 }
 
 /** @internal Exact State-contract identity comparison for Base runtime/tooling. */
@@ -585,57 +474,46 @@ function validateCompleteAdjacentChainV1(
   }
 }
 
-const saveStateMigrationRegistryDeclarationsV1 = new WeakMap<
-  object,
-  SaveStateMigrationRegistryDeclarationInternalV1
->();
-
 /** Defines one exact, single-namespace adjacent State-migration declaration. */
 export function defineSaveStateMigrationRegistryV1(
   input: DefineSaveStateMigrationRegistryInputV1,
 ): SaveStateMigrationRegistryV1 {
-  const fields = exactDataDescriptorsV1(
+  const fields = exactObjectV1(
     input,
     ["namespace", "minimumSupported", "current", "steps"],
     "Save State migration registry",
   );
-  const namespace = parseSaveStateMigrationNamespaceV1(fields.namespace?.value);
+  const namespace = parseSaveStateMigrationNamespaceV1(fields.namespace);
   const minimumSupported = parseStateContractIdentityV1(
-    fields.minimumSupported?.value,
+    fields.minimumSupported,
     "Save State migration minimum identity",
   );
   const current = parseStateContractIdentityV1(
-    fields.current?.value,
+    fields.current,
     "Save State migration current identity",
   );
   const rawSteps = exactArrayValuesV1(
-    fields.steps?.value,
+    fields.steps,
     "Save State migration steps",
     maximumSaveStateMigrationStepsV1,
   );
-  const steps = Object.freeze(rawSteps.map((step) => parseStepV1(step, namespace)));
+  const steps = rawSteps.map((step) => parseStepV1(step, namespace));
   validateCompleteAdjacentChainV1(minimumSupported, current, steps);
 
-  const declaration = Object.freeze({
+  const declaration = {
     namespace,
     minimumSupported,
     current,
     steps,
-  });
-  const registry = Object.freeze({}) as SaveStateMigrationRegistryV1;
-  saveStateMigrationRegistryDeclarationsV1.set(registry, declaration);
-  return registry;
+  };
+  return { [saveStateMigrationRegistryDeclarationV1]: declaration };
 }
 
-/** @internal Exact factory-identity admission for Base runtime/tooling. */
+/** @internal Reads the normalized declaration admitted by the public factory. */
 export function readSaveStateMigrationRegistryInternalV1(
   registry: SaveStateMigrationRegistryV1,
 ): SaveStateMigrationRegistryDeclarationInternalV1 {
-  const declaration = saveStateMigrationRegistryDeclarationsV1.get(registry);
-  if (declaration === undefined) {
-    throw new TypeError("Save State migration registry was not created by the official factory");
-  }
-  return declaration;
+  return registry[saveStateMigrationRegistryDeclarationV1];
 }
 
 /** @internal Binds one registry to the resolved aggregate State identity. */
@@ -644,11 +522,7 @@ export function assertSaveStateMigrationRegistryCurrentIdentityInternalV1(
   current: SaveStateContractIdentityV1,
 ): void {
   const declaration = readSaveStateMigrationRegistryInternalV1(registry);
-  const normalizedCurrent = parseStateContractIdentityV1(
-    current,
-    "resolved State contract identity",
-  );
-  if (!sameStateContractIdentityV1(declaration.current, normalizedCurrent)) {
+  if (!sameStateContractIdentityV1(declaration.current, current)) {
     throw new TypeError("save_state_migration.current_identity_mismatch");
   }
 }

@@ -94,7 +94,7 @@ interface PreparedCommandLogAnchorV1<TSnapshot> {
   readonly snapshot: DeepReadonly<TSnapshot>;
   readonly stateDigest: Digest;
   readonly nextOrdinal: PositiveSafeInteger;
-  readonly emptyEntries: readonly never[];
+  readonly emptyEntries: never[];
 }
 
 export interface CommandLogV1<
@@ -131,6 +131,37 @@ export interface CommandLogV1<
   establishPreparedAnchor(prepared: PreparedCommandLogAnchorV1<TSnapshot>): void;
   establishAnchor(snapshot: DeepReadonly<TSnapshot>): void;
 }
+
+type CommandLogInternalV1<
+  TSnapshot extends CommandLogSnapshotV1,
+  TLoggedCommand extends LoggedCommandShapeV1,
+  TEvent = unknown,
+  TRejection = unknown,
+  TFault = unknown,
+  TRngState = TSnapshot["rng"],
+  TRngDrawTrace = unknown,
+> =
+  & CommandLogV1<
+    TSnapshot,
+    TLoggedCommand,
+    TEvent,
+    TRejection,
+    TFault,
+    TRngState,
+    TRngDrawTrace
+  >
+  & {
+    latestEntryInternalV1():
+      | CommandLogEntryForV1<
+        TLoggedCommand,
+        TEvent,
+        TRejection,
+        TFault,
+        TRngState,
+        TRngDrawTrace
+      >
+      | undefined;
+  };
 
 const commandLogMaximumEntriesV1 = 200;
 
@@ -187,17 +218,17 @@ function createOutcomeV1<
 ): DeepReadonly<CommandLogOutcomeV1<TEvent, TRejection, TFault>> {
   switch (attempt.result.kind) {
     case "committed":
-      return Object.freeze({
+      return {
         kind: "committed",
-        events: Object.freeze([...attempt.result.events]),
-      });
+        events: [...attempt.result.events],
+      };
     case "rejected":
-      return Object.freeze({
+      return {
         kind: "rejected",
-        reasons: Object.freeze([...attempt.result.reasons]),
-      });
+        reasons: [...attempt.result.reasons],
+      };
     case "faulted":
-      return Object.freeze({ kind: "faulted", fault: attempt.result.fault });
+      return { kind: "faulted", fault: attempt.result.fault };
   }
   throw new TypeError("Finalized command attempt has an invalid outcome");
 }
@@ -270,7 +301,15 @@ export function createCommandLogInternalV1<
     readonly admitExternalInputs?: boolean;
   },
   instrumentation?: SnapshotWorkInstrumentationV1,
-): CommandLogV1<TSnapshot, TLoggedCommand, TEvent, TRejection, TFault, TRngState, TRngDrawTrace> {
+): CommandLogInternalV1<
+  TSnapshot,
+  TLoggedCommand,
+  TEvent,
+  TRejection,
+  TFault,
+  TRngState,
+  TRngDrawTrace
+> {
   type PublicEntry = CommandLogEntryForV1<
     TLoggedCommand,
     TEvent,
@@ -291,13 +330,10 @@ export function createCommandLogInternalV1<
     digestCanonicalInternalV1("sillymaker:state:v1", replayBase, instrumentation);
   let nextOrdinal = parsePositiveSafeInteger(1);
   const internalEntries: InternalEntry[] = [];
-  let publicEntries: readonly PublicEntry[] = Object.freeze([]);
+  const publicEntries: PublicEntry[] = [];
+  let publicEntriesSnapshot: readonly PublicEntry[] | undefined = [];
 
-  const publishEntries = (): void => {
-    publicEntries = Object.freeze(internalEntries.map(({ entry }) => entry));
-  };
-
-  const log: CommandLogV1<
+  const log: CommandLogInternalV1<
     TSnapshot,
     TLoggedCommand,
     TEvent,
@@ -340,30 +376,30 @@ export function createCommandLogInternalV1<
       );
       const postAttemptSnapshot = admittedAttempt.result.snapshot;
       const diagnostics = admittedAttempt.diagnostics;
-      const entry = Object.freeze({
+      const entry = {
         source,
         command,
         ...additionalLoggedCommandFields,
         logOrdinal: nextOrdinal,
         preStateDigest: admittedAttempt.preStateDigest,
         postStateDigest: admittedAttempt.postStateDigest,
-        commandSequence: Object.freeze({
+        commandSequence: {
           before: admittedAttempt.preSnapshot.commandSequence,
           after: postAttemptSnapshot.commandSequence,
-        }),
+        },
         committedRngBefore: diagnostics.committedRngBefore,
-        attemptedDraws: Object.freeze([...diagnostics.attemptedDraws]),
+        attemptedDraws: [...diagnostics.attemptedDraws],
         ...(diagnostics.candidateRngAfter === undefined
           ? {}
           : { candidateRngAfter: diagnostics.candidateRngAfter }),
         committedRngAfter: diagnostics.committedRngAfter,
         outcome: createOutcomeV1(admittedAttempt),
-      }) as PublicEntry;
+      } as PublicEntry;
       const followingOrdinal = parsePositiveSafeInteger(nextOrdinal + 1);
-      const internalEntry = Object.freeze({
+      const internalEntry = {
         entry,
         postAttemptSnapshot,
-      }) as InternalEntry;
+      } as InternalEntry;
 
       if (internalEntries.length === limit) {
         const evicted = internalEntries[0];
@@ -371,36 +407,43 @@ export function createCommandLogInternalV1<
         replayBase = evicted.postAttemptSnapshot;
         replayBaseDigest = evicted.entry.postStateDigest;
         internalEntries.shift();
+        publicEntries.shift();
       }
       internalEntries.push(internalEntry);
+      publicEntries.push(entry);
+      publicEntriesSnapshot = undefined;
       nextOrdinal = followingOrdinal;
-      publishEntries();
       return entry;
     },
-    entries: () => publicEntries,
+    entries() {
+      publicEntriesSnapshot ??= [...publicEntries];
+      return publicEntriesSnapshot;
+    },
+    latestEntryInternalV1: () => publicEntries.at(-1),
     replayBase: () => replayBase,
     replayBaseStateDigest: () => replayBaseDigest,
     prepareAnchor(snapshot) {
-      return Object.freeze({
+      return {
         snapshot,
         stateDigest: digestCanonicalInternalV1("sillymaker:state:v1", snapshot, instrumentation),
         nextOrdinal: parsePositiveSafeInteger(1),
-        emptyEntries: Object.freeze([]),
-      });
+        emptyEntries: [],
+      };
     },
     establishPreparedAnchor(prepared) {
       replayBase = prepared.snapshot;
       replayBaseDigest = prepared.stateDigest;
       internalEntries.length = 0;
+      publicEntries.length = 0;
       nextOrdinal = prepared.nextOrdinal;
-      publicEntries = prepared.emptyEntries;
+      publicEntriesSnapshot = prepared.emptyEntries;
     },
     establishAnchor(snapshot) {
       log.establishPreparedAnchor(log.prepareAnchor(snapshot));
     },
   };
 
-  return Object.freeze(log);
+  return log;
 }
 
 export function createCommandLogV1<

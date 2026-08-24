@@ -166,12 +166,12 @@ async function mainV1(): Promise<void> {
     for (let index = 0; index < options.samples; index += 1) {
       coldRuns.push(await runNeutralStateColdSampleV1(moduleCount));
     }
-    cold.push(Object.freeze({
+    cold.push({
       workloadId: `neutral-composition-state-v1/cold-activation/${String(moduleCount)}-modules`,
       samples: options.samples,
       moduleCount: coldRuns[0]!.moduleCount,
       sessionStatus: coldRuns[0]!.sessionStatus,
-      durationMs: Object.freeze({
+      durationMs: {
         mount: createNeutralStateDurationDistributionV1(
           coldRuns.map((run) => run.durationMs.mount),
         ),
@@ -184,8 +184,8 @@ async function mainV1(): Promise<void> {
         dispose: createNeutralStateDurationDistributionV1(
           coldRuns.map((run) => run.durationMs.dispose),
         ),
-      }),
-    }));
+      },
+    });
   }
 
   const selectedCells = createNeutralStateCellsV1({
@@ -212,14 +212,14 @@ async function mainV1(): Promise<void> {
       );
       steadyRuns.push(await runNeutralStateSteadySampleV1(cell));
     }
-    cells.push(Object.freeze({
+    cells.push({
       workloadId: `neutral-composition-state-v1/${
         String(cell.moduleCount)
       }-modules/${cell.saveClass}/${String(cell.touchedModules)}`,
       ...cell,
       samples: options.samples,
       correctness: semantic,
-      durationMs: Object.freeze({
+      durationMs: {
         retentionCrossingTranscript: createNeutralStateDurationDistributionV1(
           correctnessRuns.map((run) => run.durationMs.retentionCrossingTranscript),
         ),
@@ -235,15 +235,15 @@ async function mainV1(): Promise<void> {
         steadyDispatchPerCommand: createNeutralStateDurationDistributionV1(
           steadyRuns.map((run) => run.durationMsPerCommand),
         ),
-      }),
-      steadyBoundary: Object.freeze({
+      },
+      steadyBoundary: {
         prefillCommands: steadyRuns[0]!.prefillCommands,
         measuredCommands: steadyRuns[0]!.measuredCommands,
         retainedBeforeMeasurement: steadyRuns[0]!.retainedBeforeMeasurement,
         replayBaseCommandSequenceBeforeMeasurement:
           steadyRuns[0]!.replayBaseCommandSequenceBeforeMeasurement,
-      }),
-    }));
+      },
+    });
   }
   const report = createNeutralStatePerformanceReportV1({
     generatedAt: new Date().toISOString(),

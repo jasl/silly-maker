@@ -13,7 +13,7 @@ function resolveEnvironmentV1(
 ): BrowserFilePortEnvironmentV1 {
   return (
     environment ??
-      Object.freeze({
+      ({
         document: globalThis.document,
         url: globalThis.URL,
       })
@@ -61,7 +61,7 @@ function createSelectionV1(
     };
     const resolveV1 = (result: HostFileSelectionResultV1): void => {
       cleanupV1();
-      resolve(Object.freeze(result));
+      resolve(result);
     };
     const rejectV1 = (error: unknown): void => {
       cleanupV1();
@@ -110,7 +110,7 @@ function createSelectionV1(
 export function createBrowserFilePortV1(
   environment?: BrowserFilePortEnvironmentV1,
 ): HostFilePortV1 {
-  return Object.freeze({
+  return ({
     async selectOne(request: Parameters<HostFilePortV1["selectOne"]>[0]) {
       return await createSelectionV1(resolveEnvironmentV1(environment), request);
     },

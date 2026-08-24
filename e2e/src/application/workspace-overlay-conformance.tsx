@@ -17,7 +17,7 @@ export type LabOverlayConformanceIdV1 =
 
 export const labOverlayConformanceDefinitionsV1: readonly WorkspaceOverlayDefinitionV1<
   LabOverlayConformanceIdV1
->[] = Object.freeze([
+>[] = [
   defineWorkspaceOverlayV1({
     id: "overlay.lab.conformance.home",
     contractRevision: 1,
@@ -35,7 +35,7 @@ export const labOverlayConformanceDefinitionsV1: readonly WorkspaceOverlayDefini
     contractRevision: 1,
     dismissible: false,
   }),
-]);
+];
 
 interface LabOverlayControllerV1 {
   openPrimary(id: LabOverlayConformanceIdV1): unknown;
@@ -74,7 +74,7 @@ function pendingPreparationV1(): PendingPreparationV1 {
     resolve = resolvePromise;
     reject = () => rejectPromise(new Error("e2e.overlay_preparation_failed"));
   });
-  return Object.freeze({ promise, resolve, reject });
+  return ({ promise, resolve, reject });
 }
 
 function ConformanceLaunchersV1(props: {
@@ -106,7 +106,7 @@ function resolutionV1(
 ): OverlayRendererResolutionV1 | null {
   switch (overlayId) {
     case "overlay.lab.conformance.home":
-      return Object.freeze({
+      return ({
         accessibleName: labUiTextV1("text.e2e.lab.overlay.conformance.home.title"),
         content: (
           <section data-lab-overlay-conformance="home">
@@ -125,7 +125,7 @@ function resolutionV1(
         prepare,
       });
     case "overlay.lab.conformance.alternate":
-      return Object.freeze({
+      return ({
         accessibleName: labUiTextV1("text.e2e.lab.overlay.conformance.alternate.title"),
         content: (
           <section data-lab-overlay-conformance="alternate">
@@ -139,7 +139,7 @@ function resolutionV1(
         prepare,
       });
     case "overlay.lab.conformance.detail":
-      return Object.freeze({
+      return ({
         accessibleName: labUiTextV1("text.e2e.lab.overlay.conformance.detail.title"),
         content: (
           <section data-lab-overlay-conformance="detail">
@@ -151,7 +151,7 @@ function resolutionV1(
         prepare,
       });
     case "overlay.lab.conformance.locked":
-      return Object.freeze({
+      return ({
         accessibleName: labUiTextV1("text.e2e.lab.overlay.conformance.locked.title"),
         content: (
           <section data-lab-overlay-conformance="locked">
@@ -220,7 +220,7 @@ export function createLabOverlayConformanceV1(input: {
     return pending.promise;
   };
 
-  return Object.freeze({
+  return ({
     renderLaunchers(overlays: LabOverlayControllerV1, restart: () => Promise<void>) {
       return input.enabled
         ? <ConformanceLaunchersV1 overlays={overlays} restart={restart} />
@@ -244,7 +244,7 @@ export function createLabOverlayConformanceV1(input: {
 export function asLabOverlayControllerV1<TOverlayId extends string>(
   overlays: OverlaySessionStoreV1<TOverlayId>,
 ): LabOverlayControllerV1 {
-  return Object.freeze({
+  return ({
     openPrimary: (id: LabOverlayConformanceIdV1) => overlays.openPrimary(id as TOverlayId),
     pushDetail: (id: LabOverlayConformanceIdV1) => overlays.pushDetail(id as TOverlayId),
     closeTop: () => overlays.closeTop(),

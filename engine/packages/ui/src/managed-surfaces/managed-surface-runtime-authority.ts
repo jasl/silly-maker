@@ -39,13 +39,13 @@ export interface ManagedSurfaceRuntimeAuthorityBundleInternalV1 {
 function authorityForKernelInternalV1(
   kernel: ManagedSurfaceRuntimeKernelInternalV1<ManagedSurfaceReducerStateV1>,
 ): ManagedSurfaceRuntimeAuthorityInternalV1 {
-  return Object.freeze({
+  return {
     observeStateInternalV1: kernel.getStateInternalV1,
     getTransientPublicationInternalV1: kernel.getTransientSnapshotInternalV1,
     peekTransientCandidateInternalV1: kernel.peekTransientCandidateInternalV1,
     transitionTransientInternalV1: kernel.transitionTransientInternalV1,
     subscribeInternalV1: kernel.subscribeTransientInternalV1,
-  });
+  };
 }
 
 export function createManagedSurfaceRuntimeAuthorityInternalV1(
@@ -61,8 +61,8 @@ export function createManagedSurfaceRuntimeAuthorityBundleInternalV1(
     input.initialState,
     input.reportSubscriberFailure,
   );
-  return Object.freeze({
+  return {
     authority: authorityForKernelInternalV1(kernel),
     kernel,
-  });
+  };
 }

@@ -252,18 +252,11 @@ function exactObjectV1(value: unknown, keys: readonly string[]): Readonly<Record
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new TypeError("invalid object");
   }
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  if (
-    Object.keys(descriptors).toSorted().join("\0") !== [...keys].toSorted().join("\0") ||
-    Object.values(descriptors).some(({ get, set }) => get !== undefined || set !== undefined)
-  ) {
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).toSorted().join("\0") !== [...keys].toSorted().join("\0")) {
     throw new TypeError("invalid object fields");
   }
-  return Object.freeze(
-    Object.fromEntries(
-      Object.entries(descriptors).map(([key, descriptor]) => [key, descriptor.value]),
-    ),
-  );
+  return Object.fromEntries(keys.map((key) => [key, record[key]]));
 }
 
 const stateSchemaV1: RuntimeSchemaV1<SyntheticStateV1> = Object.freeze({
@@ -272,19 +265,19 @@ const stateSchemaV1: RuntimeSchemaV1<SyntheticStateV1> = Object.freeze({
     if (typeof fields.referenceId !== "string") {
       throw new TypeError("invalid reference ID");
     }
-    return Object.freeze({
+    return {
       count: parseNonNegativeSafeInteger(fields.count),
       referenceId: fields.referenceId,
-    });
+    };
   },
 });
 
 const rngSchemaV1: RuntimeSchemaV1<SyntheticRngV1> = Object.freeze({
   parse(value: unknown) {
     const fields = exactObjectV1(value, ["cursor"]);
-    return Object.freeze({
+    return {
       cursor: parseNonNegativeSafeInteger(fields.cursor),
-    });
+    };
   },
 });
 
@@ -312,12 +305,12 @@ const slotSchemaV1: RuntimeSchemaV1<SaveRepositorySlotMetadataV1> = Object.freez
     ) {
       throw new TypeError("invalid slot metadata");
     }
-    return Object.freeze({
+    return {
       storyId: fields.storyId,
       slotId: fields.slotId,
-      writeReason: fields.writeReason,
+      writeReason: fields.writeReason as SaveRepositorySlotMetadataV1["writeReason"],
       capturedCommandSequence: parseNonNegativeSafeInteger(fields.capturedCommandSequence),
-    });
+    };
   },
 });
 const lineageSchemaV1: RuntimeSchemaV1<readonly SimulationAdoptionV1[]> = Object.freeze({
@@ -325,7 +318,7 @@ const lineageSchemaV1: RuntimeSchemaV1<readonly SimulationAdoptionV1[]> = Object
     if (!Array.isArray(value)) {
       throw new TypeError("invalid simulation lineage");
     }
-    return Object.freeze(value) as readonly SimulationAdoptionV1[];
+    return value as readonly SimulationAdoptionV1[];
   },
 });
 const recordSchemaV1 = createSaveRecordEnvelopeSchemaV1(
@@ -827,15 +820,6 @@ async function seedRewrittenQuickWithBackupV1(
   return Object.freeze({ source: stored, backup });
 }
 
-function expectDeeplyFrozenV1(value: unknown, visited = new Set<object>()): void {
-  if (value === null || typeof value !== "object" || visited.has(value)) return;
-  visited.add(value);
-  expect(Object.isFrozen(value)).toBe(true);
-  for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(value))) {
-    if ("value" in descriptor) expectDeeplyFrozenV1(descriptor.value, visited);
-  }
-}
-
 async function corruptAutoCurrentV1(fixture: Awaited<ReturnType<typeof fixtureV1>>) {
   const currentKey = createSaveSlotRecordKeyV1(storyIdV1, "auto.current");
   const current = await fixture.records.read("save", currentKey);
@@ -1158,14 +1142,13 @@ describe("PersistenceServiceV1", () => {
     });
   });
 
-  it("exposes a frozen current-lineage snapshot only on the internal service", async () => {
+  it("exposes a detached current-lineage snapshot only on the internal service", async () => {
     const initialLineage = lineageV1(1, provenanceV1().resolved.simulationDigest);
     const fixture = await fixtureV1({ initialLineage });
 
     const observed = fixture.service.getSimulationLineage();
     expect(observed).toEqual(initialLineage);
     expect(observed).not.toBe(initialLineage);
-    expect(Object.isFrozen(observed)).toBe(true);
     expect(fixture.service.port).not.toHaveProperty("getSimulationLineage");
 
     fixture.service.establishAnchor(snapshotV1(3), Object.freeze([]));
@@ -1891,7 +1874,7 @@ describe("PersistenceServiceV1", () => {
       engineCommit: null,
     });
 
-    // Written records and exports carry one normalized, frozen capture-origin
+    // Written records and exports carry one normalized capture-origin
     // stamp for the lifetime of the service.
     let collectorCalls = 0;
     const writer = await fixtureV1({
@@ -1909,9 +1892,6 @@ describe("PersistenceServiceV1", () => {
       record: { versionStamp: stampA },
     });
     expect(collectorCalls).toBe(1);
-    if (exported.kind === "decoded") {
-      expect(Object.isFrozen(exported.record.versionStamp)).toBe(true);
-    }
     await expect(writer.service.port.save("quick")).resolves.toMatchObject({
       kind: "saved",
     });
@@ -2315,7 +2295,6 @@ describe("PersistenceServiceV1", () => {
       digestCanonical("sillymaker:state:v1", loaded),
     );
     expect(fixture.service.getSimulationLineage()).toEqual(lineage);
-    expect(Object.isFrozen(fixture.service.getSimulationLineage())).toBe(true);
     expect(await saveRecordsV1(fixture.records)).toEqual(before);
     const exported = await fixture.service.port.exportCurrentSave();
     const decoded = decodeSaveRecordV1(exported.bytes, codecV1);
@@ -2364,7 +2343,6 @@ describe("PersistenceServiceV1", () => {
       const recordsBefore = await saveRecordsV1(fixture.records);
 
       const empty = await fixture.service.port.inspectBackup("quick");
-      expectDeeplyFrozenV1(empty);
       expect(empty).toEqual({ kind: "rejected", slotId: "quick", code: "empty_backup" });
       expect(await saveRecordsV1(fixture.records)).toEqual(recordsBefore);
       expect(await leaseRecordsV1(fixture.records)).toEqual(leasesBefore);
@@ -2376,7 +2354,6 @@ describe("PersistenceServiceV1", () => {
       await seedPendingBackupWithoutRewriteV1(fixture, sourceBytes);
       const recordsWithBackup = await saveRecordsV1(fixture.records);
       const available = await fixture.service.port.inspectBackup("quick");
-      expectDeeplyFrozenV1(available);
       expect(available).toEqual({ kind: "available", slotId: "quick" });
       expect(available).not.toHaveProperty("bytes");
       expect(available).not.toHaveProperty("hostRevision");
@@ -2398,7 +2375,6 @@ describe("PersistenceServiceV1", () => {
       ]);
       const invalidRecords = await saveRecordsV1(fixture.records);
       const invalid = await fixture.service.port.inspectBackup("quick");
-      expectDeeplyFrozenV1(invalid);
       expect(invalid).toEqual({
         kind: "rejected",
         slotId: "quick",
@@ -2417,7 +2393,6 @@ describe("PersistenceServiceV1", () => {
         }),
       ]);
       const emptyAgain = await fixture.service.port.inspectBackup("quick");
-      expectDeeplyFrozenV1(emptyAgain);
       expect(emptyAgain).toEqual({
         kind: "rejected",
         slotId: "quick",
@@ -2435,7 +2410,6 @@ describe("PersistenceServiceV1", () => {
     it("classifies invalid slots, unavailable reads, unclassified faults, and disposal", async () => {
       const invalidSlot = await fixtureV1({ manualSaveSlotCount: 0 });
       const invalid = await invalidSlot.service.port.inspectBackup("manual.1");
-      expectDeeplyFrozenV1(invalid);
       expect(invalid).toEqual({
         kind: "faulted",
         slotId: null,
@@ -2444,7 +2418,6 @@ describe("PersistenceServiceV1", () => {
 
       const unavailable = await fixtureV1({ records: unavailableStoreV1() });
       const unavailableResult = await unavailable.service.port.inspectBackup("quick");
-      expectDeeplyFrozenV1(unavailableResult);
       expect(unavailableResult).toEqual({
         kind: "rejected",
         slotId: "quick",
@@ -2463,7 +2436,6 @@ describe("PersistenceServiceV1", () => {
         },
       });
       const faulted = await throwing.service.port.inspectBackup("quick");
-      expectDeeplyFrozenV1(faulted);
       expect(faulted).toEqual({
         kind: "faulted",
         slotId: "quick",
@@ -2473,7 +2445,6 @@ describe("PersistenceServiceV1", () => {
       const disposed = await fixtureV1();
       await disposed.service.dispose();
       const disposedResult = await disposed.service.port.inspectBackup("quick");
-      expectDeeplyFrozenV1(disposedResult);
       expect(disposedResult).toEqual({
         kind: "faulted",
         slotId: "quick",
@@ -4619,7 +4590,7 @@ describe("PersistenceService standard composition", () => {
     await bare.service.autoSaveIdle();
   });
 
-  it("captures one immutable summary value and treats an empty summary as absent", async () => {
+  it("captures one detached summary value and treats an empty summary as absent", async () => {
     const delayed = createDelayedSaveStoreV1();
     const projected = ["capture value"];
     let calls = 0;
@@ -4658,27 +4629,7 @@ describe("PersistenceService standard composition", () => {
     await Promise.all([fixture.service.autoSaveIdle(), empty.service.autoSaveIdle()]);
   });
 
-  it("rejects unsafe summary arrays before writing any Save bytes", async () => {
-    const accessorSummary = ["line"];
-    let reads = 0;
-    Object.defineProperty(accessorSummary, "0", {
-      enumerable: true,
-      configurable: true,
-      get() {
-        reads += 1;
-        return "accessed";
-      },
-    });
-    const fixture = await fixtureV1({ summarizeSave: () => accessorSummary });
-
-    await expect(fixture.service.port.save("quick")).resolves.toEqual({
-      kind: "faulted",
-      code: "persistence.capture_failed",
-    });
-    expect(reads).toBe(0);
-    expect(await saveRecordsV1(fixture.records)).toEqual([]);
-    await fixture.service.autoSaveIdle();
-
+  it("rejects failed or invalid summaries before writing any Save bytes", async () => {
     const throwing = await fixtureV1({
       summarizeSave() {
         throw new TypeError("summary failed");

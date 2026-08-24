@@ -43,7 +43,7 @@ interface PendingSlowConnectInternalV1 {
 function rawRecordInternalV1(value: unknown): Readonly<Record<string, unknown>> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? value as Readonly<Record<string, unknown>>
-    : Object.freeze({});
+    : {};
 }
 
 export function createDeterministicFakeAgentRpcTransportInternalV1(
@@ -63,9 +63,9 @@ export function createDeterministicFakeAgentRpcTransportInternalV1(
   ): AgentRpcRawConnectResultInternalV1 => {
     const ordinal = connections.length + 1;
     let closed = false;
-    const connection: AgentRpcRawConnectionInternalV1 = Object.freeze({
+    const connection: AgentRpcRawConnectionInternalV1 = {
       request(value: unknown): Promise<unknown> {
-        requests.push(Object.freeze({ connection: ordinal, record: value }));
+        requests.push({ connection: ordinal, record: value });
         if (closed) return Promise.reject(new Error("fake connection closed"));
         if (queuedResponses.length > 0) {
           const response = queuedResponses.shift();
@@ -75,17 +75,13 @@ export function createDeterministicFakeAgentRpcTransportInternalV1(
         const request = rawRecordInternalV1(value);
         switch (request.method) {
           case "start":
-            return Promise.resolve(
-              Object.freeze({ kind: "started", sessionId: `session.${nextSession++}` }),
-            );
+            return Promise.resolve({ kind: "started", sessionId: `session.${nextSession++}` });
           case "submit":
-            return Promise.resolve(
-              Object.freeze({ kind: "submitted", runId: `run.${nextRun++}` }),
-            );
+            return Promise.resolve({ kind: "submitted", runId: `run.${nextRun++}` });
           case "cancel":
-            return Promise.resolve(Object.freeze({ kind: "cancel_requested" }));
+            return Promise.resolve({ kind: "cancel_requested" });
           default:
-            return Promise.resolve(Object.freeze({ kind: "unknown" }));
+            return Promise.resolve({ kind: "unknown" });
         }
       },
       close(): Promise<void> {
@@ -94,9 +90,9 @@ export function createDeterministicFakeAgentRpcTransportInternalV1(
         closeCount += 1;
         return Promise.resolve();
       },
-    });
-    connections.push(Object.freeze({ ordinal, onRecord, connection }));
-    return Object.freeze({ kind: "connected", connection });
+    };
+    connections.push({ ordinal, onRecord, connection });
+    return { kind: "connected", connection };
   };
 
   const connectResult = (
@@ -105,11 +101,11 @@ export function createDeterministicFakeAgentRpcTransportInternalV1(
   ): AgentRpcRawConnectResultInternalV1 => {
     switch (targetMode) {
       case "unconfigured":
-        return Object.freeze({ kind: "unconfigured" });
+        return { kind: "unconfigured" };
       case "offline":
-        return Object.freeze({ kind: "unavailable", reason: "offline" });
+        return { kind: "unavailable", reason: "offline" };
       case "failed":
-        return Object.freeze({ kind: "unavailable", reason: "failed" });
+        return { kind: "unavailable", reason: "failed" };
       case "ready":
         return createConnection(onRecord);
     }
@@ -117,19 +113,19 @@ export function createDeterministicFakeAgentRpcTransportInternalV1(
     throw new TypeError(`Unknown fake transport mode ${String(exhaustive)}`);
   };
 
-  const transport: AgentRpcRawTransportInternalV1 = Object.freeze({
+  const transport: AgentRpcRawTransportInternalV1 = {
     isConfigured: () => mode !== "unconfigured",
     async connect(input: {
       readonly onRecord: (record: unknown) => void;
     }): Promise<AgentRpcRawConnectResultInternalV1> {
       if (mode !== "slow") return connectResult(mode, input.onRecord);
       return await new Promise<AgentRpcRawConnectResultInternalV1>((resolve) => {
-        pendingSlow.push(Object.freeze({ onRecord: input.onRecord, resolve }));
+        pendingSlow.push({ onRecord: input.onRecord, resolve });
       });
     },
-  });
+  };
 
-  return Object.freeze({
+  return {
     transport,
     setMode(nextMode: DeterministicFakeAgentRpcModeInternalV1): void {
       mode = nextMode;
@@ -156,8 +152,8 @@ export function createDeterministicFakeAgentRpcTransportInternalV1(
     queueResponse(response: unknown): void {
       queuedResponses.push(response);
     },
-    getRequests: () => Object.freeze([...requests]),
+    getRequests: () => [...requests],
     getConnectionCount: () => connections.length,
     getCloseCount: () => closeCount,
-  });
+  };
 }

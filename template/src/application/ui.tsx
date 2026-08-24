@@ -16,12 +16,12 @@ import type { TemplateUiPublicationV1 } from "./composition.tsx";
 
 type TemplateSemanticPortV1 = TemplateApplicationInstanceV1["semantic"];
 
-const actionTextIdsV1: Readonly<Record<TemplateActionIdV1, string>> = Object.freeze({
+const actionTextIdsV1: Readonly<Record<TemplateActionIdV1, string>> = {
   "template.begin_story": "text.template.action.begin",
   "template.earn_coin": "text.template.action.earn",
-});
+};
 
-const templateNarrativePanelStyleV1 = Object.freeze({
+const templateNarrativePanelStyleV1 = {
   position: "absolute" as const,
   insetInline: "160px",
   insetBlockEnd: "48px",
@@ -31,7 +31,7 @@ const templateNarrativePanelStyleV1 = Object.freeze({
   color: "#f2efe8",
   fontSize: "22px",
   lineHeight: 1.6,
-});
+};
 
 /** Passive product skin for the composition-owned Narrative runtime. */
 export function TemplateNarrativeRendererV1(
@@ -211,7 +211,7 @@ export function TemplateHudV1(props: {
           data-template-action-id={action.actionId}
           onClick={() =>
             void props.semantic.dispatch(
-              Object.freeze({ kind: "invoke" as const, actionId: action.actionId }),
+              { kind: "invoke" as const, actionId: action.actionId },
             )}
         >
           {templateUiTextV1(actionTextIdsV1[action.actionId])}

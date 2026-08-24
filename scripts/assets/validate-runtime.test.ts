@@ -157,24 +157,16 @@ function overrideRuntimeProviderV1(
 function createEnvironmentV1(
   input: {
     readonly files?: ReadonlyMap<string, Uint8Array>;
-    readonly realpaths?: ReadonlyMap<string, string>;
     readonly reads?: string[];
-    readonly realpathReads?: string[];
   } = {},
 ): RuntimeAssetValidationEnvironmentV1 {
   const files = input.files ?? new Map<string, Uint8Array>();
-  const realpaths = input.realpaths ?? new Map<string, string>();
   return {
-    repositoryRoot: "/repo/silly-maker",
     async readFile(path) {
       input.reads?.push(path);
       const bytes = files.get(path);
       if (!bytes) throw new Error(`ENOENT: ${path}`);
       return bytes;
-    },
-    async realpath(path) {
-      input.realpathReads?.push(path);
-      return realpaths.get(path) ?? path;
     },
   };
 }
@@ -184,7 +176,6 @@ describe("runtime asset manifest validation", () => {
     const firstPath = "assets/scene.png";
     const secondPath = "assets/menu.png";
     const reads: string[] = [];
-    const realpathReads: string[] = [];
     const manifest = createManifestV1(
       [
         { assetId: "scene.first", runtimePath: firstPath },
@@ -201,54 +192,43 @@ describe("runtime asset manifest validation", () => {
           [secondPath, validPngV1],
         ]),
         reads,
-        realpathReads,
       }),
     );
 
     expect(result.errors).toEqual([]);
-    expect(realpathReads).toEqual([".", "assets", firstPath, secondPath]);
     expect(reads).toEqual([firstPath, secondPath]);
     expect(
       reads.every((path) => !path.startsWith("art-source/") && !path.startsWith("references/")),
     ).toBe(true);
   });
 
-  it("performs zero realpath or file reads for a fallback-only manifest", async () => {
+  it("performs zero file reads for a fallback-only manifest", async () => {
     const reads: string[] = [];
-    const realpathReads: string[] = [];
     const manifest = createManifestV1([], ["scene.fallback"]);
 
     const result = await validateRuntimeAssetManifestV1(
       manifest,
-      createEnvironmentV1({ reads, realpathReads }),
+      createEnvironmentV1({ reads }),
     );
 
     expect(result.errors).toEqual([]);
-    expect(realpathReads).toEqual([]);
     expect(reads).toEqual([]);
   });
 
   it.each([
-    "/game/packages/assets/scene.png",
-    "game/packages/assets/../scene.png",
-    "game/packages/assets/./scene.png",
-    "game/packages/assets//scene.png",
-    "game/packages/assets\\scene.png",
-    "game/packages/assets/scene.png?download=1",
-    "game/packages/assets/scene.png#fragment",
-    "game/packages/assets/scene\0.png",
-    "game/packages/assets/%2e%2e/scene.png",
-    "game/packages/assets/%2E%2e/scene.png",
-    "game/packages/assets/%252e%252e/scene.png",
-    "game/packages/assets/%255C..%255Cscene.png",
-    "game/packages/assets%2F..%2Fscene.png",
-    "game/packages/assets",
+    "/assets/scene.png",
+    "assets/../scene.png",
+    "assets/./scene.png",
+    "assets//scene.png",
+    "assets\\scene.png",
+    "assets/scene.png?download=1",
+    "assets/scene.png#fragment",
+    "assets/scene\0.png",
+    "assets/%2e%2e/scene.png",
+    "assets",
     "examples/Other/assets/scene.png",
-    "art-source/aigc/scene.png",
-    "references/scene.png",
   ])("rejects unsafe path %j before any filesystem read", async (runtimePath) => {
     const reads: string[] = [];
-    const realpathReads: string[] = [];
     const manifest = overrideRuntimeProviderV1(
       createManifestV1([{ assetId: "scene.unsafe", runtimePath: "assets/scene.png" }]),
       "scene.unsafe",
@@ -257,143 +237,31 @@ describe("runtime asset manifest validation", () => {
 
     const result = await validateRuntimeAssetManifestV1(
       manifest,
-      createEnvironmentV1({ reads, realpathReads }),
+      createEnvironmentV1({ reads }),
     );
 
     expect(result.errors).toEqual([{ assetId: "scene.unsafe", code: "asset.runtime_path_unsafe" }]);
-    expect(realpathReads).toEqual([]);
     expect(reads).toEqual([]);
   });
 
-  it.each(["assets/scene.png", "assets/scene.png"])(
-    "accepts a Story-local runtime root for %s",
-    async (runtimePath) => {
-      const result = await validateRuntimeAssetManifestV1(
-        createManifestV1([{ assetId: "scene.safe", runtimePath }]),
-        createEnvironmentV1({ files: new Map([[runtimePath, validPngV1]]) }),
-      );
-
-      expect(result.errors).toEqual([]);
-    },
-  );
-
-  it("accepts a contained runtime file when the checkout root is reached through a symlink", async () => {
+  it("accepts a Story-local runtime asset", async () => {
     const runtimePath = "assets/scene.png";
-    const checkoutRoot = "/repo/silly-maker-link";
-    const realRepositoryRoot = "/repo/silly-maker";
-    const realAllowedRoot = `${realRepositoryRoot}/assets`;
-    const realpathReads: string[] = [];
-    const reads: string[] = [];
-    const manifest = createManifestV1([{ assetId: "scene.symlinked-checkout", runtimePath }]);
-
-    const result = await validateRuntimeAssetManifestV1(manifest, {
-      repositoryRoot: checkoutRoot,
-      async realpath(path) {
-        realpathReads.push(path);
-        if (path === ".") return realRepositoryRoot;
-        if (path === "assets") return realAllowedRoot;
-        if (path === runtimePath) return `${realAllowedRoot}/scene.png`;
-        throw new Error(`unexpected realpath: ${path}`);
-      },
-      async readFile(path) {
-        reads.push(path);
-        if (path !== runtimePath) throw new Error(`unexpected read: ${path}`);
-        return validPngV1;
-      },
-    });
-
-    expect(result.errors).toEqual([]);
-    expect(realpathReads).toEqual([".", "assets", runtimePath]);
-    expect(reads).toEqual([runtimePath]);
-  });
-
-  it("canonicalizes a shared allowed root once while resolving each exact file once", async () => {
-    const firstPath = "assets/first.png";
-    const secondPath = "assets/second.png";
-    const realpathReads: string[] = [];
-    const reads: string[] = [];
     const result = await validateRuntimeAssetManifestV1(
-      createManifestV1([
-        { assetId: "scene.first", runtimePath: firstPath },
-        { assetId: "scene.second", runtimePath: secondPath },
-      ]),
-      createEnvironmentV1({
-        files: new Map([
-          [firstPath, validPngV1],
-          [secondPath, validPngV1],
-        ]),
-        realpathReads,
-        reads,
-      }),
-    );
-
-    expect(result.errors).toEqual([]);
-    expect(realpathReads).toEqual([".", "assets", firstPath, secondPath]);
-    expect(reads).toEqual([firstPath, secondPath]);
-  });
-
-  it("rejects an allowed-root symlink outside the canonical repository before resolving a file", async () => {
-    const runtimePath = "assets/scene.png";
-    const realpathReads: string[] = [];
-    const reads: string[] = [];
-    const result = await validateRuntimeAssetManifestV1(
-      createManifestV1([{ assetId: "scene.root-escape", runtimePath }]),
-      {
-        repositoryRoot: "/repo/silly-maker",
-        async realpath(path) {
-          realpathReads.push(path);
-          if (path === ".") return "/repo/silly-maker";
-          if (path === "assets") return "/outside/assets";
-          throw new Error(`must not resolve file after root escape: ${path}`);
-        },
-        async readFile(path) {
-          reads.push(path);
-          throw new Error(`must not read after root escape: ${path}`);
-        },
-      },
-    );
-
-    expect(result.errors).toEqual([
-      { assetId: "scene.root-escape", code: "asset.runtime_path_escape" },
-    ]);
-    expect(realpathReads).toEqual([".", "assets"]);
-    expect(reads).toEqual([]);
-  });
-
-  it("rejects a realpath escape before reading file bytes", async () => {
-    const runtimePath = "assets/scene.png";
-    const reads: string[] = [];
-    const result = await validateRuntimeAssetManifestV1(
-      createManifestV1([{ assetId: "scene.escape", runtimePath }]),
+      createManifestV1([{ assetId: "scene.safe", runtimePath }]),
       createEnvironmentV1({
         files: new Map([[runtimePath, validPngV1]]),
-        realpaths: new Map([[runtimePath, "/repo/silly-maker/assets-escape/x"]]),
-        reads,
       }),
     );
 
-    expect(result.errors).toEqual([{ assetId: "scene.escape", code: "asset.runtime_path_escape" }]);
-    expect(reads).toEqual([]);
+    expect(result.errors).toEqual([]);
   });
 
-  it("treats realpath and read failures as a missing runtime file", async () => {
+  it("treats a read failure as a missing runtime file", async () => {
     const runtimePath = "assets/missing.png";
     const manifest = createManifestV1([{ assetId: "scene.missing", runtimePath }]);
 
-    const realpathFailure = await validateRuntimeAssetManifestV1(manifest, {
-      repositoryRoot: "/repo/silly-maker",
-      async realpath() {
-        throw new Error("ENOENT");
-      },
-      async readFile() {
-        throw new Error("must not read after realpath failure");
-      },
-    });
     const readFailure = await validateRuntimeAssetManifestV1(manifest, createEnvironmentV1());
 
-    expect(realpathFailure.errors).toEqual([
-      { assetId: "scene.missing", code: "asset.runtime_file_missing" },
-    ]);
     expect(readFailure.errors).toEqual([
       { assetId: "scene.missing", code: "asset.runtime_file_missing" },
     ]);

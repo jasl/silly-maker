@@ -64,11 +64,11 @@ export function createPresentationRatePortV1(input?: {
   let pinCount = 0;
   let anchorBase = inner.now();
   let anchorScaled = anchorBase;
-  let current: PresentationRateStateV1 = Object.freeze({
+  let current: PresentationRateStateV1 = {
     rate: 1,
     effectiveRate: 1,
     pinned: false,
-  });
+  };
   const listeners = new Set<() => void>();
 
   const scaledNow = (): number => anchorScaled + (inner.now() - anchorBase) * effectiveRate;
@@ -80,11 +80,11 @@ export function createPresentationRatePortV1(input?: {
       anchorBase = inner.now();
       effectiveRate = nextEffective;
     }
-    const next: PresentationRateStateV1 = Object.freeze({
+    const next: PresentationRateStateV1 = {
       rate: requestedRate,
       effectiveRate,
       pinned: pinCount > 0,
-    });
+    };
     if (
       next.rate === current.rate &&
       next.effectiveRate === current.effectiveRate &&
@@ -96,19 +96,19 @@ export function createPresentationRatePortV1(input?: {
     for (const listener of [...listeners]) listener();
   };
 
-  return Object.freeze({
-    clock: Object.freeze({
+  return {
+    clock: {
       now: scaledNow,
       requestTick: (callback: (now: number) => void) =>
         inner.requestTick(() => callback(scaledNow())),
-    }),
-    state: Object.freeze({
+    },
+    state: {
       getCurrent: () => current,
       subscribe(listener: () => void) {
         listeners.add(listener);
         return () => listeners.delete(listener);
       },
-    }),
+    },
     setRate(next: number): void {
       if (!Number.isFinite(next) || next <= 0) {
         throw new TypeError("presentation rate must be a finite number > 0");
@@ -128,5 +128,5 @@ export function createPresentationRatePortV1(input?: {
         commit();
       };
     },
-  });
+  };
 }

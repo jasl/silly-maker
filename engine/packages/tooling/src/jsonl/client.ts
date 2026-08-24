@@ -57,19 +57,17 @@ export function createJsonlAgentClientV1(streams: {
     if (resolve === undefined) return;
     pending.delete(record.id);
     resolve(
-      record.ok === true
-        ? Object.freeze({ ok: true as const, result: record.result })
-        : Object.freeze({
-          ok: false as const,
-          error: record.error ?? {
-            code: "protocol.internal_error" as const,
-            message: "malformed response",
-          },
-        }),
+      record.ok === true ? { ok: true as const, result: record.result } : {
+        ok: false as const,
+        error: record.error ?? {
+          code: "protocol.internal_error" as const,
+          message: "malformed response",
+        },
+      },
     );
   });
 
-  return Object.freeze({
+  return {
     request: (method: JsonlAgentMethodV1, params?: Readonly<Record<string, unknown>>) =>
       new Promise<JsonlClientResponseV1>((resolve) => {
         const id = String(nextId);
@@ -86,7 +84,7 @@ export function createJsonlAgentClientV1(streams: {
           }\n`,
         );
       }),
-    events: () => Object.freeze([...events]),
+    events: () => [...events],
     close: () => reader.close(),
-  });
+  };
 }

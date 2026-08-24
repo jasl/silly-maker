@@ -102,7 +102,7 @@ export function inferRegionsIdPrefixV1(
  */
 export function regionsDraftBlockingIssueV1(draft: RegionsDocumentV1): string | null {
   try {
-    parseRegionsDocumentV1(JSON.parse(JSON.stringify(draft)));
+    parseRegionsDocumentV1(draft);
     return null;
   } catch (error) {
     return error instanceof Error ? error.message : String(error);

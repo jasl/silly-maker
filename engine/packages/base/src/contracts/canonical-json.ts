@@ -28,7 +28,7 @@ export type CanonicalJsonErrorCodeV1 =
   | "string.lone_surrogate";
 
 export class CanonicalJsonError extends Error {
-  readonly name = "CanonicalJsonError";
+  override readonly name = "CanonicalJsonError";
   readonly code: CanonicalJsonErrorCodeV1;
   readonly path: string;
 
@@ -222,7 +222,7 @@ export function projectCanonicalJsonInternalV1<TValue>(
   recordSnapshotWorkV1(instrumentation, "canonical_traversal", purpose);
   const [encoded, projection] = encodeCanonicalJsonProjectionV1(value, "", new Set());
   const bytes = encodeCanonicalJsonUtf8InternalV1(encoded);
-  return Object.freeze({ bytes, value: projection as TValue });
+  return { bytes, value: projection as TValue };
 }
 
 /** @internal Instrumented test/bench path; public canonical bytes remain unchanged. */

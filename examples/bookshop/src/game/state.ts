@@ -88,12 +88,12 @@ export const bookshopNarrativeStateSchemaV1: RuntimeSchemaV1<BookshopNarrativeSt
         if (flags.some((flag, index) => index > 0 && flag <= (flags[index - 1] as string))) {
           throw new TypeError("bookshop narrative flags must be sorted and unique");
         }
-        return Object.freeze({
+        return ({
           phase: record.phase as BookshopNarrativeStateV1["phase"],
           cursor: record.cursor,
           pending,
           sequence: record.sequence,
-          flags: Object.freeze(flags),
+          flags: flags,
           history: parseNarrativeHistory(record.history),
         });
       },
@@ -113,12 +113,12 @@ export const bookshopGameStateSchemaV1: RuntimeSchemaV1<BookshopGameStateV1> =
             stage: z.unknown(),
           })
           .parse(root.simulation);
-        return Object.freeze({
-          simulation: Object.freeze({
+        return ({
+          simulation: {
             inventory: bookshopInventoryStateSchemaV1.parse(simulation.inventory),
             narrative: bookshopNarrativeStateSchemaV1.parse(simulation.narrative),
             stage: bookshopStageStateSchemaV1.parse(simulation.stage),
-          }),
+          },
         });
       },
     },
@@ -133,11 +133,11 @@ export function createInitialBookshopStageStateV1(): SemanticStageState {
 }
 
 export function createInitialBookshopGameStateV1(): BookshopGameStateV1 {
-  return Object.freeze({
-    simulation: Object.freeze({
-      inventory: Object.freeze({ coins: 0 }),
+  return ({
+    simulation: {
+      inventory: { coins: 0 },
       narrative: createInitialBookshopNarrativeStateV1(),
       stage: createInitialBookshopStageStateV1(),
-    }),
+    },
   });
 }

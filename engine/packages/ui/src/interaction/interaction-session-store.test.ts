@@ -34,11 +34,11 @@ function interactionStateV1(
     readonly returnFocusId?: string | null;
   } = {},
 ): DeepReadonly<InteractionSessionStateV1> {
-  return Object.freeze({
+  return {
     activeSurfaceId: input.activeSurfaceId ?? null,
     choosingTargetId: input.choosingTargetId ?? null,
     returnFocusId: input.returnFocusId ?? null,
-  });
+  };
 }
 
 function presentationUiStateV1(
@@ -49,12 +49,12 @@ function presentationUiStateV1(
     readonly activeCueId?: string | null;
   } = {},
 ): DeepReadonly<TestPresentationUiStateV1> {
-  return Object.freeze({
+  return {
     route: input.route ?? "play",
     primaryOverlayId: input.primaryOverlayId ?? null,
     interaction: input.interaction ?? initialInteractionSessionStateV1,
     activeCueId: input.activeCueId ?? null,
-  });
+  };
 }
 
 function createPresentationUiStateFixtureV1(
@@ -71,7 +71,7 @@ function createPresentationUiStateFixtureV1(
     for (const listener of [...listeners]) listener();
   };
 
-  const interactionLens = Object.freeze({
+  const interactionLens = {
     getSnapshot: () => current.interaction,
     subscribe(listener: () => void): () => void {
       subscribeCalls += 1;
@@ -89,23 +89,23 @@ function createPresentationUiStateFixtureV1(
       reducerInputs.push(reducerInput);
       const interaction = reducer(reducerInput);
       updateCalls += 1;
-      current = Object.freeze({ ...current, interaction });
+      current = { ...current, interaction };
       notify();
     },
-  });
+  };
 
-  return Object.freeze({
+  return {
     interactionLens,
     current: () => current,
     publish(value: DeepReadonly<TestPresentationUiStateV1>): void {
       current = value;
       notify();
     },
-    reducerInputs: () => Object.freeze([...reducerInputs]),
+    reducerInputs: () => [...reducerInputs],
     subscribeCalls: () => subscribeCalls,
     unsubscribeCalls: () => unsubscribeCalls,
     updateCalls: () => updateCalls,
-  });
+  };
 }
 
 describe("createInteractionSessionStoreV1", () => {
@@ -148,7 +148,6 @@ describe("createInteractionSessionStoreV1", () => {
     fixture.publish(presentationUiStateV1());
     expect(listener).toHaveBeenCalledOnce();
     expect(fixture.unsubscribeCalls()).toBe(1);
-    expect(Object.isFrozen(store)).toBe(true);
   });
 
   it("opens, opens a choice atomically, and leaves while preserving sibling UI state", () => {
@@ -168,7 +167,6 @@ describe("createInteractionSessionStoreV1", () => {
       choosingTargetId: null,
       returnFocusId: "control.e2e.heroine",
     });
-    expect(Object.isFrozen(opened)).toBe(true);
     expect(fixture.reducerInputs()).toEqual([initialApplicationState.interaction]);
     expect(fixture.current()).toMatchObject({
       route: "play",
@@ -191,7 +189,6 @@ describe("createInteractionSessionStoreV1", () => {
       choosingTargetId: alphaTargetIdV1,
       returnFocusId: "control.e2e.choice",
     });
-    expect(Object.isFrozen(choosing)).toBe(true);
     expect(fixture.updateCalls()).toBe(writesBeforeOpenChoice + 1);
     expect(fixture.reducerInputs().at(-1)).toBe(opened);
     expect(fixture.current()).toMatchObject({
@@ -201,7 +198,6 @@ describe("createInteractionSessionStoreV1", () => {
 
     expect(store.leave()).toBe("control.e2e.choice");
     expect(store.getSnapshot()).toEqual(initialInteractionSessionStateV1);
-    expect(Object.isFrozen(store.getSnapshot())).toBe(true);
     expect(fixture.current()).toMatchObject({
       primaryOverlayId: "overlay.e2e.settings",
       activeCueId: "cue.e2e.external",
@@ -232,7 +228,6 @@ describe("createInteractionSessionStoreV1", () => {
 
       expect(fixture.updateCalls()).toBe(beforeCleanupWrites + 1);
       expect(store.getSnapshot()).toEqual(initialInteractionSessionStateV1);
-      expect(Object.isFrozen(store.getSnapshot())).toBe(true);
       expect(fixture.current().interaction).toBe(store.getSnapshot());
     },
   );

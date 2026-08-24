@@ -53,7 +53,7 @@ export function referencedPlayerBuildAssetsV1(html: string): PlayerBuildAssetRef
     if (rel.split(/\s+/u).includes("modulepreload")) preload.add(path);
     else if (rel.split(/\s+/u).includes("stylesheet")) entry.add(path);
   }
-  return Object.freeze({ entry, preload });
+  return { entry, preload };
 }
 
 export function playerBuildAssetKindV1(path: string): PlayerBuildAssetKindV1 {
@@ -96,6 +96,6 @@ export function contributionIdsByPlayerBuildAssetV1(
     idsByAsset.set(asset.fileName, ids);
   }
   return new Map(
-    [...idsByAsset].map(([path, ids]) => [path, Object.freeze([...ids].sort())] as const),
+    [...idsByAsset].map(([path, ids]) => [path, [...ids].sort()] as const),
   );
 }

@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: MIT
 import type { ApplicationBootstrapHtmlConfigV1 } from "./application-bootstrap-html.mts";
 
-export const desktopRuntimeBootstrapConfigV1: ApplicationBootstrapHtmlConfigV1 = Object.freeze({
+export const desktopRuntimeBootstrapConfigV1 = {
   revision: 1,
   entry: "runtime",
   target: "deno_desktop",
-});
+} as const satisfies ApplicationBootstrapHtmlConfigV1;
+
+export type DesktopRuntimeBootstrapConfigV1 = typeof desktopRuntimeBootstrapConfigV1;
 
 export interface DesktopShellArgumentsV1 {
   readonly identifierOverride: string | null;
   readonly distOverride: string | null;
-  readonly bootstrap: ApplicationBootstrapHtmlConfigV1;
+  readonly bootstrap: DesktopRuntimeBootstrapConfigV1;
 }
 
 const desktopIdentifierPatternV1 =
@@ -89,9 +91,9 @@ export function parseDesktopShellArgumentsV1(
 
   if (entry === "author") return argumentFailureV1("author_entry_unsupported");
   if (entry !== "runtime") return argumentFailureV1("invalid_entry");
-  return Object.freeze({
+  return {
     identifierOverride,
     distOverride,
     bootstrap: desktopRuntimeBootstrapConfigV1,
-  });
+  };
 }

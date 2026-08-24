@@ -89,98 +89,10 @@ const narrativeSurfaceHostPhysicalIngressRegistrationsInternalV1 = new WeakMap<
   NarrativeSurfaceHostPhysicalIngressSessionRegistryInternalV1
 >();
 
-function isNarrativeSurfaceHostPhysicalIngressCallableInternalV1(
-  value: unknown,
-): value is (...args: never[]) => unknown {
-  if (typeof value !== "function") return false;
-  try {
-    if (Reflect.get(value, "then") !== undefined) return false;
-    const visited = new Set<object>();
-    let current: object | null = value;
-    while (current !== null) {
-      if (visited.has(current)) return false;
-      visited.add(current);
-      if (Reflect.getOwnPropertyDescriptor(current, "then") !== undefined) return false;
-      current = Reflect.getPrototypeOf(current);
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function captureNarrativeSurfaceHostPhysicalIngressRecordInternalV1(
-  value: unknown,
-  expectedKeys: readonly string[],
-): Readonly<Record<string, unknown>> | null {
-  try {
-    if (
-      typeof value !== "object" || value === null || Array.isArray(value) ||
-      Reflect.getPrototypeOf(value) !== Object.prototype || !Object.isFrozen(value)
-    ) return null;
-    const ownKeys = Reflect.ownKeys(value);
-    if (
-      ownKeys.length !== expectedKeys.length ||
-      ownKeys.some((key) => typeof key !== "string" || !expectedKeys.includes(key))
-    ) return null;
-    const captured: Record<string, unknown> = Object.create(null);
-    for (const key of expectedKeys) {
-      const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
-      if (
-        descriptor === undefined || !("value" in descriptor) || descriptor.enumerable !== true ||
-        descriptor.configurable !== false || descriptor.writable !== false ||
-        Reflect.get(value, key) !== descriptor.value
-      ) return null;
-      captured[key] = descriptor.value;
-    }
-    return captured;
-  } catch {
-    return null;
-  }
-}
-
-function isNarrativeSurfaceHostPhysicalIngressSessionInternalV1(
-  value: unknown,
-): value is NarrativeStableSessionInternalV1 {
-  const captured = captureNarrativeSurfaceHostPhysicalIngressRecordInternalV1(value, [
-    "getReadinessSnapshotInternalV1",
-    "subscribeInternalV1",
-    "getHistoryChildLifecycleInternalV1",
-    "attachHostInternalV1",
-  ]);
-  return captured !== null &&
-    isNarrativeSurfaceHostPhysicalIngressCallableInternalV1(
-      captured.getReadinessSnapshotInternalV1,
-    ) &&
-    isNarrativeSurfaceHostPhysicalIngressCallableInternalV1(captured.subscribeInternalV1) &&
-    isNarrativeSurfaceHostPhysicalIngressCallableInternalV1(
-      captured.getHistoryChildLifecycleInternalV1,
-    ) &&
-    isNarrativeSurfaceHostPhysicalIngressCallableInternalV1(captured.attachHostInternalV1);
-}
-
-function isNarrativeSurfaceHostPhysicalIngressRouterInternalV1(
-  value: unknown,
-): value is InputRouterV1 {
-  const captured = captureNarrativeSurfaceHostPhysicalIngressRecordInternalV1(value, [
-    "register",
-    "route",
-    "clearTransientInput",
-  ]);
-  return captured !== null &&
-    isNarrativeSurfaceHostPhysicalIngressCallableInternalV1(captured.register) &&
-    isNarrativeSurfaceHostPhysicalIngressCallableInternalV1(captured.route) &&
-    isNarrativeSurfaceHostPhysicalIngressCallableInternalV1(captured.clearTransientInput);
-}
-
 function isNarrativeSurfaceHostPhysicalIngressPortalContainerInternalV1(
   value: unknown,
 ): value is HTMLDivElement {
-  try {
-    return typeof HTMLDivElement === "function" && value instanceof HTMLDivElement;
-  } catch {
-    return false;
-  }
+  return typeof HTMLDivElement === "function" && value instanceof HTMLDivElement;
 }
 
 function getNarrativeSurfaceHostPhysicalIngressRegistrationInternalV1(
@@ -269,7 +181,7 @@ function detachNarrativeSurfaceHostPhysicalIngressGenerationInternalV1(
   generation.detachCalled = true;
   generation.detach = null;
   try {
-    Reflect.apply(detach, undefined, []);
+    detach();
   } catch {
     // Physical-ingress detachment cannot interrupt Host attachment cleanup.
   }
@@ -303,21 +215,9 @@ function releaseNarrativeSurfaceHostPhysicalIngressRegistrationInternalV1(
 export function registerNarrativeSurfaceHostPhysicalIngressInternalV1(
   input: RegisterNarrativeSurfaceHostPhysicalIngressInputInternalV1,
 ): () => void {
-  const captured = captureNarrativeSurfaceHostPhysicalIngressRecordInternalV1(input, [
-    "session",
-    "portalContainer",
-    "inputRouter",
-    "attachInternalV1",
-  ]);
-  const session = captured?.session;
-  const portalContainer = captured?.portalContainer;
-  const inputRouter = captured?.inputRouter;
-  const attach = captured?.attachInternalV1;
+  const { session, portalContainer, inputRouter, attachInternalV1: attach } = input;
   if (
-    !isNarrativeSurfaceHostPhysicalIngressSessionInternalV1(session) ||
     !isNarrativeSurfaceHostPhysicalIngressPortalContainerInternalV1(portalContainer) ||
-    !isNarrativeSurfaceHostPhysicalIngressRouterInternalV1(inputRouter) ||
-    !isNarrativeSurfaceHostPhysicalIngressCallableInternalV1(attach) ||
     getNarrativeSurfaceHostPhysicalIngressRegistrationInternalV1(
         session,
         portalContainer,
@@ -331,12 +231,12 @@ export function registerNarrativeSurfaceHostPhysicalIngressInternalV1(
     session,
     portalContainer,
     inputRouter,
-    attach: attach as NarrativeSurfaceHostPhysicalIngressAttachInternalV1,
+    attach,
     generation: null,
   };
-  const cleanup = Object.freeze((): void => {
+  const cleanup = (): void => {
     releaseNarrativeSurfaceHostPhysicalIngressRegistrationInternalV1(registration);
-  });
+  };
   setNarrativeSurfaceHostPhysicalIngressRegistrationInternalV1(
     session,
     portalContainer,
@@ -396,7 +296,7 @@ function claimNarrativeSurfaceHostPhysicalIngressGenerationInternalV1(
     detachCalled: false,
   };
   registration.generation = generation;
-  const context = Object.freeze({
+  const context = {
     inputRouter,
     isGestureCurrent,
     isCurrentInternalV1: (): boolean =>
@@ -404,8 +304,8 @@ function claimNarrativeSurfaceHostPhysicalIngressGenerationInternalV1(
         registration,
         generation,
       ),
-  }) satisfies NarrativeSurfaceHostPhysicalIngressContextInternalV1;
-  return Object.freeze({ registration, generation, context, attach });
+  } satisfies NarrativeSurfaceHostPhysicalIngressContextInternalV1;
+  return { registration, generation, context, attach };
 }
 
 function rollbackNarrativeSurfaceHostPhysicalIngressGenerationInternalV1(
@@ -749,7 +649,7 @@ function NarrativeSurfaceEntryShellInternalV1(
       if (lifecycle.rootPreviousOwner.current === null) {
         const ownerDocument = shell.ownerDocument;
         const activeElement = ownerDocument.activeElement;
-        lifecycle.rootPreviousOwner.current = Object.freeze({
+        lifecycle.rootPreviousOwner.current = {
           captured: true as const,
           target: isEligibleNarrativePreviousOwnerInternalV1(
               activeElement,
@@ -758,7 +658,7 @@ function NarrativeSurfaceEntryShellInternalV1(
             )
             ? activeElement
             : null,
-        });
+        };
       }
     } else if (lifecycle.historyOpener.current?.renderKey !== entryRenderKey) {
       const parentShell = lifecycle.shells.get(historyParentRenderKey!);
@@ -1273,7 +1173,7 @@ export function NarrativeSurfaceHostInternalV1(
   props: NarrativeSurfaceHostPropsInternalV1,
 ): ReactElement | null {
   const hostIdentity = useRef<object | null>(null);
-  if (hostIdentity.current === null) hostIdentity.current = Object.freeze({});
+  if (hostIdentity.current === null) hostIdentity.current = {};
   const isGestureCurrent = useRef(props.isGestureCurrent);
   useLayoutEffect(() => {
     isGestureCurrent.current = props.isGestureCurrent;
@@ -1311,9 +1211,10 @@ export function NarrativeSurfaceHostInternalV1(
       throw error;
     }
     if (physicalIngress !== null) {
-      let detach: unknown;
+      let detach: () => void;
       try {
-        detach = Reflect.apply(physicalIngress.attach, undefined, [physicalIngress.context]);
+        const attach = physicalIngress.attach;
+        detach = attach(physicalIngress.context);
       } catch (error) {
         rollbackNarrativeSurfaceHostPhysicalIngressGenerationInternalV1(
           next,
@@ -1322,15 +1223,7 @@ export function NarrativeSurfaceHostInternalV1(
         );
         throw error;
       }
-      if (!isNarrativeSurfaceHostPhysicalIngressCallableInternalV1(detach)) {
-        rollbackNarrativeSurfaceHostPhysicalIngressGenerationInternalV1(
-          next,
-          physicalIngress.registration,
-          physicalIngress.generation,
-        );
-        throw new TypeError(narrativeSurfaceHostPhysicalIngressInvalidInternalV1);
-      }
-      physicalIngress.generation.detach = detach as () => void;
+      physicalIngress.generation.detach = detach;
       if (
         !isNarrativeSurfaceHostPhysicalIngressGenerationCurrentInternalV1(
           physicalIngress.registration,
@@ -1346,12 +1239,12 @@ export function NarrativeSurfaceHostInternalV1(
         return undefined;
       }
     }
-    setMounted(Object.freeze({
+    setMounted({
       runtime: next,
       session: props.session,
       portalContainer: props.portalContainer,
       inputRouter: props.inputRouter,
-    }));
+    });
     return () => {
       if (physicalIngress === null) {
         next.attachment.releaseInternalV1();

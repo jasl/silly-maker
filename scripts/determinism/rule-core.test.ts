@@ -3229,7 +3229,7 @@ describe("authoritative determinism rule core", () => {
     }));
   });
 
-  it("uses half-open UTF-16 ranges and frozen, one-based locations", () => {
+  it("uses half-open UTF-16 ranges and one-based locations", () => {
     const source = `const emoji = "😀"; Math.random();`;
     const [diagnostic] = analyzeV1(source);
     const start = source.indexOf("Math.random");
@@ -3240,10 +3240,6 @@ describe("authoritative determinism rule core", () => {
       start: { line: 1, column: start + 1 },
       end: { line: 1, column: start + "Math.random".length + 1 },
     }));
-    expect(Object.isFrozen(diagnostic)).toBe(true);
-    expect(Object.isFrozen(diagnostic?.range)).toBe(true);
-    expect(Object.isFrozen(diagnostic?.start)).toBe(true);
-    expect(Object.isFrozen(analyzeV1(source))).toBe(true);
   });
 
   it("sorts diagnostics by file, range, then code", () => {

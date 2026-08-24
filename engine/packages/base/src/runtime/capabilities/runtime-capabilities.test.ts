@@ -18,13 +18,11 @@ function deferredV1() {
 }
 
 describe("Runtime capability port", () => {
-  it("starts from a frozen exact state and skips unchanged persistence", async () => {
+  it("starts from the admitted state and skips unchanged persistence", async () => {
     const persist = vi.fn(async () => Object.freeze({ kind: "committed" as const }));
     const port = createRuntimeCapabilityPortV1({ initialState: allDisabledV1, persist });
 
     expect(port.state.getCurrent()).toEqual(allDisabledV1);
-    expect(Object.isFrozen(port)).toBe(true);
-    expect(Object.isFrozen(port.state.getCurrent())).toBe(true);
     expect(port.state).not.toHaveProperty("publish");
     await expect(port.setEnabled("debug_tools", false)).resolves.toEqual({
       kind: "unchanged",
@@ -33,7 +31,7 @@ describe("Runtime capability port", () => {
     expect(persist).not.toHaveBeenCalled();
   });
 
-  it("publishes one committed immutable preference", async () => {
+  it("publishes one committed preference", async () => {
     const persist = vi.fn(async () => Object.freeze({ kind: "committed" as const }));
     const port = createRuntimeCapabilityPortV1({ initialState: allDisabledV1, persist });
     const listener = vi.fn();
@@ -51,7 +49,6 @@ describe("Runtime capability port", () => {
       state: { debugTools: true, cheats: false, automationBridge: false },
     });
     expect(result.state).toBe(port.state.getCurrent());
-    expect(Object.isFrozen(result.state)).toBe(true);
     expect(listener).toHaveBeenCalledOnce();
   });
 

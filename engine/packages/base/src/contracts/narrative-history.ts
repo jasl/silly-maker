@@ -44,9 +44,7 @@ export interface NarrativeHistoryV1 {
   readonly entries: readonly NarrativeHistoryEntryV1[];
 }
 
-export const emptyNarrativeHistoryV1: NarrativeHistoryV1 = Object.freeze({
-  entries: Object.freeze([]),
-});
+export const emptyNarrativeHistoryV1: NarrativeHistoryV1 = { entries: [] };
 
 /** The default backlog capacity; older entries fall off the front. */
 export const narrativeHistoryMaxEntriesV1 = 100;
@@ -78,7 +76,7 @@ export function parseNarrativeHistoryEntryV1(
   ) {
     return dataFailure(`${path}/seenRevision`, "seen_revision_invalid");
   }
-  return Object.freeze({
+  return {
     kind: record.kind,
     occurrenceId: parseInteractionOccurrenceIdV1(record.occurrenceId, `${path}/occurrenceId`),
     definitionId: parseHistoryIdV1(
@@ -94,7 +92,7 @@ export function parseNarrativeHistoryEntryV1(
     voiceAssetId: record.voiceAssetId === null
       ? null
       : parseHistoryIdV1(record.voiceAssetId, `${path}/voiceAssetId`, "asset_id_invalid"),
-  });
+  };
 }
 
 export function parseNarrativeHistoryV1(value: unknown, path = "/history"): NarrativeHistoryV1 {
@@ -115,7 +113,7 @@ export function parseNarrativeHistoryV1(value: unknown, path = "/history"): Narr
     seen.add(parsed.occurrenceId);
     return parsed;
   });
-  return Object.freeze({ entries: Object.freeze(entries) });
+  return { entries };
 }
 
 /** Appends within the bounded capacity, dropping the oldest entries. */
@@ -125,7 +123,7 @@ export function appendNarrativeHistoryV1(
   maxEntries = narrativeHistoryMaxEntriesV1,
 ): NarrativeHistoryV1 {
   const entries = [...history.entries, entry];
-  return Object.freeze({
-    entries: Object.freeze(entries.slice(Math.max(0, entries.length - maxEntries))),
-  });
+  return {
+    entries: entries.slice(Math.max(0, entries.length - maxEntries)),
+  };
 }

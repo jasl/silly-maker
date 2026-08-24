@@ -15,16 +15,16 @@ export {
   osStateContractManifestV1,
 } from "./game/simulation-definition.ts";
 
-const osStoryDefinitionV1 = Object.freeze({
+const osStoryDefinitionV1 = {
   simulation: osSimulationDefinitionV1,
-  presentation: Object.freeze({
+  presentation: {
     textCatalogs: osTextCatalogsV1,
-    assetSlots: Object.freeze([]) as readonly [],
-    assetPacks: Object.freeze([]) as readonly [],
+    assetSlots: [] as readonly [],
+    assetPacks: [] as readonly [],
     patchSurface: osPresentationPatchSurfaceV1,
     materializePresentation: materializeOsPresentationV1,
-  }),
-});
+  },
+};
 
 export const osStoryEntryV1 = defineGamePackage({
   contractRevision: 1,

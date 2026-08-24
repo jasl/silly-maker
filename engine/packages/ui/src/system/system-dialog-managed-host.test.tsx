@@ -52,7 +52,7 @@ import {
 const liveFixturesV1: Array<() => void> = [];
 const foreignOwnerIdV1 = parseManagedSurfaceOwnerIdV1("surface-owner.fixture-foreign");
 const foreignSlotIdV1 = parseManagedSurfaceSlotIdV1("surface-slot.fixture-foreign");
-const foreignDefinitionV1 = Object.freeze({
+const foreignDefinitionV1 = ({
   definitionId: parseManagedSurfaceDefinitionIdV1("surface.fixture.foreign"),
   contractRevision: parsePositiveSafeInteger(1),
   ownerId: foreignOwnerIdV1,
@@ -61,26 +61,26 @@ const foreignDefinitionV1 = Object.freeze({
   layerOrder: parseNonNegativeSafeInteger(50),
   placement: "root",
   modality: "blocking",
-  inputPolicy: Object.freeze({ kind: "managed", inputContextId: "overlay" }),
-  dismissPolicy: Object.freeze({
+  inputPolicy: { kind: "managed", inputContextId: "overlay" },
+  dismissPolicy: {
     back: true,
     escape: true,
     backdrop: true,
     routedCancel: true,
-  }),
-  focusPolicy: Object.freeze({
+  },
+  focusPolicy: {
     kind: "owns_focus",
     initialTargetId: parseManagedSurfaceFocusTargetIdV1("surface-focus.fixture-foreign"),
     trap: true,
     restore: "opener",
-  }),
-  navigationPolicy: Object.freeze({ kind: "close" }),
-  actionIds: Object.freeze([parseManagedSurfaceActionIdV1("surface-action.cancel")]),
-  readiness: Object.freeze({
+  },
+  navigationPolicy: { kind: "close" },
+  actionIds: [parseManagedSurfaceActionIdV1("surface-action.cancel")],
+  readiness: {
     initialOpen: "blocking_fallback",
     primaryReplacement: "retain_current",
     childOpen: "blocking_fallback",
-  }),
+  },
 }) satisfies ManagedSurfaceResolvedDefinitionV1;
 
 afterEach(() => {
@@ -99,47 +99,43 @@ function catalogV1(
   },
 ): SystemDialogRootCatalogInternalV1 {
   const requiredPortId = "synthetic.system_dialog_port";
-  const requiredPortIds = options?.requiredPort === undefined
-    ? Object.freeze([])
-    : Object.freeze([requiredPortId]);
+  const requiredPortIds = options?.requiredPort === undefined ? [] : [requiredPortId];
   return createSystemDialogRootCatalogSnapshotInternalV1({
-    entries: Object.freeze([
-      Object.freeze({
+    entries: [
+      {
         rootRequest: "settings" as const,
         rendererComponent: settingsRenderer,
         accessibleName: "Managed settings",
         requiredPortIds,
-        contentConfig: Object.freeze({
+        contentConfig: {
           title: options?.settingsTitle ?? "Settings",
           closeLabel: "Close",
           emptyText: "Empty",
-          sections: Object.freeze([]),
-        }),
-      }),
-      ...(savesRenderer === undefined ? [] : [Object.freeze({
+          sections: [],
+        },
+      },
+      ...(savesRenderer === undefined ? [] : [{
         rootRequest: "saves" as const,
         rendererComponent: savesRenderer,
         accessibleName: options?.savesAccessibleName ?? "Managed saves",
         requiredPortIds,
-        contentConfig: Object.freeze({
+        contentConfig: {
           variant: "custom" as const,
           accessibleName: options?.savesAccessibleName ?? "Managed saves",
           component: savesRenderer,
-        }),
-      })]),
-    ]),
-    portBindings: options?.requiredPort === undefined
-      ? Object.freeze([])
-      : Object.freeze([Object.freeze({
-        portId: requiredPortId,
-        port: options.requiredPort,
-      })]),
+        },
+      }]),
+    ],
+    portBindings: options?.requiredPort === undefined ? [] : [{
+      portId: requiredPortId,
+      port: options.requiredPort,
+    }],
     ...(options?.confirmationRenderer === undefined ? {} : {
-      confirmationEntry: Object.freeze({
+      confirmationEntry: {
         rendererComponent: options.confirmationRenderer,
         accessibleName: "Managed action confirmation",
         requiredPortIds,
-      }),
+      },
     }),
   });
 }
@@ -148,35 +144,35 @@ function fixtureV1(options: { readonly foreignFamily?: boolean } = {}) {
   let nextEpoch = 39;
   const inputRouter = createInputRouterV1();
   const runtime = createManagedSurfaceCompositionRuntimeInternalV1({
-    epochAllocator: Object.freeze({
+    epochAllocator: {
       allocate: () => parseNonNegativeSafeInteger(nextEpoch += 2),
-    }),
+    },
     inputRouter,
-    recipe: Object.freeze({
-      resolvedOwnerIds: Object.freeze([
+    recipe: {
+      resolvedOwnerIds: [
         ...systemDialogManagedContractInternalV1.resolvedOwnerIds,
         ...(options.foreignFamily === true ? [foreignOwnerIdV1] : []),
-      ]),
-      resolvedSlotDescriptors: Object.freeze([
+      ],
+      resolvedSlotDescriptors: [
         ...systemDialogManagedContractInternalV1.resolvedSlotDescriptors,
         ...(options.foreignFamily === true
-          ? [Object.freeze({
+          ? [{
             kind: "root" as const,
             slotId: foreignSlotIdV1,
             cardinality: "single" as const,
-          })]
+          }]
           : []),
-      ]),
-    }),
+      ],
+    },
   });
   const failures: Array<{ readonly code: string; readonly error: unknown }> = [];
   const internal = createSystemDialogManagedSessionInternalV1({
     runtime: runtime.getCurrent(),
-    reportFailure: (code, error) => failures.push(Object.freeze({ code, error })),
+    reportFailure: (code, error) => failures.push({ code, error }),
   });
   const terminalCalls = { ready: 0, fail: 0 };
   const subscriptionCalls = { started: 0, active: 0 };
-  const instrumented: SystemDialogManagedSessionInternalV1 = Object.freeze({
+  const instrumented: SystemDialogManagedSessionInternalV1 = {
     ...internal,
     subscribeInternalV1(listener: () => void) {
       subscriptionCalls.started += 1;
@@ -194,7 +190,7 @@ function fixtureV1(options: { readonly foreignFamily?: boolean } = {}) {
       input: Parameters<SystemDialogManagedSessionInternalV1["attachHostInternalV1"]>[0],
     ) {
       const attachment = internal.attachHostInternalV1(input);
-      return Object.freeze({
+      return ({
         ...attachment,
         readyCandidateInternalV1(
           surfaceInstanceId: Parameters<
@@ -215,7 +211,7 @@ function fixtureV1(options: { readonly foreignFamily?: boolean } = {}) {
         },
       }) satisfies SystemDialogHostAttachmentInternalV1;
     },
-  });
+  };
   const session = createSystemDialogSessionFacadeInternalV1(instrumented);
   let notifications = 0;
   const unsubscribe = runtime.getCurrent().coordinator.subscribe(() => notifications += 1);
@@ -242,10 +238,10 @@ function fixtureV1(options: { readonly foreignFamily?: boolean } = {}) {
 }
 
 function deltaV1(before: ManagedSurfacePublicationV1, after: ManagedSurfacePublicationV1) {
-  return Object.freeze([
+  return [
     after.publicationRevision - before.publicationRevision,
     after.topologyRevision - before.topologyRevision,
-  ]);
+  ];
 }
 
 function StageHarnessV1(props: {
@@ -1249,8 +1245,8 @@ describe("managed System Host-commit readiness", () => {
 
   it("keeps an R1 candidate frozen while the Host catalog advances to R2", async () => {
     const fixture = fixtureV1();
-    const r1Port = Object.freeze({ revision: "R1" });
-    const r2Port = Object.freeze({ revision: "R2" });
+    const r1Port = { revision: "R1" };
+    const r2Port = { revision: "R2" };
     const r1Props: SystemDialogRootRendererPropsInternalV1[] = [];
     const r2SavesProps: SystemDialogRootRendererPropsInternalV1[] = [];
     function SettingsR1V1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
@@ -1393,16 +1389,16 @@ describe("managed System Host-commit readiness", () => {
 describe("managed System confirmation Host", () => {
   it("exposes only a typed confirmation intent and snapshots request data before transition", async () => {
     const fixture = fixtureV1();
-    const operationBinding = Object.freeze({
+    const operationBinding = {
       dispatch: vi.fn(() =>
-        Promise.resolve(Object.freeze({
+        Promise.resolve({
           kind: "retain_root" as const,
           result: "unused",
-        }))
+        })
       ),
       resultSink: vi.fn(),
       finalizeExactRoot: vi.fn(),
-    });
+    };
     let rootProps: SystemDialogRootRendererPropsInternalV1 | null = null;
 
     function SavesRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
@@ -1430,7 +1426,6 @@ describe("managed System confirmation Host", () => {
     const opener = screen.getByTestId("snapshot-intent-opener");
     opener.focus();
     expect(resolvedRootProps).not.toHaveProperty("confirmationLifecycle");
-    expect(Object.keys(intent)).toEqual(["requestConfirmationInternalV1"]);
 
     const beforeInvalid = fixture.internal.getManagedSnapshotInternalV1();
     const throwingRequest = Object.defineProperties({}, {
@@ -1461,7 +1456,7 @@ describe("managed System confirmation Host", () => {
         enumerable: true,
         get() {
           invocationReads += 1;
-          return Object.freeze({ kind: "import" as const });
+          return ({ kind: "import" as const });
         },
       },
       operationBinding: {
@@ -1491,11 +1486,11 @@ describe("managed System confirmation Host", () => {
     const operation = deferredV1<{ readonly kind: "retain_root"; readonly result: string }>();
     const dispatch = vi.fn(() => operation.promise);
     const resultSink = vi.fn();
-    const operationBinding: SystemDialogConfirmationOperationBindingInternalV1 = Object.freeze({
+    const operationBinding: SystemDialogConfirmationOperationBindingInternalV1 = {
       dispatch,
       resultSink,
       finalizeExactRoot: vi.fn(),
-    });
+    };
     const confirmationRendered = vi.fn();
     const confirmationProps: SystemDialogConfirmationRendererPropsInternalV1[] = [];
     const contentOpenResults: unknown[] = [];
@@ -1511,7 +1506,7 @@ describe("managed System confirmation Host", () => {
             data-testid="confirmation-opener"
             onClick={() => {
               const result = props.confirmationIntent?.requestConfirmationInternalV1({
-                invocation: Object.freeze({ kind: "import" }),
+                invocation: { kind: "import" },
                 operationBinding,
               });
               contentOpenResults.push(result);
@@ -1623,7 +1618,7 @@ describe("managed System confirmation Host", () => {
     expect(document.activeElement).toBe(opener);
 
     const afterCancel = fixture.internal.getManagedSnapshotInternalV1();
-    operation.resolve(Object.freeze({ kind: "retain_root", result: "imported" }));
+    operation.resolve({ kind: "retain_root", result: "imported" });
     await operation.promise;
     await drainMicrotaskV1();
     expect(resultSink).not.toHaveBeenCalled();
@@ -1633,16 +1628,16 @@ describe("managed System confirmation Host", () => {
 
   it("restores the exact pointer opener when WebKit leaves focus on the active root shell", async () => {
     const fixture = fixtureV1();
-    const operationBinding = Object.freeze({
+    const operationBinding = {
       dispatch: vi.fn(() =>
-        Promise.resolve(Object.freeze({
+        Promise.resolve({
           kind: "retain_root" as const,
           result: "unused",
-        }))
+        })
       ),
       resultSink: vi.fn(),
       finalizeExactRoot: vi.fn(),
-    });
+    };
     function SavesRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
       return (
         <>
@@ -1654,7 +1649,7 @@ describe("managed System confirmation Host", () => {
               // following the delegated capture callback.
               queueMicrotask(() =>
                 props.confirmationIntent?.requestConfirmationInternalV1({
-                  invocation: Object.freeze({ kind: "discard", slotId: "quick" }),
+                  invocation: { kind: "discard", slotId: "quick" },
                   operationBinding,
                 })
               );
@@ -1734,11 +1729,11 @@ describe("managed System confirmation Host", () => {
       }>();
       const dispatch = vi.fn(() => operation.promise);
       const resultSink = vi.fn();
-      const operationBinding: SystemDialogConfirmationOperationBindingInternalV1 = Object.freeze({
+      const operationBinding: SystemDialogConfirmationOperationBindingInternalV1 = {
         dispatch,
         resultSink,
         finalizeExactRoot: vi.fn(),
-      });
+      };
       function SavesRendererV1(
         props: SystemDialogRootRendererPropsInternalV1,
       ): ReactElement {
@@ -1750,7 +1745,7 @@ describe("managed System confirmation Host", () => {
               data-testid={`${kind}-confirmation-opener`}
               onClick={() =>
                 props.confirmationIntent?.requestConfirmationInternalV1({
-                  invocation: Object.freeze({ kind, slotId }),
+                  invocation: { kind, slotId },
                   operationBinding,
                 })}
             >
@@ -1821,7 +1816,7 @@ describe("managed System confirmation Host", () => {
       expect(dispatch).toHaveBeenCalledOnce();
       expect(dispatch).toHaveBeenCalledWith({ kind, slotId });
 
-      operation.resolve(Object.freeze({ kind: "retain_root", result: `${kind}-done` }));
+      operation.resolve({ kind: "retain_root", result: `${kind}-done` });
       await operation.promise;
       await drainMicrotaskV1();
 
@@ -1848,13 +1843,11 @@ describe("managed System confirmation Host", () => {
 
   it("cycles active confirmation Tab within content while excluding DevDock and external targets", async () => {
     const fixture = fixtureV1();
-    const operationBinding = Object.freeze({
-      dispatch: vi.fn(() =>
-        Promise.resolve(Object.freeze({ kind: "retain_root" as const, result: "unused" }))
-      ),
+    const operationBinding = {
+      dispatch: vi.fn(() => Promise.resolve({ kind: "retain_root" as const, result: "unused" })),
       resultSink: vi.fn(),
       finalizeExactRoot: vi.fn(),
-    });
+    };
 
     function SavesRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
       return (
@@ -1863,7 +1856,7 @@ describe("managed System confirmation Host", () => {
           data-testid="tab-cycle-opener"
           onClick={() =>
             props.confirmationIntent?.requestConfirmationInternalV1({
-              invocation: Object.freeze({ kind: "clear", slotId: "quick" }),
+              invocation: { kind: "clear", slotId: "quick" },
               operationBinding,
             })}
         >
@@ -1925,13 +1918,11 @@ describe("managed System confirmation Host", () => {
     "keeps bidirectional Tab inside an active confirmation with %i content targets",
     async (targetCount) => {
       const fixture = fixtureV1();
-      const operationBinding = Object.freeze({
-        dispatch: vi.fn(() =>
-          Promise.resolve(Object.freeze({ kind: "retain_root" as const, result: "unused" }))
-        ),
+      const operationBinding = {
+        dispatch: vi.fn(() => Promise.resolve({ kind: "retain_root" as const, result: "unused" })),
         resultSink: vi.fn(),
         finalizeExactRoot: vi.fn(),
-      });
+      };
       function SavesRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
         return (
           <button
@@ -1939,7 +1930,7 @@ describe("managed System confirmation Host", () => {
             data-testid="bounded-tab-opener"
             onClick={() =>
               props.confirmationIntent?.requestConfirmationInternalV1({
-                invocation: Object.freeze({ kind: "import" }),
+                invocation: { kind: "import" },
                 operationBinding,
               })}
           >
@@ -1983,16 +1974,16 @@ describe("managed System confirmation Host", () => {
   it("restores the parent initial target when the exact opener disconnects", async () => {
     const fixture = fixtureV1();
     const dispatch = vi.fn(() =>
-      Promise.resolve(Object.freeze({
+      Promise.resolve({
         kind: "retain_root" as const,
         result: "unused",
-      }))
+      })
     );
-    const operationBinding = Object.freeze({
+    const operationBinding = {
       dispatch,
       resultSink: vi.fn(),
       finalizeExactRoot: vi.fn(),
-    });
+    };
     let savesIntent: SystemDialogRootRendererPropsInternalV1["confirmationIntent"] = null;
 
     function SavesRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
@@ -2007,7 +1998,7 @@ describe("managed System confirmation Host", () => {
             data-testid="disconnecting-opener"
             onClick={() =>
               props.confirmationIntent?.requestConfirmationInternalV1({
-                invocation: Object.freeze({ kind: "clear", slotId: "quick" }),
+                invocation: { kind: "clear", slotId: "quick" },
                 operationBinding,
               })}
           >
@@ -2065,15 +2056,14 @@ describe("managed System confirmation Host", () => {
       const [result, setResult] = useState("");
       const summaryRef = useRef<HTMLParagraphElement>(null);
       const operationBinding = useMemo<SystemDialogConfirmationOperationBindingInternalV1>(
-        () =>
-          Object.freeze({
-            dispatch,
-            resultSink(delivery: SystemDialogConfirmationResultDeliveryInternalV1) {
-              resultSink(delivery);
-              if (delivery.kind === "settled") setResult(String(delivery.result));
-            },
-            finalizeExactRoot: vi.fn(),
-          }),
+        () => ({
+          dispatch,
+          resultSink(delivery: SystemDialogConfirmationResultDeliveryInternalV1) {
+            resultSink(delivery);
+            if (delivery.kind === "settled") setResult(String(delivery.result));
+          },
+          finalizeExactRoot: vi.fn(),
+        }),
         [],
       );
       useLayoutEffect(() => {
@@ -2089,7 +2079,7 @@ describe("managed System confirmation Host", () => {
             data-testid="completion-opener"
             onClick={() =>
               props.confirmationIntent?.requestConfirmationInternalV1({
-                invocation: Object.freeze({ kind: "clear", slotId: "quick" }),
+                invocation: { kind: "clear", slotId: "quick" },
                 operationBinding,
               })}
           >
@@ -2135,7 +2125,7 @@ describe("managed System confirmation Host", () => {
     fireEvent.click(opener);
     await drainMicrotaskV1();
     fireEvent.click(screen.getByTestId("completion-confirm"));
-    operation.resolve(Object.freeze({ kind: "retain_root", result: "cleared" }));
+    operation.resolve({ kind: "retain_root", result: "cleared" });
     await operation.promise;
     await drainMicrotaskV1();
 
@@ -2150,16 +2140,16 @@ describe("managed System confirmation Host", () => {
     const fixture = fixtureV1();
     const failure = new Error("synthetic confirmation layout failure");
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const operationBinding = Object.freeze({
+    const operationBinding = {
       dispatch: vi.fn(() =>
-        Promise.resolve(Object.freeze({
+        Promise.resolve({
           kind: "retain_root" as const,
           result: "unused",
-        }))
+        })
       ),
       resultSink: vi.fn(),
       finalizeExactRoot: vi.fn(),
-    });
+    };
     function SavesRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
       return (
         <div>
@@ -2172,7 +2162,7 @@ describe("managed System confirmation Host", () => {
             data-testid="failure-child-opener"
             onClick={() =>
               props.confirmationIntent?.requestConfirmationInternalV1({
-                invocation: Object.freeze({ kind: "clear", slotId: "quick" }),
+                invocation: { kind: "clear", slotId: "quick" },
                 operationBinding,
               })}
           >
@@ -2232,16 +2222,16 @@ describe("managed System confirmation Host", () => {
     async (dismissKind) => {
       const fixture = fixtureV1();
       const dispatch = vi.fn(() =>
-        Promise.resolve(Object.freeze({
+        Promise.resolve({
           kind: "retain_root" as const,
           result: "unused",
-        }))
+        })
       );
-      const operationBinding = Object.freeze({
+      const operationBinding = {
         dispatch,
         resultSink: vi.fn(),
         finalizeExactRoot: vi.fn(),
-      });
+      };
       function SavesRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
         return (
           <div>
@@ -2253,7 +2243,7 @@ describe("managed System confirmation Host", () => {
               data-testid="dom-dismiss-opener"
               onClick={() =>
                 props.confirmationIntent?.requestConfirmationInternalV1({
-                  invocation: Object.freeze({ kind: "import" }),
+                  invocation: { kind: "import" },
                   operationBinding,
                 })}
             >
@@ -2308,16 +2298,16 @@ describe("managed System confirmation Host", () => {
 
   it("suppresses a queued exact-child focus restore after terminal disposal seals", async () => {
     const fixture = fixtureV1();
-    const operationBinding = Object.freeze({
+    const operationBinding = {
       dispatch: vi.fn(() =>
-        Promise.resolve(Object.freeze({
+        Promise.resolve({
           kind: "retain_root" as const,
           result: "unused",
-        }))
+        })
       ),
       resultSink: vi.fn(),
       finalizeExactRoot: vi.fn(),
-    });
+    };
     function SavesRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
       return (
         <button
@@ -2325,7 +2315,7 @@ describe("managed System confirmation Host", () => {
           data-testid="terminal-child-opener"
           onClick={() =>
             props.confirmationIntent?.requestConfirmationInternalV1({
-              invocation: Object.freeze({ kind: "import" }),
+              invocation: { kind: "import" },
               operationBinding,
             })}
         >
@@ -2368,13 +2358,11 @@ describe("managed System confirmation Host", () => {
     const fixture = fixtureV1();
     const keyboardAction = vi.fn();
     const openCount = vi.fn();
-    const operationBinding = Object.freeze({
-      dispatch: vi.fn(() =>
-        Promise.resolve(Object.freeze({ kind: "retain_root" as const, result: "unused" }))
-      ),
+    const operationBinding = {
+      dispatch: vi.fn(() => Promise.resolve({ kind: "retain_root" as const, result: "unused" })),
       resultSink: vi.fn(),
       finalizeExactRoot: vi.fn(),
-    });
+    };
     function SavesRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
       return (
         <div>
@@ -2384,7 +2372,7 @@ describe("managed System confirmation Host", () => {
             onClick={() => {
               openCount();
               props.confirmationIntent?.requestConfirmationInternalV1({
-                invocation: Object.freeze({ kind: "import" }),
+                invocation: { kind: "import" },
                 operationBinding,
               });
             }}
@@ -2445,16 +2433,16 @@ describe("managed System confirmation Host", () => {
 
   it("does not restore a child opener while an exact root replacement retires the subtree", async () => {
     const fixture = fixtureV1();
-    const operationBinding = Object.freeze({
+    const operationBinding = {
       dispatch: vi.fn(() =>
-        Promise.resolve(Object.freeze({
+        Promise.resolve({
           kind: "retain_root" as const,
           result: "unused",
-        }))
+        })
       ),
       resultSink: vi.fn(),
       finalizeExactRoot: vi.fn(),
-    });
+    };
     function SavesRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
       return (
         <button
@@ -2462,7 +2450,7 @@ describe("managed System confirmation Host", () => {
           data-testid="replacement-child-opener"
           onClick={() =>
             props.confirmationIntent?.requestConfirmationInternalV1({
-              invocation: Object.freeze({ kind: "import" }),
+              invocation: { kind: "import" },
               operationBinding,
             })}
         >
@@ -2507,16 +2495,16 @@ describe("managed System confirmation Host", () => {
   it("keeps child readiness and dispatch terminal-once under StrictMode", async () => {
     const fixture = fixtureV1();
     const dispatch = vi.fn(() =>
-      Promise.resolve(Object.freeze({
+      Promise.resolve({
         kind: "retain_root" as const,
         result: "done",
-      }))
+      })
     );
-    const operationBinding = Object.freeze({
+    const operationBinding = {
       dispatch,
       resultSink: vi.fn(),
       finalizeExactRoot: vi.fn(),
-    });
+    };
     let confirmationIntent: SystemDialogRootRendererPropsInternalV1["confirmationIntent"] = null;
     function SavesRendererV1(props: SystemDialogRootRendererPropsInternalV1): ReactElement {
       confirmationIntent = props.confirmationIntent;
@@ -2552,7 +2540,7 @@ describe("managed System confirmation Host", () => {
     opener.focus();
     act(() => {
       confirmationIntent?.requestConfirmationInternalV1({
-        invocation: Object.freeze({ kind: "import" }),
+        invocation: { kind: "import" },
         operationBinding,
       });
     });

@@ -211,55 +211,23 @@ const publisherLeaseDisposalAuthorityClaimsInternalV1 = new WeakMap<
   ManagedSurfaceStablePublisherLeaseRegistryInternalV1,
   () => ManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1
 >();
-interface PublisherLeaseDisposalAuthorityRecordInternalV1 {
-  readonly inspectPublisherLeaseDisposal: (
-    publisherLease: unknown,
-  ) => ManagedSurfaceStablePublisherLeaseDisposalInspectionInternalV1;
-  readonly disposeCurrentPublisherLease: (
-    publisherLease: unknown,
-  ) => ManagedSurfaceStablePublisherLeaseDisposalCommitResultInternalV1;
-}
-const publisherLeaseDisposalAuthorityRecordsInternalV1 = new WeakMap<
-  ManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1,
-  PublisherLeaseDisposalAuthorityRecordInternalV1
->();
-
-function requirePublisherLeaseDisposalAuthorityInternalV1(
-  receiver: unknown,
-): PublisherLeaseDisposalAuthorityRecordInternalV1 {
-  const authorityRecord =
-    (typeof receiver === "object" || typeof receiver === "function") && receiver !== null
-      ? publisherLeaseDisposalAuthorityRecordsInternalV1.get(
-        receiver as ManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1,
-      )
-      : undefined;
-  if (authorityRecord === undefined) {
-    throw new TypeError("ui.managed_surface_stable_disposal_authority_invalid");
-  }
-  return authorityRecord;
-}
 
 export function claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1(
-  registry: unknown,
+  registry: ManagedSurfaceStablePublisherLeaseRegistryInternalV1,
 ): ManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1 {
-  if ((typeof registry !== "object" && typeof registry !== "function") || registry === null) {
-    throw new TypeError("ui.managed_surface_stable_disposal_authority_invalid");
-  }
-  const claim = publisherLeaseDisposalAuthorityClaimsInternalV1.get(
-    registry as ManagedSurfaceStablePublisherLeaseRegistryInternalV1,
-  );
+  const claim = publisherLeaseDisposalAuthorityClaimsInternalV1.get(registry);
   if (claim === undefined) {
     throw new TypeError("ui.managed_surface_stable_disposal_authority_invalid");
   }
   return claim();
 }
 
-const foreignOccurrenceAdmissionClassificationInternalV1 = Object.freeze({
+const foreignOccurrenceAdmissionClassificationInternalV1 = {
   kind: "foreign" as const,
-});
-const unissuedOccurrenceAdmissionClassificationInternalV1 = Object.freeze({
+};
+const unissuedOccurrenceAdmissionClassificationInternalV1 = {
   kind: "unissued" as const,
-});
+};
 
 function stableSequenceErrorInternalV1(
   kind: ManagedSurfaceStableSequenceKindInternalV1,
@@ -282,13 +250,13 @@ export function createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1(
   initialHighWater: NonNegativeSafeInteger = parseNonNegativeSafeInteger(0),
 ): ManagedSurfaceStableLeaseSequenceAllocatorInternalV1 {
   let highWater = parseNonNegativeSafeInteger(initialHighWater);
-  return Object.freeze({
+  return {
     allocate(): PositiveSafeInteger {
       const next = advanceManagedSurfaceStableSequenceInternalV1(highWater, "lease");
       highWater = parseNonNegativeSafeInteger(next);
       return next;
     },
-  });
+  };
 }
 
 function parseOwnerInternalV1(value: unknown): ManagedSurfaceOwnerIdV1 {
@@ -317,7 +285,7 @@ function leaseIdInternalV1(
 }
 
 function leaseObjectInternalV1(): ManagedSurfaceStablePublisherLeaseInternalV1 {
-  return Object.freeze({}) as ManagedSurfaceStablePublisherLeaseInternalV1;
+  return {} as ManagedSurfaceStablePublisherLeaseInternalV1;
 }
 
 function publisherRecordForUnknownInternalV1(
@@ -373,22 +341,12 @@ export function createManagedSurfaceStablePublisherLeaseRegistryInternalV1(
     resolvedOwnerSet.add(ownerId);
   }
   const leaseDomainAllocator = input.leaseSequenceAllocator;
-  if (
-    (typeof leaseDomainAllocator !== "object" && typeof leaseDomainAllocator !== "function") ||
-    leaseDomainAllocator === null
-  ) {
-    throw new TypeError("ui.managed_surface_stable_lease_allocator_invalid");
-  }
-  const allocateLeaseSequence = leaseDomainAllocator.allocate;
-  if (typeof allocateLeaseSequence !== "function") {
-    throw new TypeError("ui.managed_surface_stable_lease_allocator_invalid");
-  }
   if (claimedLeaseDomainAllocatorsInternalV1.has(leaseDomainAllocator)) {
     throw new TypeError("ui.managed_surface_stable_lease_domain_claimed");
   }
   claimedLeaseDomainAllocatorsInternalV1.add(leaseDomainAllocator);
 
-  const registryIdentity = Object.freeze({});
+  const registryIdentity = {};
   const currentPublisherByOwner = new Map<ManagedSurfaceOwnerIdV1, PublisherRecordInternalV1>();
   let leaseSequenceHighWater: NonNegativeSafeInteger = parseNonNegativeSafeInteger(0);
   let disposed = false;
@@ -404,19 +362,19 @@ export function createManagedSurfaceStablePublisherLeaseRegistryInternalV1(
   };
 
   const getRegistrySnapshot = (): ManagedSurfaceStablePublisherLeaseRegistrySnapshotInternalV1 => {
-    registrySnapshot ??= Object.freeze({
+    registrySnapshot ??= {
       applicationEpoch,
       leaseSequenceHighWater,
       currentPublisherCount: parseNonNegativeSafeInteger(currentPublisherByOwner.size),
       disposed,
-    });
+    };
     return registrySnapshot;
   };
 
   const getPublisherSnapshot = (
     record: PublisherRecordInternalV1,
   ): ManagedSurfaceStablePublisherLeaseSnapshotInternalV1 => {
-    record.snapshot ??= Object.freeze({
+    record.snapshot ??= {
       leaseId: record.leaseId,
       ownerId: record.ownerId,
       applicationEpoch: record.applicationEpoch,
@@ -424,7 +382,7 @@ export function createManagedSurfaceStablePublisherLeaseRegistryInternalV1(
       sourceRevisionIssuanceHighWater: record.sourceRevisionIssuanceHighWater,
       occurrenceIssuanceHighWater: record.occurrenceIssuanceHighWater,
       disposed: record.disposed,
-    });
+    };
     return record.snapshot;
   };
 
@@ -460,7 +418,7 @@ export function createManagedSurfaceStablePublisherLeaseRegistryInternalV1(
     return record !== null && isCurrentRecord(record) ? record : null;
   };
 
-  const registry: ManagedSurfaceStablePublisherLeaseRegistryInternalV1 = Object.freeze({
+  const registry: ManagedSurfaceStablePublisherLeaseRegistryInternalV1 = {
     getSnapshot: getRegistrySnapshot,
     issuePublisher(ownerInput: ManagedSurfaceOwnerIdV1): ManagedSurfaceStablePublisherInternalV1 {
       if (disposed) {
@@ -482,11 +440,7 @@ export function createManagedSurfaceStablePublisherLeaseRegistryInternalV1(
 
       allocationInProgress = true;
       try {
-        const allocatedSequence = Reflect.apply(
-          allocateLeaseSequence,
-          leaseDomainAllocator,
-          [],
-        );
+        const allocatedSequence = leaseDomainAllocator.allocate();
         if (disposed) {
           throw new TypeError("ui.managed_surface_stable_publisher_registry_disposed");
         }
@@ -511,7 +465,7 @@ export function createManagedSurfaceStablePublisherLeaseRegistryInternalV1(
           snapshot: null,
         };
 
-        const publisher: ManagedSurfaceStablePublisherInternalV1 = Object.freeze({
+        const publisher: ManagedSurfaceStablePublisherInternalV1 = {
           lease,
           getSnapshot: (): ManagedSurfaceStablePublisherLeaseSnapshotInternalV1 =>
             getPublisherSnapshot(record),
@@ -538,7 +492,7 @@ export function createManagedSurfaceStablePublisherLeaseRegistryInternalV1(
             record.snapshot = null;
             return occurrenceId;
           },
-        });
+        };
 
         publisherRecordsInternalV1.set(lease, record);
         currentPublisherByOwner.set(ownerId, record);
@@ -599,10 +553,10 @@ export function createManagedSurfaceStablePublisherLeaseRegistryInternalV1(
       if (record === null) {
         throw new TypeError("ui.managed_surface_stable_publisher_lease_stale");
       }
-      const cursor = Object.freeze({
+      const cursor = {
         publisherLease: record.lease,
         occurrenceSequenceHighWater: parseNonNegativeSafeInteger(0),
-      });
+      };
       acceptedOccurrenceRecordsInternalV1.set(cursor, {
         registryIdentity,
         publisherRecord: record,
@@ -643,10 +597,10 @@ export function createManagedSurfaceStablePublisherLeaseRegistryInternalV1(
       }
       if (nextHighWater === cursorRecord.highWater) return current;
 
-      const next = Object.freeze({
+      const next = {
         publisherLease: publisherRecord.lease,
         occurrenceSequenceHighWater: nextHighWater,
-      });
+      };
       acceptedOccurrenceRecordsInternalV1.set(next, {
         registryIdentity,
         publisherRecord,
@@ -667,9 +621,7 @@ export function createManagedSurfaceStablePublisherLeaseRegistryInternalV1(
         throw new TypeError("ui.managed_surface_stable_publisher_lease_stale");
       }
 
-      const proof = Object.freeze(
-        {},
-      ) as ManagedSurfaceStableAcceptedOccurrenceAdmissionProofInternalV1;
+      const proof = {} as ManagedSurfaceStableAcceptedOccurrenceAdmissionProofInternalV1;
       acceptedOccurrenceAdmissionProofRecordsInternalV1.set(proof, {
         registryIdentity,
         publisherRecord: cursorRecord.publisherRecord,
@@ -710,10 +662,10 @@ export function createManagedSurfaceStablePublisherLeaseRegistryInternalV1(
         : isRetainedOccurrence
         ? "retained"
         : "reused";
-      return Object.freeze({
+      return {
         kind,
         occurrenceSequence: inspected.sequence,
-      });
+      };
     },
     deriveAcceptedOccurrenceHighWaterFromAdmissionProof(
       proof: ManagedSurfaceStableAcceptedOccurrenceAdmissionProofInternalV1,
@@ -749,10 +701,10 @@ export function createManagedSurfaceStablePublisherLeaseRegistryInternalV1(
         return proofRecord.originalCursor;
       }
 
-      const next = Object.freeze({
+      const next = {
         publisherLease: proofRecord.publisherRecord.lease,
         occurrenceSequenceHighWater: nextHighWater,
-      });
+      };
       acceptedOccurrenceRecordsInternalV1.set(next, {
         registryIdentity,
         publisherRecord: proofRecord.publisherRecord,
@@ -780,7 +732,7 @@ export function createManagedSurfaceStablePublisherLeaseRegistryInternalV1(
       if (!allocationInProgress) releaseLeaseDomainClaim();
       return "disposed";
     },
-  });
+  };
 
   publisherLeaseDisposalAuthorityClaimsInternalV1.set(registry, () => {
     if (disposalAuthorityClaimed) {
@@ -808,26 +760,10 @@ export function createManagedSurfaceStablePublisherLeaseRegistryInternalV1(
       const record = publisherRecordForUnknownInternalV1(publisherLease)!;
       return disposeRecord(record, authority);
     };
-    const authority = Object.freeze({
-      inspectPublisherLeaseDisposal(
-        this: unknown,
-        publisherLease: unknown,
-      ): ManagedSurfaceStablePublisherLeaseDisposalInspectionInternalV1 {
-        return requirePublisherLeaseDisposalAuthorityInternalV1(this)
-          .inspectPublisherLeaseDisposal(publisherLease);
-      },
-      disposeCurrentPublisherLease(
-        this: unknown,
-        publisherLease: unknown,
-      ): ManagedSurfaceStablePublisherLeaseDisposalCommitResultInternalV1 {
-        return requirePublisherLeaseDisposalAuthorityInternalV1(this)
-          .disposeCurrentPublisherLease(publisherLease);
-      },
-    });
-    publisherLeaseDisposalAuthorityRecordsInternalV1.set(authority, {
+    const authority: ManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1 = {
       inspectPublisherLeaseDisposal,
       disposeCurrentPublisherLease,
-    });
+    };
     return authority;
   });
 

@@ -19,7 +19,7 @@ const counterStateSchema: RuntimeSchemaV1<{ readonly count: number }> = {
     ) {
       throw new TypeError("invalid counter state");
     }
-    return Object.freeze({ count: (value as { count: number }).count });
+    return { count: (value as { count: number }).count };
   },
 };
 
@@ -34,7 +34,7 @@ const syntheticRngStateSchema: RuntimeSchemaV1<{ readonly cursor: number }> = {
     ) {
       throw new TypeError("invalid RNG state");
     }
-    return Object.freeze({ cursor: (value as { cursor: number }).cursor });
+    return { cursor: (value as { cursor: number }).cursor };
   },
 };
 
@@ -187,52 +187,6 @@ describe("generic Snapshot envelope", () => {
           sequence: index + 1,
         })),
       })
-    ).toThrow();
-  });
-
-  it("rejects prototypes, symbols, hidden fields, and accessors without invoking them", () => {
-    let getterCalls = 0;
-    const accessor = {
-      mode: "normal",
-      mutationCount: 0,
-      firstMutationSequence: null,
-      reasons: [],
-    };
-    Object.defineProperty(accessor, "mutationCount", {
-      enumerable: true,
-      get() {
-        getterCalls += 1;
-        return 0;
-      },
-    });
-    const withSymbol = {
-      mode: "normal",
-      mutationCount: 0,
-      firstMutationSequence: null,
-      reasons: [],
-      [Symbol("injected")]: true,
-    };
-    const hidden = {
-      mode: "normal",
-      mutationCount: 0,
-      firstMutationSequence: null,
-      reasons: [],
-    };
-    Object.defineProperty(hidden, "mode", { value: "normal", enumerable: false });
-
-    expect(() => runIntegrityV1Schema.parse(accessor)).toThrow();
-    expect(getterCalls).toBe(0);
-    expect(() => runIntegrityV1Schema.parse(withSymbol)).toThrow();
-    expect(() => runIntegrityV1Schema.parse(hidden)).toThrow();
-    expect(() =>
-      runIntegrityV1Schema.parse(
-        Object.assign(Object.create(null), {
-          mode: "normal",
-          mutationCount: 0,
-          firstMutationSequence: null,
-          reasons: [],
-        }),
-      )
     ).toThrow();
   });
 });

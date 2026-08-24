@@ -14,7 +14,7 @@ import {
   interactionOccurrenceId,
   emptyNarrativeHistory,
   parsePendingInteraction,
-  reduceStageMutations,
+  reduceAdmittedStageMutations,
   settleHoldTimeline,
 } from "@sillymaker/base/story";
 
@@ -66,33 +66,33 @@ export interface TemplateNarrativeStateV1 {
 }
 
 export function createInitialTemplateNarrativeStateV1(): TemplateNarrativeStateV1 {
-  return Object.freeze({
+  return ({
     phase: "idle" as const,
     cursor: null,
     pending: null,
     sequence: 0,
-    flags: Object.freeze([]),
+    flags: [],
     history: emptyNarrativeHistory,
   });
 }
 
 /** Stage vocabulary shared by the script and the content catalog. */
-export const templateLayersV1 = Object.freeze({
+export const templateLayersV1 = {
   background: "layer.template.background",
   characters: "layer.template.characters",
-});
+};
 
-export const templateTagsV1 = Object.freeze({
+export const templateTagsV1 = {
   background: "tag.background",
   mei: "tag.mei",
-});
+};
 
-export const templateContentIdsV1 = Object.freeze({
+export const templateContentIdsV1 = {
   backgroundCourtyard: "content.template.background.courtyard",
   backgroundStudy: "content.template.background.study",
   characterMei: "content.template.character.mei",
   effectMist: "content.template.effect.mist",
-});
+};
 
 export const templateEntryNodeIdV1 = "node.template.opening";
 export const templateCatFlagV1 = "flag.template.cat_found";
@@ -100,18 +100,18 @@ export const templateCatFlagV1 = "flag.template.cat_found";
 export const templateHurriedFlagV1 = "flag.template.hurried";
 
 /** Scene short names the document's stage ops resolve against. */
-const templateSceneRegistryV1: Readonly<Record<string, TemplateSceneBindingV1>> = Object.freeze({
-  opening: Object.freeze({
+const templateSceneRegistryV1: Readonly<Record<string, TemplateSceneBindingV1>> = {
+  opening: {
     scene: templateOpeningSceneV1,
-    cues: Object.freeze({
+    cues: {
       courtyard: templateOpeningCueIdsV1.courtyard,
       mist: templateOpeningCueIdsV1.mist,
       meiEnters: templateOpeningCueIdsV1.meiEnters,
       meiFetches: templateOpeningCueIdsV1.meiFetches,
       meiReturns: templateOpeningCueIdsV1.meiReturns,
-    }),
-  }),
-});
+    },
+  },
+};
 
 /**
  * The placeholder scene: a short "rain has just stopped" vignette proving
@@ -294,9 +294,7 @@ const nodesByIdV1: ReadonlyMap<string, TemplateNarrativeNodeV1> = new Map(
   templateScriptV1.map((node) => [node.nodeId, node]),
 );
 
-export const templateNodeIdsV1: readonly string[] = Object.freeze(
-  templateScriptV1.map((node) => node.nodeId),
-);
+export const templateNodeIdsV1: readonly string[] = templateScriptV1.map((node) => node.nodeId);
 
 function requireNodeV1(nodeId: string): TemplateNarrativeNodeV1 {
   const node = nodesByIdV1.get(nodeId);
@@ -310,7 +308,7 @@ export function templateChoiceOptionsForV1(
   for (const node of templateScriptV1) {
     if (node.kind === "choice" && node.definitionId === definitionId) return node.options;
   }
-  return Object.freeze([]);
+  return [];
 }
 
 /** The single choice-availability rule shared by view, preview, and dispatch. */
@@ -424,7 +422,7 @@ export function runTemplateNarrativeUntilInteractionV1(
     if (node.kind === "stage") {
       const mutations = node.mutations(localStage);
       if (mutations.length > 0) {
-        const outcome = reduceStageMutations(localStage, mutations);
+        const outcome = reduceAdmittedStageMutations(localStage, mutations);
         if (outcome.kind !== "applied") {
           throw new TypeError(`template.narrative_stage_invalid:${node.nodeId}`);
         }
@@ -436,17 +434,17 @@ export function runTemplateNarrativeUntilInteractionV1(
       continue;
     }
     if (node.kind === "end") {
-      return Object.freeze({
-        narrative: Object.freeze({
+      return ({
+        narrative: {
           phase: "completed" as const,
           cursor: null,
           pending: null,
           sequence,
           flags: narrative.flags,
           history: narrative.history,
-        }),
-        stageMutations: Object.freeze(collected),
-        stageDispatches: Object.freeze(collectedDispatches),
+        },
+        stageMutations: collected,
+        stageDispatches: collectedDispatches,
       });
     }
     if (node.kind === "hold") {
@@ -461,17 +459,17 @@ export function runTemplateNarrativeUntilInteractionV1(
       }
     }
     sequence += 1;
-    return Object.freeze({
-      narrative: Object.freeze({
+    return ({
+      narrative: {
         phase: "active" as const,
         cursor: node.nodeId,
         pending: pendingForNodeV1(node, sequence),
         sequence,
         flags: narrative.flags,
         history: narrative.history,
-      }),
-      stageMutations: Object.freeze(collected),
-      stageDispatches: Object.freeze(collectedDispatches),
+      },
+      stageMutations: collected,
+      stageDispatches: collectedDispatches,
     });
   }
   throw new TypeError("template.narrative_runaway_script");
@@ -479,7 +477,7 @@ export function runTemplateNarrativeUntilInteractionV1(
 
 function withFlagsV1(flags: readonly string[], added: readonly string[]): readonly string[] {
   if (added.length === 0) return flags;
-  return Object.freeze([...new Set([...flags, ...added])].toSorted());
+  return ([...new Set([...flags, ...added])].toSorted());
 }
 
 /**
@@ -531,7 +529,7 @@ export function templateNarrativeAfterResolutionV1(
   } else {
     throw new TypeError(`template.narrative_resolution_mismatch:${node.nodeId}`);
   }
-  return Object.freeze({
+  return ({
     phase: "active" as const,
     cursor: next,
     pending: null,
@@ -577,9 +575,9 @@ export function templateNarrativeAfterTimeTickV1(
     arms: node.when.map((arm) => () => narrative.flags.includes(arm.flag)),
   });
   if (outcome.kind === "holding") {
-    return Object.freeze({
+    return ({
       kind: "holding" as const,
-      narrative: Object.freeze({ ...narrative, pending: outcome.pending }),
+      narrative: { ...narrative, pending: outcome.pending },
     });
   }
   let cursor = node.next;
@@ -590,23 +588,23 @@ export function templateNarrativeAfterTimeTickV1(
     }
     cursor = arm.next;
   }
-  return Object.freeze({
+  return ({
     kind: "advanced" as const,
-    narrative: Object.freeze({
+    narrative: {
       phase: "active" as const,
       cursor,
       pending: null,
       sequence: narrative.sequence,
       flags: narrative.flags,
       history: narrative.history,
-    }),
+    },
   });
 }
 
 export function templateNarrativeAtBeginV1(
   narrative: TemplateNarrativeStateV1,
 ): TemplateNarrativeStateV1 {
-  return Object.freeze({
+  return ({
     phase: "active" as const,
     cursor: templateEntryNodeIdV1,
     pending: null,

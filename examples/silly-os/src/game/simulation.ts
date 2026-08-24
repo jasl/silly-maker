@@ -74,18 +74,18 @@ export type OsGameSimulationV1 = GameSimulation<
   OsDebugCommandExecutorV1
 >;
 
-const debugCommandSchemaV1: RuntimeSchemaV1<never> = Object.freeze({
+const debugCommandSchemaV1: RuntimeSchemaV1<never> = {
   parse(): never {
     throw new TypeError("silly-os defines no debug commands");
   },
-});
+};
 
 /** Full assembly of feature handlers: covers every command kind at the type level. */
-const commandHandlersV1: OsCommandHandlerMapV1 = Object.freeze({
+const commandHandlersV1: OsCommandHandlerMapV1 = {
   ...desktopCommandHandlersV1,
   ...filesystemCommandHandlersV1,
   ...minesweeperCommandHandlersV1,
-});
+};
 
 export function projectOsMinesweeperViewV1(
   state: OsGameStateV1["simulation"]["minesweeper"],
@@ -96,7 +96,7 @@ export function projectOsMinesweeperViewV1(
   const cells: OsCellViewV1[] = board.cells.map((cell, index) => {
     const revealed = (cell & osCellRevealedV1) !== 0;
     const flagged = (cell & osCellFlaggedV1) !== 0;
-    return Object.freeze({
+    return ({
       state: revealed
         ? ("revealed" as const)
         : flagged
@@ -106,18 +106,18 @@ export function projectOsMinesweeperViewV1(
       mine: finished ? (cell & osCellMineV1) !== 0 : revealed ? (cell & osCellMineV1) !== 0 : null,
     });
   });
-  return Object.freeze({
+  return ({
     width: board.width,
     height: board.height,
     mineCount: board.mineCount,
     status: board.status,
     flagsLeft: board.mineCount - osFlagsUsedV1(board),
-    cells: Object.freeze(cells),
+    cells: cells,
   });
 }
 
 export function createOsGameSimulationV1(): OsGameSimulationV1 {
-  const commandExecutor: OsCommandExecutorV1 = Object.freeze({
+  const commandExecutor: OsCommandExecutorV1 = {
     executeAttempt(snapshot, command) {
       const handler = commandHandlersV1[command.kind] as (
         input: OsHandlerInputV1<OsCommandV1>,
@@ -129,18 +129,17 @@ export function createOsGameSimulationV1(): OsGameSimulationV1 {
         command,
       });
     },
-  });
+  };
 
-  const debugCommandExecutor: OsDebugCommandExecutorV1 = Object.freeze({
-    validate: () =>
-      Object.freeze({
-        kind: "validation_failed" as const,
-        errors: Object.freeze([Object.freeze({ code: "os.debug.unsupported" })]),
-      }),
+  const debugCommandExecutor: OsDebugCommandExecutorV1 = {
+    validate: () => ({
+      kind: "validation_failed" as const,
+      errors: [{ code: "os.debug.unsupported" }],
+    }),
     executeAttempt(): never {
       throw new TypeError("silly-os defines no debug commands");
     },
-  });
+  };
 
   return defineGameSimulation<OsSimulationTypesV1>()({
     contractRevision: 1,
@@ -154,20 +153,20 @@ export function createOsGameSimulationV1(): OsGameSimulationV1 {
     commandExecutor,
     debugCommandExecutor,
     createBootstrapInput(entropy: BootstrapEntropyV1) {
-      return Object.freeze({ rngSeed: entropy.nextNonZeroUint32() });
+      return ({ rngSeed: entropy.nextNonZeroUint32() });
     },
     createInitialState() {
       return createInitialOsGameStateV1();
     },
     createQueries(state: OsGameStateV1) {
-      return Object.freeze({
+      return ({
         desktop: state.simulation.desktop,
         filesystem: state.simulation.filesystem,
         minesweeper: state.simulation.minesweeper,
       });
     },
     projectGameView(queries: OsQueriesV1): OsGameViewV1 {
-      return Object.freeze({
+      return ({
         wallpaperId: queries.desktop.wallpaperId,
         files: queries.filesystem.files,
         minesweeper: projectOsMinesweeperViewV1(queries.minesweeper),

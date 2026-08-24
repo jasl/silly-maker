@@ -1,8 +1,8 @@
 # Scale、Scene/Object 与模块化 GUI V1 实施计划
 
 状态：**2026-08-24 经所有者接受并开启；M0–M4 与独立 runtime-boundary Complexity Reset
-已于同日交付。暂停的 M5 实现仍隔离在 stash 中等待所有者复核；复核后 M5 是唯一下一项，
-M0–M5 仍按序交付。**
+已于同日交付。2026-08-25 repository-wide trust/performance reset 已完成公开能力审计与全量验证并
+进入收口提交；暂停的 M5 实现仍隔离在 stash 中，不在本次删除工作中恢复或提前实现。**
 
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 仍是唯一跨计划排序入口；
 本计划接在已关闭的 Browser R2 authoritative handoff 之后。Deno Desktop candidate 继续
@@ -17,6 +17,53 @@ package-private、explicit、default-off，等待含目标实现的 stable Deno 
 admission data 的递归freeze、重复admission/handoff/descriptor 防御、实现形状测试、dead BuildIdentity consumer 与本地 attestation
 tooling，保留 schema、digest、Save/replay、CAS、generation/currentness 与 RPC 等真实边界。
 暂停的 M5 实现没有混入清理提交。
+
+2026-08-25 的 repository-wide trust/performance reset 以删除为主收缩 Debug Bundle、Save 写路径、
+Game package/simulation authoring、State transaction、Stage/Timeline/input、UI family、Managed Surface
+与 Browser/Desktop Host 中的重复 admission、recursive freeze、整树 reparse 和 package-internal
+对象真实性检查。公开 Story/Host、Save/wire/RPC、canonical digest、CAS、lease、
+generation/currentness 和 Managed Surface 原子切换边界继续保留。Playwright/E2E 默认静音；显式测试
+音频输出时才选择 audible fixture。
+
+**Repository-wide reset 收口记录（2026-08-25）：**
+
+- 架构文档现在明确 platform-neutral kernel、GUI/game runtime 与 outer capabilities 三层以及单向依赖；
+  外部 bytes/files/URL/HTTP/RPC/Save/公开 Story 输入在拥有它的入口做一次 bounded parse、schema/value
+  admission 与 typed normalization，package-private consumer 信任该结果。只有平台差异会改变应用可观察
+  行为时才增加 Host seam；Vite/Deno 自己拥有 watcher、module graph 与 HMR，SillyMaker 只拥有 R1–R3
+  application response。`AGENTS.md` 同时把 direct-plan hot-path 纪律与 Host/platform seam 准入设为强制
+  开发规则。Desktop candidate 仍 package-private、explicit、default-off，未 promotion。
+- 产品源码不再使用 `Object.freeze`/`Object.isFrozen` 建立自有 runtime immutability。剩余
+  prototype/descriptor 遍历只位于 canonical JSON、bounded projection、Save/digest 等真实数据边界；
+  determinism checker 保留且 scope-frozen。Managed Surface 保留 prepare/commit、lease、gesture、
+  generation/currentness 与 atomic handoff，删除 package-internal collaborator authenticity 系统；该目录的
+  source/tests 从 `45,307` 行收缩到 `39,896` 行。
+- Debug Bundle export、Scene/Agent operations、Desktop intent/runtime、Narrative/WholeCanvas、Story adapter、
+  Save/migration 与 transaction runner 都只在各自真实入口 admission 一次。State hot path 只访问 event 的
+  compiled subscribers、每个 touched owner 只 parse/materialize 一次；Stage reconcile、Timeline event plan、
+  Gamepad mapping 与 CommandLog 同时去掉已测得的重复扫描/构造。
+- 已被替代的 React publication、Cordis 分类、AR5 promotion runner、Studio 旧 E2E、完整 DOM/source
+  identity inventory、Desktop characterization self-proof、host/process attestation 与只保护旧实现形状的
+  tests 已删除；private Direct Extension Runtime、CAS/generation/lease、Save/digest/replay、RPC admission、
+  Desktop private adapter 与 authoritative determinism 等已接受产品合同未被误删。
+- 收口时逐项比较 8 个 package manifests 的全部 `49` 个 TS/JS export leaves：公开入口没有丢失符号；Base
+  root/Story 各只增加 typed Stage reducer，UI/Web/State/Composition/Extension Runtime/Studio/Tooling/Agent
+  入口符号集保持完整。唯一消失的 package-exported 名称是 private UI optional resolver，已由 required
+  resolver 直接替代。公开类型只删除了由 touched-owner slice schema + `validateCandidate` 替代的 whole-State
+  `stateSchema`、过时的 `ResolvedGameV1.frozen` 自证明字段与旧 internal brand spellings；Narrative definition
+  继续是 compile-time opaque public type，内部不恢复 runtime brand/origin 检查。
+- 所有维护中的 Browser E2E 都经共享 fixture 默认切断 WebAudio 到真实 destination 的最终连接，但保留
+  graph/decode/start/lifecycle；`audibleAudio: true` 是窄显式选择，真实 audio contract tests 在 Chromium 与
+  WebKit 均通过。此次 reset 相对 `b871adec` 的最终提交候选规模为 tracked `+19,389/-46,826 LOC`，另有一个
+  `54 LOC` 的共享 fixture，合计净删 `27,383 LOC`；没有恢复 M5 stash。
+- canonical `deno task check`（`361 files / 5,341 tests`）、docs build、完整 Engine Browser E2E
+  （`133/133`）、examples E2E（`80 passed / 2 matrix-skipped`）、三浏览器 determinism（`6/6`）和 prebuilt
+  Engine E2E（`47/47`）全绿。当前 raw trends 仍满足本计划预算：160 modules 的 1 MiB stress p95
+  `15.75 ms`、100k Snapshot p95 约 `140.44 ms`、50k-object authoring index cold/cached/invalidate p95
+  约 `163.02/0.043/0.693 ms`。React Doctor 的 20 条 advisory 独立复核为 `19 rejected / 1
+  needs-evidence / 0 confirmed`；唯一待 profile 证据的是 Motion Workbench 的小型 rAF preview 投影，不为
+  advisory 分数无证据改写。native Desktop canary characterization 没有重跑，继续等待 stable Deno 路径复验，
+  不构成本轮或 M5 的阻塞。
 
 本轮的所有者目标不是把下一次作品重写一步做成最终形态，而是先关闭三类会随规模放大的引擎风险：
 
@@ -93,7 +140,7 @@ directory，使用固定公式/stable IDs，不提交 100k 行 fixture，也不�
 - `state-16/state-160`：复用 Composition/Snapshot workload，分别测 100 KiB normal State 与 1 MiB
   stress State、触碰 1/16 owners，不与 content profile 比较 Snapshot；
 - `index-reference/index-scale`：M0 只生成当前文档合同可表达的 10/1,000 documents，测 cold/list/
-  single-file invalidation；M4 冻结 Authoring Scene 后再增加 1,000 scenes/50,000 objects 的 object-scale
+  single-file invalidation；M4 确定 Authoring Scene contract 后再增加 1,000 scenes/50,000 objects 的 object-scale
   factory；
 - `bundle-reference/bundle-scale`：使用同一最小 GUI composition 和首 pack selection，只改变未选择
   content pack 总量；
@@ -212,7 +259,7 @@ scan 四个独立来源。M1 因而按原排序先拆静态内容面；M0 的 St
 - 将当前“同一 module evaluation 同时构造 runtime control IR、全部 text entries、完整 Flow/source
   graph”的路径拆成三个输出：Player control plan、只读 text/content packs、Inspector-only authoring
   metadata/source map。普通 Player graph 不可到达后者。
-- 只实现本轮有证据的 text/content pack compiler/manifest，不在 M4 前冻结 Scene/object pack，也不激活
+- 只实现本轮有证据的 text/content pack compiler/manifest，不在 M4 前确定 Scene/object pack，也不激活
   通用 Content DB/ORM、任意 JSON/YAML/CSV importer、patch distribution 或远程 streaming。pack 使用
   build-known IDs/URLs；manifest 只表达 build-known logical topology，不把与 payload 同处、可一起编辑的
   byte receipt 伪装成来源或反修改证明，也不新建签名/provenance 系统。
@@ -237,7 +284,7 @@ raw reports 仍只作 owner-review evidence，不进入仓库。
   `sillymaker.text-content-pack` V1 的 `format + version + packId + textCatalogs`；Host bytes 在边界只做一次
   bounded Strict JSON 与 schema/字段/值域 admission，entry count 从 admitted catalogs 派生。
   `byteLength`、`sha256` 和声明式 `entryCount` receipt 及其拟议 generator/currentness workflow 均删除：
-  它们不能证明可编辑 payload 的发布者或反修改属性，反而会阻碍直接汉化和本地内容修改。Session 固定一个 immutable
+  它们不能证明可编辑 payload 的发布者或反修改属性，反而会阻碍直接汉化和本地内容修改。Session 固定一个 manifest
   manifest，对同 pack single-flight，失败后可显式重试，并对已 admitted 的文本提供同步
   locale-fallback resolver；内部 consumer 不重复 admission。
 - `@sillymaker/web` 在真实 application start 中对比 resolved presentation 与 application 声明的
@@ -260,7 +307,7 @@ raw reports 仍只作 owner-review evidence，不进入仓库。
   location 直接修改被动文本 payload 不改变该 digest，也不凭空产生 Save compatibility warning。若同时修改
   presentation source，story digest 仍可因既有 source identity 改变。pack payload、Flow/source graph 和
   loaded-pack cache 都不进入 Snapshot/Save，没有新 Save field 或 migration framework。一个已加载 pack 在
-  当前 immutable session 内不热替换；开发者或玩家 refresh/restart 后读取新 bytes。
+  当前固定 manifest 的 session 内不热替换；开发者或玩家 refresh/restart 后读取新 bytes。
 - `deno task check:assets` 现在会解析每个启用 runtime-asset verification 的 Story，除既有
   asset manifest 外，还用同一 Base session 从该 application root 读取并 bounded-admit 所有声明的
   text packs，验证 wire/schema、logical pack identity、catalog topology/IDs 与跨 pack 冲突，不要求
@@ -323,9 +370,12 @@ targeted format/lint 也在修正一处 `no-shadow` 后重跑通过。
 把 event kind 编译为 UTF-16 module-ID 有序 subscriber direct plan。hot transaction 保持 event-major
 emission order，只遍历实际 subscriber；同一 owner 的重复 event 在一个 proposal 上连续 fold。fold 完成后
 只排序 touched owners，每个 owner 的 slice schema 执行一次，再用 touched-only sparse trie 一次复制
-aggregate State 与共享祖先、每个 touched slot 只写一次。其后的 whole-State schema、aggregate
-`validateCandidate`、attempt envelope、Session finalization/digest、CommandLog、Save 与 replay 路径
-在 M2 当时未改；后插入的 Complexity Reset 随后移除了 recursive runtime freeze，不改变本节 locality 结论。
+aggregate State 与共享祖先、每个 touched slot 只写一次。M2 当时仍保留 whole-State schema 与原有
+attempt admission；后插入的 Complexity Reset 随后把 transaction 热路径收口为：event 只在 `emit`
+边界 admission 一次，每个 touched owner 的 slice schema 只执行一次，跨 slice 合同只由可选的
+`validateCandidate` 承担，package-private Core 直接消费 typed attempt。rejected Core branch 仍恰好执行
+一次 Story `rejectionSchema`，而公共低层 Session 的任意输入路径继续严格 admission。Session
+finalization/digest、CommandLog、Save 与 replay 的真实边界不变；recursive runtime freeze 同时删除。
 
 - State slot 的 exact duplicate 与 parent/child overlap 现在在 cold composition 以
   `authoring.module.overlapping_state_slot` fail-fast；这是既有 disjoint owner-slice 合同的明确化，不保留
@@ -358,7 +408,7 @@ aggregate State 与共享祖先、每个 touched slot 只写一次。其后的 w
 **M2.2 交付记录（2026-08-24）：** `@sillymaker/tooling` 现在为每个 Vite dev server 创建一个
 IO-free lazy Project Authoring Index owner。第一次 list 对四个文档族做一次统一 tree walk，读取/admission
 每个匹配文件一次后只保留 `path + id + label` 或 named skip；Scene/Motion/Regions/Chrome 四个 list port
-都只是同一冻结 snapshot 的视图。Vite watcher 的 `add/change/unlink` 把 app-root 内路径归一为 POSIX
+都只是同一稳定 snapshot 的视图。Vite watcher 的 `add/change/unlink` 把 app-root 内路径归一为 POSIX
 relative path 并失效一个 record；成功的本地 CAS/create 也立即失效自己的路径。重复 watcher signal 在下次
 snapshot 前合并，但本记录不宣称一次物理写入在真实 Vite 中必然只产生一个 signal。
 
@@ -449,7 +499,7 @@ registry、plugin system 或 lifecycle authority，而是在现有 package 内�
 
 - 交付一个新的
   `Authoring Scene source -> admitted/normalized Authoring Scene IR -> deterministic compile`
-  阶梯；一次 admission 后只消费 typed IR。字段名与 source format version 由本里程碑冻结，但它只是
+  阶梯；一次 admission 后只消费 typed IR。字段名与 source format version 由本里程碑确定，但它只是
   本轮可演进的第一阶，不宣称最终 Blueprint 或通用 scene graph。
 - Authoring Scene IR 明确：
   - 唯一、显式、有序的 layers（stable `layerId`），每个 layer 自己拥有 ordered roots；
@@ -490,7 +540,7 @@ Stage/Save/replay 结果等价。
 
 **M4 交付记录（2026-08-24）：**
 
-- `@sillymaker/base` 现在从 bounded source bytes 做一次 Strict JSON + schema/value admission，得到冻结的
+- `@sillymaker/base` 现在从 bounded source bytes 做一次 Strict JSON + schema/value admission，得到普通的
   Authoring Scene IR 与 JSON-pointer source map；compiler 按显式 layer/root/child 顺序做 DFS、稳定整数
   transform lowering 与 dense z-order，输出低层 `SceneDocumentV1`/runtime plan。hierarchy、inspection、
   source provenance 与 catalog-backed hit-region/Motion/Timeline/GUI/intent facets 留在 authoring sidecar，

@@ -42,7 +42,7 @@ function putMutationV1(
   expectedRevision: number | null,
   bytes: readonly number[],
 ): Extract<HostRecordMutationV1, { readonly kind: "put" }> {
-  return Object.freeze({
+  return ({
     kind: "put",
     namespace,
     key: hostRecordKeyV1(key),
@@ -57,7 +57,7 @@ async function storedBytesV1(
   key: string,
 ): Promise<readonly number[] | null> {
   const stored = await store.read(namespace, hostRecordKeyV1(key));
-  return stored === null ? null : Object.freeze(Array.from(stored.bytes));
+  return stored === null ? null : (Array.from(stored.bytes));
 }
 
 afterEach(() => {
@@ -138,18 +138,14 @@ async function snapshotRawRowsV1(
   );
   await completion;
   database.close();
-  return Object.freeze(
-    rows.map((row) => {
-      if (typeof row !== "object" || row === null || Array.isArray(row)) {
-        return Object.freeze([Object.freeze(["<root>", describeRawValueV1(row)] as const)]);
-      }
-      return Object.freeze(
-        Object.keys(row)
-          .toSorted()
-          .map((key) => Object.freeze([key, describeRawValueV1(Reflect.get(row, key))] as const)),
-      );
-    }),
-  );
+  return (rows.map((row) => {
+    if (typeof row !== "object" || row === null || Array.isArray(row)) {
+      return [["<root>", describeRawValueV1(row)] as const];
+    }
+    return (Object.keys(row)
+      .toSorted()
+      .map((key) => ([key, describeRawValueV1(Reflect.get(row, key))] as const)));
+  }));
 }
 
 type CorruptRowFactoryV1 = () => Readonly<Record<string, unknown>>;
@@ -193,7 +189,7 @@ async function createCorruptCommitFixtureV1(
     },
     createCorruptRow(),
   ]);
-  return Object.freeze({
+  return ({
     store,
     createFreshStore: createStore,
     snapshotRecordBacking: () => snapshotRawRowsV1(indexedDB),
@@ -204,66 +200,62 @@ async function createCorruptCommitFixtureV1(
   });
 }
 
-const corruptRowCasesV1 = Object.freeze(
+const corruptRowCasesV1 = [
   [
-    [
-      "missing revision",
-      () => ({
-        namespace: "settings",
-        key: hostRecordStoreCorruptBackingKeyV1,
-        bytes: Uint8Array.of(1).buffer,
-      }),
-    ],
-    [
-      "negative-zero revision",
-      () => ({
-        namespace: "settings",
-        key: hostRecordStoreCorruptBackingKeyV1,
-        revision: -0,
-        bytes: Uint8Array.of(1).buffer,
-      }),
-    ],
-    [
-      "missing bytes",
-      () => ({
-        namespace: "settings",
-        key: hostRecordStoreCorruptBackingKeyV1,
-        revision: 1,
-      }),
-    ],
-    [
-      "non-ArrayBuffer bytes",
-      () => ({
-        namespace: "settings",
-        key: hostRecordStoreCorruptBackingKeyV1,
-        revision: 1,
-        bytes: "AQ==",
-      }),
-    ],
-  ] as const satisfies readonly (readonly [string, CorruptRowFactoryV1])[],
-);
+    "missing revision",
+    () => ({
+      namespace: "settings",
+      key: hostRecordStoreCorruptBackingKeyV1,
+      bytes: Uint8Array.of(1).buffer,
+    }),
+  ],
+  [
+    "negative-zero revision",
+    () => ({
+      namespace: "settings",
+      key: hostRecordStoreCorruptBackingKeyV1,
+      revision: -0,
+      bytes: Uint8Array.of(1).buffer,
+    }),
+  ],
+  [
+    "missing bytes",
+    () => ({
+      namespace: "settings",
+      key: hostRecordStoreCorruptBackingKeyV1,
+      revision: 1,
+    }),
+  ],
+  [
+    "non-ArrayBuffer bytes",
+    () => ({
+      namespace: "settings",
+      key: hostRecordStoreCorruptBackingKeyV1,
+      revision: 1,
+      bytes: "AQ==",
+    }),
+  ],
+] as const satisfies readonly (readonly [string, CorruptRowFactoryV1])[];
 
-const corruptCommitRowCasesV1 = Object.freeze(
+const corruptCommitRowCasesV1 = [
   [
-    [
-      "missing bytes",
-      () => ({
-        namespace: "settings",
-        key: hostRecordStoreCorruptBackingKeyV1,
-        revision: 1,
-      }),
-    ],
-    [
-      "non-ArrayBuffer bytes",
-      () => ({
-        namespace: "settings",
-        key: hostRecordStoreCorruptBackingKeyV1,
-        revision: 1,
-        bytes: "AQ==",
-      }),
-    ],
-  ] as const satisfies readonly (readonly [string, CorruptRowFactoryV1])[],
-);
+    "missing bytes",
+    () => ({
+      namespace: "settings",
+      key: hostRecordStoreCorruptBackingKeyV1,
+      revision: 1,
+    }),
+  ],
+  [
+    "non-ArrayBuffer bytes",
+    () => ({
+      namespace: "settings",
+      key: hostRecordStoreCorruptBackingKeyV1,
+      revision: 1,
+      bytes: "AQ==",
+    }),
+  ],
+] as const satisfies readonly (readonly [string, CorruptRowFactoryV1])[];
 
 describe("IndexedDB Host record store conformance", () => {
   it("matches the shared core workload", async () => {

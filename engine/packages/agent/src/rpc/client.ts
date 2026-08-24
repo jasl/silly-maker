@@ -18,9 +18,9 @@ import type {
   AgentRpcSubmitResultInternalV1,
 } from "./contracts.ts";
 
-const readyResultInternalV1 = Object.freeze({ kind: "ready" as const });
-const supersededResultInternalV1 = Object.freeze({ kind: "superseded" as const });
-const disposedResultInternalV1 = Object.freeze({ kind: "disposed" as const });
+const readyResultInternalV1 = { kind: "ready" as const };
+const supersededResultInternalV1 = { kind: "superseded" as const };
+const disposedResultInternalV1 = { kind: "disposed" as const };
 const maxTrackedRunsInternalV1 = 64;
 
 function runKeyInternalV1(sessionId: string, runId: string): string {
@@ -32,13 +32,13 @@ function diagnosticInternalV1(
   code: AgentRpcDiagnosticInternalV1["code"],
   path: string,
 ): AgentRpcDiagnosticInternalV1 {
-  return Object.freeze({ code, path });
+  return { code, path };
 }
 
 function unavailableInternalV1(
   diagnostic: AgentRpcDiagnosticInternalV1,
 ): AgentRpcCallFailureInternalV1 {
-  return Object.freeze({ kind: "unavailable", diagnostic });
+  return { kind: "unavailable", diagnostic };
 }
 
 export function createAgentRpcClientInternalV1(input: {
@@ -57,14 +57,14 @@ export function createAgentRpcClientInternalV1(input: {
   let activeConnectionGeneration: number | null = null;
   let connectAttempt: Promise<AgentRpcConnectResultInternalV1> | null = null;
   let status: AgentRpcClientSnapshotInternalV1["status"] = input.transport.isConfigured()
-    ? Object.freeze({ kind: "disconnected" })
-    : Object.freeze({ kind: "unconfigured" });
+    ? { kind: "disconnected" }
+    : { kind: "unconfigured" };
   let lastDiagnostic: AgentRpcDiagnosticInternalV1 | null = null;
   let snapshot!: AgentRpcClientSnapshotInternalV1;
 
   const rebuildSnapshot = (): void => {
     revision += 1;
-    snapshot = Object.freeze({ revision, status, diagnostic: lastDiagnostic });
+    snapshot = { revision, status, diagnostic: lastDiagnostic };
   };
   const publish = (): void => {
     rebuildSnapshot();
@@ -81,7 +81,7 @@ export function createAgentRpcClientInternalV1(input: {
     publish();
   };
   const setUnavailable = (diagnostic: AgentRpcDiagnosticInternalV1): void => {
-    status = Object.freeze({ kind: "unavailable", diagnostic });
+    status = { kind: "unavailable", diagnostic };
     lastDiagnostic = diagnostic;
     publish();
   };
@@ -135,7 +135,7 @@ export function createAgentRpcClientInternalV1(input: {
     const previousConnection = connection;
     connection = null;
     activeConnectionGeneration = null;
-    status = Object.freeze({ kind: "connecting", connectionGeneration: generation });
+    status = { kind: "connecting", connectionGeneration: generation };
     lastDiagnostic = null;
     publish();
     const attempt = (async (): Promise<AgentRpcConnectResultInternalV1> => {
@@ -173,7 +173,7 @@ export function createAgentRpcClientInternalV1(input: {
       }
       if (connected.kind === "unconfigured") {
         const diagnostic = diagnosticInternalV1("rpc.unconfigured", "/connect");
-        status = Object.freeze({ kind: "unconfigured" });
+        status = { kind: "unconfigured" };
         lastDiagnostic = diagnostic;
         publish();
         return unavailableInternalV1(diagnostic);
@@ -188,7 +188,7 @@ export function createAgentRpcClientInternalV1(input: {
       }
       connection = connected.connection;
       activeConnectionGeneration = generation;
-      status = Object.freeze({ kind: "ready", connectionGeneration: generation });
+      status = { kind: "ready", connectionGeneration: generation };
       lastDiagnostic = null;
       publish();
       return readyResultInternalV1;
@@ -245,7 +245,7 @@ export function createAgentRpcClientInternalV1(input: {
     return admitted.value;
   };
 
-  const client: AgentRpcClientPortInternalV1 = Object.freeze({
+  const client: AgentRpcClientPortInternalV1 = {
     getSnapshot: () => snapshot,
     subscribe(listener: () => void): () => void {
       if (disposed) return () => {};
@@ -301,9 +301,7 @@ export function createAgentRpcClientInternalV1(input: {
       const previous = connection;
       connection = null;
       activeConnectionGeneration = null;
-      status = input.transport.isConfigured()
-        ? Object.freeze({ kind: "disconnected" })
-        : Object.freeze({ kind: "unconfigured" });
+      status = input.transport.isConfigured() ? { kind: "disconnected" } : { kind: "unconfigured" };
       publish();
       if (previous !== null) {
         try {
@@ -322,7 +320,7 @@ export function createAgentRpcClientInternalV1(input: {
       const previous = connection;
       connection = null;
       activeConnectionGeneration = null;
-      status = Object.freeze({ kind: "disposed" });
+      status = { kind: "disposed" };
       publish();
       listeners.clear();
       streamListeners.clear();
@@ -334,6 +332,6 @@ export function createAgentRpcClientInternalV1(input: {
         }
       }
     },
-  });
+  };
   return client;
 }

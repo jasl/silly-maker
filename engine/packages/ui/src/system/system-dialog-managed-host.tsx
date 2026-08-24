@@ -333,14 +333,14 @@ function SystemDialogCandidateEntryInternalV1(props: {
         rootShell === null || opener === null || !opener.isConnected ||
         !rootShell.contains(opener)
       ) return;
-      provisionalPointerOpenerRef.current = Object.freeze({
+      provisionalPointerOpenerRef.current = {
         parentSurfaceInstanceId: rootSurfaceInstanceId,
         opener,
         pointerId: event.pointerId,
         released: false,
         requestArmed: false,
         sequence: pointerActivationSequenceRef.current,
-      });
+      };
     },
     [activeRoot, clearProvisionalPointerOpenerInternalV1, rootSurfaceInstanceId],
   );
@@ -355,10 +355,10 @@ function SystemDialogCandidateEntryInternalV1(props: {
         clearProvisionalPointerOpenerInternalV1();
         return;
       }
-      provisionalPointerOpenerRef.current = Object.freeze({
+      provisionalPointerOpenerRef.current = {
         ...provisional,
         released: true,
-      });
+      };
       const sequence = provisional.sequence;
       setTimeout(() => {
         if (provisionalPointerOpenerRef.current?.sequence === sequence) {
@@ -376,10 +376,10 @@ function SystemDialogCandidateEntryInternalV1(props: {
         clearProvisionalPointerOpenerInternalV1();
         return;
       }
-      provisionalPointerOpenerRef.current = Object.freeze({
+      provisionalPointerOpenerRef.current = {
         ...provisional,
         requestArmed: true,
-      });
+      };
       const sequence = provisional.sequence;
       setTimeout(() => {
         if (provisionalPointerOpenerRef.current?.sequence === sequence) {
@@ -395,7 +395,7 @@ function SystemDialogCandidateEntryInternalV1(props: {
   }, [activeRoot, clearProvisionalPointerOpenerInternalV1, rootSurfaceInstanceId]);
   const rootIntent = useMemo<SystemDialogRootIntentInternalV1 | null>(() => {
     if (rootController === null) return null;
-    return Object.freeze({
+    return ({
       close(): void {
         rootController.closeInternalV1();
       },
@@ -403,7 +403,7 @@ function SystemDialogCandidateEntryInternalV1(props: {
   }, [rootController]);
   const confirmationIntent = useMemo<SystemDialogSavesConfirmationIntentInternalV1 | null>(() => {
     if (rootSurfaceInstanceId === null || rootLifecycleIntents === null) return null;
-    return Object.freeze({
+    return ({
       requestConfirmationInternalV1(
         input: SystemDialogHostConfirmationRequestInternalV1,
       ): SystemDialogHostConfirmationRequestResultInternalV1 {
@@ -422,7 +422,7 @@ function SystemDialogCandidateEntryInternalV1(props: {
           !opener.isConnected ||
           !rootShell.contains(opener)
         ) {
-          return Object.freeze({
+          return ({
             kind: "rejected" as const,
             code: "system_dialog.confirmation_opener_invalid" as const,
           });
@@ -431,7 +431,7 @@ function SystemDialogCandidateEntryInternalV1(props: {
         try {
           invocation = input.invocation;
         } catch {
-          return Object.freeze({
+          return ({
             kind: "rejected" as const,
             code: "system_dialog.confirmation_invocation_invalid" as const,
           });
@@ -440,7 +440,7 @@ function SystemDialogCandidateEntryInternalV1(props: {
         try {
           operationBinding = input.operationBinding;
         } catch {
-          return Object.freeze({
+          return ({
             kind: "rejected" as const,
             code: "system_dialog.confirmation_operation_binding_invalid" as const,
           });
@@ -452,12 +452,12 @@ function SystemDialogCandidateEntryInternalV1(props: {
         if (result.kind === "preparing") {
           props.childFocusLedger.set(
             result.surfaceInstanceId,
-            Object.freeze({
+            {
               parentSurfaceInstanceId: rootSurfaceInstanceId,
               opener,
-            }),
+            },
           );
-          return Object.freeze({ kind: result.kind, code: result.code });
+          return ({ kind: result.kind, code: result.code });
         }
         return result;
       },
@@ -800,11 +800,11 @@ function SystemDialogCurrentnessCommitInternalV1(props: {
       }
       props.rootFocusLedgerRef.current.set(
         entry.surfaceInstanceId,
-        Object.freeze({
+        {
           returnTarget: inheritedTarget === undefined
             ? readSystemDialogReturnFocusTargetInternalV1()
             : inheritedTarget,
-        }),
+        },
       );
     }
   }, [
@@ -1148,7 +1148,7 @@ export function SystemDialogManagedHostInternalV1(
   const portalContainer = useStageSystemPortalContainerV1();
   const catalogRef = useRef(props.catalog);
   const hostIdentityRef = useRef<object | null>(null);
-  hostIdentityRef.current ??= Object.freeze({ kind: "system-dialog-logical-host" });
+  hostIdentityRef.current ??= { kind: "system-dialog-logical-host" };
   const hostIdentity = hostIdentityRef.current;
   const attachmentRef = useRef<SystemDialogHostAttachmentInternalV1 | null>(null);
   const [attachedHost, setAttachedHost] = useState<
@@ -1175,7 +1175,7 @@ export function SystemDialogManagedHostInternalV1(
       catalog: catalogRef.current,
     });
     attachmentRef.current = nextAttachment;
-    setAttachedHost(Object.freeze({ attachment: nextAttachment, portalContainer }));
+    setAttachedHost({ attachment: nextAttachment, portalContainer });
   }, [hostIdentity, portalContainer, session]);
 
   useLayoutEffect(

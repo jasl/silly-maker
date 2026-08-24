@@ -35,15 +35,18 @@ const resolvedCatalogFixture = parseTextCatalogSetV1({
 
 function createAssetRegistryFixtureV1() {
   const listeners = new Set<() => void>();
-  let publication = Object.freeze({ revision: parseNonNegativeSafeInteger(0) });
-  const resolve = vi.fn((assetId: typeof currentAssetId, usage: "scene_background") =>
-    Object.freeze({
-      delivery: "code_fallback" as const,
-      assetId,
-      usage,
-      fallbackToken: "fallback.e2e.current",
-    })
-  );
+  let publication = { revision: parseNonNegativeSafeInteger(0) };
+  const resolvedAsset = {
+    delivery: "code_fallback" as const,
+    assetId: currentAssetId,
+    usage: "scene_background" as const,
+    fallbackToken: "fallback.e2e.current",
+  };
+  const resolve = vi.fn((assetId: typeof currentAssetId, usage: "scene_background") => {
+    expect(assetId).toBe(currentAssetId);
+    expect(usage).toBe("scene_background");
+    return resolvedAsset;
+  });
   const observe = vi.fn(() => publication);
   const subscribe = vi.fn((listener: () => void) => {
     listeners.add(listener);
@@ -53,18 +56,19 @@ function createAssetRegistryFixtureV1() {
   });
 
   return {
-    registry: Object.freeze({
+    registry: {
       observe,
       subscribe,
-      preload: vi.fn(async () => Object.freeze([])),
+      preload: vi.fn(async () => []),
       resolve,
       dispose: vi.fn(),
-    }),
+    },
     resolve,
+    resolvedAsset,
     observe,
     subscribe,
     publishReady() {
-      publication = Object.freeze({ revision: parseNonNegativeSafeInteger(1) });
+      publication = { revision: parseNonNegativeSafeInteger(1) };
       for (const listener of listeners) listener();
       return publication;
     },
@@ -88,8 +92,6 @@ describe("createPresentationReadPortV1", () => {
       resolvedLocale: parseLocaleId("zh-CN"),
       text: "保存",
     });
-    expect(Object.isFrozen(resolved)).toBe(true);
-    expect(Object.isFrozen(port)).toBe(true);
     expect(port).not.toHaveProperty("catalogs");
     expect(port).not.toHaveProperty("assets");
     expect(Object.keys(port).sort()).toEqual(
@@ -105,12 +107,14 @@ describe("createPresentationReadPortV1", () => {
       assets: fixture.registry,
     });
 
-    expect(port.asset(currentAssetId, "scene_background")).toEqual({
+    const resolved = port.asset(currentAssetId, "scene_background");
+    expect(resolved).toEqual({
       delivery: "code_fallback",
       assetId: currentAssetId,
       usage: "scene_background",
       fallbackToken: "fallback.e2e.current",
     });
+    expect(resolved).toBe(fixture.resolvedAsset);
     expect(fixture.resolve).toHaveBeenCalledExactlyOnceWith(currentAssetId, "scene_background");
 
     const before = port.observeAssets();

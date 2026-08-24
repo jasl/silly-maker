@@ -16,7 +16,7 @@ export interface PresentationCatalogValidationErrorV1 extends Error {
 
 export class PresentationCatalogValidationError extends Error
   implements PresentationCatalogValidationErrorV1 {
-  readonly name = "PresentationCatalogValidationError";
+  override readonly name = "PresentationCatalogValidationError";
   readonly code: PresentationCatalogValidationCodeV1;
   readonly details: StrictJsonObjectV1;
 
@@ -47,7 +47,6 @@ export class ContentMaturityDuplicateIdError extends TypeError {
     this.reference = reference;
   }
 }
-const dangerousJsonKeys = new Set(["__proto__", "prototype", "constructor"]);
 export function pointerSegment(value: string): string {
   return value.replaceAll("~", "~0").replaceAll("/", "~1");
 }
@@ -71,19 +70,10 @@ export function readExactRecord(
   expectedKeys: readonly string[],
   path: string,
 ): Record<string, unknown> {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype
-  ) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return dataFailure(path, "object_expected");
   }
-  const ownKeys = Reflect.ownKeys(value);
-  if (ownKeys.some((key) => typeof key === "symbol")) {
-    return dataFailure(path, "symbol_key");
-  }
-  const stringKeys = ownKeys as string[];
+  const stringKeys = Object.keys(value);
   if (
     stringKeys.length !== expectedKeys.length ||
     [...stringKeys].sort(compareCodePoints).join("\0") !==
@@ -91,38 +81,15 @@ export function readExactRecord(
   ) {
     return dataFailure(path, "object_keys");
   }
-  const result: Record<string, unknown> = {};
-  for (const key of expectedKeys) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    if (descriptor === undefined || descriptor.get !== undefined || descriptor.set !== undefined) {
-      return dataFailure(`${path}/${pointerSegment(key)}`, "data_property_expected");
-    }
-    result[key] = descriptor.value;
-  }
-  return result;
+  const record = value as Record<string, unknown>;
+  return Object.fromEntries(expectedKeys.map((key) => [key, record[key]]));
 }
 
 export function readArray(value: unknown, path: string): readonly unknown[] {
-  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) {
+  if (!Array.isArray(value)) {
     return dataFailure(path, "array_expected");
   }
-  for (const key of Reflect.ownKeys(value)) {
-    if (typeof key === "symbol") return dataFailure(path, "symbol_key");
-    if (key === "length") continue;
-    if (!/^(?:0|[1-9]\d*)$/u.test(key) || Number(key) >= value.length) {
-      return dataFailure(`${path}/${pointerSegment(key)}`, "array_property");
-    }
-  }
-  const result: unknown[] = [];
-  for (let index = 0; index < value.length; index += 1) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
-    if (descriptor === undefined) return dataFailure(`${path}/${index}`, "sparse_array");
-    if (descriptor.get !== undefined || descriptor.set !== undefined) {
-      return dataFailure(`${path}/${index}`, "data_property_expected");
-    }
-    result.push(descriptor.value);
-  }
-  return result;
+  return [...value];
 }
 
 export function parseAt<TValue>(
@@ -193,43 +160,25 @@ function cloneStrictJsonValue(
         cloneStrictJsonValue(entry, `${path}/${index}`, active)
       );
     }
-    if (Object.getPrototypeOf(value) !== Object.prototype) {
-      return dataFailure(path, "invalid_strict_json");
-    }
-    const result: Record<string, StrictJsonValueV1> = {};
-    for (const key of Reflect.ownKeys(value)) {
-      if (typeof key === "symbol" || dangerousJsonKeys.has(key)) {
-        return dataFailure(path, "invalid_strict_json_key");
-      }
+    const record = value as Record<string, unknown>;
+    const entries: [string, StrictJsonValueV1][] = [];
+    for (const key of Object.keys(record)) {
       const memberPath = `${path}/${pointerSegment(key)}`;
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      if (
-        descriptor === undefined ||
-        descriptor.get !== undefined ||
-        descriptor.set !== undefined
-      ) {
-        return dataFailure(memberPath, "data_property_expected");
-      }
       try {
         canonicalJsonBytes(key);
       } catch {
         return dataFailure(memberPath, "invalid_string");
       }
-      result[key] = cloneStrictJsonValue(descriptor.value, memberPath, active);
+      entries.push([key, cloneStrictJsonValue(record[key], memberPath, active)]);
     }
-    return result;
+    return Object.fromEntries(entries);
   } finally {
     active.delete(value);
   }
 }
 
 export function parseStrictJsonObject(value: unknown, path: string): StrictJsonObjectV1 {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype
-  ) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return dataFailure(path, "strict_json_object_expected");
   }
   return cloneStrictJsonValue(value, path, new Set()) as StrictJsonObjectV1;
@@ -242,7 +191,7 @@ export function catalogFailure(
 ): never {
   const details: Record<string, StrictJsonValueV1> = { path, reason };
   if (reference !== undefined) details.reference = reference;
-  throw new PresentationCatalogValidationError(code, Object.freeze(details));
+  throw new PresentationCatalogValidationError(code, details);
 }
 
 export function assertUniqueValues(values: readonly string[], path: string): void {

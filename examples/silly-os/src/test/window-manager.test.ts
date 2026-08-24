@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import { createOsWindowManagerV1 } from "../game/features/desktop/window-manager.ts";
 
-const rect = Object.freeze({ x: 100, y: 100, width: 300, height: 200 });
-const bounds = Object.freeze({ x: 0, y: 0, width: 1024, height: 734 });
+const rect = { x: 100, y: 100, width: 300, height: 200 };
+const bounds = { x: 0, y: 0, width: 1024, height: 734 };
 
 describe("window manager", () => {
   it("opens windows with cascade offsets and focuses the newest", () => {

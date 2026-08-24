@@ -24,10 +24,10 @@ import { labStageContentIdsV1 } from "../stage-ids.ts";
  * would actually demand — a conformance test keeps that mirror honest.
  */
 
-const labBackgroundContentIdsV1: readonly string[] = Object.freeze([
+const labBackgroundContentIdsV1: readonly string[] = [
   labStageContentIdsV1.backgroundLab,
   labStageContentIdsV1.backgroundStoreroom,
-]);
+];
 
 function graphNodeForV1(node: LabNarrativeNodeV1): unknown {
   const source = `gameplay/narrative.ts#${node.nodeId}`;

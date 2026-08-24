@@ -525,8 +525,6 @@ describe("GameSession FIFO", () => {
     expect(created.commandLog.entries()).toHaveLength(2);
     expect(created.commandLog.entries()[0]?.command).toBe(executedCommands[0]);
     expect(created.commandLog.entries()[1]?.command).toBe(executedCommands[1]);
-    expect(Object.isFrozen(normalized)).toBe(false);
-    expect(Object.isFrozen((normalized as unknown as { metadata: object }).metadata)).toBe(false);
     expect(counter.snapshot()).toEqual({
       canonicalTraversals: 6,
       canonicalDigests: 2,
@@ -1760,7 +1758,6 @@ describe("GameSession FIFO", () => {
         () => true,
       ),
     ).resolves.toEqual({ kind: "not_executed", code: "hmr_invalidated" });
-    expect(Object.isFrozen(mutableError)).toBe(false);
     expect(normalizerCalls).toBe(0);
     expect(created.commandLog.entries()).toEqual([]);
   });
@@ -2095,12 +2092,6 @@ describe("GameSession FIFO", () => {
 
   it("resets the command log only after a replay-base replacement callback succeeds", async () => {
     const { session, runtimeControl, commandLog } = fixture();
-    expect(Object.isFrozen(commandLog)).toBe(true);
-    expect(Object.keys(commandLog).sort()).toEqual([
-      "entries",
-      "replayBase",
-      "replayBaseStateDigest",
-    ]);
     expect(commandLog).not.toHaveProperty("append");
     expect(commandLog).not.toHaveProperty("prepareAnchor");
     expect(commandLog).not.toHaveProperty("establishPreparedAnchor");
@@ -2304,7 +2295,7 @@ describe("GameSession FIFO", () => {
       anchor: "replace_replay_base" as const,
     });
     bindAuthoritativeReplacementCommitInternalV1(rejectedOutcome, {
-      prepare: () => Object.freeze({}) as never,
+      prepare: () => ({}) as never,
       normalizePrepareFailure: () => "prepare_failed" as const,
     });
     await expect(

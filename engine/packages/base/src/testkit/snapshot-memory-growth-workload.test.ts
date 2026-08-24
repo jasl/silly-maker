@@ -16,14 +16,14 @@ function memoryUsageV1(input: {
   readonly heapUsedBytes: number;
   readonly externalBytes: number;
 }): SnapshotMemoryUsageV1 {
-  return Object.freeze(input);
+  return input;
 }
 
-const zeroSaveCountsV1 = Object.freeze({
+const zeroSaveCountsV1 = {
   saveCanonicalSerializations: 0,
   strictJsonParses: 0,
   strictJsonPreflights: 0,
-});
+};
 
 describe("Snapshot memory-growth workload", () => {
   it("locks checkpoint sampling, work counts, GC isolation, and the report schema", async () => {

@@ -8,7 +8,7 @@ import type {
 } from "@sillymaker/base";
 
 const automationGlobalKeyV1 = "__SILLYMAKER_AUTOMATION_V1__";
-const capabilityDisabledV1 = Object.freeze({ kind: "capability_disabled" as const });
+const capabilityDisabledV1 = { kind: "capability_disabled" as const };
 
 let liveOwnerTokenV1: object | undefined;
 
@@ -47,7 +47,7 @@ interface AutomationGenerationV1<TBridge> {
 }
 
 function successfulOperationV1<T>(value: DeepReadonly<T>): BrowserAutomationOperationResultV1<T> {
-  return Object.freeze({ kind: "ok" as const, value });
+  return { kind: "ok" as const, value };
 }
 
 /**
@@ -81,7 +81,7 @@ export function installBrowserAutomationBridgeV1<
     throw new Error("automation.bridge_already_installed");
   }
 
-  const ownerToken = Object.freeze({});
+  const ownerToken = {};
   liveOwnerTokenV1 = ownerToken;
   const generations = new Set<AutomationGenerationV1<Bridge>>();
   let currentGeneration: AutomationGenerationV1<Bridge> | undefined;
@@ -91,8 +91,7 @@ export function installBrowserAutomationBridgeV1<
 
   const deleteOwnedGlobalV1 = (generation: AutomationGenerationV1<Bridge>): void => {
     if (liveOwnerTokenV1 !== ownerToken) return;
-    const descriptor = Object.getOwnPropertyDescriptor(globalThis, automationGlobalKeyV1);
-    if (descriptor?.value !== generation.facade) return;
+    if (Reflect.get(globalThis, automationGlobalKeyV1) !== generation.facade) return;
     Reflect.deleteProperty(globalThis, automationGlobalKeyV1);
   };
 
@@ -113,7 +112,7 @@ export function installBrowserAutomationBridgeV1<
   };
 
   const createGenerationV1 = (): AutomationGenerationV1<Bridge> => {
-    const token = Object.freeze({});
+    const token = {};
     let generation!: AutomationGenerationV1<Bridge>;
 
     const admittedAsyncV1 = <T>(
@@ -133,7 +132,7 @@ export function installBrowserAutomationBridgeV1<
       );
     };
 
-    const facade: Bridge = Object.freeze({
+    const facade: Bridge = {
       contractRevision: 1 as const,
       observe(): BrowserAutomationOperationResultV1<Publication> {
         if (!isGenerationAdmittedV1(generation)) return capabilityDisabledV1;
@@ -162,7 +161,7 @@ export function installBrowserAutomationBridgeV1<
           () => input.semantic.waitForIdle(afterRevision) as Promise<Publication>,
         );
       },
-    });
+    };
 
     generation = { token, facade, revoked: false };
     return generation;
@@ -225,5 +224,5 @@ export function installBrowserAutomationBridgeV1<
     throw error;
   }
 
-  return Object.freeze({ dispose });
+  return { dispose };
 }

@@ -7,22 +7,20 @@
  */
 export const jsonlProtocolVersionV1 = 1;
 
-export const jsonlAgentMethodsV1 = Object.freeze(
-  [
-    "hello",
-    "observe",
-    "describeActions",
-    "preview",
-    "dispatch",
-    "waitForIdle",
-    "exportDiagnostics",
-    "save",
-    "load",
-    "exportSave",
-    "importSave",
-    "shutdown",
-  ] as const,
-);
+export const jsonlAgentMethodsV1 = [
+  "hello",
+  "observe",
+  "describeActions",
+  "preview",
+  "dispatch",
+  "waitForIdle",
+  "exportDiagnostics",
+  "save",
+  "load",
+  "exportSave",
+  "importSave",
+  "shutdown",
+] as const;
 
 export type JsonlAgentMethodV1 = (typeof jsonlAgentMethodsV1)[number];
 
@@ -76,11 +74,11 @@ export interface JsonlHostLimitsV1 {
   readonly requestTimeoutMs: number;
 }
 
-export const defaultJsonlHostLimitsV1: JsonlHostLimitsV1 = Object.freeze({
+export const defaultJsonlHostLimitsV1: JsonlHostLimitsV1 = {
   maxLineBytes: 262_144,
   maxDepth: 32,
   requestTimeoutMs: 30_000,
-});
+};
 
 const errorMessageLimitV1 = 512;
 
@@ -126,75 +124,75 @@ export function parseJsonlRequestLineV1(
   try {
     value = JSON.parse(line);
   } catch {
-    return Object.freeze({
+    return {
       kind: "invalid" as const,
       id: null,
       code: "protocol.invalid_json" as const,
       message: "request line is not valid JSON",
-    });
+    };
   }
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    return Object.freeze({
+    return {
       kind: "invalid" as const,
       id: null,
       code: "protocol.invalid_request" as const,
       message: "request must be a JSON object",
-    });
+    };
   }
   const record = value as Record<string, unknown>;
   const id = typeof record.id === "string" && record.id.length > 0 ? record.id : null;
   if (record.v !== jsonlProtocolVersionV1) {
-    return Object.freeze({
+    return {
       kind: "invalid" as const,
       id,
       code: "protocol.unsupported_version" as const,
       message: "request v must be 1",
-    });
+    };
   }
   if (id === null) {
-    return Object.freeze({
+    return {
       kind: "invalid" as const,
       id: null,
       code: "protocol.invalid_request" as const,
       message: "request id must be a non-empty string",
-    });
+    };
   }
   if (jsonDepthExceedsV1(record, limits.maxDepth)) {
-    return Object.freeze({
+    return {
       kind: "invalid" as const,
       id,
       code: "protocol.depth_exceeded" as const,
       message: "request exceeds the maximum JSON depth",
-    });
+    };
   }
   const method = record.method;
   if (typeof method !== "string" || !jsonlAgentMethodsV1.includes(method as JsonlAgentMethodV1)) {
-    return Object.freeze({
+    return {
       kind: "invalid" as const,
       id,
       code: "protocol.unknown_method" as const,
       message: "request method is not part of the agent protocol",
-    });
+    };
   }
   const params = record.params;
   if (
     params !== undefined &&
     (params === null || typeof params !== "object" || Array.isArray(params))
   ) {
-    return Object.freeze({
+    return {
       kind: "invalid" as const,
       id,
       code: "protocol.invalid_request" as const,
       message: "request params must be an object when present",
-    });
+    };
   }
-  return Object.freeze({
+  return {
     kind: "request" as const,
-    request: Object.freeze({
+    request: {
       v: jsonlProtocolVersionV1,
       id,
       method: method as JsonlAgentMethodV1,
       ...(params === undefined ? {} : { params: params as Readonly<Record<string, unknown>> }),
-    }),
-  });
+    },
+  };
 }

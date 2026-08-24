@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 import {
-  parseSaveStateContractIdentityInternalV1,
   parseSaveStateMigrationReasonCodeV1,
   readSaveStateMigrationRegistryInternalV1,
   sameSaveStateContractIdentityInternalV1,
@@ -17,21 +16,16 @@ import type {
 } from "../contracts/save-state-migration.ts";
 import type { StrictJsonLimitsV1, StrictJsonValueV1 } from "../contracts/strict-json.ts";
 import type { DeepReadonly, Digest } from "../contracts/values.ts";
-import { parseDigest } from "../contracts/values.ts";
 import { projectStrictCanonicalJsonInternalV1 } from "./strict-canonical-projection.ts";
 
-declare const resolvedSaveStateMigrationChainBrandInternalV1: unique symbol;
-
-/** @internal Exact factory token for a resolved, non-empty migration suffix. */
+/** @internal Trusted resolved, non-empty migration suffix. */
 export interface ResolvedSaveStateMigrationChainInternalV1 {
-  readonly [resolvedSaveStateMigrationChainBrandInternalV1]: true;
+  readonly metadata: ResolvedChainMetadataInternalV1;
 }
 
-declare const completedSaveStateMigrationBrandInternalV1: unique symbol;
-
-/** @internal Exact factory token for a successfully executed migration path. */
+/** @internal Trusted metadata for a successfully executed migration path. */
 export interface CompletedSaveStateMigrationInternalV1 {
-  readonly [completedSaveStateMigrationBrandInternalV1]: true;
+  readonly metadata: CompletedMigrationMetadataInternalV1;
 }
 
 export type SaveStateMigrationChainResolutionInternalV1 =
@@ -103,15 +97,6 @@ interface CompletedMigrationMetadataInternalV1 {
   readonly sourceStateDigest: Digest;
 }
 
-const resolvedChainMetadataInternalV1 = new WeakMap<
-  object,
-  ResolvedChainMetadataInternalV1
->();
-const completedMigrationMetadataInternalV1 = new WeakMap<
-  object,
-  CompletedMigrationMetadataInternalV1
->();
-
 const postExecutionFailurePhasesInternalV1 = new Set<
   SaveStateMigrationPostExecutionFailurePhaseInternalV1
 >([
@@ -126,29 +111,26 @@ const postExecutionFailurePhasesInternalV1 = new Set<
 function cloneStateContractIdentityInternalV1(
   identity: SaveStateContractIdentityV1,
 ): SaveStateContractIdentityV1 {
-  return Object.freeze({
+  return {
     stateContractRevision: identity.stateContractRevision,
     stateContractDigest: identity.stateContractDigest,
-  });
+  };
 }
 
 function cloneStepIdentityInternalV1(
   step: SaveStateMigrationStepIdentityV1,
 ): SaveStateMigrationStepIdentityV1 {
-  return Object.freeze({
+  return {
     migrationId: step.migrationId,
     from: cloneStateContractIdentityInternalV1(step.from),
     to: cloneStateContractIdentityInternalV1(step.to),
-  });
+  };
 }
 
 function cloneNonEmptyStepIdentitiesInternalV1(
-  steps: readonly SaveStateMigrationStepIdentityV1[],
+  steps: readonly [SaveStateMigrationStepIdentityV1, ...SaveStateMigrationStepIdentityV1[]],
 ): readonly [SaveStateMigrationStepIdentityV1, ...SaveStateMigrationStepIdentityV1[]] {
-  if (steps.length === 0) {
-    throw new TypeError("Save State migration completion requires a non-empty path");
-  }
-  return Object.freeze(steps.map(cloneStepIdentityInternalV1)) as unknown as readonly [
+  return steps.map(cloneStepIdentityInternalV1) as unknown as readonly [
     SaveStateMigrationStepIdentityV1,
     ...SaveStateMigrationStepIdentityV1[],
   ];
@@ -170,7 +152,7 @@ function parseMigrationStepResultInternalV1(
   value: unknown,
 ): ParsedMigrationStepResultInternalV1 {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    return Object.freeze({ kind: "invalid" });
+    return { kind: "invalid" };
   }
   try {
     const result = value as {
@@ -181,20 +163,18 @@ function parseMigrationStepResultInternalV1(
     const kind = result.kind;
     if (kind === "migrated") {
       const state = result.state;
-      return state === undefined
-        ? Object.freeze({ kind: "invalid" })
-        : Object.freeze({ kind, state });
+      return state === undefined ? { kind: "invalid" } : { kind, state };
     }
     if (kind === "rejected") {
       const reasonCode = result.reasonCode;
-      return reasonCode === undefined ? Object.freeze({ kind: "invalid" }) : Object.freeze({
+      return reasonCode === undefined ? { kind: "invalid" } : {
         kind,
         reasonCode: parseSaveStateMigrationReasonCodeV1(reasonCode),
-      });
+      };
     }
-    return Object.freeze({ kind: "invalid" });
+    return { kind: "invalid" };
   } catch {
-    return Object.freeze({ kind: "invalid" });
+    return { kind: "invalid" };
   }
 }
 
@@ -205,36 +185,16 @@ function createAttemptInternalV1(
   failingPhase: SaveStateMigrationFailurePhaseV1,
   migratedStateDigest: Digest | null,
 ): SaveStateMigrationAttemptV1 {
-  return Object.freeze({
+  return {
     namespace: metadata.namespace,
     source: cloneStateContractIdentityInternalV1(metadata.source),
     target: cloneStateContractIdentityInternalV1(metadata.target),
     sourceStateDigest: metadata.sourceStateDigest,
-    completedSteps: Object.freeze(completedSteps.map(cloneStepIdentityInternalV1)),
+    completedSteps: completedSteps.map(cloneStepIdentityInternalV1),
     failingStep: failingStep === null ? null : cloneStepIdentityInternalV1(failingStep),
     failingPhase,
     migratedStateDigest,
-  });
-}
-
-function readResolvedChainMetadataInternalV1(
-  chain: ResolvedSaveStateMigrationChainInternalV1,
-): ResolvedChainMetadataInternalV1 {
-  const metadata = resolvedChainMetadataInternalV1.get(chain);
-  if (metadata === undefined) {
-    throw new TypeError("Save State migration chain was not created by the resolver");
-  }
-  return metadata;
-}
-
-function readCompletedMigrationMetadataInternalV1(
-  completion: CompletedSaveStateMigrationInternalV1,
-): CompletedMigrationMetadataInternalV1 {
-  const metadata = completedMigrationMetadataInternalV1.get(completion);
-  if (metadata === undefined) {
-    throw new TypeError("Save State migration completion was not created by the executor");
-  }
-  return metadata;
+  };
 }
 
 /** @internal Resolves only an exact, non-empty suffix of the registered chain. */
@@ -243,38 +203,35 @@ export function resolveSaveStateMigrationChainInternalV1(
   source: SaveStateContractIdentityV1,
 ): SaveStateMigrationChainResolutionInternalV1 {
   const declaration = readSaveStateMigrationRegistryInternalV1(registry);
-  const normalizedSource = parseSaveStateContractIdentityInternalV1(
-    source,
-    "stored Save State contract identity",
-  );
+  const normalizedSource = cloneStateContractIdentityInternalV1(source);
   const normalizedTarget = cloneStateContractIdentityInternalV1(declaration.current);
   const firstStepIndex = declaration.steps.findIndex((step) =>
     sameSaveStateContractIdentityInternalV1(step.from, normalizedSource)
   );
   if (firstStepIndex < 0) {
-    return Object.freeze({
+    return {
       kind: "unavailable",
       code: "migration.unavailable",
       source: normalizedSource,
       target: normalizedTarget,
-    });
+    };
   }
 
-  const steps = Object.freeze(declaration.steps.slice(firstStepIndex));
+  const steps = declaration.steps.slice(firstStepIndex);
   if (steps.length === 0) {
     throw new TypeError("resolved Save State migration path must not be empty");
   }
-  const stepIdentities = cloneNonEmptyStepIdentitiesInternalV1(steps);
-  const metadata = Object.freeze({
+  const stepIdentities = cloneNonEmptyStepIdentitiesInternalV1(
+    steps as [SaveStateMigrationStepV1, ...SaveStateMigrationStepV1[]],
+  );
+  const metadata: ResolvedChainMetadataInternalV1 = {
     namespace: declaration.namespace,
     source: normalizedSource,
     target: normalizedTarget,
     steps,
     stepIdentities,
-  });
-  const chain = Object.freeze({}) as ResolvedSaveStateMigrationChainInternalV1;
-  resolvedChainMetadataInternalV1.set(chain, metadata);
-  return Object.freeze({ kind: "resolved", chain });
+  };
+  return { kind: "resolved", chain: { metadata } };
 }
 
 /** @internal Constructs diagnostics when the historical Snapshot shell is invalid. */
@@ -282,16 +239,16 @@ export function createSaveStateMigrationSnapshotShellAttemptInternalV1(
   chain: ResolvedSaveStateMigrationChainInternalV1,
   sourceStateDigest: Digest,
 ): SaveStateMigrationAttemptV1 {
-  const metadata = readResolvedChainMetadataInternalV1(chain);
+  const metadata = chain.metadata;
   return createAttemptInternalV1(
-    Object.freeze({
+    {
       namespace: metadata.namespace,
       source: cloneStateContractIdentityInternalV1(metadata.source),
       target: cloneStateContractIdentityInternalV1(metadata.target),
       steps: cloneNonEmptyStepIdentitiesInternalV1(metadata.stepIdentities),
-      sourceStateDigest: parseDigest(sourceStateDigest),
-    }),
-    Object.freeze([]),
+      sourceStateDigest,
+    },
+    [],
     null,
     "snapshot_shell",
     null,
@@ -308,31 +265,28 @@ export function executeResolvedSaveStateMigrationInternalV1(input: {
   readonly state: StrictJsonValueV1;
   readonly limits: DeepReadonly<StrictJsonLimitsV1>;
 }): SaveStateMigrationExecutionResultInternalV1 {
-  const chain = readResolvedChainMetadataInternalV1(input.chain);
-  const sourceStateDigest = parseDigest(input.sourceStateDigest);
+  const chain = input.chain.metadata;
+  const sourceStateDigest = input.sourceStateDigest;
   let state = admitMigrationStateInternalV1(input.state, input.limits);
   const completedSteps: SaveStateMigrationStepIdentityV1[] = [];
-  const completionMetadata = Object.freeze({
+  const completionMetadata: CompletedMigrationMetadataInternalV1 = {
     namespace: chain.namespace,
     source: cloneStateContractIdentityInternalV1(chain.source),
     target: cloneStateContractIdentityInternalV1(chain.target),
     steps: cloneNonEmptyStepIdentitiesInternalV1(chain.stepIdentities),
     sourceStateDigest,
-  });
+  };
 
   for (let index = 0; index < chain.steps.length; index += 1) {
-    const step = chain.steps[index];
-    const stepIdentity = chain.stepIdentities[index];
-    if (step === undefined || stepIdentity === undefined) {
-      throw new TypeError("resolved Save State migration chain metadata is inconsistent");
-    }
+    const step = chain.steps[index]!;
+    const stepIdentity = chain.stepIdentities[index]!;
 
     let rawResult: unknown;
     const migrate = step.migrate;
     try {
       rawResult = migrate(state);
     } catch {
-      return Object.freeze({
+      return {
         kind: "faulted",
         code: "migration.callback_threw",
         migrationAttempt: createAttemptInternalV1(
@@ -342,12 +296,12 @@ export function executeResolvedSaveStateMigrationInternalV1(input: {
           "callback",
           null,
         ),
-      });
+      };
     }
 
     const result = parseMigrationStepResultInternalV1(rawResult);
     if (result.kind === "invalid") {
-      return Object.freeze({
+      return {
         kind: "rejected",
         code: "migration.output_invalid",
         migrationAttempt: createAttemptInternalV1(
@@ -357,10 +311,10 @@ export function executeResolvedSaveStateMigrationInternalV1(input: {
           "result_envelope",
           null,
         ),
-      });
+      };
     }
     if (result.kind === "rejected") {
-      return Object.freeze({
+      return {
         kind: "rejected",
         code: "migration.rejected",
         reasonCode: result.reasonCode,
@@ -371,13 +325,13 @@ export function executeResolvedSaveStateMigrationInternalV1(input: {
           "callback_rejected",
           null,
         ),
-      });
+      };
     }
 
     try {
       state = admitMigrationStateInternalV1(result.state, input.limits);
     } catch {
-      return Object.freeze({
+      return {
         kind: "rejected",
         code: "migration.output_invalid",
         migrationAttempt: createAttemptInternalV1(
@@ -387,14 +341,12 @@ export function executeResolvedSaveStateMigrationInternalV1(input: {
           "output_admission",
           null,
         ),
-      });
+      };
     }
     completedSteps.push(stepIdentity);
   }
 
-  const completion = Object.freeze({}) as CompletedSaveStateMigrationInternalV1;
-  completedMigrationMetadataInternalV1.set(completion, completionMetadata);
-  return Object.freeze({ kind: "migrated", state, completion });
+  return { kind: "migrated", state, completion: { metadata: completionMetadata } };
 }
 
 /** @internal Finalizes provenance only after the caller derives a whole-Snapshot digest. */
@@ -402,15 +354,15 @@ export function createSaveStateMigrationReceiptInternalV1(
   completion: CompletedSaveStateMigrationInternalV1,
   migratedStateDigest: Digest,
 ): SaveStateMigrationReceiptV1 {
-  const metadata = readCompletedMigrationMetadataInternalV1(completion);
-  return Object.freeze({
+  const metadata = completion.metadata;
+  return {
     namespace: metadata.namespace,
     source: cloneStateContractIdentityInternalV1(metadata.source),
     target: cloneStateContractIdentityInternalV1(metadata.target),
     steps: cloneNonEmptyStepIdentitiesInternalV1(metadata.steps),
     sourceStateDigest: metadata.sourceStateDigest,
-    migratedStateDigest: parseDigest(migratedStateDigest),
-  });
+    migratedStateDigest,
+  };
 }
 
 /** @internal Constructs diagnostics for a failure after all callbacks completed. */
@@ -419,7 +371,7 @@ export function createSaveStateMigrationAttemptInternalV1(
   failingPhase: SaveStateMigrationPostExecutionFailurePhaseInternalV1,
   migratedStateDigest: Digest | null,
 ): SaveStateMigrationAttemptV1 {
-  const metadata = readCompletedMigrationMetadataInternalV1(completion);
+  const metadata = completion.metadata;
   if (!postExecutionFailurePhasesInternalV1.has(failingPhase)) {
     throw new TypeError("invalid post-execution Save State migration failure phase");
   }
@@ -435,6 +387,6 @@ export function createSaveStateMigrationAttemptInternalV1(
     metadata.steps,
     null,
     failingPhase,
-    migratedStateDigest === null ? null : parseDigest(migratedStateDigest),
+    migratedStateDigest,
   );
 }

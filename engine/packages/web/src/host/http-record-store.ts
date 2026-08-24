@@ -80,7 +80,7 @@ function requireObjectV1(value: unknown, code: string): Record<PropertyKey, unkn
 
 function parseWireRecordV1(value: unknown): HostStoredRecordV1 {
   const record = requireObjectV1(value, "host.http_records_invalid_record");
-  return Object.freeze({
+  return ({
     namespace: requireNamespaceV1(Reflect.get(record, "namespace")),
     key: requireKeyV1(Reflect.get(record, "key")),
     revision: parseNonNegativeSafeInteger(Reflect.get(record, "revision")),
@@ -119,7 +119,7 @@ function normalizeMutationsV1(
       if (!isUint8ArrayV1(bytes)) {
         throw new TypeError("host.http_records_invalid_bytes");
       }
-      return Object.freeze({
+      return ({
         kind,
         namespace,
         key,
@@ -132,7 +132,7 @@ function normalizeMutationsV1(
     if (kind !== "delete") {
       throw new TypeError("invalid Host record mutation kind");
     }
-    return Object.freeze({
+    return ({
       kind,
       namespace,
       key,
@@ -145,7 +145,7 @@ function normalizeMutationsV1(
   if (new Set(identities).size !== identities.length) {
     throw new TypeError("duplicate Host record mutation");
   }
-  return Object.freeze(normalized) as readonly [HostRecordMutationV1, ...HostRecordMutationV1[]];
+  return normalized as unknown as readonly [HostRecordMutationV1, ...HostRecordMutationV1[]];
 }
 
 function parseWireRecordListV1(
@@ -165,7 +165,7 @@ function parseWireRecordListV1(
     }
     keys.add(record.key);
   }
-  return Object.freeze(parsed);
+  return parsed;
 }
 
 function parseCommitResultV1(
@@ -202,19 +202,19 @@ function parseCommitResultV1(
       }
       seen.add(identity);
     }
-    return Object.freeze({
+    return ({
       kind: "committed" as const,
-      records: Object.freeze(parsed),
+      records: parsed,
     });
   }
   if (kind === "conflict") {
     const actualRevision = Reflect.get(payload, "actualRevision");
-    const result = Object.freeze({
+    const result = {
       kind: "conflict" as const,
       namespace: requireNamespaceV1(Reflect.get(payload, "namespace")),
       key: requireKeyV1(Reflect.get(payload, "key")),
       actualRevision: actualRevision === null ? null : parseNonNegativeSafeInteger(actualRevision),
-    });
+    };
     const matchingMutations = requestedMutations.filter(
       (mutation) => mutation.namespace === result.namespace && mutation.key === result.key,
     );
@@ -247,7 +247,7 @@ export function createHttpHostRecordStoreV1(
     return (await response.json()) as unknown;
   }
 
-  return Object.freeze({
+  return ({
     async read(namespace: HostRecordNamespaceV1, key: HostRecordKeyV1) {
       const payload = await requestJsonV1(
         `/${encodeURIComponent(namespace)}/${encodeURIComponent(key as string)}`,

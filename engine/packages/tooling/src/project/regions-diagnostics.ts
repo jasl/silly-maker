@@ -98,5 +98,5 @@ export function collectRegionsSourceDiagnosticsV1(
     }
   }
 
-  return Object.freeze(diagnostics);
+  return diagnostics;
 }

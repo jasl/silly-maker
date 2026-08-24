@@ -28,42 +28,26 @@ function admitSceneActionsInternalV1(
   readonly actionIds: readonly string[];
   readonly actions: Readonly<Record<string, SceneAuthoringOperationV1>>;
 } {
-  if (Object.getPrototypeOf(value) !== Object.prototype) {
-    throw new TypeError("Experimental Agent scene actions must be a plain record");
-  }
-  const ownKeys = Reflect.ownKeys(value);
-  if (
-    ownKeys.some((key) => typeof key === "symbol") || ownKeys.length === 0 || ownKeys.length > 32
-  ) {
+  const entries = Object.entries(value).toSorted(([left], [right]) =>
+    left < right ? -1 : left > right ? 1 : 0
+  );
+  if (entries.length === 0 || entries.length > 32) {
     throw new TypeError("Experimental Agent scene actions must contain 1-32 string keys");
   }
   const actions: Record<string, SceneAuthoringOperationV1> = {};
-  for (const actionId of (ownKeys as string[]).toSorted()) {
+  for (const [actionId, operation] of entries) {
     if (actionId.length > 128 || !actionIdPatternInternalV1.test(actionId)) {
       throw new TypeError(`Experimental Agent action ID is invalid: ${actionId}`);
     }
-    const descriptor = Object.getOwnPropertyDescriptor(value, actionId);
-    if (
-      descriptor === undefined || descriptor.get !== undefined || descriptor.set !== undefined ||
-      !("value" in descriptor)
-    ) {
-      throw new TypeError(`Experimental Agent action must be inert data: ${actionId}`);
-    }
-    const admitted = admitSceneAuthoringOperationV1(descriptor.value);
+    const admitted = admitSceneAuthoringOperationV1(operation);
     if (admitted.kind === "rejected") {
       throw new TypeError(
         `Experimental Agent action ${actionId} is invalid: ${admitted.diagnostic.code}`,
       );
     }
-    Object.defineProperty(actions, actionId, {
-      value: admitted.operation,
-      enumerable: true,
-      configurable: false,
-      writable: false,
-    });
+    actions[actionId] = admitted.operation;
   }
-  const actionIds = Object.freeze(Object.keys(actions));
-  return Object.freeze({ actionIds, actions: Object.freeze(actions) });
+  return { actionIds: Object.keys(actions), actions };
 }
 
 /**
@@ -83,11 +67,11 @@ export function admitExperimentalEmbeddedAgentBindingInternalV1(
     throw new TypeError("Experimental Agent client factory is required");
   }
   const admitted = admitSceneActionsInternalV1(input.sceneActions);
-  return Object.freeze({
+  return {
     configurationId: input.configurationId,
     actionSignature: admitted.actionIds.join("\u001f"),
     allowedActionIds: admitted.actionIds,
     sceneActions: admitted.actions,
     createClient: input.createClient,
-  });
+  };
 }

@@ -70,29 +70,14 @@ type SyntheticPermissiveBundleV1 = DebugBundleEnvelopeV1<
 >;
 
 function exactObjectV1(value: unknown, keys: readonly string[]): Readonly<Record<string, unknown>> {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype ||
-    Object.getOwnPropertySymbols(value).length !== 0
-  ) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new TypeError("invalid object");
   }
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  if (
-    Object.keys(descriptors).toSorted().join("\0") !== [...keys].toSorted().join("\0") ||
-    Object.values(descriptors).some(
-      (descriptor) => descriptor.get !== undefined || descriptor.set !== undefined,
-    )
-  ) {
+  const record = value as Readonly<Record<string, unknown>>;
+  if (Object.keys(record).toSorted().join("\0") !== [...keys].toSorted().join("\0")) {
     throw new TypeError("invalid object fields");
   }
-  return Object.freeze(
-    Object.fromEntries(
-      Object.entries(descriptors).map(([key, descriptor]) => [key, descriptor.value]),
-    ),
-  );
+  return Object.fromEntries(keys.map((key) => [key, record[key]]));
 }
 
 function stringV1(value: unknown): string {
@@ -384,7 +369,6 @@ describe("Debug Bundle codec", () => {
       automationBridge: false,
     });
     expect(decoded.bundle.currentSnapshot.integrity.mode).toBe("normal");
-    expect(Object.isFrozen(decoded.bundle)).toBe(true);
   });
 
   it("preserves valid diagnostic timestamp bytes and rejects malformed timestamps", () => {
@@ -642,7 +626,6 @@ describe("Game diagnostics service", () => {
     const exported = await service.exportDebugBundle();
     expect(readAtQueueFrontCalls).toBe(1);
     expect(readUiContext).toHaveBeenCalledOnce();
-    expect(Object.isFrozen(service)).toBe(true);
     expect(exported).toMatchObject({
       filename: "synthetic.debug-bundle.json",
       mediaType: "application/json",

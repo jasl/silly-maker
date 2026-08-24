@@ -4,11 +4,7 @@ import type { SceneDocumentV1 } from "@sillymaker/base";
 import { createAuthoringDocumentSessionV1 } from "@sillymaker/ui/debug";
 import { describe, expect, it } from "vitest";
 
-import type {
-  SceneAuthoringExecutionEnvelopeV1,
-  SceneAuthoringLocalAdapterV1,
-  SceneAuthoringOperationV1,
-} from "./contract.ts";
+import type { SceneAuthoringLocalAdapterV1, SceneAuthoringOperationV1 } from "./contract.ts";
 import { createSceneAuthoringLocalAdapterV1 } from "./local-adapter.ts";
 
 function documentV1(): SceneDocumentV1 {
@@ -129,6 +125,22 @@ describe("Scene authoring local adapter", () => {
     expect(session.getSnapshot().draft?.cues[1]).toHaveProperty("cut", true);
   });
 
+  it("reports an unchanged admitted draft without creating history", () => {
+    const { session, adapter } = fixtureV1();
+    const before = session.getSnapshot();
+
+    expect(executeCurrentV1(adapter, {
+      schemaRevision: 1,
+      kind: "scene.cue.set_motion",
+      cueId: "cue.test.hero",
+      motionId: null,
+    })).toMatchObject({
+      kind: "rejected",
+      diagnostic: { code: "scene_authoring.no_change" },
+    });
+    expect(session.getSnapshot()).toBe(before);
+  });
+
   it("rejects stale envelopes before target reduction with no session side effects", () => {
     const { session, adapter } = fixtureV1();
     const current = adapter.current();
@@ -157,35 +169,6 @@ describe("Scene authoring local adapter", () => {
     })).toMatchObject({
       kind: "rejected",
       diagnostic: { code: "scene_authoring.revision_stale" },
-    });
-    expect(session.getSnapshot()).toBe(before);
-  });
-
-  it("rejects malformed non-UI input without creating dirty or history state", () => {
-    const { session, adapter } = fixtureV1();
-    const current = adapter.current();
-    if (current === null) throw new TypeError("missing current Scene");
-    const before = session.getSnapshot();
-    const malformed = {
-      documentIdentity: current.documentIdentity,
-      expectedDraftRevision: current.draftRevision,
-      operation: {
-        schemaRevision: 1,
-        kind: "scene.entry.set_placement",
-        tag: "tag.hero",
-        placement: {
-          x: 10,
-          y: 20,
-          scalePermille: 0,
-          opacityPermille: 1000,
-          mirrored: false,
-        },
-      },
-    } as unknown as SceneAuthoringExecutionEnvelopeV1;
-
-    expect(adapter.execute(malformed)).toMatchObject({
-      kind: "rejected",
-      diagnostic: { code: "scene_authoring.operation_payload_invalid" },
     });
     expect(session.getSnapshot()).toBe(before);
   });

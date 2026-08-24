@@ -52,7 +52,7 @@ export function useOsTextV1(playerProfile: PlayerProfileStoreV1): (textId: strin
 // The 98 visual language: two-tone bevels. All windows/buttons/inputs share these constant sets.
 // ---------------------------------------------------------------------------
 
-export const os98 = Object.freeze({
+export const os98 = {
   face: "#c0c0c0",
   faceText: "#000000",
   desktop: "#008080",
@@ -61,26 +61,26 @@ export const os98 = Object.freeze({
   titleText: "#ffffff",
   font:
     '11px "MS Sans Serif", Tahoma, "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Hiragino Sans", "Yu Gothic UI", Meiryo, ui-sans-serif, system-ui, sans-serif',
-});
+};
 
 /** Raised bevel (windows, buttons at rest). */
-export const osBevelOutV1: CSSProperties = Object.freeze({
+export const osBevelOutV1: CSSProperties = {
   borderStyle: "solid",
   borderWidth: "2px",
   borderColor: "#ffffff #404040 #404040 #ffffff",
   background: os98.face,
-});
+};
 
 /** Sunken bevel (inputs, display wells, pressed buttons). */
-export const osBevelInV1: CSSProperties = Object.freeze({
+export const osBevelInV1: CSSProperties = {
   borderStyle: "solid",
   borderWidth: "2px",
   borderColor: "#808080 #ffffff #ffffff #808080",
   background: "#ffffff",
-});
+};
 
 /** LCD well (minesweeper counters). */
-export const osLcdV1: CSSProperties = Object.freeze({
+export const osLcdV1: CSSProperties = {
   borderStyle: "solid",
   borderWidth: "1px",
   borderColor: "#808080 #ffffff #ffffff #808080",
@@ -88,7 +88,7 @@ export const osLcdV1: CSSProperties = Object.freeze({
   color: "#ff2222",
   fontFamily: '"Courier New", monospace',
   fontWeight: 700,
-});
+};
 
 /**
  * Global desktop chrome: the pressed-button bevel flip with the 1px content shift,

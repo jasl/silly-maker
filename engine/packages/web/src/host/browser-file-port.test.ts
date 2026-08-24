@@ -12,7 +12,7 @@ afterEach(() => {
 function installFilesV1(input: HTMLInputElement, files: readonly File[]): void {
   Object.defineProperty(input, "files", {
     configurable: true,
-    value: Object.freeze({
+    value: ({
       length: files.length,
       item: (index: number) => files[index] ?? null,
     }) as unknown as FileList,
@@ -26,7 +26,7 @@ async function pendingSelectionV1(): Promise<{
   const port = createBrowserFilePortV1();
   const click = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => undefined);
   const result = port.selectOne({
-    acceptedMediaTypes: Object.freeze(["application/json"]),
+    acceptedMediaTypes: ["application/json"],
     maximumBytes: parsePositiveSafeInteger(4),
   });
   const input = document.querySelector<HTMLInputElement>('input[type="file"]');
@@ -98,7 +98,7 @@ describe("createBrowserFilePortV1", () => {
       .mockImplementation(() => undefined);
     const port = createBrowserFilePortV1({
       document,
-      url: Object.freeze({ createObjectURL, revokeObjectURL }),
+      url: { createObjectURL, revokeObjectURL },
     });
 
     await port.download({

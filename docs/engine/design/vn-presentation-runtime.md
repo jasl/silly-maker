@@ -261,6 +261,10 @@ Renderer、只读 PresentationObservation 和 Host tests 能观察 asset demand/
 
 状态更新（2026-07-28）：类型化 Timeline 已实现——JSON-safe descriptor + `timelineV1` builder（与 literal 同契约）、验证器（unknown target/非法 duration/easing/并行写冲突/有界 repeat）、纯采样函数、复用 PresentationRun/Clock 的播放器（pause/cancel/skip/快进/reduced-motion 即时 settle/事件一次性水位线）、语义舞台 overlay 集成与 `play_cue` 接线，Engine Lab 的信标脉冲 cue 作垂直证明。`keyframes` 语法糖与 `onLifecycle` 绑定按 [R5–R7 计划](../plans/2026-07-28-sillymaker-r5-r7.md) defer；受约束 scene graph 仍待真实 Story 证据。
 
+资源边界更新（2026-08-25）：解析/编译拒绝嵌套 repeat 展开后超过 4,096 个 event
+occurrence 的 Timeline。该上限保护真实的冷编译内存和播放器事件表；成功 admission 后，采样与
+播放直接复用缓存的 duration/event plan，不在每帧重复展开或重新验证 descriptor。
+
 状态更新（2026-08-13）：当年 defer 的 keyframe 能力以「可写回的作者资产」形态落地（见
 [Authorable Motion Workbench 计划](../plans/2026-08-13-authorable-motion-workbench.md)）。
 `MotionDocumentV1` 是独立版本化 JSON 文档（`format: "sillymaker.motion"`，通常存为

@@ -40,13 +40,13 @@ const registryV1: CatcafeAssetRegistryV1 | null = typeof document === "undefined
     },
   ) as CatcafeAssetRegistryV1);
 
-export const catcafeStudioBindingV1: StudioBindingV1 = Object.freeze({
+export const catcafeStudioBindingV1: StudioBindingV1 = {
   catalog: catcafeStageContentCatalogV1,
   renderers: createCatcafeStageRenderersV1(registryV1),
   ...(registryV1 === null ? {} : { assets: registryV1 }),
   // The content authoring manifest: what the Studio Content browser offers
   // for scene construction (defaults + structured appearance controls).
-  contents: Object.freeze([
+  contents: [
     {
       contentId: "content.catcafe.background.shopfront",
       label: "猫舍店面",
@@ -67,19 +67,19 @@ export const catcafeStudioBindingV1: StudioBindingV1 = Object.freeze({
       category: "character" as const,
       defaultLayerId: "layer.catcafe.characters",
       defaultZOrder: 10,
-      defaultAppearance: Object.freeze({ stage: "kitten", expression: "calm" }),
-      appearanceFields: Object.freeze([
-        Object.freeze({
+      defaultAppearance: { stage: "kitten", expression: "calm" },
+      appearanceFields: [
+        {
           key: "stage",
           label: "成长阶段",
-          values: Object.freeze(["kitten", "junior", "adolescent"]),
-        }),
-        Object.freeze({
+          values: ["kitten", "junior", "adolescent"],
+        },
+        {
           key: "expression",
           label: "表情",
-          values: Object.freeze(["calm", "happy", "purring", "grumpy", "hissing"]),
-        }),
-      ]),
+          values: ["calm", "happy", "purring", "grumpy", "hissing"],
+        },
+      ],
     },
-  ]),
-});
+  ],
+};

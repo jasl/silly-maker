@@ -26,43 +26,36 @@ type SyntheticResultV1 =
   | { readonly kind: "faulted" }
   | { readonly kind: "not_executed"; readonly code: string };
 
-const syntheticActionIdsV1 = Object.freeze(
-  [
-    "synthetic.increment",
-    "synthetic.reject",
-    "synthetic.fault",
-  ] as const,
-);
+const syntheticActionIdsV1 = [
+  "synthetic.increment",
+  "synthetic.reject",
+  "synthetic.fault",
+] as const;
 
 const syntheticAdapterV1 = {
   createQueries: (state: {
     readonly simulation: { readonly counter: { readonly count: number } };
-  }) =>
-    Object.freeze({
-      count: state.simulation.counter.count,
-      parity: state.simulation.counter.count % 2 === 0 ? ("even" as const) : ("odd" as const),
-    }),
+  }) => ({
+    count: state.simulation.counter.count,
+    parity: state.simulation.counter.count % 2 === 0 ? ("even" as const) : ("odd" as const),
+  }),
   projectGameView: (queries: SyntheticQueriesV1) => queries,
   projectNarrativeView: () => null,
-  actions: (queries: SyntheticQueriesV1) =>
-    Object.freeze(
-      syntheticActionIdsV1.map((actionId) =>
-        Object.freeze({ actionId, countBefore: queries.count })
-      ),
-    ),
-  preview: (queries: SyntheticQueriesV1) => Object.freeze({ countBefore: queries.count }),
+  actions: (
+    queries: SyntheticQueriesV1,
+  ) => (syntheticActionIdsV1.map((actionId) => ({ actionId, countBefore: queries.count }))),
+  preview: (queries: SyntheticQueriesV1) => ({ countBefore: queries.count }),
   parseInvocation(value: unknown): SyntheticInvocationV1 {
     const actionId = (value as { readonly actionId?: unknown } | null)?.actionId;
     if (!syntheticActionIdsV1.includes(actionId as (typeof syntheticActionIdsV1)[number])) {
       throw new TypeError("invalid synthetic invocation");
     }
-    return Object.freeze({
+    return ({
       kind: "invoke",
       actionId: actionId as SyntheticCounterCommandV1["kind"],
     });
   },
-  commandForInvocation: (invocation: SyntheticInvocationV1) =>
-    Object.freeze({ kind: invocation.actionId }),
+  commandForInvocation: (invocation: SyntheticInvocationV1) => ({ kind: invocation.actionId }),
   projectDispatchResult(result: {
     readonly kind: string;
     readonly code?: string;
@@ -73,23 +66,25 @@ const syntheticAdapterV1 = {
     };
   }): SyntheticResultV1 {
     if (result.kind !== "executed" || result.execution === undefined) {
-      return Object.freeze({
+      return ({
         kind: "not_executed" as const,
         code: result.code ?? "unknown",
       });
     }
     if (result.execution.kind === "committed") {
-      return Object.freeze({
+      return ({
         kind: "committed" as const,
         count: result.execution.events?.[0]?.count ?? 0,
       });
     }
     return result.execution.kind === "rejected"
-      ? Object.freeze({ kind: "rejected" as const })
-      : Object.freeze({ kind: "faulted" as const });
+      ? ({ kind: "rejected" as const })
+      : ({ kind: "faulted" as const });
   },
-  invalidInvocationResult: () =>
-    Object.freeze({ kind: "not_executed" as const, code: "validation_failed" as const }),
+  invalidInvocationResult: () => ({
+    kind: "not_executed" as const,
+    code: "validation_failed" as const,
+  }),
 };
 
 function createSyntheticHarnessV1(
@@ -114,7 +109,10 @@ function createSyntheticHarnessV1(
   });
 }
 
-const incrementV1 = Object.freeze({ kind: "invoke" as const, actionId: "synthetic.increment" });
+const incrementV1 = {
+  kind: "invoke",
+  actionId: "synthetic.increment",
+} as const satisfies SyntheticInvocationV1;
 
 describe("createGameHarnessV1", () => {
   it("drives the synthetic story end to end without any story-private setup", async () => {
@@ -203,11 +201,11 @@ describe("createGameHarnessV1", () => {
 
   it("applies the engine state patch through debugControl and replays it", async () => {
     const harness = await createSyntheticHarnessV1({ debugTools: true });
-    const patch = Object.freeze({
+    const patch = {
       kind: engineDebugPatchStateKindV1,
-      path: Object.freeze(["simulation", "counter", "count"]),
+      path: ["simulation", "counter", "count"],
       value: 7,
-    });
+    };
     const result = await harness.admin.debugControl!.execute(patch as never, () => true);
     expect(result.kind).toBe("executed");
     expect(harness.observe().game).toEqual({ count: 7, parity: "odd" });
@@ -223,9 +221,9 @@ describe("createGameHarnessV1", () => {
   it("rejects an invalid engine state patch without pausing the session", async () => {
     const harness = await createSyntheticHarnessV1({ debugTools: true });
     const result = await harness.admin.debugControl!.execute(
-      Object.freeze({
+      ({
         kind: engineDebugPatchStateKindV1,
-        path: Object.freeze(["simulation", "counter", "count"]),
+        path: ["simulation", "counter", "count"],
         value: -1,
       }) as never,
       () => true,

@@ -171,12 +171,12 @@ export const catcafeNarrativeStateSchemaV1: RuntimeSchemaV1<CatcafeNarrativeStat
         if (flags.some((flag, index) => index > 0 && flag <= (flags[index - 1] as string))) {
           throw new TypeError("catcafe narrative flags must be sorted and unique");
         }
-        return Object.freeze({
+        return ({
           phase: record.phase as CatcafeNarrativeStateV1["phase"],
           cursor: record.cursor,
           pending,
           sequence: record.sequence,
-          flags: Object.freeze(flags),
+          flags: flags,
           history: parseNarrativeHistory(record.history),
         });
       },
@@ -198,15 +198,15 @@ export const catcafeGameStateSchemaV1: RuntimeSchemaV1<CatcafeGameStateV1> = cre
           stage: z.unknown(),
         })
         .parse(root.simulation);
-      return Object.freeze({
-        simulation: Object.freeze({
+      return ({
+        simulation: {
           calendar: catcafeCalendarStateSchemaV1.parse(simulation.calendar),
           cat: catcafeCatStateSchemaV1.parse(simulation.cat),
           contest: catcafeContestStateSchemaV1.parse(simulation.contest ?? null),
           narrative: catcafeNarrativeStateSchemaV1.parse(simulation.narrative),
           shop: catcafeShopStateSchemaV1.parse(simulation.shop),
           stage: catcafeStageStateSchemaV1.parse(simulation.stage),
-        }),
+        },
       });
     },
   },
@@ -221,26 +221,26 @@ export function createInitialCatcafeStageStateV1(): SemanticStageState {
 }
 
 export function createInitialCatcafeGameStateV1(): CatcafeGameStateV1 {
-  return Object.freeze({
-    simulation: Object.freeze({
-      calendar: Object.freeze({ week: 1, day: 0, slot: 0, stamina: catcafeDailyStaminaV1 }),
-      cat: Object.freeze({
+  return ({
+    simulation: {
+      calendar: { week: 1, day: 0, slot: 0, stamina: catcafeDailyStaminaV1 },
+      cat: {
         trust: 10,
         vigor: 60,
         skill: 0,
         fishBuff: 0,
         pettingLeft: catcafeDailyPettingV1,
-      }),
+      },
       contest: null,
       narrative: createInitialCatcafeNarrativeStateV1(),
-      shop: Object.freeze({
+      shop: {
         reputation: 10,
         tidiness: 60,
         money: 50,
         trophies: 0,
         epilogue: null,
-      }),
+      },
       stage: createInitialCatcafeStageStateV1(),
-    }),
+    },
   });
 }

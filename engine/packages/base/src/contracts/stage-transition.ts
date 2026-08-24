@@ -98,14 +98,14 @@ function parseReducedMotionV1(value: unknown, path: string): StageTransitionRedu
   const kind = (value as { readonly kind?: unknown }).kind;
   if (kind === "settle") {
     readExactRecord(value, ["kind"], path);
-    return Object.freeze({ kind });
+    return { kind };
   }
   if (kind === "fallback") {
     const record = readExactRecord(value, ["kind", "transitionId"], path);
-    return Object.freeze({
+    return {
       kind,
       transitionId: parseTransitionIdV1(record.transitionId, `${path}/transitionId`),
-    });
+    };
   }
   return dataFailure(`${path}/kind`, "reduced_motion_kind_invalid");
 }
@@ -115,14 +115,14 @@ function parseReadinessV1(value: unknown, path: string): StageTransitionReadines
   const kind = (value as { readonly kind?: unknown }).kind;
   if (kind === "immediate") {
     readExactRecord(value, ["kind"], path);
-    return Object.freeze({ kind });
+    return { kind };
   }
   if (kind === "wait_for_assets") {
     const record = readExactRecord(value, ["kind", "timeoutMs"], path);
-    return Object.freeze({
+    return {
       kind,
       timeoutMs: parseDurationMsV1(record.timeoutMs, `${path}/timeoutMs`),
-    });
+    };
   }
   return dataFailure(`${path}/kind`, "readiness_kind_invalid");
 }
@@ -143,10 +143,10 @@ function parseSlideOffsetV1(
     }
     return candidate;
   };
-  return Object.freeze({
+  return {
     x: parseOffset(record.x, `${path}/x`),
     y: parseOffset(record.y, `${path}/y`),
-  });
+  };
 }
 
 const baseTransitionKeysV1 = [
@@ -215,7 +215,7 @@ export function parseStageTransitionDefinitionV1(
     acknowledge: record.acknowledge,
     slide,
   };
-  if (kind !== "motion") return Object.freeze(common);
+  if (kind !== "motion") return common;
   const motion = parseMotionDefinitionV1(record.motion, `${path}/motion`);
   if (slide !== null) {
     return dataFailure(`${path}/slide`, "motion_slide_forbidden");
@@ -226,7 +226,7 @@ export function parseStageTransitionDefinitionV1(
   if (common.durationMs !== motionTotalDurationMsV1(motion)) {
     return dataFailure(`${path}/durationMs`, "motion_duration_mismatch");
   }
-  return Object.freeze({ ...common, motion });
+  return { ...common, motion };
 }
 
 export interface MotionStageTransitionInputV1 {
@@ -307,7 +307,7 @@ function parseStageCueDispatchIdV1(
 /**
  * Admits one Story-projected dispatch list at the instance boundary. The
  * projection is public Story input, so it is validated once here and then
- * carried as ordinary frozen data.
+ * carried as ordinary typed data.
  */
 export function parseStageCueDispatchesV1(
   value: unknown,
@@ -317,7 +317,7 @@ export function parseStageCueDispatchesV1(
   if (value.length > stageCueDispatchLimitV1) {
     return dataFailure(path, "stage_cue_dispatches_count_invalid");
   }
-  return Object.freeze(value.map((entry, index) => {
+  return value.map((entry, index) => {
     const entryPath = `${path}/${String(index)}`;
     if (entry === null || typeof entry !== "object" || Array.isArray(entry)) {
       return dataFailure(entryPath, "stage_cue_dispatch_invalid");
@@ -327,17 +327,17 @@ export function parseStageCueDispatchesV1(
       if (record.open !== true) {
         return dataFailure(`${entryPath}/open`, "stage_cue_dispatch_open_invalid");
       }
-      return Object.freeze({
+      return {
         sceneId: parseStageCueDispatchIdV1(
           record.sceneId,
           stageCueDispatchSceneIdPatternV1,
           `${entryPath}/sceneId`,
         ),
         open: true as const,
-      });
+      };
     }
     const record = readExactRecord(entry, ["sceneId", "cueId"], entryPath);
-    return Object.freeze({
+    return {
       sceneId: parseStageCueDispatchIdV1(
         record.sceneId,
         stageCueDispatchSceneIdPatternV1,
@@ -348,8 +348,8 @@ export function parseStageCueDispatchesV1(
         stageCueDispatchCueIdPatternV1,
         `${entryPath}/cueId`,
       ),
-    });
-  }));
+    };
+  });
 }
 
 /**
@@ -369,7 +369,7 @@ export interface StageCueDispatchBatchV1 {
  * priority order: content replace wins over appearance, appearance over
  * placement. The catalog decides which transition (if any) presents it.
  * When the producing retarget carried presentation edge context, every
- * change of that edge carries the same frozen dispatch list verbatim; the
+ * change of that edge carries the same stable dispatch list verbatim; the
  * reconciler never interprets it (cue-to-edge knowledge lives in the
  * Story's scene documents and catalog).
  */

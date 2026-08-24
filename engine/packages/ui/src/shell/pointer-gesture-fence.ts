@@ -42,10 +42,10 @@ export function armStagePointerGestureFenceV1(
   const pointerUp = options.pointerUpEvent;
 
   if (pointerUp.button !== 0) {
-    return Object.freeze({
+    return {
       release: () => {},
       active: () => false,
-    });
+    };
   }
 
   pointerUp.preventDefault();
@@ -91,8 +91,8 @@ export function armStagePointerGestureFenceV1(
   root.addEventListener("pointerdown", onPointerDown, true);
   const timer = window.setTimeout(release, timeoutMs);
 
-  return Object.freeze({
+  return {
     release,
     active: () => active,
-  });
+  };
 }

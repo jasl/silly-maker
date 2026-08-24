@@ -80,7 +80,7 @@ const persistenceHandoffRequestIdV1 =
 const persistenceInstantV1 = "2026-07-30T00:00:00.000Z" as IsoUtcInstant;
 
 function persistenceCountsV1(counts: SnapshotWorkCountsV1): SnapshotPersistenceWorkCountsV1 {
-  return Object.freeze({
+  return ({
     canonicalTraversals: counts.canonicalTraversals,
     canonicalDigests: counts.canonicalDigests,
     commandLogContinuityVerifications: counts.commandLogContinuityVerifications,
@@ -94,7 +94,7 @@ function addCountsV1(
   left: SnapshotPersistenceWorkCountsV1,
   right: SnapshotPersistenceWorkCountsV1,
 ): SnapshotPersistenceWorkCountsV1 {
-  return Object.freeze({
+  return ({
     canonicalTraversals: left.canonicalTraversals + right.canonicalTraversals,
     canonicalDigests: left.canonicalDigests + right.canonicalDigests,
     commandLogContinuityVerifications: left.commandLogContinuityVerifications +
@@ -131,19 +131,19 @@ export async function createSnapshotPersistenceWorkloadV1(input: {
   const records = input.records ?? createMemoryHostRecordStoreV1();
   const persistenceOptions = {
     runtimeControl: input.wrapRuntimeControlForFallback === true
-      ? Object.freeze({ ...session.runtimeControl })
+      ? ({ ...session.runtimeControl })
       : session.runtimeControl,
     records,
     snapshotSchema: snapshotTransactionSnapshotSchemaV1,
     provenance: snapshotTransactionProvenanceV1,
-    adoptionDeclarations: input.adoptionDeclarations ?? Object.freeze([]),
+    adoptionDeclarations: input.adoptionDeclarations ?? [],
     saveStateMigrations: null,
     ownerId: persistenceOwnerIdV1,
     nextHandoffRequestId: () => persistenceHandoffRequestIdV1,
-    validateReferences: () => Object.freeze([]),
-    validateInvariants: () => Object.freeze([]),
-    initialSimulationLineage: Object.freeze([]),
-    metadataClock: input.metadataClock ?? Object.freeze({ now: () => persistenceInstantV1 }),
+    validateReferences: () => [],
+    validateInvariants: () => [],
+    initialSimulationLineage: [],
+    metadataClock: input.metadataClock ?? ({ now: () => persistenceInstantV1 }),
     exportFilename: input.exportFilename ?? "snapshot-persistence-workload.json",
     manualSaveSlotCount: 0,
     autoSaveCapture: "committed_snapshots" as const,
@@ -158,7 +158,7 @@ export async function createSnapshotPersistenceWorkloadV1(input: {
       wrapRepositoryForWriteReceiptFallback: input.wrapRepositoryForWriteReceiptFallback === true,
     });
 
-  return Object.freeze({
+  return ({
     snapshot: session.snapshot,
     commandLog: session.commandLog,
     replayBase: session.replayBase,
@@ -175,25 +175,19 @@ export async function createSnapshotPersistenceWorkloadV1(input: {
         "save",
         createSaveSlotRecordKeyV1(snapshotTransactionProvenanceV1.story.id, slotId),
       );
-      return stored === null ? null : Object.freeze(
-        {
-          revision: stored.revision,
-          bytes: Uint8Array.from(stored.bytes),
-        } satisfies StoredSlotRecordV1,
-      );
+      return stored === null ? null : ({
+        revision: stored.revision,
+        bytes: Uint8Array.from(stored.bytes),
+      } satisfies StoredSlotRecordV1);
     },
     async rawSaveRecords() {
-      return Object.freeze(
-        (await records.list("save"))
-          .toSorted((left, right) => left.key.localeCompare(right.key))
-          .map((stored) =>
-            Object.freeze({
-              key: stored.key,
-              revision: stored.revision,
-              bytes: Uint8Array.from(stored.bytes),
-            })
-          ),
-      );
+      return ((await records.list("save"))
+        .toSorted((left, right) => left.key.localeCompare(right.key))
+        .map((stored) => ({
+          key: stored.key,
+          revision: stored.revision,
+          bytes: Uint8Array.from(stored.bytes),
+        })));
     },
     slotSummaries: () => persistence.port.listSlots(),
     dispose: () => persistence.dispose(),
@@ -214,7 +208,7 @@ async function readStepV1(
   ) {
     throw new TypeError("Snapshot persistence workload did not write auto.current");
   }
-  return Object.freeze({
+  return ({
     counts,
     currentCommandSequence: current.capturedCommandSequence,
     currentRecordRevision: current.recordRevision,
@@ -224,7 +218,7 @@ async function readStepV1(
 }
 
 function descriptorV1(): SnapshotPersistenceWorkloadDescriptorV1 {
-  return Object.freeze({
+  return ({
     workloadId: "snapshot-persistence-v1/100/every_commit_auto_rotation",
     entityCount: 100,
     autosaveClass: "every_commit_auto_rotation",
@@ -265,21 +259,19 @@ async function preparePersistenceCoreV1() {
       }
       const rotationCounts = persistenceCountsV1(counter.snapshot());
       const rotation = await readStepV1(workload, rotationCounts);
-      return Object.freeze({
-        result: Object.freeze(
-          {
-            firstAutoSave,
-            rotation,
-            aggregateCounts: addCountsV1(firstCounts, rotationCounts),
-          } satisfies SnapshotPersistenceWorkloadRunV1,
-        ),
+      return ({
+        result: {
+          firstAutoSave,
+          rotation,
+          aggregateCounts: addCountsV1(firstCounts, rotationCounts),
+        } satisfies SnapshotPersistenceWorkloadRunV1,
         dispatchDurationMs,
       });
     } finally {
       await workload.dispose();
     }
   };
-  return Object.freeze({ counter, workload, setupCounts, runV1 });
+  return ({ counter, workload, setupCounts, runV1 });
 }
 
 export async function prepareSnapshotPersistenceWorkloadV1(input: {
@@ -289,7 +281,7 @@ export async function prepareSnapshotPersistenceWorkloadV1(input: {
     throw new TypeError("Snapshot persistence workload requires 100 entities");
   }
   const core = await preparePersistenceCoreV1();
-  return Object.freeze({
+  return ({
     descriptor: descriptorV1(),
     setupCounts: core.setupCounts,
     async runOnce() {
@@ -306,12 +298,12 @@ export async function prepareTimedSnapshotPersistenceWorkloadV1(input: {
     throw new TypeError("Snapshot persistence workload requires 100 entities");
   }
   const core = await preparePersistenceCoreV1();
-  return Object.freeze({
+  return ({
     descriptor: descriptorV1(),
     setupCounts: core.setupCounts,
     async runOnce() {
       const measured = await core.runV1();
-      return Object.freeze({
+      return ({
         ...measured.result,
         dispatchDurationMs: measured.dispatchDurationMs,
       });

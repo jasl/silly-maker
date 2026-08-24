@@ -100,5 +100,5 @@ export function collectMotionSourceDiagnosticsV1(
     }
   }
 
-  return Object.freeze(diagnostics);
+  return diagnostics;
 }

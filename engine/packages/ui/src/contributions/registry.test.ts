@@ -172,28 +172,25 @@ describe("UiContributionRegistryV1", () => {
     },
   );
 
-  it("returns a frozen typed not-found result for an unknown renderer", () => {
+  it("returns a typed not-found result for an unknown renderer", () => {
     const { registry } = registryWithCompleteSetV1();
     const result = registry.resolve("narrative", "renderer.missing");
 
     expect(result).toEqual({ kind: "not_found", code: "ui.renderer_not_found" });
-    expect(Object.isFrozen(result)).toBe(true);
     if (result.kind === "not_found") {
       expect(result.code).toBe("ui.renderer_not_found");
     }
   });
 
-  it("freezes the registry and found results without changing component identity", () => {
+  it("retains found result and component identity", () => {
     const { completeSet, registry } = registryWithCompleteSetV1();
     const component = completeSet.renderers.hud?.[0]?.component;
     const first = registry.resolve("hud", "renderer.complete.hud");
     const second = registry.resolve("hud", "renderer.complete.hud");
 
-    expect(Object.isFrozen(registry)).toBe(true);
-    expect(Object.isFrozen(first)).toBe(true);
-    expect(Object.isFrozen(second)).toBe(true);
     expect(first).toEqual({ kind: "found", component });
     expect(second).toEqual({ kind: "found", component });
+    expect(first).toBe(second);
   });
 
   it("reports the first duplicate in contribution and renderer authored order", () => {

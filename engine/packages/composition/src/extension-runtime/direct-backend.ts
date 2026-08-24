@@ -142,13 +142,13 @@ class DirectSetupScopeInternalV1 implements ExtensionSetupScopeInternalV1 {
         await child.dispose();
       } catch (error) {
         emitDiagnosticInternalV1(
-          Object.freeze({
+          {
             code: "extension_runtime.cleanup_failed",
             id: this.ownerId,
             generation: this.generation,
             phase,
             error,
-          }),
+          },
           this.onDiagnostic,
         );
       }
@@ -159,13 +159,13 @@ class DirectSetupScopeInternalV1 implements ExtensionSetupScopeInternalV1 {
         await this.callbackGuard.run(this.ownerId, "cleanup", effect.cleanup);
       } catch (error) {
         emitDiagnosticInternalV1(
-          Object.freeze({
+          {
             code: "extension_runtime.cleanup_failed",
             id: this.ownerId,
             generation: this.generation,
             phase,
             error,
-          }),
+          },
           this.onDiagnostic,
         );
       }
@@ -174,10 +174,9 @@ class DirectSetupScopeInternalV1 implements ExtensionSetupScopeInternalV1 {
 }
 
 async function mountDirectInternalV1<TConsumer>(
-  input: ExtensionFactoryInternalV1<TConsumer>,
+  factory: ExtensionFactoryInternalV1<TConsumer>,
   options: ExtensionBackendMountOptionsInternalV1 = {},
 ): Promise<ExtensionMountedHandleInternalV1<TConsumer>> {
-  const factory = defineExtensionFactoryInternalV1(input);
   const callbackGuard = options.callbackGuard ??
     createExtensionLifecycleCallbackGuardInternalV1();
   const scope = new DirectSetupScopeInternalV1(
@@ -208,7 +207,7 @@ async function mountDirectInternalV1<TConsumer>(
   }
 
   let disposePromise: Promise<void> | null = null;
-  const handle: ExtensionMountedHandleInternalV1<TConsumer> = Object.freeze({
+  const handle: ExtensionMountedHandleInternalV1<TConsumer> = {
     id: factory.id,
     generation: factory.generation,
     consumer,
@@ -228,19 +227,19 @@ async function mountDirectInternalV1<TConsumer>(
       disposePromise = Promise.resolve().then(() => scope.cleanup("dispose"));
       return disposePromise;
     },
-  });
+  };
   return handle;
 }
 
 export function mountExtensionFactoryDirectInternalV1<TConsumer>(
-  factory: ExtensionFactoryInternalV1<TConsumer>,
+  input: ExtensionFactoryInternalV1<TConsumer>,
   options: ExtensionBackendMountOptionsInternalV1 = {},
 ): Promise<ExtensionMountedHandleInternalV1<TConsumer>> {
-  return mountDirectInternalV1(factory, options);
+  return mountDirectInternalV1(defineExtensionFactoryInternalV1(input), options);
 }
 
 export function createDirectExtensionLifecycleBackendInternalV1(): ExtensionLifecycleBackendInternalV1 {
-  return Object.freeze({
+  return {
     mount: mountDirectInternalV1,
-  });
+  };
 }

@@ -244,9 +244,6 @@ describe("authoritative determinism runner", () => {
         hint: "Use a JavaScript or TypeScript source file in the authoritative closure.",
       },
     ]);
-    expect(Object.isFrozen(diagnostics)).toBe(true);
-    expect(Object.isFrozen(diagnostics[0])).toBe(true);
-    expect(Object.isFrozen(diagnostics[0]?.range)).toBe(true);
   });
 
   it("accepts valid JSON data sources in the authoritative closure without syntax proofs", async () => {

@@ -101,5 +101,5 @@ export function collectChromeLayoutSourceDiagnosticsV1(
     }
   }
 
-  return Object.freeze(diagnostics);
+  return diagnostics;
 }

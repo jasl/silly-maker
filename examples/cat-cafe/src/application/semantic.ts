@@ -77,12 +77,12 @@ export type CatcafeActionResultV1 =
     readonly code: "session_unavailable" | "fault_paused" | "hmr_invalidated" | "validation_failed";
   };
 
-const actionIdsV1: readonly CatcafeActionIdV1[] = Object.freeze([
+const actionIdsV1: readonly CatcafeActionIdV1[] = [
   "cc.begin_story",
   "cc.advance_slot",
   "cc.enter_contest",
   "cc.enter_postgame",
-]);
+];
 
 const simulationForSemanticV1 = createCatcafeGameSimulationV1();
 
@@ -167,22 +167,18 @@ function invocationBlockedByV1(
 
 export function projectCatcafeNarrativeViewV1(queries: CatcafeQueriesV1): CatcafeNarrativeViewV1 {
   const pending = queries.narrative.pending;
-  return Object.freeze({
+  return ({
     phase: queries.narrative.phase,
     pending,
     flags: queries.narrative.flags,
     history: queries.narrative.history,
     choiceOptions: pending !== null && pending.kind === "choice"
-      ? Object.freeze(
-        pending.options.map((option) =>
-          Object.freeze({
-            choiceId: option.choiceId,
-            textId: option.textId,
-            enabled: true,
-            blockedBy: null,
-          })
-        ),
-      )
+      ? (pending.options.map((option) => ({
+        choiceId: option.choiceId,
+        textId: option.textId,
+        enabled: true,
+        blockedBy: null,
+      })))
       : null,
   });
 }
@@ -198,7 +194,7 @@ export function parseCatcafeInvocationV1(value: unknown): CatcafeInvocationV1 {
       if (keys !== "expectedOccurrenceId\u0000kind\u0000resolution") {
         throw new TypeError("invalid catcafe resolve invocation");
       }
-      return Object.freeze({
+      return ({
         kind: "resolve",
         expectedOccurrenceId: parseInteractionOccurrenceId(record.expectedOccurrenceId),
         resolution: parseInteractionResolution(record.resolution),
@@ -207,24 +203,24 @@ export function parseCatcafeInvocationV1(value: unknown): CatcafeInvocationV1 {
       if (keys !== "activityId\u0000kind" || typeof record.activityId !== "string") {
         throw new TypeError("invalid catcafe activity invocation");
       }
-      return Object.freeze({ kind: "activity", activityId: record.activityId });
+      return ({ kind: "activity", activityId: record.activityId });
     case "pet":
       if (keys !== "kind\u0000zone" || typeof record.zone !== "string") {
         throw new TypeError("invalid catcafe pet invocation");
       }
-      return Object.freeze({ kind: "pet", zone: record.zone });
+      return ({ kind: "pet", zone: record.zone });
     case "contest_move":
       if (keys !== "kind\u0000moveId" || typeof record.moveId !== "string") {
         throw new TypeError("invalid catcafe contest invocation");
       }
-      return Object.freeze({ kind: "contest_move", moveId: record.moveId });
+      return ({ kind: "contest_move", moveId: record.moveId });
     case "invoke": {
       if (keys !== "actionId\u0000kind") throw new TypeError("invalid catcafe invocation");
       const actionId = record.actionId;
       if (!actionIdsV1.includes(actionId as CatcafeActionIdV1)) {
         throw new TypeError("unknown catcafe action");
       }
-      return Object.freeze({ kind: "invoke", actionId: actionId as CatcafeActionIdV1 });
+      return ({ kind: "invoke", actionId: actionId as CatcafeActionIdV1 });
     }
     default:
       throw new TypeError("invalid catcafe invocation");
@@ -234,7 +230,7 @@ export function parseCatcafeInvocationV1(value: unknown): CatcafeInvocationV1 {
 function commandForInvocationV1(invocation: CatcafeInvocationV1): CatcafeCommandV1 {
   switch (invocation.kind) {
     case "invoke":
-      return Object.freeze({
+      return ({
         kind: invocation.actionId === "cc.begin_story"
           ? ("cc.begin_story" as const)
           : invocation.actionId === "cc.advance_slot"
@@ -244,13 +240,13 @@ function commandForInvocationV1(invocation: CatcafeInvocationV1): CatcafeCommand
           : ("cc.enter_contest" as const),
       });
     case "activity":
-      return Object.freeze({ kind: "cc.do_activity", activityId: invocation.activityId });
+      return ({ kind: "cc.do_activity", activityId: invocation.activityId });
     case "pet":
-      return Object.freeze({ kind: "cc.pet", zone: invocation.zone });
+      return ({ kind: "cc.pet", zone: invocation.zone });
     case "contest_move":
-      return Object.freeze({ kind: "cc.contest_move", moveId: invocation.moveId });
+      return ({ kind: "cc.contest_move", moveId: invocation.moveId });
     case "resolve":
-      return Object.freeze({
+      return ({
         kind: "cc.narrative_resolve",
         expectedOccurrenceId: invocation.expectedOccurrenceId,
         resolution: invocation.resolution,
@@ -273,35 +269,35 @@ export function projectCatcafeTransientEffectsV1(
     switch (event.kind) {
       case "cc.petted":
         return [
-          Object.freeze({
+          {
             effectId: "effect.catcafe.reaction",
-            payload: Object.freeze({
+            payload: {
               reactionId: event.reactionId,
               zone: event.zone,
               trustDelta: event.trustDelta,
-            }),
-          }),
+            },
+          },
         ];
       case "cc.contest_won":
         return [
-          Object.freeze({
+          {
             effectId: "effect.catcafe.contest",
-            payload: Object.freeze({ outcome: "won", rivalId: event.rivalId }),
-          }),
+            payload: { outcome: "won", rivalId: event.rivalId },
+          },
         ];
       case "cc.contest_lost":
         return [
-          Object.freeze({
+          {
             effectId: "effect.catcafe.contest",
-            payload: Object.freeze({ outcome: "lost", rivalId: event.rivalId }),
-          }),
+            payload: { outcome: "lost", rivalId: event.rivalId },
+          },
         ];
       case "cc.encounter":
         return event.textId === null ? [] : [
-          Object.freeze({
+          {
             effectId: "effect.catcafe.encounter",
-            payload: Object.freeze({ encounterId: event.encounterId, textId: event.textId }),
-          }),
+            payload: { encounterId: event.encounterId, textId: event.textId },
+          },
         ];
       default:
         return [];
@@ -322,55 +318,56 @@ export const catcafeSemanticAdapterV1: CoreSemanticAdapterV1<
   createQueries: (state) => simulationForSemanticV1.createQueries(state as never),
   projectGameView: (queries) => simulationForSemanticV1.projectGameView(queries),
   projectNarrativeView: (queries) => projectCatcafeNarrativeViewV1(queries),
-  actions: (queries) =>
-    Object.freeze([
-      ...actionIdsV1.map((actionId) => {
-        const blockedBy = blockedByV1(queries, actionId);
-        return Object.freeze({
-          kind: "system" as const,
-          actionId,
-          enabled: blockedBy === null,
-          blockedBy,
-        });
-      }),
-      ...catcafeActivitiesV1.rows().map((activity) => {
-        const blockedBy = queries.narrative.phase !== "completed"
-          ? ("cc.narrative_busy" as const)
-          : catcafeActivityBlockedByV1(queries, activity.id);
-        return Object.freeze({
-          kind: "activity" as const,
-          activityId: activity.id,
-          nameTextId: activity.nameTextId,
-          stamina: activity.stamina,
-          enabled: blockedBy === null,
-          blockedBy,
-        });
-      }),
-    ]),
+  actions: (queries) => [
+    ...actionIdsV1.map((actionId) => {
+      const blockedBy = blockedByV1(queries, actionId);
+      return ({
+        kind: "system" as const,
+        actionId,
+        enabled: blockedBy === null,
+        blockedBy,
+      });
+    }),
+    ...catcafeActivitiesV1.rows().map((activity) => {
+      const blockedBy = queries.narrative.phase !== "completed"
+        ? ("cc.narrative_busy" as const)
+        : catcafeActivityBlockedByV1(queries, activity.id);
+      return ({
+        kind: "activity" as const,
+        activityId: activity.id,
+        nameTextId: activity.nameTextId,
+        stamina: activity.stamina,
+        enabled: blockedBy === null,
+        blockedBy,
+      });
+    }),
+  ],
   preview: (queries, invocation) => {
     const blockedBy = invocationBlockedByV1(queries, invocation);
     return blockedBy === null
-      ? Object.freeze({ kind: "allowed" as const })
-      : Object.freeze({ kind: "blocked" as const, code: blockedBy });
+      ? ({ kind: "allowed" as const })
+      : ({ kind: "blocked" as const, code: blockedBy });
   },
   parseInvocation: parseCatcafeInvocationV1,
   commandForInvocation: commandForInvocationV1,
   projectDispatchResult: (result) => {
     if (result.kind === "not_executed") {
-      return Object.freeze({ kind: "not_executed" as const, code: result.code });
+      return ({ kind: "not_executed" as const, code: result.code });
     }
     const execution = result.execution;
-    if (execution.kind === "committed") return Object.freeze({ kind: "committed" as const });
+    if (execution.kind === "committed") return ({ kind: "committed" as const });
     if (execution.kind === "rejected") {
-      return Object.freeze({
+      return ({
         kind: "rejected" as const,
-        codes: Object.freeze(execution.reasons.map((reason) => reason.code)),
+        codes: execution.reasons.map((reason) => reason.code),
       });
     }
-    return Object.freeze({ kind: "faulted" as const, code: execution.fault.code });
+    return ({ kind: "faulted" as const, code: execution.fault.code });
   },
-  invalidInvocationResult: () =>
-    Object.freeze({ kind: "not_executed" as const, code: "validation_failed" as const }),
+  invalidInvocationResult: () => ({
+    kind: "not_executed" as const,
+    code: "validation_failed" as const,
+  }),
   projectTransientEffects: (events) =>
     projectCatcafeTransientEffectsV1(events as readonly CatcafeEventV1[]),
 };

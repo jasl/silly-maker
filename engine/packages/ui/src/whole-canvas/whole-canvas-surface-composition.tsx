@@ -23,6 +23,7 @@ import type {
 } from "../managed-surfaces/managed-surface-contracts.ts";
 import { managedSurfaceStableContractLimitsInternalV1 } from "../managed-surfaces/managed-surface-stable-contract.ts";
 import {
+  admitWholeCanvasManagedSurfaceCatalogInternalV1,
   createWholeCanvasManagedSurfaceFamilyContractInternalV1,
   type WholeCanvasManagedSurfaceCatalogRowInternalV1,
   type WholeCanvasManagedSurfaceFamilyContractInternalV1,
@@ -305,7 +306,6 @@ export interface BindWholeCanvasSurfaceCompositionPrivateMetadataInputInternalV1
 }
 
 interface WholeCanvasSurfaceCompositionDefinitionBindingInternalV1 {
-  readonly receiver: CreateWholeCanvasSurfaceCompositionDefinitionInputInternalV1;
   readonly family: WholeCanvasManagedSurfaceFamilyContractInternalV1;
   readonly getSnapshot: CreateWholeCanvasSurfaceCompositionDefinitionInputInternalV1[
     "getSnapshotInternalV1"
@@ -340,12 +340,11 @@ interface WholeCanvasApplicationSourceRecordInternalV1 {
 }
 
 interface WholeCanvasSurfacePublicDefinitionBindingInternalV1<TSemanticPublication> {
-  readonly receiver: DefineWholeCanvasSurfaceInputV1<TSemanticPublication, string, string>;
   readonly family: WholeCanvasManagedSurfaceFamilyContractInternalV1;
+  readonly catalogByTargetId: ReadonlyMap<string, WholeCanvasManagedSurfaceCatalogRowInternalV1>;
   readonly sourceKind: "publication" | "application";
   readonly publicationSource:
     | Readonly<{
-      readonly receiver: WholeCanvasSurfacePublicationSourceV1<TSemanticPublication, string>;
       readonly selectPrimary: WholeCanvasSurfacePublicationSourceV1<
         TSemanticPublication,
         string
@@ -387,9 +386,6 @@ interface WholeCanvasSurfaceHostedAdapterRecordInternalV1<TSemanticPublication> 
   readonly binding: WholeCanvasSurfacePublicDefinitionBindingInternalV1<TSemanticPublication>;
   publication:
     | Readonly<{
-      readonly receiver: BindWholeCanvasSurfaceHostedPublicationInputInternalV1<
-        TSemanticPublication
-      >;
       readonly getSnapshot: BindWholeCanvasSurfaceHostedPublicationInputInternalV1<
         TSemanticPublication
       >["getSnapshotInternalV1"];
@@ -405,32 +401,19 @@ interface WholeCanvasSurfaceHostedAdapterRecordInternalV1<TSemanticPublication> 
   compositionMetadata: WholeCanvasSurfaceCompositionPrivateMetadataInternalV1 | null;
 }
 
-const definitionKeysInternalV1 = Object.freeze(
-  [
-    "catalog",
-    "getSnapshotInternalV1",
-    "subscribeInternalV1",
-    "resolveTargetInternalV1",
-    "dispatchOwnerActionInternalV1",
-    "prepareTargetInternalV1",
-    "renderInternalV1",
-  ] as const,
-);
 const definitionBindingsInternalV1 = new WeakMap<
   object,
   WholeCanvasSurfaceCompositionDefinitionBindingInternalV1
 >();
-const publicDefinitionKeysInternalV1 = Object.freeze(
-  [
-    "catalog",
-    "source",
-    "resolveTarget",
-    "dispatchAction",
-    "renderer",
-    "prepareTarget",
-    "resolveText",
-  ] as const,
-);
+const publicDefinitionKeysInternalV1 = [
+  "catalog",
+  "source",
+  "resolveTarget",
+  "dispatchAction",
+  "renderer",
+  "prepareTarget",
+  "resolveText",
+] as const;
 const publicDefinitionBindingsInternalV1 = new WeakMap<object, object>();
 const applicationSourceRecordsInternalV1 = new WeakMap<
   object,
@@ -440,7 +423,7 @@ const hostedAdapterRecordsInternalV1 = new WeakMap<
   object,
   WholeCanvasSurfaceHostedAdapterRecordInternalV1<unknown>
 >();
-const publicCanonicalLimitsInternalV1 = Object.freeze({
+const publicCanonicalLimitsInternalV1 = {
   maxBytes: parsePositiveSafeInteger(
     managedSurfaceStableContractLimitsInternalV1.canonicalParameters.maxBytes,
   ),
@@ -450,116 +433,41 @@ const publicCanonicalLimitsInternalV1 = Object.freeze({
   maxNodes: parsePositiveSafeInteger(
     managedSurfaceStableContractLimitsInternalV1.canonicalParameters.maxNodes,
   ),
-});
-const emptyCatalogInternalV1 = Object.freeze(
-  [] as WholeCanvasManagedSurfaceCatalogRowInternalV1[],
-);
+};
+const emptyCatalogInternalV1 = [] as WholeCanvasManagedSurfaceCatalogRowInternalV1[];
 const emptyFamilyContractInternalV1 = createWholeCanvasManagedSurfaceFamilyContractInternalV1(
   emptyCatalogInternalV1,
 );
 
-interface CapturedExactRecordInternalV1 {
-  readonly receiver: object;
-  readonly values: ReadonlyMap<string, unknown>;
+function isRecordInternalV1(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function captureFrozenPlainExactRecordInternalV1(
-  value: unknown,
-  keys: readonly string[],
-): CapturedExactRecordInternalV1 | null {
-  try {
-    if (
-      typeof value !== "object" || value === null || Array.isArray(value) ||
-      Reflect.getPrototypeOf(value) !== Object.prototype || !Object.isFrozen(value)
-    ) return null;
-    const ownKeys = Reflect.ownKeys(value);
-    if (
-      ownKeys.length !== keys.length ||
-      ownKeys.some((key) => typeof key !== "string" || !keys.includes(key))
-    ) return null;
-    const values = new Map<string, unknown>();
-    for (const key of keys) {
-      const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
-      if (
-        descriptor === undefined || !("value" in descriptor) ||
-        !descriptor.enumerable || descriptor.configurable || descriptor.writable
-      ) return null;
-      values.set(key, descriptor.value);
-    }
-    return Object.freeze({ receiver: value, values });
-  } catch {
-    return null;
-  }
-}
-
-function isCallableWithoutThenInternalV1(
-  value: unknown,
-): value is (...args: never[]) => unknown {
-  if (typeof value !== "function") return false;
-  try {
-    if (Reflect.get(value, "then") !== undefined) return false;
-    const visited = new Set<object>();
-    let current: object | null = value;
-    for (let depth = 0; current !== null && depth < 32; depth += 1) {
-      if (visited.has(current)) return false;
-      visited.add(current);
-      if (Reflect.getOwnPropertyDescriptor(current, "then") !== undefined) return false;
-      current = Reflect.getPrototypeOf(current);
-    }
-    return current === null;
-  } catch {
-    return false;
-  }
-}
-
-function captureDenseFrozenArrayPublicInternalV1(
-  value: unknown,
-): readonly unknown[] | null {
-  try {
-    if (
-      !Array.isArray(value) || !Object.isFrozen(value) ||
-      Reflect.getPrototypeOf(value) !== Array.prototype
-    ) return null;
-    const lengthDescriptor = Reflect.getOwnPropertyDescriptor(value, "length");
-    if (
-      lengthDescriptor === undefined || !("value" in lengthDescriptor) ||
-      typeof lengthDescriptor.value !== "number" ||
-      !Number.isSafeInteger(lengthDescriptor.value) || lengthDescriptor.value < 0
-    ) return null;
-    const length = lengthDescriptor.value;
-    const ownKeys = Reflect.ownKeys(value);
-    if (ownKeys.length !== length + 1) return null;
-    const captured: unknown[] = [];
-    for (let index = 0; index < length; index += 1) {
-      const descriptor = Reflect.getOwnPropertyDescriptor(value, String(index));
-      if (
-        descriptor === undefined || !("value" in descriptor) ||
-        !descriptor.enumerable || descriptor.configurable || descriptor.writable
-      ) return null;
-      captured.push(descriptor.value);
-    }
-    return Object.freeze(captured);
-  } catch {
-    return null;
-  }
+function hasExactPublicFieldsInternalV1(
+  value: Record<string, unknown>,
+  fields: readonly string[],
+): boolean {
+  const keys = Object.keys(value);
+  return keys.length === fields.length && fields.every((field) => Object.hasOwn(value, field));
 }
 
 function capturePublicTargetInternalV1(
   value: unknown,
 ): WholeCanvasSurfaceTargetV1<string> | null {
-  const captured = captureFrozenPlainExactRecordInternalV1(value, [
-    "targetId",
-    "parameters",
-  ]);
-  if (captured === null) return null;
+  if (
+    !isRecordInternalV1(value) || !hasExactPublicFieldsInternalV1(value, [
+      "targetId",
+      "parameters",
+    ])
+  ) return null;
   try {
-    const targetId = parseModuleId(captured.values.get("targetId"));
+    const targetId = parseModuleId(value.targetId);
     const parameters = projectBoundedCanonicalJsonInternalV1(
-      captured.values.get("parameters"),
+      value.parameters,
       publicCanonicalLimitsInternalV1,
     );
     if (parameters.kind !== "projected") return null;
-    return Object.freeze({ targetId, parameters: parameters.value });
+    return ({ targetId, parameters: parameters.value });
   } catch {
     return null;
   }
@@ -592,7 +500,7 @@ export function createWholeCanvasApplicationSourceV1<TTargetId extends string>(
   if (desired === null) {
     throw new TypeError("ui.whole_canvas_application_source_target_invalid");
   }
-  const port = Object.freeze({
+  const port = {
     replacePrimary(target: WholeCanvasSurfaceTargetV1<TTargetId>): void {
       if (record.state === "terminal") return;
       const captured = capturePublicTargetInternalV1(target);
@@ -614,7 +522,7 @@ export function createWholeCanvasApplicationSourceV1<TTargetId extends string>(
       record.desired = null;
       if (changed && record.state === "claimed") notifyApplicationSourceInternalV1(record);
     },
-  }) as WholeCanvasApplicationSourceV1<TTargetId>;
+  } as WholeCanvasApplicationSourceV1<TTargetId>;
   const record: WholeCanvasApplicationSourceRecordInternalV1 = {
     port: port as WholeCanvasApplicationSourceV1<string>,
     listeners: new Set(),
@@ -630,60 +538,45 @@ function capturePublicationSourceInternalV1<TSemanticPublication>(
   value: unknown,
 ):
   | Readonly<{
-    readonly receiver: WholeCanvasSurfacePublicationSourceV1<TSemanticPublication, string>;
     readonly selectPrimary: WholeCanvasSurfacePublicationSourceV1<
       TSemanticPublication,
       string
     >["selectPrimary"];
   }>
   | null {
-  const captured = captureFrozenPlainExactRecordInternalV1(value, ["kind", "selectPrimary"]);
-  const selectPrimary = captured?.values.get("selectPrimary");
   if (
-    captured?.values.get("kind") !== "publication" ||
-    !isCallableWithoutThenInternalV1(selectPrimary)
+    !isRecordInternalV1(value) || !hasExactPublicFieldsInternalV1(value, [
+      "kind",
+      "selectPrimary",
+    ])
   ) return null;
-  return Object.freeze({
-    receiver: captured.receiver as WholeCanvasSurfacePublicationSourceV1<
-      TSemanticPublication,
-      string
-    >,
+  const selectPrimary = value.selectPrimary;
+  if (
+    value.kind !== "publication" ||
+    typeof selectPrimary !== "function"
+  ) return null;
+  return {
     selectPrimary: selectPrimary as WholeCanvasSurfacePublicationSourceV1<
       TSemanticPublication,
       string
     >["selectPrimary"],
-  });
+  };
 }
 
 function capturePublicCatalogInternalV1(
   value: unknown,
 ): WholeCanvasManagedSurfaceFamilyContractInternalV1 | null {
-  const rows = captureDenseFrozenArrayPublicInternalV1(value);
-  if (rows === null || rows.length === 0) return null;
-  for (const row of rows) {
-    const captured = captureFrozenPlainExactRecordInternalV1(row, [
-      "targetId",
-      "contractRevision",
-      "placements",
-      "actionIds",
-      "defaultActionId",
-    ]);
-    if (
-      captured === null ||
-      captureDenseFrozenArrayPublicInternalV1(captured.values.get("placements")) === null ||
-      captureDenseFrozenArrayPublicInternalV1(captured.values.get("actionIds")) === null
-    ) return null;
-  }
+  if (!Array.isArray(value) || value.length === 0) return null;
   try {
     return createWholeCanvasManagedSurfaceFamilyContractInternalV1(
-      value as readonly WholeCanvasManagedSurfaceCatalogRowInternalV1[],
+      admitWholeCanvasManagedSurfaceCatalogInternalV1(value),
     );
   } catch {
     return null;
   }
 }
 
-/** Captures one exact public definition without exposing its runtime authority. */
+/** Admits one public definition without exposing its runtime authority. */
 export function defineWholeCanvasSurfaceV1<
   TSemanticPublication,
   TTargetId extends string,
@@ -691,39 +584,42 @@ export function defineWholeCanvasSurfaceV1<
 >(
   input: DefineWholeCanvasSurfaceInputV1<TSemanticPublication, TTargetId, TActionId>,
 ): WholeCanvasSurfaceDefinitionV1<TSemanticPublication> {
-  const captured = captureFrozenPlainExactRecordInternalV1(
-    input,
-    publicDefinitionKeysInternalV1,
-  );
-  const family = capturePublicCatalogInternalV1(captured?.values.get("catalog"));
-  const source = captured?.values.get("source");
-  const resolveTarget = captured?.values.get("resolveTarget");
-  const dispatchAction = captured?.values.get("dispatchAction");
-  const renderer = captured?.values.get("renderer");
-  const prepareTarget = captured?.values.get("prepareTarget");
-  const resolveText = captured?.values.get("resolveText");
+  const publicInput = input as unknown;
+  if (
+    !isRecordInternalV1(publicInput) ||
+    !hasExactPublicFieldsInternalV1(publicInput, publicDefinitionKeysInternalV1)
+  ) {
+    throw new TypeError("ui.whole_canvas_surface_definition_invalid");
+  }
+  const family = capturePublicCatalogInternalV1(publicInput.catalog);
+  const source = publicInput.source;
+  const resolveTarget = publicInput.resolveTarget;
+  const dispatchAction = publicInput.dispatchAction;
+  const renderer = publicInput.renderer;
+  const prepareTarget = publicInput.prepareTarget;
+  const resolveText = publicInput.resolveText;
   const publicationSource = capturePublicationSourceInternalV1<TSemanticPublication>(source);
   const applicationSource = typeof source === "object" && source !== null
     ? applicationSourceRecordsInternalV1.get(source) ?? null
     : null;
   if (
-    captured === null || family === null ||
+    family === null ||
     (publicationSource === null && applicationSource === null) ||
-    !isCallableWithoutThenInternalV1(resolveTarget) ||
-    (dispatchAction !== null && !isCallableWithoutThenInternalV1(dispatchAction)) ||
-    !isCallableWithoutThenInternalV1(renderer) ||
-    (prepareTarget !== null && !isCallableWithoutThenInternalV1(prepareTarget)) ||
-    !isCallableWithoutThenInternalV1(resolveText)
+    typeof resolveTarget !== "function" ||
+    (dispatchAction !== null && typeof dispatchAction !== "function") ||
+    typeof renderer !== "function" ||
+    (prepareTarget !== null && typeof prepareTarget !== "function") ||
+    typeof resolveText !== "function"
   ) {
     throw new TypeError("ui.whole_canvas_surface_definition_invalid");
   }
+  const catalogByTargetId = new Map(
+    family.catalog.map((row) => [row.targetId, row] as const),
+  );
   if (applicationSource !== null) {
     if (applicationSource.state !== "unbound") {
       throw new TypeError("ui.whole_canvas_application_source_binding_conflict");
     }
-    const catalogByTargetId = new Map(
-      family.catalog.map((row) => [row.targetId, row] as const),
-    );
     if (
       applicationSource.desired !== null &&
       !targetIsPrimaryMemberInternalV1(applicationSource.desired, catalogByTargetId)
@@ -734,14 +630,10 @@ export function defineWholeCanvasSurfaceV1<
     applicationSource.catalogByTargetId = catalogByTargetId;
     applicationSource.state = "bound_unclaimed";
   }
-  const definition = Object.freeze({}) as WholeCanvasSurfaceDefinitionV1<TSemanticPublication>;
+  const definition = {} as WholeCanvasSurfaceDefinitionV1<TSemanticPublication>;
   publicDefinitionBindingsInternalV1.set(definition, {
-    receiver: captured.receiver as unknown as DefineWholeCanvasSurfaceInputV1<
-      TSemanticPublication,
-      string,
-      string
-    >,
     family,
+    catalogByTargetId,
     sourceKind: applicationSource === null ? "publication" : "application",
     publicationSource,
     applicationSource,
@@ -766,19 +658,12 @@ export function defineWholeCanvasSurfaceV1<
 }
 
 function captureHostedPublicationSnapshotInternalV1<TSemanticPublication>(
-  value: unknown,
+  value: WholeCanvasSurfaceHostedPublicationSnapshotInternalV1<TSemanticPublication>,
 ): WholeCanvasSurfaceHostedPublicationSnapshotInternalV1<TSemanticPublication> {
-  const captured = captureFrozenPlainExactRecordInternalV1(value, ["semantic", "locale"]);
-  const locale = captured?.values.get("locale");
-  if (
-    captured === null ||
-    (locale !== null && (typeof locale !== "string" || locale.length === 0))
-  ) {
+  if (value.locale !== null && value.locale.length === 0) {
     throw new TypeError("ui.whole_canvas_surface_publication_invalid");
   }
-  return captured.receiver as unknown as WholeCanvasSurfaceHostedPublicationSnapshotInternalV1<
-    TSemanticPublication
-  >;
+  return value;
 }
 
 function resolveHostedAdapterRecordInternalV1<TSemanticPublication>(
@@ -797,7 +682,7 @@ function publicStoryTargetInternalV1(
   target: WholeCanvasSurfaceTargetV1<string>,
   sourceKind: "publication" | "application",
 ): NonNullable<WholeCanvasManagedSurfaceRootDesiredInternalV1["story"]> {
-  return Object.freeze({ sourceKind, target });
+  return ({ sourceKind, target });
 }
 
 /** Claims the public recipe once for the hosted aggregate; it never subscribes by itself. */
@@ -825,7 +710,7 @@ export function claimWholeCanvasSurfaceHostedAdapterInternalV1<TSemanticPublicat
       throw new TypeError("ui.whole_canvas_surface_publication_unbound");
     }
     const snapshot = captureHostedPublicationSnapshotInternalV1<TSemanticPublication>(
-      Reflect.apply(publication.getSnapshot, publication.receiver, []),
+      publication.getSnapshot(),
     );
     if (snapshot.locale !== record.publicationLocale) {
       if (record.presentationRevision === Number.MAX_SAFE_INTEGER) {
@@ -845,51 +730,42 @@ export function claimWholeCanvasSurfaceHostedAdapterInternalV1<TSemanticPublicat
     }
     const publication = currentPublication();
     const source = binding.publicationSource!;
-    const rawSelection = Reflect.apply(source.selectPrimary, source.receiver, [
-      publication.semantic,
-    ]);
-    const selection = captureFrozenPlainExactRecordInternalV1(rawSelection, ["primary"]);
-    const rawPrimary = selection?.values.get("primary");
+    const selection = source.selectPrimary(publication.semantic) as unknown;
+    const validSelection = isRecordInternalV1(selection) &&
+      hasExactPublicFieldsInternalV1(selection, ["primary"]);
+    const rawPrimary = validSelection ? selection.primary : undefined;
     const primary = rawPrimary === null ? null : capturePublicTargetInternalV1(rawPrimary);
-    const catalogByTargetId = new Map(
-      binding.family.catalog.map((row) => [row.targetId, row] as const),
-    );
     if (
-      selection === null || (rawPrimary !== null && primary === null) ||
-      (primary !== null && !targetIsPrimaryMemberInternalV1(primary, catalogByTargetId))
+      !validSelection || (rawPrimary !== null && primary === null) ||
+      (primary !== null && !targetIsPrimaryMemberInternalV1(primary, binding.catalogByTargetId))
     ) {
       throw new TypeError("ui.whole_canvas_surface_selection_invalid");
     }
     return primary === null ? null : publicStoryTargetInternalV1(primary, "publication");
   };
-  const publicOwnerDispatcher = binding.dispatchAction === null ? null : Object.freeze((
+  const publicOwnerDispatcher = binding.dispatchAction === null ? null : (
     request: Parameters<
       Exclude<WholeCanvasManagedSurfaceOwnerActionDispatcherInternalV1, null>
     >[0],
   ) => {
-    const publicRequest = Object.freeze({
+    const publicRequest = {
       placement: request.placement,
       primary: request.primary,
       detail: request.detail,
       actionId: request.actionId,
       payload: request.payload,
-    });
-    return Reflect.apply(binding.dispatchAction!, binding.receiver, [publicRequest]);
-  });
+    };
+    return binding.dispatchAction!(publicRequest);
+  };
   const wrapResolvedPresentation = (resolved: unknown): unknown => {
-    const captured = captureFrozenPlainExactRecordInternalV1(resolved, [
-      "accessibleNameTextId",
-      "view",
-      "actions",
-    ]);
-    if (captured === null) return resolved;
-    return Object.freeze({
-      accessibleNameTextId: captured.values.get("accessibleNameTextId"),
-      view: Object.freeze({
-        publicViewInternalV1: captured.values.get("view"),
+    if (!isRecordInternalV1(resolved)) return resolved;
+    return ({
+      accessibleNameTextId: resolved.accessibleNameTextId,
+      view: {
+        publicViewInternalV1: resolved.view,
         presentationRevisionInternalV1: record.presentationRevision,
-      }),
-      actions: captured.values.get("actions"),
+      },
+      actions: resolved.actions,
     });
   };
   const unwrapResolvedPresentationView = (
@@ -907,7 +783,7 @@ export function claimWholeCanvasSurfaceHostedAdapterInternalV1<TSemanticPublicat
     }
     return record.publicViewInternalV1!;
   };
-  const adapter: WholeCanvasSurfaceHostedAdapterInternalV1<TSemanticPublication> = Object.freeze({
+  const adapter: WholeCanvasSurfaceHostedAdapterInternalV1<TSemanticPublication> = {
     familyInternalV1: binding.family,
     catalogInternalV1: binding.family.catalog,
     sourceKindInternalV1: binding.sourceKind,
@@ -915,61 +791,40 @@ export function claimWholeCanvasSurfaceHostedAdapterInternalV1<TSemanticPublicat
       input: BindWholeCanvasSurfaceHostedPublicationInputInternalV1<TSemanticPublication>,
     ): void {
       const activeRecord = resolveHostedAdapterRecordInternalV1(adapter);
-      const captured = captureFrozenPlainExactRecordInternalV1(input, [
-        "getSnapshotInternalV1",
-        "subscribeInternalV1",
-      ]);
-      const getSnapshot = captured?.values.get("getSnapshotInternalV1");
-      const subscribe = captured?.values.get("subscribeInternalV1");
-      if (
-        activeRecord.publication !== null || captured === null ||
-        !isCallableWithoutThenInternalV1(getSnapshot) ||
-        !isCallableWithoutThenInternalV1(subscribe)
-      ) {
+      if (activeRecord.publication !== null) {
         throw new TypeError("ui.whole_canvas_surface_publication_binding_invalid");
       }
       const initialPublication = captureHostedPublicationSnapshotInternalV1<TSemanticPublication>(
-        Reflect.apply(getSnapshot, captured.receiver, []),
+        input.getSnapshotInternalV1(),
       );
-      activeRecord.publication = Object.freeze({
-        receiver: captured.receiver as BindWholeCanvasSurfaceHostedPublicationInputInternalV1<
-          TSemanticPublication
-        >,
-        getSnapshot: getSnapshot as BindWholeCanvasSurfaceHostedPublicationInputInternalV1<
-          TSemanticPublication
-        >["getSnapshotInternalV1"],
-        subscribe: subscribe as BindWholeCanvasSurfaceHostedPublicationInputInternalV1<
-          TSemanticPublication
-        >["subscribeInternalV1"],
-      });
+      activeRecord.publication = {
+        getSnapshot: input.getSnapshotInternalV1,
+        subscribe: input.subscribeInternalV1,
+      };
       activeRecord.publicationLocale = initialPublication.locale;
     },
     getStoryDesiredInternalV1: getStoryDesired,
     subscribeStoryInternalV1(listener: () => void): () => void {
       const activeRecord = resolveHostedAdapterRecordInternalV1(adapter);
       const publication = activeRecord.publication;
-      if (publication === null || !isCallableWithoutThenInternalV1(listener)) {
+      if (publication === null) {
         throw new TypeError("ui.whole_canvas_surface_subscription_invalid");
       }
       if (applicationSource !== null) applicationSource.listeners.add(listener);
-      let rawUnsubscribe: unknown;
+      let unsubscribe: () => void;
       try {
-        rawUnsubscribe = Reflect.apply(publication.subscribe, publication.receiver, [listener]);
+        unsubscribe = publication.subscribe(listener);
       } catch (error) {
         applicationSource?.listeners.delete(listener);
         throw error;
       }
-      if (!isCallableWithoutThenInternalV1(rawUnsubscribe)) {
-        applicationSource?.listeners.delete(listener);
-        throw new TypeError("ui.whole_canvas_surface_subscription_invalid");
-      }
       let subscribed = true;
-      return Object.freeze((): void => {
+      return (): void => {
         if (!subscribed) return;
         subscribed = false;
         applicationSource?.listeners.delete(listener);
-        Reflect.apply(rawUnsubscribe as () => void, undefined, []);
-      });
+        unsubscribe();
+      };
     },
     resolveStoryTargetInternalV1(
       request: Parameters<WholeCanvasManagedSurfaceResolveTargetInternalV1>[0],
@@ -977,37 +832,11 @@ export function claimWholeCanvasSurfaceHostedAdapterInternalV1<TSemanticPublicat
       if (
         request.rootKind !== "primary" || request.sourceKind !== binding.sourceKind
       ) throw new TypeError("ui.whole_canvas_surface_resolution_invalid");
-      const resolved = Reflect.apply(binding.resolveTarget, binding.receiver, [Object.freeze({
+      const resolved = binding.resolveTarget({
         publication: currentPublication().semantic,
         placement: request.placement,
         target: request.target,
-      })]);
-      if (binding.dispatchAction === null) {
-        const captured = captureFrozenPlainExactRecordInternalV1(resolved, [
-          "accessibleNameTextId",
-          "view",
-          "actions",
-        ]);
-        const actions = captureDenseFrozenArrayPublicInternalV1(captured?.values.get("actions"));
-        if (captured === null || actions === null) {
-          throw new TypeError("ui.whole_canvas_surface_resolution_invalid");
-        }
-        for (const action of actions) {
-          const capturedAction = captureFrozenPlainExactRecordInternalV1(action, [
-            "actionId",
-            "status",
-            "reasonTextIds",
-            "intent",
-          ]);
-          const capturedIntent = captureFrozenPlainExactRecordInternalV1(
-            capturedAction?.values.get("intent"),
-            ["kind", "payload"],
-          );
-          if (capturedAction === null || capturedIntent?.values.get("kind") === "owner") {
-            throw new TypeError("ui.whole_canvas_surface_resolution_invalid");
-          }
-        }
-      }
+      });
       return wrapResolvedPresentation(resolved);
     },
     dispatchStoryOwnerActionInternalV1: publicOwnerDispatcher,
@@ -1017,14 +846,14 @@ export function claimWholeCanvasSurfaceHostedAdapterInternalV1<TSemanticPublicat
     ): Promise<unknown> {
       if (binding.prepareTarget === null) return Promise.resolve();
       const target = entry.placement === "primary"
-        ? Object.freeze({ kind: "primary" as const, primary: entry.target })
+        ? { kind: "primary" as const, primary: entry.target }
         : primary === null
         ? null
-        : Object.freeze({
+        : {
           kind: "detail" as const,
           primary,
           detail: entry.target,
-        });
+        };
       if (target === null) {
         return Promise.reject(
           new TypeError("ui.whole_canvas_surface_preparation_invalid"),
@@ -1032,7 +861,7 @@ export function claimWholeCanvasSurfaceHostedAdapterInternalV1<TSemanticPublicat
       }
       let result: unknown;
       try {
-        result = Reflect.apply(binding.prepareTarget, binding.receiver, [target]);
+        result = binding.prepareTarget(target);
       } catch (error) {
         return Promise.reject(error);
       }
@@ -1045,15 +874,13 @@ export function claimWholeCanvasSurfaceHostedAdapterInternalV1<TSemanticPublicat
       primary: WholeCanvasSurfaceTargetV1<string> | null,
     ): ReactNode {
       const { entry } = props;
-      const actions = Object.freeze(entry.resolved.actions.map((action) =>
-        Object.freeze({
-          actionId: action.actionId,
-          status: action.status,
-          reasonTextIds: action.reasonTextIds,
-        })
-      ));
+      const actions = entry.resolved.actions.map((action) => ({
+        actionId: action.actionId,
+        status: action.status,
+        reasonTextIds: action.reasonTextIds,
+      }));
       const rendererProps = entry.placement === "primary"
-        ? Object.freeze({
+        ? {
           kind: "primary" as const,
           target: entry.target,
           view: unwrapResolvedPresentationView(entry.resolved.view),
@@ -1061,10 +888,10 @@ export function claimWholeCanvasSurfaceHostedAdapterInternalV1<TSemanticPublicat
           resolveText: adapter.resolveTextInternalV1,
           onAction: props.onAction,
           onBack: props.onBack,
-        })
+        }
         : primary === null
         ? null
-        : Object.freeze({
+        : {
           kind: "detail" as const,
           primary,
           target: entry.target,
@@ -1073,15 +900,12 @@ export function claimWholeCanvasSurfaceHostedAdapterInternalV1<TSemanticPublicat
           resolveText: adapter.resolveTextInternalV1,
           onAction: props.onAction,
           onBack: props.onBack,
-        });
+        };
       return rendererProps === null ? null : createElement(binding.renderer, rendererProps);
     },
     resolveTextInternalV1(textId: string): string {
       const stableTextId = parseModuleId(textId);
-      return Reflect.apply(binding.resolveText, binding.receiver, [
-        currentPublication().locale,
-        stableTextId,
-      ]);
+      return binding.resolveText(currentPublication().locale, stableTextId);
     },
     bindCompositionDefinitionInternalV1(
       compositionDefinition: WholeCanvasSurfaceCompositionDefinitionInternalV1<unknown>,
@@ -1091,12 +915,11 @@ export function claimWholeCanvasSurfaceHostedAdapterInternalV1<TSemanticPublicat
       const compositionBinding = resolveDefinitionBindingInternalV1(compositionDefinition);
       if (
         activeRecord.compositionDefinition !== null ||
-        compositionBinding.privateMetadata.current !== null ||
-        !isCallableWithoutThenInternalV1(resolveTextInternalV1)
+        compositionBinding.privateMetadata.current !== null
       ) {
         throw new TypeError("ui.whole_canvas_surface_hosted_adapter_invalid");
       }
-      const metadataInput = Object.freeze({
+      const metadataInput = {
         resolveTextInternalV1,
         applyAcceptedNavigationInternalV1(
           intent: WholeCanvasSurfaceAcceptedApplicationNavigationIntentInternalV1,
@@ -1108,7 +931,7 @@ export function claimWholeCanvasSurfaceHostedAdapterInternalV1<TSemanticPublicat
             applicationSource.port.closePrimary();
           }
         },
-      });
+      };
       const metadata = bindCompositionPrivateMetadataCoreInternalV1(
         compositionDefinition,
         metadataInput,
@@ -1147,7 +970,7 @@ export function claimWholeCanvasSurfaceHostedAdapterInternalV1<TSemanticPublicat
         applicationSource.state = "terminal";
       }
     },
-  });
+  };
   const record: WholeCanvasSurfaceHostedAdapterRecordInternalV1<TSemanticPublication> = {
     adapter,
     definition,
@@ -1180,44 +1003,14 @@ function bindCompositionPrivateMetadataCoreInternalV1(
   definition: WholeCanvasSurfaceCompositionDefinitionInternalV1<unknown>,
   input: BindWholeCanvasSurfaceCompositionPrivateMetadataInputInternalV1,
 ): WholeCanvasSurfaceCompositionPrivateMetadataInternalV1 {
-  const captured = captureFrozenPlainExactRecordInternalV1(input, [
-    "resolveTextInternalV1",
-    "applyAcceptedNavigationInternalV1",
-  ]);
-  const resolveText = captured?.values.get("resolveTextInternalV1");
-  const applyAcceptedNavigation = captured?.values.get(
-    "applyAcceptedNavigationInternalV1",
-  );
   const binding = resolveDefinitionBindingInternalV1(definition);
-  if (
-    captured === null || binding.privateMetadata.current !== null ||
-    !isCallableWithoutThenInternalV1(resolveText) ||
-    !isCallableWithoutThenInternalV1(applyAcceptedNavigation)
-  ) {
+  if (binding.privateMetadata.current !== null) {
     throw new TypeError("ui.whole_canvas_surface_private_metadata_invalid");
   }
-  const metadata = Object.freeze({
-    resolveTextInternalV1: Object.freeze((textId: string): string =>
-      Reflect.apply(
-        resolveText as BindWholeCanvasSurfaceCompositionPrivateMetadataInputInternalV1[
-          "resolveTextInternalV1"
-        ],
-        captured.receiver,
-        [textId],
-      )
-    ),
-    applyAcceptedNavigationInternalV1: Object.freeze(
-      (intent: WholeCanvasSurfaceAcceptedApplicationNavigationIntentInternalV1): void => {
-        Reflect.apply(
-          applyAcceptedNavigation as BindWholeCanvasSurfaceCompositionPrivateMetadataInputInternalV1[
-            "applyAcceptedNavigationInternalV1"
-          ],
-          captured.receiver,
-          [intent],
-        );
-      },
-    ),
-  });
+  const metadata: WholeCanvasSurfaceCompositionPrivateMetadataInternalV1 = {
+    resolveTextInternalV1: input.resolveTextInternalV1,
+    applyAcceptedNavigationInternalV1: input.applyAcceptedNavigationInternalV1,
+  };
   binding.privateMetadata.current = metadata;
   return metadata;
 }
@@ -1236,57 +1029,29 @@ export function createWholeCanvasSurfaceCompositionDefinitionInternalV1<
 >(
   input: CreateWholeCanvasSurfaceCompositionDefinitionInputInternalV1,
 ): WholeCanvasSurfaceCompositionDefinitionInternalV1<TSource> {
-  const captured = captureFrozenPlainExactRecordInternalV1(input, definitionKeysInternalV1);
-  const catalog = captured?.values.get("catalog");
-  const getSnapshot = captured?.values.get("getSnapshotInternalV1");
-  const subscribe = captured?.values.get("subscribeInternalV1");
-  const resolveTarget = captured?.values.get("resolveTargetInternalV1");
-  const dispatchOwnerAction = captured?.values.get("dispatchOwnerActionInternalV1");
-  const prepareTarget = captured?.values.get("prepareTargetInternalV1");
-  const render = captured?.values.get("renderInternalV1");
-  if (
-    captured === null || !isCallableWithoutThenInternalV1(getSnapshot) ||
-    !isCallableWithoutThenInternalV1(subscribe) ||
-    !isCallableWithoutThenInternalV1(resolveTarget) ||
-    (dispatchOwnerAction !== null && !isCallableWithoutThenInternalV1(dispatchOwnerAction)) ||
-    (prepareTarget !== null && !isCallableWithoutThenInternalV1(prepareTarget)) ||
-    !isCallableWithoutThenInternalV1(render)
-  ) {
-    throw new TypeError("ui.whole_canvas_surface_composition_definition_invalid");
-  }
   let family: WholeCanvasManagedSurfaceFamilyContractInternalV1;
   try {
     family = createWholeCanvasManagedSurfaceFamilyContractInternalV1(
-      catalog as readonly WholeCanvasManagedSurfaceCatalogRowInternalV1[],
+      input.catalog,
     );
   } catch (error) {
     throw new TypeError("ui.whole_canvas_surface_composition_definition_invalid", {
       cause: error,
     });
   }
-  const definition = Object.freeze(
-    {},
-  ) as WholeCanvasSurfaceCompositionDefinitionInternalV1<TSource>;
+  const definition = {} as WholeCanvasSurfaceCompositionDefinitionInternalV1<TSource>;
   definitionBindingsInternalV1.set(
     definition,
-    Object.freeze({
-      receiver: captured.receiver as CreateWholeCanvasSurfaceCompositionDefinitionInputInternalV1,
+    {
       family,
-      getSnapshot: getSnapshot as WholeCanvasSurfaceCompositionDefinitionBindingInternalV1[
-        "getSnapshot"
-      ],
-      subscribe: subscribe as WholeCanvasSurfaceCompositionDefinitionBindingInternalV1[
-        "subscribe"
-      ],
-      resolveTarget: resolveTarget as WholeCanvasManagedSurfaceResolveTargetInternalV1,
-      dispatchOwnerAction:
-        dispatchOwnerAction as WholeCanvasManagedSurfaceOwnerActionDispatcherInternalV1,
-      prepareTarget: prepareTarget as WholeCanvasSurfaceCompositionDefinitionBindingInternalV1[
-        "prepareTarget"
-      ],
-      render: render as ComponentType<WholeCanvasSurfaceRendererPropsInternalV1>,
+      getSnapshot: input.getSnapshotInternalV1,
+      subscribe: input.subscribeInternalV1,
+      resolveTarget: input.resolveTargetInternalV1,
+      dispatchOwnerAction: input.dispatchOwnerActionInternalV1,
+      prepareTarget: input.prepareTargetInternalV1,
+      render: input.renderInternalV1,
       privateMetadata: { current: null },
-    }),
+    },
   );
   return definition;
 }
@@ -1359,7 +1124,6 @@ interface WholeCanvasSurfaceHostInstalledInputInternalV1 {
 }
 
 interface WholeCanvasSurfaceHostPhysicalIngressInternalV1 {
-  readonly token: object;
   readonly portalContainer: HTMLDivElement;
   readonly inputRouter: InputRouterV1;
   active: boolean;
@@ -1390,16 +1154,16 @@ interface HostBindingRecordInternalV1 {
 }
 
 const hostBindingRecordsInternalV1 = new WeakMap<object, HostBindingRecordInternalV1>();
-const disposedHostSnapshotInternalV1: WholeCanvasManagedSurfaceSnapshotInternalV1 = Object.freeze({
-  root: Object.freeze({ current: null, pending: null, failure: null }),
-  detail: Object.freeze({ current: null, pending: null, failure: null }),
+const disposedHostSnapshotInternalV1: WholeCanvasManagedSurfaceSnapshotInternalV1 = {
+  root: { current: null, pending: null, failure: null },
+  detail: { current: null, pending: null, failure: null },
   disposed: true,
-});
-const staleHostResultInternalV1: WholeCanvasManagedSurfaceResultInternalV1 = Object.freeze({
+};
+const staleHostResultInternalV1: WholeCanvasManagedSurfaceResultInternalV1 = {
   kind: "stale",
   code: "ui.whole_canvas_stale",
-});
-const noHostSubscriptionInternalV1 = Object.freeze((): void => undefined);
+};
+const noHostSubscriptionInternalV1 = (): void => undefined;
 
 function releasePhysicalIngressInternalV1(record: HostBindingRecordInternalV1): void {
   const physicalIngress = record.physicalIngress;
@@ -1413,7 +1177,7 @@ function releasePhysicalIngressInternalV1(record: HostBindingRecordInternalV1): 
   try {
     unregister?.();
   } catch {
-    // The current generation is already fenced before hostile cleanup runs.
+    // The current generation is already fenced before observer cleanup runs.
   }
 }
 
@@ -1446,12 +1210,12 @@ function createHostBindingRecordInternalV1(
   readonly record: HostBindingRecordInternalV1;
   readonly hostCommitPort: WholeCanvasManagedSurfaceHostCommitPortInternalV1;
 }> {
-  const opaque = Object.freeze({}) as WholeCanvasSurfaceHostBindingInternalV1;
+  const opaque = {} as WholeCanvasSurfaceHostBindingInternalV1;
   const currentSession = (): WholeCanvasManagedSurfaceSessionInternalV1 | null =>
     record.active && !record.terminal ? record.session : null;
   const frameIsInstalled = (frame: WholeCanvasManagedSurfaceFrameInternalV1): boolean =>
     record.installedInput?.frame === frame;
-  const runtime: WholeCanvasSurfaceHostBindingRuntimeInternalV1 = Object.freeze({
+  const runtime: WholeCanvasSurfaceHostBindingRuntimeInternalV1 = {
     getSnapshotInternalV1: () =>
       currentSession()?.getSnapshotInternalV1() ?? disposedHostSnapshotInternalV1,
     subscribeInternalV1(listener: () => void): () => void {
@@ -1473,9 +1237,7 @@ function createHostBindingRecordInternalV1(
         if (!runtime.isCurrentInternalV1()) return false;
         if (binding.prepareTarget === null) return true;
         try {
-          await Reflect.apply(binding.prepareTarget, binding.receiver, [
-            readiness.renderEntry,
-          ]);
+          await binding.prepareTarget(readiness.renderEntry);
           return runtime.isCurrentInternalV1() &&
             readinessIsCurrentInternalV1(runtime.getSnapshotInternalV1(), readiness);
         } catch {
@@ -1518,7 +1280,7 @@ function createHostBindingRecordInternalV1(
             candidate.intent.kind === "close_primary")
         )
         : undefined;
-      const result = session.dispatchActionInternalV1(Object.freeze({ frame, actionId }));
+      const result = session.dispatchActionInternalV1({ frame, actionId });
       if (
         action !== undefined &&
         (action.intent.kind === "replace_primary" ||
@@ -1534,7 +1296,7 @@ function createHostBindingRecordInternalV1(
       kind: ManagedSurfaceDismissKindV1,
     ): WholeCanvasManagedSurfaceResultInternalV1 {
       if (!frameIsInstalled(frame)) return staleHostResultInternalV1;
-      return currentSession()?.dismissInternalV1(Object.freeze({ frame, kind })) ??
+      return currentSession()?.dismissInternalV1({ frame, kind }) ??
         staleHostResultInternalV1;
     },
     retryCurrentInternalV1(): WholeCanvasManagedSurfaceResultInternalV1 {
@@ -1550,29 +1312,19 @@ function createHostBindingRecordInternalV1(
         readonly inputRouter: InputRouterV1;
       }>,
     ): () => void {
-      const captured = captureFrozenPlainExactRecordInternalV1(input, [
-        "hostIdentity",
-        "portalContainer",
-        "inputRouter",
-      ]);
-      const hostIdentity = captured?.values.get("hostIdentity");
-      const portalContainer = captured?.values.get("portalContainer");
-      const inputRouter = captured?.values.get("inputRouter");
       if (
         !runtime.isCurrentInternalV1() || record.physicalIngress === null ||
-        record.hostMountIdentity !== null || captured === null ||
-        typeof hostIdentity !== "object" || hostIdentity === null ||
-        record.physicalIngress.portalContainer !== portalContainer ||
-        record.physicalIngress.inputRouter !== inputRouter || !Object.isFrozen(hostIdentity) ||
-        Reflect.ownKeys(hostIdentity).length !== 0
+        record.hostMountIdentity !== null ||
+        record.physicalIngress.portalContainer !== input.portalContainer ||
+        record.physicalIngress.inputRouter !== input.inputRouter
       ) throw new TypeError("ui.whole_canvas_surface_host_mount_invalid");
-      record.hostMountIdentity = hostIdentity;
+      record.hostMountIdentity = input.hostIdentity;
       let mounted = true;
-      return Object.freeze((): void => {
+      return (): void => {
         if (!mounted) return;
         mounted = false;
-        if (record.hostMountIdentity === hostIdentity) record.hostMountIdentity = null;
-      });
+        if (record.hostMountIdentity === input.hostIdentity) record.hostMountIdentity = null;
+      };
     },
     isHostMountCurrentInternalV1(hostIdentity: object): boolean {
       return runtime.isCurrentInternalV1() && record.physicalIngress !== null &&
@@ -1586,37 +1338,30 @@ function createHostBindingRecordInternalV1(
         ) => (() => void) | null;
       }>,
     ): () => void {
-      const captured = captureFrozenPlainExactRecordInternalV1(input, [
-        "hostIdentity",
-        "prepareFocusInternalV1",
-      ]);
-      const hostIdentity = captured?.values.get("hostIdentity");
-      const prepareFocus = captured?.values.get("prepareFocusInternalV1");
       const strictReplay = record.hostMountIdentity === null && record.focusCommit === null &&
         record.physicalIngress !== null;
       if (
-        captured === null || !runtime.isCurrentInternalV1() ||
-        (record.hostMountIdentity !== hostIdentity && !strictReplay) ||
-        record.focusCommit !== null ||
-        !isCallableWithoutThenInternalV1(prepareFocus)
+        !runtime.isCurrentInternalV1() ||
+        (record.hostMountIdentity !== input.hostIdentity && !strictReplay) ||
+        record.focusCommit !== null
       ) throw new TypeError("ui.whole_canvas_surface_host_focus_commit_invalid");
-      const registration = Object.freeze({
-        hostIdentity: hostIdentity as object,
-        prepareFocus: prepareFocus as WholeCanvasSurfaceHostFocusCommitInternalV1["prepareFocus"],
-      });
+      const registration: WholeCanvasSurfaceHostFocusCommitInternalV1 = {
+        hostIdentity: input.hostIdentity,
+        prepareFocus: input.prepareFocusInternalV1,
+      };
       record.focusCommit = registration;
       let active = true;
-      return Object.freeze((): void => {
+      return (): void => {
         if (!active) return;
         active = false;
         if (record.focusCommit === registration) record.focusCommit = null;
-      });
+      };
     },
     renderInternalV1(props: WholeCanvasSurfaceRendererPropsInternalV1): ReactNode {
       if (!runtime.isCurrentInternalV1()) return null;
       return createElement(binding.render, props);
     },
-  });
+  };
   const record: HostBindingRecordInternalV1 = {
     opaque,
     binding,
@@ -1631,7 +1376,7 @@ function createHostBindingRecordInternalV1(
     terminal: false,
     hostGeneration: 0,
   };
-  const hostCommitPort: WholeCanvasManagedSurfaceHostCommitPortInternalV1 = Object.freeze({
+  const hostCommitPort: WholeCanvasManagedSurfaceHostCommitPortInternalV1 = {
     prepareCommitInternalV1(
       request: WholeCanvasManagedSurfaceHostCommitRequestInternalV1,
     ) {
@@ -1644,28 +1389,26 @@ function createHostBindingRecordInternalV1(
       let rollbackFocus: (() => void) | null = null;
       let committed = false;
       let finished = false;
-      return Object.freeze({
+      return ({
         hostGeneration,
         commitInternalV1(
           input: WholeCanvasManagedSurfaceHostCommitInputInternalV1,
         ): boolean {
           if (
             committed || finished || !record.active || record.terminal ||
-            !Object.isFrozen(input)
+            input.contract === null && input.nextInputFrame !== null
           ) return false;
           if (input.contract === null) {
-            if (input.nextInputFrame !== null) return false;
             record.installedInput = null;
           } else {
             if (
               physicalIngress === null || !physicalIngress.active ||
-              record.physicalIngress !== physicalIngress || input.nextInputFrame === null ||
-              !Object.isFrozen(input.contract) || Reflect.ownKeys(input.contract).length !== 0
+              record.physicalIngress !== physicalIngress || input.nextInputFrame === null
             ) return false;
-            record.installedInput = Object.freeze({
+            record.installedInput = {
               contract: input.contract,
               frame: input.nextInputFrame,
-            });
+            };
             if (
               request.kind === "root_readiness" && request.outcome === "failed" &&
               request.retainedRootFrame !== null && previousInstalledInput !== null
@@ -1674,18 +1417,12 @@ function createHostBindingRecordInternalV1(
             }
           }
           if (focusCommit !== null && record.focusCommit === focusCommit) {
-            let rawRollback: unknown;
             try {
-              rawRollback = Reflect.apply(focusCommit.prepareFocus, undefined, [request]);
+              rollbackFocus = focusCommit.prepareFocus(request);
             } catch {
               record.installedInput = previousInstalledInput;
               return false;
             }
-            if (rawRollback !== null && !isCallableWithoutThenInternalV1(rawRollback)) {
-              record.installedInput = previousInstalledInput;
-              return false;
-            }
-            rollbackFocus = rawRollback as (() => void) | null;
           }
           committed = true;
           return true;
@@ -1710,9 +1447,9 @@ function createHostBindingRecordInternalV1(
       record.terminal = true;
       record.installedInput = null;
     },
-  });
+  };
   hostBindingRecordsInternalV1.set(opaque, record);
-  return Object.freeze({ record, hostCommitPort });
+  return { record, hostCommitPort };
 }
 
 interface WholeCanvasSurfaceCompositionGenerationInternalV1 {
@@ -1759,9 +1496,6 @@ export function createWholeCanvasSurfaceCompositionRuntimeInternalV1(
   const binding = input.definition === null ? null : resolveDefinitionBindingInternalV1(
     input.definition,
   );
-  if (!isCallableWithoutThenInternalV1(input.resolveKernelBundleInternalV1)) {
-    throw new TypeError("ui.whole_canvas_surface_composition_invalid");
-  }
   const listeners = new Set<() => void>();
   let current: WholeCanvasSurfaceCompositionGenerationInternalV1 | null = null;
   let prepared: WholeCanvasSurfaceCompositionGenerationInternalV1 | null = null;
@@ -1817,7 +1551,7 @@ export function createWholeCanvasSurfaceCompositionRuntimeInternalV1(
 
   const readDesired = (): WholeCanvasManagedSurfaceRootDesiredInternalV1 | null => {
     if (binding === null) return null;
-    return Reflect.apply(binding.getSnapshot, binding.receiver, []);
+    return binding.getSnapshot();
   };
 
   const reconcile = (
@@ -1848,7 +1582,7 @@ export function createWholeCanvasSurfaceCompositionRuntimeInternalV1(
     noThrow(() => input.reportFailure?.(error));
   };
 
-  const adapter: WholeCanvasSurfaceCompositionRuntimeInternalV1 = Object.freeze({
+  const adapter: WholeCanvasSurfaceCompositionRuntimeInternalV1 = {
     isHostEnabledInternalV1(): boolean {
       return binding !== null;
     },
@@ -1892,44 +1626,40 @@ export function createWholeCanvasSurfaceCompositionRuntimeInternalV1(
         };
         return;
       }
-      const bundle = Reflect.apply(input.resolveKernelBundleInternalV1, input, [runtime]);
+      const bundle = input.resolveKernelBundleInternalV1(runtime);
       if (bundle.applicationEpoch !== runtime.applicationEpoch) {
         throw new TypeError("ui.whole_canvas_surface_composition_kernel_invalid");
       }
       const host = createHostBindingRecordInternalV1(binding, failComposition);
       let session: WholeCanvasManagedSurfaceSessionInternalV1 | null = null;
       try {
-        session = createWholeCanvasManagedSurfaceSessionInternalV1(Object.freeze({
+        session = createWholeCanvasManagedSurfaceSessionInternalV1({
           kernelBundle: bundle,
           family: binding.family,
-          resolveTargetInternalV1: Object.freeze((
+          resolveTargetInternalV1: (
             request: Parameters<WholeCanvasManagedSurfaceResolveTargetInternalV1>[0],
-          ) => Reflect.apply(binding.resolveTarget, binding.receiver, [request])),
-          dispatchOwnerActionInternalV1: binding.dispatchOwnerAction === null
-            ? null
-            : Object.freeze((
-              request: Parameters<
-                Exclude<WholeCanvasManagedSurfaceOwnerActionDispatcherInternalV1, null>
-              >[0],
-            ) => {
-              let completion: unknown;
-              try {
-                completion = Reflect.apply(binding.dispatchOwnerAction!, binding.receiver, [
-                  request,
-                ]);
-              } catch (cause) {
-                const error = new TypeError("ui.whole_canvas_surface_action_fault", { cause });
-                noThrow(() => input.reportActionFailure?.(error));
-                throw cause;
-              }
-              return Promise.resolve(completion).catch((cause: unknown) => {
-                const error = new TypeError("ui.whole_canvas_surface_action_fault", { cause });
-                noThrow(() => input.reportActionFailure?.(error));
-                throw cause;
-              });
-            }),
+          ) => binding.resolveTarget(request),
+          dispatchOwnerActionInternalV1: binding.dispatchOwnerAction === null ? null : (
+            request: Parameters<
+              Exclude<WholeCanvasManagedSurfaceOwnerActionDispatcherInternalV1, null>
+            >[0],
+          ) => {
+            let completion: unknown;
+            try {
+              completion = binding.dispatchOwnerAction!(request);
+            } catch (cause) {
+              const error = new TypeError("ui.whole_canvas_surface_action_fault", { cause });
+              noThrow(() => input.reportActionFailure?.(error));
+              throw cause;
+            }
+            return Promise.resolve(completion).catch((cause: unknown) => {
+              const error = new TypeError("ui.whole_canvas_surface_action_fault", { cause });
+              noThrow(() => input.reportActionFailure?.(error));
+              throw cause;
+            });
+          },
           hostCommitPortInternalV1: host.hostCommitPort,
-        }));
+        });
         host.record.session = session;
         const generation: WholeCanvasSurfaceCompositionGenerationInternalV1 = {
           runtime,
@@ -1987,9 +1717,9 @@ export function createWholeCanvasSurfaceCompositionRuntimeInternalV1(
             failComposition(error);
           }
         };
-        let unsubscribe: unknown;
+        let unsubscribe: () => void;
         try {
-          unsubscribe = Reflect.apply(binding.subscribe, binding.receiver, [listener]);
+          unsubscribe = binding.subscribe(listener);
         } catch (error) {
           prepared = null;
           retireGeneration(generation);
@@ -1999,13 +1729,13 @@ export function createWholeCanvasSurfaceCompositionRuntimeInternalV1(
         } finally {
           subscribing = false;
         }
-        if (!isCallableWithoutThenInternalV1(unsubscribe) || reentered) {
-          if (typeof unsubscribe === "function") noThrow(unsubscribe as () => void);
+        if (reentered) {
+          noThrow(unsubscribe);
           prepared = null;
           retireGeneration(generation);
           throw new TypeError("ui.whole_canvas_surface_subscription_invalid");
         }
-        generation.unsubscribeSource = unsubscribe as () => void;
+        generation.unsubscribeSource = unsubscribe;
         try {
           reconcile(generation);
         } catch (error) {
@@ -2014,7 +1744,7 @@ export function createWholeCanvasSurfaceCompositionRuntimeInternalV1(
           throw error;
         }
       }
-      return Object.freeze((): void => {
+      return (): void => {
         if (disposed || prepared !== generation || !generation.active) return;
         if (!generation.activationGate.isOpen()) return;
         if (generation.dirty) {
@@ -2032,7 +1762,7 @@ export function createWholeCanvasSurfaceCompositionRuntimeInternalV1(
         prepared = null;
         current = generation;
         notifyNoThrow();
-      });
+      };
     },
 
     abortRuntimeAttachmentInternalV1(): void {
@@ -2063,107 +1793,83 @@ export function createWholeCanvasSurfaceCompositionRuntimeInternalV1(
       };
       const generation = current;
       const record = generation?.bindingRecord ?? null;
-      const captured = captureFrozenPlainExactRecordInternalV1(
-        registrationInput,
-        ["portalContainer", "inputRouter"],
-      );
-      const portalContainer = captured?.values.get("portalContainer");
-      const inputRouter = captured?.values.get("inputRouter");
-      const capturedRouter = captureFrozenPlainExactRecordInternalV1(inputRouter, [
-        "register",
-        "route",
-        "clearTransientInput",
-      ]);
       if (
         disposed || generation === null || !generation.active || record === null ||
-        record.physicalIngress !== null || record.session === null || captured === null ||
-        typeof HTMLDivElement !== "function" || !(portalContainer instanceof HTMLDivElement) ||
-        capturedRouter === null ||
-        !isCallableWithoutThenInternalV1(capturedRouter.values.get("register")) ||
-        !isCallableWithoutThenInternalV1(capturedRouter.values.get("route")) ||
-        !isCallableWithoutThenInternalV1(capturedRouter.values.get("clearTransientInput"))
+        record.physicalIngress !== null || record.session === null ||
+        typeof HTMLDivElement !== "function" ||
+        !(registrationInput.portalContainer instanceof HTMLDivElement)
       ) {
         throw registrationFailure();
       }
       const physicalIngress: WholeCanvasSurfaceHostPhysicalIngressInternalV1 = {
-        token: Object.freeze({}),
-        portalContainer: portalContainer as HTMLDivElement,
-        inputRouter: inputRouter as InputRouterV1,
+        portalContainer: registrationInput.portalContainer,
+        inputRouter: registrationInput.inputRouter,
         active: true,
         unregister: null,
       };
-      let rawUnregister: unknown;
+      let unregister: () => void;
       try {
-        rawUnregister = Reflect.apply(
-          physicalIngress.inputRouter.register,
-          physicalIngress.inputRouter,
-          [Object.freeze({
-            context: "whole_canvas" as const,
-            handle: (
-              event: Parameters<InputRouterV1["register"]>[0]["handle"] extends (
-                event: infer TEvent,
-              ) => unknown ? TEvent
-                : never,
-            ) => {
-              if (
-                !physicalIngress.active || disposed || current !== generation ||
-                !generation.active || record.physicalIngress !== physicalIngress
-              ) return inputIgnoredV1;
-              const snapshot = record.session?.getSnapshotInternalV1() ??
-                disposedHostSnapshotInternalV1;
-              if (
-                snapshot.root.current === null && snapshot.root.pending === null &&
-                snapshot.root.failure === null && snapshot.detail.current === null &&
-                snapshot.detail.pending === null && snapshot.detail.failure === null
-              ) return inputIgnoredV1;
-              if (event.kind === "action") {
-                const frame = record.installedInput?.frame ?? null;
-                if (frame !== null) {
-                  record.runtime.dispatchActionInternalV1(frame, String(event.actionId));
-                }
+        unregister = physicalIngress.inputRouter.register({
+          context: "whole_canvas" as const,
+          handle: (
+            event: Parameters<InputRouterV1["register"]>[0]["handle"] extends (
+              event: infer TEvent,
+            ) => unknown ? TEvent
+              : never,
+          ) => {
+            if (
+              !physicalIngress.active || disposed || current !== generation ||
+              !generation.active || record.physicalIngress !== physicalIngress
+            ) return inputIgnoredV1;
+            const snapshot = record.session?.getSnapshotInternalV1() ??
+              disposedHostSnapshotInternalV1;
+            if (
+              snapshot.root.current === null && snapshot.root.pending === null &&
+              snapshot.root.failure === null && snapshot.detail.current === null &&
+              snapshot.detail.pending === null && snapshot.detail.failure === null
+            ) return inputIgnoredV1;
+            if (event.kind === "action") {
+              const frame = record.installedInput?.frame ?? null;
+              if (frame !== null) {
+                record.runtime.dispatchActionInternalV1(frame, String(event.actionId));
               }
-              return inputHandledV1;
-            },
-          })],
-        );
+            }
+            return inputHandledV1;
+          },
+        });
       } catch (error) {
         physicalIngress.active = false;
         throw registrationFailure(error);
-      }
-      if (!isCallableWithoutThenInternalV1(rawUnregister)) {
-        physicalIngress.active = false;
-        if (typeof rawUnregister === "function") noThrow(rawUnregister as () => void);
-        throw registrationFailure();
       }
       if (
         disposed || current !== generation || !generation.active || !record.active ||
         record.physicalIngress !== null
       ) {
         physicalIngress.active = false;
-        noThrow(rawUnregister as () => void);
+        noThrow(unregister);
         throw registrationFailure();
       }
-      physicalIngress.unregister = rawUnregister as () => void;
+      physicalIngress.unregister = unregister;
       record.physicalIngress = physicalIngress;
       let registered = true;
-      return Object.freeze((): void => {
+      return (): void => {
         if (!registered) return;
         registered = false;
         if (record.physicalIngress === physicalIngress) {
           releasePhysicalIngressInternalV1(record);
         }
-      });
+      };
     },
 
     subscribeInternalV1(listener: () => void): () => void {
-      if (disposed || binding === null) return Object.freeze(() => undefined);
+      if (disposed || binding === null) return () => undefined;
       listeners.add(listener);
       let active = true;
-      return Object.freeze((): void => {
+      return (): void => {
         if (!active) return;
         active = false;
         listeners.delete(listener);
-      });
+      };
     },
 
     isCurrentRuntimeAttachmentInternalV1(runtime: ManagedSurfaceCoordinatorRuntimeV1): boolean {
@@ -2179,6 +1885,6 @@ export function createWholeCanvasSurfaceCompositionRuntimeInternalV1(
       if (generation !== null) retireGeneration(generation);
       listeners.clear();
     },
-  });
+  };
   return adapter;
 }

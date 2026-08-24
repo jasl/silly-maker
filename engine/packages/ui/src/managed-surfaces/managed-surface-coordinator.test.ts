@@ -157,8 +157,6 @@ describe("ManagedSurfaceCoordinatorV1", () => {
       ownerTrace: [],
       coordinatorDisposed: false,
     });
-    expect(Object.isFrozen(initial)).toBe(true);
-
     const opened = openReadyV1(coordinator, {
       definition: definitionV1("inventory"),
       semanticOccurrenceId: "semantic.inventory",
@@ -194,12 +192,9 @@ describe("ManagedSurfaceCoordinatorV1", () => {
       ],
     });
     expect(observed[1]).toBe(coordinator.getSnapshot());
-    expect(Object.isFrozen(opened)).toBe(true);
-    expect(Object.isFrozen(opened.receipt)).toBe(true);
-    expect(Object.isFrozen(opened.handle)).toBe(true);
   });
 
-  it("freezes a finite owner domain and rejects unknown work before identity allocation", () => {
+  it("captures a finite owner domain and rejects unknown work before identity allocation", () => {
     const workspaceOwnerId = parseManagedSurfaceOwnerIdV1("surface-owner.workspace");
     const lateOwnerId = parseManagedSurfaceOwnerIdV1("surface-owner.late");
     const ownerIds = [workspaceOwnerId];
@@ -620,9 +615,6 @@ describe("ManagedSurfaceCoordinatorV1", () => {
       summary: "Managed Surface publication subscriber failed.",
       details: { applicationEpoch: 9 },
     });
-    expect(Object.isFrozen(failures[0])).toBe(true);
-    expect(Object.isFrozen((failures[0] as { details: object }).details)).toBe(true);
-
     unsubscribe();
     unsubscribe();
   });
@@ -880,7 +872,6 @@ describe("ManagedSurfaceCoordinatorV1", () => {
       topologyRevision: 6,
       ownerId: "surface-owner.system",
     });
-    expect(Object.isFrozen(firstOwnerHandle)).toBe(true);
     expect(coordinator.closeOwner(firstOwnerHandle!)).toMatchObject({
       kind: "applied",
       code: "surface.owner_closed",

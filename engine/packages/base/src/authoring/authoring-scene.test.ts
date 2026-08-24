@@ -172,9 +172,6 @@ describe("Authoring Scene admission", () => {
         ["tag.ghost", "/layers/1/roots/0/children/1"],
         ["tag.villain", "/layers/1/roots/1"],
       ]);
-    expect(Object.isFrozen(admitted.document)).toBe(true);
-    expect(Object.isFrozen(admitted.document.layers[1]?.roots[0]?.children)).toBe(true);
-    expect(Object.isFrozen(admitted.sourceMap.objects)).toBe(true);
     const ghost = admitted.document.layers[1]?.roots[0]?.children[1];
     expect(ghost?.bindings).toEqual({
       hitRegionIds: ["left", "right"],

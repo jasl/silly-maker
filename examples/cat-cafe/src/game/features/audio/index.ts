@@ -12,19 +12,17 @@ import type { CatcafeGameViewV1 } from "../../simulation.ts";
  * `art-source/audio-synth/generate.py`); same-path replacements need no receipt update.
  */
 
-export const catcafeAudioIdsV1 = Object.freeze(
-  {
-    bgmShop: "audio.catcafe.bgm.shop",
-    bgmArena: "audio.catcafe.bgm.arena",
-    bgmEnding: "audio.catcafe.bgm.ending",
-    ambientRain: "audio.catcafe.ambient.rain",
-    sfxPurr: "audio.catcafe.sfx.purr",
-    sfxHiss: "audio.catcafe.sfx.hiss",
-    sfxCoin: "audio.catcafe.sfx.coin",
-    sfxWin: "audio.catcafe.sfx.win",
-    sfxLose: "audio.catcafe.sfx.lose",
-  } as const,
-);
+export const catcafeAudioIdsV1 = {
+  bgmShop: "audio.catcafe.bgm.shop",
+  bgmArena: "audio.catcafe.bgm.arena",
+  bgmEnding: "audio.catcafe.bgm.ending",
+  ambientRain: "audio.catcafe.ambient.rain",
+  sfxPurr: "audio.catcafe.sfx.purr",
+  sfxHiss: "audio.catcafe.sfx.hiss",
+  sfxCoin: "audio.catcafe.sfx.coin",
+  sfxWin: "audio.catcafe.sfx.win",
+  sfxLose: "audio.catcafe.sfx.lose",
+} as const;
 
 const audioPathV1 = (file: string): string => `assets/${file}`;
 

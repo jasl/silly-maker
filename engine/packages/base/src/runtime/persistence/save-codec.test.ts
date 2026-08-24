@@ -31,7 +31,7 @@ import { createRngZeroStateSaveBytesV1 } from "../../testkit/rng-zero-state-fixt
 import {
   decodeSaveRecordInternalV1,
   decodeSaveRecordV1,
-  encodeSaveRecordInternalV1,
+  encodeAdmittedSaveRecordInternalV1,
   encodeSaveRecordV1,
 } from "./save-codec.ts";
 
@@ -64,28 +64,14 @@ type SyntheticSaveRecordV1 = SaveRecordEnvelopeV1<
 >;
 
 function exactObjectV1(value: unknown, keys: readonly string[]): Readonly<Record<string, unknown>> {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype
-  ) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new TypeError("invalid object");
   }
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  if (
-    Object.keys(descriptors).toSorted().join("\0") !== [...keys].toSorted().join("\0") ||
-    Object.values(descriptors).some(
-      (descriptor) => descriptor.get !== undefined || descriptor.set !== undefined,
-    )
-  ) {
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).toSorted().join("\0") !== [...keys].toSorted().join("\0")) {
     throw new TypeError("invalid object fields");
   }
-  return Object.freeze(
-    Object.fromEntries(
-      Object.entries(descriptors).map(([key, descriptor]) => [key, descriptor.value]),
-    ),
-  );
+  return Object.fromEntries(keys.map((key) => [key, record[key]]));
 }
 
 function requiredStringV1(value: unknown): string {
@@ -96,17 +82,17 @@ function requiredStringV1(value: unknown): string {
 const stateSchemaV1: RuntimeSchemaV1<SyntheticStateV1> = Object.freeze({
   parse(value: unknown) {
     const fields = exactObjectV1(value, ["referenceId", "count"]);
-    return Object.freeze({
+    return {
       referenceId: requiredStringV1(fields.referenceId),
       count: parseNonNegativeSafeInteger(fields.count),
-    });
+    };
   },
 });
 
 const rngSchemaV1: RuntimeSchemaV1<SyntheticRngV1> = Object.freeze({
   parse(value: unknown) {
     const fields = exactObjectV1(value, ["cursor"]);
-    return Object.freeze({ cursor: parseNonNegativeSafeInteger(fields.cursor) });
+    return { cursor: parseNonNegativeSafeInteger(fields.cursor) };
   },
 });
 
@@ -117,42 +103,40 @@ const provenanceSchemaV1: RuntimeSchemaV1<SyntheticProvenanceV1> = Object.freeze
     const fields = exactObjectV1(value, ["story", "resolved"]);
     const story = exactObjectV1(fields.story, ["id"]);
     const resolved = exactObjectV1(fields.resolved, ["simulationDigest"]);
-    return Object.freeze({
-      story: Object.freeze({ id: requiredStringV1(story.id) }),
-      resolved: Object.freeze({ simulationDigest: parseDigest(resolved.simulationDigest) }),
-    });
+    return {
+      story: { id: requiredStringV1(story.id) },
+      resolved: { simulationDigest: parseDigest(resolved.simulationDigest) },
+    };
   },
 });
 
 const slotSchemaV1: RuntimeSchemaV1<SyntheticSlotMetadataV1> = Object.freeze({
   parse(value: unknown) {
     const fields = exactObjectV1(value, ["storyId", "capturedCommandSequence"]);
-    return Object.freeze({
+    return {
       storyId: requiredStringV1(fields.storyId),
       capturedCommandSequence: parseNonNegativeSafeInteger(fields.capturedCommandSequence),
-    });
+    };
   },
 });
 
 const lineageSchemaV1: RuntimeSchemaV1<readonly SimulationAdoptionV1[]> = Object.freeze({
   parse(value: unknown) {
     if (!Array.isArray(value) || value.length > 16) throw new TypeError("invalid lineage");
-    return Object.freeze(
-      value.map((entry) => {
-        const fields = exactObjectV1(entry, [
-          "fromSimulationDigest",
-          "toSimulationDigest",
-          "viaSimulationPatchSetDigest",
-          "adoptedAtCommandSequence",
-        ]);
-        return Object.freeze({
-          fromSimulationDigest: parseDigest(fields.fromSimulationDigest),
-          toSimulationDigest: parseDigest(fields.toSimulationDigest),
-          viaSimulationPatchSetDigest: parseDigest(fields.viaSimulationPatchSetDigest),
-          adoptedAtCommandSequence: parseNonNegativeSafeInteger(fields.adoptedAtCommandSequence),
-        });
-      }),
-    );
+    return value.map((entry) => {
+      const fields = exactObjectV1(entry, [
+        "fromSimulationDigest",
+        "toSimulationDigest",
+        "viaSimulationPatchSetDigest",
+        "adoptedAtCommandSequence",
+      ]);
+      return {
+        fromSimulationDigest: parseDigest(fields.fromSimulationDigest),
+        toSimulationDigest: parseDigest(fields.toSimulationDigest),
+        viaSimulationPatchSetDigest: parseDigest(fields.viaSimulationPatchSetDigest),
+        adoptedAtCommandSequence: parseNonNegativeSafeInteger(fields.adoptedAtCommandSequence),
+      };
+    });
   },
 });
 
@@ -285,7 +269,7 @@ describe("Save record codec", () => {
     const record = makeRecordV1();
     const counter = createSnapshotWorkCounterV1();
 
-    const bytes = encodeSaveRecordInternalV1(record, codecV1, counter.instrumentation);
+    const bytes = encodeAdmittedSaveRecordInternalV1(record, counter.instrumentation);
 
     expect(bytes).toEqual(encodeSaveRecordV1(record, codecV1));
     expect(counter.snapshot()).toEqual({
@@ -311,7 +295,7 @@ describe("Save record codec", () => {
     });
   });
 
-  it("encodes one canonical representation and round-trips a strict frozen record", () => {
+  it("encodes one canonical representation and round-trips a strict record", () => {
     const record = makeRecordV1();
     const bytes = encodeSaveRecordV1(record, codecV1);
     const goldenText = '{"formatRevision":1,"provenance":{"resolved":{"simulationDigest":' +
@@ -330,36 +314,6 @@ describe("Save record codec", () => {
     const decoded = decodeSaveRecordV1(bytes, codecV1);
     expect(decoded).toEqual({ kind: "decoded", record });
     if (decoded.kind !== "decoded") throw new TypeError("expected decoded record");
-    expect(Object.isFrozen(decoded)).toBe(true);
-    expect(Object.isFrozen(decoded.record)).toBe(true);
-    expect(Object.isFrozen(decoded.record.snapshot)).toBe(true);
-    expect(Object.isFrozen(decoded.record.snapshot.integrity)).toBe(true);
-  });
-
-  it("rejects decorated schemas instead of splitting encode and decode authority", () => {
-    const record = makeRecordV1();
-    const bytes = encodeSaveRecordV1(record, codecV1);
-    let decoratedParseCalls = 0;
-    const decoratedSchema = Object.freeze({
-      ...recordSchemaV1,
-      parse() {
-        decoratedParseCalls += 1;
-        return record;
-      },
-    });
-    const decoratedCodec = Object.freeze({
-      recordSchema: decoratedSchema,
-      validateEnvelope: validateEnvelopeV1,
-    }) satisfies SaveCodecContextV1<SyntheticSnapshotV1, SyntheticSaveRecordV1>;
-
-    expect(() => encodeSaveRecordV1(record, decoratedCodec)).toThrow(
-      "Save envelope schema was not created by the official factory",
-    );
-    expect(decodeSaveRecordV1(bytes, decoratedCodec)).toEqual({
-      kind: "rejected",
-      code: "envelope.schema_invalid",
-    });
-    expect(decoratedParseCalls).toBe(0);
   });
 
   it("normalizes exact-integer JSON spellings and atomically rejects exact fractions", () => {

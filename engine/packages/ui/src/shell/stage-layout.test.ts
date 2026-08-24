@@ -45,8 +45,7 @@ describe("computeStageFrameV1", () => {
     expect(() => computeStageFrameV1(viewport)).toThrowError("ui.invalid_viewport");
   });
 
-  it("exports a frozen Stage basis shared by layout witnesses", () => {
-    expect(Object.isFrozen(stageLayoutConstantsV1)).toBe(true);
+  it("exports the Stage basis shared by layout witnesses", () => {
     expect(stageLayoutConstantsV1).toEqual({
       basisWidth: 1600,
       basisHeight: 1000,

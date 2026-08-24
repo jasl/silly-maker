@@ -94,7 +94,6 @@ export interface ResolvedGameV1<TGameSimulation, TSimulationProgram, TPresentati
   readonly simulationProgram: TSimulationProgram;
   readonly presentation: TPresentation;
   readonly assets: TAssets;
-  readonly frozen: true;
 }
 
 export interface StoryToolingEntryV1<TToolingSupport> {

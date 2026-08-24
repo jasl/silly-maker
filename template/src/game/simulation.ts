@@ -6,7 +6,7 @@ import {
   defineGameSimulation,
   evaluateInteractionResolution,
   evaluateTimeTick,
-  reduceStageMutations,
+  reduceAdmittedStageMutations,
 } from "@sillymaker/base/story";
 
 import type { TemplateGameStateV1 } from "./state.ts";
@@ -76,14 +76,14 @@ export type { TemplateInventoryReadPortV1 } from "./features/inventory/module.ts
 export { templateInventoryReadCapabilityV1 } from "./features/inventory/module.ts";
 
 function passthroughSchemaV1<T>(): RuntimeSchemaV1<T> {
-  return Object.freeze({ parse: (value: unknown) => value as T });
+  return ({ parse: (value: unknown) => value as T });
 }
 
-const debugCommandSchemaV1: RuntimeSchemaV1<never> = Object.freeze({
+const debugCommandSchemaV1: RuntimeSchemaV1<never> = {
   parse(): never {
     throw new TypeError("template debug commands are unsupported");
   },
-});
+};
 
 const narrativeModuleV1 = kit.defineStatefulModule({
   id: "template.narrative",
@@ -115,7 +115,7 @@ const stageModuleV1 = kit.defineStatefulModule({
     "template.stage_changed": (state, event) => {
       // Handlers validate applicability before emitting, so a rejected fold
       // here is a programming fault, not a player-visible rejection.
-      const outcome = reduceStageMutations(state, event.mutations);
+      const outcome = reduceAdmittedStageMutations(state, event.mutations);
       if (outcome.kind !== "applied") {
         throw new TypeError("validated template stage mutations must apply");
       }
@@ -156,13 +156,12 @@ export type TemplateGameSimulationV1 = GameSimulation<
 >;
 
 const transactionRunnerV1 = compositionV1.createTransactionRunner({
-  stateSchema: templateGameStateSchemaV1,
   eventSchema: templateEventSchemaV1,
-  createFault: () => Object.freeze({ code: "template.executor_failed" as const }),
+  createFault: () => ({ code: "template.executor_failed" as const }),
 });
 
 export function createTemplateGameSimulationV1(): TemplateGameSimulationV1 {
-  const commandExecutor: TemplateCommandExecutorV1 = Object.freeze({
+  const commandExecutor: TemplateCommandExecutorV1 = {
     executeAttempt(snapshot, command) {
       const rng = createTransactionalRngV1(snapshot.rng);
       const state = snapshot.state.simulation;
@@ -175,7 +174,7 @@ export function createTemplateGameSimulationV1(): TemplateGameSimulationV1 {
         if (mutations.length === 0) return null;
         // Validate applicability at the decision point so an unappliable
         // mutation rejects the command instead of faulting the fold.
-        const outcome = reduceStageMutations(state.stage, mutations);
+        const outcome = reduceAdmittedStageMutations(state.stage, mutations);
         if (outcome.kind === "rejected") return "template.stage_rejected" as const;
         transaction.emit({
           kind: "template.stage_changed",
@@ -310,21 +309,21 @@ export function createTemplateGameSimulationV1(): TemplateGameSimulationV1 {
         return transaction.complete();
       });
     },
-  });
+  };
 
-  const debugCommandExecutor: TemplateDebugCommandExecutorV1 = Object.freeze({
+  const debugCommandExecutor: TemplateDebugCommandExecutorV1 = {
     validate() {
-      return Object.freeze({
+      return ({
         kind: "validation_failed" as const,
-        errors: Object.freeze([
-          Object.freeze({ code: "template.debug_command_unsupported" as const }),
-        ]),
+        errors: [
+          { code: "template.debug_command_unsupported" as const },
+        ],
       });
     },
     executeAttempt() {
       throw new TypeError("template debug commands are unsupported");
     },
-  });
+  };
 
   return defineGameSimulation<TemplateSimulationTypesV1>()({
     contractRevision: 1,
@@ -338,20 +337,20 @@ export function createTemplateGameSimulationV1(): TemplateGameSimulationV1 {
     commandExecutor,
     debugCommandExecutor,
     createBootstrapInput(entropy: BootstrapEntropyV1) {
-      return Object.freeze({ rngSeed: entropy.nextNonZeroUint32() });
+      return ({ rngSeed: entropy.nextNonZeroUint32() });
     },
     createInitialState() {
       return createInitialTemplateGameStateV1();
     },
     createQueries(state: TemplateGameStateV1) {
-      return Object.freeze({
+      return ({
         coins: state.simulation.inventory.coins,
         stage: state.simulation.stage,
         narrative: state.simulation.narrative,
       });
     },
     projectGameView(queries: TemplateQueriesV1) {
-      return Object.freeze({
+      return ({
         coins: queries.coins,
         stage: queries.stage,
       });

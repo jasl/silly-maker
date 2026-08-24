@@ -40,14 +40,14 @@ export function createManagedSurfaceRuntimeAttemptIdentityInternalV1(
   const parsedEpoch = parseNonNegativeSafeInteger(applicationEpoch);
   const parsedSequence = parsePositiveSafeInteger(sequence);
   const suffix = `e${parsedEpoch}.n${parsedSequence}`;
-  return Object.freeze({
-    allocation: Object.freeze({
+  return {
+    allocation: {
       applicationEpoch: parsedEpoch,
       sequence: parsedSequence,
-    }),
+    },
     surfaceInstanceId: parseManagedSurfaceInstanceIdV1(`surface-instance.${suffix}`),
     routingLeaseId: parseManagedSurfaceRoutingLeaseIdV1(`surface-lease.${suffix}`),
-  });
+  };
 }
 
 export function hasExpectedManagedSurfaceRuntimeAttemptIdentityInternalV1(
@@ -92,12 +92,12 @@ export function createManagedSurfaceTransientIdentityV1(
     sequence,
   );
   const suffix = `e${attempt.allocation.applicationEpoch}.n${attempt.allocation.sequence}`;
-  return Object.freeze({
+  return {
     allocation: attempt.allocation,
     occurrenceId: parseManagedSurfaceTargetOccurrenceIdV1(`surface-occurrence.${suffix}`),
     surfaceInstanceId: attempt.surfaceInstanceId,
     routingLeaseId: attempt.routingLeaseId,
-  });
+  };
 }
 
 export function hasExpectedManagedSurfaceTransientIdentityV1(

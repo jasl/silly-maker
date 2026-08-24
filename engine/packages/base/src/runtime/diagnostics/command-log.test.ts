@@ -407,12 +407,6 @@ describe("CommandLog", () => {
     const entries = log.entries();
     const first = entries[0];
     expect(first).toBeDefined();
-    expect(Object.isFrozen(log)).toBe(true);
-    expect(Object.isFrozen(entries)).toBe(true);
-    expect(Object.isFrozen(first)).toBe(true);
-    expect(Object.isFrozen(first?.outcome)).toBe(true);
-    expect(Object.isFrozen(first?.commandSequence)).toBe(true);
-    expect(Object.isFrozen(first?.attemptedDraws)).toBe(true);
     expect(first).not.toBe(attempts[1]?.finalizedAttempt);
     expect(first?.outcome).not.toBe(attempts[1]?.finalizedAttempt.result);
     expect(first?.attemptedDraws).not.toBe(
@@ -421,6 +415,32 @@ describe("CommandLog", () => {
     expect(Object.keys(first ?? {})).not.toContain("snapshot");
     expect(Object.keys(first ?? {})).not.toContain("postAttemptSnapshot");
     expect(log.replayBase()).toBe(attempts[0]?.finalizedAttempt.result.snapshot);
+  });
+
+  it("keeps read snapshots stable across later appends and bounded eviction", () => {
+    const attempts = mixedAttempts(201);
+    const log = createFixtureLog(attempts[0]!.finalizedAttempt.preSnapshot);
+    const empty = log.entries();
+
+    log.append(attempts[0]!.parsedCommand, attempts[0]!.finalizedAttempt);
+    const first = log.entries();
+    expect(log.entries()).toBe(first);
+    expect(empty).toEqual([]);
+
+    for (const fixture of attempts.slice(1, 200)) {
+      log.append(fixture.parsedCommand, fixture.finalizedAttempt);
+    }
+    const beforeEviction = log.entries();
+    expect(beforeEviction).toHaveLength(200);
+    expect(beforeEviction[0]?.logOrdinal).toBe(1);
+    expect(first.map((entry) => entry.logOrdinal)).toEqual([1]);
+
+    log.append(attempts[200]!.parsedCommand, attempts[200]!.finalizedAttempt);
+    expect(beforeEviction).toHaveLength(200);
+    expect(beforeEviction[0]?.logOrdinal).toBe(1);
+    expect(log.entries()).toHaveLength(200);
+    expect(log.entries()[0]?.logOrdinal).toBe(2);
+    expect(log.entries().at(-1)?.logOrdinal).toBe(201);
   });
 
   it("establishes a new anchor, clears entries, and resets log ordinal to one", () => {
@@ -438,7 +458,6 @@ describe("CommandLog", () => {
     expect(log.replayBase()).toBe(anchor);
     expect(log.replayBaseStateDigest()).toBe(stateDigest(anchor));
     expect(log.entries()).toEqual([]);
-    expect(Object.isFrozen(log.entries())).toBe(true);
     expect(previousEntries).toHaveLength(3);
 
     const attempt = finalizedAttempt(anchor, 2);
@@ -541,8 +560,6 @@ describe("CommandLog", () => {
 
     const anchor = snapshotAtSequence(70);
     const prepared = log.prepareAnchor(anchor);
-    expect(Object.isFrozen(prepared)).toBe(true);
-    expect(Object.isFrozen(prepared.emptyEntries)).toBe(true);
     log.establishPreparedAnchor(prepared);
     expect(log.replayBase()).toBe(anchor);
     expect(log.replayBaseStateDigest()).toBe(stateDigest(anchor));

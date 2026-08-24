@@ -146,20 +146,21 @@ async function mainV1(): Promise<void> {
   )!;
   const run = await runNeutralStateMemoryCellV1({
     cell,
-    async collectGarbage() {
+    collectGarbage() {
       gc();
+      return Promise.resolve();
     },
     async yieldMacrotask() {
       await new Promise<void>((resolveTimer) => setTimeout(resolveTimer, 0));
     },
     readMemoryUsage() {
       const usage = Deno.memoryUsage();
-      return Object.freeze({
+      return {
         rssBytes: usage.rss,
         heapTotalBytes: usage.heapTotal,
         heapUsedBytes: usage.heapUsed,
         externalBytes: usage.external,
-      });
+      };
     },
   });
   const report = createNeutralStateMemoryReportV1({

@@ -58,7 +58,7 @@ export function FixtureBrowserV1<TFixtureId extends string>(
         setListState({ kind: "capability_disabled" });
         return;
       }
-      setListState({ kind: "listed", fixtureIds: Object.freeze([...result.fixtureIds]) });
+      setListState({ kind: "listed", fixtureIds: [...result.fixtureIds] });
     } catch {
       if (generation === requestGenerationRef.current) setListState({ kind: "failed" });
     }

@@ -49,7 +49,7 @@ type HostRecordKeyV1 = HostStoredRecordV1["key"];
 type HostRecordNamespaceV1 = Parameters<HostAtomicRecordStoreV1["read"]>[0];
 
 function fromWireRecordV1(record: StoredWireRecordV1): HostStoredRecordV1 {
-  return Object.freeze({
+  return ({
     namespace: record.namespace as HostStoredRecordV1["namespace"],
     key: record.key as HostRecordKeyV1,
     revision: record.revision as HostStoredRecordV1["revision"],
@@ -59,14 +59,14 @@ function fromWireRecordV1(record: StoredWireRecordV1): HostStoredRecordV1 {
 
 function toWireMutationV1(mutation: HostRecordMutationV1): WireMutationV1 {
   return mutation.kind === "put"
-    ? Object.freeze({
+    ? ({
       kind: "put",
       namespace: mutation.namespace,
       key: mutation.key,
       expectedRevision: mutation.expectedRevision,
       bytesBase64: Buffer.from(mutation.bytes).toString("base64"),
     })
-    : Object.freeze({
+    : ({
       kind: "delete",
       namespace: mutation.namespace,
       key: mutation.key,
@@ -78,13 +78,13 @@ function toWireMutationV1(mutation: HostRecordMutationV1): WireMutationV1 {
 export function adaptRecordFileStoreForHostTestsV1(
   wire: RecordFileStoreWireV1,
 ): HostAtomicRecordStoreV1 {
-  return Object.freeze({
+  return ({
     async read(namespace: HostRecordNamespaceV1, key: HostRecordKeyV1) {
       const record = await wire.read(namespace, key);
       return record === null ? null : fromWireRecordV1(record);
     },
     async list(namespace: HostRecordNamespaceV1) {
-      return Object.freeze((await wire.list(namespace)).map(fromWireRecordV1));
+      return ((await wire.list(namespace)).map(fromWireRecordV1));
     },
     async commit(mutations: readonly [HostRecordMutationV1, ...HostRecordMutationV1[]]) {
       const wireMutations = mutations.map(toWireMutationV1) as [
@@ -94,15 +94,15 @@ export function adaptRecordFileStoreForHostTestsV1(
       const result = await wire.commit(wireMutations);
       return (
         result.kind === "conflict"
-          ? Object.freeze({
+          ? ({
             kind: "conflict",
             namespace: result.namespace as HostStoredRecordV1["namespace"],
             key: result.key as HostRecordKeyV1,
             actualRevision: result.actualRevision as HostStoredRecordV1["revision"] | null,
           })
-          : Object.freeze({
+          : ({
             kind: "committed",
-            records: Object.freeze(result.records.map(fromWireRecordV1)),
+            records: result.records.map(fromWireRecordV1),
           })
       ) satisfies HostAtomicCommitResultV1;
     },

@@ -8,7 +8,7 @@ import { osMaxFilesV1 } from "../../state.ts";
 export const filesystemCommandHandlersV1: Pick<
   OsCommandHandlerMapV1,
   "os.fs.write" | "os.fs.remove"
-> = Object.freeze({
+> = {
   "os.fs.write": ({ snapshot, rng, state, command }) =>
     transactionRunnerV1.execute(snapshot, rng, (transaction) => {
       const exists = state.filesystem.files.some((file) => file.name === command.name);
@@ -31,4 +31,4 @@ export const filesystemCommandHandlersV1: Pick<
       transaction.emit({ kind: "os.fs.removed", name: command.name });
       return transaction.complete();
     }),
-});
+};

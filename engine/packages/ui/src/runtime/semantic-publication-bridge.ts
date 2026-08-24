@@ -41,5 +41,5 @@ export function createSemanticPublicationBridgeV1<TPublication>(
     for (const unsubscribe of [...subscriptions]) unsubscribe();
   };
 
-  return Object.freeze({ getSnapshot, subscribe, dispose });
+  return { getSnapshot, subscribe, dispose };
 }

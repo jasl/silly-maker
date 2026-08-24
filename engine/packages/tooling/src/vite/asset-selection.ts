@@ -151,7 +151,7 @@ async function resolveSourceFileV1(
   if (!sourceStat.isFile()) {
     throw new TypeError(`asset selection path is not a regular file: ${relativePath}`);
   }
-  return Object.freeze({ realSource, size: sourceStat.size });
+  return { realSource, size: sourceStat.size };
 }
 
 async function pinOutputRootV1(outputDirectory: string, realSourceRoot: string): Promise<string> {
@@ -388,5 +388,5 @@ export async function materializeAssetSelectionV1(input: {
     totalBytes += size;
   }
 
-  return Object.freeze({ fileCount: sourceFiles.length, totalBytes });
+  return { fileCount: sourceFiles.length, totalBytes };
 }

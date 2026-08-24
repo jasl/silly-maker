@@ -6,7 +6,7 @@ import { dataFailure } from "./presentation-data.ts";
  * accepted 2026-08-22): plain versioned JSON carrying the hand-tuned
  * placement geometry of one chrome surface (a HUD, a sheet, a menu) in
  * logical canvas space. Stories import the file, admit it once through
- * `parseChromeLayoutDocumentV1`, and read named entries as frozen typed
+ * `parseChromeLayoutDocumentV1`, and read named entries as ordinary typed
  * data; behavior (exclusivity, occupancy gates, intent legality) stays in
  * Story code. Layout documents are zero-authority presentation data — they
  * never touch Saves, digests, or replay.
@@ -135,7 +135,7 @@ function readChromeLayoutSectionEntriesV1(
 
 function parseChromeLayoutBoxV1(value: unknown, path: string): ChromeLayoutBoxV1 {
   const record = readChromeLayoutExactRecordV1(value, ["x", "y", "width", "height"], path);
-  return Object.freeze({
+  return {
     x: requireChromeLayoutIntV1(
       record.x,
       -chromeLayoutMaxCoordinateV1,
@@ -164,12 +164,12 @@ function parseChromeLayoutBoxV1(value: unknown, path: string): ChromeLayoutBoxV1
       `${path}/height`,
       "chrome_layout_box_invalid",
     ),
-  });
+  };
 }
 
 function parseChromeLayoutAnchorV1(value: unknown, path: string): ChromeLayoutAnchorV1 {
   const record = readChromeLayoutExactRecordV1(value, ["x", "y"], path);
-  return Object.freeze({
+  return {
     x: requireChromeLayoutIntV1(
       record.x,
       -chromeLayoutMaxCoordinateV1,
@@ -184,7 +184,7 @@ function parseChromeLayoutAnchorV1(value: unknown, path: string): ChromeLayoutAn
       `${path}/y`,
       "chrome_layout_anchor_invalid",
     ),
-  });
+  };
 }
 
 function parseChromeLayoutSectionV1<TEntry>(
@@ -193,10 +193,8 @@ function parseChromeLayoutSectionV1<TEntry>(
   parseEntry: (value: unknown, path: string) => TEntry,
 ): Readonly<Record<string, TEntry>> {
   const entries = readChromeLayoutSectionEntriesV1(value, path);
-  return Object.freeze(
-    Object.fromEntries(
-      entries.map(([name, entry]) => [name, parseEntry(entry, `${path}/${name}`)]),
-    ),
+  return Object.fromEntries(
+    entries.map(([name, entry]) => [name, parseEntry(entry, `${path}/${name}`)]),
   );
 }
 
@@ -231,7 +229,7 @@ function parseChromeLayoutAuthoringV1(value: unknown, path: string): ChromeLayou
       result.notes = memberValue;
     }
   }
-  return Object.freeze(result);
+  return result;
 }
 
 /**
@@ -284,7 +282,7 @@ export function parseChromeLayoutDocumentV1(value: unknown, path = ""): ChromeLa
     ["width", "height"],
     `${path}/canvas`,
   );
-  const canvas = Object.freeze({
+  const canvas = {
     width: requireChromeLayoutIntV1(
       canvasRecord.width,
       1,
@@ -299,7 +297,7 @@ export function parseChromeLayoutDocumentV1(value: unknown, path = ""): ChromeLa
       `${path}/canvas/height`,
       "chrome_layout_canvas_invalid",
     ),
-  });
+  };
   const boxes = parseChromeLayoutSectionV1(record.boxes, `${path}/boxes`, parseChromeLayoutBoxV1);
   const anchors = parseChromeLayoutSectionV1(
     record.anchors,
@@ -326,7 +324,7 @@ export function parseChromeLayoutDocumentV1(value: unknown, path = ""): ChromeLa
   const authoring = hasAuthoring
     ? parseChromeLayoutAuthoringV1(record.authoring, `${path}/authoring`)
     : undefined;
-  return Object.freeze({
+  return {
     format: chromeLayoutDocumentFormatV1,
     version: chromeLayoutDocumentVersionV1,
     layoutId: record.layoutId,
@@ -336,5 +334,5 @@ export function parseChromeLayoutDocumentV1(value: unknown, path = ""): ChromeLa
     anchors,
     offsets,
     ...(authoring === undefined ? {} : { authoring }),
-  });
+  };
 }

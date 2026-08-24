@@ -35,25 +35,24 @@ export interface InteractionSessionStoreV1 {
   cleanup(reason: InteractionSessionCleanupReasonV1): void;
 }
 
-export const initialInteractionSessionStateV1: DeepReadonly<InteractionSessionStateV1> = Object
-  .freeze({
-    activeSurfaceId: null,
-    choosingTargetId: null,
-    returnFocusId: null,
-  });
+export const initialInteractionSessionStateV1: DeepReadonly<InteractionSessionStateV1> = {
+  activeSurfaceId: null,
+  choosingTargetId: null,
+  returnFocusId: null,
+};
 
-function frozenInteractionSessionStateV1(
+function interactionSessionStateV1(
   activeSurfaceId: InteractionSurfaceId,
   choosingTargetId: InteractionTargetId | null,
   returnFocusId: string | null,
 ): DeepReadonly<InteractionSessionStateV1> {
-  return Object.freeze({ activeSurfaceId, choosingTargetId, returnFocusId });
+  return { activeSurfaceId, choosingTargetId, returnFocusId };
 }
 
 export function createInteractionSessionStoreV1(
   lens: InteractionSessionStateLensV1,
 ): InteractionSessionStoreV1 {
-  return Object.freeze({
+  return {
     getSnapshot(): DeepReadonly<InteractionSessionStateV1> {
       return lens.getSnapshot();
     },
@@ -63,7 +62,7 @@ export function createInteractionSessionStoreV1(
     },
 
     open(surfaceId: InteractionSurfaceId, returnFocusId: string | null): void {
-      lens.update(() => frozenInteractionSessionStateV1(surfaceId, null, returnFocusId));
+      lens.update(() => interactionSessionStateV1(surfaceId, null, returnFocusId));
     },
 
     openChoice(
@@ -71,7 +70,7 @@ export function createInteractionSessionStoreV1(
       targetId: InteractionTargetId,
       returnFocusId: string | null,
     ): void {
-      lens.update(() => frozenInteractionSessionStateV1(surfaceId, targetId, returnFocusId));
+      lens.update(() => interactionSessionStateV1(surfaceId, targetId, returnFocusId));
     },
 
     leave(): string | null {
@@ -87,5 +86,5 @@ export function createInteractionSessionStoreV1(
       void reason;
       lens.update(() => initialInteractionSessionStateV1);
     },
-  });
+  };
 }

@@ -46,7 +46,7 @@ function createReadFailureInternalV1(
   const failure = new TypeError(code) as ApplicationBootstrapConfigReadFailureInternalV1;
   failure.name = "ApplicationBootstrapConfigReadFailureInternalV1";
   Object.defineProperty(failure, "code", { value: code, enumerable: true });
-  return Object.freeze(failure);
+  return failure;
 }
 
 function failReadInternalV1(code: ApplicationBootstrapConfigReadFailureCodeInternalV1): never {

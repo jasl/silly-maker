@@ -14,7 +14,6 @@ describe("RuntimeInvalidationControllerV1", () => {
       reportInvalidation,
     });
 
-    expect(Object.isFrozen(controller)).toBe(true);
     expect(controller.invalidateForHmr()).toBeUndefined();
     expect(invalidated).toBe(true);
     expect(reportInvalidation).toHaveBeenCalledOnce();

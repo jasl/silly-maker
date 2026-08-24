@@ -77,6 +77,7 @@ import {
   lintNarrativeGraphV1,
   parseSemanticStageStateV1,
   projectStageRenderTargetV1,
+  reduceAdmittedStageMutationsV1,
   reduceStageMutationsV1,
   resolveGamePackageV1,
   rngStateV1Schema,
@@ -320,6 +321,7 @@ export type BaseConsumerValuesV1 = {
   parseTextCatalogSet: typeof parseTextCatalogSetV1;
   parseSemanticStageState: typeof parseSemanticStageStateV1;
   projectStageRenderTarget: typeof projectStageRenderTargetV1;
+  reduceAdmittedStageMutations: typeof reduceAdmittedStageMutationsV1;
   reduceStageMutations: typeof reduceStageMutationsV1;
   evaluateInteractionResolution: typeof evaluateInteractionResolutionV1;
   parsePendingInteraction: typeof parsePendingInteractionV1;

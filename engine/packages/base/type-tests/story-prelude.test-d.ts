@@ -20,6 +20,7 @@ import type {
 import {
   evaluateInteractionResolutionV1,
   lintNarrativeGraphV1,
+  reduceAdmittedStageMutationsV1,
   reduceStageMutationsV1,
 } from "@sillymaker/base";
 import type {
@@ -38,6 +39,7 @@ import type {
 import {
   evaluateInteractionResolution,
   lintNarrativeGraph,
+  reduceAdmittedStageMutations,
   reduceStageMutations,
 } from "@sillymaker/base/story";
 
@@ -63,6 +65,9 @@ export type AssetDemandPlanAliased = ExpectV1<EqualV1<AssetDemandPlan, AssetDema
 // Value aliases are the same functions, not wrappers.
 export type ReduceAliased = ExpectV1<
   EqualV1<typeof reduceStageMutations, typeof reduceStageMutationsV1>
+>;
+export type ReduceAdmittedAliased = ExpectV1<
+  EqualV1<typeof reduceAdmittedStageMutations, typeof reduceAdmittedStageMutationsV1>
 >;
 export type EvaluateAliased = ExpectV1<
   EqualV1<typeof evaluateInteractionResolution, typeof evaluateInteractionResolutionV1>

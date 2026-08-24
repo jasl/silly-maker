@@ -59,7 +59,7 @@ interface DiagnosticSinkV1 {
   emit(diagnostic: CompositionCleanupDiagnosticV1): void;
 }
 
-const emptyContributionsV1: readonly CompositionRegistryEntryV1<never>[] = Object.freeze([]);
+const emptyContributionsV1: readonly CompositionRegistryEntryV1<never>[] = [];
 const lexicalCompareV1 = (left: string, right: string): number =>
   left < right ? -1 : left > right ? 1 : 0;
 
@@ -136,7 +136,7 @@ function stableTopologicalOrderV1(
       `composition dependency cycle includes: ${cycle.join(", ")}`,
     );
   }
-  return Object.freeze(ordered);
+  return ordered;
 }
 
 function preflightProfileV1(input: CompositionProfileV1): CompositionPlanV1 {
@@ -200,11 +200,11 @@ function preflightProfileV1(input: CompositionProfileV1): CompositionPlanV1 {
     );
   }
 
-  return Object.freeze({
+  return {
     profile,
     plugins: stableTopologicalOrderV1(plugins, providers),
     providers,
-  });
+  };
 }
 
 class PluginScopeV1 implements CompositionPluginScopeV1 {
@@ -345,12 +345,12 @@ class PluginScopeV1 implements CompositionPluginScopeV1 {
     if (!this.stage.registries.has(token)) {
       this.stage.registries.set(token, values);
     }
-    values.push(Object.freeze({
+    values.push({
       id: entryId,
       value: entry.value,
       priority,
       pluginId: this.pluginId,
-    }));
+    });
   }
 
   effect(
@@ -424,13 +424,13 @@ async function cleanupStageV1(
     try {
       await effect.cleanup();
     } catch (error) {
-      diagnostics.emit(Object.freeze({
+      diagnostics.emit({
         code: "composition.cleanup_failed",
         profileId,
         pluginId: effect.pluginId,
         phase,
         error,
-      }));
+      });
     }
   }
   stage.services.clear();
@@ -499,7 +499,7 @@ async function setupStageV1(
 function bootDiagnosticV1(
   plan: CompositionPlanV1,
 ): CompositionBootDiagnosticV1 {
-  const pluginOrder = Object.freeze(plan.plugins.map(({ id }) => id));
+  const pluginOrder = plan.plugins.map(({ id }) => id);
   const plugins = plan.plugins.map(({ id, revision }) => ({ id, revision }));
   const services = [...plan.providers].map(([token, pluginId]) => ({
     tokenId: token.id,
@@ -529,12 +529,12 @@ function bootDiagnosticV1(
     services,
     registries,
   });
-  return Object.freeze({
+  return {
     identity,
     profileId: plan.profile.id,
     kind: plan.profile.kind,
     pluginOrder,
-  });
+  };
 }
 
 function createSnapshotV1(
@@ -547,18 +547,16 @@ function createSnapshotV1(
       [id, values],
     ) => [
       id,
-      Object.freeze(
-        [...values].sort((left, right) =>
-          right.priority - left.priority ||
-          lexicalCompareV1(left.id, right.id) ||
-          lexicalCompareV1(left.pluginId, right.pluginId)
-        ),
+      [...values].sort((left, right) =>
+        right.priority - left.priority ||
+        lexicalCompareV1(left.id, right.id) ||
+        lexicalCompareV1(left.pluginId, right.pluginId)
       ),
     ]),
   );
   const bootDiagnostic = bootDiagnosticV1(plan);
   let mounted = true;
-  const snapshot: CompositionSnapshotV1 = Object.freeze({
+  const snapshot: CompositionSnapshotV1 = {
     bootDiagnostic,
     compileDirectPlan<TPlan>(
       compile: (resolver: CompositionDirectResolverV1) => TPlan,
@@ -584,7 +582,7 @@ function createSnapshotV1(
           );
         }
       };
-      const resolver: CompositionDirectResolverV1 = Object.freeze({
+      const resolver: CompositionDirectResolverV1 = {
         use<T>(token: CompositionServiceTokenV1<T>): T {
           assertActive();
           if (token.kind !== "exclusive_service" || !services.has(token)) {
@@ -608,7 +606,7 @@ function createSnapshotV1(
           return (registries.get(token) ??
             emptyContributionsV1) as readonly CompositionRegistryEntryV1<T>[];
         },
-      });
+      };
       try {
         const directPlan = compile(resolver);
         if (isPromiseLikeV1(directPlan)) {
@@ -623,7 +621,7 @@ function createSnapshotV1(
         active = false;
       }
     },
-  });
+  };
   return {
     snapshot,
     retire(): void {
@@ -660,9 +658,9 @@ class CompositionKernelV1Impl implements CompositionKernelV1, DiagnosticSinkV1 {
   #disposed = false;
   #busy = false;
   #activities = 0;
-  readonly #lifecycleActivity: CompositionLifecycleActivityV1 = Object.freeze({
+  readonly #lifecycleActivity: CompositionLifecycleActivityV1 = {
     claim: (): () => void => this.#claimActivity(),
-  });
+  };
 
   constructor(private readonly options: CompositionKernelOptionsV1) {}
 
@@ -798,7 +796,7 @@ class CompositionKernelV1Impl implements CompositionKernelV1, DiagnosticSinkV1 {
   }
 
   getDiagnostics(): readonly CompositionCleanupDiagnosticV1[] {
-    return Object.freeze([...this.#diagnostics]);
+    return [...this.#diagnostics];
   }
 
   dispose(): Promise<void> {

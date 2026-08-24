@@ -93,8 +93,8 @@ it("boots and disposes the package-owned Splash and Title WholeCanvas Host", asy
 }, 10_000);
 
 it("projects one immutable ending primary only while semantic ending state exists", () => {
-  const endingPublication = Object.freeze({
-    game: Object.freeze({ ending: "ordinary" }),
+  const endingPublication = ({
+    game: { ending: "ordinary" },
   }) as unknown as DeepReadonly<CatcafeSemanticPublicationV1>;
   const selection = projectCatcafeWholeCanvasSurfaceSelectionV1(endingPublication);
 
@@ -104,12 +104,8 @@ it("projects one immutable ending primary only while semantic ending state exist
       parameters: { ending: "ordinary" },
     },
   });
-  expect(Object.isFrozen(selection)).toBe(true);
-  expect(Object.isFrozen(selection.primary)).toBe(true);
-  expect(Object.isFrozen(selection.primary?.parameters)).toBe(true);
-
-  const gameplayPublication = Object.freeze({
-    game: Object.freeze({ ending: null }),
+  const gameplayPublication = ({
+    game: { ending: null },
   }) as unknown as DeepReadonly<CatcafeSemanticPublicationV1>;
   expect(projectCatcafeWholeCanvasSurfaceSelectionV1(gameplayPublication)).toEqual({
     primary: null,
@@ -139,25 +135,25 @@ it("publishes the Cat definition only through the high-level wholeCanvas Story s
 it("renders the ending as passive frame UI and emits only exact frame-bound actions", () => {
   const onAction = vi.fn<(actionId: CatcafeWholeCanvasActionIdV1) => void>();
   const onBack = vi.fn<() => void>();
-  const frame = Object.freeze({
+  const frame = ({
     kind: "primary" as const,
-    target: Object.freeze({
+    target: {
       targetId: "catcafe.ending" as const,
-      parameters: Object.freeze({ ending: "ordinary" }),
-    }),
-    view: Object.freeze({ ending: "ordinary" }),
-    actions: Object.freeze([
-      Object.freeze({
+      parameters: { ending: "ordinary" },
+    },
+    view: { ending: "ordinary" },
+    actions: [
+      {
         actionId: "cc.enter_postgame" as const,
         status: "enabled" as const,
-        reasonTextIds: Object.freeze([]),
-      }),
-      Object.freeze({
+        reasonTextIds: [],
+      },
+      {
         actionId: "cc.restart" as const,
         status: "enabled" as const,
-        reasonTextIds: Object.freeze([]),
-      }),
-    ]),
+        reasonTextIds: [],
+      },
+    ],
     resolveText: (textId: string) => textId,
     onAction,
     onBack,

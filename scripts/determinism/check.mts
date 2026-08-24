@@ -30,14 +30,12 @@ const supportedSourceExtensionsV1 = new Set([
  */
 const dataSourceExtensionsV1 = new Set([".json"]);
 
-const defaultAdditionalAuthoritiesV1 = Object.freeze(
-  [
-    Object.freeze({
-      id: "synthetic-migration-extension",
-      entry: "scripts/determinism/fixtures/synthetic-migration-authority.ts",
-    }),
-  ] satisfies readonly AdditionalAuthorityEntryV1[],
-);
+const defaultAdditionalAuthoritiesV1 = [
+  {
+    id: "synthetic-migration-extension",
+    entry: "scripts/determinism/fixtures/synthetic-migration-authority.ts",
+  },
+] satisfies readonly AdditionalAuthorityEntryV1[];
 
 function compareCodeUnitsV1(left: string, right: string): number {
   const length = Math.min(left.length, right.length);
@@ -66,12 +64,12 @@ function createSourceDiagnosticV1(options: {
   readonly message: string;
   readonly hint: string;
 }): DeterminismDiagnosticV1 {
-  return Object.freeze({
+  return {
     ...options,
-    range: Object.freeze([0, 0] as const),
-    start: Object.freeze({ line: 1, column: 1 }),
-    end: Object.freeze({ line: 1, column: 1 }),
-  });
+    range: [0, 0] as const,
+    start: { line: 1, column: 1 },
+    end: { line: 1, column: 1 },
+  };
 }
 
 function createFocusedTestReferenceValidatorV1(
@@ -163,7 +161,7 @@ export async function checkDeterminismPathsV1(options: {
   }
 
   diagnostics.sort(compareDiagnosticsV1);
-  return Object.freeze(diagnostics);
+  return diagnostics;
 }
 
 export async function runDeterminismCheckV1(options: {
@@ -171,10 +169,10 @@ export async function runDeterminismCheckV1(options: {
   readonly policy?: DeterminismAuthorityPolicyV1;
   readonly additionalAuthorities?: readonly AdditionalAuthorityEntryV1[];
 }): Promise<readonly DeterminismDiagnosticV1[]> {
-  const additionalAuthorities = Object.freeze([
+  const additionalAuthorities = [
     ...defaultAdditionalAuthoritiesV1,
     ...(options.additionalAuthorities ?? []),
-  ]);
+  ];
   const map = await collectDeterminismAuthorityMapV1({
     repositoryRoot: options.repositoryRoot,
     ...(options.policy === undefined ? {} : { policy: options.policy }),

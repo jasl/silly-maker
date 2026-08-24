@@ -114,7 +114,7 @@ export function createPresentationRunV1(
     });
   };
 
-  return Object.freeze({
+  return {
     runId: options.runId,
     definitionId: options.definitionId,
     epoch: options.epoch,
@@ -188,7 +188,7 @@ export function createPresentationRunV1(
         status = "cancelled";
       }
     },
-  });
+  };
 }
 
 /** The smooth-step curve used for `ease_in_out` transition definitions. */

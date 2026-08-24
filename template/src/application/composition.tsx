@@ -57,17 +57,17 @@ import { templateStageRenderersV1 } from "../ui/stage-renderers.tsx";
 import { TemplateHudV1, TemplateNarrativeRendererV1 } from "./ui.tsx";
 
 /** The logical canvas: a 16:9 design resolution the viewport letterboxes. */
-export const templateViewportCanvasV1 = Object.freeze({ width: 1600, height: 900 });
+export const templateViewportCanvasV1 = { width: 1600, height: 900 };
 
 type TemplateSemanticPublicationV1 = ReturnType<
   TemplateApplicationInstanceV1["semantic"]["observe"]
 >;
 type TemplateSemanticPortV1 = TemplateApplicationInstanceV1["semantic"];
 
-const noNarrativeChoiceReasonsV1: readonly string[] = Object.freeze([]);
-const templateInsufficientCoinsReasonsV1: readonly string[] = Object.freeze([
+const noNarrativeChoiceReasonsV1: readonly string[] = [];
+const templateInsufficientCoinsReasonsV1: readonly string[] = [
   "text.template.choice.insufficient-coins",
-]);
+];
 const templateEndingTextIdsV1: ReadonlySet<string> = new Set([
   "text.template.line.cat",
   "text.template.line.fetch-line",
@@ -99,21 +99,21 @@ export function projectTemplateNarrativeSurfaceSelectionV1(
   publication: DeepReadonly<TemplateSemanticPublicationV1>,
 ): NarrativeSurfaceSelectionV1 {
   const narrative = publication.narrative;
-  const choiceAvailability = narrative.choiceOptions === null ? null : Object.freeze(
-    narrative.choiceOptions.map((option) => {
+  const choiceAvailability = narrative.choiceOptions === null
+    ? null
+    : (narrative.choiceOptions.map((option) => {
       if (option.enabled !== (option.blockedBy === null)) {
         throw new TypeError("template.narrative_choice_availability_inconsistent");
       }
-      return Object.freeze({
+      return ({
         choiceId: option.choiceId,
         status: option.enabled ? ("enabled" as const) : ("disabled" as const),
         reasonTextIds: option.blockedBy === null
           ? noNarrativeChoiceReasonsV1
           : templateInsufficientCoinsReasonsV1,
       });
-    }),
-  );
-  return Object.freeze({
+    }));
+  return ({
     pending: narrative.pending,
     history: narrative.history,
     choiceAvailability,
@@ -142,24 +142,24 @@ const projectorDefinitionV1: GameUiProjectorV1<
   AssetId
 > = {
   resolvedCatalog: null,
-  initialUiState: Object.freeze({}),
+  initialUiState: {},
   project: (input) => {
     const projection = projectStageRenderTarget(
       input.semantic.game.stage,
       templateStageContentCatalogV1,
     );
-    return Object.freeze({
-      view: Object.freeze({
+    return ({
+      view: {
         coins: input.semantic.game.coins,
         anchorEpoch: input.uiState.anchor.epoch,
         stageTarget: projection.target,
-      }),
+      },
       requiredAssetIds: projection.target.requiredAssetIds,
     });
   },
 };
 
-export const templateUiProjectorV1 = Object.freeze(projectorDefinitionV1);
+export const templateUiProjectorV1 = projectorDefinitionV1;
 
 function createTemplateUiSlotsV1(
   instance: TemplateApplicationInstanceV1,
@@ -194,12 +194,12 @@ function createTemplateUiSlotsV1(
   };
 }
 
-export const templateKeyboardMapV1: KeyboardActionMapV1 = Object.freeze({
+export const templateKeyboardMapV1: KeyboardActionMapV1 = {
   Enter: systemInputActionIdsV1.narrativeAdvance,
   Space: systemInputActionIdsV1.narrativeAdvance,
-});
+};
 
-export const templateRootLabelsV1: Partial<DefaultGameRootLabelsV1> = Object.freeze({
+export const templateRootLabelsV1: Partial<DefaultGameRootLabelsV1> = {
   systemMenuLabel: "系统",
   saveLabel: "保存",
   settingsLabel: "设置",
@@ -209,9 +209,9 @@ export const templateRootLabelsV1: Partial<DefaultGameRootLabelsV1> = Object.fre
   titleNewGameLabel: "新游戏",
   titleContinueLabel: "继续",
   closeLabel: "关闭",
-});
+};
 
-export const templateSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
+export const templateSaveOverlayLabelsV1: SaveOverlayLabelsV1 = {
   accessibleName: "保存",
   title: "保存",
   storageLoading: "正在读取本地存档…",
@@ -221,19 +221,19 @@ export const templateSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
   slotsUnavailable: "无法读取存档槽",
   safelySaved: (commandSequence: number) => `已安全保存至指令 ${String(commandSequence)}`,
   lastFailure: (code: string) => `上次存档失败：${code}`,
-  slotNames: Object.freeze({
+  slotNames: {
     "auto.current": "当前自动存档",
     "auto.previous": "上一自动存档",
     quick: "快速存档",
     manualSlot: (index: number) => `手动存档 ${index}`,
-  }),
-  slotHealth: Object.freeze({
+  },
+  slotHealth: {
     empty: "空",
     valid: "可用",
     invalid: "已损坏",
     recovery_candidate: "可恢复",
     unavailable: "不可用",
-  }),
+  },
   quickSave: "快速保存",
   manualSave: "手动保存",
   importSave: "导入存档",
@@ -241,7 +241,7 @@ export const templateSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
   loadSlot: (slotName: string) => `载入${slotName}`,
   clearSlot: (slotName: string) => `清除${slotName}`,
   exportSlot: (slotName: string) => `导出${slotName}`,
-  confirmation: Object.freeze({
+  confirmation: {
     loadTitle: (slotName: string) => `载入${slotName}`,
     loadDescription: (slotName: string) => `当前进度将被${slotName}替换。`,
     clearTitle: (slotName: string) => `清除${slotName}`,
@@ -253,8 +253,8 @@ export const templateSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
     pendingText: "正在处理…",
     completedText: "操作完成",
     failedText: "操作失败",
-  }),
-  operation: Object.freeze({
+  },
+  operation: {
     saving: (slotName: string) => `正在保存到${slotName}…`,
     loading: (slotName: string) => `正在载入${slotName}…`,
     clearing: (slotName: string) => `正在清除${slotName}…`,
@@ -268,13 +268,13 @@ export const templateSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
     importedExact: "已导入存档",
     importedAdopted: "已兼容导入存档",
     importCancelled: "已取消导入存档",
-    importFileRejected: Object.freeze({
+    importFileRejected: {
       too_large: "所选存档文件过大",
       unsupported_type: "所选文件类型不受支持",
-    }),
+    },
     exported: (slotName: string) => `已导出${slotName}`,
     exportedCurrent: "已导出当前进度",
-    rejected: Object.freeze({
+    rejected: {
       busy: "会话正忙",
       unavailable: "存储不可用",
       empty_slot: "存档槽为空",
@@ -286,17 +286,17 @@ export const templateSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
       migration_unavailable: "当前版本尚未提供此存档所需的迁移",
       migration_rejected: "存档迁移失败",
       incompatible: "存档不兼容",
-    }),
-    exportRejected: Object.freeze({
+    },
+    exportRejected: {
       unavailable: "存储不可用",
       empty_slot: "存档槽为空",
       conflict: "存档发生冲突",
       invalid_record: "存档无效",
-    }),
+    },
     faulted: (code: string) => `存档故障：${code}`,
     unexpectedFailure: "存档操作意外失败",
-  }),
-});
+  },
+};
 
 /**
  * The complete browser application: one declaration consumed by
@@ -319,28 +319,28 @@ export const templateGameApplicationV1: WebGameApplicationV1<
   TemplatePresentationViewV1,
   AssetId,
   TemplateUiOverlayIdV1
-> = Object.freeze({
+> = {
   applicationId: "template",
   accessibleName: "新故事",
-  viewport: Object.freeze({
+  viewport: {
     canvas: templateViewportCanvasV1,
-    fallbackSize: Object.freeze({ width: 1600, height: 900 }),
+    fallbackSize: { width: 1600, height: 900 },
     // Scale up proportionally to fill the window (fit scaling keeps the aspect ratio, letterboxing as needed).
     maxScale: 4,
-  }),
-  textContent: Object.freeze({
+  },
+  textContent: {
     manifest: templateTextContentManifestV1,
     bootstrapCatalogs: templateTextCatalogsV1,
-    initialPackIds: Object.freeze([templateOpeningTextPackIdV1]),
+    initialPackIds: [templateOpeningTextPackIdV1],
     requiredPackIdsForInvocation: (invocation: DeepReadonly<TemplateInvocationV1>) =>
       invocation.kind === "resolve" && invocation.resolution.kind === "choose"
-        ? Object.freeze([templateEndingTextPackIdV1])
-        : Object.freeze([]),
+        ? [templateEndingTextPackIdV1]
+        : [],
     requiredPackIdsForSnapshot: (snapshot: DeepReadonly<TemplateSimulationTypesV1["snapshot"]>) =>
       templateNarrativeNeedsEndingTextV1(snapshot.state.simulation.narrative)
-        ? Object.freeze([templateOpeningTextPackIdV1, templateEndingTextPackIdV1])
-        : Object.freeze([templateOpeningTextPackIdV1]),
-  }),
+        ? [templateOpeningTextPackIdV1, templateEndingTextPackIdV1]
+        : [templateOpeningTextPackIdV1],
+  },
   core: templateCoreApplicationDefinitionV1,
   ui: (
     { instance, presentationFreeze, textContent }: {
@@ -350,46 +350,44 @@ export const templateGameApplicationV1: WebGameApplicationV1<
     },
   ) => {
     if (textContent === null) throw new TypeError("template.text_content_session_missing");
-    return Object.freeze({
-      titleScreen: Object.freeze({ title: "SillyMaker Starter" }),
+    return ({
+      titleScreen: { title: "SillyMaker Starter" },
       projector: templateUiProjectorV1,
       narrative: defineNarrativeSurfaceV1<TemplateSemanticPublicationV1>(
-        Object.freeze(
-          {
-            selectNarrative: projectTemplateNarrativeSurfaceSelectionV1,
-            dispatchResolution: (request) =>
-              instance.semantic.dispatch(
-                Object.freeze({
-                  kind: "resolve" as const,
-                  expectedOccurrenceId: request.expectedOccurrenceId,
-                  resolution: request.resolution,
-                }) as never,
-              ),
-            // The session-level time verb: hold cadence ticks, expiry, and
-            // skippable folds all arrive here as hold-fenced elapsed
-            // milliseconds and route to the Story's time command.
-            dispatchTime: (tick) =>
-              instance.semantic.dispatch(
-                Object.freeze({ kind: "time" as const, tick }) as never,
-              ),
-            renderer: TemplateNarrativeRendererV1,
-            resolveText: (locale, textId) =>
-              textContent.resolveText(locale as LocaleId | null, textId as TextId),
-            replayCurrentVoice: null,
-          } satisfies DefineNarrativeSurfaceInputV1<TemplateSemanticPublicationV1>,
-        ),
+        {
+          selectNarrative: projectTemplateNarrativeSurfaceSelectionV1,
+          dispatchResolution: (request) =>
+            instance.semantic.dispatch(
+              ({
+                kind: "resolve" as const,
+                expectedOccurrenceId: request.expectedOccurrenceId,
+                resolution: request.resolution,
+              }) as never,
+            ),
+          // The session-level time verb: hold cadence ticks, expiry, and
+          // skippable folds all arrive here as hold-fenced elapsed
+          // milliseconds and route to the Story's time command.
+          dispatchTime: (tick) =>
+            instance.semantic.dispatch(
+              ({ kind: "time" as const, tick }) as never,
+            ),
+          renderer: TemplateNarrativeRendererV1,
+          resolveText: (locale, textId) =>
+            textContent.resolveText(locale as LocaleId | null, textId as TextId),
+          replayCurrentVoice: null,
+        } satisfies DefineNarrativeSurfaceInputV1<TemplateSemanticPublicationV1>,
       ),
       slots: createTemplateUiSlotsV1(instance, presentationFreeze),
       labels: templateRootLabelsV1,
       saveLabels: templateSaveOverlayLabelsV1,
-      input: Object.freeze({ keyboard: templateKeyboardMapV1 }),
+      input: { keyboard: templateKeyboardMapV1 },
       // Game-shell feel is the engine default: no browser context menu, text
       // selection, or hover-cursor changes; editable controls and
       // data-native-menu / data-native-text subtrees stay native. Declare
       // `input: { nativeBehavior: false }` only for a browser-native page.
     });
   },
-});
+};
 
 /** Builds an explicit full/reference composition without changing the minimal entry graph. */
 export function createTemplateGameApplicationWithOuterUiV1(
@@ -397,10 +395,10 @@ export function createTemplateGameApplicationWithOuterUiV1(
     input: Parameters<typeof templateGameApplicationV1.ui>[0],
   ) => WebGameOuterUiV1,
 ): typeof templateGameApplicationV1 {
-  return Object.freeze({
+  return ({
     ...templateGameApplicationV1,
     ui(input: Parameters<typeof templateGameApplicationV1.ui>[0]) {
-      return Object.freeze({
+      return ({
         ...templateGameApplicationV1.ui(input),
         outerUi: createOuterUi(input),
       });

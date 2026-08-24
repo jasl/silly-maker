@@ -74,7 +74,7 @@ import {
 import type { PresentationFreezePortV1, PresentationRatePortV1 } from "@sillymaker/ui";
 import {
   createHostedGameUiCompositionInternalV1,
-  resolveOptionalGameUiManagedSurfaceCompositionInternalV1,
+  resolveGameUiManagedSurfaceCompositionInternalV1,
   sealHostedGameUiCompositionTerminalInternalV1,
 } from "@sillymaker/ui/internal";
 import type { GameUiPresentationAnchorEventInternalV1 } from "@sillymaker/ui/internal";
@@ -499,11 +499,11 @@ const webGameApplicationRebootstrapStartInputsInternalV1 = new WeakMap<
  * persistence flushes after a short quiet period (or every N commands as a
  * backstop), and the pagehide teardown flushes whatever is still pending.
  */
-export const defaultWebAutosavePolicyV1: CoreAutosavePolicyV1 = Object.freeze({
+export const defaultWebAutosavePolicyV1: CoreAutosavePolicyV1 = {
   mode: "debounced",
   delayMs: 800,
   checkpointEveryCommands: 20,
-});
+};
 
 export interface StartedWebGameApplicationV1 {
   readonly applicationId: string;
@@ -760,7 +760,7 @@ export async function startWebGameApplicationV1<
   // preferences (an explicitly selected outer GUI may persist changes here).
   const capabilities = createRuntimeCapabilitySessionOverlayV1(
     persistedCapabilities,
-    capabilityRequest.kind === "accepted" ? capabilityRequest.requested : Object.freeze([]),
+    capabilityRequest.kind === "accepted" ? capabilityRequest.requested : [],
   );
 
   const resolved = resolveCoreGameApplicationV1(
@@ -828,7 +828,7 @@ export async function startWebGameApplicationV1<
         textContentDeclaration.requiredPackIdsForSnapshot === undefined
       )
     ? null
-    : Object.freeze({
+    : ({
       ...(textContentDeclaration.requiredPackIdsForInvocation === undefined ? {} : {
         prepareSemanticInvocation: (invocation: DeepReadonly<TInvocation>) =>
           ensureRequiredTextContentPacksV1(
@@ -848,19 +848,19 @@ export async function startWebGameApplicationV1<
   // exclusion (and the instancePolicy roles) requires distinct owners.
   const leaseOwnerId =
     `owner.sillymaker.web.${application.applicationId}.${nextApplicationUuidV4()}`;
-  const coreStartOptions = Object.freeze({
-    host: Object.freeze({
+  const coreStartOptions = {
+    host: {
       entropy: gameBootstrapEntropy,
       records: host.records,
       now: () => host.metadataClock.now(),
       ownerId: leaseOwnerId as never,
       nextHandoffRequestId: () => `handoff.${application.applicationId}.${nextApplicationUuidV4()}`,
-    }),
+    },
     capabilities: { debugTools: capabilities.state.getCurrent().debugTools },
     capabilityState: capabilities.state,
     autosave: options.autosave ?? application.autosave ?? defaultWebAutosavePolicyV1,
     ...(applicationBuildId === null ? {} : { appBuildId: applicationBuildId }),
-  });
+  };
   const instance = await (async () => {
     if (rebootstrapStart === undefined) {
       if (textContentReadinessHooks !== null) {
@@ -874,11 +874,11 @@ export async function startWebGameApplicationV1<
         coreStartOptions,
       );
     }
-    const rebootstrapOptions = Object.freeze({
+    const rebootstrapOptions = {
       ...coreStartOptions,
       handoff: rebootstrapStart.handoff,
       onRebootstrapStartFailureInternal: notifyRebootstrapStartFailure!,
-    });
+    };
     if (textContentReadinessHooks !== null) {
       bindCoreApplicationReadinessOptionsInternalV1<
         TInvocation,
@@ -925,69 +925,69 @@ export async function startWebGameApplicationV1<
   let presentationPacing: { dispose(): void } | undefined;
 
   const terminalSupervisor = createWebApplicationTerminalSupervisorInternalV1({
-    fenceSteps: Object.freeze([
-      Object.freeze({ name: "automation", run: () => automation?.dispose() }),
-      Object.freeze({ name: "pointer", run: () => pointer?.dispose() }),
-      Object.freeze({
+    fenceSteps: [
+      { name: "automation", run: () => automation?.dispose() },
+      { name: "pointer", run: () => pointer?.dispose() },
+      {
         name: "presentation",
         run: () => {
           if (composition !== undefined) {
             sealHostedGameUiCompositionTerminalInternalV1(composition);
           }
         },
-      }),
+      },
       // Core invalidation can synchronously notify cancellation observers. It
       // runs only after every held Host/UI ingress has become inert.
-      Object.freeze({
+      {
         name: "core",
         run: () => invalidateCoreGameApplicationForHmrInternalV1(instance),
-      }),
-    ]),
-    cleanupSteps: Object.freeze([
-      Object.freeze({
+      },
+    ],
+    cleanupSteps: [
+      {
         name: "page_lifecycle",
         run: () => removePageLifecycle?.(),
-      }),
-      Object.freeze({
+      },
+      {
         name: "desktop_close_flush",
         run: () => removeDesktopCloseFlush?.(),
-      }),
-      Object.freeze({ name: "root", run: () => mounted?.unmount() }),
-      Object.freeze({
+      },
+      { name: "root", run: () => mounted?.unmount() },
+      {
         name: "debug_ui_context",
         run: () => unbindUiContext?.(),
-      }),
-      Object.freeze({
+      },
+      {
         name: "native_behavior",
         run: () => nativeBehaviorReset?.dispose(),
-      }),
-      Object.freeze({
+      },
+      {
         name: "held_input",
         run: () => heldKeyUninstall?.(),
-      }),
-      Object.freeze({
+      },
+      {
         name: "presentation_pacing",
         run: () => presentationPacing?.dispose(),
-      }),
-      Object.freeze({
+      },
+      {
         name: "presentation_freeze",
         run: () => unbindPresentationFreeze?.(),
-      }),
-      Object.freeze({ name: "composition", run: () => composition?.dispose() }),
-      Object.freeze({
+      },
+      { name: "composition", run: () => composition?.dispose() },
+      {
         name: "successor_acknowledgments",
         run: () => successorAcknowledgments?.dispose(),
-      }),
-      Object.freeze({ name: "story_ui", run: () => uiDisposer?.() }),
-      Object.freeze({
+      },
+      { name: "story_ui", run: () => uiDisposer?.() },
+      {
         name: "instance_lease",
         run: () => instanceLease?.dispose(),
-      }),
-      Object.freeze({
+      },
+      {
         name: "capabilities",
         run: () => capabilities.dispose(),
-      }),
-    ]),
+      },
+    ],
     releaseCorePersistence: async (mode) => {
       if (mode === "rebootstrap") {
         return await disposeCoreGameApplicationForRebootstrapInternalV1(instance);
@@ -1015,13 +1015,13 @@ export async function startWebGameApplicationV1<
   const composedLifecycle = createCompositionBoundRestartLifecycleInternalV1({
     prepareRestart: () => prepareCoreApplicationRestartInternalV1(instance),
     acknowledgments: successorAcknowledgments,
-    terminal: Object.freeze({
+    terminal: {
       getTerminalError: terminalSupervisor.getTerminalError,
       terminate(error: Error): Promise<never> {
         signalTerminal(error);
         return terminalSupervisor.terminate(error);
       },
-    }),
+    },
   });
   const disposeForRebootstrap = async (): Promise<
     DeepReadonly<CoreRebootstrapHandoffInternalV1>
@@ -1132,57 +1132,54 @@ export async function startWebGameApplicationV1<
     const titleScreenInput = uiDefinition.titleScreen ?? null;
     const normalizedTitleScreen = titleScreenInput === null ? null : (() => {
       const beginNewGame = titleScreenInput.beginNewGame;
-      return Object.freeze({
+      return ({
         title: titleScreenInput.title,
         backgroundUrl: titleScreenInput.backgroundUrl ?? null,
-        splash: titleScreenInput.splash === undefined ? null : Object.freeze({
-          lines: Object.freeze([...titleScreenInput.splash.lines]),
+        splash: titleScreenInput.splash === undefined ? null : ({
+          lines: [...titleScreenInput.splash.lines],
           durationMs: titleScreenInput.splash.durationMs ?? null,
         }),
         beginNewGame: beginNewGame === undefined
           ? null
-          : () =>
-            Reflect.apply(beginNewGame, titleScreenInput, [
-              instance.semantic,
-            ]),
+          : () => titleScreenInput.beginNewGame!(instance.semantic),
       });
     })();
     const wholeCanvas = wholeCanvasDefinition === null && normalizedTitleScreen === null
       ? null
       : (() => {
-        const labels = Object.freeze({
+        const labels = {
           ...defaultGameRootLabelsV1,
           ...uiDefinition.labels,
-        });
-        return Object.freeze({
+        };
+        return ({
           definition: wholeCanvasDefinition,
           titleScreen: normalizedTitleScreen,
           lifecycle: composedLifecycle,
           savePort: saveSurfaces.saveUi?.port ??
             (saveSurfaces.customSaves === undefined ? null : saveSurfaces.maintenance.savePort),
           customSavesConfigured: saveSurfaces.customSaves !== undefined,
-          labels: Object.freeze({
+          labels: {
             newGame: labels.titleNewGameLabel,
             newGameFailed: labels.titleNewGameFailedText,
             continue: labels.titleContinueLabel,
             load: labels.titleLoadGameLabel,
             settings: labels.titleSettingsLabel ?? labels.settingsLabel,
-          }),
+          },
         });
       })();
     const hostedSurfaceDefinitions = narrativeDefinition === null && wholeCanvas === null
       ? null
-      : Object.freeze({
+      : ({
         narrative: narrativeDefinition,
         wholeCanvas,
-        environment: Object.freeze({
+        environment: {
           playerProfile,
           presentationClock: presentationFreeze.clock,
           prefersReducedMotion: () =>
             typeof globalThis.window.matchMedia === "function" &&
             globalThis.window.matchMedia("(prefers-reduced-motion: reduce)")
               .matches,
-        }),
+        },
       });
 
     composition = createHostedGameUiCompositionInternalV1<
@@ -1215,7 +1212,7 @@ export async function startWebGameApplicationV1<
         managedSurfaceEpochAllocator: createManagedSurfaceApplicationEpochAllocatorInternalV1({
           applicationId: application.applicationId,
         }),
-        anchorEvents: Object.freeze({
+        anchorEvents: {
           current: () => instance.presentationAnchor(),
           subscribe: (
             listener: (event: GameUiPresentationAnchorEventInternalV1) => void,
@@ -1230,49 +1227,43 @@ export async function startWebGameApplicationV1<
                   );
                 }
                 listener(
-                  Object.freeze({
+                  {
                     anchor: event.anchor,
                     token: event.publicationContext,
-                  }),
+                  },
                 );
               },
             ),
-        }),
+        },
         successorProducer: successorAcknowledgments.producer,
         reportFailure,
       },
       hostedSurfaceDefinitions,
     );
     unbindPresentationFreeze = presentationFreeze.bindInputRouterInternalV1(composition.input);
-    // Pacing installs whenever any of its duties can arise: declared time
-    // reporting, a declared realtime span, or a narrative runtime whose
-    // engine-typed `pace: "realtime"` holds must pin the rate even when the
-    // Story declares neither composer member.
-    const pacingNarrative =
-      resolveOptionalGameUiManagedSurfaceCompositionInternalV1(composition)?.narrative ?? null;
-    if (
-      uiDefinition.timeReporting !== undefined || uiDefinition.realtimeWindow !== undefined ||
-      pacingNarrative !== null
-    ) {
-      presentationPacing = installPresentationPacingInternalV1({
-        presentation: composition.presentation,
-        narrative: pacingNarrative,
-        rate: presentationRate,
-        // The freeze-wrapped clock: frozen presentation stops session time
-        // with everything else, and realtime pins reshape hold ticks too.
-        clock: presentationFreeze.clock,
-        timeReporting: uiDefinition.timeReporting ?? null,
-        realtimeWindow: uiDefinition.realtimeWindow ?? null,
-        visibility: Object.freeze({
-          isHidden: () => document.visibilityState === "hidden",
-          subscribe: (listener: () => void) => {
-            document.addEventListener("visibilitychange", listener);
-            return () => document.removeEventListener("visibilitychange", listener);
-          },
-        }),
-        reportFailure,
-      });
-    }
+    // The hosted Narrative runtime may expose an engine-typed `pace:
+    // "realtime"` hold even when the Story declares no extra pacing member.
+    const pacingNarrative = resolveGameUiManagedSurfaceCompositionInternalV1(
+      composition,
+    ).narrative;
+    presentationPacing = installPresentationPacingInternalV1({
+      presentation: composition.presentation,
+      narrative: pacingNarrative,
+      rate: presentationRate,
+      // The freeze-wrapped clock: frozen presentation stops session time
+      // with everything else, and realtime pins reshape hold ticks too.
+      clock: presentationFreeze.clock,
+      timeReporting: uiDefinition.timeReporting ?? null,
+      realtimeWindow: uiDefinition.realtimeWindow ?? null,
+      visibility: {
+        isHidden: () => document.visibilityState === "hidden",
+        subscribe: (listener: () => void) => {
+          document.addEventListener("visibilitychange", listener);
+          return () => document.removeEventListener("visibilitychange", listener);
+        },
+      },
+      reportFailure,
+    });
 
     automation = installBrowserAutomationBridgeV1({
       semantic: instance.semantic,
@@ -1282,15 +1273,15 @@ export async function startWebGameApplicationV1<
     // An explicitly selected outer composition can report its observable open
     // state to DebugBundle without adding implementation vocabulary to core.
     let auxiliarySurfaceOpen = false;
-    const boundOuterUi = uiDefinition.outerUi?.bindHost(Object.freeze({
+    const boundOuterUi = uiDefinition.outerUi?.bindHost({
       inputRouter: composition.input,
       savePort: saveSurfaces.maintenance.savePort,
       clearAllSaves: saveSurfaces.maintenance.clearAllSaves,
       reloadCurrentState,
-      faultCause: Object.freeze({
+      faultCause: {
         getCurrent: () => instance.admin.lastFaultCause(),
         subscribe: (listener: () => void) => instance.semantic.subscribe(listener),
-      }),
+      },
       prepareStateMutation: () =>
         ensureRequiredTextContentPacksV1(
           textContentSession?.manifest.packs.map((pack) => pack.packId) ?? [],
@@ -1300,29 +1291,26 @@ export async function startWebGameApplicationV1<
       observeOpenState: (open: boolean) => {
         auxiliarySurfaceOpen = open;
       },
-    }));
+    });
     const storySlots = uiDefinition.slots;
     type RootSlotContextV1 = Parameters<
       NonNullable<NonNullable<typeof storySlots>["background"]>
     >[0];
-    const rootSlots: typeof uiDefinition.slots = boundOuterUi === undefined
-      ? storySlots
-      : Object.freeze({
-        ...storySlots,
-        settingsSections: (context: RootSlotContextV1) =>
-          Object.freeze([
-            ...(boundOuterUi.settingsSections ?? []),
-            ...(storySlots?.settingsSections?.(context) ?? []),
-          ]),
-        auxiliarySurface: (context: RootSlotContextV1) => (
-          <>
-            {boundOuterUi.renderAuxiliarySurface({
-              returnToTitle: context.systemDialogs.returnToTitle,
-            })}
-            {storySlots?.auxiliarySurface?.(context) ?? null}
-          </>
-        ),
-      });
+    const rootSlots: typeof uiDefinition.slots = boundOuterUi === undefined ? storySlots : ({
+      ...storySlots,
+      settingsSections: (context: RootSlotContextV1) => [
+        ...(boundOuterUi.settingsSections ?? []),
+        ...(storySlots?.settingsSections?.(context) ?? []),
+      ],
+      auxiliarySurface: (context: RootSlotContextV1) => (
+        <>
+          {boundOuterUi.renderAuxiliarySurface({
+            returnToTitle: context.systemDialogs.returnToTitle,
+          })}
+          {storySlots?.auxiliarySurface?.(context) ?? null}
+        </>
+      ),
+    });
     // The root installs only the router-coupled discrete adapters; held
     // bindings and the native-behavior reset install below, composer-side.
     const rootInputMaps = ((): {
@@ -1407,9 +1395,9 @@ export async function startWebGameApplicationV1<
     }
     if (uiDefinition.debugUiContext !== undefined) {
       const systemDialogSession = composition.systemDialogSession;
-      const systemDialogReadView = Object.freeze({
+      const systemDialogReadView = {
         getSnapshot: () => systemDialogSession.getSnapshot(),
-      });
+      };
       unbindUiContext = instance.bindDebugUiContext(
         uiDefinition.debugUiContext({
           auxiliarySurfaceOpen: () => auxiliarySurfaceOpen,
@@ -1442,12 +1430,12 @@ export async function startWebGameApplicationV1<
       } else {
         const failureHandoff = await disposeForRebootstrap();
         notifyRebootstrapStartFailure?.(
-          Object.freeze({ kind: "ready" as const, handoff: failureHandoff }),
+          { kind: "ready" as const, handoff: failureHandoff },
         );
       }
     } catch {
       if (rebootstrapStart !== undefined) {
-        notifyRebootstrapStartFailure?.(Object.freeze({ kind: "terminal" as const }));
+        notifyRebootstrapStartFailure?.({ kind: "terminal" as const });
       }
       // The construction failure remains primary over release noise.
     }
@@ -1461,7 +1449,7 @@ export async function startWebGameApplicationV1<
   }
   startupDiagnostics?.signalRequiredDomainReady();
   startupAccepted = true;
-  const started: StartedWebGameApplicationV1 = Object.freeze({
+  const started: StartedWebGameApplicationV1 = {
     applicationId: application.applicationId,
     host,
     provenance: resolved.application
@@ -1470,16 +1458,16 @@ export async function startWebGameApplicationV1<
     instanceLease,
     isDisposed: terminalSupervisor.isDisposalStarted,
     dispose,
-  });
+  };
   startedWebGameApplicationHmrControlsInternalV1.set(
     started,
-    Object.freeze({
+    {
       invalidate: () => invalidateCoreGameApplicationForHmrInternalV1(instance),
       dispose: disposeForRebootstrap,
       ...(options.loadTextContentPackBytes === undefined
         ? {}
         : { loadTextContentPackBytes: options.loadTextContentPackBytes }),
-    }),
+    },
   );
   return started;
 }
@@ -1527,13 +1515,13 @@ export function startWebGameApplicationForRebootstrapInternalV1<
   options: StartWebGameApplicationForRebootstrapOptionsInternalV1,
 ): Promise<StartedWebGameApplicationV1> {
   const { handoff, onRebootstrapStartFailureInternal, ...ordinaryOptions } = options;
-  const publicOptions: StartWebGameApplicationOptionsV1 = Object.freeze(ordinaryOptions);
+  const publicOptions: StartWebGameApplicationOptionsV1 = ordinaryOptions;
   webGameApplicationRebootstrapStartInputsInternalV1.set(
     publicOptions,
-    Object.freeze({
+    {
       handoff,
       onFailure: onRebootstrapStartFailureInternal,
-    }),
+    },
   );
   return startWebGameApplicationV1(application, publicOptions);
 }

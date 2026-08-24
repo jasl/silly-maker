@@ -44,7 +44,7 @@ export const templateCoreApplicationDefinitionV1 = defineCoreGameApplication<
     );
     return mutations.length === 0
       ? null
-      : Object.freeze({ kind: "template.scene_reconcile" as const, mutations });
+      : ({ kind: "template.scene_reconcile" as const, mutations });
   },
   exportFilename: "template-save.json",
 });

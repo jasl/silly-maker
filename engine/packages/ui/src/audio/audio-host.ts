@@ -92,7 +92,7 @@ export function createFakeAudioHostV1(): FakeAudioHostV1 {
   ]);
   let disposed = false;
 
-  return Object.freeze({
+  return {
     play(input: AudioHostPlayInputV1): void {
       if (disposed) return;
       channels.set(input.channel, {
@@ -143,14 +143,14 @@ export function createFakeAudioHostV1(): FakeAudioHostV1 {
       operations.push("dispose");
     },
     channel: (channel: AudioHostChannelV1) => channels.get(channel) ?? null,
-    effects: () => Object.freeze([...effects]),
-    operations: () => Object.freeze([...operations]),
+    effects: () => [...effects],
+    operations: () => [...operations],
     isSuspended: () => suspended,
     isMuted: () => muted,
     masterGainPermille: () => masterGain,
     busGainPermille: (bus: AudioBusV1) => busGains.get(bus) ?? 1000,
     isDisposed: () => disposed,
-  });
+  };
 }
 
 /** True when two channel intents describe the same steady-state playback. */

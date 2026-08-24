@@ -11,10 +11,10 @@ import catEntranceMotionDocumentV1 from "./motions/cat-entrance.motion.json" wit
   type: "json",
 };
 
-export const catcafeOpeningCueIdsV1 = Object.freeze({
+export const catcafeOpeningCueIdsV1 = {
   shopfront: "cue.catcafe.opening.shopfront",
   kittenEnters: "cue.catcafe.opening.kitten-enters",
-});
+};
 
 export const catcafeOpeningSceneV1: Scene = sceneFromDocument(openingSceneDocumentV1);
 

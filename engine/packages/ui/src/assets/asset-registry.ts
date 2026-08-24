@@ -103,8 +103,8 @@ interface SharedRuntimeLoadV1 {
   readonly promise: Promise<RuntimeAssetLoaderSettlementV1>;
 }
 
-const unloadedStateV1 = Object.freeze({ kind: "unloaded" as const });
-const abortedStateV1 = Object.freeze({ kind: "aborted" as const });
+const unloadedStateV1 = { kind: "unloaded" as const };
+const abortedStateV1 = { kind: "aborted" as const };
 const callerAbortedV1 = Symbol("asset.registry_caller_aborted");
 
 function registryFailureV1(
@@ -115,7 +115,7 @@ function registryFailureV1(
 
 function normalizeLoaderSettlementV1(value: unknown): RuntimeAssetLoaderSettlementV1 {
   if (typeof value !== "object" || value === null) {
-    return Object.freeze({ kind: "failed", code: "fetch_failed" });
+    return ({ kind: "failed", code: "fetch_failed" });
   }
   const candidate = value as {
     readonly kind?: unknown;
@@ -127,16 +127,16 @@ function normalizeLoaderSettlementV1(value: unknown): RuntimeAssetLoaderSettleme
     typeof candidate.url === "string" &&
     candidate.url.length > 0
   ) {
-    return Object.freeze({ kind: "loaded", url: candidate.url });
+    return ({ kind: "loaded", url: candidate.url });
   }
   if (
     candidate.kind === "failed" &&
     (candidate.code === "fetch_failed" || candidate.code === "decode_failed")
   ) {
-    return Object.freeze({ kind: "failed", code: candidate.code });
+    return ({ kind: "failed", code: candidate.code });
   }
-  if (candidate.kind === "aborted") return Object.freeze({ kind: "aborted" });
-  return Object.freeze({ kind: "failed", code: "fetch_failed" });
+  if (candidate.kind === "aborted") return ({ kind: "aborted" });
+  return ({ kind: "failed", code: "fetch_failed" });
 }
 
 function uniqueAssetIdsV1<TAssetId>(assetIds: readonly TAssetId[]): readonly TAssetId[] {
@@ -147,24 +147,24 @@ function uniqueAssetIdsV1<TAssetId>(assetIds: readonly TAssetId[]): readonly TAs
     seen.add(assetId);
     unique.push(assetId);
   }
-  return Object.freeze(unique);
+  return unique;
 }
 
-function frozenLoadResultV1<TAssetId>(
+function loadResultV1<TAssetId>(
   assetId: TAssetId,
   settlement: RuntimeAssetLoaderSettlementV1,
 ): AssetLoadResultV1<TAssetId> {
   switch (settlement.kind) {
     case "loaded":
-      return Object.freeze({ assetId, status: "loaded" });
+      return ({ assetId, status: "loaded" });
     case "failed":
-      return Object.freeze({
+      return ({
         assetId,
         status: "fallback",
         faultCode: `asset.${settlement.code}` as RuntimeLoadFaultCodeV1,
       });
     case "aborted":
-      return Object.freeze({ assetId, status: "aborted" });
+      return ({ assetId, status: "aborted" });
     default:
       throw new TypeError("asset.registry_invalid_loader_settlement");
   }
@@ -213,38 +213,38 @@ export function createAssetRegistryV1<
     }
     recordsById.set(
       entry.assetId,
-      Object.freeze({
+      {
         assetId: entry.assetId,
         usage: entry.usage,
         fallbackToken: entry.fallbackToken,
         width: entry.width,
         height: entry.height,
         runtime: null,
-      }),
+      },
     );
   }
 
   const recordsByCacheKey = new Map<string, RegistryAssetRecordV1[]>();
   for (const entry of manifest.assets) {
     if (entry.delivery !== "runtime_image") continue;
-    const request = Object.freeze({
+    const request = {
       runtimePath: entry.runtimePath,
       mediaType: entry.mediaType,
       width: entry.width,
       height: entry.height,
-    });
+    };
     const cacheKey = loader.cacheKey(request);
-    const record = Object.freeze({
+    const record = {
       assetId: entry.assetId,
       usage: entry.usage,
       fallbackToken: entry.fallbackToken,
       width: entry.width,
       height: entry.height,
-      runtime: Object.freeze({
+      runtime: {
         request,
         cacheKey,
-      }),
-    });
+      },
+    };
     recordsById.set(entry.assetId, record);
     const sharedRecords = recordsByCacheKey.get(cacheKey);
     if (sharedRecords === undefined) recordsByCacheKey.set(cacheKey, [record]);
@@ -260,9 +260,9 @@ export function createAssetRegistryV1<
   const reportedDiagnostics = new Set<string>();
   const listeners = new Set<() => void>();
   let disposed = false;
-  let publication: DeepReadonly<AssetRegistryPublicationV1> = Object.freeze({
+  let publication: DeepReadonly<AssetRegistryPublicationV1> = {
     revision: parseNonNegativeSafeInteger(0),
-  });
+  };
 
   const emitDiagnosticV1 = (
     record: RegistryAssetRecordV1,
@@ -279,11 +279,11 @@ export function createAssetRegistryV1<
     reportedDiagnostics.add(identity);
     try {
       reportDiagnostic(
-        Object.freeze({
+        {
           runtimePath: record.runtime.request.runtimePath,
           faultCode,
           loadCycle,
-        }),
+        },
       );
     } catch {
       // Diagnostic reporting is non-authoritative and cannot interrupt registry work.
@@ -299,13 +299,13 @@ export function createAssetRegistryV1<
     let state: RuntimeAssetStateV1;
     switch (settlement.kind) {
       case "loaded":
-        state = Object.freeze({ kind: "loaded", url: settlement.url });
+        state = { kind: "loaded", url: settlement.url };
         break;
       case "failed":
-        state = Object.freeze({
+        state = {
           kind: "failed",
           faultCode: `asset.${settlement.code}` as RuntimeLoadFaultCodeV1,
-        });
+        };
         break;
       case "aborted":
         state = abortedStateV1;
@@ -314,9 +314,9 @@ export function createAssetRegistryV1<
 
     for (const record of sharedRecords) statesById.set(record.assetId, state);
 
-    publication = Object.freeze({
+    publication = {
       revision: parseNonNegativeSafeInteger(publication.revision + 1),
-    });
+    };
 
     if (settlement.kind === "failed") {
       const first = sharedRecords[0];
@@ -346,18 +346,16 @@ export function createAssetRegistryV1<
     try {
       requested = loader.load(runtime.request, controller.signal);
     } catch {
-      requested = Promise.resolve(Object.freeze({ kind: "failed", code: "fetch_failed" }));
+      requested = Promise.resolve({ kind: "failed", code: "fetch_failed" });
     }
     const promise = requested
       .then(normalizeLoaderSettlementV1)
-      .catch((): RuntimeAssetLoaderSettlementV1 =>
-        Object.freeze({ kind: "failed", code: "fetch_failed" })
-      )
+      .catch((): RuntimeAssetLoaderSettlementV1 => ({ kind: "failed", code: "fetch_failed" }))
       .then((settlement) => {
         publishSharedSettlementV1(runtime.cacheKey, settlement, loadCycle);
         return settlement;
       });
-    const shared = Object.freeze({ controller, loadCycle, promise });
+    const shared = { controller, loadCycle, promise };
     sharedLoads.set(runtime.cacheKey, shared);
     return shared;
   };
@@ -368,15 +366,15 @@ export function createAssetRegistryV1<
     signal: AbortSignal,
   ): Promise<AssetLoadResultV1<TAssetId>> => {
     if (record.runtime === null) {
-      return Object.freeze({ assetId, status: "fallback", faultCode: null });
+      return ({ assetId, status: "fallback", faultCode: null });
     }
     const shared = startSharedLoadV1(record);
     const settlement = await waitForSharedLoadV1(shared.promise, signal);
-    if (settlement === callerAbortedV1) return Object.freeze({ assetId, status: "aborted" });
-    return frozenLoadResultV1(assetId, settlement);
+    if (settlement === callerAbortedV1) return ({ assetId, status: "aborted" });
+    return loadResultV1(assetId, settlement);
   };
 
-  const registry: AssetRegistryV1<TAssetId, TAssetUsage, TFallbackToken> = Object.freeze({
+  const registry: AssetRegistryV1<TAssetId, TAssetUsage, TFallbackToken> = {
     observe: () => publication,
 
     subscribe(listener: () => void) {
@@ -399,19 +397,18 @@ export function createAssetRegistryV1<
       const records = uniqueIds.map((requestedId) => {
         const record = recordsById.get(requestedId);
         if (record === undefined) throw registryFailureV1("asset.registry_unknown_id");
-        return Object.freeze({ requestedId, record });
+        return ({ requestedId, record });
       });
       if (signal.aborted) {
-        return Object.freeze(
-          records.map(({ requestedId }) =>
-            Object.freeze({ assetId: requestedId, status: "aborted" as const })
-          ),
-        );
+        return (records.map(({ requestedId }) => ({
+          assetId: requestedId,
+          status: "aborted" as const,
+        })));
       }
       const results = await Promise.all(
         records.map(({ requestedId, record }) => loadForCallerV1(requestedId, record, signal)),
       );
-      return Object.freeze(results);
+      return results;
     },
 
     resolve(assetId: TAssetId, usage: TAssetUsage) {
@@ -424,7 +421,7 @@ export function createAssetRegistryV1<
             parseNonNegativeSafeInteger(0);
           emitDiagnosticV1(record, "asset.usage_mismatch", cycle);
         }
-        return Object.freeze({
+        return ({
           delivery: "code_fallback" as const,
           assetId,
           usage,
@@ -434,7 +431,7 @@ export function createAssetRegistryV1<
 
       const state = statesById.get(record.assetId) ?? unloadedStateV1;
       if (record.runtime !== null && state.kind === "loaded") {
-        return Object.freeze({
+        return ({
           delivery: "runtime_image" as const,
           assetId,
           usage,
@@ -444,7 +441,7 @@ export function createAssetRegistryV1<
           fallbackToken: record.fallbackToken as TFallbackToken,
         });
       }
-      return Object.freeze({
+      return ({
         delivery: "code_fallback" as const,
         assetId,
         usage,
@@ -463,7 +460,7 @@ export function createAssetRegistryV1<
         // Disposal remains idempotent even when a Host adapter reports failure.
       }
     },
-  });
+  };
 
   return registry;
 }

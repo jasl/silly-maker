@@ -45,24 +45,12 @@ function hasExactDataKeysInternalV1(
   keys: readonly string[],
 ): value is Readonly<Record<string, unknown>> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-  const prototype = Reflect.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) return false;
-  const ownKeys = Reflect.ownKeys(value);
-  if (
-    ownKeys.length !== keys.length ||
-    ownKeys.some((key) => typeof key !== "string") ||
-    !keys.every((key) => Object.hasOwn(value, key))
-  ) {
-    return false;
-  }
-  return keys.every((key) => {
-    const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
-    return descriptor !== undefined && "value" in descriptor;
-  });
+  const ownKeys = Object.keys(value);
+  return ownKeys.length === keys.length && keys.every((key) => Object.hasOwn(value, key));
 }
 
 function narrativeParametersSchemaInternalV1(): RuntimeSchemaV1<unknown> {
-  return Object.freeze({
+  return {
     parse(value: unknown): NarrativeStableParametersInternalV1 {
       const keys = [
         "semanticOccurrenceId",
@@ -81,15 +69,15 @@ function narrativeParametersSchemaInternalV1(): RuntimeSchemaV1<unknown> {
       ) {
         throw new TypeError("ui.narrative_stable_parameters_invalid");
       }
-      return Object.freeze({
+      return {
         semanticOccurrenceId: parseInteractionOccurrenceIdV1(value.semanticOccurrenceId),
         kind,
         definitionId: parseModuleId(value.definitionId),
         seenRevision: parsePositiveSafeInteger(value.seenRevision),
         rendererKey: parseModuleId(value.rendererKey),
-      });
+      };
     },
-  });
+  };
 }
 
 export const narrativeOwnerIdInternalV1 = parseManagedSurfaceOwnerIdV1(
@@ -135,11 +123,11 @@ export const narrativeToggleHistoryActionIdInternalV1 = parseManagedSurfaceActio
 );
 export const narrativeCancelActionIdInternalV1 = parseManagedSurfaceActionIdV1("ui.cancel");
 
-const readinessPolicyInternalV1 = Object.freeze({
+const readinessPolicyInternalV1 = {
   initialOpen: "blocking_fallback" as const,
   primaryReplacement: "retain_current" as const,
   childOpen: "blocking_fallback" as const,
-});
+};
 
 export const narrativeDialogueDefinitionInternalV1 = parseManagedSurfaceResolvedDefinitionV1({
   definitionId: narrativeDialogueDefinitionIdInternalV1,
@@ -150,34 +138,34 @@ export const narrativeDialogueDefinitionInternalV1 = parseManagedSurfaceResolved
   layerOrder: 40,
   placement: "root",
   modality: "blocking",
-  inputPolicy: Object.freeze({ kind: "managed", inputContextId: "narrative" }),
-  dismissPolicy: Object.freeze({
+  inputPolicy: { kind: "managed", inputContextId: "narrative" },
+  dismissPolicy: {
     back: false,
     escape: false,
     backdrop: false,
     routedCancel: false,
-  }),
-  focusPolicy: Object.freeze({
+  },
+  focusPolicy: {
     kind: "owns_focus",
     initialTargetId: parseManagedSurfaceFocusTargetIdV1(
       "surface-focus.narrative.primary",
     ),
     trap: true,
     restore: "previous_owner",
-  }),
-  navigationPolicy: Object.freeze({ kind: "none" }),
-  actionIds: Object.freeze(
-    [
-      "ui.confirm",
-      "narrative.advance",
-      "narrative.choose",
-      "narrative.resume",
-      "narrative.custom",
-      "player.toggle_auto",
-      "player.toggle_skip",
-      "player.toggle_history",
-      "player.replay_voice",
-    ].map(parseManagedSurfaceActionIdV1),
+  },
+  navigationPolicy: { kind: "none" },
+  actionIds: [
+    "ui.confirm",
+    "narrative.advance",
+    "narrative.choose",
+    "narrative.resume",
+    "narrative.custom",
+    "player.toggle_auto",
+    "player.toggle_skip",
+    "player.toggle_history",
+    "player.replay_voice",
+  ].map(
+    parseManagedSurfaceActionIdV1,
   ),
   readiness: readinessPolicyInternalV1,
 });
@@ -191,58 +179,56 @@ export const narrativeHistoryDefinitionInternalV1 = parseManagedSurfaceResolvedD
   layerOrder: 41,
   placement: "child",
   modality: "blocking",
-  inputPolicy: Object.freeze({ kind: "managed", inputContextId: "narrative" }),
-  dismissPolicy: Object.freeze({
+  inputPolicy: { kind: "managed", inputContextId: "narrative" },
+  dismissPolicy: {
     back: true,
     escape: true,
     backdrop: true,
     routedCancel: true,
-  }),
-  focusPolicy: Object.freeze({
+  },
+  focusPolicy: {
     kind: "owns_focus",
     initialTargetId: parseManagedSurfaceFocusTargetIdV1(
       "surface-focus.narrative.history-close",
     ),
     trap: true,
     restore: "opener",
-  }),
-  navigationPolicy: Object.freeze({ kind: "close" }),
-  actionIds: Object.freeze(
-    ["ui.cancel", "player.toggle_history"].map(parseManagedSurfaceActionIdV1),
-  ),
+  },
+  navigationPolicy: { kind: "close" },
+  actionIds: ["ui.cancel", "player.toggle_history"].map(parseManagedSurfaceActionIdV1),
   readiness: readinessPolicyInternalV1,
 });
 
-const rootSlotDescriptorInternalV1 = Object.freeze({
+const rootSlotDescriptorInternalV1 = {
   kind: "root" as const,
   slotId: narrativeRootSlotIdInternalV1,
   cardinality: "single" as const,
-});
-const historySlotDescriptorInternalV1 = Object.freeze({
+};
+const historySlotDescriptorInternalV1 = {
   kind: "child" as const,
   parentDefinitionId: narrativeDialogueDefinitionIdInternalV1,
   slotId: narrativeHistorySlotIdInternalV1,
   cardinality: "single" as const,
-});
-const dialogueSidecarInternalV1: ManagedSurfaceStableDefinitionSidecarInternalV1 = Object.freeze({
+};
+const dialogueSidecarInternalV1: ManagedSurfaceStableDefinitionSidecarInternalV1 = {
   definition: narrativeDialogueDefinitionInternalV1,
   parameterSchema: narrativeParametersSchemaInternalV1(),
-});
+};
 
 export const narrativeManagedSurfaceFamilyContractInternalV1:
-  NarrativeManagedSurfaceFamilyContractInternalV1 = Object.freeze({
+  NarrativeManagedSurfaceFamilyContractInternalV1 = {
     ownerId: narrativeOwnerIdInternalV1,
-    resolvedOwnerIds: Object.freeze([narrativeOwnerIdInternalV1]),
-    resolvedSlotDescriptors: Object.freeze([
+    resolvedOwnerIds: [narrativeOwnerIdInternalV1],
+    resolvedSlotDescriptors: [
       rootSlotDescriptorInternalV1,
       historySlotDescriptorInternalV1,
-    ]),
-    definitions: Object.freeze({
+    ],
+    definitions: {
       dialogue: narrativeDialogueDefinitionInternalV1,
       history: narrativeHistoryDefinitionInternalV1,
-    }),
-    stableDefinitionSidecars: Object.freeze([dialogueSidecarInternalV1]),
-  });
+    },
+    stableDefinitionSidecars: [dialogueSidecarInternalV1],
+  };
 
 export function createNarrativeManagedSurfaceFamilyContractInternalV1(): NarrativeManagedSurfaceFamilyContractInternalV1 {
   return narrativeManagedSurfaceFamilyContractInternalV1;

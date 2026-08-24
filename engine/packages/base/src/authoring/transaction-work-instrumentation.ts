@@ -37,8 +37,8 @@ export function createTransactionWorkCounterV1(): {
   let reducerPlanVisits = 0;
   let slotMaterializations = 0;
   let aggregateMaterializations = 0;
-  return Object.freeze({
-    instrumentation: Object.freeze({
+  return {
+    instrumentation: {
       record(event: TransactionWorkEventV1) {
         switch (event) {
           case "reducer_plan_visit":
@@ -52,18 +52,18 @@ export function createTransactionWorkCounterV1(): {
             return;
         }
       },
-    }),
+    },
     reset() {
       reducerPlanVisits = 0;
       slotMaterializations = 0;
       aggregateMaterializations = 0;
     },
     snapshot() {
-      return Object.freeze({
+      return {
         reducerPlanVisits,
         slotMaterializations,
         aggregateMaterializations,
-      });
+      };
     },
-  });
+  };
 }

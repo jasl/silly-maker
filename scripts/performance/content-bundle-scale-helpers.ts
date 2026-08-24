@@ -16,13 +16,13 @@ export function contentBundleScaleFixtureV1(
   profile: ContentBundleScaleProfileV1,
 ): ContentBundleScaleFixtureV1 {
   const packCount = profile === "bundle-reference" ? 1 : 100;
-  return Object.freeze({
+  return {
     profile,
     packCount,
     entriesPerPack: entriesPerPackV1,
     entryCount: packCount * entriesPerPackV1,
     selectedPackIndex: 0,
-  });
+  };
 }
 
 export function contentBundleScaleEntryIdV1(index: number): string {
@@ -36,10 +36,10 @@ export function contentBundleScalePackJsonV1(input: {
   const firstIndex = input.packIndex * input.entriesPerPack;
   const entries = Array.from({ length: input.entriesPerPack }, (_, offset) => {
     const index = firstIndex + offset;
-    return Object.freeze({
+    return {
       textId: contentBundleScaleEntryIdV1(index),
       text: `Scale Lab line ${String(index).padStart(6, "0")} — deterministic content payload.`,
-    });
+    };
   });
   return `${
     JSON.stringify({
@@ -62,11 +62,7 @@ export interface ContentBundleScalePackDescriptorV1 {
 export function contentBundleScaleManifestSourceV1(
   packs: readonly ContentBundleScalePackDescriptorV1[],
 ): string {
-  return `export const contentManifestV1 = Object.freeze({
-  revision: 1,
-  packs: Object.freeze(${JSON.stringify(packs)}.map((pack) => Object.freeze(pack))),
-});
-`;
+  return `export const contentManifestV1 = ${JSON.stringify({ revision: 1, packs })} as const;\n`;
 }
 
 interface ViteManifestEntryV1 {
@@ -98,5 +94,5 @@ export function initialJavaScriptPathsFromViteManifestV1(
     for (const importedKey of entry.imports ?? []) visit(importedKey);
   };
   visit(entryKeys[0]!);
-  return Object.freeze([...paths].sort());
+  return [...paths].sort();
 }

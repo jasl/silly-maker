@@ -34,38 +34,30 @@ export function createShellServerDrainInternalV1(input: {
 
 let nextRendererFlushRequestIdV1 = 0;
 
-function readOwnDataPropertyV1(value: object, key: string): unknown {
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  return descriptor !== undefined && "value" in descriptor ? descriptor.value : undefined;
-}
-
 function unwrapExecuteJsResultV1(value: unknown): unknown {
   if (value === null || typeof value !== "object") return value;
-  const okDescriptor = Object.getOwnPropertyDescriptor(value, "ok");
-  if (okDescriptor === undefined) return value;
-  if (!("value" in okDescriptor) || okDescriptor.value !== true) return null;
-  const valueDescriptor = Object.getOwnPropertyDescriptor(value, "value");
-  return valueDescriptor !== undefined && "value" in valueDescriptor ? valueDescriptor.value : null;
+  if (!("ok" in value)) return value;
+  const envelope = value as { readonly ok?: unknown; readonly value?: unknown };
+  return envelope.ok === true ? envelope.value ?? null : null;
 }
 
 function rendererFlushStatusV1(
   value: unknown,
   requestId: number,
 ): "preparing" | "flushed" | "failed" | null {
-  try {
-    const receipt = unwrapExecuteJsResultV1(value);
-    if (receipt === null || typeof receipt !== "object") return null;
-    if (
-      readOwnDataPropertyV1(receipt, "protocolRevision") !== 1 ||
-      readOwnDataPropertyV1(receipt, "requestId") !== requestId
-    ) {
-      return null;
-    }
-    const kind = readOwnDataPropertyV1(receipt, "kind");
-    return kind === "preparing" || kind === "flushed" || kind === "failed" ? kind : null;
-  } catch {
+  const receipt = unwrapExecuteJsResultV1(value);
+  if (receipt === null || typeof receipt !== "object") return null;
+  const record = receipt as {
+    readonly kind?: unknown;
+    readonly protocolRevision?: unknown;
+    readonly requestId?: unknown;
+  };
+  if (record.protocolRevision !== 1 || record.requestId !== requestId) {
     return null;
   }
+  return record.kind === "preparing" || record.kind === "flushed" || record.kind === "failed"
+    ? record.kind
+    : null;
 }
 
 function rendererFlushRequestSourceV1(operation: "prepare" | "read", requestId: number): string {

@@ -5,7 +5,7 @@ export type ApplicationBootstrapEntryV1 = "runtime" | "author";
 export type ApplicationBootstrapTargetV1 = "browser" | "deno_desktop";
 
 /**
- * The immutable, target-neutral receipt admitted once at a GUI entry boundary.
+ * The target-neutral typed receipt admitted once at a GUI entry boundary.
  * Product-specific startup values remain outside this foundation until a real
  * consumer defines their contract.
  */
@@ -35,7 +35,7 @@ function requireApplicationBootstrapRecordV1(
 
 /**
  * Schema-normalizes parsed Strict JSON or a trusted Host-created record into a
- * new frozen receipt. This function deliberately does not authenticate a
+ * new typed receipt. This function deliberately does not authenticate a
  * JavaScript object's prototype or property descriptors; untrusted serialized
  * input must cross its byte/JSON boundary before reaching this admission.
  */
@@ -55,5 +55,5 @@ export function admitApplicationBootstrapConfigV1(
   if (target !== "browser" && target !== "deno_desktop") {
     throw new TypeError("application_bootstrap.invalid_target");
   }
-  return Object.freeze({ revision, entry, target });
+  return { revision, entry, target };
 }

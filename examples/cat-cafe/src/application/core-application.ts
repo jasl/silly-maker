@@ -39,7 +39,7 @@ export async function createCatcafeApplicationInstanceV1(
   }
   const seeds = options.seeds ?? [defaultSeedV1];
   return createCoreGameApplicationInstanceV1(resolved.application, {
-    host: Object.freeze({
+    host: {
       entropy: createFixedBootstrapEntropyV1({
         uuids: seeds.map(() => fixedUuidV1),
         seeds,
@@ -48,6 +48,6 @@ export async function createCatcafeApplicationInstanceV1(
       now: options.now ?? (() => fixedInstantV1),
       ownerId: ownerIdV1,
       nextHandoffRequestId: () => "handoff.sillymaker.catcafe",
-    }),
+    },
   });
 }

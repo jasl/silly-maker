@@ -29,7 +29,7 @@ export interface GameShellPropsV1 {
 }
 
 function recoveryLayersV1(system: ReactNode): GameStageLayersV1 {
-  return Object.freeze({
+  return {
     background: null,
     character: null,
     sceneInteraction: null,
@@ -38,7 +38,7 @@ function recoveryLayersV1(system: ReactNode): GameStageLayersV1 {
     wholeCanvas: null,
     workspaceOverlay: null,
     system,
-  });
+  };
 }
 
 export function GameShell(props: GameShellPropsV1): ReactElement {

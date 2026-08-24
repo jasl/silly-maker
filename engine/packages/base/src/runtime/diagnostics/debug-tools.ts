@@ -42,7 +42,7 @@ export interface CreateDebugToolsPortInputV1<
   queryDiagnostics(query: DeepReadonly<TDiagnosticQuery>): AwaitableV1<TDiagnosticQueryResult>;
 }
 
-const capabilityDisabledV1 = Object.freeze({ kind: "capability_disabled" as const });
+const capabilityDisabledV1 = { kind: "capability_disabled" as const };
 
 function readCapabilitiesV1(
   source: ReadonlyViewSourceV1<RuntimeCapabilitiesV1>,
@@ -104,15 +104,15 @@ export function createDebugToolsPortV1<
   const hasDebugTools = () => hasDebugToolsV1(input.capabilities);
   const hasCheatAuthority = () => hasCheatAuthorityV1(input.capabilities);
 
-  return Object.freeze({
+  return {
     async listFixtures() {
       if (!hasDebugTools()) return capabilityDisabledV1;
       const fixtureIds = await input.listFixtures();
       if (!hasDebugTools()) return capabilityDisabledV1;
-      return Object.freeze({
+      return {
         kind: "listed" as const,
-        fixtureIds: Object.freeze([...fixtureIds]),
-      });
+        fixtureIds: [...fixtureIds],
+      };
     },
     async executeDebugCommand(command: DeepReadonly<TDebugCommand>) {
       if (!hasCheatAuthority()) return capabilityDisabledV1;
@@ -155,5 +155,5 @@ export function createDebugToolsPortV1<
       const result = await input.queryDiagnostics(query);
       return hasDebugTools() ? result : capabilityDisabledV1;
     },
-  });
+  };
 }

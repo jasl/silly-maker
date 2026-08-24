@@ -78,7 +78,7 @@ export interface ApplicationHostCapabilitiesV1 {
 }
 
 function cloneRecord(record: HostStoredRecordV1): HostStoredRecordV1 {
-  return Object.freeze({ ...record, bytes: Uint8Array.from(record.bytes) });
+  return { ...record, bytes: Uint8Array.from(record.bytes) };
 }
 
 type NormalizedMemoryMutationV1 =
@@ -135,24 +135,24 @@ function normalizeMemoryMutationsV1(
       const expectedRevision = mutation.expectedRevision === null
         ? null
         : parseNonNegativeSafeInteger(mutation.expectedRevision);
-      return Object.freeze({
+      return {
         kind: "put",
         namespace,
         key,
         expectedRevision,
         nextRevision: parseNonNegativeSafeInteger((expectedRevision ?? 0) + 1),
         bytes: Uint8Array.from(mutation.bytes),
-      });
+      };
     }
     if (mutation.kind !== "delete") {
       throw new TypeError("invalid Host record mutation kind");
     }
-    return Object.freeze({
+    return {
       kind: "delete",
       namespace,
       key,
       expectedRevision: parseNonNegativeSafeInteger(mutation.expectedRevision),
-    });
+    };
   });
   const identities = normalized.map((mutation) =>
     compositeRecordKeyV1(mutation.namespace, mutation.key)
@@ -160,7 +160,7 @@ function normalizeMemoryMutationsV1(
   if (new Set(identities).size !== identities.length) {
     throw new TypeError("duplicate Host record mutation");
   }
-  return Object.freeze(normalized) as readonly [
+  return normalized as unknown as readonly [
     NormalizedMemoryMutationV1,
     ...NormalizedMemoryMutationV1[],
   ];
@@ -182,29 +182,27 @@ export function createSeededMemoryHostRecordStoreInternalV1(
     ) {
       throw new TypeError("invalid initial Host record");
     }
-    const normalized = Object.freeze({
+    const normalized = {
       namespace: record.namespace,
       key: record.key,
       revision: parseNonNegativeSafeInteger(record.revision),
       bytes: Uint8Array.from(record.bytes),
-    });
+    };
     const identity = compositeRecordKeyV1(normalized.namespace, normalized.key);
     if (records.has(identity)) throw new TypeError("duplicate initial Host record");
     records.set(identity, normalized);
   }
 
-  return Object.freeze({
+  return {
     async read(namespace: HostRecordNamespaceV1, key: HostRecordKeyV1) {
       const record = records.get(compositeRecordKeyV1(namespace, key));
       return record ? cloneRecord(record) : null;
     },
     async list(namespace: HostRecordNamespaceV1) {
-      return Object.freeze(
-        [...records.values()]
-          .filter((record) => record.namespace === namespace)
-          .sort((left, right) => left.key.localeCompare(right.key))
-          .map(cloneRecord),
-      );
+      return [...records.values()]
+        .filter((record) => record.namespace === namespace)
+        .sort((left, right) => left.key.localeCompare(right.key))
+        .map(cloneRecord);
     },
     async commit(mutations: readonly [HostRecordMutationV1, ...HostRecordMutationV1[]]) {
       const normalized = normalizeMemoryMutationsV1(mutations);
@@ -212,12 +210,12 @@ export function createSeededMemoryHostRecordStoreInternalV1(
         const current = records.get(compositeRecordKeyV1(mutation.namespace, mutation.key));
         const actualRevision = current?.revision ?? null;
         if (mutation.expectedRevision !== actualRevision) {
-          return Object.freeze({
+          return {
             kind: "conflict" as const,
             namespace: mutation.namespace,
             key: mutation.key,
             actualRevision,
-          });
+          };
         }
       }
       const nextRecords = new Map(records);
@@ -228,22 +226,22 @@ export function createSeededMemoryHostRecordStoreInternalV1(
           nextRecords.delete(identity);
           continue;
         }
-        const next = Object.freeze({
+        const next = {
           namespace: mutation.namespace,
           key: mutation.key,
           revision: mutation.nextRevision,
           bytes: Uint8Array.from(mutation.bytes),
-        });
+        };
         nextRecords.set(identity, next);
         changed.push(cloneRecord(next));
       }
       records = nextRecords;
-      return Object.freeze({
+      return {
         kind: "committed" as const,
-        records: Object.freeze(changed),
-      });
+        records: changed,
+      };
     },
-  });
+  };
 }
 
 export function createMemoryHostRecordStoreV1(): HostAtomicRecordStoreV1 {

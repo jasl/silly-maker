@@ -115,7 +115,7 @@ function normalizeMeasurementRequestV1(
   if (receiptPath === temporaryRoot || !isWithinV1(temporaryRoot, receiptPath)) {
     throw new TypeError("build dependency receipt path must be inside the OS temporary directory");
   }
-  return Object.freeze({ graphRoot, receiptPath });
+  return { graphRoot, receiptPath };
 }
 
 /** @internal Creates the one process-boundary value consumed by Vite config. */
@@ -149,14 +149,14 @@ function compareCodeUnitsV1(left: string, right: string): number {
 }
 
 function sortedUniqueV1(values: Iterable<string>): readonly string[] {
-  return Object.freeze([...new Set(values)].sort(compareCodeUnitsV1));
+  return [...new Set(values)].sort(compareCodeUnitsV1);
 }
 
 function splitModuleSuffixV1(moduleId: string): readonly [string, string] {
   const suffixIndex = moduleId.search(/[?#]/u);
   return suffixIndex < 0
-    ? Object.freeze([moduleId, ""])
-    : Object.freeze([moduleId.slice(0, suffixIndex), moduleId.slice(suffixIndex)]);
+    ? [moduleId, ""]
+    : [moduleId.slice(0, suffixIndex), moduleId.slice(suffixIndex)];
 }
 
 /** @internal Removes checkout identity while preserving exact managed module identity. */
@@ -217,10 +217,8 @@ function addOutputOwnerV1(
 function sortedOwnersV1(
   owners: ReadonlyMap<string, BuildDependencyOwnerInternalV1> | undefined,
 ): readonly BuildDependencyOwnerInternalV1[] {
-  return Object.freeze(
-    [...(owners?.values() ?? [])].sort((left, right) =>
-      compareCodeUnitsV1(ownerKeyV1(left), ownerKeyV1(right))
-    ),
+  return [...(owners?.values() ?? [])].sort((left, right) =>
+    compareCodeUnitsV1(ownerKeyV1(left), ownerKeyV1(right))
   );
 }
 
@@ -254,22 +252,22 @@ export function createBuildDependencyReceiptInternalV1(input: {
   // retains the dynamic facade and ownership evidence.
   const keepOutputEdgesV1 = (fileNames: readonly string[]): readonly string[] =>
     fileNames.filter((fileName) => outputFileNames.has(fileName));
-  const chunkInputs = input.chunks.map((chunk): BuildDependencyChunkInputInternalV1 =>
-    Object.freeze({
+  const chunkInputs = input.chunks.map(
+    (chunk): BuildDependencyChunkInputInternalV1 => ({
       ...chunk,
       imports: keepOutputEdgesV1(chunk.imports),
       dynamicImports: keepOutputEdgesV1(chunk.dynamicImports),
       importedCss: keepOutputEdgesV1(chunk.importedCss),
       importedAssets: keepOutputEdgesV1(chunk.importedAssets),
-    })
+    }),
   );
   const chunksByName = new Map(chunkInputs.map((chunk) => [chunk.fileName, chunk]));
   const assetsByName = new Map(input.assets.map((asset) => [asset.fileName, asset]));
   const ownersByOutput = new Map<string, Map<string, BuildDependencyOwnerInternalV1>>();
-  const applicationOwner = Object.freeze({
+  const applicationOwner = {
     kind: "application" as const,
     id: input.applicationId,
-  });
+  };
   for (const chunk of chunkInputs) {
     if (chunk.isEntry) {
       addOwnerClosureV1(chunksByName, ownersByOutput, chunk.fileName, applicationOwner);
@@ -283,7 +281,7 @@ export function createBuildDependencyReceiptInternalV1(input: {
         chunksByName,
         ownersByOutput,
         chunk.fileName,
-        Object.freeze({ kind: "contribution" as const, id: contributionId }),
+        { kind: "contribution" as const, id: contributionId },
       );
     }
   }
@@ -293,10 +291,10 @@ export function createBuildDependencyReceiptInternalV1(input: {
       addOutputOwnerV1(
         ownersByOutput,
         asset.fileName,
-        Object.freeze({
+        {
           kind: "contribution" as const,
           id: normalizeBuildDependencyModuleIdInternalV1(input.graphRoot, moduleId),
-        }),
+        },
       );
     }
   }
@@ -312,7 +310,7 @@ export function createBuildDependencyReceiptInternalV1(input: {
   const chunks = chunkInputs
     .map((chunk): BuildDependencyChunkReceiptInternalV1 => {
       const owners = sortedOwnersV1(ownersByOutput.get(chunk.fileName));
-      return Object.freeze({
+      return {
         fileName: chunk.fileName,
         isEntry: chunk.isEntry,
         isDynamicEntry: chunk.isDynamicEntry,
@@ -330,16 +328,16 @@ export function createBuildDependencyReceiptInternalV1(input: {
         importedAssets: sortedUniqueV1(chunk.importedAssets),
         owners,
         ownership: ownershipV1(owners),
-        contributionIds: Object.freeze(
-          owners.filter(({ kind }) => kind === "contribution").map(({ id }) => id),
-        ),
-      });
+        contributionIds: owners
+          .filter(({ kind }) => kind === "contribution")
+          .map(({ id }) => id),
+      };
     })
     .sort((left, right) => compareCodeUnitsV1(left.fileName, right.fileName));
   const assets = input.assets
     .map((asset): BuildDependencyAssetReceiptInternalV1 => {
       const owners = sortedOwnersV1(ownersByOutput.get(asset.fileName));
-      return Object.freeze({
+      return {
         fileName: asset.fileName,
         moduleIds: sortedUniqueV1(
           asset.moduleIds.map((moduleId) =>
@@ -348,25 +346,25 @@ export function createBuildDependencyReceiptInternalV1(input: {
         ),
         owners,
         ownership: ownershipV1(owners),
-        contributionIds: Object.freeze(
-          owners.filter(({ kind }) => kind === "contribution").map(({ id }) => id),
-        ),
-      });
+        contributionIds: owners
+          .filter(({ kind }) => kind === "contribution")
+          .map(({ id }) => id),
+      };
     })
     .sort((left, right) => compareCodeUnitsV1(left.fileName, right.fileName));
-  return Object.freeze({
+  return {
     schemaVersion: 1 as const,
     applicationId: input.applicationId,
-    chunks: Object.freeze(chunks),
-    assets: Object.freeze(assets),
-  });
+    chunks,
+    assets,
+  };
 }
 
 function requireStringArrayV1(value: unknown, label: string): readonly string[] {
   if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
     throw new TypeError(`${label} must be a string array`);
   }
-  return Object.freeze([...value]);
+  return [...value];
 }
 
 /** @internal Admits the private receipt read back by the benchmark process. */
@@ -419,9 +417,9 @@ export function parseBuildDependencyReceiptInternalV1(
       if ((kind !== "application" && kind !== "contribution") || typeof id !== "string") {
         throw new TypeError(`build dependency receipt chunk ${String(index)} owner is invalid`);
       }
-      return Object.freeze({ kind, id });
+      return { kind, id };
     });
-    return Object.freeze({
+    return {
       fileName,
       isEntry,
       isDynamicEntry,
@@ -440,13 +438,13 @@ export function parseBuildDependencyReceiptInternalV1(
         Reflect.get(rawChunk, "importedAssets"),
         "chunk imported assets",
       ),
-      owners: Object.freeze(owners),
+      owners,
       ownership: ownership as BuildDependencyOwnershipInternalV1,
       contributionIds: requireStringArrayV1(
         Reflect.get(rawChunk, "contributionIds"),
         "chunk contribution IDs",
       ),
-    });
+    };
   });
   const assets = rawAssets.map((rawAsset, index): BuildDependencyAssetReceiptInternalV1 => {
     if (typeof rawAsset !== "object" || rawAsset === null) {
@@ -476,28 +474,28 @@ export function parseBuildDependencyReceiptInternalV1(
       if ((kind !== "application" && kind !== "contribution") || typeof id !== "string") {
         throw new TypeError(`build dependency receipt asset ${String(index)} owner is invalid`);
       }
-      return Object.freeze({ kind, id });
+      return { kind, id };
     });
-    return Object.freeze({
+    return {
       fileName,
       moduleIds: requireStringArrayV1(
         Reflect.get(rawAsset, "moduleIds"),
         "asset module IDs",
       ),
-      owners: Object.freeze(owners),
+      owners,
       ownership: ownership as BuildDependencyOwnershipInternalV1,
       contributionIds: requireStringArrayV1(
         Reflect.get(rawAsset, "contributionIds"),
         "asset contribution IDs",
       ),
-    });
+    };
   });
-  return Object.freeze({
+  return {
     schemaVersion: 1,
     applicationId,
-    chunks: Object.freeze(chunks),
-    assets: Object.freeze(assets),
-  });
+    chunks,
+    assets,
+  };
 }
 
 /** @internal Semantic negative-control facets; it deliberately does not freeze a full graph. */
@@ -552,16 +550,16 @@ export function classifyStaticGameDependencyFacetsInternalV1(
       moduleId,
     )
   );
-  return Object.freeze({
-    authoringImplementation: Object.freeze(authoringImplementation),
-    inspectorAuthoringImplementation: Object.freeze(inspectorAuthoringImplementation),
-    devSourceImplementation: Object.freeze(devSourceImplementation),
-    devDockImplementation: Object.freeze(devDockImplementation),
-    presetSettingsImplementation: Object.freeze(presetSettingsImplementation),
-    dynamicExtensionImplementation: Object.freeze(dynamicExtensionImplementation),
-    agentImplementation: Object.freeze(agentImplementation),
-    rpcImplementation: Object.freeze(rpcImplementation),
-  });
+  return {
+    authoringImplementation,
+    inspectorAuthoringImplementation,
+    devSourceImplementation,
+    devDockImplementation,
+    presetSettingsImplementation,
+    dynamicExtensionImplementation,
+    agentImplementation,
+    rpcImplementation,
+  };
 }
 
 /** @internal Measurement-only plugin. It writes no Rollup/Vite output asset. */
@@ -581,17 +579,17 @@ export function buildDependencyReceiptPluginInternalV1(input: {
         const assets: BuildDependencyAssetInputInternalV1[] = [];
         for (const output of Object.values(bundle)) {
           if (output.type === "chunk") {
-            chunks.push(Object.freeze({
+            chunks.push({
               fileName: output.fileName,
               isEntry: output.isEntry,
               isDynamicEntry: output.isDynamicEntry,
               facadeModuleId: output.facadeModuleId,
-              imports: Object.freeze([...output.imports]),
-              dynamicImports: Object.freeze([...output.dynamicImports]),
-              moduleIds: Object.freeze([...output.moduleIds]),
-              importedCss: Object.freeze([...(output.viteMetadata?.importedCss ?? [])]),
-              importedAssets: Object.freeze([...(output.viteMetadata?.importedAssets ?? [])]),
-            }));
+              imports: [...output.imports],
+              dynamicImports: [...output.dynamicImports],
+              moduleIds: [...output.moduleIds],
+              importedCss: [...(output.viteMetadata?.importedCss ?? [])],
+              importedAssets: [...(output.viteMetadata?.importedAssets ?? [])],
+            });
             continue;
           }
           // Vite's final CSS-only dynamic output is an asset. Its original
@@ -601,18 +599,16 @@ export function buildDependencyReceiptPluginInternalV1(input: {
             const moduleId = isAbsolute(originalFileName)
               ? originalFileName
               : resolve(input.appRoot, originalFileName);
-            return Object.freeze({ moduleId, info: this.getModuleInfo(moduleId) });
+            return { moduleId, info: this.getModuleInfo(moduleId) };
           });
-          assets.push(Object.freeze({
+          assets.push({
             fileName: output.fileName,
-            moduleIds: Object.freeze(moduleInfos.map(({ moduleId }) => moduleId)),
+            moduleIds: moduleInfos.map(({ moduleId }) => moduleId),
             isEntry: moduleInfos.some(({ info }) => info?.isEntry === true),
-            dynamicEntryModuleIds: Object.freeze(
-              moduleInfos
-                .filter(({ info }) => (info?.dynamicImporters.length ?? 0) > 0)
-                .map(({ moduleId }) => moduleId),
-            ),
-          }));
+            dynamicEntryModuleIds: moduleInfos
+              .filter(({ info }) => (info?.dynamicImporters.length ?? 0) > 0)
+              .map(({ moduleId }) => moduleId),
+          });
         }
         const receipt = createBuildDependencyReceiptInternalV1({
           applicationId: input.applicationId,

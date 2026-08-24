@@ -240,19 +240,22 @@ Deno.test("neutral memory schedule runs gc-macrotask-gc before every read", asyn
   const dispatchCalls: number[] = [];
   const checkpoints = await runNeutralStateMemoryScheduleV1({
     checkpoints: [0, 2, 4],
-    async collectGarbage() {
+    collectGarbage() {
       events.push("gc");
+      return Promise.resolve();
     },
-    async yieldMacrotask() {
+    yieldMacrotask() {
       events.push("yield");
+      return Promise.resolve();
     },
     readMemoryUsage() {
       events.push("read");
       return { rssBytes: 1, heapTotalBytes: 2, heapUsedBytes: 3, externalBytes: 4 };
     },
-    async dispatchUntil(commandCount) {
+    dispatchUntil(commandCount) {
       dispatchCalls.push(commandCount);
       events.push(`dispatch:${String(commandCount)}`);
+      return Promise.resolve();
     },
     now: (() => {
       let value = 0;

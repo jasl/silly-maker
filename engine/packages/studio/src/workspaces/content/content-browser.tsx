@@ -14,12 +14,12 @@ import styles from "../../studio-app.module.css";
 
 const categoryOrderV1 = ["background", "character", "prop", "effect"] as const;
 
-const categoryLabelsV1: Readonly<Record<(typeof categoryOrderV1)[number], string>> = Object.freeze({
+const categoryLabelsV1: Readonly<Record<(typeof categoryOrderV1)[number], string>> = {
   background: "背景",
   character: "人物",
   prop: "道具",
   effect: "效果",
-});
+};
 
 export interface ContentBrowserPropsV1 {
   readonly contents: readonly StudioContentDescriptorV1[];

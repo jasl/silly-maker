@@ -10,30 +10,28 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createRuntimeCapabilitySessionOverlayV1 } from "./runtime-capability-session-overlay.ts";
 
-const capabilityFieldsV1 = Object.freeze(
-  {
-    debug_tools: "debugTools",
-    cheats: "cheats",
-    automation_bridge: "automationBridge",
-  } satisfies Record<RuntimeCapabilityIdV1, keyof RuntimeCapabilitiesV1>,
-);
+const capabilityFieldsV1 = {
+  debug_tools: "debugTools",
+  cheats: "cheats",
+  automation_bridge: "automationBridge",
+} satisfies Record<RuntimeCapabilityIdV1, keyof RuntimeCapabilitiesV1>;
 
-function freezeStateV1(state: RuntimeCapabilitiesV1): DeepReadonly<RuntimeCapabilitiesV1> {
-  return Object.freeze({ ...state });
+function snapshotStateV1(state: RuntimeCapabilitiesV1): DeepReadonly<RuntimeCapabilitiesV1> {
+  return ({ ...state });
 }
 
 function createCapabilityPreferenceFixtureV1(initial: RuntimeCapabilitiesV1) {
-  let current = freezeStateV1(initial);
+  let current = snapshotStateV1(initial);
   const listeners = new Set<() => void>();
   const writes: { readonly capability: RuntimeCapabilityIdV1; readonly enabled: boolean }[] = [];
   let subscribeCount = 0;
   let unsubscribeCount = 0;
   const publish = (next: RuntimeCapabilitiesV1): void => {
-    current = freezeStateV1(next);
+    current = snapshotStateV1(next);
     for (const listener of [...listeners]) listener();
   };
-  const port: RuntimeCapabilityPortV1 = Object.freeze({
-    state: Object.freeze({
+  const port: RuntimeCapabilityPortV1 = {
+    state: {
       getCurrent: () => current,
       subscribe(listener: () => void) {
         subscribeCount += 1;
@@ -46,18 +44,18 @@ function createCapabilityPreferenceFixtureV1(initial: RuntimeCapabilitiesV1) {
           listeners.delete(listener);
         };
       },
-    }),
+    },
     async setEnabled(capability: RuntimeCapabilityIdV1, enabled: boolean) {
-      writes.push(Object.freeze({ capability, enabled }));
+      writes.push({ capability, enabled });
       const field = capabilityFieldsV1[capability];
       if (current[field] === enabled) {
-        return Object.freeze({ kind: "unchanged" as const, state: current });
+        return ({ kind: "unchanged" as const, state: current });
       }
       publish({ ...current, [field]: enabled });
-      return Object.freeze({ kind: "updated" as const, state: current });
+      return ({ kind: "updated" as const, state: current });
     },
-  });
-  return Object.freeze({
+  };
+  return ({
     port,
     publish,
     writes: () => [...writes],
@@ -81,7 +79,7 @@ describe("runtime capability session overlay", () => {
 
     expect(overlay.persisted).toBe(persisted.port);
     expect(overlay.sessionRequested).toEqual(["debug_tools", "automation_bridge"]);
-    expect(Object.isFrozen(overlay.sessionRequested)).toBe(true);
+
     expect(overlay.state.getCurrent()).toEqual({
       debugTools: true,
       cheats: true,
@@ -135,31 +133,31 @@ describe("runtime capability session overlay", () => {
       automationBridge: false,
     });
     const results: RuntimeCapabilityOperationResultV1[] = [
-      Object.freeze({
+      {
         kind: "updated" as const,
-        state: freezeStateV1({ debugTools: false, cheats: true, automationBridge: false }),
-      }),
-      Object.freeze({
+        state: snapshotStateV1({ debugTools: false, cheats: true, automationBridge: false }),
+      },
+      {
         kind: "unchanged" as const,
-        state: freezeStateV1({ debugTools: false, cheats: false, automationBridge: false }),
-      }),
-      Object.freeze({
+        state: snapshotStateV1({ debugTools: false, cheats: false, automationBridge: false }),
+      },
+      {
         kind: "rejected" as const,
         code: "conflict" as const,
-        state: freezeStateV1({ debugTools: false, cheats: true, automationBridge: false }),
-      }),
-      Object.freeze({
+        state: snapshotStateV1({ debugTools: false, cheats: true, automationBridge: false }),
+      },
+      {
         kind: "rejected" as const,
         code: "unavailable" as const,
-        state: freezeStateV1({ debugTools: false, cheats: false, automationBridge: false }),
-      }),
+        state: snapshotStateV1({ debugTools: false, cheats: false, automationBridge: false }),
+      },
     ];
     const setEnabled = vi.fn<RuntimeCapabilityPortV1["setEnabled"]>(async () => {
       const result = results.shift();
       if (result === undefined) throw new Error("missing result fixture");
       return result;
     });
-    const port = Object.freeze({ ...persisted.port, setEnabled });
+    const port = { ...persisted.port, setEnabled };
     const overlay = createRuntimeCapabilitySessionOverlayV1(port, ["debug_tools"]);
 
     await expect(overlay.setEnabled("cheats", true)).resolves.toEqual({

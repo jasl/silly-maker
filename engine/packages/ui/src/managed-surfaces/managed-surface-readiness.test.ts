@@ -18,6 +18,7 @@ import {
   type ManagedSurfaceResolvedDefinitionV1,
   type ManagedSurfaceResolvedSlotDescriptorV1,
 } from "./managed-surface-contracts.ts";
+import { parseManagedSurfaceResolvedDefinitionV1 } from "./managed-surface-definition.ts";
 import {
   createManagedSurfaceCoordinatorV1,
   type ManagedSurfaceCoordinatorV1,
@@ -231,32 +232,10 @@ describe("Managed Surface transition-kind readiness", () => {
     ],
     ["sparse action catalog", { ...definitionV1(), actionIds: sparseActionIdsV1 }],
     ["future reconcile placeholder", { ...definitionV1(), sourcePublicationRevision: 1 }],
-  ])("rejects %s before identity allocation or publication", (_label, definition) => {
-    const coordinator = createCoordinatorV1();
-    const before = coordinator.getSnapshot();
-    let notifications = 0;
-    coordinator.subscribe(() => notifications += 1);
-
-    const result = coordinator.openTransientPrimary({
-      definition: definition as unknown as ManagedSurfaceResolvedDefinitionV1,
-      semanticOccurrenceId: null,
-    });
-
-    expect(result).toMatchObject({
-      receipt: {
-        kind: "rejected",
-        code: "surface.invalid_definition",
-      },
-      handle: null,
-    });
-    expect(coordinator.getSnapshot()).toBe(before);
-    expect(notifications).toBe(0);
-
-    const valid = coordinator.openTransientPrimary({
-      definition: definitionV1(),
-      semanticOccurrenceId: null,
-    });
-    expect(valid.receipt.surfaceInstanceId).toBe("surface-instance.e23.n1");
+  ])("rejects %s at definition admission", (_label, definition) => {
+    expect(() => parseManagedSurfaceResolvedDefinitionV1(definition)).toThrow(
+      "ui.invalid_managed_surface_definition",
+    );
   });
 
   it("requires readiness and contract revision at the TypeScript boundary", () => {
@@ -297,14 +276,6 @@ describe("Managed Surface transition-kind readiness", () => {
       focusOwner: null,
       navigationTargetInstanceId: null,
     });
-    expect(Reflect.ownKeys(after.preparationFallbacks[0]!)).toEqual([
-      "kind",
-      "candidateInstanceId",
-    ]);
-    expect(Object.isFrozen(after.preparationFallbacks)).toBe(true);
-    expect(Object.isFrozen(after.preparationFallbacks[0])).toBe(true);
-    expect("definition" in after.preparationFallbacks[0]!).toBe(false);
-    expect("routingLeaseId" in after.preparationFallbacks[0]!).toBe(false);
     expectRevisionDeltaV1(before, after, 1, 1);
     expect(notifications).toBe(1);
   });
@@ -476,10 +447,6 @@ describe("Managed Surface transition-kind readiness", () => {
     "%s settles %s with exact publication and topology revisions",
     (transition, outcome, publicationDelta, topologyDelta) => {
       const scenario = preparedScenarioV1(transition);
-      expect(Reflect.ownKeys(scenario.readiness.evidence)).toEqual([
-        "applicationEpoch",
-        "surfaceInstanceId",
-      ]);
       const before = scenario.coordinator.getSnapshot();
       let notifications = 0;
       scenario.coordinator.subscribe(() => notifications += 1);
@@ -1130,7 +1097,7 @@ describe("Managed Surface transition-kind readiness", () => {
     expect(third.receipt.surfaceInstanceId).toBe("surface-instance.e23.n3");
   });
 
-  it("keeps the initial candidate and identity cursor when supersede admission fails", () => {
+  it("keeps the initial candidate and identity cursor when supersede transition fails", () => {
     const coordinator = createCoordinatorV1();
     const first = coordinator.openTransientPrimary({
       definition: definitionV1(),
@@ -1140,24 +1107,12 @@ describe("Managed Surface transition-kind readiness", () => {
     let notifications = 0;
     coordinator.subscribe(() => notifications += 1);
 
-    const malformed = coordinator.supersedeTransientInitialPreparation({
-      definition: {
-        ...definitionV1(),
-        sourcePublicationRevision: 1,
-      } as unknown as ManagedSurfaceResolvedDefinitionV1,
-      semanticOccurrenceId: null,
-      expected: first.readiness!.evidence,
-    });
     const wrongSlot = coordinator.supersedeTransientInitialPreparation({
       definition: definitionV1({ slotId: otherSlotIdV1 }),
       semanticOccurrenceId: null,
       expected: first.readiness!.evidence,
     });
 
-    expect(malformed.receipt).toMatchObject({
-      kind: "rejected",
-      code: "surface.invalid_definition",
-    });
     expect(wrongSlot.receipt).toMatchObject({
       kind: "rejected",
       code: "surface.invalid_transition",
@@ -1407,7 +1362,7 @@ describe("Managed Surface transition-kind readiness", () => {
     expect(notifications).toBe(1);
   });
 
-  it("does not cancel a live replacement when a second request fails preflight", () => {
+  it("does not cancel a live replacement when a second request has an unknown owner", () => {
     const scenario = preparedScenarioV1("primary_replacement");
     const retainedHandle = scenario.coordinator.getHandle(scenario.retainedInstanceId!)!;
     const before = scenario.coordinator.getSnapshot();
@@ -1415,16 +1370,15 @@ describe("Managed Surface transition-kind readiness", () => {
     scenario.coordinator.subscribe(() => notifications += 1);
 
     const invalid = scenario.coordinator.replaceTransientPrimary({
-      definition: {
-        ...definitionV1(),
-        sourcePublicationRevision: 1,
-      } as unknown as ManagedSurfaceResolvedDefinitionV1,
+      definition: definitionV1({
+        ownerId: parseManagedSurfaceOwnerIdV1("surface-owner.unresolved"),
+      }),
       semanticOccurrenceId: null,
       expected: retainedHandle,
     });
 
     expect(invalid).toMatchObject({
-      receipt: { kind: "rejected", code: "surface.invalid_definition" },
+      receipt: { kind: "rejected", code: "surface.unknown_owner" },
       handle: null,
       readiness: null,
     });

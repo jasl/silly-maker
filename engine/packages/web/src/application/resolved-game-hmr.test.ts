@@ -15,25 +15,25 @@ function digest(label: string): Digest {
 }
 
 function provenanceV1(): BuildProvenanceV1 {
-  return Object.freeze({
-    story: Object.freeze({
+  return ({
+    story: {
       id: "story.hmr.fixture",
       revision: parsePositiveSafeInteger(1),
       digest: digest("story"),
-    }),
-    engine: Object.freeze({ version: "SillyMaker test", digest: digest("engine") }),
-    resolved: Object.freeze({
+    },
+    engine: { version: "SillyMaker test", digest: digest("engine") },
+    resolved: {
       stateContractRevision: parsePositiveSafeInteger(1),
       stateContractDigest: digest("state-contract"),
       simulationDigest: digest("simulation"),
       presentationDigest: digest("presentation"),
-      patchSet: Object.freeze({
+      patchSet: {
         digest: digest("patch-set"),
         simulationDigest: digest("simulation-patch-set"),
         presentationDigest: digest("presentation-patch-set"),
-        appliedHotfixes: Object.freeze([]),
-      }),
-    }),
+        appliedHotfixes: [],
+      },
+    },
   });
 }
 
@@ -51,56 +51,56 @@ function withProvenanceChangeV1(
 ): BuildProvenanceV1 {
   switch (field) {
     case "storyId":
-      return Object.freeze({
+      return ({
         ...current,
-        story: Object.freeze({ ...current.story, id: "story.hmr.changed" }),
+        story: { ...current.story, id: "story.hmr.changed" },
       });
     case "storyRevision":
-      return Object.freeze({
+      return ({
         ...current,
-        story: Object.freeze({ ...current.story, revision: parsePositiveSafeInteger(2) }),
+        story: { ...current.story, revision: parsePositiveSafeInteger(2) },
       });
     case "storyDigest":
-      return Object.freeze({
+      return ({
         ...current,
-        story: Object.freeze({ ...current.story, digest: digest("story-changed") }),
+        story: { ...current.story, digest: digest("story-changed") },
       });
     case "engineDigest":
-      return Object.freeze({
+      return ({
         ...current,
-        engine: Object.freeze({ ...current.engine, digest: digest("engine-changed") }),
+        engine: { ...current.engine, digest: digest("engine-changed") },
       });
     case "stateContractRevision":
-      return Object.freeze({
+      return ({
         ...current,
-        resolved: Object.freeze({
+        resolved: {
           ...current.resolved,
           stateContractRevision: parsePositiveSafeInteger(2),
-        }),
+        },
       });
     case "stateContractDigest":
-      return Object.freeze({
+      return ({
         ...current,
-        resolved: Object.freeze({
+        resolved: {
           ...current.resolved,
           stateContractDigest: digest("state-contract-changed"),
-        }),
+        },
       });
     case "simulationDigest":
-      return Object.freeze({
+      return ({
         ...current,
-        resolved: Object.freeze({
+        resolved: {
           ...current.resolved,
           simulationDigest: digest("simulation-changed"),
-        }),
+        },
       });
     case "presentationDigest":
-      return Object.freeze({
+      return ({
         ...current,
-        resolved: Object.freeze({
+        resolved: {
           ...current.resolved,
           presentationDigest: digest("presentation-changed"),
-        }),
+        },
       });
   }
   throw new TypeError("unknown HMR identity field");
@@ -108,12 +108,12 @@ function withProvenanceChangeV1(
 
 function createHotFixtureV1<TModule>() {
   let accepted: ((module: TModule | undefined) => void) | undefined;
-  const hot: ResolvedGameHmrHotAdapterV1<TModule> = Object.freeze({
+  const hot: ResolvedGameHmrHotAdapterV1<TModule> = {
     accept(handler: (module: TModule | undefined) => void) {
       accepted = handler;
     },
-  });
-  return Object.freeze({
+  };
+  return ({
     hot,
     emit(module: TModule | undefined) {
       if (accepted === undefined) throw new TypeError("HMR accept handler was not installed");
@@ -126,15 +126,15 @@ function createLifecycleFixtureV1(events: string[] = []) {
   const invalidateForHmr = vi.fn(() => {
     events.push("invalidate");
   });
-  const invalidationController = Object.freeze({
+  const invalidationController = ({
     invalidateForHmr,
   }) as RuntimeInvalidationControllerV1;
-  const handoff = Object.freeze({ kind: "disposed" as const });
+  const handoff = { kind: "disposed" as const };
   const disposeForRebootstrap = vi.fn(async () => {
     events.push("dispose");
     return handoff;
   });
-  return Object.freeze({
+  return ({
     invalidationController,
     invalidateForHmr,
     disposeForRebootstrap,
@@ -143,7 +143,7 @@ function createLifecycleFixtureV1(events: string[] = []) {
 }
 
 describe("resolved Game HMR", () => {
-  it("extracts only the reviewed frozen ResolvedGame identity tuple", () => {
+  it("extracts only the reviewed ResolvedGame identity tuple", () => {
     const provenance = provenanceV1();
     const identity = createResolvedGameHmrIdentityV1(provenance);
 
@@ -157,8 +157,6 @@ describe("resolved Game HMR", () => {
       simulationDigest: provenance.resolved.simulationDigest,
       presentationDigest: provenance.resolved.presentationDigest,
     });
-    expect(Object.keys(identity)).toHaveLength(8);
-    expect(Object.isFrozen(identity)).toBe(true);
     expect(identity).not.toHaveProperty("engineVersion");
     expect(identity).not.toHaveProperty("appBuildId");
     expect(identity).not.toHaveProperty("capabilities");
@@ -167,17 +165,17 @@ describe("resolved Game HMR", () => {
 
   it("ignores equal tuples including engine labels and PatchSet-only diagnostics", async () => {
     const current = provenanceV1();
-    const diagnosticOnly = Object.freeze({
+    const diagnosticOnly = {
       ...current,
-      engine: Object.freeze({ ...current.engine, version: "SillyMaker relabeled" }),
-      resolved: Object.freeze({
+      engine: { ...current.engine, version: "SillyMaker relabeled" },
+      resolved: {
         ...current.resolved,
-        patchSet: Object.freeze({
+        patchSet: {
           ...current.resolved.patchSet,
           digest: digest("patch-relabeled"),
-        }),
-      }),
-    });
+        },
+      },
+    };
     const hot = createHotFixtureV1<{ readonly provenance: BuildProvenanceV1 }>();
     const lifecycle = createLifecycleFixtureV1();
     const rebootstrap = vi.fn(async () => undefined);
@@ -213,17 +211,17 @@ describe("resolved Game HMR", () => {
       installNextBoundary?(): void;
     };
     const current = provenanceV1();
-    const equal = Object.freeze({
+    const equal = {
       ...current,
-      engine: Object.freeze({ ...current.engine, version: "SillyMaker equal update" }),
-    });
+      engine: { ...current.engine, version: "SillyMaker equal update" },
+    };
     const changed = withProvenanceChangeV1(current, "simulationDigest");
     const firstHot = createHotFixtureV1<AcceptedModule>();
     const secondHot = createHotFixtureV1<AcceptedModule>();
     const lifecycle = createLifecycleFixtureV1();
     const rebootstrap = vi.fn(async () => undefined);
     let secondInstallation: ReturnType<typeof installResolvedGameHmrV1> | undefined;
-    const equalModule: AcceptedModule = Object.freeze({
+    const equalModule: AcceptedModule = {
       provenance: equal,
       installNextBoundary() {
         secondInstallation = installResolvedGameHmrV1({
@@ -234,7 +232,7 @@ describe("resolved Game HMR", () => {
           rebootstrap,
         });
       },
-    });
+    };
     const firstInstallation = installResolvedGameHmrV1({
       hot: firstHot.hot,
       currentProvenance: current,
@@ -527,14 +525,14 @@ describe("resolved Game HMR", () => {
   it("isolates unexpected disposal and failure-reporter exceptions without rebootstrap", async () => {
     const current = provenanceV1();
     const hot = createHotFixtureV1<{ readonly provenance: BuildProvenanceV1 }>();
-    const lifecycle = Object.freeze({
-      invalidationController: Object.freeze({
+    const lifecycle = {
+      invalidationController: ({
         invalidateForHmr: vi.fn(),
       }) as RuntimeInvalidationControllerV1,
       disposeForRebootstrap: vi.fn(async () => {
         throw new Error("dispose failed");
       }),
-    });
+    };
     const rebootstrap = vi.fn(async () => undefined);
     const installation = installResolvedGameHmrV1({
       hot: hot.hot,

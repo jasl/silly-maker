@@ -566,15 +566,6 @@ async function rawLeaseRecordsV1(records: HostAtomicRecordStoreV1) {
   );
 }
 
-function expectDeeplyFrozenV1(value: unknown, visited = new Set<object>()): void {
-  if (value === null || typeof value !== "object" || visited.has(value)) return;
-  visited.add(value);
-  expect(Object.isFrozen(value)).toBe(true);
-  for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(value))) {
-    if ("value" in descriptor) expectDeeplyFrozenV1(descriptor.value, visited);
-  }
-}
-
 function authorityEvidenceV1(fixture: Awaited<ReturnType<typeof fixtureV1>>) {
   const snapshot = fixture.session.snapshot();
   return Object.freeze({
@@ -617,8 +608,6 @@ async function inspectSaveWithoutMutationV1(
   const metadataClockCallsBefore = fixture.metadataClockCalls();
 
   const result = await fixture.service.port.inspectSave(slot);
-
-  expectDeeplyFrozenV1(result);
   const authorityAfter = authorityEvidenceV1(fixture);
   expect(authorityAfter.snapshot).toBe(authorityBefore.snapshot);
   expect(authorityAfter.rng).toBe(authorityBefore.rng);
@@ -1132,7 +1121,6 @@ describe("post-DET-A current Save load baseline", () => {
       storedStateContractRevision: storedRevision,
       currentStateContractRevision: snapshotTransactionProvenanceV1.resolved.stateContractRevision,
     });
-    expect(Object.isFrozen(unavailable)).toBe(true);
     expect(snapshotSchemaCalls).toBe(0);
     expect(compatibilityCalls).toBe(0);
     expect(referenceCalls).toBe(0);
@@ -1300,7 +1288,6 @@ describe("post-DET-A current Save load baseline", () => {
 
       const installed = loadFixture.session.snapshot();
       expect(installed.commandSequence).toBe(0);
-      expect(Object.isFrozen(installed)).toBe(true);
       expect(loadFixture.session.replayBase()).toBe(installed);
       expect(loadFixture.session.replayBaseStateDigest()).toBe(
         digestCanonical("sillymaker:state:v1", installed),
@@ -2853,7 +2840,6 @@ describe("PF5 single-slot Save inspection", () => {
       const statusBefore = await unavailable.service.port.getStatus();
       const leaseBefore = await unavailable.service.port.lease.getStatus();
       const result = await unavailable.service.port.inspectSave("quick");
-      expectDeeplyFrozenV1(result);
       expect(result).toEqual({
         kind: "rejected",
         slotId: "quick",
@@ -2883,7 +2869,6 @@ describe("PF5 single-slot Save inspection", () => {
     const throwing = await fixtureV1({ throwSaveReads: true });
     try {
       const result = await throwing.service.port.inspectSave("quick");
-      expectDeeplyFrozenV1(result);
       expect(result).toEqual({
         kind: "faulted",
         slotId: "quick",
@@ -2905,7 +2890,6 @@ describe("PF5 single-slot Save inspection", () => {
     const invalidSlot = await fixtureV1();
     try {
       const result = await invalidSlot.service.port.inspectSave("manual.1");
-      expectDeeplyFrozenV1(result);
       expect(result).toEqual({
         kind: "faulted",
         slotId: null,
@@ -2927,7 +2911,6 @@ describe("PF5 single-slot Save inspection", () => {
     const disposed = await fixtureV1();
     await disposed.service.dispose();
     const disposedResult = await disposed.service.port.inspectSave("quick");
-    expectDeeplyFrozenV1(disposedResult);
     expect(disposedResult).toEqual({
       kind: "faulted",
       slotId: "quick",
@@ -2970,7 +2953,6 @@ describe("PF5 single-slot Save inspection", () => {
         for (let index = 0; index < 10_000; index += 1) {
           const result = await fixture.service.port.inspectSave("quick");
           expect(result.kind).toBe("migration_required");
-          expectDeeplyFrozenV1(result);
         }
         expect(migrationCalls).toBe(10_000);
 

@@ -25,13 +25,13 @@ export function buildMotionCatalogV1(
   loaded: StudioMotionSourcesV1 | null,
 ): StudioMotionCatalogV1 {
   if (loaded === null) {
-    return Object.freeze({ ids: Object.freeze([]), failures: Object.freeze([]) });
+    return { ids: [], failures: [] };
   }
   const ids: string[] = [];
   for (const source of loaded.sources) {
     if (!ids.includes(source.motionDocument.motionId)) ids.push(source.motionDocument.motionId);
   }
-  return Object.freeze({ ids: Object.freeze(ids), failures: loaded.warnings });
+  return { ids, failures: loaded.warnings };
 }
 
 export type StudioMotionWorkbenchModelV1 =
@@ -112,23 +112,21 @@ export function buildMotionWorkbenchModelV1(
       });
     }
     if (cases.length === 0 || cases[0] === undefined) {
-      return warnings.length === 0
-        ? { kind: "none" }
-        : { kind: "unavailable", reasons: Object.freeze(warnings) };
+      return warnings.length === 0 ? { kind: "none" } : { kind: "unavailable", reasons: warnings };
     }
     return {
       kind: "ready",
       sources,
-      cases: Object.freeze(cases),
+      cases,
       fallbackPreview: cases[0].preview,
-      warnings: Object.freeze(warnings),
+      warnings,
     };
   } catch (error) {
     return {
       kind: "unavailable",
-      reasons: Object.freeze([
+      reasons: [
         `Motion 工坊不可用：${error instanceof Error ? error.message : String(error)}`,
-      ]),
+      ],
     };
   }
 }

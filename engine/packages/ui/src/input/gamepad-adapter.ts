@@ -53,8 +53,12 @@ export function installGamepadAdapterV1(
   const events = options.events === undefined
     ? (typeof window === "undefined" ? null : window)
     : options.events;
+  const bindings = Object.entries(options.map).map(([buttonIndex, actionId]) => ({
+    buttonIndex: Number(buttonIndex),
+    actionId,
+  }));
 
-  const pressed = new Map<string, boolean>();
+  const pressedByPad = new Map<number, Set<number>>();
   let cancelTick: (() => void) | undefined;
   let polling = false;
   let disposed = false;
@@ -64,20 +68,26 @@ export function installGamepadAdapterV1(
     if (disposed || !polling) return;
     const pads = poll();
     let anyConnected = false;
+    const connectedPadIndexes = new Set<number>();
     for (const pad of pads) {
       if (pad === null || !pad.connected) continue;
       anyConnected = true;
-      for (const [buttonIndex, actionId] of Object.entries(options.map)) {
-        const index = Number(buttonIndex);
-        const isPressed = pad.buttons[index]?.pressed === true;
-        const key = `${String(pad.index)}:${buttonIndex}`;
-        const wasPressed = pressed.get(key) === true;
-        pressed.set(key, isPressed);
+      connectedPadIndexes.add(pad.index);
+      const pressedButtons = pressedByPad.get(pad.index) ?? new Set<number>();
+      pressedByPad.set(pad.index, pressedButtons);
+      for (const { buttonIndex, actionId } of bindings) {
+        const isPressed = pad.buttons[buttonIndex]?.pressed === true;
+        const wasPressed = pressedButtons.has(buttonIndex);
+        if (isPressed) pressedButtons.add(buttonIndex);
+        else pressedButtons.delete(buttonIndex);
         // Rising edge only: holding a button is one action.
         if (isPressed && !wasPressed) {
           options.router.route({ kind: "action", actionId });
         }
       }
+    }
+    for (const padIndex of pressedByPad.keys()) {
+      if (!connectedPadIndexes.has(padIndex)) pressedByPad.delete(padIndex);
     }
     if (!anyConnected) {
       stopPolling();
@@ -96,13 +106,16 @@ export function installGamepadAdapterV1(
     polling = false;
     cancelTick?.();
     cancelTick = undefined;
-    pressed.clear();
+    pressedByPad.clear();
   };
 
   const onConnected = (): void => startPolling();
-  const onDisconnected = (): void => {
-    // The next tick observes remaining pads and stops when none are left;
-    // if the loop is already stopped nothing needs to happen.
+  const onDisconnected = (event: Event): void => {
+    const padIndex = (event as Partial<GamepadEvent>).gamepad?.index;
+    if (padIndex !== undefined && Number.isSafeInteger(padIndex) && padIndex >= 0) {
+      pressedByPad.delete(padIndex);
+    }
+    // The next tick observes remaining pads and stops when none are left.
   };
 
   events?.addEventListener("gamepadconnected", onConnected);
@@ -111,7 +124,7 @@ export function installGamepadAdapterV1(
   // A pad may already be connected before installation.
   if (poll().some((pad) => pad !== null && pad.connected)) startPolling();
 
-  return Object.freeze({
+  return {
     isPolling: () => polling,
     dispose(): void {
       if (disposed) return;
@@ -120,5 +133,5 @@ export function installGamepadAdapterV1(
       events?.removeEventListener("gamepadconnected", onConnected);
       events?.removeEventListener("gamepaddisconnected", onDisconnected);
     },
-  });
+  };
 }

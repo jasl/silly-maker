@@ -139,7 +139,7 @@ function parseTextCatalogSetDataV1(value: unknown): TextCatalogSetV1 {
     }
   });
 
-  return Object.freeze({ defaultLocale, catalogs });
+  return { defaultLocale, catalogs };
 }
 
 export function parseTextCatalogSetV1(value: unknown): TextCatalogSetV1 {

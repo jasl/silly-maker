@@ -16,62 +16,62 @@ export interface AuthoringWorkspaceContractInternalV1 {
   readonly signature: string;
 }
 
-const sceneWorkspaceInternalV1 = Object.freeze({
+const sceneWorkspaceInternalV1 = {
   id: "scene" as const,
   label: "Scene Construction",
   activation: "resident" as const,
   readiness: "layout" as const,
-});
+};
 
-const motionWorkspaceInternalV1 = Object.freeze({
+const motionWorkspaceInternalV1 = {
   id: "motion" as const,
   label: "Motion 工坊",
   activation: "resident" as const,
   readiness: "layout" as const,
-});
+};
 
-const regionsWorkspaceInternalV1 = Object.freeze({
+const regionsWorkspaceInternalV1 = {
   id: "regions" as const,
   label: "Regions",
   activation: "resident" as const,
   readiness: "layout" as const,
-});
+};
 
-const chromeWorkspaceInternalV1 = Object.freeze({
+const chromeWorkspaceInternalV1 = {
   id: "chrome" as const,
   label: "界面布局",
   activation: "resident" as const,
   readiness: "connected" as const,
-});
+};
 
-const flowWorkspaceInternalV1 = Object.freeze({
+const flowWorkspaceInternalV1 = {
   id: "flow" as const,
   label: "Narrative 流程",
   activation: "progressive" as const,
   readiness: "layout" as const,
-});
+};
 
 export function authoringWorkspaceManifestInternalV1(input: {
   readonly hasFlow: boolean;
   readonly hasRegionsIo: boolean;
   readonly hasChromeIo: boolean;
 }): readonly AuthoringWorkspaceManifestEntryInternalV1[] {
-  return Object.freeze([
+  return [
     sceneWorkspaceInternalV1,
     motionWorkspaceInternalV1,
     ...(input.hasRegionsIo ? [regionsWorkspaceInternalV1] : []),
     ...(input.hasChromeIo ? [chromeWorkspaceInternalV1] : []),
     ...(input.hasFlow ? [flowWorkspaceInternalV1] : []),
-  ]);
+  ];
 }
 
 /** Structural R1 identity; presentation labels deliberately remain replaceable. */
 export function authoringWorkspaceContractInternalV1(
   manifest: readonly AuthoringWorkspaceManifestEntryInternalV1[],
 ): AuthoringWorkspaceContractInternalV1 {
-  const ids = Object.freeze(manifest.map((workspace) => workspace.id));
+  const ids = manifest.map((workspace) => workspace.id);
   const signature = JSON.stringify(
     manifest.map((workspace) => [workspace.id, workspace.activation, workspace.readiness]),
   );
-  return Object.freeze({ ids, signature });
+  return { ids, signature };
 }

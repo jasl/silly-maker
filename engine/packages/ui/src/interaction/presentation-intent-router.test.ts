@@ -22,67 +22,67 @@ type PresentationWriteV1 =
 function createPresentationIntentRouterFixtureV1() {
   const writes: PresentationWriteV1[] = [];
   const router = createPresentationIntentRouterV1({
-    knownOverlayIds: Object.freeze([profileOverlayIdV1]),
-    knownSurfaceIds: Object.freeze([profileSurfaceIdV1]),
-    knownCueIds: Object.freeze([greetingCueIdV1]),
-    overlay: Object.freeze({
+    knownOverlayIds: [profileOverlayIdV1],
+    knownSurfaceIds: [profileSurfaceIdV1],
+    knownCueIds: [greetingCueIdV1],
+    overlay: {
       open(overlayId: string) {
-        writes.push(Object.freeze({ kind: "overlay.open", overlayId }));
-        return Object.freeze({ kind: "unchanged" as const, code: "overlay.already_open" as const });
+        writes.push({ kind: "overlay.open", overlayId });
+        return { kind: "unchanged" as const, code: "overlay.already_open" as const };
       },
-    }),
-    session: Object.freeze({
+    },
+    session: {
       open(surfaceId: InteractionSurfaceId, returnFocusId: string | null): void {
         writes.push(
-          Object.freeze({
+          {
             kind: "interaction.enter_surface",
             surfaceId,
             returnFocusId,
-          }),
+          },
         );
       },
       leave(): void {
-        writes.push(Object.freeze({ kind: "interaction.leave_surface" }));
+        writes.push({ kind: "interaction.leave_surface" });
       },
-    }),
-    cue: Object.freeze({
+    },
+    cue: {
       play(cueId: string): void {
-        writes.push(Object.freeze({ kind: "presentation.play_cue", cueId }));
+        writes.push({ kind: "presentation.play_cue", cueId });
       },
-    }),
+    },
   });
-  return Object.freeze({
+  return {
     router,
-    writes: () => Object.freeze([...writes]),
-  });
+    writes: () => [...writes],
+  };
 }
 
 describe("createPresentationIntentRouterV1", () => {
   it.each(
     [
       [
-        Object.freeze({ kind: "overlay.open", overlayId: profileOverlayIdV1 }),
-        Object.freeze({ returnFocusId: "control.e2e.ignored-overlay" }),
-        Object.freeze({ kind: "overlay.open", overlayId: profileOverlayIdV1 }),
+        { kind: "overlay.open", overlayId: profileOverlayIdV1 },
+        { returnFocusId: "control.e2e.ignored-overlay" },
+        { kind: "overlay.open", overlayId: profileOverlayIdV1 },
       ],
       [
-        Object.freeze({ kind: "interaction.enter_surface", surfaceId: profileSurfaceIdV1 }),
-        Object.freeze({ returnFocusId: "control.e2e.profile" }),
-        Object.freeze({
+        { kind: "interaction.enter_surface", surfaceId: profileSurfaceIdV1 },
+        { returnFocusId: "control.e2e.profile" },
+        {
           kind: "interaction.enter_surface",
           surfaceId: profileSurfaceIdV1,
           returnFocusId: "control.e2e.profile",
-        }),
+        },
       ],
       [
-        Object.freeze({ kind: "interaction.leave_surface" }),
-        Object.freeze({ returnFocusId: "control.e2e.ignored-leave" }),
-        Object.freeze({ kind: "interaction.leave_surface" }),
+        { kind: "interaction.leave_surface" },
+        { returnFocusId: "control.e2e.ignored-leave" },
+        { kind: "interaction.leave_surface" },
       ],
       [
-        Object.freeze({ kind: "presentation.play_cue", cueId: greetingCueIdV1 }),
-        Object.freeze({ returnFocusId: "control.e2e.ignored-cue" }),
-        Object.freeze({ kind: "presentation.play_cue", cueId: greetingCueIdV1 }),
+        { kind: "presentation.play_cue", cueId: greetingCueIdV1 },
+        { returnFocusId: "control.e2e.ignored-cue" },
+        { kind: "presentation.play_cue", cueId: greetingCueIdV1 },
       ],
     ] as const,
   )(
@@ -93,20 +93,18 @@ describe("createPresentationIntentRouterV1", () => {
       const result = fixture.router.execute(intent satisfies PresentationIntentV1, context);
 
       expect(result).toEqual({ kind: "executed" });
-      expect(Object.isFrozen(result)).toBe(true);
       expect(fixture.writes()).toEqual([write]);
-      expect(Object.isFrozen(fixture.router)).toBe(true);
     },
   );
 
   it.each(
     [
-      Object.freeze({ kind: "overlay.open", overlayId: "overlay.e2e.unknown" }),
-      Object.freeze({
+      { kind: "overlay.open", overlayId: "overlay.e2e.unknown" },
+      {
         kind: "interaction.enter_surface",
         surfaceId: parseInteractionSurfaceId("surface.e2e.unknown"),
-      }),
-      Object.freeze({ kind: "presentation.play_cue", cueId: "cue.e2e.unknown" }),
+      },
+      { kind: "presentation.play_cue", cueId: "cue.e2e.unknown" },
     ] as const,
   )("rejects an unknown registered-ID intent with zero writes: %o", (intent) => {
     const fixture = createPresentationIntentRouterFixtureV1();
@@ -116,25 +114,23 @@ describe("createPresentationIntentRouterV1", () => {
     });
 
     expect(result).toEqual({ kind: "rejected", code: "presentation.intent_unknown" });
-    expect(Object.isFrozen(result)).toBe(true);
     expect(fixture.writes()).toEqual([]);
   });
 
   it("propagates a known Overlay's structured admission rejection", () => {
     const router = createPresentationIntentRouterV1({
-      knownOverlayIds: Object.freeze([profileOverlayIdV1]),
-      knownSurfaceIds: Object.freeze([]),
-      knownCueIds: Object.freeze([]),
-      overlay: Object.freeze({
-        open: () =>
-          Object.freeze({
-            kind: "rejected" as const,
-            code: "overlay.required_port_missing" as const,
-            portId: "port.e2e.profile",
-          }),
-      }),
-      session: Object.freeze({ open: () => undefined, leave: () => undefined }),
-      cue: Object.freeze({ play: () => undefined }),
+      knownOverlayIds: [profileOverlayIdV1],
+      knownSurfaceIds: [],
+      knownCueIds: [],
+      overlay: {
+        open: () => ({
+          kind: "rejected" as const,
+          code: "overlay.required_port_missing" as const,
+          portId: "port.e2e.profile",
+        }),
+      },
+      session: { open: () => undefined, leave: () => undefined },
+      cue: { play: () => undefined },
     });
 
     expect(router.execute({ kind: "overlay.open", overlayId: profileOverlayIdV1 })).toEqual({

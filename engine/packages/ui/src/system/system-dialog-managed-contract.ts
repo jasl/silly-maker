@@ -22,9 +22,6 @@ import {
 import { parseManagedSurfaceResolvedDefinitionV1 } from "../managed-surfaces/managed-surface-definition.ts";
 
 declare const systemDialogSessionBrandV1: unique symbol;
-const systemDialogContentConfigSnapshotBrandInternalV1 = Symbol(
-  "SystemDialogContentConfigSnapshotInternalV1",
-);
 
 export type SystemDialogSessionActiveSurfaceV1 = "settings" | "saves";
 
@@ -94,7 +91,6 @@ export interface SystemDialogRequiredPortBindingInternalV1 {
 }
 
 export interface SystemDialogContentConfigSnapshotInternalV1<TValue> {
-  readonly [systemDialogContentConfigSnapshotBrandInternalV1]: true;
   readonly value: TValue;
 }
 
@@ -146,57 +142,30 @@ const ownerIdV1 = parseManagedSurfaceOwnerIdV1("surface-owner.system");
 const rootSlotIdV1 = parseManagedSurfaceSlotIdV1("surface-slot.system.root");
 const confirmationSlotIdV1 = parseManagedSurfaceSlotIdV1("surface-slot.system.confirmation");
 const layerIdV1 = parseManagedSurfaceLayerIdV1("surface-layer.system");
-const readinessV1 = Object.freeze({
+const readinessV1 = {
   initialOpen: "blocking_fallback" as const,
   primaryReplacement: "retain_current" as const,
   childOpen: "blocking_fallback" as const,
-});
-const dismissV1 = Object.freeze({
+};
+const dismissV1 = {
   back: true,
   escape: true,
   backdrop: true,
   routedCancel: true,
-});
+};
 
 function isRecordV1(value: unknown): value is Readonly<Record<string, unknown>> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-}
-
-function snapshotExactDataRecordV1(
-  value: unknown,
-  expectedKeys: readonly string[],
-): Readonly<Record<string, unknown>> {
-  if (!isRecordV1(value)) throw new TypeError();
-  const actualKeys = Reflect.ownKeys(value);
-  if (
-    actualKeys.length !== expectedKeys.length ||
-    !expectedKeys.every((key) => Object.hasOwn(value, key))
-  ) {
-    throw new TypeError();
-  }
-  const snapshot: Record<string, unknown> = {};
-  for (const key of expectedKeys) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    if (descriptor === undefined || !("value" in descriptor)) throw new TypeError();
-    snapshot[key] = descriptor.value;
-  }
-  return Object.freeze(snapshot);
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function snapshotRequiredPortBindingsV1(
   value: unknown,
 ): readonly SystemDialogRequiredPortBindingInternalV1[] {
   if (!Array.isArray(value)) throw new TypeError();
-  const ownKeys = Reflect.ownKeys(value);
-  if (ownKeys.length !== value.length + 1) throw new TypeError();
   const bindings: SystemDialogRequiredPortBindingInternalV1[] = [];
   const portIds = new Set<string>();
-  for (let index = 0; index < value.length; index += 1) {
-    const itemDescriptor = Object.getOwnPropertyDescriptor(value, String(index));
-    if (itemDescriptor === undefined || !("value" in itemDescriptor)) throw new TypeError();
-    const binding = snapshotExactDataRecordV1(itemDescriptor.value, ["portId", "port"]);
+  for (const binding of value) {
+    if (!isRecordV1(binding)) throw new TypeError();
     const portId = parseModuleId(binding.portId);
     const port = binding.port;
     if (
@@ -207,38 +176,9 @@ function snapshotRequiredPortBindingsV1(
       throw new TypeError();
     }
     portIds.add(portId);
-    bindings.push(Object.freeze({ portId, port }));
+    bindings.push({ portId, port });
   }
-  return Object.freeze(bindings);
-}
-
-function parseContentConfigSnapshotV1<TValue>(
-  value: unknown,
-): SystemDialogContentConfigSnapshotInternalV1<TValue> {
-  if (!isRecordV1(value) || !Object.isFrozen(value)) throw new TypeError();
-  const keys = Reflect.ownKeys(value);
-  if (
-    keys.length !== 2 ||
-    !keys.includes(systemDialogContentConfigSnapshotBrandInternalV1) ||
-    !keys.includes("value")
-  ) {
-    throw new TypeError();
-  }
-  const brandDescriptor = Object.getOwnPropertyDescriptor(
-    value,
-    systemDialogContentConfigSnapshotBrandInternalV1,
-  );
-  const valueDescriptor = Object.getOwnPropertyDescriptor(value, "value");
-  if (
-    brandDescriptor === undefined ||
-    !("value" in brandDescriptor) ||
-    brandDescriptor.value !== true ||
-    valueDescriptor === undefined ||
-    !("value" in valueDescriptor)
-  ) {
-    throw new TypeError();
-  }
-  return value as unknown as SystemDialogContentConfigSnapshotInternalV1<TValue>;
+  return bindings;
 }
 
 function definitionV1(input: {
@@ -256,16 +196,16 @@ function definitionV1(input: {
     layerOrder: parseNonNegativeSafeInteger(input.layerOrder),
     placement: input.placement,
     modality: "blocking",
-    inputPolicy: Object.freeze({ kind: "managed" as const, inputContextId: "system" as const }),
+    inputPolicy: { kind: "managed" as const, inputContextId: "system" as const },
     dismissPolicy: dismissV1,
-    focusPolicy: Object.freeze({
+    focusPolicy: {
       kind: "owns_focus" as const,
       initialTargetId: parseManagedSurfaceFocusTargetIdV1(`surface-focus.system.${input.id}`),
       trap: true,
       restore: "opener" as const,
-    }),
-    navigationPolicy: Object.freeze({ kind: "close" as const }),
-    actionIds: Object.freeze(input.actionIds.map(parseManagedSurfaceActionIdV1)),
+    },
+    navigationPolicy: { kind: "close" as const },
+    actionIds: input.actionIds.map(parseManagedSurfaceActionIdV1),
     readiness: readinessV1,
   });
 }
@@ -290,19 +230,13 @@ const confirmationDefinitionV1 = definitionV1({
 });
 
 /**
- * @internal Brands one root-specific, already-copied content/config snapshot.
+ * @internal Wraps one root-specific, already-copied content/config snapshot.
  * S3b owns the known-field Settings/Saves copiers; renderer content is opaque identity.
  */
 export function createSystemDialogContentConfigSnapshotInternalV1<TValue>(
   value: TValue,
 ): SystemDialogContentConfigSnapshotInternalV1<TValue> {
-  if (typeof value === "object" && value !== null && !Object.isFrozen(value)) {
-    throw new TypeError("ui.system_dialog_content_config_snapshot_invalid");
-  }
-  return Object.freeze({
-    [systemDialogContentConfigSnapshotBrandInternalV1]: true as const,
-    value,
-  });
+  return { value };
 }
 
 /** @internal Captures one successful resolver/port admission for one fresh root candidate. */
@@ -322,63 +256,53 @@ export function createSystemDialogRootCandidateResolutionSnapshotInternalV1<
   TContentConfigSnapshot
 > {
   try {
-    const source = snapshotExactDataRecordV1(input, [
-      "rootRequest",
-      "rendererComponent",
-      "accessibleName",
-      "requiredPortBindings",
-      "contentConfigSnapshot",
-    ]);
-    const rootRequest = source.rootRequest;
+    const rootRequest = input.rootRequest;
     if (rootRequest !== "settings" && rootRequest !== "saves") {
       throw new TypeError();
     }
     const definition = rootRequest === "settings" ? settingsDefinitionV1 : savesDefinitionV1;
     if (
-      source.rendererComponent === null ||
-      (typeof source.rendererComponent !== "object" &&
-        typeof source.rendererComponent !== "function") ||
-      typeof source.accessibleName !== "string" ||
-      source.accessibleName.length === 0
+      input.rendererComponent === null ||
+      (typeof input.rendererComponent !== "object" &&
+        typeof input.rendererComponent !== "function") ||
+      typeof input.accessibleName !== "string" ||
+      input.accessibleName.length === 0
     ) {
       throw new TypeError();
     }
-    const contentConfigSnapshot = parseContentConfigSnapshotV1<TContentConfigSnapshot>(
-      source.contentConfigSnapshot,
-    );
-    return Object.freeze({
+    return {
       rootRequest,
       definition,
-      rendererComponent: source.rendererComponent as TRendererComponent,
-      accessibleName: source.accessibleName,
-      requiredPortBindings: snapshotRequiredPortBindingsV1(source.requiredPortBindings),
-      contentConfigSnapshot,
-    });
+      rendererComponent: input.rendererComponent,
+      accessibleName: input.accessibleName,
+      requiredPortBindings: snapshotRequiredPortBindingsV1(input.requiredPortBindings),
+      contentConfigSnapshot: input.contentConfigSnapshot,
+    };
   } catch {
     throw new TypeError("ui.system_dialog_candidate_resolution_invalid");
   }
 }
 
-/** @internal Admits only the closed, data-property-only confirmation invocation union. */
+/** @internal Admits and normalizes the closed confirmation invocation union. */
 export function normalizeSystemDialogConfirmationInvocationInternalV1(
   input: unknown,
 ): SystemDialogConfirmationInvocationInternalV1 {
   try {
     if (!isRecordV1(input)) throw new TypeError();
-    const kindDescriptor = Object.getOwnPropertyDescriptor(input, "kind");
-    if (kindDescriptor === undefined || !("value" in kindDescriptor)) throw new TypeError();
-    const kind = kindDescriptor.value;
+    const kind = input.kind;
     if (kind === "import") {
-      snapshotExactDataRecordV1(input, ["kind"]);
-      return Object.freeze({ kind });
+      if (Object.keys(input).some((key) => key !== "kind")) throw new TypeError();
+      return { kind };
     }
     if (
       kind !== "load" && kind !== "clear" && kind !== "reanchor" && kind !== "restore" &&
       kind !== "discard"
     ) throw new TypeError();
-    const source = snapshotExactDataRecordV1(input, ["kind", "slotId"]);
-    if (!isSaveSlotIdShapeV1(source.slotId)) throw new TypeError();
-    return Object.freeze({ kind, slotId: source.slotId });
+    if (
+      Object.keys(input).some((key) => key !== "kind" && key !== "slotId") ||
+      !isSaveSlotIdShapeV1(input.slotId)
+    ) throw new TypeError();
+    return { kind, slotId: input.slotId };
   } catch {
     throw new TypeError("ui.system_dialog_confirmation_invocation_invalid");
   }
@@ -394,73 +318,63 @@ export function createSystemDialogConfirmationCandidateResolutionSnapshotInterna
   readonly requiredPortBindings: readonly SystemDialogRequiredPortBindingInternalV1[];
 }): SystemDialogConfirmationCandidateResolutionSnapshotInternalV1<TRendererComponent> {
   try {
-    const source = snapshotExactDataRecordV1(input, [
-      "invocation",
-      "rendererComponent",
-      "accessibleName",
-      "requiredPortBindings",
-    ]);
-    const invocation = normalizeSystemDialogConfirmationInvocationInternalV1(source.invocation);
     if (
-      source.rendererComponent === null ||
-      (typeof source.rendererComponent !== "object" &&
-        typeof source.rendererComponent !== "function") ||
-      typeof source.accessibleName !== "string" ||
-      source.accessibleName.length === 0
+      input.rendererComponent === null ||
+      (typeof input.rendererComponent !== "object" &&
+        typeof input.rendererComponent !== "function") ||
+      typeof input.accessibleName !== "string" ||
+      input.accessibleName.length === 0
     ) {
       throw new TypeError();
     }
-    return Object.freeze({
-      invocation,
+    return {
+      invocation: input.invocation,
       definition: confirmationDefinitionV1,
-      rendererComponent: source.rendererComponent as TRendererComponent,
-      accessibleName: source.accessibleName,
-      requiredPortBindings: snapshotRequiredPortBindingsV1(source.requiredPortBindings),
-    });
+      rendererComponent: input.rendererComponent,
+      accessibleName: input.accessibleName,
+      requiredPortBindings: snapshotRequiredPortBindingsV1(input.requiredPortBindings),
+    };
   } catch {
     throw new TypeError("ui.system_dialog_confirmation_candidate_resolution_invalid");
   }
 }
 
 /** Dormant S3 contribution. S3b combines it with Overlay in one composition-owned recipe. */
-export const systemDialogManagedContractInternalV1: SystemDialogManagedContractInternalV1 = Object
-  .freeze({
-    resolvedOwnerIds: Object.freeze([ownerIdV1]),
-    resolvedSlotDescriptors: Object.freeze([
-      Object.freeze({
-        kind: "root" as const,
-        slotId: rootSlotIdV1,
-        cardinality: "single" as const,
-      }),
-      Object.freeze({
-        kind: "child" as const,
-        parentDefinitionId: savesDefinitionV1.definitionId,
-        slotId: confirmationSlotIdV1,
-        cardinality: "single" as const,
-      }),
-    ]),
-    definitions: Object.freeze({
-      settings: settingsDefinitionV1,
-      saves: savesDefinitionV1,
-      confirmation: confirmationDefinitionV1,
-    }),
-    rootRequests: Object.freeze(["settings", "saves"] as const),
-    savesRendererVariants: Object.freeze(["standard", "custom"] as const),
-    confirmationOperationKinds: Object.freeze(
-      [
-        "load",
-        "clear",
-        "import",
-        "reanchor",
-        "restore",
-        "discard",
-      ] as const,
-    ),
-    host: Object.freeze({
-      logicalLeaseCardinality: "single",
-      portalCardinality: "single",
-      catalogAuthorityCardinality: "single",
-      conflictCode: "ui.system_dialog_host_lease_conflict",
-      candidateResolution: "snapshot_per_candidate",
-    }),
-  });
+export const systemDialogManagedContractInternalV1: SystemDialogManagedContractInternalV1 = {
+  resolvedOwnerIds: [ownerIdV1],
+  resolvedSlotDescriptors: [
+    {
+      kind: "root" as const,
+      slotId: rootSlotIdV1,
+      cardinality: "single" as const,
+    },
+    {
+      kind: "child" as const,
+      parentDefinitionId: savesDefinitionV1.definitionId,
+      slotId: confirmationSlotIdV1,
+      cardinality: "single" as const,
+    },
+  ],
+  definitions: {
+    settings: settingsDefinitionV1,
+    saves: savesDefinitionV1,
+    confirmation: confirmationDefinitionV1,
+  },
+  rootRequests: ["settings", "saves"] as const,
+  savesRendererVariants: ["standard", "custom"] as const,
+  confirmationOperationKinds: [
+    "load",
+    "clear",
+    "import",
+    "reanchor",
+    "restore",
+    "discard",
+  ] as const,
+  host: {
+    logicalLeaseCardinality: "single",
+    portalCardinality: "single",
+    catalogAuthorityCardinality: "single",
+    conflictCode: "ui.system_dialog_host_lease_conflict",
+    candidateResolution: "snapshot_per_candidate",
+  },
+};

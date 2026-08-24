@@ -56,15 +56,16 @@ function loadBuildIdentityModuleV1(
   if (typeof loaded !== "object" || loaded === null) {
     throw new TypeError("Story BuildIdentity collector module is invalid");
   }
-  const collect = Reflect.get(loaded, identity.collectExport);
-  const createPlugin = Reflect.get(loaded, identity.createPluginExport);
+  const module = loaded as Record<string, unknown>;
+  const collect = module[identity.collectExport];
+  const createPlugin = module[identity.createPluginExport];
   if (typeof collect !== "function" || typeof createPlugin !== "function") {
     throw new TypeError("Story BuildIdentity collector module is invalid");
   }
-  return Object.freeze({
+  return {
     collect: () => collect() as Promise<unknown>,
     createPlugin: (input: { readonly initialIdentity: unknown }) => createPlugin(input) as Plugin,
-  });
+  };
 }
 
 /**
@@ -184,7 +185,7 @@ export async function createSillymakerAppViteConfigV1(
     const identity = loadBuildIdentityModuleV1(appRoot, web.identity);
     plugins.push(identity.createPlugin({ initialIdentity: await identity.collect() }));
   }
-  const sceneSources = config.sceneSources ?? Object.freeze([]);
+  const sceneSources = config.sceneSources ?? [];
   if (sceneSources.some((source) => source.sourceKind === "authoring_scene")) {
     plugins.push(authoringSceneSourcePluginInternalV1({ appRoot, sceneSources }));
   }

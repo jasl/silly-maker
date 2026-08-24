@@ -81,8 +81,8 @@ export interface CreateInProcessAgentGamePortInputV1<
   >;
 }
 
-const timedOutResultV1 = Object.freeze({ kind: "timed_out" as const });
-const abortedResultV1 = Object.freeze({ kind: "aborted" as const });
+const timedOutResultV1 = { kind: "timed_out" as const };
+const abortedResultV1 = { kind: "aborted" as const };
 
 export function createInProcessAgentGamePortV1<
   TGameView,
@@ -111,11 +111,11 @@ export function createInProcessAgentGamePortV1<
   TResult,
   TStatus
 > {
-  const identity = Object.freeze({
+  const identity = {
     storyId: input.identity.storyId,
     storyRevision: input.identity.storyRevision,
-  });
-  return Object.freeze({
+  };
+  return {
     identity: () => identity,
     observe: () => input.semantic.observe(),
     describeActions: () => input.semantic.availableActions(),
@@ -128,7 +128,7 @@ export function createInProcessAgentGamePortV1<
         : parseNonNegativeSafeInteger(options.afterRevision);
       const wait = input.semantic
         .waitForIdle(afterRevision as NonNegativeSafeInteger | undefined)
-        .then((publication) => Object.freeze({ kind: "idle" as const, publication }));
+        .then((publication) => ({ kind: "idle" as const, publication }));
       if (options.timeoutMs === undefined && options.signal === undefined) {
         return wait;
       }
@@ -160,14 +160,14 @@ export function createInProcessAgentGamePortV1<
         removeAbortListener?.();
       }
     },
-  });
+  };
 }
 
 export type AgentCapabilityRevokedV1 = { readonly kind: "capability_revoked" };
 
-export const agentCapabilityRevokedV1: AgentCapabilityRevokedV1 = Object.freeze({
+export const agentCapabilityRevokedV1: AgentCapabilityRevokedV1 = {
   kind: "capability_revoked" as const,
-});
+};
 
 export interface AgentCapabilityHandleV1<TCapability> {
   readonly capability: TCapability;
@@ -201,18 +201,18 @@ export function createAgentPersistenceCapabilityV1<TPersistenceResult, TExported
   const guard = async <TValue>(
     operation: () => Promise<TValue>,
   ): Promise<TValue | AgentCapabilityRevokedV1> => revoked ? agentCapabilityRevokedV1 : operation();
-  return Object.freeze({
-    capability: Object.freeze({
+  return {
+    capability: {
       save: (slot: PlayerWritableSaveSlotIdV1) => guard(() => input.save(slot)),
       load: (slot: string) => guard(() => input.load(slot)),
       exportCurrentSave: () => guard(() => input.exportCurrentSave()),
       importSave: (bytes: Uint8Array) => guard(() => input.importSave(bytes)),
-    }),
+    },
     isRevoked: () => revoked,
     revoke: () => {
       revoked = true;
     },
-  });
+  };
 }
 
 /** Read-only diagnostics export as an independent, revocable capability. */
@@ -224,15 +224,15 @@ export function createAgentDiagnosticsCapabilityV1<TDiagnostics>(input: {
   exportDiagnostics(): Promise<TDiagnostics>;
 }): AgentCapabilityHandleV1<AgentDiagnosticsCapabilityV1<TDiagnostics>> {
   let revoked = false;
-  return Object.freeze({
-    capability: Object.freeze({
+  return {
+    capability: {
       exportDiagnostics: async () => revoked ? agentCapabilityRevokedV1 : input.exportDiagnostics(),
-    }),
+    },
     isRevoked: () => revoked,
     revoke: () => {
       revoked = true;
     },
-  });
+  };
 }
 
 export interface AgentTranscriptEntryV1 {
@@ -257,8 +257,8 @@ export type AgentTranscriptComparisonV1 =
   };
 
 /**
- * Compares two agent transcripts (for example in-process Node versus the
- * JSONL host) for semantic parity: same operations, same player-safe
+ * Compares two agent transcripts (for example in-process and RPC-backed Host
+ * seams) for semantic parity: same operations, same player-safe
  * outputs, in the same order.
  */
 export function compareAgentTranscriptsV1(
@@ -270,15 +270,15 @@ export function compareAgentTranscriptsV1(
     const leftEntry = left[index] ?? null;
     const rightEntry = right[index] ?? null;
     if (JSON.stringify(leftEntry) !== JSON.stringify(rightEntry)) {
-      return Object.freeze({
+      return {
         kind: "diverged" as const,
         ordinal: index + 1,
         left: leftEntry,
         right: rightEntry,
-      });
+      };
     }
   }
-  return Object.freeze({ kind: "matching" as const, entries: left.length });
+  return { kind: "matching" as const, entries: left.length };
 }
 
 /**
@@ -321,17 +321,15 @@ export function createAgentTranscriptRecorderV1<
     output: unknown,
     input?: unknown,
   ): void => {
-    entries.push(
-      Object.freeze({
-        ordinal: entries.length + 1,
-        method,
-        ...(input === undefined ? {} : { input }),
-        output,
-      }),
-    );
+    entries.push({
+      ordinal: entries.length + 1,
+      method,
+      ...(input === undefined ? {} : { input }),
+      output,
+    });
   };
-  return Object.freeze({
-    agent: Object.freeze({
+  return {
+    agent: {
       identity: () => agent.identity(),
       observe: () => {
         const publication = agent.observe();
@@ -358,7 +356,7 @@ export function createAgentTranscriptRecorderV1<
         record("waitForIdle", result.kind);
         return result;
       },
-    }),
-    transcript: () => Object.freeze([...entries]),
-  });
+    },
+    transcript: () => [...entries],
+  };
 }

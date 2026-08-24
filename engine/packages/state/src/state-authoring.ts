@@ -109,7 +109,7 @@ declare const stateModuleTypeWitnessV1: unique symbol;
 
 export interface StateAnyModuleV1 {
   readonly id: ModuleId;
-  /** The immutable revision admitted when this neutral module was defined. */
+  /** The revision admitted when this neutral module was defined. */
   readonly contractRevision: PositiveSafeInteger;
   readonly stateSlot: StateSlotId;
   readonly requires: StateCapabilityRequirementsV1;
@@ -128,7 +128,7 @@ export interface StateModuleV1<
   };
 }
 
-/** Returns the immutable revision admitted when the neutral module was defined. */
+/** Returns the revision admitted when the neutral module was defined. */
 export function getStateModuleContractRevisionV1(
   module: StateAnyModuleV1,
 ): PositiveSafeInteger {
@@ -171,9 +171,9 @@ export interface StateTransactionV1<TTypes extends StateWorkflowTypeMapV1> {
 }
 
 export interface StateWorkflowDefinitionV1<TTypes extends StateWorkflowTypeMapV1> {
-  readonly stateSchema: RuntimeSchemaV1<TTypes["state"]>;
   readonly eventSchema: RuntimeSchemaV1<TTypes["event"]>;
   createFault(cause: unknown): TTypes["fault"];
+  /** Cross-slice invariants that cannot be owned by one module's slice schema. */
   validateCandidate?(state: DeepReadonly<TTypes["state"]>): readonly string[];
   run(transaction: StateTransactionV1<TTypes>): StateTransactionOutcomeV1<TTypes>;
 }

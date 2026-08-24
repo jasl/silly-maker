@@ -4,7 +4,7 @@ import type { DefaultSettingsLabelsV1 } from "@sillymaker/ui/reference/settings"
 
 import { createTemplateGameApplicationWithOuterUiV1 } from "./composition.tsx";
 
-const templateReferenceSettingsLabelsV1: Partial<DefaultSettingsLabelsV1> = Object.freeze({
+const templateReferenceSettingsLabelsV1: Partial<DefaultSettingsLabelsV1> = {
   bgmVolumeLabel: "音乐音量",
   voiceVolumeLabel: "语音音量",
   sfxVolumeLabel: "音效音量",
@@ -13,7 +13,7 @@ const templateReferenceSettingsLabelsV1: Partial<DefaultSettingsLabelsV1> = Obje
   autoWaitLabel: "自动播放停留",
   fullscreenLabel: "切换全屏",
   developerToolsLabel: "开发者工具",
-});
+};
 
 /** Explicit full/reference Player; the default Template entry remains minimal. */
 export const templateReferenceGameApplicationV1 = createTemplateGameApplicationWithOuterUiV1((

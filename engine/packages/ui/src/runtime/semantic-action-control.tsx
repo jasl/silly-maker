@@ -27,7 +27,6 @@ function requireDisabledReasonLabelsV1<TReason>(
 ): void {
   if (
     !Array.isArray(disabledReasonLabels) ||
-    !Object.isFrozen(disabledReasonLabels) ||
     disabledReasonLabels.length !== descriptor.reasons.length ||
     disabledReasonLabels.some(
       (disabledReasonLabel) =>

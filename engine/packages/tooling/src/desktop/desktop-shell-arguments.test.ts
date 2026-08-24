@@ -7,7 +7,7 @@ import {
 } from "./desktop-shell-arguments.mts";
 
 describe("parseDesktopShellArgumentsV1", () => {
-  it("defaults a packaged launch to the immutable Desktop runtime config", () => {
+  it("defaults a packaged launch to the admitted Desktop runtime config", () => {
     const parsed = parseDesktopShellArgumentsV1([], { allowSourceOverrides: false });
 
     expect(parsed).toEqual({
@@ -16,8 +16,6 @@ describe("parseDesktopShellArgumentsV1", () => {
       bootstrap: { revision: 1, entry: "runtime", target: "deno_desktop" },
     });
     expect(parsed.bootstrap).toBe(desktopRuntimeBootstrapConfigV1);
-    expect(Object.isFrozen(parsed)).toBe(true);
-    expect(Object.isFrozen(parsed.bootstrap)).toBe(true);
   });
 
   it("maps explicit runtime and source-run id/dist flags to the same config", () => {

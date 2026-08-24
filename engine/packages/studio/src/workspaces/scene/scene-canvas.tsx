@@ -123,7 +123,7 @@ export function SceneCanvasV1(props: SceneCanvasPropsV1): ReactElement {
         });
       }
     }
-    return Object.freeze(collected);
+    return collected;
   }, [target]);
 
   const onActorPointerDown = (
@@ -168,10 +168,10 @@ export function SceneCanvasV1(props: SceneCanvasPropsV1): ReactElement {
     if (result.kind === "applied") {
       dragRef.current = {
         ...drag,
-        operationCurrent: Object.freeze({
+        operationCurrent: {
           documentIdentity: result.documentIdentity,
           draftRevision: result.draftRevision,
-        }),
+        },
       };
       return true;
     }
@@ -196,7 +196,7 @@ export function SceneCanvasV1(props: SceneCanvasPropsV1): ReactElement {
       );
       commitPlacement(
         drag,
-        Object.freeze({ ...drag.startPlacement, scalePermille: next }),
+        { ...drag.startPlacement, scalePermille: next },
         drag.coalesceKey,
       );
       return;
@@ -219,7 +219,7 @@ export function SceneCanvasV1(props: SceneCanvasPropsV1): ReactElement {
     setGuides({ x: snappedX.snapped, y: snappedY.snapped });
     commitPlacement(
       drag,
-      Object.freeze({ ...drag.startPlacement, x, y }),
+      { ...drag.startPlacement, x, y },
       drag.coalesceKey,
     );
   };

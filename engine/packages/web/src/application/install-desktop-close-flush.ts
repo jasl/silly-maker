@@ -16,38 +16,31 @@ interface DesktopCloseFlushStateV1 {
 }
 
 function receiptV1(kind: DesktopCloseFlushKindV1, requestId: number): DesktopCloseFlushStateV1 {
-  return Object.freeze({ kind, protocolRevision: 1 as const, requestId });
+  return { kind, protocolRevision: 1 as const, requestId };
 }
 
 function readActionV1(
   action: unknown,
 ): { readonly operation: "prepare" | "read"; readonly requestId: number } | null {
   if (action === null || typeof action !== "object") return null;
-  try {
-    const operationDescriptor = Object.getOwnPropertyDescriptor(action, "operation");
-    const revisionDescriptor = Object.getOwnPropertyDescriptor(action, "protocolRevision");
-    const requestIdDescriptor = Object.getOwnPropertyDescriptor(action, "requestId");
-    if (
-      operationDescriptor === undefined ||
-      !("value" in operationDescriptor) ||
-      (operationDescriptor.value !== "prepare" && operationDescriptor.value !== "read") ||
-      revisionDescriptor === undefined ||
-      !("value" in revisionDescriptor) ||
-      revisionDescriptor.value !== 1 ||
-      requestIdDescriptor === undefined ||
-      !("value" in requestIdDescriptor) ||
-      !Number.isSafeInteger(requestIdDescriptor.value) ||
-      requestIdDescriptor.value < 1
-    ) {
-      return null;
-    }
-    return Object.freeze({
-      operation: operationDescriptor.value,
-      requestId: requestIdDescriptor.value as number,
-    });
-  } catch {
+  const record = action as {
+    readonly operation?: unknown;
+    readonly protocolRevision?: unknown;
+    readonly requestId?: unknown;
+  };
+  if (
+    (record.operation !== "prepare" && record.operation !== "read") ||
+    record.protocolRevision !== 1 ||
+    typeof record.requestId !== "number" ||
+    !Number.isSafeInteger(record.requestId) ||
+    record.requestId < 1
+  ) {
     return null;
   }
+  return {
+    operation: record.operation,
+    requestId: record.requestId,
+  };
 }
 
 export function installDesktopCloseFlushV1(input: {
@@ -60,15 +53,8 @@ export function installDesktopCloseFlushV1(input: {
 }): () => void {
   if (!input.enabled) return () => {};
   const target = input.target ?? globalThis;
-  try {
-    if (Object.getOwnPropertyDescriptor(target, desktopCloseFlushGlobalKeyV1) !== undefined) {
-      throw new TypeError("web.desktop_close_bridge_collision");
-    }
-  } catch (error) {
-    if (error instanceof TypeError && error.message === "web.desktop_close_bridge_collision") {
-      throw error;
-    }
-    throw new TypeError("web.desktop_close_bridge_collision", { cause: error });
+  if (Object.hasOwn(target, desktopCloseFlushGlobalKeyV1)) {
+    throw new TypeError("web.desktop_close_bridge_collision");
   }
 
   let state: DesktopCloseFlushStateV1 | null = null;
@@ -128,9 +114,9 @@ export function installDesktopCloseFlushV1(input: {
   }
 
   return (): void => {
-    const descriptor = Object.getOwnPropertyDescriptor(target, desktopCloseFlushGlobalKeyV1);
-    if (descriptor !== undefined && "value" in descriptor && descriptor.value === handler) {
-      Reflect.deleteProperty(target, desktopCloseFlushGlobalKeyV1);
+    const bridgeTarget = target as Record<string, unknown>;
+    if (bridgeTarget[desktopCloseFlushGlobalKeyV1] === handler) {
+      delete bridgeTarget[desktopCloseFlushGlobalKeyV1];
     }
   };
 }

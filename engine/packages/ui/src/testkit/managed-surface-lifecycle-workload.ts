@@ -33,19 +33,21 @@ import {
   type ManagedSurfaceStablePublisherInternalV1,
 } from "../managed-surfaces/managed-surface-stable-publisher-lease.ts";
 
-export const managedSurfaceLifecycleTargetCountsV1 = Object.freeze([1, 4, 16] as const);
+export const managedSurfaceLifecycleTargetCountsV1 = [1, 4, 16] as const;
 export type ManagedSurfaceLifecycleTargetCountV1 =
   (typeof managedSurfaceLifecycleTargetCountsV1)[number];
 
-export const managedSurfaceLifecycleParameterClassesV1 = Object.freeze(
-  ["small", "medium"] as const,
-);
+export const managedSurfaceLifecycleParameterClassesV1 = ["small", "medium"] as const;
 export type ManagedSurfaceLifecycleParameterClassV1 =
   (typeof managedSurfaceLifecycleParameterClassesV1)[number];
 
-export const managedSurfaceLifecycleScenarioClassesV1 = Object.freeze(
-  ["initial", "equal_noop", "one_change", "all_change", "empty"] as const,
-);
+export const managedSurfaceLifecycleScenarioClassesV1 = [
+  "initial",
+  "equal_noop",
+  "one_change",
+  "all_change",
+  "empty",
+] as const;
 export type ManagedSurfaceLifecycleScenarioClassV1 =
   (typeof managedSurfaceLifecycleScenarioClassesV1)[number];
 
@@ -90,11 +92,11 @@ const ownerIdV1 = parseManagedSurfaceOwnerIdV1("surface-owner.performance-baseli
 const layerIdV1 = parseManagedSurfaceLayerIdV1("surface-layer.performance-baseline");
 
 function schemaV1(): RuntimeSchemaV1<unknown> {
-  return Object.freeze({
+  return {
     parse(value: unknown): unknown {
       return value;
     },
-  });
+  };
 }
 
 function fixtureV1(targetCount: ManagedSurfaceLifecycleTargetCountV1): Readonly<{
@@ -110,44 +112,42 @@ function fixtureV1(targetCount: ManagedSurfaceLifecycleTargetCountV1): Readonly<
     const definitionId = parseManagedSurfaceDefinitionIdV1(
       `surface.performance-baseline-${String(index)}`,
     );
-    slots.push(Object.freeze({
+    slots.push({
       kind: "root",
       slotId,
       cardinality: "single",
-    }));
-    const definition = Object.freeze(
-      {
-        definitionId,
-        contractRevision: parsePositiveSafeInteger(1),
-        ownerId: ownerIdV1,
-        slotId,
-        layerId: layerIdV1,
-        layerOrder: parseNonNegativeSafeInteger(index),
-        placement: "root",
-        modality: "non_blocking",
-        inputPolicy: Object.freeze({ kind: "none" }),
-        dismissPolicy: Object.freeze({
-          back: true,
-          escape: true,
-          backdrop: false,
-          routedCancel: true,
-        }),
-        focusPolicy: Object.freeze({ kind: "none" }),
-        navigationPolicy: Object.freeze({ kind: "close" }),
-        actionIds: Object.freeze([]),
-        readiness: Object.freeze({
-          initialOpen: "blocking_fallback",
-          primaryReplacement: "retain_current",
-          childOpen: "blocking_fallback",
-        }),
-      } satisfies ManagedSurfaceResolvedDefinitionV1,
-    );
-    sidecars.push(Object.freeze({ definition, parameterSchema: schemaV1() }));
+    });
+    const definition = {
+      definitionId,
+      contractRevision: parsePositiveSafeInteger(1),
+      ownerId: ownerIdV1,
+      slotId,
+      layerId: layerIdV1,
+      layerOrder: parseNonNegativeSafeInteger(index),
+      placement: "root",
+      modality: "non_blocking",
+      inputPolicy: { kind: "none" },
+      dismissPolicy: {
+        back: true,
+        escape: true,
+        backdrop: false,
+        routedCancel: true,
+      },
+      focusPolicy: { kind: "none" },
+      navigationPolicy: { kind: "close" },
+      actionIds: [],
+      readiness: {
+        initialOpen: "blocking_fallback",
+        primaryReplacement: "retain_current",
+        childOpen: "blocking_fallback",
+      },
+    } satisfies ManagedSurfaceResolvedDefinitionV1;
+    sidecars.push({ definition, parameterSchema: schemaV1() });
   }
-  return Object.freeze({
-    slots: Object.freeze(slots),
-    sidecars: Object.freeze(sidecars),
-  });
+  return {
+    slots,
+    sidecars,
+  };
 }
 
 function harnessV1(targetCount: ManagedSurfaceLifecycleTargetCountV1): HarnessV1 {
@@ -176,7 +176,7 @@ function harnessV1(targetCount: ManagedSurfaceLifecycleTargetCountV1): HarnessV1
   if (registration.kind !== "registered") {
     throw new Error("managed surface lifecycle workload could not register its publisher");
   }
-  return Object.freeze({ authority, kernel, publisher });
+  return { authority, kernel, publisher };
 }
 
 function parametersV1(
@@ -185,20 +185,17 @@ function parametersV1(
   revision: number,
 ): Readonly<Record<string, unknown>> {
   if (parameterClass === "small") {
-    return Object.freeze({ index, revision, label: `target-${String(index)}` });
+    return { index, revision, label: `target-${String(index)}` };
   }
-  return Object.freeze({
+  return {
     index,
     revision,
     label: `target-${String(index)}-${"x".repeat(512)}`,
-    values: Object.freeze(
-      Array.from({ length: 64 }, (_, valueIndex) =>
-        Object.freeze({
-          id: `${String(index)}:${String(valueIndex)}`,
-          value: valueIndex + revision,
-        })),
-    ),
-  });
+    values: Array.from({ length: 64 }, (_, valueIndex) => ({
+      id: `${String(index)}:${String(valueIndex)}`,
+      value: valueIndex + revision,
+    })),
+  };
 }
 
 function targetsV1(
@@ -207,16 +204,15 @@ function targetsV1(
   parameterClass: ManagedSurfaceLifecycleParameterClassV1,
   revision: number,
 ): readonly ManagedSurfaceStableTargetInternalV1[] {
-  return Object.freeze(
-    Array.from({ length: targetCount }, (_, index) =>
-      Object.freeze({
-        occurrenceId: harness.publisher.issueOccurrence(),
-        definitionId: parseManagedSurfaceDefinitionIdV1(
-          `surface.performance-baseline-${String(index)}`,
-        ),
-        parentOccurrenceId: null,
-        parameters: parametersV1(parameterClass, index, revision),
-      })),
+  return (
+    Array.from({ length: targetCount }, (_, index) => ({
+      occurrenceId: harness.publisher.issueOccurrence(),
+      definitionId: parseManagedSurfaceDefinitionIdV1(
+        `surface.performance-baseline-${String(index)}`,
+      ),
+      parentOccurrenceId: null,
+      parameters: parametersV1(parameterClass, index, revision),
+    }))
   );
 }
 
@@ -224,11 +220,11 @@ function publicationV1(
   harness: HarnessV1,
   targets: readonly ManagedSurfaceStableTargetInternalV1[],
 ): Readonly<Record<string, unknown>> {
-  return Object.freeze({
+  return {
     publisherLease: harness.publisher.lease,
     sourceRevision: harness.publisher.issueSourceRevision(),
     targets,
-  });
+  };
 }
 
 function evaluateAndApplyV1(
@@ -280,14 +276,14 @@ function prepareRunV1(
   );
   const initialPublication = publicationV1(harness, initialTargets);
   if (descriptor.scenarioClass === "initial") {
-    return Object.freeze({ harness, publication: initialPublication });
+    return { harness, publication: initialPublication };
   }
   evaluateAndApplyV1(harness, initialPublication);
   if (descriptor.scenarioClass === "equal_noop") {
-    return Object.freeze({ harness, publication: initialPublication });
+    return { harness, publication: initialPublication };
   }
   if (descriptor.scenarioClass === "empty") {
-    return Object.freeze({ harness, publication: publicationV1(harness, Object.freeze([])) });
+    return { harness, publication: publicationV1(harness, []) };
   }
   const replacementTargets = targetsV1(
     harness,
@@ -297,8 +293,8 @@ function prepareRunV1(
   );
   const nextTargets = descriptor.scenarioClass === "all_change"
     ? replacementTargets
-    : Object.freeze([replacementTargets[0]!, ...initialTargets.slice(1)]);
-  return Object.freeze({ harness, publication: publicationV1(harness, nextTargets) });
+    : [replacementTargets[0]!, ...initialTargets.slice(1)];
+  return { harness, publication: publicationV1(harness, nextTargets) };
 }
 
 export function prepareManagedSurfaceLifecycleWorkloadV1(input: {
@@ -308,7 +304,7 @@ export function prepareManagedSurfaceLifecycleWorkloadV1(input: {
   readonly now?: () => number;
 }): PreparedManagedSurfaceLifecycleWorkloadV1 {
   const now = input.now ?? (() => performance.now());
-  const descriptor = Object.freeze({
+  const descriptor = {
     workloadId: `stable-publication/${input.scenarioClass}/${input.parameterClass}/${
       String(input.targetCount)
     }`,
@@ -316,8 +312,8 @@ export function prepareManagedSurfaceLifecycleWorkloadV1(input: {
     parameterClass: input.parameterClass,
     scenarioClass: input.scenarioClass,
     measuredScope: "admission_and_atomic_apply" as const,
-  });
-  return Object.freeze({
+  };
+  return {
     descriptor,
     runOnce(): ManagedSurfaceLifecycleWorkloadRunV1 {
       const prepared = prepareRunV1(descriptor);
@@ -331,9 +327,9 @@ export function prepareManagedSurfaceLifecycleWorkloadV1(input: {
       unsubscribe();
       const preparingTargetCount = prepared.harness.kernel.getStateInternalV1()
         .stableRuntimeBindings.filter((entry) => entry.binding.kind === "preparing").length;
-      return Object.freeze({
+      return {
         durationMs,
-        semantic: Object.freeze({
+        semantic: {
           resultKind: result.kind,
           resultCode: result.code,
           sourceDelta: result.delta.source,
@@ -341,8 +337,8 @@ export function prepareManagedSurfaceLifecycleWorkloadV1(input: {
           notificationCount,
           runtimeAllocationHint: result.delta.runtimeAllocation,
           preparingTargetCount,
-        }),
-      });
+        },
+      };
     },
-  });
+  };
 }

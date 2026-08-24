@@ -29,6 +29,7 @@ import type {
   SceneAuthoringExecutionResultV1,
   SceneAuthoringOperationV1,
 } from "./core/scene-operations/contract.ts";
+import { admitSceneAuthoringOperationV1 } from "./core/scene-operations/admission.ts";
 import { loadStudioMotionSourcesV1 } from "./core/motion-sources.ts";
 import type { StudioMotionSourcesV1 } from "./core/motion-sources.ts";
 import type { RegionsSourceIoV1 } from "./core/regions-io.ts";
@@ -293,7 +294,7 @@ export function StudioAppWithAuthoringSessionsV1(
   );
   const workspaceManifest = props.workspaceManifest;
   const [scenes, setScenes] = useState<readonly SceneIoListEntryV1[] | null>(null);
-  const [sceneSkips, setSceneSkips] = useState<readonly SceneIoListSkipV1[]>(Object.freeze([]));
+  const [sceneSkips, setSceneSkips] = useState<readonly SceneIoListSkipV1[]>([]);
   // Index-enumerated motion documents (null while loading); registration-free.
   const [motionSources, setMotionSources] = useState<StudioMotionSourcesV1 | null>(null);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
@@ -303,7 +304,7 @@ export function StudioAppWithAuthoringSessionsV1(
   const [fitting, setFitting] = useState(false);
   const [fittingByTag, setFittingByTag] = useState<
     Readonly<Record<string, Readonly<Record<string, string>>>>
-  >(Object.freeze({}));
+  >({});
   const [note, setNote] = useState<string | null>(null);
   /** A dirty draft gates navigation: save, discard, or cancel — never silent loss. */
   const [confirmNavigation, setConfirmNavigation] = useState<{ readonly path: string } | null>(
@@ -335,10 +336,10 @@ export function StudioAppWithAuthoringSessionsV1(
 
   const sceneOperationCurrent = useMemo<SceneAuthoringCurrentV1 | null>(
     () =>
-      draft === null || snapshot.documentIdentity === null ? null : Object.freeze({
+      draft === null || snapshot.documentIdentity === null ? null : {
         documentIdentity: snapshot.documentIdentity,
         draftRevision: snapshot.draftRevision,
-      }),
+      },
     [draft, snapshot.documentIdentity, snapshot.draftRevision],
   );
 
@@ -347,10 +348,15 @@ export function StudioAppWithAuthoringSessionsV1(
     operation: SceneAuthoringOperationV1,
     coalesceKey?: string,
   ): SceneAuthoringExecutionResultV1 => {
+    const admitted = admitSceneAuthoringOperationV1(operation);
+    if (admitted.kind === "rejected") {
+      setNote(`编辑未应用：${admitted.diagnostic.code}`);
+      return admitted;
+    }
     const result = sceneOperations.execute({
       documentIdentity: current.documentIdentity,
       expectedDraftRevision: current.draftRevision,
-      operation,
+      operation: admitted.operation,
       ...(coalesceKey === undefined ? {} : { coalesceKey }),
     });
     if (
@@ -395,7 +401,7 @@ export function StudioAppWithAuthoringSessionsV1(
       setSelectedTag((opened?.entries[0]?.tag as string | undefined) ?? null);
       setThroughCueId(null);
       setFitting(false);
-      setFittingByTag(Object.freeze({}));
+      setFittingByTag({});
       setAssetWarning(null);
     });
   }, [session]);
@@ -406,7 +412,7 @@ export function StudioAppWithAuthoringSessionsV1(
     void io.list().then((result) => {
       if (!active) return;
       if (result.kind !== "ok") {
-        setScenes(Object.freeze([]));
+        setScenes([]);
         setNote(`场景列表不可用：${result.code}`);
         return;
       }
@@ -584,19 +590,19 @@ export function StudioAppWithAuthoringSessionsV1(
     if (props.publicationRole !== "visible") return undefined;
     return hostOwner.registerCloseParticipant(
       "scene",
-      Object.freeze({
+      {
         getState: () => {
           const current = session.getSnapshot();
-          return Object.freeze({
+          return {
             dirty: current.dirty,
             busy: current.loading || current.saving || creating,
             canSave: current.path !== null && current.digest !== null && !compileBlocked,
-          });
+          };
         },
         subscribe: session.subscribe,
         save: saveSceneDocument,
         discard: session.discard,
-      }),
+      },
     );
   }, [compileBlocked, creating, hostOwner, props.publicationRole, saveSceneDocument, session]);
 
@@ -621,7 +627,7 @@ export function StudioAppWithAuthoringSessionsV1(
   // fixed gaps heal on their own (empty rendererIds are already reported by
   // the projection as stage.renderer_missing / content_unresolved).
   const rendererWarnings = useMemo(() => {
-    if (compiled === null || compiled.kind !== "ok") return Object.freeze([]) as readonly string[];
+    if (compiled === null || compiled.kind !== "ok") return [] as readonly string[];
     const lines: string[] = [];
     for (const layer of compiled.target.layers) {
       for (const entry of layer.entries) {
@@ -636,7 +642,7 @@ export function StudioAppWithAuthoringSessionsV1(
         if (!lines.includes(line)) lines.push(line);
       }
     }
-    return Object.freeze(lines);
+    return lines;
   }, [binding.renderers, compiled]);
 
   // Placeable manifest content whose resolution declares no geometry gets
@@ -644,7 +650,7 @@ export function StudioAppWithAuthoringSessionsV1(
   // (backgrounds legitimately omit geometry and stay quiet).
   const geometryWarnings = useMemo(() => {
     const manifest = binding.contents;
-    if (manifest === undefined || draft === null) return Object.freeze([]) as readonly string[];
+    if (manifest === undefined || draft === null) return [] as readonly string[];
     const lines: string[] = [];
     for (const entry of draft.entries) {
       const descriptor = manifest.find(
@@ -655,7 +661,7 @@ export function StudioAppWithAuthoringSessionsV1(
       try {
         geometry = binding.catalog.resolveContent(
           entry.contentId,
-          entry.appearance ?? (Object.freeze({}) as StageAppearanceV1),
+          entry.appearance ?? ({} as StageAppearanceV1),
         )?.geometry;
       } catch {
         continue;
@@ -666,22 +672,23 @@ export function StudioAppWithAuthoringSessionsV1(
           .tag as string}，可在检视器数字编辑）`,
       );
     }
-    return Object.freeze(lines);
+    return lines;
   }, [binding.catalog, binding.contents, draft]);
 
   // Ambient loops reference motion documents by id; a binding the index
   // cannot resolve would silently never play, so it warns per entry.
   const ambientWarnings = useMemo(() => {
-    if (draft === null || motionSources === null) return Object.freeze([]) as readonly string[];
+    if (draft === null || motionSources === null) return [] as readonly string[];
     const known = new Set(motionCatalog.ids);
-    return Object.freeze(
-      draft.entries
-        .filter((entry) => entry.ambient !== undefined && !known.has(entry.ambient.motionId))
-        .map((entry) =>
-          `条目 ${entry.tag as string} 的循环动效 ${entry.ambient?.motionId ?? ""} 未被索引` +
-          "——循环不会播放（检查 motion 文档是否存在且可解析）"
-        ),
-    );
+    const warnings: string[] = [];
+    for (const entry of draft.entries) {
+      if (entry.ambient === undefined || known.has(entry.ambient.motionId)) continue;
+      warnings.push(
+        `条目 ${entry.tag as string} 的循环动效 ${entry.ambient.motionId} 未被索引` +
+          "——循环不会播放（检查 motion 文档是否存在且可解析）",
+      );
+    }
+    return warnings;
   }, [draft, motionCatalog.ids, motionSources]);
 
   // Authoring diagnostics: warnings stay visible but never block saving;
@@ -702,7 +709,7 @@ export function StudioAppWithAuthoringSessionsV1(
     warnings.push(...rendererWarnings);
     warnings.push(...geometryWarnings);
     warnings.push(...ambientWarnings);
-    return Object.freeze(warnings);
+    return warnings;
   }, [
     ambientWarnings,
     assetWarning,
@@ -755,7 +762,7 @@ export function StudioAppWithAuthoringSessionsV1(
       try {
         const resolution = binding.catalog.resolveContent(
           descriptor.contentId as StageContentIdV1,
-          Object.freeze({ ...descriptor.defaultAppearance }) as StageAppearanceV1,
+          { ...descriptor.defaultAppearance } as StageAppearanceV1,
         );
         if (resolution?.geometry !== undefined) ids.add(descriptor.contentId);
       } catch {
@@ -779,14 +786,14 @@ export function StudioAppWithAuthoringSessionsV1(
   // The selected entry's declared appearance merged with active fitting
   // overrides — what the inspector fields display and the resolution uses.
   const selectedEffectiveAppearance = useMemo((): Readonly<Record<string, string>> => {
-    if (draft === null || selectedTagCurrent === null) return Object.freeze({});
+    if (draft === null || selectedTagCurrent === null) return {};
     const entry = draft.entries.find(
       (candidate) => (candidate.tag as string) === selectedTagCurrent,
     );
-    if (entry === undefined) return Object.freeze({});
+    if (entry === undefined) return {};
     const declared = { ...entry.appearance } as Record<string, string>;
     const override = fitting ? fittingByTag[selectedTagCurrent] ?? {} : {};
-    return Object.freeze({ ...declared, ...override });
+    return { ...declared, ...override };
   }, [draft, fitting, fittingByTag, selectedTagCurrent]);
 
   // Read-only derived data: what the catalog actually resolved for the
@@ -804,11 +811,11 @@ export function StudioAppWithAuthoringSessionsV1(
         selectedEffectiveAppearance as StageAppearanceV1,
       );
       if (resolution === null || resolution === undefined) return null;
-      return Object.freeze({
+      return {
         rendererId: resolution.rendererId as string,
-        assetIds: Object.freeze(resolution.assetIds.map((assetId) => assetId as string)),
+        assetIds: resolution.assetIds.map((assetId) => assetId as string),
         hasGeometry: resolution.geometry !== undefined,
-      });
+      };
     } catch {
       return null;
     }
@@ -879,8 +886,8 @@ export function StudioAppWithAuthoringSessionsV1(
         else forTag[key] = value;
         const next: Record<string, Readonly<Record<string, string>>> = { ...current };
         if (Object.keys(forTag).length === 0) delete next[selectedTagCurrent];
-        else next[selectedTagCurrent] = Object.freeze(forTag);
-        return Object.freeze(next);
+        else next[selectedTagCurrent] = forTag;
+        return next;
       });
       return;
     }
@@ -895,7 +902,7 @@ export function StudioAppWithAuthoringSessionsV1(
 
   const toggleFitting = useCallback((next: boolean): void => {
     setFitting(next);
-    if (!next) setFittingByTag(Object.freeze({}));
+    if (!next) setFittingByTag({});
   }, []);
 
   // A new scene: id prefix inferred from the project, the file lands at
@@ -1427,7 +1434,7 @@ export function StudioAppWithAuthoringSessionsV1(
               <ChromeWorkspaceSectionV1
                 io={chromeIo}
                 session={chromeSession}
-                fixtures={binding.chrome ?? Object.freeze([])}
+                fixtures={binding.chrome ?? []}
                 storyHint={sceneIdPrefix.split(".")[1] ?? null}
                 host={props.host}
                 publicationRole={props.publicationRole}

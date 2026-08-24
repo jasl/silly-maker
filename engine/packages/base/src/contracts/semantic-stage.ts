@@ -106,26 +106,26 @@ export interface SemanticStageStateV1 {
   readonly camera: StageCameraV1;
 }
 
-export const defaultStagePlacementV1: StagePlacementV1 = Object.freeze({
+export const defaultStagePlacementV1: StagePlacementV1 = {
   x: 0,
   y: 0,
   scalePermille: 1000,
   opacityPermille: 1000,
   mirrored: false,
-});
+};
 
-export const defaultStageLayerTransformV1: StageLayerTransformV1 = Object.freeze({
+export const defaultStageLayerTransformV1: StageLayerTransformV1 = {
   x: 0,
   y: 0,
   scalePermille: 1000,
   visible: true,
-});
+};
 
-export const defaultStageCameraV1: StageCameraV1 = Object.freeze({
+export const defaultStageCameraV1: StageCameraV1 = {
   x: 0,
   y: 0,
   zoomPermille: 1000,
-});
+};
 
 const stageCoordinateLimitV1 = 1_000_000;
 const stagePermilleLimitV1 = 100_000;
@@ -194,25 +194,16 @@ export function parseStagePlacementV1(value: unknown, path = "/placement"): Stag
 }
 
 export function parseStageAppearanceV1(value: unknown, path = "/appearance"): StageAppearanceV1 {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype
-  ) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return dataFailure(path, "object_expected");
   }
+  const record = value as Record<string, unknown>;
   const result: Record<string, string> = {};
-  for (const key of Reflect.ownKeys(value)) {
-    if (typeof key === "symbol") return dataFailure(path, "symbol_key");
+  for (const key of Object.keys(record)) {
     if (!appearanceKeyPatternV1.test(key) || key.length > 64) {
       return dataFailure(`${path}/${key}`, "appearance_key_invalid");
     }
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    if (descriptor === undefined || descriptor.get !== undefined || descriptor.set !== undefined) {
-      return dataFailure(`${path}/${key}`, "data_property_expected");
-    }
-    const entryValue: unknown = descriptor.value;
+    const entryValue = record[key];
     if (
       typeof entryValue !== "string" ||
       !appearanceValuePatternV1.test(entryValue) ||

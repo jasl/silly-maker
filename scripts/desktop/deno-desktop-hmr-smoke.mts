@@ -81,7 +81,7 @@ export function parseDesktopHmrLaunchOptionsV1(
   ) {
     return failureV1("options");
   }
-  return Object.freeze({ denoBinary: resolve(cwd, denoBinary), selectedUpstreamCommit });
+  return { denoBinary: resolve(cwd, denoBinary), selectedUpstreamCommit };
 }
 
 export function requireReportedCanaryRevisionV1(output: string, expectedRevision: string): string {
@@ -93,7 +93,7 @@ export function requireReportedCanaryRevisionV1(output: string, expectedRevision
 }
 
 function desktopHmrArgumentsV1(workspaceRoot: string): readonly string[] {
-  return Object.freeze([
+  return [
     "desktop",
     "-A",
     "--backend",
@@ -106,7 +106,7 @@ function desktopHmrArgumentsV1(workspaceRoot: string): readonly string[] {
     "--node-modules-dir=manual",
     "--hmr",
     ".",
-  ]);
+  ];
 }
 
 async function mainV1(): Promise<void> {

@@ -6,7 +6,7 @@ import { createWebGameBootstrapEntropyInternalV1 } from "./create-web-game-boots
 describe("Web Game Domain bootstrap entropy", () => {
   it("adapts Web crypto without sharing Application Host capabilities", () => {
     const samples = [0, 7];
-    const cryptoPort = Object.freeze({
+    const cryptoPort = ({
       randomUUID: () =>
         "00000000-0000-4000-8000-000000000001" as `${string}-${string}-${string}-${string}-${string}`,
       getRandomValues<T extends ArrayBufferView | null>(values: T): T {
@@ -23,6 +23,5 @@ describe("Web Game Domain bootstrap entropy", () => {
     expect(entropy.nextUuidV4()).toBe("00000000-0000-4000-8000-000000000001");
     expect(entropy.nextNonZeroUint32()).toBe(7);
     expect(samples).toEqual([]);
-    expect(Object.isFrozen(entropy)).toBe(true);
   });
 });

@@ -37,13 +37,13 @@ function runtimeAssetV1(input: {
   readonly usage?: AssetUsageV1;
   readonly fallbackToken?: string;
 }): RuntimeAssetEntryV1 {
-  const providerIdentity = Object.freeze({
+  const providerIdentity = {
     id: "assets.e2e",
     revision: parsePositiveSafeInteger(1),
     digest: digestV1("provider"),
-  });
+  };
 
-  return Object.freeze({
+  return ({
     assetId: input.assetId,
     kind: input.usage === characterUsageV1 ? "character" : "background",
     usage: input.usage ?? sceneUsageV1,
@@ -57,10 +57,10 @@ function runtimeAssetV1(input: {
     runtimePath: input.runtimePath,
     mediaType: "image/webp",
     delivery: "runtime_image",
-    provider: Object.freeze({ kind: "asset_pack", identity: providerIdentity }),
-    overrideChain: Object.freeze([
-      Object.freeze({ kind: "asset_pack" as const, identity: providerIdentity }),
-    ]),
+    provider: { kind: "asset_pack", identity: providerIdentity },
+    overrideChain: [
+      { kind: "asset_pack" as const, identity: providerIdentity },
+    ],
   });
 }
 
@@ -69,7 +69,7 @@ function codeFallbackAssetV1(input: {
   readonly usage?: AssetUsageV1;
   readonly fallbackToken?: string;
 }): Extract<ResolvedAssetEntryV1, { readonly delivery: "code_fallback" }> {
-  return Object.freeze({
+  return ({
     assetId: input.assetId,
     kind: input.usage === characterUsageV1 ? "character" : "background",
     usage: input.usage ?? sceneUsageV1,
@@ -82,35 +82,33 @@ function codeFallbackAssetV1(input: {
     pivot: null,
     delivery: "code_fallback",
     provider: null,
-    overrideChain: Object.freeze([]),
+    overrideChain: [],
   });
 }
 
 function manifestV1(assets: readonly ResolvedAssetEntryV1[]): ResolvedAssetManifestV1 {
-  const providerIdentity = Object.freeze({
+  const providerIdentity = {
     id: "assets.e2e",
     revision: parsePositiveSafeInteger(1),
     digest: digestV1("provider"),
-  });
-  const slots = assets.map((entry) =>
-    Object.freeze({
-      assetId: entry.assetId,
-      kind: entry.kind,
-      usage: entry.usage,
-      overridePolicy: entry.overridePolicy,
-      fallbackToken: entry.fallbackToken,
-      width: entry.width,
-      height: entry.height,
-      loadGroup: entry.loadGroup,
-      safeArea: entry.safeArea,
-      pivot: entry.pivot,
-    })
-  );
+  };
+  const slots = assets.map((entry) => ({
+    assetId: entry.assetId,
+    kind: entry.kind,
+    usage: entry.usage,
+    overridePolicy: entry.overridePolicy,
+    fallbackToken: entry.fallbackToken,
+    width: entry.width,
+    height: entry.height,
+    loadGroup: entry.loadGroup,
+    safeArea: entry.safeArea,
+    pivot: entry.pivot,
+  }));
 
-  return Object.freeze({
-    packs: Object.freeze([providerIdentity]),
-    slots: Object.freeze(slots),
-    assets: Object.freeze([...assets]),
+  return ({
+    packs: [providerIdentity],
+    slots: slots,
+    assets: [...assets],
   });
 }
 
@@ -129,7 +127,7 @@ function fakeLoaderV1(
   const signals: AbortSignal[] = [];
   const dispose = vi.fn();
 
-  return Object.freeze({
+  return ({
     calls,
     signals,
     cacheKey: cacheKeyV1,
@@ -155,7 +153,7 @@ function deferredV1<TValue>(): {
   const promise = new Promise<TValue>((resolvePromise) => {
     resolve = resolvePromise;
   });
-  return Object.freeze({ promise, resolve });
+  return ({ promise, resolve });
 }
 
 describe("AssetRegistryV1", () => {
@@ -170,10 +168,10 @@ describe("AssetRegistryV1", () => {
       runtimePath: "assets/duplicate-second.webp",
     });
     const single = manifestV1([first]);
-    const duplicateManifest = Object.freeze({
+    const duplicateManifest = {
       ...single,
-      assets: Object.freeze([first, second]),
-    });
+      assets: [first, second],
+    };
 
     expect(() => createAssetRegistryV1(duplicateManifest, fakeLoaderV1(new Map()), vi.fn()))
       .toThrow("asset.registry_duplicate_id");
@@ -289,7 +287,7 @@ describe("AssetRegistryV1", () => {
     });
     const settlement = deferredV1<LoaderSettlementV1>();
     const calls: string[] = [];
-    const loader = Object.freeze({
+    const loader = ({
       cacheKey: cacheKeyV1,
       load(request: RuntimeAssetLoadRequestV1) {
         calls.push(cacheKeyV1(request));
@@ -340,7 +338,7 @@ describe("AssetRegistryV1", () => {
       runtimePath: "assets/subscriber-shared.webp",
     });
     const settlement = deferredV1<LoaderSettlementV1>();
-    const loader = Object.freeze({
+    const loader = ({
       cacheKey: cacheKeyV1,
       load() {
         return settlement.promise;
@@ -452,7 +450,7 @@ describe("AssetRegistryV1", () => {
     const calls: string[] = [];
     const signals: AbortSignal[] = [];
     const dispose = vi.fn();
-    const loader = Object.freeze({
+    const loader = ({
       calls,
       signals,
       cacheKey: cacheKeyV1,
@@ -572,7 +570,7 @@ describe("AssetRegistryV1", () => {
     const calls: string[] = [];
     const signals: AbortSignal[] = [];
     const dispose = vi.fn();
-    const loader = Object.freeze({
+    const loader = ({
       calls,
       signals,
       cacheKey: cacheKeyV1,
@@ -582,7 +580,7 @@ describe("AssetRegistryV1", () => {
         return new Promise<LoaderSettlementV1>((resolve) => {
           signal.addEventListener(
             "abort",
-            () => resolve(Object.freeze({ kind: "aborted" as const })),
+            () => resolve({ kind: "aborted" as const }),
             { once: true },
           );
         });

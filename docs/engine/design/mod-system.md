@@ -701,8 +701,8 @@ Activation gate，并在独立 active plan 中记录证据。
 - GameplayModules 仍汇入唯一 Authoring Kit graph；
 - 改变输入排列得到相同 topology/digest；实例初始化失败完整回滚并逆序 dispose；
 - UI surface 类贡献（route/window/overlay/input context）的合并合同基于
-  [Managed Surface lifecycle and contract harness](surface-contract-harness.md)
-  已交付的统一 registry 冻结；
+  [Managed Surface lifecycle contract](surface-contract-harness.md)
+  已交付的统一 lifecycle authority；
 - M2 整体只有通过 §1.1 Activation gate 并由新的 active plan 接受后才能开始，不存在
   “先落无前置合并类别”的实现许可。激活前只允许继续评审 contribution 分类和第二
   消费者证据；不得落地 resolver、SDK、public ABI 或 production merge contract。

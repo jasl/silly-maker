@@ -6,27 +6,27 @@ import type {
   MotionSourceIoV1,
 } from "./motion-io.ts";
 
-const unavailableListV1 = Object.freeze({
+const unavailableListV1 = {
   kind: "error" as const,
   code: "unavailable" as const,
-});
+};
 
 /** Production fallback for the dev-server-only Motion source port. */
 export function createDevServerMotionIoV1(): MotionSourceIoV1 {
-  return Object.freeze({
+  return {
     async list(): Promise<MotionIoListResultV1> {
       return unavailableListV1;
     },
     async read(): Promise<MotionIoReadResultV1> {
-      return Object.freeze({ kind: "error", code: "unavailable" });
+      return { kind: "error", code: "unavailable" };
     },
     async write(): Promise<MotionIoWriteResultV1> {
-      return Object.freeze({ kind: "error", code: "unavailable" });
+      return { kind: "error", code: "unavailable" };
     },
     async create(): Promise<MotionIoWriteResultV1> {
-      return Object.freeze({ kind: "error", code: "unavailable" });
+      return { kind: "error", code: "unavailable" };
     },
-  });
+  };
 }
 
 /** Production fallback: there is no local-editor endpoint outside `vite dev`. */

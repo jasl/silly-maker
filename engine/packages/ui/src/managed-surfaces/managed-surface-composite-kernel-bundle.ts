@@ -78,19 +78,19 @@ export function createManagedSurfaceCompositeKernelBundleInternalV1(input: {
     initialTransientState,
     ...(reportSubscriberFailure === undefined ? {} : {
       reportSubscriberFailure: () => {
-        reportSubscriberFailure(Object.freeze({
+        reportSubscriberFailure({
           code: "surface.subscriber_failed" as const,
           summary: "Managed Surface publication subscriber failed.",
-          details: Object.freeze({ applicationEpoch }),
-        }));
+          details: { applicationEpoch },
+        });
       },
     }),
   });
-  return Object.freeze({
+  return {
     applicationEpoch,
     coordinator: createManagedSurfaceCoordinatorFacadeInternalV1(compositeRuntimeKernel),
     publisherLeaseRegistry,
     admissionAuthority,
     compositeRuntimeKernel,
-  });
+  };
 }

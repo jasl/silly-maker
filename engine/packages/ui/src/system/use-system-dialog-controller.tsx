@@ -20,11 +20,10 @@ export function SystemDialogControllerProviderInternalV1(props: {
   readonly children: ReactNode;
 }): ReactElement {
   const controller = useMemo<SystemDialogControllerV1>(
-    () =>
-      Object.freeze({
-        openSettings: () => props.session.openSettings(),
-        openSaves: () => props.session.openSaves(),
-      }),
+    () => ({
+      openSettings: () => props.session.openSettings(),
+      openSaves: () => props.session.openSaves(),
+    }),
     [props.session],
   );
   return (

@@ -63,58 +63,58 @@ export const templateStageContentCatalogV1: StageContentCatalog = {
   resolveContent(contentId, appearance): StageContentResolution | null {
     switch (contentId as string) {
       case templateContentIdsV1.backgroundCourtyard:
-        return Object.freeze({
+        return ({
           rendererId: "renderer.template.background",
-          assetIds: Object.freeze([]),
+          assetIds: [],
           accessibleName: "雨后的庭院",
-          props: Object.freeze({ surface: "courtyard" }),
+          props: { surface: "courtyard" },
         });
       case templateContentIdsV1.backgroundStudy:
-        return Object.freeze({
+        return ({
           rendererId: "renderer.template.background",
-          assetIds: Object.freeze([]),
+          assetIds: [],
           accessibleName: "书房",
-          props: Object.freeze({ surface: "study" }),
+          props: { surface: "study" },
         });
       case templateContentIdsV1.effectMist:
-        return Object.freeze({
+        return ({
           rendererId: "renderer.template.mist",
-          assetIds: Object.freeze([]),
+          assetIds: [],
           accessibleName: "雨后的薄雾",
-          props: Object.freeze({}),
+          props: {},
           // One texture period is 320px; the band is canvas width + two
           // periods so the sawtooth drift never exposes an edge.
-          geometry: Object.freeze({
+          geometry: {
             width: 2240,
             height: 200,
             anchorXPermille: 0,
             anchorYPermille: 0,
-          }),
+          },
         });
       case templateContentIdsV1.characterMei:
-        return Object.freeze({
+        return ({
           rendererId: "renderer.template.character",
-          assetIds: Object.freeze([]),
+          assetIds: [],
           accessibleName: "小梅",
-          props: Object.freeze({
+          props: {
             expression: typeof appearance.expression === "string" ? appearance.expression : "calm",
-          }),
+          },
           // The engine stage host anchors the content box at bottom center;
           // the renderer draws into it without its own translate.
-          geometry: Object.freeze({
+          geometry: {
             width: 220,
             height: 420,
             anchorXPermille: 500,
             anchorYPermille: 1000,
-          }),
+          },
           // The ordered frame set the blink ambient's `frame` track indexes
           // (0 = eyes open, the default pose; 1 = eyes closed). A real game
           // points these at image assets; the placeholder renderer draws
           // the swap procedurally.
-          frameAssetIds: Object.freeze([
+          frameAssetIds: [
             "asset.template.mei-eyes-open" as AssetId,
             "asset.template.mei-eyes-closed" as AssetId,
-          ]),
+          ],
         });
       default:
         return null;
@@ -122,23 +122,21 @@ export const templateStageContentCatalogV1: StageContentCatalog = {
   },
 };
 
-const transitionDefinitionsV1: readonly StageTransitionDefinition[] = Object.freeze(
-  [
-    {
-      transitionId: "transition.template.crossfade",
-      kind: "crossfade",
-      durationMs: 400,
-      easing: "ease_in_out",
-      inputPolicy: "block",
-      interruption: "settle_and_retarget",
-      reducedMotion: { kind: "settle" },
-      readiness: { kind: "immediate" },
-      acknowledge: false,
-      slide: null,
-    },
-  ].map((definition, index) =>
-    parseStageTransitionDefinition(definition, `/transitions/${String(index)}`)
-  ),
+const transitionDefinitionsV1: readonly StageTransitionDefinition[] = [
+  {
+    transitionId: "transition.template.crossfade",
+    kind: "crossfade",
+    durationMs: 400,
+    easing: "ease_in_out",
+    inputPolicy: "block",
+    interruption: "settle_and_retarget",
+    reducedMotion: { kind: "settle" },
+    readiness: { kind: "immediate" },
+    acknowledge: false,
+    slide: null,
+  },
+].map((definition, index) =>
+  parseStageTransitionDefinition(definition, `/transitions/${String(index)}`)
 );
 
 /**
@@ -177,7 +175,7 @@ export interface TemplatePresentationProgramV1 {
 }
 
 export function materializeTemplatePresentationV1(): TemplatePresentationProgramV1 {
-  return Object.freeze({
+  return ({
     kind: "template-presentation",
     textCatalogs: templateTextCatalogsV1,
     textContentManifest: templateTextContentManifestV1,

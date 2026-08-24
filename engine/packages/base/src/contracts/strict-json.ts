@@ -88,24 +88,18 @@ export function parseStrictJsonLimitsV1(input: StrictJsonLimitsInputV1): StrictJ
     input === null ||
     typeof input !== "object" ||
     Array.isArray(input) ||
-    Object.getPrototypeOf(input) !== Object.prototype ||
     Object.keys(input).sort().join("\0") !== [...limitKeys].sort().join("\0")
   ) {
     throw new TypeError("invalid StrictJsonLimitsInputV1");
   }
-  for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(input))) {
-    if (descriptor.get !== undefined || descriptor.set !== undefined) {
-      throw new TypeError("invalid StrictJsonLimitsInputV1 accessor");
-    }
-  }
-  return Object.freeze({
+  return {
     maxBytes: parsePositiveSafeInteger(input.maxBytes),
     maxDepth: parsePositiveSafeInteger(input.maxDepth),
     maxArrayItems: parsePositiveSafeInteger(input.maxArrayItems),
     maxObjectMembers: parsePositiveSafeInteger(input.maxObjectMembers),
     maxNodes: parsePositiveSafeInteger(input.maxNodes),
     maxStringBytes: parsePositiveSafeInteger(input.maxStringBytes),
-  });
+  };
 }
 
 function utf8ByteLength(value: string): number {

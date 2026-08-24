@@ -118,7 +118,7 @@ function createGestureLeaseV1(
   let currentGestureId: ManagedSurfaceGestureIdV1 | null = null;
   let disposed = false;
 
-  return Object.freeze({
+  return {
     begin(): ManagedSurfaceGestureIdV1 {
       if (disposed) throw new TypeError("ui.managed_surface_gesture_lease_disposed");
       if (sequenceHighWater >= Number.MAX_SAFE_INTEGER) {
@@ -141,7 +141,7 @@ function createGestureLeaseV1(
       disposed = true;
       currentGestureId = null;
     },
-  });
+  };
 }
 
 function cleanupErrorV1(errors: readonly unknown[]): AggregateError {
@@ -165,33 +165,32 @@ function createRuntimeCoordinatorPortV1(
     evidence: ManagedSurfaceReadinessAdapterV1["evidence"],
   ) => {
     const topologyRevision = coordinator.getSnapshot().topologyRevision;
-    return Object.freeze({
+    return {
       kind: "stale" as const,
       code: "surface.stale_readiness" as const,
       beforeTopologyRevision: topologyRevision,
       afterTopologyRevision: topologyRevision,
       surfaceInstanceId: evidence.surfaceInstanceId,
-    });
+    };
   };
   const runtimeReadinessAdapterV1 = (
     readiness: ManagedSurfaceReadinessAdapterV1,
-  ): ManagedSurfaceReadinessAdapterV1 =>
-    Object.freeze({
-      evidence: readiness.evidence,
-      ready(): ManagedSurfaceHandleResultV1 {
-        if (isIngressOpen()) return readiness.ready();
-        return Object.freeze({
-          receipt: staleReadinessReceiptV1(readiness.evidence),
-          handle: null,
-          readiness: null,
-        });
-      },
-      fail() {
-        return isIngressOpen() ? readiness.fail() : staleReadinessReceiptV1(readiness.evidence);
-      },
-    });
+  ): ManagedSurfaceReadinessAdapterV1 => ({
+    evidence: readiness.evidence,
+    ready(): ManagedSurfaceHandleResultV1 {
+      if (isIngressOpen()) return readiness.ready();
+      return {
+        receipt: staleReadinessReceiptV1(readiness.evidence),
+        handle: null,
+        readiness: null,
+      };
+    },
+    fail() {
+      return isIngressOpen() ? readiness.fail() : staleReadinessReceiptV1(readiness.evidence);
+    },
+  });
   const preparationResultV1 = (result: ManagedSurfaceHandleResultV1) =>
-    result.readiness === null ? result : Object.freeze({
+    result.readiness === null ? result : ({
       ...result,
       readiness: runtimeReadinessAdapterV1(result.readiness),
     });
@@ -203,7 +202,7 @@ function createRuntimeCoordinatorPortV1(
     return preparationResultV1(operation(...args));
   };
 
-  return Object.freeze({
+  return {
     getSnapshot: coordinator.getSnapshot,
     getHandle: gated(coordinator.getHandle),
     getOwnerHandle: gated(coordinator.getOwnerHandle),
@@ -236,7 +235,7 @@ function createRuntimeCoordinatorPortV1(
     ),
     routeAction: gated(coordinator.routeAction),
     disposeOwner: gated(coordinator.disposeOwner),
-  });
+  };
 }
 
 function createRuntimeGestureLeasePortV1(
@@ -244,7 +243,7 @@ function createRuntimeGestureLeasePortV1(
   requireIngress: () => void,
   isIngressOpen: () => boolean,
 ): ManagedSurfaceGestureLeaseV1 {
-  return Object.freeze({
+  return {
     begin(): ManagedSurfaceGestureIdV1 {
       requireIngress();
       return gestureLease.begin();
@@ -256,7 +255,7 @@ function createRuntimeGestureLeasePortV1(
       requireIngress();
       gestureLease.revoke();
     },
-  });
+  };
 }
 
 export function createManagedSurfaceCoordinatorLifetimeV1(
@@ -297,7 +296,6 @@ export function createManagedSurfaceCoordinatorLifetimeV1(
       throw new TypeError("ui.managed_surface_coordinator_epoch_mismatch");
     }
     const gestureLease = createGestureLeaseV1(applicationEpoch);
-    let record!: RuntimeRecordV1;
     const isIngressOpen = (): boolean => record.ingressOpen && current === record;
     const requireIngress = (): void => {
       if (!isIngressOpen()) {
@@ -314,7 +312,7 @@ export function createManagedSurfaceCoordinatorLifetimeV1(
       requireIngress,
       isIngressOpen,
     );
-    const runtime: ManagedSurfaceCoordinatorRuntimeV1 = Object.freeze({
+    const runtime: ManagedSurfaceCoordinatorRuntimeV1 = {
       applicationEpoch,
       activationKind,
       coordinator: coordinatorPort,
@@ -333,8 +331,8 @@ export function createManagedSurfaceCoordinatorLifetimeV1(
       isIngressOpen(): boolean {
         return isIngressOpen();
       },
-    });
-    record = {
+    };
+    const record: RuntimeRecordV1 = {
       runtime,
       coordinator,
       gestureLease,
@@ -386,7 +384,7 @@ export function createManagedSurfaceCoordinatorLifetimeV1(
   initial.ingressOpen = true;
   current = initial;
 
-  const lifetime: ManagedSurfaceCoordinatorLifetimeV1 = Object.freeze({
+  const lifetime: ManagedSurfaceCoordinatorLifetimeV1 = {
     getCurrent(): ManagedSurfaceCoordinatorRuntimeV1 | null {
       return current?.runtime ?? null;
     },
@@ -422,7 +420,7 @@ export function createManagedSurfaceCoordinatorLifetimeV1(
       phase = "sealed";
       cleanupCurrent();
     },
-  });
+  };
 
   return lifetime;
 }

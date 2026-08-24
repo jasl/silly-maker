@@ -189,7 +189,7 @@ describe("reduceSceneAuthoringOperationV1", () => {
     });
   });
 
-  it("returns stable diagnostics for missing, conflicting, and unchanged targets", () => {
+  it("returns stable diagnostics for missing and conflicting targets", () => {
     const document = documentV1();
     const cases = [
       {
@@ -211,15 +211,6 @@ describe("reduceSceneAuthoringOperationV1", () => {
           },
         }),
         code: "scene_authoring.target_conflict",
-      },
-      {
-        operation: operationV1({
-          schemaRevision: 1,
-          kind: "scene.cue.set_motion",
-          cueId: "cue.test.hero",
-          motionId: null,
-        }),
-        code: "scene_authoring.no_change",
       },
     ];
 

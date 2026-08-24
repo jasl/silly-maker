@@ -196,6 +196,68 @@ describe("installGamepadAdapterV1", () => {
     adapter.dispose();
   });
 
+  it("forgets a missing pad while another remains connected", () => {
+    const router = routerSpyV1();
+    const scheduler = manualSchedulerV1();
+    const pad = (index: number, pressed: boolean): GamepadLikeV1 => ({
+      index,
+      connected: true,
+      buttons: [{ pressed }],
+    });
+    const remaining = pad(1, false);
+    let pads: readonly (GamepadLikeV1 | null)[] = [pad(0, true), remaining];
+    const adapter = installGamepadAdapterV1({
+      router,
+      map: { 0: advanceV1 },
+      poll: () => pads,
+      schedule: scheduler.schedule,
+      events: null,
+    });
+
+    scheduler.tick();
+    expect(router.route).toHaveBeenCalledTimes(1);
+
+    pads = [null, remaining];
+    scheduler.tick();
+    pads = [pad(0, true), remaining];
+    scheduler.tick();
+    expect(router.route).toHaveBeenCalledTimes(2);
+
+    adapter.dispose();
+  });
+
+  it("forgets a disconnected index before the next poll reuses it", () => {
+    const router = routerSpyV1();
+    const scheduler = manualSchedulerV1();
+    const events = new EventTarget();
+    const pad = (index: number, pressed: boolean): GamepadLikeV1 => ({
+      index,
+      connected: true,
+      buttons: [{ pressed }],
+    });
+    const remaining = pad(1, false);
+    let pads: readonly (GamepadLikeV1 | null)[] = [pad(0, true), remaining];
+    const adapter = installGamepadAdapterV1({
+      router,
+      map: { 0: advanceV1 },
+      poll: () => pads,
+      schedule: scheduler.schedule,
+      events,
+    });
+
+    scheduler.tick();
+    expect(router.route).toHaveBeenCalledTimes(1);
+
+    pads = [pad(0, true), remaining];
+    events.dispatchEvent(
+      Object.assign(new Event("gamepaddisconnected"), { gamepad: { index: 0 } }),
+    );
+    scheduler.tick();
+    expect(router.route).toHaveBeenCalledTimes(2);
+
+    adapter.dispose();
+  });
+
   it("starts on gamepadconnected and disposal cancels the loop", () => {
     const router = routerSpyV1();
     const { pad, setButton } = fakePadV1();

@@ -59,20 +59,20 @@ export function createPlayerSaveSurfacesV1(input: {
     files: input.files,
     persistence: input.persistence,
   });
-  const maintenance: PlayerSaveMaintenanceV1 = Object.freeze({
+  const maintenance: PlayerSaveMaintenanceV1 = {
     savePort: maintenanceSavePort,
     clearAllSaves: input.clearAllSaves,
-  });
+  };
   if (input.customSaves !== undefined) {
-    return Object.freeze({ maintenance, customSaves: input.customSaves });
+    return ({ maintenance, customSaves: input.customSaves });
   }
-  if (input.saveLabels === undefined) return Object.freeze({ maintenance });
-  return Object.freeze({
+  if (input.saveLabels === undefined) return ({ maintenance });
+  return ({
     maintenance,
-    saveUi: Object.freeze({
+    saveUi: {
       port: maintenanceSavePort,
       labels: input.saveLabels,
       ...(input.saveGuard === undefined ? {} : { evaluateGuard: input.saveGuard }),
-    }),
+    },
   });
 }

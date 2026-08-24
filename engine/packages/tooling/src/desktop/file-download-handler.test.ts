@@ -208,12 +208,11 @@ describe("Desktop download request coordinator", () => {
     let cancelledDeadlines = 0;
     const coordinator = createFileDownloadRequestCoordinatorInternalV1(dir, {
       maxConcurrent: 1,
-      scheduleTimeout: () =>
-        Object.freeze({
-          cancel() {
-            cancelledDeadlines += 1;
-          },
-        }),
+      scheduleTimeout: () => ({
+        cancel() {
+          cancelledDeadlines += 1;
+        },
+      }),
     });
     const enteredBodyRead = Promise.withResolvers<void>();
     const pending = new Request("http://shell/sillymaker/files/download", {
@@ -251,11 +250,11 @@ describe("Desktop download request coordinator", () => {
     const coordinator = createFileDownloadRequestCoordinatorInternalV1(dir, {
       scheduleTimeout(callback) {
         expire = callback;
-        return Object.freeze({
+        return {
           cancel() {
             cancelledDeadlines += 1;
           },
-        });
+        };
       },
     });
     const enteredBodyRead = Promise.withResolvers<void>();
@@ -288,11 +287,11 @@ describe("Desktop download request coordinator", () => {
       maxConcurrent: 1,
       scheduleTimeout: () => {
         scheduledDeadlines += 1;
-        return Object.freeze({
+        return {
           cancel() {
             cancelledDeadlines += 1;
           },
-        });
+        };
       },
     });
 

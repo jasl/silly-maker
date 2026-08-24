@@ -76,7 +76,7 @@ function parseRegionsPolygonPointsV1(
   const rawPoints = readArray(value, path);
   const points = rawPoints.map((point, index) => {
     const record = readExactRecord(point, ["x", "y"], `${path}/${String(index)}`);
-    return Object.freeze({
+    return {
       x: requireRegionsIntV1(
         record.x,
         -regionsMaxCoordinateV1,
@@ -91,12 +91,12 @@ function parseRegionsPolygonPointsV1(
         `${path}/${String(index)}/y`,
         "regions_polygon_point_invalid",
       ),
-    });
+    };
   });
   if (!hitRegionPolygonValidV1(bounds, points)) {
     return dataFailure(path, "regions_polygon_invalid");
   }
-  return Object.freeze(points);
+  return points;
 }
 
 function parseRegionsRegionV1(value: unknown, path: string): StageHitRegionV1 {
@@ -172,35 +172,27 @@ function parseRegionsRegionV1(value: unknown, path: string): StageHitRegionV1 {
     }
     hoverAssetId = record.hoverAssetId as AssetId;
   }
-  return Object.freeze({
+  return {
     regionId: record.regionId,
     accessibleNameText: record.accessibleNameText,
     ...bounds,
     ...(polygonPoints === undefined ? {} : { polygonPoints }),
     ...(hoverAssetId === undefined ? {} : { hoverAssetId }),
-  });
+  };
 }
 
 function parseRegionsAuthoringV1(value: unknown, path: string): RegionsAuthoringV1 {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype
-  ) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return dataFailure(path, "regions_authoring_invalid");
   }
   const allowed = new Set(["status", "locked", "notes"]);
+  const record = value as Record<string, unknown>;
   const result: { status?: RegionsAuthoringStatusV1; locked?: boolean; notes?: string } = {};
-  for (const key of Reflect.ownKeys(value)) {
-    if (typeof key === "symbol" || !allowed.has(key)) {
+  for (const key of Object.keys(record)) {
+    if (!allowed.has(key)) {
       return dataFailure(path, "regions_authoring_invalid");
     }
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    if (descriptor === undefined || descriptor.get !== undefined || descriptor.set !== undefined) {
-      return dataFailure(`${path}/${key}`, "regions_authoring_invalid");
-    }
-    const memberValue: unknown = descriptor.value;
+    const memberValue = record[key];
     if (key === "status") {
       if (memberValue !== "generated" && memberValue !== "human_tuned") {
         return dataFailure(`${path}/status`, "regions_authoring_status_invalid");
@@ -222,7 +214,7 @@ function parseRegionsAuthoringV1(value: unknown, path: string): RegionsAuthoring
       result.notes = memberValue;
     }
   }
-  return Object.freeze(result);
+  return result;
 }
 
 /**
@@ -273,12 +265,12 @@ export function parseRegionsDocumentV1(value: unknown, path = ""): RegionsDocume
   const authoring = hasAuthoring
     ? parseRegionsAuthoringV1(record.authoring, `${path}/authoring`)
     : undefined;
-  return Object.freeze({
+  return {
     format: regionsDocumentFormatV1,
     version: regionsDocumentVersionV1,
     regionsId: record.regionsId,
     label: record.label,
-    regions: Object.freeze(regions),
+    regions,
     ...(authoring === undefined ? {} : { authoring }),
-  });
+  };
 }

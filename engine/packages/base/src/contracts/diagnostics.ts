@@ -33,7 +33,7 @@ import type {
 } from "./values.ts";
 import { parseDigest, parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "./values.ts";
 import {
-  exactEnvelopeDescriptorsV1,
+  exactEnvelopeFieldsV1,
   parseByteExportV1,
   parseIsoUtcInstantV1,
   saveJsonLimitsV1,
@@ -125,15 +125,13 @@ export interface DebugBundleEnvelopeV1<
   readonly uiContext?: TUiContext;
 }
 
-export const debugPresentationLimitsV1 = Object.freeze(
-  {
-    stableIdUtf8Bytes: 256,
-    renderers: 16,
-    appearanceLayersPerRenderer: 16,
-    visibleInteractionSurfaces: 32,
-    detailOverlayStack: 8,
-  } as const,
-);
+export const debugPresentationLimitsV1 = {
+  stableIdUtf8Bytes: 256,
+  renderers: 16,
+  appearanceLayersPerRenderer: 16,
+  visibleInteractionSurfaces: 32,
+  detailOverlayStack: 8,
+} as const;
 
 export interface DebugPresentationRendererSummaryV1 {
   readonly rendererId: string;
@@ -238,13 +236,43 @@ export interface ExportedDebugBundleV1 {
   readonly mediaType: "application/json";
   readonly digest: Digest;
   readonly bytes: Uint8Array;
+  /** Package-owned preview facts captured before encoding the exact bytes. */
+  readonly contentSummary: {
+    readonly failure: boolean;
+    readonly uiContext: boolean;
+  };
 }
 
-export const exportedDebugBundleSchemaV1: RuntimeSchemaV1<ExportedDebugBundleV1> = Object.freeze({
+export const exportedDebugBundleSchemaV1: RuntimeSchemaV1<ExportedDebugBundleV1> = {
   parse(value: unknown) {
-    return parseByteExportV1<ExportedDebugBundleV1>(value, "ExportedDebugBundleV1");
+    const fields = exactEnvelopeFieldsV1(
+      value,
+      ["filename", "mediaType", "digest", "bytes", "contentSummary"],
+      "ExportedDebugBundleV1",
+    );
+    const file = parseByteExportV1({
+      filename: fields.filename,
+      mediaType: fields.mediaType,
+      digest: fields.digest,
+      bytes: fields.bytes,
+    }, "ExportedDebugBundleV1");
+    const summary = exactEnvelopeFieldsV1(
+      fields.contentSummary,
+      ["failure", "uiContext"],
+      "ExportedDebugBundleV1 contentSummary",
+    );
+    if (typeof summary.failure !== "boolean" || typeof summary.uiContext !== "boolean") {
+      throw new TypeError("invalid ExportedDebugBundleV1 contentSummary");
+    }
+    return {
+      ...file,
+      contentSummary: {
+        failure: summary.failure,
+        uiContext: summary.uiContext,
+      },
+    };
   },
-});
+};
 
 const codes = {
   persistence: new Set<PersistenceFaultCodeV1>([
@@ -311,32 +339,10 @@ function parseDenseArrayV1<T>(
   schema: RuntimeSchemaV1<T>,
   label: string,
 ): readonly T[] {
-  if (
-    !Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Array.prototype ||
-    Object.getOwnPropertySymbols(value).length !== 0 ||
-    value.length > maximumItems
-  ) {
+  if (!Array.isArray(value) || value.length > maximumItems) {
     throw new TypeError(`invalid ${label}`);
   }
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  const keys = Object.keys(descriptors).filter((key) => key !== "length");
-  if (
-    keys.length !== value.length ||
-    keys.some((key, index) => key !== String(index)) ||
-    keys.some((key) => {
-      const descriptor = descriptors[key];
-      return (
-        descriptor === undefined ||
-        descriptor.get !== undefined ||
-        descriptor.set !== undefined ||
-        !descriptor.enumerable
-      );
-    })
-  ) {
-    throw new TypeError(`invalid ${label}`);
-  }
-  return keys.map((key) => schema.parse(descriptors[key]?.value));
+  return Array.from(value, (entry) => schema.parse(entry));
 }
 
 function readDebugDenseArrayV1(
@@ -345,33 +351,11 @@ function readDebugDenseArrayV1(
   limitCode: string,
   label: string,
 ): readonly unknown[] {
-  if (
-    !Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Array.prototype ||
-    Object.getOwnPropertySymbols(value).length !== 0
-  ) {
+  if (!Array.isArray(value)) {
     throw new TypeError(`invalid ${label}`);
   }
   if (value.length > maximumItems) throw new TypeError(limitCode);
-
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  const keys = Object.keys(descriptors).filter((key) => key !== "length");
-  if (
-    keys.length !== value.length ||
-    keys.some((key, index) => key !== String(index)) ||
-    keys.some((key) => {
-      const descriptor = descriptors[key];
-      return (
-        descriptor === undefined ||
-        descriptor.get !== undefined ||
-        descriptor.set !== undefined ||
-        !descriptor.enumerable
-      );
-    })
-  ) {
-    throw new TypeError(`invalid ${label}`);
-  }
-  return keys.map((key) => descriptors[key]?.value);
+  return Array.from(value);
 }
 
 function assertDiagnosticIdCeilingV1(value: unknown): void {
@@ -381,101 +365,6 @@ function assertDiagnosticIdCeilingV1(value: unknown): void {
   ) {
     throw new TypeError("diagnostics.ui_context_id_limit");
   }
-}
-
-function assertDebugUiContextIdCeilingsV1(value: unknown): void {
-  const fields = exactEnvelopeDescriptorsV1(
-    value,
-    ["revision", "presentation", "session"],
-    "DebugUiContextV1",
-  );
-  const presentation = fields.presentation?.value;
-  if (presentation !== null) {
-    const presentationFields = exactEnvelopeDescriptorsV1(
-      presentation,
-      [
-        "presentationRevision",
-        "stageSceneId",
-        "variantId",
-        "stageRendererId",
-        "renderers",
-        "visibleInteractionSurfaceIds",
-        "activeInteractionSurfaceId",
-        "contentPolicyRevision",
-        "allowedContentFlags",
-      ],
-      "DebugPresentationSummaryV1",
-    );
-    assertDiagnosticIdCeilingV1(presentationFields.stageSceneId?.value);
-    assertDiagnosticIdCeilingV1(presentationFields.variantId?.value);
-    assertDiagnosticIdCeilingV1(presentationFields.stageRendererId?.value);
-    assertDiagnosticIdCeilingV1(presentationFields.activeInteractionSurfaceId?.value);
-
-    const renderers = readDebugDenseArrayV1(
-      presentationFields.renderers?.value,
-      debugPresentationLimitsV1.renderers,
-      "diagnostics.presentation_renderers_limit",
-      "Debug presentation renderers",
-    );
-    for (const renderer of renderers) {
-      const rendererFields = exactEnvelopeDescriptorsV1(
-        renderer,
-        ["rendererId", "characterId", "rigId", "poseId", "expressionId", "appearanceLayerIds"],
-        "DebugPresentationRendererSummaryV1",
-      );
-      assertDiagnosticIdCeilingV1(rendererFields.rendererId?.value);
-      assertDiagnosticIdCeilingV1(rendererFields.characterId?.value);
-      assertDiagnosticIdCeilingV1(rendererFields.rigId?.value);
-      assertDiagnosticIdCeilingV1(rendererFields.poseId?.value);
-      assertDiagnosticIdCeilingV1(rendererFields.expressionId?.value);
-      const appearanceLayerIds = readDebugDenseArrayV1(
-        rendererFields.appearanceLayerIds?.value,
-        debugPresentationLimitsV1.appearanceLayersPerRenderer,
-        "diagnostics.presentation_appearance_limit",
-        "Debug presentation appearance layers",
-      );
-      for (const appearanceLayerId of appearanceLayerIds) {
-        assertDiagnosticIdCeilingV1(appearanceLayerId);
-      }
-    }
-
-    const visibleInteractionSurfaceIds = readDebugDenseArrayV1(
-      presentationFields.visibleInteractionSurfaceIds?.value,
-      debugPresentationLimitsV1.visibleInteractionSurfaces,
-      "diagnostics.presentation_surfaces_limit",
-      "Debug presentation interaction surfaces",
-    );
-    for (const surfaceId of visibleInteractionSurfaceIds) {
-      assertDiagnosticIdCeilingV1(surfaceId);
-    }
-  }
-
-  const sessionFields = exactEnvelopeDescriptorsV1(
-    fields.session?.value,
-    [
-      "routeId",
-      "primaryOverlayId",
-      "detailOverlayIds",
-      "narrativeOpen",
-      "systemDialogOpen",
-      "devDock",
-    ],
-    "DebugUiSessionSummaryV1",
-  );
-  assertDiagnosticIdCeilingV1(sessionFields.routeId?.value);
-  assertDiagnosticIdCeilingV1(sessionFields.primaryOverlayId?.value);
-  const detailOverlayIds = readDebugDenseArrayV1(
-    sessionFields.detailOverlayIds?.value,
-    debugPresentationLimitsV1.detailOverlayStack,
-    "diagnostics.ui_context_detail_stack_limit",
-    "Debug UI detail overlay stack",
-  );
-  for (const overlayId of detailOverlayIds) assertDiagnosticIdCeilingV1(overlayId);
-  exactEnvelopeDescriptorsV1(
-    sessionFields.devDock?.value,
-    ["leftOpen", "rightOpen"],
-    "Debug UI DevDock summary",
-  );
 }
 
 function parseDiagnosticIdV1(value: unknown, label: string): string {
@@ -510,13 +399,13 @@ function parseDebugBooleanV1(value: unknown, label: string): boolean {
 function parseDebugPresentationRendererSummaryV1(
   value: unknown,
 ): DebugPresentationRendererSummaryV1 {
-  const fields = exactEnvelopeDescriptorsV1(
+  const fields = exactEnvelopeFieldsV1(
     value,
     ["rendererId", "characterId", "rigId", "poseId", "expressionId", "appearanceLayerIds"],
     "DebugPresentationRendererSummaryV1",
   );
   const appearanceLayerIds = readDebugDenseArrayV1(
-    fields.appearanceLayerIds?.value,
+    fields.appearanceLayerIds,
     debugPresentationLimitsV1.appearanceLayersPerRenderer,
     "diagnostics.presentation_appearance_limit",
     "Debug presentation appearance layers",
@@ -525,12 +414,12 @@ function parseDebugPresentationRendererSummaryV1(
     throw new TypeError("diagnostics.presentation_appearance_duplicate");
   }
   return {
-    rendererId: parseDiagnosticIdV1(fields.rendererId?.value, "Debug rendererId"),
-    characterId: parseBrandedDiagnosticIdV1(fields.characterId?.value, parseCharacterId),
-    rigId: parseBrandedDiagnosticIdV1(fields.rigId?.value, parseCharacterRigId),
-    poseId: parseBrandedDiagnosticIdV1(fields.poseId?.value, parseCharacterPoseId),
+    rendererId: parseDiagnosticIdV1(fields.rendererId, "Debug rendererId"),
+    characterId: parseBrandedDiagnosticIdV1(fields.characterId, parseCharacterId),
+    rigId: parseBrandedDiagnosticIdV1(fields.rigId, parseCharacterRigId),
+    poseId: parseBrandedDiagnosticIdV1(fields.poseId, parseCharacterPoseId),
     expressionId: parseBrandedDiagnosticIdV1(
-      fields.expressionId?.value,
+      fields.expressionId,
       parseCharacterExpressionId,
     ),
     appearanceLayerIds,
@@ -538,7 +427,7 @@ function parseDebugPresentationRendererSummaryV1(
 }
 
 function parseDebugPresentationSummaryV1(value: unknown): DebugPresentationSummaryV1 {
-  const fields = exactEnvelopeDescriptorsV1(
+  const fields = exactEnvelopeFieldsV1(
     value,
     [
       "presentationRevision",
@@ -554,7 +443,7 @@ function parseDebugPresentationSummaryV1(value: unknown): DebugPresentationSumma
     "DebugPresentationSummaryV1",
   );
   const renderers = readDebugDenseArrayV1(
-    fields.renderers?.value,
+    fields.renderers,
     debugPresentationLimitsV1.renderers,
     "diagnostics.presentation_renderers_limit",
     "Debug presentation renderers",
@@ -563,7 +452,7 @@ function parseDebugPresentationSummaryV1(value: unknown): DebugPresentationSumma
     throw new TypeError("diagnostics.presentation_character_duplicate");
   }
   const visibleInteractionSurfaceIds = readDebugDenseArrayV1(
-    fields.visibleInteractionSurfaceIds?.value,
+    fields.visibleInteractionSurfaceIds,
     debugPresentationLimitsV1.visibleInteractionSurfaces,
     "diagnostics.presentation_surfaces_limit",
     "Debug presentation interaction surfaces",
@@ -572,29 +461,29 @@ function parseDebugPresentationSummaryV1(value: unknown): DebugPresentationSumma
     throw new TypeError("diagnostics.presentation_surface_duplicate");
   }
   return {
-    presentationRevision: parseNonNegativeSafeInteger(fields.presentationRevision?.value),
-    stageSceneId: parseNullableBrandedDiagnosticIdV1(fields.stageSceneId?.value, parseStageSceneId),
+    presentationRevision: parseNonNegativeSafeInteger(fields.presentationRevision),
+    stageSceneId: parseNullableBrandedDiagnosticIdV1(fields.stageSceneId, parseStageSceneId),
     variantId: parseNullableBrandedDiagnosticIdV1(
-      fields.variantId?.value,
+      fields.variantId,
       parseStageSceneVariantId,
     ),
     stageRendererId: parseNullableDiagnosticIdV1(
-      fields.stageRendererId?.value,
+      fields.stageRendererId,
       "Debug stageRendererId",
     ),
     renderers,
     visibleInteractionSurfaceIds,
     activeInteractionSurfaceId: parseNullableBrandedDiagnosticIdV1(
-      fields.activeInteractionSurfaceId?.value,
+      fields.activeInteractionSurfaceId,
       parseInteractionSurfaceId,
     ),
-    contentPolicyRevision: parsePositiveSafeInteger(fields.contentPolicyRevision?.value),
-    allowedContentFlags: parseContentMaturityFlagsV1(fields.allowedContentFlags?.value),
+    contentPolicyRevision: parsePositiveSafeInteger(fields.contentPolicyRevision),
+    allowedContentFlags: parseContentMaturityFlagsV1(fields.allowedContentFlags),
   };
 }
 
 function parseDebugUiSessionSummaryV1(value: unknown): DebugUiSessionSummaryV1 {
-  const fields = exactEnvelopeDescriptorsV1(
+  const fields = exactEnvelopeFieldsV1(
     value,
     [
       "routeId",
@@ -606,53 +495,52 @@ function parseDebugUiSessionSummaryV1(value: unknown): DebugUiSessionSummaryV1 {
     ],
     "DebugUiSessionSummaryV1",
   );
-  const devDockFields = exactEnvelopeDescriptorsV1(
-    fields.devDock?.value,
+  const devDockFields = exactEnvelopeFieldsV1(
+    fields.devDock,
     ["leftOpen", "rightOpen"],
     "Debug UI DevDock summary",
   );
   const detailOverlayIds = readDebugDenseArrayV1(
-    fields.detailOverlayIds?.value,
+    fields.detailOverlayIds,
     debugPresentationLimitsV1.detailOverlayStack,
     "diagnostics.ui_context_detail_stack_limit",
     "Debug UI detail overlay stack",
   ).map((entry) => parseDiagnosticIdV1(entry, "Debug detail overlay ID"));
   return {
-    routeId: parseNullableDiagnosticIdV1(fields.routeId?.value, "Debug routeId"),
+    routeId: parseNullableDiagnosticIdV1(fields.routeId, "Debug routeId"),
     primaryOverlayId: parseNullableDiagnosticIdV1(
-      fields.primaryOverlayId?.value,
+      fields.primaryOverlayId,
       "Debug primaryOverlayId",
     ),
     detailOverlayIds,
-    narrativeOpen: parseDebugBooleanV1(fields.narrativeOpen?.value, "Debug narrativeOpen"),
-    systemDialogOpen: parseDebugBooleanV1(fields.systemDialogOpen?.value, "Debug systemDialogOpen"),
+    narrativeOpen: parseDebugBooleanV1(fields.narrativeOpen, "Debug narrativeOpen"),
+    systemDialogOpen: parseDebugBooleanV1(fields.systemDialogOpen, "Debug systemDialogOpen"),
     devDock: {
-      leftOpen: parseDebugBooleanV1(devDockFields.leftOpen?.value, "Debug left dock state"),
-      rightOpen: parseDebugBooleanV1(devDockFields.rightOpen?.value, "Debug right dock state"),
+      leftOpen: parseDebugBooleanV1(devDockFields.leftOpen, "Debug left dock state"),
+      rightOpen: parseDebugBooleanV1(devDockFields.rightOpen, "Debug right dock state"),
     },
   };
 }
 
 export function createDebugUiContextSchemaV1(): RuntimeSchemaV1<DebugUiContextV1> {
-  return Object.freeze({
+  return {
     parse(value: unknown) {
-      assertDebugUiContextIdCeilingsV1(value);
-      const fields = exactEnvelopeDescriptorsV1(
+      const fields = exactEnvelopeFieldsV1(
         value,
         ["revision", "presentation", "session"],
         "DebugUiContextV1",
       );
-      if (fields.revision?.value !== 1) throw new TypeError("invalid Debug UI context revision");
-      const presentationValue = fields.presentation?.value;
+      if (fields.revision !== 1) throw new TypeError("invalid Debug UI context revision");
+      const presentationValue = fields.presentation;
       return {
         revision: 1 as const,
         presentation: presentationValue === null
           ? null
           : parseDebugPresentationSummaryV1(presentationValue),
-        session: parseDebugUiSessionSummaryV1(fields.session?.value),
+        session: parseDebugUiSessionSummaryV1(fields.session),
       };
     },
-  });
+  };
 }
 
 export function createDebugBundleEnvelopeSchemaV1<
@@ -690,7 +578,7 @@ export function createDebugBundleEnvelopeSchemaV1<
     TUiContext
   >
 > {
-  return Object.freeze({
+  return {
     parse(value: unknown) {
       const hasAppBuildId = value !== null && typeof value === "object" &&
         Object.hasOwn(value, "appBuildId");
@@ -698,7 +586,7 @@ export function createDebugBundleEnvelopeSchemaV1<
         Object.hasOwn(value, "failure");
       const hasUiContext = value !== null && typeof value === "object" &&
         Object.hasOwn(value, "uiContext");
-      const fields = exactEnvelopeDescriptorsV1(
+      const fields = exactEnvelopeFieldsV1(
         value,
         [
           "formatRevision",
@@ -719,7 +607,7 @@ export function createDebugBundleEnvelopeSchemaV1<
         ],
         "DebugBundleEnvelopeV1",
       );
-      const formatRevision = fields.formatRevision?.value;
+      const formatRevision = fields.formatRevision;
       if (formatRevision !== 1) {
         if (
           typeof formatRevision === "number" &&
@@ -738,38 +626,36 @@ export function createDebugBundleEnvelopeSchemaV1<
           throw new DebugBundleEnvelopeSchemaFailureV1("digest.invalid_format");
         }
       };
-      const appBuildId = hasAppBuildId ? parseStateDigestV1(fields.appBuildId?.value) : undefined;
-      const failure = hasFailure ? input.failureSchema.parse(fields.failure?.value) : undefined;
-      const uiContext = hasUiContext
-        ? input.uiContextSchema.parse(fields.uiContext?.value)
-        : undefined;
-      return Object.freeze({
+      const appBuildId = hasAppBuildId ? parseStateDigestV1(fields.appBuildId) : undefined;
+      const failure = hasFailure ? input.failureSchema.parse(fields.failure) : undefined;
+      const uiContext = hasUiContext ? input.uiContextSchema.parse(fields.uiContext) : undefined;
+      return {
         formatRevision: 1 as const,
-        provenance: input.provenanceSchema.parse(fields.provenance?.value),
+        provenance: input.provenanceSchema.parse(fields.provenance),
         ...(appBuildId === undefined ? {} : { appBuildId }),
-        capabilities: input.capabilitiesSchema.parse(fields.capabilities?.value),
-        simulationLineage: input.simulationLineageSchema.parse(fields.simulationLineage?.value),
-        generatedAt: parseIsoUtcInstantV1(fields.generatedAt?.value),
-        replayBase: input.snapshotSchema.parse(fields.replayBase?.value),
-        replayBaseStateDigest: parseStateDigestV1(fields.replayBaseStateDigest?.value),
+        capabilities: input.capabilitiesSchema.parse(fields.capabilities),
+        simulationLineage: input.simulationLineageSchema.parse(fields.simulationLineage),
+        generatedAt: parseIsoUtcInstantV1(fields.generatedAt),
+        replayBase: input.snapshotSchema.parse(fields.replayBase),
+        replayBaseStateDigest: parseStateDigestV1(fields.replayBaseStateDigest),
         commandLog: parseDenseArrayV1(
-          fields.commandLog?.value,
+          fields.commandLog,
           200,
           input.commandLogEntrySchema,
           "Debug Bundle CommandLog",
         ),
-        currentSnapshot: input.snapshotSchema.parse(fields.currentSnapshot?.value),
-        currentStateDigest: parseStateDigestV1(fields.currentStateDigest?.value),
-        diagnostics: input.diagnosticsSchema.parse(fields.diagnostics?.value),
+        currentSnapshot: input.snapshotSchema.parse(fields.currentSnapshot),
+        currentStateDigest: parseStateDigestV1(fields.currentStateDigest),
+        diagnostics: input.diagnosticsSchema.parse(fields.diagnostics),
         runtimeFailures: parseDenseArrayV1(
-          fields.runtimeFailures?.value,
+          fields.runtimeFailures,
           50,
           input.runtimeFailureSchema,
           "Debug Bundle runtime failures",
         ),
         ...(failure === undefined ? {} : { failure }),
         ...(uiContext === undefined ? {} : { uiContext }),
-      }) as DebugBundleEnvelopeV1<
+      } as DebugBundleEnvelopeV1<
         TProvenance,
         TCapabilities,
         TSimulationLineage,
@@ -781,63 +667,62 @@ export function createDebugBundleEnvelopeSchemaV1<
         TUiContext
       >;
     },
-  });
+  };
 }
 
-export const runtimeOperationFaultSchemaV1: RuntimeSchemaV1<RuntimeOperationFaultV1> = Object
-  .freeze({
-    parse(value: unknown) {
-      if (value === null || typeof value !== "object") throw new TypeError("invalid runtime fault");
-      const hasStack = Object.hasOwn(value, "stack");
-      const hasCause = Object.hasOwn(value, "cause");
-      const fields = exactEnvelopeDescriptorsV1(
-        value,
-        [
-          "occurredAt",
-          "operation",
-          "message",
-          "category",
-          "code",
-          ...(hasStack ? ["stack"] : []),
-          ...(hasCause ? ["cause"] : []),
-        ],
-        "RuntimeOperationFaultV1",
+export const runtimeOperationFaultSchemaV1: RuntimeSchemaV1<RuntimeOperationFaultV1> = {
+  parse(value: unknown) {
+    if (value === null || typeof value !== "object") throw new TypeError("invalid runtime fault");
+    const hasStack = Object.hasOwn(value, "stack");
+    const hasCause = Object.hasOwn(value, "cause");
+    const fields = exactEnvelopeFieldsV1(
+      value,
+      [
+        "occurredAt",
+        "operation",
+        "message",
+        "category",
+        "code",
+        ...(hasStack ? ["stack"] : []),
+        ...(hasCause ? ["cause"] : []),
+      ],
+      "RuntimeOperationFaultV1",
+    );
+    const category: unknown = fields.category;
+    if (
+      category !== "persistence" &&
+      category !== "asset_load" &&
+      category !== "ui" &&
+      category !== "runtime"
+    ) {
+      throw new TypeError("invalid runtime fault category");
+    }
+    const code: unknown = fields.code;
+    if (typeof code !== "string" || !(codes[category] as ReadonlySet<string>).has(code)) {
+      throw new TypeError("invalid runtime fault code");
+    }
+    let cause: { readonly name: string; readonly message: string } | undefined;
+    if (hasCause) {
+      const causeFields = exactEnvelopeFieldsV1(
+        fields.cause,
+        ["name", "message"],
+        "RuntimeFault cause",
       );
-      const category: unknown = fields.category?.value;
-      if (
-        category !== "persistence" &&
-        category !== "asset_load" &&
-        category !== "ui" &&
-        category !== "runtime"
-      ) {
-        throw new TypeError("invalid runtime fault category");
-      }
-      const code: unknown = fields.code?.value;
-      if (typeof code !== "string" || !(codes[category] as ReadonlySet<string>).has(code)) {
-        throw new TypeError("invalid runtime fault code");
-      }
-      let cause: { readonly name: string; readonly message: string } | undefined;
-      if (hasCause) {
-        const causeFields = exactEnvelopeDescriptorsV1(
-          fields.cause?.value,
-          ["name", "message"],
-          "RuntimeFault cause",
-        );
-        cause = Object.freeze({
-          name: text(causeFields.name?.value, "cause name", 4_096),
-          message: text(causeFields.message?.value, "cause message", 4_096),
-        });
-      }
-      const common = {
-        occurredAt: parseIsoUtcInstantV1(fields.occurredAt?.value),
-        operation: text(fields.operation?.value, "runtime operation", 4_096),
-        message: text(fields.message?.value, "runtime message", 65_536),
-        ...(hasStack ? { stack: text(fields.stack?.value, "runtime stack", 65_536) } : {}),
-        ...(cause === undefined ? {} : { cause }),
+      cause = {
+        name: text(causeFields.name, "cause name", 4_096),
+        message: text(causeFields.message, "cause message", 4_096),
       };
-      return Object.freeze({ ...common, category, code }) as RuntimeOperationFaultV1;
-    },
-  });
+    }
+    const common = {
+      occurredAt: parseIsoUtcInstantV1(fields.occurredAt),
+      operation: text(fields.operation, "runtime operation", 4_096),
+      message: text(fields.message, "runtime message", 65_536),
+      ...(hasStack ? { stack: text(fields.stack, "runtime stack", 65_536) } : {}),
+      ...(cause === undefined ? {} : { cause }),
+    };
+    return { ...common, category, code } as RuntimeOperationFaultV1;
+  },
+};
 
 export const debugBundleJsonLimitsV1 = parseStrictJsonLimitsV1({
   ...saveJsonLimitsV1,

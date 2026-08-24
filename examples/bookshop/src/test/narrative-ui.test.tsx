@@ -20,10 +20,10 @@ import { bookshopTextForLocaleV1 } from "../content/presentation.ts";
 afterEach(cleanup);
 
 function advanceV1(occurrence: number) {
-  return Object.freeze({
+  return ({
     kind: "resolve" as const,
     expectedOccurrenceId: `interaction-occurrence.${String(occurrence)}`,
-    resolution: Object.freeze({ kind: "advance" as const }),
+    resolution: { kind: "advance" as const },
   });
 }
 
@@ -69,27 +69,26 @@ it("keeps a current Choice disabled until coins enable the same occurrence", asy
     const onChoose = vi.fn();
     const rendererProps = (
       choiceAvailability: NarrativeSurfaceDialogueRendererPropsV1["choiceAvailability"],
-    ): NarrativeSurfaceDialogueRendererPropsV1 =>
-      Object.freeze({
-        kind: "dialogue" as const,
-        pending,
-        choiceAvailability,
-        playerProfile: playerProfile.current(),
-        playerView: Object.freeze({
-          kind: "passive" as const,
-          phase: "active" as const,
-          playbackMode: "normal" as const,
-        }),
-        resolveText: (textId: string) => bookshopTextForLocaleV1(null, textId),
-        onActivate: vi.fn(),
-        onChoose,
-        onResume: vi.fn(),
-        onSubmitCustom: vi.fn(),
-        onToggleAuto: vi.fn(),
-        onToggleSkip: vi.fn(),
-        onOpenHistory: vi.fn(),
-        onReplayVoice: vi.fn(),
-      });
+    ): NarrativeSurfaceDialogueRendererPropsV1 => ({
+      kind: "dialogue" as const,
+      pending,
+      choiceAvailability,
+      playerProfile: playerProfile.current(),
+      playerView: {
+        kind: "passive" as const,
+        phase: "active" as const,
+        playbackMode: "normal" as const,
+      },
+      resolveText: (textId: string) => bookshopTextForLocaleV1(null, textId),
+      onActivate: vi.fn(),
+      onChoose,
+      onResume: vi.fn(),
+      onSubmitCustom: vi.fn(),
+      onToggleAuto: vi.fn(),
+      onToggleSkip: vi.fn(),
+      onOpenHistory: vi.fn(),
+      onReplayVoice: vi.fn(),
+    });
 
     const view = render(
       <BookshopNarrativeRendererV1 {...rendererProps(before.choiceAvailability)} />,

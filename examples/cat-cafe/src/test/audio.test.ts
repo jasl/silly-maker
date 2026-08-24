@@ -18,9 +18,9 @@ import {
 const storyRootV1 = resolve(import.meta.dirname, "..", "..");
 
 function effectV1(effectId: string, payload: Record<string, unknown>): TransientEffectV1 {
-  return Object.freeze({
+  return ({
     effectId,
-    payload: Object.freeze(payload),
+    payload: payload,
     epoch: 1,
     effectSequence: 1,
   }) as unknown as TransientEffectV1;

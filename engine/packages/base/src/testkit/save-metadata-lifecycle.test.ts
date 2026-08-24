@@ -20,9 +20,9 @@ import type { SnapshotTransactionStateV1 } from "./snapshot-transaction-workload
 import { snapshotTransactionProvenanceV1 } from "./snapshot-transaction-workload.ts";
 
 const textDecoderV1 = new TextDecoder();
-const fixedClockV1 = Object.freeze({
+const fixedClockV1 = {
   now: () => "2026-07-20T00:00:00.000Z" as IsoUtcInstant,
-});
+};
 
 interface StoredSaveV1 {
   readonly revision: HostRecordRevisionV1;
@@ -39,7 +39,7 @@ async function storedSaveV1(
     createSaveSlotRecordKeyV1(snapshotTransactionProvenanceV1.story.id, slotId),
   );
   if (stored === null) throw new TypeError(`missing stored Save ${slotId}`);
-  return Object.freeze({
+  return ({
     revision: stored.revision,
     bytes: Uint8Array.from(stored.bytes),
     value: JSON.parse(textDecoderV1.decode(stored.bytes)) as Record<string, unknown>,
@@ -47,11 +47,11 @@ async function storedSaveV1(
 }
 
 function annotationV1(value: Record<string, unknown>): unknown {
-  return Object.prototype.hasOwnProperty.call(value, "annotation") ? value.annotation : null;
+  return value.annotation ?? null;
 }
 
 function versionStampV1(value: Record<string, unknown>): unknown {
-  return Object.prototype.hasOwnProperty.call(value, "versionStamp") ? value.versionStamp : null;
+  return value.versionStamp ?? null;
 }
 
 type SummaryInputV1 = "absent" | "null" | "empty" | "valid";
@@ -65,105 +65,105 @@ interface MetadataLifecycleCaseV1 {
   readonly expectedStamp: VersionStampV1 | null;
 }
 
-const allNullStampV1 = Object.freeze({
+const allNullStampV1 = ({
   applicationVersion: null,
   applicationCommit: null,
   engineVersion: null,
   engineCommit: null,
 }) satisfies VersionStampV1;
 
-const metadataLifecycleCasesV1: readonly MetadataLifecycleCaseV1[] = Object.freeze([
-  Object.freeze({
+const metadataLifecycleCasesV1: readonly MetadataLifecycleCaseV1[] = [
+  {
     id: "absent",
     summary: "absent",
     note: "none",
     expectedStamp: null,
-  }),
-  Object.freeze({
+  },
+  {
     id: "projector_null",
     summary: "null",
     note: "none",
     expectedStamp: null,
-  }),
-  Object.freeze({
+  },
+  {
     id: "projector_empty",
     summary: "empty",
     note: "none",
     expectedStamp: null,
-  }),
-  Object.freeze({
+  },
+  {
     id: "summary_only",
     summary: "valid",
     note: "none",
     expectedStamp: null,
-  }),
-  Object.freeze({
+  },
+  {
     id: "note_only",
     summary: "absent",
     note: "set",
     expectedStamp: null,
-  }),
-  Object.freeze({
+  },
+  {
     id: "summary_and_note",
     summary: "valid",
     note: "set",
     expectedStamp: null,
-  }),
-  Object.freeze({
+  },
+  {
     id: "note_clear_removes_annotation",
     summary: "absent",
     note: "set_then_clear",
     expectedStamp: null,
-  }),
-  Object.freeze({
+  },
+  {
     id: "note_clear_keeps_summary",
     summary: "valid",
     note: "set_then_clear",
     expectedStamp: null,
-  }),
-  Object.freeze({
+  },
+  {
     id: "all_null_stamp",
     summary: "absent",
     note: "none",
     stampInput: allNullStampV1,
     expectedStamp: null,
-  }),
-  Object.freeze({
+  },
+  {
     id: "partial_stamp",
     summary: "absent",
     note: "none",
     stampInput: saveMetadataCompactExpectedV1.versionStamps.partial,
     expectedStamp: saveMetadataCompactExpectedV1.versionStamps.partial,
-  }),
-  Object.freeze({
+  },
+  {
     id: "full_clean_stamp",
     summary: "absent",
     note: "none",
     stampInput: saveMetadataCompactExpectedV1.versionStamps.fullClean,
     expectedStamp: saveMetadataCompactExpectedV1.versionStamps.fullClean,
-  }),
-  Object.freeze({
+  },
+  {
     id: "full_dirty_stamp",
     summary: "absent",
     note: "none",
     stampInput: saveMetadataCompactExpectedV1.versionStamps.fullDirty,
     expectedStamp: saveMetadataCompactExpectedV1.versionStamps.fullDirty,
-  }),
-  Object.freeze({
+  },
+  {
     id: "status_unavailable_stamp",
     summary: "absent",
     note: "none",
     stampInput: saveMetadataCompactExpectedV1.versionStamps.statusUnavailable,
     expectedStamp: saveMetadataCompactExpectedV1.versionStamps.statusUnavailable,
-  }),
-  Object.freeze({
+  },
+  {
     id: "summary_note_full_dirty_stamp",
     summary: "valid",
     note: "set",
     stampInput: saveMetadataCompactExpectedV1.versionStamps.fullDirty,
     expectedStamp: saveMetadataCompactExpectedV1.versionStamps.fullDirty,
-  }),
-]);
+  },
+];
 
 function expectedAnnotationV1(testCase: MetadataLifecycleCaseV1): unknown {
   const summary = testCase.summary === "valid" ? ["Checkpoint 7", "Neutral scene"] : null;
@@ -185,7 +185,7 @@ function summaryProjectorV1(
 }
 
 function bytesArrayV1(bytes: Uint8Array): readonly number[] {
-  return Object.freeze([...bytes]);
+  return [...bytes];
 }
 
 function bytesFromBase64V1(encoded: string): Uint8Array {
@@ -202,7 +202,7 @@ function createCommitThenThrowStoreV1(
 } {
   const memory = createMemoryHostRecordStoreV1();
   let failNextSaveCommit = false;
-  const records: HostAtomicRecordStoreV1 = Object.freeze({
+  const records: HostAtomicRecordStoreV1 = {
     read: memory.read,
     list: memory.list,
     async commit(mutations: Parameters<HostAtomicRecordStoreV1["commit"]>[0]) {
@@ -215,18 +215,18 @@ function createCommitThenThrowStoreV1(
         failNextSaveCommit = false;
         const error = new Error("synthetic post-commit failure");
         if (failureKind === "unavailable") {
-          Object.defineProperties(error, {
-            name: { value: "IndexedDbRecordStoreFailureV1" },
-            code: { value: "indexeddb.request_failed" },
-            operation: { value: "commit" },
+          Object.assign(error, {
+            name: "IndexedDbRecordStoreFailureV1",
+            code: "indexeddb.request_failed",
+            operation: "commit",
           });
         }
         throw error;
       }
       return result;
     },
-  });
-  return Object.freeze({
+  };
+  return ({
     records,
     memory,
     armFailure() {
@@ -591,13 +591,13 @@ describe("shared Save metadata lifecycle", () => {
           let expectedRevision: HostRecordRevisionV1 | null = null;
           for (let revision = 1; revision <= Number(storedSource.revision); revision += 1) {
             const seeded = await targetRecords.commit([
-              Object.freeze({
+              {
                 kind: "put" as const,
                 namespace: "save",
                 key,
                 expectedRevision,
                 bytes: storedSource.bytes,
-              }),
+              },
             ]);
             if (seeded.kind !== "committed") throw new TypeError("failed to seed load record");
             const written = seeded.records.find((record) => record.key === key);
@@ -658,7 +658,7 @@ describe("shared Save metadata lifecycle", () => {
     const workload = await createSnapshotPersistenceWorkloadV1({
       entityCount: 100,
       records,
-      metadataClock: Object.freeze({ now: () => now }),
+      metadataClock: { now: () => now },
       exportFilename: "neutral-save.json",
       summarizeSave: () => ["Checkpoint 7", "Neutral scene"],
       collectVersionStamp: () => saveMetadataCompactExpectedV1.versionStamps.partial,

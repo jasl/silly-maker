@@ -3,7 +3,7 @@ import type { SceneDocumentV1, StageContentCatalogV1, StageRenderTargetV1 } from
 import {
   createSemanticStageStateV1,
   projectStageRenderTargetV1,
-  reduceStageMutationsV1,
+  reduceAdmittedStageMutationsV1,
   sceneFromDocumentV1,
   sceneSettledMutationsV1,
 } from "@sillymaker/base";
@@ -49,7 +49,7 @@ export function compileSceneV1(
     const mutations = throughCueId === null
       ? scene.openMutations(emptyStage)
       : sceneSettledMutationsV1(scene, { throughCueId });
-    const outcome = reduceStageMutationsV1(emptyStage, mutations);
+    const outcome = reduceAdmittedStageMutationsV1(emptyStage, mutations);
     if (outcome.kind !== "applied") {
       return { kind: "error", message: outcome.rejection.reason };
     }
@@ -59,8 +59,8 @@ export function compileSceneV1(
     return {
       kind: "ok",
       target: projection.target,
-      diagnostics: Object.freeze(
-        projection.diagnostics.map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`),
+      diagnostics: projection.diagnostics.map((diagnostic) =>
+        `${diagnostic.code}: ${diagnostic.message}`
       ),
     };
   } catch (error) {

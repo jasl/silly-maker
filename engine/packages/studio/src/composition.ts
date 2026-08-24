@@ -78,13 +78,13 @@ function profileV1(
   profileId: string,
   input: StudioToolingLiveRootInputV1,
 ) {
-  const plan = Object.freeze({
+  const plan = {
     binding: input.binding,
     sceneIo: input.sceneIo,
     motionIo: input.motionIo,
     ...(input.regionsIo === undefined ? {} : { regionsIo: input.regionsIo }),
     ...(input.chromeIo === undefined ? {} : { chromeIo: input.chromeIo }),
-  });
+  };
   const plugin = defineCompositionPluginV1({
     id: studioToolingRootPluginIdV1,
     revision: input.revision,
@@ -117,7 +117,7 @@ export function createStudioToolingLiveCompositionV1(
   const kernel: CompositionKernelV1 = createCompositionKernelV1(
     options.onDiagnostic === undefined ? {} : { onDiagnostic: options.onDiagnostic },
   );
-  return Object.freeze({
+  return {
     async mount(input: StudioToolingLiveRootInputV1): Promise<StudioToolingPlanV1> {
       return compilePlanV1(await kernel.mount(profileV1(options.profileId, input)));
     },
@@ -153,7 +153,7 @@ export function createStudioToolingLiveCompositionV1(
     getSnapshot: () => kernel.getSnapshot(),
     getDiagnostics: () => kernel.getDiagnostics(),
     dispose: () => kernel.dispose(),
-  });
+  };
 }
 
 export interface StudioToolingHmrCoordinatorV1<TModule> {
@@ -252,12 +252,12 @@ export function createStudioToolingHmrCoordinatorV1<TModule>(
       }
     });
   };
-  return Object.freeze({
+  return {
     accept,
     waitForIdle: () => transition,
     async dispose(): Promise<void> {
       requestDispose();
       await transition;
     },
-  });
+  };
 }

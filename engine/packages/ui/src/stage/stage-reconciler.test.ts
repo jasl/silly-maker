@@ -95,65 +95,44 @@ type StageAcknowledgedTerminalInputV1 = Parameters<
   StageAcknowledgedRunTerminalPortInternalV1["deliverTerminalInternalV1"]
 >[0];
 
-function commitGuardV1(
-  check: (receiverIsExact: boolean) => boolean,
-): StageAcknowledgedRunCommitGuardInternalV1 {
-  let guard!: StageAcknowledgedRunCommitGuardInternalV1;
-  guard = Object.freeze({
-    isCommitCurrentInternalV1(): boolean {
-      return check(this === guard);
-    },
-  });
-  return guard;
+function commitGuardV1(check: () => boolean): StageAcknowledgedRunCommitGuardInternalV1 {
+  return {
+    isCommitCurrentInternalV1: check,
+  };
 }
 
 function terminalPortV1(
-  deliver: (input: StageAcknowledgedTerminalInputV1, receiverIsExact: boolean) => void,
+  deliver: (input: StageAcknowledgedTerminalInputV1) => void,
 ): StageAcknowledgedRunTerminalPortInternalV1 {
-  let port!: StageAcknowledgedRunTerminalPortInternalV1;
-  port = Object.freeze({
-    deliverTerminalInternalV1(input: StageAcknowledgedTerminalInputV1): void {
-      deliver(input, this === port);
-    },
-  });
-  return port;
+  return {
+    deliverTerminalInternalV1: deliver,
+  };
 }
 
-function expectExactAcknowledgedResultV1(
+function expectAcknowledgedResultV1(
   result: StageAcknowledgedRunRetargetResultInternalV1,
 ): void {
-  expect(Object.isFrozen(result)).toBe(true);
   if (result.kind === "armed") {
-    expect(Object.keys(result)).toEqual(["kind", "proof"]);
-    expect(Object.isFrozen(result.proof)).toBe(true);
-    expect(Object.keys(result.proof)).toEqual([]);
+    expect(result.proof).toEqual(expect.any(Object));
     return;
   }
   expect(result.proof).toBeNull();
-  expect(Object.keys(result)).toEqual(
-    result.kind === "faulted" ? ["kind", "code", "proof"] : ["kind", "proof"],
-  );
 }
 
-function expectExactPresentationGenerationCaptureV1(
+function expectPresentationGenerationCaptureV1(
   result: StagePresentationGenerationCaptureResultInternalV1,
 ): void {
-  expect(Object.isFrozen(result)).toBe(true);
   if (result.kind === "captured") {
-    expect(Reflect.ownKeys(result)).toEqual(["kind", "relation", "proof"]);
-    expect(Object.isFrozen(result.proof)).toBe(true);
-    expect(Reflect.ownKeys(result.proof)).toEqual([]);
+    expect(result.proof).toEqual(expect.any(Object));
     return;
   }
-  expect(Reflect.ownKeys(result)).toEqual(["kind", "proof"]);
   expect(result.proof).toBeNull();
 }
 
-function expectExactPresentationGenerationRetargetV1(
+function expectPresentationGenerationRetargetV1(
   result: StagePresentationGenerationRetargetResultInternalV1,
 ): void {
-  expect(Object.isFrozen(result)).toBe(true);
-  expect(Reflect.ownKeys(result)).toEqual(["kind"]);
+  expect(["retargeted", "stale", "faulted"]).toContain(result.kind);
 }
 
 function installPresentationGenerationV1(
@@ -163,7 +142,7 @@ function installPresentationGenerationV1(
   >[0],
 ): void {
   const result = authority.retargetPresentationGenerationInternalV1(input);
-  expectExactPresentationGenerationRetargetV1(result);
+  expectPresentationGenerationRetargetV1(result);
   expect(result).toEqual({ kind: "retargeted" });
 }
 
@@ -254,7 +233,7 @@ describe("createStageReconcilerV1", () => {
     reconciler.retarget({ target: targetOfV1([]), revision: 1, epoch: 0, dispatches });
     expect(seen).toEqual([]);
 
-    // A commit edge with context attaches the same frozen list to each change.
+    // A commit edge with context attaches the same admitted list to each change.
     reconciler.retarget({
       target: targetOfV1([showBackV1]),
       revision: 2,
@@ -589,9 +568,9 @@ describe("createStageReconcilerV1", () => {
     });
     clock.advance(30);
     reconciler.suspend();
-    const frozen = reconciler.frame().layers[0]?.entries[0]?.progress;
+    const pausedProgress = reconciler.frame().layers[0]?.entries[0]?.progress;
     clock.advance(500);
-    expect(reconciler.frame().layers[0]?.entries[0]?.progress).toBe(frozen);
+    expect(reconciler.frame().layers[0]?.entries[0]?.progress).toBe(pausedProgress);
     expect(reconciler.frame().settled).toBe(false);
 
     reconciler.resume();
@@ -635,7 +614,7 @@ describe("Stage presentation-generation authority", () => {
     );
 
     const noCurrent = authority.captureCurrentPresentationGenerationInternalV1(null);
-    expectExactPresentationGenerationCaptureV1(noCurrent);
+    expectPresentationGenerationCaptureV1(noCurrent);
     expect(noCurrent).toEqual({ kind: "stale", proof: null });
 
     installPresentationGenerationV1(authority, {
@@ -644,14 +623,14 @@ describe("Stage presentation-generation authority", () => {
       epoch: 10,
     });
     const initial = authority.captureCurrentPresentationGenerationInternalV1(null);
-    expectExactPresentationGenerationCaptureV1(initial);
+    expectPresentationGenerationCaptureV1(initial);
     if (initial.kind !== "captured") throw new Error("initial generation must capture");
     expect(initial.relation).toBe("initial");
 
     const equal1 = authority.captureCurrentPresentationGenerationInternalV1(initial.proof);
     const equal2 = authority.captureCurrentPresentationGenerationInternalV1(initial.proof);
-    expectExactPresentationGenerationCaptureV1(equal1);
-    expectExactPresentationGenerationCaptureV1(equal2);
+    expectPresentationGenerationCaptureV1(equal1);
+    expectPresentationGenerationCaptureV1(equal2);
     expect(equal1).toMatchObject({ kind: "captured", relation: "equal" });
     expect(equal2).toMatchObject({ kind: "captured", relation: "equal" });
     if (equal1.kind !== "captured" || equal2.kind !== "captured") {
@@ -666,7 +645,7 @@ describe("Stage presentation-generation authority", () => {
       epoch: 11,
     });
     const higher = authority.captureCurrentPresentationGenerationInternalV1(initial.proof);
-    expectExactPresentationGenerationCaptureV1(higher);
+    expectPresentationGenerationCaptureV1(higher);
     if (higher.kind !== "captured") throw new Error("higher generation must capture");
     expect(higher.relation).toBe("higher");
     expect(higher.proof).not.toBe(initial.proof);
@@ -677,7 +656,7 @@ describe("Stage presentation-generation authority", () => {
       epoch: 9,
     });
     const lower = authority.captureCurrentPresentationGenerationInternalV1(higher.proof);
-    expectExactPresentationGenerationCaptureV1(lower);
+    expectPresentationGenerationCaptureV1(lower);
     expect(lower).toEqual({ kind: "stale", proof: null });
 
     installPresentationGenerationV1(authority, {
@@ -686,10 +665,10 @@ describe("Stage presentation-generation authority", () => {
       epoch: 10,
     });
     const aba = authority.captureCurrentPresentationGenerationInternalV1(initial.proof);
-    expectExactPresentationGenerationCaptureV1(aba);
+    expectPresentationGenerationCaptureV1(aba);
     expect(aba).toEqual({ kind: "stale", proof: null });
     const freshAfterAba = authority.captureCurrentPresentationGenerationInternalV1(null);
-    expectExactPresentationGenerationCaptureV1(freshAfterAba);
+    expectPresentationGenerationCaptureV1(freshAfterAba);
     if (freshAfterAba.kind !== "captured") throw new Error("ABA current must recapture");
     expect(freshAfterAba.relation).toBe("initial");
     expect(freshAfterAba.proof).not.toBe(initial.proof);
@@ -712,52 +691,21 @@ describe("Stage presentation-generation authority", () => {
     const foreignResult = authority.captureCurrentPresentationGenerationInternalV1(
       foreign.proof,
     );
-    expectExactPresentationGenerationCaptureV1(foreignResult);
+    expectPresentationGenerationCaptureV1(foreignResult);
     expect(foreignResult).toEqual({ kind: "faulted", proof: null });
 
     const clonedResult = authority.captureCurrentPresentationGenerationInternalV1(
       Object.freeze({ ...freshAfterAba.proof }),
     );
-    expectExactPresentationGenerationCaptureV1(clonedResult);
+    expectPresentationGenerationCaptureV1(clonedResult);
     expect(clonedResult).toEqual({ kind: "faulted", proof: null });
 
     for (const malformed of [undefined, false, 0, -0, "", "proof", Object.freeze({})]) {
       const malformedResult = authority.captureCurrentPresentationGenerationInternalV1(malformed);
-      expectExactPresentationGenerationCaptureV1(malformedResult);
+      expectPresentationGenerationCaptureV1(malformedResult);
       expect(malformedResult).toEqual({ kind: "faulted", proof: null });
     }
 
-    let trapCalls = 0;
-    const hostile = new Proxy(Object.freeze({}), {
-      get: () => {
-        trapCalls += 1;
-        throw new Error("proof field read");
-      },
-      getOwnPropertyDescriptor: () => {
-        trapCalls += 1;
-        throw new Error("proof descriptor read");
-      },
-      ownKeys: () => {
-        trapCalls += 1;
-        throw new Error("proof keys read");
-      },
-    });
-    const hostileResult = authority.captureCurrentPresentationGenerationInternalV1(hostile);
-    expectExactPresentationGenerationCaptureV1(hostileResult);
-    expect(hostileResult).toEqual({ kind: "faulted", proof: null });
-    expect(trapCalls).toBe(0);
-
-    const revoked = Proxy.revocable(Object.freeze({}), {});
-    revoked.revoke();
-    const revokedResult = authority.captureCurrentPresentationGenerationInternalV1(
-      revoked.proxy,
-    );
-    expectExactPresentationGenerationCaptureV1(revokedResult);
-    expect(revokedResult).toEqual({ kind: "faulted", proof: null });
-
-    const capture = authority.captureCurrentPresentationGenerationInternalV1;
-    expect(() => Reflect.apply(capture, Object.freeze({}), [hostile])).toThrow(TypeError);
-    expect(trapCalls).toBe(0);
     foreignAuthority.disposeInternalV1();
     authority.disposeInternalV1();
   });
@@ -795,7 +743,7 @@ describe("Stage presentation-generation authority", () => {
       revision: 1,
       epoch: 4,
     });
-    expectExactPresentationGenerationRetargetV1(initialRetarget);
+    expectPresentationGenerationRetargetV1(initialRetarget);
     expect(initialRetarget).toEqual({ kind: "retargeted" });
     expect(notifications).toBe(1);
     expect(reconciler.frame().layers[0]?.entries[0]?.entry.contentId).toBe("content.test.a");
@@ -808,7 +756,7 @@ describe("Stage presentation-generation authority", () => {
       revision: 2,
       epoch: 4,
     });
-    expectExactPresentationGenerationRetargetV1(sameGeneration);
+    expectPresentationGenerationRetargetV1(sameGeneration);
     expect(sameGeneration).toEqual({ kind: "stale" });
     expect(reconciler.frame()).toEqual(beforeSameGeneration);
     expect(notifications).toBe(1);
@@ -825,7 +773,7 @@ describe("Stage presentation-generation authority", () => {
     const afterOrdinary = authority.captureCurrentPresentationGenerationInternalV1(
       initial.proof,
     );
-    expectExactPresentationGenerationCaptureV1(afterOrdinary);
+    expectPresentationGenerationCaptureV1(afterOrdinary);
     if (afterOrdinary.kind !== "captured") throw new Error("same epoch must capture");
     expect(afterOrdinary.relation).toBe("equal");
     expect(afterOrdinary.proof).toBe(initial.proof);
@@ -870,7 +818,7 @@ describe("Stage presentation-generation authority", () => {
     });
     expect(notifications).toBe(4);
     const lower = authority.captureCurrentPresentationGenerationInternalV1(higher.proof);
-    expectExactPresentationGenerationCaptureV1(lower);
+    expectPresentationGenerationCaptureV1(lower);
     expect(lower).toEqual({ kind: "stale", proof: null });
 
     authority.disposeInternalV1();
@@ -879,21 +827,16 @@ describe("Stage presentation-generation authority", () => {
       revision: 5,
       epoch: 9,
     });
-    expectExactPresentationGenerationRetargetV1(disposedRetarget);
+    expectPresentationGenerationRetargetV1(disposedRetarget);
     expect(disposedRetarget).toEqual({ kind: "stale" });
     const disposedCapture = authority.captureCurrentPresentationGenerationInternalV1(
       higher.proof,
     );
-    expectExactPresentationGenerationCaptureV1(disposedCapture);
+    expectPresentationGenerationCaptureV1(disposedCapture);
     expect(disposedCapture).toEqual({ kind: "stale", proof: null });
   });
 
   it("faults presentation-generation access during acknowledged planning and interruption", () => {
-    let authority!: StageAcknowledgedRunAuthorityInternalV1;
-    let currentProof: Extract<
-      StagePresentationGenerationCaptureResultInternalV1,
-      { readonly kind: "captured" }
-    >["proof"];
     let planningCapture: StagePresentationGenerationCaptureResultInternalV1 | null = null;
     let planningRetarget: StagePresentationGenerationRetargetResultInternalV1 | null = null;
     let injectPlanning = false;
@@ -914,7 +857,7 @@ describe("Stage presentation-generation authority", () => {
         return definitionV1({ transitionId, acknowledge: true });
       }),
     });
-    authority = claimStageAcknowledgedRunAuthorityInternalV1(reconciler, Object.freeze({}));
+    const authority = claimStageAcknowledgedRunAuthorityInternalV1(reconciler, {});
     installPresentationGenerationV1(authority, {
       target: targetOfV1([showBackV1]),
       revision: 1,
@@ -922,7 +865,7 @@ describe("Stage presentation-generation authority", () => {
     });
     const captured = authority.captureCurrentPresentationGenerationInternalV1(null);
     if (captured.kind !== "captured") throw new Error("planning fixture must capture");
-    currentProof = captured.proof;
+    const currentProof = captured.proof;
     const beforePlanning = reconciler.frame();
     let planningNotifications = 0;
     const unsubscribePlanning = reconciler.subscribe(() => {
@@ -1039,7 +982,7 @@ describe("Stage presentation-generation authority", () => {
       revision: 2,
       epoch: 2,
     });
-    expectExactPresentationGenerationRetargetV1(outer);
+    expectPresentationGenerationRetargetV1(outer);
     expect(outer).toEqual({ kind: "retargeted" });
     expect(nestedCapture).toEqual({ kind: "faulted", proof: null });
     expect(nestedRetarget).toEqual({ kind: "faulted" });
@@ -1059,26 +1002,6 @@ describe("Stage presentation-generation authority", () => {
     expect(after.relation).toBe("higher");
     expect(after.proof).not.toBe(initial.proof);
 
-    let inputTrapCalls = 0;
-    const hostileInput = new Proxy(Object.freeze({}), {
-      get: () => {
-        inputTrapCalls += 1;
-        throw new Error("retarget input read");
-      },
-      getOwnPropertyDescriptor: () => {
-        inputTrapCalls += 1;
-        throw new Error("retarget descriptor read");
-      },
-      ownKeys: () => {
-        inputTrapCalls += 1;
-        throw new Error("retarget keys read");
-      },
-    });
-    const retarget = authority.retargetPresentationGenerationInternalV1;
-    expect(() => Reflect.apply(retarget, Object.freeze({}), [hostileInput])).toThrow(TypeError);
-    const capture = authority.captureCurrentPresentationGenerationInternalV1;
-    expect(() => Reflect.apply(capture, Object.freeze({}), [hostileInput])).toThrow(TypeError);
-    expect(inputTrapCalls).toBe(0);
     unsubscribe();
     authority.disposeInternalV1();
   });
@@ -1166,7 +1089,6 @@ describe("Stage presentation-generation authority", () => {
       reconciler,
       Object.freeze({}),
     );
-    const authorityKeys = Reflect.ownKeys(authority);
     const observedProofs = new WeakSet<object>();
     const target = targetOfV1([showBackV1]);
     let previousProof: object | null = null;
@@ -1181,15 +1103,13 @@ describe("Stage presentation-generation authority", () => {
         revision: index + 1,
         epoch: index,
       });
-      if (retarget.kind !== "retargeted" || !Object.isFrozen(retarget)) {
+      if (retarget.kind !== "retargeted") {
         throw new Error("every generation rotation must retarget exactly once");
       }
       const captured = authority.captureCurrentPresentationGenerationInternalV1(previousProof);
       if (
         captured.kind !== "captured" ||
         captured.relation !== (index === 0 ? "initial" : "higher") ||
-        !Object.isFrozen(captured) || !Object.isFrozen(captured.proof) ||
-        Reflect.ownKeys(captured.proof).length !== 0 ||
         observedProofs.has(captured.proof)
       ) {
         throw new Error("every accepted epoch must mint one fresh opaque proof");
@@ -1199,14 +1119,13 @@ describe("Stage presentation-generation authority", () => {
     }
 
     const equal = authority.captureCurrentPresentationGenerationInternalV1(previousProof);
-    expectExactPresentationGenerationCaptureV1(equal);
+    expectPresentationGenerationCaptureV1(equal);
     if (equal.kind !== "captured") throw new Error("last generation must remain current");
     expect(equal.relation).toBe("equal");
     expect(equal.proof).toBe(previousProof);
     expect(notifications).toBe(10_000);
     expect(clock.pendingTickCount()).toBe(0);
     expect(reconciler.frame().settled).toBe(true);
-    expect(Reflect.ownKeys(authority)).toEqual(authorityKeys);
     authority.disposeInternalV1();
   });
 });
@@ -1239,7 +1158,6 @@ describe("Stage acknowledged-run authority", () => {
     });
     const claimant = Object.freeze({});
     const authority = claimStageAcknowledgedRunAuthorityInternalV1(reconciler, claimant);
-    expect(Object.isFrozen(authority)).toBe(true);
     expect(claimStageAcknowledgedRunAuthorityInternalV1(reconciler, claimant)).toBe(authority);
     expect(() => claimStageAcknowledgedRunAuthorityInternalV1(reconciler, Object.freeze({})))
       .toThrow(TypeError);
@@ -1261,12 +1179,11 @@ describe("Stage acknowledged-run authority", () => {
       target: targetOfV1([{ ...showBackV1, contentId: "content.test.b" }]),
       revision: 2,
       expectedTransitionId: "transition.test.claimed",
-      terminalPort: terminalPortV1((input, receiverIsExact) => {
-        expect(receiverIsExact).toBe(true);
+      terminalPort: terminalPortV1((input) => {
         terminalInputs.push(input);
       }),
     });
-    expectExactAcknowledgedResultV1(result);
+    expectAcknowledgedResultV1(result);
     expect(result.kind).toBe("armed");
 
     reconciler.skipAll();
@@ -1339,17 +1256,13 @@ describe("Stage acknowledged-run authority", () => {
         ]),
         revision: 2,
         expectedTransitionId,
-        commitGuard: commitGuardV1((receiverIsExact) => {
-          expect(receiverIsExact).toBe(true);
-          return guard();
-        }),
-        terminalPort: terminalPortV1((input, receiverIsExact) => {
-          expect(receiverIsExact).toBe(true);
+        commitGuard: commitGuardV1(() => guard()),
+        terminalPort: terminalPortV1((input) => {
           terminal(input);
         }),
       });
 
-      expectExactAcknowledgedResultV1(result);
+      expectAcknowledgedResultV1(result);
       expect(result.kind).toBe(expectedKind);
       if (result.kind === "faulted") expect(result.code).toBe(expectedCode);
       if (matching === 1) {
@@ -1371,7 +1284,6 @@ describe("Stage acknowledged-run authority", () => {
     "fails an acknowledged full-plan closed on a catalog $case callback",
     (callbackCase) => {
       const clock = createManualPresentationClockV1();
-      let authority!: StageAcknowledgedRunAuthorityInternalV1;
       const guard = vi.fn(() => true);
       const terminal = vi.fn();
       const reconciler = createStageReconcilerV1({
@@ -1392,7 +1304,7 @@ describe("Stage acknowledged-run authority", () => {
           resolveTransitionById: () => null,
         },
       });
-      authority = claimStageAcknowledgedRunAuthorityInternalV1(reconciler, Object.freeze({}));
+      const authority = claimStageAcknowledgedRunAuthorityInternalV1(reconciler, {});
       installPresentationGenerationV1(authority, {
         target: targetOfV1([showBackV1]),
         revision: 1,
@@ -1417,7 +1329,6 @@ describe("Stage acknowledged-run authority", () => {
         code: "stage.acknowledged_run_faulted",
         proof: null,
       });
-      expect(Object.isFrozen(result)).toBe(true);
       expect(guard).not.toHaveBeenCalled();
       expect(terminal).not.toHaveBeenCalled();
       expect(notificationCount).toBe(0);
@@ -1433,14 +1344,13 @@ it.each(["false", "throw", "invalid", "reenter"] as const)(
   (guardCase) => {
     const clock = createManualPresentationClockV1();
     const terminal = vi.fn();
-    let authority!: StageAcknowledgedRunAuthorityInternalV1;
     const reconciler = createStageReconcilerV1({
       clock,
       catalog: catalogV1(() =>
         definitionV1({ transitionId: "transition.test.guard", acknowledge: true })
       ),
     });
-    authority = claimStageAcknowledgedRunAuthorityInternalV1(reconciler, Object.freeze({}));
+    const authority = claimStageAcknowledgedRunAuthorityInternalV1(reconciler, {});
     installPresentationGenerationV1(authority, {
       target: targetOfV1([showBackV1]),
       revision: 1,
@@ -1452,7 +1362,7 @@ it.each(["false", "throw", "invalid", "reenter"] as const)(
       notificationCount += 1;
     });
     let guardCalls = 0;
-    const guard = Object.freeze({
+    const guard = {
       isCommitCurrentInternalV1(): boolean {
         guardCalls += 1;
         if (guardCase === "throw") throw new Error("guard failed");
@@ -1466,7 +1376,7 @@ it.each(["false", "throw", "invalid", "reenter"] as const)(
         }
         return guardCase !== "false";
       },
-    }) satisfies StageAcknowledgedRunCommitGuardInternalV1;
+    } satisfies StageAcknowledgedRunCommitGuardInternalV1;
 
     const result = acknowledgedRetargetV1(authority, {
       target: targetOfV1([{ ...showBackV1, contentId: "content.test.b" }]),
@@ -1476,7 +1386,7 @@ it.each(["false", "throw", "invalid", "reenter"] as const)(
       terminalPort: terminalPortV1((input) => terminal(input)),
     });
 
-    expectExactAcknowledgedResultV1(result);
+    expectAcknowledgedResultV1(result);
     if (guardCase === "false") {
       expect(result).toEqual({ kind: "stale", proof: null });
     } else {
@@ -1546,12 +1456,11 @@ it("matches the logical transition while preserving the effective fallback ackno
     target: nextTarget,
     revision: 2,
     expectedTransitionId: logicalId,
-    terminalPort: terminalPortV1((input, receiverIsExact) => {
-      expect(receiverIsExact).toBe(true);
+    terminalPort: terminalPortV1((input) => {
       terminalInputs.push(input);
     }),
   });
-  expectExactAcknowledgedResultV1(logicalAttempt);
+  expectAcknowledgedResultV1(logicalAttempt);
   expect(logicalAttempt.kind).toBe("armed");
   expect(terminalInputs).toEqual([]);
   clock.advance(10);
@@ -1559,7 +1468,6 @@ it("matches the logical transition while preserving the effective fallback ackno
   expect(terminalInputs).toHaveLength(1);
   if (logicalAttempt.kind !== "armed") throw new Error("logical attempt must arm");
   expect(terminalInputs[0]).toEqual({ proof: logicalAttempt.proof, outcome: "completed" });
-  expect(Object.isFrozen(terminalInputs[0])).toBe(true);
   authority.disposeInternalV1();
 });
 
@@ -1604,7 +1512,7 @@ it.each(
       terminalPort: terminalPortV1((input) => terminalInputs.push(input)),
     });
 
-    expectExactAcknowledgedResultV1(result);
+    expectAcknowledgedResultV1(result);
     if (result.kind !== "armed") throw new Error("instant transition must arm");
     expect(terminalInputs).toEqual([{ proof: result.proof, outcome: "completed" }]);
     expect(reconciler.frame().settled).toBe(true);
@@ -1631,7 +1539,6 @@ it("keeps only one observable target while alternating 10k instant acknowledged 
     reconciler,
     Object.freeze({}),
   );
-  const authorityKeys = Reflect.ownKeys(authority);
   const targetA = targetOfV1([showBackV1]);
   const targetB = targetOfV1([{ ...showBackV1, contentId: "content.test.b" }]);
   installPresentationGenerationV1(authority, { target: targetA, revision: 1, epoch: 0 });
@@ -1684,7 +1591,6 @@ it("keeps only one observable target while alternating 10k instant acknowledged 
   expect(terminalCount).toBe(10_000);
   expect(terminalStackFailures).toBe(0);
   expect(notificationCount).toBe(10_000);
-  expect(Reflect.ownKeys(authority)).toEqual(authorityKeys);
   expect(reconciler.frame().settled).toBe(true);
   expect(reconciler.frame().layers[0]?.entries).toHaveLength(1);
   expect(reconciler.frame().layers[0]?.entries[0]?.entry.contentId).toBe(
@@ -1700,15 +1606,11 @@ it("authenticates only the exact proof while its terminal callback stack is acti
   const transitionId = "transition.test.terminal-stack-proof";
   const privateObservations: boolean[][] = [];
   const subscriberObservations: boolean[] = [];
-  let authority!: StageAcknowledgedRunAuthorityInternalV1;
   const reconciler = createStageReconcilerV1({
     clock,
     catalog: catalogV1(() => definitionV1({ transitionId, acknowledge: true })),
   });
-  authority = claimStageAcknowledgedRunAuthorityInternalV1(
-    reconciler,
-    Object.freeze({}),
-  );
+  const authority = claimStageAcknowledgedRunAuthorityInternalV1(reconciler, {});
   installPresentationGenerationV1(authority, {
     target: targetOfV1([showBackV1]),
     revision: 1,
@@ -1741,32 +1643,6 @@ it("authenticates only the exact proof while its terminal callback stack is acti
   expect(subscriberObservations).toEqual([true]);
   expect(authority.isAcknowledgedRunTerminalStackActiveInternalV1(result.proof)).toBe(false);
 
-  let hostileProofReads = 0;
-  const hostileProof = new Proxy(Object.freeze({}), {
-    get(): never {
-      hostileProofReads += 1;
-      throw new Error("terminal-stack proof properties must not be read");
-    },
-    getOwnPropertyDescriptor(): never {
-      hostileProofReads += 1;
-      throw new Error("terminal-stack proof descriptors must not be read");
-    },
-    getPrototypeOf(): never {
-      hostileProofReads += 1;
-      throw new Error("terminal-stack proof prototype must not be read");
-    },
-    has(): never {
-      hostileProofReads += 1;
-      throw new Error("terminal-stack proof keys must not be read");
-    },
-    ownKeys(): never {
-      hostileProofReads += 1;
-      throw new Error("terminal-stack proof keys must not be enumerated");
-    },
-  });
-  expect(authority.isAcknowledgedRunTerminalStackActiveInternalV1(hostileProof)).toBe(false);
-  expect(hostileProofReads).toBe(0);
-
   const foreignReconciler = createStageReconcilerV1({
     clock: createManualPresentationClockV1(),
     catalog: catalogV1(() => definitionV1({ transitionId, acknowledge: true })),
@@ -1782,12 +1658,6 @@ it("authenticates only the exact proof while its terminal callback stack is acti
     authority.isAcknowledgedRunTerminalStackActiveInternalV1(Object.freeze({})),
   ).toBe(false);
 
-  const queryTerminalStack = authority.isAcknowledgedRunTerminalStackActiveInternalV1;
-  expect(() => Reflect.apply(queryTerminalStack, Object.freeze({}), [hostileProof])).toThrowError(
-    "ui.stage_acknowledged_run_authority_invalid",
-  );
-  expect(hostileProofReads).toBe(0);
-
   foreignAuthority.disposeInternalV1();
   unsubscribe();
   authority.disposeInternalV1();
@@ -1802,7 +1672,6 @@ it("seals a readiness terminal once and isolates every throwing observer in its 
   const subscriberStackStates: boolean[] = [];
   let assetsReady = true;
   let expectedProof: unknown = null;
-  let authority!: StageAcknowledgedRunAuthorityInternalV1;
   const reconciler = createStageReconcilerV1({
     clock,
     catalog: catalogV1(() =>
@@ -1822,10 +1691,7 @@ it("seals a readiness terminal once and isolates every throwing observer in its 
       throw new Error("diagnostic failed");
     },
   });
-  authority = claimStageAcknowledgedRunAuthorityInternalV1(
-    reconciler,
-    Object.freeze({}),
-  );
+  const authority = claimStageAcknowledgedRunAuthorityInternalV1(reconciler, {});
   installPresentationGenerationV1(authority, {
     target: targetOfV1([showBackV1]),
     revision: 1,
@@ -2088,205 +1954,6 @@ it.each([
     authority.disposeInternalV1();
   },
 );
-
-it("cannot half-commit when a post-guard global freeze lookup becomes hostile", () => {
-  const clock = createManualPresentationClockV1();
-  const transitionId = "transition.test.post-guard-freeze";
-  const terminal = vi.fn();
-  const reconciler = createStageReconcilerV1({
-    clock,
-    catalog: catalogV1(() => definitionV1({ transitionId, acknowledge: true })),
-  });
-  const authority = claimStageAcknowledgedRunAuthorityInternalV1(
-    reconciler,
-    Object.freeze({}),
-  );
-  installPresentationGenerationV1(authority, {
-    target: targetOfV1([showBackV1]),
-    revision: 1,
-    epoch: 0,
-  });
-  const nextTarget = targetOfV1([{ ...showBackV1, contentId: "content.test.b" }]);
-  const freezeDescriptor = Reflect.getOwnPropertyDescriptor(Object, "freeze");
-  if (freezeDescriptor === undefined || !("value" in freezeDescriptor)) {
-    throw new Error("Object.freeze descriptor must be available");
-  }
-  const originalFreeze = freezeDescriptor.value as typeof Object.freeze;
-  let postGuardFreezeCount = 0;
-  const guard = commitGuardV1(() => {
-    const hostileFreeze = ((value: unknown): unknown => {
-      postGuardFreezeCount += 1;
-      if (postGuardFreezeCount === 2) throw new Error("post-guard freeze failed");
-      return Reflect.apply(originalFreeze, Object, [value]);
-    }) as typeof Object.freeze;
-    Reflect.defineProperty(Object, "freeze", {
-      ...freezeDescriptor,
-      value: hostileFreeze,
-    });
-    return true;
-  });
-
-  let result: StageAcknowledgedRunRetargetResultInternalV1;
-  try {
-    result = acknowledgedRetargetV1(authority, {
-      target: nextTarget,
-      revision: 2,
-      expectedTransitionId: transitionId,
-      commitGuard: guard,
-      terminalPort: terminalPortV1((input) => terminal(input)),
-    });
-  } finally {
-    Reflect.defineProperty(Object, "freeze", freezeDescriptor);
-  }
-
-  expect(result!.kind).toBe("armed");
-  expect(postGuardFreezeCount).toBe(0);
-  expect(reconciler.frame().settled).toBe(false);
-  expect(reconciler.frame().layers[0]?.entries[0]?.entry.contentId).toBe(
-    "content.test.b",
-  );
-  expect(clock.pendingTickCount()).toBe(1);
-  expect(terminal).not.toHaveBeenCalled();
-  clock.advance(100);
-  expect(terminal).toHaveBeenCalledExactlyOnceWith(
-    expect.objectContaining({ outcome: "completed" }),
-  );
-  authority.disposeInternalV1();
-});
-
-it("does not dynamically consult Array.prototype.some after the final guard", () => {
-  const clock = createManualPresentationClockV1();
-  const transitionId = "transition.test.post-guard-array-some";
-  const reconciler = createStageReconcilerV1({
-    clock,
-    catalog: catalogV1(() => definitionV1({ transitionId, acknowledge: true })),
-  });
-  const authority = claimStageAcknowledgedRunAuthorityInternalV1(
-    reconciler,
-    Object.freeze({}),
-  );
-  installPresentationGenerationV1(authority, {
-    target: targetOfV1([showBackV1]),
-    revision: 1,
-    epoch: 0,
-  });
-  const someDescriptor = Reflect.getOwnPropertyDescriptor(Array.prototype, "some");
-  if (someDescriptor === undefined || !("value" in someDescriptor)) {
-    throw new Error("Array.prototype.some descriptor must be available");
-  }
-  const originalSome = someDescriptor.value as typeof Array.prototype.some;
-  let postGuardSomeCalls = 0;
-  const guard = commitGuardV1(() => {
-    const hostileSome = function (
-      this: readonly unknown[],
-      callback: (value: unknown, index: number, array: readonly unknown[]) => unknown,
-      thisArg?: unknown,
-    ): boolean {
-      postGuardSomeCalls += 1;
-      return Reflect.apply(originalSome, this, [callback, thisArg]);
-    } as typeof Array.prototype.some;
-    Reflect.defineProperty(Array.prototype, "some", {
-      ...someDescriptor,
-      value: hostileSome,
-    });
-    return true;
-  });
-
-  let result: StageAcknowledgedRunRetargetResultInternalV1;
-  try {
-    result = acknowledgedRetargetV1(authority, {
-      target: targetOfV1([{ ...showBackV1, contentId: "content.test.b" }]),
-      revision: 2,
-      expectedTransitionId: transitionId,
-      commitGuard: guard,
-    });
-  } finally {
-    Reflect.defineProperty(Array.prototype, "some", someDescriptor);
-  }
-
-  expect(result!.kind).toBe("armed");
-  expect(postGuardSomeCalls).toBe(0);
-  expect(reconciler.frame().layers[0]?.entries[0]?.entry.contentId).toBe(
-    "content.test.b",
-  );
-  authority.disposeInternalV1();
-});
-
-it("does not leak an acknowledged proof through a planning-time WeakMap.set replacement", () => {
-  const clock = createManualPresentationClockV1();
-  const transitionId = "transition.test.planning-weak-map-set";
-  let replaceWeakMapSetDuringPlan = false;
-  let weakMapSetDescriptor:
-    | PropertyDescriptor
-    | undefined;
-  const leakedWeakMapWrites: Array<readonly [object, unknown]> = [];
-  const reconciler = createStageReconcilerV1({
-    clock,
-    catalog: catalogV1(() => {
-      if (replaceWeakMapSetDuringPlan) {
-        weakMapSetDescriptor = Reflect.getOwnPropertyDescriptor(
-          WeakMap.prototype,
-          "set",
-        );
-        if (weakMapSetDescriptor === undefined || !("value" in weakMapSetDescriptor)) {
-          throw new Error("WeakMap.prototype.set descriptor must be available");
-        }
-        const hostileSet = function (
-          this: WeakMap<object, unknown>,
-          key: object,
-          value: unknown,
-        ): WeakMap<object, unknown> {
-          leakedWeakMapWrites.push([key, value]);
-          return this;
-        } as typeof WeakMap.prototype.set;
-        Reflect.defineProperty(WeakMap.prototype, "set", {
-          ...weakMapSetDescriptor,
-          value: hostileSet,
-        });
-      }
-      return definitionV1({ transitionId, acknowledge: true });
-    }),
-  });
-  const authority = claimStageAcknowledgedRunAuthorityInternalV1(
-    reconciler,
-    Object.freeze({}),
-  );
-  installPresentationGenerationV1(authority, {
-    target: targetOfV1([showBackV1]),
-    revision: 1,
-    epoch: 0,
-  });
-  const before = reconciler.frame();
-  const terminal = vi.fn();
-  let notificationCount = 0;
-  const unsubscribe = reconciler.subscribe(() => {
-    notificationCount += 1;
-  });
-  replaceWeakMapSetDuringPlan = true;
-
-  let result: StageAcknowledgedRunRetargetResultInternalV1;
-  try {
-    result = acknowledgedRetargetV1(authority, {
-      target: targetOfV1([{ ...showBackV1, contentId: "content.test.b" }]),
-      revision: 2,
-      expectedTransitionId: transitionId,
-      commitGuard: commitGuardV1(() => false),
-      terminalPort: terminalPortV1((input) => terminal(input)),
-    });
-  } finally {
-    if (weakMapSetDescriptor !== undefined) {
-      Reflect.defineProperty(WeakMap.prototype, "set", weakMapSetDescriptor);
-    }
-  }
-
-  expect(result!).toEqual({ kind: "stale", proof: null });
-  expect(leakedWeakMapWrites).toEqual([]);
-  expect(terminal).not.toHaveBeenCalled();
-  expect(notificationCount).toBe(0);
-  expect(reconciler.frame()).toEqual(before);
-  unsubscribe();
-  authority.disposeInternalV1();
-});
 
 it("retains one proof through asset readiness and reports completed or bounded skipped outcomes", () => {
   const clock = createManualPresentationClockV1();

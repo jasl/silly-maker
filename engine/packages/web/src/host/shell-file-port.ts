@@ -15,7 +15,7 @@ export function createShellFilePortV1(input: {
   readonly fetchImpl?: typeof fetch;
 }): HostFilePortV1 {
   const fetchImpl = input.fetchImpl ?? fetch.bind(globalThis);
-  return Object.freeze({
+  return ({
     selectOne: (request: Parameters<HostFilePortV1["selectOne"]>[0]) =>
       input.picker.selectOne(request),
     async download(request: Parameters<HostFilePortV1["download"]>[0]) {

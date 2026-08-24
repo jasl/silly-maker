@@ -1,6 +1,4 @@
 // SPDX-License-Identifier: MIT
-import { isAbsolute, relative, resolve, sep } from "node:path";
-
 import type {
   DeepReadonly,
   ResolvedAssetManifestV1,
@@ -8,30 +6,18 @@ import type {
 
 import { readRuntimeImageMetadataV1 } from "./runtime-image-metadata.mts";
 
-type AllowedRuntimeRootV1 = "assets/";
-
-type CanonicalRootResultV1 =
-  | { readonly kind: "valid"; readonly path: string }
-  | { readonly kind: "missing" }
-  | { readonly kind: "escape" };
-
 /**
- * Validation environment rooted at one application project directory:
- * runtimePaths are app-root-relative (`assets/…`), so the same declaration
- * verifies in-repository and in an external checkout.
+ * Runtime paths are already admitted as application-root-relative `assets/…`
+ * names. The owning Host decides how those names map to its filesystem.
  */
 export interface RuntimeAssetValidationEnvironmentV1 {
-  /** The application root the manifest's runtimePaths resolve against. */
-  readonly repositoryRoot: string;
   readFile(appRelativePath: string): Promise<Uint8Array>;
-  realpath(appRelativePath: string): Promise<string>;
 }
 
 export interface RuntimeAssetValidationErrorV1 {
   readonly assetId: string;
   readonly code:
     | "asset.runtime_path_unsafe"
-    | "asset.runtime_path_escape"
     | "asset.runtime_file_missing"
     | "asset.runtime_media_mismatch"
     | "asset.runtime_dimensions_mismatch";
@@ -41,53 +27,37 @@ export interface RuntimeAssetValidationErrorV1 {
  * Runtime assets live under the application project's own `assets/`
  * directory and are addressed app-root-relative.
  */
-function declaredRuntimeRootV1(runtimePath: string): AllowedRuntimeRootV1 | undefined {
+function hasDeclaredRuntimeRootV1(runtimePath: string): boolean {
   const segments = runtimePath.split("/");
-  return segments[0] === "assets" && segments.length >= 2 ? "assets/" : undefined;
+  return segments[0] === "assets" && segments.length >= 2;
 }
 
-function safeRuntimePathV1(runtimePath: string): AllowedRuntimeRootV1 | undefined {
+function safeRuntimePathV1(runtimePath: string): boolean {
   if (
     runtimePath.length === 0 ||
-    isAbsolute(runtimePath) ||
+    runtimePath.startsWith("/") ||
     runtimePath.includes("\\") ||
     runtimePath.includes("?") ||
     runtimePath.includes("#") ||
     runtimePath.includes("\0") ||
     /%(?:00|23|25|2e|2f|3f|5c)/iu.test(runtimePath)
   ) {
-    return undefined;
+    return false;
   }
 
   const segments = runtimePath.split("/");
   if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) {
-    return undefined;
+    return false;
   }
 
-  return declaredRuntimeRootV1(runtimePath);
-}
-
-function strictlyContainedByRootV1(root: string, candidate: string): boolean {
-  const relation = relative(root, candidate);
-  return (
-    relation !== "" &&
-    relation !== ".." &&
-    !relation.startsWith(`..${sep}`) &&
-    !isAbsolute(relation)
-  );
-}
-
-function absoluteRealpathV1(repositoryRoot: string, canonicalPath: string): string {
-  return isAbsolute(canonicalPath)
-    ? resolve(canonicalPath)
-    : resolve(repositoryRoot, canonicalPath);
+  return hasDeclaredRuntimeRootV1(runtimePath);
 }
 
 function validationErrorV1(
   assetId: string,
   code: RuntimeAssetValidationErrorV1["code"],
 ): RuntimeAssetValidationErrorV1 {
-  return Object.freeze({ assetId, code });
+  return { assetId, code };
 }
 
 export async function validateRuntimeAssetManifestV1(
@@ -95,90 +65,12 @@ export async function validateRuntimeAssetManifestV1(
   environment: RuntimeAssetValidationEnvironmentV1,
 ): Promise<{ readonly errors: readonly RuntimeAssetValidationErrorV1[] }> {
   const errors: RuntimeAssetValidationErrorV1[] = [];
-  const repositoryRoot = resolve(environment.repositoryRoot);
-  let canonicalRepositoryRootPromise: Promise<CanonicalRootResultV1> | undefined;
-  const canonicalAllowedRootPromises = new Map<
-    AllowedRuntimeRootV1,
-    Promise<CanonicalRootResultV1>
-  >();
-
-  const canonicalRepositoryRootV1 = (): Promise<CanonicalRootResultV1> => {
-    canonicalRepositoryRootPromise ??= (async () => {
-      try {
-        const repositoryRealpath = await environment.realpath(".");
-        return Object.freeze({
-          kind: "valid" as const,
-          path: absoluteRealpathV1(repositoryRoot, repositoryRealpath),
-        });
-      } catch {
-        return Object.freeze({ kind: "missing" as const });
-      }
-    })();
-    return canonicalRepositoryRootPromise;
-  };
-
-  const canonicalAllowedRootV1 = (
-    declaredRoot: AllowedRuntimeRootV1,
-  ): Promise<CanonicalRootResultV1> => {
-    const cached = canonicalAllowedRootPromises.get(declaredRoot);
-    if (cached) return cached;
-
-    const pending = (async (): Promise<CanonicalRootResultV1> => {
-      const canonicalRepositoryRoot = await canonicalRepositoryRootV1();
-      if (canonicalRepositoryRoot.kind !== "valid") return canonicalRepositoryRoot;
-
-      let allowedRootRealpath: string;
-      try {
-        allowedRootRealpath = await environment.realpath(declaredRoot.slice(0, -1));
-      } catch {
-        return Object.freeze({ kind: "missing" as const });
-      }
-
-      const canonicalAllowedRoot = absoluteRealpathV1(repositoryRoot, allowedRootRealpath);
-      if (!strictlyContainedByRootV1(canonicalRepositoryRoot.path, canonicalAllowedRoot)) {
-        return Object.freeze({ kind: "escape" as const });
-      }
-      return Object.freeze({ kind: "valid" as const, path: canonicalAllowedRoot });
-    })();
-    canonicalAllowedRootPromises.set(declaredRoot, pending);
-    return pending;
-  };
 
   for (const asset of manifest.assets) {
     if (asset.delivery !== "runtime_image") continue;
 
-    const declaredRoot = safeRuntimePathV1(asset.runtimePath);
-    if (!declaredRoot) {
+    if (!safeRuntimePathV1(asset.runtimePath)) {
       errors.push(validationErrorV1(asset.assetId, "asset.runtime_path_unsafe"));
-      continue;
-    }
-
-    const canonicalDeclaredRoot = await canonicalAllowedRootV1(declaredRoot);
-    if (canonicalDeclaredRoot.kind !== "valid") {
-      errors.push(
-        validationErrorV1(
-          asset.assetId,
-          canonicalDeclaredRoot.kind === "escape"
-            ? "asset.runtime_path_escape"
-            : "asset.runtime_file_missing",
-        ),
-      );
-      continue;
-    }
-
-    let runtimeRealpath: string;
-    try {
-      runtimeRealpath = await environment.realpath(asset.runtimePath);
-    } catch {
-      errors.push(validationErrorV1(asset.assetId, "asset.runtime_file_missing"));
-      continue;
-    }
-
-    const absoluteRuntimeRealpath = isAbsolute(runtimeRealpath)
-      ? resolve(runtimeRealpath)
-      : resolve(repositoryRoot, runtimeRealpath);
-    if (!strictlyContainedByRootV1(canonicalDeclaredRoot.path, absoluteRuntimeRealpath)) {
-      errors.push(validationErrorV1(asset.assetId, "asset.runtime_path_escape"));
       continue;
     }
 
@@ -207,5 +99,5 @@ export async function validateRuntimeAssetManifestV1(
     }
   }
 
-  return Object.freeze({ errors: Object.freeze(errors) });
+  return { errors };
 }

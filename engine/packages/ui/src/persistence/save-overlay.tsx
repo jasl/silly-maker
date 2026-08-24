@@ -581,14 +581,14 @@ function projectPersistenceResultV1(
   switch (result.kind) {
     case "saved":
     case "cleared":
-      return Object.freeze({ kind: result.kind, slotId: result.slotId });
+      return ({ kind: result.kind, slotId: result.slotId });
     case "loaded":
     case "imported":
-      return Object.freeze({ kind: result.kind, compatibility: result.compatibility });
+      return ({ kind: result.kind, compatibility: result.compatibility });
     case "rejected":
-      return Object.freeze({ kind: result.kind, code: result.code });
+      return ({ kind: result.kind, code: result.code });
     case "faulted":
-      return Object.freeze({ kind: result.kind, code: result.code });
+      return ({ kind: result.kind, code: result.code });
     default:
       return unreachableV1(result);
   }
@@ -599,11 +599,11 @@ function projectExportResultV1(
 ): SaveExportOperationViewResultV1 {
   switch (result.kind) {
     case "exported":
-      return Object.freeze({ kind: result.kind, slotId: result.slotId });
+      return ({ kind: result.kind, slotId: result.slotId });
     case "rejected":
-      return Object.freeze({ kind: result.kind, code: result.code });
+      return ({ kind: result.kind, code: result.code });
     case "faulted":
-      return Object.freeze({ kind: result.kind, code: result.code });
+      return ({ kind: result.kind, code: result.code });
     default:
       return unreachableV1(result);
   }
@@ -614,30 +614,30 @@ function projectImportResultV1(
 ):
   | Extract<SaveOperationViewV1, { readonly kind: "persistence_result" }>
   | Extract<SaveOperationViewV1, { readonly kind: "import_file_selection_result" }> {
-  const context = Object.freeze({ kind: "import" as const });
+  const context = { kind: "import" as const };
   if (result.kind === "cancelled") {
-    return Object.freeze({
+    return ({
       kind: "import_file_selection_result",
-      result: Object.freeze({ kind: "cancelled" }),
+      result: { kind: "cancelled" },
     });
   }
   if (result.kind === "rejected") {
     switch (result.code) {
       case "too_large":
       case "unsupported_type":
-        return Object.freeze({
+        return ({
           kind: "import_file_selection_result",
-          result: Object.freeze({ kind: "rejected", code: result.code }),
+          result: { kind: "rejected", code: result.code },
         });
       default:
-        return Object.freeze({
+        return ({
           kind: "persistence_result",
           context,
-          result: Object.freeze({ kind: "rejected", code: result.code }),
+          result: { kind: "rejected", code: result.code },
         });
     }
   }
-  return Object.freeze({
+  return ({
     kind: "persistence_result",
     context,
     result: projectPersistenceResultV1(result),
@@ -651,9 +651,9 @@ function confirmedContextV1(invocation: ConfirmedSaveOperationV1): SaveOperation
     case "reanchor":
       return invocation;
     case "restore":
-      return Object.freeze({ kind: "restore_backup", slotId: invocation.slotId });
+      return ({ kind: "restore_backup", slotId: invocation.slotId });
     case "discard":
-      return Object.freeze({ kind: "discard_backup", slotId: invocation.slotId });
+      return ({ kind: "discard_backup", slotId: invocation.slotId });
     case "import":
       return invocation;
     default:
@@ -757,7 +757,7 @@ function canExportSlotV1(health: SaveSlotHealthV1 | null): boolean {
   return health === "valid" || health === "recovery_candidate";
 }
 
-const staticGuardPublicationInternalV1 = Object.freeze({});
+const staticGuardPublicationInternalV1 = {};
 
 function subscribeStaticGuardInternalV1(_listener: () => void): () => void {
   return () => undefined;
@@ -770,13 +770,14 @@ function getStaticGuardPublicationInternalV1(): unknown {
 export function SaveOverlayContentInternalV1(
   props: SaveOverlayContentPropsInternalV1,
 ): ReactElement {
-  const [readState, setReadState] = useState<SlotReadStateV1>(() =>
-    Object.freeze({ kind: "loading", slots: null })
-  );
-  const [recoveryBySlot, setRecoveryBySlot] = useState<SlotRecoveryByIdV1>(() => Object.freeze({}));
-  const [operationState, setOperationState] = useState<SaveOperationViewV1>(() =>
-    Object.freeze({ kind: "idle" })
-  );
+  const [readState, setReadState] = useState<SlotReadStateV1>(() => ({
+    kind: "loading",
+    slots: null,
+  }));
+  const [recoveryBySlot, setRecoveryBySlot] = useState<SlotRecoveryByIdV1>(() => ({}));
+  const [operationState, setOperationState] = useState<SaveOperationViewV1>(() => ({
+    kind: "idle",
+  }));
   const mountedRef = useRef(true);
   const readGenerationRef = useRef(0);
   const recoveryGenerationRef = useRef(0);
@@ -808,26 +809,24 @@ export function SaveOverlayContentInternalV1(
     const generation = readGenerationRef.current + 1;
     readGenerationRef.current = generation;
     if (mountedRef.current) {
-      setReadState((previous) =>
-        Object.freeze({
-          kind: "loading",
-          slots: previous.kind === "failed" ? null : previous.slots,
-        })
-      );
+      setReadState((previous) => ({
+        kind: "loading",
+        slots: previous.kind === "failed" ? null : previous.slots,
+      }));
     }
     try {
       const [status, slots] = await Promise.all([props.port.getStatus(), props.port.listSlots()]);
       if (!mountedRef.current || readGenerationRef.current !== generation) return;
       setReadState(
-        Object.freeze({
+        {
           kind: "ready",
           status,
-          slots: Object.freeze([...slots]),
-        }),
+          slots: [...slots],
+        },
       );
     } catch {
       if (!mountedRef.current || readGenerationRef.current !== generation) return;
-      setReadState(Object.freeze({ kind: "failed" }));
+      setReadState({ kind: "failed" });
     }
   }, [props.port]);
 
@@ -846,9 +845,9 @@ export function SaveOverlayContentInternalV1(
       recoveryReadActiveRef.current = true;
       const generation = recoveryGenerationRef.current + 1;
       recoveryGenerationRef.current = generation;
-      setRecoveryBySlot(Object.freeze({
-        [slotId]: Object.freeze({ kind: "pending" as const }),
-      }));
+      setRecoveryBySlot({
+        [slotId]: { kind: "pending" as const },
+      });
       try {
         const [inspection, backup] = await Promise.all([
           recoveryPort.inspectSave(slotId),
@@ -860,23 +859,23 @@ export function SaveOverlayContentInternalV1(
           (inspection.slotId !== null && inspection.slotId !== slotId) ||
           (backup.slotId !== null && backup.slotId !== slotId)
         ) {
-          setRecoveryBySlot(Object.freeze({
-            [slotId]: Object.freeze({ kind: "failed" as const }),
-          }));
+          setRecoveryBySlot({
+            [slotId]: { kind: "failed" as const },
+          });
           return;
         }
-        setRecoveryBySlot(Object.freeze({
-          [slotId]: Object.freeze({
+        setRecoveryBySlot({
+          [slotId]: {
             kind: "ready" as const,
-            value: Object.freeze({ inspection, backup }),
-          }),
-        }));
+            value: { inspection, backup },
+          },
+        });
       } catch {
         if (!mountedRef.current || recoveryGenerationRef.current !== generation) return;
         recoveryReadActiveRef.current = false;
-        setRecoveryBySlot(Object.freeze({
-          [slotId]: Object.freeze({ kind: "failed" as const }),
-        }));
+        setRecoveryBySlot({
+          [slotId]: { kind: "failed" as const },
+        });
       }
     },
     [recoveryLabels, recoveryPort],
@@ -889,10 +888,10 @@ export function SaveOverlayContentInternalV1(
       if (invalidateSlot !== undefined) {
         recoveryGenerationRef.current += 1;
         setRecoveryBySlot((previous) => {
-          if (invalidateSlot === null) return Object.freeze({});
+          if (invalidateSlot === null) return ({});
           const next = { ...previous };
           delete next[invalidateSlot];
-          return Object.freeze(next);
+          return next;
         });
       }
       void refresh();
@@ -907,22 +906,22 @@ export function SaveOverlayContentInternalV1(
     ): Promise<PersistenceOperationResultV1 | null> => {
       if (operationActiveRef.current) return null;
       operationActiveRef.current = true;
-      if (mountedRef.current) setOperationState(Object.freeze({ kind: "pending", context }));
+      if (mountedRef.current) setOperationState({ kind: "pending", context });
       try {
         const result = await operation();
         if (mountedRef.current) {
           setOperationState(
-            Object.freeze({
+            {
               kind: "persistence_result",
               context,
               result: projectPersistenceResultV1(result),
-            }),
+            },
           );
         }
         return result;
       } catch {
         if (mountedRef.current) {
-          setOperationState(Object.freeze({ kind: "unexpected_failure" }));
+          setOperationState({ kind: "unexpected_failure" });
         }
         throw new Error("ui.persistence_operation_threw");
       } finally {
@@ -938,21 +937,21 @@ export function SaveOverlayContentInternalV1(
     ): Promise<void> => {
       if (operationActiveRef.current) return;
       operationActiveRef.current = true;
-      if (mountedRef.current) setOperationState(Object.freeze({ kind: "pending", context }));
+      if (mountedRef.current) setOperationState({ kind: "pending", context });
       try {
         const result = await props.port.exportSave(context.slotId);
         if (mountedRef.current) {
           setOperationState(
-            Object.freeze({
+            {
               kind: "export_result",
               context,
               result: projectExportResultV1(result),
-            }),
+            },
           );
         }
       } catch {
         if (mountedRef.current) {
-          setOperationState(Object.freeze({ kind: "unexpected_failure" }));
+          setOperationState({ kind: "unexpected_failure" });
         }
       } finally {
         finishOperationV1();
@@ -964,13 +963,13 @@ export function SaveOverlayContentInternalV1(
   const runCurrentExportV1 = useCallback(async (): Promise<void> => {
     if (operationActiveRef.current) return;
     operationActiveRef.current = true;
-    const context = Object.freeze({ kind: "export_current" as const });
-    if (mountedRef.current) setOperationState(Object.freeze({ kind: "pending", context }));
+    const context = { kind: "export_current" as const };
+    if (mountedRef.current) setOperationState({ kind: "pending", context });
     try {
       await props.port.exportCurrentSave();
-      if (mountedRef.current) setOperationState(Object.freeze({ kind: "current_exported" }));
+      if (mountedRef.current) setOperationState({ kind: "current_exported" });
     } catch {
-      if (mountedRef.current) setOperationState(Object.freeze({ kind: "unexpected_failure" }));
+      if (mountedRef.current) setOperationState({ kind: "unexpected_failure" });
     } finally {
       finishOperationV1();
     }
@@ -987,7 +986,7 @@ export function SaveOverlayContentInternalV1(
     ): Promise<void> => {
       if (operationActiveRef.current || recoveryLabels === undefined) return;
       operationActiveRef.current = true;
-      if (mountedRef.current) setOperationState(Object.freeze({ kind: "pending", context }));
+      if (mountedRef.current) setOperationState({ kind: "pending", context });
       try {
         const result = await operation();
         if (!mountedRef.current) return;
@@ -1010,13 +1009,13 @@ export function SaveOverlayContentInternalV1(
             context.kind === "restore_backup" ? "restore" : "discard",
             context.slotId,
           );
-        setOperationState(Object.freeze({ kind: "recovery_result", text }));
+        setOperationState({ kind: "recovery_result", text });
       } catch {
         if (mountedRef.current) {
-          setOperationState(Object.freeze({
+          setOperationState({
             kind: "recovery_result",
             text: recoveryLabels.operation.faulted,
-          }));
+          });
         }
       } finally {
         finishOperationV1(context.kind === "export_backup" ? undefined : context.slotId);
@@ -1027,12 +1026,12 @@ export function SaveOverlayContentInternalV1(
 
   const requestConfirmedOperationV1 = useCallback(
     (invocation: ConfirmedSaveOperationV1): void => {
-      const exactInvocation = Object.freeze(invocation);
+      const exactInvocation = invocation;
       const context = confirmedContextV1(exactInvocation);
-      const operationToken = Object.freeze({});
+      const operationToken = {};
       let resultDelivered = false;
 
-      const operationBinding = Object.freeze({
+      const operationBinding = ({
         async dispatch(
           dispatchedInvocation: DeepReadonly<ConfirmedSaveOperationV1>,
         ) {
@@ -1051,46 +1050,46 @@ export function SaveOverlayContentInternalV1(
           operationActiveRef.current = true;
           confirmedOperationTokenRef.current = operationToken;
           if (mountedRef.current) {
-            setOperationState(Object.freeze({ kind: "pending", context }));
+            setOperationState({ kind: "pending", context });
           }
 
           switch (exactInvocation.kind) {
             case "load": {
               const result = await props.port.load(exactInvocation.slotId);
               return result.kind === "loaded"
-                ? Object.freeze({ kind: "successor" as const })
-                : Object.freeze({ kind: "retain_root" as const, result });
+                ? ({ kind: "successor" as const })
+                : ({ kind: "retain_root" as const, result });
             }
             case "clear": {
               const result = await props.port.clear(exactInvocation.slotId);
-              return Object.freeze({ kind: "retain_root" as const, result });
+              return ({ kind: "retain_root" as const, result });
             }
             case "import": {
               const result = await props.port.importSave();
               return result.kind === "imported"
-                ? Object.freeze({ kind: "successor" as const })
-                : Object.freeze({ kind: "retain_root" as const, result });
+                ? ({ kind: "successor" as const })
+                : ({ kind: "retain_root" as const, result });
             }
             case "reanchor": {
               if (recoveryPort === undefined) {
                 throw new TypeError("ui.save_overlay_recovery_port_unavailable");
               }
               const result = await recoveryPort.reanchorSave(exactInvocation.slotId);
-              return Object.freeze({ kind: "retain_root" as const, result });
+              return ({ kind: "retain_root" as const, result });
             }
             case "restore": {
               if (recoveryPort === undefined) {
                 throw new TypeError("ui.save_overlay_recovery_port_unavailable");
               }
               const result = await recoveryPort.restoreBackup(exactInvocation.slotId);
-              return Object.freeze({ kind: "retain_root" as const, result });
+              return ({ kind: "retain_root" as const, result });
             }
             case "discard": {
               if (recoveryPort === undefined) {
                 throw new TypeError("ui.save_overlay_recovery_port_unavailable");
               }
               const result = await recoveryPort.discardBackup(exactInvocation.slotId);
-              return Object.freeze({ kind: "retain_root" as const, result });
+              return ({ kind: "retain_root" as const, result });
             }
             default:
               return unreachableV1(exactInvocation);
@@ -1104,7 +1103,7 @@ export function SaveOverlayContentInternalV1(
 
           if (delivery.kind === "faulted") {
             resultDelivered = true;
-            setOperationState(Object.freeze({ kind: "unexpected_failure" }));
+            setOperationState({ kind: "unexpected_failure" });
             return;
           }
 
@@ -1113,20 +1112,20 @@ export function SaveOverlayContentInternalV1(
               case "load":
               case "clear":
                 setOperationState(
-                  Object.freeze({
+                  {
                     kind: "persistence_result",
                     context: exactInvocation,
                     result: projectPersistenceResultV1(
                       delivery.result as PersistenceOperationResultV1,
                     ),
-                  }),
+                  },
                 );
                 break;
               case "import":
                 setOperationState(projectImportResultV1(delivery.result as SaveUiImportResultV1));
                 break;
               case "reanchor":
-                setOperationState(Object.freeze({
+                setOperationState({
                   kind: "recovery_result",
                   text: rewriteResultTextV1(
                     delivery.result as SaveRewriteOperationResultV1,
@@ -1134,11 +1133,11 @@ export function SaveOverlayContentInternalV1(
                     "reanchor",
                     exactInvocation.slotId,
                   ),
-                }));
+                });
                 break;
               case "restore":
               case "discard":
-                setOperationState(Object.freeze({
+                setOperationState({
                   kind: "recovery_result",
                   text: backupResultTextV1(
                     delivery.result as SaveBackupOperationResultV1,
@@ -1146,7 +1145,7 @@ export function SaveOverlayContentInternalV1(
                     exactInvocation.kind,
                     exactInvocation.slotId,
                   ),
-                }));
+                });
                 break;
               default:
                 unreachableV1(exactInvocation);
@@ -1154,7 +1153,7 @@ export function SaveOverlayContentInternalV1(
             resultDelivered = true;
           } catch {
             resultDelivered = true;
-            setOperationState(Object.freeze({ kind: "unexpected_failure" }));
+            setOperationState({ kind: "unexpected_failure" });
             throw new TypeError("ui.save_overlay_operation_result_invalid");
           }
         },
@@ -1167,7 +1166,7 @@ export function SaveOverlayContentInternalV1(
           if (!resultDelivered) {
             setOperationState((previous) =>
               previous.kind === "pending" && previous.context === context
-                ? Object.freeze({ kind: "idle" })
+                ? ({ kind: "idle" })
                 : previous
             );
           }
@@ -1176,7 +1175,7 @@ export function SaveOverlayContentInternalV1(
       }) satisfies SystemDialogConfirmationOperationBindingInternalV1;
 
       props.confirmationIntent.requestConfirmationInternalV1(
-        Object.freeze({ invocation: exactInvocation, operationBinding }),
+        { invocation: exactInvocation, operationBinding },
       );
     },
     [finishOperationV1, props.confirmationIntent, props.labels, props.port, recoveryPort],
@@ -1264,7 +1263,7 @@ export function SaveOverlayContentInternalV1(
                     disabled={!writeOperationsEnabled}
                     onClick={() =>
                       void runPersistenceOperationV1(
-                        Object.freeze({ kind: "save", slotId: writableSlotId }),
+                        { kind: "save", slotId: writableSlotId },
                         () => props.port.save(writableSlotId),
                       ).catch(() => undefined)}
                   >
@@ -1273,22 +1272,19 @@ export function SaveOverlayContentInternalV1(
                 )}
                 <Button
                   disabled={!storageOperationsEnabled || !canLoadSlotV1(health)}
-                  onClick={() =>
-                    requestConfirmedOperationV1(Object.freeze({ kind: "load", slotId }))}
+                  onClick={() => requestConfirmedOperationV1({ kind: "load", slotId })}
                 >
                   {props.labels.loadSlot(slotName)}
                 </Button>
                 <Button
                   disabled={!storageOperationsEnabled || !canClearSlotV1(health)}
-                  onClick={() =>
-                    requestConfirmedOperationV1(Object.freeze({ kind: "clear", slotId }))}
+                  onClick={() => requestConfirmedOperationV1({ kind: "clear", slotId })}
                 >
                   {props.labels.clearSlot(slotName)}
                 </Button>
                 <Button
                   disabled={!storageOperationsEnabled || !canExportSlotV1(health)}
-                  onClick={() =>
-                    void runExportOperationV1(Object.freeze({ kind: "export", slotId }))}
+                  onClick={() => void runExportOperationV1({ kind: "export", slotId })}
                 >
                   {props.labels.exportSlot(slotName)}
                 </Button>
@@ -1348,7 +1344,7 @@ export function SaveOverlayContentInternalV1(
                               disabled={!storageOperationsEnabled}
                               onClick={() =>
                                 void runRecoveryOperationV1(
-                                  Object.freeze({ kind: "upgrade", slotId }),
+                                  { kind: "upgrade", slotId },
                                   () => recoveryPort.upgradeSave(slotId),
                                 )}
                             >
@@ -1361,7 +1357,7 @@ export function SaveOverlayContentInternalV1(
                               disabled={!storageOperationsEnabled}
                               onClick={() =>
                                 requestConfirmedOperationV1(
-                                  Object.freeze({ kind: "reanchor", slotId }),
+                                  { kind: "reanchor", slotId },
                                 )}
                             >
                               {recoveryLabels.action.reanchor}
@@ -1374,7 +1370,7 @@ export function SaveOverlayContentInternalV1(
                                 disabled={!storageOperationsEnabled}
                                 onClick={() =>
                                   requestConfirmedOperationV1(
-                                    Object.freeze({ kind: "restore", slotId }),
+                                    { kind: "restore", slotId },
                                   )}
                               >
                                 {recoveryLabels.action.restore}
@@ -1384,7 +1380,7 @@ export function SaveOverlayContentInternalV1(
                                 disabled={!storageOperationsEnabled}
                                 onClick={() =>
                                   void runRecoveryOperationV1(
-                                    Object.freeze({ kind: "export_backup", slotId }),
+                                    { kind: "export_backup", slotId },
                                     () => recoveryPort.exportBackup(slotId),
                                   )}
                               >
@@ -1398,7 +1394,7 @@ export function SaveOverlayContentInternalV1(
                               disabled={!storageOperationsEnabled}
                               onClick={() =>
                                 requestConfirmedOperationV1(
-                                  Object.freeze({ kind: "discard", slotId }),
+                                  { kind: "discard", slotId },
                                 )}
                             >
                               {recoveryLabels.action.discard}
@@ -1416,7 +1412,7 @@ export function SaveOverlayContentInternalV1(
       <div className={styles["save-overlay__global-actions"]}>
         <Button
           disabled={!storageOperationsEnabled}
-          onClick={() => requestConfirmedOperationV1(Object.freeze({ kind: "import" }))}
+          onClick={() => requestConfirmedOperationV1({ kind: "import" })}
         >
           {props.labels.importSave}
         </Button>

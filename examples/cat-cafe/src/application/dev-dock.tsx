@@ -26,27 +26,27 @@ async function executeV1(
 ): Promise<DebugToolsOperationResultV1<DebugCommandOperationResultV1>> {
   const debugControl = instance.admin.debugControl;
   if (debugControl === undefined) {
-    return Object.freeze({ kind: "rejected" as const, message: "debug control unavailable" });
+    return ({ kind: "rejected" as const, message: "debug control unavailable" });
   }
   // The panel renders only inside the capability-gated DevDock.
   const result = await debugControl.execute(command, () => true);
   switch (result.kind) {
     case "executed":
       return result.attempt.result.kind === "committed"
-        ? Object.freeze({ kind: "handled" as const, message: "committed" })
-        : Object.freeze({
+        ? ({ kind: "handled" as const, message: "committed" })
+        : ({
           kind: "rejected" as const,
           message: JSON.stringify(result.attempt.result.kind),
         });
     case "validation_failed":
-      return Object.freeze({
+      return ({
         kind: "rejected" as const,
         message: result.errors.map((error) => error.code).join(", "),
       });
     case "capability_disabled":
-      return Object.freeze({ kind: "capability_disabled" as const });
+      return ({ kind: "capability_disabled" as const });
     case "not_executed":
-      return Object.freeze({ kind: "rejected" as const, message: result.code });
+      return ({ kind: "rejected" as const, message: result.code });
     default: {
       const exhaustive: never = result;
       throw new TypeError(`unknown debug result ${String(exhaustive)}`);
@@ -169,9 +169,9 @@ export function createCatcafeDevDockContributionsV1(input: {
   readonly playerProfile: PlayerProfileStoreV1;
   readonly registry: CatcafeAssetRegistryV1 | null;
 }): DevDockContributionSetV1 {
-  return Object.freeze({
-    panels: Object.freeze([
-      Object.freeze({
+  return ({
+    panels: [
+      {
         id: "catcafe.narrative-preview",
         side: "right" as const,
         title: "剧情预览",
@@ -182,8 +182,8 @@ export function createCatcafeDevDockContributionsV1(input: {
             registry={input.registry}
           />
         ),
-      }),
-      Object.freeze({
+      },
+      {
         id: "catcafe.tuning",
         side: "right" as const,
         title: "作弊",
@@ -195,7 +195,7 @@ export function createCatcafeDevDockContributionsV1(input: {
             <ForceEncounterFormV1 instance={input.instance} />
           </div>
         ),
-      }),
-    ]),
+      },
+    ],
   });
 }

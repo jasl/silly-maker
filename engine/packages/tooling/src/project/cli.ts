@@ -93,7 +93,7 @@ function parseArgsV1(argv: readonly string[]): ParsedArgsV1 | null {
       diffAfterPath: afterPath,
       smoke: false,
       noMinify: false,
-      targets: Object.freeze([]),
+      targets: [],
     };
   }
   let scenario: string | undefined;
@@ -146,7 +146,7 @@ function parseArgsV1(argv: readonly string[]): ParsedArgsV1 | null {
           .map((path) => path.trim())
           .filter((path) => path.length > 0);
         if (paths.length === 0) return null;
-        trace = Object.freeze(paths);
+        trace = paths;
       } else if (flag === "--profile") {
         if (value !== "release" && value !== "debug") return null;
         profile = value;
@@ -172,7 +172,7 @@ function parseArgsV1(argv: readonly string[]): ParsedArgsV1 | null {
     ...(profile === undefined ? {} : { profile }),
     ...(sourcemap === undefined ? {} : { sourcemap }),
     noMinify,
-    targets: Object.freeze(targets),
+    targets,
     ...(compress === undefined ? {} : { compress }),
   };
 }
@@ -218,15 +218,15 @@ function createNodeRunnerV1(): ProjectCommandRunnerV1 {
       }),
     start(command, args, options) {
       const child = spawn(command, [...args], { cwd: options.cwd, stdio: "ignore" });
-      return Object.freeze({
+      return {
         kill: () => {
           child.kill();
         },
-      });
+      };
     },
     fetchText: async (url) => {
       const response = await fetch(url);
-      return Object.freeze({ status: response.status, body: await response.text() });
+      return { status: response.status, body: await response.text() };
     },
     sleep: (milliseconds) => sleep(milliseconds),
     readFile: (path) => readFile(path, "utf8"),
@@ -256,7 +256,7 @@ function createNodeRunnerV1(): ProjectCommandRunnerV1 {
       await rm(path, { recursive: true, force: true });
     },
   };
-  return Object.freeze(runner);
+  return runner;
 }
 
 function reportCliErrorV1(input: ProjectCliInputV1, error: unknown): 1 {

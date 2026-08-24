@@ -14,10 +14,10 @@ function rejectedV1(
   code: SceneAuthoringDiagnosticCodeV1,
   path: string,
 ): SceneAuthoringExecutionResultV1 {
-  return Object.freeze({
+  return {
     kind: "rejected",
-    diagnostic: Object.freeze({ code, path }),
-  });
+    diagnostic: { code, path },
+  };
 }
 
 function unreachableV1(value: never): never {
@@ -33,7 +33,7 @@ function unreachableV1(value: never): never {
 export function createSceneAuthoringOperationExecutorV1(
   session: AuthoringDocumentSessionV1<SceneDocumentV1>,
 ): SceneAuthoringOperationExecutorV1 {
-  return Object.freeze({
+  return {
     execute(envelope: SceneAuthoringExecutionEnvelopeV1): SceneAuthoringExecutionResultV1 {
       const current = session.getSnapshot();
       if (current.documentIdentity === null || current.draft === null) {
@@ -57,11 +57,11 @@ export function createSceneAuthoringOperationExecutorV1(
       });
       switch (replaced.kind) {
         case "ok":
-          return Object.freeze({
+          return {
             kind: "applied",
             documentIdentity: envelope.documentIdentity,
             draftRevision: replaced.draftRevision,
-          });
+          };
         case "stale_document":
           return rejectedV1("scene_authoring.document_stale", "/envelope/documentIdentity");
         case "stale_revision":
@@ -76,5 +76,5 @@ export function createSceneAuthoringOperationExecutorV1(
       }
       return unreachableV1(replaced);
     },
-  });
+  };
 }

@@ -47,18 +47,6 @@ export type WireCommitResultV1 =
     readonly actualRevision: number | null;
   };
 
-export type RecordFileStorePhaseInternalV1 =
-  | { readonly kind: "between_checks_and_writes" }
-  | {
-    readonly kind: "between_mutations";
-    readonly completedMutationCount: number;
-    readonly remainingMutationCount: number;
-  };
-
-export interface RecordFileStorePhaseObserverInternalV1 {
-  reached(point: RecordFileStorePhaseInternalV1): void | Promise<void>;
-}
-
 const namespacesV1 = new Set(["save", "lease", "settings"]);
 const base64PatternV1 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u;
 
@@ -105,11 +93,7 @@ function requireBase64V1(value: unknown): string {
   return value;
 }
 
-function freezeRecordV1(record: StoredWireRecordV1): StoredWireRecordV1 {
-  return Object.freeze({ ...record });
-}
-
-/** Validates and freezes the JSON wire mutations before any storage access. */
+/** Validates and normalizes the JSON wire mutations before any storage access. */
 export function parseWireMutationsV1(value: unknown): readonly WireMutationV1[] {
   if (!Array.isArray(value) || value.length === 0) {
     throw new TypeError("Host record commit requires mutations");
@@ -118,28 +102,26 @@ export function parseWireMutationsV1(value: unknown): readonly WireMutationV1[] 
     if (typeof mutation !== "object" || mutation === null) {
       throw new TypeError("invalid Host record mutation");
     }
-    const namespace = requireNamespaceV1(Reflect.get(mutation, "namespace"));
-    const key = requireKeyV1(Reflect.get(mutation, "key"));
-    const kind = Reflect.get(mutation, "kind");
+    const record = mutation as Record<string, unknown>;
+    const namespace = requireNamespaceV1(record.namespace);
+    const key = requireKeyV1(record.key);
+    const kind = record.kind;
     if (kind === "put") {
-      return Object.freeze({
+      return {
         kind: "put",
         namespace,
         key,
-        expectedRevision: requireRevisionV1(Reflect.get(mutation, "expectedRevision"), true),
-        bytesBase64: requireBase64V1(Reflect.get(mutation, "bytesBase64")),
-      });
+        expectedRevision: requireRevisionV1(record.expectedRevision, true),
+        bytesBase64: requireBase64V1(record.bytesBase64),
+      };
     }
     if (kind === "delete") {
-      return Object.freeze({
+      return {
         kind: "delete",
         namespace,
         key,
-        expectedRevision: requireRevisionV1(
-          Reflect.get(mutation, "expectedRevision"),
-          false,
-        ) as number,
-      });
+        expectedRevision: requireRevisionV1(record.expectedRevision, false) as number,
+      };
     }
     throw new TypeError("invalid Host record mutation kind");
   });
@@ -147,17 +129,14 @@ export function parseWireMutationsV1(value: unknown): readonly WireMutationV1[] 
   if (new Set(identities).size !== identities.length) {
     throw new TypeError("duplicate Host record mutation");
   }
-  return Object.freeze(normalized);
+  return normalized;
 }
 
 function fileNameV1(key: string): string {
   return `${encodeURIComponent(key)}.json`;
 }
 
-function createRecordFileStoreInternalV1(
-  rootDir: string,
-  phaseObserver: RecordFileStorePhaseObserverInternalV1 | undefined,
-) {
+function createRecordFileStoreInternalV1(rootDir: string) {
   let queue: Promise<unknown> = Promise.resolve();
   const serialize = <T,>(task: () => Promise<T>): Promise<T> => {
     const next = queue.then(task);
@@ -165,23 +144,15 @@ function createRecordFileStoreInternalV1(
     return next;
   };
 
-  const reachPhaseV1 = phaseObserver === undefined
-    ? undefined
-    : async (point: RecordFileStorePhaseInternalV1): Promise<void> => {
-      await phaseObserver.reached(Object.freeze(point));
-    };
-
   function directoryFor(namespace: string): string {
-    return join(rootDir, requireNamespaceV1(namespace));
+    return join(rootDir, namespace);
   }
 
   async function readRecord(namespace: string, key: string): Promise<StoredWireRecordV1 | null> {
-    const normalizedNamespace = requireNamespaceV1(namespace);
-    const normalizedKey = requireKeyV1(key);
     let raw: string;
     try {
       raw = await readFile(
-        join(directoryFor(normalizedNamespace), fileNameV1(normalizedKey)),
+        join(directoryFor(namespace), fileNameV1(key)),
         "utf8",
       );
     } catch (error) {
@@ -198,14 +169,15 @@ function createRecordFileStoreInternalV1(
     if (typeof parsed !== "object" || parsed === null) {
       throw new TypeError("desktop Host record has an invalid shape");
     }
-    const revision = requireRevisionV1(Reflect.get(parsed, "revision"), false) as number;
-    const bytesBase64 = requireBase64V1(Reflect.get(parsed, "bytesBase64"));
-    return freezeRecordV1({
-      namespace: normalizedNamespace,
-      key: normalizedKey,
+    const record = parsed as Record<string, unknown>;
+    const revision = requireRevisionV1(record.revision, false) as number;
+    const bytesBase64 = requireBase64V1(record.bytesBase64);
+    return {
+      namespace,
+      key,
       revision,
       bytesBase64,
-    });
+    };
   }
 
   async function writeRecord(record: StoredWireRecordV1): Promise<void> {
@@ -225,16 +197,15 @@ function createRecordFileStoreInternalV1(
     }
   }
 
-  return Object.freeze({
+  return {
     read: (namespace: string, key: string) => serialize(() => readRecord(namespace, key)),
     list: (namespace: string) =>
       serialize(async (): Promise<readonly StoredWireRecordV1[]> => {
-        const normalizedNamespace = requireNamespaceV1(namespace);
         let names: readonly string[];
         try {
-          names = await readdir(directoryFor(normalizedNamespace));
+          names = await readdir(directoryFor(namespace));
         } catch (error) {
-          if (isMissingFileV1(error)) return Object.freeze([]);
+          if (isMissingFileV1(error)) return [];
           throw error;
         }
         const entries: { readonly name: string; readonly key: string }[] = [];
@@ -248,7 +219,7 @@ function createRecordFileStoreInternalV1(
               cause: error,
             });
           }
-          entries.push(Object.freeze({ name, key: requireKeyV1(key) }));
+          entries.push({ name, key: requireKeyV1(key) });
         }
 
         const namesByKey = new Map<string, string>();
@@ -266,40 +237,36 @@ function createRecordFileStoreInternalV1(
 
         const records: StoredWireRecordV1[] = [];
         for (const { name, key } of entries) {
-          const record = await readRecord(normalizedNamespace, key);
+          const record = await readRecord(namespace, key);
           if (record === null) {
             throw new TypeError(`desktop Host record disappeared during list: ${name}`);
           }
           records.push(record);
         }
-        return Object.freeze(records.toSorted((left, right) => left.key.localeCompare(right.key)));
+        return records.toSorted((left, right) => left.key.localeCompare(right.key));
       }),
     commit: (mutations: readonly WireMutationV1[]) =>
       serialize(async (): Promise<WireCommitResultV1> => {
-        const normalized = parseWireMutationsV1(mutations);
         const previous = new Map<string, StoredWireRecordV1 | null>();
-        for (const mutation of normalized) {
+        for (const mutation of mutations) {
           const id = `${mutation.namespace}\0${mutation.key}`;
           const existing = await readRecord(mutation.namespace, mutation.key);
           previous.set(id, existing);
           const actualRevision = existing?.revision ?? null;
           if (mutation.expectedRevision !== actualRevision) {
-            return Object.freeze({
+            return {
               kind: "conflict",
               namespace: mutation.namespace,
               key: mutation.key,
               actualRevision,
-            });
+            };
           }
-        }
-        if (reachPhaseV1 !== undefined) {
-          await reachPhaseV1({ kind: "between_checks_and_writes" });
         }
 
         const applied: string[] = [];
         const committed: StoredWireRecordV1[] = [];
         try {
-          for (const [index, mutation] of normalized.entries()) {
+          for (const mutation of mutations) {
             const id = `${mutation.namespace}\0${mutation.key}`;
             const existing = previous.get(id) ?? null;
             if (mutation.kind === "put") {
@@ -307,12 +274,12 @@ function createRecordFileStoreInternalV1(
                 (existing?.revision ?? 0) + 1,
                 false,
               ) as number;
-              const next = freezeRecordV1({
+              const next: StoredWireRecordV1 = {
                 namespace: mutation.namespace,
                 key: mutation.key,
                 revision: nextRevision,
                 bytesBase64: mutation.bytesBase64,
-              });
+              };
               await writeRecord(next);
               committed.push(next);
             } else {
@@ -321,14 +288,6 @@ function createRecordFileStoreInternalV1(
               });
             }
             applied.push(id);
-            const completedMutationCount = index + 1;
-            if (reachPhaseV1 !== undefined && completedMutationCount < normalized.length) {
-              await reachPhaseV1({
-                kind: "between_mutations",
-                completedMutationCount,
-                remainingMutationCount: normalized.length - completedMutationCount,
-              });
-            }
           }
         } catch (error) {
           const rollbackFailures: unknown[] = [];
@@ -357,26 +316,14 @@ function createRecordFileStoreInternalV1(
           }
           throw error;
         }
-        return Object.freeze({
+        return {
           kind: "committed",
-          records: Object.freeze(committed),
-        });
+          records: committed,
+        };
       }),
-  });
-}
-
-/**
- * Direct-file-only deterministic test seam. Observers may pause a precise
- * phase or terminate a child process; production callers use the wrapper
- * below, and this seam is absent from package exports.
- */
-export function createInstrumentedRecordFileStoreInternalV1(
-  rootDir: string,
-  phaseObserver: RecordFileStorePhaseObserverInternalV1,
-) {
-  return createRecordFileStoreInternalV1(rootDir, phaseObserver);
+  };
 }
 
 export function createRecordFileStoreV1(rootDir: string) {
-  return createRecordFileStoreInternalV1(rootDir, undefined);
+  return createRecordFileStoreInternalV1(rootDir);
 }

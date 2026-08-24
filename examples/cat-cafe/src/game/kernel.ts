@@ -226,7 +226,7 @@ export const clampV1 = (value: number, min: number, max: number): number =>
   Math.max(min, Math.min(max, value));
 
 export function passthroughSchemaV1<T>(): RuntimeSchemaV1<T> {
-  return Object.freeze({ parse: (value: unknown) => value as T });
+  return ({ parse: (value: unknown) => value as T });
 }
 
 function keysV1(record: Record<string, unknown>): string {
@@ -246,7 +246,7 @@ function parseIntegerV1(value: unknown, label: string): number {
  * folding events that carry already-valid state (calendar/contest/narrative)
  * reuse the slice schemas.
  */
-export const catcafeEventSchemaV1: RuntimeSchemaV1<CatcafeEventV1> = Object.freeze({
+export const catcafeEventSchemaV1: RuntimeSchemaV1<CatcafeEventV1> = {
   parse(value: unknown): CatcafeEventV1 {
     if (value === null || typeof value !== "object" || Array.isArray(value)) {
       throw new TypeError("invalid catcafe event");
@@ -255,7 +255,7 @@ export const catcafeEventSchemaV1: RuntimeSchemaV1<CatcafeEventV1> = Object.free
     switch (record.kind) {
       case "cc.calendar_set": {
         if (keysV1(record) !== "kind\u0000next") throw new TypeError("invalid cc.calendar_set");
-        return Object.freeze({
+        return ({
           kind: record.kind,
           next: catcafeCalendarStateSchemaV1.parse(record.next),
         });
@@ -268,15 +268,15 @@ export const catcafeEventSchemaV1: RuntimeSchemaV1<CatcafeEventV1> = Object.free
           throw new TypeError("invalid cc.cat_set");
         }
         const next = record.next as Record<string, unknown>;
-        return Object.freeze({
+        return ({
           kind: record.kind,
-          next: Object.freeze({
+          next: {
             trust: parseIntegerV1(next.trust, "cat.trust"),
             vigor: parseIntegerV1(next.vigor, "cat.vigor"),
             skill: parseIntegerV1(next.skill, "cat.skill"),
             fishBuff: parseIntegerV1(next.fishBuff, "cat.fishBuff"),
             pettingLeft: parseIntegerV1(next.pettingLeft, "cat.pettingLeft"),
-          }),
+          },
         });
       }
       case "cc.shop_set": {
@@ -290,20 +290,20 @@ export const catcafeEventSchemaV1: RuntimeSchemaV1<CatcafeEventV1> = Object.free
         if (next.epilogue !== null && typeof next.epilogue !== "string") {
           throw new TypeError("invalid cc.shop_set epilogue");
         }
-        return Object.freeze({
+        return ({
           kind: record.kind,
-          next: Object.freeze({
+          next: {
             reputation: parseIntegerV1(next.reputation, "shop.reputation"),
             tidiness: parseIntegerV1(next.tidiness, "shop.tidiness"),
             money: parseIntegerV1(next.money, "shop.money"),
             trophies: parseIntegerV1(next.trophies, "shop.trophies"),
             epilogue: next.epilogue,
-          }),
+          },
         });
       }
       case "cc.contest_set": {
         if (keysV1(record) !== "kind\u0000next") throw new TypeError("invalid cc.contest_set");
-        return Object.freeze({
+        return ({
           kind: record.kind,
           next: catcafeContestStateSchemaV1.parse(record.next),
         });
@@ -312,7 +312,7 @@ export const catcafeEventSchemaV1: RuntimeSchemaV1<CatcafeEventV1> = Object.free
         if (keysV1(record) !== "kind\u0000next") {
           throw new TypeError("invalid cc.narrative_advanced");
         }
-        return Object.freeze({
+        return ({
           kind: record.kind,
           next: catcafeNarrativeStateSchemaV1.parse(record.next),
         });
@@ -321,12 +321,10 @@ export const catcafeEventSchemaV1: RuntimeSchemaV1<CatcafeEventV1> = Object.free
         if (keysV1(record) !== "kind\u0000mutations" || !Array.isArray(record.mutations)) {
           throw new TypeError("invalid cc.stage_changed");
         }
-        return Object.freeze({
+        return ({
           kind: record.kind,
-          mutations: Object.freeze(
-            record.mutations.map((mutation, index) =>
-              parseStageMutation(mutation, `/mutations/${String(index)}`)
-            ),
+          mutations: record.mutations.map((mutation, index) =>
+            parseStageMutation(mutation, `/mutations/${String(index)}`)
           ),
         });
       }
@@ -334,7 +332,7 @@ export const catcafeEventSchemaV1: RuntimeSchemaV1<CatcafeEventV1> = Object.free
         if (keysV1(record) !== "day\u0000kind\u0000slot\u0000week") {
           throw new TypeError("invalid cc.slot_advanced");
         }
-        return Object.freeze({
+        return ({
           kind: record.kind,
           week: parseIntegerV1(record.week, "week"),
           day: parseIntegerV1(record.day, "day"),
@@ -348,7 +346,7 @@ export const catcafeEventSchemaV1: RuntimeSchemaV1<CatcafeEventV1> = Object.free
         ) {
           throw new TypeError("invalid cc.petted");
         }
-        return Object.freeze({
+        return ({
           kind: record.kind,
           zone: record.zone,
           reactionId: record.reactionId,
@@ -359,7 +357,7 @@ export const catcafeEventSchemaV1: RuntimeSchemaV1<CatcafeEventV1> = Object.free
         if (keysV1(record) !== "kind\u0000rivalId" || typeof record.rivalId !== "string") {
           throw new TypeError("invalid cc.contest_started");
         }
-        return Object.freeze({ kind: record.kind, rivalId: record.rivalId });
+        return ({ kind: record.kind, rivalId: record.rivalId });
       }
       case "cc.contest_resolved": {
         if (
@@ -368,7 +366,7 @@ export const catcafeEventSchemaV1: RuntimeSchemaV1<CatcafeEventV1> = Object.free
         ) {
           throw new TypeError("invalid cc.contest_resolved");
         }
-        return Object.freeze({
+        return ({
           kind: record.kind,
           moveId: record.moveId,
           rivalMorale: parseIntegerV1(record.rivalMorale, "rivalMorale"),
@@ -382,7 +380,7 @@ export const catcafeEventSchemaV1: RuntimeSchemaV1<CatcafeEventV1> = Object.free
         ) {
           throw new TypeError("invalid cc.contest_won");
         }
-        return Object.freeze({
+        return ({
           kind: record.kind,
           rivalId: record.rivalId,
           albumId: record.albumId,
@@ -392,19 +390,19 @@ export const catcafeEventSchemaV1: RuntimeSchemaV1<CatcafeEventV1> = Object.free
         if (keysV1(record) !== "kind\u0000rivalId" || typeof record.rivalId !== "string") {
           throw new TypeError("invalid cc.contest_lost");
         }
-        return Object.freeze({ kind: record.kind, rivalId: record.rivalId });
+        return ({ kind: record.kind, rivalId: record.rivalId });
       }
       case "cc.album_unlocked": {
         if (keysV1(record) !== "albumId\u0000kind" || typeof record.albumId !== "string") {
           throw new TypeError("invalid cc.album_unlocked");
         }
-        return Object.freeze({ kind: record.kind, albumId: record.albumId });
+        return ({ kind: record.kind, albumId: record.albumId });
       }
       case "cc.postgame_entered": {
         if (keysV1(record) !== "ending\u0000kind" || typeof record.ending !== "string") {
           throw new TypeError("invalid cc.postgame_entered");
         }
-        return Object.freeze({ kind: record.kind, ending: record.ending });
+        return ({ kind: record.kind, ending: record.ending });
       }
       case "cc.encounter": {
         if (
@@ -417,7 +415,7 @@ export const catcafeEventSchemaV1: RuntimeSchemaV1<CatcafeEventV1> = Object.free
         }
         // The explanation is produced by the engine's own event-pool draw in
         // the same commit; a structural check is sufficient at this boundary.
-        return Object.freeze({
+        return ({
           kind: record.kind,
           encounterId: record.encounterId,
           textId: record.textId,
@@ -431,7 +429,7 @@ export const catcafeEventSchemaV1: RuntimeSchemaV1<CatcafeEventV1> = Object.free
         ) {
           throw new TypeError("invalid cc.interaction_resolved");
         }
-        return Object.freeze({
+        return ({
           kind: record.kind,
           definitionId: record.definitionId,
           occurrenceId: record.occurrenceId,
@@ -441,7 +439,7 @@ export const catcafeEventSchemaV1: RuntimeSchemaV1<CatcafeEventV1> = Object.free
         throw new TypeError("invalid catcafe event kind");
     }
   },
-});
+};
 
 /** Apply content-table effect rows onto the cat/shop drafts; the activity path enables the fresh-fish special case. */
 export function applyStatEffectsV1(
@@ -482,7 +480,7 @@ export function applyStatEffectsV1(
   }
 }
 
-export const commandSchemaV1: RuntimeSchemaV1<CatcafeCommandV1> = Object.freeze({
+export const commandSchemaV1: RuntimeSchemaV1<CatcafeCommandV1> = {
   parse(value: unknown): CatcafeCommandV1 {
     if (value === null || typeof value !== "object" || Array.isArray(value)) {
       throw new TypeError("invalid catcafe command");
@@ -494,7 +492,7 @@ export const commandSchemaV1: RuntimeSchemaV1<CatcafeCommandV1> = Object.freeze(
       if (keys !== "expectedOccurrenceId\u0000kind\u0000resolution") {
         throw new TypeError("invalid catcafe narrative resolve command");
       }
-      return Object.freeze({
+      return ({
         kind,
         expectedOccurrenceId: parseInteractionOccurrenceId(record.expectedOccurrenceId),
         resolution: parseInteractionResolution(record.resolution),
@@ -504,19 +502,19 @@ export const commandSchemaV1: RuntimeSchemaV1<CatcafeCommandV1> = Object.freeze(
       if (keys !== "activityId\u0000kind" || typeof record.activityId !== "string") {
         throw new TypeError("invalid catcafe activity command");
       }
-      return Object.freeze({ kind, activityId: record.activityId });
+      return ({ kind, activityId: record.activityId });
     }
     if (kind === "cc.pet") {
       if (keys !== "kind\u0000zone" || typeof record.zone !== "string") {
         throw new TypeError("invalid catcafe pet command");
       }
-      return Object.freeze({ kind, zone: record.zone });
+      return ({ kind, zone: record.zone });
     }
     if (kind === "cc.contest_move") {
       if (keys !== "kind\u0000moveId" || typeof record.moveId !== "string") {
         throw new TypeError("invalid catcafe contest command");
       }
-      return Object.freeze({ kind, moveId: record.moveId });
+      return ({ kind, moveId: record.moveId });
     }
     if (keys !== "kind") throw new TypeError("invalid catcafe command");
     if (
@@ -527,6 +525,6 @@ export const commandSchemaV1: RuntimeSchemaV1<CatcafeCommandV1> = Object.freeze(
     ) {
       throw new TypeError("invalid catcafe command kind");
     }
-    return Object.freeze({ kind });
+    return ({ kind });
   },
-});
+};

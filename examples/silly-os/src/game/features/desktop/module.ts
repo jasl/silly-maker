@@ -10,11 +10,10 @@ export const desktopModuleV1 = kit.defineStatefulModule({
   state: {
     slot: "simulation.desktop",
     schema: osDesktopStateSchemaV1,
-    initial: (): OsDesktopStateV1 => Object.freeze({ wallpaperId: "teal" }),
+    initial: (): OsDesktopStateV1 => ({ wallpaperId: "teal" }),
   },
   commandSchema: commandSchemaV1,
   reducers: {
-    "os.desktop.wallpaper_changed": (_state, event) =>
-      Object.freeze({ wallpaperId: event.wallpaperId }),
+    "os.desktop.wallpaper_changed": (_state, event) => ({ wallpaperId: event.wallpaperId }),
   },
 });

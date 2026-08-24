@@ -20,7 +20,6 @@ import {
   type ManagedSurfaceTransitionEvidenceV1,
   type ManagedSurfaceTransitionReceiptV1,
 } from "./managed-surface-contracts.ts";
-import { parseManagedSurfaceResolvedDefinitionV1 } from "./managed-surface-definition.ts";
 import { createManagedSurfaceReducerStateV1 } from "./managed-surface-reducer.ts";
 import {
   createManagedSurfaceRuntimeAuthorityBundleInternalV1,
@@ -143,11 +142,11 @@ function handleV1(
   topologyRevision: NonNegativeSafeInteger,
   surfaceInstanceId: ManagedSurfaceInstanceIdV1,
 ): ManagedSurfaceHandleV1 {
-  return Object.freeze({
+  return {
     applicationEpoch,
     topologyRevision,
     surfaceInstanceId,
-  });
+  };
 }
 
 function handleResultV1(
@@ -156,7 +155,7 @@ function handleResultV1(
   activateHandle: boolean,
   readiness: ManagedSurfaceReadinessAdapterV1 | null = null,
 ): ManagedSurfaceHandleResultV1 {
-  return Object.freeze({
+  return {
     receipt,
     handle: activateHandle && receipt.kind === "applied" && receipt.surfaceInstanceId !== undefined
       ? handleV1(
@@ -166,7 +165,7 @@ function handleResultV1(
       )
       : null,
     readiness,
-  });
+  };
 }
 
 export function createManagedSurfaceCoordinatorV1(
@@ -184,11 +183,11 @@ export function createManagedSurfaceCoordinatorRuntimeBundleInternalV1(
   input: CreateManagedSurfaceCoordinatorInputV1,
 ): ManagedSurfaceCoordinatorRuntimeBundleInternalV1 {
   const applicationEpoch = parseNonNegativeSafeInteger(input.applicationEpoch);
-  const subscriberFailureV1 = Object.freeze({
+  const subscriberFailureV1 = {
     code: "surface.subscriber_failed" as const,
     summary: "Managed Surface publication subscriber failed.",
-    details: Object.freeze({ applicationEpoch }) as StrictJsonObjectV1,
-  });
+    details: { applicationEpoch } as StrictJsonObjectV1,
+  };
   const initialState = createManagedSurfaceReducerStateV1(
     applicationEpoch,
     input.resolvedOwnerIds,
@@ -198,10 +197,10 @@ export function createManagedSurfaceCoordinatorRuntimeBundleInternalV1(
     initialState,
     reportSubscriberFailure: () => input.reportSubscriberFailure?.(subscriberFailureV1),
   });
-  return Object.freeze({
+  return {
     authority: runtime.authority,
     coordinator: createManagedSurfaceCoordinatorFacadeInternalV1(runtime.kernel),
-  });
+  };
 }
 
 /** Source-relative façade used by the future composition-owned stable owner. */
@@ -221,7 +220,6 @@ export function createManagedSurfaceCoordinatorFacadeInternalV1<TState>(
   const rejectedReceipt = (
     code:
       | "surface.coordinator_disposed"
-      | "surface.invalid_definition"
       | "surface.owner_disposed"
       | "surface.unknown_owner"
       | "surface.slot_not_resolved"
@@ -229,13 +227,12 @@ export function createManagedSurfaceCoordinatorFacadeInternalV1<TState>(
       | "surface.slot_occupied"
       | "surface.invalid_parent"
       | "surface.invalid_transition",
-  ): ManagedSurfaceTransitionReceiptV1 =>
-    Object.freeze({
-      kind: "rejected",
-      code,
-      beforeTopologyRevision: getState().publication.topologyRevision,
-      afterTopologyRevision: getState().publication.topologyRevision,
-    });
+  ): ManagedSurfaceTransitionReceiptV1 => ({
+    kind: "rejected",
+    code,
+    beforeTopologyRevision: getState().publication.topologyRevision,
+    afterTopologyRevision: getState().publication.topologyRevision,
+  });
 
   const staleReceipt = (
     code:
@@ -244,14 +241,13 @@ export function createManagedSurfaceCoordinatorFacadeInternalV1<TState>(
       | "surface.stale_instance"
       | "surface.stale_readiness",
     surfaceInstanceId: ManagedSurfaceInstanceIdV1,
-  ): ManagedSurfaceTransitionReceiptV1 =>
-    Object.freeze({
-      kind: "stale",
-      code,
-      beforeTopologyRevision: getState().publication.topologyRevision,
-      afterTopologyRevision: getState().publication.topologyRevision,
-      surfaceInstanceId,
-    });
+  ): ManagedSurfaceTransitionReceiptV1 => ({
+    kind: "stale",
+    code,
+    beforeTopologyRevision: getState().publication.topologyRevision,
+    afterTopologyRevision: getState().publication.topologyRevision,
+    surfaceInstanceId,
+  });
 
   const evidenceAdmissionFailure = (
     evidence: ManagedSurfaceHandleV1,
@@ -341,21 +337,11 @@ export function createManagedSurfaceCoordinatorFacadeInternalV1<TState>(
     request: ManagedSurfaceTransientOpenInputV1,
   ): ManagedSurfaceCandidateV1 => runtimeKernel.peekTransientCandidateInternalV1(request);
 
-  const normalizeDefinition = (
-    definition: ManagedSurfaceResolvedDefinitionV1,
-  ): ManagedSurfaceResolvedDefinitionV1 | ManagedSurfaceTransitionReceiptV1 => {
-    try {
-      return parseManagedSurfaceResolvedDefinitionV1(definition);
-    } catch {
-      return rejectedReceipt("surface.invalid_definition");
-    }
-  };
-
   const readinessAdapterV1 = (
     surfaceInstanceId: ManagedSurfaceInstanceIdV1,
   ): ManagedSurfaceReadinessAdapterV1 => {
-    const evidence = Object.freeze({ applicationEpoch, surfaceInstanceId });
-    return Object.freeze({
+    const evidence = { applicationEpoch, surfaceInstanceId };
+    return {
       evidence,
       ready(): ManagedSurfaceHandleResultV1 {
         const receipt = transition({ kind: "readiness_ready", evidence });
@@ -364,7 +350,7 @@ export function createManagedSurfaceCoordinatorFacadeInternalV1<TState>(
       fail(): ManagedSurfaceTransitionReceiptV1 {
         return transition({ kind: "readiness_failed", evidence });
       },
-    });
+    };
   };
 
   const preparationResultV1 = (
@@ -399,21 +385,18 @@ export function createManagedSurfaceCoordinatorFacadeInternalV1<TState>(
           instance.definition.ownerId === ownerId && instance.readiness.kind === "ready",
       );
       return hasLiveInstance
-        ? Object.freeze({
+        ? {
           applicationEpoch,
           topologyRevision: getState().publication.topologyRevision,
           ownerId,
-        })
+        }
         : null;
     },
 
     subscribe: runtimeKernel.subscribeTransientInternalV1,
 
     openTransientPrimary(request) {
-      const definition = normalizeDefinition(request.definition);
-      if ("kind" in definition) {
-        return handleResultV1(applicationEpoch, definition, false);
-      }
+      const definition = request.definition;
       const admissionFailure = candidateAdmissionFailure(definition, "root");
       if (admissionFailure !== null) {
         return handleResultV1(applicationEpoch, admissionFailure, false);
@@ -450,10 +433,7 @@ export function createManagedSurfaceCoordinatorFacadeInternalV1<TState>(
     },
 
     supersedeTransientInitialPreparation(request) {
-      const definition = normalizeDefinition(request.definition);
-      if ("kind" in definition) {
-        return handleResultV1(applicationEpoch, definition, false);
-      }
+      const definition = request.definition;
       const admissionFailure = candidateAdmissionFailure(definition, "root");
       if (admissionFailure !== null) {
         return handleResultV1(applicationEpoch, admissionFailure, false);
@@ -500,10 +480,7 @@ export function createManagedSurfaceCoordinatorFacadeInternalV1<TState>(
     },
 
     replaceTransientPrimary(request) {
-      const definition = normalizeDefinition(request.definition);
-      if ("kind" in definition) {
-        return handleResultV1(applicationEpoch, definition, false);
-      }
+      const definition = request.definition;
       const admissionFailure = candidateAdmissionFailure(definition, "root");
       if (admissionFailure !== null) {
         return handleResultV1(applicationEpoch, admissionFailure, false);
@@ -584,10 +561,7 @@ export function createManagedSurfaceCoordinatorFacadeInternalV1<TState>(
     },
 
     pushTransientChild(request) {
-      const definition = normalizeDefinition(request.definition);
-      if ("kind" in definition) {
-        return handleResultV1(applicationEpoch, definition, false);
-      }
+      const definition = request.definition;
       const admissionFailure = candidateAdmissionFailure(
         definition,
         "child",
@@ -732,5 +706,5 @@ export function createManagedSurfaceCoordinatorFacadeInternalV1<TState>(
     },
   };
 
-  return Object.freeze(coordinator);
+  return coordinator;
 }

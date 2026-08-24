@@ -4,13 +4,13 @@
 export function syntheticSummarizeSaveV1(
   state: Readonly<{ readonly count: number }>,
 ): readonly string[] {
-  return Object.freeze([`count ${String(state.count)}`]);
+  return [`count ${String(state.count)}`];
 }
 
 export function mismatchedSyntheticSummarizeSaveV1(): readonly string[] {
-  return Object.freeze([]);
+  return [];
 }
 
-export const syntheticSaveDefinitionV1 = Object.freeze({
+export const syntheticSaveDefinitionV1 = {
   summarizeSave: syntheticSummarizeSaveV1,
-});
+};

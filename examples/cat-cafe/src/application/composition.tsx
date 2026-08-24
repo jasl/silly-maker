@@ -91,7 +91,7 @@ import { catcafeStageContentCatalogV1, catcafeTextForLocaleV1 } from "../content
 import { CatcafeHudV1, CatcafeNarrativeRendererV1, CatcafeSettingsV1 } from "./ui.tsx";
 import { CatcafeEndingScreenV1 } from "../game/features/endings/ending-screen.tsx";
 
-export const catcafeViewportCanvasV1 = Object.freeze({ width: 1280, height: 720 });
+export const catcafeViewportCanvasV1 = { width: 1280, height: 720 };
 
 const projectorDefinitionV1: GameUiProjectorV1<
   CatcafeSemanticPublicationV1,
@@ -101,44 +101,44 @@ const projectorDefinitionV1: GameUiProjectorV1<
   AssetId
 > = {
   resolvedCatalog: null,
-  initialUiState: Object.freeze({}),
+  initialUiState: {},
   project: (input) => {
     const projection = projectStageRenderTarget(
       input.semantic.game.stage,
       catcafeStageContentCatalogV1,
     );
-    return Object.freeze({
-      view: Object.freeze({
+    return ({
+      view: {
         anchorEpoch: input.uiState.anchor.epoch,
         stageTarget: projection.target,
-      }),
+      },
       requiredAssetIds: projection.target.requiredAssetIds,
     });
   },
 };
 
-export const catcafeUiProjectorV1 = Object.freeze(projectorDefinitionV1);
+export const catcafeUiProjectorV1 = projectorDefinitionV1;
 
-const noNarrativeChoiceReasonsV1: readonly string[] = Object.freeze([]);
+const noNarrativeChoiceReasonsV1: readonly string[] = [];
 
 type CatcafeWholeCanvasTargetIdV1 = "catcafe.ending";
 type CatcafeWholeCanvasActionIdV1 = "cc.enter_postgame" | "cc.restart";
 
 const catcafeWholeCanvasTargetIdV1: CatcafeWholeCanvasTargetIdV1 = "catcafe.ending";
-const noWholeCanvasActionReasonsV1: readonly string[] = Object.freeze([]);
-const emptyWholeCanvasActionPayloadV1 = Object.freeze({});
-const catcafeWholeCanvasCatalogV1 = Object.freeze([
-  Object.freeze({
+const noWholeCanvasActionReasonsV1: readonly string[] = [];
+const emptyWholeCanvasActionPayloadV1 = {};
+const catcafeWholeCanvasCatalogV1 = [
+  {
     targetId: catcafeWholeCanvasTargetIdV1,
     contractRevision: 1 as const,
-    placements: Object.freeze(["primary" as const]),
-    actionIds: Object.freeze([
+    placements: ["primary" as const],
+    actionIds: [
       "cc.enter_postgame" as const,
       "cc.restart" as const,
-    ]),
+    ],
     defaultActionId: "cc.enter_postgame" as const,
-  }),
-]);
+  },
+];
 
 function catcafeEndingFromParametersV1(parameters: unknown): string {
   if (
@@ -166,20 +166,20 @@ export function projectCatcafeWholeCanvasSurfaceSelectionV1(
   publication: DeepReadonly<CatcafeSemanticPublicationV1>,
 ): WholeCanvasSurfaceSelectionV1<CatcafeWholeCanvasTargetIdV1> {
   const ending = publication.game.ending;
-  if (ending === null) return Object.freeze({ primary: null });
-  const admittedEnding = catcafeEndingFromParametersV1(Object.freeze({ ending }));
-  return Object.freeze({
-    primary: Object.freeze({
+  if (ending === null) return ({ primary: null });
+  const admittedEnding = catcafeEndingFromParametersV1({ ending });
+  return ({
+    primary: {
       targetId: catcafeWholeCanvasTargetIdV1,
-      parameters: Object.freeze({ ending: admittedEnding }),
-    }),
+      parameters: { ending: admittedEnding },
+    },
   });
 }
 
-const catcafeWholeCanvasSourceV1 = Object.freeze({
+const catcafeWholeCanvasSourceV1 = {
   kind: "publication" as const,
   selectPrimary: projectCatcafeWholeCanvasSurfaceSelectionV1,
-});
+};
 
 function resolveCatcafeWholeCanvasTargetV1(
   request: WholeCanvasSurfaceResolveTargetRequestV1<
@@ -197,29 +197,29 @@ function resolveCatcafeWholeCanvasTargetV1(
   if (request.publication.game.ending !== ending) {
     throw new TypeError("catcafe.whole_canvas_target_stale");
   }
-  return Object.freeze({
+  return ({
     accessibleNameTextId: `text.cc.ending.${ending}`,
-    view: Object.freeze({ ending }),
-    actions: Object.freeze([
-      Object.freeze({
+    view: { ending },
+    actions: [
+      {
         actionId: "cc.enter_postgame" as const,
         status: "enabled" as const,
         reasonTextIds: noWholeCanvasActionReasonsV1,
-        intent: Object.freeze({
+        intent: {
           kind: "owner" as const,
           payload: emptyWholeCanvasActionPayloadV1,
-        }),
-      }),
-      Object.freeze({
+        },
+      },
+      {
         actionId: "cc.restart" as const,
         status: "enabled" as const,
         reasonTextIds: noWholeCanvasActionReasonsV1,
-        intent: Object.freeze({
+        intent: {
           kind: "owner" as const,
           payload: emptyWholeCanvasActionPayloadV1,
-        }),
-      }),
-    ]),
+        },
+      },
+    ],
   });
 }
 
@@ -243,7 +243,7 @@ function createCatcafeWholeCanvasActionDispatcherV1(
     switch (request.actionId) {
       case "cc.enter_postgame":
         return await instance.semantic.dispatch(
-          Object.freeze({ kind: "invoke" as const, actionId: "cc.enter_postgame" }) as never,
+          ({ kind: "invoke" as const, actionId: "cc.enter_postgame" }) as never,
         );
       case "cc.restart":
         return await instance.lifecycle.restart();
@@ -260,19 +260,19 @@ export function projectCatcafeNarrativeSurfaceSelectionV1(
   publication: DeepReadonly<CatcafeSemanticPublicationV1>,
 ): NarrativeSurfaceSelectionV1 {
   const narrative = publication.narrative;
-  const choiceAvailability = narrative.choiceOptions === null ? null : Object.freeze(
-    narrative.choiceOptions.map((option) => {
+  const choiceAvailability = narrative.choiceOptions === null
+    ? null
+    : (narrative.choiceOptions.map((option) => {
       if (!option.enabled || option.blockedBy !== null) {
         throw new TypeError("catcafe.narrative_choice_availability_inconsistent");
       }
-      return Object.freeze({
+      return ({
         choiceId: option.choiceId,
         status: "enabled" as const,
         reasonTextIds: noNarrativeChoiceReasonsV1,
       });
-    }),
-  );
-  return Object.freeze({
+    }));
+  return ({
     pending: narrative.pending,
     history: narrative.history,
     choiceAvailability,
@@ -326,7 +326,7 @@ export function createCatcafeUiSlotsV1(input: {
           registry={input.registry}
           openAlbum={() =>
             context.intents.execute(
-              Object.freeze({ kind: "overlay.open" as const, overlayId: "overlay.catcafe.album" }),
+              { kind: "overlay.open" as const, overlayId: "overlay.catcafe.album" },
             )}
         />
       </>
@@ -334,37 +334,36 @@ export function createCatcafeUiSlotsV1(input: {
     settingsSections: () => [
       <CatcafeSettingsV1 key="catcafe-settings" playerProfile={input.playerProfile} />,
     ],
-    overlayResolver: () =>
-      Object.freeze({
-        resolve: (overlayId: DeepReadonly<CatcafeUiOverlayIdV1>) =>
-          overlayId === "overlay.catcafe.album"
-            ? Object.freeze({
-              accessibleName: catcafeTextForLocaleV1(
-                input.playerProfile.current().preferences.locale,
-                "text.cc.album.title",
-              ),
-              content: (
-                <CatcafeAlbumViewV1
-                  playerProfile={input.playerProfile}
-                  registry={input.registry}
-                />
-              ),
-            })
-            : null,
-      }),
+    overlayResolver: () => ({
+      resolve: (overlayId: DeepReadonly<CatcafeUiOverlayIdV1>) =>
+        overlayId === "overlay.catcafe.album"
+          ? ({
+            accessibleName: catcafeTextForLocaleV1(
+              input.playerProfile.current().preferences.locale,
+              "text.cc.album.title",
+            ),
+            content: (
+              <CatcafeAlbumViewV1
+                playerProfile={input.playerProfile}
+                registry={input.registry}
+              />
+            ),
+          })
+          : null,
+    }),
   };
-  return Object.freeze(slots);
+  return slots;
 }
 
-export const catcafeKeyboardMapV1: KeyboardActionMapV1 = Object.freeze({
+export const catcafeKeyboardMapV1: KeyboardActionMapV1 = {
   Enter: systemInputActionIdsV1.narrativeAdvance,
   Space: systemInputActionIdsV1.narrativeAdvance,
-});
+};
 
 /** VN convention: right-click = back/close (overlays, system panels); suppress the system menu on the stage. */
-export const catcafePointerMapV1: PointerActionMapV1 = Object.freeze({
+export const catcafePointerMapV1: PointerActionMapV1 = {
   secondary: systemInputActionIdsV1.cancel,
-});
+};
 
 export const catcafeGameApplicationV1: WebGameApplicationV1<
   unknown,
@@ -382,15 +381,15 @@ export const catcafeGameApplicationV1: WebGameApplicationV1<
   CatcafePresentationViewV1,
   AssetId,
   CatcafeUiOverlayIdV1
-> = Object.freeze({
+> = {
   applicationId: "example-cat-cafe",
   accessibleName: "雨巷猫舍",
-  viewport: Object.freeze({
+  viewport: {
     canvas: catcafeViewportCanvasV1,
-    fallbackSize: Object.freeze({ width: 1280, height: 720 }),
+    fallbackSize: { width: 1280, height: 720 },
     // Scale up proportionally to fill the window (fit scaling keeps the aspect ratio, letterboxing as needed).
     maxScale: 4,
-  }),
+  },
   core: catcafeCoreApplicationDefinitionV1,
   ...(applicationBuildIdentityInputInternalV1 === undefined
     ? {}
@@ -431,68 +430,64 @@ export const catcafeGameApplicationV1: WebGameApplicationV1<
       CatcafeWholeCanvasTargetIdV1,
       CatcafeWholeCanvasActionIdV1
     >(
-      Object.freeze(
-        {
-          catalog: catcafeWholeCanvasCatalogV1,
-          source: catcafeWholeCanvasSourceV1,
-          resolveTarget: resolveCatcafeWholeCanvasTargetV1,
-          dispatchAction: createCatcafeWholeCanvasActionDispatcherV1(instance),
-          renderer: endingRendererV1,
-          prepareTarget: null,
-          resolveText: catcafeTextForLocaleV1,
-        } satisfies DefineWholeCanvasSurfaceInputV1<
-          CatcafeSemanticPublicationV1,
-          CatcafeWholeCanvasTargetIdV1,
-          CatcafeWholeCanvasActionIdV1
-        >,
-      ),
+      {
+        catalog: catcafeWholeCanvasCatalogV1,
+        source: catcafeWholeCanvasSourceV1,
+        resolveTarget: resolveCatcafeWholeCanvasTargetV1,
+        dispatchAction: createCatcafeWholeCanvasActionDispatcherV1(instance),
+        renderer: endingRendererV1,
+        prepareTarget: null,
+        resolveText: catcafeTextForLocaleV1,
+      } satisfies DefineWholeCanvasSurfaceInputV1<
+        CatcafeSemanticPublicationV1,
+        CatcafeWholeCanvasTargetIdV1,
+        CatcafeWholeCanvasActionIdV1
+      >,
     );
-    return Object.freeze({
+    return ({
       dispose: () => registry?.dispose(),
-      titleScreen: Object.freeze({
+      titleScreen: {
         title: catcafeTextForLocaleV1(
           playerProfile.current().preferences.locale,
           "text.cc.app.name",
         ),
         backgroundUrl: "assets/cc-bg-title.webp",
-        splash: Object.freeze({
+        splash: {
           lines: playerProfile.current().preferences.locale === "en"
-            ? Object.freeze([
+            ? [
               "Rainy Alley Cat Cafe",
               "A SillyMaker game",
-            ])
-            : Object.freeze([
+            ]
+            : [
               "雨巷猫舍",
               "一款由 SillyMaker 驱动的游戏",
-            ]),
-        }),
-      }),
+            ],
+        },
+      },
       projector: catcafeUiProjectorV1,
       narrative: defineNarrativeSurfaceV1<CatcafeSemanticPublicationV1>(
-        Object.freeze(
-          {
-            selectNarrative: projectCatcafeNarrativeSurfaceSelectionV1,
-            dispatchResolution: (request) =>
-              instance.semantic.dispatch(
-                Object.freeze({
-                  kind: "resolve" as const,
-                  expectedOccurrenceId: request.expectedOccurrenceId,
-                  resolution: request.resolution,
-                }) as never,
-              ),
-            renderer: CatcafeNarrativeRendererV1,
-            resolveText: catcafeTextForLocaleV1,
-            replayCurrentVoice: null,
-            // The cat-cafe narrative declares no hold, so it binds no time
-            // dispatcher.
-            dispatchTime: null,
-          } satisfies DefineNarrativeSurfaceInputV1<CatcafeSemanticPublicationV1>,
-        ),
+        {
+          selectNarrative: projectCatcafeNarrativeSurfaceSelectionV1,
+          dispatchResolution: (request) =>
+            instance.semantic.dispatch(
+              ({
+                kind: "resolve" as const,
+                expectedOccurrenceId: request.expectedOccurrenceId,
+                resolution: request.resolution,
+              }) as never,
+            ),
+          renderer: CatcafeNarrativeRendererV1,
+          resolveText: catcafeTextForLocaleV1,
+          replayCurrentVoice: null,
+          // The cat-cafe narrative declares no hold, so it binds no time
+          // dispatcher.
+          dispatchTime: null,
+        } satisfies DefineNarrativeSurfaceInputV1<CatcafeSemanticPublicationV1>,
       ),
       wholeCanvas,
-      overlayDefinitions: Object.freeze([
+      overlayDefinitions: [
         defineWorkspaceOverlayV1({ id: "overlay.catcafe.album", contractRevision: 1 }),
-      ]),
+      ],
       slots: createCatcafeUiSlotsV1({ instance, playerProfile, registry }),
       ...(() => {
         const locale = playerProfile.current().preferences.locale;
@@ -503,7 +498,7 @@ export const catcafeGameApplicationV1: WebGameApplicationV1<
           saveGuard: catcafeSaveGuardForLocaleV1(locale),
         };
       })(),
-      input: Object.freeze({ keyboard: catcafeKeyboardMapV1, pointer: catcafePointerMapV1 }),
+      input: { keyboard: catcafeKeyboardMapV1, pointer: catcafePointerMapV1 },
       outerUi: createReferencePlayerOuterUiV1({
         instance,
         capabilities,
@@ -520,7 +515,7 @@ export const catcafeGameApplicationV1: WebGameApplicationV1<
       }),
     });
   },
-});
+};
 
 export interface CatcafeApplicationHmrModuleV1 {
   readonly catcafeGameApplicationV1: typeof catcafeGameApplicationV1;
@@ -556,7 +551,7 @@ export function installCatcafeGameApplicationHmrV1(
     currentProvenance: started.provenance,
     applicationFromModule: resolveCatcafeApplicationV1,
     resolveApplicationProvenance: resolveWebGameApplicationHmrProvenanceInternalV1,
-    registration: Object.freeze({
+    registration: {
       accept(handler: (module: CatcafeApplicationHmrModuleV1 | undefined) => void): void {
         if (import.meta.hot === undefined) {
           throw new TypeError("catcafe.hmr_hot_context_unavailable");
@@ -571,7 +566,7 @@ export function installCatcafeGameApplicationHmrV1(
         }
         import.meta.hot.invalidate(message);
       },
-    }),
+    },
     r3InvalidationMessage: "catcafe.hmr_application_identity_changed",
   });
 

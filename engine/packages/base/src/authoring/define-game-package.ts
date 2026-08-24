@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 import type { GamePackageV1 } from "../contracts/game-package.ts";
 import { parseModuleId, parsePositiveSafeInteger } from "../contracts/values.ts";
-import { deepFreezeAuthoringValueV1 } from "./define-gameplay-module.ts";
 
 export function defineGamePackage<
   TSimulationFacet,
@@ -16,5 +15,5 @@ export function defineGamePackage<
   if (typeof entry.define !== "function" || entry.define.length !== 0) {
     throw new TypeError("GamePackage define must be a zero-argument function");
   }
-  return deepFreezeAuthoringValueV1(entry);
+  return entry;
 }

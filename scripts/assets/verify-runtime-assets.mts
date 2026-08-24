@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { readFile, realpath as resolveRealpath } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { registerHooks } from "node:module";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -60,10 +60,10 @@ async function loadRuntimeAssetModulesV1() {
             `${app.config.applicationId}: missing Story entry export ${app.config.storyEntry.exportName}`,
           );
         }
-        return Object.freeze({
+        return {
           appDirectory: app.directory,
           entry: entry as Parameters<(typeof baseModule)["resolveGamePackageV1"]>[0],
-        });
+        };
       }),
     );
     return { baseModule, validatorModule, entries };
@@ -81,15 +81,15 @@ const {
 const { createTextContentSessionV1, resolveGamePackageV1, TextContentErrorV1 } = baseModuleV1;
 const { validateRuntimeAssetManifestV1 } = validatorModuleV1;
 
-const runtimeAssetVerificationBuildIdentityV1 = Object.freeze({
+const runtimeAssetVerificationBuildIdentityV1 = {
   engineVersion: "SillyMaker runtime asset verification",
-  engine: Object.freeze([]),
-  storySimulation: Object.freeze([]),
-  storyPresentation: Object.freeze([]),
-  application: Object.freeze([]),
-}) satisfies Parameters<typeof resolveGamePackageV1>[2];
+  engine: [],
+  storySimulation: [],
+  storyPresentation: [],
+  application: [],
+} satisfies Parameters<typeof resolveGamePackageV1>[2];
 
-const emptyRuntimeAssetHotfixSetV1 = Object.freeze([]);
+const emptyRuntimeAssetHotfixSetV1: readonly never[] = [];
 
 export interface RuntimeAssetStoryCheckV1 {
   readonly storyId: string;
@@ -117,38 +117,35 @@ function resolutionFailureMessageV1(
   }`;
 }
 
-export const runtimeAssetStoryChecksV1: readonly RuntimeAssetStoryCheckV1[] = Object.freeze(
-  verifiedStoryEntriesV1.map(({ appDirectory, entry }) =>
-    Object.freeze({
-      storyId: entry.identity.id,
-      appDirectory,
-      resolve(): RuntimeAssetStoryResolutionV1 {
-        const result = resolveGamePackageV1(
-          entry,
-          emptyRuntimeAssetHotfixSetV1,
-          runtimeAssetVerificationBuildIdentityV1,
-        );
-        if (result.kind === "failed") {
-          throw new TypeError(resolutionFailureMessageV1(this.storyId, result));
-        }
-        const presentation = result.resolved.presentation as {
-          readonly textCatalogs: TextCatalogSetV1;
-          readonly textContentManifest?: TextContentManifestV1 | null;
-        };
-        const textContentManifest = presentation.textContentManifest ?? null;
-        return Object.freeze({
-          assets: result.resolved.assets,
-          ...(textContentManifest === null ? {} : {
-            textContent: Object.freeze({
-              manifest: textContentManifest,
-              bootstrapCatalogs: presentation.textCatalogs,
-            }),
-          }),
-        });
-      },
-    })
-  ),
-);
+export const runtimeAssetStoryChecksV1: readonly RuntimeAssetStoryCheckV1[] = verifiedStoryEntriesV1
+  .map(({ appDirectory, entry }) => ({
+    storyId: entry.identity.id,
+    appDirectory,
+    resolve(): RuntimeAssetStoryResolutionV1 {
+      const result = resolveGamePackageV1(
+        entry,
+        emptyRuntimeAssetHotfixSetV1,
+        runtimeAssetVerificationBuildIdentityV1,
+      );
+      if (result.kind === "failed") {
+        throw new TypeError(resolutionFailureMessageV1(this.storyId, result));
+      }
+      const presentation = result.resolved.presentation as {
+        readonly textCatalogs: TextCatalogSetV1;
+        readonly textContentManifest?: TextContentManifestV1 | null;
+      };
+      const textContentManifest = presentation.textContentManifest ?? null;
+      return {
+        assets: result.resolved.assets,
+        ...(textContentManifest === null ? {} : {
+          textContent: {
+            manifest: textContentManifest,
+            bootstrapCatalogs: presentation.textCatalogs,
+          },
+        }),
+      };
+    },
+  }));
 
 export type RuntimeAssetManifestValidatorV1 = (
   manifest: DeepReadonly<ResolvedAssetManifestV1>,
@@ -168,15 +165,11 @@ export function createNodeRuntimeAssetEnvironmentV1(
   root: string,
 ): RuntimeAssetValidationEnvironmentV1 {
   const appRoot = resolve(root);
-  return Object.freeze({
-    repositoryRoot: appRoot,
+  return {
     async readFile(appRelativePath: string): Promise<Uint8Array> {
       return new Uint8Array(await readFile(join(appRoot, appRelativePath)));
     },
-    realpath(appRelativePath: string): Promise<string> {
-      return resolveRealpath(join(appRoot, appRelativePath));
-    },
-  });
+  };
 }
 
 export async function verifyRuntimeAssetStoryChecksV1(
@@ -213,7 +206,7 @@ export async function verifyRuntimeAssetStoryChecksV1(
   }
 
   if (failures.length > 0) throw new TypeError(failures.join("\n"));
-  return Object.freeze(verifiedStoryIds);
+  return verifiedStoryIds;
 }
 
 /** Resolves each maintained Story and validates its manifest against its own application root. */

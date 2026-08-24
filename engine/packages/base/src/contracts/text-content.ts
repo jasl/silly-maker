@@ -83,10 +83,10 @@ function parseManifestDescriptorV1(
   index: number,
 ): TextContentPackDescriptorV1 {
   try {
-    return Object.freeze({
+    return {
       packId: parseTextContentPackIdV1(value.packId),
       runtimePath: parseTextContentRuntimePathV1(value.runtimePath),
-    });
+    };
   } catch {
     return fail("text_content.manifest_invalid", String(index));
   }
@@ -130,12 +130,11 @@ export function defineTextContentManifestV1(input: {
       return fail("text_content.manifest_pack_duplicate", packs[index]?.packId ?? null);
     }
   }
-  const frozenPacks = Object.freeze(packs);
   const digest = digestCanonical("sillymaker:text-content-manifest:v1", {
     revision,
-    packs: frozenPacks,
+    packs,
   });
-  return Object.freeze({ revision, packs: frozenPacks, digest });
+  return { revision, packs, digest };
 }
 
 function countCatalogEntriesV1(catalogs: TextCatalogSetV1): NonNegativeSafeInteger {
@@ -189,13 +188,13 @@ export function admitTextContentPackV1(
     return fail("text_content.pack_catalog_invalid", descriptor.packId);
   }
   const entryCount = countCatalogEntriesV1(textCatalogs);
-  return Object.freeze({
+  return {
     format: "sillymaker.text-content-pack",
     version: 1,
     packId,
     textCatalogs,
     entryCount,
-  });
+  };
 }
 
 function textIdsV1(catalogs: TextCatalogSetV1): ReadonlySet<TextId> {
@@ -318,16 +317,14 @@ export function createTextContentSessionV1(input: {
     return fail("text_content.text_unavailable", textId);
   };
 
-  return Object.freeze({
+  return {
     manifest: input.manifest,
     ensure,
     resolveText,
     loadedPackIds: (): readonly TextContentPackIdV1[] =>
-      Object.freeze(
-        input.manifest.packs
-          .map((pack) => pack.packId)
-          .filter((packId) => loadedPacks.has(packId)),
-      ),
+      input.manifest.packs
+        .map((pack) => pack.packId)
+        .filter((packId) => loadedPacks.has(packId)),
     loadedEntryCount: (): NonNegativeSafeInteger => loadedEntries,
-  });
+  };
 }

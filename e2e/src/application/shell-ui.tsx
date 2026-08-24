@@ -24,7 +24,7 @@ import {
 
 type LabSemanticPortV1 = LabApplicationInstanceV1["semantic"];
 
-const labActionTextIdsV1: Readonly<Record<LabActionIdV1, string>> = Object.freeze({
+const labActionTextIdsV1: Readonly<Record<LabActionIdV1, string>> = {
   "lab.collect_sample": "text.e2e.lab.action.collect_sample",
   "lab.begin_procedure": "text.e2e.lab.action.begin_procedure",
   "lab.advance_procedure": "text.e2e.lab.action.advance_procedure",
@@ -34,7 +34,7 @@ const labActionTextIdsV1: Readonly<Record<LabActionIdV1, string>> = Object.freez
   "lab.toggle_collector": "text.e2e.lab.action.toggle_collector",
   "lab.sell_sample": "text.e2e.lab.action.sell_sample",
   "lab.buy_banner": "text.e2e.lab.action.buy_banner",
-});
+};
 
 /**
  * The player rollback control (R7): availability comes from the instance
@@ -96,7 +96,7 @@ export function LabHudV1(props: {
             data-lab-action-id={action.actionId}
             onClick={() =>
               void props.semantic.dispatch(
-                Object.freeze({ kind: "invoke" as const, actionId: action.actionId }),
+                { kind: "invoke" as const, actionId: action.actionId },
               )}
           >
             {labUiTextV1(labActionTextIdsV1[action.actionId])}
@@ -138,7 +138,7 @@ export function LabStageV1(props: {
     previousCalibrationRef.current = calibration;
     if (previous === null && calibration !== null) {
       intents.execute(
-        Object.freeze({ kind: "presentation.play_cue" as const, cueId: labBeaconPulseCueIdV1 }),
+        { kind: "presentation.play_cue" as const, cueId: labBeaconPulseCueIdV1 },
       );
     }
   }, [calibration, intents]);
@@ -164,7 +164,7 @@ export function LabStageV1(props: {
         onHitRegionActivate={(activation) => {
           if (activation.regionId !== "zone.crate.collect") return;
           void context.semantic.dispatch(
-            Object.freeze({ kind: "invoke" as const, actionId: "lab.collect_sample" as const }),
+            { kind: "invoke" as const, actionId: "lab.collect_sample" as const },
           );
         }}
         inspect={labStageInspectControllerV1}
@@ -202,8 +202,7 @@ export function LabShopOverlayV1(props: {
               disabled={!action.enabled}
               data-lab-shop-action={actionId}
               data-lab-shop-blocked={action.blockedBy ?? undefined}
-              onClick={() =>
-                void props.semantic.dispatch(Object.freeze({ kind: "invoke" as const, actionId }))}
+              onClick={() => void props.semantic.dispatch({ kind: "invoke" as const, actionId })}
             >
               {labUiTextV1(labActionTextIdsV1[actionId])}
             </Button>

@@ -9,7 +9,7 @@ import type {
 import { canonicalJsonBytes } from "../contracts/canonical-json.ts";
 import { parseModuleId, parsePositiveSafeInteger, parseStateSlotId } from "../contracts/values.ts";
 import { compareUtf16CodeUnitsInternalV1 } from "../internal/utf16-code-unit-order.ts";
-import { deepFreezeAuthoringValueV1, moduleDefinitionErrorV1 } from "./define-gameplay-module.ts";
+import { moduleDefinitionErrorV1 } from "./define-gameplay-module.ts";
 
 interface DefineGameSimulationV1<TTypes extends GameSimulationTypeMapV1> {
   <
@@ -35,15 +35,9 @@ interface DefineGameSimulationV1<TTypes extends GameSimulationTypeMapV1> {
 }
 
 type RuntimeRecord = Record<PropertyKey, unknown>;
-const validatedGameSimulationsV1 = new WeakSet<object>();
 
 function requireRecord(value: unknown, label: string): RuntimeRecord {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype
-  ) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new TypeError(`invalid ${label}`);
   }
   return value as RuntimeRecord;
@@ -157,19 +151,18 @@ function validateGameplayModuleV1(module: RuntimeRecord): void {
 
 function assertDependencyDag(modules: readonly RuntimeRecord[]): void {
   const moduleIds = new Set(
-    modules.map((module) => requireRecord(module.descriptor, "GameplayModule descriptor").id),
+    modules.map((module) => (module.descriptor as RuntimeRecord).id),
   );
   for (const module of modules) {
-    const descriptor = requireRecord(module.descriptor, "GameplayModule descriptor");
-    const dependencies = descriptor.dependencies;
-    if (!Array.isArray(dependencies)) throw new TypeError("invalid GameplayModule dependencies");
+    const descriptor = module.descriptor as RuntimeRecord;
+    const dependencies = descriptor.dependencies as readonly unknown[];
     for (const dependency of dependencies) {
       if (!moduleIds.has(dependency)) {
         throw moduleDefinitionErrorV1(
           "authoring.simulation.missing_dependency",
           `missing dependency ${String(dependency)} for ${String(descriptor.id)}`,
           String(descriptor.id),
-          Object.freeze({ dependency: String(dependency) }),
+          { dependency: String(dependency) },
         );
       }
     }
@@ -178,10 +171,7 @@ function assertDependencyDag(modules: readonly RuntimeRecord[]): void {
   const active = new Set<unknown>();
   const complete = new Set<unknown>();
   const byId = new Map(
-    modules.map((module) => [
-      requireRecord(module.descriptor, "GameplayModule descriptor").id,
-      module,
-    ]),
+    modules.map((module) => [(module.descriptor as RuntimeRecord).id, module]),
   );
   function visit(id: unknown): void {
     if (active.has(id)) {
@@ -193,9 +183,8 @@ function assertDependencyDag(modules: readonly RuntimeRecord[]): void {
     }
     if (complete.has(id)) return;
     active.add(id);
-    const descriptor = requireRecord(byId.get(id)?.descriptor, "GameplayModule descriptor");
-    const dependencies = descriptor.dependencies;
-    if (!Array.isArray(dependencies)) throw new TypeError("invalid GameplayModule dependencies");
+    const descriptor = byId.get(id)?.descriptor as RuntimeRecord;
+    const dependencies = descriptor.dependencies as readonly unknown[];
     for (const dependency of dependencies) visit(dependency);
     active.delete(id);
     complete.add(id);
@@ -261,28 +250,18 @@ function equalBytes(left: Uint8Array, right: Uint8Array): boolean {
 function parseSchema(schemaValue: unknown, value: unknown, label: string): unknown {
   const schema = requireRecord(schemaValue, label);
   requireFunction(schema.parse, `${label} parse`);
-  return Reflect.apply(schema.parse, schema, [value]);
+  return (schema.parse as (value: unknown) => unknown)(value);
 }
 
 function validateRuntimeSimulationV1(simulationValue: unknown): unknown {
-  if (
-    simulationValue !== null &&
-    typeof simulationValue === "object" &&
-    validatedGameSimulationsV1.has(simulationValue)
-  ) {
-    return simulationValue;
-  }
   const simulation = requireRecord(simulationValue, "GameSimulation");
-  deepFreezeAuthoringValueV1(simulationValue);
   if (simulation.contractRevision !== 1) {
     throw new TypeError("GameSimulation contractRevision must be 1");
   }
   if (!Array.isArray(simulation.modules)) throw new TypeError("invalid GameSimulation modules");
   const modules = simulation.modules.map((module) => requireRecord(module, "GameplayModule"));
   for (const module of modules) validateGameplayModuleV1(module);
-  const ids = modules.map(
-    (module) => requireRecord(module.descriptor, "GameplayModule descriptor").id,
-  );
+  const ids = modules.map((module) => (module.descriptor as RuntimeRecord).id);
   const duplicateId = ids.find((id, index) => ids.indexOf(id) !== index);
   if (duplicateId !== undefined) {
     throw moduleDefinitionErrorV1(
@@ -292,9 +271,7 @@ function validateRuntimeSimulationV1(simulationValue: unknown): unknown {
     );
   }
   const slots = modules.flatMap((module) => {
-    const value = requireRecord(module.descriptor, "GameplayModule descriptor").stateSlots;
-    if (!Array.isArray(value)) throw new TypeError("invalid GameplayModule stateSlots");
-    return value;
+    return (module.descriptor as RuntimeRecord).stateSlots as readonly unknown[];
   });
   const duplicateSlot = slots.find((slot, index) => slots.indexOf(slot) !== index);
   if (duplicateSlot !== undefined) {
@@ -302,14 +279,13 @@ function validateRuntimeSimulationV1(simulationValue: unknown): unknown {
       "authoring.simulation.duplicate_state_slot",
       "duplicate State slot",
       String(duplicateSlot),
-      Object.freeze({ stateSlot: String(duplicateSlot) }),
+      { stateSlot: String(duplicateSlot) },
       "state_slot",
     );
   }
   for (const module of modules) {
-    const descriptor = requireRecord(module.descriptor, "GameplayModule descriptor");
-    const moduleSlots = descriptor.stateSlots;
-    if (!Array.isArray(moduleSlots)) throw new TypeError("invalid GameplayModule stateSlots");
+    const descriptor = module.descriptor as RuntimeRecord;
+    const moduleSlots = descriptor.stateSlots as readonly unknown[];
     if (module.bindingKind === "stateful" && moduleSlots.length === 0) {
       throw new TypeError("stateful GameplayModule has no State slot");
     }
@@ -352,24 +328,17 @@ function validateRuntimeSimulationV1(simulationValue: unknown): unknown {
     createInitialState(bootstrap: unknown): unknown {
       const state = parseSchema(
         simulation.stateSchema,
-        Reflect.apply(
-          simulation.createInitialState as (...args: unknown[]) => unknown,
-          simulation,
-          [bootstrap],
-        ),
+        (simulation.createInitialState as (bootstrap: unknown) => unknown)(bootstrap),
         "State Schema",
       );
       for (const module of modules) {
         if (module.bindingKind !== "stateful") continue;
-        const descriptor = requireRecord(module.descriptor, "GameplayModule descriptor");
-        const moduleSlots = descriptor.stateSlots;
-        if (!Array.isArray(moduleSlots)) throw new TypeError("invalid GameplayModule stateSlots");
+        const descriptor = module.descriptor as RuntimeRecord;
+        const moduleSlots = descriptor.stateSlots as readonly unknown[];
         const slotNames = moduleSlots.map(String);
         const moduleInitialState = parseSchema(
           module.stateSchema,
-          Reflect.apply(module.createInitialState as (...args: unknown[]) => unknown, module, [
-            bootstrap,
-          ]),
+          (module.createInitialState as (bootstrap: unknown) => unknown)(bootstrap),
           "GameplayModule State Schema",
         );
         const aggregateOwnerState = parseSchema(
@@ -391,9 +360,7 @@ function validateRuntimeSimulationV1(simulationValue: unknown): unknown {
       return state;
     },
   };
-  const frozen = deepFreezeAuthoringValueV1(validated);
-  validatedGameSimulationsV1.add(frozen);
-  return frozen;
+  return validated;
 }
 
 export function defineGameSimulation<

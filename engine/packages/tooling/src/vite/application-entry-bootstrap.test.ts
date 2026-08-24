@@ -50,7 +50,6 @@ describe("runtime application entry bootstrap HTML", () => {
     const parsed = new DOMParser().parseFromString(html, "text/html");
     const config = readApplicationBootstrapConfigFromDocumentInternalV1(parsed, "runtime");
     expect(config).toEqual({ revision: 1, entry: "runtime", target: "browser" });
-    expect(Object.isFrozen(config)).toBe(true);
   });
 
   it("keeps the same admitted receipt boundary after Desktop target replacement", () => {
@@ -60,14 +59,13 @@ describe("runtime application entry bootstrap HTML", () => {
     });
     const desktopHtml = injectDesktopBootstrapConfigV1(
       browserHtml,
-      Object.freeze({ revision: 1, entry: "runtime", target: "deno_desktop" }),
+      { revision: 1, entry: "runtime", target: "deno_desktop" },
     );
     const parsed = new DOMParser().parseFromString(desktopHtml, "text/html");
 
     const config = readApplicationBootstrapConfigFromDocumentInternalV1(parsed, "runtime");
 
     expect(config).toEqual({ revision: 1, entry: "runtime", target: "deno_desktop" });
-    expect(Object.isFrozen(config)).toBe(true);
     expect(desktopHtml.match(/sillymaker-application-bootstrap/gu)).toHaveLength(1);
   });
 
@@ -220,12 +218,11 @@ describe("runtime application entry bootstrap HTML", () => {
         "runtime",
       );
       expect(browserConfig).toEqual({ revision: 1, entry: "runtime", target: "browser" });
-      expect(Object.isFrozen(browserConfig)).toBe(true);
 
       const desktopResponse = createDesktopHtmlResponseInternalV1(
         browserHtml,
         "a".repeat(43),
-        Object.freeze({ revision: 1, entry: "runtime", target: "deno_desktop" }),
+        { revision: 1, entry: "runtime", target: "deno_desktop" },
         false,
       );
       const desktopHtml = await desktopResponse.text();
@@ -240,7 +237,6 @@ describe("runtime application entry bootstrap HTML", () => {
         entry: "runtime",
         target: "deno_desktop",
       });
-      expect(Object.isFrozen(desktopConfig)).toBe(true);
       expect(desktopHtml).not.toContain('"target":"browser"');
       expect(desktopHtml.match(/sillymaker-application-bootstrap/gu)).toHaveLength(1);
       expect(desktopHtml.match(/data-sillymaker-boot-shell="pending"/gu)).toHaveLength(1);

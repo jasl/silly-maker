@@ -93,7 +93,7 @@ describe("Save State migration registry contracts", () => {
     expect(secondCallback).not.toHaveBeenCalled();
   });
 
-  it("retains only detached frozen metadata and the exact callback identities", () => {
+  it("retains detached metadata and the exact callback identities", () => {
     const first = identityV1(1);
     const second = identityV1(2);
     const migrate = vi.fn(stepV1(first, second, "copy").migrate);
@@ -136,40 +136,7 @@ describe("Save State migration registry contracts", () => {
       kind: "fallback",
       toId: "scene.synthetic.current",
     });
-    expect(Object.isFrozen(registry)).toBe(true);
-    expect(Object.isFrozen(normalized)).toBe(true);
-    expect(Object.isFrozen(normalized.current)).toBe(true);
-    expect(Object.isFrozen(normalized.steps)).toBe(true);
-    expect(Object.isFrozen(normalized.steps[0])).toBe(true);
-    expect(Object.isFrozen(normalized.steps[0]?.from)).toBe(true);
-    expect(Object.isFrozen(normalized.steps[0]?.to)).toBe(true);
-    expect(Object.isFrozen(normalized.steps[0]?.references)).toBe(true);
-    expect(Object.isFrozen(normalized.steps[0]?.references.renames)).toBe(true);
-    expect(Object.isFrozen(normalized.steps[0]?.references.renames[0])).toBe(true);
-    expect(Object.isFrozen(normalized.steps[0]?.references.deletions)).toBe(true);
-    expect(Object.isFrozen(normalized.steps[0]?.references.deletions[0])).toBe(true);
-    expect(Object.isFrozen(normalized.steps[0]?.references.deletions[0]?.resolution)).toBe(true);
     expect(migrate).not.toHaveBeenCalled();
-  });
-
-  it("requires official exact registry identity", () => {
-    const current = identityV1(1);
-    const registry = defineSaveStateMigrationRegistryV1({
-      namespace: namespaceV1,
-      minimumSupported: current,
-      current,
-      steps: [],
-    });
-
-    expect(() => readSaveStateMigrationRegistryInternalV1({ ...registry })).toThrow(TypeError);
-    expect(() =>
-      readSaveStateMigrationRegistryInternalV1(
-        Object.freeze(Object.create(registry)) as typeof registry,
-      )
-    ).toThrow(TypeError);
-    expect(() => readSaveStateMigrationRegistryInternalV1({} as typeof registry)).toThrow(
-      TypeError,
-    );
   });
 
   it.each([
@@ -327,207 +294,69 @@ describe("Save State migration registry contracts", () => {
     ).toThrow(TypeError);
   });
 
-  it("rejects malformed exact declarations without invoking accessors or callbacks", () => {
+  it("rejects missing or unexpected declaration fields before callbacks", () => {
     const first = identityV1(1);
     const second = identityV1(2);
-    const migrate = vi.fn(stepV1(first, second, "descriptor").migrate);
-    const accessor = vi.fn(() => namespaceV1);
-    const hostile = Object.defineProperty(
+    const migrate = vi.fn(stepV1(first, second, "exact-fields").migrate);
+    const step = stepV1(first, second, "exact-fields", migrate);
+    const base = {
+      namespace: namespaceV1,
+      minimumSupported: first,
+      current: second,
+      steps: [step],
+    };
+    const invalidDeclarations: unknown[] = [
+      { ...base, extra: true },
+      { namespace: namespaceV1, minimumSupported: first, current: second },
+      { ...base, minimumSupported: { ...first, extra: true } },
+      { ...base, steps: [{ ...step, extra: true }] },
       {
-        minimumSupported: first,
-        current: second,
-        steps: [stepV1(first, second, "descriptor", migrate)],
-      },
-      "namespace",
-      { enumerable: true, get: accessor },
-    );
-    expect(() => defineSaveStateMigrationRegistryV1(hostile as never)).toThrow(TypeError);
-    expect(accessor).not.toHaveBeenCalled();
-    expect(migrate).not.toHaveBeenCalled();
-
-    const proxyTrap = vi.fn(() => {
-      throw new Error("hostile proxy trap");
-    });
-    expect(() =>
-      defineSaveStateMigrationRegistryV1(
-        new Proxy({}, { getPrototypeOf: proxyTrap }) as never,
-      )
-    ).toThrow(TypeError);
-    expect(proxyTrap).toHaveBeenCalledTimes(1);
-
-    const identityAccessor = vi.fn(() => parsePositiveSafeInteger(1));
-    const identityWithAccessor = Object.defineProperty(
-      { stateContractDigest: first.stateContractDigest },
-      "stateContractRevision",
-      { enumerable: true, get: identityAccessor },
-    );
-    expect(() =>
-      defineSaveStateMigrationRegistryV1({
-        namespace: namespaceV1,
-        minimumSupported: identityWithAccessor as never,
-        current: second,
-        steps: [],
-      })
-    ).toThrow(TypeError);
-    expect(identityAccessor).not.toHaveBeenCalled();
-
-    const stepAccessor = vi.fn(() => stepV1(first, second, "array-accessor"));
-    const stepsWithAccessor: SaveStateMigrationStepV1[] = [];
-    Object.defineProperty(stepsWithAccessor, "0", {
-      enumerable: true,
-      configurable: true,
-      get: stepAccessor,
-    });
-    expect(() =>
-      defineSaveStateMigrationRegistryV1({
-        namespace: namespaceV1,
-        minimumSupported: first,
-        current: second,
-        steps: stepsWithAccessor,
-      })
-    ).toThrow(TypeError);
-    expect(stepAccessor).not.toHaveBeenCalled();
-
-    const resolutionKindAccessor = vi.fn(() => "fallback");
-    const resolutionWithAccessor = Object.defineProperty(
-      { toId: "scene.synthetic.current" },
-      "kind",
-      { enumerable: true, get: resolutionKindAccessor },
-    );
-    expect(() =>
-      defineSaveStateMigrationRegistryV1({
-        namespace: namespaceV1,
-        minimumSupported: first,
-        current: second,
+        ...base,
         steps: [
-          stepV1(first, second, "resolution-accessor", undefined, {
+          stepV1(first, second, "reference-fields", migrate, {
             renames: [],
-            deletions: [
-              {
-                referenceSetId: "references.synthetic.scene",
-                id: "scene.synthetic.deleted",
-                resolution: resolutionWithAccessor as never,
-              },
-            ],
-          }),
+            deletions: [],
+            extra: true,
+          } as never),
         ],
-      })
-    ).toThrow(TypeError);
-    expect(resolutionKindAccessor).not.toHaveBeenCalled();
-
-    const nestedProxyTrap = vi.fn(() => {
-      throw new Error("hostile nested proxy trap");
-    });
-    expect(() =>
-      defineSaveStateMigrationRegistryV1({
-        namespace: namespaceV1,
-        minimumSupported: first,
-        current: second,
+      },
+      {
+        ...base,
         steps: [
-          stepV1(first, second, "nested-proxy", undefined, {
-            renames: [new Proxy({}, { ownKeys: nestedProxyTrap }) as never],
+          stepV1(first, second, "rename-fields", migrate, {
+            renames: [{
+              referenceSetId: "references.synthetic.scene",
+              fromId: "scene.synthetic.old",
+              toId: "scene.synthetic.current",
+              extra: true,
+            } as never],
             deletions: [],
           }),
         ],
-      })
-    ).toThrow(TypeError);
-    expect(nestedProxyTrap).toHaveBeenCalledTimes(1);
+      },
+      {
+        ...base,
+        steps: [
+          stepV1(first, second, "resolution-fields", migrate, {
+            renames: [],
+            deletions: [{
+              referenceSetId: "references.synthetic.scene",
+              id: "scene.synthetic.deleted",
+              resolution: {
+                kind: "fallback",
+                toId: "scene.synthetic.current",
+                extra: true,
+              } as never,
+            }],
+          }),
+        ],
+      },
+    ];
 
-    for (
-      const declaration of [
-        {
-          namespace: namespaceV1,
-          minimumSupported: first,
-          current: second,
-          steps: [],
-          extra: true,
-        },
-        Object.assign(Object.create(null), {
-          namespace: namespaceV1,
-          minimumSupported: first,
-          current: second,
-          steps: [stepV1(first, second, "null-prototype")],
-        }),
-        Object.assign(
-          {
-            namespace: namespaceV1,
-            minimumSupported: first,
-            current: second,
-            steps: [stepV1(first, second, "symbol")],
-          },
-          { [Symbol("extra")]: true },
-        ),
-      ]
-    ) {
+    for (const declaration of invalidDeclarations) {
       expect(() => defineSaveStateMigrationRegistryV1(declaration as never)).toThrow(TypeError);
     }
-  });
-
-  it("captures each exact declaration key vector once", () => {
-    const current = identityV1(1);
-    const symbol = Symbol("configurable-extra");
-    const target = {
-      namespace: namespaceV1,
-      minimumSupported: current,
-      current,
-      steps: [],
-      [symbol]: true,
-    };
-    let ownKeysCalls = 0;
-    const declaration = new Proxy(target, {
-      ownKeys() {
-        ownKeysCalls += 1;
-        return ownKeysCalls === 1
-          ? ["namespace", "minimumSupported", "current", "steps"]
-          : Reflect.ownKeys(target);
-      },
-    });
-
-    const registry = defineSaveStateMigrationRegistryV1(declaration as never);
-    expect(readSaveStateMigrationRegistryInternalV1(registry).current).toEqual(current);
-    expect(ownKeysCalls).toBe(1);
-
-    const stepsSymbol = Symbol("configurable-array-extra");
-    const stepsTarget = Object.assign([], { [stepsSymbol]: true });
-    let stepOwnKeysCalls = 0;
-    const steps = new Proxy(stepsTarget, {
-      ownKeys() {
-        stepOwnKeysCalls += 1;
-        return stepOwnKeysCalls === 1 ? ["length"] : Reflect.ownKeys(stepsTarget);
-      },
-    });
-    expect(() =>
-      defineSaveStateMigrationRegistryV1({
-        namespace: namespaceV1,
-        minimumSupported: current,
-        current,
-        steps,
-      })
-    ).not.toThrow();
-    expect(stepOwnKeysCalls).toBe(1);
-  });
-
-  it("rejects a hostile oversized array-index spelling before reading an item descriptor", () => {
-    const current = identityV1(1);
-    const inspectedProperties: PropertyKey[] = [];
-    const stepsTarget = [stepV1(current, identityV1(2), "unreachable")];
-    const steps = new Proxy(stepsTarget, {
-      ownKeys: () => ["length", "9".repeat(1_024)],
-      getOwnPropertyDescriptor(target, property) {
-        if (property !== "length") inspectedProperties.push(property);
-        return Reflect.getOwnPropertyDescriptor(target, property);
-      },
-    });
-
-    expect(() =>
-      defineSaveStateMigrationRegistryV1({
-        namespace: namespaceV1,
-        minimumSupported: current,
-        current: identityV1(2),
-        steps,
-      })
-    ).toThrow(TypeError);
-    expect(inspectedProperties).toEqual([]);
+    expect(migrate).not.toHaveBeenCalled();
   });
 
   it("normalizes valid rename/deletion declarations and rejects conflicts or missing resolution", () => {
@@ -709,7 +538,7 @@ describe("Save State migration registry contracts", () => {
     }
 
     const sparseRenames: SaveStateMigrationReferenceChangesV1["renames"] = [];
-    (sparseRenames as unknown[]).length = 0xffff_ffff;
+    (sparseRenames as unknown[]).length = 1;
     expect(() =>
       defineSaveStateMigrationRegistryV1({
         namespace: namespaceV1,

@@ -47,11 +47,9 @@ export function validateToolingFixturesV1<TFixtureId, TCommand>(
     first === null ||
     typeof first !== "object" ||
     Array.isArray(first) ||
-    Object.getPrototypeOf(first) !== Object.prototype ||
     second === null ||
     typeof second !== "object" ||
-    Array.isArray(second) ||
-    Object.getPrototypeOf(second) !== Object.prototype
+    Array.isArray(second)
   ) {
     throw new TypeError("invalid tooling support");
   }

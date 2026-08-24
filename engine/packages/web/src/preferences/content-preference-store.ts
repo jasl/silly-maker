@@ -89,7 +89,6 @@ function isExactPreferenceRecordShapeV1(value: unknown): value is Record<string,
     value !== null &&
     typeof value === "object" &&
     !Array.isArray(value) &&
-    Object.getPrototypeOf(value) === Object.prototype &&
     Object.keys(value).toSorted().join("\0") ===
       ["allowedFlags", "contractRevision", "policyRevision", "storyId"].toSorted().join("\0")
   );
@@ -98,7 +97,7 @@ function isExactPreferenceRecordShapeV1(value: unknown): value is Record<string,
 function createDefaultPreferenceV1(
   policy: DeepReadonly<ContentMaturityPolicyV1>,
 ): DeepReadonly<ContentPreferenceV1> {
-  return Object.freeze({ allowedFlags: policy.defaultAllowedFlags });
+  return ({ allowedFlags: policy.defaultAllowedFlags });
 }
 
 function decodePreferenceOrDefaultV1(
@@ -187,7 +186,7 @@ function decodePreferenceOrDefaultV1(
     });
     return fallback();
   }
-  return Object.freeze({ allowedFlags });
+  return ({ allowedFlags });
 }
 
 function parseContentPreferenceForPolicyResultV1(
@@ -201,16 +200,16 @@ function parseContentPreferenceForPolicyResultV1(
   try {
     preference = parseContentPreferenceV1(value);
   } catch {
-    return Object.freeze({ kind: "invalid_preference" as const });
+    return ({ kind: "invalid_preference" as const });
   }
   const unknownFlags = findUnknownContentMaturityFlagsV1(policy, preference.allowedFlags);
   return unknownFlags === 0
-    ? Object.freeze({ kind: "parsed" as const, preference: Object.freeze({ ...preference }) })
-    : Object.freeze({ kind: "unknown_flags" as const, unknownFlags });
+    ? ({ kind: "parsed" as const, preference: { ...preference } })
+    : ({ kind: "unknown_flags" as const, unknownFlags });
 }
 
 function storageFailureV1(): ContentPreferenceSetResultV1 {
-  return Object.freeze({
+  return ({
     kind: "failed" as const,
     code: "content_preference.storage_failed" as const,
   });
@@ -248,13 +247,13 @@ export async function createWebContentPreferencePortV1(
   const persist = async (next: unknown): Promise<ContentPreferenceSetResultV1> => {
     const parsed = parseContentPreferenceForPolicyResultV1(input.policy, next);
     if (parsed.kind === "invalid_preference") {
-      return Object.freeze({
+      return ({
         kind: "rejected" as const,
         code: "content_maturity.invalid_preference" as const,
       });
     }
     if (parsed.kind === "unknown_flags") {
-      return Object.freeze({
+      return ({
         kind: "rejected" as const,
         code: "content_maturity.unknown_flags" as const,
       });
@@ -270,13 +269,13 @@ export async function createWebContentPreferencePortV1(
     );
     const commitAt = (expectedRevision: HostRecordRevisionV1 | null) =>
       input.records.commit([
-        Object.freeze({
+        {
           kind: "put" as const,
           namespace: "settings" as const,
           key,
           expectedRevision,
           bytes,
-        }),
+        },
       ]);
 
     try {
@@ -297,15 +296,15 @@ export async function createWebContentPreferencePortV1(
       if (committed === undefined) return storageFailureV1();
 
       currentRevision = committed.revision;
-      current = Object.freeze({ allowedFlags: parsed.preference.allowedFlags });
+      current = { allowedFlags: parsed.preference.allowedFlags };
       notify();
-      return Object.freeze({ kind: "updated" as const, preference: current });
+      return ({ kind: "updated" as const, preference: current });
     } catch {
       return storageFailureV1();
     }
   };
 
-  return Object.freeze({
+  return ({
     observe: () => current,
     subscribe(listener: () => void) {
       listeners.add(listener);

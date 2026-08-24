@@ -12,18 +12,18 @@ import { bookshopSemanticAdapterV1 } from "../application/semantic.ts";
 import { bookshopStoryEntryV1 } from "../story.ts";
 
 function advanceV1(occurrence: number) {
-  return Object.freeze({
+  return ({
     kind: "resolve" as const,
     expectedOccurrenceId: `interaction-occurrence.${String(occurrence)}`,
-    resolution: Object.freeze({ kind: "advance" as const }),
+    resolution: { kind: "advance" as const },
   });
 }
 
 function chooseV1(occurrence: number, choiceId: string) {
-  return Object.freeze({
+  return ({
     kind: "resolve" as const,
     expectedOccurrenceId: `interaction-occurrence.${String(occurrence)}`,
-    resolution: Object.freeze({ kind: "choose" as const, choiceId }),
+    resolution: { kind: "choose" as const, choiceId },
   });
 }
 

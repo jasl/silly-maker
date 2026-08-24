@@ -425,13 +425,11 @@ test("builds sorted live records from an explicit managed path set", async () =>
     "engine/packages/tooling/src/identity/collect-import-closure.mjs",
   ];
   const records = await buildImportClosureRecordsV1(root, paths, "application");
-  assert(Object.isFrozen(records));
   assert.deepEqual(
     records.map(({ path }) => path),
     [...paths].sort(),
   );
   for (const record of records) {
-    assert(Object.isFrozen(record));
     assert.equal(record.facet, "application");
     assert.equal(
       record.sha256,

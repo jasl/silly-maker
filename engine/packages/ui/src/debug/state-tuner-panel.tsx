@@ -18,10 +18,10 @@ export function EngineStateInspectorPanelV1(props: {
     <div className={styles.inspector} data-engine-state-inspector="true">
       <DebugValueInspectorV1
         inspectorId="engine.state"
-        source={Object.freeze({
+        source={{
           read: () => props.port.read(),
           subscribe: (listener: () => void) => props.port.subscribe(listener),
-        })}
+        }}
       />
     </div>
   );
@@ -200,24 +200,24 @@ function parseDraftV1(
   | { readonly kind: "invalid"; readonly message: string } {
   switch (leaf.kind) {
     case "boolean":
-      return Object.freeze({ kind: "ok", value: draft === true });
+      return { kind: "ok", value: draft === true };
     case "number": {
       if (typeof draft !== "string" || draft.trim().length === 0) {
-        return Object.freeze({ kind: "invalid", message: "需要整数" });
+        return { kind: "invalid", message: "需要整数" };
       }
       const parsed = Number(draft);
       if (!Number.isSafeInteger(parsed) || Object.is(parsed, -0)) {
-        return Object.freeze({ kind: "invalid", message: "需要整数" });
+        return { kind: "invalid", message: "需要整数" };
       }
-      return Object.freeze({ kind: "ok", value: parsed });
+      return { kind: "ok", value: parsed };
     }
     case "string":
-      return Object.freeze({ kind: "ok", value: typeof draft === "string" ? draft : "" });
+      return { kind: "ok", value: typeof draft === "string" ? draft : "" };
     case "null":
-      return Object.freeze({ kind: "invalid", message: "不能改写 null" });
+      return { kind: "invalid", message: "不能改写 null" };
     default: {
       const exhaustive: never = leaf.kind;
-      return Object.freeze({ kind: "invalid", message: String(exhaustive) });
+      return { kind: "invalid", message: String(exhaustive) };
     }
   }
 }

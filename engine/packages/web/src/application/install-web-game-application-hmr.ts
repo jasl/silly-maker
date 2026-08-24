@@ -83,13 +83,13 @@ export function installWebGameApplicationHmrV1<TModule>(
   return installResolvedGameHmrV1<TModule, DeepReadonly<CoreRebootstrapHandoffInternalV1>>({
     hot: input.hot,
     currentProvenance: input.started.provenance,
-    lifecycle: Object.freeze({
-      invalidationController: Object.freeze({
+    lifecycle: {
+      invalidationController: {
         invalidateForHmr: () => invalidateStartedWebGameApplicationForHmrInternalV1(input.started),
-      }),
+      },
       disposeForRebootstrap: () =>
         disposeStartedWebGameApplicationForRebootstrapInternalV1(input.started),
-    }),
+    },
     resolveAcceptedProvenance(module) {
       return input.resolveAcceptedProvenance(requireAcceptedModuleV1(module));
     },
@@ -99,39 +99,39 @@ export function installWebGameApplicationHmrV1<TModule>(
     },
     onAcceptedEqual(module) {
       input.installNextBoundary(
-        Object.freeze({ module: requireAcceptedModuleV1(module), started: input.started }),
+        { module: requireAcceptedModuleV1(module), started: input.started },
       );
     },
     async rebootstrap({ module, handoff }) {
       const acceptedModule = requireAcceptedModuleV1(module);
       const suppliedHandoff = retryHandoff ?? handoff;
       let successor: StartedWebGameApplicationV1 | undefined;
-      let failureOutcome: DeepReadonly<CoreRebootstrapStartFailureInternalV1> = Object.freeze({
+      let failureOutcome: DeepReadonly<CoreRebootstrapStartFailureInternalV1> = {
         kind: "ready" as const,
         handoff: suppliedHandoff,
-      });
+      };
       try {
         successor = await input.startSuccessor(
-          Object.freeze({
+          {
             module: acceptedModule,
             started: input.started,
             handoff: suppliedHandoff,
             onRebootstrapStartFailureInternal(outcome) {
               failureOutcome = outcome;
             },
-          }),
+          },
         );
-        input.installNextBoundary(Object.freeze({ module: acceptedModule, started: successor }));
+        input.installNextBoundary({ module: acceptedModule, started: successor });
         input.onSuccessorStarted?.(successor);
       } catch (error) {
         if (successor !== undefined) {
           try {
-            failureOutcome = Object.freeze({
+            failureOutcome = {
               kind: "ready" as const,
               handoff: await disposeStartedWebGameApplicationForRebootstrapInternalV1(successor),
-            });
+            };
           } catch {
-            failureOutcome = Object.freeze({ kind: "terminal" as const });
+            failureOutcome = { kind: "terminal" as const };
           }
         }
         // A pre-Core failure leaves the supplied handoff untouched. Every Core

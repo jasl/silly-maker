@@ -75,30 +75,30 @@ type TestSemanticPortV1 = SemanticGamePortV1<
   "idle" | "busy"
 >;
 
-const allDisabledV1 = Object.freeze({
+const allDisabledV1 = ({
   debugTools: false,
   cheats: false,
   automationBridge: false,
 }) satisfies RuntimeCapabilitiesV1;
 
-function freezeCapabilitiesV1(state: RuntimeCapabilitiesV1): DeepReadonly<RuntimeCapabilitiesV1> {
-  return Object.freeze({ ...state });
+function snapshotCapabilitiesV1(
+  state: RuntimeCapabilitiesV1,
+): DeepReadonly<RuntimeCapabilitiesV1> {
+  return ({ ...state });
 }
 
 function createCapabilityFixtureV1(automationBridge: boolean) {
-  let current = freezeCapabilitiesV1({ ...allDisabledV1, automationBridge });
+  let current = snapshotCapabilitiesV1({ ...allDisabledV1, automationBridge });
   const listeners = new Set<() => void>();
   let subscribeCount = 0;
   let unsubscribeCount = 0;
-  const capabilityFields = Object.freeze(
-    {
-      debug_tools: "debugTools",
-      cheats: "cheats",
-      automation_bridge: "automationBridge",
-    } satisfies Record<RuntimeCapabilityIdV1, keyof RuntimeCapabilitiesV1>,
-  );
-  const port: RuntimeCapabilityPortV1 = Object.freeze({
-    state: Object.freeze({
+  const capabilityFields = {
+    debug_tools: "debugTools",
+    cheats: "cheats",
+    automation_bridge: "automationBridge",
+  } satisfies Record<RuntimeCapabilityIdV1, keyof RuntimeCapabilitiesV1>;
+  const port: RuntimeCapabilityPortV1 = {
+    state: {
       getCurrent: () => current,
       subscribe(listener: () => void) {
         subscribeCount += 1;
@@ -111,18 +111,18 @@ function createCapabilityFixtureV1(automationBridge: boolean) {
           listeners.delete(listener);
         };
       },
-    }),
+    },
     async setEnabled(capability: RuntimeCapabilityIdV1, enabled: boolean) {
       const field = capabilityFields[capability];
       if (current[field] === enabled) {
-        return Object.freeze({ kind: "unchanged" as const, state: current });
+        return ({ kind: "unchanged" as const, state: current });
       }
-      current = freezeCapabilitiesV1({ ...current, [field]: enabled });
+      current = snapshotCapabilitiesV1({ ...current, [field]: enabled });
       for (const listener of [...listeners]) listener();
-      return Object.freeze({ kind: "updated" as const, state: current });
+      return ({ kind: "updated" as const, state: current });
     },
-  });
-  return Object.freeze({
+  };
+  return ({
     port,
     subscribeCount: () => subscribeCount,
     unsubscribeCount: () => unsubscribeCount,
@@ -131,14 +131,14 @@ function createCapabilityFixtureV1(automationBridge: boolean) {
 }
 
 function createPublicationV1(revision = 0): TestPublicationV1 {
-  const actions = Object.freeze([
-    Object.freeze({ id: "action.test", enabled: true }),
-  ]) satisfies readonly DeepReadonly<TestActionDescriptorV1>[];
-  return Object.freeze({
+  const actions = [
+    { id: "action.test", enabled: true },
+  ] satisfies readonly DeepReadonly<TestActionDescriptorV1>[];
+  return ({
     revision: revision as NonNegativeSafeInteger,
     status: "idle" as const,
-    game: Object.freeze({ value: `game-${revision}` }),
-    narrative: Object.freeze({ text: `narrative-${revision}` }),
+    game: { value: `game-${revision}` },
+    narrative: { text: `narrative-${revision}` },
     actions,
   });
 }
@@ -149,18 +149,18 @@ function createSemanticFixtureV1(input?: {
   readonly waitForIdle?: TestSemanticPortV1["waitForIdle"];
 }) {
   const publication = createPublicationV1();
-  const invocation = Object.freeze({
+  const invocation = {
     kind: "invoke" as const,
     actionId: "action.test",
-  });
-  const previewValue = Object.freeze({
+  };
+  const previewValue = {
     kind: "previewed" as const,
     actionId: invocation.actionId,
-  });
-  const result = Object.freeze({
+  };
+  const result = {
     kind: "committed" as const,
     actionId: invocation.actionId,
-  });
+  };
   const observe = vi.fn<TestSemanticPortV1["observe"]>(() => publication);
   const availableActions = vi.fn<TestSemanticPortV1["availableActions"]>(() => publication.actions);
   const preview = vi.fn<TestSemanticPortV1["preview"]>(
@@ -170,15 +170,15 @@ function createSemanticFixtureV1(input?: {
   const waitForIdle = vi.fn<TestSemanticPortV1["waitForIdle"]>(
     input?.waitForIdle ?? (async () => publication),
   );
-  const port: TestSemanticPortV1 = Object.freeze({
+  const port: TestSemanticPortV1 = {
     observe,
     subscribe: vi.fn(() => () => undefined),
     availableActions,
     preview,
     dispatch,
     waitForIdle,
-  });
-  return Object.freeze({
+  };
+  return ({
     port,
     publication,
     invocation,
@@ -195,7 +195,7 @@ function createSemanticFixtureV1(input?: {
 const liveInstallations = new Set<InstalledBrowserAutomationBridgeV1>();
 
 function readAutomationGlobalV1(): TestAutomationBridgeV1 | undefined {
-  return Object.getOwnPropertyDescriptor(globalThis, "__SILLYMAKER_AUTOMATION_V1__")?.value as
+  return Reflect.get(globalThis, "__SILLYMAKER_AUTOMATION_V1__") as
     | TestAutomationBridgeV1
     | undefined;
 }
@@ -215,7 +215,7 @@ function createAutomationFixtureV1(input: {
     installation.dispose();
     liveInstallations.delete(installation);
   };
-  return Object.freeze({ capabilities, semantic, installation, dispose });
+  return ({ capabilities, semantic, installation, dispose });
 }
 
 afterEach(() => {
@@ -253,17 +253,12 @@ describe("browser automation bridge", () => {
     fixture.dispose();
   });
 
-  it("installs and removes one exact non-enumerable global property", async () => {
+  it("installs and removes one owned global facade", async () => {
     const fixture = createAutomationFixtureV1({ automationBridge: true });
     const installed = readAutomationGlobalV1();
 
     expect(installed).toBeDefined();
-    expect(Object.getOwnPropertyDescriptor(globalThis, "__SILLYMAKER_AUTOMATION_V1__")).toEqual({
-      configurable: true,
-      enumerable: false,
-      value: installed,
-      writable: false,
-    });
+    expect(readAutomationGlobalV1()).toBe(installed);
 
     await fixture.capabilities.port.setEnabled("automation_bridge", false);
 
@@ -412,7 +407,6 @@ describe("browser automation bridge", () => {
     expect(bridge).toBeDefined();
     if (bridge === undefined) throw new Error("missing automation bridge");
 
-    expect(Object.isFrozen(bridge)).toBe(true);
     expect(Object.keys(bridge).toSorted()).toEqual([
       "availableActions",
       "contractRevision",
@@ -424,7 +418,7 @@ describe("browser automation bridge", () => {
     fixture.dispose();
   });
 
-  it("freezes successful envelopes without cloning delegated values or invocations", async () => {
+  it("returns successful envelopes without cloning delegated values or invocations", async () => {
     const fixture = createAutomationFixtureV1({ automationBridge: true });
     const bridge = readAutomationGlobalV1();
     expect(bridge).toBeDefined();
@@ -436,9 +430,6 @@ describe("browser automation bridge", () => {
     const dispatched = await bridge.dispatch(fixture.semantic.invocation);
     const idle = await bridge.waitForIdle(0 as NonNegativeSafeInteger);
 
-    for (const result of [observed, actions, preview, dispatched, idle]) {
-      expect(Object.isFrozen(result)).toBe(true);
-    }
     expect(observed).toEqual({ kind: "ok", value: fixture.semantic.publication });
     expect(actions).toEqual({ kind: "ok", value: fixture.semantic.publication.actions });
     expect(preview).toEqual({ kind: "ok", value: fixture.semantic.previewValue });
@@ -455,7 +446,7 @@ describe("browser automation bridge", () => {
     const captured = readAutomationGlobalV1();
     expect(captured).toBeDefined();
     if (captured === undefined) throw new Error("missing automation bridge");
-    const foreign = Object.freeze({ foreign: true });
+    const foreign = { foreign: true };
     Object.defineProperty(globalThis, "__SILLYMAKER_AUTOMATION_V1__", {
       configurable: true,
       enumerable: false,

@@ -25,7 +25,7 @@ export function resolveLocalRecordsHostModeV1(
   if (usesDesktopShell && desktopShellCapability === null) {
     throw new TypeError("web.desktop_shell_capability_invalid");
   }
-  return Object.freeze({
+  return ({
     usesDesktopShell,
     wantsLocalRecords: usesDesktopShell || new URLSearchParams(search).get("records") === "local",
     desktopShellCapability,

@@ -60,52 +60,6 @@ describe("readVersionStampV1", () => {
     expect(readVersionStampV1()).toMatchObject({ applicationVersion: "1.2.0" });
   });
 
-  it("uses ordinary field reads and soft-fails when a read throws", () => {
-    let getterCalls = 0;
-    const accessor = Object.create(null) as Record<string, unknown>;
-    Object.defineProperty(accessor, "applicationVersion", {
-      enumerable: true,
-      get() {
-        getterCalls += 1;
-        return " 1.2.0 ";
-      },
-    });
-    expect(normalizeVersionStampInternalV1(accessor)).toMatchObject({
-      applicationVersion: "1.2.0",
-    });
-    expect(getterCalls).toBe(1);
-
-    const hostile = new Proxy(
-      {},
-      {
-        get() {
-          throw new Error("synthetic field-read failure");
-        },
-      },
-    );
-    expect(() => normalizeVersionStampInternalV1(hostile)).not.toThrow();
-    expect(normalizeVersionStampInternalV1(hostile)).toBeNull();
-
-    let globalGetterCalls = 0;
-    Object.defineProperty(globalThis, versionStampGlobalKeyV1, {
-      configurable: true,
-      get() {
-        globalGetterCalls += 1;
-        return { applicationVersion: "1.2.0" };
-      },
-    });
-    expect(readVersionStampV1()).toMatchObject({ applicationVersion: "1.2.0" });
-    expect(globalGetterCalls).toBe(1);
-
-    Object.defineProperty(globalThis, versionStampGlobalKeyV1, {
-      configurable: true,
-      get() {
-        throw new Error("synthetic injected-stamp failure");
-      },
-    });
-    expect(readVersionStampV1()).toEqual(emptyVersionStampV1);
-  });
-
   it("accepts only bounded printable diagnostic fields", () => {
     expect(
       normalizeVersionStampInternalV1({

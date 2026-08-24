@@ -451,7 +451,7 @@ export function catcafeTextForLocaleV1(locale: string | null, textId: string): s
 // digests establish technical identity.
 // ---------------------------------------------------------------------------
 
-export const catcafeAssetIdsV1 = Object.freeze({
+export const catcafeAssetIdsV1 = {
   album_leap: "asset.catcafe.album-leap",
   album_purr: "asset.catcafe.album-purr",
   album_regular: "asset.catcafe.album-regular",
@@ -475,9 +475,9 @@ export const catcafeAssetIdsV1 = Object.freeze({
   rival_general: "asset.catcafe.rival-general",
   rival_mochi: "asset.catcafe.rival-mochi",
   rival_smoke: "asset.catcafe.rival-smoke",
-});
+};
 
-export const catcafeAssetSlotsV1 = Object.freeze([
+export const catcafeAssetSlotsV1 = [
   {
     assetId: "asset.catcafe.album-leap",
     kind: "ui",
@@ -754,12 +754,12 @@ export const catcafeAssetSlotsV1 = Object.freeze([
     safeArea: null,
     pivot: null,
   },
-]) as unknown as readonly AssetSlotDefinitionV1[];
+] as unknown as readonly AssetSlotDefinitionV1[];
 
-export const catcafeAssetPacksV1 = Object.freeze([
+export const catcafeAssetPacksV1 = [
   {
     identity: { id: "pack.catcafe.core-art", revision: parsePositiveSafeInteger(1) },
-    providers: Object.freeze([
+    providers: [
       {
         assetId: "asset.catcafe.album-leap",
         runtimePath: "assets/cc-album-leap.webp",
@@ -921,32 +921,32 @@ export const catcafeAssetPacksV1 = Object.freeze([
         width: parsePositiveSafeInteger(1024),
         height: parsePositiveSafeInteger(1536),
       },
-    ]),
+    ],
   },
-]) as unknown as readonly AssetPackV1[];
+] as unknown as readonly AssetPackV1[];
 
 export const catcafeStageContentCatalogV1: StageContentCatalog = {
   resolveContent(contentId, appearance): StageContentResolution | null {
     switch (contentId as string) {
       case catcafeContentIdsV1.backgroundShopfront:
-        return Object.freeze({
+        return ({
           rendererId: "renderer.catcafe.background",
-          assetIds: Object.freeze([catcafeAssetIdsV1.bg_shopfront as AssetId]),
+          assetIds: [catcafeAssetIdsV1.bg_shopfront as AssetId],
           accessibleName: "猫舍店面",
-          props: Object.freeze({
+          props: {
             surface: "shopfront",
             assetId: catcafeAssetIdsV1.bg_shopfront,
-          }),
+          },
         });
       case catcafeContentIdsV1.backgroundBackyard:
-        return Object.freeze({
+        return ({
           rendererId: "renderer.catcafe.background",
-          assetIds: Object.freeze([catcafeAssetIdsV1.bg_backyard as AssetId]),
+          assetIds: [catcafeAssetIdsV1.bg_backyard as AssetId],
           accessibleName: "后院",
-          props: Object.freeze({
+          props: {
             surface: "backyard",
             assetId: catcafeAssetIdsV1.bg_backyard,
-          }),
+          },
         });
       case catcafeContentIdsV1.characterXiaoyu: {
         const stage = typeof appearance.stage === "string" ? appearance.stage : "kitten";
@@ -961,7 +961,7 @@ export const catcafeStageContentCatalogV1: StageContentCatalog = {
           x: number,
           y: number,
           width: number,
-        ) => Object.freeze({ regionId, accessibleNameText, x, y, width, height: third });
+        ) => ({ regionId, accessibleNameText, x, y, width, height: third });
         const expressionName = typeof appearance.expression === "string"
           ? appearance.expression
           : "calm";
@@ -974,29 +974,29 @@ export const catcafeStageContentCatalogV1: StageContentCatalog = {
         const catAssetId =
           catcafeAssetIdsV1[`cat_${stage}_${spriteExpression}` as keyof typeof catcafeAssetIdsV1];
         const frame = catcafeCatFrameSizeV1(stage);
-        return Object.freeze({
+        return ({
           rendererId: "renderer.catcafe.cat",
-          assetIds: Object.freeze([catAssetId as AssetId]),
+          assetIds: [catAssetId as AssetId],
           accessibleName: "小雨",
-          props: Object.freeze({
+          props: {
             stage,
             expression: expressionName,
             assetId: catAssetId,
-          }),
-          hitRegions: Object.freeze([
+          },
+          hitRegions: [
             zone("zone.head", "摸头", -half, -height, half),
             zone("zone.chin", "挠下巴", 0, -height, half),
             zone("zone.back", "顺背", -half, -height + third, size),
             zone("zone.tail", "碰尾巴", -half, -third, size),
-          ]),
+          ],
           // The drawn frame per growth stage, anchored at bottom center;
           // the engine stage host owns the anchor transform.
-          geometry: Object.freeze({
+          geometry: {
             width: frame.width,
             height: frame.height,
             anchorXPermille: 500,
             anchorYPermille: 1000,
-          }),
+          },
         });
       }
       default:
@@ -1005,23 +1005,21 @@ export const catcafeStageContentCatalogV1: StageContentCatalog = {
   },
 };
 
-const transitionDefinitionsV1: readonly StageTransitionDefinition[] = Object.freeze(
-  [
-    {
-      transitionId: "transition.catcafe.crossfade",
-      kind: "crossfade",
-      durationMs: 400,
-      easing: "ease_in_out",
-      inputPolicy: "block",
-      interruption: "settle_and_retarget",
-      reducedMotion: { kind: "settle" },
-      readiness: { kind: "immediate" },
-      acknowledge: false,
-      slide: null,
-    },
-  ].map((definition, index) =>
-    parseStageTransitionDefinition(definition, `/transitions/${String(index)}`)
-  ),
+const transitionDefinitionsV1: readonly StageTransitionDefinition[] = [
+  {
+    transitionId: "transition.catcafe.crossfade",
+    kind: "crossfade",
+    durationMs: 400,
+    easing: "ease_in_out",
+    inputPolicy: "block",
+    interruption: "settle_and_retarget",
+    reducedMotion: { kind: "settle" },
+    readiness: { kind: "immediate" },
+    acknowledge: false,
+    slide: null,
+  },
+].map((definition, index) =>
+  parseStageTransitionDefinition(definition, `/transitions/${String(index)}`)
 );
 
 /**
@@ -1059,5 +1057,5 @@ export interface CatcafePresentationProgramV1 {
 }
 
 export function materializeCatcafePresentationV1(): CatcafePresentationProgramV1 {
-  return Object.freeze({ kind: "catcafe-presentation", textCatalogs: catcafeTextCatalogsV1 });
+  return ({ kind: "catcafe-presentation", textCatalogs: catcafeTextCatalogsV1 });
 }

@@ -39,17 +39,17 @@ const zeroStateSnapshotBase64V1 = [
   "c29yIjowLCJyYXdEcmF3Q291bnQiOjB9LCJzdGF0ZSI6eyJzaW11bGF0aW9uIjp7ImNvdW50ZXIiOnsiY291bnQiOjB9fX19",
 ].join("");
 
-export const rngZeroStateSaveOracleV1: RngZeroStateByteOracleV1 = Object.freeze({
+export const rngZeroStateSaveOracleV1: RngZeroStateByteOracleV1 = {
   byteLength: 1_451,
   bytesDigest: "sha256:d9b01aa897cded19b6da68b764e1fee3dfef3d17de43c2d52c783ccdc1cdfc67" as Digest,
   bytesBase64: zeroStateSaveBase64V1,
-});
+};
 
-export const rngZeroStateSnapshotOracleV1: RngZeroStateByteOracleV1 = Object.freeze({
+export const rngZeroStateSnapshotOracleV1: RngZeroStateByteOracleV1 = {
   byteLength: 222,
   bytesDigest: "sha256:0b0cd4535b6671107295d7e0464798d6bdfba4797d0e20102878cad96d2e31fd" as Digest,
   bytesBase64: zeroStateSnapshotBase64V1,
-});
+};
 
 function bytesFromBase64V1(value: string): Uint8Array {
   const binary = atob(value);

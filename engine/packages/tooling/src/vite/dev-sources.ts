@@ -55,13 +55,13 @@ export function resolveDevSourcePathV1(
   relativePath: string,
 ): DevSourceResolutionV1 {
   if (invalidRelativePathV1(relativePath)) {
-    return Object.freeze({ kind: "bad_request" });
+    return { kind: "bad_request" };
   }
 
   const root = resolve(appRoot);
   const candidate = resolve(root, relativePath);
   if (escapesRootV1(root, candidate) || !existsSync(root) || !existsSync(candidate)) {
-    return Object.freeze({ kind: "not_found" });
+    return { kind: "not_found" };
   }
 
   try {
@@ -69,23 +69,23 @@ export function resolveDevSourcePathV1(
     for (const segment of relative(root, candidate).split(sep)) {
       current = resolve(current, segment);
       const stat = lstatSync(current);
-      if (stat.isSymbolicLink()) return Object.freeze({ kind: "not_found" });
+      if (stat.isSymbolicLink()) return { kind: "not_found" };
       if (current !== candidate && !stat.isDirectory()) {
-        return Object.freeze({ kind: "not_found" });
+        return { kind: "not_found" };
       }
     }
-    if (!lstatSync(candidate).isFile()) return Object.freeze({ kind: "not_found" });
+    if (!lstatSync(candidate).isFile()) return { kind: "not_found" };
 
     const realRoot = realpathSync(root);
     const realCandidate = realpathSync(candidate);
     if (escapesRootV1(realRoot, realCandidate)) {
-      return Object.freeze({ kind: "not_found" });
+      return { kind: "not_found" };
     }
   } catch {
-    return Object.freeze({ kind: "not_found" });
+    return { kind: "not_found" };
   }
 
-  return Object.freeze({ kind: "file", filePath: candidate });
+  return { kind: "file", filePath: candidate };
 }
 
 /**
@@ -101,15 +101,15 @@ export function resolveDevSourceCreatePathV1(
   relativePath: string,
 ): DevSourceCreateResolutionV1 {
   if (invalidRelativePathV1(relativePath)) {
-    return Object.freeze({ kind: "bad_request" });
+    return { kind: "bad_request" };
   }
 
   const root = resolve(appRoot);
   const candidate = resolve(root, relativePath);
   if (escapesRootV1(root, candidate) || !existsSync(root) || candidate === root) {
-    return Object.freeze({ kind: "bad_request" });
+    return { kind: "bad_request" };
   }
-  if (existsSync(candidate)) return Object.freeze({ kind: "already_exists" });
+  if (existsSync(candidate)) return { kind: "already_exists" };
 
   try {
     let current = root;
@@ -117,11 +117,11 @@ export function resolveDevSourceCreatePathV1(
       current = resolve(current, segment);
       if (!existsSync(current)) continue;
       const stat = lstatSync(current);
-      if (stat.isSymbolicLink()) return Object.freeze({ kind: "bad_request" });
+      if (stat.isSymbolicLink()) return { kind: "bad_request" };
       // An existing non-directory segment means the path routes through a
       // file; nothing can be created below it.
       if (current !== candidate && !stat.isDirectory()) {
-        return Object.freeze({ kind: "bad_request" });
+        return { kind: "bad_request" };
       }
     }
     // Containment re-check after symlink resolution of the existing tree.
@@ -134,17 +134,17 @@ export function resolveDevSourceCreatePathV1(
     const realRoot = realpathSync(root);
     const realDeepest = realpathSync(deepestExisting);
     if (deepestExisting !== root && escapesRootV1(realRoot, realDeepest)) {
-      return Object.freeze({ kind: "bad_request" });
+      return { kind: "bad_request" };
     }
   } catch {
-    return Object.freeze({ kind: "bad_request" });
+    return { kind: "bad_request" };
   }
 
-  return Object.freeze({
+  return {
     kind: "create",
     filePath: candidate,
     directoryPath: resolve(candidate, ".."),
-  });
+  };
 }
 
 export const devSourcesOpenUrlV1 = "/__sillymaker/dev-sources/open";
@@ -207,7 +207,7 @@ export function createDevSourcesMiddlewareV1(
     }
     const requestedPath = new URLSearchParams(query).get("path");
     const resolution = requestedPath === null
-      ? Object.freeze({ kind: "bad_request" as const })
+      ? { kind: "bad_request" as const }
       : resolveDevSourcePathV1(input.appRoot, requestedPath);
     if (resolution.kind !== "file") {
       response.statusCode = resolution.kind === "bad_request" ? 400 : 404;

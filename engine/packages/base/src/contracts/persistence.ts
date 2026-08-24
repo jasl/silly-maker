@@ -46,11 +46,11 @@ export interface SaveAnnotationV1 {
   readonly note: string | null;
 }
 
-export const saveAnnotationLimitsV1 = Object.freeze({
+export const saveAnnotationLimitsV1 = {
   maxSummaryLines: 8,
   maxSummaryLineLength: 120,
   maxNoteLength: 64,
-});
+};
 
 function parseAnnotationLineV1(value: unknown, maxLength: number, label: string): string {
   if (typeof value !== "string" || value.length === 0) throw new TypeError(`invalid ${label}`);
@@ -77,8 +77,6 @@ export function parseSaveNoteV1(value: string): string | null {
 function parseSaveSummaryArrayV1(value: unknown, allowEmpty: boolean): readonly string[] | null {
   if (
     !Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Array.prototype ||
-    Object.getOwnPropertySymbols(value).length !== 0 ||
     (!allowEmpty && value.length === 0)
   ) {
     throw new TypeError("invalid SaveAnnotationV1 summary");
@@ -86,35 +84,21 @@ function parseSaveSummaryArrayV1(value: unknown, allowEmpty: boolean): readonly 
   if (value.length > saveAnnotationLimitsV1.maxSummaryLines) {
     throw new TypeError("SaveAnnotationV1 summary has too many lines");
   }
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  const expectedFields = [
-    ...Array.from({ length: value.length }, (_unused, index) => String(index)),
-    "length",
-  ];
-  if (Object.keys(descriptors).sort().join("\0") !== expectedFields.sort().join("\0")) {
+  if (Object.keys(value).length !== value.length) {
     throw new TypeError("invalid SaveAnnotationV1 summary fields");
   }
-  const summary = Array.from({ length: value.length }, (_unused, index) => {
-    const descriptor = descriptors[String(index)];
-    if (
-      descriptor === undefined ||
-      descriptor.get !== undefined ||
-      descriptor.set !== undefined ||
-      !("value" in descriptor)
-    ) {
-      throw new TypeError("SaveAnnotationV1 summary accessors are forbidden");
-    }
+  const summary = value.map((entry) => {
     return parseAnnotationLineV1(
-      descriptor.value,
+      entry,
       saveAnnotationLimitsV1.maxSummaryLineLength,
       "SaveAnnotationV1 summary line",
     );
   });
-  return summary.length === 0 ? null : Object.freeze(summary);
+  return summary.length === 0 ? null : summary;
 }
 
 /**
- * @internal Captures one Story summary as dense, immutable package data.
+ * @internal Captures one Story summary as dense, detached package data.
  * Intentionally absent from the public contracts barrel.
  */
 export function normalizeSaveSummaryInternalV1(value: unknown): readonly string[] | null {
@@ -123,10 +107,10 @@ export function normalizeSaveSummaryInternalV1(value: unknown): readonly string[
 }
 
 export function parseSaveAnnotationV1(value: unknown): SaveAnnotationV1 {
-  const fields = exactDescriptors(value, ["summary", "note"], "SaveAnnotationV1");
-  const summaryValue = fields.summary?.value;
+  const fields = exactFields(value, ["summary", "note"], "SaveAnnotationV1");
+  const summaryValue = fields.summary;
   const summary = summaryValue === null ? null : parseSaveSummaryArrayV1(summaryValue, false);
-  const noteValue = fields.note?.value;
+  const noteValue = fields.note;
   let note: string | null;
   if (noteValue === null) {
     note = null;
@@ -141,7 +125,7 @@ export function parseSaveAnnotationV1(value: unknown): SaveAnnotationV1 {
   if (summary === null && note === null) {
     throw new TypeError("SaveAnnotationV1 must carry a summary or a note");
   }
-  return Object.freeze({ summary, note });
+  return { summary, note };
 }
 
 export interface SaveSlotSummaryV1 {
@@ -539,8 +523,6 @@ export type SaveRecordDecodeResultV1<TSaveRecord> =
   | { readonly kind: "decoded"; readonly record: DeepReadonly<TSaveRecord> }
   | { readonly kind: "rejected"; readonly code: SaveRecordDecodeRejectionCodeV1 };
 
-declare const saveRecordEnvelopeSchemaBrandV1: unique symbol;
-
 interface SaveRecordEnvelopeSchemaStagesInternalV1 {
   readonly snapshotSchema: RuntimeSchemaV1<unknown>;
   readonly provenanceSchema: RuntimeSchemaV1<unknown>;
@@ -548,28 +530,22 @@ interface SaveRecordEnvelopeSchemaStagesInternalV1 {
   readonly simulationLineageSchema: RuntimeSchemaV1<unknown>;
 }
 
+const saveRecordEnvelopeSchemaStagesV1 = Symbol(
+  "SaveRecordEnvelopeSchemaV1.stages",
+);
+
 /**
- * The official staged Save-envelope schema. Codecs require the value returned
- * by `createSaveRecordEnvelopeSchemaV1` so shell and current-Snapshot admission
- * cannot silently fall back to different phase ordering.
+ * A staged Save-envelope schema. Its package-internal parse stages are carried
+ * directly by the normalized typed value returned from the schema factory.
  */
 export interface SaveRecordEnvelopeSchemaV1<TSaveRecord> extends RuntimeSchemaV1<TSaveRecord> {
-  readonly [saveRecordEnvelopeSchemaBrandV1]: true;
+  readonly [saveRecordEnvelopeSchemaStagesV1]: SaveRecordEnvelopeSchemaStagesInternalV1;
 }
-
-const saveRecordEnvelopeSchemaStagesByIdentityV1 = new WeakMap<
-  object,
-  SaveRecordEnvelopeSchemaStagesInternalV1
->();
 
 function saveRecordEnvelopeSchemaStagesForV1<TSaveRecord>(
   schema: SaveRecordEnvelopeSchemaV1<TSaveRecord>,
 ): SaveRecordEnvelopeSchemaStagesInternalV1 {
-  const stages = saveRecordEnvelopeSchemaStagesByIdentityV1.get(schema);
-  if (stages === undefined) {
-    throw new TypeError("Save envelope schema was not created by the official factory");
-  }
-  return stages;
+  return schema[saveRecordEnvelopeSchemaStagesV1];
 }
 
 export interface SaveCodecContextV1<
@@ -676,26 +652,17 @@ export class SaveRecordEnvelopeSchemaFailureV1 extends TypeError {
   }
 }
 
-type ExactRecord = Record<string, PropertyDescriptor>;
+type ExactRecord = Record<string, unknown>;
 
-function exactDescriptors(value: unknown, fields: readonly string[], label: string): ExactRecord {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype ||
-    Object.getOwnPropertySymbols(value).length !== 0
-  ) {
+function exactFields(value: unknown, fields: readonly string[], label: string): ExactRecord {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new TypeError(`invalid ${label}`);
   }
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  if (Object.keys(descriptors).sort().join("\0") !== [...fields].sort().join("\0")) {
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).sort().join("\0") !== [...fields].sort().join("\0")) {
     throw new TypeError(`invalid ${label} fields`);
   }
-  if (Object.values(descriptors).some(({ get, set }) => get !== undefined || set !== undefined)) {
-    throw new TypeError(`${label} accessors are forbidden`);
-  }
-  return descriptors;
+  return Object.fromEntries(fields.map((field) => [field, record[field]]));
 }
 
 function requiredString(value: unknown, label: string): string {
@@ -713,101 +680,98 @@ export function parseIsoUtcInstantV1(value: unknown): IsoUtcInstant {
 
 function parseByteExport<T extends ExportedSaveV1>(value: unknown, label: string): T {
   const fields = ["filename", "mediaType", "digest", "bytes"] as const;
-  const descriptors = exactDescriptors(value, fields, label);
-  const bytesValue = descriptors.bytes?.value;
-  if (
-    !(bytesValue instanceof Uint8Array) ||
-    Object.getPrototypeOf(bytesValue) !== Uint8Array.prototype
-  ) {
+  const record = exactFields(value, fields, label);
+  const bytesValue = record.bytes;
+  if (!(bytesValue instanceof Uint8Array)) {
     throw new TypeError(`invalid ${label} bytes`);
   }
   const bytes = Uint8Array.from(bytesValue);
-  const digest = parseDigest(descriptors.digest?.value);
+  const digest = parseDigest(record.digest);
   if (digest !== digestBytes(bytes)) throw new TypeError(`${label} digest mismatch`);
-  if (descriptors.mediaType?.value !== "application/json") {
+  if (record.mediaType !== "application/json") {
     throw new TypeError(`invalid ${label} mediaType`);
   }
-  return Object.freeze({
-    filename: requiredString(descriptors.filename?.value, `${label} filename`),
+  return {
+    filename: requiredString(record.filename, `${label} filename`),
     mediaType: "application/json" as const,
     digest,
     bytes,
-  }) as T;
+  } as T;
 }
 
-export const exportedSaveSchemaV1: RuntimeSchemaV1<ExportedSaveV1> = Object.freeze({
+export const exportedSaveSchemaV1: RuntimeSchemaV1<ExportedSaveV1> = {
   parse(value: unknown) {
     return parseByteExport<ExportedSaveV1>(value, "ExportedSaveV1");
   },
-});
+};
 
-export const sessionLeaseStatusSchemaV1: RuntimeSchemaV1<SessionLeaseStatusV1> = Object.freeze({
+export const sessionLeaseStatusSchemaV1: RuntimeSchemaV1<SessionLeaseStatusV1> = {
   parse(value: unknown) {
     if (value === null || typeof value !== "object") {
       throw new TypeError("invalid SessionLeaseStatusV1");
     }
     const kind = Reflect.get(value, "kind");
     if (kind === "owned" || kind === "readonly") {
-      const fields = exactDescriptors(
+      const fields = exactFields(
         value,
         ["kind", "ownerId", "fencingToken"],
         "SessionLeaseStatusV1",
       );
-      return Object.freeze({
+      return {
         kind,
-        ownerId: requiredString(fields.ownerId?.value, "ownerId") as SessionLeaseOwnerId,
-        fencingToken: parsePositiveSafeInteger(fields.fencingToken?.value),
-      });
+        ownerId: requiredString(fields.ownerId, "ownerId") as SessionLeaseOwnerId,
+        fencingToken: parsePositiveSafeInteger(fields.fencingToken),
+      };
     }
     if (kind === "handoff_requested") {
-      const fields = exactDescriptors(
+      const fields = exactFields(
         value,
         ["kind", "ownerId", "fencingToken", "requestId", "requestedByOwnerId"],
         "SessionLeaseStatusV1",
       );
-      return Object.freeze({
+      return {
         kind,
-        ownerId: requiredString(fields.ownerId?.value, "ownerId") as SessionLeaseOwnerId,
-        fencingToken: parsePositiveSafeInteger(fields.fencingToken?.value),
-        requestId: requiredString(fields.requestId?.value, "requestId") as LeaseHandoffRequestId,
+        ownerId: requiredString(fields.ownerId, "ownerId") as SessionLeaseOwnerId,
+        fencingToken: parsePositiveSafeInteger(fields.fencingToken),
+        requestId: requiredString(fields.requestId, "requestId") as LeaseHandoffRequestId,
         requestedByOwnerId: requiredString(
-          fields.requestedByOwnerId?.value,
+          fields.requestedByOwnerId,
           "requestedByOwnerId",
         ) as SessionLeaseOwnerId,
-      });
+      };
     }
     if (kind === "unowned") {
-      const fields = exactDescriptors(
+      const fields = exactFields(
         value,
         ["kind", "ownerId", "fencingToken"],
         "SessionLeaseStatusV1",
       );
-      if (fields.ownerId?.value !== null) throw new TypeError("unowned lease has an owner");
-      return Object.freeze({
+      if (fields.ownerId !== null) throw new TypeError("unowned lease has an owner");
+      return {
         kind,
         ownerId: null,
-        fencingToken: parsePositiveSafeInteger(fields.fencingToken?.value),
-      });
+        fencingToken: parsePositiveSafeInteger(fields.fencingToken),
+      };
     }
     if (kind === "unavailable") {
-      const fields = exactDescriptors(
+      const fields = exactFields(
         value,
         ["kind", "ownerId", "fencingToken", "code"],
         "SessionLeaseStatusV1",
       );
-      if (fields.ownerId?.value !== null || fields.fencingToken?.value !== null) {
+      if (fields.ownerId !== null || fields.fencingToken !== null) {
         throw new TypeError("unavailable lease carries ownership");
       }
-      return Object.freeze({
+      return {
         kind,
         ownerId: null,
         fencingToken: null,
-        code: requiredString(fields.code?.value, "lease unavailable code"),
-      });
+        code: requiredString(fields.code, "lease unavailable code"),
+      };
     }
     throw new TypeError("invalid SessionLeaseStatusV1 kind");
   },
-});
+};
 
 export type SaveRecordEnvelopeShellInternalV1<
   TSaveRecord extends SaveRecordEnvelopeV1<unknown, unknown, unknown, unknown>,
@@ -837,7 +801,7 @@ function parseSaveRecordEnvelopeShellWithStagesV1(
   const hasVersionStamp = value !== null &&
     typeof value === "object" &&
     Object.prototype.hasOwnProperty.call(value, "versionStamp");
-  const fields = exactDescriptors(
+  const fields = exactFields(
     value,
     [
       "formatRevision",
@@ -853,7 +817,7 @@ function parseSaveRecordEnvelopeShellWithStagesV1(
     ],
     "SaveRecordEnvelopeV1",
   );
-  const formatRevision = fields.formatRevision?.value;
+  const formatRevision = fields.formatRevision;
   if (formatRevision !== 1) {
     if (
       typeof formatRevision === "number" &&
@@ -865,36 +829,36 @@ function parseSaveRecordEnvelopeShellWithStagesV1(
     }
     throw new TypeError("invalid Save formatRevision");
   }
-  const recordRevision = parsePositiveSafeInteger(fields.recordRevision?.value);
-  const provenance = stages.provenanceSchema.parse(fields.provenance?.value);
-  const slot = stages.slotMetadataSchema.parse(fields.slot?.value);
-  const savedAt = parseIsoUtcInstantV1(fields.savedAt?.value);
+  const recordRevision = parsePositiveSafeInteger(fields.recordRevision);
+  const provenance = stages.provenanceSchema.parse(fields.provenance);
+  const slot = stages.slotMetadataSchema.parse(fields.slot);
+  const savedAt = parseIsoUtcInstantV1(fields.savedAt);
   let stateDigest: Digest;
   try {
-    stateDigest = parseDigest(fields.stateDigest?.value);
+    stateDigest = parseDigest(fields.stateDigest);
   } catch {
     throw new SaveRecordEnvelopeSchemaFailureV1("digest.invalid_format");
   }
   const simulationLineage = stages.simulationLineageSchema.parse(
-    fields.simulationLineage?.value,
+    fields.simulationLineage,
   );
-  const annotation = hasAnnotation ? parseSaveAnnotationV1(fields.annotation?.value) : null;
+  const annotation = hasAnnotation ? parseSaveAnnotationV1(fields.annotation) : null;
   const versionStamp = hasVersionStamp
-    ? normalizeVersionStampInternalV1(fields.versionStamp?.value)
+    ? normalizeVersionStampInternalV1(fields.versionStamp)
     : null;
-  return Object.freeze({
+  return {
     formatRevision: 1 as const,
     recordRevision,
     provenance,
     slot,
     savedAt,
     stateDigest,
-    snapshot: fields.snapshot?.value,
+    snapshot: fields.snapshot,
     simulationLineage,
     ...(annotation === null ? {} : { annotation }),
     // Diagnostic-only: normalize/omit instead of reject (see the field doc).
     ...(versionStamp === null ? {} : { versionStamp }),
-  });
+  };
 }
 
 export function parseSaveRecordEnvelopeShellInternalV1<
@@ -918,7 +882,7 @@ export function parseCurrentSaveRecordEnvelopeInternalV1<
   const snapshot = saveRecordEnvelopeSchemaStagesForV1(schema).snapshotSchema.parse(
     shell.snapshot,
   );
-  return Object.freeze({ ...shell, snapshot }) as DeepReadonly<TSaveRecord>;
+  return { ...shell, snapshot } as DeepReadonly<TSaveRecord>;
 }
 
 export function parseSaveRecordEnvelopeInternalV1<
@@ -944,22 +908,27 @@ export function createSaveRecordEnvelopeSchemaV1<
 ): SaveRecordEnvelopeSchemaV1<
   SaveRecordEnvelopeV1<TSnapshot, TProvenance, TSlotMetadata, TSimulationLineage>
 > {
-  const stages: SaveRecordEnvelopeSchemaStagesInternalV1 = Object.freeze({
+  const stages: SaveRecordEnvelopeSchemaStagesInternalV1 = {
     snapshotSchema,
     provenanceSchema,
     slotMetadataSchema,
     simulationLineageSchema,
-  });
-  const schema = Object.freeze({
+  };
+  const schema: SaveRecordEnvelopeSchemaV1<
+    SaveRecordEnvelopeV1<TSnapshot, TProvenance, TSlotMetadata, TSimulationLineage>
+  > = {
+    [saveRecordEnvelopeSchemaStagesV1]: stages,
     parse(value: unknown) {
       const shell = parseSaveRecordEnvelopeShellWithStagesV1(value, stages);
       const snapshot = snapshotSchema.parse(shell.snapshot);
-      return Object.freeze({ ...shell, snapshot });
+      return { ...shell, snapshot } as SaveRecordEnvelopeV1<
+        TSnapshot,
+        TProvenance,
+        TSlotMetadata,
+        TSimulationLineage
+      >;
     },
-  }) as unknown as SaveRecordEnvelopeSchemaV1<
-    SaveRecordEnvelopeV1<TSnapshot, TProvenance, TSlotMetadata, TSimulationLineage>
-  >;
-  saveRecordEnvelopeSchemaStagesByIdentityV1.set(schema, stages);
+  };
   return schema;
 }
 
@@ -972,4 +941,4 @@ export const saveJsonLimitsV1 = parseStrictJsonLimitsV1({
   maxStringBytes: 262_144,
 });
 
-export { exactDescriptors as exactEnvelopeDescriptorsV1, parseByteExport as parseByteExportV1 };
+export { exactFields as exactEnvelopeFieldsV1, parseByteExport as parseByteExportV1 };

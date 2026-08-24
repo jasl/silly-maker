@@ -148,8 +148,6 @@ describe("Authoring Host workspace focus", () => {
     expect(initial.activeWorkspaceId).toBe("scene");
     expect(initial.visitedWorkspaceIds).toEqual(["scene"]);
     expect(initial.workspaceIds).toEqual(["scene", "motion", "regions", "chrome", "flow"]);
-    expect(Object.isFrozen(initial.workspaceIds)).toBe(true);
-    expect(Object.isFrozen(initial.visitedWorkspaceIds)).toBe(true);
 
     expect(owner.focusWorkspace("chrome")).toBe(true);
     const focused = host.getSnapshot();
@@ -233,7 +231,6 @@ describe("Authoring Host workspace focus", () => {
       "chrome",
     ]);
     expect(host.getSnapshot().dirty).toBe(true);
-    expect(Object.isFrozen(host.getSnapshot().dirtyWorkspaceIds)).toBe(true);
 
     unregisterMotion();
     expect(host.getSnapshot().dirtyWorkspaceIds).toEqual(["scene", "regions", "chrome"]);

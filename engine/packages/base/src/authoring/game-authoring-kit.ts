@@ -202,7 +202,7 @@ export type KitTransactionOutcomeV1<TTypes extends GameSimulationTypeMapV1> =
 
 /**
  * The Story-facing transaction surface. The handler reads the command-start
- * immutable Snapshot, decides, and emits domain events; the engine folds the
+ * current Snapshot, decides, and emits domain events; the engine folds the
  * admitted events through every declared reducer in one atomic commit while
  * validation, rejection, fault, and RNG/sequence rollback stay engine-owned.
  * `emit` never rejects — an event is a decided outcome, so every gameplay
@@ -216,9 +216,9 @@ export interface KitTransactionV1<TTypes extends GameSimulationTypeMapV1> {
 }
 
 export interface KitTransactionRunnerConfigV1<TTypes extends GameSimulationTypeMapV1> {
-  readonly stateSchema: RuntimeSchemaV1<TTypes["state"]>;
   readonly eventSchema: RuntimeSchemaV1<TTypes["event"]>;
   createFault(cause: unknown): TTypes["fault"];
+  /** Cross-slice invariants that cannot be owned by one module's slice schema. */
   validateCandidate?(state: DeepReadonly<TTypes["state"]>): readonly string[];
 }
 
@@ -449,7 +449,6 @@ interface ErasedTransactionSnapshotV1 {
 }
 
 interface ErasedRunnerConfigV1 {
-  readonly stateSchema: RuntimeSchemaV1<unknown>;
   readonly eventSchema: RuntimeSchemaV1<unknown>;
   createFault(cause: unknown): unknown;
   validateCandidate?(state: never): readonly string[];
@@ -466,13 +465,12 @@ function validateReducerMapV1(
   if (
     reducers === null ||
     typeof reducers !== "object" ||
-    Array.isArray(reducers) ||
-    Object.getPrototypeOf(reducers) !== Object.prototype
+    Array.isArray(reducers)
   ) {
     throw new AuthoringDiagnosticErrorV1([
       kitDiagnosticV1(
         "authoring.module.invalid_reducers",
-        `module ${moduleId} must declare a plain reducers record`,
+        `module ${moduleId} must declare a reducers record`,
         { kind: "module", id: moduleId },
       ),
     ]);
@@ -512,10 +510,10 @@ export function createGameAuthoringKitInternalV1<
         ),
       ]);
     }
-    const token: CapabilityTokenV1<unknown> = Object.freeze({
+    const token: CapabilityTokenV1<unknown> = {
       kind: "capability_token" as const,
       id: parsedId,
-    });
+    };
     issuedTokenIds.set(parsedId, token);
     return token;
   }
@@ -525,31 +523,28 @@ export function createGameAuthoringKitInternalV1<
     const stateSlot = parseStateSlotId(config.state.slot);
     parsePositiveSafeInteger(config.contractRevision);
     validateReducerMapV1(config.reducers, String(id));
-    const provide: ProvideCapabilityV1<never> = (token, createPort) =>
-      Object.freeze({ token, createPort });
-    const provisions = Object.freeze(
-      config.provides === undefined ? [] : [...config.provides(provide)],
-    );
-    return Object.freeze({
+    const provide: ProvideCapabilityV1<never> = (token, createPort) => ({ token, createPort });
+    const provisions = config.provides === undefined ? [] : [...config.provides(provide)];
+    return {
       kind: "kit_stateful_module" as const,
       id,
       stateSlot,
-      requires: Object.freeze({ ...config.requires }),
-      initializesAfter: Object.freeze([...(config.initializesAfter ?? [])]),
+      requires: { ...config.requires },
+      initializesAfter: [...(config.initializesAfter ?? [])],
       provisions,
       config,
-    });
+    };
   }
 
   function defineStatelessModule(
     config: AuthoringKitStatelessModuleConfigV1<unknown>,
   ): ErasedStatelessModuleV1 {
     parsePositiveSafeInteger(config.contractRevision);
-    return Object.freeze({
+    return {
       kind: "kit_stateless_module" as const,
       id: parseModuleId(config.id),
       config,
-    });
+    };
   }
 
   function composeModules(modules: readonly ErasedModuleV1[]) {
@@ -691,9 +686,9 @@ export function createGameAuthoringKitInternalV1<
           ),
         ]);
       }
-      const context: CapabilityProviderContextV1<never> = Object.freeze({
+      const context: CapabilityProviderContextV1<never> = {
         readOwnState: () => readStateSlotV1(state, provider.module.stateSlot) as never,
-      });
+      };
       return provider.provision.createPort(context);
     };
 
@@ -756,15 +751,13 @@ export function createGameAuthoringKitInternalV1<
     const foldModulesOrdered = [...statefulModules].sort((left, right) =>
       compareUtf16CodeUnitsInternalV1(String(left.id), String(right.id))
     );
-    const foldOwners = Object.freeze(foldModulesOrdered.map((module, order) =>
-      Object.freeze({
-        module,
-        order,
-        slot: String(module.stateSlot),
-        path: Object.freeze(String(module.stateSlot).split(".")),
-        schema: module.config.state.schema,
-      })
-    ));
+    const foldOwners = foldModulesOrdered.map((module, order) => ({
+      module,
+      order,
+      slot: String(module.stateSlot),
+      path: String(module.stateSlot).split("."),
+      schema: module.config.state.schema,
+    }));
     const mutableReducersByEventKind = new Map<
       string,
       {
@@ -775,13 +768,13 @@ export function createGameAuthoringKitInternalV1<
     for (const owner of foldOwners) {
       for (const [kind, reducer] of Object.entries(owner.module.config.reducers)) {
         const subscribers = mutableReducersByEventKind.get(kind) ?? [];
-        subscribers.push(Object.freeze({ owner, reducer }));
+        subscribers.push({ owner, reducer });
         mutableReducersByEventKind.set(kind, subscribers);
       }
     }
     const reducersByEventKind = new Map(
       [...mutableReducersByEventKind].map(([kind, subscribers]) =>
-        [kind, Object.freeze([...subscribers])] as const
+        [kind, [...subscribers]] as const
       ),
     );
 
@@ -790,132 +783,128 @@ export function createGameAuthoringKitInternalV1<
       for (const [name, token] of Object.entries(consumer.requires)) {
         ports[name] = buildPort(token, state);
       }
-      return Object.freeze(ports);
+      return ports;
     };
 
-    const createTransactionRunner = (config: ErasedRunnerConfigV1) =>
-      Object.freeze({
-        execute(
-          snapshot: ErasedTransactionSnapshotV1,
-          rng: RuleRngV1,
-          run: (transaction: never) => ErasedTransactionOutcomeV1,
-        ) {
-          const emitted: { readonly kind: string; readonly event: unknown }[] = [];
-          // The transaction latches closed on the first reject/complete: a
-          // handler (or leaked reference) touching it afterwards is a bug and
-          // faults instead of silently extending a settled commit.
-          let settled = false;
-          const assertOpen = (operation: string): void => {
-            if (!settled) return;
-            throw new AuthoringDiagnosticErrorV1([
-              kitDiagnosticV1(
-                "authoring.transaction.settled",
-                `transaction ${operation} was called after reject/complete settled it`,
-                { kind: "transaction", id: operation },
-              ),
-            ]);
-          };
-          const transaction = Object.freeze({
-            read: (token: CapabilityTokenV1<unknown>) => buildPort(token, snapshot.state),
-            emit(event: unknown): void {
-              assertOpen("emit");
-              const parsed = config.eventSchema.parse(event);
-              const kind = parsed === null || typeof parsed !== "object"
-                ? undefined
-                : Reflect.get(parsed, "kind");
-              if (typeof kind !== "string" || kind.length === 0) {
-                throw new AuthoringDiagnosticErrorV1([
-                  kitDiagnosticV1(
-                    "authoring.transaction.invalid_event",
-                    "domain events must carry a non-empty string kind",
-                    { kind: "event", id: "unknown" },
-                  ),
-                ]);
-              }
-              emitted.push({ kind, event: parsed });
-            },
-            reject(rejection: unknown) {
-              assertOpen("reject");
-              settled = true;
-              return Object.freeze({ kind: "transaction_reject" as const, rejection });
-            },
-            complete() {
-              assertOpen("complete");
-              settled = true;
-              return Object.freeze({ kind: "transaction_complete" as const });
-            },
-          });
-
-          try {
-            const outcome = run(transaction as never);
-            if (outcome.kind === "transaction_reject") {
-              return rejectAttemptV1(snapshot, rng, [outcome.rejection]);
-            }
-            if (outcome.kind !== "transaction_complete") {
-              throw new TypeError("transaction run returned an invalid outcome");
-            }
-            const proposals = new Map<(typeof foldOwners)[number], unknown>();
-            for (const { kind, event } of emitted) {
-              for (const { owner, reducer } of reducersByEventKind.get(kind) ?? []) {
-                if (instrumentation !== undefined) {
-                  recordTransactionWorkV1(instrumentation, "reducer_plan_visit");
-                }
-                const slice = proposals.has(owner)
-                  ? proposals.get(owner)
-                  : readStatePathV1(snapshot.state, owner.path, owner.slot);
-                proposals.set(owner, reducer(slice as never, event as never));
-              }
-            }
-            // Touched slices validate once after the whole fold, not per
-            // event: reducers are trusted Story code consuming events the
-            // schema admitted at emit time, and an invalid intermediate value
-            // still faults here before any commit.
-            const updates = [...proposals]
-              .sort(([left], [right]) => left.order - right.order)
-              .map(([owner, proposal]) =>
-                Object.freeze({
-                  slot: owner.slot,
-                  path: owner.path,
-                  value: owner.schema.parse(proposal),
-                })
-              );
-            const nextState = materializeStateSlotsV1(
-              snapshot.state,
-              updates,
-              instrumentation,
-            );
-            const candidateState = config.stateSchema.parse(nextState);
-            const violations = config.validateCandidate?.(candidateState as never) ?? [];
-            if (violations.length > 0) {
+    const createTransactionRunner = (config: ErasedRunnerConfigV1) => ({
+      execute(
+        snapshot: ErasedTransactionSnapshotV1,
+        rng: RuleRngV1,
+        run: (transaction: never) => ErasedTransactionOutcomeV1,
+      ) {
+        const emitted: { readonly kind: string; readonly event: unknown }[] = [];
+        // The transaction latches closed on the first reject/complete: a
+        // handler (or leaked reference) touching it afterwards is a bug and
+        // faults instead of silently extending a settled commit.
+        let settled = false;
+        const assertOpen = (operation: string): void => {
+          if (!settled) return;
+          throw new AuthoringDiagnosticErrorV1([
+            kitDiagnosticV1(
+              "authoring.transaction.settled",
+              `transaction ${operation} was called after reject/complete settled it`,
+              { kind: "transaction", id: operation },
+            ),
+          ]);
+        };
+        const transaction = {
+          read: (token: CapabilityTokenV1<unknown>) => buildPort(token, snapshot.state),
+          emit(event: unknown): void {
+            assertOpen("emit");
+            const parsed = config.eventSchema.parse(event);
+            const kind = parsed === null || typeof parsed !== "object"
+              ? undefined
+              : Reflect.get(parsed, "kind");
+            if (typeof kind !== "string" || kind.length === 0) {
               throw new AuthoringDiagnosticErrorV1([
                 kitDiagnosticV1(
-                  "authoring.transaction.invariant_violation",
-                  `transaction candidate violated ${violations.length} invariant(s)`,
-                  { kind: "state", id: "candidate" },
-                  { violations: violations.join(", ") },
+                  "authoring.transaction.invalid_event",
+                  "domain events must carry a non-empty string kind",
+                  { kind: "event", id: "unknown" },
                 ),
               ]);
             }
-            const next = Object.freeze({
-              state: candidateState,
-              rng: rng.candidateState(),
-              commandSequence: parseNonNegativeSafeInteger(snapshot.commandSequence + 1),
-              integrity: snapshot.integrity,
-            });
-            return commitAttemptV1(
-              snapshot,
-              next as typeof snapshot,
-              rng,
-              emitted.map((entry) => entry.event),
-            );
-          } catch (error) {
-            return faultAttemptV1(snapshot, rng, config.createFault(error));
-          }
-        },
-      });
+            emitted.push({ kind, event: parsed });
+          },
+          reject(rejection: unknown) {
+            assertOpen("reject");
+            settled = true;
+            return { kind: "transaction_reject" as const, rejection };
+          },
+          complete() {
+            assertOpen("complete");
+            settled = true;
+            return { kind: "transaction_complete" as const };
+          },
+        };
 
-    return Object.freeze({
-      modules: Object.freeze(bindings),
+        try {
+          const outcome = run(transaction as never);
+          if (outcome.kind === "transaction_reject") {
+            return rejectAttemptV1(snapshot, rng, [outcome.rejection]);
+          }
+          if (outcome.kind !== "transaction_complete") {
+            throw new TypeError("transaction run returned an invalid outcome");
+          }
+          const proposals = new Map<(typeof foldOwners)[number], unknown>();
+          for (const { kind, event } of emitted) {
+            for (const { owner, reducer } of reducersByEventKind.get(kind) ?? []) {
+              if (instrumentation !== undefined) {
+                recordTransactionWorkV1(instrumentation, "reducer_plan_visit");
+              }
+              const slice = proposals.has(owner)
+                ? proposals.get(owner)
+                : readStatePathV1(snapshot.state, owner.path, owner.slot);
+              proposals.set(owner, reducer(slice as never, event as never));
+            }
+          }
+          // Touched slices validate once after the whole fold, not per
+          // event: reducers are trusted Story code consuming events the
+          // schema admitted at emit time, and an invalid intermediate value
+          // still faults here before any commit.
+          const updates = [...proposals]
+            .sort(([left], [right]) => left.order - right.order)
+            .map(([owner, proposal]) => ({
+              slot: owner.slot,
+              path: owner.path,
+              value: owner.schema.parse(proposal),
+            }));
+          const candidateState = materializeStateSlotsV1(
+            snapshot.state,
+            updates,
+            instrumentation,
+          );
+          const violations = config.validateCandidate?.(candidateState as never) ?? [];
+          if (violations.length > 0) {
+            throw new AuthoringDiagnosticErrorV1([
+              kitDiagnosticV1(
+                "authoring.transaction.invariant_violation",
+                `transaction candidate violated ${violations.length} invariant(s)`,
+                { kind: "state", id: "candidate" },
+                { violations: violations.join(", ") },
+              ),
+            ]);
+          }
+          const next = {
+            state: candidateState,
+            rng: rng.candidateState(),
+            commandSequence: parseNonNegativeSafeInteger(snapshot.commandSequence + 1),
+            integrity: snapshot.integrity,
+          };
+          return commitAttemptV1(
+            snapshot,
+            next as typeof snapshot,
+            rng,
+            emitted.map((entry) => entry.event),
+          );
+        } catch (error) {
+          return faultAttemptV1(snapshot, rng, config.createFault(error));
+        }
+      },
+    });
+
+    return {
+      modules: bindings,
       createDependencyPortsFor,
       readCapability(
         consumer: ErasedConsumerV1,
@@ -936,15 +925,15 @@ export function createGameAuthoringKitInternalV1<
         return buildPort(token, state);
       },
       createTransactionRunner,
-    });
+    };
   }
 
-  return Object.freeze({
+  return {
     defineCapability,
     defineStatefulModule,
     defineStatelessModule,
     composeModules,
-  }) as unknown as GameAuthoringKitV1<TTypes>;
+  } as unknown as GameAuthoringKitV1<TTypes>;
 }
 
 export function createGameAuthoringKitV1<

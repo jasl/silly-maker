@@ -27,6 +27,5 @@ describe("execution attempts", () => {
     expect(rejected.result.snapshot).toBe(snapshot);
     expect(rejected.diagnostics.committedRngAfter).toBe(snapshot.rng);
     expect(rejected.diagnostics.attemptedDraws).toHaveLength(14);
-    expect(Object.isFrozen(rejected)).toBe(true);
   });
 });

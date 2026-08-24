@@ -16,7 +16,7 @@ import { inspectDeterminismSaveStateMigrationRegistryV1 } from "./save-state-mig
 
 describe("DET4 determinism vector facade", () => {
   it("synchronously normalizes one synthetic Save summary projection", () => {
-    const state = Object.freeze({ checkpoint: 7, scene: "Neutral scene" });
+    const state = { checkpoint: 7, scene: "Neutral scene" };
     const sourceSummary = ["Checkpoint 7", "Neutral scene"];
     let callbackCount = 0;
     let receivedState: typeof state | undefined;
@@ -35,42 +35,41 @@ describe("DET4 determinism vector facade", () => {
     expect(callbackCount).toBe(1);
     expect(receivedState).toBe(state);
     expect(actual).toEqual(saveMetadataCompactExpectedV1.summaries.valid);
-    expect(Object.isFrozen(actual)).toBe(true);
   });
 
   it("exposes exact registry callback identities only through the testkit seam", () => {
     const namespace = parseSaveStateMigrationNamespaceV1("state.testkit.aggregate");
-    const source = Object.freeze({
+    const source = {
       stateContractRevision: parsePositiveSafeInteger(1),
       stateContractDigest: parseDigest(
         "sha256:1111111111111111111111111111111111111111111111111111111111111111",
       ),
-    });
-    const target = Object.freeze({
+    };
+    const target = {
       stateContractRevision: parsePositiveSafeInteger(2),
       stateContractDigest: parseDigest(
         "sha256:2222222222222222222222222222222222222222222222222222222222222222",
       ),
-    });
+    };
     let callbackCount = 0;
     const migrate = () => {
       callbackCount += 1;
-      return Object.freeze({ kind: "migrated" as const, state: null });
+      return ({ kind: "migrated" as const, state: null });
     };
     const registry = defineSaveStateMigrationRegistryV1({
       namespace,
       minimumSupported: source,
       current: target,
-      steps: Object.freeze([
-        Object.freeze({
+      steps: [
+        {
           migrationId: parseSaveStateMigrationIdV1("migration.testkit.one"),
           namespace,
           from: source,
           to: target,
-          references: Object.freeze({ renames: Object.freeze([]), deletions: Object.freeze([]) }),
+          references: { renames: [], deletions: [] },
           migrate,
-        }),
-      ]),
+        },
+      ],
     });
 
     const inspection = inspectDeterminismSaveStateMigrationRegistryV1(registry);
@@ -88,8 +87,5 @@ describe("DET4 determinism vector facade", () => {
     });
     expect(inspection.steps[0]?.migrate).toBe(migrate);
     expect(callbackCount).toBe(0);
-    expect(Object.isFrozen(inspection)).toBe(true);
-    expect(Object.isFrozen(inspection.steps)).toBe(true);
-    expect(Object.isFrozen(inspection.steps[0])).toBe(true);
   });
 });

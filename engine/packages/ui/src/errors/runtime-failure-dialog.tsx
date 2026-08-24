@@ -62,7 +62,7 @@ function RuntimeFailureDialogCurrentnessCommitInternalV1(props: {
   useLayoutEffect(() => {
     let initialFocus = initialFocusRef.current;
     if (initialFocus === null) {
-      initialFocus = Object.freeze({ target: readFocusedElementV1() });
+      initialFocus = { target: readFocusedElementV1() };
       initialFocusRef.current = initialFocus;
     }
     returnFocusRef.current = returnFocusTo === undefined ? initialFocus.target : returnFocusTo;

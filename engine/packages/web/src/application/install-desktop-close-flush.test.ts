@@ -118,23 +118,4 @@ describe("desktop close flush bridge", () => {
     first();
     expect(Object.hasOwn(target, desktopCloseFlushGlobalKeyV1)).toBe(false);
   });
-
-  it("fails closed when the reserved global cannot be installed", () => {
-    const target: Record<string, unknown> = {};
-    Object.defineProperty(target, desktopCloseFlushGlobalKeyV1, {
-      configurable: false,
-      get() {
-        throw new Error("must not read hostile accessor");
-      },
-    });
-
-    expect(() =>
-      installDesktopCloseFlushV1({
-        enabled: true,
-        fence: () => {},
-        flush: async () => {},
-        target,
-      })
-    ).toThrow("web.desktop_close_bridge_collision");
-  });
 });

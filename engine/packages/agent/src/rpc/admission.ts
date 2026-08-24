@@ -8,11 +8,11 @@ import type { AgentRpcDiagnosticInternalV1, AgentRpcStreamEventInternalV1 } from
 
 type CanonicalRecordInternalV1 = Readonly<Record<string, unknown>>;
 
-const rpcProjectionLimitsInternalV1: BoundedCanonicalJsonLimitsInternalV1 = Object.freeze({
+const rpcProjectionLimitsInternalV1: BoundedCanonicalJsonLimitsInternalV1 = {
   maxBytes: 65_536 as BoundedCanonicalJsonLimitsInternalV1["maxBytes"],
   maxDepth: 16 as BoundedCanonicalJsonLimitsInternalV1["maxDepth"],
   maxNodes: 2_048 as BoundedCanonicalJsonLimitsInternalV1["maxNodes"],
-});
+};
 
 const identifierPatternInternalV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
 const maxChunkLengthInternalV1 = 8_192;
@@ -26,14 +26,14 @@ function diagnosticInternalV1(
   code: AgentRpcDiagnosticInternalV1["code"],
   path: string,
 ): AgentRpcDiagnosticInternalV1 {
-  return Object.freeze({ code, path });
+  return { code, path };
 }
 
 function rejectionInternalV1<TValue>(
   code: AgentRpcDiagnosticInternalV1["code"],
   path: string,
 ): AgentRpcAdmissionResultInternalV1<TValue> {
-  return Object.freeze({ kind: "rejected", diagnostic: diagnosticInternalV1(code, path) });
+  return { kind: "rejected", diagnostic: diagnosticInternalV1(code, path) };
 }
 
 function exactRecordInternalV1(
@@ -61,7 +61,7 @@ function projectRecordInternalV1(
       "/",
     );
   }
-  return Object.freeze({ kind: "admitted", value: projected.value });
+  return { kind: "admitted", value: projected.value };
 }
 
 function validIdentifierInternalV1(value: unknown): value is string {
@@ -92,10 +92,10 @@ export function admitAgentRpcResponseInternalV1(
       ) {
         return rejectionInternalV1("rpc.record_invalid", "/response");
       }
-      return Object.freeze({
+      return {
         kind: "admitted",
-        value: Object.freeze({ kind: "started", sessionId: record.sessionId }),
-      });
+        value: { kind: "started", sessionId: record.sessionId },
+      };
     }
     case "submit": {
       const record = exactRecordInternalV1(projection.value, ["kind", "runId"]);
@@ -105,20 +105,20 @@ export function admitAgentRpcResponseInternalV1(
       ) {
         return rejectionInternalV1("rpc.record_invalid", "/response");
       }
-      return Object.freeze({
+      return {
         kind: "admitted",
-        value: Object.freeze({ kind: "submitted", runId: record.runId }),
-      });
+        value: { kind: "submitted", runId: record.runId },
+      };
     }
     case "cancel": {
       const record = exactRecordInternalV1(projection.value, ["kind"]);
       if (record === null || record.kind !== "cancel_requested") {
         return rejectionInternalV1("rpc.record_invalid", "/response");
       }
-      return Object.freeze({
+      return {
         kind: "admitted",
-        value: Object.freeze({ kind: "cancel_requested" }),
-      });
+        value: { kind: "cancel_requested" },
+      };
     }
   }
   const exhaustive: never = method;
@@ -156,63 +156,63 @@ export function admitAgentRpcStreamRecordInternalV1(
         record === null || typeof record.text !== "string" ||
         record.text.length > maxChunkLengthInternalV1
       ) return rejectionInternalV1("rpc.record_invalid", "/text");
-      return Object.freeze({
+      return {
         kind: "admitted",
-        value: Object.freeze({
+        value: {
           kind: "artifact_chunk",
           connectionGeneration,
           sessionId: record.sessionId as string,
           runId: record.runId as string,
           sequence: record.sequence as number,
           text: record.text,
-        }),
-      });
+        },
+      };
     }
     case "artifact_complete": {
       const record = common(["kind", "sessionId", "runId", "sequence", "candidate"]);
       if (record === null) return rejectionInternalV1("rpc.record_invalid", "/");
-      return Object.freeze({
+      return {
         kind: "admitted",
-        value: Object.freeze({
+        value: {
           kind: "artifact_complete" as const,
           connectionGeneration,
           sessionId: record.sessionId as string,
           runId: record.runId as string,
           sequence: record.sequence as number,
           candidate: record.candidate,
-        }),
-      });
+        },
+      };
     }
     case "run_completed": {
       const record = common(["kind", "sessionId", "runId", "sequence"]);
       if (record === null) return rejectionInternalV1("rpc.record_invalid", "/");
-      return Object.freeze({
+      return {
         kind: "admitted",
-        value: Object.freeze({
+        value: {
           kind: "run_completed",
           connectionGeneration,
           sessionId: record.sessionId as string,
           runId: record.runId as string,
           sequence: record.sequence as number,
-        }),
-      });
+        },
+      };
     }
     case "run_failed": {
       const record = common(["kind", "sessionId", "runId", "sequence", "code"]);
       if (
         record === null || !validIdentifierInternalV1(record.code)
       ) return rejectionInternalV1("rpc.record_invalid", "/code");
-      return Object.freeze({
+      return {
         kind: "admitted",
-        value: Object.freeze({
+        value: {
           kind: "run_failed",
           connectionGeneration,
           sessionId: record.sessionId as string,
           runId: record.runId as string,
           sequence: record.sequence as number,
           diagnostic: diagnosticInternalV1("rpc.request_failed", `/remote/${record.code}`),
-        }),
-      });
+        },
+      };
     }
     default:
       return rejectionInternalV1("rpc.record_invalid", "/kind");

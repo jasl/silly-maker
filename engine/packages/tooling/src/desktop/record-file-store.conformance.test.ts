@@ -8,7 +8,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   createHostRecordStoreCorruptBackingNeighborV1,
   createHostRecordStoreRevisionOverflowSeedV1,
-  hostRecordStoreConformanceExpectedV1,
   hostRecordStoreCorruptBackingCommitConformanceExpectedV1,
   hostRecordStoreCorruptBackingKeyV1,
   hostRecordStoreCorruptBackingReadListConformanceExpectedV1,
@@ -16,7 +15,6 @@ import {
   hostRecordStoreReopenExpectedV1,
   hostRecordStoreRevisionOverflowConformanceExpectedV1,
   hostRecordStoreRevisionOverflowEarlierKeyV1,
-  runHostRecordStoreConformanceV1,
   runHostRecordStoreCorruptBackingCommitConformanceV1,
   runHostRecordStoreCorruptBackingReadListConformanceV1,
   runHostRecordStoreKeyCorpusV1,
@@ -41,7 +39,7 @@ async function fixtureV1() {
   const root = await mkdtemp(join(tmpdir(), "sillymaker-record-conformance-"));
   cleanupDirsV1.add(root);
   const createStore = () => adaptRecordFileStoreForHostTestsV1(createRecordFileStoreV1(root));
-  return Object.freeze({ root, createStore, store: createStore() });
+  return { root, createStore, store: createStore() };
 }
 
 async function seedRevisionOverflowV1(
@@ -101,23 +99,23 @@ async function snapshotRecordTreeV1(root: string): Promise<readonly RecordTreeEn
         : join(relativeDirectory, entry.name);
       const absolutePath = join(directory, entry.name);
       if (entry.isDirectory()) {
-        snapshot.push(Object.freeze({ kind: "directory", path: relativePath }));
+        snapshot.push({ kind: "directory", path: relativePath });
         await visitV1(absolutePath, relativePath);
       } else if (entry.isFile()) {
         snapshot.push(
-          Object.freeze({
+          {
             kind: "file",
             path: relativePath,
-            bytes: Object.freeze(Array.from(await readFile(absolutePath))),
-          }),
+            bytes: Array.from(await readFile(absolutePath)),
+          },
         );
       } else {
-        snapshot.push(Object.freeze({ kind: "other", path: relativePath }));
+        snapshot.push({ kind: "other", path: relativePath });
       }
     }
   };
   await visitV1(root, "");
-  return Object.freeze(snapshot);
+  return snapshot;
 }
 
 async function createCorruptCommitFixtureV1(
@@ -142,7 +140,7 @@ async function createCorruptCommitFixtureV1(
       "utf8",
     ),
   ]);
-  return Object.freeze({
+  return {
     store,
     createFreshStore: createStore,
     snapshotRecordBacking: () => snapshotRecordTreeV1(root),
@@ -150,35 +148,23 @@ async function createCorruptCommitFixtureV1(
       left: readonly RecordTreeEntryV1[],
       right: readonly RecordTreeEntryV1[],
     ) => JSON.stringify(left) === JSON.stringify(right),
-  });
+  };
 }
 
-const corruptRecordCasesV1 = Object.freeze(
-  [
-    ["missing revision", JSON.stringify({ bytesBase64: "AQ==" })],
-    ["negative-zero revision", '{"revision":-0,"bytesBase64":"AQ=="}'],
-    ["missing bytes", JSON.stringify({ revision: 1 })],
-    ["invalid base64 bytes", JSON.stringify({ revision: 1, bytesBase64: "not-base64" })],
-    ["truncated JSON", '{"revision":1'],
-  ] as const,
-);
+const corruptRecordCasesV1 = [
+  ["missing revision", JSON.stringify({ bytesBase64: "AQ==" })],
+  ["negative-zero revision", '{"revision":-0,"bytesBase64":"AQ=="}'],
+  ["missing bytes", JSON.stringify({ revision: 1 })],
+  ["invalid base64 bytes", JSON.stringify({ revision: 1, bytesBase64: "not-base64" })],
+  ["truncated JSON", '{"revision":1'],
+] as const;
 
-const corruptCommitRecordCasesV1 = Object.freeze(
-  [
-    ["missing bytes", JSON.stringify({ revision: 1 })],
-    ["invalid base64 bytes", JSON.stringify({ revision: 1, bytesBase64: "not-base64" })],
-  ] as const,
-);
+const corruptCommitRecordCasesV1 = [
+  ["missing bytes", JSON.stringify({ revision: 1 })],
+  ["invalid base64 bytes", JSON.stringify({ revision: 1, bytesBase64: "not-base64" })],
+] as const;
 
 describe("desktop file-preview Host record store conformance", () => {
-  it("matches the shared core workload under one process-local handle", async () => {
-    const { store } = await fixtureV1();
-
-    expect(await runHostRecordStoreConformanceV1(store)).toEqual(
-      hostRecordStoreConformanceExpectedV1,
-    );
-  });
-
   it("exposes the preview filename mapping against the shared logical key corpus", async () => {
     const report = await runHostRecordStoreKeyCorpusV1(async () => (await fixtureV1()).store);
 

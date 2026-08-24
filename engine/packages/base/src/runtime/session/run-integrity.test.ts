@@ -31,8 +31,6 @@ describe("RunIntegrity finalization", () => {
         },
       ],
     });
-    expect(Object.isFrozen(second)).toBe(true);
-    expect(Object.isFrozen(second.reasons)).toBe(true);
   });
 
   it("retains the first reason of each stable kind in first-seen order", () => {
@@ -77,12 +75,10 @@ describe("RunIntegrity finalization", () => {
           mode: "modified",
           mutationCount: parseNonNegativeSafeInteger(Number.MAX_SAFE_INTEGER),
           firstMutationSequence: parseNonNegativeSafeInteger(1),
-          reasons: Object.freeze([
-            Object.freeze({
-              kind: "debug_bundle_anchor" as const,
-              sequence: parseNonNegativeSafeInteger(1),
-            }),
-          ]),
+          reasons: [{
+            kind: "debug_bundle_anchor" as const,
+            sequence: parseNonNegativeSafeInteger(1),
+          }],
         },
         {
           kind: "fixture_anchor",

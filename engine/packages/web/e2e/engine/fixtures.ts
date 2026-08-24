@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
-import { expect, test as base } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-export const engineTargetV1 = Object.freeze({
+import { expect, test as base } from "../../../../../scripts/testing/playwright-test.ts";
+
+export const engineTargetV1 = {
   applicationId: "e2e",
   host: "127.0.0.1",
   port: 41733,
-});
+};
 
 export function engineTargetUrlV1(query = ""): string {
   return `http://${engineTargetV1.host}:${String(engineTargetV1.port)}/${query}`;
@@ -36,7 +37,7 @@ export const test = base.extend<{ pageDiagnostics: PageDiagnosticsV1 }>({
         if (message.type() === "error") consoleErrors.push(message.text());
       });
 
-      await use(Object.freeze({ pageErrors, consoleErrors }));
+      await use({ pageErrors, consoleErrors });
 
       if (pageErrors.length > 0 || consoleErrors.length > 0) {
         await testInfo.attach("page-diagnostics", {
@@ -51,7 +52,7 @@ export const test = base.extend<{ pageDiagnostics: PageDiagnosticsV1 }>({
   ],
 });
 
-export { expect } from "@playwright/test";
+export { expect };
 
 export async function gotoLabV1(page: Page, query = ""): Promise<void> {
   await page.goto(engineTargetUrlV1(query));

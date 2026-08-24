@@ -37,19 +37,17 @@ type DiagnosticRestoreStateV1 = {
   readonly kind: "idle" | "restoring" | "restored" | "restore_failed";
 };
 
-const diagnosticOnlyReasonTextV1 = Object.freeze(
-  {
-    story_identity_mismatch: "Story 身份不匹配",
-    presentation_identity_mismatch: "呈现身份不匹配",
-    application_identity_mismatch: "应用构建身份不匹配",
-  } satisfies Record<
-    Extract<
-      DebugUiContextUseClassificationV1,
-      { readonly kind: "diagnostic_only" }
-    >["reasons"][number],
-    string
-  >,
-);
+const diagnosticOnlyReasonTextV1 = {
+  story_identity_mismatch: "Story 身份不匹配",
+  presentation_identity_mismatch: "呈现身份不匹配",
+  application_identity_mismatch: "应用构建身份不匹配",
+} satisfies Record<
+  Extract<
+    DebugUiContextUseClassificationV1,
+    { readonly kind: "diagnostic_only" }
+  >["reasons"][number],
+  string
+>;
 
 export function DiagnosticInspectorV1(props: DiagnosticInspectorPropsV1): ReactElement {
   const [queryState, setQueryState] = useState<DiagnosticQueryStateV1>({ kind: "idle" });
@@ -93,7 +91,7 @@ export function DiagnosticInspectorV1(props: DiagnosticInspectorPropsV1): ReactE
         setQueryState({ kind: "capability_disabled" });
         return;
       }
-      setQueryState({ kind: "ready", entries: Object.freeze([...result.entries]) });
+      setQueryState({ kind: "ready", entries: [...result.entries] });
     } catch {
       if (generation === queryGenerationRef.current) {
         queryPendingRef.current = false;

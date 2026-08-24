@@ -2,7 +2,6 @@
 import { resolveAssetManifestV1 } from "./asset-resolver.ts";
 import type { BuildIdentityInputV1 } from "./build-identity.ts";
 import { resolveBuildIdentityV1 } from "./build-identity.ts";
-import { deepFreezeAuthoringValueV1 } from "./define-gameplay-module.ts";
 import { defineGameSimulation } from "./define-game-simulation.ts";
 import { resolveHotfixesV1 } from "./hotfix-resolver.ts";
 
@@ -64,10 +63,39 @@ type ResolvedForV1<TSimulationFacet, TPresentationFacet> = ResolvedGameForPackag
   TPresentationFacet
 >;
 
-type DataFunctionV1 = (...arguments_: never[]) => unknown;
+type DataFunctionV1 = (...arguments_: unknown[]) => unknown;
+
+interface AdmittedGameplayModuleDescriptorV1 {
+  readonly id: ReturnType<typeof parseModuleId>;
+  readonly contractRevision: ReturnType<typeof parsePositiveSafeInteger>;
+  readonly stateSlots: readonly ReturnType<typeof parseStateSlotId>[];
+  readonly dependencies: readonly ReturnType<typeof parseModuleId>[];
+}
+
+interface AdmittedGameplayModuleBaseV1 {
+  readonly descriptor: AdmittedGameplayModuleDescriptorV1;
+  readonly commandSchema: unknown;
+  readonly querySchema: unknown;
+  readonly queryResultSchema: unknown;
+}
+
+type AdmittedGameplayModuleV1 =
+  | AdmittedGameplayModuleBaseV1 & {
+    readonly bindingKind: "stateful";
+  }
+  | AdmittedGameplayModuleBaseV1 & {
+    readonly bindingKind: "stateless";
+    readonly capabilities: Readonly<Record<string, unknown>>;
+  };
+
+interface AdmittedGameSimulationV1 {
+  readonly contractRevision: 1;
+  readonly modules: readonly AdmittedGameplayModuleV1[];
+}
+
 const validateUnknownGameSimulationV1 = defineGameSimulation<
   GameSimulationTypeMapV1
->() as unknown as DataFunctionV1;
+>() as unknown as (value: unknown) => AdmittedGameSimulationV1;
 
 interface SourceSimulationFacetLikeV1 {
   readonly record: Record<string, unknown>;
@@ -95,12 +123,8 @@ interface SourceDefinitionLikeV1 {
   readonly presentation: SourcePresentationFacetLikeV1;
 }
 
-class StoryContractErrorV1 extends TypeError {
-  readonly resolutionFailureKind = "contract";
-}
-class StoryNondeterminismErrorV1 extends TypeError {
-  readonly resolutionFailureKind = "nondeterministic";
-}
+class StoryContractErrorV1 extends TypeError {}
+class StoryNondeterminismErrorV1 extends TypeError {}
 
 const maximumFailureMessageLengthV1 = 4_096;
 
@@ -135,64 +159,38 @@ function boundFailureMessageV1(value: string): string {
   return result || "Unknown failure";
 }
 
-function ownStringDataPropertyV1(value: unknown, key: string): string | undefined {
+function stringPropertyV1(value: unknown, key: string): string | undefined {
   if (value === null || (typeof value !== "object" && typeof value !== "function")) {
     return undefined;
   }
   try {
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    return descriptor !== undefined &&
-        descriptor.get === undefined &&
-        descriptor.set === undefined &&
-        typeof descriptor.value === "string"
-      ? descriptor.value
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function ownDataPropertyV1(value: unknown, key: string): unknown {
-  if (value === null || (typeof value !== "object" && typeof value !== "function")) {
-    return undefined;
-  }
-  try {
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    return descriptor !== undefined &&
-        descriptor.get === undefined &&
-        descriptor.set === undefined &&
-        "value" in descriptor
-      ? descriptor.value
-      : undefined;
+    const result = (value as Record<string, unknown>)[key];
+    return typeof result === "string" ? result : undefined;
   } catch {
     return undefined;
   }
 }
 
 function safeRejectedHotfixIdsV1(hotfixes: readonly HotfixEntryV1[]): readonly string[] {
-  const lengthValue = ownDataPropertyV1(hotfixes, "length");
-  const length =
-    typeof lengthValue === "number" && Number.isSafeInteger(lengthValue) && lengthValue >= 0
-      ? Math.min(lengthValue, 1_000)
-      : 0;
   const ids: string[] = [];
   const seenIds = new Set<string>();
-  for (let index = 0; index < length; index += 1) {
-    const hotfix = ownDataPropertyV1(hotfixes, String(index));
-    const manifest = ownDataPropertyV1(hotfix, "manifest");
-    const identity = ownDataPropertyV1(manifest, "identity");
-    const id = ownDataPropertyV1(identity, "id");
-    if (typeof id === "string" && !seenIds.has(id)) {
-      seenIds.add(id);
-      ids.push(id);
+  for (const hotfix of hotfixes.slice(0, 1_000)) {
+    try {
+      const id = hotfix.manifest.identity.id;
+      if (typeof id === "string" && !seenIds.has(id)) {
+        seenIds.add(id);
+        ids.push(id);
+      }
+    } catch {
+      continue;
     }
   }
-  return Object.freeze(ids);
+  return ids;
 }
 
 function errorMessage(error: unknown): string {
   if (typeof error === "string") return boundFailureMessageV1(error);
-  const message = ownStringDataPropertyV1(error, "message");
+  const message = stringPropertyV1(error, "message");
   return boundFailureMessageV1(message ?? "Unknown failure");
 }
 
@@ -200,27 +198,12 @@ function isThenable(value: unknown): boolean {
   if (value === null || (typeof value !== "object" && typeof value !== "function")) {
     return false;
   }
-  let current: object | null = value;
-  while (current !== null) {
-    const descriptor = Object.getOwnPropertyDescriptor(current, "then");
-    if (descriptor?.get !== undefined || descriptor?.set !== undefined) return true;
-    if (descriptor !== undefined) return typeof descriptor.value === "function";
-    current = Object.getPrototypeOf(current);
-  }
-  return false;
+  return typeof (value as { readonly then?: unknown }).then === "function";
 }
 
 function requirePlainRecord(value: unknown, label: string): Record<string, unknown> {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype
-  ) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new StoryContractErrorV1(`${label} must be a plain object`);
-  }
-  if (Reflect.ownKeys(value).some((key) => typeof key !== "string")) {
-    throw new StoryContractErrorV1(`${label} must not have symbol keys`);
   }
   return value as Record<string, unknown>;
 }
@@ -230,7 +213,7 @@ function requireExactKeys(
   expected: readonly string[],
   label: string,
 ): void {
-  const actual = Object.keys(Object.getOwnPropertyDescriptors(record)).sort();
+  const actual = Object.keys(record).sort();
   const sortedExpected = [...expected].sort();
   if (
     actual.length !== sortedExpected.length ||
@@ -241,16 +224,10 @@ function requireExactKeys(
 }
 
 function ownDataValue(record: Record<string, unknown>, key: string, label: string): unknown {
-  const descriptor = Object.getOwnPropertyDescriptor(record, key);
-  if (
-    descriptor === undefined ||
-    descriptor.get !== undefined ||
-    descriptor.set !== undefined ||
-    !("value" in descriptor)
-  ) {
-    throw new StoryContractErrorV1(`${label}.${key} must be an own data property`);
+  if (!Object.hasOwn(record, key)) {
+    throw new StoryContractErrorV1(`${label}.${key} is required`);
   }
-  return descriptor.value;
+  return record[key];
 }
 
 function requireDataFunction(value: unknown, label: string): DataFunctionV1 {
@@ -353,71 +330,16 @@ function defineProjectionMember(
   });
 }
 
-interface ArrayDataDescriptorsV1 {
-  readonly length: number;
-  readonly values: readonly unknown[];
-}
-
 interface DefinitionDeterminismSnapshotV1 {
   readonly simulationRecord: unknown;
   readonly presentationRecord: unknown;
-}
-
-function requireArrayDataDescriptorsV1(value: unknown[], path: string): ArrayDataDescriptorsV1 {
-  if (Object.getPrototypeOf(value) !== Array.prototype) {
-    throw new StoryContractErrorV1(`Story array has a custom prototype at ${path}`);
-  }
-  const ownKeys = Reflect.ownKeys(value);
-  if (ownKeys.some((key) => typeof key !== "string")) {
-    throw new StoryContractErrorV1(`Story array has symbol fields at ${path}`);
-  }
-  const lengthDescriptor = Object.getOwnPropertyDescriptor(value, "length");
-  if (
-    lengthDescriptor === undefined ||
-    lengthDescriptor.get !== undefined ||
-    lengthDescriptor.set !== undefined ||
-    typeof lengthDescriptor.value !== "number" ||
-    !Number.isSafeInteger(lengthDescriptor.value) ||
-    lengthDescriptor.value < 0
-  ) {
-    throw new StoryContractErrorV1(`Story array has an invalid length at ${path}`);
-  }
-  const length = lengthDescriptor.value;
-  const actualKeys = ownKeys as string[];
-  if (actualKeys.length !== length + 1) {
-    throw new StoryContractErrorV1(`Story array has extra or sparse fields at ${path}`);
-  }
-  for (const key of actualKeys) {
-    if (key === "length") continue;
-    if (!/^(?:0|[1-9][0-9]*)$/u.test(key)) {
-      throw new StoryContractErrorV1(`Story array has extra or sparse fields at ${path}`);
-    }
-    const index = Number(key);
-    if (!Number.isSafeInteger(index) || index < 0 || index >= length) {
-      throw new StoryContractErrorV1(`Story array has extra or sparse fields at ${path}`);
-    }
-  }
-  const values: unknown[] = [];
-  for (let index = 0; index < length; index += 1) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
-    if (
-      descriptor === undefined ||
-      descriptor.get !== undefined ||
-      descriptor.set !== undefined ||
-      !("value" in descriptor)
-    ) {
-      throw new StoryContractErrorV1(`Story array accessor at ${path}/${index}`);
-    }
-    values.push(descriptor.value);
-  }
-  return { length, values };
 }
 
 function requireStrictArrayValuesV1(value: unknown, label: string): readonly unknown[] {
   if (!Array.isArray(value)) {
     throw new StoryContractErrorV1(`${label} must be an array`);
   }
-  return requireArrayDataDescriptorsV1(value, label).values;
+  return [...value];
 }
 
 function snapshotDeterministicValueV1(
@@ -438,32 +360,20 @@ function snapshotDeterministicValueV1(
   active.add(value);
   try {
     if (Array.isArray(value)) {
-      return Object.freeze(
-        requireArrayDataDescriptorsV1(value, path).values.map((entry, index) =>
-          snapshotDeterministicValueV1(entry, `${path}/${index}`, active)
-        ),
+      return [...value].map((entry, index) =>
+        snapshotDeterministicValueV1(entry, `${path}/${index}`, active)
       );
     }
     const record = requirePlainRecord(value, `Story value at ${path}`);
-    const descriptors = Object.getOwnPropertyDescriptors(record);
     const snapshot: Record<string, unknown> = {};
-    for (const key of Object.keys(descriptors).sort(compareUnicodeCodePointsV1)) {
-      const descriptor = descriptors[key];
-      if (
-        descriptor === undefined ||
-        descriptor.get !== undefined ||
-        descriptor.set !== undefined ||
-        !("value" in descriptor)
-      ) {
-        throw new StoryContractErrorV1(`Story accessor at ${path}/${key}`);
-      }
+    for (const key of Object.keys(record).sort(compareUnicodeCodePointsV1)) {
       defineProjectionMember(
         snapshot,
         key,
-        snapshotDeterministicValueV1(descriptor.value, `${path}/${key}`, active),
+        snapshotDeterministicValueV1(record[key], `${path}/${key}`, active),
       );
     }
-    return Object.freeze(snapshot);
+    return snapshot;
   } finally {
     active.delete(value);
   }
@@ -629,8 +539,7 @@ function parseStateContractManifestV1(value: unknown): StateContractManifestV1 {
     persistentIrSchemas,
     stableReferenceSets,
   } satisfies StateContractManifestV1;
-  canonicalJsonBytes(manifest);
-  return deepFreezeAuthoringValueV1(manifest);
+  return manifest;
 }
 
 function compareDeterministicValue(
@@ -643,7 +552,7 @@ function compareDeterministicValue(
     if (typeof first !== "function" || typeof second !== "function" || first !== second) {
       return mismatch(path);
     }
-    const functionName = ownStringDataPropertyV1(first, "name");
+    const functionName = first.name;
     if (functionName === undefined || functionName.length === 0) {
       throw new StoryNondeterminismErrorV1(`Anonymous executable provider at ${path}`);
     }
@@ -674,15 +583,13 @@ function compareDeterministicValue(
       if (!firstIsArray || !secondIsArray) {
         return mismatch(path);
       }
-      const firstArray = requireArrayDataDescriptorsV1(first, path);
-      const secondArray = requireArrayDataDescriptorsV1(second, path);
-      if (firstArray.length !== secondArray.length) return mismatch(path);
+      if (first.length !== second.length) return mismatch(path);
       const projection: unknown[] = [];
-      for (let index = 0; index < firstArray.length; index += 1) {
+      for (let index = 0; index < first.length; index += 1) {
         projection.push(
           compareDeterministicValue(
-            firstArray.values[index],
-            secondArray.values[index],
+            first[index],
+            second[index],
             `${path}/${index}`,
             state,
           ),
@@ -693,32 +600,17 @@ function compareDeterministicValue(
 
     const firstRecord = requirePlainRecord(first, `Story value at ${path}`);
     const secondRecord = requirePlainRecord(second, `Story value at ${path}`);
-    const firstDescriptors = Object.getOwnPropertyDescriptors(firstRecord);
-    const secondDescriptors = Object.getOwnPropertyDescriptors(secondRecord);
-    const firstKeys = Object.keys(firstDescriptors).sort();
-    const secondKeys = Object.keys(secondDescriptors).sort();
+    const firstKeys = Object.keys(firstRecord).sort();
+    const secondKeys = Object.keys(secondRecord).sort();
     if (
       firstKeys.length !== secondKeys.length ||
       firstKeys.some((key, index) => key !== secondKeys[index])
     ) {
       return mismatch(path);
     }
-    for (const key of firstKeys) {
-      const firstDescriptor = firstDescriptors[key];
-      const secondDescriptor = secondDescriptors[key];
-      if (
-        firstDescriptor?.get !== undefined ||
-        firstDescriptor?.set !== undefined ||
-        secondDescriptor?.get !== undefined ||
-        secondDescriptor?.set !== undefined
-      ) {
-        throw new StoryContractErrorV1(`Story accessor at ${path}/${key}`);
-      }
-    }
-
     const executableProviderKeys = ["provider", "providerId", "sourceDigest"];
     const hasExecutableProviderMarker = firstKeys.includes("sourceDigest") ||
-      (firstKeys.includes("provider") && typeof firstDescriptors.provider?.value === "function");
+      (firstKeys.includes("provider") && typeof firstRecord.provider === "function");
     if (hasExecutableProviderMarker) {
       if (
         firstKeys.length !== executableProviderKeys.length ||
@@ -728,12 +620,12 @@ function compareDeterministicValue(
           `Executable provider descriptor has invalid fields at ${path}`,
         );
       }
-      const firstProviderId = firstDescriptors.providerId?.value;
-      const secondProviderId = secondDescriptors.providerId?.value;
-      const firstSourceDigest = firstDescriptors.sourceDigest?.value;
-      const secondSourceDigest = secondDescriptors.sourceDigest?.value;
-      const firstProvider = firstDescriptors.provider?.value;
-      const secondProvider = secondDescriptors.provider?.value;
+      const firstProviderId = firstRecord.providerId;
+      const secondProviderId = secondRecord.providerId;
+      const firstSourceDigest = firstRecord.sourceDigest;
+      const secondSourceDigest = secondRecord.sourceDigest;
+      const firstProvider = firstRecord.provider;
+      const secondProvider = secondRecord.provider;
       if (
         typeof firstProviderId !== "string" ||
         typeof secondProviderId !== "string" ||
@@ -750,7 +642,7 @@ function compareDeterministicValue(
       } catch {
         throw new StoryNondeterminismErrorV1(`Executable provider identity is invalid at ${path}`);
       }
-      const providerName = ownStringDataPropertyV1(firstProvider, "name");
+      const providerName = firstProvider.name;
       if (providerName === undefined || providerName.length === 0) {
         throw new StoryNondeterminismErrorV1(`Executable provider is anonymous at ${path}`);
       }
@@ -767,8 +659,8 @@ function compareDeterministicValue(
         projection,
         key,
         compareDeterministicValue(
-          firstDescriptors[key]?.value,
-          secondDescriptors[key]?.value,
+          firstRecord[key],
+          secondRecord[key],
           `${path}/${key}`,
           state,
         ),
@@ -841,78 +733,36 @@ interface GameSimulationStatefulModuleIdentityV1 {
   readonly stateSlots: readonly ReturnType<typeof parseStateSlotId>[];
 }
 
-function gameSimulationIdentityProjectionsV1(value: unknown): {
+function gameSimulationIdentityProjectionsV1(simulation: AdmittedGameSimulationV1): {
   readonly simulation: unknown;
   readonly statefulModules: readonly GameSimulationStatefulModuleIdentityV1[];
 } {
-  const simulation = requirePlainRecord(value, "GameSimulation identity root");
-  const modules = requireStrictArrayValuesV1(
-    ownDataValue(simulation, "modules", "GameSimulation identity root"),
-    "GameSimulation modules",
-  );
   const projectedModules: unknown[] = [];
   const statefulModules: GameSimulationStatefulModuleIdentityV1[] = [];
-  for (const moduleValue of modules) {
-    const module = requirePlainRecord(moduleValue, "GameSimulation module identity");
-    const descriptor = requirePlainRecord(
-      ownDataValue(module, "descriptor", "GameSimulation module identity"),
-      "GameSimulation module descriptor identity",
-    );
-    const bindingKind = ownDataValue(module, "bindingKind", "GameSimulation module identity");
-    if (bindingKind !== "stateful" && bindingKind !== "stateless") {
-      throw new StoryContractErrorV1("GameSimulation module bindingKind is invalid");
-    }
-    const id = parseModuleId(
-      ownDataValue(descriptor, "id", "GameSimulation module descriptor identity"),
-    );
-    const moduleContractRevision = parsePositiveSafeInteger(
-      ownDataValue(descriptor, "contractRevision", "GameSimulation module descriptor identity"),
-    );
-    const stateSlots = requireStrictArrayValuesV1(
-      ownDataValue(descriptor, "stateSlots", "GameSimulation module descriptor identity"),
-      "GameSimulation module State slots",
-    ).map(parseStateSlotId);
-    const dependencies = requireStrictArrayValuesV1(
-      ownDataValue(descriptor, "dependencies", "GameSimulation module descriptor identity"),
-      "GameSimulation module dependencies",
-    ).map(parseModuleId);
-    const capabilities = bindingKind === "stateless"
-      ? Object.keys(
-        requirePlainRecord(
-          ownDataValue(module, "capabilities", "GameSimulation module identity"),
-          "GameSimulation module capabilities identity",
-        ),
-      ).sort(compareUnicodeCodePointsV1)
+  for (const module of simulation.modules) {
+    const { id, contractRevision: moduleContractRevision, stateSlots, dependencies } =
+      module.descriptor;
+    const capabilities = module.bindingKind === "stateless"
+      ? Object.keys(module.capabilities).sort(compareUnicodeCodePointsV1)
       : [];
     projectedModules.push({
       id,
       contractRevision: moduleContractRevision,
       stateSlots,
       dependencies,
-      bindingKind,
-      hasCommandSchema:
-        ownDataValue(module, "commandSchema", "GameSimulation module identity") !== null,
-      hasQuerySchema:
-        ownDataValue(module, "querySchema", "GameSimulation module identity") !== null,
-      hasQueryResultSchema:
-        ownDataValue(module, "queryResultSchema", "GameSimulation module identity") !== null,
+      bindingKind: module.bindingKind,
+      hasCommandSchema: module.commandSchema !== null,
+      hasQuerySchema: module.querySchema !== null,
+      hasQueryResultSchema: module.queryResultSchema !== null,
       capabilities,
     });
-    if (bindingKind === "stateful") {
+    if (module.bindingKind === "stateful") {
       statefulModules.push({ moduleId: id, moduleContractRevision, stateSlots });
     }
   }
-  const contractRevision = ownDataValue(
-    simulation,
-    "contractRevision",
-    "GameSimulation identity root",
-  );
-  if (contractRevision !== 1) {
-    throw new StoryContractErrorV1("GameSimulation contractRevision must be 1");
-  }
   return {
     simulation: {
-      contractRevision,
+      contractRevision: simulation.contractRevision,
       modules: projectedModules,
       ports: [
         "stateSchema",
@@ -983,31 +833,28 @@ function validateAssetPatchSymbolsV1(
 function structuredFailureDetailsV1(message: string, cause: unknown): StrictJsonObjectV1 {
   const diagnostics = extractDiagnosticsV1(cause);
   if (diagnostics !== null) {
-    return Object.freeze({
+    return {
       message,
       diagnostics: diagnostics as unknown as StrictJsonValueV1,
-    });
+    };
   }
-  const causeCode = ownStringDataPropertyV1(cause, "code");
+  const causeCode = stringPropertyV1(cause, "code");
   if (typeof causeCode === "string" && cause !== null && typeof cause === "object") {
-    const descriptor = Object.getOwnPropertyDescriptor(cause, "details");
-    if (descriptor !== undefined && descriptor.get === undefined && descriptor.set === undefined) {
-      try {
-        canonicalPresentationJsonBytesV1(descriptor.value);
-        return Object.freeze({
-          message,
-          cause: Object.freeze({
-            code: causeCode,
-            details: descriptor.value as StrictJsonValueV1,
-          }),
-        });
-      } catch {
-        // Fall through to the plain message envelope.
-      }
+    try {
+      const details = (cause as { readonly details?: unknown }).details;
+      canonicalPresentationJsonBytesV1(details);
+      return {
+        message,
+        cause: {
+          code: causeCode,
+          details: details as StrictJsonValueV1,
+        },
+      };
+    } catch {
+      return { message, cause: { code: causeCode } };
     }
-    return Object.freeze({ message, cause: Object.freeze({ code: causeCode }) });
   }
-  return Object.freeze({ message });
+  return { message };
 }
 
 function failure<TResolved>(
@@ -1016,18 +863,18 @@ function failure<TResolved>(
   message: string,
   cause?: unknown,
 ): GamePackageResolutionResultV1<TResolved> {
-  return Object.freeze({
+  return {
     kind: "failed",
-    failure: Object.freeze({
+    failure: {
       code,
       rejectedHotfixIds: safeRejectedHotfixIdsV1(hotfixes),
       details: structuredFailureDetailsV1(message, cause),
-    }),
-  });
+    },
+  };
 }
 
 function classify(error: unknown): GamePackageResolutionFailureCodeV1 {
-  const code = ownStringDataPropertyV1(error, "code");
+  const code = stringPropertyV1(error, "code");
   switch (code) {
     case "hotfix.duplicate_id":
     case "hotfix.target_mismatch":
@@ -1138,7 +985,7 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
       firstDeterminismSnapshot,
     );
   } catch (error) {
-    const code = ownStringDataPropertyV1(error, "resolutionFailureKind") === "nondeterministic"
+    const code = error instanceof StoryNondeterminismErrorV1
       ? "story.nondeterministic"
       : "story.contract_invalid";
     return failure<TResolved>(code, [], errorMessage(error), error);
@@ -1159,11 +1006,7 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
   let simulationProgram: unknown;
   let presentation: unknown;
   try {
-    simulationProgram = Reflect.apply(
-      first.simulation.materializeProgram,
-      first.simulation.record,
-      [patches.simulationValues],
-    );
+    simulationProgram = first.simulation.materializeProgram(patches.simulationValues);
     if (isThenable(simulationProgram)) {
       return failure<TResolved>(
         "story.materialization_thenable",
@@ -1171,11 +1014,7 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
         "Simulation materializer returned thenable",
       );
     }
-    presentation = Reflect.apply(
-      first.presentation.materializePresentation,
-      first.presentation.record,
-      [patches.presentationValues],
-    );
+    presentation = first.presentation.materializePresentation(patches.presentationValues);
     if (isThenable(presentation)) {
       return failure<TResolved>(
         "story.materialization_thenable",
@@ -1190,7 +1029,6 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
   let activeTextCatalogs: TextCatalogSetV1;
   let simulationProgramDigest: ReturnType<typeof digestBytes>;
   try {
-    deepFreezeAuthoringValueV1(simulationProgram);
     simulationProgramDigest = simulationValueProjectionDigestV1(
       simulationProgram,
       "/simulationProgram",
@@ -1204,40 +1042,15 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
     activeTextCatalogs = parseTextCatalogSetV1(
       ownDataValue(presentationRecord, "textCatalogs", "materialized Presentation"),
     );
-    const normalizedPresentation: Record<string, unknown> = {};
-    for (const key of Object.keys(Object.getOwnPropertyDescriptors(presentationRecord))) {
-      if (key === "textCatalogs") continue;
-      Object.defineProperty(normalizedPresentation, key, {
-        value: ownDataValue(presentationRecord, key, "materialized Presentation"),
-        enumerable: true,
-        writable: true,
-        configurable: true,
-      });
-    }
-    Object.defineProperty(normalizedPresentation, "textCatalogs", {
-      value: activeTextCatalogs,
-      enumerable: true,
-      writable: true,
-      configurable: true,
-    });
-    presentation = deepFreezeAuthoringValueV1(normalizedPresentation);
-    canonicalPresentationJsonBytesV1(presentation);
-  } catch (error) {
-    return failure<TResolved>("story.presentation_invalid", hotfixes, errorMessage(error), error);
-  }
-  try {
+    presentation = { ...presentationRecord, textCatalogs: activeTextCatalogs };
   } catch (error) {
     return failure<TResolved>("story.presentation_invalid", hotfixes, errorMessage(error), error);
   }
 
-  let gameSimulation: unknown;
+  let gameSimulation: AdmittedGameSimulationV1;
   let gameSimulationIdentity: ReturnType<typeof gameSimulationIdentityProjectionsV1>;
   try {
-    const createdGameSimulation = Reflect.apply(
-      first.simulation.createGameSimulation,
-      first.simulation.record,
-      [simulationProgram],
-    );
+    const createdGameSimulation = first.simulation.createGameSimulation(simulationProgram);
     if (isThenable(createdGameSimulation)) {
       return failure<TResolved>(
         "story.simulation_invalid",
@@ -1245,9 +1058,7 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
         "GameSimulation factory returned an invalid value",
       );
     }
-    gameSimulation = Reflect.apply(validateUnknownGameSimulationV1, undefined, [
-      createdGameSimulation,
-    ]);
+    gameSimulation = validateUnknownGameSimulationV1(createdGameSimulation);
     gameSimulationIdentity = gameSimulationIdentityProjectionsV1(gameSimulation);
     validateStateContractManifestAgainstGameSimulationV1(
       first.simulation.stateContractManifest,
@@ -1284,11 +1095,6 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
   }
 
   try {
-  } catch (error) {
-    return failure<TResolved>("story.presentation_invalid", hotfixes, errorMessage(error), error);
-  }
-
-  try {
     const storyDigest = digestCanonical("sillymaker:story:v1", {
       identity: entry.identity,
       simulationSourceDigest: build.storySimulation.digest,
@@ -1316,7 +1122,7 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
       presentation,
       assetPacks: assets.packs,
     });
-    const provenance = deepFreezeAuthoringValueV1({
+    const provenance = {
       story: {
         id: entry.identity.id,
         revision: entry.identity.revision,
@@ -1330,16 +1136,15 @@ export function resolveGamePackageV1<TSimulationFacet, TPresentationFacet>(
         presentationDigest,
         patchSet: patches.patchSet,
       },
-    });
-    const resolved = deepFreezeAuthoringValueV1({
+    };
+    const resolved = {
       provenance,
       gameSimulation,
       simulationProgram,
       presentation,
       assets,
-      frozen: true as const,
-    }) as TResolved;
-    return Object.freeze({ kind: "resolved", resolved });
+    } as TResolved;
+    return { kind: "resolved", resolved };
   } catch (error) {
     return failure<TResolved>(classify(error), hotfixes, errorMessage(error), error);
   }

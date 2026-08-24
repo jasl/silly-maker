@@ -120,7 +120,7 @@ locality、Scene Construction 与只读 Flow workspace，目标合同见
 事件 + reducer、权威监视器 V1、持久化安全点、监视器节奏环）、可创作帧集/命中区
 形状/hold `when`（均 2026-08-21）、持有中输入（2026-08-22，零新引擎原语）。
 上述补缺 lane 至 2026-08-22 全部交付关闭；合并后最近完成的默认/core lane 是本文后述的
-Application Runtime AR0–AR6。AR0 已于 2026-08-22 交付中性 Host、admitted/frozen GUI
+Application Runtime AR0–AR6。AR0 已于 2026-08-22 交付中性 Host、once-admitted GUI
 bootstrap、runtime/author startup 与 recovery signals、final-output dependency attribution 和
 当前 R0–R3 平台边界；AR1 同日完成 17-case Direct/Cordis A/B、选择唯一 private Direct backend，
 并迁入 lazy DevDock 与 Studio Flow；AR2 同日交付 package-private structured Scene operations、

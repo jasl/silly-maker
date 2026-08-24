@@ -3,8 +3,9 @@
 状态：2026-07-19 接受；R1/R2 的 Authoring Kit、共享 diagnostics、Application
 Composer、GameHarness、Agent adapters、project tooling 与首轮 canary
 已实现并进入 [features](../features.md)。本文其余条目仍是目标合同；2026-07-30
-接受的 Managed Surface 作者路径与弱模型 capability floor 尚未实现，见
-[Surface Contract Harness](surface-contract-harness.md)。authoritative numeric /
+接受的 Managed Surface 作者路径已由真实 consumers 交付，广义 capability-floor
+harness 继续 evidence-gated，见
+[Managed Surface lifecycle contract](surface-contract-harness.md)。authoritative numeric /
 entropy 作者边界与待实现 guardrail 见
 [Deterministic simulation boundary](deterministic-simulation-boundary.md)。
 
@@ -317,8 +318,11 @@ Session、failure buffer、semantic bridge 和 queue-front setup。
 
 ### 6.2 Managed Surface contract harness
 
-[Surface Contract Harness](surface-contract-harness.md) 在既有 GameHarness
-之上增加独立的验证层，而不把 DOM/Pixi 瞬时状态塞进 core Agent transcript：
+下列 generalized structural/model/shrink 组合仍是 evidence-gated target，不是当前
+active plan 或一个需要永久保留的 harness。当前产品合同见
+[Managed Surface lifecycle contract](surface-contract-harness.md)。若未来由真实消费者重新激活，
+它在既有 GameHarness 之上增加独立的验证层，而不把 DOM/Pixi 瞬时状态塞进
+core Agent transcript：
 
 1. `story check` 验证 definition、slot/cardinality、action、Back、focus 和 input
    ownership 闭合；

@@ -24,9 +24,10 @@ import type { RunIntegrityReasonV1 } from "../../contracts/snapshot.ts";
 import { runIntegrityV1Schema } from "../../contracts/snapshot.ts";
 import { admitCanonicalCommandInternalV1 } from "../../internal/canonical-command-admission.ts";
 import {
+  acceptCoreTypedCommandAttemptInternalV1,
   admitCommandAttemptEvidenceInternalV1,
   admitDebugValidationResultInternalV1,
-  type FinalizedEvidencePolicyInternalV1,
+  type CoreTypedEvidencePolicyInternalV1,
   type FinalizedEvidenceResultConstraintInternalV1,
 } from "../../internal/finalized-evidence-admission.ts";
 import type { SnapshotWorkInstrumentationV1 } from "../../internal/snapshot-work-instrumentation.ts";
@@ -108,7 +109,7 @@ export function createAuthoritativeReplacementPublicationContextInternalV1(
 ): AuthoritativeReplacementPublicationContextInternalV1 {
   const owner = lookupAuthoritativeReplacementOwnerInternalV1(runtimeControl);
   if (owner === undefined) throw new TypeError("unknown GameSession runtime control");
-  const context = Object.freeze({}) as AuthoritativeReplacementPublicationContextInternalV1;
+  const context = {} as AuthoritativeReplacementPublicationContextInternalV1;
   authoritativeReplacementPublicationContextOwnersInternalV1.set(context, owner);
   return context;
 }
@@ -196,22 +197,22 @@ function claimAuthoritativeReplacementBindingInternalV1<TSnapshot, TResult>(
     direct.binding = null;
     callbackRecord.status = "claimed";
     callbackRecord.binding = null;
-    return Object.freeze({
+    return {
       binding: null,
       available: false as const,
       normalizePrepareFailure: direct.normalizePrepareFailure as (
         error: unknown,
       ) => TResult,
-    });
+    };
   }
   const resolved = direct ?? callbackRecord;
   if (resolved === undefined) return undefined;
   if (resolved.status !== "available" || resolved.binding === null) {
-    return Object.freeze({
+    return {
       binding: null,
       available: false as const,
       normalizePrepareFailure: resolved.normalizePrepareFailure as (error: unknown) => TResult,
-    });
+    };
   }
   const binding = resolved.binding as AuthoritativeReplacementBindingInternalV1<
     TSnapshot,
@@ -219,7 +220,7 @@ function claimAuthoritativeReplacementBindingInternalV1<TSnapshot, TResult>(
   >;
   resolved.status = "claimed";
   resolved.binding = null;
-  return Object.freeze({ binding, available: true as const });
+  return { binding, available: true as const };
 }
 
 /** @internal Exact Session-lifecycle receipt lookup; intentionally absent from barrels. */
@@ -250,7 +251,7 @@ export function createPreparedAuthoritativeReplacementCommitInternalV1(options: 
   ) {
     throw new TypeError("invalid authoritative replacement participant");
   }
-  const prepared = Object.freeze({}) as PreparedAuthoritativeReplacementCommitInternalV1;
+  const prepared = {} as PreparedAuthoritativeReplacementCommitInternalV1;
   preparedAuthoritativeReplacementControlsInternalV1.set(prepared, {
     status: "prepared",
     owner: options.owner,
@@ -275,10 +276,10 @@ export function bindAuthoritativeReplacementCommitInternalV1<TSnapshot, TResult>
   ) {
     throw new TypeError("invalid authoritative replacement binding");
   }
-  const capturedBinding = Object.freeze({
+  const capturedBinding = {
     prepare: binding.prepare,
     normalizePrepareFailure: binding.normalizePrepareFailure,
-  }) as AuthoritativeReplacementBindingInternalV1<unknown, unknown>;
+  } as AuthoritativeReplacementBindingInternalV1<unknown, unknown>;
   const record: AuthoritativeReplacementBindingRecordInternalV1 = {
     status: "available",
     binding: capturedBinding,
@@ -401,11 +402,8 @@ type FinalizedAttemptFor<TTypes extends GameSimulationTypeMapV1> = FinalizedComm
   TTypes["rngDrawTrace"]
 >;
 
-type EvidencePolicyFor<TTypes extends GameSimulationTypeMapV1> = FinalizedEvidencePolicyInternalV1<
-  TTypes["event"],
+type EvidencePolicyFor<TTypes extends GameSimulationTypeMapV1> = CoreTypedEvidencePolicyInternalV1<
   TTypes["rejection"],
-  TTypes["rngState"],
-  TTypes["rngDrawTrace"],
   TTypes["debugValidationError"]
 >;
 
@@ -437,6 +435,10 @@ type CommandLogFor<TTypes extends GameSimulationTypeMapV1> = CommandLogV1<
   TTypes["rngState"],
   TTypes["rngDrawTrace"]
 >;
+
+type CommandLogInternalFor<TTypes extends GameSimulationTypeMapV1> = CommandLogFor<TTypes> & {
+  latestEntryInternalV1(): ReturnType<CommandLogFor<TTypes>["entries"]>[number] | undefined;
+};
 
 export interface GameSessionDebugInputV1<TTypes extends GameSimulationTypeMapV1> {
   validate(
@@ -503,6 +505,11 @@ type CommandLogViewFor<TTypes extends GameSimulationTypeMapV1> = Pick<
   "entries" | "replayBase" | "replayBaseStateDigest"
 >;
 
+type CommandLogInternalViewFor<TTypes extends GameSimulationTypeMapV1> = Pick<
+  CommandLogInternalFor<TTypes>,
+  "entries" | "replayBase" | "replayBaseStateDigest" | "latestEntryInternalV1"
+>;
+
 export interface GameSessionInputV1<TTypes extends GameSimulationTypeMapV1> {
   readonly initialSnapshot: TTypes["snapshot"];
   readonly commandSchema: RuntimeSchemaV1<TTypes["command"]>;
@@ -531,6 +538,11 @@ export interface GameSessionCompositionV1<TTypes extends GameSimulationTypeMapV1
   readonly invalidationController: RuntimeInvalidationControllerV1;
 }
 
+interface CoreGameSessionCompositionInternalV1<TTypes extends GameSimulationTypeMapV1>
+  extends Omit<GameSessionCompositionV1<TTypes>, "commandLog"> {
+  readonly commandLog: CommandLogInternalViewFor<TTypes>;
+}
+
 function isThenable(value: unknown): boolean {
   return value !== null &&
     (typeof value === "object" || typeof value === "function") &&
@@ -541,17 +553,24 @@ function finalizeCommandAttemptV1<TTypes extends GameSimulationTypeMapV1>(
   before: DeepReadonly<TTypes["snapshot"]>,
   beforeStateDigest: Digest,
   candidate: AttemptFor<TTypes>,
-  evidencePolicy: EvidencePolicyFor<TTypes>,
+  coreTypedEvidencePolicy: EvidencePolicyFor<TTypes> | undefined,
   instrumentation?: SnapshotWorkInstrumentationV1,
   options: FinalizeCommandAttemptOptionsV1 = {},
 ): FinalizedAttemptFor<TTypes> {
-  const admittedCandidate = admitCommandAttemptEvidenceInternalV1(
-    before,
-    candidate,
-    evidencePolicy,
-    instrumentation,
-    options.resultConstraint,
-  );
+  const admittedCandidate = coreTypedEvidencePolicy === undefined
+    ? admitCommandAttemptEvidenceInternalV1(
+      before,
+      candidate,
+      instrumentation,
+      options.resultConstraint,
+    )
+    : acceptCoreTypedCommandAttemptInternalV1(
+      before,
+      candidate,
+      coreTypedEvidencePolicy.validateCandidateSnapshot,
+      coreTypedEvidencePolicy.parseRejection,
+      options.resultConstraint,
+    );
   const integrityDirective: IntegrityDirectiveV1 =
     options.debugCommand !== undefined && admittedCandidate.result.kind === "committed"
       ? {
@@ -571,24 +590,24 @@ function finalizeCommandAttemptV1<TTypes extends GameSimulationTypeMapV1>(
   const postSnapshot = finalizedSnapshot;
 
   const result: AttemptFor<TTypes>["result"] = admittedCandidate.result.kind === "committed"
-    ? Object.freeze({
+    ? {
       kind: "committed" as const,
       snapshot: postSnapshot,
       events: admittedCandidate.result.events,
-    })
+    }
     : admittedCandidate.result.kind === "rejected"
-    ? Object.freeze({
+    ? {
       kind: "rejected" as const,
       snapshot: finalizedSnapshot,
       reasons: admittedCandidate.result.reasons,
-    })
-    : Object.freeze({
+    }
+    : {
       kind: "faulted" as const,
       snapshot: finalizedSnapshot,
       fault: admittedCandidate.result.fault,
-    });
+    };
 
-  return Object.freeze({
+  return {
     result,
     diagnostics: admittedCandidate.diagnostics,
     preSnapshot: before,
@@ -596,22 +615,22 @@ function finalizeCommandAttemptV1<TTypes extends GameSimulationTypeMapV1>(
     postStateDigest: admittedCandidate.result.kind === "committed"
       ? digestCanonicalInternalV1("sillymaker:state:v1", postSnapshot, instrumentation)
       : beforeStateDigest,
-  }) as FinalizedAttemptFor<TTypes>;
+  } as FinalizedAttemptFor<TTypes>;
 }
 
-const capabilityDisabledV1 = Object.freeze({ kind: "capability_disabled" as const });
-const sessionUnavailableV1 = Object.freeze({
+const capabilityDisabledV1 = { kind: "capability_disabled" as const };
+const sessionUnavailableV1 = {
   kind: "not_executed" as const,
   code: "session_unavailable" as const,
-});
-const faultPausedV1 = Object.freeze({
+};
+const faultPausedV1 = {
   kind: "not_executed" as const,
   code: "fault_paused" as const,
-});
-const hmrInvalidatedV1 = Object.freeze({
+};
+const hmrInvalidatedV1 = {
   kind: "not_executed" as const,
   code: "hmr_invalidated" as const,
-});
+};
 
 function hasCapabilityV1(isCapabilityEnabled: () => boolean): boolean {
   try {
@@ -634,15 +653,15 @@ function debugAnchorReasonV1<
   TSnapshot extends { readonly commandSequence: NonNegativeSafeInteger },
 >(anchor: GameSessionDebugAnchorV1, snapshot: TSnapshot): RunIntegrityReasonV1 {
   return anchor.kind === "fixture"
-    ? Object.freeze({
+    ? {
       kind: "fixture_anchor" as const,
       fixtureId: anchor.fixtureId,
       sequence: snapshot.commandSequence,
-    })
-    : Object.freeze({
+    }
+    : {
       kind: "debug_bundle_anchor" as const,
       sequence: snapshot.commandSequence,
-    });
+    };
 }
 
 /** Builds the non-authoritative cause record for one normalized throw. */
@@ -658,14 +677,14 @@ function sessionFaultCauseV1(
     .map((line) => line.trim())
     .filter((line) => line.length > 0 && line !== raw)
     .slice(0, 8);
-  return Object.freeze({ at, message, stackSummary: Object.freeze(stackSummary) });
+  return { at, message, stackSummary };
 }
 
 function createInternal<TTypes extends GameSimulationTypeMapV1>(
   input: GameSessionInputV1<TTypes>,
   instrumentation?: SnapshotWorkInstrumentationV1,
-  evidencePolicy: EvidencePolicyFor<TTypes> = {},
-): GameSessionCompositionV1<TTypes> {
+  coreTypedEvidencePolicy?: EvidencePolicyFor<TTypes>,
+): CoreGameSessionCompositionInternalV1<TTypes> {
   type DispatchResult = Awaited<ReturnType<GameSessionV1<TTypes>["dispatch"]>>;
 
   runIntegrityV1Schema.parse(input.initialSnapshot.integrity);
@@ -679,9 +698,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
   let activeReplacementPublicationContext:
     | AuthoritativeReplacementPublicationContextInternalV1
     | null = null;
-  const authoritativeReplacementOwner = Object.freeze(
-    {},
-  ) as AuthoritativeReplacementOwnerInternalV1;
+  const authoritativeReplacementOwner = {} as AuthoritativeReplacementOwnerInternalV1;
   let stableStatus: Exclude<RuntimeSessionStatusV1, "busy"> = "ready";
   let lastFaultCause: SessionFaultCauseV1 | null = null;
   const recordFaultCause = (at: SessionFaultCauseV1["at"], error: unknown): void => {
@@ -706,11 +723,12 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
     },
     instrumentation,
   );
-  const commandLogView: CommandLogViewFor<TTypes> = Object.freeze({
+  const commandLogView: CommandLogInternalViewFor<TTypes> = {
     entries: () => commandLog.entries(),
     replayBase: () => commandLog.replayBase(),
     replayBaseStateDigest: () => commandLog.replayBaseStateDigest(),
-  });
+    latestEntryInternalV1: () => commandLog.latestEntryInternalV1(),
+  };
   const listeners = new Set<() => void>();
   const committedSnapshotListeners = new Set<
     (snapshot: DeepReadonly<TTypes["snapshot"]>) => void
@@ -786,7 +804,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
     });
   }
 
-  const runtimeControl: GameSessionRuntimeControlV1<TTypes["snapshot"]> = Object.freeze({
+  const runtimeControl: GameSessionRuntimeControlV1<TTypes["snapshot"]> = {
     enqueueAuthoritative<TResult>(
       operation: (
         current: DeepReadonly<TTypes["snapshot"]>,
@@ -824,7 +842,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
               const preparedCommandLogAnchor = outcome.anchor === "replace_replay_base"
                 ? commandLog.prepareAnchor(finalized as DeepReadonly<TTypes["snapshot"]>)
                 : null;
-              return Object.freeze({ finalized, preparedCommandLogAnchor });
+              return { finalized, preparedCommandLogAnchor };
             };
             let finalized: DeepReadonly<TTypes["snapshot"]>;
             let preparedCommandLogAnchor: ReturnType<typeof commandLog.prepareAnchor> | null;
@@ -843,9 +861,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
                 const preparedSession = prepareSessionReplacementV1();
                 finalized = preparedSession.finalized;
                 preparedCommandLogAnchor = preparedSession.preparedCommandLogAnchor;
-                const preparation = Object.freeze(
-                  {},
-                ) as AuthoritativeReplacementPreparationInternalV1;
+                const preparation = {} as AuthoritativeReplacementPreparationInternalV1;
                 const prepared = replacementBinding.prepare(
                   finalized,
                   outcome.anchor,
@@ -922,16 +938,16 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
       });
     },
     inspectForRuntime() {
-      return Object.freeze({
+      return {
         snapshot: snapshot as DeepReadonly<TTypes["snapshot"]>,
         status: status(),
-      });
+      };
     },
     subscribeCommittedSnapshots(listener: (snapshot: DeepReadonly<TTypes["snapshot"]>) => void) {
       committedSnapshotListeners.add(listener);
       return () => committedSnapshotListeners.delete(listener);
     },
-  });
+  };
   installSnapshotDigestV1(runtimeControl, snapshot, currentStateDigest);
   installedMigrationReceiptReadersInternalV1.set(runtimeControl, () => installedMigrationReceipt);
   activeAuthoritativeReplacementPublicationContextReadersInternalV1.set(
@@ -953,7 +969,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
     );
   }
 
-  const debugControl: GameSessionDebugControlV1<TTypes> = Object.freeze({
+  const debugControl: GameSessionDebugControlV1<TTypes> = {
     execute(command: DeepReadonly<TTypes["debugCommand"]>, isCapabilityEnabled: () => boolean) {
       const preflight = (): GameSessionDebugCommandResultV1<TTypes> | undefined => {
         if (!hasCapabilityV1(isCapabilityEnabled)) return capabilityDisabledV1;
@@ -1012,15 +1028,15 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
           try {
             const admittedValidation = admitDebugValidationResultInternalV1(
               validation,
-              evidencePolicy.parseDebugValidationError,
+              coreTypedEvidencePolicy?.parseDebugValidationError,
               instrumentation,
             );
             if (isHmrInvalidated()) return hmrInvalidatedV1;
             if (admittedValidation.kind === "validation_failed") {
-              validationFailure = Object.freeze({
+              validationFailure = {
                 kind: "validation_failed" as const,
                 errors: admittedValidation.errors,
-              });
+              };
             } else if (admittedValidation.kind !== "allowed") {
               throw new TypeError("DebugCommand validation returned an invalid result");
             } else {
@@ -1056,7 +1072,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
             before,
             currentStateDigest,
             candidate as AttemptFor<TTypes>,
-            evidencePolicy,
+            coreTypedEvidencePolicy,
             instrumentation,
             {
               debugCommand: admittedCommand,
@@ -1088,7 +1104,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
             before,
             currentStateDigest,
             candidate,
-            evidencePolicy,
+            coreTypedEvidencePolicy,
             instrumentation,
             {
               debugCommand: admittedCommand,
@@ -1103,10 +1119,10 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
         if (isHmrInvalidated()) return hmrInvalidatedV1;
 
         commandLog.append(
-          Object.freeze({
+          {
             source: "debug" as const,
             command: admittedCommand,
-          }),
+          },
           finalizedAttempt,
         );
         try {
@@ -1124,10 +1140,10 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
           stableStatus = "fault_paused";
           publish();
         }
-        return Object.freeze({
+        return {
           kind: "executed" as const,
           attempt: finalizedAttempt,
-        });
+        };
       });
     },
     anchorReplacement<TResult>(
@@ -1175,9 +1191,8 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
                 debugAnchorReasonV1(anchor, accepted),
               ),
             } as DeepReadonly<TTypes["snapshot"]>;
-            runIntegrityV1Schema.parse(finalized.integrity);
             const preparedCommandLogAnchor = commandLog.prepareAnchor(finalized);
-            return Object.freeze({ finalized, preparedCommandLogAnchor });
+            return { finalized, preparedCommandLogAnchor };
           };
           let finalized: DeepReadonly<TTypes["snapshot"]>;
           let preparedCommandLogAnchor: ReturnType<typeof commandLog.prepareAnchor>;
@@ -1196,9 +1211,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
               const preparedSession = prepareDebugReplacementV1();
               finalized = preparedSession.finalized;
               preparedCommandLogAnchor = preparedSession.preparedCommandLogAnchor;
-              const preparation = Object.freeze(
-                {},
-              ) as AuthoritativeReplacementPreparationInternalV1;
+              const preparation = {} as AuthoritativeReplacementPreparationInternalV1;
               const prepared = replacementBinding.prepare(
                 finalized,
                 "replace_replay_base",
@@ -1250,9 +1263,9 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
         }
       });
     },
-  });
+  };
 
-  const session: GameSessionV1<TTypes> = Object.freeze({
+  const session: GameSessionV1<TTypes> = {
     getStatus: status,
     getCurrentSnapshot: () => snapshot as DeepReadonly<TTypes["snapshot"]>,
     getLastFaultCause: () => lastFaultCause,
@@ -1262,18 +1275,16 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
     },
     dispatch(command: DeepReadonly<TTypes["command"]>): Promise<DispatchResult> {
       if (input.available === false) {
-        return Promise.resolve(
-          Object.freeze({ kind: "not_executed", code: "session_unavailable" }),
-        );
+        return Promise.resolve({ kind: "not_executed", code: "session_unavailable" });
       }
       if (stableStatus === "fault_paused" || stableStatus === "hmr_invalidated") {
-        return Promise.resolve(Object.freeze({ kind: "not_executed", code: stableStatus }));
+        return Promise.resolve({ kind: "not_executed", code: stableStatus });
       }
       let parsed: TTypes["command"];
       try {
         parsed = input.commandSchema.parse(command);
       } catch {
-        return Promise.resolve(Object.freeze({ kind: "not_executed", code: "validation_failed" }));
+        return Promise.resolve({ kind: "not_executed", code: "validation_failed" });
       }
       let admittedCommand: DeepReadonly<TTypes["command"]>;
       try {
@@ -1283,10 +1294,10 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
       }
       return enqueue(async () => {
         if (stableStatus === "fault_paused" || stableStatus === "hmr_invalidated") {
-          return Object.freeze({
+          return {
             kind: "not_executed" as const,
             code: stableStatus,
-          });
+          };
         }
         const before = snapshot as DeepReadonly<TTypes["snapshot"]>;
         const normalizeFault = (error: unknown): AttemptFor<TTypes> => {
@@ -1330,7 +1341,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
             before,
             currentStateDigest,
             candidate as AttemptFor<TTypes>,
-            evidencePolicy,
+            coreTypedEvidencePolicy,
             instrumentation,
             candidateIsFallback
               ? {
@@ -1357,7 +1368,7 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
             before,
             currentStateDigest,
             candidate,
-            evidencePolicy,
+            coreTypedEvidencePolicy,
             instrumentation,
             {
               resultConstraint: {
@@ -1370,10 +1381,10 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
         }
         if (isHmrInvalidated()) return hmrInvalidatedV1;
         commandLog.append(
-          Object.freeze({
+          {
             source: "game" as const,
             command: admittedCommand,
-          }),
+          },
           finalizedAttempt,
         );
         try {
@@ -1391,21 +1402,21 @@ function createInternal<TTypes extends GameSimulationTypeMapV1>(
           stableStatus = "fault_paused";
           publish();
         }
-        return Object.freeze({
+        return {
           kind: "executed" as const,
           execution: finalizedAttempt.result,
-        });
+        };
       });
     },
-  });
+  };
 
-  return Object.freeze({
+  return {
     session,
     runtimeControl,
     debugControl,
     commandLog: commandLogView,
     invalidationController,
-  });
+  };
 }
 
 export function createGameSessionV1<TTypes extends GameSimulationTypeMapV1>(
@@ -1425,8 +1436,8 @@ export function createInstrumentedGameSessionV1<TTypes extends GameSimulationTyp
 /** @internal Standard-Core schema policy; intentionally absent from package barrels. */
 export function createCoreGameSessionInternalV1<TTypes extends GameSimulationTypeMapV1>(
   input: GameSessionInputV1<TTypes>,
-  evidencePolicy: EvidencePolicyFor<TTypes>,
+  coreTypedEvidencePolicy: EvidencePolicyFor<TTypes>,
   instrumentation?: SnapshotWorkInstrumentationV1,
-): GameSessionCompositionV1<TTypes> {
-  return createInternal(input, instrumentation, evidencePolicy);
+): CoreGameSessionCompositionInternalV1<TTypes> {
+  return createInternal(input, instrumentation, coreTypedEvidencePolicy);
 }

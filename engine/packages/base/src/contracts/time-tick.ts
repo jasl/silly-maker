@@ -34,8 +34,6 @@ export interface TimeTickV1 {
   readonly expectedHoldOccurrenceId?: string;
 }
 
-const freezeTimeTickDataInternalV1 = Object.freeze;
-
 export function parseTimeTickV1(value: unknown, path = "/timeTick"): TimeTickV1 {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return dataFailure(path, "object_expected");
@@ -57,15 +55,15 @@ export function parseTimeTickV1(value: unknown, path = "/timeTick"): TimeTickV1 
     return dataFailure(`${path}/elapsedMs`, "time_elapsed_invalid");
   }
   if (!declaresFence) {
-    return freezeTimeTickDataInternalV1({ elapsedMs: record.elapsedMs });
+    return { elapsedMs: record.elapsedMs };
   }
-  return freezeTimeTickDataInternalV1({
+  return {
     elapsedMs: record.elapsedMs,
     expectedHoldOccurrenceId: parseInteractionOccurrenceIdV1(
       record.expectedHoldOccurrenceId,
       `${path}/expectedHoldOccurrenceId`,
     ),
-  });
+  };
 }
 
 export type TimeTickRejectionCodeV1 = "time.hold_occurrence_stale";
@@ -89,19 +87,19 @@ export function evaluateTimeTickV1(
   tick: TimeTickV1,
 ): TimeTickOutcomeV1 {
   if (tick.expectedHoldOccurrenceId === undefined) {
-    return freezeTimeTickDataInternalV1({ kind: "accepted", hold: null });
+    return { kind: "accepted", hold: null };
   }
   if (
     pending === null ||
     pending.kind !== "hold" ||
     pending.occurrenceId !== tick.expectedHoldOccurrenceId
   ) {
-    return freezeTimeTickDataInternalV1({
+    return {
       kind: "rejected",
       code: "time.hold_occurrence_stale",
-    });
+    };
   }
-  return freezeTimeTickDataInternalV1({ kind: "accepted", hold: pending });
+  return { kind: "accepted", hold: pending };
 }
 
 export type HoldSettlementV1 =
@@ -126,11 +124,11 @@ export function applyElapsedToHoldV1(
     throw new TypeError("time tick elapsedMs must be a positive integer");
   }
   const remainingMs = pending.remainingMs - Math.min(elapsedMs, pending.remainingMs);
-  if (remainingMs === 0) return freezeTimeTickDataInternalV1({ kind: "expired" });
-  return freezeTimeTickDataInternalV1({
+  if (remainingMs === 0) return { kind: "expired" };
+  return {
     kind: "holding",
-    pending: freezeTimeTickDataInternalV1({ ...pending, remainingMs }),
-  });
+    pending: { ...pending, remainingMs },
+  };
 }
 
 /**
@@ -265,11 +263,11 @@ export function settleHoldTimelineV1(input: {
 
   const entryMatch = firstMatchingHoldArmV1(arms);
   if (entryMatch !== null) {
-    return freezeTimeTickDataInternalV1({
+    return {
       kind: "rerouted",
       armIndex: entryMatch,
       consumedMs: 0,
-    });
+    };
   }
 
   const fromMs = pending.totalMs - pending.remainingMs;
@@ -298,14 +296,14 @@ export function settleHoldTimelineV1(input: {
     const frame = frameCrossings[frameCursor];
     let crossing: HoldTimelineCrossingV1;
     if (tickAt !== undefined && (frame === undefined || tickAt <= frame.atMs)) {
-      crossing = freezeTimeTickDataInternalV1({ kind: "tick", atMs: tickAt });
+      crossing = { kind: "tick", atMs: tickAt };
       tickCursor += 1;
     } else if (frame !== undefined) {
-      crossing = freezeTimeTickDataInternalV1({
+      crossing = {
         kind: "frame",
         atMs: frame.atMs,
         index: frame.index,
-      });
+      };
       frameCursor += 1;
     } else {
       break;
@@ -313,21 +311,21 @@ export function settleHoldTimelineV1(input: {
     input.onCrossing?.(crossing);
     const match = firstMatchingHoldArmV1(arms);
     if (match !== null) {
-      return freezeTimeTickDataInternalV1({
+      return {
         kind: "rerouted",
         armIndex: match,
         consumedMs: crossing.atMs - fromMs,
-      });
+      };
     }
   }
 
   const fold = applyElapsedToHoldV1(pending, elapsedMs);
   if (fold.kind === "expired") {
-    return freezeTimeTickDataInternalV1({ kind: "expired", consumedMs: spanMs });
+    return { kind: "expired", consumedMs: spanMs };
   }
-  return freezeTimeTickDataInternalV1({
+  return {
     kind: "holding",
     pending: fold.pending,
     consumedMs: spanMs,
-  });
+  };
 }

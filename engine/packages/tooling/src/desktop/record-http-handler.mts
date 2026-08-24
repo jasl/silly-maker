@@ -34,12 +34,12 @@ function requestOriginIsAllowedV1(request: Request): boolean {
 }
 
 function decodePathSegmentsV1(path: string): readonly string[] | null {
-  if (path === "") return Object.freeze([]);
+  if (path === "") return [];
   if (!path.startsWith("/") || path.includes("\0") || path.includes("\\")) return null;
   const encoded = path.slice(1);
   if (encoded === "" || encoded.includes("//")) return null;
   try {
-    return Object.freeze(encoded.split("/").map((segment) => decodeURIComponent(segment)));
+    return encoded.split("/").map((segment) => decodeURIComponent(segment));
   } catch {
     return null;
   }
@@ -93,7 +93,7 @@ function parseCommitBodyV1(value: unknown): readonly WireMutationV1[] {
   if (typeof value !== "object" || value === null) {
     throw new TypeError("invalid commit body");
   }
-  return parseWireMutationsV1(Reflect.get(value, "mutations"));
+  return parseWireMutationsV1((value as { readonly mutations?: unknown }).mutations);
 }
 
 /**

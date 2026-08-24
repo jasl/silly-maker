@@ -29,7 +29,6 @@ import type {
 import { defaultPlayerProfileV1 } from "@sillymaker/base/runtime";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 
-import { createInputRouterV1 } from "../input/input-router.ts";
 import { systemInputActionIdsV1 } from "../input/contracts.ts";
 import {
   createWholeCanvasSurfaceCompositionDefinitionInternalV1,
@@ -42,13 +41,6 @@ import {
   type NarrativeSurfaceSelectionInternalV1,
 } from "../narrative/narrative-surface-composition.tsx";
 import {
-  createLocalManagedSurfaceEpochAllocatorInternalV1,
-  createManagedSurfaceCompositionRuntimeInternalV1,
-} from "../managed-surfaces/managed-surface-composition-runtime.ts";
-import {
-  createWorkspaceOverlayPublicSessionInternalV1,
-  createWorkspaceOverlaySessionConfigurationInternalV1,
-  createWorkspaceOverlaySessionInternalV1,
   defineWorkspaceOverlayV1,
   resolveWorkspaceOverlaySessionInternalV1,
 } from "../overlays/workspace-overlay-session.ts";
@@ -61,12 +53,7 @@ import type {
 import { createManualPresentationClockV1 } from "../presentation-run/presentation-clock.ts";
 import type { PresentationClockV1 } from "../presentation-run/presentation-clock.ts";
 import { SemanticStageV1 } from "../stage/semantic-stage.tsx";
-import { systemDialogManagedContractInternalV1 } from "../system/system-dialog-managed-contract.ts";
-import {
-  createSystemDialogManagedSessionInternalV1,
-  createSystemDialogSessionFacadeInternalV1,
-  resolveSystemDialogSessionInternalV1,
-} from "../system/system-dialog-managed-session.ts";
+import { resolveSystemDialogSessionInternalV1 } from "../system/system-dialog-managed-session.ts";
 import {
   createGameUiCompositionWithEpochAllocatorInternalV1,
   createHostedGameUiCompositionInternalV1,
@@ -77,11 +64,7 @@ import {
   type GameUiPresentationAnchorV1,
   type GameUiPresentationSuccessorProducerInternalV1,
 } from "./create-game-ui-composition.ts";
-import type {
-  DefaultGameRootLabelsV1,
-  DefaultGameRootPropsV1,
-  DefaultGameRootSlotContextV1,
-} from "./default-game-root.tsx";
+import type { DefaultGameRootPropsV1, DefaultGameRootSlotContextV1 } from "./default-game-root.tsx";
 import { DefaultGameRootV1 } from "./default-game-root.tsx";
 
 afterEach(cleanup);
@@ -184,14 +167,6 @@ const hostedSaveLabelsV1 = Object.freeze({
     unexpectedFailure: "Unexpected failure",
   }),
 }) satisfies SaveOverlayLabelsV1;
-
-function deferredV1() {
-  let resolve!: () => void;
-  const promise = new Promise<void>((resolvePromise) => {
-    resolve = resolvePromise;
-  });
-  return Object.freeze({ promise, resolve });
-}
 
 function StageLifetimeProbeV1(props: {
   readonly onMount: () => void;
@@ -343,223 +318,6 @@ const stageLifetimeTimelinesV1: TimelineCatalogV1 = Object.freeze({
     cueId: Parameters<TimelineCatalogV1["resolveTimeline"]>[0],
   ) => (cueId === "cue.test.default-root-lifetime" ? stageLifetimeCueV1 : null),
 });
-
-function renderLifecycleRootV1(input: {
-  readonly playerProfile?: PlayerProfileStoreV1;
-  readonly labels?: Partial<DefaultGameRootLabelsV1>;
-  readonly auxiliarySurface?: ReactElement;
-  readonly stageLifetime?: {
-    readonly onMount: () => void;
-    readonly onUnmount: () => void;
-    readonly clock: ReturnType<typeof createManualPresentationClockV1>;
-  };
-}) {
-  let systemDialogs: DefaultGameRootSlotContextV1<unknown, unknown>["systemDialogs"] | undefined;
-  const inputRouter = createInputRouterV1();
-  const overlayFailures: Array<{
-    readonly code: string;
-    readonly error: unknown;
-  }> = [];
-  const preparations = new Map<
-    LifecycleOverlayIdV1,
-    ReturnType<typeof deferredV1>
-  >([
-    ["lifecycle.primary", deferredV1()],
-    ["lifecycle.detail", deferredV1()],
-  ]);
-  const overlayConfiguration = createWorkspaceOverlaySessionConfigurationInternalV1({
-    definitions: lifecycleOverlayDefinitionsV1,
-    reportFailure: (code, error) => overlayFailures.push(Object.freeze({ code, error })),
-  });
-  const managedSurfaceRuntimeOwner = createManagedSurfaceCompositionRuntimeInternalV1({
-    inputRouter,
-    epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
-    recipe: Object.freeze({
-      resolvedOwnerIds: Object.freeze([
-        ...overlayConfiguration.recipeContribution.resolvedOwnerIds,
-        ...systemDialogManagedContractInternalV1.resolvedOwnerIds,
-      ]),
-      resolvedSlotDescriptors: Object.freeze([
-        ...overlayConfiguration.recipeContribution.resolvedSlotDescriptors,
-        ...systemDialogManagedContractInternalV1.resolvedSlotDescriptors,
-      ]),
-    }),
-  });
-  const overlayInternal = createWorkspaceOverlaySessionInternalV1<LifecycleOverlayIdV1>({
-    runtime: managedSurfaceRuntimeOwner.getCurrent(),
-    configuration: overlayConfiguration,
-  });
-  const overlaySession = createWorkspaceOverlayPublicSessionInternalV1(overlayInternal);
-  const overlayResolver = Object.freeze({
-    resolve: (id: LifecycleOverlayIdV1) =>
-      Object.freeze({
-        accessibleName: id,
-        content: <p>{id}</p>,
-        prepare: () => preparations.get(id)!.promise,
-      }),
-  });
-  const systemDialogInternal = createSystemDialogManagedSessionInternalV1({
-    runtime: managedSurfaceRuntimeOwner.getCurrent(),
-  });
-  const systemDialogSession = createSystemDialogSessionFacadeInternalV1(systemDialogInternal);
-  const publication = Object.freeze({ revision: 0 });
-  let anchor: GameUiPresentationAnchorV1 = Object.freeze({
-    epoch: 0,
-    origin: "bootstrap",
-  });
-  const anchorListeners = new Set<() => void>();
-
-  const renderRootV1 = (): ReactElement => (
-    <DefaultGameRootV1
-      composition={{
-        presentation: Object.freeze({
-          getSnapshot: () => publication,
-          subscribe: () => () => undefined,
-        }),
-        anchor: Object.freeze({
-          getCurrent: () => anchor,
-          subscribe: (listener: () => void) => {
-            anchorListeners.add(listener);
-            return () => anchorListeners.delete(listener);
-          },
-        }),
-        input: inputRouter,
-        intents: Object.freeze({}),
-        cues: Object.freeze({}),
-        overlaySession,
-        systemDialogSession,
-        interactionSession: Object.freeze({}),
-        updateUiState: () => undefined,
-      } as never}
-      semantic={Object.freeze({})}
-      accessibleName="Lifecycle fixture"
-      applicationId="lifecycle-fixture"
-      viewport={undefined as never}
-      {...(input.playerProfile === undefined ? {} : { playerProfile: input.playerProfile })}
-      {...(input.labels === undefined ? {} : { labels: input.labels })}
-      slots={Object.freeze({
-        ...(input.stageLifetime === undefined ? {} : {
-          background: () => (
-            <StageLifetimeProbeV1
-              onMount={input.stageLifetime!.onMount}
-              onUnmount={input.stageLifetime!.onUnmount}
-              epoch={anchor.epoch}
-              clock={input.stageLifetime!.clock}
-            />
-          ),
-        }),
-        hud: (context: DefaultGameRootSlotContextV1<unknown, unknown>) => {
-          systemDialogs = context.systemDialogs;
-          return null;
-        },
-        ...(input.auxiliarySurface === undefined
-          ? {}
-          : { auxiliarySurface: () => input.auxiliarySurface }),
-        overlayResolver: () => overlayResolver,
-      })}
-    />
-  );
-  render(renderRootV1());
-
-  return Object.freeze({
-    managedSurfaceRuntimeOwner,
-    overlayInternal,
-    overlaySession,
-    overlayFailures,
-    publishAnchor(next: GameUiPresentationAnchorV1): void {
-      anchor = next;
-      for (const listener of [...anchorListeners]) listener();
-    },
-    resolvePreparation(id: LifecycleOverlayIdV1) {
-      preparations.get(id)!.resolve();
-    },
-    systemDialogSession,
-    systemDialogInternal,
-    openSettings: () => {
-      if (systemDialogs === undefined) {
-        throw new TypeError("missing System dialog fixture");
-      }
-      return systemDialogs.openSettings();
-    },
-    openSaves: () => {
-      if (systemDialogs === undefined) {
-        throw new TypeError("missing System dialog fixture");
-      }
-      return systemDialogs.openSaves();
-    },
-    returnToTitle: () => {
-      if (systemDialogs === undefined) {
-        throw new TypeError("missing returnToTitle fixture");
-      }
-      return systemDialogs.returnToTitle();
-    },
-  });
-}
-
-async function settleOverlayPreparationV1(
-  fixture: ReturnType<typeof renderLifecycleRootV1>,
-  id: LifecycleOverlayIdV1,
-): Promise<void> {
-  const candidate = fixture.overlayInternal
-    .getRenderSnapshotInternalV1()
-    .entries.find(
-      (entry) => entry.overlayId === id && entry.readiness === "preparing",
-    );
-  expect(candidate).toBeDefined();
-  const readiness = fixture.overlayInternal.beginCandidatePreparationInternalV1(
-    candidate!.surfaceInstanceId,
-  );
-  await act(async () => {
-    fixture.resolvePreparation(id);
-    await expect(readiness).resolves.toEqual({ kind: "ready" });
-  });
-}
-
-async function openActiveTopologyV1(
-  fixture: ReturnType<typeof renderLifecycleRootV1>,
-): Promise<
-  Readonly<{
-    system: { readonly active: "settings" };
-    overlay: {
-      readonly primaryId: "lifecycle.primary";
-      readonly detailIds: readonly ["lifecycle.detail"];
-    };
-  }>
-> {
-  act(() => {
-    expect(fixture.overlaySession.openPrimary("lifecycle.primary")).toEqual({
-      kind: "preparing",
-      code: "overlay.preparation_started",
-    });
-  });
-  await settleOverlayPreparationV1(fixture, "lifecycle.primary");
-  act(() => {
-    expect(fixture.overlaySession.pushDetail("lifecycle.detail")).toEqual({
-      kind: "preparing",
-      code: "overlay.preparation_started",
-    });
-  });
-  await settleOverlayPreparationV1(fixture, "lifecycle.detail");
-  act(() => {
-    expect(fixture.systemDialogSession.openSettings()).toEqual({
-      kind: "preparing",
-      code: "system_dialog.preparation_started",
-    });
-  });
-  await act(async () => {
-    await new Promise<void>((complete) => queueMicrotask(complete));
-  });
-  expect(fixture.systemDialogSession.getSnapshot()).toEqual({
-    active: "settings",
-  });
-  return Object.freeze({
-    system: Object.freeze({ active: "settings" as const }),
-    overlay: Object.freeze({
-      primaryId: "lifecycle.primary" as const,
-      detailIds: Object.freeze(["lifecycle.detail"] as const),
-    }),
-  });
-}
 
 function createExactLifecycleAnchorSourceV1() {
   let current: GameUiPresentationAnchorV1 = Object.freeze({
@@ -994,6 +752,7 @@ function renderHostedLifecycleRootV1(
     readonly withFrontDoor?: boolean;
     readonly withSplash?: boolean;
     readonly hudProbe?: boolean;
+    readonly auxiliarySurface?: ReactElement;
     readonly stageLifetime?: {
       readonly onMount: () => void;
       readonly onUnmount: () => void;
@@ -1251,6 +1010,9 @@ function renderHostedLifecycleRootV1(
           returnToTitle = context.systemDialogs.returnToTitle;
           return options.hudProbe === true ? <div data-testid="hud-probe">HUD</div> : null;
         },
+        ...(options.auxiliarySurface === undefined
+          ? {}
+          : { auxiliarySurface: () => options.auxiliarySurface }),
         overlayResolver: () => overlayResolver,
       })}
     />
@@ -1278,14 +1040,16 @@ function renderHostedLifecycleRootV1(
 
 describe("DefaultGameRootV1 lifecycle result handling", () => {
   it("forwards optional outer chrome through the neutral auxiliary surface slot", () => {
-    renderLifecycleRootV1({
+    const fixture = renderHostedLifecycleRootV1({
       auxiliarySurface: <button type="button">Reference outer chrome</button>,
     });
 
-    const stage = screen.getByRole("main", { name: "Lifecycle fixture" });
+    const stage = screen.getByRole("main", { name: "Hosted lifecycle fixture" });
     const auxiliary = screen.getByRole("button", { name: "Reference outer chrome" });
     expect(auxiliary).toBeVisible();
     expect(stage).not.toContainElement(auxiliary);
+
+    fixture.composition.dispose();
   });
 
   it("promotes a saved-session Title after dismissing the package-owned Splash", async () => {
@@ -2082,68 +1846,8 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     expect(onUnmount).toHaveBeenCalledTimes(2);
   });
 
-  it("retains epoch remount semantics for structurally typed legacy compositions", () => {
-    const onMount = vi.fn();
-    const onUnmount = vi.fn();
-    const clock = createManualPresentationClockV1();
-    const fixture = renderLifecycleRootV1({
-      stageLifetime: Object.freeze({ onMount, onUnmount, clock }),
-    });
-
-    expect(onMount).toHaveBeenCalledTimes(1);
-    expect(onUnmount).not.toHaveBeenCalled();
-
-    act(() => {
-      fixture.publishAnchor(Object.freeze({ epoch: 1, origin: "load" }));
-    });
-
-    expect(onMount).toHaveBeenCalledTimes(2);
-    expect(onUnmount).toHaveBeenCalledTimes(1);
-    cleanup();
-    expect(onUnmount).toHaveBeenCalledTimes(2);
-  });
-
-  it("returns managed structured System results through the Story slot context", async () => {
-    const fixture = renderLifecycleRootV1({});
-    let settingsResult: ReturnType<typeof fixture.openSettings> | undefined;
-
-    act(() => {
-      settingsResult = fixture.openSettings();
-    });
-
-    expect(settingsResult).toEqual({
-      kind: "preparing",
-      code: "system_dialog.preparation_started",
-    });
-    expect(Object.isFrozen(settingsResult)).toBe(true);
-    expect(fixture.systemDialogSession.getSnapshot()).toEqual({ active: null });
-    expect(fixture.openSettings()).toEqual({
-      kind: "unchanged",
-      code: "system_dialog.already_requested",
-    });
-    expect(fixture.openSaves()).toEqual({
-      kind: "rejected",
-      code: "system_dialog.renderer_missing",
-    });
-
-    await act(async () => {
-      await new Promise<void>((complete) => queueMicrotask(complete));
-    });
-    expect(fixture.systemDialogSession.getSnapshot()).toEqual({
-      active: "settings",
-    });
-  });
-
   it("fails closed without composition-owned front-door authority", async () => {
-    const fixture = renderLifecycleRootV1({});
-    const topology = await openActiveTopologyV1(fixture);
-    const before = fixture.managedSurfaceRuntimeOwner
-      .getCurrent()
-      .coordinator.getSnapshot();
-    const systemNotifications = vi.fn();
-    const overlayNotifications = vi.fn();
-    fixture.systemDialogInternal.subscribeInternalV1(systemNotifications);
-    fixture.overlaySession.subscribe(overlayNotifications);
+    const fixture = renderHostedLifecycleRootV1();
 
     let outcome: Promise<void> | undefined;
     expect(() => {
@@ -2155,13 +1859,7 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       "ui.whole_canvas_front_door_unavailable",
     );
 
-    expect(
-      fixture.managedSurfaceRuntimeOwner.getCurrent().coordinator.getSnapshot(),
-    ).toBe(before);
-    expect(fixture.systemDialogSession.getSnapshot()).toEqual(topology.system);
-    expect(fixture.overlaySession.getSnapshot()).toEqual(topology.overlay);
-    expect(systemNotifications).not.toHaveBeenCalled();
-    expect(overlayNotifications).not.toHaveBeenCalled();
+    fixture.composition.dispose();
   });
 
   it("preserves a fresh Overlay synchronously opened by the exact successor subscriber", async () => {

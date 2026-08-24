@@ -4,7 +4,7 @@ import { createInProcessAgentGamePortV1 } from "@sillymaker/base/runtime";
 import { createBookshopApplicationInstanceV1 } from "../application/core-application.ts";
 
 function resolveStepV1(occurrence: number, resolution: unknown) {
-  return Object.freeze({
+  return ({
     kind: "resolve" as const,
     expectedOccurrenceId: `interaction-occurrence.${String(occurrence)}`,
     resolution,
@@ -20,10 +20,10 @@ function resolveStepV1(occurrence: number, resolution: unknown) {
  *   1 opening narration · 2 老周 · 3 阿澄 · 4 老周 reply · 5 first choice
  * Then each route: two branch lines · yard line · second choice · aftermath · ending.
  */
-const scenariosV1 = Object.freeze({
+const scenariosV1 = {
   /** Help find the book (sets flag), earn a coin, and buy it. */
-  helped: Object.freeze([
-    Object.freeze({ kind: "invoke" as const, actionId: "bookshop.begin_story" as const }),
+  helped: [
+    { kind: "invoke" as const, actionId: "bookshop.begin_story" as const },
     resolveStepV1(1, { kind: "advance" }),
     resolveStepV1(2, { kind: "advance" }),
     resolveStepV1(3, { kind: "advance" }),
@@ -32,14 +32,14 @@ const scenariosV1 = Object.freeze({
     resolveStepV1(6, { kind: "advance" }),
     resolveStepV1(7, { kind: "advance" }),
     resolveStepV1(8, { kind: "advance" }),
-    Object.freeze({ kind: "invoke" as const, actionId: "bookshop.earn_coin" as const }),
+    { kind: "invoke" as const, actionId: "bookshop.earn_coin" as const },
     resolveStepV1(9, { kind: "choose", choiceId: "choice.bookshop.buy" }),
     resolveStepV1(10, { kind: "advance" }),
     resolveStepV1(11, { kind: "advance" }),
-  ]),
+  ],
   /** Usher them out (no flag) and leave the book on the porch. */
-  ushered: Object.freeze([
-    Object.freeze({ kind: "invoke" as const, actionId: "bookshop.begin_story" as const }),
+  ushered: [
+    { kind: "invoke" as const, actionId: "bookshop.begin_story" as const },
     resolveStepV1(1, { kind: "advance" }),
     resolveStepV1(2, { kind: "advance" }),
     resolveStepV1(3, { kind: "advance" }),
@@ -51,8 +51,8 @@ const scenariosV1 = Object.freeze({
     resolveStepV1(9, { kind: "choose", choiceId: "choice.bookshop.leave-book" }),
     resolveStepV1(10, { kind: "advance" }),
     resolveStepV1(11, { kind: "advance" }),
-  ]),
-});
+  ],
+};
 
 /**
  * The simulation target for `deno task story simulate bookshop`: a fresh
@@ -64,13 +64,13 @@ export async function createBookshopSimulationTargetV1(options: { readonly seed?
     options.seed === undefined ? {} : { seeds: [options.seed] },
   );
   const agent = createInProcessAgentGamePortV1({
-    identity: Object.freeze({
+    identity: {
       storyId: application.storyId,
       storyRevision: application.storyRevision,
-    }),
+    },
     semantic: application.semantic,
   });
-  return Object.freeze({
+  return ({
     agent,
     stateDigest: () => application.admin.stateDigest(),
     dispose: () => application.dispose(),

@@ -51,11 +51,11 @@ export interface PlayerProfileV1 {
   readonly preferences: PlayerPlaybackPreferencesV1;
 }
 
-export const defaultPlayerProfileV1: PlayerProfileV1 = Object.freeze({
+export const defaultPlayerProfileV1: PlayerProfileV1 = {
   profileRevision: 1,
-  seen: Object.freeze({}),
-  meta: Object.freeze({}),
-  preferences: Object.freeze({
+  seen: {},
+  meta: {},
+  preferences: {
     textRevealCharsPerSecond: 40,
     autoWaitMs: 600,
     skipPolicy: "skip_read" as const,
@@ -66,8 +66,8 @@ export const defaultPlayerProfileV1: PlayerProfileV1 = Object.freeze({
     sfxGainPermille: 1000,
     muted: false,
     locale: null,
-  }),
-});
+  },
+};
 
 export function isSeenV1(
   profile: PlayerProfileV1,
@@ -81,10 +81,10 @@ export function isSeenV1(
 export function markMetaV1(profile: PlayerProfileV1, entryId: string, value = 1): PlayerProfileV1 {
   const recorded = profile.meta[entryId];
   if (recorded !== undefined && recorded >= value) return profile;
-  return Object.freeze({
+  return {
     ...profile,
-    meta: Object.freeze({ ...profile.meta, [entryId]: value }),
-  });
+    meta: { ...profile.meta, [entryId]: value },
+  };
 }
 
 export function markSeenV1(
@@ -94,10 +94,10 @@ export function markSeenV1(
 ): PlayerProfileV1 {
   const recorded = profile.seen[definitionId];
   if (recorded !== undefined && recorded >= seenRevision) return profile;
-  return Object.freeze({
+  return {
     ...profile,
-    seen: Object.freeze({ ...profile.seen, [definitionId]: seenRevision }),
-  });
+    seen: { ...profile.seen, [definitionId]: seenRevision },
+  };
 }
 
 function parsePlayerProfileV1(value: unknown): PlayerProfileV1 | null {
@@ -165,11 +165,11 @@ function parsePlayerProfileV1(value: unknown): PlayerProfileV1 | null {
   ) {
     return null;
   }
-  return Object.freeze({
+  return {
     profileRevision: 1,
-    seen: Object.freeze(seen),
-    meta: Object.freeze(meta),
-    preferences: Object.freeze({
+    seen,
+    meta,
+    preferences: {
       textRevealCharsPerSecond: charsPerSecond ?? defaults.textRevealCharsPerSecond,
       autoWaitMs: autoWaitMs ?? defaults.autoWaitMs,
       skipPolicy: skipPolicy ?? defaults.skipPolicy,
@@ -180,8 +180,8 @@ function parsePlayerProfileV1(value: unknown): PlayerProfileV1 | null {
       sfxGainPermille: sfxGain ?? defaults.sfxGainPermille,
       muted: muted ?? defaults.muted,
       locale: locale ?? defaults.locale,
-    }),
-  });
+    },
+  };
 }
 
 export interface PlayerProfileStoreV1 {
@@ -257,7 +257,7 @@ export async function createPlayerProfileStoreV1(
     });
   };
 
-  return Object.freeze({
+  return {
     current: () => profile,
     subscribe(listener: () => void): () => void {
       listeners.add(listener);
@@ -292,5 +292,5 @@ export async function createPlayerProfileStoreV1(
       persist();
       await writeTail;
     },
-  });
+  };
 }

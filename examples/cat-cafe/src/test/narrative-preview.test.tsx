@@ -53,12 +53,6 @@ describe("Cat Cafe detached Narrative preview", () => {
       catcafeContentIdsV1.backgroundShopfront,
       catcafeContentIdsV1.characterXiaoyu,
     ]);
-
-    for (const preview of catcafeNarrativePreviewCasesV1) {
-      expect(Object.isFrozen(preview)).toBe(true);
-      expect(Object.isFrozen(preview.textIds)).toBe(true);
-      expect(Object.isFrozen(preview.target)).toBe(true);
-    }
   });
 
   it("switches passive settled targets without changing the live application digest", async () => {

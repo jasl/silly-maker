@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import { parseNonNegativeSafeInteger } from "@sillymaker/base";
-import { createElement } from "react";
+import { createElement, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { createInputRouterV1 } from "../input/input-router.ts";
@@ -24,22 +24,22 @@ import {
   type SystemDialogRootCatalogInternalV1,
 } from "./system-dialog-managed-session.ts";
 
-const rendererSettingsR1 = Object.freeze({ kind: "settings-r1" });
-const rendererSettingsR2 = Object.freeze({ kind: "settings-r2" });
-const rendererSavesR1 = Object.freeze({ kind: "saves-r1" });
-const rendererConfirmationR1 = Object.freeze({ kind: "confirmation-r1" });
-const rendererConfirmationR2 = Object.freeze({ kind: "confirmation-r2" });
-const savePortV1 = Object.freeze({ kind: "save-port" });
-const confirmationPortV1 = Object.freeze({ kind: "confirmation-port" });
+const rendererSettingsR1 = { kind: "settings-r1" };
+const rendererSettingsR2 = { kind: "settings-r2" };
+const rendererSavesR1 = { kind: "saves-r1" };
+const rendererConfirmationR1 = { kind: "confirmation-r1" };
+const rendererConfirmationR2 = { kind: "confirmation-r2" };
+const savePortV1 = { kind: "save-port" };
+const confirmationPortV1 = { kind: "confirmation-port" };
 
 function revisionDeltaV1(
   before: ManagedSurfacePublicationV1,
   after: ManagedSurfacePublicationV1,
 ): readonly [number, number] {
-  return Object.freeze([
+  return [
     after.publicationRevision - before.publicationRevision,
     after.topologyRevision - before.topologyRevision,
-  ]);
+  ];
 }
 
 function catalogV1(input: {
@@ -54,47 +54,43 @@ function catalogV1(input: {
   readonly includeConfirmationPort?: boolean;
 } = {}): SystemDialogRootCatalogInternalV1 {
   return createSystemDialogRootCatalogSnapshotInternalV1({
-    entries: Object.freeze([
-      Object.freeze({
+    entries: [
+      {
         rootRequest: "settings" as const,
         rendererComponent: input.settingsRenderer ?? rendererSettingsR1,
         accessibleName: input.settingsName ?? "Settings R1",
-        requiredPortIds: Object.freeze([]),
+        requiredPortIds: [],
         contentConfig: {
           title: "Settings",
           closeLabel: "Close",
           emptyText: "Empty",
-          sections: Object.freeze([]),
+          sections: [],
         },
-      }),
-      Object.freeze({
+      },
+      {
         rootRequest: "saves" as const,
         rendererComponent: input.savesRenderer ?? rendererSavesR1,
         accessibleName: input.savesName ?? "Saves R1",
-        requiredPortIds: Object.freeze(
-          input.requiredSavePort === false ? [] : ["persistence.player-save"],
-        ),
+        requiredPortIds: input.requiredSavePort === false ? [] : ["persistence.player-save"],
         contentConfig: {
           variant: "custom" as const,
           accessibleName: input.savesName ?? "Saves R1",
           component: input.savesRenderer ?? rendererSavesR1,
         },
-      }),
-    ]),
-    portBindings: Object.freeze(
-      [
-        ...(input.includeSavePort === false
-          ? []
-          : [Object.freeze({ portId: "persistence.player-save", port: savePortV1 })]),
-        ...(input.includeConfirmationPort === false
-          ? []
-          : [Object.freeze({ portId: "system.confirmation", port: confirmationPortV1 })]),
-      ],
-    ),
-    confirmationEntry: input.includeConfirmation === false ? null : Object.freeze({
+      },
+    ],
+    portBindings: [
+      ...(input.includeSavePort === false
+        ? []
+        : [{ portId: "persistence.player-save", port: savePortV1 }]),
+      ...(input.includeConfirmationPort === false
+        ? []
+        : [{ portId: "system.confirmation", port: confirmationPortV1 }]),
+    ],
+    confirmationEntry: input.includeConfirmation === false ? null : ({
       rendererComponent: input.confirmationRenderer ?? rendererConfirmationR1,
       accessibleName: "Action confirmation",
-      requiredPortIds: Object.freeze(["system.confirmation"]),
+      requiredPortIds: ["system.confirmation"],
     }),
   });
 }
@@ -114,25 +110,25 @@ function sessionFixtureV1(
 } {
   let epoch = 30;
   const runtime = createManagedSurfaceCompositionRuntimeInternalV1({
-    epochAllocator: Object.freeze({
+    epochAllocator: {
       allocate: () => parseNonNegativeSafeInteger(epoch += 1),
-    }),
+    },
     inputRouter: createInputRouterV1(),
-    recipe: Object.freeze({
+    recipe: {
       resolvedOwnerIds: systemDialogManagedContractInternalV1.resolvedOwnerIds,
       resolvedSlotDescriptors: systemDialogManagedContractInternalV1.resolvedSlotDescriptors,
-    }),
+    },
   });
   const session = createSystemDialogManagedSessionInternalV1({
     runtime: runtime.getCurrent(),
     ...(reportFailure === undefined ? {} : { reportFailure }),
   });
-  const hostIdentity = Object.freeze({ kind: "session-fixture-host" });
-  const portalContainer = Object.freeze({ kind: "session-fixture-portal" });
+  const hostIdentity = { kind: "session-fixture-host" };
+  const portalContainer = { kind: "session-fixture-portal" };
   let attachment = catalog === null
     ? null
     : session.attachHostInternalV1({ hostIdentity, portalContainer, catalog });
-  return Object.freeze({
+  return ({
     session,
     updateCatalog(nextCatalog) {
       if (attachment === null) {
@@ -154,10 +150,10 @@ function sessionFixtureV1(
       const current = runtime.getCurrent();
       const snapshot = current.coordinator.getSnapshot();
       current.coordinator.routeFallbackDismissExactCandidate(
-        Object.freeze({
+        {
           applicationEpoch: snapshot.applicationEpoch,
           surfaceInstanceId: surfaceInstanceId as never,
-        }),
+        },
         "routed_cancel",
       );
     },
@@ -183,16 +179,16 @@ function deferredV1<T>(): {
     resolve = resolvePromise;
     reject = rejectPromise;
   });
-  return Object.freeze({ promise, resolve, reject });
+  return ({ promise, resolve, reject });
 }
 
 describe("dormant managed System dialog session", () => {
   it("grants one logical Host lease and rejects a distinct Host before mutation", async () => {
     const fixture = sessionFixtureV1(null);
     const { session } = fixture;
-    const firstHost = Object.freeze({ kind: "first-host" });
-    const secondHost = Object.freeze({ kind: "second-host" });
-    const portal = Object.freeze({ kind: "system-portal" });
+    const firstHost = { kind: "first-host" };
+    const secondHost = { kind: "second-host" };
+    const portal = { kind: "system-portal" };
     const catalog = catalogV1();
     const before = session.getManagedSnapshotInternalV1();
     let notifications = 0;
@@ -210,7 +206,7 @@ describe("dormant managed System dialog session", () => {
     expect(() =>
       session.attachHostInternalV1({
         hostIdentity: secondHost,
-        portalContainer: Object.freeze({ kind: "losing-portal" }),
+        portalContainer: { kind: "losing-portal" },
         catalog: catalogV1({ settingsName: "Losing catalog" }),
       })
     ).toThrowError("ui.system_dialog_host_lease_conflict");
@@ -291,13 +287,13 @@ describe("dormant managed System dialog session", () => {
   it("rechecks the Host lease after root resolver work before allocating", () => {
     const baseCatalog = catalogV1();
     let releaseHost = (): void => undefined;
-    const fixture = sessionFixtureV1(Object.freeze({
+    const fixture = sessionFixtureV1({
       ...baseCatalog,
       resolveRoot(request: SystemDialogRootRequestInternalV1) {
         releaseHost();
         return baseCatalog.resolveRoot(request);
       },
-    }));
+    });
     releaseHost = fixture.releaseHost;
     const before = fixture.session.getManagedSnapshotInternalV1();
 
@@ -312,8 +308,8 @@ describe("dormant managed System dialog session", () => {
 
   it("rejects a live logical Host portal change before remounting its candidate", async () => {
     const fixture = sessionFixtureV1(null);
-    const hostIdentity = Object.freeze({ kind: "stable-portal-host" });
-    const portalR1 = Object.freeze({ kind: "portal-r1" });
+    const hostIdentity = { kind: "stable-portal-host" };
+    const portalR1 = { kind: "portal-r1" };
     const attachment = fixture.session.attachHostInternalV1({
       hostIdentity,
       portalContainer: portalR1,
@@ -325,7 +321,7 @@ describe("dormant managed System dialog session", () => {
     expect(() =>
       fixture.session.attachHostInternalV1({
         hostIdentity,
-        portalContainer: Object.freeze({ kind: "portal-r2" }),
+        portalContainer: { kind: "portal-r2" },
         catalog: catalogV1({ settingsName: "Settings R2" }),
       })
     ).toThrowError("ui.system_dialog_host_portal_conflict");
@@ -353,7 +349,7 @@ describe("dormant managed System dialog session", () => {
     fixture.dispose();
   });
 
-  it("provides an identity-stable Host render snapshot with frozen candidate resolution", () => {
+  it("provides an identity-stable Host render snapshot", () => {
     const fixture = sessionFixtureV1(catalogV1());
     const { session } = fixture;
     const initial = session.getHostRenderSnapshotInternalV1();
@@ -372,9 +368,6 @@ describe("dormant managed System dialog session", () => {
       rootRequest: "settings",
     });
     expect(preparing.entries[0]?.resolution.rendererComponent).toBe(rendererSettingsR1);
-    expect(Object.isFrozen(preparing)).toBe(true);
-    expect(Object.isFrozen(preparing.entries)).toBe(true);
-
     fixture.dispose();
   });
 
@@ -395,7 +388,7 @@ describe("dormant managed System dialog session", () => {
     const baseCatalog = catalogV1();
     const resolveRoot = vi.fn(baseCatalog.resolveRoot);
     const resolvePort = vi.fn(baseCatalog.resolvePort);
-    fixture.updateCatalog(Object.freeze({ resolveRoot, resolvePort }));
+    fixture.updateCatalog({ resolveRoot, resolvePort });
     const beforeInitial = session.getManagedSnapshotInternalV1();
     expect(session.openRootInternalV1("settings")).toEqual({
       kind: "preparing",
@@ -426,7 +419,7 @@ describe("dormant managed System dialog session", () => {
     expect(session.getManagedSnapshotInternalV1()).toBe(afterInitial);
     expect(notifications).toBe(1);
 
-    fixture.updateCatalog(Object.freeze({ resolveRoot, resolvePort }));
+    fixture.updateCatalog({ resolveRoot, resolvePort });
     fixture.readyCandidate(afterInitial.orderedInstances[0]!.surfaceInstanceId);
     const active = session.getManagedSnapshotInternalV1();
     expect(notifications).toBe(2);
@@ -473,22 +466,22 @@ describe("dormant managed System dialog session", () => {
     const fixture = sessionFixtureV1(null);
     const { session } = fixture;
     const before = session.getManagedSnapshotInternalV1();
-    fixture.updateCatalog(Object.freeze({
+    fixture.updateCatalog({
       resolveRoot: () => {
         throw new Error("synthetic resolver fault");
       },
       resolvePort: () => null,
-    }));
+    });
     expect(session.openRootInternalV1("settings")).toEqual({
       kind: "faulted",
       code: "system_dialog.renderer_faulted",
     });
     expect(session.getManagedSnapshotInternalV1()).toBe(before);
 
-    fixture.updateCatalog(Object.freeze({
+    fixture.updateCatalog({
       resolveRoot: () => null,
       resolvePort: () => null,
-    }));
+    });
     expect(session.openRootInternalV1("settings")).toEqual({
       kind: "rejected",
       code: "system_dialog.renderer_missing",
@@ -506,67 +499,48 @@ describe("dormant managed System dialog session", () => {
   });
 
   it("makes the catalog apply the root-specific config copier", () => {
-    const titleGetter = vi.fn(() => "Settings");
-    const accessorConfig = {
+    const config = {
+      title: "Settings R1",
       closeLabel: "Close",
       emptyText: "Empty",
-      sections: Object.freeze([]),
-    } as Record<string, unknown>;
-    Object.defineProperty(accessorConfig, "title", { get: titleGetter, enumerable: true });
-
-    expect(() =>
-      createSystemDialogRootCatalogSnapshotInternalV1({
-        entries: Object.freeze([
-          Object.freeze({
-            rootRequest: "settings" as const,
-            rendererComponent: rendererSettingsR1,
-            accessibleName: "Settings",
-            requiredPortIds: Object.freeze([]),
-            contentConfig: accessorConfig as never,
-          }),
-        ]),
-        portBindings: Object.freeze([]),
-      })
-    ).toThrowError("ui.system_dialog_catalog_invalid");
-    expect(titleGetter).not.toHaveBeenCalled();
+      sections: [] as ReactNode[],
+    };
+    const catalog = createSystemDialogRootCatalogSnapshotInternalV1({
+      entries: [{
+        rootRequest: "settings",
+        rendererComponent: rendererSettingsR1,
+        accessibleName: "Settings",
+        requiredPortIds: [],
+        contentConfig: config,
+      }],
+      portBindings: [],
+    });
+    config.title = "Settings R2";
+    config.sections.push(createElement("span", null, "later"));
+    expect(catalog.resolveRoot("settings")?.contentConfigSnapshot.value).toEqual({
+      title: "Settings R1",
+      closeLabel: "Close",
+      emptyText: "Empty",
+      sections: [],
+    });
 
     const genericToken = createSystemDialogContentConfigSnapshotInternalV1(
-      Object.freeze({ title: "Bypass" }),
+      { title: "Bypass" },
     );
     expect(() =>
       createSystemDialogRootCatalogSnapshotInternalV1({
-        entries: Object.freeze([
-          Object.freeze({
+        entries: [
+          {
             rootRequest: "settings" as const,
             rendererComponent: rendererSettingsR1,
             accessibleName: "Settings",
-            requiredPortIds: Object.freeze([]),
+            requiredPortIds: [],
             contentConfig: genericToken as never,
-          }),
-        ]),
-        portBindings: Object.freeze([]),
+          },
+        ],
+        portBindings: [],
       })
     ).toThrowError("ui.system_dialog_catalog_invalid");
-
-    const fixture = sessionFixtureV1(null);
-    const before = fixture.session.getManagedSnapshotInternalV1();
-    fixture.updateCatalog(Object.freeze({
-      resolveRoot: () =>
-        Object.freeze({
-          rootRequest: "settings" as const,
-          rendererComponent: rendererSettingsR1,
-          accessibleName: "Settings",
-          requiredPortIds: Object.freeze([]),
-          contentConfigSnapshot: genericToken,
-        }),
-      resolvePort: () => null,
-    }));
-    expect(fixture.session.openRootInternalV1("settings")).toEqual({
-      kind: "faulted",
-      code: "system_dialog.renderer_faulted",
-    });
-    expect(fixture.session.getManagedSnapshotInternalV1()).toBe(before);
-    fixture.dispose();
   });
 
   it("uses fresh identities for initial supersede and preserves R1 candidate snapshots", () => {
@@ -641,16 +615,14 @@ describe("dormant managed System dialog session", () => {
       sections: [reactNode],
     });
     expect(snapshot.value.sections[0]).toBe(reactNode);
-    expect(Object.isFrozen(snapshot.value)).toBe(true);
-    expect(Object.isFrozen(snapshot.value.sections)).toBe(true);
   });
 
   it("copies every standard Saves label field and snapshots one live guard projection", () => {
     const formatter = (value: string | number) => String(value);
-    const guardSnapshot = Object.freeze({ revision: 1 });
+    const guardSnapshot = { revision: 1 };
     const getSnapshot = () => guardSnapshot;
     const subscribe = () => () => undefined;
-    const evaluate = () => Object.freeze({ allowed: true });
+    const evaluate = () => ({ allowed: true });
     const source = {
       variant: "standard" as const,
       closeLabel: "Close R1",
@@ -820,7 +792,6 @@ describe("dormant managed System dialog session", () => {
     if (snapshot.value.variant !== "standard") throw new TypeError();
     expect(snapshot.value.guardProjection).toEqual({ getSnapshot, subscribe, evaluate });
     expect(snapshot.value.guardProjection).not.toBe(source.guardProjection);
-    expect(Object.isFrozen(snapshot.value.guardProjection)).toBe(true);
     expect(snapshot.value.closeLabel).toBe("Close R1");
     expect(snapshot.value.labels.title).toBe("Title R1");
     expect(snapshot.value.labels.slotNames.quick).toBe("quick");
@@ -831,30 +802,6 @@ describe("dormant managed System dialog session", () => {
     expect(recovery.confirmation.reanchorTitle("quick")).toBe("quick");
     expect(recovery.action.restore).toBe("restore");
     expect(snapshot.value.labels.savedAtText).toBe(formatter);
-    expect(Object.isFrozen(snapshot.value.labels.operation.rejected)).toBe(true);
-    expect(Object.isFrozen(recovery.operation)).toBe(true);
-
-    const reanchorTitleGetter = vi.fn(() => formatter);
-    const accessorRecoveryConfirmation = {
-      ...source.labels.recovery.confirmation,
-    } as Record<string, unknown>;
-    Object.defineProperty(accessorRecoveryConfirmation, "reanchorTitle", {
-      enumerable: true,
-      get: reanchorTitleGetter,
-    });
-    expect(() =>
-      snapshotSystemDialogSavesContentConfigInternalV1({
-        ...source,
-        labels: {
-          ...source.labels,
-          recovery: {
-            ...source.labels.recovery,
-            confirmation: accessorRecoveryConfirmation,
-          },
-        } as never,
-      })
-    ).toThrowError("ui.system_dialog_saves_config_invalid");
-    expect(reanchorTitleGetter).not.toHaveBeenCalled();
 
     const legacyLabels = { ...source.labels } as Record<string, unknown>;
     Reflect.deleteProperty(legacyLabels, "recovery");
@@ -872,34 +819,6 @@ describe("dormant managed System dialog session", () => {
       snapshotSystemDialogSavesContentConfigInternalV1({
         ...source,
         labels: { ...source.labels, recovery: partialRecovery } as never,
-      })
-    ).toThrowError("ui.system_dialog_saves_config_invalid");
-
-    const evaluateGetter = vi.fn(() => evaluate);
-    const accessorProjection = { getSnapshot, subscribe } as Record<string, unknown>;
-    Object.defineProperty(accessorProjection, "evaluate", {
-      enumerable: true,
-      get: evaluateGetter,
-    });
-    expect(() =>
-      snapshotSystemDialogSavesContentConfigInternalV1({
-        ...source,
-        guardProjection: accessorProjection as never,
-      })
-    ).toThrowError("ui.system_dialog_saves_config_invalid");
-    expect(evaluateGetter).not.toHaveBeenCalled();
-
-    const inheritedProjection = Object.create({ getSnapshot, subscribe, evaluate });
-    expect(() =>
-      snapshotSystemDialogSavesContentConfigInternalV1({
-        ...source,
-        guardProjection: inheritedProjection,
-      })
-    ).toThrowError("ui.system_dialog_saves_config_invalid");
-    expect(() =>
-      snapshotSystemDialogSavesContentConfigInternalV1({
-        ...source,
-        guardProjection: { getSnapshot, subscribe, evaluate, extra: true } as never,
       })
     ).toThrowError("ui.system_dialog_saves_config_invalid");
   });
@@ -922,10 +841,10 @@ describe("dormant managed System dialog session", () => {
     expect(component).not.toHaveBeenCalled();
   });
 
-  it("opens only an exact current ready Saves child and freezes its resolver and ports", () => {
+  it("opens only an exact current ready Saves child with its resolver and ports", () => {
     const catalog = catalogV1();
     const resolveConfirmation = vi.fn(catalog.resolveConfirmation);
-    const fixture = sessionFixtureV1(Object.freeze({ ...catalog, resolveConfirmation }));
+    const fixture = sessionFixtureV1({ ...catalog, resolveConfirmation });
     const { session } = fixture;
     expect(session.openRootInternalV1("saves")).toMatchObject({ kind: "preparing" });
     fixture.readyCandidate("surface-instance.e31.n1" as never);
@@ -935,13 +854,13 @@ describe("dormant managed System dialog session", () => {
     expect(rootEntry?.kind).toBe("root");
     if (rootEntry?.kind !== "root" || rootEntry.lifecycleIntents === null) throw new TypeError();
 
-    const dispatch = vi.fn(async () => Object.freeze({ kind: "retain_root" as const, result: 1 }));
+    const dispatch = vi.fn(async () => ({ kind: "retain_root" as const, result: 1 }));
     const resultSink = vi.fn();
-    const operationBinding = Object.freeze({
+    const operationBinding = {
       dispatch,
       resultSink,
       finalizeExactRoot: vi.fn(),
-    });
+    };
     const opened = rootEntry.lifecycleIntents.requestConfirmationInternalV1({
       invocation: { kind: "clear", slotId: "manual.2" },
       operationBinding,
@@ -1035,21 +954,21 @@ describe("dormant managed System dialog session", () => {
       fixture.dismissCurrentFallback(candidate.surfaceInstanceId);
       freshOpenResult = root.lifecycleIntents!.requestConfirmationInternalV1({
         invocation: { kind: "clear", slotId: "manual.1" },
-        operationBinding: Object.freeze({
+        operationBinding: {
           dispatch: () => freshDeferred.promise,
           resultSink: freshResultSink,
           finalizeExactRoot: freshFinalizer,
-        }),
+        },
       });
     });
 
     const result = root.lifecycleIntents.requestConfirmationInternalV1({
       invocation: { kind: "import" },
-      operationBinding: Object.freeze({
-        dispatch: async () => Object.freeze({ kind: "successor" as const }),
+      operationBinding: {
+        dispatch: async () => ({ kind: "successor" as const }),
         resultSink: vi.fn(),
         finalizeExactRoot: vi.fn(),
-      }),
+      },
     });
 
     expect(intervened).toBe(true);
@@ -1065,7 +984,7 @@ describe("dormant managed System dialog session", () => {
     const freshChild = session.getHostRenderSnapshotInternalV1().entries[1];
     if (freshChild?.kind !== "confirmation") throw new TypeError();
     freshChild.controller.dispatchOnceInternalV1();
-    freshDeferred.resolve(Object.freeze({ kind: "retain_root", result: "fresh" }));
+    freshDeferred.resolve({ kind: "retain_root", result: "fresh" });
     await freshDeferred.promise;
     await new Promise<void>((complete) => queueMicrotask(complete));
     expect(freshResultSink).toHaveBeenCalledWith({ kind: "settled", result: "fresh" });
@@ -1087,7 +1006,7 @@ describe("dormant managed System dialog session", () => {
       fixture.readyCandidate("surface-instance.e31.n1" as never);
       const root = session.getHostRenderSnapshotInternalV1().entries[0];
       if (root?.kind !== "root" || root.lifecycleIntents === null) throw new TypeError();
-      fixture.updateCatalog(Object.freeze({
+      fixture.updateCatalog({
         ...baseCatalog,
         resolveConfirmation(invocation: SystemDialogConfirmationInvocationInternalV1) {
           if (releaseBoundary === "resolver") fixture.releaseHost();
@@ -1099,16 +1018,16 @@ describe("dormant managed System dialog session", () => {
           }
           return baseCatalog.resolvePort(portId);
         },
-      }));
+      });
       const before = session.getManagedSnapshotInternalV1();
 
       expect(root.lifecycleIntents.requestConfirmationInternalV1({
         invocation: { kind: "import" },
-        operationBinding: Object.freeze({
-          dispatch: async () => Object.freeze({ kind: "successor" as const }),
+        operationBinding: {
+          dispatch: async () => ({ kind: "successor" as const }),
           resultSink: vi.fn(),
           finalizeExactRoot: vi.fn(),
-        }),
+        },
       })).toEqual({
         kind: "rejected",
         code: "system_dialog.confirmation_renderer_unavailable",
@@ -1132,7 +1051,7 @@ describe("dormant managed System dialog session", () => {
     const finalizeExactRoot = vi.fn();
     root.lifecycleIntents.requestConfirmationInternalV1({
       invocation: { kind: "clear", slotId: "auto.previous" },
-      operationBinding: Object.freeze({ dispatch, resultSink, finalizeExactRoot }),
+      operationBinding: { dispatch, resultSink, finalizeExactRoot },
     });
     fixture.readyCandidate("surface-instance.e31.n2" as never);
     const child = session.getHostRenderSnapshotInternalV1().entries[1];
@@ -1148,7 +1067,7 @@ describe("dormant managed System dialog session", () => {
     });
     expect(dispatch).toHaveBeenCalledTimes(1);
     expect(dispatch).toHaveBeenCalledWith({ kind: "clear", slotId: "auto.previous" });
-    deferred.resolve(Object.freeze({ kind: "retain_root", result: "cleared" }));
+    deferred.resolve({ kind: "retain_root", result: "cleared" });
     await deferred.promise;
     await new Promise<void>((complete) => queueMicrotask(complete));
 
@@ -1180,10 +1099,10 @@ describe("dormant managed System dialog session", () => {
       const dispatch = vi.fn(() => deferred.promise);
       const resultSink = vi.fn();
       const finalizeExactRoot = vi.fn();
-      const invocation = Object.freeze({ kind, slotId });
+      const invocation = { kind, slotId };
       root.lifecycleIntents.requestConfirmationInternalV1({
         invocation,
-        operationBinding: Object.freeze({ dispatch, resultSink, finalizeExactRoot }),
+        operationBinding: { dispatch, resultSink, finalizeExactRoot },
       });
       fixture.readyCandidate("surface-instance.e31.n2" as never);
       const child = session.getHostRenderSnapshotInternalV1().entries[1];
@@ -1191,7 +1110,6 @@ describe("dormant managed System dialog session", () => {
 
       expect(child.invocation).toEqual(invocation);
       expect(child.invocation).not.toBe(invocation);
-      expect(Object.isFrozen(child.invocation)).toBe(true);
       expect(child.controller.dispatchOnceInternalV1()).toMatchObject({ kind: "applied" });
       expect(child.controller.dispatchOnceInternalV1()).toEqual({
         kind: "unchanged",
@@ -1202,7 +1120,7 @@ describe("dormant managed System dialog session", () => {
       expect(child.controller.cancelInternalV1("routed_cancel")).toMatchObject({ kind: "applied" });
       const afterCancel = session.getManagedSnapshotInternalV1();
 
-      deferred.resolve(Object.freeze({ kind: "retain_root", result: `${kind}-done` }));
+      deferred.resolve({ kind: "retain_root", result: `${kind}-done` });
       await deferred.promise;
       await new Promise<void>((complete) => queueMicrotask(complete));
 
@@ -1230,12 +1148,12 @@ describe("dormant managed System dialog session", () => {
     const resultSink = vi.fn();
     const finalizeExactRoot = vi.fn();
     root.lifecycleIntents.requestConfirmationInternalV1({
-      invocation: Object.freeze({ kind, slotId }),
-      operationBinding: Object.freeze({
-        dispatch: () => Promise.resolve(Object.freeze({ kind: "successor" as const })),
+      invocation: { kind, slotId },
+      operationBinding: {
+        dispatch: () => Promise.resolve({ kind: "successor" as const }),
         resultSink,
         finalizeExactRoot,
-      }),
+      },
     });
     fixture.readyCandidate("surface-instance.e31.n2" as never);
     const child = session.getHostRenderSnapshotInternalV1().entries[1];
@@ -1250,44 +1168,6 @@ describe("dormant managed System dialog session", () => {
     expect(session.getHostRenderSnapshotInternalV1().entries).toMatchObject([
       { kind: "root", surfaceInstanceId: "surface-instance.e31.n1", phase: "active" },
     ]);
-    fixture.dispose();
-  });
-
-  it("snapshots admitted operation callbacks without retaining a mutable Proxy lookup", async () => {
-    const fixture = sessionFixtureV1(catalogV1());
-    const { session } = fixture;
-    session.openRootInternalV1("saves");
-    fixture.readyCandidate("surface-instance.e31.n1" as never);
-    const root = session.getHostRenderSnapshotInternalV1().entries[0];
-    if (root?.kind !== "root" || root.lifecycleIntents === null) throw new TypeError();
-    const dispatch = vi.fn(async () =>
-      Object.freeze({ kind: "retain_root" as const, result: "snapshotted" })
-    );
-    const resultSink = vi.fn();
-    const finalizeExactRoot = vi.fn();
-    const lookup = vi.fn(() => {
-      throw new Error("ordinary Proxy lookup must not run");
-    });
-    const revocable = Proxy.revocable(
-      Object.freeze({ dispatch, resultSink, finalizeExactRoot }),
-      { get: lookup },
-    );
-    expect(root.lifecycleIntents.requestConfirmationInternalV1({
-      invocation: { kind: "clear", slotId: "quick" },
-      operationBinding: revocable.proxy,
-    })).toMatchObject({ kind: "preparing" });
-    revocable.revoke();
-    fixture.readyCandidate("surface-instance.e31.n2" as never);
-    const child = session.getHostRenderSnapshotInternalV1().entries[1];
-    if (child?.kind !== "confirmation") throw new TypeError();
-    child.controller.dispatchOnceInternalV1();
-    await new Promise<void>((complete) => queueMicrotask(complete));
-
-    expect(lookup).not.toHaveBeenCalled();
-    expect(dispatch).toHaveBeenCalledOnce();
-    expect(resultSink).toHaveBeenCalledWith({ kind: "settled", result: "snapshotted" });
-    expect(finalizeExactRoot).toHaveBeenCalledOnce();
-    expect(session.getHostRenderSnapshotInternalV1().entries).toHaveLength(1);
     fixture.dispose();
   });
 
@@ -1308,11 +1188,11 @@ describe("dormant managed System dialog session", () => {
     const cancelledFinalizer = vi.fn();
     root.lifecycleIntents.requestConfirmationInternalV1({
       invocation: { kind: "clear", slotId: "quick" },
-      operationBinding: Object.freeze({
+      operationBinding: {
         dispatch: cancelledDispatch,
         resultSink: cancelledSink,
         finalizeExactRoot: cancelledFinalizer,
-      }),
+      },
     });
     fixture.readyCandidate("surface-instance.e31.n2" as never);
     let child = session.getHostRenderSnapshotInternalV1().entries[1];
@@ -1326,7 +1206,7 @@ describe("dormant managed System dialog session", () => {
     const unsubscribeCoordinator = fixture.subscribeCoordinator(
       () => coordinatorNotifications += 1,
     );
-    cancelledDeferred.resolve(Object.freeze({ kind: "retain_root", result: "cleared" }));
+    cancelledDeferred.resolve({ kind: "retain_root", result: "cleared" });
     await cancelledDeferred.promise;
     await new Promise<void>((complete) => queueMicrotask(complete));
     expect(cancelledDispatch).toHaveBeenCalledTimes(1);
@@ -1344,17 +1224,17 @@ describe("dormant managed System dialog session", () => {
     const successorFinalizer = vi.fn();
     root.lifecycleIntents.requestConfirmationInternalV1({
       invocation: { kind: "load", slotId: "auto.current" },
-      operationBinding: Object.freeze({
+      operationBinding: {
         dispatch: () => successorDeferred.promise,
         resultSink: successorSink,
         finalizeExactRoot: successorFinalizer,
-      }),
+      },
     });
     fixture.readyCandidate("surface-instance.e31.n3" as never);
     child = session.getHostRenderSnapshotInternalV1().entries[1];
     if (child?.kind !== "confirmation") throw new TypeError();
     child.controller.dispatchOnceInternalV1();
-    successorDeferred.resolve(Object.freeze({ kind: "successor" }));
+    successorDeferred.resolve({ kind: "successor" });
     await successorDeferred.promise;
     await new Promise<void>((complete) => queueMicrotask(complete));
     expect(successorSink).not.toHaveBeenCalled();
@@ -1384,11 +1264,11 @@ describe("dormant managed System dialog session", () => {
     const finalizeExactRoot = vi.fn();
     predecessorRoot.lifecycleIntents.requestConfirmationInternalV1({
       invocation: { kind: "load", slotId: "auto.current" },
-      operationBinding: Object.freeze({
+      operationBinding: {
         dispatch: () => completion.promise,
         resultSink,
         finalizeExactRoot,
-      }),
+      },
     });
     fixture.readyCandidate("surface-instance.e31.n2" as never);
     const predecessorChild = session.getHostRenderSnapshotInternalV1().entries[1];
@@ -1414,7 +1294,7 @@ describe("dormant managed System dialog session", () => {
       () => coordinatorNotifications += 1,
     );
 
-    completion.resolve(Object.freeze({ kind: "successor" }));
+    completion.resolve({ kind: "successor" });
     await completion.promise;
     await new Promise<void>((complete) => queueMicrotask(complete));
 
@@ -1429,20 +1309,20 @@ describe("dormant managed System dialog session", () => {
     fixture.dispose();
   });
 
-  it("keeps invalid, unavailable, missing-port, Settings, and stale-parent admission at zero delta", () => {
+  it("keeps invalid invocations, unavailable renderers, missing ports, and stale parents at zero delta", () => {
     const catalog = catalogV1();
     const resolveConfirmation = vi.fn(catalog.resolveConfirmation!);
-    const fixture = sessionFixtureV1(Object.freeze({ ...catalog, resolveConfirmation }));
+    const fixture = sessionFixtureV1({ ...catalog, resolveConfirmation });
     const { session } = fixture;
     session.openRootInternalV1("saves");
     fixture.readyCandidate("surface-instance.e31.n1" as never);
     const saves = session.getHostRenderSnapshotInternalV1().entries[0];
     if (saves?.kind !== "root" || saves.lifecycleIntents === null) throw new TypeError();
-    const operationBinding = Object.freeze({
-      dispatch: async () => Object.freeze({ kind: "retain_root" as const, result: null }),
+    const operationBinding = {
+      dispatch: async () => ({ kind: "retain_root" as const, result: null }),
       resultSink: vi.fn(),
       finalizeExactRoot: vi.fn(),
-    });
+    };
     let notifications = 0;
     const unsubscribe = session.subscribeInternalV1(() => notifications += 1);
 
@@ -1490,62 +1370,6 @@ describe("dormant managed System dialog session", () => {
     expect(notifications).toBe(0);
 
     fixture.updateCatalog(catalogV1());
-    resolveConfirmation.mockClear();
-    const beforeInvalidBinding = session.getManagedSnapshotInternalV1();
-    const missingFinalizer = Object.freeze({
-      dispatch: operationBinding.dispatch,
-      resultSink: operationBinding.resultSink,
-    });
-    expect(
-      saves.lifecycleIntents.requestConfirmationInternalV1({
-        invocation: { kind: "import" },
-        operationBinding: missingFinalizer as never,
-      }),
-    ).toEqual({
-      kind: "rejected",
-      code: "system_dialog.confirmation_operation_binding_invalid",
-    });
-    const revoked = Proxy.revocable({}, {});
-    revoked.revoke();
-    expect(
-      saves.lifecycleIntents.requestConfirmationInternalV1({
-        invocation: { kind: "import" },
-        operationBinding: revoked.proxy as never,
-      }),
-    ).toEqual({
-      kind: "rejected",
-      code: "system_dialog.confirmation_operation_binding_invalid",
-    });
-    const dispatchGetter = vi.fn(() => operationBinding.dispatch);
-    const accessorBinding = Object.freeze(Object.defineProperties({}, {
-      dispatch: { enumerable: true, get: dispatchGetter },
-      resultSink: { enumerable: true, value: operationBinding.resultSink },
-      finalizeExactRoot: { enumerable: true, value: operationBinding.finalizeExactRoot },
-    }));
-    expect(
-      saves.lifecycleIntents.requestConfirmationInternalV1({
-        invocation: { kind: "import" },
-        operationBinding: accessorBinding as never,
-      }),
-    ).toEqual({
-      kind: "rejected",
-      code: "system_dialog.confirmation_operation_binding_invalid",
-    });
-    const extraKey = Symbol("extra-operation-binding-key");
-    expect(
-      saves.lifecycleIntents.requestConfirmationInternalV1({
-        invocation: { kind: "import" },
-        operationBinding: Object.freeze({ ...operationBinding, [extraKey]: true }) as never,
-      }),
-    ).toEqual({
-      kind: "rejected",
-      code: "system_dialog.confirmation_operation_binding_invalid",
-    });
-    expect(dispatchGetter).not.toHaveBeenCalled();
-    expect(session.getManagedSnapshotInternalV1()).toBe(beforeInvalidBinding);
-    expect(resolveConfirmation).not.toHaveBeenCalled();
-    expect(notifications).toBe(0);
-
     session.openRootInternalV1("settings");
     fixture.readyCandidate("surface-instance.e31.n2" as never);
     const settings = session.getHostRenderSnapshotInternalV1().entries[0];
@@ -1584,7 +1408,7 @@ describe("dormant managed System dialog session", () => {
       const finalizeExactRoot = vi.fn();
       root.lifecycleIntents!.requestConfirmationInternalV1({
         invocation: { kind: "clear", slotId: "quick" },
-        operationBinding: Object.freeze({ dispatch, resultSink, finalizeExactRoot }),
+        operationBinding: { dispatch, resultSink, finalizeExactRoot },
       });
       fixture.readyCandidate(expectedChildId as never);
       const child = session.getHostRenderSnapshotInternalV1().entries[1];
@@ -1604,22 +1428,9 @@ describe("dormant managed System dialog session", () => {
       () => Promise.reject(new Error("async dispatch fault")),
       "surface-instance.e31.n3",
     );
-    const malformed = {} as Record<string, unknown>;
-    Object.defineProperty(malformed, "kind", {
-      enumerable: true,
-      get: () => "retain_root",
-    });
-    Object.defineProperty(malformed, "result", {
-      enumerable: true,
-      value: "must-not-leak",
-    });
-    await exerciseFault(
-      () => Promise.resolve(malformed as never),
-      "surface-instance.e31.n4",
-    );
     await exerciseFault(
       () => Promise.resolve({ kind: "retain_root" } as never),
-      "surface-instance.e31.n5",
+      "surface-instance.e31.n4",
     );
 
     const throwingSink = vi.fn(() => {
@@ -1628,13 +1439,13 @@ describe("dormant managed System dialog session", () => {
     const finalizeAfterThrowingSink = vi.fn();
     root.lifecycleIntents.requestConfirmationInternalV1({
       invocation: { kind: "clear", slotId: "quick" },
-      operationBinding: Object.freeze({
-        dispatch: async () => Object.freeze({ kind: "retain_root" as const, result: "ok" }),
+      operationBinding: {
+        dispatch: async () => ({ kind: "retain_root" as const, result: "ok" }),
         resultSink: throwingSink,
         finalizeExactRoot: finalizeAfterThrowingSink,
-      }),
+      },
     });
-    fixture.readyCandidate("surface-instance.e31.n6" as never);
+    fixture.readyCandidate("surface-instance.e31.n5" as never);
     const child = session.getHostRenderSnapshotInternalV1().entries[1];
     if (child?.kind !== "confirmation") throw new TypeError();
     child.controller.dispatchOnceInternalV1();
@@ -1647,99 +1458,6 @@ describe("dormant managed System dialog session", () => {
     expect(finalizeAfterThrowingSink).toHaveBeenCalledOnce();
     expect(session.getHostRenderSnapshotInternalV1().entries).toHaveLength(1);
 
-    const asyncResultError = new Error("async result sink fault");
-    const asyncFinalizerError = new Error("async finalizer fault");
-    root.lifecycleIntents.requestConfirmationInternalV1({
-      invocation: { kind: "clear", slotId: "quick" },
-      operationBinding: Object.freeze({
-        dispatch: async () => Object.freeze({ kind: "retain_root" as const, result: "ok" }),
-        async resultSink() {
-          throw asyncResultError;
-        },
-        async finalizeExactRoot() {
-          throw asyncFinalizerError;
-        },
-      }),
-    });
-    fixture.readyCandidate("surface-instance.e31.n7" as never);
-    const asyncSinkChild = session.getHostRenderSnapshotInternalV1().entries[1];
-    if (asyncSinkChild?.kind !== "confirmation") throw new TypeError();
-    asyncSinkChild.controller.dispatchOnceInternalV1();
-    await new Promise<void>((complete) => queueMicrotask(complete));
-    await new Promise<void>((complete) => queueMicrotask(complete));
-    expect(failures).toHaveBeenCalledWith(
-      "ui.system_dialog_confirmation_result_sink_failed",
-      asyncResultError,
-    );
-    expect(failures).toHaveBeenCalledWith(
-      "ui.system_dialog_confirmation_finalization_sink_failed",
-      asyncFinalizerError,
-    );
-    expect(session.getHostRenderSnapshotInternalV1().entries).toHaveLength(1);
-    fixture.dispose();
-  });
-
-  it("adopts operation and sink promises without trusting own then overrides", async () => {
-    const failures = vi.fn();
-    const fixture = sessionFixtureV1(catalogV1(), failures);
-    const { session } = fixture;
-    session.openRootInternalV1("saves");
-    fixture.readyCandidate("surface-instance.e31.n1" as never);
-    const root = session.getHostRenderSnapshotInternalV1().entries[0];
-    if (root?.kind !== "root" || root.lifecycleIntents === null) throw new TypeError();
-    const operation = deferredV1<{
-      readonly kind: "retain_root";
-      readonly result: string;
-    }>();
-    const operationOwnThen = vi.fn(() => Promise.resolve());
-    // oxlint-disable-next-line unicorn/no-thenable -- verifies intrinsic Promise adoption
-    void Object.defineProperty(operation.promise, "then", { value: operationOwnThen });
-    void Object.defineProperty(operation.promise, "constructor", { value: Object });
-    const resultSinkOwnThen = vi.fn(() => Promise.resolve());
-    const finalizerOwnThen = vi.fn(() => Promise.resolve());
-    const resultSinkError = new Error("result sink rejected");
-    const finalizerError = new Error("finalizer rejected");
-    root.lifecycleIntents.requestConfirmationInternalV1({
-      invocation: { kind: "clear", slotId: "quick" },
-      operationBinding: Object.freeze({
-        dispatch: () => operation.promise,
-        resultSink() {
-          const promise = Promise.reject(resultSinkError);
-          // oxlint-disable-next-line unicorn/no-thenable -- verifies intrinsic rejection observation
-          void Object.defineProperty(promise, "then", { value: resultSinkOwnThen });
-          void Object.defineProperty(promise, "constructor", { value: Object });
-          return promise;
-        },
-        finalizeExactRoot() {
-          const promise = Promise.reject(finalizerError);
-          // oxlint-disable-next-line unicorn/no-thenable -- verifies intrinsic rejection observation
-          void Object.defineProperty(promise, "then", { value: finalizerOwnThen });
-          void Object.defineProperty(promise, "constructor", { value: Object });
-          return promise;
-        },
-      }),
-    });
-    fixture.readyCandidate("surface-instance.e31.n2" as never);
-    const child = session.getHostRenderSnapshotInternalV1().entries[1];
-    if (child?.kind !== "confirmation") throw new TypeError();
-    child.controller.dispatchOnceInternalV1();
-    operation.resolve(Object.freeze({ kind: "retain_root", result: "done" }));
-    await new Promise<void>((complete) => queueMicrotask(complete));
-    await new Promise<void>((complete) => queueMicrotask(complete));
-    await new Promise<void>((complete) => queueMicrotask(complete));
-
-    expect(operationOwnThen).not.toHaveBeenCalled();
-    expect(resultSinkOwnThen).not.toHaveBeenCalled();
-    expect(finalizerOwnThen).not.toHaveBeenCalled();
-    expect(failures).toHaveBeenCalledWith(
-      "ui.system_dialog_confirmation_result_sink_failed",
-      resultSinkError,
-    );
-    expect(failures).toHaveBeenCalledWith(
-      "ui.system_dialog_confirmation_finalization_sink_failed",
-      finalizerError,
-    );
-    expect(session.getHostRenderSnapshotInternalV1().entries).toHaveLength(1);
     fixture.dispose();
   });
 
@@ -1758,11 +1476,11 @@ describe("dormant managed System dialog session", () => {
     const finalizeExactRoot = vi.fn();
     saves.lifecycleIntents.requestConfirmationInternalV1({
       invocation: { kind: "clear", slotId: "quick" },
-      operationBinding: Object.freeze({
+      operationBinding: {
         dispatch: () => deferred.promise,
         resultSink,
         finalizeExactRoot,
-      }),
+      },
     });
     fixture.readyCandidate("surface-instance.e31.n2" as never);
     const child = session.getHostRenderSnapshotInternalV1().entries[1];
@@ -1776,7 +1494,7 @@ describe("dormant managed System dialog session", () => {
       { surfaceInstanceId: "surface-instance.e31.n3", phase: "preparing" },
       { surfaceInstanceId: "surface-instance.e31.n2", phase: "active" },
     ]);
-    deferred.resolve(Object.freeze({ kind: "retain_root", result: "cleared" }));
+    deferred.resolve({ kind: "retain_root", result: "cleared" });
     await deferred.promise;
     await new Promise<void>((complete) => queueMicrotask(complete));
 
@@ -1805,11 +1523,11 @@ describe("dormant managed System dialog session", () => {
     const replacedFinalizer = vi.fn();
     firstRoot.lifecycleIntents.requestConfirmationInternalV1({
       invocation: { kind: "clear", slotId: "quick" },
-      operationBinding: Object.freeze({
+      operationBinding: {
         dispatch: () => replacedDeferred.promise,
         resultSink: replacedSink,
         finalizeExactRoot: replacedFinalizer,
-      }),
+      },
     });
     fixture.readyCandidate("surface-instance.e31.n2" as never);
     let child = session.getHostRenderSnapshotInternalV1().entries[1];
@@ -1817,7 +1535,7 @@ describe("dormant managed System dialog session", () => {
     child.controller.dispatchOnceInternalV1();
     session.openRootInternalV1("settings");
     fixture.readyCandidate("surface-instance.e31.n3" as never);
-    replacedDeferred.resolve(Object.freeze({ kind: "retain_root", result: "late" }));
+    replacedDeferred.resolve({ kind: "retain_root", result: "late" });
     await replacedDeferred.promise;
     await new Promise<void>((complete) => queueMicrotask(complete));
     expect(replacedSink).not.toHaveBeenCalled();
@@ -1835,11 +1553,11 @@ describe("dormant managed System dialog session", () => {
     const rotatedFinalizer = vi.fn();
     secondRoot.lifecycleIntents.requestConfirmationInternalV1({
       invocation: { kind: "clear", slotId: "quick" },
-      operationBinding: Object.freeze({
+      operationBinding: {
         dispatch: () => rotatedDeferred.promise,
         resultSink: rotatedSink,
         finalizeExactRoot: rotatedFinalizer,
-      }),
+      },
     });
     fixture.readyCandidate("surface-instance.e31.n5" as never);
     child = session.getHostRenderSnapshotInternalV1().entries[1];
@@ -1848,7 +1566,7 @@ describe("dormant managed System dialog session", () => {
     fixture.rotate("load_rebootstrap");
     expect(session.getManagedSnapshotInternalV1().applicationEpoch).toBe(32);
     expect(session.getHostRenderSnapshotInternalV1().entries).toEqual([]);
-    rotatedDeferred.resolve(Object.freeze({ kind: "retain_root", result: "late" }));
+    rotatedDeferred.resolve({ kind: "retain_root", result: "late" });
     await rotatedDeferred.promise;
     await new Promise<void>((complete) => queueMicrotask(complete));
     expect(rotatedSink).not.toHaveBeenCalled();
@@ -1868,17 +1586,17 @@ describe("dormant managed System dialog session", () => {
     const releasedFinalizer = vi.fn();
     successorRoot.lifecycleIntents.requestConfirmationInternalV1({
       invocation: { kind: "clear", slotId: "quick" },
-      operationBinding: Object.freeze({
+      operationBinding: {
         dispatch: () => releasedDeferred.promise,
         resultSink: releasedSink,
         finalizeExactRoot: releasedFinalizer,
-      }),
+      },
     });
     fixture.readyCandidate("surface-instance.e32.n2" as never);
     child = session.getHostRenderSnapshotInternalV1().entries[1];
     if (child?.kind !== "confirmation") throw new TypeError();
     child.controller.dispatchOnceInternalV1();
-    releasedDeferred.resolve(Object.freeze({ kind: "retain_root", result: "late" }));
+    releasedDeferred.resolve({ kind: "retain_root", result: "late" });
     fixture.releaseHost();
     await releasedDeferred.promise;
     await new Promise<void>((complete) => queueMicrotask(complete));
@@ -1899,11 +1617,11 @@ describe("dormant managed System dialog session", () => {
     const finalizeExactRoot = vi.fn();
     root.lifecycleIntents.requestConfirmationInternalV1({
       invocation: { kind: "clear", slotId: "quick" },
-      operationBinding: Object.freeze({
-        dispatch: async () => Object.freeze({ kind: "retain_root" as const, result: "clear" }),
+      operationBinding: {
+        dispatch: async () => ({ kind: "retain_root" as const, result: "clear" }),
         resultSink,
         finalizeExactRoot,
-      }),
+      },
     });
     fixture.readyCandidate("surface-instance.e31.n2" as never);
     let released = false;
@@ -1942,11 +1660,11 @@ describe("dormant managed System dialog session", () => {
     const oldFinalizer = vi.fn();
     root.lifecycleIntents.requestConfirmationInternalV1({
       invocation: { kind: "clear", slotId: "quick" },
-      operationBinding: Object.freeze({
+      operationBinding: {
         dispatch: () => deferred.promise,
         resultSink: oldResultSink,
         finalizeExactRoot: oldFinalizer,
-      }),
+      },
     });
     fixture.readyCandidate("surface-instance.e31.n2" as never);
     const oldChild = session.getHostRenderSnapshotInternalV1().entries[1];
@@ -1959,14 +1677,14 @@ describe("dormant managed System dialog session", () => {
       reopened = true;
       root.lifecycleIntents!.requestConfirmationInternalV1({
         invocation: { kind: "import" },
-        operationBinding: Object.freeze({
-          dispatch: async () => Object.freeze({ kind: "successor" as const }),
+        operationBinding: {
+          dispatch: async () => ({ kind: "successor" as const }),
           resultSink: vi.fn(),
           finalizeExactRoot: vi.fn(),
-        }),
+        },
       });
     });
-    deferred.resolve(Object.freeze({ kind: "retain_root", result: "old" }));
+    deferred.resolve({ kind: "retain_root", result: "old" });
     await deferred.promise;
     await new Promise<void>((complete) => queueMicrotask(complete));
 
@@ -1985,11 +1703,8 @@ describe("dormant managed System dialog session", () => {
     const fixture = sessionFixtureV1(catalogV1());
     const facade = createSystemDialogSessionFacadeInternalV1(fixture.session);
 
-    expect(Reflect.ownKeys(facade)).toEqual(["getSnapshot", "openSettings", "openSaves"]);
-    expect(Object.isFrozen(facade)).toBe(true);
     const closed = facade.getSnapshot();
     expect(closed).toEqual({ active: null });
-    expect(Object.isFrozen(closed)).toBe(true);
     expect(facade.getSnapshot()).toBe(closed);
 
     expect(facade.openSettings()).toEqual({
@@ -2030,8 +1745,6 @@ describe("dormant managed System dialog session", () => {
       code: "system_dialog.preparation_started",
     });
     expect(facade.getSnapshot()).toBe(closed);
-    expect(Reflect.ownKeys(closed)).toEqual(["active"]);
-
     fixture.readyCandidate("surface-instance.e31.n2" as never);
     expect(facade.getSnapshot()).toEqual({ active: "saves" });
     fixture.dispose();

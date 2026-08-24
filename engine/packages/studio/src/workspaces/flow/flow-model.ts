@@ -53,15 +53,11 @@ export function buildFlowDocGroupsV1(graph: NarrativeFlowGraphV1): readonly Flow
   for (const node of graph.nodes) {
     groups.set(node.docId, (groups.get(node.docId) ?? 0) + 1);
   }
-  return Object.freeze(
-    [...groups.entries()].map(([docId, nodeCount]) =>
-      Object.freeze({
-        docId,
-        label: docId ?? flowHandWrittenLabelV1,
-        nodeCount,
-      })
-    ),
-  );
+  return [...groups.entries()].map(([docId, nodeCount]) => ({
+    docId,
+    label: docId ?? flowHandWrittenLabelV1,
+    nodeCount,
+  }));
 }
 
 function idTailV1(id: string): string {
@@ -148,15 +144,22 @@ export function buildFlowDocLayoutV1(
   if (entry !== undefined) {
     rank.set(entry.nodeId, 0);
     const queue: string[] = [entry.nodeId];
-    while (queue.length > 0) {
-      const current = queue.shift();
+    const outgoingByNodeId = new Map<string, string[]>();
+    for (const edge of graph.edges) {
+      if (!docNodeIds.has(edge.to)) continue;
+      const outgoing = outgoingByNodeId.get(edge.from);
+      if (outgoing === undefined) outgoingByNodeId.set(edge.from, [edge.to]);
+      else outgoing.push(edge.to);
+    }
+    let queueIndex = 0;
+    while (queueIndex < queue.length) {
+      const current = queue[queueIndex++];
       if (current === undefined) break;
       const currentRank = rank.get(current) ?? 0;
-      for (const edge of graph.edges) {
-        if (edge.from !== current || !docNodeIds.has(edge.to)) continue;
-        if (rank.has(edge.to)) continue;
-        rank.set(edge.to, currentRank + 1);
-        queue.push(edge.to);
+      for (const targetId of outgoingByNodeId.get(current) ?? []) {
+        if (rank.has(targetId)) continue;
+        rank.set(targetId, currentRank + 1);
+        queue.push(targetId);
       }
     }
   }
@@ -182,9 +185,11 @@ export function buildFlowDocLayoutV1(
       a.row - b.row ||
       (docOrder.get(a.node.nodeId) ?? 0) - (docOrder.get(b.node.nodeId) ?? 0)
     )
-    .map((placed): FlowLayoutNodeV1 =>
-      Object.freeze({ node: placed.node, row: placed.row, col: takeCol(placed.row) })
-    );
+    .map((placed): FlowLayoutNodeV1 => ({
+      node: placed.node,
+      row: placed.row,
+      col: takeCol(placed.row),
+    }));
   const rowByNodeId = new Map(layoutNodes.map((placed) => [placed.node.nodeId, placed.row]));
 
   // Cross-document targets become one stub each, placed one row below
@@ -196,22 +201,22 @@ export function buildFlowDocLayoutV1(
     if (!docNodeIds.has(edge.from)) continue;
     if (!docNodeIds.has(edge.to) && !stubByNodeId.has(edge.to)) {
       const row = (rowByNodeId.get(edge.from) ?? 0) + 1;
-      const stub = Object.freeze({
+      const stub = {
         nodeId: edge.to,
         docId: nodeDocById.get(edge.to) ?? null,
         known: nodeDocById.has(edge.to),
         row,
         col: takeCol(row),
-      });
+      };
       stubByNodeId.set(edge.to, stub);
       stubs.push(stub);
     }
-    edges.push(Object.freeze({
+    edges.push({
       from: edge.from,
       to: edge.to,
       kind: edge.label.kind,
       text: edgeLabelTextV1(edge.label, resolveText),
-    }));
+    });
   }
 
   let rows = 0;
@@ -220,11 +225,11 @@ export function buildFlowDocLayoutV1(
     rows = Math.max(rows, row + 1);
     cols = Math.max(cols, nextCol);
   }
-  return Object.freeze({
-    nodes: Object.freeze(layoutNodes),
-    stubs: Object.freeze(stubs),
-    edges: Object.freeze(edges),
+  return {
+    nodes: layoutNodes,
+    stubs,
+    edges,
     rows,
     cols,
-  });
+  };
 }

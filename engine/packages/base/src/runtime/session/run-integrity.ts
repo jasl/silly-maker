@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import type { RunIntegrityReasonV1, RunIntegrityV1 } from "../../contracts/snapshot.ts";
-import { parseRunIntegrityReasonV1, runIntegrityV1Schema } from "../../contracts/snapshot.ts";
+import { runIntegrityV1Schema } from "../../contracts/snapshot.ts";
 import type { DeepReadonly } from "../../contracts/values.ts";
 import { parseNonNegativeSafeInteger } from "../../contracts/values.ts";
 
@@ -13,20 +13,20 @@ export function markRunModifiedV1(
   integrityValue: RunIntegrityV1,
   reasonValue: RunIntegrityReasonV1,
 ): RunIntegrityV1 {
-  const integrity = runIntegrityV1Schema.parse(integrityValue);
-  const reason = parseRunIntegrityReasonV1(reasonValue);
-  const mutationCount = parseNonNegativeSafeInteger(integrity.mutationCount + 1);
-  const reasons = integrity.reasons.some(({ kind }) => kind === reason.kind)
-    ? integrity.reasons
-    : Object.freeze([...integrity.reasons, reason].slice(0, 16));
-  return runIntegrityV1Schema.parse({
+  const mutationCount = parseNonNegativeSafeInteger(integrityValue.mutationCount + 1);
+  const reasonSequence = parseNonNegativeSafeInteger(reasonValue.sequence);
+  const reason = { ...reasonValue, sequence: reasonSequence } as RunIntegrityReasonV1;
+  const reasons = integrityValue.reasons.some(({ kind }) => kind === reasonValue.kind)
+    ? integrityValue.reasons
+    : [...integrityValue.reasons, reason].slice(0, 16);
+  return {
     mode: "modified",
     mutationCount,
-    firstMutationSequence: integrity.firstMutationSequence === null
-      ? reason.sequence
-      : integrity.firstMutationSequence,
+    firstMutationSequence: integrityValue.firstMutationSequence === null
+      ? reasonSequence
+      : integrityValue.firstMutationSequence,
     reasons,
-  });
+  };
 }
 
 export function finalizeSnapshotIntegrityV1<
@@ -44,8 +44,8 @@ export function finalizeSnapshotIntegrityV1<
     throw new TypeError("Story-owned Snapshot changed RunIntegrity");
   }
   if (directive.kind === "preserve_current") return candidate;
-  return Object.freeze({
+  return {
     ...candidate,
     integrity: markRunModifiedV1(current.integrity, directive.reason),
-  }) as TSnapshot;
+  } as TSnapshot;
 }

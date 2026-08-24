@@ -77,12 +77,12 @@ export interface CreateWebInstanceLeaseCoordinatorInputV1 {
   readonly pollIntervalMs?: number;
 }
 
-const instancePoliciesV1: readonly WebInstancePolicyV1[] = Object.freeze([
+const instancePoliciesV1: readonly WebInstancePolicyV1[] = [
   "take_over",
   "read_only",
   "wait",
   "unrestricted",
-]);
+];
 
 function stateEqualsV1(left: WebInstanceLeaseStateV1, right: WebInstanceLeaseStateV1): boolean {
   return left.role === right.role && left.holderOwnerId === right.holderOwnerId;
@@ -105,11 +105,11 @@ export async function createWebInstanceLeaseCoordinatorV1(
   const listeners = new Set<() => void>();
   let everOwned = false;
   let disposed = false;
-  let current: WebInstanceLeaseStateV1 = Object.freeze({
+  let current: WebInstanceLeaseStateV1 = {
     policy,
     role: "read_only" as const,
     holderOwnerId: null,
-  });
+  };
 
   const publishV1 = (next: WebInstanceLeaseStateV1): WebInstanceLeaseStateV1 => {
     if (stateEqualsV1(current, next)) return current;
@@ -140,15 +140,15 @@ export async function createWebInstanceLeaseCoordinatorV1(
   const roleForStatusV1 = (status: SessionLeaseStatusV1): WebInstanceLeaseStateV1 => {
     if (ownedBySelfV1(status)) {
       everOwned = true;
-      return Object.freeze({ policy, role: "owner" as const, holderOwnerId: null });
+      return ({ policy, role: "owner" as const, holderOwnerId: null });
     }
     switch (status.kind) {
       case "unavailable":
-        return Object.freeze({ policy, role: "unavailable" as const, holderOwnerId: null });
+        return ({ policy, role: "unavailable" as const, holderOwnerId: null });
       case "unowned":
         // Free leases are claimed in refreshV1; observing this state means
         // the claim lost a race or storage briefly failed.
-        return Object.freeze({
+        return ({
           policy,
           role: policy === "wait" ? ("waiting" as const) : ("read_only" as const),
           holderOwnerId: null,
@@ -158,9 +158,9 @@ export async function createWebInstanceLeaseCoordinatorV1(
       case "handoff_requested": {
         const holder = status.ownerId as string | null;
         if (policy === "wait") {
-          return Object.freeze({ policy, role: "waiting" as const, holderOwnerId: holder });
+          return ({ policy, role: "waiting" as const, holderOwnerId: holder });
         }
-        return Object.freeze({
+        return ({
           policy,
           role: everOwned ? ("lost" as const) : ("read_only" as const),
           holderOwnerId: holder,
@@ -211,7 +211,7 @@ export async function createWebInstanceLeaseCoordinatorV1(
   const refreshInBackgroundV1 = (): void => {
     refreshV1().catch(() => {
       if (disposed) return;
-      publishV1(Object.freeze({ policy, role: "unavailable" as const, holderOwnerId: null }));
+      publishV1({ policy, role: "unavailable" as const, holderOwnerId: null });
     });
   };
 
@@ -240,9 +240,9 @@ export async function createWebInstanceLeaseCoordinatorV1(
       (policy === "take_over" || policy === "unrestricted"),
   });
 
-  return Object.freeze({
+  return ({
     policy,
-    state: Object.freeze({
+    state: {
       getCurrent: () => current,
       subscribe(listener: () => void): () => void {
         listeners.add(listener);
@@ -250,7 +250,7 @@ export async function createWebInstanceLeaseCoordinatorV1(
           listeners.delete(listener);
         };
       },
-    }),
+    },
     refresh: () => refreshV1(),
     takeOver: () => refreshV1({ contend: true }),
     dispose(): void {

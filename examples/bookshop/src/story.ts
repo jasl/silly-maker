@@ -28,16 +28,16 @@ export {
  *   `stateContractRevision`;
  * - any of the above               -> bump `identity.revision`.
  */
-const bookshopStoryDefinitionV1 = Object.freeze({
+const bookshopStoryDefinitionV1 = {
   simulation: bookshopSimulationDefinitionV1,
-  presentation: Object.freeze({
+  presentation: {
     textCatalogs: bookshopTextCatalogsV1,
-    assetSlots: Object.freeze([]) as readonly [],
-    assetPacks: Object.freeze([]) as readonly [],
+    assetSlots: [] as readonly [],
+    assetPacks: [] as readonly [],
     patchSurface: bookshopPresentationPatchSurfaceV1,
     materializePresentation: materializeBookshopPresentationV1,
-  }),
-});
+  },
+};
 
 export const bookshopStoryEntryV1 = defineGamePackage({
   contractRevision: 1,

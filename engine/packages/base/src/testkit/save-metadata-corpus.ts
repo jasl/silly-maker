@@ -102,26 +102,26 @@ const pf1UnstampedSaveTextV1 = textDecoderV1.decode(
   bytesFromBase64V1(pf1UnstampedSaveBase64V1),
 );
 
-const summaryLinesV1 = Object.freeze(["Checkpoint 7", "Neutral scene"]);
-const partialStampV1 = Object.freeze({
+const summaryLinesV1 = ["Checkpoint 7", "Neutral scene"];
+const partialStampV1 = ({
   applicationVersion: "1.2.0",
   applicationCommit: null,
   engineVersion: null,
   engineCommit: null,
 }) satisfies VersionStampV1;
-const fullCleanStampV1 = Object.freeze({
+const fullCleanStampV1 = ({
   applicationVersion: "1.2.0",
   applicationCommit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   engineVersion: "0.4.2",
   engineCommit: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 }) satisfies VersionStampV1;
-const fullDirtyStampV1 = Object.freeze({
+const fullDirtyStampV1 = ({
   applicationVersion: "1.2.0",
   applicationCommit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-dirty",
   engineVersion: "0.4.2",
   engineCommit: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-dirty",
 }) satisfies VersionStampV1;
-const statusUnavailableStampV1 = Object.freeze({
+const statusUnavailableStampV1 = ({
   applicationVersion: "1.2.0",
   applicationCommit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-dirty",
   engineVersion: "0.4.2",
@@ -164,7 +164,7 @@ function expectedByteVectorV1(
   if (bytes.byteLength !== byteLength) {
     throw new TypeError("invalid maintained Save metadata byte length");
   }
-  return Object.freeze({
+  return ({
     byteLength,
     bytesDigest,
     bytesBase64: bytesToBase64V1(bytes),
@@ -177,14 +177,14 @@ const expectedUnstampedV1 = expectedByteVectorV1(
   "sha256:c69e007af552917ce7207bbab2e3ff8c21a1ece6f34af0ff60a22375b4e0cd83" as Digest,
 );
 
-export const saveMetadataCompactExpectedV1: SaveMetadataCompactVectorsV1 = Object.freeze({
-  summaries: Object.freeze({
+export const saveMetadataCompactExpectedV1: SaveMetadataCompactVectorsV1 = {
+  summaries: {
     absent: null,
     nullValue: null,
     empty: null,
     valid: summaryLinesV1,
-  }),
-  versionStamps: Object.freeze({
+  },
+  versionStamps: {
     absent: null,
     allNull: null,
     partial: partialStampV1,
@@ -192,9 +192,9 @@ export const saveMetadataCompactExpectedV1: SaveMetadataCompactVectorsV1 = Objec
     fullDirty: fullDirtyStampV1,
     statusUnavailable: statusUnavailableStampV1,
     malformed: null,
-  }),
+  },
   stateDigest: "sha256:c87eeea0469bd353df29a97b84e773fbffa5b0a661888342e4620353839379a5" as Digest,
-  records: Object.freeze({
+  records: {
     unstamped: expectedUnstampedV1,
     allNullStamp: expectedUnstampedV1,
     summaryOnly: expectedByteVectorV1(
@@ -237,26 +237,26 @@ export const saveMetadataCompactExpectedV1: SaveMetadataCompactVectorsV1 = Objec
       1_735,
       "sha256:eb62ceff1033406fe850515bbb0d04de0aa6662d873984de5820a780c2eefcd0" as Digest,
     ),
-  }),
-});
+  },
+};
 
 type NeutralSaveRecordV1 = SaveRecordEnvelopeV1<unknown, unknown, unknown, unknown>;
 
-const passthroughSchemaV1: RuntimeSchemaV1<unknown> = Object.freeze({
+const passthroughSchemaV1: RuntimeSchemaV1<unknown> = {
   parse(value: unknown) {
     return value;
   },
-});
+};
 const neutralRecordSchemaV1 = createSaveRecordEnvelopeSchemaV1(
   passthroughSchemaV1,
   passthroughSchemaV1,
   passthroughSchemaV1,
   passthroughSchemaV1,
 );
-const neutralCodecV1: SaveCodecContextV1<unknown, NeutralSaveRecordV1> = Object.freeze({
+const neutralCodecV1: SaveCodecContextV1<unknown, NeutralSaveRecordV1> = {
   recordSchema: neutralRecordSchemaV1,
   validateEnvelope() {},
-});
+};
 
 function baseRecordV1(): NeutralSaveRecordV1 {
   return neutralRecordSchemaV1.parse(JSON.parse(pf1UnstampedSaveTextV1));
@@ -274,7 +274,7 @@ function recordVectorV1(
     }) as DeepReadonly<NeutralSaveRecordV1>,
     neutralCodecV1,
   );
-  return Object.freeze({
+  return ({
     byteLength: bytes.byteLength,
     bytesDigest: digestBytes(bytes),
     bytesBase64: bytesToBase64V1(bytes),
@@ -334,25 +334,25 @@ export function evaluateSaveMetadataCompactVectorsV1(): SaveMetadataCompactVecto
     }),
     "malformed version stamp",
   );
-  const summaryOnly = Object.freeze({ summary: validSummary, note: null });
-  const noteOnly = Object.freeze({
+  const summaryOnly = { summary: validSummary, note: null };
+  const noteOnly = {
     summary: null,
     note: requireNoteV1(parseSaveNoteV1(" player checkpoint ")),
-  });
-  const summaryAndNote = Object.freeze({
+  };
+  const summaryAndNote = {
     summary: validSummary,
     note: noteOnly.note,
-  });
+  };
 
   const unstamped = recordVectorV1(null, null);
-  return Object.freeze({
-    summaries: Object.freeze({
+  return ({
+    summaries: {
       absent: null,
       nullValue: requireNullV1(normalizeSaveSummaryInternalV1(null), "null Save summary"),
       empty: requireNullV1(normalizeSaveSummaryInternalV1([]), "empty Save summary"),
       valid: validSummary,
-    }),
-    versionStamps: Object.freeze({
+    },
+    versionStamps: {
       absent: null,
       allNull: allNullStamp,
       partial: partialStamp,
@@ -360,9 +360,9 @@ export function evaluateSaveMetadataCompactVectorsV1(): SaveMetadataCompactVecto
       fullDirty: fullDirtyStamp,
       statusUnavailable: statusUnavailableStamp,
       malformed: malformedStamp,
-    }),
+    },
     stateDigest: baseRecordV1().stateDigest,
-    records: Object.freeze({
+    records: {
       unstamped,
       allNullStamp: recordVectorV1(null, allNullStamp),
       summaryOnly: recordVectorV1(summaryOnly, null),
@@ -373,7 +373,7 @@ export function evaluateSaveMetadataCompactVectorsV1(): SaveMetadataCompactVecto
       fullDirtyStamp: recordVectorV1(null, fullDirtyStamp),
       statusUnavailableStamp: recordVectorV1(null, statusUnavailableStamp),
       summaryAndFullDirtyStamp: recordVectorV1(summaryAndNote, fullDirtyStamp),
-    }),
+    },
   });
 }
 
@@ -392,7 +392,7 @@ export function createSaveMetadataHostPayloadV1(
   recordId: SaveMetadataCompactRecordIdV1,
 ): SaveMetadataHostPayloadV1 {
   const expected = saveMetadataCompactExpectedV1.records[recordId];
-  return Object.freeze({
+  return ({
     filename: "neutral-save-20260720000000.json",
     mediaType: "application/json",
     digest: expected.bytesDigest,

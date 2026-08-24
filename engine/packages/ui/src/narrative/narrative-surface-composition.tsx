@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: MIT
 import {
   canonicalJsonBytes,
-  parseInteractionResolutionV1,
   parseNarrativeHistoryV1,
   parsePendingInteractionV1,
-  parseTimeTickV1,
   type DeepReadonly,
   type InteractionResolutionV1,
   type NarrativeHistoryV1,
@@ -168,9 +166,9 @@ export interface DefineNarrativeSurfaceInputV1<TSemanticPublication> {
   readonly replayCurrentVoice: (() => boolean) | null;
 }
 
+/** Compile-time opacity only; admitted runtime definitions remain ordinary typed data. */
 declare const narrativeSurfaceDefinitionBrandV1: unique symbol;
 export interface NarrativeSurfaceDefinitionV1<TSemanticPublication> {
-  readonly [narrativeSurfaceCompositionDefinitionBrandInternalV1]: TSemanticPublication;
   readonly [narrativeSurfaceDefinitionBrandV1]: TSemanticPublication;
 }
 
@@ -211,9 +209,7 @@ interface NarrativeSurfaceCompositionRendererContextInternalV1 {
   readonly subscribeInternalV1: (listener: () => void) => () => void;
 }
 
-const inactiveNarrativeSurfaceCompositionBoundActionInternalV1 = Object.freeze(
-  (): boolean => false,
-);
+const inactiveNarrativeSurfaceCompositionBoundActionInternalV1 = (): boolean => false;
 const narrativeSurfaceCompositionBoundActionContextInternalV1 = createContext<
   NarrativeSurfaceCompositionRendererContextInternalV1 | null
 >(null);
@@ -226,12 +222,12 @@ export function useNarrativeSurfaceCompositionBoundActionInternalV1(
   const { actionId, choiceId, payload } = input;
   return useMemo(() => {
     if (context === null) return inactiveNarrativeSurfaceCompositionBoundActionInternalV1;
-    const captured = context.captureActionInternalV1(Object.freeze({
+    const captured = context.captureActionInternalV1({
       actionId,
       ...(choiceId === undefined ? {} : { choiceId }),
       ...(payload === undefined ? {} : { payload }),
-    }));
-    return Object.freeze((): boolean => captured());
+    });
+    return (): boolean => captured();
   }, [actionId, choiceId, context, payload]);
 }
 
@@ -246,130 +242,36 @@ export interface CreateNarrativeSurfaceCompositionDefinitionInputInternalV1<
     rendererKey: string,
     selection: NarrativeSurfaceSelectionInternalV1,
     environment: NarrativeSurfaceCompositionEnvironmentInternalV1 | null,
+    observation: NarrativeSurfacePublicObservationInternalV1 | null,
   ) => NarrativeStableCandidatePreflightResultInternalV1;
 }
 
-declare const narrativeSurfaceCompositionDefinitionBrandInternalV1: unique symbol;
+export type NarrativeSurfaceCompositionDefinitionInternalV1<TSemanticPublication> =
+  & NarrativeSurfaceDefinitionV1<TSemanticPublication>
+  & CreateNarrativeSurfaceCompositionDefinitionInputInternalV1<TSemanticPublication>;
 
-export interface NarrativeSurfaceCompositionDefinitionInternalV1<TSemanticPublication> {
-  readonly [narrativeSurfaceCompositionDefinitionBrandInternalV1]: TSemanticPublication;
-}
-
-interface NarrativeSurfaceCompositionDefinitionBindingInternalV1<TSemanticPublication> {
-  readonly receiver: CreateNarrativeSurfaceCompositionDefinitionInputInternalV1<
-    TSemanticPublication
-  >;
-  readonly selectNarrative: CreateNarrativeSurfaceCompositionDefinitionInputInternalV1<
-    TSemanticPublication
-  >["selectNarrativeInternalV1"];
-  readonly preflightCandidate: CreateNarrativeSurfaceCompositionDefinitionInputInternalV1<
-    TSemanticPublication
-  >["preflightCandidateInternalV1"];
-}
-
-const narrativeSurfaceCompositionDefinitionBindingsInternalV1 = new WeakMap<
-  object,
-  NarrativeSurfaceCompositionDefinitionBindingInternalV1<unknown>
->();
-
-function captureFrozenPlainExactRecordInternalV1(
+function isNarrativeSurfaceRecordInternalV1(
   value: unknown,
-  keys: readonly string[],
-): Readonly<Record<string, unknown>> | null {
-  if (
-    typeof value !== "object" || value === null || Array.isArray(value) ||
-    Reflect.getPrototypeOf(value) !== Object.prototype || !Object.isFrozen(value)
-  ) return null;
-  const ownKeys = Reflect.ownKeys(value);
-  if (ownKeys.length !== keys.length) return null;
-  const result: Record<string, unknown> = Object.create(null);
-  for (const key of keys) {
-    const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
-    if (
-      descriptor === undefined || !("value" in descriptor) || !descriptor.enumerable ||
-      descriptor.configurable || descriptor.writable
-    ) return null;
-    result[key] = descriptor.value;
-  }
-  for (const key of ownKeys) {
-    if (typeof key !== "string" || !Object.hasOwn(result, key)) return null;
-  }
-  return Object.freeze(result);
-}
-
-function isCallableWithoutThenInternalV1(value: unknown): value is (...args: never[]) => unknown {
-  if (typeof value !== "function") return false;
-  try {
-    if (Reflect.get(value, "then") !== undefined) return false;
-    const seen = new Set<object>();
-    let cursor: object | null = value;
-    for (let depth = 0; cursor !== null && depth < 32; depth += 1) {
-      if (seen.has(cursor)) return false;
-      seen.add(cursor);
-      const thenDescriptor = Reflect.getOwnPropertyDescriptor(cursor, "then");
-      if (thenDescriptor !== undefined) return false;
-      cursor = Reflect.getPrototypeOf(cursor);
-    }
-    return cursor === null;
-  } catch {
-    return false;
-  }
+): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**
- * Captures the package-private production binding before a composition can
- * subscribe to semantic state or allocate a managed runtime.
+ * Builds the package-private typed definition consumed by the composition.
  */
 export function createNarrativeSurfaceCompositionDefinitionInternalV1<
   TSemanticPublication,
 >(
   input: CreateNarrativeSurfaceCompositionDefinitionInputInternalV1<TSemanticPublication>,
 ): NarrativeSurfaceCompositionDefinitionInternalV1<TSemanticPublication> {
-  let selectNarrative: unknown;
-  let preflightCandidate: unknown;
-  try {
-    selectNarrative = input.selectNarrativeInternalV1;
-    preflightCandidate = input.preflightCandidateInternalV1;
-  } catch {
-    throw new TypeError("ui.narrative_surface_composition_definition_invalid");
-  }
-  if (typeof selectNarrative !== "function" || typeof preflightCandidate !== "function") {
-    throw new TypeError("ui.narrative_surface_composition_definition_invalid");
-  }
-  const definition = Object.freeze(
-    {},
-  ) as NarrativeSurfaceCompositionDefinitionInternalV1<TSemanticPublication>;
-  narrativeSurfaceCompositionDefinitionBindingsInternalV1.set(
-    definition,
-    Object.freeze({
-      receiver: input,
-      selectNarrative,
-      preflightCandidate,
-    }) as NarrativeSurfaceCompositionDefinitionBindingInternalV1<unknown>,
-  );
-  return definition;
-}
-
-function resolveDefinitionBindingInternalV1<TSemanticPublication>(
-  definition: NarrativeSurfaceCompositionDefinitionInternalV1<TSemanticPublication>,
-): NarrativeSurfaceCompositionDefinitionBindingInternalV1<TSemanticPublication> {
-  const binding = narrativeSurfaceCompositionDefinitionBindingsInternalV1.get(definition);
-  if (binding === undefined) {
-    throw new TypeError("ui.narrative_surface_composition_definition_invalid");
-  }
-  return binding as NarrativeSurfaceCompositionDefinitionBindingInternalV1<TSemanticPublication>;
-}
-
-/** @internal Allocation-free definition admission used by the composer. */
-export function assertNarrativeSurfaceCompositionDefinitionInternalV1(
-  definition: NarrativeSurfaceCompositionDefinitionInternalV1<unknown>,
-): void {
-  resolveDefinitionBindingInternalV1(definition);
+  return {
+    selectNarrativeInternalV1: input.selectNarrativeInternalV1,
+    preflightCandidateInternalV1: input.preflightCandidateInternalV1,
+  } as NarrativeSurfaceCompositionDefinitionInternalV1<TSemanticPublication>;
 }
 
 interface NarrativeSurfacePublicDefinitionBindingInternalV1 {
-  readonly receiver: object;
-  readonly selectNarrative: (publication: never) => NarrativeSurfaceSelectionV1;
+  readonly selectNarrative: (publication: unknown) => NarrativeSurfaceSelectionV1;
   readonly dispatchResolution: (request: NarrativeSurfaceResolutionRequestV1) => Promise<unknown>;
   readonly dispatchTime: ((tick: DeepReadonly<TimeTickV1>) => Promise<unknown>) | null;
   readonly renderer: ComponentType<NarrativeSurfaceRendererPropsV1>;
@@ -387,20 +289,6 @@ interface NarrativeSurfacePublicObservationInternalV1 {
   readonly reportFailureInternalV1: (error: unknown) => void;
 }
 
-const narrativeSurfacePublicDefinitionBindingsInternalV1 = new WeakMap<
-  object,
-  NarrativeSurfacePublicDefinitionBindingInternalV1
->();
-const publicDefinitionKeysInternalV1 = Object.freeze(
-  [
-    "selectNarrative",
-    "dispatchResolution",
-    "dispatchTime",
-    "renderer",
-    "resolveText",
-    "replayCurrentVoice",
-  ] as const,
-);
 const narrativeChooseActionIdInternalV1 = parseInputActionIdV1("narrative.choose");
 const narrativeResumeActionIdInternalV1 = parseInputActionIdV1("narrative.resume");
 const narrativeCustomActionIdInternalV1 = parseInputActionIdV1("narrative.custom");
@@ -410,7 +298,7 @@ function useCapturedNarrativeSurfaceActionInternalV1(
   actionId: InputActionIdV1,
 ): NarrativeSurfaceCompositionBoundActionInternalV1 {
   return useMemo(
-    () => context.captureActionInternalV1(Object.freeze({ actionId })),
+    () => context.captureActionInternalV1({ actionId }),
     [actionId, context],
   );
 }
@@ -470,19 +358,17 @@ function NarrativeSurfacePublicRendererAdapterInternalV1(
   );
   const locale = props.rendererProps.playerProfile.preferences.locale;
   const resolveText = useCallback(
-    (textId: string): string =>
-      Reflect.apply(props.binding.resolveText, props.binding.receiver, [locale, textId]),
+    (textId: string): string => props.binding.resolveText(locale, textId),
     [locale, props.binding],
   );
   const onActivate = useCallback((): void => void activate(), [activate]);
   const onChoose = useCallback(
-    (choiceId: string): void => void choose(Object.freeze({ choiceId })),
+    (choiceId: string): void => void choose({ choiceId }),
     [choose],
   );
   const onResume = useCallback((): void => void resume(), [resume]);
   const onSubmitCustom = useCallback(
-    (payload: DeepReadonly<StrictJsonObjectV1>): void =>
-      void submitCustom(Object.freeze({ payload })),
+    (payload: DeepReadonly<StrictJsonObjectV1>): void => void submitCustom({ payload }),
     [submitCustom],
   );
   const onToggleAuto = useCallback((): void => void toggleAuto(), [toggleAuto]);
@@ -494,19 +380,19 @@ function NarrativeSurfacePublicRendererAdapterInternalV1(
   if (props.rendererProps.kind === "history") {
     return createElement(
       props.binding.renderer,
-      Object.freeze({
+      {
         kind: "history" as const,
         history: props.rendererProps.history,
         playerProfile: props.rendererProps.playerProfile,
         resolveText,
         onCloseHistory,
-      }),
+      },
     );
   }
 
   const internalView = props.rendererProps.playerView;
   const playerView: NarrativeSurfacePlayerViewV1 = internalView.kind === "say"
-    ? Object.freeze({
+    ? {
       kind: "say" as const,
       phase: internalView.phase,
       playbackMode: internalView.playbackMode,
@@ -515,19 +401,19 @@ function NarrativeSurfacePublicRendererAdapterInternalV1(
       revealedCharacters: internalView.revealedCharacters,
       revealLength: internalView.revealLength,
       revealComplete: internalView.revealComplete,
-    })
-    : Object.freeze({
+    }
+    : {
       kind: "passive" as const,
       phase: internalView.phase,
       playbackMode: "normal" as const,
-    });
+    };
   const currentAvailability = selection?.pending?.kind === "choice" &&
       selection.pending.occurrenceId === props.rendererProps.pending.occurrenceId
     ? selection.choiceAvailability
     : null;
   return createElement(
     props.binding.renderer,
-    Object.freeze({
+    {
       kind: "dialogue" as const,
       pending: props.rendererProps.pending,
       choiceAvailability: currentAvailability,
@@ -542,7 +428,7 @@ function NarrativeSurfacePublicRendererAdapterInternalV1(
       onToggleSkip,
       onOpenHistory,
       onReplayVoice,
-    }),
+    },
   );
 }
 
@@ -562,135 +448,138 @@ function createNarrativeSurfacePublicCandidateInternalV1(
   observation: NarrativeSurfacePublicObservationInternalV1 | null,
 ): NarrativeStableCandidatePreflightResultInternalV1 {
   if (environment === null) {
-    return Object.freeze({
+    return {
       kind: "rejected" as const,
       code: "narrative.renderer_missing" as const,
-    });
+    };
   }
-  const profile = Reflect.apply(environment.playerProfile.current, environment.playerProfile, []);
+  const profile = environment.playerProfile.current();
   const locale = profile.preferences.locale;
   const dispatchResolutionInternalV1 = (request: NarrativeSurfaceResolutionRequestV1) => {
     if (request.expectedOccurrenceId !== pending.occurrenceId) {
       throw new TypeError("ui.narrative_surface_resolution_invalid");
     }
-    const resolution = parseInteractionResolutionV1(request.resolution);
-    return Reflect.apply(binding.dispatchResolution, binding.receiver, [Object.freeze({
+    return binding.dispatchResolution({
       expectedOccurrenceId: pending.occurrenceId,
-      resolution,
-    })]);
+      resolution: request.resolution,
+    });
   };
   const dispatchTime = binding.dispatchTime;
-  const semanticDispatchPort = Object.freeze(
-    dispatchTime === null ? { dispatchResolutionInternalV1 } : {
-      dispatchResolutionInternalV1,
-      dispatchTimeInternalV1: (request: NarrativeStableSemanticTimeRequestInternalV1) => {
-        if (request.expectedHoldOccurrenceId !== pending.occurrenceId) {
-          throw new TypeError("ui.narrative_surface_time_invalid");
-        }
-        const tick = parseTimeTickV1({
-          elapsedMs: request.elapsedMs,
-          expectedHoldOccurrenceId: request.expectedHoldOccurrenceId,
-        });
-        return Reflect.apply(dispatchTime, binding.receiver, [tick]);
-      },
+  const semanticDispatchPort = dispatchTime === null ? { dispatchResolutionInternalV1 } : {
+    dispatchResolutionInternalV1,
+    dispatchTimeInternalV1: (request: NarrativeStableSemanticTimeRequestInternalV1) => {
+      if (request.expectedHoldOccurrenceId !== pending.occurrenceId) {
+        throw new TypeError("ui.narrative_surface_time_invalid");
+      }
+      return dispatchTime({
+        elapsedMs: request.elapsedMs,
+        expectedHoldOccurrenceId: request.expectedHoldOccurrenceId,
+      });
     },
-  );
-  return Object.freeze({
+  };
+  return {
     kind: "captured" as const,
-    candidateSnapshot: Object.freeze({
+    candidateSnapshot: {
       rendererComponent: binding.rendererComponent,
-      visualConfig: Object.freeze({}),
+      visualConfig: {},
       semanticDispatchPort,
-      historyObservationPort: Object.freeze({
+      historyObservationPort: {
         getSnapshotInternalV1: () =>
           observation?.getSelectionInternalV1()?.history ?? selection.history,
         subscribeInternalV1: (listener: () => void) =>
-          observation?.subscribeInternalV1(listener) ?? Object.freeze(() => undefined),
-      }),
-      historyAvailabilityPort: Object.freeze({
+          observation?.subscribeInternalV1(listener) ?? (() => undefined),
+      },
+      historyAvailabilityPort: {
         readHistoryAvailabilityInternalV1: () =>
           (observation?.getSelectionInternalV1()?.history ?? selection.history).entries.length > 0,
-      }),
-      playerProfile: Object.freeze({
-        getSnapshotInternalV1: () =>
-          Reflect.apply(environment.playerProfile.current, environment.playerProfile, []),
+      },
+      playerProfile: {
+        getSnapshotInternalV1: () => environment.playerProfile.current(),
         subscribeInternalV1: (listener: () => void) =>
-          Reflect.apply(environment.playerProfile.subscribe, environment.playerProfile, [listener]),
+          environment.playerProfile.subscribe(listener),
         markSeenInternalV1: (definitionId: string, seenRevision: number): void => {
           try {
-            void Promise.resolve(Reflect.apply(
-              environment.playerProfile.markSeen,
-              environment.playerProfile,
-              [definitionId, seenRevision],
-            )).catch((error) => observation?.reportFailureInternalV1(error));
+            void Promise.resolve(environment.playerProfile.markSeen(definitionId, seenRevision))
+              .catch((error) => observation?.reportFailureInternalV1(error));
           } catch (error) {
             observation?.reportFailureInternalV1(error);
           }
         },
-      }),
-      presentationClock: Object.freeze({
+      },
+      presentationClock: {
         nowInternalV1: () =>
           normalizeNarrativeSurfaceClockTimestampInternalV1(
-            Reflect.apply(environment.presentationClock.now, environment.presentationClock, []),
+            environment.presentationClock.now(),
           ),
         requestTickInternalV1: (callback: (nowMs: number) => void) =>
-          Reflect.apply(environment.presentationClock.requestTick, environment.presentationClock, [
+          environment.presentationClock.requestTick(
             (_frameTimestamp: number): void => {
               let nowMs = Number.NaN;
               try {
                 nowMs = normalizeNarrativeSurfaceClockTimestampInternalV1(
-                  Reflect.apply(
-                    environment.presentationClock.now,
-                    environment.presentationClock,
-                    [],
-                  ),
+                  environment.presentationClock.now(),
                 );
               } catch {
                 // The family validates NaN as a contained current-clock fault.
               }
-              Reflect.apply(callback, undefined, [nowMs]);
+              callback(nowMs);
             },
-          ]),
-        prefersReducedMotionInternalV1: () =>
-          Reflect.apply(environment.prefersReducedMotion, undefined, []),
-      }),
-      textResolver: Object.freeze({
-        resolveTextInternalV1: (textId: string) =>
-          Reflect.apply(binding.resolveText, binding.receiver, [locale, textId]),
-      }),
-      voiceReplayPort: binding.replayCurrentVoice === null ? null : Object.freeze({
-        replayCurrentVoiceInternalV1: () =>
-          Reflect.apply(binding.replayCurrentVoice!, binding.receiver, []),
-      }),
+          ),
+        prefersReducedMotionInternalV1: () => environment.prefersReducedMotion(),
+      },
+      textResolver: {
+        resolveTextInternalV1: (textId: string) => binding.resolveText(locale, textId),
+      },
+      voiceReplayPort: binding.replayCurrentVoice === null ? null : {
+        replayCurrentVoiceInternalV1: () => binding.replayCurrentVoice!(),
+      },
       quickMenuContribution: null,
-    }),
-  });
+    },
+  };
 }
 
 export function defineNarrativeSurfaceV1<TSemanticPublication>(
   input: DefineNarrativeSurfaceInputV1<TSemanticPublication>,
 ): NarrativeSurfaceDefinitionV1<TSemanticPublication> {
-  let captured: Readonly<Record<string, unknown>> | null = null;
+  let admitted:
+    | Omit<
+      NarrativeSurfacePublicDefinitionBindingInternalV1,
+      "rendererComponent"
+    >
+    | null = null;
   try {
-    captured = captureFrozenPlainExactRecordInternalV1(input, publicDefinitionKeysInternalV1);
+    if (isNarrativeSurfaceRecordInternalV1(input)) {
+      const selectNarrative = input.selectNarrative;
+      const dispatchResolution = input.dispatchResolution;
+      const dispatchTime = input.dispatchTime;
+      const renderer = input.renderer;
+      const resolveText = input.resolveText;
+      const replayCurrentVoice = input.replayCurrentVoice;
+      if (
+        typeof selectNarrative === "function" &&
+        typeof dispatchResolution === "function" &&
+        (dispatchTime === null || typeof dispatchTime === "function") &&
+        typeof renderer === "function" &&
+        typeof resolveText === "function" &&
+        (replayCurrentVoice === null || typeof replayCurrentVoice === "function")
+      ) {
+        admitted = {
+          selectNarrative,
+          dispatchResolution,
+          dispatchTime,
+          renderer,
+          resolveText,
+          replayCurrentVoice,
+        } as Omit<NarrativeSurfacePublicDefinitionBindingInternalV1, "rendererComponent">;
+      }
+    }
   } catch {
-    captured = null;
+    admitted = null;
   }
-  if (
-    captured === null ||
-    !isCallableWithoutThenInternalV1(captured.selectNarrative) ||
-    !isCallableWithoutThenInternalV1(captured.dispatchResolution) ||
-    (captured.dispatchTime !== null &&
-      !isCallableWithoutThenInternalV1(captured.dispatchTime)) ||
-    !isCallableWithoutThenInternalV1(captured.renderer) ||
-    !isCallableWithoutThenInternalV1(captured.resolveText) ||
-    (captured.replayCurrentVoice !== null &&
-      !isCallableWithoutThenInternalV1(captured.replayCurrentVoice))
-  ) {
+  if (admitted === null) {
     throw new TypeError("ui.narrative_surface_definition_invalid");
   }
-  let binding!: NarrativeSurfacePublicDefinitionBindingInternalV1;
-  const rendererComponent = Object.freeze((
+  const rendererComponent = (
     rendererProps:
       | NarrativeStableDialogueRendererPropsInternalV1
       | NarrativeStableHistoryRendererPropsInternalV1,
@@ -698,59 +587,49 @@ export function defineNarrativeSurfaceV1<TSemanticPublication>(
     createElement(NarrativeSurfacePublicRendererAdapterInternalV1, {
       binding,
       rendererProps,
-    })
-  );
-  binding = Object.freeze({
-    receiver: input,
-    selectNarrative: captured.selectNarrative,
-    dispatchResolution: captured.dispatchResolution,
-    dispatchTime: captured.dispatchTime,
-    renderer: captured.renderer,
-    resolveText: captured.resolveText,
-    replayCurrentVoice: captured.replayCurrentVoice,
+    });
+  const binding: NarrativeSurfacePublicDefinitionBindingInternalV1 = {
+    ...admitted,
     rendererComponent,
-  }) as unknown as NarrativeSurfacePublicDefinitionBindingInternalV1;
-  const definition = createNarrativeSurfaceCompositionDefinitionInternalV1(Object.freeze({
+  };
+  const definition = createNarrativeSurfaceCompositionDefinitionInternalV1({
     selectNarrativeInternalV1: (publication: DeepReadonly<TSemanticPublication>) =>
-      Reflect.apply(binding.selectNarrative, binding.receiver, [publication]),
+      binding.selectNarrative(publication),
     preflightCandidateInternalV1: (
       pending: PendingInteractionV1,
       _rendererKey: string,
       selection: NarrativeSurfaceSelectionInternalV1,
       environment: NarrativeSurfaceCompositionEnvironmentInternalV1 | null,
+      observation: NarrativeSurfacePublicObservationInternalV1 | null,
     ) =>
       createNarrativeSurfacePublicCandidateInternalV1(
         binding,
         pending,
         selection,
         environment,
-        null,
+        observation,
       ),
-  }));
-  narrativeSurfacePublicDefinitionBindingsInternalV1.set(
-    definition,
-    binding,
-  );
-  return definition as NarrativeSurfaceDefinitionV1<TSemanticPublication>;
+  });
+  return definition;
 }
 
 export function appendNarrativeManagedSurfaceRecipeInternalV1(
   recipe: ManagedSurfaceCoordinatorRecipeV1,
 ): ManagedSurfaceCoordinatorRecipeV1 {
   const narrative = createNarrativeManagedSurfaceFamilyContractInternalV1();
-  return Object.freeze({
-    resolvedOwnerIds: Object.freeze([
+  return {
+    resolvedOwnerIds: [
       ...recipe.resolvedOwnerIds,
       ...narrative.resolvedOwnerIds,
-    ]),
-    resolvedSlotDescriptors: Object.freeze([
+    ],
+    resolvedSlotDescriptors: [
       ...recipe.resolvedSlotDescriptors,
       ...narrative.resolvedSlotDescriptors,
-    ]),
+    ],
     ...(recipe.reportSubscriberFailure === undefined
       ? {}
       : { reportSubscriberFailure: recipe.reportSubscriberFailure }),
-  });
+  };
 }
 
 export interface NarrativeSurfaceSemanticPresentationSourceInternalV1<TSemanticPublication> {
@@ -820,27 +699,6 @@ interface NarrativeSurfaceCompositionGenerationInternalV1 {
   dirty: boolean;
 }
 
-function hasExactFrozenDenseArrayShapeInternalV1(value: readonly unknown[]): boolean {
-  if (!Object.isFrozen(value)) return false;
-  const ownKeys = Reflect.ownKeys(value);
-  if (ownKeys.length !== value.length + 1 || ownKeys.at(-1) !== "length") return false;
-  const lengthDescriptor = Reflect.getOwnPropertyDescriptor(value, "length");
-  if (
-    lengthDescriptor === undefined || !("value" in lengthDescriptor) ||
-    lengthDescriptor.value !== value.length || lengthDescriptor.writable ||
-    lengthDescriptor.enumerable || lengthDescriptor.configurable
-  ) return false;
-  for (let index = 0; index < value.length; index += 1) {
-    if (ownKeys[index] !== String(index)) return false;
-    const descriptor = Reflect.getOwnPropertyDescriptor(value, String(index));
-    if (
-      descriptor === undefined || !("value" in descriptor) || !descriptor.enumerable ||
-      descriptor.writable || descriptor.configurable
-    ) return false;
-  }
-  return true;
-}
-
 function captureChoiceAvailabilityInternalV1(
   value: unknown,
   pending: PendingInteractionV1 | null,
@@ -850,61 +708,51 @@ function captureChoiceAvailabilityInternalV1(
     return null;
   }
   if (
-    !Array.isArray(value) || !hasExactFrozenDenseArrayShapeInternalV1(value) ||
-    value.length !== pending.options.length
+    !Array.isArray(value) || value.length !== pending.options.length
   ) {
     throw new TypeError("ui.narrative_surface_selection_invalid");
   }
   const rows: NarrativeSurfaceChoiceAvailabilityInternalV1[] = [];
   for (let index = 0; index < value.length; index += 1) {
-    if (!Object.hasOwn(value, index)) {
-      throw new TypeError("ui.narrative_surface_selection_invalid");
-    }
-    const captured = captureFrozenPlainExactRecordInternalV1(
-      value[index],
-      ["choiceId", "status", "reasonTextIds"],
-    );
+    const candidate = value[index];
     const option = pending.options[index];
     if (
-      captured === null || option === undefined || captured.choiceId !== option.choiceId ||
-      (captured.status !== "enabled" && captured.status !== "disabled") ||
-      !Array.isArray(captured.reasonTextIds) ||
-      !hasExactFrozenDenseArrayShapeInternalV1(captured.reasonTextIds)
+      !isNarrativeSurfaceRecordInternalV1(candidate) || option === undefined ||
+      candidate.choiceId !== option.choiceId ||
+      (candidate.status !== "enabled" && candidate.status !== "disabled") ||
+      !Array.isArray(candidate.reasonTextIds)
     ) throw new TypeError("ui.narrative_surface_selection_invalid");
     const reasonTextIds: string[] = [];
-    for (let reasonIndex = 0; reasonIndex < captured.reasonTextIds.length; reasonIndex += 1) {
-      if (
-        !Object.hasOwn(captured.reasonTextIds, reasonIndex) ||
-        typeof captured.reasonTextIds[reasonIndex] !== "string"
-      ) throw new TypeError("ui.narrative_surface_selection_invalid");
-      reasonTextIds.push(captured.reasonTextIds[reasonIndex]);
+    for (const reasonTextId of candidate.reasonTextIds) {
+      if (typeof reasonTextId !== "string") {
+        throw new TypeError("ui.narrative_surface_selection_invalid");
+      }
+      reasonTextIds.push(reasonTextId);
     }
     if (
-      (captured.status === "enabled" && reasonTextIds.length !== 0) ||
-      (captured.status === "disabled" && reasonTextIds.length === 0)
+      (candidate.status === "enabled" && reasonTextIds.length !== 0) ||
+      (candidate.status === "disabled" && reasonTextIds.length === 0)
     ) throw new TypeError("ui.narrative_surface_selection_invalid");
-    rows.push(Object.freeze({
+    rows.push({
       choiceId: option.choiceId,
-      status: captured.status,
-      reasonTextIds: Object.freeze(reasonTextIds),
-    }));
+      status: candidate.status,
+      reasonTextIds,
+    });
   }
-  return Object.freeze(rows);
+  return rows;
 }
 
 function captureSelectionInternalV1(value: unknown): NarrativeSurfaceSelectionInternalV1 {
-  const captured = captureFrozenPlainExactRecordInternalV1(
-    value,
-    ["pending", "history", "choiceAvailability"],
-  );
-  if (captured === null) throw new TypeError("ui.narrative_surface_selection_invalid");
-  const pending = captured.pending === null ? null : parsePendingInteractionV1(captured.pending);
-  const history = parseNarrativeHistoryV1(captured.history);
+  if (!isNarrativeSurfaceRecordInternalV1(value)) {
+    throw new TypeError("ui.narrative_surface_selection_invalid");
+  }
+  const pending = value.pending === null ? null : parsePendingInteractionV1(value.pending);
+  const history = parseNarrativeHistoryV1(value.history);
   const choiceAvailability = captureChoiceAvailabilityInternalV1(
-    captured.choiceAvailability,
+    value.choiceAvailability,
     pending,
   );
-  return Object.freeze({ pending, history, choiceAvailability });
+  return { pending, history, choiceAvailability };
 }
 
 function bridgeResultAcceptedInternalV1(result: { readonly kind: string }): boolean {
@@ -942,12 +790,7 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
   readonly reportObservation?: (code: "narrative.barrier_replay_unsupported") => void;
   readonly sealCompositionOnFailure?: (error: unknown) => void;
 }): NarrativeSurfaceCompositionRuntimeInternalV1 {
-  const binding = input.definition === null ? null : resolveDefinitionBindingInternalV1(
-    input.definition,
-  );
-  const publicBinding = input.definition === null
-    ? null
-    : narrativeSurfacePublicDefinitionBindingsInternalV1.get(input.definition) ?? null;
+  const binding = input.definition;
   if (
     typeof input.stageClaimant !== "object" || input.stageClaimant === null
   ) throw new TypeError("ui.narrative_surface_composition_invalid");
@@ -1040,9 +883,7 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
   const readSelection = (): NarrativeSurfaceSelectionInternalV1 | null => {
     if (binding === null) return null;
     return captureSelectionInternalV1(
-      Reflect.apply(binding.selectNarrative, binding.receiver, [
-        input.presentation.getSnapshotInternalV1(),
-      ]),
+      binding.selectNarrativeInternalV1(input.presentation.getSnapshotInternalV1()),
     );
   };
 
@@ -1113,14 +954,14 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
         captured.directTarget,
       );
       if (frame === null || frame.semanticOccurrenceId !== pending.occurrenceId) return null;
-      return Object.freeze({
+      return {
         controller,
         semanticOccurrenceId: pending.occurrenceId,
         directTarget: captured.directTarget,
         sourceRevision: captured.sourceRevision,
         targetProof: captured.targetProof,
         frame,
-      });
+      };
     } catch {
       return null;
     }
@@ -1305,12 +1146,12 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
     semanticOccurrenceId: string | null,
   ): void => {
     generation.lastStageDriver = driver;
-    generation.lastStageRetarget = Object.freeze({
+    generation.lastStageRetarget = {
       target: retarget.target,
       revision: retarget.revision,
       epoch: retarget.epoch,
       semanticOccurrenceId,
-    });
+    };
   };
 
   const installBarrierController = (
@@ -1341,7 +1182,7 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
         }
         flushBarrierTerminal(generation);
       });
-      if (!isCallableWithoutThenInternalV1(unsubscribeSession)) {
+      if (typeof unsubscribeSession !== "function") {
         throw new TypeError("ui.narrative_surface_stage_binding_invalid");
       }
       releaseDelegate = bindSemanticStageCompositionRetargetDelegateInternalV1(
@@ -1416,11 +1257,11 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
     driver: SemanticStageCompositionDriverInternalV1,
   ): () => void => {
     let active = true;
-    return Object.freeze((): void => {
+    return (): void => {
       if (!active) return;
       active = false;
       if (stageReconciler !== reconciler || stageDriver !== driver) return;
-      const releaseToken = Object.freeze({});
+      const releaseToken = {};
       pendingStageBindingRelease = releaseToken;
       queueMicrotask(() => {
         if (
@@ -1433,7 +1274,7 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
         const boundGeneration = current ?? prepared;
         if (boundGeneration !== null) detachBarrierController(boundGeneration);
       });
-    });
+    };
   };
 
   const captureBoundHostAction = (
@@ -1443,34 +1284,8 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
     if (disposed || binding === null || generation === null || !generation.active) {
       return inactiveNarrativeSurfaceCompositionBoundActionInternalV1;
     }
-    let actionId: InputActionIdV1;
-    let choiceId: string | undefined;
-    let payload: unknown;
-    try {
-      const keys = Reflect.ownKeys(request);
-      if (
-        keys.length < 1 || keys.length > 3 || keys[0] !== "actionId" ||
-        keys.some((key) =>
-          typeof key !== "string" ||
-          (key !== "actionId" && key !== "choiceId" && key !== "payload")
-        )
-      ) return inactiveNarrativeSurfaceCompositionBoundActionInternalV1;
-      const actionDescriptor = Reflect.getOwnPropertyDescriptor(request, "actionId");
-      const choiceDescriptor = Reflect.getOwnPropertyDescriptor(request, "choiceId");
-      const payloadDescriptor = Reflect.getOwnPropertyDescriptor(request, "payload");
-      if (
-        actionDescriptor === undefined || !("value" in actionDescriptor) ||
-        typeof actionDescriptor.value !== "string" ||
-        (choiceDescriptor !== undefined &&
-          (!("value" in choiceDescriptor) || typeof choiceDescriptor.value !== "string")) ||
-        (payloadDescriptor !== undefined && !("value" in payloadDescriptor))
-      ) return inactiveNarrativeSurfaceCompositionBoundActionInternalV1;
-      actionId = actionDescriptor.value as InputActionIdV1;
-      choiceId = choiceDescriptor?.value as string | undefined;
-      payload = payloadDescriptor?.value;
-    } catch {
-      return inactiveNarrativeSurfaceCompositionBoundActionInternalV1;
-    }
+    const { actionId, payload } = request;
+    let { choiceId } = request;
     const hostPhysicalRegistrationToken = generation.hostPhysicalRegistrationToken;
     if (hostPhysicalRegistrationToken === null) {
       return inactiveNarrativeSurfaceCompositionBoundActionInternalV1;
@@ -1491,31 +1306,17 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
     }
     const capturedChoiceId = choiceId;
     const capturedPayload = payload;
-    const action = Object.freeze((
+    const action = (
       invocation?: NarrativeSurfaceCompositionBoundActionInvocationInternalV1,
     ): boolean => {
       let invokedChoiceId = capturedChoiceId;
       let invokedPayload = capturedPayload;
       if (invocation !== undefined) {
-        try {
-          const capturedInvocation = captureFrozenPlainExactRecordInternalV1(
-            invocation,
-            Reflect.ownKeys(invocation).filter((key): key is string =>
-              key === "choiceId" || key === "payload"
-            ),
-          );
-          if (capturedInvocation === null) return false;
-          if (
-            Object.hasOwn(capturedInvocation, "choiceId") &&
-            typeof capturedInvocation.choiceId !== "string"
-          ) return false;
-          invokedChoiceId = capturedInvocation.choiceId as string | undefined ?? invokedChoiceId;
-          invokedPayload = Object.hasOwn(capturedInvocation, "payload")
-            ? capturedInvocation.payload
-            : invokedPayload;
-        } catch {
+        if (invocation.choiceId !== undefined && typeof invocation.choiceId !== "string") {
           return false;
         }
+        invokedChoiceId = invocation.choiceId ?? invokedChoiceId;
+        if (Object.hasOwn(invocation, "payload")) invokedPayload = invocation.payload;
       }
       if (
         disposed || current !== generation || !generation.active ||
@@ -1569,11 +1370,11 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
       }
       let admission: NarrativeStablePhysicalActionAdmissionInternalV1;
       try {
-        admission = createNarrativeStablePhysicalActionAdmissionInternalV1(Object.freeze({
+        admission = createNarrativeStablePhysicalActionAdmissionInternalV1({
           bridge: generation.bridge,
           inputRouter: physicalIngress.inputRouter,
           isGestureCurrent: physicalIngress.isGestureCurrent,
-        }));
+        });
       } catch {
         return false;
       }
@@ -1592,7 +1393,7 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
         ) {
           attempt = admission.issueSayActivationAttemptInternalV1(
             createNarrativeStableDialoguePlayerControllerInternalV1(
-              Object.freeze({ bridge: generation.bridge, target, frame }),
+              { bridge: generation.bridge, target, frame },
             ),
           );
         } else if (
@@ -1631,10 +1432,10 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
             ? String(systemInputActionIdsV1.narrativeAdvance)
             : String(actionId)
           : String(actionId);
-        const envelope = admission.createEnvelopeInternalV1(Object.freeze({
+        const envelope = admission.createEnvelopeInternalV1({
           actionId: parseManagedSurfaceActionIdV1(authenticatedActionId),
           gestureId: generation.runtime.gestureLease.begin(),
-        }));
+        });
         if (
           current !== generation || generation.physicalIngress !== physicalIngress ||
           !physicalIngress.isCurrentInternalV1()
@@ -1669,7 +1470,7 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
       } catch {
         return false;
       }
-    });
+    };
     return action;
   };
 
@@ -1683,7 +1484,7 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
       return inactiveNarrativeSurfaceCompositionBoundActionInternalV1;
     }
     let capturedAdmission: NarrativeStablePhysicalActionAdmissionInternalV1 | null = null;
-    return Object.freeze((): boolean => {
+    return (): boolean => {
       const physicalIngress = generation.physicalIngress;
       if (
         current !== generation || physicalIngress === null ||
@@ -1693,20 +1494,20 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
       ) return false;
       try {
         const admission = capturedAdmission ??
-          createNarrativeStablePhysicalActionAdmissionInternalV1(Object.freeze({
+          createNarrativeStablePhysicalActionAdmissionInternalV1({
             bridge: generation.bridge,
             inputRouter: physicalIngress.inputRouter,
             isGestureCurrent: physicalIngress.isGestureCurrent,
-          }));
+          });
         if (generation.physicalAdmission !== admission) {
           const predecessor = generation.physicalAdmission;
           generation.physicalAdmission = admission;
           noThrow(() => predecessor?.disposeInternalV1());
         }
-        const envelope = admission.createEnvelopeInternalV1(Object.freeze({
+        const envelope = admission.createEnvelopeInternalV1({
           actionId: parseManagedSurfaceActionIdV1(playerInputActionIdsV1.toggleHistory),
           gestureId: generation.runtime.gestureLease.begin(),
-        }));
+        });
         if (
           current !== generation || generation.physicalIngress !== physicalIngress ||
           !physicalIngress.isCurrentInternalV1() || generation.authenticatedRouteInProgress
@@ -1735,7 +1536,7 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
       } catch {
         return false;
       }
-    });
+    };
   };
 
   const registerHostPhysicalIngress = (
@@ -1751,74 +1552,72 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
       registrationInput.session !== generation.session ||
       generation.releaseHostPhysicalRegistration !== null
     ) throw new TypeError("ui.narrative_surface_host_registration_invalid");
-    const attachPhysicalIngress = Object.freeze(
-      (context: NarrativeSurfaceHostPhysicalIngressContextInternalV1): () => void => {
-        if (
-          disposed || current !== generation || !generation.active ||
-          generation.physicalIngress !== null || !context.isCurrentInternalV1() ||
-          context.inputRouter !== registrationInput.inputRouter
-        ) throw new TypeError("ui.narrative_surface_host_registration_invalid");
-        let attached = true;
-        let unregister: unknown;
-        try {
-          unregister = context.inputRouter.register(Object.freeze({
-            context: "narrative" as const,
-            handle: (event) => {
-              if (
-                !attached || current !== generation || !generation.active ||
-                generation.authenticatedRouteInProgress || event.kind !== "action" ||
-                generation.physicalIngress !== context || !context.isCurrentInternalV1()
-              ) return inputIgnoredV1;
-              if (
-                event.actionId === playerInputActionIdsV1.toggleHistory &&
-                captureHistoryClose()()
-              ) return inputHandledV1;
-              return captureBoundHostAction(Object.freeze({ actionId: event.actionId }))()
-                ? inputHandledV1
-                : inputIgnoredV1;
-            },
-          }));
-          if (!isCallableWithoutThenInternalV1(unregister)) {
-            if (typeof unregister === "function") noThrow(unregister as () => void);
-            throw new TypeError("ui.narrative_surface_host_registration_invalid");
-          }
-        } catch (error) {
-          attached = false;
-          throw error;
-        }
-        generation.physicalIngress = context;
-        generation.unregisterPhysicalInput = unregister as () => void;
-        return Object.freeze((): void => {
-          if (!attached) return;
-          attached = false;
-          if (generation.physicalIngress !== context) return;
-          generation.physicalIngress = null;
-          const currentUnregister = generation.unregisterPhysicalInput;
-          generation.unregisterPhysicalInput = null;
-          const admission = generation.physicalAdmission;
-          generation.physicalAdmission = null;
-          generation.authenticatedRouteInProgress = false;
-          noThrow(() => currentUnregister?.());
-          noThrow(() => admission?.disposeInternalV1());
+    const attachPhysicalIngress = (
+      context: NarrativeSurfaceHostPhysicalIngressContextInternalV1,
+    ): () => void => {
+      if (
+        disposed || current !== generation || !generation.active ||
+        generation.physicalIngress !== null || !context.isCurrentInternalV1() ||
+        context.inputRouter !== registrationInput.inputRouter
+      ) throw new TypeError("ui.narrative_surface_host_registration_invalid");
+      let attached = true;
+      let unregister: unknown;
+      try {
+        unregister = context.inputRouter.register({
+          context: "narrative" as const,
+          handle: (event) => {
+            if (
+              !attached || current !== generation || !generation.active ||
+              generation.authenticatedRouteInProgress || event.kind !== "action" ||
+              generation.physicalIngress !== context || !context.isCurrentInternalV1()
+            ) return inputIgnoredV1;
+            if (
+              event.actionId === playerInputActionIdsV1.toggleHistory &&
+              captureHistoryClose()()
+            ) return inputHandledV1;
+            return captureBoundHostAction({ actionId: event.actionId })()
+              ? inputHandledV1
+              : inputIgnoredV1;
+          },
         });
-      },
-    );
-    const release: unknown = registerNarrativeSurfaceHostPhysicalIngressInternalV1(Object.freeze({
+        if (typeof unregister !== "function") {
+          throw new TypeError("ui.narrative_surface_host_registration_invalid");
+        }
+      } catch (error) {
+        attached = false;
+        throw error;
+      }
+      generation.physicalIngress = context;
+      generation.unregisterPhysicalInput = unregister as () => void;
+      return (): void => {
+        if (!attached) return;
+        attached = false;
+        if (generation.physicalIngress !== context) return;
+        generation.physicalIngress = null;
+        const currentUnregister = generation.unregisterPhysicalInput;
+        generation.unregisterPhysicalInput = null;
+        const admission = generation.physicalAdmission;
+        generation.physicalAdmission = null;
+        generation.authenticatedRouteInProgress = false;
+        noThrow(() => currentUnregister?.());
+        noThrow(() => admission?.disposeInternalV1());
+      };
+    };
+    const release: unknown = registerNarrativeSurfaceHostPhysicalIngressInternalV1({
       session: generation.session,
       portalContainer: registrationInput.portalContainer,
       inputRouter: registrationInput.inputRouter,
       attachInternalV1: attachPhysicalIngress,
-    }));
-    if (!isCallableWithoutThenInternalV1(release)) {
-      if (typeof release === "function") noThrow(release as () => void);
+    });
+    if (typeof release !== "function") {
       throw new TypeError("ui.narrative_surface_host_registration_invalid");
     }
     const exactRelease = release as () => void;
-    const registrationToken = Object.freeze({});
+    const registrationToken = {};
     generation.releaseHostPhysicalRegistration = exactRelease;
     generation.hostPhysicalRegistrationToken = registrationToken;
     let active = true;
-    return Object.freeze((): void => {
+    return (): void => {
       if (!active) return;
       active = false;
       if (generation.releaseHostPhysicalRegistration !== exactRelease) return;
@@ -1827,7 +1626,7 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
         generation.hostPhysicalRegistrationToken = null;
       }
       noThrow(exactRelease);
-    });
+    };
   };
 
   const failComposition = (error: unknown): void => {
@@ -1838,17 +1637,17 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
     reportFailureNoThrow(error);
   };
 
-  const rendererContext: NarrativeSurfaceCompositionRendererContextInternalV1 = Object.freeze({
+  const rendererContext: NarrativeSurfaceCompositionRendererContextInternalV1 = {
     captureActionInternalV1: captureBoundHostAction,
     captureHistoryCloseInternalV1: captureHistoryClose,
     getSelectionInternalV1: () => current?.selection ?? null,
     subscribeInternalV1: (listener: () => void) => {
       listeners.add(listener);
-      return Object.freeze((): void => void listeners.delete(listener));
+      return (): void => void listeners.delete(listener);
     },
-  });
+  };
 
-  const adapter: NarrativeSurfaceCompositionRuntimeInternalV1 = Object.freeze({
+  const adapter: NarrativeSurfaceCompositionRuntimeInternalV1 = {
     detachRuntimeInternalV1(): void {
       const predecessor = current ?? prepared;
       current = null;
@@ -1868,51 +1667,43 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
         throw new TypeError("ui.narrative_surface_composition_kernel_invalid");
       }
       let generation: NarrativeSurfaceCompositionGenerationInternalV1 | null = null;
-      const candidatePreflight = Object.freeze({
+      const candidatePreflight = {
         preflightCandidateInternalV1(
           pending: PendingInteractionV1,
           rendererKey: string,
         ): NarrativeStableCandidatePreflightResultInternalV1 {
           const candidateSelection = generation?.reconcilingSelection ?? null;
           if (binding === null || candidateSelection === null) {
-            return Object.freeze({
+            return {
               kind: "rejected" as const,
               code: "narrative.renderer_missing" as const,
-            });
+            };
           }
-          if (publicBinding !== null) {
-            return createNarrativeSurfacePublicCandidateInternalV1(
-              publicBinding,
-              pending,
-              candidateSelection,
-              input.environment,
-              Object.freeze({
-                getSelectionInternalV1: () =>
-                  generation?.reconcilingSelection ?? generation?.selection ?? null,
-                subscribeInternalV1: (listener: () => void) => {
-                  listeners.add(listener);
-                  return Object.freeze((): void => void listeners.delete(listener));
-                },
-                reportFailureInternalV1: failComposition,
-              }),
-            );
-          }
-          return Reflect.apply(binding.preflightCandidate, binding.receiver, [
+          return binding.preflightCandidateInternalV1(
             pending,
             rendererKey,
             candidateSelection,
             input.environment,
-          ]);
+            {
+              getSelectionInternalV1: () =>
+                generation?.reconcilingSelection ?? generation?.selection ?? null,
+              subscribeInternalV1: (listener: () => void) => {
+                listeners.add(listener);
+                return (): void => void listeners.delete(listener);
+              },
+              reportFailureInternalV1: failComposition,
+            },
+          );
         },
-      });
+      };
       const bridge = createNarrativeStablePublisherBridgeInternalV1({
         kernelBundle: bundle,
         candidatePreflight,
         barrierStageClaimant: input.stageClaimant,
       });
-      const barrierRecoveryGate = Object.freeze({
+      const barrierRecoveryGate = {
         isOpen: (): boolean => generation?.barrierRecoveryGateOpen ?? false,
-      });
+      };
       try {
         const stableActionAuthority = claimManagedSurfaceStableActionRouteAuthorityInternalV1(
           bundle.compositeRuntimeKernel,
@@ -2017,7 +1808,7 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
         } finally {
           subscribing = false;
         }
-        if (!isCallableWithoutThenInternalV1(unsubscribe) || reentered) {
+        if (typeof unsubscribe !== "function" || reentered) {
           if (typeof unsubscribe === "function") noThrow(unsubscribe as () => void);
           throw new TypeError("ui.narrative_surface_composition_subscription_invalid");
         }
@@ -2027,7 +1818,7 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
         // still closed so no stale prepared target can escape activation.
         reconcile(generation);
       }
-      return Object.freeze((): void => {
+      return (): void => {
         if (disposed || prepared !== generation || !generation.active) return;
         if (!generation.activationGate.isOpen()) return;
         if (generation.dirty) {
@@ -2045,7 +1836,7 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
         prepared = null;
         current = generation;
         notifyNoThrow();
-      });
+      };
     },
 
     abortRuntimeAttachmentInternalV1(): void {
@@ -2165,6 +1956,6 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
       stageDriver = null;
       noThrow(() => persistentStageDriver?.disposeInternalV1());
     },
-  });
+  };
   return adapter;
 }

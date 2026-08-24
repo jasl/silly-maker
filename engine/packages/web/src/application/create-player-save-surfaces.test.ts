@@ -15,11 +15,11 @@ describe("createPlayerSaveSurfacesV1", () => {
     const listSlots = vi.fn();
     const clear = vi.fn();
     const surfaces = createPlayerSaveSurfacesV1({
-      files: Object.freeze({
+      files: ({
         selectOne: vi.fn(),
         download: vi.fn(),
       }) as never,
-      persistence: Object.freeze({
+      persistence: ({
         getStatus: vi.fn(),
         listSlots,
         save: vi.fn(),
@@ -45,11 +45,11 @@ describe("createPlayerSaveSurfacesV1", () => {
   it("always creates the debug maintenance port even without default Save UI labels", async () => {
     const listSlots = vi.fn(async () => []);
     const surfaces = createPlayerSaveSurfacesV1({
-      files: Object.freeze({
+      files: ({
         selectOne: vi.fn(),
         download: vi.fn(),
       }) as never,
-      persistence: Object.freeze({
+      persistence: ({
         getStatus: vi.fn(),
         listSlots,
         save: vi.fn(),
@@ -70,27 +70,30 @@ describe("createPlayerSaveSurfacesV1", () => {
 
   it("shares one player-safe port with the default Save UI when labels exist", () => {
     const surfaces = createPlayerSaveSurfacesV1({
-      files: Object.freeze({}) as never,
-      persistence: Object.freeze({}) as never,
+      files: ({}) as never,
+      persistence: ({}) as never,
       clearAllSaves: vi.fn(),
-      saveLabels: Object.freeze({}) as never,
+      saveLabels: ({}) as never,
     });
 
     expect(surfaces.saveUi?.port).toBe(surfaces.maintenance.savePort);
   });
 
   it("shares the one semantic inspection and recovery surface with UI and maintenance", async () => {
-    const inspectSave = vi.fn(async () =>
-      Object.freeze({ kind: "rejected" as const, slotId: "quick" as const, code: "empty_slot" })
-    );
-    const restoreBackup = vi.fn(async () =>
-      Object.freeze({ kind: "restored" as const, slotId: "quick" as const })
-    );
+    const inspectSave = vi.fn(async () => ({
+      kind: "rejected" as const,
+      slotId: "quick" as const,
+      code: "empty_slot",
+    }));
+    const restoreBackup = vi.fn(async () => ({
+      kind: "restored" as const,
+      slotId: "quick" as const,
+    }));
     const surfaces = createPlayerSaveSurfacesV1({
-      files: Object.freeze({ selectOne: vi.fn(), download: vi.fn() }) as never,
-      persistence: Object.freeze({ inspectSave, restoreBackup }) as never,
+      files: ({ selectOne: vi.fn(), download: vi.fn() }) as never,
+      persistence: ({ inspectSave, restoreBackup }) as never,
       clearAllSaves: vi.fn(),
-      saveLabels: Object.freeze({}) as never,
+      saveLabels: ({}) as never,
     });
 
     expect(surfaces.saveUi?.port).toBe(surfaces.maintenance.savePort);
@@ -105,14 +108,14 @@ describe("createPlayerSaveSurfacesV1", () => {
 
   it("preserves one declarative custom Saves component without creating the default Save UI", () => {
     const CustomSavesV1 = () => null;
-    const customSaves = Object.freeze({
+    const customSaves = {
       kind: "custom" as const,
       accessibleName: "Synthetic saves",
       component: CustomSavesV1,
-    });
+    };
     const surfaces = createPlayerSaveSurfacesV1({
-      files: Object.freeze({}) as never,
-      persistence: Object.freeze({}) as never,
+      files: ({}) as never,
+      persistence: ({}) as never,
       clearAllSaves: vi.fn(),
       customSaves,
     });
@@ -122,25 +125,25 @@ describe("createPlayerSaveSurfacesV1", () => {
   });
 
   it("rejects ambiguous standard/custom Save authority before either surface is created", () => {
-    const customSaves = Object.freeze({
+    const customSaves = {
       kind: "custom" as const,
       accessibleName: "Synthetic saves",
       component: () => null,
-    });
+    };
 
     expect(() =>
       createPlayerSaveSurfacesV1({
-        files: Object.freeze({}) as never,
-        persistence: Object.freeze({}) as never,
+        files: ({}) as never,
+        persistence: ({}) as never,
         clearAllSaves: vi.fn(),
-        saveLabels: Object.freeze({}) as never,
+        saveLabels: ({}) as never,
         customSaves,
       })
     ).toThrowError("web.system_saves_ambiguous");
     expect(() =>
       createPlayerSaveSurfacesV1({
-        files: Object.freeze({}) as never,
-        persistence: Object.freeze({}) as never,
+        files: ({}) as never,
+        persistence: ({}) as never,
         clearAllSaves: vi.fn(),
         saveGuard: () => ({ allowed: true }),
         customSaves,

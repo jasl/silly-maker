@@ -12,30 +12,28 @@ import {
   parseDiagnosticEnvelopeV1,
 } from "./diagnostic-envelope.ts";
 
-const fullEnvelopeV1 = Object.freeze({
+const fullEnvelopeV1 = {
   code: "authoring.schema.invalid_value",
   severity: "error" as const,
   phase: "definition" as const,
   message: "collected must be a non-negative integer",
-  subject: Object.freeze({ kind: "module", id: "lab.samples" }),
-  location: Object.freeze({ jsonPointer: "/collected" }),
-  related: Object.freeze([
-    Object.freeze({
+  subject: { kind: "module", id: "lab.samples" },
+  location: { jsonPointer: "/collected" },
+  related: [
+    {
       message: "declared here",
-      location: Object.freeze({ file: "src/gameplay/state.ts", line: 12 }),
-    }),
-  ]),
+      location: { file: "src/gameplay/state.ts", line: 12 },
+    },
+  ],
   suggestion: "Use a non-negative safe integer.",
   docsId: "authoring.schemas",
-  details: Object.freeze({ expected: "non-negative integer" }),
-});
+  details: { expected: "non-negative integer" },
+};
 
 describe("DiagnosticEnvelopeV1", () => {
-  it("parses a complete envelope and freezes the result", () => {
+  it("parses a complete envelope", () => {
     const parsed = parseDiagnosticEnvelopeV1(fullEnvelopeV1);
     expect(parsed).toEqual(fullEnvelopeV1);
-    expect(Object.isFrozen(parsed)).toBe(true);
-    expect(Object.isFrozen(parsed.location)).toBe(true);
   });
 
   it("is itself Strict/Canonical JSON and round-trips through its own schema", () => {

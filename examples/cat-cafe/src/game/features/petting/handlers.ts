@@ -6,7 +6,7 @@ import type { CatcafeCommandHandlerMapV1 } from "../../runtime.ts";
 import { emitCatcafeStageV1, transactionRunnerV1 } from "../../runtime.ts";
 import { catcafePettingV1, catcafeStageForWeekV1 } from "../../content.ts";
 
-export const pettingCommandHandlersV1: Pick<CatcafeCommandHandlerMapV1, "cc.pet"> = Object.freeze({
+export const pettingCommandHandlersV1: Pick<CatcafeCommandHandlerMapV1, "cc.pet"> = {
   "cc.pet": ({ snapshot, rng, state, command }) =>
     transactionRunnerV1.execute(snapshot, rng, (transaction) => {
       // Daily gameplay unlocks after the opening narrative completes.
@@ -25,11 +25,11 @@ export const pettingCommandHandlersV1: Pick<CatcafeCommandHandlerMapV1, "cc.pet"
       if (reaction === null) return transaction.reject({ code: "cc.petting_zone_unknown" });
       transaction.emit({
         kind: "cc.cat_set",
-        next: Object.freeze({
+        next: {
           ...state.cat,
           trust: state.cat.trust + reaction.trustDelta,
           pettingLeft: state.cat.pettingLeft - 1,
-        }),
+        },
       });
       transaction.emit({
         kind: "cc.petted",
@@ -56,4 +56,4 @@ export const pettingCommandHandlersV1: Pick<CatcafeCommandHandlerMapV1, "cc.pet"
       if (blocked !== null) return transaction.reject({ code: blocked });
       return transaction.complete();
     }),
-});
+};

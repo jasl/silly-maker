@@ -70,8 +70,8 @@ function computeGeometryV1(
   mode: "fit" | "fluid",
 ): GameViewportGeometryV1 {
   if (mode === "fluid") {
-    const fluidCanvas = Object.freeze({ width: available.width, height: available.height });
-    return Object.freeze({
+    const fluidCanvas = { width: available.width, height: available.height };
+    return {
       canvas: fluidCanvas,
       scale: 1,
       cssWidth: available.width,
@@ -79,13 +79,13 @@ function computeGeometryV1(
       letterboxInline: 0,
       letterboxBlock: 0,
       toCssPx: (logical: number) => logical,
-    });
+    };
   }
   const fitScale = Math.min(available.width / canvas.width, available.height / canvas.height);
   const scale = Math.min(Math.max(fitScale, 0), maxScale);
   const cssWidth = canvas.width * scale;
   const cssHeight = canvas.height * scale;
-  return Object.freeze({
+  return {
     canvas,
     scale,
     cssWidth,
@@ -93,13 +93,13 @@ function computeGeometryV1(
     letterboxInline: Math.max(0, (available.width - cssWidth) / 2),
     letterboxBlock: Math.max(0, (available.height - cssHeight) / 2),
     toCssPx: (logical: number) => logical * scale,
-  });
+  };
 }
 
 function measureElementV1(element: HTMLElement): GameViewportSizeV1 | null {
   const rect = element.getBoundingClientRect();
   if (rect.width <= 0 || rect.height <= 0) return null;
-  return Object.freeze({ width: rect.width, height: rect.height });
+  return { width: rect.width, height: rect.height };
 }
 
 /**
@@ -140,8 +140,8 @@ export function GameViewportV1(props: GameViewportPropsV1): ReactElement {
   const geometry = useMemo(
     () =>
       computeGeometryV1(
-        Object.freeze({ width: canvasWidth, height: canvasHeight }),
-        Object.freeze({ width: availableWidth, height: availableHeight }),
+        { width: canvasWidth, height: canvasHeight },
+        { width: availableWidth, height: availableHeight },
         maxScale,
         mode,
       ),

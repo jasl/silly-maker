@@ -9,15 +9,15 @@ export interface BrowserImageLoaderEnvironmentV1 {
 type BrowserImageLoadResultV1 = Awaited<ReturnType<RuntimeAssetLoaderV1["load"]>>;
 type AbortPendingLoadV1 = () => void;
 
-const abortedResultV1 = Object.freeze({ kind: "aborted" as const });
-const fetchFailedResultV1 = Object.freeze({
+const abortedResultV1 = { kind: "aborted" as const };
+const fetchFailedResultV1 = {
   kind: "failed" as const,
   code: "fetch_failed" as const,
-});
-const decodeFailedResultV1 = Object.freeze({
+};
+const decodeFailedResultV1 = {
   kind: "failed" as const,
   code: "decode_failed" as const,
-});
+};
 
 /**
  * Creates the browser-only adapter that resolves and decodes one runtime image request.
@@ -30,7 +30,7 @@ export function createBrowserImageLoaderV1(
   const pendingLoads = new Set<AbortPendingLoadV1>();
   let disposed = false;
 
-  const loader: RuntimeAssetLoaderV1 = Object.freeze({
+  const loader: RuntimeAssetLoaderV1 = {
     cacheKey(request: RuntimeAssetLoadRequestV1) {
       return environment.resolveRuntimeUrl(request.runtimePath);
     },
@@ -75,7 +75,7 @@ export function createBrowserImageLoaderV1(
             settle(
               disposed || signal.aborted
                 ? abortedResultV1
-                : Object.freeze({ kind: "loaded" as const, url: finalUrl }),
+                : ({ kind: "loaded" as const, url: finalUrl }),
               disposed || signal.aborted,
             );
           } catch {
@@ -115,7 +115,7 @@ export function createBrowserImageLoaderV1(
       disposed = true;
       for (const abortPendingLoad of [...pendingLoads]) abortPendingLoad();
     },
-  });
+  };
 
   return loader;
 }

@@ -306,15 +306,8 @@ describe("dormant managed stable vector admission", () => {
     expect(result).not.toHaveProperty("delta");
   });
 
-  it("requires callable schemas and rejects duplicate catalog entries", () => {
+  it("rejects duplicate catalog entries", () => {
     const sidecars = definitionSidecarsV1();
-    expect(() =>
-      harnessV1({
-        definitionSidecars: definitionSidecarsV1(
-          new Map([[rootStackDefinitionIdV1, { parse: null } as never]]),
-        ),
-      })
-    ).toThrow(TypeError);
     expect(() =>
       harnessV1({
         definitionSidecars: Object.freeze([...sidecars, sidecars[0]!]),
@@ -1403,14 +1396,17 @@ describe("dormant managed stable vector admission", () => {
 
   it("uses the captured R1 proof across schema callbacks and later issuance", () => {
     {
-      let harness!: StableAdmissionHarnessV1;
-      const disposingSchema = schemaV1((value) => {
-        expect(harness.registry.disposePublisherLease(harness.workspace.lease)).toBe("disposed");
-        return value;
-      });
-      harness = harnessV1({
+      const harness: StableAdmissionHarnessV1 = harnessV1({
         definitionSidecars: definitionSidecarsV1(
-          new Map([[rootStackDefinitionIdV1, disposingSchema]]),
+          new Map([[
+            rootStackDefinitionIdV1,
+            schemaV1((value) => {
+              expect(harness.registry.disposePublisherLease(harness.workspace.lease)).toBe(
+                "disposed",
+              );
+              return value;
+            }),
+          ]]),
         ),
       });
       const occurrence = harness.workspace.issueOccurrence();
@@ -1429,15 +1425,16 @@ describe("dormant managed stable vector admission", () => {
     }
 
     {
-      let harness!: StableAdmissionHarnessV1;
       let lateOccurrence: string | null = null;
-      const issuingSchema = schemaV1((value) => {
-        lateOccurrence = harness.workspace.issueOccurrence();
-        return value;
-      });
-      harness = harnessV1({
+      const harness: StableAdmissionHarnessV1 = harnessV1({
         definitionSidecars: definitionSidecarsV1(
-          new Map([[rootStackDefinitionIdV1, issuingSchema]]),
+          new Map([[
+            rootStackDefinitionIdV1,
+            schemaV1((value) => {
+              lateOccurrence = harness.workspace.issueOccurrence();
+              return value;
+            }),
+          ]]),
         ),
       });
       const occurrence = harness.workspace.issueOccurrence();

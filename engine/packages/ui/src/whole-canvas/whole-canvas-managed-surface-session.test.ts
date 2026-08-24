@@ -23,35 +23,38 @@ import {
   type WholeCanvasManagedSurfaceTargetInternalV1,
 } from "./whole-canvas-managed-surface-session.ts";
 
-function targetV1(targetId: string, parameters: unknown = {}) {
-  return Object.freeze({ targetId, parameters: Object.freeze(parameters) });
+function targetV1(
+  targetId: string,
+  parameters: unknown = {},
+): WholeCanvasManagedSurfaceTargetInternalV1 {
+  return { targetId, parameters } as WholeCanvasManagedSurfaceTargetInternalV1;
 }
 
 function ownerActionV1(actionId: string, payload: unknown = {}) {
-  return Object.freeze({
+  return {
     actionId,
     status: "enabled" as const,
-    reasonTextIds: Object.freeze([]),
-    intent: Object.freeze({ kind: "owner" as const, payload: Object.freeze(payload) }),
-  });
+    reasonTextIds: [],
+    intent: { kind: "owner" as const, payload },
+  };
 }
 
 function openDetailActionV1(actionId: string, target: WholeCanvasManagedSurfaceTargetInternalV1) {
-  return Object.freeze({
+  return {
     actionId,
     status: "enabled" as const,
-    reasonTextIds: Object.freeze([]),
-    intent: Object.freeze({ kind: "open_detail" as const, target }),
-  });
+    reasonTextIds: [],
+    intent: { kind: "open_detail" as const, target },
+  };
 }
 
 function backActionV1(actionId: string) {
-  return Object.freeze({
+  return {
     actionId,
     status: "enabled" as const,
-    reasonTextIds: Object.freeze([]),
-    intent: Object.freeze({ kind: "back" as const }),
-  });
+    reasonTextIds: [],
+    intent: { kind: "back" as const },
+  };
 }
 
 function resolvedV1(input: {
@@ -59,11 +62,11 @@ function resolvedV1(input: {
   readonly actions?: readonly unknown[];
   readonly version?: number;
 }): WholeCanvasManagedSurfaceResolvedTargetInternalV1 {
-  return Object.freeze({
+  return {
     accessibleNameTextId: `text.${input.targetId}`,
-    view: Object.freeze({ version: input.version ?? 1 }),
-    actions: Object.freeze(input.actions ?? []),
-  }) as WholeCanvasManagedSurfaceResolvedTargetInternalV1;
+    view: { version: input.version ?? 1 },
+    actions: input.actions ?? [],
+  } as WholeCanvasManagedSurfaceResolvedTargetInternalV1;
 }
 
 function catalogRowV1(input: {
@@ -72,23 +75,23 @@ function catalogRowV1(input: {
   readonly actionIds?: readonly string[];
   readonly defaultActionId?: string | null;
 }): WholeCanvasManagedSurfaceCatalogRowInternalV1 {
-  return Object.freeze({
+  return {
     targetId: input.targetId,
     contractRevision: 1,
-    placements: Object.freeze([...input.placements]),
-    actionIds: Object.freeze([...(input.actionIds ?? [])]),
+    placements: [...input.placements],
+    actionIds: [...(input.actionIds ?? [])],
     defaultActionId: input.defaultActionId ?? null,
-  });
+  };
 }
 
 function defaultCatalogV1(): readonly WholeCanvasManagedSurfaceCatalogRowInternalV1[] {
-  return Object.freeze([
+  return [
     catalogRowV1({ targetId: "test.whole-canvas.a", placements: ["primary"] }),
     catalogRowV1({ targetId: "test.whole-canvas.b", placements: ["primary"] }),
     catalogRowV1({ targetId: "test.whole-canvas.detail-d", placements: ["detail"] }),
     catalogRowV1({ targetId: "test.whole-canvas.detail-e", placements: ["detail"] }),
     catalogRowV1({ targetId: "test.whole-canvas.detail", placements: ["detail"] }),
-  ]);
+  ];
 }
 
 interface HarnessV1 {
@@ -107,6 +110,7 @@ function harnessV1(
     readonly applicationEpoch?: number;
     readonly catalog?: readonly WholeCanvasManagedSurfaceCatalogRowInternalV1[];
     readonly hostCommitPortInternalV1?: WholeCanvasManagedSurfaceHostCommitPortInternalV1 | null;
+    readonly dispatchOwnerAvailable?: boolean;
   }> = {},
 ): HarnessV1 {
   const applicationEpoch = input.applicationEpoch ?? 101;
@@ -128,13 +132,13 @@ function harnessV1(
   const resolveTargetInternalV1 = (
     request: WholeCanvasManagedSurfaceResolveTargetRequestInternalV1,
   ) => resolutions.get(`${request.placement}:${request.target.targetId}`) ?? null;
-  const session = createWholeCanvasManagedSurfaceSessionInternalV1(Object.freeze({
+  const session = createWholeCanvasManagedSurfaceSessionInternalV1({
     kernelBundle: bundle,
     family: contract,
     resolveTargetInternalV1,
-    dispatchOwnerActionInternalV1: dispatchOwner,
+    dispatchOwnerActionInternalV1: input.dispatchOwnerAvailable === false ? null : dispatchOwner,
     hostCommitPortInternalV1: input.hostCommitPortInternalV1 ?? null,
-  }));
+  });
   return { session, resolutions, dispatchOwner, bundle, registry, authority, kernel, contract };
 }
 
@@ -144,16 +148,16 @@ function desiredV1(
   rootKind: "boot_splash" | "title" | "primary" = "primary",
 ): WholeCanvasManagedSurfaceRootDesiredInternalV1 {
   if (rootKind === "boot_splash") {
-    return Object.freeze({ bootSplash: target, title: null, story: null });
+    return { bootSplash: target, title: null, story: null };
   }
   if (rootKind === "title") {
-    return Object.freeze({ bootSplash: null, title: target, story: null });
+    return { bootSplash: null, title: target, story: null };
   }
-  return Object.freeze({
+  return {
     bootSplash: null,
     title: null,
-    story: Object.freeze({ sourceKind, target }),
-  });
+    story: { sourceKind, target },
+  };
 }
 
 interface HostCommitHarnessV1 {
@@ -188,7 +192,7 @@ function hostCommitHarnessV1(): HostCommitHarnessV1 {
   let commitEffect: (() => void) | null = null;
   let completeEffect: (() => void) | null = null;
   let terminalizeEffect: (() => void) | null = null;
-  const port = Object.freeze({
+  const port = {
     prepareCommitInternalV1(
       request: WholeCanvasManagedSurfaceHostCommitRequestInternalV1,
     ): WholeCanvasManagedSurfacePreparedHostCommitInternalV1 {
@@ -196,7 +200,7 @@ function hostCommitHarnessV1(): HostCommitHarnessV1 {
       generation += 1;
       const candidateGeneration = generation;
       prepareEffect?.();
-      const candidate = Object.freeze({
+      const candidate = {
         hostGeneration: candidateGeneration,
         commitInternalV1(input: WholeCanvasManagedSurfaceHostCommitInputInternalV1): boolean {
           events.push("host.commit");
@@ -210,7 +214,7 @@ function hostCommitHarnessV1(): HostCommitHarnessV1 {
           completeGenerations.push(candidateGeneration);
           completeEffect?.();
         },
-      }) as WholeCanvasManagedSurfacePreparedHostCommitInternalV1;
+      } as WholeCanvasManagedSurfacePreparedHostCommitInternalV1;
       prepared.push(candidate);
       return candidate;
     },
@@ -218,7 +222,7 @@ function hostCommitHarnessV1(): HostCommitHarnessV1 {
       terminalize();
       terminalizeEffect?.();
     },
-  });
+  };
   return {
     port,
     requests,
@@ -257,11 +261,11 @@ function aggregateV1(input: {
     }>
     | null;
 }): WholeCanvasManagedSurfaceRootDesiredInternalV1 {
-  return Object.freeze({
+  return {
     bootSplash: input.bootSplash ?? null,
     title: input.title ?? null,
     story: input.story ?? null,
-  });
+  };
 }
 
 function installResolutionV1(
@@ -308,50 +312,36 @@ function openRootV1(
 }
 
 describe("whole-canvas managed Surface session", () => {
-  it("rejects malformed root and resolved action data with exact zero delta", () => {
+  it("rejects an owner intent when no owner dispatcher is installed", () => {
+    const targetId = "test.whole-canvas.ownerless";
+    const actionId = "test.ownerless.action";
     const harness = harnessV1({
-      catalog: Object.freeze([
+      catalog: [catalogRowV1({ targetId, placements: ["primary"], actionIds: [actionId] })],
+      dispatchOwnerAvailable: false,
+    });
+    installResolutionV1(
+      harness,
+      "primary",
+      targetId,
+      resolvedV1({ targetId, actions: [ownerActionV1(actionId)] }),
+    );
+    expect(harness.session.reconcileRootInternalV1(desiredV1(targetV1(targetId))))
+      .toMatchObject({ kind: "rejected" });
+  });
+
+  it("rejects malformed root and resolved action data atomically", () => {
+    const harness = harnessV1({
+      catalog: [
         catalogRowV1({
           targetId: "test.whole-canvas.invalid",
           placements: ["primary"],
           actionIds: ["test.action"],
         }),
-      ]),
+      ],
     });
     const before = harness.session.getSnapshotInternalV1();
     const publisherBefore = harness.registry.getSnapshot();
-    const revokedConstructorInput = Proxy.revocable({}, {});
-    revokedConstructorInput.revoke();
-    expect(() =>
-      createWholeCanvasManagedSurfaceSessionInternalV1(
-        revokedConstructorInput.proxy as never,
-      )
-    ).toThrowError("ui.whole_canvas_session_invalid");
-
-    const revokedDesired = Proxy.revocable({}, {});
-    revokedDesired.revoke();
-    expect(() => harness.session.reconcileRootInternalV1(revokedDesired.proxy as never)).not
-      .toThrow();
-    expect(harness.session.reconcileRootInternalV1(revokedDesired.proxy as never)).toMatchObject({
-      kind: "rejected",
-    });
-    const trappingDesired = new Proxy({}, {
-      ownKeys(): never {
-        throw new Error("ownKeys trap");
-      },
-    });
-    expect(harness.session.reconcileRootInternalV1(trappingDesired as never)).toMatchObject({
-      kind: "rejected",
-    });
-    const revokedAction = Proxy.revocable({}, {});
-    revokedAction.revoke();
-    expect(() => harness.session.dispatchActionInternalV1(revokedAction.proxy as never)).not
-      .toThrow();
-    expect(harness.session.dispatchActionInternalV1(revokedAction.proxy as never)).toMatchObject({
-      kind: "stale",
-    });
-
-    const dormant = harnessV1({ catalog: Object.freeze([]) });
+    const dormant = harnessV1({ catalog: [] });
     installResolutionV1(
       dormant,
       "primary",
@@ -376,26 +366,21 @@ describe("whole-canvas managed Surface session", () => {
       desiredV1(targetV1("test.whole-canvas.detail-d")),
     )).toMatchObject({ kind: "rejected" });
 
-    expect(harness.session.reconcileRootInternalV1({ rootKind: "primary" } as never)).toMatchObject(
-      {
-        kind: "rejected",
-      },
-    );
     installResolutionV1(
       harness,
       "primary",
       "test.whole-canvas.invalid",
-      Object.freeze({
+      ({
         accessibleNameTextId: "text.invalid",
-        view: Object.freeze({}),
-        actions: Object.freeze([
-          Object.freeze({
+        view: {},
+        actions: [
+          {
             actionId: "test.action",
             status: "enabled",
-            reasonTextIds: Object.freeze(["text.must-be-empty"]),
-            intent: Object.freeze({ kind: "back" }),
-          }),
-        ]),
+            reasonTextIds: ["text.must-be-empty"],
+            intent: { kind: "back" },
+          },
+        ],
       }) as never,
     );
     expect(
@@ -409,12 +394,12 @@ describe("whole-canvas managed Surface session", () => {
       "test.whole-canvas.invalid",
       resolvedV1({
         targetId: "test.whole-canvas.invalid",
-        actions: [Object.freeze({
+        actions: [{
           actionId: "test.action",
           status: "enabled",
-          reasonTextIds: Object.freeze([]),
-          intent: Object.freeze({ kind: "owner", payload: Object.freeze([]) }),
-        })],
+          reasonTextIds: [],
+          intent: { kind: "owner", payload: [] },
+        }],
       }),
     );
     expect(
@@ -446,12 +431,12 @@ describe("whole-canvas managed Surface session", () => {
       title.targetId,
       resolvedV1({
         targetId: title.targetId,
-        actions: [Object.freeze({
+        actions: [{
           actionId: "whole-canvas.title.continue",
           status: "enabled" as const,
-          reasonTextIds: Object.freeze([]),
-          intent: Object.freeze({ kind: "close_primary" as const }),
-        })],
+          reasonTextIds: [],
+          intent: { kind: "close_primary" as const },
+        }],
       }),
     );
     for (const target of [storyA, storyB]) {
@@ -466,7 +451,7 @@ describe("whole-canvas managed Surface session", () => {
     expect(harness.session.reconcileRootInternalV1(aggregateV1({
       bootSplash: splash,
       title,
-      story: Object.freeze({ sourceKind: "application", target: storyA }),
+      story: { sourceKind: "application", target: storyA },
     }))).toMatchObject({ kind: "applied" });
     const splashEntry = settleRootReadyV1(harness);
     expect(splashEntry.rootKind).toBe("boot_splash");
@@ -475,16 +460,16 @@ describe("whole-canvas managed Surface session", () => {
     expect(harness.session.reconcileRootInternalV1(aggregateV1({
       bootSplash: splash,
       title,
-      story: Object.freeze({ sourceKind: "application", target: storyB }),
+      story: { sourceKind: "application", target: storyB },
     }))).toMatchObject({ kind: "unchanged" });
     expect(harness.session.getSnapshotInternalV1().root.current).toBe(splashEntry);
     expect(harness.session.getSnapshotInternalV1().root.pending).toBeNull();
     expect(splashEntry.frame.sourceRevision).toBe(splashSourceRevision);
 
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: splashEntry.frame,
       actionId: "ui.cancel",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
     expect(harness.session.getSnapshotInternalV1().root.current).toBe(splashEntry);
     expect(harness.session.getSnapshotInternalV1().root.pending?.renderEntry.rootKind).toBe(
       "title",
@@ -492,10 +477,10 @@ describe("whole-canvas managed Surface session", () => {
     const titleEntry = settleRootReadyV1(harness);
     expect(titleEntry.rootKind).toBe("title");
 
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: titleEntry.frame,
       actionId: "whole-canvas.title.continue",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
     expect(harness.session.getSnapshotInternalV1().root.current).toBe(titleEntry);
     expect(harness.session.getSnapshotInternalV1().root.pending?.renderEntry.target).toEqual(
       storyB,
@@ -510,23 +495,14 @@ describe("whole-canvas managed Surface session", () => {
     expect(harness.session.getSnapshotInternalV1().root.current).toBeNull();
   });
 
-  it("keeps stable target equivalence and never reuses a closed occurrence", () => {
+  it("keeps stable admitted target identity and never reuses a closed occurrence", () => {
     const harness = harnessV1();
-    const a = targetV1("test.whole-canvas.a", Object.freeze({ z: 2, a: true }));
+    const a = targetV1("test.whole-canvas.a", { z: 2, a: true });
     installResolutionV1(harness, "primary", a.targetId, resolvedV1({ targetId: a.targetId }));
     expect(harness.session.reconcileRootInternalV1(desiredV1(a))).toMatchObject({
       kind: "applied",
     });
     const first = settleRootReadyV1(harness);
-
-    const canonicalEqual = targetV1(
-      "test.whole-canvas.a",
-      Object.freeze({ a: true, z: 2 }),
-    );
-    expect(harness.session.reconcileRootInternalV1(desiredV1(canonicalEqual))).toMatchObject({
-      kind: "unchanged",
-    });
-    expect(harness.session.getSnapshotInternalV1().root.current).toBe(first);
 
     const b = targetV1("test.whole-canvas.b");
     installResolutionV1(harness, "primary", b.targetId, resolvedV1({ targetId: b.targetId }));
@@ -626,13 +602,13 @@ describe("whole-canvas managed Surface session", () => {
 
   it("publishes exact view and action churn deltas while retaining occurrence and instance", () => {
     const harness = harnessV1({
-      catalog: Object.freeze([
+      catalog: [
         catalogRowV1({
           targetId: "test.whole-canvas.a",
           placements: ["primary"],
           actionIds: ["test.action.run"],
         }),
-      ]),
+      ],
     });
     const action = ownerActionV1("test.action.run", { version: 1 });
     const first = openRootV1(
@@ -640,10 +616,10 @@ describe("whole-canvas managed Surface session", () => {
       "test.whole-canvas.a",
       resolvedV1({ targetId: "test.whole-canvas.a", actions: [action] }),
     );
-    const capturedPointerActivation = Object.freeze({
+    const capturedPointerActivation = {
       frame: first.frame,
       actionId: "test.action.run",
-    });
+    };
 
     installResolutionV1(
       harness,
@@ -676,19 +652,6 @@ describe("whole-canvas managed Surface session", () => {
       first.frame.primaryTargetOccurrenceId,
     );
     expect(viewCurrent.frame.primaryInstanceId).toBe(first.frame.primaryInstanceId);
-    expect(Object.isFrozen(viewCurrent.frame)).toBe(true);
-    expect(Reflect.ownKeys(viewCurrent.frame)).toEqual([
-      "applicationEpoch",
-      "sourceRevision",
-      "primaryTargetOccurrenceId",
-      "primaryInstanceId",
-      "detailTargetOccurrenceId",
-      "detailInstanceId",
-      "surfacePublicationRevision",
-      "surfaceTopologyRevision",
-      "inputPublicationRevision",
-      "hostGeneration",
-    ]);
     expect(harness.session.dispatchActionInternalV1(capturedPointerActivation)).toMatchObject({
       kind: "stale",
     });
@@ -722,15 +685,15 @@ describe("whole-canvas managed Surface session", () => {
       first.frame.primaryTargetOccurrenceId,
     );
     expect(actionCurrent.frame.primaryInstanceId).toBe(first.frame.primaryInstanceId);
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: viewCurrent.frame,
       actionId: "test.action.run",
-    }))).toMatchObject({ kind: "stale" });
+    })).toMatchObject({ kind: "stale" });
   });
 
   it("enforces one exact-parent detail through open, equal, replace, close, and primary cascade", () => {
     const harness = harnessV1({
-      catalog: Object.freeze([
+      catalog: [
         catalogRowV1({
           targetId: "test.whole-canvas.a",
           placements: ["primary"],
@@ -747,7 +710,7 @@ describe("whole-canvas managed Surface session", () => {
           placements: ["detail"],
           actionIds: ["test.action.open-self-detail"],
         }),
-      ]),
+      ],
     });
     const detailD = targetV1("test.whole-canvas.detail-d");
     const root = openRootV1(
@@ -773,19 +736,19 @@ describe("whole-canvas managed Surface session", () => {
         ],
       }),
     );
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: root.frame,
       actionId: "test.action.open-detail",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
     const firstDetail = settleDetailReadyV1(harness);
     expect(firstDetail.frame.primaryTargetOccurrenceId).toBe(
       root.frame.primaryTargetOccurrenceId,
     );
     expect(firstDetail.frame.primaryInstanceId).toBe(root.frame.primaryInstanceId);
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: root.frame,
       actionId: "test.action.open-detail",
-    }))).toMatchObject({ kind: "stale" });
+    })).toMatchObject({ kind: "stale" });
 
     installResolutionV1(
       harness,
@@ -826,10 +789,10 @@ describe("whole-canvas managed Surface session", () => {
       firstDetail.frame.detailTargetOccurrenceId,
     );
     expect(refreshedDetail.frame.detailInstanceId).toBe(firstDetail.frame.detailInstanceId);
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: firstDetail.frame,
       actionId: "test.action.open-next-detail",
-    }))).toMatchObject({ kind: "stale" });
+    })).toMatchObject({ kind: "stale" });
 
     installResolutionV1(
       harness,
@@ -844,16 +807,16 @@ describe("whole-canvas managed Surface session", () => {
             "test.action.open-next-detail",
             targetV1(
               "test.whole-canvas.detail-e",
-              Object.freeze({ variant: 2 }),
+              { variant: 2 },
             ),
           ),
         ],
       }),
     );
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: refreshedDetail.frame,
       actionId: "test.action.open-same-detail",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
     const directlyRefreshedDetail = harness.session.getSnapshotInternalV1().detail.current!;
     expect(directlyRefreshedDetail.resolved.view).toEqual({ version: 3 });
     expect(directlyRefreshedDetail.frame.detailTargetOccurrenceId).toBe(
@@ -879,10 +842,10 @@ describe("whole-canvas managed Surface session", () => {
     );
     refreshedDetail = directlyRefreshedDetail;
 
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: refreshedDetail.frame,
       actionId: "test.action.open-same-detail",
-    }))).toMatchObject({ kind: "unchanged" });
+    })).toMatchObject({ kind: "unchanged" });
     expect(harness.session.getSnapshotInternalV1().detail.current).toBe(refreshedDetail);
 
     const detailE = targetV1("test.whole-canvas.detail-e");
@@ -895,10 +858,10 @@ describe("whole-canvas managed Surface session", () => {
         actions: [openDetailActionV1("test.action.open-self-detail", detailE)],
       }),
     );
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: refreshedDetail.frame,
       actionId: "test.action.open-next-detail",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
     expect(harness.session.getSnapshotInternalV1().detail.current).toBeNull();
     let secondDetail = settleDetailReadyV1(harness);
     expect(secondDetail.frame.detailTargetOccurrenceId).not.toBe(
@@ -907,21 +870,21 @@ describe("whole-canvas managed Surface session", () => {
     expect(secondDetail.frame.detailInstanceId).not.toBe(refreshedDetail.frame.detailInstanceId);
 
     for (const kind of ["back", "escape", "backdrop", "routed_cancel"] as const) {
-      expect(harness.session.dismissInternalV1(Object.freeze({
+      expect(harness.session.dismissInternalV1({
         frame: secondDetail.frame,
         kind,
-      }))).toMatchObject({ kind: "applied" });
+      })).toMatchObject({ kind: "applied" });
       expect(harness.session.getSnapshotInternalV1().detail.current).toBeNull();
       const resumedRoot = harness.session.getSnapshotInternalV1().root.current!;
       expect(resumedRoot.frame.primaryInstanceId).toBe(root.frame.primaryInstanceId);
-      expect(harness.session.dispatchActionInternalV1(Object.freeze({
+      expect(harness.session.dispatchActionInternalV1({
         frame: root.frame,
         actionId: "test.action.open-detail",
-      }))).toMatchObject({ kind: "stale" });
-      expect(harness.session.dispatchActionInternalV1(Object.freeze({
+      })).toMatchObject({ kind: "stale" });
+      expect(harness.session.dispatchActionInternalV1({
         frame: resumedRoot.frame,
         actionId: "test.action.open-detail",
-      }))).toMatchObject({ kind: "applied" });
+      })).toMatchObject({ kind: "applied" });
       const reopened = settleDetailReadyV1(harness);
       expect(reopened.frame.detailTargetOccurrenceId).not.toBe(
         secondDetail.frame.detailTargetOccurrenceId,
@@ -956,24 +919,24 @@ describe("whole-canvas managed Surface session", () => {
     );
     expect(harness.session.getSnapshotInternalV1().detail.current).toBe(secondDetail);
     expect(harness.session.isFrameCurrentInternalV1(secondDetail.frame)).toBe(true);
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: secondDetail.frame,
       actionId: "test.action.open-same-detail",
-    }))).toMatchObject({ kind: "unchanged" });
+    })).toMatchObject({ kind: "unchanged" });
     expect(harness.session.getSnapshotInternalV1().detail.current).toBe(secondDetail);
     expect(harness.session.getSnapshotInternalV1().root.pending).toBe(pendingB);
     settleRootReadyV1(harness);
     expect(harness.session.getSnapshotInternalV1().detail.current).toBeNull();
-    expect(harness.session.dismissInternalV1(Object.freeze({
+    expect(harness.session.dismissInternalV1({
       frame: secondDetail.frame,
       kind: "back",
-    }))).toMatchObject({ kind: "stale" });
+    })).toMatchObject({ kind: "stale" });
   });
 
   it("opens a claimant-bound detail from a retained root and cascades it at replacement cutover", () => {
     const detailTarget = targetV1("test.whole-canvas.detail");
     const harness = harnessV1({
-      catalog: Object.freeze([
+      catalog: [
         catalogRowV1({
           targetId: "test.whole-canvas.a",
           placements: ["primary"],
@@ -981,7 +944,7 @@ describe("whole-canvas managed Surface session", () => {
         }),
         catalogRowV1({ targetId: "test.whole-canvas.b", placements: ["primary"] }),
         catalogRowV1({ targetId: detailTarget.targetId, placements: ["detail"] }),
-      ]),
+      ],
     });
     const currentA = openRootV1(
       harness,
@@ -1008,10 +971,10 @@ describe("whole-canvas managed Surface session", () => {
       desiredV1(targetV1("test.whole-canvas.b")),
     )).toMatchObject({ kind: "applied" });
     const pendingB = harness.session.getSnapshotInternalV1().root.pending!;
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: currentA.frame,
       actionId: "test.action.open-detail",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
     const retainedDetail = settleDetailReadyV1(harness);
     expect(harness.session.getSnapshotInternalV1().root.current?.target.targetId).toBe(
       "test.whole-canvas.a",
@@ -1026,16 +989,16 @@ describe("whole-canvas managed Surface session", () => {
       "test.whole-canvas.b",
     );
     expect(harness.session.getSnapshotInternalV1().detail.current).toBeNull();
-    expect(harness.session.dismissInternalV1(Object.freeze({
+    expect(harness.session.dismissInternalV1({
       frame: retainedDetail.frame,
       kind: "back",
-    }))).toMatchObject({ kind: "stale" });
+    })).toMatchObject({ kind: "stale" });
   });
 
   it("refreshes a pending detail projection in place with its current root source", () => {
     const detailTarget = targetV1("test.whole-canvas.detail");
     const harness = harnessV1({
-      catalog: Object.freeze([
+      catalog: [
         catalogRowV1({
           targetId: "test.whole-canvas.a",
           placements: ["primary"],
@@ -1046,7 +1009,7 @@ describe("whole-canvas managed Surface session", () => {
           placements: ["detail"],
           actionIds: ["test.action.pending-owner"],
         }),
-      ]),
+      ],
     });
     const rootTarget = targetV1("test.whole-canvas.a");
     const root = openRootV1(
@@ -1068,10 +1031,10 @@ describe("whole-canvas managed Surface session", () => {
         actions: [ownerActionV1("test.action.pending-owner", { version: 1 })],
       }),
     );
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: root.frame,
       actionId: "test.action.open-detail",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
     const pending = harness.session.getSnapshotInternalV1().detail.pending!;
 
     installResolutionV1(
@@ -1203,14 +1166,14 @@ describe("whole-canvas managed Surface session", () => {
     );
 
     const detailHarness = harnessV1({
-      catalog: Object.freeze([
+      catalog: [
         catalogRowV1({
           targetId: "test.whole-canvas.a",
           placements: ["primary"],
           actionIds: ["test.action.open-detail"],
         }),
         catalogRowV1({ targetId: "test.whole-canvas.detail", placements: ["detail"] }),
-      ]),
+      ],
     });
     const detail = targetV1("test.whole-canvas.detail");
     const detailRoot = openRootV1(
@@ -1227,10 +1190,10 @@ describe("whole-canvas managed Surface session", () => {
       detail.targetId,
       resolvedV1({ targetId: detail.targetId }),
     );
-    expect(detailHarness.session.dispatchActionInternalV1(Object.freeze({
+    expect(detailHarness.session.dispatchActionInternalV1({
       frame: detailRoot.frame,
       actionId: "test.action.open-detail",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
     const detailPreparation = detailHarness.session.getSnapshotInternalV1().detail.pending!
       .preparation;
     expect(detailHarness.session.cancelReadinessInternalV1(detailPreparation)).toMatchObject({
@@ -1244,15 +1207,15 @@ describe("whole-canvas managed Surface session", () => {
       kind: "stale",
     });
     const readyDetail = settleDetailReadyV1(detailHarness);
-    expect(detailHarness.session.dismissInternalV1(Object.freeze({
+    expect(detailHarness.session.dismissInternalV1({
       frame: readyDetail.frame,
       kind: "back",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
     const resumedRoot = detailHarness.session.getSnapshotInternalV1().root.current!;
-    expect(detailHarness.session.dispatchActionInternalV1(Object.freeze({
+    expect(detailHarness.session.dispatchActionInternalV1({
       frame: resumedRoot.frame,
       actionId: "test.action.open-detail",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
     const failedDetail = detailHarness.session.getSnapshotInternalV1().detail.pending!.preparation;
     expect(detailHarness.session.settleReadinessFailedInternalV1(failedDetail)).toMatchObject({
       kind: "faulted",
@@ -1267,7 +1230,7 @@ describe("whole-canvas managed Surface session", () => {
   it("keeps a failed replacement predecessor actionable and rotates it on retry", () => {
     const detailTarget = targetV1("test.whole-canvas.detail");
     const harness = harnessV1({
-      catalog: Object.freeze([
+      catalog: [
         catalogRowV1({
           targetId: "test.whole-canvas.a",
           placements: ["primary"],
@@ -1275,7 +1238,7 @@ describe("whole-canvas managed Surface session", () => {
         }),
         catalogRowV1({ targetId: "test.whole-canvas.b", placements: ["primary"] }),
         catalogRowV1({ targetId: detailTarget.targetId, placements: ["detail"] }),
-      ]),
+      ],
     });
     const currentA = openRootV1(
       harness,
@@ -1309,20 +1272,20 @@ describe("whole-canvas managed Surface session", () => {
       kind: "faulted",
     });
     expect(harness.session.getSnapshotInternalV1().root.current).toBe(currentA);
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: currentA.frame,
       actionId: "test.action.owner",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
     expect(harness.dispatchOwner).toHaveBeenCalledOnce();
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: currentA.frame,
       actionId: "test.action.open-detail",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
     const detail = settleDetailReadyV1(harness);
-    expect(harness.session.dismissInternalV1(Object.freeze({
+    expect(harness.session.dismissInternalV1({
       frame: detail.frame,
       kind: "back" as const,
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
     const failedA = harness.session.getSnapshotInternalV1().root.current!;
 
     expect(harness.session.retryCurrentInternalV1()).toMatchObject({ kind: "applied" });
@@ -1334,35 +1297,35 @@ describe("whole-canvas managed Surface session", () => {
     expect(retry.root.current!.frame).not.toBe(failedA.frame);
     expect(harness.session.isFrameCurrentInternalV1(failedA.frame)).toBe(false);
     expect(harness.session.isFrameCurrentInternalV1(retry.root.current!.frame)).toBe(true);
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: failedA.frame,
       actionId: "test.action.owner",
-    }))).toMatchObject({ kind: "stale" });
+    })).toMatchObject({ kind: "stale" });
     expect(harness.dispatchOwner).toHaveBeenCalledOnce();
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: retry.root.current!.frame,
       actionId: "test.action.owner",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
     expect(harness.dispatchOwner).toHaveBeenCalledTimes(2);
 
     expect(harness.session.settleReadinessReadyInternalV1(
       retry.root.pending!.preparation,
     )).toMatchObject({ kind: "applied" });
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: retry.root.current!.frame,
       actionId: "test.action.owner",
-    }))).toMatchObject({ kind: "stale" });
+    })).toMatchObject({ kind: "stale" });
     expect(harness.session.isFrameCurrentInternalV1(retry.root.current!.frame)).toBe(false);
 
     const closeHarness = harnessV1({
-      catalog: Object.freeze([
+      catalog: [
         catalogRowV1({
           targetId: "test.whole-canvas.a",
           placements: ["primary"],
           actionIds: ["test.action.owner"],
         }),
         catalogRowV1({ targetId: "test.whole-canvas.b", placements: ["primary"] }),
-      ]),
+      ],
     });
     const closeA = openRootV1(
       closeHarness,
@@ -1386,10 +1349,10 @@ describe("whole-canvas managed Surface session", () => {
       kind: "faulted",
     });
     expect(closeHarness.session.reconcileRootInternalV1(null)).toMatchObject({ kind: "applied" });
-    expect(closeHarness.session.dispatchActionInternalV1(Object.freeze({
+    expect(closeHarness.session.dispatchActionInternalV1({
       frame: closeA.frame,
       actionId: "test.action.owner",
-    }))).toMatchObject({ kind: "stale" });
+    })).toMatchObject({ kind: "stale" });
     expect(closeHarness.dispatchOwner).not.toHaveBeenCalled();
     expect(closeHarness.session.isFrameCurrentInternalV1(closeA.frame)).toBe(false);
     expect(closeHarness.session.retryCurrentInternalV1()).toMatchObject({ kind: "unchanged" });
@@ -1397,22 +1360,22 @@ describe("whole-canvas managed Surface session", () => {
 
   it("routes current/default actions, rejects disabled actions, and consumes primary cancel", async () => {
     const harness = harnessV1({
-      catalog: Object.freeze([
+      catalog: [
         catalogRowV1({
           targetId: "test.whole-canvas.a",
           placements: ["primary"],
           actionIds: ["test.action.enabled", "test.action.disabled"],
           defaultActionId: "test.action.enabled",
         }),
-      ]),
+      ],
     });
     const enabled = ownerActionV1("test.action.enabled", { command: "run" });
-    const disabled = Object.freeze({
+    const disabled = {
       actionId: "test.action.disabled",
       status: "disabled" as const,
-      reasonTextIds: Object.freeze(["text.reason.disabled"]),
-      intent: Object.freeze({ kind: "back" as const }),
-    });
+      reasonTextIds: ["text.reason.disabled"],
+      intent: { kind: "back" as const },
+    };
     const frame = openRootV1(
       harness,
       "test.whole-canvas.a",
@@ -1422,23 +1385,23 @@ describe("whole-canvas managed Surface session", () => {
       }),
     );
 
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: frame.frame,
       actionId: "ui.confirm",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
     expect(harness.dispatchOwner).toHaveBeenCalledTimes(1);
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: frame.frame,
       actionId: "test.action.disabled",
-    }))).toMatchObject({ kind: "rejected" });
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    })).toMatchObject({ kind: "rejected" });
+    expect(harness.session.dispatchActionInternalV1({
       frame: frame.frame,
       actionId: "test.action.unknown",
-    }))).toMatchObject({ kind: "rejected" });
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    })).toMatchObject({ kind: "rejected" });
+    expect(harness.session.dispatchActionInternalV1({
       frame: frame.frame,
       actionId: "ui.cancel",
-    }))).toMatchObject({ kind: "unchanged" });
+    })).toMatchObject({ kind: "unchanged" });
     expect(harness.session.getSnapshotInternalV1().root.current).toBe(frame);
     await Promise.resolve();
   });
@@ -1446,7 +1409,7 @@ describe("whole-canvas managed Surface session", () => {
   it("aliases detail confirm to the current detail catalog default", () => {
     const detailTarget = targetV1("test.whole-canvas.detail");
     const harness = harnessV1({
-      catalog: Object.freeze([
+      catalog: [
         catalogRowV1({
           targetId: "test.whole-canvas.a",
           placements: ["primary"],
@@ -1458,7 +1421,7 @@ describe("whole-canvas managed Surface session", () => {
           actionIds: ["test.action.detail-default"],
           defaultActionId: "test.action.detail-default",
         }),
-      ]),
+      ],
     });
     const root = openRootV1(
       harness,
@@ -1477,16 +1440,16 @@ describe("whole-canvas managed Surface session", () => {
         actions: [ownerActionV1("test.action.detail-default", { command: "detail" })],
       }),
     );
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: root.frame,
       actionId: "test.action.open-detail",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
     const detail = settleDetailReadyV1(harness);
 
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: detail.frame,
       actionId: "ui.confirm",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
     expect(harness.dispatchOwner).toHaveBeenCalledTimes(1);
     expect(harness.dispatchOwner).toHaveBeenLastCalledWith(expect.objectContaining({
       placement: "detail",
@@ -1496,14 +1459,14 @@ describe("whole-canvas managed Surface session", () => {
 
   it("allows one owner effect to reconcile synchronously and ignores late completion", async () => {
     const harness = harnessV1({
-      catalog: Object.freeze([
+      catalog: [
         catalogRowV1({
           targetId: "test.whole-canvas.a",
           placements: ["primary"],
           actionIds: ["test.action.owner"],
         }),
         catalogRowV1({ targetId: "test.whole-canvas.b", placements: ["primary"] }),
-      ]),
+      ],
     });
     const current = openRootV1(
       harness,
@@ -1531,10 +1494,10 @@ describe("whole-canvas managed Surface session", () => {
       return ownerCompletion;
     });
 
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: current.frame,
       actionId: "test.action.owner",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
     expect(nestedResult).toMatchObject({ kind: "applied" });
     expect(harness.session.getSnapshotInternalV1().root.current).toBe(current);
     const replacement = settleRootReadyV1(harness);
@@ -1564,10 +1527,10 @@ describe("whole-canvas managed Surface session", () => {
       const observed = harness.session.getSnapshotInternalV1();
       completeSnapshots.push(observed);
       if (observed.root.current !== null && observed.root.pending === null) {
-        completeReentryAction = harness.session.dispatchActionInternalV1(Object.freeze({
+        completeReentryAction = harness.session.dispatchActionInternalV1({
           frame: observed.root.current.frame,
           actionId: "ui.cancel",
-        }));
+        });
       }
     });
     installResolutionV1(
@@ -1604,7 +1567,6 @@ describe("whole-canvas managed Surface session", () => {
       currentRootFrame: null,
       currentDetailFrame: null,
     });
-    expect(Object.isFrozen(host.requests.at(-1))).toBe(true);
     expect(host.complete).toHaveBeenCalledTimes(1);
     expect(host.events).toEqual(["host.commit", "session.notify"]);
     host.events.length = 0;
@@ -1627,11 +1589,6 @@ describe("whole-canvas managed Surface session", () => {
     expect(host.commitInputs.at(-1)!.nextInputFrame!.hostGeneration).toBe(
       host.prepared.at(-1)!.hostGeneration,
     );
-    expect(Object.isFrozen(host.commitInputs.at(-1))).toBe(true);
-    expect(Reflect.ownKeys(host.commitInputs.at(-1)!)).toEqual([
-      "contract",
-      "nextInputFrame",
-    ]);
     expect(host.events).toEqual(["host.commit", "session.notify"]);
 
     const accepted = harness.kernel.getStateInternalV1();
@@ -1708,7 +1665,7 @@ describe("whole-canvas managed Surface session", () => {
     const detailTarget = targetV1("test.whole-canvas.detail");
     const harness = harnessV1({
       hostCommitPortInternalV1: host.port,
-      catalog: Object.freeze([
+      catalog: [
         catalogRowV1({ targetId: "test.whole-canvas.a", placements: ["primary"] }),
         catalogRowV1({
           targetId: "test.whole-canvas.b",
@@ -1716,7 +1673,7 @@ describe("whole-canvas managed Surface session", () => {
           actionIds: ["test.action.open-detail"],
         }),
         catalogRowV1({ targetId: detailTarget.targetId, placements: ["detail"] }),
-      ]),
+      ],
     });
     installResolutionV1(
       harness,
@@ -1798,10 +1755,10 @@ describe("whole-canvas managed Surface session", () => {
     expect(currentB.target.targetId).toBe("test.whole-canvas.b");
 
     rawMutation = nestedReplaceWith("test.whole-canvas.a");
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: currentB.frame,
       actionId: "test.action.open-detail",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
     expect(rawResults.at(-1)).toMatchObject({ kind: "stale" });
     const pendingDetail = harness.session.getSnapshotInternalV1().detail.pending!;
     expect(pendingDetail.renderEntry.target).toEqual(detailTarget);
@@ -1816,10 +1773,10 @@ describe("whole-canvas managed Surface session", () => {
     const currentDetail = harness.session.getSnapshotInternalV1().detail.current!;
 
     rawMutation = nestedReplaceWith("test.whole-canvas.a");
-    expect(harness.session.dismissInternalV1(Object.freeze({
+    expect(harness.session.dismissInternalV1({
       frame: currentDetail.frame,
       kind: "back",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
     expect(rawResults.at(-1)).toMatchObject({ kind: "stale" });
     expect(rawResults).toHaveLength(5);
     expect(harness.session.getSnapshotInternalV1().root.current?.target.targetId).toBe(
@@ -1837,7 +1794,7 @@ describe("whole-canvas managed Surface session", () => {
     const host = hostCommitHarnessV1();
     const harness = harnessV1({
       hostCommitPortInternalV1: host.port,
-      catalog: Object.freeze([
+      catalog: [
         catalogRowV1({
           targetId: "test.whole-canvas.a",
           placements: ["primary"],
@@ -1854,7 +1811,7 @@ describe("whole-canvas managed Surface session", () => {
           placements: ["detail"],
           actionIds: ["test.action.close-detail"],
         }),
-      ]),
+      ],
     });
     const detailD = targetV1("test.whole-canvas.detail-d");
     const detailE = targetV1("test.whole-canvas.detail-e");
@@ -1903,15 +1860,15 @@ describe("whole-canvas managed Surface session", () => {
         actions: [openDetailActionV1("test.action.open-detail", detailD)],
       }),
     );
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: root.frame,
       actionId: "test.action.open-detail",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
     let detail = settleDetailReadyV1(harness);
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: detail.frame,
       actionId: "test.action.replace-detail",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
     let pending = harness.session.getSnapshotInternalV1().detail.pending!.preparation;
     expect(harness.session.cancelReadinessInternalV1(pending)).toMatchObject({ kind: "faulted" });
     expect(harness.session.retryCurrentInternalV1()).toMatchObject({ kind: "applied" });
@@ -1921,32 +1878,32 @@ describe("whole-canvas managed Surface session", () => {
     });
     expect(harness.session.retryCurrentInternalV1()).toMatchObject({ kind: "applied" });
     detail = settleDetailReadyV1(harness);
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: detail.frame,
       actionId: "test.action.close-detail",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
 
     root = harness.session.getSnapshotInternalV1().root.current!;
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: root.frame,
       actionId: "test.action.open-detail",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
     detail = settleDetailReadyV1(harness);
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: detail.frame,
       actionId: "ui.cancel",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
 
     root = harness.session.getSnapshotInternalV1().root.current!;
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: root.frame,
       actionId: "test.action.open-detail",
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
     detail = settleDetailReadyV1(harness);
-    expect(harness.session.dismissInternalV1(Object.freeze({
+    expect(harness.session.dismissInternalV1({
       frame: detail.frame,
       kind: "backdrop" as const,
-    }))).toMatchObject({ kind: "applied" });
+    })).toMatchObject({ kind: "applied" });
 
     expect(harness.session.reconcileRootInternalV1(
       desiredV1(targetV1("test.whole-canvas.b")),
@@ -2041,10 +1998,10 @@ describe("whole-canvas managed Surface session", () => {
     expect(harness.session.disposeInternalV1()).toMatchObject({ kind: "applied" });
     expect(harness.session.disposeInternalV1()).toMatchObject({ kind: "unchanged" });
     expect(harness.session.getSnapshotInternalV1().disposed).toBe(true);
-    expect(harness.session.dispatchActionInternalV1(Object.freeze({
+    expect(harness.session.dispatchActionInternalV1({
       frame: frame.frame,
       actionId: "ui.cancel",
-    }))).toMatchObject({ kind: "stale" });
+    })).toMatchObject({ kind: "stale" });
     expect(harness.session.reconcileRootInternalV1(null)).toMatchObject({ kind: "stale" });
 
     const successor = harnessV1({ applicationEpoch: 102 });
@@ -2057,14 +2014,14 @@ describe("whole-canvas managed Surface session", () => {
 
   it("keeps 10,000 mixed root/action/detail generations bounded", () => {
     const harness = harnessV1({
-      catalog: Object.freeze([
+      catalog: [
         catalogRowV1({
           targetId: "test.whole-canvas.a",
           placements: ["primary"],
           actionIds: ["test.action.open-detail"],
         }),
         catalogRowV1({ targetId: "test.whole-canvas.detail", placements: ["detail"] }),
-      ]),
+      ],
     });
     const detail = targetV1("test.whole-canvas.detail");
     installResolutionV1(
@@ -2094,19 +2051,19 @@ describe("whole-canvas managed Surface session", () => {
     for (let step = 0; step < 10_000; step += 1) {
       if (step % 4 === 0) {
         expect(
-          harness.session.dispatchActionInternalV1(Object.freeze({
+          harness.session.dispatchActionInternalV1({
             frame: frame.frame,
             actionId: "test.action.open-detail",
-          })).kind,
+          }).kind,
         ).toBe("applied");
         settleDetailReadyV1(harness);
       } else if (step % 4 === 1) {
         const detailFrame = harness.session.getSnapshotInternalV1().detail.current!;
         expect(
-          harness.session.dismissInternalV1(Object.freeze({
+          harness.session.dismissInternalV1({
             frame: detailFrame.frame,
             kind: "back",
-          })).kind,
+          }).kind,
         ).toBe("applied");
       } else {
         installResolutionV1(

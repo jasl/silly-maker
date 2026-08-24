@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 import type { RuntimeOperationFaultV1 } from "../../contracts/diagnostics.ts";
 
-export const runtimeDiagnosticTextLimitsV1 = Object.freeze({
+export const runtimeDiagnosticTextLimitsV1 = {
   operation: 4_096,
   cause: 4_096,
   message: 65_536,
   stack: 65_536,
-});
+};
 
 const redactedPathV1 = "<redacted-path>";
 const truncationMarkerV1 = "…";
@@ -84,12 +84,12 @@ export function scrubDiagnosticTextV1(value: string, maximumBytes: number): stri
 export function scrubRuntimeOperationFaultV1(
   fault: RuntimeOperationFaultV1,
 ): RuntimeOperationFaultV1 {
-  const cause = fault.cause === undefined ? undefined : Object.freeze({
+  const cause = fault.cause === undefined ? undefined : {
     name: scrubDiagnosticTextV1(fault.cause.name, runtimeDiagnosticTextLimitsV1.cause),
     message: scrubDiagnosticTextV1(fault.cause.message, runtimeDiagnosticTextLimitsV1.cause),
-  });
+  };
 
-  return Object.freeze({
+  return {
     occurredAt: fault.occurredAt,
     operation: scrubDiagnosticTextV1(fault.operation, runtimeDiagnosticTextLimitsV1.operation),
     message: scrubDiagnosticTextV1(fault.message, runtimeDiagnosticTextLimitsV1.message),
@@ -99,5 +99,5 @@ export function scrubRuntimeOperationFaultV1(
     ...(cause === undefined ? {} : { cause }),
     category: fault.category,
     code: fault.code,
-  }) as RuntimeOperationFaultV1;
+  } as RuntimeOperationFaultV1;
 }

@@ -44,12 +44,12 @@ function diagnostics(
   committedAfter: RngStateV1,
   rng: RuleRngV1,
 ): CommandExecutionDiagnosticsEnvelopeV1<RngStateV1, RngDrawTraceV1> {
-  return Object.freeze({
+  return {
     committedRngBefore: committedBefore,
     attemptedDraws: rng.attemptedDraws(),
     candidateRngAfter: rng.candidateState(),
     committedRngAfter: committedAfter,
-  });
+  };
 }
 
 export function commitAttemptV1<TSnapshot extends SnapshotWithRng, TEvent>(
@@ -58,14 +58,14 @@ export function commitAttemptV1<TSnapshot extends SnapshotWithRng, TEvent>(
   rng: RuleRngV1,
   events: readonly TEvent[],
 ): CommandExecutionAttemptEnvelopeV1<TSnapshot, TEvent, never, never, RngStateV1, RngDrawTraceV1> {
-  return Object.freeze({
-    result: Object.freeze({
+  return {
+    result: {
       kind: "committed",
       snapshot: committedAfter,
-      events: Object.freeze([...events]),
-    }),
+      events,
+    },
     diagnostics: diagnostics(committedBefore.rng, committedAfter.rng, rng),
-  });
+  };
 }
 
 export function rejectAttemptV1<TSnapshot extends SnapshotWithRng, TRejection>(
@@ -80,14 +80,14 @@ export function rejectAttemptV1<TSnapshot extends SnapshotWithRng, TRejection>(
   RngStateV1,
   RngDrawTraceV1
 > {
-  return Object.freeze({
-    result: Object.freeze({
+  return {
+    result: {
       kind: "rejected",
       snapshot,
-      reasons: Object.freeze([...reasons]),
-    }),
+      reasons,
+    },
     diagnostics: diagnostics(snapshot.rng, snapshot.rng, rng),
-  });
+  };
 }
 
 export function faultAttemptV1<TSnapshot extends SnapshotWithRng, TFault>(
@@ -95,8 +95,8 @@ export function faultAttemptV1<TSnapshot extends SnapshotWithRng, TFault>(
   rng: RuleRngV1,
   fault: TFault,
 ): CommandExecutionAttemptEnvelopeV1<TSnapshot, never, never, TFault, RngStateV1, RngDrawTraceV1> {
-  return Object.freeze({
-    result: Object.freeze({ kind: "faulted" as const, snapshot, fault }),
+  return {
+    result: { kind: "faulted" as const, snapshot, fault },
     diagnostics: diagnostics(snapshot.rng, snapshot.rng, rng),
-  });
+  };
 }

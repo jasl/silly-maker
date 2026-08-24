@@ -11,43 +11,43 @@ import type { OsGameSimulationV1 } from "./simulation.ts";
 import { createOsGameSimulationV1 } from "./simulation.ts";
 
 /** The SillyOS simulation owns no narrative program and no presentation assets. */
-export const osStateContractManifestV1 = Object.freeze({
+export const osStateContractManifestV1 = ({
   contractRevision: 1 as const,
-  aggregateStateSchema: Object.freeze({
+  aggregateStateSchema: {
     schemaId: "schema.silly-os.game-state",
     revision: parsePositiveSafeInteger(1),
-  }),
-  moduleStateSchemas: Object.freeze([
-    Object.freeze({
+  },
+  moduleStateSchemas: [
+    {
       moduleId: parseModuleId("os.desktop"),
       moduleContractRevision: parsePositiveSafeInteger(1),
-      stateSlots: Object.freeze([parseStateSlotId("simulation.desktop")]),
-      stateSchema: Object.freeze({
+      stateSlots: [parseStateSlotId("simulation.desktop")],
+      stateSchema: {
         schemaId: "schema.silly-os.desktop-state",
         revision: parsePositiveSafeInteger(1),
-      }),
-    }),
-    Object.freeze({
+      },
+    },
+    {
       moduleId: parseModuleId("os.filesystem"),
       moduleContractRevision: parsePositiveSafeInteger(1),
-      stateSlots: Object.freeze([parseStateSlotId("simulation.filesystem")]),
-      stateSchema: Object.freeze({
+      stateSlots: [parseStateSlotId("simulation.filesystem")],
+      stateSchema: {
         schemaId: "schema.silly-os.filesystem-state",
         revision: parsePositiveSafeInteger(1),
-      }),
-    }),
-    Object.freeze({
+      },
+    },
+    {
       moduleId: parseModuleId("os.minesweeper"),
       moduleContractRevision: parsePositiveSafeInteger(1),
-      stateSlots: Object.freeze([parseStateSlotId("simulation.minesweeper")]),
-      stateSchema: Object.freeze({
+      stateSlots: [parseStateSlotId("simulation.minesweeper")],
+      stateSchema: {
         schemaId: "schema.silly-os.minesweeper-state",
         revision: parsePositiveSafeInteger(1),
-      }),
-    }),
-  ]),
-  persistentIrSchemas: Object.freeze([]),
-  stableReferenceSets: Object.freeze([]),
+      },
+    },
+  ],
+  persistentIrSchemas: [],
+  stableReferenceSets: [],
 }) satisfies StateContractManifestV1;
 
 export const osSimulationPatchSurfaceV1 = defineSimulationPatchSurface({});
@@ -57,7 +57,7 @@ export interface OsSimulationProgramV1 {
 }
 
 function materializeOsSimulationProgramV1(): OsSimulationProgramV1 {
-  return Object.freeze({ kind: "silly-os" });
+  return ({ kind: "silly-os" });
 }
 
 function createOsSimulationFromProgramV1(_program: OsSimulationProgramV1): OsGameSimulationV1 {
@@ -65,13 +65,13 @@ function createOsSimulationFromProgramV1(_program: OsSimulationProgramV1): OsGam
 }
 
 /** Package-internal owner for every callback in the Story simulation facet. */
-export const osSimulationDefinitionV1 = Object.freeze({
+export const osSimulationDefinitionV1 = {
   stateContractRevision: parsePositiveSafeInteger(1),
   stateContractManifest: osStateContractManifestV1,
-  data: Object.freeze({}),
-  rules: Object.freeze({}),
+  data: {},
+  rules: {},
   narrativeProgram: null,
   patchSurface: osSimulationPatchSurfaceV1,
   materializeProgram: materializeOsSimulationProgramV1,
   createGameSimulation: createOsSimulationFromProgramV1,
-});
+};

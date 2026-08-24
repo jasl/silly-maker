@@ -414,7 +414,11 @@ export type {
   StagePlacementV1,
   StageTagV1,
 } from "./semantic-stage.ts";
-export { parseStageMutationV1, reduceStageMutationsV1 } from "./semantic-stage-reducer.ts";
+export {
+  parseStageMutationV1,
+  reduceAdmittedStageMutationsV1,
+  reduceStageMutationsV1,
+} from "./semantic-stage-reducer.ts";
 export type {
   StageMutationBatchOutcomeV1,
   StageMutationRejectionCodeV1,

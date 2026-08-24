@@ -76,21 +76,17 @@ export function inspectDeterminismSaveStateMigrationRegistryV1(
   registry: SaveStateMigrationRegistryV1,
 ): DeterminismSaveStateMigrationRegistryInspectionV1 {
   const declaration = readSaveStateMigrationRegistryInternalV1(registry);
-  return Object.freeze({
+  return {
     namespace: declaration.namespace,
     minimumSupported: declaration.minimumSupported,
     current: declaration.current,
-    steps: Object.freeze(
-      declaration.steps.map((step) =>
-        Object.freeze({
-          migrationId: step.migrationId,
-          from: step.from,
-          to: step.to,
-          migrate: step.migrate,
-        })
-      ),
-    ),
-  });
+    steps: declaration.steps.map((step) => ({
+      migrationId: step.migrationId,
+      from: step.from,
+      to: step.to,
+      migrate: step.migrate,
+    })),
+  };
 }
 
 export interface InstrumentedDeterminismSaveStateMigrationRegistryV1 {
@@ -108,20 +104,16 @@ export function instrumentDeterminismSaveStateMigrationRegistryV1(
     namespace: declaration.namespace,
     minimumSupported: declaration.minimumSupported,
     current: declaration.current,
-    steps: Object.freeze(
-      declaration.steps.map((step) =>
-        Object.freeze({
-          ...step,
-          migrate: ((state) => {
-            callbackCount += 1;
-            return step.migrate(state);
-          }) satisfies SaveStateMigrationStepV1["migrate"],
-        })
-      ),
-    ),
+    steps: declaration.steps.map((step) => ({
+      ...step,
+      migrate: ((state) => {
+        callbackCount += 1;
+        return step.migrate(state);
+      }) satisfies SaveStateMigrationStepV1["migrate"],
+    })),
   });
-  return Object.freeze({
+  return {
     registry: instrumented,
     readCallbackCount: () => callbackCount,
-  });
+  };
 }

@@ -54,25 +54,22 @@ type AcknowledgmentRecordInternalV1 =
   }
   | { readonly kind: "mismatched" };
 
-const pendingAcknowledgmentV1: AcknowledgmentRecordInternalV1 = Object.freeze({
+const pendingAcknowledgmentV1: AcknowledgmentRecordInternalV1 = {
   kind: "pending",
   expectedAnchor: null,
-});
-const missingAcknowledgmentV1: PresentationSuccessorAcknowledgmentOutcomeInternalV1 = Object.freeze(
-  {
-    kind: "missing",
-  },
-);
-const mismatchedAcknowledgmentV1: AcknowledgmentRecordInternalV1 = Object.freeze({
+};
+const missingAcknowledgmentV1: PresentationSuccessorAcknowledgmentOutcomeInternalV1 = {
+  kind: "missing",
+};
+const mismatchedAcknowledgmentV1: AcknowledgmentRecordInternalV1 = {
   kind: "mismatched",
-});
-const unobservedNonAnchoredV1: PresentationSuccessorNonAnchoredOutcomeInternalV1 = Object.freeze({
+};
+const unobservedNonAnchoredV1: PresentationSuccessorNonAnchoredOutcomeInternalV1 = {
   kind: "unobserved",
-});
-const desynchronizedNonAnchoredV1: PresentationSuccessorNonAnchoredOutcomeInternalV1 = Object
-  .freeze({
-    kind: "desynchronized",
-  });
+};
+const desynchronizedNonAnchoredV1: PresentationSuccessorNonAnchoredOutcomeInternalV1 = {
+  kind: "desynchronized",
+};
 
 function requireTokenV1(token: object): void {
   if (token === null || typeof token !== "object") {
@@ -105,7 +102,7 @@ export function createPresentationSuccessorAcknowledgmentBrokerInternalV1(input:
     throw error;
   };
 
-  const producer: PresentationSuccessorAcknowledgmentProducerPortInternalV1 = Object.freeze({
+  const producer: PresentationSuccessorAcknowledgmentProducerPortInternalV1 = {
     installed(receipt: PresentationSuccessorInstalledInputInternalV1): void {
       if (disposed) return;
       const current = records.get(receipt.token);
@@ -116,7 +113,7 @@ export function createPresentationSuccessorAcknowledgmentBrokerInternalV1(input:
         ) {
           failMismatch(receipt.token);
         }
-        records.set(receipt.token, Object.freeze({ kind: "installed", anchor: receipt.anchor }));
+        records.set(receipt.token, { kind: "installed", anchor: receipt.anchor });
         return;
       }
       if (current?.kind === "installed" && !Object.is(current.anchor, receipt.anchor)) {
@@ -133,19 +130,19 @@ export function createPresentationSuccessorAcknowledgmentBrokerInternalV1(input:
         if (current?.kind === "pending") {
           records.set(
             receipt.token,
-            Object.freeze({
+            {
               kind: "failed",
               anchor: receipt.anchor,
               error: receipt.error,
-            }),
+            },
           );
         }
       }
       input.signalTerminal(new Error("ui.presentation_successor_activation_failed"));
     },
-  });
+  };
 
-  return Object.freeze({
+  return ({
     producer,
     arm(token: object): void {
       requireTokenV1(token);
@@ -163,7 +160,7 @@ export function createPresentationSuccessorAcknowledgmentBrokerInternalV1(input:
       const current = records.get(token);
       if (current?.kind === "pending") {
         if (current.expectedAnchor === null) {
-          records.set(token, Object.freeze({ kind: "pending", expectedAnchor: anchor }));
+          records.set(token, { kind: "pending", expectedAnchor: anchor });
         } else if (!Object.is(current.expectedAnchor, anchor)) {
           failMismatch(token);
         }

@@ -69,8 +69,8 @@ export function parsePersistenceSafepointPolicyV1<TState>(
   ) {
     return dataFailure(`${path}/maxInFlightCommits`, "safepoint_bound_invalid");
   }
-  return Object.freeze({
+  return {
     classify: record.classify as PersistenceSafepointPolicyV1<TState>["classify"],
     maxInFlightCommits: record.maxInFlightCommits,
-  });
+  };
 }

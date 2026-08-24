@@ -36,49 +36,49 @@ export interface DevDockControlV1 {
 const maximumOpenDevDockWindowsV1 = 32;
 
 export function createDevDockControlV1(): DevDockControlV1 {
-  let panels: readonly DevDockPanelDescriptorV1[] = Object.freeze([]);
-  let openIds: readonly string[] = Object.freeze([]);
+  let panels: readonly DevDockPanelDescriptorV1[] = [];
+  let openIds: readonly string[] = [];
   const panelListeners = new Set<() => void>();
   const openListeners = new Set<() => void>();
   const notify = (listeners: Set<() => void>): void => {
     for (const listener of [...listeners]) listener();
   };
-  return Object.freeze({
-    panels: Object.freeze({
+  return {
+    panels: {
       getCurrent: () => panels,
       subscribe(listener: () => void) {
         panelListeners.add(listener);
         return () => panelListeners.delete(listener);
       },
-    }),
-    openPanelIds: Object.freeze({
+    },
+    openPanelIds: {
       getCurrent: () => openIds,
       subscribe(listener: () => void) {
         openListeners.add(listener);
         return () => openListeners.delete(listener);
       },
-    }),
+    },
     open(panelId: string) {
       if (typeof panelId !== "string" || panelId.length === 0) {
         throw new TypeError("ui.devdock_invalid_panel_id");
       }
       if (openIds.includes(panelId) || openIds.length >= maximumOpenDevDockWindowsV1) return;
-      openIds = Object.freeze([...openIds, panelId]);
+      openIds = [...openIds, panelId];
       notify(openListeners);
     },
     close(panelId: string) {
       if (!openIds.includes(panelId)) return;
-      openIds = Object.freeze(openIds.filter((id) => id !== panelId));
+      openIds = openIds.filter((id) => id !== panelId);
       notify(openListeners);
     },
     closeAll() {
       if (openIds.length === 0) return;
-      openIds = Object.freeze([]);
+      openIds = [];
       notify(openListeners);
     },
     publishPanelsInternalV1(next: readonly DevDockPanelDescriptorV1[]) {
-      panels = Object.freeze([...next]);
+      panels = [...next];
       notify(panelListeners);
     },
-  });
+  };
 }

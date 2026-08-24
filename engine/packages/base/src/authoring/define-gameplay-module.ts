@@ -30,27 +30,6 @@ export function moduleDefinitionErrorV1(
   );
 }
 
-export function deepFreezeAuthoringValueV1<T>(value: T): T {
-  const seen = new WeakSet<object>();
-  function freeze(current: unknown): void {
-    if ((typeof current !== "object" && typeof current !== "function") || current === null) {
-      return;
-    }
-    if (seen.has(current)) return;
-    seen.add(current);
-    for (const key of Reflect.ownKeys(current)) {
-      const descriptor = Object.getOwnPropertyDescriptor(current, key);
-      if (descriptor?.get !== undefined || descriptor?.set !== undefined) {
-        throw new TypeError("authoring accessors are forbidden");
-      }
-      freeze(descriptor?.value);
-    }
-    Object.freeze(current);
-  }
-  freeze(value);
-  return value;
-}
-
 interface DefineGameplayModuleV1<TTypes extends GameSimulationTypeMapV1> {
   <
     TStateSlice,
@@ -96,12 +75,7 @@ interface DefineGameplayModuleV1<TTypes extends GameSimulationTypeMapV1> {
 }
 
 function requireRecord(value: unknown, label: string): Record<PropertyKey, unknown> {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype
-  ) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new TypeError(`invalid ${label}`);
   }
   return value as Record<PropertyKey, unknown>;
@@ -125,7 +99,6 @@ function requireNullableSchema(value: unknown, label: string): void {
 
 function validateGameplayModuleV1(bindingValue: unknown): unknown {
   const binding = requireRecord(bindingValue, "GameplayModule");
-  deepFreezeAuthoringValueV1(bindingValue);
   const descriptor = requireRecord(binding.descriptor, "GameplayModule descriptor");
   const id = parseModuleId(descriptor.id);
   parsePositiveSafeInteger(descriptor.contractRevision);

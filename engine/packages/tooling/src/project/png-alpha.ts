@@ -22,7 +22,7 @@ export interface PngAlphaImageV1 {
   readonly alpha: Uint8Array;
 }
 
-const pngSignatureV1 = Object.freeze([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const pngSignatureV1 = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] as const;
 const pngMaxDimensionV1 = 8192;
 const pngMaxPixelsV1 = 16_777_216;
 
@@ -262,5 +262,5 @@ export async function decodePngAlphaV1(bytes: Uint8Array): Promise<PngAlphaImage
       alpha[index] = pixels[index * bytesPerPixel + alphaOffset]!;
     }
   }
-  return Object.freeze({ width, height, alpha });
+  return { width, height, alpha };
 }

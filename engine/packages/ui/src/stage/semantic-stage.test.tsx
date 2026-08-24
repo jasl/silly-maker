@@ -69,30 +69,21 @@ const rendererV1: SemanticStageEntryRendererV1 = ({ entry }) => (
 afterEach(cleanup);
 
 describe("SemanticStageV1", () => {
-  it("routes a claimed reconciler only through the exact frozen composition driver", () => {
+  it("routes a claimed reconciler only through its current composition driver", () => {
     const clock = createManualPresentationClockV1();
     const reconciler = createStageReconcilerV1({
       clock,
       catalog: transitionCatalogV1,
       prefersReducedMotion: () => false,
     });
-    const claimant = Object.freeze({});
+    const claimant = {};
     const driver = createSemanticStageCompositionDriverInternalV1(reconciler, claimant);
     const currentContent = () =>
       reconciler.frame().layers[0]!.entries.find((entry) => entry.phase !== "exiting")!.entry
         .contentId;
 
-    expect(Object.isFrozen(driver)).toBe(true);
-    expect(Object.keys(driver)).toEqual([
-      "retargetInternalV1",
-      "suspendInternalV1",
-      "resumeInternalV1",
-      "skipAllInternalV1",
-      "disposeInternalV1",
-      "isCurrentInternalV1",
-    ]);
     expect(createSemanticStageCompositionDriverInternalV1(reconciler, claimant)).toBe(driver);
-    expect(() => createSemanticStageCompositionDriverInternalV1(reconciler, Object.freeze({})))
+    expect(() => createSemanticStageCompositionDriverInternalV1(reconciler, {}))
       .toThrow("ui.stage_acknowledged_run_authority_invalid");
 
     // A claimed reconciler can only initialize through the private
@@ -237,14 +228,6 @@ describe("SemanticStageV1", () => {
       handled,
       afterHandledMutation,
     );
-    expect(Object.keys(driver)).toEqual([
-      "retargetInternalV1",
-      "suspendInternalV1",
-      "resumeInternalV1",
-      "skipAllInternalV1",
-      "disposeInternalV1",
-      "isCurrentInternalV1",
-    ]);
     driver.retargetInternalV1({
       target: targetWithContentV1("content.test.delegate-blocked"),
       revision: 2,

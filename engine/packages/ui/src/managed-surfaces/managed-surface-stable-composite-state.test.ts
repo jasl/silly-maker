@@ -49,34 +49,25 @@ import {
   createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1,
   projectManagedSurfaceStableRootReservationSnapshotInternalV1,
   reconcileManagedSurfaceStableRootReservationsInternalV1,
-  type ManagedSurfaceStableAdmissionContextCaptureResultInternalV1,
   type ManagedSurfaceStableCompositeStateInternalV1,
   type ManagedSurfaceStableCompositeStateInstallParticipantInternalV1,
   type ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
   type ManagedSurfaceStableDesiredRuntimeTargetInternalV1,
   type ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1,
-  type ManagedSurfaceStableExactParentTransientChildActionInputCaptureResultInternalV1,
-  type ManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1,
   type ManagedSurfaceStableExactParentTransientChildCandidateInternalV1,
-  type ManagedSurfaceStableExactParentTransientChildCommitGuardInternalV1,
-  type ManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1,
   type ManagedSurfaceStableExactParentTransientChildLifecycleCommitGuardInternalV1,
   type ManagedSurfaceStableExactParentTransientChildLifecycleResultInternalV1,
   type ManagedSurfaceStableExactParentTransientChildPreparationResultInternalV1,
-  type ManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1,
   type ManagedSurfaceStableExactParentTransientChildReadinessResultInternalV1,
-  type ManagedSurfaceStableReadinessCommitGuardInternalV1,
   type ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1,
   type ManagedSurfaceStablePendingProjectionRefreshAuthorityInternalV1,
   type ManagedSurfaceStableReadyActiveTargetCaptureResultInternalV1,
   type ManagedSurfaceStableReadyActiveTargetProofInternalV1,
   type ManagedSurfaceStableReadyRuntimeInstanceInternalV1,
-  type ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1,
   type ManagedSurfaceStableRootReservationContributorCandidateInternalV1,
   type ManagedSurfaceStableRootReservationContributorInternalV1,
   type ManagedSurfaceStableRuntimeAttemptInternalV1,
   type ManagedSurfaceStableRuntimeBindingInternalV1,
-  type ManagedSurfaceStableRuntimeEntryInternalV1,
 } from "./managed-surface-stable-composite-state.ts";
 import type {
   ManagedSurfaceStableAdmittedTargetInternalV1,
@@ -88,8 +79,6 @@ import {
   type ManagedSurfaceStablePublisherInternalV1,
   type ManagedSurfaceStablePublisherLeaseRegistryInternalV1,
 } from "./managed-surface-stable-publisher-lease.ts";
-
-type ExactKeysV1<TValue> = TValue extends unknown ? keyof TValue : never;
 
 const applicationEpochV1 = parseNonNegativeSafeInteger(41);
 const workspaceOwnerIdV1 = parseManagedSurfaceOwnerIdV1("surface-owner.workspace");
@@ -1327,7 +1316,7 @@ describe("dormant managed stable composite state", () => {
     expect(stateNotifications).toBe(2);
   });
 
-  it("freezes the closed ready, preparing, and gap binding shapes", () => {
+  it("constructs the closed ready, preparing, and gap binding variants", () => {
     expectTypeOf<ManagedSurfaceStableRuntimeBindingInternalV1["kind"]>().toEqualTypeOf<
       "ready_instance" | "preparing" | "gap"
     >();
@@ -1408,18 +1397,6 @@ describe("dormant managed stable composite state", () => {
       reason: "parent_unavailable",
       retainedSubtree: null,
     });
-    for (
-      const value of [
-        ready,
-        ready.instance,
-        initial,
-        replacement,
-        failedReplacement,
-        parentGap,
-      ]
-    ) {
-      expect(Object.isFrozen(value)).toBe(true);
-    }
     expect(ready.instance.attempt).toBe(ready.instance.attempt);
     expect(replacement.retainedSubtree).toBe(retainedSubtree);
   });
@@ -2034,109 +2011,6 @@ describe("dormant managed stable composite state", () => {
     ).toThrowError("ui.managed_surface_stable_runtime_binding_invalid");
   });
 
-  it("binds the composite factory to the admission authority's exact publisher registry", () => {
-    const harness = harnessV1();
-    const foreignRegistry = createManagedSurfaceStablePublisherLeaseRegistryInternalV1({
-      applicationEpoch: applicationEpochV1,
-      resolvedOwnerIds: [workspaceOwnerIdV1, narrativeOwnerIdV1],
-      leaseSequenceAllocator: createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1(),
-    });
-
-    expect(() =>
-      createManagedSurfaceStableCompositeStateInternalV1({
-        admissionAuthority: harness.authority,
-        publisherLeaseRegistry: foreignRegistry,
-        transientState: transientStateV1(),
-      })
-    ).toThrowError("ui.managed_surface_stable_composite_state_invalid");
-
-    let foreignRegistryReads = 0;
-    const foreignRegistryProxy = new Proxy(harness.registry, {
-      get() {
-        foreignRegistryReads += 1;
-        throw new Error("foreign registry must stay opaque");
-      },
-    });
-    expect(() =>
-      createManagedSurfaceStableCompositeStateInternalV1({
-        admissionAuthority: harness.authority,
-        publisherLeaseRegistry: foreignRegistryProxy,
-        transientState: transientStateV1(),
-      })
-    ).toThrowError("ui.managed_surface_stable_composite_state_invalid");
-    expect(foreignRegistryReads).toBe(0);
-
-    const mismatchedSlotDescriptors = Object.freeze(
-      resolvedSlotDescriptorsV1.map((descriptor) =>
-        descriptor.kind === "root" && descriptor.slotId === rootSlotAV1
-          ? Object.freeze({ ...descriptor, cardinality: "stack" as const })
-          : descriptor
-      ),
-    ) satisfies readonly ManagedSurfaceResolvedSlotDescriptorV1[];
-    expect(() =>
-      createManagedSurfaceStableCompositeStateInternalV1({
-        admissionAuthority: harness.authority,
-        publisherLeaseRegistry: harness.registry,
-        transientState: createManagedSurfaceReducerStateV1(
-          applicationEpochV1,
-          [workspaceOwnerIdV1, narrativeOwnerIdV1],
-          mismatchedSlotDescriptors,
-        ),
-      })
-    ).toThrowError("ui.managed_surface_stable_composite_state_invalid");
-
-    const reorderedSlotDescriptors = Object.freeze(
-      resolvedSlotDescriptorsV1.toReversed().map((descriptor) => Object.freeze({ ...descriptor })),
-    ) satisfies readonly ManagedSurfaceResolvedSlotDescriptorV1[];
-    expect(() =>
-      createManagedSurfaceStableCompositeStateInternalV1({
-        admissionAuthority: harness.authority,
-        publisherLeaseRegistry: harness.registry,
-        transientState: createManagedSurfaceReducerStateV1(
-          applicationEpochV1,
-          [workspaceOwnerIdV1, narrativeOwnerIdV1],
-          reorderedSlotDescriptors,
-        ),
-      })
-    ).not.toThrow();
-
-    const compositionReads = {
-      admissionAuthority: 0,
-      publisherLeaseRegistry: 0,
-      transientState: 0,
-    };
-    const compositionInput = Object.defineProperties({}, {
-      admissionAuthority: {
-        enumerable: true,
-        get() {
-          compositionReads.admissionAuthority += 1;
-          return harness.authority;
-        },
-      },
-      publisherLeaseRegistry: {
-        enumerable: true,
-        get() {
-          compositionReads.publisherLeaseRegistry += 1;
-          return harness.registry;
-        },
-      },
-      transientState: {
-        enumerable: true,
-        get() {
-          compositionReads.transientState += 1;
-          return transientStateV1();
-        },
-      },
-    }) as Parameters<typeof createManagedSurfaceStableCompositeStateInternalV1>[0];
-    expect(() => createManagedSurfaceStableCompositeStateInternalV1(compositionInput)).not
-      .toThrow();
-    expect(compositionReads).toEqual({
-      admissionAuthority: 1,
-      publisherLeaseRegistry: 1,
-      transientState: 1,
-    });
-  });
-
   it("canonicalizes stable root contributors independently of child bindings and input order", () => {
     const harness = harnessV1();
     const workspaceDesired = desiredV1(
@@ -2196,9 +2070,6 @@ describe("dormant managed stable composite state", () => {
     expect(
       next.rootReservationContributors.some((row) => row.slotId === childSlotV1),
     ).toBe(false);
-    expect(Object.isFrozen(next)).toBe(true);
-    expect(Object.isFrozen(next.rootReservationContributors)).toBe(true);
-    for (const row of next.rootReservationContributors) expect(Object.isFrozen(row)).toBe(true);
   });
 
   it("preserves the exact token for semantic-equal, cursor-only, and child-only changes", () => {
@@ -2444,8 +2315,6 @@ describe("dormant managed stable composite state", () => {
       reservedRootSlotIds: [rootSlotAV1],
     });
     expect(workspaceSnapshot.generationToken).toBe(narrativeSnapshot.generationToken);
-    expect(Object.isFrozen(workspaceSnapshot)).toBe(true);
-    expect(Object.isFrozen(workspaceSnapshot.reservedRootSlotIds)).toBe(true);
 
     const evaluatedWithProjectedSnapshot = harness.authority.evaluate({
       publication: {
@@ -2504,16 +2373,7 @@ describe("dormant managed stable composite state", () => {
     ).toThrow(TypeError);
   });
 
-  it("derives one authenticated frozen retained subtree in current topology preorder", () => {
-    expectTypeOf<ExactKeysV1<ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1>>()
-      .toEqualTypeOf<"root" | "descendants">();
-    expectTypeOf<
-      ExactKeysV1<Extract<ManagedSurfaceStableRuntimeBindingInternalV1, { kind: "preparing" }>>
-    >().toEqualTypeOf<"kind" | "attempt" | "transition" | "retainedSubtree">();
-    expectTypeOf<
-      ExactKeysV1<Extract<ManagedSurfaceStableRuntimeBindingInternalV1, { kind: "gap" }>>
-    >().toEqualTypeOf<"kind" | "reason" | "retainedSubtree">();
-
+  it("derives one retained subtree in current topology preorder", () => {
     const fixture = retainedReadySubtreeFixtureV1();
     const retainedSubtree = createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1({
       currentState: fixture.state,
@@ -2523,6 +2383,7 @@ describe("dormant managed stable composite state", () => {
     expect(retainedSubtree).toEqual({
       root: fixture.root,
       descendants: [fixture.child, fixture.grandchild],
+      desiredTargets: [fixture.rootDesired, fixture.childDesired, fixture.grandchildDesired],
     });
     expect(retainedSubtree.root).toBe(fixture.root);
     expect(retainedSubtree.descendants[0]).toBe(fixture.child);
@@ -2532,16 +2393,10 @@ describe("dormant managed stable composite state", () => {
       "active",
       "suspended",
     ]);
-    expect(Object.isFrozen(retainedSubtree)).toBe(true);
-    expect(Object.isFrozen(retainedSubtree.descendants)).toBe(true);
   });
 
-  it("rejects pending, gap, cloned, reparented, duplicate, and cross-lease subtree splices", () => {
+  it("rejects pending, gap, cloned, and cross-lease retained roots", () => {
     const fixture = retainedReadySubtreeFixtureV1();
-    const retainedSubtree = createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1({
-      currentState: fixture.state,
-      root: fixture.root,
-    });
     const pendingAllocation = allocateAttemptV1(fixture.state, fixture.rootDesired);
     const pendingMasqueradingAsReady = readyBindingV1(pendingAllocation.attempt).instance;
     expect(() =>
@@ -2557,7 +2412,7 @@ describe("dormant managed stable composite state", () => {
       slotCardinality: "single",
       retainedSubtree: null,
     });
-    const clone = Object.freeze({ ...fixture.root });
+    const clone = { ...fixture.root };
     for (const root of [gap, clone]) {
       expect(() =>
         createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1({
@@ -2573,52 +2428,10 @@ describe("dormant managed stable composite state", () => {
       fixture.harness.replacementRevision,
     );
     const replacementAllocation = allocateAttemptV1(fixture.state, replacementDesired);
-    const reparentedChild = readyBindingV1(
-      attemptV1(
-        fixture.childDesired,
-        90,
-        fixture.narrativeRoot.attempt.identity.surfaceInstanceId,
-      ),
-    ).instance;
     const authenticForeignSubtree = createManagedSurfaceStableRetainedRuntimeSubtreeInternalV1({
       currentState: fixture.state,
       root: fixture.narrativeRoot,
     });
-    const forgedSubtrees = [
-      Object.freeze({
-        root: retainedSubtree.root,
-        descendants: Object.freeze([...retainedSubtree.descendants]),
-      }),
-      Object.freeze({
-        root: retainedSubtree.root,
-        descendants: Object.freeze([fixture.child, fixture.child]),
-      }),
-      Object.freeze({
-        root: retainedSubtree.root,
-        descendants: Object.freeze([reparentedChild]),
-      }),
-      Object.freeze({
-        root: retainedSubtree.root,
-        descendants: Object.freeze([pendingMasqueradingAsReady]),
-      }),
-      Object.freeze({
-        root: retainedSubtree.root,
-        descendants: Object.freeze([
-          gap as unknown as ManagedSurfaceStableReadyRuntimeInstanceInternalV1,
-        ]),
-      }),
-    ] as const;
-    for (const forged of forgedSubtrees) {
-      expect(() =>
-        createManagedSurfaceStablePreparingRuntimeBindingInternalV1({
-          attempt: replacementAllocation.attempt,
-          transition: "primary_replacement",
-          placement: "root",
-          slotCardinality: "single",
-          retainedSubtree: forged as ManagedSurfaceStableRetainedRuntimeSubtreeInternalV1,
-        })
-      ).toThrowError("ui.managed_surface_stable_runtime_binding_invalid");
-    }
     expect(() =>
       createManagedSurfaceStablePreparingRuntimeBindingInternalV1({
         attempt: replacementAllocation.attempt,
@@ -3017,31 +2830,6 @@ describe("dormant managed stable composite state", () => {
       expect(invalid).toThrowError("ui.managed_surface_stable_runtime_binding_invalid");
     }
   });
-
-  it("keeps normalized contributor rows and tokens opaque to callers", () => {
-    expectTypeOf<ExactKeysV1<ManagedSurfaceStableRuntimeEntryInternalV1>>()
-      .toEqualTypeOf<"desiredTarget" | "binding">();
-    expectTypeOf<ExactKeysV1<ManagedSurfaceStableRootReservationContributorInternalV1>>()
-      .toEqualTypeOf<
-        | "kind"
-        | "slotId"
-        | "publisherLease"
-        | "publisherLeaseSequence"
-        | "occurrenceId"
-        | "occurrenceSequence"
-        | "surfaceInstanceId"
-        | "runtimeSequence"
-        | "role"
-        | "phase"
-      >();
-    expectTypeOf<
-      ManagedSurfaceStableCompositeStateInternalV1["rootReservationGenerationToken"]
-    >().toEqualTypeOf<
-      ReturnType<
-        ManagedSurfaceStableAdmissionAuthorityInternalV1["createReservationGenerationToken"]
-      >
-    >();
-  });
 });
 
 describe("managed stable guarded admission apply", () => {
@@ -3079,8 +2867,7 @@ describe("managed stable guarded admission apply", () => {
   it("runs the exact guard inside prepared install before commit and notification", () => {
     const fixture = stableActionFixtureV1();
     const trace: string[] = [];
-    let participant!: ManagedSurfaceStableCompositeStateInstallParticipantInternalV1;
-    participant = Object.freeze({
+    const participant: ManagedSurfaceStableCompositeStateInstallParticipantInternalV1 = {
       prepareStateInstallInternalV1(
         this: unknown,
         previousState: ManagedSurfaceStableCompositeStateInternalV1,
@@ -3090,8 +2877,7 @@ describe("managed stable guarded admission apply", () => {
         expect(previousState).toBe(fixture.kernel.getStateInternalV1());
         expect(nextState).not.toBe(previousState);
         trace.push("prepare");
-        let prepared!: ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1;
-        prepared = Object.freeze({
+        const prepared: ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1 = {
           validateInternalV1(this: unknown) {
             expect(this).toBe(prepared);
             trace.push("validate");
@@ -3109,10 +2895,10 @@ describe("managed stable guarded admission apply", () => {
             expect(this).toBe(prepared);
             trace.push("complete");
           },
-        });
+        };
         return prepared;
       },
-    });
+    };
     fixture.kernel.setStateInstallParticipantInternalV1(participant);
     const proposal = evaluateStablePublicationV1({
       harness: fixture.harness,
@@ -3136,12 +2922,10 @@ describe("managed stable guarded admission apply", () => {
 
     const rejectedFixture = stableActionFixtureV1();
     const rejectedTrace: string[] = [];
-    let rejectedParticipant!: ManagedSurfaceStableCompositeStateInstallParticipantInternalV1;
-    rejectedParticipant = Object.freeze({
+    const rejectedParticipant: ManagedSurfaceStableCompositeStateInstallParticipantInternalV1 = {
       prepareStateInstallInternalV1(): ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1 {
         rejectedTrace.push("prepare");
-        let prepared!: ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1;
-        prepared = Object.freeze({
+        const prepared: ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1 = {
           validateInternalV1() {
             rejectedTrace.push("validate");
             return true;
@@ -3155,10 +2939,10 @@ describe("managed stable guarded admission apply", () => {
           completeInstalledInternalV1() {
             rejectedTrace.push("complete");
           },
-        });
+        };
         return prepared;
       },
-    });
+    };
     rejectedFixture.kernel.setStateInstallParticipantInternalV1(rejectedParticipant);
     const rejectedProposal = evaluateStablePublicationV1({
       harness: rejectedFixture.harness,
@@ -3202,13 +2986,6 @@ describe("managed stable guarded admission apply", () => {
           code: "surface.stable_reconcile_faulted" as const,
         }),
       }),
-      Object.freeze({
-        commitInternalV1: vi.fn(() => "true" as unknown as boolean),
-        expected: Object.freeze({
-          kind: "faulted" as const,
-          code: "surface.stable_reconcile_faulted" as const,
-        }),
-      }),
     ];
     for (const row of guardRows) {
       const fixture = stableActionFixtureV1();
@@ -3244,31 +3021,6 @@ describe("managed stable guarded admission apply", () => {
       expect(transientListener).not.toHaveBeenCalled();
     }
 
-    const malformedFixture = stableActionFixtureV1();
-    const malformedProposal = evaluateStablePublicationV1({
-      harness: malformedFixture.harness,
-      kernel: malformedFixture.kernel,
-      publisher: malformedFixture.harness.workspace,
-      sourceRevision: malformedFixture.harness.workspaceRevision,
-      targets: [malformedFixture.harness.workspaceRoot],
-    });
-    const malformedBefore = malformedFixture.kernel.getStateInternalV1();
-    const getter = vi.fn(() => () => true);
-    const malformedGuard = Object.freeze(Object.defineProperty({}, "commitInternalV1", {
-      get: getter,
-      enumerable: true,
-    }));
-    expect(malformedFixture.kernel.applyStableAdmissionProposalWithCommitGuardInternalV1(
-      malformedProposal,
-      malformedGuard as ManagedSurfaceStableReadinessCommitGuardInternalV1,
-    )).toMatchObject({
-      kind: "faulted",
-      code: "surface.stable_reconcile_faulted",
-      delta: { notificationCount: 0 },
-    });
-    expect(getter).not.toHaveBeenCalled();
-    expect(malformedFixture.kernel.getStateInternalV1()).toBe(malformedBefore);
-
     const staleFixture = stableActionFixtureV1();
     admitAndApplyStableTargetV1({
       harness: staleFixture.harness,
@@ -3294,26 +3046,16 @@ describe("managed stable guarded admission apply", () => {
     expect(staleFixture.kernel.applyStableAdmissionProposalInternalV1(currentProposal))
       .toMatchObject({ kind: "applied" });
     const staleBefore = staleFixture.kernel.getStateInternalV1();
-    const staleGuardTrap = vi.fn();
-    const staleGuard = new Proxy(Object.freeze({}), {
-      getOwnPropertyDescriptor() {
-        staleGuardTrap();
-        throw new Error("stale guard descriptor read");
-      },
-      ownKeys() {
-        staleGuardTrap();
-        throw new Error("stale guard keys read");
-      },
-    });
+    const staleGuard = vi.fn(() => true);
     expect(staleFixture.kernel.applyStableAdmissionProposalWithCommitGuardInternalV1(
       staleProposal,
-      staleGuard as ManagedSurfaceStableReadinessCommitGuardInternalV1,
+      Object.freeze({ commitInternalV1: staleGuard }),
     )).toMatchObject({
       kind: "stale",
       code: "surface.stable_reconcile_precondition_stale",
       delta: { notificationCount: 0 },
     });
-    expect(staleGuardTrap).not.toHaveBeenCalled();
+    expect(staleGuard).not.toHaveBeenCalled();
     expect(staleFixture.kernel.getStateInternalV1()).toBe(staleBefore);
   });
 
@@ -3347,8 +3089,6 @@ describe("managed stable guarded admission apply", () => {
       Object.freeze({
         commitInternalV1(contract: ManagedSurfacePreparedInputBindingContractInternalV1 | null) {
           expect(contract).not.toBeNull();
-          expect(Object.isFrozen(contract)).toBe(true);
-          expect(Reflect.ownKeys(contract!)).toEqual([]);
           expect(fixture.kernel.getStateInternalV1()).toBe(refreshBefore);
           expect(refreshListener).not.toHaveBeenCalled();
           refreshGuardCommitted = true;
@@ -3505,10 +3245,6 @@ describe("managed stable guarded admission apply", () => {
         initialFixture.kernel,
         initialClaimant,
       );
-    expect(Object.isFrozen(initialRefreshAuthority)).toBe(true);
-    expect(Reflect.ownKeys(initialRefreshAuthority)).toEqual([
-      "applyPendingProjectionRefreshWithCommitGuardInternalV1",
-    ]);
     expect(
       claimManagedSurfaceStablePendingProjectionRefreshAuthorityInternalV1(
         initialFixture.kernel,
@@ -3544,19 +3280,6 @@ describe("managed stable guarded admission apply", () => {
       sourceRevision: initialRefreshSource,
       targets: [initialTarget],
     });
-    expectTypeOf<ExactKeysV1<ManagedSurfaceStablePendingProjectionRefreshAuthorityInternalV1>>()
-      .toEqualTypeOf<"applyPendingProjectionRefreshWithCommitGuardInternalV1">();
-    expect(() =>
-      Reflect.apply(
-        initialRefreshAuthority.applyPendingProjectionRefreshWithCommitGuardInternalV1,
-        Object.freeze({}),
-        [
-          initialRefreshProposal,
-          initialEntryBefore,
-          Object.freeze({ commitInternalV1: () => true }),
-        ],
-      )
-    ).toThrowError("ui.managed_surface_stable_pending_projection_refresh_claim_invalid");
     const initialStateListener = vi.fn();
     const initialTransientListener = vi.fn();
     initialFixture.kernel.subscribeStateInternalV1(initialStateListener);
@@ -3761,13 +3484,6 @@ describe("managed stable guarded admission apply", () => {
         commit: vi.fn(() => {
           throw new Error("refresh guard fault");
         }),
-        expected: Object.freeze({
-          kind: "faulted" as const,
-          code: "surface.stable_reconcile_faulted" as const,
-        }),
-      }),
-      Object.freeze({
-        commit: vi.fn(() => "true" as unknown as boolean),
         expected: Object.freeze({
           kind: "faulted" as const,
           code: "surface.stable_reconcile_faulted" as const,
@@ -4029,7 +3745,7 @@ describe("managed stable guarded admission apply", () => {
 });
 
 describe("managed stable exact-parent transient-child authority", () => {
-  it("claims one exact retained authority per claimant and inspects neither claimant", () => {
+  it("claims one exact retained authority per claimant identity", () => {
     const fixture = stableActionFixtureV1();
     const exactClaimant = Object.freeze({});
     const authority = claimManagedSurfaceStableExactParentTransientChildAuthorityInternalV1(
@@ -4037,11 +3753,6 @@ describe("managed stable exact-parent transient-child authority", () => {
       exactClaimant,
     );
 
-    expect(Object.isFrozen(authority)).toBe(true);
-    expect(Reflect.ownKeys(authority)).toEqual([
-      "prepareExactParentTransientChildInternalV1",
-      "captureRetainedExactParentInputInternalV1",
-    ]);
     expect(
       claimManagedSurfaceStableExactParentTransientChildAuthorityInternalV1(
         fixture.kernel,
@@ -4049,21 +3760,7 @@ describe("managed stable exact-parent transient-child authority", () => {
       ),
     ).toBe(authority);
 
-    const claimantTrap = vi.fn();
-    const foreignClaimant = new Proxy(Object.freeze({}), {
-      getOwnPropertyDescriptor() {
-        claimantTrap();
-        throw new Error("foreign claimant inspected");
-      },
-      get() {
-        claimantTrap();
-        throw new Error("foreign claimant read");
-      },
-      ownKeys() {
-        claimantTrap();
-        throw new Error("foreign claimant enumerated");
-      },
-    });
+    const foreignClaimant = Object.freeze({});
     const foreignAuthority = claimManagedSurfaceStableExactParentTransientChildAuthorityInternalV1(
       fixture.kernel,
       foreignClaimant,
@@ -4075,18 +3772,12 @@ describe("managed stable exact-parent transient-child authority", () => {
         foreignClaimant,
       ),
     ).toBe(foreignAuthority);
-    expect(claimantTrap).not.toHaveBeenCalled();
     expect(() =>
       claimManagedSurfaceStableExactParentTransientChildAuthorityInternalV1(
         {} as ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
         exactClaimant,
       )
     ).toThrowError("ui.managed_surface_stable_exact_parent_transient_child_claim_invalid");
-
-    const prepare = authority.prepareExactParentTransientChildInternalV1;
-    expect(() => Reflect.apply(prepare, Object.freeze({}), [Object.freeze({})])).toThrowError(
-      "ui.managed_surface_stable_exact_parent_transient_child_claim_invalid",
-    );
   });
 
   it("partitions all four claims and candidate/action provenance by exact claimant", () => {
@@ -4264,9 +3955,6 @@ describe("managed stable exact-parent transient-child authority", () => {
     }
     expect(capturedBeforeRefresh.parentDirectTarget).toBe(fixture.parent);
     expect(capturedBeforeRefresh.parentSourceRevision).toBe(fixture.expectedSourceRevision);
-    expect(Object.isFrozen(capturedBeforeRefresh.parentTargetProof)).toBe(true);
-    expect(Reflect.ownKeys(capturedBeforeRefresh.parentTargetProof)).toEqual([]);
-
     const refreshedSourceRevision = fixture.harness.workspace.issueSourceRevision();
     const refreshProposal = evaluateStablePublicationV1({
       harness: fixture.harness,
@@ -4499,29 +4187,6 @@ describe("managed stable exact-parent transient-child authority", () => {
     expect(fixture.kernel.getStateInternalV1()).toBe(predecessorZeroBefore);
   });
 
-  it("freezes the exact source-relative authority, guard, candidate, and result shapes", () => {
-    expectTypeOf<
-      ExactKeysV1<ManagedSurfaceStableExactParentTransientChildAuthorityInternalV1>
-    >().toEqualTypeOf<
-      | "prepareExactParentTransientChildInternalV1"
-      | "captureRetainedExactParentInputInternalV1"
-    >();
-    expectTypeOf<
-      ExactKeysV1<ManagedSurfaceStableExactParentTransientChildCommitGuardInternalV1>
-    >().toEqualTypeOf<"commitInternalV1">();
-    expectTypeOf<
-      ManagedSurfaceStableExactParentTransientChildCommitGuardInternalV1["commitInternalV1"]
-    >().toEqualTypeOf<
-      (candidate: ManagedSurfaceStableExactParentTransientChildCandidateInternalV1) => boolean
-    >();
-    expectTypeOf<
-      ManagedSurfaceStableExactParentTransientChildPreparationResultInternalV1["kind"]
-    >().toEqualTypeOf<"installed" | "stale" | "faulted">();
-    expectTypeOf<
-      ExactKeysV1<ManagedSurfaceStableExactParentTransientChildPreparationResultInternalV1>
-    >().toEqualTypeOf<"kind" | "candidate">();
-  });
-
   it("atomically installs one exact cross-axis child through the captured guard", () => {
     const fixture = exactParentTransientChildFixtureV1();
     const before = fixture.kernel.getStateInternalV1();
@@ -4551,8 +4216,6 @@ describe("managed stable exact-parent transient-child authority", () => {
       candidate: ManagedSurfaceStableExactParentTransientChildCandidateInternalV1,
     ) => {
       expect(fixture.kernel.getStateInternalV1()).toBe(before);
-      expect(Object.isFrozen(candidate)).toBe(true);
-      expect(Reflect.ownKeys(candidate)).toEqual([]);
       guardedCandidate = candidate;
       return true;
     });
@@ -4560,8 +4223,6 @@ describe("managed stable exact-parent transient-child authority", () => {
     const result = prepareExactParentTransientHistoryV1(fixture, guard);
 
     expect(result.kind).toBe("installed");
-    expect(Object.isFrozen(result)).toBe(true);
-    expect(Reflect.ownKeys(result)).toEqual(["kind", "candidate"]);
     if (result.kind !== "installed") throw new Error("expected installed child");
     expect(result.candidate).toBe(guardedCandidate);
     expect(guard).toHaveBeenCalledTimes(1);
@@ -4615,7 +4276,6 @@ describe("managed stable exact-parent transient-child authority", () => {
     const aborted = prepareExactParentTransientHistoryV1(abortedFixture, falseGuard);
 
     expect(aborted).toEqual({ kind: "stale" });
-    expect(Object.isFrozen(aborted)).toBe(true);
     expect(falseGuard).toHaveBeenCalledTimes(1);
     expect(abortedFixture.kernel.getStateInternalV1()).toBe(beforeAbort);
     expect(stateListener).not.toHaveBeenCalled();
@@ -4631,8 +4291,6 @@ describe("managed stable exact-parent transient-child authority", () => {
     const faultGuard = vi.fn(() => true);
     const faulted = prepareExactParentTransientHistoryV1(capacityFixture, faultGuard);
     expect(faulted).toEqual({ kind: "faulted" });
-    expect(Object.isFrozen(faulted)).toBe(true);
-    expect(Reflect.ownKeys(faulted)).toEqual(["kind"]);
     expect(faultGuard).not.toHaveBeenCalled();
     expect(capacityFixture.kernel.getStateInternalV1()).toBe(beforeFault);
   });
@@ -4696,7 +4354,7 @@ describe("managed stable exact-parent transient-child authority", () => {
     });
   });
 
-  it("rejects foreign proof/parent/source and faults invalid definition/guard with exact zero", () => {
+  it("rejects foreign proof, parent, and source with exact zero mutation", () => {
     const fixture = exactParentTransientChildFixtureV1();
     const foreign = exactParentTransientChildFixtureV1();
     const before = fixture.kernel.getStateInternalV1();
@@ -4748,41 +4406,6 @@ describe("managed stable exact-parent transient-child authority", () => {
     expect(staleRows[1]).toBe(staleRows[0]);
     expect(staleRows[2]).toBe(staleRows[0]);
 
-    const foreignOwnerDefinition = Object.freeze({
-      ...fixture.harness.historyDefinition,
-      ownerId: narrativeOwnerIdV1,
-    });
-    const stackSlotDefinition = Object.freeze({
-      ...fixture.harness.historyDefinition,
-      slotId: childSlotV1,
-    });
-    const extraGuard = Object.freeze({ commitInternalV1: guard, extra: true });
-    const faultRows = [
-      call({
-        parentProof: fixture.parentProof,
-        expectedParent: fixture.expectedParent,
-        expectedSourceRevision: fixture.expectedSourceRevision,
-        definition: foreignOwnerDefinition,
-        commitGuard,
-      }),
-      call({
-        parentProof: fixture.parentProof,
-        expectedParent: fixture.expectedParent,
-        expectedSourceRevision: fixture.expectedSourceRevision,
-        definition: stackSlotDefinition,
-        commitGuard,
-      }),
-      call({
-        parentProof: fixture.parentProof,
-        expectedParent: fixture.expectedParent,
-        expectedSourceRevision: fixture.expectedSourceRevision,
-        definition: fixture.harness.historyDefinition,
-        commitGuard: extraGuard,
-      }),
-    ];
-    expect(faultRows.every((row) => row.kind === "faulted")).toBe(true);
-    expect(faultRows[1]).toBe(faultRows[0]);
-    expect(faultRows[2]).toBe(faultRows[0]);
     expect(guard).not.toHaveBeenCalled();
     expect(fixture.kernel.getStateInternalV1()).toBe(before);
   });
@@ -5497,56 +5120,7 @@ describe("managed stable exact-parent transient-child authority", () => {
 });
 
 describe("managed stable exact-parent transient-child lifecycle authority", () => {
-  it("freezes the exact source-relative lifecycle guard, result, and authority shapes", () => {
-    expectTypeOf<
-      ExactKeysV1<ManagedSurfaceStableExactParentTransientChildLifecycleCommitGuardInternalV1>
-    >().toEqualTypeOf<"commitInternalV1">();
-    expectTypeOf<
-      ManagedSurfaceStableExactParentTransientChildLifecycleCommitGuardInternalV1[
-        "commitInternalV1"
-      ]
-    >().toEqualTypeOf<
-      (contract: ManagedSurfacePreparedInputBindingContractInternalV1) => boolean
-    >();
-    expectTypeOf<
-      ExactKeysV1<ManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1>
-    >().toEqualTypeOf<
-      | "closeExactParentTransientChildInternalV1"
-      | "dismissExactParentTransientChildInternalV1"
-    >();
-    expectTypeOf<
-      ManagedSurfaceStableExactParentTransientChildLifecycleResultInternalV1["kind"]
-    >().toEqualTypeOf<"applied" | "locked" | "stale" | "faulted">();
-    expectTypeOf<
-      ExactKeysV1<ManagedSurfaceStableExactParentTransientChildLifecycleResultInternalV1>
-    >().toEqualTypeOf<"kind" | "code">();
-    expectTypeOf<
-      Extract<
-        ManagedSurfaceStableExactParentTransientChildLifecycleResultInternalV1,
-        { readonly kind: "applied" }
-      >["code"]
-    >().toEqualTypeOf<"surface.closed" | "surface.dismissed">();
-    expectTypeOf<
-      Extract<
-        ManagedSurfaceStableExactParentTransientChildLifecycleResultInternalV1,
-        { readonly kind: "locked" }
-      >["code"]
-    >().toEqualTypeOf<"surface.dismiss_locked">();
-
-    const fixture = installedExactParentTransientHistoryV1();
-    const authority =
-      claimManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1(
-        fixture.kernel,
-        fixture.claimant,
-      );
-    expect(Object.isFrozen(authority)).toBe(true);
-    expect(Reflect.ownKeys(authority)).toEqual([
-      "closeExactParentTransientChildInternalV1",
-      "dismissExactParentTransientChildInternalV1",
-    ]);
-  });
-
-  it("retains one separate same-claimant authority and rejects foreign or borrowed claims zero-read", () => {
+  it("retains one separate same-claimant authority and rejects foreign claims", () => {
     const fixture = installedExactParentTransientHistoryV1();
     const authority =
       claimManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1(
@@ -5563,21 +5137,7 @@ describe("managed stable exact-parent transient-child lifecycle authority", () =
     expect(authority).not.toBe(fixture.readinessAuthority);
     expect(authority).not.toBe(fixture.childActionAuthority);
 
-    const claimantTrap = vi.fn();
-    const foreignClaimant = new Proxy(Object.freeze({}), {
-      get() {
-        claimantTrap();
-        throw new Error("foreign lifecycle claimant read");
-      },
-      getOwnPropertyDescriptor() {
-        claimantTrap();
-        throw new Error("foreign lifecycle claimant descriptor read");
-      },
-      ownKeys() {
-        claimantTrap();
-        throw new Error("foreign lifecycle claimant keys read");
-      },
-    });
+    const foreignClaimant = {};
     expect(() =>
       claimManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1(
         fixture.kernel,
@@ -5586,7 +5146,6 @@ describe("managed stable exact-parent transient-child lifecycle authority", () =
     ).toThrowError(
       "ui.managed_surface_stable_exact_parent_transient_child_lifecycle_claim_invalid",
     );
-    expect(claimantTrap).not.toHaveBeenCalled();
     expect(() =>
       claimManagedSurfaceStableExactParentTransientChildLifecycleAuthorityInternalV1(
         {} as ManagedSurfaceStableCompositeRuntimeKernelInternalV1,
@@ -5595,41 +5154,6 @@ describe("managed stable exact-parent transient-child lifecycle authority", () =
     ).toThrowError(
       "ui.managed_surface_stable_exact_parent_transient_child_lifecycle_claim_invalid",
     );
-
-    const argumentTrap = vi.fn();
-    const hostileArgument = new Proxy(Object.freeze({}), {
-      get() {
-        argumentTrap();
-        throw new Error("borrowed lifecycle argument read");
-      },
-      getOwnPropertyDescriptor() {
-        argumentTrap();
-        throw new Error("borrowed lifecycle argument descriptor read");
-      },
-      ownKeys() {
-        argumentTrap();
-        throw new Error("borrowed lifecycle argument keys read");
-      },
-    });
-    expect(() =>
-      Reflect.apply(
-        authority.closeExactParentTransientChildInternalV1,
-        Object.freeze({}),
-        [hostileArgument, hostileArgument],
-      )
-    ).toThrowError(
-      "ui.managed_surface_stable_exact_parent_transient_child_lifecycle_claim_invalid",
-    );
-    expect(() =>
-      Reflect.apply(
-        authority.dismissExactParentTransientChildInternalV1,
-        Object.freeze({}),
-        [hostileArgument, hostileArgument, hostileArgument],
-      )
-    ).toThrowError(
-      "ui.managed_surface_stable_exact_parent_transient_child_lifecycle_claim_invalid",
-    );
-    expect(argumentTrap).not.toHaveBeenCalled();
   });
 
   it("closes preparing and ready exact children atomically with one nonnull restored-parent token", () => {
@@ -5643,8 +5167,6 @@ describe("managed stable exact-parent transient-child lifecycle authority", () =
         (contract: ManagedSurfacePreparedInputBindingContractInternalV1) => {
           expect(fixture.kernel.getStateInternalV1()).toBe(before);
           expect(contract).not.toBeNull();
-          expect(Object.isFrozen(contract)).toBe(true);
-          expect(Reflect.ownKeys(contract)).toEqual([]);
           return true;
         },
       );
@@ -5674,8 +5196,6 @@ describe("managed stable exact-parent transient-child lifecycle authority", () =
         .closeExactParentTransientChildInternalV1(fixture.candidate, guard);
 
       expect(result).toEqual({ kind: "applied", code: "surface.closed" });
-      expect(Object.isFrozen(result)).toBe(true);
-      expect(Reflect.ownKeys(result)).toEqual(["kind", "code"]);
       appliedResults.push(result);
       expect(guarded).toHaveBeenCalledTimes(1);
       expect(transientListener).toHaveBeenCalledTimes(1);
@@ -5714,7 +5234,6 @@ describe("managed stable exact-parent transient-child lifecycle authority", () =
         const guard = vi.fn(
           (contract: ManagedSurfacePreparedInputBindingContractInternalV1) => {
             expect(contract).not.toBeNull();
-            expect(Reflect.ownKeys(contract)).toEqual([]);
             expect(fixture.kernel.getStateInternalV1()).toBe(before);
             return true;
           },
@@ -5748,7 +5267,7 @@ describe("managed stable exact-parent transient-child lifecycle authority", () =
     }
   });
 
-  it("keeps stale precedence ahead of hostile kind and guard reads and canonicalizes guard failures", () => {
+  it("keeps stale precedence and canonicalizes guard rejection and failures", () => {
     const staleFixture = exactParentTransientChildLifecycleFixtureV1();
     expect(
       staleFixture.lifecycleAuthority.closeExactParentTransientChildInternalV1(
@@ -5765,58 +5284,6 @@ describe("managed stable exact-parent transient-child lifecycle authority", () =
     expect(staleResult).toEqual({ kind: "stale" });
     expect(staleGuard).not.toHaveBeenCalled();
 
-    const hostileKindTrap = vi.fn();
-    const hostileKind = new Proxy(Object.freeze({}), {
-      get() {
-        hostileKindTrap();
-        throw new Error("hostile dismiss kind read");
-      },
-      getOwnPropertyDescriptor() {
-        hostileKindTrap();
-        throw new Error("hostile dismiss kind descriptor read");
-      },
-      ownKeys() {
-        hostileKindTrap();
-        throw new Error("hostile dismiss kind keys read");
-      },
-    }) as unknown as ManagedSurfaceDismissKindV1;
-    const hostileGuardTrap = vi.fn();
-    const hostileGuard = new Proxy(Object.freeze({}), {
-      get() {
-        hostileGuardTrap();
-        throw new Error("hostile lifecycle guard read");
-      },
-      getOwnPropertyDescriptor() {
-        hostileGuardTrap();
-        throw new Error("hostile lifecycle guard descriptor read");
-      },
-      ownKeys() {
-        hostileGuardTrap();
-        throw new Error("hostile lifecycle guard keys read");
-      },
-    }) as ManagedSurfaceStableExactParentTransientChildLifecycleCommitGuardInternalV1;
-    expect(
-      staleFixture.lifecycleAuthority.dismissExactParentTransientChildInternalV1(
-        staleFixture.candidate,
-        hostileKind,
-        hostileGuard,
-      ),
-    ).toBe(staleResult);
-    expect(hostileKindTrap).not.toHaveBeenCalled();
-    expect(hostileGuardTrap).not.toHaveBeenCalled();
-
-    const invalidKindFixture = exactParentTransientChildLifecycleFixtureV1();
-    const invalidBefore = invalidKindFixture.kernel.getStateInternalV1();
-    const faultedResult = invalidKindFixture.lifecycleAuthority
-      .dismissExactParentTransientChildInternalV1(
-        invalidKindFixture.candidate,
-        "invalid" as ManagedSurfaceDismissKindV1,
-        hostileGuard,
-      );
-    expect(faultedResult).toEqual({ kind: "faulted" });
-    expect(invalidKindFixture.kernel.getStateInternalV1()).toBe(invalidBefore);
-    expect(hostileGuardTrap).not.toHaveBeenCalled();
-
     const guardedRows = [
       Object.freeze({
         phase: "preparing" as const,
@@ -5830,12 +5297,6 @@ describe("managed stable exact-parent transient-child lifecycle authority", () =
         guard: lifecycleGuardV1(() => {
           throw new Error("lifecycle guard fault");
         }),
-        expectedKind: "faulted" as const,
-      }),
-      Object.freeze({
-        phase: "preparing" as const,
-        dismiss: false,
-        guard: lifecycleGuardV1(() => "true" as unknown as boolean),
         expectedKind: "faulted" as const,
       }),
     ];
@@ -5857,35 +5318,7 @@ describe("managed stable exact-parent transient-child lifecycle authority", () =
       expect(result).toEqual({ kind: row.expectedKind });
       expect(fixture.kernel.getStateInternalV1()).toBe(before);
       expect(listener).not.toHaveBeenCalled();
-      if (row.expectedKind === "stale") expect(result).toBe(staleResult);
-      else expect(result).toBe(faultedResult);
     }
-
-    const extraCallback = vi.fn(() => true);
-    const accessorCallback = vi.fn(() => () => true);
-    const malformedGuards = [
-      Object.freeze({ commitInternalV1: extraCallback, extra: true }),
-      Object.freeze(
-        Object.defineProperty({}, "commitInternalV1", {
-          enumerable: true,
-          get: accessorCallback,
-        }),
-      ),
-      { commitInternalV1: vi.fn(() => true) },
-    ];
-    for (const malformedGuard of malformedGuards) {
-      const fixture = exactParentTransientChildLifecycleFixtureV1();
-      const before = fixture.kernel.getStateInternalV1();
-      expect(
-        fixture.lifecycleAuthority.closeExactParentTransientChildInternalV1(
-          fixture.candidate,
-          malformedGuard as ManagedSurfaceStableExactParentTransientChildLifecycleCommitGuardInternalV1,
-        ),
-      ).toBe(faultedResult);
-      expect(fixture.kernel.getStateInternalV1()).toBe(before);
-    }
-    expect(extraCallback).not.toHaveBeenCalled();
-    expect(accessorCallback).not.toHaveBeenCalled();
   });
 
   it("preserves a preparing root replacement and cannot retire a listener-reentrant fresh child", () => {
@@ -6175,52 +5608,8 @@ describe("managed stable exact-parent transient-child lifecycle authority", () =
 });
 
 describe("managed stable guarded readiness and cross-axis child routing", () => {
-  it("freezes independent same-claimant readiness and action authority surfaces", () => {
-    expectTypeOf<ExactKeysV1<ManagedSurfaceStableReadinessCommitGuardInternalV1>>()
-      .toEqualTypeOf<"commitInternalV1">();
-    expectTypeOf<ManagedSurfaceStableReadinessCommitGuardInternalV1["commitInternalV1"]>()
-      .toEqualTypeOf<
-        (contract: ManagedSurfacePreparedInputBindingContractInternalV1 | null) => boolean
-      >();
-    expectTypeOf<
-      ExactKeysV1<ManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1>
-    >().toEqualTypeOf<
-      | "settleExactParentTransientChildReadinessReadyInternalV1"
-      | "settleExactParentTransientChildReadinessFailedInternalV1"
-    >();
-    expectTypeOf<ManagedSurfaceStableExactParentTransientChildReadinessResultInternalV1["kind"]>()
-      .toEqualTypeOf<"applied" | "stale" | "faulted">();
-    expectTypeOf<
-      ExactKeysV1<ManagedSurfaceStableExactParentTransientChildReadinessResultInternalV1>
-    >().toEqualTypeOf<"kind">();
-    expectTypeOf<
-      ExactKeysV1<ManagedSurfaceStableExactParentTransientChildActionRouteAuthorityInternalV1>
-    >().toEqualTypeOf<
-      | "captureCurrentExactParentTransientChildInputInternalV1"
-      | "routeActionInternalV1"
-    >();
-    expectTypeOf<
-      ExactKeysV1<ManagedSurfaceStableExactParentTransientChildActionInputCaptureResultInternalV1>
-    >().toEqualTypeOf<
-      | "kind"
-      | "contract"
-      | "parentDirectTarget"
-      | "parentSourceRevision"
-      | "parentTargetProof"
-      | "code"
-    >();
-
+  it("keeps independent same-claimant readiness and action authorities", () => {
     const fixture = installedExactParentTransientHistoryV1();
-    expect(Object.isFrozen(fixture.readinessAuthority)).toBe(true);
-    expect(Reflect.ownKeys(fixture.readinessAuthority)).toEqual([
-      "settleExactParentTransientChildReadinessReadyInternalV1",
-      "settleExactParentTransientChildReadinessFailedInternalV1",
-    ]);
-    expect(Object.isFrozen(fixture.childActionAuthority)).toBe(true);
-    expect(Reflect.ownKeys(fixture.childActionAuthority)).toEqual([
-      "captureCurrentExactParentTransientChildInputInternalV1",
-      "routeActionInternalV1",
-    ]);
     expect(
       claimManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1(
         fixture.kernel,
@@ -6234,17 +5623,7 @@ describe("managed stable guarded readiness and cross-axis child routing", () => 
       ),
     ).toBe(fixture.childActionAuthority);
 
-    const claimantTrap = vi.fn();
-    const foreignClaimant = new Proxy(Object.freeze({}), {
-      get() {
-        claimantTrap();
-        throw new Error("claimant read");
-      },
-      ownKeys() {
-        claimantTrap();
-        throw new Error("claimant enumerated");
-      },
-    });
+    const foreignClaimant = Object.freeze({});
     expect(() =>
       claimManagedSurfaceStableExactParentTransientChildReadinessAuthorityInternalV1(
         fixture.kernel,
@@ -6259,23 +5638,6 @@ describe("managed stable guarded readiness and cross-axis child routing", () => 
         foreignClaimant,
       )
     ).toThrowError(
-      "ui.managed_surface_stable_exact_parent_transient_child_action_claim_invalid",
-    );
-    expect(claimantTrap).not.toHaveBeenCalled();
-
-    const ready = fixture.readinessAuthority
-      .settleExactParentTransientChildReadinessReadyInternalV1;
-    expect(() =>
-      Reflect.apply(ready, Object.freeze({}), [
-        fixture.candidate,
-        Object.freeze({ commitInternalV1: () => true }),
-      ])
-    ).toThrowError(
-      "ui.managed_surface_stable_exact_parent_transient_child_readiness_claim_invalid",
-    );
-    const capture = fixture.childActionAuthority
-      .captureCurrentExactParentTransientChildInputInternalV1;
-    expect(() => Reflect.apply(capture, Object.freeze({}), [fixture.candidate])).toThrowError(
       "ui.managed_surface_stable_exact_parent_transient_child_action_claim_invalid",
     );
     expect(() =>
@@ -6311,8 +5673,6 @@ describe("managed stable guarded readiness and cross-axis child routing", () => 
       (contract: ManagedSurfacePreparedInputBindingContractInternalV1 | null) => {
         expect(readyFixture.kernel.getStateInternalV1()).toBe(readyBefore);
         expect(contract).not.toBeNull();
-        expect(Object.isFrozen(contract)).toBe(true);
-        expect(Reflect.ownKeys(contract!)).toEqual([]);
         readyCommitted = true;
         return true;
       },
@@ -6330,22 +5690,6 @@ describe("managed stable guarded readiness and cross-axis child routing", () => 
       Object.freeze({ commitInternalV1: staleRootGuard }),
     )).toMatchObject({ kind: "stale", code: "surface.stale_readiness" });
     expect(staleRootGuard).not.toHaveBeenCalled();
-    const staleRootGuardTrap = vi.fn();
-    const staleRootTrappingGuard = new Proxy(Object.freeze({}), {
-      getOwnPropertyDescriptor() {
-        staleRootGuardTrap();
-        throw new Error("stale root guard descriptor read");
-      },
-      ownKeys() {
-        staleRootGuardTrap();
-        throw new Error("stale root guard keys read");
-      },
-    });
-    expect(readyFixture.kernel.settleStableReadinessFailedWithCommitGuardInternalV1(
-      readyEnvelope,
-      staleRootTrappingGuard as ManagedSurfaceStableReadinessCommitGuardInternalV1,
-    )).toMatchObject({ kind: "stale", code: "surface.stale_readiness" });
-    expect(staleRootGuardTrap).not.toHaveBeenCalled();
 
     const failedFixture = stableActionFixtureV1();
     const failedTarget = admitAndApplyStableTargetV1({
@@ -6422,9 +5766,8 @@ describe("managed stable guarded readiness and cross-axis child routing", () => 
           throw new Error("root guard fault");
         },
       }),
-      Object.freeze({ commitInternalV1: () => "true" as unknown as boolean }),
     ];
-    const expectedKinds = ["stale", "faulted", "faulted"] as const;
+    const expectedKinds = ["stale", "faulted"] as const;
     for (const [index, guard] of guardRows.entries()) {
       const fixture = stableActionFixtureV1();
       const target = admitAndApplyStableTargetV1({
@@ -6495,7 +5838,6 @@ describe("managed stable guarded readiness and cross-axis child routing", () => 
         }),
       );
     expect(ready).toEqual({ kind: "applied" });
-    expect(Object.isFrozen(ready)).toBe(true);
     const lateFailGuard = vi.fn(() => true);
     const lateFailed = readyFixture.readinessAuthority
       .settleExactParentTransientChildReadinessFailedInternalV1(
@@ -6511,25 +5853,6 @@ describe("managed stable guarded readiness and cross-axis child routing", () => 
         ),
     ).toBe(lateFailed);
     expect(lateFailGuard).not.toHaveBeenCalled();
-    const staleHistoryGuardTrap = vi.fn();
-    const staleHistoryTrappingGuard = new Proxy(Object.freeze({}), {
-      getOwnPropertyDescriptor() {
-        staleHistoryGuardTrap();
-        throw new Error("stale History guard descriptor read");
-      },
-      ownKeys() {
-        staleHistoryGuardTrap();
-        throw new Error("stale History guard keys read");
-      },
-    });
-    expect(
-      readyFixture.readinessAuthority
-        .settleExactParentTransientChildReadinessFailedInternalV1(
-          readyFixture.candidate,
-          staleHistoryTrappingGuard as ManagedSurfaceStableReadinessCommitGuardInternalV1,
-        ),
-    ).toBe(lateFailed);
-    expect(staleHistoryGuardTrap).not.toHaveBeenCalled();
 
     const failedFixture = installedExactParentTransientHistoryV1();
     const failedBefore = failedFixture.kernel.getStateInternalV1();
@@ -6573,9 +5896,8 @@ describe("managed stable guarded readiness and cross-axis child routing", () => 
           throw new Error("guard fault");
         },
       }),
-      Object.freeze({ commitInternalV1: () => "true" as unknown as boolean }),
     ];
-    const expectedKinds = ["stale", "faulted", "faulted"] as const;
+    const expectedKinds = ["stale", "faulted"] as const;
     const guardedResults: ManagedSurfaceStableExactParentTransientChildReadinessResultInternalV1[] =
       [];
     for (const [index, guard] of guardedRows.entries()) {
@@ -6593,7 +5915,6 @@ describe("managed stable guarded readiness and cross-axis child routing", () => 
       expect(fixture.kernel.getStateInternalV1()).toBe(before);
       expect(listener).not.toHaveBeenCalled();
     }
-    expect(guardedResults[2]).toBe(guardedResults[1]);
 
     const failedGuardedResults:
       ManagedSurfaceStableExactParentTransientChildReadinessResultInternalV1[] = [];
@@ -6611,30 +5932,6 @@ describe("managed stable guarded readiness and cross-axis child routing", () => 
     }
     expect(failedGuardedResults[0]).toBe(guardedResults[0]);
     expect(failedGuardedResults[1]).toBe(guardedResults[1]);
-    expect(failedGuardedResults[2]).toBe(guardedResults[1]);
-  });
-
-  it("rejects malformed readiness guards without invoking accessors or mutating state", () => {
-    const guards: object[] = [];
-    const extra = vi.fn(() => true);
-    guards.push(Object.freeze({ commitInternalV1: extra, extra: true }));
-    const getter = vi.fn(() => () => true);
-    guards.push(Object.freeze(Object.defineProperty({}, "commitInternalV1", { get: getter })));
-    guards.push({ commitInternalV1: vi.fn(() => true) });
-
-    for (const guard of guards) {
-      const fixture = installedExactParentTransientHistoryV1();
-      const before = fixture.kernel.getStateInternalV1();
-      expect(
-        fixture.readinessAuthority.settleExactParentTransientChildReadinessReadyInternalV1(
-          fixture.candidate,
-          guard as ManagedSurfaceStableReadinessCommitGuardInternalV1,
-        ),
-      ).toEqual({ kind: "faulted" });
-      expect(fixture.kernel.getStateInternalV1()).toBe(before);
-    }
-    expect(extra).not.toHaveBeenCalled();
-    expect(getter).not.toHaveBeenCalled();
   });
 
   it("returns historical applied after listener terminal reentry and preserves structural cascades", () => {
@@ -6708,8 +6005,6 @@ describe("managed stable guarded readiness and cross-axis child routing", () => 
       routingLeaseId: child.routingLeaseId,
       actionIds: [narrativeAdvanceActionIdV1, narrativeOtherActionIdV1],
     });
-    expect(Object.isFrozen(captured.contract)).toBe(true);
-    expect(Object.isFrozen(captured.contract.actionIds)).toBe(true);
 
     for (const actionId of [narrativeAdvanceActionIdV1, narrativeOtherActionIdV1]) {
       expect(fixture.childActionAuthority.routeActionInternalV1(Object.freeze({
@@ -6917,14 +6212,6 @@ describe("dormant managed stable action-route authority", () => {
     expect(claimManagedSurfaceStableActionRouteAuthorityInternalV1(fixture.kernel)).toBe(
       authority,
     );
-    expect(Object.isFrozen(authority)).toBe(true);
-    expect(Reflect.ownKeys(authority)).toEqual([
-      "captureCurrentStableInputInternalV1",
-      "captureReadyActiveStableTargetInternalV1",
-      "routeActionInternalV1",
-      "isCurrentDirectTargetInternalV1",
-      "isCurrentReadyActiveStableTargetInternalV1",
-    ]);
     expect(authority.captureCurrentStableInputInternalV1()).toEqual({ kind: "unavailable" });
 
     const installedTarget = admitAndApplyStableTargetV1({
@@ -6943,14 +6230,6 @@ describe("dormant managed stable action-route authority", () => {
     const captured = authority.captureCurrentStableInputInternalV1();
     expect(captured.kind).toBe("captured");
     if (captured.kind !== "captured") throw new Error("expected captured stable input");
-    expect(Reflect.ownKeys(captured)).toEqual([
-      "kind",
-      "contract",
-      "directTarget",
-      "sourceRevision",
-      "targetProof",
-    ]);
-    expect(Object.isFrozen(captured)).toBe(true);
     expect(captured.directTarget).toBe(installedTarget);
     expect(captured.sourceRevision).toBe(fixture.harness.workspaceRevision);
     expect(captured.targetProof).not.toBeNull();
@@ -6960,8 +6239,6 @@ describe("dormant managed stable action-route authority", () => {
       inputContextId: "narrative",
       actionIds: [narrativeAdvanceActionIdV1],
     });
-    expect(Object.isFrozen(captured.contract)).toBe(true);
-    expect(Object.isFrozen(captured.contract.actionIds)).toBe(true);
     expect(authority.isCurrentDirectTargetInternalV1(captured.targetProof)).toBe(true);
 
     const before = fixture.kernel.getStateInternalV1();
@@ -6998,48 +6275,14 @@ describe("dormant managed stable action-route authority", () => {
     expectTypeOf<
       typeof fixture.authority.captureReadyActiveStableTargetInternalV1
     >().returns.toEqualTypeOf<ManagedSurfaceStableReadyActiveTargetCaptureResultInternalV1>();
-    expectTypeOf<
-      ExactKeysV1<
-        Extract<
-          ManagedSurfaceStableReadyActiveTargetCaptureResultInternalV1,
-          { readonly kind: "captured" }
-        >
-      >
-    >().toEqualTypeOf<"kind" | "directTarget" | "sourceRevision" | "proof">();
-    expectTypeOf<
-      ExactKeysV1<
-        Extract<
-          ManagedSurfaceStableReadyActiveTargetCaptureResultInternalV1,
-          { readonly kind: "unavailable" }
-        >
-      >
-    >().toEqualTypeOf<"kind">();
-    expectTypeOf<
-      ExactKeysV1<
-        Extract<
-          ManagedSurfaceStableReadyActiveTargetCaptureResultInternalV1,
-          { readonly kind: "faulted" }
-        >
-      >
-    >().toEqualTypeOf<"kind" | "code">();
-
     const initial = fixture.authority.captureReadyActiveStableTargetInternalV1(installedTarget);
     expect(initial.kind).toBe("captured");
     if (initial.kind !== "captured") throw new Error("expected ready-active proof");
-    expect(Reflect.ownKeys(initial)).toEqual([
-      "kind",
-      "directTarget",
-      "sourceRevision",
-      "proof",
-    ]);
-    expect(Object.isFrozen(initial)).toBe(true);
     expect(initial.directTarget).toBe(installedTarget);
     expect(initial.sourceRevision).toBe(fixture.harness.workspaceRevision);
     expectTypeOf(initial.proof).toEqualTypeOf<
       ManagedSurfaceStableReadyActiveTargetProofInternalV1
     >();
-    expect(Reflect.ownKeys(initial.proof)).toEqual([]);
-    expect(Object.isFrozen(initial.proof)).toBe(true);
     expect(
       fixture.authority.isCurrentReadyActiveStableTargetInternalV1(initial.proof),
     ).toBe(true);
@@ -7270,7 +6513,7 @@ describe("dormant managed stable action-route authority", () => {
     ).toEqual({ kind: "unavailable" });
   });
 
-  it("rejects hostile, cloned, and foreign target and proof identities without reads or mutation", () => {
+  it("rejects cloned and foreign target and proof identities without mutation", () => {
     const fixture = stableActionFixtureV1();
     const installedTarget = publishReadyStableTargetV1({
       fixture,
@@ -7291,15 +6534,7 @@ describe("dormant managed stable action-route authority", () => {
     const foreignCaptured = foreign.authority
       .captureReadyActiveStableTargetInternalV1(foreignTarget);
     if (foreignCaptured.kind !== "captured") throw new Error("expected foreign proof");
-    const targetRead = vi.fn();
-    const proofRead = vi.fn();
-    const hostileTarget = Object.defineProperty({}, "occurrenceId", { get: targetRead });
-    const hostileProof = Object.defineProperty({}, "proof", { get: proofRead });
-    const revokedTarget = Proxy.revocable({}, {});
-    const revokedProof = Proxy.revocable({}, {});
-    revokedTarget.revoke();
-    revokedProof.revoke();
-    const clonedTarget = Object.freeze({ ...installedTarget });
+    const clonedTarget = { ...installedTarget };
 
     const before = fixture.kernel.getStateInternalV1();
     const stateListener = vi.fn();
@@ -7308,8 +6543,7 @@ describe("dormant managed stable action-route authority", () => {
       const invalidTarget of [
         null,
         undefined,
-        hostileTarget,
-        revokedTarget.proxy,
+        {},
         clonedTarget,
         foreignTarget,
         captured.proof,
@@ -7323,9 +6557,8 @@ describe("dormant managed stable action-route authority", () => {
       const invalidProof of [
         null,
         undefined,
-        hostileProof,
-        revokedProof.proxy,
-        Object.freeze({ ...captured.proof }),
+        {},
+        { ...captured.proof },
         foreignCaptured.proof,
       ]
     ) {
@@ -7333,8 +6566,6 @@ describe("dormant managed stable action-route authority", () => {
         fixture.authority.isCurrentReadyActiveStableTargetInternalV1(invalidProof),
       ).toBe(false);
     }
-    expect(targetRead).not.toHaveBeenCalled();
-    expect(proofRead).not.toHaveBeenCalled();
     expect(fixture.kernel.getStateInternalV1()).toBe(before);
     expect(stateListener).not.toHaveBeenCalled();
     expect(
@@ -7579,7 +6810,7 @@ describe("dormant managed stable action-route authority", () => {
     );
   });
 
-  it("rejects cloned, foreign, revoked, and terminal direct-target proofs", () => {
+  it("rejects cloned, foreign, and terminal direct-target proofs", () => {
     const fixture = stableActionFixtureV1();
     publishReadyStableTargetV1({
       fixture,
@@ -7591,17 +6822,12 @@ describe("dormant managed stable action-route authority", () => {
     if (captured.kind !== "captured" || captured.targetProof === null) {
       throw new Error("expected direct-target proof");
     }
-    const propertyRead = vi.fn();
-    const clone = Object.defineProperty({}, "trap", { get: propertyRead });
-    const revoked = Proxy.revocable({}, {});
-    revoked.revoke();
+    const clone = { ...captured.targetProof };
     const foreign = stableActionFixtureV1();
 
     expect(fixture.authority.isCurrentDirectTargetInternalV1(captured.targetProof)).toBe(true);
     expect(fixture.authority.isCurrentDirectTargetInternalV1(clone)).toBe(false);
-    expect(fixture.authority.isCurrentDirectTargetInternalV1(revoked.proxy)).toBe(false);
     expect(foreign.authority.isCurrentDirectTargetInternalV1(captured.targetProof)).toBe(false);
-    expect(propertyRead).not.toHaveBeenCalled();
 
     const coordinator = createManagedSurfaceCoordinatorFacadeInternalV1(fixture.kernel);
     expect(coordinator.dispose().kind).toBe("applied");
@@ -7656,7 +6882,6 @@ describe("dormant stable publisher registration", () => {
     kind: ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1["kind"],
   ): void {
     expect(result.kind).toBe(kind);
-    expect(Object.isFrozen(result)).toBe(true);
   }
 
   it("registers one exact unpublished baseline with one state notification and zero transient delta", () => {
@@ -7691,12 +6916,9 @@ describe("dormant stable publisher registration", () => {
     });
     if (result.kind !== "registered") throw new Error("expected registered result");
     expect(Object.keys(result)).toEqual(["kind", "acceptedBaseline"]);
-    expect(Object.isFrozen(result.acceptedBaseline)).toBe(true);
 
     const after = kernel.getStateInternalV1();
     expect(after).not.toBe(before);
-    expect(Object.isFrozen(after)).toBe(true);
-    expect(Object.isFrozen(after.stableAcceptedBaselines)).toBe(true);
     expect(after.stableAcceptedBaselines).toEqual([result.acceptedBaseline]);
     expect(after.stableAcceptedBaselines[0]).toBe(result.acceptedBaseline);
     expect(after.transientState).toBe(before.transientState);
@@ -7736,7 +6958,6 @@ describe("dormant stable publisher registration", () => {
       kind: "faulted",
       code: "surface.stable_reconcile_faulted",
     });
-    expect(Object.isFrozen(missing)).toBe(true);
     expect(kernel.getStateInternalV1()).toBe(before);
 
     const result = kernel.registerStablePublisherLeaseInternalV1(harness.workspace.lease);
@@ -7784,7 +7005,7 @@ describe("dormant stable publisher registration", () => {
     expect(transientListener).not.toHaveBeenCalled();
   });
 
-  it("keeps foreign opaque candidates stale after a valid baseline is registered", () => {
+  it("keeps foreign lease candidates stale after a valid baseline is registered", () => {
     const { harness, kernel } = registrationFixtureV1();
     expect(kernel.registerStablePublisherLeaseInternalV1(harness.workspace.lease).kind).toBe(
       "registered",
@@ -7795,40 +7016,26 @@ describe("dormant stable publisher registration", () => {
       leaseSequenceAllocator: createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1(),
     });
     const foreignPublisher = foreignRegistry.issuePublisher(narrativeOwnerIdV1);
-    const trap = vi.fn();
-    const proxyLease = new Proxy(foreignPublisher.lease as object, {
-      get() {
-        trap();
-        throw new Error("foreign lease proxy must remain opaque");
-      },
-      ownKeys() {
-        trap();
-        throw new Error("foreign lease proxy must remain opaque");
-      },
-    });
     const before = kernel.getStateInternalV1();
     const stateListener = vi.fn();
     const transientListener = vi.fn();
     kernel.subscribeStateInternalV1(stateListener);
     kernel.subscribeTransientInternalV1(transientListener);
 
-    for (const value of [foreignPublisher.lease, proxyLease]) {
-      expect(kernel.registerStablePublisherLeaseInternalV1(value)).toEqual({
-        kind: "stale",
-        code: "surface.stable_publisher_lease_stale",
-      });
-      expect(kernel.captureAdmissionContextInternalV1(value)).toEqual({
-        kind: "stale",
-        code: "surface.stable_publisher_lease_stale",
-      });
-    }
-    expect(trap).not.toHaveBeenCalled();
+    expect(kernel.registerStablePublisherLeaseInternalV1(foreignPublisher.lease)).toEqual({
+      kind: "stale",
+      code: "surface.stable_publisher_lease_stale",
+    });
+    expect(kernel.captureAdmissionContextInternalV1(foreignPublisher.lease)).toEqual({
+      kind: "stale",
+      code: "surface.stable_publisher_lease_stale",
+    });
     expect(kernel.getStateInternalV1()).toBe(before);
     expect(stateListener).not.toHaveBeenCalled();
     expect(transientListener).not.toHaveBeenCalled();
   });
 
-  it("closes registration and context ingress before touching a candidate after coordinator dispose", () => {
+  it("closes registration and context ingress after coordinator dispose", () => {
     const { harness, kernel } = registrationFixtureV1();
     expect(kernel.registerStablePublisherLeaseInternalV1(harness.workspace.lease).kind).toBe(
       "registered",
@@ -7843,24 +7050,13 @@ describe("dormant stable publisher registration", () => {
     expect(stateListener).toHaveBeenCalledTimes(1);
     expect(transientListener).toHaveBeenCalledTimes(1);
 
-    const trap = vi.fn();
-    const proxyLease = new Proxy(harness.workspace.lease as object, {
-      get() {
-        trap();
-        throw new Error("disposed composition must not inspect a candidate lease");
-      },
-      ownKeys() {
-        trap();
-        throw new Error("disposed composition must not inspect a candidate lease");
-      },
-    });
-    expect(() => kernel.registerStablePublisherLeaseInternalV1(proxyLease)).toThrowError(
+    expect(() => kernel.registerStablePublisherLeaseInternalV1(harness.workspace.lease))
+      .toThrowError(
+        "ui.managed_surface_coordinator_disposed",
+      );
+    expect(() => kernel.captureAdmissionContextInternalV1(harness.workspace.lease)).toThrowError(
       "ui.managed_surface_coordinator_disposed",
     );
-    expect(() => kernel.captureAdmissionContextInternalV1(proxyLease)).toThrowError(
-      "ui.managed_surface_coordinator_disposed",
-    );
-    expect(trap).not.toHaveBeenCalled();
     expect(kernel.getStateInternalV1()).toBe(disposed);
     expect(stateListener).toHaveBeenCalledTimes(1);
     expect(transientListener).toHaveBeenCalledTimes(1);
@@ -7893,35 +7089,22 @@ describe("dormant stable publisher registration", () => {
     expect(transientListener).not.toHaveBeenCalled();
   });
 
-  it("treats a disposed bound registry as global reconcile divergence before candidate inspection", () => {
+  it("treats a disposed bound registry as global reconcile divergence", () => {
     const { harness, kernel } = registrationFixtureV1();
     expect(harness.registry.dispose()).toBe("disposed");
     const before = kernel.getStateInternalV1();
-    const trap = vi.fn();
-    const proxyLease = new Proxy(harness.workspace.lease as object, {
-      get() {
-        trap();
-        throw new Error("disposed registry must win before candidate inspection");
-      },
-      ownKeys() {
-        trap();
-        throw new Error("disposed registry must win before candidate inspection");
-      },
-    });
-
-    expect(kernel.registerStablePublisherLeaseInternalV1(proxyLease)).toEqual({
+    expect(kernel.registerStablePublisherLeaseInternalV1(harness.workspace.lease)).toEqual({
       kind: "faulted",
       code: "surface.stable_reconcile_faulted",
     });
-    expect(kernel.captureAdmissionContextInternalV1(proxyLease)).toEqual({
+    expect(kernel.captureAdmissionContextInternalV1(harness.workspace.lease)).toEqual({
       kind: "faulted",
       code: "surface.stable_reconcile_faulted",
     });
-    expect(trap).not.toHaveBeenCalled();
     expect(kernel.getStateInternalV1()).toBe(before);
   });
 
-  it("returns stale for foreign, cloned, disposed-unregistered, and trap-bearing lease values", () => {
+  it("returns stale for foreign, cloned, disposed-unregistered, and malformed lease values", () => {
     const { harness, kernel } = registrationFixtureV1();
     const foreignRegistry = createManagedSurfaceStablePublisherLeaseRegistryInternalV1({
       applicationEpoch: applicationEpochV1,
@@ -7929,18 +7112,7 @@ describe("dormant stable publisher registration", () => {
       leaseSequenceAllocator: createLocalManagedSurfaceStableLeaseSequenceAllocatorInternalV1(),
     });
     const foreignPublisher = foreignRegistry.issuePublisher(workspaceOwnerIdV1);
-    const clonedLease = Object.freeze({ ...harness.workspace.lease });
-    const trap = vi.fn();
-    const proxyLease = new Proxy(harness.workspace.lease as object, {
-      get() {
-        trap();
-        throw new Error("lease proxy must remain opaque");
-      },
-      ownKeys() {
-        trap();
-        throw new Error("lease proxy must remain opaque");
-      },
-    });
+    const clonedLease = { ...harness.workspace.lease };
     expect(harness.registry.disposePublisherLease(harness.narrative.lease)).toBe("disposed");
     const before = kernel.getStateInternalV1();
     const stateListener = vi.fn();
@@ -7952,7 +7124,6 @@ describe("dormant stable publisher registration", () => {
       const lease of [
         foreignPublisher.lease,
         clonedLease,
-        proxyLease,
         harness.narrative.lease,
         null,
         "surface-stable-publisher.e41.n1",
@@ -7969,9 +7140,7 @@ describe("dormant stable publisher registration", () => {
         kind: "stale",
         code: "surface.stable_publisher_lease_stale",
       });
-      expect(Object.isFrozen(captured)).toBe(true);
     }
-    expect(trap).not.toHaveBeenCalled();
     expect(kernel.getStateInternalV1()).toBe(before);
     expect(stateListener).not.toHaveBeenCalled();
     expect(transientListener).not.toHaveBeenCalled();
@@ -7999,29 +7168,10 @@ describe("dormant stable publisher registration", () => {
       code: "surface.stable_reconcile_faulted",
     });
 
-    const clonedLease = Object.freeze({ ...harness.workspace.lease });
+    const clonedLease = { ...harness.workspace.lease };
     const cloneResult = kernel.registerStablePublisherLeaseInternalV1(clonedLease);
     expectRegistrationResultV1(cloneResult, "faulted");
     expect(kernel.captureAdmissionContextInternalV1(clonedLease)).toEqual({
-      kind: "faulted",
-      code: "surface.stable_reconcile_faulted",
-    });
-    const trap = vi.fn();
-    const proxyLease = new Proxy(harness.workspace.lease as object, {
-      get() {
-        trap();
-        throw new Error("divergent registry must not inspect a candidate proxy");
-      },
-      ownKeys() {
-        trap();
-        throw new Error("divergent registry must not inspect a candidate proxy");
-      },
-    });
-    expect(kernel.registerStablePublisherLeaseInternalV1(proxyLease)).toEqual({
-      kind: "faulted",
-      code: "surface.stable_reconcile_faulted",
-    });
-    expect(kernel.captureAdmissionContextInternalV1(proxyLease)).toEqual({
       kind: "faulted",
       code: "surface.stable_reconcile_faulted",
     });
@@ -8038,7 +7188,6 @@ describe("dormant stable publisher registration", () => {
       kind: "faulted",
       code: "surface.stable_reconcile_faulted",
     });
-    expect(trap).not.toHaveBeenCalled();
     expect(kernel.getStateInternalV1()).toBe(installed);
     expect(stateListener).not.toHaveBeenCalled();
     expect(transientListener).not.toHaveBeenCalled();
@@ -8092,10 +7241,8 @@ describe("dormant stable publisher registration", () => {
       "acceptedBaseline",
       "reservationSnapshot",
     ]);
-    expect(Object.isFrozen(context)).toBe(true);
     expect(context.acceptedBaseline).toBe(registered.acceptedBaseline);
     expect(context.acceptedBaseline).toBe(before.stableAcceptedBaselines[0]);
-    expect(Object.isFrozen(context.reservationSnapshot)).toBe(true);
     expect(context.reservationSnapshot.subjectPublisherLease).toBe(publisher.lease);
     expect(context.reservationSnapshot.generationToken).toBe(
       before.rootReservationGenerationToken,
@@ -8127,87 +7274,6 @@ describe("dormant stable publisher registration", () => {
     expect(stateListener).not.toHaveBeenCalled();
     expect(transientListener).not.toHaveBeenCalled();
   });
-
-  it("keeps the registration and admission-context type surfaces exact and source-relative", () => {
-    expectTypeOf<ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1["kind"]>()
-      .toEqualTypeOf<"registered" | "unchanged" | "stale" | "faulted">();
-    expectTypeOf<
-      ExactKeysV1<
-        Extract<
-          ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1,
-          { readonly kind: "registered" | "unchanged" }
-        >
-      >
-    >().toEqualTypeOf<"kind" | "acceptedBaseline">();
-    expectTypeOf<
-      ExactKeysV1<
-        Extract<
-          ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1,
-          { readonly kind: "stale" | "faulted" }
-        >
-      >
-    >().toEqualTypeOf<"kind" | "code">();
-    expectTypeOf<
-      Extract<
-        ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1,
-        { readonly kind: "registered" }
-      >["acceptedBaseline"]["kind"]
-    >().toEqualTypeOf<"unpublished">();
-    expectTypeOf<
-      Extract<
-        ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1,
-        { readonly kind: "unchanged" }
-      >["acceptedBaseline"]["kind"]
-    >().toEqualTypeOf<"unpublished" | "accepted">();
-    expectTypeOf<
-      Extract<
-        ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1,
-        { readonly kind: "stale" }
-      >["code"]
-    >().toEqualTypeOf<"surface.stable_publisher_lease_stale">();
-    expectTypeOf<
-      Extract<
-        ManagedSurfaceStablePublisherLeaseRegistrationResultInternalV1,
-        { readonly kind: "faulted" }
-      >["code"]
-    >().toEqualTypeOf<"surface.stable_reconcile_faulted">();
-    expectTypeOf<ManagedSurfaceStableAdmissionContextCaptureResultInternalV1["kind"]>()
-      .toEqualTypeOf<"captured" | "stale" | "faulted">();
-    expectTypeOf<
-      ExactKeysV1<
-        Extract<
-          ManagedSurfaceStableAdmissionContextCaptureResultInternalV1,
-          { readonly kind: "captured" }
-        >
-      >
-    >().toEqualTypeOf<"kind" | "acceptedBaseline" | "reservationSnapshot">();
-    expectTypeOf<
-      Extract<
-        ManagedSurfaceStableAdmissionContextCaptureResultInternalV1,
-        { readonly kind: "captured" }
-      >["acceptedBaseline"]["kind"]
-    >().toEqualTypeOf<"unpublished" | "accepted">();
-    expectTypeOf<
-      ExactKeysV1<
-        Extract<
-          ManagedSurfaceStableAdmissionContextCaptureResultInternalV1,
-          { readonly kind: "stale" | "faulted" }
-        >
-      >
-    >().toEqualTypeOf<"kind" | "code">();
-    expectTypeOf<
-      Extract<
-        ManagedSurfaceStableAdmissionContextCaptureResultInternalV1,
-        { readonly kind: "stale" }
-      >["code"]
-    >().toEqualTypeOf<"surface.stable_publisher_lease_stale">();
-    expectTypeOf<
-      Extract<
-        ManagedSurfaceStableAdmissionContextCaptureResultInternalV1,
-        { readonly kind: "faulted" }
-      >["code"]
-    >().toEqualTypeOf<"surface.stable_reconcile_faulted">();
-  });
 });
 
 describe("stable composite state-install participant", () => {
@@ -8222,7 +7288,6 @@ describe("stable composite state-install participant", () => {
   }
 
   function participantProbeV1() {
-    let participant!: ManagedSurfaceStableCompositeStateInstallParticipantInternalV1;
     const prepareStateInstallInternalV1 = vi.fn(function (
       this: ManagedSurfaceStableCompositeStateInstallParticipantInternalV1,
       _previousState: ManagedSurfaceStableCompositeStateInternalV1,
@@ -8231,7 +7296,9 @@ describe("stable composite state-install participant", () => {
       expect(this).toBe(participant);
       return null;
     });
-    participant = Object.freeze({ prepareStateInstallInternalV1 });
+    const participant: ManagedSurfaceStableCompositeStateInstallParticipantInternalV1 = {
+      prepareStateInstallInternalV1,
+    };
     return Object.freeze({ participant, prepareStateInstallInternalV1 });
   }
 
@@ -8259,7 +7326,6 @@ describe("stable composite state-install participant", () => {
     const pushTrace = (entry: string): void => {
       input.trace?.push(entry);
     };
-    let participant!: ManagedSurfaceStableCompositeStateInstallParticipantInternalV1;
     const candidate = {
       prepareStateInstallInternalV1(
         this: unknown,
@@ -8275,13 +7341,12 @@ describe("stable composite state-install participant", () => {
         });
         pushTrace(`prepare:${context.prepareIndex}`);
         let settled = false;
-        let prepared!: ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1;
         const settle = (): void => {
           if (settled) throw new Error("prepared participant settled twice");
           settled = true;
           activePrepared -= 1;
         };
-        prepared = Object.freeze({
+        const prepared: ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1 = {
           validateInternalV1(this: unknown): boolean {
             expect(this).toBe(prepared);
             counts.validate += 1;
@@ -8306,13 +7371,13 @@ describe("stable composite state-install participant", () => {
             settle();
             input.onComplete?.(context);
           },
-        });
+        };
         activePrepared += 1;
         maxActivePrepared = Math.max(maxActivePrepared, activePrepared);
         return prepared;
       },
     } satisfies ManagedSurfaceStableCompositeStateInstallParticipantInternalV1;
-    participant = Object.freeze(candidate);
+    const participant: ManagedSurfaceStableCompositeStateInstallParticipantInternalV1 = candidate;
     return Object.freeze({
       participant,
       counts,

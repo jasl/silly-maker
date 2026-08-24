@@ -38,19 +38,19 @@ function listEntryV1(value: unknown): MotionIoListEntryV1 | null {
   ) {
     return null;
   }
-  return Object.freeze({ path: record.path, motionId: record.motionId, label: record.label });
+  return { path: record.path, motionId: record.motionId, label: record.label };
 }
 
 function listSkipV1(value: unknown): MotionIoListSkipV1 | null {
   if (value === null || typeof value !== "object") return null;
   const record = value as { path?: unknown; reason?: unknown };
   if (typeof record.path !== "string" || typeof record.reason !== "string") return null;
-  return Object.freeze({ path: record.path, reason: record.reason });
+  return { path: record.path, reason: record.reason };
 }
 
 /** The standard dev-server-backed IO; absent endpoints report `unavailable`. */
 export function createDevServerMotionIoV1(): MotionSourceIoV1 {
-  return Object.freeze({
+  return {
     async list(): Promise<MotionIoListResultV1> {
       try {
         const response = await fetch(motionIoListUrlV1);
@@ -77,7 +77,7 @@ export function createDevServerMotionIoV1(): MotionSourceIoV1 {
           if (skip === null) return { kind: "error", code: "unavailable" };
           skipped.push(skip);
         }
-        return { kind: "ok", motions: Object.freeze(motions), skipped: Object.freeze(skipped) };
+        return { kind: "ok", motions, skipped };
       } catch {
         return { kind: "error", code: "unavailable" };
       }
@@ -116,7 +116,7 @@ export function createDevServerMotionIoV1(): MotionSourceIoV1 {
     }): Promise<MotionIoWriteResultV1> {
       return await postMotionV1({ ...input, expectedDigest: null });
     },
-  });
+  };
 }
 
 async function postMotionV1(payload: {

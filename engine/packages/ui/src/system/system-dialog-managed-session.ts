@@ -34,8 +34,6 @@ import {
 } from "./system-dialog-managed-contract.ts";
 import { createSystemDialogContentConfigSnapshotInternalV1 } from "./system-dialog-managed-contract.ts";
 
-const promiseThenInternalV1 = Promise.prototype.then;
-
 export interface SystemDialogSettingsContentConfigInternalV1 {
   readonly title: string;
   readonly closeLabel: string;
@@ -291,33 +289,13 @@ export interface SystemDialogManagedSessionInternalV1
 
 interface CatalogEntryRecordV1 extends SystemDialogResolvedRootCatalogEntryInternalV1 {}
 
-const systemDialogSettingsConfigSnapshotsInternalV1 = new WeakSet<object>();
-const systemDialogSavesConfigSnapshotsInternalV1 = new WeakSet<object>();
-const systemDialogConfirmationCatalogEntriesInternalV1 = new WeakSet<object>();
-
 function isRecordV1(value: unknown): value is Readonly<Record<string, unknown>> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function ownDataValueV1(value: Readonly<Record<string, unknown>>, key: string): unknown {
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  if (descriptor === undefined || !("value" in descriptor)) throw new TypeError();
-  return descriptor.value;
-}
-
-function denseOwnArraySnapshotV1(value: unknown): readonly unknown[] {
-  if (!Array.isArray(value) || Reflect.ownKeys(value).length !== value.length + 1) {
-    throw new TypeError();
-  }
-  const snapshot: unknown[] = [];
-  for (let index = 0; index < value.length; index += 1) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
-    if (descriptor === undefined || !("value" in descriptor)) throw new TypeError();
-    snapshot.push(descriptor.value);
-  }
-  return Object.freeze(snapshot);
+function snapshotArrayV1(value: unknown): readonly unknown[] {
+  if (!Array.isArray(value)) throw new TypeError();
+  return [...value];
 }
 
 type KnownFieldKindV1 = "string" | "function";
@@ -329,330 +307,294 @@ function snapshotKnownFieldsV1(
   if (!isRecordV1(value)) throw new TypeError();
   const snapshot: Record<string, unknown> = {};
   for (const [key, kind] of Object.entries(fields)) {
-    const field = ownDataValueV1(value, key);
-    if (typeof field !== kind) throw new TypeError();
+    const field = value[key];
+    if (
+      (kind === "string" && typeof field !== "string") ||
+      (kind === "function" && typeof field !== "function")
+    ) throw new TypeError();
     snapshot[key] = field;
   }
-  return Object.freeze(snapshot);
+  return snapshot;
 }
 
 function snapshotOptionalFunctionV1(
   value: Readonly<Record<string, unknown>>,
   key: string,
 ): ((...args: never[]) => unknown) | undefined {
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  if (descriptor === undefined) return undefined;
-  if (!("value" in descriptor) || typeof descriptor.value !== "function") throw new TypeError();
-  return descriptor.value as (...args: never[]) => unknown;
+  const field = value[key];
+  if (field === undefined) return undefined;
+  if (typeof field !== "function") throw new TypeError();
+  return field as (...args: never[]) => unknown;
 }
 
 function snapshotSystemDialogSaveGuardProjectionInternalV1(
   value: unknown,
 ): SystemDialogSaveGuardProjectionInternalV1 {
   if (!isRecordV1(value)) throw new TypeError();
-  const keys = Reflect.ownKeys(value);
-  if (
-    keys.length !== 3 || !keys.includes("getSnapshot") || !keys.includes("subscribe") ||
-    !keys.includes("evaluate")
-  ) {
-    throw new TypeError();
-  }
-  const getSnapshot = ownDataValueV1(value, "getSnapshot");
-  const subscribe = ownDataValueV1(value, "subscribe");
-  const evaluate = ownDataValueV1(value, "evaluate");
+  const getSnapshot = value.getSnapshot;
+  const subscribe = value.subscribe;
+  const evaluate = value.evaluate;
   if (
     typeof getSnapshot !== "function" || typeof subscribe !== "function" ||
     typeof evaluate !== "function"
   ) {
     throw new TypeError();
   }
-  return Object.freeze({
+  return {
     getSnapshot: getSnapshot as SystemDialogSaveGuardProjectionInternalV1["getSnapshot"],
     subscribe: subscribe as SystemDialogSaveGuardProjectionInternalV1["subscribe"],
     evaluate: evaluate as SystemDialogSaveGuardProjectionInternalV1["evaluate"],
-  });
+  };
 }
 
 function snapshotOptionalSystemDialogSaveGuardProjectionInternalV1(
   value: Readonly<Record<string, unknown>>,
 ): SystemDialogSaveGuardProjectionInternalV1 | undefined {
-  const descriptor = Object.getOwnPropertyDescriptor(value, "guardProjection");
-  if (descriptor === undefined) return undefined;
-  if (!("value" in descriptor)) throw new TypeError();
-  return snapshotSystemDialogSaveGuardProjectionInternalV1(descriptor.value);
+  if (value.guardProjection === undefined) return undefined;
+  return snapshotSystemDialogSaveGuardProjectionInternalV1(value.guardProjection);
 }
 
-const saveLabelScalarFieldsV1 = Object.freeze(
-  {
-    accessibleName: "string",
-    title: "string",
-    storageLoading: "string",
-    storageReady: "string",
-    storageBusy: "string",
-    storageUnavailable: "string",
-    slotsUnavailable: "string",
-    safelySaved: "function",
-    lastFailure: "function",
-    quickSave: "string",
-    manualSave: "string",
-    importSave: "string",
-    exportCurrentSave: "string",
-    loadSlot: "function",
-    clearSlot: "function",
-    exportSlot: "function",
-  } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
-);
+const saveLabelScalarFieldsV1 = {
+  accessibleName: "string",
+  title: "string",
+  storageLoading: "string",
+  storageReady: "string",
+  storageBusy: "string",
+  storageUnavailable: "string",
+  slotsUnavailable: "string",
+  safelySaved: "function",
+  lastFailure: "function",
+  quickSave: "string",
+  manualSave: "string",
+  importSave: "string",
+  exportCurrentSave: "string",
+  loadSlot: "function",
+  clearSlot: "function",
+  exportSlot: "function",
+} as const satisfies Readonly<Record<string, KnownFieldKindV1>>;
 
-const saveSlotNameFieldsV1 = Object.freeze(
-  {
-    "auto.current": "string",
-    "auto.previous": "string",
-    quick: "string",
-    manualSlot: "function",
-  } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
-);
+const saveSlotNameFieldsV1 = {
+  "auto.current": "string",
+  "auto.previous": "string",
+  quick: "string",
+  manualSlot: "function",
+} as const satisfies Readonly<Record<string, KnownFieldKindV1>>;
 
-const saveSlotHealthFieldsV1 = Object.freeze(
-  {
-    empty: "string",
-    valid: "string",
-    invalid: "string",
-    recovery_candidate: "string",
-    unavailable: "string",
-  } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
-);
+const saveSlotHealthFieldsV1 = {
+  empty: "string",
+  valid: "string",
+  invalid: "string",
+  recovery_candidate: "string",
+  unavailable: "string",
+} as const satisfies Readonly<Record<string, KnownFieldKindV1>>;
 
-const saveLegacyConfirmationFieldsV1 = Object.freeze(
-  {
-    loadTitle: "function",
-    loadDescription: "function",
-    clearTitle: "function",
-    clearDescription: "function",
-    importTitle: "string",
-    importDescription: "string",
-    confirmLabel: "string",
-    cancelLabel: "string",
-    pendingText: "string",
-    completedText: "string",
-    failedText: "string",
-  } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
-);
+const saveLegacyConfirmationFieldsV1 = {
+  loadTitle: "function",
+  loadDescription: "function",
+  clearTitle: "function",
+  clearDescription: "function",
+  importTitle: "string",
+  importDescription: "string",
+  confirmLabel: "string",
+  cancelLabel: "string",
+  pendingText: "string",
+  completedText: "string",
+  failedText: "string",
+} as const satisfies Readonly<Record<string, KnownFieldKindV1>>;
 
-const saveRecoveryConfirmationFieldsV1 = Object.freeze(
-  {
-    reanchorTitle: "function",
-    reanchorDescription: "function",
-    restoreTitle: "function",
-    restoreDescription: "function",
-    discardTitle: "function",
-    discardDescription: "function",
-  } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
-);
+const saveRecoveryConfirmationFieldsV1 = {
+  reanchorTitle: "function",
+  reanchorDescription: "function",
+  restoreTitle: "function",
+  restoreDescription: "function",
+  discardTitle: "function",
+  discardDescription: "function",
+} as const satisfies Readonly<Record<string, KnownFieldKindV1>>;
 
-const saveOperationScalarFieldsV1 = Object.freeze(
-  {
-    saving: "function",
-    loading: "function",
-    clearing: "function",
-    importing: "string",
-    exporting: "function",
-    exportingCurrent: "string",
-    saved: "function",
-    cleared: "function",
-    loadedExact: "string",
-    loadedAdopted: "string",
-    importedExact: "string",
-    importedAdopted: "string",
-    importCancelled: "string",
-    exported: "function",
-    exportedCurrent: "string",
-    faulted: "function",
-    unexpectedFailure: "string",
-  } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
-);
+const saveOperationScalarFieldsV1 = {
+  saving: "function",
+  loading: "function",
+  clearing: "function",
+  importing: "string",
+  exporting: "function",
+  exportingCurrent: "string",
+  saved: "function",
+  cleared: "function",
+  loadedExact: "string",
+  loadedAdopted: "string",
+  importedExact: "string",
+  importedAdopted: "string",
+  importCancelled: "string",
+  exported: "function",
+  exportedCurrent: "string",
+  faulted: "function",
+  unexpectedFailure: "string",
+} as const satisfies Readonly<Record<string, KnownFieldKindV1>>;
 
-const saveImportFileRejectionFieldsV1 = Object.freeze(
-  {
-    too_large: "string",
-    unsupported_type: "string",
-  } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
-);
+const saveImportFileRejectionFieldsV1 = {
+  too_large: "string",
+  unsupported_type: "string",
+} as const satisfies Readonly<Record<string, KnownFieldKindV1>>;
 
-const savePersistenceRejectionFieldsV1 = Object.freeze(
-  {
-    busy: "string",
-    unavailable: "string",
-    empty_slot: "string",
-    conflict: "string",
-    in_flight: "string",
-    invalid_record: "string",
-    invalid_note: "string",
-    lineage_limit: "string",
-    migration_unavailable: "string",
-    migration_rejected: "string",
-    incompatible: "string",
-  } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
-);
+const savePersistenceRejectionFieldsV1 = {
+  busy: "string",
+  unavailable: "string",
+  empty_slot: "string",
+  conflict: "string",
+  in_flight: "string",
+  invalid_record: "string",
+  invalid_note: "string",
+  lineage_limit: "string",
+  migration_unavailable: "string",
+  migration_rejected: "string",
+  incompatible: "string",
+} as const satisfies Readonly<Record<string, KnownFieldKindV1>>;
 
-const saveExportRejectionFieldsV1 = Object.freeze(
-  {
-    unavailable: "string",
-    empty_slot: "string",
-    conflict: "string",
-    invalid_record: "string",
-  } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
-);
+const saveExportRejectionFieldsV1 = {
+  unavailable: "string",
+  empty_slot: "string",
+  conflict: "string",
+  invalid_record: "string",
+} as const satisfies Readonly<Record<string, KnownFieldKindV1>>;
 
-const saveRecoveryScalarFieldsV1 = Object.freeze(
-  { checking: "string" } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
-);
+const saveRecoveryScalarFieldsV1 = { checking: "string" } as const satisfies Readonly<
+  Record<string, KnownFieldKindV1>
+>;
 
-const saveRecoveryDispositionFieldsV1 = Object.freeze(
-  {
-    direct: "string",
-    migration_required: "string",
-    adoption_required: "string",
-    migration_and_adoption_required: "string",
-    migration_unavailable: "string",
-    migration_rejected: "string",
-    incompatible: "string",
-    reanchor_required: "string",
-    invalid_record: "string",
-    unavailable: "string",
-    faulted: "string",
-  } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
-);
+const saveRecoveryDispositionFieldsV1 = {
+  direct: "string",
+  migration_required: "string",
+  adoption_required: "string",
+  migration_and_adoption_required: "string",
+  migration_unavailable: "string",
+  migration_rejected: "string",
+  incompatible: "string",
+  reanchor_required: "string",
+  invalid_record: "string",
+  unavailable: "string",
+  faulted: "string",
+} as const satisfies Readonly<Record<string, KnownFieldKindV1>>;
 
-const saveRecoveryBackupFieldsV1 = Object.freeze(
-  {
-    available: "string",
-    invalid: "string",
-    unavailable: "string",
-  } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
-);
+const saveRecoveryBackupFieldsV1 = {
+  available: "string",
+  invalid: "string",
+  unavailable: "string",
+} as const satisfies Readonly<Record<string, KnownFieldKindV1>>;
 
-const saveRecoveryActionFieldsV1 = Object.freeze(
-  {
-    inspect: "string",
-    upgrade: "string",
-    reanchor: "string",
-    restore: "string",
-    exportBackup: "string",
-    discard: "string",
-  } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
-);
+const saveRecoveryActionFieldsV1 = {
+  inspect: "string",
+  upgrade: "string",
+  reanchor: "string",
+  restore: "string",
+  exportBackup: "string",
+  discard: "string",
+} as const satisfies Readonly<Record<string, KnownFieldKindV1>>;
 
-const saveRecoveryOperationFieldsV1 = Object.freeze(
-  {
-    upgrading: "function",
-    reanchoring: "function",
-    restoring: "function",
-    exportingBackup: "function",
-    discarding: "function",
-    upgradedExact: "string",
-    upgradedAdopted: "string",
-    reanchored: "string",
-    restored: "string",
-    backupExported: "string",
-    discarded: "string",
-    faulted: "string",
-  } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
-);
+const saveRecoveryOperationFieldsV1 = {
+  upgrading: "function",
+  reanchoring: "function",
+  restoring: "function",
+  exportingBackup: "function",
+  discarding: "function",
+  upgradedExact: "string",
+  upgradedAdopted: "string",
+  reanchored: "string",
+  restored: "string",
+  backupExported: "string",
+  discarded: "string",
+  faulted: "string",
+} as const satisfies Readonly<Record<string, KnownFieldKindV1>>;
 
-const saveRecoveryRejectionFieldsV1 = Object.freeze(
-  {
-    busy: "string",
-    unavailable: "string",
-    empty_slot: "string",
-    backup_pending: "string",
-    conflict: "string",
-    invalid_record: "string",
-    migration_unavailable: "string",
-    migration_rejected: "string",
-    incompatible: "string",
-    reanchor_required: "string",
-    not_required: "string",
-    empty_backup: "string",
-    invalid_backup: "string",
-  } as const satisfies Readonly<Record<string, KnownFieldKindV1>>,
-);
+const saveRecoveryRejectionFieldsV1 = {
+  busy: "string",
+  unavailable: "string",
+  empty_slot: "string",
+  backup_pending: "string",
+  conflict: "string",
+  invalid_record: "string",
+  migration_unavailable: "string",
+  migration_rejected: "string",
+  incompatible: "string",
+  reanchor_required: "string",
+  not_required: "string",
+  empty_backup: "string",
+  invalid_backup: "string",
+} as const satisfies Readonly<Record<string, KnownFieldKindV1>>;
 
 function snapshotSaveRecoveryLabelsV1(value: unknown): Readonly<Record<string, unknown>> {
   if (!isRecordV1(value)) throw new TypeError();
-  const operationValue = ownDataValueV1(value, "operation");
+  const operationValue = value.operation;
   if (!isRecordV1(operationValue)) throw new TypeError();
-  return Object.freeze({
+  return {
     ...snapshotKnownFieldsV1(value, saveRecoveryScalarFieldsV1),
     confirmation: snapshotKnownFieldsV1(
-      ownDataValueV1(value, "confirmation"),
+      value.confirmation,
       saveRecoveryConfirmationFieldsV1,
     ),
     disposition: snapshotKnownFieldsV1(
-      ownDataValueV1(value, "disposition"),
+      value.disposition,
       saveRecoveryDispositionFieldsV1,
     ),
     backup: snapshotKnownFieldsV1(
-      ownDataValueV1(value, "backup"),
+      value.backup,
       saveRecoveryBackupFieldsV1,
     ),
     action: snapshotKnownFieldsV1(
-      ownDataValueV1(value, "action"),
+      value.action,
       saveRecoveryActionFieldsV1,
     ),
-    operation: Object.freeze({
+    operation: {
       ...snapshotKnownFieldsV1(operationValue, saveRecoveryOperationFieldsV1),
       rejected: snapshotKnownFieldsV1(
-        ownDataValueV1(operationValue, "rejected"),
+        operationValue.rejected,
         saveRecoveryRejectionFieldsV1,
       ),
-    }),
-  });
+    },
+  };
 }
 
 function snapshotSaveLabelsV1(value: unknown): SaveOverlayLabelsV1 {
   if (!isRecordV1(value)) throw new TypeError();
   const scalar = snapshotKnownFieldsV1(value, saveLabelScalarFieldsV1);
-  const confirmationValue = ownDataValueV1(value, "confirmation");
+  const confirmationValue = value.confirmation;
   const legacyConfirmation = snapshotKnownFieldsV1(
     confirmationValue,
     saveLegacyConfirmationFieldsV1,
   );
-  const recoveryDescriptor = Object.getOwnPropertyDescriptor(value, "recovery");
-  if (recoveryDescriptor !== undefined && !("value" in recoveryDescriptor)) throw new TypeError();
-  const recovery = recoveryDescriptor === undefined
+  const recovery = value.recovery === undefined
     ? undefined
-    : snapshotSaveRecoveryLabelsV1(recoveryDescriptor.value);
-  const operationValue = ownDataValueV1(value, "operation");
+    : snapshotSaveRecoveryLabelsV1(value.recovery);
+  const operationValue = value.operation;
   if (!isRecordV1(operationValue)) throw new TypeError();
   const operationScalar = snapshotKnownFieldsV1(operationValue, saveOperationScalarFieldsV1);
-  const operation = Object.freeze({
+  const operation = {
     ...operationScalar,
     importFileRejected: snapshotKnownFieldsV1(
-      ownDataValueV1(operationValue, "importFileRejected"),
+      operationValue.importFileRejected,
       saveImportFileRejectionFieldsV1,
     ),
     rejected: snapshotKnownFieldsV1(
-      ownDataValueV1(operationValue, "rejected"),
+      operationValue.rejected,
       savePersistenceRejectionFieldsV1,
     ),
     exportRejected: snapshotKnownFieldsV1(
-      ownDataValueV1(operationValue, "exportRejected"),
+      operationValue.exportRejected,
       saveExportRejectionFieldsV1,
     ),
-  });
+  };
   const savedAtText = snapshotOptionalFunctionV1(value, "savedAtText");
-  return Object.freeze({
+  return {
     ...scalar,
-    slotNames: snapshotKnownFieldsV1(ownDataValueV1(value, "slotNames"), saveSlotNameFieldsV1),
+    slotNames: snapshotKnownFieldsV1(value.slotNames, saveSlotNameFieldsV1),
     slotHealth: snapshotKnownFieldsV1(
-      ownDataValueV1(value, "slotHealth"),
+      value.slotHealth,
       saveSlotHealthFieldsV1,
     ),
     confirmation: legacyConfirmation,
     operation,
     ...(recovery === undefined ? {} : { recovery }),
     ...(savedAtText === undefined ? {} : { savedAtText }),
-  }) as unknown as SaveOverlayLabelsV1;
+  } as unknown as SaveOverlayLabelsV1;
 }
 
 export function snapshotSystemDialogSettingsContentConfigInternalV1(
@@ -660,23 +602,21 @@ export function snapshotSystemDialogSettingsContentConfigInternalV1(
 ): SystemDialogContentConfigSnapshotInternalV1<SystemDialogSettingsContentConfigInternalV1> {
   try {
     if (!isRecordV1(input)) throw new TypeError();
-    const title = ownDataValueV1(input, "title");
-    const closeLabel = ownDataValueV1(input, "closeLabel");
-    const emptyText = ownDataValueV1(input, "emptyText");
+    const title = input.title;
+    const closeLabel = input.closeLabel;
+    const emptyText = input.emptyText;
     if (
       typeof title !== "string" || typeof closeLabel !== "string" || typeof emptyText !== "string"
     ) {
       throw new TypeError();
     }
-    const sections = denseOwnArraySnapshotV1(ownDataValueV1(input, "sections"));
-    const snapshot = createSystemDialogContentConfigSnapshotInternalV1(Object.freeze({
+    const sections = snapshotArrayV1(input.sections);
+    return createSystemDialogContentConfigSnapshotInternalV1({
       title,
       closeLabel,
       emptyText,
       sections: sections as readonly ReactNode[],
-    }));
-    systemDialogSettingsConfigSnapshotsInternalV1.add(snapshot);
-    return snapshot;
+    });
   } catch {
     throw new TypeError("ui.system_dialog_settings_config_invalid");
   }
@@ -687,10 +627,10 @@ export function snapshotSystemDialogSavesContentConfigInternalV1(
 ): SystemDialogContentConfigSnapshotInternalV1<SystemDialogSavesContentConfigInternalV1> {
   try {
     if (!isRecordV1(input)) throw new TypeError();
-    const variant = ownDataValueV1(input, "variant");
+    const variant = input.variant;
     if (variant === "custom") {
-      const accessibleName = ownDataValueV1(input, "accessibleName");
-      const component = ownDataValueV1(input, "component");
+      const accessibleName = input.accessibleName;
+      const component = input.component;
       if (
         typeof accessibleName !== "string" ||
         accessibleName.length === 0 ||
@@ -699,28 +639,24 @@ export function snapshotSystemDialogSavesContentConfigInternalV1(
       ) {
         throw new TypeError();
       }
-      const snapshot = createSystemDialogContentConfigSnapshotInternalV1(Object.freeze({
+      return createSystemDialogContentConfigSnapshotInternalV1({
         variant,
         accessibleName,
         component,
-      }));
-      systemDialogSavesConfigSnapshotsInternalV1.add(snapshot);
-      return snapshot;
+      });
     }
     if (variant !== "standard") throw new TypeError();
-    const closeLabel = ownDataValueV1(input, "closeLabel");
+    const closeLabel = input.closeLabel;
     if (typeof closeLabel !== "string") {
       throw new TypeError();
     }
     const guardProjection = snapshotOptionalSystemDialogSaveGuardProjectionInternalV1(input);
-    const snapshot = createSystemDialogContentConfigSnapshotInternalV1(Object.freeze({
+    return createSystemDialogContentConfigSnapshotInternalV1({
       variant,
-      labels: snapshotSaveLabelsV1(ownDataValueV1(input, "labels")),
+      labels: snapshotSaveLabelsV1(input.labels),
       closeLabel,
       ...(guardProjection === undefined ? {} : { guardProjection }),
-    }));
-    systemDialogSavesConfigSnapshotsInternalV1.add(snapshot);
-    return snapshot;
+    });
   } catch {
     throw new TypeError("ui.system_dialog_saves_config_invalid");
   }
@@ -728,22 +664,20 @@ export function snapshotSystemDialogSavesContentConfigInternalV1(
 
 function normalizeCatalogEntryV1(value: unknown): CatalogEntryRecordV1 {
   if (!isRecordV1(value)) throw new TypeError();
-  const rootRequest = ownDataValueV1(value, "rootRequest");
+  const rootRequest = value.rootRequest;
   if (rootRequest !== "settings" && rootRequest !== "saves") throw new TypeError();
-  const rendererComponent = ownDataValueV1(value, "rendererComponent");
+  const rendererComponent = value.rendererComponent;
   if (
     rendererComponent === null ||
     (typeof rendererComponent !== "object" && typeof rendererComponent !== "function")
   ) {
     throw new TypeError();
   }
-  const accessibleName = ownDataValueV1(value, "accessibleName");
+  const accessibleName = value.accessibleName;
   if (typeof accessibleName !== "string" || accessibleName.length === 0) throw new TypeError();
-  const requiredPortIds = denseOwnArraySnapshotV1(
-    ownDataValueV1(value, "requiredPortIds"),
-  ).map(parseModuleId);
+  const requiredPortIds = snapshotArrayV1(value.requiredPortIds).map(parseModuleId);
   if (new Set(requiredPortIds).size !== requiredPortIds.length) throw new TypeError();
-  const contentConfig = ownDataValueV1(value, "contentConfig");
+  const contentConfig = value.contentConfig;
   const contentConfigSnapshot = rootRequest === "settings"
     ? snapshotSystemDialogSettingsContentConfigInternalV1(
       contentConfig as SystemDialogSettingsContentConfigInternalV1,
@@ -751,39 +685,35 @@ function normalizeCatalogEntryV1(value: unknown): CatalogEntryRecordV1 {
     : snapshotSystemDialogSavesContentConfigInternalV1(
       contentConfig as SystemDialogSavesContentConfigInternalV1,
     );
-  return Object.freeze({
+  return {
     rootRequest,
     rendererComponent,
     accessibleName,
-    requiredPortIds: Object.freeze(requiredPortIds),
+    requiredPortIds,
     contentConfigSnapshot,
-  });
+  };
 }
 
 function normalizeConfirmationCatalogEntryV1(
   value: unknown,
 ): SystemDialogResolvedConfirmationCatalogEntryInternalV1 {
   if (!isRecordV1(value)) throw new TypeError();
-  const rendererComponent = ownDataValueV1(value, "rendererComponent");
+  const rendererComponent = value.rendererComponent;
   if (
     rendererComponent === null ||
     (typeof rendererComponent !== "object" && typeof rendererComponent !== "function")
   ) {
     throw new TypeError();
   }
-  const accessibleName = ownDataValueV1(value, "accessibleName");
+  const accessibleName = value.accessibleName;
   if (typeof accessibleName !== "string" || accessibleName.length === 0) throw new TypeError();
-  const requiredPortIds = denseOwnArraySnapshotV1(
-    ownDataValueV1(value, "requiredPortIds"),
-  ).map(parseModuleId);
+  const requiredPortIds = snapshotArrayV1(value.requiredPortIds).map(parseModuleId);
   if (new Set(requiredPortIds).size !== requiredPortIds.length) throw new TypeError();
-  const entry = Object.freeze({
+  return {
     rendererComponent,
     accessibleName,
-    requiredPortIds: Object.freeze(requiredPortIds),
-  });
-  systemDialogConfirmationCatalogEntriesInternalV1.add(entry);
-  return entry;
+    requiredPortIds,
+  };
 }
 
 export function createSystemDialogRootCatalogSnapshotInternalV1(input: {
@@ -793,27 +723,23 @@ export function createSystemDialogRootCatalogSnapshotInternalV1(input: {
 }): SystemDialogRootCatalogInternalV1 {
   try {
     if (!isRecordV1(input)) throw new TypeError();
-    const entriesInput = denseOwnArraySnapshotV1(ownDataValueV1(input, "entries"));
+    const entriesInput = snapshotArrayV1(input.entries);
     const entries = new Map<SystemDialogRootRequestInternalV1, CatalogEntryRecordV1>();
     for (const value of entriesInput) {
       const entry = normalizeCatalogEntryV1(value);
       if (entries.has(entry.rootRequest)) throw new TypeError();
       entries.set(entry.rootRequest, entry);
     }
-    const confirmationDescriptor = Object.getOwnPropertyDescriptor(input, "confirmationEntry");
-    if (confirmationDescriptor !== undefined && !("value" in confirmationDescriptor)) {
-      throw new TypeError();
-    }
-    const confirmationEntry = confirmationDescriptor === undefined ||
-        confirmationDescriptor.value === null
+    const confirmationEntry = input.confirmationEntry === undefined ||
+        input.confirmationEntry === null
       ? null
-      : normalizeConfirmationCatalogEntryV1(confirmationDescriptor.value);
-    const portsInput = denseOwnArraySnapshotV1(ownDataValueV1(input, "portBindings"));
+      : normalizeConfirmationCatalogEntryV1(input.confirmationEntry);
+    const portsInput = snapshotArrayV1(input.portBindings);
     const ports = new Map<string, object | ((...args: never[]) => unknown)>();
     for (const value of portsInput) {
       if (!isRecordV1(value)) throw new TypeError();
-      const portId = parseModuleId(ownDataValueV1(value, "portId"));
-      const port = ownDataValueV1(value, "port");
+      const portId = parseModuleId(value.portId);
+      const port = value.port;
       if (
         port === null ||
         (typeof port !== "object" && typeof port !== "function") ||
@@ -823,106 +749,102 @@ export function createSystemDialogRootCatalogSnapshotInternalV1(input: {
       }
       ports.set(portId, port);
     }
-    return Object.freeze({
+    return {
       resolveRoot: (request: SystemDialogRootRequestInternalV1) => entries.get(request) ?? null,
       resolveConfirmation: (_invocation: SystemDialogConfirmationInvocationInternalV1) =>
         confirmationEntry,
       resolvePort: (portId: string) => ports.get(portId) ?? null,
-    });
+    };
   } catch {
     throw new TypeError("ui.system_dialog_catalog_invalid");
   }
 }
 
-const preparingResultV1 = Object.freeze({
+const preparingResultV1 = {
   kind: "preparing" as const,
   code: "system_dialog.preparation_started" as const,
-});
-const cancelledResultV1 = Object.freeze({
+};
+const cancelledResultV1 = {
   kind: "applied" as const,
   code: "system_dialog.pending_replacement_cancelled" as const,
-});
-const alreadyRequestedResultV1 = Object.freeze({
+};
+const alreadyRequestedResultV1 = {
   kind: "unchanged" as const,
   code: "system_dialog.already_requested" as const,
-});
-const disposedResultV1 = Object.freeze({
+};
+const disposedResultV1 = {
   kind: "rejected" as const,
   code: "system_dialog.disposed" as const,
-});
-const unavailableResultV1 = Object.freeze({
+};
+const unavailableResultV1 = {
   kind: "rejected" as const,
   code: "system_dialog.renderer_unavailable" as const,
-});
-const missingRendererResultV1 = Object.freeze({
+};
+const missingRendererResultV1 = {
   kind: "rejected" as const,
   code: "system_dialog.renderer_missing" as const,
-});
-const rendererFaultResultV1 = Object.freeze({
+};
+const rendererFaultResultV1 = {
   kind: "faulted" as const,
   code: "system_dialog.renderer_faulted" as const,
-});
-const transitionFaultResultV1 = Object.freeze({
+};
+const transitionFaultResultV1 = {
   kind: "faulted" as const,
   code: "system_dialog.transition_faulted" as const,
-});
+};
 
-const confirmationAlreadyRequestedResultV1 = Object.freeze({
+const confirmationAlreadyRequestedResultV1 = {
   kind: "unchanged" as const,
   code: "system_dialog.confirmation_already_requested" as const,
-});
-const confirmationParentStaleResultV1 = Object.freeze({
+};
+const confirmationParentStaleResultV1 = {
   kind: "rejected" as const,
   code: "system_dialog.confirmation_parent_stale" as const,
-});
-const confirmationInvocationInvalidResultV1 = Object.freeze({
+};
+const confirmationInvocationInvalidResultV1 = {
   kind: "rejected" as const,
   code: "system_dialog.confirmation_invocation_invalid" as const,
-});
-const confirmationRendererUnavailableResultV1 = Object.freeze({
+};
+const confirmationRendererUnavailableResultV1 = {
   kind: "rejected" as const,
   code: "system_dialog.confirmation_renderer_unavailable" as const,
-});
-const confirmationRendererMissingResultV1 = Object.freeze({
+};
+const confirmationRendererMissingResultV1 = {
   kind: "rejected" as const,
   code: "system_dialog.confirmation_renderer_missing" as const,
-});
-const confirmationOperationBindingInvalidResultV1 = Object.freeze({
-  kind: "rejected" as const,
-  code: "system_dialog.confirmation_operation_binding_invalid" as const,
-});
-const confirmationRendererFaultResultV1 = Object.freeze({
+};
+const confirmationRendererFaultResultV1 = {
   kind: "faulted" as const,
   code: "system_dialog.confirmation_renderer_faulted" as const,
-});
-const confirmationTransitionFaultResultV1 = Object.freeze({
+};
+const confirmationTransitionFaultResultV1 = {
   kind: "faulted" as const,
   code: "system_dialog.confirmation_transition_faulted" as const,
-});
-const confirmationStaleResultV1 = Object.freeze({
+};
+const confirmationStaleResultV1 = {
   kind: "rejected" as const,
   code: "system_dialog.confirmation_stale" as const,
-});
-const confirmationNotReadyResultV1 = Object.freeze({
+};
+const confirmationNotReadyResultV1 = {
   kind: "rejected" as const,
   code: "system_dialog.confirmation_not_ready" as const,
-});
-const confirmationDispatchedResultV1 = Object.freeze({
+};
+const confirmationDispatchedResultV1 = {
   kind: "applied" as const,
   code: "system_dialog.confirmation_operation_dispatched" as const,
-});
-const confirmationAlreadyDispatchedResultV1 = Object.freeze({
+};
+const confirmationAlreadyDispatchedResultV1 = {
   kind: "unchanged" as const,
   code: "system_dialog.confirmation_operation_already_dispatched" as const,
-});
-const confirmationClosedResultV1 = Object.freeze({
+};
+const confirmationClosedResultV1 = {
   kind: "applied" as const,
   code: "system_dialog.confirmation_closed" as const,
-});
-const confirmationDismissLockedResultV1 = Object.freeze({
+};
+const confirmationDismissLockedResultV1 = {
   kind: "rejected" as const,
   code: "system_dialog.confirmation_dismiss_locked" as const,
-});
+};
 
 function requestDefinitionV1(request: SystemDialogRootRequestInternalV1) {
   return request === "settings"
@@ -964,22 +886,6 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       // Candidate diagnostics cannot replace the readiness transition.
     }
   };
-  const observeSinkCompletion = (code: string, value: unknown): void => {
-    if (
-      value === null ||
-      (typeof value !== "object" && typeof value !== "function")
-    ) return;
-    try {
-      void promiseThenInternalV1.call(
-        value,
-        undefined,
-        (error) => reportFailure(code, error),
-      );
-    } catch (error) {
-      reportFailure(code, error);
-    }
-  };
-
   const managedSnapshot = (): ManagedSurfacePublicationV1 =>
     runtime.coordinator.getSnapshot() as ManagedSurfacePublicationV1;
   const invalidateHostRenderSnapshot = (): void => {
@@ -1057,7 +963,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
     surfaceInstanceId: ManagedSurfaceInstanceIdV1,
   ): ManagedSurfaceTransitionReceiptV1 => {
     const snapshot = managedSnapshot();
-    return Object.freeze({
+    return ({
       kind: "stale" as const,
       code: "surface.stale_readiness" as const,
       beforeTopologyRevision: snapshot.topologyRevision,
@@ -1095,11 +1001,11 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       return;
     }
     mutate(() =>
-      runtime.coordinator.closeOwner(Object.freeze({
+      runtime.coordinator.closeOwner({
         applicationEpoch: snapshot.applicationEpoch,
         topologyRevision: snapshot.topologyRevision,
         ownerId,
-      }))
+      })
     );
   };
 
@@ -1119,27 +1025,23 @@ export function createSystemDialogManagedSessionInternalV1(input: {
     if (entry === null || entry === undefined) return missingRendererResultV1;
     const bindings: SystemDialogRequiredPortBindingInternalV1[] = [];
     try {
-      const configSnapshotAccepted = request === "settings"
-        ? systemDialogSettingsConfigSnapshotsInternalV1.has(entry.contentConfigSnapshot)
-        : systemDialogSavesConfigSnapshotsInternalV1.has(entry.contentConfigSnapshot);
-      if (!configSnapshotAccepted) return rendererFaultResultV1;
       for (const rawPortId of entry.requiredPortIds) {
         const portId = parseModuleId(rawPortId);
         const port = currentCatalog.resolvePort(portId);
         if (port === null || port === undefined) {
-          return Object.freeze({
+          return ({
             kind: "rejected" as const,
             code: "system_dialog.required_port_missing" as const,
             portId,
           });
         }
-        bindings.push(Object.freeze({ portId, port }));
+        bindings.push({ portId, port });
       }
       return createSystemDialogRootCandidateResolutionSnapshotInternalV1({
         rootRequest: request,
         rendererComponent: entry.rendererComponent,
         accessibleName: entry.accessibleName,
-        requiredPortBindings: Object.freeze(bindings),
+        requiredPortBindings: bindings,
         contentConfigSnapshot: entry.contentConfigSnapshot,
       });
     } catch {
@@ -1165,63 +1067,26 @@ export function createSystemDialogManagedSessionInternalV1(input: {
     if (entry === null || entry === undefined) return confirmationRendererMissingResultV1;
     const bindings: SystemDialogRequiredPortBindingInternalV1[] = [];
     try {
-      if (!systemDialogConfirmationCatalogEntriesInternalV1.has(entry)) {
-        return confirmationRendererFaultResultV1;
-      }
       for (const rawPortId of entry.requiredPortIds) {
         const portId = parseModuleId(rawPortId);
         const port = currentCatalog.resolvePort(portId);
         if (port === null || port === undefined) {
-          return Object.freeze({
+          return ({
             kind: "rejected" as const,
             code: "system_dialog.confirmation_required_port_missing" as const,
             portId,
           });
         }
-        bindings.push(Object.freeze({ portId, port }));
+        bindings.push({ portId, port });
       }
       return createSystemDialogConfirmationCandidateResolutionSnapshotInternalV1({
         invocation,
         rendererComponent: entry.rendererComponent,
         accessibleName: entry.accessibleName,
-        requiredPortBindings: Object.freeze(bindings),
+        requiredPortBindings: bindings,
       });
     } catch {
       return confirmationRendererFaultResultV1;
-    }
-  };
-
-  const normalizeOperationBinding = (
-    value: unknown,
-  ): SystemDialogConfirmationOperationBindingInternalV1 | null => {
-    try {
-      if (!isRecordV1(value) || !Object.isFrozen(value)) return null;
-      const keys = Reflect.ownKeys(value);
-      if (
-        keys.length !== 3 || !keys.includes("dispatch") || !keys.includes("resultSink") ||
-        !keys.includes("finalizeExactRoot")
-      ) return null;
-      const dispatchDescriptor = Object.getOwnPropertyDescriptor(value, "dispatch");
-      const resultSinkDescriptor = Object.getOwnPropertyDescriptor(value, "resultSink");
-      const finalizerDescriptor = Object.getOwnPropertyDescriptor(value, "finalizeExactRoot");
-      if (
-        dispatchDescriptor === undefined || !("value" in dispatchDescriptor) ||
-        typeof dispatchDescriptor.value !== "function" ||
-        resultSinkDescriptor === undefined || !("value" in resultSinkDescriptor) ||
-        typeof resultSinkDescriptor.value !== "function" ||
-        finalizerDescriptor === undefined || !("value" in finalizerDescriptor) ||
-        typeof finalizerDescriptor.value !== "function"
-      ) return null;
-      return Object.freeze({
-        dispatch: dispatchDescriptor
-          .value as SystemDialogConfirmationOperationBindingInternalV1["dispatch"],
-        resultSink: resultSinkDescriptor
-          .value as SystemDialogConfirmationOperationBindingInternalV1["resultSink"],
-        finalizeExactRoot: finalizerDescriptor
-          .value as SystemDialogConfirmationOperationBindingInternalV1["finalizeExactRoot"],
-      });
-    } catch {
-      return null;
     }
   };
 
@@ -1235,20 +1100,19 @@ export function createSystemDialogManagedSessionInternalV1(input: {
 
   const bindSavesLifecycleIntents = (
     parentSurfaceInstanceId: ManagedSurfaceInstanceIdV1,
-  ): SystemDialogSavesLifecycleIntentsInternalV1 =>
-    Object.freeze({
-      requestConfirmationInternalV1: (request: {
-        readonly invocation: SystemDialogConfirmationInvocationInternalV1;
-        readonly operationBinding: SystemDialogConfirmationOperationBindingInternalV1;
-      }) => requestConfirmation(parentSurfaceInstanceId, request),
-    });
+  ): SystemDialogSavesLifecycleIntentsInternalV1 => ({
+    requestConfirmationInternalV1: (request: {
+      readonly invocation: SystemDialogConfirmationInvocationInternalV1;
+      readonly operationBinding: SystemDialogConfirmationOperationBindingInternalV1;
+    }) => requestConfirmation(parentSurfaceInstanceId, request),
+  });
 
   const staleRootIntentReceipt = (
     surfaceInstanceId: ManagedSurfaceInstanceIdV1,
     expectedRuntime: ManagedSurfaceCoordinatorRuntimeV1,
   ): ManagedSurfaceTransitionReceiptV1 => {
     const snapshot = expectedRuntime.coordinator.getSnapshot();
-    return Object.freeze({
+    return ({
       kind: "stale" as const,
       code: "surface.stale_instance" as const,
       beforeTopologyRevision: snapshot.topologyRevision,
@@ -1286,7 +1150,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
   }): SystemDialogRootCandidateRecordInternalV1 => {
     let record!: SystemDialogRootCandidateRecordInternalV1;
     const ownerId = systemDialogManagedContractInternalV1.resolvedOwnerIds[0]!;
-    const controller: SystemDialogRootControllerInternalV1 = Object.freeze({
+    const controller: SystemDialogRootControllerInternalV1 = {
       closeInternalV1() {
         if (currentExactRoot(record, candidateInput.candidateRuntime, false) === null) {
           return staleRootIntentReceipt(record.surfaceInstanceId, candidateInput.candidateRuntime);
@@ -1333,8 +1197,8 @@ export function createSystemDialogManagedSessionInternalV1(input: {
           )
         );
       },
-    });
-    record = Object.freeze({
+    };
+    record = {
       kind: "root" as const,
       surfaceInstanceId: candidateInput.surfaceInstanceId,
       rootRequest: candidateInput.request,
@@ -1344,7 +1208,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
         ? bindSavesLifecycleIntents(candidateInput.surfaceInstanceId)
         : null,
       controller,
-    });
+    };
     return record;
   };
 
@@ -1424,7 +1288,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
         systemDialogManagedContractInternalV1.definitions.saves.definitionId &&
       instance.readiness.kind === "ready"
     );
-    return child === undefined || parent === undefined ? null : Object.freeze({ child, parent });
+    return child === undefined || parent === undefined ? null : ({ child, parent });
   };
 
   const exactRootSurvives = (
@@ -1464,11 +1328,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       confirmationResultGenerations.get(record.parentSurfaceInstanceId) !== resultGeneration
     ) return;
     try {
-      const sinkCompletion = record.operationBinding.resultSink(Object.freeze(delivery)) as unknown;
-      observeSinkCompletion(
-        "ui.system_dialog_confirmation_result_sink_failed",
-        sinkCompletion,
-      );
+      record.operationBinding.resultSink(delivery);
     } catch (error) {
       reportFailure("ui.system_dialog_confirmation_result_sink_failed", error);
     }
@@ -1481,11 +1341,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
   ): void => {
     if (!exactRootSurvives(record.parentSurfaceInstanceId, parentRecord, expectedRuntime)) return;
     try {
-      const sinkCompletion = record.operationBinding.finalizeExactRoot() as unknown;
-      observeSinkCompletion(
-        "ui.system_dialog_confirmation_finalization_sink_failed",
-        sinkCompletion,
-      );
+      record.operationBinding.finalizeExactRoot();
     } catch (error) {
       reportFailure("ui.system_dialog_confirmation_finalization_sink_failed", error);
     }
@@ -1531,17 +1387,15 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       }
     };
     const settleFault = (error: unknown): void => {
-      settle(Object.freeze({ kind: "faulted" as const, error }));
+      settle({ kind: "faulted" as const, error });
     };
     const settleOutcome = (outcome: SystemDialogConfirmationOperationOutcomeInternalV1): void => {
       if (settled) return;
       try {
         if (!isRecordV1(outcome)) throw new TypeError();
-        const kind = ownDataValueV1(outcome, "kind");
-        const keys = Reflect.ownKeys(outcome);
+        const kind = outcome.kind;
         if (kind === "successor") {
           if (
-            keys.length !== 1 || keys[0] !== "kind" ||
             (candidateInput.invocation.kind !== "load" &&
               candidateInput.invocation.kind !== "import")
           ) {
@@ -1550,17 +1404,13 @@ export function createSystemDialogManagedSessionInternalV1(input: {
           settle(null);
           return;
         }
-        if (
-          kind !== "retain_root" || keys.length !== 2 || !keys.includes("kind") ||
-          !keys.includes("result")
-        ) throw new TypeError();
-        const result = ownDataValueV1(outcome, "result");
-        settle(Object.freeze({ kind: "settled" as const, result }));
+        if (kind !== "retain_root" || !Object.hasOwn(outcome, "result")) throw new TypeError();
+        settle({ kind: "settled" as const, result: outcome.result });
       } catch {
         settleFault(new TypeError("ui.system_dialog_confirmation_operation_outcome_invalid"));
       }
     };
-    const controller: SystemDialogConfirmationControllerInternalV1 = Object.freeze({
+    const controller: SystemDialogConfirmationControllerInternalV1 = {
       dispatchOnceInternalV1() {
         if (dispatched) return confirmationAlreadyDispatchedResultV1;
         if (currentExactConfirmation(record, candidateInput.candidateRuntime, false) === null) {
@@ -1577,7 +1427,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
         dispatched = true;
         try {
           const operation = candidateInput.operationBinding.dispatch(candidateInput.invocation);
-          void promiseThenInternalV1.call(operation, settleOutcome, settleFault);
+          void operation.then(settleOutcome, settleFault);
         } catch (error) {
           settleFault(error);
         }
@@ -1612,8 +1462,8 @@ export function createSystemDialogManagedSessionInternalV1(input: {
         if (receipt.kind === "stale") return confirmationStaleResultV1;
         return confirmationTransitionFaultResultV1;
       },
-    });
-    record = Object.freeze({
+    };
+    record = {
       kind: "confirmation" as const,
       surfaceInstanceId: candidateInput.surfaceInstanceId,
       parentSurfaceInstanceId: candidateInput.parentSurfaceInstanceId,
@@ -1622,7 +1472,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       readiness: candidateInput.readiness,
       operationBinding: candidateInput.operationBinding,
       controller,
-    });
+    };
     return record;
   };
 
@@ -1661,8 +1511,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
     } catch {
       return confirmationInvocationInvalidResultV1;
     }
-    const operationBinding = normalizeOperationBinding(request.operationBinding);
-    if (operationBinding === null) return confirmationOperationBindingInvalidResultV1;
+    const operationBinding = request.operationBinding;
     const admitted = confirmationPreflight(invocation);
     if ("kind" in admitted) return admitted;
     if (
@@ -1697,7 +1546,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
     if (parent === null) return confirmationParentStaleResultV1;
     let preparedRecord: SystemDialogConfirmationCandidateRecordInternalV1 | null = null;
     const previousResultGeneration = confirmationResultGenerations.get(parentSurfaceInstanceId);
-    const resultGeneration = Object.freeze({ kind: "confirmation-result-generation" });
+    const resultGeneration = { kind: "confirmation-result-generation" };
     confirmationResultGenerations.set(parentSurfaceInstanceId, resultGeneration);
     let result: ReturnType<
       ManagedSurfaceCoordinatorRuntimeV1["coordinator"]["pushTransientChild"]
@@ -1764,7 +1613,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       current === null || current.child.readiness.kind !== "preparing" ||
       records.get(result.receipt.surfaceInstanceId) !== preparedRecord
     ) return confirmationTransitionFaultResultV1;
-    return Object.freeze({
+    return ({
       kind: "preparing" as const,
       code: "system_dialog.confirmation_preparation_started" as const,
       surfaceInstanceId: result.receipt.surfaceInstanceId,
@@ -1775,11 +1624,9 @@ export function createSystemDialogManagedSessionInternalV1(input: {
     getManagedSnapshotInternalV1: managedSnapshot,
     getRootCandidateRecordsInternalV1() {
       reconcileRecords();
-      return Object.freeze(
-        [...records.values()].filter(
-          (record): record is SystemDialogRootCandidateRecordInternalV1 => record.kind === "root",
-        ),
-      );
+      return ([...records.values()].filter(
+        (record): record is SystemDialogRootCandidateRecordInternalV1 => record.kind === "root",
+      ));
     },
     getHostRenderSnapshotInternalV1() {
       const publication = managedSnapshot();
@@ -1792,7 +1639,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
         if (record === undefined) continue;
         entries.push(
           record.kind === "root"
-            ? Object.freeze({
+            ? ({
               kind: "root" as const,
               surfaceInstanceId: instance.surfaceInstanceId,
               phase: instance.phase,
@@ -1801,7 +1648,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
               lifecycleIntents: record.lifecycleIntents,
               controller: record.controller,
             })
-            : Object.freeze({
+            : ({
               kind: "confirmation" as const,
               surfaceInstanceId: instance.surfaceInstanceId,
               parentSurfaceInstanceId: record.parentSurfaceInstanceId,
@@ -1813,10 +1660,10 @@ export function createSystemDialogManagedSessionInternalV1(input: {
         );
       }
       hostRenderSourcePublication = publication;
-      const nextSnapshot: SystemDialogHostRenderSnapshotInternalV1 = Object.freeze({
+      const nextSnapshot: SystemDialogHostRenderSnapshotInternalV1 = {
         publication,
-        entries: Object.freeze(entries),
-      });
+        entries: entries,
+      };
       hostRenderSnapshot = nextSnapshot;
       return nextSnapshot;
     },
@@ -1985,7 +1832,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
           });
         },
       };
-      return Object.freeze(attachment);
+      return attachment;
     },
     isRuntimeAttachmentCurrentInternalV1(expectedRuntime) {
       return !disposed && !terminalDisposal && !detached && preparedRuntime === null &&
@@ -2071,7 +1918,7 @@ export function createSystemDialogManagedSessionInternalV1(input: {
       listeners.clear();
     },
   };
-  return Object.freeze(session);
+  return session;
 }
 
 const systemDialogSessionInternalsV1 = new WeakMap<
@@ -2082,17 +1929,17 @@ const systemDialogSessionInternalsV1 = new WeakMap<
 export function createSystemDialogSessionFacadeInternalV1(
   internal: SystemDialogManagedSessionInternalV1,
 ): SystemDialogSessionV1 {
-  let snapshot: SystemDialogSessionSnapshotV1 = Object.freeze({ active: null });
+  let snapshot: SystemDialogSessionSnapshotV1 = { active: null };
   const getSnapshot = (): SystemDialogSessionSnapshotV1 => {
     const active = internal.getHostRenderSnapshotInternalV1().entries.find(
       (entry): entry is SystemDialogRootHostRenderEntryInternalV1 =>
         entry.kind === "root" && entry.phase === "active",
     )?.rootRequest ?? null;
     if (snapshot.active === active) return snapshot;
-    snapshot = Object.freeze({ active });
+    snapshot = { active };
     return snapshot;
   };
-  const facade = Object.freeze({
+  const facade = ({
     getSnapshot,
     openSettings: () => internal.openRootInternalV1("settings"),
     openSaves: () => internal.openRootInternalV1("saves"),

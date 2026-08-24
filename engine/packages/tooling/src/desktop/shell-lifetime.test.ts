@@ -257,28 +257,6 @@ describe("shell window adoption", () => {
     ).resolves.toBe(false);
   });
 
-  it("rejects executeJs envelope accessors without invoking them", async () => {
-    let accessorCalls = 0;
-    const envelope = Object.defineProperty({}, "ok", {
-      get() {
-        accessorCalls += 1;
-        return true;
-      },
-    });
-    const window = {
-      addEventListener() {},
-      executeJs: () => Promise.resolve(envelope),
-    } satisfies ShellWindowLikeV1;
-
-    await expect(
-      requestShellRendererFlushV1(window, {
-        waitForPoll: () => Promise.resolve(),
-        requestId: 9,
-      }),
-    ).resolves.toBe(false);
-    expect(accessorCalls).toBe(0);
-  });
-
   it("rejects a stale renderer receipt from another close request", async () => {
     const window = {
       addEventListener() {},

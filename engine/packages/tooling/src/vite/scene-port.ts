@@ -93,22 +93,16 @@ function resolveSceneFileV1(
 
 /** The Project Authoring Index's scene view: navigator rows + named skips. */
 export function listSceneSourceFilesV1(index: AuthoringProjectIndexV1): SceneListResultV1 {
-  return Object.freeze({
+  return {
     // This is the legacy low-level Scene CAS port. Authoring Scene source has
     // its own admitted/compiler path and must not be offered to this writer.
-    scenes: Object.freeze(
-      index.scenes
-        .filter((scene) => scene.sourceKind === "low_level_scene")
-        .map((scene) =>
-          Object.freeze({ path: scene.path, sceneId: scene.sceneId, label: scene.label })
-        ),
-    ),
-    skipped: Object.freeze(
-      index.skipped
-        .filter((skip) => skip.kind === "scene" && skip.path.endsWith(sceneFileSuffixV1))
-        .map((skip) => Object.freeze({ path: skip.path, reason: skip.reason })),
-    ),
-  });
+    scenes: index.scenes
+      .filter((scene) => scene.sourceKind === "low_level_scene")
+      .map((scene) => ({ path: scene.path, sceneId: scene.sceneId, label: scene.label })),
+    skipped: index.skipped
+      .filter((skip) => skip.kind === "scene" && skip.path.endsWith(sceneFileSuffixV1))
+      .map((skip) => ({ path: skip.path, reason: skip.reason })),
+  };
 }
 
 export function readSceneSourceFileV1(appRoot: string, path: string): SceneReadResultV1 {
@@ -133,12 +127,12 @@ export function readSceneSourceFileV1(appRoot: string, path: string): SceneReadR
       detail: error instanceof Error ? error.message : String(error),
     };
   }
-  return Object.freeze({
+  return {
     kind: "ok",
     path,
     digest: sceneDigestV1(bytes),
     sceneDocument,
-  });
+  };
 }
 
 export interface WriteSceneSourceInputV1 {
@@ -210,7 +204,7 @@ export function writeSceneSourceFileV1(
       detail: error instanceof Error ? error.message : String(error),
     };
   }
-  return Object.freeze({ kind: "ok", digest: sceneDigestV1(formatted) });
+  return { kind: "ok", digest: sceneDigestV1(formatted) };
 }
 
 export interface CreateSceneSourceInputV1 {
@@ -282,7 +276,7 @@ export function createSceneSourceFileV1(
       detail: error instanceof Error ? error.message : String(error),
     };
   }
-  return Object.freeze({ kind: "ok", digest: sceneDigestV1(formatted) });
+  return { kind: "ok", digest: sceneDigestV1(formatted) };
 }
 
 function scenePortStatusV1(code: ScenePortErrorCodeV1): number {

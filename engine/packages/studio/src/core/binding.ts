@@ -123,7 +123,7 @@ export interface NarrativeFlowGraphV1 {
  * accepted 2026-08-22, open question q3: the Story declares what renders,
  * the engine never guesses a publication shape). `render` receives the
  * workspace's current draft document and returns the real chrome tree —
- * the Story component closes over frozen sample data (a representative
+ * the Story component closes over stable typed sample data (a representative
  * publication snapshot, stub intent handlers) and reads its geometry from
  * the passed document, so dragging a box re-renders the actual HUD. The
  * returned tree is presentation-only: Studio disables pointer events on

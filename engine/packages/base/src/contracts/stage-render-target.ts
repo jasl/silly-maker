@@ -237,7 +237,7 @@ function validatePolygonPointsV1(
     );
     return undefined;
   }
-  return Object.freeze(points.map((point) => Object.freeze({ x: point.x, y: point.y })));
+  return points.map((point) => ({ x: point.x, y: point.y }));
 }
 
 /** Per-entry frame-set budget (authorable-frame-set, accepted 2026-08-21). */
@@ -248,7 +248,7 @@ function validateFrameAssetIdsV1(
   pointer: string,
   diagnostics: DiagnosticEnvelopeV1[],
 ): readonly AssetId[] {
-  if (frameAssetIds === undefined || frameAssetIds.length === 0) return Object.freeze([]);
+  if (frameAssetIds === undefined || frameAssetIds.length === 0) return [];
   const ok = frameAssetIds.length <= maxFrameAssetsV1 &&
     frameAssetIds.every((assetId) => typeof assetId === "string" && assetId.length > 0);
   if (!ok) {
@@ -259,9 +259,9 @@ function validateFrameAssetIdsV1(
         `${pointer}/frameAssetIds`,
       ),
     );
-    return Object.freeze([]);
+    return [];
   }
-  return Object.freeze([...frameAssetIds]);
+  return [...frameAssetIds];
 }
 
 const maxGeometrySideV1 = 1_000_000;
@@ -287,12 +287,12 @@ function validateGeometryV1(
     );
     return undefined;
   }
-  return Object.freeze({
+  return {
     width: geometry.width,
     height: geometry.height,
     anchorXPermille: geometry.anchorXPermille,
     anchorYPermille: geometry.anchorYPermille,
-  });
+  };
 }
 
 function validateHitRegionsV1(
@@ -300,7 +300,7 @@ function validateHitRegionsV1(
   pointer: string,
   diagnostics: DiagnosticEnvelopeV1[],
 ): readonly StageHitRegionV1[] {
-  if (regions === undefined || regions.length === 0) return Object.freeze([]);
+  if (regions === undefined || regions.length === 0) return [];
   const seen = new Set<string>();
   const valid: StageHitRegionV1[] = [];
   regions.forEach((region, index) => {
@@ -339,20 +339,18 @@ function validateHitRegionsV1(
         );
       }
     }
-    valid.push(
-      Object.freeze({
-        regionId: region.regionId,
-        accessibleNameText: region.accessibleNameText,
-        x: region.x,
-        y: region.y,
-        width: region.width,
-        height: region.height,
-        ...(polygonPoints === undefined ? {} : { polygonPoints }),
-        ...(hoverAssetId === undefined ? {} : { hoverAssetId }),
-      }),
-    );
+    valid.push({
+      regionId: region.regionId,
+      accessibleNameText: region.accessibleNameText,
+      x: region.x,
+      y: region.y,
+      width: region.width,
+      height: region.height,
+      ...(polygonPoints === undefined ? {} : { polygonPoints }),
+      ...(hoverAssetId === undefined ? {} : { hoverAssetId }),
+    });
   });
-  return Object.freeze(valid);
+  return valid;
 }
 
 export function projectStageRenderTargetV1(
@@ -440,13 +438,13 @@ export function projectStageRenderTargetV1(
     return { layerId: layer.layerId, transform: layer.transform, entries };
   });
 
-  return Object.freeze({
-    target: Object.freeze({
+  return {
+    target: {
       stageId: state.stageId,
       layers,
       camera: state.camera,
       requiredAssetIds: [...requiredAssetIds].sort(),
-    }),
-    diagnostics: Object.freeze(diagnostics),
-  });
+    },
+    diagnostics,
+  };
 }

@@ -14,7 +14,7 @@ import type { SceneSourceIoV1 } from "./scene-io.ts";
 export function createSceneDocumentSessionV1(
   io: SceneSourceIoV1,
 ): AuthoringDocumentSessionV1<SceneDocumentV1> {
-  const adapted: AuthoringDocumentIoV1<SceneDocumentV1> = Object.freeze({
+  const adapted: AuthoringDocumentIoV1<SceneDocumentV1> = {
     read: (path: string) =>
       io.read(path).then((result) =>
         result.kind === "ok"
@@ -31,6 +31,6 @@ export function createSceneDocumentSessionV1(
         expectedDigest: input.expectedDigest,
         sceneDocument: input.document,
       }),
-  });
+  };
   return createAuthoringDocumentSessionV1({ io: adapted });
 }

@@ -15,7 +15,7 @@ export function createFixedBootstrapEntropyV1(
   const seeds: NonZeroUint32[] = input.seeds.map(parseNonZeroUint32);
   let uuidIndex = 0;
   let seedIndex = 0;
-  return Object.freeze({
+  return ({
     nextUuidV4(): string {
       const value = uuids[uuidIndex];
       if (value === undefined) throw new RangeError("UUID entropy exhausted");

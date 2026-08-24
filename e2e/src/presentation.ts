@@ -140,8 +140,8 @@ export const labTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
   ],
 });
 
-export const labAssetSlotsV1 = Object.freeze([
-  Object.freeze({
+export const labAssetSlotsV1 = [
+  {
     assetId: "asset.e2e.lab.background",
     kind: "background" as const,
     usage: "scene_background" as const,
@@ -152,24 +152,24 @@ export const labAssetSlotsV1 = Object.freeze([
     loadGroup: "bootstrap" as const,
     safeArea: null,
     pivot: null,
-  }),
-]);
+  },
+];
 
 /** Lab researchers share one content box, anchored at bottom center. */
-const labCharacterGeometryV1 = Object.freeze({
+const labCharacterGeometryV1 = {
   width: 220,
   height: 360,
   anchorXPermille: 500,
   anchorYPermille: 1000,
-});
+};
 
 /** 160×120 content plus the renderer's 3px border on each side. */
-const labSmallPropGeometryV1 = Object.freeze({
+const labSmallPropGeometryV1 = {
   width: 166,
   height: 126,
   anchorXPermille: 500,
   anchorYPermille: 1000,
-});
+};
 
 /**
  * Shaped-hit-regions drill: the crate's collection port is a beveled
@@ -192,92 +192,92 @@ export const labStageContentCatalogV1: StageContentCatalogV1 = {
   resolveContent(contentId, appearance): StageContentResolutionV1 | null {
     switch (contentId as string) {
       case labStageContentIdsV1.backgroundLab:
-        return Object.freeze({
+        return ({
           rendererId: "renderer.e2e.lab.stage-background",
-          assetIds: Object.freeze(["asset.e2e.lab.background" as AssetId]),
+          assetIds: ["asset.e2e.lab.background" as AssetId],
           accessibleName: "引擎实验室",
-          props: Object.freeze({ surface: "lab" }),
+          props: { surface: "lab" },
         });
       case labStageContentIdsV1.backgroundStoreroom:
-        return Object.freeze({
+        return ({
           rendererId: "renderer.e2e.lab.stage-background",
-          assetIds: Object.freeze([]),
+          assetIds: [],
           accessibleName: "储藏室",
-          props: Object.freeze({ surface: "storeroom" }),
+          props: { surface: "storeroom" },
         });
       case labStageContentIdsV1.characterAlpha:
-        return Object.freeze({
+        return ({
           rendererId: "renderer.e2e.lab.stage-character",
-          assetIds: Object.freeze([]),
+          assetIds: [],
           accessibleName: "研究员甲",
-          props: Object.freeze({
+          props: {
             pose: typeof appearance.pose === "string" ? appearance.pose : "standing",
             expression: typeof appearance.expression === "string"
               ? appearance.expression
               : "neutral",
-          }),
+          },
           geometry: labCharacterGeometryV1,
           // Authorable-frame-set drill (one-shot): the entrance motion's
           // frame track steps through these while the edge is in flight.
           // Beta declares no frame set on purpose — its identical entrance
           // must deliver a null frame index (conformance for the no-frame
           // path).
-          frameAssetIds: Object.freeze([
+          frameAssetIds: [
             "asset.e2e.lab.char-stand" as AssetId,
             "asset.e2e.lab.char-step" as AssetId,
-          ]),
+          ],
         });
       case labStageContentIdsV1.characterBeta:
-        return Object.freeze({
+        return ({
           rendererId: "renderer.e2e.lab.stage-character",
-          assetIds: Object.freeze([]),
+          assetIds: [],
           accessibleName: "研究员乙",
-          props: Object.freeze({
+          props: {
             pose: typeof appearance.pose === "string" ? appearance.pose : "standing",
             expression: typeof appearance.expression === "string"
               ? appearance.expression
               : "neutral",
-          }),
+          },
           geometry: labCharacterGeometryV1,
         });
       case labStageContentIdsV1.propCrate:
-        return Object.freeze({
+        return ({
           rendererId: "renderer.e2e.lab.stage-prop",
-          assetIds: Object.freeze([]),
+          assetIds: [],
           accessibleName: "样本箱",
-          props: Object.freeze({}),
+          props: {},
           geometry: labSmallPropGeometryV1,
           hitRegions: labCrateZonesRegionsV1.regions,
         });
       case labStageContentIdsV1.propBanner:
-        return Object.freeze({
+        return ({
           rendererId: "renderer.e2e.lab.stage-prop",
-          assetIds: Object.freeze([]),
+          assetIds: [],
           accessibleName: "纪念横幅",
-          props: Object.freeze({ variant: "banner" }),
+          props: { variant: "banner" },
           // 420×72 content plus the renderer's 3px border on each side.
-          geometry: Object.freeze({
+          geometry: {
             width: 426,
             height: 78,
             anchorXPermille: 500,
             anchorYPermille: 1000,
-          }),
+          },
         });
       case labStageContentIdsV1.propBeacon:
-        return Object.freeze({
+        return ({
           rendererId: "renderer.e2e.lab.stage-prop",
-          assetIds: Object.freeze([]),
+          assetIds: [],
           accessibleName: "校准信标",
-          props: Object.freeze({
+          props: {
             mode: typeof appearance.mode === "string" ? appearance.mode : "idle",
-          }),
+          },
           geometry: labSmallPropGeometryV1,
           // Authorable-frame-set drill (loop): the ambient binding below
           // cycles dim/lit through these two frames.
-          frameAssetIds: Object.freeze([
+          frameAssetIds: [
             "asset.e2e.lab.beacon-dim" as AssetId,
             "asset.e2e.lab.beacon-lit" as AssetId,
-          ]),
+          ],
         });
       default:
         return null;
@@ -285,47 +285,45 @@ export const labStageContentCatalogV1: StageContentCatalogV1 = {
   },
 };
 
-const labTransitionDefinitionsV1: readonly StageTransitionDefinitionV1[] = Object.freeze(
-  [
-    {
-      transitionId: "transition.e2e.bg-crossfade",
-      kind: "crossfade",
-      durationMs: 400,
-      easing: "ease_in_out",
-      inputPolicy: "block",
-      interruption: "settle_and_retarget",
-      reducedMotion: { kind: "settle" },
-      readiness: { kind: "immediate" },
-      acknowledge: true,
-      slide: null,
-    },
-    {
-      transitionId: "transition.e2e.entry-fade",
-      kind: "crossfade",
-      durationMs: 200,
-      easing: "linear",
-      inputPolicy: "skip_to_end",
-      interruption: "cancel_to_target",
-      reducedMotion: { kind: "settle" },
-      readiness: { kind: "immediate" },
-      acknowledge: false,
-      slide: null,
-    },
-    {
-      transitionId: "transition.e2e.move",
-      kind: "slide",
-      durationMs: 250,
-      easing: "ease_in_out",
-      inputPolicy: "target_active",
-      interruption: "settle_and_retarget",
-      reducedMotion: { kind: "settle" },
-      readiness: { kind: "immediate" },
-      acknowledge: false,
-      slide: { x: 0, y: 0 },
-    },
-  ].map((definition, index) =>
-    parseStageTransitionDefinitionV1(definition, `/transitions/${String(index)}`)
-  ),
+const labTransitionDefinitionsV1: readonly StageTransitionDefinitionV1[] = [
+  {
+    transitionId: "transition.e2e.bg-crossfade",
+    kind: "crossfade",
+    durationMs: 400,
+    easing: "ease_in_out",
+    inputPolicy: "block",
+    interruption: "settle_and_retarget",
+    reducedMotion: { kind: "settle" },
+    readiness: { kind: "immediate" },
+    acknowledge: true,
+    slide: null,
+  },
+  {
+    transitionId: "transition.e2e.entry-fade",
+    kind: "crossfade",
+    durationMs: 200,
+    easing: "linear",
+    inputPolicy: "skip_to_end",
+    interruption: "cancel_to_target",
+    reducedMotion: { kind: "settle" },
+    readiness: { kind: "immediate" },
+    acknowledge: false,
+    slide: null,
+  },
+  {
+    transitionId: "transition.e2e.move",
+    kind: "slide",
+    durationMs: 250,
+    easing: "ease_in_out",
+    inputPolicy: "target_active",
+    interruption: "settle_and_retarget",
+    reducedMotion: { kind: "settle" },
+    readiness: { kind: "immediate" },
+    acknowledge: false,
+    slide: { x: 0, y: 0 },
+  },
+].map((definition, index) =>
+  parseStageTransitionDefinitionV1(definition, `/transitions/${String(index)}`)
 );
 
 /**
@@ -385,7 +383,7 @@ const labBeaconFramesMotionV1 = motionDefinitionFromDocumentV1(
 export const labStageAmbientCatalogV1: StageAmbientCatalogV1 = {
   resolveAmbient(_layerId, entry) {
     return (entry.contentId as string) === labStageContentIdsV1.propBeacon
-      ? Object.freeze({ motion: labBeaconFramesMotionV1, phaseMs: 0 })
+      ? ({ motion: labBeaconFramesMotionV1, phaseMs: 0 })
       : null;
   },
 };
@@ -485,5 +483,5 @@ export interface LabPresentationProgramV1 {
 }
 
 export function materializeLabPresentationV1(): LabPresentationProgramV1 {
-  return Object.freeze({ kind: "e2e-lab-presentation", textCatalogs: labTextCatalogsV1 });
+  return ({ kind: "e2e-lab-presentation", textCatalogs: labTextCatalogsV1 });
 }

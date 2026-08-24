@@ -135,10 +135,10 @@ M2 中不活跃；`formatRevision !== 1` 继续由 format decision 返回
   rewrite、rotation 与 stored-record export 默认原样保留；不得用运行 migration
   或 export 的当前 build stamp 覆盖。load/import compatibility 不读取 stamp，
   post-load/import fresh capture 使用当前 service stamp，不传播旧 envelope
-  metadata。absent/all-null、完全 malformed、
-  accessor-only、hostile Proxy 或 collector throw 规范化为 field absent；mixed
+  metadata。absent/all-null、malformed 或 collector throw 规范化为 field absent；mixed
   malformed fields 逐字段丢弃后可形成 partial stamp，partial/full 经 bounded
-  printable normalization、copy 与 freeze，且不调用 getter；
+  printable normalization 与 copy，且不调用 getter；得到的 typed value 按普通
+  JavaScript 运行时语义使用，不再递归 freeze；
 - `stateDigest` 校验对象是存档原文的 snapshot，并在 envelope shell parse
   之后、任何会改写 snapshot 的 format/State migration 之前完成；verifier 由已解析的
   stored `formatRevision` 选择。Envelope format migration 默认只能改外壳；若历史格式
@@ -500,7 +500,8 @@ lease，不 enqueue/prepare/commit replacement，不安装 replay anchor/receipt
 Persistence status/clock/export，也不复用此前 inspection candidate。
 
 **2026-08-12 M3.1 delivery：** single-slot `inspectSave` 已按上述 exact union、fault
-projection、defensive freeze 与零 mutation 边界交付。真实 mutation RED 在实现前产生 `7`
+projection 与零 mutation 边界交付；后续 Complexity Reset 删除了无必要的 defensive
+freeze，而没有改变 inspection data 或 authority。真实 mutation RED 在实现前产生 `7`
 个失败，随后同一 focused suite 转绿；完整 promotion matrix 记录在 owning plan 第 6 节。
 M3.1 现为 completed/historical；其 delivery 当时把实现指针推进到 M3.2，该 historical
 pointer 已由 M3.2 delivery 关闭。
@@ -513,7 +514,7 @@ M3.2 把单个 `adoptionDeclaration` 替换为 application composition 在启动
 既有七字段 identity：
 `storyId`、`storyRevision`、`stateContractRevision`、`stateContractDigest`、
 `fromSimulationDigest`、`toSimulationDigest`、`simulationPatchSetDigest`。实现一次读取、
-校验与 defensive copy/freeze，并按这七字段组成的 canonical tuple 建 immutable lookup；
+校验与一次 ordinary copy，并按这七字段组成的 canonical tuple 建只读 lookup；
 数组顺序不参与结果，也没有“first match wins”。
 
 只有 compatibility mismatch 恰为 `simulation_digest`，且 declaration 的七字段与
@@ -836,7 +837,7 @@ RED/implementation gate推进到 M3.6c Browser repeated-download no-clobber evid
 - fixture corpus 覆盖 annotation absent、summary-only、note-only、summary + note
   与 cleared-note，并证明 State migration 不消费或改写 annotation；
 - fixture corpus 覆盖 `versionStamp` absent/all-null/partial/fixed full-clean/fixed
-  full-dirty/status-unavailable/malformed/throw、normalized freeze 与 fixed
+  full-dirty/status-unavailable/malformed/throw、normalized value 与 fixed
   bytes；headless absent/all-null 保留 PF1 unstamped
   oracle，fixed browser stamp 有独立 byte oracle，并证明 migration、annotation
   rewrite、rotation 与 stored-record export 保留 Snapshot capture origin；

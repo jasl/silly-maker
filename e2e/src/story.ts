@@ -15,16 +15,16 @@ export {
   labStateContractManifestV1,
 } from "./simulation-definition.ts";
 
-const labStoryDefinitionV1 = Object.freeze({
+const labStoryDefinitionV1 = {
   simulation: labSimulationDefinitionV1,
-  presentation: Object.freeze({
+  presentation: {
     textCatalogs: labTextCatalogsV1,
     assetSlots: labAssetSlotsV1,
-    assetPacks: Object.freeze([]) as readonly [],
+    assetPacks: [] as readonly [],
     patchSurface: labPresentationPatchSurfaceV1,
     materializePresentation: materializeLabPresentationV1,
-  }),
-});
+  },
+};
 
 export const labStoryEntryV1 = defineGamePackage({
   contractRevision: 1,

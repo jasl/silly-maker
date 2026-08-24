@@ -45,7 +45,7 @@ export function OsShellV1(props: {
   const boundsWidth = osDesktopBoundsForV1(viewport).width;
   const boundsHeight = osDesktopBoundsForV1(viewport).height;
   const bounds = useMemo(
-    () => Object.freeze({ x: 0, y: 0, width: boundsWidth, height: boundsHeight }),
+    () => ({ x: 0, y: 0, width: boundsWidth, height: boundsHeight }),
     [boundsWidth, boundsHeight],
   );
   // Viewport changes (rotation, window resize) pull windows back onto the desktop.

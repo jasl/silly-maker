@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-export const stageLayoutConstantsV1 = Object.freeze({
+export const stageLayoutConstantsV1 = {
   basisWidth: 1600,
   basisHeight: 1000,
   maxWidth: 1600,
   landscapeAspectRatio: 1.6,
   portraitReflowThreshold: 4 / 3,
-});
+} as const;
 
 export interface StageViewportV1 {
   readonly width: number;
@@ -40,11 +40,11 @@ export function computeStageFrameV1(viewport: StageViewportV1): StageFrameV1 {
   assertViewportV1(viewport);
 
   if (viewport.width / viewport.height < stageLayoutConstantsV1.portraitReflowThreshold) {
-    return Object.freeze({
+    return {
       mode: "portrait_reflow",
       width: viewport.width,
       height: viewport.height,
-    });
+    };
   }
 
   const width = Math.min(
@@ -53,9 +53,9 @@ export function computeStageFrameV1(viewport: StageViewportV1): StageFrameV1 {
     viewport.height * stageLayoutConstantsV1.landscapeAspectRatio,
   );
 
-  return Object.freeze({
+  return {
     mode: "landscape",
     width,
     height: width / stageLayoutConstantsV1.landscapeAspectRatio,
-  });
+  };
 }

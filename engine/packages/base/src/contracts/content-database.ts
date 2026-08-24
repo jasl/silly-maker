@@ -5,7 +5,7 @@ import { compareUtf16CodeUnitsInternalV1 } from "../internal/utf16-code-unit-ord
 /**
  * The content database: Story-defined static data tables with typed
  * queries. Content is authoring-time data — validated at definition,
- * immutable and read-only at runtime, and part of Story identity through
+ * treated as read-only typed data at runtime, and part of Story identity through
  * the ordinary source-digest path. Mutable game state never lives here;
  * it belongs to gameplay modules (atomic commits, Saves, rollback).
  *
@@ -91,17 +91,15 @@ export function defineContentTableV1<TRow extends Readonly<Record<string, unknow
     }
     if (seen.has(key)) fail("content.primary_key_duplicate", `${path}/${input.primaryKey}`);
     seen.add(key);
-    return Object.freeze(row);
+    return row;
   });
-  return Object.freeze({
+  return {
     tableId: input.tableId,
     primaryKey: input.primaryKey,
-    textColumns: Object.freeze([...(input.textColumns ?? [])]),
-    references: Object.freeze(
-      (input.references ?? []).map((reference) => Object.freeze({ ...reference })),
-    ),
-    rows: Object.freeze(rows),
-  });
+    textColumns: [...(input.textColumns ?? [])],
+    references: (input.references ?? []).map((reference) => ({ ...reference })),
+    rows,
+  };
 }
 
 /** Column conditions; comparison operators require number columns. */
@@ -241,7 +239,7 @@ export function createContentDatabaseV1(input: {
     const index = new Map(table.rows.map((row) => [row[table.primaryKey] as string, row]));
     views.set(
       table.tableId,
-      Object.freeze({
+      {
         tableId: table.tableId,
         rows: () => table.rows,
         byId: (key: string) => index.get(key) ?? null,
@@ -262,17 +260,17 @@ export function createContentDatabaseV1(input: {
               return compareUtf16CodeUnitsInternalV1(String(a), String(b)) * direction;
             });
           }
-          return Object.freeze(selected);
+          return selected;
         },
         findFirst(query: ContentQueryV1<Readonly<Record<string, unknown>>> = {}) {
           const matches = this.findMany(query);
           return matches[0] ?? null;
         },
-      }),
+      },
     );
   }
 
-  return Object.freeze({
+  return {
     table: <TRow extends Readonly<Record<string, unknown>>>(
       definition: ContentTableDefinitionV1<TRow>,
     ): ContentTableViewV1<TRow> => {
@@ -283,19 +281,17 @@ export function createContentDatabaseV1(input: {
       return view as unknown as ContentTableViewV1<TRow>;
     },
     collectTextIds: () =>
-      Object.freeze(
-        [
-          ...new Set(
-            input.tables.flatMap((table) =>
-              table.textColumns.flatMap((column) =>
-                table.rows.flatMap((row) => {
-                  const value = row[column];
-                  return typeof value === "string" && value !== "" ? [value] : [];
-                })
-              )
-            ),
+      [
+        ...new Set(
+          input.tables.flatMap((table) =>
+            table.textColumns.flatMap((column) =>
+              table.rows.flatMap((row) => {
+                const value = row[column];
+                return typeof value === "string" && value !== "" ? [value] : [];
+              })
+            )
           ),
-        ].toSorted(),
-      ),
-  });
+        ),
+      ].toSorted(),
+  };
 }

@@ -71,7 +71,7 @@ export type LabActionResultV1 =
     readonly code: "session_unavailable" | "fault_paused" | "hmr_invalidated" | "validation_failed";
   };
 
-const labActionIdsV1: readonly LabActionIdV1[] = Object.freeze([
+const labActionIdsV1: readonly LabActionIdV1[] = [
   "lab.collect_sample",
   "lab.begin_procedure",
   "lab.advance_procedure",
@@ -81,7 +81,7 @@ const labActionIdsV1: readonly LabActionIdV1[] = Object.freeze([
   "lab.toggle_collector",
   "lab.sell_sample",
   "lab.buy_banner",
-]);
+];
 
 const labSimulationForSemanticV1 = createLabGameSimulationV1();
 
@@ -161,23 +161,21 @@ function holdWriteBlockedByV1(
 
 export function projectLabNarrativeViewV1(queries: LabQueriesV1): LabNarrativeViewV1 {
   const pending = queries.narrative.pending;
-  return Object.freeze({
+  return ({
     phase: queries.narrative.phase,
     calibration: queries.narrative.calibration,
     history: queries.narrative.history,
     pending,
     choiceOptions: pending !== null && pending.kind === "choice"
-      ? Object.freeze(
-        labChoiceOptionsForV1(pending.definitionId).map((option) => {
-          const blockedBy = labChoiceBlockedByV1(option, queries.samplesCollected);
-          return Object.freeze({
-            choiceId: option.choiceId,
-            textId: option.textId,
-            enabled: blockedBy === null,
-            blockedBy,
-          });
-        }),
-      )
+      ? (labChoiceOptionsForV1(pending.definitionId).map((option) => {
+        const blockedBy = labChoiceBlockedByV1(option, queries.samplesCollected);
+        return ({
+          choiceId: option.choiceId,
+          textId: option.textId,
+          enabled: blockedBy === null,
+          blockedBy,
+        });
+      }))
       : null,
   });
 }
@@ -195,7 +193,7 @@ export function parseLabInvocationV1(value: unknown): LabInvocationV1 {
       readonly expectedOccurrenceId?: unknown;
       readonly resolution?: unknown;
     };
-    return Object.freeze({
+    return ({
       kind: "resolve",
       expectedOccurrenceId: parseInteractionOccurrenceIdV1(record.expectedOccurrenceId),
       resolution: parseInteractionResolutionV1(record.resolution),
@@ -205,7 +203,7 @@ export function parseLabInvocationV1(value: unknown): LabInvocationV1 {
     if (Object.keys(value).toSorted().join("\0") !== "kind\0tick") {
       throw new TypeError("invalid lab time invocation");
     }
-    return Object.freeze({
+    return ({
       kind: "time",
       tick: parseTimeTickV1((value as { readonly tick?: unknown }).tick, "/tick"),
     });
@@ -223,7 +221,7 @@ export function parseLabInvocationV1(value: unknown): LabInvocationV1 {
     if (record.actionId !== "lab.engage_collector") {
       throw new TypeError("unknown lab hold write action");
     }
-    return Object.freeze({
+    return ({
       kind: "hold_write",
       actionId: "lab.engage_collector",
       expectedHoldOccurrenceId: parseInteractionOccurrenceIdV1(record.expectedHoldOccurrenceId),
@@ -236,7 +234,7 @@ export function parseLabInvocationV1(value: unknown): LabInvocationV1 {
   if (!labActionIdsV1.includes(actionId as LabActionIdV1)) {
     throw new TypeError("unknown lab action");
   }
-  return Object.freeze({ kind: "invoke", actionId: actionId as LabActionIdV1 });
+  return ({ kind: "invoke", actionId: actionId as LabActionIdV1 });
 }
 
 export const labSemanticAdapterV1: CoreSemanticAdapterV1<
@@ -252,13 +250,10 @@ export const labSemanticAdapterV1: CoreSemanticAdapterV1<
   createQueries: (state) => labSimulationForSemanticV1.createQueries(state as never),
   projectGameView: (queries) => labSimulationForSemanticV1.projectGameView(queries),
   projectNarrativeView: (queries) => projectLabNarrativeViewV1(queries),
-  actions: (queries) =>
-    Object.freeze(
-      labActionIdsV1.map((actionId) => {
-        const blockedBy = blockedByV1(queries, actionId);
-        return Object.freeze({ actionId, enabled: blockedBy === null, blockedBy });
-      }),
-    ),
+  actions: (queries) => (labActionIdsV1.map((actionId) => {
+    const blockedBy = blockedByV1(queries, actionId);
+    return ({ actionId, enabled: blockedBy === null, blockedBy });
+  })),
   preview: (queries, invocation) => {
     const blockedBy = invocation.kind === "resolve"
       ? resolutionBlockedByV1(queries, invocation)
@@ -268,44 +263,46 @@ export const labSemanticAdapterV1: CoreSemanticAdapterV1<
       ? holdWriteBlockedByV1(queries, invocation)
       : blockedByV1(queries, invocation.actionId);
     return blockedBy === null
-      ? Object.freeze({ kind: "allowed" as const })
-      : Object.freeze({ kind: "blocked" as const, code: blockedBy });
+      ? ({ kind: "allowed" as const })
+      : ({ kind: "blocked" as const, code: blockedBy });
   },
   parseInvocation: parseLabInvocationV1,
   commandForInvocation: (invocation) =>
     invocation.kind === "resolve"
-      ? Object.freeze({
+      ? ({
         kind: "lab.narrative_resolve" as const,
         expectedOccurrenceId: invocation.expectedOccurrenceId,
         resolution: invocation.resolution,
       })
       : invocation.kind === "time"
-      ? Object.freeze({ kind: "lab.time_tick" as const, tick: invocation.tick })
+      ? ({ kind: "lab.time_tick" as const, tick: invocation.tick })
       : invocation.kind === "hold_write"
-      ? Object.freeze({
+      ? ({
         kind: "lab.engage_collector" as const,
         expectedHoldOccurrenceId: invocation.expectedHoldOccurrenceId,
       })
-      : Object.freeze({ kind: invocation.actionId }),
+      : ({ kind: invocation.actionId }),
   projectDispatchResult: (result) => {
     if (result.kind === "not_executed") {
-      return Object.freeze({ kind: "not_executed" as const, code: result.code });
+      return ({ kind: "not_executed" as const, code: result.code });
     }
     const execution = result.execution;
     if (execution.kind === "committed") {
       // Committed domain events stay engine evidence; agents observe outcomes through
       // the published game view, never through the raw event journal.
-      return Object.freeze({ kind: "committed" as const });
+      return ({ kind: "committed" as const });
     }
     if (execution.kind === "rejected") {
-      return Object.freeze({
+      return ({
         kind: "rejected" as const,
-        codes: Object.freeze(execution.reasons.map((reason) => reason.code)),
+        codes: execution.reasons.map((reason) => reason.code),
       });
     }
-    return Object.freeze({ kind: "faulted" as const, code: execution.fault.code });
+    return ({ kind: "faulted" as const, code: execution.fault.code });
   },
-  invalidInvocationResult: () =>
-    Object.freeze({ kind: "not_executed" as const, code: "validation_failed" as const }),
+  invalidInvocationResult: () => ({
+    kind: "not_executed" as const,
+    code: "validation_failed" as const,
+  }),
   projectTransientEffects: (events) => projectLabTransientEffectsV1(events),
 };

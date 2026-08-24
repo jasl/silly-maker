@@ -16,7 +16,7 @@ afterEach(async () => {
 async function fixtureV1() {
   const root = await mkdtemp(join(tmpdir(), "sillymaker-records-"));
   cleanupDir = root;
-  return Object.freeze({ root, store: createRecordFileStoreV1(root) });
+  return { root, store: createRecordFileStoreV1(root) };
 }
 
 describe("the desktop record file store", () => {
@@ -90,17 +90,15 @@ describe("the desktop record file store", () => {
     expect(await store.read("save", "b")).toBeNull();
   });
 
-  it("rejects duplicate keys and malformed wire values before touching storage", async () => {
-    const { store } = await fixtureV1();
-
-    await expect(
-      store.commit([
+  it("rejects duplicate keys and malformed wire values at wire admission", () => {
+    expect(() =>
+      parseWireMutationsV1([
         { kind: "put", namespace: "save", key: "one", expectedRevision: null, bytesBase64: "YQ==" },
         { kind: "delete", namespace: "save", key: "one", expectedRevision: 1 },
-      ]),
-    ).rejects.toThrow("duplicate Host record mutation");
-    await expect(
-      store.commit([
+      ])
+    ).toThrow("duplicate Host record mutation");
+    expect(() =>
+      parseWireMutationsV1([
         {
           kind: "put",
           namespace: "unknown",
@@ -108,10 +106,10 @@ describe("the desktop record file store", () => {
           expectedRevision: null,
           bytesBase64: "YQ==",
         },
-      ] as never),
-    ).rejects.toThrow("invalid Host record namespace");
-    await expect(
-      store.commit([
+      ])
+    ).toThrow("invalid Host record namespace");
+    expect(() =>
+      parseWireMutationsV1([
         {
           kind: "put",
           namespace: "save",
@@ -119,9 +117,8 @@ describe("the desktop record file store", () => {
           expectedRevision: null,
           bytesBase64: "not-base64",
         },
-      ]),
-    ).rejects.toThrow("invalid Host record bytes");
-    expect(await store.list("save")).toEqual([]);
+      ])
+    ).toThrow("invalid Host record bytes");
   });
 
   it("rejects negative-zero wire revisions", () => {
@@ -185,20 +182,5 @@ describe("the desktop record file store", () => {
     await writeFile(join(root, "save", "%61.json"), record, "utf8");
 
     await expect(store.list("save")).rejects.toThrow("duplicate desktop Host record key: a");
-  });
-
-  it("returns immutable records and commit results", async () => {
-    const { store } = await fixtureV1();
-    const result = await store.commit([
-      { kind: "put", namespace: "save", key: "one", expectedRevision: null, bytesBase64: "" },
-    ]);
-    expect(result.kind).toBe("committed");
-    expect(Object.isFrozen(result)).toBe(true);
-    if (result.kind === "committed") {
-      expect(Object.isFrozen(result.records)).toBe(true);
-      expect(Object.isFrozen(result.records[0])).toBe(true);
-    }
-    expect(Object.isFrozen(await store.read("save", "one"))).toBe(true);
-    expect(Object.isFrozen(await store.list("save"))).toBe(true);
   });
 });

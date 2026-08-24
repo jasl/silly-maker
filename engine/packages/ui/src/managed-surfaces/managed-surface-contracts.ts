@@ -378,7 +378,6 @@ export type ManagedSurfaceTransitionCodeV1 =
   | "surface.owner_disposed"
   | "surface.coordinator_disposed"
   | "surface.owner_already_disposed"
-  | "surface.invalid_definition"
   | "surface.unknown_owner"
   | "surface.coordinator_already_disposed"
   | "surface.already_closed"

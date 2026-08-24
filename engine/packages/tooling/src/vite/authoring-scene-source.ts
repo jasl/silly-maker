@@ -56,13 +56,11 @@ export function authoringSceneSourcePluginInternalV1(
     .filter((source): source is AuthoringSceneSourceBindingV1 =>
       source.sourceKind === "authoring_scene"
     )
-    .map((binding): ResolvedAuthoringSceneSourceV1 =>
-      Object.freeze({
-        binding,
-        sourceFile: resolve(appRoot, binding.source),
-        virtualId: virtualIdV1(binding.specifier),
-      })
-    );
+    .map((binding): ResolvedAuthoringSceneSourceV1 => ({
+      binding,
+      sourceFile: resolve(appRoot, binding.source),
+      virtualId: virtualIdV1(binding.specifier),
+    }));
   const bySpecifier = new Map(records.map((record) => [record.binding.specifier, record] as const));
   const byVirtualId = new Map(records.map((record) => [record.virtualId, record] as const));
   const bySourceFile = new Map<string, ResolvedAuthoringSceneSourceV1[]>();

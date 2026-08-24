@@ -129,11 +129,11 @@ export interface SemanticStageHostPropsV1 {
 }
 
 const noopInspectSubscribeV1 = (): () => void => () => {};
-const inspectDisabledSnapshotV1: SemanticStageInspectionSnapshotV1 = Object.freeze({
+const inspectDisabledSnapshotV1: SemanticStageInspectionSnapshotV1 = {
   enabled: false,
   highlightHitRegions: false,
   selectedKey: null,
-});
+};
 
 /** Overlay channel lookup: entry channels by layer/tag, camera channels flat. */
 interface OverlayIndexV1 {
@@ -141,10 +141,10 @@ interface OverlayIndexV1 {
   readonly camera: ReadonlyMap<TimelinePropertyV1, number>;
 }
 
-const emptyOverlayIndexV1: OverlayIndexV1 = Object.freeze({
+const emptyOverlayIndexV1: OverlayIndexV1 = {
   entry: new Map<string, ReadonlyMap<TimelinePropertyV1, number>>(),
   camera: new Map<TimelinePropertyV1, number>(),
-});
+};
 
 function indexOverlayV1(
   values: readonly TimelineChannelValueV1[] | null | undefined,
@@ -162,7 +162,7 @@ function indexOverlayV1(
     bucket.set(channel.property, channel.value);
     entry.set(key, bucket);
   }
-  return Object.freeze({ entry, camera });
+  return { entry, camera };
 }
 
 function overlayChannelV1(
@@ -536,25 +536,23 @@ export function SemanticStageHostV1(props: SemanticStageHostPropsV1): ReactEleme
     inspect.recordFrame({ frame, activeCueId });
   }, [inspect, frame, activeCueId]);
 
-  const missing = useMemo(
-    () =>
-      frame.layers.flatMap((layer) =>
-        layer.entries
-          .filter(
-            (frameEntry) =>
-              frameEntry.phase !== "exiting" &&
-              !Object.hasOwn(renderers, frameEntry.entry.rendererId),
-          )
-          .map((frameEntry) =>
-            Object.freeze({
-              code: "stage.renderer_unregistered" as const,
-              entryKey: frameEntry.entry.key,
-              rendererId: frameEntry.entry.rendererId,
-            })
-          )
-      ),
-    [frame, renderers],
-  );
+  const missing = useMemo(() => {
+    const diagnostics: SemanticStageHostDiagnosticV1[] = [];
+    for (const layer of frame.layers) {
+      for (const frameEntry of layer.entries) {
+        if (
+          frameEntry.phase === "exiting" ||
+          Object.hasOwn(renderers, frameEntry.entry.rendererId)
+        ) continue;
+        diagnostics.push({
+          code: "stage.renderer_unregistered",
+          entryKey: frameEntry.entry.key,
+          rendererId: frameEntry.entry.rendererId,
+        });
+      }
+    }
+    return diagnostics;
+  }, [frame, renderers]);
 
   useEffect(() => {
     if (reportDiagnostic === undefined) return;

@@ -9,7 +9,7 @@ import { catcafeContestTodayV1 } from "./rules.ts";
 export const contestCommandHandlersV1: Pick<
   CatcafeCommandHandlerMapV1,
   "cc.enter_contest" | "cc.contest_move"
-> = Object.freeze({
+> = {
   "cc.enter_contest": ({ snapshot, rng, state }) =>
     transactionRunnerV1.execute(snapshot, rng, (transaction) => {
       // Daily gameplay unlocks after the opening narrative completes.
@@ -25,13 +25,13 @@ export const contestCommandHandlersV1: Pick<
       if (rival === null) return transaction.reject({ code: "cc.contest_not_today" });
       transaction.emit({
         kind: "cc.contest_set",
-        next: Object.freeze({
+        next: {
           rivalId,
           round: 1,
           morale: 30 + Math.floor(state.cat.skill / 2),
           rivalMorale: rival.morale,
           feintActive: false,
-        }),
+        },
       });
       transaction.emit({ kind: "cc.contest_started", rivalId });
       return transaction.complete();
@@ -48,7 +48,7 @@ export const contestCommandHandlersV1: Pick<
 
       // Our move: power + skill bonus + a little randomness.
       const variance = rng.nextInt(
-        Object.freeze({ purpose: "check:cc.contest_variance", exclusiveMax: 5 }),
+        { purpose: "check:cc.contest_variance", exclusiveMax: 5 },
       );
       const damage = move.kind === "charm"
         ? 0
@@ -76,13 +76,13 @@ export const contestCommandHandlersV1: Pick<
       if (!finished) {
         transaction.emit({
           kind: "cc.contest_set",
-          next: Object.freeze({
+          next: {
             rivalId: contest.rivalId,
             round,
             morale,
             rivalMorale,
             feintActive: move.kind === "feint",
-          }),
+          },
         });
         transaction.emit({
           kind: "cc.contest_resolved",
@@ -103,12 +103,12 @@ export const contestCommandHandlersV1: Pick<
         transaction.emit({ kind: "cc.album_unlocked", albumId: rival.trophyAlbumId });
         transaction.emit({
           kind: "cc.shop_set",
-          next: Object.freeze({
+          next: {
             ...state.shop,
             reputation: clampV1(state.shop.reputation + 10, 0, 100),
             money: state.shop.money + 40,
             trophies: clampV1(state.shop.trophies + 1, 0, 3),
-          }),
+          },
         });
         return transaction.complete();
       }
@@ -116,4 +116,4 @@ export const contestCommandHandlersV1: Pick<
       transaction.emit({ kind: "cc.contest_lost", rivalId: contest.rivalId });
       return transaction.complete();
     }),
-});
+};

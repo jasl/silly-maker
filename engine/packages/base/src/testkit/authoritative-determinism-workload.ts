@@ -49,9 +49,12 @@ import {
   type ReplayComparisonV1,
 } from "../runtime/diagnostics/replay.ts";
 
-export const authoritativeDeterminismCommandClassesV1 = Object.freeze(
-  ["no_draw_committed", "rng_committed", "rejected", "faulted"] as const,
-);
+export const authoritativeDeterminismCommandClassesV1 = [
+  "no_draw_committed",
+  "rng_committed",
+  "rejected",
+  "faulted",
+] as const;
 export type AuthoritativeDeterminismCommandClassV1 =
   (typeof authoritativeDeterminismCommandClassesV1)[number];
 
@@ -180,9 +183,12 @@ export interface PreparedAuthoritativeDeterminismWorkloadV1 {
   runOnce(): Promise<AuthoritativeDeterminismWorkloadRunV1>;
 }
 
-export const authoritativeDeterminismTranscriptCommandClassesV1 = Object.freeze(
-  ["no_draw_committed", "rejected", "rng_committed", "faulted"] as const,
-);
+export const authoritativeDeterminismTranscriptCommandClassesV1 = [
+  "no_draw_committed",
+  "rejected",
+  "rng_committed",
+  "faulted",
+] as const;
 
 export interface AuthoritativeDeterminismTranscriptStepV1 {
   readonly commandClass: AuthoritativeDeterminismCommandClassV1;
@@ -214,13 +220,13 @@ interface CompositeSnapshotWorkCounterV1 {
 function createCompositeSnapshotWorkCounterV1(): CompositeSnapshotWorkCounterV1 {
   const totals = createSnapshotWorkCounterV1();
   const purposes = createPurposeTaggedSnapshotWorkCounterV1();
-  const instrumentation: SnapshotWorkInstrumentationV1 = Object.freeze({
+  const instrumentation: SnapshotWorkInstrumentationV1 = {
     record(event: SnapshotWorkEventV1, purpose?: SnapshotWorkPurposeV1) {
       totals.instrumentation.record(event, purpose);
       purposes.instrumentation.record(event, purpose);
     },
-  });
-  return Object.freeze({
+  };
+  return ({
     instrumentation,
     reset() {
       totals.reset();
@@ -228,7 +234,7 @@ function createCompositeSnapshotWorkCounterV1(): CompositeSnapshotWorkCounterV1 
     },
     snapshot(): AuthoritativeDeterminismWorkCountsV1 {
       const counts = totals.snapshot();
-      return Object.freeze({
+      return ({
         canonicalTraversals: counts.canonicalTraversals,
         canonicalDigests: counts.canonicalDigests,
         commandLogContinuityVerifications: counts.commandLogContinuityVerifications,
@@ -238,10 +244,10 @@ function createCompositeSnapshotWorkCounterV1(): CompositeSnapshotWorkCounterV1 
   });
 }
 
-const commandSchemaV1: RuntimeSchemaV1<AuthoritativeDeterminismCommandV1> = Object.freeze({
+const commandSchemaV1: RuntimeSchemaV1<AuthoritativeDeterminismCommandV1> = {
   parse(value: unknown): AuthoritativeDeterminismCommandV1 {
     const kind = value !== null && typeof value === "object" && !Array.isArray(value)
-      ? Reflect.get(value, "kind")
+      ? (value as { readonly kind?: unknown }).kind
       : undefined;
     if (
       !authoritativeDeterminismCommandClassesV1.some(
@@ -250,9 +256,9 @@ const commandSchemaV1: RuntimeSchemaV1<AuthoritativeDeterminismCommandV1> = Obje
     ) {
       throw new TypeError("invalid authoritative determinism command");
     }
-    return Object.freeze({ kind: kind as AuthoritativeDeterminismCommandClassV1 });
+    return ({ kind: kind as AuthoritativeDeterminismCommandClassV1 });
   },
-});
+};
 
 function createAuthoritativeDeterminismInitialSnapshotV1(
   rngSeed: NonZeroUint32,
@@ -278,11 +284,11 @@ function executeAuthoritativeDeterminismAttemptV1(
       integrity: current.integrity,
     };
     return commitAttemptV1(current, snapshot, rng, [
-      Object.freeze({
+      {
         kind: "determinism.committed" as const,
         commandClass: "no_draw_committed" as const,
         result: null,
-      }),
+      },
     ]);
   }
 
@@ -292,14 +298,14 @@ function executeAuthoritativeDeterminismAttemptV1(
   });
   if (command.kind === "rejected") {
     return rejectAttemptV1(current, rng, [
-      Object.freeze({ code: "determinism.rejected" as const }),
+      { code: "determinism.rejected" as const },
     ]);
   }
   if (command.kind === "faulted") {
     return faultAttemptV1(
       current,
       rng,
-      Object.freeze({ code: "determinism.faulted" as const }),
+      { code: "determinism.faulted" as const },
     );
   }
   const snapshot: AuthoritativeDeterminismSnapshotV1 = {
@@ -309,11 +315,11 @@ function executeAuthoritativeDeterminismAttemptV1(
     integrity: current.integrity,
   };
   return commitAttemptV1(current, snapshot, rng, [
-    Object.freeze({
+    {
       kind: "determinism.committed" as const,
       commandClass: "rng_committed" as const,
       result,
-    }),
+    },
   ]);
 }
 
@@ -339,18 +345,18 @@ function createAuthoritativeDeterminismWorkloadV1(
         return faultAttemptV1(
           snapshot,
           rng,
-          Object.freeze({ code: "determinism.faulted" as const }),
+          { code: "determinism.faulted" as const },
         );
       },
     },
     counter.instrumentation,
   );
-  return Object.freeze({
+  return ({
     snapshot: () => created.session.getCurrentSnapshot(),
     status: () => created.session.getStatus(),
     commandLog: () => created.commandLog.entries(),
     dispatch(commandClass: AuthoritativeDeterminismCommandClassV1) {
-      return created.session.dispatch(Object.freeze({ kind: commandClass }));
+      return created.session.dispatch({ kind: commandClass });
     },
   });
 }
@@ -370,14 +376,14 @@ export function prepareAuthoritativeDeterminismWorkloadV1(input: {
   counter.reset();
   const initialSnapshot = workload.snapshot();
   let dispatched = false;
-  return Object.freeze({
-    descriptor: Object.freeze({
+  return ({
+    descriptor: {
       workloadId: `authoritative-determinism-v1/${input.commandClass}`,
       commandClass: input.commandClass,
       rngSeed,
       exclusiveMax: authoritativeDeterminismExclusiveMaxV1,
       drawPurpose: authoritativeDeterminismDrawPurposeV1,
-    }),
+    },
     setupCounts,
     async runOnce(): Promise<AuthoritativeDeterminismWorkloadRunV1> {
       if (dispatched) {
@@ -386,7 +392,7 @@ export function prepareAuthoritativeDeterminismWorkloadV1(input: {
       dispatched = true;
       const dispatchResult = await workload.dispatch(input.commandClass);
       const currentSnapshot = workload.snapshot();
-      return Object.freeze({
+      return ({
         dispatchResult,
         status: workload.status(),
         initialSnapshot,
@@ -402,29 +408,29 @@ export function prepareAuthoritativeDeterminismWorkloadV1(input: {
 const authoritativeDeterminismReplayDigestV1 = (label: string) =>
   digestBytes(new TextEncoder().encode(`authoritative-determinism-replay-v1:${label}`));
 
-const authoritativeDeterminismReplayProvenanceV1: BuildProvenanceV1 = Object.freeze({
-  story: Object.freeze({
+const authoritativeDeterminismReplayProvenanceV1: BuildProvenanceV1 = {
+  story: {
     id: "story.authoritative-determinism-replay",
     revision: parsePositiveSafeInteger(1),
     digest: authoritativeDeterminismReplayDigestV1("story"),
-  }),
-  engine: Object.freeze({
+  },
+  engine: {
     version: "authoritative-determinism-replay-v1",
     digest: authoritativeDeterminismReplayDigestV1("engine"),
-  }),
-  resolved: Object.freeze({
+  },
+  resolved: {
     stateContractRevision: parsePositiveSafeInteger(1),
     stateContractDigest: authoritativeDeterminismReplayDigestV1("state-contract"),
     simulationDigest: authoritativeDeterminismReplayDigestV1("simulation"),
     presentationDigest: authoritativeDeterminismReplayDigestV1("presentation"),
-    patchSet: Object.freeze({
+    patchSet: {
       digest: authoritativeDeterminismReplayDigestV1("patch-set"),
       simulationDigest: authoritativeDeterminismReplayDigestV1("patch-set-simulation"),
       presentationDigest: authoritativeDeterminismReplayDigestV1("patch-set-presentation"),
-      appliedHotfixes: Object.freeze([]),
-    }),
-  }),
-});
+      appliedHotfixes: [],
+    },
+  },
+};
 
 /**
  * Runs one prepared neutral workload through the production authoritative replay comparator.
@@ -439,7 +445,7 @@ export async function replayAuthoritativeDeterminismWorkloadV1(
     throw new TypeError("Authoritative determinism replay requires a retained command");
   }
   return await replayAuthoritativelyFromAttemptsInternalV1({
-    identity: Object.freeze({ provenance: authoritativeDeterminismReplayProvenanceV1 }),
+    identity: { provenance: authoritativeDeterminismReplayProvenanceV1 },
     replayBase: run.initialSnapshot,
     replayBaseStateDigest: entry.preStateDigest,
     commandLog: run.commandLog,
@@ -474,21 +480,21 @@ export async function runAuthoritativeDeterminismTranscriptV1(input: {
       throw new TypeError(`Authoritative determinism transcript log is invalid: ${commandClass}`);
     }
     steps.push(
-      Object.freeze({
+      {
         commandClass,
         dispatchResult,
         status: workload.status(),
         snapshotRetained: currentSnapshot === beforeSnapshot,
         commandLogEntry: commandLogEntry as AuthoritativeDeterminismCommandLogEntryV1,
-      }),
+      },
     );
   }
   const currentSnapshot = workload.snapshot();
   const commandLog = workload.commandLog() as readonly AuthoritativeDeterminismCommandLogEntryV1[];
-  const replayInput = Object.freeze({ initialSnapshot, currentSnapshot, commandLog });
-  return Object.freeze({
+  const replayInput = { initialSnapshot, currentSnapshot, commandLog };
+  return ({
     ...replayInput,
-    steps: Object.freeze(steps),
+    steps: steps,
     status: workload.status(),
     replay: await replayAuthoritativeDeterminismWorkloadV1(replayInput),
   });
@@ -643,24 +649,24 @@ function fractionalRngEvidenceAttemptV1(
   const attempted = rng.attemptedDraws()[0];
   if (attempted === undefined) throw new TypeError("expected unsafe RNG draw");
   const candidate = rng.candidateState();
-  return Object.freeze({
-    result: Object.freeze({
+  return ({
+    result: {
       kind: "rejected" as const,
       snapshot: current,
-      reasons: Object.freeze([
-        Object.freeze({ code: "determinism.unsafe_rejection" as const, value: 1 }),
-      ]),
-    }),
-    diagnostics: Object.freeze({
+      reasons: [
+        { code: "determinism.unsafe_rejection" as const, value: 1 },
+      ],
+    },
+    diagnostics: {
       committedRngBefore: current.rng,
-      attemptedDraws: Object.freeze([
-        field === "draw_result" ? Object.freeze({ ...attempted, result: 0.5 }) : attempted,
-      ]),
+      attemptedDraws: [
+        field === "draw_result" ? ({ ...attempted, result: 0.5 }) : attempted,
+      ],
       candidateRngAfter: field === "candidate_raw_draw_count"
-        ? Object.freeze({ ...candidate, rawDrawCount: 0.5 })
+        ? ({ ...candidate, rawDrawCount: 0.5 })
         : candidate,
       committedRngAfter: current.rng,
-    }),
+    },
   }) as unknown as UnsafeAuthoritativeDeterminismAttemptV1;
 }
 
@@ -675,21 +681,21 @@ function unsafeAttemptV1(
         current,
         createUnsafeCommittedSnapshotV1(current, 1),
         rng,
-        [Object.freeze({ kind: "determinism.unsafe_committed" as const })],
+        [{ kind: "determinism.unsafe_committed" as const }],
       );
     case "fractional_event":
       return commitAttemptV1(current, createUnsafeCommittedSnapshotV1(current, 1), rng, [
-        Object.freeze({ kind: "determinism.unsafe_event" as const, value: 0.5 }),
+        { kind: "determinism.unsafe_event" as const, value: 0.5 },
       ]);
     case "fractional_rejection":
       return rejectAttemptV1(current, rng, [
-        Object.freeze({ code: "determinism.unsafe_rejection" as const, value: 0.75 }),
+        { code: "determinism.unsafe_rejection" as const, value: 0.75 },
       ]);
     case "fractional_fault":
       return faultAttemptV1(
         current,
         rng,
-        Object.freeze({ code: "determinism.unsafe_fault" as const, value: 0.875 }),
+        { code: "determinism.unsafe_fault" as const, value: 0.875 },
       );
     case "fractional_rng_draw":
       return fractionalRngEvidenceAttemptV1(current, "draw_result");
@@ -699,7 +705,7 @@ function unsafeAttemptV1(
       throw new TypeError("debug validation case cannot execute as a game command");
     case "illegal_fallback_fault":
       return commitAttemptV1(current, createUnsafeCommittedSnapshotV1(current, 1), rng, [
-        Object.freeze({ kind: "determinism.unsafe_event" as const, value: 0.625 }),
+        { kind: "determinism.unsafe_event" as const, value: 0.625 },
       ]);
   }
   throw new TypeError("unsupported unsafe authoritative determinism case");
@@ -714,10 +720,10 @@ export function createUnsafeAuthoritativeDeterminismWorkloadV1(
   const normalizerErrors: unknown[] = [];
   const initialSnapshot = createUnsafeInitialSnapshotV1();
   const commandAmount = unsafeCase === "fractional_command" ? 0.25 : 1;
-  const command = Object.freeze({ kind: unsafeCase, amount: commandAmount });
-  const commandSchema: RuntimeSchemaV1<UnsafeAuthoritativeDeterminismCommandV1> = Object.freeze({
+  const command = { kind: unsafeCase, amount: commandAmount };
+  const commandSchema: RuntimeSchemaV1<UnsafeAuthoritativeDeterminismCommandV1> = {
     parse: () => command,
-  });
+  };
   const normalizeUnexpectedFault = (
     error: unknown,
     snapshot: DeepReadonly<UnsafeAuthoritativeDeterminismSnapshotV1>,
@@ -728,11 +734,11 @@ export function createUnsafeAuthoritativeDeterminismWorkloadV1(
       snapshot,
       createTransactionalRngV1(snapshot.rng),
       unsafeCase === "illegal_fallback_fault"
-        ? Object.freeze({
+        ? ({
           code: "determinism.illegal_fallback" as const,
           value: 0.375,
         })
-        : Object.freeze({ code: "determinism.stable_fault" as const }),
+        : ({ code: "determinism.stable_fault" as const }),
     );
   };
   const created = createInstrumentedGameSessionV1<UnsafeAuthoritativeDeterminismTypesV1>(
@@ -749,14 +755,14 @@ export function createUnsafeAuthoritativeDeterminismWorkloadV1(
       },
       debug: {
         validate() {
-          return Object.freeze({
+          return ({
             kind: "validation_failed" as const,
-            errors: Object.freeze([
-              Object.freeze({
+            errors: [
+              {
                 code: "determinism.unsafe_debug_validation" as const,
                 value: 0.375,
-              }),
-            ]),
+              },
+            ],
           });
         },
         executeAttempt() {
@@ -768,14 +774,14 @@ export function createUnsafeAuthoritativeDeterminismWorkloadV1(
     counter.instrumentation,
   );
   counter.reset();
-  return Object.freeze({
+  return ({
     initialSnapshot: created.session.getCurrentSnapshot(),
     dispatch() {
       return created.session.dispatch(command);
     },
     executeDebug() {
       return created.debugControl.execute(
-        Object.freeze({ kind: "fractional_debug_validation" as const }),
+        { kind: "fractional_debug_validation" as const },
         () => true,
       );
     },
@@ -786,6 +792,6 @@ export function createUnsafeAuthoritativeDeterminismWorkloadV1(
     replayBase: () => created.commandLog.replayBase(),
     counts: () => counter.snapshot(),
     normalizerCalls: () => normalizerCalls,
-    normalizerErrors: () => Object.freeze([...normalizerErrors]),
+    normalizerErrors: () => [...normalizerErrors],
   });
 }

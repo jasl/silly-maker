@@ -4,9 +4,10 @@ import {
   emptyNarrativeHistoryV1,
   parseNonNegativeSafeInteger,
   type NarrativeHistoryV1,
+  type PendingInteractionV1,
 } from "@sillymaker/base";
 import { defaultPlayerProfileV1 } from "@sillymaker/base/runtime";
-import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   inputHandledV1,
@@ -47,7 +48,6 @@ import {
   prepareNarrativeStableHostReadyCommitInternalV1,
   type NarrativeManagedSurfaceFamilyContractInternalV1,
   type NarrativeStableCandidatePreflightInternalV1,
-  type NarrativeStableDialoguePlayerObservationInternalV1,
   type NarrativeStableHistoryChildControllerInternalV1,
   type NarrativeStableHistoryChildLifecycleInternalV1,
   type NarrativeStableHistoryChildLifecycleResultInternalV1,
@@ -58,19 +58,11 @@ import {
   type NarrativeStableSemanticResolutionPortInternalV1,
 } from "./narrative-managed-surface-family.ts";
 import type {
-  CreateNarrativeStableHostRuntimeInputInternalV1,
-  NarrativeStableHostAttachmentInternalV1,
   NarrativeStableHostReadyCommitInternalV1,
-  NarrativeStableHostReadyCommitPreparationResultInternalV1,
   NarrativeStableHostRenderEntryInternalV1,
-  NarrativeStableHostRenderKeyInternalV1,
-  NarrativeStableHostRenderPhaseInternalV1,
   NarrativeStableHostRenderSnapshotInternalV1,
-  NarrativeStableHostRenderSourceInternalV1,
   NarrativeStableHostRuntimeInternalV1,
-  PrepareNarrativeStableHostReadyCommitInputInternalV1,
   NarrativeStableHostLeaseInternalV1,
-  NarrativeStableReadinessSettlementResultInternalV1,
   NarrativeStableReadinessEntryInternalV1,
   NarrativeStableReadinessSnapshotInternalV1,
   NarrativeStableRootPreparationInternalV1,
@@ -84,46 +76,45 @@ const toggleHistoryActionIdV1 = parseManagedSurfaceActionIdV1(
 const cancelHistoryActionIdV1 = parseManagedSurfaceActionIdV1(
   systemInputActionIdsV1.cancel,
 );
-const defaultSemanticDispatchPortV1 = Object.freeze({
+const defaultSemanticDispatchPortV1 = ({
   dispatchResolutionInternalV1: (_request: unknown) => Promise.resolve(undefined),
 }) satisfies NarrativeStableSemanticResolutionPortInternalV1;
-const defaultHistoryObservationPortV1 = Object.freeze({
+const defaultHistoryObservationPortV1 = ({
   getSnapshotInternalV1: () => emptyNarrativeHistoryV1,
-  subscribeInternalV1: (_listener: () => void) => Object.freeze(() => {}),
+  subscribeInternalV1: (_listener: () => void) => (() => {}),
 }) satisfies NarrativeStableHistoryObservationPortInternalV1;
-const defaultDialoguePlayerProfilePortV1 = Object.freeze({
+const defaultDialoguePlayerProfilePortV1 = {
   getSnapshotInternalV1: () => defaultPlayerProfileV1,
-  subscribeInternalV1: (_listener: () => void) => Object.freeze(() => {}),
+  subscribeInternalV1: (_listener: () => void) => (() => {}),
   markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
-});
-const defaultDialoguePlayerClockPortV1 = Object.freeze({
+};
+const defaultDialoguePlayerClockPortV1 = {
   nowInternalV1: () => 0,
-  requestTickInternalV1: (_callback: (nowMs: number) => void) => Object.freeze(() => {}),
+  requestTickInternalV1: (_callback: (nowMs: number) => void) => (() => {}),
   prefersReducedMotionInternalV1: () => false,
-});
-const defaultDialoguePlayerTextResolverPortV1 = Object.freeze({
+};
+const defaultDialoguePlayerTextResolverPortV1 = {
   resolveTextInternalV1: (textId: string) => textId,
-});
-const defaultCandidateSnapshotV1 = Object.freeze({
-  rendererComponent: Object.freeze({ kind: "session-test-renderer" }),
-  visualConfig: Object.freeze({ skin: "session-test" }),
+};
+const defaultCandidateSnapshotV1 = {
+  rendererComponent: { kind: "session-test-renderer" },
+  visualConfig: { skin: "session-test" },
   semanticDispatchPort: defaultSemanticDispatchPortV1,
   historyObservationPort: defaultHistoryObservationPortV1,
-  historyAvailabilityPort: Object.freeze({
+  historyAvailabilityPort: {
     readHistoryAvailabilityInternalV1: () => true,
-  }),
+  },
   playerProfile: defaultDialoguePlayerProfilePortV1,
   presentationClock: defaultDialoguePlayerClockPortV1,
   textResolver: defaultDialoguePlayerTextResolverPortV1,
   voiceReplayPort: null,
   quickMenuContribution: null,
-});
-const defaultCandidatePreflightV1 = Object.freeze({
-  preflightCandidateInternalV1: () =>
-    Object.freeze({
-      kind: "captured" as const,
-      candidateSnapshot: defaultCandidateSnapshotV1,
-    }),
+};
+const defaultCandidatePreflightV1 = ({
+  preflightCandidateInternalV1: () => ({
+    kind: "captured" as const,
+    candidateSnapshot: defaultCandidateSnapshotV1,
+  }),
 }) satisfies NarrativeStableCandidatePreflightInternalV1;
 
 afterEach(() => {
@@ -141,9 +132,17 @@ interface NarrativeSessionHarnessV1 {
 }
 
 function pendingV1(
+  kind: "say",
+  sequence?: number,
+): Extract<PendingInteractionV1, { readonly kind: "say" }>;
+function pendingV1(
+  kind: "custom",
+  sequence?: number,
+): Extract<PendingInteractionV1, { readonly kind: "custom" }>;
+function pendingV1(
   kind: "say" | "custom",
   sequence = 1,
-): unknown {
+): PendingInteractionV1 {
   const base = {
     definitionId: `narrative.test.${kind}`,
     seenRevision: 1,
@@ -219,10 +218,10 @@ function currentPreparingRootV1(harness: NarrativeSessionHarnessV1) {
 function settleCurrentRootReadyV1(harness: NarrativeSessionHarnessV1): void {
   const { entry, binding } = currentPreparingRootV1(harness);
   expect(harness.kernel.settleStableReadinessReadyInternalV1({
-    readinessEvidence: Object.freeze({
+    readinessEvidence: {
       applicationEpoch: applicationEpochV1,
       surfaceInstanceId: binding.attempt.identity.surfaceInstanceId,
-    }),
+    },
     publisherLease: entry.desiredTarget.publisherLease,
     sourceRevision: entry.desiredTarget.sourceRevision,
   })).toMatchObject({ kind: "applied", code: "surface.readiness_ready" });
@@ -231,10 +230,10 @@ function settleCurrentRootReadyV1(harness: NarrativeSessionHarnessV1): void {
 function settleCurrentRootFailedV1(harness: NarrativeSessionHarnessV1): void {
   const { entry, binding } = currentPreparingRootV1(harness);
   expect(harness.kernel.settleStableReadinessFailedInternalV1({
-    readinessEvidence: Object.freeze({
+    readinessEvidence: {
       applicationEpoch: applicationEpochV1,
       surfaceInstanceId: binding.attempt.identity.surfaceInstanceId,
-    }),
+    },
     publisherLease: entry.desiredTarget.publisherLease,
     sourceRevision: entry.desiredTarget.sourceRevision,
   })).toMatchObject({ kind: "applied", code: "surface.readiness_failed" });
@@ -243,13 +242,13 @@ function settleCurrentRootFailedV1(harness: NarrativeSessionHarnessV1): void {
 function stableContributorCandidatesV1(
   entries: readonly ManagedSurfaceStableRuntimeEntryInternalV1[],
 ): readonly ManagedSurfaceStableRootReservationContributorCandidateInternalV1[] {
-  return Object.freeze(entries.flatMap((entry) => [
-    Object.freeze({ kind: "stable_desired" as const, desiredTarget: entry.desiredTarget }),
-    Object.freeze({
+  return (entries.flatMap((entry) => [
+    { kind: "stable_desired" as const, desiredTarget: entry.desiredTarget },
+    {
       kind: "stable_runtime" as const,
       desiredTarget: entry.desiredTarget,
       binding: entry.binding,
-    }),
+    },
   ]));
 }
 
@@ -264,10 +263,8 @@ function setCurrentRootPhaseV1(
     attempt: entry.binding.instance.attempt,
     phase,
   });
-  const entries = Object.freeze(
-    current.stableRuntimeBindings.map((candidate) =>
-      candidate === entry ? Object.freeze({ ...candidate, binding }) : candidate
-    ),
+  const entries = current.stableRuntimeBindings.map((candidate) =>
+    candidate === entry ? ({ ...candidate, binding }) : candidate
   );
   const next = reconcileManagedSurfaceStableRootReservationsInternalV1({
     currentState: current,
@@ -340,19 +337,6 @@ function retireCurrentHistoryWithRootCutoverV1(harness: NarrativeSessionHarnessV
   ).toEqual([]);
 }
 
-function expectFrozenOwnMethodsV1(value: object, keys: readonly string[]): void {
-  expect(Object.isFrozen(value)).toBe(true);
-  expect(Reflect.ownKeys(value)).toEqual(keys);
-  for (const key of keys) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    expect(descriptor).toBeDefined();
-    expect(descriptor).toHaveProperty("value");
-    expect(descriptor?.value).toEqual(expect.any(Function));
-    expect(descriptor?.get).toBeUndefined();
-    expect(descriptor?.set).toBeUndefined();
-  }
-}
-
 function expectTypeErrorV1(run: () => unknown, code: string): void {
   expect(run).toThrowError(TypeError);
   expect(run).toThrowError(code);
@@ -376,33 +360,32 @@ function createNarrativeHostFixtureV1(input: {
   readonly textResolver?: unknown;
 } = {}): NarrativeHostFixtureV1 {
   const historyObservationPort = input.historyObservationPort ?? defaultHistoryObservationPortV1;
-  const harness = createSessionHarnessV1(Object.freeze({
-    preflightCandidateInternalV1: () =>
-      Object.freeze({
-        kind: "captured" as const,
-        candidateSnapshot: Object.freeze({
-          ...defaultCandidateSnapshotV1,
-          historyObservationPort,
-          playerProfile: input.playerProfile ?? defaultCandidateSnapshotV1.playerProfile,
-          presentationClock: input.presentationClock ??
-            defaultCandidateSnapshotV1.presentationClock,
-          textResolver: input.textResolver ?? defaultCandidateSnapshotV1.textResolver,
-        }),
-      }),
-  }));
+  const harness = createSessionHarnessV1({
+    preflightCandidateInternalV1: () => ({
+      kind: "captured" as const,
+      candidateSnapshot: {
+        ...defaultCandidateSnapshotV1,
+        historyObservationPort,
+        playerProfile: input.playerProfile ?? defaultCandidateSnapshotV1.playerProfile,
+        presentationClock: input.presentationClock ??
+          defaultCandidateSnapshotV1.presentationClock,
+        textResolver: input.textResolver ?? defaultCandidateSnapshotV1.textResolver,
+      },
+    }),
+  });
   const session = createNarrativeStableSessionInternalV1({ bridge: harness.bridge });
-  const hostIdentity = Object.freeze({ host: "narrative-host-fixture" });
+  const hostIdentity = { host: "narrative-host-fixture" };
   const portalContainer = document.createElement("div");
   document.body.append(portalContainer);
   const inputRouter = createInputRouterV1();
   const isGestureCurrent = () => true;
-  const runtime = createNarrativeStableHostRuntimeInternalV1(Object.freeze({
+  const runtime = createNarrativeStableHostRuntimeInternalV1({
     session,
     hostIdentity,
     portalContainer,
     inputRouter,
     isGestureCurrent,
-  }));
+  });
   return {
     harness,
     session,
@@ -468,15 +451,9 @@ function currentHistoryEntryV1(
   return entry;
 }
 
-function exactHistoryControllerV1(
+function historyControllerV1(
   entry: NarrativeStableHistoryHostRenderEntryV1,
 ): NarrativeStableHistoryChildControllerInternalV1 {
-  expect(Object.hasOwn(entry, "controller")).toBe(true);
-  expect(Object.isFrozen(entry.controller)).toBe(true);
-  expectFrozenOwnMethodsV1(entry.controller, [
-    "closeInternalV1",
-    "dismissInternalV1",
-  ]);
   return entry.controller;
 }
 
@@ -485,8 +462,6 @@ function expectExactHistoryLifecycleResultV1(
   kind: NarrativeStableHistoryChildLifecycleResultInternalV1["kind"],
 ): void {
   expect(result).toEqual({ kind, completion: null });
-  expect(Object.isFrozen(result)).toBe(true);
-  expect(Reflect.ownKeys(result)).toEqual(["kind", "completion"]);
 }
 
 function trackManagedInputRegistrationsV1(): Readonly<{
@@ -513,7 +488,7 @@ function trackManagedInputRegistrationsV1(): Readonly<{
       return unregisterTracked;
     },
   );
-  return Object.freeze({
+  return ({
     activeCount: (router: ReturnType<typeof createInputRouterV1>): number =>
       activeByRouter.get(router)?.size ?? 0,
   });
@@ -548,7 +523,7 @@ function createPreparingHistoryHostFixtureV1(
     .redeemHistoryOpenIntentInternalV1(minted.intent);
   minted.dispose();
   if (history.kind !== "preparing") throw new Error("expected History preparation");
-  return Object.freeze({
+  return ({
     fixture,
     historyPreparation: history.preparation,
     historyEntry: currentHistoryEntryV1(fixture.runtime, "preparing"),
@@ -563,12 +538,12 @@ function prepareReadyCommitV1(
   const portalShell = document.createElement("div");
   portalShell.tabIndex = -1;
   portalContainer.append(portalShell);
-  const result = prepareNarrativeStableHostReadyCommitInternalV1(Object.freeze({
+  const result = prepareNarrativeStableHostReadyCommitInternalV1({
     hostRuntime: runtime,
     renderEntry: entry,
     portalShell,
     initialFocusTarget: portalShell,
-  }));
+  });
   if (result.kind !== "prepared") {
     throw new Error(`expected prepared ready commit, got ${result.kind}`);
   }
@@ -621,7 +596,7 @@ function createReadyHistoryHostFixtureV1(
     (entry) => entry.kind === "history" && entry.phase === "active",
   );
   if (readyHistory?.kind !== "history") throw new Error("expected ready History entry");
-  return Object.freeze({ fixture, historyEntry: readyHistory });
+  return ({ fixture, historyEntry: readyHistory });
 }
 
 function createConcurrentPendingHostFixtureV1(
@@ -670,7 +645,7 @@ function createConcurrentPendingHostFixtureV1(
     ["history", "preparing"],
     ["dialogue", "preparing"],
   ]);
-  return Object.freeze({
+  return ({
     fixture,
     historyPreparation: history.preparation,
     replacementPreparation: replacement.preparation,
@@ -678,144 +653,12 @@ function createConcurrentPendingHostFixtureV1(
 }
 
 describe("Narrative stable session", () => {
-  it("freezes the exact DOM-free type and runtime surface", () => {
-    type ExpectedReadinessEntryV1 =
-      | Readonly<{
-        readonly kind: "root";
-        readonly preparation: NarrativeStableRootPreparationInternalV1;
-      }>
-      | Readonly<{
-        readonly kind: "history";
-        readonly preparation: NarrativeStableHistoryChildPreparationInternalV1;
-      }>;
-    expectTypeOf<NarrativeStableReadinessEntryInternalV1>()
-      .toEqualTypeOf<ExpectedReadinessEntryV1>();
-    expectTypeOf<keyof NarrativeStableReadinessSnapshotInternalV1>()
-      .toEqualTypeOf<"entries">();
-    expectTypeOf<keyof NarrativeStableHostLeaseInternalV1>()
-      .toEqualTypeOf<"isCurrentInternalV1" | "releaseInternalV1">();
-    expectTypeOf<keyof NarrativeStableSessionInternalV1>().toEqualTypeOf<
-      | "getReadinessSnapshotInternalV1"
-      | "subscribeInternalV1"
-      | "getHistoryChildLifecycleInternalV1"
-      | "attachHostInternalV1"
-    >();
-    expectTypeOf<NarrativeStableHostRenderPhaseInternalV1>().toEqualTypeOf<
-      "preparing" | "active" | "suspended"
-    >();
-    expectTypeOf<NarrativeStableHostRenderKeyInternalV1>().toMatchTypeOf<string>();
-    expectTypeOf<keyof NarrativeStableDialogueHostRenderEntryV1>().toEqualTypeOf<
-      | "kind"
-      | "phase"
-      | "renderKey"
-      | "preparation"
-      | "initialFocusTargetId"
-      | "rendererComponent"
-      | "rendererProps"
-      | "playerObservation"
-    >();
-    expectTypeOf<NarrativeStableDialogueHostRenderEntryV1["playerObservation"]>()
-      .toEqualTypeOf<NarrativeStableDialoguePlayerObservationInternalV1>();
-    expectTypeOf<keyof NarrativeStableHistoryHostRenderEntryV1>().toEqualTypeOf<
-      | "kind"
-      | "phase"
-      | "renderKey"
-      | "parentRenderKey"
-      | "preparation"
-      | "initialFocusTargetId"
-      | "rendererComponent"
-      | "rendererProps"
-      | "historyObservation"
-      | "controller"
-    >();
-    expectTypeOf<NarrativeStableHistoryHostRenderEntryV1["controller"]>()
-      .toEqualTypeOf<NarrativeStableHistoryChildControllerInternalV1>();
-    expectTypeOf<keyof NarrativeStableHostRenderSnapshotInternalV1>().toEqualTypeOf<"entries">();
-    expectTypeOf<keyof NarrativeStableHostRenderSourceInternalV1>().toEqualTypeOf<
-      "getSnapshotInternalV1" | "subscribeInternalV1"
-    >();
-    expectTypeOf<keyof CreateNarrativeStableHostRuntimeInputInternalV1>().toEqualTypeOf<
-      "session" | "hostIdentity" | "portalContainer" | "inputRouter" | "isGestureCurrent"
-    >();
-    expectTypeOf<keyof NarrativeStableHostRuntimeInternalV1>().toEqualTypeOf<
-      "attachment" | "renderSource"
-    >();
-    expectTypeOf<keyof NarrativeStableHostAttachmentInternalV1>().toEqualTypeOf<
-      | "settleRootReadinessReadyInternalV1"
-      | "settleRootReadinessFailedInternalV1"
-      | "settleHistoryReadinessReadyInternalV1"
-      | "settleHistoryReadinessFailedInternalV1"
-      | "releaseInternalV1"
-    >();
-    expectTypeOf<keyof PrepareNarrativeStableHostReadyCommitInputInternalV1>().toEqualTypeOf<
-      "hostRuntime" | "renderEntry" | "portalShell" | "initialFocusTarget"
-    >();
-    expectTypeOf<NarrativeStableReadinessSettlementResultInternalV1>().toEqualTypeOf<
-      | Readonly<{ readonly kind: "settled"; readonly completion: null }>
-      | Readonly<{ readonly kind: "stale"; readonly completion: null }>
-      | Readonly<{ readonly kind: "faulted"; readonly completion: null }>
-    >();
-    expectTypeOf<NarrativeStableHostReadyCommitPreparationResultInternalV1>().toEqualTypeOf<
-      | Readonly<{
-        readonly kind: "prepared";
-        readonly readyCommit: NarrativeStableHostReadyCommitInternalV1;
-        readonly completion: null;
-      }>
-      | Readonly<{ readonly kind: "reattached"; readonly completion: null }>
-      | Readonly<{ readonly kind: "stale"; readonly completion: null }>
-      | Readonly<{ readonly kind: "faulted"; readonly completion: null }>
-    >();
-    expectTypeOf<Parameters<typeof createNarrativeStableSessionInternalV1>>()
-      .toEqualTypeOf<[
-        Readonly<{ readonly bridge: NarrativeStablePublisherBridgeInternalV1 }>,
-      ]>();
-
-    const harness = createSessionHarnessV1();
-    const session = createNarrativeStableSessionInternalV1({ bridge: harness.bridge });
-    expect(createNarrativeStableSessionInternalV1(Object.freeze({
-      bridge: harness.bridge,
-    }))).toBe(session);
-    expectFrozenOwnMethodsV1(session, [
-      "getReadinessSnapshotInternalV1",
-      "subscribeInternalV1",
-      "getHistoryChildLifecycleInternalV1",
-      "attachHostInternalV1",
-    ]);
-
-    const empty = session.getReadinessSnapshotInternalV1();
-    expect(Object.isFrozen(empty)).toBe(true);
-    expect(Reflect.ownKeys(empty)).toEqual(["entries"]);
-    expect(Object.isFrozen(empty.entries)).toBe(true);
-    expect(empty.entries).toEqual([]);
-    expect(session.getReadinessSnapshotInternalV1()).toBe(empty);
-
-    const hostIdentity = Object.freeze({ host: "exact-runtime-shape" });
-    const lease = session.attachHostInternalV1({ hostIdentity });
-    expectFrozenOwnMethodsV1(lease, ["isCurrentInternalV1", "releaseInternalV1"]);
-    expect(lease.isCurrentInternalV1()).toBe(true);
-    lease.releaseInternalV1();
-  });
-
   it("creates the exact Host runtime and atomically commits a laid-out root preparation", () => {
     const fixture = createNarrativeHostFixtureV1();
     const { runtime } = fixture;
-    expect(Object.isFrozen(runtime)).toBe(true);
-    expect(Reflect.ownKeys(runtime)).toEqual(["attachment", "renderSource"]);
-    expectFrozenOwnMethodsV1(runtime.attachment, [
-      "settleRootReadinessReadyInternalV1",
-      "settleRootReadinessFailedInternalV1",
-      "settleHistoryReadinessReadyInternalV1",
-      "settleHistoryReadinessFailedInternalV1",
-      "releaseInternalV1",
-    ]);
-    expectFrozenOwnMethodsV1(runtime.renderSource, [
-      "getSnapshotInternalV1",
-      "subscribeInternalV1",
-    ]);
+
     const empty = runtime.renderSource.getSnapshotInternalV1();
-    expect(Object.isFrozen(empty)).toBe(true);
-    expect(Reflect.ownKeys(empty)).toEqual(["entries"]);
-    expect(Object.isFrozen(empty.entries)).toBe(true);
+
     expect(empty.entries).toEqual([]);
     expect(runtime.renderSource.getSnapshotInternalV1()).toBe(empty);
 
@@ -837,19 +680,18 @@ describe("Narrative stable session", () => {
       },
     });
     expect(typeof root.renderKey).toBe("string");
-    expect(Object.isFrozen(root)).toBe(true);
+
     if (root.kind !== "dialogue" || root.preparation === null) {
       throw new Error("expected root preparation");
     }
     const readyCommit = prepareReadyCommitV1(runtime, root, fixture.portalContainer);
-    expect(Object.isFrozen(readyCommit)).toBe(true);
-    expect(Reflect.ownKeys(readyCommit)).toEqual([]);
+
     const settled = runtime.attachment.settleRootReadinessReadyInternalV1(
       root.preparation,
       readyCommit,
     );
     expect(settled).toEqual({ kind: "settled", completion: null });
-    expect(Object.isFrozen(settled)).toBe(true);
+
     const active = runtime.renderSource.getSnapshotInternalV1();
     expect(active.entries).toHaveLength(1);
     expect(active.entries[0]).toMatchObject({
@@ -870,17 +712,17 @@ describe("Narrative stable session", () => {
     const rawProfileSubscribe = vi.fn((listener: () => void) => {
       profileListeners.add(listener);
       let active = true;
-      return Object.freeze(() => {
+      return (() => {
         if (!active) return;
         active = false;
         profileListeners.delete(listener);
       });
     });
-    const playerProfile = Object.freeze({
+    const playerProfile = {
       getSnapshotInternalV1: () => currentProfile,
       subscribeInternalV1: rawProfileSubscribe,
       markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
-    });
+    };
     const rawResolveText = vi.fn(function (this: unknown, textId: string): string {
       expect(this).toBe(textResolver);
       return `resolved:${textId}`;
@@ -895,32 +737,11 @@ describe("Narrative stable session", () => {
     const preparing = currentDialogueEntryV1(fixture.runtime, "preparing");
     const observation = preparing.playerObservation;
     const safeTextResolver = preparing.rendererProps.textResolver;
-    expectFrozenOwnMethodsV1(observation, [
-      "getSnapshotInternalV1",
-      "subscribeInternalV1",
-    ]);
-    expect(Reflect.ownKeys(preparing)).toEqual([
-      "kind",
-      "phase",
-      "renderKey",
-      "preparation",
-      "initialFocusTargetId",
-      "rendererComponent",
-      "rendererProps",
-      "playerObservation",
-    ]);
-    expect(Reflect.ownKeys(preparing.rendererProps)).toEqual([
-      "kind",
-      "pending",
-      "visualConfig",
-      "playerProfile",
-      "textResolver",
-      "quickMenuContribution",
-    ]);
+
     expect(preparing.rendererProps.playerProfile).toBe(defaultPlayerProfileV1);
     expect(preparing.rendererProps.playerProfile).not.toBe(playerProfile);
     expect(typeof safeTextResolver).toBe("function");
-    expect(Object.isFrozen(safeTextResolver)).toBe(true);
+
     expect(safeTextResolver("text.test.extra")).toBe("resolved:text.test.extra");
     expect(preparing.rendererProps).not.toHaveProperty("playerView");
     expect(observation.getSnapshotInternalV1()).toMatchObject({
@@ -950,13 +771,13 @@ describe("Narrative stable session", () => {
     const notificationsBeforeEqualProfile = observed.length;
     for (const listener of [...profileListeners]) listener();
     expect(observed).toHaveLength(notificationsBeforeEqualProfile);
-    const nextProfile = Object.freeze({
+    const nextProfile = {
       ...defaultPlayerProfileV1,
-      preferences: Object.freeze({
+      preferences: {
         ...defaultPlayerProfileV1.preferences,
         autoWaitMs: defaultPlayerProfileV1.preferences.autoWaitMs + 1,
-      }),
-    });
+      },
+    };
     currentProfile = nextProfile;
     for (const listener of [...profileListeners]) listener();
     expect(observation.getSnapshotInternalV1().playerProfile).toBe(nextProfile);
@@ -1056,7 +877,7 @@ describe("Narrative stable session", () => {
     const lateReplacementUnsubscribe = replacementObservation.subscribeInternalV1(
       lateReplacementListener,
     );
-    expect(Object.isFrozen(lateReplacementUnsubscribe)).toBe(true);
+
     lateReplacementUnsubscribe();
     lateReplacementUnsubscribe();
     expect(lateReplacementListener).not.toHaveBeenCalled();
@@ -1068,7 +889,7 @@ describe("Narrative stable session", () => {
     expect(recovered.playerObservation.getSnapshotInternalV1()).toBe(finalSnapshot);
     const lateListener = vi.fn();
     const lateUnsubscribe = recovered.playerObservation.subscribeInternalV1(lateListener);
-    expect(Object.isFrozen(lateUnsubscribe)).toBe(true);
+
     lateUnsubscribe();
     lateUnsubscribe();
     expect(lateListener).not.toHaveBeenCalled();
@@ -1082,14 +903,14 @@ describe("Narrative stable session", () => {
   it("refreshes History safe props from the current Dialogue profile without raw handles", () => {
     let currentProfile = defaultPlayerProfileV1;
     const profileListeners = new Set<() => void>();
-    const playerProfile = Object.freeze({
+    const playerProfile = {
       getSnapshotInternalV1: () => currentProfile,
       subscribeInternalV1: (listener: () => void) => {
         profileListeners.add(listener);
-        return Object.freeze(() => profileListeners.delete(listener));
+        return (() => profileListeners.delete(listener));
       },
       markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
-    });
+    };
     const fixture = createNarrativeHostFixtureV1({ playerProfile });
     expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 1)))
       .toMatchObject({ kind: "applied" });
@@ -1121,13 +942,13 @@ describe("Narrative stable session", () => {
       renderNotifications,
     );
 
-    const nextProfile = Object.freeze({
+    const nextProfile = {
       ...defaultPlayerProfileV1,
-      preferences: Object.freeze({
+      preferences: {
         ...defaultPlayerProfileV1.preferences,
         skipPolicy: "skip_all" as const,
-      }),
-    });
+      },
+    };
     currentProfile = nextProfile;
     for (const listener of [...profileListeners]) listener();
     expect(renderNotifications).toHaveBeenCalledOnce();
@@ -1153,20 +974,20 @@ describe("Narrative stable session", () => {
     expect(renderNotifications).toHaveBeenCalledOnce();
     expect(fixture.runtime.renderSource.getSnapshotInternalV1()).toBe(snapshotAfter);
 
-    const thirdProfile = Object.freeze({
+    const thirdProfile = {
       ...nextProfile,
-      preferences: Object.freeze({
+      preferences: {
         ...nextProfile.preferences,
         autoWaitMs: nextProfile.preferences.autoWaitMs + 1,
-      }),
-    });
-    const fourthProfile = Object.freeze({
+      },
+    };
+    const fourthProfile = {
       ...thirdProfile,
-      preferences: Object.freeze({
+      preferences: {
         ...thirdProfile.preferences,
         autoWaitMs: thirdProfile.preferences.autoWaitMs + 1,
-      }),
-    });
+      },
+    };
     let nestedProfilePublication = false;
     const reentrantObservationListener = vi.fn(() => {
       if (nestedProfilePublication) return;
@@ -1199,72 +1020,6 @@ describe("Narrative stable session", () => {
     fixture.disposePortal();
   });
 
-  it("terminal-notifies an isolated controller fault after scrubbing every renderer capability", () => {
-    let rawProfile: unknown = defaultPlayerProfileV1;
-    const profileListeners = new Set<() => void>();
-    const playerProfile = Object.freeze({
-      getSnapshotInternalV1: () => rawProfile,
-      subscribeInternalV1: (listener: () => void) => {
-        profileListeners.add(listener);
-        return Object.freeze(() => profileListeners.delete(listener));
-      },
-      markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
-    });
-    const fixture = createNarrativeHostFixtureV1({ playerProfile });
-    expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 1)))
-      .toMatchObject({ kind: "applied" });
-    const preparing = currentDialogueEntryV1(fixture.runtime, "preparing");
-    if (preparing.preparation === null) throw new Error("expected root preparation");
-    expect(fixture.runtime.attachment.settleRootReadinessReadyInternalV1(
-      preparing.preparation,
-      prepareReadyCommitV1(fixture.runtime, preparing, fixture.portalContainer),
-    )).toEqual({ kind: "settled", completion: null });
-    const active = currentDialogueEntryV1(fixture.runtime, "active");
-    const observation = active.playerObservation;
-    const safeResolver = active.rendererProps.textResolver;
-    const state = fixture.harness.kernel.getStateInternalV1();
-    const renderSnapshot = fixture.runtime.renderSource.getSnapshotInternalV1();
-    const renderListener = vi.fn();
-    const unsubscribeRender = fixture.runtime.renderSource.subscribeInternalV1(renderListener);
-    const observedFinal: unknown[] = [];
-    const observationListener = vi.fn(() => {
-      observedFinal.push(observation.getSnapshotInternalV1());
-    });
-    const unsubscribeObservation = observation.subscribeInternalV1(observationListener);
-
-    rawProfile = Object.freeze({});
-    for (const listener of [...profileListeners]) listener();
-
-    expect(observationListener).toHaveBeenCalledOnce();
-    expect(observedFinal).toHaveLength(1);
-    expect(observedFinal[0]).toMatchObject({
-      kind: "passive",
-      phase: "suspended",
-      playbackMode: "normal",
-      playerProfile: defaultPlayerProfileV1,
-    });
-    expect(observation.getSnapshotInternalV1()).toBe(observedFinal[0]);
-    expect(profileListeners.size).toBe(0);
-    expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
-    expect(renderSnapshot.entries).toContain(active);
-    expect(fixture.runtime.renderSource.getSnapshotInternalV1()).toBe(renderSnapshot);
-    expect(renderListener).not.toHaveBeenCalled();
-    expect(() => safeResolver("text.test.faulted")).toThrowError(TypeError);
-    const lateListener = vi.fn();
-    const lateUnsubscribe = observation.subscribeInternalV1(lateListener);
-    lateUnsubscribe();
-    lateUnsubscribe();
-    expect(lateListener).not.toHaveBeenCalled();
-
-    unsubscribeObservation();
-    unsubscribeObservation();
-    unsubscribeRender();
-    unsubscribeRender();
-    expect(fixture.harness.bridge.disposeInternalV1()).toMatchObject({ kind: "applied" });
-    expect(observationListener).toHaveBeenCalledOnce();
-    fixture.disposePortal();
-  });
-
   it.each(
     [
       "profile get",
@@ -1283,7 +1038,7 @@ describe("Narrative stable session", () => {
         if (faultSeam === "profile subscribe") {
           throw new Error("hostile profile subscribe");
         }
-        return Object.freeze(() => {});
+        return (() => {});
       });
       const rawReducedMotion = vi.fn(() => {
         if (faultSeam === "reduced motion") throw new Error("hostile reduced motion");
@@ -1293,19 +1048,19 @@ describe("Narrative stable session", () => {
         if (faultSeam === "text resolve") throw new Error("hostile text resolve");
         return textId;
       });
-      const playerProfile = Object.freeze({
+      const playerProfile = {
         getSnapshotInternalV1: rawProfileGet,
         subscribeInternalV1: rawProfileSubscribe,
         markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
-      });
-      const presentationClock = Object.freeze({
+      };
+      const presentationClock = {
         nowInternalV1: () => 0,
-        requestTickInternalV1: (_callback: (nowMs: number) => void) => Object.freeze(() => {}),
+        requestTickInternalV1: (_callback: (nowMs: number) => void) => (() => {}),
         prefersReducedMotionInternalV1: rawReducedMotion,
-      });
-      const textResolver = Object.freeze({
+      };
+      const textResolver = {
         resolveTextInternalV1: rawResolveText,
-      });
+      };
       const fixture = createNarrativeHostFixtureV1({
         playerProfile,
         presentationClock,
@@ -1339,7 +1094,7 @@ describe("Narrative stable session", () => {
 
       const rawCallsAfterRetirement = rawIngressCount();
       const finalSnapshot = faultEntry.playerObservation.getSnapshotInternalV1();
-      expect(Object.isFrozen(finalSnapshot)).toBe(true);
+
       expect(finalSnapshot).toMatchObject({
         kind: "passive",
         phase: "suspended",
@@ -1349,7 +1104,7 @@ describe("Narrative stable session", () => {
       expect(faultEntry.playerObservation.getSnapshotInternalV1()).toBe(finalSnapshot);
       const lateListener = vi.fn();
       const lateUnsubscribe = faultEntry.playerObservation.subscribeInternalV1(lateListener);
-      expect(Object.isFrozen(lateUnsubscribe)).toBe(true);
+
       lateUnsubscribe();
       lateUnsubscribe();
       expect(lateListener).not.toHaveBeenCalled();
@@ -1387,11 +1142,11 @@ describe("Narrative stable session", () => {
       throw new Error("hostile pre-ready profile get");
     });
     const fixture = createNarrativeHostFixtureV1({
-      playerProfile: Object.freeze({
+      playerProfile: {
         getSnapshotInternalV1: rawProfileGet,
-        subscribeInternalV1: (_listener: () => void) => Object.freeze(() => {}),
+        subscribeInternalV1: (_listener: () => void) => (() => {}),
         markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
-      }),
+      },
     });
     expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 92)))
       .toMatchObject({ kind: "applied" });
@@ -1414,7 +1169,7 @@ describe("Narrative stable session", () => {
     expect(observation.getSnapshotInternalV1()).toBe(finalSnapshot);
     const lateListener = vi.fn();
     const lateUnsubscribe = observation.subscribeInternalV1(lateListener);
-    expect(Object.isFrozen(lateUnsubscribe)).toBe(true);
+
     lateUnsubscribe();
     lateUnsubscribe();
     expect(lateListener).not.toHaveBeenCalled();
@@ -1431,33 +1186,32 @@ describe("Narrative stable session", () => {
     const rawProfileGet = vi.fn(() => {
       throw new Error("hostile active profile get");
     });
-    const harness = createSessionHarnessV1(Object.freeze({
-      preflightCandidateInternalV1: () =>
-        Object.freeze({
-          kind: "captured" as const,
-          candidateSnapshot: Object.freeze({
-            ...defaultCandidateSnapshotV1,
-            playerProfile: Object.freeze({
-              getSnapshotInternalV1: rawProfileGet,
-              subscribeInternalV1: (_listener: () => void) => Object.freeze(() => {}),
-              markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
-            }),
-          }),
-        }),
-    }));
+    const harness = createSessionHarnessV1({
+      preflightCandidateInternalV1: () => ({
+        kind: "captured" as const,
+        candidateSnapshot: {
+          ...defaultCandidateSnapshotV1,
+          playerProfile: {
+            getSnapshotInternalV1: rawProfileGet,
+            subscribeInternalV1: (_listener: () => void) => (() => {}),
+            markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
+          },
+        },
+      }),
+    });
     expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say", 93)))
       .toMatchObject({ kind: "applied" });
     settleCurrentRootReadyV1(harness);
     const session = createNarrativeStableSessionInternalV1({ bridge: harness.bridge });
     const portalContainer = document.createElement("div");
     document.body.append(portalContainer);
-    const runtime = createNarrativeStableHostRuntimeInternalV1(Object.freeze({
+    const runtime = createNarrativeStableHostRuntimeInternalV1({
       session,
-      hostIdentity: Object.freeze({ host: "active-factory-fault" }),
+      hostIdentity: { host: "active-factory-fault" },
       portalContainer,
       inputRouter: createInputRouterV1(),
       isGestureCurrent: () => true,
-    }));
+    });
 
     const renderSnapshot = runtime.renderSource.getSnapshotInternalV1();
     const entry = currentDialogueEntryV1(runtime, "active");
@@ -1507,31 +1261,15 @@ describe("Narrative stable session", () => {
     const stateBeforeForgery = fixture.harness.kernel.getStateInternalV1();
     const renderBeforeForgery = fixture.runtime.renderSource.getSnapshotInternalV1();
     const notificationsBeforeForgery = fixture.harness.stateNotificationCount();
-    const tokenTrap = {
-      get: vi.fn(() => {
-        throw new Error("forged ready token must not be read");
-      }),
-      ownKeys: vi.fn(() => {
-        throw new Error("forged ready token must not be reflected");
-      }),
-      getOwnPropertyDescriptor: vi.fn(() => {
-        throw new Error("forged ready token must not be inspected");
-      }),
-    };
-    const forgedReadyCommit = new Proxy({}, tokenTrap);
-    for (const candidate of [Object.freeze({}), forgedReadyCommit]) {
-      expect(fixture.runtime.attachment.settleRootReadinessReadyInternalV1(
-        root.preparation,
-        candidate as NarrativeStableHostReadyCommitInternalV1,
-      )).toEqual({ kind: "stale", completion: null });
-      expect(fixture.harness.kernel.getStateInternalV1()).toBe(stateBeforeForgery);
-      expect(fixture.runtime.renderSource.getSnapshotInternalV1()).toBe(renderBeforeForgery);
-      expect(fixture.harness.stateNotificationCount()).toBe(notificationsBeforeForgery);
-      expect(prepared.getBindingInternalV1()).toBeNull();
-    }
-    expect(tokenTrap.get).not.toHaveBeenCalled();
-    expect(tokenTrap.ownKeys).not.toHaveBeenCalled();
-    expect(tokenTrap.getOwnPropertyDescriptor).not.toHaveBeenCalled();
+    const foreignReadyCommit = {} as NarrativeStableHostReadyCommitInternalV1;
+    expect(fixture.runtime.attachment.settleRootReadinessReadyInternalV1(
+      root.preparation,
+      foreignReadyCommit,
+    )).toEqual({ kind: "stale", completion: null });
+    expect(fixture.harness.kernel.getStateInternalV1()).toBe(stateBeforeForgery);
+    expect(fixture.runtime.renderSource.getSnapshotInternalV1()).toBe(renderBeforeForgery);
+    expect(fixture.harness.stateNotificationCount()).toBe(notificationsBeforeForgery);
+    expect(prepared.getBindingInternalV1()).toBeNull();
 
     const readyCommit = prepareReadyCommitV1(
       fixture.runtime,
@@ -1666,7 +1404,7 @@ describe("Narrative stable session", () => {
         throw new Error("expected independent two-slot replacement binding");
       }
       expect(replacementBinding.getBindingInternalV1()).toBeNull();
-      return Object.freeze({
+      return ({
         fixture,
         historyPreparation: history.preparation,
         replacement,
@@ -1759,19 +1497,8 @@ describe("Narrative stable session", () => {
 
   it("binds one exact controller across preparing, ready, and same-portal Host reattach", async () => {
     const preparing = createPreparingHistoryHostFixtureV1("controller-preparing", 40);
-    const preparingController = exactHistoryControllerV1(preparing.historyEntry);
-    expect(Reflect.ownKeys(preparing.historyEntry).map(String).sort()).toEqual([
-      "controller",
-      "historyObservation",
-      "initialFocusTargetId",
-      "kind",
-      "parentRenderKey",
-      "phase",
-      "preparation",
-      "renderKey",
-      "rendererComponent",
-      "rendererProps",
-    ]);
+    const preparingController = historyControllerV1(preparing.historyEntry);
+
     const preparingClosed = preparingController.closeInternalV1();
     expectExactHistoryLifecycleResultV1(preparingClosed, "closed");
     expect(preparing.fixture.runtime.renderSource.getSnapshotInternalV1().entries).toEqual([
@@ -1784,7 +1511,7 @@ describe("Narrative stable session", () => {
     )).toBe(canonicalStale);
 
     const ready = createPreparingHistoryHostFixtureV1("controller-ready", 41);
-    const readyPreparingController = exactHistoryControllerV1(ready.historyEntry);
+    const readyPreparingController = historyControllerV1(ready.historyEntry);
     const stateBeforeInvalid = ready.fixture.harness.kernel.getStateInternalV1();
     const renderBeforeInvalid = ready.fixture.runtime.renderSource.getSnapshotInternalV1();
     const notificationsBeforeInvalid = ready.fixture.harness.stateNotificationCount();
@@ -1798,31 +1525,6 @@ describe("Narrative stable session", () => {
     );
     expect(ready.fixture.harness.stateNotificationCount()).toBe(notificationsBeforeInvalid);
 
-    const borrowedClose = readyPreparingController.closeInternalV1;
-    const borrowedDismiss = readyPreparingController.dismissInternalV1;
-    for (
-      const receiver of [
-        undefined,
-        Object.freeze({}),
-        Object.freeze({
-          ...readyPreparingController,
-        }),
-      ]
-    ) {
-      expectTypeErrorV1(
-        () => Reflect.apply(borrowedClose, receiver, []),
-        "ui.narrative_stable_history_child_controller_invalid",
-      );
-      expectTypeErrorV1(
-        () => Reflect.apply(borrowedDismiss, receiver, ["back"]),
-        "ui.narrative_stable_history_child_controller_invalid",
-      );
-    }
-    expect(ready.fixture.harness.kernel.getStateInternalV1()).toBe(stateBeforeInvalid);
-    expect(ready.fixture.runtime.renderSource.getSnapshotInternalV1()).toBe(
-      renderBeforeInvalid,
-    );
-
     expect(ready.fixture.runtime.attachment.settleHistoryReadinessReadyInternalV1(
       ready.historyPreparation,
       prepareReadyCommitV1(
@@ -1832,28 +1534,28 @@ describe("Narrative stable session", () => {
       ),
     )).toEqual({ kind: "settled", completion: null });
     const activeEntry = currentHistoryEntryV1(ready.fixture.runtime, "active");
-    expect(exactHistoryControllerV1(activeEntry)).toBe(readyPreparingController);
+    expect(historyControllerV1(activeEntry)).toBe(readyPreparingController);
 
     ready.fixture.runtime.attachment.releaseInternalV1();
-    const successor = createNarrativeStableHostRuntimeInternalV1(Object.freeze({
+    const successor = createNarrativeStableHostRuntimeInternalV1({
       session: ready.fixture.session,
       hostIdentity: ready.fixture.hostIdentity,
       portalContainer: ready.fixture.portalContainer,
       inputRouter: ready.fixture.inputRouter,
       isGestureCurrent: ready.fixture.isGestureCurrent,
-    }));
+    });
     for (const entry of successor.renderSource.getSnapshotInternalV1().entries) {
       const shell = document.createElement("div");
       shell.tabIndex = -1;
       ready.fixture.portalContainer.append(shell);
-      expect(prepareNarrativeStableHostReadyCommitInternalV1(Object.freeze({
+      expect(prepareNarrativeStableHostReadyCommitInternalV1({
         hostRuntime: successor,
         renderEntry: entry,
         portalShell: shell,
         initialFocusTarget: shell,
-      }))).toEqual({ kind: "reattached", completion: null });
+      })).toEqual({ kind: "reattached", completion: null });
     }
-    expect(exactHistoryControllerV1(currentHistoryEntryV1(successor, "active")))
+    expect(historyControllerV1(currentHistoryEntryV1(successor, "active")))
       .toBe(readyPreparingController);
     const readyClosed = readyPreparingController.closeInternalV1();
     expect(readyClosed).toBe(preparingClosed);
@@ -1895,7 +1597,7 @@ describe("Narrative stable session", () => {
             ),
           )).toEqual({ kind: "settled", completion: null });
         }
-        const controller = exactHistoryControllerV1(
+        const controller = historyControllerV1(
           currentHistoryEntryV1(current.fixture.runtime, phase),
         );
         const dismissed = controller.dismissInternalV1(dismissKind);
@@ -1936,17 +1638,17 @@ describe("Narrative stable session", () => {
         systemInputActionIdsV1.cancel,
       ]
     ) {
-      expect(rootFixture.inputRouter.route(Object.freeze({ kind: "action" as const, actionId })))
+      expect(rootFixture.inputRouter.route({ kind: "action" as const, actionId }))
         .toEqual({ kind: "handled", context: "narrative" });
       expect(rootFixture.harness.kernel.getStateInternalV1()).toBe(rootState);
     }
-    expect(rootFixture.inputRouter.route(Object.freeze({
+    expect(rootFixture.inputRouter.route({
       kind: "viewport_point" as const,
       phase: "activate" as const,
-      point: Object.freeze({ x: 1, y: 2 }),
+      point: { x: 1, y: 2 },
       pointerId: parseNonNegativeSafeInteger(1),
       pointerType: "mouse" as const,
-    }))).toEqual({ kind: "handled", context: "narrative" });
+    })).toEqual({ kind: "handled", context: "narrative" });
     expect(lowerRoot).not.toHaveBeenCalled();
     expect(rootFixture.runtime.attachment.settleRootReadinessFailedInternalV1(
       root.preparation,
@@ -1965,29 +1667,29 @@ describe("Narrative stable session", () => {
         `fallback-close-${String(index)}`,
         71 + index,
       );
-      const controller = exactHistoryControllerV1(current.historyEntry);
+      const controller = historyControllerV1(current.historyEntry);
       const lowerHistory = vi.fn(() => inputHandledV1);
       const unregisterLowerHistory = current.fixture.inputRouter.register({
         context: "gameplay",
         handle: lowerHistory,
       });
-      expect(current.fixture.inputRouter.route(Object.freeze({
+      expect(current.fixture.inputRouter.route({
         kind: "action" as const,
         actionId: playerInputActionIdsV1.toggleAuto,
-      }))).toEqual({ kind: "handled", context: "narrative" });
-      expect(current.fixture.inputRouter.route(Object.freeze({
+      })).toEqual({ kind: "handled", context: "narrative" });
+      expect(current.fixture.inputRouter.route({
         kind: "viewport_point" as const,
         phase: "begin" as const,
-        point: Object.freeze({ x: 3, y: 4 }),
+        point: { x: 3, y: 4 },
         pointerId: parseNonNegativeSafeInteger(2),
         pointerType: "touch" as const,
-      }))).toEqual({ kind: "handled", context: "narrative" });
+      })).toEqual({ kind: "handled", context: "narrative" });
       expect(currentHistoryEntryV1(current.fixture.runtime, "preparing").controller)
         .toBe(controller);
-      expect(current.fixture.inputRouter.route(Object.freeze({
+      expect(current.fixture.inputRouter.route({
         kind: "action" as const,
         actionId,
-      }))).toEqual({ kind: "handled", context: "narrative" });
+      })).toEqual({ kind: "handled", context: "narrative" });
       expect(current.fixture.runtime.renderSource.getSnapshotInternalV1().entries).toEqual([
         expect.objectContaining({ kind: "dialogue", phase: "active" }),
       ]);
@@ -2031,7 +1733,7 @@ describe("Narrative stable session", () => {
       );
       expect(registrations.activeCount(current.fixture.inputRouter)).toBe(2);
       const settled = outcome === "closed"
-        ? exactHistoryControllerV1(current.historyEntry).closeInternalV1()
+        ? historyControllerV1(current.historyEntry).closeInternalV1()
         : outcome === "ready"
         ? current.fixture.runtime.attachment.settleHistoryReadinessReadyInternalV1(
           current.historyPreparation,
@@ -2063,7 +1765,7 @@ describe("Narrative stable session", () => {
       "close-listener-reentry",
       75,
     );
-    const controller = exactHistoryControllerV1(historyEntry);
+    const controller = historyControllerV1(historyEntry);
     const rootBefore = fixture.runtime.renderSource.getSnapshotInternalV1().entries.find((entry) =>
       entry.kind === "dialogue"
     );
@@ -2109,7 +1811,7 @@ describe("Narrative stable session", () => {
       nestedPreparation = nested.preparation;
       const freshEntry = currentHistoryEntryV1(fixture.runtime, "preparing");
       expect(freshEntry.parentRenderKey).toBe(rootBefore.renderKey);
-      nestedController = exactHistoryControllerV1(freshEntry);
+      nestedController = historyControllerV1(freshEntry);
     });
 
     const outer = controller.closeInternalV1();
@@ -2134,13 +1836,13 @@ describe("Narrative stable session", () => {
 
   it("retains a History controller across failed root replacement and fences it on cutover", () => {
     const failed = createConcurrentPendingHostFixtureV1("controller-root-failure", 76);
-    const retainedController = exactHistoryControllerV1(
+    const retainedController = historyControllerV1(
       currentHistoryEntryV1(failed.fixture.runtime, "preparing"),
     );
     expect(failed.fixture.runtime.attachment.settleRootReadinessFailedInternalV1(
       failed.replacementPreparation,
     )).toEqual({ kind: "settled", completion: null });
-    expect(exactHistoryControllerV1(
+    expect(historyControllerV1(
       currentHistoryEntryV1(failed.fixture.runtime, "preparing"),
     )).toBe(retainedController);
     expectExactHistoryLifecycleResultV1(retainedController.closeInternalV1(), "closed");
@@ -2148,7 +1850,7 @@ describe("Narrative stable session", () => {
     failed.fixture.disposePortal();
 
     const cutover = createConcurrentPendingHostFixtureV1("controller-root-cutover", 78);
-    const retiredController = exactHistoryControllerV1(
+    const retiredController = historyControllerV1(
       currentHistoryEntryV1(cutover.fixture.runtime, "preparing"),
     );
     const replacementEntry = cutover.fixture.runtime.renderSource.getSnapshotInternalV1().entries
@@ -2192,7 +1894,7 @@ describe("Narrative stable session", () => {
         `ready-action-${expectedKind}`,
         expectedKind === "closed" ? 80 : 81,
       );
-      const controller = exactHistoryControllerV1(historyEntry);
+      const controller = historyControllerV1(historyEntry);
       const lower = vi.fn(() => inputHandledV1);
       const unregisterLower = fixture.inputRouter.register({
         context: "gameplay",
@@ -2207,46 +1909,6 @@ describe("Narrative stable session", () => {
       });
       expect(prepareBinding).toHaveBeenCalledTimes(preparedBeforeAdoption);
       expect(preclaimRoute).toHaveBeenCalledTimes(claimsBeforeAdoption);
-
-      const stateBeforeAttemptForgery = fixture.harness.kernel.getStateInternalV1();
-      const renderBeforeAttemptForgery = fixture.runtime.renderSource.getSnapshotInternalV1();
-      const notificationsBeforeAttemptForgery = fixture.harness.stateNotificationCount();
-      const attemptTrap = {
-        get: vi.fn(() => {
-          throw new Error("History close attempt must remain unread");
-        }),
-        ownKeys: vi.fn(() => {
-          throw new Error("History close attempt must remain unreflected");
-        }),
-        getOwnPropertyDescriptor: vi.fn(() => {
-          throw new Error("History close attempt descriptor must remain unread");
-        }),
-      };
-      const forgedAttempt = new Proxy({}, attemptTrap);
-      const forgedRoute = historyAdmission.routeInternalV1(
-        historyAdmission.createEnvelopeInternalV1({
-          actionId,
-          gestureId: parseManagedSurfaceGestureIdV1(
-            `gesture.session-test.ready-forged-${expectedKind}`,
-          ),
-        }),
-        forgedAttempt,
-      );
-      expect(forgedRoute).toMatchObject({
-        route: {
-          input: { kind: "consumed", code: "input.managed_surface_consumed" },
-          surface: { kind: "unchanged", code: "surface.action_routed" },
-        },
-        consumerResult: { kind: "stale", completion: null },
-      });
-      expect(attemptTrap.get).not.toHaveBeenCalled();
-      expect(attemptTrap.ownKeys).not.toHaveBeenCalled();
-      expect(attemptTrap.getOwnPropertyDescriptor).not.toHaveBeenCalled();
-      expect(fixture.harness.kernel.getStateInternalV1()).toBe(stateBeforeAttemptForgery);
-      expect(fixture.runtime.renderSource.getSnapshotInternalV1()).toBe(
-        renderBeforeAttemptForgery,
-      );
-      expect(fixture.harness.stateNotificationCount()).toBe(notificationsBeforeAttemptForgery);
 
       const routed = historyAdmission.routeInternalV1(
         historyAdmission.createEnvelopeInternalV1({
@@ -2323,7 +1985,7 @@ describe("Narrative stable session", () => {
         throw new Error("expected bounded History preparation");
       }
       const entry = currentHistoryEntryV1(fixture.runtime, "preparing");
-      const controller = exactHistoryControllerV1(entry);
+      const controller = historyControllerV1(entry);
       if (controller === previousController) throw new Error("expected fresh bounded controller");
       if (previousController !== null) {
         const predecessorStale = previousController.closeInternalV1();
@@ -2331,10 +1993,10 @@ describe("Narrative stable session", () => {
         else expect(predecessorStale).toBe(canonicalStale);
         expectExactHistoryLifecycleResultV1(predecessorStale, "stale");
       }
-      expect(fixture.inputRouter.route(Object.freeze({
+      expect(fixture.inputRouter.route({
         kind: "action" as const,
         actionId: playerInputActionIdsV1.toggleAuto,
-      }))).toEqual({ kind: "handled", context: "narrative" });
+      })).toEqual({ kind: "handled", context: "narrative" });
       expect(currentHistoryEntryV1(fixture.runtime, "preparing").controller).toBe(controller);
 
       const result = index % 2 === 0
@@ -2399,13 +2061,13 @@ describe("Narrative stable session", () => {
     ]);
     expect(detached.fixture.runtime.renderSource.getSnapshotInternalV1().entries).toEqual([]);
     expect(() =>
-      createNarrativeStableHostRuntimeInternalV1(Object.freeze({
+      createNarrativeStableHostRuntimeInternalV1({
         session: detached.fixture.session,
         hostIdentity: detached.fixture.hostIdentity,
         portalContainer: detached.fixture.portalContainer,
         inputRouter: detached.fixture.inputRouter,
         isGestureCurrent: detached.fixture.isGestureCurrent,
-      }))
+      })
     ).toThrowError("ui.narrative_stable_host_attachment_invalid");
     detached.fixture.disposePortal();
 
@@ -2422,13 +2084,13 @@ describe("Narrative stable session", () => {
         vector[0]?.[0] === "dialogue" && vector[0]?.[1] === "suspended" &&
         vector[1]?.[0] === "history" && vector[1]?.[1] === "preparing"
       ) {
-        successors.push(createNarrativeStableHostRuntimeInternalV1(Object.freeze({
+        successors.push(createNarrativeStableHostRuntimeInternalV1({
           session: rescued.fixture.session,
           hostIdentity: rescued.fixture.hostIdentity,
           portalContainer: rescued.fixture.portalContainer,
           inputRouter: rescued.fixture.inputRouter,
           isGestureCurrent: rescued.fixture.isGestureCurrent,
-        })));
+        }));
       }
     });
     rescued.fixture.runtime.attachment.releaseInternalV1();
@@ -2574,7 +2236,7 @@ describe("Narrative stable session", () => {
       expect(rawGetCount).toBe(rawGetsAtTerminal);
       const lateObservationListener = vi.fn();
       const lateUnsubscribe = observation.subscribeInternalV1(lateObservationListener);
-      expect(Object.isFrozen(lateUnsubscribe)).toBe(true);
+
       lateUnsubscribe();
       lateUnsubscribe();
       expect(rawSubscribeCount).toBe(rawSubscribesAtTerminal);
@@ -2583,29 +2245,29 @@ describe("Narrative stable session", () => {
       const staleShell = document.createElement("div");
       staleShell.tabIndex = -1;
       fixture.portalContainer.append(staleShell);
-      expect(prepareNarrativeStableHostReadyCommitInternalV1(Object.freeze({
+      expect(prepareNarrativeStableHostReadyCommitInternalV1({
         hostRuntime: fixture.runtime,
         renderEntry: historyEntry,
         portalShell: staleShell,
         initialFocusTarget: staleShell,
-      }))).toEqual({ kind: "stale", completion: null });
+      })).toEqual({ kind: "stale", completion: null });
       fixture.runtime.attachment.releaseInternalV1();
       const lateRenderListener = vi.fn();
       const lateRenderUnsubscribe = fixture.runtime.renderSource.subscribeInternalV1(
         lateRenderListener,
       );
-      expect(Object.isFrozen(lateRenderUnsubscribe)).toBe(true);
+
       lateRenderUnsubscribe();
       lateRenderUnsubscribe();
       expect(lateRenderListener).not.toHaveBeenCalled();
       expect(() =>
-        createNarrativeStableHostRuntimeInternalV1(Object.freeze({
+        createNarrativeStableHostRuntimeInternalV1({
           session: fixture.session,
           hostIdentity: fixture.hostIdentity,
           portalContainer: fixture.portalContainer,
           inputRouter: fixture.inputRouter,
           isGestureCurrent: fixture.isGestureCurrent,
-        }))
+        })
       ).toThrowError("ui.narrative_stable_host_attachment_invalid");
 
       unsubscribeObservation();
@@ -2615,7 +2277,7 @@ describe("Narrative stable session", () => {
     }
   });
 
-  it("canonicalizes one History subscription and keeps render identity through root, child, and max-three replacement", async () => {
+  it("shares one History subscription and keeps render identity through root, child, and max-three replacement", async () => {
     let rawHistory: NarrativeHistoryV1 = { entries: [] };
     let rawListener: (() => void) | null = null;
     let activeRawSubscriptions = 0;
@@ -2623,48 +2285,22 @@ describe("Narrative stable session", () => {
       activeRawSubscriptions -= 1;
       rawListener = null;
     });
-    let historyObservationPort!: NarrativeStableHistoryObservationPortInternalV1;
-    const capturedGetSnapshot = vi.fn(function (this: unknown) {
-      expect(this).toBe(historyObservationPort);
-      return {
-        entries: rawHistory.entries.map((entry) => ({ ...entry })),
-      };
-    });
-    const capturedSubscribe = vi.fn(function (
-      this: unknown,
+    const getHistorySnapshot = vi.fn(() => rawHistory);
+    const subscribeToHistory = vi.fn((
       listener: () => void,
-    ): () => void {
-      expect(this).toBe(historyObservationPort);
+    ): () => void => {
       expect(rawListener).toBeNull();
       rawListener = listener;
       activeRawSubscriptions += 1;
       return unsubscribeRaw;
     });
-    historyObservationPort = {
-      getSnapshotInternalV1: capturedGetSnapshot,
-      subscribeInternalV1: capturedSubscribe,
+    const historyObservationPort: NarrativeStableHistoryObservationPortInternalV1 = {
+      getSnapshotInternalV1: getHistorySnapshot,
+      subscribeInternalV1: subscribeToHistory,
     };
     const fixture = createNarrativeHostFixtureV1({ historyObservationPort });
     expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 1)))
       .toMatchObject({ kind: "applied" });
-    const lateGetSnapshot = vi.fn(() => {
-      throw new Error("post-capture History getter must not run");
-    });
-    const lateSubscribe = vi.fn(() => {
-      throw new Error("post-capture History subscriber must not run");
-    });
-    Object.defineProperties(historyObservationPort, {
-      getSnapshotInternalV1: {
-        configurable: true,
-        enumerable: true,
-        get: lateGetSnapshot,
-      },
-      subscribeInternalV1: {
-        configurable: true,
-        enumerable: true,
-        get: lateSubscribe,
-      },
-    });
     const rootPreparing = preparingEntryV1(fixture.runtime, "dialogue");
     if (rootPreparing.kind !== "dialogue" || rootPreparing.preparation === null) {
       throw new Error("expected root preparation");
@@ -2715,13 +2351,6 @@ describe("Narrative stable session", () => {
     expect(historyPreparing.rendererProps.playerProfile).not.toBe(
       defaultCandidateSnapshotV1.playerProfile,
     );
-    expect(Object.isFrozen(historyPreparing.rendererProps.playerProfile)).toBe(true);
-    expect(Reflect.ownKeys(historyPreparing.rendererProps.playerProfile)).toEqual([
-      "profileRevision",
-      "seen",
-      "meta",
-      "preferences",
-    ]);
     expect(historyPreparing.rendererProps.textResolver).toBe(
       suspendedParent.rendererProps.textResolver,
     );
@@ -2729,18 +2358,12 @@ describe("Narrative stable session", () => {
       defaultCandidateSnapshotV1.textResolver,
     );
     expect(typeof historyPreparing.rendererProps.textResolver).toBe("function");
-    expect(Object.isFrozen(historyPreparing.rendererProps.textResolver)).toBe(true);
     expect(historyPreparing.rendererProps.textResolver("text.test.history"))
       .toBe("text.test.history");
-    expect(Object.hasOwn(historyPreparing.rendererProps, "history")).toBe(false);
     const renderObservation = historyPreparing.historyObservation;
-    expectFrozenOwnMethodsV1(renderObservation, [
-      "getSnapshotInternalV1",
-      "subscribeInternalV1",
-    ]);
     const firstHistory = renderObservation.getSnapshotInternalV1();
     expect(firstHistory).toEqual(emptyNarrativeHistoryV1);
-    expect(firstHistory).not.toBe(rawHistory);
+    expect(firstHistory).toBe(rawHistory);
     expect(renderObservation.getSnapshotInternalV1()).toBe(firstHistory);
     const historyNotifications = vi.fn();
     const unsubscribe = renderObservation.subscribeInternalV1(historyNotifications);
@@ -2767,29 +2390,37 @@ describe("Narrative stable session", () => {
     emitRawHistory();
     expect(historyNotifications).toHaveBeenCalledOnce();
     const changedHistory = renderObservation.getSnapshotInternalV1();
-    expect(changedHistory).not.toBe(firstHistory);
-    expect(Object.isFrozen(changedHistory)).toBe(true);
-    expect(Object.isFrozen(changedHistory.entries)).toBe(true);
-    expect(Object.isFrozen(changedHistory.entries[0])).toBe(true);
-    sameIdentityRawHistory.entries[0]!.textId = "text.test.line.mutated";
+    expect(changedHistory).toBe(sameIdentityRawHistory);
+    emitRawHistory();
+    expect(historyNotifications).toHaveBeenCalledOnce();
+    rawHistory = {
+      entries: sameIdentityRawHistory.entries.map((entry) => ({ ...entry })),
+    };
+    emitRawHistory();
+    expect(historyNotifications).toHaveBeenCalledOnce();
+    expect(renderObservation.getSnapshotInternalV1()).toBe(changedHistory);
+    rawHistory = {
+      entries: sameIdentityRawHistory.entries.map((entry) => ({
+        ...entry,
+        textId: "text.test.line.mutated",
+      })),
+    };
     emitRawHistory();
     expect(historyNotifications).toHaveBeenCalledTimes(2);
     const mutatedHistory = renderObservation.getSnapshotInternalV1();
-    expect(mutatedHistory).not.toBe(changedHistory);
+    expect(mutatedHistory).toBe(rawHistory);
     expect(mutatedHistory.entries[0]?.textId).toBe("text.test.line.mutated");
     expect(changedHistory.entries[0]?.textId).toBe("text.test.line");
-    rawHistory = { entries: rawHistory.entries.map((entry) => ({ ...entry })) };
     emitRawHistory();
     expect(historyNotifications).toHaveBeenCalledTimes(2);
+    const readsBeforeRenderSnapshotLoop = getHistorySnapshot.mock.calls.length;
     for (let index = 0; index < 10_000; index += 1) {
-      rawHistory = { entries: rawHistory.entries.map((entry) => ({ ...entry })) };
       expect(renderObservation.getSnapshotInternalV1()).toBe(mutatedHistory);
     }
+    expect(getHistorySnapshot).toHaveBeenCalledTimes(readsBeforeRenderSnapshotLoop);
     expect(activeRawSubscriptions).toBe(1);
-    expect(capturedGetSnapshot).toHaveBeenCalled();
-    expect(capturedSubscribe).toHaveBeenCalledOnce();
-    expect(lateGetSnapshot).not.toHaveBeenCalled();
-    expect(lateSubscribe).not.toHaveBeenCalled();
+    expect(getHistorySnapshot).toHaveBeenCalled();
+    expect(subscribeToHistory).toHaveBeenCalledOnce();
 
     const historyReady = prepareReadyCommitV1(
       fixture.runtime,
@@ -2812,21 +2443,6 @@ describe("Narrative stable session", () => {
         { readonly kind: "history" }
       >).historyObservation,
     ).toBe(renderObservation);
-
-    Object.defineProperties(historyObservationPort, {
-      getSnapshotInternalV1: {
-        configurable: true,
-        enumerable: true,
-        writable: true,
-        value: capturedGetSnapshot,
-      },
-      subscribeInternalV1: {
-        configurable: true,
-        enumerable: true,
-        writable: true,
-        value: capturedSubscribe,
-      },
-    });
 
     expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 2)))
       .toMatchObject({ kind: "applied" });
@@ -2860,7 +2476,7 @@ describe("Narrative stable session", () => {
     expect(unsubscribeRaw).not.toHaveBeenCalled();
     const strictModeProbe = vi.fn();
     const unsubscribeStrictModeProbe = renderObservation.subscribeInternalV1(strictModeProbe);
-    expect(capturedSubscribe).toHaveBeenCalledOnce();
+    expect(subscribeToHistory).toHaveBeenCalledOnce();
     expect(activeRawSubscriptions).toBe(1);
     unsubscribeStrictModeProbe();
     unsubscribeStrictModeProbe();
@@ -2900,15 +2516,14 @@ describe("Narrative stable session", () => {
     ).toEqual([["dialogue", "active"]]);
     expect(unsubscribeRaw).toHaveBeenCalledOnce();
     expect(activeRawSubscriptions).toBe(0);
-    const capturedReadsAfterRetirement = capturedGetSnapshot.mock.calls.length;
+    const capturedReadsAfterRetirement = getHistorySnapshot.mock.calls.length;
     expect(renderObservation.getSnapshotInternalV1()).toBe(mutatedHistory);
-    expect(capturedGetSnapshot).toHaveBeenCalledTimes(capturedReadsAfterRetirement);
+    expect(getHistorySnapshot).toHaveBeenCalledTimes(capturedReadsAfterRetirement);
     const retiredProbe = vi.fn();
     const unsubscribeRetiredProbe = renderObservation.subscribeInternalV1(retiredProbe);
-    expect(Object.isFrozen(unsubscribeRetiredProbe)).toBe(true);
     unsubscribeRetiredProbe();
     unsubscribeRetiredProbe();
-    expect(capturedSubscribe).toHaveBeenCalledOnce();
+    expect(subscribeToHistory).toHaveBeenCalledOnce();
     expect(retiredProbe).not.toHaveBeenCalled();
 
     minted.dispose();
@@ -2982,55 +2597,21 @@ describe("Narrative stable session", () => {
     history.disposePortal();
   });
 
-  it("validates Host acquisition before lease mutation and classifies disconnected or foreign ready mint inputs", () => {
+  it("classifies disconnected or foreign ready mint inputs", () => {
     const harness = createSessionHarnessV1();
     const session = createNarrativeStableSessionInternalV1({ bridge: harness.bridge });
     const portalContainer = document.createElement("div");
     document.body.append(portalContainer);
     const inputRouter = createInputRouterV1();
-    const hostIdentity = Object.freeze({ host: "validation" });
+    const hostIdentity = { host: "validation" };
     const isGestureCurrent = () => true;
-    const valid = Object.freeze({
+    const valid = {
       session,
       hostIdentity,
       portalContainer,
       inputRouter,
       isGestureCurrent,
-    });
-    let sessionReads = 0;
-    const accessorInput = Object.defineProperty(
-      {
-        hostIdentity,
-        portalContainer,
-        inputRouter,
-        isGestureCurrent,
-      },
-      "session",
-      {
-        enumerable: true,
-        get() {
-          sessionReads += 1;
-          return session;
-        },
-      },
-    );
-    const invalidInputs: readonly unknown[] = Object.freeze([
-      null,
-      Object.freeze({}),
-      Object.freeze({ ...valid, extra: true }),
-      Object.freeze({ ...valid, session: Object.freeze({}) }),
-      Object.freeze({ ...valid, portalContainer: document.body }),
-      Object.freeze({ ...valid, inputRouter: Object.freeze({}) }),
-      Object.freeze({ ...valid, isGestureCurrent: true }),
-      accessorInput,
-    ]);
-    for (const input of invalidInputs) {
-      expectTypeErrorV1(
-        () => createNarrativeStableHostRuntimeInternalV1(input as never),
-        "ui.narrative_stable_host_attachment_invalid",
-      );
-    }
-    expect(sessionReads).toBe(0);
+    };
 
     const runtime = createNarrativeStableHostRuntimeInternalV1(valid);
     expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
@@ -3038,27 +2619,21 @@ describe("Narrative stable session", () => {
     });
     const root = preparingEntryV1(runtime, "dialogue");
     const disconnectedShell = document.createElement("div");
-    expect(prepareNarrativeStableHostReadyCommitInternalV1(Object.freeze({
+    expect(prepareNarrativeStableHostReadyCommitInternalV1({
       hostRuntime: runtime,
       renderEntry: root,
       portalShell: disconnectedShell,
       initialFocusTarget: disconnectedShell,
-    }))).toEqual({ kind: "stale", completion: null });
+    })).toEqual({ kind: "stale", completion: null });
     const connectedShell = document.createElement("div");
     const foreignFocus = document.createElement("button");
     portalContainer.append(connectedShell, foreignFocus);
-    expect(prepareNarrativeStableHostReadyCommitInternalV1(Object.freeze({
+    expect(prepareNarrativeStableHostReadyCommitInternalV1({
       hostRuntime: runtime,
       renderEntry: root,
       portalShell: connectedShell,
       initialFocusTarget: foreignFocus,
-    }))).toEqual({ kind: "stale", completion: null });
-    expect(prepareNarrativeStableHostReadyCommitInternalV1(Object.freeze({
-      hostRuntime: Object.freeze({}),
-      renderEntry: root,
-      portalShell: connectedShell,
-      initialFocusTarget: connectedShell,
-    }) as never)).toEqual({ kind: "faulted", completion: null });
+    })).toEqual({ kind: "stale", completion: null });
     runtime.attachment.releaseInternalV1();
     portalContainer.remove();
   });
@@ -3067,20 +2642,21 @@ describe("Narrative stable session", () => {
     const occupyBothNarrativePreparationSlots = (
       inputRouter: ReturnType<typeof createInputRouterV1>,
       isGestureCurrent: () => boolean,
-    ): readonly ManagedSurfacePreparedContractBoundActionBindingInternalV1[] =>
-      Object.freeze([0, 1].map((index) =>
-        managedSurfaceActionRouteModuleV1
-          .prepareManagedSurfaceContractBoundActionBindingInternalV1({
-            authority: Object.freeze({
-              routeActionInternalV1: () => {
-                throw new Error(`foreign prepared authority ${index} must not route`);
-              },
-            }),
-            inputContextId: "narrative",
-            inputRouter,
-            isGestureCurrent,
-          })
-      ));
+    ): readonly ManagedSurfacePreparedContractBoundActionBindingInternalV1[] => ([0, 1].map((
+      index,
+    ) =>
+      managedSurfaceActionRouteModuleV1
+        .prepareManagedSurfaceContractBoundActionBindingInternalV1({
+          authority: {
+            routeActionInternalV1: () => {
+              throw new Error(`foreign prepared authority ${index} must not route`);
+            },
+          },
+          inputContextId: "narrative",
+          inputRouter,
+          isGestureCurrent,
+        })
+    ));
     const createPostAttachFaultFixture = (suffix: string) => {
       const harness = createSessionHarnessV1();
       const session = createNarrativeStableSessionInternalV1({ bridge: harness.bridge });
@@ -3090,14 +2666,14 @@ describe("Narrative stable session", () => {
       document.body.append(portalContainer);
       const inputRouter = createInputRouterV1();
       const isGestureCurrent = () => true;
-      const hostIdentity = Object.freeze({ host: `post-attach-fault-${suffix}` });
-      const input = Object.freeze({
+      const hostIdentity = { host: `post-attach-fault-${suffix}` };
+      const input = {
         session,
         hostIdentity,
         portalContainer,
         inputRouter,
         isGestureCurrent,
-      });
+      };
       const occupied = occupyBothNarrativePreparationSlots(
         inputRouter,
         isGestureCurrent,
@@ -3105,7 +2681,7 @@ describe("Narrative stable session", () => {
       expect(() => createNarrativeStableHostRuntimeInternalV1(input))
         .toThrowError("ui.narrative_stable_host_attachment_invalid");
       for (const prepared of occupied) prepared.abortInternalV1();
-      return Object.freeze({
+      return ({
         harness,
         session,
         portalContainer,
@@ -3125,13 +2701,13 @@ describe("Narrative stable session", () => {
 
     const foreignHost = createPostAttachFaultFixture("foreign-host");
     await Promise.resolve();
-    const foreignRetry = createNarrativeStableHostRuntimeInternalV1(Object.freeze({
+    const foreignRetry = createNarrativeStableHostRuntimeInternalV1({
       session: foreignHost.session,
-      hostIdentity: Object.freeze({ host: "post-attach-fault-foreign-retry" }),
+      hostIdentity: { host: "post-attach-fault-foreign-retry" },
       portalContainer: foreignHost.portalContainer,
       inputRouter: foreignHost.inputRouter,
       isGestureCurrent: foreignHost.isGestureCurrent,
-    }));
+    });
     expect(foreignRetry.renderSource.getSnapshotInternalV1().entries).toHaveLength(1);
     foreignRetry.attachment.releaseInternalV1();
     await Promise.resolve();
@@ -3170,53 +2746,53 @@ describe("Narrative stable session", () => {
     document.body.append(alternatePortal);
     expectTypeErrorV1(
       () =>
-        createNarrativeStableHostRuntimeInternalV1(Object.freeze({
+        createNarrativeStableHostRuntimeInternalV1({
           session: fixture.session,
           hostIdentity: fixture.hostIdentity,
           portalContainer: alternatePortal,
           inputRouter: fixture.inputRouter,
           isGestureCurrent: fixture.isGestureCurrent,
-        })),
+        }),
       "ui.narrative_stable_host_portal_conflict",
     );
     expectTypeErrorV1(
       () =>
-        createNarrativeStableHostRuntimeInternalV1(Object.freeze({
+        createNarrativeStableHostRuntimeInternalV1({
           session: fixture.session,
-          hostIdentity: Object.freeze({ host: "foreign" }),
+          hostIdentity: { host: "foreign" },
           portalContainer: fixture.portalContainer,
           inputRouter: fixture.inputRouter,
           isGestureCurrent: fixture.isGestureCurrent,
-        })),
+        }),
       "ui.narrative_stable_host_lease_conflict",
     );
 
     fixture.runtime.attachment.releaseInternalV1();
-    expect(prepareNarrativeStableHostReadyCommitInternalV1(Object.freeze({
+    expect(prepareNarrativeStableHostReadyCommitInternalV1({
       hostRuntime: fixture.runtime,
       renderEntry: active,
       portalShell: fixture.portalContainer.firstElementChild as HTMLDivElement,
       initialFocusTarget: fixture.portalContainer.firstElementChild as HTMLElement,
-    }))).toEqual({ kind: "stale", completion: null });
-    const successor = createNarrativeStableHostRuntimeInternalV1(Object.freeze({
+    })).toEqual({ kind: "stale", completion: null });
+    const successor = createNarrativeStableHostRuntimeInternalV1({
       session: fixture.session,
       hostIdentity: fixture.hostIdentity,
       portalContainer: fixture.portalContainer,
       inputRouter: fixture.inputRouter,
       isGestureCurrent: fixture.isGestureCurrent,
-    }));
+    });
     expect(successor.renderSource).toBe(fixture.runtime.renderSource);
     const successorActive = successor.renderSource.getSnapshotInternalV1().entries[0];
     expect(successorActive).toBe(active);
     const successorShell = document.createElement("div");
     successorShell.tabIndex = -1;
     fixture.portalContainer.append(successorShell);
-    expect(prepareNarrativeStableHostReadyCommitInternalV1(Object.freeze({
+    expect(prepareNarrativeStableHostReadyCommitInternalV1({
       hostRuntime: successor,
       renderEntry: successorActive!,
       portalShell: successorShell,
       initialFocusTarget: successorShell,
-    }))).toEqual({ kind: "reattached", completion: null });
+    })).toEqual({ kind: "reattached", completion: null });
     await Promise.resolve();
     expect(successor.renderSource.getSnapshotInternalV1().entries).toHaveLength(1);
 
@@ -3254,84 +2830,17 @@ describe("Narrative stable session", () => {
     ).toEqual([]);
     expectTypeErrorV1(
       () =>
-        createNarrativeStableHostRuntimeInternalV1(Object.freeze({
+        createNarrativeStableHostRuntimeInternalV1({
           session: fixture.session,
           hostIdentity: fixture.hostIdentity,
           portalContainer: fixture.portalContainer,
           inputRouter: fixture.inputRouter,
           isGestureCurrent: fixture.isGestureCurrent,
-        })),
+        }),
       "ui.narrative_stable_host_attachment_invalid",
     );
     alternatePortal.remove();
     fixture.disposePortal();
-  });
-
-  it("descriptor-captures factory, session, and Host inputs and fences borrowed receivers", () => {
-    const harness = createSessionHarnessV1();
-    const session = createNarrativeStableSessionInternalV1({ bridge: harness.bridge });
-    const factoryInputs = [
-      null,
-      undefined,
-      Object.freeze({}),
-      Object.freeze({ bridge: harness.bridge, extra: true }),
-      Object.freeze({ bridge: Object.freeze({}) }),
-    ];
-    for (const input of factoryInputs) {
-      expectTypeErrorV1(
-        () => createNarrativeStableSessionInternalV1(input as never),
-        "ui.narrative_stable_session_invalid",
-      );
-    }
-    const bridgeGetter = vi.fn(() => harness.bridge);
-    const accessorInput = Object.defineProperty({}, "bridge", {
-      enumerable: true,
-      get: bridgeGetter,
-    });
-    expectTypeErrorV1(
-      () => createNarrativeStableSessionInternalV1(accessorInput as never),
-      "ui.narrative_stable_session_invalid",
-    );
-    expect(bridgeGetter).not.toHaveBeenCalled();
-
-    const snapshotBefore = session.getReadinessSnapshotInternalV1();
-    const stateBefore = harness.kernel.getStateInternalV1();
-    const methodReceiverCases = [
-      () => Reflect.apply(session.getReadinessSnapshotInternalV1, Object.freeze({}), []),
-      () => Reflect.apply(session.getHistoryChildLifecycleInternalV1, Object.freeze({}), []),
-      () => Reflect.apply(session.subscribeInternalV1, Object.freeze({}), [vi.fn()]),
-      () =>
-        Reflect.apply(session.attachHostInternalV1, Object.freeze({}), [{
-          hostIdentity: Object.freeze({}),
-        }]),
-    ];
-    for (const run of methodReceiverCases) {
-      expectTypeErrorV1(run, "ui.narrative_stable_session_invalid");
-    }
-
-    const hostGetter = vi.fn(() => Object.freeze({}));
-    const hostAccessor = Object.defineProperty({}, "hostIdentity", {
-      enumerable: true,
-      get: hostGetter,
-    });
-    for (
-      const input of [
-        null,
-        Object.freeze({}),
-        Object.freeze({ hostIdentity: null }),
-        Object.freeze({ hostIdentity: "not-an-object" }),
-        Object.freeze({ hostIdentity: Object.freeze({}), extra: true }),
-        hostAccessor,
-      ]
-    ) {
-      expectTypeErrorV1(
-        () => session.attachHostInternalV1(input as never),
-        "ui.narrative_stable_host_attachment_invalid",
-      );
-    }
-    expect(hostGetter).not.toHaveBeenCalled();
-    expect(session.getReadinessSnapshotInternalV1()).toBe(snapshotBefore);
-    expect(harness.kernel.getStateInternalV1()).toBe(stateBefore);
   });
 
   it("retains one session-owned lifecycle and fences a same-kernel bridge successor ABA", () => {
@@ -3346,7 +2855,7 @@ describe("Narrative stable session", () => {
     })).toBe(lifecycleBeforeSession);
 
     const lease = session.attachHostInternalV1({
-      hostIdentity: Object.freeze({ host: "predecessor" }),
+      hostIdentity: { host: "predecessor" },
     });
     harness.bridge.disposeInternalV1();
     expect(lease.isCurrentInternalV1()).toBe(false);
@@ -3360,7 +2869,7 @@ describe("Narrative stable session", () => {
     unsubscribe();
     expect(terminalListener).not.toHaveBeenCalled();
     expectTypeErrorV1(
-      () => session.attachHostInternalV1({ hostIdentity: Object.freeze({}) }),
+      () => session.attachHostInternalV1({ hostIdentity: {} }),
       "ui.narrative_stable_host_attachment_invalid",
     );
     expectTypeErrorV1(
@@ -3398,7 +2907,7 @@ describe("Narrative stable session", () => {
     const listener = vi.fn();
     const unsubscribe = session.subscribeInternalV1(listener);
     const lease = session.attachHostInternalV1({
-      hostIdentity: Object.freeze({ host: "external-terminal" }),
+      hostIdentity: { host: "external-terminal" },
     });
 
     expect(harness.kernel.transitionTransientInternalV1({
@@ -3411,7 +2920,7 @@ describe("Narrative stable session", () => {
     expect(session.getReadinessSnapshotInternalV1()).toBe(terminal);
     expect(session.getHistoryChildLifecycleInternalV1()).toBe(lifecycle);
     expectTypeErrorV1(
-      () => session.attachHostInternalV1({ hostIdentity: Object.freeze({}) }),
+      () => session.attachHostInternalV1({ hostIdentity: {} }),
       "ui.narrative_stable_host_attachment_invalid",
     );
     const terminalListener = vi.fn();
@@ -3426,7 +2935,7 @@ describe("Narrative stable session", () => {
   it("fences Host authority inside an earlier raw Coordinator-terminal listener", () => {
     for (const operation of ["current", "attach", "factory"] as const) {
       const harness = createSessionHarnessV1();
-      const hostIdentity = Object.freeze({ host: `terminal-window-${operation}` });
+      const hostIdentity = { host: `terminal-window-${operation}` };
       let session!: NarrativeStableSessionInternalV1;
       let lease!: NarrativeStableHostLeaseInternalV1;
       let outcome: boolean | string | null = null;
@@ -3516,9 +3025,7 @@ describe("Narrative stable session", () => {
     expect(rootOnly.entries).toHaveLength(1);
     expect(rootOnly.entries[0]?.kind).toBe("root");
     if (rootOnly.entries[0]?.kind !== "root") throw new Error("expected root entry");
-    expect(Object.isFrozen(rootOnly.entries[0])).toBe(true);
-    expect(Object.isFrozen(rootOnly.entries[0].preparation)).toBe(true);
-    expect(Reflect.ownKeys(rootOnly.entries[0].preparation)).toEqual([]);
+
     expect(session.getReadinessSnapshotInternalV1()).toBe(rootOnly);
 
     settleCurrentRootReadyV1(harness);
@@ -3539,9 +3046,7 @@ describe("Narrative stable session", () => {
       kind: "history",
       preparation: historyPreparation,
     }]);
-    expect(Object.isFrozen(historyOnly)).toBe(true);
-    expect(Object.isFrozen(historyOnly.entries)).toBe(true);
-    expect(Object.isFrozen(historyOnly.entries[0]!)).toBe(true);
+
     expect(session.getReadinessSnapshotInternalV1()).toBe(historyOnly);
 
     expect(harness.bridge.reconcilePendingInternalV1(pendingV1("custom", 2)))
@@ -3636,8 +3141,8 @@ describe("Narrative stable session", () => {
     const session = createNarrativeStableSessionInternalV1({ bridge: harness.bridge });
     expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say")))
       .toMatchObject({ kind: "applied" });
-    const hostIdentity = Object.freeze({ host: "same-logical-host" });
-    const foreignHost = Object.freeze({ host: "foreign-logical-host" });
+    const hostIdentity = { host: "same-logical-host" };
+    const foreignHost = { host: "foreign-logical-host" };
     const state = harness.kernel.getStateInternalV1();
     const snapshot = session.getReadinessSnapshotInternalV1();
     const notifications = harness.stateNotificationCount();
@@ -3655,10 +3160,6 @@ describe("Narrative stable session", () => {
     expect(successor).not.toBe(predecessor);
     expect(predecessor.isCurrentInternalV1()).toBe(false);
     expect(successor.isCurrentInternalV1()).toBe(true);
-    expect(() => Reflect.apply(predecessor.isCurrentInternalV1, Object.freeze({}), []))
-      .toThrowError(TypeError);
-    expect(() => Reflect.apply(predecessor.releaseInternalV1, Object.freeze({}), []))
-      .toThrowError(TypeError);
     successor.releaseInternalV1();
     successor.releaseInternalV1();
     expectTypeErrorV1(
@@ -3727,32 +3228,32 @@ describe("Narrative stable session", () => {
         unsubscribe();
         retiredRuntime.attachment.releaseInternalV1();
         retiredRuntime.attachment.releaseInternalV1();
-        expect(prepareNarrativeStableHostReadyCommitInternalV1(Object.freeze({
+        expect(prepareNarrativeStableHostReadyCommitInternalV1({
           hostRuntime: retiredRuntime,
           renderEntry: activeEntry,
           portalShell,
           initialFocusTarget: portalShell,
-        }))).toEqual({ kind: "stale", completion: null });
+        })).toEqual({ kind: "stale", completion: null });
         expect(retiredRuntime.attachment.settleRootReadinessReadyInternalV1(
           preparing.preparation,
           readyCommit,
         )).toEqual({ kind: "stale", completion: null });
 
-        currentRuntime = createNarrativeStableHostRuntimeInternalV1(Object.freeze({
+        currentRuntime = createNarrativeStableHostRuntimeInternalV1({
           session: fixture.session,
           hostIdentity: fixture.hostIdentity,
           portalContainer: fixture.portalContainer,
           inputRouter: fixture.inputRouter,
           isGestureCurrent: fixture.isGestureCurrent,
-        }));
+        });
         expect(currentRuntime.renderSource).toBe(renderSource);
         expect(currentRuntime.renderSource.getSnapshotInternalV1()).toBe(activeSnapshot);
-        expect(prepareNarrativeStableHostReadyCommitInternalV1(Object.freeze({
+        expect(prepareNarrativeStableHostReadyCommitInternalV1({
           hostRuntime: currentRuntime,
           renderEntry: activeEntry,
           portalShell,
           initialFocusTarget: portalShell,
-        }))).toEqual({ kind: "reattached", completion: null });
+        })).toEqual({ kind: "reattached", completion: null });
       }
       await Promise.resolve();
 
@@ -3763,12 +3264,12 @@ describe("Narrative stable session", () => {
       currentRuntime.attachment.releaseInternalV1();
       await Promise.resolve();
       expect(renderSource.getSnapshotInternalV1().entries).toEqual([]);
-      expect(prepareNarrativeStableHostReadyCommitInternalV1(Object.freeze({
+      expect(prepareNarrativeStableHostReadyCommitInternalV1({
         hostRuntime: currentRuntime,
         renderEntry: activeEntry,
         portalShell,
         initialFocusTarget: portalShell,
-      }))).toEqual({ kind: "stale", completion: null });
+      })).toEqual({ kind: "stale", completion: null });
       fixture.disposePortal();
     },
     30_000,

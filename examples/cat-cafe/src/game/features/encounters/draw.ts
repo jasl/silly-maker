@@ -47,16 +47,16 @@ export function drawCatcafeEncounterV1(input: {
     rng,
     purpose: "check:cc.encounter",
   });
-  if (draw.kind !== "drawn") return Object.freeze([]);
+  if (draw.kind !== "drawn") return [];
   const row = catcafeEncountersV1.byId(draw.eventId);
-  if (row === null || row.textId === null) return Object.freeze([]);
+  if (row === null || row.textId === null) return [];
   applyStatEffectsV1(input.cat, input.shop, row.effects, { fishBuffDoublesTrust: false });
-  return Object.freeze([
-    Object.freeze({
+  return [
+    {
       kind: "cc.encounter" as const,
       encounterId: draw.eventId,
       textId: row.textId,
       explanation: draw.explanation,
-    }),
-  ]);
+    },
+  ];
 }

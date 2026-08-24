@@ -32,12 +32,12 @@ describe("Snapshot sequence and replay workloads", () => {
   it("runs through two real transaction owners without changing instrumented behavior", async () => {
     const counter = createSnapshotWorkCounterV1();
     const purposes = createPurposeTaggedSnapshotWorkCounterV1();
-    const instrumentation = Object.freeze({
+    const instrumentation = {
       record(event: SnapshotWorkEventV1, purpose?: SnapshotWorkPurposeV1) {
         counter.instrumentation.record(event, purpose);
         purposes.instrumentation.record(event, purpose);
       },
-    });
+    };
     const measured = createSnapshotTransactionWorkloadV1({
       entityCount: 100,
       instrumentation,

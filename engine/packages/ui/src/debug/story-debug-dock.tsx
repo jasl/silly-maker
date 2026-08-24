@@ -78,7 +78,7 @@ export interface StoryDebugDockLabelsV1 extends SessionMaintenanceLabelsV1 {
   readonly faultCauseLabel: string;
 }
 
-export const defaultStoryDebugDockLabelsV1: StoryDebugDockLabelsV1 = Object.freeze({
+export const defaultStoryDebugDockLabelsV1: StoryDebugDockLabelsV1 = {
   ...defaultSessionMaintenanceLabelsV1,
   chipLabel: "调试",
   freezeLabel: "冻结画面",
@@ -121,7 +121,7 @@ export const defaultStoryDebugDockLabelsV1: StoryDebugDockLabelsV1 = Object.free
   studioOpenedNote: "已在新标签页打开 Studio（游戏会话继续运行）。",
   cheatLockReason: "需要启用作弊功能",
   faultCauseLabel: "最近故障",
-});
+};
 
 export interface StoryDebugDockPropsV1 {
   /** Story owns default-on vs capability gating. */
@@ -189,7 +189,7 @@ function failureNoteV1(error: unknown): string {
 }
 
 /** Debug playback-rate presets; a Story's Ctrl fast-forward pin stays its own binding. */
-const presentationRatePresetsV1: readonly number[] = Object.freeze([0.5, 1, 2, 4, 8]);
+const presentationRatePresetsV1: readonly number[] = [0.5, 1, 2, 4, 8];
 
 function formatRatePresetV1(rate: number): string {
   return `${rate}×`;
@@ -208,32 +208,32 @@ function confirmSpecV1(
 } {
   switch (kind) {
     case "wipe":
-      return Object.freeze({
+      return {
         title: labels.wipeDialogTitle,
         description: labels.wipeDialogDescription,
         confirmLabel: labels.wipeConfirmLabel,
         backdropLabel: labels.wipeBackdropLabel,
         confirmAction: "wipe_confirm",
         cancelAction: "wipe_cancel",
-      });
+      };
     case "reload":
-      return Object.freeze({
+      return {
         title: labels.reloadDialogTitle,
         description: labels.reloadDialogDescription,
         confirmLabel: labels.reloadConfirmLabel,
         backdropLabel: labels.reloadBackdropLabel,
         confirmAction: "reload_confirm",
         cancelAction: "reload_cancel",
-      });
+      };
     case "reinitialize":
-      return Object.freeze({
+      return {
         title: labels.reinitializeDialogTitle,
         description: labels.reinitializeDialogDescription,
         confirmLabel: labels.reinitializeConfirmLabel,
         backdropLabel: labels.reinitializeBackdropLabel,
         confirmAction: "reinitialize_confirm",
         cancelAction: "reinitialize_cancel",
-      });
+      };
     default: {
       const exhaustive: never = kind;
       return exhaustive;
@@ -447,13 +447,11 @@ export function StoryDebugDockV1(props: StoryDebugDockPropsV1): ReactElement | n
   const versionLine = formatVersionStampV1(readVersionStampV1());
   const tools = props.tools ?? registry
     .filter((panel) => panel.id !== engineSessionMaintenancePanelIdV1)
-    .map((panel): StoryDebugDockToolV1 =>
-      Object.freeze({
-        panelId: panel.id,
-        label: panel.title,
-        authority: panel.authority,
-      })
-    );
+    .map((panel): StoryDebugDockToolV1 => ({
+      panelId: panel.id,
+      label: panel.title,
+      authority: panel.authority,
+    }));
   const cheatsEnabled = capabilityState.debugTools && capabilityState.cheats;
   const stateTools = tools.filter((tool) => dockToolSectionV1(tool) === "state")
     .slice()

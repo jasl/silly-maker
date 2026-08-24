@@ -79,9 +79,7 @@ export function compileStateModuleCompositionV1<
     );
   }
   return snapshot.compileDirectPlan((resolver) => {
-    const modules = Object.freeze(
-      resolver.contributions(stateModulesV1).map(({ value }) => value),
-    );
+    const modules = resolver.contributions(stateModulesV1).map(({ value }) => value);
     return authoringKit.composeModules(modules);
   });
 }
@@ -117,5 +115,5 @@ export async function activateStateApplicationV1<
   );
   const factory = compileLegacyApplicationFactoryV1(snapshot, factoryToken);
   const lease = await factory.create();
-  return Object.freeze({ stateComposition, lease });
+  return { stateComposition, lease };
 }

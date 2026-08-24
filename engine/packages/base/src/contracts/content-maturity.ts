@@ -166,9 +166,9 @@ export function parseContentMaturityPolicyV1(value: unknown): ContentMaturityPol
 export function parseContentPreferenceV1(value: unknown): ContentPreferenceV1 {
   try {
     const record = readExactRecord(value, ["allowedFlags"], "/");
-    return Object.freeze({
+    return {
       allowedFlags: parseContentMaturityFlagsV1(record.allowedFlags),
-    });
+    };
   } catch (error) {
     if (error instanceof PresentationDataError) {
       throw new TypeError(`content_maturity.preference at ${error.path}`, { cause: error });

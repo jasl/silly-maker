@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../../../../../scripts/testing/playwright-test.ts";
 
 interface BrowserTripwireResultV1 {
   readonly workerTerminations: number;

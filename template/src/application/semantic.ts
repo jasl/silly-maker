@@ -62,10 +62,10 @@ export type TemplateActionResultV1 =
     readonly code: "session_unavailable" | "fault_paused" | "hmr_invalidated" | "validation_failed";
   };
 
-const templateActionIdsV1: readonly TemplateActionIdV1[] = Object.freeze([
+const templateActionIdsV1: readonly TemplateActionIdV1[] = [
   "template.begin_story",
   "template.earn_coin",
-]);
+];
 
 const simulationForSemanticV1 = createTemplateGameSimulationV1();
 
@@ -111,23 +111,21 @@ export function projectTemplateNarrativeViewV1(
   queries: TemplateQueriesV1,
 ): TemplateNarrativeViewV1 {
   const pending = queries.narrative.pending;
-  return Object.freeze({
+  return ({
     phase: queries.narrative.phase,
     pending,
     flags: queries.narrative.flags,
     history: queries.narrative.history,
     choiceOptions: pending !== null && pending.kind === "choice"
-      ? Object.freeze(
-        templateChoiceOptionsForV1(pending.definitionId).map((option) => {
-          const blockedBy = templateChoiceBlockedByV1(option, queries.coins);
-          return Object.freeze({
-            choiceId: option.choiceId,
-            textId: option.textId,
-            enabled: blockedBy === null,
-            blockedBy,
-          });
-        }),
-      )
+      ? (templateChoiceOptionsForV1(pending.definitionId).map((option) => {
+        const blockedBy = templateChoiceBlockedByV1(option, queries.coins);
+        return ({
+          choiceId: option.choiceId,
+          textId: option.textId,
+          enabled: blockedBy === null,
+          blockedBy,
+        });
+      }))
       : null,
   });
 }
@@ -145,7 +143,7 @@ export function parseTemplateInvocationV1(value: unknown): TemplateInvocationV1 
       readonly expectedOccurrenceId?: unknown;
       readonly resolution?: unknown;
     };
-    return Object.freeze({
+    return ({
       kind: "resolve",
       expectedOccurrenceId: parseInteractionOccurrenceId(record.expectedOccurrenceId),
       resolution: parseInteractionResolution(record.resolution),
@@ -155,7 +153,7 @@ export function parseTemplateInvocationV1(value: unknown): TemplateInvocationV1 
     if (Object.keys(value).toSorted().join("\0") !== "kind\0tick") {
       throw new TypeError("invalid template time invocation");
     }
-    return Object.freeze({
+    return ({
       kind: "time",
       tick: parseTimeTick((value as { readonly tick?: unknown }).tick, "/tick"),
     });
@@ -167,7 +165,7 @@ export function parseTemplateInvocationV1(value: unknown): TemplateInvocationV1 
   if (!templateActionIdsV1.includes(actionId as TemplateActionIdV1)) {
     throw new TypeError("unknown template action");
   }
-  return Object.freeze({ kind: "invoke", actionId: actionId as TemplateActionIdV1 });
+  return ({ kind: "invoke", actionId: actionId as TemplateActionIdV1 });
 }
 
 export const templateSemanticAdapterV1: CoreSemanticAdapterV1<
@@ -183,13 +181,10 @@ export const templateSemanticAdapterV1: CoreSemanticAdapterV1<
   createQueries: (state) => simulationForSemanticV1.createQueries(state as never),
   projectGameView: (queries) => simulationForSemanticV1.projectGameView(queries),
   projectNarrativeView: (queries) => projectTemplateNarrativeViewV1(queries),
-  actions: (queries) =>
-    Object.freeze(
-      templateActionIdsV1.map((actionId) => {
-        const blockedBy = blockedByV1(queries, actionId);
-        return Object.freeze({ actionId, enabled: blockedBy === null, blockedBy });
-      }),
-    ),
+  actions: (queries) => (templateActionIdsV1.map((actionId) => {
+    const blockedBy = blockedByV1(queries, actionId);
+    return ({ actionId, enabled: blockedBy === null, blockedBy });
+  })),
   preview: (queries, invocation) => {
     const blockedBy = invocation.kind === "resolve"
       ? resolutionBlockedByV1(queries, invocation)
@@ -197,38 +192,40 @@ export const templateSemanticAdapterV1: CoreSemanticAdapterV1<
       ? timeTickBlockedByV1(queries, invocation)
       : blockedByV1(queries, invocation.actionId);
     return blockedBy === null
-      ? Object.freeze({ kind: "allowed" as const })
-      : Object.freeze({ kind: "blocked" as const, code: blockedBy });
+      ? ({ kind: "allowed" as const })
+      : ({ kind: "blocked" as const, code: blockedBy });
   },
   parseInvocation: parseTemplateInvocationV1,
   commandForInvocation: (invocation) =>
     invocation.kind === "resolve"
-      ? Object.freeze({
+      ? ({
         kind: "template.narrative_resolve" as const,
         expectedOccurrenceId: invocation.expectedOccurrenceId,
         resolution: invocation.resolution,
       })
       : invocation.kind === "time"
-      ? Object.freeze({ kind: "template.time_tick" as const, tick: invocation.tick })
-      : Object.freeze({ kind: invocation.actionId }),
+      ? ({ kind: "template.time_tick" as const, tick: invocation.tick })
+      : ({ kind: invocation.actionId }),
   projectDispatchResult: (result) => {
     if (result.kind === "not_executed") {
-      return Object.freeze({ kind: "not_executed" as const, code: result.code });
+      return ({ kind: "not_executed" as const, code: result.code });
     }
     const execution = result.execution;
     if (execution.kind === "committed") {
-      return Object.freeze({ kind: "committed" as const });
+      return ({ kind: "committed" as const });
     }
     if (execution.kind === "rejected") {
-      return Object.freeze({
+      return ({
         kind: "rejected" as const,
-        codes: Object.freeze(execution.reasons.map((reason) => reason.code)),
+        codes: execution.reasons.map((reason) => reason.code),
       });
     }
-    return Object.freeze({ kind: "faulted" as const, code: execution.fault.code });
+    return ({ kind: "faulted" as const, code: execution.fault.code });
   },
-  invalidInvocationResult: () =>
-    Object.freeze({ kind: "not_executed" as const, code: "validation_failed" as const }),
+  invalidInvocationResult: () => ({
+    kind: "not_executed" as const,
+    code: "validation_failed" as const,
+  }),
   // Presentation edge context (cue identity, accepted 2026-08-17): the
   // stage events carry the scene dispatches behind each commit's mutations;
   // the instance stamps them with the commit's revision/epoch and the

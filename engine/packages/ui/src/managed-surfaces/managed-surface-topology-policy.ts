@@ -43,7 +43,7 @@ export function projectManagedSurfaceTopologyPolicyInternalV1<TSubject extends o
     ) {
       throw new TypeError("ui.managed_surface_topology_policy_invalid");
     }
-    return Object.freeze({ subject, suppliedOrder, layerOrder, lifecycle, blocksLower });
+    return { subject, suppliedOrder, layerOrder, lifecycle, blocksLower };
   }).sort((left, right) =>
     left.layerOrder - right.layerOrder || left.suppliedOrder - right.suppliedOrder
   );
@@ -53,16 +53,12 @@ export function projectManagedSurfaceTopologyPolicyInternalV1<TSubject extends o
     if (ordered[index]?.blocksLower === true) topmostBlockingIndex = index;
   }
 
-  return Object.freeze(
-    ordered.map(({ subject, lifecycle }, index) =>
-      Object.freeze({
-        subject,
-        phase: lifecycle === "preparing"
-          ? "preparing" as const
-          : topmostBlockingIndex >= 0 && index < topmostBlockingIndex
-          ? "suspended" as const
-          : "active" as const,
-      })
-    ),
-  );
+  return ordered.map(({ subject, lifecycle }, index) => ({
+    subject,
+    phase: lifecycle === "preparing"
+      ? "preparing" as const
+      : topmostBlockingIndex >= 0 && index < topmostBlockingIndex
+      ? "suspended" as const
+      : "active" as const,
+  }));
 }

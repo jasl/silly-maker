@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 import type { ReactElement } from "react";
 
-import { admitUiIntentInternalV1 } from "./admission.ts";
 import type {
   UiArtifactNodeInternalV1,
   UiArtifactRevisionInternalV1,
@@ -45,15 +44,14 @@ function renderNodeInternalV1(
           data-ui-artifact-kind="action"
           data-ui-artifact-node={node.nodeId}
           onClick={() => {
-            const admitted = admitUiIntentInternalV1({
+            props.onIntent({
               schemaRevision: uiIntentSchemaRevisionInternalV1,
               kind: "ui.action.invoke",
               hostIdentity: props.revision.hostIdentity,
               artifactRevision: props.revision.revision,
               nodeId: node.nodeId,
               actionId: node.actionId,
-            }, props.revision);
-            if (admitted.kind === "admitted") props.onIntent(admitted.intent);
+            });
           }}
         >
           {node.label}

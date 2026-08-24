@@ -125,7 +125,7 @@ const svgResourceAttributeNamesV1 = new Set([
 ]);
 
 function invalidResult(code: InvalidRuntimeImageCodeV1): RuntimeImageMetadataResultV1 {
-  return Object.freeze({ kind: "invalid", code });
+  return { kind: "invalid", code };
 }
 
 function validResult(
@@ -136,12 +136,12 @@ function validResult(
   if (!Number.isSafeInteger(width) || width <= 0 || !Number.isSafeInteger(height) || height <= 0) {
     return invalidResult("invalid_dimensions");
   }
-  const metadata = Object.freeze({
+  const metadata = {
     mediaType,
     width: width as PositiveSafeInteger,
     height: height as PositiveSafeInteger,
-  });
-  return Object.freeze({ kind: "valid", metadata });
+  };
+  return { kind: "valid", metadata };
 }
 
 function asciiAt(bytes: Uint8Array, offset: number, expected: string): boolean {

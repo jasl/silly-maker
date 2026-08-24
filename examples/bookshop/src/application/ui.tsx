@@ -14,12 +14,12 @@ import { bookshopUiTextV1 } from "./composition.tsx";
 
 type BookshopSemanticPortV1 = BookshopApplicationInstanceV1["semantic"];
 
-const actionTextIdsV1: Readonly<Record<BookshopActionIdV1, string>> = Object.freeze({
+const actionTextIdsV1: Readonly<Record<BookshopActionIdV1, string>> = {
   "bookshop.begin_story": "text.bookshop.action.begin",
   "bookshop.earn_coin": "text.bookshop.action.earn",
-});
+};
 
-const bookshopNarrativePanelStyleV1 = Object.freeze({
+const bookshopNarrativePanelStyleV1 = {
   position: "absolute" as const,
   insetInline: "160px",
   insetBlockEnd: "48px",
@@ -29,7 +29,7 @@ const bookshopNarrativePanelStyleV1 = Object.freeze({
   color: "#f2efe8",
   fontSize: "22px",
   lineHeight: 1.6,
-});
+};
 
 /** Passive product skin for the composition-owned Narrative runtime. */
 export function BookshopNarrativeRendererV1(
@@ -189,7 +189,7 @@ export function BookshopHudV1(props: {
           data-bookshop-action-id={action.actionId}
           onClick={() =>
             void props.semantic.dispatch(
-              Object.freeze({ kind: "invoke" as const, actionId: action.actionId }),
+              { kind: "invoke" as const, actionId: action.actionId },
             )}
         >
           {bookshopUiTextV1(actionTextIdsV1[action.actionId])}

@@ -106,11 +106,11 @@ export interface NarrativePredictionBudgetV1 {
   readonly maxAssets: number;
 }
 
-export const defaultNarrativePredictionBudgetV1: NarrativePredictionBudgetV1 = Object.freeze({
+export const defaultNarrativePredictionBudgetV1: NarrativePredictionBudgetV1 = {
   maxNodes: 64,
   maxDepth: 16,
   maxAssets: 32,
-});
+};
 
 export interface NarrativePredictionV1 {
   readonly visitedNodeIds: readonly string[];
@@ -170,13 +170,13 @@ export function predictNarrativeDependenciesV1(
     }
   }
 
-  return Object.freeze({
-    visitedNodeIds: Object.freeze([...visited]),
-    textIds: Object.freeze([...textIds]),
-    assetIds: Object.freeze([...assetIds]),
-    stageContentIds: Object.freeze([...stageContentIds]),
+  return {
+    visitedNodeIds: [...visited],
+    textIds: [...textIds],
+    assetIds: [...assetIds],
+    stageContentIds: [...stageContentIds],
     truncated,
-  });
+  };
 }
 
 /**

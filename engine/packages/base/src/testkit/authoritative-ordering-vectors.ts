@@ -94,7 +94,7 @@ function isRecordV1(value: unknown): value is Readonly<Record<string, unknown>> 
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-const orderingContentRowSchemaV1: RuntimeSchemaV1<OrderingContentRowV1> = Object.freeze({
+const orderingContentRowSchemaV1: RuntimeSchemaV1<OrderingContentRowV1> = {
   parse(value: unknown): OrderingContentRowV1 {
     if (!isRecordV1(value) || Object.keys(value).sort().join("\0") !== "id\0label\0score") {
       throw new TypeError("invalid authoritative ordering content row");
@@ -102,15 +102,15 @@ const orderingContentRowSchemaV1: RuntimeSchemaV1<OrderingContentRowV1> = Object
     if (typeof value.id !== "string" || typeof value.label !== "string") {
       throw new TypeError("invalid authoritative ordering content strings");
     }
-    return Object.freeze({
+    return ({
       id: value.id,
       label: value.label,
       score: parseNonNegativeSafeInteger(value.score),
     });
   },
-});
+};
 
-const orderingIntegerRowSchemaV1: RuntimeSchemaV1<OrderingContentRowV1> = Object.freeze({
+const orderingIntegerRowSchemaV1: RuntimeSchemaV1<OrderingContentRowV1> = {
   parse(value: unknown): OrderingContentRowV1 {
     if (!isRecordV1(value) || Object.keys(value).sort().join("\0") !== "id\0label\0score") {
       throw new TypeError("invalid authoritative integer ordering row");
@@ -124,9 +124,9 @@ const orderingIntegerRowSchemaV1: RuntimeSchemaV1<OrderingContentRowV1> = Object
     ) {
       throw new TypeError("invalid authoritative integer ordering values");
     }
-    return Object.freeze({ id: value.id, label: value.label, score: value.score });
+    return ({ id: value.id, label: value.label, score: value.score });
   },
-});
+};
 
 function runContentDatabaseVectorsV1() {
   const labels = ["\ue000", "\u{1f600}", "\u00e9", "e\u0301", "a_1", "a-1", "a", "A"];
@@ -149,50 +149,50 @@ function runContentDatabaseVectorsV1() {
   const database = createContentDatabaseV1({ tables: [labelsTable, integersTable] });
   const labelsView = database.table(labelsTable);
   const integersView = database.table(integersTable);
-  return Object.freeze({
-    utf16Ascending: Object.freeze(
-      labelsView.findMany({ orderBy: "label", direction: "asc" }).map((row) => row.label),
+  return ({
+    utf16Ascending: labelsView.findMany({ orderBy: "label", direction: "asc" }).map((row) =>
+      row.label
     ),
-    utf16Descending: Object.freeze(
-      labelsView.findMany({ orderBy: "label", direction: "desc" }).map((row) => row.label),
+    utf16Descending: labelsView.findMany({ orderBy: "label", direction: "desc" }).map((row) =>
+      row.label
     ),
-    safeIntegersAscending: Object.freeze(
-      integersView.findMany({ orderBy: "score", direction: "asc" }).map((row) => row.score),
-    ),
-    safeIntegersDescending: Object.freeze(
-      integersView.findMany({ orderBy: "score", direction: "desc" }).map((row) => row.score),
-    ),
+    safeIntegersAscending: integersView.findMany({ orderBy: "score", direction: "asc" }).map((
+      row,
+    ) => row.score),
+    safeIntegersDescending: integersView.findMany({ orderBy: "score", direction: "desc" }).map((
+      row,
+    ) => row.score),
   });
 }
 
 function runEventPoolVectorsV1() {
-  const candidates = Object.freeze([
-    Object.freeze({
+  const candidates = [
+    {
       eventId: "event.alpha",
       weight: 2,
-      condition: Object.freeze({
+      condition: {
         kind: "number" as const,
         key: "score",
         op: "gte" as const,
         value: 4,
-      }),
-    }),
-    Object.freeze({ eventId: "event.beta", weight: 3, condition: null }),
-    Object.freeze({
+      },
+    },
+    { eventId: "event.beta", weight: 3, condition: null },
+    {
       eventId: "event.hidden",
       weight: 4,
-      condition: Object.freeze({
+      condition: {
         kind: "flag" as const,
         flag: "hidden.enabled",
         present: true,
-      }),
-    }),
-  ]);
-  const context = Object.freeze({
-    numbers: Object.freeze({ score: 4 }),
-    flags: Object.freeze([]),
-    labels: Object.freeze({ phase: "neutral" }),
-  });
+      },
+    },
+  ];
+  const context = {
+    numbers: { score: 4 },
+    flags: [],
+    labels: { phase: "neutral" },
+  };
   const ordinaryRng = createTransactionalRngV1(parseNonZeroUint32(97));
   const ordinaryResult = drawFromEventPoolV1({
     candidates,
@@ -208,46 +208,32 @@ function runEventPoolVectorsV1() {
     purpose: "check:det2e.event-pool",
     force: "event.beta",
   });
-  return Object.freeze({
-    ordinary: Object.freeze({
+  return ({
+    ordinary: {
       result: ordinaryResult,
       candidateRng: ordinaryRng.candidateState(),
       attemptedDraws: ordinaryRng.attemptedDraws(),
-    }),
-    forced: Object.freeze({
+    },
+    forced: {
       result: forcedResult,
       candidateRng: forcedRng.candidateState(),
       attemptedDraws: forcedRng.attemptedDraws(),
-    }),
-  });
-}
-
-function orderingSliceSchemaV1(label: string): RuntimeSchemaV1<OrderingSliceV1> {
-  return Object.freeze({
-    parse(value: unknown): OrderingSliceV1 {
-      if (!isRecordV1(value) || Object.keys(value).join("\0") !== "value") {
-        throw new TypeError(`invalid ${label} ordering slice`);
-      }
-      return Object.freeze({ value: parseNonNegativeSafeInteger(value.value) });
     },
   });
 }
 
-const orderingStateSchemaV1: RuntimeSchemaV1<OrderingStateV1> = Object.freeze({
-  parse(value: unknown): OrderingStateV1 {
-    if (!isRecordV1(value) || !isRecordV1(value.simulation)) {
-      throw new TypeError("invalid authoritative ordering state");
-    }
-    return Object.freeze({
-      simulation: Object.freeze({
-        dash: orderingSliceSchemaV1("dash").parse(value.simulation.dash),
-        underscore: orderingSliceSchemaV1("underscore").parse(value.simulation.underscore),
-      }),
-    });
-  },
-});
+function orderingSliceSchemaV1(label: string): RuntimeSchemaV1<OrderingSliceV1> {
+  return ({
+    parse(value: unknown): OrderingSliceV1 {
+      if (!isRecordV1(value) || Object.keys(value).join("\0") !== "value") {
+        throw new TypeError(`invalid ${label} ordering slice`);
+      }
+      return ({ value: parseNonNegativeSafeInteger(value.value) });
+    },
+  });
+}
 
-const orderingCommandSchemaV1: RuntimeSchemaV1<OrderingCommandV1> = Object.freeze({
+const orderingCommandSchemaV1: RuntimeSchemaV1<OrderingCommandV1> = {
   parse(value: unknown): OrderingCommandV1 {
     if (!isRecordV1(value) || Object.keys(value).join("\0") !== "kind") {
       throw new TypeError("invalid authoritative ordering command");
@@ -255,11 +241,11 @@ const orderingCommandSchemaV1: RuntimeSchemaV1<OrderingCommandV1> = Object.freez
     if (value.kind !== "ordering.commit") {
       throw new TypeError("unknown authoritative ordering command");
     }
-    return Object.freeze({ kind: value.kind });
+    return ({ kind: value.kind });
   },
-});
+};
 
-const orderingEventSchemaV1: RuntimeSchemaV1<OrderingEventV1> = Object.freeze({
+const orderingEventSchemaV1: RuntimeSchemaV1<OrderingEventV1> = {
   parse(value: unknown): OrderingEventV1 {
     if (
       !isRecordV1(value) ||
@@ -268,13 +254,13 @@ const orderingEventSchemaV1: RuntimeSchemaV1<OrderingEventV1> = Object.freeze({
     ) {
       throw new TypeError("invalid authoritative ordering event");
     }
-    return Object.freeze({
+    return ({
       kind: "ordering.value_applied" as const,
       module: value.module,
       value: parseNonNegativeSafeInteger(value.value),
     });
   },
-});
+};
 
 function createOrderingTransactionRunnerV1(trace?: OrderingTraceV1) {
   const kit = createGameAuthoringKitV1<OrderingTypesV1>();
@@ -287,13 +273,13 @@ function createOrderingTransactionRunnerV1(trace?: OrderingTraceV1) {
     state: {
       slot: "simulation.dash",
       schema: orderingSliceSchemaV1("dash"),
-      initial: () => Object.freeze({ value: 1 }),
+      initial: () => ({ value: 1 }),
     },
     reducers: {
       "ordering.value_applied": (state, event) => {
         trace?.foldOrder.push("order.a-1");
         if (event.module !== "order.a-1") return state as OrderingSliceV1;
-        return Object.freeze({ value: parseNonNegativeSafeInteger(event.value) });
+        return ({ value: parseNonNegativeSafeInteger(event.value) });
       },
     },
   });
@@ -303,22 +289,21 @@ function createOrderingTransactionRunnerV1(trace?: OrderingTraceV1) {
     state: {
       slot: "simulation.underscore",
       schema: orderingSliceSchemaV1("underscore"),
-      initial: () => Object.freeze({ value: 10 }),
+      initial: () => ({ value: 10 }),
     },
     reducers: {
       "ordering.value_applied": (state, event) => {
         trace?.foldOrder.push("order.a_1");
         if (event.module !== "order.a_1") return state as OrderingSliceV1;
-        return Object.freeze({ value: parseNonNegativeSafeInteger(event.value) });
+        return ({ value: parseNonNegativeSafeInteger(event.value) });
       },
     },
   });
   const runner = kit.composeModules([underscore, dash]).createTransactionRunner({
-    stateSchema: orderingStateSchemaV1,
     eventSchema: orderingEventSchemaV1,
-    createFault: () => Object.freeze({ code: "ordering.faulted" as const }),
+    createFault: () => ({ code: "ordering.faulted" as const }),
   });
-  return Object.freeze({ runner });
+  return ({ runner });
 }
 
 function executeOrderingAttemptV1(
@@ -358,29 +343,29 @@ function initialOrderingSnapshotV1(): OrderingSnapshotV1 {
 const orderingDigestV1 = (label: string) =>
   digestBytes(new TextEncoder().encode(`det2e-authoritative-ordering:${label}`));
 
-const orderingProvenanceV1: BuildProvenanceV1 = Object.freeze({
-  story: Object.freeze({
+const orderingProvenanceV1: BuildProvenanceV1 = {
+  story: {
     id: "story.det2e-authoritative-ordering",
     revision: parsePositiveSafeInteger(1),
     digest: orderingDigestV1("story"),
-  }),
-  engine: Object.freeze({
+  },
+  engine: {
     version: "det2e-authoritative-ordering-v1",
     digest: orderingDigestV1("engine"),
-  }),
-  resolved: Object.freeze({
+  },
+  resolved: {
     stateContractRevision: parsePositiveSafeInteger(1),
     stateContractDigest: orderingDigestV1("state-contract"),
     simulationDigest: orderingDigestV1("simulation"),
     presentationDigest: orderingDigestV1("presentation"),
-    patchSet: Object.freeze({
+    patchSet: {
       digest: orderingDigestV1("patch-set"),
       simulationDigest: orderingDigestV1("patch-set-simulation"),
       presentationDigest: orderingDigestV1("patch-set-presentation"),
-      appliedHotfixes: Object.freeze([]),
-    }),
-  }),
-});
+      appliedHotfixes: [],
+    },
+  },
+};
 
 async function runTransactionVectorV1() {
   const trace: OrderingTraceV1 = { foldOrder: [] };
@@ -396,17 +381,17 @@ async function runTransactionVectorV1() {
       return faultAttemptV1(
         snapshot,
         createTransactionalRngV1(snapshot.rng),
-        Object.freeze({ code: "ordering.faulted" as const }),
+        { code: "ordering.faulted" as const },
       );
     },
   });
-  const dispatch = await created.session.dispatch(Object.freeze({ kind: "ordering.commit" }));
+  const dispatch = await created.session.dispatch({ kind: "ordering.commit" });
   if (dispatch.kind !== "executed" || dispatch.execution.kind !== "committed") {
     throw new TypeError("authoritative ordering vector did not commit");
   }
   const commandLog = created.commandLog.entries();
   const replay = await replayAuthoritativelyFromAttemptsInternalV1({
-    identity: Object.freeze({ provenance: orderingProvenanceV1 }),
+    identity: { provenance: orderingProvenanceV1 },
     replayBase: created.commandLog.replayBase(),
     replayBaseStateDigest: created.commandLog.replayBaseStateDigest(),
     commandLog,
@@ -420,9 +405,9 @@ async function runTransactionVectorV1() {
       return executeOrderingAttemptV1(snapshot, replayTrace);
     },
   });
-  return Object.freeze({
-    foldOrder: Object.freeze([...trace.foldOrder]),
-    replayFoldOrder: Object.freeze([...replayTrace.foldOrder]),
+  return ({
+    foldOrder: [...trace.foldOrder],
+    replayFoldOrder: [...replayTrace.foldOrder],
     events: dispatch.execution.events,
     candidateSnapshot: dispatch.execution.snapshot,
     commandLog,
@@ -437,7 +422,7 @@ async function runTransactionVectorV1() {
  * intentionally has no broad package-barrel export.
  */
 export async function runAuthoritativeOrderingVectorsV1() {
-  return Object.freeze({
+  return ({
     eventPool: runEventPoolVectorsV1(),
     contentDatabase: runContentDatabaseVectorsV1(),
     transaction: await runTransactionVectorV1(),

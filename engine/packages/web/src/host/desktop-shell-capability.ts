@@ -16,14 +16,9 @@ export function parseDesktopShellCapabilityInternalV1(value: unknown): string | 
  * values, and cannot follow a redirect to another origin.
  */
 export function createDesktopShellFetchInternalV1(
-  capabilityValue: unknown,
+  capability: string,
   baseFetch: typeof fetch = fetch.bind(globalThis),
 ): typeof fetch {
-  const capability = parseDesktopShellCapabilityInternalV1(capabilityValue);
-  if (capability === null) {
-    throw new TypeError("web.desktop_shell_capability_invalid");
-  }
-
   return (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const headers = new Headers(input instanceof Request ? input.headers : undefined);
     new Headers(init?.headers).forEach((value, key) => headers.set(key, value));

@@ -84,7 +84,7 @@ import {
 } from "./whole-canvas-conformance.tsx";
 
 /** The Engine Lab logical canvas: a 16:10 design resolution. */
-export const labViewportCanvasV1 = Object.freeze({ width: 1600, height: 1000 });
+export const labViewportCanvasV1 = { width: 1600, height: 1000 };
 
 type LabSemanticPublicationV1 = ReturnType<LabApplicationInstanceV1["semantic"]["observe"]>;
 
@@ -111,11 +111,11 @@ export type LabUiOverlayIdV1 =
   | "overlay.lab.shop"
   | LabOverlayConformanceIdV1;
 
-export const labWorkspaceOverlayDefinitionsV1 = Object.freeze([
+export const labWorkspaceOverlayDefinitionsV1 = [
   defineWorkspaceOverlayV1({ id: "overlay.lab.journal", contractRevision: 1 }),
   defineWorkspaceOverlayV1({ id: "overlay.lab.shop", contractRevision: 1 }),
   ...labOverlayConformanceDefinitionsV1,
-]);
+];
 
 export { labUiTextV1 } from "./ui-text.ts";
 
@@ -127,7 +127,7 @@ const labUiProjectorDefinitionV1: GameUiProjectorV1<
   AssetId
 > = {
   resolvedCatalog: null,
-  initialUiState: Object.freeze({}),
+  initialUiState: {},
   project: (input) => {
     // The render target is derived data: same semantic stage plus the same
     // catalog always rebuild the same target and the same exact asset demand.
@@ -135,8 +135,8 @@ const labUiProjectorDefinitionV1: GameUiProjectorV1<
       input.semantic.game.stage,
       labStageContentCatalogV1,
     );
-    return Object.freeze({
-      view: Object.freeze({
+    return ({
+      view: {
         stageName: labUiTextV1("text.e2e.lab.stage.name"),
         samplesCollected: input.semantic.game.samplesCollected,
         credits: input.semantic.game.credits,
@@ -144,16 +144,14 @@ const labUiProjectorDefinitionV1: GameUiProjectorV1<
         procedureSteps: input.semantic.game.procedureSteps,
         anchorEpoch: input.uiState.anchor.epoch,
         stageTarget: projection.target,
-        stageDiagnosticCodes: Object.freeze(
-          projection.diagnostics.map((diagnostic) => diagnostic.code),
-        ),
-      }),
+        stageDiagnosticCodes: projection.diagnostics.map((diagnostic) => diagnostic.code),
+      },
       requiredAssetIds: projection.target.requiredAssetIds,
     });
   },
 };
 
-export const labUiProjectorV1 = Object.freeze(labUiProjectorDefinitionV1);
+export const labUiProjectorV1 = labUiProjectorDefinitionV1;
 
 type LabSemanticPortV1 = LabApplicationInstanceV1["semantic"];
 
@@ -169,7 +167,7 @@ const labUiSlotsDefinitionV1: DefaultGameRootSlotsV1<
       <Button
         onClick={() =>
           context.intents.execute(
-            Object.freeze({ kind: "overlay.open" as const, overlayId: "overlay.lab.journal" }),
+            { kind: "overlay.open" as const, overlayId: "overlay.lab.journal" },
           )}
       >
         {labUiTextV1("text.e2e.lab.overlay.journal.open")}
@@ -177,43 +175,42 @@ const labUiSlotsDefinitionV1: DefaultGameRootSlotsV1<
       <Button
         onClick={() =>
           context.intents.execute(
-            Object.freeze({ kind: "overlay.open" as const, overlayId: "overlay.lab.shop" }),
+            { kind: "overlay.open" as const, overlayId: "overlay.lab.shop" },
           )}
       >
         {labUiTextV1("text.e2e.lab.overlay.shop.open")}
       </Button>
     </>
   ),
-  overlayResolver: (context) =>
-    Object.freeze({
-      resolve: (overlayId: DeepReadonly<LabUiOverlayIdV1>) => {
-        if (overlayId === "overlay.lab.journal") {
-          return Object.freeze({
-            accessibleName: labUiTextV1("text.e2e.lab.overlay.journal.title"),
-            content: (
-              <dl data-lab-journal="true">
-                <dt>{labUiTextV1("text.e2e.lab.hud.samples")}</dt>
-                <dd>{String(context.publication.view.samplesCollected)}</dd>
-                <dt>{labUiTextV1("text.e2e.lab.hud.steps")}</dt>
-                <dd>{String(context.publication.view.procedureSteps)}</dd>
-              </dl>
-            ),
-          });
-        }
-        if (overlayId === "overlay.lab.shop") {
-          return Object.freeze({
-            accessibleName: labUiTextV1("text.e2e.lab.overlay.shop.title"),
-            content: (
-              <LabShopOverlayV1 publication={context.publication} semantic={context.semantic} />
-            ),
-          });
-        }
-        return null;
-      },
-    }),
+  overlayResolver: (context) => ({
+    resolve: (overlayId: DeepReadonly<LabUiOverlayIdV1>) => {
+      if (overlayId === "overlay.lab.journal") {
+        return ({
+          accessibleName: labUiTextV1("text.e2e.lab.overlay.journal.title"),
+          content: (
+            <dl data-lab-journal="true">
+              <dt>{labUiTextV1("text.e2e.lab.hud.samples")}</dt>
+              <dd>{String(context.publication.view.samplesCollected)}</dd>
+              <dt>{labUiTextV1("text.e2e.lab.hud.steps")}</dt>
+              <dd>{String(context.publication.view.procedureSteps)}</dd>
+            </dl>
+          ),
+        });
+      }
+      if (overlayId === "overlay.lab.shop") {
+        return ({
+          accessibleName: labUiTextV1("text.e2e.lab.overlay.shop.title"),
+          content: (
+            <LabShopOverlayV1 publication={context.publication} semantic={context.semantic} />
+          ),
+        });
+      }
+      return null;
+    },
+  }),
 };
 
-export const labUiSlotsV1 = Object.freeze(labUiSlotsDefinitionV1);
+export const labUiSlotsV1 = labUiSlotsDefinitionV1;
 
 /** The saveable continuous intent lives on the Lab's game view. */
 const selectLabAudioIntentV1 = (publication: unknown): AudioIntentV1 =>
@@ -298,43 +295,43 @@ export function createLabUiSlotsV1(input: {
     overlayResolver: (context) => {
       const storyResolver = labUiSlotsDefinitionV1.overlayResolver?.(context);
       const overlays = asLabOverlayControllerV1(context.overlays);
-      return Object.freeze({
+      return ({
         resolve: (overlayId: DeepReadonly<LabUiOverlayIdV1>) =>
           overlayConformance.resolve(overlayId, overlays) ?? storyResolver?.resolve(overlayId) ??
             null,
       });
     },
   };
-  return Object.freeze(slots);
+  return slots;
 }
 
 /** The Engine Lab keyboard map: stage-level shortcuts, never form keys. */
-export const labKeyboardMapV1: KeyboardActionMapV1 = Object.freeze({
+export const labKeyboardMapV1: KeyboardActionMapV1 = {
   Enter: systemInputActionIdsV1.narrativeAdvance,
   Space: systemInputActionIdsV1.narrativeAdvance,
   KeyA: playerInputActionIdsV1.toggleAuto,
   KeyS: playerInputActionIdsV1.toggleSkip,
   KeyH: playerInputActionIdsV1.toggleHistory,
   KeyV: playerInputActionIdsV1.replayVoice,
-});
+};
 
 /** The Engine Lab gamepad map: A advances, X/Y toggle auto/skip. */
-export const labGamepadMapV1: GamepadActionMapV1 = Object.freeze({
+export const labGamepadMapV1: GamepadActionMapV1 = {
   0: systemInputActionIdsV1.narrativeAdvance,
   2: playerInputActionIdsV1.toggleAuto,
   3: playerInputActionIdsV1.toggleSkip,
-});
+};
 
-export const labRootLabelsV1: Partial<DefaultGameRootLabelsV1> = Object.freeze({
+export const labRootLabelsV1: Partial<DefaultGameRootLabelsV1> = {
   systemMenuLabel: "系统",
   saveLabel: "保存",
   settingsLabel: "设置",
   settingsTitle: "设置",
   settingsEmptyText: "暂无可配置项。",
   closeLabel: "关闭",
-});
+};
 
-const labReferenceSettingsLabelsV1: Partial<DefaultSettingsLabelsV1> = Object.freeze({
+const labReferenceSettingsLabelsV1: Partial<DefaultSettingsLabelsV1> = {
   bgmVolumeLabel: "音乐音量",
   voiceVolumeLabel: "语音音量",
   sfxVolumeLabel: "音效音量",
@@ -343,9 +340,9 @@ const labReferenceSettingsLabelsV1: Partial<DefaultSettingsLabelsV1> = Object.fr
   autoWaitLabel: "自动播放停留",
   fullscreenLabel: "切换全屏",
   developerToolsLabel: "开发者工具",
-});
+};
 
-export const labSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
+export const labSaveOverlayLabelsV1: SaveOverlayLabelsV1 = {
   accessibleName: "保存",
   title: "保存",
   storageLoading: "正在读取本地存档…",
@@ -355,19 +352,19 @@ export const labSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
   slotsUnavailable: "无法读取存档槽",
   safelySaved: (commandSequence: number) => `已安全保存至指令 ${String(commandSequence)}`,
   lastFailure: (code: string) => `上次存档失败：${code}`,
-  slotNames: Object.freeze({
+  slotNames: {
     "auto.current": "当前自动存档",
     "auto.previous": "上一自动存档",
     quick: "快速存档",
     manualSlot: (index: number) => `手动存档 ${index}`,
-  }),
-  slotHealth: Object.freeze({
+  },
+  slotHealth: {
     empty: "空",
     valid: "可用",
     invalid: "已损坏",
     recovery_candidate: "可恢复",
     unavailable: "不可用",
-  }),
+  },
   quickSave: "快速保存",
   manualSave: "手动保存",
   importSave: "导入存档",
@@ -375,7 +372,7 @@ export const labSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
   loadSlot: (slotName: string) => `载入${slotName}`,
   clearSlot: (slotName: string) => `清除${slotName}`,
   exportSlot: (slotName: string) => `导出${slotName}`,
-  confirmation: Object.freeze({
+  confirmation: {
     loadTitle: (slotName: string) => `载入${slotName}`,
     loadDescription: (slotName: string) => `当前进度将被${slotName}替换。`,
     clearTitle: (slotName: string) => `清除${slotName}`,
@@ -387,8 +384,8 @@ export const labSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
     pendingText: "正在处理…",
     completedText: "操作完成",
     failedText: "操作失败",
-  }),
-  operation: Object.freeze({
+  },
+  operation: {
     saving: (slotName: string) => `正在保存到${slotName}…`,
     loading: (slotName: string) => `正在载入${slotName}…`,
     clearing: (slotName: string) => `正在清除${slotName}…`,
@@ -402,13 +399,13 @@ export const labSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
     importedExact: "已导入存档",
     importedAdopted: "已兼容导入存档",
     importCancelled: "已取消导入存档",
-    importFileRejected: Object.freeze({
+    importFileRejected: {
       too_large: "所选存档文件过大",
       unsupported_type: "所选文件类型不受支持",
-    }),
+    },
     exported: (slotName: string) => `已导出${slotName}`,
     exportedCurrent: "已导出当前进度",
-    rejected: Object.freeze({
+    rejected: {
       busy: "会话正忙",
       unavailable: "存储不可用",
       empty_slot: "存档槽为空",
@@ -420,19 +417,19 @@ export const labSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
       migration_unavailable: "当前版本尚未提供此存档所需的迁移",
       migration_rejected: "存档迁移失败",
       incompatible: "存档不兼容",
-    }),
-    exportRejected: Object.freeze({
+    },
+    exportRejected: {
       unavailable: "存储不可用",
       empty_slot: "存档槽为空",
       conflict: "存档发生冲突",
       invalid_record: "存档无效",
-    }),
+    },
     faulted: (code: string) => `存档故障：${code}`,
     unexpectedFailure: "存档操作意外失败",
-  }),
-  recovery: Object.freeze({
+  },
+  recovery: {
     checking: "正在检查存档兼容性…",
-    confirmation: Object.freeze({
+    confirmation: {
       reanchorTitle: (slotName: string) => `重建${slotName}兼容基线`,
       reanchorDescription: (slotName: string) =>
         `${slotName}将以当前版本重建兼容基线，并保留可恢复备份。`,
@@ -440,8 +437,8 @@ export const labSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
       restoreDescription: (slotName: string) => `${slotName}将被升级前备份替换。`,
       discardTitle: (slotName: string) => `丢弃${slotName}备份`,
       discardDescription: (slotName: string) => `${slotName}的升级前备份将被永久删除。`,
-    }),
-    disposition: Object.freeze({
+    },
+    disposition: {
       direct: "可直接载入",
       migration_required: "需要升级存档数据",
       adoption_required: "需要应用兼容更新",
@@ -453,21 +450,21 @@ export const labSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
       invalid_record: "无法安全检查此存档",
       unavailable: "暂时无法检查此存档",
       faulted: "存档兼容性检查失败",
-    }),
-    backup: Object.freeze({
+    },
+    backup: {
       available: "升级前备份可用",
       invalid: "升级前备份已损坏",
       unavailable: "暂时无法检查升级前备份",
-    }),
-    action: Object.freeze({
+    },
+    action: {
       inspect: "检查兼容性与备份",
       upgrade: "安全升级",
       reanchor: "重建兼容基线",
       restore: "恢复升级前备份",
       exportBackup: "导出升级前备份",
       discard: "丢弃升级前备份",
-    }),
-    operation: Object.freeze({
+    },
+    operation: {
       upgrading: (slotName: string) => `正在升级${slotName}…`,
       reanchoring: (slotName: string) => `正在重建${slotName}兼容基线…`,
       restoring: (slotName: string) => `正在恢复${slotName}备份…`,
@@ -479,7 +476,7 @@ export const labSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
       restored: "升级前备份已恢复；请载入该存档槽以继续",
       backupExported: "升级前备份已导出",
       discarded: "升级前备份已丢弃",
-      rejected: Object.freeze({
+      rejected: {
         busy: "恢复操作正在进行，请稍后重试",
         unavailable: "本地存储暂时不可用",
         empty_slot: "该槽位没有可升级的存档",
@@ -493,11 +490,11 @@ export const labSaveOverlayLabelsV1: SaveOverlayLabelsV1 = Object.freeze({
         not_required: "该存档无需执行此操作",
         empty_backup: "该槽位没有升级前备份",
         invalid_backup: "升级前备份已损坏",
-      }),
+      },
       faulted: "恢复操作失败，请重试",
-    }),
-  }),
-});
+    },
+  },
+};
 
 function createLabUiDisposeV1(
   overlayConformance: LabOverlayConformanceV1,
@@ -557,12 +554,12 @@ export function createLabGameUiDefinitionV1(
     semantic: input.instance.semantic,
     replayCurrentVoice: () => replayVoiceRef.current?.() ?? false,
   });
-  return Object.freeze({
+  return ({
     projector: labUiProjectorV1,
     narrative,
     ...(wholeCanvasConformance === null ? {} : { wholeCanvas: wholeCanvasConformance.definition }),
     overlayDefinitions: labWorkspaceOverlayDefinitionsV1,
-    cueIds: Object.freeze([labBeaconPulseCueIdV1]),
+    cueIds: [labBeaconPulseCueIdV1],
     slots: createLabUiSlotsV1({
       instance: input.instance,
       overlayConformance,
@@ -579,29 +576,29 @@ export function createLabGameUiDefinitionV1(
     // The Host metronome: unfenced session time flows to the Story's time
     // command while any monitor is accumulating; the composer itself closes
     // the gate during holds and while the document is hidden.
-    timeReporting: Object.freeze({
+    timeReporting: {
       quantumMs: labTimeReportingQuantumMsV1,
       enabledWhen: (publication: unknown) =>
         labMonitorGatesV1(publication)?.reportingActive === true,
       dispatch: (elapsedMs: number) =>
-        input.instance.semantic.dispatch(Object.freeze({
+        input.instance.semantic.dispatch({
           kind: "time" as const,
-          tick: Object.freeze({ elapsedMs }),
-        })),
-    }),
+          tick: { elapsedMs },
+        }),
+    },
     // The decision gauge is a realtime reaction span: while it is up the
     // host pins the presentation rate to exactly 1x.
     realtimeWindow: (publication: unknown) =>
       labMonitorGatesV1(publication)?.realtimeActive === true,
-    input: Object.freeze({
+    input: {
       keyboard: wholeCanvasConformanceEnabled
-        ? Object.freeze({ ...labKeyboardMapV1, ...labWholeCanvasKeyboardMapV1 })
+        ? ({ ...labKeyboardMapV1, ...labWholeCanvasKeyboardMapV1 })
         : labKeyboardMapV1,
       gamepad: labGamepadMapV1,
       ...(overlayConformanceEnabled || wholeCanvasConformanceEnabled
-        ? { pointer: Object.freeze({ secondary: systemInputActionIdsV1.cancel }) }
+        ? { pointer: { secondary: systemInputActionIdsV1.cancel } }
         : {}),
-    }),
+    },
     dispose: createLabUiDisposeV1(
       overlayConformance,
       wholeCanvasConformance,
@@ -633,13 +630,13 @@ export const labGameApplicationV1: WebGameApplicationV1<
   LabPresentationViewV1,
   AssetId,
   LabUiOverlayIdV1
-> = Object.freeze({
+> = {
   applicationId: "e2e",
   accessibleName: "引擎实验室",
-  viewport: Object.freeze({
+  viewport: {
     canvas: labViewportCanvasV1,
-    fallbackSize: Object.freeze({ width: 1600, height: 1000 }),
-  }),
+    fallbackSize: { width: 1600, height: 1000 },
+  },
   core: labCoreApplicationDefinitionV1,
   ...(applicationBuildIdentityInputInternalV1 === undefined
     ? {}
@@ -658,7 +655,7 @@ export const labGameApplicationV1: WebGameApplicationV1<
     readonly presentationRate: PresentationRatePortV1;
   }) => {
     const definition = createLabGameUiDefinitionV1({ instance });
-    return Object.freeze({
+    return ({
       ...definition,
       outerUi: createReferencePlayerOuterUiV1({
         instance,
@@ -674,7 +671,7 @@ export const labGameApplicationV1: WebGameApplicationV1<
       }),
     });
   },
-});
+};
 
 export interface LabGameApplicationHmrModuleV1 {
   readonly labGameApplicationV1: typeof labGameApplicationV1;
@@ -724,7 +721,7 @@ function ownViteHotAdapterV1(input: {
     applicationFromModule: (module) => module.labGameApplicationV1,
     resolveApplicationProvenance: resolveLabGameApplicationProvenanceV1,
     r3InvalidationMessage: "e2e.hmr_application_identity_changed",
-    registration: Object.freeze({
+    registration: {
       accept(handler: (module: LabGameApplicationHmrModuleV1 | undefined) => void): void {
         if (input.hot !== undefined) {
           input.hot.accept(handler as (module: unknown) => void);
@@ -748,7 +745,7 @@ function ownViteHotAdapterV1(input: {
         }
         import.meta.hot.invalidate(message);
       },
-    }),
+    },
   });
 }
 

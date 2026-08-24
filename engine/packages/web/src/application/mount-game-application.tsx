@@ -25,7 +25,7 @@ function mountGameApplicationInternalV1(
       : { onUncaughtError: options.onUncaughtError },
   );
   root.render(application);
-  return Object.freeze({ unmount: () => root.unmount() });
+  return ({ unmount: () => root.unmount() });
 }
 
 export function mountGameApplicationV1(

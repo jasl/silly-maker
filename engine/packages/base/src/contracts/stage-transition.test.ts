@@ -82,7 +82,6 @@ describe("stage transition definition contract", () => {
     expect(definition.kind).toBe("motion");
     expect(definition.motion?.motionId).toBe("motion.test.enter");
     expect(definition.durationMs).toBe(350);
-    expect(Object.isFrozen(definition)).toBe(true);
   });
 
   it("motionStageTransitionV1 binds a raw document with derived duration and defaults", () => {
@@ -148,7 +147,7 @@ describe("stage transition definition contract", () => {
 });
 
 describe("stage cue dispatch admission", () => {
-  it("admits cue and open dispatch forms and freezes the list", () => {
+  it("admits cue and open dispatch forms", () => {
     const dispatches = parseStageCueDispatchesV1([
       { sceneId: "scene.app.opening", cueId: "cue.app.opening.hero-enters" },
       { sceneId: "scene.app.opening", open: true },
@@ -157,8 +156,6 @@ describe("stage cue dispatch admission", () => {
       { sceneId: "scene.app.opening", cueId: "cue.app.opening.hero-enters" },
       { sceneId: "scene.app.opening", open: true },
     ]);
-    expect(Object.isFrozen(dispatches)).toBe(true);
-    expect(Object.isFrozen(dispatches[0])).toBe(true);
     expect(parseStageCueDispatchesV1([])).toEqual([]);
   });
 

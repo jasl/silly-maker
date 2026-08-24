@@ -15,7 +15,7 @@ export type GameSymbolPropsV1 = {
 } & GameSymbolAccessibilityV1;
 
 const supportedSizesV1 = new Set<number>([16, 20, 24, 32]);
-const fallbackBaseStyleV1 = Object.freeze({
+const fallbackBaseStyleV1 = {
   alignItems: "center",
   background: "currentColor",
   border: "1px solid currentColor",
@@ -28,7 +28,7 @@ const fallbackBaseStyleV1 = Object.freeze({
   opacity: 1,
   pointerEvents: "none",
   userSelect: "none",
-}) satisfies CSSProperties;
+} satisfies CSSProperties;
 
 interface GameSymbolProviderBoundaryPropsV1 {
   readonly children: ReactNode;
@@ -43,10 +43,10 @@ class GameSymbolProviderBoundaryV1 extends Component<
   GameSymbolProviderBoundaryPropsV1,
   GameSymbolProviderBoundaryStateV1
 > {
-  public state: GameSymbolProviderBoundaryStateV1 = Object.freeze({ failed: false });
+  public state: GameSymbolProviderBoundaryStateV1 = { failed: false };
 
   public static getDerivedStateFromError(): GameSymbolProviderBoundaryStateV1 {
-    return Object.freeze({ failed: true });
+    return { failed: true };
   }
 
   public render(): ReactNode {
@@ -67,7 +67,7 @@ function renderPropsV1(props: GameSymbolPropsV1): GameSymbolRenderPropsV1 {
     if ("accessibleName" in props && props.accessibleName !== undefined) {
       throw new TypeError("ui.game_symbol_accessibility_invalid");
     }
-    return Object.freeze({ size: props.size, decorative: true });
+    return { size: props.size, decorative: true };
   }
 
   if (typeof props.accessibleName !== "string" || props.accessibleName.trim().length === 0) {
@@ -75,12 +75,12 @@ function renderPropsV1(props: GameSymbolPropsV1): GameSymbolRenderPropsV1 {
   }
 
   return props.decorative === false
-    ? Object.freeze({
+    ? {
       size: props.size,
       accessibleName: props.accessibleName,
       decorative: false,
-    })
-    : Object.freeze({ size: props.size, accessibleName: props.accessibleName });
+    }
+    : { size: props.size, accessibleName: props.accessibleName };
 }
 
 function GameSymbolFallbackV1(props: {
@@ -88,11 +88,11 @@ function GameSymbolFallbackV1(props: {
   readonly renderProps: GameSymbolRenderPropsV1;
 }): ReactElement {
   const decorative = props.renderProps.decorative === true;
-  const sizeStyle = Object.freeze({
+  const sizeStyle = {
     ...fallbackBaseStyleV1,
     height: props.renderProps.size,
     width: props.renderProps.size,
-  }) satisfies CSSProperties;
+  } satisfies CSSProperties;
 
   return (
     <span

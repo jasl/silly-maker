@@ -46,11 +46,11 @@ function parseRecordShellV1<
     record = parseSaveRecordEnvelopeShellInternalV1(value, context.recordSchema);
   } catch (error) {
     if (error instanceof SaveRecordEnvelopeSchemaFailureV1) {
-      return Object.freeze({ kind: "rejected", code: error.code });
+      return { kind: "rejected", code: error.code };
     }
-    return Object.freeze({ kind: "rejected", code: "envelope.schema_invalid" });
+    return { kind: "rejected", code: "envelope.schema_invalid" };
   }
-  return Object.freeze({ kind: "parsed", record });
+  return { kind: "parsed", record };
 }
 
 function parseCurrentRecordSchemaV1<
@@ -67,12 +67,12 @@ function parseCurrentRecordSchemaV1<
   } {
   try {
     const record = parseCurrentSaveRecordEnvelopeInternalV1(shell, context.recordSchema);
-    return Object.freeze({ kind: "parsed", record });
+    return { kind: "parsed", record };
   } catch (error) {
     if (error instanceof RngStateSchemaFailureInternalV1) {
-      return Object.freeze({ kind: "rejected", code: error.code });
+      return { kind: "rejected", code: error.code };
     }
-    return Object.freeze({ kind: "rejected", code: "envelope.schema_invalid" });
+    return { kind: "rejected", code: "envelope.schema_invalid" };
   }
 }
 
@@ -90,12 +90,12 @@ function validateCurrentRecordCrossFieldsV1<
   } {
   try {
     context.validateEnvelope(record);
-    return Object.freeze({ kind: "validated", record });
+    return { kind: "validated", record };
   } catch (error) {
     if (error instanceof RngStateSchemaFailureInternalV1) {
-      return Object.freeze({ kind: "rejected", code: error.code });
+      return { kind: "rejected", code: error.code };
     }
-    return Object.freeze({ kind: "rejected", code: "envelope.schema_invalid" });
+    return { kind: "rejected", code: "envelope.schema_invalid" };
   }
 }
 
@@ -116,7 +116,7 @@ export function parseCurrentSaveRecordEnvelopeSchemaInternalV1<
 ): CurrentSaveRecordAdmissionInternalV1<TSaveRecord> {
   const parsed = parseCurrentRecordSchemaV1(shell, context);
   if (parsed.kind === "rejected") return parsed;
-  return Object.freeze({ kind: "admitted", record: parsed.record });
+  return { kind: "admitted", record: parsed.record };
 }
 
 /** @internal Cross-field admission for an already normalized current record. */
@@ -129,7 +129,7 @@ export function validateCurrentSaveRecordEnvelopeCrossFieldsInternalV1<
 ): CurrentSaveRecordAdmissionInternalV1<TSaveRecord> {
   const validated = validateCurrentRecordCrossFieldsV1(record, context);
   if (validated.kind === "rejected") return validated;
-  return Object.freeze({ kind: "admitted", record: validated.record });
+  return { kind: "admitted", record: validated.record };
 }
 
 /** @internal Current-Snapshot + cross-field admission without digest comparison. */
@@ -178,12 +178,23 @@ export function encodeSaveRecordInternalV1<
 ): Uint8Array {
   const parsed = parseSaveRecordEnvelopeInternalV1(record, context.recordSchema);
   context.validateEnvelope(parsed);
-  if (!hasMatchingStateDigestV1(parsed.stateDigest, parsed.snapshot, instrumentation)) {
+  return encodeAdmittedSaveRecordInternalV1(parsed, instrumentation);
+}
+
+/** @internal Encodes a current Save after schema and cross-field admission. */
+export function encodeAdmittedSaveRecordInternalV1<
+  TSnapshot,
+  TSaveRecord extends SaveRecordEnvelopeV1<TSnapshot, unknown, unknown, unknown>,
+>(
+  record: DeepReadonly<TSaveRecord>,
+  instrumentation?: SnapshotWorkInstrumentationV1,
+): Uint8Array {
+  if (!hasMatchingStateDigestV1(record.stateDigest, record.snapshot, instrumentation)) {
     throw new TypeError("Save state digest mismatch");
   }
   recordSnapshotWorkV1(instrumentation, "save_canonical_serialization");
   const encoded = canonicalJsonBytesWithStrictLimitsInternalV1(
-    parsed,
+    record,
     saveJsonLimitsV1,
     instrumentation,
   );
@@ -238,16 +249,16 @@ export function decodeSaveRecordEnvelopeShellInternalV1<
   recordSnapshotWorkV1(instrumentation, "strict_json_parse");
   const decoded = parseStrictJson(bytes, saveJsonLimitsV1);
   if (!decoded.ok) {
-    return Object.freeze({ kind: "rejected", code: decoded.error.code });
+    return { kind: "rejected", code: decoded.error.code };
   }
   const parsed = parseRecordShellV1(decoded.value, context);
   if (parsed.kind === "rejected") return parsed;
   if (
     !hasMatchingStateDigestV1(parsed.record.stateDigest, parsed.record.snapshot, instrumentation)
   ) {
-    return Object.freeze({ kind: "rejected", code: "digest.state_mismatch" });
+    return { kind: "rejected", code: "digest.state_mismatch" };
   }
-  return Object.freeze({ kind: "decoded_shell", record: parsed.record });
+  return { kind: "decoded_shell", record: parsed.record };
 }
 
 /** @internal Current-Snapshot + normalized-digest phase; absent from runtime barrels. */
@@ -264,10 +275,10 @@ export function decodeCurrentSaveRecordEnvelopeInternalV1<
   if (
     !hasMatchingStateDigestV1(parsed.record.stateDigest, parsed.record.snapshot, instrumentation)
   ) {
-    return Object.freeze({
+    return {
       kind: "rejected",
       code: "digest.normalized_state_mismatch",
-    });
+    };
   }
-  return Object.freeze({ kind: "decoded", record: parsed.record });
+  return { kind: "decoded", record: parsed.record };
 }

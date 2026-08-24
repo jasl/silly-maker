@@ -149,7 +149,7 @@ export function createWebApplicationTerminalSupervisorInternalV1<TDisposition>(i
     return terminalError;
   };
 
-  return Object.freeze({
+  return ({
     isDisposalStarted: () => disposalStarted,
     getTerminalError: () => terminalError,
     disposeOrdinarily(): Promise<void> {

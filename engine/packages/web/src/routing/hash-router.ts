@@ -29,12 +29,12 @@ export interface HashRouterV1 {
   dispose(): void;
 }
 
-const mainMenuPublicationV1 = Object.freeze({
+const mainMenuPublicationV1 = ({
   route: "main_menu",
   hash: "#/",
 }) satisfies HashRouterPublicationV1;
 
-const playPublicationV1 = Object.freeze({
+const playPublicationV1 = ({
   route: "play",
   hash: "#/play",
 }) satisfies HashRouterPublicationV1;
@@ -49,7 +49,7 @@ function defaultEventTargetV1(): HashRouterEventTargetV1 {
   if (typeof window === "undefined") {
     throw new TypeError("web.hash_router_event_target_unavailable");
   }
-  return Object.freeze({
+  return ({
     addEventListener(type: "hashchange", listener: () => void): void {
       window.addEventListener(type, listener);
     },
@@ -82,7 +82,7 @@ export function createHashRouterV1(options: CreateHashRouterOptionsV1): HashRout
 
   eventTarget.addEventListener("hashchange", handleHashChangeV1);
 
-  return Object.freeze({
+  return ({
     observe: () => current,
     subscribe(listener: () => void): () => void {
       if (disposed) return () => undefined;

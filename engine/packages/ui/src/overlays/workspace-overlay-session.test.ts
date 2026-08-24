@@ -49,7 +49,7 @@ function createWorkspaceOverlayTestFixtureV1<TOverlayId extends string>(
     runtime: runtimeOwner.getCurrent(),
     configuration,
   });
-  return Object.freeze({ runtimeOwner, session });
+  return ({ runtimeOwner, session });
 }
 
 function replaceWorkspaceOverlayRuntimeInternalV1<TOverlayId extends string>(
@@ -97,7 +97,7 @@ async function readyOnlyCandidateV1<TOverlayId extends string>(
   ).resolves.toEqual({ kind: "ready" });
 }
 
-const definitionsV1 = Object.freeze([
+const definitionsV1 = [
   defineWorkspaceOverlayV1({
     id: "overlay.test.current",
     contractRevision: 1,
@@ -115,7 +115,7 @@ const definitionsV1 = Object.freeze([
     contractRevision: 1,
     requiredPortIds: ["port.test.inventory"],
   }),
-]);
+];
 
 describe("Workspace Overlay Coordinator facade", () => {
   it("keeps an armed successor detached until the composition activation gate opens", async () => {
@@ -133,12 +133,12 @@ describe("Workspace Overlay Coordinator facade", () => {
       recipe: configuration.recipeContribution,
     });
     const gateState = { open: false };
-    const gate: ManagedSurfaceFamilyActivationGateInternalV1 = Object.freeze({
+    const gate: ManagedSurfaceFamilyActivationGateInternalV1 = {
       isOpen: () => gateState.open,
+    };
+    first.session.attachRendererResolverInternalV1({
+      resolve: (id: string) => ({ accessibleName: id, content: id }),
     });
-    first.session.attachRendererResolverInternalV1(Object.freeze({
-      resolve: (id: string) => Object.freeze({ accessibleName: id, content: id }),
-    }));
     expect(first.session.openPrimary("overlay.test.current")).toMatchObject({
       kind: "preparing",
     });
@@ -186,14 +186,13 @@ describe("Workspace Overlay Coordinator facade", () => {
       epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
       definitions: definitionsV1,
     });
-    session.attachRendererResolverInternalV1(Object.freeze({
-      resolve: (id: string) =>
-        Object.freeze({
-          accessibleName: id,
-          content: id,
-          prepare: () => delayed.promise,
-        }),
-    }));
+    session.attachRendererResolverInternalV1({
+      resolve: (id: string) => ({
+        accessibleName: id,
+        content: id,
+        prepare: () => delayed.promise,
+      }),
+    });
 
     expect(session.openPrimary("overlay.test.current")).toMatchObject({ kind: "preparing" });
     const candidate = preparingCandidateV1(session);
@@ -221,22 +220,22 @@ describe("Workspace Overlay Coordinator facade", () => {
     const delayed = deferredV1();
     const { session } = createWorkspaceOverlayTestFixtureV1<string>({
       inputRouter: createInputRouterV1(),
-      epochAllocator: Object.freeze({
+      epochAllocator: {
         allocate: () => parseNonNegativeSafeInteger(7),
-      }),
+      },
       definitions: definitionsV1,
       availablePorts: [],
     });
-    session.attachRendererResolverInternalV1(Object.freeze({
+    session.attachRendererResolverInternalV1({
       resolve(id: string) {
         if (id === "overlay.test.missing-renderer") return null;
-        return Object.freeze({
+        return ({
           accessibleName: id,
           content: id,
           ...(id === "overlay.test.delayed" ? { prepare: () => delayed.promise } : {}),
         });
       },
-    }));
+    });
 
     const beforeAdmission = session.getManagedSnapshotInternalV1();
     const listener = vi.fn();
@@ -304,9 +303,9 @@ describe("Workspace Overlay Coordinator facade", () => {
   it("rejects malformed contract revision and target schema without allocating an instance", () => {
     const { session } = createWorkspaceOverlayTestFixtureV1({
       inputRouter: createInputRouterV1(),
-      epochAllocator: Object.freeze({
+      epochAllocator: {
         allocate: () => parseNonNegativeSafeInteger(9),
-      }),
+      },
       definitions: [
         {
           id: "overlay.test.bad-revision",
@@ -324,9 +323,9 @@ describe("Workspace Overlay Coordinator facade", () => {
       ] as never,
       availablePorts: [],
     });
-    session.attachRendererResolverInternalV1(Object.freeze({
-      resolve: (id: string) => Object.freeze({ accessibleName: id, content: id }),
-    }));
+    session.attachRendererResolverInternalV1({
+      resolve: (id: string) => ({ accessibleName: id, content: id }),
+    });
     const before = session.getManagedSnapshotInternalV1();
 
     expect(session.openPrimary("overlay.test.bad-revision")).toEqual({
@@ -341,41 +340,17 @@ describe("Workspace Overlay Coordinator facade", () => {
     expect(session.getManagedSnapshotInternalV1().orderedInstances).toEqual([]);
   });
 
-  it("rejects sparse or method-overridden required-port catalogs without invoking caller code", () => {
-    const sparsePortIds: string[] = [];
-    sparsePortIds.length = 1;
-    const callerMap = vi.fn(() => ["port.test.untrusted"]);
-    const methodOverriddenPortIds = ["port.test.inventory"];
-    Object.defineProperty(methodOverriddenPortIds, "map", { value: callerMap });
-
-    expect(() =>
-      defineWorkspaceOverlayV1({
-        id: "overlay.test.sparse-ports",
-        contractRevision: 1,
-        requiredPortIds: sparsePortIds,
-      })
-    ).toThrowError("ui.workspace_overlay_required_port_ids_invalid");
-    expect(() =>
-      defineWorkspaceOverlayV1({
-        id: "overlay.test.method-overridden-ports",
-        contractRevision: 1,
-        requiredPortIds: methodOverriddenPortIds,
-      })
-    ).toThrowError("ui.workspace_overlay_required_port_ids_invalid");
-    expect(callerMap).not.toHaveBeenCalled();
-  });
-
   it("admits required ports only from concrete composition bindings", async () => {
-    const inventoryPort = Object.freeze({ observe: () => Object.freeze([]) });
+    const inventoryPort = { observe: () => [] };
     const { session } = createWorkspaceOverlayTestFixtureV1({
       inputRouter: createInputRouterV1(),
       epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
       definitions: [definitionsV1[3]!],
-      availablePorts: [Object.freeze({ id: "port.test.inventory", port: inventoryPort })],
+      availablePorts: [{ id: "port.test.inventory", port: inventoryPort }],
     });
-    session.attachRendererResolverInternalV1(Object.freeze({
-      resolve: (id: string) => Object.freeze({ accessibleName: id, content: id }),
-    }));
+    session.attachRendererResolverInternalV1({
+      resolve: (id: string) => ({ accessibleName: id, content: id }),
+    });
 
     expect(session.openPrimary("overlay.test.port-bound")).toEqual({
       kind: "preparing",
@@ -416,18 +391,18 @@ describe("Workspace Overlay Coordinator facade", () => {
         throw new Error("synthetic diagnostic sink failure");
       },
     });
-    session.attachRendererResolverInternalV1(Object.freeze({
+    session.attachRendererResolverInternalV1({
       resolve(id: string) {
         if (id === "overlay.test.renderer-fault") {
           throw new Error("synthetic renderer failure");
         }
-        return Object.freeze({
+        return ({
           accessibleName: id,
           content: id,
           prepare: () => Promise.reject(preparationFailure),
         });
       },
-    }));
+    });
 
     const beforeAdmission = session.getManagedSnapshotInternalV1();
     expect(session.openPrimary("overlay.test.renderer-fault")).toEqual({
@@ -460,9 +435,9 @@ describe("Workspace Overlay Coordinator facade", () => {
         defineWorkspaceOverlayV1({ id: "overlay.test.child", contractRevision: 1 }),
       ],
     });
-    session.attachRendererResolverInternalV1(Object.freeze({
+    session.attachRendererResolverInternalV1({
       resolve(id: string) {
-        return Object.freeze({
+        return ({
           accessibleName: id,
           content: id,
           ...(id === "overlay.test.replacement"
@@ -472,7 +447,7 @@ describe("Workspace Overlay Coordinator facade", () => {
             : {}),
         });
       },
-    }));
+    });
 
     expect(session.openPrimary("overlay.test.root")).toMatchObject({ kind: "preparing" });
     const initial = session.getManagedSnapshotInternalV1();
@@ -530,15 +505,14 @@ describe("Workspace Overlay Coordinator facade", () => {
         defineWorkspaceOverlayV1({ id: "overlay.test.retry", contractRevision: 1 }),
       ],
     });
-    session.attachRendererResolverInternalV1(Object.freeze({
-      resolve: (id: string) =>
-        Object.freeze({
-          accessibleName: id,
-          content: id,
-          prepare: () =>
-            rejectPreparation ? Promise.reject(new Error("synthetic initial failure")) : undefined,
-        }),
-    }));
+    session.attachRendererResolverInternalV1({
+      resolve: (id: string) => ({
+        accessibleName: id,
+        content: id,
+        prepare: () =>
+          rejectPreparation ? Promise.reject(new Error("synthetic initial failure")) : undefined,
+      }),
+    });
 
     expect(session.openPrimary("overlay.test.retry")).toMatchObject({ kind: "preparing" });
     const failedCandidate = preparingCandidateV1(session);
@@ -577,18 +551,17 @@ describe("Workspace Overlay Coordinator facade", () => {
         defineWorkspaceOverlayV1({ id: "overlay.test.second", contractRevision: 1 }),
       ],
     });
-    session.attachRendererResolverInternalV1(Object.freeze({
-      resolve: (id: string) =>
-        Object.freeze({
-          accessibleName: id,
-          content: id,
-          ...(id === "overlay.test.first"
-            ? { prepare: () => first.promise }
-            : id === "overlay.test.second"
-            ? { prepare: () => second.promise }
-            : {}),
-        }),
-    }));
+    session.attachRendererResolverInternalV1({
+      resolve: (id: string) => ({
+        accessibleName: id,
+        content: id,
+        ...(id === "overlay.test.first"
+          ? { prepare: () => first.promise }
+          : id === "overlay.test.second"
+          ? { prepare: () => second.promise }
+          : {}),
+      }),
+    });
 
     expect(session.openPrimary("overlay.test.base")).toMatchObject({ kind: "preparing" });
     await readyOnlyCandidateV1(session);
@@ -633,14 +606,13 @@ describe("Workspace Overlay Coordinator facade", () => {
       epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
       definitions: definitionsV1,
     });
-    session.attachRendererResolverInternalV1(Object.freeze({
-      resolve: (id: string) =>
-        Object.freeze({
-          accessibleName: id,
-          content: id,
-          ...(id === "overlay.test.delayed" ? { prepare: () => delayed.promise } : {}),
-        }),
-    }));
+    session.attachRendererResolverInternalV1({
+      resolve: (id: string) => ({
+        accessibleName: id,
+        content: id,
+        ...(id === "overlay.test.delayed" ? { prepare: () => delayed.promise } : {}),
+      }),
+    });
 
     expect(session.openPrimary("overlay.test.current")).toMatchObject({ kind: "preparing" });
     await readyOnlyCandidateV1(session);
@@ -691,14 +663,13 @@ describe("Workspace Overlay Coordinator facade", () => {
         epochAllocator: createLocalManagedSurfaceEpochAllocatorInternalV1(),
         definitions: definitionsV1,
       });
-      session.attachRendererResolverInternalV1(Object.freeze({
-        resolve: (id: string) =>
-          Object.freeze({
-            accessibleName: id,
-            content: id,
-            ...(id === "overlay.test.delayed" ? { prepare: () => delayed.promise } : {}),
-          }),
-      }));
+      session.attachRendererResolverInternalV1({
+        resolve: (id: string) => ({
+          accessibleName: id,
+          content: id,
+          ...(id === "overlay.test.delayed" ? { prepare: () => delayed.promise } : {}),
+        }),
+      });
 
       expect(session.openPrimary("overlay.test.current")).toMatchObject({ kind: "preparing" });
       await readyOnlyCandidateV1(session);
@@ -760,20 +731,20 @@ describe("Workspace Overlay Coordinator facade", () => {
         defineWorkspaceOverlayV1({ id: "overlay.test.dispose", contractRevision: 1 }),
       ],
     });
-    session.attachRendererResolverInternalV1(Object.freeze({
+    session.attachRendererResolverInternalV1({
       resolve(id: string) {
         const preparation = id === "overlay.test.close"
           ? closePreparation
           : id === "overlay.test.epoch"
           ? epochPreparation
           : disposePreparation;
-        return Object.freeze({
+        return ({
           accessibleName: id,
           content: id,
           prepare: () => preparation.promise,
         });
       },
-    }));
+    });
 
     expect(session.openPrimary("overlay.test.close")).toMatchObject({ kind: "preparing" });
     const closeCandidate = preparingCandidateV1(session);
@@ -846,12 +817,12 @@ describe("Workspace Overlay Coordinator facade", () => {
       kind: "rejected",
       code: "overlay.renderer_unavailable",
     });
-    session.attachRendererResolverInternalV1(Object.freeze({
+    session.attachRendererResolverInternalV1({
       resolve(id: string) {
         if (id === "overlay.test.renderer-fault") throw new Error("synthetic renderer fault");
-        return Object.freeze({ accessibleName: id, content: id });
+        return ({ accessibleName: id, content: id });
       },
-    }));
+    });
     expect(session.openPrimary("overlay.test.missing")).toEqual({
       kind: "rejected",
       code: "overlay.definition_missing",
@@ -884,9 +855,9 @@ describe("Workspace Overlay Coordinator facade", () => {
         requiredPortIds: [],
       }] as never,
     });
-    session.attachRendererResolverInternalV1(Object.freeze({
-      resolve: (id: string) => Object.freeze({ accessibleName: id, content: id }),
-    }));
+    session.attachRendererResolverInternalV1({
+      resolve: (id: string) => ({ accessibleName: id, content: id }),
+    });
     const before = session.getManagedSnapshotInternalV1();
 
     expect(session.openPrimary(longId)).toEqual({

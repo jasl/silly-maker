@@ -176,48 +176,48 @@ export function resolveSystemDialogConfirmationCopyInternalV1(
   invocation: SystemDialogConfirmationInvocationInternalV1,
 ): Readonly<{ readonly title: string; readonly description: string }> {
   if (invocation.kind === "import") {
-    return Object.freeze({
+    return {
       title: labels.confirmation.importTitle,
       description: labels.confirmation.importDescription,
-    });
+    };
   }
   const slotName = saveSlotNameInternalV1(labels, invocation.slotId as SaveUiReadableSlotIdV1);
   const recoveryConfirmation = labels.recovery?.confirmation;
   switch (invocation.kind) {
     case "load":
-      return Object.freeze({
+      return {
         title: labels.confirmation.loadTitle(slotName),
         description: labels.confirmation.loadDescription(slotName),
-      });
+      };
     case "clear":
-      return Object.freeze({
+      return {
         title: labels.confirmation.clearTitle(slotName),
         description: labels.confirmation.clearDescription(slotName),
-      });
+      };
     case "reanchor":
       if (recoveryConfirmation === undefined) {
         throw new TypeError("ui.system_dialog_recovery_confirmation_missing");
       }
-      return Object.freeze({
+      return {
         title: recoveryConfirmation.reanchorTitle(slotName),
         description: recoveryConfirmation.reanchorDescription(slotName),
-      });
+      };
     case "restore":
       if (recoveryConfirmation === undefined) {
         throw new TypeError("ui.system_dialog_recovery_confirmation_missing");
       }
-      return Object.freeze({
+      return {
         title: recoveryConfirmation.restoreTitle(slotName),
         description: recoveryConfirmation.restoreDescription(slotName),
-      });
+      };
     case "discard":
       if (recoveryConfirmation === undefined) {
         throw new TypeError("ui.system_dialog_recovery_confirmation_missing");
       }
-      return Object.freeze({
+      return {
         title: recoveryConfirmation.discardTitle(slotName),
         description: recoveryConfirmation.discardDescription(slotName),
-      });
+      };
   }
   throw new TypeError("ui.system_dialog_confirmation_invocation_invalid");
 }
@@ -255,57 +255,55 @@ function createCatalogInternalV1(input: {
   const standardSaves = saves !== undefined && !isCustomSavesV1(saves) ? saves : null;
   const customSaves = saves !== undefined && isCustomSavesV1(saves) ? saves : null;
   const entries = [
-    Object.freeze({
+    {
       rootRequest: "settings" as const,
       rendererComponent: SystemDialogSettingsRendererInternalV1,
       accessibleName: input.settings.title,
-      requiredPortIds: Object.freeze([]),
-      contentConfig: Object.freeze({
+      requiredPortIds: [],
+      contentConfig: {
         title: input.settings.title,
         closeLabel: input.settings.closeLabel,
         sections: input.settings.sections,
         emptyText: input.settings.emptyText,
-      }) satisfies SystemDialogSettingsContentConfigInternalV1,
-    }),
+      } satisfies SystemDialogSettingsContentConfigInternalV1,
+    },
     ...(standardSaves === null
-      ? customSaves === null ? [] : [Object.freeze({
+      ? customSaves === null ? [] : [{
         rootRequest: "saves" as const,
         rendererComponent: SystemDialogSavesRendererInternalV1,
         accessibleName: customSaves.accessibleName,
-        requiredPortIds: Object.freeze([]),
-        contentConfig: Object.freeze({
+        requiredPortIds: [],
+        contentConfig: {
           variant: "custom" as const,
           accessibleName: customSaves.accessibleName,
           component: customSaves.component,
-        }) satisfies SystemDialogCustomSavesContentConfigInternalV1,
-      })]
-      : [Object.freeze({
+        } satisfies SystemDialogCustomSavesContentConfigInternalV1,
+      }]
+      : [{
         rootRequest: "saves" as const,
         rendererComponent: SystemDialogSavesRendererInternalV1,
         accessibleName: standardSaves.labels.accessibleName,
-        requiredPortIds: Object.freeze([savesPortIdInternalV1]),
-        contentConfig: Object.freeze({
+        requiredPortIds: [savesPortIdInternalV1],
+        contentConfig: {
           variant: "standard" as const,
           labels: standardSaves.labels,
           closeLabel: input.settings.closeLabel,
           ...(standardSaves.guardProjection === undefined
             ? {}
             : { guardProjection: standardSaves.guardProjection }),
-        }) satisfies SystemDialogStandardSavesContentConfigInternalV1,
-      })]),
+        } satisfies SystemDialogStandardSavesContentConfigInternalV1,
+      }]),
   ];
   return createSystemDialogRootCatalogSnapshotInternalV1({
-    entries: Object.freeze(entries),
-    portBindings: Object.freeze(
-      standardSaves === null
-        ? []
-        : [Object.freeze({ portId: savesPortIdInternalV1, port: standardSaves.port })],
-    ),
-    confirmationEntry: standardSaves === null ? null : Object.freeze({
+    entries,
+    portBindings: standardSaves === null
+      ? []
+      : [{ portId: savesPortIdInternalV1, port: standardSaves.port }],
+    confirmationEntry: standardSaves === null ? null : {
       rendererComponent: SystemDialogConfirmationRendererInternalV1,
       accessibleName: standardSaves.labels.confirmation.importTitle,
-      requiredPortIds: Object.freeze([]),
-    }),
+      requiredPortIds: [],
+    },
   });
 }
 

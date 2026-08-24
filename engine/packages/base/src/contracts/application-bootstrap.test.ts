@@ -16,7 +16,6 @@ describe("admitApplicationBootstrapConfigV1", () => {
 
     expect(admitted).toEqual(input);
     expect(admitted).not.toBe(input);
-    expect(Object.isFrozen(admitted)).toBe(true);
     expect(Object.keys(admitted).toSorted()).toEqual(["entry", "revision", "target"]);
   });
 

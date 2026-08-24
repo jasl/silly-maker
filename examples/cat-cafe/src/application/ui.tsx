@@ -42,14 +42,14 @@ const catcafeChromeCssV1 = `
 }
 `;
 
-const actionTextIdsV1: Readonly<Record<CatcafeActionIdV1, string>> = Object.freeze({
+const actionTextIdsV1: Readonly<Record<CatcafeActionIdV1, string>> = {
   "cc.begin_story": "text.cc.action.begin",
   "cc.advance_slot": "text.cc.action.advance",
   "cc.enter_contest": "text.cc.action.contest",
   "cc.enter_postgame": "text.cc.ending.continue",
-});
+};
 
-const catcafeNarrativePanelStyleV1 = Object.freeze({
+const catcafeNarrativePanelStyleV1 = {
   position: "absolute" as const,
   insetInline: "min(160px, 6%)",
   insetBlockEnd: "min(48px, 4%)",
@@ -61,7 +61,7 @@ const catcafeNarrativePanelStyleV1 = Object.freeze({
   color: "#f2efe8",
   fontSize: "clamp(14px, 2.5vw, 22px)",
   lineHeight: 1.6,
-});
+};
 
 /** Passive Cat Cafe skin for the composition-owned Narrative runtime. */
 export function CatcafeNarrativeRendererV1(

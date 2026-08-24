@@ -3,20 +3,20 @@ import { createInProcessAgentGamePortV1 } from "@sillymaker/base/runtime";
 
 import { createLabApplicationInstanceV1 } from "../application/core-application.ts";
 
-const defaultScriptV1 = Object.freeze([
-  Object.freeze({ kind: "invoke" as const, actionId: "lab.collect_sample" as const }),
-  Object.freeze({ kind: "invoke" as const, actionId: "lab.collect_sample" as const }),
-  Object.freeze({ kind: "invoke" as const, actionId: "lab.begin_procedure" as const }),
-  Object.freeze({ kind: "invoke" as const, actionId: "lab.run_experiment" as const }),
-]);
+const defaultScriptV1 = [
+  { kind: "invoke" as const, actionId: "lab.collect_sample" as const },
+  { kind: "invoke" as const, actionId: "lab.collect_sample" as const },
+  { kind: "invoke" as const, actionId: "lab.begin_procedure" as const },
+  { kind: "invoke" as const, actionId: "lab.run_experiment" as const },
+];
 
 /** Named scenarios selectable with `deno task story simulate e2e --scenario …`. */
-const scenariosV1 = Object.freeze({
+const scenariosV1 = {
   /** The opening beat: gather samples and start the procedure. */
   opening: defaultScriptV1,
   /** The calibration narrative driven purely through occurrence fencing. */
-  calibration: Object.freeze([
-    Object.freeze({ kind: "invoke" as const, actionId: "lab.begin_calibration" as const }),
+  calibration: [
+    { kind: "invoke" as const, actionId: "lab.begin_calibration" as const },
     resolveStepV1(1, { kind: "advance" }),
     resolveStepV1(2, { kind: "advance" }),
     resolveStepV1(3, { kind: "choose", choiceId: "choice.e2e.cal.basic" }),
@@ -24,20 +24,20 @@ const scenariosV1 = Object.freeze({
       kind: "barrier_completed",
       transitionId: "transition.e2e.bg-crossfade",
     }),
-    Object.freeze({
+    {
       kind: "time" as const,
-      tick: Object.freeze({
+      tick: {
         elapsedMs: 400,
         expectedHoldOccurrenceId: "interaction-occurrence.5",
-      }),
-    }),
+      },
+    },
     resolveStepV1(6, { kind: "custom", payload: { value: 2 } }),
     resolveStepV1(7, { kind: "advance" }),
-  ]),
-});
+  ],
+};
 
 function resolveStepV1(occurrence: number, resolution: unknown) {
-  return Object.freeze({
+  return ({
     kind: "resolve" as const,
     expectedOccurrenceId: `interaction-occurrence.${String(occurrence)}`,
     resolution,
@@ -55,13 +55,13 @@ export async function createLabSimulationTargetV1(options: { readonly seed?: num
     options.seed === undefined ? {} : { seeds: [options.seed] },
   );
   const agent = createInProcessAgentGamePortV1({
-    identity: Object.freeze({
+    identity: {
       storyId: application.storyId,
       storyRevision: application.storyRevision,
-    }),
+    },
     semantic: application.semantic,
   });
-  return Object.freeze({
+  return ({
     agent,
     stateDigest: () => application.admin.stateDigest(),
     dispose: () => application.dispose(),

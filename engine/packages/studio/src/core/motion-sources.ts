@@ -26,10 +26,10 @@ export async function loadStudioMotionSourcesV1(
 ): Promise<StudioMotionSourcesV1> {
   const listed = await io.list();
   if (listed.kind !== "ok") {
-    return Object.freeze({
-      sources: Object.freeze([]),
-      warnings: Object.freeze([`motion 列表不可用：${listed.code}`]),
-    });
+    return {
+      sources: [],
+      warnings: [`motion 列表不可用：${listed.code}`],
+    };
   }
   const warnings: string[] = listed.skipped.map(
     (skip) => `motion 文档未索引（${skip.path}）：${skip.reason}`,
@@ -43,10 +43,7 @@ export async function loadStudioMotionSourcesV1(
       warnings.push(`motion 文档读取失败（${entry.path}）：${read.code}`);
       continue;
     }
-    sources.push(Object.freeze({ path: entry.path, motionDocument: read.motionDocument }));
+    sources.push({ path: entry.path, motionDocument: read.motionDocument });
   }
-  return Object.freeze({
-    sources: Object.freeze(sources),
-    warnings: Object.freeze(warnings),
-  });
+  return { sources, warnings };
 }

@@ -32,7 +32,7 @@ export interface DefaultSettingsLabelsV1 {
   readonly developerToolsLabel: string;
 }
 
-export const defaultSettingsLabelsV1: DefaultSettingsLabelsV1 = Object.freeze({
+export const defaultSettingsLabelsV1: DefaultSettingsLabelsV1 = {
   bgmVolumeLabel: "Music volume",
   voiceVolumeLabel: "Voice volume",
   sfxVolumeLabel: "Effects volume",
@@ -41,7 +41,7 @@ export const defaultSettingsLabelsV1: DefaultSettingsLabelsV1 = Object.freeze({
   autoWaitLabel: "Auto-forward wait",
   fullscreenLabel: "Toggle fullscreen",
   developerToolsLabel: "Developer tools",
-});
+};
 
 function VolumeSliderV1(props: {
   readonly label: string;

@@ -116,13 +116,13 @@ export function bindSemanticStageCompositionRetargetDelegateInternalV1(
   };
   semanticStageCompositionRetargetDelegatesInternalV1.set(driver, record);
   let active = true;
-  return Object.freeze((): void => {
+  return (): void => {
     if (!active) return;
     active = false;
     if (semanticStageCompositionRetargetDelegatesInternalV1.get(driver) === record) {
       semanticStageCompositionRetargetDelegatesInternalV1.delete(driver);
     }
-  });
+  };
 }
 
 function drainSemanticStageCompositionAfterMutationInternalV1(
@@ -206,10 +206,9 @@ export function createSemanticStageCompositionDriverInternalV1(
   };
   const candidate: SemanticStageCompositionDriverInternalV1 = {
     retargetInternalV1(
-      this: SemanticStageCompositionDriverInternalV1,
       input: StageRetargetInputV1,
     ): void {
-      if (this !== driver || !current || !effectActive) return;
+      if (!current || !effectActive) return;
       const delegateRecord = semanticStageCompositionRetargetDelegatesInternalV1.get(driver);
       if (delegateRecord !== undefined) {
         if (delegateRecord.routing || delegateRecord.draining) return;
@@ -242,39 +241,39 @@ export function createSemanticStageCompositionDriverInternalV1(
       if (result.kind !== "faulted") currentEpoch = input.epoch;
       drainSemanticStageCompositionAfterMutationInternalV1(driver, delegateRecord);
     },
-    suspendInternalV1(this: SemanticStageCompositionDriverInternalV1): void {
-      if (this !== driver || !current || !effectActive) return;
+    suspendInternalV1(): void {
+      if (!current || !effectActive) return;
       const delegateRecord = semanticStageCompositionRetargetDelegatesInternalV1.get(driver);
       if (delegateRecord?.routing === true || delegateRecord?.draining === true) return;
       authority.suspendInternalV1();
       drainSemanticStageCompositionAfterMutationInternalV1(driver, delegateRecord);
     },
-    resumeInternalV1(this: SemanticStageCompositionDriverInternalV1): void {
-      if (this !== driver || !current || !effectActive) return;
+    resumeInternalV1(): void {
+      if (!current || !effectActive) return;
       const delegateRecord = semanticStageCompositionRetargetDelegatesInternalV1.get(driver);
       if (delegateRecord?.routing === true || delegateRecord?.draining === true) return;
       authority.resumeInternalV1();
       drainSemanticStageCompositionAfterMutationInternalV1(driver, delegateRecord);
     },
-    skipAllInternalV1(this: SemanticStageCompositionDriverInternalV1): void {
-      if (this !== driver || !current || !effectActive) return;
+    skipAllInternalV1(): void {
+      if (!current || !effectActive) return;
       const delegateRecord = semanticStageCompositionRetargetDelegatesInternalV1.get(driver);
       if (delegateRecord?.routing === true || delegateRecord?.draining === true) return;
       authority.skipAllInternalV1();
       drainSemanticStageCompositionAfterMutationInternalV1(driver, delegateRecord);
     },
-    disposeInternalV1(this: SemanticStageCompositionDriverInternalV1): void {
-      if (this !== driver || !current) return;
+    disposeInternalV1(): void {
+      if (!current) return;
       disposeTerminal();
     },
-    isCurrentInternalV1(this: SemanticStageCompositionDriverInternalV1): boolean {
-      return this === driver && current && effectActive;
+    isCurrentInternalV1(): boolean {
+      return current && effectActive;
     },
   };
-  driver = Object.freeze(candidate);
+  driver = candidate;
   semanticStageCompositionDriverLifetimesInternalV1.set(
     driver,
-    Object.freeze({
+    {
       activateInternalV1(): void {
         if (current) effectActive = true;
       },
@@ -289,7 +288,7 @@ export function createSemanticStageCompositionDriverInternalV1(
         terminalCleanup = cleanup;
       },
       disposeTerminalInternalV1: disposeTerminal,
-    }),
+    },
   );
   semanticStageCompositionDriverRecordsInternalV1.set(reconciler, {
     claimant,
@@ -326,7 +325,7 @@ export function SemanticStageCompositionClaimantProviderInternalV1(props: {
     throw new TypeError("ui.semantic_stage_composition_claimant_invalid");
   }
   const binding = useMemo<SemanticStageCompositionBindingInternalV1>(
-    () => Object.freeze({ claimant, onBindInternalV1: onBindInternalV1 ?? null }),
+    () => ({ claimant, onBindInternalV1: onBindInternalV1 ?? null }),
     [claimant, onBindInternalV1],
   );
   return (
@@ -450,25 +449,21 @@ export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
   const [rawClock] = useState<PresentationClockV1>(
     () => props.clock ?? createAnimationFramePresentationClockV1(),
   );
-  const [clock] = useState<PresentationClockV1>(() =>
-    Object.freeze({
-      now: () => Reflect.apply(rawClock.now, rawClock, []),
-      requestTick(callback: (now: number) => void): () => void {
-        return Reflect.apply(rawClock.requestTick, rawClock, [
-          (now: number): void => {
-            try {
-              callback(now);
-            } finally {
-              const driver = compositionDriverRef.current;
-              if (driver !== null) {
-                drainSemanticStageCompositionAfterMutationInternalV1(driver);
-              }
-            }
-          },
-        ]) as () => void;
-      },
-    })
-  );
+  const [clock] = useState<PresentationClockV1>(() => ({
+    now: () => rawClock.now(),
+    requestTick(callback: (now: number) => void): () => void {
+      return rawClock.requestTick((now: number): void => {
+        try {
+          callback(now);
+        } finally {
+          const driver = compositionDriverRef.current;
+          if (driver !== null) {
+            drainSemanticStageCompositionAfterMutationInternalV1(driver);
+          }
+        }
+      });
+    },
+  }));
   const [reconciler] = useState<StageReconcilerV1>(() =>
     createStageReconcilerV1({
       clock,
@@ -587,7 +582,7 @@ export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
   }, [compositionDriver, reconciler, timelinePlayer]);
 
   // Pairing guard: a dispatch batch applies only to exactly the committed
-  // publication it was stamped for. `batch.dispatches` is a stable frozen
+  // publication it was stamped for. `batch.dispatches` is a stable typed
   // list, so the paired value is reference-stable across re-renders.
   const dispatchBatch = props.dispatches ?? null;
   const pairedDispatches = dispatchBatch !== null && dispatchBatch.revision === revision &&

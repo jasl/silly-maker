@@ -13,8 +13,6 @@ describe("Web capability request parser", () => {
       kind: "accepted",
       requested: ["debug_tools", "cheats", "automation_bridge"],
     });
-    expect(Object.isFrozen(result)).toBe(true);
-    if (result.kind === "accepted") expect(Object.isFrozen(result.requested)).toBe(true);
   });
 
   it("preserves a non-canonical declared order instead of sorting", () => {

@@ -20,17 +20,15 @@ interface CapabilityDescriptorV1 {
   readonly label: string;
 }
 
-const capabilityDescriptorsV1 = Object.freeze(
-  [
-    Object.freeze({ id: "debug_tools", field: "debugTools", label: "调试工具" }),
-    Object.freeze({ id: "cheats", field: "cheats", label: "作弊功能" }),
-    Object.freeze({
-      id: "automation_bridge",
-      field: "automationBridge",
-      label: "自动化桥接",
-    }),
-  ] as const satisfies readonly CapabilityDescriptorV1[],
-);
+const capabilityDescriptorsV1 = [
+  { id: "debug_tools", field: "debugTools", label: "调试工具" },
+  { id: "cheats", field: "cheats", label: "作弊功能" },
+  {
+    id: "automation_bridge",
+    field: "automationBridge",
+    label: "自动化桥接",
+  },
+] as const satisfies readonly CapabilityDescriptorV1[];
 
 function useCapabilityStateV1(
   source: ReadonlyViewSourceV1<RuntimeCapabilitiesV1>,

@@ -256,13 +256,13 @@ describe("catcafe determinism", () => {
 });
 
 describe("catcafe endings", () => {
-  const finalNight = Object.freeze({ week: 7, day: 6, slot: 3, stamina: 0 });
-  const base = Object.freeze({
+  const finalNight = { week: 7, day: 6, slot: 3, stamina: 0 };
+  const base = {
     calendar: finalNight,
-    cat: Object.freeze({ trust: 60, vigor: 50, skill: 40, fishBuff: 0, pettingLeft: 3 }),
-    shop: Object.freeze({ reputation: 50, tidiness: 50, money: 100, trophies: 1, epilogue: null }),
+    cat: { trust: 60, vigor: 50, skill: 40, fishBuff: 0, pettingLeft: 3 },
+    shop: { reputation: 50, tidiness: 50, money: 100, trophies: 1, epilogue: null },
     contest: null,
-  });
+  };
 
   it("settles the four endings by priority after the final contest night", () => {
     const simulation = base as never;

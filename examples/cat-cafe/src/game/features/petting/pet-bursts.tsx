@@ -18,17 +18,17 @@ export interface CatcafePetBurstV1 {
   readonly trustDelta: number;
 }
 
-const emojisForExpressionV1: Readonly<Record<string, readonly string[]>> = Object.freeze({
-  happy: Object.freeze(["❤", "✨"]),
-  purring: Object.freeze(["💕", "🎵", "✨"]),
-  calm: Object.freeze(["🐾"]),
-  grumpy: Object.freeze(["💢"]),
-  hissing: Object.freeze(["💢", "⚡"]),
-});
+const emojisForExpressionV1: Readonly<Record<string, readonly string[]>> = {
+  happy: ["❤", "✨"],
+  purring: ["💕", "🎵", "✨"],
+  calm: ["🐾"],
+  grumpy: ["💢"],
+  hissing: ["💢", "⚡"],
+};
 
 /** Find the touched part's hit-region button and convert it to a percent anchor inside the stage container. */
 function locateZoneV1(zone: string): { readonly x: number; readonly y: number } {
-  const fallback = Object.freeze({ x: 52, y: 42 });
+  const fallback = { x: 52, y: 42 };
   if (typeof document === "undefined") return fallback;
   const stage = document.querySelector("[data-cc-stage]");
   const region = document.querySelector(`[data-stage-hit-region='zone.${zone}']`);
@@ -36,7 +36,7 @@ function locateZoneV1(zone: string): { readonly x: number; readonly y: number } 
   const stageRect = stage.getBoundingClientRect();
   const regionRect = region.getBoundingClientRect();
   if (stageRect.width <= 0 || stageRect.height <= 0) return fallback;
-  return Object.freeze({
+  return ({
     x: ((regionRect.left + regionRect.width / 2 - stageRect.left) / stageRect.width) * 100,
     y: ((regionRect.top + regionRect.height * 0.2 - stageRect.top) / stageRect.height) * 100,
   });
@@ -45,7 +45,7 @@ function locateZoneV1(zone: string): { readonly x: number; readonly y: number } 
 export function useCatcafePetBurstsV1(
   instance: CatcafeApplicationInstanceV1,
 ): readonly CatcafePetBurstV1[] {
-  const [bursts, setBursts] = useState<readonly CatcafePetBurstV1[]>(Object.freeze([]));
+  const [bursts, setBursts] = useState<readonly CatcafePetBurstV1[]>([]);
   const nextIdRef = useRef(1);
   useEffect(
     () =>
@@ -62,17 +62,17 @@ export function useCatcafePetBurstsV1(
         if (reaction === null) return;
         const anchor = locateZoneV1(payload.zone ?? "back");
         const burstId = nextIdRef.current++;
-        const burst: CatcafePetBurstV1 = Object.freeze({
+        const burst: CatcafePetBurstV1 = {
           burstId,
           xPercent: anchor.x,
           yPercent: anchor.y,
-          emojis: emojisForExpressionV1[reaction.expression] ?? Object.freeze(["🐾"]),
+          emojis: emojisForExpressionV1[reaction.expression] ?? ["🐾"],
           reactionTextId: reaction.reactionTextId,
           trustDelta: payload.trustDelta ?? 0,
-        });
-        setBursts((current) => Object.freeze([...current.slice(-3), burst]));
+        };
+        setBursts((current) => [...current.slice(-3), burst]);
         setTimeout(() => {
-          setBursts((current) => Object.freeze(current.filter((b) => b.burstId !== burstId)));
+          setBursts((current) => (current.filter((b) => b.burstId !== burstId)));
         }, 1700);
       }),
     [instance],

@@ -87,14 +87,12 @@ function chromeLayoutDigestV1(bytes: Uint8Array): string {
 export function listChromeLayoutSourceFilesV1(
   index: AuthoringProjectIndexV1,
 ): ChromeLayoutListResultV1 {
-  return Object.freeze({
+  return {
     chromeLayouts: index.chromeLayouts,
-    skipped: Object.freeze(
-      index.skipped
-        .filter((skip) => skip.kind === "chrome-layout")
-        .map((skip) => Object.freeze({ path: skip.path, reason: skip.reason })),
-    ),
-  });
+    skipped: index.skipped
+      .filter((skip) => skip.kind === "chrome-layout")
+      .map((skip) => ({ path: skip.path, reason: skip.reason })),
+  };
 }
 
 /** The one canonical on-disk formatting the port ever writes. */
@@ -142,12 +140,12 @@ export function readChromeLayoutSourceFileV1(
       detail: error instanceof Error ? error.message : String(error),
     };
   }
-  return Object.freeze({
+  return {
     kind: "ok",
     path,
     digest: chromeLayoutDigestV1(bytes),
     chromeLayoutDocument,
-  });
+  };
 }
 
 export interface WriteChromeLayoutSourceInputV1 {
@@ -219,7 +217,7 @@ export function writeChromeLayoutSourceFileV1(
       detail: error instanceof Error ? error.message : String(error),
     };
   }
-  return Object.freeze({ kind: "ok", digest: chromeLayoutDigestV1(formatted) });
+  return { kind: "ok", digest: chromeLayoutDigestV1(formatted) };
 }
 
 export interface CreateChromeLayoutSourceInputV1 {
@@ -291,7 +289,7 @@ export function createChromeLayoutSourceFileV1(
       detail: error instanceof Error ? error.message : String(error),
     };
   }
-  return Object.freeze({ kind: "ok", digest: chromeLayoutDigestV1(formatted) });
+  return { kind: "ok", digest: chromeLayoutDigestV1(formatted) };
 }
 
 function chromeLayoutPortStatusV1(code: ChromeLayoutPortErrorCodeV1): number {

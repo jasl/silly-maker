@@ -122,7 +122,7 @@ export function createSessionTimeReporterV1(input: {
     cancelTick = clock.requestTick(step);
   };
 
-  return Object.freeze({
+  return {
     setEnabled(next: boolean): void {
       if (disposed || faulted || next === enabled) return;
       enabled = next;
@@ -139,5 +139,5 @@ export function createSessionTimeReporterV1(input: {
       enabled = false;
       stopTicking();
     },
-  });
+  };
 }

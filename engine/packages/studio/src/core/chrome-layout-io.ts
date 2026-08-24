@@ -99,26 +99,24 @@ function listEntryV1(value: unknown): ChromeLayoutIoListEntryV1 | null {
   ) {
     return null;
   }
-  return Object.freeze({ path: record.path, layoutId: record.layoutId, label: record.label });
+  return { path: record.path, layoutId: record.layoutId, label: record.label };
 }
 
-/** Skips are tolerated as absent (an older server omits the field). */
 function listSkipsV1(value: unknown): readonly ChromeLayoutIoListSkipV1[] | null {
-  if (value === undefined) return Object.freeze([]);
   if (!Array.isArray(value)) return null;
   const skips: ChromeLayoutIoListSkipV1[] = [];
   for (const candidate of value) {
     if (candidate === null || typeof candidate !== "object") return null;
     const record = candidate as { path?: unknown; reason?: unknown };
     if (typeof record.path !== "string" || typeof record.reason !== "string") return null;
-    skips.push(Object.freeze({ path: record.path, reason: record.reason }));
+    skips.push({ path: record.path, reason: record.reason });
   }
-  return Object.freeze(skips);
+  return skips;
 }
 
 /** The standard dev-server-backed IO; absent endpoints report `unavailable`. */
 export function createDevServerChromeLayoutIoV1(): ChromeLayoutSourceIoV1 {
-  return Object.freeze({
+  return {
     async list(): Promise<ChromeLayoutIoListResultV1> {
       try {
         const response = await fetch(chromeLayoutIoListUrlV1);
@@ -140,7 +138,7 @@ export function createDevServerChromeLayoutIoV1(): ChromeLayoutSourceIoV1 {
         }
         const skipped = listSkipsV1((body as { skipped?: unknown }).skipped);
         if (skipped === null) return { kind: "error", code: "unavailable" };
-        return { kind: "ok", chromeLayouts: Object.freeze(entries), skipped };
+        return { kind: "ok", chromeLayouts: entries, skipped };
       } catch {
         return { kind: "error", code: "unavailable" };
       }
@@ -182,7 +180,7 @@ export function createDevServerChromeLayoutIoV1(): ChromeLayoutSourceIoV1 {
     }): Promise<ChromeLayoutIoWriteResultV1> {
       return await postChromeLayoutV1({ ...input, expectedDigest: null });
     },
-  });
+  };
 }
 
 async function postChromeLayoutV1(payload: {

@@ -34,14 +34,9 @@ function admittedDocumentInternalV1() {
 }
 
 describe("UiArtifact admission", () => {
-  it("builds one recursively frozen document from the closed vocabulary", () => {
+  it("builds one admitted document from the closed vocabulary", () => {
     const document = admittedDocumentInternalV1();
     expect(document).toEqual(candidateInternalV1());
-    expect(Object.isFrozen(document)).toBe(true);
-    expect(Object.isFrozen(document.root)).toBe(true);
-    if (document.root.kind !== "column") throw new TypeError("expected column");
-    expect(Object.isFrozen(document.root.children)).toBe(true);
-    expect(document.root.children.every(Object.isFrozen)).toBe(true);
   });
 
   it("atomically rejects accessors, limits, unknown nodes, actions, and duplicate IDs", () => {

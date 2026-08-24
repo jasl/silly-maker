@@ -101,20 +101,20 @@ function readinessInternalV1(
 function rpcDiagnosticInternalV1(
   diagnostic: AgentRpcDiagnosticInternalV1,
 ): AgentHostDiagnosticInternalV1 {
-  return Object.freeze({ source: "rpc", diagnostic });
+  return { source: "rpc", diagnostic };
 }
 
 function artifactDiagnosticInternalV1(
   diagnostic: UiArtifactDiagnosticInternalV1,
 ): AgentHostDiagnosticInternalV1 {
-  return Object.freeze({ source: "artifact", diagnostic });
+  return { source: "artifact", diagnostic };
 }
 
 function hostDiagnosticInternalV1(
   code: "agent.draft_limit" | "agent.operation_unavailable",
   path: string,
 ): AgentHostDiagnosticInternalV1 {
-  return Object.freeze({ source: "host", diagnostic: Object.freeze({ code, path }) });
+  return { source: "host", diagnostic: { code, path } };
 }
 
 export function createAgentHostInternalV1(input: {
@@ -139,7 +139,7 @@ export function createAgentHostInternalV1(input: {
   const rebuildSnapshot = (): void => {
     revision += 1;
     const rpc = input.client.getSnapshot();
-    snapshot = Object.freeze({
+    snapshot = {
       identity,
       revision,
       readiness: disposed ? "disposed" : readinessInternalV1(rpc),
@@ -148,9 +148,9 @@ export function createAgentHostInternalV1(input: {
       run,
       draft,
       artifact,
-      artifactRevisions: Object.freeze([...artifacts.keys()]),
+      artifactRevisions: [...artifacts.keys()],
       diagnostic,
-    });
+    };
   };
   const publish = (): void => {
     if (disposed) return;
@@ -183,16 +183,16 @@ export function createAgentHostInternalV1(input: {
     if (!matchesActiveRun(event)) return;
     const currentRun = run;
     if (currentRun === null) return;
-    run = Object.freeze({ ...currentRun, lastSequence: event.sequence });
+    run = { ...currentRun, lastSequence: event.sequence };
     switch (event.kind) {
       case "artifact_chunk": {
         const text = `${draft?.text ?? ""}${event.text}`;
         if (encoderInternalV1.encode(text).byteLength > maxDraftBytesInternalV1) {
-          run = Object.freeze({ ...run, status: "failed" });
-          draft = Object.freeze({ runId: event.runId, text: draft?.text ?? "", status: "invalid" });
+          run = { ...run, status: "failed" };
+          draft = { runId: event.runId, text: draft?.text ?? "", status: "invalid" };
           diagnostic = hostDiagnosticInternalV1("agent.draft_limit", "/draft");
         } else {
-          draft = Object.freeze({ runId: event.runId, text, status: "streaming" });
+          draft = { runId: event.runId, text, status: "streaming" };
         }
         publish();
         return;
@@ -203,12 +203,12 @@ export function createAgentHostInternalV1(input: {
           input.allowedActionIds,
         );
         if (admitted.kind === "rejected") {
-          run = Object.freeze({ ...run, status: "failed" });
-          draft = Object.freeze({
+          run = { ...run, status: "failed" };
+          draft = {
             runId: event.runId,
             text: draft?.text ?? "",
             status: "invalid",
-          });
+          };
           diagnostic = artifactDiagnosticInternalV1(admitted.diagnostic);
           publish();
           return;
@@ -229,26 +229,26 @@ export function createAgentHostInternalV1(input: {
           artifacts.delete(oldest);
         }
         artifact = admittedRevision;
-        draft = Object.freeze({
+        draft = {
           runId: event.runId,
           text: draft?.text ?? "",
           status: "completed",
-        });
+        };
         diagnostic = null;
         publish();
         return;
       }
       case "run_completed":
-        run = Object.freeze({ ...run, status: "completed" });
+        run = { ...run, status: "completed" };
         if (draft !== null && draft.status === "streaming") {
-          draft = Object.freeze({ ...draft, status: "completed" });
+          draft = { ...draft, status: "completed" };
         }
         publish();
         return;
       case "run_failed":
-        run = Object.freeze({ ...run, status: "failed" });
+        run = { ...run, status: "failed" };
         if (draft !== null && draft.status === "streaming") {
-          draft = Object.freeze({ ...draft, status: "failed" });
+          draft = { ...draft, status: "failed" };
         }
         diagnostic = rpcDiagnosticInternalV1(event.diagnostic);
         publish();
@@ -259,7 +259,7 @@ export function createAgentHostInternalV1(input: {
   const unsubscribeClient = input.client.subscribe(onClientSnapshot);
   const unsubscribeStream = input.client.subscribeStream(onStream);
 
-  return Object.freeze({
+  return {
     getSnapshot: () => snapshot,
     subscribe(listener: () => void): () => void {
       if (disposed) return () => {};
@@ -314,13 +314,13 @@ export function createAgentHostInternalV1(input: {
         return;
       }
       runGeneration += 1;
-      run = Object.freeze({
+      run = {
         runId: result.runId,
         generation: runGeneration,
         status: "streaming",
         lastSequence: 0,
-      });
-      draft = Object.freeze({ runId: result.runId, text: "", status: "streaming" });
+      };
+      draft = { runId: result.runId, text: "", status: "streaming" };
       diagnostic = null;
       publish();
     },
@@ -334,8 +334,8 @@ export function createAgentHostInternalV1(input: {
       }
       operationGeneration += 1;
       runGeneration += 1;
-      run = Object.freeze({ ...currentRun, generation: runGeneration, status: "cancel_requested" });
-      if (draft !== null) draft = Object.freeze({ ...draft, status: "cancelled" });
+      run = { ...currentRun, generation: runGeneration, status: "cancel_requested" };
+      if (draft !== null) draft = { ...draft, status: "cancelled" };
       publish();
       const result = await input.client.cancel({
         sessionId: currentSessionId,
@@ -367,5 +367,5 @@ export function createAgentHostInternalV1(input: {
       await input.client.dispose();
       rebuildSnapshot();
     },
-  });
+  };
 }

@@ -71,7 +71,6 @@ export type SceneAuthoringOperationV1 =
   | SceneCueSetMotionOperationV1;
 
 export type SceneAuthoringDiagnosticCodeV1 =
-  | "scene_authoring.envelope_invalid"
   | "scene_authoring.operation_schema_unsupported"
   | "scene_authoring.operation_kind_unknown"
   | "scene_authoring.operation_payload_invalid"
@@ -102,10 +101,6 @@ export interface SceneAuthoringExecutionEnvelopeV1 {
   readonly operation: SceneAuthoringOperationV1;
   readonly coalesceKey?: string;
 }
-
-export type SceneAuthoringEnvelopeAdmissionResultV1 =
-  | { readonly kind: "admitted"; readonly envelope: SceneAuthoringExecutionEnvelopeV1 }
-  | { readonly kind: "rejected"; readonly diagnostic: SceneAuthoringDiagnosticV1 };
 
 export type SceneAuthoringExecutionResultV1 =
   | {

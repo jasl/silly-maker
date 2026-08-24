@@ -61,14 +61,12 @@ function diagnosticsOf(run: () => unknown): readonly { code: string }[] {
 }
 
 describe("defineSillymakerProjectV1", () => {
-  it("freezes a valid project and resolves applications by ID", () => {
+  it("normalizes a valid project and resolves applications by ID", () => {
     const project = defineSillymakerProjectV1({
       projectId: "project-test",
       applications: [webApplicationV1("alpha-web"), headlessApplicationV1("beta")],
     });
 
-    expect(Object.isFrozen(project)).toBe(true);
-    expect(Object.isFrozen(project.applications[0])).toBe(true);
     expect(listStoryApplicationIdsV1(project)).toEqual(["alpha-web", "beta"]);
     expect(resolveStoryApplicationV1(project, "beta").simulate).toEqual({
       module: "examples/beta/src/target.ts",
@@ -214,7 +212,7 @@ describe("application and workspace config validation", () => {
     ).toMatchObject([{ code: "project.config_invalid" }]);
   });
 
-  it("validates and freezes workspace directories before resolution", () => {
+  it("validates and normalizes workspace directories before resolution", () => {
     const workspace = defineSillymakerWorkspaceV1({
       projectId: "project-test",
       appDirectories: ["examples/alpha", "examples/beta"],
@@ -223,8 +221,6 @@ describe("application and workspace config validation", () => {
       projectId: "project-test",
       appDirectories: ["examples/alpha", "examples/beta"],
     });
-    expect(Object.isFrozen(workspace)).toBe(true);
-    expect(Object.isFrozen(workspace.appDirectories)).toBe(true);
 
     expect(
       diagnosticsOf(() =>
@@ -416,7 +412,7 @@ describe("application and workspace config validation", () => {
     ]);
   });
 
-  it("admits, freezes, and anchors explicit scene source authorities", () => {
+  it("admits and anchors explicit scene source authorities", () => {
     const config = {
       applicationId: "example-app",
       label: "Example app",
@@ -441,8 +437,6 @@ describe("application and workspace config validation", () => {
 
     const admitted = defineSillymakerAppV1(config);
     expect(admitted.sceneSources).toEqual(config.sceneSources);
-    expect(Object.isFrozen(admitted.sceneSources)).toBe(true);
-    expect(Object.isFrozen(admitted.sceneSources?.[0])).toBe(true);
 
     expect(deriveStoryApplicationV1("examples/example-app", config).sceneSources).toEqual([
       {

@@ -22,12 +22,11 @@ const exactValueSchema = <T>(key: string): RuntimeSchemaV1<T> => ({
       value === null ||
       typeof value !== "object" ||
       Array.isArray(value) ||
-      Object.getPrototypeOf(value) !== Object.prototype ||
       Object.keys(value).join() !== key
     ) {
       throw new TypeError(`invalid ${key}`);
     }
-    return Object.freeze({ ...value }) as T;
+    return { ...value } as T;
   },
 });
 
@@ -133,7 +132,6 @@ describe("persistence contracts", () => {
     expect(schema.parse(valid)).toEqual(valid);
     expect(() => schema.parse({ ...valid, extra: true })).toThrow();
     expect(() => schema.parse({ ...valid, savedAt: "2026-07-12" })).toThrow();
-    expect(Object.isFrozen(schema.parse(valid))).toBe(true);
 
     // Annotation is additive-optional: legacy records (absent) and annotated
     // records both parse; a malformed annotation still fails closed.
@@ -210,7 +208,6 @@ describe("persistence contracts", () => {
 
     const annotation = parseSaveAnnotationV1({ summary: ["line 1"], note: null });
     expect(annotation).toEqual({ summary: ["line 1"], note: null });
-    expect(Object.isFrozen(annotation)).toBe(true);
     expect(parseSaveAnnotationV1({ summary: null, note: "note" })).toEqual({
       summary: null,
       note: "note",
@@ -222,13 +219,6 @@ describe("persistence contracts", () => {
     expect(() => parseSaveAnnotationV1({ summary: ["x".repeat(121)], note: null })).toThrow();
     const sparseSummary = Array<string>(1);
     expect(() => parseSaveAnnotationV1({ summary: sparseSummary, note: null })).toThrow();
-    const accessorSummary = ["line"];
-    Object.defineProperty(accessorSummary, "0", {
-      enumerable: true,
-      configurable: true,
-      get: () => "accessed",
-    });
-    expect(() => parseSaveAnnotationV1({ summary: accessorSummary, note: null })).toThrow();
     expect(() => parseSaveAnnotationV1({ summary: null, note: "x".repeat(65) })).toThrow();
     expect(() => parseSaveAnnotationV1({ summary: null, note: "   " })).toThrow();
     expect(() => parseSaveAnnotationV1({ summary: null, note: " note " })).toThrow();
@@ -243,7 +233,7 @@ describe("persistence contracts", () => {
     expect(() => parseSaveNoteV1("a\u0007b")).toThrow();
   });
 
-  it("freezes the reviewed Save limits", () => {
+  it("keeps the reviewed Save limits", () => {
     expect(saveJsonLimitsV1).toEqual({
       maxBytes: 5_242_880,
       maxDepth: 64,

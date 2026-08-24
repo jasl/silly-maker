@@ -6,12 +6,12 @@ import { createBrowserImageLoaderV1 } from "./create-browser-image-loader.ts";
 
 const runtimePathV1 = "examples/poc/assets/scene.png";
 const runtimeUrlV1 = `https://game.example.test/runtime/${runtimePathV1}`;
-const runtimeRequestV1 = Object.freeze({
+const runtimeRequestV1 = {
   runtimePath: runtimePathV1,
   mediaType: "image/png" as const,
   width: parsePositiveSafeInteger(1024),
   height: parsePositiveSafeInteger(768),
-});
+};
 
 type ImageEventHandlerV1 = HTMLImageElement["onload"];
 
@@ -35,7 +35,7 @@ function createFakeImageV1(decode: () => Promise<void> = async () => undefined) 
     handler?.call(image as unknown as GlobalEventHandlers, new Event(type));
   }
 
-  return Object.freeze({
+  return ({
     element: image as unknown as HTMLImageElement,
     image,
     assignedSources,
@@ -54,13 +54,13 @@ function createLoaderFixtureV1(decode?: () => Promise<void>) {
   });
   const createImage = vi.fn(() => fakeImage.element);
   const loader = createBrowserImageLoaderV1(
-    Object.freeze({
+    {
       resolveRuntimeUrl,
       createImage,
-    }),
+    },
   );
 
-  return Object.freeze({ loader, fakeImage, resolveRuntimeUrl, createImage });
+  return ({ loader, fakeImage, resolveRuntimeUrl, createImage });
 }
 
 function deferredV1<TValue>(): {
@@ -74,7 +74,7 @@ function deferredV1<TValue>(): {
     resolve = resolvePromise;
     reject = rejectPromise;
   });
-  return Object.freeze({ promise, resolve, reject });
+  return ({ promise, resolve, reject });
 }
 
 describe("browser image loader", () => {

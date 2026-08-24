@@ -164,7 +164,7 @@ function bindingReferenceV1(
   id: string,
   status: AuthoringSceneBindingStatusV1,
 ): AuthoringSceneBindingReferenceV1 {
-  return Object.freeze({ objectId, id, status });
+  return ({ objectId, id, status });
 }
 
 interface MutableCompileStateV1 {
@@ -212,14 +212,14 @@ function compileObjectV1(
 
   layerObjectIds.push(object.objectId);
   if (visual !== undefined) {
-    runtimeTarget = Object.freeze({
+    runtimeTarget = {
       kind: "entry" as const,
       layerId,
       tag: object.objectId,
-    });
+    };
     const entryZOrder = zOrder.value;
     zOrder.value += 1;
-    state.entries.push(Object.freeze({
+    state.entries.push({
       layerId,
       tag: object.objectId,
       contentId: visual.contentId,
@@ -227,9 +227,9 @@ function compileObjectV1(
       placement: worldTransform,
       appearance: visual.appearance,
       ...(visual.ambient === undefined ? {} : { ambient: visual.ambient }),
-    }));
-    state.targets.push(Object.freeze({ objectId: object.objectId, target: runtimeTarget }));
-    inspectionVisual = Object.freeze({
+    });
+    state.targets.push({ objectId: object.objectId, target: runtimeTarget });
+    inspectionVisual = {
       contentId: visual.contentId as string,
       appearance: visual.appearance,
       zOrder: entryZOrder,
@@ -237,7 +237,7 @@ function compileObjectV1(
       anchorOutsideCanvas: worldTransform.x < 0 || worldTransform.y < 0 ||
         worldTransform.x > document.canvas.width || worldTransform.y > document.canvas.height,
       ambient: visual.ambient ?? null,
-    });
+    };
   }
 
   const bindings = object.bindings;
@@ -253,27 +253,27 @@ function compileObjectV1(
       state.timelines.push(bindingReferenceV1(object.objectId, timelineId, bindingStatus));
     }
     for (const interaction of bindings.interactions) {
-      state.interactions.push(Object.freeze({
+      state.interactions.push({
         objectId: object.objectId,
         regionId: interaction.regionId,
         intentId: interaction.intentId,
         status: bindingStatus,
-      }));
+      });
     }
     for (const control of bindings.guiControls) {
-      state.guiControls.push(Object.freeze({
+      state.guiControls.push({
         objectId: object.objectId,
         controlId: control.controlId,
         intentId: control.intentId,
         status: "external" as const,
-      }));
+      });
     }
   }
   if (visual?.ambient !== undefined) {
     pushMotionReferenceV1(state, object.objectId, visual.ambient.motionId, "external");
   }
 
-  state.inspection.push(Object.freeze({
+  state.inspection.push({
     objectId: object.objectId,
     label: object.label,
     layerId,
@@ -285,14 +285,14 @@ function compileObjectV1(
     runtimeTarget,
     visual: inspectionVisual,
     bindings: bindings ?? null,
-    cues: state.cueInspections.get(object.objectId as string) ?? Object.freeze([]),
-  }));
-  state.sourceObjects.push(Object.freeze({
+    cues: state.cueInspections.get(object.objectId as string) ?? [],
+  });
+  state.sourceObjects.push({
     objectId: object.objectId,
     layerId,
     jsonPointer: sourcePointer,
     runtimeTarget,
-  }));
+  });
 
   for (const [index, child] of object.children.entries()) {
     compileObjectV1(
@@ -318,17 +318,17 @@ export function compileAuthoringSceneV1(
   const mutableCueInspections = new Map<string, AuthoringSceneInspectionCueV1[]>();
   for (const [index, cue] of document.cues.entries()) {
     const current = mutableCueInspections.get(cue.objectId as string) ?? [];
-    current.push(Object.freeze({
+    current.push({
       cueId: cue.cueId,
       kind: cue.kind,
       jsonPointer: admitted.sourceMap.cues[index]!.jsonPointer,
       motionId: cue.motionId ?? null,
       cut: cue.cut === true,
-    }));
+    });
     mutableCueInspections.set(cue.objectId as string, current);
   }
   const cueInspections = new Map(
-    [...mutableCueInspections].map(([objectId, cues]) => [objectId, Object.freeze(cues)] as const),
+    [...mutableCueInspections].map(([objectId, cues]) => [objectId, cues] as const),
   );
   const state: MutableCompileStateV1 = {
     entries: [],
@@ -363,12 +363,12 @@ export function compileAuthoringSceneV1(
         state,
       );
     }
-    inspectionLayers.push(Object.freeze({
+    inspectionLayers.push({
       layerId: layer.layerId,
       label: layer.label,
       jsonPointer: layerSource.jsonPointer,
-      objectIds: Object.freeze(objectIds),
-    }));
+      objectIds: objectIds,
+    });
   }
   for (const cue of document.cues) {
     if (cue.motionId !== undefined) {
@@ -376,49 +376,47 @@ export function compileAuthoringSceneV1(
     }
   }
 
-  const sceneDocument: SceneDocumentV1 = Object.freeze({
+  const sceneDocument: SceneDocumentV1 = {
     format: "sillymaker.scene" as const,
     version: 1 as const,
     sceneId: document.sceneId,
     label: document.label,
     canvas: document.canvas,
-    entries: Object.freeze(state.entries),
-    cues: Object.freeze(document.cues.map((cue) =>
-      Object.freeze({
-        cueId: cue.cueId,
-        kind: cue.kind,
-        tag: cue.objectId,
-        ...(cue.motionId === undefined ? {} : { motionId: cue.motionId }),
-        ...(cue.cut === undefined ? {} : { cut: true as const }),
-      })
-    )),
-  });
+    entries: state.entries,
+    cues: document.cues.map((cue) => ({
+      cueId: cue.cueId,
+      kind: cue.kind,
+      tag: cue.objectId,
+      ...(cue.motionId === undefined ? {} : { motionId: cue.motionId }),
+      ...(cue.cut === undefined ? {} : { cut: true as const }),
+    })),
+  };
 
-  return Object.freeze({
-    runtimePlan: Object.freeze({
+  return ({
+    runtimePlan: {
       sourceKind: "authoring_scene" as const,
       sceneDocument,
-      orderedLayerIds: Object.freeze(document.layers.map((layer) => layer.layerId)),
-    }),
-    objectTargets: Object.freeze(state.targets),
-    bindings: Object.freeze({
-      hitRegions: Object.freeze(state.hitRegions),
-      motions: Object.freeze(state.motions),
-      timelines: Object.freeze(state.timelines),
-      interactions: Object.freeze(state.interactions),
-      guiControls: Object.freeze(state.guiControls),
-    }),
-    inspection: Object.freeze({
+      orderedLayerIds: document.layers.map((layer) => layer.layerId),
+    },
+    objectTargets: state.targets,
+    bindings: {
+      hitRegions: state.hitRegions,
+      motions: state.motions,
+      timelines: state.timelines,
+      interactions: state.interactions,
+      guiControls: state.guiControls,
+    },
+    inspection: {
       sceneId: document.sceneId,
       canvas: document.canvas,
-      layers: Object.freeze(inspectionLayers),
-      objects: Object.freeze(state.inspection),
-    }),
-    sourceMap: Object.freeze({
+      layers: inspectionLayers,
+      objects: state.inspection,
+    },
+    sourceMap: {
       sceneJsonPointer: admitted.sourceMap.sceneJsonPointer,
       layers: admitted.sourceMap.layers,
-      objects: Object.freeze(state.sourceObjects),
+      objects: state.sourceObjects,
       cues: admitted.sourceMap.cues,
-    }),
+    },
   });
 }

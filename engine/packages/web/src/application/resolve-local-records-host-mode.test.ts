@@ -31,7 +31,6 @@ describe("local records Host mode", () => {
         wantsLocalRecords,
         desktopShellCapability,
       });
-      expect(Object.isFrozen(mode)).toBe(true);
     },
   );
 

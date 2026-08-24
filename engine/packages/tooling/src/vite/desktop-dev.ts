@@ -5,12 +5,12 @@ import { Readable } from "node:stream";
 
 import type { Plugin, ViteDevServer } from "vite";
 
-import {
-  applicationBootstrapJsonTextInternalV1,
-  type ApplicationBootstrapHtmlConfigV1,
-} from "../desktop/application-bootstrap-html.mts";
+import { applicationBootstrapJsonTextInternalV1 } from "../desktop/application-bootstrap-html.mts";
 import { createDesktopHtmlResponseInternalV1 } from "../desktop/desktop-html.mts";
-import { desktopRuntimeBootstrapConfigV1 } from "../desktop/desktop-shell-arguments.mts";
+import {
+  desktopRuntimeBootstrapConfigV1,
+  type DesktopRuntimeBootstrapConfigV1,
+} from "../desktop/desktop-shell-arguments.mts";
 import {
   createFileDownloadRequestCoordinatorInternalV1,
   type FileDownloadRequestCoordinatorInternalV1,
@@ -56,12 +56,12 @@ export interface DesktopDevIntentInternalV1 {
   readonly runId: string;
   readonly recordsDir: string;
   readonly downloadsDir: string;
-  readonly bootstrap: ApplicationBootstrapHtmlConfigV1;
+  readonly bootstrap: DesktopRuntimeBootstrapConfigV1;
 }
 
 export interface DesktopDevRuntimeInternalV1 {
   readonly coordinatorTarget: object;
-  readonly browserWindow: DesktopDevBrowserWindowConstructorInternalV1 | undefined;
+  readonly browserWindow: DesktopDevBrowserWindowConstructorInternalV1;
   readonly exit: (code: number) => void;
   readonly allocateCapability: () => string;
   readonly createRecordStore: (recordsDir: string) => RecordHttpStoreV1;
@@ -90,7 +90,7 @@ interface DesktopDevServerGenerationInternalV1 {
   readonly downloads: FileDownloadRequestCoordinatorInternalV1;
   readonly activePrivateExchanges: Set<Promise<void>>;
   downloadsClosed: boolean;
-  origin: string | null;
+  origin: URL | null;
   accepting: boolean;
 }
 
@@ -177,13 +177,13 @@ function admitDesktopDevIntentJsonV1(value: unknown): DesktopDevIntentInternalV1
   ) {
     return desktopDevFailureV1("intent.invalid_bootstrap");
   }
-  return Object.freeze({
+  return {
     revision: 1,
     runId: record.runId,
     recordsDir,
     downloadsDir,
     bootstrap: desktopRuntimeBootstrapConfigV1,
-  });
+  };
 }
 
 /** One environment boundary shared by the private launcher and Vite assembly. */
@@ -200,34 +200,28 @@ export function parseDesktopDevIntentEnvironmentInternalV1(
   return admitDesktopDevIntentJsonV1(parsed);
 }
 
-function requireApplicationTextV1(value: string, field: string): string {
-  if (typeof value !== "string" || value === "" || value !== value.trim() || value.includes("\0")) {
-    return desktopDevFailureV1(`identity.invalid_${field}`);
-  }
-  return value;
-}
-
 function actualDesktopDevRuntimeV1(): DesktopDevRuntimeInternalV1 {
-  const deno = Reflect.get(globalThis, "Deno");
+  const deno = (globalThis as { readonly Deno?: unknown }).Deno;
   if (typeof deno !== "object" || deno === null) {
     return desktopDevFailureV1("runtime.browser_window_unavailable");
   }
-  const browserWindow = Reflect.get(deno, "BrowserWindow");
-  const exit = Reflect.get(deno, "exit");
+  const runtime = deno as { readonly BrowserWindow?: unknown; readonly exit?: unknown };
+  const browserWindow = runtime.BrowserWindow;
+  const exit = runtime.exit;
   if (typeof browserWindow !== "function" || typeof exit !== "function") {
     return desktopDevFailureV1("runtime.browser_window_unavailable");
   }
-  return Object.freeze({
+  return {
     coordinatorTarget: globalThis,
     browserWindow: browserWindow as DesktopDevBrowserWindowConstructorInternalV1,
     exit: (code: number) => {
-      Reflect.apply(exit, deno, [code]);
+      exit.call(deno, code);
     },
     allocateCapability: () => allocateShellCapabilityInternalV1(),
     createRecordStore: (recordsDir: string) => createRecordFileStoreV1(recordsDir),
     createDownloadCoordinator: (downloadsDir: string) =>
       createFileDownloadRequestCoordinatorInternalV1(downloadsDir),
-  });
+  };
 }
 
 function sameIdentityV1(
@@ -319,8 +313,8 @@ function nodeRequestBodyV1(request: IncomingMessage): ReadableStream<Uint8Array>
   return Readable.toWeb(request) as ReadableStream<Uint8Array>;
 }
 
-function requestHasExactHostV1(request: IncomingMessage, origin: string): boolean {
-  const expectedHost = new URL(origin).host;
+function requestHasExactHostV1(request: IncomingMessage, origin: URL): boolean {
+  const expectedHost = origin.host;
   const rawHosts: string[] = [];
   for (let index = 0; index < request.rawHeaders.length; index += 2) {
     if (request.rawHeaders[index]?.toLowerCase() === "host") {
@@ -333,17 +327,17 @@ function requestHasExactHostV1(request: IncomingMessage, origin: string): boolea
 
 function createFetchRequestV1(
   request: IncomingMessage,
-  origin: string,
+  origin: URL,
   signal: AbortSignal,
 ): Request {
   const rawUrl = request.url ?? "";
   let url: URL;
   try {
-    url = new URL(rawUrl, `${origin}/`);
+    url = new URL(rawUrl, origin);
   } catch (error) {
     return desktopDevFailureV1("request.invalid_url", error);
   }
-  if (url.origin !== origin) return desktopDevFailureV1("request.invalid_url");
+  if (url.origin !== origin.origin) return desktopDevFailureV1("request.invalid_url");
   const body = nodeRequestBodyV1(request);
   const init: RequestInit & { readonly duplex?: "half" } = {
     method: request.method ?? "GET",
@@ -437,7 +431,7 @@ function createConnectionCloseWaiterV1(
     socket.once("close", onClose);
     if (socket.destroyed) onClose(true);
   });
-  return Object.freeze({ promise, dispose: () => dispose() });
+  return { promise, dispose: () => dispose() };
 }
 
 async function writeFetchResponseV1(
@@ -517,11 +511,12 @@ function createPrivateMiddlewareV1(
       sendUnavailableV1(response);
       return;
     }
-    if (!generation.accepting || generation.origin === null) {
+    const origin = generation.origin;
+    if (!generation.accepting || origin === null) {
       sendUnavailableV1(response);
       return;
     }
-    if (!requestHasExactHostV1(request, generation.origin)) {
+    if (!requestHasExactHostV1(request, origin)) {
       sendMisdirectedV1(response);
       return;
     }
@@ -542,11 +537,7 @@ function createPrivateMiddlewareV1(
     let exchange!: Promise<void>;
     exchange = Promise.resolve().then(async (): Promise<void> => {
       try {
-        const fetchRequest = createFetchRequestV1(
-          request,
-          generation.origin as string,
-          abort.signal,
-        );
+        const fetchRequest = createFetchRequestV1(request, origin, abort.signal);
         await writeFetchResponseV1(await handler(fetchRequest), response, abort.signal);
       } catch (error) {
         if (!abort.signal.aborted && !response.headersSent) {
@@ -586,21 +577,22 @@ function publishServerOriginV1(generation: DesktopDevServerGenerationInternalV1)
     generation.origin = null;
     return;
   }
-  generation.origin = `http://127.0.0.1:${String(address.port)}`;
+  generation.origin = new URL(`http://127.0.0.1:${String(address.port)}`);
 }
 
 function readCoordinatorV1(target: object): DesktopDevCoordinatorInternalV1 | null {
-  const descriptor = Object.getOwnPropertyDescriptor(target, desktopDevCoordinatorKeyInternalV1);
-  if (descriptor === undefined) return null;
-  if (!("value" in descriptor)) return desktopDevFailureV1("coordinator.conflict");
-  const value: unknown = descriptor.value;
+  const value: unknown = (target as Record<PropertyKey, unknown>)[
+    desktopDevCoordinatorKeyInternalV1
+  ];
+  if (value === undefined) return null;
+  const coordinator = value as Partial<DesktopDevCoordinatorInternalV1>;
   if (
     typeof value !== "object" ||
     value === null ||
-    Reflect.get(value, "protocolRevision") !== 1 ||
-    typeof Reflect.get(value, "matches") !== "function" ||
-    typeof Reflect.get(value, "installServer") !== "function" ||
-    typeof Reflect.get(value, "transformRuntimeHtml") !== "function"
+    coordinator.protocolRevision !== 1 ||
+    typeof coordinator.matches !== "function" ||
+    typeof coordinator.installServer !== "function" ||
+    typeof coordinator.transformRuntimeHtml !== "function"
   ) {
     return desktopDevFailureV1("coordinator.conflict");
   }
@@ -611,9 +603,6 @@ function createCoordinatorV1(
   identity: DesktopDevIdentityInternalV1,
   runtime: DesktopDevRuntimeInternalV1,
 ): DesktopDevCoordinatorInternalV1 {
-  if (typeof runtime.browserWindow !== "function") {
-    return desktopDevFailureV1("runtime.browser_window_unavailable");
-  }
   let current: DesktopDevServerGenerationInternalV1 | null = null;
   let closing = false;
   let closingGeneration: DesktopDevServerGenerationInternalV1 | null = null;
@@ -681,7 +670,7 @@ function createCoordinatorV1(
       accepting: true,
     };
     const shellHandler = createShellHttpHandlerInternalV1({
-      expectedOrigin: () => generation.origin ?? "",
+      expectedOrigin: () => generation.origin,
       capability,
       handleStatic: () => Promise.resolve(new Response("not found", { status: 404 })),
       handleFiles: (request, subPath) => downloads.handle(request, subPath),
@@ -701,7 +690,7 @@ function createCoordinatorV1(
     current = generation;
   };
 
-  const coordinator: DesktopDevCoordinatorInternalV1 = Object.freeze({
+  const coordinator: DesktopDevCoordinatorInternalV1 = {
     protocolRevision: 1,
     identity,
     capability,
@@ -721,7 +710,7 @@ function createCoordinatorV1(
       ).text();
       return removeStandaloneStudioAdvertisementV1(desktopHtml);
     },
-  });
+  };
   return coordinator;
 }
 
@@ -756,15 +745,12 @@ export function createDesktopDevVitePluginInternalV1(
   input: CreateDesktopDevVitePluginInputInternalV1,
 ): Plugin {
   const intent = input.intent;
-  const identity: DesktopDevIdentityInternalV1 = Object.freeze({
+  const identity: DesktopDevIdentityInternalV1 = {
     intent,
-    applicationId: requireApplicationTextV1(input.applicationId, "application_id"),
-    applicationLabel: requireApplicationTextV1(input.applicationLabel, "application_label"),
-  });
+    applicationId: input.applicationId,
+    applicationLabel: input.applicationLabel,
+  };
   const runtime = input.runtime ?? actualDesktopDevRuntimeV1();
-  if (typeof runtime.browserWindow !== "function") {
-    return desktopDevFailureV1("runtime.browser_window_unavailable");
-  }
   const coordinator = requireCoordinatorV1(identity, runtime);
   return {
     name: "sillymaker:desktop-dev",

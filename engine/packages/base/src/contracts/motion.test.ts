@@ -50,9 +50,6 @@ describe("motion document contract", () => {
       locked: true,
       notes: "手工调过节奏",
     });
-    expect(Object.isFrozen(document)).toBe(true);
-    expect(Object.isFrozen(document.tracks)).toBe(true);
-
     const definition = motionDefinitionFromDocumentV1(document);
     expect(Object.keys(definition).toSorted()).toEqual([
       "delayMs",

@@ -94,11 +94,9 @@ detached preview；它没有 Session/semantic write port，关闭后 live applic
 新的公共 authoring gap，且没有第二个需要相同新 API 的 preview 消费者，所以本轮不激活上述
 任何 PF6 candidate。
 
-WholeCanvas public factory 目前仍要求作者预先冻结 dense arrays 与 plain records。严格 ID、
-duplicate、placement、reserved-action 与 schema validation 必须保留，但“普通 readonly/plain
-input → validate/defensive copy/normalize → engine-owned freeze”登记为 evidence-gated author API
-ergonomics debt；在第二个真实作者消费者或 editor generator 证明当前写法形成实际成本前，不因此
-重开 PF6。
+WholeCanvas public factory 当前接受普通 records/arrays，在公开边界执行一次 ID、
+duplicate、placement、reserved-action 与 schema/value admission，内部消费者直接信任
+typed result。它不要求作者预冻结输入，也不因普通对象真实性重开 PF6。
 
 上述第二消费者门槛不阻止单一消费者的真实 lifecycle bug 获得最窄 regression/property test 或
 局部 pure model；只有把它提升为 broad harness/public abstraction 时才需要满足 promotion gate。

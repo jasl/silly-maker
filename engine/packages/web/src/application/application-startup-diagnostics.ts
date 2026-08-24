@@ -57,16 +57,14 @@ export interface WebApplicationStartupDiagnosticsControllerInternalV1 {
   dispose(): void;
 }
 
-const diagnosticCodesInternalV1 = Object.freeze(
-  {
-    bootstrap_config: "SM-STARTUP-CONFIG",
-    presentation: "SM-STARTUP-PRESENTATION",
-    required_domain: "SM-STARTUP-REQUIRED",
-    unavailable: "SM-STARTUP-UNAVAILABLE",
-  } satisfies Readonly<
-    Record<ApplicationStartupFailureReasonInternalV1, ApplicationStartupDiagnosticCodeInternalV1>
-  >,
-);
+const diagnosticCodesInternalV1 = {
+  bootstrap_config: "SM-STARTUP-CONFIG",
+  presentation: "SM-STARTUP-PRESENTATION",
+  required_domain: "SM-STARTUP-REQUIRED",
+  unavailable: "SM-STARTUP-UNAVAILABLE",
+} satisfies Readonly<
+  Record<ApplicationStartupFailureReasonInternalV1, ApplicationStartupDiagnosticCodeInternalV1>
+>;
 
 const optionalCapabilityIdPatternInternalV1 = /^[a-z0-9](?:[a-z0-9._:-]{0,126}[a-z0-9])?$/;
 
@@ -90,7 +88,7 @@ function resolveBootShellInternalV1(
   if (!(pendingElement instanceof HTMLElementConstructor)) {
     throw new TypeError("web.application_startup.invalid_pending_shell");
   }
-  return Object.freeze({ shell, pending: pendingElement });
+  return ({ shell, pending: pendingElement });
 }
 
 function assertOptionalCapabilityIdInternalV1(capabilityId: string): void {
@@ -107,7 +105,7 @@ function dispatchStartupSignalInternalV1(
   shell.dispatchEvent(
     new CustomEventConstructor<ApplicationStartupSignalDetailInternalV1>(
       applicationStartupSignalEventNameInternalV1,
-      { bubbles: true, detail: Object.freeze(detail) },
+      { bubbles: true, detail: detail },
     ),
   );
 }
@@ -152,7 +150,7 @@ function createTerminalFailureContentInternalV1(input: {
   retryButton.textContent = "Retry";
 
   alert.append(message, diagnostic, retryButton);
-  return Object.freeze({ alert, retryButton });
+  return ({ alert, retryButton });
 }
 
 /**
@@ -180,7 +178,7 @@ export function createWebApplicationStartupDiagnosticsControllerInternalV1(
   shell.setAttribute("data-sillymaker-startup-optional-ready", "[]");
   updateAggregateStateInternalV1(shell, productCommitted, requiredDomainReady);
 
-  return Object.freeze({
+  return ({
     signalFirstProductCommit(source: FirstProductCommitSourceInternalV1): void {
       if (disposed || terminal || productCommitted) return;
       productCommitted = true;
@@ -191,7 +189,7 @@ export function createWebApplicationStartupDiagnosticsControllerInternalV1(
       updateAggregateStateInternalV1(shell, productCommitted, requiredDomainReady);
       dispatchStartupSignalInternalV1(
         shell,
-        Object.freeze({ revision: 1, signal: "first_product_commit", source }),
+        { revision: 1, signal: "first_product_commit", source },
       );
     },
     signalRequiredDomainReady(): void {
@@ -201,7 +199,7 @@ export function createWebApplicationStartupDiagnosticsControllerInternalV1(
       updateAggregateStateInternalV1(shell, productCommitted, requiredDomainReady);
       dispatchStartupSignalInternalV1(
         shell,
-        Object.freeze({ revision: 1, signal: "required_domain_ready" }),
+        { revision: 1, signal: "required_domain_ready" },
       );
     },
     signalOptionalCapabilityReady(capabilityId: string): void {
@@ -214,7 +212,7 @@ export function createWebApplicationStartupDiagnosticsControllerInternalV1(
       );
       dispatchStartupSignalInternalV1(
         shell,
-        Object.freeze({ revision: 1, signal: "optional_capability_ready", capabilityId }),
+        { revision: 1, signal: "optional_capability_ready", capabilityId },
       );
     },
     signalTerminalStartupFailure(input: {
@@ -234,7 +232,7 @@ export function createWebApplicationStartupDiagnosticsControllerInternalV1(
         shell.setAttribute("data-sillymaker-startup-recovery", "requested");
         dispatchStartupSignalInternalV1(
           shell,
-          Object.freeze({ revision: 1, signal: "recovery_requested", diagnosticCode }),
+          { revision: 1, signal: "recovery_requested", diagnosticCode },
         );
         try {
           input.retry();
@@ -257,12 +255,12 @@ export function createWebApplicationStartupDiagnosticsControllerInternalV1(
       shell.replaceChildren(content.alert);
       dispatchStartupSignalInternalV1(
         shell,
-        Object.freeze({
+        {
           revision: 1,
           signal: "terminal_startup_failure",
           diagnosticCode,
           recovery: "actionable",
-        }),
+        },
       );
     },
     dispose(): void {

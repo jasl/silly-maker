@@ -2,7 +2,6 @@
 // Simulation runtime: module composition, the transaction runner, and the shared shape of feature command handlers.
 import type { createTransactionalRngV1 } from "@sillymaker/base";
 
-import { osGameStateSchemaV1 } from "./state.ts";
 import type { OsGameStateV1 } from "./state.ts";
 import type { OsAttemptV1, OsCommandV1, OsSnapshotV1 } from "./kernel.ts";
 import { kit, osEventSchemaV1 } from "./kernel.ts";
@@ -19,9 +18,8 @@ export const osModuleCompositionV1 = kit.composeModules([
 export type OsModulesV1 = typeof osModuleCompositionV1.modules;
 
 export const transactionRunnerV1 = osModuleCompositionV1.createTransactionRunner({
-  stateSchema: osGameStateSchemaV1,
   eventSchema: osEventSchemaV1,
-  createFault: () => Object.freeze({ code: "os.executor_failed" as const }),
+  createFault: () => ({ code: "os.executor_failed" as const }),
 });
 
 export type OsTransactionalRngV1 = ReturnType<typeof createTransactionalRngV1>;

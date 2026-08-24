@@ -51,22 +51,18 @@ interface BenchmarkOptionsV1 {
   readonly output?: string;
 }
 
-const snapshotBenchmarkWorkloadClassesV1 = Object.freeze(
-  [
-    "command",
-    "sequence",
-    "replay",
-    "persistence",
-  ] as const,
-);
+const snapshotBenchmarkWorkloadClassesV1 = [
+  "command",
+  "sequence",
+  "replay",
+  "persistence",
+] as const;
 type SnapshotBenchmarkWorkloadClassV1 = (typeof snapshotBenchmarkWorkloadClassesV1)[number];
 
-const snapshotBenchmarkCommandClassesV1 = Object.freeze(
-  [
-    ...snapshotCommitCommandClassesV1,
-    ...snapshotTransactionCommandClassesV1,
-  ] as const,
-);
+const snapshotBenchmarkCommandClassesV1 = [
+  ...snapshotCommitCommandClassesV1,
+  ...snapshotTransactionCommandClassesV1,
+] as const;
 type SnapshotBenchmarkCommandClassV1 =
   | SnapshotCommitCommandClassV1
   | SnapshotTransactionCommandClassV1;
@@ -333,13 +329,13 @@ async function measureFreshRunsV1<TRun>(input: {
   }
   if (expectedRun === undefined) throw new TypeError("workload did not run");
 
-  return Object.freeze({
+  return {
     consistentRun: expectedRun,
-    durationMs: Object.freeze({
+    durationMs: {
       p50: percentileV1(durations, 0.5),
       p95: percentileV1(durations, 0.95),
-    }),
-  });
+    },
+  };
 }
 
 async function runWorkloadV1(input: {
@@ -407,7 +403,7 @@ function outcomeCountsV1(
         break;
     }
   }
-  return Object.freeze({ committed, rejected, faulted });
+  return { committed, rejected, faulted };
 }
 
 async function runSequenceWorkloadV1(input: {

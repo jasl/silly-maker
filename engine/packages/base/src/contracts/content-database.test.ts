@@ -156,8 +156,6 @@ describe("content database queries", () => {
     expect(view.findMany({ orderBy: "stamina", direction: "desc" })[0]?.id).toBe("act.train");
     expect(view.findFirst({ where: { id: "act.clean" } })?.nameTextId).toBe("text.t.clean");
 
-    // Results are frozen and stable.
-    expect(Object.isFrozen(view.rows())).toBe(true);
     expect(db.collectTextIds()).toEqual(["text.t.clean", "text.t.play", "text.t.train"]);
   });
 

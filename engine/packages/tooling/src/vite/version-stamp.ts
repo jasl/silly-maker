@@ -72,12 +72,12 @@ export function normalizeCollectedVersionStampInternalV1(
     return typeof value === "string" && fullGitCommitPatternV1.test(value) ? value : null;
   };
   try {
-    return Object.freeze({
+    return {
       applicationVersion: versionV1("applicationVersion"),
       applicationCommit: commitV1("applicationCommit"),
       engineVersion: versionV1("engineVersion"),
       engineCommit: commitV1("engineCommit"),
-    });
+    };
   } catch {
     return null;
   }
@@ -153,13 +153,13 @@ function enginePackageV1(
     if (!existsSync(installed)) return null;
     const packageJson = realpathSync(installed);
     const nodeModules = realpathSync(join(appRoot, "node_modules"));
-    return Object.freeze({
+    return {
       packageJson,
       // A physical registry extraction can otherwise let `git rev-parse`
       // walk upward into the consuming application's repository. Only a
       // linked checkout outside node_modules owns usable engine git identity.
       commitDirectory: isWithinV1(nodeModules, packageJson) ? null : dirname(packageJson),
-    });
+    };
   } catch {
     // Fall through to "unknown engine".
   }
@@ -172,7 +172,7 @@ export function collectVersionStampV1(input: {
 }): CollectedVersionStampV1 {
   const runGit = input.runGit ?? defaultRunGitV1;
   const enginePackage = enginePackageV1(input.appRoot);
-  return Object.freeze({
+  return {
     applicationVersion: packageVersionV1(join(input.appRoot, "package.json")),
     applicationCommit: gitCommitV1(input.appRoot, runGit),
     engineVersion: enginePackage === null ? null : packageVersionV1(enginePackage.packageJson),
@@ -180,7 +180,7 @@ export function collectVersionStampV1(input: {
       enginePackage?.commitDirectory === null || enginePackage?.commitDirectory === undefined
         ? null
         : gitCommitV1(enginePackage.commitDirectory, runGit),
-  });
+  };
 }
 
 function inlineJsonV1(value: unknown): string {

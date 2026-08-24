@@ -181,7 +181,7 @@ function appendSnapshotEntriesInternalV1(
   group: WholeCanvasManagedSurfaceSnapshotInternalV1["root"],
 ): void {
   if (group.current !== null) {
-    target.push(Object.freeze({
+    target.push({
       key: entryKeyInternalV1(group.current),
       entry: group.current,
       phase: "current",
@@ -189,10 +189,10 @@ function appendSnapshotEntriesInternalV1(
       concealed: false,
       rendererConcealed: false,
       blockingFallback: false,
-    }));
+    });
   }
   if (group.pending !== null) {
-    target.push(Object.freeze({
+    target.push({
       key: entryKeyInternalV1(group.pending.renderEntry),
       entry: group.pending.renderEntry,
       phase: "preparing",
@@ -200,10 +200,10 @@ function appendSnapshotEntriesInternalV1(
       concealed: group.pending.transition === "primary_replacement",
       rendererConcealed: true,
       blockingFallback: group.pending.transition !== "primary_replacement",
-    }));
+    });
   }
   if (group.failure?.transition === "initial_open") {
-    target.push(Object.freeze({
+    target.push({
       key: entryKeyInternalV1(group.failure.renderEntry),
       entry: group.failure.renderEntry,
       phase: "failed",
@@ -211,7 +211,7 @@ function appendSnapshotEntriesInternalV1(
       concealed: false,
       rendererConcealed: false,
       blockingFallback: false,
-    }));
+    });
   }
 }
 
@@ -221,7 +221,7 @@ function snapshotEntriesInternalV1(
   const entries: SurfaceEntryViewInternalV1[] = [];
   appendSnapshotEntriesInternalV1(entries, snapshot.root);
   appendSnapshotEntriesInternalV1(entries, snapshot.detail);
-  return Object.freeze(entries);
+  return entries;
 }
 
 function focusOwnerKeyInternalV1(
@@ -270,11 +270,11 @@ class SurfaceEntryBoundaryInternalV1 extends Component<
   SurfaceEntryBoundaryPropsInternalV1,
   Readonly<{ failed: boolean }>
 > {
-  state = Object.freeze({ failed: false });
+  state = ({ failed: false });
   #reported = false;
 
   static getDerivedStateFromError(): Readonly<{ failed: boolean }> {
-    return Object.freeze({ failed: true });
+    return ({ failed: true });
   }
 
   componentDidCatch(_error: Error, _info: ErrorInfo): void {
@@ -373,7 +373,7 @@ function WholeCanvasSurfaceEntryInternalV1(
     runtime.dismissInternalV1(view.entry.frame, "back");
   }, [hostIdentity, runtime, view.entry.frame]);
   const rendererProps = useMemo<WholeCanvasSurfaceRendererPropsInternalV1>(
-    () => Object.freeze({ entry: view.entry, onAction, onBack }),
+    () => ({ entry: view.entry, onAction, onBack }),
     [onAction, onBack, view.entry],
   );
 
@@ -531,14 +531,14 @@ function prepareFocusCommitInternalV1(
     if (touched.has(element)) return;
     touched.set(
       element,
-      Object.freeze({
+      {
         element,
         className: element.className,
         ariaHidden: element.getAttribute("aria-hidden"),
         inert: element.hasAttribute("inert"),
         phase: element.getAttribute("data-whole-canvas-phase"),
         pointerEvents: element.style.pointerEvents,
-      }),
+      },
     );
   };
   const reveal = (element: HTMLElement, phase: "current" | "failed"): void => {
@@ -566,7 +566,7 @@ function prepareFocusCommitInternalV1(
   };
   const previousFocus = lifecycle.portalContainer.ownerDocument.activeElement;
   let focusTarget: HTMLElement | null = null;
-  const rollback = Object.freeze((): void => {
+  const rollback = (): void => {
     for (const state of [...touched.values()].toReversed()) {
       state.element.className = state.className;
       if (state.ariaHidden === null) state.element.removeAttribute("aria-hidden");
@@ -580,7 +580,7 @@ function prepareFocusCommitInternalV1(
     if (previousFocus instanceof HTMLElement && previousFocus.isConnected) {
       focusElementInternalV1(previousFocus);
     }
-  });
+  };
 
   if (request.kind === "detail_prepare") {
     if (request.transition !== "open") return null;
@@ -607,7 +607,7 @@ function prepareFocusCommitInternalV1(
     lifecycle.detailOpener.current = exactOpener;
     lifecycle.pointerActivationSequence.current += 1;
     lifecycle.pointerActivationTarget.current = null;
-    return Object.freeze((): void => {
+    return ((): void => {
       if (lifecycle.detailOpener.current === exactOpener) {
         lifecycle.detailOpener.current = previousOpener;
       }
@@ -799,13 +799,11 @@ function WholeCanvasSurfaceRuntimeInternalV1(
   }, [hostIdentity, lifecycle, runtime]);
 
   useLayoutEffect(() =>
-    runtime.registerHostFocusCommitInternalV1(Object.freeze({
+    runtime.registerHostFocusCommitInternalV1({
       hostIdentity,
-      prepareFocusInternalV1: Object.freeze(
-        (request: WholeCanvasManagedSurfaceHostCommitRequestInternalV1) =>
-          prepareFocusCommitInternalV1(lifecycle, request),
-      ),
-    })), [hostIdentity, lifecycle, runtime]);
+      prepareFocusInternalV1: (request: WholeCanvasManagedSurfaceHostCommitRequestInternalV1) =>
+        prepareFocusCommitInternalV1(lifecycle, request),
+    }), [hostIdentity, lifecycle, runtime]);
 
   useLayoutEffect(() => {
     const previous = previousSnapshot.current;
@@ -885,21 +883,21 @@ export function WholeCanvasSurfaceHostInternalV1(
     [props.binding],
   );
   const hostIdentity = useRef<object | null>(null);
-  if (hostIdentity.current === null) hostIdentity.current = Object.freeze({});
+  if (hostIdentity.current === null) hostIdentity.current = {};
   const [mounted, setMounted] = useState<WholeCanvasSurfaceMountedHostInternalV1 | null>(null);
   useLayoutEffect(() => {
     let release: (() => void) | null = null;
     try {
-      release = runtime.registerHostMountInternalV1(Object.freeze({
+      release = runtime.registerHostMountInternalV1({
         hostIdentity: hostIdentity.current!,
         portalContainer: props.portalContainer,
         inputRouter: props.inputRouter,
-      }));
-      setMounted(Object.freeze({
+      });
+      setMounted({
         runtime,
         portalContainer: props.portalContainer,
         inputRouter: props.inputRouter,
-      }));
+      });
     } catch (error) {
       setMounted(null);
       runtime.failHostInternalV1(error);

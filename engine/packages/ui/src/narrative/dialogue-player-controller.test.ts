@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { emptyNarrativeHistoryV1, parseNonNegativeSafeInteger } from "@sillymaker/base";
 import { defaultPlayerProfileV1, type PlayerProfileV1 } from "@sillymaker/base/runtime";
-import { describe, expect, expectTypeOf, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createInputRouterV1 } from "../input/input-router.ts";
 import {
@@ -24,16 +24,8 @@ import {
   type CreateNarrativeStableDialoguePlayerControllerInputInternalV1,
   type NarrativeStableDialoguePlayerClockPortInternalV1,
   type NarrativeStableDialoguePlayerControllerInternalV1,
-  type NarrativeStableDialoguePlayerPolicySnapshotInternalV1,
   type NarrativeStableDialoguePlayerProfilePortInternalV1,
-  type NarrativeStableDialoguePlayerSnapshotInternalV1,
   type NarrativeStableDialoguePlayerTextResolverPortInternalV1,
-  type NarrativeStablePlaybackModeResetAttemptInternalV1,
-  type NarrativeStablePlaybackModeResetDispatchResultInternalV1,
-  type NarrativeStableSayPlayerAutoAttemptInternalV1,
-  type NarrativeStableSayPlayerAutoDispatchResultInternalV1,
-  type NarrativeStableSaySkipAttemptInternalV1,
-  type NarrativeStableSaySkipDispatchResultInternalV1,
 } from "./dialogue-player-controller.ts";
 import {
   createNarrativeManagedSurfaceFamilyContractInternalV1,
@@ -76,13 +68,13 @@ function manualDialogueClockV1(input: {
   const cancel = vi.fn(() => {
     pendingTick = null;
   });
-  const frozenCancel = Object.freeze(cancel);
+  const cancelCallback = cancel;
   const requestTick = vi.fn((callback: (nowMs: number) => void) => {
     pendingTick = callback;
     latestTick = callback;
-    return frozenCancel;
+    return cancelCallback;
   });
-  const port = Object.freeze({
+  const port = ({
     nowInternalV1: now,
     requestTickInternalV1: requestTick,
     prefersReducedMotionInternalV1: prefersReducedMotion,
@@ -133,13 +125,13 @@ function mutableDialogueProfileV1(
   const unsubscribe = vi.fn(() => {
     listener = null;
   });
-  const frozenUnsubscribe = Object.freeze(unsubscribe);
+  const unsubscribeCallback = unsubscribe;
   const subscribe = vi.fn((nextListener: () => void) => {
     listener = nextListener;
-    return frozenUnsubscribe;
+    return unsubscribeCallback;
   });
   const markSeen = vi.fn((_definitionId: string, _seenRevision: number) => {});
-  const port = Object.freeze({
+  const port = ({
     getSnapshotInternalV1: getSnapshot,
     subscribeInternalV1: subscribe,
     markSeenInternalV1: markSeen,
@@ -168,26 +160,26 @@ function dialogueTextResolverV1(
 ): DialogueTextResolverV1 {
   const resolveText = vi.fn(resolve);
   return {
-    port: Object.freeze({ resolveTextInternalV1: resolveText }),
+    port: { resolveTextInternalV1: resolveText },
     resolveText,
   };
 }
 
-const semanticDispatchPortV1 = Object.freeze({
+const semanticDispatchPortV1 = ({
   dispatchResolutionInternalV1: (_request: unknown) => Promise.resolve(undefined),
 }) satisfies NarrativeStableSemanticResolutionPortInternalV1;
 
-const historyAvailabilityPortV1 = Object.freeze({
+const historyAvailabilityPortV1 = ({
   readHistoryAvailabilityInternalV1: () => true,
 }) satisfies NarrativeStableHistoryAvailabilityPortInternalV1;
 
-const historyObservationPortV1 = Object.freeze({
+const historyObservationPortV1 = ({
   getSnapshotInternalV1: () => emptyNarrativeHistoryV1,
-  subscribeInternalV1: (_listener: () => void) => Object.freeze(() => {}),
+  subscribeInternalV1: (_listener: () => void) => (() => {}),
 }) satisfies NarrativeStableHistoryObservationPortInternalV1;
 
 function sayPendingV1(sequence = 1, advancePolicy: "confirm" | "auto" = "confirm") {
-  return Object.freeze({
+  return ({
     kind: "say" as const,
     definitionId: "narrative.test.dialogue-player",
     seenRevision: 3,
@@ -199,20 +191,20 @@ function sayPendingV1(sequence = 1, advancePolicy: "confirm" | "auto" = "confirm
 }
 
 function passivePendingV1(sequence = 1) {
-  return Object.freeze({
+  return ({
     kind: "choice" as const,
     definitionId: "narrative.test.dialogue-player-choice",
     seenRevision: 1,
     occurrenceId: `interaction-occurrence.${String(10_000 + sequence)}`,
     promptTextId: "text.test.prompt",
-    options: Object.freeze([
-      Object.freeze({ choiceId: "choice.test.first", textId: "text.test.first" }),
-    ]),
+    options: [
+      { choiceId: "choice.test.first", textId: "text.test.first" },
+    ],
   });
 }
 
 function holdPendingV1(sequence = 1, durationMs = 100, tickQuantumMs?: number) {
-  return Object.freeze({
+  return ({
     kind: "hold" as const,
     definitionId: "narrative.test.dialogue-player-hold",
     seenRevision: 1,
@@ -242,15 +234,15 @@ function controlledDialogueProfileV1(): ControlledDialogueProfileV1 {
   });
   const subscribe = vi.fn((nextListener: () => void) => {
     listener = nextListener;
-    return Object.freeze(unsubscribe);
+    return unsubscribe;
   });
   const markSeen = vi.fn((_definitionId: string, _seenRevision: number) => {});
   return {
-    port: Object.freeze({
+    port: {
       getSnapshotInternalV1: getSnapshot,
       subscribeInternalV1: subscribe,
       markSeenInternalV1: markSeen,
-    }),
+    },
     getSnapshot,
     markSeen,
     unsubscribe,
@@ -298,23 +290,22 @@ function dialoguePlayerHarnessV1(input: {
   const clock = input.clock ?? manualDialogueClockV1();
   const profile = input.profile ?? mutableDialogueProfileV1();
   const text = input.text ?? dialogueTextResolverV1();
-  const candidatePreflight = Object.freeze({
-    preflightCandidateInternalV1: () =>
-      Object.freeze({
-        kind: "captured" as const,
-        candidateSnapshot: Object.freeze({
-          rendererComponent: Object.freeze({ kind: "dialogue-player-test-renderer" }),
-          visualConfig: Object.freeze({ skin: "dialogue-player-test" }),
-          semanticDispatchPort: input.semanticDispatchPort ?? semanticDispatchPortV1,
-          historyObservationPort: historyObservationPortV1,
-          historyAvailabilityPort: historyAvailabilityPortV1,
-          playerProfile: input.rawProfilePort ?? profile.port,
-          presentationClock: input.rawClockPort ?? clock.port,
-          textResolver: input.rawTextResolverPort ?? text.port,
-          voiceReplayPort: null,
-          quickMenuContribution: null,
-        }),
-      }),
+  const candidatePreflight = ({
+    preflightCandidateInternalV1: () => ({
+      kind: "captured" as const,
+      candidateSnapshot: {
+        rendererComponent: { kind: "dialogue-player-test-renderer" },
+        visualConfig: { skin: "dialogue-player-test" },
+        semanticDispatchPort: input.semanticDispatchPort ?? semanticDispatchPortV1,
+        historyObservationPort: historyObservationPortV1,
+        historyAvailabilityPort: historyAvailabilityPortV1,
+        playerProfile: input.rawProfilePort ?? profile.port,
+        presentationClock: input.rawClockPort ?? clock.port,
+        textResolver: input.rawTextResolverPort ?? text.port,
+        voiceReplayPort: null,
+        quickMenuContribution: null,
+      },
+    }),
   }) satisfies NarrativeStableCandidatePreflightInternalV1;
   const bridge = createNarrativeStablePublisherBridgeInternalV1({
     kernelBundle,
@@ -336,7 +327,7 @@ function currentTargetAndFrameV1(harness: DialoguePlayerHarnessV1): Readonly<{
   const target = baseline.targets[0]!;
   const frame = harness.bridge.inspectAdmittedTargetFrameInternalV1(target);
   if (frame === null) throw new Error("expected the exact admitted Narrative frame");
-  return Object.freeze({ target, frame });
+  return ({ target, frame });
 }
 
 function installSayCandidateV1(
@@ -365,13 +356,13 @@ function installHoldCandidateV1(
 function stableContributorCandidatesV1(
   entries: readonly ManagedSurfaceStableRuntimeEntryInternalV1[],
 ): readonly ManagedSurfaceStableRootReservationContributorCandidateInternalV1[] {
-  return Object.freeze(entries.flatMap((entry) => [
-    Object.freeze({ kind: "stable_desired" as const, desiredTarget: entry.desiredTarget }),
-    Object.freeze({
+  return (entries.flatMap((entry) => [
+    { kind: "stable_desired" as const, desiredTarget: entry.desiredTarget },
+    {
       kind: "stable_runtime" as const,
       desiredTarget: entry.desiredTarget,
       binding: entry.binding,
-    }),
+    },
   ]));
 }
 
@@ -388,10 +379,8 @@ function setCurrentNarrativePhaseV1(
     attempt: entry.binding.instance.attempt,
     phase,
   });
-  const entries = Object.freeze(
-    current.stableRuntimeBindings.map((candidate) =>
-      candidate === entry ? Object.freeze({ ...candidate, binding }) : candidate
-    ),
+  const entries = current.stableRuntimeBindings.map((candidate) =>
+    candidate === entry ? ({ ...candidate, binding }) : candidate
   );
   const next = reconcileManagedSurfaceStableRootReservationsInternalV1({
     currentState: current,
@@ -409,10 +398,10 @@ function settleCurrentNarrativeReadyV1(harness: DialoguePlayerHarnessV1): void {
     throw new Error("expected one preparing Narrative target");
   }
   expect(harness.kernel.settleStableReadinessReadyInternalV1({
-    readinessEvidence: Object.freeze({
+    readinessEvidence: {
       applicationEpoch: applicationEpochV1,
       surfaceInstanceId: entry.binding.attempt.identity.surfaceInstanceId,
-    }),
+    },
     publisherLease: entry.desiredTarget.publisherLease,
     sourceRevision: entry.desiredTarget.sourceRevision,
   })).toMatchObject({ kind: "applied", code: "surface.readiness_ready" });
@@ -423,7 +412,7 @@ function createControllerV1(
   target: ManagedSurfaceStableAdmittedTargetInternalV1,
   frame: NarrativeStableAdmittedFrameInternalV1,
 ): NarrativeStableDialoguePlayerControllerInternalV1 {
-  const input = Object.freeze({
+  const input = ({
     bridge: harness.bridge,
     target,
     frame,
@@ -442,9 +431,9 @@ function rawPortCallCountV1(harness: DialoguePlayerHarnessV1): number {
 }
 
 function updatedProfileV1(): PlayerProfileV1 {
-  return Object.freeze({
+  return ({
     ...defaultPlayerProfileV1,
-    seen: Object.freeze({ "narrative.test.previous": 1 }),
+    seen: { "narrative.test.previous": 1 },
   });
 }
 
@@ -452,13 +441,13 @@ function playerProfileWithPreferencesV1(
   preferences: Partial<PlayerProfileV1["preferences"]>,
   seen: Readonly<Record<string, number>> = defaultPlayerProfileV1.seen,
 ): PlayerProfileV1 {
-  return Object.freeze({
+  return ({
     ...defaultPlayerProfileV1,
-    seen: Object.freeze({ ...seen }),
-    preferences: Object.freeze({
+    seen: { ...seen },
+    preferences: {
       ...defaultPlayerProfileV1.preferences,
       ...preferences,
-    }),
+    },
   });
 }
 
@@ -483,188 +472,33 @@ function togglePlaybackModeV1(
 }
 
 describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
-  it("freezes the exact source-relative API and closed result rows", () => {
-    expectTypeOf<keyof NarrativeStableDialoguePlayerClockPortInternalV1>().toEqualTypeOf<
-      "nowInternalV1" | "requestTickInternalV1" | "prefersReducedMotionInternalV1"
-    >();
-    expectTypeOf<keyof NarrativeStableDialoguePlayerProfilePortInternalV1>().toEqualTypeOf<
-      "getSnapshotInternalV1" | "subscribeInternalV1" | "markSeenInternalV1"
-    >();
-    expectTypeOf<keyof NarrativeStableDialoguePlayerTextResolverPortInternalV1>().toEqualTypeOf<
-      "resolveTextInternalV1"
-    >();
-    expectTypeOf<keyof NarrativeStableDialoguePlayerPolicySnapshotInternalV1>().toEqualTypeOf<
-      "textRevealCharsPerSecond" | "autoWaitMs" | "skipPolicy" | "reducedMotion"
-    >();
-    expectTypeOf<keyof CreateNarrativeStableDialoguePlayerControllerInputInternalV1>()
-      .toEqualTypeOf<"bridge" | "target" | "frame">();
-    expectTypeOf<keyof NarrativeStableDialoguePlayerControllerInternalV1>().toEqualTypeOf<
-      "getSnapshotInternalV1" | "subscribeInternalV1" | "disposeInternalV1"
-    >();
-    expectTypeOf<
-      keyof Extract<
-        NarrativeStableDialoguePlayerSnapshotInternalV1,
-        { readonly kind: "say" }
-      >
-    >().toEqualTypeOf<
-      | "kind"
-      | "phase"
-      | "playbackMode"
-      | "playerProfile"
-      | "resolvedSpeakerText"
-      | "resolvedText"
-      | "revealedCharacters"
-      | "revealLength"
-      | "revealComplete"
-    >();
-    expectTypeOf<
-      keyof Extract<
-        NarrativeStableDialoguePlayerSnapshotInternalV1,
-        { readonly kind: "passive" }
-      >
-    >().toEqualTypeOf<"kind" | "phase" | "playbackMode" | "playerProfile">();
-    expectTypeOf<Extract<keyof NarrativeStableSayPlayerAutoAttemptInternalV1, string>>()
-      .toEqualTypeOf<never>();
-    expectTypeOf<Extract<keyof NarrativeStableSaySkipAttemptInternalV1, string>>()
-      .toEqualTypeOf<never>();
-    expectTypeOf<Extract<keyof NarrativeStablePlaybackModeResetAttemptInternalV1, string>>()
-      .toEqualTypeOf<never>();
-    expectTypeOf<NarrativeStableSayPlayerAutoDispatchResultInternalV1>().toEqualTypeOf<
-      | Readonly<{ kind: "dispatched"; completion: Promise<unknown> }>
-      | Readonly<{ kind: "not_ready"; completion: null }>
-      | Readonly<{ kind: "stale"; completion: null }>
-      | Readonly<{ kind: "faulted"; completion: null }>
-    >();
-    expectTypeOf<NarrativeStableSaySkipDispatchResultInternalV1>().toEqualTypeOf<
-      | Readonly<{ kind: "dispatched"; completion: Promise<unknown> }>
-      | Readonly<{ kind: "stopped"; completion: null }>
-      | Readonly<{ kind: "stale"; completion: null }>
-      | Readonly<{ kind: "faulted"; completion: null }>
-    >();
-    expectTypeOf<NarrativeStablePlaybackModeResetDispatchResultInternalV1>().toEqualTypeOf<
-      | Readonly<{ kind: "reset"; mode: "normal"; completion: null }>
-      | Readonly<{ kind: "stale"; completion: null }>
-      | Readonly<{ kind: "faulted"; completion: null }>
-    >();
-  });
-
-  it("normalizes the three raw ports once without calling them", () => {
+  it("retains the three typed ports without calling them during preflight", () => {
     const harness = dialoguePlayerHarnessV1();
     const { frame } = installSayCandidateV1(harness);
 
     expect(rawPortCallCountV1(harness)).toBe(0);
-    expect(frame.candidateSnapshot.playerProfile).not.toBe(harness.profile.port);
-    expect(frame.candidateSnapshot.presentationClock).not.toBe(harness.clock.port);
-    expect(frame.candidateSnapshot.textResolver).not.toBe(harness.text.port);
-    expect(Object.isFrozen(frame.candidateSnapshot.playerProfile)).toBe(true);
-    expect(Reflect.ownKeys(frame.candidateSnapshot.playerProfile)).toEqual([
-      "getSnapshotInternalV1",
-      "subscribeInternalV1",
-      "markSeenInternalV1",
-    ]);
-    expect(Object.isFrozen(frame.candidateSnapshot.presentationClock)).toBe(true);
-    expect(Reflect.ownKeys(frame.candidateSnapshot.presentationClock)).toEqual([
-      "nowInternalV1",
-      "requestTickInternalV1",
-      "prefersReducedMotionInternalV1",
-    ]);
-    expect(Object.isFrozen(frame.candidateSnapshot.textResolver)).toBe(true);
-    expect(Reflect.ownKeys(frame.candidateSnapshot.textResolver)).toEqual([
-      "resolveTextInternalV1",
-    ]);
-    expect(Reflect.ownKeys(frame.candidateSnapshot)).toEqual([
-      "rendererComponent",
-      "visualConfig",
-      "semanticDispatchPort",
-      "historyObservationPort",
-      "historyAvailabilityPort",
-      "playerProfile",
-      "presentationClock",
-      "textResolver",
-      "voiceReplayPort",
-      "quickMenuContribution",
-    ]);
+    expect(frame.candidateSnapshot.playerProfile).toBe(harness.profile.port);
+    expect(frame.candidateSnapshot.presentationClock).toBe(harness.clock.port);
+    expect(frame.candidateSnapshot.textResolver).toBe(harness.text.port);
   });
 
-  it.each(
-    [
-      [
-        "profile nonfunction",
-        {
-          rawProfilePort: Object.freeze({
-            ...mutableDialogueProfileV1().port,
-            markSeenInternalV1: true,
-          }),
-        },
-      ],
-      [
-        "clock nonfunction",
-        {
-          rawClockPort: Object.freeze({
-            nowInternalV1: true,
-            requestTickInternalV1: (_callback: (nowMs: number) => void) => Object.freeze(() => {}),
-            prefersReducedMotionInternalV1: () => false,
-          }),
-        },
-      ],
-      [
-        "text nonfunction",
-        { rawTextResolverPort: Object.freeze({ resolveTextInternalV1: true }) },
-      ],
-    ] as const,
-  )("maps malformed raw-port %s to preflight fault with exact-zero state", (_label, input) => {
-    const harness = dialoguePlayerHarnessV1(input);
-    const before = harness.kernel.getStateInternalV1();
-    expect(harness.bridge.reconcilePendingInternalV1(sayPendingV1())).toEqual({
-      kind: "faulted",
-      code: "narrative.candidate_preflight_faulted",
-      delta: {
-        source: "unchanged",
-        runtime: "unchanged",
-        notificationCount: 0,
-        topology: "unchanged",
-        runtimeAllocation: "zero",
-      },
-    });
-    expect(harness.kernel.getStateInternalV1()).toBe(before);
-    expect(rawPortCallCountV1(harness)).toBe(0);
-  });
-
-  it("rejects foreign, retired, value-equal-frame, accessor, and extra-key factory inputs before port reads", () => {
+  it("rejects foreign, retired, and value-equal bridge-target-frame inputs before port reads", () => {
     const harness = dialoguePlayerHarnessV1();
     const current = installSayCandidateV1(harness);
     const foreign = dialoguePlayerHarnessV1();
     installSayCandidateV1(foreign);
-    const valueEqualFrame = Object.freeze({
+    const valueEqualFrame = ({
       ...current.frame,
     }) as NarrativeStableAdmittedFrameInternalV1;
 
     expect(() =>
-      createNarrativeStableDialoguePlayerControllerInternalV1(Object.freeze({
+      createNarrativeStableDialoguePlayerControllerInternalV1({
         bridge: foreign.bridge,
         target: current.target,
         frame: current.frame,
-      }))
+      })
     ).toThrow(TypeError);
     expect(() => createControllerV1(harness, current.target, valueEqualFrame)).toThrow(TypeError);
-    expect(() =>
-      createNarrativeStableDialoguePlayerControllerInternalV1(Object.freeze({
-        bridge: harness.bridge,
-        target: current.target,
-        frame: current.frame,
-        extra: true,
-      }) as unknown as CreateNarrativeStableDialoguePlayerControllerInputInternalV1)
-    ).toThrow(TypeError);
-    const accessorInput = Object.defineProperty(
-      { bridge: harness.bridge, target: current.target },
-      "frame",
-      { enumerable: true, get: () => current.frame },
-    );
-    expect(() =>
-      createNarrativeStableDialoguePlayerControllerInternalV1(
-        accessorInput as CreateNarrativeStableDialoguePlayerControllerInputInternalV1,
-      )
-    ).toThrow(TypeError);
 
     expect(harness.bridge.reconcilePendingInternalV1(passivePendingV1(2))).toMatchObject({
       kind: "applied",
@@ -680,12 +514,6 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     const current = installSayCandidateV1(harness);
     const controller = createControllerV1(harness, current.target, current.frame);
 
-    expect(Object.isFrozen(controller)).toBe(true);
-    expect(Reflect.ownKeys(controller)).toEqual([
-      "getSnapshotInternalV1",
-      "subscribeInternalV1",
-      "disposeInternalV1",
-    ]);
     const initial = controller.getSnapshotInternalV1();
     expect(initial).toEqual({
       kind: "say",
@@ -698,7 +526,7 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
       revealLength: 4,
       revealComplete: false,
     });
-    expect(Object.isFrozen(initial)).toBe(true);
+
     expect(controller.getSnapshotInternalV1()).toBe(initial);
     expect(harness.profile.getSnapshot).toHaveBeenCalledTimes(2);
     expect(harness.profile.subscribe).toHaveBeenCalledOnce();
@@ -711,7 +539,7 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
 
     const notifications = vi.fn();
     const unsubscribe = controller.subscribeInternalV1(notifications);
-    expect(Object.isFrozen(unsubscribe)).toBe(true);
+
     const changedProfile = updatedProfileV1();
     harness.profile.publish(changedProfile);
     const changed = controller.getSnapshotInternalV1();
@@ -727,20 +555,15 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     expect(controller.getSnapshotInternalV1()).toBe(changed);
     expect(notifications).toHaveBeenCalledOnce();
 
-    const readsBeforeBorrow = rawPortCallCountV1(harness);
-    expect(() => Reflect.apply(controller.getSnapshotInternalV1, Object.freeze({}), []))
-      .toThrow(TypeError);
-    expect(rawPortCallCountV1(harness)).toBe(readsBeforeBorrow);
-
     unsubscribe();
     controller.disposeInternalV1();
     controller.disposeInternalV1();
     expect(harness.profile.unsubscribe).toHaveBeenCalledOnce();
     const late = controller.getSnapshotInternalV1();
     expect(late).toMatchObject({ kind: "passive", playbackMode: "normal" });
-    expect(Object.isFrozen(late)).toBe(true);
+
     const lateUnsubscribe = controller.subscribeInternalV1(vi.fn());
-    expect(Object.isFrozen(lateUnsubscribe)).toBe(true);
+
     lateUnsubscribe();
   });
 
@@ -760,14 +583,14 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     const subscribe = vi.fn((_listener: () => void) => {
       currentProfile = subscribedProfile;
       resolvedLine = "must-not-re-resolve";
-      return Object.freeze(unsubscribe);
+      return unsubscribe;
     });
     const markSeen = vi.fn();
-    const rawProfilePort = Object.freeze({
+    const rawProfilePort = {
       getSnapshotInternalV1: getSnapshot,
       subscribeInternalV1: subscribe,
       markSeenInternalV1: markSeen,
-    });
+    };
     const text = dialogueTextResolverV1((textId) =>
       textId === "text.test.speaker" ? "Speaker" : resolvedLine
     );
@@ -818,9 +641,9 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     const clock = manualDialogueClockV1({ initialNowMs: 1_000 });
     const harness = dialoguePlayerHarnessV1({
       clock,
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const current = installSayCandidateV1(harness);
     settleCurrentNarrativeReadyV1(harness);
@@ -879,10 +702,10 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     const clock = manualDialogueClockV1({ initialNowMs: 1_000 });
     const harness = dialoguePlayerHarnessV1({
       clock,
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: () => Promise.resolve(undefined),
         dispatchTimeInternalV1: dispatchTime,
-      }),
+      },
     });
     const current = installHoldCandidateV1(harness, 1, 100);
     settleCurrentNarrativeReadyV1(harness);
@@ -917,9 +740,9 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
       // against it can never settle time, so expiry must fault the player
       // exactly once rather than rescheduling the presentation clock on a
       // boundary that cannot expire.
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const current = installHoldCandidateV1(harness, 1, 100);
     settleCurrentNarrativeReadyV1(harness);
@@ -944,10 +767,10 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     const clock = manualDialogueClockV1({ initialNowMs: 1_000 });
     const harness = dialoguePlayerHarnessV1({
       clock,
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: () => Promise.resolve(undefined),
         dispatchTimeInternalV1: dispatchTime,
-      }),
+      },
     });
     const current = installHoldCandidateV1(harness, 1, 250, 100);
     settleCurrentNarrativeReadyV1(harness);
@@ -992,10 +815,10 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     const clock = manualDialogueClockV1({ initialNowMs: 1_000 });
     const harness = dialoguePlayerHarnessV1({
       clock,
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: () => Promise.resolve(undefined),
         dispatchTimeInternalV1: dispatchTime,
-      }),
+      },
     });
     const current = installHoldCandidateV1(harness, 1, 250, 100);
     settleCurrentNarrativeReadyV1(harness);
@@ -1035,10 +858,10 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     const clock = manualDialogueClockV1({ initialNowMs: 1_000 });
     const harness = dialoguePlayerHarnessV1({
       clock,
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: () => Promise.resolve(undefined),
         dispatchTimeInternalV1: dispatchTime,
-      }),
+      },
     });
     const current = installHoldCandidateV1(harness, 1, 100, 60);
     settleCurrentNarrativeReadyV1(harness);
@@ -1093,9 +916,9 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     const harness = dialoguePlayerHarnessV1({
       clock,
       profile,
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const current = installSayCandidateV1(harness, 1, "auto");
     const controller = createControllerV1(harness, current.target, current.frame);
@@ -1147,9 +970,9 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     const harness = dialoguePlayerHarnessV1({
       clock,
       profile,
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const predecessor = installSayCandidateV1(harness);
     const predecessorController = createControllerV1(
@@ -1235,9 +1058,9 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
       const harness = dialoguePlayerHarnessV1({
         clock,
         profile,
-        semanticDispatchPort: Object.freeze({
+        semanticDispatchPort: {
           dispatchResolutionInternalV1: dispatchResolution,
-        }),
+        },
       });
       const current = installSayCandidateV1(harness);
       const controller = createControllerV1(harness, current.target, current.frame);
@@ -1297,17 +1120,17 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     const unsubscribe = vi.fn();
     const subscribe = vi.fn((listener: () => void) => {
       rawListeners.push(listener);
-      return Object.freeze(unsubscribe);
+      return unsubscribe;
     });
     const markSeen = vi.fn((_definitionId: string, _seenRevision: number) => {
       if (replacementResult !== null) return;
       replacementResult = harness.bridge.reconcilePendingInternalV1(passivePendingV1(2));
     });
-    const rawProfilePort = Object.freeze({
+    const rawProfilePort = {
       getSnapshotInternalV1: getSnapshot,
       subscribeInternalV1: subscribe,
       markSeenInternalV1: markSeen,
-    });
+    };
     harness = dialoguePlayerHarnessV1({ rawProfilePort });
     const retired = installSayCandidateV1(harness);
 
@@ -1434,8 +1257,8 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     ] as const,
   )("fences the current controller for an initially %s clock timestamp", (_label, value) => {
     const now = vi.fn(() => value);
-    const requestTick = vi.fn((_callback: (nowMs: number) => void) => Object.freeze(() => {}));
-    const rawClockPort = Object.freeze({
+    const requestTick = vi.fn((_callback: (nowMs: number) => void) => (() => {}));
+    const rawClockPort = ({
       nowInternalV1: now,
       requestTickInternalV1: requestTick,
       prefersReducedMotionInternalV1: () => false,
@@ -1465,7 +1288,7 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     ] as const,
   )("contains a %s and logically fences the current controller", (_label, request) => {
     const requestTick = vi.fn((_callback: (nowMs: number) => void) => request());
-    const rawClockPort = Object.freeze({
+    const rawClockPort = ({
       nowInternalV1: () => 1_000,
       requestTickInternalV1: requestTick,
       prefersReducedMotionInternalV1: () => false,
@@ -1489,8 +1312,8 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     const cancel = vi.fn(() => {
       throw new Error("cancel fault");
     });
-    const requestTick = vi.fn((_callback: (nowMs: number) => void) => Object.freeze(cancel));
-    const rawClockPort = Object.freeze({
+    const requestTick = vi.fn((_callback: (nowMs: number) => void) => cancel);
+    const rawClockPort = ({
       nowInternalV1: () => 1_000,
       requestTickInternalV1: requestTick,
       prefersReducedMotionInternalV1: () => false,
@@ -1511,7 +1334,7 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
 
   it("faults synchronous tick callback reentry instead of accepting a nested schedule", () => {
     let firstRequest = true;
-    const cancel = Object.freeze(vi.fn());
+    const cancel = vi.fn();
     const requestTick = vi.fn((callback: (nowMs: number) => void) => {
       if (firstRequest) {
         firstRequest = false;
@@ -1519,7 +1342,7 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
       }
       return cancel;
     });
-    const rawClockPort = Object.freeze({
+    const rawClockPort = ({
       nowInternalV1: () => 1_000,
       requestTickInternalV1: requestTick,
       prefersReducedMotionInternalV1: () => false,
@@ -1542,21 +1365,21 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
 
   it("faults a synchronous completing tick before reveal, seen, or semantic side effects", () => {
     const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
-    const cancel = Object.freeze(vi.fn());
+    const cancel = vi.fn();
     const requestTick = vi.fn((callback: (nowMs: number) => void) => {
       callback(1_100);
       return cancel;
     });
-    const rawClockPort = Object.freeze({
+    const rawClockPort = ({
       nowInternalV1: () => 1_000,
       requestTickInternalV1: requestTick,
       prefersReducedMotionInternalV1: () => false,
     }) satisfies NarrativeStableDialoguePlayerClockPortInternalV1;
     const harness = dialoguePlayerHarnessV1({
       rawClockPort,
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const current = installSayCandidateV1(harness, 1, "auto");
     const controller = createControllerV1(harness, current.target, current.frame);
@@ -1600,9 +1423,9 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     const clock = manualDialogueClockV1({ initialNowMs: 1_000 });
     const harness = dialoguePlayerHarnessV1({
       clock,
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const current = installSayCandidateV1(harness);
     const controller = createControllerV1(harness, current.target, current.frame);
@@ -1682,9 +1505,9 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
   it("uses the shared manual Say claim to reveal first and dispatch only the next activation", async () => {
     const dispatchResolution = vi.fn(() => Promise.resolve("manual-complete"));
     const harness = dialoguePlayerHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const current = installSayCandidateV1(harness);
     const controller = createControllerV1(harness, current.target, current.frame);
@@ -1751,9 +1574,9 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
       profile: mutableDialogueProfileV1(
         playerProfileWithPreferencesV1({ autoWaitMs: 100 }),
       ),
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const current = installSayCandidateV1(harness);
     const controller = createControllerV1(harness, current.target, current.frame);
@@ -1816,9 +1639,9 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     const harness = dialoguePlayerHarnessV1({
       clock,
       profile,
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const current = installSayCandidateV1(harness);
     const controller = createControllerV1(harness, current.target, current.frame);
@@ -1886,9 +1709,9 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     });
     const dispatchResolution = vi.fn(() => semanticCompletion);
     const harness = dialoguePlayerHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const current = installSayCandidateV1(harness, 1, "auto");
     const controller = createControllerV1(harness, current.target, current.frame);
@@ -1939,9 +1762,9 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     });
     const dispatchResolution = vi.fn(() => semanticCompletion);
     const harness = dialoguePlayerHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const current = installSayCandidateV1(harness);
     const controller = createControllerV1(harness, current.target, current.frame);
@@ -1991,9 +1814,9 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
       profile: mutableDialogueProfileV1(
         playerProfileWithPreferencesV1({ skipPolicy: "skip_read" }),
       ),
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const current = installSayCandidateV1(harness);
     const controller = createControllerV1(harness, current.target, current.frame);
@@ -2025,11 +1848,11 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
 
   it.each(
     [
-      ["skip_all on unread", "skip_all", Object.freeze({}), true],
+      ["skip_all on unread", "skip_all", {}, true],
       [
         "skip_read on seen",
         "skip_read",
-        Object.freeze({ "narrative.test.dialogue-player": 3 }),
+        { "narrative.test.dialogue-player": 3 },
         false,
       ],
     ] as const,
@@ -2040,9 +1863,9 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     );
     const harness = dialoguePlayerHarnessV1({
       profile,
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const current = installSayCandidateV1(harness);
     const controller = createControllerV1(harness, current.target, current.frame);
@@ -2091,10 +1914,10 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     const directClock = manualDialogueClockV1({ initialNowMs: 1_000 });
     const direct = dialoguePlayerHarnessV1({
       clock: directClock,
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: () => Promise.resolve(undefined),
         dispatchTimeInternalV1: directDispatch,
-      }),
+      },
     });
     const directCurrent = installHoldCandidateV1(direct, 1, 100);
     const directController = createControllerV1(
@@ -2126,10 +1949,10 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     const resumedClock = manualDialogueClockV1({ initialNowMs: 2_000 });
     const resumed = dialoguePlayerHarnessV1({
       clock: resumedClock,
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: () => Promise.resolve(undefined),
         dispatchTimeInternalV1: resumedDispatch,
-      }),
+      },
     });
     const resumedCurrent = installHoldCandidateV1(resumed, 2, 100);
     const resumedController = createControllerV1(
@@ -2167,32 +1990,26 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     resumedController.disposeInternalV1();
   });
 
-  it("faults the current controller on throwing and malformed profile callbacks", () => {
-    for (const kind of ["throw", "malformed"] as const) {
-      const profile = controlledDialogueProfileV1();
-      const harness = dialoguePlayerHarnessV1({ rawProfilePort: profile.port });
-      const current = installSayCandidateV1(harness);
-      const controller = createControllerV1(harness, current.target, current.frame);
-      settleCurrentNarrativeReadyV1(harness);
-      profile.setRead(
-        kind === "throw"
-          ? () => {
-            throw new Error("current profile callback fault");
-          }
-          : () => Object.freeze({}),
-      );
+  it("faults the current controller when its profile callback throws", () => {
+    const profile = controlledDialogueProfileV1();
+    const harness = dialoguePlayerHarnessV1({ rawProfilePort: profile.port });
+    const current = installSayCandidateV1(harness);
+    const controller = createControllerV1(harness, current.target, current.frame);
+    settleCurrentNarrativeReadyV1(harness);
+    profile.setRead(() => {
+      throw new Error("current profile callback fault");
+    });
 
-      profile.publish();
+    profile.publish();
 
-      expect(controller.getSnapshotInternalV1()).toMatchObject({
-        kind: "passive",
-        phase: "suspended",
-        playbackMode: "normal",
-      });
-      expect(profile.unsubscribe).toHaveBeenCalledOnce();
-      expect(profile.markSeen).not.toHaveBeenCalled();
-      controller.disposeInternalV1();
-    }
+    expect(controller.getSnapshotInternalV1()).toMatchObject({
+      kind: "passive",
+      phase: "suspended",
+      playbackMode: "normal",
+    });
+    expect(profile.unsubscribe).toHaveBeenCalledOnce();
+    expect(profile.markSeen).not.toHaveBeenCalled();
+    controller.disposeInternalV1();
   });
 
   it("gives stale profile callback reentry exact-zero precedence over its Say successor", () => {
@@ -2200,9 +2017,9 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
     const harness = dialoguePlayerHarnessV1({
       rawProfilePort: profile.port,
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const current = installSayCandidateV1(harness);
     const controller = createControllerV1(harness, current.target, current.frame);
@@ -2270,9 +2087,9 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
       profile: mutableDialogueProfileV1(
         playerProfileWithPreferencesV1({ autoWaitMs: 100 }),
       ),
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const current = installSayCandidateV1(harness);
     const controller = createControllerV1(harness, current.target, current.frame);
@@ -2322,9 +2139,9 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     const harness = dialoguePlayerHarnessV1({
       clock,
       profile,
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const current = installSayCandidateV1(harness);
     const controller = createControllerV1(harness, current.target, current.frame);
@@ -2372,9 +2189,9 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
       profile: mutableDialogueProfileV1(
         playerProfileWithPreferencesV1({ autoWaitMs: 0 }),
       ),
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const current = installSayCandidateV1(harness);
     const controller = createControllerV1(harness, current.target, current.frame);
@@ -2426,9 +2243,9 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
   it("resets mode before publishing a fresh non-Say boundary", () => {
     const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
     const harness = dialoguePlayerHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const current = installSayCandidateV1(harness);
     const controller = createControllerV1(harness, current.target, current.frame);
@@ -2508,69 +2325,42 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
   }, 30_000);
 
   it("releases a subscription returned after its synchronous callback retires the factory record", () => {
-    let profileRead = 0;
     let retainedListener: (() => void) | null = null;
-    const getSnapshot = vi.fn(() => {
-      profileRead += 1;
-      return profileRead === 1 ? defaultPlayerProfileV1 : Object.freeze({});
-    });
+    const getSnapshot = vi.fn(() => defaultPlayerProfileV1);
     const unsubscribe = vi.fn();
+    let harness!: DialoguePlayerHarnessV1;
     const subscribe = vi.fn((listener: () => void) => {
       retainedListener = listener;
+      settleCurrentNarrativeReadyV1(harness);
       listener();
-      return Object.freeze(unsubscribe);
+      return unsubscribe;
     });
     const markSeen = vi.fn();
-    const rawProfilePort = Object.freeze({
+    const rawProfilePort = {
       getSnapshotInternalV1: getSnapshot,
       subscribeInternalV1: subscribe,
       markSeenInternalV1: markSeen,
-    });
-    const harness = dialoguePlayerHarnessV1({ rawProfilePort });
+    };
+    harness = dialoguePlayerHarnessV1({ rawProfilePort });
     const current = installSayCandidateV1(harness);
-    const state = harness.kernel.getStateInternalV1();
 
     expect(() => createControllerV1(harness, current.target, current.frame)).toThrowError(
       "ui.narrative_stable_dialogue_player_controller_invalid",
     );
-    expect(harness.kernel.getStateInternalV1()).toBe(state);
     expect(getSnapshot).toHaveBeenCalledTimes(2);
     expect(subscribe).toHaveBeenCalledOnce();
     expect(unsubscribe).toHaveBeenCalledOnce();
     expect(markSeen).not.toHaveBeenCalled();
-    expect(harness.clock.requestTick).not.toHaveBeenCalled();
+    expect(harness.clock.requestTick).toHaveBeenCalledOnce();
+    expect(harness.clock.cancel).toHaveBeenCalledOnce();
 
     const lateListener = retainedListener as (() => void) | null;
     if (lateListener === null) throw new Error("expected retained raw profile listener");
+    const state = harness.kernel.getStateInternalV1();
     lateListener();
     expect(getSnapshot).toHaveBeenCalledTimes(2);
     expect(unsubscribe).toHaveBeenCalledOnce();
     expect(harness.kernel.getStateInternalV1()).toBe(state);
-  });
-
-  it.each(
-    [
-      [
-        "non-frozen profile",
-        () => mutableDialogueProfileV1({ ...defaultPlayerProfileV1 }),
-      ],
-      [
-        "negative reveal policy",
-        () =>
-          mutableDialogueProfileV1(Object.freeze({
-            ...defaultPlayerProfileV1,
-            preferences: Object.freeze({
-              ...defaultPlayerProfileV1.preferences,
-              textRevealCharsPerSecond: -1,
-            }),
-          })),
-      ],
-    ] as const,
-  )("faults factory capture for %s", (_label, createProfile) => {
-    const harness = dialoguePlayerHarnessV1({ profile: createProfile() });
-    const current = installSayCandidateV1(harness);
-    expect(() => createControllerV1(harness, current.target, current.frame)).toThrow(TypeError);
-    expect(harness.clock.requestTick).not.toHaveBeenCalled();
   });
 
   it("contains resolver failure while preserving the preparing Surface state", () => {

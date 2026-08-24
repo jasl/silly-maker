@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
-import { parseNonNegativeSafeInteger } from "@sillymaker/base";
 import type { DeepReadonly } from "@sillymaker/base";
 
 import {
   inputHandledV1,
   inputIgnoredV1,
-  parseInputActionIdV1,
+  type InputActionIdV1,
   type InputEventV1,
   type InputContextIdV1,
   type InputRouteResultV1,
@@ -22,12 +21,6 @@ import {
   type ManagedSurfaceRouteActionInputV1,
   type ManagedSurfaceRoutingLeaseIdV1,
   type ManagedSurfaceTransitionReceiptV1,
-  parseManagedSurfaceActionIdV1,
-  parseManagedSurfaceGestureIdV1,
-  parseManagedSurfaceInputPublicationRevisionV1,
-  parseManagedSurfaceInstanceIdV1,
-  parseManagedSurfaceOwnerIdV1,
-  parseManagedSurfaceRoutingLeaseIdV1,
 } from "./managed-surface-contracts.ts";
 import type { ManagedSurfaceCoordinatorV1 } from "./managed-surface-coordinator.ts";
 
@@ -170,9 +163,6 @@ interface ManagedSurfaceActionBindingRecordV1 {
   readonly revision: ManagedSurfaceInputPublicationRevisionV1;
   contract: ManagedSurfaceInputBindingContractV1 | null;
   readonly authority: ManagedSurfaceContractBoundActionRouteAuthorityInternalV1;
-  readonly routeAction: ManagedSurfaceContractBoundActionRouteAuthorityInternalV1[
-    "routeActionInternalV1"
-  ];
   isGestureCurrent: CreateManagedSurfaceContractBoundActionBindingInputInternalV1[
     "isGestureCurrent"
   ];
@@ -239,163 +229,13 @@ const coordinatorAuthoritiesV1 = new WeakMap<
   ManagedSurfaceCoordinatorV1,
   ManagedSurfaceContractBoundActionRouteAuthorityInternalV1
 >();
-const envelopeKeysV1 = Object.freeze(
-  [
-    "applicationEpoch",
-    "surfaceInstanceId",
-    "surfaceTopologyRevision",
-    "actionId",
-    "gestureId",
-    "inputPublicationRevision",
-  ] as const,
-);
-const preparedInputBindingContractKeysInternalV1 = Object.freeze(
-  [
-    "applicationEpoch",
-    "ownerId",
-    "surfaceInstanceId",
-    "inputContextId",
-    "routingLeaseId",
-    "actionIds",
-    "topologyRevision",
-  ] as const,
-);
-const prepareManagedSurfaceContractBoundActionBindingRequiredKeysInternalV1 = Object.freeze(
-  ["authority", "inputContextId", "inputRouter", "isGestureCurrent"] as const,
-);
-const prepareManagedSurfaceContractBoundActionBindingOptionalKeyInternalV1 =
-  "registerManagedInputHandler" as const;
-const inputContextIdsInternalV1 = new Set<InputContextIdV1>([
-  "gameplay",
-  "interaction",
-  "narrative",
-  "whole_canvas",
-  "overlay",
-  "system",
-  "debug",
-]);
-
-function isRecordV1(value: unknown): value is Readonly<Record<string, unknown>> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-}
-
-function hasExactOwnKeysV1(
-  value: Readonly<Record<string, unknown>>,
-  expectedKeys: readonly string[],
-): boolean {
-  const actualKeys = Reflect.ownKeys(value);
-  return (
-    actualKeys.length === expectedKeys.length &&
-    expectedKeys.every((expectedKey) => Object.hasOwn(value, expectedKey))
-  );
-}
-
-function getOwnDataValueInternalV1(
-  value: Readonly<Record<string, unknown>>,
-  key: string,
-): unknown {
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  if (descriptor === undefined || !("value" in descriptor)) {
-    throw new TypeError();
-  }
-  return descriptor.value;
-}
-
-function parseInputContextIdInternalV1(value: unknown): InputContextIdV1 {
-  if (
-    typeof value !== "string" ||
-    !inputContextIdsInternalV1.has(value as InputContextIdV1)
-  ) {
-    throw new TypeError();
-  }
-  return value as InputContextIdV1;
-}
-
-function parseActionIdsInternalV1(value: unknown): readonly ManagedSurfaceActionIdV1[] {
-  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) {
-    throw new TypeError();
-  }
-  const lengthDescriptor = Object.getOwnPropertyDescriptor(value, "length");
-  if (
-    lengthDescriptor === undefined || !("value" in lengthDescriptor) ||
-    !Number.isSafeInteger(lengthDescriptor.value) || lengthDescriptor.value < 0
-  ) {
-    throw new TypeError();
-  }
-  const length = lengthDescriptor.value as number;
-  const ownKeys = Reflect.ownKeys(value);
-  if (
-    ownKeys.length !== length + 1 || !ownKeys.includes("length") ||
-    ownKeys.some((key) =>
-      typeof key !== "string" ||
-      (key !== "length" &&
-        (!/^(0|[1-9]\d*)$/.test(key) || Number(key) >= length))
-    )
-  ) {
-    throw new TypeError();
-  }
-  const actionIds: ManagedSurfaceActionIdV1[] = [];
-  for (let index = 0; index < length; index += 1) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
-    if (descriptor === undefined || !("value" in descriptor)) {
-      throw new TypeError();
-    }
-    actionIds.push(parseManagedSurfaceActionIdV1(descriptor.value));
-  }
-  return Object.freeze(actionIds);
-}
-
-function parsePreparedInputBindingContractInternalV1(
-  value: unknown,
-): ManagedSurfaceInputBindingContractV1 {
-  try {
-    if (
-      !isRecordV1(value) ||
-      !hasExactOwnKeysV1(value, preparedInputBindingContractKeysInternalV1)
-    ) {
-      throw new TypeError();
-    }
-    return Object.freeze({
-      applicationEpoch: parseNonNegativeSafeInteger(
-        getOwnDataValueInternalV1(value, "applicationEpoch"),
-      ),
-      ownerId: parseManagedSurfaceOwnerIdV1(
-        getOwnDataValueInternalV1(value, "ownerId"),
-      ),
-      surfaceInstanceId: parseManagedSurfaceInstanceIdV1(
-        getOwnDataValueInternalV1(value, "surfaceInstanceId"),
-      ),
-      inputContextId: parseInputContextIdInternalV1(
-        getOwnDataValueInternalV1(value, "inputContextId"),
-      ),
-      routingLeaseId: parseManagedSurfaceRoutingLeaseIdV1(
-        getOwnDataValueInternalV1(value, "routingLeaseId"),
-      ),
-      actionIds: parseActionIdsInternalV1(
-        getOwnDataValueInternalV1(value, "actionIds"),
-      ),
-      topologyRevision: parseNonNegativeSafeInteger(
-        getOwnDataValueInternalV1(value, "topologyRevision"),
-      ),
-    });
-  } catch (error) {
-    throw new TypeError("ui.managed_surface_input_authority_invalid", {
-      cause: error,
-    });
-  }
-}
 
 export function captureManagedSurfacePreparedInputBindingContractInternalV1(
   contract: ManagedSurfaceInputBindingContractV1,
 ): ManagedSurfacePreparedInputBindingContractInternalV1 {
-  const canonicalContract = parsePreparedInputBindingContractInternalV1(contract);
-  const token = Object.freeze(
-    {},
-  ) as ManagedSurfacePreparedInputBindingContractInternalV1;
+  const token = {} as ManagedSurfacePreparedInputBindingContractInternalV1;
   preparedInputBindingContractRecordsV1.set(token, {
-    contract: canonicalContract,
+    contract,
     consumed: false,
   });
   return token;
@@ -403,140 +243,34 @@ export function captureManagedSurfacePreparedInputBindingContractInternalV1(
 
 interface CapturedPrepareManagedSurfaceContractBoundActionBindingInputInternalV1 {
   readonly authority: ManagedSurfaceContractBoundActionRouteAuthorityInternalV1;
-  readonly routeAction: ManagedSurfaceContractBoundActionRouteAuthorityInternalV1[
-    "routeActionInternalV1"
-  ];
   readonly inputContextId: InputContextIdV1;
   readonly inputRouter: InputRouterV1;
   readonly isGestureCurrent: (gestureId: ManagedSurfaceGestureIdV1) => boolean;
-  readonly inputRecord: Readonly<Record<string, unknown>>;
-  readonly hasOptionalRegistrar: boolean;
-}
-
-function captureActionRouteAuthorityInternalV1(
-  authority: unknown,
-): Readonly<{
-  authority: ManagedSurfaceContractBoundActionRouteAuthorityInternalV1;
-  routeAction: ManagedSurfaceContractBoundActionRouteAuthorityInternalV1[
-    "routeActionInternalV1"
-  ];
-}> {
-  if (!isRecordV1(authority)) {
-    throw new TypeError("ui.managed_surface_input_authority_invalid");
-  }
-  const routeActionDescriptor = Object.getOwnPropertyDescriptor(
-    authority,
-    "routeActionInternalV1",
-  );
-  if (
-    routeActionDescriptor === undefined || !("value" in routeActionDescriptor) ||
-    typeof routeActionDescriptor.value !== "function"
-  ) {
-    throw new TypeError("ui.managed_surface_input_authority_invalid");
-  }
-  const capturedAuthority = authority as
-    & Readonly<Record<string, unknown>>
-    & ManagedSurfaceContractBoundActionRouteAuthorityInternalV1;
-  return Object.freeze({
-    authority: capturedAuthority,
-    routeAction: routeActionDescriptor
-      .value as ManagedSurfaceContractBoundActionRouteAuthorityInternalV1[
-        "routeActionInternalV1"
-      ],
-  });
+  readonly registerManagedInputHandler: typeof registerManagedInputHandlerV1;
 }
 
 function capturePrepareManagedSurfaceContractBoundActionBindingInputInternalV1(
-  input: unknown,
+  input: PrepareManagedSurfaceContractBoundActionBindingInputInternalV1,
 ): CapturedPrepareManagedSurfaceContractBoundActionBindingInputInternalV1 {
-  try {
-    if (!isRecordV1(input)) throw new TypeError();
-    const actualKeys = Reflect.ownKeys(input);
-    const hasOptionalRegistrar = actualKeys.includes(
-      prepareManagedSurfaceContractBoundActionBindingOptionalKeyInternalV1,
-    );
-    if (
-      actualKeys.length !==
-        prepareManagedSurfaceContractBoundActionBindingRequiredKeysInternalV1.length +
-          (hasOptionalRegistrar ? 1 : 0) ||
-      !prepareManagedSurfaceContractBoundActionBindingRequiredKeysInternalV1.every((key) =>
-        Object.hasOwn(input, key)
-      ) ||
-      actualKeys.some((key) =>
-        typeof key !== "string" ||
-        (!prepareManagedSurfaceContractBoundActionBindingRequiredKeysInternalV1.includes(
-          key as typeof prepareManagedSurfaceContractBoundActionBindingRequiredKeysInternalV1[
-            number
-          ],
-        ) && key !== prepareManagedSurfaceContractBoundActionBindingOptionalKeyInternalV1)
-      )
-    ) {
-      throw new TypeError();
-    }
-    const capturedAuthority = captureActionRouteAuthorityInternalV1(
-      getOwnDataValueInternalV1(input, "authority"),
-    );
-    const inputContextId = parseInputContextIdInternalV1(
-      getOwnDataValueInternalV1(input, "inputContextId"),
-    );
-    const inputRouter = getOwnDataValueInternalV1(input, "inputRouter");
-    if (
-      (typeof inputRouter !== "object" && typeof inputRouter !== "function") ||
-      inputRouter === null
-    ) {
-      throw new TypeError();
-    }
-    const isGestureCurrent = getOwnDataValueInternalV1(input, "isGestureCurrent");
-    if (typeof isGestureCurrent !== "function") throw new TypeError();
-    return {
-      ...capturedAuthority,
-      inputContextId,
-      inputRouter: inputRouter as InputRouterV1,
-      isGestureCurrent: isGestureCurrent as (
-        gestureId: ManagedSurfaceGestureIdV1,
-      ) => boolean,
-      inputRecord: input,
-      hasOptionalRegistrar,
-    };
-  } catch (error) {
-    if (
-      error instanceof TypeError &&
-      error.message === "ui.managed_surface_input_authority_invalid"
-    ) {
-      throw error;
-    }
-    throw new TypeError("ui.managed_surface_input_authority_invalid", {
-      cause: error,
-    });
-  }
-}
-
-function parseEnvelopeV1(value: unknown): ManagedSurfaceActionEnvelopeV1 {
-  try {
-    if (!isRecordV1(value) || !hasExactOwnKeysV1(value, envelopeKeysV1)) {
-      throw new TypeError();
-    }
-    return Object.freeze({
-      applicationEpoch: parseNonNegativeSafeInteger(value.applicationEpoch),
-      surfaceInstanceId: parseManagedSurfaceInstanceIdV1(value.surfaceInstanceId),
-      surfaceTopologyRevision: parseNonNegativeSafeInteger(value.surfaceTopologyRevision),
-      actionId: parseManagedSurfaceActionIdV1(value.actionId),
-      gestureId: parseManagedSurfaceGestureIdV1(value.gestureId),
-      inputPublicationRevision: parseManagedSurfaceInputPublicationRevisionV1(
-        value.inputPublicationRevision,
-      ),
-    });
-  } catch {
-    throw new TypeError("ui.invalid_managed_surface_action_envelope");
-  }
+  return {
+    authority: input.authority,
+    inputContextId: input.inputContextId,
+    inputRouter: input.inputRouter,
+    isGestureCurrent: input.isGestureCurrent,
+    registerManagedInputHandler: input.registerManagedInputHandler ??
+      registerManagedInputHandlerV1,
+  };
 }
 
 function allocateInputPublicationRevisionV1(
   state: RouterBindingStateV1,
 ): ManagedSurfaceInputPublicationRevisionV1 {
-  const revision = parseNonNegativeSafeInteger(state.revision + 1);
+  const revision = state.revision + 1;
+  if (!Number.isSafeInteger(revision)) {
+    throw new RangeError("ui.managed_surface_input_publication_revision_exhausted");
+  }
   state.revision = revision;
-  return parseManagedSurfaceInputPublicationRevisionV1(revision);
+  return revision as ManagedSurfaceInputPublicationRevisionV1;
 }
 
 function inputReceiptV1(
@@ -544,19 +278,19 @@ function inputReceiptV1(
   code: ManagedSurfaceInputRouteCodeV1,
   envelope: ManagedSurfaceActionEnvelopeV1,
 ): ManagedSurfaceInputRouteReceiptV1 {
-  return Object.freeze({
+  return {
     kind,
     code,
     gestureId: envelope.gestureId,
     inputPublicationRevision: envelope.inputPublicationRevision,
-  });
+  };
 }
 
 function routeResultV1(
   input: ManagedSurfaceInputRouteReceiptV1,
   surface: ManagedSurfaceTransitionReceiptV1 | null,
 ): ManagedSurfaceActionRouteResultV1 {
-  return Object.freeze({ input, surface });
+  return { input, surface };
 }
 
 function routedInputReceiptV1(
@@ -600,7 +334,7 @@ function handleManagedContextEventInternalV1(
   if (dispatch.gateEntered) return inputHandledV1;
   dispatch.gateEntered = true;
 
-  const surface = Reflect.apply(record.routeAction, record.authority, [{
+  const surface = record.authority.routeActionInternalV1({
     evidence: {
       applicationEpoch: dispatch.envelope.applicationEpoch,
       topologyRevision: dispatch.envelope.surfaceTopologyRevision,
@@ -608,7 +342,7 @@ function handleManagedContextEventInternalV1(
     },
     actionId: dispatch.envelope.actionId,
     routingLeaseId: record.contract.routingLeaseId,
-  }]) as ManagedSurfaceTransitionReceiptV1;
+  });
   dispatch.surface = surface;
   if (surface.kind !== "unchanged" || surface.code !== "surface.action_routed") {
     return inputHandledV1;
@@ -633,12 +367,12 @@ function handleManagedContextEventInternalV1(
   if (claim !== null) {
     const invocation = dispatch.claimInvocation;
     if (claim.active && invocation?.claim === claim && !invocation.invoked) {
-      const continuationInput = Object.freeze({
+      const continuationInput = {
         actionId: dispatch.envelope.actionId,
         attempt: invocation.attempt,
-      }) satisfies ManagedSurfaceAuthenticatedActionContinuationInputInternalV1<unknown>;
+      } satisfies ManagedSurfaceAuthenticatedActionContinuationInputInternalV1<unknown>;
       invocation.invoked = true;
-      invocation.result = Reflect.apply(claim.consume, undefined, [continuationInput]);
+      invocation.result = claim.consume(continuationInput);
     }
     return inputHandledV1;
   }
@@ -666,26 +400,6 @@ function contextBindingStateInternalV1(
     return retained;
   }
 
-  let registerManagedInputHandler = registerManagedInputHandlerV1;
-  if (captured.hasOptionalRegistrar) {
-    try {
-      const capturedRegistrar = getOwnDataValueInternalV1(
-        captured.inputRecord,
-        prepareManagedSurfaceContractBoundActionBindingOptionalKeyInternalV1,
-      );
-      if (capturedRegistrar !== undefined && typeof capturedRegistrar !== "function") {
-        throw new TypeError();
-      }
-      if (capturedRegistrar !== undefined) {
-        registerManagedInputHandler = capturedRegistrar as typeof registerManagedInputHandlerV1;
-      }
-    } catch (error) {
-      throw new TypeError("ui.managed_surface_input_authority_invalid", {
-        cause: error,
-      });
-    }
-  }
-
   const contextState: ManagedSurfaceContextBindingStateInternalV1 = {
     inputContextId: captured.inputContextId,
     dispatcherReady: false,
@@ -695,13 +409,10 @@ function contextBindingStateInternalV1(
   };
   routerState.contexts.set(captured.inputContextId, contextState);
   try {
-    const unregister = registerManagedInputHandler(captured.inputRouter, {
+    captured.registerManagedInputHandler(captured.inputRouter, {
       context: captured.inputContextId,
       handle: (event) => handleManagedContextEventInternalV1(contextState, event),
     });
-    if (typeof unregister !== "function") {
-      throw new TypeError("ui.managed_surface_input_authority_invalid");
-    }
   } catch (error) {
     if (
       error instanceof TypeError &&
@@ -760,14 +471,13 @@ function retireCurrentBindingRecordInternalV1(
 
 function routeWithBindingRecordInternalV1(
   record: ManagedSurfaceActionBindingRecordV1,
-  rawEnvelope: ManagedSurfaceActionEnvelopeV1,
+  envelope: ManagedSurfaceActionEnvelopeV1,
   claimInvocation: ManagedSurfaceAuthenticatedActionClaimInvocationInternalV1 | null,
 ): ManagedSurfaceActionRouteResultV1 {
-  const envelope = parseEnvelopeV1(rawEnvelope);
-  const event = Object.freeze({
+  const event = {
     kind: "action" as const,
-    actionId: parseInputActionIdV1(envelope.actionId),
-  }) satisfies DeepReadonly<InputEventV1>;
+    actionId: envelope.actionId as unknown as InputActionIdV1,
+  } satisfies DeepReadonly<InputEventV1>;
   if (!isCurrentInputPublicationInternalV1(record, envelope)) {
     return staleInputResultV1(envelope, "input.stale_publication");
   }
@@ -812,7 +522,6 @@ function createPreparedBindingRecordInternalV1(
     revision: allocateInputPublicationRevisionV1(routerState),
     contract: null,
     authority: captured.authority,
-    routeAction: captured.routeAction,
     isGestureCurrent: captured.isGestureCurrent,
     expectedCurrent: contextState.current,
     preparedSlot,
@@ -824,7 +533,7 @@ function createPreparedBindingRecordInternalV1(
     committed: false,
     commitAttempted: false,
   };
-  const binding: ManagedSurfaceActionBindingV1 = Object.freeze({
+  const binding: ManagedSurfaceActionBindingV1 = {
     createEnvelope(request: {
       readonly actionId: ManagedSurfaceActionIdV1;
       readonly gestureId: ManagedSurfaceGestureIdV1;
@@ -833,14 +542,14 @@ function createPreparedBindingRecordInternalV1(
       if (contract === null) {
         throw new TypeError("ui.managed_surface_action_route_claim_invalid");
       }
-      return Object.freeze({
+      return {
         applicationEpoch: contract.applicationEpoch,
         surfaceInstanceId: contract.surfaceInstanceId,
         surfaceTopologyRevision: contract.topologyRevision,
-        actionId: parseManagedSurfaceActionIdV1(request.actionId),
-        gestureId: parseManagedSurfaceGestureIdV1(request.gestureId),
+        actionId: request.actionId,
+        gestureId: request.gestureId,
         inputPublicationRevision: record.revision,
-      });
+      };
     },
     route(envelope: ManagedSurfaceActionEnvelopeV1): ManagedSurfaceActionRouteResultV1 {
       return routeWithBindingRecordInternalV1(record, envelope, null);
@@ -848,19 +557,17 @@ function createPreparedBindingRecordInternalV1(
     dispose(): void {
       retireCurrentBindingRecordInternalV1(record);
     },
-  });
+  };
   record.binding = binding;
   record.routeWithClaim = (envelope, invocation) =>
     routeWithBindingRecordInternalV1(record, envelope, invocation);
   bindingRecordsV1.set(binding, record);
 
-  let prepared!: ManagedSurfacePreparedContractBoundActionBindingInternalV1;
-  prepared = Object.freeze({
+  const prepared: ManagedSurfacePreparedContractBoundActionBindingInternalV1 = {
     commitInternalV1(
-      this: ManagedSurfacePreparedContractBoundActionBindingInternalV1,
       token: ManagedSurfacePreparedInputBindingContractInternalV1,
     ): boolean {
-      if (this !== prepared || record.commitAttempted) return false;
+      if (record.commitAttempted) return false;
       record.commitAttempted = true;
       const expectedCurrent = record.expectedCurrent;
       const tokenRecord = preparedInputBindingContractRecordsV1.get(token);
@@ -890,20 +597,17 @@ function createPreparedBindingRecordInternalV1(
       }
       return true;
     },
-    abortInternalV1(
-      this: ManagedSurfacePreparedContractBoundActionBindingInternalV1,
-    ): void {
-      if (this !== prepared) return;
+    abortInternalV1(): void {
       abortPreparedBindingRecordInternalV1(record);
     },
-    getBindingInternalV1(
-      this: ManagedSurfacePreparedContractBoundActionBindingInternalV1,
-    ): ManagedSurfaceActionBindingV1 | null {
-      return this === prepared && record.committed ? record.binding : null;
+    getBindingInternalV1(): ManagedSurfaceActionBindingV1 | null {
+      return record.committed ? record.binding : null;
     },
-  });
+  };
   record.preparedHandle = prepared;
   preparedBindingRecordsV1.set(prepared, record);
+  if (preparedSlot === "first") contextState.preparedFirst = record;
+  else contextState.preparedSecond = record;
   return prepared;
 }
 
@@ -932,12 +636,6 @@ export function prepareManagedSurfaceContractBoundActionBindingInternalV1(
     contextState,
     preparedSlot,
   );
-  const record = preparedBindingRecordsV1.get(prepared);
-  if (record === undefined) {
-    throw new TypeError("ui.managed_surface_input_authority_invalid");
-  }
-  if (preparedSlot === "first") contextState.preparedFirst = record;
-  else contextState.preparedSecond = record;
   return prepared;
 }
 
@@ -947,11 +645,7 @@ export function createManagedSurfaceContractBoundActionBindingInternalV1(
   const contractToken = captureManagedSurfacePreparedInputBindingContractInternalV1(
     input.contract,
   );
-  const tokenRecord = preparedInputBindingContractRecordsV1.get(contractToken);
-  if (tokenRecord === undefined) {
-    throw new TypeError("ui.managed_surface_input_authority_invalid");
-  }
-  const contract = tokenRecord.contract;
+  const contract = input.contract;
   const retained = routerBindingStatesV1.get(input.inputRouter)?.contexts
     .get(contract.inputContextId)?.current ?? null;
   if (
@@ -1036,16 +730,11 @@ function claimManagedSurfaceActionBindingRecordInternalV1<TAttempt, TResult>(
     routeInProgress: false,
   };
   record.claimedRoute = claim;
-  let claimed!: ManagedSurfaceAuthenticatedActionRouteInternalV1<TAttempt, TResult>;
-  claimed = Object.freeze({
+  const claimed: ManagedSurfaceAuthenticatedActionRouteInternalV1<TAttempt, TResult> = {
     routeInternalV1(
-      this: ManagedSurfaceAuthenticatedActionRouteInternalV1<TAttempt, TResult>,
       envelope: ManagedSurfaceActionEnvelopeV1,
       attempt: TAttempt,
     ): ManagedSurfaceAuthenticatedActionRouteResultInternalV1<TResult> {
-      if (this !== claimed) {
-        throw new TypeError("ui.managed_surface_action_route_claim_invalid");
-      }
       if (claim.routeInProgress) {
         throw new TypeError("ui.managed_surface_action_route_in_progress");
       }
@@ -1062,26 +751,21 @@ function claimManagedSurfaceActionBindingRecordInternalV1<TAttempt, TResult>(
       claim.routeInProgress = true;
       try {
         const route = routeWithClaim(envelope, invocation);
-        return Object.freeze({
+        return {
           route,
           consumerResult: invocation.invoked ? invocation.result as TResult : null,
-        });
+        };
       } finally {
         claim.routeInProgress = false;
       }
     },
-    disposeInternalV1(
-      this: ManagedSurfaceAuthenticatedActionRouteInternalV1<TAttempt, TResult>,
-    ): void {
-      if (this !== claimed) {
-        throw new TypeError("ui.managed_surface_action_route_claim_invalid");
-      }
+    disposeInternalV1(): void {
       if (!claim.active) return;
       claim.active = false;
       const binding = record.binding;
       if (binding !== null) binding.dispose();
     },
-  });
+  };
   return claimed;
 }
 
@@ -1099,24 +783,23 @@ export function createManagedSurfaceActionBindingV1(
   if (target === undefined) {
     throw new TypeError("ui.managed_surface_input_owner_required");
   }
-  const contract: ManagedSurfaceInputBindingContractV1 = Object.freeze({
+  const contract: ManagedSurfaceInputBindingContractV1 = {
     applicationEpoch: publication.applicationEpoch,
     ownerId: target.definition.ownerId,
     surfaceInstanceId: target.surfaceInstanceId,
     inputContextId: inputOwner.inputContextId,
     routingLeaseId: inputOwner.routingLeaseId,
-    actionIds: Object.freeze([...target.definition.actionIds]),
+    actionIds: target.definition.actionIds,
     topologyRevision: publication.topologyRevision,
-  });
+  };
   let authority = coordinatorAuthoritiesV1.get(input.coordinator);
   if (authority === undefined) {
     const coordinator = input.coordinator;
-    const routeAction = coordinator.routeAction;
-    authority = Object.freeze({
+    authority = {
       routeActionInternalV1(request: ManagedSurfaceRouteActionInputV1) {
-        return Reflect.apply(routeAction, coordinator, [request]);
+        return coordinator.routeAction(request);
       },
-    });
+    };
     coordinatorAuthoritiesV1.set(coordinator, authority);
   }
   return createManagedSurfaceContractBoundActionBindingInternalV1({

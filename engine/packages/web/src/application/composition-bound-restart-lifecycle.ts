@@ -75,5 +75,5 @@ export function createCompositionBoundRestartLifecycleInternalV1(input: {
     );
   };
 
-  return Object.freeze({ restart });
+  return ({ restart });
 }

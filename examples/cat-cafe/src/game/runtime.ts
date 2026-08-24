@@ -3,9 +3,8 @@
 // Feature handlers (features/*/handlers.ts) take the runner from here; aggregation in simulation.ts.
 import type { createTransactionalRngV1 } from "@sillymaker/base";
 import type { SemanticStageState, StageMutation } from "@sillymaker/base/story";
-import { reduceStageMutations } from "@sillymaker/base/story";
+import { reduceAdmittedStageMutations } from "@sillymaker/base/story";
 
-import { catcafeGameStateSchemaV1 } from "./state.ts";
 import type { CatcafeGameStateV1 } from "./state.ts";
 import type {
   CatcafeAttemptV1,
@@ -33,9 +32,8 @@ export const catcafeModuleCompositionV1 = kit.composeModules([
 export type CatcafeModulesV1 = typeof catcafeModuleCompositionV1.modules;
 
 export const transactionRunnerV1 = catcafeModuleCompositionV1.createTransactionRunner({
-  stateSchema: catcafeGameStateSchemaV1,
   eventSchema: catcafeEventSchemaV1,
-  createFault: () => Object.freeze({ code: "cc.executor_failed" as const }),
+  createFault: () => ({ code: "cc.executor_failed" as const }),
 });
 
 export type CatcafeTransactionalRngV1 = ReturnType<typeof createTransactionalRngV1>;
@@ -53,7 +51,7 @@ export function emitCatcafeStageV1(
   mutations: readonly StageMutation[],
 ): "cc.stage_rejected" | null {
   if (mutations.length === 0) return null;
-  const outcome = reduceStageMutations(stage, mutations);
+  const outcome = reduceAdmittedStageMutations(stage, mutations);
   if (outcome.kind === "rejected") return "cc.stage_rejected";
   transaction.emit({ kind: "cc.stage_changed", mutations });
   return null;

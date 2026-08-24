@@ -84,7 +84,7 @@ export function deriveContentEntryV1(
       opacityPermille: 1000,
       mirrored: false,
     };
-  return Object.freeze({
+  return {
     layerId: descriptor.defaultLayerId,
     tag,
     contentId: descriptor.contentId,
@@ -93,7 +93,7 @@ export function deriveContentEntryV1(
     ...(descriptor.defaultAppearance === undefined
       ? {}
       : { appearance: { ...descriptor.defaultAppearance } }),
-  }) as unknown as SceneEntryV1;
+  } as unknown as SceneEntryV1;
 }
 
 /** Derives one complete show/hide cue operation payload for the entry. */
@@ -102,7 +102,7 @@ export function deriveCueV1(
   tag: string,
   kind: "show" | "hide",
 ): SceneCueV1 {
-  return Object.freeze({
+  return {
     cueId: deriveCueIdV1(
       document.sceneId,
       tag,
@@ -111,7 +111,7 @@ export function deriveCueV1(
     ),
     kind,
     tag,
-  }) as unknown as SceneCueV1;
+  } as unknown as SceneCueV1;
 }
 
 /**
@@ -215,5 +215,5 @@ export function deriveMotionPlanV1(input: {
     ...body,
     authoring: { status: "generated" },
   } as unknown as MotionDocumentV1;
-  return Object.freeze({ path, motionId, motionDocument });
+  return { path, motionId, motionDocument };
 }

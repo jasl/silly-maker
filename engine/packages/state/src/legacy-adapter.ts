@@ -80,12 +80,12 @@ export function createStateRuntimeBridgeInternalV1<TTypes extends StateRuntimeTy
   };
   const composition = createGameSessionV1<TLegacyTypes>(input);
   const session: StateSessionV1<TTypes> = composition.session;
-  const runtime: StateRuntimeV1<TTypes> = Object.freeze({
+  const runtime: StateRuntimeV1<TTypes> = {
     session,
-  });
-  return Object.freeze({
+  };
+  return {
     runtime,
     composition,
     runtimeControl: composition.runtimeControl,
-  });
+  };
 }

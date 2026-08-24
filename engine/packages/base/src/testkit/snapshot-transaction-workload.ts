@@ -48,15 +48,13 @@ import type {
 } from "./snapshot-commit-workload.ts";
 import { snapshotCommitEntityCountsV1 } from "./snapshot-commit-workload.ts";
 
-export const snapshotTransactionCommandClassesV1 = Object.freeze(
-  [
-    "cross_owner_atomic_committed",
-  ] as const,
-);
+export const snapshotTransactionCommandClassesV1 = [
+  "cross_owner_atomic_committed",
+] as const;
 export type SnapshotTransactionCommandClassV1 =
   (typeof snapshotTransactionCommandClassesV1)[number];
 
-export const snapshotCommitSequenceClassesV1 = Object.freeze(["mixed_long"] as const);
+export const snapshotCommitSequenceClassesV1 = ["mixed_long"] as const;
 export type SnapshotCommitSequenceClassV1 = (typeof snapshotCommitSequenceClassesV1)[number];
 
 type SnapshotTransactionSequenceCommandClassV1 =
@@ -196,12 +194,7 @@ type SnapshotTransactionAttemptV1 = CommandExecutionAttemptEnvelopeV1<
 >;
 
 function isPlainRecordV1(value: unknown): value is Readonly<Record<string, unknown>> {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    !Array.isArray(value) &&
-    Object.getPrototypeOf(value) === Object.prototype
-  );
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function parseEntitySliceV1(value: unknown): SnapshotTransactionEntitySliceV1 {
@@ -235,15 +228,15 @@ function parseAuditSliceV1(value: unknown): SnapshotTransactionAuditSliceV1 {
   return value as unknown as SnapshotTransactionAuditSliceV1;
 }
 
-const entitySliceSchemaV1: RuntimeSchemaV1<SnapshotTransactionEntitySliceV1> = Object.freeze({
+const entitySliceSchemaV1: RuntimeSchemaV1<SnapshotTransactionEntitySliceV1> = {
   parse: parseEntitySliceV1,
-});
+};
 
-const auditSliceSchemaV1: RuntimeSchemaV1<SnapshotTransactionAuditSliceV1> = Object.freeze({
+const auditSliceSchemaV1: RuntimeSchemaV1<SnapshotTransactionAuditSliceV1> = {
   parse: parseAuditSliceV1,
-});
+};
 
-const stateSchemaV1: RuntimeSchemaV1<SnapshotTransactionStateV1> = Object.freeze({
+const stateSchemaV1: RuntimeSchemaV1<SnapshotTransactionStateV1> = {
   parse(value: unknown): SnapshotTransactionStateV1 {
     if (!isPlainRecordV1(value) || Object.keys(value).join("\0") !== "simulation") {
       throw new TypeError("invalid Snapshot transaction State");
@@ -259,7 +252,7 @@ const stateSchemaV1: RuntimeSchemaV1<SnapshotTransactionStateV1> = Object.freeze
     parseAuditSliceV1(simulation.audit);
     return value as unknown as SnapshotTransactionStateV1;
   },
-});
+};
 
 /** @internal Direct-file-only schema reused by the persistence workload. */
 export const snapshotTransactionSnapshotSchemaV1 = createGameSnapshotEnvelopeSchemaV1(
@@ -267,7 +260,7 @@ export const snapshotTransactionSnapshotSchemaV1 = createGameSnapshotEnvelopeSch
   rngStateV1Schema,
 );
 
-const commandSchemaV1: RuntimeSchemaV1<SnapshotTransactionCommandV1> = Object.freeze({
+const commandSchemaV1: RuntimeSchemaV1<SnapshotTransactionCommandV1> = {
   parse(value: unknown): SnapshotTransactionCommandV1 {
     const kind = isPlainRecordV1(value) ? value.kind : undefined;
     if (
@@ -278,9 +271,9 @@ const commandSchemaV1: RuntimeSchemaV1<SnapshotTransactionCommandV1> = Object.fr
     ) {
       throw new TypeError("invalid Snapshot transaction workload command");
     }
-    return Object.freeze({ kind });
+    return ({ kind });
   },
-});
+};
 
 function totalEntityCountV1(slice: DeepReadonly<SnapshotTransactionEntitySliceV1>): number {
   return slice.chunks.reduce((total, chunk) => total + chunk.length, 0);
@@ -308,37 +301,36 @@ function writeEntityValueV1(
     throw new TypeError("Snapshot transaction target entity is missing");
   }
   const nextChunk = [...sourceChunk];
-  nextChunk[entityIndex] = Object.freeze({
+  nextChunk[entityIndex] = {
     entityId: sourceEntity.entityId,
     value: parseNonNegativeSafeInteger(value),
-  });
+  };
   const chunks = [...slice.chunks];
-  chunks[chunkIndex] = Object.freeze(nextChunk);
-  return Object.freeze({ chunks: Object.freeze(chunks) });
+  chunks[chunkIndex] = nextChunk;
+  return ({ chunks: chunks });
 }
 
-const snapshotTransactionEventSchemaV1: RuntimeSchemaV1<SnapshotTransactionEventV1> = Object
-  .freeze({
-    parse(value: unknown): SnapshotTransactionEventV1 {
-      if (!isPlainRecordV1(value)) {
-        throw new TypeError("invalid Snapshot transaction workload event");
-      }
-      if (value.kind === "snapshot_workload.audit_recorded") {
-        return Object.freeze({
-          kind: "snapshot_workload.audit_recorded" as const,
-          count: parseNonNegativeSafeInteger(value.count),
-        });
-      }
-      if (value.kind === "snapshot_workload.entity_updated") {
-        return Object.freeze({
-          kind: "snapshot_workload.entity_updated" as const,
-          entityId: parseNonNegativeSafeInteger(value.entityId),
-          value: parseNonNegativeSafeInteger(value.value),
-        });
-      }
-      throw new TypeError("invalid Snapshot transaction workload event kind");
-    },
-  });
+const snapshotTransactionEventSchemaV1: RuntimeSchemaV1<SnapshotTransactionEventV1> = {
+  parse(value: unknown): SnapshotTransactionEventV1 {
+    if (!isPlainRecordV1(value)) {
+      throw new TypeError("invalid Snapshot transaction workload event");
+    }
+    if (value.kind === "snapshot_workload.audit_recorded") {
+      return ({
+        kind: "snapshot_workload.audit_recorded" as const,
+        count: parseNonNegativeSafeInteger(value.count),
+      });
+    }
+    if (value.kind === "snapshot_workload.entity_updated") {
+      return ({
+        kind: "snapshot_workload.entity_updated" as const,
+        entityId: parseNonNegativeSafeInteger(value.entityId),
+        value: parseNonNegativeSafeInteger(value.value),
+      });
+    }
+    throw new TypeError("invalid Snapshot transaction workload event kind");
+  },
+};
 
 const kitV1 = createGameAuthoringKitV1<SnapshotTransactionTypesV1>();
 
@@ -348,13 +340,12 @@ const auditModuleV1 = kitV1.defineStatefulModule({
   state: {
     slot: "simulation.audit",
     schema: auditSliceSchemaV1,
-    initial: () => Object.freeze({ crossOwnerCommitCount: 0 }),
+    initial: () => ({ crossOwnerCommitCount: 0 }),
   },
   reducers: {
-    "snapshot_workload.audit_recorded": (_state, event) =>
-      Object.freeze({
-        crossOwnerCommitCount: parseNonNegativeSafeInteger(event.count),
-      }),
+    "snapshot_workload.audit_recorded": (_state, event) => ({
+      crossOwnerCommitCount: parseNonNegativeSafeInteger(event.count),
+    }),
   },
 });
 
@@ -364,7 +355,7 @@ const entitiesModuleV1 = kitV1.defineStatefulModule({
   state: {
     slot: "simulation.entities",
     schema: entitySliceSchemaV1,
-    initial: () => Object.freeze({ chunks: Object.freeze([]) }),
+    initial: () => ({ chunks: [] }),
   },
   reducers: {
     "snapshot_workload.entity_updated": (state, event) =>
@@ -374,9 +365,8 @@ const entitiesModuleV1 = kitV1.defineStatefulModule({
 
 const transactionCompositionV1 = kitV1.composeModules([entitiesModuleV1, auditModuleV1]);
 const transactionRunnerV1 = transactionCompositionV1.createTransactionRunner({
-  stateSchema: stateSchemaV1,
   eventSchema: snapshotTransactionEventSchemaV1,
-  createFault: () => Object.freeze({ code: "snapshot_workload.faulted" as const }),
+  createFault: () => ({ code: "snapshot_workload.faulted" as const }),
 });
 
 function createEntityChunksV1(
@@ -386,16 +376,13 @@ function createEntityChunksV1(
   for (let start = 0; start < entityCount; start += 1_000) {
     const length = Math.min(1_000, entityCount - start);
     chunks.push(
-      Object.freeze(
-        Array.from({ length }, (_, offset) =>
-          Object.freeze({
-            entityId: start + offset,
-            value: (start + offset) % 97,
-          })),
-      ),
+      Array.from({ length }, (_, offset) => ({
+        entityId: start + offset,
+        value: (start + offset) % 97,
+      })),
     );
   }
-  return Object.freeze(chunks);
+  return chunks;
 }
 
 /** @internal Direct-file-only generator used by scale coverage. */
@@ -440,11 +427,11 @@ function singleFieldAttemptV1(
     integrity: current.integrity,
   };
   return commitAttemptV1(current, snapshot, rng, [
-    Object.freeze({
+    {
       kind: "snapshot_workload.entity_updated" as const,
       entityId: target.entityId,
       value,
-    }),
+    },
   ]);
 }
 
@@ -456,14 +443,14 @@ function attemptV1(
   const rng = createTransactionalRngV1(current.rng);
   if (command.kind === "rejected") {
     return rejectAttemptV1(current, rng, [
-      Object.freeze({ code: "snapshot_workload.rejected" as const }),
+      { code: "snapshot_workload.rejected" as const },
     ]);
   }
   if (command.kind === "faulted") {
     return faultAttemptV1(
       current,
       rng,
-      Object.freeze({ code: "snapshot_workload.faulted" as const }),
+      { code: "snapshot_workload.faulted" as const },
     );
   }
   const target = targetEntityV1(current.state.simulation.entities);
@@ -484,7 +471,7 @@ function attemptV1(
 }
 
 function sessionCountsV1(counts: SnapshotWorkCountsV1): SnapshotSessionWorkCountsV1 {
-  return Object.freeze({
+  return ({
     canonicalTraversals: counts.canonicalTraversals,
     canonicalDigests: counts.canonicalDigests,
     commandLogContinuityVerifications: counts.commandLogContinuityVerifications,
@@ -515,7 +502,7 @@ export function createSnapshotTransactionWorkloadV1(input: {
       return faultAttemptV1(
         snapshot,
         createTransactionalRngV1(snapshot.rng),
-        Object.freeze({ code: "snapshot_workload.faulted" as const }),
+        { code: "snapshot_workload.faulted" as const },
       );
     },
   };
@@ -525,7 +512,7 @@ export function createSnapshotTransactionWorkloadV1(input: {
       sessionInput,
       input.instrumentation,
     );
-  return Object.freeze({
+  return ({
     snapshot: () => created.session.getCurrentSnapshot(),
     status: () => created.session.getStatus(),
     runtimeControl: created.runtimeControl,
@@ -533,7 +520,7 @@ export function createSnapshotTransactionWorkloadV1(input: {
     replayBase: () => created.commandLog.replayBase(),
     replayBaseStateDigest: () => created.commandLog.replayBaseStateDigest(),
     dispatch(commandClass: SnapshotTransactionSequenceCommandClassV1) {
-      return created.session.dispatch(Object.freeze({ kind: commandClass }));
+      return created.session.dispatch({ kind: commandClass });
     },
   });
 }
@@ -546,7 +533,7 @@ function createPreparedTransactionCoreV1(entityCount: SnapshotCommitEntityCountV
   });
   const setupCounts = sessionCountsV1(counter.snapshot());
   counter.reset();
-  return Object.freeze({ counter, workload, setupCounts });
+  return ({ counter, workload, setupCounts });
 }
 
 export function prepareSnapshotTransactionWorkloadV1(input: {
@@ -554,12 +541,12 @@ export function prepareSnapshotTransactionWorkloadV1(input: {
 }): PreparedSnapshotTransactionWorkloadV1 {
   const core = createPreparedTransactionCoreV1(input.entityCount);
   let dispatched = false;
-  return Object.freeze({
-    descriptor: Object.freeze({
+  return ({
+    descriptor: {
       workloadId: `snapshot-commit-v1/${String(input.entityCount)}/cross_owner_atomic_committed`,
       entityCount: input.entityCount,
       commandClass: "cross_owner_atomic_committed" as const,
-    }),
+    },
     setupCounts: core.setupCounts,
     async runOnce() {
       if (dispatched) {
@@ -572,7 +559,7 @@ export function prepareSnapshotTransactionWorkloadV1(input: {
       }
       const entry = core.workload.commandLog().at(-1);
       if (entry === undefined) throw new TypeError("Snapshot transaction workload did not log");
-      return Object.freeze({
+      return ({
         outcome: "committed" as const,
         counts: sessionCountsV1(core.counter.snapshot()),
         preStateDigest: entry.preStateDigest,
@@ -588,12 +575,12 @@ export function prepareTimedSnapshotTransactionWorkloadV1(input: {
 }) {
   const core = createPreparedTransactionCoreV1(input.entityCount);
   let dispatched = false;
-  const descriptor = Object.freeze({
+  const descriptor = {
     workloadId: `snapshot-commit-v1/${String(input.entityCount)}/cross_owner_atomic_committed`,
     entityCount: input.entityCount,
     commandClass: "cross_owner_atomic_committed" as const,
-  });
-  return Object.freeze({
+  };
+  return ({
     descriptor,
     setupCounts: core.setupCounts,
     async runOnce() {
@@ -607,7 +594,7 @@ export function prepareTimedSnapshotTransactionWorkloadV1(input: {
       if (result.kind !== "executed" || result.execution.kind !== "committed") {
         throw new TypeError("Snapshot transaction workload did not commit");
       }
-      return Object.freeze({
+      return ({
         outcome: "committed" as const,
         counts: sessionCountsV1(core.counter.snapshot()),
         dispatchDurationMs,
@@ -618,14 +605,14 @@ export function prepareTimedSnapshotTransactionWorkloadV1(input: {
 
 /** @internal Direct-file-only transcript definition used by deterministic tests. */
 export const snapshotCommitMixedLongSequenceV1:
-  readonly SnapshotTransactionSequenceCommandClassV1[] = Object.freeze([
+  readonly SnapshotTransactionSequenceCommandClassV1[] = [
     ...Array.from({ length: 85 }, () => [
       "cross_owner_atomic_committed" as const,
       "single_field_committed" as const,
       "rejected" as const,
     ]).flat(),
     "faulted",
-  ]);
+  ];
 
 async function recordMixedLongSequenceV1(
   workload: ReturnType<typeof createSnapshotTransactionWorkloadV1>,
@@ -638,7 +625,7 @@ async function recordMixedLongSequenceV1(
     }
     outcomes.push(result.execution.kind);
   }
-  return Object.freeze(outcomes);
+  return outcomes;
 }
 
 export function prepareSnapshotCommitSequenceWorkloadV1(input: {
@@ -650,13 +637,13 @@ export function prepareSnapshotCommitSequenceWorkloadV1(input: {
   }
   const core = createPreparedTransactionCoreV1(input.entityCount);
   let dispatched = false;
-  return Object.freeze({
-    descriptor: Object.freeze({
+  return ({
+    descriptor: {
       workloadId: `snapshot-commit-sequence-v1/${String(input.entityCount)}/${input.sequenceClass}`,
       entityCount: input.entityCount,
       sequenceClass: input.sequenceClass,
       commandCount: snapshotCommitMixedLongSequenceV1.length,
-    }),
+    },
     setupCounts: core.setupCounts,
     async runOnce(): Promise<SnapshotCommitSequenceWorkloadRunV1> {
       if (dispatched) {
@@ -664,7 +651,7 @@ export function prepareSnapshotCommitSequenceWorkloadV1(input: {
       }
       dispatched = true;
       const outcomes = await recordMixedLongSequenceV1(core.workload);
-      return Object.freeze({
+      return ({
         outcomes,
         counts: sessionCountsV1(core.counter.snapshot()),
         retainedCommandCount: core.workload.commandLog().length,
@@ -685,13 +672,13 @@ export function prepareTimedSnapshotCommitSequenceWorkloadV1(input: {
   }
   const core = createPreparedTransactionCoreV1(input.entityCount);
   let dispatched = false;
-  const descriptor = Object.freeze({
+  const descriptor = {
     workloadId: `snapshot-commit-sequence-v1/${String(input.entityCount)}/${input.sequenceClass}`,
     entityCount: input.entityCount,
     sequenceClass: input.sequenceClass,
     commandCount: snapshotCommitMixedLongSequenceV1.length,
-  });
-  return Object.freeze({
+  };
+  return ({
     descriptor,
     setupCounts: core.setupCounts,
     async runOnce() {
@@ -702,7 +689,7 @@ export function prepareTimedSnapshotCommitSequenceWorkloadV1(input: {
       const startedAt = performance.now();
       const outcomes = await recordMixedLongSequenceV1(core.workload);
       const dispatchDurationMs = performance.now() - startedAt;
-      return Object.freeze({
+      return ({
         outcomes,
         counts: sessionCountsV1(core.counter.snapshot()),
         dispatchDurationMs,
@@ -715,29 +702,29 @@ const identityDigestV1 = (label: string): Digest =>
   digestBytes(new TextEncoder().encode(`snapshot-transaction-workload:${label}`));
 
 /** @internal Direct-file-only deterministic identity reused by neutral workloads. */
-export const snapshotTransactionProvenanceV1: BuildProvenanceV1 = Object.freeze({
-  story: Object.freeze({
+export const snapshotTransactionProvenanceV1: BuildProvenanceV1 = {
+  story: {
     id: "snapshot-transaction-workload",
     revision: parsePositiveSafeInteger(1),
     digest: identityDigestV1("story"),
-  }),
-  engine: Object.freeze({
+  },
+  engine: {
     version: "snapshot-workload-v1",
     digest: identityDigestV1("engine"),
-  }),
-  resolved: Object.freeze({
+  },
+  resolved: {
     stateContractRevision: parsePositiveSafeInteger(1),
     stateContractDigest: identityDigestV1("state-contract"),
     simulationDigest: identityDigestV1("simulation"),
     presentationDigest: identityDigestV1("presentation"),
-    patchSet: Object.freeze({
+    patchSet: {
       digest: identityDigestV1("patch-set"),
       simulationDigest: identityDigestV1("patch-set-simulation"),
       presentationDigest: identityDigestV1("patch-set-presentation"),
-      appliedHotfixes: Object.freeze([]),
-    }),
-  }),
-});
+      appliedHotfixes: [],
+    },
+  },
+};
 
 async function prepareSnapshotReplayCoreV1(entityCount: SnapshotCommitEntityCountV1) {
   const core = createPreparedTransactionCoreV1(entityCount);
@@ -747,21 +734,21 @@ async function prepareSnapshotReplayCoreV1(entityCount: SnapshotCommitEntityCoun
   let replayed = false;
   const commandLog = core.workload.commandLog();
   const currentSnapshot = core.workload.snapshot();
-  const descriptor = Object.freeze({
+  const descriptor = {
     workloadId: `snapshot-replay-v1/${String(entityCount)}/mixed_outcomes`,
     entityCount,
     sequenceClass: "mixed_long_retained" as const,
     commandCount: commandLog.length,
-  });
+  };
 
-  return Object.freeze({
+  return ({
     descriptor,
     setupCounts: core.setupCounts,
     recordingCounts,
     async replayOnce(): Promise<ReplayComparisonV1> {
       if (replayed) throw new TypeError("Snapshot replay workload can only run once");
       replayed = true;
-      const identity = Object.freeze({ provenance: snapshotTransactionProvenanceV1 });
+      const identity = { provenance: snapshotTransactionProvenanceV1 };
       return await replayAuthoritativelyFromAttemptsInternalV1(
         {
           identity,
@@ -795,13 +782,13 @@ export async function prepareSnapshotReplayWorkloadV1(input: {
   readonly entityCount: SnapshotCommitEntityCountV1;
 }): Promise<PreparedSnapshotReplayWorkloadV1> {
   const core = await prepareSnapshotReplayCoreV1(input.entityCount);
-  return Object.freeze({
+  return ({
     descriptor: core.descriptor,
     setupCounts: core.setupCounts,
     recordingCounts: core.recordingCounts,
     async runOnce(): Promise<SnapshotReplayWorkloadRunV1> {
       const comparison = await core.replayOnce();
-      return Object.freeze({ comparison, counts: core.counts() });
+      return ({ comparison, counts: core.counts() });
     },
   });
 }
@@ -811,7 +798,7 @@ export async function prepareTimedSnapshotReplayWorkloadV1(input: {
   readonly entityCount: SnapshotCommitEntityCountV1;
 }) {
   const core = await prepareSnapshotReplayCoreV1(input.entityCount);
-  return Object.freeze({
+  return ({
     descriptor: core.descriptor,
     setupCounts: core.setupCounts,
     recordingCounts: core.recordingCounts,
@@ -819,7 +806,7 @@ export async function prepareTimedSnapshotReplayWorkloadV1(input: {
       const startedAt = performance.now();
       const comparison = await core.replayOnce();
       const dispatchDurationMs = performance.now() - startedAt;
-      return Object.freeze({
+      return ({
         comparison,
         counts: core.counts(),
         dispatchDurationMs,

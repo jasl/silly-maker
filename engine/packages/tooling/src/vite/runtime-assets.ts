@@ -25,7 +25,7 @@ export function resolveRuntimeAssetPathV1(
   try {
     decoded = decodeURIComponent(encodedRelativePath);
   } catch {
-    return Object.freeze({ kind: "bad_request" });
+    return { kind: "bad_request" };
   }
 
   if (
@@ -34,51 +34,49 @@ export function resolveRuntimeAssetPathV1(
     decoded.includes("\\") ||
     decoded.startsWith("/")
   ) {
-    return Object.freeze({ kind: "bad_request" });
+    return { kind: "bad_request" };
   }
 
   const root = resolve(assetsDirectory);
   const candidate = resolve(root, decoded);
   if (escapesRootV1(root, candidate)) {
-    return Object.freeze({ kind: "not_found" });
+    return { kind: "not_found" };
   }
 
   try {
     if (!statSync(candidate).isFile()) {
-      return Object.freeze({ kind: "not_found" });
+      return { kind: "not_found" };
     }
   } catch {
     // The asset tree may change while the dev server is running. A vanished or
     // inaccessible path is an ordinary miss, not a server error.
-    return Object.freeze({ kind: "not_found" });
+    return { kind: "not_found" };
   }
 
-  return Object.freeze({ kind: "file", filePath: candidate });
+  return { kind: "file", filePath: candidate };
 }
 
-const runtimeAssetContentTypesV1 = Object.freeze(
-  {
-    ".aac": "audio/aac",
-    ".avif": "image/avif",
-    ".flac": "audio/flac",
-    ".gif": "image/gif",
-    ".jpeg": "image/jpeg",
-    ".jpg": "image/jpeg",
-    ".json": "application/json; charset=utf-8",
-    ".m4a": "audio/mp4",
-    ".mp3": "audio/mpeg",
-    ".mp4": "video/mp4",
-    ".oga": "audio/ogg",
-    ".ogg": "audio/ogg",
-    ".opus": "audio/ogg",
-    ".png": "image/png",
-    ".svg": "image/svg+xml",
-    ".wav": "audio/wav",
-    ".weba": "audio/webm",
-    ".webm": "video/webm",
-    ".webp": "image/webp",
-  } satisfies Readonly<Record<string, string>>,
-);
+const runtimeAssetContentTypesV1 = {
+  ".aac": "audio/aac",
+  ".avif": "image/avif",
+  ".flac": "audio/flac",
+  ".gif": "image/gif",
+  ".jpeg": "image/jpeg",
+  ".jpg": "image/jpeg",
+  ".json": "application/json; charset=utf-8",
+  ".m4a": "audio/mp4",
+  ".mp3": "audio/mpeg",
+  ".mp4": "video/mp4",
+  ".oga": "audio/ogg",
+  ".ogg": "audio/ogg",
+  ".opus": "audio/ogg",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".wav": "audio/wav",
+  ".weba": "audio/webm",
+  ".webm": "video/webm",
+  ".webp": "image/webp",
+} satisfies Readonly<Record<string, string>>;
 
 export function runtimeAssetContentTypeV1(filePath: string): string {
   const extension = extname(filePath).toLowerCase();

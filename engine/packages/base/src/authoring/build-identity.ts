@@ -2,7 +2,6 @@
 import type { Digest } from "../contracts/values.ts";
 import { digestCanonical } from "../contracts/digest.ts";
 import { parseDigest } from "../contracts/values.ts";
-import { deepFreezeAuthoringValueV1 } from "./define-gameplay-module.ts";
 import { compareUtf16CodeUnitsInternalV1 } from "../internal/utf16-code-unit-order.ts";
 
 export type BuildIdentityFacetV1 =
@@ -75,18 +74,17 @@ function resolveRecords(
     validatePath(record.path);
     parseDigest(record.sha256);
     if (record.facet !== facet) throw new TypeError("build identity facet mismatch");
-    return Object.freeze({ ...record });
+    return { ...record };
   });
   sorted.sort((left, right) => compareUtf16CodeUnitsInternalV1(left.path, right.path));
   if (new Set(sorted.map((record) => record.path)).size !== sorted.length) {
     throw new TypeError("duplicate build identity path");
   }
-  const frozen = Object.freeze(sorted);
-  return Object.freeze({ digest: digestCanonical(domain, frozen), records: frozen });
+  return { digest: digestCanonical(domain, sorted), records: sorted };
 }
 
 export function resolveBuildIdentityV1(input: BuildIdentityInputV1): ResolvedBuildIdentityV1 {
-  return deepFreezeAuthoringValueV1({
+  return {
     engineVersion: parseEngineVersion(input.engineVersion),
     engine: resolveRecords(input.engine, "engine", "sillymaker:engine:v1"),
     storySimulation: resolveRecords(
@@ -100,5 +98,5 @@ export function resolveBuildIdentityV1(input: BuildIdentityInputV1): ResolvedBui
       "sillymaker:presentation:v1",
     ),
     application: resolveRecords(input.application, "application", "sillymaker:application:v1"),
-  });
+  };
 }

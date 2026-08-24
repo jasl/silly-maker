@@ -12,7 +12,7 @@ import {
   interactionOccurrenceId,
   emptyNarrativeHistory,
   parsePendingInteraction,
-  reduceStageMutations,
+  reduceAdmittedStageMutations,
 } from "@sillymaker/base/story";
 
 import { catcafeOpeningCueIdsV1, catcafeOpeningSceneV1 } from "../../../scenes/opening/index.ts";
@@ -47,12 +47,12 @@ export interface CatcafeNarrativeStateV1 {
 }
 
 export function createInitialCatcafeNarrativeStateV1(): CatcafeNarrativeStateV1 {
-  return Object.freeze({
+  return ({
     phase: "idle" as const,
     cursor: null,
     pending: null,
     sequence: 0,
-    flags: Object.freeze([]),
+    flags: [],
     history: emptyNarrativeHistory,
   });
 }
@@ -104,21 +104,21 @@ export type CatcafeNarrativeNodeV1 =
   | { readonly kind: "end"; readonly nodeId: string };
 
 /** Stage vocabulary shared by the script and the content catalog. */
-export const catcafeLayersV1 = Object.freeze({
+export const catcafeLayersV1 = {
   background: "layer.catcafe.background",
   characters: "layer.catcafe.characters",
-});
+};
 
-export const catcafeTagsV1 = Object.freeze({
+export const catcafeTagsV1 = {
   background: "tag.background",
   xiaoyu: "tag.xiaoyu",
-});
+};
 
-export const catcafeContentIdsV1 = Object.freeze({
+export const catcafeContentIdsV1 = {
   backgroundShopfront: "content.catcafe.background.shopfront",
   backgroundBackyard: "content.catcafe.background.backyard",
   characterXiaoyu: "content.catcafe.character.xiaoyu",
-});
+};
 
 export const catcafeEntryNodeIdV1 = "node.catcafe.opening";
 export const catcafeNamedFlagV1 = "flag.catcafe.named";
@@ -230,9 +230,7 @@ const nodesByIdV1: ReadonlyMap<string, CatcafeNarrativeNodeV1> = new Map(
   catcafeScriptV1.map((node) => [node.nodeId, node]),
 );
 
-export const catcafeNodeIdsV1: readonly string[] = Object.freeze(
-  catcafeScriptV1.map((node) => node.nodeId),
-);
+export const catcafeNodeIdsV1: readonly string[] = catcafeScriptV1.map((node) => node.nodeId);
 
 function requireNodeV1(nodeId: string): CatcafeNarrativeNodeV1 {
   const node = nodesByIdV1.get(nodeId);
@@ -244,7 +242,7 @@ export function catcafeChoiceOptionsForV1(definitionId: string): readonly Catcaf
   for (const node of catcafeScriptV1) {
     if (node.kind === "choice" && node.definitionId === definitionId) return node.options;
   }
-  return Object.freeze([]);
+  return [];
 }
 
 /** The single choice-availability rule shared by view, preview, and dispatch. */
@@ -341,7 +339,7 @@ export function runCatcafeNarrativeUntilInteractionV1(
     if (node.kind === "stage") {
       const mutations = node.mutations(localStage);
       if (mutations.length > 0) {
-        const outcome = reduceStageMutations(localStage, mutations);
+        const outcome = reduceAdmittedStageMutations(localStage, mutations);
         if (outcome.kind !== "applied") {
           throw new TypeError(`catcafe.narrative_stage_invalid:${node.nodeId}`);
         }
@@ -352,29 +350,29 @@ export function runCatcafeNarrativeUntilInteractionV1(
       continue;
     }
     if (node.kind === "end") {
-      return Object.freeze({
-        narrative: Object.freeze({
+      return ({
+        narrative: {
           phase: "completed" as const,
           cursor: null,
           pending: null,
           sequence,
           flags: narrative.flags,
           history: narrative.history,
-        }),
-        stageMutations: Object.freeze(collected),
+        },
+        stageMutations: collected,
       });
     }
     sequence += 1;
-    return Object.freeze({
-      narrative: Object.freeze({
+    return ({
+      narrative: {
         phase: "active" as const,
         cursor: node.nodeId,
         pending: pendingForNodeV1(node, sequence),
         sequence,
         flags: narrative.flags,
         history: narrative.history,
-      }),
-      stageMutations: Object.freeze(collected),
+      },
+      stageMutations: collected,
     });
   }
   throw new TypeError("catcafe.narrative_runaway_script");
@@ -382,7 +380,7 @@ export function runCatcafeNarrativeUntilInteractionV1(
 
 function withFlagsV1(flags: readonly string[], added: readonly string[]): readonly string[] {
   if (added.length === 0) return flags;
-  return Object.freeze([...new Set([...flags, ...added])].toSorted());
+  return ([...new Set([...flags, ...added])].toSorted());
 }
 
 /**
@@ -431,7 +429,7 @@ export function catcafeNarrativeAfterResolutionV1(
   } else {
     throw new TypeError(`catcafe.narrative_resolution_mismatch:${node.nodeId}`);
   }
-  return Object.freeze({
+  return ({
     phase: "active" as const,
     cursor: next,
     pending: null,
@@ -444,7 +442,7 @@ export function catcafeNarrativeAfterResolutionV1(
 export function catcafeNarrativeAtBeginV1(
   narrative: CatcafeNarrativeStateV1,
 ): CatcafeNarrativeStateV1 {
-  return Object.freeze({
+  return ({
     phase: "active" as const,
     cursor: catcafeEntryNodeIdV1,
     pending: null,

@@ -18,24 +18,22 @@ import {
   type ManagedSurfaceResolvedDefinitionV1,
 } from "./managed-surface-contracts.ts";
 
-const definitionKeysV1 = Object.freeze(
-  [
-    "definitionId",
-    "contractRevision",
-    "ownerId",
-    "slotId",
-    "layerId",
-    "layerOrder",
-    "placement",
-    "modality",
-    "inputPolicy",
-    "dismissPolicy",
-    "focusPolicy",
-    "navigationPolicy",
-    "actionIds",
-    "readiness",
-  ] as const,
-);
+const definitionKeysV1 = [
+  "definitionId",
+  "contractRevision",
+  "ownerId",
+  "slotId",
+  "layerId",
+  "layerOrder",
+  "placement",
+  "modality",
+  "inputPolicy",
+  "dismissPolicy",
+  "focusPolicy",
+  "navigationPolicy",
+  "actionIds",
+  "readiness",
+] as const;
 const inputContextsV1 = new Set<InputContextIdV1>([
   "gameplay",
   "interaction",
@@ -47,9 +45,7 @@ const inputContextsV1 = new Set<InputContextIdV1>([
 ]);
 
 function isRecordV1(value: unknown): value is Readonly<Record<string, unknown>> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function requireExactKeysV1(
@@ -57,7 +53,7 @@ function requireExactKeysV1(
   expectedKeys: readonly string[],
 ): Readonly<Record<string, unknown>> {
   if (!isRecordV1(value)) throw new TypeError();
-  const actualKeys = Reflect.ownKeys(value);
+  const actualKeys = Object.keys(value);
   if (
     actualKeys.length !== expectedKeys.length ||
     !expectedKeys.every((key) => Object.hasOwn(value, key))
@@ -71,16 +67,16 @@ function parseInputPolicyV1(value: unknown): ManagedSurfaceInputPolicyV1 {
   if (!isRecordV1(value)) throw new TypeError();
   if (value.kind === "none") {
     requireExactKeysV1(value, ["kind"]);
-    return Object.freeze({ kind: "none" });
+    return { kind: "none" };
   }
   const input = requireExactKeysV1(value, ["kind", "inputContextId"]);
   if (input.kind !== "managed" || !inputContextsV1.has(input.inputContextId as InputContextIdV1)) {
     throw new TypeError();
   }
-  return Object.freeze({
+  return {
     kind: "managed",
     inputContextId: input.inputContextId as InputContextIdV1,
-  });
+  };
 }
 
 function parseDismissPolicyV1(value: unknown): ManagedSurfaceDismissPolicyV1 {
@@ -93,19 +89,19 @@ function parseDismissPolicyV1(value: unknown): ManagedSurfaceDismissPolicyV1 {
   ) {
     throw new TypeError();
   }
-  return Object.freeze({
+  return {
     back: input.back,
     escape: input.escape,
     backdrop: input.backdrop,
     routedCancel: input.routedCancel,
-  });
+  };
 }
 
 function parseFocusPolicyV1(value: unknown): ManagedSurfaceFocusPolicyV1 {
   if (!isRecordV1(value)) throw new TypeError();
   if (value.kind === "none") {
     requireExactKeysV1(value, ["kind"]);
-    return Object.freeze({ kind: "none" });
+    return { kind: "none" };
   }
   const input = requireExactKeysV1(value, [
     "kind",
@@ -120,18 +116,18 @@ function parseFocusPolicyV1(value: unknown): ManagedSurfaceFocusPolicyV1 {
   ) {
     throw new TypeError();
   }
-  return Object.freeze({
+  return {
     kind: "owns_focus",
     initialTargetId: parseManagedSurfaceFocusTargetIdV1(input.initialTargetId),
     trap: input.trap,
     restore: input.restore,
-  });
+  };
 }
 
 function parseNavigationPolicyV1(value: unknown): ManagedSurfaceNavigationPolicyV1 {
   const input = requireExactKeysV1(value, ["kind"]);
   if (input.kind !== "none" && input.kind !== "close") throw new TypeError();
-  return Object.freeze({ kind: input.kind });
+  return { kind: input.kind };
 }
 
 function parseReadinessPolicyV1(value: unknown): ManagedSurfaceReadinessPolicyV1 {
@@ -147,24 +143,23 @@ function parseReadinessPolicyV1(value: unknown): ManagedSurfaceReadinessPolicyV1
   ) {
     throw new TypeError();
   }
-  return Object.freeze({
+  return {
     initialOpen: "blocking_fallback",
     primaryReplacement: "retain_current",
     childOpen: "blocking_fallback",
-  });
+  };
 }
 
 function parseActionIdsV1(value: unknown): readonly ManagedSurfaceActionIdV1[] {
   if (!Array.isArray(value)) throw new TypeError();
-  const ownKeys = Reflect.ownKeys(value);
-  if (ownKeys.length !== value.length + 1) throw new TypeError();
+  if (Object.keys(value).length !== value.length) throw new TypeError();
   const actionIds: ManagedSurfaceActionIdV1[] = [];
   for (let index = 0; index < value.length; index += 1) {
     if (!Object.hasOwn(value, index)) throw new TypeError();
     actionIds.push(parseManagedSurfaceActionIdV1(value[index]));
   }
   if (new Set(actionIds).size !== actionIds.length) throw new TypeError();
-  return Object.freeze(actionIds);
+  return actionIds;
 }
 
 export function parseManagedSurfaceResolvedDefinitionV1(
@@ -177,7 +172,7 @@ export function parseManagedSurfaceResolvedDefinitionV1(
       throw new TypeError();
     }
     const actionIds = parseActionIdsV1(input.actionIds);
-    return Object.freeze({
+    return {
       definitionId: parseManagedSurfaceDefinitionIdV1(input.definitionId),
       contractRevision: parsePositiveSafeInteger(input.contractRevision),
       ownerId: parseManagedSurfaceOwnerIdV1(input.ownerId),
@@ -192,7 +187,7 @@ export function parseManagedSurfaceResolvedDefinitionV1(
       navigationPolicy: parseNavigationPolicyV1(input.navigationPolicy),
       actionIds,
       readiness: parseReadinessPolicyV1(input.readiness),
-    });
+    };
   } catch {
     throw new TypeError("ui.invalid_managed_surface_definition");
   }

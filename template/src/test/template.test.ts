@@ -40,7 +40,7 @@ function compileDocWithFlowV1(
 ) {
   const sourceDoc = probeDocV1(doc);
   const compiled = compileTemplateInteractionDocV1({ doc: sourceDoc });
-  return Object.freeze({
+  return ({
     compiled,
     flowGraph: projectTemplateNarrativeFlowV1(compiled, sourceDoc),
   });
@@ -62,10 +62,10 @@ function currentResolveV1(
   application: { readonly semantic: { observe(): unknown } },
   resolution: Readonly<Record<string, unknown>>,
 ) {
-  return Object.freeze({
+  return ({
     kind: "resolve" as const,
     expectedOccurrenceId: currentOccurrenceIdV1(application),
-    resolution: Object.freeze(resolution),
+    resolution: resolution,
   });
 }
 
@@ -74,12 +74,12 @@ function currentTimeTickV1(
   application: { readonly semantic: { observe(): unknown } },
   elapsedMs: number,
 ) {
-  return Object.freeze({
+  return ({
     kind: "time" as const,
-    tick: Object.freeze({
+    tick: {
       elapsedMs,
       expectedHoldOccurrenceId: currentOccurrenceIdV1(application),
-    }),
+    },
   });
 }
 

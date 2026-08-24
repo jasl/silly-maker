@@ -111,8 +111,6 @@ describe("diagnostic privacy", () => {
     expect(scrubbed).toEqual(original);
     expect(scrubbed).not.toBe(original);
     expect(scrubbed.cause).not.toBe(original.cause);
-    expect(Object.isFrozen(scrubbed)).toBe(true);
-    expect(Object.isFrozen(scrubbed.cause)).toBe(true);
   });
 
   it("rejects invalid limits instead of returning unsized text", () => {

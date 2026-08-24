@@ -210,5 +210,5 @@ export interface OsPresentationProgramV1 {
 }
 
 export function materializeOsPresentationV1(): OsPresentationProgramV1 {
-  return Object.freeze({ kind: "silly-os-presentation", textCatalogs: osTextCatalogsV1 });
+  return ({ kind: "silly-os-presentation", textCatalogs: osTextCatalogsV1 });
 }

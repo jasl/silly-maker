@@ -30,7 +30,7 @@ function normalizeRequiredIdsInternalV1(
       `${subject} must not repeat an id`,
     );
   }
-  return Object.freeze(ids);
+  return ids;
 }
 
 function normalizeSelectedCandidatesInternalV1<TValue>(
@@ -43,7 +43,7 @@ function normalizeSelectedCandidatesInternalV1<TValue>(
       `${subject} must be an array`,
     );
   }
-  return Object.freeze(input.map((candidate) => {
+  return input.map((candidate) => {
     if (candidate === null || typeof candidate !== "object") {
       throw new ExtensionRuntimeErrorInternalV1(
         "extension_runtime.invalid_definition",
@@ -51,8 +51,8 @@ function normalizeSelectedCandidatesInternalV1<TValue>(
       );
     }
     assertExtensionIdentifierInternalV1(candidate.id, `${subject} candidate id`);
-    return Object.freeze({ id: candidate.id, value: candidate.value });
-  }));
+    return { id: candidate.id, value: candidate.value };
+  });
 }
 
 function admitExactlyOneInternalV1<TValue>(
@@ -62,7 +62,7 @@ function admitExactlyOneInternalV1<TValue>(
   missingCode: ExtensionRuntimeErrorCodeInternalV1,
   ambiguousCode: ExtensionRuntimeErrorCodeInternalV1,
 ): readonly ExtensionSelectedCandidateInternalV1<TValue>[] {
-  return Object.freeze(requiredIds.map((id) => {
+  return requiredIds.map((id) => {
     const matches = selected.filter((candidate) => candidate.id === id);
     if (matches.length === 0) {
       throw new ExtensionRuntimeErrorInternalV1(
@@ -84,7 +84,7 @@ function admitExactlyOneInternalV1<TValue>(
       );
     }
     return match;
-  }));
+  });
 }
 
 /**
@@ -116,7 +116,7 @@ export function admitRequiredExtensionsInternalV1<TDomain, TLocalBinding>(
     input.requiredLocalBindingIds,
     "required local bindings",
   );
-  return Object.freeze({
+  return {
     domains: admitExactlyOneInternalV1(
       selectedDomains,
       requiredDomainIds,
@@ -131,5 +131,5 @@ export function admitRequiredExtensionsInternalV1<TDomain, TLocalBinding>(
       "extension_runtime.required_local_binding_missing",
       "extension_runtime.required_local_binding_ambiguous",
     ),
-  });
+  };
 }

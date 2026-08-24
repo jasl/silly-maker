@@ -28,7 +28,7 @@ export const inventoryModuleV1 = kit.defineStatefulModule({
   state: {
     slot: "simulation.inventory",
     schema: templateInventoryStateSchemaV1,
-    initial: () => Object.freeze({ coins: 0 }),
+    initial: () => ({ coins: 0 }),
   },
   commandSchema: commandSchemaV1,
   provides: (provide) => [
@@ -37,6 +37,6 @@ export const inventoryModuleV1 = kit.defineStatefulModule({
     })),
   ],
   reducers: {
-    "template.coins_changed": (_state, event) => Object.freeze({ coins: event.balance }),
+    "template.coins_changed": (_state, event) => ({ coins: event.balance }),
   },
 });

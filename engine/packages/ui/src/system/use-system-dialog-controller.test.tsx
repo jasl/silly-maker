@@ -42,9 +42,6 @@ describe("useSystemDialogControllerV1", () => {
     expect(controller.openSaves()).toBe(savesResult);
     expect(openSettings).toHaveBeenCalledWith();
     expect(openSaves).toHaveBeenCalledWith();
-    expect(Reflect.ownKeys(controller)).toEqual(["openSettings", "openSaves"]);
-    expect(Object.isFrozen(controller)).toBe(true);
-
     rendered.rerender();
     expect(rendered.result.current).toBe(controller);
   });

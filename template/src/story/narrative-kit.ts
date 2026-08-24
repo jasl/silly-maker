@@ -361,32 +361,32 @@ export function compileTemplateInteractionDocV1(
           },
           `/${at}`,
         );
-        const mutations = Object.freeze([parsed]);
-        return Object.freeze({
+        const mutations = [parsed];
+        return ({
           mutations: () => mutations,
-          mayShow: Object.freeze([]) as readonly string[],
-          dispatches: Object.freeze([]) as readonly StageCueDispatch[],
+          mayShow: [] as readonly string[],
+          dispatches: [] as readonly StageCueDispatch[],
         });
       }
       const binding = scenes[op.scene];
       if (binding === undefined) failV1(doc, at, `scene_unknown:${op.scene}`);
       if ("open" in op) {
-        return Object.freeze({
+        return ({
           mutations: (stage: SemanticStageState) => binding.scene.openMutations(stage),
           mayShow: binding.scene.mayShow,
-          dispatches: Object.freeze([
+          dispatches: [
             { sceneId: binding.scene.sceneId, open: true as const },
-          ]) as readonly StageCueDispatch[],
+          ] as readonly StageCueDispatch[],
         });
       }
       const cueId = binding.cues?.[op.cue];
       if (cueId === undefined) failV1(doc, at, `cue_unknown:${op.scene}/${op.cue}`);
-      return Object.freeze({
+      return ({
         mutations: (stage: SemanticStageState) => binding.scene.cueMutations(cueId, stage),
         mayShow: binding.scene.cueMayShow(cueId),
-        dispatches: Object.freeze([
+        dispatches: [
           { sceneId: binding.scene.sceneId, cueId },
-        ]) as readonly StageCueDispatch[],
+        ] as readonly StageCueDispatch[],
       });
     });
 
@@ -402,7 +402,7 @@ export function compileTemplateInteractionDocV1(
           `text.${doc.prefix}.line.${block.name}`,
           block.text,
         );
-        nodes.push(Object.freeze({
+        nodes.push({
           kind: "say",
           nodeId: id,
           definitionId: block.definitionId ?? `interaction.${doc.prefix}.${block.name}`,
@@ -410,7 +410,7 @@ export function compileTemplateInteractionDocV1(
           speakerTextId: speakerTextId(block.name, block.speaker),
           textId,
           next: resolveNext(block.name, block.next),
-        }));
+        });
         break;
       }
       case "choice": {
@@ -430,7 +430,7 @@ export function compileTemplateInteractionDocV1(
           }
           optionNames.add(option.name);
           const at = `${block.name}/${option.name}`;
-          return Object.freeze({
+          return ({
             choiceId: `choice.${doc.prefix}.${option.name}`,
             textId: resolveTextId(
               at,
@@ -439,18 +439,18 @@ export function compileTemplateInteractionDocV1(
               option.text,
             ),
             consumesCoins: option.consumesCoins ?? 0,
-            setFlags: Object.freeze([...(option.setFlags ?? [])]),
+            setFlags: [...(option.setFlags ?? [])],
             next: resolveNext(at, option.next),
           });
         });
-        nodes.push(Object.freeze({
+        nodes.push({
           kind: "choice",
           nodeId: id,
           definitionId: block.definitionId ?? `interaction.${doc.prefix}.${block.name}`,
           seenRevision: block.seenRevision ?? 1,
           promptTextId,
-          options: Object.freeze(options),
-        }));
+          options: options,
+        });
         break;
       }
       case "stage": {
@@ -458,15 +458,16 @@ export function compileTemplateInteractionDocV1(
         const compiledOps = compileStageOps(block.name, block.ops);
         const lastOp = compiledOps.at(-1);
         if (lastOp === undefined) failV1(doc, block.name, "stage_ops_empty");
-        nodes.push(Object.freeze({
+        nodes.push({
           kind: "stage",
           nodeId: id,
-          mutations: (stage: SemanticStageState) =>
-            Object.freeze(compiledOps.flatMap((op) => [...op.mutations(stage)])),
+          mutations: (
+            stage: SemanticStageState,
+          ) => (compiledOps.flatMap((op) => [...op.mutations(stage)])),
           mayShow: lastOp.mayShow,
-          dispatches: Object.freeze(compiledOps.flatMap((op) => [...op.dispatches])),
+          dispatches: compiledOps.flatMap((op) => [...op.dispatches]),
           next: resolveNext(block.name, block.next),
-        }));
+        });
         break;
       }
       case "branch": {
@@ -484,15 +485,15 @@ export function compileTemplateInteractionDocV1(
               failV1(doc, at, "branch_flag_invalid");
             }
           }
-          return Object.freeze({
+          return ({
             flag: branchCase.when?.flag,
             next: resolveNext(at, branchCase.next),
           });
         });
-        nodes.push(Object.freeze({
+        nodes.push({
           kind: "branch",
           nodeId: id,
-          successors: Object.freeze(compiledCases.map((branchCase) => branchCase.next)),
+          successors: compiledCases.map((branchCase) => branchCase.next),
           choose: (context: { readonly flags: readonly string[] }): string => {
             for (const branchCase of compiledCases) {
               if (branchCase.flag === undefined || context.flags.includes(branchCase.flag)) {
@@ -501,7 +502,7 @@ export function compileTemplateInteractionDocV1(
             }
             throw new TypeError(`template.narrative_branch_unmatched:${id}`);
           },
-        }));
+        });
         break;
       }
       case "hold": {
@@ -516,7 +517,7 @@ export function compileTemplateInteractionDocV1(
           if (typeof arm.when.flag !== "string" || arm.when.flag.length === 0) {
             failV1(doc, at, "hold_when_flag_invalid");
           }
-          return Object.freeze({ flag: arm.when.flag, next: resolveNext(at, arm.next) });
+          return ({ flag: arm.when.flag, next: resolveNext(at, arm.next) });
         });
         if (holdOpsBlocks.has(block.name)) {
           const stageName = `${block.name}-stage`;
@@ -524,30 +525,31 @@ export function compileTemplateInteractionDocV1(
           const compiledOps = compileStageOps(stageName, block.ops ?? []);
           const lastOp = compiledOps.at(-1);
           if (lastOp === undefined) failV1(doc, stageName, "stage_ops_empty");
-          nodes.push(Object.freeze({
+          nodes.push({
             kind: "stage",
             nodeId: stageId,
-            mutations: (stage: SemanticStageState) =>
-              Object.freeze(compiledOps.flatMap((op) => [...op.mutations(stage)])),
+            mutations: (
+              stage: SemanticStageState,
+            ) => (compiledOps.flatMap((op) => [...op.mutations(stage)])),
             mayShow: lastOp.mayShow,
-            dispatches: Object.freeze(compiledOps.flatMap((op) => [...op.dispatches])),
+            dispatches: compiledOps.flatMap((op) => [...op.dispatches]),
             next: id,
-          }));
+          });
         }
-        nodes.push(Object.freeze({
+        nodes.push({
           kind: "hold",
           nodeId: id,
           definitionId: block.definitionId ?? `interaction.${doc.prefix}.${block.name}`,
           seenRevision: block.seenRevision ?? 1,
           durationMs: block.durationMs,
           skippable: block.skippable ?? false,
-          when: Object.freeze(whenArms),
+          when: whenArms,
           next: resolveNext(block.name, block.next),
-        }));
+        });
         break;
       }
       case "end": {
-        nodes.push(Object.freeze({ kind: "end", nodeId: id }));
+        nodes.push({ kind: "end", nodeId: id });
         break;
       }
       default: {
@@ -557,11 +559,9 @@ export function compileTemplateInteractionDocV1(
     }
   }
 
-  return Object.freeze({
+  return ({
     entryNodeId: holdOpsBlocks.has(doc.entry) ? nodeId(`${doc.entry}-stage`) : nodeId(doc.entry),
-    nodes: Object.freeze(nodes),
-    textEntries: Object.freeze(
-      [...textByTextId.entries()].map(([textId, text]) => Object.freeze({ textId, text })),
-    ),
+    nodes: nodes,
+    textEntries: [...textByTextId.entries()].map(([textId, text]) => ({ textId, text })),
   });
 }

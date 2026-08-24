@@ -18,17 +18,15 @@ import {
   createInstrumentedGameSessionV1,
 } from "../runtime/session/game-session.ts";
 
-export const snapshotCommitEntityCountsV1 = Object.freeze([100, 1_000, 10_000, 100_000] as const);
+export const snapshotCommitEntityCountsV1 = [100, 1_000, 10_000, 100_000] as const;
 export type SnapshotCommitEntityCountV1 = (typeof snapshotCommitEntityCountsV1)[number];
 
-export const snapshotCommitCommandClassesV1 = Object.freeze(
-  [
-    "single_field_committed",
-    "multi_slice_committed",
-    "rejected",
-    "faulted",
-  ] as const,
-);
+export const snapshotCommitCommandClassesV1 = [
+  "single_field_committed",
+  "multi_slice_committed",
+  "rejected",
+  "faulted",
+] as const;
 export type SnapshotCommitCommandClassV1 = (typeof snapshotCommitCommandClassesV1)[number];
 
 export interface SnapshotSessionWorkCountsV1 {
@@ -133,10 +131,10 @@ type SnapshotWorkloadAttemptV1 = CommandExecutionAttemptEnvelopeV1<
   never
 >;
 
-const commandSchemaV1: RuntimeSchemaV1<SnapshotWorkloadCommandV1> = Object.freeze({
+const commandSchemaV1: RuntimeSchemaV1<SnapshotWorkloadCommandV1> = {
   parse(value: unknown): SnapshotWorkloadCommandV1 {
     const kind = value !== null && typeof value === "object" && !Array.isArray(value)
-      ? Reflect.get(value, "kind")
+      ? (value as { readonly kind?: unknown }).kind
       : undefined;
     if (
       !snapshotCommitCommandClassesV1.some(
@@ -145,9 +143,9 @@ const commandSchemaV1: RuntimeSchemaV1<SnapshotWorkloadCommandV1> = Object.freez
     ) {
       throw new TypeError("invalid Snapshot workload command");
     }
-    return Object.freeze({ kind: kind as SnapshotCommitCommandClassV1 });
+    return ({ kind: kind as SnapshotCommitCommandClassV1 });
   },
-});
+};
 
 function createEntityChunksV1(
   entityCount: SnapshotCommitEntityCountV1,
@@ -219,49 +217,49 @@ function attemptV1(
   current: DeepReadonly<SnapshotWorkloadSnapshotV1>,
   command: SnapshotWorkloadCommandV1,
 ): SnapshotWorkloadAttemptV1 {
-  const diagnostics = Object.freeze({
+  const diagnostics = {
     committedRngBefore: current.rng,
-    attemptedDraws: Object.freeze([]) as readonly never[],
+    attemptedDraws: [] as readonly never[],
     committedRngAfter: current.rng,
-  });
+  };
   if (command.kind === "rejected") {
-    return Object.freeze({
-      result: Object.freeze({
+    return ({
+      result: {
         kind: "rejected" as const,
         snapshot: current,
-        reasons: Object.freeze([Object.freeze({ code: "snapshot_workload.rejected" as const })]),
-      }),
+        reasons: [{ code: "snapshot_workload.rejected" as const }],
+      },
       diagnostics,
     });
   }
   if (command.kind === "faulted") {
-    return Object.freeze({
-      result: Object.freeze({
+    return ({
+      result: {
         kind: "faulted" as const,
         snapshot: current,
-        fault: Object.freeze({ code: "snapshot_workload.faulted" as const }),
-      }),
+        fault: { code: "snapshot_workload.faulted" as const },
+      },
       diagnostics,
     });
   }
   const snapshot = committedSnapshotV1(current, command.kind);
-  return Object.freeze({
-    result: Object.freeze({
+  return ({
+    result: {
       kind: "committed" as const,
       snapshot,
-      events: Object.freeze([
-        Object.freeze({
+      events: [
+        {
           kind: "snapshot_workload.committed" as const,
           commandClass: command.kind,
-        }),
-      ]),
-    }),
+        },
+      ],
+    },
     diagnostics,
   });
 }
 
 function sessionCountsV1(counts: SnapshotWorkCountsV1): SnapshotSessionWorkCountsV1 {
-  return Object.freeze({
+  return ({
     canonicalTraversals: counts.canonicalTraversals,
     canonicalDigests: counts.canonicalDigests,
     commandLogContinuityVerifications: counts.commandLogContinuityVerifications,
@@ -296,7 +294,7 @@ export function createSnapshotCommitWorkloadV1(input: {
       _error: unknown,
       snapshot: DeepReadonly<SnapshotWorkloadSnapshotV1>,
     ): SnapshotWorkloadAttemptV1 {
-      return attemptV1(snapshot, Object.freeze({ kind: "faulted" }));
+      return attemptV1(snapshot, { kind: "faulted" });
     },
   };
   const created = input.instrumentation === undefined
@@ -305,11 +303,11 @@ export function createSnapshotCommitWorkloadV1(input: {
       sessionInput,
       input.instrumentation,
     );
-  return Object.freeze({
+  return ({
     snapshot: () => created.session.getCurrentSnapshot(),
     commandLog: () => created.commandLog.entries(),
     dispatch(commandClass: SnapshotCommitCommandClassV1) {
-      return created.session.dispatch(Object.freeze({ kind: commandClass }));
+      return created.session.dispatch({ kind: commandClass });
     },
   });
 }
@@ -329,12 +327,12 @@ function prepareSnapshotCommitWorkloadCoreV1(input: {
   const setupCounts = sessionCountsV1(counter.snapshot());
   counter.reset();
   let dispatched = false;
-  const descriptor = Object.freeze({
+  const descriptor = {
     workloadId: `snapshot-commit-v1/${input.entityCount}/${input.commandClass}`,
     entityCount: input.entityCount,
     commandClass: input.commandClass,
-  });
-  return Object.freeze({
+  };
+  return ({
     descriptor,
     setupCounts,
     async dispatchOnce() {
@@ -353,7 +351,7 @@ function prepareSnapshotCommitWorkloadCoreV1(input: {
       if (entry === undefined) {
         throw new TypeError("Snapshot commit workload did not append a log");
       }
-      return Object.freeze({
+      return ({
         outcome: result.execution.kind,
         counts,
         preStateDigest: entry.preStateDigest,
@@ -373,7 +371,7 @@ export function prepareSnapshotCommitWorkloadV1(input: {
   readonly commandClass: SnapshotCommitCommandClassV1;
 }): PreparedSnapshotCommitWorkloadV1 {
   const core = prepareSnapshotCommitWorkloadCoreV1(input);
-  return Object.freeze({
+  return ({
     descriptor: core.descriptor,
     setupCounts: core.setupCounts,
     async runOnce(): Promise<SnapshotCommitWorkloadRunV1> {
@@ -394,14 +392,14 @@ export function prepareTimedSnapshotCommitWorkloadV1(input: {
   readonly commandClass: SnapshotCommitCommandClassV1;
 }): TimedPreparedSnapshotCommitWorkloadV1 {
   const core = prepareSnapshotCommitWorkloadCoreV1(input);
-  return Object.freeze({
+  return ({
     descriptor: core.descriptor,
     setupCounts: core.setupCounts,
     async runOnce(): Promise<TimedSnapshotCommitWorkloadRunV1> {
       const startedAt = performance.now();
       const result = await core.dispatchOnce();
       const dispatchDurationMs = performance.now() - startedAt;
-      return Object.freeze({
+      return ({
         ...core.complete(result),
         dispatchDurationMs,
       });

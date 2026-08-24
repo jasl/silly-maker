@@ -41,15 +41,14 @@ const projectorDefinitionV1: GameUiProjectorV1<
   never
 > = {
   resolvedCatalog: null,
-  initialUiState: Object.freeze({}),
-  project: (input) =>
-    Object.freeze({
-      view: Object.freeze({ anchorEpoch: input.uiState.anchor.epoch }),
-      requiredAssetIds: Object.freeze([]),
-    }),
+  initialUiState: {},
+  project: (input) => ({
+    view: { anchorEpoch: input.uiState.anchor.epoch },
+    requiredAssetIds: [],
+  }),
 };
 
-export const osUiProjectorV1 = Object.freeze(projectorDefinitionV1);
+export const osUiProjectorV1 = projectorDefinitionV1;
 
 function createOsUiSlotsV1(input: {
   readonly instance: OsApplicationInstanceV1;
@@ -95,15 +94,15 @@ export const osGameApplicationV1: WebGameApplicationV1<
   OsPresentationViewV1,
   never,
   never
-> = Object.freeze({
+> = {
   applicationId: "example-silly-os",
   accessibleName: "SillyOS 98",
   // fluid: the desktop tiles the whole browser area (mobile portrait too); no fixed canvas, no letterboxing.
-  viewport: Object.freeze({
+  viewport: {
     canvas: osDesktopCanvasV1,
     mode: "fluid" as const,
-    fallbackSize: Object.freeze({ width: 1280, height: 960 }),
-  }),
+    fallbackSize: { width: 1280, height: 960 },
+  },
   core: osCoreApplicationDefinitionV1,
   ui: ({
     instance,
@@ -117,7 +116,7 @@ export const osGameApplicationV1: WebGameApplicationV1<
       : (navigator.languages ?? [navigator.language]);
     const locale = osResolveLocaleV1(playerProfile.current().preferences.locale, requested);
     const zh = locale === "zh-CN";
-    return Object.freeze({
+    return ({
       projector: osUiProjectorV1,
       slots: createOsUiSlotsV1({ instance, playerProfile }),
       // No titleScreen: boot goes straight to the desktop. Persistence is fully engine-
@@ -126,4 +125,4 @@ export const osGameApplicationV1: WebGameApplicationV1<
       hideSystemMenu: true,
     });
   },
-});
+};

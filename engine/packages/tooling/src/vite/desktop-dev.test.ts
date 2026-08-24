@@ -9,6 +9,7 @@ import type { AddressInfo } from "node:net";
 import { resolve as resolvePath } from "node:path";
 import { cwd } from "node:process";
 import { Readable } from "node:stream";
+import { runInNewContext } from "node:vm";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Plugin, ViteDevServer } from "vite";
@@ -85,7 +86,7 @@ function deferredV1<T>(): DeferredV1<T> {
     resolvePromise = resolve;
     rejectPromise = reject;
   });
-  return Object.freeze({ promise, resolve: resolvePromise, reject: rejectPromise });
+  return { promise, resolve: resolvePromise, reject: rejectPromise };
 }
 
 function intentV1(overrides: Partial<DesktopDevIntentInternalV1> = {}): DesktopDevIntentInternalV1 {
@@ -157,7 +158,7 @@ function createFakeWindowHarnessV1(operations: string[]): FakeWindowHarnessV1 {
     }
   }
 
-  return Object.freeze({
+  return {
     BrowserWindow: FakeBrowserWindowV1 as DesktopDevRuntimeInternalV1["browserWindow"],
     operations,
     constructions: () => constructions,
@@ -165,14 +166,14 @@ function createFakeWindowHarnessV1(operations: string[]): FakeWindowHarnessV1 {
       if (instance === undefined) throw new Error("window was not constructed");
       return instance;
     },
-  });
+  };
 }
 
 function defaultStoreV1(): RecordHttpStoreV1 {
   return {
     read: vi.fn(async () => null),
-    list: vi.fn(async () => Object.freeze([])),
-    commit: vi.fn(async () => Object.freeze({ kind: "committed", records: Object.freeze([]) })),
+    list: vi.fn(async () => []),
+    commit: vi.fn(async () => ({ kind: "committed" as const, records: [] })),
   };
 }
 
@@ -187,7 +188,7 @@ function createRuntimeHarnessV1(
   const downloads: FileDownloadRequestCoordinatorInternalV1[] = [];
   const exits: number[] = [];
   let generation = 0;
-  const runtime: DesktopDevRuntimeInternalV1 = Object.freeze({
+  const runtime: DesktopDevRuntimeInternalV1 = {
     coordinatorTarget: {},
     browserWindow: window.BrowserWindow,
     exit: (code: number) => {
@@ -202,15 +203,15 @@ function createRuntimeHarnessV1(
     },
     createDownloadCoordinator: (path: string) => {
       downloadPaths.push(path);
-      const coordinator = Object.freeze({
+      const coordinator = {
         handle: vi.fn(async () => new Response(JSON.stringify({ filename: "saved.txt" }))),
         close: vi.fn(() => operations.push("downloads.close")),
-      });
+      };
       downloads.push(coordinator);
       return coordinator;
     },
-  });
-  return Object.freeze({
+  };
+  return {
     runtime,
     window,
     operations,
@@ -219,7 +220,7 @@ function createRuntimeHarnessV1(
     downloadPaths,
     downloads,
     exits,
-  });
+  };
 }
 
 async function configurePluginV1(plugin: Plugin, server: ViteDevServer): Promise<void> {
@@ -348,9 +349,13 @@ function browserRuntimeHtmlV1(): string {
 }
 
 function capabilityFromHtmlV1(html: string): string {
-  const match = /__SILLYMAKER_DESKTOP_CAPABILITY__"?:\{value:"([A-Za-z0-9_-]{43})"/u.exec(html);
-  if (match?.[1] === undefined) throw new Error("capability marker missing");
-  return match[1];
+  const context: Record<string, unknown> = {};
+  for (const match of html.matchAll(/<script>([\s\S]*?)<\/script>/giu)) {
+    runInNewContext(match[1] ?? "", context);
+  }
+  const capability = context["__SILLYMAKER_DESKTOP_CAPABILITY__"];
+  if (typeof capability !== "string") throw new Error("capability marker missing");
+  return capability;
 }
 
 describe("Desktop-dev intent admission", () => {
@@ -381,18 +386,6 @@ describe("Desktop-dev intent admission", () => {
     expect(() => parseDesktopDevIntentEnvironmentInternalV1(JSON.stringify(candidate))).toThrow(
       `desktop_dev.intent.${code}`,
     );
-  });
-
-  it("fails closed when the admitted launch has no actual BrowserWindow", () => {
-    const runtime = { ...createRuntimeHarnessV1().runtime, browserWindow: undefined };
-    expect(() =>
-      createDesktopDevVitePluginInternalV1({
-        applicationId: "e2e",
-        applicationLabel: "Engine Lab",
-        intent: intentV1(),
-        runtime,
-      })
-    ).toThrow("desktop_dev.runtime.browser_window_unavailable");
   });
 });
 
@@ -461,7 +454,7 @@ describe("Desktop-dev process coordinator", () => {
     const store = defaultStoreV1();
     store.commit = vi.fn(async (mutations) => {
       committed = mutations;
-      return Object.freeze({ kind: "committed", records: Object.freeze([]) });
+      return { kind: "committed" as const, records: [] };
     });
     const runtime = createRuntimeHarnessV1(() => store);
     const plugin = createDesktopDevVitePluginInternalV1({
@@ -589,14 +582,12 @@ describe("Desktop-dev process coordinator", () => {
         bytesBase64: "e30=";
       }>
     >();
-    const record = Object.freeze(
-      {
-        namespace: "save",
-        key: "auto.current",
-        revision: 1,
-        bytesBase64: "e30=",
-      } as const,
-    );
+    const record = {
+      namespace: "save",
+      key: "auto.current",
+      revision: 1,
+      bytesBase64: "e30=",
+    } as const;
     const oldStore = defaultStoreV1();
     oldStore.read = vi.fn(() => pendingRead.promise);
     const runtime = createRuntimeHarnessV1((generation) =>

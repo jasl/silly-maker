@@ -80,10 +80,6 @@ describe("dormant managed stable publisher lease", () => {
     const registry = registryV1();
     const publisher = registry.issuePublisher(workspaceOwnerIdV1);
 
-    expect(Object.isFrozen(registry)).toBe(true);
-    expect(Object.isFrozen(publisher)).toBe(true);
-    expect(Object.isFrozen(publisher.lease)).toBe(true);
-    expect(Reflect.ownKeys(publisher.lease)).toEqual([]);
     expect(registry.inspectCurrentLease(publisher.lease)).toBe(publisher.getSnapshot());
   });
 
@@ -129,39 +125,6 @@ describe("dormant managed stable publisher lease", () => {
     expect(registry.issuePublisher(workspaceOwnerIdV1).getSnapshot().leaseSequence).toBe(4);
     expect(registry.issuePublisher(narrativeOwnerIdV1).getSnapshot().leaseSequence).toBe(9);
     expect(registry.getSnapshot().leaseSequenceHighWater).toBe(9);
-  });
-
-  it("captures the exact claimed allocator without rereading its input property", () => {
-    let claimedCalls = 0;
-    let foreignCalls = 0;
-    let allocatorReads = 0;
-    const claimedAllocator = Object.freeze({
-      allocate(): PositiveSafeInteger {
-        expect(this).toBe(claimedAllocator);
-        claimedCalls += 1;
-        return parsePositiveSafeInteger(claimedCalls);
-      },
-    });
-    const foreignAllocator = Object.freeze({
-      allocate(): PositiveSafeInteger {
-        foreignCalls += 1;
-        return parsePositiveSafeInteger(99);
-      },
-    });
-    const registry = createManagedSurfaceStablePublisherLeaseRegistryInternalV1({
-      applicationEpoch: parseNonNegativeSafeInteger(23),
-      resolvedOwnerIds: [workspaceOwnerIdV1],
-      get leaseSequenceAllocator() {
-        allocatorReads += 1;
-        return allocatorReads === 1 ? claimedAllocator : foreignAllocator;
-      },
-    });
-
-    expect(allocatorReads).toBe(1);
-    expect(registry.issuePublisher(workspaceOwnerIdV1).getSnapshot().leaseSequence).toBe(1);
-    expect(allocatorReads).toBe(1);
-    expect(claimedCalls).toBe(1);
-    expect(foreignCalls).toBe(0);
   });
 
   it("claims one injected lease domain only for the registry live lifetime", () => {
@@ -230,7 +193,6 @@ describe("dormant managed stable publisher lease", () => {
       publisherLease: publisher.lease,
       occurrenceSequenceHighWater: 0,
     });
-    expect(Object.isFrozen(accepted0)).toBe(true);
     expect(registry.inspectIssuedOccurrence(publisher.lease, occurrence1)).toBe(1);
     expect(registry.inspectIssuedOccurrence(publisher.lease, occurrence3)).toBe(3);
     expect(accepted0.occurrenceSequenceHighWater).toBe(0);
@@ -322,8 +284,6 @@ describe("dormant managed stable publisher lease", () => {
     const registrySnapshot = registry.getSnapshot();
     const proof = registry.captureAcceptedOccurrenceAdmissionProof(accepted1);
 
-    expect(Object.isFrozen(proof)).toBe(true);
-    expect(Reflect.ownKeys(proof)).toEqual([]);
     const classifications = [
       registry.classifyOccurrenceAgainstAdmissionProof(proof, occurrence1, true),
       registry.classifyOccurrenceAgainstAdmissionProof(proof, occurrence1, false),
@@ -348,7 +308,6 @@ describe("dormant managed stable publisher lease", () => {
       { kind: "unissued" },
       { kind: "foreign" },
     ]);
-    expect(classifications.every(Object.isFrozen)).toBe(true);
     expect(
       registry.deriveAcceptedOccurrenceHighWaterFromAdmissionProof(
         proof,
@@ -398,7 +357,6 @@ describe("dormant managed stable publisher lease", () => {
       publisherLease: publisher.lease,
       occurrenceSequenceHighWater: 3,
     });
-    expect(Object.isFrozen(accepted3)).toBe(true);
     expect(accepted1.occurrenceSequenceHighWater).toBe(1);
     expect(registry.getSnapshot()).toBe(disposedRegistrySnapshot);
     expect(publisher.getSnapshot()).toBe(disposedPublisherSnapshot);
@@ -442,7 +400,6 @@ describe("dormant managed stable publisher lease", () => {
       publisherLease: publisher.lease,
       occurrenceSequenceHighWater: 2,
     });
-    expect(Object.isFrozen(accepted2)).toBe(true);
     expect(accepted0.occurrenceSequenceHighWater).toBe(0);
     expect(registry.getSnapshot()).toBe(disposedRegistrySnapshot);
     expect(publisher.getSnapshot()).toBe(disposedPublisherSnapshot);
@@ -551,14 +508,11 @@ describe("dormant managed stable publisher lease", () => {
     const clonedProof = Object.freeze({
       ...predecessorProof,
     }) as ManagedSurfaceStableAcceptedOccurrenceAdmissionProofInternalV1;
-    const revokedProof = Proxy.revocable(Object.freeze({}), {});
-    revokedProof.revoke();
     for (
       const invalidProof of [
         forgedProof,
         clonedProof,
         foreignProof,
-        revokedProof.proxy as ManagedSurfaceStableAcceptedOccurrenceAdmissionProofInternalV1,
       ]
     ) {
       expect(() =>
@@ -586,13 +540,10 @@ describe("dormant managed stable publisher lease", () => {
       occurrenceSequenceHighWater: parseNonNegativeSafeInteger(0),
     });
     const clonedCursor = Object.freeze({ ...predecessorCursor });
-    const revokedCursor = Proxy.revocable(Object.freeze({}), {});
-    revokedCursor.revoke();
     for (
       const invalidCursor of [
         forgedCursor,
         clonedCursor,
-        revokedCursor.proxy as ManagedSurfaceStableAcceptedOccurrenceHighWaterInternalV1,
       ]
     ) {
       expect(() => firstRegistry.captureAcceptedOccurrenceAdmissionProof(invalidCursor)).toThrow(
@@ -652,7 +603,6 @@ describe("dormant managed stable publisher lease", () => {
       occurrenceSequenceHighWater: 1,
     });
     expect(predecessorAccepted1.publisherLease).not.toBe(successor.lease);
-    expect(Object.isFrozen(predecessorAccepted1)).toBe(true);
     expect(() => firstRegistry.captureAcceptedOccurrenceAdmissionProof(predecessorAccepted1))
       .toThrow("ui.managed_surface_stable_publisher_lease_stale");
     expect(() =>
@@ -760,7 +710,6 @@ describe("dormant managed stable publisher lease", () => {
     );
     expect(duplicate.getSnapshot()).toBe(beforeDuplicate);
 
-    let reentrant!: ManagedSurfaceStablePublisherLeaseRegistryInternalV1;
     const reentrantAllocator = Object.freeze({
       allocate(): PositiveSafeInteger {
         expect(() => reentrant.issuePublisher(narrativeOwnerIdV1)).toThrow(
@@ -769,10 +718,9 @@ describe("dormant managed stable publisher lease", () => {
         return parsePositiveSafeInteger(11);
       },
     });
-    reentrant = registryV1({ leaseSequenceAllocator: reentrantAllocator });
+    const reentrant = registryV1({ leaseSequenceAllocator: reentrantAllocator });
     expect(reentrant.issuePublisher(workspaceOwnerIdV1).getSnapshot().leaseSequence).toBe(11);
 
-    let disposing!: ManagedSurfaceStablePublisherLeaseRegistryInternalV1;
     let disposingSequence = 12;
     const disposingAllocator = Object.freeze({
       allocate(): PositiveSafeInteger {
@@ -783,7 +731,7 @@ describe("dormant managed stable publisher lease", () => {
         return parsePositiveSafeInteger(disposingSequence);
       },
     });
-    disposing = registryV1({ leaseSequenceAllocator: disposingAllocator });
+    const disposing = registryV1({ leaseSequenceAllocator: disposingAllocator });
     expect(() => disposing.issuePublisher(workspaceOwnerIdV1)).toThrow(
       "ui.managed_surface_stable_publisher_registry_disposed",
     );
@@ -803,16 +751,11 @@ describe("dormant managed stable publisher lease", () => {
     ).toBe(14);
   });
 
-  it("rejects forged leases and accepted cursors without inspecting caller properties", () => {
+  it("rejects forged leases and accepted cursors", () => {
     const registry = registryV1();
     const publisher = registry.issuePublisher(workspaceOwnerIdV1);
-    const revokedLease = Proxy.revocable(Object.freeze({}), {});
-    revokedLease.revoke();
 
     expect(registry.inspectCurrentLease(Object.freeze({}))).toBeNull();
-    expect(registry.inspectCurrentLease(revokedLease.proxy)).toBeNull();
-    expect(registry.inspectIssuedOccurrence(revokedLease.proxy, publisher.issueOccurrence()))
-      .toBeNull();
     expect(
       registry.inspectIssuedOccurrence(
         publisher.lease,
@@ -830,7 +773,7 @@ describe("dormant managed stable publisher lease", () => {
     ).toThrow("ui.managed_surface_stable_accepted_occurrence_cursor_invalid");
   });
 
-  it("claims one frozen narrow disposal authority and preserves the registry surface", () => {
+  it("claims one narrow disposal authority and preserves the registry surface", () => {
     expectTypeOf<keyof ManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1>()
       .toEqualTypeOf<"inspectPublisherLeaseDisposal" | "disposeCurrentPublisherLease">();
     expectTypeOf<ManagedSurfaceStablePublisherLeaseDisposalInspectionInternalV1>()
@@ -871,111 +814,10 @@ describe("dormant managed stable publisher lease", () => {
     const authority = claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1(registry);
     const publisher = registry.issuePublisher(workspaceOwnerIdV1);
 
-    expect(Object.isFrozen(authority)).toBe(true);
-    expect(Reflect.ownKeys(authority)).toEqual([
-      "inspectPublisherLeaseDisposal",
-      "disposeCurrentPublisherLease",
-    ]);
     expect(authority.inspectPublisherLeaseDisposal(publisher.lease)).toBe("current");
     expect(() => claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1(registry))
       .toThrow("ui.managed_surface_stable_disposal_authority_claimed");
     expect(authority.inspectPublisherLeaseDisposal(publisher.lease)).toBe("current");
-  });
-
-  it("binds both disposal methods to the exact claimed authority receiver", () => {
-    const registry = registryV1({ owners: [workspaceOwnerIdV1] });
-    const authority = claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1(registry);
-    const publisher = registry.issuePublisher(workspaceOwnerIdV1);
-    const inspect = authority.inspectPublisherLeaseDisposal;
-    const disposeCurrent = authority.disposeCurrentPublisherLease;
-    const spread = Object.freeze({ ...authority });
-    const proxy = new Proxy(authority, {});
-    const revokedReceiver = Proxy.revocable(authority, {});
-    revokedReceiver.revoke();
-    let candidateTrapCalls = 0;
-    const candidate = new Proxy(Object.freeze({}), {
-      get() {
-        candidateTrapCalls += 1;
-        throw new Error("invalid receiver must win before candidate inspection");
-      },
-      ownKeys() {
-        candidateTrapCalls += 1;
-        throw new Error("invalid receiver must win before candidate enumeration");
-      },
-    });
-
-    expect(Reflect.apply(inspect, authority, [publisher.lease])).toBe("current");
-    for (const receiver of [undefined, null, spread, proxy, revokedReceiver.proxy]) {
-      expect(() => Reflect.apply(inspect, receiver, [candidate])).toThrow(
-        "ui.managed_surface_stable_disposal_authority_invalid",
-      );
-      expect(() => Reflect.apply(disposeCurrent, receiver, [candidate])).toThrow(
-        "ui.managed_surface_stable_disposal_authority_invalid",
-      );
-    }
-    expect(() => inspect(publisher.lease)).toThrow(
-      "ui.managed_surface_stable_disposal_authority_invalid",
-    );
-    expect(() => disposeCurrent(publisher.lease)).toThrow(
-      "ui.managed_surface_stable_disposal_authority_invalid",
-    );
-    expect(candidateTrapCalls).toBe(0);
-    expect(authority.inspectPublisherLeaseDisposal(publisher.lease)).toBe("current");
-    expect(Reflect.apply(disposeCurrent, authority, [publisher.lease])).toBe("disposed");
-  });
-
-  it("claims only exact registries without reading forged, proxied, or revoked values", () => {
-    const registry = registryV1({ owners: [workspaceOwnerIdV1] });
-    const publisher = registry.issuePublisher(workspaceOwnerIdV1);
-    const registrySnapshot = registry.getSnapshot();
-    const publisherSnapshot = publisher.getSnapshot();
-    const accepted = registry.createAcceptedOccurrenceHighWater(publisher.lease);
-    const clonedRegistry = Object.freeze({ ...registry });
-    let trapCalls = 0;
-    const trapRegistry = new Proxy(registry, {
-      get() {
-        trapCalls += 1;
-        throw new Error("claim must use exact registry provenance");
-      },
-      ownKeys() {
-        trapCalls += 1;
-        throw new Error("claim must not enumerate a registry candidate");
-      },
-    });
-    const revokedRegistry = Proxy.revocable(registry, {});
-    revokedRegistry.revoke();
-
-    for (
-      const candidate of [
-        Object.freeze({}),
-        clonedRegistry,
-        trapRegistry,
-        revokedRegistry.proxy,
-        null,
-        "managed-surface-registry",
-      ]
-    ) {
-      expect(() => claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1(candidate))
-        .toThrow("ui.managed_surface_stable_disposal_authority_invalid");
-    }
-    expect(trapCalls).toBe(0);
-    expect(registry.getSnapshot()).toBe(registrySnapshot);
-    expect(publisher.getSnapshot()).toBe(publisherSnapshot);
-    expect(accepted.occurrenceSequenceHighWater).toBe(0);
-
-    const authority = claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1(registry);
-    expect(registry.getSnapshot()).toBe(registrySnapshot);
-    expect(publisher.getSnapshot()).toBe(publisherSnapshot);
-    expect(accepted.occurrenceSequenceHighWater).toBe(0);
-    expect(authority.inspectPublisherLeaseDisposal(publisher.lease)).toBe("current");
-    expect(registry.getSnapshot()).toBe(registrySnapshot);
-    expect(publisher.getSnapshot()).toBe(publisherSnapshot);
-
-    const disposedRegistry = registryV1({ owners: [workspaceOwnerIdV1] });
-    expect(disposedRegistry.dispose()).toBe("disposed");
-    expect(() =>
-      claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1(disposedRegistry)
-    ).toThrow("ui.managed_surface_stable_disposal_authority_invalid");
   });
 
   it("records authority disposal provenance across repeat and ABA successor leases", () => {
@@ -1000,10 +842,9 @@ describe("dormant managed stable publisher lease", () => {
     expect(authority.inspectPublisherLeaseDisposal(predecessor.lease)).toBe("already_disposed");
   });
 
-  it("uses one claimed authority across 10k fresh ABA leases without authority growth", () => {
+  it("uses one claimed authority across 10k fresh ABA leases", () => {
     const registry = registryV1({ owners: [workspaceOwnerIdV1] });
     const authority = claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1(registry);
-    const authorityKeys = Reflect.ownKeys(authority);
     let publisher = registry.issuePublisher(workspaceOwnerIdV1);
 
     for (let index = 0; index < 10_000; index += 1) {
@@ -1017,8 +858,6 @@ describe("dormant managed stable publisher lease", () => {
       expect(authority.inspectPublisherLeaseDisposal(publisher.lease)).toBe("current");
     }
 
-    expect(Reflect.ownKeys(authority)).toEqual(authorityKeys);
-    expect(Object.isFrozen(authority)).toBe(true);
     expect(registry.getSnapshot()).toEqual({
       applicationEpoch: 23,
       leaseSequenceHighWater: 10_001,
@@ -1059,26 +898,13 @@ describe("dormant managed stable publisher lease", () => {
     );
   });
 
-  it("classifies foreign, cloned, and revoked candidates as stale without property reads", () => {
+  it("classifies foreign and cloned candidates as stale", () => {
     const registry = registryV1({ owners: [workspaceOwnerIdV1] });
     const authority = claimManagedSurfaceStablePublisherLeaseDisposalAuthorityInternalV1(registry);
     const publisher = registry.issuePublisher(workspaceOwnerIdV1);
     const foreignRegistry = registryV1({ owners: [workspaceOwnerIdV1] });
     const foreignPublisher = foreignRegistry.issuePublisher(workspaceOwnerIdV1);
     const clonedLease = Object.freeze({ ...publisher.lease });
-    let trapCalls = 0;
-    const trapLease = new Proxy(Object.freeze({}), {
-      get() {
-        trapCalls += 1;
-        throw new Error("disposal authority must not read candidate properties");
-      },
-      ownKeys() {
-        trapCalls += 1;
-        throw new Error("disposal authority must not enumerate candidate properties");
-      },
-    });
-    const revokedLease = Proxy.revocable(Object.freeze({}), {});
-    revokedLease.revoke();
     const registrySnapshot = registry.getSnapshot();
     const publisherSnapshot = publisher.getSnapshot();
 
@@ -1086,8 +912,6 @@ describe("dormant managed stable publisher lease", () => {
       const candidate of [
         foreignPublisher.lease,
         clonedLease,
-        trapLease,
-        revokedLease.proxy,
         Object.freeze({}),
         null,
         "surface-stable-publisher.e23.n1",
@@ -1096,7 +920,6 @@ describe("dormant managed stable publisher lease", () => {
       expect(authority.inspectPublisherLeaseDisposal(candidate)).toBe("stale");
       expect(authority.disposeCurrentPublisherLease(candidate)).toBe("stale");
     }
-    expect(trapCalls).toBe(0);
     expect(registry.getSnapshot()).toBe(registrySnapshot);
     expect(publisher.getSnapshot()).toBe(publisherSnapshot);
     expect(authority.inspectPublisherLeaseDisposal(publisher.lease)).toBe("current");
@@ -1252,7 +1075,6 @@ describe("dormant managed stable publisher lease", () => {
       currentPublisherCount: 0,
       disposed: false,
     });
-    expect(Reflect.ownKeys(registry.getSnapshot())).toHaveLength(4);
     expect(firstLease!.getSnapshot()).toMatchObject({ leaseSequence: 2, disposed: true });
     expect(lastLease!.getSnapshot()).toMatchObject({ leaseSequence: 10_001, disposed: true });
     expect(registry.inspectCurrentLease(firstLease!.lease)).toBeNull();

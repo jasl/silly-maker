@@ -60,14 +60,14 @@ const titleDefinitionIdInternalV1 = parseManagedSurfaceDefinitionIdV1(
   "surface.whole-canvas.title",
 );
 
-const readinessPolicyInternalV1 = Object.freeze({
+const readinessPolicyInternalV1 = {
   initialOpen: "blocking_fallback" as const,
   primaryReplacement: "retain_current" as const,
   childOpen: "blocking_fallback" as const,
-});
+};
 
 function managedActionIdsInternalV1(values: readonly string[]) {
-  return Object.freeze(values.map(parseManagedSurfaceActionIdV1));
+  return values.map(parseManagedSurfaceActionIdV1);
 }
 
 function rootDefinitionInternalV1(input: {
@@ -92,15 +92,15 @@ function rootDefinitionInternalV1(input: {
     layerOrder: 45,
     placement: "root",
     modality: "blocking",
-    inputPolicy: Object.freeze({ kind: "managed", inputContextId: "whole_canvas" }),
+    inputPolicy: { kind: "managed", inputContextId: "whole_canvas" },
     dismissPolicy: input.dismissPolicy,
-    focusPolicy: Object.freeze({
+    focusPolicy: {
       kind: "owns_focus",
       initialTargetId: parseManagedSurfaceFocusTargetIdV1(input.focusTargetId),
       trap: true,
       restore: input.restore,
-    }),
-    navigationPolicy: Object.freeze({ kind: input.navigation }),
+    },
+    navigationPolicy: { kind: input.navigation },
     actionIds: managedActionIdsInternalV1(input.actionIds),
     readiness: readinessPolicyInternalV1,
   });
@@ -109,63 +109,52 @@ function rootDefinitionInternalV1(input: {
 const bootSplashDefinitionInternalV1 = rootDefinitionInternalV1({
   definitionId: bootSplashDefinitionIdInternalV1,
   focusTargetId: "surface-focus.whole-canvas.splash-dismiss",
-  dismissPolicy: Object.freeze({
+  dismissPolicy: {
     back: true,
     escape: true,
     backdrop: false,
     routedCancel: true,
-  }),
+  },
   navigation: "close",
   restore: "none",
-  actionIds: Object.freeze([
+  actionIds: [
     "ui.confirm",
     "ui.cancel",
     "whole-canvas.dismiss-splash",
-  ]),
+  ],
 });
 
 const titleDefinitionInternalV1 = rootDefinitionInternalV1({
   definitionId: titleDefinitionIdInternalV1,
   focusTargetId: "surface-focus.whole-canvas.title-primary",
-  dismissPolicy: Object.freeze({
+  dismissPolicy: {
     back: false,
     escape: false,
     backdrop: false,
     routedCancel: false,
-  }),
+  },
   navigation: "none",
   restore: "previous_owner",
-  actionIds: Object.freeze([
+  actionIds: [
     "ui.confirm",
     "ui.cancel",
     "whole-canvas.title.new-game",
     "whole-canvas.title.continue",
     "whole-canvas.title.open-load",
     "whole-canvas.title.open-settings",
-  ]),
+  ],
 });
 
 function captureRootParametersInternalV1(value: unknown) {
   try {
-    if ((typeof value !== "object" && typeof value !== "function") || value === null) {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
       throw new TypeError();
     }
-    const keys = Reflect.ownKeys(value);
-    if (keys.length !== 2 || !keys.includes("targetId") || !keys.includes("parameters")) {
-      throw new TypeError();
-    }
-    const targetIdDescriptor = Reflect.getOwnPropertyDescriptor(value, "targetId");
-    const parametersDescriptor = Reflect.getOwnPropertyDescriptor(value, "parameters");
-    if (
-      targetIdDescriptor === undefined || !("value" in targetIdDescriptor) ||
-      parametersDescriptor === undefined || !("value" in parametersDescriptor)
-    ) {
-      throw new TypeError();
-    }
-    const targetId = parseModuleId(targetIdDescriptor.value);
+    const input = value as Readonly<Record<string, unknown>>;
+    const targetId = parseModuleId(input.targetId);
     const projected = projectBoundedCanonicalJsonInternalV1(
-      parametersDescriptor.value,
-      Object.freeze({
+      input.parameters,
+      {
         maxBytes: parsePositiveSafeInteger(
           managedSurfaceStableContractLimitsInternalV1.canonicalParameters.maxBytes,
         ),
@@ -175,30 +164,30 @@ function captureRootParametersInternalV1(value: unknown) {
         maxNodes: parsePositiveSafeInteger(
           managedSurfaceStableContractLimitsInternalV1.canonicalParameters.maxNodes,
         ),
-      }),
+      },
     );
     if (projected.kind !== "projected") throw new TypeError();
-    return Object.freeze({ targetId, parameters: projected.value });
+    return { targetId, parameters: projected.value };
   } catch {
     throw new TypeError("ui.whole_canvas_target_invalid");
   }
 }
 
-const rootParameterSchemaInternalV1: RuntimeSchemaV1<unknown> = Object.freeze({
+const rootParameterSchemaInternalV1: RuntimeSchemaV1<unknown> = {
   parse: captureRootParametersInternalV1,
-});
+};
 
-const primarySlotDescriptorInternalV1 = Object.freeze({
+const primarySlotDescriptorInternalV1 = {
   kind: "root" as const,
   slotId: primarySlotIdInternalV1,
   cardinality: "single" as const,
-});
-const detailSlotDescriptorInternalV1 = Object.freeze({
+};
+const detailSlotDescriptorInternalV1 = {
   kind: "child" as const,
   parentDefinitionId: primaryDefinitionIdInternalV1,
   slotId: detailSlotIdInternalV1,
   cardinality: "single" as const,
-});
+};
 
 const reservedActionIdsInternalV1 = new Set([
   "ui.confirm",
@@ -212,70 +201,32 @@ const reservedActionIdsInternalV1 = new Set([
   "whole-canvas.title.open-settings",
 ]);
 
-function captureDenseFrozenArrayInternalV1(value: unknown): readonly unknown[] {
-  if (!Array.isArray(value)) throw new TypeError();
-  if (!Object.isFrozen(value) || Reflect.getPrototypeOf(value) !== Array.prototype) {
-    throw new TypeError();
-  }
-  const lengthDescriptor = Reflect.getOwnPropertyDescriptor(value, "length");
-  if (
-    lengthDescriptor === undefined || !("value" in lengthDescriptor) ||
-    !Number.isSafeInteger(lengthDescriptor.value) || lengthDescriptor.value < 0
-  ) throw new TypeError();
-  const length = lengthDescriptor.value;
-  const ownKeys = Reflect.ownKeys(value);
-  if (ownKeys.length !== length + 1) throw new TypeError();
-  const captured: unknown[] = [];
-  for (let index = 0; index < length; index += 1) {
-    const descriptor = Reflect.getOwnPropertyDescriptor(value, String(index));
-    if (descriptor === undefined || !("value" in descriptor)) throw new TypeError();
-    captured.push(descriptor.value);
-  }
-  for (const key of ownKeys) {
-    if (key === "length") continue;
-    if (typeof key !== "string" || !/^(?:0|[1-9][0-9]*)$/u.test(key)) throw new TypeError();
-    const index = Number(key);
-    if (!Number.isSafeInteger(index) || index < 0 || index >= length) throw new TypeError();
-  }
-  return Object.freeze(captured);
-}
-
-function captureCatalogInternalV1(
+export function admitWholeCanvasManagedSurfaceCatalogInternalV1(
   value: unknown,
 ): readonly WholeCanvasManagedSurfaceCatalogRowInternalV1[] {
   try {
-    const capturedRows = captureDenseFrozenArrayInternalV1(value);
+    if (!Array.isArray(value)) throw new TypeError();
     const targetIds = new Set<string>();
     const rows: WholeCanvasManagedSurfaceCatalogRowInternalV1[] = [];
-    for (const row of capturedRows) {
+    for (const rawRow of value) {
+      if (typeof rawRow !== "object" || rawRow === null || Array.isArray(rawRow)) {
+        throw new TypeError();
+      }
+      const row = rawRow as Readonly<Record<string, unknown>>;
+      const keys = Object.keys(row);
       if (
-        typeof row !== "object" || row === null || Array.isArray(row) ||
-        Reflect.getPrototypeOf(row) !== Object.prototype || !Object.isFrozen(row)
-      ) {
-        throw new TypeError();
-      }
-      const keys = Reflect.ownKeys(row);
-      const expectedKeys = [
-        "targetId",
-        "contractRevision",
-        "placements",
-        "actionIds",
-        "defaultActionId",
-      ] as const;
-      if (keys.length !== expectedKeys.length || expectedKeys.some((key) => !keys.includes(key))) {
-        throw new TypeError();
-      }
-      const read = (key: typeof expectedKeys[number]): unknown => {
-        const member = Reflect.getOwnPropertyDescriptor(row, key);
-        if (member === undefined || !("value" in member)) throw new TypeError();
-        return member.value;
-      };
-      const targetId = parseModuleId(read("targetId"));
+        keys.length !== 5 ||
+        !Object.hasOwn(row, "targetId") ||
+        !Object.hasOwn(row, "contractRevision") ||
+        !Object.hasOwn(row, "placements") ||
+        !Object.hasOwn(row, "actionIds") ||
+        !Object.hasOwn(row, "defaultActionId")
+      ) throw new TypeError();
+      const targetId = parseModuleId(row.targetId);
       if (targetIds.has(targetId)) throw new TypeError();
       targetIds.add(targetId);
-      if (read("contractRevision") !== 1) throw new TypeError();
-      const rawPlacements = read("placements");
-      const placements = captureDenseFrozenArrayInternalV1(rawPlacements).map((placement) => {
+      if (row.contractRevision !== 1 || !Array.isArray(row.placements)) throw new TypeError();
+      const placements = row.placements.map((placement) => {
         if (placement !== "primary" && placement !== "detail") throw new TypeError();
         return placement;
       });
@@ -289,8 +240,8 @@ function captureCatalogInternalV1(
       if (!canonicalPlacementVector) {
         throw new TypeError();
       }
-      const rawActionIds = read("actionIds");
-      const actionIds = captureDenseFrozenArrayInternalV1(rawActionIds).map((actionId) =>
+      if (!Array.isArray(row.actionIds)) throw new TypeError();
+      const actionIds = row.actionIds.map((actionId) =>
         String(parseManagedSurfaceActionIdV1(actionId))
       );
       if (
@@ -299,22 +250,22 @@ function captureCatalogInternalV1(
       ) {
         throw new TypeError();
       }
-      const rawDefaultActionId = read("defaultActionId");
+      const rawDefaultActionId = row.defaultActionId;
       const defaultActionId = rawDefaultActionId === null
         ? null
         : String(parseManagedSurfaceActionIdV1(rawDefaultActionId));
       if (defaultActionId !== null && !actionIds.includes(defaultActionId)) {
         throw new TypeError();
       }
-      rows.push(Object.freeze({
+      rows.push({
         targetId,
         contractRevision: 1 as const,
-        placements: Object.freeze(placements),
-        actionIds: Object.freeze(actionIds),
+        placements,
+        actionIds,
         defaultActionId,
-      }));
+      });
     }
-    return Object.freeze(rows);
+    return rows;
   } catch {
     throw new TypeError("ui.whole_canvas_catalog_invalid");
   }
@@ -331,7 +282,7 @@ function catalogActionUnionInternalV1(
       if (!actionIds.includes(actionId)) actionIds.push(actionId);
     }
   }
-  return Object.freeze(actionIds);
+  return actionIds;
 }
 
 function createPrimaryDefinitionInternalV1(
@@ -340,19 +291,19 @@ function createPrimaryDefinitionInternalV1(
   return rootDefinitionInternalV1({
     definitionId: primaryDefinitionIdInternalV1,
     focusTargetId: "surface-focus.whole-canvas.primary",
-    dismissPolicy: Object.freeze({
+    dismissPolicy: {
       back: false,
       escape: false,
       backdrop: false,
       routedCancel: false,
-    }),
+    },
     navigation: "none",
     restore: "previous_owner",
-    actionIds: Object.freeze([
+    actionIds: [
       "ui.confirm",
       "ui.cancel",
       ...catalogActionUnionInternalV1(catalog, "primary"),
-    ]),
+    ],
   });
 }
 
@@ -368,20 +319,20 @@ function createDetailDefinitionInternalV1(
     layerOrder: 46,
     placement: "child",
     modality: "blocking",
-    inputPolicy: Object.freeze({ kind: "managed", inputContextId: "whole_canvas" }),
-    dismissPolicy: Object.freeze({
+    inputPolicy: { kind: "managed", inputContextId: "whole_canvas" },
+    dismissPolicy: {
       back: true,
       escape: true,
       backdrop: true,
       routedCancel: true,
-    }),
-    focusPolicy: Object.freeze({
+    },
+    focusPolicy: {
       kind: "owns_focus",
       initialTargetId: parseManagedSurfaceFocusTargetIdV1("surface-focus.whole-canvas.detail"),
       trap: true,
       restore: "opener",
-    }),
-    navigationPolicy: Object.freeze({ kind: "close" }),
+    },
+    navigationPolicy: { kind: "close" },
     actionIds: managedActionIdsInternalV1([
       "ui.confirm",
       "ui.cancel",
@@ -392,35 +343,34 @@ function createDetailDefinitionInternalV1(
 }
 
 export function createWholeCanvasManagedSurfaceFamilyContractInternalV1(
-  catalogInput: readonly WholeCanvasManagedSurfaceCatalogRowInternalV1[],
+  catalog: readonly WholeCanvasManagedSurfaceCatalogRowInternalV1[],
 ): WholeCanvasManagedSurfaceFamilyContractInternalV1 {
-  const catalog = captureCatalogInternalV1(catalogInput);
   const primary = createPrimaryDefinitionInternalV1(catalog);
   const detail = createDetailDefinitionInternalV1(catalog);
-  return Object.freeze({
+  return {
     ownerId: ownerIdInternalV1,
-    resolvedOwnerIds: Object.freeze([ownerIdInternalV1]),
-    resolvedSlotDescriptors: Object.freeze([
+    resolvedOwnerIds: [ownerIdInternalV1],
+    resolvedSlotDescriptors: [
       primarySlotDescriptorInternalV1,
       detailSlotDescriptorInternalV1,
-    ]),
-    definitions: Object.freeze({
+    ],
+    definitions: {
       primary,
       detail,
       bootSplash: bootSplashDefinitionInternalV1,
       title: titleDefinitionInternalV1,
-    }),
-    stableDefinitionSidecars: Object.freeze([
-      Object.freeze({ definition: primary, parameterSchema: rootParameterSchemaInternalV1 }),
-      Object.freeze({
+    },
+    stableDefinitionSidecars: [
+      { definition: primary, parameterSchema: rootParameterSchemaInternalV1 },
+      {
         definition: bootSplashDefinitionInternalV1,
         parameterSchema: rootParameterSchemaInternalV1,
-      }),
-      Object.freeze({
+      },
+      {
         definition: titleDefinitionInternalV1,
         parameterSchema: rootParameterSchemaInternalV1,
-      }),
-    ]),
+      },
+    ],
     catalog,
-  });
+  };
 }

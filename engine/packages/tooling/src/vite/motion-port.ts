@@ -76,14 +76,12 @@ function motionDigestV1(bytes: Uint8Array): string {
 
 /** The Project Authoring Index's motion view: catalog rows + named skips. */
 export function listMotionSourceFilesV1(index: AuthoringProjectIndexV1): MotionListResultV1 {
-  return Object.freeze({
+  return {
     motions: index.motions,
-    skipped: Object.freeze(
-      index.skipped
-        .filter((skip) => skip.kind === "motion")
-        .map((skip) => Object.freeze({ path: skip.path, reason: skip.reason })),
-    ),
-  });
+    skipped: index.skipped
+      .filter((skip) => skip.kind === "motion")
+      .map((skip) => ({ path: skip.path, reason: skip.reason })),
+  };
 }
 
 /** The one canonical on-disk formatting the port ever writes. */
@@ -126,12 +124,12 @@ export function readMotionSourceFileV1(appRoot: string, path: string): MotionRea
       detail: error instanceof Error ? error.message : String(error),
     };
   }
-  return Object.freeze({
+  return {
     kind: "ok",
     path,
     digest: motionDigestV1(bytes),
     motionDocument,
-  });
+  };
 }
 
 export interface WriteMotionSourceInputV1 {
@@ -203,7 +201,7 @@ export function writeMotionSourceFileV1(
       detail: error instanceof Error ? error.message : String(error),
     };
   }
-  return Object.freeze({ kind: "ok", digest: motionDigestV1(formatted) });
+  return { kind: "ok", digest: motionDigestV1(formatted) };
 }
 
 const motionFileSuffixV1 = ".motion.json";
@@ -278,7 +276,7 @@ export function createMotionSourceFileV1(
       detail: error instanceof Error ? error.message : String(error),
     };
   }
-  return Object.freeze({ kind: "ok", digest: motionDigestV1(formatted) });
+  return { kind: "ok", digest: motionDigestV1(formatted) };
 }
 
 function motionPortStatusV1(code: MotionPortErrorCodeV1): number {

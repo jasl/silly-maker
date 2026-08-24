@@ -291,11 +291,11 @@ function extendStaticProvenanceV1(
   property: string,
 ): readonly string[] {
   if (provenance.length !== 1 || provenance[0] !== "globalThis") {
-    return Object.freeze([...provenance, property]);
+    return [...provenance, property];
   }
   return provenanceTrackedRootsV1.has(property)
-    ? Object.freeze([property])
-    : Object.freeze([ambiguousCapabilityProvenanceV1, property]);
+    ? [property]
+    : [ambiguousCapabilityProvenanceV1, property];
 }
 
 const dateHostDependentMembersV1 = new Set([
@@ -369,150 +369,150 @@ const datePrototypeCallableMembersV1 = new Set([
 
 const diagnosticTextV1: Readonly<
   Record<string, Readonly<{ message: string; hint: string }>>
-> = Object.freeze({
-  "determinism.ambient_random": Object.freeze({
+> = {
+  "determinism.ambient_random": {
     message: "Authoritative code reads ambient randomness.",
     hint: "Use the injected bootstrap entropy capability or Snapshot-owned transactional RNG.",
-  }),
-  "determinism.crypto_random": Object.freeze({
+  },
+  "determinism.crypto_random": {
     message: "Authoritative code reads ambient cryptographic randomness.",
     hint: "Move Host entropy sampling to bootstrap ingress and commit only canonical data.",
-  }),
-  "determinism.ambient_clock": Object.freeze({
+  },
+  "determinism.ambient_clock": {
     message: "Authoritative code reads the ambient clock.",
     hint: "Use a recorded instant or an authoritative integer tick supplied by input.",
-  }),
-  "determinism.clock.date_now": Object.freeze({
+  },
+  "determinism.clock.date_now": {
     message: "Authoritative code reads the ambient Date clock.",
     hint: "Use a recorded instant or an authoritative integer tick supplied by input.",
-  }),
-  "determinism.clock.date_function_call": Object.freeze({
+  },
+  "determinism.clock.date_function_call": {
     message: "Authoritative code calls Date as an ambient-clock function.",
     hint: "Use a recorded instant instead of the Date function form.",
-  }),
-  "determinism.clock.date_zero_argument_constructor": Object.freeze({
+  },
+  "determinism.clock.date_zero_argument_constructor": {
     message: "Authoritative code constructs Date from the ambient clock.",
     hint: "Pass one statically verified deterministic Date input.",
-  }),
-  "determinism.performance_clock": Object.freeze({
+  },
+  "determinism.performance_clock": {
     message: "Authoritative code reads the performance clock.",
     hint: "Keep wall-clock measurements outside the authoritative simulation closure.",
-  }),
-  "determinism.host_timezone": Object.freeze({
+  },
+  "determinism.host_timezone": {
     message: "Authoritative code depends on the Host timezone.",
     hint: "Use an explicit UTC/value operation or commit a canonical recorded zone as input.",
-  }),
-  "determinism.date_input_unverified": Object.freeze({
+  },
+  "determinism.date_input_unverified": {
     message: "Authoritative Date input is not statically proven deterministic.",
     hint: "Use an exact static epoch, direct Date.UTC result, or strict full-zone StaticString.",
-  }),
-  "determinism.date_utc_unverified": Object.freeze({
+  },
+  "determinism.date_utc_unverified": {
     message: "Authoritative Date.UTC arguments are not statically proven exact.",
     hint: "Use exactly seven in-range integer arguments without calendar overflow.",
-  }),
-  "determinism.date_instance_unverified": Object.freeze({
+  },
+  "determinism.date_instance_unverified": {
     message: "Authoritative code uses or escapes a Date instance outside the terminal safe-set.",
     hint: "Use one direct getTime/valueOf/toISOString/UTC-getter call on an exact KnownDate.",
-  }),
-  "determinism.date_instance_mutation": Object.freeze({
+  },
+  "determinism.date_instance_mutation": {
     message: "Authoritative code mutates a Date instance.",
     hint: "Treat Date instances as immutable and derive a new verified value instead.",
-  }),
-  "determinism.network": Object.freeze({
+  },
+  "determinism.network": {
     message: "Authoritative code accesses an ambient network provider.",
     hint: "Resolve external data before authoritative ingress and commit canonical input.",
-  }),
-  "determinism.environment": Object.freeze({
+  },
+  "determinism.environment": {
     message: "Authoritative code reads the Host environment.",
     hint: "Pass validated configuration through an explicit recorded input boundary.",
-  }),
-  "determinism.locale": Object.freeze({
+  },
+  "determinism.locale": {
     message: "Authoritative code depends on Host locale data.",
     hint: "Use engine-owned UTF-16 ordering or explicit canonical data instead of Host ICU.",
-  }),
-  "determinism.dom_storage": Object.freeze({
+  },
+  "determinism.dom_storage": {
     message: "Authoritative code accesses DOM or browser storage state.",
     hint: "Keep browser state in the Host/presentation layer and submit semantic input.",
-  }),
-  "determinism.ambient_provider_import": Object.freeze({
+  },
+  "determinism.ambient_provider_import": {
     message: "Authoritative code imports an ambient provider.",
     hint: "Move the provider to the Host boundary and inject canonical recorded data.",
-  }),
-  "determinism.capability.dynamic_require": Object.freeze({
+  },
+  "determinism.capability.dynamic_require": {
     message: "Authoritative code acquires or uses a dynamic module loader.",
     hint: "Use a statically admitted ESM dependency instead of require/createRequire.",
-  }),
-  "determinism.capability.dynamic_code": Object.freeze({
+  },
+  "determinism.capability.dynamic_code": {
     message: "Authoritative code reaches a dynamic code constructor.",
     hint: "Use statically declared functions and modules only.",
-  }),
-  "determinism.capability.indirect_intrinsic": Object.freeze({
+  },
+  "determinism.capability.indirect_intrinsic": {
     message: "Authoritative code invokes a Date intrinsic indirectly.",
     hint: "Use only the admitted direct Date syntax.",
-  }),
-  "determinism.capability.intrinsic_mutation": Object.freeze({
+  },
+  "determinism.capability.intrinsic_mutation": {
     message: "Authoritative code mutates an intrinsic capability.",
     hint: "Do not replace or mutate Host intrinsic functions or prototypes.",
-  }),
-  "determinism.capability.constructor_escape": Object.freeze({
+  },
+  "determinism.capability.constructor_escape": {
     message: "Authoritative code accesses an unverified constructor capability.",
     hint: "Use an explicit statically known constructor instead of .constructor.",
-  }),
-  "determinism.capability.dynamic_member": Object.freeze({
+  },
+  "determinism.capability.dynamic_member": {
     message: "Authoritative code selects a capability member dynamically.",
     hint: "Use one explicitly admitted static member operation.",
-  }),
-  "determinism.ambient_capability_escape": Object.freeze({
+  },
+  "determinism.ambient_capability_escape": {
     message: "Authoritative code lets an ambient capability escape static verification.",
     hint: "Use a verified direct member operation or pass canonical recorded data instead.",
-  }),
-  "determinism.numeric_fractional_literal": Object.freeze({
+  },
+  "determinism.numeric_fractional_literal": {
     message: "Authoritative code contains a fractional or negative-zero numeric literal.",
     hint: "Use bounded integer/ratio data or add a complete node-local numeric exemption.",
-  }),
-  "determinism.numeric_parse_float": Object.freeze({
+  },
+  "determinism.numeric_parse_float": {
     message: "Authoritative code parses an approximate floating-point value.",
     hint: "Use a strict bounded parser or add a complete node-local numeric exemption.",
-  }),
-  "determinism.numeric_approximate_math": Object.freeze({
+  },
+  "determinism.numeric_approximate_math": {
     message: "Authoritative code performs approximate mathematical evaluation.",
     hint: "Use a defined integer algorithm or add a complete node-local numeric exemption.",
-  }),
-  "determinism.bootstrap_entropy_escape": Object.freeze({
+  },
+  "determinism.bootstrap_entropy_escape": {
     message: "Bootstrap entropy is unverified or escapes its narrow adapter call site.",
     hint:
       "Use only direct nextUuidV4/nextNonZeroUint32 calls on the verified createBootstrapInput parameter.",
-  }),
-  "determinism.provenance.cycle": Object.freeze({
+  },
+  "determinism.provenance.cycle": {
     message: "Authoritative value provenance contains an alias cycle.",
     hint: "Break the cycle and use one immutable exact value producer.",
-  }),
-  "determinism.provenance.budget_exhausted": Object.freeze({
+  },
+  "determinism.provenance.budget_exhausted": {
     message: "Authoritative provenance analysis exhausted its deterministic budget.",
     hint: "Simplify source-local dataflow so the guard can prove one exact result.",
-  }),
-  "determinism.exemption_malformed": Object.freeze({
+  },
+  "determinism.exemption_malformed": {
     message: "Determinism exemption metadata is malformed.",
     hint: "Provide exact code, reason, bounds, rounding, and repo-relative test fields.",
-  }),
-  "determinism.exemption_stale": Object.freeze({
+  },
+  "determinism.exemption_stale": {
     message: "Determinism exemption does not match the next syntax node.",
     hint:
       "Remove the stale directive or place one complete directive immediately above its numeric diagnostic.",
-  }),
-  "determinism.exemption_duplicate": Object.freeze({
+  },
+  "determinism.exemption_duplicate": {
     message: "Multiple determinism exemptions target one syntax location.",
     hint: "Keep one node-local exemption for one numeric diagnostic.",
-  }),
-  "determinism.exemption_whole_file": Object.freeze({
+  },
+  "determinism.exemption_whole_file": {
     message: "Whole-file determinism exemptions are forbidden.",
     hint: "Use a complete next-line numeric exemption at the exact reviewed syntax node.",
-  }),
-  "determinism.source_parse_failed": Object.freeze({
+  },
+  "determinism.source_parse_failed": {
     message: "Unable to parse authoritative source.",
     hint: "Fix the JavaScript or TypeScript syntax before rerunning the determinism check.",
-  }),
-});
+  },
+};
 
 function isNodeV1(value: unknown): value is AstNodeV1 {
   return typeof value === "object" && value !== null &&
@@ -719,16 +719,16 @@ function predeclareStatementV1(statement: AstNodeV1, scope: ScopeV1): void {
       const binding = declareIdentifierV1(scope, name);
       if (isNodeModuleSpecifierV1(sourceName)) {
         binding.provenance = specifier.type === "ImportSpecifier" && importedName !== null
-          ? Object.freeze([nodeModuleProvenanceV1, importedName])
-          : Object.freeze([nodeModuleProvenanceV1]);
+          ? [nodeModuleProvenanceV1, importedName]
+          : [nodeModuleProvenanceV1];
         setBindingExactStateV1(
           binding,
-          Object.freeze({
+          {
             kind: specifier.type === "ImportSpecifier" && importedName === "createRequire"
               ? "known_callable"
               : "known_capability",
             singleton: exactProofSingletonV1(specifier),
-          }),
+          },
           null,
           scope.exactProofResolver,
         );
@@ -752,7 +752,7 @@ function collectHoistedVarV1(node: AstNodeV1, functionScope: ScopeV1): void {
       const name = identifierNameV1(pattern);
       if (name === "require" || name === "module") {
         const binding = lookupBindingV1(functionScope, name);
-        if (binding !== null) binding.provenance = Object.freeze([name]);
+        if (binding !== null) binding.provenance = [name];
       }
     }
   }
@@ -832,23 +832,23 @@ function conservativeProvenanceJoinV1(
 ): readonly string[] | null {
   if (sameProvenanceV1(left, right)) return left;
   if (isDynamicRequireProvenanceV1(left) || isDynamicRequireProvenanceV1(right)) {
-    return Object.freeze([dynamicRequireRiskProvenanceV1]);
+    return [dynamicRequireRiskProvenanceV1];
   }
   const leftDateInstance = isDateInstancePathV1(left) ||
     left?.[0] === ambiguousDateInstanceProvenanceV1;
   const rightDateInstance = isDateInstancePathV1(right) ||
     right?.[0] === ambiguousDateInstanceProvenanceV1;
   if (leftDateInstance || rightDateInstance) {
-    return Object.freeze([ambiguousDateInstanceProvenanceV1]);
+    return [ambiguousDateInstanceProvenanceV1];
   }
   const leftDateCapability = left?.[0] === "Date";
   const rightDateCapability = right?.[0] === "Date";
   if (leftDateCapability || rightDateCapability) {
-    return Object.freeze([ambiguousCapabilityProvenanceV1]);
+    return [ambiguousCapabilityProvenanceV1];
   }
   const leftTracked = left !== null && provenanceTrackedRootsV1.has(left[0] ?? "");
   const rightTracked = right !== null && provenanceTrackedRootsV1.has(right[0] ?? "");
-  if (leftTracked && rightTracked) return Object.freeze([ambiguousCapabilityProvenanceV1]);
+  if (leftTracked && rightTracked) return [ambiguousCapabilityProvenanceV1];
   if (leftTracked) return left;
   if (rightTracked) return right;
   return null;
@@ -954,7 +954,7 @@ function resolveBindingExactProofV1(
     resolver.onAliasStep?.();
     current = current.exactAlias;
   }
-  const entry = Object.freeze(result);
+  const entry = result;
   resolver.cache.set(current, entry);
   for (const item of path) resolver.cache.set(item, entry);
   return entry;
@@ -1006,7 +1006,7 @@ function directStaticProvenancePathV1(
   if (node === null || hasProofWrapperV1(node)) return null;
   if (node.type === "Identifier") {
     const name = identifierNameV1(node);
-    return name !== null && lookupBindingV1(scope, name) === null ? Object.freeze([name]) : null;
+    return name !== null && lookupBindingV1(scope, name) === null ? [name] : null;
   }
   if (
     node.type !== "MemberExpression" || node.computed === true || node.optional === true
@@ -1208,20 +1208,20 @@ function stringCallableV1(provenance: readonly string[] | null): StringCallableV
     target === undefined ||
     (members.length === 1 && (target === "call" || target === "apply" || target === "bind"))
   ) {
-    return Object.freeze({
+    return {
       kind: "constructor",
       wrapper: target ?? null,
-    });
+    };
   }
   if (target !== "raw" || members.length > 2) return null;
   const wrapper = members[1];
   if (
     wrapper !== undefined && wrapper !== "call" && wrapper !== "apply" && wrapper !== "bind"
   ) return null;
-  return Object.freeze({
+  return {
     kind: "raw",
     wrapper: wrapper ?? null,
-  });
+  };
 }
 
 function isUnsupportedStringCallablePathV1(
@@ -1370,7 +1370,7 @@ function dateCoercionDiagnosticV1(
 }
 
 function expandStaticArgumentItemsV1(items: unknown): StaticArgumentVectorV1 {
-  if (!Array.isArray(items)) return { prefix: Object.freeze([]), hasUnknownTail: true };
+  if (!Array.isArray(items)) return { prefix: [], hasUnknownTail: true };
   const prefix: (AstNodeV1 | null)[] = [];
   for (const item of items) {
     if (item === null) {
@@ -1378,7 +1378,7 @@ function expandStaticArgumentItemsV1(items: unknown): StaticArgumentVectorV1 {
       continue;
     }
     if (!isNodeV1(item) || item.type === "ArgumentPlaceholder") {
-      return { prefix: Object.freeze(prefix), hasUnknownTail: true };
+      return { prefix: prefix, hasUnknownTail: true };
     }
     if (item.type !== "SpreadElement") {
       prefix.push(item);
@@ -1386,15 +1386,15 @@ function expandStaticArgumentItemsV1(items: unknown): StaticArgumentVectorV1 {
     }
     const spread = unwrapExpressionV1(asNodeV1(item.argument));
     if (spread?.type !== "ArrayExpression") {
-      return { prefix: Object.freeze(prefix), hasUnknownTail: true };
+      return { prefix: prefix, hasUnknownTail: true };
     }
     const expanded = expandStaticArgumentItemsV1(spread.elements);
     prefix.push(...expanded.prefix);
     if (expanded.hasUnknownTail) {
-      return { prefix: Object.freeze(prefix), hasUnknownTail: true };
+      return { prefix: prefix, hasUnknownTail: true };
     }
   }
-  return { prefix: Object.freeze(prefix), hasUnknownTail: false };
+  return { prefix: prefix, hasUnknownTail: false };
 }
 
 function stringEffectiveArgumentsV1(
@@ -1405,24 +1405,24 @@ function stringEffectiveArgumentsV1(
   const callArguments = expandStaticArgumentItemsV1(node.arguments);
   if (callable.wrapper === null) return callArguments;
   if (callable.wrapper === "bind") {
-    return { prefix: Object.freeze([]), hasUnknownTail: true };
+    return { prefix: [], hasUnknownTail: true };
   }
   if (callable.wrapper === "call") {
     if (callArguments.prefix.length === 0) {
       return {
-        prefix: Object.freeze([]),
+        prefix: [],
         hasUnknownTail: callArguments.hasUnknownTail,
       };
     }
     return {
-      prefix: Object.freeze(callArguments.prefix.slice(1)),
+      prefix: callArguments.prefix.slice(1),
       hasUnknownTail: callArguments.hasUnknownTail,
     };
   }
 
   if (callArguments.prefix.length < 2) {
     return {
-      prefix: Object.freeze([]),
+      prefix: [],
       hasUnknownTail: callArguments.hasUnknownTail,
     };
   }
@@ -1434,10 +1434,10 @@ function stringEffectiveArgumentsV1(
     carrierNode === null || carrier?.type === "NullLiteral" ||
     carrier?.type === "UnaryExpression" && carrier.operator === "void" || unshadowedUndefined
   ) {
-    return { prefix: Object.freeze([]), hasUnknownTail: false };
+    return { prefix: [], hasUnknownTail: false };
   }
   if (carrier?.type !== "ArrayExpression") {
-    return { prefix: Object.freeze([]), hasUnknownTail: true };
+    return { prefix: [], hasUnknownTail: true };
   }
   return expandStaticArgumentItemsV1(carrier.elements);
 }
@@ -1452,23 +1452,23 @@ function resolveExpressionV1(node: AstNodeV1 | null, scope: ScopeV1): ResolvedEx
     if (name === null) return { provenance: null, bootstrap: null };
     const binding = lookupBindingV1(scope, name);
     if (binding === null) {
-      const provenance = Object.freeze([name]);
-      const exactProof = name === "undefined" && proofEligible
-        ? Object.freeze<ExactProofV1>({
+      const provenance = [name];
+      const exactProof: ExactProofV1 | null = name === "undefined" && proofEligible
+        ? {
           kind: "primitive",
           value: undefined,
           singleton: exactProofSingletonV1(expression),
-        })
+        }
         : isStaticallyKnownCallableProvenanceV1(provenance)
-        ? Object.freeze<ExactProofV1>({
+        ? {
           kind: "known_callable",
           singleton: exactProofSingletonV1(expression),
-        })
+        }
         : provenanceTrackedRootsV1.has(name)
-        ? Object.freeze<ExactProofV1>({
+        ? {
           kind: "known_capability",
           singleton: exactProofSingletonV1(expression),
-        })
+        }
         : null;
       return { provenance, bootstrap: null, exactProof };
     }
@@ -1530,11 +1530,11 @@ function resolveExpressionV1(node: AstNodeV1 | null, scope: ScopeV1): ResolvedEx
       return {
         provenance: null,
         bootstrap: null,
-        exactProof: Object.freeze({
+        exactProof: {
           kind: "primitive",
           value: primitive,
           singleton: exactProofSingletonV1(expression),
-        }),
+        },
       };
     }
   }
@@ -1555,7 +1555,7 @@ function resolveExpressionV1(node: AstNodeV1 | null, scope: ScopeV1): ResolvedEx
     if (isDateInstanceConstructor) {
       if (expression.computed === true || expression.optional === true) {
         return {
-          provenance: Object.freeze([dynamicMemberRiskProvenanceV1]),
+          provenance: [dynamicMemberRiskProvenanceV1],
           bootstrap: object.bootstrap,
           exactProofFailure: "unknown",
         };
@@ -1569,7 +1569,7 @@ function resolveExpressionV1(node: AstNodeV1 | null, scope: ScopeV1): ResolvedEx
       );
       if (!exactKnownDate && !directDatePrototype) {
         return {
-          provenance: Object.freeze([constructorEscapeRiskProvenanceV1, "constructor"]),
+          provenance: [constructorEscapeRiskProvenanceV1, "constructor"],
           bootstrap: object.bootstrap,
           exactProofFailure: "unknown",
         };
@@ -1581,71 +1581,71 @@ function resolveExpressionV1(node: AstNodeV1 | null, scope: ScopeV1): ResolvedEx
     const directMember = expression.computed !== true && expression.optional !== true;
     if (directMember) {
       if (recoveredDateConstructor) {
-        exactProof = Object.freeze({
+        exactProof = {
           kind: "known_callable",
           singleton: exactProofSingletonV1(expression),
-        });
+        };
       } else if (
         property === "constructor" &&
         (object.exactProof?.kind === "known_callable" ||
           object.exactProof?.kind === "function_constructor")
       ) {
-        exactProof = Object.freeze({
+        exactProof = {
           kind: "function_constructor",
           singleton: exactProofSingletonV1(expression),
-        });
+        };
       } else if (
         object.exactProof?.kind === "function_constructor" &&
         (property === "call" || property === "apply" || property === "bind")
       ) {
-        exactProof = Object.freeze({
+        exactProof = {
           kind: "function_constructor",
           singleton: exactProofSingletonV1(expression),
-        });
+        };
       } else if (
         object.exactProof?.kind === "known_callable" &&
         (property === "call" || property === "apply" || property === "bind")
       ) {
-        exactProof = Object.freeze({
+        exactProof = {
           kind: "known_callable",
           singleton: exactProofSingletonV1(expression),
-        });
+        };
       } else if (
         object.exactProof?.kind === "known_date" &&
         datePrototypeCallableMembersV1.has(property)
       ) {
-        exactProof = Object.freeze({
+        exactProof = {
           kind: "known_callable",
           singleton: exactProofSingletonV1(expression),
-        });
+        };
       } else if (
         object.exactProof?.kind === "known_capability" ||
         object.exactProof?.kind === "known_callable"
       ) {
         if (isStaticallyKnownCallableProvenanceV1(provenance)) {
-          exactProof = Object.freeze({
+          exactProof = {
             kind: "known_callable",
             singleton: exactProofSingletonV1(expression),
-          });
+          };
         } else if (provenanceTrackedRootsV1.has(provenance[0] ?? "")) {
-          exactProof = Object.freeze({
+          exactProof = {
             kind: "known_capability",
             singleton: exactProofSingletonV1(expression),
-          });
+          };
         }
       } else {
         const directPath = directStaticProvenancePathV1(expression, scope);
         if (sameProvenanceV1(directPath, provenance)) {
           if (isStaticallyKnownCallableProvenanceV1(provenance)) {
-            exactProof = Object.freeze({
+            exactProof = {
               kind: "known_callable",
               singleton: exactProofSingletonV1(expression),
-            });
+            };
           } else if (provenanceTrackedRootsV1.has(provenance[0] ?? "")) {
-            exactProof = Object.freeze({
+            exactProof = {
               kind: "known_capability",
               singleton: exactProofSingletonV1(expression),
-            });
+            };
           }
         }
       }
@@ -1661,16 +1661,17 @@ function resolveExpressionV1(node: AstNodeV1 | null, scope: ScopeV1): ResolvedEx
       const input = argumentsV1.length === 1 && argumentsV1[0]?.type !== "SpreadElement"
         ? resolveExpressionV1(argumentsV1[0] ?? null, scope)
         : null;
-      const exactProof = proofEligible && !hasTypeArgumentSyntaxV1(expression) &&
+      const exactProof: ExactProofV1 | null =
+        proofEligible && !hasTypeArgumentSyntaxV1(expression) &&
           isDirectUnshadowedIdentifierV1(calleeNode, "Date", scope) && input !== null &&
           isSafeDateInputProofV1(input.exactProof ?? null)
-        ? Object.freeze<ExactProofV1>({
-          kind: "known_date",
-          singleton: exactProofSingletonV1(expression),
-        })
-        : null;
+          ? {
+            kind: "known_date",
+            singleton: exactProofSingletonV1(expression),
+          }
+          : null;
       return {
-        provenance: Object.freeze(["Date", "instance"]),
+        provenance: ["Date", "instance"],
         bootstrap: null,
         exactProof,
         exactProofFailure: exactProof === null ? input?.exactProofFailure ?? "unknown" : null,
@@ -1680,7 +1681,7 @@ function resolveExpressionV1(node: AstNodeV1 | null, scope: ScopeV1): ResolvedEx
       stringCallableV1(callee.provenance)?.kind === "constructor" &&
       argumentsV1.every(({ type }) => type !== "SpreadElement")
     ) {
-      return { provenance: Object.freeze(["String", "instance"]), bootstrap: null };
+      return { provenance: ["String", "instance"], bootstrap: null };
     }
   }
 
@@ -1689,12 +1690,12 @@ function resolveExpressionV1(node: AstNodeV1 | null, scope: ScopeV1): ResolvedEx
     const callee = resolveExpressionV1(calleeNode, scope);
     if (isExactFunctionConstructorBindV1(callee)) {
       return {
-        provenance: Object.freeze([dynamicCodeConstructorProvenanceV1]),
+        provenance: [dynamicCodeConstructorProvenanceV1],
         bootstrap: null,
-        exactProof: Object.freeze({
+        exactProof: {
           kind: "function_constructor",
           singleton: exactProofSingletonV1(expression),
-        }),
+        },
       };
     }
     const calleeExpression = unwrapExpressionV1(calleeNode);
@@ -1707,20 +1708,20 @@ function resolveExpressionV1(node: AstNodeV1 | null, scope: ScopeV1): ResolvedEx
       return {
         provenance: callee.provenance,
         bootstrap: null,
-        exactProof: Object.freeze({
+        exactProof: {
           kind: "known_callable",
           singleton: exactProofSingletonV1(expression),
-        }),
+        },
       };
     }
     if (isExactCreateRequireFactoryCallableV1(callee)) {
       return {
-        provenance: Object.freeze([dynamicRequireLoaderProvenanceV1]),
+        provenance: [dynamicRequireLoaderProvenanceV1],
         bootstrap: null,
-        exactProof: Object.freeze({
+        exactProof: {
           kind: "known_callable",
           singleton: exactProofSingletonV1(expression),
-        }),
+        },
       };
     }
     const argumentsV1 = asNodesV1(expression.arguments);
@@ -1733,10 +1734,10 @@ function resolveExpressionV1(node: AstNodeV1 | null, scope: ScopeV1): ResolvedEx
       return {
         provenance: null,
         bootstrap: null,
-        exactProof: Object.freeze({
+        exactProof: {
           kind: "date_epoch",
           singleton: exactProofSingletonV1(expression),
-        }),
+        },
       };
     }
     if (
@@ -1753,10 +1754,10 @@ function resolveExpressionV1(node: AstNodeV1 | null, scope: ScopeV1): ResolvedEx
         return {
           provenance: null,
           bootstrap: null,
-          exactProof: Object.freeze({
+          exactProof: {
             kind: "date_epoch",
             singleton: exactProofSingletonV1(expression),
-          }),
+          },
         };
       }
     }
@@ -1771,11 +1772,11 @@ function resolveExpressionV1(node: AstNodeV1 | null, scope: ScopeV1): ResolvedEx
         return {
           provenance: null,
           bootstrap: null,
-          exactProof: Object.freeze({
+          exactProof: {
             kind: "primitive",
             value: String(input.value),
             singleton: exactProofSingletonV1(expression),
-          }),
+          },
         };
       }
     }
@@ -1796,11 +1797,11 @@ function resolveExpressionV1(node: AstNodeV1 | null, scope: ScopeV1): ResolvedEx
         return {
           provenance: null,
           bootstrap: null,
-          exactProof: Object.freeze({
+          exactProof: {
             kind: "primitive",
             value: value.raw,
             singleton: exactProofSingletonV1(expression),
-          }),
+          },
         };
       }
     }
@@ -1944,14 +1945,14 @@ function derivePatternPropertyV1(
   if (property.computed === true && dateSource) {
     return {
       propertyName,
-      provenance: Object.freeze([dynamicMemberRiskProvenanceV1]),
+      provenance: [dynamicMemberRiskProvenanceV1],
       exactProof: null,
     };
   }
   if (propertyName === null && mayProduceDynamicRequireV1(resolved.provenance)) {
     return {
       propertyName,
-      provenance: Object.freeze([dynamicRequireRiskProvenanceV1]),
+      provenance: [dynamicRequireRiskProvenanceV1],
       exactProof: null,
     };
   }
@@ -1961,12 +1962,12 @@ function derivePatternPropertyV1(
   ) {
     return {
       propertyName,
-      provenance: Object.freeze([dynamicMemberRiskProvenanceV1]),
+      provenance: [dynamicMemberRiskProvenanceV1],
       exactProof: null,
     };
   }
   const provenance = propertyName === "constructor" && resolved.provenance === null
-    ? Object.freeze([constructorEscapeRiskProvenanceV1, "constructor"])
+    ? [constructorEscapeRiskProvenanceV1, "constructor"]
     : resolved.provenance !== null && propertyName !== null
     ? extendStaticProvenanceV1(resolved.provenance, propertyName)
     : null;
@@ -1979,13 +1980,13 @@ function derivePatternPropertyV1(
   ) {
     const recoveredConstructor = dateCallableKindV1(provenance) === "constructor" ||
       stringCallableV1(provenance)?.kind === "constructor";
-    exactProof = Object.freeze({
+    exactProof = {
       kind: propertyName === "constructor" &&
           resolved.exactProof.kind === "known_callable" && !recoveredConstructor
         ? "function_constructor"
         : "known_callable",
       singleton: exactProofSingletonV1(property),
-    });
+    };
   }
   return { propertyName, provenance, exactProof };
 }
@@ -2056,7 +2057,7 @@ function assignPatternV1(
     for (const property of asNodesV1(pattern.properties)) {
       if (property.type === "RestElement") {
         const provenance = mayProduceDynamicRequireV1(resolved.provenance)
-          ? Object.freeze([dynamicRequireRiskProvenanceV1])
+          ? [dynamicRequireRiskProvenanceV1]
           : null;
         assignPatternV1(
           asNodeV1(property.argument),
@@ -2203,9 +2204,9 @@ function locationAtV1(lines: readonly SourceLineV1[], offset: number): Readonly<
     const nextStart = lines[middle + 1]?.start ?? Number.POSITIVE_INFINITY;
     if (offset < line.start) high = middle - 1;
     else if (offset >= nextStart) low = middle + 1;
-    else return Object.freeze({ line: line.number, column: offset - line.start + 1 });
+    else return { line: line.number, column: offset - line.start + 1 };
   }
-  return Object.freeze({ line: 1, column: Math.max(0, offset) + 1 });
+  return { line: 1, column: Math.max(0, offset) + 1 };
 }
 
 function isExactIntegerLiteralV1(rawInput: string): boolean {
@@ -2309,7 +2310,7 @@ export function analyzeDeterminismSourceV1(
       ? (error as { pos: number }).pos
       : 0;
     recordDiagnosticV1("determinism.source_parse_failed", position, position);
-    return freezeDiagnosticsV1(options.file, lines, rawDiagnostics);
+    return materializeDiagnosticsV1(options.file, lines, rawDiagnostics);
   }
   const lineCommentStartsV1 = new Set(
     asNodesV1(program.comments)
@@ -2670,9 +2671,9 @@ export function analyzeDeterminismSourceV1(
       const name = identifierNameV1(target);
       if (
         name !== null && lookupBindingV1(scope, name) === null &&
-        isTrackedAmbientCapabilityProvenanceV1(Object.freeze([name]))
+        isTrackedAmbientCapabilityProvenanceV1([name])
       ) {
-        const provenance = Object.freeze([name]);
+        const provenance = [name];
         reportNodeV1(
           isDynamicRequireProvenanceV1(provenance)
             ? "determinism.capability.dynamic_require"
@@ -2907,10 +2908,10 @@ export function analyzeDeterminismSourceV1(
       carrierNode === null || carrier?.type === "NullLiteral" ||
       carrier?.type === "UnaryExpression" && carrier.operator === "void" || unshadowedUndefined
     ) {
-      return { values: Object.freeze([]), substitutionLimit: 0, uncertain: false };
+      return { values: [], substitutionLimit: 0, uncertain: false };
     }
     if (carrier?.type !== "ObjectExpression") {
-      return { values: Object.freeze([]), substitutionLimit: 0, uncertain: true };
+      return { values: [], substitutionLimit: 0, uncertain: true };
     }
     let rawNode: AstNodeV1 | null = null;
     let uncertain = false;
@@ -2938,7 +2939,7 @@ export function analyzeDeterminismSourceV1(
     }
     if (rawNode === null) {
       return {
-        values: Object.freeze([]),
+        values: [],
         substitutionLimit: 0,
         uncertain: uncertain || inheritedRaw,
       };
@@ -2946,7 +2947,7 @@ export function analyzeDeterminismSourceV1(
     const raw = unwrapExpressionV1(rawNode);
     if (raw?.type === "StringLiteral" && typeof raw.value === "string") {
       return {
-        values: Object.freeze([]),
+        values: [],
         substitutionLimit: Math.max(0, raw.value.length - 1),
         uncertain,
       };
@@ -2954,13 +2955,13 @@ export function analyzeDeterminismSourceV1(
     if (raw?.type === "ArrayExpression") {
       const expanded = expandStaticArgumentItemsV1(raw.elements);
       return {
-        values: Object.freeze(expanded.prefix.filter(isNodeV1)),
+        values: expanded.prefix.filter(isNodeV1),
         substitutionLimit: Math.max(0, expanded.prefix.length - 1),
         uncertain: uncertain || expanded.hasUnknownTail,
       };
     }
     if (raw?.type !== "ObjectExpression") {
-      return { values: Object.freeze([]), substitutionLimit: 0, uncertain: true };
+      return { values: [], substitutionLimit: 0, uncertain: true };
     }
 
     let length: number | null = null;
@@ -3000,15 +3001,13 @@ export function analyzeDeterminismSourceV1(
       if (Number.isSafeInteger(index)) indexed.set(index, value);
     }
     if (length === null) {
-      return { values: Object.freeze([]), substitutionLimit: 0, uncertain: true };
+      return { values: [], substitutionLimit: 0, uncertain: true };
     }
     return {
-      values: Object.freeze(
-        [...indexed.entries()]
-          .filter(([index]) => index < length!)
-          .sort(([left], [right]) => left - right)
-          .map(([, value]) => value),
-      ),
+      values: [...indexed.entries()]
+        .filter(([index]) => index < length!)
+        .sort(([left], [right]) => left - right)
+        .map(([, value]) => value),
       substitutionLimit: Math.max(0, length - 1),
       uncertain: uncertain || inheritedIndex,
     };
@@ -3022,20 +3021,20 @@ export function analyzeDeterminismSourceV1(
     if (callable.kind === "constructor") {
       const first = effective.prefix[0];
       return {
-        values: first === undefined || first === null ? Object.freeze([]) : Object.freeze([first]),
+        values: first === undefined || first === null ? [] : [first],
         uncertain: first === undefined && effective.hasUnknownTail,
       };
     }
     if (effective.hasUnknownTail) {
-      return { values: Object.freeze([]), uncertain: true };
+      return { values: [], uncertain: true };
     }
     const first = effective.prefix[0] ?? null;
     const carrier = stringRawCarrierValuesV1(first, scope);
     return {
-      values: Object.freeze([
+      values: [
         ...carrier.values,
         ...effective.prefix.slice(1, carrier.substitutionLimit + 1).filter(isNodeV1),
-      ]),
+      ],
       uncertain: carrier.uncertain,
     };
   };
@@ -3057,16 +3056,16 @@ export function analyzeDeterminismSourceV1(
     scope: ScopeV1,
   ): StaticArgumentVectorV1 => {
     const taggedArguments: StaticArgumentVectorV1 = {
-      prefix: Object.freeze([null, ...expressions]),
+      prefix: [null, ...expressions],
       hasUnknownTail: false,
     };
     if (wrapper === null) return taggedArguments;
     if (wrapper === "bind") {
-      return { prefix: Object.freeze([]), hasUnknownTail: true };
+      return { prefix: [], hasUnknownTail: true };
     }
     if (wrapper === "call") {
       return {
-        prefix: Object.freeze(taggedArguments.prefix.slice(1)),
+        prefix: taggedArguments.prefix.slice(1),
         hasUnknownTail: false,
       };
     }
@@ -3077,10 +3076,10 @@ export function analyzeDeterminismSourceV1(
     if (
       carrierNode === null || carrier?.type === "NullLiteral" ||
       carrier?.type === "UnaryExpression" && carrier.operator === "void" || unshadowedUndefined
-    ) return { prefix: Object.freeze([]), hasUnknownTail: false };
+    ) return { prefix: [], hasUnknownTail: false };
     return carrier?.type === "ArrayExpression"
       ? expandStaticArgumentItemsV1(carrier.elements)
-      : { prefix: Object.freeze([]), hasUnknownTail: true };
+      : { prefix: [], hasUnknownTail: true };
   };
 
   const exactKnownDateMemberV1 = (
@@ -4616,7 +4615,7 @@ export function analyzeDeterminismSourceV1(
       nodeStartV1(program),
       nodeEndV1(program),
     );
-    return freezeDiagnosticsV1(options.file, lines, rawDiagnostics);
+    return materializeDiagnosticsV1(options.file, lines, rawDiagnostics);
   }
 
   traversalDiagnosticsEnabledV1 = true;
@@ -4699,14 +4698,14 @@ export function analyzeDeterminismSourceV1(
     } else suppressed.add(matching);
   }
 
-  return freezeDiagnosticsV1(
+  return materializeDiagnosticsV1(
     options.file,
     lines,
     rawDiagnostics.filter((diagnostic) => !suppressed.has(diagnostic)),
   );
 }
 
-function freezeDiagnosticsV1(
+function materializeDiagnosticsV1(
   file: string,
   lines: readonly SourceLineV1[],
   diagnostics: readonly MutableDiagnosticV1[],
@@ -4714,19 +4713,19 @@ function freezeDiagnosticsV1(
   const sorted = [...diagnostics].sort((left, right) =>
     left.start - right.start || left.end - right.end || compareCodeUnitsV1(left.code, right.code)
   );
-  return Object.freeze(sorted.map((diagnostic) => {
-    const text = diagnosticTextV1[diagnostic.code] ?? Object.freeze({
+  return sorted.map((diagnostic) => {
+    const text = diagnosticTextV1[diagnostic.code] ?? {
       message: "Authoritative determinism check failed.",
       hint: "Review the reported source location.",
-    });
-    return Object.freeze({
+    };
+    return {
       code: diagnostic.code,
       file,
-      range: Object.freeze([diagnostic.start, diagnostic.end] as const),
+      range: [diagnostic.start, diagnostic.end] as const,
       start: locationAtV1(lines, diagnostic.start),
       end: locationAtV1(lines, diagnostic.end),
       message: text.message,
       hint: text.hint,
-    });
-  }));
+    };
+  });
 }

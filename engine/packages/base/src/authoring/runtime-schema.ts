@@ -25,15 +25,15 @@ function invalidValueDiagnosticV1(
   options: RuntimeSchemaOptionsV1 | undefined,
   location?: { readonly jsonPointer: string },
 ): DiagnosticEnvelopeV1 {
-  return Object.freeze({
+  return {
     code: "authoring.schema.invalid_value",
     severity: "error" as const,
     phase: "definition" as const,
     message,
     ...(options?.subject === undefined ? {} : { subject: options.subject }),
-    ...(location === undefined ? {} : { location: Object.freeze({ ...location }) }),
-    details: Object.freeze({}),
-  });
+    ...(location === undefined ? {} : { location: { ...location } }),
+    details: {},
+  };
 }
 
 function finalizeCanonicalValueV1<TValue>(
@@ -45,17 +45,17 @@ function finalizeCanonicalValueV1<TValue>(
   } catch (error) {
     if (error instanceof CanonicalJsonError) {
       throw new AuthoringDiagnosticErrorV1([
-        Object.freeze({
+        {
           code: "authoring.schema.not_canonical_json",
           severity: "error" as const,
           phase: "definition" as const,
           message: `schema output is not canonical JSON: ${error.code}`,
           ...(options?.subject === undefined ? {} : { subject: options.subject }),
-          location: Object.freeze({ jsonPointer: error.path }),
+          location: { jsonPointer: error.path },
           suggestion:
             "Return plain data only: no functions, undefined, non-integer numbers, or cyclic references.",
-          details: Object.freeze({ canonicalCode: error.code }),
-        }),
+          details: { canonicalCode: error.code },
+        },
       ]);
     }
     throw error;
@@ -74,7 +74,7 @@ export function createRuntimeSchemaV1<TValue>(
   },
   options?: RuntimeSchemaOptionsV1,
 ): RuntimeSchemaV1<TValue> {
-  return Object.freeze({
+  return {
     parse(value: unknown): TValue {
       let parsed: TValue;
       try {
@@ -87,7 +87,7 @@ export function createRuntimeSchemaV1<TValue>(
       }
       return finalizeCanonicalValueV1(parsed, options);
     },
-  });
+  };
 }
 
 interface StandardSchemaIssueLikeV1 {
@@ -146,20 +146,20 @@ export function fromStandardSchemaV1<TSchema extends StandardSchemaLikeV1<unknow
   if (standard.version !== 1 || typeof standard.validate !== "function") {
     throw new TypeError("fromStandardSchemaV1 requires a Standard Schema V1 implementation");
   }
-  return Object.freeze({
+  return {
     parse(value: unknown): StandardSchemaOutputV1<TSchema> {
       const result = standard.validate(value);
       if (result !== null && typeof result === "object" && "then" in result) {
         throw new AuthoringDiagnosticErrorV1([
-          Object.freeze({
+          {
             code: "authoring.schema.async_unsupported",
             severity: "error" as const,
             phase: "definition" as const,
             message:
               `${standard.vendor} schema validated asynchronously; runtime schemas must be synchronous`,
             ...(options?.subject === undefined ? {} : { subject: options.subject }),
-            details: Object.freeze({ vendor: standard.vendor }),
-          }),
+            details: { vendor: standard.vendor },
+          },
         ]);
       }
       if (result.issues !== undefined) {
@@ -178,5 +178,5 @@ export function fromStandardSchemaV1<TSchema extends StandardSchemaLikeV1<unknow
       }
       return finalizeCanonicalValueV1(result.value as StandardSchemaOutputV1<TSchema>, options);
     },
-  });
+  };
 }

@@ -21,12 +21,12 @@ export function parseInputActionIdV1(value: string): InputActionIdV1 {
   }
 }
 
-export const systemInputActionIdsV1 = Object.freeze({
+export const systemInputActionIdsV1 = {
   confirm: parseInputActionIdV1("ui.confirm"),
   cancel: parseInputActionIdV1("ui.cancel"),
   openMenu: parseInputActionIdV1("ui.open_menu"),
   narrativeAdvance: parseInputActionIdV1("narrative.advance"),
-});
+};
 
 /**
  * Player/presentation control actions. These route to the VN player and
@@ -34,7 +34,7 @@ export const systemInputActionIdsV1 = Object.freeze({
  * change the gameplay revision unless a handler ultimately resolves a
  * PendingInteraction through the semantic contract.
  */
-export const playerInputActionIdsV1 = Object.freeze({
+export const playerInputActionIdsV1 = {
   toggleAuto: parseInputActionIdV1("player.toggle_auto"),
   toggleSkip: parseInputActionIdV1("player.toggle_skip"),
   toggleHistory: parseInputActionIdV1("player.toggle_history"),
@@ -42,7 +42,7 @@ export const playerInputActionIdsV1 = Object.freeze({
   replayVoice: parseInputActionIdV1("player.replay_voice"),
   /** Held-key fast-forward (for example hold Ctrl → pin the presentation rate). */
   fastForward: parseInputActionIdV1("player.fast_forward"),
-});
+};
 
 export interface ViewportPointV1 {
   readonly x: number;
@@ -63,8 +63,8 @@ export type InputEventV1 =
 
 export type InputHandlerResultV1 = { readonly kind: "handled" } | { readonly kind: "ignored" };
 
-export const inputHandledV1 = Object.freeze({ kind: "handled" as const });
-export const inputIgnoredV1 = Object.freeze({ kind: "ignored" as const });
+export const inputHandledV1 = { kind: "handled" as const };
+export const inputIgnoredV1 = { kind: "ignored" as const };
 
 export type InputRouteResultV1 =
   | { readonly kind: "handled"; readonly context: InputContextIdV1 }

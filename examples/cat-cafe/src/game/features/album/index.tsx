@@ -20,7 +20,7 @@ import { catcafeAssetIdsV1 } from "../../../content/presentation.ts";
 export const catcafeAlbumPredicatesV1: readonly {
   readonly albumId: string;
   readonly unlocked: (publication: DeepReadonly<CatcafeUiPublicationV1>) => boolean;
-}[] = Object.freeze([
+}[] = [
   {
     albumId: "album.growth.rescue",
     unlocked: (publication) => publication.semantic.narrative.phase === "completed",
@@ -73,7 +73,7 @@ export const catcafeAlbumPredicatesV1: readonly {
     albumId: "album.memory.regular",
     unlocked: (publication) => publication.semantic.game.shop.reputation >= 40,
   },
-]);
+];
 
 export function useCatcafeAlbumWatcherV1(
   publication: DeepReadonly<CatcafeUiPublicationV1>,
@@ -98,12 +98,12 @@ export const catcafeAlbumAssetForV1 = (albumId: string): string | undefined => {
   }
   // Ending collection cards reuse scene art: champion=trophy, signboard=storefront, adoption=backyard, ordinary=rainy alley.
   if (albumId.startsWith("album.ending.")) {
-    const byEnding: Readonly<Record<string, string>> = Object.freeze({
+    const byEnding: Readonly<Record<string, string>> = {
       champion: catcafeAssetIdsV1.album_trophy7,
       signboard: catcafeAssetIdsV1.bg_shopfront,
       adopted: catcafeAssetIdsV1.bg_backyard,
       ordinary: catcafeAssetIdsV1.bg_title,
-    });
+    };
     return byEnding[albumId.slice("album.ending.".length)];
   }
   return catcafeAssetIdsV1[key as keyof typeof catcafeAssetIdsV1];

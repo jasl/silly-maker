@@ -23,7 +23,7 @@ const acceptedCapabilitiesV1 = new Set<RuntimeCapabilityIdV1>([
 ]);
 
 function rejectV1(code: CapabilityRequestRejectionCodeV1): CapabilityRequestParseResultV1 {
-  return Object.freeze({ kind: "rejected", code });
+  return ({ kind: "rejected", code });
 }
 
 function decodeQueryComponentV1(value: string): string | null {
@@ -38,7 +38,7 @@ function decodeQueryComponentV1(value: string): string | null {
 export function parseCapabilityRequestV1(query: string): CapabilityRequestParseResultV1 {
   const encodedQuery = query.startsWith("?") ? query.slice(1) : query;
   if (encodedQuery.length === 0) {
-    return Object.freeze({ kind: "accepted", requested: Object.freeze([]) });
+    return ({ kind: "accepted", requested: [] });
   }
 
   const requested: RuntimeCapabilityIdV1[] = [];
@@ -61,5 +61,5 @@ export function parseCapabilityRequestV1(query: string): CapabilityRequestParseR
     requested.push(capability);
   }
 
-  return Object.freeze({ kind: "accepted", requested: Object.freeze(requested) });
+  return ({ kind: "accepted", requested: requested });
 }

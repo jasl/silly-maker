@@ -13,7 +13,7 @@ import {
   emptyNarrativeHistory,
   parsePendingInteraction,
   parseStageMutation,
-  reduceStageMutations,
+  reduceAdmittedStageMutations,
 } from "@sillymaker/base/story";
 
 /**
@@ -46,12 +46,12 @@ export interface BookshopNarrativeStateV1 {
 }
 
 export function createInitialBookshopNarrativeStateV1(): BookshopNarrativeStateV1 {
-  return Object.freeze({
+  return ({
     phase: "idle" as const,
     cursor: null,
     pending: null,
     sequence: 0,
-    flags: Object.freeze([]),
+    flags: [],
     history: emptyNarrativeHistory,
   });
 }
@@ -103,31 +103,31 @@ export type BookshopNarrativeNodeV1 =
   | { readonly kind: "end"; readonly nodeId: string };
 
 /** Stage vocabulary shared by the script and the content catalog. */
-export const bookshopLayersV1 = Object.freeze({
+export const bookshopLayersV1 = {
   background: "layer.bookshop.background",
   characters: "layer.bookshop.characters",
-});
+};
 
-export const bookshopTagsV1 = Object.freeze({
+export const bookshopTagsV1 = {
   background: "tag.background",
   zhou: "tag.zhou",
   cheng: "tag.cheng",
-});
+};
 
-export const bookshopContentIdsV1 = Object.freeze({
+export const bookshopContentIdsV1 = {
   backgroundShop: "content.bookshop.background.shop",
   backgroundYard: "content.bookshop.background.yard",
   characterZhou: "content.bookshop.character.zhou",
   characterCheng: "content.bookshop.character.cheng",
-});
+};
 
 export const bookshopEntryNodeIdV1 = "node.bookshop.opening";
 export const bookshopHelpedFlagV1 = "flag.bookshop.helped";
 
 function batchV1(batch: readonly unknown[]): readonly StageMutation[] {
-  return Object.freeze(
-    batch.map((mutation, index) => parseStageMutation(mutation, `/mutations/${String(index)}`)),
-  );
+  return (batch.map((mutation, index) =>
+    parseStageMutation(mutation, `/mutations/${String(index)}`)
+  ));
 }
 
 function hasTagV1(stage: SemanticStageState, layerId: string, tag: string): boolean {
@@ -401,9 +401,7 @@ const nodesByIdV1: ReadonlyMap<string, BookshopNarrativeNodeV1> = new Map(
   bookshopScriptV1.map((node) => [node.nodeId, node]),
 );
 
-export const bookshopNodeIdsV1: readonly string[] = Object.freeze(
-  bookshopScriptV1.map((node) => node.nodeId),
-);
+export const bookshopNodeIdsV1: readonly string[] = bookshopScriptV1.map((node) => node.nodeId);
 
 function requireNodeV1(nodeId: string): BookshopNarrativeNodeV1 {
   const node = nodesByIdV1.get(nodeId);
@@ -417,7 +415,7 @@ export function bookshopChoiceOptionsForV1(
   for (const node of bookshopScriptV1) {
     if (node.kind === "choice" && node.definitionId === definitionId) return node.options;
   }
-  return Object.freeze([]);
+  return [];
 }
 
 /** The single choice-availability rule shared by view, preview, and dispatch. */
@@ -514,7 +512,7 @@ export function runBookshopNarrativeUntilInteractionV1(
     if (node.kind === "stage") {
       const mutations = node.mutations(localStage);
       if (mutations.length > 0) {
-        const outcome = reduceStageMutations(localStage, mutations);
+        const outcome = reduceAdmittedStageMutations(localStage, mutations);
         if (outcome.kind !== "applied") {
           throw new TypeError(`bookshop.narrative_stage_invalid:${node.nodeId}`);
         }
@@ -525,29 +523,29 @@ export function runBookshopNarrativeUntilInteractionV1(
       continue;
     }
     if (node.kind === "end") {
-      return Object.freeze({
-        narrative: Object.freeze({
+      return ({
+        narrative: {
           phase: "completed" as const,
           cursor: null,
           pending: null,
           sequence,
           flags: narrative.flags,
           history: narrative.history,
-        }),
-        stageMutations: Object.freeze(collected),
+        },
+        stageMutations: collected,
       });
     }
     sequence += 1;
-    return Object.freeze({
-      narrative: Object.freeze({
+    return ({
+      narrative: {
         phase: "active" as const,
         cursor: node.nodeId,
         pending: pendingForNodeV1(node, sequence),
         sequence,
         flags: narrative.flags,
         history: narrative.history,
-      }),
-      stageMutations: Object.freeze(collected),
+      },
+      stageMutations: collected,
     });
   }
   throw new TypeError("bookshop.narrative_runaway_script");
@@ -555,7 +553,7 @@ export function runBookshopNarrativeUntilInteractionV1(
 
 function withFlagsV1(flags: readonly string[], added: readonly string[]): readonly string[] {
   if (added.length === 0) return flags;
-  return Object.freeze([...new Set([...flags, ...added])].toSorted());
+  return ([...new Set([...flags, ...added])].toSorted());
 }
 
 /**
@@ -604,7 +602,7 @@ export function bookshopNarrativeAfterResolutionV1(
   } else {
     throw new TypeError(`bookshop.narrative_resolution_mismatch:${node.nodeId}`);
   }
-  return Object.freeze({
+  return ({
     phase: "active" as const,
     cursor: next,
     pending: null,
@@ -617,7 +615,7 @@ export function bookshopNarrativeAfterResolutionV1(
 export function bookshopNarrativeAtBeginV1(
   narrative: BookshopNarrativeStateV1,
 ): BookshopNarrativeStateV1 {
-  return Object.freeze({
+  return ({
     phase: "active" as const,
     cursor: bookshopEntryNodeIdV1,
     pending: null,

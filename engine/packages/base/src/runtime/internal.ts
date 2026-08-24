@@ -25,3 +25,8 @@ export {
   type BoundedCanonicalJsonRejectionCodeInternalV1,
   projectBoundedCanonicalJsonInternalV1,
 } from "../internal/bounded-canonical-projection.ts";
+export {
+  compileTimelineEvaluationInternalV1,
+  type TimelineEvaluationPlanInternalV1,
+  type TimelineEventOccurrenceInternalV1,
+} from "../contracts/timeline.ts";

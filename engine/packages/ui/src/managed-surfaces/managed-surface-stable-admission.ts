@@ -13,7 +13,6 @@ import {
 } from "@sillymaker/base/runtime/internal";
 
 import {
-  parseManagedSurfaceDefinitionIdV1,
   parseManagedSurfaceSlotIdV1,
   parseManagedSurfaceTargetOccurrenceIdV1,
   type ManagedSurfaceDefinitionIdV1,
@@ -23,7 +22,6 @@ import {
   type ManagedSurfaceSlotIdV1,
   type ManagedSurfaceTargetOccurrenceIdV1,
 } from "./managed-surface-contracts.ts";
-import { parseManagedSurfaceResolvedDefinitionV1 } from "./managed-surface-definition.ts";
 import {
   type ManagedSurfaceStableAdmittedTargetInternalV1,
   type ManagedSurfaceStableCanonicalParameterBytesInternalV1,
@@ -188,16 +186,6 @@ interface ReservationRecordInternalV1 {
   readonly reservedRootSlotIds: ReadonlySet<ManagedSurfaceSlotIdV1>;
 }
 
-interface AdmissionAuthorityConfigurationRecordInternalV1 {
-  readonly publisherLeaseRegistry: ManagedSurfaceStablePublisherLeaseRegistryInternalV1;
-  readonly slotDescriptorSignatures: readonly string[];
-}
-
-const admissionAuthorityConfigurationRecordsInternalV1 = new WeakMap<
-  ManagedSurfaceStableAdmissionAuthorityInternalV1,
-  AdmissionAuthorityConfigurationRecordInternalV1
->();
-
 interface CapturedTargetInternalV1 extends ManagedSurfaceStableTargetInternalV1 {
   readonly rawIndex: number;
 }
@@ -215,13 +203,13 @@ interface IdentityTargetInternalV1 {
   readonly structurallyStable: boolean;
 }
 
-const zeroDeltaInternalV1: ManagedSurfaceStableZeroDeltaInternalV1 = Object.freeze({
+const zeroDeltaInternalV1: ManagedSurfaceStableZeroDeltaInternalV1 = {
   source: "unchanged",
   runtime: "unchanged",
   notificationCount: 0,
   topology: "unchanged",
   runtimeAllocation: "zero",
-});
+};
 
 function zeroResultInternalV1<
   const TKind extends ManagedSurfaceStableAdmissionZeroResultInternalV1["kind"],
@@ -232,20 +220,10 @@ function zeroResultInternalV1<
     { readonly kind: NoInfer<TKind> }
   >["code"],
 ): Extract<ManagedSurfaceStableAdmissionZeroResultInternalV1, { readonly kind: TKind }> {
-  return Object.freeze({ kind, code, delta: zeroDeltaInternalV1 }) as unknown as Extract<
+  return { kind, code, delta: zeroDeltaInternalV1 } as unknown as Extract<
     ManagedSurfaceStableAdmissionZeroResultInternalV1,
     { readonly kind: TKind }
   >;
-}
-
-function requireSchemaInternalV1(value: RuntimeSchemaV1<unknown>): RuntimeSchemaV1<unknown> {
-  if ((typeof value !== "object" && typeof value !== "function") || value === null) {
-    throw new TypeError("ui.managed_surface_stable_schema_invalid");
-  }
-  if (typeof value.parse !== "function") {
-    throw new TypeError("ui.managed_surface_stable_schema_invalid");
-  }
-  return value;
 }
 
 function readPublicationInternalV1(value: unknown): {
@@ -275,37 +253,13 @@ function readTargetInternalV1(value: unknown, rawIndex: number): CapturedTargetI
   ) {
     return null;
   }
-  return Object.freeze({
+  return {
     occurrenceId: occurrenceId as ManagedSurfaceTargetOccurrenceIdV1,
     definitionId: definitionId as ManagedSurfaceDefinitionIdV1,
     parentOccurrenceId: parentOccurrenceId as ManagedSurfaceTargetOccurrenceIdV1 | null,
     parameters: record.parameters,
     rawIndex,
-  });
-}
-
-function freezeSlotDescriptorInternalV1(
-  value: ManagedSurfaceResolvedSlotDescriptorV1,
-): ManagedSurfaceResolvedSlotDescriptorV1 {
-  if (value.cardinality !== "single" && value.cardinality !== "stack") {
-    throw new TypeError("ui.managed_surface_stable_slot_descriptor_invalid");
-  }
-  if (value.kind === "root") {
-    return Object.freeze({
-      kind: "root",
-      slotId: parseManagedSurfaceSlotIdV1(value.slotId),
-      cardinality: value.cardinality,
-    });
-  }
-  if (value.kind === "child") {
-    return Object.freeze({
-      kind: "child",
-      parentDefinitionId: parseManagedSurfaceDefinitionIdV1(value.parentDefinitionId),
-      slotId: parseManagedSurfaceSlotIdV1(value.slotId),
-      cardinality: value.cardinality,
-    });
-  }
-  throw new TypeError("ui.managed_surface_stable_slot_descriptor_invalid");
+  };
 }
 
 function slotDescriptorKeyInternalV1(
@@ -314,41 +268,6 @@ function slotDescriptorKeyInternalV1(
   return descriptor.kind === "root"
     ? `root:${descriptor.slotId}`
     : `child:${descriptor.parentDefinitionId}:${descriptor.slotId}`;
-}
-
-function slotDescriptorSignatureInternalV1(
-  descriptor: ManagedSurfaceResolvedSlotDescriptorV1,
-): string {
-  return `${slotDescriptorKeyInternalV1(descriptor)}:${descriptor.cardinality}`;
-}
-
-/** Source-relative composition proof; no registry or catalog authority is exposed. */
-export function matchesManagedSurfaceStableAdmissionAuthorityConfigurationInternalV1(
-  authority: unknown,
-  publisherLeaseRegistry: unknown,
-  resolvedSlotDescriptors: unknown,
-): boolean {
-  if ((typeof authority !== "object" && typeof authority !== "function") || authority === null) {
-    return false;
-  }
-  const record = admissionAuthorityConfigurationRecordsInternalV1.get(
-    authority as ManagedSurfaceStableAdmissionAuthorityInternalV1,
-  );
-  if (record === undefined || record.publisherLeaseRegistry !== publisherLeaseRegistry) {
-    return false;
-  }
-  try {
-    if (!Array.isArray(resolvedSlotDescriptors)) return false;
-    const signatures = resolvedSlotDescriptors.map((value) =>
-      slotDescriptorSignatureInternalV1(
-        freezeSlotDescriptorInternalV1(value as ManagedSurfaceResolvedSlotDescriptorV1),
-      )
-    ).sort();
-    return signatures.length === record.slotDescriptorSignatures.length &&
-      signatures.every((signature, index) => signature === record.slotDescriptorSignatures[index]);
-  } catch {
-    return false;
-  }
 }
 
 function stackScopeKeyInternalV1(scope: ManagedSurfaceStableStackScopeInternalV1): string {
@@ -415,7 +334,7 @@ function validateOccurrenceClassificationInternalV1(
   const kind = record.kind;
   if (kind === "foreign" || kind === "unissued") {
     if (isRetainedOccurrence) return null;
-    return Object.freeze({ kind });
+    return { kind };
   }
   if (kind !== "retained" && kind !== "reused" && kind !== "fresh") return null;
   let occurrenceSequence: PositiveSafeInteger;
@@ -435,10 +354,10 @@ function validateOccurrenceClassificationInternalV1(
   ) {
     return null;
   }
-  return Object.freeze({
+  return {
     kind,
     occurrenceSequence,
-  });
+  };
 }
 
 /**
@@ -454,24 +373,22 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
 
   const definitions = new Map<ManagedSurfaceDefinitionIdV1, DefinitionRecordInternalV1>();
   for (const sidecar of definitionSidecars) {
-    const definition = parseManagedSurfaceResolvedDefinitionV1(sidecar.definition);
+    const definition = sidecar.definition;
     if (definitions.has(definition.definitionId)) {
       throw new TypeError("ui.managed_surface_stable_definition_duplicate");
     }
-    const parameterSchema = requireSchemaInternalV1(sidecar.parameterSchema);
     definitions.set(
       definition.definitionId,
-      Object.freeze({
+      {
         definition,
-        parameterSchema,
-      }),
+        parameterSchema: sidecar.parameterSchema,
+      },
     );
   }
 
   const slotDescriptors = new Map<string, ManagedSurfaceResolvedSlotDescriptorV1>();
   const rootSlotIds = new Set<ManagedSurfaceSlotIdV1>();
-  for (const value of resolvedSlotDescriptors) {
-    const descriptor = freezeSlotDescriptorInternalV1(value);
+  for (const descriptor of resolvedSlotDescriptors) {
     const key = slotDescriptorKeyInternalV1(descriptor);
     if (slotDescriptors.has(key)) {
       throw new TypeError("ui.managed_surface_stable_slot_descriptor_duplicate");
@@ -479,10 +396,6 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
     slotDescriptors.set(key, descriptor);
     if (descriptor.kind === "root") rootSlotIds.add(descriptor.slotId);
   }
-  const slotDescriptorSignatures = Object.freeze(
-    [...slotDescriptors.values()].map(slotDescriptorSignatureInternalV1).sort(),
-  );
-
   const baselineRecords = new WeakMap<
     ManagedSurfaceStableAcceptedBaselineInternalV1,
     BaselineRecordInternalV1
@@ -507,9 +420,9 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
   const createCanonicalBytes = (
     bytes: Uint8Array,
   ): ManagedSurfaceStableCanonicalParameterBytesInternalV1 => {
-    const handle = Object.freeze({
+    const handle = {
       byteLength: parsePositiveSafeInteger(bytes.byteLength),
-    }) as ManagedSurfaceStableCanonicalParameterBytesInternalV1;
+    } as ManagedSurfaceStableCanonicalParameterBytesInternalV1;
     canonicalByteRecords.set(handle, Uint8Array.from(bytes));
     return handle;
   };
@@ -521,14 +434,14 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
     targets: readonly ManagedSurfaceStableAdmittedTargetInternalV1[],
     acceptedOccurrenceHighWater: ManagedSurfaceStableAcceptedOccurrenceHighWaterInternalV1,
   ): Extract<ManagedSurfaceStableAcceptedBaselineInternalV1, { kind: "accepted" }> => {
-    const baseline = Object.freeze({
+    const baseline = {
       kind: "accepted" as const,
       publisherLease,
       ownerId,
       sourceRevision,
       targets,
       acceptedOccurrenceHighWater,
-    });
+    };
     baselineRecords.set(baseline, {
       publisherLease,
       acceptedOccurrenceHighWater,
@@ -539,7 +452,7 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
     return baseline;
   };
 
-  const authority: ManagedSurfaceStableAdmissionAuthorityInternalV1 = Object.freeze({
+  const authority: ManagedSurfaceStableAdmissionAuthorityInternalV1 = {
     createUnpublishedBaseline(
       publisherLease: ManagedSurfaceStablePublisherLeaseInternalV1,
     ): Extract<
@@ -551,24 +464,22 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
         throw new TypeError("ui.managed_surface_stable_publisher_lease_stale");
       }
       const cursor = publisherLeaseRegistry.createAcceptedOccurrenceHighWater(publisherLease);
-      const baseline = Object.freeze({
+      const baseline = {
         kind: "unpublished" as const,
         publisherLease,
         acceptedOccurrenceHighWater: cursor,
-      });
+      };
       baselineRecords.set(baseline, {
         publisherLease,
         acceptedOccurrenceHighWater: cursor,
         ownerId: null,
         sourceRevision: null,
-        targets: Object.freeze([]),
+        targets: [],
       });
       return baseline;
     },
     createReservationGenerationToken(): ManagedSurfaceStableReservationGenerationTokenInternalV1 {
-      const token = Object.freeze(
-        {},
-      ) as ManagedSurfaceStableReservationGenerationTokenInternalV1;
+      const token = {} as ManagedSurfaceStableReservationGenerationTokenInternalV1;
       generationTokens.add(token);
       return token;
     },
@@ -594,14 +505,12 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
         }
         unique.add(slotId);
       }
-      const reservedRootSlotIds = Object.freeze(
-        [...unique].sort(compareStableIdsInternalV1),
-      );
-      const snapshot = Object.freeze({
+      const reservedRootSlotIds = [...unique].sort(compareStableIdsInternalV1);
+      const snapshot = {
         subjectPublisherLease: snapshotInput.subjectPublisherLease,
         generationToken: snapshotInput.generationToken,
         reservedRootSlotIds,
-      });
+      };
       reservationRecords.set(snapshot, {
         subjectPublisherLease: snapshotInput.subjectPublisherLease,
         generationToken: snapshotInput.generationToken,
@@ -878,7 +787,7 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
         let descriptor: ManagedSurfaceResolvedSlotDescriptorV1 | undefined;
         if (definition.placement === "root") {
           descriptor = slotDescriptors.get(`root:${definition.slotId}`);
-          stackScope = Object.freeze({ kind: "root", slotId: definition.slotId });
+          stackScope = { kind: "root", slotId: definition.slotId };
         } else {
           const parentIndex = occurrenceIndex.get(raw.parentOccurrenceId)!;
           const parentDefinition = definitionByIndex[parentIndex]!.definition;
@@ -888,11 +797,11 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
           descriptor = slotDescriptors.get(
             `child:${parentDefinition.definitionId}:${definition.slotId}`,
           );
-          stackScope = Object.freeze({
+          stackScope = {
             kind: "child",
             parentOccurrenceId,
             slotId: definition.slotId,
-          });
+          };
         }
         if (descriptor === undefined) {
           return zeroResultInternalV1("rejected", "surface.stable_slot_invalid");
@@ -905,7 +814,7 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
           retainedTarget.definitionContractRevision === definition.contractRevision &&
           retainedTarget.parentOccurrenceId === parentOccurrenceId &&
           stackScopeEqualInternalV1(retainedTarget.stackScope, stackScope);
-        identityTargets.push(Object.freeze({
+        identityTargets.push({
           raw,
           occurrenceId,
           definitionRecord,
@@ -916,7 +825,7 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
           classification: classificationByIndex[index]!,
           retainedTarget,
           structurallyStable,
-        }));
+        });
       }
 
       for (const target of identityTargets) {
@@ -1012,7 +921,7 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
           nextTargets.push(target.retainedTarget);
         } else {
           const canonicalParameterBytes = createCanonicalBytes(canonical.bytes);
-          const admittedTarget = Object.freeze({
+          const admittedTarget = {
             publisherLease: publisherLease as ManagedSurfaceStablePublisherLeaseInternalV1,
             ownerId: leaseSnapshot.ownerId,
             occurrenceId: target.occurrenceId,
@@ -1022,7 +931,7 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
             stackScope: target.stackScope,
             normalizedParameters: canonical.value as DeepReadonly<StrictJsonValueV1>,
             canonicalParameterBytes,
-          });
+          };
           admittedTargetDefinitions.set(
             admittedTarget,
             target.definitionRecord.definition,
@@ -1087,14 +996,14 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
       } catch {
         return zeroResultInternalV1("faulted", "surface.stable_admission_faulted");
       }
-      const frozenTargets = sameVector && baselineRecord.sourceRevision !== null
+      const acceptedTargets = sameVector && baselineRecord.sourceRevision !== null
         ? baselineRecord.targets
-        : Object.freeze(nextTargets);
+        : nextTargets;
       const nextAcceptedBaseline = createAcceptedBaseline(
         publisherLease as ManagedSurfaceStablePublisherLeaseInternalV1,
         leaseSnapshot.ownerId,
         sourceRevision,
-        frozenTargets,
+        acceptedTargets,
         nextAcceptedOccurrenceHighWater,
       );
       const relation: ManagedSurfaceStableAdmissionRelationInternalV1 = !acceptedBefore
@@ -1102,24 +1011,19 @@ export function createManagedSurfaceStableAdmissionAuthorityInternalV1(
         : sameVector
         ? "greater_same"
         : "greater_changed";
-      const proposal = Object.freeze({
+      const proposal = {
         relation,
-        captured: Object.freeze({
+        captured: {
           lease: publisherLease as ManagedSurfaceStablePublisherLeaseInternalV1,
           acceptedBaseline,
           reservationSnapshot,
-        }),
+        },
         nextAcceptedBaseline,
-      });
+      };
       admissionProposals.add(proposal);
-      return Object.freeze({ kind: "admitted", proposal });
+      return { kind: "admitted", proposal };
     },
-  });
-
-  admissionAuthorityConfigurationRecordsInternalV1.set(authority, {
-    publisherLeaseRegistry,
-    slotDescriptorSignatures,
-  });
+  };
 
   return authority;
 }

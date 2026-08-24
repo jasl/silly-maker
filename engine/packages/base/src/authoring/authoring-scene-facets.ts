@@ -9,7 +9,7 @@ import {
   type StagePlacementV1,
   type StageTagV1,
 } from "../contracts/semantic-stage.ts";
-import { reduceStageMutationsV1 } from "../contracts/semantic-stage-reducer.ts";
+import { reduceAdmittedStageMutationsV1 } from "../contracts/semantic-stage-reducer.ts";
 import type {
   StageContentCatalogV1,
   StageContentGeometryV1,
@@ -127,9 +127,9 @@ function targetKeyV1(layerId: string, tag: string): string {
 }
 
 function uniqueMotionChannelsV1(definition: MotionDefinitionV1): readonly MotionChannelV1[] {
-  return Object.freeze([
+  return [
     ...new Set(definition.tracks.map((track) => track.channel)),
-  ]);
+  ];
 }
 
 function timelineChannelsV1(
@@ -140,7 +140,7 @@ function timelineChannelsV1(
   const definition = catalog.resolveTimeline(timelineId);
   if (definition === null) return null;
   const sample = evaluateTimelineAtV1(definition, timelineDurationV1(definition));
-  return Object.freeze(sample.values.map((value, index) => {
+  return (sample.values.map((value, index) => {
     let targetObjectId: StageTagV1 | null = null;
     if (value.target.kind === "entry") {
       targetObjectId = objectsByTarget.get(targetKeyV1(value.target.layerId, value.target.tag)) ??
@@ -152,7 +152,7 @@ function timelineChannelsV1(
         );
       }
     }
-    return Object.freeze({
+    return ({
       target: value.target,
       targetObjectId,
       property: value.property,
@@ -180,7 +180,7 @@ export function projectAuthoringSceneFacetsV1(
     layerIds: compiled.runtimePlan.orderedLayerIds,
   });
   const scene = sceneFromAuthoringRuntimePlanV1(compiled.runtimePlan);
-  const opened = reduceStageMutationsV1(initialStage, scene.openMutations(initialStage));
+  const opened = reduceAdmittedStageMutationsV1(initialStage, scene.openMutations(initialStage));
   if (opened.kind === "rejected") {
     return dataFailure(opened.rejection.pointer, "authoring_scene_runtime_projection_invalid");
   }
@@ -242,27 +242,27 @@ export function projectAuthoringSceneFacetsV1(
         const intentId = intentsByObjectRegion.get(
           `${objectId as string}\u0000${region.regionId}`,
         ) ?? null;
-        facets.hitRegions.push(Object.freeze({
+        facets.hitRegions.push({
           regionId: region.regionId,
           status: "resolved" as const,
           declared: declared.has(region.regionId),
           accessibleNameText: region.accessibleNameText,
-          bounds: Object.freeze({
+          bounds: {
             x: region.x,
             y: region.y,
             width: region.width,
             height: region.height,
-          }),
+          },
           polygonPoints: region.polygonPoints ?? null,
           hoverAssetId: region.hoverAssetId ?? null,
           intentId,
-        }));
-        paintPickOrder.push(Object.freeze({
+        });
+        paintPickOrder.push({
           objectId,
           layerId: layer.layerId,
           tag: entry.tag,
           regionId: region.regionId,
-        }));
+        });
       }
     }
   }
@@ -272,7 +272,7 @@ export function projectAuthoringSceneFacetsV1(
     if (actual?.has(reference.id) === true) continue;
     const facets = mutableByObject.get(reference.objectId as string);
     if (facets === undefined) continue;
-    facets.hitRegions.push(Object.freeze({
+    facets.hitRegions.push({
       regionId: reference.id,
       status: "unresolved" as const,
       declared: true,
@@ -283,7 +283,7 @@ export function projectAuthoringSceneFacetsV1(
       intentId: intentsByObjectRegion.get(
         `${reference.objectId as string}\u0000${reference.id}`,
       ) ?? null,
-    }));
+    });
   }
 
   const motionDefinitions = options.motionDefinitions === undefined
@@ -302,11 +302,11 @@ export function projectAuthoringSceneFacetsV1(
       : definition === undefined
       ? "unresolved"
       : "resolved";
-    facets.motions.push(Object.freeze({
+    facets.motions.push({
       motionId: reference.id,
       status,
-      channels: definition === undefined ? Object.freeze([]) : uniqueMotionChannelsV1(definition),
-    }));
+      channels: definition === undefined ? [] : uniqueMotionChannelsV1(definition),
+    });
   }
 
   for (const reference of compiled.bindings.timelines) {
@@ -321,48 +321,48 @@ export function projectAuthoringSceneFacetsV1(
         options.timelineCatalog,
         objectsByTarget,
       );
-    facets.timelines.push(Object.freeze({
+    facets.timelines.push({
       timelineId: reference.id,
       status: channels === undefined ? "external" : channels === null ? "unresolved" : "resolved",
-      channels: channels ?? Object.freeze([]),
-    }));
+      channels: channels ?? [],
+    });
   }
 
   for (const reference of compiled.bindings.guiControls) {
-    mutableByObject.get(reference.objectId as string)?.guiControls.push(Object.freeze({
+    mutableByObject.get(reference.objectId as string)?.guiControls.push({
       controlId: reference.controlId,
       intentId: reference.intentId,
       status: "external" as const,
-    }));
+    });
   }
   for (const reference of compiled.bindings.interactions) {
     const actual = actualRegionsByObject.get(reference.objectId as string);
-    mutableByObject.get(reference.objectId as string)?.interactions.push(Object.freeze({
+    mutableByObject.get(reference.objectId as string)?.interactions.push({
       regionId: reference.regionId,
       intentId: reference.intentId,
       status: actual?.has(reference.regionId) === true ? "resolved" : "unresolved",
-    }));
+    });
   }
 
   const objectEntries = [...mutableByObject].map(([objectId, facets]) =>
     [
       objectId,
-      Object.freeze({
+      {
         inspection: facets.inspection,
         placement: facets.placement,
         geometry: facets.geometry,
-        hitRegions: Object.freeze(facets.hitRegions),
-        motions: Object.freeze(facets.motions),
-        timelines: Object.freeze(facets.timelines),
-        guiControls: Object.freeze(facets.guiControls),
-        interactions: Object.freeze(facets.interactions),
-      }),
+        hitRegions: facets.hitRegions,
+        motions: facets.motions,
+        timelines: facets.timelines,
+        guiControls: facets.guiControls,
+        interactions: facets.interactions,
+      },
     ] as const
   );
 
-  return Object.freeze({
-    objects: Object.freeze(Object.fromEntries(objectEntries)),
-    pointerPickOrder: Object.freeze(paintPickOrder.toReversed()),
+  return ({
+    objects: Object.fromEntries(objectEntries),
+    pointerPickOrder: paintPickOrder.toReversed(),
     renderDiagnostics: rendered.diagnostics,
   });
 }

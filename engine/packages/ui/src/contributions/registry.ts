@@ -6,17 +6,15 @@ import type {
   UiRendererNamespaceV1,
 } from "./types.ts";
 
-const rendererNamespacesV1 = Object.freeze(
-  [
-    "background",
-    "character",
-    "scene_interaction",
-    "hud",
-    "workspace_overlay",
-    "narrative",
-    "system",
-  ] as const satisfies readonly UiRendererNamespaceV1[],
-);
+const rendererNamespacesV1 = [
+  "background",
+  "character",
+  "scene_interaction",
+  "hud",
+  "workspace_overlay",
+  "narrative",
+  "system",
+] as const satisfies readonly UiRendererNamespaceV1[];
 
 type StoredRendererV1 = Readonly<{
   readonly kind: "found";
@@ -26,7 +24,7 @@ type StoredRendererV1 = Readonly<{
 function createRendererMapsV1(): Readonly<
   Record<UiRendererNamespaceV1, Map<string, StoredRendererV1>>
 > {
-  return Object.freeze({
+  return {
     background: new Map(),
     character: new Map(),
     scene_interaction: new Map(),
@@ -34,7 +32,7 @@ function createRendererMapsV1(): Readonly<
     workspace_overlay: new Map(),
     narrative: new Map(),
     system: new Map(),
-  });
+  };
 }
 
 function isEmptyIdV1(value: string): boolean {
@@ -79,25 +77,20 @@ export function createUiContributionRegistryV1<
           throw new TypeError(`ui.duplicate_renderer_id:${namespace}:${contribution.rendererId}`);
         }
 
-        rendererMap.set(
-          contribution.rendererId,
-          Object.freeze({
-            kind: "found",
-            component: contribution.component as ComponentType<unknown>,
-          }),
-        );
+        rendererMap.set(contribution.rendererId, {
+          kind: "found",
+          component: contribution.component as ComponentType<unknown>,
+        });
       }
     }
   }
 
-  for (const namespace of rendererNamespacesV1) Object.freeze(rendererMaps[namespace]);
-
-  const notFound = Object.freeze({
+  const notFound = {
     kind: "not_found" as const,
     code: "ui.renderer_not_found" as const,
-  });
+  };
 
-  return Object.freeze({
+  return {
     resolve<TNamespace extends UiRendererNamespaceV1>(namespace: TNamespace, rendererId: string) {
       const found = rendererMaps[namespace].get(rendererId);
       if (found === undefined) return notFound;
@@ -106,5 +99,5 @@ export function createUiContributionRegistryV1<
         readonly component: ComponentType<TContexts[TNamespace]>;
       }>;
     },
-  });
+  };
 }

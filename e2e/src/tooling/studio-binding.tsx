@@ -13,41 +13,41 @@ import { defineExperimentalEmbeddedAgentBindingInternalV1 } from "@sillymaker/st
 import { labStageRenderersV1 } from "../application/stage-rendering.tsx";
 import { labStageContentCatalogV1 } from "../presentation.ts";
 
-const labResearcherAppearanceFieldsV1 = Object.freeze([
-  Object.freeze({
+const labResearcherAppearanceFieldsV1 = [
+  {
     key: "pose",
     label: "姿态",
-    values: Object.freeze(["standing"]),
-  }),
-  Object.freeze({
+    values: ["standing"],
+  },
+  {
     key: "expression",
     label: "表情",
-    values: Object.freeze(["neutral", "focused", "pleased"]),
-  }),
-]);
+    values: ["neutral", "focused", "pleased"],
+  },
+];
 
 const labAgentActionIdV1 = "engine-lab.scene.move-alpha";
 
 function labAgentArtifactV1(actionId = labAgentActionIdV1): unknown {
-  return Object.freeze({
+  return ({
     schemaRevision: 1,
-    root: Object.freeze({
+    root: {
       kind: "column",
       nodeId: "engine-lab.artifact.root",
-      children: Object.freeze([
-        Object.freeze({
+      children: [
+        {
           kind: "text",
           nodeId: "engine-lab.artifact.summary",
           text: "将研究员甲移动到实验区中央。",
-        }),
-        Object.freeze({
+        },
+        {
           kind: "action",
           nodeId: "engine-lab.artifact.apply",
           label: "应用场景草稿修改",
           actionId,
-        }),
-      ]),
-    }),
+        },
+      ],
+    },
   });
 }
 
@@ -64,7 +64,7 @@ function createLabAgentClientV1(): AgentRpcClientPortInternalV1 {
     timers.add(timer);
   };
 
-  return Object.freeze({
+  return ({
     getSnapshot: client.getSnapshot,
     subscribe: client.subscribe,
     subscribeStream: client.subscribeStream,
@@ -75,13 +75,13 @@ function createLabAgentClientV1(): AgentRpcClientPortInternalV1 {
       if (result.kind !== "submitted") return result;
       const runId = result.runId;
       const complete = input.text.includes("未知节点")
-        ? Object.freeze({
+        ? ({
           schemaRevision: 1,
-          root: Object.freeze({
+          root: {
             kind: "html",
             nodeId: "engine-lab.artifact.unknown",
             html: "<button>not admitted</button>",
-          }),
+          },
         })
         : input.text.includes("未知动作")
         ? labAgentArtifactV1("engine-lab.scene.unknown")
@@ -89,7 +89,7 @@ function createLabAgentClientV1(): AgentRpcClientPortInternalV1 {
       const late = input.text.includes("取消晚到");
       const heldForSuccessor = input.text === "换代期间保持流";
       schedule(0, () => {
-        fake.emit(Object.freeze({
+        fake.emit({
           kind: "artifact_chunk",
           sessionId: input.sessionId,
           runId,
@@ -99,25 +99,25 @@ function createLabAgentClientV1(): AgentRpcClientPortInternalV1 {
             : late
             ? "正在等待取消后的迟到结果…"
             : "正在生成安全的 UiArtifact…",
-        }));
+        });
       });
       if (heldForSuccessor) return result;
       schedule(late ? 250 : 80, () => {
-        fake.emit(Object.freeze({
+        fake.emit({
           kind: "artifact_complete",
           sessionId: input.sessionId,
           runId,
           sequence: 2,
           candidate: complete,
-        }));
+        });
       });
       schedule(late ? 275 : 100, () => {
-        fake.emit(Object.freeze({
+        fake.emit({
           kind: "run_completed",
           sessionId: input.sessionId,
           runId,
           sequence: 3,
-        }));
+        });
       });
       return result;
     },
@@ -134,24 +134,24 @@ function createLabAgentClientV1(): AgentRpcClientPortInternalV1 {
   });
 }
 
-const labStudioCoreBindingV1: StudioBindingV1 = Object.freeze({
+const labStudioCoreBindingV1: StudioBindingV1 = {
   catalog: labStageContentCatalogV1,
   renderers: labStageRenderersV1,
-  contents: Object.freeze([
+  contents: [
     {
       contentId: "content.e2e.bg.storeroom",
       label: "储藏室",
       category: "background" as const,
       defaultLayerId: "layer.e2e.background",
       defaultZOrder: 0,
-      defaultPlacement: Object.freeze({
+      defaultPlacement: {
         x: 0,
         y: 0,
         scalePermille: 1000,
         opacityPermille: 1000,
         mirrored: false,
-      }),
-      defaultAppearance: Object.freeze({}),
+      },
+      defaultAppearance: {},
     },
     {
       contentId: "content.e2e.char.alpha",
@@ -159,14 +159,14 @@ const labStudioCoreBindingV1: StudioBindingV1 = Object.freeze({
       category: "character" as const,
       defaultLayerId: "layer.e2e.characters",
       defaultZOrder: 0,
-      defaultPlacement: Object.freeze({
+      defaultPlacement: {
         x: 480,
         y: 620,
         scalePermille: 1000,
         opacityPermille: 1000,
         mirrored: false,
-      }),
-      defaultAppearance: Object.freeze({ pose: "standing", expression: "neutral" }),
+      },
+      defaultAppearance: { pose: "standing", expression: "neutral" },
       appearanceFields: labResearcherAppearanceFieldsV1,
     },
     {
@@ -175,37 +175,37 @@ const labStudioCoreBindingV1: StudioBindingV1 = Object.freeze({
       category: "character" as const,
       defaultLayerId: "layer.e2e.characters",
       defaultZOrder: 1,
-      defaultPlacement: Object.freeze({
+      defaultPlacement: {
         x: 1120,
         y: 620,
         scalePermille: 1000,
         opacityPermille: 1000,
         mirrored: true,
-      }),
-      defaultAppearance: Object.freeze({ pose: "standing", expression: "neutral" }),
+      },
+      defaultAppearance: { pose: "standing", expression: "neutral" },
       appearanceFields: labResearcherAppearanceFieldsV1,
     },
-  ]),
-});
+  ],
+};
 
 export const labStudioBindingV1: StudioBindingV1 = defineExperimentalEmbeddedAgentBindingInternalV1(
   labStudioCoreBindingV1,
   {
     configurationId: "engine-lab.agent.fake",
     createClient: createLabAgentClientV1,
-    sceneActions: Object.freeze({
-      [labAgentActionIdV1]: Object.freeze({
+    sceneActions: {
+      [labAgentActionIdV1]: {
         schemaRevision: 1,
         kind: "scene.entry.set_placement",
         tag: "tag.e2e.alpha",
-        placement: Object.freeze({
+        placement: {
           x: 640,
           y: 620,
           scalePermille: 1000,
           opacityPermille: 1000,
           mirrored: false,
-        }),
-      }),
-    }),
+        },
+      },
+    },
   },
 );

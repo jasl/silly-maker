@@ -32,24 +32,22 @@ import {
 
 afterEach(cleanup);
 
-const slotIdsV1 = Object.freeze(
-  [
-    "auto.current",
-    "auto.previous",
-    "quick",
-    "manual.1",
-    "manual.2",
-  ] as const satisfies readonly SaveSlotIdV1[],
-);
+const slotIdsV1 = [
+  "auto.current",
+  "auto.previous",
+  "quick",
+  "manual.1",
+  "manual.2",
+] as const satisfies readonly SaveSlotIdV1[];
 
-const exportedSaveV1 = Object.freeze({
+const exportedSaveV1 = ({
   filename: "tavern-save.json",
   mediaType: "application/json",
   digest: parseDigest(`sha256:${"0".repeat(64)}`),
   bytes: new Uint8Array([1, 2, 3]),
 }) satisfies ExportedSaveV1;
 
-const labelsV1 = Object.freeze({
+const labelsV1 = ({
   accessibleName: "存档管理",
   title: "存档管理",
   storageLoading: "正在读取本地存档状态…",
@@ -59,19 +57,19 @@ const labelsV1 = Object.freeze({
   slotsUnavailable: "无法读取存档槽位",
   safelySaved: (sequence: number) => `已安全保存至指令 ${sequence}`,
   lastFailure: (code: string) => `最近一次存储错误：${code}`,
-  slotNames: Object.freeze({
+  slotNames: {
     "auto.current": "当前自动存档",
     "auto.previous": "上一自动存档",
     quick: "快速存档",
     manualSlot: (index: number) => `手动存档 ${index}`,
-  }),
-  slotHealth: Object.freeze({
+  },
+  slotHealth: {
     empty: "空槽位",
     valid: "存档有效",
     invalid: "存档损坏",
     recovery_candidate: "可恢复的备用存档",
     unavailable: "槽位不可用",
-  }),
+  },
   quickSave: "快速保存",
   manualSave: "手动保存",
   importSave: "导入存档",
@@ -79,7 +77,7 @@ const labelsV1 = Object.freeze({
   loadSlot: (slotName: string) => `读取${slotName}`,
   clearSlot: (slotName: string) => `清除${slotName}`,
   exportSlot: (slotName: string) => `导出${slotName}`,
-  confirmation: Object.freeze({
+  confirmation: {
     loadTitle: (slotName: string) => `确认读取${slotName}`,
     loadDescription: (slotName: string) => `当前进度将被${slotName}替换。`,
     clearTitle: (slotName: string) => `确认清除${slotName}`,
@@ -91,8 +89,8 @@ const labelsV1 = Object.freeze({
     pendingText: "正在提交操作…",
     completedText: "操作已返回结果",
     failedText: "操作未能提交",
-  }),
-  operation: Object.freeze({
+  },
+  operation: {
     saving: (slotName: string) => `正在安全写入${slotName}…`,
     loading: (slotName: string) => `正在读取${slotName}…`,
     clearing: (slotName: string) => `正在清除${slotName}…`,
@@ -106,13 +104,13 @@ const labelsV1 = Object.freeze({
     importedExact: "已导入完全兼容的存档",
     importedAdopted: "已导入并采用兼容补丁的存档",
     importCancelled: "已取消导入存档",
-    importFileRejected: Object.freeze({
+    importFileRejected: {
       too_large: "所选存档文件过大",
       unsupported_type: "所选文件类型不受支持",
-    }),
+    },
     exported: (slotName: string) => `${slotName}已导出`,
     exportedCurrent: "当前进度已导出",
-    rejected: Object.freeze({
+    rejected: {
       busy: "存储正忙，请稍后重试",
       unavailable: "本地存储不可用",
       empty_slot: "该槽位没有存档",
@@ -124,19 +122,19 @@ const labelsV1 = Object.freeze({
       migration_unavailable: "当前版本尚未提供此存档所需的迁移",
       migration_rejected: "存档迁移失败",
       incompatible: "存档与当前游戏不兼容",
-    }),
-    exportRejected: Object.freeze({
+    },
+    exportRejected: {
       unavailable: "本地存储不可用",
       empty_slot: "该槽位没有存档",
       conflict: "存档已被其他页面更新",
       invalid_record: "存档记录无效",
-    }),
+    },
     faulted: (code: string) => `存档操作失败：${code}`,
     unexpectedFailure: "存档操作发生未预期错误",
-  }),
-  recovery: Object.freeze({
+  },
+  recovery: {
     checking: "正在检查兼容性…",
-    disposition: Object.freeze({
+    disposition: {
       direct: "可直接读取",
       migration_required: "需要升级存档格式",
       adoption_required: "需要采用兼容补丁",
@@ -148,29 +146,29 @@ const labelsV1 = Object.freeze({
       invalid_record: "无法安全检查此存档",
       unavailable: "暂时无法检查此存档",
       faulted: "兼容性检查失败",
-    }),
-    backup: Object.freeze({
+    },
+    backup: {
       available: "迁移前备份可用",
       invalid: "迁移前备份已损坏",
       unavailable: "暂时无法检查迁移前备份",
-    }),
-    action: Object.freeze({
+    },
+    action: {
       inspect: "检查兼容性与备份",
       upgrade: "安全升级",
       reanchor: "重建兼容历史",
       restore: "恢复迁移前备份",
       exportBackup: "导出迁移前备份",
       discard: "丢弃迁移前备份",
-    }),
-    confirmation: Object.freeze({
+    },
+    confirmation: {
       reanchorTitle: (slotName: string) => `重建${slotName}兼容历史`,
       reanchorDescription: (slotName: string) => `${slotName}将写入当前格式，并保留可恢复备份。`,
       restoreTitle: (slotName: string) => `恢复${slotName}备份`,
       restoreDescription: (slotName: string) => `${slotName}的当前内容将被迁移前备份替换。`,
       discardTitle: (slotName: string) => `丢弃${slotName}备份`,
       discardDescription: (slotName: string) => `${slotName}的迁移前备份将被永久删除。`,
-    }),
-    operation: Object.freeze({
+    },
+    operation: {
       upgrading: (slotName: string) => `正在升级${slotName}…`,
       reanchoring: (slotName: string) => `正在重建${slotName}兼容历史…`,
       restoring: (slotName: string) => `正在恢复${slotName}备份…`,
@@ -182,7 +180,7 @@ const labelsV1 = Object.freeze({
       restored: "迁移前备份已恢复，请确认后再读取",
       backupExported: "迁移前备份已导出",
       discarded: "迁移前备份已丢弃",
-      rejected: Object.freeze({
+      rejected: {
         busy: "恢复操作正在进行，请稍后重试",
         unavailable: "本地存储暂时不可用",
         empty_slot: "该槽位没有可升级的存档",
@@ -196,14 +194,14 @@ const labelsV1 = Object.freeze({
         not_required: "该存档无需执行此操作",
         empty_backup: "该槽位没有迁移前备份",
         invalid_backup: "迁移前备份已损坏",
-      }),
+      },
       faulted: "恢复操作失败，请重试",
-    }),
-  }),
+    },
+  },
 }) satisfies SaveOverlayLabelsV1;
 
 function statusV1(overrides: Partial<PersistenceStatusV1> = {}): PersistenceStatusV1 {
-  return Object.freeze({
+  return ({
     available: true,
     busy: false,
     safelySavedCommandSequence: null,
@@ -213,14 +211,14 @@ function statusV1(overrides: Partial<PersistenceStatusV1> = {}): PersistenceStat
 }
 
 function slotV1(slotId: SaveSlotIdV1, health: SaveSlotHealthV1): SaveSlotSummaryV1 {
-  return Object.freeze({
+  return ({
     slotId,
     health,
     recordRevision: null,
     capturedCommandSequence: null,
     savedAt: null,
     annotation: null,
-    warningCodes: Object.freeze([]),
+    warningCodes: [],
   });
 }
 
@@ -244,23 +242,21 @@ interface FixtureOptionsV1 {
   readonly recovery?: boolean;
 }
 
-const inspectionDiagnosticsV1 = Object.freeze({
-  codes: Object.freeze([]),
+const inspectionDiagnosticsV1 = {
+  codes: [],
   migrationAttempt: null,
   migrationReasonCode: null,
   storedStateContractRevision: null,
   currentStateContractRevision: null,
-});
+};
 
-const recoveryActionNamesV1 = Object.freeze(
-  [
-    labelsV1.recovery.action.upgrade,
-    labelsV1.recovery.action.reanchor,
-    labelsV1.recovery.action.restore,
-    labelsV1.recovery.action.exportBackup,
-    labelsV1.recovery.action.discard,
-  ] as const,
-);
+const recoveryActionNamesV1 = [
+  labelsV1.recovery.action.upgrade,
+  labelsV1.recovery.action.reanchor,
+  labelsV1.recovery.action.restore,
+  labelsV1.recovery.action.exportBackup,
+  labelsV1.recovery.action.discard,
+] as const;
 
 type RecoveryActionNameV1 = (typeof recoveryActionNamesV1)[number];
 
@@ -286,24 +282,24 @@ function acceptedInspectionResultV1(
     | "adoption_required"
     | "migration_and_adoption_required",
 ): SaveInspectionResultV1 {
-  const common = Object.freeze({
+  const common = {
     slotId: "quick" as const,
-    warnings: Object.freeze([]),
+    warnings: [],
     diagnostics: inspectionDiagnosticsV1,
-  });
+  };
   switch (kind) {
     case "direct":
-      return Object.freeze({ kind, ...common });
+      return ({ kind, ...common });
     case "migration_required":
-      return Object.freeze({ kind, ...common, migration: Object.freeze({}) as never });
+      return ({ kind, ...common, migration: ({}) as never });
     case "adoption_required":
-      return Object.freeze({ kind, ...common, adoption: Object.freeze({}) as never });
+      return ({ kind, ...common, adoption: ({}) as never });
     case "migration_and_adoption_required":
-      return Object.freeze({
+      return ({
         kind,
         ...common,
-        migration: Object.freeze({}) as never,
-        adoption: Object.freeze({}) as never,
+        migration: ({}) as never,
+        adoption: ({}) as never,
       });
     default: {
       const unreachableKind: never = kind;
@@ -315,7 +311,7 @@ function acceptedInspectionResultV1(
 function inspectOnlyResultV1(
   code: Extract<SaveInspectionResultV1, { readonly kind: "inspect_only" }>["code"],
 ): SaveInspectionResultV1 {
-  return Object.freeze({
+  return ({
     kind: "inspect_only",
     slotId: "quick",
     code,
@@ -326,7 +322,7 @@ function inspectOnlyResultV1(
 function rejectedInspectionResultV1(
   code: Extract<SaveInspectionResultV1, { readonly kind: "rejected" }>["code"],
 ): SaveInspectionResultV1 {
-  return Object.freeze({
+  return ({
     kind: "rejected",
     slotId: "quick",
     code,
@@ -340,12 +336,12 @@ function fixtureV1(options: FixtureOptionsV1 = {}) {
   const getStatus = vi.fn(() => options.status ?? statusV1());
   const listSlots = vi.fn(async () => slots);
   const save = vi.fn(async (slotId: SaveUiWritableSlotIdV1) =>
-    Promise.resolve(options.saveResult ?? Object.freeze({ kind: "saved" as const, slotId }))
+    Promise.resolve(options.saveResult ?? ({ kind: "saved" as const, slotId }))
   );
   const load = vi.fn(async (_slotId: SaveSlotIdV1) =>
     Promise.resolve(
       options.loadResult ??
-        Object.freeze({
+        ({
           kind: "loaded" as const,
           compatibility: "exact" as const,
           commandSequence: parseNonNegativeSafeInteger(0),
@@ -353,12 +349,12 @@ function fixtureV1(options: FixtureOptionsV1 = {}) {
     )
   );
   const clear = vi.fn(async (slotId: SaveSlotIdV1) =>
-    Promise.resolve(options.clearResult ?? Object.freeze({ kind: "cleared" as const, slotId }))
+    Promise.resolve(options.clearResult ?? ({ kind: "cleared" as const, slotId }))
   );
   const importSave = vi.fn(async () =>
     Promise.resolve(
       options.importResult ??
-        Object.freeze({
+        ({
           kind: "imported" as const,
           compatibility: "exact" as const,
           commandSequence: parseNonNegativeSafeInteger(0),
@@ -368,17 +364,17 @@ function fixtureV1(options: FixtureOptionsV1 = {}) {
   const exportSave = vi.fn(async (slotId: SaveSlotIdV1) =>
     Promise.resolve(
       options.exportResult ??
-        Object.freeze({ kind: "exported" as const, slotId, file: exportedSaveV1 }),
+        ({ kind: "exported" as const, slotId, file: exportedSaveV1 }),
     )
   );
   const exportCurrentSave = vi.fn(async () => exportedSaveV1);
   const inspectSave = vi.fn(async (slotId: SaveSlotIdV1) =>
     Promise.resolve(
       options.inspectionResult ??
-        Object.freeze({
+        ({
           kind: "direct" as const,
           slotId,
-          warnings: Object.freeze([]),
+          warnings: [],
           diagnostics: inspectionDiagnosticsV1,
         }),
     )
@@ -386,34 +382,34 @@ function fixtureV1(options: FixtureOptionsV1 = {}) {
   const inspectBackup = vi.fn(async (slotId: SaveSlotIdV1) =>
     Promise.resolve(
       options.backupInspectionResult ??
-        Object.freeze({ kind: "rejected" as const, slotId, code: "empty_backup" as const }),
+        ({ kind: "rejected" as const, slotId, code: "empty_backup" as const }),
     )
   );
   const upgradeSave = vi.fn(async (slotId: SaveSlotIdV1) =>
     Promise.resolve(
       options.rewriteResult ??
-        Object.freeze({ kind: "upgraded" as const, slotId, compatibility: "exact" as const }),
+        ({ kind: "upgraded" as const, slotId, compatibility: "exact" as const }),
     )
   );
   const reanchorSave = vi.fn(async (slotId: SaveSlotIdV1) =>
-    Promise.resolve(options.rewriteResult ?? Object.freeze({ kind: "reanchored" as const, slotId }))
+    Promise.resolve(options.rewriteResult ?? ({ kind: "reanchored" as const, slotId }))
   );
   const restoreBackup = vi.fn(async (slotId: SaveSlotIdV1) =>
-    Promise.resolve(options.backupResult ?? Object.freeze({ kind: "restored" as const, slotId }))
+    Promise.resolve(options.backupResult ?? ({ kind: "restored" as const, slotId }))
   );
   const discardBackup = vi.fn(async (slotId: SaveSlotIdV1) =>
-    Promise.resolve(options.backupResult ?? Object.freeze({ kind: "discarded" as const, slotId }))
+    Promise.resolve(options.backupResult ?? ({ kind: "discarded" as const, slotId }))
   );
   const exportBackup = vi.fn(async (slotId: SaveSlotIdV1) =>
     Promise.resolve(
       options.backupExportResult ??
-        Object.freeze({ kind: "exported" as const, slotId }),
+        ({ kind: "exported" as const, slotId }),
     )
   );
   const annotateSave = vi.fn(async (slotId: SaveUiWritableSlotIdV1, _note: string) =>
-    Promise.resolve(Object.freeze({ kind: "saved" as const, slotId }))
+    Promise.resolve({ kind: "saved" as const, slotId })
   );
-  const recovery = Object.freeze({
+  const recovery = {
     inspectSave,
     inspectBackup,
     upgradeSave,
@@ -421,8 +417,8 @@ function fixtureV1(options: FixtureOptionsV1 = {}) {
     restoreBackup,
     exportBackup,
     discardBackup,
-  });
-  const port = Object.freeze({
+  };
+  const port = ({
     getStatus,
     listSlots,
     ...(options.recovery === false ? {} : { recovery }),
@@ -434,7 +430,7 @@ function fixtureV1(options: FixtureOptionsV1 = {}) {
     exportSave,
     exportCurrentSave,
   }) satisfies SaveOverlayPortV1;
-  return Object.freeze({
+  return ({
     port,
     getStatus,
     listSlots,
@@ -456,7 +452,7 @@ function fixtureV1(options: FixtureOptionsV1 = {}) {
 }
 
 function renderFixtureV1(fixture = fixtureV1()) {
-  const confirmationIntent = Object.freeze({
+  const confirmationIntent = {
     requestConfirmationInternalV1(
       input: SystemDialogHostConfirmationRequestInternalV1,
     ) {
@@ -464,28 +460,28 @@ function renderFixtureV1(fixture = fixtureV1()) {
         (outcome) => {
           if (outcome.kind === "retain_root") {
             input.operationBinding.resultSink(
-              Object.freeze({ kind: "settled", result: outcome.result }),
+              { kind: "settled", result: outcome.result },
             );
           }
           input.operationBinding.finalizeExactRoot();
         },
         (error: unknown) => {
-          input.operationBinding.resultSink(Object.freeze({ kind: "faulted", error }));
+          input.operationBinding.resultSink({ kind: "faulted", error });
           input.operationBinding.finalizeExactRoot();
         },
       );
-      return Object.freeze({
+      return ({
         kind: "preparing" as const,
         code: "system_dialog.confirmation_preparation_started" as const,
       });
     },
-  });
+  };
   return render(
     <SaveOverlayContentInternalV1
       port={fixture.port}
       labels={labelsV1}
       closeLabel="关闭"
-      guard={Object.freeze({ allowed: true })}
+      guard={{ allowed: true }}
       confirmationIntent={confirmationIntent}
       onCloseInternalV1={vi.fn()}
     />,
@@ -499,20 +495,20 @@ function renderCapturedFixtureV1(fixture: ReturnType<typeof fixtureV1>) {
       port={fixture.port}
       labels={labelsV1}
       closeLabel="关闭"
-      guard={Object.freeze({ allowed: true })}
-      confirmationIntent={Object.freeze({
+      guard={{ allowed: true }}
+      confirmationIntent={{
         requestConfirmationInternalV1(input: SystemDialogHostConfirmationRequestInternalV1) {
           requests.push(input);
-          return Object.freeze({
+          return ({
             kind: "preparing" as const,
             code: "system_dialog.confirmation_preparation_started" as const,
           });
         },
-      })}
+      }}
       onCloseInternalV1={vi.fn()}
     />,
   );
-  return Object.freeze({ requests, view });
+  return ({ requests, view });
 }
 
 async function inspectQuickSlotV1(): Promise<HTMLElement> {
@@ -544,90 +540,88 @@ interface InspectionDispositionCaseV1 {
   readonly hiddenTexts: readonly string[];
 }
 
-const inspectionDispositionCasesV1 = Object.freeze(
-  {
-    direct: Object.freeze({
-      result: acceptedInspectionResultV1("direct"),
-      expectedText: "可直接读取",
-      expectedActions: Object.freeze([]),
-      hiddenTexts: Object.freeze([]),
-    }),
-    migration_required: Object.freeze({
-      result: acceptedInspectionResultV1("migration_required"),
-      expectedText: "需要升级存档格式",
-      expectedActions: Object.freeze([labelsV1.recovery.action.upgrade]),
-      hiddenTexts: Object.freeze([]),
-    }),
-    adoption_required: Object.freeze({
-      result: acceptedInspectionResultV1("adoption_required"),
-      expectedText: "需要采用兼容补丁",
-      expectedActions: Object.freeze([labelsV1.recovery.action.upgrade]),
-      hiddenTexts: Object.freeze([]),
-    }),
-    migration_and_adoption_required: Object.freeze({
-      result: acceptedInspectionResultV1("migration_and_adoption_required"),
-      expectedText: "需要升级并采用兼容补丁",
-      expectedActions: Object.freeze([labelsV1.recovery.action.upgrade]),
-      hiddenTexts: Object.freeze([]),
-    }),
-    "inspect_only:migration_unavailable": Object.freeze({
-      result: inspectOnlyResultV1("migration_unavailable"),
-      expectedText: "当前版本尚未提供所需迁移",
-      expectedActions: Object.freeze([]),
-      hiddenTexts: Object.freeze(["migration_unavailable"]),
-    }),
-    "inspect_only:incompatible": Object.freeze({
-      result: inspectOnlyResultV1("incompatible"),
-      expectedText: "与当前版本不兼容",
-      expectedActions: Object.freeze([]),
-      hiddenTexts: Object.freeze(["incompatible"]),
-    }),
-    "inspect_only:reanchor_required": Object.freeze({
-      result: inspectOnlyResultV1("reanchor_required"),
-      expectedText: "兼容历史已满，需要重建",
-      expectedActions: Object.freeze([labelsV1.recovery.action.reanchor]),
-      hiddenTexts: Object.freeze(["reanchor_required"]),
-    }),
-    "rejected:empty_slot": Object.freeze({
-      result: rejectedInspectionResultV1("empty_slot"),
-      expectedText: null,
-      expectedActions: Object.freeze([]),
-      hiddenTexts: Object.freeze(["empty_slot"]),
-    }),
-    "rejected:unavailable": Object.freeze({
-      result: rejectedInspectionResultV1("unavailable"),
-      expectedText: "暂时无法检查此存档",
-      expectedActions: Object.freeze([]),
-      hiddenTexts: Object.freeze(["unavailable"]),
-    }),
-    "rejected:invalid_record": Object.freeze({
-      result: rejectedInspectionResultV1("invalid_record"),
-      expectedText: "无法安全检查此存档",
-      expectedActions: Object.freeze([]),
-      hiddenTexts: Object.freeze(["invalid_record"]),
-    }),
-    "rejected:migration_rejected": Object.freeze({
-      result: rejectedInspectionResultV1("migration_rejected"),
-      expectedText: "存档迁移未通过安全检查",
-      expectedActions: Object.freeze([]),
-      hiddenTexts: Object.freeze(["migration_rejected"]),
-    }),
-    faulted: Object.freeze({
-      result: Object.freeze({
-        kind: "faulted",
-        slotId: "quick",
-        code: "private.stack.storage.key",
-        diagnostics: Object.freeze({
-          ...inspectionDiagnosticsV1,
-          codes: Object.freeze(["private.raw.digest"]),
-        }),
-      }),
-      expectedText: "兼容性检查失败",
-      expectedActions: Object.freeze([]),
-      hiddenTexts: Object.freeze(["private.stack", "private.raw.digest"]),
-    }),
-  } satisfies Record<InspectionDispositionCaseIdV1, InspectionDispositionCaseV1>,
-);
+const inspectionDispositionCasesV1 = {
+  direct: {
+    result: acceptedInspectionResultV1("direct"),
+    expectedText: "可直接读取",
+    expectedActions: [],
+    hiddenTexts: [],
+  },
+  migration_required: {
+    result: acceptedInspectionResultV1("migration_required"),
+    expectedText: "需要升级存档格式",
+    expectedActions: [labelsV1.recovery.action.upgrade],
+    hiddenTexts: [],
+  },
+  adoption_required: {
+    result: acceptedInspectionResultV1("adoption_required"),
+    expectedText: "需要采用兼容补丁",
+    expectedActions: [labelsV1.recovery.action.upgrade],
+    hiddenTexts: [],
+  },
+  migration_and_adoption_required: {
+    result: acceptedInspectionResultV1("migration_and_adoption_required"),
+    expectedText: "需要升级并采用兼容补丁",
+    expectedActions: [labelsV1.recovery.action.upgrade],
+    hiddenTexts: [],
+  },
+  "inspect_only:migration_unavailable": {
+    result: inspectOnlyResultV1("migration_unavailable"),
+    expectedText: "当前版本尚未提供所需迁移",
+    expectedActions: [],
+    hiddenTexts: ["migration_unavailable"],
+  },
+  "inspect_only:incompatible": {
+    result: inspectOnlyResultV1("incompatible"),
+    expectedText: "与当前版本不兼容",
+    expectedActions: [],
+    hiddenTexts: ["incompatible"],
+  },
+  "inspect_only:reanchor_required": {
+    result: inspectOnlyResultV1("reanchor_required"),
+    expectedText: "兼容历史已满，需要重建",
+    expectedActions: [labelsV1.recovery.action.reanchor],
+    hiddenTexts: ["reanchor_required"],
+  },
+  "rejected:empty_slot": {
+    result: rejectedInspectionResultV1("empty_slot"),
+    expectedText: null,
+    expectedActions: [],
+    hiddenTexts: ["empty_slot"],
+  },
+  "rejected:unavailable": {
+    result: rejectedInspectionResultV1("unavailable"),
+    expectedText: "暂时无法检查此存档",
+    expectedActions: [],
+    hiddenTexts: ["unavailable"],
+  },
+  "rejected:invalid_record": {
+    result: rejectedInspectionResultV1("invalid_record"),
+    expectedText: "无法安全检查此存档",
+    expectedActions: [],
+    hiddenTexts: ["invalid_record"],
+  },
+  "rejected:migration_rejected": {
+    result: rejectedInspectionResultV1("migration_rejected"),
+    expectedText: "存档迁移未通过安全检查",
+    expectedActions: [],
+    hiddenTexts: ["migration_rejected"],
+  },
+  faulted: {
+    result: {
+      kind: "faulted",
+      slotId: "quick",
+      code: "private.stack.storage.key",
+      diagnostics: {
+        ...inspectionDiagnosticsV1,
+        codes: ["private.raw.digest"],
+      },
+    },
+    expectedText: "兼容性检查失败",
+    expectedActions: [],
+    hiddenTexts: ["private.stack", "private.raw.digest"],
+  },
+} satisfies Record<InspectionDispositionCaseIdV1, InspectionDispositionCaseV1>;
 
 type BackupInspectionCaseIdV1 =
   | Exclude<SaveBackupInspectionResultV1["kind"], "rejected" | "faulted">
@@ -644,48 +638,46 @@ interface BackupInspectionCaseV1 {
   readonly hiddenTexts: readonly string[];
 }
 
-const backupInspectionCasesV1 = Object.freeze(
-  {
-    available: Object.freeze({
-      result: Object.freeze({ kind: "available", slotId: "quick" }),
-      expectedText: "迁移前备份可用",
-      expectedActions: Object.freeze([
-        labelsV1.recovery.action.restore,
-        labelsV1.recovery.action.exportBackup,
-        labelsV1.recovery.action.discard,
-      ]),
-      hiddenTexts: Object.freeze([]),
-    }),
-    "rejected:empty_backup": Object.freeze({
-      result: Object.freeze({ kind: "rejected", slotId: "quick", code: "empty_backup" }),
-      expectedText: null,
-      expectedActions: Object.freeze([]),
-      hiddenTexts: Object.freeze(["empty_backup"]),
-    }),
-    "rejected:unavailable": Object.freeze({
-      result: Object.freeze({ kind: "rejected", slotId: "quick", code: "unavailable" }),
-      expectedText: "暂时无法检查迁移前备份",
-      expectedActions: Object.freeze([]),
-      hiddenTexts: Object.freeze(["unavailable"]),
-    }),
-    "rejected:invalid_backup": Object.freeze({
-      result: Object.freeze({ kind: "rejected", slotId: "quick", code: "invalid_backup" }),
-      expectedText: "迁移前备份已损坏",
-      expectedActions: Object.freeze([labelsV1.recovery.action.discard]),
-      hiddenTexts: Object.freeze(["invalid_backup"]),
-    }),
-    faulted: Object.freeze({
-      result: Object.freeze({
-        kind: "faulted",
-        slotId: null,
-        code: "private.backup.stack.storage.key",
-      }),
-      expectedText: "暂时无法检查迁移前备份",
-      expectedActions: Object.freeze([]),
-      hiddenTexts: Object.freeze(["private.backup.stack"]),
-    }),
-  } satisfies Record<BackupInspectionCaseIdV1, BackupInspectionCaseV1>,
-);
+const backupInspectionCasesV1 = {
+  available: {
+    result: { kind: "available", slotId: "quick" },
+    expectedText: "迁移前备份可用",
+    expectedActions: [
+      labelsV1.recovery.action.restore,
+      labelsV1.recovery.action.exportBackup,
+      labelsV1.recovery.action.discard,
+    ],
+    hiddenTexts: [],
+  },
+  "rejected:empty_backup": {
+    result: { kind: "rejected", slotId: "quick", code: "empty_backup" },
+    expectedText: null,
+    expectedActions: [],
+    hiddenTexts: ["empty_backup"],
+  },
+  "rejected:unavailable": {
+    result: { kind: "rejected", slotId: "quick", code: "unavailable" },
+    expectedText: "暂时无法检查迁移前备份",
+    expectedActions: [],
+    hiddenTexts: ["unavailable"],
+  },
+  "rejected:invalid_backup": {
+    result: { kind: "rejected", slotId: "quick", code: "invalid_backup" },
+    expectedText: "迁移前备份已损坏",
+    expectedActions: [labelsV1.recovery.action.discard],
+    hiddenTexts: ["invalid_backup"],
+  },
+  faulted: {
+    result: {
+      kind: "faulted",
+      slotId: null,
+      code: "private.backup.stack.storage.key",
+    },
+    expectedText: "暂时无法检查迁移前备份",
+    expectedActions: [],
+    hiddenTexts: ["private.backup.stack"],
+  },
+} satisfies Record<BackupInspectionCaseIdV1, BackupInspectionCaseV1>;
 
 type RewriteRejectionCodeV1 = Extract<
   SaveRewriteOperationResultV1,
@@ -700,41 +692,35 @@ type BackupExportRejectionCodeV1 = Extract<
   { readonly kind: "rejected" }
 >["code"];
 
-const rewriteRejectionCopyV1 = Object.freeze(
-  {
-    busy: "恢复操作正在进行，请稍后重试",
-    unavailable: "本地存储暂时不可用",
-    empty_slot: "该槽位没有可升级的存档",
-    backup_pending: "请先处理现有迁移前备份",
-    conflict: "存档已被其他页面更新，请重新检查",
-    invalid_record: "存档记录无效，无法执行此操作",
-    migration_unavailable: "当前版本尚未提供所需迁移",
-    migration_rejected: "存档迁移未通过安全检查",
-    incompatible: "该存档与当前版本不兼容",
-    reanchor_required: "需要先重建兼容历史",
-    not_required: "该存档无需执行此操作",
-  } satisfies Record<RewriteRejectionCodeV1, string>,
-);
+const rewriteRejectionCopyV1 = {
+  busy: "恢复操作正在进行，请稍后重试",
+  unavailable: "本地存储暂时不可用",
+  empty_slot: "该槽位没有可升级的存档",
+  backup_pending: "请先处理现有迁移前备份",
+  conflict: "存档已被其他页面更新，请重新检查",
+  invalid_record: "存档记录无效，无法执行此操作",
+  migration_unavailable: "当前版本尚未提供所需迁移",
+  migration_rejected: "存档迁移未通过安全检查",
+  incompatible: "该存档与当前版本不兼容",
+  reanchor_required: "需要先重建兼容历史",
+  not_required: "该存档无需执行此操作",
+} satisfies Record<RewriteRejectionCodeV1, string>;
 
-const backupRejectionCopyV1 = Object.freeze(
-  {
-    busy: "恢复操作正在进行，请稍后重试",
-    unavailable: "本地存储暂时不可用",
-    empty_backup: "该槽位没有迁移前备份",
-    conflict: "存档已被其他页面更新，请重新检查",
-    invalid_backup: "迁移前备份已损坏",
-    invalid_record: "存档记录无效，无法执行此操作",
-  } satisfies Record<BackupRejectionCodeV1, string>,
-);
+const backupRejectionCopyV1 = {
+  busy: "恢复操作正在进行，请稍后重试",
+  unavailable: "本地存储暂时不可用",
+  empty_backup: "该槽位没有迁移前备份",
+  conflict: "存档已被其他页面更新，请重新检查",
+  invalid_backup: "迁移前备份已损坏",
+  invalid_record: "存档记录无效，无法执行此操作",
+} satisfies Record<BackupRejectionCodeV1, string>;
 
-const backupExportRejectionCopyV1 = Object.freeze(
-  {
-    unavailable: "本地存储暂时不可用",
-    empty_backup: "该槽位没有迁移前备份",
-    conflict: "存档已被其他页面更新，请重新检查",
-    invalid_backup: "迁移前备份已损坏",
-  } satisfies Record<BackupExportRejectionCodeV1, string>,
-);
+const backupExportRejectionCopyV1 = {
+  unavailable: "本地存储暂时不可用",
+  empty_backup: "该槽位没有迁移前备份",
+  conflict: "存档已被其他页面更新，请重新检查",
+  invalid_backup: "迁移前备份已损坏",
+} satisfies Record<BackupExportRejectionCodeV1, string>;
 
 async function expectRecoveryRejectionV1(
   family: "rewrite" | "backup" | "backup_export",
@@ -747,30 +733,30 @@ async function expectRecoveryRejectionV1(
     case "rewrite":
       fixture = fixtureV1({
         inspectionResult: acceptedInspectionResultV1("migration_required"),
-        rewriteResult: Object.freeze({
+        rewriteResult: {
           kind: "rejected",
           code: code as RewriteRejectionCodeV1,
-        }),
+        },
       });
       actionName = labelsV1.recovery.action.upgrade;
       break;
     case "backup":
       fixture = fixtureV1({
-        backupInspectionResult: Object.freeze({ kind: "available", slotId: "quick" }),
-        backupResult: Object.freeze({
+        backupInspectionResult: { kind: "available", slotId: "quick" },
+        backupResult: {
           kind: "rejected",
           code: code as BackupRejectionCodeV1,
-        }),
+        },
       });
       actionName = labelsV1.recovery.action.restore;
       break;
     case "backup_export":
       fixture = fixtureV1({
-        backupInspectionResult: Object.freeze({ kind: "available", slotId: "quick" }),
-        backupExportResult: Object.freeze({
+        backupInspectionResult: { kind: "available", slotId: "quick" },
+        backupExportResult: {
           kind: "rejected",
           code: code as BackupExportRejectionCodeV1,
-        }),
+        },
       });
       actionName = labelsV1.recovery.action.exportBackup;
       break;
@@ -806,18 +792,18 @@ describe("SaveOverlayContentInternalV1 managed confirmation boundary", () => {
         port={fixture.port}
         labels={labelsV1}
         closeLabel="关闭"
-        guard={Object.freeze({ allowed: true })}
-        confirmationIntent={Object.freeze({
+        guard={{ allowed: true }}
+        confirmationIntent={{
           requestConfirmationInternalV1(
             input: SystemDialogHostConfirmationRequestInternalV1,
           ) {
             requests.push(input);
-            return Object.freeze({
+            return ({
               kind: "preparing" as const,
               code: "system_dialog.confirmation_preparation_started" as const,
             });
           },
-        })}
+        }}
         onCloseInternalV1={onCloseInternalV1}
       />,
     );
@@ -843,18 +829,18 @@ describe("SaveOverlayContentInternalV1 managed confirmation boundary", () => {
         port={fixture.port}
         labels={labelsV1}
         closeLabel="关闭"
-        guard={Object.freeze({ allowed: true })}
-        confirmationIntent={Object.freeze({
+        guard={{ allowed: true }}
+        confirmationIntent={{
           requestConfirmationInternalV1(
             input: SystemDialogHostConfirmationRequestInternalV1,
           ) {
             requests.push(input);
-            return Object.freeze({
+            return ({
               kind: "preparing" as const,
               code: "system_dialog.confirmation_preparation_started" as const,
             });
           },
-        })}
+        }}
         onCloseInternalV1={vi.fn()}
       />,
     );
@@ -876,7 +862,7 @@ describe("SaveOverlayContentInternalV1 managed confirmation boundary", () => {
 
     act(() => {
       request.operationBinding.resultSink(
-        Object.freeze({ kind: "settled", result: retainedResult }),
+        { kind: "settled", result: retainedResult },
       );
       request.operationBinding.finalizeExactRoot();
     });
@@ -912,11 +898,11 @@ describe("SaveOverlayContentInternalV1", () => {
 
   it("subscribes to the live read-only guard projection", async () => {
     const fixture = fixtureV1();
-    const allowedPublication = Object.freeze({ allowed: true });
-    const blockedPublication = Object.freeze({ allowed: false });
+    const allowedPublication = { allowed: true };
+    const blockedPublication = { allowed: false };
     let publication: Readonly<{ allowed: boolean }> = allowedPublication;
     let listener: (() => void) | null = null;
-    const guardProjection = Object.freeze({
+    const guardProjection = {
       getSnapshot: () => publication,
       subscribe(nextListener: () => void) {
         listener = nextListener;
@@ -926,10 +912,10 @@ describe("SaveOverlayContentInternalV1", () => {
       },
       evaluate(value: unknown) {
         return value === blockedPublication
-          ? Object.freeze({ allowed: false, reasonText: "剧情进行中不可保存" })
-          : Object.freeze({ allowed: true });
+          ? ({ allowed: false, reasonText: "剧情进行中不可保存" })
+          : ({ allowed: true });
       },
-    });
+    };
 
     render(
       <SaveOverlayContentInternalV1
@@ -937,14 +923,12 @@ describe("SaveOverlayContentInternalV1", () => {
         labels={labelsV1}
         closeLabel="关闭"
         guardProjection={guardProjection}
-        confirmationIntent={Object.freeze({
-          requestConfirmationInternalV1: vi.fn(() =>
-            Object.freeze({
-              kind: "unchanged" as const,
-              code: "system_dialog.confirmation_already_requested" as const,
-            })
-          ),
-        })}
+        confirmationIntent={{
+          requestConfirmationInternalV1: vi.fn(() => ({
+            kind: "unchanged" as const,
+            code: "system_dialog.confirmation_already_requested" as const,
+          })),
+        }}
         onCloseInternalV1={vi.fn()}
       />,
     );
@@ -968,15 +952,13 @@ describe("SaveOverlayContentInternalV1", () => {
           port={fixture.port}
           labels={labelsV1}
           closeLabel="关闭"
-          guard={Object.freeze({ allowed: true })}
-          confirmationIntent={Object.freeze({
-            requestConfirmationInternalV1: vi.fn(() =>
-              Object.freeze({
-                kind: "unchanged" as const,
-                code: "system_dialog.confirmation_already_requested" as const,
-              })
-            ),
-          })}
+          guard={{ allowed: true }}
+          confirmationIntent={{
+            requestConfirmationInternalV1: vi.fn(() => ({
+              kind: "unchanged" as const,
+              code: "system_dialog.confirmation_already_requested" as const,
+            })),
+          }}
           onCloseInternalV1={vi.fn()}
         />
       </StrictMode>,
@@ -989,12 +971,12 @@ describe("SaveOverlayContentInternalV1", () => {
   it("maps slot health and preserves the port's slot order verbatim", async () => {
     renderFixtureV1(
       fixtureV1({
-        slots: Object.freeze([
+        slots: [
           slotV1("auto.current", "empty"),
           slotV1("auto.previous", "valid"),
           slotV1("quick", "invalid"),
           slotV1("manual.1", "recovery_candidate"),
-        ]),
+        ],
       }),
     );
 
@@ -1015,12 +997,12 @@ describe("SaveOverlayContentInternalV1", () => {
 
   it("keeps invalid Quick and Manual slots explicitly writable", async () => {
     const fixture = fixtureV1({
-      slots: Object.freeze([
+      slots: [
         slotV1("auto.current", "empty"),
         slotV1("auto.previous", "empty"),
         slotV1("quick", "invalid"),
         slotV1("manual.1", "invalid"),
-      ]),
+      ],
     });
     renderFixtureV1(fixture);
     const user = userEvent.setup();
@@ -1047,7 +1029,7 @@ describe("SaveOverlayContentInternalV1", () => {
     expect(screen.getByText("正在安全写入快速存档…")).toBeVisible();
     expect(screen.queryByText("快速存档已保存")).not.toBeInTheDocument();
 
-    resolveSave(Object.freeze({ kind: "saved", slotId: "quick" }));
+    resolveSave({ kind: "saved", slotId: "quick" });
     expect(await screen.findByText("快速存档已保存")).toBeVisible();
   });
 
@@ -1069,12 +1051,12 @@ describe("SaveOverlayContentInternalV1", () => {
 
   it("requires explicit confirmation before load, clear, and import", async () => {
     const fixture = fixtureV1({
-      slots: Object.freeze([
+      slots: [
         slotV1("auto.current", "valid"),
         slotV1("auto.previous", "empty"),
         slotV1("quick", "invalid"),
         slotV1("manual.1", "valid"),
-      ]),
+      ],
     });
     const requests: SystemDialogHostConfirmationRequestInternalV1[] = [];
     render(
@@ -1082,18 +1064,18 @@ describe("SaveOverlayContentInternalV1", () => {
         port={fixture.port}
         labels={labelsV1}
         closeLabel="关闭"
-        guard={Object.freeze({ allowed: true })}
-        confirmationIntent={Object.freeze({
+        guard={{ allowed: true }}
+        confirmationIntent={{
           requestConfirmationInternalV1(
             input: SystemDialogHostConfirmationRequestInternalV1,
           ) {
             requests.push(input);
-            return Object.freeze({
+            return ({
               kind: "preparing" as const,
               code: "system_dialog.confirmation_preparation_started" as const,
             });
           },
-        })}
+        }}
         onCloseInternalV1={vi.fn()}
       />,
     );
@@ -1118,7 +1100,7 @@ describe("SaveOverlayContentInternalV1", () => {
   });
 
   it("projects a cancelled Host file selection without inventing a persistence result", async () => {
-    const fixture = fixtureV1({ importResult: Object.freeze({ kind: "cancelled" }) });
+    const fixture = fixtureV1({ importResult: { kind: "cancelled" } });
     renderFixtureV1(fixture);
     const user = userEvent.setup();
 
@@ -1135,7 +1117,7 @@ describe("SaveOverlayContentInternalV1", () => {
     ] as const,
   )("projects Host file rejection %s independently", async (code, expectedText) => {
     const fixture = fixtureV1({
-      importResult: Object.freeze({ kind: "rejected", code }),
+      importResult: { kind: "rejected", code },
     });
     renderFixtureV1(fixture);
     const user = userEvent.setup();
@@ -1150,8 +1132,8 @@ describe("SaveOverlayContentInternalV1", () => {
   it("reports conflict and fault results truthfully without stealing focus", async () => {
     const fixture = fixtureV1({
       slots: slotIdsV1.map((slotId) => slotV1(slotId, "valid")),
-      loadResult: Object.freeze({ kind: "rejected", code: "conflict" }),
-      saveResult: Object.freeze({ kind: "faulted", code: "persistence.write_failed" }),
+      loadResult: { kind: "rejected", code: "conflict" },
+      saveResult: { kind: "faulted", code: "persistence.write_failed" },
     });
     renderFixtureV1(fixture);
     const user = userEvent.setup();
@@ -1173,7 +1155,7 @@ describe("SaveOverlayContentInternalV1", () => {
     });
     const fixture = fixtureV1({
       slots: slotIdsV1.map((slotId) => slotV1(slotId, "valid")),
-      loadResult: Object.freeze({ kind: "rejected", code: "conflict" }),
+      loadResult: { kind: "rejected", code: "conflict" },
     });
     fixture.getStatus.mockReturnValueOnce(statusV1()).mockReturnValueOnce(postOperationStatus);
     renderFixtureV1(fixture);
@@ -1193,7 +1175,7 @@ describe("SaveOverlayContentInternalV1", () => {
 
   it("leaves the rendered semantic publication untouched when import is rejected", async () => {
     const fixture = fixtureV1({
-      importResult: Object.freeze({ kind: "rejected", code: "incompatible" }),
+      importResult: { kind: "rejected", code: "incompatible" },
     });
     render(
       <>
@@ -1202,8 +1184,8 @@ describe("SaveOverlayContentInternalV1", () => {
           port={fixture.port}
           labels={labelsV1}
           closeLabel="关闭"
-          guard={Object.freeze({ allowed: true })}
-          confirmationIntent={Object.freeze({
+          guard={{ allowed: true }}
+          confirmationIntent={{
             requestConfirmationInternalV1(
               input: SystemDialogHostConfirmationRequestInternalV1,
             ) {
@@ -1211,18 +1193,18 @@ describe("SaveOverlayContentInternalV1", () => {
                 (outcome) => {
                   if (outcome.kind === "retain_root") {
                     input.operationBinding.resultSink(
-                      Object.freeze({ kind: "settled", result: outcome.result }),
+                      { kind: "settled", result: outcome.result },
                     );
                   }
                   input.operationBinding.finalizeExactRoot();
                 },
               );
-              return Object.freeze({
+              return ({
                 kind: "preparing" as const,
                 code: "system_dialog.confirmation_preparation_started" as const,
               });
             },
-          })}
+          }}
           onCloseInternalV1={vi.fn()}
         />
       </>,
@@ -1237,7 +1219,7 @@ describe("SaveOverlayContentInternalV1", () => {
 
   it("projects migration-unavailable as its distinct Player-facing outcome", async () => {
     const fixture = fixtureV1({
-      importResult: Object.freeze({ kind: "rejected", code: "migration_unavailable" }),
+      importResult: { kind: "rejected", code: "migration_unavailable" },
     });
     renderFixtureV1(fixture);
     const user = userEvent.setup();
@@ -1249,7 +1231,7 @@ describe("SaveOverlayContentInternalV1", () => {
 
   it("projects migration rejection without exposing migration diagnostics", async () => {
     const fixture = fixtureV1({
-      importResult: Object.freeze({ kind: "rejected", code: "migration_rejected" }),
+      importResult: { kind: "rejected", code: "migration_rejected" },
     });
     renderFixtureV1(fixture);
     const user = userEvent.setup();
@@ -1330,11 +1312,11 @@ describe("SaveOverlayContentInternalV1", () => {
     const { recovery: _recoveryLabels, ...legacyLabels } = labelsV1;
     const view = render(
       <SaveOverlayContentInternalV1
-        port={Object.freeze(legacyPort)}
+        port={legacyPort}
         labels={labelsV1}
         closeLabel="关闭"
-        guard={Object.freeze({ allowed: true })}
-        confirmationIntent={Object.freeze({ requestConfirmationInternalV1: vi.fn() })}
+        guard={{ allowed: true }}
+        confirmationIntent={{ requestConfirmationInternalV1: vi.fn() }}
         onCloseInternalV1={vi.fn()}
       />,
     );
@@ -1344,10 +1326,10 @@ describe("SaveOverlayContentInternalV1", () => {
     view.rerender(
       <SaveOverlayContentInternalV1
         port={fixture.port}
-        labels={Object.freeze(legacyLabels)}
+        labels={legacyLabels}
         closeLabel="关闭"
-        guard={Object.freeze({ allowed: true })}
-        confirmationIntent={Object.freeze({ requestConfirmationInternalV1: vi.fn() })}
+        guard={{ allowed: true }}
+        confirmationIntent={{ requestConfirmationInternalV1: vi.fn() }}
         onCloseInternalV1={vi.fn()}
       />,
     );
@@ -1381,25 +1363,25 @@ describe("SaveOverlayContentInternalV1", () => {
     expect(status).toHaveAttribute("aria-atomic", "true");
     expect(status).toHaveTextContent("正在检查兼容性…");
 
-    resolveInspection(Object.freeze({
+    resolveInspection({
       kind: "direct",
       slotId: "quick",
-      warnings: Object.freeze([]),
+      warnings: [],
       diagnostics: inspectionDiagnosticsV1,
-    }));
+    });
     expect(await within(quick).findByText("可直接读取")).toBeVisible();
     expect(inspect).toBeEnabled();
   });
 
   it("rejects mismatched single-slot inspection results without exposing actions", async () => {
     const fixture = fixtureV1({
-      inspectionResult: Object.freeze({
+      inspectionResult: {
         kind: "migration_required",
         slotId: "manual.1",
-        migration: Object.freeze({}) as never,
-        warnings: Object.freeze([]),
+        migration: ({}) as never,
+        warnings: [],
         diagnostics: inspectionDiagnosticsV1,
-      }),
+      },
     });
     renderFixtureV1(fixture);
 
@@ -1410,13 +1392,13 @@ describe("SaveOverlayContentInternalV1", () => {
 
   it("projects a migration disposition and upgrades it without opening confirmation", async () => {
     const fixture = fixtureV1({
-      inspectionResult: Object.freeze({
+      inspectionResult: {
         kind: "migration_required",
         slotId: "quick",
-        migration: Object.freeze({}) as never,
-        warnings: Object.freeze([]),
+        migration: ({}) as never,
+        warnings: [],
         diagnostics: inspectionDiagnosticsV1,
-      }),
+      },
     });
     const requestConfirmationInternalV1 = vi.fn();
     render(
@@ -1424,8 +1406,8 @@ describe("SaveOverlayContentInternalV1", () => {
         port={fixture.port}
         labels={labelsV1}
         closeLabel="关闭"
-        guard={Object.freeze({ allowed: true })}
-        confirmationIntent={Object.freeze({ requestConfirmationInternalV1 })}
+        guard={{ allowed: true }}
+        confirmationIntent={{ requestConfirmationInternalV1 }}
         onCloseInternalV1={vi.fn()}
       />,
     );
@@ -1442,12 +1424,12 @@ describe("SaveOverlayContentInternalV1", () => {
 
   it("routes re-anchor through the managed confirmation child and never trusts inspection", async () => {
     const fixture = fixtureV1({
-      inspectionResult: Object.freeze({
+      inspectionResult: {
         kind: "inspect_only",
         slotId: "quick",
         code: "reanchor_required",
         diagnostics: inspectionDiagnosticsV1,
-      }),
+      },
     });
     const { requests } = renderCapturedFixtureV1(fixture);
 
@@ -1465,7 +1447,7 @@ describe("SaveOverlayContentInternalV1", () => {
     const request = requests[0];
     if (request === undefined) throw new TypeError("missing re-anchor confirmation");
     await expect(
-      request.operationBinding.dispatch(Object.freeze({ kind: "reanchor", slotId: "manual.1" })),
+      request.operationBinding.dispatch({ kind: "reanchor", slotId: "manual.1" }),
     ).rejects.toThrow("ui.save_overlay_confirmation_invocation_mismatch");
     expect(fixture.reanchorSave).not.toHaveBeenCalled();
     const outcome = await request.operationBinding.dispatch(request.invocation);
@@ -1473,7 +1455,7 @@ describe("SaveOverlayContentInternalV1", () => {
     if (outcome.kind !== "retain_root") throw new TypeError("expected retained re-anchor result");
     act(() => {
       request.operationBinding.resultSink(
-        Object.freeze({ kind: "settled", result: outcome.result }),
+        { kind: "settled", result: outcome.result },
       );
       request.operationBinding.finalizeExactRoot();
     });
@@ -1482,7 +1464,7 @@ describe("SaveOverlayContentInternalV1", () => {
 
   it("offers one managed backup recovery surface and keeps export confirmation-free", async () => {
     const fixture = fixtureV1({
-      backupInspectionResult: Object.freeze({ kind: "available", slotId: "quick" }),
+      backupInspectionResult: { kind: "available", slotId: "quick" },
     });
     const { requests } = renderCapturedFixtureV1(fixture);
 
@@ -1507,20 +1489,20 @@ describe("SaveOverlayContentInternalV1", () => {
 
   it("never displays inspection fault codes or raw diagnostic authority", async () => {
     const fixture = fixtureV1({
-      inspectionResult: Object.freeze({
+      inspectionResult: {
         kind: "faulted",
         slotId: "quick",
         code: "secret.stack.and.storage.key",
-        diagnostics: Object.freeze({
+        diagnostics: {
           ...inspectionDiagnosticsV1,
-          codes: Object.freeze(["secret.digest"]),
-        }),
-      }),
-      backupInspectionResult: Object.freeze({
+          codes: ["secret.digest"],
+        },
+      },
+      backupInspectionResult: {
         kind: "rejected",
         slotId: "quick",
         code: "invalid_backup",
-      }),
+      },
     });
     renderFixtureV1(fixture);
 
@@ -1537,14 +1519,14 @@ describe("SaveOverlayContentInternalV1", () => {
 
   it("offers rewrite actions only after the pending backup generation is resolved", async () => {
     const fixture = fixtureV1({
-      inspectionResult: Object.freeze({
+      inspectionResult: {
         kind: "migration_required",
         slotId: "quick",
-        migration: Object.freeze({}) as never,
-        warnings: Object.freeze([]),
+        migration: ({}) as never,
+        warnings: [],
         diagnostics: inspectionDiagnosticsV1,
-      }),
-      backupInspectionResult: Object.freeze({ kind: "available", slotId: "quick" }),
+      },
+      backupInspectionResult: { kind: "available", slotId: "quick" },
     });
     renderFixtureV1(fixture);
 
@@ -1558,7 +1540,7 @@ describe("SaveOverlayContentInternalV1", () => {
 
   it("ignores a late result from a finalized confirmation generation", async () => {
     const fixture = fixtureV1({
-      backupInspectionResult: Object.freeze({ kind: "available", slotId: "quick" }),
+      backupInspectionResult: { kind: "available", slotId: "quick" },
     });
     const { requests } = renderCapturedFixtureV1(fixture);
 
@@ -1599,7 +1581,7 @@ describe("SaveOverlayContentInternalV1", () => {
 
     act(() => {
       firstRequest.operationBinding.resultSink(
-        Object.freeze({ kind: "settled", result: firstResult }),
+        { kind: "settled", result: firstResult },
       );
     });
     expect(screen.getByTestId("save-operation-result")).toHaveTextContent(
@@ -1609,7 +1591,7 @@ describe("SaveOverlayContentInternalV1", () => {
 
     act(() => {
       secondRequest.operationBinding.resultSink(
-        Object.freeze({ kind: "settled", result: secondResult }),
+        { kind: "settled", result: secondResult },
       );
       secondRequest.operationBinding.finalizeExactRoot();
     });
@@ -1622,7 +1604,7 @@ describe("SaveOverlayContentInternalV1", () => {
       resolveRestore = resolve;
     });
     const fixture = fixtureV1({
-      backupInspectionResult: Object.freeze({ kind: "available", slotId: "quick" }),
+      backupInspectionResult: { kind: "available", slotId: "quick" },
       backupResult: restoreResult,
     });
     const { requests, view } = renderCapturedFixtureV1(fixture);
@@ -1644,12 +1626,12 @@ describe("SaveOverlayContentInternalV1", () => {
     const slotReadsBeforeUnmount = fixture.listSlots.mock.calls.length;
     view.unmount();
 
-    resolveRestore(Object.freeze({ kind: "restored", slotId: "quick" }));
+    resolveRestore({ kind: "restored", slotId: "quick" });
     const outcome = await dispatchPromise;
     if (outcome.kind !== "retain_root") throw new TypeError("missing unmounted restore result");
     act(() => {
       request.operationBinding.resultSink(
-        Object.freeze({ kind: "settled", result: outcome.result }),
+        { kind: "settled", result: outcome.result },
       );
       request.operationBinding.finalizeExactRoot();
     });
@@ -1661,11 +1643,11 @@ describe("SaveOverlayContentInternalV1", () => {
 
   it("allows a fresh restore inspection and retry after a bounded failure", async () => {
     const fixture = fixtureV1({
-      backupInspectionResult: Object.freeze({ kind: "available", slotId: "quick" }),
+      backupInspectionResult: { kind: "available", slotId: "quick" },
     });
     fixture.restoreBackup
       .mockRejectedValueOnce(new Error("private.restore.stack.storage.key"))
-      .mockResolvedValueOnce(Object.freeze({ kind: "restored", slotId: "quick" }));
+      .mockResolvedValueOnce({ kind: "restored", slotId: "quick" });
     renderFixtureV1(fixture);
 
     const quick = await inspectQuickSlotV1();
@@ -1728,55 +1710,55 @@ describe("SaveOverlayContentInternalV1", () => {
       {
         name: "upgrade rejects a re-anchor success",
         operation: "upgrade",
-        result: Object.freeze({ kind: "reanchored", slotId: "quick" }),
+        result: { kind: "reanchored", slotId: "quick" },
         forbiddenText: "兼容历史已重建",
       },
       {
         name: "upgrade rejects another slot",
         operation: "upgrade",
-        result: Object.freeze({ kind: "upgraded", slotId: "manual.1", compatibility: "exact" }),
+        result: { kind: "upgraded", slotId: "manual.1", compatibility: "exact" },
         forbiddenText: "存档已升级",
       },
       {
         name: "re-anchor rejects an upgrade success",
         operation: "reanchor",
-        result: Object.freeze({ kind: "upgraded", slotId: "quick", compatibility: "exact" }),
+        result: { kind: "upgraded", slotId: "quick", compatibility: "exact" },
         forbiddenText: "存档已升级",
       },
       {
         name: "re-anchor rejects another slot",
         operation: "reanchor",
-        result: Object.freeze({ kind: "reanchored", slotId: "manual.1" }),
+        result: { kind: "reanchored", slotId: "manual.1" },
         forbiddenText: "兼容历史已重建",
       },
       {
         name: "restore rejects a discard success",
         operation: "restore",
-        result: Object.freeze({ kind: "discarded", slotId: "quick" }),
+        result: { kind: "discarded", slotId: "quick" },
         forbiddenText: "迁移前备份已丢弃",
       },
       {
         name: "restore rejects another slot",
         operation: "restore",
-        result: Object.freeze({ kind: "restored", slotId: "manual.1" }),
+        result: { kind: "restored", slotId: "manual.1" },
         forbiddenText: "迁移前备份已恢复",
       },
       {
         name: "discard rejects a restore success",
         operation: "discard",
-        result: Object.freeze({ kind: "restored", slotId: "quick" }),
+        result: { kind: "restored", slotId: "quick" },
         forbiddenText: "迁移前备份已恢复",
       },
       {
         name: "discard rejects another slot",
         operation: "discard",
-        result: Object.freeze({ kind: "discarded", slotId: "manual.1" }),
+        result: { kind: "discarded", slotId: "manual.1" },
         forbiddenText: "迁移前备份已丢弃",
       },
       {
         name: "backup export rejects another slot",
         operation: "backup_export",
-        result: Object.freeze({ kind: "exported", slotId: "manual.1" }),
+        result: { kind: "exported", slotId: "manual.1" },
         forbiddenText: "迁移前备份已导出",
       },
     ] as const,
@@ -1792,10 +1774,10 @@ describe("SaveOverlayContentInternalV1", () => {
         : acceptedInspectionResultV1("direct"),
       ...(backupOperation
         ? {
-          backupInspectionResult: Object.freeze({
+          backupInspectionResult: {
             kind: "available" as const,
             slotId: "quick" as const,
-          }),
+          },
         }
         : {}),
       ...(rewriteOperation ? { rewriteResult: result as SaveRewriteOperationResultV1 } : {}),

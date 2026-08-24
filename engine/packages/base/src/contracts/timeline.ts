@@ -85,13 +85,14 @@ const maxRepeatCountV1 = 8;
 const maxDepthV1 = 8;
 const maxStepsV1 = 256;
 const maxDurationMsV1 = 60_000;
-const propertyValuesV1: readonly TimelinePropertyV1[] = Object.freeze([
+const maxEventOccurrencesV1 = 4_096;
+const propertyValuesV1: readonly TimelinePropertyV1[] = [
   "offsetX",
   "offsetY",
   "scalePermille",
   "opacityPermille",
-]);
-const easingValuesV1: readonly TimelineEasingV1[] = Object.freeze(["linear", "ease_in_out"]);
+];
+const easingValuesV1: readonly TimelineEasingV1[] = ["linear", "ease_in_out"];
 
 export function timelineChannelBaselineV1(property: TimelinePropertyV1): number {
   return property === "scalePermille" || property === "opacityPermille" ? 1000 : 0;
@@ -127,7 +128,7 @@ function parseTargetV1(value: unknown, path: string): TimelineTargetV1 {
   };
   if (record.kind === "camera") {
     if (Object.keys(value).join("\u0000") !== "kind") fail("timeline.target_invalid", path);
-    return Object.freeze({ kind: "camera" as const });
+    return { kind: "camera" as const };
   }
   if (record.kind !== "entry") fail("timeline.target_invalid", path);
   if (Object.keys(value).toSorted().join("\u0000") !== "kind\u0000layerId\u0000tag") {
@@ -139,7 +140,7 @@ function parseTargetV1(value: unknown, path: string): TimelineTargetV1 {
   if (typeof record.tag !== "string" || record.tag === "") {
     fail("timeline.target_invalid", `${path}/tag`);
   }
-  return Object.freeze({ kind: "entry" as const, layerId: record.layerId, tag: record.tag });
+  return { kind: "entry" as const, layerId: record.layerId, tag: record.tag };
 }
 
 interface ParseStateV1 {
@@ -183,7 +184,7 @@ function parseStepV1(
       const from = record.from === undefined
         ? undefined
         : requireIntV1(record.from, -100_000, 100_000, "timeline.value_invalid", `${path}/from`);
-      return Object.freeze({
+      return {
         kind: "tween" as const,
         target: parseTargetV1(record.target, `${path}/target`),
         property: record.property as TimelinePropertyV1,
@@ -191,13 +192,13 @@ function parseStepV1(
         to,
         durationMs,
         easing: record.easing as TimelineEasingV1,
-      });
+      };
     }
     case "wait": {
       if (Object.keys(record).toSorted().join("\u0000") !== "durationMs\u0000kind") {
         fail("timeline.step_invalid", path);
       }
-      return Object.freeze({
+      return {
         kind: "wait" as const,
         durationMs: requireIntV1(
           record.durationMs,
@@ -206,7 +207,7 @@ function parseStepV1(
           "timeline.duration_invalid",
           `${path}/durationMs`,
         ),
-      });
+      };
     }
     case "event": {
       if (Object.keys(record).toSorted().join("\u0000") !== "eventId\u0000kind") {
@@ -215,7 +216,7 @@ function parseStepV1(
       if (typeof record.eventId !== "string" || !eventIdPatternV1.test(record.eventId)) {
         fail("timeline.event_invalid", `${path}/eventId`);
       }
-      return Object.freeze({ kind: "event" as const, eventId: record.eventId });
+      return { kind: "event" as const, eventId: record.eventId };
     }
     case "sequence":
     case "parallel": {
@@ -225,10 +226,8 @@ function parseStepV1(
       if (!Array.isArray(record.steps) || record.steps.length === 0) {
         fail("timeline.steps_empty", `${path}/steps`);
       }
-      const steps = Object.freeze(
-        record.steps.map((child, index) =>
-          parseStepV1(child, `${path}/steps/${String(index)}`, depth + 1, state)
-        ),
+      const steps = record.steps.map((child, index) =>
+        parseStepV1(child, `${path}/steps/${String(index)}`, depth + 1, state)
       );
       if (record.kind === "parallel") {
         // Two distinct parallel branches writing the same channel is rejected
@@ -244,7 +243,7 @@ function parseStepV1(
           }
         });
       }
-      return Object.freeze({ kind: record.kind, steps }) as TimelineStepV1;
+      return { kind: record.kind, steps } as TimelineStepV1;
     }
     case "repeat": {
       if (Object.keys(record).toSorted().join("\u0000") !== "count\u0000kind\u0000step") {
@@ -257,11 +256,11 @@ function parseStepV1(
         "timeline.repeat_unbounded",
         `${path}/count`,
       );
-      return Object.freeze({
+      return {
         kind: "repeat" as const,
         count,
         step: parseStepV1(record.step, `${path}/step`, depth + 1, state),
-      });
+      };
     }
     default:
       return fail("timeline.step_invalid", path);
@@ -299,48 +298,82 @@ export function parseTimelineDefinitionV1(value: unknown, path = ""): TimelineDe
     fail("timeline.id_invalid", `${path}/timelineId`);
   }
   const state: ParseStateV1 = { steps: 0 };
-  return Object.freeze({
+  const definition: TimelineDefinitionV1 = {
     timelineId: record.timelineId,
     root: parseStepV1(record.root, `${path}/root`, 0, state),
-  });
+  };
+  // Compilation is the one cold expansion boundary. It also rejects a small
+  // descriptor whose nested repeats would otherwise allocate millions of
+  // event occurrences at playback.
+  compileTimelineEvaluationInternalV1(definition, `${path}/root`);
+  return definition;
 }
 
+export interface TimelineEventOccurrenceInternalV1 {
+  readonly atMs: number;
+  readonly eventId: string;
+}
+
+export interface TimelineEvaluationPlanInternalV1 {
+  readonly durationMs: number;
+  readonly eventsInternalV1: readonly TimelineEventOccurrenceInternalV1[];
+  sampleValuesInternalV1(elapsedMs: number): readonly TimelineChannelValueV1[];
+}
+
+const timelineStepDurationsV1 = new WeakMap<TimelineStepV1, number>();
+const compiledTimelineDefinitionsV1 = new WeakMap<
+  TimelineDefinitionV1,
+  TimelineEvaluationPlanInternalV1
+>();
+
 export function timelineStepDurationV1(step: TimelineStepV1): number {
+  const existing = timelineStepDurationsV1.get(step);
+  if (existing !== undefined) return existing;
+
+  let durationMs: number;
   switch (step.kind) {
     case "tween":
     case "wait":
-      return step.durationMs;
+      durationMs = step.durationMs;
+      break;
     case "event":
-      return 0;
+      durationMs = 0;
+      break;
     case "sequence":
-      return step.steps.reduce((total, child) => total + timelineStepDurationV1(child), 0);
+      durationMs = step.steps.reduce((total, child) => total + timelineStepDurationV1(child), 0);
+      break;
     case "parallel":
-      return step.steps.reduce((max, child) => Math.max(max, timelineStepDurationV1(child)), 0);
+      durationMs = step.steps.reduce(
+        (max, child) => Math.max(max, timelineStepDurationV1(child)),
+        0,
+      );
+      break;
     case "repeat":
-      return step.count * timelineStepDurationV1(step.step);
+      durationMs = step.count * timelineStepDurationV1(step.step);
+      break;
     default: {
       const exhaustive: never = step;
       throw new TypeError(`unknown timeline step ${String(exhaustive)}`);
     }
   }
+  timelineStepDurationsV1.set(step, durationMs);
+  return durationMs;
 }
 
 export function timelineDurationV1(definition: TimelineDefinitionV1): number {
   return timelineStepDurationV1(definition.root);
 }
 
-const easingFunctionsV1: Readonly<Record<TimelineEasingV1, (value: number) => number>> = Object
-  .freeze({
-    linear: (value: number) => value,
-    ease_in_out: (value: number) => {
-      const clamped = Math.min(1, Math.max(0, value));
-      return clamped * clamped * (3 - 2 * clamped);
-    },
-  });
+const easingFunctionsV1: Readonly<Record<TimelineEasingV1, (value: number) => number>> = {
+  linear: (value: number) => value,
+  ease_in_out: (value: number) => {
+    const clamped = Math.min(1, Math.max(0, value));
+    return clamped * clamped * (3 - 2 * clamped);
+  },
+};
 
 interface SampleStateV1 {
   readonly values: Map<string, TimelineChannelValueV1>;
-  readonly firedEventIds: string[];
 }
 
 function sampleStepV1(step: TimelineStepV1, elapsedMs: number, state: SampleStateV1): void {
@@ -352,42 +385,31 @@ function sampleStepV1(step: TimelineStepV1, elapsedMs: number, state: SampleStat
       const eased = easingFunctionsV1[step.easing](linear);
       const value = Math.round(from + (step.to - from) * eased);
       const key = `${targetKeyV1(step.target)}\u0000${step.property}`;
-      state.values.set(key, Object.freeze({ target: step.target, property: step.property, value }));
+      state.values.set(key, { target: step.target, property: step.property, value });
       return;
     }
     case "wait":
+    case "event":
       return;
-    case "event": {
-      if (elapsedMs >= 0) state.firedEventIds.push(step.eventId);
-      return;
-    }
     case "sequence": {
       let offset = 0;
       for (const child of step.steps) {
         const childDuration = timelineStepDurationV1(child);
         const local = elapsedMs - offset;
         if (local < 0) return;
-        // Children fully in the past sample at their end so finished tweens
-        // hold their final value for the rest of the timeline.
         sampleStepV1(child, Math.min(local, childDuration), state);
         offset += childDuration;
       }
       return;
     }
-    case "parallel": {
+    case "parallel":
       for (const child of step.steps) {
         sampleStepV1(child, Math.min(elapsedMs, timelineStepDurationV1(child)), state);
       }
       return;
-    }
     case "repeat": {
       const childDuration = timelineStepDurationV1(step.step);
-      if (childDuration === 0) {
-        for (let index = 0; index < step.count; index += 1) {
-          sampleStepV1(step.step, 0, state);
-        }
-        return;
-      }
+      if (childDuration === 0) return;
       const completedIterations = Math.min(step.count, Math.floor(elapsedMs / childDuration));
       for (let index = 0; index < completedIterations; index += 1) {
         sampleStepV1(step.step, childDuration, state);
@@ -405,6 +427,91 @@ function sampleStepV1(step: TimelineStepV1, elapsedMs: number, state: SampleStat
   }
 }
 
+interface OrderedTimelineEventOccurrenceInternalV1 extends TimelineEventOccurrenceInternalV1 {
+  readonly order: number;
+}
+
+function collectTimelineEventOccurrencesV1(
+  step: TimelineStepV1,
+  startMs: number,
+  occurrences: OrderedTimelineEventOccurrenceInternalV1[],
+  path: string,
+): void {
+  switch (step.kind) {
+    case "tween":
+    case "wait":
+      return;
+    case "event":
+      if (occurrences.length >= maxEventOccurrencesV1) {
+        fail("timeline.too_many_event_occurrences", path);
+      }
+      occurrences.push({ atMs: startMs, eventId: step.eventId, order: occurrences.length });
+      return;
+    case "sequence": {
+      let offset = startMs;
+      for (const [index, child] of step.steps.entries()) {
+        collectTimelineEventOccurrencesV1(
+          child,
+          offset,
+          occurrences,
+          `${path}/steps/${String(index)}`,
+        );
+        offset += timelineStepDurationV1(child);
+      }
+      return;
+    }
+    case "parallel":
+      for (const [index, child] of step.steps.entries()) {
+        collectTimelineEventOccurrencesV1(
+          child,
+          startMs,
+          occurrences,
+          `${path}/steps/${String(index)}`,
+        );
+      }
+      return;
+    case "repeat": {
+      const childDuration = timelineStepDurationV1(step.step);
+      for (let index = 0; index < step.count; index += 1) {
+        collectTimelineEventOccurrencesV1(
+          step.step,
+          startMs + index * childDuration,
+          occurrences,
+          `${path}/step`,
+        );
+      }
+      return;
+    }
+    default: {
+      const exhaustive: never = step;
+      throw new TypeError(`unknown timeline step ${String(exhaustive)}`);
+    }
+  }
+}
+
+export function compileTimelineEvaluationInternalV1(
+  definition: TimelineDefinitionV1,
+  path = "/root",
+): TimelineEvaluationPlanInternalV1 {
+  const existing = compiledTimelineDefinitionsV1.get(definition);
+  if (existing !== undefined) return existing;
+  const orderedEvents: OrderedTimelineEventOccurrenceInternalV1[] = [];
+  collectTimelineEventOccurrencesV1(definition.root, 0, orderedEvents, path);
+  orderedEvents.sort((left, right) => left.atMs - right.atMs || left.order - right.order);
+  const events = orderedEvents.map(({ atMs, eventId }) => ({ atMs, eventId }));
+  const plan: TimelineEvaluationPlanInternalV1 = {
+    durationMs: timelineDurationV1(definition),
+    eventsInternalV1: events,
+    sampleValuesInternalV1(elapsedMs: number): readonly TimelineChannelValueV1[] {
+      const state: SampleStateV1 = { values: new Map() };
+      sampleStepV1(definition.root, Math.max(0, elapsedMs), state);
+      return [...state.values.values()];
+    },
+  };
+  compiledTimelineDefinitionsV1.set(definition, plan);
+  return plan;
+}
+
 /**
  * Pure sampling: the same definition and elapsed time always produce the
  * same channel values and fired-event prefix, so the player stays a thin
@@ -415,11 +522,15 @@ export function evaluateTimelineAtV1(
   elapsedMs: number,
 ): TimelineSampleV1 {
   const clamped = Math.max(0, elapsedMs);
-  const state: SampleStateV1 = { values: new Map(), firedEventIds: [] };
-  sampleStepV1(definition.root, clamped, state);
-  return Object.freeze({
-    values: Object.freeze([...state.values.values()]),
-    firedEventIds: Object.freeze(state.firedEventIds),
-    completed: clamped >= timelineDurationV1(definition),
-  });
+  const plan = compileTimelineEvaluationInternalV1(definition);
+  const firedEventIds: string[] = [];
+  for (const occurrence of plan.eventsInternalV1) {
+    if (occurrence.atMs > clamped) break;
+    firedEventIds.push(occurrence.eventId);
+  }
+  return {
+    values: plan.sampleValuesInternalV1(clamped),
+    firedEventIds,
+    completed: clamped >= plan.durationMs,
+  };
 }

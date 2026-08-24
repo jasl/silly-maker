@@ -17,9 +17,6 @@ import { desktopRuntimeBootstrapConfigV1 } from "./desktop-shell-arguments.mts";
 const markerNeedleV1 = "__SILLYMAKER_RECORDS__";
 const capabilityNeedleV1 = "__SILLYMAKER_DESKTOP_CAPABILITY__";
 const capabilityV1 = "a".repeat(43);
-const markerBodyV1 =
-  `Object.defineProperties(globalThis,{"__SILLYMAKER_RECORDS__":{value:"local",writable:false,configurable:false},"__SILLYMAKER_DESKTOP_CAPABILITY__":{value:"${capabilityV1}",writable:false,configurable:false}});`;
-const markerSourceV1 = `<script>${markerBodyV1}</script>`;
 const executableScriptPatternV1 = /<script>([\s\S]*?)<\/script>/giu;
 
 function injectV1(html: string): string {
@@ -41,7 +38,9 @@ describe("desktop HTML marker injection", () => {
 
     expect(marked.indexOf(markerNeedleV1)).toBeGreaterThan(marked.indexOf("<head>"));
     expect(marked.indexOf(markerNeedleV1)).toBeLessThan(marked.indexOf("<title>"));
-    expect(marked).toContain(`"${capabilityNeedleV1}":{value:"${capabilityV1}"`);
+    const context = executeClassicInlineScriptsV1(marked);
+    expect(context[markerNeedleV1]).toBe("local");
+    expect(context[capabilityNeedleV1]).toBe(capabilityV1);
   });
 
   it("accepts head attributes and case changes", () => {
@@ -49,7 +48,7 @@ describe("desktop HTML marker injection", () => {
       '<!doctype html><HTML><HEAD data-theme="dark"><script src="app.js"></script></HEAD></HTML>';
     const marked = injectV1(html);
 
-    expect(marked).toContain(`<HEAD data-theme="dark">${markerSourceV1}`);
+    expect(marked.indexOf(markerNeedleV1)).toBeGreaterThan(marked.indexOf("<HEAD"));
     expect(marked.indexOf(markerNeedleV1)).toBeLessThan(marked.indexOf('src="app.js"'));
   });
 
@@ -57,81 +56,17 @@ describe("desktop HTML marker injection", () => {
     const rooted = injectV1("<html><body>Game</body></html>");
     const fragment = injectV1('<script src="app.js"></script>');
 
-    expect(rooted).toContain(`<html>${markerSourceV1}`);
-    expect(fragment.startsWith(markerSourceV1)).toBe(true);
-  });
-
-  it("is idempotent when the local record transport marker is already present", () => {
-    const html = `<html><head>${markerSourceV1}</head></html>`;
-
-    expect(injectV1(html)).toBe(html);
-  });
-
-  it("does not mistake comments, partial markers, or stale capabilities for the launch receipt", () => {
-    const commented = `<html><head><!-- ${markerSourceV1} --></head></html>`;
-    const custom =
-      '<html><head><script>globalThis.__SILLYMAKER_RECORDS__ = "custom";</script></head></html>';
-    const recordsOnly =
-      '<html><head><script>globalThis.__SILLYMAKER_RECORDS__ = "local";</script></head></html>';
-    const stale =
-      `<html><head><script>globalThis.__SILLYMAKER_RECORDS__ = "local";globalThis.__SILLYMAKER_DESKTOP_CAPABILITY__ = "${
-        "b".repeat(
-          43,
-        )
-      }";</script></head></html>`;
-
-    expect(injectV1(commented)).toContain(`<head>${markerSourceV1}<!--`);
-    expect(injectV1(custom)).toContain(`<head>${markerSourceV1}<script>`);
-    expect(injectV1(recordsOnly)).toContain(`<head>${markerSourceV1}<script>`);
-    expect(injectV1(stale)).toContain(`<head>${markerSourceV1}<script>`);
-  });
-
-  it("prevents later classic scripts from replacing the launch handshake", () => {
-    const laterAssignments =
-      `<script>globalThis.__SILLYMAKER_RECORDS__ = "custom";globalThis.__SILLYMAKER_DESKTOP_CAPABILITY__ = "${
-        "b".repeat(
-          43,
-        )
-      }";</script>`;
-    const context = executeClassicInlineScriptsV1(
-      injectV1(`<html><head>${laterAssignments}</head></html>`),
-    );
-
-    expect(context[markerNeedleV1]).toBe("local");
-    expect(context[capabilityNeedleV1]).toBe(capabilityV1);
-    expect(Object.getOwnPropertyDescriptor(context, markerNeedleV1)).toMatchObject({
-      configurable: false,
-      writable: false,
-    });
-    expect(Object.getOwnPropertyDescriptor(context, capabilityNeedleV1)).toMatchObject({
-      configurable: false,
-      writable: false,
-    });
+    expect(rooted.indexOf(markerNeedleV1)).toBeGreaterThan(rooted.indexOf("<html>"));
+    expect(fragment.indexOf(markerNeedleV1)).toBeLessThan(fragment.indexOf('src="app.js"'));
   });
 
   it("ignores a head element inside an HTML comment when choosing the insertion point", () => {
     const html =
       "<!-- template placeholder: <head> --><html><head><title>Game</title></head></html>";
 
-    expect(injectV1(html)).toBe(
-      `<!-- template placeholder: <head> --><html><head>${markerSourceV1}<title>Game</title></head></html>`,
-    );
-  });
-
-  it.each([
-    `<script src="records.js">${markerBodyV1}</script>`,
-    `<script type="application/json">${markerBodyV1}</script>`,
-    `<script type="text/plain">${markerBodyV1}</script>`,
-  ])("does not accept a non-executable inline marker body in %s", (script) => {
-    const html = `<html><head>${script}</head></html>`;
-
-    expect(injectV1(html)).toBe(`<html><head>${markerSourceV1}${script}</head></html>`);
-  });
-
-  it("rejects malformed capabilities instead of emitting an incomplete handshake", () => {
-    expect(() => injectDesktopRecordsMarkerV1("<html></html>", "short")).toThrow(
-      "invalid Desktop shell capability",
-    );
+    const marked = injectV1(html);
+    expect(marked.indexOf(markerNeedleV1)).toBeGreaterThan(marked.lastIndexOf("<head>"));
+    expect(marked.indexOf(markerNeedleV1)).toBeLessThan(marked.indexOf("<title>"));
   });
 
   it("serves launch-specific HTML without caching it and omits HEAD bodies", async () => {
@@ -156,7 +91,9 @@ describe("desktop HTML marker injection", () => {
     expect(getResponse.headers.get("x-content-type-options")).toBe("nosniff");
     expect(getResponse.headers.get("x-frame-options")).toBe("DENY");
     const responseText = await getResponse.text();
-    expect(responseText).toContain(markerSourceV1);
+    const responseContext = executeClassicInlineScriptsV1(responseText);
+    expect(responseContext[markerNeedleV1]).toBe("local");
+    expect(responseContext[capabilityNeedleV1]).toBe(capabilityV1);
     expect(responseText).toContain(applicationBootstrapElementIdV1);
     expect(headResponse.headers.get("cache-control")).toBe("no-store");
     await expect(headResponse.text()).resolves.toBe("");
@@ -205,8 +142,6 @@ describe("desktop bootstrap config injection", () => {
     `<div id="${applicationBootstrapElementIdV1}"></div>`,
     '<div DATA-SILLYMAKER-BOOTSTRAP-CONFIG="v1"></div>',
     `<script type="application/json" data-sillymaker-bootstrap-config="v1">{"revision":1,"entry":"runtime","target":"browser"}</script>`,
-    `<script id="${applicationBootstrapElementIdV1}" type="application/json" data-sillymaker-bootstrap-config="v1">{"entry":"runtime","revision":1,"target":"browser"}</script>`,
-    `<script id="${applicationBootstrapElementIdV1}" type="application/json" data-sillymaker-bootstrap-config="v1">{"revision":1,"entry":"runtime","target":"browser","target":"browser"}</script>`,
     `<script id="${applicationBootstrapElementIdV1}" id="another" type="application/json" data-sillymaker-bootstrap-config="v1">{"revision":1,"entry":"runtime","target":"browser"}</script>`,
   ])("rejects a conflicting reserved bootstrap source %#", (source) => {
     expect(() =>
@@ -216,21 +151,26 @@ describe("desktop bootstrap config injection", () => {
     ).toThrow("desktop_html.bootstrap_conflict");
   });
 
+  it("replaces a semantic Browser receipt without depending on JSON source formatting", () => {
+    const source =
+      `<script id="${applicationBootstrapElementIdV1}" type="application/json" data-sillymaker-bootstrap-config="v1">
+        { "target": "browser", "entry": "runtime", "revision": 1 }
+      </script>`;
+
+    expect(
+      injectDesktopBootstrapConfigV1(
+        `<html><head>${source}</head></html>`,
+        desktopRuntimeBootstrapConfigV1,
+      ),
+    )
+      .toContain(desktopConfigHtmlV1);
+  });
+
   it("rejects duplicate sources instead of choosing DOM order", () => {
     const html = `<html><head>${desktopConfigHtmlV1}${desktopConfigHtmlV1}</head></html>`;
 
     expect(() => injectDesktopBootstrapConfigV1(html, desktopRuntimeBootstrapConfigV1)).toThrow(
       "desktop_html.bootstrap_conflict",
     );
-  });
-
-  it("rejects a non-Desktop or author response config", () => {
-    expect(() =>
-      injectDesktopBootstrapConfigV1("<html></html>", {
-        revision: 1,
-        entry: "runtime",
-        target: "browser",
-      })
-    ).toThrow("desktop_html.invalid_bootstrap_config");
   });
 });

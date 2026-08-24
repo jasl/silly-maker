@@ -39,8 +39,8 @@ describe("Web Host", () => {
   });
 
   it("accepts one narrow file-port override without changing persistence composition", () => {
-    const files = Object.freeze({
-      selectOne: vi.fn(async () => Object.freeze({ kind: "cancelled" as const })),
+    const files = ({
+      selectOne: vi.fn(async () => ({ kind: "cancelled" as const })),
       download: vi.fn(async () => undefined),
     }) satisfies HostFilePortV1;
     const records = createMemoryHostRecordStoreV1();
@@ -58,7 +58,7 @@ describe("Web Host", () => {
       get(target, property) {
         if (property === "open") {
           return (name: string, version?: number) => {
-            opens.push(Object.freeze({ name, version }));
+            opens.push({ name, version });
             return version === undefined ? target.open(name) : target.open(name, version);
           };
         }

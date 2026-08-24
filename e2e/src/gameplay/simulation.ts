@@ -34,7 +34,7 @@ import {
   parseNonNegativeSafeInteger,
   parseStageMutationV1,
   parseTimeTickV1,
-  reduceStageMutationsV1,
+  reduceAdmittedStageMutationsV1,
   settleMonitorsV1,
 } from "@sillymaker/base";
 import type { MonitorAccumulatorV1 } from "@sillymaker/base";
@@ -290,7 +290,7 @@ export interface LabSamplesReadPortV1 {
   collectedCount(): number;
 }
 
-const commandSchemaV1: RuntimeSchemaV1<LabCommandV1> = Object.freeze({
+const commandSchemaV1: RuntimeSchemaV1<LabCommandV1> = {
   parse(value: unknown): LabCommandV1 {
     if (value === null || typeof value !== "object" || Array.isArray(value)) {
       throw new TypeError("invalid lab command");
@@ -304,7 +304,7 @@ const commandSchemaV1: RuntimeSchemaV1<LabCommandV1> = Object.freeze({
         readonly expectedOccurrenceId?: unknown;
         readonly resolution?: unknown;
       };
-      return Object.freeze({
+      return ({
         kind,
         expectedOccurrenceId: parseInteractionOccurrenceIdV1(record.expectedOccurrenceId),
         resolution: parseInteractionResolutionV1(record.resolution),
@@ -314,7 +314,7 @@ const commandSchemaV1: RuntimeSchemaV1<LabCommandV1> = Object.freeze({
       if (Object.keys(value).toSorted().join("\0") !== "kind\0tick") {
         throw new TypeError("invalid lab time tick command");
       }
-      return Object.freeze({
+      return ({
         kind,
         tick: parseTimeTickV1((value as { readonly tick?: unknown }).tick, "/tick"),
       });
@@ -323,7 +323,7 @@ const commandSchemaV1: RuntimeSchemaV1<LabCommandV1> = Object.freeze({
       if (Object.keys(value).toSorted().join("\0") !== "expectedHoldOccurrenceId\0kind") {
         throw new TypeError("invalid lab engage collector command");
       }
-      return Object.freeze({
+      return ({
         kind,
         expectedHoldOccurrenceId: parseInteractionOccurrenceIdV1(
           (value as { readonly expectedHoldOccurrenceId?: unknown }).expectedHoldOccurrenceId,
@@ -338,12 +338,10 @@ const commandSchemaV1: RuntimeSchemaV1<LabCommandV1> = Object.freeze({
       if (!Array.isArray(mutations) || mutations.length === 0) {
         throw new TypeError("invalid lab reconcile stage order command");
       }
-      return Object.freeze({
+      return ({
         kind,
-        mutations: Object.freeze(
-          mutations.map((mutation, index) =>
-            parseStageMutationV1(mutation, `/mutations/${String(index)}`)
-          ),
+        mutations: mutations.map((mutation, index) =>
+          parseStageMutationV1(mutation, `/mutations/${String(index)}`)
         ),
       });
     }
@@ -363,17 +361,17 @@ const commandSchemaV1: RuntimeSchemaV1<LabCommandV1> = Object.freeze({
     ) {
       throw new TypeError("invalid lab command kind");
     }
-    return Object.freeze({ kind });
+    return ({ kind });
   },
-});
+};
 
-const labProcedurePhasesV1 = Object.freeze(["idle", "running", "complete"] as const);
+const labProcedurePhasesV1 = ["idle", "running", "complete"] as const;
 
 /**
  * Journal admission for every Lab domain event. Events are the public
  * read-side journal, so each payload is validated as strictly as a command.
  */
-export const labEventSchemaV1: RuntimeSchemaV1<LabEventV1> = Object.freeze({
+export const labEventSchemaV1: RuntimeSchemaV1<LabEventV1> = {
   parse(value: unknown): LabEventV1 {
     if (value === null || typeof value !== "object" || Array.isArray(value)) {
       throw new TypeError("invalid lab event");
@@ -385,7 +383,7 @@ export const labEventSchemaV1: RuntimeSchemaV1<LabEventV1> = Object.freeze({
       if (keys !== "kind\0total\0yield") throw new TypeError("invalid lab sample_collected event");
       const sampleYield = parseNonNegativeSafeInteger(record.yield);
       if (sampleYield < 1) throw new TypeError("lab sample yield must be positive");
-      return Object.freeze({
+      return ({
         kind,
         yield: sampleYield,
         total: parseNonNegativeSafeInteger(record.total),
@@ -397,7 +395,7 @@ export const labEventSchemaV1: RuntimeSchemaV1<LabEventV1> = Object.freeze({
       }
       const amount = parseNonNegativeSafeInteger(record.amount);
       if (amount < 1) throw new TypeError("lab sample consumption must be positive");
-      return Object.freeze({
+      return ({
         kind,
         amount,
         remaining: parseNonNegativeSafeInteger(record.remaining),
@@ -411,7 +409,7 @@ export const labEventSchemaV1: RuntimeSchemaV1<LabEventV1> = Object.freeze({
       if (!labProcedurePhasesV1.includes(phase as LabProcedureStateV1["phase"])) {
         throw new TypeError("invalid lab procedure phase");
       }
-      return Object.freeze({
+      return ({
         kind,
         phase: phase as LabProcedureStateV1["phase"],
         stepsTaken: parseNonNegativeSafeInteger(record.stepsTaken),
@@ -421,18 +419,16 @@ export const labEventSchemaV1: RuntimeSchemaV1<LabEventV1> = Object.freeze({
       if (keys !== "kind\0mutations" || !Array.isArray(record.mutations)) {
         throw new TypeError("invalid lab stage_changed event");
       }
-      return Object.freeze({
+      return ({
         kind,
-        mutations: Object.freeze(
-          record.mutations.map((mutation, index) =>
-            parseStageMutationV1(mutation, `/mutations/${String(index)}`)
-          ),
+        mutations: record.mutations.map((mutation, index) =>
+          parseStageMutationV1(mutation, `/mutations/${String(index)}`)
         ),
       });
     }
     if (kind === "lab.narrative_advanced") {
       if (keys !== "kind\0next") throw new TypeError("invalid lab narrative_advanced event");
-      return Object.freeze({ kind, next: labNarrativeStateSchemaV1.parse(record.next) });
+      return ({ kind, next: labNarrativeStateSchemaV1.parse(record.next) });
     }
     if (kind === "lab.credits_changed") {
       if (keys !== "balance\0delta\0kind") throw new TypeError("invalid lab credits_changed event");
@@ -440,7 +436,7 @@ export const labEventSchemaV1: RuntimeSchemaV1<LabEventV1> = Object.freeze({
       if (typeof delta !== "number" || !Number.isSafeInteger(delta) || delta === 0) {
         throw new TypeError("lab credits delta must be a non-zero safe integer");
       }
-      return Object.freeze({
+      return ({
         kind,
         delta,
         balance: parseNonNegativeSafeInteger(record.balance),
@@ -453,7 +449,7 @@ export const labEventSchemaV1: RuntimeSchemaV1<LabEventV1> = Object.freeze({
       if (typeof record.definitionId !== "string" || record.definitionId.length === 0) {
         throw new TypeError("invalid lab interaction definition id");
       }
-      return Object.freeze({
+      return ({
         kind,
         definitionId: record.definitionId,
         occurrenceId: parseInteractionOccurrenceIdV1(record.occurrenceId),
@@ -465,13 +461,13 @@ export const labEventSchemaV1: RuntimeSchemaV1<LabEventV1> = Object.freeze({
       kind === "lab.collector_dripped"
     ) {
       if (keys !== "kind") throw new TypeError(`invalid lab ${kind} event`);
-      return Object.freeze({ kind });
+      return ({ kind });
     }
     if (kind === "lab.monitors_settled") {
       if (keys !== "accumulator\0kind") {
         throw new TypeError("invalid lab monitors_settled event");
       }
-      return Object.freeze({
+      return ({
         kind,
         accumulator: parseMonitorAccumulatorV1(record.accumulator, "/accumulator"),
       });
@@ -480,25 +476,25 @@ export const labEventSchemaV1: RuntimeSchemaV1<LabEventV1> = Object.freeze({
       if (keys !== "engaged\0kind" || typeof record.engaged !== "boolean") {
         throw new TypeError("invalid lab collector_toggled event");
       }
-      return Object.freeze({ kind, engaged: record.engaged });
+      return ({ kind, engaged: record.engaged });
     }
     if (kind === "lab.gauge_captured") {
       if (keys !== "kind\0level") throw new TypeError("invalid lab gauge_captured event");
-      return Object.freeze({ kind, level: parseNonNegativeSafeInteger(record.level) });
+      return ({ kind, level: parseNonNegativeSafeInteger(record.level) });
     }
     throw new TypeError("invalid lab event kind");
   },
-});
+};
 
 function passthroughSchemaV1<T>(): RuntimeSchemaV1<T> {
-  return Object.freeze({ parse: (value: unknown) => value as T });
+  return ({ parse: (value: unknown) => value as T });
 }
 
-const debugCommandSchemaV1: RuntimeSchemaV1<never> = Object.freeze({
+const debugCommandSchemaV1: RuntimeSchemaV1<never> = {
   parse(): never {
     throw new TypeError("lab debug commands are unsupported");
   },
-});
+};
 
 export const labProcedureStepsToCompleteV1 = 2;
 
@@ -513,7 +509,7 @@ const samplesModuleV1 = kit.defineStatefulModule({
   state: {
     slot: "simulation.samples",
     schema: labSamplesStateSchemaV1,
-    initial: () => Object.freeze({ collected: 0 }),
+    initial: () => ({ collected: 0 }),
   },
   commandSchema: commandSchemaV1,
   provides: (provide) => [
@@ -525,8 +521,8 @@ const samplesModuleV1 = kit.defineStatefulModule({
   // from the command-start snapshot, so a command must emit at most one of
   // them; a second same-kind event would clobber, not compose.
   reducers: {
-    "lab.sample_collected": (_state, event) => Object.freeze({ collected: event.total }),
-    "lab.samples_consumed": (_state, event) => Object.freeze({ collected: event.remaining }),
+    "lab.sample_collected": (_state, event) => ({ collected: event.total }),
+    "lab.samples_consumed": (_state, event) => ({ collected: event.remaining }),
   },
 });
 
@@ -536,7 +532,7 @@ const procedureModuleV1 = kit.defineStatefulModule({
   state: {
     slot: "simulation.procedure",
     schema: labProcedureStateSchemaV1,
-    initial: () => Object.freeze({ phase: "idle" as const, stepsTaken: 0 }),
+    initial: () => ({ phase: "idle" as const, stepsTaken: 0 }),
   },
   commandSchema: commandSchemaV1,
   // Procedure flows gate on the sample stock: the declaration keeps the
@@ -546,14 +542,16 @@ const procedureModuleV1 = kit.defineStatefulModule({
   requires: { samples: labSamplesReadCapabilityV1 },
   initializesAfter: ["lab.samples"],
   reducers: {
-    "lab.procedure_advanced": (_state, event) =>
-      Object.freeze({ phase: event.phase, stepsTaken: event.stepsTaken }),
+    "lab.procedure_advanced": (_state, event) => ({
+      phase: event.phase,
+      stepsTaken: event.stepsTaken,
+    }),
   },
 });
 
 function advanceProcedureV1(state: LabProcedureStateV1): LabProcedureStateV1 {
   const stepsTaken = state.stepsTaken + 1;
-  return Object.freeze({
+  return ({
     phase: stepsTaken >= labProcedureStepsToCompleteV1
       ? ("complete" as const)
       : ("running" as const),
@@ -575,7 +573,7 @@ const stageModuleV1 = kit.defineStatefulModule({
     // before emitting, so a rejected fold here is a genuine invariant break
     // and faults the commit.
     "lab.stage_changed": (state, event) => {
-      const outcome = reduceStageMutationsV1(state, event.mutations);
+      const outcome = reduceAdmittedStageMutationsV1(state, event.mutations);
       if (outcome.kind !== "applied") {
         throw new TypeError("admitted lab stage mutations must apply");
       }
@@ -614,20 +612,16 @@ const monitorsModuleV1 = kit.defineStatefulModule({
     // Crossing events carry no payload by design: each one means "count one
     // more crossing", so folding is pure increment and batch splits of the
     // same elapsed sum produce identical counters.
-    "lab.gauge_charged": (state) => Object.freeze({ ...state, gaugeLevel: state.gaugeLevel + 1 }),
-    "lab.ambient_ignited": (state) =>
-      Object.freeze({ ...state, ambientIgnitions: state.ambientIgnitions + 1 }),
-    "lab.collector_dripped": (state) =>
-      Object.freeze({ ...state, collectorUnits: state.collectorUnits + 1 }),
+    "lab.gauge_charged": (state) => ({ ...state, gaugeLevel: state.gaugeLevel + 1 }),
+    "lab.ambient_ignited": (state) => ({ ...state, ambientIgnitions: state.ambientIgnitions + 1 }),
+    "lab.collector_dripped": (state) => ({ ...state, collectorUnits: state.collectorUnits + 1 }),
     // Settlement emits at most one accumulator update per commit; it carries
     // the absolute post-settlement record computed from command-start state.
-    "lab.monitors_settled": (state, event) =>
-      Object.freeze({ ...state, accumulator: event.accumulator }),
-    "lab.collector_toggled": (state, event) =>
-      Object.freeze({ ...state, collectorEngaged: event.engaged }),
+    "lab.monitors_settled": (state, event) => ({ ...state, accumulator: event.accumulator }),
+    "lab.collector_toggled": (state, event) => ({ ...state, collectorEngaged: event.engaged }),
     // The capture's `level` is journal evidence (what the release converted);
     // the fold always resets the gauge for the next decision span.
-    "lab.gauge_captured": (state) => Object.freeze({ ...state, gaugeLevel: 0 }),
+    "lab.gauge_captured": (state) => ({ ...state, gaugeLevel: 0 }),
   },
 });
 
@@ -641,11 +635,11 @@ const walletModuleV1 = kit.defineStatefulModule({
   state: {
     slot: "simulation.wallet",
     schema: labWalletStateSchemaV1,
-    initial: () => Object.freeze({ credits: 0 }),
+    initial: () => ({ credits: 0 }),
   },
   commandSchema: commandSchemaV1,
   reducers: {
-    "lab.credits_changed": (_state, event) => Object.freeze({ credits: event.balance }),
+    "lab.credits_changed": (_state, event) => ({ credits: event.balance }),
   },
 });
 
@@ -684,13 +678,12 @@ export type LabGameSimulationV1 = GameSimulationV1<
 >;
 
 const labTransactionRunnerV1 = labCompositionV1.createTransactionRunner({
-  stateSchema: labGameStateSchemaV1,
   eventSchema: labEventSchemaV1,
-  createFault: () => Object.freeze({ code: "lab.executor_failed" as const }),
+  createFault: () => ({ code: "lab.executor_failed" as const }),
 });
 
 export function createLabGameSimulationV1(): LabGameSimulationV1 {
-  const commandExecutor: LabCommandExecutorV1 = Object.freeze({
+  const commandExecutor: LabCommandExecutorV1 = {
     executeAttempt(snapshot, command) {
       const rng = createTransactionalRngV1(snapshot.rng);
       const state = snapshot.state.simulation;
@@ -701,10 +694,10 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
       // same granularity `activeWhen` has. Input writes (the collector
       // switch) share that seam: they commit in their own command and
       // surface at the next fenced settlement.
-      const holdSessionRead = Object.freeze({
+      const holdSessionRead = {
         collectorUnits: state.monitors.collectorUnits,
         collectorEngaged: state.monitors.collectorEngaged,
-      });
+      };
 
       const emitStage = (
         transaction: { emit(event: LabEventV1): void },
@@ -715,7 +708,7 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
         // unappliable batch rejects the command instead of faulting the fold.
         // The pre-check reads command-start state, so a command must emit at
         // most one stage batch; a second would validate against a stale stage.
-        const outcome = reduceStageMutationsV1(state.stage, mutations);
+        const outcome = reduceAdmittedStageMutationsV1(state.stage, mutations);
         if (outcome.kind === "rejected") return "lab.stage_rejected" as const;
         transaction.emit({ kind: "lab.stage_changed", mutations });
         return null;
@@ -750,8 +743,7 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
       }
 
       if (command.kind === "lab.collect_sample") {
-        const sampleYield =
-          rng.nextInt(Object.freeze({ purpose: "check:lab.sample_yield", exclusiveMax: 3 })) + 1;
+        const sampleYield = rng.nextInt({ purpose: "check:lab.sample_yield", exclusiveMax: 3 }) + 1;
         return labTransactionRunnerV1.execute(snapshot, rng, (transaction) => {
           transaction.emit({
             kind: "lab.sample_collected",
@@ -933,7 +925,7 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
               }
               transaction.emit({
                 kind: "lab.monitors_settled",
-                accumulator: Object.freeze(cleared),
+                accumulator: cleared,
               });
             }
             if (captured > 0) {
@@ -1066,19 +1058,19 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
         return transaction.complete();
       });
     },
-  });
+  };
 
-  const debugCommandExecutor: LabDebugCommandExecutorV1 = Object.freeze({
+  const debugCommandExecutor: LabDebugCommandExecutorV1 = {
     validate() {
-      return Object.freeze({
+      return ({
         kind: "validation_failed" as const,
-        errors: Object.freeze([Object.freeze({ code: "lab.debug_command_unsupported" as const })]),
+        errors: [{ code: "lab.debug_command_unsupported" as const }],
       });
     },
     executeAttempt() {
       throw new TypeError("lab debug commands are unsupported");
     },
-  });
+  };
 
   return defineGameSimulation<LabSimulationTypesV1>()({
     contractRevision: 1,
@@ -1092,13 +1084,13 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
     commandExecutor,
     debugCommandExecutor,
     createBootstrapInput(entropy: BootstrapEntropyV1) {
-      return Object.freeze({ rngSeed: entropy.nextNonZeroUint32() });
+      return ({ rngSeed: entropy.nextNonZeroUint32() });
     },
     createInitialState() {
       return createInitialLabGameStateV1();
     },
     createQueries(state: LabGameStateV1) {
-      return Object.freeze({
+      return ({
         samplesCollected: state.simulation.samples.collected,
         credits: state.simulation.wallet.credits,
         bannerOwned: labStageHasBannerV1(state.simulation.stage),
@@ -1112,7 +1104,7 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
       });
     },
     projectGameView(queries: LabQueriesV1) {
-      return Object.freeze({
+      return ({
         samplesCollected: queries.samplesCollected,
         credits: queries.credits,
         bannerOwned: queries.bannerOwned,
@@ -1120,14 +1112,14 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
         procedureSteps: queries.procedureSteps,
         stage: queries.stage,
         audio: projectLabAudioIntentV1(queries),
-        monitors: Object.freeze({
+        monitors: {
           gaugeLevel: queries.monitors.gaugeLevel,
           ambientIgnitions: queries.monitors.ambientIgnitions,
           collectorEngaged: queries.monitors.collectorEngaged,
           collectorUnits: queries.monitors.collectorUnits,
           reportingActive: queries.monitorReportingActive,
           realtimeActive: queries.monitorRealtimeActive,
-        }),
+        },
       });
     },
   });

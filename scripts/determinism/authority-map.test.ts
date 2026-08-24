@@ -379,9 +379,6 @@ describe("authoritative determinism authority map", () => {
         migrationIds: ["migration.synthetic.one"],
         paths: expect.arrayContaining([...managedSimulationPaths]),
       }));
-      expect(Object.isFrozen(migration)).toBe(true);
-      expect(Object.isFrozen(migration?.migrationIds)).toBe(true);
-
       await expect(
         inspectConfiguredSaveStateMigrationV1({
           repositoryRoot: repositoryRootV1,

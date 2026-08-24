@@ -90,12 +90,12 @@ function requireExplicitGarbageCollectorV1(): () => void {
 
 function readMemoryUsageV1(): SnapshotMemoryUsageV1 {
   const usage = Deno.memoryUsage();
-  return Object.freeze({
+  return {
     rssBytes: usage.rss,
     heapTotalBytes: usage.heapTotal,
     heapUsedBytes: usage.heapUsed,
     externalBytes: usage.external,
-  });
+  };
 }
 
 function collectGarbageV1(gc: () => void): () => Promise<void> {

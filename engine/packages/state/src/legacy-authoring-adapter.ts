@@ -55,24 +55,16 @@ export type LegacyGameplayModuleBindingTupleV1<
 
 const defineErasedGameplayModuleV1 = defineGameplayModule<GameSimulationTypeMapV1>();
 
-function admitSourceBindingV1(binding: StateModuleBindingV1): ErasedGameplayModuleBindingV1 {
+function readSourceBindingV1(binding: StateModuleBindingV1): ErasedGameplayModuleBindingV1 {
   if (binding === null || typeof binding !== "object" || Array.isArray(binding)) {
     throw new TypeError("invalid GameplayModule binding");
   }
-  const bindingKindDescriptor = Object.getOwnPropertyDescriptor(binding, "bindingKind");
-  if (bindingKindDescriptor?.get !== undefined || bindingKindDescriptor?.set !== undefined) {
-    throw new TypeError("authoring accessors are forbidden");
-  }
-  const bindingKind = bindingKindDescriptor?.value;
+  const bindingKind = (binding as unknown as { readonly bindingKind?: unknown }).bindingKind;
   if (bindingKind === "stateful") {
-    return defineErasedGameplayModuleV1(
-      binding as unknown as ErasedStatefulGameplayModuleBindingV1,
-    );
+    return binding as unknown as ErasedStatefulGameplayModuleBindingV1;
   }
   if (bindingKind === "stateless") {
-    return defineErasedGameplayModuleV1(
-      binding as unknown as ErasedStatelessGameplayModuleBindingV1,
-    );
+    return binding as unknown as ErasedStatelessGameplayModuleBindingV1;
   }
   throw new TypeError("invalid GameplayModule bindingKind");
 }
@@ -119,8 +111,8 @@ function rebuildBindingV1(
 }
 
 /**
- * Re-admits neutral State bindings for a legacy GameSimulation, attaching its
- * aggregate command Schema without relying on property enumeration.
+ * Normalizes neutral State bindings once for a legacy GameSimulation while
+ * attaching its aggregate command Schema.
  */
 export function createLegacyGameplayModuleBindingsV1<
   TTypes extends StateWorkflowTypeMapV1 & GameSimulationTypeMapV1,
@@ -133,9 +125,7 @@ export function createLegacyGameplayModuleBindingsV1(
   composition: { readonly modules: readonly StateModuleBindingV1[] },
   commandSchema: RuntimeSchemaV1<unknown>,
 ): readonly unknown[] {
-  return Object.freeze(
-    composition.modules.map((binding) =>
-      rebuildBindingV1(admitSourceBindingV1(binding), commandSchema)
-    ),
+  return composition.modules.map((binding) =>
+    rebuildBindingV1(readSourceBindingV1(binding), commandSchema)
   );
 }

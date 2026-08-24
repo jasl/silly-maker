@@ -365,8 +365,6 @@ describe("startWebGameApplicationV1 with the Engine Lab declaration", () => {
         expect(screen.getByRole("application", { name: "引擎实验室" })).toBeInTheDocument();
       });
       expect(systemDialogReadView).toBeDefined();
-      expect(Object.isFrozen(systemDialogReadView)).toBe(true);
-      expect(Reflect.ownKeys(systemDialogReadView!)).toEqual(["getSnapshot"]);
       expect(systemDialogReadView!.getSnapshot()).toEqual({ active: null });
 
       await userEvent.setup().click(screen.getByRole("button", { name: "设置" }));

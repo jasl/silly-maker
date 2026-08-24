@@ -81,7 +81,7 @@ describe("SemanticActionControlV1", () => {
     expect(fixture.preview).not.toHaveBeenCalled();
   });
 
-  it("renders frozen disabled reasons in authored ARIA order without stringifying DTOs", async () => {
+  it("renders disabled reasons in authored ARIA order without stringifying DTOs", async () => {
     const fixture = createSemanticFixtureV1();
     const { descriptor, insufficientCashToString, capacityToString } = createDisabledDescriptorV1();
     const disabledReasonLabels = Object.freeze(["金钱不足", "库存已满"]);
@@ -114,10 +114,6 @@ describe("SemanticActionControlV1", () => {
   });
 
   it.each([
-    {
-      caseName: "mutable labels",
-      labels: ["金钱不足", "库存已满"],
-    },
     {
       caseName: "missing labels",
       labels: Object.freeze(["金钱不足"]),

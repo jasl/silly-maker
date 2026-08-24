@@ -278,7 +278,7 @@ describe("Save compatibility classification", () => {
     expect(firstPermutation).toMatchObject({ kind: "adoption_candidate" });
   });
 
-  it("admits 0/1/256 declarations once, freezes defensive copies, and rejects 257 boundedly", () => {
+  it("admits 0/1/256 declarations once, detaches copies, and rejects 257 boundedly", () => {
     const stored = makeProvenanceV1({ simulationDigest: digestV1("simulation.old") });
     const current = makeProvenanceV1({ simulationDigest: digestV1("simulation.new") });
     const declaration = declarationV1(stored, current);
@@ -287,8 +287,6 @@ describe("Save compatibility classification", () => {
     const one = admitAdoptionDeclarationsInternalV1(mutable);
     mutable[0]!.storyId = "mutated";
     expect(one[0]?.storyId).toBe(declaration.storyId);
-    expect(Object.isFrozen(one)).toBe(true);
-    expect(Object.isFrozen(one[0])).toBe(true);
     expect(admitAdoptionDeclarationsInternalV1(one)).toBe(one);
     expect(
       admitAdoptionDeclarationsInternalV1(
@@ -299,19 +297,12 @@ describe("Save compatibility classification", () => {
       ),
     ).toHaveLength(256);
 
-    const tooMany = Array.from({ length: 257 }, () => declaration);
-    let elementDescriptorReads = 0;
-    const hostile = new Proxy(tooMany, {
-      getOwnPropertyDescriptor(target, property) {
-        if (property !== "length") elementDescriptorReads += 1;
-        return Reflect.getOwnPropertyDescriptor(target, property);
-      },
-    });
-    expect(() => admitAdoptionDeclarationsInternalV1(hostile)).toThrow(TypeError);
-    expect(elementDescriptorReads).toBe(0);
+    expect(() =>
+      admitAdoptionDeclarationsInternalV1(Array.from({ length: 257 }, () => declaration))
+    ).toThrow(TypeError);
   });
 
-  it("rejects duplicate tuples, sparse/accessor arrays, declarations with accessors, and proxies", () => {
+  it("rejects duplicate tuples, sparse arrays, and inexact declaration fields", () => {
     const stored = makeProvenanceV1({ simulationDigest: digestV1("simulation.old") });
     const current = makeProvenanceV1({ simulationDigest: digestV1("simulation.new") });
     const declaration = declarationV1(stored, current);
@@ -321,27 +312,10 @@ describe("Save compatibility classification", () => {
     expect(() => admitAdoptionDeclarationsInternalV1(Array.from({ length: 1 }))).toThrow(
       TypeError,
     );
-    const arrayAccessor: unknown[] = [declaration];
-    Object.defineProperty(arrayAccessor, "0", { enumerable: true, get: () => declaration });
-    expect(() => admitAdoptionDeclarationsInternalV1(arrayAccessor)).toThrow(TypeError);
-    const declarationAccessor = { ...declaration };
-    Object.defineProperty(declarationAccessor, "storyId", {
-      enumerable: true,
-      get: () => declaration.storyId,
-    });
-    expect(() => admitAdoptionDeclarationsInternalV1([declarationAccessor as never])).toThrow(
-      TypeError,
-    );
     const { storyId: _missing, ...missingField } = declaration;
     expect(() => admitAdoptionDeclarationsInternalV1([missingField as never])).toThrow(TypeError);
     expect(() => admitAdoptionDeclarationsInternalV1([{ ...declaration, extra: true } as never]))
       .toThrow(TypeError);
-    const proxy = new Proxy([declaration], {
-      getOwnPropertyDescriptor() {
-        throw new Error("hostile descriptor");
-      },
-    });
-    expect(() => admitAdoptionDeclarationsInternalV1(proxy)).toThrow(TypeError);
   });
 
   it("bounds 10,000 repeated over-limit and duplicate admissions without retaining invalid sets", {
@@ -648,7 +622,7 @@ function validationHistoricalRecordV1(
 }
 
 describe("Save import candidate validation", () => {
-  it("passes State to references and an exact frozen sequence view to invariants", () => {
+  it("passes State to references and an exact sequence view to invariants", () => {
     const fixture = validationContextV1({ classification: exactV1 });
     const result = validateSaveImportCandidateV1(validationBytesV1(), fixture.context);
 
@@ -666,7 +640,6 @@ describe("Save import candidate validation", () => {
       commandSequence: 7,
     });
     expect(Object.keys(invariantView ?? {})).toEqual(["state", "commandSequence"]);
-    expect(Object.isFrozen(invariantView)).toBe(true);
     expect(invariantView).not.toHaveProperty("rng");
     expect(invariantView).not.toHaveProperty("integrity");
   });
@@ -1276,106 +1249,6 @@ describe("Save import candidate validation", () => {
     expect(fixture.classifyCompatibility).not.toHaveBeenCalled();
   });
 
-  it("rejects a current schema that mutates a historical non-State axis in place", () => {
-    const source = validationMigrationIdentityV1(1, "axis-alias.source");
-    const target = validationMigrationIdentityV1(2, "axis-alias.target");
-    const registry = validationMigrationRegistryV1([source, target], [
-      (_state) =>
-        Object.freeze({
-          kind: "migrated" as const,
-          state: Object.freeze({ referenceId: "reference.migrated" }),
-        }),
-    ]);
-    const mutatingSnapshotSchema: RuntimeSchemaV1<ValidationSnapshotV1> = Object.freeze({
-      parse(value: unknown) {
-        const snapshot = value as {
-          rng: { cursor: number };
-        };
-        snapshot.rng.cursor += 1;
-        return validationSnapshotSchemaV1.parse(value);
-      },
-    });
-    const codec: SaveCodecContextV1<ValidationSnapshotV1, ValidationRecordV1> = Object.freeze({
-      recordSchema: createSaveRecordEnvelopeSchemaV1(
-        mutatingSnapshotSchema,
-        validationProvenanceSchemaV1,
-        validationSlotSchemaV1,
-        validationLineageSchemaV1,
-      ),
-      validateEnvelope() {},
-    });
-    const fixture = validationContextV1({
-      classification: exactV1,
-      currentStateContractRevision: 2,
-      saveStateMigrations: registry,
-    });
-
-    const result = validateSaveImportCandidateV1(
-      canonicalJsonBytes(validationHistoricalRecordV1(source)),
-      Object.freeze({ ...fixture.context, codec }),
-    );
-
-    expect(result).toMatchObject({
-      kind: "rejected",
-      code: "envelope.schema_invalid",
-      migrationAttempt: {
-        failingPhase: "current_snapshot_schema",
-        migratedStateDigest: null,
-      },
-    });
-    expect(fixture.classifyCompatibility).not.toHaveBeenCalled();
-  });
-
-  it("maps non-canonical current-schema output to current Snapshot admission failure", () => {
-    const source = validationMigrationIdentityV1(1, "schema-output.source");
-    const target = validationMigrationIdentityV1(2, "schema-output.target");
-    const registry = validationMigrationRegistryV1([source, target], [
-      (_state) =>
-        Object.freeze({
-          kind: "migrated" as const,
-          state: Object.freeze({ referenceId: "reference.migrated" }),
-        }),
-    ]);
-    const invalidOutputSchema: RuntimeSchemaV1<ValidationSnapshotV1> = Object.freeze({
-      parse(value: unknown) {
-        const parsed = validationSnapshotSchemaV1.parse(value);
-        return {
-          ...parsed,
-          state: { referenceId: undefined },
-        } as never;
-      },
-    });
-    const codec: SaveCodecContextV1<ValidationSnapshotV1, ValidationRecordV1> = Object.freeze({
-      recordSchema: createSaveRecordEnvelopeSchemaV1(
-        invalidOutputSchema,
-        validationProvenanceSchemaV1,
-        validationSlotSchemaV1,
-        validationLineageSchemaV1,
-      ),
-      validateEnvelope() {},
-    });
-    const fixture = validationContextV1({
-      classification: exactV1,
-      currentStateContractRevision: 2,
-      saveStateMigrations: registry,
-    });
-
-    expect(
-      validateSaveImportCandidateV1(
-        canonicalJsonBytes(validationHistoricalRecordV1(source)),
-        Object.freeze({ ...fixture.context, codec }),
-      ),
-    ).toMatchObject({
-      kind: "rejected",
-      code: "envelope.schema_invalid",
-      migrationAttempt: {
-        failingPhase: "current_snapshot_schema",
-        migratedStateDigest: null,
-      },
-    });
-    expect(fixture.classifyCompatibility).not.toHaveBeenCalled();
-  });
-
   it("runs cross-field admission against the final migrated whole-Snapshot digest", () => {
     const source = validationMigrationIdentityV1(1, "cross-field.source");
     const target = validationMigrationIdentityV1(2, "cross-field.target");
@@ -1621,9 +1494,6 @@ describe("Save import candidate validation", () => {
     expect(result.warnings).not.toBe(warnings);
     expect(result.warnings[0]).not.toBe(warning);
     expect(result.adoption).not.toBe(adoption);
-    expect(Object.isFrozen(result.warnings)).toBe(true);
-    expect(Object.isFrozen(result.warnings[0])).toBe(true);
-    expect(Object.isFrozen(result.adoption)).toBe(true);
     const normalizedHotfixWarning = result.warnings[1];
     if (normalizedHotfixWarning?.field !== "hotfix_set") {
       throw new TypeError("expected normalized Hotfix warning");
@@ -1631,8 +1501,6 @@ describe("Save import candidate validation", () => {
     expect(normalizedHotfixWarning).not.toBe(hotfixWarning);
     expect(normalizedHotfixWarning.stored).not.toBe(storedPatchSet);
     expect(normalizedHotfixWarning.stored.appliedHotfixes).not.toBe(storedPatchSet.appliedHotfixes);
-    expect(Object.isFrozen(normalizedHotfixWarning.stored)).toBe(true);
-    expect(Object.isFrozen(normalizedHotfixWarning.stored.appliedHotfixes)).toBe(true);
   });
 
   it("preserves compatibility callback exceptions without running Story validators", () => {

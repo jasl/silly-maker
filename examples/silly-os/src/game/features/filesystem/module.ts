@@ -11,27 +11,27 @@ export const filesystemModuleV1 = kit.defineStatefulModule({
   state: {
     slot: "simulation.filesystem",
     schema: osFilesystemStateSchemaV1,
-    initial: (): OsFilesystemStateV1 => Object.freeze({ files: Object.freeze([]), writes: 0 }),
+    initial: (): OsFilesystemStateV1 => ({ files: [], writes: 0 }),
   },
   commandSchema: commandSchemaV1,
   reducers: {
     "os.fs.saved": (state, event) => {
-      const next = Object.freeze({
+      const next = {
         name: event.name,
         content: event.content,
         revision: event.revision,
-      });
+      };
       const others = state.files.filter((file) => file.name !== event.name);
       // Files keep a stable lexicographic-by-name order (canonical JSON matches the UI list).
-      const files = Object.freeze(
-        [...others, next].toSorted((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)),
-      );
-      return Object.freeze({ files, writes: event.revision });
+      const files = [...others, next].toSorted((
+        a,
+        b,
+      ) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+      return ({ files, writes: event.revision });
     },
-    "os.fs.removed": (state, event) =>
-      Object.freeze({
-        files: Object.freeze(state.files.filter((file) => file.name !== event.name)),
-        writes: state.writes,
-      }),
+    "os.fs.removed": (state, event) => ({
+      files: state.files.filter((file) => file.name !== event.name),
+      writes: state.writes,
+    }),
   },
 });

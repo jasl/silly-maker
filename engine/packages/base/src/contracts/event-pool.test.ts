@@ -134,38 +134,6 @@ describe("event condition language", () => {
       );
     },
   );
-
-  it("captures each own context number once before evaluation", () => {
-    let reads = 0;
-    const numbers = Object.defineProperty({}, "observed", {
-      enumerable: true,
-      get() {
-        reads += 1;
-        return reads === 1 ? 1 : 1.5;
-      },
-    }) as Readonly<Record<string, number>>;
-    const condition = parseEventConditionV1({
-      kind: "number",
-      key: "observed",
-      op: "eq",
-      value: 1,
-    });
-
-    expect(evaluateEventConditionV1(condition, { numbers, flags: [], labels: {} })).toBe(true);
-    expect(reads).toBe(1);
-  });
-
-  it("treats inherited context numbers as missing", () => {
-    const numbers = Object.create({ observed: 1.5 }) as Readonly<Record<string, number>>;
-    const condition = parseEventConditionV1({
-      kind: "number",
-      key: "observed",
-      op: "gte",
-      value: 1,
-    });
-
-    expect(evaluateEventConditionV1(condition, { numbers, flags: [], labels: {} })).toBe(false);
-  });
 });
 
 describe("event pool draws", () => {
@@ -331,87 +299,6 @@ describe("event pool draws", () => {
     );
     expect(counted.nextIntCalls()).toBe(0);
   });
-
-  it("captures candidate scalar fields once before using the admitted projection", () => {
-    const propertyReads = { eventId: 0, weight: 0, condition: 0 };
-    const condition = parseEventConditionV1({
-      kind: "number",
-      key: "observed",
-      op: "eq",
-      value: 1,
-    });
-    const candidate = new Proxy<EventPoolCandidateV1>(
-      { eventId: "event.captured", weight: 1, condition },
-      {
-        get(target, property, receiver) {
-          if (property === "eventId" || property === "weight" || property === "condition") {
-            propertyReads[property] += 1;
-          }
-          if (property === "weight" && propertyReads.weight > 1) return 1.5;
-          return Reflect.get(target, property, receiver);
-        },
-      },
-    );
-    const counted = countingRngV1();
-
-    const result = drawFromEventPoolV1({
-      candidates: [candidate],
-      context: { numbers: { observed: 1 }, flags: [], labels: {} },
-      rng: counted.rng,
-      purpose: "check:test.captured-candidate",
-      force: "event.captured",
-    });
-
-    expect(result).toMatchObject({
-      kind: "drawn",
-      eventId: "event.captured",
-      explanation: {
-        eligible: [{ eventId: "event.captured", weight: 1 }],
-        totalWeight: 1,
-        roll: null,
-        forced: true,
-      },
-    });
-    expect(propertyReads).toEqual({ eventId: 1, weight: 1, condition: 1 });
-    expect(counted.nextIntCalls()).toBe(0);
-  });
-
-  it.each(["ordinary", "forced"] as const)(
-    "does not admit an inherited context number during an %s draw",
-    (mode) => {
-      const condition = parseEventConditionV1({
-        kind: "number",
-        key: "observed",
-        op: "gte",
-        value: 1,
-      });
-      const numbers = Object.create({ observed: 1.5 }) as Readonly<Record<string, number>>;
-      const counted = countingRngV1();
-      const draw = () =>
-        drawFromEventPoolV1({
-          candidates: [{ eventId: "event.own-only", weight: 1, condition }],
-          context: { numbers, flags: [], labels: {} },
-          rng: counted.rng,
-          purpose: "check:test.own-context",
-          ...(mode === "forced" ? { force: "event.own-only" } : {}),
-        });
-
-      if (mode === "forced") {
-        expect(draw).toThrow(
-          expect.objectContaining({
-            code: "event_pool.force_ineligible",
-            path: "/candidates/event.own-only",
-          }),
-        );
-      } else {
-        expect(draw()).toMatchObject({
-          kind: "empty",
-          explanation: { eligible: [], totalWeight: 0, roll: null, forced: false },
-        });
-      }
-      expect(counted.nextIntCalls()).toBe(0);
-    },
-  );
 
   it("accepts one legal eligible weight and spends one bounded draw", () => {
     const counted = countingRngV1();

@@ -98,7 +98,7 @@ function cloneMotionDocumentV1(motionDocument: MotionDocumentV1): MotionDocument
 
 /** Adapts the motion CAS port to the shared authoring-session io shape. */
 function motionSessionIoV1(io: MotionSourceIoV1): AuthoringDocumentIoV1<MotionDocumentV1> {
-  return Object.freeze({
+  return {
     read: (path: string) =>
       io.read(path).then((result) =>
         result.kind === "ok"
@@ -111,7 +111,7 @@ function motionSessionIoV1(io: MotionSourceIoV1): AuthoringDocumentIoV1<MotionDo
         expectedDigest: input.expectedDigest,
         motionDocument: input.document,
       }),
-  });
+  };
 }
 
 function tryParseMotionDocumentV1(
@@ -140,30 +140,26 @@ function workbenchFrameV1(
   phase: "enter" | "exit",
 ): StageRenderFrameV1 {
   const settled = settledStageFrameV1(target);
-  return Object.freeze({
+  return {
     ...settled,
-    layers: settled.layers.map((layer) =>
-      Object.freeze({
-        ...layer,
-        entries: Object.freeze(
-          layer.entries
-            .filter((frameEntry) => !ghostOnly || frameEntry.entry.key === entryKey)
-            .map((frameEntry) =>
-              frameEntry.entry.key === entryKey && motion !== null
-                ? Object.freeze({
-                  ...frameEntry,
-                  phase: phase === "exit" ? ("exiting" as const) : ("entering" as const),
-                  transitionKind: "motion" as const,
-                  transitionId: null,
-                  progress,
-                  motion,
-                })
-                : frameEntry
-            ),
+    layers: settled.layers.map((layer) => ({
+      ...layer,
+      entries: layer.entries
+        .filter((frameEntry) => !ghostOnly || frameEntry.entry.key === entryKey)
+        .map((frameEntry) =>
+          frameEntry.entry.key === entryKey && motion !== null
+            ? {
+              ...frameEntry,
+              phase: phase === "exit" ? ("exiting" as const) : ("entering" as const),
+              transitionKind: "motion" as const,
+              transitionId: null,
+              progress,
+              motion,
+            }
+            : frameEntry
         ),
-      })
-    ),
-  });
+    })),
+  };
 }
 
 interface DraftEditorV1 {
@@ -465,10 +461,10 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
     // A Workbench save is a human decision: the asset graduates from
     // "generated" to "human_tuned" so collaboration rules (do not overwrite
     // human-tuned assets) can see it. Locks and notes are preserved.
-    const motionDocument: MotionDocumentV1 = Object.freeze({
+    const motionDocument: MotionDocumentV1 = {
       ...validDraft,
-      authoring: Object.freeze({ ...validDraft.authoring, status: "human_tuned" as const }),
-    });
+      authoring: { ...validDraft.authoring, status: "human_tuned" as const },
+    };
     setSaveStatus({ kind: "saving" });
     const result = await session.save({ document: motionDocument });
     if (result.kind === "ok") {
@@ -490,21 +486,21 @@ export function MotionWorkbenchV1(props: MotionWorkbenchPropsV1): ReactElement {
 
   useEffect(() => {
     if (registerCloseParticipant === undefined) return undefined;
-    return registerCloseParticipant(Object.freeze({
+    return registerCloseParticipant({
       getState: () => {
         const current = session.getSnapshot();
         const validDraft = current.draft !== null &&
           tryParseMotionDocumentV1(current.draft).motionDocument !== null;
-        return Object.freeze({
+        return {
           dirty: current.dirty,
           busy: current.loading || current.saving,
           canSave: current.dirty && current.digest !== null && validDraft,
-        });
+        };
       },
       subscribe: session.subscribe,
       save: saveDocument,
       discard: session.discard,
-    }));
+    });
   }, [registerCloseParticipant, saveDocument, session]);
 
   const reload = (): void => {

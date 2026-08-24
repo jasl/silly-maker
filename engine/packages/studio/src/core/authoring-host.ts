@@ -115,7 +115,7 @@ let nextAuthoringHostIdentityInternalV1 = 0;
 function documentSnapshotInternalV1<TDocument>(
   snapshot: AuthoringSessionSnapshotV1<TDocument>,
 ): AuthoringHostDocumentSnapshotInternalV1 {
-  return Object.freeze({
+  return {
     documentIdentity: snapshot.documentIdentity,
     draftRevision: snapshot.draftRevision,
     path: snapshot.path,
@@ -125,7 +125,7 @@ function documentSnapshotInternalV1<TDocument>(
     saving: snapshot.saving,
     canUndo: snapshot.canUndo,
     canRedo: snapshot.canRedo,
-  });
+  };
 }
 
 export function createAuthoringHostInternalV1(
@@ -176,11 +176,11 @@ export function createAuthoringHostInternalV1(
       chrome: chrome?.dirty ?? false,
       flow: false,
     } satisfies Record<AuthoringWorkspaceIdInternalV1, boolean>;
-    const dirtyWorkspaceIds = Object.freeze(
-      workspaceContract.ids.filter((workspaceId) => dirtyByWorkspace[workspaceId]),
+    const dirtyWorkspaceIds = workspaceContract.ids.filter((workspaceId) =>
+      dirtyByWorkspace[workspaceId]
     );
     revision += 1;
-    snapshot = Object.freeze({
+    snapshot = {
       identity,
       revision,
       connected: connectedViews.size > 0,
@@ -188,15 +188,15 @@ export function createAuthoringHostInternalV1(
       workspaceIds: workspaceContract.ids,
       workspaceContractSignature: workspaceContract.signature,
       activeWorkspaceId,
-      visitedWorkspaceIds: Object.freeze(
-        workspaceContract.ids.filter((workspaceId) => visitedWorkspaceIds.has(workspaceId)),
+      visitedWorkspaceIds: workspaceContract.ids.filter((workspaceId) =>
+        visitedWorkspaceIds.has(workspaceId)
       ),
       dirtyWorkspaceIds,
       scene,
       regions,
       chrome,
       activeMotionId: motionStore.observe()?.source.motionId ?? null,
-    });
+    };
   };
   const publish = (): void => {
     if (disposed) return;
@@ -219,11 +219,11 @@ export function createAuthoringHostInternalV1(
 
   const getCloseState = (): AuthoringCloseParticipantStateInternalV1 => {
     const states = [...closeParticipants.values()].map((participant) => participant.getState());
-    return Object.freeze({
+    return {
       dirty: states.some((state) => state.dirty),
       busy: states.some((state) => state.busy),
       canSave: states.every((state) => !state.dirty || state.canSave),
-    });
+    };
   };
 
   const owner: AuthoringHostOwnerInternalV1 = {
@@ -283,7 +283,7 @@ export function createAuthoringHostInternalV1(
     },
   };
 
-  const host: AuthoringHostInternalV1 = Object.freeze({
+  const host: AuthoringHostInternalV1 = {
     getSnapshot: () => snapshot,
     subscribe(listener: () => void): () => void {
       if (disposed) return () => {};
@@ -301,7 +301,7 @@ export function createAuthoringHostInternalV1(
       listeners.clear();
       await flowActivation.dispose();
     },
-  });
+  };
   ownersInternalV1.set(host, owner);
   return host;
 }

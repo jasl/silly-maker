@@ -12,7 +12,6 @@ import type {
 import type { AssetHotfixReplacementV1 } from "./hotfix-resolver.ts";
 import { digestCanonical } from "../contracts/digest.ts";
 import { parsePositiveSafeInteger } from "../contracts/values.ts";
-import { deepFreezeAuthoringValueV1 } from "./define-gameplay-module.ts";
 
 function validateRuntimePath(path: string): void {
   const segments = path.split("/");
@@ -31,23 +30,23 @@ function validateRuntimePath(path: string): void {
 }
 
 function fallback(slot: AssetSlotDefinitionV1): ResolvedAssetEntryV1 {
-  return Object.freeze({
+  return {
     ...slot,
     delivery: "code_fallback" as const,
     provider: null,
-    overrideChain: Object.freeze([]),
-  });
+    overrideChain: [],
+  };
 }
 
 function normalizeProviderV1(provider: AssetProviderEntryV1): AssetProviderEntryV1 {
   validateRuntimePath(provider.runtimePath);
-  return Object.freeze({
+  return {
     assetId: provider.assetId,
     runtimePath: provider.runtimePath,
     mediaType: provider.mediaType,
     width: parsePositiveSafeInteger(provider.width),
     height: parsePositiveSafeInteger(provider.height),
-  });
+  };
 }
 
 export function resolveAssetManifestV1(
@@ -58,7 +57,7 @@ export function resolveAssetManifestV1(
   const slots = authoredSlots.map((slot) => {
     parsePositiveSafeInteger(slot.width);
     parsePositiveSafeInteger(slot.height);
-    return deepFreezeAuthoringValueV1({ ...slot });
+    return { ...slot };
   });
   if (new Set(slots.map((slot) => slot.assetId)).size !== slots.length) {
     throw new TypeError("duplicate asset slot");
@@ -83,15 +82,15 @@ export function resolveAssetManifestV1(
       },
       providers,
     };
-    const identity = Object.freeze({
+    const identity = {
       ...projection.identity,
       digest: digestCanonical("sillymaker:asset-pack:v1", projection),
-    });
+    };
     packs.push(identity);
-    const providerRef: AssetProviderRefV1 = Object.freeze({
+    const providerRef: AssetProviderRefV1 = {
       kind: "asset_pack",
       identity,
-    });
+    };
 
     for (const provider of providers) {
       const slot = slotsById.get(provider.assetId);
@@ -109,13 +108,13 @@ export function resolveAssetManifestV1(
         : [providerRef];
       resolvedById.set(
         provider.assetId,
-        Object.freeze({
+        {
           ...slot,
           ...provider,
           delivery: "runtime_image" as const,
           provider: providerRef,
-          overrideChain: Object.freeze(chain),
-        }),
+          overrideChain: chain,
+        },
       );
     }
   }
@@ -134,8 +133,7 @@ export function resolveAssetManifestV1(
     if (
       hotfix.provider === null ||
       typeof hotfix.provider !== "object" ||
-      Array.isArray(hotfix.provider) ||
-      Object.getPrototypeOf(hotfix.provider) !== Object.prototype
+      Array.isArray(hotfix.provider)
     ) {
       throw new TypeError(`invalid asset Hotfix provider: ${hotfix.assetId}`);
     }
@@ -148,25 +146,25 @@ export function resolveAssetManifestV1(
     }
     const current = resolvedById.get(hotfix.assetId);
     if (!current) throw new TypeError(`asset slot unknown: ${hotfix.assetId}`);
-    const providerRef: AssetProviderRefV1 = Object.freeze({
+    const providerRef: AssetProviderRefV1 = {
       kind: "hotfix",
       identity: hotfix.hotfixIdentity,
-    });
+    };
     resolvedById.set(
       hotfix.assetId,
-      Object.freeze({
+      {
         ...slot,
         ...provider,
         delivery: "runtime_image" as const,
         provider: providerRef,
-        overrideChain: Object.freeze([...current.overrideChain, providerRef]),
-      }),
+        overrideChain: [...current.overrideChain, providerRef],
+      },
     );
   }
 
-  return deepFreezeAuthoringValueV1({
+  return {
     packs,
     slots,
     assets: slots.map((slot) => resolvedById.get(slot.assetId) as ResolvedAssetEntryV1),
-  });
+  };
 }

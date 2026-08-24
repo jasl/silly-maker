@@ -26,8 +26,8 @@ interface InFlightInternalV1<TConsumer> {
   phase: "load" | "mount" | "publication";
 }
 
-const idleStateInternalV1 = Object.freeze({ kind: "idle" as const });
-const disposedStateInternalV1 = Object.freeze({ kind: "disposed" as const });
+const idleStateInternalV1 = { kind: "idle" as const };
+const disposedStateInternalV1 = { kind: "disposed" as const };
 
 function sourceKeyInternalV1(source: {
   readonly id: string;
@@ -39,11 +39,11 @@ function sourceKeyInternalV1(source: {
 function currentValueInternalV1<TConsumer>(
   handle: ExtensionMountedHandleInternalV1<TConsumer>,
 ): ExtensionCurrentConsumerInternalV1<TConsumer> {
-  return Object.freeze({
+  return {
     id: handle.id,
     generation: handle.generation,
     consumer: handle.consumer,
-  });
+  };
 }
 
 class ExtensionActivationControllerImplInternalV1<TConsumer>
@@ -128,28 +128,28 @@ class ExtensionActivationControllerImplInternalV1<TConsumer>
     source: ExtensionCandidateSourceInternalV1<TConsumer>,
     previous: ExtensionCurrentConsumerInternalV1<TConsumer> | null,
   ): void {
-    this.#setState(Object.freeze({
+    this.#setState({
       kind: "loading",
       id: source.id,
       generation: source.generation,
       previous,
-    }));
+    });
   }
 
   #setReady(handle: ExtensionMountedHandleInternalV1<TConsumer>): void {
-    this.#setState(Object.freeze({
+    this.#setState({
       kind: "ready",
       current: currentValueInternalV1(handle),
-    }));
+    });
   }
 
   #setError(source: ExtensionCandidateSourceInternalV1<TConsumer>, error: unknown): void {
-    this.#setState(Object.freeze({
+    this.#setState({
       kind: "error",
       id: source.id,
       generation: source.generation,
       error,
-    }));
+    });
   }
 
   #isCurrentEpoch(epoch: number): boolean {

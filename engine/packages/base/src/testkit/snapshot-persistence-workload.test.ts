@@ -16,57 +16,57 @@ import {
 } from "./snapshot-persistence-workload.ts";
 import { snapshotTransactionProvenanceV1 } from "./snapshot-transaction-workload.ts";
 
-const firstAutoSaveCountsV1 = Object.freeze({
+const firstAutoSaveCountsV1 = {
   canonicalTraversals: 7,
   canonicalDigests: 4,
   commandLogContinuityVerifications: 1,
   saveCanonicalSerializations: 1,
   strictJsonParses: 1,
   strictJsonPreflights: 0,
-});
+};
 
-const rotationCountsV1 = Object.freeze({
+const rotationCountsV1 = {
   canonicalTraversals: 11,
   canonicalDigests: 7,
   commandLogContinuityVerifications: 1,
   saveCanonicalSerializations: 2,
   strictJsonParses: 2,
   strictJsonPreflights: 0,
-});
+};
 
-const digestFallbackFirstAutoSaveCountsV1 = Object.freeze({
+const digestFallbackFirstAutoSaveCountsV1 = {
   ...firstAutoSaveCountsV1,
   canonicalTraversals: 8,
   canonicalDigests: 5,
-});
+};
 
-const digestFallbackRotationCountsV1 = Object.freeze({
+const digestFallbackRotationCountsV1 = {
   ...rotationCountsV1,
   canonicalTraversals: 12,
   canonicalDigests: 8,
-});
+};
 
-const writeReceiptFallbackFirstAutoSaveCountsV1 = Object.freeze({
+const writeReceiptFallbackFirstAutoSaveCountsV1 = {
   ...firstAutoSaveCountsV1,
   canonicalTraversals: 9,
   canonicalDigests: 5,
   saveCanonicalSerializations: 2,
   strictJsonPreflights: 0,
-});
+};
 
-const writeReceiptFallbackRotationCountsV1 = Object.freeze({
+const writeReceiptFallbackRotationCountsV1 = {
   ...rotationCountsV1,
   canonicalTraversals: 13,
   canonicalDigests: 8,
   saveCanonicalSerializations: 3,
   strictJsonPreflights: 0,
-});
+};
 
 async function persistenceEquivalenceEvidenceV1(
   workload: Awaited<ReturnType<typeof createSnapshotPersistenceWorkloadV1>>,
 ) {
   const snapshot = workload.snapshot();
-  return Object.freeze({
+  return ({
     snapshotBytes: canonicalJsonBytes(snapshot),
     snapshotDigest: digestCanonical("sillymaker:state:v1", snapshot),
     commandLogBytes: canonicalJsonBytes(workload.commandLog()),
@@ -106,7 +106,7 @@ async function createPersistenceEquivalencePairV1(
       wrapRuntimeControlForFallback: true,
       wrapRepositoryForWriteReceiptFallback: true,
     });
-    return Object.freeze({ optimized, fallback });
+    return ({ optimized, fallback });
   } catch (error) {
     await optimized.dispose();
     throw error;
@@ -120,7 +120,7 @@ function createDelayedSaveStoreV1() {
   let markWriteStarted: (() => void) | undefined;
   let writeStarted = Promise.resolve();
   let writeGate = Promise.resolve();
-  const records: HostAtomicRecordStoreV1 = Object.freeze({
+  const records: HostAtomicRecordStoreV1 = {
     read: memory.read,
     list: memory.list,
     async commit(mutations: Parameters<HostAtomicRecordStoreV1["commit"]>[0]) {
@@ -130,8 +130,8 @@ function createDelayedSaveStoreV1() {
       }
       return await memory.commit(mutations);
     },
-  });
-  return Object.freeze({
+  };
+  return ({
     records,
     blockNextSaveWrite() {
       if (blocking) throw new TypeError("delayed Save store is already blocking");
@@ -155,11 +155,11 @@ function createSemanticallyTamperingStoreV1() {
   const memory = createMemoryHostRecordStoreV1();
   const textEncoder = new TextEncoder();
   let tamperSaveReads = false;
-  const records: HostAtomicRecordStoreV1 = Object.freeze({
+  const records: HostAtomicRecordStoreV1 = {
     async read(...args: Parameters<HostAtomicRecordStoreV1["read"]>) {
       const stored = await memory.read(...args);
       if (!tamperSaveReads || args[0] !== "save" || stored === null) return stored;
-      return Object.freeze({
+      return ({
         ...stored,
         bytes: textEncoder.encode(
           JSON.stringify(JSON.parse(new TextDecoder().decode(stored.bytes)), null, 2),
@@ -174,7 +174,7 @@ function createSemanticallyTamperingStoreV1() {
       }
       return result;
     },
-  });
+  };
   return records;
 }
 
@@ -197,7 +197,7 @@ async function corruptQuickSaveV1(records: HostAtomicRecordStoreV1): Promise<voi
 describe("Snapshot persistence workload", () => {
   it("rejects over-limit adoption configuration before any workload Host activity", async () => {
     const digest = digestBytes(Uint8Array.of(0x61));
-    const declaration = Object.freeze({
+    const declaration = {
       storyId: snapshotTransactionProvenanceV1.story.id,
       storyRevision: snapshotTransactionProvenanceV1.story.revision,
       stateContractRevision: snapshotTransactionProvenanceV1.resolved.stateContractRevision,
@@ -205,10 +205,10 @@ describe("Snapshot persistence workload", () => {
       fromSimulationDigest: digest,
       toSimulationDigest: snapshotTransactionProvenanceV1.resolved.simulationDigest,
       simulationPatchSetDigest: snapshotTransactionProvenanceV1.resolved.patchSet.simulationDigest,
-    });
+    };
     const delegate = createMemoryHostRecordStoreV1();
     let hostOperations = 0;
-    const records: HostAtomicRecordStoreV1 = Object.freeze({
+    const records: HostAtomicRecordStoreV1 = {
       read(
         namespace: Parameters<HostAtomicRecordStoreV1["read"]>[0],
         key: Parameters<HostAtomicRecordStoreV1["read"]>[1],
@@ -224,7 +224,7 @@ describe("Snapshot persistence workload", () => {
         hostOperations += 1;
         return delegate.commit(mutations);
       },
-    });
+    };
     await expect(createSnapshotPersistenceWorkloadV1({
       entityCount: 100,
       records,

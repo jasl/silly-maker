@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import { parseNonNegativeSafeInteger, type SaveSlotIdV1 } from "@sillymaker/base";
-import { describe, expect, expectTypeOf, it, vi } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 import { createManagedSurfaceCoordinatorV1 } from "../managed-surfaces/managed-surface-coordinator.ts";
 import {
@@ -30,11 +30,11 @@ function snapshotFixtureContentConfigV1(input: {
   readonly metadata: { readonly revision: number };
   readonly sections: readonly object[];
 }): SystemDialogContentConfigSnapshotInternalV1<FixtureContentConfigV1> {
-  return createSystemDialogContentConfigSnapshotInternalV1(Object.freeze({
+  return createSystemDialogContentConfigSnapshotInternalV1({
     variant: input.variant,
-    metadata: Object.freeze({ revision: input.metadata.revision }),
-    sections: Object.freeze([...input.sections]),
-  }));
+    metadata: { revision: input.metadata.revision },
+    sections: [...input.sections],
+  });
 }
 
 describe("dormant managed System dialog contract", () => {
@@ -59,7 +59,6 @@ describe("dormant managed System dialog contract", () => {
     expect(accepted.map(normalizeSystemDialogConfirmationInvocationInternalV1)).toEqual(accepted);
     for (const invocation of accepted) {
       const normalized = normalizeSystemDialogConfirmationInvocationInternalV1(invocation);
-      expect(Object.isFrozen(normalized)).toBe(true);
       expectTypeOf(normalized).toMatchTypeOf<SystemDialogConfirmationInvocationInternalV1>();
     }
 
@@ -81,33 +80,11 @@ describe("dormant managed System dialog contract", () => {
         "ui.system_dialog_confirmation_invocation_invalid",
       );
     }
-
-    const accessor = { kind: "import" } as Record<string, unknown>;
-    Object.defineProperty(accessor, "kind", {
-      configurable: true,
-      enumerable: true,
-      get: () => "import",
-    });
-    expect(() => normalizeSystemDialogConfirmationInvocationInternalV1(accessor)).toThrowError(
-      "ui.system_dialog_confirmation_invocation_invalid",
-    );
-
-    const slotAccessor = { kind: "restore" } as Record<string, unknown>;
-    const slotGetter = vi.fn(() => "quick");
-    Object.defineProperty(slotAccessor, "slotId", {
-      configurable: true,
-      enumerable: true,
-      get: slotGetter,
-    });
-    expect(() => normalizeSystemDialogConfirmationInvocationInternalV1(slotAccessor)).toThrowError(
-      "ui.system_dialog_confirmation_invocation_invalid",
-    );
-    expect(slotGetter).not.toHaveBeenCalled();
   });
 
-  it("freezes one confirmation renderer and required-port resolution per fresh child", () => {
-    const renderer = Object.freeze({ kind: "confirmation-renderer" });
-    const port = Object.freeze({ kind: "confirmation-port" });
+  it("captures one confirmation renderer and required-port resolution per fresh child", () => {
+    const renderer = { kind: "confirmation-renderer" };
+    const port = { kind: "confirmation-port" };
     const invocation = normalizeSystemDialogConfirmationInvocationInternalV1({
       kind: "clear",
       slotId: "manual.2",
@@ -127,12 +104,9 @@ describe("dormant managed System dialog contract", () => {
       requiredPortBindings: [{ portId: "persistence.player-save", port }],
     });
     expect(snapshot.invocation).toEqual(invocation);
-    expect(Object.isFrozen(snapshot)).toBe(true);
-    expect(Object.isFrozen(snapshot.requiredPortBindings)).toBe(true);
-    expect(Object.isFrozen(snapshot.requiredPortBindings[0])).toBe(true);
   });
 
-  it("freezes one owner, one root slot, and one exact Saves confirmation child", () => {
+  it("declares one owner, one root slot, and one Saves confirmation child", () => {
     const contract = systemDialogManagedContractInternalV1;
 
     expect(contract.rootRequests).toEqual(["settings", "saves"]);
@@ -158,11 +132,6 @@ describe("dormant managed System dialog contract", () => {
         slotId: "surface-slot.system.confirmation",
         cardinality: "single",
       },
-    ]);
-    expect(Object.keys(contract.definitions)).toEqual([
-      "settings",
-      "saves",
-      "confirmation",
     ]);
     expect(contract.definitions.settings).toMatchObject({
       definitionId: "surface.system.settings",
@@ -202,21 +171,7 @@ describe("dormant managed System dialog contract", () => {
           childOpen: "blocking_fallback",
         },
       });
-      expect(Object.isFrozen(definition)).toBe(true);
-      expect(Object.isFrozen(definition.inputPolicy)).toBe(true);
-      expect(Object.isFrozen(definition.dismissPolicy)).toBe(true);
-      expect(Object.isFrozen(definition.focusPolicy)).toBe(true);
-      expect(Object.isFrozen(definition.actionIds)).toBe(true);
-      expect(Object.isFrozen(definition.readiness)).toBe(true);
     }
-    expect(Reflect.ownKeys(contract.definitions.settings)).not.toContain(
-      "sourcePublicationRevision",
-    );
-    expect(Object.isFrozen(contract)).toBe(true);
-    expect(Object.isFrozen(contract.definitions)).toBe(true);
-    expect(Object.isFrozen(contract.definitions.settings)).toBe(true);
-    expect(Object.isFrozen(contract.resolvedSlotDescriptors)).toBe(true);
-    expect(Object.isFrozen(contract.resolvedSlotDescriptors[0])).toBe(true);
   });
 
   it("rejects confirmation under Settings before allocation but admits it under Saves", () => {
@@ -276,7 +231,7 @@ describe("dormant managed System dialog contract", () => {
     });
   });
 
-  it("freezes the target public result union without exposing lifecycle evidence", () => {
+  it("keeps the target public result union free of lifecycle evidence", () => {
     type ResultKeysV1<T> = T extends unknown ? keyof T : never;
     type ExactTargetResultV1 =
       | {
@@ -371,12 +326,11 @@ describe("dormant managed System dialog contract", () => {
       conflictCode: "ui.system_dialog_host_lease_conflict",
       candidateResolution: "snapshot_per_candidate",
     });
-    expect(Object.isFrozen(systemDialogManagedContractInternalV1.host)).toBe(true);
 
     const rendererR1 = (): null => null;
     const rendererR2 = (): null => null;
-    const portR1 = Object.freeze({ kind: "port-r1" });
-    const portR2 = Object.freeze({ kind: "port-r2" });
+    const portR1 = { kind: "port-r1" };
+    const portR2 = { kind: "port-r2" };
     const reactNodeR1 = { kind: "react-node-r1" };
     const configSourceR1 = {
       variant: "standard",
@@ -441,32 +395,5 @@ describe("dormant managed System dialog contract", () => {
     expect(snapshotR2.accessibleName).toBe("Saves R2");
     expect(snapshotR2.requiredPortBindings).toHaveLength(2);
     expect(snapshotR2.contentConfigSnapshot).toBe(configR2);
-    expect(Object.isFrozen(snapshotR1)).toBe(true);
-    expect(Object.isFrozen(snapshotR1.requiredPortBindings)).toBe(true);
-    expect(Object.isFrozen(snapshotR1.requiredPortBindings[0])).toBe(true);
-
-    expect(() =>
-      createSystemDialogRootCandidateResolutionSnapshotInternalV1({
-        ...mutableCatalogEntry,
-        // @ts-expect-error The canonical definition is derived from the normalized root request.
-        definition: {
-          ...systemDialogManagedContractInternalV1.definitions.saves,
-          ownerId: "surface-owner.attacker",
-        },
-      })
-    ).toThrowError("ui.system_dialog_candidate_resolution_invalid");
-    expect(() =>
-      createSystemDialogContentConfigSnapshotInternalV1({
-        variant: "custom",
-      })
-    ).toThrowError("ui.system_dialog_content_config_snapshot_invalid");
-    expect(() =>
-      createSystemDialogRootCandidateResolutionSnapshotInternalV1({
-        ...mutableCatalogEntry,
-        get accessibleName() {
-          return "Accessor Saves";
-        },
-      })
-    ).toThrowError("ui.system_dialog_candidate_resolution_invalid");
   });
 });

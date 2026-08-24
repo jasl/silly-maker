@@ -36,10 +36,10 @@ const AuxiliarySurfacePortalContextV1 = createContext<AuxiliarySurfacePortalCont
   null,
 );
 
-const missingAuxiliarySurfacePortalSelectionV1 = Object.freeze({
+const missingAuxiliarySurfacePortalSelectionV1 = {
   target: null,
   surface: "base",
-}) satisfies AuxiliarySurfacePortalTargetSelectionV1;
+} satisfies AuxiliarySurfacePortalTargetSelectionV1;
 
 function selectAuxiliarySurfacePortalTargetV1(
   registrations: readonly AuxiliarySurfacePortalTargetRegistrationV1[],
@@ -47,9 +47,9 @@ function selectAuxiliarySurfacePortalTargetV1(
 ): AuxiliarySurfacePortalTargetSelectionV1 {
   const registration = registrations.findLast((candidate) => candidate.surface === "fault_pause");
   if (registration !== undefined) {
-    return Object.freeze({ target: registration.target, surface: registration.surface });
+    return { target: registration.target, surface: registration.surface };
   }
-  return Object.freeze({ target: baseTarget, surface: "base" });
+  return { target: baseTarget, surface: "base" };
 }
 
 /** Anchors an optional shell surface to the canvas; only fault pause may claim it. */
@@ -60,7 +60,7 @@ export function AuxiliarySurfacePortalCoordinatorV1(
   const [canvasTarget, setCanvasTarget] = useState<HTMLElement | null>(null);
   const [registrations, setRegistrations] = useState<
     readonly AuxiliarySurfacePortalTargetRegistrationV1[]
-  >(() => Object.freeze([]));
+  >([]);
 
   useLayoutEffect(() => {
     if (overlayTarget === null) return undefined;
@@ -79,15 +79,13 @@ export function AuxiliarySurfacePortalCoordinatorV1(
 
   const register = useCallback(
     (surface: AuxiliarySurfacePortalSurfaceV1, target: HTMLElement): () => void => {
-      const registration = Object.freeze({ surface, target });
-      setRegistrations((current) => Object.freeze([...current, registration]));
+      const registration = { surface, target };
+      setRegistrations((current) => [...current, registration]);
       let registered = true;
       return () => {
         if (!registered) return;
         registered = false;
-        setRegistrations((current) =>
-          Object.freeze(current.filter((candidate) => candidate !== registration))
-        );
+        setRegistrations((current) => current.filter((candidate) => candidate !== registration));
       };
     },
     [],
@@ -97,7 +95,7 @@ export function AuxiliarySurfacePortalCoordinatorV1(
     [canvasTarget, overlayTarget, registrations],
   );
   const contextValue = useMemo(
-    () => Object.freeze({ register, selection }) satisfies AuxiliarySurfacePortalContextValueV1,
+    () => ({ register, selection }) satisfies AuxiliarySurfacePortalContextValueV1,
     [register, selection],
   );
 

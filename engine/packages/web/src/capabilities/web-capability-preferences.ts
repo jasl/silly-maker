@@ -20,11 +20,11 @@ const capabilityLimitsV1 = parseStrictJsonLimitsV1({
   maxStringBytes: 64,
 });
 const capabilityKeysV1 = ["automationBridge", "cheats", "debugTools"] as const;
-const allDisabledV1: DeepReadonly<RuntimeCapabilitiesV1> = Object.freeze({
+const allDisabledV1: DeepReadonly<RuntimeCapabilitiesV1> = {
   debugTools: false,
   cheats: false,
   automationBridge: false,
-});
+};
 
 function decodeCapabilityStateV1(
   record: HostStoredRecordV1,
@@ -36,8 +36,7 @@ function decodeCapabilityStateV1(
     value === null ||
     typeof value !== "object" ||
     Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype ||
-    Reflect.ownKeys(value).length !== capabilityKeysV1.length ||
+    Object.keys(value).length !== capabilityKeysV1.length ||
     Object.keys(value).toSorted().join("\0") !== capabilityKeysV1.join("\0")
   ) {
     return null;
@@ -50,7 +49,7 @@ function decodeCapabilityStateV1(
   ) {
     return null;
   }
-  return Object.freeze({
+  return ({
     debugTools: input.debugTools,
     cheats: input.cheats,
     automationBridge: input.automationBridge,
@@ -102,40 +101,40 @@ export async function createWebCapabilityPreferencesV1(
   return createRuntimeCapabilityPortV1({
     initialState,
     async persist(_previous, next) {
-      if (!initialized) return Object.freeze({ kind: "unavailable" as const });
+      if (!initialized) return ({ kind: "unavailable" as const });
       let committed: Awaited<
         ReturnType<ApplicationHostCapabilitiesV1["records"]["commit"]>
       >;
       try {
         committed = await host.records.commit([
-          Object.freeze({
+          {
             kind: "put" as const,
             namespace: "settings" as const,
             key: capabilityKeyV1,
             expectedRevision: revision,
             bytes: canonicalJsonBytes(next),
-          }),
+          },
         ]);
       } catch {
-        return Object.freeze({ kind: "unavailable" as const });
+        return ({ kind: "unavailable" as const });
       }
       if (committed.kind === "committed") {
         const stored = committed.records.find(
           (record) => record.namespace === "settings" && record.key === capabilityKeyV1,
         );
-        if (stored === undefined) return Object.freeze({ kind: "unavailable" as const });
+        if (stored === undefined) return ({ kind: "unavailable" as const });
         revision = stored.revision;
-        return Object.freeze({ kind: "committed" as const });
+        return ({ kind: "committed" as const });
       }
 
       let authoritativeRecord: HostStoredRecordV1 | null;
       try {
         authoritativeRecord = await host.records.read("settings", capabilityKeyV1);
       } catch {
-        return Object.freeze({ kind: "unavailable" as const });
+        return ({ kind: "unavailable" as const });
       }
       revision = authoritativeRecord?.revision ?? null;
-      return Object.freeze({
+      return ({
         kind: "conflict" as const,
         state: readCapabilityStateV1(host, authoritativeRecord),
       });

@@ -21,31 +21,31 @@ const validationSourceDigestV1 = digestBytes(Uint8Array.of(0x76, 0x61, 0x6c));
  * Resolution needs a build identity even when the caller only wants
  * validation diagnostics; this synthetic identity never leaves the check.
  */
-const validationBuildIdentityV1: BuildIdentityInputV1 = Object.freeze({
+const validationBuildIdentityV1: BuildIdentityInputV1 = {
   engineVersion: "SillyMaker authoring-validation",
-  engine: Object.freeze([
-    Object.freeze({
+  engine: [
+    {
       path: "authoring-validation/engine.ts",
       sha256: validationSourceDigestV1,
       facet: "engine" as const,
-    }),
-  ]),
-  storySimulation: Object.freeze([
-    Object.freeze({
+    },
+  ],
+  storySimulation: [
+    {
       path: "authoring-validation/simulation.ts",
       sha256: validationSourceDigestV1,
       facet: "story_simulation" as const,
-    }),
-  ]),
-  storyPresentation: Object.freeze([
-    Object.freeze({
+    },
+  ],
+  storyPresentation: [
+    {
       path: "authoring-validation/presentation.ts",
       sha256: validationSourceDigestV1,
       facet: "story_presentation" as const,
-    }),
-  ]),
-  application: Object.freeze([]),
-});
+    },
+  ],
+  application: [],
+};
 
 function embeddedDiagnosticsV1(
   details: StrictJsonObjectV1,
@@ -53,7 +53,7 @@ function embeddedDiagnosticsV1(
   const embedded = details.diagnostics;
   if (!Array.isArray(embedded) || embedded.length === 0) return null;
   try {
-    return Object.freeze(embedded.map(parseDiagnosticEnvelopeV1));
+    return embedded.map(parseDiagnosticEnvelopeV1);
   } catch {
     return null;
   }
@@ -84,14 +84,14 @@ function causeDiagnosticV1(
       message,
       ...(typeof path === "string" ? { location: { jsonPointer: path } } : {}),
       ...(typeof reference === "string" ? { subject: { kind: "reference", id: reference } } : {}),
-      details: Object.freeze({
+      details: {
         resolutionFailureCode: failureCode,
         ...(causeDetails !== null &&
             typeof causeDetails === "object" &&
             !Array.isArray(causeDetails)
           ? (causeDetails as StrictJsonObjectV1)
           : {}),
-      }),
+      },
     });
   } catch {
     return null;
@@ -114,7 +114,7 @@ export function collectGamePackageDiagnosticsV1<TSimulationFacet, TPresentationF
     [],
     options.buildIdentityInput ?? validationBuildIdentityV1,
   );
-  if (result.kind === "resolved") return Object.freeze({ kind: "valid" });
+  if (result.kind === "resolved") return { kind: "valid" };
 
   const failure = result.failure;
   const message = typeof failure.details.message === "string"
@@ -122,22 +122,22 @@ export function collectGamePackageDiagnosticsV1<TSimulationFacet, TPresentationF
     : failure.code;
 
   const embedded = embeddedDiagnosticsV1(failure.details);
-  if (embedded !== null) return Object.freeze({ kind: "invalid", diagnostics: embedded });
+  if (embedded !== null) return { kind: "invalid", diagnostics: embedded };
 
   const cause = causeDiagnosticV1(failure.code, message, failure.details);
   if (cause !== null) {
-    return Object.freeze({ kind: "invalid", diagnostics: Object.freeze([cause]) });
+    return { kind: "invalid", diagnostics: [cause] };
   }
 
-  return Object.freeze({
+  return {
     kind: "invalid",
-    diagnostics: Object.freeze([
+    diagnostics: [
       createDiagnosticV1({
         code: failure.code,
         phase: "resolution",
         message,
-        details: Object.freeze({ rejectedHotfixIds: [...failure.rejectedHotfixIds] }),
+        details: { rejectedHotfixIds: [...failure.rejectedHotfixIds] },
       }),
-    ]),
-  });
+    ],
+  };
 }

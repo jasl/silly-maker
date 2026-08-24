@@ -43,32 +43,32 @@ function deferredInternalV1() {
     resolve = nextResolve;
     reject = nextReject;
   });
-  return Object.freeze({ promise, resolve, reject });
+  return ({ promise, resolve, reject });
 }
 
 function targetInternalV1(targetId: string) {
-  return Object.freeze({ targetId, parameters: Object.freeze({}) });
+  return ({ targetId, parameters: {} });
 }
 
 function inputRouterInternalV1() {
   const registrations = new Set<Parameters<InputRouterV1["register"]>[0]>();
-  const router: InputRouterV1 = Object.freeze({
+  const router: InputRouterV1 = {
     register(registration: Parameters<InputRouterV1["register"]>[0]): () => void {
       registrations.add(registration);
-      return Object.freeze(() => registrations.delete(registration));
+      return (() => registrations.delete(registration));
     },
     route(event: InputEventV1) {
       for (const registration of [...registrations].toReversed()) {
         const result = registration.handle(event);
         if (result.kind === "handled") {
-          return Object.freeze({ kind: "handled" as const, context: registration.context });
+          return ({ kind: "handled" as const, context: registration.context });
         }
       }
       return inputIgnoredV1;
     },
     clearTransientInput(): void {},
-  });
-  return Object.freeze({ router, registrationCount: () => registrations.size });
+  };
+  return ({ router, registrationCount: () => registrations.size });
 }
 
 function hostHarnessInternalV1(
@@ -83,103 +83,103 @@ function hostHarnessInternalV1(
   const rootTarget = targetInternalV1("test.whole-canvas.root");
   const replacementTarget = targetInternalV1("test.whole-canvas.replacement");
   const detailTarget = targetInternalV1("test.whole-canvas.detail");
-  let desired: WholeCanvasManagedSurfaceRootDesiredInternalV1 = Object.freeze({
+  let desired: WholeCanvasManagedSurfaceRootDesiredInternalV1 = {
     bootSplash: null,
     title: null,
-    story: Object.freeze({ sourceKind: "application" as const, target: rootTarget }),
-  });
+    story: { sourceKind: "application" as const, target: rootTarget },
+  };
   const listeners = new Set<() => void>();
   const dispatchOwner = vi.fn(() => Promise.resolve());
-  const definition = createWholeCanvasSurfaceCompositionDefinitionInternalV1(Object.freeze({
-    catalog: Object.freeze([
-      Object.freeze({
+  const definition = createWholeCanvasSurfaceCompositionDefinitionInternalV1({
+    catalog: [
+      {
         targetId: rootTarget.targetId,
         contractRevision: 1 as const,
-        placements: Object.freeze(["primary" as const]),
-        actionIds: Object.freeze([ownerActionIdInternalV1, openDetailActionIdInternalV1]),
+        placements: ["primary" as const],
+        actionIds: [ownerActionIdInternalV1, openDetailActionIdInternalV1],
         defaultActionId: null,
-      }),
-      Object.freeze({
+      },
+      {
         targetId: replacementTarget.targetId,
         contractRevision: 1 as const,
-        placements: Object.freeze(["primary" as const]),
-        actionIds: Object.freeze([ownerActionIdInternalV1, openDetailActionIdInternalV1]),
+        placements: ["primary" as const],
+        actionIds: [ownerActionIdInternalV1, openDetailActionIdInternalV1],
         defaultActionId: null,
-      }),
-      Object.freeze({
+      },
+      {
         targetId: detailTarget.targetId,
         contractRevision: 1 as const,
-        placements: Object.freeze(["detail" as const]),
-        actionIds: Object.freeze([backActionIdInternalV1]),
+        placements: ["detail" as const],
+        actionIds: [backActionIdInternalV1],
         defaultActionId: null,
-      }),
-    ]),
+      },
+    ],
     getSnapshotInternalV1: () => desired,
     subscribeInternalV1(listener: () => void): () => void {
       listeners.add(listener);
-      return Object.freeze(() => listeners.delete(listener));
+      return (() => listeners.delete(listener));
     },
     resolveTargetInternalV1: (request: WholeCanvasManagedSurfaceResolveTargetRequestInternalV1) =>
       request.target.targetId !== detailTarget.targetId
-        ? Object.freeze({
+        ? ({
           accessibleNameTextId: "text.whole-canvas.root",
-          view: Object.freeze({ kind: "root", targetId: request.target.targetId }),
-          actions: Object.freeze([
-            Object.freeze({
+          view: { kind: "root", targetId: request.target.targetId },
+          actions: [
+            {
               actionId: ownerActionIdInternalV1,
               status: "enabled" as const,
-              reasonTextIds: Object.freeze([]),
-              intent: Object.freeze({ kind: "owner" as const, payload: Object.freeze({}) }),
-            }),
-            Object.freeze({
+              reasonTextIds: [],
+              intent: { kind: "owner" as const, payload: {} },
+            },
+            {
               actionId: openDetailActionIdInternalV1,
               status: "enabled" as const,
-              reasonTextIds: Object.freeze([]),
-              intent: Object.freeze({ kind: "open_detail" as const, target: detailTarget }),
-            }),
-          ]),
+              reasonTextIds: [],
+              intent: { kind: "open_detail" as const, target: detailTarget },
+            },
+          ],
         })
-        : Object.freeze({
+        : ({
           accessibleNameTextId: "text.whole-canvas.detail",
-          view: Object.freeze({ kind: "detail" }),
-          actions: Object.freeze([Object.freeze({
+          view: { kind: "detail" },
+          actions: [{
             actionId: backActionIdInternalV1,
             status: "enabled" as const,
-            reasonTextIds: Object.freeze([]),
-            intent: Object.freeze({ kind: "back" as const }),
-          })]),
+            reasonTextIds: [],
+            intent: { kind: "back" as const },
+          }],
         }),
     dispatchOwnerActionInternalV1: dispatchOwner,
     prepareTargetInternalV1: input.prepare ?? (() => Promise.resolve()),
     renderInternalV1: input.renderer,
-  }));
+  });
   bindWholeCanvasSurfaceCompositionPrivateMetadataInternalV1(
     definition,
-    Object.freeze({
+    {
       resolveTextInternalV1: (textId: string) => `Resolved ${textId}`,
       applyAcceptedNavigationInternalV1: () => undefined,
-    }),
+    },
   );
   const family = resolveWholeCanvasSurfaceCompositionFamilyContractInternalV1(definition);
-  const bundle = createManagedSurfaceCompositeKernelBundleInternalV1(Object.freeze({
+  const bundle = createManagedSurfaceCompositeKernelBundleInternalV1({
     applicationEpoch: parseNonNegativeSafeInteger(input.applicationEpoch ?? 71),
-    recipe: Object.freeze({
+    recipe: {
       resolvedOwnerIds: family.resolvedOwnerIds,
       resolvedSlotDescriptors: family.resolvedSlotDescriptors,
-    }),
+    },
     definitionSidecars: family.stableDefinitionSidecars,
-  }));
-  const runtime = Object.freeze({
+  });
+  const runtime = ({
     applicationEpoch: bundle.applicationEpoch,
     activationKind: "initial" as const,
     coordinator: bundle.coordinator,
-    gestureLease: Object.freeze({
+    gestureLease: {
       begin: () => {
         throw new TypeError("unused");
       },
       isCurrent: () => false,
       revoke: () => undefined,
-    }),
+    },
     bindCurrentInput: () => {
       throw new TypeError("unused");
     },
@@ -196,7 +196,7 @@ function hostHarnessInternalV1(
   const gate = { open: false };
   composition.prepareRuntimeAttachmentInternalV1(
     runtime,
-    Object.freeze({ isOpen: () => gate.open }),
+    { isOpen: () => gate.open },
   );
   const notify = composition.activateRuntimeAttachmentInternalV1();
   gate.open = true;
@@ -206,11 +206,11 @@ function hostHarnessInternalV1(
   const portalContainer = document.createElement("div");
   document.body.append(portalContainer);
   const router = inputRouterInternalV1();
-  const releasePhysical = composition.registerHostPhysicalIngressInternalV1(Object.freeze({
+  const releasePhysical = composition.registerHostPhysicalIngressInternalV1({
     portalContainer,
     inputRouter: router.router,
-  }));
-  return Object.freeze({
+  });
+  return ({
     composition,
     binding,
     bindingRuntime,
@@ -218,18 +218,18 @@ function hostHarnessInternalV1(
     router,
     dispatchOwner,
     publishRoot(targetId: string): void {
-      desired = Object.freeze({
+      desired = {
         bootSplash: null,
         title: null,
-        story: Object.freeze({
+        story: {
           sourceKind: "application" as const,
           target: targetId === replacementTarget.targetId ? replacementTarget : rootTarget,
-        }),
-      });
+        },
+      };
       for (const listener of [...listeners]) listener();
     },
     closeRoot(): void {
-      desired = Object.freeze({ bootSplash: null, title: null, story: null });
+      desired = { bootSplash: null, title: null, story: null };
       for (const listener of [...listeners]) listener();
     },
     dispose(): void {
@@ -298,10 +298,10 @@ describe("S4b.1b WholeCanvas React Host", () => {
       expect(pendingShell.dataset.wholeCanvasFocusTarget).toBe(
         "surface-focus.whole-canvas.primary",
       );
-      expect(harness.router.router.route(Object.freeze({
+      expect(harness.router.router.route({
         kind: "action" as const,
         actionId: parseInputActionIdV1(ownerActionIdInternalV1),
-      }))).toEqual({ kind: "handled", context: "whole_canvas" });
+      })).toEqual({ kind: "handled", context: "whole_canvas" });
     });
     const unsubscribe = harness.bindingRuntime.subscribeInternalV1(currentPublication);
     await act(async () => {
@@ -321,11 +321,10 @@ describe("S4b.1b WholeCanvas React Host", () => {
     expect(currentShell).not.toHaveAttribute("data-managed-surface-readiness");
     expect(currentPublication).toHaveBeenCalledTimes(1);
     expect(harness.dispatchOwner).toHaveBeenCalledTimes(1);
-    expect(Object.isFrozen(rendererProps.at(-1)?.entry)).toBe(true);
-    expect(harness.router.router.route(Object.freeze({
+    expect(harness.router.router.route({
       kind: "action" as const,
       actionId: parseInputActionIdV1(ownerActionIdInternalV1),
-    }))).toEqual({ kind: "handled", context: "whole_canvas" });
+    })).toEqual({ kind: "handled", context: "whole_canvas" });
     expect(harness.dispatchOwner).toHaveBeenCalledTimes(2);
     unsubscribe();
     harness.dispose();
@@ -396,10 +395,10 @@ describe("S4b.1b WholeCanvas React Host", () => {
       expect(candidate.querySelector("[inert]")).toBeNull();
       callbacks.get("test.whole-canvas.root")!(ownerActionIdInternalV1);
       expect(harness.dispatchOwner).toHaveBeenCalledTimes(1);
-      expect(harness.router.router.route(Object.freeze({
+      expect(harness.router.router.route({
         kind: "action" as const,
         actionId: parseInputActionIdV1(ownerActionIdInternalV1),
-      }))).toEqual({ kind: "handled", context: "whole_canvas" });
+      })).toEqual({ kind: "handled", context: "whole_canvas" });
     });
     const unsubscribe = harness.bindingRuntime.subscribeInternalV1(cutoverPublication);
     await act(async () => {
@@ -454,10 +453,10 @@ describe("S4b.1b WholeCanvas React Host", () => {
     expect(harness.bindingRuntime.settleReadinessInternalV1(pending, "ready"))
       .toMatchObject({ kind: "stale" });
     expect(harness.router.registrationCount()).toBe(1);
-    expect(harness.router.router.route(Object.freeze({
+    expect(harness.router.router.route({
       kind: "action" as const,
       actionId: parseInputActionIdV1(ownerActionIdInternalV1),
-    }))).toEqual({ kind: "ignored" });
+    })).toEqual({ kind: "ignored" });
 
     readiness.resolve();
     await act(async () => {
@@ -591,10 +590,10 @@ describe("S4b.1b WholeCanvas React Host", () => {
     )).toBeNull();
     expect(currentButton.closest('[data-whole-canvas-phase="current"]')).toBe(currentShell);
     expect(document.activeElement).toBe(currentButton);
-    expect(harness.router.router.route(Object.freeze({
+    expect(harness.router.router.route({
       kind: "action" as const,
       actionId: parseInputActionIdV1(ownerActionIdInternalV1),
-    }))).toEqual({ kind: "handled", context: "whole_canvas" });
+    })).toEqual({ kind: "handled", context: "whole_canvas" });
     expect(harness.dispatchOwner).toHaveBeenCalledTimes(1);
     expect(harness.bindingRuntime.dispatchActionInternalV1(
       harness.bindingRuntime.getSnapshotInternalV1().root.current!.frame,
@@ -693,10 +692,10 @@ describe("S4b.1b WholeCanvas React Host", () => {
       const snapshot = harness.bindingRuntime.getSnapshotInternalV1();
       if (snapshot.detail.current !== null || snapshot.root.current === null) return;
       expect(document.activeElement).toBe(opener);
-      expect(harness.router.router.route(Object.freeze({
+      expect(harness.router.router.route({
         kind: "action" as const,
         actionId: parseInputActionIdV1(ownerActionIdInternalV1),
-      }))).toEqual({ kind: "handled", context: "whole_canvas" });
+      })).toEqual({ kind: "handled", context: "whole_canvas" });
     });
     const unsubscribe = harness.bindingRuntime.subscribeInternalV1(closePublication);
     fireEvent.click(harness.portalContainer.querySelector('[data-testid="close-detail"]')!);
@@ -752,10 +751,10 @@ describe("S4b.1b WholeCanvas React Host", () => {
       if (snapshot.detail.failure === null) return;
       expect(document.activeElement).toBe(opener);
       expect(parentShell.hasAttribute("inert")).toBe(false);
-      expect(harness.router.router.route(Object.freeze({
+      expect(harness.router.router.route({
         kind: "action" as const,
         actionId: parseInputActionIdV1(ownerActionIdInternalV1),
-      }))).toEqual({ kind: "handled", context: "whole_canvas" });
+      })).toEqual({ kind: "handled", context: "whole_canvas" });
     });
     const unsubscribe = harness.bindingRuntime.subscribeInternalV1(failurePublication);
     await act(async () => {

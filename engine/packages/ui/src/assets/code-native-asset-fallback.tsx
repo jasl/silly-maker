@@ -8,7 +8,7 @@ export interface CodeNativeAssetFallbackPropsV1<TFallbackToken, TAssetUsage> {
   readonly decorative?: boolean;
 }
 
-const codeNativeFallbackStyleV1 = Object.freeze({
+const codeNativeFallbackStyleV1 = {
   alignItems: "center",
   background: "repeating-linear-gradient(135deg, currentColor 0 1px, transparent 1px 6px)",
   border: "1px solid currentColor",
@@ -20,7 +20,7 @@ const codeNativeFallbackStyleV1 = Object.freeze({
   opacity: 1,
   pointerEvents: "none",
   userSelect: "none",
-}) satisfies CSSProperties;
+} satisfies CSSProperties;
 
 export function CodeNativeAssetFallbackV1<
   TFallbackToken extends string,

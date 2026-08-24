@@ -193,7 +193,6 @@ describe("createSemanticGamePortV1", () => {
     expect(first.game.queryWitness).toBe(first.actions[0]?.queryWitness);
     expect(fixture.port.availableActions()).toBe(first.actions);
     expect(fixture.createQueriesCalls()).toBe(1);
-    expect(Object.isFrozen(first)).toBe(true);
 
     fixture.sourceFixture.publishStatus("busy");
     const statusOnly = fixture.port.observe();

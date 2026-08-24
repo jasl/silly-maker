@@ -25,7 +25,6 @@ interface TypeTestTypesV1 extends StateWorkflowTypeMapV1<TypeTestStateV1> {
   readonly fault: { readonly code: "calendar.failed" };
 }
 
-declare const stateSchemaV1: RuntimeSchemaV1<TypeTestStateV1>;
 declare const sliceSchemaV1: RuntimeSchemaV1<{ readonly day: number }>;
 declare const eventSchemaV1: RuntimeSchemaV1<TypeTestTypesV1["event"]>;
 declare const snapshotV1: TypeTestTypesV1["snapshot"];
@@ -59,7 +58,6 @@ calendarV1.contractRevision satisfies PositiveSafeInteger;
 getStateModuleContractRevisionV1(calendarV1) satisfies PositiveSafeInteger;
 compositionV1.modules[0].descriptor.stateSlots[0] satisfies StateSlotId | undefined;
 const workflowV1 = compositionV1.createWorkflow({
-  stateSchema: stateSchemaV1,
   eventSchema: eventSchemaV1,
   createFault: () => ({ code: "calendar.failed" }),
   run(transaction) {

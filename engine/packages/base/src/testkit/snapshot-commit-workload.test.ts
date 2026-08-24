@@ -14,14 +14,12 @@ import {
   snapshotCommitEntityCountsV1,
 } from "./snapshot-commit-workload.ts";
 
-const commandClassesV1 = Object.freeze(
-  [
-    "single_field_committed",
-    "multi_slice_committed",
-    "rejected",
-    "faulted",
-  ] as const satisfies readonly SnapshotCommitCommandClassV1[],
-);
+const commandClassesV1 = [
+  "single_field_committed",
+  "multi_slice_committed",
+  "rejected",
+  "faulted",
+] as const satisfies readonly SnapshotCommitCommandClassV1[];
 
 describe("Snapshot commit workload", () => {
   it.each(snapshotCommitEntityCountsV1)("generates a neutral %i-entity Snapshot", (entityCount) => {

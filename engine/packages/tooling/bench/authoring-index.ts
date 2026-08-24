@@ -236,8 +236,8 @@ function createFixtureV1(profile: IndexProfileV1): FixtureV1 {
       ? "sources/bucket-000/s000000.authoring-scene.json"
       : "sources/bucket-000/s000000.scene.json",
     changedSceneSourceKind,
-    counts: Object.freeze(counts),
-    sceneSourceCounts: Object.freeze(sceneSourceCounts),
+    counts,
+    sceneSourceCounts,
     generatedObjectCount,
     objectsPerAuthoringScene: profile.kind === "authoring-object-scale"
       ? profile.objectsPerScene
@@ -290,12 +290,12 @@ function counterDeltaV1(
   before: AuthoringProjectIndexCountersV1,
   after: AuthoringProjectIndexCountersV1,
 ): AuthoringProjectIndexCountersV1 {
-  return Object.freeze({
+  return {
     treeWalks: after.treeWalks - before.treeWalks,
     fileReads: after.fileReads - before.fileReads,
     parses: after.parses - before.parses,
     invalidations: after.invalidations - before.invalidations,
-  });
+  };
 }
 
 function assertWorkV1(

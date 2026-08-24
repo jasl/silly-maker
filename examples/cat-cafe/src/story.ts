@@ -17,16 +17,16 @@ export {
   catcafeStateContractManifestV1,
 } from "./game/simulation-definition.ts";
 
-const catcafeStoryDefinitionV1 = Object.freeze({
+const catcafeStoryDefinitionV1 = {
   simulation: catcafeSimulationDefinitionV1,
-  presentation: Object.freeze({
+  presentation: {
     textCatalogs: catcafeTextCatalogsV1,
     assetSlots: catcafeAssetSlotsV1,
     assetPacks: catcafeAssetPacksV1,
     patchSurface: catcafePresentationPatchSurfaceV1,
     materializePresentation: materializeCatcafePresentationV1,
-  }),
-});
+  },
+};
 
 export const catcafeStoryEntryV1 = defineGamePackage({
   contractRevision: 1,

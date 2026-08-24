@@ -20,7 +20,7 @@ function validDocumentV1(): Record<string, unknown> {
 }
 
 describe("parseChromeLayoutDocumentV1", () => {
-  it("parses a valid document with negative positions and freezes it", () => {
+  it("parses a valid document with negative positions", () => {
     const parsed = parseChromeLayoutDocumentV1(validDocumentV1());
     expect(parsed.layoutId).toBe("layout.test.main-hud");
     expect(parsed.label).toBe("主场景 HUD");
@@ -28,11 +28,6 @@ describe("parseChromeLayoutDocumentV1", () => {
     expect(parsed.boxes["board.parked"]).toEqual({ x: -305, y: 0, width: 330, height: 576 });
     expect(parsed.anchors["sheet.back"]).toEqual({ x: 900, y: 16 });
     expect(parsed.offsets["board.value-nudge-y"]).toBe(8);
-    expect(Object.isFrozen(parsed)).toBe(true);
-    expect(Object.isFrozen(parsed.boxes)).toBe(true);
-    expect(Object.isFrozen(parsed.boxes["board.parked"])).toBe(true);
-    expect(Object.isFrozen(parsed.anchors["sheet.back"])).toBe(true);
-    expect(Object.isFrozen(parsed.offsets)).toBe(true);
   });
 
   it("accepts empty sections (a freshly created document)", () => {

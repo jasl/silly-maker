@@ -415,7 +415,7 @@ function defaultScheduleTimeoutV1(
   delayMs: number,
 ): Readonly<{ cancel(): void }> {
   const timeout = setTimeout(callback, delayMs);
-  return Object.freeze({ cancel: () => clearTimeout(timeout) });
+  return { cancel: () => clearTimeout(timeout) };
 }
 
 /**
@@ -440,7 +440,7 @@ export function createFileDownloadRequestCoordinatorInternalV1(
   let activeRequests = 0;
   let closed = false;
 
-  return Object.freeze({
+  return {
     handle(request: Request, subPath: string): Promise<Response> {
       if (closed || activeRequests >= maxConcurrent) {
         return Promise.resolve(jsonResponseV1(503, { error: "download unavailable" }));
@@ -472,5 +472,5 @@ export function createFileDownloadRequestCoordinatorInternalV1(
       closed = true;
       for (const controller of activeBodies.keys()) controller.abort();
     },
-  });
+  };
 }

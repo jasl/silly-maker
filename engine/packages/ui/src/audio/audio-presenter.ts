@@ -98,7 +98,7 @@ export function createAudioPresenterV1(options: CreateAudioPresenterOptionsV1): 
     }
   };
 
-  return Object.freeze({
+  return {
     retarget(input: AudioPresenterRetargetInputV1): void {
       if (disposed) return;
 
@@ -170,5 +170,5 @@ export function createAudioPresenterV1(options: CreateAudioPresenterOptionsV1): 
       options.host.stop("ambient", 0);
       options.host.stop("voice", 0);
     },
-  });
+  };
 }

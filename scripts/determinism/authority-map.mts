@@ -74,319 +74,313 @@ type BuildIdentityRecordV1 = ImportClosureRecordV1 & {
   readonly facet: "story_simulation";
 };
 
-const applicationPoliciesV1 = Object.freeze(
-  [
-    Object.freeze({
-      applicationId: "e2e",
-      callbackOwnerEntry: "e2e/src/simulation-definition.ts",
-      presentationEntry: "e2e/src/presentation.ts",
-      coreDefinition: Object.freeze({
-        module: "e2e/src/application/core-definition.ts",
-        exportName: "labCoreApplicationDefinitionV1",
-      }),
-      saveStateMigrationOwner: Object.freeze({
-        module: "e2e/src/save-state-migrations.ts",
-        exportName: "labSaveStateMigrationRegistryV1",
-      }),
-      dependencySeedEntries: Object.freeze([]),
-    }),
-    Object.freeze({
-      applicationId: "template",
-      callbackOwnerEntry: "template/src/game/simulation-definition.ts",
-      presentationEntry: "template/src/content/presentation.ts",
-      coreDefinition: Object.freeze({
-        module: "template/src/application/core-definition.ts",
-        exportName: "templateCoreApplicationDefinitionV1",
-      }),
-      dependencySeedEntries: Object.freeze(["template/src/game/simulation-definition.ts"]),
-    }),
-    Object.freeze({
-      applicationId: "example-bookshop",
-      callbackOwnerEntry: "examples/bookshop/src/game/simulation-definition.ts",
-      presentationEntry: "examples/bookshop/src/content/presentation.ts",
-      coreDefinition: Object.freeze({
-        module: "examples/bookshop/src/application/core-definition.ts",
-        exportName: "bookshopCoreApplicationDefinitionV1",
-      }),
-      dependencySeedEntries: Object.freeze([
-        "examples/bookshop/src/game/simulation-definition.ts",
-      ]),
-    }),
-    Object.freeze({
-      applicationId: "example-silly-os",
-      callbackOwnerEntry: "examples/silly-os/src/game/simulation-definition.ts",
-      presentationEntry: "examples/silly-os/src/content/presentation.ts",
-      coreDefinition: Object.freeze({
-        module: "examples/silly-os/src/application/core-definition.ts",
-        exportName: "osCoreApplicationDefinitionV1",
-      }),
-      dependencySeedEntries: Object.freeze([
-        "examples/silly-os/src/game/simulation-definition.ts",
-      ]),
-    }),
-    Object.freeze({
-      applicationId: "example-cat-cafe",
-      callbackOwnerEntry: "examples/cat-cafe/src/game/simulation-definition.ts",
-      presentationEntry: "examples/cat-cafe/src/content/presentation.ts",
-      coreDefinition: Object.freeze({
-        module: "examples/cat-cafe/src/application/core-definition.ts",
-        exportName: "catcafeCoreApplicationDefinitionV1",
-      }),
-      dependencySeedEntries: Object.freeze([]),
-    }),
-  ] satisfies readonly ApplicationAuthorityPolicyV1[],
-);
+const applicationPoliciesV1 = [
+  {
+    applicationId: "e2e",
+    callbackOwnerEntry: "e2e/src/simulation-definition.ts",
+    presentationEntry: "e2e/src/presentation.ts",
+    coreDefinition: {
+      module: "e2e/src/application/core-definition.ts",
+      exportName: "labCoreApplicationDefinitionV1",
+    },
+    saveStateMigrationOwner: {
+      module: "e2e/src/save-state-migrations.ts",
+      exportName: "labSaveStateMigrationRegistryV1",
+    },
+    dependencySeedEntries: [],
+  },
+  {
+    applicationId: "template",
+    callbackOwnerEntry: "template/src/game/simulation-definition.ts",
+    presentationEntry: "template/src/content/presentation.ts",
+    coreDefinition: {
+      module: "template/src/application/core-definition.ts",
+      exportName: "templateCoreApplicationDefinitionV1",
+    },
+    dependencySeedEntries: ["template/src/game/simulation-definition.ts"],
+  },
+  {
+    applicationId: "example-bookshop",
+    callbackOwnerEntry: "examples/bookshop/src/game/simulation-definition.ts",
+    presentationEntry: "examples/bookshop/src/content/presentation.ts",
+    coreDefinition: {
+      module: "examples/bookshop/src/application/core-definition.ts",
+      exportName: "bookshopCoreApplicationDefinitionV1",
+    },
+    dependencySeedEntries: [
+      "examples/bookshop/src/game/simulation-definition.ts",
+    ],
+  },
+  {
+    applicationId: "example-silly-os",
+    callbackOwnerEntry: "examples/silly-os/src/game/simulation-definition.ts",
+    presentationEntry: "examples/silly-os/src/content/presentation.ts",
+    coreDefinition: {
+      module: "examples/silly-os/src/application/core-definition.ts",
+      exportName: "osCoreApplicationDefinitionV1",
+    },
+    dependencySeedEntries: [
+      "examples/silly-os/src/game/simulation-definition.ts",
+    ],
+  },
+  {
+    applicationId: "example-cat-cafe",
+    callbackOwnerEntry: "examples/cat-cafe/src/game/simulation-definition.ts",
+    presentationEntry: "examples/cat-cafe/src/content/presentation.ts",
+    coreDefinition: {
+      module: "examples/cat-cafe/src/application/core-definition.ts",
+      exportName: "catcafeCoreApplicationDefinitionV1",
+    },
+    dependencySeedEntries: [],
+  },
+] satisfies readonly ApplicationAuthorityPolicyV1[];
 
-const baseAuthorityPoliciesV1 = Object.freeze(
-  [
-    Object.freeze({
-      id: "simulation-admission-and-execution",
-      entry: "engine/packages/base/src/authoring/define-game-simulation.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "bounded_closure" as const,
-    }),
-    Object.freeze({
-      id: "module-definition-admission",
-      entry: "engine/packages/base/src/authoring/define-gameplay-module.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "bounded_closure" as const,
-    }),
-    Object.freeze({
-      id: "transaction-apply",
-      entry: "engine/packages/base/src/authoring/game-authoring-kit.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "bounded_closure" as const,
-    }),
-    Object.freeze({
-      id: "session-command-commit",
-      entry: "engine/packages/base/src/runtime/session/game-session.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "bounded_closure" as const,
-    }),
-    Object.freeze({
-      id: "canonical-bootstrap-admission",
-      entry: "engine/packages/base/src/internal/canonical-bootstrap-admission.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "bounded_closure" as const,
-    }),
-    Object.freeze({
-      id: "serializable-rng",
-      entry: "engine/packages/base/src/contracts/rng.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "bounded_closure" as const,
-    }),
-    Object.freeze({
-      id: "runtime-value-admission",
-      entry: "engine/packages/base/src/contracts/values.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "bounded_closure" as const,
-    }),
-    Object.freeze({
-      id: "replay-comparison",
-      entry: "engine/packages/base/src/runtime/diagnostics/replay.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "bounded_closure" as const,
-    }),
-    Object.freeze({
-      id: "content-database-ordering",
-      entry: "engine/packages/base/src/contracts/content-database.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "bounded_closure" as const,
-    }),
-    Object.freeze({
-      id: "event-pool-draw",
-      entry: "engine/packages/base/src/contracts/event-pool.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "bounded_closure" as const,
-    }),
-    Object.freeze({
-      id: "runtime-schema-admission",
-      entry: "engine/packages/base/src/authoring/runtime-schema.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "bounded_closure" as const,
-    }),
-    Object.freeze({
-      id: "simulation-patch-surface",
-      entry: "engine/packages/base/src/authoring/patch-surface.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "bounded_closure" as const,
-    }),
-    Object.freeze({
-      id: "game-package-definition",
-      entry: "engine/packages/base/src/authoring/define-game-package.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "bounded_closure" as const,
-    }),
-    Object.freeze({
-      id: "game-package-resolution",
-      entry: "engine/packages/base/src/authoring/story-resolver.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "entry" as const,
-    }),
-    Object.freeze({
-      id: "narrative-graph",
-      entry: "engine/packages/base/src/contracts/narrative-graph.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "bounded_closure" as const,
-    }),
-    Object.freeze({
-      id: "narrative-history",
-      entry: "engine/packages/base/src/contracts/narrative-history.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "bounded_closure" as const,
-    }),
-    Object.freeze({
-      id: "narrative-prediction",
-      entry: "engine/packages/base/src/contracts/narrative-prediction.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "entry" as const,
-    }),
-    Object.freeze({
-      id: "pending-interaction-resolution",
-      entry: "engine/packages/base/src/contracts/pending-interaction.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "bounded_closure" as const,
-    }),
-    Object.freeze({
-      id: "semantic-stage-state",
-      entry: "engine/packages/base/src/contracts/semantic-stage.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "bounded_closure" as const,
-    }),
-    Object.freeze({
-      id: "semantic-stage-reducer",
-      entry: "engine/packages/base/src/contracts/semantic-stage-reducer.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "bounded_closure" as const,
-    }),
-    Object.freeze({
-      id: "audio-intent-admission",
-      entry: "engine/packages/base/src/contracts/media-audio.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "bounded_closure" as const,
-    }),
-    Object.freeze({
-      id: "strict-data-parsers",
-      entry: "engine/packages/base/src/contracts/presentation-data.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "bounded_closure" as const,
-    }),
-    Object.freeze({
-      id: "save-state-migration-registry",
-      entry: "engine/packages/base/src/contracts/save-state-migration.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "bounded_closure" as const,
-    }),
-    Object.freeze({
-      id: "save-state-migration-execution",
-      entry: "engine/packages/base/src/internal/save-state-migration-execution.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "bounded_closure" as const,
-    }),
-    Object.freeze({
-      id: "debug-bundle",
-      entry: "engine/packages/base/src/runtime/diagnostics/debug-bundle.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "entry" as const,
-    }),
-    Object.freeze({
-      id: "debug-tools",
-      entry: "engine/packages/base/src/runtime/diagnostics/debug-tools.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "entry" as const,
-    }),
-    Object.freeze({
-      id: "debug-privacy-projection",
-      entry: "engine/packages/base/src/runtime/diagnostics/privacy.ts",
-      classification: "authoritative_runtime" as const,
-      projection: "entry" as const,
-    }),
-    Object.freeze({
-      id: "save-projector-handoff",
-      entry: "engine/packages/base/src/runtime/application/core-game-application.ts",
-      classification: "durable_save_projection" as const,
-      projection: "entry" as const,
-    }),
-    Object.freeze({
-      id: "save-projector-invocation",
-      entry: "engine/packages/base/src/runtime/persistence/persistence-service.ts",
-      classification: "durable_save_projection" as const,
-      projection: "entry" as const,
-    }),
-  ] satisfies readonly BaseAuthorityPolicyV1[],
-);
+const baseAuthorityPoliciesV1 = [
+  {
+    id: "simulation-admission-and-execution",
+    entry: "engine/packages/base/src/authoring/define-game-simulation.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "bounded_closure" as const,
+  },
+  {
+    id: "module-definition-admission",
+    entry: "engine/packages/base/src/authoring/define-gameplay-module.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "bounded_closure" as const,
+  },
+  {
+    id: "transaction-apply",
+    entry: "engine/packages/base/src/authoring/game-authoring-kit.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "bounded_closure" as const,
+  },
+  {
+    id: "session-command-commit",
+    entry: "engine/packages/base/src/runtime/session/game-session.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "bounded_closure" as const,
+  },
+  {
+    id: "canonical-bootstrap-admission",
+    entry: "engine/packages/base/src/internal/canonical-bootstrap-admission.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "bounded_closure" as const,
+  },
+  {
+    id: "serializable-rng",
+    entry: "engine/packages/base/src/contracts/rng.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "bounded_closure" as const,
+  },
+  {
+    id: "runtime-value-admission",
+    entry: "engine/packages/base/src/contracts/values.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "bounded_closure" as const,
+  },
+  {
+    id: "replay-comparison",
+    entry: "engine/packages/base/src/runtime/diagnostics/replay.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "bounded_closure" as const,
+  },
+  {
+    id: "content-database-ordering",
+    entry: "engine/packages/base/src/contracts/content-database.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "bounded_closure" as const,
+  },
+  {
+    id: "event-pool-draw",
+    entry: "engine/packages/base/src/contracts/event-pool.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "bounded_closure" as const,
+  },
+  {
+    id: "runtime-schema-admission",
+    entry: "engine/packages/base/src/authoring/runtime-schema.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "bounded_closure" as const,
+  },
+  {
+    id: "simulation-patch-surface",
+    entry: "engine/packages/base/src/authoring/patch-surface.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "bounded_closure" as const,
+  },
+  {
+    id: "game-package-definition",
+    entry: "engine/packages/base/src/authoring/define-game-package.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "bounded_closure" as const,
+  },
+  {
+    id: "game-package-resolution",
+    entry: "engine/packages/base/src/authoring/story-resolver.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "entry" as const,
+  },
+  {
+    id: "narrative-graph",
+    entry: "engine/packages/base/src/contracts/narrative-graph.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "bounded_closure" as const,
+  },
+  {
+    id: "narrative-history",
+    entry: "engine/packages/base/src/contracts/narrative-history.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "bounded_closure" as const,
+  },
+  {
+    id: "narrative-prediction",
+    entry: "engine/packages/base/src/contracts/narrative-prediction.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "entry" as const,
+  },
+  {
+    id: "pending-interaction-resolution",
+    entry: "engine/packages/base/src/contracts/pending-interaction.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "bounded_closure" as const,
+  },
+  {
+    id: "semantic-stage-state",
+    entry: "engine/packages/base/src/contracts/semantic-stage.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "bounded_closure" as const,
+  },
+  {
+    id: "semantic-stage-reducer",
+    entry: "engine/packages/base/src/contracts/semantic-stage-reducer.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "bounded_closure" as const,
+  },
+  {
+    id: "audio-intent-admission",
+    entry: "engine/packages/base/src/contracts/media-audio.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "bounded_closure" as const,
+  },
+  {
+    id: "strict-data-parsers",
+    entry: "engine/packages/base/src/contracts/presentation-data.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "bounded_closure" as const,
+  },
+  {
+    id: "save-state-migration-registry",
+    entry: "engine/packages/base/src/contracts/save-state-migration.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "bounded_closure" as const,
+  },
+  {
+    id: "save-state-migration-execution",
+    entry: "engine/packages/base/src/internal/save-state-migration-execution.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "bounded_closure" as const,
+  },
+  {
+    id: "debug-bundle",
+    entry: "engine/packages/base/src/runtime/diagnostics/debug-bundle.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "entry" as const,
+  },
+  {
+    id: "debug-tools",
+    entry: "engine/packages/base/src/runtime/diagnostics/debug-tools.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "entry" as const,
+  },
+  {
+    id: "debug-privacy-projection",
+    entry: "engine/packages/base/src/runtime/diagnostics/privacy.ts",
+    classification: "authoritative_runtime" as const,
+    projection: "entry" as const,
+  },
+  {
+    id: "save-projector-handoff",
+    entry: "engine/packages/base/src/runtime/application/core-game-application.ts",
+    classification: "durable_save_projection" as const,
+    projection: "entry" as const,
+  },
+  {
+    id: "save-projector-invocation",
+    entry: "engine/packages/base/src/runtime/persistence/persistence-service.ts",
+    classification: "durable_save_projection" as const,
+    projection: "entry" as const,
+  },
+] satisfies readonly BaseAuthorityPolicyV1[];
 
-const negativeControlPoliciesV1 = Object.freeze(
-  [
-    Object.freeze({
-      id: "web-bootstrap-entropy-host",
-      entry: "engine/packages/web/src/application/start-web-game-application.tsx",
-      classification: "host_entropy" as const,
-    }),
-    Object.freeze({
-      id: "web-host-metadata-clock",
-      entry: "engine/packages/web/src/host/create-web-host.ts",
-      classification: "host_metadata_clock" as const,
-    }),
-    Object.freeze({
-      id: "animation-frame-presentation-clock",
-      entry: "engine/packages/ui/src/presentation-run/presentation-clock.ts",
-      classification: "presentation_clock" as const,
-    }),
-    Object.freeze({
-      id: "version-stamp-build-collector",
-      entry: "engine/packages/tooling/src/vite/version-stamp.ts",
-      classification: "version_stamp_ingress" as const,
-    }),
-    Object.freeze({
-      id: "snapshot-wall-clock-benchmark",
-      entry: "engine/packages/base/bench/snapshot-memory-growth.ts",
-      classification: "tooling_or_bench" as const,
-    }),
-    Object.freeze({
-      id: "base-presentation-contract",
-      entry: "engine/packages/base/src/contracts/presentation.ts",
-      classification: "base_non_authoritative" as const,
-    }),
-    Object.freeze({
-      id: "base-presentation-canonical-json",
-      entry: "engine/packages/base/src/contracts/presentation-canonical-json.ts",
-      classification: "base_non_authoritative" as const,
-    }),
-    Object.freeze({
-      id: "base-presentation-ids",
-      entry: "engine/packages/base/src/contracts/presentation-ids.ts",
-      classification: "base_non_authoritative" as const,
-    }),
-    Object.freeze({
-      id: "base-presentation-ports",
-      entry: "engine/packages/base/src/contracts/presentation-ports.ts",
-      classification: "base_non_authoritative" as const,
-    }),
-    Object.freeze({
-      id: "base-host-contract",
-      entry: "engine/packages/base/src/contracts/host.ts",
-      classification: "base_non_authoritative" as const,
-    }),
-    Object.freeze({
-      id: "base-version-stamp-contract",
-      entry: "engine/packages/base/src/contracts/version-stamp.ts",
-      classification: "base_non_authoritative" as const,
-    }),
-    Object.freeze({
-      id: "base-player-profile-store",
-      entry: "engine/packages/base/src/runtime/persistence/player-profile-store.ts",
-      classification: "base_non_authoritative" as const,
-    }),
-  ] satisfies readonly NegativeControlPolicyV1[],
-);
+const negativeControlPoliciesV1 = [
+  {
+    id: "web-bootstrap-entropy-host",
+    entry: "engine/packages/web/src/application/start-web-game-application.tsx",
+    classification: "host_entropy" as const,
+  },
+  {
+    id: "web-host-metadata-clock",
+    entry: "engine/packages/web/src/host/create-web-host.ts",
+    classification: "host_metadata_clock" as const,
+  },
+  {
+    id: "animation-frame-presentation-clock",
+    entry: "engine/packages/ui/src/presentation-run/presentation-clock.ts",
+    classification: "presentation_clock" as const,
+  },
+  {
+    id: "version-stamp-build-collector",
+    entry: "engine/packages/tooling/src/vite/version-stamp.ts",
+    classification: "version_stamp_ingress" as const,
+  },
+  {
+    id: "snapshot-wall-clock-benchmark",
+    entry: "engine/packages/base/bench/snapshot-memory-growth.ts",
+    classification: "tooling_or_bench" as const,
+  },
+  {
+    id: "base-presentation-contract",
+    entry: "engine/packages/base/src/contracts/presentation.ts",
+    classification: "base_non_authoritative" as const,
+  },
+  {
+    id: "base-presentation-canonical-json",
+    entry: "engine/packages/base/src/contracts/presentation-canonical-json.ts",
+    classification: "base_non_authoritative" as const,
+  },
+  {
+    id: "base-presentation-ids",
+    entry: "engine/packages/base/src/contracts/presentation-ids.ts",
+    classification: "base_non_authoritative" as const,
+  },
+  {
+    id: "base-presentation-ports",
+    entry: "engine/packages/base/src/contracts/presentation-ports.ts",
+    classification: "base_non_authoritative" as const,
+  },
+  {
+    id: "base-host-contract",
+    entry: "engine/packages/base/src/contracts/host.ts",
+    classification: "base_non_authoritative" as const,
+  },
+  {
+    id: "base-version-stamp-contract",
+    entry: "engine/packages/base/src/contracts/version-stamp.ts",
+    classification: "base_non_authoritative" as const,
+  },
+  {
+    id: "base-player-profile-store",
+    entry: "engine/packages/base/src/runtime/persistence/player-profile-store.ts",
+    classification: "base_non_authoritative" as const,
+  },
+] satisfies readonly NegativeControlPolicyV1[];
 
 /** DET0-only policy. It is deliberately outside every package export. */
-export const determinismAuthorityPolicyV1: DeterminismAuthorityPolicyV1 = Object.freeze({
+export const determinismAuthorityPolicyV1: DeterminismAuthorityPolicyV1 = {
   applications: applicationPoliciesV1,
   baseAuthorities: baseAuthorityPoliciesV1,
   negativeControls: negativeControlPoliciesV1,
-});
+};
 
 function compareCodeUnitsV1(left: string, right: string): number {
   const length = Math.min(left.length, right.length);
@@ -405,7 +399,7 @@ export function mergeAuthorityPathsV1(
   for (const source of sources) {
     for (const path of source) paths.add(path);
   }
-  return Object.freeze([...paths].sort(compareCodeUnitsV1));
+  return [...paths].sort(compareCodeUnitsV1);
 }
 
 function assertUniqueIdsV1<T extends { readonly id: string }>(values: readonly T[], label: string) {
@@ -530,16 +524,16 @@ function requireBuildIdentityRecordsV1(
     ) {
       throw new TypeError(`${label} storySimulation record is invalid`);
     }
-    return Object.freeze({
+    return {
       path,
       facet: "story_simulation" as const,
       sha256: sha256 as `sha256:${string}`,
-    });
+    };
   });
   if (new Set(records.map(({ path }) => path)).size !== records.length) {
     throw new TypeError(`${label} storySimulation records contain duplicate paths`);
   }
-  return Object.freeze(records);
+  return records;
 }
 
 async function loadWorkspaceRegistryV1(repositoryRoot: string): Promise<{
@@ -551,10 +545,10 @@ async function loadWorkspaceRegistryV1(repositoryRoot: string): Promise<{
   const workspace = defineSillymakerWorkspaceV1(
     Reflect.get(module, "sillyMakerConfigV1") as SillymakerWorkspaceConfigV1,
   );
-  return Object.freeze({
+  return {
     workspace,
     applications: await loadWorkspaceAppsV1({ repositoryRoot, workspace }),
-  });
+  };
 }
 
 async function collectManagedSimulationV1(
@@ -581,13 +575,13 @@ async function collectManagedSimulationV1(
     if (typeof identity !== "object" || identity === null) {
       throw new TypeError(`${config.applicationId} BuildIdentity is invalid`);
     }
-    return Object.freeze({
+    return {
       dependencySource: "managed_build_identity" as const,
       records: requireBuildIdentityRecordsV1(
         Reflect.get(identity, "storySimulation"),
         config.applicationId,
       ),
-    });
+    };
   }
 
   if (policy.dependencySeedEntries.length === 0) {
@@ -599,13 +593,13 @@ async function collectManagedSimulationV1(
   if (paths.length === 0) {
     throw new TypeError(`${config.applicationId} dependency seed has no app-local source`);
   }
-  return Object.freeze({
+  return {
     dependencySource: "explicit_dependency_seed" as const,
     records: requireBuildIdentityRecordsV1(
       await buildImportClosureRecordsV1(repositoryRoot, paths, "story_simulation"),
       config.applicationId,
     ),
-  });
+  };
 }
 
 export async function inspectConfiguredSaveProjectorV1(options: {
@@ -655,14 +649,14 @@ export async function inspectConfiguredSaveProjectorV1(options: {
     closure,
     options.applicationDirectory,
   );
-  return Object.freeze({
+  return {
     applicationId: options.applicationId,
     entry: options.owner.module,
     exportName: options.owner.exportName,
     callbackName: "summarizeSave" as const,
     classification: "durable_save_projection" as const,
     paths: closure.paths,
-  });
+  };
 }
 
 export async function inspectConfiguredSaveStateMigrationV1(options: {
@@ -718,8 +712,8 @@ export async function inspectConfiguredSaveStateMigrationV1(options: {
     closure,
     options.applicationDirectory,
   );
-  const appLocalPaths = Object.freeze(
-    closure.paths.filter((path) => path.startsWith(`${options.applicationDirectory}/`)),
+  const appLocalPaths = closure.paths.filter((path) =>
+    path.startsWith(`${options.applicationDirectory}/`)
   );
   if (!appLocalPaths.includes(options.owner.module)) {
     throw new TypeError(`${options.applicationId} Save State migration owner is not app-local`);
@@ -733,18 +727,18 @@ export async function inspectConfiguredSaveStateMigrationV1(options: {
       }`,
     );
   }
-  return Object.freeze({
+  return {
     applicationId: options.applicationId,
     entry: options.owner.module,
     exportName: options.owner.exportName,
     classification: "save_state_migration" as const,
     namespace: inspection.namespace,
     callbackCount: inspection.steps.length,
-    migrationIds: Object.freeze(inspection.steps.map(({ migrationId }) => migrationId)),
-    callbacks: Object.freeze(inspection.steps.map(({ migrate }) => migrate)),
+    migrationIds: inspection.steps.map(({ migrationId }) => migrationId),
+    callbacks: inspection.steps.map(({ migrate }) => migrate),
     paths: closure.paths,
     appLocalPaths,
-  });
+  };
 }
 
 async function collectApplicationAuthorityV1(
@@ -760,8 +754,8 @@ async function collectApplicationAuthorityV1(
     callbackOwner,
     application.directory,
   );
-  const appLocalCallbackPaths = Object.freeze(
-    callbackOwner.paths.filter((path) => path.startsWith(`${application.directory}/`)),
+  const appLocalCallbackPaths = callbackOwner.paths.filter((path) =>
+    path.startsWith(`${application.directory}/`)
   );
   if (!appLocalCallbackPaths.includes(policy.callbackOwnerEntry)) {
     throw new TypeError(
@@ -818,25 +812,25 @@ async function collectApplicationAuthorityV1(
   const authorityPaths = mergeAuthorityPathsV1(
     appLocalCallbackPaths,
     managed.records.map(({ path }) => path),
-    saveStateMigration?.appLocalPaths ?? Object.freeze([]),
+    saveStateMigration?.appLocalPaths ?? [],
   );
-  return Object.freeze({
+  return {
     applicationId: application.config.applicationId,
     directory: application.directory,
     dependencySource: managed.dependencySource,
     managedSimulationRecords: managed.records,
-    callbackOwner: Object.freeze({
+    callbackOwner: {
       entry: policy.callbackOwnerEntry,
       classification: "story_callback_owner" as const,
       paths: appLocalCallbackPaths,
       appLocalPaths: appLocalCallbackPaths,
       observedClosurePathCount: callbackOwner.paths.length,
       externalImports: callbackOwner.externalImports,
-    }),
+    },
     authorityPaths,
     saveProjector,
     saveStateMigration,
-  });
+  };
 }
 
 async function collectBaseAuthorityV1(
@@ -857,12 +851,12 @@ async function collectBaseAuthorityV1(
       );
     }
   }
-  const paths = policy.projection === "entry" ? Object.freeze([policy.entry]) : closure.paths;
-  return Object.freeze({
+  const paths = policy.projection === "entry" ? [policy.entry] : closure.paths;
+  return {
     ...policy,
     paths,
     observedClosurePathCount: closure.paths.length,
-  });
+  };
 }
 
 async function collectAdditionalAuthorityV1(
@@ -871,11 +865,11 @@ async function collectAdditionalAuthorityV1(
 ) {
   const closure = await collectAuthorityClosureV1(repositoryRoot, [entry.entry]);
   assertProductionClosureV1(`additional authority ${entry.id}`, closure);
-  return Object.freeze({
+  return {
     ...entry,
     classification: "test_extension" as const,
     paths: closure.paths,
-  });
+  };
 }
 
 async function collectNegativeControlV1(
@@ -888,10 +882,10 @@ async function collectNegativeControlV1(
       `negative control ${control.id} entry is absent from its live closure`,
     );
   }
-  return Object.freeze({
+  return {
     ...control,
     paths: closure.paths,
-  });
+  };
 }
 
 export async function collectDeterminismAuthorityMapV1(options: {
@@ -903,7 +897,7 @@ export async function collectDeterminismAuthorityMapV1(options: {
   const policy = options.policy ?? determinismAuthorityPolicyV1;
   assertUniqueIdsV1(policy.baseAuthorities, "Base authority");
   assertUniqueIdsV1(policy.negativeControls, "negative control");
-  const additionalPolicies = options.additionalAuthorities ?? Object.freeze([]);
+  const additionalPolicies = options.additionalAuthorities ?? [];
   assertUniqueIdsV1(additionalPolicies, "additional authority");
   const baseNegativeControlEntries = new Set(
     policy.negativeControls
@@ -958,13 +952,11 @@ export async function collectDeterminismAuthorityMapV1(options: {
         ),
       ]);
 
-  const saveProjectors = Object.freeze(
-    applications.flatMap(({ saveProjector }) => saveProjector === null ? [] : [saveProjector]),
+  const saveProjectors = applications.flatMap(({ saveProjector }) =>
+    saveProjector === null ? [] : [saveProjector]
   );
-  const saveStateMigrations = Object.freeze(
-    applications.flatMap(({ saveStateMigration }) =>
-      saveStateMigration === null ? [] : [saveStateMigration]
-    ),
+  const saveStateMigrations = applications.flatMap(({ saveStateMigration }) =>
+    saveStateMigration === null ? [] : [saveStateMigration]
   );
   const presentationNegativeControls = await Promise.all(
     registry.applications.map((application) =>
@@ -975,17 +967,17 @@ export async function collectDeterminismAuthorityMapV1(options: {
       })
     ),
   );
-  const negativeControls = Object.freeze([
+  const negativeControls = [
     ...presentationNegativeControls,
     ...policyNegativeControls,
-  ]);
-  const authoritativeEntryPaths = Object.freeze([
+  ];
+  const authoritativeEntryPaths = [
     ...applications.map(({ callbackOwner }) => callbackOwner.entry),
     ...saveProjectors.map(({ entry }) => entry),
     ...saveStateMigrations.map(({ entry }) => entry),
     ...baseAuthorities.map(({ entry }) => entry),
     ...additionalAuthorities.map(({ entry }) => entry),
-  ]);
+  ];
   const negativeControlEntryPaths = new Set(negativeControls.map(({ entry }) => entry));
   const overlappingEntry = authoritativeEntryPaths.find((entry) =>
     negativeControlEntryPaths.has(entry)
@@ -1012,7 +1004,7 @@ export async function collectDeterminismAuthorityMapV1(options: {
     );
   }
 
-  const diagnostics = Object.freeze({
+  const diagnostics = {
     applicationCount: applications.length,
     managedSimulationRecordCount: applications.reduce(
       (total, application) => total + application.managedSimulationRecords.length,
@@ -1032,18 +1024,18 @@ export async function collectDeterminismAuthorityMapV1(options: {
     negativeControlCount: negativeControls.length,
     additionalAuthorityCount: additionalAuthorities.length,
     authoritativePathCount: authoritativePaths.size,
-  });
+  };
 
-  return Object.freeze({
+  return {
     workspaceProjectId: registry.workspace.projectId,
-    applications: Object.freeze(applications),
-    baseAuthorities: Object.freeze(baseAuthorities),
+    applications: applications,
+    baseAuthorities: baseAuthorities,
     saveProjectors,
     saveStateMigrations,
     negativeControls,
-    additionalAuthorities: Object.freeze(additionalAuthorities),
+    additionalAuthorities: additionalAuthorities,
     authoritativeEntryPaths,
-    authoritativePaths: Object.freeze([...authoritativePaths].sort(compareCodeUnitsV1)),
+    authoritativePaths: [...authoritativePaths].sort(compareCodeUnitsV1),
     diagnostics,
-  });
+  };
 }

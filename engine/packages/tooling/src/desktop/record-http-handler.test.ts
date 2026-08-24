@@ -116,18 +116,19 @@ describe("the desktop record HTTP handler", () => {
   });
 
   it("rejects malformed wire mutations before calling store.commit", async () => {
-    const commit = vi.fn<RecordHttpStoreV1["commit"]>(async () =>
-      Object.freeze({ kind: "committed", records: Object.freeze([]) })
-    );
-    const store = Object.freeze({
+    const commit = vi.fn<RecordHttpStoreV1["commit"]>(async () => ({
+      kind: "committed",
+      records: [],
+    }));
+    const store = {
       async read() {
         return null;
       },
       async list() {
-        return Object.freeze([]);
+        return [];
       },
       commit,
-    }) satisfies RecordHttpStoreV1;
+    } satisfies RecordHttpStoreV1;
     const validPut = {
       kind: "put",
       namespace: "settings",

@@ -48,14 +48,6 @@ describe("managed-surface composite-kernel bundle", () => {
       definitionSidecars: fixture.definitionSidecars,
     }));
 
-    expect(Object.isFrozen(bundle)).toBe(true);
-    expect(Reflect.ownKeys(bundle)).toEqual([
-      "applicationEpoch",
-      "coordinator",
-      "publisherLeaseRegistry",
-      "admissionAuthority",
-      "compositeRuntimeKernel",
-    ]);
     expect(bundle.applicationEpoch).toBe(7);
     expect(bundle.coordinator.getSnapshot()).toBe(
       bundle.compositeRuntimeKernel.getTransientSnapshotInternalV1(),

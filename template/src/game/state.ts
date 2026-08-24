@@ -93,12 +93,12 @@ export const templateNarrativeStateSchemaV1: RuntimeSchemaV1<TemplateNarrativeSt
         if (flags.some((flag, index) => index > 0 && flag <= (flags[index - 1] as string))) {
           throw new TypeError("template narrative flags must be sorted and unique");
         }
-        return Object.freeze({
+        return ({
           phase: record.phase as TemplateNarrativeStateV1["phase"],
           cursor: record.cursor,
           pending,
           sequence: record.sequence,
-          flags: Object.freeze(flags),
+          flags: flags,
           history: parseNarrativeHistory(record.history),
         });
       },
@@ -118,12 +118,12 @@ export const templateGameStateSchemaV1: RuntimeSchemaV1<TemplateGameStateV1> =
             stage: z.unknown(),
           })
           .parse(root.simulation);
-        return Object.freeze({
-          simulation: Object.freeze({
+        return ({
+          simulation: {
             inventory: templateInventoryStateSchemaV1.parse(simulation.inventory),
             narrative: templateNarrativeStateSchemaV1.parse(simulation.narrative),
             stage: templateStageStateSchemaV1.parse(simulation.stage),
-          }),
+          },
         });
       },
     },
@@ -138,11 +138,11 @@ export function createInitialTemplateStageStateV1(): SemanticStageState {
 }
 
 export function createInitialTemplateGameStateV1(): TemplateGameStateV1 {
-  return Object.freeze({
-    simulation: Object.freeze({
-      inventory: Object.freeze({ coins: 0 }),
+  return ({
+    simulation: {
+      inventory: { coins: 0 },
       narrative: createInitialTemplateNarrativeStateV1(),
       stage: createInitialTemplateStageStateV1(),
-    }),
+    },
   });
 }

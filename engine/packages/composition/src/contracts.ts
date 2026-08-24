@@ -221,17 +221,17 @@ export function createCompositionServiceTokenV1<T>(
   id: string,
 ): CompositionServiceTokenV1<T> {
   assertIdentifierV1(id, "service token");
-  return Object.freeze({
+  return {
     id,
     kind: "exclusive_service",
-  }) as CompositionServiceTokenV1<T>;
+  } as CompositionServiceTokenV1<T>;
 }
 
 export function createCompositionRegistryTokenV1<T>(
   id: string,
 ): CompositionRegistryTokenV1<T> {
   assertIdentifierV1(id, "registry token");
-  return Object.freeze({ id, kind: "registry" }) as CompositionRegistryTokenV1<
+  return { id, kind: "registry" } as CompositionRegistryTokenV1<
     T
   >;
 }
@@ -259,7 +259,7 @@ function normalizeTokenArrayV1<TToken extends CompositionTokenV1>(
     }
     ids.add(token.id);
   }
-  return Object.freeze(normalized);
+  return normalized;
 }
 
 function normalizeRegistryDeclarationsV1(
@@ -282,11 +282,11 @@ function normalizeRegistryDeclarationsV1(
     assertIdentifierV1(declaration.id, `${subject} entry`);
     const priority = declaration.priority ?? 0;
     assertPriorityV1(priority, `${subject}.${declaration.id}`);
-    return Object.freeze({
+    return {
       token: declaration.token,
       id: declaration.id,
       priority,
-    });
+    };
   });
   const keys = new Set<string>();
   for (const declaration of normalized) {
@@ -299,7 +299,7 @@ function normalizeRegistryDeclarationsV1(
     }
     keys.add(key);
   }
-  return Object.freeze(normalized);
+  return normalized;
 }
 
 export function defineCompositionPluginV1(
@@ -321,7 +321,7 @@ export function defineCompositionPluginV1(
       `plugin ${plugin.id} revision must be a positive safe integer`,
     );
   }
-  return Object.freeze({
+  return {
     id: plugin.id,
     revision: plugin.revision,
     requires: normalizeTokenArrayV1(
@@ -339,7 +339,7 @@ export function defineCompositionPluginV1(
       `${plugin.id}.contributes`,
     ),
     setup: plugin.setup,
-  });
+  };
 }
 
 export function defineCompositionProfileV1(
@@ -364,9 +364,9 @@ export function defineCompositionProfileV1(
       `profile ${profile.id} plugins must be an array`,
     );
   }
-  return Object.freeze({
+  return {
     id: profile.id,
     kind: profile.kind,
-    plugins: Object.freeze(profile.plugins.map(defineCompositionPluginV1)),
-  });
+    plugins: profile.plugins.map(defineCompositionPluginV1),
+  };
 }

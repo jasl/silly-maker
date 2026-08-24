@@ -90,11 +90,11 @@ function parseOptionsV1(argv: readonly string[]): OptionsV1 {
     else if (flag === "--output") output = value;
     else return argumentErrorV1(`unknown argument: ${flag}`);
   }
-  return Object.freeze({
+  return {
     applicationId,
     ...(outDir === undefined ? {} : { outDir }),
     ...(output === undefined ? {} : { output }),
-  });
+  };
 }
 
 async function listFilesV1(root: string, directory = root): Promise<readonly string[]> {
@@ -113,11 +113,11 @@ function sumV1(rows: readonly AssetRowV1[]): Readonly<{
   readonly rawBytes: number;
   readonly gzipBytes: number;
 }> {
-  return Object.freeze({
+  return {
     files: rows.length,
     rawBytes: rows.reduce((total, row) => total + row.rawBytes, 0),
     gzipBytes: rows.reduce((total, row) => total + row.gzipBytes, 0),
-  });
+  };
 }
 
 async function repositoryStateV1(): Promise<Readonly<{ head: string; dirty: boolean }>> {
@@ -127,10 +127,10 @@ async function repositoryStateV1(): Promise<Readonly<{ head: string; dirty: bool
       cwd: repositoryRootV1,
     }),
   ]);
-  return Object.freeze({
+  return {
     head: head.stdout.trim(),
     dirty: status.stdout.trim().length > 0,
-  });
+  };
 }
 
 async function outputPathV1(requestedPath: string | undefined): Promise<string> {
@@ -178,7 +178,7 @@ async function buildReleaseWithDependencyReceiptV1(input: {
         "build dependency receipt application does not match the requested build",
       );
     }
-    return Object.freeze({ buildDurationMs, dependencyGraph });
+    return { buildDurationMs, dependencyGraph };
   } catch (error) {
     const detail = error as { readonly stderr?: string; readonly stdout?: string };
     throw new Error(
@@ -211,37 +211,37 @@ async function mainV1(): Promise<void> {
   const html = await readFile(join(outDir, "index.html"), "utf8");
   const references = referencedPlayerBuildAssetsV1(html);
   const contributionIdsByAsset = contributionIdsByPlayerBuildAssetV1(dependencyGraph);
-  const noContributionIdsV1 = Object.freeze([]) as readonly string[];
+  const noContributionIdsV1: readonly string[] = [];
   const rows: AssetRowV1[] = [];
   for (const path of await listFilesV1(outDir)) {
     const bytes = await readFile(join(outDir, path));
     const kind = playerBuildAssetKindV1(path);
     const role = playerBuildAssetRoleV1(path, kind, references);
-    rows.push(Object.freeze({
+    rows.push({
       path,
       kind,
       role,
       rawBytes: bytes.byteLength,
       gzipBytes: gzipSync(bytes).byteLength,
       contributionIds: contributionIdsByAsset.get(path) ?? noContributionIdsV1,
-    }));
+    });
   }
-  const report = Object.freeze({
+  const report = {
     schemaVersion: 2,
     generatedAt: new Date().toISOString(),
     repository,
-    environment: Object.freeze({
+    environment: {
       deno: Deno.version.deno,
       v8: Deno.version.v8,
       typescript: Deno.version.typescript,
       os: Deno.build.os,
       arch: Deno.build.arch,
-    }),
+    },
     applicationId: options.applicationId,
     profile: "release",
     outDir: reportedOutDir,
     buildDurationMs,
-    groups: Object.freeze({
+    groups: {
       entry: sumV1(rows.filter((row) => row.role === "entry")),
       preload: sumV1(rows.filter((row) => row.role === "preload")),
       lazy: sumV1(rows.filter((row) => row.role === "lazy")),
@@ -249,16 +249,16 @@ async function mainV1(): Promise<void> {
       allCss: sumV1(rows.filter((row) => row.kind === "css")),
       runtimeAssets: sumV1(rows.filter((row) => row.kind === "runtime_asset")),
       allFiles: sumV1(rows),
-    }),
-    assets: Object.freeze(rows),
+    },
+    assets: rows,
     dependencyGraph,
-    interpretation: Object.freeze({
+    interpretation: {
       status: "trend_only",
       machineBoundHardGate: false,
       rawAndGzipBytesAreProductFacts: true,
       buildDurationIsMachineSpecific: true,
-    }),
-  });
+    },
+  };
   const path = await outputPathV1(options.output);
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify(report, null, 2)}\n`, "utf8");

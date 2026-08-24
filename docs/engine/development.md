@@ -78,10 +78,11 @@ later accepted slice deliberately transfers ownership.
 When a strangler Story still constructs a legacy `GameSimulation`, convert a
 neutral module composition with
 `createLegacyGameplayModuleBindingsV1(composition, aggregateCommandSchema)`
-from that same legacy entry. It explicitly re-admits and freezes complete Base
-bindings while preserving tuple order. Do not spread `StateModuleBindingV1` or
-cast it to a Game binding: the neutral root intentionally promises only its
-descriptor.
+from that same legacy entry. It rebuilds complete Base bindings through the Base
+constructor while preserving tuple order. Do not spread `StateModuleBindingV1`
+or cast it to a Game binding: the neutral root intentionally promises only its
+descriptor. Once constructed, package-internal typed bindings are trusted; the
+adapter does not add a second immutability or authenticity layer.
 
 X5's `createStateAuthoringKitV1` exposes neutral State module/workflow names but
 delegates to the one Base authoring kit and transaction runner. Do not add a
@@ -95,7 +96,8 @@ not define State Format V2.
 clone. V1 module initializers are intentionally bootstrap-independent, and the
 neutral API does not expose Base module-local invariant metadata because the
 current transaction runner does not execute it. Use workflow
-`validateCandidate` for aggregate validation. `StateTransactionV1` reads only
+`validateCandidate` as the sole aggregate cross-slice invariant seam; touched
+slice schemas are not followed by a redundant whole-State parse. `StateTransactionV1` reads only
 command-start State (no read-your-writes). Modules declare pure reducers keyed
 by domain-event kind and must own disjoint State slots; exact and parent/child
 slot overlap is rejected at composition. A workflow admits emitted events
@@ -112,7 +114,7 @@ typed tokens; no dynamic lifecycle Context is exported. Compile services and
 registries into direct plans before Session creation. State-backed legacy
 applications use `activateStateApplicationV1` from the `./state` entry so this
 ordering is enforced rather than left to caller convention. Authoritative mount
-is permanently frozen; use a separate kernel for reloadable Studio/
+is permanently sealed; use a separate kernel for reloadable Studio/
 presentation/tooling profiles. Lifecycle cleanup covers in-process resources
 only. A live candidate's effects are installed before consumer publication and
 coexist with predecessor effects during acknowledgement; they must be
@@ -140,7 +142,7 @@ not local extension bindings.
 
 The generated dev-only standalone Studio entry and embedded author runtime both
 use `@sillymaker/studio/composition` and the same private Authoring Host. The
-Host owns the frozen workspace contract, active/visited focus, shared
+Host owns the closed typed workspace contract, active/visited focus, shared
 Scene/Regions/Chrome sessions, Motion store, Flow activation, and dirty-close
 participants; shells render the same closed workspace manifest and must not
 create their own document/undo/save/conflict state machines. The game
@@ -305,7 +307,7 @@ old-run/old-connection records, and cancellation-late completion must leave the 
 Artifact exact.
 
 `UiArtifact` remains closed data, currently `column`, `text`, and `action`. Add a node kind only
-with bounded admission, recursive freezing, inert renderer behavior, intent currentness, and a
+with bounded admission, inert renderer behavior, intent currentness, and a
 real Engine Lab need; never accept arbitrary HTML, JavaScript, React components, functions, or
 module URLs. Reopening a retained revision is local replay and must not submit, call a model,
 or run a tool. Keep an Artifact action inert until it has an exact AR2 Scene receipt; when Scene
@@ -335,7 +337,7 @@ Keep the private seam out of `features.md` until a later promotion has a real se
 
 Every maintained runtime Vite entry receives a dependency-free accessible boot
 shell and one inert serialized `runtime`/`browser` bootstrap config before its
-module executes. The Web reader later parses and admits a fresh frozen receipt.
+module executes. The Web reader later parses and admits a fresh typed receipt.
 The Desktop HTML response replaces the exact serialized config with
 `runtime`/`deno_desktop`; Web admission rejects a target that disagrees with the
 Desktop Host marker. The dev-only Studio page owns the corresponding
@@ -583,7 +585,7 @@ migration extension on every execution; it does not read a cached file list.
 The M2a State-migration registry factory/normalizer and M2b pure execution
 kernel are bounded Base authorities. M2c connects an exact registry supplied by
 Core to staged import/load: the package-internal kernel resolves only exact
-non-empty paths and returns immutable attempt/completion data, while Persistence
+non-empty paths and returns detached typed attempt/completion data, while Persistence
 owns historical Snapshot admission, final whole-Snapshot digest, and failure
 mapping. Engine Lab publishes the first real migration owner. The collector
 requires its Core registry and policy export to be exact-identical, live-enumerates
@@ -592,7 +594,7 @@ managed Simulation BuildIdentity before linting.
 Collection/classification failures abort before linting. After collection, every
 unique exact path is read once; read, unsupported-extension, and parse failures
 use stable diagnostics, and all output is ordered by UTF-16 file/range/code.
-The checker and the Node-only tooling import-closure collector use the exact
+The checker and the tooling-only import-closure collector use the exact
 `@babel/parser` AST dependency already pinned by their owning package. Across
 `.ts/.tsx/.mts/.cts/.js/.jsx/.mjs/.cjs`, the collector follows runtime-bearing
 static ESM imports/exports. Fully type-only declarations/specifiers and
@@ -881,9 +883,11 @@ The counters distinguish Snapshot digest, bootstrap admission, command
 admission, finalized-evidence admission, conditional additional CommandLog
 metadata admission, replay comparison, and CommandLog continuity. They measure
 real maintained work, not removed freeze/handoff machinery. Standard Core
-performs one bootstrap canonical projection before initial-State construction;
-Session dispatch performs one command projection and one Snapshot-free evidence
-projection, while its internal CommandLog trusts those results. Public
+performs one bootstrap canonical projection before initial-State construction
+and one command projection at Session dispatch; its resolved typed executor
+attempt reaches finalization and the internal CommandLog without a second
+Snapshot-free evidence projection. The low-level public `GameSession` workloads
+retain one evidence admission for their arbitrary executor boundary, and public
 `createCommandLogV1` independently admits its inputs and retains full digest
 audit. Failure fixtures assert atomic state/log behavior and the absence of
 candidate Snapshot digest work instead of descriptor ordering or wall-clock
@@ -1104,9 +1108,12 @@ reads and bounded-admits every declared pack from that application's root. The
 runtime contract checks the exact V1 wire shape, logical pack identity,
 text-catalog topology/IDs and cross-pack conflicts, and derives the actual entry
 count. It does not compare editable payloads with sibling length/hash/count
-receipts or require a generator/currentness step. Vite development/build serving
+receipts or require a generator/currentness step. Runtime-image paths are
+admitted once as app-root-relative `assets/**` names; the trusted project Host
+maps those names and the verifier checks file presence, decoded media type, and
+dimensions without realpath/symlink attestation. Vite development/build serving
 and copying continue to use the existing `assets/**` pipeline; refresh/restart a
-running immutable content session after a direct text edit.
+running fixed-manifest content session after a direct text edit.
 
 The CR3 Player baselines follow the same policy. `deno task bench:surfaces`
 runs 1/4/16-target Stable publication workloads with small and medium parameters
@@ -1189,6 +1196,11 @@ revalidation, without blocking unrelated lanes.
 
 Commits can be organized for reviewability, but there is no required Phase-to-commit mapping, checkpoint hash, exact staging contract, or clean-tree admission script.
 
+Pre-release workspace API and source-shape compatibility are not product goals.
+Only an explicitly accepted external or persisted contract, such as a Save or
+wire format, can justify a compatibility path; an old export, internal consumer,
+test, or historical implementation does not create that promise.
+
 Cleanup does not remove an accepted independent-engine capability merely because
 the current repository has no consumer. Confirm its accepted contract,
 orthogonality, owner, and maintainable semantics. By contrast, once a contract
@@ -1198,6 +1210,12 @@ documentation together unless a concrete compatibility promise says otherwise.
 ## Testing policy
 
 Browser commands exercise the Engine Lab Story ([E2E engine validation design](design/e2e-engine-validation.md)); the retired PoC product suite left with its application. Production Narrative coverage also runs through the starter template, Bookshop, and Cat Cafe, while SillyOS proves that omitting Narrative remains valid. WholeCanvas browser coverage uses Engine Lab's exact `whole_canvas_conformance=1` opt-in plus Cat Cafe's real ending, and SillyOS proves omission. The promoted matrix exercises the same public definitions and default Hosts used by applications rather than conformance-only engine entries.
+
+Playwright tests and E2E runs are silent by default so local and CI execution do
+not play audible media. The real audio Host, playback, interruption, cleanup,
+and lifecycle paths still run; only audible output is suppressed. A test that
+specifically needs audible playback can opt in with
+`test.use({ audibleAudio: true })`.
 
 Headless Story tests should drive gameplay through `createGameHarnessV1` from `@sillymaker/base/testkit` rather than assembling private Session/semantic/persistence fixtures.
 
@@ -1309,10 +1327,11 @@ behavior, and Semantic Stage settlement.
 
 For WholeCanvas UI, external Story code uses `defineWholeCanvasSurfaceV1` and,
 when navigation is not semantic-publication selected,
-`createWholeCanvasApplicationSourceV1` from `@sillymaker/ui`. Return the opaque
-definition as `ui.wholeCanvas`; do not import the private Host/session, add a
+`createWholeCanvasApplicationSourceV1` from `@sillymaker/ui`. Return the
+once-admitted typed definition as `ui.wholeCanvas`; internal consumers trust it
+without runtime brand/origin checks. Do not import the private Host/session, add a
 Root slot, or retain frame/topology evidence. Tests should drive renderer
-actions and assert immutable primary/detail replacement, readiness, focus,
+actions and assert read-only primary/detail replacement, readiness, focus,
 input isolation, successor fencing, and omission. Title/Splash tests exercise
 the same package-owned WholeCanvas front door rather than a direct Root writer.
 

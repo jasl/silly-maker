@@ -11,7 +11,7 @@ export function createViewSourceV1<TViewModel>(
 ): MutableViewSourceV1<TViewModel> {
   let current = initial;
   const listeners = new Set<() => void>();
-  return Object.freeze({
+  return {
     getCurrent: () => current,
     subscribe(listener: () => void) {
       listeners.add(listener);
@@ -21,7 +21,7 @@ export function createViewSourceV1<TViewModel>(
       current = value;
       for (const listener of [...listeners]) listener();
     },
-  });
+  };
 }
 
 export function useReadonlyViewV1<TViewModel>(

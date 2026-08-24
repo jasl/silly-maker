@@ -87,11 +87,11 @@ export function parseGuiStartupOptionsV1(
   const samples = Number(samplesText);
   if (!Number.isSafeInteger(samples)) optionErrorV1("--samples must be a safe integer");
   const output = values.get("--output");
-  return Object.freeze({
+  return {
     applicationId,
     samples,
     ...(output === undefined ? {} : { output: resolve(cwd, output) }),
-  });
+  };
 }
 
 async function repositoryStateV1(): Promise<Readonly<{ head: string; dirty: boolean }>> {
@@ -101,10 +101,10 @@ async function repositoryStateV1(): Promise<Readonly<{ head: string; dirty: bool
       cwd: repositoryRootV1,
     }),
   ]);
-  return Object.freeze({
+  return {
     head: head.stdout.trim(),
     dirty: status.stdout.trim().length > 0,
-  });
+  };
 }
 
 async function elapsedWhenV1(
@@ -147,7 +147,7 @@ async function measureStartupV1(
       `GUI startup diagnostics were not clean: ${JSON.stringify({ pageErrors, consoleErrors })}`,
     );
   }
-  return Object.freeze({ sampleIndex, guiReadyMs, firstInteractiveMs });
+  return { sampleIndex, guiReadyMs, firstInteractiveMs };
 }
 
 async function outputPathV1(requestedPath: string | undefined): Promise<string> {

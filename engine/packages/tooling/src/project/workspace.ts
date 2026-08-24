@@ -77,7 +77,7 @@ export async function loadWorkspaceAppsV1(input: {
   const apps = await Promise.all(
     workspace.appDirectories.map(async (directory) => {
       const config = await loadSillymakerAppConfigV1(resolve(input.repositoryRoot, directory));
-      return Object.freeze({ directory, config });
+      return { directory, config };
     }),
   );
   const seen = new Map<string, number>();
@@ -93,7 +93,7 @@ export async function loadWorkspaceAppsV1(input: {
     }
     seen.set(app.config.applicationId, index);
   }
-  return Object.freeze(apps);
+  return apps;
 }
 
 /**

@@ -76,14 +76,12 @@ function regionsDigestV1(bytes: Uint8Array): string {
 
 /** The Project Authoring Index's regions view: catalog rows + named skips. */
 export function listRegionsSourceFilesV1(index: AuthoringProjectIndexV1): RegionsListResultV1 {
-  return Object.freeze({
+  return {
     regionsDocuments: index.regions,
-    skipped: Object.freeze(
-      index.skipped
-        .filter((skip) => skip.kind === "regions")
-        .map((skip) => Object.freeze({ path: skip.path, reason: skip.reason })),
-    ),
-  });
+    skipped: index.skipped
+      .filter((skip) => skip.kind === "regions")
+      .map((skip) => ({ path: skip.path, reason: skip.reason })),
+  };
 }
 
 /** The one canonical on-disk formatting the port ever writes. */
@@ -126,12 +124,12 @@ export function readRegionsSourceFileV1(appRoot: string, path: string): RegionsR
       detail: error instanceof Error ? error.message : String(error),
     };
   }
-  return Object.freeze({
+  return {
     kind: "ok",
     path,
     digest: regionsDigestV1(bytes),
     regionsDocument,
-  });
+  };
 }
 
 export interface WriteRegionsSourceInputV1 {
@@ -203,7 +201,7 @@ export function writeRegionsSourceFileV1(
       detail: error instanceof Error ? error.message : String(error),
     };
   }
-  return Object.freeze({ kind: "ok", digest: regionsDigestV1(formatted) });
+  return { kind: "ok", digest: regionsDigestV1(formatted) };
 }
 
 const regionsFileSuffixV1 = ".regions.json";
@@ -277,7 +275,7 @@ export function createRegionsSourceFileV1(
       detail: error instanceof Error ? error.message : String(error),
     };
   }
-  return Object.freeze({ kind: "ok", digest: regionsDigestV1(formatted) });
+  return { kind: "ok", digest: regionsDigestV1(formatted) };
 }
 
 function regionsPortStatusV1(code: RegionsPortErrorCodeV1): number {

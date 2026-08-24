@@ -46,8 +46,8 @@ export interface LabMonitorsStateV1 {
 }
 
 export function createInitialLabMonitorsStateV1(): LabMonitorsStateV1 {
-  return Object.freeze({
-    accumulator: Object.freeze({}),
+  return ({
+    accumulator: {},
     gaugeLevel: 0,
     ambientIgnitions: 0,
     collectorEngaged: false,
@@ -67,7 +67,7 @@ export const labMonitorsStateSchemaV1: RuntimeSchemaV1<LabMonitorsStateV1> = cre
           collectorUnits: z.number().int().nonnegative(),
         })
         .parse(value);
-      return Object.freeze({
+      return ({
         accumulator: parseMonitorAccumulatorV1(record.accumulator, "/accumulator"),
         gaugeLevel: record.gaugeLevel,
         ambientIgnitions: record.ambientIgnitions,

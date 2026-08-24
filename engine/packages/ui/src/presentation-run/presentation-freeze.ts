@@ -37,8 +37,8 @@ export interface PresentationFreezePortV1 {
   bindInputRouterInternalV1(router: InputRouterV1): () => void;
 }
 
-const frozenStateV1 = Object.freeze({ frozen: true }) satisfies PresentationFreezeStateV1;
-const liveStateV1 = Object.freeze({ frozen: false }) satisfies PresentationFreezeStateV1;
+const frozenStateV1 = { frozen: true } satisfies PresentationFreezeStateV1;
+const liveStateV1 = { frozen: false } satisfies PresentationFreezeStateV1;
 
 export function createPresentationFreezePortV1(input?: {
   readonly inner?: PresentationClockV1;
@@ -101,21 +101,21 @@ export function createPresentationFreezePortV1(input?: {
     unregisterInput = null;
   };
 
-  return Object.freeze({
-    clock: Object.freeze({
+  return {
+    clock: {
       now: () => (pausedAt ?? inner.now()) - offset,
       requestTick(callback: (now: number) => void): () => void {
         if (pausedAt !== null) return park(callback);
         return requestInner(callback);
       },
-    }),
-    state: Object.freeze({
+    },
+    state: {
       getCurrent: () => (pausedAt === null ? liveStateV1 : frozenStateV1),
       subscribe(listener: () => void) {
         listeners.add(listener);
         return () => listeners.delete(listener);
       },
-    }),
+    },
     pause(): void {
       if (pausedAt !== null) return;
       pausedAt = inner.now();
@@ -141,5 +141,5 @@ export function createPresentationFreezePortV1(input?: {
         router = null;
       };
     },
-  });
+  };
 }

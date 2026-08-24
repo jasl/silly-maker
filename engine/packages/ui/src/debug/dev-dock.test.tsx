@@ -1298,7 +1298,7 @@ describe("DevDock contribution validation", () => {
       .toThrowError("ui.devdock_title_limit");
   });
 
-  it("accepts exact limits, preserves authored order, and freezes the copied registry", () => {
+  it("accepts exact limits and preserves authored order in a copied registry", () => {
     const input = Array.from({ length: 16 }, (_, index) =>
       panelV1({
         id: `panel.synthetic.${index}`,
@@ -1306,9 +1306,6 @@ describe("DevDock contribution validation", () => {
       }));
     const contributions = createDevDockContributionSetV1({ panels: input });
     expect(contributions.panels.map(({ id }) => id)).toEqual(input.map(({ id }) => id));
-    expect(Object.isFrozen(contributions)).toBe(true);
-    expect(Object.isFrozen(contributions.panels)).toBe(true);
-    expect(contributions.panels.every(Object.isFrozen)).toBe(true);
     expect(contributions.panels[0]).not.toBe(input[0]);
   });
 });

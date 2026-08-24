@@ -4,4 +4,4 @@ import type { SaveStateMigrationStepV1 } from "@sillymaker/base";
 /** Deterministic callback dependency used to prove live owner-closure collection. */
 export const syntheticSaveStateMigrationCallbackV1: SaveStateMigrationStepV1["migrate"] = (
   _state,
-) => Object.freeze({ kind: "migrated", state: Object.freeze({ value: 2 }) });
+) => ({ kind: "migrated", state: { value: 2 } });

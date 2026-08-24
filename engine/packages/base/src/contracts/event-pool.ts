@@ -101,12 +101,12 @@ function parseConditionAtV1(value: unknown, path: string, depth: number): EventC
       ) {
         fail("event_pool.condition_invalid", path);
       }
-      return Object.freeze({
+      return {
         kind: "number",
         key: record.key,
         op: record.op as "eq" | "ne" | "lt" | "lte" | "gt" | "gte",
         value: record.value,
-      });
+      };
     }
     case "flag": {
       if (
@@ -117,7 +117,7 @@ function parseConditionAtV1(value: unknown, path: string, depth: number): EventC
       ) {
         fail("event_pool.condition_invalid", path);
       }
-      return Object.freeze({ kind: "flag", flag: record.flag, present: record.present });
+      return { kind: "flag", flag: record.flag, present: record.present };
     }
     case "label": {
       if (
@@ -131,11 +131,11 @@ function parseConditionAtV1(value: unknown, path: string, depth: number): EventC
       ) {
         fail("event_pool.condition_invalid", path);
       }
-      return Object.freeze({
+      return {
         kind: "label",
         key: record.key,
-        anyOf: Object.freeze([...(record.anyOf as string[])]),
-      });
+        anyOf: [...(record.anyOf as string[])],
+      };
     }
     case "all":
     case "any": {
@@ -146,21 +146,19 @@ function parseConditionAtV1(value: unknown, path: string, depth: number): EventC
       if (conditions.length === 0 || conditions.length > maxConditionBranchesV1) {
         fail("event_pool.condition_branches", path);
       }
-      return Object.freeze({
+      return {
         kind: record.kind,
-        conditions: Object.freeze(
-          conditions.map((child, index) =>
-            parseConditionAtV1(child, `${path}/${String(index)}`, depth + 1)
-          ),
+        conditions: conditions.map((child, index) =>
+          parseConditionAtV1(child, `${path}/${String(index)}`, depth + 1)
         ),
-      });
+      };
     }
     case "not": {
       if (keys !== "condition\u0000kind") fail("event_pool.condition_invalid", path);
-      return Object.freeze({
+      return {
         kind: "not",
         condition: parseConditionAtV1(record.condition, `${path}/not`, depth + 1),
-      });
+      };
     }
     default:
       return fail("event_pool.condition_invalid", path);
@@ -330,11 +328,10 @@ export function drawFromEventPoolV1(input: EventPoolDrawInputV1): EventPoolDrawR
   }
   const baseExplanation = {
     considered: captured.length,
-    eligible: Object.freeze(
-      eligible.map((candidate) =>
-        Object.freeze({ eventId: candidate.eventId, weight: candidate.weight })
-      ),
-    ),
+    eligible: eligible.map((candidate) => ({
+      eventId: candidate.eventId,
+      weight: candidate.weight,
+    })),
     totalWeight,
   };
 
@@ -344,32 +341,30 @@ export function drawFromEventPoolV1(input: EventPoolDrawInputV1): EventPoolDrawR
     if (forced === undefined) {
       fail("event_pool.force_ineligible", `/candidates/${force}`);
     }
-    return Object.freeze({
+    return {
       kind: "drawn",
       eventId: forced.eventId,
-      explanation: Object.freeze({ ...baseExplanation, roll: null, forced: true }),
-    });
+      explanation: { ...baseExplanation, roll: null, forced: true },
+    };
   }
 
   if (eligible.length === 0) {
-    return Object.freeze({
+    return {
       kind: "empty",
-      explanation: Object.freeze({ ...baseExplanation, roll: null, forced: false }),
-    });
+      explanation: { ...baseExplanation, roll: null, forced: false },
+    };
   }
 
-  const roll = input.rng.nextInt(
-    Object.freeze({ purpose: input.purpose, exclusiveMax: totalWeight }),
-  );
+  const roll = input.rng.nextInt({ purpose: input.purpose, exclusiveMax: totalWeight });
   let cursor = roll as number;
   for (const candidate of eligible) {
     cursor -= candidate.weight;
     if (cursor < 0) {
-      return Object.freeze({
+      return {
         kind: "drawn",
         eventId: candidate.eventId,
-        explanation: Object.freeze({ ...baseExplanation, roll: roll as number, forced: false }),
-      });
+        explanation: { ...baseExplanation, roll: roll as number, forced: false },
+      };
     }
   }
   // Unreachable: the roll is bounded by the total weight.

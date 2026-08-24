@@ -19,7 +19,7 @@ interface ExperimentalEmbeddedAgentOwnerInternalV1
 export function createExperimentalEmbeddedAgentCompanionInternalV1(
   binding: ExperimentalEmbeddedAgentBindingInternalV1,
 ): EmbeddedAuthoringCompanionDefinitionInternalV1 {
-  return Object.freeze({
+  return {
     compatibilityId: binding.configurationId,
     contentSignature: binding.actionSignature,
     createOwner(): ExperimentalEmbeddedAgentOwnerInternalV1 {
@@ -28,14 +28,14 @@ export function createExperimentalEmbeddedAgentCompanionInternalV1(
         allowedActionIds: binding.allowedActionIds,
       });
       let disposed = false;
-      return Object.freeze({
+      return {
         host,
         async dispose(): Promise<void> {
           if (disposed) return;
           disposed = true;
           await host.dispose();
         },
-      });
+      };
     },
     render(
       owner: EmbeddedAuthoringCompanionOwnerInternalV1,
@@ -52,5 +52,5 @@ export function createExperimentalEmbeddedAgentCompanionInternalV1(
         />
       );
     },
-  });
+  };
 }

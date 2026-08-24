@@ -52,7 +52,7 @@ function descriptorInputV1(packId: string) {
 }
 
 describe("text content manifest", () => {
-  it("parses stable pack IDs and defines a frozen, order-normalized identity", () => {
+  it("parses stable pack IDs and defines an order-normalized identity", () => {
     expect(parseTextContentPackIdV1("text.chapter-one")).toBe("text.chapter-one");
     expect(() => parseTextContentPackIdV1("chapter one")).toThrow("invalid TextContentPackIdV1");
 
@@ -69,9 +69,6 @@ describe("text content manifest", () => {
         packs: [{ ...alpha, runtimePath: "assets/alternate/text.alpha.json" }],
       }).digest,
     ).not.toBe(defineTextContentManifestV1({ revision: 1, packs: [alpha] }).digest);
-    expect(Object.isFrozen(manifest)).toBe(true);
-    expect(Object.isFrozen(manifest.packs)).toBe(true);
-    expect(manifest.packs.every(Object.isFrozen)).toBe(true);
     expect(() => defineTextContentManifestV1({ revision: 1, packs: [alpha, alpha] })).toThrow(
       "text_content.manifest_pack_duplicate:text.alpha",
     );
@@ -114,8 +111,6 @@ describe("text content pack admission", () => {
       packId: "text.chapter",
       entryCount: 2,
     });
-    expect(Object.isFrozen(pack)).toBe(true);
-    expect(Object.isFrozen(pack.textCatalogs)).toBe(true);
   });
 
   it("accepts valid user edits without changing logical manifest identity", () => {

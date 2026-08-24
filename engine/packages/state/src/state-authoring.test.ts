@@ -5,7 +5,6 @@ import {
   faultAttemptV1,
   parseNonNegativeSafeInteger,
   parseNonZeroUint32,
-  parsePositiveSafeInteger,
   type DeepReadonly,
   type RuntimeSchemaV1,
 } from "@sillymaker/base";
@@ -99,20 +98,6 @@ const calendarStateSchemaV1 = countSchemaV1("day") as RuntimeSchemaV1<CalendarSt
 const inventoryStateSchemaV1 = countSchemaV1("portions") as RuntimeSchemaV1<InventoryStateV1>;
 const actorStateSchemaV1 = countSchemaV1("stamina") as RuntimeSchemaV1<ActorStateV1>;
 const eveningStateSchemaV1 = countSchemaV1("completed") as RuntimeSchemaV1<EveningStateV1>;
-
-const eveningPilotStateSchemaV1: RuntimeSchemaV1<EveningPilotStateV1> = Object.freeze({
-  parse(value: unknown): EveningPilotStateV1 {
-    const state = value as EveningPilotStateV1;
-    return Object.freeze({
-      simulation: Object.freeze({
-        calendar: calendarStateSchemaV1.parse(state.simulation.calendar),
-        inventory: inventoryStateSchemaV1.parse(state.simulation.inventory),
-        actor: actorStateSchemaV1.parse(state.simulation.actor),
-        evening: eveningStateSchemaV1.parse(state.simulation.evening),
-      }),
-    });
-  },
-});
 
 function kindSchemaV1<TKind extends string>(
   kind: TKind,
@@ -249,7 +234,6 @@ function createEveningPilotV1(forceCandidateFailure = false) {
 
   const composition = kit.composeModules([calendar, inventory, actor, evening]);
   const useEveningSupply = composition.createWorkflow({
-    stateSchema: eveningPilotStateSchemaV1,
     eventSchema: eveningPilotEventSchemaV1,
     createFault: () => Object.freeze({ code: "evening.workflow_failed" as const }),
     ...(forceCandidateFailure
@@ -342,26 +326,9 @@ describe("neutral State module workflow pilot", () => {
 
     const module = kit.defineModule(definition);
     Reflect.set(definition, "contractRevision", 99);
-    const spreadAlias = {
-      ...module,
-      contractRevision: parsePositiveSafeInteger(9),
-    };
-    const prototypeAlias: typeof module = Object.create(module, {
-      contractRevision: {
-        value: parsePositiveSafeInteger(9),
-        configurable: true,
-        enumerable: true,
-        writable: true,
-      },
-    });
-
-    expect(Object.getOwnPropertySymbols(spreadAlias)).toEqual([]);
-    expect(() => kit.composeModules([spreadAlias])).toThrow("invalid neutral State module");
-    expect(() => kit.composeModules([prototypeAlias])).toThrow("invalid neutral State module");
     expect(module.contractRevision).toBe(3);
     expect(getStateModuleContractRevisionV1(module)).toBe(3);
     expect(kit.composeModules([module]).modules[0]?.descriptor.contractRevision).toBe(3);
-    expect(Object.isFrozen(module)).toBe(true);
   });
 
   test("commits calendar, inventory, actor, and evening in one Session attempt", async () => {

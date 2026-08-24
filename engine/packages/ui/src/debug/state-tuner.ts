@@ -45,14 +45,10 @@ export function flattenStateTunerLeavesV1(
   const leaves: StateTunerLeafV1[] = [];
   visitV1(root, [], leaves, filter);
   const truncated = leaves.length > engineStateTunerMaxLeavesV1;
-  return Object.freeze({
-    leaves: Object.freeze(
-      (truncated ? leaves.slice(0, engineStateTunerMaxLeavesV1) : leaves).map((leaf) =>
-        Object.freeze(leaf)
-      ),
-    ),
+  return {
+    leaves: truncated ? leaves.slice(0, engineStateTunerMaxLeavesV1) : leaves,
     truncated,
-  });
+  };
 }
 
 function visitV1(
@@ -102,7 +98,7 @@ function leafV1(
   value: string | number | boolean | null,
 ): StateTunerLeafV1 {
   return {
-    path: Object.freeze([...path]),
+    path: [...path],
     pathLabel: path.join("."),
     kind: leafKindV1(value),
     value,
@@ -119,6 +115,5 @@ function leafKindV1(value: string | number | boolean | null): StateTunerLeafKind
 function isPlainObjectV1(value: unknown): value is Record<string, unknown> {
   return value !== null &&
     typeof value === "object" &&
-    !Array.isArray(value) &&
-    Object.getPrototypeOf(value) === Object.prototype;
+    !Array.isArray(value);
 }

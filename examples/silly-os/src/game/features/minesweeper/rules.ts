@@ -10,11 +10,11 @@ export interface OsMinePresetV1 {
   readonly mines: number;
 }
 
-export const osMinePresetsV1: Readonly<Record<string, OsMinePresetV1>> = Object.freeze({
-  beginner: Object.freeze({ width: 9, height: 9, mines: 10 }),
-  intermediate: Object.freeze({ width: 16, height: 16, mines: 40 }),
-  expert: Object.freeze({ width: 30, height: 16, mines: 99 }),
-});
+export const osMinePresetsV1: Readonly<Record<string, OsMinePresetV1>> = {
+  beginner: { width: 9, height: 9, mines: 10 },
+  intermediate: { width: 16, height: 16, mines: 40 },
+  expert: { width: 30, height: 16, mines: 99 },
+};
 
 export function osBoardConfigValidV1(width: number, height: number, mines: number): boolean {
   if (width < 5 || width > 40 || height < 5 || height > 30) return false;
@@ -23,13 +23,13 @@ export function osBoardConfigValidV1(width: number, height: number, mines: numbe
 }
 
 export function osCreateBoardV1(width: number, height: number, mines: number): OsBoardV1 {
-  return Object.freeze({
+  return ({
     width,
     height,
     mineCount: mines,
     minesPlaced: false,
     status: "playing",
-    cells: Object.freeze(Array.from({ length: width * height }, (): OsCellV1 => 0)),
+    cells: Array.from({ length: width * height }, (): OsCellV1 => 0),
   });
 }
 
@@ -55,7 +55,7 @@ export function osPlaceMinesV1(
     positions[draw] = chosen;
     cells[chosen] = (cells[chosen] as number) | osCellMineV1;
   }
-  return Object.freeze({ ...board, minesPlaced: true, cells: Object.freeze(cells) });
+  return ({ ...board, minesPlaced: true, cells: cells });
 }
 
 export function osNeighborsV1(board: OsBoardV1, index: number): readonly number[] {
@@ -98,7 +98,7 @@ export function osRevealFloodV1(board: OsBoardV1, index: number): OsBoardV1 {
       }
     }
   }
-  return Object.freeze({ ...board, cells: Object.freeze(cells) });
+  return ({ ...board, cells: cells });
 }
 
 export function osBoardWonV1(board: OsBoardV1): boolean {

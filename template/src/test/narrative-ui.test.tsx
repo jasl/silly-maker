@@ -46,8 +46,6 @@ it("declares the opaque Narrative surface and mounts a bound passive renderer", 
       >[0],
     );
     expect(Object.hasOwn(ui, "narrative")).toBe(true);
-    expect(Object.isFrozen(ui.narrative)).toBe(true);
-    expect(Reflect.ownKeys(ui.narrative ?? {})).toEqual([]);
     expect(Object.hasOwn(ui.slots ?? {}, "narrative")).toBe(false);
 
     await expect(
@@ -62,7 +60,7 @@ it("declares the opaque Narrative surface and mounts a bound passive renderer", 
     const onActivate = vi.fn();
     const pending = selection.pending;
     if (pending === null || pending.kind !== "say") throw new TypeError("expected template say");
-    const callbacks = Object.freeze({
+    const callbacks = {
       onActivate,
       onChoose: vi.fn(),
       onResume: vi.fn(),
@@ -71,26 +69,26 @@ it("declares the opaque Narrative surface and mounts a bound passive renderer", 
       onToggleSkip: vi.fn(),
       onOpenHistory: vi.fn(),
       onReplayVoice: vi.fn(),
-    });
-    const sharedProps = Object.freeze({
+    };
+    const sharedProps = {
       kind: "dialogue" as const,
       pending,
       choiceAvailability: null,
       playerProfile: playerProfile.current(),
       resolveText: (textId: string) => textContent.resolveText(null, textId as TextId),
       ...callbacks,
-    });
-    const preparingProps = Object.freeze({
+    };
+    const preparingProps = ({
       ...sharedProps,
-      playerView: Object.freeze({
+      playerView: {
         kind: "passive" as const,
         phase: "preparing" as const,
         playbackMode: "normal" as const,
-      }),
+      },
     }) satisfies NarrativeSurfaceDialogueRendererPropsV1;
-    const activeProps = Object.freeze({
+    const activeProps = ({
       ...sharedProps,
-      playerView: Object.freeze({
+      playerView: {
         kind: "say" as const,
         phase: "active" as const,
         playbackMode: "normal" as const,
@@ -99,7 +97,7 @@ it("declares the opaque Narrative surface and mounts a bound passive renderer", 
         revealedCharacters: 5,
         revealLength: 14,
         revealComplete: false,
-      }),
+      },
     }) satisfies NarrativeSurfaceDialogueRendererPropsV1;
 
     const view = render(<TemplateNarrativeRendererV1 {...preparingProps} />);

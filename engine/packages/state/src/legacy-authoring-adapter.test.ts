@@ -1,20 +1,16 @@
 // SPDX-License-Identifier: MIT
 import {
-  parseModuleId,
-  parsePositiveSafeInteger,
   type GameBootstrapInputV1,
   type GameSimulationTypeMapV1,
   type RngDrawTraceV1,
   type RngStateV1,
   type RuntimeSchemaV1,
-  type StatelessGameplayModuleBindingV1,
 } from "@sillymaker/base";
-import { defineGameplayModule } from "@sillymaker/base/authoring";
 import { describe, expect, test } from "vitest";
 
 import { createStateAuthoringKitV1 } from "./index.ts";
 import { createLegacyGameplayModuleBindingsV1 } from "./legacy.ts";
-import type { StateAnyModuleV1, StateModuleCompositionV1 } from "./index.ts";
+import type { StateModuleCompositionV1 } from "./index.ts";
 
 interface LegacyAdapterStateV1 {
   readonly simulation: {
@@ -99,7 +95,6 @@ describe("legacy State authoring adapter", () => {
       "adapter.beta",
     ]);
     expect(bindings).toHaveLength(composition.modules.length);
-    expect(Object.isFrozen(bindings)).toBe(true);
     for (const [index, binding] of bindings.entries()) {
       const source = composition.modules[index]!;
       expect(binding.bindingKind).toBe("stateful");
@@ -124,12 +119,7 @@ describe("legacy State authoring adapter", () => {
       }
       expect(binding.localInvariants).toEqual(Reflect.get(source, "localInvariants"));
       expect(binding.localInvariants).not.toBe(Reflect.get(source, "localInvariants"));
-      expect(Object.isFrozen(binding)).toBe(true);
-      expect(Object.isFrozen(binding.descriptor)).toBe(true);
-      expect(Object.isFrozen(binding.descriptor.stateSlots)).toBe(true);
-      expect(Object.isFrozen(binding.localInvariants)).toBe(true);
     }
-    expect(Reflect.set(commandSchema, "parse", () => ({ kind: "legacy.run" }))).toBe(false);
     expect(commandSchema.parse).toBe(originalCommandParse);
   });
 
@@ -157,56 +147,5 @@ describe("legacy State authoring adapter", () => {
         { parse: 1 } as unknown as RuntimeSchemaV1<LegacyAdapterTypesV1["command"]>,
       )
     ).toThrow("invalid GameplayModule command Schema parse");
-  });
-
-  test("preserves explicitly declared stateless capabilities without enumeration", () => {
-    const capabilities = {
-      compileMarker() {
-        return "marker";
-      },
-    };
-    const sourceInput: StatelessGameplayModuleBindingV1<
-      LegacyAdapterTypesV1,
-      never,
-      never,
-      never,
-      typeof capabilities
-    > = {
-      bindingKind: "stateless",
-      descriptor: {
-        id: parseModuleId("adapter.stateless"),
-        contractRevision: parsePositiveSafeInteger(1),
-        stateSlots: [],
-        dependencies: [],
-      },
-      commandSchema: null,
-      querySchema: null,
-      queryResultSchema: null,
-      reducers: null,
-      capabilities,
-    };
-    Object.defineProperty(sourceInput, "capabilities", {
-      value: capabilities,
-      enumerable: false,
-      configurable: true,
-    });
-    const source = defineGameplayModule<LegacyAdapterTypesV1>()(sourceInput);
-    expect(Object.keys(source)).not.toContain("capabilities");
-    const composition = {
-      modules: Object.freeze([source]),
-    } as unknown as StateModuleCompositionV1<
-      LegacyAdapterTypesV1,
-      readonly [StateAnyModuleV1]
-    >;
-    const commandSchema: RuntimeSchemaV1<LegacyAdapterTypesV1["command"]> = Object.freeze({
-      parse: () => Object.freeze({ kind: "legacy.run" as const }),
-    });
-
-    const [binding] = createLegacyGameplayModuleBindingsV1(composition, commandSchema);
-    expect(binding.bindingKind).toBe("stateless");
-    if (binding.bindingKind !== "stateless") throw new Error("expected stateless binding");
-    expect(binding.capabilities).toBe(capabilities);
-    expect(binding.commandSchema).toBe(commandSchema);
-    expect(Object.isFrozen(binding.capabilities)).toBe(true);
   });
 });

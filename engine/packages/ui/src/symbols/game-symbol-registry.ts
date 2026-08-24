@@ -29,10 +29,10 @@ export interface GameSymbolRegistryV1 {
   resolve(symbolId: GameSymbolIdV1): GameSymbolResolutionV1;
 }
 
-const notFoundV1 = Object.freeze({
+const notFoundV1 = {
   kind: "not_found" as const,
   code: "ui.game_symbol_not_found" as const,
-});
+};
 
 function invalidSymbolIdV1(): TypeError {
   return new TypeError("ui.invalid_game_symbol_id");
@@ -62,10 +62,10 @@ function parseProviderV1(
     throw new TypeError(`ui.invalid_game_symbol_provider:${index}`);
   }
 
-  return Object.freeze([
+  return [
     parseGameSymbolIdV1(candidate.symbolId),
     candidate.component as ComponentType<GameSymbolRenderPropsV1>,
-  ]);
+  ];
 }
 
 export function createGameSymbolRegistryV1(
@@ -81,13 +81,13 @@ export function createGameSymbolRegistryV1(
     if (records.has(symbolId)) {
       throw new TypeError(`ui.duplicate_game_symbol_id:${symbolId}`);
     }
-    records.set(symbolId, Object.freeze({ kind: "found" as const, component }));
+    records.set(symbolId, { kind: "found" as const, component });
   }
 
-  return Object.freeze({
+  return {
     resolve(symbolId: GameSymbolIdV1): GameSymbolResolutionV1 {
       const parsed = parseGameSymbolIdV1(symbolId);
       return records.get(parsed) ?? notFoundV1;
     },
-  });
+  };
 }

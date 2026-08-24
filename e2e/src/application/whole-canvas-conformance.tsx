@@ -23,50 +23,46 @@ import { labUiTextV1 } from "./ui-text.ts";
 
 type LabSemanticPublicationV1 = ReturnType<LabApplicationInstanceV1["semantic"]["observe"]>;
 
-export const labWholeCanvasTargetIdsV1 = Object.freeze(
-  {
-    home: "lab.whole-canvas.home",
-    status: "lab.whole-canvas.status",
-    storage: "lab.whole-canvas.storage",
-    specimenCatalog: "lab.whole-canvas.specimen-catalog",
-    specimenDetail: "lab.whole-canvas.specimen-detail",
-  } as const,
-);
+export const labWholeCanvasTargetIdsV1 = {
+  home: "lab.whole-canvas.home",
+  status: "lab.whole-canvas.status",
+  storage: "lab.whole-canvas.storage",
+  specimenCatalog: "lab.whole-canvas.specimen-catalog",
+  specimenDetail: "lab.whole-canvas.specimen-detail",
+} as const;
 
 export type LabWholeCanvasTargetIdV1 =
   (typeof labWholeCanvasTargetIdsV1)[keyof typeof labWholeCanvasTargetIdsV1];
 
-export const labWholeCanvasActionIdsV1 = Object.freeze(
-  {
-    showHome: "lab.whole-canvas.show-home",
-    showStatus: "lab.whole-canvas.show-status",
-    showStorage: "lab.whole-canvas.show-storage",
-    showSpecimenCatalog: "lab.whole-canvas.show-specimen-catalog",
-    openSpecimenDetail: "lab.whole-canvas.open-specimen-detail",
-  } as const,
-);
+export const labWholeCanvasActionIdsV1 = {
+  showHome: "lab.whole-canvas.show-home",
+  showStatus: "lab.whole-canvas.show-status",
+  showStorage: "lab.whole-canvas.show-storage",
+  showSpecimenCatalog: "lab.whole-canvas.show-specimen-catalog",
+  openSpecimenDetail: "lab.whole-canvas.open-specimen-detail",
+} as const;
 
 export type LabWholeCanvasActionIdV1 =
   (typeof labWholeCanvasActionIdsV1)[keyof typeof labWholeCanvasActionIdsV1];
 
-const primaryPlacementV1 = Object.freeze(["primary"] as const);
-const detailPlacementV1 = Object.freeze(["detail"] as const);
+const primaryPlacementV1 = ["primary"] as const;
+const detailPlacementV1 = ["detail"] as const;
 
 function catalogRowV1(
   targetId: LabWholeCanvasTargetIdV1,
   placements: typeof primaryPlacementV1 | typeof detailPlacementV1,
   actionIds: readonly LabWholeCanvasActionIdV1[],
 ): WholeCanvasSurfaceCatalogEntryV1<LabWholeCanvasTargetIdV1, LabWholeCanvasActionIdV1> {
-  return Object.freeze({
+  return ({
     targetId,
     contractRevision: 1 as const,
     placements,
-    actionIds: Object.freeze([...actionIds]),
+    actionIds: [...actionIds],
     defaultActionId: null,
   });
 }
 
-export const labWholeCanvasCatalogV1 = Object.freeze([
+export const labWholeCanvasCatalogV1 = [
   catalogRowV1(labWholeCanvasTargetIdsV1.home, primaryPlacementV1, [
     labWholeCanvasActionIdsV1.showStatus,
     labWholeCanvasActionIdsV1.showStorage,
@@ -89,15 +85,15 @@ export const labWholeCanvasCatalogV1 = Object.freeze([
     labWholeCanvasActionIdsV1.openSpecimenDetail,
   ]),
   catalogRowV1(labWholeCanvasTargetIdsV1.specimenDetail, detailPlacementV1, []),
-]);
+];
 
-const emptyParametersV1 = Object.freeze({});
-const specimenParametersV1 = Object.freeze({ specimenId: "specimen.alpha" });
+const emptyParametersV1 = {};
+const specimenParametersV1 = { specimenId: "specimen.alpha" };
 
 function targetV1(
   targetId: LabWholeCanvasTargetIdV1,
 ): WholeCanvasSurfaceTargetV1<LabWholeCanvasTargetIdV1> {
-  return Object.freeze({
+  return ({
     targetId,
     parameters: targetId === labWholeCanvasTargetIdsV1.specimenDetail
       ? specimenParametersV1
@@ -105,48 +101,41 @@ function targetV1(
   });
 }
 
-const targetByActionIdV1 = Object.freeze(
-  {
-    [labWholeCanvasActionIdsV1.showHome]: targetV1(labWholeCanvasTargetIdsV1.home),
-    [labWholeCanvasActionIdsV1.showStatus]: targetV1(labWholeCanvasTargetIdsV1.status),
-    [labWholeCanvasActionIdsV1.showStorage]: targetV1(labWholeCanvasTargetIdsV1.storage),
-    [labWholeCanvasActionIdsV1.showSpecimenCatalog]: targetV1(
-      labWholeCanvasTargetIdsV1.specimenCatalog,
-    ),
-    [labWholeCanvasActionIdsV1.openSpecimenDetail]: targetV1(
-      labWholeCanvasTargetIdsV1.specimenDetail,
-    ),
-  } satisfies Record<
-    LabWholeCanvasActionIdV1,
-    WholeCanvasSurfaceTargetV1<LabWholeCanvasTargetIdV1>
-  >,
-);
+const targetByActionIdV1 = {
+  [labWholeCanvasActionIdsV1.showHome]: targetV1(labWholeCanvasTargetIdsV1.home),
+  [labWholeCanvasActionIdsV1.showStatus]: targetV1(labWholeCanvasTargetIdsV1.status),
+  [labWholeCanvasActionIdsV1.showStorage]: targetV1(labWholeCanvasTargetIdsV1.storage),
+  [labWholeCanvasActionIdsV1.showSpecimenCatalog]: targetV1(
+    labWholeCanvasTargetIdsV1.specimenCatalog,
+  ),
+  [labWholeCanvasActionIdsV1.openSpecimenDetail]: targetV1(
+    labWholeCanvasTargetIdsV1.specimenDetail,
+  ),
+} satisfies Record<
+  LabWholeCanvasActionIdV1,
+  WholeCanvasSurfaceTargetV1<LabWholeCanvasTargetIdV1>
+>;
 
 const catalogByTargetIdV1 = new Map(
   labWholeCanvasCatalogV1.map((entry) => [entry.targetId, entry] as const),
 );
 
-const accessibleNameTextIdByTargetV1 = Object.freeze(
-  {
-    [labWholeCanvasTargetIdsV1.home]: "text.e2e.lab.whole-canvas.home.title",
-    [labWholeCanvasTargetIdsV1.status]: "text.e2e.lab.whole-canvas.status.title",
-    [labWholeCanvasTargetIdsV1.storage]: "text.e2e.lab.whole-canvas.storage.title",
-    [labWholeCanvasTargetIdsV1.specimenCatalog]: "text.e2e.lab.whole-canvas.specimen-catalog.title",
-    [labWholeCanvasTargetIdsV1.specimenDetail]: "text.e2e.lab.whole-canvas.specimen-detail.title",
-  } satisfies Record<LabWholeCanvasTargetIdV1, string>,
-);
+const accessibleNameTextIdByTargetV1 = {
+  [labWholeCanvasTargetIdsV1.home]: "text.e2e.lab.whole-canvas.home.title",
+  [labWholeCanvasTargetIdsV1.status]: "text.e2e.lab.whole-canvas.status.title",
+  [labWholeCanvasTargetIdsV1.storage]: "text.e2e.lab.whole-canvas.storage.title",
+  [labWholeCanvasTargetIdsV1.specimenCatalog]: "text.e2e.lab.whole-canvas.specimen-catalog.title",
+  [labWholeCanvasTargetIdsV1.specimenDetail]: "text.e2e.lab.whole-canvas.specimen-detail.title",
+} satisfies Record<LabWholeCanvasTargetIdV1, string>;
 
-const actionTextIdByActionV1 = Object.freeze(
-  {
-    [labWholeCanvasActionIdsV1.showHome]: "text.e2e.lab.whole-canvas.show-home",
-    [labWholeCanvasActionIdsV1.showStatus]: "text.e2e.lab.whole-canvas.show-status",
-    [labWholeCanvasActionIdsV1.showStorage]: "text.e2e.lab.whole-canvas.show-storage",
-    [labWholeCanvasActionIdsV1.showSpecimenCatalog]:
-      "text.e2e.lab.whole-canvas.show-specimen-catalog",
-    [labWholeCanvasActionIdsV1.openSpecimenDetail]:
-      "text.e2e.lab.whole-canvas.open-specimen-detail",
-  } satisfies Record<LabWholeCanvasActionIdV1, string>,
-);
+const actionTextIdByActionV1 = {
+  [labWholeCanvasActionIdsV1.showHome]: "text.e2e.lab.whole-canvas.show-home",
+  [labWholeCanvasActionIdsV1.showStatus]: "text.e2e.lab.whole-canvas.show-status",
+  [labWholeCanvasActionIdsV1.showStorage]: "text.e2e.lab.whole-canvas.show-storage",
+  [labWholeCanvasActionIdsV1.showSpecimenCatalog]:
+    "text.e2e.lab.whole-canvas.show-specimen-catalog",
+  [labWholeCanvasActionIdsV1.openSpecimenDetail]: "text.e2e.lab.whole-canvas.open-specimen-detail",
+} satisfies Record<LabWholeCanvasActionIdV1, string>;
 
 function actionAvailabilityV1(
   actionId: LabWholeCanvasActionIdV1,
@@ -155,16 +144,16 @@ function actionAvailabilityV1(
   LabWholeCanvasActionIdV1
 > {
   const target = targetByActionIdV1[actionId];
-  return Object.freeze({
+  return ({
     actionId,
     status: "enabled" as const,
-    reasonTextIds: Object.freeze([]),
-    intent: Object.freeze({
+    reasonTextIds: [],
+    intent: {
       kind: actionId === labWholeCanvasActionIdsV1.openSpecimenDetail
         ? "open_detail" as const
         : "replace_primary" as const,
       target,
-    }),
+    },
   });
 }
 
@@ -178,12 +167,12 @@ export function resolveLabWholeCanvasTargetV1(
   if (catalog === undefined) throw new TypeError("e2e.whole_canvas_target_unknown");
   const targetId = request.target.targetId;
   const view = targetId === labWholeCanvasTargetIdsV1.specimenDetail
-    ? Object.freeze({ specimenId: "specimen.alpha" })
-    : Object.freeze({ targetId });
-  return Object.freeze({
+    ? ({ specimenId: "specimen.alpha" })
+    : ({ targetId });
+  return ({
     accessibleNameTextId: accessibleNameTextIdByTargetV1[targetId],
     view,
-    actions: Object.freeze(catalog.actionIds.map(actionAvailabilityV1)),
+    actions: catalog.actionIds.map(actionAvailabilityV1),
   });
 }
 
@@ -262,13 +251,11 @@ export function LabWholeCanvasRendererV1(
   );
 }
 
-export const labWholeCanvasPreparationEventsV1 = Object.freeze(
-  {
-    hold: "sillymaker:engine-lab:whole-canvas-hold-next",
-    ready: "sillymaker:engine-lab:whole-canvas-ready",
-    fail: "sillymaker:engine-lab:whole-canvas-fail",
-  } as const,
-);
+export const labWholeCanvasPreparationEventsV1 = {
+  hold: "sillymaker:engine-lab:whole-canvas-hold-next",
+  ready: "sillymaker:engine-lab:whole-canvas-ready",
+  fail: "sillymaker:engine-lab:whole-canvas-fail",
+} as const;
 
 type PreparationOutcomeV1 = "ready" | "failed";
 
@@ -285,7 +272,7 @@ function pendingPreparationV1(): PendingPreparationV1 {
     resolve = resolvePromise;
     reject = () => rejectPromise(new Error("e2e.whole_canvas_preparation_failed"));
   });
-  return Object.freeze({ promise, resolve, reject });
+  return ({ promise, resolve, reject });
 }
 
 function LabWholeCanvasLaunchersV1(props: {
@@ -337,13 +324,13 @@ function LabWholeCanvasLaunchersV1(props: {
   );
 }
 
-export const labWholeCanvasKeyboardMapV1 = Object.freeze({
+export const labWholeCanvasKeyboardMapV1 = {
   KeyC: systemInputActionIdsV1.confirm,
   Digit1: labWholeCanvasActionIdsV1.showHome as InputActionIdV1,
   Digit2: labWholeCanvasActionIdsV1.showStatus as InputActionIdV1,
   Digit3: labWholeCanvasActionIdsV1.showStorage as InputActionIdV1,
   Digit4: labWholeCanvasActionIdsV1.showSpecimenCatalog as InputActionIdV1,
-});
+};
 
 export interface LabWholeCanvasConformanceV1 {
   readonly definition: WholeCanvasSurfaceDefinitionV1<LabSemanticPublicationV1>;
@@ -405,22 +392,22 @@ export function createLabWholeCanvasConformanceV1(input: {
     return pending.promise;
   };
 
-  const definition = defineWholeCanvasSurfaceV1(Object.freeze({
+  const definition = defineWholeCanvasSurfaceV1({
     catalog: labWholeCanvasCatalogV1,
     source,
-    resolveTarget: Object.freeze(resolveLabWholeCanvasTargetV1),
+    resolveTarget: resolveLabWholeCanvasTargetV1,
     dispatchAction: null,
-    renderer: Object.freeze(LabWholeCanvasRendererV1),
-    prepareTarget: Object.freeze(prepareTarget),
-    resolveText: Object.freeze((_locale: string | null, textId: string) => labUiTextV1(textId)),
-  }));
+    renderer: LabWholeCanvasRendererV1,
+    prepareTarget: prepareTarget,
+    resolveText: (_locale: string | null, textId: string) => labUiTextV1(textId),
+  });
 
-  return Object.freeze({
+  return ({
     definition,
-    renderLaunchers: Object.freeze((restart: () => Promise<void>): ReactElement => (
+    renderLaunchers: (restart: () => Promise<void>): ReactElement => (
       <LabWholeCanvasLaunchersV1 source={source} restart={restart} />
-    )),
-    dispose: Object.freeze((): void => {
+    ),
+    dispose: (): void => {
       if (disposed) return;
       disposed = true;
       eventTarget?.removeEventListener(labWholeCanvasPreparationEventsV1.hold, hold);
@@ -431,6 +418,6 @@ export function createLabWholeCanvasConformanceV1(input: {
       queuedOutcome = null;
       holdNext = false;
       retiredPreparation?.resolve();
-    }),
+    },
   });
 }

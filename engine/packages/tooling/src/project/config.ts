@@ -188,14 +188,14 @@ function requireBaseV1(value: unknown, pointer: string): string {
   return value;
 }
 
-function freezeModuleRefV1(ref: ProjectModuleRefV1, pointer: string): ProjectModuleRefV1 {
+function admitModuleRefV1(ref: ProjectModuleRefV1, pointer: string): ProjectModuleRefV1 {
   if (typeof ref !== "object" || ref === null) {
     configErrorV1("project.config_invalid", "module reference must be an object", pointer);
   }
-  return Object.freeze({
+  return {
     module: requireRepositoryPathV1(ref.module, `${pointer}/module`),
     exportName: requireExportNameV1(ref.exportName, `${pointer}/exportName`),
-  });
+  };
 }
 
 function requireSceneIdV1(value: unknown, pointer: string): string {
@@ -239,11 +239,11 @@ function requireSceneImportSpecifierV1(value: unknown, pointer: string): string 
   return value;
 }
 
-function freezeSceneSourcesV1(
+function admitSceneSourcesV1(
   value: readonly StorySceneSourceV1[] | undefined,
   pointer: string,
 ): readonly StorySceneSourceV1[] {
-  if (value === undefined) return Object.freeze([]);
+  if (value === undefined) return [];
   if (!Array.isArray(value)) {
     configErrorV1("project.config_invalid", "sceneSources must be an array", pointer);
   }
@@ -293,12 +293,12 @@ function freezeSceneSourcesV1(
           `${sourcePointer}/source`,
         );
       }
-      return Object.freeze({
+      return {
         sceneId,
         specifier,
         sourceKind: source.sourceKind,
         source: sourcePath,
-      });
+      };
     }
     if (source.sourceKind === "low_level_scene") {
       if ((source as { readonly source?: unknown }).source !== undefined) {
@@ -308,7 +308,7 @@ function freezeSceneSourcesV1(
           `${sourcePointer}/source`,
         );
       }
-      return Object.freeze({ sceneId, specifier, sourceKind: source.sourceKind });
+      return { sceneId, specifier, sourceKind: source.sourceKind };
     }
     return configErrorV1(
       "project.config_invalid",
@@ -316,7 +316,7 @@ function freezeSceneSourcesV1(
       `${sourcePointer}/sourceKind`,
     );
   });
-  return Object.freeze(sources);
+  return sources;
 }
 
 /** Application roots may be `.` when a project is its own repository root. */
@@ -325,15 +325,15 @@ function requireStoryRootV1(value: unknown, pointer: string): string {
   return requireRepositoryPathV1(value, pointer);
 }
 
-function freezeWebTargetV1(web: StoryWebTargetV1, pointer: string): StoryWebTargetV1 {
-  return Object.freeze({
+function admitWebTargetV1(web: StoryWebTargetV1, pointer: string): StoryWebTargetV1 {
+  return {
     storyRoot: requireStoryRootV1(web.storyRoot, `${pointer}/storyRoot`),
     applicationHtml: requireRepositoryPathV1(web.applicationHtml, `${pointer}/applicationHtml`),
     applicationEntry: requireRepositoryPathV1(web.applicationEntry, `${pointer}/applicationEntry`),
     outDir: requireRepositoryPathV1(web.outDir, `${pointer}/outDir`),
     base: requireBaseV1(web.base, `${pointer}/base`),
     sourcemap: requireBooleanV1(web.sourcemap, `${pointer}/sourcemap`),
-    identity: web.identity === null ? null : Object.freeze({
+    identity: web.identity === null ? null : {
       module: requireRepositoryPathV1(web.identity.module, `${pointer}/identity/module`),
       collectExport: requireExportNameV1(
         web.identity.collectExport,
@@ -343,8 +343,8 @@ function freezeWebTargetV1(web: StoryWebTargetV1, pointer: string): StoryWebTarg
         web.identity.createPluginExport,
         `${pointer}/identity/createPluginExport`,
       ),
-    }),
-    desktop: web.desktop === undefined || web.desktop === null ? null : Object.freeze({
+    },
+    desktop: web.desktop === undefined || web.desktop === null ? null : {
       name: requireDesktopNameV1(web.desktop.name, `${pointer}/desktop/name`),
       identifier: requireDesktopIdentifierV1(
         web.desktop.identifier,
@@ -353,12 +353,12 @@ function freezeWebTargetV1(web: StoryWebTargetV1, pointer: string): StoryWebTarg
       ...(web.desktop.icon === undefined ? {} : {
         icon: requireDesktopIconPathV1(web.desktop.icon, `${pointer}/desktop/icon`),
       }),
-    }),
-  });
+    },
+  };
 }
 
 /**
- * Validates and freezes a project config. Adding a Story application means
+ * Validates and normalizes a project config. Adding a Story application means
  * adding one declaration here; Vite resolution, asset verification, and the
  * project commands all consume the same mechanism.
  */
@@ -378,32 +378,32 @@ export function defineSillymakerProjectV1(
       );
     }
     seen.add(application.applicationId);
-    return Object.freeze({
+    return {
       applicationId: application.applicationId,
       label: requireNonEmptyStringV1(application.label, `${pointer}/label`),
-      storyEntry: freezeModuleRefV1(application.storyEntry, `${pointer}/storyEntry`),
+      storyEntry: admitModuleRefV1(application.storyEntry, `${pointer}/storyEntry`),
       assetVerification: requireBooleanV1(
         application.assetVerification,
         `${pointer}/assetVerification`,
       ),
       simulate: application.simulate === null
         ? null
-        : freezeModuleRefV1(application.simulate, `${pointer}/simulate`),
-      web: application.web === null ? null : freezeWebTargetV1(application.web, `${pointer}/web`),
+        : admitModuleRefV1(application.simulate, `${pointer}/simulate`),
+      web: application.web === null ? null : admitWebTargetV1(application.web, `${pointer}/web`),
       studio: application.studio === null
         ? null
-        : freezeModuleRefV1(application.studio, `${pointer}/studio`),
-      sceneSources: freezeSceneSourcesV1(application.sceneSources, `${pointer}/sceneSources`),
-    });
+        : admitModuleRefV1(application.studio, `${pointer}/studio`),
+      sceneSources: admitSceneSourcesV1(application.sceneSources, `${pointer}/sceneSources`),
+    };
   });
-  return Object.freeze({
+  return {
     projectId: config.projectId,
-    applications: Object.freeze(applications),
-  });
+    applications,
+  };
 }
 
 export function listStoryApplicationIdsV1(project: SillymakerProjectConfigV1): readonly string[] {
-  return Object.freeze(project.applications.map((application) => application.applicationId));
+  return project.applications.map((application) => application.applicationId);
 }
 
 export function resolveStoryApplicationV1(
@@ -457,26 +457,26 @@ export function joinAppPathV1(appDirectory: string, appRelativePath: string): st
 
 /**
  * Validates one application project declaration (`sillymaker.config.ts`) and
- * freezes it. Paths stay app-root-relative here; `deriveStoryApplicationV1`
+ * normalizes it. Paths stay app-root-relative here; `deriveStoryApplicationV1`
  * anchors them under a directory for workspace-level commands.
  */
 export function defineSillymakerAppV1(config: SillymakerAppConfigV1): SillymakerAppConfigV1 {
   const pointer = "/app";
   requireIdentifierV1(config.applicationId, "application ID", `${pointer}/applicationId`);
   const web = config.web ?? null;
-  return Object.freeze({
+  return {
     applicationId: config.applicationId,
     label: requireNonEmptyStringV1(config.label, `${pointer}/label`),
-    storyEntry: freezeModuleRefV1(config.storyEntry, `${pointer}/storyEntry`),
+    storyEntry: admitModuleRefV1(config.storyEntry, `${pointer}/storyEntry`),
     assetVerification: requireBooleanV1(config.assetVerification, `${pointer}/assetVerification`),
     simulate: config.simulate === undefined || config.simulate === null
       ? null
-      : freezeModuleRefV1(config.simulate, `${pointer}/simulate`),
+      : admitModuleRefV1(config.simulate, `${pointer}/simulate`),
     studio: config.studio === undefined || config.studio === null
       ? null
-      : freezeModuleRefV1(config.studio, `${pointer}/studio`),
-    sceneSources: freezeSceneSourcesV1(config.sceneSources, `${pointer}/sceneSources`),
-    web: web === null ? null : Object.freeze({
+      : admitModuleRefV1(config.studio, `${pointer}/studio`),
+    sceneSources: admitSceneSourcesV1(config.sceneSources, `${pointer}/sceneSources`),
+    web: web === null ? null : {
       applicationHtml: requireRepositoryPathV1(
         web.applicationHtml,
         `${pointer}/web/applicationHtml`,
@@ -488,7 +488,7 @@ export function defineSillymakerAppV1(config: SillymakerAppConfigV1): Sillymaker
       outDir: requireRepositoryPathV1(web.outDir ?? "dist-web", `${pointer}/web/outDir`),
       base: requireBaseV1(web.base, `${pointer}/web/base`),
       sourcemap: requireBooleanV1(web.sourcemap, `${pointer}/web/sourcemap`),
-      identity: web.identity === undefined || web.identity === null ? null : Object.freeze({
+      identity: web.identity === undefined || web.identity === null ? null : {
         module: requireRepositoryPathV1(
           web.identity.module,
           `${pointer}/web/identity/module`,
@@ -501,8 +501,8 @@ export function defineSillymakerAppV1(config: SillymakerAppConfigV1): Sillymaker
           web.identity.createPluginExport,
           `${pointer}/web/identity/createPluginExport`,
         ),
-      }),
-      desktop: web.desktop === undefined || web.desktop === null ? null : Object.freeze({
+      },
+      desktop: web.desktop === undefined || web.desktop === null ? null : {
         name: requireDesktopNameV1(web.desktop.name, `${pointer}/web/desktop/name`),
         identifier: requireDesktopIdentifierV1(
           web.desktop.identifier,
@@ -514,13 +514,13 @@ export function defineSillymakerAppV1(config: SillymakerAppConfigV1): Sillymaker
             `${pointer}/web/desktop/icon`,
           ),
         }),
-      }),
-    }),
-  });
+      },
+    },
+  };
 }
 
 /**
- * Validates and freezes the repository-level workspace registry before any
+ * Validates and normalizes the repository-level workspace registry before any
  * directory is resolved or imported. Application IDs are validated after the
  * individual declarations are loaded by `loadWorkspaceAppsV1`.
  */
@@ -550,10 +550,10 @@ export function defineSillymakerWorkspaceV1(
     seen.add(comparisonKey);
     return validated;
   });
-  return Object.freeze({
+  return {
     projectId,
-    appDirectories: Object.freeze(appDirectories),
-  });
+    appDirectories,
+  };
 }
 
 /**
@@ -570,51 +570,49 @@ export function deriveStoryApplicationV1(
   const app = defineSillymakerAppV1(config);
   const web = app.web ?? null;
   const webIdentity = web?.identity ?? null;
-  const sceneSources = app.sceneSources ?? Object.freeze([]);
-  return Object.freeze({
+  const sceneSources = app.sceneSources ?? [];
+  return {
     applicationId: app.applicationId,
     label: app.label,
-    storyEntry: Object.freeze({
+    storyEntry: {
       module: joinAppPathV1(directory, app.storyEntry.module),
       exportName: app.storyEntry.exportName,
-    }),
+    },
     assetVerification: app.assetVerification,
-    simulate: app.simulate === null || app.simulate === undefined ? null : Object.freeze({
+    simulate: app.simulate === null || app.simulate === undefined ? null : {
       module: joinAppPathV1(directory, app.simulate.module),
       exportName: app.simulate.exportName,
-    }),
-    studio: app.studio === null || app.studio === undefined ? null : Object.freeze({
+    },
+    studio: app.studio === null || app.studio === undefined ? null : {
       module: joinAppPathV1(directory, app.studio.module),
       exportName: app.studio.exportName,
-    }),
-    sceneSources: Object.freeze(
-      sceneSources.map((source) =>
-        source.sourceKind === "authoring_scene"
-          ? Object.freeze({
-            ...source,
-            source: joinAppPathV1(directory, source.source),
-          })
-          : source
-      ),
+    },
+    sceneSources: sceneSources.map((source) =>
+      source.sourceKind === "authoring_scene"
+        ? {
+          ...source,
+          source: joinAppPathV1(directory, source.source),
+        }
+        : source
     ),
-    web: web === null ? null : Object.freeze({
+    web: web === null ? null : {
       storyRoot: directory,
       applicationHtml: joinAppPathV1(directory, web.applicationHtml),
       applicationEntry: joinAppPathV1(directory, web.applicationEntry),
       outDir: joinAppPathV1(directory, web.outDir ?? "dist-web"),
       base: web.base,
       sourcemap: web.sourcemap,
-      identity: webIdentity === null ? null : Object.freeze({
+      identity: webIdentity === null ? null : {
         module: joinAppPathV1(directory, webIdentity.module),
         collectExport: webIdentity.collectExport,
         createPluginExport: webIdentity.createPluginExport,
-      }),
-      desktop: web.desktop === null || web.desktop === undefined ? null : Object.freeze({
+      },
+      desktop: web.desktop === null || web.desktop === undefined ? null : {
         ...web.desktop,
         ...(web.desktop.icon === undefined
           ? {}
           : { icon: joinAppPathV1(directory, web.desktop.icon) }),
-      }),
-    }),
-  });
+      },
+    },
+  };
 }

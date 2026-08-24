@@ -116,19 +116,19 @@ function largestComponentMaskV1(
   return mask;
 }
 
-const traceDirectionsV1: readonly TracePointV1[] = Object.freeze([
-  Object.freeze({ x: 1, y: 0 }), // 0: right
-  Object.freeze({ x: 0, y: 1 }), // 1: down
-  Object.freeze({ x: -1, y: 0 }), // 2: left
-  Object.freeze({ x: 0, y: -1 }), // 3: up
-]);
+const traceDirectionsV1: readonly TracePointV1[] = [
+  { x: 1, y: 0 }, // 0: right
+  { x: 0, y: 1 }, // 1: down
+  { x: -1, y: 0 }, // 2: left
+  { x: 0, y: -1 }, // 3: up
+];
 
 /**
  * Exit direction per marching-squares corner state (tl<<3|tr<<2|bl<<1|br),
  * walking with the inside on the right. -1 marks the two saddle states
  * (6, 9), which resolve by entry direction, and the off-path states 0/15.
  */
-const traceExitByStateV1: readonly number[] = Object.freeze([
+const traceExitByStateV1: readonly number[] = [
   -1,
   0,
   1,
@@ -145,7 +145,7 @@ const traceExitByStateV1: readonly number[] = Object.freeze([
   2,
   1,
   -1,
-]);
+];
 
 /** Walks the outer boundary; returns the ring of turn corners (clockwise). */
 function traceBoundaryRingV1(
@@ -176,7 +176,7 @@ function traceBoundaryRingV1(
     const delta = traceDirectionsV1[direction]!;
     cornerX += delta.x;
     cornerY += delta.y;
-    if (cornerX === startX && cornerY === startY) return Object.freeze(ring);
+    if (cornerX === startX && cornerY === startY) return ring;
     const state = (inside(cornerX - 1, cornerY - 1) << 3) | (inside(cornerX, cornerY - 1) << 2) |
       (inside(cornerX - 1, cornerY) << 1) | inside(cornerX, cornerY);
     let exit = traceExitByStateV1[state]!;
@@ -363,11 +363,11 @@ export function traceRegionsDocumentV1(
     ],
     authoring: { status: "generated" },
   });
-  return Object.freeze({
+  return {
     document,
     imageWidth: image.width,
     imageHeight: image.height,
     contourVertexCount: ring.length,
     vertexCount: polygonPoints.length,
-  });
+  };
 }

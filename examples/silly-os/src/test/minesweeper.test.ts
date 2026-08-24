@@ -35,7 +35,7 @@ describe("minesweeper rules", () => {
     const base = osCreateBoardV1(5, 5, 1);
     const cells = [...base.cells];
     cells[0] = osCellMineV1;
-    const board = Object.freeze({ ...base, minesPlaced: true, cells: Object.freeze(cells) });
+    const board = { ...base, minesPlaced: true, cells: cells };
     const revealed = osRevealFloodV1(board, 24);
     const revealedCount = revealed.cells.filter((cell) => (cell & osCellRevealedV1) !== 0).length;
     expect(revealedCount).toBe(24);
@@ -57,7 +57,7 @@ describe("minesweeper determinism", () => {
       } as never);
       await instance.semantic.dispatch({ kind: "mine_reveal", x: 4, y: 4 } as never);
       const view = instance.semantic.observe().game.minesweeper;
-      return Object.freeze({
+      return ({
         digest: instance.admin.stateDigest(),
         cells: view === null ? null : view.cells.map((cell) => cell.state).join(""),
         status: view?.status ?? null,

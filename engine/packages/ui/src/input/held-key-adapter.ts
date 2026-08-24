@@ -74,9 +74,9 @@ function extraModifiersOnHeldKeyV1(event: KeyboardEvent, key: string): boolean {
     (key !== "Control" && event.ctrlKey);
 }
 
-const emptyHeldStateV1: HeldInputStateV1 = Object.freeze({
+const emptyHeldStateV1: HeldInputStateV1 = {
   heldActionIds: new Set<InputActionIdV1>() as ReadonlySet<InputActionIdV1>,
-});
+};
 
 export function createHeldKeyInputV1(): HeldKeyInputV1 {
   const downKeys = new Set<string>();
@@ -92,7 +92,7 @@ export function createHeldKeyInputV1(): HeldKeyInputV1 {
     // Exclusive hold means at most one mapped key is engaged. The set
     // only changes when a hold engages or releases.
     if (next.size === previous.size && [...next].every((id) => previous.has(id))) return;
-    current = Object.freeze({ heldActionIds: next as ReadonlySet<InputActionIdV1> });
+    current = { heldActionIds: next as ReadonlySet<InputActionIdV1> };
     for (const listener of [...listeners]) listener();
   };
 
@@ -104,17 +104,17 @@ export function createHeldKeyInputV1(): HeldKeyInputV1 {
     publish();
   };
 
-  const port: HeldInputPortV1 = Object.freeze({
-    state: Object.freeze({
+  const port: HeldInputPortV1 = {
+    state: {
       getCurrent: () => current,
       subscribe(listener: () => void) {
         listeners.add(listener);
         return () => listeners.delete(listener);
       },
-    }),
-  });
+    },
+  };
 
-  return Object.freeze({
+  return {
     port,
     install(options: InstallHeldKeyAdapterOptionsV1): () => void {
       if (installed) throw new TypeError("ui.held_key_adapter_already_installed");
@@ -171,5 +171,5 @@ export function createHeldKeyInputV1(): HeldKeyInputV1 {
         releaseAll();
       };
     },
-  });
+  };
 }

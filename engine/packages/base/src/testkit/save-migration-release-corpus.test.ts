@@ -14,7 +14,7 @@ const canonicalFixtureV1 = new TextEncoder().encode(
 );
 
 describe("Save migration release corpus", () => {
-  it("publishes one frozen descriptor for every admitted product revision", () => {
+  it("publishes one descriptor for every admitted product revision", () => {
     expect(saveMigrationReleaseCorpusRevisionV1).toBe(1);
     expect(saveMigrationReleaseCorpusV1.map(({ id }) => id)).toEqual([
       "engine-lab-state-3",
@@ -23,9 +23,7 @@ describe("Save migration release corpus", () => {
       "engine-lab-state-6",
       "cat-cafe-state-1",
     ]);
-    expect(Object.isFrozen(saveMigrationReleaseCorpusV1)).toBe(true);
     for (const descriptor of saveMigrationReleaseCorpusV1) {
-      expect(Object.isFrozen(descriptor), descriptor.id).toBe(true);
       expect(descriptor.byteLength, descriptor.id).toBeGreaterThan(0);
       expect(descriptor.bytesDigest, descriptor.id).toMatch(/^sha256:[0-9a-f]{64}$/u);
       expect(descriptor.stateContractDigest, descriptor.id).toMatch(
@@ -37,12 +35,12 @@ describe("Save migration release corpus", () => {
   it("admits only exact canonical bytes and returns a fresh defensive copy", () => {
     const descriptor = saveMigrationReleaseCorpusV1[0];
     if (descriptor === undefined) throw new TypeError("release corpus is empty");
-    const admittedDescriptor = Object.freeze({
+    const admittedDescriptor = {
       ...descriptor,
       byteLength: canonicalFixtureV1.byteLength as typeof descriptor.byteLength,
       bytesDigest:
         "sha256:0a9f5973c50a64415f208ac1b20c81cc048a432dffa941f029d0738ddb723f2a" as typeof descriptor.bytesDigest,
-    });
+    };
     const first = admitSaveMigrationReleaseFixtureV1(admittedDescriptor, canonicalFixtureV1);
     const second = admitSaveMigrationReleaseFixtureV1(admittedDescriptor, canonicalFixtureV1);
     expect(first.bytes).toEqual(Uint8Array.from(canonicalFixtureV1));
@@ -64,11 +62,11 @@ describe("Save migration release corpus", () => {
     const noncanonical = new TextEncoder().encode(
       JSON.stringify(JSON.parse(new TextDecoder().decode(canonicalFixtureV1)), null, 2),
     );
-    const noncanonicalDescriptor = Object.freeze({
+    const noncanonicalDescriptor = {
       ...admittedDescriptor,
       byteLength: noncanonical.byteLength as typeof admittedDescriptor.byteLength,
       bytesDigest: digestBytes(noncanonical),
-    });
+    };
     expect(() => admitSaveMigrationReleaseFixtureV1(noncanonicalDescriptor, noncanonical)).toThrow(
       "Save migration release fixture bytes are not canonical JSON",
     );

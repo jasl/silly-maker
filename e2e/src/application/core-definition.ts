@@ -46,7 +46,7 @@ export const labCoreApplicationDefinitionV1 = defineCoreGameApplicationV1<
     );
     return mutations.length === 0
       ? null
-      : Object.freeze({ kind: "lab.reconcile_stage_order" as const, mutations });
+      : ({ kind: "lab.reconcile_stage_order" as const, mutations });
   },
   saveStateMigrations: labSaveStateMigrationRegistryV1,
   exportFilename: "engine-lab-save.json",

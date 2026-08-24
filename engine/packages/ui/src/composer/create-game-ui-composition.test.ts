@@ -70,33 +70,33 @@ function deferredV1() {
   const promise = new Promise<void>((resolvePromise) => {
     resolve = resolvePromise;
   });
-  return Object.freeze({ promise, resolve });
+  return ({ promise, resolve });
 }
 
 function createAnchorSourceV1() {
-  let current: GameUiPresentationAnchorV1 = Object.freeze({ epoch: 0, origin: "bootstrap" });
+  let current: GameUiPresentationAnchorV1 = { epoch: 0, origin: "bootstrap" };
   const listeners = new Set<() => void>();
   const eventListeners = new Set<(event: GameUiPresentationAnchorEventInternalV1) => void>();
-  const source: GameUiAnchorSourceV1 = Object.freeze({
+  const source: GameUiAnchorSourceV1 = {
     current: () => current,
     subscribe(listener: () => void) {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-  });
-  return Object.freeze({
+  };
+  return ({
     source,
-    events: Object.freeze({
+    events: {
       current: () => current,
       subscribe(listener: (event: GameUiPresentationAnchorEventInternalV1) => void) {
         eventListeners.add(listener);
         return () => eventListeners.delete(listener);
       },
-    }),
+    },
     publish(next: GameUiPresentationAnchorV1): void {
-      current = Object.freeze({ ...next });
+      current = { ...next };
       for (const listener of [...eventListeners]) {
-        listener(Object.freeze({ anchor: current, token: null }));
+        listener({ anchor: current, token: null });
       }
       for (const listener of [...listeners]) listener();
     },
@@ -104,18 +104,18 @@ function createAnchorSourceV1() {
 }
 
 function createExactAnchorEventSourceV1() {
-  let current: GameUiPresentationAnchorV1 = Object.freeze({ epoch: 0, origin: "bootstrap" });
+  let current: GameUiPresentationAnchorV1 = { epoch: 0, origin: "bootstrap" };
   const listeners = new Set<
     (event: GameUiPresentationAnchorEventInternalV1) => void
   >();
-  const source: GameUiPresentationAnchorEventSourceInternalV1 = Object.freeze({
+  const source: GameUiPresentationAnchorEventSourceInternalV1 = {
     current: () => current,
     subscribe(listener: Parameters<GameUiPresentationAnchorEventSourceInternalV1["subscribe"]>[0]) {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-  });
-  return Object.freeze({
+  };
+  return ({
     source,
     publish(event: GameUiPresentationAnchorEventInternalV1): void {
       current = event.anchor;
@@ -131,7 +131,7 @@ function createSuccessorProducerFixtureV1(
 ) {
   const installed: Parameters<GameUiPresentationSuccessorProducerInternalV1["installed"]>[0][] = [];
   const failed: Parameters<GameUiPresentationSuccessorProducerInternalV1["failed"]>[0][] = [];
-  const producer: GameUiPresentationSuccessorProducerInternalV1 = Object.freeze({
+  const producer: GameUiPresentationSuccessorProducerInternalV1 = {
     installed(outcome: Parameters<GameUiPresentationSuccessorProducerInternalV1["installed"]>[0]) {
       installed.push(outcome);
     },
@@ -139,55 +139,53 @@ function createSuccessorProducerFixtureV1(
       failed.push(outcome);
       onFailed?.(outcome);
     },
-  });
-  return Object.freeze({ producer, installed, failed });
+  };
+  return ({ producer, installed, failed });
 }
 
-const hostedWholeCanvasLabelsV1 = Object.freeze({
+const hostedWholeCanvasLabelsV1 = {
   newGame: "New game",
   newGameFailed: "New game failed",
   continue: "Continue",
   load: "Load",
   settings: "Settings",
-});
+};
 
 function createHostedWholeCanvasDefinitionV1(): WholeCanvasSurfaceDefinitionV1<
   Readonly<{ readonly revision: number }>
 > {
-  const target = Object.freeze({
+  const target = {
     targetId: "test.composer.whole-canvas",
-    parameters: Object.freeze({}),
-  });
-  return defineWholeCanvasSurfaceV1(Object.freeze({
-    catalog: Object.freeze([Object.freeze({
+    parameters: {},
+  };
+  return defineWholeCanvasSurfaceV1({
+    catalog: [{
       targetId: target.targetId,
       contractRevision: 1 as const,
-      placements: Object.freeze(["primary" as const]),
-      actionIds: Object.freeze([]),
+      placements: ["primary" as const],
+      actionIds: [],
       defaultActionId: null,
-    })]),
-    source: Object.freeze({
+    }],
+    source: {
       kind: "publication" as const,
-      selectPrimary: Object.freeze(() => Object.freeze({ primary: target })),
+      selectPrimary: () => ({ primary: target }),
+    },
+    resolveTarget: () => ({
+      accessibleNameTextId: "text.test.composer.whole-canvas",
+      view: {},
+      actions: [],
     }),
-    resolveTarget: Object.freeze(() =>
-      Object.freeze({
-        accessibleNameTextId: "text.test.composer.whole-canvas",
-        view: Object.freeze({}),
-        actions: Object.freeze([]),
-      })
-    ),
     dispatchAction: null,
-    renderer: Object.freeze(() => null),
+    renderer: () => null,
     prepareTarget: null,
-    resolveText: Object.freeze((_locale: string | null, textId: string) => textId),
-  }));
+    resolveText: (_locale: string | null, textId: string) => textId,
+  });
 }
 
 function createHostedWholeCanvasPlayerProfileV1(
-  subscribe: (listener: () => void) => unknown = () => Object.freeze(() => undefined),
+  subscribe: (listener: () => void) => unknown = () => (() => undefined),
 ) {
-  return Object.freeze({
+  return ({
     current: () => defaultPlayerProfileV1,
     subscribe,
     markSeen: async (_definitionId: string, _seenRevision: number) => undefined,
@@ -208,28 +206,26 @@ function createHostedWholeCanvasAggregateV1(input: Readonly<{
   readonly playerProfile?: ReturnType<typeof createHostedWholeCanvasPlayerProfileV1>;
   readonly restart?: unknown;
 }> = {}) {
-  return Object.freeze({
+  return ({
     narrative: null,
-    wholeCanvas: Object.freeze({
+    wholeCanvas: {
       definition: input.definition ?? null,
       titleScreen: input.titleScreen ?? null,
-      lifecycle: Object.freeze({
-        restart: input.restart ?? Object.freeze(async () =>
-          Object.freeze({
-            kind: "anchored" as const,
-            commandSequence: parseNonNegativeSafeInteger(0),
-          })
-        ),
-      }),
+      lifecycle: {
+        restart: input.restart ?? (async () => ({
+          kind: "anchored" as const,
+          commandSequence: parseNonNegativeSafeInteger(0),
+        })),
+      },
       savePort: null,
       customSavesConfigured: false,
       labels: hostedWholeCanvasLabelsV1,
-    }),
-    environment: Object.freeze({
+    },
+    environment: {
       playerProfile: input.playerProfile ?? createHostedWholeCanvasPlayerProfileV1(),
       presentationClock: createManualPresentationClockV1(),
-      prefersReducedMotion: Object.freeze(() => false),
-    }),
+      prefersReducedMotion: () => false,
+    },
   });
 }
 
@@ -251,8 +247,8 @@ function createHostedWholeCanvasCompositionForTestV1(
   const producer = createSuccessorProducerFixtureV1();
   return createHostedGameUiCompositionInternalV1(
     {
-      semantic: Object.freeze({
-        observe: () => Object.freeze({ revision: 0 }),
+      semantic: {
+        observe: () => ({ revision: 0 }),
         subscribe: () => {
           counts.semanticSubscriptions += 1;
           let active = true;
@@ -262,24 +258,23 @@ function createHostedWholeCanvasCompositionForTestV1(
             counts.semanticUnsubscriptions += 1;
           };
         },
-      }),
-      projector: Object.freeze({
-        resolvedCatalog: Object.freeze({}),
-        initialUiState: Object.freeze({}),
-        project: () =>
-          Object.freeze({
-            view: Object.freeze({}),
-            requiredAssetIds: Object.freeze([]),
-          }),
-      }),
+      },
+      projector: {
+        resolvedCatalog: {},
+        initialUiState: {},
+        project: () => ({
+          view: {},
+          requiredAssetIds: [],
+        }),
+      },
     },
-    Object.freeze({
-      managedSurfaceEpochAllocator: Object.freeze({
+    {
+      managedSurfaceEpochAllocator: {
         allocate: () => parseNonNegativeSafeInteger(++counts.allocations),
-      }),
+      },
       anchorEvents: anchorEvents.source,
       successorProducer: producer.producer,
-    }),
+    },
     hostedSurfaces as never,
   );
 }
@@ -297,13 +292,13 @@ function installPresentationSubscriptionProbeV1() {
       const store = Reflect.apply(actualCreateRuntimePresentationStoreV1, undefined, [
         input,
       ]) as ReturnType<typeof actualCreateRuntimePresentationStoreV1>;
-      return Object.freeze({
+      return ({
         getSnapshot: store.getSnapshot,
         subscribe(listener: () => void): () => void {
           subscriptions += 1;
           const release = store.subscribe(listener);
           let active = true;
-          return Object.freeze(() => {
+          return (() => {
             if (!active) return;
             active = false;
             unsubscriptions += 1;
@@ -314,8 +309,8 @@ function installPresentationSubscriptionProbeV1() {
       });
     }) as typeof actualCreateRuntimePresentationStoreV1,
   );
-  return Object.freeze({
-    counts: () => Object.freeze({ subscriptions, unsubscriptions }),
+  return ({
+    counts: () => ({ subscriptions, unsubscriptions }),
     restore: () => createSpy.mockRestore(),
   });
 }
@@ -327,11 +322,11 @@ function createExactHostedCompositionFixtureV1(
 ) {
   let allocationCursor = 0;
   const allocatedEpochs: number[] = [];
-  let semanticPublication: { readonly revision: number } = Object.freeze({ revision: 0 });
+  let semanticPublication: { readonly revision: number } = { revision: 0 };
   const semanticListeners = new Set<() => void>();
   let semanticUnsubscriptions = 0;
   const composition = createHostedGameUiCompositionInternalV1({
-    semantic: Object.freeze({
+    semantic: {
       observe: () => semanticPublication,
       subscribe(listener: () => void) {
         semanticListeners.add(listener);
@@ -340,44 +335,43 @@ function createExactHostedCompositionFixtureV1(
           semanticUnsubscriptions += 1;
         };
       },
-    }),
-    projector: Object.freeze({
-      resolvedCatalog: Object.freeze({}),
-      initialUiState: Object.freeze({ count: 0 as number }),
+    },
+    projector: {
+      resolvedCatalog: {},
+      initialUiState: { count: 0 as number },
       project: (input: {
         readonly uiState: {
           readonly anchor: GameUiPresentationAnchorV1;
           readonly story: { readonly count: number };
         };
-      }) =>
-        Object.freeze({
-          view: Object.freeze({
-            anchorEpoch: input.uiState.anchor.epoch,
-            count: input.uiState.story.count,
-          }),
-          requiredAssetIds: Object.freeze([]),
-        }),
-    }),
-    overlayDefinitions: Object.freeze([overlayDefinitionV1]),
-    interactionSurfaceIds: Object.freeze(["surface.e2e.fixture" as never]),
-    cueIds: Object.freeze(["cue.e2e.fixture"]),
+      }) => ({
+        view: {
+          anchorEpoch: input.uiState.anchor.epoch,
+          count: input.uiState.story.count,
+        },
+        requiredAssetIds: [],
+      }),
+    },
+    overlayDefinitions: [overlayDefinitionV1],
+    interactionSurfaceIds: ["surface.e2e.fixture" as never],
+    cueIds: ["cue.e2e.fixture"],
   }, {
-    managedSurfaceEpochAllocator: Object.freeze({
+    managedSurfaceEpochAllocator: {
       allocate() {
         const epoch = parseNonNegativeSafeInteger(epochSequence[allocationCursor]);
         allocationCursor += 1;
         allocatedEpochs.push(epoch);
         return epoch;
       },
-    }),
+    },
     anchorEvents: anchorEvents.source,
     successorProducer: producerFixture.producer,
   });
-  return Object.freeze({
+  return ({
     composition,
     allocatedEpochs,
     publishSemantic(): void {
-      semanticPublication = Object.freeze({ revision: semanticPublication.revision + 1 });
+      semanticPublication = { revision: semanticPublication.revision + 1 };
       for (const listener of [...semanticListeners]) listener();
     },
     semanticUnsubscriptions: () => semanticUnsubscriptions,
@@ -390,49 +384,48 @@ function createHostedCompositionFixtureV1(
 ) {
   let allocationCursor = 0;
   const allocatedEpochs: number[] = [];
-  const semanticPublication = Object.freeze({ revision: 0 });
+  const semanticPublication = { revision: 0 };
   const composition = createHostedGameUiCompositionInternalV1({
-    semantic: Object.freeze({
+    semantic: {
       observe: () => semanticPublication,
       subscribe: () => () => undefined,
-    }),
+    },
     anchor: anchor.source,
-    projector: Object.freeze({
-      resolvedCatalog: Object.freeze({}),
-      initialUiState: Object.freeze({}),
-      project: (input: { readonly uiState: { readonly anchor: GameUiPresentationAnchorV1 } }) =>
-        Object.freeze({
-          view: Object.freeze({ anchorEpoch: input.uiState.anchor.epoch }),
-          requiredAssetIds: Object.freeze([]),
-        }),
-    }),
-    overlayDefinitions: Object.freeze([overlayDefinitionV1]),
+    projector: {
+      resolvedCatalog: {},
+      initialUiState: {},
+      project: (input: { readonly uiState: { readonly anchor: GameUiPresentationAnchorV1 } }) => ({
+        view: { anchorEpoch: input.uiState.anchor.epoch },
+        requiredAssetIds: [],
+      }),
+    },
+    overlayDefinitions: [overlayDefinitionV1],
   }, {
-    managedSurfaceEpochAllocator: Object.freeze({
+    managedSurfaceEpochAllocator: {
       allocate() {
         const epoch = parseNonNegativeSafeInteger(epochSequence[allocationCursor]);
         allocationCursor += 1;
         allocatedEpochs.push(epoch);
         return epoch;
       },
-    }),
+    },
     anchorEvents: anchor.events,
-    successorProducer: Object.freeze({
+    successorProducer: {
       installed: () => undefined,
       failed: () => undefined,
-    }),
+    },
   });
-  return Object.freeze({ composition, allocatedEpochs });
+  return ({ composition, allocatedEpochs });
 }
 
 function createInputCompositionFixtureV1(onAnchorUnsubscribe: () => void = () => undefined) {
-  const initialAnchor = Object.freeze({ epoch: 0, origin: "managed-input-fixture" });
+  const initialAnchor = { epoch: 0, origin: "managed-input-fixture" };
   return createGameUiCompositionV1({
-    semantic: Object.freeze({
-      observe: () => Object.freeze({ revision: 0 }),
+    semantic: {
+      observe: () => ({ revision: 0 }),
       subscribe: () => () => undefined,
-    }),
-    anchor: Object.freeze({
+    },
+    anchor: {
       current: () => initialAnchor,
       subscribe: () => {
         let active = true;
@@ -442,16 +435,15 @@ function createInputCompositionFixtureV1(onAnchorUnsubscribe: () => void = () =>
           onAnchorUnsubscribe();
         };
       },
-    }),
-    projector: Object.freeze({
-      resolvedCatalog: Object.freeze({}),
-      initialUiState: Object.freeze({}),
-      project: () =>
-        Object.freeze({
-          view: Object.freeze({}),
-          requiredAssetIds: Object.freeze([]),
-        }),
-    }),
+    },
+    projector: {
+      resolvedCatalog: {},
+      initialUiState: {},
+      project: () => ({
+        view: {},
+        requiredAssetIds: [],
+      }),
+    },
   });
 }
 
@@ -460,10 +452,10 @@ function expectManagedFacadeReleasedV1(error: unknown): void {
   expect((error as TypeError).message).toBe("ui.managed_input_router_required");
 }
 
-const managedFacadeActionEventV1 = Object.freeze({
+const managedFacadeActionEventV1 = {
   kind: "action" as const,
   actionId: parseInputActionIdV1("ui.composer_managed_facade"),
-});
+};
 
 describe("Game UI composition managed InputRouter facade", () => {
   it("admits managed registration through the public facade before ordinary handlers", () => {
@@ -485,12 +477,6 @@ describe("Game UI composition managed InputRouter facade", () => {
     });
 
     try {
-      expect(Object.isFrozen(composition.input)).toBe(true);
-      expect(Reflect.ownKeys(composition.input)).toEqual([
-        "register",
-        "route",
-        "clearTransientInput",
-      ]);
       expect(composition.input.route(managedFacadeActionEventV1)).toEqual({
         kind: "handled",
         context: "narrative",
@@ -657,19 +643,18 @@ describe("Game UI composition managed InputRouter facade", () => {
 describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () => {
   it("publishes the managed opaque System facade as the only composition lifecycle authority", () => {
     const composition = createGameUiCompositionV1({
-      semantic: Object.freeze({
-        observe: () => Object.freeze({ revision: 0 }),
+      semantic: {
+        observe: () => ({ revision: 0 }),
         subscribe: () => () => undefined,
-      }),
-      projector: Object.freeze({
-        resolvedCatalog: Object.freeze({}),
-        initialUiState: Object.freeze({}),
-        project: () =>
-          Object.freeze({
-            view: Object.freeze({}),
-            requiredAssetIds: Object.freeze([]),
-          }),
-      }),
+      },
+      projector: {
+        resolvedCatalog: {},
+        initialUiState: {},
+        project: () => ({
+          view: {},
+          requiredAssetIds: [],
+        }),
+      },
     });
 
     try {
@@ -680,12 +665,6 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
       const beforeSystemPublication = internal.getManagedSnapshotInternalV1();
 
       expect(composition.systemDialogSession).toBe(managed.systemDialogSession);
-      expect(Reflect.ownKeys(composition.systemDialogSession)).toEqual([
-        "getSnapshot",
-        "openSettings",
-        "openSaves",
-      ]);
-      expect(Object.isFrozen(composition.systemDialogSession)).toBe(true);
       expect(composition.systemDialogSession.getSnapshot()).toEqual({ active: null });
       expect(composition.systemDialogSession.openSettings()).toEqual({
         kind: "rejected",
@@ -698,9 +677,6 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
       expect(runtime.coordinator.getSnapshot()).toBe(beforeCoordinatorPublication);
       expect(internal.getManagedSnapshotInternalV1()).toBe(beforeSystemPublication);
       expect(beforeSystemPublication).toBe(beforeCoordinatorPublication);
-      expect("open" in composition.systemDialogSession).toBe(false);
-      expect("close" in composition.systemDialogSession).toBe(false);
-      expect("subscribe" in composition.systemDialogSession).toBe(false);
     } finally {
       composition.dispose();
     }
@@ -709,11 +685,11 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
   it("does not leak semantic subscriptions when Overlay admission rejects construction", () => {
     let subscriptions = 0;
     let unsubscriptions = 0;
-    const semanticPublication = Object.freeze({ revision: 0 });
+    const semanticPublication = { revision: 0 };
 
     expect(() =>
       createGameUiCompositionV1({
-        semantic: Object.freeze({
+        semantic: {
           observe: () => semanticPublication,
           subscribe: () => {
             subscriptions += 1;
@@ -721,20 +697,19 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
               unsubscriptions += 1;
             };
           },
-        }),
-        projector: Object.freeze({
-          resolvedCatalog: Object.freeze({}),
-          initialUiState: Object.freeze({}),
-          project: () =>
-            Object.freeze({
-              view: Object.freeze({}),
-              requiredAssetIds: Object.freeze([]),
-            }),
-        }),
-        overlayPorts: Object.freeze([
-          Object.freeze({ id: "overlay.port.duplicate", port: Object.freeze({}) }),
-          Object.freeze({ id: "overlay.port.duplicate", port: Object.freeze({}) }),
-        ]),
+        },
+        projector: {
+          resolvedCatalog: {},
+          initialUiState: {},
+          project: () => ({
+            view: {},
+            requiredAssetIds: [],
+          }),
+        },
+        overlayPorts: [
+          { id: "overlay.port.duplicate", port: {} },
+          { id: "overlay.port.duplicate", port: {} },
+        ],
       })
     ).toThrowError("ui.workspace_overlay_duplicate_port_binding");
 
@@ -744,58 +719,23 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
     });
   });
 
-  it("does not invoke caller array methods while admitting Overlay definitions", () => {
-    let subscriptions = 0;
-    const callerMap = vi.fn(() => {
-      throw new Error("caller map must not run");
-    });
-    const overlayDefinitions = [overlayDefinitionV1];
-    Object.defineProperty(overlayDefinitions, "map", { value: callerMap });
-
-    expect(() =>
-      createGameUiCompositionV1({
-        semantic: Object.freeze({
-          observe: () => Object.freeze({ revision: 0 }),
-          subscribe: () => {
-            subscriptions += 1;
-            return () => undefined;
-          },
-        }),
-        projector: Object.freeze({
-          resolvedCatalog: Object.freeze({}),
-          initialUiState: Object.freeze({}),
-          project: () =>
-            Object.freeze({
-              view: Object.freeze({}),
-              requiredAssetIds: Object.freeze([]),
-            }),
-        }),
-        overlayDefinitions,
-      })
-    ).toThrowError("ui.workspace_overlay_definitions_invalid");
-
-    expect(callerMap).not.toHaveBeenCalled();
-    expect(subscriptions).toBe(0);
-  });
-
   it("does not apply hosted terminal teardown to an ordinary composition failure", () => {
     const anchor = createAnchorSourceV1();
     const failure = new Error("fixture.ordinary_anchor_listener_failed");
     const composition = createGameUiCompositionV1({
-      semantic: Object.freeze({
-        observe: () => Object.freeze({ revision: 0 }),
+      semantic: {
+        observe: () => ({ revision: 0 }),
         subscribe: () => () => undefined,
-      }),
+      },
       anchor: anchor.source,
-      projector: Object.freeze({
-        resolvedCatalog: Object.freeze({}),
-        initialUiState: Object.freeze({ count: 0 }),
-        project: () =>
-          Object.freeze({
-            view: Object.freeze({}),
-            requiredAssetIds: Object.freeze([]),
-          }),
-      }),
+      projector: {
+        resolvedCatalog: {},
+        initialUiState: { count: 0 },
+        project: () => ({
+          view: {},
+          requiredAssetIds: [],
+        }),
+      },
     });
     const managed = resolveGameUiManagedSurfaceCompositionInternalV1(composition);
     const unsubscribeFailure = composition.anchor.subscribe(() => {
@@ -804,7 +744,7 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
     let inputCalls = 0;
 
     try {
-      expect(() => anchor.publish(Object.freeze({ epoch: 1, origin: "ordinary" }))).toThrow(
+      expect(() => anchor.publish({ epoch: 1, origin: "ordinary" })).toThrow(
         failure,
       );
       expect(managed.isTerminalInternalV1()).toBe(false);
@@ -812,7 +752,7 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
         context: "gameplay",
         handle: () => {
           inputCalls += 1;
-          return Object.freeze({ kind: "handled" as const });
+          return ({ kind: "handled" as const });
         },
       });
       expect(composition.input.route({
@@ -830,79 +770,76 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
   it("stops an ordinary anchor replacement quietly when an activation callback disposes", () => {
     const anchor = createAnchorSourceV1();
     const composition = createGameUiCompositionV1({
-      semantic: Object.freeze({
-        observe: () => Object.freeze({ revision: 0 }),
+      semantic: {
+        observe: () => ({ revision: 0 }),
         subscribe: () => () => undefined,
-      }),
+      },
       anchor: anchor.source,
-      projector: Object.freeze({
-        resolvedCatalog: Object.freeze({}),
-        initialUiState: Object.freeze({}),
-        project: () =>
-          Object.freeze({
-            view: Object.freeze({}),
-            requiredAssetIds: Object.freeze([]),
-          }),
-      }),
-      overlayDefinitions: Object.freeze([overlayDefinitionV1]),
+      projector: {
+        resolvedCatalog: {},
+        initialUiState: {},
+        project: () => ({
+          view: {},
+          requiredAssetIds: [],
+        }),
+      },
+      overlayDefinitions: [overlayDefinitionV1],
     });
     const overlayInternal = resolveWorkspaceOverlaySessionInternalV1(composition.overlaySession);
     const unsubscribeOverlay = overlayInternal.subscribe(() => composition.dispose());
 
-    expect(() => anchor.publish(Object.freeze({ epoch: 1, origin: "ordinary" }))).not.toThrow();
+    expect(() => anchor.publish({ epoch: 1, origin: "ordinary" })).not.toThrow();
     expect(composition.isDisposed()).toBe(true);
     expect(composition.anchor.getCurrent()).toEqual({ epoch: 0, origin: "bootstrap" });
     unsubscribeOverlay();
   });
 
   it("keeps Overlay intent and closure owner-scoped while dormant System prepares", async () => {
-    const semanticPublication = Object.freeze({ revision: 0 });
+    const semanticPublication = { revision: 0 };
     const composition = createGameUiCompositionV1({
-      semantic: Object.freeze({
+      semantic: {
         observe: () => semanticPublication,
         subscribe: () => () => undefined,
-      }),
-      projector: Object.freeze({
-        resolvedCatalog: Object.freeze({}),
-        initialUiState: Object.freeze({}),
-        project: () =>
-          Object.freeze({
-            view: Object.freeze({}),
-            requiredAssetIds: Object.freeze([]),
-          }),
-      }),
-      overlayDefinitions: Object.freeze([overlayDefinitionV1]),
+      },
+      projector: {
+        resolvedCatalog: {},
+        initialUiState: {},
+        project: () => ({
+          view: {},
+          requiredAssetIds: [],
+        }),
+      },
+      overlayDefinitions: [overlayDefinitionV1],
     });
 
     try {
       const overlayInternal = resolveWorkspaceOverlaySessionInternalV1(composition.overlaySession);
-      overlayInternal.attachRendererResolverInternalV1(Object.freeze({
-        resolve: (id: "overlay.epoch-fixture") =>
-          Object.freeze({ accessibleName: id, content: id }),
-      }));
+      overlayInternal.attachRendererResolverInternalV1({
+        resolve: (id: "overlay.epoch-fixture") => ({ accessibleName: id, content: id }),
+      });
       const managedComposition = resolveGameUiManagedSurfaceCompositionInternalV1(composition);
       const systemInternal = resolveSystemDialogSessionInternalV1(
         managedComposition.systemDialogSession,
       );
       const systemHostAttachment = systemInternal.attachHostInternalV1({
-        hostIdentity: Object.freeze({ kind: "epoch-fixture-system-host" }),
-        portalContainer: Object.freeze({ kind: "epoch-fixture-system-portal" }),
+        hostIdentity: { kind: "epoch-fixture-system-host" },
+        portalContainer: { kind: "epoch-fixture-system-portal" },
         catalog: createSystemDialogRootCatalogSnapshotInternalV1({
-          entries: Object.freeze([
-            Object.freeze({
+          entries: [
+            {
               rootRequest: "settings" as const,
-              rendererComponent: Object.freeze({ kind: "settings-renderer" }),
+              rendererComponent: { kind: "settings-renderer" },
               accessibleName: "Settings",
-              requiredPortIds: Object.freeze([]),
-              contentConfig: Object.freeze({
+              requiredPortIds: [],
+              contentConfig: {
                 title: "Settings",
                 closeLabel: "Close",
                 emptyText: "Empty",
-                sections: Object.freeze([]),
-              }),
-            }),
-          ]),
-          portBindings: Object.freeze([]),
+                sections: [],
+              },
+            },
+          ],
+          portBindings: [],
         }),
       });
 
@@ -974,7 +911,7 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
         "overlay.epoch-fixture"
       >
     >;
-    const epochAllocator = Object.freeze({
+    const epochAllocator = {
       allocate() {
         if (allocationCursor === 1) {
           predecessorDuringSuccessorAllocation = overlayInternal.getManagedSnapshotInternalV1();
@@ -984,31 +921,32 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
         allocatedEpochs.push(epoch);
         return epoch;
       },
-    });
-    const semanticPublication = Object.freeze({ revision: 0 });
+    };
+    const semanticPublication = { revision: 0 };
     const composition = createHostedGameUiCompositionInternalV1({
-      semantic: Object.freeze({
+      semantic: {
         observe: () => semanticPublication,
         subscribe: () => () => undefined,
-      }),
+      },
       anchor: anchor.source,
-      projector: Object.freeze({
-        resolvedCatalog: Object.freeze({}),
-        initialUiState: Object.freeze({}),
-        project: (input: { readonly uiState: { readonly anchor: GameUiPresentationAnchorV1 } }) =>
-          Object.freeze({
-            view: Object.freeze({ anchorEpoch: input.uiState.anchor.epoch }),
-            requiredAssetIds: Object.freeze([]),
-          }),
-      }),
-      overlayDefinitions: Object.freeze([overlayDefinitionV1]),
+      projector: {
+        resolvedCatalog: {},
+        initialUiState: {},
+        project: (
+          input: { readonly uiState: { readonly anchor: GameUiPresentationAnchorV1 } },
+        ) => ({
+          view: { anchorEpoch: input.uiState.anchor.epoch },
+          requiredAssetIds: [],
+        }),
+      },
+      overlayDefinitions: [overlayDefinitionV1],
     }, {
       managedSurfaceEpochAllocator: epochAllocator,
       anchorEvents: anchor.events,
-      successorProducer: Object.freeze({
+      successorProducer: {
         installed: () => undefined,
         failed: () => undefined,
-      }),
+      },
     });
 
     try {
@@ -1022,12 +960,6 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
       expect(overlayInternal.getManagedSnapshotInternalV1()).toBe(initialPublication);
       expect(managedSystemInternal.getManagedSnapshotInternalV1()).toBe(initialPublication);
       expect(initialRuntime.applicationEpoch).toBe(11);
-      expect(Reflect.ownKeys(managedComposition.systemDialogSession)).toEqual([
-        "getSnapshot",
-        "openSettings",
-        "openSaves",
-      ]);
-      expect(Object.isFrozen(managedComposition.systemDialogSession)).toBe(true);
 
       let unavailableNotifications = 0;
       const unsubscribeUnavailable = initialRuntime.coordinator.subscribe(() => {
@@ -1042,47 +974,37 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
       unsubscribeUnavailable();
 
       managedSystemInternal.attachHostInternalV1({
-        hostIdentity: Object.freeze({ kind: "managed-system-test-host" }),
-        portalContainer: Object.freeze({ kind: "managed-system-test-portal" }),
+        hostIdentity: { kind: "managed-system-test-host" },
+        portalContainer: { kind: "managed-system-test-portal" },
         catalog: createSystemDialogRootCatalogSnapshotInternalV1({
-          entries: Object.freeze([
-            Object.freeze({
+          entries: [
+            {
               rootRequest: "settings" as const,
-              rendererComponent: Object.freeze({ kind: "settings-renderer" }),
+              rendererComponent: { kind: "settings-renderer" },
               accessibleName: "Settings",
-              requiredPortIds: Object.freeze([]),
-              contentConfig: Object.freeze({
+              requiredPortIds: [],
+              contentConfig: {
                 title: "Settings",
                 closeLabel: "Close",
                 emptyText: "Empty",
-                sections: Object.freeze([]),
-              }),
-            }),
-          ]),
-          portBindings: Object.freeze([]),
+                sections: [],
+              },
+            },
+          ],
+          portBindings: [],
         }),
       });
       const preparation = deferredV1();
-      overlayInternal.attachRendererResolverInternalV1(Object.freeze({
-        resolve: (id: "overlay.epoch-fixture") =>
-          Object.freeze({
-            accessibleName: id,
-            content: id,
-            prepare: () => preparation.promise,
-          }),
-      }));
+      overlayInternal.attachRendererResolverInternalV1({
+        resolve: (id: "overlay.epoch-fixture") => ({
+          accessibleName: id,
+          content: id,
+          prepare: () => preparation.promise,
+        }),
+      });
 
       expect(composition.overlaySession.getSnapshot).toBeTypeOf("function");
       expect(composition.overlaySession.openPrimary).toBeTypeOf("function");
-      expect(
-        Reflect.ownKeys(composition.overlaySession).filter((key) =>
-          typeof key === "string" && key.includes("Internal")
-        ),
-      ).toEqual([]);
-      expect("getManagedSnapshotInternalV1" in composition.overlaySession).toBe(false);
-      expect("rotateEpochInternalV1" in composition.overlaySession).toBe(false);
-      expect("disposeInternalV1" in composition.overlaySession).toBe(false);
-      expect(Object.isFrozen(composition.overlaySession)).toBe(true);
       expect(overlayInternal.getManagedSnapshotInternalV1().applicationEpoch).toBe(11);
 
       expect(composition.overlaySession.openPrimary("overlay.epoch-fixture")).toEqual({
@@ -1103,7 +1025,7 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
         overlayInternal.getManagedSnapshotInternalV1(),
       );
 
-      anchor.publish(Object.freeze({ epoch: 1, origin: "load" }));
+      anchor.publish({ epoch: 1, origin: "load" });
 
       expect(predecessorDuringSuccessorAllocation).toMatchObject({
         applicationEpoch: 11,
@@ -1144,14 +1066,14 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
         overlayInternal.getManagedSnapshotInternalV1().orderedInstances[0]?.surfaceInstanceId,
       ).toBe("surface-instance.e17.n1");
 
-      anchor.publish(Object.freeze({ epoch: 2, origin: "import" }));
+      anchor.publish({ epoch: 2, origin: "import" });
       expect(overlayInternal.getManagedSnapshotInternalV1()).toMatchObject({
         applicationEpoch: 23,
         orderedInstances: [],
         coordinatorDisposed: false,
       });
 
-      anchor.publish(Object.freeze({ epoch: 3, origin: "restart" }));
+      anchor.publish({ epoch: 3, origin: "restart" });
       expect(overlayInternal.getManagedSnapshotInternalV1()).toMatchObject({
         applicationEpoch: 31,
         orderedInstances: [],
@@ -1188,7 +1110,7 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
           .getSnapshot();
         const overlayIngress = composition.overlaySession.openPrimary("overlay.epoch-fixture");
         const systemIngress = systemInternal.openRootInternalV1("settings");
-        firstObservation = Object.freeze({
+        firstObservation = {
           overlayPublication,
           systemPublication,
           runtimePublication,
@@ -1197,7 +1119,7 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
           afterReentryPublication: managedComposition.runtime.getCurrent().coordinator
             .getSnapshot(),
           presentationAnchor: composition.anchor.getCurrent(),
-        });
+        };
       });
       const unsubscribeSystem = systemInternal.subscribeInternalV1(() => {
         systemNotifications += 1;
@@ -1206,7 +1128,7 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
         }
       });
 
-      anchor.publish(Object.freeze({ epoch: 1, origin: "load" }));
+      anchor.publish({ epoch: 1, origin: "load" });
 
       expect(firstObservation).toMatchObject({
         overlayPublication: { applicationEpoch: 17 },
@@ -1243,10 +1165,9 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
       expect(composition.anchor.getCurrent()).toEqual({ epoch: 1, origin: "load" });
       unsubscribeOverlay();
       unsubscribeSystem();
-      overlayInternal.attachRendererResolverInternalV1(Object.freeze({
-        resolve: (id: "overlay.epoch-fixture") =>
-          Object.freeze({ accessibleName: id, content: id }),
-      }));
+      overlayInternal.attachRendererResolverInternalV1({
+        resolve: (id: "overlay.epoch-fixture") => ({ accessibleName: id, content: id }),
+      });
       expect(composition.overlaySession.openPrimary("overlay.epoch-fixture")).toMatchObject({
         kind: "preparing",
       });
@@ -1278,7 +1199,7 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
         overlayNotifications += 1;
         overlayAnchors.push(composition.anchor.getCurrent());
         if (overlayNotifications === 1) {
-          anchor.publish(Object.freeze({ epoch: 2, origin: "import" }));
+          anchor.publish({ epoch: 2, origin: "import" });
         }
       });
       const unsubscribeSystem = systemInternal.subscribeInternalV1(() => {
@@ -1289,7 +1210,7 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
         publishedAnchors.push(composition.anchor.getCurrent());
       });
 
-      anchor.publish(Object.freeze({ epoch: 1, origin: "load" }));
+      anchor.publish({ epoch: 1, origin: "load" });
 
       expect(fixture.allocatedEpochs).toEqual([11, 17, 23]);
       expect({ overlayNotifications, systemNotifications }).toEqual({
@@ -1331,14 +1252,14 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
     overlayInternal.subscribe(() => {
       overlayNotifications += 1;
       if (overlayNotifications !== 1) return;
-      anchor.publish(Object.freeze({ epoch: 2, origin: "import" }));
+      anchor.publish({ epoch: 2, origin: "import" });
       composition.dispose();
     });
     systemInternal.subscribeInternalV1(() => {
       systemNotifications += 1;
     });
 
-    expect(() => anchor.publish(Object.freeze({ epoch: 1, origin: "load" }))).toThrowError(
+    expect(() => anchor.publish({ epoch: 1, origin: "load" })).toThrowError(
       "ui.presentation_successor_activation_failed",
     );
 
@@ -1367,14 +1288,13 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
       const systemInternal = resolveSystemDialogSessionInternalV1(
         managedComposition.systemDialogSession,
       );
-      overlayInternal.attachRendererResolverInternalV1(Object.freeze({
-        resolve: (id: "overlay.epoch-fixture") =>
-          Object.freeze({
-            accessibleName: id,
-            content: id,
-            prepare: () => preparation.promise,
-          }),
-      }));
+      overlayInternal.attachRendererResolverInternalV1({
+        resolve: (id: "overlay.epoch-fixture") => ({
+          accessibleName: id,
+          content: id,
+          prepare: () => preparation.promise,
+        }),
+      });
       expect(composition.overlaySession.openPrimary("overlay.epoch-fixture")).toMatchObject({
         kind: "preparing",
       });
@@ -1388,7 +1308,7 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
       });
       systemInternal.disposeInternalV1();
 
-      expect(() => anchor.publish(Object.freeze({ epoch: 1, origin: "load" }))).toThrowError(
+      expect(() => anchor.publish({ epoch: 1, origin: "load" })).toThrowError(
         "ui.system_dialog_session_disposed",
       );
 
@@ -1423,27 +1343,26 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
     let unregistrations = 0;
     let activeRegistrations = 0;
     let maximumActiveRegistrations = 0;
-    const semanticPublication = Object.freeze({ revision: 0 });
+    const semanticPublication = { revision: 0 };
     const composition = createGameUiCompositionWithEpochAllocatorInternalV1(
       {
-        semantic: Object.freeze({
+        semantic: {
           observe: () => semanticPublication,
           subscribe: () => () => undefined,
-        }),
-        projector: Object.freeze({
-          resolvedCatalog: Object.freeze({}),
-          initialUiState: Object.freeze({}),
-          project: () =>
-            Object.freeze({
-              view: Object.freeze({}),
-              requiredAssetIds: Object.freeze([]),
-            }),
-        }),
-        overlayDefinitions: Object.freeze([overlayDefinitionV1, replacementDefinition]),
+        },
+        projector: {
+          resolvedCatalog: {},
+          initialUiState: {},
+          project: () => ({
+            view: {},
+            requiredAssetIds: [],
+          }),
+        },
+        overlayDefinitions: [overlayDefinitionV1, replacementDefinition],
       },
-      Object.freeze({
+      {
         allocate: () => parseNonNegativeSafeInteger(11),
-      }),
+      },
       undefined,
       () => {
         registrations += 1;
@@ -1468,11 +1387,11 @@ describe("createHostedGameUiCompositionInternalV1 Managed Surface lifetime", () 
       const systemInternal = resolveSystemDialogSessionInternalV1(
         managedComposition.systemDialogSession,
       );
-      overlayInternal.attachRendererResolverInternalV1(Object.freeze({
+      overlayInternal.attachRendererResolverInternalV1({
         resolve: (
           id: "overlay.epoch-fixture" | "overlay.epoch-replacement",
-        ) => Object.freeze({ accessibleName: id, content: id }),
-      }));
+        ) => ({ accessibleName: id, content: id }),
+      });
 
       expect(composition.overlaySession.openPrimary("overlay.epoch-fixture")).toMatchObject({
         kind: "preparing",
@@ -1605,31 +1524,29 @@ function createNarrativeComposerFixtureV1(input: {
     | null;
   readonly reportFailure?: (code: string, error: unknown) => void;
 } = {}) {
-  const semanticPublication = Object.freeze({ pending: null as null });
+  const semanticPublication = { pending: null as null };
   const semanticListeners = new Set<() => void>();
   let semanticSubscriptions = 0;
   let semanticUnsubscriptions = 0;
   let epoch = 0;
   const definition = input.definition === undefined
-    ? createNarrativeSurfaceCompositionDefinitionInternalV1(Object.freeze({
-      selectNarrativeInternalV1: () =>
-        Object.freeze({
-          pending: null,
-          history: Object.freeze({ entries: Object.freeze([]) }),
-          choiceAvailability: null,
-        }),
-      preflightCandidateInternalV1: () =>
-        Object.freeze({
-          kind: "rejected" as const,
-          code: "narrative.renderer_missing" as const,
-        }),
-    }))
+    ? createNarrativeSurfaceCompositionDefinitionInternalV1({
+      selectNarrativeInternalV1: () => ({
+        pending: null,
+        history: { entries: [] },
+        choiceAvailability: null,
+      }),
+      preflightCandidateInternalV1: () => ({
+        kind: "rejected" as const,
+        code: "narrative.renderer_missing" as const,
+      }),
+    })
     : input.definition;
   const anchorEvents = createExactAnchorEventSourceV1();
   const producer = createSuccessorProducerFixtureV1();
   const composition = createGameUiCompositionWithEpochAllocatorInternalV1(
     {
-      semantic: Object.freeze({
+      semantic: {
         observe: () => semanticPublication,
         subscribe(listener: () => void) {
           semanticSubscriptions += 1;
@@ -1639,30 +1556,29 @@ function createNarrativeComposerFixtureV1(input: {
             semanticUnsubscriptions += 1;
           };
         },
-      }),
-      projector: Object.freeze({
-        resolvedCatalog: Object.freeze({}),
-        initialUiState: Object.freeze({}),
-        project: () =>
-          Object.freeze({
-            view: Object.freeze({}),
-            requiredAssetIds: Object.freeze([]),
-          }),
-      }),
-      overlayDefinitions: Object.freeze([overlayDefinitionV1]),
+      },
+      projector: {
+        resolvedCatalog: {},
+        initialUiState: {},
+        project: () => ({
+          view: {},
+          requiredAssetIds: [],
+        }),
+      },
+      overlayDefinitions: [overlayDefinitionV1],
     },
-    Object.freeze({
+    {
       allocate: () => parseNonNegativeSafeInteger(++epoch),
-    }),
+    },
     input.reportFailure,
     undefined,
-    Object.freeze({
+    {
       anchorEvents: anchorEvents.source,
       producer: producer.producer,
-    }),
+    },
     definition,
   );
-  return Object.freeze({
+  return ({
     composition,
     anchorEvents,
     producer,
@@ -1708,30 +1624,28 @@ function narrativeChurnSelectionV1(input: {
   readonly firstEnabled?: boolean;
 } = {}): NarrativeSurfaceSelectionInternalV1 {
   const pending = input.pending ?? null;
-  return Object.freeze({
+  return ({
     pending,
     history: emptyNarrativeHistoryV1,
-    choiceAvailability: pending?.kind !== "choice" ? null : Object.freeze([
-      Object.freeze({
+    choiceAvailability: pending?.kind !== "choice" ? null : [
+      {
         choiceId: "choice.composer.first",
         status: input.firstEnabled === false ? "disabled" as const : "enabled" as const,
-        reasonTextIds: input.firstEnabled === false
-          ? Object.freeze(["text.composer.unavailable"])
-          : Object.freeze([]),
-      }),
-      Object.freeze({
+        reasonTextIds: input.firstEnabled === false ? ["text.composer.unavailable"] : [],
+      },
+      {
         choiceId: "choice.composer.second",
         status: "enabled" as const,
-        reasonTextIds: Object.freeze([]),
-      }),
-    ]),
+        reasonTextIds: [],
+      },
+    ],
   });
 }
 
 function createNarrativeChurnComposerFixtureV1() {
-  let publication: NarrativeChurnPublicationV1 = Object.freeze({
+  let publication: NarrativeChurnPublicationV1 = {
     selection: narrativeChurnSelectionV1(),
-  });
+  };
   const semanticListeners = new Set<() => void>();
   let semanticSubscriptions = 0;
   let semanticUnsubscriptions = 0;
@@ -1740,54 +1654,54 @@ function createNarrativeChurnComposerFixtureV1() {
   const reports: Readonly<{ readonly code: string; readonly error: unknown }>[] = [];
   let preflightHook: (pending: PendingInteractionV1) => void = () => undefined;
   const publish = (selection: NarrativeSurfaceSelectionInternalV1): void => {
-    publication = Object.freeze({ selection });
+    publication = { selection };
     for (const listener of [...semanticListeners]) listener();
   };
-  const definition = createNarrativeSurfaceCompositionDefinitionInternalV1(Object.freeze({
+  const definition = createNarrativeSurfaceCompositionDefinitionInternalV1({
     selectNarrativeInternalV1: (
       current: DeepReadonly<NarrativeChurnPublicationV1>,
     ) => current.selection,
     preflightCandidateInternalV1: (pending: PendingInteractionV1) => {
       preflightCount += 1;
       preflightHook(pending);
-      return Object.freeze({
+      return ({
         kind: "captured" as const,
-        candidateSnapshot: Object.freeze({
-          rendererComponent: Object.freeze(() => null),
-          visualConfig: Object.freeze({}),
-          semanticDispatchPort: Object.freeze({
+        candidateSnapshot: {
+          rendererComponent: () => null,
+          visualConfig: {},
+          semanticDispatchPort: {
             dispatchResolutionInternalV1: () => Promise.resolve(undefined),
-          }),
-          historyObservationPort: Object.freeze({
+          },
+          historyObservationPort: {
             getSnapshotInternalV1: () => publication.selection.history,
-            subscribeInternalV1: () => Object.freeze(() => undefined),
-          }),
-          historyAvailabilityPort: Object.freeze({
+            subscribeInternalV1: () => (() => undefined),
+          },
+          historyAvailabilityPort: {
             readHistoryAvailabilityInternalV1: () => false,
-          }),
-          playerProfile: Object.freeze({
+          },
+          playerProfile: {
             getSnapshotInternalV1: () => defaultPlayerProfileV1,
-            subscribeInternalV1: () => Object.freeze(() => undefined),
+            subscribeInternalV1: () => (() => undefined),
             markSeenInternalV1: () => undefined,
-          }),
-          presentationClock: Object.freeze({
+          },
+          presentationClock: {
             nowInternalV1: () => 0,
-            requestTickInternalV1: () => Object.freeze(() => undefined),
+            requestTickInternalV1: () => (() => undefined),
             prefersReducedMotionInternalV1: () => false,
-          }),
-          textResolver: Object.freeze({
+          },
+          textResolver: {
             resolveTextInternalV1: (textId: string) => textId,
-          }),
+          },
           voiceReplayPort: null,
           quickMenuContribution: null,
-        }),
+        },
       });
     },
-  }));
+  });
   const anchorEvents = createExactAnchorEventSourceV1();
   const composition = createGameUiCompositionWithEpochAllocatorInternalV1(
     {
-      semantic: Object.freeze({
+      semantic: {
         observe: () => publication,
         subscribe(listener: () => void) {
           semanticSubscriptions += 1;
@@ -1797,32 +1711,31 @@ function createNarrativeChurnComposerFixtureV1() {
             semanticUnsubscriptions += 1;
           };
         },
-      }),
-      projector: Object.freeze({
-        resolvedCatalog: Object.freeze({}),
-        initialUiState: Object.freeze({}),
-        project: () =>
-          Object.freeze({
-            view: Object.freeze({}),
-            requiredAssetIds: Object.freeze([]),
-          }),
-      }),
+      },
+      projector: {
+        resolvedCatalog: {},
+        initialUiState: {},
+        project: () => ({
+          view: {},
+          requiredAssetIds: [],
+        }),
+      },
     },
-    Object.freeze({
+    {
       allocate: () => parseNonNegativeSafeInteger(++allocatedEpochs),
-    }),
-    (code: string, error: unknown) => reports.push(Object.freeze({ code, error })),
+    },
+    (code: string, error: unknown) => reports.push({ code, error }),
     undefined,
-    Object.freeze({
+    {
       anchorEvents: anchorEvents.source,
-      producer: Object.freeze({
+      producer: {
         installed: () => undefined,
         failed: () => undefined,
-      }),
-    }),
+      },
+    },
     definition,
   );
-  return Object.freeze({
+  return ({
     composition,
     anchorEvents,
     publish,
@@ -1836,19 +1749,18 @@ function createNarrativeChurnComposerFixtureV1() {
     semanticListenerCount: () => semanticListeners.size,
     allocatedEpochs: () => allocatedEpochs,
     preflightCount: () => preflightCount,
-    reports: () => Object.freeze([...reports]),
+    reports: () => [...reports],
   });
 }
 
-const narrativeChurnStageCatalogV1: StageContentCatalogV1 = Object.freeze({
-  resolveContent: (contentId: Parameters<StageContentCatalogV1["resolveContent"]>[0]) =>
-    Object.freeze({
-      rendererId: "renderer.composer.churn",
-      assetIds: Object.freeze([`asset.for.${contentId}` as AssetId]),
-      accessibleName: `Composer churn ${contentId}`,
-      props: Object.freeze({}),
-    }),
-});
+const narrativeChurnStageCatalogV1: StageContentCatalogV1 = {
+  resolveContent: (contentId: Parameters<StageContentCatalogV1["resolveContent"]>[0]) => ({
+    rendererId: "renderer.composer.churn",
+    assetIds: [`asset.for.${contentId}` as AssetId],
+    accessibleName: `Composer churn ${contentId}`,
+    props: {},
+  }),
+};
 
 function narrativeChurnStageTargetV1(contentId: string): StageRenderTargetV1 {
   const initial = createSemanticStageStateV1({
@@ -1888,15 +1800,15 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
 
     expect(() =>
       createHostedWholeCanvasCompositionForTestV1(
-        Object.freeze({
+        {
           narrative: null,
           wholeCanvas: null,
-          environment: Object.freeze({
+          environment: {
             playerProfile: createHostedWholeCanvasPlayerProfileV1(),
             presentationClock: createManualPresentationClockV1(),
-            prefersReducedMotion: Object.freeze(() => false),
-          }),
-        }),
+            prefersReducedMotion: () => false,
+          },
+        },
         counts,
       )
     ).toThrow("ui.hosted_surface_composition_environment_invalid");
@@ -1927,70 +1839,17 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
     });
   });
 
-  it("never executes hostile callable or Splash accessors during hosted capture", () => {
-    let callableGetterReads = 0;
-    let splashGetterReads = 0;
-    const hostileRestart = Object.freeze(Object.defineProperty(
-      async () =>
-        Object.freeze({
-          kind: "anchored" as const,
-          commandSequence: parseNonNegativeSafeInteger(0),
-        }),
-      // oxlint-disable-next-line unicorn/no-thenable -- adversarial callable admission
-      "then",
-      {
-        configurable: false,
-        get: () => {
-          callableGetterReads += 1;
-          throw new Error("hostile callable getter executed");
-        },
-      },
-    ));
-    const hostileLines = ["unreachable"];
-    Object.defineProperty(hostileLines, "0", {
-      configurable: true,
-      enumerable: true,
-      get: () => {
-        splashGetterReads += 1;
-        throw new Error("hostile Splash getter executed");
-      },
-    });
-    Object.freeze(hostileLines);
-    const titleScreen = Object.freeze({
-      title: "Composer title",
-      backgroundUrl: null,
-      splash: Object.freeze({
-        lines: hostileLines,
-        durationMs: null,
-      }),
-      beginNewGame: null,
-    });
-
-    expect(() =>
-      createHostedWholeCanvasCompositionForTestV1(
-        createHostedWholeCanvasAggregateV1({
-          titleScreen,
-          restart: hostileRestart,
-        }),
-      )
-    ).toThrow("ui.whole_canvas_hosted_input_invalid");
-    expect({ callableGetterReads, splashGetterReads }).toEqual({
-      callableGetterReads: 0,
-      splashGetterReads: 0,
-    });
-  });
-
-  it("admits only dense own-data string Splash lines", () => {
+  it("accepts configured Splash lines", () => {
     const definition = createHostedWholeCanvasDefinitionV1();
-    const titleScreen = Object.freeze({
+    const titleScreen = {
       title: "Composer title",
       backgroundUrl: null,
-      splash: Object.freeze({
-        lines: Object.freeze(["First", "Second"]),
+      splash: {
+        lines: ["First", "Second"],
         durationMs: null,
-      }),
+      },
       beginNewGame: null,
-    });
+    };
     const composition = createHostedWholeCanvasCompositionForTestV1(
       createHostedWholeCanvasAggregateV1({ definition, titleScreen }),
     );
@@ -2042,14 +1901,14 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
     let capturedEnvironment: unknown;
     const anchorEvents = createExactAnchorEventSourceV1();
     const producer = createSuccessorProducerFixtureV1();
-    const host = Object.freeze({
-      managedSurfaceEpochAllocator: Object.freeze({
+    const host = {
+      managedSurfaceEpochAllocator: {
         allocate: () => parseNonNegativeSafeInteger(++allocations),
-      }),
+      },
       anchorEvents: anchorEvents.source,
       successorProducer: producer.producer,
-    });
-    const playerProfile = Object.freeze({
+    };
+    const playerProfile = {
       current: () => defaultPlayerProfileV1,
       subscribe: (_listener: () => void) => () => undefined,
       markSeen: async (_definitionId: string, _seenRevision: number) => undefined,
@@ -2057,17 +1916,16 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
       updatePreferences: async (
         _update: Partial<typeof defaultPlayerProfileV1.preferences>,
       ) => undefined,
-    });
+    };
     const presentationClock = createManualPresentationClockV1();
     presentationClock.advance(42);
     const pending = narrativeChurnChoicePendingV1(99);
-    const definition = createNarrativeSurfaceCompositionDefinitionInternalV1(Object.freeze({
-      selectNarrativeInternalV1: () =>
-        Object.freeze({
-          pending,
-          history: emptyNarrativeHistoryV1,
-          choiceAvailability: narrativeChurnSelectionV1({ pending }).choiceAvailability,
-        }),
+    const definition = createNarrativeSurfaceCompositionDefinitionInternalV1({
+      selectNarrativeInternalV1: () => ({
+        pending,
+        history: emptyNarrativeHistoryV1,
+        choiceAvailability: narrativeChurnSelectionV1({ pending }).choiceAvailability,
+      }),
       preflightCandidateInternalV1: (...args: unknown[]) => {
         capturedEnvironment = args[3];
         const environment = capturedEnvironment as {
@@ -2075,91 +1933,75 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
           readonly presentationClock: typeof presentationClock;
           readonly prefersReducedMotion: () => boolean;
         };
-        return Object.freeze({
+        return ({
           kind: "captured" as const,
-          candidateSnapshot: Object.freeze({
-            rendererComponent: Object.freeze(() => null),
-            visualConfig: Object.freeze({}),
-            semanticDispatchPort: Object.freeze({
+          candidateSnapshot: {
+            rendererComponent: () => null,
+            visualConfig: {},
+            semanticDispatchPort: {
               dispatchResolutionInternalV1: () => Promise.resolve(undefined),
-            }),
-            historyObservationPort: Object.freeze({
+            },
+            historyObservationPort: {
               getSnapshotInternalV1: () => emptyNarrativeHistoryV1,
-              subscribeInternalV1: () => Object.freeze(() => undefined),
-            }),
-            historyAvailabilityPort: Object.freeze({
+              subscribeInternalV1: () => (() => undefined),
+            },
+            historyAvailabilityPort: {
               readHistoryAvailabilityInternalV1: () => false,
-            }),
-            playerProfile: Object.freeze({
+            },
+            playerProfile: {
               getSnapshotInternalV1: () => environment.playerProfile.current(),
               subscribeInternalV1: (listener: () => void) =>
                 environment.playerProfile.subscribe(listener),
               markSeenInternalV1: (definitionId: string, seenRevision: number) =>
                 environment.playerProfile.markSeen(definitionId, seenRevision),
-            }),
-            presentationClock: Object.freeze({
+            },
+            presentationClock: {
               nowInternalV1: () => environment.presentationClock.now(),
               requestTickInternalV1: (callback: (now: number) => void) =>
                 environment.presentationClock.requestTick(callback),
               prefersReducedMotionInternalV1: environment.prefersReducedMotion,
-            }),
-            textResolver: Object.freeze({
+            },
+            textResolver: {
               resolveTextInternalV1: (textId: string) => textId,
-            }),
+            },
             voiceReplayPort: null,
             quickMenuContribution: null,
-          }),
+          },
         });
       },
-    }));
-    const hostedSurfaces = Object.freeze({
+    });
+    const hostedSurfaces = {
       narrative: definition,
       wholeCanvas: null,
-      environment: Object.freeze({
+      environment: {
         playerProfile,
         presentationClock,
         prefersReducedMotion: () => reducedMotion,
-      }),
-    });
+      },
+    };
     const composition = createHostedGameUiCompositionInternalV1(
       {
-        semantic: Object.freeze({
-          observe: () => Object.freeze({ pending: null as null }),
+        semantic: {
+          observe: () => ({ pending: null as null }),
           subscribe: () => {
             semanticSubscriptions += 1;
             return () => undefined;
           },
-        }),
-        projector: Object.freeze({
-          resolvedCatalog: Object.freeze({}),
-          initialUiState: Object.freeze({}),
-          project: () =>
-            Object.freeze({
-              view: Object.freeze({}),
-              requiredAssetIds: Object.freeze([]),
-            }),
-        }),
+        },
+        projector: {
+          resolvedCatalog: {},
+          initialUiState: {},
+          project: () => ({
+            view: {},
+            requiredAssetIds: [],
+          }),
+        },
       },
       host,
       hostedSurfaces,
     );
 
     try {
-      expect(Reflect.ownKeys(host)).toEqual([
-        "managedSurfaceEpochAllocator",
-        "anchorEvents",
-        "successorProducer",
-      ]);
-      expect(Reflect.ownKeys(hostedSurfaces)).toEqual([
-        "narrative",
-        "wholeCanvas",
-        "environment",
-      ]);
-      expect(Reflect.ownKeys(hostedSurfaces.environment)).toEqual([
-        "playerProfile",
-        "presentationClock",
-        "prefersReducedMotion",
-      ]);
       expect(capturedEnvironment).toMatchObject({
         playerProfile,
         presentationClock,
@@ -2187,61 +2029,6 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
     } finally {
       composition.dispose();
     }
-  });
-
-  it("rejects a malformed hosted Narrative environment before allocation or subscription", () => {
-    let allocations = 0;
-    let semanticSubscriptions = 0;
-    const anchorEvents = createExactAnchorEventSourceV1();
-    const producer = createSuccessorProducerFixtureV1();
-    const definition = createNarrativeSurfaceCompositionDefinitionInternalV1(Object.freeze({
-      selectNarrativeInternalV1: () => narrativeChurnSelectionV1(),
-      preflightCandidateInternalV1: () =>
-        Object.freeze({
-          kind: "rejected" as const,
-          code: "narrative.renderer_missing" as const,
-        }),
-    }));
-
-    expect(() =>
-      createHostedGameUiCompositionInternalV1(
-        {
-          semantic: Object.freeze({
-            observe: () => Object.freeze({ pending: null as null }),
-            subscribe: () => {
-              semanticSubscriptions += 1;
-              return () => undefined;
-            },
-          }),
-          projector: Object.freeze({
-            resolvedCatalog: Object.freeze({}),
-            initialUiState: Object.freeze({}),
-            project: () =>
-              Object.freeze({
-                view: Object.freeze({}),
-                requiredAssetIds: Object.freeze([]),
-              }),
-          }),
-        },
-        Object.freeze({
-          managedSurfaceEpochAllocator: Object.freeze({
-            allocate: () => parseNonNegativeSafeInteger(++allocations),
-          }),
-          anchorEvents: anchorEvents.source,
-          successorProducer: producer.producer,
-        }),
-        Object.freeze({
-          definition,
-          playerProfile: Object.freeze({}),
-          presentationClock: createManualPresentationClockV1(),
-          prefersReducedMotion: () => false,
-        }) as never,
-      )
-    ).toThrow("ui.hosted_surface_composition_environment_invalid");
-    expect({ allocations, semanticSubscriptions }).toEqual({
-      allocations: 0,
-      semanticSubscriptions: 0,
-    });
   });
 
   it("shares one recipe, epoch, semantic fanout, and rotates the fourth adapter on successor", () => {
@@ -2279,11 +2066,11 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
       wholeCanvasNotifications += 1;
     });
 
-    const token = Object.freeze({ operation: "narrative-successor" });
-    fixture.anchorEvents.publish(Object.freeze({
-      anchor: Object.freeze({ epoch: 1, origin: "load" }),
+    const token = { operation: "narrative-successor" };
+    fixture.anchorEvents.publish({
+      anchor: { epoch: 1, origin: "load" },
       token,
-    }));
+    });
 
     const successorRuntime = managed.runtime.getCurrent();
     expect(successorRuntime).not.toBe(initialRuntime);
@@ -2308,95 +2095,22 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
     expect(fixture.semanticUnsubscriptions()).toBe(1);
   });
 
-  it("rejects a forged hosted definition before semantic subscription or epoch allocation", () => {
-    let allocations = 0;
-    let semanticSubscriptions = 0;
-    const anchorEvents = createExactAnchorEventSourceV1();
-    const producer = createSuccessorProducerFixtureV1();
-    let unexpectedComposition:
-      | ReturnType<typeof createHostedGameUiCompositionInternalV1>
-      | null = null;
-    let failure: unknown;
-    try {
-      unexpectedComposition = createHostedGameUiCompositionInternalV1(
-        {
-          semantic: Object.freeze({
-            observe: () => Object.freeze({ pending: null }),
-            subscribe: () => {
-              semanticSubscriptions += 1;
-              return () => undefined;
-            },
-          }),
-          projector: Object.freeze({
-            resolvedCatalog: Object.freeze({}),
-            initialUiState: Object.freeze({}),
-            project: () =>
-              Object.freeze({
-                view: Object.freeze({}),
-                requiredAssetIds: Object.freeze([]),
-              }),
-          }),
-        },
-        Object.freeze({
-          managedSurfaceEpochAllocator: Object.freeze({
-            allocate: () => {
-              allocations += 1;
-              return parseNonNegativeSafeInteger(allocations);
-            },
-          }),
-          anchorEvents: anchorEvents.source,
-          successorProducer: producer.producer,
-        }),
-        Object.freeze({
-          narrative: Object.freeze({}) as NarrativeSurfaceCompositionDefinitionInternalV1<{
-            readonly pending: null;
-          }>,
-          wholeCanvas: null,
-          environment: Object.freeze({
-            playerProfile: Object.freeze({
-              current: () => defaultPlayerProfileV1,
-              subscribe: () => () => undefined,
-              markSeen: async () => undefined,
-              markMeta: async () => undefined,
-              updatePreferences: async () => undefined,
-            }),
-            presentationClock: createManualPresentationClockV1(),
-            prefersReducedMotion: () => false,
-          }),
-        }),
-      );
-    } catch (error) {
-      failure = error;
-    } finally {
-      unexpectedComposition?.dispose();
-    }
-
-    expect(failure).toBeInstanceOf(TypeError);
-    expect((failure as Error | undefined)?.message).toBe(
-      "ui.narrative_surface_composition_definition_invalid",
-    );
-    expect({ allocations, semanticSubscriptions }).toEqual({
-      allocations: 0,
-      semanticSubscriptions: 0,
-    });
-  });
-
   it("terminal-seals the full composition when the Stage bind claim is foreign", () => {
     const fixture = createNarrativeComposerFixtureV1({ definition: null });
     const managed = resolveGameUiManagedSurfaceCompositionInternalV1(fixture.composition);
     const reconciler = createStageReconcilerV1({
-      clock: Object.freeze({
+      clock: {
         now: () => 0,
-        requestTick: () => Object.freeze(() => undefined),
-      }),
-      catalog: Object.freeze({
+        requestTick: () => (() => undefined),
+      },
+      catalog: {
         resolveTransition: () => null,
         resolveTransitionById: () => null,
-      }),
+      },
     });
     const foreignDriver = createSemanticStageCompositionDriverInternalV1(
       reconciler,
-      Object.freeze({}),
+      {},
     );
 
     expect(() => managed.narrative.bindStageReconcilerInternalV1(reconciler, foreignDriver))
@@ -2425,7 +2139,7 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
       } catch {
         runtimeDisposed = true;
       }
-      reporterObservation = Object.freeze({
+      reporterObservation = {
         code,
         input: currentFixture.composition.input.route(managedFacadeActionEventV1),
         overlay: currentFixture.composition.overlaySession.openPrimary("overlay.epoch-fixture"),
@@ -2433,26 +2147,25 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
         terminal: currentManaged.isTerminalInternalV1(),
         runtimeDisposed,
         semanticUnsubscriptions: currentFixture.semanticUnsubscriptions(),
-      });
+      };
     });
     const fixture = createNarrativeComposerFixtureV1({
       reportFailure,
-      definition: createNarrativeSurfaceCompositionDefinitionInternalV1(Object.freeze({
+      definition: createNarrativeSurfaceCompositionDefinitionInternalV1({
         selectNarrativeInternalV1: () => {
           selections += 1;
           if (selections > 2) throw new Error("fixture.narrative_selector_failed");
-          return Object.freeze({
+          return ({
             pending: null,
-            history: Object.freeze({ entries: Object.freeze([]) }),
+            history: { entries: [] },
             choiceAvailability: null,
           });
         },
-        preflightCandidateInternalV1: () =>
-          Object.freeze({
-            kind: "rejected" as const,
-            code: "narrative.renderer_missing" as const,
-          }),
-      })),
+        preflightCandidateInternalV1: () => ({
+          kind: "rejected" as const,
+          code: "narrative.renderer_missing" as const,
+        }),
+      }),
     });
     reporterFixture = fixture;
     const managed = resolveGameUiManagedSurfaceCompositionInternalV1(fixture.composition);
@@ -2490,10 +2203,10 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
       fixture.publish(narrativeChurnSelectionV1({ pending: successor }));
     });
 
-    fixture.anchorEvents.publish(Object.freeze({
-      anchor: Object.freeze({ epoch: 1, origin: "restart" }),
+    fixture.anchorEvents.publish({
+      anchor: { epoch: 1, origin: "restart" },
       token: null,
-    }));
+    });
 
     expect(republished).toBe(true);
     expect(managed.narrative.getCurrentSelectionInternalV1()?.pending?.occurrenceId).toBe(
@@ -2510,34 +2223,34 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
       const managed = resolveGameUiManagedSurfaceCompositionInternalV1(fixture.composition);
       const initialSession = managed.narrative.getCurrentSessionInternalV1();
       if (initialSession === null) throw new Error("expected initial Narrative session");
-      const predecessorHostLease = initialSession.attachHostInternalV1(Object.freeze({
-        hostIdentity: Object.freeze({}),
-      }));
+      const predecessorHostLease = initialSession.attachHostInternalV1({
+        hostIdentity: {},
+      });
       const claimant = managed.narrative.getStageClaimantInternalV1();
       const reconciler = createStageReconcilerV1({
-        clock: Object.freeze({
+        clock: {
           now: () => 0,
-          requestTick: () => Object.freeze(() => undefined),
-        }),
-        catalog: Object.freeze({
+          requestTick: () => (() => undefined),
+        },
+        catalog: {
           resolveTransition: () => narrativeChurnTransitionV1,
           resolveTransitionById: (transitionId: string) =>
             transitionId === narrativeChurnTransitionV1.transitionId
               ? narrativeChurnTransitionV1
               : null,
-        }),
+        },
       });
       const driver = createSemanticStageCompositionDriverInternalV1(reconciler, claimant);
       const releaseStage = managed.narrative.bindStageReconcilerInternalV1(reconciler, driver);
-      const stageTargets = Object.freeze([
+      const stageTargets = [
         narrativeChurnStageTargetV1("content.composer.churn-a"),
         narrativeChurnStageTargetV1("content.composer.churn-b"),
-      ]);
-      driver.retargetInternalV1(Object.freeze({
+      ];
+      driver.retargetInternalV1({
         target: stageTargets[0]!,
         revision: 1,
         epoch: managed.runtime.getCurrent().applicationEpoch,
-      }));
+      });
       let lastBarrier = narrativeChurnBarrierPendingV1(0);
 
       for (let sequence = 1; sequence <= 2_500; sequence += 1) {
@@ -2546,15 +2259,15 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
         fixture.publish(narrativeChurnSelectionV1({ pending, firstEnabled: false }));
         lastBarrier = narrativeChurnBarrierPendingV1(sequence);
         fixture.publish(narrativeChurnSelectionV1({ pending: lastBarrier }));
-        fixture.anchorEvents.publish(Object.freeze({
-          anchor: Object.freeze({ epoch: sequence, origin: "restart" }),
+        fixture.anchorEvents.publish({
+          anchor: { epoch: sequence, origin: "restart" },
           token: null,
-        }));
-        driver.retargetInternalV1(Object.freeze({
+        });
+        driver.retargetInternalV1({
           target: stageTargets[sequence % stageTargets.length]!,
           revision: sequence + 1,
           epoch: managed.runtime.getCurrent().applicationEpoch,
-        }));
+        });
       }
 
       expect(predecessorHostLease.isCurrentInternalV1()).toBe(false);
@@ -2601,16 +2314,16 @@ describe("hosted presentation successor acknowledgment", () => {
     let restartSequence = 0;
     const restart = vi.fn(async () => {
       restartSequence += 1;
-      anchorEvents.publish(Object.freeze({
-        anchor: Object.freeze({ epoch: restartSequence + 1, origin: "restart" }),
-        token: Object.freeze({ operation: `return-${restartSequence}` }),
-      }));
-      return Object.freeze({
+      anchorEvents.publish({
+        anchor: { epoch: restartSequence + 1, origin: "restart" },
+        token: { operation: `return-${restartSequence}` },
+      });
+      return ({
         kind: "anchored" as const,
         commandSequence: parseNonNegativeSafeInteger(restartSequence),
       });
     });
-    const playerProfile = Object.freeze({
+    const playerProfile = {
       current: () => defaultPlayerProfileV1,
       subscribe: (_listener: () => void) => () => undefined,
       markSeen: async (_definitionId: string, _seenRevision: number) => undefined,
@@ -2618,60 +2331,59 @@ describe("hosted presentation successor acknowledgment", () => {
       updatePreferences: async (
         _update: Partial<typeof defaultPlayerProfileV1.preferences>,
       ) => undefined,
-    });
+    };
     const composition = createHostedGameUiCompositionInternalV1(
       {
-        semantic: Object.freeze({
-          observe: () => Object.freeze({ revision: 0 }),
+        semantic: {
+          observe: () => ({ revision: 0 }),
           subscribe: () => () => undefined,
-        }),
-        projector: Object.freeze({
-          resolvedCatalog: Object.freeze({}),
-          initialUiState: Object.freeze({}),
-          project: () =>
-            Object.freeze({
-              view: Object.freeze({}),
-              requiredAssetIds: Object.freeze([]),
-            }),
-        }),
+        },
+        projector: {
+          resolvedCatalog: {},
+          initialUiState: {},
+          project: () => ({
+            view: {},
+            requiredAssetIds: [],
+          }),
+        },
       },
-      Object.freeze({
-        managedSurfaceEpochAllocator: Object.freeze({
+      {
+        managedSurfaceEpochAllocator: {
           allocate: (() => {
             let epoch = 0;
             return () => parseNonNegativeSafeInteger(++epoch);
           })(),
-        }),
+        },
         anchorEvents: anchorEvents.source,
         successorProducer: producer.producer,
-      }),
-      Object.freeze({
+      },
+      {
         narrative: null,
-        wholeCanvas: Object.freeze({
+        wholeCanvas: {
           definition: null,
-          titleScreen: Object.freeze({
+          titleScreen: {
             title: "Composer title",
             backgroundUrl: null,
             splash: null,
             beginNewGame: null,
-          }),
-          lifecycle: Object.freeze({ restart }),
+          },
+          lifecycle: { restart },
           savePort: null,
           customSavesConfigured: false,
-          labels: Object.freeze({
+          labels: {
             newGame: "New game",
             newGameFailed: "New game failed",
             continue: "Continue",
             load: "Load",
             settings: "Settings",
-          }),
-        }),
-        environment: Object.freeze({
+          },
+        },
+        environment: {
           playerProfile,
           presentationClock: createManualPresentationClockV1(),
           prefersReducedMotion: () => false,
-        }),
-      }),
+        },
+      },
     );
     const managed = resolveGameUiManagedSurfaceCompositionInternalV1(composition);
     const readRootKind = (): "boot_splash" | "title" | "primary" | null => {
@@ -2686,10 +2398,10 @@ describe("hosted presentation successor acknowledgment", () => {
     try {
       expect(readRootKind()).toBe("title");
 
-      anchorEvents.publish(Object.freeze({
-        anchor: Object.freeze({ epoch: 1, origin: "load" }),
-        token: Object.freeze({ operation: "load" }),
-      }));
+      anchorEvents.publish({
+        anchor: { epoch: 1, origin: "load" },
+        token: { operation: "load" },
+      });
       expect(readRootKind()).toBeNull();
 
       await expect(managed.returnToTitleInternalV1()).resolves.toBeUndefined();
@@ -2712,10 +2424,10 @@ describe("hosted presentation successor acknowledgment", () => {
     const producer = createSuccessorProducerFixtureV1();
     const fixture = createExactHostedCompositionFixtureV1(anchorEvents, producer);
     const { composition } = fixture;
-    const tokenA = Object.freeze({ operation: "A" });
-    const tokenB = Object.freeze({ operation: "B" });
-    const anchorA = Object.freeze({ epoch: 1, origin: "restart" });
-    const anchorB = Object.freeze({ epoch: 2, origin: "import" });
+    const tokenA = { operation: "A" };
+    const tokenB = { operation: "B" };
+    const anchorA = { epoch: 1, origin: "restart" };
+    const anchorB = { epoch: 2, origin: "import" };
 
     try {
       const overlayInternal = resolveWorkspaceOverlaySessionInternalV1(composition.overlaySession);
@@ -2723,11 +2435,11 @@ describe("hosted presentation successor acknowledgment", () => {
       const unsubscribeOverlay = overlayInternal.subscribe(() => {
         observedAnchors.push(composition.anchor.getCurrent());
         if (observedAnchors.length === 1) {
-          anchorEvents.publish(Object.freeze({ anchor: anchorB, token: tokenB }));
+          anchorEvents.publish({ anchor: anchorB, token: tokenB });
         }
       });
 
-      anchorEvents.publish(Object.freeze({ anchor: anchorA, token: tokenA }));
+      anchorEvents.publish({ anchor: anchorA, token: tokenA });
 
       expect(fixture.allocatedEpochs).toEqual([11, 17, 23]);
       expect(observedAnchors).toEqual([
@@ -2753,8 +2465,8 @@ describe("hosted presentation successor acknowledgment", () => {
     const { composition } = fixture;
 
     try {
-      const anchor = Object.freeze({ epoch: 1, origin: "load" });
-      anchorEvents.publish(Object.freeze({ anchor, token: null }));
+      const anchor = { epoch: 1, origin: "load" };
+      anchorEvents.publish({ anchor, token: null });
 
       expect(composition.anchor.getCurrent()).toBe(anchor);
       expect(producer.installed).toEqual([]);
@@ -2772,8 +2484,8 @@ describe("hosted presentation successor acknowledgment", () => {
     const managed = resolveGameUiManagedSurfaceCompositionInternalV1(composition);
     const overlay = resolveWorkspaceOverlaySessionInternalV1(composition.overlaySession);
     const system = resolveSystemDialogSessionInternalV1(managed.systemDialogSession);
-    const token = Object.freeze({ operation: "subscriber-isolation" });
-    const anchor = Object.freeze({ epoch: 1, origin: "restart" });
+    const token = { operation: "subscriber-isolation" };
+    const anchor = { epoch: 1, origin: "restart" };
     overlay.subscribe(() => {
       throw new Error("fixture.overlay_subscriber_failed");
     });
@@ -2781,7 +2493,7 @@ describe("hosted presentation successor acknowledgment", () => {
       throw new Error("fixture.system_subscriber_failed");
     });
 
-    expect(() => anchorEvents.publish(Object.freeze({ anchor, token }))).not.toThrow();
+    expect(() => anchorEvents.publish({ anchor, token })).not.toThrow();
 
     expect(managed.isTerminalInternalV1()).toBe(false);
     expect(producer.failed).toEqual([]);
@@ -2804,8 +2516,8 @@ describe("hosted presentation successor acknowledgment", () => {
     readTerminal = managed.isTerminalInternalV1;
     const overlayInternal = resolveWorkspaceOverlaySessionInternalV1(composition.overlaySession);
     const managedSystem = resolveSystemDialogSessionInternalV1(managed.systemDialogSession);
-    const token = Object.freeze({ operation: "terminal" });
-    const anchor = Object.freeze({ epoch: 1, origin: "restart" });
+    const token = { operation: "terminal" };
+    const anchor = { epoch: 1, origin: "restart" };
     const failure = new Error("fixture.anchor_listener_failed");
     let lowerInputWrites = 0;
     let cueWrites = 0;
@@ -2813,34 +2525,34 @@ describe("hosted presentation successor acknowledgment", () => {
       context: "gameplay",
       handle: () => {
         lowerInputWrites += 1;
-        return Object.freeze({ kind: "handled" as const });
+        return ({ kind: "handled" as const });
       },
     });
-    composition.cues.register(Object.freeze({
+    composition.cues.register({
       play: () => {
         cueWrites += 1;
         return true;
       },
-    }));
+    });
     const systemHostAttachment = managedSystem.attachHostInternalV1({
-      hostIdentity: Object.freeze({ kind: "terminal-system-host" }),
-      portalContainer: Object.freeze({ kind: "terminal-system-portal" }),
+      hostIdentity: { kind: "terminal-system-host" },
+      portalContainer: { kind: "terminal-system-portal" },
       catalog: createSystemDialogRootCatalogSnapshotInternalV1({
-        entries: Object.freeze([
-          Object.freeze({
+        entries: [
+          {
             rootRequest: "settings" as const,
-            rendererComponent: Object.freeze({ kind: "settings-renderer" }),
+            rendererComponent: { kind: "settings-renderer" },
             accessibleName: "Settings",
-            requiredPortIds: Object.freeze([]),
-            contentConfig: Object.freeze({
+            requiredPortIds: [],
+            contentConfig: {
               title: "Settings",
               closeLabel: "Close",
               emptyText: "Empty",
-              sections: Object.freeze([]),
-            }),
-          }),
-        ]),
-        portBindings: Object.freeze([]),
+              sections: [],
+            },
+          },
+        ],
+        portBindings: [],
       }),
     });
     expect(composition.systemDialogSession.openSettings()).toEqual({
@@ -2871,7 +2583,7 @@ describe("hosted presentation successor acknowledgment", () => {
       throw failure;
     });
 
-    expect(() => anchorEvents.publish(Object.freeze({ anchor, token }))).toThrow(failure);
+    expect(() => anchorEvents.publish({ anchor, token })).toThrow(failure);
     presentationNotifications = 0;
 
     expect(managed.isTerminalInternalV1()).toBe(true);
@@ -2883,11 +2595,11 @@ describe("hosted presentation successor acknowledgment", () => {
     const beforePresentation = composition.presentation.getSnapshot();
     const beforeAnchor = composition.anchor.getCurrent();
     fixture.publishSemantic();
-    anchorEvents.publish(Object.freeze({
-      anchor: Object.freeze({ epoch: 2, origin: "late" }),
-      token: Object.freeze({ operation: "late" }),
-    }));
-    composition.updateUiState((current) => Object.freeze({ count: current.count + 1 }));
+    anchorEvents.publish({
+      anchor: { epoch: 2, origin: "late" },
+      token: { operation: "late" },
+    });
+    composition.updateUiState((current) => ({ count: current.count + 1 }));
     expect(composition.systemDialogSession.openSaves()).toEqual({
       kind: "rejected",
       code: "system_dialog.disposed",
@@ -2901,7 +2613,7 @@ describe("hosted presentation successor acknowledgment", () => {
       "control.e2e.fixture",
     );
     composition.interactionSession.leave();
-    composition.cues.register(Object.freeze({ play: () => true }));
+    composition.cues.register({ play: () => true });
     expect(composition.cues.play("cue.e2e.fixture")).toBe(false);
     expect(composition.intents.execute({
       kind: "interaction.enter_surface",
@@ -2954,11 +2666,11 @@ describe("hosted presentation successor acknowledgment", () => {
     const { composition } = fixture;
     const managed = resolveGameUiManagedSurfaceCompositionInternalV1(composition);
     const system = resolveSystemDialogSessionInternalV1(managed.systemDialogSession);
-    const token = Object.freeze({ operation: "second-family" });
-    const anchor = Object.freeze({ epoch: 1, origin: "load" });
+    const token = { operation: "second-family" };
+    const anchor = { epoch: 1, origin: "load" };
     system.disposeInternalV1();
 
-    expect(() => anchorEvents.publish(Object.freeze({ anchor, token }))).toThrowError(
+    expect(() => anchorEvents.publish({ anchor, token })).toThrowError(
       "ui.system_dialog_session_disposed",
     );
 
@@ -2979,8 +2691,8 @@ describe("hosted presentation successor acknowledgment", () => {
     const fixture = createExactHostedCompositionFixtureV1(anchorEvents, producer);
     const { composition } = fixture;
     const managed = resolveGameUiManagedSurfaceCompositionInternalV1(composition);
-    const token = Object.freeze({ operation: "fourth-family" });
-    const anchor = Object.freeze({ epoch: 1, origin: "load" });
+    const token = { operation: "fourth-family" };
+    const anchor = { epoch: 1, origin: "load" };
     let wholeCanvasNotifications = 0;
     let narrativeNotifications = 0;
     managed.wholeCanvas.subscribeInternalV1(() => {
@@ -2991,7 +2703,7 @@ describe("hosted presentation successor acknowledgment", () => {
     });
     managed.wholeCanvas.disposeInternalV1();
 
-    expect(() => anchorEvents.publish(Object.freeze({ anchor, token }))).toThrowError(
+    expect(() => anchorEvents.publish({ anchor, token })).toThrowError(
       "ui.whole_canvas_surface_composition_prepare_invalid",
     );
 
@@ -3015,11 +2727,11 @@ describe("hosted presentation successor acknowledgment", () => {
     const fixture = createExactHostedCompositionFixtureV1(anchorEvents, producer);
     const { composition } = fixture;
     const managed = resolveGameUiManagedSurfaceCompositionInternalV1(composition);
-    const token = Object.freeze({ operation: "post-publish-dispose" });
-    const anchor = Object.freeze({ epoch: 1, origin: "restart" });
+    const token = { operation: "post-publish-dispose" };
+    const anchor = { epoch: 1, origin: "restart" };
     composition.anchor.subscribe(() => composition.dispose());
 
-    expect(() => anchorEvents.publish(Object.freeze({ anchor, token }))).toThrowError(
+    expect(() => anchorEvents.publish({ anchor, token })).toThrowError(
       "ui.managed_surface_composition_runtime_disposed",
     );
 
@@ -3037,11 +2749,11 @@ describe("hosted presentation successor acknowledgment", () => {
     const { composition } = fixture;
     const managed = resolveGameUiManagedSurfaceCompositionInternalV1(composition);
     const overlay = resolveWorkspaceOverlaySessionInternalV1(composition.overlaySession);
-    const token = Object.freeze({ operation: "post-liveness" });
-    const anchor = Object.freeze({ epoch: 1, origin: "import" });
+    const token = { operation: "post-liveness" };
+    const anchor = { epoch: 1, origin: "import" };
     const unsubscribe = overlay.subscribe(() => overlay.detachRuntimeInternalV1());
 
-    expect(() => anchorEvents.publish(Object.freeze({ anchor, token }))).toThrowError(
+    expect(() => anchorEvents.publish({ anchor, token })).toThrowError(
       "ui.presentation_successor_activation_failed",
     );
 

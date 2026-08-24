@@ -3,7 +3,7 @@ import type { SemanticStageStateV1, StageMutationV1 } from "@sillymaker/base";
 import {
   createSemanticStageStateV1,
   parseStageMutationV1,
-  reduceStageMutationsV1,
+  reduceAdmittedStageMutationsV1,
 } from "@sillymaker/base";
 
 import {
@@ -21,9 +21,9 @@ import { labProcedureSceneV1 } from "../scenes/procedure/index.ts";
  */
 
 function stageMutationsV1(batch: readonly unknown[]): readonly StageMutationV1[] {
-  return Object.freeze(
-    batch.map((mutation, index) => parseStageMutationV1(mutation, `/mutations/${String(index)}`)),
-  );
+  return (batch.map((mutation, index) =>
+    parseStageMutationV1(mutation, `/mutations/${String(index)}`)
+  ));
 }
 
 export function createInitialLabStageStateV1(): SemanticStageStateV1 {
@@ -31,7 +31,7 @@ export function createInitialLabStageStateV1(): SemanticStageStateV1 {
     stageId: labStageIdV1,
     layerIds: [...labStageLayerIdsV1],
   });
-  const outcome = reduceStageMutationsV1(
+  const outcome = reduceAdmittedStageMutationsV1(
     empty,
     stageMutationsV1([
       {
@@ -57,7 +57,7 @@ function stageHasTagV1(stage: SemanticStageStateV1, layerId: string, tag: string
 export function labStageMutationsForCollectV1(
   stage: SemanticStageStateV1,
 ): readonly StageMutationV1[] {
-  if (stageHasTagV1(stage, "layer.e2e.props", labStageTagsV1.crate)) return Object.freeze([]);
+  if (stageHasTagV1(stage, "layer.e2e.props", labStageTagsV1.crate)) return [];
   return stageMutationsV1([
     {
       kind: "show",

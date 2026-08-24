@@ -99,26 +99,26 @@ export function createStageInspectControllerV1(): StageInspectControllerV1 {
   let enabled = false;
   let highlightHitRegions = false;
   let selectedKey: string | null = null;
-  let entries: readonly StageEntryProvenanceV1[] = Object.freeze([]);
+  let entries: readonly StageEntryProvenanceV1[] = [];
   let activeCueId: string | null = null;
   let lastFrame: StageRenderFrameV1 | null = null;
-  let snapshot: StageInspectSnapshotV1 = Object.freeze({
+  let snapshot: StageInspectSnapshotV1 = {
     enabled,
     highlightHitRegions,
     selectedKey,
     entries,
     activeCueId,
-  });
+  };
   let signature = provenanceSignatureV1(snapshot);
 
   const commit = (): void => {
-    const next: StageInspectSnapshotV1 = Object.freeze({
+    const next: StageInspectSnapshotV1 = {
       enabled,
       highlightHitRegions,
       selectedKey,
       entries,
       activeCueId,
-    });
+    };
     const nextSignature = provenanceSignatureV1(next);
     if (nextSignature === signature) return;
     snapshot = next;
@@ -126,7 +126,7 @@ export function createStageInspectControllerV1(): StageInspectControllerV1 {
     for (const listener of [...listeners]) listener();
   };
 
-  return Object.freeze({
+  return {
     observe: () => snapshot,
     subscribe(listener: () => void): () => void {
       listeners.add(listener);
@@ -146,27 +146,21 @@ export function createStageInspectControllerV1(): StageInspectControllerV1 {
     },
     capture(): StageInspectCaptureV1 | null {
       if (lastFrame === null) return null;
-      const target: StageRenderTargetV1 = Object.freeze({
+      const target: StageRenderTargetV1 = {
         stageId: lastFrame.stageId,
-        layers: Object.freeze(
-          lastFrame.layers.map((layer) =>
-            Object.freeze({
-              layerId: layer.layerId,
-              transform: layer.transform,
-              entries: Object.freeze(
-                layer.entries
-                  .filter((frameEntry) => frameEntry.phase !== "exiting")
-                  .map((frameEntry) => frameEntry.entry),
-              ),
-            })
-          ),
-        ),
+        layers: lastFrame.layers.map((layer) => ({
+          layerId: layer.layerId,
+          transform: layer.transform,
+          entries: layer.entries
+            .filter((frameEntry) => frameEntry.phase !== "exiting")
+            .map((frameEntry) => frameEntry.entry),
+        })),
         camera: lastFrame.camera,
         requiredAssetIds: lastFrame.requiredAssetIds,
-      });
+      };
       const selected = selectedKey !== null &&
         entries.some((entry) => entry.frameKey === selectedKey && entry.phase !== "exiting");
-      return Object.freeze({ target, entryKey: selected ? selectedKey : null });
+      return { target, entryKey: selected ? selectedKey : null };
     },
     recordFrame(input: StageInspectFrameInputV1): void {
       lastFrame = input.frame;
@@ -182,29 +176,27 @@ export function createStageInspectControllerV1(): StageInspectControllerV1 {
           const last = frameEntry.phase === "exiting"
             ? null
             : (lastByKey.get(frameEntry.entry.key) ?? null);
-          collected.push(
-            Object.freeze({
-              frameKey: frameEntry.frameKey,
-              layerId: layer.layerId,
-              tag: frameEntry.entry.tag,
-              contentId: frameEntry.entry.contentId,
-              rendererId: frameEntry.entry.rendererId,
-              phase: frameEntry.phase,
-              transitionId: frameEntry.transitionId,
-              transitionKind: frameEntry.transitionKind,
-              motionId: frameEntry.motion?.motionId ?? null,
-              lastTransitionId: last?.transitionId ?? frameEntry.transitionId,
-              lastMotionId: last?.motionId ?? frameEntry.motion?.motionId ?? null,
-            }),
-          );
+          collected.push({
+            frameKey: frameEntry.frameKey,
+            layerId: layer.layerId,
+            tag: frameEntry.entry.tag,
+            contentId: frameEntry.entry.contentId,
+            rendererId: frameEntry.entry.rendererId,
+            phase: frameEntry.phase,
+            transitionId: frameEntry.transitionId,
+            transitionKind: frameEntry.transitionKind,
+            motionId: frameEntry.motion?.motionId ?? null,
+            lastTransitionId: last?.transitionId ?? frameEntry.transitionId,
+            lastMotionId: last?.motionId ?? frameEntry.motion?.motionId ?? null,
+          });
         }
       }
-      entries = Object.freeze(collected);
+      entries = collected;
       activeCueId = input.activeCueId;
       if (selectedKey !== null && !collected.some((entry) => entry.frameKey === selectedKey)) {
         selectedKey = null;
       }
       commit();
     },
-  });
+  };
 }

@@ -10,6 +10,7 @@ import {
 
 const capabilityV1 = "a".repeat(43);
 const originV1 = "http://127.0.0.1:41800";
+const expectedOriginV1 = new URL(originV1);
 
 function requestV1(
   url: string,
@@ -47,14 +48,14 @@ describe("Desktop shell HTTP admission", () => {
     expect(
       classifyShellHttpRequestInternalV1(
         requestV1("http://127.0.0.1:41800/index.html"),
-        originV1,
+        expectedOriginV1,
         capabilityV1,
       ),
     ).toEqual({ kind: "static", pathname: "/index.html" });
     expect(
       classifyShellHttpRequestInternalV1(
         requestV1("http://127.0.0.1:41800/sillymaker/records"),
-        originV1,
+        expectedOriginV1,
         capabilityV1,
       ),
     ).toEqual({ kind: "rejected", status: 403 });
@@ -63,7 +64,7 @@ describe("Desktop shell HTTP admission", () => {
         requestV1("http://127.0.0.1:41800/sillymaker/records", {
           capability: "b".repeat(43),
         }),
-        originV1,
+        expectedOriginV1,
         capabilityV1,
       ),
     ).toEqual({ kind: "rejected", status: 403 });
@@ -74,7 +75,7 @@ describe("Desktop shell HTTP admission", () => {
           origin: "http://127.0.0.1:41800",
           site: "same-origin",
         }),
-        originV1,
+        expectedOriginV1,
         capabilityV1,
       ),
     ).toEqual({ kind: "records", subPath: "" });
@@ -83,7 +84,7 @@ describe("Desktop shell HTTP admission", () => {
         requestV1("http://127.0.0.1:41800/sillymaker/files/download", {
           capability: capabilityV1,
         }),
-        originV1,
+        expectedOriginV1,
         capabilityV1,
       ),
     ).toEqual({ kind: "files", subPath: "/download" });
@@ -92,8 +93,15 @@ describe("Desktop shell HTTP admission", () => {
   it("rejects DNS-rebinding Host or port values and cross-site requests", () => {
     expect(
       classifyShellHttpRequestInternalV1(
+        requestV1("http://127.0.0.1:41800/index.html"),
+        null,
+        capabilityV1,
+      ),
+    ).toEqual({ kind: "rejected", status: 421 });
+    expect(
+      classifyShellHttpRequestInternalV1(
         requestV1("http://attacker.example/index.html"),
-        originV1,
+        expectedOriginV1,
         capabilityV1,
       ),
     ).toEqual({ kind: "rejected", status: 421 });
@@ -102,7 +110,7 @@ describe("Desktop shell HTTP admission", () => {
         requestV1("http://attacker.example/sillymaker/files/download", {
           capability: capabilityV1,
         }),
-        originV1,
+        expectedOriginV1,
         capabilityV1,
       ),
     ).toEqual({ kind: "rejected", status: 421 });
@@ -111,7 +119,7 @@ describe("Desktop shell HTTP admission", () => {
         requestV1("http://127.0.0.1:41999/sillymaker/files/download", {
           capability: capabilityV1,
         }),
-        originV1,
+        expectedOriginV1,
         capabilityV1,
       ),
     ).toEqual({ kind: "rejected", status: 421 });
@@ -122,7 +130,7 @@ describe("Desktop shell HTTP admission", () => {
           origin: "https://attacker.example",
           site: "cross-site",
         }),
-        originV1,
+        expectedOriginV1,
         capabilityV1,
       ),
     ).toEqual({ kind: "rejected", status: 403 });
@@ -133,7 +141,7 @@ describe("Desktop shell HTTP admission", () => {
           origin: "https://attacker.example",
           site: "same-site",
         }),
-        originV1,
+        expectedOriginV1,
         capabilityV1,
       ),
     ).toEqual({ kind: "rejected", status: 403 });
@@ -142,7 +150,7 @@ describe("Desktop shell HTTP admission", () => {
   it("does not dispatch rejected traffic to static or private handlers", async () => {
     const calls: string[] = [];
     const handler = createShellHttpHandlerInternalV1({
-      expectedOrigin: () => originV1,
+      expectedOrigin: () => expectedOriginV1,
       capability: capabilityV1,
       handleStatic: () => {
         calls.push("static");

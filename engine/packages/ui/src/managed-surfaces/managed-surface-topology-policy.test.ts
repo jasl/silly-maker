@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import { parseNonNegativeSafeInteger } from "@sillymaker/base";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   type ManagedSurfaceTopologyPolicyProjectionInternalV1,
@@ -11,7 +11,7 @@ import {
 type LifecycleV1 = ManagedSurfaceTopologyPolicyRowInternalV1<object>["lifecycle"];
 
 function subjectV1(label: string): object {
-  return Object.freeze({ label });
+  return { label };
 }
 
 function rowV1<TSubject extends object>(
@@ -20,12 +20,12 @@ function rowV1<TSubject extends object>(
   lifecycle: LifecycleV1 = "ready",
   blocksLower = false,
 ): ManagedSurfaceTopologyPolicyRowInternalV1<TSubject> {
-  return Object.freeze({
+  return {
     subject,
     layerOrder: parseNonNegativeSafeInteger(layerOrder),
     lifecycle,
     blocksLower,
-  });
+  };
 }
 
 function phasesV1<TSubject extends object>(
@@ -35,35 +35,17 @@ function phasesV1<TSubject extends object>(
 }
 
 describe("managed surface topology policy", () => {
-  it("stably orders by layer and supplied preorder without inspecting opaque subjects", () => {
-    const subjectInspection = vi.fn();
-    const opaqueSubject = new Proxy(Object.freeze({}), {
-      get() {
-        subjectInspection();
-        throw new Error("opaque subject property read");
-      },
-      getOwnPropertyDescriptor() {
-        subjectInspection();
-        throw new Error("opaque subject descriptor read");
-      },
-      getPrototypeOf() {
-        subjectInspection();
-        throw new Error("opaque subject prototype read");
-      },
-      ownKeys() {
-        subjectInspection();
-        throw new Error("opaque subject key read");
-      },
-    });
+  it("stably orders by layer and supplied preorder while preserving subject identity", () => {
+    const opaqueSubject = {};
     const sameLayerFirst = subjectV1("same-layer-first");
     const sameLayerSecond = subjectV1("same-layer-second");
     const lowest = subjectV1("lowest");
-    const rows = Object.freeze([
+    const rows = [
       rowV1(opaqueSubject, 30),
       rowV1(sameLayerFirst, 10),
       rowV1(sameLayerSecond, 10),
       rowV1(lowest, 0),
-    ]);
+    ];
     const originalOrder = [...rows];
 
     const projection = projectManagedSurfaceTopologyPolicyInternalV1(rows);
@@ -74,52 +56,7 @@ describe("managed surface topology policy", () => {
     expect(projection[2]?.subject).toBe(sameLayerSecond);
     expect(projection[3]?.subject).toBe(opaqueSubject);
     expect(phasesV1(projection)).toEqual(["active", "active", "active", "active"]);
-    expect(Object.isFrozen(projection)).toBe(true);
-    for (const projected of projection) {
-      expect(Object.keys(projected)).toEqual(["subject", "phase"]);
-      expect(Object.isFrozen(projected)).toBe(true);
-    }
     originalOrder.forEach((row, index) => expect(rows[index]).toBe(row));
-    expect(subjectInspection).not.toHaveBeenCalled();
-  });
-
-  it("captures each policy-row field exactly once before deriving the projection", () => {
-    const subject = subjectV1("captured-once");
-    const reads = {
-      subject: 0,
-      layerOrder: 0,
-      lifecycle: 0,
-      blocksLower: 0,
-    };
-    const captureOnce = <TKey extends keyof typeof reads, TValue>(
-      key: TKey,
-      value: TValue,
-    ): () => TValue =>
-    () => {
-      reads[key] += 1;
-      if (reads[key] !== 1) throw new Error(`policy row ${key} re-read`);
-      return value;
-    };
-    const row = Object.freeze(Object.defineProperties({}, {
-      subject: { enumerable: true, get: captureOnce("subject", subject) },
-      layerOrder: {
-        enumerable: true,
-        get: captureOnce("layerOrder", parseNonNegativeSafeInteger(10)),
-      },
-      lifecycle: { enumerable: true, get: captureOnce("lifecycle", "ready" as const) },
-      blocksLower: { enumerable: true, get: captureOnce("blocksLower", true) },
-    })) as ManagedSurfaceTopologyPolicyRowInternalV1<object>;
-
-    const projection = projectManagedSurfaceTopologyPolicyInternalV1(Object.freeze([row]));
-
-    expect(projection).toEqual([{ subject, phase: "active" }]);
-    expect(projection[0]?.subject).toBe(subject);
-    expect(reads).toEqual({
-      subject: 1,
-      layerOrder: 1,
-      lifecycle: 1,
-      blocksLower: 1,
-    });
   });
 
   it("suspends only ready rows below the last blocker and leaves preparations preparing", () => {
@@ -193,14 +130,12 @@ describe("managed surface topology policy", () => {
     expect(blockerFirst[2]?.subject).toBe(last);
   });
 
-  it("returns a frozen empty projection without replacing or mutating the input", () => {
-    const rows = Object.freeze([]) as readonly ManagedSurfaceTopologyPolicyRowInternalV1<object>[];
+  it("returns an empty projection without replacing or mutating the input", () => {
+    const rows: readonly ManagedSurfaceTopologyPolicyRowInternalV1<object>[] = [];
 
     const projection = projectManagedSurfaceTopologyPolicyInternalV1(rows);
 
     expect(projection).toEqual([]);
-    expect(Object.isFrozen(projection)).toBe(true);
-    expect(Object.isFrozen(rows)).toBe(true);
   });
 
   it.each([

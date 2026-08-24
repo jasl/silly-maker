@@ -67,20 +67,20 @@ function viewportPointEventV1(
   event: PointerEvent,
   activePointer: ActivePointerV1,
 ): InputEventV1 {
-  return Object.freeze({
+  return ({
     kind: "viewport_point",
     phase,
-    point: Object.freeze({ x: event.clientX, y: event.clientY }),
+    point: { x: event.clientX, y: event.clientY },
     pointerId: activePointer.pointerId,
     pointerType: activePointer.pointerType,
   });
 }
 
 function pointerCancelEventV1(pointerId: NonNegativeSafeInteger): InputEventV1 {
-  return Object.freeze({ kind: "pointer_cancel", pointerId });
+  return ({ kind: "pointer_cancel", pointerId });
 }
 
-const focusLossEventV1 = Object.freeze({ kind: "focus_loss" } as const satisfies InputEventV1);
+const focusLossEventV1 = { kind: "focus_loss" } as const satisfies InputEventV1;
 
 export function installPointerAdapterV1(input: PointerAdapterInputV1): InstalledPointerAdapterV1 {
   let activePointer: ActivePointerV1 | undefined;
@@ -131,7 +131,7 @@ export function installPointerAdapterV1(input: PointerAdapterInputV1): Installed
     const pointerType = parsePointerTypeV1(event.pointerType);
     if (pointerId === undefined || pointerType === undefined) return;
 
-    const accepted = Object.freeze({ pointerId, pointerType });
+    const accepted = { pointerId, pointerType };
     activePointer = accepted;
     try {
       input.target.setPointerCapture(pointerId);
@@ -199,7 +199,7 @@ export function installPointerAdapterV1(input: PointerAdapterInputV1): Installed
   input.window.addEventListener("blur", onFocusLoss);
   input.document.addEventListener("visibilitychange", onVisibilityChange);
 
-  return Object.freeze({
+  return ({
     dispose(): void {
       if (disposed) return;
       disposed = true;

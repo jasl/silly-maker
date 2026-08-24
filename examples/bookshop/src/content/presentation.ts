@@ -115,12 +115,12 @@ export function bookshopTextForLocaleV1(locale: string | null, textId: string): 
 }
 
 /** Both shopkeepers share one content box, anchored at bottom center. */
-const bookshopCharacterGeometryV1 = Object.freeze({
+const bookshopCharacterGeometryV1 = {
   width: 220,
   height: 420,
   anchorXPermille: 500,
   anchorYPermille: 1000,
-});
+};
 
 /**
  * The stage content catalog: the only place that knows renderer IDs and
@@ -131,37 +131,37 @@ export const bookshopStageContentCatalogV1: StageContentCatalog = {
   resolveContent(contentId, appearance): StageContentResolution | null {
     switch (contentId as string) {
       case bookshopContentIdsV1.backgroundShop:
-        return Object.freeze({
+        return ({
           rendererId: "renderer.bookshop.background",
-          assetIds: Object.freeze([]),
+          assetIds: [],
           accessibleName: "雨夜的旧书店",
-          props: Object.freeze({ surface: "shop" }),
+          props: { surface: "shop" },
         });
       case bookshopContentIdsV1.backgroundYard:
-        return Object.freeze({
+        return ({
           rendererId: "renderer.bookshop.background",
-          assetIds: Object.freeze([]),
+          assetIds: [],
           accessibleName: "书店后院",
-          props: Object.freeze({ surface: "yard" }),
+          props: { surface: "yard" },
         });
       case bookshopContentIdsV1.characterZhou:
-        return Object.freeze({
+        return ({
           rendererId: "renderer.bookshop.character",
-          assetIds: Object.freeze([]),
+          assetIds: [],
           accessibleName: "老周",
-          props: Object.freeze({
+          props: {
             expression: typeof appearance.expression === "string" ? appearance.expression : "calm",
-          }),
+          },
           geometry: bookshopCharacterGeometryV1,
         });
       case bookshopContentIdsV1.characterCheng:
-        return Object.freeze({
+        return ({
           rendererId: "renderer.bookshop.character",
-          assetIds: Object.freeze([]),
+          assetIds: [],
           accessibleName: "阿澄",
-          props: Object.freeze({
+          props: {
             expression: typeof appearance.expression === "string" ? appearance.expression : "eager",
-          }),
+          },
           geometry: bookshopCharacterGeometryV1,
         });
       default:
@@ -170,35 +170,33 @@ export const bookshopStageContentCatalogV1: StageContentCatalog = {
   },
 };
 
-const transitionDefinitionsV1: readonly StageTransitionDefinition[] = Object.freeze(
-  [
-    {
-      transitionId: "transition.bookshop.crossfade",
-      kind: "crossfade",
-      durationMs: 400,
-      easing: "ease_in_out",
-      inputPolicy: "block",
-      interruption: "settle_and_retarget",
-      reducedMotion: { kind: "settle" },
-      readiness: { kind: "immediate" },
-      acknowledge: false,
-      slide: null,
-    },
-    {
-      transitionId: "transition.bookshop.enter",
-      kind: "slide",
-      durationMs: 300,
-      easing: "ease_in_out",
-      inputPolicy: "target_active",
-      interruption: "settle_and_retarget",
-      reducedMotion: { kind: "settle" },
-      readiness: { kind: "immediate" },
-      acknowledge: false,
-      slide: { x: 0, y: 120 },
-    },
-  ].map((definition, index) =>
-    parseStageTransitionDefinition(definition, `/transitions/${String(index)}`)
-  ),
+const transitionDefinitionsV1: readonly StageTransitionDefinition[] = [
+  {
+    transitionId: "transition.bookshop.crossfade",
+    kind: "crossfade",
+    durationMs: 400,
+    easing: "ease_in_out",
+    inputPolicy: "block",
+    interruption: "settle_and_retarget",
+    reducedMotion: { kind: "settle" },
+    readiness: { kind: "immediate" },
+    acknowledge: false,
+    slide: null,
+  },
+  {
+    transitionId: "transition.bookshop.enter",
+    kind: "slide",
+    durationMs: 300,
+    easing: "ease_in_out",
+    inputPolicy: "target_active",
+    interruption: "settle_and_retarget",
+    reducedMotion: { kind: "settle" },
+    readiness: { kind: "immediate" },
+    acknowledge: false,
+    slide: { x: 0, y: 120 },
+  },
+].map((definition, index) =>
+  parseStageTransitionDefinition(definition, `/transitions/${String(index)}`)
 );
 
 const transitionByIdV1: ReadonlyMap<string, StageTransitionDefinition> = new Map(
@@ -229,5 +227,5 @@ export interface BookshopPresentationProgramV1 {
 }
 
 export function materializeBookshopPresentationV1(): BookshopPresentationProgramV1 {
-  return Object.freeze({ kind: "bookshop-presentation", textCatalogs: bookshopTextCatalogsV1 });
+  return ({ kind: "bookshop-presentation", textCatalogs: bookshopTextCatalogsV1 });
 }

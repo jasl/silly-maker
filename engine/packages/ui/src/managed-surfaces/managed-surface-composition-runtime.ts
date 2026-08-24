@@ -99,7 +99,7 @@ export function createManagedSurfaceCompositionRuntimeInternalV1(
   };
   attachCurrent(null);
 
-  return Object.freeze({
+  return {
     getCurrent(): ManagedSurfaceCoordinatorRuntimeV1 {
       if (disposed) throw new TypeError("ui.managed_surface_composition_runtime_disposed");
       return current;
@@ -114,9 +114,9 @@ export function createManagedSurfaceCompositionRuntimeInternalV1(
       }
       transitioning = true;
       const activationState = { open: false };
-      const activationGate: ManagedSurfaceFamilyActivationGateInternalV1 = Object.freeze({
+      const activationGate: ManagedSurfaceFamilyActivationGateInternalV1 = {
         isOpen: (): boolean => activationState.open,
-      });
+      };
       try {
         const activationNotifications: (() => void)[] = [];
         try {
@@ -163,7 +163,7 @@ export function createManagedSurfaceCompositionRuntimeInternalV1(
               { cause: error },
             );
             Object.defineProperty(cleanupFailure, "cleanupErrors", {
-              value: Object.freeze([...cleanupErrors]),
+              value: cleanupErrors,
             });
             throw cleanupFailure;
           }
@@ -182,16 +182,16 @@ export function createManagedSurfaceCompositionRuntimeInternalV1(
       unsubscribePublication = null;
       lifetime.dispose();
     },
-  });
+  };
 }
 
 /** @internal Local non-HMR allocator; hosted composition injects the realm-stable allocator. */
 export function createLocalManagedSurfaceEpochAllocatorInternalV1(): ManagedSurfaceApplicationEpochAllocatorV1 {
   let cursor: NonNegativeSafeInteger = parseNonNegativeSafeInteger(0);
-  return Object.freeze({
+  return {
     allocate(): NonNegativeSafeInteger {
       cursor = parseNonNegativeSafeInteger(cursor + 1);
       return cursor;
     },
-  });
+  };
 }

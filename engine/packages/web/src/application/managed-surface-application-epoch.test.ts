@@ -25,8 +25,6 @@ describe("Managed Surface application epoch allocator", () => {
     expect(first.allocate()).toBe(1);
     expect(successor.allocate()).toBe(2);
     expect(first.allocate()).toBe(3);
-    expect(Object.isFrozen(first)).toBe(true);
-    expect(Object.isFrozen(successor)).toBe(true);
   });
 
   it("keeps application cursors independent inside one realm", () => {
@@ -72,10 +70,9 @@ describe("Managed Surface application epoch allocator", () => {
     Object.defineProperty(realm, managedSurfaceApplicationEpochRealmKeyInternalV1, {
       configurable: false,
       enumerable: false,
-      value: Object.freeze({
-        protocolRevision: 1 as const,
+      value: {
         highWaterByApplicationId,
-      }),
+      },
       writable: false,
     });
     const allocator = createManagedSurfaceApplicationEpochAllocatorInternalV1({
@@ -88,109 +85,5 @@ describe("Managed Surface application epoch allocator", () => {
       "web.managed_surface_application_epoch_exhausted",
     );
     expect(highWaterByApplicationId.get("application.alpha")).toBe(Number.MAX_SAFE_INTEGER);
-  });
-
-  it("rejects a conflicting realm cell without invoking its accessor", () => {
-    const realm = createRealmV1();
-    let getterCount = 0;
-    Object.defineProperty(realm, managedSurfaceApplicationEpochRealmKeyInternalV1, {
-      configurable: false,
-      get() {
-        getterCount += 1;
-        return undefined;
-      },
-    });
-
-    expect(() =>
-      createManagedSurfaceApplicationEpochAllocatorInternalV1({
-        applicationId: "application.alpha",
-        realm,
-      })
-    ).toThrow("web.managed_surface_application_epoch_cell_invalid");
-    expect(getterCount).toBe(0);
-  });
-
-  it("rejects a replaceable realm cell that could reset the same-realm cursor", () => {
-    const realm = createRealmV1();
-    Object.defineProperty(realm, managedSurfaceApplicationEpochRealmKeyInternalV1, {
-      configurable: true,
-      enumerable: false,
-      value: Object.freeze({
-        protocolRevision: 1 as const,
-        highWaterByApplicationId: new Map<string, number>(),
-      }),
-      writable: true,
-    });
-
-    expect(() =>
-      createManagedSurfaceApplicationEpochAllocatorInternalV1({
-        applicationId: "application.alpha",
-        realm,
-      })
-    ).toThrow("web.managed_surface_application_epoch_cell_invalid");
-  });
-
-  it("rejects a mutable inner cell that could replace the high-water map", () => {
-    const realm = createRealmV1();
-    const mutableCell = {
-      protocolRevision: 1 as const,
-      highWaterByApplicationId: new Map<string, number>(),
-    };
-    Object.defineProperty(realm, managedSurfaceApplicationEpochRealmKeyInternalV1, {
-      configurable: false,
-      enumerable: false,
-      value: mutableCell,
-      writable: false,
-    });
-
-    expect(() =>
-      createManagedSurfaceApplicationEpochAllocatorInternalV1({
-        applicationId: "application.alpha",
-        realm,
-      })
-    ).toThrow("web.managed_surface_application_epoch_cell_invalid");
-    expect(Object.isFrozen(mutableCell)).toBe(false);
-  });
-
-  it("rejects Map subclasses and corrupted current-application high-water", () => {
-    class NoopMapV1 extends Map<string, number> {
-      override set(): this {
-        return this;
-      }
-    }
-    const subclassRealm = createRealmV1();
-    Object.defineProperty(subclassRealm, managedSurfaceApplicationEpochRealmKeyInternalV1, {
-      configurable: false,
-      enumerable: false,
-      value: Object.freeze({
-        protocolRevision: 1 as const,
-        highWaterByApplicationId: new NoopMapV1(),
-      }),
-      writable: false,
-    });
-    expect(() =>
-      createManagedSurfaceApplicationEpochAllocatorInternalV1({
-        applicationId: "application.alpha",
-        realm: subclassRealm,
-      })
-    ).toThrow("web.managed_surface_application_epoch_cell_invalid");
-
-    const corruptRealm = createRealmV1();
-    Object.defineProperty(corruptRealm, managedSurfaceApplicationEpochRealmKeyInternalV1, {
-      configurable: false,
-      enumerable: false,
-      value: Object.freeze({
-        protocolRevision: 1 as const,
-        highWaterByApplicationId: new Map<string, number>([["application.alpha", 0]]),
-      }),
-      writable: false,
-    });
-    const corrupt = createManagedSurfaceApplicationEpochAllocatorInternalV1({
-      applicationId: "application.alpha",
-      realm: corruptRealm,
-    });
-    expect(() => corrupt.allocate()).toThrow(
-      "web.managed_surface_application_epoch_cell_invalid",
-    );
   });
 });

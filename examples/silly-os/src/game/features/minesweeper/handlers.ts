@@ -16,7 +16,7 @@ import {
 export const minesweeperCommandHandlersV1: Pick<
   OsCommandHandlerMapV1,
   "os.mine.new" | "os.mine.reveal" | "os.mine.flag"
-> = Object.freeze({
+> = {
   "os.mine.new": ({ snapshot, rng, command }) =>
     transactionRunnerV1.execute(snapshot, rng, (transaction) => {
       if (!osBoardConfigValidV1(command.width, command.height, command.mines)) {
@@ -57,8 +57,7 @@ export const minesweeperCommandHandlersV1: Pick<
         working = osPlaceMinesV1(
           working,
           index,
-          (exclusiveMax) =>
-            rng.nextInt(Object.freeze({ purpose: "check:os.mine_place", exclusiveMax })),
+          (exclusiveMax) => rng.nextInt({ purpose: "check:os.mine_place", exclusiveMax }),
         );
       }
 
@@ -67,16 +66,16 @@ export const minesweeperCommandHandlersV1: Pick<
         // Mine hit: the board is terminal; reveal this cell (full mine reveal is released by the publication projection after the game ends).
         const cells = [...working.cells];
         cells[index] = (cells[index] as number) | osCellRevealedV1;
-        working = Object.freeze({
+        working = {
           ...working,
           status: "lost" as const,
-          cells: Object.freeze(cells),
-        });
+          cells: cells,
+        };
         broadcast = "exploded";
       } else {
         working = osRevealFloodV1(working, index);
         if (osBoardWonV1(working)) {
-          working = Object.freeze({ ...working, status: "won" as const });
+          working = { ...working, status: "won" as const };
           broadcast = "won";
         }
       }
@@ -106,8 +105,8 @@ export const minesweeperCommandHandlersV1: Pick<
       cells[index] = cell ^ osCellFlaggedV1;
       transaction.emit({
         kind: "os.mine.board_set",
-        board: Object.freeze({ ...board, cells: Object.freeze(cells) }),
+        board: { ...board, cells: cells },
       });
       return transaction.complete();
     }),
-});
+};

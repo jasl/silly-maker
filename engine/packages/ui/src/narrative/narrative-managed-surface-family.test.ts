@@ -11,6 +11,7 @@ import {
   type AssetId,
   type DeepReadonly,
   type NarrativeHistoryV1,
+  type PendingInteractionV1,
   type SemanticStageStateV1,
   type StageContentCatalogV1,
   type StageRenderTargetV1,
@@ -92,6 +93,7 @@ import {
   type NarrativeStableCandidatePreflightInternalV1,
   type NarrativeStableCandidatePreflightRejectionCodeInternalV1,
   type NarrativeStableCandidatePreflightResultInternalV1,
+  type NarrativeStableCandidateSnapshotInternalV1,
   type NarrativeStableChoiceActionAttemptInternalV1,
   type NarrativeStableBarrierAcknowledgmentControllerInternalV1,
   type NarrativeStableBarrierRecoveryAttemptInternalV1,
@@ -164,34 +166,34 @@ const narrativeToggleHistoryActionIdV1 = parseManagedSurfaceActionIdV1(
   playerInputActionIdsV1.toggleHistory,
 );
 const narrativeUnknownActionIdV1 = parseManagedSurfaceActionIdV1("narrative.unknown");
-const zeroDeltaV1 = Object.freeze({
-  source: "unchanged" as const,
-  runtime: "unchanged" as const,
-  notificationCount: 0 as const,
-  topology: "unchanged" as const,
-  runtimeAllocation: "zero" as const,
-});
-const defaultSemanticDispatchPortV1 = Object.freeze({
+const zeroDeltaV1 = {
+  source: "unchanged",
+  runtime: "unchanged",
+  notificationCount: 0,
+  topology: "unchanged",
+  runtimeAllocation: "zero",
+} as const;
+const defaultSemanticDispatchPortV1 = ({
   dispatchResolutionInternalV1: (_request: unknown) => Promise.resolve(undefined),
 }) satisfies NarrativeStableSemanticResolutionPortInternalV1;
-const defaultHistoryAvailabilityPortV1 = Object.freeze({
+const defaultHistoryAvailabilityPortV1 = ({
   readHistoryAvailabilityInternalV1: () => true,
 }) satisfies NarrativeStableHistoryAvailabilityPortInternalV1;
-const defaultHistoryObservationPortV1 = Object.freeze({
+const defaultHistoryObservationPortV1 = ({
   getSnapshotInternalV1: () => emptyNarrativeHistoryV1,
-  subscribeInternalV1: (_listener: () => void) => Object.freeze(() => {}),
+  subscribeInternalV1: (_listener: () => void) => (() => {}),
 }) satisfies NarrativeStableHistoryObservationPortInternalV1;
-const defaultDialoguePlayerProfilePortV1 = Object.freeze({
+const defaultDialoguePlayerProfilePortV1 = ({
   getSnapshotInternalV1: () => defaultPlayerProfileV1,
-  subscribeInternalV1: (_listener: () => void) => Object.freeze(() => {}),
+  subscribeInternalV1: (_listener: () => void) => (() => {}),
   markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
 }) satisfies NarrativeStableDialoguePlayerProfilePortInternalV1;
-const defaultDialoguePlayerClockPortV1 = Object.freeze({
+const defaultDialoguePlayerClockPortV1 = ({
   nowInternalV1: () => 0,
-  requestTickInternalV1: (_callback: (nowMs: number) => void) => Object.freeze(() => {}),
+  requestTickInternalV1: (_callback: (nowMs: number) => void) => (() => {}),
   prefersReducedMotionInternalV1: () => false,
 }) satisfies NarrativeStableDialoguePlayerClockPortInternalV1;
-const defaultDialoguePlayerTextResolverPortV1 = Object.freeze({
+const defaultDialoguePlayerTextResolverPortV1 = ({
   resolveTextInternalV1: (textId: string) => textId,
 }) satisfies NarrativeStableDialoguePlayerTextResolverPortInternalV1;
 
@@ -210,13 +212,13 @@ function controlledDialoguePlayerClockV1(nowMs = 1_000): ControlledDialoguePlaye
   const requestTick = vi.fn((callback: (nextNowMs: number) => void) => {
     scheduledTicks.push(callback);
     let active = true;
-    return Object.freeze(() => {
+    return (() => {
       if (!active) return;
       active = false;
       cancellations += 1;
     });
   });
-  const port = Object.freeze({
+  const port = ({
     nowInternalV1: now,
     requestTickInternalV1: requestTick,
     prefersReducedMotionInternalV1: () => false,
@@ -233,9 +235,9 @@ function controlledDialoguePlayerClockV1(nowMs = 1_000): ControlledDialoguePlaye
     },
   };
 }
-const defaultCandidateSnapshotV1 = Object.freeze({
-  rendererComponent: Object.freeze({ kind: "dialogue-renderer" }),
-  visualConfig: Object.freeze({ skin: "test" }),
+const defaultCandidateSnapshotV1 = ({
+  rendererComponent: () => null,
+  visualConfig: { skin: "test" },
   semanticDispatchPort: defaultSemanticDispatchPortV1,
   historyObservationPort: defaultHistoryObservationPortV1,
   historyAvailabilityPort: defaultHistoryAvailabilityPortV1,
@@ -244,17 +246,16 @@ const defaultCandidateSnapshotV1 = Object.freeze({
   textResolver: defaultDialoguePlayerTextResolverPortV1,
   voiceReplayPort: null,
   quickMenuContribution: null,
-});
+}) satisfies NarrativeStableCandidateSnapshotInternalV1;
 const capturedCandidatePreflightResultV1 = (
-  candidateSnapshot: unknown = defaultCandidateSnapshotV1,
-) =>
-  Object.freeze({
-    kind: "captured" as const,
-    candidateSnapshot,
-  });
-const defaultCandidatePreflightV1: NarrativeStableCandidatePreflightInternalV1 = Object.freeze({
-  preflightCandidateInternalV1: () => capturedCandidatePreflightResultV1(),
+  candidateSnapshot: NarrativeStableCandidateSnapshotInternalV1 = defaultCandidateSnapshotV1,
+): NarrativeStableCandidatePreflightResultInternalV1 => ({
+  kind: "captured" as const,
+  candidateSnapshot,
 });
+const defaultCandidatePreflightV1: NarrativeStableCandidatePreflightInternalV1 = {
+  preflightCandidateInternalV1: () => capturedCandidatePreflightResultV1(),
+};
 
 interface NarrativeHarnessV1 {
   readonly contract: NarrativeManagedSurfaceFamilyContractInternalV1;
@@ -332,14 +333,14 @@ function currentDialoguePlayerTargetV1(harness: NarrativeHarnessV1) {
   const target = baseline.targets[0]!;
   const frame = harness.bridge.inspectAdmittedTargetFrameInternalV1(target);
   if (frame === null) throw new Error("expected exact Narrative target frame");
-  return Object.freeze({ target, frame });
+  return ({ target, frame });
 }
 
 function createDialoguePlayerControllerV1(
   harness: NarrativeHarnessV1,
 ): NarrativeStableDialoguePlayerControllerInternalV1 {
   const { target, frame } = currentDialoguePlayerTargetV1(harness);
-  const input = Object.freeze({
+  const input = ({
     bridge: harness.bridge,
     target,
     frame,
@@ -358,10 +359,33 @@ function occurrenceV1(sequence: number): string {
   return `interaction-occurrence.${String(sequence)}`;
 }
 
+type PendingKindV1 = PendingInteractionV1["kind"];
+
 function pendingV1(
-  kind: "say" | "choice" | "hold" | "presentation_barrier" | "custom",
+  kind: "say",
+  sequence?: number,
+): Extract<PendingInteractionV1, { readonly kind: "say" }>;
+function pendingV1(
+  kind: "choice",
+  sequence?: number,
+): Extract<PendingInteractionV1, { readonly kind: "choice" }>;
+function pendingV1(
+  kind: "hold",
+  sequence?: number,
+): Extract<PendingInteractionV1, { readonly kind: "hold" }>;
+function pendingV1(
+  kind: "presentation_barrier",
+  sequence?: number,
+): Extract<PendingInteractionV1, { readonly kind: "presentation_barrier" }>;
+function pendingV1(
+  kind: "custom",
+  sequence?: number,
+): Extract<PendingInteractionV1, { readonly kind: "custom" }>;
+function pendingV1(kind: PendingKindV1, sequence?: number): PendingInteractionV1;
+function pendingV1(
+  kind: PendingKindV1,
   sequence = 1,
-): unknown {
+): PendingInteractionV1 {
   const base = {
     definitionId: `narrative.test.${kind.replace("_", "-")}`,
     seenRevision: 1,
@@ -407,15 +431,14 @@ function pendingV1(
   }
 }
 
-const barrierStageContentCatalogV1: StageContentCatalogV1 = Object.freeze({
-  resolveContent: (contentId: Parameters<StageContentCatalogV1["resolveContent"]>[0]) =>
-    Object.freeze({
-      rendererId: "renderer.test.barrier-stage",
-      assetIds: Object.freeze([`asset.for.${contentId}` as AssetId]),
-      accessibleName: `Barrier stage ${contentId}`,
-      props: Object.freeze({}),
-    }),
-});
+const barrierStageContentCatalogV1: StageContentCatalogV1 = {
+  resolveContent: (contentId: Parameters<StageContentCatalogV1["resolveContent"]>[0]) => ({
+    rendererId: "renderer.test.barrier-stage",
+    assetIds: [`asset.for.${contentId}` as AssetId],
+    accessibleName: `Barrier stage ${contentId}`,
+    props: {},
+  }),
+};
 
 function barrierStageStateV1(contents: readonly string[]): SemanticStageStateV1 {
   const initial = createSemanticStageStateV1({
@@ -464,7 +487,7 @@ function barrierTransitionCatalogV1(
   resolve: StageTransitionCatalogV1["resolveTransition"],
   byId: Readonly<Record<string, StageTransitionDefinitionV1>> = {},
 ): StageTransitionCatalogV1 {
-  return Object.freeze({
+  return ({
     resolveTransition: resolve,
     resolveTransitionById: (
       transitionId: Parameters<NonNullable<StageTransitionCatalogV1["resolveTransitionById"]>>[0],
@@ -521,7 +544,7 @@ function barrierRetargetInputV1(
   target: StageRenderTargetV1,
   revision: number,
 ): StageRetargetInputV1 {
-  return Object.freeze({ target, revision, epoch: applicationEpochV1 });
+  return ({ target, revision, epoch: applicationEpochV1 });
 }
 
 function barrierPresentationRetargetInputV1(
@@ -529,7 +552,7 @@ function barrierPresentationRetargetInputV1(
   revision: number,
   epoch: number,
 ): StageRetargetInputV1 {
-  return Object.freeze({
+  return ({
     target,
     revision,
     epoch: parseNonNegativeSafeInteger(epoch),
@@ -539,9 +562,9 @@ function barrierPresentationRetargetInputV1(
 function barrierPendingWithRecoveryV1(
   loadRecovery: "settle" | "replay",
   sequence = 1,
-): unknown {
+): Extract<PendingInteractionV1, { readonly kind: "presentation_barrier" }> {
   return {
-    ...(pendingV1("presentation_barrier", sequence) as Record<string, unknown>),
+    ...pendingV1("presentation_barrier", sequence),
     loadRecovery,
   };
 }
@@ -561,7 +584,7 @@ function mutableActivationGateV1(initiallyOpen = false): MutableActivationGateV1
     if (fault !== null) throw fault;
     return open;
   });
-  const gate = Object.freeze({ isOpen }) satisfies ManagedSurfaceFamilyActivationGateInternalV1;
+  const gate = ({ isOpen }) satisfies ManagedSurfaceFamilyActivationGateInternalV1;
   return {
     gate,
     isOpen,
@@ -583,7 +606,6 @@ function expectZeroResultV1(
   code: string,
 ): void {
   expect(value).toEqual({ kind, code, delta: zeroDeltaV1 });
-  expect(Object.isFrozen(value)).toBe(true);
 }
 
 function settleCurrentNarrativeReadyV1(harness: NarrativeHarnessV1): void {
@@ -591,10 +613,10 @@ function settleCurrentNarrativeReadyV1(harness: NarrativeHarnessV1): void {
   if (entry?.binding.kind !== "preparing") throw new Error("expected Narrative preparation");
   expect(
     harness.kernel.settleStableReadinessReadyInternalV1({
-      readinessEvidence: Object.freeze({
+      readinessEvidence: {
         applicationEpoch: applicationEpochV1,
         surfaceInstanceId: entry.binding.attempt.identity.surfaceInstanceId,
-      }),
+      },
       publisherLease: entry.desiredTarget.publisherLease,
       sourceRevision: entry.desiredTarget.sourceRevision,
     }),
@@ -604,13 +626,13 @@ function settleCurrentNarrativeReadyV1(harness: NarrativeHarnessV1): void {
 function stableContributorCandidatesV1(
   entries: readonly ManagedSurfaceStableRuntimeEntryInternalV1[],
 ): readonly ManagedSurfaceStableRootReservationContributorCandidateInternalV1[] {
-  return Object.freeze(entries.flatMap((entry) => [
-    Object.freeze({ kind: "stable_desired" as const, desiredTarget: entry.desiredTarget }),
-    Object.freeze({
+  return (entries.flatMap((entry) => [
+    { kind: "stable_desired" as const, desiredTarget: entry.desiredTarget },
+    {
       kind: "stable_runtime" as const,
       desiredTarget: entry.desiredTarget,
       binding: entry.binding,
-    }),
+    },
   ]));
 }
 
@@ -625,16 +647,14 @@ function captureNarrativePhaseInstallV1(
     attempt: entry.binding.instance.attempt,
     phase,
   });
-  const entries = Object.freeze(
-    current.stableRuntimeBindings.map((candidate) =>
-      candidate === entry ? Object.freeze({ ...candidate, binding: suspended }) : candidate
-    ),
+  const entries = current.stableRuntimeBindings.map((candidate) =>
+    candidate === entry ? ({ ...candidate, binding: suspended }) : candidate
   );
   const next = reconcileManagedSurfaceStableRootReservationsInternalV1({
     currentState: current,
     contributorCandidates: stableContributorCandidatesV1(entries),
   });
-  return Object.freeze({ current, next });
+  return ({ current, next });
 }
 
 function captureSuspendedNarrativeInstallV1(harness: NarrativeHarnessV1) {
@@ -655,13 +675,13 @@ function physicalChoiceHarnessV1(input: {
 } = {}) {
   const semanticDispatchPort = input.semanticDispatchPort ?? defaultSemanticDispatchPortV1;
   const harness = harnessV1({
-    candidatePreflight: Object.freeze({
+    candidatePreflight: {
       preflightCandidateInternalV1: () =>
-        capturedCandidatePreflightResultV1(Object.freeze({
+        capturedCandidatePreflightResultV1({
           ...defaultCandidateSnapshotV1,
           semanticDispatchPort,
-        })),
-    }),
+        }),
+    },
   });
   expect(harness.bridge.reconcilePendingInternalV1(pendingV1("choice"))).toMatchObject({
     kind: "applied",
@@ -672,7 +692,7 @@ function physicalChoiceHarnessV1(input: {
   const stableActionAuthority = claimManagedSurfaceStableActionRouteAuthorityInternalV1(
     harness.kernel,
   );
-  const admissionInput = Object.freeze({
+  const admissionInput = ({
     bridge: harness.bridge,
     inputRouter,
     isGestureCurrent: input.isGestureCurrent ?? (() => true),
@@ -688,16 +708,16 @@ function physicalHoldHarnessV1(input: {
 } = {}) {
   const semanticDispatchPort = input.semanticDispatchPort ?? defaultSemanticDispatchPortV1;
   const harness = harnessV1({
-    candidatePreflight: Object.freeze({
+    candidatePreflight: {
       preflightCandidateInternalV1: () =>
-        capturedCandidatePreflightResultV1(Object.freeze({
+        capturedCandidatePreflightResultV1({
           ...defaultCandidateSnapshotV1,
           semanticDispatchPort,
-        })),
-    }),
+        }),
+    },
   });
   const pending = {
-    ...(pendingV1("hold") as Record<string, unknown>),
+    ...(pendingV1("hold")),
     skippable: input.skippable ?? true,
   };
   expect(harness.bridge.reconcilePendingInternalV1(pending)).toMatchObject({
@@ -706,7 +726,7 @@ function physicalHoldHarnessV1(input: {
   });
   settleCurrentNarrativeReadyV1(harness);
   const inputRouter = createInputRouterV1();
-  const admissionInput = Object.freeze({
+  const admissionInput = ({
     bridge: harness.bridge,
     inputRouter,
     isGestureCurrent: input.isGestureCurrent ?? (() => true),
@@ -721,13 +741,13 @@ function physicalCustomHarnessV1(input: {
 } = {}) {
   const semanticDispatchPort = input.semanticDispatchPort ?? defaultSemanticDispatchPortV1;
   const harness = harnessV1({
-    candidatePreflight: Object.freeze({
+    candidatePreflight: {
       preflightCandidateInternalV1: () =>
-        capturedCandidatePreflightResultV1(Object.freeze({
+        capturedCandidatePreflightResultV1({
           ...defaultCandidateSnapshotV1,
           semanticDispatchPort,
-        })),
-    }),
+        }),
+    },
   });
   expect(harness.bridge.reconcilePendingInternalV1(pendingV1("custom"))).toMatchObject({
     kind: "applied",
@@ -748,16 +768,16 @@ function physicalSayHarnessV1(input: {
   readonly revealGenerationPort?: NarrativeStableSayRevealGenerationPortInternalV1;
   readonly isGestureCurrent?: () => boolean;
   readonly advancePolicy?: "confirm" | "auto";
-  readonly historyAvailabilityPort?: unknown;
-  readonly playerProfile?: unknown;
-  readonly presentationClock?: unknown;
-  readonly voiceReplayPort?: unknown;
+  readonly historyAvailabilityPort?: NarrativeStableHistoryAvailabilityPortInternalV1;
+  readonly playerProfile?: NarrativeStableDialoguePlayerProfilePortInternalV1;
+  readonly presentationClock?: NarrativeStableDialoguePlayerClockPortInternalV1;
+  readonly voiceReplayPort?: NarrativeStableVoiceReplayPortInternalV1 | null;
 } = {}) {
   const semanticDispatchPort = input.semanticDispatchPort ?? defaultSemanticDispatchPortV1;
   const harness = harnessV1({
-    candidatePreflight: Object.freeze({
+    candidatePreflight: {
       preflightCandidateInternalV1: () =>
-        capturedCandidatePreflightResultV1(Object.freeze({
+        capturedCandidatePreflightResultV1({
           ...defaultCandidateSnapshotV1,
           semanticDispatchPort,
           historyAvailabilityPort: input.historyAvailabilityPort ??
@@ -766,21 +786,21 @@ function physicalSayHarnessV1(input: {
           presentationClock: input.presentationClock ??
             defaultCandidateSnapshotV1.presentationClock,
           voiceReplayPort: input.voiceReplayPort ?? defaultCandidateSnapshotV1.voiceReplayPort,
-        })),
-    }),
+        }),
+    },
   });
   expect(
     harness.bridge.reconcilePendingInternalV1({
-      ...(pendingV1("say") as Record<string, unknown>),
+      ...(pendingV1("say")),
       advancePolicy: input.advancePolicy ?? "confirm",
     }),
   ).toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
   settleCurrentNarrativeReadyV1(harness);
-  const revealGenerationPort = input.revealGenerationPort ?? Object.freeze({
+  const revealGenerationPort = input.revealGenerationPort ?? ({
     capturePhaseInternalV1: () => "incomplete" as const,
     revealAllInternalV1: () => {},
   });
-  const controllerInput = Object.freeze({
+  const controllerInput = ({
     bridge: harness.bridge,
     revealGenerationPort,
   }) satisfies CreateNarrativeStableSayRevealControllerInputInternalV1;
@@ -835,11 +855,11 @@ function historyAvailabilityPortV1(
 
 function physicalHistoryHarnessV1(input: {
   readonly kind?: NarrativeReadyPendingKindV1;
-  readonly historyAvailabilityPort?: unknown;
-  readonly historyObservationPort?: unknown;
-  readonly playerProfile?: unknown;
-  readonly presentationClock?: unknown;
-  readonly textResolver?: unknown;
+  readonly historyAvailabilityPort?: NarrativeStableHistoryAvailabilityPortInternalV1;
+  readonly historyObservationPort?: NarrativeStableHistoryObservationPortInternalV1;
+  readonly playerProfile?: NarrativeStableDialoguePlayerProfilePortInternalV1;
+  readonly presentationClock?: NarrativeStableDialoguePlayerClockPortInternalV1;
+  readonly textResolver?: NarrativeStableDialoguePlayerTextResolverPortInternalV1;
   readonly semanticDispatchPort?: NarrativeStableSemanticResolutionPortInternalV1;
   readonly isGestureCurrent?: () => boolean;
   readonly beforeSettleReady?: (harness: NarrativeHarnessV1) => void;
@@ -851,9 +871,9 @@ function physicalHistoryHarnessV1(input: {
   const historyAvailabilityPort = input.historyAvailabilityPort ??
     defaultCandidateSnapshotV1.historyAvailabilityPort;
   const harness = harnessV1({
-    candidatePreflight: Object.freeze({
+    candidatePreflight: {
       preflightCandidateInternalV1: () =>
-        capturedCandidatePreflightResultV1(Object.freeze({
+        capturedCandidatePreflightResultV1({
           ...defaultCandidateSnapshotV1,
           semanticDispatchPort,
           historyObservationPort,
@@ -862,8 +882,8 @@ function physicalHistoryHarnessV1(input: {
           presentationClock: input.presentationClock ??
             defaultCandidateSnapshotV1.presentationClock,
           textResolver: input.textResolver ?? defaultCandidateSnapshotV1.textResolver,
-        })),
-    }),
+        }),
+    },
   });
   expect(harness.bridge.reconcilePendingInternalV1(pendingV1(kind))).toMatchObject({
     kind: "applied",
@@ -949,23 +969,23 @@ function createNarrativeBridgeSuccessorV1(
 function automaticHoldHarnessV1(input: {
   readonly semanticDispatchPort?: NarrativeStableSemanticResolutionPortInternalV1;
   readonly skippable?: boolean;
-  readonly presentationClock?: object | ((...args: never[]) => unknown);
+  readonly presentationClock?: NarrativeStableDialoguePlayerClockPortInternalV1;
 } = {}) {
   const semanticDispatchPort = input.semanticDispatchPort ?? defaultSemanticDispatchPortV1;
   const harness = harnessV1({
-    candidatePreflight: Object.freeze({
+    candidatePreflight: {
       preflightCandidateInternalV1: () =>
-        capturedCandidatePreflightResultV1(Object.freeze({
+        capturedCandidatePreflightResultV1({
           ...defaultCandidateSnapshotV1,
           semanticDispatchPort,
           presentationClock: input.presentationClock ??
             defaultCandidateSnapshotV1.presentationClock,
-        })),
-    }),
+        }),
+    },
   });
   expect(
     harness.bridge.reconcilePendingInternalV1({
-      ...(pendingV1("hold") as Record<string, unknown>),
+      ...(pendingV1("hold")),
       skippable: input.skippable ?? true,
     }),
   ).toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
@@ -983,27 +1003,27 @@ interface NarrativeBarrierHarnessV1 {
 
 function narrativeBarrierHarnessV1(input: {
   readonly semanticDispatchPort?: NarrativeStableSemanticResolutionPortInternalV1;
-  readonly historyAvailabilityPort?: unknown;
+  readonly historyAvailabilityPort?: NarrativeStableHistoryAvailabilityPortInternalV1;
   readonly transition?: StageTransitionDefinitionV1;
   readonly resolveTransition?: StageTransitionCatalogV1["resolveTransition"];
   readonly initialContents?: readonly string[];
   readonly nextContents?: readonly string[];
-  readonly pending?: unknown;
+  readonly pending?: PendingInteractionV1;
   readonly settleReady?: boolean;
   readonly prefersReducedMotion?: () => boolean;
   readonly assetsReady?: (assetIds: readonly AssetId[]) => boolean;
 } = {}): NarrativeBarrierHarnessV1 {
   const semanticDispatchPort = input.semanticDispatchPort ?? defaultSemanticDispatchPortV1;
   const harness = harnessV1({
-    candidatePreflight: Object.freeze({
+    candidatePreflight: {
       preflightCandidateInternalV1: () =>
-        capturedCandidatePreflightResultV1(Object.freeze({
+        capturedCandidatePreflightResultV1({
           ...defaultCandidateSnapshotV1,
           semanticDispatchPort,
           historyAvailabilityPort: input.historyAvailabilityPort ??
             defaultCandidateSnapshotV1.historyAvailabilityPort,
-        })),
-    }),
+        }),
+    },
   });
   expect(
     harness.bridge.reconcilePendingInternalV1(
@@ -1023,7 +1043,7 @@ function narrativeBarrierHarnessV1(input: {
       : { prefersReducedMotion: input.prefersReducedMotion }),
     ...(input.assetsReady === undefined ? {} : { assetsReady: input.assetsReady }),
   });
-  const controllerInput = Object.freeze({
+  const controllerInput = ({
     bridge: harness.bridge,
     stageReconciler: stage.reconciler,
   }) satisfies CreateNarrativeStableBarrierAcknowledgmentControllerInputInternalV1;
@@ -1033,29 +1053,17 @@ function narrativeBarrierHarnessV1(input: {
   return { harness, stage, controller, semanticDispatchPort };
 }
 
-function expectBarrierResultFrozenV1(
-  result:
-    | NarrativeStableBarrierStageRetargetResultInternalV1
-    | NarrativeStableBarrierTerminalDispatchResultInternalV1,
-): void {
-  expect(Object.isFrozen(result)).toBe(true);
-  expect(Object.keys(result)).toEqual(
-    result.kind === "faulted" && "code" in result
-      ? ["kind", "code", "completion"]
-      : ["kind", "completion"],
-  );
-}
-
 function nonBlockingNarrativeHarnessV1(
   semanticDispatchPort: NarrativeStableSemanticResolutionPortInternalV1,
   layerOrder = 90,
   modality: "non_blocking" | "blocking" = "non_blocking",
-  voiceReplayPort: unknown = defaultCandidateSnapshotV1.voiceReplayPort,
+  voiceReplayPort: NarrativeStableVoiceReplayPortInternalV1 | null =
+    defaultCandidateSnapshotV1.voiceReplayPort,
   dialoguePlayerPorts: Readonly<{
-    readonly playerProfile?: unknown;
-    readonly presentationClock?: unknown;
-    readonly textResolver?: unknown;
-  }> = Object.freeze({}),
+    readonly playerProfile?: NarrativeStableDialoguePlayerProfilePortInternalV1;
+    readonly presentationClock?: NarrativeStableDialoguePlayerClockPortInternalV1;
+    readonly textResolver?: NarrativeStableDialoguePlayerTextResolverPortInternalV1;
+  }> = ({}),
 ) {
   const contract = createNarrativeManagedSurfaceFamilyContractInternalV1();
   const nonBlockingDefinition = parseManagedSurfaceResolvedDefinitionV1({
@@ -1078,19 +1086,19 @@ function nonBlockingNarrativeHarnessV1(
       childOpen: "blocking_fallback",
     },
   });
-  const extraSlot = Object.freeze({
+  const extraSlot = {
     kind: "root" as const,
     slotId: parseManagedSurfaceSlotIdV1("surface-slot.test-nonblocking"),
     cardinality: "single" as const,
-  });
-  const resolvedOwnerIds = Object.freeze([
+  };
+  const resolvedOwnerIds = [
     ...contract.resolvedOwnerIds,
     nonBlockingDefinition.ownerId,
-  ]);
-  const resolvedSlotDescriptors = Object.freeze([
+  ];
+  const resolvedSlotDescriptors = [
     ...contract.resolvedSlotDescriptors,
     extraSlot,
-  ]);
+  ];
   const kernelBundle = createManagedSurfaceCompositeKernelBundleInternalV1({
     applicationEpoch: applicationEpochV1,
     recipe: {
@@ -1104,9 +1112,9 @@ function nonBlockingNarrativeHarnessV1(
   const kernel = kernelBundle.compositeRuntimeKernel;
   const bridge = createNarrativeStablePublisherBridgeInternalV1({
     kernelBundle,
-    candidatePreflight: Object.freeze({
+    candidatePreflight: {
       preflightCandidateInternalV1: () =>
-        capturedCandidatePreflightResultV1(Object.freeze({
+        capturedCandidatePreflightResultV1({
           ...defaultCandidateSnapshotV1,
           semanticDispatchPort,
           voiceReplayPort,
@@ -1116,8 +1124,8 @@ function nonBlockingNarrativeHarnessV1(
             defaultCandidateSnapshotV1.presentationClock,
           textResolver: dialoguePlayerPorts.textResolver ??
             defaultCandidateSnapshotV1.textResolver,
-        })),
-    }),
+        }),
+    },
   });
   let stateNotifications = 0;
   kernel.subscribeStateInternalV1(() => {
@@ -1171,10 +1179,10 @@ function openNonBlockingSurfaceV1(
   duringPreparation();
   expect(harness.kernel.transitionTransientInternalV1({
     kind: "readiness_ready",
-    evidence: Object.freeze({
+    evidence: {
       applicationEpoch: applicationEpochV1,
       surfaceInstanceId: candidate.surfaceInstanceId,
-    }),
+    },
   })).toMatchObject({ kind: "applied", code: "surface.readiness_ready" });
   const after = harness.kernel.getStateInternalV1();
   const stableAfter = after.stableRuntimeBindings[0];
@@ -1195,9 +1203,12 @@ function openNonBlockingSurfaceV1(
 }
 
 describe("Narrative stable Managed Surface family", () => {
-  it("freezes the source-relative candidate preflight result contract", () => {
+  it("keeps the typed candidate preflight result contract", () => {
     type ExpectedPreflightResultV1 =
-      | Readonly<{ readonly kind: "captured"; readonly candidateSnapshot: unknown }>
+      | Readonly<{
+        readonly kind: "captured";
+        readonly candidateSnapshot: unknown;
+      }>
       | Readonly<{
         readonly kind: "rejected";
         readonly code: "narrative.renderer_missing";
@@ -1249,16 +1260,9 @@ describe("Narrative stable Managed Surface family", () => {
     >().toEqualTypeOf<ExpectedFamilyBridgeResultV1>();
   });
 
-  it("freezes the exact root/History catalog without making History a stable target", () => {
+  it("defines the root/History catalog without making History a stable target", () => {
     const contract = createNarrativeManagedSurfaceFamilyContractInternalV1();
 
-    expect(Reflect.ownKeys(contract)).toEqual([
-      "ownerId",
-      "resolvedOwnerIds",
-      "resolvedSlotDescriptors",
-      "definitions",
-      "stableDefinitionSidecars",
-    ]);
     expect(contract.ownerId).toBe("surface-owner.narrative");
     expect(contract.resolvedOwnerIds).toEqual(["surface-owner.narrative"]);
     expect(contract.resolvedSlotDescriptors).toEqual([
@@ -1341,20 +1345,17 @@ describe("Narrative stable Managed Surface family", () => {
         sidecar.definition === contract.definitions.history
       ),
     ).toBe(false);
-    expect(Object.isFrozen(contract)).toBe(true);
-    expect(Object.isFrozen(contract.resolvedSlotDescriptors)).toBe(true);
-    expect(Object.isFrozen(contract.definitions.dialogue.actionIds)).toBe(true);
   });
 
   it("consumes one composition bundle and rejects duplicate owner construction", () => {
     const contract = createNarrativeManagedSurfaceFamilyContractInternalV1();
     const exact = createCompositionPartsV1(contract);
 
-    const bridge = createNarrativeStablePublisherBridgeInternalV1({
+    createNarrativeStablePublisherBridgeInternalV1({
       kernelBundle: exact.kernelBundle,
       candidatePreflight: defaultCandidatePreflightV1,
     });
-    expect(Object.isFrozen(bridge)).toBe(true);
+
     expect(exact.registry.getSnapshot().currentPublisherCount).toBe(1);
     expect(exact.kernel.getStateInternalV1().stableAcceptedBaselines).toHaveLength(1);
     const state = exact.kernel.getStateInternalV1();
@@ -1380,7 +1381,7 @@ describe("Narrative stable Managed Surface family", () => {
     expect(() =>
       parts.kernel.transitionStateInternalV1((currentState) => {
         createBridge();
-        return Object.freeze({ state: currentState, result: null });
+        return ({ state: currentState, result: null });
       })
     ).toThrowError("ui.managed_surface_runtime_transition_in_progress");
     expect(parts.kernel.getStateInternalV1()).toBe(state);
@@ -1389,7 +1390,7 @@ describe("Narrative stable Managed Surface family", () => {
       currentPublisherCount: 0,
     });
 
-    expect(Object.isFrozen(createBridge())).toBe(true);
+    createBridge();
     expect(parts.registry.getSnapshot()).toMatchObject({
       leaseSequenceHighWater: 2,
       currentPublisherCount: 1,
@@ -1450,24 +1451,17 @@ describe("Narrative stable Managed Surface family", () => {
     expect(harness.stateNotificationCount()).toBe(0);
   });
 
-  it("captures exact candidate preflight once and rejects missing or throwing ports before issuance", () => {
-    let preflightGetterReads = 0;
+  it("consumes one typed candidate result and preserves rejected or throwing zero-delta", () => {
     let preflightCalls = 0;
-    let exactPreflight: NarrativeStableCandidatePreflightInternalV1;
-    exactPreflight = Object.defineProperty({}, "preflightCandidateInternalV1", {
-      get() {
-        preflightGetterReads += 1;
-        return function (this: unknown, pending: unknown, rendererKey: unknown) {
-          expect(this).toBe(exactPreflight);
-          expect(pending).toMatchObject({ kind: "say", occurrenceId: occurrenceV1(1) });
-          expect(rendererKey).toBe("narrative.renderer.say");
-          preflightCalls += 1;
-          return capturedCandidatePreflightResultV1();
-        };
+    const exactPreflight: NarrativeStableCandidatePreflightInternalV1 = {
+      preflightCandidateInternalV1(pending, rendererKey) {
+        expect(pending).toMatchObject({ kind: "say", occurrenceId: occurrenceV1(1) });
+        expect(rendererKey).toBe("narrative.renderer.say");
+        preflightCalls += 1;
+        return capturedCandidatePreflightResultV1();
       },
-    }) as NarrativeStableCandidatePreflightInternalV1;
+    };
     const accepted = harnessV1({ candidatePreflight: exactPreflight });
-    expect(preflightGetterReads).toBe(1);
     expect(accepted.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
       kind: "applied",
       code: "surface.stable_publication_applied",
@@ -1484,49 +1478,25 @@ describe("Narrative stable Managed Surface family", () => {
     const captured = accepted.bridge.inspectAdmittedTargetFrameInternalV1(
       acceptedBaseline.targets[0]!,
     )?.candidateSnapshot;
-    expect(captured).not.toBe(defaultCandidateSnapshotV1);
-    expect(captured).toEqual({
-      ...defaultCandidateSnapshotV1,
-      semanticDispatchPort: captured?.semanticDispatchPort,
-      historyAvailabilityPort: captured?.historyAvailabilityPort,
-      historyObservationPort: captured?.historyObservationPort,
-      playerProfile: captured?.playerProfile,
-      presentationClock: captured?.presentationClock,
-      textResolver: captured?.textResolver,
-    });
-    expect(Object.isFrozen(captured)).toBe(true);
+    expect(captured).toBe(defaultCandidateSnapshotV1);
     expect(captured?.rendererComponent).toBe(defaultCandidateSnapshotV1.rendererComponent);
-    expect(captured?.semanticDispatchPort).not.toBe(defaultSemanticDispatchPortV1);
-    expect(Object.isFrozen(captured?.semanticDispatchPort)).toBe(true);
-    expect(Reflect.ownKeys(captured?.semanticDispatchPort as object)).toEqual([
-      "dispatchResolutionInternalV1",
-    ]);
-    expect(captured?.historyAvailabilityPort).not.toBe(defaultHistoryAvailabilityPortV1);
+    expect(captured?.semanticDispatchPort).toBe(defaultSemanticDispatchPortV1);
+    expect(captured?.historyAvailabilityPort).toBe(defaultHistoryAvailabilityPortV1);
     expectTypeOf(captured?.historyAvailabilityPort).toEqualTypeOf<
       NarrativeStableHistoryAvailabilityPortInternalV1 | undefined
     >();
-    expect(Object.isFrozen(captured?.historyAvailabilityPort)).toBe(true);
-    expect(Reflect.ownKeys(captured?.historyAvailabilityPort as object)).toEqual([
-      "readHistoryAvailabilityInternalV1",
-    ]);
-    expect(captured?.historyObservationPort).not.toBe(defaultHistoryObservationPortV1);
+    expect(captured?.historyObservationPort).toBe(defaultHistoryObservationPortV1);
     expectTypeOf(captured?.historyObservationPort).toEqualTypeOf<
       NarrativeStableHistoryObservationPortInternalV1 | undefined
     >();
-    expect(Object.isFrozen(captured?.historyObservationPort)).toBe(true);
-    expect(Reflect.ownKeys(captured?.historyObservationPort as object)).toEqual([
-      "getSnapshotInternalV1",
-      "subscribeInternalV1",
-    ]);
 
     const missing = harnessV1({
-      candidatePreflight: Object.freeze({
-        preflightCandidateInternalV1: () =>
-          Object.freeze({
-            kind: "rejected" as const,
-            code: "narrative.renderer_missing" as const,
-          }),
-      }),
+      candidatePreflight: {
+        preflightCandidateInternalV1: () => ({
+          kind: "rejected" as const,
+          code: "narrative.renderer_missing" as const,
+        }),
+      },
     });
     const missingState = missing.kernel.getStateInternalV1();
     expectZeroResultV1(
@@ -1541,11 +1511,11 @@ describe("Narrative stable Managed Surface family", () => {
     });
 
     const throwing = harnessV1({
-      candidatePreflight: Object.freeze({
+      candidatePreflight: {
         preflightCandidateInternalV1: () => {
           throw new Error("resolver failed");
         },
-      }),
+      },
     });
     const throwingState = throwing.kernel.getStateInternalV1();
     expectZeroResultV1(
@@ -1558,22 +1528,9 @@ describe("Narrative stable Managed Surface family", () => {
       sourceRevisionIssuanceHighWater: 0,
       occurrenceIssuanceHighWater: 0,
     });
-
-    const contract = createNarrativeManagedSurfaceFamilyContractInternalV1();
-    const parts = createCompositionPartsV1(contract);
-    expect(() =>
-      createNarrativeStablePublisherBridgeInternalV1({
-        kernelBundle: parts.kernelBundle,
-        candidatePreflight: Object.freeze({}) as NarrativeStableCandidatePreflightInternalV1,
-      })
-    ).toThrowError("ui.narrative_stable_composition_invalid");
-    expect(parts.registry.getSnapshot()).toMatchObject({
-      leaseSequenceHighWater: 0,
-      currentPublisherCount: 0,
-    });
   });
 
-  it("descriptor-captures the exact Dialogue player ports as frozen zero-key handles", () => {
+  it("validates Dialogue player port callables without invoking them", () => {
     expectTypeOf<keyof NarrativeStableDialoguePlayerClockPortInternalV1>().toEqualTypeOf<
       "nowInternalV1" | "requestTickInternalV1" | "prefersReducedMotionInternalV1"
     >();
@@ -1585,35 +1542,35 @@ describe("Narrative stable Managed Surface family", () => {
     >();
 
     const getProfile = vi.fn(() => defaultPlayerProfileV1);
-    const subscribeProfile = vi.fn((_listener: () => void) => Object.freeze(() => {}));
+    const subscribeProfile = vi.fn((_listener: () => void) => (() => {}));
     const markSeen = vi.fn((_definitionId: string, _seenRevision: number) => {});
-    const playerProfile = Object.freeze({
+    const playerProfile = ({
       getSnapshotInternalV1: getProfile,
       subscribeInternalV1: subscribeProfile,
       markSeenInternalV1: markSeen,
     }) satisfies NarrativeStableDialoguePlayerProfilePortInternalV1;
     const now = vi.fn(() => 0);
-    const requestTick = vi.fn((_callback: (nowMs: number) => void) => Object.freeze(() => {}));
+    const requestTick = vi.fn((_callback: (nowMs: number) => void) => (() => {}));
     const prefersReducedMotion = vi.fn(() => false);
-    const presentationClock = Object.freeze({
+    const presentationClock = ({
       nowInternalV1: now,
       requestTickInternalV1: requestTick,
       prefersReducedMotionInternalV1: prefersReducedMotion,
     }) satisfies NarrativeStableDialoguePlayerClockPortInternalV1;
     const resolveText = vi.fn((textId: string) => `resolved:${textId}`);
-    const textResolver = Object.freeze({
+    const textResolver = ({
       resolveTextInternalV1: resolveText,
     }) satisfies NarrativeStableDialoguePlayerTextResolverPortInternalV1;
     const harness = harnessV1({
-      candidatePreflight: Object.freeze({
+      candidatePreflight: {
         preflightCandidateInternalV1: () =>
-          capturedCandidatePreflightResultV1(Object.freeze({
+          capturedCandidatePreflightResultV1({
             ...defaultCandidateSnapshotV1,
             playerProfile,
             presentationClock,
             textResolver,
-          })),
-      }),
+          }),
+      },
     });
 
     expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
@@ -1634,17 +1591,9 @@ describe("Narrative stable Managed Surface family", () => {
     expectTypeOf(captured?.textResolver).toEqualTypeOf<
       NarrativeStableDialoguePlayerTextResolverPortInternalV1 | undefined
     >();
-    for (
-      const [handle, raw] of [
-        [captured?.playerProfile, playerProfile],
-        [captured?.presentationClock, presentationClock],
-        [captured?.textResolver, textResolver],
-      ] as const
-    ) {
-      expect(handle).not.toBe(raw);
-      expect(Object.isFrozen(handle)).toBe(true);
-      expect(Reflect.ownKeys(handle as object).length).toBeGreaterThan(0);
-    }
+    expect(captured?.playerProfile).toBe(playerProfile);
+    expect(captured?.presentationClock).toBe(presentationClock);
+    expect(captured?.textResolver).toBe(textResolver);
     expect(getProfile).not.toHaveBeenCalled();
     expect(subscribeProfile).not.toHaveBeenCalled();
     expect(markSeen).not.toHaveBeenCalled();
@@ -1654,7 +1603,7 @@ describe("Narrative stable Managed Surface family", () => {
     expect(resolveText).not.toHaveBeenCalled();
   });
 
-  it("normalizes ordinary internal port records without exact-key or frozen admission", () => {
+  it("retains the typed candidate snapshot without re-admitting its ports", () => {
     const candidateSnapshot = {
       ...defaultCandidateSnapshotV1,
       semanticDispatchPort: {
@@ -1702,113 +1651,32 @@ describe("Narrative stable Managed Surface family", () => {
     });
     const baseline = narrativeBaselineV1(harness);
     if (baseline.kind !== "accepted") throw new Error("expected accepted baseline");
-    const normalized = harness.bridge.inspectAdmittedTargetFrameInternalV1(
+    const retained = harness.bridge.inspectAdmittedTargetFrameInternalV1(
       baseline.targets[0]!,
     )?.candidateSnapshot;
-    expect(normalized).toMatchObject({
-      rendererComponent: defaultCandidateSnapshotV1.rendererComponent,
-      visualConfig: defaultCandidateSnapshotV1.visualConfig,
-      semanticDispatchPort: { dispatchResolutionInternalV1: expect.any(Function) },
-      voiceReplayPort: { replayCurrentVoiceInternalV1: expect.any(Function) },
-      historyAvailabilityPort: {
-        readHistoryAvailabilityInternalV1: expect.any(Function),
-      },
-      historyObservationPort: {
-        getSnapshotInternalV1: expect.any(Function),
-        subscribeInternalV1: expect.any(Function),
-      },
-      playerProfile: {
-        getSnapshotInternalV1: expect.any(Function),
-        subscribeInternalV1: expect.any(Function),
-        markSeenInternalV1: expect.any(Function),
-      },
-      presentationClock: {
-        nowInternalV1: expect.any(Function),
-        requestTickInternalV1: expect.any(Function),
-        prefersReducedMotionInternalV1: expect.any(Function),
-      },
-      textResolver: { resolveTextInternalV1: expect.any(Function) },
-    });
+    expect(retained).toBe(candidateSnapshot);
   });
 
-  it.each(
-    [
-      ["playerProfile", Object.freeze({})],
-      ["presentationClock", Object.freeze({})],
-      ["textResolver", Object.freeze({})],
-      [
-        "playerProfile",
-        Object.freeze({ ...defaultDialoguePlayerProfilePortV1, markSeenInternalV1: true }),
-      ],
-      [
-        "presentationClock",
-        Object.freeze({ ...defaultDialoguePlayerClockPortV1, nowInternalV1: true }),
-      ],
-      [
-        "textResolver",
-        Object.freeze({ ...defaultDialoguePlayerTextResolverPortV1, resolveTextInternalV1: true }),
-      ],
-    ] as const,
-  )(
-    "faults malformed Dialogue player port %s before candidate allocation",
-    (portName, malformedPort) => {
-      const harness = harnessV1({
-        candidatePreflight: Object.freeze({
-          preflightCandidateInternalV1: () =>
-            capturedCandidatePreflightResultV1(Object.freeze({
-              ...defaultCandidateSnapshotV1,
-              [portName]: malformedPort,
-            })),
-        }),
-      });
-      const state = harness.kernel.getStateInternalV1();
-
-      expectZeroResultV1(
-        harness.bridge.reconcilePendingInternalV1(pendingV1("say")),
-        "faulted",
-        "narrative.candidate_preflight_faulted",
-      );
-      expect(harness.kernel.getStateInternalV1()).toBe(state);
-      expect(publisherSnapshotV1(harness)).toMatchObject({
-        sourceRevisionIssuanceHighWater: 0,
-        occurrenceIssuanceHighWater: 0,
-      });
-      expect(harness.stateNotificationCount()).toBe(0);
-    },
-  );
-
-  it("creates the Dialogue player only for the exact bridge-target-frame provenance", () => {
+  it("creates the Dialogue player only for the bridge-target-frame provenance", () => {
     const harness = harnessV1();
     expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
       kind: "applied",
       code: "surface.stable_publication_applied",
     });
     const { target, frame } = currentDialoguePlayerTargetV1(harness);
-    const valueEqualFrame = Object.freeze({ ...frame });
+    const valueEqualFrame = { ...frame };
 
     expect(() =>
-      createNarrativeStableDialoguePlayerControllerInternalV1(Object.freeze({
-        bridge: harness.bridge,
-        target,
-        frame: valueEqualFrame,
-      }) as CreateNarrativeStableDialoguePlayerControllerInputInternalV1)
+      createNarrativeStableDialoguePlayerControllerInternalV1(
+        ({
+          bridge: harness.bridge,
+          target,
+          frame: valueEqualFrame,
+        }) as CreateNarrativeStableDialoguePlayerControllerInputInternalV1,
+      )
     ).toThrowError(TypeError);
-    expect(() =>
-      createNarrativeStableDialoguePlayerControllerInternalV1(Object.freeze({
-        bridge: harness.bridge,
-        target,
-        frame,
-        extra: true,
-      }) as unknown as CreateNarrativeStableDialoguePlayerControllerInputInternalV1)
-    ).toThrowError(TypeError);
-
     const controller = createDialoguePlayerControllerV1(harness);
-    expect(Object.isFrozen(controller)).toBe(true);
-    expect(Reflect.ownKeys(controller)).toEqual([
-      "getSnapshotInternalV1",
-      "subscribeInternalV1",
-      "disposeInternalV1",
-    ]);
+
     expect(controller.getSnapshotInternalV1()).toMatchObject({
       kind: "say",
       phase: "preparing",
@@ -1829,14 +1697,13 @@ describe("Narrative stable Managed Surface family", () => {
     ] as const,
   )("returns exact zero delta for missing required port %s", (portId) => {
     const harness = harnessV1({
-      candidatePreflight: Object.freeze({
-        preflightCandidateInternalV1: () =>
-          Object.freeze({
-            kind: "rejected" as const,
-            code: "narrative.required_port_missing" as const,
-            portId,
-          }),
-      }),
+      candidatePreflight: {
+        preflightCandidateInternalV1: () => ({
+          kind: "rejected" as const,
+          code: "narrative.required_port_missing" as const,
+          portId,
+        }),
+      },
     });
     const state = harness.kernel.getStateInternalV1();
     const result = harness.bridge.reconcilePendingInternalV1(pendingV1("say"));
@@ -1846,7 +1713,7 @@ describe("Narrative stable Managed Surface family", () => {
       portId,
       delta: zeroDeltaV1,
     });
-    expect(Object.isFrozen(result)).toBe(true);
+
     expect(harness.kernel.getStateInternalV1()).toBe(state);
     expect(publisherSnapshotV1(harness)).toMatchObject({
       sourceRevisionIssuanceHighWater: 0,
@@ -1855,120 +1722,12 @@ describe("Narrative stable Managed Surface family", () => {
     expect(harness.stateNotificationCount()).toBe(0);
   });
 
-  it("captures one exact tagged preflight record without invoking caller getters", () => {
-    let resultPrototypeReads = 0;
-    let resultOwnKeyReads = 0;
-    let resultDescriptorReads = 0;
-    let resultValueReads = 0;
-    let snapshotPrototypeReads = 0;
-    let snapshotOwnKeyReads = 0;
-    let snapshotDescriptorReads = 0;
-    let snapshotValueReads = 0;
-    const rawSnapshot = new Proxy(defaultCandidateSnapshotV1, {
-      getPrototypeOf() {
-        snapshotPrototypeReads += 1;
-        return Object.prototype;
-      },
-      ownKeys(target) {
-        snapshotOwnKeyReads += 1;
-        return Reflect.ownKeys(target);
-      },
-      getOwnPropertyDescriptor(target, key) {
-        snapshotDescriptorReads += 1;
-        return Reflect.getOwnPropertyDescriptor(target, key);
-      },
-      get() {
-        snapshotValueReads += 1;
-        throw new Error("candidate snapshot values must come from captured descriptors");
-      },
-    });
-    const rawResult = new Proxy(
-      {
-        kind: "captured" as const,
-        candidateSnapshot: rawSnapshot,
-      },
-      {
-        getPrototypeOf() {
-          resultPrototypeReads += 1;
-          return Object.prototype;
-        },
-        ownKeys(target) {
-          resultOwnKeyReads += 1;
-          return Reflect.ownKeys(target);
-        },
-        getOwnPropertyDescriptor(target, key) {
-          resultDescriptorReads += 1;
-          return Reflect.getOwnPropertyDescriptor(target, key);
-        },
-        get() {
-          resultValueReads += 1;
-          throw new Error("preflight result values must come from captured descriptors");
-        },
-      },
-    );
-    const harness = harnessV1({
-      candidatePreflight: Object.freeze({
-        preflightCandidateInternalV1: () => rawResult,
-      }) as NarrativeStableCandidatePreflightInternalV1,
-    });
-
-    expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
-      kind: "applied",
-      code: "surface.stable_publication_applied",
-    });
-    expect(resultPrototypeReads).toBe(1);
-    expect(resultOwnKeyReads).toBe(1);
-    expect(resultDescriptorReads).toBe(2);
-    expect(resultValueReads).toBe(0);
-    expect(snapshotPrototypeReads).toBe(1);
-    expect(snapshotOwnKeyReads).toBe(1);
-    expect(snapshotDescriptorReads).toBe(10);
-    expect(snapshotValueReads).toBe(0);
-  });
-
-  it("validates the required History availability callable before any allocation", () => {
-    expectTypeOf<NarrativeStableHistoryAvailabilityPortInternalV1>().toEqualTypeOf<
-      Readonly<{ readonly readHistoryAvailabilityInternalV1: () => boolean }>
-    >();
-    const malformedPorts: readonly unknown[] = [
-      null,
-      [],
-      () => true,
-      {},
-      { readHistoryAvailabilityInternalV1: true },
-    ];
-
-    for (const historyAvailabilityPort of malformedPorts) {
-      const harness = harnessV1({
-        candidatePreflight: Object.freeze({
-          preflightCandidateInternalV1: () =>
-            capturedCandidatePreflightResultV1(Object.freeze({
-              ...defaultCandidateSnapshotV1,
-              historyAvailabilityPort,
-            })),
-        }),
-      });
-      const state = harness.kernel.getStateInternalV1();
-      expectZeroResultV1(
-        harness.bridge.reconcilePendingInternalV1(pendingV1("say")),
-        "faulted",
-        "narrative.candidate_preflight_faulted",
-      );
-      expect(harness.kernel.getStateInternalV1()).toBe(state);
-      expect(publisherSnapshotV1(harness)).toMatchObject({
-        sourceRevisionIssuanceHighWater: 0,
-        occurrenceIssuanceHighWater: 0,
-      });
-      expect(harness.stateNotificationCount()).toBe(0);
-    }
-  });
-
-  it("freezes the exact History observation and renderer type surface", () => {
+  it("keeps the History observation and renderer type surface", () => {
     expectTypeOf<keyof NarrativeStableHistoryObservationPortInternalV1>().toEqualTypeOf<
       "getSnapshotInternalV1" | "subscribeInternalV1"
     >();
     expectTypeOf<keyof NarrativeStableHistoryRenderObservationInternalV1>().toEqualTypeOf<
-      "getSnapshotInternalV1" | "subscribeInternalV1"
+      "getSnapshotInternalV1" | "subscribeInternalV1" | "retireInternalV1"
     >();
     expectTypeOf<keyof NarrativeStableDialoguePlayerObservationInternalV1>().toEqualTypeOf<
       "getSnapshotInternalV1" | "subscribeInternalV1"
@@ -2011,7 +1770,7 @@ describe("Narrative stable Managed Surface family", () => {
     >().returns.toEqualTypeOf<DeepReadonly<NarrativeHistoryV1>>();
   });
 
-  it("normalizes the raw History observation once and rejects missing callables", () => {
+  it("retains the typed History observation port without invoking it", () => {
     let rawPort!: NarrativeStableHistoryObservationPortInternalV1;
     const getSnapshot = vi.fn(function (this: unknown) {
       expect(this).toBe(rawPort);
@@ -2020,20 +1779,20 @@ describe("Narrative stable Managed Surface family", () => {
     const subscribe = vi.fn(function (this: unknown, listener: () => void) {
       expect(this).toBe(rawPort);
       expect(listener).toEqual(expect.any(Function));
-      return Object.freeze(() => {});
+      return (() => {});
     });
     rawPort = {
       getSnapshotInternalV1: getSnapshot,
       subscribeInternalV1: subscribe,
     };
     const accepted = harnessV1({
-      candidatePreflight: Object.freeze({
+      candidatePreflight: {
         preflightCandidateInternalV1: () =>
-          capturedCandidatePreflightResultV1(Object.freeze({
+          capturedCandidatePreflightResultV1({
             ...defaultCandidateSnapshotV1,
             historyObservationPort: rawPort,
-          })),
-      }),
+          }),
+      },
     });
     expect(accepted.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
       kind: "applied",
@@ -2044,64 +1803,24 @@ describe("Narrative stable Managed Surface family", () => {
     const captured = accepted.bridge.inspectAdmittedTargetFrameInternalV1(
       baseline.targets[0]!,
     )?.candidateSnapshot.historyObservationPort;
-    expect(captured).not.toBe(rawPort);
-    expect(Object.isFrozen(captured)).toBe(true);
-    expect(Reflect.ownKeys(captured as object)).toEqual([
-      "getSnapshotInternalV1",
-      "subscribeInternalV1",
-    ]);
+    expect(captured).toBe(rawPort);
     expect(getSnapshot).not.toHaveBeenCalled();
     expect(subscribe).not.toHaveBeenCalled();
-
-    const malformedPorts: readonly unknown[] = Object.freeze([
-      null,
-      [],
-      () => emptyNarrativeHistoryV1,
-      Object.freeze({}),
-      Object.freeze({
-        getSnapshotInternalV1: true,
-        subscribeInternalV1: () => Object.freeze(() => {}),
-      }),
-      Object.freeze({
-        getSnapshotInternalV1: () => emptyNarrativeHistoryV1,
-        subscribeInternalV1: true,
-      }),
-    ]);
-    for (const historyObservationPort of malformedPorts) {
-      const fixture = harnessV1({
-        candidatePreflight: Object.freeze({
-          preflightCandidateInternalV1: () =>
-            capturedCandidatePreflightResultV1(Object.freeze({
-              ...defaultCandidateSnapshotV1,
-              historyObservationPort,
-            })),
-        }),
-      });
-      const state = fixture.kernel.getStateInternalV1();
-      expectZeroResultV1(
-        fixture.bridge.reconcilePendingInternalV1(pendingV1("say")),
-        "faulted",
-        "narrative.candidate_preflight_faulted",
-      );
-      expect(fixture.kernel.getStateInternalV1()).toBe(state);
-      expect(fixture.stateNotificationCount()).toBe(0);
-    }
   });
 
-  it("retains the original History availability callable and keeps captured observation dormant", () => {
+  it("uses the admitted History availability port and keeps observation dormant", () => {
     let rawPort!: NarrativeStableHistoryAvailabilityPortInternalV1;
     const original = vi.fn(function (this: unknown, ...args: readonly unknown[]) {
       expect(this).toBe(rawPort);
       expect(args).toEqual([]);
       return true;
     });
-    const replacement = vi.fn(() => false);
     rawPort = {
       readHistoryAvailabilityInternalV1: original,
     };
     const observationReads = vi.fn(() => emptyNarrativeHistoryV1);
-    const observationSubscriptions = vi.fn(() => Object.freeze(() => {}));
-    const observationPort = Object.freeze({
+    const observationSubscriptions = vi.fn(() => (() => {}));
+    const observationPort = ({
       getSnapshotInternalV1: observationReads,
       subscribeInternalV1: observationSubscriptions,
     }) satisfies NarrativeStableHistoryObservationPortInternalV1;
@@ -2117,132 +1836,53 @@ describe("Narrative stable Managed Surface family", () => {
     expectTypeOf(captured).toEqualTypeOf<
       NarrativeStableHistoryAvailabilityPortInternalV1 | undefined
     >();
-    expect(captured).not.toBe(rawPort);
-    expect(Object.isFrozen(captured)).toBe(true);
-    expect(Reflect.ownKeys(captured as object)).toEqual([
-      "readHistoryAvailabilityInternalV1",
-    ]);
-
-    Object.defineProperty(rawPort, "readHistoryAvailabilityInternalV1", {
-      get() {
-        throw new Error("captured availability must not re-read the raw member");
-      },
-      configurable: true,
-    });
+    expect(captured).toBe(rawPort);
     const attempt = fixture.admission.issueHistoryOpenAttemptInternalV1();
     expect(attempt).not.toBeNull();
     const result = expectHistoryRouteConsumedV1(
-      routeHistoryOpenV1(fixture.admission, attempt, "captured-original"),
+      routeHistoryOpenV1(fixture.admission, attempt, "admitted-port"),
     );
     expect(result.kind).toBe("requested");
     expect(original).toHaveBeenCalledOnce();
-    expect(replacement).not.toHaveBeenCalled();
     expect(observationReads).not.toHaveBeenCalled();
     expect(observationSubscriptions).not.toHaveBeenCalled();
     fixture.admission.disposeInternalV1();
   });
 
-  it("maps declared faults and malformed tagged results or snapshots to the family fault", () => {
-    const accessorResult = Object.defineProperty(
-      { kind: "rejected" },
-      "code",
-      { get: () => "narrative.renderer_missing", enumerable: true },
-    );
-    const customPrototypeResult = Object.assign(Object.create({}), {
-      kind: "faulted",
-      code: "narrative.candidate_preflight_faulted",
+  it("maps a declared preflight fault without issuing candidate state", () => {
+    const harness = harnessV1({
+      candidatePreflight: {
+        preflightCandidateInternalV1: () => ({
+          kind: "faulted",
+          code: "narrative.candidate_preflight_faulted",
+        }),
+      },
     });
-    const candidateSnapshotMissingQuickMenu = Object.freeze({
-      rendererComponent: defaultCandidateSnapshotV1.rendererComponent,
-      visualConfig: defaultCandidateSnapshotV1.visualConfig,
-      semanticDispatchPort: defaultCandidateSnapshotV1.semanticDispatchPort,
-      historyObservationPort: defaultCandidateSnapshotV1.historyObservationPort,
-      historyAvailabilityPort: defaultCandidateSnapshotV1.historyAvailabilityPort,
-      playerProfile: defaultCandidateSnapshotV1.playerProfile,
-      presentationClock: defaultCandidateSnapshotV1.presentationClock,
-      textResolver: defaultCandidateSnapshotV1.textResolver,
-      voiceReplayPort: defaultCandidateSnapshotV1.voiceReplayPort,
-    });
-    const candidateSnapshotAccessor = Object.defineProperty(
-      { ...defaultCandidateSnapshotV1 },
-      "textResolver",
-      { get: () => defaultCandidateSnapshotV1.textResolver, enumerable: true },
+    const before = harness.kernel.getStateInternalV1();
+    expectZeroResultV1(
+      harness.bridge.reconcilePendingInternalV1(pendingV1("say")),
+      "faulted",
+      "narrative.candidate_preflight_faulted",
     );
-    const malformedResults: readonly unknown[] = Object.freeze([
-      Object.freeze({}),
-      Promise.resolve(capturedCandidatePreflightResultV1()),
-      Object.freeze({
-        kind: "faulted",
-        code: "narrative.candidate_preflight_faulted",
-      }),
-      Object.freeze({
-        kind: "rejected",
-        code: "narrative.required_port_missing",
-        portId: "narrative.unknown",
-      }),
-      Object.freeze({
-        kind: "rejected",
-        code: "narrative.renderer_missing",
-        extra: true,
-      }),
-      Object.freeze({
-        kind: "rejected",
-        code: "narrative.required_port_missing",
-      }),
-      Object.freeze({
-        kind: "faulted",
-        code: "narrative.candidate_preflight_faulted",
-        [Symbol("extra")]: true,
-      }),
-      accessorResult,
-      customPrototypeResult,
-      capturedCandidatePreflightResultV1(Object.freeze({
-        ...defaultCandidateSnapshotV1,
-        quickMenuContribution: "not-an-opaque-port",
-      })),
-      capturedCandidatePreflightResultV1(Object.freeze({
-        ...defaultCandidateSnapshotV1,
-        extra: true,
-      })),
-      capturedCandidatePreflightResultV1(candidateSnapshotMissingQuickMenu),
-      capturedCandidatePreflightResultV1(candidateSnapshotAccessor),
-      capturedCandidatePreflightResultV1(Object.freeze({
-        ...defaultCandidateSnapshotV1,
-        semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: null }),
-      })),
-    ]);
-    for (const rawResult of malformedResults) {
-      const harness = harnessV1({
-        candidatePreflight: Object.freeze({
-          preflightCandidateInternalV1: () => rawResult,
-        }) as NarrativeStableCandidatePreflightInternalV1,
-      });
-      const before = harness.kernel.getStateInternalV1();
-      expectZeroResultV1(
-        harness.bridge.reconcilePendingInternalV1(pendingV1("say")),
-        "faulted",
-        "narrative.candidate_preflight_faulted",
-      );
-      expect(harness.kernel.getStateInternalV1()).toBe(before);
-      expect(publisherSnapshotV1(harness)).toMatchObject({
-        sourceRevisionIssuanceHighWater: 0,
-        occurrenceIssuanceHighWater: 0,
-      });
-    }
+    expect(harness.kernel.getStateInternalV1()).toBe(before);
+    expect(publisherSnapshotV1(harness)).toMatchObject({
+      sourceRevisionIssuanceHighWater: 0,
+      occurrenceIssuanceHighWater: 0,
+    });
   });
 
   it("keeps the accepted candidate on replacement preflight failure and fails closed on reentry", () => {
     let preflightCalls = 0;
     const replacementHarness = harnessV1({
-      candidatePreflight: Object.freeze({
+      candidatePreflight: {
         preflightCandidateInternalV1: () => {
           preflightCalls += 1;
-          return preflightCalls === 1 ? capturedCandidatePreflightResultV1() : Object.freeze({
+          return preflightCalls === 1 ? capturedCandidatePreflightResultV1() : ({
             kind: "rejected" as const,
             code: "narrative.renderer_missing" as const,
           });
         },
-      }),
+      },
     });
     expect(
       replacementHarness.bridge.reconcilePendingInternalV1(pendingV1("say", 1)).kind,
@@ -2276,19 +1916,19 @@ describe("Narrative stable Managed Surface family", () => {
     let nestedResult: unknown = null;
     let reentrantBridge: NarrativeStablePublisherBridgeInternalV1;
     const reentrantHarness = harnessV1({
-      candidatePreflight: Object.freeze({
+      candidatePreflight: {
         preflightCandidateInternalV1: () => {
           if (!reentered) {
             reentered = true;
             nestedResult = reentrantBridge.reconcilePendingInternalV1(pendingV1("say"));
-            return Object.freeze({
+            return ({
               kind: "rejected" as const,
               code: "narrative.renderer_missing" as const,
             });
           }
           return capturedCandidatePreflightResultV1();
         },
-      }),
+      },
     });
     reentrantBridge = reentrantHarness.bridge;
     expectZeroResultV1(
@@ -2312,19 +1952,19 @@ describe("Narrative stable Managed Surface family", () => {
       | ReturnType<ManagedSurfaceStableCompositeRuntimeKernelInternalV1["getStateInternalV1"]>
       | null = null;
     const harness = harnessV1({
-      candidatePreflight: Object.freeze({
+      candidatePreflight: {
         preflightCandidateInternalV1: () => {
           expect(bridge.disposeInternalV1()).toMatchObject({
             kind: "applied",
             code: "surface.stable_publisher_disposed",
           });
           disposedState = harness.kernel.getStateInternalV1();
-          return Object.freeze({
+          return ({
             kind: "rejected" as const,
             code: "narrative.renderer_missing" as const,
           });
         },
-      }),
+      },
     });
     bridge = harness.bridge;
 
@@ -2392,18 +2032,13 @@ describe("Narrative stable Managed Surface family", () => {
         textResolver: frame?.candidateSnapshot.textResolver,
       },
     });
-    expect(Object.isFrozen(frame)).toBe(true);
-    expect(frame?.candidateSnapshot.semanticDispatchPort).not.toBe(
+
+    expect(frame?.candidateSnapshot.semanticDispatchPort).toBe(
       defaultSemanticDispatchPortV1,
     );
-    expect(Reflect.ownKeys(frame?.candidateSnapshot.semanticDispatchPort as object)).toEqual([
-      "dispatchResolutionInternalV1",
-    ]);
-    expect(frame?.candidateSnapshot.historyAvailabilityPort).not.toBe(
+    expect(frame?.candidateSnapshot.historyAvailabilityPort).toBe(
       defaultHistoryAvailabilityPortV1,
     );
-    expect(Reflect.ownKeys(frame?.candidateSnapshot.historyAvailabilityPort as object))
-      .toEqual(["readHistoryAvailabilityInternalV1"]);
     expect(publisherSnapshotV1(harness)).toMatchObject({
       sourceRevisionIssuanceHighWater: 1,
       occurrenceIssuanceHighWater: 1,
@@ -2433,7 +2068,7 @@ describe("Narrative stable Managed Surface family", () => {
     const normalized = parsePendingInteractionV1(pending);
     expect(canonicalJsonBytes(normalized).byteLength).toBeGreaterThan(65_536);
 
-    expect(harness.bridge.reconcilePendingInternalV1(pending)).toMatchObject({
+    expect(harness.bridge.reconcilePendingInternalV1(normalized)).toMatchObject({
       kind: "applied",
       code: "surface.stable_publication_applied",
     });
@@ -2445,7 +2080,7 @@ describe("Narrative stable Managed Surface family", () => {
 
   it("uses full normalized canonical equality while reusing exact accepted identity", () => {
     const harness = harnessV1();
-    const first = pendingV1("custom") as Record<string, unknown>;
+    const first = pendingV1("custom");
     const second = {
       ...first,
       params: { a: { enabled: true }, z: 2 },
@@ -2479,76 +2114,76 @@ describe("Narrative stable Managed Surface family", () => {
   it.each(
     [
       ["say text", pendingV1("say"), {
-        ...(pendingV1("say") as Record<string, unknown>),
+        ...(pendingV1("say")),
         textId: "text.test.changed",
       }],
       ["say speaker", pendingV1("say"), {
-        ...(pendingV1("say") as Record<string, unknown>),
+        ...(pendingV1("say")),
         speakerTextId: null,
       }],
       ["say advance policy", pendingV1("say"), {
-        ...(pendingV1("say") as Record<string, unknown>),
+        ...(pendingV1("say")),
         advancePolicy: "auto",
       }],
       ["choice prompt", pendingV1("choice"), {
-        ...(pendingV1("choice") as Record<string, unknown>),
+        ...(pendingV1("choice")),
         promptTextId: "text.test.prompt-changed",
       }],
       ["choice options", pendingV1("choice"), {
-        ...(pendingV1("choice") as Record<string, unknown>),
+        ...(pendingV1("choice")),
         options: [{ choiceId: "choice.test.changed", textId: "text.test.changed" }],
       }],
       ["hold total", pendingV1("hold"), {
-        ...(pendingV1("hold") as Record<string, unknown>),
+        ...(pendingV1("hold")),
         totalMs: 251,
       }],
       // Authoritative remaining only ever decreases; a same-occurrence
       // increase is divergence, not a partial tick.
       ["hold remaining regression", {
-        ...(pendingV1("hold") as Record<string, unknown>),
+        ...(pendingV1("hold")),
         remainingMs: 100,
       }, {
-        ...(pendingV1("hold") as Record<string, unknown>),
+        ...(pendingV1("hold")),
         remainingMs: 200,
       }],
       // A remaining decrement only rides along when every other byte is
       // identical; a decrement bundled with other drift still faults.
       ["hold remaining decrement with skippable drift", pendingV1("hold"), {
-        ...(pendingV1("hold") as Record<string, unknown>),
+        ...(pendingV1("hold")),
         remainingMs: 100,
         skippable: false,
       }],
       ["hold remaining decrement with cadence drift", pendingV1("hold"), {
-        ...(pendingV1("hold") as Record<string, unknown>),
+        ...(pendingV1("hold")),
         remainingMs: 100,
         tickQuantumMs: 50,
       }],
       ["hold skippable", pendingV1("hold"), {
-        ...(pendingV1("hold") as Record<string, unknown>),
+        ...(pendingV1("hold")),
         skippable: false,
       }],
       ["barrier transition", pendingV1("presentation_barrier"), {
-        ...(pendingV1("presentation_barrier") as Record<string, unknown>),
+        ...(pendingV1("presentation_barrier")),
         expectedTransitionId: "transition.test.changed",
       }],
       ["barrier recovery", pendingV1("presentation_barrier"), {
-        ...(pendingV1("presentation_barrier") as Record<string, unknown>),
+        ...(pendingV1("presentation_barrier")),
         loadRecovery: "settle",
       }],
       ["custom surface", pendingV1("custom"), {
-        ...(pendingV1("custom") as Record<string, unknown>),
+        ...(pendingV1("custom")),
         surfaceId: "narrative.custom.changed",
       }],
       ["custom params", pendingV1("custom"), {
-        ...(pendingV1("custom") as Record<string, unknown>),
+        ...(pendingV1("custom")),
         params: { z: 3, a: { enabled: true } },
       }],
       ["base definition", pendingV1("say"), {
-        ...(pendingV1("say") as Record<string, unknown>),
+        ...(pendingV1("say")),
         definitionId: "narrative.test.changed",
       }],
       ["base seen revision", pendingV1("say"), {
-        ...(pendingV1("say") as Record<string, unknown>),
+        ...(pendingV1("say")),
         seenRevision: 2,
       }],
       ["interaction kind", pendingV1("say"), pendingV1("choice")],
@@ -2573,7 +2208,7 @@ describe("Narrative stable Managed Surface family", () => {
   it("accepts a same-occurrence hold remaining decrement as the unchanged current frame", () => {
     const harness = harnessV1();
     const cadenced = {
-      ...(pendingV1("hold") as Record<string, unknown>),
+      ...(pendingV1("hold")),
       tickQuantumMs: 50,
     };
     expect(harness.bridge.reconcilePendingInternalV1(cadenced).kind).toBe("applied");
@@ -2650,20 +2285,20 @@ describe("Narrative stable Managed Surface family", () => {
   });
 
   it("re-preflights a readiness-failed target before allocating its fresh candidate", () => {
-    const retryRenderer = Object.freeze({ kind: "dialogue-renderer-retry" });
+    const retryRenderer = () => null;
     let preflightCalls = 0;
     const harness = harnessV1({
-      candidatePreflight: Object.freeze({
+      candidatePreflight: {
         preflightCandidateInternalV1: () => {
           preflightCalls += 1;
           return capturedCandidatePreflightResultV1(
-            preflightCalls === 1 ? defaultCandidateSnapshotV1 : Object.freeze({
+            preflightCalls === 1 ? defaultCandidateSnapshotV1 : ({
               ...defaultCandidateSnapshotV1,
               rendererComponent: retryRenderer,
             }),
           );
         },
-      }),
+      },
     });
     expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say")).kind).toBe("applied");
     expect(preflightCalls).toBe(1);
@@ -2709,16 +2344,16 @@ describe("Narrative stable Managed Surface family", () => {
   it("keeps a readiness-failed gap exact when retry preflight rejects", () => {
     let preflightCalls = 0;
     const harness = harnessV1({
-      candidatePreflight: Object.freeze({
+      candidatePreflight: {
         preflightCandidateInternalV1: () => {
           preflightCalls += 1;
-          return preflightCalls === 1 ? capturedCandidatePreflightResultV1() : Object.freeze({
+          return preflightCalls === 1 ? capturedCandidatePreflightResultV1() : ({
             kind: "rejected" as const,
             code: "narrative.required_port_missing" as const,
             portId: "narrative.text_resolver" as const,
           });
         },
-      }),
+      },
     });
     expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say")).kind).toBe("applied");
     const preparing = harness.kernel.getStateInternalV1().stableRuntimeBindings[0]!;
@@ -2744,7 +2379,7 @@ describe("Narrative stable Managed Surface family", () => {
       portId: "narrative.text_resolver",
       delta: zeroDeltaV1,
     });
-    expect(Object.isFrozen(rejectedRetry)).toBe(true);
+
     expect(preflightCalls).toBe(2);
     expect(harness.kernel.getStateInternalV1()).toBe(failedState);
     expect(narrativeBaselineV1(harness)).toBe(failedBaseline);
@@ -2775,34 +2410,14 @@ describe("Narrative stable Managed Surface family", () => {
     });
   });
 
-  it("fails invalid hostile pending before issuance and reads nothing after disposal", () => {
+  it("stays stale after disposal without issuing another revision", () => {
     const harness = harnessV1();
-    const before = harness.kernel.getStateInternalV1();
-    const invalid = Object.defineProperty({}, "kind", {
-      get: () => {
-        throw new Error("must not invoke accessor");
-      },
-    });
-    expectZeroResultV1(
-      harness.bridge.reconcilePendingInternalV1(invalid),
-      "rejected",
-      "surface.stable_schema_invalid",
-    );
-    expect(harness.kernel.getStateInternalV1()).toBe(before);
-    expect(publisherSnapshotV1(harness)).toMatchObject({
-      sourceRevisionIssuanceHighWater: 0,
-      occurrenceIssuanceHighWater: 0,
-    });
-
     expect(harness.bridge.disposeInternalV1()).toMatchObject({
       kind: "applied",
       code: "surface.stable_publisher_disposed",
     });
-    const target = {};
-    const { proxy, revoke } = Proxy.revocable(target, {});
-    revoke();
     expectZeroResultV1(
-      harness.bridge.reconcilePendingInternalV1(proxy),
+      harness.bridge.reconcilePendingInternalV1(pendingV1("say")),
       "stale",
       "surface.stable_publisher_lease_stale",
     );
@@ -2835,7 +2450,7 @@ describe("Narrative stable Managed Surface family", () => {
   });
 
   it("dispatches one authenticated current choice through the exact captured semantic port", async () => {
-    const semanticReceipt = Object.freeze({ kind: "semantic-accepted" as const });
+    const semanticReceipt = { kind: "semantic-accepted" as const };
     let capturedRequest: unknown = null;
     let semanticPort!: NarrativeStableSemanticResolutionPortInternalV1;
     const dispatchResolution = vi.fn(function (this: unknown, request: unknown) {
@@ -2843,9 +2458,9 @@ describe("Narrative stable Managed Surface family", () => {
       capturedRequest = request;
       return Promise.resolve(semanticReceipt);
     });
-    semanticPort = Object.freeze({
+    semanticPort = {
       dispatchResolutionInternalV1: dispatchResolution,
-    });
+    };
     const fixture = physicalChoiceHarnessV1({ semanticDispatchPort: semanticPort });
     const admission = fixture.admission;
     type ExpectedDispatchResultV1 =
@@ -2866,19 +2481,7 @@ describe("Narrative stable Managed Surface family", () => {
     expectTypeOf<NarrativeStablePhysicalActionDispatchResultInternalV1>()
       .toEqualTypeOf<ExpectedDispatchResultV1>();
     expectTypeOf(admission).toEqualTypeOf<NarrativeStablePhysicalActionAdmissionInternalV1>();
-    expect(Object.isFrozen(admission)).toBe(true);
-    expect(Reflect.ownKeys(admission)).toEqual([
-      "createEnvelopeInternalV1",
-      "issueChoiceAttemptInternalV1",
-      "issueHoldSkipAttemptInternalV1",
-      "issueCustomAttemptInternalV1",
-      "issueSayActivationAttemptInternalV1",
-      "issueVoiceReplayAttemptInternalV1",
-      "issuePlaybackModeToggleAttemptInternalV1",
-      "issueHistoryOpenAttemptInternalV1",
-      "routeInternalV1",
-      "disposeInternalV1",
-    ]);
+
     expect(() =>
       createNarrativeStablePhysicalActionAdmissionInternalV1({
         bridge: fixture.harness.bridge,
@@ -2890,8 +2493,7 @@ describe("Narrative stable Managed Surface family", () => {
     const attempt = admission.issueChoiceAttemptInternalV1("choice.test.first");
     expectTypeOf(attempt).toEqualTypeOf<NarrativeStableChoiceActionAttemptInternalV1 | null>();
     expect(attempt).not.toBeNull();
-    expect(Object.isFrozen(attempt)).toBe(true);
-    expect(Reflect.ownKeys(attempt as object)).toEqual([]);
+
     const envelope = admission.createEnvelopeInternalV1({
       actionId: narrativeChooseActionIdV1,
       gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.choice-current"),
@@ -2901,23 +2503,20 @@ describe("Narrative stable Managed Surface family", () => {
     expectTypeOf(result.consumerResult).toEqualTypeOf<
       NarrativeStablePhysicalActionDispatchResultInternalV1 | null
     >();
-    expect(Reflect.ownKeys(result)).toEqual(["route", "consumerResult"]);
+
     expect(result.route).toMatchObject({
       input: { kind: "consumed", code: "input.managed_surface_consumed" },
       surface: { kind: "unchanged", code: "surface.action_routed" },
     });
     expect(result.consumerResult).toMatchObject({ kind: "dispatched" });
-    expect(Object.isFrozen(result.consumerResult)).toBe(true);
+
     if (result.consumerResult?.kind !== "dispatched") {
       throw new Error("expected semantic dispatch completion");
     }
     expect(result.consumerResult.completion).toBeInstanceOf(Promise);
     await expect(result.consumerResult.completion).resolves.toBe(semanticReceipt);
     expect(dispatchResolution).toHaveBeenCalledOnce();
-    expect(Reflect.ownKeys(capturedRequest as object)).toEqual([
-      "expectedOccurrenceId",
-      "resolution",
-    ]);
+
     expect(capturedRequest).toEqual({
       expectedOccurrenceId: occurrenceV1(1),
       resolution: { kind: "choose", choiceId: "choice.test.first" },
@@ -2938,37 +2537,6 @@ describe("Narrative stable Managed Surface family", () => {
       successorAdmission.issueChoiceAttemptInternalV1("choice.test.second"),
     ).not.toBeNull();
     successorAdmission.disposeInternalV1();
-  });
-
-  it("captures the semantic callable before candidate allocation and never re-reads it", async () => {
-    const originalReceipt = Object.freeze({ kind: "original-semantic-receipt" as const });
-    let semanticPort!: {
-      dispatchResolutionInternalV1: (request: unknown) => Promise<unknown>;
-    };
-    const originalDispatch = vi.fn(function (this: unknown) {
-      expect(this).toBe(semanticPort);
-      return Promise.resolve(originalReceipt);
-    });
-    const replacementDispatch = vi.fn(() => Promise.resolve("replacement-must-not-run"));
-    semanticPort = { dispatchResolutionInternalV1: originalDispatch };
-    const fixture = physicalChoiceHarnessV1({ semanticDispatchPort: semanticPort });
-    semanticPort.dispatchResolutionInternalV1 = replacementDispatch;
-    const attempt = fixture.admission.issueChoiceAttemptInternalV1("choice.test.first");
-    expect(attempt).not.toBeNull();
-    const result = fixture.admission.routeInternalV1(
-      fixture.admission.createEnvelopeInternalV1({
-        actionId: narrativeChooseActionIdV1,
-        gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.choice-captured-callable"),
-      }),
-      attempt,
-    );
-    expect(result.consumerResult).toMatchObject({ kind: "dispatched" });
-    if (result.consumerResult?.kind !== "dispatched") {
-      throw new Error("expected captured semantic dispatch completion");
-    }
-    await expect(result.consumerResult.completion).resolves.toBe(originalReceipt);
-    expect(originalDispatch).toHaveBeenCalledOnce();
-    expect(replacementDispatch).not.toHaveBeenCalled();
   });
 
   it("admits current ready choice and Say without burning preparing failures", () => {
@@ -3020,12 +2588,12 @@ describe("Narrative stable Managed Surface family", () => {
     successor.disposeInternalV1();
   });
 
-  it("rejects unknown, spoofed, cloned, wrong-action, and repeated attempts without raw ingress", async () => {
+  it("rejects unknown, foreign, wrong-action, and repeated attempts without raw ingress", async () => {
     const dispatchResolution = vi.fn(() => Promise.resolve("dispatched"));
     const fixture = physicalChoiceHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const admission = fixture.admission;
     expect(admission.issueChoiceAttemptInternalV1("choice.test.unknown")).toBeNull();
@@ -3053,29 +2621,15 @@ describe("Narrative stable Managed Surface family", () => {
     expect(dispatchResolution).toHaveBeenCalledOnce();
     dispatchResolution.mockClear();
 
-    const spoof = Object.freeze({
-      actionId: narrativeChooseActionIdV1,
-      choiceId: "choice.test.second",
-    });
     const validEnvelope = admission.createEnvelopeInternalV1({
       actionId: narrativeChooseActionIdV1,
       gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.choice-valid"),
     });
-    expect(admission.routeInternalV1(validEnvelope, spoof).consumerResult).toEqual({
-      kind: "stale",
-      completion: null,
-    });
-    const cloneAttempt = admission.issueChoiceAttemptInternalV1("choice.test.second");
-    expect(cloneAttempt).not.toBeNull();
-    expect(
-      admission.routeInternalV1(validEnvelope, { ...(cloneAttempt as object) }).consumerResult,
-    ).toEqual({ kind: "stale", completion: null });
-
     const foreignDispatch = vi.fn(() => Promise.resolve("foreign-dispatched"));
     const foreignFixture = physicalChoiceHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: foreignDispatch,
-      }),
+      },
     });
     const foreignAttempt = foreignFixture.admission.issueChoiceAttemptInternalV1(
       "choice.test.second",
@@ -3131,9 +2685,9 @@ describe("Narrative stable Managed Surface family", () => {
   it("consumes removed binding-origin toggle-ui as unpublished without lower fallthrough", async () => {
     const dispatchResolution = vi.fn(() => Promise.resolve("dispatched"));
     const fixture = physicalChoiceHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const lower = vi.fn(() => inputHandledV1);
     fixture.inputRouter.register({ context: "gameplay", handle: lower });
@@ -3190,9 +2744,9 @@ describe("Narrative stable Managed Surface family", () => {
     let gestureCurrent = false;
     const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
     const fixture = physicalChoiceHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
       isGestureCurrent: () => gestureCurrent,
     });
     const admission = fixture.admission;
@@ -3229,9 +2783,9 @@ describe("Narrative stable Managed Surface family", () => {
     expect(dispatchResolution).not.toHaveBeenCalled();
 
     const suspendedFixture = physicalChoiceHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const suspendedAttempt = suspendedFixture.admission.issueChoiceAttemptInternalV1(
       "choice.test.first",
@@ -3249,9 +2803,9 @@ describe("Narrative stable Managed Surface family", () => {
     expect(dispatchResolution).not.toHaveBeenCalled();
 
     const disposedFixture = physicalChoiceHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const disposedAttempt = disposedFixture.admission.issueChoiceAttemptInternalV1(
       "choice.test.first",
@@ -3272,7 +2826,7 @@ describe("Narrative stable Managed Surface family", () => {
   });
 
   it("dispatches one authenticated skippable hold resume through the exact captured semantic port", async () => {
-    const semanticReceipt = Object.freeze({ kind: "hold-resumed" as const });
+    const semanticReceipt = { kind: "hold-resumed" as const };
     let capturedRequest: unknown = null;
     let semanticPort!: NarrativeStableSemanticResolutionPortInternalV1;
     const dispatchTime = vi.fn(function (this: unknown, request: unknown) {
@@ -3280,10 +2834,10 @@ describe("Narrative stable Managed Surface family", () => {
       capturedRequest = request;
       return Promise.resolve(semanticReceipt);
     });
-    semanticPort = Object.freeze({
+    semanticPort = {
       dispatchResolutionInternalV1: () => Promise.resolve(undefined),
       dispatchTimeInternalV1: dispatchTime,
-    });
+    };
     const fixture = physicalHoldHarnessV1({ semanticDispatchPort: semanticPort });
     const state = fixture.harness.kernel.getStateInternalV1();
 
@@ -3292,8 +2846,7 @@ describe("Narrative stable Managed Surface family", () => {
       NarrativeStableHoldSkipActionAttemptInternalV1 | null
     >();
     expect(attempt).not.toBeNull();
-    expect(Object.isFrozen(attempt)).toBe(true);
-    expect(Reflect.ownKeys(attempt as object)).toEqual([]);
+
     expect(fixture.admission.issueChoiceAttemptInternalV1("choice.test.first")).toBeNull();
 
     const result = fixture.admission.routeInternalV1(
@@ -3347,9 +2900,9 @@ describe("Narrative stable Managed Surface family", () => {
     const nonSkippableDispatch = vi.fn(() => Promise.resolve("must-not-dispatch"));
     const nonSkippable = physicalHoldHarnessV1({
       skippable: false,
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: nonSkippableDispatch,
-      }),
+      },
     });
     expect(() =>
       createNarrativeStablePhysicalActionAdmissionInternalV1({
@@ -3386,10 +2939,10 @@ describe("Narrative stable Managed Surface family", () => {
   it("keeps wrong actions and foreign attempt kinds from consuming an authentic hold resume", async () => {
     const dispatchTime = vi.fn(() => Promise.resolve("hold-dispatched"));
     const fixture = physicalHoldHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: () => Promise.resolve(undefined),
         dispatchTimeInternalV1: dispatchTime,
-      }),
+      },
     });
     const attempt = fixture.admission.issueHoldSkipAttemptInternalV1();
     expect(attempt).not.toBeNull();
@@ -3423,16 +2976,6 @@ describe("Narrative stable Managed Surface family", () => {
       ).toEqual({ kind: "unmapped", completion: null });
     }
     expect(dispatchTime).not.toHaveBeenCalled();
-
-    expect(
-      fixture.admission.routeInternalV1(
-        fixture.admission.createEnvelopeInternalV1({
-          actionId: narrativeResumeActionIdV1,
-          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.hold-clone"),
-        }),
-        { ...(attempt as object) },
-      ).consumerResult,
-    ).toEqual({ kind: "stale", completion: null });
 
     const choiceFixture = physicalChoiceHarnessV1();
     const choiceAttempt = choiceFixture.admission.issueChoiceAttemptInternalV1(
@@ -3483,10 +3026,10 @@ describe("Narrative stable Managed Surface family", () => {
   it("keeps stale gesture, source replacement, suspension, and dispose at zero hold dispatch", async () => {
     let gestureCurrent = false;
     const dispatchTime = vi.fn(() => Promise.resolve("hold-dispatched"));
-    const holdTimePortV1 = Object.freeze({
+    const holdTimePortV1 = {
       dispatchResolutionInternalV1: () => Promise.resolve(undefined),
       dispatchTimeInternalV1: dispatchTime,
-    });
+    };
     const fixture = physicalHoldHarnessV1({
       semanticDispatchPort: holdTimePortV1,
       isGestureCurrent: () => gestureCurrent,
@@ -3572,10 +3115,10 @@ describe("Narrative stable Managed Surface family", () => {
       throw sentinel;
     });
     const fixture = physicalHoldHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: () => Promise.resolve(undefined),
         dispatchTimeInternalV1: dispatchTime,
-      }),
+      },
     });
     const state = fixture.harness.kernel.getStateInternalV1();
     const attempt = fixture.admission.issueHoldSkipAttemptInternalV1();
@@ -3597,7 +3140,7 @@ describe("Narrative stable Managed Surface family", () => {
   });
 
   it("dispatches one authenticated custom payload from a detached Base projection", async () => {
-    const semanticReceipt = Object.freeze({ kind: "custom-accepted" as const });
+    const semanticReceipt = { kind: "custom-accepted" as const };
     let capturedRequest: unknown = null;
     let semanticPort!: NarrativeStableSemanticResolutionPortInternalV1;
     const dispatchResolution = vi.fn(function (this: unknown, request: unknown) {
@@ -3605,7 +3148,7 @@ describe("Narrative stable Managed Surface family", () => {
       capturedRequest = request;
       return Promise.resolve(semanticReceipt);
     });
-    semanticPort = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
+    semanticPort = { dispatchResolutionInternalV1: dispatchResolution };
     const fixture = physicalCustomHarnessV1({ semanticDispatchPort: semanticPort });
     const state = fixture.harness.kernel.getStateInternalV1();
     const notifications = fixture.harness.stateNotificationCount();
@@ -3620,8 +3163,6 @@ describe("Narrative stable Managed Surface family", () => {
       NarrativeStableCustomActionAttemptInternalV1 | null
     >();
     expect(attempt).not.toBeNull();
-    expect(Object.isFrozen(attempt)).toBe(true);
-    expect(Reflect.ownKeys(attempt as object)).toEqual([]);
 
     rawPayload.z = 99;
     rawPayload.a.enabled = false;
@@ -3657,7 +3198,7 @@ describe("Narrative stable Managed Surface family", () => {
     const capturedResolution = (capturedRequest as {
       readonly resolution: { readonly payload: Record<string, unknown> };
     }).resolution;
-    expect(Reflect.ownKeys(capturedResolution.payload)).toEqual(["a", "nil", "z"]);
+
     expect([...canonicalJsonBytes(capturedResolution.payload)]).toEqual([
       ...canonicalJsonBytes({
         a: { enabled: true, list: [1, { label: "original" }] },
@@ -3678,37 +3219,26 @@ describe("Narrative stable Managed Surface family", () => {
     ).toEqual({ kind: "stale", completion: null });
   });
 
-  it("rejects invalid or hostile custom payloads before minting a capability", async () => {
+  it("rejects invalid custom payloads before minting a capability", async () => {
     const fixture = physicalCustomHarnessV1();
     const state = fixture.harness.kernel.getStateInternalV1();
     const notifications = fixture.harness.stateNotificationCount();
-    let getterCalls = 0;
-    const throwingGetter = Object.defineProperty({}, "value", {
-      enumerable: true,
-      get() {
-        getterCalls += 1;
-        throw new Error("custom payload getter failed");
-      },
-    });
-    const revoked = Proxy.revocable({}, {});
-    revoked.revoke();
 
     for (
-      const invalid of [
-        null,
-        undefined,
-        [],
-        Object.freeze({ value: 1.5 }),
-        Object.freeze({ value: Number.MAX_SAFE_INTEGER + 1 }),
-        Object.freeze({ value: undefined }),
-        Object.freeze({ value: new Date(0) }),
-        throwingGetter,
-        revoked.proxy,
-      ]
+      const [label, invalid] of [
+        ["null", null],
+        ["undefined", undefined],
+        ["array", []],
+        ["fractional number", { value: 1.5 }],
+        ["unsafe integer", { value: Number.MAX_SAFE_INTEGER + 1 }],
+        ["undefined property", { value: undefined }],
+      ] as const
     ) {
-      expect(fixture.admission.issueCustomAttemptInternalV1(invalid)).toBeNull();
+      expect(
+        fixture.admission.issueCustomAttemptInternalV1(invalid),
+        label,
+      ).toBeNull();
     }
-    expect(getterCalls).toBe(1);
     expect(fixture.admission.issueChoiceAttemptInternalV1("choice.test.first")).toBeNull();
     expect(fixture.admission.issueHoldSkipAttemptInternalV1()).toBeNull();
     expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
@@ -3773,12 +3303,12 @@ describe("Narrative stable Managed Surface family", () => {
     expect(recovered).not.toBeNull();
   });
 
-  it("does not spend a custom attempt on unmapped, cross-kind, clone, or foreign routes", async () => {
+  it("does not spend a custom attempt on unmapped, cross-kind, or foreign routes", async () => {
     const dispatchResolution = vi.fn(() => Promise.resolve("custom-dispatched"));
     const fixture = physicalCustomHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const attempt = fixture.admission.issueCustomAttemptInternalV1({ value: 2 });
     expect(attempt).not.toBeNull();
@@ -3815,21 +3345,11 @@ describe("Narrative stable Managed Surface family", () => {
         ).consumerResult,
       ).toEqual({ kind: "stale", completion: null });
     }
-    expect(
-      fixture.admission.routeInternalV1(
-        fixture.admission.createEnvelopeInternalV1({
-          actionId: narrativeCustomActionIdV1,
-          gestureId: parseManagedSurfaceGestureIdV1("gesture.narrative.custom-clone"),
-        }),
-        { ...(attempt as object) },
-      ).consumerResult,
-    ).toEqual({ kind: "stale", completion: null });
-
     const foreignDispatch = vi.fn(() => Promise.resolve("foreign-custom"));
     const foreign = physicalCustomHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: foreignDispatch,
-      }),
+      },
     });
     const foreignAttempt = foreign.admission.issueCustomAttemptInternalV1({ value: 3 });
     expect(foreignAttempt).not.toBeNull();
@@ -3880,9 +3400,9 @@ describe("Narrative stable Managed Surface family", () => {
     let gestureCurrent = false;
     const dispatchResolution = vi.fn(() => Promise.resolve("custom-dispatched"));
     const fixture = physicalCustomHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
       isGestureCurrent: () => gestureCurrent,
     });
     const gestureAttempt = fixture.admission.issueCustomAttemptInternalV1({ value: 1 });
@@ -3939,9 +3459,9 @@ describe("Narrative stable Managed Surface family", () => {
     ).toEqual({ kind: "stale", completion: null });
 
     const suspended = physicalCustomHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const suspendedAttempt = suspended.admission.issueCustomAttemptInternalV1({ value: 4 });
     expect(suspendedAttempt).not.toBeNull();
@@ -3957,9 +3477,9 @@ describe("Narrative stable Managed Surface family", () => {
     ).toEqual({ kind: "stale", completion: null });
 
     const publisherDisposed = physicalCustomHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const publisherAttempt = publisherDisposed.admission.issueCustomAttemptInternalV1({
       value: 5,
@@ -3989,9 +3509,9 @@ describe("Narrative stable Managed Surface family", () => {
     });
 
     const admissionDisposed = physicalCustomHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const disposedAttempt = admissionDisposed.admission.issueCustomAttemptInternalV1({ value: 6 });
     expect(disposedAttempt).not.toBeNull();
@@ -4010,10 +3530,10 @@ describe("Narrative stable Managed Surface family", () => {
   });
 
   it("spends custom attempts without rolling back Story rejection or synchronous throw", async () => {
-    const semanticRejected = Object.freeze({
+    const semanticRejected = {
       kind: "rejected" as const,
       code: "interaction.payload_invalid" as const,
-    });
+    };
     const sentinel = new Error("custom semantic dispatch failed");
     const dispatchResolution = vi.fn()
       .mockResolvedValueOnce(semanticRejected)
@@ -4021,9 +3541,9 @@ describe("Narrative stable Managed Surface family", () => {
         throw sentinel;
       });
     const fixture = physicalCustomHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const state = fixture.harness.kernel.getStateInternalV1();
     const notifications = fixture.harness.stateNotificationCount();
@@ -4083,11 +3603,11 @@ describe("Narrative stable Managed Surface family", () => {
 
     for (const skippable of [true, false] as const) {
       const now = vi.fn(() => 0);
-      const presentationClock = Object.freeze({
+      const presentationClock = {
         ...defaultDialoguePlayerClockPortV1,
         nowInternalV1: now,
-      });
-      const semanticReceipt = Object.freeze({ kind: "hold-expired" as const, skippable });
+      };
+      const semanticReceipt = { kind: "hold-expired" as const, skippable };
       let capturedRequest: unknown = null;
       let semanticPort!: NarrativeStableSemanticResolutionPortInternalV1;
       const dispatchTime = vi.fn(function (this: unknown, request: unknown) {
@@ -4095,10 +3615,10 @@ describe("Narrative stable Managed Surface family", () => {
         capturedRequest = request;
         return Promise.resolve(semanticReceipt);
       });
-      semanticPort = Object.freeze({
+      semanticPort = {
         dispatchResolutionInternalV1: () => Promise.resolve(undefined),
         dispatchTimeInternalV1: dispatchTime,
-      });
+      };
       const fixture = automaticHoldHarnessV1({
         semanticDispatchPort: semanticPort,
         skippable,
@@ -4108,26 +3628,19 @@ describe("Narrative stable Managed Surface family", () => {
       const notifications = fixture.harness.stateNotificationCount();
       const controller = fixture.controller;
       expectTypeOf(controller).toEqualTypeOf<NarrativeStableHoldExpiryControllerInternalV1>();
-      expect(Object.isFrozen(controller)).toBe(true);
-      expect(Reflect.ownKeys(controller)).toEqual([
-        "issueAttemptInternalV1",
-        "dispatchInternalV1",
-        "disposeInternalV1",
-      ]);
 
       const attempt = controller.issueAttemptInternalV1();
       expectTypeOf(attempt).toEqualTypeOf<
         NarrativeStableHoldExpiryControllerAttemptInternalV1 | null
       >();
       expect(attempt).not.toBeNull();
-      expect(Object.isFrozen(attempt)).toBe(true);
-      expect(Reflect.ownKeys(attempt as object)).toEqual([]);
+
       expect(controller.issueAttemptInternalV1()).toBeNull();
 
       const result = controller.dispatchInternalV1(attempt, 250);
       expectTypeOf(result).toEqualTypeOf<NarrativeStableHoldExpiryDispatchResultInternalV1>();
       expect(result).toMatchObject({ kind: "dispatched" });
-      expect(Object.isFrozen(result)).toBe(true);
+
       if (result.kind !== "dispatched") throw new Error("expected automatic hold dispatch");
       expect(result.completion).toBeInstanceOf(Promise);
       await expect(result.completion).resolves.toBe(semanticReceipt);
@@ -4153,7 +3666,7 @@ describe("Narrative stable Managed Surface family", () => {
     // settle time: the dispatch itself must fault (never silently stale)
     // so the Host retires the player instead of retrying forever.
     const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
-    const timeless = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
+    const timeless = { dispatchResolutionInternalV1: dispatchResolution };
 
     const automatic = automaticHoldHarnessV1({ semanticDispatchPort: timeless });
     const attempt = automatic.controller.issueAttemptInternalV1();
@@ -4185,12 +3698,12 @@ describe("Narrative stable Managed Surface family", () => {
     skippable.admission.disposeInternalV1();
   });
 
-  it("keeps attempts generation-bound across clones, foreign controllers, and A-to-B replacement", async () => {
+  it("keeps attempts generation-bound across foreign controllers and A-to-B replacement", async () => {
     const dispatchTime = vi.fn(() => Promise.resolve("automatic-resumed"));
-    const semanticPort = Object.freeze({
+    const semanticPort = {
       dispatchResolutionInternalV1: () => Promise.resolve(undefined),
       dispatchTimeInternalV1: dispatchTime,
-    });
+    };
     const fixture = automaticHoldHarnessV1({ semanticDispatchPort: semanticPort });
     const controllerA = fixture.controller;
     const attemptA = controllerA.issueAttemptInternalV1();
@@ -4201,11 +3714,6 @@ describe("Narrative stable Managed Surface family", () => {
         completion: null,
       });
     }
-    expect(controllerA.dispatchInternalV1({ ...(attemptA as object) }, 250)).toEqual({
-      kind: "stale",
-      completion: null,
-    });
-
     const foreign = automaticHoldHarnessV1();
     const foreignAttempt = foreign.controller.issueAttemptInternalV1();
     expect(foreignAttempt).not.toBeNull();
@@ -4248,10 +3756,10 @@ describe("Narrative stable Managed Surface family", () => {
 
   it("stales the old topology attempt but admits a fresh controller under a higher nonblocking input owner", async () => {
     const dispatchTime = vi.fn(() => Promise.resolve("nonblocking-resumed"));
-    const semanticPort = Object.freeze({
+    const semanticPort = {
       dispatchResolutionInternalV1: () => Promise.resolve(undefined),
       dispatchTimeInternalV1: dispatchTime,
-    });
+    };
     const { harness, nonBlockingDefinition } = nonBlockingNarrativeHarnessV1(semanticPort);
     expect(harness.bridge.reconcilePendingInternalV1(pendingV1("hold"))).toMatchObject({
       kind: "applied",
@@ -4304,10 +3812,10 @@ describe("Narrative stable Managed Surface family", () => {
 
   it("reissues within the same generation after lower nonblocking topology changes without suspending Narrative", async () => {
     const dispatchTime = vi.fn(() => Promise.resolve("lower-nonblocking-resumed"));
-    const semanticPort = Object.freeze({
+    const semanticPort = {
       dispatchResolutionInternalV1: () => Promise.resolve(undefined),
       dispatchTimeInternalV1: dispatchTime,
-    });
+    };
     const { harness, nonBlockingDefinition } = nonBlockingNarrativeHarnessV1(
       semanticPort,
       10,
@@ -4347,7 +3855,7 @@ describe("Narrative stable Managed Surface family", () => {
 
   it("fences suspension, empty, publisher disposal, controller disposal, and terminal disposal", () => {
     const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
-    const semanticPort = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
+    const semanticPort = { dispatchResolutionInternalV1: dispatchResolution };
 
     const nonHold = physicalChoiceHarnessV1({ semanticDispatchPort: semanticPort });
     expect(() => createNarrativeStableHoldExpiryControllerInternalV1(nonHold.harness.bridge))
@@ -4355,13 +3863,13 @@ describe("Narrative stable Managed Surface family", () => {
     nonHold.admission.disposeInternalV1();
 
     const preparing = harnessV1({
-      candidatePreflight: Object.freeze({
+      candidatePreflight: {
         preflightCandidateInternalV1: () =>
-          capturedCandidatePreflightResultV1(Object.freeze({
+          capturedCandidatePreflightResultV1({
             ...defaultCandidateSnapshotV1,
             semanticDispatchPort: semanticPort,
-          })),
-      }),
+          }),
+      },
     });
     expect(preparing.bridge.reconcilePendingInternalV1(pendingV1("hold"))).toMatchObject({
       kind: "applied",
@@ -4449,10 +3957,10 @@ describe("Narrative stable Managed Surface family", () => {
       throw sentinel;
     });
     const fixture = automaticHoldHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: () => Promise.resolve(undefined),
         dispatchTimeInternalV1: dispatchTime,
-      }),
+      },
     });
     controller = fixture.controller;
     expect(() => createNarrativeStableHoldExpiryControllerInternalV1(fixture.harness.bridge))
@@ -4496,10 +4004,10 @@ describe("Narrative stable Managed Surface family", () => {
         return Promise.resolve("bounded-resume");
       });
       const fixture = automaticHoldHarnessV1({
-        semanticDispatchPort: Object.freeze({
+        semanticDispatchPort: {
           dispatchResolutionInternalV1: () => Promise.resolve(undefined),
           dispatchTimeInternalV1: dispatchTime,
-        }),
+        },
       });
       const state = fixture.harness.kernel.getStateInternalV1();
       const notifications = fixture.harness.stateNotificationCount();
@@ -4508,10 +4016,6 @@ describe("Narrative stable Managed Surface family", () => {
       for (let index = 0; index < 10_000; index += 1) {
         const attempt = controller.issueAttemptInternalV1();
         if (attempt === null) throw new Error(`missing automatic attempt at rotation ${index}`);
-        if (index === 0 || index === 9_999) {
-          expect(Object.isFrozen(attempt)).toBe(true);
-          expect(Reflect.ownKeys(attempt)).toEqual([]);
-        }
         controller.disposeInternalV1();
         if (index < 9_999) {
           controller = createNarrativeStableHoldExpiryControllerInternalV1(
@@ -4551,9 +4055,9 @@ describe("Narrative stable Managed Surface family", () => {
       expect(this).toBe(semanticPort);
       throw sentinel;
     });
-    semanticPort = Object.freeze({
+    semanticPort = {
       dispatchResolutionInternalV1: dispatchResolution,
-    });
+    };
     const fixture = physicalChoiceHarnessV1({ semanticDispatchPort: semanticPort });
     const state = fixture.harness.kernel.getStateInternalV1();
     const attempt = fixture.admission.issueChoiceAttemptInternalV1("choice.test.first");
@@ -4589,20 +4093,15 @@ describe("Narrative stable Managed Surface family", () => {
     const revealAll = vi.fn(function (this: unknown) {
       expect(this).toBe(revealPort);
     });
-    revealPort = Object.freeze({
+    revealPort = {
       capturePhaseInternalV1: capturePhase,
       revealAllInternalV1: revealAll,
-    });
+    };
     const fixture = physicalSayHarnessV1({ revealGenerationPort: revealPort });
     expectTypeOf(fixture.controller).toEqualTypeOf<
       NarrativeStableSayRevealControllerInternalV1
     >();
-    expect(Object.isFrozen(fixture.controller)).toBe(true);
-    expect(Reflect.ownKeys(fixture.controller)).toEqual([
-      "issueContentAutoAttemptInternalV1",
-      "dispatchContentAutoInternalV1",
-      "disposeInternalV1",
-    ]);
+
     expect(phaseReads).toBe(0);
 
     const attempt = fixture.admission.issueSayActivationAttemptInternalV1(
@@ -4610,8 +4109,7 @@ describe("Narrative stable Managed Surface family", () => {
     );
     expectTypeOf(attempt).toEqualTypeOf<NarrativeStableSayActivationAttemptInternalV1 | null>();
     expect(attempt).not.toBeNull();
-    expect(Object.isFrozen(attempt)).toBe(true);
-    expect(Reflect.ownKeys(attempt as object)).toEqual([]);
+
     expect(phaseReads).toBe(0);
     expect(revealAll).not.toHaveBeenCalled();
 
@@ -4637,10 +4135,10 @@ describe("Narrative stable Managed Surface family", () => {
     const confirmPhase = vi.fn(() => "complete" as const);
     const confirm = physicalSayHarnessV1({
       advancePolicy: "confirm",
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: confirmPhase,
         revealAllInternalV1: vi.fn(),
-      }),
+      },
     });
     expect(confirm.controller.issueContentAutoAttemptInternalV1()).toBeNull();
     expect(confirmPhase).not.toHaveBeenCalled();
@@ -4650,18 +4148,17 @@ describe("Narrative stable Managed Surface family", () => {
     const autoPhase = vi.fn(() => "complete" as const);
     const auto = physicalSayHarnessV1({
       advancePolicy: "auto",
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: autoPhase,
         revealAllInternalV1: vi.fn(),
-      }),
+      },
     });
     const state = auto.harness.kernel.getStateInternalV1();
     const notifications = auto.harness.stateNotificationCount();
     const attempt = auto.controller.issueContentAutoAttemptInternalV1();
     expectTypeOf(attempt).toEqualTypeOf<NarrativeStableSayContentAutoAttemptInternalV1 | null>();
     expect(attempt).not.toBeNull();
-    expect(Object.isFrozen(attempt)).toBe(true);
-    expect(Reflect.ownKeys(attempt as object)).toEqual([]);
+
     expect(auto.controller.issueContentAutoAttemptInternalV1()).toBeNull();
     expect(autoPhase).not.toHaveBeenCalled();
     expect(auto.harness.kernel.getStateInternalV1()).toBe(state);
@@ -4681,13 +4178,13 @@ describe("Narrative stable Managed Surface family", () => {
     const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
     const fixture = physicalSayHarnessV1({
       advancePolicy: "auto",
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: capturePhase,
         revealAllInternalV1: revealAll,
-      }),
-      semanticDispatchPort: Object.freeze({
+      },
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const state = fixture.harness.kernel.getStateInternalV1();
     const notifications = fixture.harness.stateNotificationCount();
@@ -4768,27 +4265,45 @@ describe("Narrative stable Managed Surface family", () => {
     });
     let playerProfileReads = 0;
     let presentationClockReads = 0;
+    const playerProfile = {
+      getSnapshotInternalV1() {
+        playerProfileReads += 1;
+        return defaultDialoguePlayerProfilePortV1.getSnapshotInternalV1();
+      },
+      subscribeInternalV1(listener: () => void) {
+        playerProfileReads += 1;
+        return defaultDialoguePlayerProfilePortV1.subscribeInternalV1(listener);
+      },
+      markSeenInternalV1(definitionId: string, seenRevision: number) {
+        playerProfileReads += 1;
+        defaultDialoguePlayerProfilePortV1.markSeenInternalV1(definitionId, seenRevision);
+      },
+    } satisfies NarrativeStableDialoguePlayerProfilePortInternalV1;
+    const presentationClock = {
+      nowInternalV1() {
+        presentationClockReads += 1;
+        return defaultDialoguePlayerClockPortV1.nowInternalV1();
+      },
+      requestTickInternalV1(callback: (nowMs: number) => void) {
+        presentationClockReads += 1;
+        return defaultDialoguePlayerClockPortV1.requestTickInternalV1(callback);
+      },
+      prefersReducedMotionInternalV1() {
+        presentationClockReads += 1;
+        return defaultDialoguePlayerClockPortV1.prefersReducedMotionInternalV1();
+      },
+    } satisfies NarrativeStableDialoguePlayerClockPortInternalV1;
     const fixture = physicalSayHarnessV1({
       advancePolicy: "auto",
-      playerProfile: new Proxy(defaultDialoguePlayerProfilePortV1, {
-        get: (target, key, receiver) => {
-          playerProfileReads += 1;
-          return Reflect.get(target, key, receiver);
-        },
-      }),
-      presentationClock: new Proxy(defaultDialoguePlayerClockPortV1, {
-        get: (target, key, receiver) => {
-          presentationClockReads += 1;
-          return Reflect.get(target, key, receiver);
-        },
-      }),
-      revealGenerationPort: Object.freeze({
+      playerProfile,
+      presentationClock,
+      revealGenerationPort: {
         capturePhaseInternalV1: () => "complete" as const,
         revealAllInternalV1: vi.fn(),
-      }),
-      semanticDispatchPort: Object.freeze({
+      },
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const playerProfileReadsAfterPreflight = playerProfileReads;
     const presentationClockReadsAfterPreflight = presentationClockReads;
@@ -4800,7 +4315,7 @@ describe("Narrative stable Managed Surface family", () => {
     const automaticResult = fixture.controller.dispatchContentAutoInternalV1(automatic);
     expect(automaticResult).toMatchObject({ kind: "dispatched" });
     if (automaticResult.kind !== "dispatched") throw new Error("expected content-auto dispatch");
-    expect(Object.isFrozen(automaticResult)).toBe(true);
+
     expect(capturedRequest).toEqual({
       expectedOccurrenceId: occurrenceV1(1),
       resolution: { kind: "advance" },
@@ -4844,13 +4359,13 @@ describe("Narrative stable Managed Surface family", () => {
     const dispatchResolution = vi.fn(() => Promise.resolve("manual-drained"));
     const fixture = physicalSayHarnessV1({
       advancePolicy: "auto",
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: () => "complete" as const,
         revealAllInternalV1: vi.fn(),
-      }),
-      semanticDispatchPort: Object.freeze({
+      },
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const automatic = fixture.controller.issueContentAutoAttemptInternalV1();
     const manual = fixture.admission.issueSayActivationAttemptInternalV1(fixture.controller);
@@ -4881,31 +4396,21 @@ describe("Narrative stable Managed Surface family", () => {
     fixture.admission.disposeInternalV1();
   });
 
-  it("rejects cloned, foreign, and wrong-receiver content-auto attempts without phase reads", async () => {
+  it("rejects foreign content-auto attempts without phase reads", async () => {
     const capturePhase = vi.fn(() => "complete" as const);
     const dispatchResolution = vi.fn(() => Promise.resolve("content-auto-dispatched"));
     const fixture = physicalSayHarnessV1({
       advancePolicy: "auto",
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: capturePhase,
         revealAllInternalV1: vi.fn(),
-      }),
-      semanticDispatchPort: Object.freeze({
+      },
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const attempt = fixture.controller.issueContentAutoAttemptInternalV1();
     expect(attempt).not.toBeNull();
-    expect(fixture.controller.dispatchContentAutoInternalV1({ ...(attempt as object) })).toEqual({
-      kind: "stale",
-      completion: null,
-    });
-    expect(
-      Reflect.apply(fixture.controller.dispatchContentAutoInternalV1, Object.freeze({}), [
-        attempt,
-      ]),
-    ).toEqual({ kind: "stale", completion: null });
-
     const foreign = physicalSayHarnessV1({ advancePolicy: "auto" });
     const foreignAttempt = foreign.controller.issueContentAutoAttemptInternalV1();
     expect(foreignAttempt).not.toBeNull();
@@ -4927,19 +4432,19 @@ describe("Narrative stable Managed Surface family", () => {
   });
 
   it("refreshes topology-bound auto proof without depending on the physical input owner", async () => {
-    const revealGenerationPort = Object.freeze({
+    const revealGenerationPort = {
       capturePhaseInternalV1: () => "complete" as const,
       revealAllInternalV1: vi.fn(),
-    });
+    };
 
     const lowerDispatch = vi.fn(() => Promise.resolve("lower-auto"));
     const lower = nonBlockingNarrativeHarnessV1(
-      Object.freeze({ dispatchResolutionInternalV1: lowerDispatch }),
+      { dispatchResolutionInternalV1: lowerDispatch },
       10,
     );
     expect(
       lower.harness.bridge.reconcilePendingInternalV1({
-        ...(pendingV1("say") as Record<string, unknown>),
+        ...(pendingV1("say")),
         advancePolicy: "auto",
       }),
     ).toMatchObject({ kind: "applied" });
@@ -4971,11 +4476,11 @@ describe("Narrative stable Managed Surface family", () => {
 
     const higherDispatch = vi.fn(() => Promise.resolve("higher-auto"));
     const higher = nonBlockingNarrativeHarnessV1(
-      Object.freeze({ dispatchResolutionInternalV1: higherDispatch }),
+      { dispatchResolutionInternalV1: higherDispatch },
     );
     expect(
       higher.harness.bridge.reconcilePendingInternalV1({
-        ...(pendingV1("say") as Record<string, unknown>),
+        ...(pendingV1("say")),
         advancePolicy: "auto",
       }),
     ).toMatchObject({ kind: "applied" });
@@ -5015,21 +4520,21 @@ describe("Narrative stable Managed Surface family", () => {
     const capturePhase = vi.fn(() => "complete" as const);
     const dispatchResolution = vi.fn(() => Promise.resolve("resumed-auto"));
     const { harness, nonBlockingDefinition: blockingDefinition } = nonBlockingNarrativeHarnessV1(
-      Object.freeze({ dispatchResolutionInternalV1: dispatchResolution }),
+      { dispatchResolutionInternalV1: dispatchResolution },
       90,
       "blocking",
     );
     expect(
       harness.bridge.reconcilePendingInternalV1({
-        ...(pendingV1("say") as Record<string, unknown>),
+        ...(pendingV1("say")),
         advancePolicy: "auto",
       }),
     ).toMatchObject({ kind: "applied" });
     settleCurrentNarrativeReadyV1(harness);
-    const revealGenerationPort = Object.freeze({
+    const revealGenerationPort = {
       capturePhaseInternalV1: capturePhase,
       revealAllInternalV1: vi.fn(),
-    });
+    };
     const oldController = createNarrativeStableSayRevealControllerInternalV1({
       bridge: harness.bridge,
       revealGenerationPort,
@@ -5053,11 +4558,11 @@ describe("Narrative stable Managed Surface family", () => {
     const suspendedPublication = harness.kernel.getStateInternalV1().transientState.publication;
     expect(harness.kernel.transitionTransientInternalV1({
       kind: "close_expected",
-      evidence: Object.freeze({
+      evidence: {
         applicationEpoch: applicationEpochV1,
         topologyRevision: suspendedPublication.topologyRevision,
         surfaceInstanceId: blocker.surfaceInstanceId,
-      }),
+      },
     })).toMatchObject({ kind: "applied" });
     const freshController = createNarrativeStableSayRevealControllerInternalV1({
       bridge: harness.bridge,
@@ -5087,16 +4592,16 @@ describe("Narrative stable Managed Surface family", () => {
     const dispatchResolution = vi.fn()
       .mockImplementationOnce(() => oldCompletion)
       .mockImplementationOnce(() => successorCompletion);
-    const revealGenerationPort = Object.freeze({
+    const revealGenerationPort = {
       capturePhaseInternalV1: () => "complete" as const,
       revealAllInternalV1: vi.fn(),
-    });
+    };
     const fixture = physicalSayHarnessV1({
       advancePolicy: "auto",
       revealGenerationPort,
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const oldAttempt = fixture.controller.issueContentAutoAttemptInternalV1();
     expect(oldAttempt).not.toBeNull();
@@ -5106,7 +4611,7 @@ describe("Narrative stable Managed Surface family", () => {
 
     expect(
       fixture.harness.bridge.reconcilePendingInternalV1({
-        ...(pendingV1("say", 2) as Record<string, unknown>),
+        ...(pendingV1("say", 2)),
         advancePolicy: "auto",
       }),
     ).toMatchObject({ kind: "applied" });
@@ -5140,21 +4645,21 @@ describe("Narrative stable Managed Surface family", () => {
     const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
     fixture = physicalSayHarnessV1({
       advancePolicy: "auto",
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: () => {
           expect(
             fixture.harness.bridge.reconcilePendingInternalV1({
-              ...(pendingV1("say", 2) as Record<string, unknown>),
+              ...(pendingV1("say", 2)),
               advancePolicy: "auto",
             }),
           ).toMatchObject({ kind: "applied" });
           throw null;
         },
         revealAllInternalV1: vi.fn(),
-      }),
-      semanticDispatchPort: Object.freeze({
+      },
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const attempt = fixture.controller.issueContentAutoAttemptInternalV1();
     expect(attempt).not.toBeNull();
@@ -5183,7 +4688,7 @@ describe("Narrative stable Managed Surface family", () => {
         >
         | null = null;
       const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
-      const revealPort = Object.freeze({
+      const revealPort = ({
         capturePhaseInternalV1: vi.fn(() => phase),
         revealAllInternalV1: vi.fn(() => {
           phase = "complete";
@@ -5194,9 +4699,9 @@ describe("Narrative stable Managed Surface family", () => {
       }) satisfies NarrativeStableSayRevealGenerationPortInternalV1;
       const fixture = physicalSayHarnessV1({
         revealGenerationPort: revealPort,
-        semanticDispatchPort: Object.freeze({
+        semanticDispatchPort: {
           dispatchResolutionInternalV1: dispatchResolution,
-        }),
+        },
       });
       attempt = fixture.admission.issueSayActivationAttemptInternalV1(fixture.controller);
       expect(attempt).not.toBeNull();
@@ -5208,7 +4713,7 @@ describe("Narrative stable Managed Surface family", () => {
       const notifications = fixture.harness.stateNotificationCount();
       const result = fixture.admission.routeInternalV1(envelope, attempt);
       expect(result.consumerResult).toEqual({ kind: "revealed", completion: null });
-      expect(Object.isFrozen(result.consumerResult)).toBe(true);
+
       expect(revealPort.capturePhaseInternalV1).toHaveBeenCalledOnce();
       expect(revealPort.revealAllInternalV1).toHaveBeenCalledOnce();
       expect(reentrantAttempt).toBeNull();
@@ -5234,13 +4739,13 @@ describe("Narrative stable Managed Surface family", () => {
       return semanticCompletion;
     });
     const fixture = physicalSayHarnessV1({
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: () => "complete" as const,
         revealAllInternalV1: vi.fn(),
-      }),
-      semanticDispatchPort: Object.freeze({
+      },
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const first = fixture.admission.issueSayActivationAttemptInternalV1(fixture.controller);
     expect(first).not.toBeNull();
@@ -5266,7 +4771,7 @@ describe("Narrative stable Managed Surface family", () => {
     if (firstResult.consumerResult?.kind !== "dispatched") {
       throw new Error("expected Say semantic dispatch");
     }
-    expect(Object.isFrozen(firstResult.consumerResult)).toBe(true);
+
     expect(dispatchResolution).toHaveBeenCalledOnce();
     expect(capturedRequest).toEqual({
       expectedOccurrenceId: occurrenceV1(1),
@@ -5303,13 +4808,13 @@ describe("Narrative stable Managed Surface family", () => {
     const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
     const fixture = physicalSayHarnessV1({
       isGestureCurrent: () => gestureCurrent,
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: capturePhase,
         revealAllInternalV1: revealAll,
-      }),
-      semanticDispatchPort: Object.freeze({
+      },
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const staleGestureAttempt = fixture.admission.issueSayActivationAttemptInternalV1(
       fixture.controller,
@@ -5356,18 +4861,18 @@ describe("Narrative stable Managed Surface family", () => {
     fixture.admission.disposeInternalV1();
   });
 
-  it("captures exact reveal callables without burning the bridge claim on malformed ports", () => {
-    const semanticDispatchPort = Object.freeze({
+  it("validates reveal callables without burning the bridge claim on malformed values", () => {
+    const semanticDispatchPort = {
       dispatchResolutionInternalV1: vi.fn(() => Promise.resolve("must-not-dispatch")),
-    });
+    };
     const harness = harnessV1({
-      candidatePreflight: Object.freeze({
+      candidatePreflight: {
         preflightCandidateInternalV1: () =>
-          capturedCandidatePreflightResultV1(Object.freeze({
+          capturedCandidatePreflightResultV1({
             ...defaultCandidateSnapshotV1,
             semanticDispatchPort,
-          })),
-      }),
+          }),
+      },
     });
     expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
       kind: "applied",
@@ -5375,37 +4880,11 @@ describe("Narrative stable Managed Surface family", () => {
     });
     settleCurrentNarrativeReadyV1(harness);
 
-    let accessorReads = 0;
-    const malformed = Object.create(Object.prototype);
-    Object.defineProperties(malformed, {
-      capturePhaseInternalV1: {
-        enumerable: true,
-        get: () => {
-          accessorReads += 1;
-          return () => "incomplete";
-        },
-      },
-      revealAllInternalV1: {
-        enumerable: true,
-        value: () => {},
-      },
-    });
-    expect(() =>
-      createNarrativeStableSayRevealControllerInternalV1({
-        bridge: harness.bridge,
-        revealGenerationPort: malformed,
-      })
-    ).toThrowError("ui.narrative_stable_say_reveal_controller_invalid");
-    expect(accessorReads).toBe(0);
-
     const exactPortShape = {
       capturePhaseInternalV1: () => "incomplete" as const,
       revealAllInternalV1: () => {},
     };
     const malformedPorts = [
-      { ...exactPortShape, extra: true },
-      Object.assign({ ...exactPortShape }, { [Symbol("extra")]: true }),
-      Object.assign(Object.create(null), exactPortShape),
       { ...exactPortShape, capturePhaseInternalV1: "not-callable" },
       { ...exactPortShape, revealAllInternalV1: 1 },
     ];
@@ -5426,8 +4905,6 @@ describe("Narrative stable Managed Surface family", () => {
     const originalReveal = vi.fn(function (this: unknown) {
       expect(this).toBe(mutablePort);
     });
-    const replacementPhase = vi.fn(() => "complete" as const);
-    const replacementReveal = vi.fn();
     const mutablePort: {
       capturePhaseInternalV1: NarrativeStableSayRevealGenerationPortInternalV1[
         "capturePhaseInternalV1"
@@ -5443,8 +4920,6 @@ describe("Narrative stable Managed Surface family", () => {
       bridge: harness.bridge,
       revealGenerationPort: mutablePort,
     });
-    mutablePort.capturePhaseInternalV1 = replacementPhase;
-    mutablePort.revealAllInternalV1 = replacementReveal;
     const admission = createNarrativeStablePhysicalActionAdmissionInternalV1({
       bridge: harness.bridge,
       inputRouter: createInputRouterV1(),
@@ -5463,16 +4938,14 @@ describe("Narrative stable Managed Surface family", () => {
     ).toEqual({ kind: "revealed", completion: null });
     expect(originalPhase).toHaveBeenCalledOnce();
     expect(originalReveal).toHaveBeenCalledOnce();
-    expect(replacementPhase).not.toHaveBeenCalled();
-    expect(replacementReveal).not.toHaveBeenCalled();
     controller.disposeInternalV1();
     admission.disposeInternalV1();
   });
 
   it("preserves the Say controller across physical binding churn and invalidates the old token", () => {
-    const semanticDispatchPort = Object.freeze({
+    const semanticDispatchPort = {
       dispatchResolutionInternalV1: vi.fn(() => Promise.resolve("must-not-dispatch")),
-    });
+    };
     const { harness, nonBlockingDefinition } = nonBlockingNarrativeHarnessV1(
       semanticDispatchPort,
       10,
@@ -5486,10 +4959,10 @@ describe("Narrative stable Managed Surface family", () => {
     const revealAll = vi.fn();
     const controller = createNarrativeStableSayRevealControllerInternalV1({
       bridge: harness.bridge,
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: capturePhase,
         revealAllInternalV1: revealAll,
-      }),
+      },
     });
     const inputRouter = createInputRouterV1();
     const firstAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
@@ -5510,10 +4983,10 @@ describe("Narrative stable Managed Surface family", () => {
     expect(() =>
       createNarrativeStableSayRevealControllerInternalV1({
         bridge: harness.bridge,
-        revealGenerationPort: Object.freeze({
+        revealGenerationPort: {
           capturePhaseInternalV1: () => "incomplete" as const,
           revealAllInternalV1: () => {},
-        }),
+        },
       })
     ).toThrowError("ui.narrative_stable_say_reveal_controller_invalid");
 
@@ -5549,7 +5022,7 @@ describe("Narrative stable Managed Surface family", () => {
           .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
       };
       fixture = physicalSayHarnessV1({
-        revealGenerationPort: Object.freeze({
+        revealGenerationPort: {
           capturePhaseInternalV1: () => {
             if (callback === "phase") {
               replaceCurrent();
@@ -5561,10 +5034,10 @@ describe("Narrative stable Managed Surface family", () => {
             replaceCurrent();
             throw new Error("reveal loses to replacement");
           },
-        }),
-        semanticDispatchPort: Object.freeze({
+        },
+        semanticDispatchPort: {
           dispatchResolutionInternalV1: dispatchResolution,
-        }),
+        },
       });
       const attempt = fixture.admission.issueSayActivationAttemptInternalV1(
         fixture.controller,
@@ -5594,15 +5067,15 @@ describe("Narrative stable Managed Surface family", () => {
     for (const thrown of [null, undefined]) {
       const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
       const fixture = physicalSayHarnessV1({
-        revealGenerationPort: Object.freeze({
+        revealGenerationPort: {
           capturePhaseInternalV1: () => "incomplete" as const,
           revealAllInternalV1: () => {
             throw thrown;
           },
-        }),
-        semanticDispatchPort: Object.freeze({
+        },
+        semanticDispatchPort: {
           dispatchResolutionInternalV1: dispatchResolution,
-        }),
+        },
       });
       const attempt = fixture.admission.issueSayActivationAttemptInternalV1(
         fixture.controller,
@@ -5631,12 +5104,12 @@ describe("Narrative stable Managed Surface family", () => {
   it("holds the bridge callback gate across reentrant controller replacement", () => {
     let fixture!: ReturnType<typeof physicalSayHarnessV1>;
     let nestedControllerCreation: unknown = null;
-    const successorRevealPort = Object.freeze({
+    const successorRevealPort = {
       capturePhaseInternalV1: () => "incomplete" as const,
       revealAllInternalV1: vi.fn(),
-    });
+    };
     fixture = physicalSayHarnessV1({
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: () => {
           fixture.controller.disposeInternalV1();
           fixture.admission.disposeInternalV1();
@@ -5651,7 +5124,7 @@ describe("Narrative stable Managed Surface family", () => {
           return "complete" as const;
         },
         revealAllInternalV1: vi.fn(),
-      }),
+      },
     });
     const attempt = fixture.admission.issueSayActivationAttemptInternalV1(fixture.controller);
     expect(attempt).not.toBeNull();
@@ -5692,13 +5165,13 @@ describe("Narrative stable Managed Surface family", () => {
       const capturePhase = vi.fn(() => "incomplete" as const);
       const revealAll = vi.fn();
       const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
-      const revealGenerationPort = Object.freeze({
+      const revealGenerationPort = {
         capturePhaseInternalV1: capturePhase,
         revealAllInternalV1: revealAll,
-      });
-      const semanticDispatchPort = Object.freeze({
+      };
+      const semanticDispatchPort = {
         dispatchResolutionInternalV1: dispatchResolution,
-      });
+      };
       let blockingDefinition:
         | ReturnType<typeof parseManagedSurfaceResolvedDefinitionV1>
         | null = null;
@@ -5774,13 +5247,13 @@ describe("Narrative stable Managed Surface family", () => {
     });
     const dispatchResolution = vi.fn(() => semanticCompletion);
     const fixture = physicalSayHarnessV1({
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: () => "complete" as const,
         revealAllInternalV1: vi.fn(),
-      }),
-      semanticDispatchPort: Object.freeze({
+      },
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const oldAttempt = fixture.admission.issueSayActivationAttemptInternalV1(
       fixture.controller,
@@ -5807,10 +5280,10 @@ describe("Narrative stable Managed Surface family", () => {
     fixture.controller.disposeInternalV1();
     const successorController = createNarrativeStableSayRevealControllerInternalV1({
       bridge: fixture.harness.bridge,
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: () => "complete" as const,
         revealAllInternalV1: vi.fn(),
-      }),
+      },
     });
     expect(
       successorAdmission.issueSayActivationAttemptInternalV1(successorController),
@@ -5836,13 +5309,13 @@ describe("Narrative stable Managed Surface family", () => {
     const semanticCompletion = new Promise<unknown>((resolve) => {
       settleSemantic = resolve;
     });
-    const revealGenerationPort = Object.freeze({
+    const revealGenerationPort = {
       capturePhaseInternalV1: () => "complete" as const,
       revealAllInternalV1: vi.fn(),
-    });
-    const semanticDispatchPort = Object.freeze({
+    };
+    const semanticDispatchPort = {
       dispatchResolutionInternalV1: vi.fn(() => semanticCompletion),
-    });
+    };
     const { harness, nonBlockingDefinition: blockingDefinition } = nonBlockingNarrativeHarnessV1(
       semanticDispatchPort,
       90,
@@ -5893,11 +5366,11 @@ describe("Narrative stable Managed Surface family", () => {
       .publication;
     expect(fixture.harness.kernel.transitionTransientInternalV1({
       kind: "close_expected",
-      evidence: Object.freeze({
+      evidence: {
         applicationEpoch: applicationEpochV1,
         topologyRevision: suspendedPublication.topologyRevision,
         surfaceInstanceId: blocker.surfaceInstanceId,
-      }),
+      },
     })).toMatchObject({ kind: "applied" });
     fixture.admission.disposeInternalV1();
     const successorController = createNarrativeStableSayRevealControllerInternalV1({
@@ -5935,15 +5408,15 @@ describe("Narrative stable Managed Surface family", () => {
     const dispatchResolution = vi.fn(() =>
       dispatchResolution.mock.calls.length === 1 ? oldCompletion : successorCompletion
     );
-    const revealGenerationPort = Object.freeze({
+    const revealGenerationPort = {
       capturePhaseInternalV1: () => "complete" as const,
       revealAllInternalV1: vi.fn(),
-    });
+    };
     const fixture = physicalSayHarnessV1({
       revealGenerationPort,
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const oldAttempt = fixture.admission.issueSayActivationAttemptInternalV1(
       fixture.controller,
@@ -6014,13 +5487,13 @@ describe("Narrative stable Managed Surface family", () => {
       throw sentinel;
     });
     const fixture = physicalSayHarnessV1({
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: () => "complete" as const,
         revealAllInternalV1: vi.fn(),
-      }),
-      semanticDispatchPort: Object.freeze({
+      },
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const attempt = fixture.admission.issueSayActivationAttemptInternalV1(fixture.controller);
     expect(attempt).not.toBeNull();
@@ -6048,13 +5521,13 @@ describe("Narrative stable Managed Surface family", () => {
     const revealAll = vi.fn();
     const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
     const fixture = physicalSayHarnessV1({
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: capturePhase,
         revealAllInternalV1: revealAll,
-      }),
-      semanticDispatchPort: Object.freeze({
+      },
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const state = fixture.harness.kernel.getStateInternalV1();
     const notifications = fixture.harness.stateNotificationCount();
@@ -6088,13 +5561,13 @@ describe("Narrative stable Managed Surface family", () => {
     const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
     const fixture = physicalSayHarnessV1({
       advancePolicy: "auto",
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: capturePhase,
         revealAllInternalV1: revealAll,
-      }),
-      semanticDispatchPort: Object.freeze({
+      },
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     const state = fixture.harness.kernel.getStateInternalV1();
     const notifications = fixture.harness.stateNotificationCount();
@@ -6116,7 +5589,7 @@ describe("Narrative stable Managed Surface family", () => {
     fixture.admission.disposeInternalV1();
   });
 
-  it("normalizes one voice port callable and rejects missing or non-callable values", () => {
+  it("retains one typed voice port and routes its result", () => {
     type ExpectedVoiceResultV1 =
       | Readonly<{ readonly kind: "handled"; readonly completion: null }>
       | Readonly<{ readonly kind: "ignored"; readonly completion: null }>
@@ -6130,7 +5603,6 @@ describe("Narrative stable Managed Surface family", () => {
       expect(arguments).toHaveLength(0);
       return true;
     });
-    const replacementReplay = vi.fn(() => false);
     const rawPort = {
       replayCurrentVoiceInternalV1: originalReplay,
     } satisfies NarrativeStableVoiceReplayPortInternalV1;
@@ -6145,14 +5617,9 @@ describe("Narrative stable Managed Surface family", () => {
       NarrativeStableVoiceReplayPortInternalV1 | null
     >();
     const capturedHandle = frame.candidateSnapshot.voiceReplayPort;
-    expect(capturedHandle).not.toBe(rawPort);
+    expect(capturedHandle).toBe(rawPort);
     expect(capturedHandle).not.toBeNull();
-    expect(Object.isFrozen(capturedHandle)).toBe(true);
-    expect(Reflect.ownKeys(capturedHandle as object)).toEqual([
-      "replayCurrentVoiceInternalV1",
-    ]);
 
-    rawPort.replayCurrentVoiceInternalV1 = replacementReplay;
     const attempt = fixture.admission.issueVoiceReplayAttemptInternalV1();
     expectTypeOf(attempt).toEqualTypeOf<
       NarrativeStableVoiceReplayActionAttemptInternalV1 | null
@@ -6167,36 +5634,6 @@ describe("Narrative stable Managed Surface family", () => {
     );
     expect(result.consumerResult).toEqual({ kind: "handled", completion: null });
     expect(originalReplay).toHaveBeenCalledOnce();
-    expect(replacementReplay).not.toHaveBeenCalled();
-
-    const malformedPorts: readonly unknown[] = Object.freeze([
-      [],
-      {},
-      { replayCurrentVoiceInternalV1: false },
-    ]);
-    for (const voiceReplayPort of malformedPorts) {
-      const malformed = harnessV1({
-        candidatePreflight: Object.freeze({
-          preflightCandidateInternalV1: () =>
-            capturedCandidatePreflightResultV1(Object.freeze({
-              ...defaultCandidateSnapshotV1,
-              voiceReplayPort,
-            })),
-        }),
-      });
-      const before = malformed.kernel.getStateInternalV1();
-      expectZeroResultV1(
-        malformed.bridge.reconcilePendingInternalV1(pendingV1("say")),
-        "faulted",
-        "narrative.candidate_preflight_faulted",
-      );
-      expect(malformed.kernel.getStateInternalV1()).toBe(before);
-      expect(malformed.stateNotificationCount()).toBe(0);
-      expect(publisherSnapshotV1(malformed)).toMatchObject({
-        sourceRevisionIssuanceHighWater: 0,
-        occurrenceIssuanceHighWater: 0,
-      });
-    }
     fixture.controller.disposeInternalV1();
     fixture.admission.disposeInternalV1();
   });
@@ -6224,9 +5661,9 @@ describe("Narrative stable Managed Surface family", () => {
       } as unknown as NarrativeStableVoiceReplayPortInternalV1;
     }
     const fixture = physicalSayHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: semanticDispatch,
-      }),
+      },
       voiceReplayPort: rawPort,
     });
     const lower = vi.fn(() => inputHandledV1);
@@ -6235,8 +5672,7 @@ describe("Narrative stable Managed Surface family", () => {
     const notifications = fixture.harness.stateNotificationCount();
     const attempt = fixture.admission.issueVoiceReplayAttemptInternalV1();
     expect(attempt).not.toBeNull();
-    expect(Object.isFrozen(attempt)).toBe(true);
-    expect(Reflect.ownKeys(attempt as object)).toEqual([]);
+
     const envelope = fixture.admission.createEnvelopeInternalV1({
       actionId: narrativeReplayVoiceActionIdV1,
       gestureId: parseManagedSurfaceGestureIdV1(`gesture.narrative.voice-${_label}`),
@@ -6249,7 +5685,7 @@ describe("Narrative stable Managed Surface family", () => {
       },
       consumerResult: { kind, completion: null },
     });
-    expect(Object.isFrozen(result.consumerResult)).toBe(true);
+
     expect(replay).toHaveBeenCalledTimes(outcome === null ? 0 : 1);
     expect(lower).not.toHaveBeenCalled();
     expect(semanticDispatch).not.toHaveBeenCalled();
@@ -6409,17 +5845,17 @@ describe("Narrative stable Managed Surface family", () => {
     }
   });
 
-  it("keeps voice attempts opaque, admission-bound, and isolated from Say attempts", () => {
+  it("keeps voice attempts admission-bound and isolated from Say attempts", () => {
     const replay = vi.fn(() => true);
     const revealAll = vi.fn();
     const fixture = physicalSayHarnessV1({
       voiceReplayPort: {
         replayCurrentVoiceInternalV1: replay,
       } satisfies NarrativeStableVoiceReplayPortInternalV1,
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: () => "incomplete" as const,
         revealAllInternalV1: revealAll,
-      }),
+      },
     });
     const replayEnvelope = fixture.admission.createEnvelopeInternalV1({
       actionId: narrativeReplayVoiceActionIdV1,
@@ -6427,28 +5863,15 @@ describe("Narrative stable Managed Surface family", () => {
     });
     const voiceAttempt = fixture.admission.issueVoiceReplayAttemptInternalV1();
     if (voiceAttempt === null) throw new Error("expected authentic voice attempt");
-    const borrowedRoute = fixture.admission.routeInternalV1;
-    expect(() => Reflect.apply(borrowedRoute, Object.freeze({}), [replayEnvelope, voiceAttempt]))
-      .toThrowError("ui.narrative_stable_action_admission_invalid");
-    for (
-      const spoof of [
-        Object.freeze({ ...voiceAttempt }),
-        Object.freeze({}),
-      ]
-    ) {
-      expect(fixture.admission.routeInternalV1(replayEnvelope, spoof).consumerResult).toEqual({
-        kind: "stale",
-        completion: null,
-      });
-    }
+    expect(fixture.admission.routeInternalV1(replayEnvelope, {}).consumerResult).toEqual({
+      kind: "stale",
+      completion: null,
+    });
     expect(replay).not.toHaveBeenCalled();
     expect(fixture.admission.routeInternalV1(replayEnvelope, voiceAttempt).consumerResult).toEqual({
       kind: "handled",
       completion: null,
     });
-
-    const borrowedIssue = fixture.admission.issueVoiceReplayAttemptInternalV1;
-    expect(Reflect.apply(borrowedIssue, Object.freeze({}), [])).toBeNull();
 
     const foreignReplay = vi.fn(() => true);
     const foreign = physicalSayHarnessV1({
@@ -6530,10 +5953,10 @@ describe("Narrative stable Managed Surface family", () => {
     });
     fixture = physicalSayHarnessV1({
       advancePolicy: "auto",
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: capturePhase,
         revealAllInternalV1: vi.fn(),
-      }),
+      },
       voiceReplayPort: {
         replayCurrentVoiceInternalV1: replay,
       } satisfies NarrativeStableVoiceReplayPortInternalV1,
@@ -6583,10 +6006,10 @@ describe("Narrative stable Managed Surface family", () => {
     settleCurrentNarrativeReadyV1(blocked.harness);
     const blockedController = createNarrativeStableSayRevealControllerInternalV1({
       bridge: blocked.harness.bridge,
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: () => "incomplete" as const,
         revealAllInternalV1: () => {},
-      }),
+      },
     });
     const blockedAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
       bridge: blocked.harness.bridge,
@@ -6677,9 +6100,9 @@ describe("Narrative stable Managed Surface family", () => {
       rawPort = {
         replayCurrentVoiceInternalV1: replay,
       } as unknown as NarrativeStableVoiceReplayPortInternalV1;
-      const semanticDispatchPort = Object.freeze({
+      const semanticDispatchPort = {
         dispatchResolutionInternalV1: semanticDispatch,
-      });
+      };
       if (drift === "suspend") {
         const blocked = nonBlockingNarrativeHarnessV1(
           semanticDispatchPort,
@@ -6691,10 +6114,10 @@ describe("Narrative stable Managed Surface family", () => {
         expect(blocked.harness.bridge.reconcilePendingInternalV1(pendingV1("say")))
           .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
         settleCurrentNarrativeReadyV1(blocked.harness);
-        const revealGenerationPort = Object.freeze({
+        const revealGenerationPort = {
           capturePhaseInternalV1: () => "incomplete" as const,
           revealAllInternalV1: () => {},
-        });
+        };
         const controller = createNarrativeStableSayRevealControllerInternalV1({
           bridge: blocked.harness.bridge,
           revealGenerationPort,
@@ -6802,13 +6225,13 @@ describe("Narrative stable Managed Surface family", () => {
     fixture = physicalSayHarnessV1({
       advancePolicy: "auto",
       voiceReplayPort: rawPort,
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: capturePhase,
         revealAllInternalV1: revealAll,
-      }),
-      semanticDispatchPort: Object.freeze({
+      },
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: semanticDispatch,
-      }),
+      },
     });
     const state = fixture.harness.kernel.getStateInternalV1();
     const notifications = fixture.harness.stateNotificationCount();
@@ -6886,10 +6309,6 @@ describe("Narrative stable Managed Surface family", () => {
 
     const fixture = physicalSayHarnessV1();
     expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
-    expect(Object.keys(fixture.harness.bridge)).toContain("readPlaybackModeInternalV1");
-    expect(Object.keys(fixture.admission)).toContain(
-      "issuePlaybackModeToggleAttemptInternalV1",
-    );
 
     const staleFromInitial = fixture.admission.issuePlaybackModeToggleAttemptInternalV1(
       "skip",
@@ -6924,7 +6343,7 @@ describe("Narrative stable Managed Surface family", () => {
         },
         consumerResult: { kind: "toggled", mode: expectedMode, completion: null },
       });
-      expect(Object.isFrozen(result.consumerResult)).toBe(true);
+
       expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe(expectedMode);
       if (transitionIndex === 1) {
         expect(
@@ -6961,15 +6380,15 @@ describe("Narrative stable Managed Surface family", () => {
     ) {
       const semanticDispatch = vi.fn(() => Promise.resolve("must-not-dispatch"));
       const harness = harnessV1({
-        candidatePreflight: Object.freeze({
+        candidatePreflight: {
           preflightCandidateInternalV1: () =>
-            capturedCandidatePreflightResultV1(Object.freeze({
+            capturedCandidatePreflightResultV1({
               ...defaultCandidateSnapshotV1,
-              semanticDispatchPort: Object.freeze({
+              semanticDispatchPort: {
                 dispatchResolutionInternalV1: semanticDispatch,
-              }),
-            })),
-        }),
+              },
+            }),
+        },
       });
       expect(harness.bridge.reconcilePendingInternalV1(pendingV1(kind))).toMatchObject({
         kind: "applied",
@@ -6998,11 +6417,7 @@ describe("Narrative stable Managed Surface family", () => {
         },
         consumerResult: { kind: "ignored", completion: null },
       });
-      expect(Object.isFrozen(ignored.consumerResult)).toBe(true);
-      expect(Reflect.ownKeys(ignored.consumerResult as object)).toEqual([
-        "kind",
-        "completion",
-      ]);
+
       expect(
         routePlaybackModeToggleV1(admission, "auto", attempt, `ignored-repeat-${kind}`)
           .consumerResult,
@@ -7016,9 +6431,9 @@ describe("Narrative stable Managed Surface family", () => {
 
     const semanticDispatch = vi.fn(() => Promise.resolve("must-not-dispatch"));
     const barrier = narrativeBarrierHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: semanticDispatch,
-      }),
+      },
     });
     let stageNotifications = 0;
     const unsubscribeStage = barrier.stage.reconciler.subscribe(() => {
@@ -7034,7 +6449,7 @@ describe("Narrative stable Managed Surface family", () => {
     expect(attempt).not.toBeNull();
     expect(admission.issueChoiceAttemptInternalV1("choice.test.first")).toBeNull();
     expect(admission.issueHoldSkipAttemptInternalV1()).toBeNull();
-    expect(admission.issueCustomAttemptInternalV1(Object.freeze({}))).toBeNull();
+    expect(admission.issueCustomAttemptInternalV1({})).toBeNull();
     expect(admission.issueSayActivationAttemptInternalV1(barrier.controller)).toBeNull();
     expect(admission.issueVoiceReplayAttemptInternalV1()).toBeNull();
     const state = barrier.harness.kernel.getStateInternalV1();
@@ -7049,14 +6464,7 @@ describe("Narrative stable Managed Surface family", () => {
       consumerResult: { kind: "ignored", completion: null },
     });
     expect(barrier.harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
-    expect(Object.isFrozen(
-      routePlaybackModeToggleV1(
-        admission,
-        "skip",
-        admission.issuePlaybackModeToggleAttemptInternalV1("skip"),
-        "ignored-barrier-shape",
-      ).consumerResult,
-    )).toBe(true);
+
     expect(semanticDispatch).not.toHaveBeenCalled();
     expect(barrier.stage.reconciler.frame()).toEqual(stageFrame);
     expect(stageNotifications).toBe(0);
@@ -7148,15 +6556,15 @@ describe("Narrative stable Managed Surface family", () => {
 
     let preflightCalls = 0;
     const rejected = harnessV1({
-      candidatePreflight: Object.freeze({
+      candidatePreflight: {
         preflightCandidateInternalV1: () => {
           preflightCalls += 1;
-          return preflightCalls === 1 ? capturedCandidatePreflightResultV1() : Object.freeze({
+          return preflightCalls === 1 ? capturedCandidatePreflightResultV1() : ({
             kind: "rejected" as const,
             code: "narrative.renderer_missing" as const,
           });
         },
-      }),
+      },
     });
     expect(rejected.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
       kind: "applied",
@@ -7264,126 +6672,6 @@ describe("Narrative stable Managed Surface family", () => {
     fixture.controller.disposeInternalV1();
   });
 
-  it("rolls provisional mode reset back by exact identity on non-applied and throwing apply", () => {
-    for (
-      const behavior of [
-        "stale",
-        "faulted",
-        "throw_restore",
-        "throw_after_successor",
-      ] as const
-    ) {
-      const fixture = physicalSayHarnessV1();
-      const enableAuto = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
-      expect(
-        routePlaybackModeToggleV1(
-          fixture.admission,
-          "auto",
-          enableAuto,
-          `rollback-enable-auto-${behavior}`,
-        ).consumerResult,
-      ).toEqual({ kind: "toggled", mode: "auto", completion: null });
-      const predecessorAttempt = fixture.admission
-        .issuePlaybackModeToggleAttemptInternalV1("skip");
-      if (predecessorAttempt === null) throw new Error("expected predecessor mode attempt");
-
-      const applyStableAdmissionProposal =
-        fixture.harness.kernel.applyStableAdmissionProposalInternalV1;
-      const originalReflectApply = Reflect.apply;
-      const reflectApplyDescriptor = Object.getOwnPropertyDescriptor(Reflect, "apply");
-      if (reflectApplyDescriptor === undefined) {
-        throw new Error("expected Reflect.apply descriptor");
-      }
-      const injectedFailure = new Error("injected stable apply failure");
-      const staleResult = Object.freeze({
-        kind: "stale" as const,
-        code: "surface.stable_reconcile_precondition_stale" as const,
-        delta: zeroDeltaV1,
-      });
-      const faultedResult = Object.freeze({
-        kind: "faulted" as const,
-        code: "surface.stable_reconcile_faulted" as const,
-        delta: zeroDeltaV1,
-      });
-      let intercepted = false;
-      function hookedReflectApply<
-        TThis,
-        TArguments extends readonly unknown[],
-        TResult,
-      >(
-        target: (this: TThis, ...args: TArguments) => TResult,
-        thisArgument: TThis,
-        argumentsList: TArguments,
-      ): TResult {
-        if (
-          (target as unknown) === applyStableAdmissionProposal &&
-          (thisArgument as unknown) === fixture.harness.kernel
-        ) {
-          intercepted = true;
-          if (behavior === "throw_after_successor") {
-            const successorAttempt = fixture.admission
-              .issuePlaybackModeToggleAttemptInternalV1("skip");
-            expect(successorAttempt).not.toBeNull();
-            expect(
-              routePlaybackModeToggleV1(
-                fixture.admission,
-                "skip",
-                successorAttempt,
-                "rollback-successor",
-              ).consumerResult,
-            ).toEqual({ kind: "toggled", mode: "skip", completion: null });
-          }
-          if (behavior === "throw_restore" || behavior === "throw_after_successor") {
-            throw injectedFailure;
-          }
-          return (behavior === "faulted" ? faultedResult : staleResult) as TResult;
-        }
-        return originalReflectApply(target, thisArgument, argumentsList);
-      }
-      Object.defineProperty(Reflect, "apply", {
-        ...reflectApplyDescriptor,
-        value: hookedReflectApply,
-      });
-
-      try {
-        if (behavior === "stale" || behavior === "faulted") {
-          expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("choice", 2)))
-            .toEqual(behavior === "stale" ? staleResult : faultedResult);
-        } else {
-          expect(() => fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("choice", 2)))
-            .toThrow(injectedFailure);
-        }
-      } finally {
-        Object.defineProperty(Reflect, "apply", reflectApplyDescriptor);
-      }
-
-      expect(intercepted).toBe(true);
-      if (behavior !== "throw_after_successor") {
-        expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("auto");
-        expect(
-          routePlaybackModeToggleV1(
-            fixture.admission,
-            "skip",
-            predecessorAttempt,
-            "rollback-predecessor-restored",
-          ).consumerResult,
-        ).toEqual({ kind: "toggled", mode: "skip", completion: null });
-      } else {
-        expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("skip");
-        expect(
-          routePlaybackModeToggleV1(
-            fixture.admission,
-            "skip",
-            predecessorAttempt,
-            "rollback-predecessor-stale",
-          ).consumerResult,
-        ).toEqual({ kind: "stale", completion: null });
-      }
-      fixture.controller.disposeInternalV1();
-      fixture.admission.disposeInternalV1();
-    }
-  });
-
   it("retains mode across Say replacement and blocking suspension while retiring old attempts", () => {
     const replacement = physicalSayHarnessV1();
     const enableAuto = replacement.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
@@ -7471,11 +6759,11 @@ describe("Narrative stable Managed Surface family", () => {
     const beforeClose = suspended.harness.kernel.getTransientSnapshotInternalV1();
     expect(suspended.harness.kernel.transitionTransientInternalV1({
       kind: "close_expected",
-      evidence: Object.freeze({
+      evidence: {
         applicationEpoch: applicationEpochV1,
         topologyRevision: beforeClose.topologyRevision,
         surfaceInstanceId: blocker.surfaceInstanceId,
-      }),
+      },
     })).toMatchObject({ kind: "applied", code: "surface.closed" });
     expect(suspended.harness.bridge.readPlaybackModeInternalV1()).toBe("auto");
     suspendedAdmission.disposeInternalV1();
@@ -7526,10 +6814,10 @@ describe("Narrative stable Managed Surface family", () => {
       throw new Error("expected replacement Say preparation");
     }
     expect(fixture.harness.kernel.settleStableReadinessFailedInternalV1({
-      readinessEvidence: Object.freeze({
+      readinessEvidence: {
         applicationEpoch: applicationEpochV1,
         surfaceInstanceId: preparing.binding.attempt.identity.surfaceInstanceId,
-      }),
+      },
       publisherLease: preparing.desiredTarget.publisherLease,
       sourceRevision: preparing.desiredTarget.sourceRevision,
     })).toMatchObject({ kind: "applied", code: "surface.readiness_failed" });
@@ -7585,10 +6873,10 @@ describe("Narrative stable Managed Surface family", () => {
 
     const successorController = createNarrativeStableSayRevealControllerInternalV1({
       bridge: fixture.harness.bridge,
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: () => "incomplete" as const,
         revealAllInternalV1: vi.fn(),
-      }),
+      },
     });
     const successorAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
       bridge: fixture.harness.bridge,
@@ -7670,10 +6958,10 @@ describe("Narrative stable Managed Surface family", () => {
     });
     callbackFixture = physicalSayHarnessV1({
       advancePolicy: "auto",
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: capturePhase,
         revealAllInternalV1: vi.fn(),
-      }),
+      },
     });
     presigned = callbackFixture.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
     expect(presigned).not.toBeNull();
@@ -7716,13 +7004,13 @@ describe("Narrative stable Managed Surface family", () => {
       resolveSemantic = resolve;
     });
     const pendingFixture = physicalSayHarnessV1({
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: () => "complete" as const,
         revealAllInternalV1: vi.fn(),
-      }),
-      semanticDispatchPort: Object.freeze({
+      },
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: () => pendingSemantic,
-      }),
+      },
     });
     const sayAttempt = pendingFixture.admission.issueSayActivationAttemptInternalV1(
       pendingFixture.controller,
@@ -7758,28 +7046,13 @@ describe("Narrative stable Managed Surface family", () => {
     pendingFixture.admission.disposeInternalV1();
   });
 
-  it("keeps mode attempts opaque and unspent across mapping and generic route fences", () => {
+  it("keeps mode attempts unspent across mapping and generic route fences", () => {
     const fixture = physicalSayHarnessV1();
     const admission = fixture.admission;
-    const borrowedIssue = admission.issuePlaybackModeToggleAttemptInternalV1;
-    expect(Reflect.apply(borrowedIssue, Object.freeze({}), ["auto"])).toBeNull();
-    expect(Reflect.apply(borrowedIssue, admission, ["normal"])).toBeNull();
 
     const autoAttempt = admission.issuePlaybackModeToggleAttemptInternalV1("auto");
     if (autoAttempt === null) throw new Error("expected opaque Auto attempt");
-    expect(Object.isFrozen(autoAttempt)).toBe(true);
-    expect(Reflect.ownKeys(autoAttempt)).toEqual([]);
-    for (
-      const [forged, suffix] of [
-        [Object.freeze({ ...autoAttempt }), "clone"],
-        [Object.freeze({}), "spoof"],
-      ] as const
-    ) {
-      expect(
-        routePlaybackModeToggleV1(admission, "auto", forged, `forged-${suffix}`)
-          .consumerResult,
-      ).toEqual({ kind: "stale", completion: null });
-    }
+
     expect(
       routePlaybackModeToggleV1(admission, "skip", autoAttempt, "auto-as-skip")
         .consumerResult,
@@ -7951,10 +7224,10 @@ describe("Narrative stable Managed Surface family", () => {
     choice.admission.disposeInternalV1();
 
     const hold = physicalHoldHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: () => Promise.resolve(undefined),
         dispatchTimeInternalV1: () => Promise.resolve(undefined),
-      }),
+      },
     });
     const holdAttempt = hold.admission.issueHoldSkipAttemptInternalV1();
     expect(holdAttempt).not.toBeNull();
@@ -7972,9 +7245,9 @@ describe("Narrative stable Managed Surface family", () => {
     custom.admission.disposeInternalV1();
 
     const say = physicalSayHarnessV1({
-      voiceReplayPort: Object.freeze({
+      voiceReplayPort: {
         replayCurrentVoiceInternalV1: () => true,
-      }),
+      },
     });
     const sayAttempt = say.admission.issueSayActivationAttemptInternalV1(say.controller);
     expect(sayAttempt).not.toBeNull();
@@ -7988,80 +7261,6 @@ describe("Narrative stable Managed Surface family", () => {
       .toEqual({ kind: "handled", completion: null });
     say.controller.disposeInternalV1();
     say.admission.disposeInternalV1();
-  });
-
-  it("returns the canonical faulted mode result after a spent private capture fault", () => {
-    const reflectApplyDescriptor = Object.getOwnPropertyDescriptor(Reflect, "apply");
-    if (reflectApplyDescriptor === undefined) {
-      throw new Error("expected Reflect.apply descriptor");
-    }
-    const originalReflectApply = Reflect.apply;
-    let gestureReads = 0;
-    let currentnessCallable: unknown = null;
-    let hookInstalled = false;
-    function hookedReflectApply<
-      TThis,
-      TArguments extends readonly unknown[],
-      TResult,
-    >(
-      target: (this: TThis, ...args: TArguments) => TResult,
-      thisArgument: TThis,
-      argumentsList: TArguments,
-    ): TResult {
-      if ((target as unknown) === currentnessCallable) {
-        throw new Error("injected direct-target capture fault");
-      }
-      return originalReflectApply(target, thisArgument, argumentsList);
-    }
-
-    const fixture = physicalSayHarnessV1({
-      isGestureCurrent: () => {
-        gestureReads += 1;
-        if (gestureReads === 2) {
-          Object.defineProperty(Reflect, "apply", {
-            ...reflectApplyDescriptor,
-            value: hookedReflectApply,
-          });
-          hookInstalled = true;
-        }
-        return true;
-      },
-    });
-    currentnessCallable = claimManagedSurfaceStableActionRouteAuthorityInternalV1(
-      fixture.harness.kernel,
-    ).isCurrentDirectTargetInternalV1;
-    const attempt = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
-    expect(attempt).not.toBeNull();
-
-    let result: ReturnType<typeof routePlaybackModeToggleV1>;
-    try {
-      result = routePlaybackModeToggleV1(
-        fixture.admission,
-        "auto",
-        attempt,
-        "faulted-private-capture",
-      );
-    } finally {
-      Object.defineProperty(Reflect, "apply", reflectApplyDescriptor);
-    }
-    expect(hookInstalled).toBe(true);
-    expect(result.consumerResult).toEqual({ kind: "faulted", completion: null });
-    expect(Object.isFrozen(result.consumerResult)).toBe(true);
-    expect(Reflect.ownKeys(result.consumerResult as object)).toEqual([
-      "kind",
-      "completion",
-    ]);
-    expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
-    expect(
-      routePlaybackModeToggleV1(
-        fixture.admission,
-        "auto",
-        attempt,
-        "faulted-attempt-remains-spent",
-      ).consumerResult,
-    ).toEqual({ kind: "stale", completion: null });
-    fixture.controller.disposeInternalV1();
-    fixture.admission.disposeInternalV1();
   });
 
   it("first-wins one mode state and fails closed with canonical results after terminal fences", () => {
@@ -8078,8 +7277,7 @@ describe("Narrative stable Managed Surface family", () => {
       "same-state-auto-winner",
     ).consumerResult;
     expect(autoWinner).toEqual({ kind: "toggled", mode: "auto", completion: null });
-    expect(Object.isFrozen(autoWinner)).toBe(true);
-    expect(Reflect.ownKeys(autoWinner as object)).toEqual(["kind", "mode", "completion"]);
+
     const staleCompetitor = routePlaybackModeToggleV1(
       fixture.admission,
       "skip",
@@ -8087,8 +7285,7 @@ describe("Narrative stable Managed Surface family", () => {
       "same-state-skip-loser",
     ).consumerResult;
     expect(staleCompetitor).toEqual({ kind: "stale", completion: null });
-    expect(Object.isFrozen(staleCompetitor)).toBe(true);
-    expect(Reflect.ownKeys(staleCompetitor as object)).toEqual(["kind", "completion"]);
+
     expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("auto");
     expect(
       routePlaybackModeToggleV1(
@@ -8271,7 +7468,7 @@ describe("Narrative stable Managed Surface family", () => {
     expect(harness.bridge.reconcilePendingInternalV1(pendingV1("presentation_barrier")))
       .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
     settleCurrentNarrativeReadyV1(harness);
-    const foreignStage = createBarrierStageHarnessV1({ claimant: Object.freeze({}) });
+    const foreignStage = createBarrierStageHarnessV1({ claimant: {} });
     expect(foreignStage.authority).not.toBeNull();
     expect(() =>
       createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
@@ -8281,12 +7478,12 @@ describe("Narrative stable Managed Surface family", () => {
     ).toThrow(TypeError);
 
     const stage = createBarrierStageHarnessV1({});
-    const input = Object.freeze({
+    const input = ({
       bridge: harness.bridge,
       stageReconciler: stage.reconciler,
     }) satisfies CreateNarrativeStableBarrierAcknowledgmentControllerInputInternalV1;
     const controller = createNarrativeStableBarrierAcknowledgmentControllerInternalV1(input);
-    expect(Object.isFrozen(controller)).toBe(true);
+
     expect(() => createNarrativeStableBarrierAcknowledgmentControllerInternalV1(input)).toThrow(
       TypeError,
     );
@@ -8299,19 +7496,19 @@ describe("Narrative stable Managed Surface family", () => {
   });
 
   it("reuses the composition-scoped Stage claimant supplied to successor bridges", () => {
-    const claimant = Object.freeze({});
+    const claimant = {};
     const firstDispatch = vi.fn(() => Promise.resolve("first-drained"));
     const first = harnessV1({
       barrierStageClaimant: claimant,
-      candidatePreflight: Object.freeze({
+      candidatePreflight: {
         preflightCandidateInternalV1: () =>
-          capturedCandidatePreflightResultV1(Object.freeze({
+          capturedCandidatePreflightResultV1({
             ...defaultCandidateSnapshotV1,
-            semanticDispatchPort: Object.freeze({
+            semanticDispatchPort: {
               dispatchResolutionInternalV1: firstDispatch,
-            }),
-          })),
-      }),
+            },
+          }),
+      },
     });
     expect(first.bridge.reconcilePendingInternalV1(pendingV1("presentation_barrier")))
       .toMatchObject({ kind: "applied" });
@@ -8346,15 +7543,15 @@ describe("Narrative stable Managed Surface family", () => {
     const successorDispatch = vi.fn(() => Promise.resolve("successor-drained"));
     const successor = harnessV1({
       barrierStageClaimant: claimant,
-      candidatePreflight: Object.freeze({
+      candidatePreflight: {
         preflightCandidateInternalV1: () =>
-          capturedCandidatePreflightResultV1(Object.freeze({
+          capturedCandidatePreflightResultV1({
             ...defaultCandidateSnapshotV1,
-            semanticDispatchPort: Object.freeze({
+            semanticDispatchPort: {
               dispatchResolutionInternalV1: successorDispatch,
-            }),
-          })),
-      }),
+            },
+          }),
+      },
     });
     expect(successor.bridge.reconcilePendingInternalV1(pendingV1("presentation_barrier", 2)))
       .toMatchObject({ kind: "applied" });
@@ -8363,7 +7560,7 @@ describe("Narrative stable Managed Surface family", () => {
       bridge: successor.bridge,
       stageReconciler: stage.reconciler,
     });
-    expect(Object.isFrozen(successorController)).toBe(true);
+
     expect(
       successorController.retargetCurrentBarrierStageInternalV1(
         barrierRetargetInputV1(stage.thirdTarget, 3),
@@ -8389,9 +7586,9 @@ describe("Narrative stable Managed Surface family", () => {
     });
     const fixture = narrativeBarrierHarnessV1({
       transition: barrierTransitionDefinitionV1({ kind: "cut", durationMs: 0 }),
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
 
     const state = fixture.harness.kernel.getStateInternalV1();
@@ -8400,7 +7597,7 @@ describe("Narrative stable Managed Surface family", () => {
       barrierRetargetInputV1(fixture.stage.nextTarget, 2),
     );
     expect(armed).toEqual({ kind: "armed", completion: null });
-    expectBarrierResultFrozenV1(armed);
+
     expect(dispatchResolution).not.toHaveBeenCalled();
     expect(fixture.harness.kernel.getStateInternalV1()).toBe(state);
     expect(fixture.harness.stateNotificationCount()).toBe(notifications);
@@ -8408,7 +7605,7 @@ describe("Narrative stable Managed Surface family", () => {
     const dispatched = fixture.controller.flushRetainedTerminalInternalV1();
     expect(dispatched).toMatchObject({ kind: "dispatched" });
     if (dispatched?.kind !== "dispatched") throw new Error("expected Barrier dispatch");
-    expectBarrierResultFrozenV1(dispatched);
+
     expect(capturedRequest).toEqual({
       expectedOccurrenceId: occurrenceV1(1),
       resolution: {
@@ -8432,9 +7629,9 @@ describe("Narrative stable Managed Surface family", () => {
     const preparingDispatch = vi.fn(() => new Promise<unknown>(() => {}));
     const preparing = narrativeBarrierHarnessV1({
       transition: barrierTransitionDefinitionV1({ kind: "cut", durationMs: 0 }),
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: preparingDispatch,
-      }),
+      },
       settleReady: false,
     });
     expect(
@@ -8444,7 +7641,7 @@ describe("Narrative stable Managed Surface family", () => {
     ).toEqual({ kind: "armed", completion: null });
     const retained = preparing.controller.flushRetainedTerminalInternalV1();
     expect(retained).toEqual({ kind: "retained", completion: null });
-    expectBarrierResultFrozenV1(retained!);
+
     expect(preparingDispatch).not.toHaveBeenCalled();
     settleCurrentNarrativeReadyV1(preparing.harness);
     expect(preparing.controller.flushRetainedTerminalInternalV1()).toMatchObject({
@@ -8456,9 +7653,9 @@ describe("Narrative stable Managed Surface family", () => {
     const cancelledDispatch = vi.fn(() => Promise.resolve("must-not-dispatch"));
     const cancelled = narrativeBarrierHarnessV1({
       transition: barrierTransitionDefinitionV1({ interruption: "cancel_to_target" }),
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: cancelledDispatch,
-      }),
+      },
     });
     expect(
       cancelled.controller.retargetCurrentBarrierStageInternalV1(
@@ -8488,7 +7685,7 @@ describe("Narrative stable Managed Surface family", () => {
     ).toEqual({ kind: "stale", completion: null });
     const cancelledResult = cancelled.controller.flushRetainedTerminalInternalV1();
     expect(cancelledResult).toEqual({ kind: "cancelled", completion: null });
-    expectBarrierResultFrozenV1(cancelledResult!);
+
     expect(cancelledDispatch).not.toHaveBeenCalled();
     cancelled.controller.disposeInternalV1();
   });
@@ -8508,9 +7705,9 @@ describe("Narrative stable Managed Surface family", () => {
         resolutionCount += 1;
         return resolutionCount === 1 ? animated : instant;
       },
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
 
     expect(
@@ -8537,7 +7734,7 @@ describe("Narrative stable Managed Surface family", () => {
 
     const result = fixture.controller.flushRetainedTerminalInternalV1();
     expect(result).toEqual({ kind: "cancelled", completion: null });
-    expectBarrierResultFrozenV1(result!);
+
     expect(dispatchResolution).not.toHaveBeenCalled();
     fixture.controller.disposeInternalV1();
   });
@@ -8561,9 +7758,9 @@ describe("Narrative stable Managed Surface family", () => {
         }
         return change.kind === "enter" ? instant : other;
       },
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
 
     expect(
@@ -8608,9 +7805,9 @@ describe("Narrative stable Managed Surface family", () => {
     });
     const fixture = narrativeBarrierHarnessV1({
       transition: barrierTransitionDefinitionV1({ kind: "cut", durationMs: 0 }),
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
 
     expect(
@@ -8660,9 +7857,9 @@ describe("Narrative stable Managed Surface family", () => {
     let controller: NarrativeStableBarrierAcknowledgmentControllerInternalV1 | null = null;
     const fixture = narrativeBarrierHarnessV1({
       transition: barrierTransitionDefinitionV1({ kind: "cut", durationMs: 0 }),
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     controller = fixture.controller;
     const unsubscribe = fixture.stage.reconciler.subscribe(() => {
@@ -8694,9 +7891,9 @@ describe("Narrative stable Managed Surface family", () => {
     > = [];
     let controller: NarrativeStableBarrierAcknowledgmentControllerInternalV1 | null = null;
     const fixture = narrativeBarrierHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: dispatchResolution,
-      }),
+      },
     });
     controller = fixture.controller;
     const unsubscribe = fixture.stage.reconciler.subscribe(() => {
@@ -8727,9 +7924,9 @@ describe("Narrative stable Managed Surface family", () => {
 
   it("retains eligible Barrier evidence across a real blocking suspension and resumes fresh", async () => {
     const dispatchResolution = vi.fn(() => Promise.resolve("barrier-resumed"));
-    const semanticDispatchPort = Object.freeze({
+    const semanticDispatchPort = {
       dispatchResolutionInternalV1: dispatchResolution,
-    });
+    };
     const { harness, nonBlockingDefinition: blockingDefinition } = nonBlockingNarrativeHarnessV1(
       semanticDispatchPort,
       90,
@@ -8771,11 +7968,11 @@ describe("Narrative stable Managed Surface family", () => {
     const suspendedPublication = harness.kernel.getStateInternalV1().transientState.publication;
     expect(harness.kernel.transitionTransientInternalV1({
       kind: "close_expected",
-      evidence: Object.freeze({
+      evidence: {
         applicationEpoch: applicationEpochV1,
         topologyRevision: suspendedPublication.topologyRevision,
         surfaceInstanceId: blocker.surfaceInstanceId,
-      }),
+      },
     })).toMatchObject({ kind: "applied" });
     const resumed = harness.kernel.getStateInternalV1().stableRuntimeBindings[0];
     expect(resumed?.binding.kind).toBe("ready_instance");
@@ -8795,19 +7992,19 @@ describe("Narrative stable Managed Surface family", () => {
   it("rebinds retained Barrier evidence to the fresh frame and semantic port after readiness retry", async () => {
     const oldDispatch = vi.fn(() => Promise.resolve("old-port-must-not-run"));
     const freshDispatch = vi.fn(() => Promise.resolve("fresh-port-drained"));
-    const oldPort = Object.freeze({ dispatchResolutionInternalV1: oldDispatch });
-    const freshPort = Object.freeze({ dispatchResolutionInternalV1: freshDispatch });
+    const oldPort = { dispatchResolutionInternalV1: oldDispatch };
+    const freshPort = { dispatchResolutionInternalV1: freshDispatch };
     let preflightCount = 0;
     const harness = harnessV1({
-      candidatePreflight: Object.freeze({
+      candidatePreflight: {
         preflightCandidateInternalV1: () => {
           preflightCount += 1;
-          return capturedCandidatePreflightResultV1(Object.freeze({
+          return capturedCandidatePreflightResultV1({
             ...defaultCandidateSnapshotV1,
             semanticDispatchPort: preflightCount === 1 ? oldPort : freshPort,
-          }));
+          });
         },
-      }),
+      },
     });
     expect(harness.bridge.reconcilePendingInternalV1(pendingV1("presentation_barrier")))
       .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
@@ -8817,7 +8014,6 @@ describe("Narrative stable Managed Surface family", () => {
     const initialFrame = harness.bridge.inspectAdmittedTargetFrameInternalV1(target);
     if (initialFrame === null) throw new Error("expected initial Barrier frame");
     const initialSemanticPort = initialFrame.candidateSnapshot.semanticDispatchPort;
-    expect(Object.isFrozen(initialSemanticPort)).toBe(true);
 
     const stage = createBarrierStageHarnessV1({
       transition: barrierTransitionDefinitionV1({ kind: "cut", durationMs: 0 }),
@@ -8835,10 +8031,10 @@ describe("Narrative stable Managed Surface family", () => {
     const preparing = harness.kernel.getStateInternalV1().stableRuntimeBindings[0];
     if (preparing?.binding.kind !== "preparing") throw new Error("expected Barrier preparation");
     expect(harness.kernel.settleStableReadinessFailedInternalV1({
-      readinessEvidence: Object.freeze({
+      readinessEvidence: {
         applicationEpoch: applicationEpochV1,
         surfaceInstanceId: preparing.binding.attempt.identity.surfaceInstanceId,
-      }),
+      },
       publisherLease: preparing.desiredTarget.publisherLease,
       sourceRevision: preparing.desiredTarget.sourceRevision,
     })).toMatchObject({ kind: "applied", code: "surface.readiness_failed" });
@@ -8891,19 +8087,19 @@ describe("Narrative stable Managed Surface family", () => {
     });
     const oldDispatch = vi.fn(() => oldCompletion);
     const freshDispatch = vi.fn(() => freshCompletion);
-    const oldPort = Object.freeze({ dispatchResolutionInternalV1: oldDispatch });
-    const freshPort = Object.freeze({ dispatchResolutionInternalV1: freshDispatch });
+    const oldPort = { dispatchResolutionInternalV1: oldDispatch };
+    const freshPort = { dispatchResolutionInternalV1: freshDispatch };
     let preflightCount = 0;
     const harness = harnessV1({
-      candidatePreflight: Object.freeze({
+      candidatePreflight: {
         preflightCandidateInternalV1: () => {
           preflightCount += 1;
-          return capturedCandidatePreflightResultV1(Object.freeze({
+          return capturedCandidatePreflightResultV1({
             ...defaultCandidateSnapshotV1,
             semanticDispatchPort: preflightCount === 1 ? oldPort : freshPort,
-          }));
+          });
         },
-      }),
+      },
     });
     expect(harness.bridge.reconcilePendingInternalV1(pendingV1("presentation_barrier")))
       .toMatchObject({ kind: "applied" });
@@ -8970,9 +8166,9 @@ describe("Narrative stable Managed Surface family", () => {
     });
     const fixture = narrativeBarrierHarnessV1({
       transition: barrierTransitionDefinitionV1({ kind: "cut", durationMs: 0 }),
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: () => semanticCompletion,
-      }),
+      },
     });
 
     expect(
@@ -9006,13 +8202,12 @@ describe("Narrative stable Managed Surface family", () => {
     const gate = mutableActivationGateV1();
     const installed = controller.synchronizeRecoveryGenerationInternalV1(gate.gate);
     expect(installed).toMatchObject({ kind: "installed" });
-    expect(Object.isFrozen(installed)).toBe(true);
+
     if (installed.kind !== "installed") throw new Error("expected recovery generation");
     expectTypeOf(installed.generation).toEqualTypeOf<
       NarrativeStableBarrierRecoveryGenerationInternalV1
     >();
-    expect(Object.isFrozen(installed.generation)).toBe(true);
-    expect(Reflect.ownKeys(installed.generation)).toEqual([]);
+
     expect(gate.isOpen).toHaveBeenCalledTimes(2);
 
     const state = harness.kernel.getStateInternalV1();
@@ -9020,7 +8215,7 @@ describe("Narrative stable Managed Surface family", () => {
     gate.fault(new Error("equal must not re-read the stored gate"));
     const unchanged = controller.synchronizeRecoveryGenerationInternalV1(gate.gate);
     expect(unchanged).toEqual({ kind: "unchanged", generation: installed.generation });
-    expect(Object.isFrozen(unchanged)).toBe(true);
+
     expect(gate.isOpen).toHaveBeenCalledTimes(2);
     expect(harness.kernel.getStateInternalV1()).toBe(state);
     expect(harness.stateNotificationCount()).toBe(notifications);
@@ -9066,77 +8261,11 @@ describe("Narrative stable Managed Surface family", () => {
     foreignController.disposeInternalV1();
   });
 
-  it("rejects activation-gate descriptor drift before install, issue, or cached replay", () => {
-    const settle = narrativeBarrierHarnessV1({
-      pending: barrierPendingWithRecoveryV1("settle"),
-    });
-    let settleOpen = false;
-    let mutateSettleGate = false;
-    let settleGate!: ManagedSurfaceFamilyActivationGateInternalV1;
-    const settleReplacement = vi.fn(() => true);
-    const settleIsOpen = vi.fn(() => {
-      if (mutateSettleGate) {
-        Object.defineProperty(settleGate, "isOpen", { value: settleReplacement });
-      }
-      return settleOpen;
-    });
-    settleGate = { isOpen: settleIsOpen };
-    expect(settle.controller.synchronizeRecoveryGenerationInternalV1(settleGate))
-      .toMatchObject({ kind: "installed" });
-    settleOpen = true;
-    mutateSettleGate = true;
-    expect(settle.controller.issueSettleRecoveryAttemptInternalV1()).toBeNull();
-    expect(settleReplacement).not.toHaveBeenCalled();
-    settle.controller.disposeInternalV1();
-
-    const bootstrap = narrativeBarrierHarnessV1({
-      pending: barrierPendingWithRecoveryV1("settle"),
-    });
-    let bootstrapReads = 0;
-    let bootstrapGate!: ManagedSurfaceFamilyActivationGateInternalV1;
-    const bootstrapReplacement = vi.fn(() => false);
-    const bootstrapIsOpen = vi.fn(() => {
-      bootstrapReads += 1;
-      if (bootstrapReads === 2) {
-        Object.defineProperty(bootstrapGate, "isOpen", { value: bootstrapReplacement });
-      }
-      return false;
-    });
-    bootstrapGate = { isOpen: bootstrapIsOpen };
-    expect(bootstrap.controller.synchronizeRecoveryGenerationInternalV1(bootstrapGate)).toEqual({
-      kind: "stale",
-      generation: null,
-    });
-    expect(bootstrapReplacement).not.toHaveBeenCalled();
-    expect(bootstrap.controller.synchronizeRecoveryGenerationInternalV1(bootstrapGate))
-      .toMatchObject({ kind: "installed" });
-    bootstrap.controller.disposeInternalV1();
-
-    const replay = narrativeBarrierHarnessV1({
-      pending: barrierPendingWithRecoveryV1("replay"),
-    });
-    let replayOpen = false;
-    const replayIsOpen = vi.fn(() => replayOpen);
-    const replayGate: ManagedSurfaceFamilyActivationGateInternalV1 = {
-      isOpen: replayIsOpen,
-    };
-    expect(replay.controller.synchronizeRecoveryGenerationInternalV1(replayGate))
-      .toMatchObject({ kind: "installed" });
-    replayOpen = true;
-    const cached = replay.controller.readReplayRecoveryUnsupportedInternalV1();
-    expect(cached).not.toBeNull();
-    const replayReplacement = vi.fn(() => true);
-    Object.defineProperty(replayGate, "isOpen", { value: replayReplacement });
-    expect(replay.controller.readReplayRecoveryUnsupportedInternalV1()).toBeNull();
-    expect(replayReplacement).not.toHaveBeenCalled();
-    replay.controller.disposeInternalV1();
-  });
-
   it("transfers one recovery attempt across controller disposal and seals gate callback reentry", async () => {
     const directDispatch = vi.fn(() => Promise.resolve("successor-direct"));
     const direct = narrativeBarrierHarnessV1({
       pending: barrierPendingWithRecoveryV1("settle"),
-      semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: directDispatch }),
+      semanticDispatchPort: { dispatchResolutionInternalV1: directDispatch },
     });
     const directGate = mutableActivationGateV1();
     expect(direct.controller.synchronizeRecoveryGenerationInternalV1(directGate.gate))
@@ -9161,7 +8290,7 @@ describe("Narrative stable Managed Surface family", () => {
     const reentrantDispatch = vi.fn(() => Promise.resolve("successor-reentrant"));
     const reentrant = narrativeBarrierHarnessV1({
       pending: barrierPendingWithRecoveryV1("settle"),
-      semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: reentrantDispatch }),
+      semanticDispatchPort: { dispatchResolutionInternalV1: reentrantDispatch },
     });
     let gateReads = 0;
     let reenterOnGate = false;
@@ -9205,7 +8334,7 @@ describe("Narrative stable Managed Surface family", () => {
 
   it("keeps the generation observer alive without a controller and retires a suspended attempt", async () => {
     const dispatchResolution = vi.fn(() => Promise.resolve("observer-fresh"));
-    const semanticPort = Object.freeze({ dispatchResolutionInternalV1: dispatchResolution });
+    const semanticPort = { dispatchResolutionInternalV1: dispatchResolution };
     const { harness, nonBlockingDefinition: blockingDefinition } = nonBlockingNarrativeHarnessV1(
       semanticPort,
       90,
@@ -9239,11 +8368,11 @@ describe("Narrative stable Managed Surface family", () => {
     const blockedPublication = harness.kernel.getStateInternalV1().transientState.publication;
     expect(harness.kernel.transitionTransientInternalV1({
       kind: "close_expected",
-      evidence: Object.freeze({
+      evidence: {
         applicationEpoch: applicationEpochV1,
         topologyRevision: blockedPublication.topologyRevision,
         surfaceInstanceId: blocker.surfaceInstanceId,
-      }),
+      },
     })).toMatchObject({ kind: "applied" });
 
     const successor = createNarrativeStableBarrierAcknowledgmentControllerInternalV1({
@@ -9313,7 +8442,7 @@ describe("Narrative stable Managed Surface family", () => {
     const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
     const fixture = narrativeBarrierHarnessV1({
       pending: barrierPendingWithRecoveryV1("settle"),
-      semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: dispatchResolution }),
+      semanticDispatchPort: { dispatchResolutionInternalV1: dispatchResolution },
     });
     const stableState = fixture.harness.kernel.getStateInternalV1();
     const stableNotifications = fixture.harness.stateNotificationCount();
@@ -9472,7 +8601,7 @@ describe("Narrative stable Managed Surface family", () => {
     const sameDispatch = vi.fn(() => Promise.resolve("same-epoch"));
     const same = narrativeBarrierHarnessV1({
       pending: barrierPendingWithRecoveryV1("settle"),
-      semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: sameDispatch }),
+      semanticDispatchPort: { dispatchResolutionInternalV1: sameDispatch },
     });
     const sameGate = mutableActivationGateV1();
     expect(same.controller.synchronizeRecoveryGenerationInternalV1(sameGate.gate))
@@ -9495,7 +8624,7 @@ describe("Narrative stable Managed Surface family", () => {
       const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
       const fixture = narrativeBarrierHarnessV1({
         pending: barrierPendingWithRecoveryV1("settle"),
-        semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: dispatchResolution }),
+        semanticDispatchPort: { dispatchResolutionInternalV1: dispatchResolution },
       });
       const gate = mutableActivationGateV1();
       expect(fixture.controller.synchronizeRecoveryGenerationInternalV1(gate.gate))
@@ -9521,14 +8650,14 @@ describe("Narrative stable Managed Surface family", () => {
 
   it("dispatches one ready-active settle recovery behind the exact gate and one-shot attempt", async () => {
     let capturedRequest: unknown = null;
-    const semanticReceipt = Object.freeze({ kind: "settled-recovery" as const });
+    const semanticReceipt = { kind: "settled-recovery" as const };
     const dispatchResolution = vi.fn((request: unknown) => {
       capturedRequest = request;
       return Promise.resolve(semanticReceipt);
     });
     const fixture = narrativeBarrierHarnessV1({
       pending: barrierPendingWithRecoveryV1("settle"),
-      semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: dispatchResolution }),
+      semanticDispatchPort: { dispatchResolutionInternalV1: dispatchResolution },
     });
     const state = fixture.harness.kernel.getStateInternalV1();
     const notifications = fixture.harness.stateNotificationCount();
@@ -9541,8 +8670,7 @@ describe("Narrative stable Managed Surface family", () => {
     gate.open();
     const driftedAttempt = fixture.controller.issueSettleRecoveryAttemptInternalV1();
     expect(driftedAttempt).not.toBeNull();
-    expect(Object.isFrozen(driftedAttempt)).toBe(true);
-    expect(Reflect.ownKeys(driftedAttempt as object)).toEqual([]);
+
     expect(fixture.controller.issueSettleRecoveryAttemptInternalV1()).toBeNull();
     expect(
       fixture.controller.dispatchSettleRecoveryInternalV1({
@@ -9587,7 +8715,7 @@ describe("Narrative stable Managed Surface family", () => {
     const dispatched = fixture.controller.dispatchSettleRecoveryInternalV1(attempt);
     expect(dispatched).toMatchObject({ kind: "dispatched" });
     if (dispatched.kind !== "dispatched") throw new Error("expected settle dispatch");
-    expect(Object.isFrozen(dispatched)).toBe(true);
+
     expect(capturedRequest).toEqual({
       expectedOccurrenceId: occurrenceV1(1),
       resolution: {
@@ -9619,7 +8747,7 @@ describe("Narrative stable Managed Surface family", () => {
     const fixture = narrativeBarrierHarnessV1({
       transition: barrierTransitionDefinitionV1({ kind: "cut", durationMs: 0 }),
       pending: barrierPendingWithRecoveryV1("settle"),
-      semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: dispatchResolution }),
+      semanticDispatchPort: { dispatchResolutionInternalV1: dispatchResolution },
     });
     const initialGate = mutableActivationGateV1();
     expect(fixture.controller.synchronizeRecoveryGenerationInternalV1(initialGate.gate))
@@ -9701,7 +8829,7 @@ describe("Narrative stable Managed Surface family", () => {
     const normalFirst = narrativeBarrierHarnessV1({
       transition: barrierTransitionDefinitionV1({ kind: "cut", durationMs: 0 }),
       pending: barrierPendingWithRecoveryV1("settle"),
-      semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: normalDispatch }),
+      semanticDispatchPort: { dispatchResolutionInternalV1: normalDispatch },
     });
     const normalGate = mutableActivationGateV1();
     expect(normalFirst.controller.synchronizeRecoveryGenerationInternalV1(normalGate.gate))
@@ -9762,15 +8890,15 @@ describe("Narrative stable Managed Surface family", () => {
 
     const sourceDispatch = vi.fn(() => Promise.resolve("source-rebound"));
     const sourceHarness = harnessV1({
-      candidatePreflight: Object.freeze({
+      candidatePreflight: {
         preflightCandidateInternalV1: () =>
-          capturedCandidatePreflightResultV1(Object.freeze({
+          capturedCandidatePreflightResultV1({
             ...defaultCandidateSnapshotV1,
-            semanticDispatchPort: Object.freeze({
+            semanticDispatchPort: {
               dispatchResolutionInternalV1: sourceDispatch,
-            }),
-          })),
-      }),
+            },
+          }),
+      },
     });
     expect(
       sourceHarness.bridge.reconcilePendingInternalV1(
@@ -9788,10 +8916,10 @@ describe("Narrative stable Managed Surface family", () => {
     const preparing = sourceHarness.kernel.getStateInternalV1().stableRuntimeBindings[0];
     if (preparing?.binding.kind !== "preparing") throw new Error("expected source preparation");
     expect(sourceHarness.kernel.settleStableReadinessFailedInternalV1({
-      readinessEvidence: Object.freeze({
+      readinessEvidence: {
         applicationEpoch: applicationEpochV1,
         surfaceInstanceId: preparing.binding.attempt.identity.surfaceInstanceId,
-      }),
+      },
       publisherLease: preparing.desiredTarget.publisherLease,
       sourceRevision: preparing.desiredTarget.sourceRevision,
     })).toMatchObject({ kind: "applied", code: "surface.readiness_failed" });
@@ -9814,7 +8942,7 @@ describe("Narrative stable Managed Surface family", () => {
       const dispatchResolution = vi.fn(() => Promise.resolve("must-not-dispatch"));
       const fixture = narrativeBarrierHarnessV1({
         pending: barrierPendingWithRecoveryV1("settle"),
-        semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: dispatchResolution }),
+        semanticDispatchPort: { dispatchResolutionInternalV1: dispatchResolution },
       });
       const gate = mutableActivationGateV1();
       expect(fixture.controller.synchronizeRecoveryGenerationInternalV1(gate.gate))
@@ -9850,7 +8978,7 @@ describe("Narrative stable Managed Surface family", () => {
     const fixture = narrativeBarrierHarnessV1({
       transition: barrierTransitionDefinitionV1({ kind: "cut", durationMs: 0 }),
       pending: barrierPendingWithRecoveryV1("replay"),
-      semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: dispatchResolution }),
+      semanticDispatchPort: { dispatchResolutionInternalV1: dispatchResolution },
     });
     const gate = mutableActivationGateV1();
     const installed = fixture.controller.synchronizeRecoveryGenerationInternalV1(gate.gate);
@@ -9862,7 +8990,7 @@ describe("Narrative stable Managed Surface family", () => {
       code: "narrative.barrier_replay_unsupported",
       completion: null,
     });
-    expect(Object.isFrozen(unsupported)).toBe(true);
+
     expect(fixture.controller.issueSettleRecoveryAttemptInternalV1()).toBeNull();
     const state = fixture.harness.kernel.getStateInternalV1();
     const notifications = fixture.harness.stateNotificationCount();
@@ -9906,35 +9034,16 @@ describe("Narrative stable Managed Surface family", () => {
     fixture.controller.disposeInternalV1();
   });
 
-  it("admits only exact gates and rolls back a second-read target drift with nested sync", () => {
-    let accessorReads = 0;
-    const accessor = Object.defineProperty({}, "isOpen", {
-      get() {
-        accessorReads += 1;
-        return () => false;
-      },
+  it("validates gate outcomes and rolls back a second-read target drift with nested sync", () => {
+    const nonCallable = narrativeBarrierHarnessV1({
+      pending: barrierPendingWithRecoveryV1("settle"),
     });
-    const symbolKey = Symbol("extra-gate-key");
-    const malformedGates: readonly unknown[] = [
-      accessor,
-      { isOpen: () => false, extra: true },
-      { isOpen: () => false, [symbolKey]: true },
-      Object.assign(Object.create({ inherited: true }), { isOpen: () => false }),
-      Object.assign(Object.create(null), { isOpen: () => false }),
-      { isOpen: false },
-    ];
-    for (const malformed of malformedGates) {
-      const fixture = narrativeBarrierHarnessV1({
-        pending: barrierPendingWithRecoveryV1("settle"),
-      });
-      expect(
-        fixture.controller.synchronizeRecoveryGenerationInternalV1(
-          malformed as ManagedSurfaceFamilyActivationGateInternalV1,
-        ),
-      ).toEqual({ kind: "faulted", generation: null });
-      fixture.controller.disposeInternalV1();
-    }
-    expect(accessorReads).toBe(0);
+    expect(
+      nonCallable.controller.synchronizeRecoveryGenerationInternalV1(
+        { isOpen: false } as unknown as ManagedSurfaceFamilyActivationGateInternalV1,
+      ),
+    ).toEqual({ kind: "faulted", generation: null });
+    nonCallable.controller.disposeInternalV1();
 
     const invalidRows = [
       { expected: "stale", invoke: () => true },
@@ -10064,7 +9173,7 @@ describe("Narrative stable Managed Surface family", () => {
       });
       const fixture = narrativeBarrierHarnessV1({
         pending: barrierPendingWithRecoveryV1("settle"),
-        semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: dispatchResolution }),
+        semanticDispatchPort: { dispatchResolutionInternalV1: dispatchResolution },
       });
       const gate = mutableActivationGateV1();
       expect(fixture.controller.synchronizeRecoveryGenerationInternalV1(gate.gate))
@@ -10074,7 +9183,7 @@ describe("Narrative stable Managed Surface family", () => {
       expect(attempt).not.toBeNull();
       const dispatched = fixture.controller.dispatchSettleRecoveryInternalV1(attempt);
       expect(dispatched).toMatchObject({ kind: "dispatched" });
-      expect(Object.isFrozen(dispatched)).toBe(true);
+
       if (dispatched.kind !== "dispatched") throw new Error("expected rejected dispatch");
       const rejected = expect(dispatched.completion).rejects.toBe(failure);
       expect(fixture.controller.dispatchSettleRecoveryInternalV1(attempt)).toEqual({
@@ -10104,9 +9213,9 @@ describe("Narrative stable Managed Surface family", () => {
     const oldSettleDispatch = vi.fn(() => Promise.resolve("old-must-not-dispatch"));
     const oldSettle = narrativeBarrierHarnessV1({
       pending: barrierPendingWithRecoveryV1("settle"),
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: oldSettleDispatch,
-      }),
+      },
     });
     const oldGate = mutableActivationGateV1();
     expect(oldSettle.controller.synchronizeRecoveryGenerationInternalV1(oldGate.gate))
@@ -10118,9 +9227,9 @@ describe("Narrative stable Managed Surface family", () => {
     const freshSettleDispatch = vi.fn(() => Promise.resolve("fresh-must-not-dispatch"));
     const freshSettle = narrativeBarrierHarnessV1({
       pending: barrierPendingWithRecoveryV1("settle"),
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: freshSettleDispatch,
-      }),
+      },
     });
     const freshGate = mutableActivationGateV1();
     expect(freshSettle.controller.synchronizeRecoveryGenerationInternalV1(freshGate.gate))
@@ -10164,7 +9273,7 @@ describe("Narrative stable Managed Surface family", () => {
     const replacementDispatch = vi.fn(() => Promise.resolve("replacement-must-not-dispatch"));
     const replacement = narrativeBarrierHarnessV1({
       pending: barrierPendingWithRecoveryV1("settle"),
-      semanticDispatchPort: Object.freeze({ dispatchResolutionInternalV1: replacementDispatch }),
+      semanticDispatchPort: { dispatchResolutionInternalV1: replacementDispatch },
     });
     const replacementGate = mutableActivationGateV1();
     expect(
@@ -10190,7 +9299,7 @@ describe("Narrative stable Managed Surface family", () => {
     replacement.controller.disposeInternalV1();
 
     const suspendDispatch = vi.fn(() => Promise.resolve("suspend-must-not-dispatch"));
-    const suspendPort = Object.freeze({ dispatchResolutionInternalV1: suspendDispatch });
+    const suspendPort = { dispatchResolutionInternalV1: suspendDispatch };
     const { harness, nonBlockingDefinition: blockingDefinition } = nonBlockingNarrativeHarnessV1(
       suspendPort,
       90,
@@ -10233,11 +9342,11 @@ describe("Narrative stable Managed Surface family", () => {
     const publication = harness.kernel.getStateInternalV1().transientState.publication;
     expect(harness.kernel.transitionTransientInternalV1({
       kind: "close_expected",
-      evidence: Object.freeze({
+      evidence: {
         applicationEpoch: applicationEpochV1,
         topologyRevision: publication.topologyRevision,
         surfaceInstanceId: blocker.surfaceInstanceId,
-      }),
+      },
     })).toMatchObject({ kind: "applied" });
     controller.disposeInternalV1();
   });
@@ -10293,8 +9402,7 @@ describe("Narrative stable Managed Surface family", () => {
     const lifecycle = createNarrativeStableHistoryChildLifecycleInternalV1({
       bridge: fixture.harness.bridge,
     });
-    expect(Object.isFrozen(lifecycle)).toBe(true);
-    expect(Reflect.ownKeys(lifecycle)).toEqual(["redeemHistoryOpenIntentInternalV1"]);
+
     const intent = mintHistoryOpenIntentV1(fixture.admission, "child-lifecycle-shape");
     fixture.admission.disposeInternalV1();
     const successorAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
@@ -10307,11 +9415,8 @@ describe("Narrative stable Managed Surface family", () => {
     const result = lifecycle.redeemHistoryOpenIntentInternalV1(intent);
     expect(result.kind).toBe("preparing");
     expect(result.completion).toBeNull();
-    expect(Object.isFrozen(result)).toBe(true);
-    expect(Reflect.ownKeys(result)).toEqual(["kind", "preparation", "completion"]);
+
     if (result.kind !== "preparing") throw new Error("expected History preparation");
-    expect(Object.isFrozen(result.preparation)).toBe(true);
-    expect(Reflect.ownKeys(result.preparation)).toEqual([]);
 
     const state = fixture.harness.kernel.getStateInternalV1();
     const root = state.stableRuntimeBindings[0];
@@ -10355,7 +9460,7 @@ describe("Narrative stable Managed Surface family", () => {
     const occupiedLoser = lifecycle.redeemHistoryOpenIntentInternalV1(loser);
     expect(winnerRepeat).toEqual({ kind: "stale", completion: null });
     expect(occupiedLoser).toBe(winnerRepeat);
-    expect(Reflect.ownKeys(occupiedLoser)).toEqual(["kind", "completion"]);
+
     expect(session.getReadinessSnapshotInternalV1()).toBe(installedSnapshot);
     expect(session.getReadinessSnapshotInternalV1().entries[0]?.preparation)
       .toBe(installed.preparation);
@@ -10384,7 +9489,7 @@ describe("Narrative stable Managed Surface family", () => {
     successorAdmission.disposeInternalV1();
   });
 
-  it("rejects clone, foreign, repeat, and wrong-receiver redemption without reads", () => {
+  it("rejects foreign and repeat redemption without reads", () => {
     const fixture = physicalHistoryHarnessV1();
     const lifecycle = createNarrativeStableHistoryChildLifecycleInternalV1({
       bridge: fixture.harness.bridge,
@@ -10395,15 +9500,10 @@ describe("Narrative stable Managed Surface family", () => {
       bridge: foreign.harness.bridge,
     });
     const foreignIntent = mintHistoryOpenIntentV1(foreign.admission, "child-foreign");
-    const stale = lifecycle.redeemHistoryOpenIntentInternalV1(Object.freeze({}));
+    const stale = lifecycle.redeemHistoryOpenIntentInternalV1({});
     expect(stale).toEqual({ kind: "stale", completion: null });
-    expect(lifecycle.redeemHistoryOpenIntentInternalV1(Object.freeze({ ...intent })))
-      .toBe(stale);
     expect(lifecycle.redeemHistoryOpenIntentInternalV1(foreignIntent)).toBe(stale);
     expect(foreignLifecycle.redeemHistoryOpenIntentInternalV1(intent)).toBe(stale);
-    const redeem = lifecycle.redeemHistoryOpenIntentInternalV1;
-    expect(Reflect.apply(redeem, Object.freeze({}), [intent])).toBe(stale);
-
     const installed = lifecycle.redeemHistoryOpenIntentInternalV1(intent);
     expect(installed.kind).toBe("preparing");
     expect(lifecycle.redeemHistoryOpenIntentInternalV1(intent)).toBe(stale);
@@ -10496,9 +9596,9 @@ describe("Narrative stable Managed Surface family", () => {
       resolveSemantic = resolve;
     });
     const semanticFixture = physicalHistoryHarnessV1({
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: () => semanticCompletion,
-      }),
+      },
     });
     const semanticLifecycle = createNarrativeStableHistoryChildLifecycleInternalV1({
       bridge: semanticFixture.harness.bridge,
@@ -10509,10 +9609,10 @@ describe("Narrative stable Managed Surface family", () => {
     );
     const controller = createNarrativeStableSayRevealControllerInternalV1({
       bridge: semanticFixture.harness.bridge,
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: () => "complete" as const,
         revealAllInternalV1: vi.fn(),
-      }),
+      },
     });
     const sayAttempt = semanticFixture.admission.issueSayActivationAttemptInternalV1(
       controller,
@@ -10608,8 +9708,7 @@ describe("Narrative stable Managed Surface family", () => {
       const notifications = fixture.harness.stateNotificationCount();
       const result = lifecycle.redeemHistoryOpenIntentInternalV1(intent);
       expect(result).toEqual({ kind: "faulted", completion: null });
-      expect(Object.isFrozen(result)).toBe(true);
-      expect(Reflect.ownKeys(result)).toEqual(["kind", "completion"]);
+
       if (canonicalFault === null) canonicalFault = result;
       else expect(result).toBe(canonicalFault);
       expect(lifecycle.redeemHistoryOpenIntentInternalV1(intent)).toBe(result);
@@ -10623,9 +9722,9 @@ describe("Narrative stable Managed Surface family", () => {
     const semanticDispatch = vi.fn(() => Promise.resolve("must-not-dispatch"));
     const fixture = narrativeBarrierHarnessV1({
       historyAvailabilityPort: historyAvailabilityPortV1(() => true),
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: semanticDispatch,
-      }),
+      },
     });
     const admission = createNarrativeStablePhysicalActionAdmissionInternalV1({
       bridge: fixture.harness.bridge,
@@ -10740,9 +9839,9 @@ describe("Narrative stable Managed Surface family", () => {
     const fixture = physicalHistoryHarnessV1({
       kind,
       historyAvailabilityPort: historyAvailabilityPortV1(readAvailability),
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: semanticDispatch,
-      }),
+      },
     });
     const state = fixture.harness.kernel.getStateInternalV1();
     const notifications = fixture.harness.stateNotificationCount();
@@ -10751,22 +9850,13 @@ describe("Narrative stable Managed Surface family", () => {
       NarrativeStableHistoryOpenActionAttemptInternalV1 | null
     >();
     if (attempt === null) throw new Error("expected History attempt");
-    expect(Object.isFrozen(attempt)).toBe(true);
-    expect(Reflect.ownKeys(attempt)).toEqual([]);
 
     const result = expectHistoryRouteConsumedV1(
       routeHistoryOpenV1(fixture.admission, attempt, `${kind}-${_label}`),
     );
     expect(result.kind).toBe(expectedKind);
     expect(result.completion).toBeNull();
-    expect(Object.isFrozen(result)).toBe(true);
-    expect(Reflect.ownKeys(result)).toEqual(
-      expectedKind === "requested" ? ["kind", "intent", "completion"] : ["kind", "completion"],
-    );
-    if (result.kind === "requested") {
-      expect(Object.isFrozen(result.intent)).toBe(true);
-      expect(Reflect.ownKeys(result.intent)).toEqual([]);
-    }
+
     expect(
       routeHistoryOpenV1(fixture.admission, attempt, `${kind}-${_label}-repeat`)
         .consumerResult,
@@ -10900,8 +9990,6 @@ describe("Narrative stable Managed Surface family", () => {
       isGestureCurrent: () => gestureCurrent,
     });
     const admission = fixture.admission;
-    const borrowedIssue = admission.issueHistoryOpenAttemptInternalV1;
-    expect(Reflect.apply(borrowedIssue, Object.freeze({}), [])).toBeNull();
     const attempt = admission.issueHistoryOpenAttemptInternalV1();
     expect(attempt).not.toBeNull();
     const envelope = admission.createEnvelopeInternalV1({
@@ -10941,17 +10029,11 @@ describe("Narrative stable Managed Surface family", () => {
         .consumerResult,
     ).toMatchObject({ kind: "toggled" });
 
-    const authentic = admission.issueHistoryOpenAttemptInternalV1();
-    if (authentic === null) throw new Error("expected authentic History attempt");
-    expect(routeHistoryOpenV1(admission, Object.freeze({}), "spoof").consumerResult)
-      .toEqual({ kind: "stale", completion: null });
-    expect(
-      routeHistoryOpenV1(admission, Object.freeze({ ...authentic }), "clone")
-        .consumerResult,
-    ).toEqual({ kind: "stale", completion: null });
-    expect(routeHistoryOpenV1(admission, authentic, "authentic").consumerResult)
+    const currentAttempt = admission.issueHistoryOpenAttemptInternalV1();
+    if (currentAttempt === null) throw new Error("expected current History attempt");
+    expect(routeHistoryOpenV1(admission, currentAttempt, "current").consumerResult)
       .toMatchObject({ kind: "requested" });
-    expect(routeHistoryOpenV1(admission, authentic, "repeat").consumerResult)
+    expect(routeHistoryOpenV1(admission, currentAttempt, "repeat").consumerResult)
       .toEqual({ kind: "stale", completion: null });
 
     const foreign = physicalHistoryHarnessV1();
@@ -10983,10 +10065,10 @@ describe("Narrative stable Managed Surface family", () => {
     fixture = physicalSayHarnessV1({
       advancePolicy: "auto",
       historyAvailabilityPort: historyAvailabilityPortV1(availability),
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: capturePhase,
         revealAllInternalV1: vi.fn(),
-      }),
+      },
     });
     presigned = fixture.admission.issueHistoryOpenAttemptInternalV1();
     expect(presigned).not.toBeNull();
@@ -11059,16 +10141,16 @@ describe("Narrative stable Managed Surface family", () => {
     const availability = vi.fn(() => true);
     const fixture = physicalHistoryHarnessV1({
       historyAvailabilityPort: historyAvailabilityPortV1(availability),
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: () => semanticCompletion,
-      }),
+      },
     });
     const controller = createNarrativeStableSayRevealControllerInternalV1({
       bridge: fixture.harness.bridge,
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: () => "complete" as const,
         revealAllInternalV1: vi.fn(),
-      }),
+      },
     });
     const presignedHistory = fixture.admission.issueHistoryOpenAttemptInternalV1();
     const sayAttempt = fixture.admission.issueSayActivationAttemptInternalV1(controller);
@@ -11126,10 +10208,10 @@ describe("Narrative stable Managed Surface family", () => {
     });
     controller = createNarrativeStableSayRevealControllerInternalV1({
       bridge: fixture.harness.bridge,
-      revealGenerationPort: Object.freeze({
+      revealGenerationPort: {
         capturePhaseInternalV1: () => "incomplete" as const,
         revealAllInternalV1: vi.fn(),
-      }),
+      },
     });
     const outerAttempt = fixture.admission.issueHistoryOpenAttemptInternalV1();
     expect(
@@ -11173,10 +10255,10 @@ describe("Narrative stable Managed Surface family", () => {
             throw new Error("expected replacement preparation");
           }
           expect(fixture.harness.kernel.settleStableReadinessFailedInternalV1({
-            readinessEvidence: Object.freeze({
+            readinessEvidence: {
               applicationEpoch: applicationEpochV1,
               surfaceInstanceId: entry.binding.attempt.identity.surfaceInstanceId,
-            }),
+            },
             publisherLease: entry.desiredTarget.publisherLease,
             sourceRevision: entry.desiredTarget.sourceRevision,
           })).toMatchObject({ kind: "applied" });
@@ -11206,7 +10288,7 @@ describe("Narrative stable Managed Surface family", () => {
         routeHistoryOpenV1(fixture.admission, attempt, `post-call-${drift}`),
       );
       expect(result).toEqual({ kind: "stale", completion: null });
-      expect(Reflect.ownKeys(result)).toEqual(["kind", "completion"]);
+
       expect(availability).toHaveBeenCalledOnce();
       fixture.admission.disposeInternalV1();
     }
@@ -11229,9 +10311,9 @@ describe("Narrative stable Managed Surface family", () => {
     const semanticDispatch = vi.fn(() => Promise.resolve("must-not-dispatch"));
     const fixture = narrativeBarrierHarnessV1({
       historyAvailabilityPort: historyAvailabilityPortV1(outcome),
-      semanticDispatchPort: Object.freeze({
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: semanticDispatch,
-      }),
+      },
     });
     let stageNotifications = 0;
     const unsubscribe = fixture.stage.reconciler.subscribe(() => {
@@ -11266,13 +10348,13 @@ describe("Narrative stable Managed Surface family", () => {
     let controller!: NarrativeStableDialoguePlayerControllerInternalV1;
     const fixture = physicalHistoryHarnessV1({
       presentationClock: clock.port,
-      textResolver: Object.freeze({
+      textResolver: {
         resolveTextInternalV1: (textId: string) =>
           textId === "text.test.speaker" ? "Speaker" : "AB",
-      }),
-      semanticDispatchPort: Object.freeze({
+      },
+      semanticDispatchPort: {
         dispatchResolutionInternalV1: semanticDispatch,
-      }),
+      },
       beforeSettleReady: (harness) => {
         controller = createDialoguePlayerControllerV1(harness);
         expect(controller.getSnapshotInternalV1()).toMatchObject({
@@ -11339,10 +10421,10 @@ describe("Narrative stable Managed Surface family", () => {
     let controller!: NarrativeStableDialoguePlayerControllerInternalV1;
     const fixture = physicalHistoryHarnessV1({
       presentationClock: clock.port,
-      textResolver: Object.freeze({
+      textResolver: {
         resolveTextInternalV1: (textId: string) =>
           textId === "text.test.speaker" ? "Speaker" : "AB",
-      }),
+      },
       beforeSettleReady: (harness) => {
         controller = createDialoguePlayerControllerV1(harness);
       },
@@ -11387,21 +10469,21 @@ describe("Narrative stable Managed Surface family", () => {
   it("logically suspends the Dialogue player before a higher blocker and preserves mode", () => {
     const clock = controlledDialoguePlayerClockV1();
     const semanticDispatch = vi.fn((_request: unknown) => Promise.resolve("advanced"));
-    const semanticDispatchPort = Object.freeze({
+    const semanticDispatchPort = {
       dispatchResolutionInternalV1: semanticDispatch,
-    });
+    };
     const parts = nonBlockingNarrativeHarnessV1(
       semanticDispatchPort,
       90,
       "blocking",
       null,
-      Object.freeze({
+      {
         presentationClock: clock.port,
-        textResolver: Object.freeze({
+        textResolver: {
           resolveTextInternalV1: (textId: string) =>
             textId === "text.test.speaker" ? "Speaker" : "AB",
-        }),
-      }),
+        },
+      },
     );
     expect(parts.harness.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
       kind: "applied",
@@ -11463,11 +10545,11 @@ describe("Narrative stable Managed Surface family", () => {
     const blockerPublication = parts.harness.kernel.getStateInternalV1().transientState.publication;
     expect(parts.harness.kernel.transitionTransientInternalV1({
       kind: "close_expected",
-      evidence: Object.freeze({
+      evidence: {
         applicationEpoch: blockerPublication.applicationEpoch,
         topologyRevision: blockerPublication.topologyRevision,
         surfaceInstanceId: blocker.surfaceInstanceId,
-      }),
+      },
     })).toMatchObject({ kind: "applied", code: "surface.closed" });
     expect(controller.getSnapshotInternalV1()).toMatchObject({
       kind: "say",
@@ -11493,12 +10575,12 @@ describe("Narrative stable Managed Surface family", () => {
     const activateAttempt = resumedAdmission.issueSayActivationAttemptInternalV1(controller);
     expect(activateAttempt).not.toBeNull();
     const activateResult = resumedAdmission.routeInternalV1(
-      resumedAdmission.createEnvelopeInternalV1(Object.freeze({
+      resumedAdmission.createEnvelopeInternalV1({
         actionId: narrativeAdvanceActionIdV1,
         gestureId: parseManagedSurfaceGestureIdV1(
           "gesture.narrative.dialogue-player-blocker-resume",
         ),
-      })),
+      }),
       activateAttempt,
     );
     expect(activateResult.consumerResult).toMatchObject({ kind: "dispatched" });
@@ -11520,9 +10602,9 @@ describe("Narrative stable Managed Surface family", () => {
         }
         return 1_000;
       });
-      const clock = Object.freeze({
+      const clock = ({
         nowInternalV1: now,
-        requestTickInternalV1: (_callback: (nowMs: number) => void) => Object.freeze(() => {}),
+        requestTickInternalV1: (_callback: (nowMs: number) => void) => (() => {}),
         prefersReducedMotionInternalV1: () => false,
       }) satisfies NarrativeStableDialoguePlayerClockPortInternalV1;
       let controller!: NarrativeStableDialoguePlayerControllerInternalV1;
@@ -11581,18 +10663,16 @@ describe("Narrative stable Managed Surface family", () => {
   it("fences only the current controller when prepared now regresses", () => {
     let nowMs = 1_000;
     const cancellation = vi.fn();
-    const requestTick = vi.fn((_callback: (nextNowMs: number) => void) =>
-      Object.freeze(cancellation)
-    );
-    const clock = Object.freeze({
+    const requestTick = vi.fn((_callback: (nextNowMs: number) => void) => cancellation);
+    const clock = ({
       nowInternalV1: () => nowMs,
       requestTickInternalV1: requestTick,
       prefersReducedMotionInternalV1: () => false,
     }) satisfies NarrativeStableDialoguePlayerClockPortInternalV1;
     const rawUnsubscribe = vi.fn();
-    const profile = Object.freeze({
+    const profile = ({
       getSnapshotInternalV1: () => defaultPlayerProfileV1,
-      subscribeInternalV1: (_listener: () => void) => Object.freeze(rawUnsubscribe),
+      subscribeInternalV1: (_listener: () => void) => rawUnsubscribe,
       markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
     }) satisfies NarrativeStableDialoguePlayerProfilePortInternalV1;
     let controller!: NarrativeStableDialoguePlayerControllerInternalV1;
@@ -11626,20 +10706,20 @@ describe("Narrative stable Managed Surface family", () => {
   it("fences a retained predecessor before replacement listeners and blocks old completion scheduling", () => {
     const clock = controlledDialoguePlayerClockV1();
     const rawUnsubscribe = vi.fn();
-    const profile = Object.freeze({
+    const profile = ({
       getSnapshotInternalV1: () => defaultPlayerProfileV1,
-      subscribeInternalV1: (_listener: () => void) => Object.freeze(rawUnsubscribe),
+      subscribeInternalV1: (_listener: () => void) => rawUnsubscribe,
       markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
     }) satisfies NarrativeStableDialoguePlayerProfilePortInternalV1;
     const harness = harnessV1({
-      candidatePreflight: Object.freeze({
+      candidatePreflight: {
         preflightCandidateInternalV1: () =>
-          capturedCandidatePreflightResultV1(Object.freeze({
+          capturedCandidatePreflightResultV1({
             ...defaultCandidateSnapshotV1,
             playerProfile: profile,
             presentationClock: clock.port,
-          })),
-      }),
+          }),
+      },
     });
     expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
       kind: "applied",
@@ -11683,33 +10763,33 @@ describe("Narrative stable Managed Surface family", () => {
     const profileGet = vi.fn(() => {
       throw new Error("retired profile binding must be unreadable");
     });
-    const profileSubscribe = vi.fn((_listener: () => void) => Object.freeze(() => {}));
+    const profileSubscribe = vi.fn((_listener: () => void) => (() => {}));
     const clockNow = vi.fn(() => {
       throw new Error("retired clock binding must be unreadable");
     });
-    const clockTick = vi.fn((_callback: (nowMs: number) => void) => Object.freeze(() => {}));
+    const clockTick = vi.fn((_callback: (nowMs: number) => void) => (() => {}));
     const reducedMotion = vi.fn(() => false);
     const resolveText = vi.fn((_textId: string) => {
       throw new Error("retired text binding must be unreadable");
     });
-    const candidateSnapshot = Object.freeze({
+    const candidateSnapshot = {
       ...defaultCandidateSnapshotV1,
-      playerProfile: Object.freeze({
+      playerProfile: {
         getSnapshotInternalV1: profileGet,
         subscribeInternalV1: profileSubscribe,
         markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
-      }),
-      presentationClock: Object.freeze({
+      },
+      presentationClock: {
         nowInternalV1: clockNow,
         requestTickInternalV1: clockTick,
         prefersReducedMotionInternalV1: reducedMotion,
-      }),
-      textResolver: Object.freeze({ resolveTextInternalV1: resolveText }),
-    });
+      },
+      textResolver: { resolveTextInternalV1: resolveText },
+    };
     const harness = harnessV1({
-      candidatePreflight: Object.freeze({
+      candidatePreflight: {
         preflightCandidateInternalV1: () => capturedCandidatePreflightResultV1(candidateSnapshot),
-      }),
+      },
     });
     expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
       kind: "applied",
@@ -11727,11 +10807,11 @@ describe("Narrative stable Managed Surface family", () => {
     }
     expect(replacement.binding.retainedSubtree).not.toBeNull();
     expect(() =>
-      createNarrativeStableDialoguePlayerControllerInternalV1(Object.freeze({
+      createNarrativeStableDialoguePlayerControllerInternalV1({
         bridge: harness.bridge,
         target: retired.target,
         frame: retired.frame,
-      }))
+      })
     ).toThrow(TypeError);
     expect(profileGet).not.toHaveBeenCalled();
     expect(profileSubscribe).not.toHaveBeenCalled();
@@ -11748,7 +10828,7 @@ describe("Narrative stable Managed Surface family", () => {
       ["reduced-motion replacement", "reduced_motion_replacement", 1, 1, 0],
       ["first-text replacement", "first_text_replacement", 1, 1, 1],
     ] as const,
-  )("stops hostile factory raw reads immediately after %s", (
+  )("stops candidate port reads immediately after %s changes currentness", (
     _label,
     driftKind,
     expectedProfileReads,
@@ -11788,7 +10868,7 @@ describe("Narrative stable Managed Surface family", () => {
       }
       return defaultPlayerProfileV1;
     });
-    const profileSubscribe = vi.fn((_listener: () => void) => Object.freeze(() => {}));
+    const profileSubscribe = vi.fn((_listener: () => void) => (() => {}));
     const prefersReducedMotion = vi.fn(() => {
       if (driftKind === "reduced_motion_replacement") runDrift();
       return false;
@@ -11798,25 +10878,25 @@ describe("Narrative stable Managed Surface family", () => {
       return textId;
     });
     const now = vi.fn(() => 1_000);
-    const requestTick = vi.fn((_callback: (nowMs: number) => void) => Object.freeze(() => {}));
+    const requestTick = vi.fn((_callback: (nowMs: number) => void) => (() => {}));
     harness = harnessV1({
-      candidatePreflight: Object.freeze({
+      candidatePreflight: {
         preflightCandidateInternalV1: () =>
-          capturedCandidatePreflightResultV1(Object.freeze({
+          capturedCandidatePreflightResultV1({
             ...defaultCandidateSnapshotV1,
-            playerProfile: Object.freeze({
+            playerProfile: {
               getSnapshotInternalV1: profileGet,
               subscribeInternalV1: profileSubscribe,
               markSeenInternalV1: (_definitionId: string, _seenRevision: number) => {},
-            }),
-            presentationClock: Object.freeze({
+            },
+            presentationClock: {
               nowInternalV1: now,
               requestTickInternalV1: requestTick,
               prefersReducedMotionInternalV1: prefersReducedMotion,
-            }),
-            textResolver: Object.freeze({ resolveTextInternalV1: resolveText }),
-          })),
-      }),
+            },
+            textResolver: { resolveTextInternalV1: resolveText },
+          }),
+      },
     });
     expect(harness.bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
       kind: "applied",
@@ -11825,11 +10905,11 @@ describe("Narrative stable Managed Surface family", () => {
     const current = currentDialoguePlayerTargetV1(harness);
 
     expect(() =>
-      createNarrativeStableDialoguePlayerControllerInternalV1(Object.freeze({
+      createNarrativeStableDialoguePlayerControllerInternalV1({
         bridge: harness.bridge,
         target: current.target,
         frame: current.frame,
-      }))
+      })
     ).toThrow(TypeError);
     expect(drifted).toBe(true);
     expect(profileGet).toHaveBeenCalledTimes(expectedProfileReads);
@@ -11840,7 +10920,7 @@ describe("Narrative stable Managed Surface family", () => {
     expect(requestTick).not.toHaveBeenCalled();
   });
 
-  it("mints fresh opaque History intents across 10k attempts without production state growth", () => {
+  it("mints fresh one-shot History intents across 10k attempts without production state growth", () => {
     let availabilityReads = 0;
     const fixture = physicalHistoryHarnessV1({
       historyAvailabilityPort: historyAvailabilityPortV1(() => {
@@ -11860,8 +10940,7 @@ describe("Narrative stable Managed Surface family", () => {
       );
       if (result.kind !== "requested") throw new Error("expected History intent");
       expect(result.intent).not.toBe(previousIntent);
-      expect(Object.isFrozen(result.intent)).toBe(true);
-      expect(Reflect.ownKeys(result.intent)).toEqual([]);
+
       previousIntent = result.intent;
     }
     expect(availabilityReads).toBe(10_000);

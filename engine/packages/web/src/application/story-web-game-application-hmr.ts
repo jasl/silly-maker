@@ -122,7 +122,7 @@ export function createWebGameApplicationViteHotAdapterInternalV1<
     application: TApplication,
   ): DeepReadonly<BuildProvenanceV1>;
 }): ResolvedGameHmrHotAdapterV1<TModule> {
-  return Object.freeze({
+  return ({
     accept(handler: (module: TModule | undefined) => void): void {
       input.registration.accept((module) => {
         if (module !== undefined) {
@@ -166,7 +166,7 @@ export function createWebGameApplicationRebootstrapStartOptionsInternalV1(input:
   const loadTextContentPackBytes = readStartedWebTextContentPackLoaderInternalV1(
     input.predecessor,
   );
-  return Object.freeze({
+  return ({
     rootElement: input.rootElement,
     host: input.predecessor.host,
     capabilitySearch: input.predecessor.capabilitySearch,

@@ -9,14 +9,14 @@ import { OsStartLogoV1 } from "./icons.tsx";
 import type { OsWindowManagerSnapshotV1, OsWindowManagerV1 } from "./window-manager.ts";
 
 /** Measurement fallback only (under the fluid viewport the desktop tracks the browser area). */
-export const osDesktopCanvasV1 = Object.freeze({ width: 1024, height: 768 });
+export const osDesktopCanvasV1 = { width: 1024, height: 768 };
 export const osTaskbarHeightV1 = 34;
 
 export function osDesktopBoundsForV1(viewport: {
   readonly cssWidth: number;
   readonly cssHeight: number;
 }): { readonly x: number; readonly y: number; readonly width: number; readonly height: number } {
-  return Object.freeze({
+  return ({
     x: 0,
     y: 0,
     width: Math.max(200, Math.round(viewport.cssWidth)),
@@ -24,17 +24,17 @@ export function osDesktopBoundsForV1(viewport: {
   });
 }
 
-export const osWallpaperStylesV1: Readonly<Record<string, CSSProperties>> = Object.freeze({
-  teal: Object.freeze({ background: os98.desktop }),
-  clouds: Object.freeze({
+export const osWallpaperStylesV1: Readonly<Record<string, CSSProperties>> = {
+  teal: { background: os98.desktop },
+  clouds: {
     background: "radial-gradient(ellipse 60% 40% at 25% 30%, #f4f8ff 0 18%, transparent 42%)," +
       "radial-gradient(ellipse 50% 32% at 70% 60%, #e8f2ff 0 16%, transparent 40%)," +
       "linear-gradient(180deg, #4a86c8, #9fc4e8)",
-  }),
-  dusk: Object.freeze({
+  },
+  dusk: {
     background: "linear-gradient(180deg, #1a1a40 0%, #5a3a70 55%, #c86a50 100%)",
-  }),
-});
+  },
+};
 
 export function OsDesktopIconV1(props: {
   readonly label: string;

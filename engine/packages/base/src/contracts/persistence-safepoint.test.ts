@@ -19,7 +19,6 @@ describe("parsePersistenceSafepointPolicyV1", () => {
       classify: classifyV1,
       maxInFlightCommits: 8,
     });
-    expect(Object.isFrozen(policy)).toBe(true);
     expect(policy.maxInFlightCommits).toBe(8);
     expect(policy.classify({ inFlight: true })).toBe("in_flight");
     expect(policy.classify({ inFlight: false })).toBe("safepoint");

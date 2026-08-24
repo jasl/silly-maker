@@ -190,11 +190,15 @@ export interface CreateWorkspaceOverlaySessionConfigurationInternalInputV1<
   readonly reportFailure?: (code: string, error: unknown) => void;
 }
 
-declare const workspaceOverlaySessionConfigurationBrandV1: unique symbol;
-
 export interface WorkspaceOverlaySessionConfigurationInternalV1<TOverlayId extends string> {
-  readonly [workspaceOverlaySessionConfigurationBrandV1]: TOverlayId;
   readonly recipeContribution: ManagedSurfaceCoordinatorRecipeV1;
+  readonly knownOverlayIds: readonly TOverlayId[];
+  readonly definitionsById: ReadonlyMap<
+    string,
+    ParsedWorkspaceOverlayDefinitionV1<TOverlayId> | OverlayAdmissionRejectionV1
+  >;
+  readonly availablePortIds: ReadonlySet<string>;
+  readonly reportFailure: (code: string, error: unknown) => void;
 }
 
 export interface CreateWorkspaceOverlaySessionInternalInputV1<TOverlayId extends string> {
@@ -210,14 +214,14 @@ const workspaceOverlaySessionInternalsV1 = new WeakMap<
 export function createWorkspaceOverlayPublicSessionInternalV1<TOverlayId extends string>(
   internal: WorkspaceOverlaySessionInternalV1<TOverlayId>,
 ): OverlaySessionStoreV1<TOverlayId> {
-  const session: OverlaySessionStoreV1<TOverlayId> = Object.freeze({
+  const session: OverlaySessionStoreV1<TOverlayId> = {
     getSnapshot: internal.getSnapshot,
     subscribe: internal.subscribe,
     openPrimary: internal.openPrimary,
     pushDetail: internal.pushDetail,
     closeTop: internal.closeTop,
     closeAll: internal.closeAll,
-  });
+  };
   workspaceOverlaySessionInternalsV1.set(
     session as OverlaySessionStoreV1<string>,
     internal as WorkspaceOverlaySessionInternalV1<string>,
@@ -244,60 +248,40 @@ const layerIdV1 = parseManagedSurfaceLayerIdV1("surface-layer.workspace-overlay"
 const focusTargetIdV1 = parseManagedSurfaceFocusTargetIdV1(
   "surface-focus.workspace-overlay.content",
 );
-const readinessPolicyV1 = Object.freeze({
+const readinessPolicyV1 = {
   initialOpen: "blocking_fallback" as const,
   primaryReplacement: "retain_current" as const,
   childOpen: "blocking_fallback" as const,
-});
-const exactIdSchemaV1 = Object.freeze({ kind: "exact_id" as const });
-const preparingResultV1 = Object.freeze({
+};
+const exactIdSchemaV1 = { kind: "exact_id" as const };
+const preparingResultV1 = {
   kind: "preparing" as const,
   code: "overlay.preparation_started" as const,
-});
-const alreadyOpenResultV1 = Object.freeze({
+};
+const alreadyOpenResultV1 = {
   kind: "unchanged" as const,
   code: "overlay.already_open" as const,
-});
+};
 
 function isRecordV1(value: unknown): value is Readonly<Record<string, unknown>> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function hasExactKeysV1(
   value: Readonly<Record<string, unknown>>,
   keys: readonly string[],
 ): boolean {
-  const ownKeys = Reflect.ownKeys(value);
+  const ownKeys = Object.keys(value);
   return ownKeys.length === keys.length && keys.every((key) => Object.hasOwn(value, key));
 }
 
-function denseOwnArraySnapshotV1(value: unknown, errorCode: string): readonly unknown[] {
+function copyArrayV1(value: unknown, errorCode: string): readonly unknown[] {
   if (!Array.isArray(value)) throw new TypeError(errorCode);
-  const ownKeys = Reflect.ownKeys(value);
-  if (ownKeys.length !== value.length + 1) throw new TypeError(errorCode);
-  const snapshot: unknown[] = [];
-  for (let index = 0; index < value.length; index += 1) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
-    if (descriptor === undefined || !("value" in descriptor)) throw new TypeError(errorCode);
-    snapshot.push(descriptor.value);
-  }
-  return Object.freeze(snapshot);
+  return [...value];
 }
 
-/** @internal Captures author configuration without invoking caller array methods. */
-export function snapshotWorkspaceOverlayDefinitionsInternalV1<TOverlayId extends string>(
-  definitions: readonly WorkspaceOverlayDefinitionV1<TOverlayId>[],
-): readonly WorkspaceOverlayDefinitionV1<TOverlayId>[] {
-  return denseOwnArraySnapshotV1(
-    definitions,
-    "ui.workspace_overlay_definitions_invalid",
-  ) as readonly WorkspaceOverlayDefinitionV1<TOverlayId>[];
-}
-
-function freezePortIdsV1(portIds: unknown): readonly string[] {
-  const input = denseOwnArraySnapshotV1(
+function normalizePortIdsV1(portIds: unknown): readonly string[] {
+  const input = copyArrayV1(
     portIds,
     "ui.workspace_overlay_required_port_ids_invalid",
   );
@@ -306,14 +290,14 @@ function freezePortIdsV1(portIds: unknown): readonly string[] {
   if (new Set(parsed).size !== parsed.length) {
     throw new TypeError("ui.workspace_overlay_duplicate_required_port");
   }
-  return Object.freeze(parsed);
+  return parsed;
 }
 
 function availablePortIdSetV1(
   bindings: readonly WorkspaceOverlayPortBindingV1[],
 ): ReadonlySet<string> {
   const portIds = new Set<string>();
-  const snapshot = denseOwnArraySnapshotV1(
+  const snapshot = copyArrayV1(
     bindings,
     "ui.workspace_overlay_port_bindings_invalid",
   );
@@ -342,12 +326,12 @@ export function defineWorkspaceOverlayV1<const TOverlayId extends string>(
   const contractRevision = parsePositiveSafeInteger(input.contractRevision);
   definitionIdV1(id, "primary");
   definitionIdV1(id, "detail");
-  return Object.freeze({
+  return ({
     id,
     contractRevision,
     targetSchema: exactIdSchemaV1,
     dismissible: input.dismissible ?? true,
-    requiredPortIds: freezePortIdsV1(input.requiredPortIds ?? []),
+    requiredPortIds: normalizePortIdsV1(input.requiredPortIds ?? []),
   });
 }
 
@@ -360,7 +344,7 @@ function managedDefinitionV1(
   placement: "primary" | "detail",
 ): ManagedSurfaceResolvedDefinitionV1 {
   const dismissible = definition.dismissible;
-  return Object.freeze({
+  return ({
     definitionId: definitionIdV1(definition.id, placement),
     contractRevision: parsePositiveSafeInteger(definition.contractRevision),
     ownerId: ownerIdV1,
@@ -369,23 +353,23 @@ function managedDefinitionV1(
     layerOrder: parseNonNegativeSafeInteger(50),
     placement: placement === "primary" ? "root" : "child",
     modality: "blocking",
-    inputPolicy: Object.freeze({ kind: "managed" as const, inputContextId: "overlay" as const }),
-    dismissPolicy: Object.freeze({
+    inputPolicy: { kind: "managed" as const, inputContextId: "overlay" as const },
+    dismissPolicy: {
       back: dismissible,
       escape: dismissible,
       backdrop: dismissible,
       routedCancel: dismissible,
-    }),
-    focusPolicy: Object.freeze({
+    },
+    focusPolicy: {
       kind: "owns_focus" as const,
       initialTargetId: focusTargetIdV1,
       trap: true,
       restore: "opener" as const,
-    }),
-    navigationPolicy: Object.freeze({ kind: "close" as const }),
-    actionIds: Object.freeze([
+    },
+    navigationPolicy: { kind: "close" as const },
+    actionIds: [
       parseManagedSurfaceActionIdV1(systemInputActionIdsV1.cancel),
-    ]),
+    ],
     readiness: readinessPolicyV1,
   });
 }
@@ -395,12 +379,12 @@ function parseDefinitionForRequestV1<TOverlayId extends string>(
   requestedId: TOverlayId,
 ): ParsedWorkspaceOverlayDefinitionV1<TOverlayId> | OverlayAdmissionRejectionV1 {
   if (!isRecordV1(raw) || raw.id !== requestedId) {
-    return Object.freeze({ kind: "rejected", code: "overlay.schema_invalid" });
+    return ({ kind: "rejected", code: "overlay.schema_invalid" });
   }
   try {
     parsePositiveSafeInteger(raw.contractRevision);
   } catch {
-    return Object.freeze({ kind: "rejected", code: "overlay.contract_revision_invalid" });
+    return ({ kind: "rejected", code: "overlay.contract_revision_invalid" });
   }
   if (
     !hasExactKeysV1(raw, [
@@ -416,28 +400,28 @@ function parseDefinitionForRequestV1<TOverlayId extends string>(
     typeof raw.dismissible !== "boolean" ||
     !Array.isArray(raw.requiredPortIds)
   ) {
-    return Object.freeze({ kind: "rejected", code: "overlay.schema_invalid" });
+    return ({ kind: "rejected", code: "overlay.schema_invalid" });
   }
   let definition: WorkspaceOverlayDefinitionV1<TOverlayId>;
   try {
-    definition = Object.freeze({
+    definition = {
       id: parseModuleId(raw.id) as unknown as TOverlayId,
       contractRevision: parsePositiveSafeInteger(raw.contractRevision),
       targetSchema: exactIdSchemaV1,
       dismissible: raw.dismissible,
-      requiredPortIds: freezePortIdsV1(raw.requiredPortIds as readonly string[]),
-    });
+      requiredPortIds: normalizePortIdsV1(raw.requiredPortIds as readonly string[]),
+    };
   } catch {
-    return Object.freeze({ kind: "rejected", code: "overlay.schema_invalid" });
+    return ({ kind: "rejected", code: "overlay.schema_invalid" });
   }
   try {
-    return Object.freeze({
+    return ({
       definition,
       primary: managedDefinitionV1(definition, "primary"),
       detail: managedDefinitionV1(definition, "detail"),
     });
   } catch {
-    return Object.freeze({ kind: "rejected", code: "overlay.schema_invalid" });
+    return ({ kind: "rejected", code: "overlay.schema_invalid" });
   }
 }
 
@@ -450,7 +434,7 @@ function normalizeResolutionV1(value: OverlayRendererResolutionV1): OverlayRende
   ) {
     throw new TypeError("ui.workspace_overlay_renderer_resolution_invalid");
   }
-  return Object.freeze({
+  return ({
     accessibleName: value.accessibleName,
     content: value.content,
     ...(value.prepare === undefined ? {} : { prepare: value.prepare }),
@@ -458,7 +442,7 @@ function normalizeResolutionV1(value: OverlayRendererResolutionV1): OverlayRende
 }
 
 function rejectionV1(code: OverlayAdmissionRejectionV1["code"]): OverlayAdmissionRejectionV1 {
-  return Object.freeze({ kind: "rejected", code }) as OverlayAdmissionRejectionV1;
+  return ({ kind: "rejected", code }) as OverlayAdmissionRejectionV1;
 }
 
 function transitionResultV1(receipt: ManagedSurfaceTransitionReceiptV1): OverlayOpenResultV1 {
@@ -472,7 +456,7 @@ function transitionResultV1(receipt: ManagedSurfaceTransitionReceiptV1): Overlay
     if (receipt.code === "surface.invalid_parent") return rejectionV1("overlay.invalid_parent");
     return rejectionV1("overlay.invalid_transition");
   }
-  return Object.freeze({ kind: "faulted", code: "overlay.transition_faulted" });
+  return ({ kind: "faulted", code: "overlay.transition_faulted" });
 }
 
 function readinessOutcomeV1(
@@ -480,16 +464,16 @@ function readinessOutcomeV1(
   success: boolean,
 ): WorkspaceOverlayReadinessOutcomeInternalV1 {
   if (receipt.kind === "applied") {
-    return Object.freeze({ kind: success ? "ready" as const : "failed" as const });
+    return ({ kind: success ? "ready" as const : "failed" as const });
   }
-  return Object.freeze({ kind: "stale", code: "overlay.stale_readiness" });
+  return ({ kind: "stale", code: "overlay.stale_readiness" });
 }
 
-function frozenCompatibilityStateV1<TOverlayId extends string>(
+function compatibilityStateV1<TOverlayId extends string>(
   primaryId: TOverlayId | null,
   detailIds: readonly TOverlayId[],
 ): DeepReadonly<OverlaySessionStateV1<TOverlayId>> {
-  return Object.freeze({ primaryId, detailIds: Object.freeze([...detailIds]) }) as DeepReadonly<
+  return { primaryId, detailIds: [...detailIds] } as unknown as DeepReadonly<
     OverlaySessionStateV1<TOverlayId>
   >;
 }
@@ -497,8 +481,8 @@ function frozenCompatibilityStateV1<TOverlayId extends string>(
 function overlayHostPublicationV1(
   publication: DeepReadonly<ManagedSurfacePublicationV1>,
 ): DeepReadonly<ManagedSurfacePublicationV1> {
-  const orderedInstances = Object.freeze(
-    publication.orderedInstances.filter((instance) => instance.definition.ownerId === ownerIdV1),
+  const orderedInstances = publication.orderedInstances.filter((instance) =>
+    instance.definition.ownerId === ownerIdV1
   );
   const instanceIds = new Set(
     orderedInstances.map((instance) => instance.surfaceInstanceId),
@@ -511,18 +495,16 @@ function overlayHostPublicationV1(
   const ownsTopmostBlockingFence = topmostBlockingFence?.definition.ownerId === ownerIdV1;
   const ownsInstance = (surfaceInstanceId: ManagedSurfaceInstanceIdV1 | null): boolean =>
     surfaceInstanceId !== null && instanceIds.has(surfaceInstanceId);
-  return Object.freeze({
+  return ({
     applicationEpoch: publication.applicationEpoch,
     publicationRevision: publication.publicationRevision,
     topologyRevision: publication.topologyRevision,
     orderedInstances,
     preparationFallbacks: ownsTopmostBlockingFence
-      ? Object.freeze(
-        publication.preparationFallbacks.filter((fallback) =>
-          instanceIds.has(fallback.candidateInstanceId)
-        ),
-      )
-      : Object.freeze([]),
+      ? (publication.preparationFallbacks.filter((fallback) =>
+        instanceIds.has(fallback.candidateInstanceId)
+      ))
+      : [],
     topmostBlockingInstanceId:
       ownsTopmostBlockingFence && ownsInstance(publication.topmostBlockingInstanceId)
         ? publication.topmostBlockingInstanceId
@@ -536,38 +518,38 @@ function overlayHostPublicationV1(
     navigationTargetInstanceId: ownsInstance(publication.navigationTargetInstanceId)
       ? publication.navigationTargetInstanceId
       : null,
-    ownerTrace: Object.freeze(
-      publication.ownerTrace.filter((trace) => trace.ownerId === ownerIdV1),
-    ),
+    ownerTrace: publication.ownerTrace.filter((trace) => trace.ownerId === ownerIdV1),
     coordinatorDisposed: publication.coordinatorDisposed,
   }) as DeepReadonly<ManagedSurfacePublicationV1>;
 }
-
-interface WorkspaceOverlaySessionConfigurationRecordV1 {
-  readonly rawById: ReadonlyMap<string, readonly unknown[]>;
-  readonly availablePortIds: ReadonlySet<string>;
-  readonly reportFailure: (code: string, error: unknown) => void;
-}
-
-const workspaceOverlaySessionConfigurationsV1 = new WeakMap<
-  WorkspaceOverlaySessionConfigurationInternalV1<string>,
-  WorkspaceOverlaySessionConfigurationRecordV1
->();
 
 export function createWorkspaceOverlaySessionConfigurationInternalV1<
   TOverlayId extends string,
 >(
   input: CreateWorkspaceOverlaySessionConfigurationInternalInputV1<TOverlayId>,
 ): WorkspaceOverlaySessionConfigurationInternalV1<TOverlayId> {
-  const rawDefinitions = snapshotWorkspaceOverlayDefinitionsInternalV1(
+  const rawDefinitions = copyArrayV1(
     input.definitions,
-  ) as readonly unknown[];
+    "ui.workspace_overlay_definitions_invalid",
+  );
   const rawById = new Map<string, unknown[]>();
   for (const raw of rawDefinitions) {
     if (!isRecordV1(raw) || typeof raw.id !== "string") continue;
     const existing = rawById.get(raw.id);
     if (existing === undefined) rawById.set(raw.id, [raw]);
     else existing.push(raw);
+  }
+  const definitionsById = new Map<
+    string,
+    ParsedWorkspaceOverlayDefinitionV1<TOverlayId> | OverlayAdmissionRejectionV1
+  >();
+  for (const [id, definitions] of rawById) {
+    definitionsById.set(
+      id,
+      definitions.length === 1
+        ? parseDefinitionForRequestV1(definitions[0], id as TOverlayId)
+        : { kind: "rejected", code: "overlay.definition_ambiguous" },
+    );
   }
   const availablePortIds = availablePortIdSetV1(input.availablePorts ?? []);
   const reportFailure = (code: string, error: unknown): void => {
@@ -577,32 +559,30 @@ export function createWorkspaceOverlaySessionConfigurationInternalV1<
       // Diagnostics are best effort and cannot change admission or lifecycle commits.
     }
   };
-  const catalogIds = [...rawById.keys()].flatMap((id) => {
+  const knownOverlayIds = [...rawById.keys()].flatMap((id) => {
     try {
       const parsed = parseModuleId(id);
       definitionIdV1(parsed, "primary");
       definitionIdV1(parsed, "detail");
-      return [parsed];
+      return [parsed as unknown as TOverlayId];
     } catch {
       return [];
     }
   });
   const slotDescriptors: ManagedSurfaceResolvedSlotDescriptorV1[] = [
-    Object.freeze({ kind: "root", slotId: primarySlotIdV1, cardinality: "single" }),
-    ...catalogIds.flatMap((id) =>
-      (["primary", "detail"] as const).map((placement) =>
-        Object.freeze({
-          kind: "child" as const,
-          parentDefinitionId: definitionIdV1(id, placement),
-          slotId: detailSlotIdV1,
-          cardinality: "single" as const,
-        })
-      )
+    { kind: "root", slotId: primarySlotIdV1, cardinality: "single" },
+    ...knownOverlayIds.flatMap((id) =>
+      (["primary", "detail"] as const).map((placement) => ({
+        kind: "child" as const,
+        parentDefinitionId: definitionIdV1(id, placement),
+        slotId: detailSlotIdV1,
+        cardinality: "single" as const,
+      }))
     ),
   ];
-  const recipeContribution = Object.freeze({
-    resolvedOwnerIds: Object.freeze([ownerIdV1]),
-    resolvedSlotDescriptors: Object.freeze(slotDescriptors),
+  const recipeContribution = {
+    resolvedOwnerIds: [ownerIdV1],
+    resolvedSlotDescriptors: slotDescriptors,
     ...(input.reportFailure === undefined ? {} : {
       reportSubscriberFailure: () =>
         reportFailure(
@@ -610,33 +590,22 @@ export function createWorkspaceOverlaySessionConfigurationInternalV1<
           new Error("Managed Surface subscriber failed."),
         ),
     }),
-  });
-  const configuration = Object.freeze({
+  };
+  return {
     recipeContribution,
-  }) as unknown as WorkspaceOverlaySessionConfigurationInternalV1<TOverlayId>;
-  workspaceOverlaySessionConfigurationsV1.set(
-    configuration as WorkspaceOverlaySessionConfigurationInternalV1<string>,
-    {
-      rawById,
-      availablePortIds,
-      reportFailure,
-    },
-  );
-  return configuration;
+    knownOverlayIds,
+    definitionsById,
+    availablePortIds,
+    reportFailure,
+  };
 }
 
 export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends string>(
   input: CreateWorkspaceOverlaySessionInternalInputV1<TOverlayId>,
 ): WorkspaceOverlaySessionInternalV1<TOverlayId> {
-  const configuration = workspaceOverlaySessionConfigurationsV1.get(
-    input.configuration as WorkspaceOverlaySessionConfigurationInternalV1<string>,
-  );
-  if (configuration === undefined) {
-    throw new TypeError("ui.workspace_overlay_session_configuration_required");
-  }
-  const rawById = configuration.rawById;
-  const availablePortIds = configuration.availablePortIds;
-  const reportFailure = configuration.reportFailure;
+  const definitionsById = input.configuration.definitionsById;
+  const availablePortIds = input.configuration.availablePortIds;
+  const reportFailure = input.configuration.reportFailure;
   let runtime = input.runtime;
   let resolver: OverlayRendererResolverV1<TOverlayId> | null = null;
   const listeners = new Set<() => void>();
@@ -653,7 +622,7 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
   let activationGate: ManagedSurfaceFamilyActivationGateInternalV1 | null = null;
   let unsubscribeCoordinator: (() => void) | null = null;
   let compatibilityPublication: DeepReadonly<ManagedSurfacePublicationV1> | null = null;
-  let compatibilitySnapshot = frozenCompatibilityStateV1<TOverlayId>(null, []);
+  let compatibilitySnapshot = compatibilityStateV1<TOverlayId>(null, []);
   let renderSourcePublication: DeepReadonly<ManagedSurfacePublicationV1> | null = null;
   let renderSnapshot: WorkspaceOverlayRenderSnapshotInternalV1<TOverlayId> | null = null;
 
@@ -735,7 +704,7 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
     );
     const primary = ready.find((instance) => instance.parentInstanceId === null);
     if (primary === undefined) {
-      compatibilitySnapshot = frozenCompatibilityStateV1<TOverlayId>(null, []);
+      compatibilitySnapshot = compatibilityStateV1<TOverlayId>(null, []);
     } else {
       const primaryRecord = renderRecords.get(primary.surfaceInstanceId);
       const details: TOverlayId[] = [];
@@ -748,7 +717,7 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
         details.push(record.overlayId);
         parentId = child.surfaceInstanceId;
       }
-      compatibilitySnapshot = frozenCompatibilityStateV1(
+      compatibilitySnapshot = compatibilityStateV1(
         primaryRecord?.overlayId ?? null,
         details,
       );
@@ -779,10 +748,8 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
     ) {
       return rejectionV1("overlay.disposed");
     }
-    const matches = rawById.get(id);
-    if (matches === undefined) return rejectionV1("overlay.definition_missing");
-    if (matches.length !== 1) return rejectionV1("overlay.definition_ambiguous");
-    const parsed = parseDefinitionForRequestV1(matches[0], id);
+    const parsed = definitionsById.get(id);
+    if (parsed === undefined) return rejectionV1("overlay.definition_missing");
     if ("kind" in parsed) return parsed;
     if (resolver === null) return rejectionV1("overlay.renderer_unavailable");
     let resolution: OverlayRendererResolutionV1 | null;
@@ -793,21 +760,21 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
       }
     } catch (error) {
       reportFailure("ui.workspace_overlay_renderer_faulted", error);
-      return Object.freeze({ kind: "faulted", code: "overlay.renderer_faulted" });
+      return ({ kind: "faulted", code: "overlay.renderer_faulted" });
     }
     if (resolution === null || resolution === undefined) {
       return rejectionV1("overlay.renderer_missing");
     }
     for (const portId of parsed.definition.requiredPortIds) {
       if (!availablePortIds.has(portId)) {
-        return Object.freeze({
+        return ({
           kind: "rejected",
           code: "overlay.required_port_missing",
           portId,
         });
       }
     }
-    return Object.freeze({ parsed, resolution });
+    return ({ parsed, resolution });
   };
 
   const storePreparation = (
@@ -952,19 +919,19 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
       }
       const entries = sourcePublication.orderedInstances.flatMap((instance) => {
         const record = renderRecords.get(instance.surfaceInstanceId);
-        return record === undefined ? [] : [Object.freeze({
+        return record === undefined ? [] : [{
           surfaceInstanceId: instance.surfaceInstanceId,
           parentInstanceId: instance.parentInstanceId,
           phase: instance.phase,
           readiness: instance.readiness.kind,
           overlayId: record.overlayId,
           resolution: record.resolution,
-        })];
+        }];
       });
-      renderSnapshot = Object.freeze({
+      renderSnapshot = {
         publication: overlayHostPublicationV1(sourcePublication),
-        entries: Object.freeze(entries),
-      });
+        entries: entries,
+      };
       renderSourcePublication = sourcePublication;
       return renderSnapshot;
     },
@@ -981,10 +948,10 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
     beginCandidatePreparationInternalV1(surfaceInstanceId) {
       const record = renderRecords.get(surfaceInstanceId);
       if (record === undefined) {
-        return Promise.resolve(Object.freeze({
+        return Promise.resolve({
           kind: "stale",
           code: "overlay.stale_readiness",
-        }));
+        });
       }
       if (record.preparation !== null) return record.preparation;
       record.preparation = Promise.resolve()
@@ -1004,7 +971,7 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
       const record = renderRecords.get(surfaceInstanceId);
       reportFailure("ui.workspace_overlay_render_preparation_failed", error);
       if (record === undefined) {
-        return Object.freeze({ kind: "stale", code: "overlay.stale_readiness" });
+        return ({ kind: "stale", code: "overlay.stale_readiness" });
       }
       const receipt = mutate(() => record.readiness.fail());
       return readinessOutcomeV1(receipt, false);
@@ -1133,5 +1100,5 @@ export function createWorkspaceOverlaySessionInternalV1<TOverlayId extends strin
     },
   };
 
-  return Object.freeze(session);
+  return session;
 }

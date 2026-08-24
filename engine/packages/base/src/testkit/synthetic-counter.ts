@@ -92,32 +92,29 @@ type SyntheticAttemptV1 = CommandExecutionAttemptEnvelopeV1<
   RngDrawTraceV1
 >;
 
-export const syntheticCounterStateSchemaV1: RuntimeSchemaV1<SyntheticCounterStateV1> = Object
-  .freeze({
-    parse(value: unknown): SyntheticCounterStateV1 {
-      if (
-        value === null ||
-        typeof value !== "object" ||
-        Array.isArray(value) ||
-        Object.getPrototypeOf(value) !== Object.prototype ||
-        Object.keys(value).join("\0") !== "count" ||
-        typeof (value as { readonly count?: unknown }).count !== "number"
-      ) {
-        throw new TypeError("invalid synthetic counter State");
-      }
-      return Object.freeze({
-        count: parseNonNegativeSafeInteger((value as { readonly count: number }).count),
-      });
-    },
-  });
+export const syntheticCounterStateSchemaV1: RuntimeSchemaV1<SyntheticCounterStateV1> = {
+  parse(value: unknown): SyntheticCounterStateV1 {
+    if (
+      value === null ||
+      typeof value !== "object" ||
+      Array.isArray(value) ||
+      Object.keys(value).join("\0") !== "count" ||
+      typeof (value as { readonly count?: unknown }).count !== "number"
+    ) {
+      throw new TypeError("invalid synthetic counter State");
+    }
+    return ({
+      count: parseNonNegativeSafeInteger((value as { readonly count: number }).count),
+    });
+  },
+};
 
-const syntheticGameStateSchemaV1: RuntimeSchemaV1<SyntheticGameStateV1> = Object.freeze({
+const syntheticGameStateSchemaV1: RuntimeSchemaV1<SyntheticGameStateV1> = {
   parse(value: unknown): SyntheticGameStateV1 {
     if (
       value === null ||
       typeof value !== "object" ||
       Array.isArray(value) ||
-      Object.getPrototypeOf(value) !== Object.prototype ||
       Object.keys(value).join("\0") !== "simulation"
     ) {
       throw new TypeError("invalid synthetic aggregate State");
@@ -127,22 +124,21 @@ const syntheticGameStateSchemaV1: RuntimeSchemaV1<SyntheticGameStateV1> = Object
       simulation === null ||
       typeof simulation !== "object" ||
       Array.isArray(simulation) ||
-      Object.getPrototypeOf(simulation) !== Object.prototype ||
       Object.keys(simulation).join("\0") !== "counter"
     ) {
       throw new TypeError("invalid synthetic simulation State");
     }
-    return Object.freeze({
-      simulation: Object.freeze({
+    return ({
+      simulation: {
         counter: syntheticCounterStateSchemaV1.parse(
           (simulation as { readonly counter?: unknown }).counter,
         ),
-      }),
+      },
     });
   },
-});
+};
 
-const commandSchema: RuntimeSchemaV1<SyntheticCounterCommandV1> = Object.freeze({
+const commandSchema: RuntimeSchemaV1<SyntheticCounterCommandV1> = {
   parse(value: unknown): SyntheticCounterCommandV1 {
     if (
       value === null ||
@@ -160,21 +156,21 @@ const commandSchema: RuntimeSchemaV1<SyntheticCounterCommandV1> = Object.freeze(
     ) {
       throw new TypeError("invalid synthetic command kind");
     }
-    return Object.freeze({ kind });
+    return ({ kind });
   },
-});
+};
 
 function passthroughSchema<T>(): RuntimeSchemaV1<T> {
-  return Object.freeze({ parse: (value: unknown) => value as T });
+  return ({ parse: (value: unknown) => value as T });
 }
 
-const debugCommandSchema: RuntimeSchemaV1<never> = Object.freeze({
+const debugCommandSchema: RuntimeSchemaV1<never> = {
   parse(): never {
     throw new TypeError("synthetic debug commands are unsupported");
   },
-});
+};
 
-const syntheticEventSchemaV1: RuntimeSchemaV1<SyntheticCounterEventV1> = Object.freeze({
+const syntheticEventSchemaV1: RuntimeSchemaV1<SyntheticCounterEventV1> = {
   parse(value: unknown): SyntheticCounterEventV1 {
     if (
       value === null ||
@@ -184,12 +180,12 @@ const syntheticEventSchemaV1: RuntimeSchemaV1<SyntheticCounterEventV1> = Object.
     ) {
       throw new TypeError("invalid synthetic domain event");
     }
-    return Object.freeze({
+    return ({
       kind: "synthetic.incremented" as const,
       count: parseNonNegativeSafeInteger((value as { readonly count?: unknown }).count),
     });
   },
-});
+};
 
 function createModules() {
   const counter = defineGameplayModule<SyntheticSimulationTypesV1>()({
@@ -206,10 +202,10 @@ function createModules() {
     stateSchema: syntheticCounterStateSchemaV1,
     localInvariants: [],
     reducers: {
-      "synthetic.incremented": (_state, event) => Object.freeze({ count: event.count }),
+      "synthetic.incremented": (_state, event) => ({ count: event.count }),
     },
     queries: null,
-    createInitialState: () => Object.freeze({ count: 0 }),
+    createInitialState: () => ({ count: 0 }),
     createReadPort: (state) => state,
   });
   const parity = defineGameplayModule<SyntheticSimulationTypesV1>()({
@@ -224,13 +220,13 @@ function createModules() {
     querySchema: null,
     queryResultSchema: null,
     reducers: null,
-    capabilities: Object.freeze({
+    capabilities: {
       resolveParity(value: number): "even" | "odd" {
         return value % 2 === 0 ? "even" : "odd";
       },
-    }),
+    },
   });
-  return Object.freeze([counter, parity] as const);
+  return ([counter, parity] as const);
 }
 
 type SyntheticModulesV1 = ReturnType<typeof createModules>;
@@ -264,14 +260,14 @@ function createGameSimulation(): SyntheticGameSimulationV1 {
   const modules = createModules();
   const counter = modules[0];
   const parity = modules[1];
-  const commandExecutor: SyntheticCommandExecutorV1 = Object.freeze({
+  const commandExecutor: SyntheticCommandExecutorV1 = {
     executeAttempt(snapshot, command) {
       const rng = createTransactionalRngV1(snapshot.rng);
       if (command.kind === "synthetic.reject") {
-        return rejectAttemptV1(snapshot, rng, [Object.freeze({ code: "synthetic.reject" })]);
+        return rejectAttemptV1(snapshot, rng, [{ code: "synthetic.reject" }]);
       }
       if (command.kind === "synthetic.fault") {
-        return faultAttemptV1(snapshot, rng, Object.freeze({ code: "synthetic.fault" }));
+        return faultAttemptV1(snapshot, rng, { code: "synthetic.fault" });
       }
       const event = syntheticEventSchemaV1.parse({
         kind: "synthetic.incremented",
@@ -282,28 +278,28 @@ function createGameSimulation(): SyntheticGameSimulationV1 {
       const nextCounter = syntheticCounterStateSchemaV1.parse(
         reduce(snapshot.state.simulation.counter, event),
       );
-      const next = Object.freeze({
-        state: Object.freeze({ simulation: Object.freeze({ counter: nextCounter }) }),
+      const next = {
+        state: { simulation: { counter: nextCounter } },
         rng: rng.candidateState(),
         commandSequence: parseNonNegativeSafeInteger(snapshot.commandSequence + 1),
         integrity: snapshot.integrity,
-      });
+      };
       return commitAttemptV1(snapshot, next, rng, [event]);
     },
-  });
-  const debugCommandExecutor: SyntheticDebugCommandExecutorV1 = Object.freeze({
+  };
+  const debugCommandExecutor: SyntheticDebugCommandExecutorV1 = {
     validate() {
-      return Object.freeze({
+      return ({
         kind: "validation_failed" as const,
-        errors: Object.freeze([
-          Object.freeze({ code: "synthetic.debug_command_unsupported" as const }),
-        ]),
+        errors: [
+          { code: "synthetic.debug_command_unsupported" as const },
+        ],
       });
     },
     executeAttempt() {
       throw new TypeError("synthetic debug commands are unsupported");
     },
-  });
+  };
   return defineGameSimulation<SyntheticSimulationTypesV1>()({
     contractRevision: 1,
     modules,
@@ -316,21 +312,21 @@ function createGameSimulation(): SyntheticGameSimulationV1 {
     commandExecutor,
     debugCommandExecutor,
     createBootstrapInput(entropy: BootstrapEntropyV1) {
-      return Object.freeze({ rngSeed: entropy.nextNonZeroUint32() });
+      return ({ rngSeed: entropy.nextNonZeroUint32() });
     },
     createInitialState() {
-      return Object.freeze({
-        simulation: Object.freeze({ counter: Object.freeze({ count: 0 }) }),
+      return ({
+        simulation: { counter: { count: 0 } },
       });
     },
     createQueries(state) {
-      return Object.freeze({
+      return ({
         count: state.simulation.counter.count,
         parity: parity.capabilities.resolveParity(state.simulation.counter.count),
       });
     },
     projectGameView(queries) {
-      return Object.freeze({ count: queries.count, parity: queries.parity });
+      return ({ count: queries.count, parity: queries.parity });
     },
   });
 }
@@ -356,8 +352,8 @@ const syntheticTextCatalogsV1 = parseTextCatalogSetV1({
   ],
 });
 
-const syntheticAssetSlotsV1 = Object.freeze([
-  Object.freeze({
+const syntheticAssetSlotsV1 = [
+  {
     assetId: "asset.synthetic.stage.background",
     kind: "background" as const,
     usage: "scene_background" as const,
@@ -368,8 +364,8 @@ const syntheticAssetSlotsV1 = Object.freeze([
     loadGroup: "bootstrap" as const,
     safeArea: null,
     pivot: null,
-  }),
-  Object.freeze({
+  },
+  {
     assetId: "asset.synthetic.character.fallback",
     kind: "character" as const,
     usage: "character_pose" as const,
@@ -380,28 +376,28 @@ const syntheticAssetSlotsV1 = Object.freeze([
     loadGroup: "scene" as const,
     safeArea: null,
     pivot: null,
-  }),
-]) satisfies readonly AssetSlotDefinitionV1[];
+  },
+] satisfies readonly AssetSlotDefinitionV1[];
 
-const syntheticStateContractManifestV1 = Object.freeze({
+const syntheticStateContractManifestV1 = ({
   contractRevision: 1 as const,
-  aggregateStateSchema: Object.freeze({
+  aggregateStateSchema: {
     schemaId: "schema.synthetic.game-state",
     revision: parsePositiveSafeInteger(1),
-  }),
-  moduleStateSchemas: Object.freeze([
-    Object.freeze({
+  },
+  moduleStateSchemas: [
+    {
       moduleId: parseModuleId("synthetic.counter"),
       moduleContractRevision: parsePositiveSafeInteger(1),
-      stateSlots: Object.freeze([parseStateSlotId("simulation.counter")]),
-      stateSchema: Object.freeze({
+      stateSlots: [parseStateSlotId("simulation.counter")],
+      stateSchema: {
         schemaId: "schema.synthetic.counter-state",
         revision: parsePositiveSafeInteger(1),
-      }),
-    }),
-  ]),
-  persistentIrSchemas: Object.freeze([]),
-  stableReferenceSets: Object.freeze([]),
+      },
+    },
+  ],
+  persistentIrSchemas: [],
+  stableReferenceSets: [],
 }) satisfies StateContractManifestV1;
 
 type SyntheticDefinitionV1 = StoryDefinitionV1<
@@ -431,26 +427,28 @@ export function createSyntheticCounterGamePackageV1(): GamePackageV1<
   SyntheticDefinitionV1["simulation"],
   SyntheticDefinitionV1["presentation"]
 > {
-  const definition: SyntheticDefinitionV1 = Object.freeze({
-    simulation: Object.freeze({
+  const definition: SyntheticDefinitionV1 = {
+    simulation: {
       stateContractRevision: parsePositiveSafeInteger(1),
       stateContractManifest: syntheticStateContractManifestV1,
-      data: Object.freeze({}),
-      rules: Object.freeze({}),
+      data: {},
+      rules: {},
       narrativeProgram: null,
       patchSurface: emptySimulationPatchSurfaceV1,
-      materializeProgram: () => Object.freeze({ kind: "synthetic-counter" }),
+      materializeProgram: () => ({ kind: "synthetic-counter" }),
       createGameSimulation: () => createGameSimulation(),
-    }),
-    presentation: Object.freeze({
+    },
+    presentation: {
       textCatalogs: syntheticTextCatalogsV1,
       assetSlots: syntheticAssetSlotsV1,
-      assetPacks: Object.freeze([]) as readonly [],
+      assetPacks: [] as readonly [],
       patchSurface: emptyPresentationPatchSurfaceV1,
-      materializePresentation: () =>
-        Object.freeze({ kind: "synthetic-presentation", textCatalogs: syntheticTextCatalogsV1 }),
-    }),
-  });
+      materializePresentation: () => ({
+        kind: "synthetic-presentation",
+        textCatalogs: syntheticTextCatalogsV1,
+      }),
+    },
+  };
   return defineGamePackage({
     contractRevision: 1,
     identity: {

@@ -29,10 +29,10 @@ interface RootErrorBoundaryStateV1 {
   readonly subtreeGeneration: number;
 }
 
-const initialRootErrorBoundaryStateV1 = Object.freeze({
+const initialRootErrorBoundaryStateV1 = {
   failed: false,
   subtreeGeneration: 0,
-}) satisfies RootErrorBoundaryStateV1;
+} satisfies RootErrorBoundaryStateV1;
 
 /** Converts React render/lifecycle faults into one bounded application recovery surface. */
 export class RootErrorBoundaryV1 extends Component<
@@ -74,11 +74,11 @@ export class RootErrorBoundaryV1 extends Component<
       <RuntimeFailureDialogV1
         {...this.props.failureDialog}
         inputRouter={this.props.inputRouter}
-        actions={Object.freeze({
+        actions={{
           retry: this.retry,
           reloadApplication: this.props.recoveryActions.reloadApplication,
           requestExit: this.props.recoveryActions.requestExit,
-        })}
+        }}
       />
     );
     return this.props.renderFailure === undefined ? dialog : this.props.renderFailure(dialog);

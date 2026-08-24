@@ -114,7 +114,7 @@ function anchorToCanvasV1(
 export function RegionsWorkspaceSectionV1(props: RegionsWorkspaceSectionPropsV1): ReactElement {
   const { io, session, backdrop, scale } = props;
   const [documents, setDocuments] = useState<readonly RegionsIoListEntryV1[] | null>(null);
-  const [skips, setSkips] = useState<readonly RegionsIoListSkipV1[]>(Object.freeze([]));
+  const [skips, setSkips] = useState<readonly RegionsIoListSkipV1[]>([]);
   const [revision, setRevision] = useState(0);
   const [note, setNote] = useState<string | null>(null);
   const [confirmSwitch, setConfirmSwitch] = useState<{ readonly path: string } | null>(null);
@@ -137,7 +137,7 @@ export function RegionsWorkspaceSectionV1(props: RegionsWorkspaceSectionPropsV1)
     void io.list().then((result) => {
       if (!active) return;
       if (result.kind !== "ok") {
-        setDocuments(Object.freeze([]));
+        setDocuments([]);
         setNote(`区域文档列表不可用：${result.code}`);
         return;
       }
@@ -236,19 +236,19 @@ export function RegionsWorkspaceSectionV1(props: RegionsWorkspaceSectionPropsV1)
     if (hostOwner === null || props.publicationRole === "probe") return undefined;
     return hostOwner.registerCloseParticipant(
       "regions",
-      Object.freeze({
+      {
         getState: () => {
           const current = session.getSnapshot();
-          return Object.freeze({
+          return {
             dirty: current.dirty,
             busy: current.loading || current.saving || creating,
             canSave: current.path !== null && current.digest !== null && blockingIssue === null,
-          });
+          };
         },
         subscribe: session.subscribe,
         save: saveDocument,
         discard: session.discard,
-      }),
+      },
     );
   }, [blockingIssue, creating, hostOwner, props.publicationRole, saveDocument, session]);
 
@@ -305,7 +305,7 @@ export function RegionsWorkspaceSectionV1(props: RegionsWorkspaceSectionPropsV1)
 
   const entryOptions = useMemo(() => {
     if (backdrop === null) {
-      return Object.freeze([]) as readonly {
+      return [] as readonly {
         readonly tag: string;
         readonly placement: StagePlacementV1;
       }[];
@@ -316,7 +316,7 @@ export function RegionsWorkspaceSectionV1(props: RegionsWorkspaceSectionPropsV1)
         options.push({ tag: entry.tag as string, placement: entry.placement });
       }
     }
-    return Object.freeze(options);
+    return options;
   }, [backdrop]);
 
   // Keep the chosen entry valid across recompiles; default to the first

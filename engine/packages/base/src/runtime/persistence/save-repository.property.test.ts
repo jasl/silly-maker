@@ -49,24 +49,14 @@ type PropertySaveRecordV1 = SaveRecordEnvelopeV1<
 >;
 
 function exactObjectV1(value: unknown, keys: readonly string[]): Readonly<Record<string, unknown>> {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype
-  ) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new TypeError("invalid property object");
   }
-  const fields = Object.getOwnPropertyDescriptors(value);
-  if (
-    Object.keys(fields).toSorted().join("\0") !== [...keys].toSorted().join("\0") ||
-    Object.values(fields).some(({ get, set }) => get !== undefined || set !== undefined)
-  ) {
+  const record = value as Readonly<Record<string, unknown>>;
+  if (Object.keys(record).toSorted().join("\0") !== [...keys].toSorted().join("\0")) {
     throw new TypeError("invalid property object fields");
   }
-  return Object.freeze(
-    Object.fromEntries(Object.entries(fields).map(([key, field]) => [key, field.value])),
-  );
+  return Object.fromEntries(keys.map((key) => [key, record[key]]));
 }
 
 function stringV1(value: unknown): string {

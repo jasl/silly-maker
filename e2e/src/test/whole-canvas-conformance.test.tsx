@@ -24,7 +24,7 @@ afterEach(() => {
 });
 
 describe("S4b.1c Engine Lab whole-canvas conformance consumer", () => {
-  it("freezes the exact five-row placement, action-order, and null-default catalog", () => {
+  it("defines the five-row placement, action-order, and null-default catalog", () => {
     expect(labWholeCanvasCatalogV1).toEqual([
       {
         targetId: labWholeCanvasTargetIdsV1.home,
@@ -79,12 +79,6 @@ describe("S4b.1c Engine Lab whole-canvas conformance consumer", () => {
         defaultActionId: null,
       },
     ]);
-    expect(Object.isFrozen(labWholeCanvasCatalogV1)).toBe(true);
-    for (const row of labWholeCanvasCatalogV1) {
-      expect(Object.isFrozen(row)).toBe(true);
-      expect(Object.isFrozen(row.placements)).toBe(true);
-      expect(Object.isFrozen(row.actionIds)).toBe(true);
-    }
   });
 
   it("resolves navigation intents in the catalog order without an owner dispatcher", () => {
@@ -163,7 +157,6 @@ describe("S4b.1c Engine Lab whole-canvas conformance consumer", () => {
         globalThis.window.history.replaceState({}, "", search);
         const ui = createLabGameUiDefinitionV1({ instance });
         expect(Object.hasOwn(ui, "wholeCanvas")).toBe(false);
-        expect(Reflect.ownKeys(ui).includes("wholeCanvas")).toBe(false);
         ui.dispose?.();
       }
       const preparationEventTypes = new Set<string>(
@@ -177,7 +170,7 @@ describe("S4b.1c Engine Lab whole-canvas conformance consumer", () => {
     }
   });
 
-  it("allocates one opaque definition and removable readiness listeners for the exact query", async () => {
+  it("allocates one definition and removable readiness listeners for the exact query", async () => {
     const instance = await createLabApplicationInstanceV1();
     const addEventListener = vi.spyOn(globalThis.window, "addEventListener");
     const removeEventListener = vi.spyOn(globalThis.window, "removeEventListener");
@@ -185,7 +178,6 @@ describe("S4b.1c Engine Lab whole-canvas conformance consumer", () => {
     try {
       const ui = createLabGameUiDefinitionV1({ instance });
       expect(Object.hasOwn(ui, "wholeCanvas")).toBe(true);
-      expect(Reflect.ownKeys(ui.wholeCanvas ?? {})).toEqual([]);
       for (const eventName of Object.values(labWholeCanvasPreparationEventsV1)) {
         expect(addEventListener.mock.calls.filter(([type]) => type === eventName)).toHaveLength(1);
       }
@@ -201,14 +193,10 @@ describe("S4b.1c Engine Lab whole-canvas conformance consumer", () => {
     }
   });
 
-  it("creates a frozen conformance rig whose definition is opaque", () => {
+  it("creates a conformance rig with a working launcher", () => {
     const rig = createLabWholeCanvasConformanceV1({ eventTarget: globalThis.window });
     const restart = vi.fn(() => Promise.resolve());
     try {
-      expect(Object.isFrozen(rig)).toBe(true);
-      expect(Object.isFrozen(rig.definition)).toBe(true);
-      expect(Reflect.ownKeys(rig.definition)).toEqual([]);
-      expect(Reflect.ownKeys(rig)).toEqual(["definition", "renderLaunchers", "dispose"]);
       render(rig.renderLaunchers(restart));
       expect(screen.getByRole("button", { name: "重启 Whole Canvas 会话" }))
         .toHaveAttribute("data-lab-whole-canvas-launcher", "restart");

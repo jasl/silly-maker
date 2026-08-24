@@ -588,7 +588,7 @@ describe("RuntimePresentationStoreV1", () => {
     expect(fixture.projectInputs.at(-1)?.semantic).toBe(semantic1);
   });
 
-  it("caches one immutable initial publication and reads every source once per notification", () => {
+  it("caches one initial publication and reads every source once per notification", () => {
     const fixture = createRuntimePresentationStoreFixtureV1();
     const initial = fixture.store.getSnapshot();
     const initialReads = [
@@ -600,9 +600,7 @@ describe("RuntimePresentationStoreV1", () => {
 
     expect(initial.revision).toBe(0);
     expect(fixture.store.getSnapshot()).toBe(initial);
-    expect(Object.isFrozen(initial)).toBe(true);
-    expect(Object.isFrozen(initial.requiredAssetIds)).toBe(true);
-    expect(Object.isFrozen(fixture.projectInputs[0])).toBe(true);
+    expect(initial.requiredAssetIds).toBe(fixture.lastProjectedAssetIds());
 
     fixture.publishSemantic({ game: game1, narrative: narrative1, actions: actions1 });
     expect([
@@ -641,14 +639,6 @@ describe("RuntimePresentationStoreV1", () => {
       "asset.e2e.background.alpha",
     );
     expect(fixture.store.getSnapshot().requiredAssetIds).not.toContain("asset.e2e.background.beta");
-  });
-
-  it("defensively copies the projector asset list", () => {
-    const fixture = createRuntimePresentationStoreFixtureV1();
-    const published = fixture.store.getSnapshot();
-    fixture.lastProjectedAssetIds().push(alphaBackgroundAssetIdV1);
-
-    expect(published.requiredAssetIds).toEqual([baseBackgroundAssetIdV1, baseCharacterAssetIdV1]);
   });
 
   it("rejects duplicate demanded assets, preserves the old publication, and later recovers", () => {

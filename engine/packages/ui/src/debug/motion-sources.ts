@@ -51,16 +51,11 @@ export function createMotionSourceIndexV1(
     if (byId.has(motionDocument.motionId)) {
       throw new TypeError(`ui.motion_source_duplicate: ${motionDocument.motionId}`);
     }
-    byId.set(
-      motionDocument.motionId,
-      Object.freeze({ motionId: motionDocument.motionId, path, motionDocument }),
-    );
+    byId.set(motionDocument.motionId, { motionId: motionDocument.motionId, path, motionDocument });
   }
-  const entries = Object.freeze(
-    [...byId.values()].toSorted((a, b) => a.motionId.localeCompare(b.motionId)),
-  );
-  return Object.freeze({
+  const entries = [...byId.values()].toSorted((a, b) => a.motionId.localeCompare(b.motionId));
+  return {
     get: (motionId: string) => byId.get(motionId) ?? null,
     list: () => entries,
-  });
+  };
 }

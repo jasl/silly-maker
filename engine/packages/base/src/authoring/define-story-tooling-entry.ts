@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 import type { StoryToolingEntryV1 } from "../contracts/game-package.ts";
 import { parseModuleId, parsePositiveSafeInteger } from "../contracts/values.ts";
-import { deepFreezeAuthoringValueV1 } from "./define-gameplay-module.ts";
 
 export function defineStoryToolingEntry<TEntry extends StoryToolingEntryV1<unknown>>(
   entry: TEntry,
@@ -14,5 +13,5 @@ export function defineStoryToolingEntry<TEntry extends StoryToolingEntryV1<unkno
   if (typeof entry.defineToolingSupport !== "function" || entry.defineToolingSupport.length !== 0) {
     throw new TypeError("defineToolingSupport must be a zero-argument function");
   }
-  return deepFreezeAuthoringValueV1(entry);
+  return entry;
 }

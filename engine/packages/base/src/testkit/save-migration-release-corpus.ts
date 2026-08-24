@@ -42,7 +42,7 @@ function descriptorV1(input: {
   readonly byteLength: number;
   readonly bytesDigest: string;
 }): SaveMigrationReleaseFixtureDescriptorV1 {
-  return Object.freeze({
+  return ({
     id: input.id,
     productId: input.productId,
     storyId: input.storyId,
@@ -54,59 +54,53 @@ function descriptorV1(input: {
 }
 
 /** The complete maintained product Save compatibility inventory. */
-export const saveMigrationReleaseCorpusV1: readonly SaveMigrationReleaseFixtureDescriptorV1[] =
-  Object.freeze([
-    descriptorV1({
-      id: "engine-lab-state-3",
-      productId: "engine-lab",
-      storyId: "story.e2e.engine-lab",
-      stateContractRevision: 3,
-      stateContractDigest:
-        "sha256:15b2ba494428229ab0354ed2e3668b56046a6c3f340569872d07f78db7193f64",
-      byteLength: 2_163,
-      bytesDigest: "sha256:e0eb1e44ab26d9f14730c47e6f950b954bf71292cdb8cb93054f59b9dc5154b4",
-    }),
-    descriptorV1({
-      id: "engine-lab-state-4",
-      productId: "engine-lab",
-      storyId: "story.e2e.engine-lab",
-      stateContractRevision: 4,
-      stateContractDigest:
-        "sha256:42d426e6fb95566cf38787ee1de8c32f853b1e3eb4a16003c05fbfb109408667",
-      byteLength: 2_188,
-      bytesDigest: "sha256:84c463a6544fbf95cdc864b5cbc1b0685ccabd874433a82aa9faf9871baab5d3",
-    }),
-    descriptorV1({
-      id: "engine-lab-state-5",
-      productId: "engine-lab",
-      storyId: "story.e2e.engine-lab",
-      stateContractRevision: 5,
-      stateContractDigest:
-        "sha256:c6407d9e0b5bd4d93fbe6e54d61fc62f59d209892d71a663a70190a4970735e3",
-      byteLength: 2_246,
-      bytesDigest: "sha256:64455b23ea779f6749d98c9a3915e10dfad1bf36049e33b4743cbd38c268d6b6",
-    }),
-    descriptorV1({
-      id: "engine-lab-state-6",
-      productId: "engine-lab",
-      storyId: "story.e2e.engine-lab",
-      stateContractRevision: 6,
-      stateContractDigest:
-        "sha256:2919caedc31ba996a3c48091b70d78d7ae002e2049f2dd3ddd1ccb8b5f16628a",
-      byteLength: 2_356,
-      bytesDigest: "sha256:909b28a2c75197df7bad1358a1067baceee1361ba8d40355452b4ebeda745238",
-    }),
-    descriptorV1({
-      id: "cat-cafe-state-1",
-      productId: "cat-cafe",
-      storyId: "story.example.cat-cafe",
-      stateContractRevision: 1,
-      stateContractDigest:
-        "sha256:a0f26c983c47fa89b599141ae3d2b8e7653a8cd32533152d17e440bcafc8dd26",
-      byteLength: 2_092,
-      bytesDigest: "sha256:5c5eb77ae42a964cb4a8925450e174399d2d70db761e17b865e9c03bcaa3e479",
-    }),
-  ]);
+export const saveMigrationReleaseCorpusV1: readonly SaveMigrationReleaseFixtureDescriptorV1[] = [
+  descriptorV1({
+    id: "engine-lab-state-3",
+    productId: "engine-lab",
+    storyId: "story.e2e.engine-lab",
+    stateContractRevision: 3,
+    stateContractDigest: "sha256:15b2ba494428229ab0354ed2e3668b56046a6c3f340569872d07f78db7193f64",
+    byteLength: 2_163,
+    bytesDigest: "sha256:e0eb1e44ab26d9f14730c47e6f950b954bf71292cdb8cb93054f59b9dc5154b4",
+  }),
+  descriptorV1({
+    id: "engine-lab-state-4",
+    productId: "engine-lab",
+    storyId: "story.e2e.engine-lab",
+    stateContractRevision: 4,
+    stateContractDigest: "sha256:42d426e6fb95566cf38787ee1de8c32f853b1e3eb4a16003c05fbfb109408667",
+    byteLength: 2_188,
+    bytesDigest: "sha256:84c463a6544fbf95cdc864b5cbc1b0685ccabd874433a82aa9faf9871baab5d3",
+  }),
+  descriptorV1({
+    id: "engine-lab-state-5",
+    productId: "engine-lab",
+    storyId: "story.e2e.engine-lab",
+    stateContractRevision: 5,
+    stateContractDigest: "sha256:c6407d9e0b5bd4d93fbe6e54d61fc62f59d209892d71a663a70190a4970735e3",
+    byteLength: 2_246,
+    bytesDigest: "sha256:64455b23ea779f6749d98c9a3915e10dfad1bf36049e33b4743cbd38c268d6b6",
+  }),
+  descriptorV1({
+    id: "engine-lab-state-6",
+    productId: "engine-lab",
+    storyId: "story.e2e.engine-lab",
+    stateContractRevision: 6,
+    stateContractDigest: "sha256:2919caedc31ba996a3c48091b70d78d7ae002e2049f2dd3ddd1ccb8b5f16628a",
+    byteLength: 2_356,
+    bytesDigest: "sha256:909b28a2c75197df7bad1358a1067baceee1361ba8d40355452b4ebeda745238",
+  }),
+  descriptorV1({
+    id: "cat-cafe-state-1",
+    productId: "cat-cafe",
+    storyId: "story.example.cat-cafe",
+    stateContractRevision: 1,
+    stateContractDigest: "sha256:a0f26c983c47fa89b599141ae3d2b8e7653a8cd32533152d17e440bcafc8dd26",
+    byteLength: 2_092,
+    bytesDigest: "sha256:5c5eb77ae42a964cb4a8925450e174399d2d70db761e17b865e9c03bcaa3e479",
+  }),
+];
 
 function sameBytesV1(left: Uint8Array, right: Uint8Array): boolean {
   return left.byteLength === right.byteLength && left.every((byte, index) => byte === right[index]);
@@ -121,19 +115,24 @@ function readRecordIdentityV1(value: unknown): {
   readonly snapshot: unknown;
 } | null {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
-  const provenance = Reflect.get(value, "provenance");
+  const record = value as Record<string, unknown>;
+  const provenance = record.provenance;
   if (provenance === null || typeof provenance !== "object" || Array.isArray(provenance)) {
     return null;
   }
-  const resolved = Reflect.get(provenance, "resolved");
+  const provenanceRecord = provenance as Record<string, unknown>;
+  const resolved = provenanceRecord.resolved;
   if (resolved === null || typeof resolved !== "object" || Array.isArray(resolved)) return null;
-  return Object.freeze({
-    formatRevision: Reflect.get(value, "formatRevision"),
-    storyId: Reflect.get(Reflect.get(provenance, "story"), "id"),
-    stateContractRevision: Reflect.get(resolved, "stateContractRevision"),
-    stateContractDigest: Reflect.get(resolved, "stateContractDigest"),
-    stateDigest: Reflect.get(value, "stateDigest"),
-    snapshot: Reflect.get(value, "snapshot"),
+  const story = provenanceRecord.story;
+  return ({
+    formatRevision: record.formatRevision,
+    storyId: story !== null && typeof story === "object" && !Array.isArray(story)
+      ? (story as Record<string, unknown>).id
+      : undefined,
+    stateContractRevision: (resolved as Record<string, unknown>).stateContractRevision,
+    stateContractDigest: (resolved as Record<string, unknown>).stateContractDigest,
+    stateDigest: record.stateDigest,
+    snapshot: record.snapshot,
   });
 }
 
@@ -166,5 +165,5 @@ export function admitSaveMigrationReleaseFixtureV1(
   ) {
     throw new TypeError("Save migration release fixture identity mismatch");
   }
-  return Object.freeze({ descriptor, bytes: Uint8Array.from(bytes) });
+  return ({ descriptor, bytes: Uint8Array.from(bytes) });
 }

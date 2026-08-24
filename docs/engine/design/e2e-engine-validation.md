@@ -4,7 +4,7 @@
 Agent parity 基线已实现并进入 [features](../features.md)。2026-08-12
 PF4/S4b.1c 已交付 exact WholeCanvas tracked-consumer cutover 与 browser promotion；
 S5/S6 的 generalized structural/model/shrink、locked-modal、presentation
-postcondition receipt 与 stable builder 仍待后续，见
+postcondition receipt 与 stable builder 仍 evidence-gated，见
 [Surface design](surface-contract-harness.md)。2026-07-31 接受的多 JavaScript
 引擎逐 command determinism matrix 已于 2026-08-02 按同一 Session 合同实现、完成
 promotion verification 并进入 live，见

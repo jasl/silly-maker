@@ -90,26 +90,24 @@ function listEntryV1(value: unknown): RegionsIoListEntryV1 | null {
   ) {
     return null;
   }
-  return Object.freeze({ path: record.path, regionsId: record.regionsId, label: record.label });
+  return { path: record.path, regionsId: record.regionsId, label: record.label };
 }
 
-/** Skips are tolerated as absent (an older server omits the field). */
 function listSkipsV1(value: unknown): readonly RegionsIoListSkipV1[] | null {
-  if (value === undefined) return Object.freeze([]);
   if (!Array.isArray(value)) return null;
   const skips: RegionsIoListSkipV1[] = [];
   for (const candidate of value) {
     if (candidate === null || typeof candidate !== "object") return null;
     const record = candidate as { path?: unknown; reason?: unknown };
     if (typeof record.path !== "string" || typeof record.reason !== "string") return null;
-    skips.push(Object.freeze({ path: record.path, reason: record.reason }));
+    skips.push({ path: record.path, reason: record.reason });
   }
-  return Object.freeze(skips);
+  return skips;
 }
 
 /** The standard dev-server-backed IO; absent endpoints report `unavailable`. */
 export function createDevServerRegionsIoV1(): RegionsSourceIoV1 {
-  return Object.freeze({
+  return {
     async list(): Promise<RegionsIoListResultV1> {
       try {
         const response = await fetch(regionsIoListUrlV1);
@@ -131,7 +129,7 @@ export function createDevServerRegionsIoV1(): RegionsSourceIoV1 {
         }
         const skipped = listSkipsV1((body as { skipped?: unknown }).skipped);
         if (skipped === null) return { kind: "error", code: "unavailable" };
-        return { kind: "ok", regionsDocuments: Object.freeze(entries), skipped };
+        return { kind: "ok", regionsDocuments: entries, skipped };
       } catch {
         return { kind: "error", code: "unavailable" };
       }
@@ -170,7 +168,7 @@ export function createDevServerRegionsIoV1(): RegionsSourceIoV1 {
     }): Promise<RegionsIoWriteResultV1> {
       return await postRegionsV1({ ...input, expectedDigest: null });
     },
-  });
+  };
 }
 
 async function postRegionsV1(payload: {

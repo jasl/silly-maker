@@ -143,7 +143,7 @@ export type OsAttemptV1 = CommandExecutionAttemptEnvelopeV1<
 export const kit = createGameAuthoringKit<OsSimulationTypesV1>();
 
 export function passthroughSchemaV1<T>(): RuntimeSchemaV1<T> {
-  return Object.freeze({ parse: (value: unknown) => value as T });
+  return ({ parse: (value: unknown) => value as T });
 }
 
 /**
@@ -151,7 +151,7 @@ export function passthroughSchemaV1<T>(): RuntimeSchemaV1<T> {
  * the board payload reuses the minesweeper slice schema so an invalid board
  * faults at emit instead of at fold.
  */
-export const osEventSchemaV1: RuntimeSchemaV1<OsEventV1> = Object.freeze({
+export const osEventSchemaV1: RuntimeSchemaV1<OsEventV1> = {
   parse(value: unknown): OsEventV1 {
     if (value === null || typeof value !== "object" || Array.isArray(value)) {
       throw new TypeError("invalid silly-os event");
@@ -171,7 +171,7 @@ export const osEventSchemaV1: RuntimeSchemaV1<OsEventV1> = Object.freeze({
         ) {
           throw new TypeError("invalid silly-os fs.saved event");
         }
-        return Object.freeze({
+        return ({
           kind: record.kind,
           name: record.name,
           content: record.content,
@@ -181,13 +181,13 @@ export const osEventSchemaV1: RuntimeSchemaV1<OsEventV1> = Object.freeze({
         if (keys !== "kind\u0000name" || !isSafeName(record.name)) {
           throw new TypeError("invalid silly-os fs.removed event");
         }
-        return Object.freeze({ kind: record.kind, name: record.name });
+        return ({ kind: record.kind, name: record.name });
       case "os.mine.board_set": {
         if (keys !== "board\u0000kind") {
           throw new TypeError("invalid silly-os mine.board_set event");
         }
-        const slice = osMinesweeperStateSchemaV1.parse(Object.freeze({ board: record.board }));
-        return Object.freeze({ kind: record.kind, board: slice.board });
+        const slice = osMinesweeperStateSchemaV1.parse({ board: record.board });
+        return ({ kind: record.kind, board: slice.board });
       }
       case "os.mine.started":
         if (
@@ -197,25 +197,25 @@ export const osEventSchemaV1: RuntimeSchemaV1<OsEventV1> = Object.freeze({
         ) {
           throw new TypeError("invalid silly-os mine.started event");
         }
-        return Object.freeze({ kind: record.kind, width: record.width, height: record.height });
+        return ({ kind: record.kind, width: record.width, height: record.height });
       case "os.mine.exploded":
         if (keys !== "kind\u0000x\u0000y" || !isCoordinate(record.x) || !isCoordinate(record.y)) {
           throw new TypeError("invalid silly-os mine.exploded event");
         }
-        return Object.freeze({ kind: record.kind, x: record.x, y: record.y });
+        return ({ kind: record.kind, x: record.x, y: record.y });
       case "os.mine.won":
         if (keys !== "kind") throw new TypeError("invalid silly-os mine.won event");
-        return Object.freeze({ kind: record.kind });
+        return ({ kind: record.kind });
       case "os.desktop.wallpaper_changed":
         if (keys !== "kind\u0000wallpaperId" || typeof record.wallpaperId !== "string") {
           throw new TypeError("invalid silly-os wallpaper event");
         }
-        return Object.freeze({ kind: record.kind, wallpaperId: record.wallpaperId });
+        return ({ kind: record.kind, wallpaperId: record.wallpaperId });
       default:
         throw new TypeError("invalid silly-os event kind");
     }
   },
-});
+};
 
 function isSafeName(value: unknown): value is string {
   return typeof value === "string" && value.length >= 1 && value.length <= 64;
@@ -225,7 +225,7 @@ function isCoordinate(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
-export const commandSchemaV1: RuntimeSchemaV1<OsCommandV1> = Object.freeze({
+export const commandSchemaV1: RuntimeSchemaV1<OsCommandV1> = {
   parse(value: unknown): OsCommandV1 {
     if (value === null || typeof value !== "object" || Array.isArray(value)) {
       throw new TypeError("invalid silly-os command");
@@ -242,12 +242,12 @@ export const commandSchemaV1: RuntimeSchemaV1<OsCommandV1> = Object.freeze({
         ) {
           throw new TypeError("invalid silly-os fs.write command");
         }
-        return Object.freeze({ kind: record.kind, name: record.name, content: record.content });
+        return ({ kind: record.kind, name: record.name, content: record.content });
       case "os.fs.remove":
         if (keys !== "kind\u0000name" || !isSafeName(record.name)) {
           throw new TypeError("invalid silly-os fs.remove command");
         }
-        return Object.freeze({ kind: record.kind, name: record.name });
+        return ({ kind: record.kind, name: record.name });
       case "os.mine.new":
         if (
           keys !== "height\u0000kind\u0000mines\u0000width" ||
@@ -257,7 +257,7 @@ export const commandSchemaV1: RuntimeSchemaV1<OsCommandV1> = Object.freeze({
         ) {
           throw new TypeError("invalid silly-os mine.new command");
         }
-        return Object.freeze({
+        return ({
           kind: record.kind,
           width: record.width,
           height: record.height,
@@ -268,14 +268,14 @@ export const commandSchemaV1: RuntimeSchemaV1<OsCommandV1> = Object.freeze({
         if (keys !== "kind\u0000x\u0000y" || !isCoordinate(record.x) || !isCoordinate(record.y)) {
           throw new TypeError("invalid silly-os mine command");
         }
-        return Object.freeze({ kind: record.kind, x: record.x, y: record.y });
+        return ({ kind: record.kind, x: record.x, y: record.y });
       case "os.desktop.set_wallpaper":
         if (keys !== "kind\u0000wallpaperId" || typeof record.wallpaperId !== "string") {
           throw new TypeError("invalid silly-os wallpaper command");
         }
-        return Object.freeze({ kind: record.kind, wallpaperId: record.wallpaperId });
+        return ({ kind: record.kind, wallpaperId: record.wallpaperId });
       default:
         throw new TypeError("invalid silly-os command kind");
     }
   },
-});
+};

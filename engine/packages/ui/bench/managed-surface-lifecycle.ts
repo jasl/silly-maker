@@ -92,10 +92,10 @@ async function repositoryStateV1(): Promise<Readonly<{ head: string; dirty: bool
       cwd: repositoryRootV1,
     }),
   ]);
-  return Object.freeze({
+  return {
     head: head.stdout.trim(),
     dirty: status.stdout.trim().length > 0,
-  });
+  };
 }
 
 async function outputPathV1(requestedPath: string | undefined): Promise<string> {
@@ -135,38 +135,38 @@ async function mainV1(): Promise<void> {
           durations.push(run.durationMs);
           semantic = requireConsistentSemanticV1(semantic, run.semantic);
         }
-        workloads.push(Object.freeze({
+        workloads.push({
           ...workload.descriptor,
           samples: options.samples,
-          durationMs: Object.freeze({
+          durationMs: {
             p50: percentileV1(durations, 50),
             p95: percentileV1(durations, 95),
-          }),
+          },
           semantic,
-        }));
+        });
       }
     }
   }
-  const report = Object.freeze({
+  const report = {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
     repository: await repositoryStateV1(),
-    environment: Object.freeze({
+    environment: {
       deno: Deno.version.deno,
       v8: Deno.version.v8,
       typescript: Deno.version.typescript,
       os: Deno.build.os,
       arch: Deno.build.arch,
-    }),
+    },
     warmup: options.warmup,
     samples: options.samples,
-    workloads: Object.freeze(workloads),
-    interpretation: Object.freeze({
+    workloads,
+    interpretation: {
       status: "trend_only",
       semanticCountsAreJavaScriptAllocations: false,
       machineBoundHardGate: false,
-    }),
-  });
+    },
+  };
   const path = await outputPathV1(options.output);
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify(report, null, 2)}\n`, "utf8");

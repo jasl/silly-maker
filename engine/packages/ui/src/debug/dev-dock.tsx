@@ -4,7 +4,6 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -22,7 +21,6 @@ import { useAuxiliarySurfacePortalTargetV1 } from "../shell/auxiliary-surface-po
 import styles from "./dev-dock.module.css";
 import {
   acknowledgeDevDockContributionAcceptanceInternalV1,
-  inheritDevDockContributionAcceptanceInternalV1,
 } from "../composer/dev-dock-contribution-acceptance.ts";
 
 /**
@@ -90,12 +88,12 @@ export interface DevDockPropsV1 {
   readonly freeze?: PresentationFreezePortV1;
 }
 
-const devDockPositionsV1: readonly DevDockPositionV1[] = Object.freeze([
+const devDockPositionsV1: readonly DevDockPositionV1[] = [
   "top_right",
   "top_left",
   "bottom_right",
   "bottom_left",
-]);
+];
 
 function validatePanelV1(panel: DevDockPanelV1): DevDockPanelV1 {
   if (panel === null || typeof panel !== "object" || Array.isArray(panel)) {
@@ -120,17 +118,17 @@ function validatePanelV1(panel: DevDockPanelV1): DevDockPanelV1 {
   ) {
     throw new TypeError("ui.devdock_title_limit");
   }
-  return Object.freeze({
+  return {
     id: panel.id,
     side: panel.side,
     title: panel.title,
     authority: panel.authority,
     stage: panel.stage ?? "live",
     render: panel.render,
-  });
+  };
 }
 
-/** Validates and freezes the bounded Story-supplied panel registry. */
+/** Validates and copies the bounded Story-supplied panel registry. */
 export function createDevDockContributionSetV1(
   input: DevDockContributionSetV1,
 ): DevDockContributionSetV1 {
@@ -147,7 +145,26 @@ export function createDevDockContributionSetV1(
     if (counts[panel.side] > 16) throw new TypeError("ui.devdock_panels_limit");
     return panel;
   });
-  return Object.freeze({ panels: Object.freeze(panels) });
+  return { panels };
+}
+
+/** @internal Combines already-admitted contribution sets without re-admitting each panel. */
+export function combineDevDockContributionSetsInternalV1(
+  sets: readonly DevDockContributionSetV1[],
+): DevDockContributionSetV1 {
+  const ids = new Set<string>();
+  const counts: Record<DevDockSideV1, number> = { left: 0, right: 0 };
+  const panels: DevDockPanelV1[] = [];
+  for (const set of sets) {
+    for (const panel of set.panels) {
+      if (ids.has(panel.id)) throw new TypeError("ui.devdock_duplicate_panel_id");
+      ids.add(panel.id);
+      counts[panel.side] += 1;
+      if (counts[panel.side] > 16) throw new TypeError("ui.devdock_panels_limit");
+      panels.push(panel);
+    }
+  }
+  return { panels };
 }
 
 function focusableElementsV1(scope: HTMLElement): readonly HTMLElement[] {
@@ -275,14 +292,7 @@ export function DevDockV1(props: DevDockPropsV1): ReactElement | null {
     props.capabilities.state.getCurrent,
     props.capabilities.state.getCurrent,
   );
-  const contributions = useMemo(
-    () =>
-      inheritDevDockContributionAcceptanceInternalV1(
-        props.contributions,
-        createDevDockContributionSetV1(props.contributions),
-      ),
-    [props.contributions],
-  );
+  const contributions = props.contributions;
   const panels = contributions.panels;
   const localControlRef = useRef<DevDockControlV1 | null>(null);
   if (props.control === undefined && localControlRef.current === null) {
@@ -295,7 +305,7 @@ export function DevDockV1(props: DevDockPropsV1): ReactElement | null {
     control.openPanelIds.getCurrent,
     control.openPanelIds.getCurrent,
   );
-  const [focusedWindows, setFocusedWindows] = useState<readonly string[]>(Object.freeze([]));
+  const [focusedWindows, setFocusedWindows] = useState<readonly string[]>([]);
   const { target, surface } = useAuxiliarySurfacePortalTargetV1();
   const debugTools = capabilities.debugTools;
   const cheatsEnabled = debugTools && capabilities.cheats;
@@ -309,21 +319,19 @@ export function DevDockV1(props: DevDockPropsV1): ReactElement | null {
   const onWindowFocusWithin = useCallback((panelId: string, focused: boolean): void => {
     setFocusedWindows((current) => {
       if (focused) {
-        return current.includes(panelId) ? current : Object.freeze([...current, panelId]);
+        return current.includes(panelId) ? current : [...current, panelId];
       }
-      return current.includes(panelId)
-        ? Object.freeze(current.filter((id) => id !== panelId))
-        : current;
+      return current.includes(panelId) ? current.filter((id) => id !== panelId) : current;
     });
   }, []);
 
   // Publish the validated registry so the launcher can list the same tools.
   useEffect(() => {
     control.publishPanelsInternalV1(
-      panels.map(({ id, title, authority }) => Object.freeze({ id, title, authority })),
+      panels.map(({ id, title, authority }) => ({ id, title, authority })),
     );
     acknowledgeDevDockContributionAcceptanceInternalV1(contributions);
-    return () => control.publishPanelsInternalV1(Object.freeze([]));
+    return () => control.publishPanelsInternalV1([]);
   }, [control, contributions, panels]);
 
   useLayoutEffect(() => {
@@ -334,7 +342,7 @@ export function DevDockV1(props: DevDockPropsV1): ReactElement | null {
   useLayoutEffect(() => {
     setFocusedWindows((current) => {
       const next = current.filter((id) => openPanelIds.includes(id));
-      return next.length === current.length ? current : Object.freeze(next);
+      return next.length === current.length ? current : next;
     });
   }, [openPanelIds]);
 

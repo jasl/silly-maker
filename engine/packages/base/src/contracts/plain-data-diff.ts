@@ -38,9 +38,9 @@ function collectV1(
     for (const key of keys) {
       const childPath = `${path}/${escapeSegmentV1(key)}`;
       if (!Object.hasOwn(before, key)) {
-        entries.push(Object.freeze({ kind: "added", path: childPath, after: after[key] }));
+        entries.push({ kind: "added", path: childPath, after: after[key] });
       } else if (!Object.hasOwn(after, key)) {
-        entries.push(Object.freeze({ kind: "removed", path: childPath, before: before[key] }));
+        entries.push({ kind: "removed", path: childPath, before: before[key] });
       } else {
         collectV1(before[key], after[key], childPath, entries);
       }
@@ -52,21 +52,21 @@ function collectV1(
     for (let index = 0; index < length; index += 1) {
       const childPath = `${path}/${String(index)}`;
       if (index >= before.length) {
-        entries.push(Object.freeze({ kind: "added", path: childPath, after: after[index] }));
+        entries.push({ kind: "added", path: childPath, after: after[index] });
       } else if (index >= after.length) {
-        entries.push(Object.freeze({ kind: "removed", path: childPath, before: before[index] }));
+        entries.push({ kind: "removed", path: childPath, before: before[index] });
       } else {
         collectV1(before[index], after[index], childPath, entries);
       }
     }
     return;
   }
-  entries.push(Object.freeze({ kind: "changed", path: path === "" ? "/" : path, before, after }));
+  entries.push({ kind: "changed", path: path === "" ? "/" : path, before, after });
 }
 
 /** Diffs two plain-data values; an empty result means deep equality. */
 export function diffPlainDataV1(before: unknown, after: unknown): readonly PlainDataDiffEntryV1[] {
   const entries: PlainDataDiffEntryV1[] = [];
   collectV1(before, after, "", entries);
-  return Object.freeze(entries);
+  return entries;
 }

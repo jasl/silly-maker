@@ -15,7 +15,7 @@ import {
   interactionOccurrenceIdV1,
   parsePendingInteractionV1,
   parseStageMutationV1,
-  reduceStageMutationsV1,
+  reduceAdmittedStageMutationsV1,
   settleHoldTimelineV1,
 } from "@sillymaker/base";
 
@@ -57,7 +57,7 @@ export interface LabNarrativeStateV1 {
 }
 
 export function createInitialLabNarrativeStateV1(): LabNarrativeStateV1 {
-  return Object.freeze({
+  return ({
     phase: "idle" as const,
     cursor: null,
     pending: null,
@@ -197,9 +197,9 @@ const charactersLayerV1 = "layer.e2e.characters";
 const backgroundLayerV1 = "layer.e2e.background";
 
 function stageBatchV1(batch: readonly unknown[]): readonly StageMutationV1[] {
-  return Object.freeze(
-    batch.map((mutation, index) => parseStageMutationV1(mutation, `/mutations/${String(index)}`)),
-  );
+  return (batch.map((mutation, index) =>
+    parseStageMutationV1(mutation, `/mutations/${String(index)}`)
+  ));
 }
 
 export const labCalibrationSurfaceIdV1 = "surface.e2e.calibration";
@@ -491,7 +491,7 @@ export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
     definitionId: "interaction.e2e.cal-dial",
     seenRevision: 1,
     surfaceId: labCalibrationSurfaceIdV1,
-    params: Object.freeze({ min: 1, max: 3 }),
+    params: { min: 1, max: 3 },
     next: "node.e2e.cal.done",
   },
   {
@@ -662,8 +662,8 @@ const labNarrativeNodesByIdV1: ReadonlyMap<string, LabNarrativeNodeV1> = new Map
   labNarrativeScriptV1.map((node) => [node.nodeId, node]),
 );
 
-export const labNarrativeNodeIdsV1: readonly string[] = Object.freeze(
-  labNarrativeScriptV1.map((node) => node.nodeId),
+export const labNarrativeNodeIdsV1: readonly string[] = labNarrativeScriptV1.map((node) =>
+  node.nodeId
 );
 
 function stageHasTagV1(stage: SemanticStageStateV1, layerId: string, tag: string): boolean {
@@ -689,7 +689,7 @@ export function labChoiceOptionsForV1(definitionId: string): readonly LabChoiceO
   for (const node of labNarrativeScriptV1) {
     if (node.kind === "choice" && node.definitionId === definitionId) return node.options;
   }
-  return Object.freeze([]);
+  return [];
 }
 
 /** Schema-registered custom surfaces: payload validation without callbacks. */
@@ -830,7 +830,7 @@ export function runLabNarrativeUntilInteractionV1(
     if (node.kind === "stage") {
       const mutations = node.mutations(localStage);
       if (mutations.length > 0) {
-        const outcome = reduceStageMutationsV1(localStage, mutations);
+        const outcome = reduceAdmittedStageMutationsV1(localStage, mutations);
         if (outcome.kind !== "applied") {
           throw new TypeError(`e2e.narrative_stage_invalid:${node.nodeId}`);
         }
@@ -854,8 +854,8 @@ export function runLabNarrativeUntilInteractionV1(
       }
     }
     if (node.kind === "end") {
-      return Object.freeze({
-        narrative: Object.freeze({
+      return ({
+        narrative: {
           phase: "completed" as const,
           cursor: null,
           pending: null,
@@ -865,13 +865,13 @@ export function runLabNarrativeUntilInteractionV1(
           // nodes route on this the next time the script runs.
           rapport: narrative.rapport + 1,
           history: narrative.history,
-        }),
-        stageMutations: Object.freeze(collected),
+        },
+        stageMutations: collected,
       });
     }
     sequence += 1;
-    return Object.freeze({
-      narrative: Object.freeze({
+    return ({
+      narrative: {
         phase: "active" as const,
         cursor: node.nodeId,
         pending: pendingForNodeV1(node, sequence),
@@ -879,8 +879,8 @@ export function runLabNarrativeUntilInteractionV1(
         calibration: narrative.calibration,
         rapport: narrative.rapport,
         history: narrative.history,
-      }),
-      stageMutations: Object.freeze(collected),
+      },
+      stageMutations: collected,
     });
   }
   throw new TypeError("e2e.narrative_runaway_script");
@@ -940,7 +940,7 @@ export function labNarrativeAfterResolutionV1(
   } else {
     throw new TypeError(`e2e.narrative_resolution_mismatch:${node.nodeId}`);
   }
-  return Object.freeze({
+  return ({
     phase: "active" as const,
     cursor: next,
     pending: null,
@@ -1005,18 +1005,18 @@ export function labNarrativeAfterTimeTickV1(
     },
   });
   if (settlement.kind === "holding") {
-    return Object.freeze({
+    return ({
       kind: "holding" as const,
-      narrative: Object.freeze({ ...narrative, pending: settlement.pending, rapport }),
+      narrative: { ...narrative, pending: settlement.pending, rapport },
     });
   }
   const cursor = settlement.kind === "rerouted" ? arms[settlement.armIndex]?.next : node.next;
   if (cursor === undefined) {
     throw new TypeError(`e2e.narrative_hold_arm_missing:${node.nodeId}`);
   }
-  return Object.freeze({
+  return ({
     kind: "advanced" as const,
-    narrative: Object.freeze({
+    narrative: {
       phase: "active" as const,
       cursor,
       pending: null,
@@ -1024,12 +1024,12 @@ export function labNarrativeAfterTimeTickV1(
       calibration: narrative.calibration,
       rapport,
       history: narrative.history,
-    }),
+    },
   });
 }
 
 export function labNarrativeAtBeginV1(narrative: LabNarrativeStateV1): LabNarrativeStateV1 {
-  return Object.freeze({
+  return ({
     phase: "active" as const,
     cursor: labCalibrationEntryNodeIdV1,
     pending: null,
@@ -1042,7 +1042,7 @@ export function labNarrativeAtBeginV1(narrative: LabNarrativeStateV1): LabNarrat
 
 /** Enter the monitor drill; same re-entry semantics as the cal run. */
 export function labNarrativeAtDrillBeginV1(narrative: LabNarrativeStateV1): LabNarrativeStateV1 {
-  return Object.freeze({
+  return ({
     phase: "active" as const,
     cursor: labDrillChamberNodeIdV1,
     pending: null,

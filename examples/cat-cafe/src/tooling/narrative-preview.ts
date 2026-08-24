@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import type { StageRenderTarget } from "@sillymaker/base/story";
-import { projectStageRenderTarget, reduceStageMutations } from "@sillymaker/base/story";
+import { projectStageRenderTarget, reduceAdmittedStageMutations } from "@sillymaker/base/story";
 
 import type { CatcafeNarrativeNodeV1 } from "../game/features/dialogue/script.ts";
 import {
@@ -22,7 +22,7 @@ export interface CatcafeNarrativePreviewCaseV1 {
   readonly target: StageRenderTarget;
 }
 
-const choiceIdByRouteV1 = Object.freeze({
+const choiceIdByRouteV1 = ({
   named: "choice.catcafe.name-xiaoyu",
   later: "choice.catcafe.name-later",
 }) satisfies Readonly<Record<CatcafeNarrativePreviewRouteV1, string>>;
@@ -32,16 +32,16 @@ const nodesByIdV1 = new Map(catcafeScriptV1.map((node) => [node.nodeId, node]));
 function textIdsForNodeV1(node: CatcafeNarrativeNodeV1): readonly string[] {
   switch (node.kind) {
     case "say":
-      return Object.freeze([
+      return [
         ...(node.speakerTextId === null ? [] : [node.speakerTextId]),
         node.textId,
-      ]);
+      ];
     case "choice":
-      return Object.freeze([node.promptTextId, ...node.options.map((option) => option.textId)]);
+      return [node.promptTextId, ...node.options.map((option) => option.textId)];
     case "stage":
     case "branch":
     case "end":
-      return Object.freeze([]);
+      return [];
     default: {
       const exhaustive: never = node;
       throw new TypeError(`catcafe.narrative_preview_node_unknown:${String(exhaustive)}`);
@@ -61,7 +61,7 @@ function traceRouteV1(
 ): readonly CatcafeNarrativePreviewCaseV1[] {
   let cursor: string | null = catcafeEntryNodeIdV1;
   let routeContext: CatcafeNarrativePreviewRouteV1 | null = null;
-  let flags: readonly string[] = Object.freeze([]);
+  let flags: readonly string[] = [];
   let stage = createInitialCatcafeStageStateV1();
   const previews: CatcafeNarrativePreviewCaseV1[] = [];
 
@@ -71,7 +71,7 @@ function traceRouteV1(
 
     if (node.kind === "stage") {
       const mutations = node.mutations(stage);
-      const outcome = reduceStageMutations(stage, mutations);
+      const outcome = reduceAdmittedStageMutations(stage, mutations);
       if (outcome.kind !== "applied") {
         throw new TypeError(`catcafe.narrative_preview_stage_invalid:${node.nodeId}`);
       }
@@ -82,14 +82,14 @@ function traceRouteV1(
     if (projection.diagnostics.length !== 0) {
       throw new TypeError(`catcafe.narrative_preview_projection_failed:${node.nodeId}`);
     }
-    previews.push(Object.freeze({
+    previews.push({
       previewId: previewIdV1(node.nodeId, routeContext),
       nodeId: node.nodeId,
       nodeKind: node.kind,
       route: routeContext,
       textIds: textIdsForNodeV1(node),
       target: projection.target,
-    }));
+    });
 
     switch (node.kind) {
       case "stage":
@@ -102,7 +102,7 @@ function traceRouteV1(
         if (option === undefined) {
           throw new TypeError(`catcafe.narrative_preview_choice_missing:${choiceId}`);
         }
-        flags = Object.freeze([...new Set([...flags, ...option.setFlags])].toSorted());
+        flags = [...new Set([...flags, ...option.setFlags])].toSorted();
         routeContext = route;
         cursor = option.next;
         break;
@@ -126,7 +126,7 @@ function traceRouteV1(
   }
 
   if (cursor !== null) throw new TypeError("catcafe.narrative_preview_runaway");
-  return Object.freeze(previews);
+  return previews;
 }
 
 function createPreviewCasesV1(): readonly CatcafeNarrativePreviewCaseV1[] {
@@ -136,7 +136,7 @@ function createPreviewCasesV1(): readonly CatcafeNarrativePreviewCaseV1[] {
       if (!unique.has(preview.previewId)) unique.set(preview.previewId, preview);
     }
   }
-  const previews = Object.freeze([...unique.values()]);
+  const previews = [...unique.values()];
   const coveredNodeIds = new Set(previews.map((preview) => preview.nodeId));
   if (coveredNodeIds.size !== catcafeNodeIdsV1.length) {
     throw new TypeError("catcafe.narrative_preview_incomplete");

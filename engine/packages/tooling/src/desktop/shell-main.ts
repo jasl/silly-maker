@@ -57,11 +57,7 @@ declare const Deno: {
 
 const appIdentifierV1 = "__SILLYMAKER_APP_IDENTIFIER__";
 const distDirNameV1 = "__SILLYMAKER_DIST_DIR__";
-const moduleUrlV1 = Reflect.get(import.meta, "url");
-if (typeof moduleUrlV1 !== "string") {
-  throw new TypeError("Desktop shell module URL is unavailable");
-}
-const moduleDirV1 = fileURLToPath(new URL(".", moduleUrlV1));
+const moduleDirV1 = fileURLToPath(new URL(".", import.meta.url));
 
 const identifierIsPlaceholderV1 = appIdentifierV1.startsWith("__SILLYMAKER_");
 const distIsPlaceholderV1 = distDirNameV1.startsWith("__SILLYMAKER_");
@@ -102,7 +98,7 @@ function downloadsDirV1(): string {
 // Web shell types plus the engine's runtime-asset media set (see
 // `vite/runtime-assets.ts`): the Artifact ships runtime assets verbatim, so
 // the desktop preview must recognize the same browser-supported formats.
-const mediaTypesV1: Readonly<Record<string, string>> = Object.freeze({
+const mediaTypesV1: Readonly<Record<string, string>> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
   ".mjs": "text/javascript; charset=utf-8",
@@ -128,7 +124,7 @@ const mediaTypesV1: Readonly<Record<string, string>> = Object.freeze({
   ".weba": "audio/webm",
   ".mp4": "video/mp4",
   ".webm": "video/webm",
-});
+};
 
 async function handleStaticV1(request: Request, pathname: string): Promise<Response> {
   if (request.method !== "GET" && request.method !== "HEAD") {
@@ -173,7 +169,7 @@ async function handleStaticV1(request: Request, pathname: string): Promise<Respo
 let adoptedWindowV1: ShellWindowLikeV1 | null = null;
 const shellCapabilityV1 = allocateShellCapabilityInternalV1();
 const downloadRequestsV1 = createFileDownloadRequestCoordinatorInternalV1(downloadsDirV1());
-let shellOriginV1 = "";
+let shellOriginV1: URL | null = null;
 const shellHandlerV1 = createShellHttpHandlerInternalV1({
   expectedOrigin: () => shellOriginV1,
   capability: shellCapabilityV1,
@@ -188,7 +184,7 @@ const serverV1 = Deno.serve({ hostname: "127.0.0.1", port: 0 }, shellHandlerV1);
 if (serverV1.addr.hostname !== "127.0.0.1") {
   throw new TypeError("Desktop shell did not bind the required loopback host");
 }
-shellOriginV1 = `http://127.0.0.1:${String(serverV1.addr.port)}`;
+shellOriginV1 = new URL(`http://127.0.0.1:${String(serverV1.addr.port)}`);
 
 // The first BrowserWindow construction adopts the implicit startup window.
 // Its close request first fences gameplay and waits for the renderer's

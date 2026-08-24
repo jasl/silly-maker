@@ -8,12 +8,12 @@ import {
 } from "./desktop-shell-capability.ts";
 import { createShellFilePortV1 } from "./shell-file-port.ts";
 
-const pickerV1: HostFilePortV1 = Object.freeze({
+const pickerV1: HostFilePortV1 = {
   selectOne: vi.fn(async () => ({ kind: "cancelled" }) as never),
   download: vi.fn(async () => {
     throw new Error("picker download must not be used");
   }),
-});
+};
 
 describe("createShellFilePortV1", () => {
   it("POSTs downloads to the shell endpoint with the encoded filename", async () => {
@@ -62,7 +62,7 @@ describe("createShellFilePortV1", () => {
   it("delegates selectOne to the browser picker", async () => {
     const port = createShellFilePortV1({ baseUrl: "/f", picker: pickerV1 });
     const result = await port.selectOne({
-      acceptedMediaTypes: Object.freeze(["application/json"]),
+      acceptedMediaTypes: ["application/json"],
       maximumBytes: parsePositiveSafeInteger(1024),
     });
     expect(result).toEqual({ kind: "cancelled" });

@@ -51,7 +51,7 @@ import type {
   GameUiManagedSurfaceCompositionInternalV1,
   GameUiOverlayIdV1,
 } from "./create-game-ui-composition.ts";
-import { resolveOptionalGameUiManagedSurfaceCompositionInternalV1 } from "./create-game-ui-composition.ts";
+import { resolveGameUiManagedSurfaceCompositionInternalV1 } from "./create-game-ui-composition.ts";
 import { SemanticStageCompositionClaimantProviderInternalV1 } from "../stage/semantic-stage.tsx";
 import styles from "./default-game-root.module.css";
 
@@ -72,7 +72,7 @@ export interface DefaultGameRootLabelsV1 {
   readonly closeLabel: string;
 }
 
-export const defaultGameRootLabelsV1: DefaultGameRootLabelsV1 = Object.freeze({
+export const defaultGameRootLabelsV1: DefaultGameRootLabelsV1 = {
   systemMenuLabel: "System",
   saveLabel: "Save",
   settingsLabel: "Settings",
@@ -84,7 +84,7 @@ export const defaultGameRootLabelsV1: DefaultGameRootLabelsV1 = Object.freeze({
   titleContinueLabel: "Continue",
   titleLoadGameLabel: "Load game",
   closeLabel: "Close",
-});
+};
 
 export interface DefaultGameRootSlotContextV1<
   TPublication,
@@ -224,14 +224,14 @@ export interface DefaultGameRootPropsV1<
 function createDefaultOverlayResolverV1<TOverlayId extends string>(input: {
   readonly storyResolver: OverlayRendererResolverV1<TOverlayId> | null;
 }): OverlayRendererResolverV1<GameUiOverlayIdV1<TOverlayId>> {
-  return Object.freeze({
+  return {
     resolve(overlayId: DeepReadonly<GameUiOverlayIdV1<TOverlayId>>) {
       return (
         input.storyResolver?.resolve(overlayId as DeepReadonly<TOverlayId>) ??
           null
       );
     },
-  });
+  };
 }
 
 function DefaultNarrativeSurfaceHostInternalV1(props: {
@@ -265,13 +265,13 @@ function DefaultNarrativeSurfaceHostInternalV1(props: {
   useLayoutEffect(() => {
     if (session === null || portalContainer === null) return undefined;
     const release = narrative.registerHostPhysicalIngressInternalV1(
-      Object.freeze({
+      {
         session,
         portalContainer,
         inputRouter,
-      }),
+      },
     );
-    const binding = Object.freeze({ session, portalContainer, inputRouter });
+    const binding = { session, portalContainer, inputRouter };
     setRegistered(binding);
     return () => {
       release();
@@ -321,12 +321,12 @@ function DefaultWholeCanvasSurfaceHostInternalV1(props: {
   useLayoutEffect(() => {
     if (binding === null || portalContainer === null) return undefined;
     const release = wholeCanvas.registerHostPhysicalIngressInternalV1(
-      Object.freeze({
+      {
         portalContainer,
         inputRouter,
-      }),
+      },
     );
-    const next = Object.freeze({ binding, portalContainer, inputRouter });
+    const next = { binding, portalContainer, inputRouter };
     setRegistered(next);
     return () => {
       release();
@@ -369,9 +369,9 @@ function useWholeCanvasFrontDoorExclusiveInternalV1(
   return useSyncExternalStore(subscribe, getExclusive, getExclusive);
 }
 
-const gameplayVisibleLayerStyleInternalV1 = Object.freeze({
+const gameplayVisibleLayerStyleInternalV1 = {
   display: "contents" as const,
-});
+};
 
 function isEmptyGameplayLayerContentInternalV1(content: ReactNode): boolean {
   return content === null || content === undefined || content === false;
@@ -426,7 +426,7 @@ export function DefaultGameRootV1<
     TView,
     TAssetId
   >;
-  const labels = Object.freeze({ ...defaultGameRootLabelsV1, ...props.labels });
+  const labels = { ...defaultGameRootLabelsV1, ...props.labels };
   const publication = useSyncExternalStore(
     props.composition.presentation.subscribe,
     props.composition.presentation.getSnapshot,
@@ -437,17 +437,17 @@ export function DefaultGameRootV1<
     if (props.customSaves !== undefined) return props.customSaves;
     if (props.saveUi === undefined) return undefined;
     const { evaluateGuard } = props.saveUi;
-    return Object.freeze({
+    return {
       port: props.saveUi.port,
       labels: props.saveUi.labels,
       ...(evaluateGuard === undefined ? {} : {
-        guardProjection: Object.freeze({
+        guardProjection: {
           getSnapshot: props.composition.presentation.getSnapshot,
           subscribe: props.composition.presentation.subscribe,
           evaluate: evaluateGuard,
-        }),
+        },
       }),
-    });
+    };
   }, [props.composition.presentation, props.customSaves, props.saveUi]);
 
   // Composition-backed members stay referentially stable across renders so
@@ -455,33 +455,29 @@ export function DefaultGameRootV1<
   const updateStoryUiState = props.composition.updateUiState as (
     updater: (current: unknown) => unknown,
   ) => void;
+  const managedComposition = resolveGameUiManagedSurfaceCompositionInternalV1(
+    props.composition,
+  );
   const slotContext: DefaultGameRootSlotContextV1<
     PublicationV1,
     TSemantic,
     TOverlayId
-  > = Object.freeze({
+  > = {
     publication,
     semantic: props.semantic,
     intents: props.composition.intents,
     input: props.composition.input,
     updateStoryUiState,
-    systemDialogs: Object.freeze({
+    systemDialogs: {
       openSettings: () => props.composition.systemDialogSession.openSettings(),
       openSaves: () => props.composition.systemDialogSession.openSaves(),
-      returnToTitle: () => {
-        const managed = resolveOptionalGameUiManagedSurfaceCompositionInternalV1(
-          props.composition,
-        );
-        return managed === null
-          ? Promise.reject(new Error("ui.whole_canvas_front_door_unavailable"))
-          : managed.returnToTitleInternalV1();
-      },
-    }),
+      returnToTitle: () => managedComposition.returnToTitleInternalV1(),
+    },
     overlays: props.composition.overlaySession,
     presentation: props.composition.presentation as never,
     interactionSession: props.composition.interactionSession,
     cues: props.composition.cues,
-  });
+  };
 
   // Optional keyboard/gamepad adapters: installed for the root's lifetime,
   // removed on unmount so disposal and page teardown leave no listener or
@@ -513,37 +509,23 @@ export function DefaultGameRootV1<
   const overlayResolver = createDefaultOverlayResolverV1<TOverlayId>({
     storyResolver: slots.overlayResolver?.(slotContext) ?? null,
   });
-  const managedComposition = resolveOptionalGameUiManagedSurfaceCompositionInternalV1(
-    props.composition,
-  );
-  const narrativeComposition = managedComposition?.narrative ?? null;
-  const wholeCanvasComposition = managedComposition?.wholeCanvas ?? null;
+  const narrativeComposition = managedComposition.narrative;
+  const wholeCanvasComposition = managedComposition.wholeCanvas;
   const frontDoorExclusive = useWholeCanvasFrontDoorExclusiveInternalV1(
     wholeCanvasComposition,
   );
 
-  const layers = Object.freeze({
+  const layers = {
     background: concealGameplayWhileFrontDoorInternalV1(
       frontDoorExclusive,
-      narrativeComposition === null
-        ? (
-          <div
-            className={styles["default-root__stage-slot"]}
-            key={`background:${String(anchor.epoch)}`}
-          >
-            {slots.background?.(slotContext) ?? null}
-          </div>
-        )
-        : (
-          <SemanticStageCompositionClaimantProviderInternalV1
-            claimant={narrativeComposition.getStageClaimantInternalV1()}
-            onBindInternalV1={narrativeComposition.bindStageReconcilerInternalV1}
-          >
-            <div className={styles["default-root__stage-slot"]}>
-              {slots.background?.(slotContext) ?? null}
-            </div>
-          </SemanticStageCompositionClaimantProviderInternalV1>
-        ),
+      <SemanticStageCompositionClaimantProviderInternalV1
+        claimant={narrativeComposition.getStageClaimantInternalV1()}
+        onBindInternalV1={narrativeComposition.bindStageReconcilerInternalV1}
+      >
+        <div className={styles["default-root__stage-slot"]}>
+          {slots.background?.(slotContext) ?? null}
+        </div>
+      </SemanticStageCompositionClaimantProviderInternalV1>,
     ),
     character: concealGameplayWhileFrontDoorInternalV1(
       frontDoorExclusive,
@@ -574,7 +556,7 @@ export function DefaultGameRootV1<
     ),
     narrative: concealGameplayWhileFrontDoorInternalV1(
       frontDoorExclusive,
-      narrativeComposition?.isHostEnabledInternalV1() === true
+      narrativeComposition.isHostEnabledInternalV1()
         ? (
           <DefaultNarrativeSurfaceHostInternalV1
             narrative={narrativeComposition}
@@ -583,7 +565,7 @@ export function DefaultGameRootV1<
         )
         : null,
     ),
-    wholeCanvas: wholeCanvasComposition?.isHostEnabledInternalV1() !== true
+    wholeCanvas: !wholeCanvasComposition.isHostEnabledInternalV1()
       ? null
       : (
         <DefaultWholeCanvasSurfaceHostInternalV1
@@ -596,12 +578,12 @@ export function DefaultGameRootV1<
         inputRouter={props.composition.input}
         session={props.composition.systemDialogSession}
         {...(systemSaves === undefined ? {} : { saves: systemSaves })}
-        settings={Object.freeze({
+        settings={{
           title: labels.settingsTitle,
           closeLabel: labels.closeLabel,
-          sections: Object.freeze(slots.settingsSections?.(slotContext) ?? []),
+          sections: slots.settingsSections?.(slotContext) ?? [],
           emptyText: labels.settingsEmptyText,
-        })}
+        }}
       >
         {props.hideSystemMenu === true || frontDoorExclusive ? null : (
           <div
@@ -623,7 +605,7 @@ export function DefaultGameRootV1<
         )}
       </SystemDialogHostV1>
     ),
-  });
+  };
 
   const semanticWitness = (
     publication as {

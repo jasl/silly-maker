@@ -64,71 +64,71 @@ describe("player build baseline helpers", () => {
   });
 
   it("retains every contribution owner on shared generated assets", () => {
-    const receipt: BuildDependencyReceiptInternalV1 = Object.freeze({
+    const receipt: BuildDependencyReceiptInternalV1 = {
       schemaVersion: 1,
       applicationId: "synthetic",
-      chunks: Object.freeze([
-        Object.freeze({
+      chunks: [
+        {
           fileName: "assets/a.js",
           isEntry: false,
           isDynamicEntry: true,
           facadeModuleId: "src/a.ts",
-          imports: Object.freeze([]),
-          dynamicImports: Object.freeze([]),
-          moduleIds: Object.freeze(["src/a.ts"]),
-          importedCss: Object.freeze(["assets/shared.css"]),
-          importedAssets: Object.freeze(["assets/shared.webp"]),
-          owners: Object.freeze([{ kind: "contribution" as const, id: "src/a.ts" }]),
+          imports: [],
+          dynamicImports: [],
+          moduleIds: ["src/a.ts"],
+          importedCss: ["assets/shared.css"],
+          importedAssets: ["assets/shared.webp"],
+          owners: [{ kind: "contribution" as const, id: "src/a.ts" }],
           ownership: "contribution",
-          contributionIds: Object.freeze(["src/a.ts"]),
-        }),
-        Object.freeze({
+          contributionIds: ["src/a.ts"],
+        },
+        {
           fileName: "assets/b.js",
           isEntry: false,
           isDynamicEntry: true,
           facadeModuleId: "src/b.ts",
-          imports: Object.freeze([]),
-          dynamicImports: Object.freeze([]),
-          moduleIds: Object.freeze(["src/b.ts"]),
-          importedCss: Object.freeze(["assets/shared.css"]),
-          importedAssets: Object.freeze(["assets/shared.webp"]),
-          owners: Object.freeze([{ kind: "contribution" as const, id: "src/b.ts" }]),
+          imports: [],
+          dynamicImports: [],
+          moduleIds: ["src/b.ts"],
+          importedCss: ["assets/shared.css"],
+          importedAssets: ["assets/shared.webp"],
+          owners: [{ kind: "contribution" as const, id: "src/b.ts" }],
           ownership: "contribution",
-          contributionIds: Object.freeze(["src/b.ts"]),
-        }),
-      ]),
-      assets: Object.freeze([
-        Object.freeze({
+          contributionIds: ["src/b.ts"],
+        },
+      ],
+      assets: [
+        {
           fileName: "assets/shared.css",
-          moduleIds: Object.freeze(["src/shared.css"]),
-          owners: Object.freeze([
+          moduleIds: ["src/shared.css"],
+          owners: [
             { kind: "contribution" as const, id: "src/a.ts" },
             { kind: "contribution" as const, id: "src/b.ts" },
-          ]),
+          ],
           ownership: "shared_contributions",
-          contributionIds: Object.freeze(["src/a.ts", "src/b.ts"]),
-        }),
-        Object.freeze({
+          contributionIds: ["src/a.ts", "src/b.ts"],
+        },
+        {
           fileName: "assets/shared.webp",
-          moduleIds: Object.freeze(["src/shared.webp"]),
-          owners: Object.freeze([
+          moduleIds: ["src/shared.webp"],
+          owners: [
             { kind: "contribution" as const, id: "src/a.ts" },
             { kind: "contribution" as const, id: "src/b.ts" },
-          ]),
+          ],
           ownership: "shared_contributions",
-          contributionIds: Object.freeze(["src/a.ts", "src/b.ts"]),
-        }),
-        Object.freeze({
+          contributionIds: ["src/a.ts", "src/b.ts"],
+        },
+        {
           fileName: "assets/global.css",
-          moduleIds: Object.freeze(["src/global.css"]),
-          owners: Object.freeze([
+          moduleIds: ["src/global.css"],
+          owners: [
             { kind: "contribution" as const, id: "src/global.css" },
-          ]),
+          ],
           ownership: "contribution",
-          contributionIds: Object.freeze(["src/global.css"]),
-        }),
-      ]),
-    });
+          contributionIds: ["src/global.css"],
+        },
+      ],
+    };
 
     expect(Object.fromEntries(contributionIdsByPlayerBuildAssetV1(receipt))).toEqual({
       "assets/a.js": ["src/a.ts"],

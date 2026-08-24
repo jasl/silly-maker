@@ -34,7 +34,7 @@ describe("RuntimeFailure buffer", () => {
     expect(failures.entries().at(-1)?.operation).toBe("runtime.fixture.52");
   });
 
-  it("publishes frozen defensive snapshots and scrubs before retaining", () => {
+  it("publishes stable snapshots and scrubs before retaining", () => {
     const failures = createRuntimeFailureBufferV1({ limit: 2 });
     const first = failures.entries();
     failures.append({
@@ -45,10 +45,7 @@ describe("RuntimeFailure buffer", () => {
 
     expect(first).toEqual([]);
     expect(first).not.toBe(second);
-    expect(Object.isFrozen(first)).toBe(true);
-    expect(Object.isFrozen(second)).toBe(true);
     expect(second[0]?.message).toBe("failed at <redacted-path>");
-    expect(Object.isFrozen(second[0])).toBe(true);
 
     failures.append(runtimeFault(2));
     expect(second).toHaveLength(1);

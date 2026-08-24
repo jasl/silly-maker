@@ -117,5 +117,5 @@ export const unavailable: SessionLeaseStatusV1 = {
 };
 
 declare const bundle: ExportedDebugBundleV1;
-// @ts-expect-error Debug export has no arbitrary summary
-bundle.summary;
+bundle.contentSummary.failure satisfies boolean;
+bundle.contentSummary.uiContext satisfies boolean;

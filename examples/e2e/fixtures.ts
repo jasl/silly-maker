@@ -1,33 +1,33 @@
 // SPDX-License-Identifier: MIT
 // Browser fixtures for the examples suite: one dev-server target per example;
 // diagnostics policy matches the engine suite (a page or console error fails the test, evidence attached).
-import { expect, test as base } from "@playwright/test";
+import { expect, test as base } from "../../scripts/testing/playwright-test.ts";
 
 const hostV1 = "127.0.0.1";
 
 /** Starter Template: the copyable Story skeleton and its production Narrative declaration. */
-export const templateTargetV1 = Object.freeze({ host: hostV1, port: 41733 });
+export const templateTargetV1 = { host: hostV1, port: 41733 };
 
 export function templateTargetUrlV1(query = ""): string {
   return `http://${templateTargetV1.host}:${String(templateTargetV1.port)}/${query}`;
 }
 
 /** Bookshop: scripted Choice availability changing within one Narrative occurrence. */
-export const bookshopTargetV1 = Object.freeze({ host: hostV1, port: 41735 });
+export const bookshopTargetV1 = { host: hostV1, port: 41735 };
 
 export function bookshopTargetUrlV1(query = ""): string {
   return `http://${bookshopTargetV1.host}:${String(bookshopTargetV1.port)}/${query}`;
 }
 
 /** Cat cafe: stage hit regions, dialogue playback, save safepoints, rollback. */
-export const catcafeTargetV1 = Object.freeze({ host: hostV1, port: 41737 });
+export const catcafeTargetV1 = { host: hostV1, port: 41737 };
 
 export function catcafeTargetUrlV1(query = ""): string {
   return `http://${catcafeTargetV1.host}:${String(catcafeTargetV1.port)}/${query}`;
 }
 
 /** SillyOS 98: fully custom desktop shell (windows/taskbar/apps; persistence opaque to the player). */
-export const sillyOsTargetV1 = Object.freeze({ host: hostV1, port: 41739 });
+export const sillyOsTargetV1 = { host: hostV1, port: 41739 };
 
 export function sillyOsTargetUrlV1(query = ""): string {
   return `http://${sillyOsTargetV1.host}:${String(sillyOsTargetV1.port)}/${query}`;
@@ -52,7 +52,7 @@ export const test = base.extend<{ pageDiagnostics: PageDiagnosticsV1 }>({
         if (message.type() === "error") consoleErrors.push(message.text());
       });
 
-      await use(Object.freeze({
+      await use({
         pageErrors,
         consoleErrors,
         consumeExpectedConsoleError(message: string): void {
@@ -68,7 +68,7 @@ export const test = base.extend<{ pageDiagnostics: PageDiagnosticsV1 }>({
           }
           consoleErrors.splice(matchingIndexes[0], 1);
         },
-      }));
+      });
 
       if (pageErrors.length > 0 || consoleErrors.length > 0) {
         await testInfo.attach("page-diagnostics", {
@@ -83,4 +83,4 @@ export const test = base.extend<{ pageDiagnostics: PageDiagnosticsV1 }>({
   ],
 });
 
-export { expect } from "@playwright/test";
+export { expect };

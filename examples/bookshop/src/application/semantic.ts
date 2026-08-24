@@ -56,10 +56,10 @@ export type BookshopActionResultV1 =
     readonly code: "session_unavailable" | "fault_paused" | "hmr_invalidated" | "validation_failed";
   };
 
-const bookshopActionIdsV1: readonly BookshopActionIdV1[] = Object.freeze([
+const bookshopActionIdsV1: readonly BookshopActionIdV1[] = [
   "bookshop.begin_story",
   "bookshop.earn_coin",
-]);
+];
 
 const simulationForSemanticV1 = createBookshopGameSimulationV1();
 
@@ -96,23 +96,21 @@ export function projectBookshopNarrativeViewV1(
   queries: BookshopQueriesV1,
 ): BookshopNarrativeViewV1 {
   const pending = queries.narrative.pending;
-  return Object.freeze({
+  return ({
     phase: queries.narrative.phase,
     pending,
     flags: queries.narrative.flags,
     history: queries.narrative.history,
     choiceOptions: pending !== null && pending.kind === "choice"
-      ? Object.freeze(
-        bookshopChoiceOptionsForV1(pending.definitionId).map((option) => {
-          const blockedBy = bookshopChoiceBlockedByV1(option, queries.coins);
-          return Object.freeze({
-            choiceId: option.choiceId,
-            textId: option.textId,
-            enabled: blockedBy === null,
-            blockedBy,
-          });
-        }),
-      )
+      ? (bookshopChoiceOptionsForV1(pending.definitionId).map((option) => {
+        const blockedBy = bookshopChoiceBlockedByV1(option, queries.coins);
+        return ({
+          choiceId: option.choiceId,
+          textId: option.textId,
+          enabled: blockedBy === null,
+          blockedBy,
+        });
+      }))
       : null,
   });
 }
@@ -130,7 +128,7 @@ export function parseBookshopInvocationV1(value: unknown): BookshopInvocationV1 
       readonly expectedOccurrenceId?: unknown;
       readonly resolution?: unknown;
     };
-    return Object.freeze({
+    return ({
       kind: "resolve",
       expectedOccurrenceId: parseInteractionOccurrenceId(record.expectedOccurrenceId),
       resolution: parseInteractionResolution(record.resolution),
@@ -143,7 +141,7 @@ export function parseBookshopInvocationV1(value: unknown): BookshopInvocationV1 
   if (!bookshopActionIdsV1.includes(actionId as BookshopActionIdV1)) {
     throw new TypeError("unknown bookshop action");
   }
-  return Object.freeze({ kind: "invoke", actionId: actionId as BookshopActionIdV1 });
+  return ({ kind: "invoke", actionId: actionId as BookshopActionIdV1 });
 }
 
 export const bookshopSemanticAdapterV1: CoreSemanticAdapterV1<
@@ -159,46 +157,45 @@ export const bookshopSemanticAdapterV1: CoreSemanticAdapterV1<
   createQueries: (state) => simulationForSemanticV1.createQueries(state as never),
   projectGameView: (queries) => simulationForSemanticV1.projectGameView(queries),
   projectNarrativeView: (queries) => projectBookshopNarrativeViewV1(queries),
-  actions: (queries) =>
-    Object.freeze(
-      bookshopActionIdsV1.map((actionId) => {
-        const blockedBy = blockedByV1(queries, actionId);
-        return Object.freeze({ actionId, enabled: blockedBy === null, blockedBy });
-      }),
-    ),
+  actions: (queries) => (bookshopActionIdsV1.map((actionId) => {
+    const blockedBy = blockedByV1(queries, actionId);
+    return ({ actionId, enabled: blockedBy === null, blockedBy });
+  })),
   preview: (queries, invocation) => {
     const blockedBy = invocation.kind === "resolve"
       ? resolutionBlockedByV1(queries, invocation)
       : blockedByV1(queries, invocation.actionId);
     return blockedBy === null
-      ? Object.freeze({ kind: "allowed" as const })
-      : Object.freeze({ kind: "blocked" as const, code: blockedBy });
+      ? ({ kind: "allowed" as const })
+      : ({ kind: "blocked" as const, code: blockedBy });
   },
   parseInvocation: parseBookshopInvocationV1,
   commandForInvocation: (invocation) =>
     invocation.kind === "resolve"
-      ? Object.freeze({
+      ? ({
         kind: "bookshop.narrative_resolve" as const,
         expectedOccurrenceId: invocation.expectedOccurrenceId,
         resolution: invocation.resolution,
       })
-      : Object.freeze({ kind: invocation.actionId }),
+      : ({ kind: invocation.actionId }),
   projectDispatchResult: (result) => {
     if (result.kind === "not_executed") {
-      return Object.freeze({ kind: "not_executed" as const, code: result.code });
+      return ({ kind: "not_executed" as const, code: result.code });
     }
     const execution = result.execution;
     if (execution.kind === "committed") {
-      return Object.freeze({ kind: "committed" as const });
+      return ({ kind: "committed" as const });
     }
     if (execution.kind === "rejected") {
-      return Object.freeze({
+      return ({
         kind: "rejected" as const,
-        codes: Object.freeze(execution.reasons.map((reason) => reason.code)),
+        codes: execution.reasons.map((reason) => reason.code),
       });
     }
-    return Object.freeze({ kind: "faulted" as const, code: execution.fault.code });
+    return ({ kind: "faulted" as const, code: execution.fault.code });
   },
-  invalidInvocationResult: () =>
-    Object.freeze({ kind: "not_executed" as const, code: "validation_failed" as const }),
+  invalidInvocationResult: () => ({
+    kind: "not_executed" as const,
+    code: "validation_failed" as const,
+  }),
 };

@@ -41,10 +41,10 @@ export interface JsonlAgentHostV1 {
 }
 
 export function createJsonlAgentHostV1(input: JsonlAgentHostInputV1): JsonlAgentHostV1 {
-  const limits: JsonlHostLimitsV1 = Object.freeze({
+  const limits: JsonlHostLimitsV1 = {
     ...defaultJsonlHostLimitsV1,
     ...input.limits,
-  });
+  };
   const log = input.log ?? (() => undefined);
   let shuttingDown = false;
   let pending = 0;
@@ -108,10 +108,10 @@ export function createJsonlAgentHostV1(input: JsonlAgentHostInputV1): JsonlAgent
   const executeRequest = async (request: JsonlRequestV1): Promise<unknown> => {
     switch (request.method) {
       case "hello":
-        return Object.freeze({
+        return {
           protocol: jsonlProtocolVersionV1,
           identity: input.agent.identity(),
-          methods: Object.freeze([
+          methods: [
             "hello",
             "observe",
             "describeActions",
@@ -123,8 +123,8 @@ export function createJsonlAgentHostV1(input: JsonlAgentHostInputV1): JsonlAgent
               : ["save", "load", "exportSave", "importSave"]),
             ...(input.diagnostics === undefined ? [] : ["exportDiagnostics"]),
             "shutdown",
-          ]),
-        });
+          ],
+        };
       case "observe":
         return input.agent.observe();
       case "describeActions":
@@ -172,7 +172,7 @@ export function createJsonlAgentHostV1(input: JsonlAgentHostInputV1): JsonlAgent
       case "shutdown": {
         shuttingDown = true;
         queueMicrotask(settleIfDrained);
-        return Object.freeze({ kind: "shutting_down" });
+        return { kind: "shutting_down" };
       }
       default: {
         const exhaustive: never = request.method;
@@ -243,14 +243,14 @@ export function createJsonlAgentHostV1(input: JsonlAgentHostInputV1): JsonlAgent
     queueMicrotask(settleIfDrained);
   });
 
-  return Object.freeze({
+  return {
     done,
     shutdown: () => {
       shuttingDown = true;
       reader.close();
       queueMicrotask(settleIfDrained);
     },
-  });
+  };
 }
 
 class CapabilityDisabledSignalV1 extends Error {

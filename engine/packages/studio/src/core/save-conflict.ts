@@ -17,8 +17,8 @@ export async function saveWithConflictRefreshInternalV1<TDocument>(
 ): Promise<SaveWithConflictRefreshResultInternalV1> {
   const save = await session.save(input);
   if (save.kind !== "error" || save.code !== "digest_conflict") {
-    return Object.freeze({ save, refresh: null });
+    return { save, refresh: null };
   }
   const refresh = await session.refreshSaved();
-  return Object.freeze({ save, refresh });
+  return { save, refresh };
 }

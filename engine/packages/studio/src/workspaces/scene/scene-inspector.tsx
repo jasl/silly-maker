@@ -223,11 +223,11 @@ export function SceneInspectorV1(props: SceneInspectorPropsV1): ReactElement {
             draftRevision={props.draftRevision}
             onValue={(next, runRevision) =>
               props.onEditSelectedPlacement(
-                Object.freeze({
+                {
                   ...defaultPlacementV1(),
                   ...selectedEntry.placement,
                   x: next,
-                }),
+                },
                 `field:${selectedEntry.tag}:x:${String(runRevision)}`,
               )}
           />
@@ -238,11 +238,11 @@ export function SceneInspectorV1(props: SceneInspectorPropsV1): ReactElement {
             draftRevision={props.draftRevision}
             onValue={(next, runRevision) =>
               props.onEditSelectedPlacement(
-                Object.freeze({
+                {
                   ...defaultPlacementV1(),
                   ...selectedEntry.placement,
                   y: next,
-                }),
+                },
                 `field:${selectedEntry.tag}:y:${String(runRevision)}`,
               )}
           />
@@ -253,11 +253,11 @@ export function SceneInspectorV1(props: SceneInspectorPropsV1): ReactElement {
             draftRevision={props.draftRevision}
             onValue={(next, runRevision) =>
               props.onEditSelectedPlacement(
-                Object.freeze({
+                {
                   ...defaultPlacementV1(),
                   ...selectedEntry.placement,
                   scalePermille: next,
-                }),
+                },
                 `field:${selectedEntry.tag}:scalePermille:${String(runRevision)}`,
               )}
           />
@@ -279,11 +279,11 @@ export function SceneInspectorV1(props: SceneInspectorPropsV1): ReactElement {
               checked={selectedEntry.placement?.mirrored ?? false}
               onChange={(event) => {
                 const next = event.target.checked;
-                props.onEditSelectedPlacement(Object.freeze({
+                props.onEditSelectedPlacement({
                   ...defaultPlacementV1(),
                   ...selectedEntry.placement,
                   mirrored: next,
-                }));
+                });
               }}
             />
           </label>

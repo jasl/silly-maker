@@ -13,7 +13,6 @@ import type {
   StageTransitionDefinitionV1,
   StagePlacementV1,
 } from "@sillymaker/base";
-import { parseStageTransitionDefinitionV1 } from "@sillymaker/base";
 
 import type { PresentationClockV1 } from "../presentation-run/presentation-clock.ts";
 import { createPresentationRunV1, easeInOutV1 } from "../presentation-run/presentation-run.ts";
@@ -152,6 +151,13 @@ export interface StageAcknowledgedRunTerminalPortInternalV1 {
   ): void;
 }
 
+export interface StageAcknowledgedRunRetargetInputInternalV1 {
+  readonly retarget: StageRetargetInputV1;
+  readonly expectedTransitionId: string;
+  readonly commitGuard: StageAcknowledgedRunCommitGuardInternalV1;
+  readonly terminalPort: StageAcknowledgedRunTerminalPortInternalV1;
+}
+
 export type StageAcknowledgedRunRetargetResultInternalV1 =
   | Readonly<{
     readonly kind: "armed";
@@ -179,12 +185,7 @@ export interface StageAcknowledgedRunAuthorityInternalV1 {
     previousProof: unknown,
   ): StagePresentationGenerationCaptureResultInternalV1;
   retargetWithAcknowledgedRunInternalV1(
-    input: Readonly<{
-      readonly retarget: StageRetargetInputV1;
-      readonly expectedTransitionId: string;
-      readonly commitGuard: StageAcknowledgedRunCommitGuardInternalV1;
-      readonly terminalPort: StageAcknowledgedRunTerminalPortInternalV1;
-    }>,
+    input: StageAcknowledgedRunRetargetInputInternalV1,
   ): StageAcknowledgedRunRetargetResultInternalV1;
   isAcknowledgedRunTerminalStackActiveInternalV1(
     proof: unknown,
@@ -195,16 +196,6 @@ export interface StageAcknowledgedRunAuthorityInternalV1 {
   disposeInternalV1(): void;
 }
 
-interface CapturedStageAcknowledgedRunCommitGuardInternalV1 {
-  readonly receiver: StageAcknowledgedRunCommitGuardInternalV1;
-  readonly invoke: StageAcknowledgedRunCommitGuardInternalV1["isCommitCurrentInternalV1"];
-}
-
-interface CapturedStageAcknowledgedRunTerminalPortInternalV1 {
-  readonly receiver: StageAcknowledgedRunTerminalPortInternalV1;
-  readonly invoke: StageAcknowledgedRunTerminalPortInternalV1["deliverTerminalInternalV1"];
-}
-
 interface StageAcknowledgedRunProofRecordInternalV1 {
   readonly authority: StageAcknowledgedRunAuthorityInternalV1;
   readonly reconciler: StageReconcilerV1;
@@ -212,7 +203,7 @@ interface StageAcknowledgedRunProofRecordInternalV1 {
   readonly logicalTransitionId: string;
   readonly effectiveOccurrenceId: string;
   readonly proof: StageAcknowledgedRunProofInternalV1;
-  readonly terminalPort: CapturedStageAcknowledgedRunTerminalPortInternalV1;
+  readonly terminalPort: StageAcknowledgedRunTerminalPortInternalV1;
   terminalSealed: boolean;
   terminalStackDepth: number;
 }
@@ -240,113 +231,37 @@ const stagePresentationGenerationProofRecordsInternalV1 = new WeakMap<
   StagePresentationGenerationProofInternalV1,
   StagePresentationGenerationProofRecordInternalV1
 >();
-const freezeStageAcknowledgedRunDataInternalV1 = Object.freeze;
-const applyStageAcknowledgedRunIntrinsicInternalV1 = Reflect.apply;
-const isArrayStageRecordIntrinsicInternalV1 = Array.isArray;
-const getPrototypeOfStageRecordIntrinsicInternalV1 = Reflect.getPrototypeOf;
-const ownKeysStageRecordIntrinsicInternalV1 = Reflect.ownKeys;
-const hasOwnStageRecordIntrinsicInternalV1 = Object.hasOwn;
-const getOwnPropertyDescriptorStageRecordIntrinsicInternalV1 = Reflect.getOwnPropertyDescriptor;
-const createStageRecordIntrinsicInternalV1 = Object.create;
-const stageRecordObjectPrototypeInternalV1 = Object.prototype;
-const isSafeIntegerStageGenerationIntrinsicInternalV1 = Number.isSafeInteger;
-const getStageAcknowledgedRunProofRecordIntrinsicInternalV1 = WeakMap.prototype.get;
-const setStageAcknowledgedRunProofRecordIntrinsicInternalV1 = WeakMap.prototype.set;
-const getStagePresentationGenerationProofRecordIntrinsicInternalV1 = WeakMap.prototype.get;
-const setStagePresentationGenerationProofRecordIntrinsicInternalV1 = WeakMap.prototype.set;
 
-const stageAcknowledgedRunStaleResultInternalV1 = Object.freeze({
+const stageAcknowledgedRunStaleResultInternalV1 = {
   kind: "stale" as const,
   proof: null,
-});
-const stageAcknowledgedRunUnmatchedResultInternalV1 = Object.freeze({
+};
+const stageAcknowledgedRunUnmatchedResultInternalV1 = {
   kind: "faulted" as const,
   code: "stage.acknowledged_run_unmatched" as const,
   proof: null,
-});
-const stageAcknowledgedRunAmbiguousResultInternalV1 = Object.freeze({
+};
+const stageAcknowledgedRunAmbiguousResultInternalV1 = {
   kind: "faulted" as const,
   code: "stage.acknowledged_run_ambiguous" as const,
   proof: null,
-});
-const stageAcknowledgedRunFaultedResultInternalV1 = Object.freeze({
+};
+const stageAcknowledgedRunFaultedResultInternalV1 = {
   kind: "faulted" as const,
   code: "stage.acknowledged_run_faulted" as const,
   proof: null,
-});
-const stagePresentationGenerationStaleCaptureResultInternalV1 =
-  freezeStageAcknowledgedRunDataInternalV1({
-    kind: "stale" as const,
-    proof: null,
-  });
-const stagePresentationGenerationFaultedCaptureResultInternalV1 =
-  freezeStageAcknowledgedRunDataInternalV1({
-    kind: "faulted" as const,
-    proof: null,
-  });
-const stagePresentationGenerationRetargetedResultInternalV1 =
-  freezeStageAcknowledgedRunDataInternalV1({ kind: "retargeted" as const });
-const stagePresentationGenerationStaleRetargetResultInternalV1 =
-  freezeStageAcknowledgedRunDataInternalV1({ kind: "stale" as const });
-const stagePresentationGenerationFaultedRetargetResultInternalV1 =
-  freezeStageAcknowledgedRunDataInternalV1({ kind: "faulted" as const });
-
-function captureExactOwnDataRecordInternalV1(
-  value: unknown,
-  expectedKeys: readonly string[],
-): Readonly<Record<string, unknown>> | null {
-  if (typeof value !== "object" || value === null || isArrayStageRecordIntrinsicInternalV1(value)) {
-    return null;
-  }
-  if (
-    getPrototypeOfStageRecordIntrinsicInternalV1(value) !== stageRecordObjectPrototypeInternalV1
-  ) {
-    return null;
-  }
-  const ownKeys = ownKeysStageRecordIntrinsicInternalV1(value);
-  if (ownKeys.length !== expectedKeys.length) return null;
-  for (const ownKey of ownKeys) {
-    if (typeof ownKey !== "string") return null;
-  }
-  for (const expectedKey of expectedKeys) {
-    if (!hasOwnStageRecordIntrinsicInternalV1(value, expectedKey)) return null;
-  }
-  const captured = createStageRecordIntrinsicInternalV1(null) as Record<string, unknown>;
-  for (const key of expectedKeys) {
-    const descriptor = getOwnPropertyDescriptorStageRecordIntrinsicInternalV1(value, key);
-    if (descriptor === undefined || !("value" in descriptor)) return null;
-    captured[key] = descriptor.value;
-  }
-  return captured;
-}
-
-function captureStageAcknowledgedRunCommitGuardInternalV1(
-  value: unknown,
-): CapturedStageAcknowledgedRunCommitGuardInternalV1 | null {
-  const record = captureExactOwnDataRecordInternalV1(value, [
-    "isCommitCurrentInternalV1",
-  ]);
-  if (record === null || typeof record.isCommitCurrentInternalV1 !== "function") return null;
-  return Object.freeze({
-    receiver: value as StageAcknowledgedRunCommitGuardInternalV1,
-    invoke: record.isCommitCurrentInternalV1 as StageAcknowledgedRunCommitGuardInternalV1[
-      "isCommitCurrentInternalV1"
-    ],
-  });
-}
-
-function captureStageAcknowledgedRunTerminalPortInternalV1(
-  value: unknown,
-): CapturedStageAcknowledgedRunTerminalPortInternalV1 | null {
-  const record = captureExactOwnDataRecordInternalV1(value, ["deliverTerminalInternalV1"]);
-  if (record === null || typeof record.deliverTerminalInternalV1 !== "function") return null;
-  return Object.freeze({
-    receiver: value as StageAcknowledgedRunTerminalPortInternalV1,
-    invoke: record.deliverTerminalInternalV1 as StageAcknowledgedRunTerminalPortInternalV1[
-      "deliverTerminalInternalV1"
-    ],
-  });
-}
+};
+const stagePresentationGenerationStaleCaptureResultInternalV1 = {
+  kind: "stale" as const,
+  proof: null,
+};
+const stagePresentationGenerationFaultedCaptureResultInternalV1 = {
+  kind: "faulted" as const,
+  proof: null,
+};
+const stagePresentationGenerationRetargetedResultInternalV1 = { kind: "retargeted" as const };
+const stagePresentationGenerationStaleRetargetResultInternalV1 = { kind: "stale" as const };
+const stagePresentationGenerationFaultedRetargetResultInternalV1 = { kind: "faulted" as const };
 
 export function claimStageAcknowledgedRunAuthorityInternalV1(
   reconciler: StageReconcilerV1,
@@ -378,6 +293,18 @@ interface ActiveTransitionV1 {
   acknowledgedRun: StageAcknowledgedRunProofRecordInternalV1 | null;
   /** Readiness hold: the run starts when ready or the deadline passes. */
   readiness: { readonly deadline: number; readonly assetIds: readonly AssetId[] } | null;
+}
+
+interface ActiveFrameTransitionV1 {
+  readonly transition: ActiveTransitionV1;
+  readonly progress: number;
+}
+
+interface StageFrameTransitionIndexV1 {
+  readonly enteringByEntryKey: ReadonlyMap<string, ActiveFrameTransitionV1>;
+  readonly exitingByLayerId: ReadonlyMap<string, readonly ActiveFrameTransitionV1[]>;
+  readonly requiredAssetIds: readonly AssetId[];
+  readonly inputGate: StageInputGateV1;
 }
 
 function entriesByKeyV1(
@@ -417,7 +344,7 @@ function deriveChangesV1(
   const changes: StageTargetChangeV1[] = [];
   const previousEntries = previous === null ? new Map() : entriesByKeyV1(previous);
   const nextEntries = entriesByKeyV1(next);
-  // The same frozen dispatch list rides on every change of this edge; the
+  // The same admitted dispatch list rides on every change of this edge; the
   // catalog owns cue-to-edge attribution.
   const context = dispatches === undefined || dispatches.length === 0 ? {} : { dispatches };
 
@@ -497,8 +424,8 @@ export function createStageReconcilerV1(
   let disposed = false;
   let readinessTickCancel: (() => void) | undefined;
   let exactClaimant: object | ((...args: never[]) => unknown) | null = null;
-  let authority!: StageAcknowledgedRunAuthorityInternalV1;
-  let reconciler!: StageReconcilerV1;
+  const authority = {} as StageAcknowledgedRunAuthorityInternalV1;
+  const reconciler = {} as StageReconcilerV1;
   let currentPresentationGenerationProofRecord:
     | StagePresentationGenerationProofRecordInternalV1
     | null = null;
@@ -536,7 +463,7 @@ export function createStageReconcilerV1(
     });
   };
 
-  const stageClockInternalV1: PresentationClockV1 = Object.freeze({
+  const stageClockInternalV1: PresentationClockV1 = {
     now(): number {
       return readStageClockNowInternalV1();
     },
@@ -557,7 +484,7 @@ export function createStageReconcilerV1(
         ticket.deferredOperation = null;
       };
     },
-  });
+  };
 
   const rearmDeferredStageClockTicks = (
     operation: AcknowledgedRunOperationInternalV1,
@@ -569,7 +496,7 @@ export function createStageReconcilerV1(
           scheduleStageClockTick(ticket);
         } catch {
           // A deferred tick cannot be allowed to replace the acknowledged
-          // operation's already-selected frozen result from a finally block.
+          // operation's already-selected result from a finally block.
           ticket.cancelled = true;
           ticket.cancelUnderlying = null;
         }
@@ -617,15 +544,9 @@ export function createStageReconcilerV1(
     if (record.terminalSealed) return;
     record.terminalSealed = true;
     try {
-      applyStageAcknowledgedRunIntrinsicInternalV1(
-        record.terminalPort.invoke,
-        record.terminalPort.receiver,
-        [
-          freezeStageAcknowledgedRunDataInternalV1({ proof: record.proof, outcome }),
-        ],
-      );
+      record.terminalPort.deliverTerminalInternalV1({ proof: record.proof, outcome });
     } catch {
-      // The proof is already sealed. A hostile private port is not retried and
+      // The proof is already sealed. A failed observer is not retried and
       // cannot block cleanup or the public Stage observers that follow.
     }
   };
@@ -726,8 +647,7 @@ export function createStageReconcilerV1(
     epoch: number,
     occurrenceId: string,
   ): ActiveTransitionV1 => {
-    let transition!: ActiveTransitionV1;
-    transition = {
+    const transition: ActiveTransitionV1 = {
       occurrenceId,
       definition,
       layerId: change.layerId,
@@ -789,10 +709,10 @@ export function createStageReconcilerV1(
 
     const demanded = demandedAssetsForChange(change);
     if (definition.readiness.kind === "wait_for_assets" && !assetsReady(demanded)) {
-      transition.readiness = Object.freeze({
+      transition.readiness = {
         deadline: stageClockInternalV1.now() + definition.readiness.timeoutMs,
-        assetIds: Object.freeze([...demanded]),
-      });
+        assetIds: [...demanded],
+      };
       ensureReadinessTicking();
       return;
     }
@@ -815,14 +735,13 @@ export function createStageReconcilerV1(
   };
 
   const frameEntriesForLayer = (
+    index: StageFrameTransitionIndexV1,
     layerId: StageLayerIdV1,
     entries: readonly StageRenderEntryV1[],
   ): StageFrameEntryV1[] => {
     const frameEntries: StageFrameEntryV1[] = entries.map((entry) => {
-      const transition = active.find(
-        (candidate) => candidate.entryKey === entry.key && candidate.changeKind !== "exit",
-      );
-      if (transition === undefined) {
+      const frameTransition = index.enteringByEntryKey.get(entry.key);
+      if (frameTransition === undefined) {
         return {
           frameKey: entry.key,
           entry,
@@ -835,13 +754,14 @@ export function createStageReconcilerV1(
           motion: null,
         };
       }
+      const { transition, progress } = frameTransition;
       return {
         frameKey: entry.key,
         entry,
         phase: "entering" as const,
         transitionKind: transition.definition.kind,
         transitionId: transition.definition.transitionId,
-        progress: transition.run.progress(),
+        progress,
         slide: transition.definition.slide,
         fromPlacement: transition.changeKind === "move"
           ? (transition.previousEntry?.placement ?? null)
@@ -849,22 +769,56 @@ export function createStageReconcilerV1(
         motion: transition.definition.motion ?? null,
       };
     });
-    for (const transition of active) {
-      if (transition.layerId !== layerId || transition.previousEntry === null) continue;
-      if (transition.changeKind !== "exit" && transition.changeKind !== "replace") continue;
+    for (const { transition, progress } of index.exitingByLayerId.get(layerId) ?? []) {
+      if (transition.previousEntry === null) continue;
       frameEntries.push({
         frameKey: `${transition.entryKey}:exit:${transition.occurrenceId}`,
         entry: transition.previousEntry,
         phase: "exiting",
         transitionKind: transition.definition.kind,
         transitionId: transition.definition.transitionId,
-        progress: transition.run.progress(),
+        progress,
         slide: transition.definition.slide,
         fromPlacement: null,
         motion: transition.definition.motion ?? null,
       });
     }
     return frameEntries;
+  };
+
+  const buildFrameTransitionIndex = (
+    target: StageRenderTargetV1,
+  ): StageFrameTransitionIndexV1 => {
+    const enteringByEntryKey = new Map<string, ActiveFrameTransitionV1>();
+    const exitingByLayerId = new Map<string, ActiveFrameTransitionV1[]>();
+    const requiredAssetIds = new Set<AssetId>(target.requiredAssetIds);
+    let blocked = false;
+    let skipOnInput = false;
+
+    for (const transition of active) {
+      const frameTransition = { transition, progress: transition.run.progress() };
+      if (transition.changeKind !== "exit" && !enteringByEntryKey.has(transition.entryKey)) {
+        enteringByEntryKey.set(transition.entryKey, frameTransition);
+      }
+      if (
+        (transition.changeKind === "exit" || transition.changeKind === "replace") &&
+        transition.previousEntry !== null
+      ) {
+        const layerTransitions = exitingByLayerId.get(transition.layerId) ?? [];
+        layerTransitions.push(frameTransition);
+        exitingByLayerId.set(transition.layerId, layerTransitions);
+        for (const assetId of transition.previousEntry.assetIds) requiredAssetIds.add(assetId);
+      }
+      blocked ||= transition.definition.inputPolicy === "block";
+      skipOnInput ||= transition.definition.inputPolicy === "skip_to_end";
+    }
+
+    return {
+      enteringByEntryKey,
+      exitingByLayerId,
+      requiredAssetIds: [...requiredAssetIds].sort(),
+      inputGate: { blocked, skipOnInput },
+    };
   };
 
   const retargetLegacy = (input: StageRetargetInputV1, contained: boolean): void => {
@@ -962,43 +916,16 @@ export function createStageReconcilerV1(
   };
 
   const captureStageRetargetRecordInternalV1 = (
-    input: unknown,
+    input: StageRetargetInputV1,
   ): StageRetargetInputV1 | null => {
-    const hasDispatches = typeof input === "object" && input !== null &&
-      hasOwnStageRecordIntrinsicInternalV1(input, "dispatches");
-    const raw = captureExactOwnDataRecordInternalV1(
-      input,
-      hasDispatches
-        ? ["target", "revision", "epoch", "dispatches"]
-        : ["target", "revision", "epoch"],
-    );
     if (
-      raw === null ||
-      typeof raw.revision !== "number" ||
-      !isSafeIntegerStageGenerationIntrinsicInternalV1(raw.revision) ||
-      raw.revision < 0 ||
-      typeof raw.epoch !== "number" ||
-      !isSafeIntegerStageGenerationIntrinsicInternalV1(raw.epoch) ||
-      raw.epoch < 0
+      !Number.isSafeInteger(input.revision) || input.revision < 0 ||
+      !Number.isSafeInteger(input.epoch) || input.epoch < 0 ||
+      (input.dispatches !== undefined && !Array.isArray(input.dispatches))
     ) {
       return null;
     }
-    let dispatches: readonly StageCueDispatchV1[] | undefined;
-    if (hasDispatches) {
-      const rawDispatches = raw.dispatches;
-      if (!isArrayStageRecordIntrinsicInternalV1(rawDispatches)) return null;
-      // Entry contents were admitted at the instance boundary; the claimed
-      // path only pins the list itself against later mutation.
-      dispatches = freezeStageAcknowledgedRunDataInternalV1([
-        ...(rawDispatches as readonly StageCueDispatchV1[]),
-      ]);
-    }
-    return freezeStageAcknowledgedRunDataInternalV1({
-      target: raw.target as StageRenderTargetV1,
-      revision: raw.revision,
-      epoch: raw.epoch,
-      ...(dispatches === undefined ? {} : { dispatches }),
-    });
+    return input;
   };
 
   const capturePresentationGenerationRetargetInput = captureStageRetargetRecordInternalV1;
@@ -1006,20 +933,14 @@ export function createStageReconcilerV1(
   const mintCurrentPresentationGenerationProof = (
     epoch: number,
   ): StagePresentationGenerationProofRecordInternalV1 => {
-    const proof = freezeStageAcknowledgedRunDataInternalV1(
-      {},
-    ) as StagePresentationGenerationProofInternalV1;
+    const proof = {} as StagePresentationGenerationProofInternalV1;
     const record: StagePresentationGenerationProofRecordInternalV1 = {
       authority,
       reconciler,
       epoch,
       proof,
     };
-    applyStageAcknowledgedRunIntrinsicInternalV1(
-      setStagePresentationGenerationProofRecordIntrinsicInternalV1,
-      stagePresentationGenerationProofRecordsInternalV1,
-      [proof, record],
-    );
+    stagePresentationGenerationProofRecordsInternalV1.set(proof, record);
     currentPresentationGenerationProofRecord = record;
     return record;
   };
@@ -1060,11 +981,11 @@ export function createStageReconcilerV1(
       if (current === null) {
         return stagePresentationGenerationFaultedCaptureResultInternalV1;
       }
-      return freezeStageAcknowledgedRunDataInternalV1({
+      return {
         kind: "captured" as const,
         relation: "initial" as const,
         proof: current.proof,
-      });
+      };
     }
     if (
       (typeof previousProof !== "object" && typeof previousProof !== "function") ||
@@ -1073,16 +994,9 @@ export function createStageReconcilerV1(
       return stagePresentationGenerationFaultedCaptureResultInternalV1;
     }
 
-    let previous: StagePresentationGenerationProofRecordInternalV1 | undefined;
-    try {
-      previous = applyStageAcknowledgedRunIntrinsicInternalV1(
-        getStagePresentationGenerationProofRecordIntrinsicInternalV1,
-        stagePresentationGenerationProofRecordsInternalV1,
-        [previousProof],
-      ) as StagePresentationGenerationProofRecordInternalV1 | undefined;
-    } catch {
-      return stagePresentationGenerationFaultedCaptureResultInternalV1;
-    }
+    const previous = stagePresentationGenerationProofRecordsInternalV1.get(
+      previousProof as StagePresentationGenerationProofInternalV1,
+    );
     if (
       previous === undefined || previous.authority !== authority ||
       previous.reconciler !== reconciler || previous.proof !== previousProof
@@ -1095,11 +1009,11 @@ export function createStageReconcilerV1(
       if (current !== previous) {
         return stagePresentationGenerationStaleCaptureResultInternalV1;
       }
-      return freezeStageAcknowledgedRunDataInternalV1({
+      return {
         kind: "captured" as const,
         relation: "equal" as const,
         proof: current.proof,
-      });
+      };
     }
     if (previous.epoch > currentEpoch) {
       return stagePresentationGenerationStaleCaptureResultInternalV1;
@@ -1109,17 +1023,17 @@ export function createStageReconcilerV1(
       if (higher === null) {
         return stagePresentationGenerationFaultedCaptureResultInternalV1;
       }
-      return freezeStageAcknowledgedRunDataInternalV1({
+      return {
         kind: "captured" as const,
         relation: "higher" as const,
         proof: higher.proof,
-      });
+      };
     }
     return stagePresentationGenerationFaultedCaptureResultInternalV1;
   };
 
   const retargetPresentationGeneration = (
-    input: unknown,
+    input: StageRetargetInputV1,
   ): StagePresentationGenerationRetargetResultInternalV1 => {
     if (acknowledgedRunOperation !== null) {
       acknowledgedRunOperation.reentryCount += 1;
@@ -1174,7 +1088,7 @@ export function createStageReconcilerV1(
   }
 
   const retargetWithAcknowledgedRun = (
-    input: unknown,
+    input: StageAcknowledgedRunRetargetInputInternalV1,
   ): StageAcknowledgedRunRetargetResultInternalV1 => {
     const operation: AcknowledgedRunOperationInternalV1 = {
       phase: "planning",
@@ -1192,26 +1106,13 @@ export function createStageReconcilerV1(
       | null = null;
 
     try {
-      const outer = captureExactOwnDataRecordInternalV1(input, [
-        "retarget",
-        "expectedTransitionId",
-        "commitGuard",
-        "terminalPort",
-      ]);
-      if (outer === null || typeof outer.expectedTransitionId !== "string") {
+      const retarget = captureStageRetargetRecordInternalV1(input.retarget);
+      if (retarget === null || input.expectedTransitionId.length === 0) {
         return stageAcknowledgedRunFaultedResultInternalV1;
       }
-      const retarget = captureStageRetargetRecordInternalV1(outer.retarget);
-      const commitGuard = captureStageAcknowledgedRunCommitGuardInternalV1(
-        outer.commitGuard,
-      );
-      const terminalPort = captureStageAcknowledgedRunTerminalPortInternalV1(
-        outer.terminalPort,
-      );
-      if (retarget === null || commitGuard === null || terminalPort === null) {
-        return stageAcknowledgedRunFaultedResultInternalV1;
-      }
-      const expectedTransitionId = outer.expectedTransitionId;
+      const expectedTransitionId = input.expectedTransitionId;
+      const commitGuard = input.commitGuard;
+      const terminalPort = input.terminalPort;
 
       if (
         disposed || currentTarget === null || currentEpoch === null ||
@@ -1229,7 +1130,7 @@ export function createStageReconcilerV1(
       for (const transition of activeSnapshot) {
         if (!changedKeys.has(transition.entryKey)) continue;
         const interruption = transition.definition.interruption;
-        interruptions.push(Object.freeze({ transition, kind: interruption }));
+        interruptions.push({ transition, kind: interruption });
         if (interruption === "cancel_to_target") {
           suppressedKeys.add(transition.entryKey);
         }
@@ -1239,18 +1140,11 @@ export function createStageReconcilerV1(
       const animatedTransitions: ActiveTransitionV1[] = [];
       let plannedOccurrenceCounter = occurrenceCounter;
       const catalog = options.catalog;
-      const resolveTransition = catalog.resolveTransition;
-      if (typeof resolveTransition !== "function") {
-        return stageAcknowledgedRunFaultedResultInternalV1;
-      }
-      let fallbackResolverCaptured = false;
-      let fallbackResolver: StageTransitionCatalogV1["resolveTransitionById"];
 
       for (const change of changes) {
         if (suppressedKeys.has(change.entryKey)) continue;
-        const rawLogical = Reflect.apply(resolveTransition, catalog, [change]);
-        if (rawLogical === null) continue;
-        const logicalDefinition = parseStageTransitionDefinitionV1(rawLogical);
+        const logicalDefinition = catalog.resolveTransition(change);
+        if (logicalDefinition === null) continue;
         const matched = logicalDefinition.acknowledge &&
           logicalDefinition.transitionId === expectedTransitionId;
 
@@ -1260,25 +1154,20 @@ export function createStageReconcilerV1(
           if (logicalDefinition.reducedMotion.kind === "settle") {
             effectiveDefinition = null;
           } else {
-            if (!fallbackResolverCaptured) {
-              fallbackResolver = catalog.resolveTransitionById;
-              fallbackResolverCaptured = true;
-            }
-            const rawFallback = fallbackResolver === undefined
-              ? null
-              : Reflect.apply(fallbackResolver, catalog, [
-                logicalDefinition.reducedMotion.transitionId,
-              ]);
+            const rawFallback = catalog.resolveTransitionById?.(
+              logicalDefinition.reducedMotion.transitionId,
+            ) ?? null;
             if (rawFallback === null || rawFallback === undefined) {
               effectiveDefinition = null;
-              diagnostic = Object.freeze({
+              diagnostic = {
                 code: "stage.transition_fallback_missing",
                 detail:
                   `reduced-motion fallback ${logicalDefinition.reducedMotion.transitionId} is not resolvable`,
-              });
+              };
             } else {
-              const fallback = parseStageTransitionDefinitionV1(rawFallback);
-              effectiveDefinition = fallback.reducedMotion.kind === "settle" ? fallback : null;
+              effectiveDefinition = rawFallback.reducedMotion.kind === "settle"
+                ? rawFallback
+                : null;
             }
           }
         }
@@ -1306,14 +1195,14 @@ export function createStageReconcilerV1(
             effectiveDefinition.readiness.kind === "wait_for_assets" &&
             !assetsReady(demanded)
           ) {
-            transition.readiness = Object.freeze({
+            transition.readiness = {
               deadline: stageClockInternalV1.now() + effectiveDefinition.readiness.timeoutMs,
-              assetIds: Object.freeze([...demanded]),
-            });
+              assetIds: [...demanded],
+            };
           }
           animatedTransitions.push(transition);
         }
-        plannedEdges.push(Object.freeze({
+        plannedEdges.push({
           change,
           logicalDefinition,
           effectiveDefinition,
@@ -1321,7 +1210,7 @@ export function createStageReconcilerV1(
           transition,
           matched,
           diagnostic,
-        }));
+        });
       }
 
       if (operation.reentryCount !== 0) {
@@ -1349,12 +1238,9 @@ export function createStageReconcilerV1(
         expectedActiveAfterInterruptions.push(expected);
       }
 
-      // These objects remain unreachable until the final guard succeeds. All
-      // allocation and freezing happens before that guard so publication is a
-      // callback-free sequence of local assignments.
-      const proof = freezeStageAcknowledgedRunDataInternalV1(
-        {},
-      ) as StageAcknowledgedRunProofInternalV1;
+      // These objects remain unreachable until the final guard succeeds, so
+      // publication is a callback-free sequence of local assignments.
+      const proof = {} as StageAcknowledgedRunProofInternalV1;
       const proofRecord: StageAcknowledgedRunProofRecordInternalV1 = {
         authority,
         reconciler,
@@ -1366,11 +1252,10 @@ export function createStageReconcilerV1(
         terminalSealed: false,
         terminalStackDepth: 0,
       };
-      const preparedArmedResult = freezeStageAcknowledgedRunDataInternalV1({
+      const preparedArmedResult = {
         kind: "armed" as const,
         proof,
-      });
-      const proofRecordInstallArguments = [proof, proofRecord] as const;
+      };
 
       const activeMatchesExpected = (expected: readonly ActiveTransitionV1[]): boolean => {
         if (active.length !== expected.length) return false;
@@ -1383,11 +1268,7 @@ export function createStageReconcilerV1(
       const guardCurrent = (): "current" | "stale" | "faulted" => {
         let guarded: unknown;
         try {
-          guarded = applyStageAcknowledgedRunIntrinsicInternalV1(
-            commitGuard.invoke,
-            commitGuard.receiver,
-            [],
-          );
+          guarded = commitGuard.isCommitCurrentInternalV1();
         } catch {
           return "faulted";
         }
@@ -1428,13 +1309,9 @@ export function createStageReconcilerV1(
         }
       }
 
-      // The final guard has succeeded. The proof becomes authentic and
-      // reachable only through these callback-free local assignments.
-      applyStageAcknowledgedRunIntrinsicInternalV1(
-        setStageAcknowledgedRunProofRecordIntrinsicInternalV1,
-        stageAcknowledgedRunProofRecordsInternalV1,
-        proofRecordInstallArguments,
-      );
+      // The final guard has succeeded. The proof becomes current and reachable
+      // only through these callback-free local assignments.
+      stageAcknowledgedRunProofRecordsInternalV1.set(proof, proofRecord);
       if (matchedEdge.transition !== null) {
         matchedEdge.transition.acknowledgedRun = proofRecord;
       }
@@ -1482,13 +1359,7 @@ export function createStageReconcilerV1(
   };
 
   const authorityCandidate: StageAcknowledgedRunAuthorityInternalV1 = {
-    retargetInternalV1(
-      this: StageAcknowledgedRunAuthorityInternalV1,
-      input: StageRetargetInputV1,
-    ): void {
-      if (this !== authority) {
-        throw new TypeError("ui.stage_acknowledged_run_authority_invalid");
-      }
+    retargetInternalV1(input: StageRetargetInputV1): void {
       performAuthorityMutation(() => {
         if (
           disposed || currentTarget === null || currentRevision === null ||
@@ -1500,35 +1371,18 @@ export function createStageReconcilerV1(
       });
     },
     retargetPresentationGenerationInternalV1(
-      this: StageAcknowledgedRunAuthorityInternalV1,
       input: StageRetargetInputV1,
     ): StagePresentationGenerationRetargetResultInternalV1 {
-      if (this !== authority) {
-        throw new TypeError("ui.stage_acknowledged_run_authority_invalid");
-      }
       return retargetPresentationGeneration(input);
     },
     captureCurrentPresentationGenerationInternalV1(
-      this: StageAcknowledgedRunAuthorityInternalV1,
       previousProof: unknown,
     ): StagePresentationGenerationCaptureResultInternalV1 {
-      if (this !== authority) {
-        throw new TypeError("ui.stage_acknowledged_run_authority_invalid");
-      }
       return captureCurrentPresentationGeneration(previousProof);
     },
     retargetWithAcknowledgedRunInternalV1(
-      this: StageAcknowledgedRunAuthorityInternalV1,
-      input: Readonly<{
-        readonly retarget: StageRetargetInputV1;
-        readonly expectedTransitionId: string;
-        readonly commitGuard: StageAcknowledgedRunCommitGuardInternalV1;
-        readonly terminalPort: StageAcknowledgedRunTerminalPortInternalV1;
-      }>,
+      input: StageAcknowledgedRunRetargetInputInternalV1,
     ): StageAcknowledgedRunRetargetResultInternalV1 {
-      if (this !== authority) {
-        throw new TypeError("ui.stage_acknowledged_run_authority_invalid");
-      }
       if (acknowledgedRunOperation !== null) {
         acknowledgedRunOperation.reentryCount += 1;
         return stageAcknowledgedRunFaultedResultInternalV1;
@@ -1538,55 +1392,35 @@ export function createStageReconcilerV1(
       }
       return retargetWithAcknowledgedRun(input);
     },
-    isAcknowledgedRunTerminalStackActiveInternalV1(
-      this: StageAcknowledgedRunAuthorityInternalV1,
-      proof: unknown,
-    ): boolean {
-      if (this !== authority) {
-        throw new TypeError("ui.stage_acknowledged_run_authority_invalid");
-      }
+    isAcknowledgedRunTerminalStackActiveInternalV1(proof: unknown): boolean {
       if (
         (typeof proof !== "object" && typeof proof !== "function") ||
         proof === null
       ) {
         return false;
       }
-      const proofRecord = applyStageAcknowledgedRunIntrinsicInternalV1(
-        getStageAcknowledgedRunProofRecordIntrinsicInternalV1,
-        stageAcknowledgedRunProofRecordsInternalV1,
-        [proof],
-      ) as StageAcknowledgedRunProofRecordInternalV1 | undefined;
+      const proofRecord = stageAcknowledgedRunProofRecordsInternalV1.get(
+        proof as StageAcknowledgedRunProofInternalV1,
+      );
       return proofRecord !== undefined && proofRecord.authority === authority &&
         proofRecord.proof === proof && proofRecord.terminalStackDepth > 0;
     },
-    skipAllInternalV1(this: StageAcknowledgedRunAuthorityInternalV1): void {
-      if (this !== authority) {
-        throw new TypeError("ui.stage_acknowledged_run_authority_invalid");
-      }
+    skipAllInternalV1(): void {
       performAuthorityMutation(skipAllLegacy);
     },
-    suspendInternalV1(this: StageAcknowledgedRunAuthorityInternalV1): void {
-      if (this !== authority) {
-        throw new TypeError("ui.stage_acknowledged_run_authority_invalid");
-      }
+    suspendInternalV1(): void {
       performAuthorityMutation(suspendLegacy);
     },
-    resumeInternalV1(this: StageAcknowledgedRunAuthorityInternalV1): void {
-      if (this !== authority) {
-        throw new TypeError("ui.stage_acknowledged_run_authority_invalid");
-      }
+    resumeInternalV1(): void {
       performAuthorityMutation(resumeLegacy);
     },
-    disposeInternalV1(this: StageAcknowledgedRunAuthorityInternalV1): void {
-      if (this !== authority) {
-        throw new TypeError("ui.stage_acknowledged_run_authority_invalid");
-      }
+    disposeInternalV1(): void {
       performAuthorityMutation(disposeLegacy);
     },
   };
-  authority = Object.freeze(authorityCandidate);
+  Object.assign(authority, authorityCandidate);
 
-  reconciler = Object.freeze({
+  Object.assign(reconciler, {
     retarget(input: StageRetargetInputV1): void {
       if (exactClaimant !== null) return;
       retargetLegacy(input, false);
@@ -1596,32 +1430,19 @@ export function createStageReconcilerV1(
       if (currentTarget === null) {
         throw new TypeError("stage reconciler has no target; retarget before reading frames");
       }
-      const requiredAssetIds = new Set<AssetId>(currentTarget.requiredAssetIds);
-      for (const transition of active) {
-        if (transition.changeKind !== "exit" && transition.changeKind !== "replace") continue;
-        for (const assetId of transition.previousEntry?.assetIds ?? []) {
-          requiredAssetIds.add(assetId);
-        }
-      }
-      return Object.freeze({
+      const index = buildFrameTransitionIndex(currentTarget);
+      return {
         stageId: currentTarget.stageId,
-        layers: currentTarget.layers.map((layer) =>
-          Object.freeze({
-            layerId: layer.layerId,
-            transform: layer.transform,
-            entries: Object.freeze(frameEntriesForLayer(layer.layerId, layer.entries)),
-          })
-        ),
+        layers: currentTarget.layers.map((layer) => ({
+          layerId: layer.layerId,
+          transform: layer.transform,
+          entries: frameEntriesForLayer(index, layer.layerId, layer.entries),
+        })),
         camera: currentTarget.camera,
-        requiredAssetIds: Object.freeze([...requiredAssetIds].sort()),
+        requiredAssetIds: index.requiredAssetIds,
         settled: active.length === 0,
-        inputGate: Object.freeze({
-          blocked: active.some((transition) => transition.definition.inputPolicy === "block"),
-          skipOnInput: active.some(
-            (transition) => transition.definition.inputPolicy === "skip_to_end",
-          ),
-        }),
-      });
+        inputGate: index.inputGate,
+      };
     },
 
     subscribe(listener: () => void): () => void {
@@ -1672,30 +1493,26 @@ export function createStageReconcilerV1(
 
 /** A settled frame for rendering a target without any reconciler. */
 export function settledStageFrameV1(target: StageRenderTargetV1): StageRenderFrameV1 {
-  return Object.freeze({
+  return {
     stageId: target.stageId,
-    layers: target.layers.map((layer) =>
-      Object.freeze({
-        layerId: layer.layerId,
-        transform: layer.transform,
-        entries: Object.freeze(
-          layer.entries.map((entry) => ({
-            frameKey: entry.key,
-            entry,
-            phase: "settled" as const,
-            transitionKind: null,
-            transitionId: null,
-            progress: 1,
-            slide: null,
-            fromPlacement: null,
-            motion: null,
-          })),
-        ),
-      })
-    ),
+    layers: target.layers.map((layer) => ({
+      layerId: layer.layerId,
+      transform: layer.transform,
+      entries: layer.entries.map((entry) => ({
+        frameKey: entry.key,
+        entry,
+        phase: "settled" as const,
+        transitionKind: null,
+        transitionId: null,
+        progress: 1,
+        slide: null,
+        fromPlacement: null,
+        motion: null,
+      })),
+    })),
     camera: target.camera,
     requiredAssetIds: target.requiredAssetIds,
     settled: true,
-    inputGate: Object.freeze({ blocked: false, skipOnInput: false }),
-  });
+    inputGate: { blocked: false, skipOnInput: false },
+  };
 }

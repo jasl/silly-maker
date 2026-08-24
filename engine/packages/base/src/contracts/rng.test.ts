@@ -15,7 +15,7 @@ function captureFailureV1(operation: () => unknown): unknown {
 }
 
 describe("xorshift32-v1", () => {
-  it("matches the frozen vector and resumes exactly", () => {
+  it("matches the deterministic vector and resumes exactly", () => {
     const rng = createTransactionalRngV1(parseNonZeroUint32(0x0002_3049));
     expect(
       captureFailureV1(() =>
@@ -50,8 +50,6 @@ describe("xorshift32-v1", () => {
     });
     expect(rng.attemptedDraws()).toHaveLength(14);
     expect(Object.keys(rng).sort()).toEqual(["attemptedDraws", "candidateState", "nextInt"]);
-    expect(Object.isFrozen(rng)).toBe(true);
-
     const committedState = rng.candidateState();
     const resumed = createTransactionalRngV1(committedState);
     expect(resumed.candidateState()).toEqual(committedState);

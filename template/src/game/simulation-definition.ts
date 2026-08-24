@@ -17,45 +17,45 @@ import { createTemplateGameSimulationV1 } from "./simulation.ts";
  * together with a `defineSaveStateMigrationRegistryV1` step so existing
  * saves keep loading; additive optional/defaulted fields need no bump.
  */
-export const templateStateContractManifestV1 = Object.freeze({
+export const templateStateContractManifestV1 = ({
   contractRevision: 1 as const,
-  aggregateStateSchema: Object.freeze({
+  aggregateStateSchema: {
     schemaId: "schema.template.game-state",
     revision: parsePositiveSafeInteger(1),
-  }),
-  moduleStateSchemas: Object.freeze([
-    Object.freeze({
+  },
+  moduleStateSchemas: [
+    {
       moduleId: parseModuleId("template.inventory"),
       moduleContractRevision: parsePositiveSafeInteger(1),
-      stateSlots: Object.freeze([parseStateSlotId("simulation.inventory")]),
-      stateSchema: Object.freeze({
+      stateSlots: [parseStateSlotId("simulation.inventory")],
+      stateSchema: {
         schemaId: "schema.template.inventory-state",
         revision: parsePositiveSafeInteger(1),
-      }),
-    }),
-    Object.freeze({
+      },
+    },
+    {
       moduleId: parseModuleId("template.narrative"),
       moduleContractRevision: parsePositiveSafeInteger(1),
-      stateSlots: Object.freeze([parseStateSlotId("simulation.narrative")]),
-      stateSchema: Object.freeze({
+      stateSlots: [parseStateSlotId("simulation.narrative")],
+      stateSchema: {
         schemaId: "schema.template.narrative-state",
         revision: parsePositiveSafeInteger(1),
-      }),
-    }),
-    Object.freeze({
+      },
+    },
+    {
       moduleId: parseModuleId("template.stage"),
       // Revision 3: the Stage rules admit the package-private R2 ordering
       // reconcile command; the persisted Stage shape remains revision 2.
       moduleContractRevision: parsePositiveSafeInteger(3),
-      stateSlots: Object.freeze([parseStateSlotId("simulation.stage")]),
-      stateSchema: Object.freeze({
+      stateSlots: [parseStateSlotId("simulation.stage")],
+      stateSchema: {
         schemaId: "schema.template.stage-state",
         revision: parsePositiveSafeInteger(2),
-      }),
-    }),
-  ]),
-  persistentIrSchemas: Object.freeze([]),
-  stableReferenceSets: Object.freeze([]),
+      },
+    },
+  ],
+  persistentIrSchemas: [],
+  stableReferenceSets: [],
 }) satisfies StateContractManifestV1;
 
 export const templateSimulationPatchSurfaceV1 = defineSimulationPatchSurface({});
@@ -65,7 +65,7 @@ export interface TemplateSimulationProgramV1 {
 }
 
 function materializeTemplateSimulationProgramV1(): TemplateSimulationProgramV1 {
-  return Object.freeze({ kind: "template" });
+  return ({ kind: "template" });
 }
 
 function createTemplateSimulationFromProgramV1(
@@ -75,13 +75,13 @@ function createTemplateSimulationFromProgramV1(
 }
 
 /** Package-internal owner for every callback in the Story simulation facet. */
-export const templateSimulationDefinitionV1 = Object.freeze({
+export const templateSimulationDefinitionV1 = {
   stateContractRevision: parsePositiveSafeInteger(1),
   stateContractManifest: templateStateContractManifestV1,
-  data: Object.freeze({}),
-  rules: Object.freeze({}),
+  data: {},
+  rules: {},
   narrativeProgram: null,
   patchSurface: templateSimulationPatchSurfaceV1,
   materializeProgram: materializeTemplateSimulationProgramV1,
   createGameSimulation: createTemplateSimulationFromProgramV1,
-});
+};

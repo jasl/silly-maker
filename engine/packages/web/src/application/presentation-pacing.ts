@@ -147,7 +147,7 @@ export function installPresentationPacingInternalV1(
   }
   refresh();
 
-  return Object.freeze({
+  return ({
     dispose(): void {
       if (disposed) return;
       disposed = true;

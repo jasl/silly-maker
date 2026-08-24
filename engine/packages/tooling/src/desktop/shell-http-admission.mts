@@ -48,64 +48,53 @@ export function allocateShellCapabilityInternalV1(
  */
 export function classifyShellHttpRequestInternalV1(
   request: Request,
-  expectedOrigin: string,
+  expectedOrigin: URL | null,
   capability: string,
 ): ShellHttpAdmissionInternalV1 {
   let url: URL;
-  let expected: URL;
   try {
     url = new URL(request.url);
-    expected = new URL(expectedOrigin);
   } catch {
-    return Object.freeze({ kind: "rejected", status: 421 });
+    return { kind: "rejected", status: 421 };
   }
   if (
-    expected.protocol !== "http:" ||
-    expected.hostname !== "127.0.0.1" ||
-    expected.username !== "" ||
-    expected.password !== "" ||
-    expected.pathname !== "/" ||
-    expected.search !== "" ||
-    expected.hash !== "" ||
-    url.origin !== expected.origin ||
+    expectedOrigin === null ||
+    url.origin !== expectedOrigin.origin ||
     url.username !== "" ||
     url.password !== ""
   ) {
-    return Object.freeze({ kind: "rejected", status: 421 });
+    return { kind: "rejected", status: 421 };
   }
 
   const route = url.pathname === shellFilesPathPrefixInternalV1 ||
       url.pathname.startsWith(`${shellFilesPathPrefixInternalV1}/`)
-    ? Object.freeze({
+    ? {
       kind: "files" as const,
       subPath: url.pathname.slice(shellFilesPathPrefixInternalV1.length),
-    })
+    }
     : url.pathname === shellRecordsPathPrefixInternalV1 ||
         url.pathname.startsWith(`${shellRecordsPathPrefixInternalV1}/`)
-    ? Object.freeze({
+    ? {
       kind: "records" as const,
       subPath: url.pathname.slice(shellRecordsPathPrefixInternalV1.length),
-    })
-    : Object.freeze({ kind: "static" as const, pathname: url.pathname });
+    }
+    : { kind: "static" as const, pathname: url.pathname };
   if (route.kind === "static") return route;
 
-  if (!isShellCapabilityInternalV1(capability)) {
-    return Object.freeze({ kind: "rejected", status: 403 });
-  }
   if (request.headers.get("sec-fetch-site") === "cross-site") {
-    return Object.freeze({ kind: "rejected", status: 403 });
+    return { kind: "rejected", status: 403 };
   }
   const origin = request.headers.get("origin");
-  if (origin !== null && origin !== expected.origin) {
-    return Object.freeze({ kind: "rejected", status: 403 });
+  if (origin !== null && origin !== expectedOrigin.origin) {
+    return { kind: "rejected", status: 403 };
   }
   return request.headers.get(shellCapabilityHeaderInternalV1) === capability
     ? route
-    : Object.freeze({ kind: "rejected", status: 403 });
+    : { kind: "rejected", status: 403 };
 }
 
 export function createShellHttpHandlerInternalV1(input: {
-  readonly expectedOrigin: () => string;
+  readonly expectedOrigin: () => URL | null;
   readonly capability: string;
   readonly handleStatic: (request: Request, pathname: string) => Response | Promise<Response>;
   readonly handleFiles: (request: Request, subPath: string) => Response | Promise<Response>;

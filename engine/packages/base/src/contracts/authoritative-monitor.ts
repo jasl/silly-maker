@@ -76,8 +76,6 @@ export interface MonitorSettlementV1<TEvent> {
   readonly events: readonly TEvent[];
 }
 
-const freezeMonitorDataInternalV1 = Object.freeze;
-
 /**
  * Ids that collide with `Object.prototype` plumbing: browsers keep the
  * Annex-B `__proto__` accessor, so admitting these as record keys would make
@@ -86,8 +84,7 @@ const freezeMonitorDataInternalV1 = Object.freeze;
 const forbiddenMonitorIdsInternalV1 = new Set(["__proto__", "prototype", "constructor"]);
 
 function isPlainRecordInternalV1(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value) &&
-    Object.getPrototypeOf(value) === Object.prototype;
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 /**
@@ -151,7 +148,7 @@ export function parseMonitorDeclarationsV1<TState, TEvent>(
     ) {
       return dataFailure(`${entryPath}/event`, "monitor_event_invalid");
     }
-    return freezeMonitorDataInternalV1({
+    return {
       id: record.id,
       everyMs: record.everyMs,
       retention,
@@ -160,9 +157,9 @@ export function parseMonitorDeclarationsV1<TState, TEvent>(
       // Story eventSchema re-validates it at emit like every other event.
       event: record.event as TEvent,
       activeWhen: record.activeWhen as MonitorDeclarationV1<TState, TEvent>["activeWhen"],
-    });
+    };
   });
-  return freezeMonitorDataInternalV1(declarations);
+  return declarations;
 }
 
 /**
@@ -192,20 +189,12 @@ export function parseMonitorAccumulatorV1(
   if (!isPlainRecordInternalV1(value)) {
     return dataFailure(path, "object_expected");
   }
-  const ownKeys = Reflect.ownKeys(value);
-  if (ownKeys.some((key) => typeof key === "symbol")) {
-    return dataFailure(path, "symbol_key");
-  }
   const accumulator: Record<string, number> = {};
-  for (const id of ownKeys as string[]) {
+  for (const id of Object.keys(value)) {
     if (id.length === 0 || forbiddenMonitorIdsInternalV1.has(id)) {
       return dataFailure(`${path}/${pointerSegment(id)}`, "monitor_id_invalid");
     }
-    const descriptor = Object.getOwnPropertyDescriptor(value, id);
-    if (descriptor === undefined || descriptor.get !== undefined || descriptor.set !== undefined) {
-      return dataFailure(`${path}/${pointerSegment(id)}`, "data_property_expected");
-    }
-    const accumulated: unknown = descriptor.value;
+    const accumulated: unknown = value[id];
     if (
       typeof accumulated !== "number" ||
       !Number.isSafeInteger(accumulated) ||
@@ -215,7 +204,7 @@ export function parseMonitorAccumulatorV1(
     }
     accumulator[id] = accumulated;
   }
-  return freezeMonitorDataInternalV1(accumulator);
+  return accumulator;
 }
 
 /**
@@ -226,7 +215,7 @@ export function parseMonitorAccumulatorV1(
  * - active (`activeWhen(state)` reports true): accumulation grows by the
  *   full reported `elapsedMs` and each threshold crossing counted by
  *   {@link countThresholdCrossingsV1} over `(before, before + elapsedMs]`
- *   appends the declared event payload (the same admission-frozen reference
+ *   appends the declared event payload (the same admitted reference
  *   each crossing), so the outcome depends only on the millisecond sum,
  *   never on how the Host batched the ticks;
  * - inactive with `clear` retention: the accumulation is dropped;
@@ -272,8 +261,5 @@ export function settleMonitorsV1<TState, TEvent>(input: {
       events.push(declaration.event);
     }
   }
-  return freezeMonitorDataInternalV1({
-    accumulator: freezeMonitorDataInternalV1(next),
-    events: freezeMonitorDataInternalV1(events),
-  });
+  return { accumulator: next, events };
 }

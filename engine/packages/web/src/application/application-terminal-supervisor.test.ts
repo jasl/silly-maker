@@ -13,7 +13,7 @@ function deferredV1<T>() {
     resolve = resolvePromise;
     reject = rejectPromise;
   });
-  return Object.freeze({ promise, resolve, reject });
+  return ({ promise, resolve, reject });
 }
 
 describe("Web application terminal supervisor", () => {
@@ -31,7 +31,7 @@ describe("Web application terminal supervisor", () => {
     await expect(ordinary.disposeOrdinarily()).resolves.toBeUndefined();
     expect(ordinaryRelease).toHaveBeenCalledOnce();
 
-    const handoff = Object.freeze({ kind: "handoff" as const });
+    const handoff = { kind: "handoff" as const };
     const rebootstrapRelease = vi.fn(async (mode: "ordinary" | "rebootstrap") => {
       expect(mode).toBe("rebootstrap");
       return handoff;
@@ -54,24 +54,24 @@ describe("Web application terminal supervisor", () => {
     let unmountReentry: Promise<"released"> | undefined;
     supervisor = createWebApplicationTerminalSupervisorInternalV1({
       fenceSteps: [
-        Object.freeze({
+        {
           name: "core",
           run() {
             events.push("fence:core");
             fenceReentry = supervisor.disposeForRebootstrap();
           },
-        }),
-        Object.freeze({ name: "presentation", run: () => events.push("fence:presentation") }),
+        },
+        { name: "presentation", run: () => events.push("fence:presentation") },
       ],
       cleanupSteps: [
-        Object.freeze({
+        {
           name: "root",
           run() {
             events.push("cleanup:root");
             unmountReentry = supervisor.disposeForRebootstrap();
           },
-        }),
-        Object.freeze({ name: "composition", run: () => events.push("cleanup:composition") }),
+        },
+        { name: "composition", run: () => events.push("cleanup:composition") },
       ],
       releaseCorePersistence: () => {
         events.push("release");
@@ -103,17 +103,17 @@ describe("Web application terminal supervisor", () => {
     let terminal!: Promise<never>;
     supervisor = createWebApplicationTerminalSupervisorInternalV1({
       fenceSteps: [
-        Object.freeze({
+        {
           name: "first",
           run() {
             events.push("fence:first");
             terminal = supervisor.terminate(primary);
             void terminal.catch(() => undefined);
           },
-        }),
-        Object.freeze({ name: "second", run: () => events.push("fence:second") }),
+        },
+        { name: "second", run: () => events.push("fence:second") },
       ],
-      cleanupSteps: [Object.freeze({ name: "root", run: () => events.push("cleanup") })],
+      cleanupSteps: [{ name: "root", run: () => events.push("cleanup") }],
       releaseCorePersistence: async () => {
         events.push("release");
         return "released" as const;
@@ -137,28 +137,28 @@ describe("Web application terminal supervisor", () => {
     const heldPresentationIntent = () => presentationOpen && (durableMutations += 1);
     const supervisor = createWebApplicationTerminalSupervisorInternalV1({
       fenceSteps: [
-        Object.freeze({
+        {
           name: "automation",
           run() {
             automationOpen = false;
             events.push("automation");
           },
-        }),
-        Object.freeze({
+        },
+        {
           name: "pointer",
           run() {
             pointerOpen = false;
             events.push("pointer");
           },
-        }),
-        Object.freeze({
+        },
+        {
           name: "presentation",
           run() {
             presentationOpen = false;
             events.push("presentation");
           },
-        }),
-        Object.freeze({
+        },
+        {
           name: "core",
           run() {
             events.push("core");
@@ -166,7 +166,7 @@ describe("Web application terminal supervisor", () => {
             heldPointer();
             heldPresentationIntent();
           },
-        }),
+        },
       ],
       cleanupSteps: [],
       releaseCorePersistence: async () => "released" as const,
@@ -185,24 +185,24 @@ describe("Web application terminal supervisor", () => {
     });
     const supervisor = createWebApplicationTerminalSupervisorInternalV1({
       fenceSteps: [
-        Object.freeze({
+        {
           name: "broken-fence",
           run() {
             events.push("fence:broken");
             throw new Error("fence failed");
           },
-        }),
-        Object.freeze({ name: "later-fence", run: () => events.push("fence:later") }),
+        },
+        { name: "later-fence", run: () => events.push("fence:later") },
       ],
       cleanupSteps: [
-        Object.freeze({
+        {
           name: "broken-cleanup",
           run() {
             events.push("cleanup:broken");
             throw new Error("cleanup failed");
           },
-        }),
-        Object.freeze({ name: "later-cleanup", run: () => events.push("cleanup:later") }),
+        },
+        { name: "later-cleanup", run: () => events.push("cleanup:later") },
       ],
       releaseCorePersistence: async () => {
         events.push("release");
@@ -228,8 +228,8 @@ describe("Web application terminal supervisor", () => {
     const release = deferredV1<"released">();
     const events: string[] = [];
     const supervisor = createWebApplicationTerminalSupervisorInternalV1({
-      fenceSteps: [Object.freeze({ name: "core", run: () => events.push("fence") })],
-      cleanupSteps: [Object.freeze({ name: "root", run: () => events.push("unmount") })],
+      fenceSteps: [{ name: "core", run: () => events.push("fence") }],
+      cleanupSteps: [{ name: "root", run: () => events.push("unmount") }],
       releaseCorePersistence: () => {
         events.push("release");
         return release.promise;
@@ -264,15 +264,15 @@ describe("Web application terminal supervisor", () => {
     let titleVisible = false;
     const events: string[] = [];
     const supervisor = createWebApplicationTerminalSupervisorInternalV1({
-      fenceSteps: [Object.freeze({ name: "ingress", run: () => events.push("fence") })],
+      fenceSteps: [{ name: "ingress", run: () => events.push("fence") }],
       cleanupSteps: [
-        Object.freeze({
+        {
           name: "root",
           run() {
             rootMounted = false;
             events.push("unmount");
           },
-        }),
+        },
       ],
       releaseCorePersistence: async () => {
         events.push("release");
@@ -300,8 +300,8 @@ describe("Web application terminal supervisor", () => {
       const flush = deferredV1<void>();
       const events: string[] = [];
       const supervisor = createWebApplicationTerminalSupervisorInternalV1({
-        fenceSteps: [Object.freeze({ name: "core", run: () => events.push("fence") })],
-        cleanupSteps: [Object.freeze({ name: "root", run: () => events.push("unmount") })],
+        fenceSteps: [{ name: "core", run: () => events.push("fence") }],
+        cleanupSteps: [{ name: "root", run: () => events.push("unmount") }],
         releaseCorePersistence: async () => {
           events.push("release");
           return "released" as const;
@@ -327,8 +327,8 @@ describe("Web application terminal supervisor", () => {
     const flush = deferredV1<void>();
     const events: string[] = [];
     const supervisor = createWebApplicationTerminalSupervisorInternalV1({
-      fenceSteps: [Object.freeze({ name: "core", run: () => events.push("fence") })],
-      cleanupSteps: [Object.freeze({ name: "root", run: () => events.push("unmount") })],
+      fenceSteps: [{ name: "core", run: () => events.push("fence") }],
+      cleanupSteps: [{ name: "root", run: () => events.push("unmount") }],
       releaseCorePersistence: async () => {
         events.push("release");
         return "released" as const;

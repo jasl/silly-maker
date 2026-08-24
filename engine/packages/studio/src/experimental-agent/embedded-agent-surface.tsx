@@ -71,20 +71,15 @@ export function EmbeddedAgentSurfaceInternalV1(
     }
     const envelopes: Record<string, SceneAuthoringExecutionEnvelopeV1> = {};
     for (const [actionId, operation] of Object.entries(props.binding.sceneActions)) {
-      Object.defineProperty(envelopes, actionId, {
-        value: Object.freeze({
-          documentIdentity: currentDocument.documentIdentity,
-          expectedDraftRevision: currentDocument.draftRevision,
-          operation,
-        }),
-        enumerable: true,
-        configurable: false,
-        writable: false,
-      });
+      envelopes[actionId] = {
+        documentIdentity: currentDocument.documentIdentity,
+        expectedDraftRevision: currentDocument.draftRevision,
+        operation,
+      };
     }
     actionBindings.current.set(
       currentArtifact.revision,
-      Object.freeze({ envelopes: Object.freeze(envelopes) }),
+      { envelopes },
     );
     while (actionBindings.current.size > 16) {
       const oldest = actionBindings.current.keys().next().value as number | undefined;

@@ -7,13 +7,13 @@ import { createWebApplicationTerminalSupervisorInternalV1 } from "./application-
 import { createCompositionBoundRestartLifecycleInternalV1 } from "./composition-bound-restart-lifecycle.ts";
 import { createPresentationSuccessorAcknowledgmentBrokerInternalV1 } from "./presentation-successor-acknowledgment.ts";
 
-const restartAnchorV1 = Object.freeze({
+const restartAnchorV1 = {
   epoch: parseNonNegativeSafeInteger(1),
   origin: "restart" as const,
-});
+};
 
 function anchoredResultV1(commandSequence = 0): SessionAnchorResultV1 {
-  return Object.freeze({
+  return ({
     kind: "anchored",
     commandSequence: parseNonNegativeSafeInteger(commandSequence),
   });
@@ -24,7 +24,7 @@ function deferredV1<T>() {
   const promise = new Promise<T>((resolvePromise) => {
     resolve = resolvePromise;
   });
-  return Object.freeze({ promise, resolve });
+  return ({ promise, resolve });
 }
 
 function immediateTerminalV1() {
@@ -36,7 +36,7 @@ function immediateTerminalV1() {
     signalTerminal(error);
     return Promise.reject(terminalError);
   });
-  return Object.freeze({
+  return ({
     getTerminalError: () => terminalError,
     signalTerminal,
     terminate,
@@ -54,7 +54,7 @@ describe("composition-bound restart lifecycle", () => {
     const primary = new Error("ui.presentation_successor_activation_failed");
     terminal.signalTerminal(primary);
     const prepareRestart = vi.fn(() => ({
-      publicationContext: Object.freeze({}),
+      publicationContext: {},
       run: vi.fn(() => Promise.resolve(anchoredResultV1())),
     }));
     const broker = createPresentationSuccessorAcknowledgmentBrokerInternalV1({
@@ -79,7 +79,7 @@ describe("composition-bound restart lifecycle", () => {
         void terminal.terminate(error).catch(() => undefined);
       },
     });
-    const token = Object.freeze({});
+    const token = {};
     const result = anchoredResultV1();
     const lifecycle = createCompositionBoundRestartLifecycleInternalV1({
       prepareRestart: () => ({
@@ -111,7 +111,7 @@ describe("composition-bound restart lifecycle", () => {
       const broker = createPresentationSuccessorAcknowledgmentBrokerInternalV1({
         signalTerminal: vi.fn(),
       });
-      const token = Object.freeze({});
+      const token = {};
       const lifecycle = createCompositionBoundRestartLifecycleInternalV1({
         prepareRestart: () => ({ publicationContext: token, run: () => Promise.resolve(raw) }),
         acknowledgments: broker,
@@ -132,8 +132,8 @@ describe("composition-bound restart lifecycle", () => {
       const broker = createPresentationSuccessorAcknowledgmentBrokerInternalV1({
         signalTerminal: vi.fn(),
       });
-      const token = Object.freeze({});
-      const foreignToken = Object.freeze({});
+      const token = {};
+      const foreignToken = {};
       const lifecycle = createCompositionBoundRestartLifecycleInternalV1({
         prepareRestart: () => ({
           publicationContext: token,
@@ -165,11 +165,11 @@ describe("composition-bound restart lifecycle", () => {
         terminal.signalTerminal(error);
       },
     });
-    const token = Object.freeze({});
-    const mismatchedAnchor = Object.freeze({
+    const token = {};
+    const mismatchedAnchor = {
       epoch: parseNonNegativeSafeInteger(2),
       origin: "restart" as const,
-    });
+    };
     const lifecycle = createCompositionBoundRestartLifecycleInternalV1({
       prepareRestart: () => ({
         publicationContext: token,
@@ -224,7 +224,7 @@ describe("composition-bound restart lifecycle", () => {
       const broker = createPresentationSuccessorAcknowledgmentBrokerInternalV1({
         signalTerminal: vi.fn(),
       });
-      const token = Object.freeze({});
+      const token = {};
       const lifecycle = createCompositionBoundRestartLifecycleInternalV1({
         prepareRestart: () => ({
           publicationContext: token,
@@ -252,13 +252,13 @@ describe("composition-bound restart lifecycle", () => {
     let broker!: ReturnType<typeof createPresentationSuccessorAcknowledgmentBrokerInternalV1>;
     const terminal = createWebApplicationTerminalSupervisorInternalV1({
       fenceSteps: [],
-      cleanupSteps: [Object.freeze({ name: "broker", run: () => broker.dispose() })],
+      cleanupSteps: [{ name: "broker", run: () => broker.dispose() }],
       releaseCorePersistence: () => release.promise,
     });
     broker = createPresentationSuccessorAcknowledgmentBrokerInternalV1({
       signalTerminal: terminal.signalTerminal,
     });
-    const token = Object.freeze({});
+    const token = {};
     const lifecycle = createCompositionBoundRestartLifecycleInternalV1({
       prepareRestart: () => ({
         publicationContext: token,
@@ -295,7 +295,7 @@ describe("composition-bound restart lifecycle", () => {
     });
     const lifecycle = createCompositionBoundRestartLifecycleInternalV1({
       prepareRestart: () => ({
-        publicationContext: Object.freeze({}),
+        publicationContext: {},
         run: () => {
           throw failure;
         },
@@ -318,7 +318,7 @@ describe("composition-bound restart lifecycle", () => {
     const broker = createPresentationSuccessorAcknowledgmentBrokerInternalV1({
       signalTerminal: vi.fn(),
     });
-    const token = Object.freeze({});
+    const token = {};
     const lifecycle = createCompositionBoundRestartLifecycleInternalV1({
       prepareRestart: () => ({
         publicationContext: token,
@@ -347,7 +347,7 @@ describe("composition-bound restart lifecycle", () => {
       const broker = createPresentationSuccessorAcknowledgmentBrokerInternalV1({
         signalTerminal: vi.fn(),
       });
-      const token = Object.freeze({});
+      const token = {};
       const lifecycle = createCompositionBoundRestartLifecycleInternalV1({
         prepareRestart: () => ({
           publicationContext: token,
@@ -374,8 +374,8 @@ describe("composition-bound restart lifecycle", () => {
   it("correlates concurrent restart completions without FIFO inference", async () => {
     const firstRaw = deferredV1<SessionAnchorResultV1>();
     const secondRaw = deferredV1<SessionAnchorResultV1>();
-    const firstToken = Object.freeze({});
-    const secondToken = Object.freeze({});
+    const firstToken = {};
+    const secondToken = {};
     const prepared = [
       { publicationContext: firstToken, run: () => firstRaw.promise },
       { publicationContext: secondToken, run: () => secondRaw.promise },

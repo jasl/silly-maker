@@ -254,11 +254,11 @@ export function defineExtensionFactoryInternalV1<TConsumer>(
       `extension factory ${factory.id} setup must be a function`,
     );
   }
-  return Object.freeze({
+  return {
     id: factory.id,
     generation: factory.generation,
     setup: factory.setup,
-  });
+  };
 }
 
 export function defineExtensionCandidateSourceInternalV1<TConsumer>(
@@ -281,9 +281,9 @@ export function defineExtensionCandidateSourceInternalV1<TConsumer>(
       `extension candidate ${source.id} loader must be a function`,
     );
   }
-  return Object.freeze({
+  return {
     id: source.id,
     generation: source.generation,
     load: source.load,
-  });
+  };
 }

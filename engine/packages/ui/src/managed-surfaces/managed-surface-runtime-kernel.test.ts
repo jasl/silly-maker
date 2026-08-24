@@ -276,18 +276,6 @@ function expectParticipantFailureV1(
 }
 
 describe("managed surface runtime state-install participant", () => {
-  it("fails fast when the one package-internal participant has no callable prepare", () => {
-    const fixture = createKernelFixtureV1();
-
-    expect(() =>
-      fixture.kernel.setStateInstallParticipantInternalV1(
-        {} as ManagedSurfaceRuntimeStateInstallParticipantInternalV1<RuntimeStateV1>,
-      )
-    ).toThrowError("ui.managed_surface_runtime_state_install_participant_invalid");
-    expect(fixture.kernel.getStateInternalV1()).toBe(fixture.initialState);
-    expect(fixture.trace).toEqual([]);
-  });
-
   it("accepts ordinary unfrozen participant and prepared objects with extra fields", () => {
     const fixture = createKernelFixtureV1();
     const trace: string[] = [];
@@ -572,7 +560,6 @@ describe("managed surface runtime state-install participant", () => {
   it.each([
     ["false", "stale" as const],
     ["throw", "fault" as const],
-    ["nonboolean", "fault" as const],
   ])("maps validate %s across all three assignment paths", (variant, expectedKind) => {
     for (const path of ["transient", "state", "prepared"] as const) {
       const fixture = createKernelFixtureV1();
@@ -580,7 +567,7 @@ describe("managed surface runtime state-install participant", () => {
         prepared: {
           validate() {
             if (variant === "throw") throw new Error("validate failed");
-            return variant === "false" ? false : "not-a-boolean";
+            return false;
           },
         },
       });
@@ -600,35 +587,29 @@ describe("managed surface runtime state-install participant", () => {
     }
   });
 
-  it.each(["throw", "malformed"])(
-    "contains prepare %s as a participant fault on all three paths",
-    (variant) => {
-      for (const path of ["transient", "state", "prepared"] as const) {
-        const fixture = createKernelFixtureV1();
-        const bundle = createParticipantV1(fixture, {
-          prepare() {
-            if (variant === "throw") throw new Error("prepare failed");
-            return Object.freeze(
-              {},
-            ) as ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1;
-          },
-        });
-        setParticipantV1(fixture, bundle);
+  it("contains a throwing prepare as a participant fault on all three paths", () => {
+    for (const path of ["transient", "state", "prepared"] as const) {
+      const fixture = createKernelFixtureV1();
+      const bundle = createParticipantV1(fixture, {
+        prepare() {
+          throw new Error("prepare failed");
+        },
+      });
+      setParticipantV1(fixture, bundle);
 
-        expectParticipantFailureV1(path, fixture, "fault");
+      expectParticipantFailureV1(path, fixture, "fault");
 
-        expect(fixture.kernel.getStateInternalV1()).toBe(fixture.initialState);
-        expect(bundle.counts).toEqual({
-          prepare: 1,
-          validate: 0,
-          commit: 0,
-          abort: 0,
-          complete: 0,
-        });
-        expect(fixture.trace).not.toContain("adapter:finalize");
-      }
-    },
-  );
+      expect(fixture.kernel.getStateInternalV1()).toBe(fixture.initialState);
+      expect(bundle.counts).toEqual({
+        prepare: 1,
+        validate: 0,
+        commit: 0,
+        abort: 0,
+        complete: 0,
+      });
+      expect(fixture.trace).not.toContain("adapter:finalize");
+    }
+  });
 
   it.each<AssignmentPathV1>(["transient", "state", "prepared"])(
     "maps commitLogical throw on the %s path to participant fault with one abort",
@@ -869,7 +850,7 @@ describe("managed surface runtime state-install participant", () => {
     expect(listenerTrace).toEqual([]);
   });
 
-  it.each(["null", "throw", "malformed"])(
+  it.each(["null", "throw"])(
     "gives currentness stale precedence when prepare reentry is followed by %s",
     (variant) => {
       for (const path of ["transient", "state", "prepared"] as const) {
@@ -890,10 +871,7 @@ describe("managed surface runtime state-install participant", () => {
               reentering = false;
             }
             if (variant === "null") return null;
-            if (variant === "throw") throw new Error("late prepare failure");
-            return Object.freeze(
-              {},
-            ) as ManagedSurfaceRuntimePreparedStateInstallParticipantInternalV1;
+            throw new Error("late prepare failure");
           },
         });
         setParticipantV1(fixture, bundle);
@@ -933,8 +911,6 @@ describe("managed surface runtime state-install participant", () => {
       },
     });
     setParticipantV1(fixture, bundle);
-    const kernelKeys = Reflect.ownKeys(fixture.kernel);
-
     for (let index = 0; index < 10_000; index += 1) {
       fixture.kernel.transitionStateInternalV1((currentState) =>
         Object.freeze({
@@ -956,6 +932,5 @@ describe("managed surface runtime state-install participant", () => {
       abort: 0,
       complete: 10_000,
     });
-    expect(Reflect.ownKeys(fixture.kernel)).toEqual(kernelKeys);
   });
 });

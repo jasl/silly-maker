@@ -18,48 +18,48 @@ import {
   runAuthoritativeDeterminismTranscriptV1,
 } from "./authoritative-determinism-workload.ts";
 
-const initialRngV1 = Object.freeze({
+const initialRngV1 = {
   algorithm: "xorshift32-v1" as const,
   cursor: 97,
   rawDrawCount: 0,
-});
-const drawnRngV1 = Object.freeze({
+};
+const drawnRngV1 = {
   algorithm: "xorshift32-v1" as const,
   cursor: 25_701_511,
   rawDrawCount: 1,
-});
-const fixedBootstrapInputV1 = Object.freeze({ rngSeed: 97 });
-const drawTraceV1 = Object.freeze({
+};
+const fixedBootstrapInputV1 = { rngSeed: 97 };
+const drawTraceV1 = {
   ordinal: 1,
   purpose: authoritativeDeterminismDrawPurposeV1,
   exclusiveMax: 7,
   result: 3,
   before: initialRngV1,
   after: drawnRngV1,
-});
+};
 
 // Derived by running this exact neutral Session transcript against the
 // S0-complete production source at 96a0a93, re-pinned for the M1 domain-event
 // journal (committed outcomes carry `events` instead of `facts`). The expected
 // bytes never call the canonical helper under test.
-const s0CompleteRngCommitGoldenV1 = Object.freeze({
-  dispatchResult: Object.freeze({
+const s0CompleteRngCommitGoldenV1 = {
+  dispatchResult: {
     byteLength: 352,
     bytesDigest: "sha256:e24dca152c0730f35abea94615e702d5d2491407ab55d22b8086804ee8d937b2",
-  }),
-  snapshot: Object.freeze({
+  },
+  snapshot: {
     byteLength: 202,
     bytesDigest: "sha256:4dea43d8d13fc2c044a8c0e05dd2ba98ffb0f75506ca0e3d3b85cf02095e313a",
-  }),
-  commandLog: Object.freeze({
+  },
+  commandLog: {
     byteLength: 901,
     bytesDigest: "sha256:bb2bc7e30a439e49c2fde16b6fdeeb16bfda4390900f5436b08a22b9853a7dbd",
-  }),
-});
+  },
+};
 
 function byteEvidenceV1(value: unknown) {
   const bytes = canonicalJsonBytes(value);
-  return Object.freeze({
+  return ({
     byteLength: bytes.byteLength,
     bytesDigest: digestBytes(bytes),
   });
@@ -88,12 +88,12 @@ function countsV1(input: {
 }): AuthoritativeDeterminismWorkCountsV1 {
   const commandAdmission = input.commandAdmission ?? true;
   const evidenceAdmissions = input.evidenceAdmissions ?? 1;
-  return Object.freeze({
+  return ({
     canonicalTraversals: (input.committed ? 1 : 0) + (commandAdmission ? 1 : 0) +
       evidenceAdmissions,
     canonicalDigests: input.committed ? 1 : 0,
     commandLogContinuityVerifications: input.log ? 1 : 0,
-    purposes: Object.freeze({
+    purposes: {
       snapshotDigestTraversals: input.committed ? 1 : 0,
       bootstrapAdmissionCanonicalTraversals: 0,
       commandAdmissionCanonicalTraversals: commandAdmission ? 1 : 0,
@@ -102,7 +102,7 @@ function countsV1(input: {
       replayComparisonTraversals: 0,
       totalPhysicalCanonicalTraversals: (input.committed ? 1 : 0) +
         (commandAdmission ? 1 : 0) + evidenceAdmissions,
-    }),
+    },
   });
 }
 
@@ -115,19 +115,19 @@ const commandExpectationsV1 = [
     sequenceAfter: 1,
     stateValue: 1,
     liveRng: initialRngV1,
-    attemptedDraws: Object.freeze([]),
+    attemptedDraws: [],
     candidateRngAfter: initialRngV1,
     committedRngAfter: initialRngV1,
-    logOutcome: Object.freeze({
+    logOutcome: {
       kind: "committed",
-      events: Object.freeze([
-        Object.freeze({
+      events: [
+        {
           kind: "determinism.committed",
           commandClass: "no_draw_committed",
           result: null,
-        }),
-      ]),
-    }),
+        },
+      ],
+    },
     counts: countsV1({ committed: true, log: true }),
   },
   {
@@ -138,19 +138,19 @@ const commandExpectationsV1 = [
     sequenceAfter: 1,
     stateValue: 3,
     liveRng: drawnRngV1,
-    attemptedDraws: Object.freeze([drawTraceV1]),
+    attemptedDraws: [drawTraceV1],
     candidateRngAfter: drawnRngV1,
     committedRngAfter: drawnRngV1,
-    logOutcome: Object.freeze({
+    logOutcome: {
       kind: "committed",
-      events: Object.freeze([
-        Object.freeze({
+      events: [
+        {
           kind: "determinism.committed",
           commandClass: "rng_committed",
           result: 3,
-        }),
-      ]),
-    }),
+        },
+      ],
+    },
     counts: countsV1({ committed: true, log: true }),
   },
   {
@@ -161,13 +161,13 @@ const commandExpectationsV1 = [
     sequenceAfter: 0,
     stateValue: 0,
     liveRng: initialRngV1,
-    attemptedDraws: Object.freeze([drawTraceV1]),
+    attemptedDraws: [drawTraceV1],
     candidateRngAfter: drawnRngV1,
     committedRngAfter: initialRngV1,
-    logOutcome: Object.freeze({
+    logOutcome: {
       kind: "rejected",
-      reasons: Object.freeze([Object.freeze({ code: "determinism.rejected" })]),
-    }),
+      reasons: [{ code: "determinism.rejected" }],
+    },
     counts: countsV1({ committed: false, log: true }),
   },
   {
@@ -178,13 +178,13 @@ const commandExpectationsV1 = [
     sequenceAfter: 0,
     stateValue: 0,
     liveRng: initialRngV1,
-    attemptedDraws: Object.freeze([drawTraceV1]),
+    attemptedDraws: [drawTraceV1],
     candidateRngAfter: drawnRngV1,
     committedRngAfter: initialRngV1,
-    logOutcome: Object.freeze({
+    logOutcome: {
       kind: "faulted",
-      fault: Object.freeze({ code: "determinism.faulted" }),
-    }),
+      fault: { code: "determinism.faulted" },
+    },
     counts: countsV1({ committed: false, log: true }),
   },
 ] as const satisfies readonly {
@@ -291,7 +291,7 @@ describe("authoritative determinism workload", () => {
   it("consumes the injected fixed bootstrap seed when constructing the Session", async () => {
     const prepared = prepareAuthoritativeDeterminismWorkloadV1({
       commandClass: "no_draw_committed",
-      bootstrapInput: Object.freeze({ rngSeed: 101 }),
+      bootstrapInput: { rngSeed: 101 },
     });
 
     expect(prepared.descriptor.rngSeed).toBe(101);
@@ -307,7 +307,7 @@ describe("authoritative determinism workload", () => {
   it("locks a guaranteed rejection-sampling commit and its authoritative replay", async () => {
     const run = await prepareAuthoritativeDeterminismWorkloadV1({
       commandClass: "rng_committed",
-      bootstrapInput: Object.freeze({ rngSeed: 1_236_431_772 }),
+      bootstrapInput: { rngSeed: 1_236_431_772 },
     }).runOnce();
 
     expect(run.commandLog[0]?.attemptedDraws).toEqual([
@@ -356,7 +356,7 @@ describe("authoritative determinism workload", () => {
 
   it("retains and replays the four-command transcript on one Session", async () => {
     const transcript = await runAuthoritativeDeterminismTranscriptV1({
-      bootstrapInput: Object.freeze({ rngSeed: 1_236_431_772 }),
+      bootstrapInput: { rngSeed: 1_236_431_772 },
     });
 
     expect(transcript.steps.map((step) => step.commandClass)).toEqual([

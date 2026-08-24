@@ -124,6 +124,30 @@ describe("timeline player", () => {
     expect(harness.samples.at(-1)).toBeNull();
   });
 
+  it("delivers parallel events chronologically and exactly once", () => {
+    const harness = createHarnessV1();
+    const definition = timelineV1.define(
+      "cue.test.parallel-events",
+      timelineV1.parallel(
+        timelineV1.sequence(
+          timelineV1.wait(20),
+          timelineV1.event("event.test.late"),
+        ),
+        timelineV1.sequence(
+          timelineV1.wait(5),
+          timelineV1.event("event.test.early"),
+        ),
+      ),
+    );
+    harness.play(definition);
+    harness.clock.advance(5);
+    expect(harness.events).toEqual(["event.test.early"]);
+    harness.clock.advance(15);
+    expect(harness.events).toEqual(["event.test.early", "event.test.late"]);
+    harness.clock.advance(100);
+    expect(harness.events).toEqual(["event.test.early", "event.test.late"]);
+  });
+
   it("player disposal drops active cues without outcome callbacks", () => {
     const harness = createHarnessV1();
     const cue = harness.play();

@@ -9,7 +9,7 @@ import {
 const capabilityV1 = "a".repeat(43);
 
 describe("Desktop shell capability fetch", () => {
-  it("captures one validated capability and forces it onto every request", async () => {
+  it("captures one admitted capability and forces it onto every request", async () => {
     const fetchImpl = vi.fn(async () => new Response("ok"));
     const shellFetch = createDesktopShellFetchInternalV1(
       capabilityV1,
@@ -33,13 +33,4 @@ describe("Desktop shell capability fetch", () => {
     expect(init.mode).toBe("same-origin");
     expect(init.redirect).toBe("error");
   });
-
-  it.each([undefined, null, "", "short", `${"a".repeat(42)}!`, 7])(
-    "rejects malformed capability %j",
-    (capability) => {
-      expect(() => createDesktopShellFetchInternalV1(capability)).toThrow(
-        "web.desktop_shell_capability_invalid",
-      );
-    },
-  );
 });

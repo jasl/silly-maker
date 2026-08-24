@@ -4,16 +4,14 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Button } from "../primitives/button.tsx";
 
-export const diagnosticExportContentCategoryIdsV1 = Object.freeze(
-  [
-    "provenance",
-    "capabilities_and_integrity",
-    "replay_evidence",
-    "diagnostics_and_runtime_failures",
-    "failure_context",
-    "ui_context",
-  ] as const,
-);
+export const diagnosticExportContentCategoryIdsV1 = [
+  "provenance",
+  "capabilities_and_integrity",
+  "replay_evidence",
+  "diagnostics_and_runtime_failures",
+  "failure_context",
+  "ui_context",
+] as const;
 
 export type DiagnosticExportContentCategoryIdV1 =
   (typeof diagnosticExportContentCategoryIdsV1)[number];
@@ -66,13 +64,13 @@ type DiagnosticExportStateV1 =
     readonly preview: DiagnosticExportPreviewV1;
   };
 
-const idleStateV1 = Object.freeze({ kind: "idle" as const });
-const preparingStateV1 = Object.freeze({ kind: "preparing" as const });
-const completedStateV1 = Object.freeze({ kind: "completed" as const });
-const prepareFailedStateV1 = Object.freeze({
+const idleStateV1 = { kind: "idle" as const };
+const preparingStateV1 = { kind: "preparing" as const };
+const completedStateV1 = { kind: "completed" as const };
+const prepareFailedStateV1 = {
   kind: "prepare_failed" as const,
   code: "ui.event_handler_failed" as const,
-}) satisfies DiagnosticExportStateV1;
+} satisfies DiagnosticExportStateV1;
 
 function discardPreparedDebugBundleSafelyV1(diagnostics: DiagnosticExportPortV1): void {
   try {
@@ -158,7 +156,7 @@ export function DiagnosticExportButtonV1(props: DiagnosticExportButtonPropsV1): 
         currentDiagnosticsRef.current === diagnostics &&
         operationEpochRef.current === operationEpoch
       ) {
-        setState(Object.freeze({ kind: "review" as const, preview }));
+        setState({ kind: "review" as const, preview });
       } else {
         discardPreparedDebugBundleSafelyV1(diagnostics);
       }
@@ -182,7 +180,7 @@ export function DiagnosticExportButtonV1(props: DiagnosticExportButtonPropsV1): 
     const operationEpoch = operationEpochRef.current + 1;
     operationEpochRef.current = operationEpoch;
     const diagnostics = props.diagnostics;
-    setState(Object.freeze({ kind: "saving" as const, preview }));
+    setState({ kind: "saving" as const, preview });
     try {
       await diagnostics.savePreparedDebugBundle();
       if (
@@ -198,13 +196,11 @@ export function DiagnosticExportButtonV1(props: DiagnosticExportButtonPropsV1): 
         currentDiagnosticsRef.current === diagnostics &&
         operationEpochRef.current === operationEpoch
       ) {
-        setState(
-          Object.freeze({
-            kind: "save_failed" as const,
-            code: "ui.event_handler_failed" as const,
-            preview,
-          }),
-        );
+        setState({
+          kind: "save_failed" as const,
+          code: "ui.event_handler_failed" as const,
+          preview,
+        });
       }
     } finally {
       if (operationEpochRef.current === operationEpoch) operationPendingRef.current = false;

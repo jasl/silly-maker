@@ -81,31 +81,31 @@ export function createMotionWorkbenchStoreV1(): MotionWorkbenchStoreV1 {
     }
     commit(next);
   };
-  const store: MotionWorkbenchStoreV1 = Object.freeze({
+  const store: MotionWorkbenchStoreV1 = {
     observe: () => current,
     subscribe(listener: () => void): () => void {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
     open(source: MotionSourceEntryV1, capture?: StageInspectCaptureV1 | null): void {
-      request(Object.freeze({ source, capture: capture ?? null, caseId: null }));
+      request({ source, capture: capture ?? null, caseId: null });
     },
     openCase(previewCase: MotionPreviewCaseV1, source: MotionSourceEntryV1): void {
-      request(Object.freeze({ source, capture: null, caseId: previewCase.caseId }));
+      request({ source, capture: null, caseId: previewCase.caseId });
     },
     close(): void {
       request(null);
     },
-  });
+  };
   motionWorkbenchStoreOwnersV1.set(
     store,
-    Object.freeze({
+    {
       request,
       registerSelectionChangeGate(gate: MotionWorkbenchSelectionChangeGateV1): () => void {
         selectionChangeGates.add(gate);
         return () => selectionChangeGates.delete(gate);
       },
-    }),
+    },
   );
   return store;
 }
@@ -130,11 +130,11 @@ interface MotionWorkbenchCloseStateV1 {
   readonly canSave: boolean;
 }
 
-const cleanCloseStateV1: MotionWorkbenchCloseStateV1 = Object.freeze({
+const cleanCloseStateV1: MotionWorkbenchCloseStateV1 = {
   dirty: false,
   busy: false,
   canSave: false,
-});
+};
 
 interface MotionWorkbenchCloseParticipantSlotV1 {
   getParticipant(): MotionWorkbenchCloseParticipantV1 | null;
@@ -152,7 +152,7 @@ function createMotionWorkbenchCloseParticipantSlotV1(): MotionWorkbenchClosePart
     snapshot = participant?.getState() ?? cleanCloseStateV1;
     for (const listener of [...listeners]) listener();
   };
-  return Object.freeze({
+  return {
     getParticipant: () => participant,
     getSnapshot: () => snapshot,
     subscribe(listener: () => void): () => void {
@@ -172,7 +172,7 @@ function createMotionWorkbenchCloseParticipantSlotV1(): MotionWorkbenchClosePart
         publish();
       };
     },
-  });
+  };
 }
 
 interface PendingSelectionChangeV1 {
@@ -188,11 +188,11 @@ function selectionPreviewV1(
     : (props.cases?.find((candidate) => candidate.caseId === selection.caseId) ?? null);
   if (fromCase !== null) return fromCase.preview;
   if (selection.capture !== null) {
-    return Object.freeze({
+    return {
       ...props.fallbackPreview,
       target: selection.capture.target,
       ...(selection.capture.entryKey === null ? {} : { entryKey: selection.capture.entryKey }),
-    });
+    };
   }
   return props.fallbackPreview;
 }
@@ -236,7 +236,7 @@ export function MotionWorkbenchLauncherV1(props: MotionWorkbenchLauncherPropsV1)
     return storeOwner.registerSelectionChangeGate((next) => {
       const participant = participantSlot.getParticipant();
       if (participant === null || !participant.getState().dirty) return false;
-      replacePendingSelectionChange(Object.freeze({ selection: next }));
+      replacePendingSelectionChange({ selection: next });
       return true;
     });
   }, [participantSlot, props.guardSelectionChanges, replacePendingSelectionChange, storeOwner]);
@@ -256,7 +256,7 @@ export function MotionWorkbenchLauncherV1(props: MotionWorkbenchLauncherPropsV1)
     }
     const participant = participantSlot.getParticipant();
     if (participant !== null && participant.getState().dirty) {
-      replacePendingSelectionChange(Object.freeze({ selection: null }));
+      replacePendingSelectionChange({ selection: null });
       return;
     }
     store.close();

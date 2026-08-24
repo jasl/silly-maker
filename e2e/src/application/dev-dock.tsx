@@ -53,24 +53,22 @@ export function createLabDevDockContributionsV1(input: {
   readonly instance: LabApplicationInstanceV1;
 }): DevDockContributionSetV1 {
   const semantic = input.instance.semantic;
-  const source = (read: () => unknown) =>
-    Object.freeze({
-      read,
-      subscribe: (listener: () => void) => semantic.subscribe(listener),
-    });
+  const source = (read: () => unknown) => ({
+    read,
+    subscribe: (listener: () => void) => semantic.subscribe(listener),
+  });
 
   const graph = projectLabNarrativeGraphV1();
   const diagnostics: readonly NarrativeGraphDiagnosticViewV1[] = lintNarrativeGraphV1(graph).map(
-    (diagnostic) =>
-      Object.freeze({
-        code: diagnostic.code,
-        nodeId: nodeIdFromDiagnosticLocationV1(
-          diagnostic.location !== undefined && "file" in diagnostic.location
-            ? diagnostic.location.file
-            : undefined,
-        ),
-        message: diagnostic.message,
-      }),
+    (diagnostic) => ({
+      code: diagnostic.code,
+      nodeId: nodeIdFromDiagnosticLocationV1(
+        diagnostic.location !== undefined && "file" in diagnostic.location
+          ? diagnostic.location.file
+          : undefined,
+      ),
+      message: diagnostic.message,
+    }),
   );
 
   return createDevDockContributionSetV1({

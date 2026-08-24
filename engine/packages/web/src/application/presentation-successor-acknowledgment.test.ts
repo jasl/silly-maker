@@ -5,15 +5,15 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createPresentationSuccessorAcknowledgmentBrokerInternalV1 } from "./presentation-successor-acknowledgment.ts";
 
-const restartAnchorV1 = Object.freeze({
+const restartAnchorV1 = ({
   epoch: parseNonNegativeSafeInteger(1),
   origin: "restart",
 }) satisfies CorePresentationAnchorV1;
-const loadAnchorV1 = Object.freeze({
+const loadAnchorV1 = ({
   epoch: parseNonNegativeSafeInteger(2),
   origin: "load",
 }) satisfies CorePresentationAnchorV1;
-const equalButForeignRestartAnchorV1 = Object.freeze({
+const equalButForeignRestartAnchorV1 = ({
   epoch: parseNonNegativeSafeInteger(1),
   origin: "restart",
 }) satisfies CorePresentationAnchorV1;
@@ -23,8 +23,8 @@ describe("presentation successor acknowledgment broker", () => {
     const broker = createPresentationSuccessorAcknowledgmentBrokerInternalV1({
       signalTerminal: vi.fn(),
     });
-    const firstToken = Object.freeze({});
-    const secondToken = Object.freeze({});
+    const firstToken = {};
+    const secondToken = {};
     broker.arm(firstToken);
     broker.arm(secondToken);
     broker.bindExpected(firstToken, restartAnchorV1);
@@ -41,8 +41,8 @@ describe("presentation successor acknowledgment broker", () => {
   it("does not retain or redirect unarmed expected anchors or foreign installed receipts", () => {
     const signalTerminal = vi.fn();
     const broker = createPresentationSuccessorAcknowledgmentBrokerInternalV1({ signalTerminal });
-    const expectedToken = Object.freeze({});
-    const foreignToken = Object.freeze({});
+    const expectedToken = {};
+    const foreignToken = {};
     broker.arm(expectedToken);
     broker.bindExpected(expectedToken, restartAnchorV1);
 
@@ -63,8 +63,8 @@ describe("presentation successor acknowledgment broker", () => {
     const events: string[] = [];
     const signalTerminal = vi.fn(() => events.push("terminal"));
     const broker = createPresentationSuccessorAcknowledgmentBrokerInternalV1({ signalTerminal });
-    const wrongReceiptToken = Object.freeze({});
-    const conflictingBindingToken = Object.freeze({});
+    const wrongReceiptToken = {};
+    const conflictingBindingToken = {};
     broker.arm(wrongReceiptToken);
     broker.bindExpected(wrongReceiptToken, restartAnchorV1);
     expect(() =>
@@ -91,7 +91,7 @@ describe("presentation successor acknowledgment broker", () => {
     const events: string[] = [];
     const signalTerminal = vi.fn(() => events.push("terminal"));
     const broker = createPresentationSuccessorAcknowledgmentBrokerInternalV1({ signalTerminal });
-    const token = Object.freeze({});
+    const token = {};
     const failure = new Error("activation failed");
     broker.arm(token);
     broker.bindExpected(token, restartAnchorV1);
@@ -107,15 +107,15 @@ describe("presentation successor acknowledgment broker", () => {
     });
 
     broker.producer.failed({ token: null, anchor: loadAnchorV1, error: failure });
-    broker.producer.failed({ token: Object.freeze({}), anchor: loadAnchorV1, error: failure });
+    broker.producer.failed({ token: {}, anchor: loadAnchorV1, error: failure });
     expect(signalTerminal).toHaveBeenCalledTimes(3);
   });
 
   it("settles each armed token once without letting a duplicate overwrite the first outcome", () => {
     const signalTerminal = vi.fn();
     const broker = createPresentationSuccessorAcknowledgmentBrokerInternalV1({ signalTerminal });
-    const installedToken = Object.freeze({});
-    const failedToken = Object.freeze({});
+    const installedToken = {};
+    const failedToken = {};
     const failure = new Error("activation failed");
     broker.arm(installedToken);
     broker.arm(failedToken);
@@ -141,7 +141,7 @@ describe("presentation successor acknowledgment broker", () => {
   it("promotes a conflicting duplicate installed receipt to mismatched", () => {
     const signalTerminal = vi.fn();
     const broker = createPresentationSuccessorAcknowledgmentBrokerInternalV1({ signalTerminal });
-    const token = Object.freeze({});
+    const token = {};
     broker.arm(token);
     broker.bindExpected(token, restartAnchorV1);
     broker.producer.installed({ token, anchor: restartAnchorV1 });
@@ -156,8 +156,8 @@ describe("presentation successor acknowledgment broker", () => {
   it("cancels non-anchored operations and clears all live entries on disposal", () => {
     const signalTerminal = vi.fn();
     const broker = createPresentationSuccessorAcknowledgmentBrokerInternalV1({ signalTerminal });
-    const cancelledToken = Object.freeze({});
-    const disposedToken = Object.freeze({});
+    const cancelledToken = {};
+    const disposedToken = {};
     broker.arm(cancelledToken);
     broker.arm(disposedToken);
     broker.cancel(cancelledToken);
@@ -166,7 +166,7 @@ describe("presentation successor acknowledgment broker", () => {
     expect(broker.take(cancelledToken)).toEqual({ kind: "missing" });
     broker.dispose();
     expect(broker.take(disposedToken)).toEqual({ kind: "missing" });
-    expect(() => broker.arm(Object.freeze({}))).toThrow(
+    expect(() => broker.arm({})).toThrow(
       "web.presentation_successor_acknowledgment_broker_disposed",
     );
 

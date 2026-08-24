@@ -48,7 +48,7 @@ export function sessionMaintenanceImportNoteV1(
   return `${result.kind}${code === null ? "" : ` (${code})`}`;
 }
 
-export const defaultSessionMaintenanceLabelsV1: SessionMaintenanceLabelsV1 = Object.freeze({
+export const defaultSessionMaintenanceLabelsV1: SessionMaintenanceLabelsV1 = {
   exportStateLabel: "Export state",
   importStateLabel: "Import state",
   wipeLabel: "Clear all saves",
@@ -63,7 +63,7 @@ export const defaultSessionMaintenanceLabelsV1: SessionMaintenanceLabelsV1 = Obj
   importInvalidText: "Not a valid engine save (corrupt or edited); import rejected.",
   wipeArmedText: "Destructive: click the confirm button to clear all saves, or cancel.",
   wipeDoneText: "All saves cleared.",
-});
+};
 
 export interface SessionMaintenancePanelPropsV1 {
   /** Enables Export/Import state. */

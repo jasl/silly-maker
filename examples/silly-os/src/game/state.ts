@@ -128,11 +128,11 @@ export const osGameStateSchemaV1: RuntimeSchemaV1<OsGameStateV1> = fromStandardS
 );
 
 export function createInitialOsGameStateV1(): OsGameStateV1 {
-  return Object.freeze({
-    simulation: Object.freeze({
-      desktop: Object.freeze({ wallpaperId: "teal" }),
-      filesystem: Object.freeze({ files: Object.freeze([]), writes: 0 }),
-      minesweeper: Object.freeze({ board: null }),
-    }),
+  return ({
+    simulation: {
+      desktop: { wallpaperId: "teal" },
+      filesystem: { files: [], writes: 0 },
+      minesweeper: { board: null },
+    },
   });
 }

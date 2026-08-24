@@ -91,7 +91,7 @@ export interface AuthoringProjectIndexCountersV1 {
 
 /**
  * A lazy project-scoped metadata index. Dev-server list consumers share its
- * immutable snapshot; watcher events invalidate one root-relative source path.
+ * stable cached snapshot; watcher events invalidate one root-relative source path.
  */
 export interface AuthoringProjectIndexOwnerV1 {
   snapshot(): AuthoringProjectIndexV1;
@@ -115,12 +115,12 @@ interface MutableAuthoringProjectIndexCountersV1 {
   invalidations: number;
 }
 
-const authoringKindOrderV1: Readonly<Record<AuthoringSourceKindV1, number>> = Object.freeze({
+const authoringKindOrderV1: Readonly<Record<AuthoringSourceKindV1, number>> = {
   scene: 0,
   motion: 1,
   regions: 2,
   "chrome-layout": 3,
-});
+};
 
 function authoringSourceKindV1(path: string): AuthoringSourceKindV1 | undefined {
   if (sceneSourceKindV1(path) !== undefined) return "scene";
@@ -174,11 +174,12 @@ export function listAuthoringSourceFilesV1(
   const root = resolve(sourceRoot);
   const files: string[] = [];
   walkFilesV1(root, suffix, files);
-  const entries = files.map((filePath) =>
-    Object.freeze({ path: relative(root, filePath).split(sep).join("/"), filePath })
-  );
+  const entries = files.map((filePath) => ({
+    path: relative(root, filePath).split(sep).join("/"),
+    filePath,
+  }));
   entries.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
-  return Object.freeze(entries);
+  return entries;
 }
 
 function reasonV1(error: unknown): string {
@@ -190,10 +191,10 @@ function skippedRecordV1(
   kind: AuthoringSourceKindV1,
   error: unknown,
 ): AdmittedAuthoringRecordV1 {
-  return Object.freeze({
+  return {
     kind: "skipped",
-    entry: Object.freeze({ path, kind, reason: reasonV1(error) }),
-  });
+    entry: { path, kind, reason: reasonV1(error) },
+  };
 }
 
 function admitAuthoringRecordV1(
@@ -212,45 +213,45 @@ function admitAuthoringRecordV1(
             JSON.parse(new TextDecoder().decode(bytes)) as unknown,
             `/${path}`,
           );
-        return Object.freeze({
+        return {
           kind,
-          entry: Object.freeze({
+          entry: {
             path,
             sceneId: document.sceneId,
             label: document.label,
             sourceKind,
-          }),
-        });
+          },
+        };
       }
       case "motion": {
         const document = parseMotionDocumentV1(
           JSON.parse(new TextDecoder().decode(bytes)) as unknown,
           `/${path}`,
         );
-        return Object.freeze({
+        return {
           kind,
-          entry: Object.freeze({ path, motionId: document.motionId, label: document.label }),
-        });
+          entry: { path, motionId: document.motionId, label: document.label },
+        };
       }
       case "regions": {
         const document = parseRegionsDocumentV1(
           JSON.parse(new TextDecoder().decode(bytes)) as unknown,
           `/${path}`,
         );
-        return Object.freeze({
+        return {
           kind,
-          entry: Object.freeze({ path, regionsId: document.regionsId, label: document.label }),
-        });
+          entry: { path, regionsId: document.regionsId, label: document.label },
+        };
       }
       case "chrome-layout": {
         const document = parseChromeLayoutDocumentV1(
           JSON.parse(new TextDecoder().decode(bytes)) as unknown,
           `/${path}`,
         );
-        return Object.freeze({
+        return {
           kind,
-          entry: Object.freeze({ path, layoutId: document.layoutId, label: document.label }),
-        });
+          entry: { path, layoutId: document.layoutId, label: document.label },
+        };
       }
     }
     throw new TypeError("unsupported authoring source kind");
@@ -296,13 +297,7 @@ function snapshotFromRecordsV1(
     return left.path < right.path ? -1 : left.path > right.path ? 1 : 0;
   });
 
-  return Object.freeze({
-    scenes: Object.freeze(scenes),
-    motions: Object.freeze(motions),
-    regions: Object.freeze(regions),
-    chromeLayouts: Object.freeze(chromeLayouts),
-    skipped: Object.freeze(skipped),
-  });
+  return { scenes, motions, regions, chromeLayouts, skipped };
 }
 
 function normalizedInvalidationPathV1(path: string): string | undefined {
@@ -354,15 +349,13 @@ function walkAllAuthoringSourceFilesV1(root: string): readonly AuthoringSourceFi
   const files: string[] = [];
   walkFilesV1(root, ".json", files);
   const entries = files
-    .map((filePath) =>
-      Object.freeze({
-        path: relative(root, filePath).split(sep).join("/"),
-        filePath,
-      })
-    )
+    .map((filePath) => ({
+      path: relative(root, filePath).split(sep).join("/"),
+      filePath,
+    }))
     .filter((entry) => authoringSourceKindV1(entry.path) !== undefined);
   entries.sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
-  return Object.freeze(entries);
+  return entries;
 }
 
 /**
@@ -398,7 +391,7 @@ export function createAuthoringProjectIndexOwnerV1(
     return cachedSnapshot;
   };
 
-  return Object.freeze({
+  return {
     snapshot(): AuthoringProjectIndexV1 {
       if (!initialized) return initializeV1();
       if (cachedSnapshot !== undefined) return cachedSnapshot;
@@ -428,9 +421,9 @@ export function createAuthoringProjectIndexOwnerV1(
     },
 
     counters(): AuthoringProjectIndexCountersV1 {
-      return Object.freeze({ ...work });
+      return { ...work };
     },
-  });
+  };
 }
 
 /**

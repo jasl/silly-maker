@@ -24,30 +24,30 @@ function templateStudioTextV1(textId: string): string | null {
 }
 
 /**
- * The chrome fixture's frozen sample: exactly the publication fields the
+ * The chrome fixture's fixed sample: exactly the publication fields the
  * HUD reads (coins, narrative phase, action list), representative values.
  * The Studio preview is presentation-only — pointer events are disabled
  * — so the semantic stub can never actually dispatch.
  */
-const templateHudFixturePublicationV1 = Object.freeze({
-  view: Object.freeze({ coins: 3 }),
-  semantic: Object.freeze({
-    narrative: Object.freeze({ phase: "running" }),
-    actions: Object.freeze([
-      Object.freeze({ actionId: "template.begin_story", enabled: false }),
-      Object.freeze({ actionId: "template.earn_coin", enabled: true }),
-    ]),
-  }),
+const templateHudFixturePublicationV1 = ({
+  view: { coins: 3 },
+  semantic: {
+    narrative: { phase: "running" },
+    actions: [
+      { actionId: "template.begin_story", enabled: false },
+      { actionId: "template.earn_coin", enabled: true },
+    ],
+  },
 }) as unknown as DeepReadonly<TemplateUiPublicationV1>;
 
-const templateHudFixtureSemanticV1 = Object.freeze({
+const templateHudFixtureSemanticV1 = ({
   dispatch: () => Promise.reject(new Error("template.studio_fixture_semantic_stub")),
 }) as unknown as TemplateApplicationInstanceV1["semantic"];
 
-// Chrome workspace preview: the real HUD component over the frozen sample
+// Chrome workspace preview: the real HUD component over the fixed sample
 // above, geometry read from the workspace's live draft (q3 — the Story
 // declares what renders; the engine never guesses a publication shape).
-const templateHudChromeFixtureV1: StudioChromeFixtureV1 = Object.freeze({
+const templateHudChromeFixtureV1: StudioChromeFixtureV1 = {
   layoutId: "layout.template.hud",
   label: "模板 HUD",
   render: (layout: ChromeLayoutDocument) => (
@@ -57,9 +57,9 @@ const templateHudChromeFixtureV1: StudioChromeFixtureV1 = Object.freeze({
       layout={layout}
     />
   ),
-});
+};
 
-export const templateStudioBindingV1: StudioBindingV1 = Object.freeze({
+export const templateStudioBindingV1: StudioBindingV1 = {
   catalog: templateStageContentCatalogV1,
   renderers: templateStageRenderersV1,
   // The compiled narrative flow projection: the Flow workspace renders it
@@ -69,8 +69,8 @@ export const templateStudioBindingV1: StudioBindingV1 = Object.freeze({
   // Default-locale copy for Flow displays: summaries and choice labels that
   // reference shared textIds resolve to readable text (null when unknown).
   resolveText: templateStudioTextV1,
-  chrome: Object.freeze([templateHudChromeFixtureV1]),
-  contents: Object.freeze([
+  chrome: [templateHudChromeFixtureV1],
+  contents: [
     {
       contentId: "content.template.background.courtyard",
       label: "雨后的庭院",
@@ -98,14 +98,14 @@ export const templateStudioBindingV1: StudioBindingV1 = Object.freeze({
       category: "character" as const,
       defaultLayerId: "layer.template.characters",
       defaultZOrder: 10,
-      defaultAppearance: Object.freeze({ expression: "calm" }),
-      appearanceFields: Object.freeze([
-        Object.freeze({
+      defaultAppearance: { expression: "calm" },
+      appearanceFields: [
+        {
           key: "expression",
           label: "表情",
-          values: Object.freeze(["calm", "smiling"]),
-        }),
-      ]),
+          values: ["calm", "smiling"],
+        },
+      ],
     },
-  ]),
-});
+  ],
+};

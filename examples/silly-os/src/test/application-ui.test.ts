@@ -19,7 +19,6 @@ it("omits Narrative, Title, and Whole Canvas from the application and root slots
     );
     for (const key of ["narrative", "titleScreen", "wholeCanvas"] as const) {
       expect(Object.hasOwn(ui, key)).toBe(false);
-      expect(Reflect.ownKeys(ui).includes(key)).toBe(false);
       expect(Object.hasOwn(ui.slots ?? {}, key)).toBe(false);
     }
   } finally {

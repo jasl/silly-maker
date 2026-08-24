@@ -40,10 +40,10 @@ export function createBoundExtensionFactoryInternalV1<TProvider, TDependent>(
       const mountedProvider = await scope.mountChild(provider);
       const dependentFactory = createDependent(mountedProvider.consumer);
       const mountedDependent = await scope.mountChild(dependentFactory);
-      return Object.freeze({
+      return {
         provider: mountedProvider.consumer,
         dependent: mountedDependent.consumer,
-      });
+      };
     },
   });
 }

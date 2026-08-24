@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { admitSceneAuthoringEnvelopeV1, admitSceneAuthoringOperationV1 } from "./admission.ts";
+import { admitSceneAuthoringOperationV1 } from "./admission.ts";
 
 const placementV1 = Object.freeze({
   x: 10,
@@ -84,6 +84,12 @@ describe("Scene authoring operation admission", () => {
         code: "scene_authoring.operation_payload_invalid",
       },
       {
+        value: JSON.parse(
+          '{"schemaRevision":1,"kind":"scene.entry.remove","tag":"tag.hero","__proto__":{}}',
+        ) as unknown,
+        code: "scene_authoring.operation_payload_invalid",
+      },
+      {
         value: {
           schemaRevision: 1,
           kind: "scene.entry.set_placement",
@@ -131,80 +137,6 @@ describe("Scene authoring operation admission", () => {
     })).toMatchObject({
       kind: "rejected",
       diagnostic: { path: "/operation/value" },
-    });
-  });
-
-  it("does not invoke accessors while rejecting operation records", () => {
-    let reads = 0;
-    const value = {
-      schemaRevision: 1,
-      kind: "scene.entry.remove",
-      get tag(): string {
-        reads += 1;
-        return "tag.hero";
-      },
-    };
-
-    expect(admitSceneAuthoringOperationV1(value)).toMatchObject({
-      kind: "rejected",
-      diagnostic: { code: "scene_authoring.operation_payload_invalid" },
-    });
-    expect(reads).toBe(0);
-  });
-
-  it("strictly admits the serializable execution envelope", () => {
-    const operation = {
-      schemaRevision: 1,
-      kind: "scene.entry.set_placement",
-      tag: "tag.hero",
-      placement: placementV1,
-    };
-    expect(admitSceneAuthoringEnvelopeV1({
-      documentIdentity: "authoring-document:1:1",
-      expectedDraftRevision: 4,
-      coalesceKey: "gesture:1",
-      operation,
-    })).toMatchObject({
-      kind: "admitted",
-      envelope: { expectedDraftRevision: 4, coalesceKey: "gesture:1" },
-    });
-    expect(admitSceneAuthoringEnvelopeV1({
-      documentIdentity: "authoring-document:1:1",
-      expectedDraftRevision: 4,
-      operation,
-      path: "src/scenes/opening.scene.json",
-    })).toMatchObject({
-      kind: "rejected",
-      diagnostic: { code: "scene_authoring.envelope_invalid" },
-    });
-
-    expect(admitSceneAuthoringEnvelopeV1({
-      documentIdentity: "authoring-document:1:1",
-      expectedDraftRevision: 4,
-      coalesceKey: "not-a-continuous-run",
-      operation: { schemaRevision: 1, kind: "scene.entry.remove", tag: "tag.hero" },
-    })).toMatchObject({
-      kind: "rejected",
-      diagnostic: {
-        code: "scene_authoring.envelope_invalid",
-        path: "/envelope/coalesceKey",
-      },
-    });
-
-    expect(admitSceneAuthoringEnvelopeV1({
-      documentIdentity: "authoring-document:1:1",
-      expectedDraftRevision: 4,
-      coalesceKey: "x".repeat(256),
-      operation,
-    })).toMatchObject({ kind: "admitted" });
-    expect(admitSceneAuthoringEnvelopeV1({
-      documentIdentity: "authoring-document:1:1",
-      expectedDraftRevision: 4,
-      coalesceKey: "x".repeat(257),
-      operation,
-    })).toMatchObject({
-      kind: "rejected",
-      diagnostic: { path: "/envelope/coalesceKey" },
     });
   });
 });

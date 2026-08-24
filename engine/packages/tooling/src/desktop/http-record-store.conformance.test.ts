@@ -19,11 +19,7 @@ import {
   runHostRecordStoreRevisionOverflowConformanceV1,
 } from "../../../../test-support/host-atomic-record-store-conformance.ts";
 
-import {
-  createInstrumentedRecordFileStoreInternalV1,
-  createRecordFileStoreV1,
-  type RecordFileStorePhaseInternalV1,
-} from "./record-file-store.mts";
+import { createRecordFileStoreV1 } from "./record-file-store.mts";
 import { adaptRecordFileStoreForHostTestsV1 } from "../../../../test-support/record-file-store-host-adapter.ts";
 import { handleRecordHttpRequestV1 } from "./record-http-handler.mts";
 
@@ -42,13 +38,8 @@ async function productionBoundaryFixtureV1() {
   const root = await mkdtemp(join(tmpdir(), "sillymaker-http-record-conformance-"));
   cleanupDirsV1.add(root);
   let commitEndpointRequestCount = 0;
-  const phaseEvents: RecordFileStorePhaseInternalV1[] = [];
   const createStore = () => {
-    const fileStore = createInstrumentedRecordFileStoreInternalV1(root, {
-      reached(point) {
-        phaseEvents.push(point);
-      },
-    });
+    const fileStore = createRecordFileStoreV1(root);
     const fetchImpl = async (input: string, init?: RequestInit): Promise<Response> => {
       const url = new URL(input, "http://127.0.0.1:41800");
       const prefix = "/sillymaker/records";
@@ -67,13 +58,12 @@ async function productionBoundaryFixtureV1() {
       fetchImpl,
     });
   };
-  return Object.freeze({
+  return {
     root,
     createStore,
     store: createStore(),
     commitEndpointRequestCount: () => commitEndpointRequestCount,
-    phaseEvents: () => Object.freeze([...phaseEvents]),
-  });
+  };
 }
 
 async function seedRevisionOverflowV1(
@@ -162,14 +152,6 @@ describe("the Desktop HTTP record boundary", () => {
       hostRecordStoreRevisionOverflowConformanceExpectedV1,
     );
     expect(fixture.commitEndpointRequestCount()).toBe(1);
-    expect(fixture.phaseEvents()).toEqual([
-      { kind: "between_checks_and_writes" },
-      {
-        kind: "between_mutations",
-        completedMutationCount: 1,
-        remainingMutationCount: 1,
-      },
-    ]);
     const freshStore = fixture.createStore();
     expect(await freshStore.read(seed.namespace, seed.key)).toEqual(seed);
     expect(

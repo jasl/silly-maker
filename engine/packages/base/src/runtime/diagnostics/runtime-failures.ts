@@ -39,27 +39,15 @@ type CreateRuntimeFailureReporterV1 =
 
 const runtimeFailureMaximumEntriesV1 = 50;
 
-function readDataPropertyV1(value: unknown, key: PropertyKey): unknown {
+function readPropertyV1(value: unknown, key: PropertyKey): unknown {
   if ((typeof value !== "object" && typeof value !== "function") || value === null) {
     return undefined;
   }
   try {
-    let current: object | null = value;
-    const seen = new Set<object>();
-    while (current !== null && !seen.has(current)) {
-      seen.add(current);
-      const descriptor = Object.getOwnPropertyDescriptor(current, key);
-      if (descriptor !== undefined) {
-        return descriptor.get === undefined && descriptor.set === undefined
-          ? descriptor.value
-          : undefined;
-      }
-      current = Object.getPrototypeOf(current);
-    }
+    return (value as Record<PropertyKey, unknown>)[key];
   } catch {
     return undefined;
   }
-  return undefined;
 }
 
 function primitiveTextV1(value: unknown): string | undefined {
@@ -80,7 +68,7 @@ function primitiveTextV1(value: unknown): string | undefined {
 function errorMessageV1(error: unknown): string {
   return (
     primitiveTextV1(error) ??
-      primitiveTextV1(readDataPropertyV1(error, "message")) ??
+      primitiveTextV1(readPropertyV1(error, "message")) ??
       "Unknown runtime failure"
   );
 }
@@ -91,18 +79,18 @@ function errorStackV1(error: unknown): string | undefined {
   } catch {
     return undefined;
   }
-  return primitiveTextV1(readDataPropertyV1(error, "stack"));
+  return primitiveTextV1(readPropertyV1(error, "stack"));
 }
 
 function errorCauseV1(
   error: unknown,
 ): { readonly name: string; readonly message: string } | undefined {
-  const causeValue = readDataPropertyV1(error, "cause");
+  const causeValue = readPropertyV1(error, "cause");
   if (causeValue === undefined) return undefined;
   const message = errorMessageV1(causeValue);
-  const name = primitiveTextV1(readDataPropertyV1(causeValue, "name")) ??
+  const name = primitiveTextV1(readPropertyV1(causeValue, "name")) ??
     (typeof causeValue === "object" && causeValue !== null ? "Error" : "Cause");
-  return Object.freeze({ name, message });
+  return { name, message };
 }
 
 /** Converts an unknown thrown value into the closed, privacy-scrubbed runtime fault contract. */
@@ -124,7 +112,7 @@ export function normalizeRuntimeFailureV1(
   );
 }
 
-/** Creates an append-ordered recent-failure buffer with immutable published snapshots. */
+/** Creates an append-ordered recent-failure buffer with stable published snapshots. */
 export function createRuntimeFailureBufferV1(
   input: {
     readonly limit?: number;
@@ -135,16 +123,16 @@ export function createRuntimeFailureBufferV1(
     throw new TypeError(`RuntimeFailure limit exceeds ${runtimeFailureMaximumEntriesV1}`);
   }
 
-  let published: readonly RuntimeOperationFaultV1[] = Object.freeze([]);
+  let published: readonly RuntimeOperationFaultV1[] = [];
 
-  return Object.freeze({
+  return {
     append(failure: RuntimeOperationFaultV1) {
       const scrubbed = runtimeOperationFaultSchemaV1.parse(scrubRuntimeOperationFaultV1(failure));
       const retainedStart = Math.max(0, published.length - limit + 1);
-      published = Object.freeze([...published.slice(retainedStart), scrubbed]);
+      published = [...published.slice(retainedStart), scrubbed];
     },
     entries: () => published,
-  });
+  };
 }
 
 /** Creates a diagnostic-only error reporter that cannot interrupt its caller. */

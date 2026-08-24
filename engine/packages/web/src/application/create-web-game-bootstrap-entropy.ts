@@ -8,7 +8,7 @@ type WebGameBootstrapCryptoInternalV1 = Pick<Crypto, "getRandomValues" | "random
 export function createWebGameBootstrapEntropyInternalV1(
   cryptoPort: WebGameBootstrapCryptoInternalV1 = globalThis.crypto,
 ): BootstrapEntropyV1 {
-  return Object.freeze({
+  return ({
     nextUuidV4: () => cryptoPort.randomUUID(),
     nextNonZeroUint32(): NonZeroUint32 {
       const values = new Uint32Array(1);

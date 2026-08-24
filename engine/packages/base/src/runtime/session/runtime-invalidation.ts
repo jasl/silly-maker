@@ -11,7 +11,7 @@ export function createRuntimeInvalidationControllerV1(input: {
 }): RuntimeInvalidationControllerV1 {
   let invalidated = false;
 
-  return Object.freeze({
+  return {
     invalidateForHmr(): void {
       if (invalidated) return;
       invalidated = true;
@@ -22,5 +22,5 @@ export function createRuntimeInvalidationControllerV1(input: {
         // HMR failure reporting is diagnostic-only and cannot undo invalidation.
       }
     },
-  });
+  };
 }

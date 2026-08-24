@@ -54,13 +54,13 @@ export interface CreateFlowWorkspaceActivationOwnerOptionsInternalV1 {
   readonly reportFailure?: (error: unknown) => void;
 }
 
-const idleStateInternalV1 = Object.freeze({ kind: "idle" as const });
-const loadingStateInternalV1 = Object.freeze({ kind: "loading" as const });
-const errorStateInternalV1 = Object.freeze({
+const idleStateInternalV1 = { kind: "idle" as const };
+const loadingStateInternalV1 = { kind: "loading" as const };
+const errorStateInternalV1 = {
   kind: "error" as const,
   code: flowWorkspaceActivationFailureCodeInternalV1,
-});
-const disposedStateInternalV1 = Object.freeze({ kind: "disposed" as const });
+};
+const disposedStateInternalV1 = { kind: "disposed" as const };
 
 function defaultFlowWorkspaceLoaderInternalV1(): Promise<FlowWorkspaceMountedExtensionInternalV1> {
   return import("./flow-workspace-extension.tsx").then((module) =>
@@ -114,10 +114,10 @@ export function createFlowWorkspaceActivationOwnerInternalV1(
           throw new Error("Flow workspace activation became stale");
         }
         mounted = loaded;
-        const ready = Object.freeze({
+        const ready = {
           kind: "ready" as const,
           consumer: loaded.consumer,
-        });
+        };
         setState(ready);
         if (disposed || attempt !== expectedAttempt) {
           throw new Error("Flow workspace activation became stale during ready publication");
@@ -179,7 +179,7 @@ export function createFlowWorkspaceActivationOwnerInternalV1(
       return disposePromise;
     },
   };
-  return Object.freeze(owner);
+  return owner;
 }
 
 /**
@@ -192,10 +192,10 @@ export function useDisposeFlowWorkspaceActivationOnUnmountInternalV1(
 ): void {
   const lifetime = useMemo(() => {
     let epoch = 0;
-    return Object.freeze({
+    return {
       mount: () => ++epoch,
       isCurrent: (expectedEpoch: number) => epoch === expectedEpoch,
-    });
+    };
   }, []);
   useEffect(() => {
     const expectedEpoch = lifetime.mount();

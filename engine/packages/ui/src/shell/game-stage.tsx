@@ -130,31 +130,29 @@ function defineStageLayerV1<const TId extends string, const TSlot extends keyof 
   inertPolicy: StageLayerInertPolicyV1,
   options: StageLayerDescriptorOptionsV1 = {},
 ) {
-  return Object.freeze({
+  return {
     id,
     slot,
     inertPolicy,
     omitWhenEmpty: options.omitWhenEmpty ?? false,
     pointerSurface: options.pointerSurface ?? false,
     portalTarget: options.portalTarget ?? false,
-  });
+  };
 }
 
-const stageLayerDescriptorsV1 = Object.freeze(
-  [
-    defineStageLayerV1("background", "background", "ordinary_gameplay"),
-    defineStageLayerV1("character", "character", "ordinary_gameplay"),
-    defineStageLayerV1("scene_interaction", "sceneInteraction", "gameplay", {
-      omitWhenEmpty: true,
-      pointerSurface: true,
-    }),
-    defineStageLayerV1("hud", "hud", "ordinary_gameplay"),
-    defineStageLayerV1("narrative", "narrative", "narrative"),
-    defineStageLayerV1("whole_canvas", "wholeCanvas", "whole_canvas"),
-    defineStageLayerV1("workspace_overlay", "workspaceOverlay", "system"),
-    defineStageLayerV1("system", "system", "none", { portalTarget: true }),
-  ] as const satisfies readonly StageLayerDescriptorV1[],
-);
+const stageLayerDescriptorsV1 = [
+  defineStageLayerV1("background", "background", "ordinary_gameplay"),
+  defineStageLayerV1("character", "character", "ordinary_gameplay"),
+  defineStageLayerV1("scene_interaction", "sceneInteraction", "gameplay", {
+    omitWhenEmpty: true,
+    pointerSurface: true,
+  }),
+  defineStageLayerV1("hud", "hud", "ordinary_gameplay"),
+  defineStageLayerV1("narrative", "narrative", "narrative"),
+  defineStageLayerV1("whole_canvas", "wholeCanvas", "whole_canvas"),
+  defineStageLayerV1("workspace_overlay", "workspaceOverlay", "system"),
+  defineStageLayerV1("system", "system", "none", { portalTarget: true }),
+] as const satisfies readonly StageLayerDescriptorV1[];
 
 export type StageLayerIdV1 = (typeof stageLayerDescriptorsV1)[number]["id"];
 type StageLayerIdsV1<TDescriptors extends readonly StageLayerDescriptorV1[]> = {
@@ -164,8 +162,8 @@ type StageLayerIdsV1<TDescriptors extends readonly StageLayerDescriptorV1[]> = {
     : never;
 };
 
-export const stageLayerIdsV1 = Object.freeze(
-  stageLayerDescriptorsV1.map((descriptor) => descriptor.id),
+export const stageLayerIdsV1 = stageLayerDescriptorsV1.map((descriptor) =>
+  descriptor.id
 ) as unknown as StageLayerIdsV1<typeof stageLayerDescriptorsV1>;
 
 export interface GameStagePropsV1 {
@@ -179,13 +177,13 @@ interface StageSystemFocusScopeRegistrationV1 {
   readonly target: HTMLElement;
 }
 
-const noStageInputIsolationV1 = Object.freeze({
+const noStageInputIsolationV1 = {
   interaction: 0,
   narrative: 0,
   whole_canvas: 0,
   overlay: 0,
   system: 0,
-}) satisfies StageInputIsolationCountsV1;
+} satisfies StageInputIsolationCountsV1;
 
 export function GameStageV1(props: GameStagePropsV1): ReactElement {
   const stageRootRef = useRef<HTMLElement | null>(null);
@@ -196,27 +194,28 @@ export function GameStageV1(props: GameStagePropsV1): ReactElement {
   const [systemPortalContainer, setSystemPortalContainer] = useState<HTMLDivElement | null>(null);
   const [systemFocusScopeRegistrations, setSystemFocusScopeRegistrations] = useState<
     readonly StageSystemFocusScopeRegistrationV1[]
-  >(() => Object.freeze([]));
+  >([]);
   const register = useCallback((context: StageInputIsolationContextIdV1) => {
-    setIsolationCounts((current) => Object.freeze({ ...current, [context]: current[context] + 1 }));
+    setIsolationCounts((current) => ({ ...current, [context]: current[context] + 1 }));
     let registered = true;
     return () => {
       if (!registered) return;
       registered = false;
-      setIsolationCounts((current) =>
-        Object.freeze({ ...current, [context]: Math.max(0, current[context] - 1) })
-      );
+      setIsolationCounts((current) => ({
+        ...current,
+        [context]: Math.max(0, current[context] - 1),
+      }));
     };
   }, []);
   const registerSystemFocusScope = useCallback((target: HTMLElement) => {
-    const registration = Object.freeze({ target }) satisfies StageSystemFocusScopeRegistrationV1;
-    setSystemFocusScopeRegistrations((current) => Object.freeze([...current, registration]));
+    const registration = { target } satisfies StageSystemFocusScopeRegistrationV1;
+    setSystemFocusScopeRegistrations((current) => [...current, registration]);
     let registered = true;
     return () => {
       if (!registered) return;
       registered = false;
       setSystemFocusScopeRegistrations((current) =>
-        Object.freeze(current.filter((candidate) => candidate !== registration))
+        current.filter((candidate) => candidate !== registration)
       );
     };
   }, []);
@@ -249,7 +248,7 @@ export function GameStageV1(props: GameStagePropsV1): ReactElement {
   const interactionActive = isolationCounts.interaction > 0;
   const isolationPort = useMemo(
     () =>
-      Object.freeze({
+      ({
         register,
         registerSystemFocusScope,
         armPointerGestureFence,

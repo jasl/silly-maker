@@ -60,27 +60,14 @@ type SyntheticSaveRecordV1 = SaveRecordEnvelopeV1<
 >;
 
 function exactObjectV1(value: unknown, keys: readonly string[]): Readonly<Record<string, unknown>> {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype ||
-    Object.getOwnPropertySymbols(value).length !== 0
-  ) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new TypeError("invalid object");
   }
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  if (
-    Object.keys(descriptors).toSorted().join("\0") !== [...keys].toSorted().join("\0") ||
-    Object.values(descriptors).some(({ get, set }) => get !== undefined || set !== undefined)
-  ) {
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).toSorted().join("\0") !== [...keys].toSorted().join("\0")) {
     throw new TypeError("invalid object fields");
   }
-  return Object.freeze(
-    Object.fromEntries(
-      Object.entries(descriptors).map(([key, descriptor]) => [key, descriptor.value]),
-    ),
-  );
+  return Object.fromEntries(keys.map((key) => [key, record[key]]));
 }
 
 function nonEmptyStringV1(value: unknown): string {
@@ -103,21 +90,21 @@ function parseWriteReasonV1(value: unknown): SaveWriteReasonV1 {
 const snapshotSchemaV1: RuntimeSchemaV1<SyntheticSnapshotV1> = Object.freeze({
   parse(value: unknown) {
     const fields = exactObjectV1(value, ["commandSequence", "value", "integrityMarker"]);
-    return Object.freeze({
+    return {
       commandSequence: parseNonNegativeSafeInteger(fields.commandSequence),
       value: parseNonNegativeSafeInteger(fields.value),
       integrityMarker: nonEmptyStringV1(fields.integrityMarker),
-    });
+    };
   },
 });
 
 const provenanceSchemaV1: RuntimeSchemaV1<SyntheticProvenanceV1> = Object.freeze({
   parse(value: unknown) {
     const fields = exactObjectV1(value, ["storyId", "marker"]);
-    return Object.freeze({
+    return {
       storyId: nonEmptyStringV1(fields.storyId),
       marker: nonEmptyStringV1(fields.marker),
-    });
+    };
   },
 });
 
@@ -129,19 +116,19 @@ const slotSchemaV1: RuntimeSchemaV1<SaveRepositorySlotMetadataV1> = Object.freez
       "writeReason",
       "capturedCommandSequence",
     ]);
-    return Object.freeze({
+    return {
       storyId: nonEmptyStringV1(fields.storyId),
       slotId: parseSlotIdV1(fields.slotId),
       writeReason: parseWriteReasonV1(fields.writeReason),
       capturedCommandSequence: parseNonNegativeSafeInteger(fields.capturedCommandSequence),
-    });
+    };
   },
 });
 
 const lineageSchemaV1: RuntimeSchemaV1<readonly string[]> = Object.freeze({
   parse(value: unknown) {
     if (!Array.isArray(value)) throw new TypeError("invalid lineage");
-    return Object.freeze(value.map(nonEmptyStringV1));
+    return value.map(nonEmptyStringV1);
   },
 });
 
@@ -647,8 +634,6 @@ describe("Save repository", () => {
       },
     });
     expect(firstRead.envelope.recordRevision).not.toBe(firstRead.hostRevision);
-    expect(Object.isFrozen(firstRead)).toBe(true);
-    expect(Object.isFrozen(firstRead.envelope)).toBe(true);
     expect(firstRead.bytes).not.toBe(physicalBackup?.bytes);
 
     firstRead.bytes.fill(0);

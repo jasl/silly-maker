@@ -38,7 +38,7 @@ const savesDir = normalize(argValueV1("saves", "./saves"));
 const port = Number(argValueV1("port", "41800"));
 const store = createRecordFileStoreV1(savesDir);
 
-const mediaTypesV1: Readonly<Record<string, string>> = Object.freeze({
+const mediaTypesV1: Readonly<Record<string, string>> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
   ".mjs": "text/javascript; charset=utf-8",
@@ -51,7 +51,7 @@ const mediaTypesV1: Readonly<Record<string, string>> = Object.freeze({
   ".wasm": "application/wasm",
   ".ogg": "audio/ogg",
   ".mp3": "audio/mpeg",
-});
+};
 
 async function handleStaticV1(request: Request, pathname: string): Promise<Response> {
   if (request.method !== "GET" && request.method !== "HEAD") {

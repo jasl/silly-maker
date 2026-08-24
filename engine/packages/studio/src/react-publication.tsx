@@ -243,7 +243,7 @@ export function createPersistentReactLayoutPublicationInternalV1<TPlan>(
     }
   };
 
-  return Object.freeze({
+  return {
     async mount(plan: TPlan): Promise<void> {
       if (disposed) throw abortErrorV1("Persistent React publication is disposed");
       if (mounted || visibleRoot !== null || busy) {
@@ -336,7 +336,7 @@ export function createPersistentReactLayoutPublicationInternalV1<TPlan>(
       visibleRoot = null;
       if (managed !== null) disposeManagedRoot(managed);
     },
-  });
+  };
 }
 
 export interface StudioToolingReactPublicationV1 {
@@ -480,10 +480,10 @@ export function createStudioToolingReactPublicationInternalV1(
             publicationRole={target}
             viewId={viewId}
             {...(companionDefinition === null || companionOwner === null ? {} : {
-              companion: Object.freeze({
+              companion: {
                 owner: companionOwner,
                 definition: companionDefinition,
-              }),
+              },
             })}
           />
         )
@@ -499,14 +499,14 @@ export function createStudioToolingReactPublicationInternalV1(
         );
     },
   });
-  return Object.freeze({
+  return {
     mount: (plan: StudioToolingPlanV1) => publication.mount(plan),
     publish: (plan: StudioToolingPlanV1, signal: AbortSignal) => publication.publish(plan, signal),
     dispose(): void {
       publication.dispose();
       disposeOwners();
     },
-  });
+  };
 }
 
 export function createStudioToolingReactPublicationV1(

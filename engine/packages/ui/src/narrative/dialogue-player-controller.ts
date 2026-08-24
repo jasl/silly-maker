@@ -63,19 +63,16 @@ export interface NarrativeStableDialoguePlayerControllerInternalV1 {
   disposeInternalV1(): void;
 }
 
-declare const narrativeStableSayPlayerAutoAttemptBrandInternalV1: unique symbol;
 export interface NarrativeStableSayPlayerAutoAttemptInternalV1 {
-  readonly [narrativeStableSayPlayerAutoAttemptBrandInternalV1]: true;
+  readonly recordInternalV1: unknown;
 }
 
-declare const narrativeStableSaySkipAttemptBrandInternalV1: unique symbol;
 export interface NarrativeStableSaySkipAttemptInternalV1 {
-  readonly [narrativeStableSaySkipAttemptBrandInternalV1]: true;
+  readonly recordInternalV1: unknown;
 }
 
-declare const narrativeStablePlaybackModeResetAttemptBrandInternalV1: unique symbol;
 export interface NarrativeStablePlaybackModeResetAttemptInternalV1 {
-  readonly [narrativeStablePlaybackModeResetAttemptBrandInternalV1]: true;
+  readonly recordInternalV1: unknown;
 }
 
 export type NarrativeStableSayPlayerAutoDispatchResultInternalV1 =

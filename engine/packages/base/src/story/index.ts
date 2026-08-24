@@ -47,6 +47,7 @@ export {
   createSemanticStageStateV1 as createSemanticStageState,
   parseSemanticStageStateV1 as parseSemanticStageState,
   parseStageMutationV1 as parseStageMutation,
+  reduceAdmittedStageMutationsV1 as reduceAdmittedStageMutations,
   reduceStageMutationsV1 as reduceStageMutations,
   projectStageRenderTargetV1 as projectStageRenderTarget,
   parseStageTransitionDefinitionV1 as parseStageTransitionDefinition,

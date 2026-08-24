@@ -56,17 +56,13 @@ function prepareAuthoritativeCommandVectorV1(
   }[],
   instrumentation?: SnapshotWorkInstrumentationV1,
 ): readonly PreparedAuthoritativeCommandInternalV1[] {
-  const captured = commandLog.map((entry) => ({
-    source: entry.source,
-    command: entry.command,
-  }));
-  return Object.freeze(captured.map(({ source, command }) => {
+  return commandLog.map(({ source, command }) => {
     assertReplayCommandSourceV1(source);
-    return Object.freeze({
+    return {
       source,
       command: admitCanonicalCommandInternalV1(command, instrumentation),
-    });
-  }));
+    };
+  });
 }
 
 export type ReplayRecordedOutcomeV1<TEvent, TRejection, TFault> =
@@ -233,24 +229,24 @@ function identityMismatchesV1(
 ): ReplayMismatchV1[] {
   const mismatches: ReplayMismatchV1[] = [];
   if (recorded.provenance.engine.digest !== runtime.provenance.engine.digest) {
-    mismatches.push(Object.freeze({ scope: "identity", field: "engine_digest" }));
+    mismatches.push({ scope: "identity", field: "engine_digest" });
   }
   if (
     recorded.provenance.resolved.stateContractRevision !==
       runtime.provenance.resolved.stateContractRevision
   ) {
-    mismatches.push(Object.freeze({ scope: "identity", field: "state_contract_revision" }));
+    mismatches.push({ scope: "identity", field: "state_contract_revision" });
   }
   if (
     recorded.provenance.resolved.stateContractDigest !==
       runtime.provenance.resolved.stateContractDigest
   ) {
-    mismatches.push(Object.freeze({ scope: "identity", field: "state_contract_digest" }));
+    mismatches.push({ scope: "identity", field: "state_contract_digest" });
   }
   if (
     recorded.provenance.resolved.simulationDigest !== runtime.provenance.resolved.simulationDigest
   ) {
-    mismatches.push(Object.freeze({ scope: "identity", field: "simulation_digest" }));
+    mismatches.push({ scope: "identity", field: "simulation_digest" });
   }
   return mismatches;
 }
@@ -274,7 +270,7 @@ function sameMismatchV1(left: ReplayMismatchV1, right: ReplayMismatchV1): boolea
 
 function addMismatchV1(mismatches: ReplayMismatchV1[], mismatch: ReplayMismatchV1): void {
   if (!mismatches.some((existing) => sameMismatchV1(existing, mismatch))) {
-    mismatches.push(Object.freeze(mismatch));
+    mismatches.push(mismatch);
   }
 }
 
@@ -285,14 +281,14 @@ function comparisonV1(
   executedEntries: number,
   mismatches: readonly ReplayMismatchV1[],
 ): ReplayComparisonV1 {
-  return Object.freeze({
+  return {
     authoritative,
     identityMatch,
     visualMatch,
     matches: mismatches.length === 0,
     executedEntries: parseNonNegativeSafeInteger(executedEntries),
-    mismatches: Object.freeze([...mismatches]),
-  });
+    mismatches: [...mismatches],
+  };
 }
 
 function compareOutcomeV1<TEvent, TRejection, TFault>(
@@ -370,9 +366,7 @@ async function compareReplayV1<
   if (mode === "authoritative" && !identityMatch) {
     return comparisonV1(false, false, false, 0, mismatches);
   }
-  const commandLog = mode === "authoritative"
-    ? Object.freeze([...input.commandLog])
-    : input.commandLog;
+  const commandLog = mode === "authoritative" ? [...input.commandLog] : input.commandLog;
   const authoritativeCommands = mode === "authoritative"
     ? preparedCommands ??
       prepareAuthoritativeCommandVectorV1(commandLog, instrumentation)
@@ -413,10 +407,10 @@ async function compareReplayV1<
       });
     }
     const preparedCommand = authoritativeCommands?.[entryIndex];
-    const command = Object.freeze({
+    const command = {
       source: preparedCommand === undefined ? entry.source : preparedCommand.source,
       command: preparedCommand === undefined ? entry.command : preparedCommand.command,
-    }) as DeepReadonly<TLoggedCommand>;
+    } as DeepReadonly<TLoggedCommand>;
     const attempt = await driver.submit(command);
     executedEntries += 1;
     const after = attempt.result.snapshot as DeepReadonly<TSnapshot>;
@@ -622,7 +616,7 @@ export async function replayAuthoritativelyFromAttemptsInternalV1<
       TRngDrawTrace
     > => {
       let replaySnapshot = replayBase;
-      return Object.freeze({
+      return {
         getCurrentSnapshot: () => replaySnapshot,
         submit(command: DeepReadonly<TLoggedCommand>) {
           const preSnapshot = replaySnapshot;
@@ -631,14 +625,14 @@ export async function replayAuthoritativelyFromAttemptsInternalV1<
           if (attempt.result.kind === "committed") {
             replaySnapshot = attempt.result.snapshot as DeepReadonly<TSnapshot>;
           }
-          return Object.freeze({
+          return {
             ...attempt,
             preSnapshot,
             preStateDigest: stateDigestV1(preSnapshot, instrumentation),
             postStateDigest: stateDigestV1(attempt.result.snapshot, instrumentation),
-          }) as ReplayAttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>;
+          } as ReplayAttemptV1<TSnapshot, TEvent, TRejection, TFault, TRngState, TRngDrawTrace>;
         },
-      });
+      };
     },
   };
   return await compareReplayV1(

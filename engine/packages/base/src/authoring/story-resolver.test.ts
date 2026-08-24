@@ -204,28 +204,6 @@ function createPackageWithAliasedMutatingRules() {
   });
 }
 
-function createStateContractManifestWithAccessorReferenceIds() {
-  let getterCalls = 0;
-  const ids: unknown[] = [];
-  Object.defineProperty(ids, 0, {
-    enumerable: true,
-    get() {
-      getterCalls += 1;
-      return "scene.synthetic.counter";
-    },
-  });
-  Object.freeze(ids);
-  return {
-    manifest: Object.freeze({
-      ...createSyntheticStateContractManifestV1(),
-      stableReferenceSets: Object.freeze([
-        Object.freeze({ setId: "references.synthetic.scene", ids }),
-      ]),
-    }),
-    getterCalls: () => getterCalls,
-  };
-}
-
 function createSparseStateContractArrayV1(): readonly unknown[] {
   const values: unknown[] = [];
   values.length = 1;
@@ -343,29 +321,6 @@ function createPackageWithAssetPatchSurface() {
   };
 }
 
-function createPackageWithAccessorRule() {
-  const source = createSyntheticCounterGamePackageV1();
-  const sourceDefinition = source.define();
-  let getterCalls = 0;
-  const rules: unknown[] = [];
-  Object.defineProperty(rules, 0, {
-    enumerable: true,
-    get() {
-      getterCalls += 1;
-      return stableNamedRule;
-    },
-  });
-  Object.freeze(rules);
-  const definition = Object.freeze({
-    ...sourceDefinition,
-    simulation: Object.freeze({ ...sourceDefinition.simulation, rules }),
-  });
-  return {
-    entry: Object.freeze({ ...source, define: () => definition }),
-    getterCalls: () => getterCalls,
-  };
-}
-
 function buildIdentityWithChangedFacet(facet: "simulation" | "presentation") {
   const changedDigest = digestBytes(Uint8Array.of(facet === "simulation" ? 0x51 : 0x52));
   return Object.freeze({
@@ -388,7 +343,7 @@ function buildIdentityWithChangedFacet(facet: "simulation" | "presentation") {
 }
 
 describe("Story resolver", () => {
-  it("returns one deeply frozen complete ResolvedGame", () => {
+  it("returns one complete normalized ResolvedGame", () => {
     const result = resolveGamePackageV1(
       createSyntheticCounterGamePackageV1(),
       [],
@@ -401,14 +356,12 @@ describe("Story resolver", () => {
       simulationProgram: expect.any(Object),
       presentation: expect.any(Object),
       assets: expect.any(Object),
-      frozen: true,
     });
     expect(result.resolved.assets.assets).toHaveLength(2);
     expect(result.resolved.assets.assets.every((asset) => asset.delivery === "code_fallback")).toBe(
       true,
     );
     expect(result.resolved.provenance.resolved.simulationDigest).toMatch(/^sha256:[0-9a-f]{64}$/u);
-    expect(Object.isFrozen(result.resolved)).toBe(true);
   });
 
   it("copies the Application-owned engine display label without changing identity digests", () => {
@@ -679,20 +632,6 @@ describe("Story resolver", () => {
     });
   });
 
-  it("rejects State-contract array accessors without invoking them", () => {
-    const fixture = createStateContractManifestWithAccessorReferenceIds();
-    const result = resolveGamePackageV1(
-      createPackageWithStateContractManifest(fixture.manifest),
-      [],
-      deterministicBuildIdentityInputV1,
-    );
-    expect(result).toMatchObject({
-      kind: "failed",
-      failure: { code: "story.contract_invalid" },
-    });
-    expect(fixture.getterCalls()).toBe(0);
-  });
-
   it.each(
     [
       [
@@ -738,7 +677,7 @@ describe("Story resolver", () => {
     });
   });
 
-  it("uses and freezes the active materialized TextCatalog instead of the source catalog for TextId joins", () => {
+  it("uses the active materialized TextCatalog instead of the source catalog for TextId joins", () => {
     const sourceCatalogMissingOneTextId = createTextJoinCatalogSetV1(
       "text.synthetic.behavior.name",
     );
@@ -757,9 +696,6 @@ describe("Story resolver", () => {
         readonly catalogs: readonly { readonly entries: readonly unknown[] }[];
       };
     expect(resolvedCatalogs).not.toBe(activeCatalog);
-    expect(Object.isFrozen(resolvedCatalogs)).toBe(true);
-    expect(Object.isFrozen(resolvedCatalogs.catalogs)).toBe(true);
-    expect(Object.isFrozen(resolvedCatalogs.catalogs[0]?.entries)).toBe(true);
   });
 
   it("validates both source and active materialized TextCatalogSet data", () => {
@@ -892,33 +828,12 @@ describe("Story resolver", () => {
     });
   });
 
-  it("rejects array accessors without invoking them", () => {
-    const fixture = createPackageWithAccessorRule();
-    const result = resolveGamePackageV1(fixture.entry, [], deterministicBuildIdentityInputV1);
-    expect(result).toMatchObject({
-      kind: "failed",
-      failure: { code: "story.contract_invalid" },
-    });
-    expect(fixture.getterCalls()).toBe(0);
-  });
-
-  it("normalizes thrown objects without invoking message accessors or toString", () => {
+  it("normalizes Story callback failures", () => {
     const source = createSyntheticCounterGamePackageV1();
-    let userCodeCalls = 0;
-    const thrown = {
-      get message() {
-        userCodeCalls += 1;
-        return "unsafe";
-      },
-      toString() {
-        userCodeCalls += 1;
-        return "unsafe";
-      },
-    };
     const entry = Object.freeze({
       ...source,
       define() {
-        throw thrown;
+        throw new Error("synthetic Story definition failure");
       },
     });
     const result = resolveGamePackageV1(entry, [], deterministicBuildIdentityInputV1);
@@ -926,10 +841,9 @@ describe("Story resolver", () => {
       kind: "failed",
       failure: {
         code: "story.define_threw",
-        details: { message: "Unknown failure" },
+        details: { message: "synthetic Story definition failure" },
       },
     });
-    expect(userCodeCalls).toBe(0);
   });
 
   it.each([

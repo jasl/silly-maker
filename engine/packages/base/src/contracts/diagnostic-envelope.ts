@@ -81,44 +81,38 @@ const envelopeKeysV1 = new Set([
 ]);
 const locationKeysV1 = new Set(["file", "line", "column", "jsonPointer"]);
 
-function requireOwnedRecord(value: unknown, label: string): Record<string, unknown> {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype ||
-    Object.getOwnPropertySymbols(value).length > 0
-  ) {
+function requireRecord(value: unknown, label: string): Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new TypeError(`invalid ${label}`);
-  }
-  for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(value))) {
-    if (descriptor.get !== undefined || descriptor.set !== undefined) {
-      throw new TypeError(`${label} accessors are forbidden`);
-    }
   }
   return value as Record<string, unknown>;
 }
 
-function parseNonEmptyString(value: unknown, label: string): string {
-  if (typeof value !== "string" || value.length === 0) {
+function parseString(value: unknown, label: string, allowEmpty = false): string {
+  if (typeof value !== "string" || (!allowEmpty && value.length === 0)) {
+    throw new TypeError(`invalid ${label}`);
+  }
+  try {
+    canonicalJsonBytes(value);
+  } catch {
     throw new TypeError(`invalid ${label}`);
   }
   return value;
 }
 
 function parseSubjectV1(value: unknown): DiagnosticSubjectV1 {
-  const record = requireOwnedRecord(value, "diagnostic subject");
+  const record = requireRecord(value, "diagnostic subject");
   if (Object.keys(record).toSorted().join("\0") !== "id\0kind") {
     throw new TypeError("invalid diagnostic subject fields");
   }
-  return Object.freeze({
-    kind: parseNonEmptyString(record.kind, "diagnostic subject kind"),
-    id: parseNonEmptyString(record.id, "diagnostic subject id"),
-  });
+  return {
+    kind: parseString(record.kind, "diagnostic subject kind"),
+    id: parseString(record.id, "diagnostic subject id"),
+  };
 }
 
 function parseLocationV1(value: unknown): DiagnosticLocationV1 {
-  const record = requireOwnedRecord(value, "diagnostic location");
+  const record = requireRecord(value, "diagnostic location");
   const keys = Object.keys(record);
   if (keys.length === 0 || keys.some((key) => !locationKeysV1.has(key))) {
     throw new TypeError("invalid diagnostic location fields");
@@ -130,7 +124,7 @@ function parseLocationV1(value: unknown): DiagnosticLocationV1 {
     jsonPointer?: string;
   } = {};
   if (record.file !== undefined) {
-    location.file = parseNonEmptyString(record.file, "diagnostic location file");
+    location.file = parseString(record.file, "diagnostic location file");
   }
   for (const key of ["line", "column"] as const) {
     const raw = record[key];
@@ -141,38 +135,36 @@ function parseLocationV1(value: unknown): DiagnosticLocationV1 {
     location[key] = raw;
   }
   if (record.jsonPointer !== undefined) {
-    const pointer = record.jsonPointer;
-    if (typeof pointer !== "string" || (pointer !== "" && !pointer.startsWith("/"))) {
+    const pointer = parseString(record.jsonPointer, "diagnostic location jsonPointer", true);
+    if (pointer !== "" && !pointer.startsWith("/")) {
       throw new TypeError("invalid diagnostic location jsonPointer");
     }
     location.jsonPointer = pointer;
   }
-  return Object.freeze(location);
+  return location;
 }
 
 function parseRelatedV1(value: unknown): readonly DiagnosticRelatedLocationV1[] {
   if (!Array.isArray(value)) throw new TypeError("invalid diagnostic related list");
-  return Object.freeze(
-    value.map((entry) => {
-      const record = requireOwnedRecord(entry, "diagnostic related entry");
-      if (Object.keys(record).toSorted().join("\0") !== "location\0message") {
-        throw new TypeError("invalid diagnostic related entry fields");
-      }
-      return Object.freeze({
-        message: parseNonEmptyString(record.message, "diagnostic related message"),
-        location: parseLocationV1(record.location),
-      });
-    }),
-  );
+  return value.map((entry) => {
+    const record = requireRecord(entry, "diagnostic related entry");
+    if (Object.keys(record).toSorted().join("\0") !== "location\0message") {
+      throw new TypeError("invalid diagnostic related entry fields");
+    }
+    return {
+      message: parseString(record.message, "diagnostic related message"),
+      location: parseLocationV1(record.location),
+    };
+  });
 }
 
 export function parseDiagnosticEnvelopeV1(value: unknown): DiagnosticEnvelopeV1 {
-  const record = requireOwnedRecord(value, "diagnostic envelope");
+  const record = requireRecord(value, "diagnostic envelope");
   const keys = Object.keys(record);
   if (keys.some((key) => !envelopeKeysV1.has(key))) {
     throw new TypeError("unknown diagnostic envelope field");
   }
-  const code = parseNonEmptyString(record.code, "diagnostic code");
+  const code = parseString(record.code, "diagnostic code");
   if (!codePatternV1.test(code)) throw new TypeError("invalid diagnostic code format");
   const severity = record.severity;
   if (typeof severity !== "string" || !severitiesV1.has(severity as DiagnosticSeverityV1)) {
@@ -203,26 +195,24 @@ export function parseDiagnosticEnvelopeV1(value: unknown): DiagnosticEnvelopeV1 
     code,
     severity: severity as DiagnosticSeverityV1,
     phase: phase as DiagnosticPhaseV1,
-    message: parseNonEmptyString(record.message, "diagnostic message"),
+    message: parseString(record.message, "diagnostic message"),
     details,
   };
   if (record.subject !== undefined) envelope.subject = parseSubjectV1(record.subject);
   if (record.location !== undefined) envelope.location = parseLocationV1(record.location);
   if (record.related !== undefined) envelope.related = parseRelatedV1(record.related);
   if (record.suggestion !== undefined) {
-    envelope.suggestion = parseNonEmptyString(record.suggestion, "diagnostic suggestion");
+    envelope.suggestion = parseString(record.suggestion, "diagnostic suggestion");
   }
   if (record.docsId !== undefined) {
-    envelope.docsId = parseNonEmptyString(record.docsId, "diagnostic docsId");
+    envelope.docsId = parseString(record.docsId, "diagnostic docsId");
   }
-  // A diagnostic must always be serializable evidence: enforce canonical JSON.
-  canonicalJsonBytes(envelope);
-  return Object.freeze(envelope);
+  return envelope;
 }
 
-export const diagnosticEnvelopeV1Schema: RuntimeSchemaV1<DiagnosticEnvelopeV1> = Object.freeze({
+export const diagnosticEnvelopeV1Schema: RuntimeSchemaV1<DiagnosticEnvelopeV1> = {
   parse: parseDiagnosticEnvelopeV1,
-});
+};
 
 export interface CreateDiagnosticInputV1 {
   readonly code: string;
@@ -261,7 +251,7 @@ export class AuthoringDiagnosticErrorV1 extends TypeError {
   readonly diagnostics: readonly DiagnosticEnvelopeV1[];
 
   constructor(diagnostics: readonly DiagnosticEnvelopeV1[], message?: string) {
-    const parsed = Object.freeze(diagnostics.map(parseDiagnosticEnvelopeV1));
+    const parsed = [...diagnostics];
     const first = parsed[0];
     if (first === undefined) {
       throw new TypeError("AuthoringDiagnosticError requires at least one diagnostic");
@@ -277,14 +267,15 @@ export class AuthoringDiagnosticErrorV1 extends TypeError {
  */
 export function extractDiagnosticsV1(error: unknown): readonly DiagnosticEnvelopeV1[] | null {
   if (error === null || typeof error !== "object") return null;
-  const descriptor = Object.getOwnPropertyDescriptor(error, "diagnostics");
-  if (descriptor === undefined || descriptor.get !== undefined || descriptor.set !== undefined) {
+  let value: unknown;
+  try {
+    value = (error as { readonly diagnostics?: unknown }).diagnostics;
+  } catch {
     return null;
   }
-  const value = descriptor.value;
   if (!Array.isArray(value) || value.length === 0) return null;
   try {
-    return Object.freeze(value.map(parseDiagnosticEnvelopeV1));
+    return value.map(parseDiagnosticEnvelopeV1);
   } catch {
     return null;
   }

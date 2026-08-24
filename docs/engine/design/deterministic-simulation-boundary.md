@@ -641,12 +641,15 @@ authenticity or hostile-JavaScript subsystem.
   ingress. A Session passes its admitted command to trusted Simulation and
   internal CommandLog collaborators without repeating validation. Replay
   preflights the complete source/command vector before driver creation.
-- Session finalization validates result kind, candidate Snapshot RNG and run-integrity data,
-  non-commit Snapshot identity, `eventSchema`/`rejectionSchema`/Debug-error
-  normalization, RNG evidence, and Snapshot-free canonical evidence once. It
-  then applies integrity, digest, log, and install steps. A malformed attempt
-  reaches the existing unexpected-fault normalizer at most once; an invalid
-  fallback cannot mutate authoritative state.
+- Standard Core trusts its resolved Simulation callback's typed attempt.
+  Session finalization retains result-kind/fallback constraints, candidate
+  Snapshot RNG and run-integrity validation, non-commit Snapshot identity,
+  integrity, digest, log, and install ordering without reparsing
+  event/rejection/RNG evidence or canonically projecting the package-owned
+  attempt. Kit events are admitted once at `emit`, and Debug validation errors
+  cross their Story schema once. The public low-level `GameSession` retains
+  strict Snapshot-free canonical evidence admission for an arbitrary executor;
+  an invalid fallback cannot mutate authoritative state.
 - The public low-level CommandLog independently admits its command and
   finalized evidence and recomputes state digests. The Session-owned internal
   log trusts the already admitted command/finalized attempt but still enforces

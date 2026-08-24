@@ -74,10 +74,7 @@ export function parseEngineDebugPatchStateCommandV1(
   value: unknown,
 ): EngineDebugPatchStateCommandV1 {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    throw new EngineDebugPatchErrorV1("command must be a plain object");
-  }
-  if (Object.getPrototypeOf(value) !== Object.prototype) {
-    throw new EngineDebugPatchErrorV1("command must be a plain object");
+    throw new EngineDebugPatchErrorV1("command must be an object");
   }
   const keys = Object.keys(value).sort();
   if (keys.join("\0") !== "kind\0path\0value") {
@@ -120,11 +117,11 @@ export function parseEngineDebugPatchStateCommandV1(
       throw new EngineDebugPatchErrorV1("numeric value must be a safe integer");
     }
   }
-  return Object.freeze({
+  return {
     kind: engineDebugPatchStateKindV1,
-    path: Object.freeze([...path]),
+    path: [...path],
     value: record.value,
-  });
+  };
 }
 
 export function validateEngineStatePatchV1(
@@ -134,12 +131,12 @@ export function validateEngineStatePatchV1(
 ): EngineDebugPatchValidationResultV1 {
   const prepared = prepareEngineStatePatchV1(snapshot.state, command, stateSchema);
   if (prepared.kind === "invalid") {
-    return Object.freeze({
+    return {
       kind: "validation_failed",
-      errors: Object.freeze([patchErrorV1(prepared.detail)]),
-    });
+      errors: [patchErrorV1(prepared.detail)],
+    };
   }
-  return Object.freeze({ kind: "allowed" });
+  return { kind: "allowed" };
 }
 
 export function executeEngineStatePatchV1<TSnapshot extends EnginePatchableSnapshotV1>(
@@ -159,13 +156,13 @@ export function executeEngineStatePatchV1<TSnapshot extends EnginePatchableSnaps
     throw new EngineDebugPatchErrorV1(prepared.detail);
   }
   const rng = createTransactionalRngV1(snapshot.rng);
-  const next = Object.freeze({
+  const next = {
     ...snapshot,
     state: prepared.state,
     rng: rng.candidateState(),
     commandSequence: parseNonNegativeSafeInteger(snapshot.commandSequence + 1),
     integrity: snapshot.integrity,
-  }) as TSnapshot;
+  } as TSnapshot;
   return commitAttemptV1(snapshot, next, rng, []);
 }
 
@@ -181,18 +178,18 @@ function prepareEngineStatePatchV1(
   try {
     parsed = parseEngineDebugPatchStateCommandV1(command);
   } catch (error) {
-    return Object.freeze({
+    return {
       kind: "invalid",
       detail: error instanceof EngineDebugPatchErrorV1 ? error.detail : "invalid patch command",
-    });
+    };
   }
   const replaced = replaceExistingLeafV1(state, parsed.path, parsed.value);
   if (replaced.kind === "invalid") return replaced;
   try {
-    return Object.freeze({ kind: "ok", state: stateSchema.parse(replaced.state) });
+    return { kind: "ok", state: stateSchema.parse(replaced.state) };
   } catch (error) {
     const message = error instanceof Error ? error.message : "state schema rejected the patch";
-    return Object.freeze({ kind: "invalid", detail: message });
+    return { kind: "invalid", detail: message };
   }
 }
 
@@ -205,15 +202,15 @@ function replaceExistingLeafV1(
   readonly detail: string;
 } {
   try {
-    return Object.freeze({
+    return {
       kind: "ok",
       state: replaceAtPathV1(root, path, value, 0),
-    });
+    };
   } catch (error) {
-    return Object.freeze({
+    return {
       kind: "invalid",
       detail: error instanceof EngineDebugPatchErrorV1 ? error.detail : "failed to apply path",
-    });
+    };
   }
 }
 
@@ -242,7 +239,7 @@ function replaceAtPathV1(
       : replaceAtPathV1(current[index], path, value, depth + 1);
     return next;
   }
-  if (!isPlainObjectV1(current)) {
+  if (!isRecordV1(current)) {
     throw new EngineDebugPatchErrorV1(
       `path is not a container: ${formatPathV1(path.slice(0, depth))}`,
     );
@@ -251,15 +248,15 @@ function replaceAtPathV1(
     throw new EngineDebugPatchErrorV1(`path does not exist: ${formatPathV1(path)}`);
   }
   if (isLeaf) {
-    return Object.freeze({
+    return {
       ...current,
       [key]: replaceLeafValueV1(current[key], value, path),
-    });
+    };
   }
-  return Object.freeze({
+  return {
     ...current,
     [key]: replaceAtPathV1(current[key], path, value, depth + 1),
-  });
+  };
 }
 
 function replaceLeafValueV1(
@@ -290,11 +287,10 @@ function leafKindV1(value: EngineStatePatchLeafV1): "null" | "string" | "boolean
   return "number";
 }
 
-function isPlainObjectV1(value: unknown): value is Record<string, unknown> {
+function isRecordV1(value: unknown): value is Record<string, unknown> {
   return value !== null &&
     typeof value === "object" &&
-    !Array.isArray(value) &&
-    Object.getPrototypeOf(value) === Object.prototype;
+    !Array.isArray(value);
 }
 
 function formatPathV1(path: readonly string[]): string {
@@ -302,8 +298,8 @@ function formatPathV1(path: readonly string[]): string {
 }
 
 function patchErrorV1(detail: string): EngineDebugPatchValidationErrorV1 {
-  return Object.freeze({
+  return {
     code: engineDebugPatchErrorCodeV1,
     detail,
-  });
+  };
 }

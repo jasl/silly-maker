@@ -92,10 +92,10 @@ async function repositoryStateV1(): Promise<
       cwd: repositoryRootV1,
     }),
   ]);
-  return Object.freeze({
+  return {
     head: head.stdout.trim(),
     workingTreeModified: status.stdout.trim().length > 0,
-  });
+  };
 }
 
 async function outputPathV1(requestedPath: string | undefined): Promise<string> {
@@ -189,10 +189,10 @@ void fetch(selectedPack.runtimePath).then(async (response) => {
       join(contentDirectory, `pack-${suffix}.json`),
       bytes,
     );
-    descriptors.push(Object.freeze({
+    descriptors.push({
       packId: `text-pack.scale.${suffix}`,
       runtimePath: `assets/content/pack-${suffix}.json`,
-    }));
+    });
   }
   await writeFile(
     join(sourceDirectory, "content-manifest.ts"),
@@ -214,7 +214,7 @@ async function listFilesV1(root: string, directory = root): Promise<readonly str
 
 async function measureAssetV1(outDir: string, path: string): Promise<AssetMeasurementV1> {
   const bytes = await readFile(join(outDir, path));
-  return Object.freeze({ path, rawBytes: bytes.byteLength, gzipBytes: gzipSync(bytes).byteLength });
+  return { path, rawBytes: bytes.byteLength, gzipBytes: gzipSync(bytes).byteLength };
 }
 
 function sumV1(rows: readonly AssetMeasurementV1[]): Readonly<{
@@ -222,11 +222,11 @@ function sumV1(rows: readonly AssetMeasurementV1[]): Readonly<{
   readonly rawBytes: number;
   readonly gzipBytes: number;
 }> {
-  return Object.freeze({
+  return {
     files: rows.length,
     rawBytes: rows.reduce((total, row) => total + row.rawBytes, 0),
     gzipBytes: rows.reduce((total, row) => total + row.gzipBytes, 0),
-  });
+  };
 }
 
 async function buildFixtureV1(root: string, outDir: string): Promise<void> {
@@ -295,34 +295,34 @@ async function mainV1(): Promise<void> {
         .filter((path) => path.startsWith("assets/content/") && path.endsWith(".json"))
         .map((path) => measureAssetV1(outDir, path)),
     );
-    const report = Object.freeze({
+    const report = {
       schemaVersion: 2,
       workloadId: `content-bundle-scale-v1/${options.profile}`,
       generatedAt: new Date().toISOString(),
       repository: await repositoryStateV1(),
-      environment: Object.freeze({
+      environment: {
         deno: Deno.version.deno,
         v8: Deno.version.v8,
         typescript: Deno.version.typescript,
         os: Deno.build.os,
         arch: Deno.build.arch,
-      }),
+      },
       fixture,
       guiComposition: "template-player",
-      groups: Object.freeze({
+      groups: {
         initialJavaScript: sumV1(initialJavaScript),
         allJavaScript: sumV1(allJavaScript),
         contentPacks: sumV1(contentPacks),
-      }),
+      },
       initialJavaScript,
       contentPacks,
-      interpretation: Object.freeze({
+      interpretation: {
         status: "external_content_pack_measurement",
         selectedPackOnly: true,
         note:
           "Initial JavaScript carries compact descriptors; fetch selects one external pack payload.",
-      }),
-    });
+      },
+    };
     const path = await outputPathV1(options.output);
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, `${JSON.stringify(report, null, 2)}\n`, "utf8");

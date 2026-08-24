@@ -105,11 +105,11 @@ export async function collectE2eBuildIdentityV1(root = repositoryRootV1) {
       await readFile(resolve(root, procedureAuthoringSourcePathV1)),
     ),
   ).runtimePlan;
-  const simulationRecord = Object.freeze({
+  const simulationRecord = {
     path: procedureAuthoringSourcePathV1,
     facet: "story_simulation",
     sha256: digestProcedureSceneRuntimePlanV1(sourcePlan),
-  });
+  };
   const storySimulation = new Map(
     identity.storySimulation.map((record) => [record.path, record]),
   );
@@ -118,15 +118,15 @@ export async function collectE2eBuildIdentityV1(root = repositoryRootV1) {
     identity.storyPresentation.map((record) => [record.path, record]),
   );
   for (const record of rawSourceRecords) storyPresentation.set(record.path, record);
-  return Object.freeze({
+  return {
     ...identity,
-    storySimulation: Object.freeze(
-      [...storySimulation.values()].sort((left, right) => compareTextV1(left.path, right.path)),
+    storySimulation: [...storySimulation.values()].sort((left, right) =>
+      compareTextV1(left.path, right.path)
     ),
-    storyPresentation: Object.freeze(
-      [...storyPresentation.values()].sort((left, right) => compareTextV1(left.path, right.path)),
+    storyPresentation: [...storyPresentation.values()].sort((left, right) =>
+      compareTextV1(left.path, right.path)
     ),
-  });
+  };
 }
 
 /** Returns the exact ESM source consumed by Vite's closed E2E virtual module. */
@@ -159,7 +159,7 @@ export function createE2eBuildIdentityVirtualPluginV1(input) {
       storyPresentation: identity.storyPresentation,
     });
 
-  return Object.freeze({
+  return {
     ...identityPlugin,
     handleHotUpdate(context) {
       const refresh = refreshTail.then(async () => {
@@ -192,7 +192,7 @@ export function createE2eBuildIdentityVirtualPluginV1(input) {
       );
       return refresh;
     },
-  });
+  };
 }
 
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);

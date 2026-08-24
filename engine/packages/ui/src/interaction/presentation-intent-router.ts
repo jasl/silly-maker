@@ -45,14 +45,14 @@ export interface PresentationIntentRouterV1 {
   ): PresentationIntentRouteResultV1;
 }
 
-const presentationIntentExecutedV1: PresentationIntentRouteResultV1 = Object.freeze({
+const presentationIntentExecutedV1: PresentationIntentRouteResultV1 = {
   kind: "executed",
-});
+};
 
-const presentationIntentUnknownV1: PresentationIntentRouteResultV1 = Object.freeze({
+const presentationIntentUnknownV1: PresentationIntentRouteResultV1 = {
   kind: "rejected",
   code: "presentation.intent_unknown",
-});
+};
 
 export function createPresentationIntentRouterV1(
   options: PresentationIntentRouterOptionsV1,
@@ -61,7 +61,7 @@ export function createPresentationIntentRouterV1(
   const knownSurfaceIds = new Set(options.knownSurfaceIds);
   const knownCueIds = new Set(options.knownCueIds);
 
-  return Object.freeze({
+  return {
     execute(
       intent: DeepReadonly<PresentationIntentV1>,
       context?: DeepReadonly<PresentationIntentRouteContextV1>,
@@ -88,5 +88,5 @@ export function createPresentationIntentRouterV1(
       }
       return presentationIntentUnknownV1;
     },
-  });
+  };
 }

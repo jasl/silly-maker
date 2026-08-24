@@ -91,7 +91,7 @@ authority 的拥有者。
   runtime boolean 进入普通 release。
 
 Deno Desktop 可以从普通 CLI 参数读取 endpoint、project path、启动 mode 等 Host bootstrap
-配置；参数只在启动边界解析、验证并冻结，不成为 interactive CLI 产品、mutable global config
+配置；参数只在启动边界解析、验证并转换为 typed config，不成为 interactive CLI 产品、mutable global config
 或 runtime message bus，也不改变既有 `--profile release|debug` 的构建预设语义。Browser 从
 浏览器适用的静态/Host 配置源产生相同 admitted config；它不伪造 CLI。
 
@@ -395,7 +395,7 @@ caller 已共用该路径；它仍未导出为 public ABI、RPC schema 或持久
   identifiers；unknown node/action 原子拒绝整个 successor，不接受任意 HTML、JavaScript、React
   component、function、module URL 或其他 executable payload；
 - Agent 修改作者文档走 §6 operation；Agent 操作游戏继续走现有 player-safe semantic port；
-- renderer 只读消费冻结、完整的 revision；交互产生 admitted `UiIntent`，再由产品 adapter 映射到
+- renderer 只读消费已 admitted、完整的 typed revision；交互产生 admitted `UiIntent`，再由产品 adapter 映射到
   query、semantic command、authoring operation 或受控 Host action；
 - 需要 domain receipt 的 action 只有在 Artifact 与 exact current domain receipt 配对后才可交互；
   domain 尚未 ready 时 renderer 保持 inert，后续 readiness/revision 可以为同一 Artifact 补配，不能

@@ -26,7 +26,7 @@ import mistDriftMotionDocumentV1 from "./motions/mist-drift.motion.json" with {
   type: "json",
 };
 
-export const templateOpeningCueIdsV1 = Object.freeze({
+export const templateOpeningCueIdsV1 = {
   courtyard: "cue.template.opening.courtyard",
   mist: "cue.template.opening.mist",
   meiEnters: "cue.template.opening.mei-enters",
@@ -36,7 +36,7 @@ export const templateOpeningCueIdsV1 = Object.freeze({
   // per-cue edge resolved through presentation edge context.
   meiFetches: "cue.template.opening.mei-fetches",
   meiReturns: "cue.template.opening.mei-returns",
-});
+};
 
 export const templateOpeningSceneRuntimePlanV1: AuthoringSceneRuntimePlan = sceneRuntimePlanV1;
 

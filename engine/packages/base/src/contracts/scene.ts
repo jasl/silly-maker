@@ -221,7 +221,7 @@ function parseSceneEntryAmbientV1(value: unknown, path: string): SceneEntryAmbie
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return dataFailure(path, "scene_ambient_invalid");
   }
-  const hasPhase = hasOwnDataValueV1(value, "phaseMs");
+  const hasPhase = hasDefinedOwnValueV1(value, "phaseMs");
   const record = readExactRecord(value, hasPhase ? ["motionId", "phaseMs"] : ["motionId"], path);
   const phaseMs = record.phaseMs;
   if (
@@ -231,14 +231,14 @@ function parseSceneEntryAmbientV1(value: unknown, path: string): SceneEntryAmbie
   ) {
     return dataFailure(`${path}/phaseMs`, "scene_ambient_phase_invalid");
   }
-  return Object.freeze({
+  return {
     motionId: parseSceneMotionIdV1(
       record.motionId,
       `${path}/motionId`,
       "scene_ambient_motion_id_invalid",
     ),
     ...(phaseMs === undefined ? {} : { phaseMs }),
-  });
+  };
 }
 
 function parseSceneCanvasV1(value: unknown, path: string): SceneCanvasV1 {
@@ -254,25 +254,14 @@ function parseSceneCanvasV1(value: unknown, path: string): SceneCanvasV1 {
     }
     return candidate;
   };
-  return Object.freeze({
+  return {
     width: parseSide(record.width, `${path}/width`),
     height: parseSide(record.height, `${path}/height`),
-  });
+  };
 }
 
-/**
- * Getter-free optional-key probe: Documents are untrusted input, so
- * admission must not execute author-supplied accessors before rejecting
- * them. An accessor property counts as present (so `readExactRecord`
- * rejects it as `data_property_expected` without ever calling the getter);
- * an explicit-`undefined` data property counts as absent (so the exact-key
- * check rejects it, same as before).
- */
-function hasOwnDataValueV1(value: object, key: string): boolean {
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  if (descriptor === undefined) return false;
-  if (descriptor.get !== undefined || descriptor.set !== undefined) return true;
-  return descriptor.value !== undefined;
+function hasDefinedOwnValueV1(value: object, key: string): boolean {
+  return Object.hasOwn(value, key) && (value as Record<string, unknown>)[key] !== undefined;
 }
 
 function parseSceneEntryV1(value: unknown, path: string): SceneEntryV1 {
@@ -281,7 +270,7 @@ function parseSceneEntryV1(value: unknown, path: string): SceneEntryV1 {
   }
   const baseKeys = ["layerId", "tag", "contentId"];
   const optionalKeys = ["zOrder", "placement", "appearance", "ambient"].filter(
-    (key) => hasOwnDataValueV1(value, key),
+    (key) => hasDefinedOwnValueV1(value, key),
   );
   const record = readExactRecord(value, [...baseKeys, ...optionalKeys], path);
   const zOrder = record.zOrder;
@@ -292,7 +281,7 @@ function parseSceneEntryV1(value: unknown, path: string): SceneEntryV1 {
   ) {
     return dataFailure(`${path}/zOrder`, "z_order_invalid");
   }
-  return Object.freeze({
+  return {
     layerId: parseStageLayerIdV1(record.layerId, `${path}/layerId`),
     tag: parseStageTagV1(record.tag, `${path}/tag`),
     contentId: parseStageContentIdV1(record.contentId, `${path}/contentId`),
@@ -306,15 +295,15 @@ function parseSceneEntryV1(value: unknown, path: string): SceneEntryV1 {
     ...(record.ambient === undefined
       ? {}
       : { ambient: parseSceneEntryAmbientV1(record.ambient, `${path}/ambient`) }),
-  });
+  };
 }
 
 function parseSceneCueV1(value: unknown, path: string): SceneCueV1 {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return dataFailure(path, "scene_cue_invalid");
   }
-  const hasMotion = hasOwnDataValueV1(value, "motionId");
-  const hasCut = hasOwnDataValueV1(value, "cut");
+  const hasMotion = hasDefinedOwnValueV1(value, "motionId");
+  const hasCut = hasDefinedOwnValueV1(value, "cut");
   const record = readExactRecord(
     value,
     [
@@ -336,13 +325,13 @@ function parseSceneCueV1(value: unknown, path: string): SceneCueV1 {
     // A cue's edge plays a motion or is an explicit instant cut, never both.
     return dataFailure(`${path}/cut`, "scene_cue_cut_motion_conflict");
   }
-  return Object.freeze({
+  return {
     cueId: parseSceneCueIdV1(record.cueId, `${path}/cueId`),
     kind: record.kind,
     tag: parseStageTagV1(record.tag, `${path}/tag`),
     ...(hasMotion ? { motionId: parseSceneMotionIdV1(record.motionId, `${path}/motionId`) } : {}),
     ...(hasCut ? { cut: true as const } : {}),
-  });
+  };
 }
 
 /**
@@ -413,15 +402,15 @@ export function parseSceneDocumentV1(value: unknown, path = ""): SceneDocumentV1
     cues.push(cue);
   }
 
-  return Object.freeze({
+  return {
     format: sceneDocumentFormatV1,
     version: sceneDocumentVersionV1,
     sceneId: parseSceneIdV1(record.sceneId, `${path}/sceneId`),
     label: record.label,
     canvas: parseSceneCanvasV1(record.canvas, `${path}/canvas`),
-    entries: Object.freeze(entries),
-    cues: Object.freeze(cues),
-  });
+    entries,
+    cues,
+  };
 }
 
 interface SceneIndexV1 {
@@ -501,10 +490,8 @@ function cueMutationPlanV1(
       return dataFailure(`/cues/${cue.cueId}/kind`, String(exhaustive));
     }
   }
-  return Object.freeze(
-    plans.map((plan, planIndex) =>
-      parseStageMutationV1(plan, `/cues/${cue.cueId}/mutations/${String(planIndex)}`)
-    ),
+  return plans.map((plan, planIndex) =>
+    parseStageMutationV1(plan, `/cues/${cue.cueId}/mutations/${String(planIndex)}`)
   );
 }
 
@@ -627,10 +614,8 @@ function openMutationPlanV1(
     }
   }
 
-  return Object.freeze(
-    plans.map((plan, planIndex) =>
-      parseStageMutationV1(plan, `/open/mutations/${String(planIndex)}`)
-    ),
+  return plans.map((plan, planIndex) =>
+    parseStageMutationV1(plan, `/open/mutations/${String(planIndex)}`)
   );
 }
 
@@ -655,10 +640,8 @@ function authoringOrderingMutationPlanV1(
       });
     }
   }
-  return Object.freeze(
-    plans.map((mutation, index) =>
-      parseStageMutationV1(mutation, `/reconcile/mutations/${String(index)}`)
-    ),
+  return plans.map((mutation, index) =>
+    parseStageMutationV1(mutation, `/reconcile/mutations/${String(index)}`)
   );
 }
 
@@ -697,16 +680,16 @@ export function sceneFromAdmittedDocumentInternalV1(
     if (!mayShow.includes(entry.contentId as string)) mayShow.push(entry.contentId as string);
   }
 
-  return Object.freeze({
+  return {
     sceneDocument,
     sceneId: sceneDocument.sceneId,
     label: sceneDocument.label,
-    cueIds: Object.freeze(sceneDocument.cues.map((cue) => cue.cueId)),
-    mayShow: Object.freeze(mayShow),
+    cueIds: sceneDocument.cues.map((cue) => cue.cueId),
+    mayShow,
     cueMayShow(cueId: string): readonly string[] {
       const cue = requireCueV1(index, cueId);
-      if (cue.kind !== "show") return Object.freeze([]);
-      return Object.freeze([requireCueEntryV1(index, cue).contentId as string]);
+      if (cue.kind !== "show") return [];
+      return [requireCueEntryV1(index, cue).contentId as string];
     },
     cueMotionId(cueId: string): string | null {
       return requireCueV1(index, cueId).motionId ?? null;
@@ -719,7 +702,7 @@ export function sceneFromAdmittedDocumentInternalV1(
     openMutations(stage: SemanticStageStateV1): readonly StageMutationV1[] {
       return openMutationPlanV1(sceneDocument, index, stage, options);
     },
-  });
+  };
 }
 
 /**
@@ -735,12 +718,12 @@ export function sceneFromAuthoringRuntimePlanV1(
     reconcileZOrder: true,
     orderedLayerIds: plan.orderedLayerIds,
   });
-  return Object.freeze({
+  return {
     ...scene,
     reconcileOrderingMutations(stage: SemanticStageStateV1): readonly StageMutationV1[] {
       return authoringOrderingMutationPlanV1(plan, stage);
     },
-  });
+  };
 }
 
 /**
@@ -930,8 +913,8 @@ export function sceneStageTransitionBindingsV1(
     }
   }
 
-  return Object.freeze({
-    definitions: Object.freeze(definitions),
+  return {
+    definitions,
     resolveTransition(change: StageTargetChangeV1): StageTransitionDefinitionV1 | null {
       const contentId = change.kind === "enter"
         ? change.next?.contentId
@@ -990,7 +973,7 @@ export function sceneStageTransitionBindingsV1(
     resolveTransitionById(transitionId: string): StageTransitionDefinitionV1 | null {
       return definitionsById.get(transitionId) ?? null;
     },
-  });
+  };
 }
 
 export interface SceneAmbientCatalogInputV1 {
@@ -1041,14 +1024,14 @@ export function sceneAmbientCatalogV1(
     ].join("|");
     bindingsByKey.set(
       key,
-      Object.freeze({
+      {
         motion: motionDefinitionFromDocumentV1(motionDocument),
         phaseMs: ambient.phaseMs ?? 0,
-      }),
+      },
     );
   }
 
-  return Object.freeze({
+  return {
     resolveAmbient(
       layerId: StageLayerIdV1,
       entry: StageRenderEntryV1,
@@ -1056,7 +1039,7 @@ export function sceneAmbientCatalogV1(
       const key = [layerId as string, entry.key, entry.contentId as string].join("|");
       return bindingsByKey.get(key) ?? null;
     },
-  });
+  };
 }
 
 export interface SceneSettledMutationsOptionsV1 {
@@ -1099,5 +1082,5 @@ export function sceneSettledMutationsV1(
     }
     if (options.throughCueId !== undefined && cue.cueId === options.throughCueId) break;
   }
-  return Object.freeze(collected);
+  return collected;
 }

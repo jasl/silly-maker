@@ -13,7 +13,7 @@ export const calendarModuleV1 = kit.defineStatefulModule({
   state: {
     slot: "simulation.calendar",
     schema: catcafeCalendarStateSchemaV1,
-    initial: () => Object.freeze({ week: 1, day: 0, slot: 0, stamina: catcafeDailyStaminaV1 }),
+    initial: () => ({ week: 1, day: 0, slot: 0, stamina: catcafeDailyStaminaV1 }),
   },
   commandSchema: commandSchemaV1,
   reducers: {
@@ -26,10 +26,10 @@ export function advanceCalendarV1(
   state: CatcafeGameStateV1["simulation"]["calendar"],
 ): CatcafeGameStateV1["simulation"]["calendar"] {
   const nextSlot = state.slot + 1;
-  if (nextSlot < catcafeSlotsV1.length) return Object.freeze({ ...state, slot: nextSlot });
+  if (nextSlot < catcafeSlotsV1.length) return ({ ...state, slot: nextSlot });
   const nextDay = state.day + 1;
   const rollWeek = nextDay > 6;
-  return Object.freeze({
+  return ({
     week: clampV1(rollWeek ? state.week + 1 : state.week, 1, 9999),
     day: rollWeek ? 0 : nextDay,
     slot: 0,

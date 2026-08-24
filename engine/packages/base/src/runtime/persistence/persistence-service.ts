@@ -104,7 +104,7 @@ import {
   validateSaveImportCandidateV1,
 } from "./compatibility.ts";
 export { admitAdoptionDeclarationsInternalV1 } from "./compatibility.ts";
-import { encodeSaveRecordInternalV1 } from "./save-codec.ts";
+import { encodeAdmittedSaveRecordInternalV1 } from "./save-codec.ts";
 import type {
   SaveRepositorySlotMetadataV1,
   SaveRepositoryV1,
@@ -213,18 +213,18 @@ interface PersistenceServiceControlInternalV1 {
   ): Promise<PersistenceAutoSaveAttemptReceiptInternalV1>;
   loadWithReplacementCommit(
     slot: SaveSlotIdV1,
-    onReplacementCommit: () => void,
+    onReplacementCommit?: () => void,
     publicationContext?: AuthoritativeReplacementPublicationContextInternalV1,
   ): Promise<PersistenceOperationResultV1>;
   importWithReplacementCommit(
     bytes: Uint8Array,
-    onReplacementCommit: () => void,
+    onReplacementCommit?: () => void,
     publicationContext?: AuthoritativeReplacementPublicationContextInternalV1,
   ): Promise<PersistenceOperationResultV1>;
   bindAnchorReplacement<TResult>(
     outcome: object,
     simulationLineage: readonly DeepReadonly<SimulationAdoptionV1>[],
-    onReplacementCommit: () => void,
+    onReplacementCommit: (() => void) | undefined,
     normalizePrepareFailure: (error: unknown) => TResult,
     publicationContext?: AuthoritativeReplacementPublicationContextInternalV1,
   ): void;
@@ -288,7 +288,7 @@ export function adoptPersistenceRebootstrapHandoffInternalV1<TSnapshot>(
 export function loadWithReplacementCommitInternalV1<TSnapshot>(
   service: PersistenceServiceV1<TSnapshot>,
   slot: SaveSlotIdV1,
-  onReplacementCommit: () => void,
+  onReplacementCommit?: () => void,
   publicationContext?: AuthoritativeReplacementPublicationContextInternalV1,
 ): Promise<PersistenceOperationResultV1> {
   const control = persistenceServiceControlsInternalV1.get(service);
@@ -302,7 +302,7 @@ export function loadWithReplacementCommitInternalV1<TSnapshot>(
 export function importWithReplacementCommitInternalV1<TSnapshot>(
   service: PersistenceServiceV1<TSnapshot>,
   bytes: Uint8Array,
-  onReplacementCommit: () => void,
+  onReplacementCommit?: () => void,
   publicationContext?: AuthoritativeReplacementPublicationContextInternalV1,
 ): Promise<PersistenceOperationResultV1> {
   const control = persistenceServiceControlsInternalV1.get(service);
@@ -317,7 +317,7 @@ export function bindPersistenceAnchorReplacementInternalV1<TSnapshot, TResult>(
   service: PersistenceServiceV1<TSnapshot>,
   outcome: object,
   simulationLineage: readonly DeepReadonly<SimulationAdoptionV1>[],
-  onReplacementCommit: () => void,
+  onReplacementCommit: (() => void) | undefined,
   normalizePrepareFailure: (error: unknown) => TResult,
   publicationContext?: AuthoritativeReplacementPublicationContextInternalV1,
 ): void {
@@ -461,7 +461,7 @@ interface AutoCandidateV1<TSnapshot> {
 function copyLineageV1(
   lineage: readonly DeepReadonly<SimulationAdoptionV1>[],
 ): readonly SimulationAdoptionV1[] {
-  return Object.freeze(lineage.map((entry) => Object.freeze({ ...entry })));
+  return lineage.map((entry) => ({ ...entry }));
 }
 
 function bytesEqualV1(left: Uint8Array, right: Uint8Array): boolean {
@@ -473,17 +473,17 @@ function bytesEqualV1(left: Uint8Array, right: Uint8Array): boolean {
 function rejectedV1(
   code: Extract<PersistenceOperationResultV1, { readonly kind: "rejected" }>["code"],
 ): PersistenceOperationResultV1 {
-  return Object.freeze({ kind: "rejected", code });
+  return { kind: "rejected", code };
 }
 
 function faultedV1(code = "persistence.unexpected"): PersistenceOperationResultV1 {
-  return Object.freeze({ kind: "faulted", code });
+  return { kind: "faulted", code };
 }
 
 function exportRejectedV1(
   code: Extract<SaveExportOperationResultV1, { readonly kind: "rejected" }>["code"],
 ): SaveExportOperationResultV1 {
-  return Object.freeze({ kind: "rejected", code });
+  return { kind: "rejected", code };
 }
 
 function saveInspectionDiagnosticsV1(input: {
@@ -500,13 +500,13 @@ function saveInspectionDiagnosticsV1(input: {
   const unavailable = validation?.kind === "inspect_only" && "code" in validation
     ? validation
     : null;
-  return Object.freeze({
-    codes: Object.freeze([...(input.codes ?? [])]),
+  return {
+    codes: [...(input.codes ?? [])],
     migrationAttempt,
     migrationReasonCode,
     storedStateContractRevision: unavailable?.storedStateContractRevision ?? null,
     currentStateContractRevision: unavailable?.currentStateContractRevision ?? null,
-  });
+  };
 }
 
 function projectSaveInspectionValidationV1(
@@ -515,96 +515,96 @@ function projectSaveInspectionValidationV1(
 ): SaveInspectionResultV1 {
   if (validation.kind === "exact") {
     return validation.migration === null
-      ? Object.freeze({
+      ? {
         kind: "direct",
         slotId,
         warnings: validation.warnings,
         diagnostics: saveInspectionDiagnosticsV1({ validation }),
-      })
-      : Object.freeze({
+      }
+      : {
         kind: "migration_required",
         slotId,
         migration: validation.migration,
         warnings: validation.warnings,
         diagnostics: saveInspectionDiagnosticsV1({ validation }),
-      });
+      };
   }
   if (validation.kind === "adopted") {
     return validation.migration === null
-      ? Object.freeze({
+      ? {
         kind: "adoption_required",
         slotId,
         adoption: validation.adoption,
         warnings: validation.warnings,
         diagnostics: saveInspectionDiagnosticsV1({ validation }),
-      })
-      : Object.freeze({
+      }
+      : {
         kind: "migration_and_adoption_required",
         slotId,
         migration: validation.migration,
         adoption: validation.adoption,
         warnings: validation.warnings,
         diagnostics: saveInspectionDiagnosticsV1({ validation }),
-      });
+      };
   }
   if (validation.kind === "faulted") {
-    return Object.freeze({
+    return {
       kind: "faulted",
       slotId,
       code: validation.code,
       diagnostics: saveInspectionDiagnosticsV1({
-        codes: Object.freeze([validation.code]),
+        codes: [validation.code],
         validation,
       }),
-    });
+    };
   }
   if (validation.kind === "inspect_only") {
     if ("code" in validation) {
-      return Object.freeze({
+      return {
         kind: "inspect_only",
         slotId,
         code: "migration_unavailable",
         diagnostics: saveInspectionDiagnosticsV1({
-          codes: Object.freeze([validation.code]),
+          codes: [validation.code],
           validation,
         }),
-      });
+      };
     }
-    return Object.freeze({
+    return {
       kind: "inspect_only",
       slotId,
       code: "incompatible",
       diagnostics: saveInspectionDiagnosticsV1({
-        codes: Object.freeze([
+        codes: [
           ...validation.mismatches.map(({ code }) => code),
           ...validation.warnings.map(({ code }) => code),
-        ]),
+        ],
         validation,
       }),
-    });
+    };
   }
   const migrationFailure = validation.code === "migration.rejected" ||
     validation.code === "migration.output_invalid";
   if (validation.code === "compatibility.lineage_limit") {
-    return Object.freeze({
+    return {
       kind: "inspect_only",
       slotId,
       code: "reanchor_required",
       diagnostics: saveInspectionDiagnosticsV1({
-        codes: Object.freeze([validation.code]),
+        codes: [validation.code],
         validation,
       }),
-    });
+    };
   }
-  return Object.freeze({
+  return {
     kind: "rejected",
     slotId,
     code: migrationFailure ? "migration_rejected" : "invalid_record",
     diagnostics: saveInspectionDiagnosticsV1({
-      codes: Object.freeze([validation.code]),
+      codes: [validation.code],
       validation,
     }),
-  });
+  };
 }
 
 function repositoryRejectionV1(
@@ -720,12 +720,12 @@ async function createPersistenceServiceWithDependenciesV1<
       formatRevision: 1 as const,
       recordRevision,
       provenance: options.provenance,
-      slot: Object.freeze({
+      slot: {
         storyId: options.provenance.story.id,
         slotId,
         writeReason,
         capturedCommandSequence: candidate.snapshot.commandSequence,
-      }),
+      },
       savedAt: candidate.savedAt,
       stateDigest:
         lookupInstalledSnapshotDigestInternalV1(options.runtimeControl, candidate.snapshot) ??
@@ -734,7 +734,7 @@ async function createPersistenceServiceWithDependenciesV1<
       simulationLineage: candidate.simulationLineage,
       // A fresh capture starts with no player note; annotateSave adds one.
       ...(candidate.summary === null ? {} : {
-        annotation: Object.freeze({ summary: candidate.summary, note: null }),
+        annotation: { summary: candidate.summary, note: null },
       }),
       ...(versionStampV1 === null ? {} : { versionStamp: versionStampV1 }),
     };
@@ -746,9 +746,8 @@ async function createPersistenceServiceWithDependenciesV1<
   };
 
   const encodeRecordV1 = (record: DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>): Uint8Array =>
-    encodeSaveRecordInternalV1<TSnapshot, PersistenceSaveRecordV1<TSnapshot>>(
+    encodeAdmittedSaveRecordInternalV1<TSnapshot, PersistenceSaveRecordV1<TSnapshot>>(
       record,
-      options.validation.codec,
       instrumentation,
     );
 
@@ -757,31 +756,30 @@ async function createPersistenceServiceWithDependenciesV1<
     const state = (snapshot as { readonly state: DeepReadonly<TState> }).state;
     recordSaveSummaryProjectionInternalV1(
       testOptions?.saveSummaryProjectionInstrumentation,
-      Object.freeze({ phase: "before" as const, state }),
+      { phase: "before" as const, state },
     );
     try {
       const value = normalizeSaveSummaryInternalV1(options.summarizeSave(state));
       recordSaveSummaryProjectionInternalV1(
         testOptions?.saveSummaryProjectionInstrumentation,
-        Object.freeze({ phase: "returned" as const, state, value }),
+        { phase: "returned" as const, state, value },
       );
       return value;
     } catch (error) {
       recordSaveSummaryProjectionInternalV1(
         testOptions?.saveSummaryProjectionInstrumentation,
-        Object.freeze({ phase: "threw" as const, state, error }),
+        { phase: "threw" as const, state, error },
       );
       throw error;
     }
   };
 
-  const captureV1 = (snapshot: DeepReadonly<TSnapshot>): SaveCandidateV1<TSnapshot> =>
-    Object.freeze({
-      snapshot,
-      simulationLineage: currentLineage,
-      savedAt: options.metadataClock.now(),
-      summary: captureSummaryV1(snapshot),
-    });
+  const captureV1 = (snapshot: DeepReadonly<TSnapshot>): SaveCandidateV1<TSnapshot> => ({
+    snapshot,
+    simulationLineage: currentLineage,
+    savedAt: options.metadataClock.now(),
+    summary: captureSummaryV1(snapshot),
+  });
 
   const verifyFenceV1 = async (
     fence: DeepReadonly<SessionLeaseFenceV1>,
@@ -792,7 +790,7 @@ async function createPersistenceServiceWithDependenciesV1<
   > => {
     const observedStatus = await refreshLeaseStatusV1();
     if (observedStatus.kind === "unavailable") {
-      return Object.freeze({ kind: "unavailable", code: observedStatus.code });
+      return { kind: "unavailable", code: observedStatus.code };
     }
     const freshFence = options.lease.captureFence();
     const ownsFence =
@@ -802,7 +800,7 @@ async function createPersistenceServiceWithDependenciesV1<
       freshFence !== null &&
       freshFence.ownerId === fence.ownerId &&
       freshFence.fencingToken === fence.fencingToken;
-    return Object.freeze({ kind: ownsFence ? "owned" : "conflict" });
+    return { kind: ownsFence ? "owned" : "conflict" };
   };
 
   const writeVerifiedV1 = async (
@@ -881,11 +879,11 @@ async function createPersistenceServiceWithDependenciesV1<
       const receiptMatch = matchesCommittedSaveWriteReceiptInternalV1(
         options.repository,
         written,
-        Object.freeze({
+        {
           slotId,
           recordRevision: written.recordRevision,
           bytes: observed.bytes,
-        }),
+        },
       );
       if (receiptMatch === false) {
         return rejectedV1("conflict");
@@ -896,7 +894,7 @@ async function createPersistenceServiceWithDependenciesV1<
           return rejectedV1("conflict");
         }
       }
-      return Object.freeze({ kind: "saved" as const, slotId });
+      return { kind: "saved" as const, slotId };
     } catch {
       return faultedV1();
     }
@@ -934,7 +932,7 @@ async function createPersistenceServiceWithDependenciesV1<
           autoPhysicalOrderByAttempt.set(candidate.attemptIdentity, takeNextAutoPhysicalOrderV1());
           return await schedulePhysicalV1(() =>
             writeVerifiedV1(
-              Object.freeze({ ...candidate, savedAt, summary }),
+              { ...candidate, savedAt, summary },
               "auto.current",
               candidate.fence,
             )
@@ -951,9 +949,7 @@ async function createPersistenceServiceWithDependenciesV1<
       onCurrentResult(candidate, result) {
         if (result.kind === "saved") {
           lastSuccessfulAutoSnapshot = candidate.snapshot;
-          lastSuccessfulAutoFence = candidate.fence === null
-            ? null
-            : Object.freeze({ ...candidate.fence });
+          lastSuccessfulAutoFence = candidate.fence === null ? null : { ...candidate.fence };
           lastSuccessfulAutoPhysicalOrder =
             autoPhysicalOrderByAttempt.get(candidate.attemptIdentity) ?? null;
           rememberSuccessV1(candidate.snapshot.commandSequence);
@@ -992,30 +988,26 @@ async function createPersistenceServiceWithDependenciesV1<
     const settled = receipt
       .then((attemptReceipt): PersistenceAutoSaveAttemptReceiptInternalV1 => {
         if (attemptReceipt.kind === "superseded") {
-          return Object.freeze({ kind: "superseded" as const });
+          return { kind: "superseded" as const };
         }
         if (attemptReceipt.kind === "rejected") {
-          return Object.freeze({ kind: "failed" as const, result: null });
+          return { kind: "failed" as const, result: null };
         }
-        return attemptReceipt.result.kind === "saved"
-          ? Object.freeze({ kind: "saved" as const })
-          : Object.freeze({
-            kind: "failed" as const,
-            result: attemptReceipt.result,
-          });
-      })
-      .catch(() =>
-        Object.freeze({
+        return attemptReceipt.result.kind === "saved" ? { kind: "saved" as const } : {
           kind: "failed" as const,
-          result: null,
-        })
-      );
-    const tracked = Object.freeze({
+          result: attemptReceipt.result,
+        };
+      })
+      .catch(() => ({
+        kind: "failed" as const,
+        result: null,
+      }));
+    const tracked = {
       anchorEpoch,
-      fence: fence === null ? null : Object.freeze({ ...fence }),
+      fence: fence === null ? null : { ...fence },
       attemptIdentity,
       settled,
-    });
+    };
     attemptMap.set(snapshotKey, tracked);
     void settled.then(() => {
       if (attemptMap.get(snapshotKey) === tracked) {
@@ -1064,13 +1056,13 @@ async function createPersistenceServiceWithDependenciesV1<
     if (lifecycle !== "active" || playerMutationsFenced) {
       throw new TypeError("Persistence service changed lifecycle during anchor preparation");
     }
-    const attemptIdentity = Object.freeze({});
-    const candidate = Object.freeze({
+    const attemptIdentity = {};
+    const candidate = {
       snapshot,
       simulationLineage: nextLineage,
       fence,
       attemptIdentity,
-    });
+    };
     const autoPlan = prepareAutoSaveAnchorWithReceiptInternalV1<
       AutoCandidateV1<TSnapshot>,
       PersistenceOperationResultV1
@@ -1083,7 +1075,7 @@ async function createPersistenceServiceWithDependenciesV1<
       attemptIdentity,
       autoPlan.receipt,
     );
-    return Object.freeze({
+    return {
       commit() {
         // Auto Save token admission happens before any other live authority
         // assignment, so an invalid/stale token cannot partially install the
@@ -1106,7 +1098,7 @@ async function createPersistenceServiceWithDependenciesV1<
         }
         runPreparedAutoSaveAnchorPostCommitInternalV1(autoPlan.prepared);
       },
-    });
+    };
   };
 
   const establishAnchorV1 = (
@@ -1124,19 +1116,19 @@ async function createPersistenceServiceWithDependenciesV1<
   ): Promise<PersistenceAutoSaveAttemptReceiptInternalV1> => {
     if (lifecycle !== "active") {
       return Promise.resolve(
-        Object.freeze({
+        {
           kind: "failed" as const,
           result: faultedV1("runtime_disposed"),
-        }),
+        },
       );
     }
     if (snapshot === null || typeof snapshot !== "object") {
       rememberFailureV1("persistence.capture_invalid");
       return Promise.resolve(
-        Object.freeze({
+        {
           kind: "failed" as const,
           result: faultedV1("persistence.capture_invalid"),
-        }),
+        },
       );
     }
     const snapshotKey = snapshot as object;
@@ -1156,7 +1148,7 @@ async function createPersistenceServiceWithDependenciesV1<
       return existing.settled;
     }
 
-    const attemptIdentity = Object.freeze({});
+    const attemptIdentity = {};
     let receipt: ReturnType<
       typeof enqueueAutoSaveWithReceiptInternalV1<
         AutoCandidateV1<TSnapshot>,
@@ -1169,20 +1161,20 @@ async function createPersistenceServiceWithDependenciesV1<
         PersistenceOperationResultV1
       >(
         autoQueue,
-        Object.freeze({
+        {
           snapshot,
           simulationLineage: currentLineage,
           fence,
           attemptIdentity,
-        }),
+        },
       );
     } catch {
       rememberFailureV1("persistence.capture_invalid");
       return Promise.resolve(
-        Object.freeze({
+        {
           kind: "failed" as const,
           result: faultedV1("persistence.capture_invalid"),
-        }),
+        },
       );
     }
     return trackAutoSaveAttemptV1(snapshot, fence, anchorEpoch, attemptIdentity, receipt);
@@ -1215,14 +1207,14 @@ async function createPersistenceServiceWithDependenciesV1<
       await refreshLeaseStatusV1();
     } catch {
       rememberFailureV1("persistence.unexpected");
-      return Object.freeze({ kind: "failed" as const, result: null });
+      return { kind: "failed" as const, result: null };
     }
     if (matchesSuccessfulAutoSaveV1(snapshot)) {
-      return Object.freeze({ kind: "saved" as const });
+      return { kind: "saved" as const };
     }
     return enqueueAfterRefresh
       ? captureTrackedAutoSaveV1(snapshot)
-      : Object.freeze({ kind: "superseded" as const });
+      : { kind: "superseded" as const };
   };
 
   const captureAutoSaveWithReceiptV1 = (
@@ -1270,26 +1262,26 @@ async function createPersistenceServiceWithDependenciesV1<
     }
     const rejection = validationRejectionV1(validation);
     if (rejection !== null) {
-      return Object.freeze({ kind: "preserve" as const, result: rejection });
+      return { kind: "preserve" as const, result: rejection };
     }
     if (validation.kind !== "exact" && validation.kind !== "adopted") {
       throw new TypeError("invalid runnable Save validation result");
     }
     const lineage = validation.kind === "adopted"
-      ? Object.freeze([...validation.candidate.simulationLineage, validation.adoption])
+      ? [...validation.candidate.simulationLineage, validation.adoption]
       : validation.candidate.simulationLineage;
-    return Object.freeze({
+    return {
       kind: "replace" as const,
       snapshot: validation.candidate.snapshot as TSnapshot,
-      result: Object.freeze({
+      result: {
         kind: operation,
         compatibility: validation.kind,
         commandSequence: validation.candidate.snapshot.commandSequence,
-      }) as PersistenceOperationResultV1,
+      } as PersistenceOperationResultV1,
       anchor: "replace_replay_base" as const,
       simulationLineage: lineage,
       migration: validation.migration,
-    });
+    };
   };
 
   const replacementOutcomeV1 = (bytes: Uint8Array, operation: "loaded" | "imported") =>
@@ -1307,12 +1299,12 @@ async function createPersistenceServiceWithDependenciesV1<
       instrumentation,
     );
     if (preparation.kind === "rejected") {
-      return Object.freeze({
+      return {
         health: "invalid" as const,
         slotId,
         hostRevision: read.hostRevision,
         code: preparation.code,
-      });
+      };
     }
     const physicalFailure = options.repository.validatePhysical(
       slotId,
@@ -1320,20 +1312,20 @@ async function createPersistenceServiceWithDependenciesV1<
       preparation.envelope,
     );
     if (physicalFailure !== null) {
-      return Object.freeze({
+      return {
         health: "invalid" as const,
         slotId,
         hostRevision: read.hostRevision,
         code: physicalFailure,
-      });
+      };
     }
-    return Object.freeze({
+    return {
       health: "prepared" as const,
       slotId,
       hostRevision: read.hostRevision,
       bytes: read.bytes,
       preparation,
-    });
+    };
   };
 
   const validateStoredSlotInternalV1 = async (
@@ -1359,14 +1351,14 @@ async function createPersistenceServiceWithDependenciesV1<
     } else {
       validation = finishSaveImportCandidateInternalV1(read.preparation, options.validation);
     }
-    return Object.freeze({
+    return {
       health: "validated" as const,
       slotId,
       hostRevision: read.hostRevision,
       bytes: read.bytes,
       envelope: read.preparation.envelope,
       validation,
-    });
+    };
   };
   const validateStoredSlotForInspectionV1 = (slotId: SaveSlotIdV1) =>
     validateStoredSlotInternalV1(slotId, false);
@@ -1457,18 +1449,18 @@ async function createPersistenceServiceWithDependenciesV1<
     return options.runtimeControl.enqueueAuthoritative<PersistenceOperationResultV1>(
       async (current) => {
         if (lifecycle !== "active") {
-          return Object.freeze({
+          return {
             kind: "preserve" as const,
             result: faultedV1("runtime_disposed"),
-          });
+          };
         }
         try {
           const outcome = await operation(current);
           if (lifecycle !== "active") {
-            return Object.freeze({
+            return {
               kind: "preserve" as const,
               result: faultedV1("runtime_disposed"),
-            });
+            };
           }
           if (outcome.kind === "replace") {
             if (options.prepareReplacement !== undefined) {
@@ -1476,16 +1468,16 @@ async function createPersistenceServiceWithDependenciesV1<
                 outcome.snapshot as DeepReadonly<TSnapshot>,
               );
             }
-            legacyReplacement = Object.freeze({
+            legacyReplacement = {
               simulationLineage: outcome.simulationLineage,
               migration: outcome.migration,
-            });
-            const replacement = Object.freeze({
+            };
+            const replacement = {
               kind: outcome.kind,
               snapshot: outcome.snapshot,
               result: outcome.result,
               anchor: outcome.anchor,
-            });
+            };
             bindReplacementCommitV1(
               replacement,
               outcome.simulationLineage,
@@ -1508,10 +1500,10 @@ async function createPersistenceServiceWithDependenciesV1<
           return outcome;
         } catch {
           rememberFailureV1("persistence.unexpected");
-          return Object.freeze({
+          return {
             kind: "preserve" as const,
             result: faultedV1(),
-          });
+          };
         }
       },
       () => {
@@ -1542,22 +1534,22 @@ async function createPersistenceServiceWithDependenciesV1<
     record: DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>,
   ): ExportedSaveV1 => {
     const bytes = Uint8Array.from(encodeRecordV1(record));
-    return Object.freeze({
+    return {
       filename: exportFilenameV1(),
       mediaType: "application/json" as const,
       digest: digestBytes(bytes),
       bytes,
-    });
+    };
   };
 
   const makeStoredExportV1 = (storedBytes: Uint8Array): ExportedSaveV1 => {
     const bytes = Uint8Array.from(storedBytes);
-    return Object.freeze({
+    return {
       filename: exportFilenameV1(),
       mediaType: "application/json" as const,
       digest: digestBytes(bytes),
       bytes,
-    });
+    };
   };
 
   const admitRebootstrapSaveV1 = (
@@ -1575,12 +1567,12 @@ async function createPersistenceServiceWithDependenciesV1<
     if (digestBytes(bytes) !== digest) {
       throw new TypeError("persistence.rebootstrap_save_digest_mismatch");
     }
-    return Object.freeze({
+    return {
       filename: save.filename,
       mediaType: "application/json" as const,
       digest,
       bytes,
-    });
+    };
   };
 
   const normalizeRebootstrapCandidateSaveV1 = (
@@ -1590,11 +1582,11 @@ async function createPersistenceServiceWithDependenciesV1<
     // `finishSaveImportCandidateInternalV1` already admitted this candidate.
     // Rebuild only the successor-owned provenance/lineage fields, then trust
     // the typed representation rather than repeating schema/envelope admission.
-    const normalized: DeepReadonly<PersistenceSaveRecordV1<TSnapshot>> = Object.freeze({
+    const normalized: DeepReadonly<PersistenceSaveRecordV1<TSnapshot>> = {
       ...candidate,
       provenance: options.provenance,
       simulationLineage: copyLineageV1(simulationLineage),
-    });
+    };
     return makeExportV1(normalized);
   };
 
@@ -1608,7 +1600,7 @@ async function createPersistenceServiceWithDependenciesV1<
       return result;
     } catch {
       rememberFailureV1("unavailable");
-      return Object.freeze({ kind: "rejected", code: "unavailable" });
+      return { kind: "rejected", code: "unavailable" };
     }
   };
 
@@ -1617,7 +1609,7 @@ async function createPersistenceServiceWithDependenciesV1<
   ): Promise<SessionLeaseOperationResultV1> => {
     if (lifecycle !== "active" || playerMutationsFenced || rebootstrapTransferPending) {
       return Promise.resolve(
-        Object.freeze({ kind: "rejected" as const, code: "conflict" as const }),
+        { kind: "rejected" as const, code: "conflict" as const },
       );
     }
     const result = Promise.resolve().then(() => leaseOperationV1(operation));
@@ -1638,24 +1630,24 @@ async function createPersistenceServiceWithDependenciesV1<
       async () => {
         const read = await validateStoredSlotWithMigrationV1(slot);
         if (read.health === "empty") {
-          return Object.freeze({
+          return {
             kind: "preserve" as const,
             result: rejectedV1("empty_slot"),
-          });
+          };
         }
         if (read.health === "unavailable") {
           rememberFailureV1(read.code);
-          return Object.freeze({
+          return {
             kind: "preserve" as const,
             result: rejectedV1("unavailable"),
-          });
+          };
         }
         if (read.health === "invalid") {
           if (read.code === "rng.invalid_state") rememberFailureV1(read.code);
-          return Object.freeze({
+          return {
             kind: "preserve" as const,
             result: rejectedV1("invalid_record"),
-          });
+          };
         }
         return replacementOutcomeFromValidationV1(read.validation, "loaded");
       },
@@ -1679,11 +1671,11 @@ async function createPersistenceServiceWithDependenciesV1<
 
   const rewriteRejectedV1 = (
     code: Extract<SaveRewriteOperationResultV1, { readonly kind: "rejected" }>["code"],
-  ): SaveRewriteOperationResultV1 => Object.freeze({ kind: "rejected", code });
+  ): SaveRewriteOperationResultV1 => ({ kind: "rejected", code });
 
   const backupRejectedV1 = (
     code: Extract<SaveBackupOperationResultV1, { readonly kind: "rejected" }>["code"],
-  ): SaveBackupOperationResultV1 => Object.freeze({ kind: "rejected", code });
+  ): SaveBackupOperationResultV1 => ({ kind: "rejected", code });
 
   const normalizeStoredRewriteRecordV1 = (
     record: DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>,
@@ -1704,7 +1696,7 @@ async function createPersistenceServiceWithDependenciesV1<
     validation: SaveImportValidationResultV1<PersistenceSaveRecordV1<TSnapshot>>,
   ): SaveRewriteOperationResultV1 => {
     if (validation.kind === "faulted") {
-      return Object.freeze({ kind: "faulted", code: validation.code });
+      return { kind: "faulted", code: validation.code };
     }
     if (validation.kind === "inspect_only") {
       return rewriteRejectedV1("code" in validation ? "migration_unavailable" : "incompatible");
@@ -1744,19 +1736,19 @@ async function createPersistenceServiceWithDependenciesV1<
     });
   };
 
-  const port: PersistencePortV1 = Object.freeze({
-    lease: Object.freeze({
+  const port: PersistencePortV1 = {
+    lease: {
       async getStatus() {
         try {
           return observeLeaseStatusV1(await options.lease.getStatus());
         } catch {
           return observeLeaseStatusV1(
-            Object.freeze({
+            {
               kind: "unavailable" as const,
               ownerId: null,
               fencingToken: null,
               code: "persistence.unexpected",
-            }),
+            },
           );
         }
       },
@@ -1767,7 +1759,7 @@ async function createPersistenceServiceWithDependenciesV1<
       takeOverUnowned: (expectedFencingToken: PositiveSafeInteger) =>
         publicLeaseMutationV1(() => options.lease.takeOverUnowned(expectedFencingToken)),
       release: () => publicLeaseMutationV1(() => options.lease.release()),
-    }),
+    },
 
     async listSlots() {
       try {
@@ -1779,18 +1771,18 @@ async function createPersistenceServiceWithDependenciesV1<
           if (read.health !== "validated") {
             if (read.health === "unavailable") rememberFailureV1(read.code);
             const warningCode = "code" in read ? read.code : null;
-            return Object.freeze({
+            return {
               runnable: false,
-              summary: Object.freeze({
+              summary: {
                 slotId: read.slotId,
                 health: read.health,
                 recordRevision: null,
                 capturedCommandSequence: null,
                 savedAt: null,
                 annotation: null,
-                warningCodes: Object.freeze(warningCode === null ? [] : [warningCode]),
-              }) satisfies SaveSlotSummaryV1,
-            });
+                warningCodes: warningCode === null ? [] : [warningCode],
+              } satisfies SaveSlotSummaryV1,
+            };
           }
           const validation = read.validation;
           const warningCodes = validation.kind === "rejected" || validation.kind === "faulted"
@@ -1803,9 +1795,9 @@ async function createPersistenceServiceWithDependenciesV1<
             : validation.warnings.map(({ code }) => code);
           const lineageLimited = validation.kind === "rejected" &&
             validation.code === "compatibility.lineage_limit";
-          return Object.freeze({
+          return {
             runnable: validation.kind === "exact" || validation.kind === "adopted",
-            summary: Object.freeze({
+            summary: {
               slotId: read.slotId,
               health: (validation.kind === "rejected" && !lineageLimited) ||
                   validation.kind === "faulted"
@@ -1815,9 +1807,9 @@ async function createPersistenceServiceWithDependenciesV1<
               capturedCommandSequence: read.envelope.slot.capturedCommandSequence,
               savedAt: read.envelope.savedAt,
               annotation: read.envelope.annotation ?? null,
-              warningCodes: Object.freeze(warningCodes),
-            }) satisfies SaveSlotSummaryV1,
-          });
+              warningCodes: warningCodes,
+            } satisfies SaveSlotSummaryV1,
+          };
         });
         const current = dispositions[0];
         const previous = dispositions[1];
@@ -1827,147 +1819,143 @@ async function createPersistenceServiceWithDependenciesV1<
           !current.runnable &&
           previous.runnable
         ) {
-          dispositions[1] = Object.freeze({
+          dispositions[1] = {
             runnable: true,
-            summary: Object.freeze({
+            summary: {
               ...previous.summary,
               health: "recovery_candidate" as const,
-            }),
-          });
+            },
+          };
         }
-        return Object.freeze(dispositions.map(({ summary }) => summary));
+        return dispositions.map(({ summary }) => summary);
       } catch {
         rememberFailureV1("persistence.unexpected");
-        return Object.freeze(
-          slotIds.map((slotId) =>
-            Object.freeze({
-              slotId,
-              health: "unavailable" as const,
-              recordRevision: null,
-              capturedCommandSequence: null,
-              savedAt: null,
-              annotation: null,
-              warningCodes: Object.freeze(["persistence.unexpected"]),
-            })
-          ),
-        );
+        return slotIds.map((slotId) => ({
+          slotId,
+          health: "unavailable" as const,
+          recordRevision: null,
+          capturedCommandSequence: null,
+          savedAt: null,
+          annotation: null,
+          warningCodes: ["persistence.unexpected"],
+        }));
       }
     },
 
     async inspectSave(slot: SaveSlotIdV1) {
       if (!slotWithinCountV1(slot)) {
-        return Object.freeze({
+        return {
           kind: "faulted" as const,
           slotId: null,
           code: "persistence.invalid_slot",
           diagnostics: saveInspectionDiagnosticsV1({
-            codes: Object.freeze(["persistence.invalid_slot"]),
+            codes: ["persistence.invalid_slot"],
           }),
-        });
+        };
       }
       if (lifecycle !== "active" || playerMutationsFenced) {
-        return Object.freeze({
+        return {
           kind: "faulted" as const,
           slotId: slot,
           code: "runtime_disposed",
           diagnostics: saveInspectionDiagnosticsV1({
-            codes: Object.freeze(["runtime_disposed"]),
+            codes: ["runtime_disposed"],
           }),
-        });
+        };
       }
       try {
         const read = await validateStoredSlotWithMigrationV1(slot);
         if (read.health === "empty") {
-          return Object.freeze({
+          return {
             kind: "rejected" as const,
             slotId: slot,
             code: "empty_slot" as const,
             diagnostics: saveInspectionDiagnosticsV1({
-              codes: Object.freeze(["empty_slot"]),
+              codes: ["empty_slot"],
             }),
-          });
+          };
         }
         if (read.health === "unavailable") {
-          return Object.freeze({
+          return {
             kind: "rejected" as const,
             slotId: slot,
             code: "unavailable" as const,
             diagnostics: saveInspectionDiagnosticsV1({
-              codes: Object.freeze([read.code]),
+              codes: [read.code],
             }),
-          });
+          };
         }
         if (read.health === "invalid") {
-          return Object.freeze({
+          return {
             kind: "rejected" as const,
             slotId: slot,
             code: "invalid_record" as const,
             diagnostics: saveInspectionDiagnosticsV1({
-              codes: Object.freeze([read.code]),
+              codes: [read.code],
             }),
-          });
+          };
         }
         return projectSaveInspectionValidationV1(slot, read.validation);
       } catch {
-        return Object.freeze({
+        return {
           kind: "faulted" as const,
           slotId: slot,
           code: "persistence.unexpected",
           diagnostics: saveInspectionDiagnosticsV1({
-            codes: Object.freeze(["persistence.unexpected"]),
+            codes: ["persistence.unexpected"],
           }),
-        });
+        };
       }
     },
 
     async inspectBackup(slot: SaveSlotIdV1) {
       if (!slotWithinCountV1(slot)) {
-        return Object.freeze({
+        return {
           kind: "faulted" as const,
           slotId: null,
           code: "persistence.invalid_slot",
-        });
+        };
       }
       if (lifecycle !== "active" || playerMutationsFenced) {
-        return Object.freeze({
+        return {
           kind: "faulted" as const,
           slotId: slot,
           code: "runtime_disposed",
-        });
+        };
       }
       try {
         const backup = await options.repository.readMigrationBackup(slot);
         if (backup.health === "unavailable") {
-          return Object.freeze({
+          return {
             kind: "rejected" as const,
             slotId: slot,
             code: "unavailable" as const,
-          });
+          };
         }
         if (backup.health === "empty" || backup.health === "invalid") {
-          return Object.freeze({
+          return {
             kind: "rejected" as const,
             slotId: slot,
             code: backup.health === "empty" ? "empty_backup" as const : "invalid_backup" as const,
-          });
+          };
         }
-        return Object.freeze({
+        return {
           kind: "available" as const,
           slotId: slot,
-        });
+        };
       } catch {
-        return Object.freeze({
+        return {
           kind: "faulted" as const,
           slotId: slot,
           code: "persistence.unexpected",
-        });
+        };
       }
     },
 
     upgradeSave(slot: SaveSlotIdV1) {
       return runLeaseFencedRecoveryV1<SaveRewriteOperationResultV1>(
         slot,
-        (code) => Object.freeze({ kind: "faulted", code }),
+        (code) => ({ kind: "faulted", code }),
         rewriteRejectedV1,
         async (fence) => {
           try {
@@ -1986,25 +1974,25 @@ async function createPersistenceServiceWithDependenciesV1<
               return rewriteRejectedV1("not_required");
             }
             const lineage = validation.kind === "adopted"
-              ? Object.freeze([...validation.candidate.simulationLineage, validation.adoption])
+              ? [...validation.candidate.simulationLineage, validation.adoption]
               : validation.candidate.simulationLineage;
             const candidate = normalizeStoredRewriteRecordV1(validation.candidate, lineage);
             const written = await options.repository.rewriteWithMigrationBackup(
               slot,
-              Object.freeze({ hostRevision: read.hostRevision, bytes: read.bytes }),
+              { hostRevision: read.hostRevision, bytes: read.bytes },
               candidate,
               fence,
             );
             if (written.kind === "rejected") {
               return rewriteRejectedV1(written.code);
             }
-            return Object.freeze({
+            return {
               kind: "upgraded" as const,
               slotId: slot,
               compatibility: validation.kind,
-            });
+            };
           } catch {
-            return Object.freeze({ kind: "faulted" as const, code: "persistence.unexpected" });
+            return { kind: "faulted" as const, code: "persistence.unexpected" };
           }
         },
       );
@@ -2013,7 +2001,7 @@ async function createPersistenceServiceWithDependenciesV1<
     reanchorSave(slot: SaveSlotIdV1) {
       return runLeaseFencedRecoveryV1<SaveRewriteOperationResultV1>(
         slot,
-        (code) => Object.freeze({ kind: "faulted", code }),
+        (code) => ({ kind: "faulted", code }),
         rewriteRejectedV1,
         async (fence) => {
           try {
@@ -2038,7 +2026,7 @@ async function createPersistenceServiceWithDependenciesV1<
                 );
               }
               if (prepared.kind === "faulted") {
-                return Object.freeze({ kind: "faulted" as const, code: prepared.code });
+                return { kind: "faulted" as const, code: prepared.code };
               }
               if (prepared.kind === "rejected") {
                 return prepared.code === "migration.rejected" ||
@@ -2065,14 +2053,14 @@ async function createPersistenceServiceWithDependenciesV1<
             const candidate = normalizeStoredRewriteRecordV1(validation.candidate, []);
             const written = await options.repository.rewriteWithMigrationBackup(
               slot,
-              Object.freeze({ hostRevision: read.hostRevision, bytes: read.bytes }),
+              { hostRevision: read.hostRevision, bytes: read.bytes },
               candidate,
               fence,
             );
             if (written.kind === "rejected") return rewriteRejectedV1(written.code);
-            return Object.freeze({ kind: "reanchored" as const, slotId: slot });
+            return { kind: "reanchored" as const, slotId: slot };
           } catch {
-            return Object.freeze({ kind: "faulted" as const, code: "persistence.unexpected" });
+            return { kind: "faulted" as const, code: "persistence.unexpected" };
           }
         },
       );
@@ -2081,16 +2069,16 @@ async function createPersistenceServiceWithDependenciesV1<
     restoreBackup(slot: SaveSlotIdV1) {
       return runLeaseFencedRecoveryV1<SaveBackupOperationResultV1>(
         slot,
-        (code) => Object.freeze({ kind: "faulted", code }),
+        (code) => ({ kind: "faulted", code }),
         backupRejectedV1,
         async (fence) => {
           try {
             const restored = await options.repository.restoreMigrationBackup(slot, fence);
             return restored.kind === "rejected"
               ? backupRejectedV1(restored.code)
-              : Object.freeze({ kind: "restored" as const, slotId: slot });
+              : { kind: "restored" as const, slotId: slot };
           } catch {
-            return Object.freeze({ kind: "faulted" as const, code: "persistence.unexpected" });
+            return { kind: "faulted" as const, code: "persistence.unexpected" };
           }
         },
       );
@@ -2098,56 +2086,56 @@ async function createPersistenceServiceWithDependenciesV1<
 
     async exportBackup(slot: SaveSlotIdV1) {
       if (!slotWithinCountV1(slot)) {
-        return Object.freeze({ kind: "faulted" as const, code: "persistence.invalid_slot" });
+        return { kind: "faulted" as const, code: "persistence.invalid_slot" };
       }
       if (lifecycle !== "active" || playerMutationsFenced) {
-        return Object.freeze({ kind: "faulted" as const, code: "runtime_disposed" });
+        return { kind: "faulted" as const, code: "runtime_disposed" };
       }
       try {
         const first = await options.repository.readMigrationBackup(slot);
         if (first.health === "empty") {
-          return Object.freeze({ kind: "rejected" as const, code: "empty_backup" as const });
+          return { kind: "rejected" as const, code: "empty_backup" as const };
         }
         if (first.health === "unavailable") {
-          return Object.freeze({ kind: "rejected" as const, code: "unavailable" as const });
+          return { kind: "rejected" as const, code: "unavailable" as const };
         }
         if (first.health === "invalid") {
-          return Object.freeze({ kind: "rejected" as const, code: "invalid_backup" as const });
+          return { kind: "rejected" as const, code: "invalid_backup" as const };
         }
         const second = await options.repository.readMigrationBackup(slot);
         if (second.health === "unavailable") {
-          return Object.freeze({ kind: "rejected" as const, code: "unavailable" as const });
+          return { kind: "rejected" as const, code: "unavailable" as const };
         }
         if (
           second.health !== "stored" ||
           second.hostRevision !== first.hostRevision ||
           !bytesEqualV1(second.bytes, first.bytes)
         ) {
-          return Object.freeze({ kind: "rejected" as const, code: "conflict" as const });
+          return { kind: "rejected" as const, code: "conflict" as const };
         }
-        return Object.freeze({
+        return {
           kind: "exported" as const,
           slotId: slot,
           file: makeStoredExportV1(first.bytes),
-        });
+        };
       } catch {
-        return Object.freeze({ kind: "faulted" as const, code: "persistence.unexpected" });
+        return { kind: "faulted" as const, code: "persistence.unexpected" };
       }
     },
 
     discardBackup(slot: SaveSlotIdV1) {
       return runLeaseFencedRecoveryV1<SaveBackupOperationResultV1>(
         slot,
-        (code) => Object.freeze({ kind: "faulted", code }),
+        (code) => ({ kind: "faulted", code }),
         backupRejectedV1,
         async (fence) => {
           try {
             const discarded = await options.repository.discardMigrationBackup(slot, fence);
             return discarded.kind === "rejected"
               ? backupRejectedV1(discarded.code)
-              : Object.freeze({ kind: "discarded" as const, slotId: slot });
+              : { kind: "discarded" as const, slotId: slot };
           } catch {
-            return Object.freeze({ kind: "faulted" as const, code: "persistence.unexpected" });
+            return { kind: "faulted" as const, code: "persistence.unexpected" };
           }
         },
       );
@@ -2158,22 +2146,22 @@ async function createPersistenceServiceWithDependenciesV1<
         await refreshLeaseStatusV1();
       } catch {
         observeLeaseStatusV1(
-          Object.freeze({
+          {
             kind: "unavailable" as const,
             ownerId: null,
             fencingToken: null,
             code: "persistence.unexpected",
-          }),
+          },
         );
       }
       const runtimeStatus = options.runtimeControl.inspectForRuntime().status;
-      return Object.freeze({
+      return {
         available: leaseStatus.kind !== "unavailable",
         busy: runtimeStatus === "busy" || foregroundWrites > 0 || autoWrites > 0 ||
           !autoQueue.isIdle(),
         safelySavedCommandSequence,
         lastFailureCode: rebootstrapFailureCode ?? lastFailureCode,
-      });
+      };
     },
 
     save(slot: PlayerWritableSaveSlotIdV1) {
@@ -2273,16 +2261,16 @@ async function createPersistenceServiceWithDependenciesV1<
           const updated: PersistenceSaveRecordV1<TSnapshot> =
             summary === null && normalizedNote === null
               ? (bare as PersistenceSaveRecordV1<TSnapshot>)
-              : Object.freeze({
+              : {
                 ...bare,
-                annotation: Object.freeze({ summary, note: normalizedNote }),
-              } as PersistenceSaveRecordV1<TSnapshot>);
+                annotation: { summary, note: normalizedNote },
+              } as PersistenceSaveRecordV1<TSnapshot>;
           const written = await options.repository.rewritePlayer(
             slot,
-            Object.freeze({
+            {
               hostRevision: read.hostRevision,
               bytes: read.bytes,
-            }),
+            },
             updated as DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>,
             fence,
           );
@@ -2362,7 +2350,7 @@ async function createPersistenceServiceWithDependenciesV1<
             safelySavedCommandSequence = null;
             lastFailureCode = null;
           }
-          return Object.freeze({ kind: "cleared" as const, slotId: slot });
+          return { kind: "cleared" as const, slotId: slot };
         } catch {
           if (acceptedAnchorEpoch === autoQueue.anchorEpoch()) {
             rememberFailureV1("persistence.unexpected");
@@ -2376,10 +2364,10 @@ async function createPersistenceServiceWithDependenciesV1<
 
     async exportSave(slot: SaveSlotIdV1) {
       if (!slotWithinCountV1(slot)) {
-        return Object.freeze({
+        return {
           kind: "faulted" as const,
           code: "persistence.invalid_slot",
-        });
+        };
       }
       try {
         const first = await validateStoredSlotForInspectionV1(slot);
@@ -2405,16 +2393,16 @@ async function createPersistenceServiceWithDependenciesV1<
         if (second.hostRevision !== first.hostRevision || !bytesEqualV1(bytes, second.bytes)) {
           return exportRejectedV1("conflict");
         }
-        return Object.freeze({
+        return {
           kind: "exported" as const,
           slotId: slot,
           file: makeStoredExportV1(bytes),
-        });
+        };
       } catch {
-        return Object.freeze({
+        return {
           kind: "faulted" as const,
           code: "persistence.unexpected",
-        });
+        };
       }
     },
 
@@ -2432,7 +2420,7 @@ async function createPersistenceServiceWithDependenciesV1<
     },
 
     importSave: importSaveV1,
-  });
+  };
 
   const releaseRebootstrapFenceV1 = async (
     fence: DeepReadonly<SessionLeaseFenceV1>,
@@ -2445,7 +2433,7 @@ async function createPersistenceServiceWithDependenciesV1<
         result.status.fencingToken === fence.fencingToken
       ) {
         leaseStatus = result.status;
-        return Object.freeze({ ...fence });
+        return { ...fence };
       }
     } catch {
       // The stable internal failure below intentionally hides Host details.
@@ -2478,12 +2466,12 @@ async function createPersistenceServiceWithDependenciesV1<
       const save = makeExportV1(
         record as DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>,
       );
-      return Object.freeze({
+      return {
         snapshot,
         save,
-        lease: Object.freeze({ ...fence }),
+        lease: { ...fence },
         settled: captureAutoSaveWithReceiptV1(snapshot),
-      });
+      };
     });
     const receipt = await captured.settled;
     await autoQueue.idle();
@@ -2501,7 +2489,7 @@ async function createPersistenceServiceWithDependenciesV1<
       rememberFailureV1(rebootstrapFailureCode);
       throw new TypeError("persistence.rebootstrap_exact_capture_failed");
     }
-    return Object.freeze({ save: captured.save, lease: captured.lease });
+    return { save: captured.save, lease: captured.lease };
   };
 
   const disposeForRebootstrapV1 = (): Promise<PersistenceRebootstrapHandoffInternalV1> => {
@@ -2535,13 +2523,13 @@ async function createPersistenceServiceWithDependenciesV1<
               throw new TypeError("persistence.rebootstrap_lease_currentness_lost");
             }
             lifecycle = "disposed";
-            return Object.freeze({ save, lease: rebootstrapLease });
+            return { save, lease: rebootstrapLease };
           }
         }
         releaseAttempted = true;
         const released = await releaseRebootstrapFenceV1(releaseFence);
         lifecycle = "disposed";
-        return Object.freeze({ save, lease: released });
+        return { save, lease: released };
       } catch (error) {
         const ownedFence = options.lease.captureFence();
         if (ownedFence !== null && !releaseAttempted) {
@@ -2583,7 +2571,7 @@ async function createPersistenceServiceWithDependenciesV1<
       // compatibility/migration may still reject before takeover, in which
       // case this exact predecessor payload remains a valid retry input.
       rebootstrapSave = admittedSave;
-      rebootstrapLease = Object.freeze({ ...handoff.lease });
+      rebootstrapLease = { ...handoff.lease };
       rebootstrapPhase = "prepared";
       const prepared = preparation.kind === "migration_pending"
         ? resumeSaveImportCandidateInternalV1(preparation, options.validation, instrumentation)
@@ -2598,7 +2586,7 @@ async function createPersistenceServiceWithDependenciesV1<
         throw new TypeError(`persistence.rebootstrap_save_rejected:${code}`);
       }
       const lineage = validation.kind === "adopted"
-        ? Object.freeze([...validation.candidate.simulationLineage, validation.adoption])
+        ? [...validation.candidate.simulationLineage, validation.adoption]
         : validation.candidate.simulationLineage;
       if (options.prepareReplacement !== undefined) {
         await options.prepareReplacement(validation.candidate.snapshot);
@@ -2608,20 +2596,20 @@ async function createPersistenceServiceWithDependenciesV1<
       type InstallResultV1 =
         | { readonly kind: "installed" }
         | { readonly kind: "failed"; readonly error: unknown };
-      const installed = Object.freeze({ kind: "installed" as const });
-      const outcome = Object.freeze({
+      const installed = { kind: "installed" as const };
+      const outcome = {
         kind: "replace" as const,
         snapshot: validation.candidate.snapshot as TSnapshot,
         result: installed,
         anchor: "replace_replay_base" as const,
-      });
+      };
       bindReplacementCommitV1<InstallResultV1>(
         outcome,
         lineage,
         validation.migration,
         authoritativeReplacementOwner,
         true,
-        (error) => Object.freeze({ kind: "failed" as const, error }),
+        (error) => ({ kind: "failed" as const, error }),
         () => {
           rebootstrapPhase = "anchored";
         },
@@ -2648,18 +2636,17 @@ async function createPersistenceServiceWithDependenciesV1<
         throw new TypeError("persistence.rebootstrap_lease_takeover_failed");
       }
       leaseStatus = takeover.status;
-      rebootstrapLease = Object.freeze({ ...fence });
+      rebootstrapLease = { ...fence };
       rebootstrapPhase = "taken_over";
 
       const result = await options.runtimeControl.enqueueAuthoritative<InstallResultV1>(
         async () => outcome,
-        (error) => Object.freeze({ kind: "failed" as const, error }),
+        (error) => ({ kind: "failed" as const, error }),
         undefined,
-        () =>
-          Object.freeze({
-            kind: "failed" as const,
-            error: new TypeError("persistence.rebootstrap_session_invalidated"),
-          }),
+        () => ({
+          kind: "failed" as const,
+          error: new TypeError("persistence.rebootstrap_session_invalidated"),
+        }),
       );
       const anchorInstalledV1 = (): boolean => rebootstrapPhase === "anchored";
       if (result.kind !== "installed" || !anchorInstalledV1()) {
@@ -2699,33 +2686,33 @@ async function createPersistenceServiceWithDependenciesV1<
     return disposalPromise;
   };
 
-  const service: PersistenceServiceV1<TSnapshot> = Object.freeze({
+  const service: PersistenceServiceV1<TSnapshot> = {
     port,
     getSimulationLineage: () => currentLineage,
     establishAnchor: establishAnchorV1,
     captureAutoSave: captureAutoSaveV1,
     autoSaveIdle: () => autoQueue.idle(),
     dispose: disposeV1,
-  });
+  };
   persistenceServiceControlsInternalV1.set(
     service,
-    Object.freeze({
+    {
       captureAutoSaveWithReceipt: (snapshot: unknown) =>
         captureAutoSaveWithReceiptV1(snapshot as DeepReadonly<TSnapshot>),
       loadWithReplacementCommit: (
         slot: SaveSlotIdV1,
-        onReplacementCommit: () => void,
+        onReplacementCommit?: () => void,
         publicationContext?: AuthoritativeReplacementPublicationContextInternalV1,
       ) => loadV1(slot, onReplacementCommit, publicationContext),
       importWithReplacementCommit: (
         bytes: Uint8Array,
-        onReplacementCommit: () => void,
+        onReplacementCommit?: () => void,
         publicationContext?: AuthoritativeReplacementPublicationContextInternalV1,
       ) => importSaveV1(bytes, onReplacementCommit, publicationContext),
       bindAnchorReplacement: <TResult>(
         outcome: object,
         simulationLineage: readonly DeepReadonly<SimulationAdoptionV1>[],
-        onReplacementCommit: () => void,
+        onReplacementCommit: (() => void) | undefined,
         normalizePrepareFailure: (error: unknown) => TResult,
         publicationContext?: AuthoritativeReplacementPublicationContextInternalV1,
       ) =>
@@ -2747,7 +2734,7 @@ async function createPersistenceServiceWithDependenciesV1<
       },
       disposeForRebootstrap: disposeForRebootstrapV1,
       adoptRebootstrapHandoff: adoptRebootstrapHandoffV1,
-    }),
+    },
   );
   return service;
 }
@@ -2755,34 +2742,14 @@ async function createPersistenceServiceWithDependenciesV1<
 type ExactFieldsV1 = Readonly<Record<string, unknown>>;
 
 function exactFieldsV1(value: unknown, keys: readonly string[], label: string): ExactFieldsV1 {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype ||
-    Object.getOwnPropertySymbols(value).length > 0
-  ) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new TypeError(`invalid ${label}`);
   }
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  if (Object.keys(descriptors).toSorted().join("\0") !== [...keys].toSorted().join("\0")) {
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).toSorted().join("\0") !== [...keys].toSorted().join("\0")) {
     throw new TypeError(`invalid ${label} fields`);
   }
-  const fields: Record<string, unknown> = {};
-  for (const key of keys) {
-    const descriptor = descriptors[key];
-    if (
-      descriptor === undefined ||
-      descriptor.get !== undefined ||
-      descriptor.set !== undefined ||
-      !("value" in descriptor) ||
-      descriptor.enumerable !== true
-    ) {
-      throw new TypeError(`invalid ${label} field ${key}`);
-    }
-    fields[key] = descriptor.value;
-  }
-  return Object.freeze(fields);
+  return Object.fromEntries(keys.map((key) => [key, record[key]]));
 }
 
 function denseArrayV1<T>(
@@ -2791,37 +2758,13 @@ function denseArrayV1<T>(
   parse: (entry: unknown, index: number) => T,
   maximumLength = 10_000,
 ): readonly T[] {
-  if (
-    !Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Array.prototype ||
-    Object.getOwnPropertySymbols(value).length > 0 ||
-    value.length > maximumLength
-  ) {
+  if (!Array.isArray(value) || value.length > maximumLength) {
     throw new TypeError(`invalid ${label}`);
   }
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  const expected = Array.from({ length: value.length }, (_, index) => String(index));
-  const actual = Object.keys(descriptors)
-    .filter((key) => key !== "length")
-    .toSorted((left, right) => Number(left) - Number(right));
-  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+  if (Object.keys(value).length !== value.length) {
     throw new TypeError(`invalid ${label} fields`);
   }
-  return Object.freeze(
-    expected.map((key, index) => {
-      const descriptor = descriptors[key];
-      if (
-        descriptor === undefined ||
-        descriptor.get !== undefined ||
-        descriptor.set !== undefined ||
-        !("value" in descriptor) ||
-        descriptor.enumerable !== true
-      ) {
-        throw new TypeError(`invalid ${label} entry`);
-      }
-      return parse(descriptor.value, index);
-    }),
-  );
+  return value.map(parse);
 }
 
 function nonemptyStringV1(value: unknown, label: string): string {
@@ -2849,13 +2792,13 @@ function parsePatchReplacementV1(value: unknown): PatchReplacementTraceV1 {
   }
   const previousProviderDigest = parseDigest(fields.previousProviderDigest);
   const nextProviderDigest = parseDigest(fields.nextProviderDigest);
-  return Object.freeze({
+  return {
     surface,
     symbolId: nonemptyStringV1(fields.symbolId, "Patch symbol ID"),
     kind,
     previousProviderDigest,
     nextProviderDigest,
-  });
+  };
 }
 
 function parseAppliedHotfixV1(value: unknown, index: number): AppliedHotfixV1 {
@@ -2869,19 +2812,19 @@ function parseAppliedHotfixV1(value: unknown, index: number): AppliedHotfixV1 {
   if (Number(ordinal) !== index + 1) {
     throw new TypeError("invalid Applied Hotfix ordinal");
   }
-  return Object.freeze({
-    identity: Object.freeze({
+  return {
+    identity: {
       id: nonemptyStringV1(identity.id, "Hotfix ID"),
       revision: parsePositiveSafeInteger(identity.revision),
       digest: parseDigest(identity.digest),
-    }),
+    },
     ordinal,
     replacements: denseArrayV1(
       fields.replacements,
       "Applied Hotfix replacements",
       parsePatchReplacementV1,
     ),
-  });
+  };
 }
 
 function parsePatchSetIdentityV1(value: unknown): PatchSetIdentityV1 {
@@ -2898,15 +2841,15 @@ function parsePatchSetIdentityV1(value: unknown): PatchSetIdentityV1 {
   if (new Set(appliedHotfixes.map(({ identity }) => identity.id)).size !== appliedHotfixes.length) {
     throw new TypeError("duplicate applied Hotfix identity");
   }
-  return Object.freeze({
+  return {
     digest: parseDigest(fields.digest),
     simulationDigest: parseDigest(fields.simulationDigest),
     presentationDigest: parseDigest(fields.presentationDigest),
     appliedHotfixes,
-  });
+  };
 }
 
-const buildProvenanceSchemaV1: RuntimeSchemaV1<BuildProvenanceV1> = Object.freeze({
+const buildProvenanceSchemaV1: RuntimeSchemaV1<BuildProvenanceV1> = {
   parse(value: unknown) {
     const fields = exactFieldsV1(value, ["story", "engine", "resolved"], "BuildProvenanceV1");
     const story = exactFieldsV1(fields.story, ["id", "revision", "digest"], "Story provenance");
@@ -2922,26 +2865,26 @@ const buildProvenanceSchemaV1: RuntimeSchemaV1<BuildProvenanceV1> = Object.freez
       ],
       "Resolved provenance",
     );
-    return Object.freeze({
-      story: Object.freeze({
+    return {
+      story: {
         id: nonemptyStringV1(story.id, "Story ID"),
         revision: parsePositiveSafeInteger(story.revision),
         digest: parseDigest(story.digest),
-      }),
-      engine: Object.freeze({
+      },
+      engine: {
         version: nonemptyStringV1(engine.version, "engine version"),
         digest: parseDigest(engine.digest),
-      }),
-      resolved: Object.freeze({
+      },
+      resolved: {
         stateContractRevision: parsePositiveSafeInteger(resolved.stateContractRevision),
         stateContractDigest: parseDigest(resolved.stateContractDigest),
         simulationDigest: parseDigest(resolved.simulationDigest),
         presentationDigest: parseDigest(resolved.presentationDigest),
         patchSet: parsePatchSetIdentityV1(resolved.patchSet),
-      }),
-    });
+      },
+    };
   },
-});
+};
 
 function parseSaveSlotIdV1(value: unknown): SaveSlotIdV1 {
   // Shape-only: a record written by a build with a larger manual slot count
@@ -2950,7 +2893,7 @@ function parseSaveSlotIdV1(value: unknown): SaveSlotIdV1 {
   return value;
 }
 
-const saveSlotMetadataSchemaV1: RuntimeSchemaV1<SaveRepositorySlotMetadataV1> = Object.freeze({
+const saveSlotMetadataSchemaV1: RuntimeSchemaV1<SaveRepositorySlotMetadataV1> = {
   parse(value: unknown) {
     const fields = exactFieldsV1(
       value,
@@ -2965,16 +2908,16 @@ const saveSlotMetadataSchemaV1: RuntimeSchemaV1<SaveRepositorySlotMetadataV1> = 
     ) {
       throw new TypeError("invalid Save write reason");
     }
-    return Object.freeze({
+    return {
       storyId: nonemptyStringV1(fields.storyId, "Save Story ID"),
       slotId: parseSaveSlotIdV1(fields.slotId),
       writeReason: writeReason as SaveRepositorySlotMetadataV1["writeReason"],
       capturedCommandSequence: parseNonNegativeSafeInteger(fields.capturedCommandSequence),
-    });
+    };
   },
-});
+};
 
-const simulationLineageSchemaV1: RuntimeSchemaV1<readonly SimulationAdoptionV1[]> = Object.freeze({
+const simulationLineageSchemaV1: RuntimeSchemaV1<readonly SimulationAdoptionV1[]> = {
   parse(value: unknown) {
     return denseArrayV1(
       value,
@@ -2995,17 +2938,17 @@ const simulationLineageSchemaV1: RuntimeSchemaV1<readonly SimulationAdoptionV1[]
         if (fromSimulationDigest === toSimulationDigest) {
           throw new TypeError("empty simulation adoption");
         }
-        return Object.freeze({
+        return {
           fromSimulationDigest,
           toSimulationDigest,
           viaSimulationPatchSetDigest: parseDigest(fields.viaSimulationPatchSetDigest),
           adoptedAtCommandSequence: parseNonNegativeSafeInteger(fields.adoptedAtCommandSequence),
-        });
+        };
       },
       16,
     );
   },
-});
+};
 
 function createStandardPersistenceDependenciesV1<
   TState,
@@ -3034,7 +2977,7 @@ function createStandardPersistenceDependenciesV1<
     saveSlotMetadataSchemaV1,
     simulationLineageSchemaV1,
   );
-  const codec: SaveCodecContextV1<TSnapshot, PersistenceSaveRecordV1<TSnapshot>> = Object.freeze({
+  const codec: SaveCodecContextV1<TSnapshot, PersistenceSaveRecordV1<TSnapshot>> = {
     recordSchema,
     validateEnvelope(record: DeepReadonly<PersistenceSaveRecordV1<TSnapshot>>) {
       const expectedReason =
@@ -3064,7 +3007,7 @@ function createStandardPersistenceDependenciesV1<
         }
       }
     },
-  });
+  };
   const lease = createSessionLeaseV1({
     records: options.records,
     storyId: options.provenance.story.id,
@@ -3078,13 +3021,13 @@ function createStandardPersistenceDependenciesV1<
       codec,
     },
     instrumentation,
-    { writeReceiptEvidence: true },
+    { admittedWriteCandidates: true, writeReceiptEvidence: true },
   );
   const validation: SaveImportValidationContextV1<
     TState,
     TSnapshot,
     PersistenceSaveRecordV1<TSnapshot>
-  > = Object.freeze({
+  > = {
     codec,
     currentStateContractRevision: options.provenance.resolved.stateContractRevision,
     saveStateMigrations: options.saveStateMigrations,
@@ -3099,8 +3042,8 @@ function createStandardPersistenceDependenciesV1<
     },
     validateReferences: options.validateReferences,
     validateInvariants: options.validateInvariants,
-  });
-  return Object.freeze({ repository, lease, validation });
+  };
+  return { repository, lease, validation };
 }
 
 function createStandardPersistenceServiceInternalV1<
@@ -3116,7 +3059,7 @@ function createStandardPersistenceServiceInternalV1<
 ): Promise<PersistenceServiceV1<TSnapshot>> {
   const dependencies = createStandardPersistenceDependenciesV1(options, instrumentation);
   const repository = testOptions?.wrapRepositoryForWriteReceiptFallback === true
-    ? Object.freeze({ ...dependencies.repository })
+    ? { ...dependencies.repository }
     : dependencies.repository;
   return createPersistenceServiceWithDependenciesV1(
     {

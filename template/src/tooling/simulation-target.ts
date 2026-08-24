@@ -13,30 +13,30 @@ import { createTemplateApplicationInstanceV1 } from "../application/core-applica
  * exercise the stale-resolution fence.
  */
 function advanceV1() {
-  return Object.freeze({
+  return ({
     kind: "resolve" as const,
-    resolution: Object.freeze({ kind: "advance" as const }),
+    resolution: { kind: "advance" as const },
   });
 }
 
 function chooseV1(choiceId: string) {
-  return Object.freeze({
+  return ({
     kind: "resolve" as const,
-    resolution: Object.freeze({ kind: "choose" as const, choiceId }),
+    resolution: { kind: "choose" as const, choiceId },
   });
 }
 
 function timeTickV1(elapsedMs: number) {
-  return Object.freeze({
+  return ({
     kind: "time" as const,
-    tick: Object.freeze({ elapsedMs }),
+    tick: { elapsedMs },
   });
 }
 
-const scenariosV1 = Object.freeze({
+const scenariosV1 = {
   /** Take the courtyard look and reach the warm ending. */
-  opening: Object.freeze([
-    Object.freeze({ kind: "invoke" as const, actionId: "template.begin_story" as const }),
+  opening: [
+    { kind: "invoke" as const, actionId: "template.begin_story" as const },
     advanceV1(),
     chooseV1("choice.template.look"),
     advanceV1(),
@@ -44,16 +44,16 @@ const scenariosV1 = Object.freeze({
     // it in one tick (the browser Host accumulates the same milliseconds).
     timeTickV1(600),
     advanceV1(),
-  ]),
+  ],
   /** Go inside instead and reach the plain ending. */
-  inside: Object.freeze([
-    Object.freeze({ kind: "invoke" as const, actionId: "template.begin_story" as const }),
+  inside: [
+    { kind: "invoke" as const, actionId: "template.begin_story" as const },
     advanceV1(),
     chooseV1("choice.template.inside"),
     advanceV1(),
     advanceV1(),
-  ]),
-});
+  ],
+};
 
 /**
  * Fills the current pending occurrence into occurrence-free resolve steps
@@ -73,7 +73,7 @@ function withCurrentOccurrenceV1<
     const occurrenceId = publication.narrative?.pending?.occurrenceId;
     return typeof occurrenceId === "string" ? occurrenceId : undefined;
   };
-  return Object.freeze({
+  return ({
     ...agent,
     dispatch(invocation: unknown): Promise<unknown> {
       if (
@@ -121,13 +121,13 @@ export async function createTemplateSimulationTargetV1(options: { readonly seed?
     options.seed === undefined ? {} : { seeds: [options.seed] },
   );
   const agent = withCurrentOccurrenceV1(createInProcessAgentGamePortV1({
-    identity: Object.freeze({
+    identity: {
       storyId: application.storyId,
       storyRevision: application.storyRevision,
-    }),
+    },
     semantic: application.semantic,
   }));
-  return Object.freeze({
+  return ({
     agent,
     stateDigest: () => application.admin.stateDigest(),
     dispose: () => application.dispose(),

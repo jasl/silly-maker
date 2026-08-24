@@ -14,15 +14,13 @@ export interface RuntimeCapabilitySessionOverlayV1 extends RuntimeCapabilityPort
   dispose(): void;
 }
 
-const capabilityFieldsV1 = Object.freeze(
-  {
-    debug_tools: "debugTools",
-    cheats: "cheats",
-    automation_bridge: "automationBridge",
-  } satisfies Record<RuntimeCapabilityIdV1, keyof RuntimeCapabilitiesV1>,
-);
+const capabilityFieldsV1 = {
+  debug_tools: "debugTools",
+  cheats: "cheats",
+  automation_bridge: "automationBridge",
+} satisfies Record<RuntimeCapabilityIdV1, keyof RuntimeCapabilitiesV1>;
 
-function freezeRequestedV1(
+function snapshotRequestedV1(
   requested: readonly RuntimeCapabilityIdV1[],
 ): readonly RuntimeCapabilityIdV1[] {
   const copy = [...requested];
@@ -36,14 +34,14 @@ function freezeRequestedV1(
     }
     seen.add(capability);
   }
-  return Object.freeze(copy);
+  return copy;
 }
 
 function createEffectiveStateV1(
   persisted: DeepReadonly<RuntimeCapabilitiesV1>,
   requested: ReadonlySet<RuntimeCapabilityIdV1>,
 ): DeepReadonly<RuntimeCapabilitiesV1> {
-  return Object.freeze({
+  return ({
     debugTools: persisted.debugTools || requested.has("debug_tools"),
     cheats: persisted.cheats || requested.has("cheats"),
     automationBridge: persisted.automationBridge || requested.has("automation_bridge"),
@@ -67,9 +65,9 @@ function mapOperationResultV1(
 ): RuntimeCapabilityOperationResultV1 {
   const state = createEffectiveStateV1(result.state, requested);
   if (result.kind === "rejected") {
-    return Object.freeze({ kind: result.kind, code: result.code, state });
+    return ({ kind: result.kind, code: result.code, state });
   }
-  return Object.freeze({ kind: result.kind, state });
+  return ({ kind: result.kind, state });
 }
 
 /** Composes persisted preferences with immutable page-session requests. */
@@ -77,7 +75,7 @@ export function createRuntimeCapabilitySessionOverlayV1(
   persisted: RuntimeCapabilityPortV1,
   requestedInput: readonly RuntimeCapabilityIdV1[],
 ): RuntimeCapabilitySessionOverlayV1 {
-  const sessionRequested = freezeRequestedV1(requestedInput);
+  const sessionRequested = snapshotRequestedV1(requestedInput);
   const requested = new Set(sessionRequested);
   let current = createEffectiveStateV1(persisted.state.getCurrent(), requested);
   let disposed = false;
@@ -97,7 +95,7 @@ export function createRuntimeCapabilitySessionOverlayV1(
     }
   };
   const unsubscribePersisted = persisted.state.subscribe(publishPersistedStateV1);
-  const state: ReadonlyViewSourceV1<RuntimeCapabilitiesV1> = Object.freeze({
+  const state: ReadonlyViewSourceV1<RuntimeCapabilitiesV1> = {
     getCurrent: () => current,
     subscribe(listener: () => void) {
       if (disposed) return () => undefined;
@@ -109,7 +107,7 @@ export function createRuntimeCapabilitySessionOverlayV1(
         listeners.delete(listener);
       };
     },
-  });
+  };
 
   const setEnabled = async (
     capability: RuntimeCapabilityIdV1,
@@ -130,5 +128,5 @@ export function createRuntimeCapabilitySessionOverlayV1(
     }
   };
 
-  return Object.freeze({ persisted, sessionRequested, state, setEnabled, dispose });
+  return ({ persisted, sessionRequested, state, setEnabled, dispose });
 }

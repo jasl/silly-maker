@@ -50,13 +50,13 @@ interface InspectableResolvedV1 {
   readonly assets: ResolvedAssetManifestV1;
 }
 
-const inspectionBuildIdentityV1 = Object.freeze({
+const inspectionBuildIdentityV1 = {
   engineVersion: "SillyMaker tooling inspection",
-  engine: Object.freeze([]),
-  storySimulation: Object.freeze([]),
-  storyPresentation: Object.freeze([]),
-  application: Object.freeze([]),
-}) satisfies Parameters<typeof resolveGamePackageV1>[2];
+  engine: [],
+  storySimulation: [],
+  storyPresentation: [],
+  application: [],
+} satisfies Parameters<typeof resolveGamePackageV1>[2];
 
 function commandErrorV1(code: string, message: string, pointer: string): never {
   throw new AuthoringDiagnosticErrorV1([
@@ -154,40 +154,40 @@ export async function inspectStoryApplicationV1(
   const result = resolveGamePackageV1(entry, [], inspectionBuildIdentityV1);
   if (result.kind === "failed") {
     const diagnostics = collectGamePackageDiagnosticsV1(entry);
-    return Object.freeze({
+    return {
       kind: "invalid" as const,
-      diagnostics: diagnostics.kind === "invalid" ? diagnostics.diagnostics : Object.freeze([
+      diagnostics: diagnostics.kind === "invalid" ? diagnostics.diagnostics : [
         createDiagnosticV1({
           code: result.failure.code,
           phase: "resolution",
           message: "Story resolution failed",
           details: {},
         }),
-      ]),
-    });
+      ],
+    };
   }
   const resolved = result.resolved as unknown as InspectableResolvedV1;
-  return Object.freeze({
+  return {
     kind: "inspected" as const,
-    report: Object.freeze({
+    report: {
       applicationId: application.applicationId,
       label: application.label,
       story: resolved.provenance.story,
       engine: resolved.provenance.engine,
-      stateContract: Object.freeze({
+      stateContract: {
         revision: resolved.provenance.resolved.stateContractRevision,
         digest: resolved.provenance.resolved.stateContractDigest,
-      }),
+      },
       simulationDigest: resolved.provenance.resolved.simulationDigest,
       presentationDigest: resolved.provenance.resolved.presentationDigest,
-      assets: Object.freeze({
+      assets: {
         packs: resolved.assets.packs.length,
         slots: resolved.assets.slots.length,
         assets: resolved.assets.assets.length,
-        assetIds: Object.freeze(resolved.assets.assets.map((asset) => asset.assetId as string)),
-      }),
-    }),
-  });
+        assetIds: resolved.assets.assets.map((asset) => asset.assetId as string),
+      },
+    },
+  };
 }
 
 export interface StoryCheckReportV1 {
@@ -222,12 +222,12 @@ export async function checkStoryApplicationV1(
     ...collectSceneSourceDiagnosticsV1(sourceRoot),
   ];
 
-  const diagnostics = Object.freeze([...packageDiagnostics, ...sourceDiagnostics]);
-  return Object.freeze({
+  const diagnostics = [...packageDiagnostics, ...sourceDiagnostics];
+  return {
     applicationId: application.applicationId,
     ok: diagnostics.length === 0,
     diagnostics,
-  });
+  };
 }
 
 /**
@@ -374,7 +374,7 @@ export async function simulateStoryApplicationV1(
       for (const path of tracePaths) {
         row[path] = readDotPathV1(publication, path);
       }
-      return Object.freeze(row);
+      return row;
     };
     const initialPublication = target.agent.observe();
     const steps: StorySimulateStepV1[] = [];
@@ -383,21 +383,21 @@ export async function simulateStoryApplicationV1(
     if (initialRow !== null) trace.push(initialRow);
     for (const [index, invocation] of script.entries()) {
       const result = await target.agent.dispatch(invocation);
-      steps.push(Object.freeze({ ordinal: index + 1, invocation, result }));
+      steps.push({ ordinal: index + 1, invocation, result });
       const row = sampleTrace(index + 1);
       if (row !== null) trace.push(row);
     }
-    return Object.freeze({
+    return {
       applicationId: application.applicationId,
       storyIdentity: target.agent.identity(),
       initialPublication,
-      steps: Object.freeze(steps),
+      steps,
       finalPublication: target.agent.observe(),
       finalStateDigest: target.stateDigest === undefined ? null : target.stateDigest(),
       scenario: options.scenario ?? null,
       seed: options.seed ?? null,
-      trace: tracePaths === null || tracePaths.length === 0 ? null : Object.freeze(trace),
-    });
+      trace: tracePaths === null || tracePaths.length === 0 ? null : trace,
+    };
   } finally {
     await target.dispose();
   }
@@ -517,24 +517,22 @@ async function buildStoryApplicationWithReceiptInternalV1(
       },
     }),
   });
-  return Object.freeze({
+  return {
     applicationId: application.applicationId,
     ok: exitCode === 0,
     outDir: web.outDir,
     exitCode,
-  });
+  };
 }
 
 /** SillyMaker's explicitly admitted `deno desktop --target` triples. */
-export const DESKTOP_TARGET_TRIPLES_V1 = Object.freeze(
-  [
-    "x86_64-apple-darwin",
-    "aarch64-apple-darwin",
-    "x86_64-pc-windows-msvc",
-    "x86_64-unknown-linux-gnu",
-    "aarch64-unknown-linux-gnu",
-  ] as const,
-);
+export const DESKTOP_TARGET_TRIPLES_V1 = [
+  "x86_64-apple-darwin",
+  "aarch64-apple-darwin",
+  "x86_64-pc-windows-msvc",
+  "x86_64-unknown-linux-gnu",
+  "aarch64-unknown-linux-gnu",
+] as const;
 
 export type DesktopTargetTripleV1 = (typeof DESKTOP_TARGET_TRIPLES_V1)[number];
 
@@ -704,7 +702,7 @@ export async function desktopStoryApplicationWithDependenciesInternalV1(
       "/options/targets",
     );
   }
-  const targetValues = rawTargets ?? Object.freeze([]);
+  const targetValues = rawTargets ?? [];
   for (const target of targetValues) {
     if (!isDesktopTargetTripleV1(target)) {
       commandErrorV1(
@@ -775,21 +773,19 @@ export async function desktopStoryApplicationWithDependenciesInternalV1(
     // Human-facing diagnostics must never make a package build unavailable.
   }
   const versionStamp = collectedVersionStamp ??
-    Object.freeze({
+    {
       applicationVersion: null,
       applicationCommit: null,
       engineVersion: null,
       engineCommit: null,
-    });
+    };
   const artifactStem = desktopArtifactStemInternalV1(desktop.name, versionStamp);
   // Resolve and validate every final filename before starting the web build or
   // deleting any previous output.
-  const outputPlans = requestedTargets.map((target) =>
-    Object.freeze({
-      target,
-      outputName: desktopOutputNameV1(artifactStem, target, hostPlatform),
-    })
-  );
+  const outputPlans = requestedTargets.map((target) => ({
+    target,
+    outputName: desktopOutputNameV1(artifactStem, target, hostPlatform),
+  }));
 
   // The desktop bundle wraps the exact bytes a web build produces around
   // the webview shell: the shell serves dist/ itself through Deno.serve
@@ -920,12 +916,12 @@ export async function desktopStoryApplicationWithDependenciesInternalV1(
     }
     const bundleMarker = await deps.runner.fileSize(desktopOutputMarkerV1(outputPath));
     outputs.push(
-      Object.freeze({
+      {
         target,
         outputPath,
         ok: exitCode === 0 && bundleMarker !== null && bundleMarker > 0,
         exitCode,
-      }),
+      },
     );
   }
 
@@ -937,14 +933,14 @@ export async function desktopStoryApplicationWithDependenciesInternalV1(
       `/applications/${applicationId}/web/desktop`,
     );
   }
-  return Object.freeze({
+  return {
     applicationId: application.applicationId,
     ok: outputs.every((output) => output.ok),
     stagingDir,
     outputPath: firstOutput.outputPath,
     exitCode: outputs.find((output) => output.exitCode !== 0)?.exitCode ?? 0,
-    outputs: Object.freeze(outputs),
-  });
+    outputs,
+  };
 }
 
 export interface StoryDevSmokeReportV1 {
@@ -1007,12 +1003,12 @@ export async function devSmokeStoryApplicationV1(
     }
     const markers = ['id="root"', web.applicationEntry.split("/").at(-1) ?? ""];
     const markersFound = markers.filter((marker) => marker !== "" && body.includes(marker));
-    return Object.freeze({
+    return {
       applicationId: application.applicationId,
       ok: markersFound.length === markers.filter((marker) => marker !== "").length,
       url,
-      markersFound: Object.freeze(markersFound),
-    });
+      markersFound,
+    };
   } finally {
     server.kill();
   }
@@ -1061,11 +1057,11 @@ export async function prebuiltSmokeStoryApplicationV1(
     const size = await deps.runner.fileSize(filePath);
     if (size === null || size === 0) missingFiles.push(reference);
   }
-  return Object.freeze({
+  return {
     applicationId: application.applicationId,
     ok: missingFiles.length === 0 && checkedFiles.length > 0,
     outDir: web.outDir,
-    checkedFiles: Object.freeze(checkedFiles),
-    missingFiles: Object.freeze(missingFiles),
-  });
+    checkedFiles,
+    missingFiles,
+  };
 }

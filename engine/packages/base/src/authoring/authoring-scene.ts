@@ -99,7 +99,7 @@ export interface AuthoringSceneCueV1 {
   readonly cut?: true;
 }
 
-/** Normalized, frozen IR produced by the one source admission. */
+/** Normalized typed IR produced by the one source admission. */
 export interface AuthoringSceneDocumentV1 {
   readonly format: typeof authoringSceneDocumentFormatV1;
   readonly version: typeof authoringSceneDocumentVersionV1;
@@ -247,7 +247,7 @@ function boundedIntV1(
 
 function parseCanvasV1(value: unknown, path: string): AuthoringSceneCanvasV1 {
   const record = exactRecordV1(value, ["width", "height"], path);
-  return Object.freeze({
+  return ({
     width: boundedIntV1(
       record.width,
       1,
@@ -274,7 +274,7 @@ function parseLocalTransformV1(value: unknown, path: string): AuthoringSceneLoca
   if (typeof record.mirrored !== "boolean") {
     return dataFailure(`${path}/mirrored`, "authoring_scene_transform_mirrored_invalid");
   }
-  return Object.freeze({
+  return ({
     x: boundedIntV1(
       record.x,
       -authoringSceneCoordinateLimitV1,
@@ -326,7 +326,7 @@ function parseAppearanceV1(value: unknown, path: string): StageAppearanceV1 {
     }
     result[key] = entry;
   }
-  return Object.freeze(result);
+  return result;
 }
 
 function parseMotionIdV1(value: unknown, path: string): string {
@@ -345,7 +345,7 @@ function parseAmbientV1(value: unknown, path: string): AuthoringSceneAmbientV1 {
       "authoring_scene_ambient_phase_invalid",
     )
     : undefined;
-  return Object.freeze({
+  return ({
     motionId: parseMotionIdV1(record.motionId, `${path}/motionId`),
     ...(phaseMs === undefined ? {} : { phaseMs }),
   });
@@ -356,11 +356,11 @@ function parseVisualV1(value: unknown, path: string): AuthoringSceneVisualV1 {
   const record = exactRecordV1(value, keys, path);
   const appearance = Object.hasOwn(record, "appearance")
     ? parseAppearanceV1(record.appearance, `${path}/appearance`)
-    : Object.freeze({});
+    : ({});
   const ambient = Object.hasOwn(record, "ambient")
     ? parseAmbientV1(record.ambient, `${path}/ambient`)
     : undefined;
-  return Object.freeze({
+  return ({
     contentId: parseStageContentIdV1(record.contentId, `${path}/contentId`),
     appearance,
     ...(ambient === undefined ? {} : { ambient }),
@@ -385,7 +385,7 @@ function parseReferenceListV1(
     seen.add(parsed);
     result.push(parsed);
   }
-  return Object.freeze(result);
+  return result;
 }
 
 function parseRegionIdV1(value: unknown, path: string): string {
@@ -422,14 +422,14 @@ function parseBindingsV1(value: unknown, path: string): AuthoringSceneBindingsV1
       `${path}/hitRegionIds`,
       parseRegionIdV1,
     )
-    : Object.freeze([]);
+    : [];
   const motionIds = Object.hasOwn(record, "motionIds")
     ? parseReferenceListV1(
       record.motionIds,
       `${path}/motionIds`,
       parseMotionIdV1,
     )
-    : Object.freeze([]);
+    : [];
   const timelineIds = Object.hasOwn(record, "timelineIds")
     ? parseReferenceListV1(
       record.timelineIds,
@@ -442,7 +442,7 @@ function parseBindingsV1(value: unknown, path: string): AuthoringSceneBindingsV1
           "authoring_scene_timeline_id_invalid",
         ),
     )
-    : Object.freeze([]);
+    : [];
   const rawInteractions = Object.hasOwn(record, "interactions")
     ? arrayV1(record.interactions, `${path}/interactions`)
     : [];
@@ -465,7 +465,7 @@ function parseBindingsV1(value: unknown, path: string): AuthoringSceneBindingsV1
       return dataFailure(`${interactionPath}/regionId`, "authoring_scene_interaction_duplicate");
     }
     interactionRegions.add(regionId);
-    return Object.freeze({
+    return ({
       regionId,
       intentId: parseStableReferenceV1(
         interaction.intentId,
@@ -493,7 +493,7 @@ function parseBindingsV1(value: unknown, path: string): AuthoringSceneBindingsV1
       return dataFailure(`${controlPath}/controlId`, "authoring_scene_gui_control_duplicate");
     }
     controlIds.add(controlId);
-    return Object.freeze({
+    return ({
       controlId,
       intentId: parseStableReferenceV1(
         control.intentId,
@@ -502,12 +502,12 @@ function parseBindingsV1(value: unknown, path: string): AuthoringSceneBindingsV1
       ),
     });
   });
-  return Object.freeze({
+  return ({
     hitRegionIds,
     motionIds,
     timelineIds,
-    interactions: Object.freeze(interactions),
-    guiControls: Object.freeze(guiControls),
+    interactions: interactions,
+    guiControls: guiControls,
   });
 }
 
@@ -553,7 +553,7 @@ function parseObjectV1(
       return dataFailure(`${path}/objectId`, "authoring_scene_object_id_duplicate");
     }
     state.objectIds.add(objectId as string);
-    state.objectSources.push(Object.freeze({ objectId, layerId, jsonPointer: path }));
+    state.objectSources.push({ objectId, layerId, jsonPointer: path });
 
     const visual = Object.hasOwn(record, "visual")
       ? parseVisualV1(record.visual, `${path}/visual`)
@@ -574,13 +574,13 @@ function parseObjectV1(
     const children = rawChildren.map((child, index) =>
       parseObjectV1(child, layerId, `${path}/children/${String(index)}`, depth + 1, state)
     );
-    return Object.freeze({
+    return ({
       objectId,
       label: boundedLabelV1(record.label, `${path}/label`),
       localTransform: Object.hasOwn(record, "localTransform")
         ? parseLocalTransformV1(record.localTransform, `${path}/localTransform`)
         : defaultStagePlacementV1,
-      children: Object.freeze(children),
+      children: children,
       ...(visual === undefined ? {} : { visual }),
       ...(bindings === undefined ? {} : { bindings }),
     });
@@ -597,14 +597,12 @@ function parseLayerV1(
   const record = exactRecordV1(value, ["layerId", "label", "roots"], path);
   const layerId = parseStageLayerIdV1(record.layerId, `${path}/layerId`);
   const rawRoots = arrayV1(record.roots, `${path}/roots`);
-  state.layerSources.push(Object.freeze({ layerId, jsonPointer: path }));
-  return Object.freeze({
+  state.layerSources.push({ layerId, jsonPointer: path });
+  return ({
     layerId,
     label: boundedLabelV1(record.label, `${path}/label`),
-    roots: Object.freeze(
-      rawRoots.map((root, index) =>
-        parseObjectV1(root, layerId, `${path}/roots/${String(index)}`, 0, state)
-      ),
+    roots: rawRoots.map((root, index) =>
+      parseObjectV1(root, layerId, `${path}/roots/${String(index)}`, 0, state)
     ),
   });
 }
@@ -623,7 +621,7 @@ function parseCueV1(value: unknown, path: string): AuthoringSceneCueV1 {
   if (hasMotion && hasCut) {
     return dataFailure(`${path}/cut`, "authoring_scene_cue_presentation_conflict");
   }
-  return Object.freeze({
+  return ({
     cueId: prefixedIdV1(
       record.cueId,
       cueIdPatternV1,
@@ -639,7 +637,7 @@ function parseCueV1(value: unknown, path: string): AuthoringSceneCueV1 {
 
 /**
  * Admits parsed JSON or a trusted author-created plain record once and returns
- * frozen normalized IR plus JSON-pointer provenance. It intentionally does not
+ * normalized typed IR plus JSON-pointer provenance. It intentionally does not
  * authenticate JavaScript prototypes, descriptors, or accessors.
  */
 export function admitAuthoringSceneDocumentV1(value: unknown): AdmittedAuthoringSceneV1 {
@@ -711,26 +709,26 @@ export function admitAuthoringSceneDocumentV1(value: unknown): AdmittedAuthoring
       return dataFailure(`${path}/objectId`, "authoring_scene_cue_object_not_visual");
     }
     cues.push(cue);
-    cueSources.push(Object.freeze({ cueId: cue.cueId, objectId: cue.objectId, jsonPointer: path }));
+    cueSources.push({ cueId: cue.cueId, objectId: cue.objectId, jsonPointer: path });
   }
 
-  const document = Object.freeze({
+  const document: AuthoringSceneDocumentV1 = {
     format: authoringSceneDocumentFormatV1,
     version: authoringSceneDocumentVersionV1,
     sceneId,
     label,
     canvas,
-    layers: Object.freeze(layers),
-    cues: Object.freeze(cues),
-  });
-  return Object.freeze({
+    layers: layers,
+    cues: cues,
+  };
+  return ({
     document,
-    sourceMap: Object.freeze({
+    sourceMap: {
       sceneJsonPointer: "" as const,
-      layers: Object.freeze(state.layerSources),
-      objects: Object.freeze(state.objectSources),
-      cues: Object.freeze(cueSources),
-    }),
+      layers: state.layerSources,
+      objects: state.objectSources,
+      cues: cueSources,
+    },
   });
 }
 

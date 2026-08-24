@@ -72,7 +72,7 @@ function createFailureV1(
     operation: { value: operation, enumerable: true },
   });
   delete failure.stack;
-  return Object.freeze(failure);
+  return failure;
 }
 
 function isStableFailureV1(value: unknown): value is IndexedDbRecordStoreFailureV1 {
@@ -259,8 +259,6 @@ function parseStoredRowV1(value: unknown, operation: IndexedDbOperationV1): Host
     value === null ||
     typeof value !== "object" ||
     Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype ||
-    Object.getOwnPropertySymbols(value).length !== 0 ||
     Object.keys(value).toSorted().join("\0") !== "bytes\0key\0namespace\0revision"
   ) {
     throw createFailureV1("indexeddb.schema_invalid", operation);
@@ -279,7 +277,7 @@ function parseStoredRowV1(value: unknown, operation: IndexedDbOperationV1): Host
   } catch {
     throw createFailureV1("indexeddb.schema_invalid", operation);
   }
-  return Object.freeze({
+  return ({
     namespace: row.namespace,
     key: row.key as HostRecordKeyV1,
     revision,
@@ -288,7 +286,7 @@ function parseStoredRowV1(value: unknown, operation: IndexedDbOperationV1): Host
 }
 
 function copyStoredRecordV1(record: HostStoredRecordV1): HostStoredRecordV1 {
-  return Object.freeze({ ...record, bytes: Uint8Array.from(record.bytes) });
+  return ({ ...record, bytes: Uint8Array.from(record.bytes) });
 }
 
 function normalizeMutationsV1(
@@ -308,7 +306,7 @@ function normalizeMutationsV1(
       const expectedRevision = mutation.expectedRevision === null
         ? null
         : parseNonNegativeSafeInteger(mutation.expectedRevision);
-      return Object.freeze({
+      return ({
         kind: "put",
         namespace: mutation.namespace,
         key: mutation.key,
@@ -318,7 +316,7 @@ function normalizeMutationsV1(
       });
     }
     if (mutation.kind !== "delete") throw new TypeError("invalid Host record mutation kind");
-    return Object.freeze({
+    return ({
       kind: "delete",
       namespace: mutation.namespace,
       key: mutation.key,
@@ -329,11 +327,11 @@ function normalizeMutationsV1(
   if (new Set(identities).size !== identities.length) {
     throw new TypeError("duplicate Host record mutation");
   }
-  return Object.freeze(normalized) as readonly [NormalizedMutationV1, ...NormalizedMutationV1[]];
+  return normalized as unknown as readonly [NormalizedMutationV1, ...NormalizedMutationV1[]];
 }
 
 function rowFromMutationV1(mutation: NormalizedPutMutationV1): IndexedDbRecordRowV1 {
-  return Object.freeze({
+  return ({
     namespace: mutation.namespace,
     key: mutation.key,
     revision: mutation.nextRevision,
@@ -364,7 +362,7 @@ export function createIndexedDbRecordStoreV1(
     return databasePromise;
   };
 
-  return Object.freeze({
+  return ({
     async read(namespace: HostRecordNamespaceV1, key: HostRecordKeyV1) {
       try {
         const database = await getDatabaseV1("read");
@@ -399,7 +397,7 @@ export function createIndexedDbRecordStoreV1(
           throw createFailureV1("indexeddb.schema_invalid", "list");
         }
         records.sort((left, right) => (left.key < right.key ? -1 : left.key > right.key ? 1 : 0));
-        return Object.freeze(records.map(copyStoredRecordV1));
+        return (records.map(copyStoredRecordV1));
       } catch (error) {
         return throwMappedFailureV1(error, "list");
       }
@@ -430,7 +428,7 @@ export function createIndexedDbRecordStoreV1(
           if (actualRevision !== mutation.expectedRevision) {
             transaction.abort();
             await completion.catch(() => undefined);
-            return Object.freeze({
+            return ({
               kind: "conflict",
               namespace: mutation.namespace,
               key: mutation.key,
@@ -455,9 +453,9 @@ export function createIndexedDbRecordStoreV1(
               bytes: mutation.bytes,
             })
           );
-        return Object.freeze({
+        return ({
           kind: "committed",
-          records: Object.freeze(changed),
+          records: changed,
         }) satisfies HostAtomicCommitResultV1;
       } catch (error) {
         if (transaction !== undefined) {

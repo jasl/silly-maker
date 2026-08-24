@@ -14,7 +14,7 @@ import type {
 const flowWorkspaceFactoryIdInternalV1 = "sillymaker.studio.flow-workspace";
 const flowWorkspaceFactoryGenerationInternalV1 = "flow-workspace-v1";
 
-const flowWorkspaceConsumerInternalV1: FlowWorkspaceConsumerInternalV1 = Object.freeze({
+const flowWorkspaceConsumerInternalV1: FlowWorkspaceConsumerInternalV1 = {
   render(input: FlowWorkspaceRenderInputInternalV1) {
     return (
       <FlowWorkspaceSectionV1
@@ -23,7 +23,7 @@ const flowWorkspaceConsumerInternalV1: FlowWorkspaceConsumerInternalV1 = Object.
       />
     );
   },
-});
+};
 
 /**
  * Dynamic facade: the Flow implementation and selected private lifecycle
@@ -38,11 +38,11 @@ export async function mountFlowWorkspaceExtensionInternalV1(): Promise<
     setup: () => flowWorkspaceConsumerInternalV1,
   }));
   let disposePromise: Promise<void> | null = null;
-  return Object.freeze({
+  return {
     consumer: handle.consumer,
     dispose(): Promise<void> {
       disposePromise ??= handle.dispose();
       return disposePromise;
     },
-  });
+  };
 }

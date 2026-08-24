@@ -55,9 +55,9 @@ export const catcafeCoreApplicationDefinitionV1 = defineCoreGameApplication<
   // The resolved asset manifest rides the extensions surface so the web UI
   // can build its asset registry; extensions observe, never own.
   createExtensions: (context) => ({
-    extensions: Object.freeze({
+    extensions: {
       assets: (context.resolved as { readonly assets: ResolvedAssetManifestV1 }).assets,
-    }),
+    },
   }),
 });
 

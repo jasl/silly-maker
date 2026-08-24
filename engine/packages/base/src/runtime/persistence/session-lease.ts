@@ -61,42 +61,23 @@ const handoffKeysV1 = ["requestId", "requestedByOwnerId"] as const;
 const invalidLeaseCodeV1 = "lease.invalid_record";
 const absentLeaseCodeV1 = "lease.not_initialized";
 
-type ExactRecordV1 = Record<string, PropertyDescriptor>;
-
-function exactDescriptorsV1(value: unknown, keys: readonly string[], label: string): ExactRecordV1 {
+function exactRecordV1(
+  value: unknown,
+  keys: readonly string[],
+  label: string,
+): Record<string, unknown> {
   if (
     value === null ||
     typeof value !== "object" ||
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype ||
-    Reflect.ownKeys(value).some((key) => typeof key !== "string")
+    Array.isArray(value)
   ) {
     throw new TypeError(`invalid ${label}`);
   }
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  if (Object.keys(descriptors).toSorted().join("\0") !== [...keys].toSorted().join("\0")) {
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).toSorted().join("\0") !== [...keys].toSorted().join("\0")) {
     throw new TypeError(`invalid ${label} fields`);
   }
-  if (
-    Object.values(descriptors).some(
-      (descriptor) =>
-        descriptor.get !== undefined ||
-        descriptor.set !== undefined ||
-        !("value" in descriptor) ||
-        !descriptor.enumerable,
-    )
-  ) {
-    throw new TypeError(`invalid ${label} descriptors`);
-  }
-  return descriptors;
-}
-
-function descriptorValueV1(descriptors: ExactRecordV1, key: string): unknown {
-  const descriptor = descriptors[key];
-  if (descriptor === undefined || !("value" in descriptor)) {
-    throw new TypeError(`missing ${key}`);
-  }
-  return descriptor.value;
+  return record;
 }
 
 function parseLeaseIdV1<TId extends string>(value: unknown, label: string): TId {
@@ -124,38 +105,38 @@ function parseLeaseIdV1<TId extends string>(value: unknown, label: string): TId 
 }
 
 function normalizeSessionLeaseRecordV1(value: unknown): SessionLeaseRecordV1 {
-  const descriptors = exactDescriptorsV1(value, leaseRecordKeysV1, "SessionLeaseRecordV1");
-  if (descriptorValueV1(descriptors, "formatRevision") !== 1) {
+  const record = exactRecordV1(value, leaseRecordKeysV1, "SessionLeaseRecordV1");
+  if (record.formatRevision !== 1) {
     throw new TypeError("invalid SessionLeaseRecordV1 formatRevision");
   }
-  const ownerValue = descriptorValueV1(descriptors, "ownerId");
+  const ownerValue = record.ownerId;
   const ownerId = ownerValue === null
     ? null
     : parseLeaseIdV1<SessionLeaseOwnerId>(ownerValue, "SessionLeaseOwnerId");
-  const fencingToken = parsePositiveSafeInteger(descriptorValueV1(descriptors, "fencingToken"));
-  const handoffValue = descriptorValueV1(descriptors, "handoff");
+  const fencingToken = parsePositiveSafeInteger(record.fencingToken);
+  const handoffValue = record.handoff;
   let handoff: SessionLeaseRecordV1["handoff"] = null;
   if (handoffValue !== null) {
     if (ownerId === null) throw new TypeError("unowned lease has a handoff");
-    const handoffDescriptors = exactDescriptorsV1(
+    const handoffRecord = exactRecordV1(
       handoffValue,
       handoffKeysV1,
       "SessionLeaseRecordV1 handoff",
     );
     const requestId = parseLeaseIdV1<LeaseHandoffRequestId>(
-      descriptorValueV1(handoffDescriptors, "requestId"),
+      handoffRecord.requestId,
       "LeaseHandoffRequestId",
     );
     const requestedByOwnerId = parseLeaseIdV1<SessionLeaseOwnerId>(
-      descriptorValueV1(handoffDescriptors, "requestedByOwnerId"),
+      handoffRecord.requestedByOwnerId,
       "requestedByOwnerId",
     );
     if (requestedByOwnerId === ownerId) {
       throw new TypeError("lease owner cannot request its own handoff");
     }
-    handoff = Object.freeze({ requestId, requestedByOwnerId });
+    handoff = { requestId, requestedByOwnerId };
   }
-  return Object.freeze({ formatRevision: 1, ownerId, fencingToken, handoff });
+  return { formatRevision: 1, ownerId, fencingToken, handoff };
 }
 
 function bytesEqualV1(left: Uint8Array, right: Uint8Array): boolean {
@@ -170,15 +151,15 @@ export function encodeSessionLeaseRecordV1(record: SessionLeaseRecordV1): Uint8A
 
 export function decodeSessionLeaseRecordV1(bytes: Uint8Array): SessionLeaseRecordDecodeResultV1 {
   const decoded = parseStrictJson(bytes, leaseJsonLimitsV1);
-  if (!decoded.ok) return Object.freeze({ kind: "invalid" });
+  if (!decoded.ok) return { kind: "invalid" };
   try {
     const record = normalizeSessionLeaseRecordV1(decoded.value);
     if (!bytesEqualV1(bytes, canonicalJsonBytes(record))) {
-      return Object.freeze({ kind: "invalid" });
+      return { kind: "invalid" };
     }
-    return Object.freeze({ kind: "decoded", record });
+    return { kind: "decoded", record };
   } catch {
-    return Object.freeze({ kind: "invalid" });
+    return { kind: "invalid" };
   }
 }
 
@@ -202,34 +183,30 @@ type LeaseCommitResultV1 =
   | { readonly kind: "conflict" }
   | { readonly kind: "unavailable"; readonly code: string };
 
-const indexedDbFailureCodesV1 = Object.freeze(
-  [
-    "indexeddb.unavailable",
-    "indexeddb.database_newer",
-    "indexeddb.upgrade_blocked",
-    "indexeddb.quota_exceeded",
-    "indexeddb.transaction_aborted",
-    "indexeddb.request_failed",
-    "indexeddb.schema_invalid",
-  ] as const,
-);
-const indexedDbFailureOperationsV1 = Object.freeze(["open", "read", "list", "commit"] as const);
-
-function dataPropertyValueV1(value: object, key: string): unknown {
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  return descriptor !== undefined &&
-      descriptor.get === undefined &&
-      descriptor.set === undefined &&
-      "value" in descriptor
-    ? descriptor.value
-    : undefined;
-}
+const indexedDbFailureCodesV1 = [
+  "indexeddb.unavailable",
+  "indexeddb.database_newer",
+  "indexeddb.upgrade_blocked",
+  "indexeddb.quota_exceeded",
+  "indexeddb.transaction_aborted",
+  "indexeddb.request_failed",
+  "indexeddb.schema_invalid",
+] as const;
+const indexedDbFailureOperationsV1 = ["open", "read", "list", "commit"] as const;
 
 function stableHostFailureCodeV1(error: unknown): string | null {
   if (!(error instanceof Error)) return null;
-  const name = dataPropertyValueV1(error, "name");
-  const code = dataPropertyValueV1(error, "code");
-  const operation = dataPropertyValueV1(error, "operation");
+  let name: unknown;
+  let code: unknown;
+  let operation: unknown;
+  try {
+    ({ name, code, operation } = error as Error & {
+      readonly code?: unknown;
+      readonly operation?: unknown;
+    });
+  } catch {
+    return null;
+  }
   return name === "IndexedDbRecordStoreFailureV1" &&
       indexedDbFailureCodesV1.some((candidate) => candidate === code) &&
       indexedDbFailureOperationsV1.some((candidate) => candidate === operation)
@@ -238,34 +215,23 @@ function stableHostFailureCodeV1(error: unknown): string | null {
 }
 
 function unavailableStatusV1(code: string): SessionLeaseStatusV1 {
-  return Object.freeze({
+  return {
     kind: "unavailable",
     ownerId: null,
     fencingToken: null,
     code,
-  });
+  };
 }
 
 function rejectedV1(
   code: Extract<SessionLeaseOperationResultV1, { readonly kind: "rejected" }>["code"],
 ): SessionLeaseOperationResultV1 {
-  return Object.freeze({ kind: "rejected", code });
+  return { kind: "rejected", code };
 }
 
 function nextFencingTokenV1(token: PositiveSafeInteger): PositiveSafeInteger | null {
   if (token === Number.MAX_SAFE_INTEGER) return null;
   return parsePositiveSafeInteger(token + 1);
-}
-
-function normalizeSessionLeaseFenceV1(value: SessionLeaseFenceV1): SessionLeaseFenceV1 {
-  const descriptors = exactDescriptorsV1(value, ["fencingToken", "ownerId"], "SessionLeaseFenceV1");
-  return Object.freeze({
-    ownerId: parseLeaseIdV1<SessionLeaseOwnerId>(
-      descriptorValueV1(descriptors, "ownerId"),
-      "SessionLeaseOwnerId",
-    ),
-    fencingToken: parsePositiveSafeInteger(descriptorValueV1(descriptors, "fencingToken")),
-  });
 }
 
 function sameLeaseSemanticsV1(left: SessionLeaseRecordV1, right: SessionLeaseRecordV1): boolean {
@@ -296,28 +262,28 @@ export function createSessionLeaseV1(input: {
 
   const recordStatusV1 = (record: SessionLeaseRecordV1): SessionLeaseStatusV1 => {
     if (record.handoff !== null) {
-      return Object.freeze({
+      return {
         kind: "handoff_requested",
         ownerId: record.ownerId as SessionLeaseOwnerId,
         fencingToken: record.fencingToken,
         requestId: record.handoff.requestId,
         requestedByOwnerId: record.handoff.requestedByOwnerId,
-      });
+      };
     }
     if (record.ownerId === null) {
-      return Object.freeze({ kind: "unowned", ownerId: null, fencingToken: record.fencingToken });
+      return { kind: "unowned", ownerId: null, fencingToken: record.fencingToken };
     }
-    return Object.freeze({
+    return {
       kind: record.ownerId === ownerId ? "owned" : "readonly",
       ownerId: record.ownerId,
       fencingToken: record.fencingToken,
-    });
+    };
   };
 
   const rememberV1 = (observation: LeaseObservationV1): LeaseObservationV1 => {
     capturedFence = null;
     if (observation.kind === "available" && observation.record.ownerId === ownerId) {
-      capturedFence = Object.freeze({ ownerId, fencingToken: observation.record.fencingToken });
+      capturedFence = { ownerId, fencingToken: observation.record.fencingToken };
     }
     return observation;
   };
@@ -336,20 +302,20 @@ export function createSessionLeaseV1(input: {
     } catch (error) {
       const code = stableHostFailureCodeV1(error);
       if (code === null) throw error;
-      return rememberV1(Object.freeze({ kind: "unavailable", code }));
+      return rememberV1({ kind: "unavailable", code });
     }
-    if (stored === null) return rememberV1(Object.freeze({ kind: "absent" }));
+    if (stored === null) return rememberV1({ kind: "absent" });
     if (stored.namespace !== "lease" || stored.key !== key) {
       throw new TypeError("Host returned the wrong lease record");
     }
     try {
       parsePositiveSafeInteger(stored.revision);
     } catch {
-      return rememberV1(Object.freeze({ kind: "invalid" }));
+      return rememberV1({ kind: "invalid" });
     }
     const decoded = decodeSessionLeaseRecordV1(stored.bytes);
-    if (decoded.kind === "invalid") return rememberV1(Object.freeze({ kind: "invalid" }));
-    return rememberV1(Object.freeze({ kind: "available", stored, record: decoded.record }));
+    if (decoded.kind === "invalid") return rememberV1({ kind: "invalid" });
+    return rememberV1({ kind: "available", stored, record: decoded.record });
   };
 
   const commitRecordV1 = async (
@@ -374,12 +340,12 @@ export function createSessionLeaseV1(input: {
       } catch (error) {
         const code = stableHostFailureCodeV1(error);
         if (code === null) throw error;
-        rememberV1(Object.freeze({ kind: "unavailable", code }));
-        return Object.freeze({ kind: "unavailable", code });
+        rememberV1({ kind: "unavailable", code });
+        return { kind: "unavailable", code };
       }
       if (result.kind === "conflict") {
         capturedFence = null;
-        return Object.freeze({ kind: "conflict" });
+        return { kind: "conflict" };
       }
       const stored = result.records.find(
         (candidate) => candidate.namespace === "lease" && candidate.key === key,
@@ -387,10 +353,12 @@ export function createSessionLeaseV1(input: {
       if (stored === undefined || !bytesEqualV1(stored.bytes, bytes)) {
         throw new TypeError("Host commit omitted the lease record");
       }
-      const observation = rememberV1(
-        Object.freeze({ kind: "available", stored, record }),
-      ) as AvailableLeaseObservationV1;
-      return Object.freeze({ kind: "committed", observation });
+      const observation = rememberV1({
+        kind: "available",
+        stored,
+        record,
+      }) as AvailableLeaseObservationV1;
+      return { kind: "committed", observation };
     };
 
     const first = await commitOnceV1(expected?.stored.revision ?? null);
@@ -398,13 +366,13 @@ export function createSessionLeaseV1(input: {
 
     const fresh = await readFreshV1();
     if (fresh.kind === "unavailable") {
-      return Object.freeze({ kind: "unavailable", code: fresh.code });
+      return { kind: "unavailable", code: fresh.code };
     }
     if (fresh.kind === "invalid") {
-      return Object.freeze({ kind: "unavailable", code: invalidLeaseCodeV1 });
+      return { kind: "unavailable", code: invalidLeaseCodeV1 };
     }
     if (fresh.kind !== "available" || !sameLeaseSemanticsV1(fresh.record, expected.record)) {
-      return Object.freeze({ kind: "conflict" });
+      return { kind: "conflict" };
     }
     return commitOnceV1(fresh.stored.revision);
   };
@@ -412,10 +380,10 @@ export function createSessionLeaseV1(input: {
   const updatedFromCommitV1 = (result: LeaseCommitResultV1): SessionLeaseOperationResultV1 => {
     if (result.kind === "conflict") return rejectedV1("conflict");
     if (result.kind === "unavailable") return rejectedV1("unavailable");
-    return Object.freeze({
+    return {
       kind: "updated",
       status: recordStatusV1(result.observation.record),
-    });
+    };
   };
 
   const takeOverV1 = async (
@@ -427,7 +395,7 @@ export function createSessionLeaseV1(input: {
     }
     if (current.kind !== "available") return rejectedV1("conflict");
     if (current.record.ownerId === ownerId) {
-      return Object.freeze({ kind: "updated", status: recordStatusV1(current.record) });
+      return { kind: "updated", status: recordStatusV1(current.record) };
     }
     if (
       expectedUnownedFencingToken !== null &&
@@ -438,12 +406,12 @@ export function createSessionLeaseV1(input: {
     }
     const fencingToken = nextFencingTokenV1(current.record.fencingToken);
     if (fencingToken === null) return rejectedV1("unavailable");
-    const next: SessionLeaseRecordV1 = Object.freeze({
+    const next: SessionLeaseRecordV1 = {
       formatRevision: 1,
       ownerId,
       fencingToken,
       handoff: null,
-    });
+    };
     return updatedFromCommitV1(await commitRecordV1(current, next));
   };
 
@@ -463,16 +431,16 @@ export function createSessionLeaseV1(input: {
     ) {
       return rejectedV1("conflict");
     }
-    const next: SessionLeaseRecordV1 = Object.freeze({
+    const next: SessionLeaseRecordV1 = {
       formatRevision: 1,
       ownerId: null,
       fencingToken: current.record.fencingToken,
       handoff: null,
-    });
+    };
     return updatedFromCommitV1(await commitRecordV1(current, next));
   };
 
-  return Object.freeze({
+  return {
     async getStatus() {
       return observationStatusV1(await readFreshV1());
     },
@@ -480,12 +448,12 @@ export function createSessionLeaseV1(input: {
     async acquireInitial() {
       const current = await readFreshV1();
       if (current.kind !== "absent") return observationStatusV1(current);
-      const initial: SessionLeaseRecordV1 = Object.freeze({
+      const initial: SessionLeaseRecordV1 = {
         formatRevision: 1,
         ownerId,
         fencingToken: parsePositiveSafeInteger(1),
         handoff: null,
-      });
+      };
       const result = await commitRecordV1(null, initial);
       if (result.kind === "committed") return recordStatusV1(result.observation.record);
       if (result.kind === "unavailable") return unavailableStatusV1(result.code);
@@ -513,10 +481,10 @@ export function createSessionLeaseV1(input: {
         input.nextHandoffRequestId(),
         "LeaseHandoffRequestId",
       );
-      const next: SessionLeaseRecordV1 = Object.freeze({
+      const next: SessionLeaseRecordV1 = {
         ...current.record,
-        handoff: Object.freeze({ requestId, requestedByOwnerId: ownerId }),
-      });
+        handoff: { requestId, requestedByOwnerId: ownerId },
+      };
       return updatedFromCommitV1(await commitRecordV1(current, next));
     },
 
@@ -538,12 +506,12 @@ export function createSessionLeaseV1(input: {
       const fencingToken = nextFencingTokenV1(current.record.fencingToken);
       if (fencingToken === null) return rejectedV1("unavailable");
       const approvedOwnerId = current.record.handoff.requestedByOwnerId;
-      const next: SessionLeaseRecordV1 = Object.freeze({
+      const next: SessionLeaseRecordV1 = {
         formatRevision: 1,
         ownerId: approvedOwnerId,
         fencingToken,
         handoff: null,
-      });
+      };
       return updatedFromCommitV1(await commitRecordV1(current, next));
     },
 
@@ -560,7 +528,7 @@ export function createSessionLeaseV1(input: {
     },
 
     async releaseFence(fence: SessionLeaseFenceV1) {
-      return releaseV1(normalizeSessionLeaseFenceV1(fence));
+      return releaseV1(fence);
     },
-  });
+  };
 }

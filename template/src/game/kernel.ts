@@ -167,7 +167,7 @@ export type TemplateAttemptV1 = CommandExecutionAttemptEnvelopeV1<
   RngDrawTraceV1
 >;
 
-export const commandSchemaV1: RuntimeSchemaV1<TemplateCommandV1> = Object.freeze({
+export const commandSchemaV1: RuntimeSchemaV1<TemplateCommandV1> = {
   parse(value: unknown): TemplateCommandV1 {
     if (value === null || typeof value !== "object" || Array.isArray(value)) {
       throw new TypeError("invalid template command");
@@ -181,7 +181,7 @@ export const commandSchemaV1: RuntimeSchemaV1<TemplateCommandV1> = Object.freeze
         readonly expectedOccurrenceId?: unknown;
         readonly resolution?: unknown;
       };
-      return Object.freeze({
+      return ({
         kind,
         expectedOccurrenceId: parseInteractionOccurrenceId(record.expectedOccurrenceId),
         resolution: parseInteractionResolution(record.resolution),
@@ -191,7 +191,7 @@ export const commandSchemaV1: RuntimeSchemaV1<TemplateCommandV1> = Object.freeze
       if (Object.keys(value).toSorted().join("\0") !== "kind\0tick") {
         throw new TypeError("invalid template time tick command");
       }
-      return Object.freeze({
+      return ({
         kind,
         tick: parseTimeTick((value as { readonly tick?: unknown }).tick, "/tick"),
       });
@@ -204,12 +204,10 @@ export const commandSchemaV1: RuntimeSchemaV1<TemplateCommandV1> = Object.freeze
       if (!Array.isArray(mutations) || mutations.length === 0) {
         throw new TypeError("invalid template scene reconcile mutations");
       }
-      return Object.freeze({
+      return ({
         kind,
-        mutations: Object.freeze(
-          mutations.map((mutation, index) =>
-            parseStageMutation(mutation, `/mutations/${String(index)}`)
-          ),
+        mutations: mutations.map((mutation, index) =>
+          parseStageMutation(mutation, `/mutations/${String(index)}`)
         ),
       });
     }
@@ -219,9 +217,9 @@ export const commandSchemaV1: RuntimeSchemaV1<TemplateCommandV1> = Object.freeze
     if (kind !== "template.begin_story" && kind !== "template.earn_coin") {
       throw new TypeError("invalid template command kind");
     }
-    return Object.freeze({ kind });
+    return ({ kind });
   },
-});
+};
 
 function keysV1(value: object): string {
   return Object.keys(value).toSorted().join("\0");
@@ -238,7 +236,7 @@ function parseIntegerV1(value: unknown, label: string): number {
  * Domain-event admission: every emitted event is validated once here before
  * any reducer folds it, so reducers consume ordinary typed data.
  */
-export const templateEventSchemaV1: RuntimeSchemaV1<TemplateEventV1> = Object.freeze({
+export const templateEventSchemaV1: RuntimeSchemaV1<TemplateEventV1> = {
   parse(value: unknown): TemplateEventV1 {
     if (value === null || typeof value !== "object" || Array.isArray(value)) {
       throw new TypeError("invalid template event");
@@ -252,7 +250,7 @@ export const templateEventSchemaV1: RuntimeSchemaV1<TemplateEventV1> = Object.fr
       const delta = parseIntegerV1(record.delta, "delta");
       const balance = parseIntegerV1(record.balance, "balance");
       if (delta === 0 || balance < 0) throw new TypeError("invalid template coins event");
-      return Object.freeze({ kind, delta, balance });
+      return ({ kind, delta, balance });
     }
     if (kind === "template.stage_changed") {
       const hasDispatches = keysV1(value) === "dispatches\0kind\0mutations";
@@ -263,12 +261,10 @@ export const templateEventSchemaV1: RuntimeSchemaV1<TemplateEventV1> = Object.fr
       if (!Array.isArray(record.mutations) || record.mutations.length === 0) {
         throw new TypeError("invalid template stage event mutations");
       }
-      return Object.freeze({
+      return ({
         kind,
-        mutations: Object.freeze(
-          record.mutations.map((mutation, index) =>
-            parseStageMutation(mutation, `/mutations/${String(index)}`)
-          ),
+        mutations: record.mutations.map((mutation, index) =>
+          parseStageMutation(mutation, `/mutations/${String(index)}`)
         ),
         ...(hasDispatches ? { dispatches: parseStageCueDispatches(record.dispatches) } : {}),
       });
@@ -277,7 +273,7 @@ export const templateEventSchemaV1: RuntimeSchemaV1<TemplateEventV1> = Object.fr
       if (keysV1(value) !== "kind\0next") {
         throw new TypeError("invalid template narrative event");
       }
-      return Object.freeze({
+      return ({
         kind,
         next: templateNarrativeStateSchemaV1.parse((value as { readonly next?: unknown }).next),
       });
@@ -293,7 +289,7 @@ export const templateEventSchemaV1: RuntimeSchemaV1<TemplateEventV1> = Object.fr
       ) {
         throw new TypeError("invalid template interaction event");
       }
-      return Object.freeze({
+      return ({
         kind,
         definitionId: record.definitionId,
         occurrenceId: record.occurrenceId,
@@ -301,6 +297,6 @@ export const templateEventSchemaV1: RuntimeSchemaV1<TemplateEventV1> = Object.fr
     }
     throw new TypeError("invalid template event kind");
   },
-});
+};
 
 export const kit = createGameAuthoringKit<TemplateSimulationTypesV1>();

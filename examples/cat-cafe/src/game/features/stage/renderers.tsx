@@ -18,7 +18,7 @@ export { catcafeCatFrameSizeV1 } from "./frame.ts";
 export function createCatcafeStageRenderersV1(
   registry: CatcafeAssetRegistryV1 | null,
 ): Readonly<Record<string, SemanticStageEntryRendererV1>> {
-  return Object.freeze({
+  return ({
     "renderer.catcafe.background": ({ entry }) => {
       const url = resolveAssetUrlV1(registry, entry.props.assetId, "scene_background");
       if (url !== null) {

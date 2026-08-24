@@ -3,13 +3,13 @@ import { copyFile, mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const projectLegalFilesV1 = Object.freeze([
+const projectLegalFilesV1 = [
   "LICENSE.md",
   "LICENSES/CC0-1.0.txt",
   "LICENSES/MIT.txt",
   "NOTICE",
   "TRADEMARKS.md",
-]);
+];
 
 export async function copyProjectLegalFilesV1(repositoryRoot, outputRoot) {
   await mkdir(outputRoot, { recursive: true });

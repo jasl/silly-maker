@@ -24,7 +24,7 @@ export function createManualPresentationClockV1(): ManualPresentationClockV1 {
   let pending = new Map<number, (now: number) => void>();
   let nextHandle = 1;
 
-  return Object.freeze({
+  return {
     now: () => current,
     requestTick(callback: (now: number) => void): () => void {
       const handle = nextHandle;
@@ -46,18 +46,18 @@ export function createManualPresentationClockV1(): ManualPresentationClockV1 {
       for (const callback of flushing.values()) callback(current);
     },
     pendingTickCount: () => pending.size,
-  });
+  };
 }
 
 export function createAnimationFramePresentationClockV1(): PresentationClockV1 {
   if (typeof requestAnimationFrame !== "function" || typeof performance === "undefined") {
     throw new TypeError("animation-frame presentation clock requires a browser host");
   }
-  return Object.freeze({
+  return {
     now: () => performance.now(),
     requestTick(callback: (now: number) => void): () => void {
       const handle = requestAnimationFrame((timestamp) => callback(timestamp));
       return () => cancelAnimationFrame(handle);
     },
-  });
+  };
 }

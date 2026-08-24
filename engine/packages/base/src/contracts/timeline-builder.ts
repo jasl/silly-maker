@@ -14,24 +14,24 @@ import { parseTimelineDefinitionV1 } from "./timeline.ts";
  * precedent). `define` validates, so authoring mistakes fail at module
  * initialization with a structured path, not at playback.
  */
-export const timelineV1 = Object.freeze({
+export const timelineV1 = {
   define(timelineId: string, root: TimelineStepV1): TimelineDefinitionV1 {
     return parseTimelineDefinitionV1({ timelineId, root });
   },
   sequence(...steps: readonly TimelineStepV1[]): TimelineStepV1 {
-    return Object.freeze({ kind: "sequence" as const, steps: Object.freeze([...steps]) });
+    return { kind: "sequence" as const, steps: [...steps] };
   },
   parallel(...steps: readonly TimelineStepV1[]): TimelineStepV1 {
-    return Object.freeze({ kind: "parallel" as const, steps: Object.freeze([...steps]) });
+    return { kind: "parallel" as const, steps: [...steps] };
   },
   wait(durationMs: number): TimelineStepV1 {
-    return Object.freeze({ kind: "wait" as const, durationMs });
+    return { kind: "wait" as const, durationMs };
   },
   event(eventId: string): TimelineStepV1 {
-    return Object.freeze({ kind: "event" as const, eventId });
+    return { kind: "event" as const, eventId };
   },
   repeat(count: number, step: TimelineStepV1): TimelineStepV1 {
-    return Object.freeze({ kind: "repeat" as const, count, step });
+    return { kind: "repeat" as const, count, step };
   },
   tween(input: {
     readonly target: TimelineTargetV1;
@@ -41,7 +41,7 @@ export const timelineV1 = Object.freeze({
     readonly durationMs: number;
     readonly easing?: TimelineEasingV1;
   }): TimelineStepV1 {
-    return Object.freeze({
+    return {
       kind: "tween" as const,
       target: input.target,
       property: input.property,
@@ -49,12 +49,12 @@ export const timelineV1 = Object.freeze({
       to: input.to,
       durationMs: input.durationMs,
       easing: input.easing ?? "linear",
-    });
+    };
   },
   entry(layerId: string, tag: string): TimelineTargetV1 {
-    return Object.freeze({ kind: "entry" as const, layerId, tag });
+    return { kind: "entry" as const, layerId, tag };
   },
   camera(): TimelineTargetV1 {
-    return Object.freeze({ kind: "camera" as const });
+    return { kind: "camera" as const };
   },
-});
+};

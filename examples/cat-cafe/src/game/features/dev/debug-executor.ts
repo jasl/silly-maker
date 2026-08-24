@@ -16,7 +16,7 @@ import { applyStatEffectsV1, catcafeDebugStatsV1, clampV1 } from "../../kernel.t
 import { emitCatcafeStageV1, transactionRunnerV1 } from "../../runtime.ts";
 import { catcafeGrowthMutationV1 } from "../cat/growth.ts";
 
-export const catcafeDebugCommandSchemaV1: RuntimeSchemaV1<CatcafeDebugCommandV1> = Object.freeze({
+export const catcafeDebugCommandSchemaV1: RuntimeSchemaV1<CatcafeDebugCommandV1> = {
   parse(value: unknown): CatcafeDebugCommandV1 {
     if (value === null || typeof value !== "object" || Array.isArray(value)) {
       throw new TypeError("invalid catcafe debug command");
@@ -33,7 +33,7 @@ export const catcafeDebugCommandSchemaV1: RuntimeSchemaV1<CatcafeDebugCommandV1>
         ) {
           throw new TypeError("invalid catcafe debug set_stat command");
         }
-        return Object.freeze({ kind: record.kind, stat: record.stat, value: record.value });
+        return ({ kind: record.kind, stat: record.stat, value: record.value });
       case "cc.debug.advance_days":
         if (
           keys !== "days\u0000kind" ||
@@ -42,17 +42,17 @@ export const catcafeDebugCommandSchemaV1: RuntimeSchemaV1<CatcafeDebugCommandV1>
         ) {
           throw new TypeError("invalid catcafe debug advance_days command");
         }
-        return Object.freeze({ kind: record.kind, days: record.days });
+        return ({ kind: record.kind, days: record.days });
       case "cc.debug.force_encounter":
         if (keys !== "encounterId\u0000kind" || typeof record.encounterId !== "string") {
           throw new TypeError("invalid catcafe debug force_encounter command");
         }
-        return Object.freeze({ kind: record.kind, encounterId: record.encounterId });
+        return ({ kind: record.kind, encounterId: record.encounterId });
       default:
         throw new TypeError("invalid catcafe debug command kind");
     }
   },
-});
+};
 
 export interface CatcafeDebugCommandExecutorV1 {
   validate(
@@ -72,7 +72,7 @@ export interface CatcafeDebugCommandExecutorV1 {
   ): CatcafeAttemptV1;
 }
 
-export const catcafeDebugCommandExecutorV1: CatcafeDebugCommandExecutorV1 = Object.freeze({
+export const catcafeDebugCommandExecutorV1: CatcafeDebugCommandExecutorV1 = {
   validate(snapshot: CatcafeSnapshotV1, command: CatcafeDebugCommandV1) {
     const errors: CatcafeDebugValidationErrorV1[] = [];
     switch (command.kind) {
@@ -107,8 +107,8 @@ export const catcafeDebugCommandExecutorV1: CatcafeDebugCommandExecutorV1 = Obje
       errors.push({ code: "cc.debug.opening_incomplete" });
     }
     return errors.length === 0
-      ? Object.freeze({ kind: "allowed" as const })
-      : Object.freeze({ kind: "validation_failed" as const, errors: Object.freeze(errors) });
+      ? ({ kind: "allowed" as const })
+      : ({ kind: "validation_failed" as const, errors: errors });
   },
   executeAttempt(snapshot: CatcafeSnapshotV1, command: CatcafeDebugCommandV1) {
     const rng = createTransactionalRngV1(snapshot.rng);
@@ -119,12 +119,12 @@ export const catcafeDebugCommandExecutorV1: CatcafeDebugCommandExecutorV1 = Obje
         if (scope === "cat") {
           transaction.emit({
             kind: "cc.cat_set",
-            next: Object.freeze({ ...state.cat, [field]: command.value }),
+            next: { ...state.cat, [field]: command.value },
           });
         } else {
           transaction.emit({
             kind: "cc.shop_set",
-            next: Object.freeze({ ...state.shop, [field]: command.value }),
+            next: { ...state.shop, [field]: command.value },
           });
         }
         return transaction.complete();
@@ -139,18 +139,18 @@ export const catcafeDebugCommandExecutorV1: CatcafeDebugCommandExecutorV1 = Obje
         const day = total % 7;
         transaction.emit({
           kind: "cc.calendar_set",
-          next: Object.freeze({ week, day, slot: 0, stamina: catcafeDailyStaminaV1 }),
+          next: { week, day, slot: 0, stamina: catcafeDailyStaminaV1 },
         });
         transaction.emit({
           kind: "cc.shop_set",
-          next: Object.freeze({
+          next: {
             ...state.shop,
             tidiness: clampV1(state.shop.tidiness - 10 * command.days, 0, 100),
-          }),
+          },
         });
         transaction.emit({
           kind: "cc.cat_set",
-          next: Object.freeze({ ...state.cat, pettingLeft: catcafeDailyPettingV1 }),
+          next: { ...state.cat, pettingLeft: catcafeDailyPettingV1 },
         });
         transaction.emit({ kind: "cc.slot_advanced", week, day, slot: 0 });
         if (state.narrative.phase === "completed") {
@@ -181,8 +181,8 @@ export const catcafeDebugCommandExecutorV1: CatcafeDebugCommandExecutorV1 = Obje
         const cat = { ...state.cat };
         const shop = { ...state.shop };
         applyStatEffectsV1(cat, shop, row.effects, { fishBuffDoublesTrust: false });
-        transaction.emit({ kind: "cc.cat_set", next: Object.freeze(cat) });
-        transaction.emit({ kind: "cc.shop_set", next: Object.freeze(shop) });
+        transaction.emit({ kind: "cc.cat_set", next: cat });
+        transaction.emit({ kind: "cc.shop_set", next: shop });
         transaction.emit({
           kind: "cc.encounter",
           encounterId: draw.eventId,
@@ -195,4 +195,4 @@ export const catcafeDebugCommandExecutorV1: CatcafeDebugCommandExecutorV1 = Obje
     const exhaustive: never = command;
     throw new TypeError(`unknown catcafe debug command ${String(exhaustive)}`);
   },
-});
+};

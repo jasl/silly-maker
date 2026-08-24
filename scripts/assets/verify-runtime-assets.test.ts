@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { readFile, realpath } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 
 import {
@@ -36,8 +36,6 @@ describe("closed runtime asset verification", () => {
       "story.example.bookshop",
       "story.example.cat-cafe",
     ]);
-    expect(Object.isFrozen(runtimeAssetStoryChecksV1)).toBe(true);
-    for (const check of runtimeAssetStoryChecksV1) expect(Object.isFrozen(check)).toBe(true);
   });
 
   it("resolves every closed Story once and validates its exact manifest in order", async () => {
@@ -58,12 +56,8 @@ describe("closed runtime asset verification", () => {
     const environmentFor = (appRoot: string): RuntimeAssetValidationEnvironmentV1 => {
       environmentRoots.push(appRoot);
       return Object.freeze({
-        repositoryRoot: appRoot,
         readFile(path: string) {
           throw new Error(`unexpected read: ${path}`);
-        },
-        realpath(path: string) {
-          throw new Error(`unexpected realpath: ${path}`);
         },
       });
     };
@@ -82,7 +76,6 @@ describe("closed runtime asset verification", () => {
     expect(resolutionCalls).toEqual(["story.test.1", "story.test.2"]);
     expect(validationCalls).toEqual(manifests);
     expect(verified).toEqual(["story.test.1", "story.test.2"]);
-    expect(Object.isFrozen(verified)).toBe(true);
   });
 
   it("verifies the live Template content packs and cat-cafe runtime art", async () => {
@@ -94,14 +87,10 @@ describe("closed runtime asset verification", () => {
       verifyRuntimeAssetsV1(root, {
         environmentFor: (appDirectory: string) =>
           Object.freeze({
-            repositoryRoot: resolve(root, appDirectory),
             async readFile(path: string) {
               const absolute = resolve(root, appDirectory, path);
               reads.push(absolute);
               return await readFile(absolute);
-            },
-            async realpath(path: string) {
-              return await realpath(resolve(root, appDirectory, path));
             },
           }),
       }),
@@ -162,13 +151,9 @@ describe("closed runtime asset verification", () => {
     });
     const environmentFor = (): RuntimeAssetValidationEnvironmentV1 =>
       Object.freeze({
-        repositoryRoot: "/repo/content",
         readFile(path: string) {
           reads.push(path);
           return Promise.resolve(bytes);
-        },
-        realpath(path: string) {
-          return Promise.resolve(path);
         },
       });
 
@@ -199,12 +184,8 @@ describe("closed runtime asset verification", () => {
         [story],
         () =>
           Object.freeze({
-            repositoryRoot: "/repo/content",
             readFile() {
               return Promise.resolve(editedBytes);
-            },
-            realpath(path: string) {
-              return Promise.resolve(path);
             },
           }),
         () => Promise.resolve(Object.freeze({ errors: Object.freeze([]) })),
@@ -216,12 +197,8 @@ describe("closed runtime asset verification", () => {
         [story],
         () =>
           Object.freeze({
-            repositoryRoot: "/repo/content",
             readFile() {
               return Promise.resolve(new TextEncoder().encode("{"));
-            },
-            realpath(path: string) {
-              return Promise.resolve(path);
             },
           }),
         () => Promise.resolve(Object.freeze({ errors: Object.freeze([]) })),
@@ -255,12 +232,8 @@ describe("closed runtime asset verification", () => {
         stories,
         () =>
           Object.freeze({
-            repositoryRoot: "/repo/silly-maker",
             readFile() {
               return Promise.resolve(new Uint8Array());
-            },
-            realpath(path: string) {
-              return Promise.resolve(path);
             },
           }),
         () => {

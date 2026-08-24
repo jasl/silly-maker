@@ -28,16 +28,16 @@ export {
  *   `stateContractRevision`;
  * - any of the above               -> bump `identity.revision`.
  */
-const templateStoryDefinitionV1 = Object.freeze({
+const templateStoryDefinitionV1 = {
   simulation: templateSimulationDefinitionV1,
-  presentation: Object.freeze({
+  presentation: {
     textCatalogs: templateTextCatalogsV1,
-    assetSlots: Object.freeze([]) as readonly [],
-    assetPacks: Object.freeze([]) as readonly [],
+    assetSlots: [] as readonly [],
+    assetPacks: [] as readonly [],
     patchSurface: templatePresentationPatchSurfaceV1,
     materializePresentation: materializeTemplatePresentationV1,
-  }),
-});
+  },
+};
 
 export const templateStoryEntryV1 = defineGamePackage({
   contractRevision: 1,

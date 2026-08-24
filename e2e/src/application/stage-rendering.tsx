@@ -21,15 +21,15 @@ const labCrateGlowUrlV1 = `data:image/svg+xml,${
  * so hover-reveal art resolves to a static data URI; everything else keeps
  * the code-native fallback. Static registry — the revision never moves.
  */
-export const labStageAssetsV1: AssetUrlRegistryV1 = Object.freeze({
+export const labStageAssetsV1: AssetUrlRegistryV1 = {
   resolve: (assetId: never, usage: never) =>
     (usage as string) === "stage_hover_reveal" &&
       (assetId as string) === "asset.e2e.lab.crate-glow"
-      ? Object.freeze({ delivery: "runtime_image", url: labCrateGlowUrlV1 })
-      : Object.freeze({ delivery: "code_fallback" }),
-  observe: () => Object.freeze({ revision: 0 }),
+      ? ({ delivery: "runtime_image", url: labCrateGlowUrlV1 })
+      : ({ delivery: "code_fallback" }),
+  observe: () => ({ revision: 0 }),
   subscribe: () => () => {},
-});
+};
 
 /**
  * Code-native stage entry renderers keyed by the catalog's renderer IDs.

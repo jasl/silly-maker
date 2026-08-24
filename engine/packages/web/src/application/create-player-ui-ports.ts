@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 import {
-  debugBundleJsonLimitsV1,
   parseNonNegativeSafeInteger,
-  parseStrictJson,
   saveJsonLimitsV1,
   type ExportedDebugBundleV1,
   type ExportedSaveV1,
@@ -55,45 +53,40 @@ export interface PlayerUiPortsV1 {
 }
 
 function detachExportedDebugBundleV1(value: ExportedDebugBundleV1): ExportedDebugBundleV1 {
-  return Object.freeze({
+  return ({
     filename: value.filename,
     mediaType: value.mediaType,
     digest: value.digest,
     bytes: Uint8Array.from(value.bytes),
+    contentSummary: { ...value.contentSummary },
   });
 }
 
 function classifyDebugBundleCategoriesV1(
-  bytes: Uint8Array,
+  summary: ExportedDebugBundleV1["contentSummary"],
 ): readonly DiagnosticExportContentCategoryIdV1[] {
-  const decoded = parseStrictJson(bytes, debugBundleJsonLimitsV1);
-  if (!decoded.ok) throw new TypeError("invalid prepared Debug Bundle Strict JSON");
-  const envelope = decoded.value;
-  if (envelope === null || typeof envelope !== "object" || Array.isArray(envelope)) {
-    throw new TypeError("invalid prepared Debug Bundle envelope");
-  }
   const categories: DiagnosticExportContentCategoryIdV1[] = [
     "provenance",
     "capabilities_and_integrity",
     "replay_evidence",
     "diagnostics_and_runtime_failures",
   ];
-  if (Object.hasOwn(envelope, "failure")) {
+  if (summary.failure) {
     categories.push("failure_context");
   }
-  if (Object.hasOwn(envelope, "uiContext")) {
+  if (summary.uiContext) {
     categories.push("ui_context");
   }
-  return Object.freeze(categories);
+  return categories;
 }
 
 function createDiagnosticPreviewV1(exported: ExportedDebugBundleV1): DiagnosticExportPreviewV1 {
-  return Object.freeze({
+  return ({
     filename: exported.filename,
     mediaType: exported.mediaType,
     digest: exported.digest,
     encodedByteLength: parseNonNegativeSafeInteger(exported.bytes.byteLength),
-    categories: classifyDebugBundleCategoriesV1(exported.bytes),
+    categories: classifyDebugBundleCategoriesV1(exported.contentSummary),
   });
 }
 
@@ -113,10 +106,10 @@ export function createPlayerSaveUiPortV1(input: {
   readonly files: HostFilePortV1;
   readonly persistence: PlayerUiPersistenceSourceV1;
 }): SaveOverlayPortV1 {
-  return Object.freeze({
+  return ({
     getStatus: () => input.persistence.getStatus(),
     listSlots: async () => await input.persistence.listSlots(),
-    recovery: Object.freeze({
+    recovery: {
       inspectSave: async (slotId: SaveUiReadableSlotIdV1) =>
         await input.persistence.inspectSave(slotId),
       inspectBackup: async (slotId: SaveUiReadableSlotIdV1) =>
@@ -131,18 +124,18 @@ export function createPlayerSaveUiPortV1(input: {
         const result = await input.persistence.exportBackup(slotId);
         if (result.kind !== "exported") return result;
         if (result.slotId !== slotId) {
-          return Object.freeze({ kind: "faulted" as const, code: "persistence.invalid_result" });
+          return ({ kind: "faulted" as const, code: "persistence.invalid_result" });
         }
         try {
           await downloadV1(input.files, result.file);
         } catch {
-          return Object.freeze({ kind: "faulted" as const, code: "file.download_failed" });
+          return ({ kind: "faulted" as const, code: "file.download_failed" });
         }
-        return Object.freeze({ kind: "exported" as const, slotId: result.slotId });
+        return ({ kind: "exported" as const, slotId: result.slotId });
       },
       discardBackup: async (slotId: SaveUiReadableSlotIdV1) =>
         await input.persistence.discardBackup(slotId),
-    }),
+    },
     save: async (slotId: SaveUiWritableSlotIdV1) => await input.persistence.save(slotId),
     load: async (slotId: SaveUiReadableSlotIdV1) => await input.persistence.load(slotId),
     clear: async (slotId: SaveUiReadableSlotIdV1) => await input.persistence.clear(slotId),
@@ -150,7 +143,7 @@ export function createPlayerSaveUiPortV1(input: {
       await input.persistence.annotateSave(slotId, note),
     async importSave() {
       const selection = await input.files.selectOne({
-        acceptedMediaTypes: Object.freeze(["application/json"]),
+        acceptedMediaTypes: ["application/json"],
         maximumBytes: saveJsonLimitsV1.maxBytes,
       });
       if (selection.kind !== "selected") return selection;
@@ -183,7 +176,7 @@ export function createPlayerUiPortsV1(input: {
       readonly preview: DiagnosticExportPreviewV1;
     }
     | undefined;
-  const diagnostics = Object.freeze({
+  const diagnostics = ({
     async prepareDebugBundle() {
       if (preparedDiagnostic !== undefined) return preparedDiagnostic.preview;
       const generation = diagnosticGeneration + 1;
@@ -196,7 +189,7 @@ export function createPlayerUiPortsV1(input: {
       if (generation !== diagnosticGeneration) {
         throw new TypeError("prepared Debug Bundle was discarded");
       }
-      preparedDiagnostic = Object.freeze({ exported, preview });
+      preparedDiagnostic = { exported, preview };
       return preview;
     },
     async savePreparedDebugBundle() {
@@ -213,5 +206,5 @@ export function createPlayerUiPortsV1(input: {
       preparedDiagnostic = undefined;
     },
   }) satisfies DiagnosticExportPortV1;
-  return Object.freeze({ save, diagnostics });
+  return ({ save, diagnostics });
 }

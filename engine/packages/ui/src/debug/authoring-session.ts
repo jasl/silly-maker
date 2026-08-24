@@ -157,7 +157,7 @@ export function createAuthoringDocumentSessionV1<TDocument>(input: {
   let generation = 0;
 
   const listeners = new Set<() => void>();
-  let snapshot: AuthoringSessionSnapshotV1<TDocument> = Object.freeze({
+  let snapshot: AuthoringSessionSnapshotV1<TDocument> = {
     documentIdentity: null,
     draftRevision: 0,
     path: null,
@@ -169,10 +169,10 @@ export function createAuthoringDocumentSessionV1<TDocument>(input: {
     saving: false,
     canUndo: false,
     canRedo: false,
-  });
+  };
 
   const publish = (): void => {
-    snapshot = Object.freeze({
+    snapshot = {
       documentIdentity,
       draftRevision,
       path,
@@ -184,7 +184,7 @@ export function createAuthoringDocumentSessionV1<TDocument>(input: {
       saving,
       canUndo: undoStack.length > 0,
       canRedo: redoStack.length > 0,
-    });
+    };
     for (const listener of [...listeners]) listener();
   };
 
@@ -388,7 +388,7 @@ export function createAuthoringDocumentSessionV1<TDocument>(input: {
       publish();
     },
   };
-  return Object.freeze(session);
+  return session;
 }
 
 /** React binding: subscribe a component to the session's snapshot. */

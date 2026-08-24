@@ -56,12 +56,12 @@ export function createPresentationReadPortV1<TAssetId, TAssetUsage, TFallbackTok
     while (true) {
       const value = entriesByLocale.get(catalog.locale)?.get(textId);
       if (value !== undefined) {
-        const resolved = Object.freeze({
+        const resolved = {
           textId,
           requestedLocale: input.locale,
           resolvedLocale: catalog.locale,
           text: value,
-        });
+        };
         resolvedTextCache.set(textId, resolved);
         return resolved;
       }
@@ -79,18 +79,16 @@ export function createPresentationReadPortV1<TAssetId, TAssetUsage, TFallbackTok
   const asset = (
     assetId: TAssetId,
     usage: TAssetUsage,
-  ): ResolvedAssetPresentationV1<TAssetId, TAssetUsage, TFallbackToken> => {
-    const resolved = input.assets.resolve(assetId, usage);
-    return Object.isFrozen(resolved) ? resolved : Object.freeze({ ...resolved });
-  };
+  ): ResolvedAssetPresentationV1<TAssetId, TAssetUsage, TFallbackToken> =>
+    input.assets.resolve(assetId, usage);
   const observeAssets = () => input.assets.observe();
   const subscribeAssets = (listener: () => void) => input.assets.subscribe(listener);
 
-  return Object.freeze({
+  return {
     locale: input.locale,
     text,
     asset,
     observeAssets,
     subscribeAssets,
-  });
+  };
 }

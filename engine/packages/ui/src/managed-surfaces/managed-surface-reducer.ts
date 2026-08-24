@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { parseNonNegativeSafeInteger, parsePositiveSafeInteger } from "@sillymaker/base";
+import { parseNonNegativeSafeInteger } from "@sillymaker/base";
 import type { DeepReadonly, NonNegativeSafeInteger } from "@sillymaker/base";
 
 import type {
@@ -72,42 +72,29 @@ export interface DeriveManagedSurfaceReducerCrossAxisChildPreparationInputIntern
   readonly candidate: ManagedSurfaceCandidateV1;
 }
 
-function freezeDefinitionV1(
+function admittedDefinitionV1(
   definition: ManagedSurfaceResolvedDefinitionV1,
 ): DeepReadonly<ManagedSurfaceResolvedDefinitionV1> {
-  return Object.freeze({
-    definitionId: definition.definitionId,
-    contractRevision: parsePositiveSafeInteger(definition.contractRevision),
-    ownerId: definition.ownerId,
-    slotId: definition.slotId,
-    layerId: definition.layerId,
-    layerOrder: parseNonNegativeSafeInteger(definition.layerOrder),
-    placement: definition.placement,
-    modality: definition.modality,
-    inputPolicy: Object.freeze({ ...definition.inputPolicy }),
-    dismissPolicy: Object.freeze({ ...definition.dismissPolicy }),
-    focusPolicy: Object.freeze({ ...definition.focusPolicy }),
-    navigationPolicy: Object.freeze({ ...definition.navigationPolicy }),
-    actionIds: Object.freeze([...definition.actionIds]),
-    readiness: Object.freeze({ ...definition.readiness }),
-  }) as DeepReadonly<ManagedSurfaceResolvedDefinitionV1>;
+  return definition as DeepReadonly<ManagedSurfaceResolvedDefinitionV1>;
 }
+
+const readyReadinessV1: ManagedSurfaceReadinessV1 = { kind: "ready" };
 
 function freezePublishedInstanceV1(
   candidate: ManagedSurfaceCandidateV1,
   parentInstanceId: ManagedSurfaceInstanceIdV1 | null,
-  readiness: ManagedSurfaceReadinessV1 = Object.freeze({ kind: "ready" }),
+  readiness: ManagedSurfaceReadinessV1 = readyReadinessV1,
 ): DeepReadonly<ManagedSurfacePublishedInstanceV1> {
-  const instance = Object.freeze({
-    definition: freezeDefinitionV1(candidate.definition),
-    target: Object.freeze({ ...candidate.target }),
+  const instance = {
+    definition: admittedDefinitionV1(candidate.definition),
+    target: candidate.target,
     surfaceInstanceId: candidate.surfaceInstanceId,
     semanticOccurrenceId: candidate.semanticOccurrenceId,
     parentInstanceId,
     phase: readiness.kind === "preparing" ? "preparing" : "active",
-    readiness: Object.freeze({ ...readiness }),
+    readiness,
     routingLeaseId: candidate.routingLeaseId,
-  }) as DeepReadonly<ManagedSurfacePublishedInstanceV1>;
+  } as DeepReadonly<ManagedSurfacePublishedInstanceV1>;
   recordManagedSurfaceRuntimeAttemptSequenceInternalV1(
     instance,
     candidate.identityAllocation.sequence,
@@ -120,7 +107,7 @@ function withPhaseV1(
   phase: "active" | "suspended",
 ): DeepReadonly<ManagedSurfacePublishedInstanceV1> {
   if (instance.phase === phase) return instance;
-  const next = Object.freeze({ ...instance, phase }) as DeepReadonly<
+  const next = { ...instance, phase } as DeepReadonly<
     ManagedSurfacePublishedInstanceV1
   >;
   copyManagedSurfaceRuntimeAttemptSequenceInternalV1(instance, next);
@@ -130,11 +117,11 @@ function withPhaseV1(
 function withReadyReadinessV1(
   instance: DeepReadonly<ManagedSurfacePublishedInstanceV1>,
 ): DeepReadonly<ManagedSurfacePublishedInstanceV1> {
-  const next = Object.freeze({
+  const next = {
     ...instance,
     phase: "active",
-    readiness: Object.freeze({ kind: "ready" as const }),
-  }) as DeepReadonly<ManagedSurfacePublishedInstanceV1>;
+    readiness: readyReadinessV1,
+  } as DeepReadonly<ManagedSurfacePublishedInstanceV1>;
   copyManagedSurfaceRuntimeAttemptSequenceInternalV1(instance, next);
   return next;
 }
@@ -142,25 +129,17 @@ function withReadyReadinessV1(
 function orderedWithDerivedPhasesV1(
   instances: readonly DeepReadonly<ManagedSurfacePublishedInstanceV1>[],
 ): readonly DeepReadonly<ManagedSurfacePublishedInstanceV1>[] {
-  return Object.freeze(
-    projectManagedSurfaceTopologyPolicyInternalV1(
-      Object.freeze(
-        instances.map((instance) =>
-          Object.freeze({
-            subject: instance,
-            layerOrder: instance.definition.layerOrder,
-            lifecycle: instance.readiness.kind === "preparing"
-              ? "preparing" as const
-              : "ready" as const,
-            blocksLower: (instance.readiness.kind === "ready" &&
-              instance.definition.modality === "blocking") ||
-              isBlockingFallbackV1(instance),
-          })
-        ),
-      ),
-    ).map(({ subject: instance, phase }) =>
-      phase === "preparing" ? instance : withPhaseV1(instance, phase)
-    ),
+  return projectManagedSurfaceTopologyPolicyInternalV1(
+    instances.map((instance) => ({
+      subject: instance,
+      layerOrder: instance.definition.layerOrder,
+      lifecycle: instance.readiness.kind === "preparing" ? "preparing" as const : "ready" as const,
+      blocksLower: (instance.readiness.kind === "ready" &&
+        instance.definition.modality === "blocking") ||
+        isBlockingFallbackV1(instance),
+    })),
+  ).map(({ subject: instance, phase }) =>
+    phase === "preparing" ? instance : withPhaseV1(instance, phase)
   );
 }
 
@@ -206,24 +185,19 @@ function ownerTraceV1(
     if (current === undefined) byOwner.set(ownerId, [instance.surfaceInstanceId]);
     else current.push(instance.surfaceInstanceId);
   }
-  return Object.freeze([
-    ...[...byOwner].map(([ownerId, surfaceInstanceIds]) =>
-      Object.freeze({
-        ownerId,
-        surfaceInstanceIds: Object.freeze(surfaceInstanceIds),
-        disposed: false,
-      })
-    ),
-    ...disposedOwnerIds
-      .filter((ownerId) => !byOwner.has(ownerId))
-      .map((ownerId) =>
-        Object.freeze({
-          ownerId,
-          surfaceInstanceIds: Object.freeze([]),
-          disposed: true,
-        })
-      ),
-  ]);
+  const trace: ManagedSurfacePublicationV1["ownerTrace"][number][] = [];
+  for (const [ownerId, surfaceInstanceIds] of byOwner) {
+    trace.push({
+      ownerId,
+      surfaceInstanceIds,
+      disposed: false,
+    });
+  }
+  for (const ownerId of disposedOwnerIds) {
+    if (byOwner.has(ownerId)) continue;
+    trace.push({ ownerId, surfaceInstanceIds: [], disposed: true });
+  }
+  return trace;
 }
 
 function publicationFromOrderedInstancesV1(
@@ -234,61 +208,70 @@ function publicationFromOrderedInstancesV1(
   disposedOwnerIds: readonly ManagedSurfaceOwnerIdV1[],
   coordinatorDisposed: boolean,
 ): DeepReadonly<ManagedSurfacePublicationV1> {
-  const preparationFallbacks = Object.freeze(
-    orderedInstances.filter(isBlockingFallbackV1).map((instance) =>
-      Object.freeze({
-        kind: "blocking_fallback" as const,
-        candidateInstanceId: instance.surfaceInstanceId,
-      })
-    ),
-  );
-  const topmostBlocking =
-    orderedInstances.toReversed().find((instance) =>
-      instance.readiness.kind === "ready" && instance.definition.modality === "blocking"
-    ) ??
-      null;
-  const inputInstance =
-    orderedInstances.toReversed().find((instance) =>
-      instance.phase === "active" && instance.definition.inputPolicy.kind === "managed"
-    ) ?? null;
-  const inputOwner =
-    inputInstance === null || inputInstance.definition.inputPolicy.kind !== "managed"
-      ? null
-      : Object.freeze({
-        surfaceInstanceId: inputInstance.surfaceInstanceId,
-        inputContextId: inputInstance.definition.inputPolicy.inputContextId,
-        routingLeaseId: inputInstance.routingLeaseId,
-      });
-  const focusInstance =
-    orderedInstances.toReversed().find((instance) =>
-      instance.phase === "active" && instance.definition.focusPolicy.kind === "owns_focus"
-    ) ?? null;
-  const focusOwner = focusInstance === null ||
-      focusInstance.definition.focusPolicy.kind !== "owns_focus"
-    ? null
-    : Object.freeze({
-      surfaceInstanceId: focusInstance.surfaceInstanceId,
-      initialTargetId: focusInstance.definition.focusPolicy.initialTargetId,
-      trap: focusInstance.definition.focusPolicy.trap,
-      restore: focusInstance.definition.focusPolicy.restore,
+  const preparationFallbacks: ManagedSurfacePublicationV1["preparationFallbacks"][number][] = [];
+  for (const instance of orderedInstances) {
+    if (!isBlockingFallbackV1(instance)) continue;
+    preparationFallbacks.push({
+      kind: "blocking_fallback",
+      candidateInstanceId: instance.surfaceInstanceId,
     });
-  const navigationTarget =
-    orderedInstances.toReversed().find((instance) =>
-      instance.phase === "active" && instance.definition.navigationPolicy.kind === "close"
-    ) ?? null;
-  return Object.freeze({
+  }
+
+  let topmostBlockingInstanceId: ManagedSurfaceInstanceIdV1 | null = null;
+  let inputOwner: ManagedSurfacePublicationV1["inputOwner"] = null;
+  let focusOwner: ManagedSurfacePublicationV1["focusOwner"] = null;
+  let navigationTargetInstanceId: ManagedSurfaceInstanceIdV1 | null = null;
+  for (let index = orderedInstances.length - 1; index >= 0; index -= 1) {
+    const instance = orderedInstances[index];
+    if (instance === undefined) continue;
+    if (
+      topmostBlockingInstanceId === null &&
+      instance.readiness.kind === "ready" &&
+      instance.definition.modality === "blocking"
+    ) {
+      topmostBlockingInstanceId = instance.surfaceInstanceId;
+    }
+    if (
+      inputOwner === null && instance.phase === "active" &&
+      instance.definition.inputPolicy.kind === "managed"
+    ) {
+      inputOwner = {
+        surfaceInstanceId: instance.surfaceInstanceId,
+        inputContextId: instance.definition.inputPolicy.inputContextId,
+        routingLeaseId: instance.routingLeaseId,
+      };
+    }
+    if (
+      focusOwner === null && instance.phase === "active" &&
+      instance.definition.focusPolicy.kind === "owns_focus"
+    ) {
+      focusOwner = {
+        surfaceInstanceId: instance.surfaceInstanceId,
+        initialTargetId: instance.definition.focusPolicy.initialTargetId,
+        trap: instance.definition.focusPolicy.trap,
+        restore: instance.definition.focusPolicy.restore,
+      };
+    }
+    if (
+      navigationTargetInstanceId === null && instance.phase === "active" &&
+      instance.definition.navigationPolicy.kind === "close"
+    ) {
+      navigationTargetInstanceId = instance.surfaceInstanceId;
+    }
+  }
+  return {
     applicationEpoch,
     publicationRevision,
     topologyRevision,
     orderedInstances,
     preparationFallbacks,
-    topmostBlockingInstanceId: topmostBlocking?.surfaceInstanceId ?? null,
+    topmostBlockingInstanceId,
     inputOwner,
     focusOwner,
-    navigationTargetInstanceId: navigationTarget?.surfaceInstanceId ?? null,
+    navigationTargetInstanceId,
     ownerTrace: ownerTraceV1(orderedInstances, disposedOwnerIds),
     coordinatorDisposed,
-  }) as DeepReadonly<ManagedSurfacePublicationV1>;
+  } as DeepReadonly<ManagedSurfacePublicationV1>;
 }
 
 function publicationV1(
@@ -316,13 +299,13 @@ function stateV1(
   identitySequenceHighWater: NonNegativeSafeInteger,
   disposedOwnerIds: readonly ManagedSurfaceOwnerIdV1[],
 ): ManagedSurfaceReducerStateV1 {
-  return Object.freeze({
+  return {
     publication,
-    resolvedOwnerIds: Object.freeze([...resolvedOwnerIds]),
-    resolvedSlotDescriptors: Object.freeze([...resolvedSlotDescriptors]),
+    resolvedOwnerIds,
+    resolvedSlotDescriptors,
     identitySequenceHighWater: parseNonNegativeSafeInteger(identitySequenceHighWater),
-    disposedOwnerIds: Object.freeze([...new Set(disposedOwnerIds)]),
-  });
+    disposedOwnerIds,
+  };
 }
 
 /**
@@ -369,14 +352,12 @@ export function deriveManagedSurfaceReducerTopologyProjectionInternalV1(
     throw new TypeError("ui.managed_surface_topology_projection_invalid");
   }
   let changed = false;
-  const orderedInstances = Object.freeze(
-    currentInstances.map((instance) => {
-      const phase = phaseByInstance.get(instance)!;
-      if (phase === instance.phase) return instance;
-      changed = true;
-      return withPhaseV1(instance, phase as "active" | "suspended");
-    }),
-  );
+  const orderedInstances = currentInstances.map((instance) => {
+    const phase = phaseByInstance.get(instance)!;
+    if (phase === instance.phase) return instance;
+    changed = true;
+    return withPhaseV1(instance, phase as "active" | "suspended");
+  });
   if (!changed) return state;
   const publicationRevision = revisionMode === "advance_direct_transition"
     ? parseNonNegativeSafeInteger(state.publication.publicationRevision + 1)
@@ -392,35 +373,35 @@ export function deriveManagedSurfaceReducerTopologyProjectionInternalV1(
     state.disposedOwnerIds,
     state.publication.coordinatorDisposed,
   );
-  return Object.freeze({
+  return {
     publication,
     resolvedOwnerIds: state.resolvedOwnerIds,
     resolvedSlotDescriptors: state.resolvedSlotDescriptors,
     identitySequenceHighWater: state.identitySequenceHighWater,
     disposedOwnerIds: state.disposedOwnerIds,
-  });
+  };
 }
 
-function freezeSlotDescriptorV1(
+function parseSlotDescriptorV1(
   descriptor: ManagedSurfaceResolvedSlotDescriptorV1,
 ): ManagedSurfaceResolvedSlotDescriptorV1 {
   if (descriptor.cardinality !== "single" && descriptor.cardinality !== "stack") {
     throw new TypeError("ui.invalid_managed_surface_slot_descriptor");
   }
   if (descriptor.kind === "root") {
-    return Object.freeze({
+    return {
       kind: "root",
       slotId: parseManagedSurfaceSlotIdV1(descriptor.slotId),
       cardinality: descriptor.cardinality,
-    });
+    };
   }
   if (descriptor.kind === "child") {
-    return Object.freeze({
+    return {
       kind: "child",
       parentDefinitionId: parseManagedSurfaceDefinitionIdV1(descriptor.parentDefinitionId),
       slotId: parseManagedSurfaceSlotIdV1(descriptor.slotId),
       cardinality: descriptor.cardinality,
-    });
+    };
   }
   throw new TypeError("ui.invalid_managed_surface_slot_descriptor");
 }
@@ -438,13 +419,13 @@ function receiptV1(
   afterTopologyRevision = state.publication.topologyRevision,
   surfaceInstanceId?: ManagedSurfaceInstanceIdV1,
 ): ManagedSurfaceTransitionReceiptV1 {
-  return Object.freeze({
+  return {
     kind,
     code,
     beforeTopologyRevision: state.publication.topologyRevision,
     afterTopologyRevision,
     ...(surfaceInstanceId === undefined ? {} : { surfaceInstanceId }),
-  }) as ManagedSurfaceTransitionReceiptV1;
+  } as ManagedSurfaceTransitionReceiptV1;
 }
 
 function unchangedResultV1(
@@ -453,10 +434,10 @@ function unchangedResultV1(
   code: ManagedSurfaceTransitionCodeV1,
   surfaceInstanceId?: ManagedSurfaceInstanceIdV1,
 ): ManagedSurfaceReducerResultV1 {
-  return Object.freeze({
+  return {
     state,
     receipt: receiptV1(state, kind, code, state.publication.topologyRevision, surfaceInstanceId),
-  });
+  };
 }
 
 function appliedResultV1(
@@ -488,10 +469,10 @@ function appliedResultV1(
     state.identitySequenceHighWater,
     disposedOwnerIds,
   );
-  return Object.freeze({
+  return {
     state: nextState,
     receipt: receiptV1(state, "applied", code, nextTopologyRevision, surfaceInstanceId),
-  });
+  };
 }
 
 function candidateIdentityFailureV1(
@@ -735,7 +716,7 @@ type ClosePreparationCancellationScopeV1 =
     readonly ownerId: ManagedSurfaceOwnerIdV1;
   };
 
-const relatedPreparationCancellationV1 = Object.freeze({ kind: "related" as const });
+const relatedPreparationCancellationV1 = { kind: "related" as const };
 
 function currentCloseTargetIdV1(
   state: ManagedSurfaceReducerStateV1,
@@ -849,8 +830,8 @@ function settleReadinessV1(
 }
 
 /**
- * Derives one transient child preparation for a stable parent already
- * authenticated by the owning composite authority. The parent deliberately
+ * Derives one transient child preparation for a stable parent selected by the
+ * owning composite authority. The parent deliberately
  * remains absent from the transient publication and this helper does not mint
  * generic parent evidence.
  */
@@ -929,7 +910,7 @@ export function deriveManagedSurfaceReducerCrossAxisChildPreparationInternalV1(
   const instance = freezePublishedInstanceV1(
     candidate,
     parent.surfaceInstanceId,
-    Object.freeze({ kind: "preparing", transition: "child_open" }),
+    { kind: "preparing", transition: "child_open" },
   );
   return appliedResultV1(
     state,
@@ -952,7 +933,7 @@ export function createManagedSurfaceReducerStateV1(
   if (new Set(parsedOwnerIds).size !== parsedOwnerIds.length) {
     throw new TypeError("ui.managed_surface_duplicate_owner");
   }
-  const parsedSlotDescriptors = resolvedSlotDescriptors.map(freezeSlotDescriptorV1);
+  const parsedSlotDescriptors = resolvedSlotDescriptors.map(parseSlotDescriptorV1);
   const slotDescriptorKeys = parsedSlotDescriptors.map(slotDescriptorKeyV1);
   if (new Set(slotDescriptorKeys).size !== slotDescriptorKeys.length) {
     throw new TypeError("ui.managed_surface_duplicate_slot_descriptor");
@@ -1036,7 +1017,7 @@ export function reduceManagedSurfaceV1(
       const instance = freezePublishedInstanceV1(
         operation.candidate,
         null,
-        Object.freeze({ kind: "preparing", transition: "initial_open" }),
+        { kind: "preparing", transition: "initial_open" },
       );
       return appliedResultV1(
         state,
@@ -1098,7 +1079,7 @@ export function reduceManagedSurfaceV1(
       const instance = freezePublishedInstanceV1(
         operation.candidate,
         null,
-        Object.freeze({ kind: "preparing", transition: "initial_open" }),
+        { kind: "preparing", transition: "initial_open" },
       );
       return appliedResultV1(
         state,
@@ -1140,11 +1121,11 @@ export function reduceManagedSurfaceV1(
       const instance = freezePublishedInstanceV1(
         operation.candidate,
         null,
-        Object.freeze({
+        {
           kind: "preparing",
           transition: "primary_replacement",
           retainedInstanceId: retainedRoot.surfaceInstanceId,
-        }),
+        },
       );
       return appliedResultV1(
         state,
@@ -1271,7 +1252,7 @@ export function reduceManagedSurfaceV1(
       const instance = freezePublishedInstanceV1(
         operation.candidate,
         parent.surfaceInstanceId,
-        Object.freeze({ kind: "preparing", transition: "child_open" }),
+        { kind: "preparing", transition: "child_open" },
       );
       return appliedResultV1(
         state,

@@ -283,7 +283,7 @@ export async function createGameHarnessV1<
 
   const now = input.now ?? (() => fixedHarnessInstantV1);
   const application = await createCoreGameApplicationInstanceV1(resolved.application, {
-    host: Object.freeze({
+    host: {
       entropy: createFixedBootstrapEntropyV1({
         uuids: (input.uuids ?? [defaultHarnessUuidV1]).map((value) => String(parseRunId(value))),
         seeds: (input.seeds ?? [input.seed ?? defaultHarnessSeedV1]).map((value) =>
@@ -294,43 +294,39 @@ export async function createGameHarnessV1<
       now,
       ownerId: harnessOwnerIdV1,
       nextHandoffRequestId: () => "handoff.sillymaker.testkit.harness",
-    }),
+    },
     ...(input.capabilities === undefined ? {} : { capabilities: input.capabilities }),
   });
 
-  const disposedResultV1: GameHarnessDisposedV1 = Object.freeze({
+  const disposedResultV1: GameHarnessDisposedV1 = {
     kind: "harness_disposed" as const,
-  });
+  };
 
   const trace = (): readonly GameHarnessTraceEntryV1[] =>
-    Object.freeze(
-      application.admin.commandLog().map((entry, index) =>
-        Object.freeze({
-          ordinal: index + 1,
-          outcome: entry.outcome.kind,
-          postStateDigest: entry.postStateDigest,
-        })
-      ),
-    ) as readonly GameHarnessTraceEntryV1[];
+    (application.admin.commandLog().map((entry, index) => ({
+      ordinal: index + 1,
+      outcome: entry.outcome.kind,
+      postStateDigest: entry.postStateDigest,
+    }))) as readonly GameHarnessTraceEntryV1[];
 
-  const admin: GameHarnessAdminV1<TTypes> = Object.freeze({
+  const admin: GameHarnessAdminV1<TTypes> = {
     commandLog: () => application.admin.commandLog(),
     replayAuthoritatively: () => application.admin.replayAuthoritatively(),
     inspectForTest: () => application.admin.inspectForTest(),
     ...(application.admin.debugControl === undefined
       ? {}
       : { debugControl: application.admin.debugControl }),
-  });
+  };
 
   const agent = createInProcessAgentGamePortV1({
-    identity: Object.freeze({
+    identity: {
       storyId: application.storyId,
       storyRevision: application.storyRevision,
-    }),
+    },
     semantic: application.semantic,
   });
 
-  return Object.freeze({
+  return ({
     semantic: application.semantic,
     agent,
     application,
@@ -343,12 +339,11 @@ export async function createGameHarnessV1<
       }),
     grantDiagnosticsCapability: () =>
       createAgentDiagnosticsCapabilityV1<GameHarnessDiagnosticsReportV1>({
-        exportDiagnostics: async () =>
-          Object.freeze({
-            storyId: application.storyId,
-            runtimeFailures: application.diagnostics.runtimeFailures(),
-            trace: trace(),
-          }),
+        exportDiagnostics: async () => ({
+          storyId: application.storyId,
+          runtimeFailures: application.diagnostics.runtimeFailures(),
+          trace: trace(),
+        }),
       }),
     observe: () => application.semantic.observe(),
     preview: async (invocation: DeepReadonly<TInvocation>) =>

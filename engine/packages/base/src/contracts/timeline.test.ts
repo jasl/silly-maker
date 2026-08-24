@@ -176,6 +176,16 @@ describe("timeline definition contract", () => {
       expect.objectContaining({ code: "timeline.too_deep" }),
     );
   });
+
+  it("rejects nested repeats that expand beyond the event budget", () => {
+    let step: unknown = { kind: "event", eventId: "event.test.repeated" };
+    for (let index = 0; index < 5; index += 1) {
+      step = { kind: "repeat", count: 8, step };
+    }
+    expect(() => parseTimelineDefinitionV1({ timelineId: "cue.t", root: step })).toThrowError(
+      expect.objectContaining({ code: "timeline.too_many_event_occurrences" }),
+    );
+  });
 });
 
 describe("timeline sampling", () => {
@@ -227,6 +237,29 @@ describe("timeline sampling", () => {
       "event.test.tick",
     ]);
     expect(evaluateTimelineAtV1(definition, 5).firedEventIds).toEqual(["event.test.tick"]);
+  });
+
+  it("keeps parallel event samples as a chronological prefix", () => {
+    const definition = timelineV1.define(
+      "cue.test.parallel-events",
+      timelineV1.parallel(
+        timelineV1.sequence(
+          timelineV1.wait(20),
+          timelineV1.event("event.test.late"),
+        ),
+        timelineV1.sequence(
+          timelineV1.wait(5),
+          timelineV1.event("event.test.early"),
+        ),
+      ),
+    );
+    expect(evaluateTimelineAtV1(definition, 5).firedEventIds).toEqual([
+      "event.test.early",
+    ]);
+    expect(evaluateTimelineAtV1(definition, 20).firedEventIds).toEqual([
+      "event.test.early",
+      "event.test.late",
+    ]);
   });
 
   it("defaults tween from-values to the channel baseline", () => {

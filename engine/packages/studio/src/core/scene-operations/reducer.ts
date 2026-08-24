@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { canonicalJsonBytes, parseSceneDocumentV1 } from "@sillymaker/base";
+import { parseSceneDocumentV1 } from "@sillymaker/base";
 import type { SceneCueV1, SceneDocumentV1, SceneEntryV1 } from "@sillymaker/base";
 
 import type {
@@ -13,8 +13,8 @@ function rejectedV1(
   code: SceneAuthoringDiagnosticCodeV1,
   path: string,
 ): SceneAuthoringReductionResultV1 {
-  const diagnostic: SceneAuthoringDiagnosticV1 = Object.freeze({ code, path });
-  return Object.freeze({ kind: "rejected", diagnostic });
+  const diagnostic: SceneAuthoringDiagnosticV1 = { code, path };
+  return { kind: "rejected", diagnostic };
 }
 
 function unreachableV1(value: never): never {
@@ -22,30 +22,14 @@ function unreachableV1(value: never): never {
   throw new TypeError("Unreachable Scene authoring operation");
 }
 
-function canonicalBytesEqualV1(left: SceneDocumentV1, right: SceneDocumentV1): boolean {
-  const leftBytes = canonicalJsonBytes(left);
-  const rightBytes = canonicalJsonBytes(right);
-  if (leftBytes.byteLength !== rightBytes.byteLength) return false;
-  for (let index = 0; index < leftBytes.byteLength; index += 1) {
-    if (leftBytes[index] !== rightBytes[index]) return false;
-  }
-  return true;
-}
-
-function finalizeV1(
-  current: SceneDocumentV1,
-  candidate: unknown,
-): SceneAuthoringReductionResultV1 {
+function finalizeV1(candidate: unknown): SceneAuthoringReductionResultV1 {
   let next: SceneDocumentV1;
   try {
     next = parseSceneDocumentV1(candidate);
   } catch {
     return rejectedV1("scene_authoring.result_invalid", "/document");
   }
-  if (canonicalBytesEqualV1(current, next)) {
-    return rejectedV1("scene_authoring.no_change", "/operation");
-  }
-  return Object.freeze({ kind: "reduced", document: next });
+  return { kind: "reduced", document: next };
 }
 
 function replaceEntryV1(
@@ -89,18 +73,18 @@ export function reduceSceneAuthoringOperationV1(
       const entries = replaceEntryV1(
         document,
         operation.tag,
-        (entry) => Object.freeze({ ...entry, placement: operation.placement }),
+        (entry) => ({ ...entry, placement: operation.placement }),
       );
       if (entries === null) {
         return rejectedV1("scene_authoring.target_missing", "/operation/tag");
       }
-      return finalizeV1(document, { ...document, entries });
+      return finalizeV1({ ...document, entries });
     }
     case "scene.entry.add": {
       if (document.entries.some((entry) => entry.tag === operation.entry.tag)) {
         return rejectedV1("scene_authoring.target_conflict", "/operation/entry/tag");
       }
-      return finalizeV1(document, {
+      return finalizeV1({
         ...document,
         entries: [...document.entries, operation.entry],
       });
@@ -109,7 +93,7 @@ export function reduceSceneAuthoringOperationV1(
       if (!document.entries.some((entry) => (entry.tag as string) === operation.tag)) {
         return rejectedV1("scene_authoring.target_missing", "/operation/tag");
       }
-      return finalizeV1(document, {
+      return finalizeV1({
         ...document,
         entries: document.entries.filter((entry) => (entry.tag as string) !== operation.tag),
         cues: document.cues.filter((cue) => (cue.tag as string) !== operation.tag),
@@ -119,12 +103,12 @@ export function reduceSceneAuthoringOperationV1(
       const entries = replaceEntryV1(
         document,
         operation.tag,
-        (entry) => Object.freeze({ ...entry, zOrder: operation.zOrder }),
+        (entry) => ({ ...entry, zOrder: operation.zOrder }),
       );
       if (entries === null) {
         return rejectedV1("scene_authoring.target_missing", "/operation/tag");
       }
-      return finalizeV1(document, { ...document, entries });
+      return finalizeV1({ ...document, entries });
     }
     case "scene.entry.set_appearance": {
       const entries = replaceEntryV1(document, operation.tag, (entry) => {
@@ -133,13 +117,13 @@ export function reduceSceneAuthoringOperationV1(
         else appearance[operation.key] = operation.value;
         const mutable: Record<string, unknown> = { ...entry };
         if (Object.keys(appearance).length === 0) delete mutable.appearance;
-        else mutable.appearance = Object.freeze(appearance);
-        return Object.freeze(mutable) as unknown as SceneEntryV1;
+        else mutable.appearance = appearance;
+        return mutable as unknown as SceneEntryV1;
       });
       if (entries === null) {
         return rejectedV1("scene_authoring.target_missing", "/operation/tag");
       }
-      return finalizeV1(document, { ...document, entries });
+      return finalizeV1({ ...document, entries });
     }
     case "scene.entry.set_ambient": {
       const entries = replaceEntryV1(document, operation.tag, (entry) => {
@@ -147,17 +131,17 @@ export function reduceSceneAuthoringOperationV1(
         if (operation.motionId === null) delete mutable.ambient;
         else {
           const phaseMs = entry.ambient?.phaseMs;
-          mutable.ambient = Object.freeze({
+          mutable.ambient = {
             motionId: operation.motionId,
             ...(phaseMs === undefined ? {} : { phaseMs }),
-          });
+          };
         }
-        return Object.freeze(mutable) as unknown as SceneEntryV1;
+        return mutable as unknown as SceneEntryV1;
       });
       if (entries === null) {
         return rejectedV1("scene_authoring.target_missing", "/operation/tag");
       }
-      return finalizeV1(document, { ...document, entries });
+      return finalizeV1({ ...document, entries });
     }
     case "scene.cue.add": {
       if (document.cues.some((cue) => cue.cueId === operation.cue.cueId)) {
@@ -166,13 +150,13 @@ export function reduceSceneAuthoringOperationV1(
       if (!document.entries.some((entry) => entry.tag === operation.cue.tag)) {
         return rejectedV1("scene_authoring.target_missing", "/operation/cue/tag");
       }
-      return finalizeV1(document, { ...document, cues: [...document.cues, operation.cue] });
+      return finalizeV1({ ...document, cues: [...document.cues, operation.cue] });
     }
     case "scene.cue.remove": {
       if (!document.cues.some((cue) => cue.cueId === operation.cueId)) {
         return rejectedV1("scene_authoring.target_missing", "/operation/cueId");
       }
-      return finalizeV1(document, {
+      return finalizeV1({
         ...document,
         cues: document.cues.filter((cue) => cue.cueId !== operation.cueId),
       });
@@ -191,12 +175,12 @@ export function reduceSceneAuthoringOperationV1(
         delete mutable.motionId;
         delete mutable.cut;
         if (operation.motionId !== null) mutable.motionId = operation.motionId;
-        return Object.freeze(mutable);
+        return mutable;
       });
       if (cues === null) {
         return rejectedV1("scene_authoring.target_missing", "/operation/cueId");
       }
-      return finalizeV1(document, { ...document, cues });
+      return finalizeV1({ ...document, cues });
     }
   }
   return unreachableV1(operation);

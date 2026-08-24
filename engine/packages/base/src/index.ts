@@ -161,6 +161,7 @@ export {
   timelineV1,
   TimelineDefinitionErrorV1,
   projectStageRenderTargetV1,
+  reduceAdmittedStageMutationsV1,
   reduceStageMutationsV1,
   semanticStageContractRevisionV1,
   stageFallbackRendererIdV1,

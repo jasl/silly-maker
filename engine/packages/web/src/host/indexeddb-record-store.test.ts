@@ -33,7 +33,7 @@ function putV1(
   expectedRevision: number | null,
   value: string | Uint8Array,
 ): Extract<HostRecordMutationV1, { readonly kind: "put" }> {
-  return Object.freeze({
+  return ({
     kind: "put",
     namespace,
     key: keyV1(key),
@@ -49,7 +49,7 @@ function deleteV1(
   key: string,
   expectedRevision: number,
 ): Extract<HostRecordMutationV1, { readonly kind: "delete" }> {
-  return Object.freeze({
+  return ({
     kind: "delete",
     namespace,
     key: keyV1(key),
@@ -64,7 +64,7 @@ function createInstrumentedFactoryV1() {
     get(target, property) {
       if (property === "open") {
         return (name: string, version?: number) => {
-          opens.push(Object.freeze({ name, version }));
+          opens.push({ name, version });
           return version === undefined ? target.open(name) : target.open(name, version);
         };
       }
@@ -72,7 +72,7 @@ function createInstrumentedFactoryV1() {
       return typeof value === "function" ? value.bind(target) : value;
     },
   }) as IDBFactory;
-  return Object.freeze({ raw, indexedDB, opens });
+  return ({ raw, indexedDB, opens });
 }
 
 function createTestStoreV1(indexedDB: IDBFactory = new FakeIDBFactory()): HostAtomicRecordStoreV1 {
@@ -113,7 +113,7 @@ afterEach(() => {
 });
 
 describe("IndexedDB atomic record store", () => {
-  it("opens the frozen v1 schema lazily and shares one in-flight connection", async () => {
+  it("opens the v1 schema lazily and shares one in-flight connection", async () => {
     const fixture = createInstrumentedFactoryV1();
     const store = createTestStoreV1(fixture.indexedDB);
 
@@ -333,13 +333,18 @@ describe("IndexedDB atomic record store", () => {
     });
   });
 
-  it("returns frozen record envelopes while keeping byte copies writable", async () => {
+  it("returns writable byte snapshots without aliasing the stored row", async () => {
     const store = createTestStoreV1();
-    const result = await store.commit([putV1("save", "frozen", null, "value")]);
-    expect(Object.isFrozen(result)).toBe(true);
+    const result = await store.commit([putV1("save", "copy", null, "value")]);
+
     if (result.kind !== "committed") throw new TypeError("expected committed result");
-    expect(Object.isFrozen(result.records)).toBe(true);
-    expect(Object.isFrozen(result.records[0] as HostStoredRecordV1)).toBe(true);
-    expect(Object.isFrozen(result.records[0]?.bytes)).toBe(false);
+    const committed = result.records[0]!;
+    expect(textV1(committed.bytes)).toBe("value");
+    committed.bytes[0] = 0;
+
+    const reread = await store.read("save", keyV1("copy"));
+    expect(reread).not.toBeNull();
+    expect(reread?.bytes).not.toBe(committed.bytes);
+    expect(textV1(reread!.bytes)).toBe("value");
   });
 });

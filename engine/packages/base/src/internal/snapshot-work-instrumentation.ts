@@ -100,7 +100,7 @@ export function createPurposeTaggedSnapshotWorkCounterV1(): {
   snapshot(): PurposeTaggedSnapshotWorkCountsV1;
 } {
   let counts = emptyPurposeTaggedCountsV1();
-  const instrumentation: SnapshotWorkInstrumentationV1 = Object.freeze({
+  const instrumentation: SnapshotWorkInstrumentationV1 = {
     record(event: SnapshotWorkEventV1, purpose?: SnapshotWorkPurposeV1) {
       if (event === "canonical_traversal") {
         counts = {
@@ -160,16 +160,16 @@ export function createPurposeTaggedSnapshotWorkCounterV1(): {
           return;
       }
     },
-  });
-  return Object.freeze({
+  };
+  return {
     instrumentation,
     reset() {
       counts = emptyPurposeTaggedCountsV1();
     },
     snapshot() {
-      return Object.freeze({ ...counts });
+      return { ...counts };
     },
-  });
+  };
 }
 
 /** @internal Test/bench counter; intentionally absent from package barrels. */
@@ -179,7 +179,7 @@ export function createSnapshotWorkCounterV1(): {
   snapshot(): SnapshotWorkCountsV1;
 } {
   let counts = emptyCountsV1();
-  const instrumentation: SnapshotWorkInstrumentationV1 = Object.freeze({
+  const instrumentation: SnapshotWorkInstrumentationV1 = {
     record(event: SnapshotWorkEventV1) {
       switch (event) {
         case "canonical_traversal":
@@ -201,14 +201,14 @@ export function createSnapshotWorkCounterV1(): {
           counts.strictJsonPreflights += 1;
       }
     },
-  });
-  return Object.freeze({
+  };
+  return {
     instrumentation,
     reset() {
       counts = emptyCountsV1();
     },
     snapshot() {
-      return Object.freeze({ ...counts });
+      return { ...counts };
     },
-  });
+  };
 }

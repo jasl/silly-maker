@@ -130,9 +130,6 @@ export const migrationAttempt: SaveStateMigrationAttemptV1 = {
 const invalidMigrationId: SaveStateMigrationIdV1 = "migration.synthetic.1-to-2";
 // @ts-expect-error branded reason codes require package admission
 const invalidReasonCode: SaveStateMigrationReasonCodeV1 = "migration.synthetic.rejected";
-// @ts-expect-error official registries cannot be structurally forged
-const invalidRegistry: SaveStateMigrationRegistryV1 = {};
-
 const asynchronous = async (
   state: DeepReadonly<StrictJsonValueV1>,
 ): Promise<SaveStateMigrationStepResultV1> => ({ kind: "migrated", state });
@@ -181,4 +178,3 @@ declaredStep.step.migrate = migrate;
 
 void invalidMigrationId;
 void invalidReasonCode;
-void invalidRegistry;

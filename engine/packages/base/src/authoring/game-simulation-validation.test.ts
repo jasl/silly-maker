@@ -447,17 +447,4 @@ describe("GameSimulation invariants", () => {
       .toThrow();
     expect(moduleSchemaParseCalls).toBe(2);
   });
-
-  it("deep-freezes both the authoring input and the validated simulation", () => {
-    const seed = defineSyntheticSimulation();
-    const modules = [...seed.modules];
-    const commandExecutor = { ...seed.commandExecutor };
-    const input = { ...seed, modules, commandExecutor };
-    const resolved = defineGameSimulation<SyntheticSimulationTypesV1>()(input);
-    expect(Object.isFrozen(input)).toBe(true);
-    expect(Object.isFrozen(modules)).toBe(true);
-    expect(Object.isFrozen(commandExecutor)).toBe(true);
-    expect(Object.isFrozen(resolved)).toBe(true);
-    expect(Object.isFrozen(resolved.commandExecutor)).toBe(true);
-  });
 });

@@ -95,14 +95,12 @@ export interface SnapshotMemoryGrowthRunV1 {
   readonly final: SnapshotMemoryGrowthFinalV1;
 }
 
-export const snapshotMemoryGrowthBenchmarkConfigV1 = Object.freeze(
-  {
-    entityCount: 1_000,
-    commandCount: 1_200,
-    checkpointCommandSequences: Object.freeze([0, 200, 400, 800, 1_200]),
-    steadyStateStartCommandSequence: 400,
-  } as const satisfies SnapshotMemoryGrowthConfigV1,
-);
+export const snapshotMemoryGrowthBenchmarkConfigV1 = {
+  entityCount: 1_000,
+  commandCount: 1_200,
+  checkpointCommandSequences: [0, 200, 400, 800, 1_200],
+  steadyStateStartCommandSequence: 400,
+} as const satisfies SnapshotMemoryGrowthConfigV1;
 
 interface MemoryBuffersV1 {
   readonly beforeRss: Float64Array;
@@ -159,19 +157,19 @@ function validateConfigV1(config: SnapshotMemoryGrowthConfigV1): void {
 }
 
 function descriptorV1(config: SnapshotMemoryGrowthConfigV1): SnapshotMemoryGrowthDescriptorV1 {
-  return Object.freeze({
+  return ({
     workloadId: `snapshot-memory-growth-v1/${String(config.entityCount)}/` +
       `cross_owner_atomic_committed/${String(config.commandCount)}`,
     entityCount: config.entityCount,
     commandClass: "cross_owner_atomic_committed",
     commandCount: config.commandCount,
-    checkpointCommandSequences: Object.freeze([...config.checkpointCommandSequences]),
+    checkpointCommandSequences: [...config.checkpointCommandSequences],
     steadyStateStartCommandSequence: config.steadyStateStartCommandSequence,
   });
 }
 
 function createMemoryBuffersV1(length: number): MemoryBuffersV1 {
-  return Object.freeze({
+  return ({
     beforeRss: new Float64Array(length),
     beforeHeapTotal: new Float64Array(length),
     beforeHeapUsed: new Float64Array(length),
@@ -216,7 +214,7 @@ function writeUsageV1(target: UsageBufferSetV1, index: number, usage: SnapshotMe
 }
 
 function readUsageV1(source: UsageBufferSetV1, index: number): SnapshotMemoryUsageV1 {
-  return Object.freeze({
+  return ({
     rssBytes: source.rss[index] ?? 0,
     heapTotalBytes: source.heapTotal[index] ?? 0,
     heapUsedBytes: source.heapUsed[index] ?? 0,
@@ -230,7 +228,7 @@ function metricTrendV1(values: readonly number[]): SnapshotMemoryMetricTrendV1 {
   if (start === undefined || end === undefined) {
     throw new TypeError("Snapshot memory-growth trend requires at least one sample");
   }
-  return Object.freeze({
+  return ({
     start,
     end,
     minimum: Math.min(...values),
@@ -242,7 +240,7 @@ function metricTrendV1(values: readonly number[]): SnapshotMemoryMetricTrendV1 {
 function usageTrendV1(
   samples: readonly SnapshotMemoryGrowthSampleV1[],
 ): SnapshotMemoryUsageTrendV1 {
-  return Object.freeze({
+  return ({
     rssBytes: metricTrendV1(samples.map(({ afterGc }) => afterGc.rssBytes)),
     heapTotalBytes: metricTrendV1(samples.map(({ afterGc }) => afterGc.heapTotalBytes)),
     heapUsedBytes: metricTrendV1(samples.map(({ afterGc }) => afterGc.heapUsedBytes)),
@@ -254,7 +252,7 @@ function peakUsageV1(
   samples: readonly SnapshotMemoryGrowthSampleV1[],
   phase: "beforeGc" | "afterGc",
 ): SnapshotMemoryUsageV1 {
-  return Object.freeze({
+  return ({
     rssBytes: Math.max(...samples.map((sample) => sample[phase].rssBytes)),
     heapTotalBytes: Math.max(...samples.map((sample) => sample[phase].heapTotalBytes)),
     heapUsedBytes: Math.max(...samples.map((sample) => sample[phase].heapUsedBytes)),
@@ -272,14 +270,14 @@ function memorySummaryV1(
   if (steadyStateSamples.length === 0) {
     throw new TypeError("Snapshot memory-growth steady-state sample is missing");
   }
-  return Object.freeze({
-    fullRun: Object.freeze({
+  return ({
+    fullRun: {
       afterGc: usageTrendV1(samples),
-    }),
-    steadyState: Object.freeze({
+    },
+    steadyState: {
       startCommandSequence: steadyStateStartCommandSequence,
       afterGc: usageTrendV1(steadyStateSamples),
-    }),
+    },
     beforeGcPeak: peakUsageV1(samples, "beforeGc"),
     afterGcPeak: peakUsageV1(samples, "afterGc"),
   });
@@ -307,19 +305,19 @@ function batchDurationV1(
     }
     return duration / (end - start);
   });
-  return Object.freeze({
+  return ({
     batchCount: values.length,
     commandCount: checkpointCommandSequences.at(-1) ?? 0,
     total: values.reduce((total, value) => total + value, 0),
-    batchAveragePerCommand: Object.freeze({
+    batchAveragePerCommand: {
       p50: percentileV1(perCommandValues, 0.5),
       p95: percentileV1(perCommandValues, 0.95),
-    }),
+    },
   });
 }
 
 function snapshotCountsV1(counts: SnapshotWorkCountsV1): SnapshotWorkCountsV1 {
-  return Object.freeze({ ...counts });
+  return ({ ...counts });
 }
 
 /**
@@ -354,7 +352,7 @@ export function prepareSnapshotMemoryGrowthWorkloadV1(
     writeUsageV1(after, index, input.readMemoryUsage());
   }
 
-  return Object.freeze({
+  return ({
     descriptor,
     setupCounts,
     snapshot: workload.snapshot,
@@ -396,15 +394,11 @@ export function prepareSnapshotMemoryGrowthWorkloadV1(
         await sampleCheckpointV1(checkpointIndex);
       }
 
-      const samples = Object.freeze(
-        descriptor.checkpointCommandSequences.map((afterCommandCount, index) =>
-          Object.freeze({
-            afterCommandCount,
-            beforeGc: readUsageV1(before, index),
-            afterGc: readUsageV1(after, index),
-          })
-        ),
-      );
+      const samples = descriptor.checkpointCommandSequences.map((afterCommandCount, index) => ({
+        afterCommandCount,
+        beforeGc: readUsageV1(before, index),
+        afterGc: readUsageV1(after, index),
+      }));
       const entries = workload.commandLog();
       const first = entries[0];
       const last = entries.at(-1);
@@ -425,14 +419,14 @@ export function prepareSnapshotMemoryGrowthWorkloadV1(
         throw new TypeError("Snapshot memory-growth Session did not remain ready");
       }
       const counts = snapshotCountsV1(counter.snapshot());
-      return Object.freeze({
+      return ({
         counts,
         batchDurationMs: batchDurationV1(durations, descriptor.checkpointCommandSequences),
-        memory: Object.freeze({
+        memory: {
           samples,
           summary: memorySummaryV1(samples, descriptor.steadyStateStartCommandSequence),
-        }),
-        final: Object.freeze({
+        },
+        final: {
           status: "ready",
           currentCommandSequence: currentSnapshot.commandSequence,
           crossOwnerCommitCount: currentSnapshot.state.simulation.audit.crossOwnerCommitCount,
@@ -446,7 +440,7 @@ export function prepareSnapshotMemoryGrowthWorkloadV1(
           recomputedReplayBaseStateDigest: digestCanonical("sillymaker:state:v1", replayBase),
           lastPostStateDigest: last.postStateDigest,
           recomputedCurrentStateDigest: digestCanonical("sillymaker:state:v1", currentSnapshot),
-        }),
+        },
       });
     },
   });
@@ -477,31 +471,31 @@ export function createSnapshotMemoryGrowthReportV1(input: {
     input.gcPassesPerCheckpoint,
     "Snapshot memory-growth GC passes per checkpoint",
   );
-  return Object.freeze({
+  return ({
     schemaVersion: 1,
     reportKind: "snapshot_memory_growth_baseline_v1",
     generatedAt: input.generatedAt,
-    environment: Object.freeze({
+    environment: {
       ...input.environment,
-      memoryMeasurement: Object.freeze({
+      memoryMeasurement: {
         api: "Deno.memoryUsage",
         unit: "bytes",
-        fields: Object.freeze(["rss", "heapTotal", "heapUsed", "external"]),
+        fields: ["rss", "heapTotal", "heapUsed", "external"],
         processIsolation: "dedicated_process",
-        gc: Object.freeze({
+        gc: {
           mode: "forced_v8",
           passesPerCheckpoint: input.gcPassesPerCheckpoint,
           collectionCycles: input.run.memory.samples.length,
-        }),
-      }),
-    }),
-    workload: Object.freeze({
+        },
+      },
+    },
+    workload: {
       descriptor: input.descriptor,
       setupCounts: input.setupCounts,
       counts: input.run.counts,
       batchDurationMs: input.run.batchDurationMs,
       memory: input.run.memory,
       final: input.run.final,
-    }),
+    },
   });
 }

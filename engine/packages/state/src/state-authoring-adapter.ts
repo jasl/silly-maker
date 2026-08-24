@@ -34,17 +34,20 @@ import type { LegacyStateRuntimeTypeMapV1 } from "./legacy-adapter.ts";
 
 type LegacyTypesForV1<TTypes extends StateWorkflowTypeMapV1> = LegacyStateRuntimeTypeMapV1<TTypes>;
 
-// Package-local cold-path bridge to the one Base module used by composition;
-// it carries no State, event journal, or Session authority.
-const legacyStateModuleCarrierV1: unique symbol = Symbol("sillymaker.state.legacy-module");
+const legacyStateModuleInternalV1 = Symbol("sillymaker.state.legacy-module");
+
+type StateModuleWithLegacyBindingInternalV1 = StateAnyModuleV1 & {
+  readonly [legacyStateModuleInternalV1]: AuthoringKitAnyStatefulModuleV1;
+};
 
 function legacyStateModuleV1(module: StateAnyModuleV1): AuthoringKitAnyStatefulModuleV1 {
-  const descriptor = Object.getOwnPropertyDescriptor(module, legacyStateModuleCarrierV1);
-  const legacyModule: unknown = descriptor?.value;
-  if (legacyModule === null || typeof legacyModule !== "object") {
-    throw new TypeError("invalid neutral State module");
+  const legacyModule = (module as Partial<StateModuleWithLegacyBindingInternalV1>)[
+    legacyStateModuleInternalV1
+  ];
+  if (legacyModule === undefined) {
+    throw new TypeError("neutral State module has no runtime binding");
   }
-  return legacyModule as AuthoringKitAnyStatefulModuleV1;
+  return legacyModule;
 }
 
 export function getStateModuleContractRevisionInternalV1(
@@ -76,7 +79,7 @@ export function createStateAuthoringBridgeInternalV1<
       TTypes,
       TStateSlice,
       TRequires
-    > = Object.freeze({
+    > = {
       id: definition.id,
       contractRevision,
       state: definition.state,
@@ -86,7 +89,7 @@ export function createStateAuthoringBridgeInternalV1<
         ? {}
         : { initializesAfter: definition.initializesAfter }),
       reducers: definition.reducers,
-    });
+    };
     const legacyConfig: AuthoringKitStatefulModuleConfigV1<
       TLegacyTypes,
       TStateSlice,
@@ -113,26 +116,18 @@ export function createStateAuthoringBridgeInternalV1<
         : { initializesAfter: admittedDefinition.initializesAfter }),
       reducers: admittedDefinition.reducers,
     };
-    Object.freeze(legacyConfig);
     const legacyModule = legacyKit.defineStatefulModule(legacyConfig);
-    const module: StateModuleV1<
-      TTypes,
-      TStateSlice,
-      TRequires
-    > = {
-      id: legacyModule.id,
-      contractRevision,
-      stateSlot: legacyModule.stateSlot,
-      requires: legacyModule.requires,
-      initializesAfter: legacyModule.initializesAfter,
-    };
-    Object.defineProperty(module, legacyStateModuleCarrierV1, {
-      value: legacyModule,
-      configurable: false,
-      enumerable: false,
-      writable: false,
-    });
-    return Object.freeze(module);
+    const module:
+      & StateModuleV1<TTypes, TStateSlice, TRequires>
+      & StateModuleWithLegacyBindingInternalV1 = {
+        id: legacyModule.id,
+        contractRevision,
+        stateSlot: legacyModule.stateSlot,
+        requires: legacyModule.requires,
+        initializesAfter: legacyModule.initializesAfter,
+        [legacyStateModuleInternalV1]: legacyModule as unknown as AuthoringKitAnyStatefulModuleV1,
+      };
+    return module;
   };
 
   const composeModules = <const TModules extends readonly StateAnyModuleV1[]>(
@@ -142,7 +137,7 @@ export function createStateAuthoringBridgeInternalV1<
     // Keep the physical bindings for the legacy adapter while exposing only
     // the neutral descriptor tuple. Tuple cardinality is the erased detail.
     const bindings = legacyComposition.modules as unknown as StateModuleBindingsOfV1<TModules>;
-    const composition: StateModuleCompositionV1<TTypes, TModules> = Object.freeze({
+    const composition: StateModuleCompositionV1<TTypes, TModules> = {
       modules: bindings,
       createDependencyPortsFor<TRequires extends StateCapabilityRequirementsV1>(
         module: { readonly requires: TRequires; readonly id: ModuleId },
@@ -177,7 +172,6 @@ export function createStateAuthoringBridgeInternalV1<
       ): StateWorkflowV1<TTypes> {
         const validateCandidate = definition.validateCandidate;
         const runnerConfig: KitTransactionRunnerConfigV1<TLegacyTypes> = {
-          stateSchema: definition.stateSchema,
           eventSchema: definition.eventSchema,
           createFault(cause) {
             return definition.createFault(cause);
@@ -195,24 +189,24 @@ export function createStateAuthoringBridgeInternalV1<
         const run = definition.run as unknown as (
           transaction: KitTransactionV1<TLegacyTypes>,
         ) => KitTransactionOutcomeV1<TLegacyTypes>;
-        const workflow: StateWorkflowV1<TTypes> = Object.freeze({
+        const workflow: StateWorkflowV1<TTypes> = {
           execute(
             snapshot: DeepReadonly<TTypes["snapshot"]>,
             rng: StateWorkflowRngV1,
           ) {
             return runner.execute(snapshot, rng, run);
           },
-        });
+        };
         return workflow;
       },
-    });
+    };
     return composition;
   };
 
-  const kit: StateAuthoringKitV1<TTypes> = Object.freeze({
+  const kit: StateAuthoringKitV1<TTypes> = {
     defineCapability,
     defineModule,
     composeModules,
-  });
+  };
   return kit;
 }

@@ -63,13 +63,13 @@ export function createWebHostV1(
   }
   const records = resolveRecordsV1(options);
   const files = options.files ?? createBrowserFilePortV1();
-  return Object.freeze({
+  return ({
     records,
     files,
-    metadataClock: Object.freeze({
+    metadataClock: {
       now: () => (options.now?.() ?? new Date().toISOString()) as IsoUtcInstant,
-    }),
-    log: Object.freeze({
+    },
+    log: {
       write(
         level: "debug" | "info" | "warn" | "error",
         code: string,
@@ -84,6 +84,6 @@ export function createWebHostV1(
           : console.error;
         method(code, details);
       },
-    }),
+    },
   });
 }

@@ -8,7 +8,7 @@ export function createExtensionLifecycleCallbackGuardInternalV1(): ExtensionLife
     if (remaining === 0) activeOwners.delete(ownerId);
     else activeOwners.set(ownerId, remaining);
   };
-  return Object.freeze({
+  return {
     isActive(ownerId: string): boolean {
       return (activeOwners.get(ownerId) ?? 0) > 0;
     },
@@ -35,5 +35,5 @@ export function createExtensionLifecycleCallbackGuardInternalV1(): ExtensionLife
       release(ownerId);
       return result;
     },
-  });
+  };
 }

@@ -116,7 +116,7 @@ export const labNarrativeStateSchemaV1: RuntimeSchemaV1<LabNarrativeStateV1> =
         if (pending !== null && record.phase !== "active") {
           throw new TypeError("lab narrative pending requires active phase");
         }
-        return Object.freeze({
+        return ({
           phase: record.phase as LabNarrativeStateV1["phase"],
           cursor: record.cursor,
           pending,
@@ -144,15 +144,15 @@ export const labGameStateSchemaV1: RuntimeSchemaV1<LabGameStateV1> = createRunti
           monitors: z.unknown(),
         })
         .parse(root.simulation);
-      return Object.freeze({
-        simulation: Object.freeze({
+      return ({
+        simulation: {
           samples: labSamplesStateSchemaV1.parse(simulation.samples),
           procedure: labProcedureStateSchemaV1.parse(simulation.procedure),
           stage: labStageStateSchemaV1.parse(simulation.stage),
           narrative: labNarrativeStateSchemaV1.parse(simulation.narrative),
           wallet: labWalletStateSchemaV1.parse(simulation.wallet),
           monitors: labMonitorsStateSchemaV1.parse(simulation.monitors),
-        }),
+        },
       });
     },
   },
@@ -160,14 +160,14 @@ export const labGameStateSchemaV1: RuntimeSchemaV1<LabGameStateV1> = createRunti
 );
 
 export function createInitialLabGameStateV1(): LabGameStateV1 {
-  return Object.freeze({
-    simulation: Object.freeze({
-      samples: Object.freeze({ collected: 0 }),
-      procedure: Object.freeze({ phase: "idle" as const, stepsTaken: 0 }),
+  return ({
+    simulation: {
+      samples: { collected: 0 },
+      procedure: { phase: "idle" as const, stepsTaken: 0 },
       stage: createInitialLabStageStateV1(),
       narrative: createInitialLabNarrativeStateV1(),
-      wallet: Object.freeze({ credits: 0 }),
+      wallet: { credits: 0 },
       monitors: createInitialLabMonitorsStateV1(),
-    }),
+    },
   });
 }

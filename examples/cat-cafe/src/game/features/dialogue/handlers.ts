@@ -14,7 +14,7 @@ import {
 export const dialogueCommandHandlersV1: Pick<
   CatcafeCommandHandlerMapV1,
   "cc.begin_story" | "cc.narrative_resolve"
-> = Object.freeze({
+> = {
   "cc.begin_story": ({ snapshot, rng, state }) =>
     transactionRunnerV1.execute(snapshot, rng, (transaction) => {
       if (state.narrative.pending !== null) {
@@ -55,4 +55,4 @@ export const dialogueCommandHandlersV1: Pick<
       if (blocked !== null) return transaction.reject({ code: blocked });
       return transaction.complete();
     }),
-});
+};

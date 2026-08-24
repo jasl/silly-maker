@@ -18,16 +18,16 @@ import {
   uiIntentSchemaRevisionInternalV1,
 } from "./contract.ts";
 
-const artifactProjectionLimitsInternalV1: BoundedCanonicalJsonLimitsInternalV1 = Object.freeze({
+const artifactProjectionLimitsInternalV1: BoundedCanonicalJsonLimitsInternalV1 = {
   maxBytes: 65_536 as BoundedCanonicalJsonLimitsInternalV1["maxBytes"],
   maxDepth: 12 as BoundedCanonicalJsonLimitsInternalV1["maxDepth"],
   maxNodes: 1_024 as BoundedCanonicalJsonLimitsInternalV1["maxNodes"],
-});
-const intentProjectionLimitsInternalV1: BoundedCanonicalJsonLimitsInternalV1 = Object.freeze({
+};
+const intentProjectionLimitsInternalV1: BoundedCanonicalJsonLimitsInternalV1 = {
   maxBytes: 2_048 as BoundedCanonicalJsonLimitsInternalV1["maxBytes"],
   maxDepth: 3 as BoundedCanonicalJsonLimitsInternalV1["maxDepth"],
   maxNodes: 16 as BoundedCanonicalJsonLimitsInternalV1["maxNodes"],
-});
+};
 const identifierPatternInternalV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
 const maxArtifactTreeDepthInternalV1 = 8;
 const maxArtifactNodesInternalV1 = 128;
@@ -41,7 +41,7 @@ class ArtifactAdmissionFailureInternalV1 extends Error {
 
   constructor(code: UiArtifactDiagnosticInternalV1["code"], path: string) {
     super(code);
-    this.diagnostic = Object.freeze({ code, path });
+    this.diagnostic = { code, path };
   }
 }
 
@@ -96,21 +96,21 @@ export function admitUiArtifactCandidateInternalV1(
   try {
     projection = projectBoundedCanonicalJsonInternalV1(value, artifactProjectionLimitsInternalV1);
   } catch {
-    return Object.freeze({
+    return {
       kind: "rejected",
-      diagnostic: Object.freeze({ code: "artifact.canonical_invalid", path: "/" }),
-    });
+      diagnostic: { code: "artifact.canonical_invalid", path: "/" },
+    };
   }
   if (projection.kind === "rejected") {
-    return Object.freeze({
+    return {
       kind: "rejected",
-      diagnostic: Object.freeze({
+      diagnostic: {
         code: projection.code === "canonical.invalid"
           ? "artifact.canonical_invalid"
           : "artifact.limit_exceeded",
         path: "/",
-      }),
-    });
+      },
+    };
   }
 
   const nodeIds = new Set<string>();
@@ -145,15 +145,15 @@ export function admitUiArtifactCandidateInternalV1(
         const children = record.children.map((child, index) =>
           parseNode(child, `${path}/children/${index}`, depth + 1)
         );
-        return Object.freeze({ kind: "column", nodeId, children: Object.freeze(children) });
+        return { kind: "column", nodeId, children };
       }
       case "text": {
         const record = exactRecordInternalV1(candidate, ["kind", "nodeId", "text"], path);
-        return Object.freeze({
+        return {
           kind: "text",
           nodeId: admitNodeId(record.nodeId),
           text: textInternalV1(record.text, `${path}/text`),
-        });
+        };
       }
       case "action": {
         const record = exactRecordInternalV1(
@@ -165,12 +165,12 @@ export function admitUiArtifactCandidateInternalV1(
         if (!allowed.has(actionId)) {
           return artifactRejectInternalV1("artifact.action_unknown", `${path}/actionId`);
         }
-        return Object.freeze({
+        return {
           kind: "action",
           nodeId: admitNodeId(record.nodeId),
           label: textInternalV1(record.label, `${path}/label`),
           actionId,
-        });
+        };
       }
       default:
         return artifactRejectInternalV1("artifact.node_unknown", `${path}/kind`);
@@ -184,27 +184,27 @@ export function admitUiArtifactCandidateInternalV1(
       "/",
     );
     if (document.schemaRevision !== uiArtifactSchemaRevisionInternalV1) {
-      return Object.freeze({
+      return {
         kind: "rejected",
-        diagnostic: Object.freeze({
+        diagnostic: {
           code: "artifact.schema_unsupported",
           path: "/schemaRevision",
-        }),
-      });
+        },
+      };
     }
-    const admitted: UiArtifactDocumentInternalV1 = Object.freeze({
+    const admitted: UiArtifactDocumentInternalV1 = {
       schemaRevision: uiArtifactSchemaRevisionInternalV1,
       root: parseNode(document.root, "/root", 1),
-    });
-    return Object.freeze({ kind: "admitted", document: admitted });
+    };
+    return { kind: "admitted", document: admitted };
   } catch (error) {
     if (error instanceof ArtifactAdmissionFailureInternalV1) {
-      return Object.freeze({ kind: "rejected", diagnostic: error.diagnostic });
+      return { kind: "rejected", diagnostic: error.diagnostic };
     }
-    return Object.freeze({
+    return {
       kind: "rejected",
-      diagnostic: Object.freeze({ code: "artifact.payload_invalid", path: "/" }),
-    });
+      diagnostic: { code: "artifact.payload_invalid", path: "/" },
+    };
   }
 }
 
@@ -221,23 +221,23 @@ export function createUiArtifactRevisionInternalV1(input: {
       throw new TypeError("UiArtifact revision identity must be a positive safe integer");
     }
   }
-  return Object.freeze({
+  return {
     hostIdentity: input.hostIdentity,
     revision: input.revision,
-    source: Object.freeze({
+    source: {
       sessionId: input.sessionId,
       runId: input.runId,
       completedSequence: input.completedSequence,
-    }),
+    },
     document: input.document,
-  });
+  };
 }
 
 function intentDiagnosticInternalV1(
   code: UiIntentDiagnosticInternalV1["code"],
   path: string,
 ): UiIntentAdmissionResultInternalV1 {
-  return Object.freeze({ kind: "rejected", diagnostic: Object.freeze({ code, path }) });
+  return { kind: "rejected", diagnostic: { code, path } };
 }
 
 function findActionInternalV1(
@@ -299,15 +299,15 @@ export function admitUiIntentInternalV1(
   if (action === null || action.actionId !== record.actionId) {
     return intentDiagnosticInternalV1("ui_intent.action_mismatch", "/actionId");
   }
-  return Object.freeze({
+  return {
     kind: "admitted",
-    intent: Object.freeze({
+    intent: {
       schemaRevision: uiIntentSchemaRevisionInternalV1,
       kind: "ui.action.invoke",
       hostIdentity: current.hostIdentity,
       artifactRevision: current.revision,
       nodeId: record.nodeId,
       actionId: record.actionId,
-    }),
-  });
+    },
+  };
 }

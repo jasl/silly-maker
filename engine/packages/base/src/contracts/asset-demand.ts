@@ -57,20 +57,20 @@ export function createAssetDemandPlanV1(input: CreateAssetDemandPlanInputV1): As
   if (!Number.isSafeInteger(maxConcurrent) || maxConcurrent < 1) {
     throw new TypeError("asset demand plan requires a positive maxConcurrent");
   }
-  const retry = input.retry ?? Object.freeze({ maxAttempts: 2, backoffMs: 250 });
+  const retry = input.retry ?? { maxAttempts: 2, backoffMs: 250 };
   if (!Number.isSafeInteger(retry.maxAttempts) || retry.maxAttempts < 1) {
     throw new TypeError("asset demand retry requires at least one attempt");
   }
   if (!Number.isSafeInteger(retry.backoffMs) || retry.backoffMs < 0) {
     throw new TypeError("asset demand retry requires a non-negative backoff");
   }
-  return Object.freeze({
+  return {
     planId: input.planId,
-    entries: Object.freeze(input.entries.map((entry) => Object.freeze({ ...entry }))),
+    entries: input.entries.map((entry) => ({ ...entry })),
     maxConcurrent,
-    retry: Object.freeze({ ...retry }),
-    retention: Object.freeze(input.retention ?? { kind: "while_demanded" as const }),
-  });
+    retry: { ...retry },
+    retention: { ...(input.retention ?? { kind: "while_demanded" as const }) },
+  };
 }
 
 /**

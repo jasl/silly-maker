@@ -1,40 +1,23 @@
 // SPDX-License-Identifier: MIT
 
-import { isShellCapabilityInternalV1 } from "./shell-http-admission.mts";
 import {
   applicationBootstrapDataAttributeV1,
   applicationBootstrapElementIdV1,
   applicationBootstrapJsonHtmlV1,
-  applicationBootstrapJsonTextInternalV1,
-  type ApplicationBootstrapHtmlConfigV1,
 } from "./application-bootstrap-html.mts";
+import type { DesktopRuntimeBootstrapConfigV1 } from "./desktop-shell-arguments.mts";
 
 const htmlCommentPatternV1 = /<!--[\s\S]*?(?:-->|$)/gu;
 const scriptElementPatternV1 = /<script(\s[^>]*)?>([\s\S]*?)<\/script\s*>/giu;
 
-function desktopRecordsMarkerBodyV1(capability: string): string {
-  return `Object.defineProperties(globalThis,{"__SILLYMAKER_RECORDS__":{value:"local",writable:false,configurable:false},"__SILLYMAKER_DESKTOP_CAPABILITY__":{value:${
-    JSON.stringify(
-      capability,
-    )
-  },writable:false,configurable:false}});`;
-}
-
 function desktopRecordsMarkerSourceV1(capability: string): string {
-  return `<script>${desktopRecordsMarkerBodyV1(capability)}</script>`;
+  return `<script>globalThis.__SILLYMAKER_RECORDS__="local";globalThis.__SILLYMAKER_DESKTOP_CAPABILITY__=${
+    JSON.stringify(capability)
+  };</script>`;
 }
 
 function maskHtmlCommentsV1(html: string): string {
   return html.replaceAll(htmlCommentPatternV1, (comment) => " ".repeat(comment.length));
-}
-
-function hasDesktopRecordsMarkerV1(searchableHtml: string, capability: string): boolean {
-  const expectedBody = desktopRecordsMarkerBodyV1(capability);
-  for (const match of searchableHtml.matchAll(scriptElementPatternV1)) {
-    if ((match[1] ?? "").trim() !== "") continue;
-    if ((match[2] ?? "").trim() === expectedBody) return true;
-  }
-  return false;
 }
 
 function injectHeadScriptV1(html: string, searchableHtml: string, scriptSource: string): string {
@@ -75,28 +58,23 @@ function htmlAttributeCountV1(attributes: string, name: string): number {
 }
 
 function requireExistingRuntimeBootstrapV1(source: string): void {
-  const browserRuntime = applicationBootstrapJsonTextInternalV1({
-    revision: 1,
-    entry: "runtime",
-    target: "browser",
-  });
-  const desktopRuntime = applicationBootstrapJsonTextInternalV1({
-    revision: 1,
-    entry: "runtime",
-    target: "deno_desktop",
-  });
-  if (source !== browserRuntime && source !== desktopRuntime) {
+  let value: unknown;
+  try {
+    value = JSON.parse(source) as unknown;
+  } catch {
     throw new TypeError("desktop_html.bootstrap_conflict");
   }
-}
-
-function requireDesktopRuntimeBootstrapV1(
-  config: ApplicationBootstrapHtmlConfigV1,
-): ApplicationBootstrapHtmlConfigV1 {
-  if (config.revision !== 1 || config.entry !== "runtime" || config.target !== "deno_desktop") {
-    throw new TypeError("desktop_html.invalid_bootstrap_config");
+  if (value === null || typeof value !== "object") {
+    throw new TypeError("desktop_html.bootstrap_conflict");
   }
-  return config;
+  const config = value as Record<string, unknown>;
+  if (
+    config.revision !== 1 ||
+    config.entry !== "runtime" ||
+    (config.target !== "browser" && config.target !== "deno_desktop")
+  ) {
+    throw new TypeError("desktop_html.bootstrap_conflict");
+  }
 }
 
 /**
@@ -107,9 +85,8 @@ function requireDesktopRuntimeBootstrapV1(
  */
 export function injectDesktopBootstrapConfigV1(
   html: string,
-  config: ApplicationBootstrapHtmlConfigV1,
+  config: DesktopRuntimeBootstrapConfigV1,
 ): string {
-  const bootstrap = requireDesktopRuntimeBootstrapV1(config);
   const searchableHtml = maskHtmlCommentsV1(html);
   const normalizedSearchableHtml = searchableHtml.toLowerCase();
   const bootstrapIdOccurrences =
@@ -128,7 +105,7 @@ export function injectDesktopBootstrapConfigV1(
     throw new TypeError("desktop_html.bootstrap_conflict");
   }
 
-  const canonical = applicationBootstrapJsonHtmlV1(bootstrap);
+  const canonical = applicationBootstrapJsonHtmlV1(config);
   const candidate = candidates[0];
   if (candidate !== undefined) {
     const attributes = candidate[1] ?? "";
@@ -165,11 +142,7 @@ export function injectDesktopBootstrapConfigV1(
  * per-origin browser storage.
  */
 export function injectDesktopRecordsMarkerV1(html: string, capability: string): string {
-  if (!isShellCapabilityInternalV1(capability)) {
-    throw new TypeError("invalid Desktop shell capability");
-  }
   const searchableHtml = maskHtmlCommentsV1(html);
-  if (hasDesktopRecordsMarkerV1(searchableHtml, capability)) return html;
   return injectHeadScriptV1(html, searchableHtml, desktopRecordsMarkerSourceV1(capability));
 }
 
@@ -177,7 +150,7 @@ export function injectDesktopRecordsMarkerV1(html: string, capability: string): 
 export function createDesktopHtmlResponseInternalV1(
   html: string,
   capability: string,
-  bootstrap: ApplicationBootstrapHtmlConfigV1,
+  bootstrap: DesktopRuntimeBootstrapConfigV1,
   head: boolean,
 ): Response {
   const withBootstrap = injectDesktopBootstrapConfigV1(html, bootstrap);

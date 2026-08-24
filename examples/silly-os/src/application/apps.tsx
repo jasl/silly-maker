@@ -41,12 +41,12 @@ export interface OsDesktopAppV1 {
   render(context: OsAppContextV1): ReactElement;
 }
 
-export const osAppsV1: readonly OsDesktopAppV1[] = Object.freeze([
-  Object.freeze({
+export const osAppsV1: readonly OsDesktopAppV1[] = [
+  {
     appId: "app.minesweeper",
     nameTextId: "text.os.app.minesweeper",
     icon: (size: number) => <OsMineIconV1 size={size} />,
-    defaultRect: Object.freeze({ x: 320, y: 96, width: 260, height: 340 }),
+    defaultRect: { x: 320, y: 96, width: 260, height: 340 },
     singleton: true,
     desktopIcon: true,
     render: (context: OsAppContextV1) => (
@@ -56,12 +56,12 @@ export const osAppsV1: readonly OsDesktopAppV1[] = Object.freeze([
         uiText={context.uiText}
       />
     ),
-  }),
-  Object.freeze({
+  },
+  {
     appId: "app.notepad",
     nameTextId: "text.os.app.notepad",
     icon: (size: number) => <OsNotepadIconV1 size={size} />,
-    defaultRect: Object.freeze({ x: 260, y: 140, width: 460, height: 340 }),
+    defaultRect: { x: 260, y: 140, width: 460, height: 340 },
     singleton: false,
     desktopIcon: true,
     render: (context: OsAppContextV1) => (
@@ -71,32 +71,32 @@ export const osAppsV1: readonly OsDesktopAppV1[] = Object.freeze([
         uiText={context.uiText}
       />
     ),
-  }),
-  Object.freeze({
+  },
+  {
     appId: "app.browser",
     nameTextId: "text.os.app.browser",
     icon: (size: number) => <OsBrowserIconV1 size={size} />,
-    defaultRect: Object.freeze({ x: 200, y: 80, width: 620, height: 460 }),
+    defaultRect: { x: 200, y: 80, width: 620, height: 460 },
     singleton: false,
     desktopIcon: true,
     render: (context: OsAppContextV1) => <OsBrowserAppV1 uiText={context.uiText} />,
-  }),
-  Object.freeze({
+  },
+  {
     appId: "app.control-panel",
     nameTextId: "text.os.app.control-panel",
     icon: (size: number) => <OsComputerIconV1 size={size} />,
-    defaultRect: Object.freeze({ x: 340, y: 150, width: 340, height: 280 }),
+    defaultRect: { x: 340, y: 150, width: 340, height: 280 },
     singleton: true,
     desktopIcon: false,
     render: (context: OsAppContextV1) => (
       <OsControlPanelAppV1 playerProfile={context.playerProfile} uiText={context.uiText} />
     ),
-  }),
-  Object.freeze({
+  },
+  {
     appId: "app.wallpaper",
     nameTextId: "text.os.app.wallpaper",
     icon: (size: number) => <OsDisplayIconV1 size={size} />,
-    defaultRect: Object.freeze({ x: 380, y: 180, width: 300, height: 300 }),
+    defaultRect: { x: 380, y: 180, width: 300, height: 300 },
     singleton: true,
     desktopIcon: false,
     render: (context: OsAppContextV1) => (
@@ -106,8 +106,8 @@ export const osAppsV1: readonly OsDesktopAppV1[] = Object.freeze([
         uiText={context.uiText}
       />
     ),
-  }),
-]);
+  },
+];
 
 export function osAppByIdV1(appId: string): OsDesktopAppV1 | null {
   return osAppsV1.find((app) => app.appId === appId) ?? null;

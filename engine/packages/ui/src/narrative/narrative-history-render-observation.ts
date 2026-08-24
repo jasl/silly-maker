@@ -1,10 +1,5 @@
 // SPDX-License-Identifier: MIT
-import {
-  canonicalJsonBytes,
-  parseNarrativeHistoryV1,
-  type DeepReadonly,
-  type NarrativeHistoryV1,
-} from "@sillymaker/base";
+import type { DeepReadonly, NarrativeHistoryV1 } from "@sillymaker/base";
 
 export interface NarrativeStableHistoryObservationPortInternalV1 {
   getSnapshotInternalV1(): DeepReadonly<NarrativeHistoryV1>;
@@ -14,27 +9,27 @@ export interface NarrativeStableHistoryObservationPortInternalV1 {
 export interface NarrativeStableHistoryRenderObservationInternalV1 {
   getSnapshotInternalV1(): DeepReadonly<NarrativeHistoryV1>;
   subscribeInternalV1(listener: () => void): () => void;
+  retireInternalV1(): void;
 }
 
-interface NarrativeStableHistoryRenderObservationRecordInternalV1 {
-  binding: NarrativeStableHistoryObservationPortInternalV1 | null;
-  readonly listeners: Set<() => void>;
-  readonly listenerHolders: Set<{ listener: (() => void) | null }>;
-  currentSnapshot: DeepReadonly<NarrativeHistoryV1> | null;
-  currentBytes: Uint8Array | null;
-  unsubscribeRaw: (() => void) | null;
-  active: boolean;
-}
-
-const narrativeStableHistoryRenderObservationRecordsInternalV1 = new WeakMap<
-  NarrativeStableHistoryRenderObservationInternalV1,
-  NarrativeStableHistoryRenderObservationRecordInternalV1
->();
-
-function bytesEqualInternalV1(left: Uint8Array, right: Uint8Array): boolean {
-  if (left.byteLength !== right.byteLength) return false;
-  for (let index = 0; index < left.byteLength; index += 1) {
-    if (left[index] !== right[index]) return false;
+function equalHistoryInternalV1(
+  left: DeepReadonly<NarrativeHistoryV1>,
+  right: DeepReadonly<NarrativeHistoryV1>,
+): boolean {
+  if (left === right) return true;
+  if (left.entries.length !== right.entries.length) return false;
+  for (let index = 0; index < left.entries.length; index += 1) {
+    const leftEntry = left.entries[index]!;
+    const rightEntry = right.entries[index]!;
+    if (
+      leftEntry.kind !== rightEntry.kind ||
+      leftEntry.occurrenceId !== rightEntry.occurrenceId ||
+      leftEntry.definitionId !== rightEntry.definitionId ||
+      leftEntry.seenRevision !== rightEntry.seenRevision ||
+      leftEntry.speakerTextId !== rightEntry.speakerTextId ||
+      leftEntry.textId !== rightEntry.textId ||
+      leftEntry.voiceAssetId !== rightEntry.voiceAssetId
+    ) return false;
   }
   return true;
 }
@@ -42,55 +37,44 @@ function bytesEqualInternalV1(left: Uint8Array, right: Uint8Array): boolean {
 export function createNarrativeStableHistoryRenderObservationInternalV1(
   capturedPort: NarrativeStableHistoryObservationPortInternalV1,
 ): NarrativeStableHistoryRenderObservationInternalV1 {
-  let observation!: NarrativeStableHistoryRenderObservationInternalV1;
-  let record!: NarrativeStableHistoryRenderObservationRecordInternalV1;
+  const listeners = new Set<() => void>();
+  let currentSnapshot: DeepReadonly<NarrativeHistoryV1> | null = null;
+  let unsubscribeRaw: (() => void) | null = null;
+  let active = true;
+
   const refresh = (): boolean => {
-    const binding = record.binding;
-    if (!record.active || binding === null) return false;
-    const parsed = parseNarrativeHistoryV1(binding.getSnapshotInternalV1());
-    const bytes = canonicalJsonBytes(parsed);
-    if (record.currentBytes !== null && bytesEqualInternalV1(record.currentBytes, bytes)) {
-      return false;
-    }
-    record.currentSnapshot = parsed;
-    record.currentBytes = Uint8Array.from(bytes);
+    if (!active) return false;
+    const next = capturedPort.getSnapshotInternalV1();
+    if (currentSnapshot !== null && equalHistoryInternalV1(currentSnapshot, next)) return false;
+    currentSnapshot = next;
     return true;
   };
-  observation = Object.freeze({
-    getSnapshotInternalV1(
-      this: NarrativeStableHistoryRenderObservationInternalV1,
-    ): DeepReadonly<NarrativeHistoryV1> {
-      if (
-        this !== observation ||
-        narrativeStableHistoryRenderObservationRecordsInternalV1.get(observation) !== record
-      ) {
+
+  const notify = (): void => {
+    for (const current of [...listeners]) {
+      try {
+        current();
+      } catch {
+        // One subscriber cannot prevent the remaining observers from refreshing.
+      }
+    }
+  };
+
+  return {
+    getSnapshotInternalV1(): DeepReadonly<NarrativeHistoryV1> {
+      if (active && unsubscribeRaw === null) refresh();
+      if (currentSnapshot === null) {
         throw new TypeError("ui.narrative_stable_history_observation_invalid");
       }
-      if (record.active) refresh();
-      if (record.currentSnapshot === null) {
-        throw new TypeError("ui.narrative_stable_history_observation_invalid");
-      }
-      return record.currentSnapshot;
+      return currentSnapshot;
     },
-    subscribeInternalV1(
-      this: NarrativeStableHistoryRenderObservationInternalV1,
-      listener: () => void,
-    ): () => void {
-      if (
-        this !== observation ||
-        narrativeStableHistoryRenderObservationRecordsInternalV1.get(observation) !== record ||
-        typeof listener !== "function"
-      ) {
-        throw new TypeError("ui.narrative_stable_history_observation_invalid");
-      }
-      if (!record.active) return Object.freeze((): void => {});
+    subscribeInternalV1(listener: () => void): () => void {
+      if (!active) return (): void => {};
       refresh();
-      record.listeners.add(listener);
-      const holder: { listener: (() => void) | null } = { listener };
-      record.listenerHolders.add(holder);
-      if (record.unsubscribeRaw === null) {
-        const rawListener = (): void => {
-          if (!record.active) return;
+      listeners.add(listener);
+      if (unsubscribeRaw === null) {
+        unsubscribeRaw = capturedPort.subscribeInternalV1((): void => {
+          if (!active) return;
           let changed = false;
           try {
             changed = refresh();
@@ -98,70 +82,35 @@ export function createNarrativeStableHistoryRenderObservationInternalV1(
             changed = true;
           }
           if (!changed) return;
-          for (const current of Object.freeze([...record.listeners])) {
-            try {
-              current();
-            } catch {
-              // Observation subscribers are isolated after canonical refresh.
-            }
-          }
-        };
-        const binding = record.binding;
-        if (binding === null) {
-          record.listeners.delete(listener);
-          holder.listener = null;
-          record.listenerHolders.delete(holder);
-          return Object.freeze((): void => {});
-        }
-        const unsubscribe = binding.subscribeInternalV1(rawListener);
-        if (typeof unsubscribe !== "function") {
-          record.listeners.delete(listener);
-          holder.listener = null;
-          record.listenerHolders.delete(holder);
-          throw new TypeError("ui.narrative_stable_history_observation_invalid");
-        }
-        record.unsubscribeRaw = unsubscribe;
+          notify();
+        });
+        if (refresh()) notify();
       }
-      let active = true;
-      return Object.freeze((): void => {
-        if (!active) return;
-        active = false;
-        const retainedListener = holder.listener;
-        holder.listener = null;
-        record.listenerHolders.delete(holder);
-        if (retainedListener !== null) record.listeners.delete(retainedListener);
-      });
+      let subscribed = true;
+      return (): void => {
+        if (!subscribed) return;
+        subscribed = false;
+        listeners.delete(listener);
+      };
     },
-  });
-  record = {
-    binding: capturedPort,
-    listeners: new Set(),
-    listenerHolders: new Set(),
-    currentSnapshot: null,
-    currentBytes: null,
-    unsubscribeRaw: null,
-    active: true,
+    retireInternalV1(): void {
+      if (!active) return;
+      active = false;
+      listeners.clear();
+      const unsubscribe = unsubscribeRaw;
+      unsubscribeRaw = null;
+      if (unsubscribe === null) return;
+      try {
+        unsubscribe();
+      } catch {
+        // Retirement remains final even when the upstream cleanup throws.
+      }
+    },
   };
-  narrativeStableHistoryRenderObservationRecordsInternalV1.set(observation, record);
-  return observation;
 }
 
 export function retireNarrativeStableHistoryRenderObservationInternalV1(
   observation: NarrativeStableHistoryRenderObservationInternalV1,
 ): void {
-  const record = narrativeStableHistoryRenderObservationRecordsInternalV1.get(observation);
-  if (record === undefined || !record.active) return;
-  record.active = false;
-  record.binding = null;
-  record.listeners.clear();
-  for (const holder of record.listenerHolders) holder.listener = null;
-  record.listenerHolders.clear();
-  const unsubscribe = record.unsubscribeRaw;
-  record.unsubscribeRaw = null;
-  if (unsubscribe === null) return;
-  try {
-    unsubscribe();
-  } catch {
-    // The retired observation stays fenced when raw cleanup is hostile.
-  }
+  observation.retireInternalV1();
 }

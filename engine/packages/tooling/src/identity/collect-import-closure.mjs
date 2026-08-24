@@ -51,7 +51,7 @@ function parseEsmSource(source, relativePath) {
     const invalidDynamicImport = program.errors.some(hasInvalidDynamicImportReason);
     const otherError = program.errors.find((error) => !hasInvalidDynamicImportReason(error));
     if (otherError !== undefined) throw otherError;
-    return Object.freeze({ program, invalidDynamicImport });
+    return { program, invalidDynamicImport };
   } catch (error) {
     try {
       // Babel cannot build an ImportExpression for zero-argument or spread import() calls.
@@ -62,7 +62,7 @@ function parseEsmSource(source, relativePath) {
         recovery.errors.length > 0 &&
         recovery.errors.every(hasInvalidDynamicImportReason)
       ) {
-        return Object.freeze({ program: null, invalidDynamicImport: true });
+        return { program: null, invalidDynamicImport: true };
       }
     } catch {
       // Preserve the primary parser failure below.
@@ -120,10 +120,10 @@ function collectEsmSpecifiers(source, relativePath) {
   };
 
   visit(parsed.program);
-  return Object.freeze({
-    specifiers: Object.freeze(specifiers),
+  return {
+    specifiers,
     hasInvalidDynamicImport,
-  });
+  };
 }
 
 function compareUtf16CodeUnits(left, right) {
@@ -184,18 +184,18 @@ async function resolveWorkspaceSpecifier(repository, owner, specifier) {
   try {
     resolved = moduleResolve(specifier, pathToFileURL(owner), esmImportConditions, false);
   } catch (error) {
-    return Object.freeze({ kind: "unknown", reason: resolutionReason(error) });
+    return { kind: "unknown", reason: resolutionReason(error) };
   }
   let actual;
   try {
     actual = await realpath(fileURLToPath(resolved));
   } catch (error) {
-    return Object.freeze({ kind: "unknown", reason: resolutionReason(error) });
+    return { kind: "unknown", reason: resolutionReason(error) };
   }
   const managedPath = isWithin(repository, actual) ? posix(repository, actual) : null;
   return managedPath !== null && !managedPath.split("/").includes("node_modules")
-    ? Object.freeze({ kind: "managed", path: actual })
-    : Object.freeze({ kind: "external" });
+    ? { kind: "managed", path: actual }
+    : { kind: "external" };
 }
 
 function resolutionReason(error) {
@@ -210,10 +210,10 @@ function addExternalImport(externalImports, relativePath, specifier) {
   const key = `${relativePath}\0${specifier}`;
   externalImports.set(
     key,
-    Object.freeze({
+    {
       owner: relativePath,
       specifier,
-    }),
+    },
   );
 }
 
@@ -282,18 +282,16 @@ export async function collectImportClosure(root, entries) {
       addExternalImport(externalImports, relativePath, specifier);
     }
   }
-  return Object.freeze({
-    paths: Object.freeze([...paths].sort(compareUtf16CodeUnits)),
-    errors: Object.freeze(errors.sort(compareUtf16CodeUnits)),
-    externalImports: Object.freeze(
-      [...externalImports.values()].sort((left, right) =>
-        compareUtf16CodeUnits(
-          `${left.owner}\0${left.specifier}`,
-          `${right.owner}\0${right.specifier}`,
-        )
-      ),
+  return {
+    paths: [...paths].sort(compareUtf16CodeUnits),
+    errors: errors.sort(compareUtf16CodeUnits),
+    externalImports: [...externalImports.values()].sort((left, right) =>
+      compareUtf16CodeUnits(
+        `${left.owner}\0${left.specifier}`,
+        `${right.owner}\0${right.specifier}`,
+      )
     ),
-  });
+  };
 }
 
 /**
@@ -321,7 +319,7 @@ export async function buildImportClosureRecordsV1(root, paths, facet) {
       if (actualPath !== path) {
         throw new TypeError(`non-canonical import closure path: ${path}`);
       }
-      return Object.freeze({
+      return {
         path,
         facet,
         sha256: `sha256:${
@@ -329,8 +327,8 @@ export async function buildImportClosureRecordsV1(root, paths, facet) {
             .update(await readFile(actual))
             .digest("hex")
         }`,
-      });
+      };
     }),
   );
-  return Object.freeze(records);
+  return records;
 }
