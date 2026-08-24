@@ -505,8 +505,16 @@ export function classifyStaticGameDependencyFacetsInternalV1(
   moduleIds: readonly string[],
 ): StaticGameDependencyFacetsInternalV1 {
   const uniqueModuleIds = sortedUniqueV1(moduleIds);
+  const baseAuthoringSceneModulesV1 = new Set([
+    "engine/packages/base/src/authoring/scene.ts",
+    "engine/packages/base/src/authoring/authoring-scene.ts",
+    "engine/packages/base/src/authoring/authoring-scene-compiler.ts",
+    "engine/packages/base/src/authoring/authoring-scene-facets.ts",
+  ]);
   const authoringImplementation = uniqueModuleIds.filter((moduleId) =>
     moduleId.startsWith("engine/packages/studio/") ||
+    baseAuthoringSceneModulesV1.has(moduleId) ||
+    moduleId.endsWith(".authoring-scene.json") ||
     (
       !moduleId.startsWith("engine/packages/") &&
       !/(?:^|\/)node_modules\//u.test(moduleId) &&

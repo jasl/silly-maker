@@ -9,6 +9,14 @@ export const sillymakerAppConfigV1 = {
     module: "src/story.ts",
     exportName: "labStoryEntryV1",
   },
+  sceneSources: [
+    {
+      sceneId: "scene.e2e.procedure",
+      specifier: "#sillymaker/scene/procedure",
+      sourceKind: "authoring_scene",
+      source: "src/scenes/procedure/procedure.authoring-scene.json",
+    },
+  ],
   assetVerification: true,
   simulate: {
     module: "src/tooling/simulation-target.ts",

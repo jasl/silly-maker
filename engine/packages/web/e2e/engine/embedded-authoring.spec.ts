@@ -15,6 +15,12 @@ const presentationFileV1 = fileURLToPath(
 const compositionFileV1 = fileURLToPath(
   new URL("../../../../../e2e/src/application/composition.tsx", import.meta.url),
 );
+const procedureAuthoringSceneFileV1 = fileURLToPath(
+  new URL(
+    "../../../../../e2e/src/scenes/procedure/procedure.authoring-scene.json",
+    import.meta.url,
+  ),
+);
 const heldAgentPromptV1 = "换代期间保持流";
 const heldAgentDraftTextV1 = "正在保持换代期间的流式请求…";
 
@@ -107,6 +113,47 @@ function rngDrawCountFromSaveV1(save: AuthoritativeSaveAxesV1): number {
   return rawDrawCount;
 }
 
+function authoritativeContinuityAxesV1(save: AuthoritativeSaveAxesV1) {
+  const simulation = requireRecordV1(save.state.simulation, "exported simulation State");
+  const { stage: _stage, ...simulationWithoutStage } = simulation;
+  return Object.freeze({
+    state: Object.freeze({ ...save.state, simulation: Object.freeze(simulationWithoutStage) }),
+    rng: save.rng,
+  });
+}
+
+function reorderProcedureSceneSourceV1(source: string): string {
+  const document = JSON.parse(source) as {
+    layers: Array<{
+      layerId: string;
+      roots: Array<{ objectId: string; children?: Array<{ objectId: string }> }>;
+    }>;
+  };
+  const characters = document.layers.find(({ layerId }) => layerId === "layer.e2e.characters");
+  const group = characters?.roots.find(({ objectId }) => objectId === "tag.e2e.researchers");
+  const children = group?.children;
+  const alpha = children?.find(({ objectId }) => objectId === "tag.e2e.alpha");
+  const beta = children?.find(({ objectId }) => objectId === "tag.e2e.beta");
+  const byLayerId = new Map(document.layers.map((layer) => [layer.layerId, layer]));
+  const background = byLayerId.get("layer.e2e.background");
+  const props = byLayerId.get("layer.e2e.props");
+  if (
+    group === undefined || alpha === undefined || beta === undefined ||
+    background === undefined || props === undefined || characters === undefined
+  ) {
+    throw new TypeError("Engine Lab procedure authoring scene is unavailable");
+  }
+  group.children = [beta, alpha];
+  document.layers = [background, props, characters];
+  return `${JSON.stringify(document, null, 2)}\n`;
+}
+
+async function observedStageLayerOrderV1(page: Page): Promise<readonly string[]> {
+  return await page.locator(
+    '[data-lab-stage="true"] [data-stage-camera="true"] > [data-stage-layer]',
+  ).evaluateAll((layers) => layers.map((layer) => layer.getAttribute("data-stage-layer") ?? ""));
+}
+
 async function openDirtyAuthoringV1(page: Page): Promise<DirtyAuthoringViewV1> {
   await page.getByRole("button", { name: "打开内嵌创作", exact: true }).click();
   const panel = page.getByRole("region", { name: "内嵌创作" });
@@ -189,6 +236,91 @@ function consumeExpectedConsoleFailureV1(
 }
 
 test.describe("Engine Lab Browser module updates", () => {
+  test("@dev-source-io reconciles authoring-scene order through one Player R2 command", async ({ page }) => {
+    test.setTimeout(60_000);
+    const originalBytes = readFileSync(procedureAuthoringSceneFileV1, "utf8");
+    const candidateBytes = reorderProcedureSceneSourceV1(originalBytes);
+    let pageLoads = 0;
+
+    try {
+      await gotoLabV1(page);
+      await page.getByRole("button", { name: "采集样本" }).click();
+      await page.getByRole("button", { name: "开始流程" }).click();
+
+      const stage = page.locator('[data-lab-stage="true"] [data-semantic-stage="true"]');
+      const alpha = stage.locator(
+        '[data-stage-key="layer.e2e.characters:tag.e2e.alpha"]',
+      );
+      const beta = stage.locator(
+        '[data-stage-key="layer.e2e.characters:tag.e2e.beta"]',
+      );
+      await expect(stage).toHaveAttribute("data-stage-settled", "true");
+      await expect(alpha).toHaveCSS("z-index", "0");
+      await expect(beta).toHaveCSS("z-index", "1");
+      expect(await observedStageLayerOrderV1(page)).toEqual([
+        "layer.e2e.background",
+        "layer.e2e.characters",
+        "layer.e2e.props",
+      ]);
+
+      const predecessorSave = await exportAuthoritativeSaveAxesV1(page);
+      const gameHost = page.getByTestId("overlay-host");
+      const predecessorEpoch = Number(
+        await gameHost.getAttribute("data-overlay-application-epoch"),
+      );
+      expect(Number.isSafeInteger(predecessorEpoch)).toBe(true);
+      page.on("load", () => {
+        pageLoads += 1;
+      });
+
+      writeFileSync(procedureAuthoringSceneFileV1, candidateBytes);
+      await expect(gameHost).toHaveAttribute(
+        "data-overlay-application-epoch",
+        String(predecessorEpoch + 1),
+      );
+      await expect(alpha).toHaveCSS("z-index", "1");
+      await expect(beta).toHaveCSS("z-index", "0");
+      await expect.poll(() => observedStageLayerOrderV1(page)).toEqual([
+        "layer.e2e.background",
+        "layer.e2e.props",
+        "layer.e2e.characters",
+      ]);
+
+      const forwardSave = await exportAuthoritativeSaveAxesV1(page);
+      expect(authoritativeContinuityAxesV1(forwardSave)).toEqual(
+        authoritativeContinuityAxesV1(predecessorSave),
+      );
+      expect(forwardSave.commandSequence).toBe(predecessorSave.commandSequence + 1);
+      await expect(gameHost).toHaveAttribute(
+        "data-overlay-application-epoch",
+        String(predecessorEpoch + 1),
+      );
+      expect(pageLoads).toBe(0);
+
+      writeFileSync(procedureAuthoringSceneFileV1, originalBytes);
+      await expect(gameHost).toHaveAttribute(
+        "data-overlay-application-epoch",
+        String(predecessorEpoch + 2),
+      );
+      await expect(alpha).toHaveCSS("z-index", "0");
+      await expect(beta).toHaveCSS("z-index", "1");
+      await expect.poll(() => observedStageLayerOrderV1(page)).toEqual([
+        "layer.e2e.background",
+        "layer.e2e.characters",
+        "layer.e2e.props",
+      ]);
+      const reverseSave = await exportAuthoritativeSaveAxesV1(page);
+      expect(authoritativeContinuityAxesV1(reverseSave)).toEqual(
+        authoritativeContinuityAxesV1(forwardSave),
+      );
+      expect(reverseSave.commandSequence).toBe(forwardSave.commandSequence + 1);
+      expect(pageLoads).toBe(0);
+    } finally {
+      restoreSourceV1(procedureAuthoringSceneFileV1, originalBytes);
+    }
+    expect(readFileSync(procedureAuthoringSceneFileV1, "utf8")).toBe(originalBytes);
+  });
+
   test("@dev-source-io rejects an incompatible Authoring R1 candidate and accepts a compatible retry", async ({ page, pageDiagnostics }) => {
     const originalBytes = readFileSync(studioBindingFileV1, "utf8");
     const rejectedBytes = requireSourceMutationV1(

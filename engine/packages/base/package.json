@@ -13,6 +13,7 @@
     "./runtime": "./src/runtime/index.ts",
     "./runtime/internal": "./src/runtime/internal.ts",
     "./story": "./src/story/index.ts",
+    "./story/scene": "./src/story/scene.ts",
     "./testkit": "./src/testkit/index.ts",
     "./testkit/authoritative-determinism": "./src/testkit/authoritative-determinism.ts",
     "./testkit/determinism-vectors": "./src/testkit/determinism-vectors.ts",

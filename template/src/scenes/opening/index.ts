@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: MIT
-// The opening scene package: `opening.scene.json` is the single authoring
-// authority for this scene's visual composition (entries, placements, and
-// cue→motion binding). The script references cues by id and the transition
-// catalog composes the derived bindings; neither repeats placement literals.
+// The opening scene package: the explicit `authoring_scene` binding selects
+// one ordered object hierarchy as the authoring authority. Deno tooling uses
+// the package-import fallback; Vite replaces that exact specifier with the
+// compiler's runtime-only projection.
 import {
   sceneAmbientCatalog,
-  sceneFromDocument,
+  sceneFromAuthoringRuntimePlan,
   sceneStageTransitionBindings,
-} from "@sillymaker/base/story";
+} from "@sillymaker/base/story/scene";
 import type {
-  Scene,
+  AuthoringSceneRuntime,
+  AuthoringSceneRuntimePlan,
   SceneStageTransitionBindings,
   StageAmbientCatalog,
-} from "@sillymaker/base/story";
+} from "@sillymaker/base/story/scene";
 
-import openingSceneDocumentV1 from "./opening.scene.json" with { type: "json" };
+import { sceneRuntimePlanV1 } from "#sillymaker/scene/opening";
 import meiBlinkMotionDocumentV1 from "./motions/mei-blink.motion.json" with {
   type: "json",
 };
@@ -37,7 +38,11 @@ export const templateOpeningCueIdsV1 = Object.freeze({
   meiReturns: "cue.template.opening.mei-returns",
 });
 
-export const templateOpeningSceneV1: Scene = sceneFromDocument(openingSceneDocumentV1);
+export const templateOpeningSceneRuntimePlanV1: AuthoringSceneRuntimePlan = sceneRuntimePlanV1;
+
+export const templateOpeningSceneV1: AuthoringSceneRuntime = sceneFromAuthoringRuntimePlan(
+  templateOpeningSceneRuntimePlanV1,
+);
 
 /** Exact cue-bound transitions (Mei's entrance motion on her enter edge). */
 export const templateOpeningTransitionBindingsV1: SceneStageTransitionBindings =

@@ -21,7 +21,7 @@ import {
   parseStagePlacementV1,
   parseStageTagV1,
 } from "./semantic-stage.ts";
-import { PresentationDataError, readExactRecord } from "./presentation-data.ts";
+import { PresentationDataError, readArray, readExactRecord } from "./presentation-data.ts";
 
 /**
  * The pure stage mutation vocabulary. A batch either produces one complete,
@@ -63,6 +63,13 @@ export type StageMutationV1 =
     readonly appearance: StageAppearanceV1;
   }
   | {
+    readonly kind: "setZOrder";
+    readonly layerId: StageLayerIdV1;
+    readonly tag: StageTagV1;
+    readonly zOrder: number;
+  }
+  | { readonly kind: "setLayerOrder"; readonly layerIds: readonly StageLayerIdV1[] }
+  | {
     readonly kind: "setLayerTransform";
     readonly layerId: StageLayerIdV1;
     readonly transform: StageLayerTransformV1;
@@ -72,6 +79,7 @@ export type StageMutationV1 =
 export type StageMutationRejectionCodeV1 =
   | "stage.mutation_invalid"
   | "stage.layer_unknown"
+  | "stage.layer_order_invalid"
   | "stage.tag_exists"
   | "stage.tag_unknown";
 
@@ -94,6 +102,8 @@ const mutationKeysV1: Readonly<Record<StageMutationV1["kind"], readonly string[]
   clearStage: ["kind"],
   setPlacement: ["kind", "layerId", "tag", "placement"],
   setAppearance: ["kind", "layerId", "tag", "appearance"],
+  setZOrder: ["kind", "layerId", "tag", "zOrder"],
+  setLayerOrder: ["kind", "layerIds"],
   setLayerTransform: ["kind", "layerId", "transform"],
   setCamera: ["kind", "camera"],
 });
@@ -118,12 +128,15 @@ function readMutationRecordV1(value: unknown, path: string): Record<string, unkn
   return readExactRecord(value, presentKeys, path);
 }
 
-function parseOptionalZOrderV1(value: unknown, path: string): number | undefined {
-  if (value === undefined) return undefined;
+function parseZOrderV1(value: unknown, path: string): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || Math.abs(value) > 1_000_000) {
     throw new PresentationDataError(path, "z_order_invalid");
   }
   return value;
+}
+
+function parseOptionalZOrderV1(value: unknown, path: string): number | undefined {
+  return value === undefined ? undefined : parseZOrderV1(value, path);
 }
 
 /** Parses one plain-data stage mutation; throws PresentationDataError. */
@@ -186,6 +199,22 @@ export function parseStageMutationV1(value: unknown, path = "/mutation"): StageM
         layerId: parseStageLayerIdV1(record.layerId, `${path}/layerId`),
         tag: parseStageTagV1(record.tag, `${path}/tag`),
         appearance: parseStageAppearanceV1(record.appearance, `${path}/appearance`),
+      });
+    case "setZOrder":
+      return Object.freeze({
+        kind,
+        layerId: parseStageLayerIdV1(record.layerId, `${path}/layerId`),
+        tag: parseStageTagV1(record.tag, `${path}/tag`),
+        zOrder: parseZOrderV1(record.zOrder, `${path}/zOrder`),
+      });
+    case "setLayerOrder":
+      return Object.freeze({
+        kind,
+        layerIds: Object.freeze(
+          readArray(record.layerIds, `${path}/layerIds`).map((layerId, index) =>
+            parseStageLayerIdV1(layerId, `${path}/layerIds/${String(index)}`)
+          ),
+        ),
       });
     case "setLayerTransform":
       return Object.freeze({
@@ -353,6 +382,38 @@ function applyMutationV1(stage: MutableStageV1, mutation: StageMutationV1, point
         );
       }
       layer.entries[index] = Object.freeze({ ...current, appearance: mutation.appearance });
+      return;
+    }
+    case "setZOrder": {
+      const layer = requireLayerV1(stage, mutation.layerId, pointer);
+      const index = entryIndexV1(layer, mutation.tag);
+      const current = index >= 0 ? layer.entries[index] : undefined;
+      if (current === undefined) {
+        throw new StageMutationRejectionErrorV1(
+          "stage.tag_unknown",
+          pointer,
+          `tag "${mutation.tag}" does not exist on layer "${mutation.layerId}"`,
+        );
+      }
+      if (current.zOrder === mutation.zOrder) return;
+      layer.entries.splice(index, 1);
+      insertEntryV1(layer, Object.freeze({ ...current, zOrder: mutation.zOrder }));
+      return;
+    }
+    case "setLayerOrder": {
+      const uniqueLayerIds = new Set(mutation.layerIds);
+      if (
+        mutation.layerIds.length !== stage.layers.size ||
+        uniqueLayerIds.size !== mutation.layerIds.length ||
+        mutation.layerIds.some((layerId) => !stage.layers.has(layerId as string))
+      ) {
+        throw new StageMutationRejectionErrorV1(
+          "stage.layer_order_invalid",
+          `${pointer}/layerIds`,
+          "layerIds must be an exact permutation of the current stage layers",
+        );
+      }
+      stage.layerOrder = mutation.layerIds;
       return;
     }
     case "setLayerTransform": {

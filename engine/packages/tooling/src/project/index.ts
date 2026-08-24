@@ -52,6 +52,7 @@ export type {
   SillymakerProjectConfigV1,
   SillymakerWorkspaceConfigV1,
   StoryApplicationConfigV1,
+  StorySceneSourceV1,
   StoryWebIdentityRefV1,
   StoryWebTargetV1,
 } from "./config.ts";

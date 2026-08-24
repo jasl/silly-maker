@@ -181,7 +181,8 @@ Host. Neither shell receives a Game Session writer.
 
 ### Structured Scene operation workflow
 
-Scene canvas, inspector, construction, and cue/motion edits must use the
+The current Studio Scene canvas, inspector, construction, and cue/motion edits
+operate on the explicit `low_level_scene` authority and must use the
 package-private `engine/packages/studio/src/core/scene-operations/` stack. Add or
 change an edit by updating its revisioned contract, getter-free admission, pure
 reducer, and behavior tests together. The reducer must return a completely
@@ -205,6 +206,71 @@ Focused AR2 checks are:
 
 ```sh
 deno run -A npm:vitest run engine/packages/studio/src/core/scene-operations engine/packages/ui/src/debug/authoring-session.test.ts engine/packages/studio/src/studio-app.test.tsx
+deno task typecheck
+```
+
+### Authoring Scene source/compiler workflow
+
+For a hierarchical scene, declare one explicit source authority in the
+application's `sillymaker.config.ts`:
+
+```ts
+export const sillymakerAppConfigV1 = {
+  // ...the rest of the application declaration...
+  sceneSources: [{
+    sceneId: "scene.example.opening",
+    specifier: "#sillymaker/scene/opening",
+    sourceKind: "authoring_scene",
+    source: "src/scenes/opening/opening.authoring-scene.json",
+  }],
+} as const satisfies SillymakerAppConfigV1;
+```
+
+`authoring_scene` requires the app-relative source path; `low_level_scene` keeps
+the ordinary package module and must not declare `source`. Do not infer or switch
+authority because both suffixes exist. The Project Authoring Index admits
+`*.authoring-scene.json` and `*.scene.json` into the same metadata snapshot with
+their source kinds, but the existing Scene list/read/write/create CAS port
+intentionally exposes only `low_level_scene`. Until M5 lands, edit Authoring Scene
+JSON directly; the old Studio product surface is not its editor.
+
+Map the same `specifier` under the application's `package.json#imports`. For an
+Authoring Scene, that mapping points to a small local fallback which reads the
+source bytes, performs the same admission/compile, and exports `sceneRuntimePlanV1`
+for non-Vite Deno tooling and tests; `template/src/scenes/opening/authoring-source.ts`
+is the maintained pattern. A low-level binding maps the specifier directly to
+its ordinary JSON/module, as Cat Cafe does. Do not import either target by a
+relative path from Story code—the exact package specifier is the declared
+authority boundary.
+
+Authoring Scene files use `format: "sillymaker.authoring-scene"`, version `1`.
+Run bounded source bytes through `admitAuthoringSceneSourceBytesV1` once, then
+pass the admitted normalized IR to `compileAuthoringSceneV1`; internal consumers
+must not repeat source admission. Layer/root/children array order is authoring
+paint authority. Stable `objectId` values become Stage tags directly. Omitted
+`localTransform`, `children`, and binding members normalize to identity/empty
+values. Keep runtime consumption on `compiled.runtimePlan`; `objectTargets`,
+`bindings`, `inspection`, `sourceMap`, and the result of
+`projectAuthoringSceneFacetsV1` are authoring-only data.
+
+The Vite plugin watches the configured source, intercepts only its exact package
+specifier, and generates a virtual module containing the runtime plan. A small
+source-reading fallback module may support non-Vite Deno Story tooling/tests, but
+the release Player graph must use the virtual module and exclude that fallback,
+the source JSON, and the authoring admission/compiler. The Template opening is
+the maintained release example. This build path does not activate Deno Desktop
+HMR or Desktop production promotion; the private Desktop adapter remains
+explicit, default-off, and separately evidence-gated.
+
+Focused M4 source/compiler checks are:
+
+```sh
+deno run -A npm:vitest run \
+  engine/packages/base/src/authoring/authoring-scene.test.ts \
+  engine/packages/base/src/authoring/authoring-scene-facets.test.ts \
+  engine/packages/tooling/src/project/authoring-index.test.ts \
+  engine/packages/tooling/src/vite/authoring-scene-source.test.ts \
+  engine/packages/tooling/src/vite/build-dependency-receipt.test.ts
 deno task typecheck
 ```
 
@@ -299,12 +365,12 @@ accepted active-registry publication, never backend activation alone.
 
 Current R0–R3 characterization:
 
-| Class | Browser                                                                                                                                                                                                                                        | Deno Desktop                                                                                                                                                         |
-| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R0    | Authoring Scene/Motion/Regions read/refresh and CAS admission update the existing document session. A saved Engine Lab Scene reaches the running domain through the separate R2 path.                                                          | The static Player shell has no author/source update path.                                                                                                            |
-| R1    | Standalone/embedded Authoring binding HMR uses inert/offscreen, document-connected staging and one persistent visible root. Eligible component-only Player modules may also use Vite React Fast Refresh without SillyMaker atomic publication. | Not wired.                                                                                                                                                           |
-| R2    | Engine Lab's Vite identity owner injects current real `BuildIdentity` into a literal-self-accepting composition candidate; the Web composer replaces Game/Session on the same Host/root and preserves the sibling Authoring Host.              | Not wired.                                                                                                                                                           |
-| R3    | Product applications without an admitted R2 boundary, config changes, Fast Refresh-ineligible changes, and otherwise unclassified changes use full-page reload. Persisted Save may recover; in-process identity is not promised.               | Built `dist/` changes require rebuild and Host relaunch. Preview records may recover Save; durable draft, author entry, and production persistence are not promised. |
+| Class | Browser                                                                                                                                                                                                                                                                                                                                                                             | Deno Desktop                                                                                                                                                         |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R0    | Low-level Scene/Motion/Regions/Chrome read, refresh, and CAS admission update one authoring document session; Engine Lab's retained low-level Scene fixture is detached from Player composition. An Authoring Scene source change recompiles its configured virtual module and then follows the product's ordinary R2/R3 module-update boundary; M4 adds no editor/CAS path for it. | The static Player shell has no author/source update path.                                                                                                            |
+| R1    | Standalone/embedded Authoring binding HMR uses inert/offscreen, document-connected staging and one persistent visible root. Eligible component-only Player modules may also use Vite React Fast Refresh without SillyMaker atomic publication.                                                                                                                                      | Not wired.                                                                                                                                                           |
+| R2    | Engine Lab's Vite identity owner injects current real `BuildIdentity` into a literal-self-accepting composition candidate; the Web composer replaces Game/Session on the same Host/root and preserves the sibling Authoring Host.                                                                                                                                                   | Not wired.                                                                                                                                                           |
+| R3    | Product applications without an admitted R2 boundary, config changes, Fast Refresh-ineligible changes, and otherwise unclassified changes use full-page reload. Persisted Save may recover; in-process identity is not promised.                                                                                                                                                    | Built `dist/` changes require rebuild and Host relaunch. Preview records may recover Save; durable draft, author entry, and production persistence are not promised. |
 
 The focused Chromium/WebKit dev-source cases physically edit the real Engine Lab
 Studio binding, Scene, and Motion. The binding-only R1 update preserves the
@@ -997,10 +1063,11 @@ p50/p95 `0.348/0.363 ms` versus `0.899/0.934 ms`, first-pack admission
 1,000-entry pack and retain the same 60-byte State/digest; raw reports remain
 temporary owner-review evidence.
 
-`deno task bench:authoring-index` generates 10- and 1,000-document profiles from
-the four current authoring document families. It measures a fresh lazy project
-owner, one sweep through the four real list views over its cached snapshot, and
-one changed Scene becoming current after path invalidation. The report records
+`deno task bench:authoring-index` generates a 10-document mixed-family reference
+profile and a 1,000-Authoring-Scene scale profile (50 objects per scene). It
+measures a fresh lazy project owner, one sweep through the real metadata/list
+consumers over its cached snapshot, and one changed Scene becoming current after
+path invalidation. The report records
 raw timing plus the owner's real `treeWalks/fileReads/parses/invalidations`
 deltas. For N valid documents the maintained structural expectations are
 `1/N/N/0`, `0/0/0/0`, and `0/1/1/1`; the last case is one direct logical
@@ -1008,6 +1075,14 @@ invalidation, not a claim that a Vite watcher and an explicit CAS write can
 never both signal the same physical edit. The benchmark reports measurements
 and does not make a promotion decision. Generated documents are removed and the
 JSON report defaults to OS temp; `--output <path>` selects an artifact location.
+
+The 2026-08-24 M4 modified-worktree, Deno 2.9.5 checkpoint (one warmup plus five
+samples) measured the 1,000-scene/50,000-object profile at cold-build p50/p95
+`186.112/189.645 ms`, cached sweep `0.040/0.052 ms`, and single-file
+invalidate-to-current `0.639/0.710 ms`. Cold work was one tree walk plus 1,000
+reads and 1,000 parses; cached work was all zero; invalidation performed one read,
+one parse, and one invalidation with no tree walk. These are raw local trends and
+structural work counts, not a portable timing threshold or promotion decision.
 
 The bundle axis uses the real Template Player entry and the maintained
 SillyMaker Vite config, while holding its GUI and selected first 1,000-entry

@@ -1,0 +1,75 @@
+{
+  "format": "sillymaker.authoring-scene",
+  "version": 1,
+  "sceneId": "scene.e2e.procedure",
+  "label": "储藏室实验流程",
+  "canvas": { "width": 1600, "height": 1000 },
+  "layers": [
+    {
+      "layerId": "layer.e2e.background",
+      "label": "背景",
+      "roots": [
+        {
+          "objectId": "tag.e2e.bg",
+          "label": "储藏室",
+          "visual": { "contentId": "content.e2e.bg.storeroom" }
+        }
+      ]
+    },
+    {
+      "layerId": "layer.e2e.characters",
+      "label": "研究员",
+      "roots": [
+        {
+          "objectId": "tag.e2e.researchers",
+          "label": "研究员组",
+          "children": [
+            {
+              "objectId": "tag.e2e.alpha",
+              "label": "研究员甲",
+              "localTransform": {
+                "x": 480,
+                "y": 620,
+                "scalePermille": 1000,
+                "opacityPermille": 1000,
+                "mirrored": false
+              },
+              "visual": {
+                "contentId": "content.e2e.char.alpha",
+                "appearance": { "pose": "standing", "expression": "neutral" }
+              }
+            },
+            {
+              "objectId": "tag.e2e.beta",
+              "label": "研究员乙",
+              "localTransform": {
+                "x": 1120,
+                "y": 620,
+                "scalePermille": 1000,
+                "opacityPermille": 1000,
+                "mirrored": true
+              },
+              "visual": {
+                "contentId": "content.e2e.char.beta",
+                "appearance": { "pose": "standing", "expression": "neutral" }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "layerId": "layer.e2e.props",
+      "label": "道具",
+      "roots": []
+    }
+  ],
+  "cues": [
+    {
+      "cueId": "cue.e2e.alpha-enters",
+      "kind": "show",
+      "objectId": "tag.e2e.alpha",
+      "motionId": "motion.e2e.char-enter"
+    }
+  ]
+}

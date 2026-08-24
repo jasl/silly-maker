@@ -94,10 +94,18 @@ function resolveSceneFileV1(
 /** The Project Authoring Index's scene view: navigator rows + named skips. */
 export function listSceneSourceFilesV1(index: AuthoringProjectIndexV1): SceneListResultV1 {
   return Object.freeze({
-    scenes: index.scenes,
+    // This is the legacy low-level Scene CAS port. Authoring Scene source has
+    // its own admitted/compiler path and must not be offered to this writer.
+    scenes: Object.freeze(
+      index.scenes
+        .filter((scene) => scene.sourceKind === "low_level_scene")
+        .map((scene) =>
+          Object.freeze({ path: scene.path, sceneId: scene.sceneId, label: scene.label })
+        ),
+    ),
     skipped: Object.freeze(
       index.skipped
-        .filter((skip) => skip.kind === "scene")
+        .filter((skip) => skip.kind === "scene" && skip.path.endsWith(sceneFileSuffixV1))
         .map((skip) => Object.freeze({ path: skip.path, reason: skip.reason })),
     ),
   });

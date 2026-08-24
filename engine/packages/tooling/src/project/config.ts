@@ -7,6 +7,7 @@ import type {
   SillymakerProjectConfigV1,
   SillymakerWorkspaceConfigV1,
   StoryApplicationConfigV1,
+  StorySceneSourceV1,
   StoryWebTargetV1,
 } from "./config-types.ts";
 
@@ -17,6 +18,7 @@ export type {
   SillymakerProjectConfigV1,
   SillymakerWorkspaceConfigV1,
   StoryApplicationConfigV1,
+  StorySceneSourceV1,
   StoryWebIdentityRefV1,
   StoryWebTargetV1,
 } from "./config-types.ts";
@@ -27,6 +29,10 @@ const desktopIdentifierPatternV1 =
   /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/u;
 const windowsReservedNamePatternV1 = /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\..*)?$/iu;
 const windowsInvalidFilenameCharacterPatternV1 = /[<>:"|?*]/u;
+const sceneIdPatternV1 = /^scene\.[a-z0-9_.-]+$/u;
+const sceneImportSegmentPatternV1 = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
+const sceneIdMaxLengthV1 = 96;
+const sceneImportSpecifierMaxLengthV1 = 160;
 
 function configErrorV1(code: string, message: string, pointer: string): never {
   throw new AuthoringDiagnosticErrorV1([
@@ -192,6 +198,127 @@ function freezeModuleRefV1(ref: ProjectModuleRefV1, pointer: string): ProjectMod
   });
 }
 
+function requireSceneIdV1(value: unknown, pointer: string): string {
+  if (
+    typeof value !== "string" ||
+    value.length > sceneIdMaxLengthV1 ||
+    !sceneIdPatternV1.test(value)
+  ) {
+    configErrorV1(
+      "project.config_invalid",
+      `scene ID must match ${sceneIdPatternV1.source}`,
+      pointer,
+    );
+  }
+  return value;
+}
+
+function requireSceneImportSpecifierV1(value: unknown, pointer: string): string {
+  if (
+    typeof value !== "string" ||
+    value.length > sceneImportSpecifierMaxLengthV1 ||
+    !value.startsWith("#")
+  ) {
+    configErrorV1(
+      "project.config_invalid",
+      "scene specifier must be a bounded # package import",
+      pointer,
+    );
+  }
+  const segments = value.slice(1).split("/");
+  if (
+    segments.length === 0 ||
+    segments.some((segment) => !sceneImportSegmentPatternV1.test(segment))
+  ) {
+    configErrorV1(
+      "project.config_invalid",
+      "scene specifier must be a safe # package import",
+      pointer,
+    );
+  }
+  return value;
+}
+
+function freezeSceneSourcesV1(
+  value: readonly StorySceneSourceV1[] | undefined,
+  pointer: string,
+): readonly StorySceneSourceV1[] {
+  if (value === undefined) return Object.freeze([]);
+  if (!Array.isArray(value)) {
+    configErrorV1("project.config_invalid", "sceneSources must be an array", pointer);
+  }
+
+  const seenSceneIds = new Set<string>();
+  const seenSpecifiers = new Set<string>();
+  const sources = value.map((source, index): StorySceneSourceV1 => {
+    const sourcePointer = `${pointer}/${String(index)}`;
+    if (typeof source !== "object" || source === null) {
+      configErrorV1(
+        "project.config_invalid",
+        "scene source must be an object",
+        sourcePointer,
+      );
+    }
+    const sceneId = requireSceneIdV1(source.sceneId, `${sourcePointer}/sceneId`);
+    const specifier = requireSceneImportSpecifierV1(
+      source.specifier,
+      `${sourcePointer}/specifier`,
+    );
+    if (seenSceneIds.has(sceneId)) {
+      configErrorV1(
+        "project.scene_source_duplicate",
+        `scene ID "${sceneId}" is declared more than once`,
+        `${sourcePointer}/sceneId`,
+      );
+    }
+    if (seenSpecifiers.has(specifier)) {
+      configErrorV1(
+        "project.scene_source_duplicate",
+        `scene specifier "${specifier}" is declared more than once`,
+        `${sourcePointer}/specifier`,
+      );
+    }
+    seenSceneIds.add(sceneId);
+    seenSpecifiers.add(specifier);
+
+    if (source.sourceKind === "authoring_scene") {
+      const sourcePath = requireRepositoryPathV1(
+        source.source,
+        `${sourcePointer}/source`,
+      );
+      if (!sourcePath.endsWith(".authoring-scene.json")) {
+        configErrorV1(
+          "project.config_invalid",
+          "authoring scene source must end with .authoring-scene.json",
+          `${sourcePointer}/source`,
+        );
+      }
+      return Object.freeze({
+        sceneId,
+        specifier,
+        sourceKind: source.sourceKind,
+        source: sourcePath,
+      });
+    }
+    if (source.sourceKind === "low_level_scene") {
+      if ((source as { readonly source?: unknown }).source !== undefined) {
+        configErrorV1(
+          "project.config_invalid",
+          "low-level scene bindings must not declare source",
+          `${sourcePointer}/source`,
+        );
+      }
+      return Object.freeze({ sceneId, specifier, sourceKind: source.sourceKind });
+    }
+    return configErrorV1(
+      "project.config_invalid",
+      "scene sourceKind must be authoring_scene or low_level_scene",
+      `${sourcePointer}/sourceKind`,
+    );
+  });
+  return Object.freeze(sources);
+}
+
 /** Application roots may be `.` when a project is its own repository root. */
 function requireStoryRootV1(value: unknown, pointer: string): string {
   if (value === ".") return value;
@@ -266,6 +393,7 @@ export function defineSillymakerProjectV1(
       studio: application.studio === null
         ? null
         : freezeModuleRefV1(application.studio, `${pointer}/studio`),
+      sceneSources: freezeSceneSourcesV1(application.sceneSources, `${pointer}/sceneSources`),
     });
   });
   return Object.freeze({
@@ -347,6 +475,7 @@ export function defineSillymakerAppV1(config: SillymakerAppConfigV1): Sillymaker
     studio: config.studio === undefined || config.studio === null
       ? null
       : freezeModuleRefV1(config.studio, `${pointer}/studio`),
+    sceneSources: freezeSceneSourcesV1(config.sceneSources, `${pointer}/sceneSources`),
     web: web === null ? null : Object.freeze({
       applicationHtml: requireRepositoryPathV1(
         web.applicationHtml,
@@ -441,6 +570,7 @@ export function deriveStoryApplicationV1(
   const app = defineSillymakerAppV1(config);
   const web = app.web ?? null;
   const webIdentity = web?.identity ?? null;
+  const sceneSources = app.sceneSources ?? Object.freeze([]);
   return Object.freeze({
     applicationId: app.applicationId,
     label: app.label,
@@ -457,6 +587,16 @@ export function deriveStoryApplicationV1(
       module: joinAppPathV1(directory, app.studio.module),
       exportName: app.studio.exportName,
     }),
+    sceneSources: Object.freeze(
+      sceneSources.map((source) =>
+        source.sourceKind === "authoring_scene"
+          ? Object.freeze({
+            ...source,
+            source: joinAppPathV1(directory, source.source),
+          })
+          : source
+      ),
+    ),
     web: web === null ? null : Object.freeze({
       storyRoot: directory,
       applicationHtml: joinAppPathV1(directory, web.applicationHtml),

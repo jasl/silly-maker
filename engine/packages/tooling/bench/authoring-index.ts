@@ -29,8 +29,24 @@ interface FixtureV1 {
   readonly root: string;
   readonly changedScenePath: string;
   readonly changedSceneRelativePath: string;
+  readonly changedSceneSourceKind: "authoring_scene" | "low_level_scene";
   readonly counts: Readonly<Record<DocumentFamilyV1, number>>;
+  readonly sceneSourceCounts: Readonly<{
+    readonly authoringScene: number;
+    readonly lowLevelScene: number;
+  }>;
+  readonly generatedObjectCount: number;
+  readonly objectsPerAuthoringScene: number;
 }
+
+type IndexProfileV1 =
+  | { readonly profile: "index-reference"; readonly kind: "reference"; readonly documentCount: 10 }
+  | {
+    readonly profile: "index-scale";
+    readonly kind: "authoring-object-scale";
+    readonly documentCount: 1_000;
+    readonly objectsPerScene: 50;
+  };
 
 const repositoryRootV1 = fileURLToPath(new URL("../../../..", import.meta.url));
 const sampleCountV1 = 5;
@@ -40,16 +56,26 @@ const familiesV1: readonly DocumentFamilyV1[] = [
   "regions",
   "chrome-layout",
 ];
-const profilesV1 = [
-  { profile: "index-reference", documentCount: 10 },
-  { profile: "index-scale", documentCount: 1_000 },
-] as const;
+const profilesV1: readonly IndexProfileV1[] = [
+  { profile: "index-reference", kind: "reference", documentCount: 10 },
+  {
+    profile: "index-scale",
+    kind: "authoring-object-scale",
+    documentCount: 1_000,
+    objectsPerScene: 50,
+  },
+];
 
 function serialV1(index: number): string {
   return String(index).padStart(6, "0");
 }
 
-function sourcePathV1(root: string, family: DocumentFamilyV1, index: number): string {
+function sourcePathV1(
+  root: string,
+  family: DocumentFamilyV1,
+  index: number,
+  sceneSourceKind: "authoring_scene" | "low_level_scene" = "low_level_scene",
+): string {
   const serial = serialV1(index);
   const bucket = String(Math.floor(index / 10)).padStart(3, "0");
   const stem = family === "scene"
@@ -59,14 +85,43 @@ function sourcePathV1(root: string, family: DocumentFamilyV1, index: number): st
     : family === "regions"
     ? `r${serial}`
     : `l${serial}`;
-  const suffix = family === "chrome-layout" ? "chrome-layout.json" : `${family}.json`;
+  const suffix = family === "scene" && sceneSourceKind === "authoring_scene"
+    ? "authoring-scene.json"
+    : family === "chrome-layout"
+    ? "chrome-layout.json"
+    : `${family}.json`;
   return join(root, "sources", `bucket-${bucket}`, `${stem}.${suffix}`);
 }
 
-function sourceBytesV1(family: DocumentFamilyV1, index: number, labelSuffix = ""): string {
+function sourceBytesV1(
+  family: DocumentFamilyV1,
+  index: number,
+  labelSuffix = "",
+  sceneSourceKind: "authoring_scene" | "low_level_scene" = "low_level_scene",
+  objectsPerAuthoringScene = 0,
+): string {
   const serial = serialV1(index);
   const label = `${family} ${serial}${labelSuffix}`;
-  const document = family === "scene"
+  const document = family === "scene" && sceneSourceKind === "authoring_scene"
+    ? {
+      format: "sillymaker.authoring-scene",
+      version: 1,
+      sceneId: `scene.scale.s${serial}`,
+      label,
+      canvas: { width: 1280, height: 720 },
+      layers: [
+        {
+          layerId: "layer.scale.objects",
+          label: "Objects",
+          roots: Array.from({ length: objectsPerAuthoringScene }, (_, objectIndex) => ({
+            objectId: `tag.scale.s${serial}.object-${String(objectIndex).padStart(3, "0")}`,
+            label: `Object ${String(objectIndex)}`,
+          })),
+        },
+      ],
+      cues: [],
+    }
+    : family === "scene"
     ? {
       format: "sillymaker.scene",
       version: 1,
@@ -133,26 +188,60 @@ function sourceBytesV1(family: DocumentFamilyV1, index: number, labelSuffix = ""
   return `${JSON.stringify(document)}\n`;
 }
 
-function createFixtureV1(documentCount: number): FixtureV1 {
-  const root = mkdtempSync(join(tmpdir(), `sillymaker-authoring-index-${documentCount}-`));
+function createFixtureV1(profile: IndexProfileV1): FixtureV1 {
+  const root = mkdtempSync(
+    join(tmpdir(), `sillymaker-authoring-index-${profile.documentCount}-`),
+  );
   const counts: Record<DocumentFamilyV1, number> = {
     scene: 0,
     motion: 0,
     regions: 0,
     "chrome-layout": 0,
   };
-  for (let index = 0; index < documentCount; index += 1) {
-    const family = familiesV1[index % familiesV1.length]!;
-    const path = sourcePathV1(root, family, index);
+  const sceneSourceCounts = { authoringScene: 0, lowLevelScene: 0 };
+  let generatedObjectCount = 0;
+  for (let index = 0; index < profile.documentCount; index += 1) {
+    const family = profile.kind === "authoring-object-scale"
+      ? "scene"
+      : familiesV1[index % familiesV1.length]!;
+    const sceneSourceKind = profile.kind === "authoring-object-scale"
+      ? "authoring_scene"
+      : "low_level_scene";
+    const path = sourcePathV1(root, family, index, sceneSourceKind);
     mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, sourceBytesV1(family, index));
+    const objectsPerAuthoringScene = profile.kind === "authoring-object-scale"
+      ? profile.objectsPerScene
+      : 0;
+    writeFileSync(
+      path,
+      sourceBytesV1(family, index, "", sceneSourceKind, objectsPerAuthoringScene),
+    );
     counts[family] += 1;
+    if (family === "scene") {
+      if (sceneSourceKind === "authoring_scene") {
+        sceneSourceCounts.authoringScene += 1;
+        generatedObjectCount += objectsPerAuthoringScene;
+      } else {
+        sceneSourceCounts.lowLevelScene += 1;
+      }
+    }
   }
+  const changedSceneSourceKind = profile.kind === "authoring-object-scale"
+    ? "authoring_scene"
+    : "low_level_scene";
   return {
     root,
-    changedScenePath: sourcePathV1(root, "scene", 0),
-    changedSceneRelativePath: "sources/bucket-000/s000000.scene.json",
+    changedScenePath: sourcePathV1(root, "scene", 0, changedSceneSourceKind),
+    changedSceneRelativePath: changedSceneSourceKind === "authoring_scene"
+      ? "sources/bucket-000/s000000.authoring-scene.json"
+      : "sources/bucket-000/s000000.scene.json",
+    changedSceneSourceKind,
     counts: Object.freeze(counts),
+    sceneSourceCounts: Object.freeze(sceneSourceCounts),
+    generatedObjectCount,
+    objectsPerAuthoringScene: profile.kind === "authoring-object-scale"
+      ? profile.objectsPerScene
+      : 0,
   };
 }
 
@@ -177,6 +266,16 @@ function assertCountV1(subject: string, actual: number, expected: number): void 
 
 function assertIndexV1(fixture: FixtureV1, index: AuthoringProjectIndexV1) {
   assertCountV1("scene count", index.scenes.length, fixture.counts.scene);
+  assertCountV1(
+    "authoring scene count",
+    index.scenes.filter((scene) => scene.sourceKind === "authoring_scene").length,
+    fixture.sceneSourceCounts.authoringScene,
+  );
+  assertCountV1(
+    "low-level scene count",
+    index.scenes.filter((scene) => scene.sourceKind === "low_level_scene").length,
+    fixture.sceneSourceCounts.lowLevelScene,
+  );
   assertCountV1("motion count", index.motions.length, fixture.counts.motion);
   assertCountV1("regions count", index.regions.length, fixture.counts.regions);
   assertCountV1(
@@ -233,11 +332,34 @@ function measureListSweepV1(
   const index = owner.snapshot();
   const before = owner.counters();
   const startedAt = performance.now();
-  const scene = measureV1(() => listSceneSourceFilesV1(index));
+  const sceneIndex = measureV1(() => {
+    let authoringScene = 0;
+    let lowLevelScene = 0;
+    for (const scene of index.scenes) {
+      if (scene.sourceKind === "authoring_scene") authoringScene += 1;
+      else lowLevelScene += 1;
+    }
+    return { authoringScene, lowLevelScene };
+  });
+  const lowLevelScenePort = measureV1(() => listSceneSourceFilesV1(index));
   const motion = measureV1(() => listMotionSourceFilesV1(index));
   const regions = measureV1(() => listRegionsSourceFilesV1(index));
   const chromeLayout = measureV1(() => listChromeLayoutSourceFilesV1(index));
-  assertCountV1("scene list count", scene.value.scenes.length, fixture.counts.scene);
+  assertCountV1(
+    "authoring scene index count",
+    sceneIndex.value.authoringScene,
+    fixture.sceneSourceCounts.authoringScene,
+  );
+  assertCountV1(
+    "low-level scene index count",
+    sceneIndex.value.lowLevelScene,
+    fixture.sceneSourceCounts.lowLevelScene,
+  );
+  assertCountV1(
+    "legacy scene list count",
+    lowLevelScenePort.value.scenes.length,
+    fixture.sceneSourceCounts.lowLevelScene,
+  );
   assertCountV1("motion list count", motion.value.motions.length, fixture.counts.motion);
   assertCountV1(
     "regions list count",
@@ -251,8 +373,8 @@ function measureListSweepV1(
   );
   assertCountV1(
     "list skipped count",
-    scene.value.skipped.length + motion.value.skipped.length + regions.value.skipped.length +
-      chromeLayout.value.skipped.length,
+    lowLevelScenePort.value.skipped.length + motion.value.skipped.length +
+      regions.value.skipped.length + chromeLayout.value.skipped.length,
     0,
   );
   const work = counterDeltaV1(before, owner.counters());
@@ -264,7 +386,8 @@ function measureListSweepV1(
   });
   return {
     total: performance.now() - startedAt,
-    scene: scene.durationMs,
+    sceneIndex: sceneIndex.durationMs,
+    lowLevelScenePort: lowLevelScenePort.durationMs,
     motion: motion.durationMs,
     regions: regions.durationMs,
     chromeLayout: chromeLayout.durationMs,
@@ -280,13 +403,25 @@ function measureSingleFileChangeV1(
   const labelSuffix = ` revision-${String(sampleIndex)}`;
   const before = owner.counters();
   const startedAt = performance.now();
-  writeFileSync(fixture.changedScenePath, sourceBytesV1("scene", 0, labelSuffix));
+  writeFileSync(
+    fixture.changedScenePath,
+    sourceBytesV1(
+      "scene",
+      0,
+      labelSuffix,
+      fixture.changedSceneSourceKind,
+      fixture.objectsPerAuthoringScene,
+    ),
+  );
   owner.invalidate(fixture.changedSceneRelativePath);
-  const result = listSceneSourceFilesV1(owner.snapshot());
+  const result = owner.snapshot();
   const durationMs = performance.now() - startedAt;
   const changed = result.scenes.find((scene) => scene.sceneId === "scene.scale.s000000");
   if (changed?.label !== `scene 000000${labelSuffix}`) {
     throw new Error("single-file change was not visible through the current scene list contract");
+  }
+  if (changed.sourceKind !== fixture.changedSceneSourceKind) {
+    throw new Error("single-file change moved between scene source authorities");
   }
   const work = counterDeltaV1(before, owner.counters());
   assertWorkV1("single-file change", work, {
@@ -298,8 +433,8 @@ function measureSingleFileChangeV1(
   return { durationMs, work };
 }
 
-function measureProfileV1(profile: string, documentCount: number) {
-  const fixture = createFixtureV1(documentCount);
+function measureProfileV1(profile: IndexProfileV1) {
+  const fixture = createFixtureV1(profile);
   try {
     const warmup = measureColdBuildV1(fixture);
     measureListSweepV1(fixture, warmup.owner);
@@ -319,9 +454,11 @@ function measureProfileV1(profile: string, documentCount: number) {
       );
     }
     return {
-      profile,
-      documentCount,
+      profile: profile.profile,
+      documentCount: profile.documentCount,
       familyCounts: fixture.counts,
+      sceneSourceCounts: fixture.sceneSourceCounts,
+      generatedObjectCount: fixture.generatedObjectCount,
       samples: sampleCountV1,
       measuredWork: {
         source: "project-index-owner-counters",
@@ -333,7 +470,12 @@ function measureProfileV1(profile: string, documentCount: number) {
         coldBuild: distributionV1(coldBuildMs),
         listPortSweep: {
           total: distributionV1(listPortSweepMs.map((sample) => sample.total)),
-          scene: distributionV1(listPortSweepMs.map((sample) => sample.scene)),
+          sceneIndex: distributionV1(
+            listPortSweepMs.map((sample) => sample.sceneIndex),
+          ),
+          lowLevelScenePort: distributionV1(
+            listPortSweepMs.map((sample) => sample.lowLevelScenePort),
+          ),
           motion: distributionV1(listPortSweepMs.map((sample) => sample.motion)),
           regions: distributionV1(listPortSweepMs.map((sample) => sample.regions)),
           chromeLayout: distributionV1(listPortSweepMs.map((sample) => sample.chromeLayout)),
@@ -378,8 +520,8 @@ function repositoryStateV1() {
 
 const outputPath = outputPathV1(Deno.args);
 const report = {
-  schemaVersion: 2,
-  workload: "authoring-index-incremental-v1",
+  schemaVersion: 3,
+  workload: "authoring-index-incremental-v2",
   generatedAt: new Date().toISOString(),
   repository: repositoryStateV1(),
   environment: {
@@ -392,15 +534,14 @@ const report = {
   interpretation: {
     trendOnly: true,
     generatedDocumentsAreTemporary: true,
+    scaleProfileContainsOneThousandAuthoringScenesAndFiftyThousandObjects: true,
     coldBuildMeansFreshIndexInstanceAfterWarmup: true,
-    listPortSweepUsesOneSharedSnapshotAcrossFourFamilyViews: true,
+    cachedListSweepUsesOneSharedSnapshotAcrossIndexAndLegacyFamilyViews: true,
     singleFileChangeInvalidatesOnePathOnTheSameOwner: true,
     counterDeltasAreMeasuredByTheProjectIndexOwner: true,
     counterDeltasAreStructuralAcceptanceNotMachineTimingThresholds: true,
   },
-  profiles: profilesV1.map(({ profile, documentCount }) =>
-    measureProfileV1(profile, documentCount)
-  ),
+  profiles: profilesV1.map(measureProfileV1),
 };
 
 mkdirSync(dirname(outputPath), { recursive: true });

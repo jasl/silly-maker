@@ -117,7 +117,7 @@ const templateSceneRegistryV1: Readonly<Record<string, TemplateSceneBindingV1>> 
  * The placeholder scene: a short "rain has just stopped" vignette proving
  * every block kind once. Replace it wholesale when starting a real game.
  * Visual composition (entries, placements, entrance motion) lives in
- * `src/scenes/opening/opening.scene.json`; stage blocks reference its cues
+ * `src/scenes/opening/opening.authoring-scene.json`; stage blocks reference its cues
  * by short key (idempotent ensure semantics — re-entry never double-shows
  * content).
  *

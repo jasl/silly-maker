@@ -1,6 +1,6 @@
 # SillyMaker architecture
 
-状态：持续维护的现状文档。最后结构性复核：2026-08-23。
+状态：持续维护的现状文档。最后结构性复核：2026-08-24。
 
 本文描述当前实现的主要边界和数据流。它不是冻结 ABI；修改包职责、权威状态、Story
 组合、持久化格式或公开入口时，应同时更新本文、相应类型和行为测试。
@@ -24,6 +24,10 @@ engine/product lane。
 同日交付的 Authoring Workspace Focus & Navigation 将 closed manifest 收口为 Host-owned
 active/visited focus、accessible rail 与单一可见 workspace；它没有改变各领域 session/State
 authority，也没有激活 Desktop HMR。
+Scale/Scene Object/Modular GUI 轮现已交付 M0–M4：静态 content plane、State hot plan、增量
+authoring index、core/outer GUI 边界和第一阶 Authoring Scene source/compiler 已落地。M5 的
+Inspector-first replacement 与旧 Studio UI 清理尚未实现；不能把 M4 的 authoring-side
+inspection projection 当成已交付的编辑器产品面。
 
 ## 1. System context
 
@@ -152,14 +156,62 @@ authoritative Session or State writer.
 
 The Vite dev-sources layer owns one separate, lazy Project Authoring Index per
 configured application server. Its first list request performs one all-family
-tree walk and admits each matching Scene/Motion/Regions/Chrome document once,
-retaining only path/id/label metadata or a named skip. All four list ports share
-that immutable snapshot; app-root watcher events and successful CAS/create
-writes invalidate only the affected path. Selected document GET/CAS operations
-continue reading the complete payload directly from disk. One-shot Story CLI
-checks reuse the enumeration/admission implementation without sharing the
-dev-server instance. This is tooling discovery, not another Story, document, or
-runtime authority.
+tree walk and admits each matching Authoring Scene (`*.authoring-scene.json`),
+low-level Scene (`*.scene.json`), Motion, Regions, or Chrome document once,
+retaining only path/id/label/source-kind metadata or a named skip. All list
+consumers share that immutable snapshot; app-root watcher events and successful
+CAS/create writes invalidate only the affected path. Selected document GET/CAS
+operations continue reading the complete payload directly from disk. The legacy
+Scene CAS/list port deliberately filters the shared index to `low_level_scene`;
+it neither rewrites nor pretends to edit an `authoring_scene` source. One-shot
+Story CLI checks reuse the enumeration/admission implementation without sharing
+the dev-server instance. This is tooling discovery, not another Story, document,
+or runtime authority.
+
+### Authoring Scene compile and runtime boundary
+
+An application chooses exactly one source authority per scene in
+`sillymaker.config.ts`: `authoring_scene` names an explicit JSON source and
+package-import specifier, while `low_level_scene` keeps an ordinary
+`SceneDocumentV1` module. Tooling does not infer authority from file existence or
+the import graph, and the two paths are not synchronized. The starter Template
+opening is the first release consumer of `authoring_scene`; the existing Studio
+Scene workspace and its structured operations remain on the low-level path until
+M5 replaces that product surface.
+
+The Authoring Scene source boundary reads bounded bytes, performs one Strict JSON
+and schema/value admission, and freezes a normalized hierarchy plus JSON-pointer
+source map. The compiler then trusts that typed IR. Ordered layers contain ordered
+root object trees; `objectId` is also the runtime Stage tag, group objects may
+carry transforms without producing entries, and visual objects lower by per-layer
+depth-first preorder into dense z-order. Parent/local transforms are composed once
+with deterministic integer/permille rounding. The compiler result is deliberately
+split:
+
+- `runtimePlan` contains only `sourceKind: "authoring_scene"`, the existing
+  low-level `SceneDocumentV1`, and ordered layer IDs;
+- object targets, closed binding references, inspection data, JSON-pointer source
+  locations, and catalog-backed hit-region/Motion/Timeline/GUI/intent facets stay
+  authoring-side and never enter State, Snapshot, Save, or the Player plan.
+
+Vite intercepts only the exact configured authoring specifier and emits an
+in-memory module containing that runtime plan. The checked release graph contains
+the virtual runtime module but excludes the source JSON, compiler, and the
+non-Vite Deno tooling fallback. `sceneFromAuthoringRuntimePlan` materializes the
+existing Scene accessors without a second admission or a second live Scene
+database.
+
+Authoring paint authority is explicit: ordered layers, then each layer's DFS
+preorder. The compiler assigns dense z-order, while the authoring facet projection
+reverses the catalog's bottom-to-top region sequence into an explicit
+topmost-first `pointerPickOrder` (therefore later regions of one object are picked
+before earlier ones). Keyboard focus remains owned by the existing Stage
+input/focus and catalog/DOM order; it is not inferred from z-order. The Stage
+reconciles accepted authoring order with ordinary atomic `setLayerOrder` and
+`setZOrder` mutations. A same-set layer permutation is valid; a changed/duplicate
+set or missing entry rejects the complete batch. Browser R2 may run that ordinary
+command only after exact Save + lease adoption, preserving hidden cue targets and
+gameplay-owned placement/appearance. No DOM-only reorder becomes authoritative.
 
 Engine Lab's DevDock provenance panel is read-only; the duplicate writable
 Game-root Motion panel was retired. A real Scene cue supplies the maintained
@@ -206,7 +258,7 @@ Rail focus only selects a workspace. Typed navigation from a runtime object or
 one workspace's scene/cue/motion/region/chrome/flow selection into another
 workspace remains unimplemented and requires a separately accepted contract.
 
-Scene editing inside that shared session now passes through Studio's
+Low-level Scene editing inside that shared session passes through Studio's
 package-private structured-operation stack. A getter-free exact admission layer
 accepts revisioned data records; a pure reducer produces a fully re-admitted
 Scene document or a stable diagnostic; one executor then conditionally installs
@@ -824,12 +876,12 @@ propagation; if such a change reaches composition with an unchanged R2 tuple,
 the boundary requests R3 instead of silently swallowing it.
 The current module-update classification is:
 
-| Class | Browser                                                                                                                                                                                                                                                                           | Deno Desktop                                                                                                                                                                    |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R0    | Authoring Scene/Motion/Regions read/refresh and CAS admission update one existing document session. A saved Engine Lab Scene then reaches the running application through its separate R2 boundary.                                                                               | The static Player shell has no author/source update path.                                                                                                                       |
-| R1    | Standalone and embedded Authoring binding/workspace HMR use an inert/offscreen, document-connected staging root followed by one persistent visible root. Eligible component-only Player modules may also use Vite React Fast Refresh.                                             | Not wired.                                                                                                                                                                      |
-| R2    | Engine Lab and Cat Cafe each own a literal composition self-accept boundary with real owner-injected `BuildIdentity`; the Web composer transfers an exact Save + lease pair and replaces Game/Session on the same Host/root. Engine Lab's sibling Authoring Host remains mounted. | Not wired.                                                                                                                                                                      |
-| R3    | Product applications without an admitted R2 boundary, config changes, Fast Refresh-ineligible changes, and otherwise unclassified changes use Vite full-page reload. A normal persisted Save may recover; in-process identity is not retained.                                    | Built static `dist/` changes require rebuild and Host relaunch. Preview records may recover Save; durable drafts, an author entry, and production persistence are not promised. |
+| Class | Browser                                                                                                                                                                                                                                                                                                                                                                                      | Deno Desktop                                                                                                                                                                    |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R0    | Low-level Scene/Motion/Regions/Chrome read, refresh, and CAS admission update one existing authoring document session; Engine Lab's retained low-level Scene fixture is detached from Player composition. An Authoring Scene source change recompiles its configured virtual module and then follows the product's ordinary R2/R3 module-update boundary; M4 adds no editor/CAS path for it. | The static Player shell has no author/source update path.                                                                                                                       |
+| R1    | Standalone and embedded Authoring binding/workspace HMR use an inert/offscreen, document-connected staging root followed by one persistent visible root. Eligible component-only Player modules may also use Vite React Fast Refresh.                                                                                                                                                        | Not wired.                                                                                                                                                                      |
+| R2    | Engine Lab and Cat Cafe each own a literal composition self-accept boundary with real owner-injected `BuildIdentity`; the Web composer transfers an exact Save + lease pair and replaces Game/Session on the same Host/root. Engine Lab's sibling Authoring Host remains mounted.                                                                                                            | Not wired.                                                                                                                                                                      |
+| R3    | Product applications without an admitted R2 boundary, config changes, Fast Refresh-ineligible changes, and otherwise unclassified changes use Vite full-page reload. A normal persisted Save may recover; in-process identity is not retained.                                                                                                                                               | Built static `dist/` changes require rebuild and Host relaunch. Preview records may recover Save; durable drafts, an author entry, and production persistence are not promised. |
 
 The current Web R2 coordinator invalidates and retires the predecessor before it
 starts the admitted successor. A failure before replacement leaves the existing

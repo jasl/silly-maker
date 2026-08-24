@@ -1,8 +1,16 @@
 // SPDX-License-Identifier: MIT
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { dirname, posix, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  admitAuthoringSceneDocumentV1,
+  admitAuthoringSceneSourceBytesV1,
+  compileAuthoringSceneV1,
+} from "@sillymaker/base/authoring/scene";
 import { createStoryBuildIdentityOwnerV1 } from "@sillymaker/tooling/identity/story-build-identity";
+import { buildImportClosureRecordsV1 } from "@sillymaker/tooling/identity/collect-import-closure";
 
 export const e2eBuildIdentityVirtualSpecifierV1 =
   "@sillymaker/web/internal/application-build-identity";
@@ -15,6 +23,38 @@ const normalizeViteModulePathV1 = (path) => posix.normalize(path.replaceAll("\\"
 const studioBindingModulePathV1 = normalizeViteModulePathV1(
   resolve(repositoryRootV1, "e2e/src/tooling/studio-binding.tsx"),
 );
+const procedureAuthoringSourcePathV1 = "e2e/src/scenes/procedure/procedure.authoring-scene.json";
+
+const compareTextV1 = (left, right) => left < right ? -1 : left > right ? 1 : 0;
+
+/**
+ * Procedure source changes that alter replay semantics stay in the simulation
+ * facet. Layer/sibling order is omitted because the R2 successor migrates that
+ * paint authority through one ordinary Stage command.
+ */
+function digestProcedureSceneRuntimePlanV1(plan) {
+  const { entries, cues, ...scene } = plan.sceneDocument;
+  const semantic = {
+    scene: {
+      ...scene,
+      entries: entries
+        .map(({ zOrder: _zOrder, ...entry }) => entry)
+        .toSorted((left, right) =>
+          compareTextV1(`${left.layerId}\0${left.tag}`, `${right.layerId}\0${right.tag}`)
+        ),
+      cues: [...cues].toSorted((left, right) => compareTextV1(left.cueId, right.cueId)),
+    },
+    layerIds: [...plan.orderedLayerIds].toSorted(compareTextV1),
+  };
+  return `sha256:${createHash("sha256").update(JSON.stringify(semantic)).digest("hex")}`;
+}
+
+/** Object-input convenience for the focused semantic-identity tests. */
+export function digestE2eProcedureSceneSimulationV1(source) {
+  return digestProcedureSceneRuntimePlanV1(
+    compileAuthoringSceneV1(admitAuthoringSceneDocumentV1(source)).runtimePlan,
+  );
+}
 
 function reachesLoadedModuleV1(module, targets, visited = new Set()) {
   if (targets.has(module)) return true;
@@ -54,7 +94,39 @@ const ownerV1 = createStoryBuildIdentityOwnerV1({
 
 /** Collects the Engine Lab BuildIdentity input from live source bytes. */
 export async function collectE2eBuildIdentityV1(root = repositoryRootV1) {
-  return await ownerV1.collectBuildIdentityV1(root);
+  const identity = await ownerV1.collectBuildIdentityV1(root);
+  const rawSourceRecords = await buildImportClosureRecordsV1(
+    root,
+    [procedureAuthoringSourcePathV1],
+    "story_presentation",
+  );
+  const sourcePlan = compileAuthoringSceneV1(
+    admitAuthoringSceneSourceBytesV1(
+      await readFile(resolve(root, procedureAuthoringSourcePathV1)),
+    ),
+  ).runtimePlan;
+  const simulationRecord = Object.freeze({
+    path: procedureAuthoringSourcePathV1,
+    facet: "story_simulation",
+    sha256: digestProcedureSceneRuntimePlanV1(sourcePlan),
+  });
+  const storySimulation = new Map(
+    identity.storySimulation.map((record) => [record.path, record]),
+  );
+  storySimulation.set(simulationRecord.path, simulationRecord);
+  const storyPresentation = new Map(
+    identity.storyPresentation.map((record) => [record.path, record]),
+  );
+  for (const record of rawSourceRecords) storyPresentation.set(record.path, record);
+  return Object.freeze({
+    ...identity,
+    storySimulation: Object.freeze(
+      [...storySimulation.values()].sort((left, right) => compareTextV1(left.path, right.path)),
+    ),
+    storyPresentation: Object.freeze(
+      [...storyPresentation.values()].sort((left, right) => compareTextV1(left.path, right.path)),
+    ),
+  });
 }
 
 /** Returns the exact ESM source consumed by Vite's closed E2E virtual module. */

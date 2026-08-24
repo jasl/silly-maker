@@ -213,7 +213,13 @@ hot commit 只访问 subscribers/touched owners 并一次 materialize aggregate 
 又共享一个 lazy metadata-only authoring index，cached lists 零读盘，单文件失效只重读/admission 该
 record。M3 也已于 2026-08-24 交付：默认 Player 只保留必要 GUI，DevDock/preset settings 由 focused
 reference subpath 显式组合，真实 minimal/reference/Inspector/Agent entries 提供最终图正负证据。
-当前唯一下一项为 M4 Scene/Object/Layer 渐进模型。i18n/message-catalog 与 pack unload 在 M0–M5
+M4 也已于 2026-08-24 交付：一次 bounded admission 产生 normalized Authoring Scene IR，deterministic
+compiler 将 ordered layer/object hierarchy 降为既有低层 Scene/runtime plan，并把 inspection/source map/
+interaction facets 留在 authoring sidecar；显式 `authoring_scene`/`low_level_scene` authority 不猜测或双写。
+普通 Stage reconcile 与 exact-rebootstrap Session command 把 paint-order 变化带入 Browser R2 successor，
+不替换 adopted Snapshot 或新增 writer。保留的 index-scale profile 已覆盖 1,000 scenes/50,000 objects，
+仍只保留 metadata 与 path-local invalidation；该交付没有提升 Desktop HMR。当前唯一下一项为 M5
+Inspector replacement 与本计划收口。i18n/message-catalog 与 pack unload 在 M0–M5
 关闭后再按作品重写证据评估，不插入当前顺序。
 
 排序与交付记录以

@@ -1,9 +1,18 @@
 // SPDX-License-Identifier: MIT
-// The procedure scene source is the single authoring authority for its
-// background, character identities, placements, and opening appearances.
-import { sceneFromDocumentV1 } from "@sillymaker/base/authoring/scene";
-import type { SceneV1 } from "@sillymaker/base/authoring/scene";
+// The explicit `authoring_scene` binding is the Player's sole procedure-scene
+// authority. Vite replaces this package import with the runtime-only compiled
+// plan; Deno tooling uses the package-import fallback beside the source.
+import type {
+  AuthoringSceneRuntime,
+  AuthoringSceneRuntimePlan,
+  Scene,
+} from "@sillymaker/base/story/scene";
+import { sceneFromAuthoringRuntimePlan } from "@sillymaker/base/story/scene";
 
-import procedureSceneDocumentV1 from "./procedure.scene.json" with { type: "json" };
+import { sceneRuntimePlanV1 } from "#sillymaker/scene/procedure";
 
-export const labProcedureSceneV1: SceneV1 = sceneFromDocumentV1(procedureSceneDocumentV1);
+export const labProcedureSceneRuntimePlanV1: AuthoringSceneRuntimePlan = sceneRuntimePlanV1;
+
+export const labProcedureSceneV1: Scene & AuthoringSceneRuntime = sceneFromAuthoringRuntimePlan(
+  labProcedureSceneRuntimePlanV1,
+);

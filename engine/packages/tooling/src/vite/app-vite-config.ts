@@ -23,6 +23,7 @@ import {
   parseBuildDependencyMeasurementRequestInternalV1,
 } from "./build-dependency-receipt.ts";
 import { applicationRuntimeBootstrapPluginInternalV1 } from "./application-entry-bootstrap.ts";
+import { authoringSceneSourcePluginInternalV1 } from "./authoring-scene-source.ts";
 import {
   createDesktopDevVitePluginInternalV1,
   desktopDevIntentEnvironmentKeyInternalV1,
@@ -196,6 +197,10 @@ export async function createSillymakerAppViteConfigV1(
   if (web.identity !== null && web.identity !== undefined) {
     const identity = loadBuildIdentityModuleV1(appRoot, web.identity);
     plugins.push(identity.createPlugin({ initialIdentity: await identity.collect() }));
+  }
+  const sceneSources = config.sceneSources ?? Object.freeze([]);
+  if (sceneSources.some((source) => source.sourceKind === "authoring_scene")) {
+    plugins.push(authoringSceneSourcePluginInternalV1({ appRoot, sceneSources }));
   }
   const versionStamp =
     parseVersionStampReceiptInternalV1(process.env[versionStampReceiptEnvironmentKeyInternalV1]) ??

@@ -7,7 +7,10 @@ import { expect, gotoLabV1, test } from "./fixtures.ts";
 
 const conformanceQueryV1 = "?overlay_conformance=1";
 const sceneFileV1 = fileURLToPath(
-  new URL("../../../../../e2e/src/scenes/procedure/procedure.scene.json", import.meta.url),
+  new URL(
+    "../../../../../e2e/src/scenes/procedure/procedure-studio-detached.scene.json",
+    import.meta.url,
+  ),
 );
 
 function alphaXV1(source: string): number {

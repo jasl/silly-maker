@@ -43,7 +43,7 @@ export const templateStoryEntryV1 = defineGamePackage({
   contractRevision: 1,
   identity: {
     id: "story.template.starter",
-    revision: parsePositiveSafeInteger(2),
+    revision: parsePositiveSafeInteger(3),
   },
   define: () => templateStoryDefinitionV1,
 });

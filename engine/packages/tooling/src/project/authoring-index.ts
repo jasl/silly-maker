@@ -8,6 +8,7 @@ import {
   parseRegionsDocumentV1,
   parseSceneDocumentV1,
 } from "@sillymaker/base";
+import { admitAuthoringSceneSourceBytesV1 } from "@sillymaker/base/authoring/scene";
 
 /**
  * The Project Authoring Index (Authoring Architecture S2): one
@@ -26,6 +27,7 @@ import {
 
 export type AuthoringSourceSuffixV1 =
   | ".scene.json"
+  | ".authoring-scene.json"
   | ".motion.json"
   | ".regions.json"
   | ".chrome-layout.json";
@@ -36,10 +38,14 @@ export interface AuthoringSourceFileV1 {
   readonly filePath: string;
 }
 
+export type AuthoringSceneSourceKindV1 = "authoring_scene" | "low_level_scene";
+
 export interface AuthoringSceneSourceV1 {
   readonly path: string;
   readonly sceneId: string;
   readonly label: string;
+  /** Explicit source authority; tooling never infers one authority from admitted contents. */
+  readonly sourceKind: AuthoringSceneSourceKindV1;
 }
 
 export interface AuthoringMotionSourceV1 {
@@ -117,10 +123,16 @@ const authoringKindOrderV1: Readonly<Record<AuthoringSourceKindV1, number>> = Ob
 });
 
 function authoringSourceKindV1(path: string): AuthoringSourceKindV1 | undefined {
-  if (path.endsWith(".scene.json")) return "scene";
+  if (sceneSourceKindV1(path) !== undefined) return "scene";
   if (path.endsWith(".motion.json")) return "motion";
   if (path.endsWith(".regions.json")) return "regions";
   if (path.endsWith(".chrome-layout.json")) return "chrome-layout";
+  return undefined;
+}
+
+function sceneSourceKindV1(path: string): AuthoringSceneSourceKindV1 | undefined {
+  if (path.endsWith(".authoring-scene.json")) return "authoring_scene";
+  if (path.endsWith(".scene.json")) return "low_level_scene";
   return undefined;
 }
 
@@ -187,34 +199,54 @@ function skippedRecordV1(
 function admitAuthoringRecordV1(
   path: string,
   kind: AuthoringSourceKindV1,
-  bytes: string,
+  bytes: Uint8Array,
 ): AdmittedAuthoringRecordV1 {
   try {
-    const parsed = JSON.parse(bytes) as unknown;
     switch (kind) {
       case "scene": {
-        const document = parseSceneDocumentV1(parsed, `/${path}`);
+        const sourceKind = sceneSourceKindV1(path);
+        if (sourceKind === undefined) throw new TypeError("unsupported scene source suffix");
+        const document = sourceKind === "authoring_scene"
+          ? admitAuthoringSceneSourceBytesV1(bytes).document
+          : parseSceneDocumentV1(
+            JSON.parse(new TextDecoder().decode(bytes)) as unknown,
+            `/${path}`,
+          );
         return Object.freeze({
           kind,
-          entry: Object.freeze({ path, sceneId: document.sceneId, label: document.label }),
+          entry: Object.freeze({
+            path,
+            sceneId: document.sceneId,
+            label: document.label,
+            sourceKind,
+          }),
         });
       }
       case "motion": {
-        const document = parseMotionDocumentV1(parsed, `/${path}`);
+        const document = parseMotionDocumentV1(
+          JSON.parse(new TextDecoder().decode(bytes)) as unknown,
+          `/${path}`,
+        );
         return Object.freeze({
           kind,
           entry: Object.freeze({ path, motionId: document.motionId, label: document.label }),
         });
       }
       case "regions": {
-        const document = parseRegionsDocumentV1(parsed, `/${path}`);
+        const document = parseRegionsDocumentV1(
+          JSON.parse(new TextDecoder().decode(bytes)) as unknown,
+          `/${path}`,
+        );
         return Object.freeze({
           kind,
           entry: Object.freeze({ path, regionsId: document.regionsId, label: document.label }),
         });
       }
       case "chrome-layout": {
-        const document = parseChromeLayoutDocumentV1(parsed, `/${path}`);
+        const document = parseChromeLayoutDocumentV1(
+          JSON.parse(new TextDecoder().decode(bytes)) as unknown,
+          `/${path}`,
+        );
         return Object.freeze({
           kind,
           entry: Object.freeze({ path, layoutId: document.layoutId, label: document.label }),
@@ -308,9 +340,9 @@ function readAuthoringRecordV1(
   }
 
   counters.fileReads += 1;
-  let bytes: string;
+  let bytes: Uint8Array;
   try {
-    bytes = readFileSync(filePath, "utf8");
+    bytes = readFileSync(filePath);
   } catch (error) {
     return skippedRecordV1(path, kind, error);
   }

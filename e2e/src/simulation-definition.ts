@@ -60,7 +60,8 @@ export const labStateContractManifestV1 = Object.freeze({
     Object.freeze({
       moduleId: parseModuleId("lab.stage"),
       // Revision 2: placement gained the required opacityPermille (semantic
-      // stage contract revision 3).
+      // stage contract revision 3). The package-private R2 reconcile ingress
+      // reuses the existing stage event/reducer contract.
       moduleContractRevision: parsePositiveSafeInteger(2),
       stateSlots: Object.freeze([parseStateSlotId("simulation.stage")]),
       stateSchema: Object.freeze({

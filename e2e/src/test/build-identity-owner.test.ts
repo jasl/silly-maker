@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
@@ -10,6 +11,7 @@ import * as buildIdentityOwnerV1 from "../../tools/build-identity.mjs";
 const {
   collectE2eBuildIdentityV1,
   createE2eBuildIdentityVirtualPluginV1,
+  digestE2eProcedureSceneSimulationV1,
   e2eBuildIdentityVirtualSpecifierV1,
 } = buildIdentityOwnerV1;
 
@@ -87,6 +89,74 @@ function applicationSuccessorIdentityV1(identity: {
 }
 
 describe("Engine Lab BuildIdentity composition owner", () => {
+  it("publishes raw procedure source in presentation and replay semantics in simulation", async () => {
+    const identity = await collectE2eBuildIdentityV1();
+    expect(identity.storySimulation).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        path: "e2e/src/scenes/procedure/index.ts",
+        facet: "story_simulation",
+      }),
+      expect.objectContaining({
+        path: "e2e/src/scenes/procedure/procedure.authoring-scene.json",
+        facet: "story_simulation",
+      }),
+    ]));
+    expect(identity.storyPresentation).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        path: "e2e/src/scenes/procedure/procedure.authoring-scene.json",
+        facet: "story_presentation",
+      }),
+    ]));
+  });
+
+  it("keeps reorder migratable but changes simulation identity for content edits", () => {
+    type SourceV1 = {
+      layers: Array<{
+        layerId: string;
+        roots: Array<{
+          objectId: string;
+          children?: Array<{
+            objectId: string;
+            visual?: { contentId: string };
+          }>;
+        }>;
+      }>;
+    };
+    const original = JSON.parse(
+      readFileSync(
+        resolve(
+          repositoryRootV1,
+          "e2e/src/scenes/procedure/procedure.authoring-scene.json",
+        ),
+        "utf8",
+      ),
+    ) as SourceV1;
+    const reordered = structuredClone(original);
+    reordered.layers.reverse();
+    const reorderedCharacters = reordered.layers.find(({ layerId }) =>
+      layerId === "layer.e2e.characters"
+    );
+    const reorderedChildren = reorderedCharacters?.roots.find(({ objectId }) =>
+      objectId === "tag.e2e.researchers"
+    )?.children;
+    if (reorderedChildren === undefined) throw new TypeError("procedure children unavailable");
+    reorderedChildren.reverse();
+    expect(digestE2eProcedureSceneSimulationV1(reordered)).toBe(
+      digestE2eProcedureSceneSimulationV1(original),
+    );
+
+    const contentEdit = structuredClone(original);
+    const alpha = contentEdit.layers
+      .find(({ layerId }) => layerId === "layer.e2e.characters")
+      ?.roots.find(({ objectId }) => objectId === "tag.e2e.researchers")
+      ?.children?.find(({ objectId }) => objectId === "tag.e2e.alpha");
+    if (alpha?.visual === undefined) throw new TypeError("procedure alpha unavailable");
+    alpha.visual.contentId = "content.e2e.char.alpha.changed";
+    expect(digestE2eProcedureSceneSimulationV1(contentEdit)).not.toBe(
+      digestE2eProcedureSceneSimulationV1(original),
+    );
+  });
+
   it("publishes the canonical live collector through the shared Web fallback subpath", async () => {
     const identity = await collectE2eBuildIdentityV1();
     const plugin = createE2eBuildIdentityVirtualPluginV1({ initialIdentity: identity });
@@ -108,7 +178,10 @@ describe("Engine Lab BuildIdentity composition owner", () => {
     });
     const identityModule = Object.freeze({ id: resolvedIdentityModuleV1 });
     const changedSceneModule = Object.freeze({
-      id: resolve(repositoryRootV1, "e2e/src/scenes/procedure/procedure.scene.json"),
+      id: resolve(
+        repositoryRootV1,
+        "e2e/src/scenes/procedure/procedure.authoring-scene.json",
+      ),
     });
     const invalidateModule = vi.fn();
     const context = {

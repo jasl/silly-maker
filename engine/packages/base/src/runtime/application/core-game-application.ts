@@ -318,6 +318,20 @@ export interface CoreGameApplicationDefinitionV1<
    */
   summarizeSave?(state: DeepReadonly<TTypes["state"]>): readonly string[] | null;
   /**
+   * Optional authoritative reconciliation for an exact rebootstrap successor.
+   * After the predecessor's exact Save and lease have been adopted, Core hands
+   * this synchronous pure projector the adopted Snapshot and resolved game.
+   * `null` keeps that Snapshot unchanged; a command is dispatched once through
+   * the ordinary Session queue and must commit before construction continues.
+   * Rejection, fault, or a throwing projector fails construction and leaves the
+   * existing latest-handoff recovery responsible for the retryable successor.
+   * Ordinary boot, load, and import never invoke this projector.
+   */
+  projectRebootstrapCommand?(
+    snapshot: DeepReadonly<TTypes["snapshot"]>,
+    resolved: unknown,
+  ): DeepReadonly<TTypes["command"]> | null;
+  /**
    * Opt-in boot-time resume: after persistence is ready the instance
    * loads `auto.current` when it holds a runnable autosave, so a fresh
    * page (or headless host) continues the previous session instead of
@@ -1919,6 +1933,27 @@ export async function createCoreGameApplicationInstanceV1<
       }),
     );
     cleanups.push(clearPendingAutoSaveV1);
+
+    // Exact rebootstrap reconciliation is one ordinary authoritative command,
+    // never an out-of-band Snapshot rewrite. Run it only after handoff adoption
+    // and committed-Snapshot autosave wiring, while construction still owns
+    // failure recovery and before extensions or external consumers can observe
+    // the successor. A non-commit fails closed into the latest-handoff path.
+    if (
+      rebootstrapStart !== undefined &&
+      definition.projectRebootstrapCommand !== undefined
+    ) {
+      const command = definition.projectRebootstrapCommand(
+        created.session.getCurrentSnapshot(),
+        application.resolved,
+      );
+      if (command !== null) {
+        const result = await created.session.dispatch(command);
+        if (result.kind !== "executed" || result.execution.kind !== "committed") {
+          throw new TypeError("core.rebootstrap_reconcile_not_committed");
+        }
+      }
+    }
 
     // Mid-span flushes fall back to the most recent safepoint Snapshot; with
     // none in this anchor era there is nothing safe to write and the stored

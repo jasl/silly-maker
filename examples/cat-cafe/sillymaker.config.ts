@@ -17,6 +17,13 @@ export const sillymakerAppConfigV1 = {
     module: "src/tooling/studio-binding.tsx",
     exportName: "catcafeStudioBindingV1",
   },
+  sceneSources: [
+    {
+      sceneId: "scene.catcafe.opening",
+      specifier: "#sillymaker/scene/opening",
+      sourceKind: "low_level_scene",
+    },
+  ],
   web: {
     applicationHtml: "index.html",
     applicationEntry: "src/application/entry.tsx",

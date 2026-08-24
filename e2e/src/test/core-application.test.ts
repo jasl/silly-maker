@@ -2,10 +2,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { HostAtomicRecordStoreV1, InteractionResolutionV1 } from "@sillymaker/base";
+import { parseStageMutationV1, reduceStageMutationsV1 } from "@sillymaker/base";
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 
 import type { LabApplicationInstanceV1 } from "../application/core-application.ts";
 import { createLabApplicationInstanceV1 } from "../application/core-application.ts";
+import { labCoreApplicationDefinitionV1 } from "../application/core-definition.ts";
 import type { LabInvocationV1 } from "../application/semantic.ts";
 
 const collectV1 = Object.freeze({
@@ -86,6 +88,68 @@ function autoCurrentSpyV1() {
 }
 
 describe("Engine Lab core application", () => {
+  it("projects authoring order drift as one ordinary Stage reconcile command", async () => {
+    const application = await createLabApplicationInstanceV1();
+    const idleSnapshot = application.admin.inspectForTest().snapshot;
+    expect(labCoreApplicationDefinitionV1.projectRebootstrapCommand?.(idleSnapshot, {})).toBeNull();
+
+    await application.semantic.dispatch(collectV1);
+    await application.semantic.dispatch(beginV1);
+    const snapshot = application.admin.inspectForTest().snapshot;
+    const drift = reduceStageMutationsV1(
+      snapshot.state.simulation.stage,
+      [
+        parseStageMutationV1({
+          kind: "setLayerOrder",
+          layerIds: [
+            "layer.e2e.background",
+            "layer.e2e.props",
+            "layer.e2e.characters",
+          ],
+        }, "/mutations/0"),
+        parseStageMutationV1({
+          kind: "setZOrder",
+          layerId: "layer.e2e.characters",
+          tag: "tag.e2e.alpha",
+          zOrder: 1,
+        }, "/mutations/1"),
+        parseStageMutationV1({
+          kind: "setZOrder",
+          layerId: "layer.e2e.characters",
+          tag: "tag.e2e.beta",
+          zOrder: 0,
+        }, "/mutations/2"),
+      ],
+    );
+    expect(drift.kind).toBe("applied");
+    if (drift.kind !== "applied") throw new TypeError("expected applied Stage drift");
+    const driftedSnapshot = Object.freeze({
+      ...snapshot,
+      state: Object.freeze({
+        ...snapshot.state,
+        simulation: Object.freeze({
+          ...snapshot.state.simulation,
+          stage: drift.state,
+        }),
+      }),
+    });
+
+    const command = labCoreApplicationDefinitionV1.projectRebootstrapCommand?.(
+      driftedSnapshot,
+      {},
+    );
+    expect(command).toMatchObject({ kind: "lab.reconcile_stage_order" });
+    if (command?.kind !== "lab.reconcile_stage_order") {
+      throw new TypeError("expected Engine Lab Stage reconcile command");
+    }
+    expect(command.mutations.map(({ kind }) => kind)).toEqual([
+      "setLayerOrder",
+      "setZOrder",
+      "setZOrder",
+    ]);
+    await application.dispose();
+  });
+
   it("composes the whole application from the definition without story-side wiring", async () => {
     const application = await createLabApplicationInstanceV1();
 

@@ -114,6 +114,28 @@ export interface SceneDocumentV1 {
   readonly cues: readonly SceneCueV1[];
 }
 
+/**
+ * Build-known runtime projection of one admitted Authoring Scene. Authoring
+ * hierarchy, labels, source locations, and inspection facets stay in the
+ * compiler result; Player code needs only the existing low-level document and
+ * the layer order that document owns.
+ */
+export interface AuthoringSceneRuntimePlanV1 {
+  readonly sourceKind: "authoring_scene";
+  readonly sceneDocument: SceneDocumentV1;
+  readonly orderedLayerIds: readonly StageLayerIdV1[];
+}
+
+/** Player-facing accessors for an Authoring Scene runtime plan. */
+export interface AuthoringSceneRuntimeV1 extends SceneV1 {
+  /**
+   * Reconciles only paint authority already represented in the adopted Stage:
+   * layer order plus z-order of currently visible declared entries. Hidden
+   * cue targets stay hidden and gameplay-owned placement/appearance survive.
+   */
+  reconcileOrderingMutations(stage: SemanticStageStateV1): readonly StageMutationV1[];
+}
+
 /** The compiled scene: typed accessors over one validated Document. */
 export interface SceneV1 {
   readonly sceneDocument: SceneDocumentV1;
@@ -149,8 +171,10 @@ const sceneMotionIdPatternV1 = /^motion\.[a-z0-9_.-]+$/u;
 const sceneMaxIdLengthV1 = 96;
 const sceneMaxLabelLengthV1 = 120;
 const sceneCanvasLimitV1 = 1_000_000;
-const sceneMaxEntriesV1 = 64;
-const sceneMaxCuesV1 = 128;
+/** @internal Shared with the package-private Authoring Scene compiler. */
+export const sceneMaxEntriesInternalV1 = 64;
+/** @internal Shared with the package-private Authoring Scene compiler. */
+export const sceneMaxCuesInternalV1 = 128;
 const sceneZOrderLimitV1 = 1_000_000;
 
 function parseSceneIdV1(value: unknown, path: string): string {
@@ -350,7 +374,7 @@ export function parseSceneDocumentV1(value: unknown, path = ""): SceneDocumentV1
   }
 
   const rawEntries = readArray(record.entries, `${path}/entries`);
-  if (rawEntries.length > sceneMaxEntriesV1) {
+  if (rawEntries.length > sceneMaxEntriesInternalV1) {
     return dataFailure(`${path}/entries`, "scene_entries_count_invalid");
   }
   const entries: SceneEntryV1[] = [];
@@ -367,7 +391,7 @@ export function parseSceneDocumentV1(value: unknown, path = ""): SceneDocumentV1
   }
 
   const rawCues = readArray(record.cues, `${path}/cues`);
-  if (rawCues.length > sceneMaxCuesV1) {
+  if (rawCues.length > sceneMaxCuesInternalV1) {
     return dataFailure(`${path}/cues`, "scene_cues_count_invalid");
   }
   const cues: SceneCueV1[] = [];
@@ -508,13 +532,31 @@ function sameAppearanceV1(current: StageAppearanceV1, declared: StageAppearanceV
     declaredKeys.every((key) => current[key] === declared[key]);
 }
 
+function layerOrderPlanV1(
+  orderedLayerIds: readonly StageLayerIdV1[] | undefined,
+  stage: SemanticStageStateV1,
+): readonly unknown[] {
+  if (
+    orderedLayerIds === undefined ||
+    (orderedLayerIds.length === stage.layers.length &&
+      orderedLayerIds.every((layerId, index) => layerId === stage.layers[index]?.layerId))
+  ) {
+    return [];
+  }
+  return [{ kind: "setLayerOrder", layerIds: orderedLayerIds }];
+}
+
 /** The open plan: strangers on declared layers hide, declared entries settle. */
 function openMutationPlanV1(
   sceneDocument: SceneDocumentV1,
   index: SceneIndexV1,
   stage: SemanticStageStateV1,
+  options: SceneFromAdmittedDocumentInternalOptionsV1,
 ): readonly StageMutationV1[] {
-  const plans: unknown[] = [];
+  const plans: unknown[] = [...layerOrderPlanV1(options.orderedLayerIds, stage)];
+  // Layer order and entry membership are separate authorities. An authored
+  // empty layer participates in paint order, but it does not claim or hide
+  // gameplay-owned entries that happen to occupy that layer.
   const declaredLayerIds: string[] = [];
   for (const entry of sceneDocument.entries) {
     if (!declaredLayerIds.includes(entry.layerId as string)) {
@@ -571,6 +613,18 @@ function openMutationPlanV1(
         appearance: entry.appearance,
       });
     }
+    if (
+      options.reconcileZOrder === true &&
+      entry.zOrder !== undefined &&
+      current.zOrder !== entry.zOrder
+    ) {
+      plans.push({
+        kind: "setZOrder",
+        layerId: entry.layerId,
+        tag: entry.tag,
+        zOrder: entry.zOrder,
+      });
+    }
   }
 
   return Object.freeze(
@@ -580,13 +634,60 @@ function openMutationPlanV1(
   );
 }
 
+function authoringOrderingMutationPlanV1(
+  plan: AuthoringSceneRuntimePlanV1,
+  stage: SemanticStageStateV1,
+): readonly StageMutationV1[] {
+  const plans: unknown[] = [...layerOrderPlanV1(plan.orderedLayerIds, stage)];
+  for (const entry of plan.sceneDocument.entries) {
+    const layer = stage.layers.find((candidate) => candidate.layerId === entry.layerId);
+    const current = layer?.entries.find((candidate) => candidate.tag === entry.tag);
+    if (
+      current !== undefined &&
+      entry.zOrder !== undefined &&
+      current.zOrder !== entry.zOrder
+    ) {
+      plans.push({
+        kind: "setZOrder",
+        layerId: entry.layerId,
+        tag: entry.tag,
+        zOrder: entry.zOrder,
+      });
+    }
+  }
+  return Object.freeze(
+    plans.map((mutation, index) =>
+      parseStageMutationV1(mutation, `/reconcile/mutations/${String(index)}`)
+    ),
+  );
+}
+
+/** @internal Options used only by package-owned runtime-plan compilers. */
+export interface SceneFromAdmittedDocumentInternalOptionsV1 {
+  /**
+   * Authoring Scene runtime plans own dense sibling paint order and therefore
+   * reconcile declared z-order through ordinary authoritative mutations.
+   * The low-level Scene entry deliberately leaves this false so existing
+   * gameplay-owned z drift keeps its documented continuity.
+   */
+  readonly reconcileZOrder?: boolean;
+  /**
+   * Authoring Scene layers are the complete paint-order set for the Stage.
+   * A same-set reorder becomes an ordinary mutation; a changed set fails the
+   * atomic batch so the module-update owner can fall back to R3. Empty layers
+   * do not claim gameplay-owned entry membership.
+   */
+  readonly orderedLayerIds?: readonly StageLayerIdV1[];
+}
+
 /**
- * Compiles one scene Document (the raw `*.scene.json` import value or an
- * already-parsed `SceneDocumentV1`) into typed accessors. Pure and
- * deterministic; the accessors never mutate the observed stage.
+ * @internal Package-only factory for a document already constructed by one
+ * trusted compiler. It does not repeat public source admission.
  */
-export function sceneFromDocumentV1(value: unknown): SceneV1 {
-  const sceneDocument = parseSceneDocumentV1(value);
+export function sceneFromAdmittedDocumentInternalV1(
+  sceneDocument: SceneDocumentV1,
+  options: SceneFromAdmittedDocumentInternalOptionsV1 = {},
+): SceneV1 {
   const index = indexSceneV1(sceneDocument);
 
   const mayShow: string[] = [];
@@ -616,9 +717,40 @@ export function sceneFromDocumentV1(value: unknown): SceneV1 {
       return cueMutationPlanV1(cue, entry, currentContentIdV1(stage, entry));
     },
     openMutations(stage: SemanticStageStateV1): readonly StageMutationV1[] {
-      return openMutationPlanV1(sceneDocument, index, stage);
+      return openMutationPlanV1(sceneDocument, index, stage, options);
     },
   });
+}
+
+/**
+ * Materializes the Player-facing Scene accessors from a compiler-produced,
+ * build-known runtime plan. The source was already admitted before compile;
+ * this boundary deliberately trusts that typed representation and does not
+ * parse the same document again.
+ */
+export function sceneFromAuthoringRuntimePlanV1(
+  plan: AuthoringSceneRuntimePlanV1,
+): AuthoringSceneRuntimeV1 {
+  const scene = sceneFromAdmittedDocumentInternalV1(plan.sceneDocument, {
+    reconcileZOrder: true,
+    orderedLayerIds: plan.orderedLayerIds,
+  });
+  return Object.freeze({
+    ...scene,
+    reconcileOrderingMutations(stage: SemanticStageStateV1): readonly StageMutationV1[] {
+      return authoringOrderingMutationPlanV1(plan, stage);
+    },
+  });
+}
+
+/**
+ * Compiles one low-level scene Document (the raw `*.scene.json` import value
+ * or an already-parsed `SceneDocumentV1`) into typed accessors. Public input
+ * is admitted exactly once, then the package-only factory trusts the typed
+ * data. Pure and deterministic; accessors never mutate the observed stage.
+ */
+export function sceneFromDocumentV1(value: unknown): SceneV1 {
+  return sceneFromAdmittedDocumentInternalV1(parseSceneDocumentV1(value));
 }
 
 /**

@@ -12,11 +12,8 @@ import {
 import { createRuntimeSchemaV1, fromStandardSchemaV1 } from "@sillymaker/base/authoring";
 
 import type { TemplateNarrativeStateV1 } from "../story/narrative.ts";
-import {
-  createInitialTemplateNarrativeStateV1,
-  templateLayersV1,
-  templateNodeIdsV1,
-} from "../story/narrative.ts";
+import { createInitialTemplateNarrativeStateV1, templateNodeIdsV1 } from "../story/narrative.ts";
+import { templateOpeningSceneRuntimePlanV1 } from "../scenes/opening/index.ts";
 
 /**
  * Authoritative Story state: three modules, all plain versioned data.
@@ -136,7 +133,7 @@ export const templateGameStateSchemaV1: RuntimeSchemaV1<TemplateGameStateV1> =
 export function createInitialTemplateStageStateV1(): SemanticStageState {
   return createSemanticStageState({
     stageId: "stage.template.main",
-    layerIds: [templateLayersV1.background, templateLayersV1.characters],
+    layerIds: templateOpeningSceneRuntimePlanV1.orderedLayerIds,
   });
 }
 

@@ -62,11 +62,14 @@ export {
   parseStageCueDispatchesV1 as parseStageCueDispatches,
   sceneAmbientCatalogV1 as sceneAmbientCatalog,
   sceneCueTransitionIdV1 as sceneCueTransitionId,
+  sceneFromAuthoringRuntimePlanV1 as sceneFromAuthoringRuntimePlan,
   sceneFromDocumentV1 as sceneFromDocument,
   sceneSettledMutationsV1 as sceneSettledMutations,
   sceneStageTransitionBindingsV1 as sceneStageTransitionBindings,
 } from "../index.ts";
 export type {
+  AuthoringSceneRuntimeV1 as AuthoringSceneRuntime,
+  AuthoringSceneRuntimePlanV1 as AuthoringSceneRuntimePlan,
   SemanticStageStateV1 as SemanticStageState,
   StageLayerV1 as StageLayer,
   StageEntryV1 as StageEntry,

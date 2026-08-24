@@ -163,8 +163,14 @@ Read only the documents relevant to the change:
   path-local invalidation. M3 core/outer GUI capability reorganization also
   delivered 2026-08-24: the default Player is minimal, reference DevDock/preset
   settings are explicitly selected focused subpaths, and final receipts prove
-  minimal/reference/Inspector/Agent reachability. M4 Scene/Object/Layer is the
-  only next task.
+  minimal/reference/Inspector/Agent reachability. M4 Scene/Object/Layer also
+  delivered 2026-08-24: one bounded admission feeds the normalized Authoring
+  Scene IR/compiler; explicit source authority yields a low-level runtime plan
+  plus authoring-only inspection/source-map facets; ordinary Stage mutations and
+  one exact-rebootstrap Session command preserve Browser R2 authoritative
+  continuity while reconciling paint order. The retained authoring index's
+  1,000-scene/50,000-object profile remains metadata-only and path-incremental.
+  M5 Inspector replacement and closure is the only next task.
   This lane does not activate
   State Format V2, ECS, a final Blueprint/Timeline editor, public Mod ABI, or
   Desktop HMR. AR4/AR5 did not add
@@ -198,8 +204,9 @@ Read only the documents relevant to the change:
   `docs/engine/plans/2026-08-24-scale-scene-object-modular-gui.md` — the accepted
   target contract and only current execution plan. M0 scale characterization,
   M1 static content/runtime/authoring separation, M2 sparse State hot plans plus
-  incremental authoring indexing, and M3 modular GUI composition are delivered;
-  M4 is next. M0–M5 own scale evidence, content/runtime separation, sparse State
+  incremental authoring indexing, M3 modular GUI composition, and M4's first
+  Authoring Scene hierarchy/compiler are delivered; M5 is next. M0–M5 own scale
+  evidence, content/runtime separation, sparse State
   hot plans, incremental authoring indexing, GUI module boundaries, the first
   Authoring Scene object hierarchy, and the Inspector-first clean replacement of
   the old Studio shell. External

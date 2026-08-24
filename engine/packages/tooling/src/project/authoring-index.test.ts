@@ -29,6 +29,34 @@ function sceneJsonV1(sceneId: string, label = "场景"): string {
   }\n`;
 }
 
+function authoringSceneJsonV1(
+  sceneId: string,
+  label = "场景",
+  objectCount = 1,
+): string {
+  const serial = sceneId.split(".").at(-1) ?? "scene";
+  return `${
+    JSON.stringify({
+      format: "sillymaker.authoring-scene",
+      version: 1,
+      sceneId,
+      label,
+      canvas: { width: 1280, height: 720 },
+      layers: [
+        {
+          layerId: "layer.app.objects",
+          label: "对象",
+          roots: Array.from({ length: objectCount }, (_, index) => ({
+            objectId: `tag.app.${serial}.object-${String(index).padStart(3, "0")}`,
+            label: `对象 ${String(index)}`,
+          })),
+        },
+      ],
+      cues: [],
+    })
+  }\n`;
+}
+
 function motionJsonV1(motionId: string, label = "动效"): string {
   return `${
     JSON.stringify({
@@ -114,8 +142,18 @@ describe("buildAuthoringProjectIndexV1", () => {
 
     const index = buildAuthoringProjectIndexV1(sourceRoot);
     expect(index.scenes).toEqual([
-      { path: "scenes/backyard/backyard.scene.json", sceneId: "scene.app.backyard", label: "后院" },
-      { path: "scenes/opening/opening.scene.json", sceneId: "scene.app.opening", label: "开场" },
+      {
+        path: "scenes/backyard/backyard.scene.json",
+        sceneId: "scene.app.backyard",
+        label: "后院",
+        sourceKind: "low_level_scene",
+      },
+      {
+        path: "scenes/opening/opening.scene.json",
+        sceneId: "scene.app.opening",
+        label: "开场",
+        sourceKind: "low_level_scene",
+      },
     ]);
     expect(index.motions).toEqual([
       {
@@ -139,6 +177,39 @@ describe("buildAuthoringProjectIndexV1", () => {
       },
     ]);
     expect(index.skipped).toEqual([]);
+  });
+
+  it("indexes both explicit scene source authorities from their admitted bytes", () => {
+    writeFileSync(
+      join(sourceRoot, "scenes", "opening", "opening.scene.json"),
+      sceneJsonV1("scene.app.opening", "低层开场"),
+    );
+    writeFileSync(
+      join(sourceRoot, "scenes", "opening", "garden.authoring-scene.json"),
+      authoringSceneJsonV1("scene.app.garden", "对象场景", 3),
+    );
+
+    const owner = createAuthoringProjectIndexOwnerV1(sourceRoot);
+    expect(owner.snapshot().scenes).toEqual([
+      {
+        path: "scenes/opening/garden.authoring-scene.json",
+        sceneId: "scene.app.garden",
+        label: "对象场景",
+        sourceKind: "authoring_scene",
+      },
+      {
+        path: "scenes/opening/opening.scene.json",
+        sceneId: "scene.app.opening",
+        label: "低层开场",
+        sourceKind: "low_level_scene",
+      },
+    ]);
+    expect(owner.counters()).toEqual({
+      treeWalks: 1,
+      fileReads: 2,
+      parses: 2,
+      invalidations: 0,
+    });
   });
 
   it("names inadmissible files with a structured reason instead of dropping them", () => {
@@ -317,7 +388,12 @@ describe("createAuthoringProjectIndexOwnerV1", () => {
 
     const next = owner.snapshot();
     expect(next.scenes).toEqual([
-      { path: "scenes/opening/opening.scene.json", sceneId: "scene.app.opening", label: "新开场" },
+      {
+        path: "scenes/opening/opening.scene.json",
+        sceneId: "scene.app.opening",
+        label: "新开场",
+        sourceKind: "low_level_scene",
+      },
     ]);
     expect(next.motions).toHaveLength(1);
     expect(owner.counters()).toEqual({
@@ -347,7 +423,12 @@ describe("createAuthoringProjectIndexOwnerV1", () => {
     owner.invalidate(relativePath);
     const recovered = owner.snapshot();
     expect(recovered.scenes).toEqual([
-      { path: relativePath, sceneId: "scene.app.opening", label: "恢复" },
+      {
+        path: relativePath,
+        sceneId: "scene.app.opening",
+        label: "恢复",
+        sourceKind: "low_level_scene",
+      },
     ]);
     expect(recovered.skipped).toEqual([]);
     expect(owner.counters()).toEqual({
@@ -421,6 +502,62 @@ describe("createAuthoringProjectIndexOwnerV1", () => {
       fileReads: 2,
       parses: 2,
       invalidations: 2,
+    });
+  });
+
+  it("re-admits only one changed authoring scene", () => {
+    const scenePath = join(
+      sourceRoot,
+      "scenes",
+      "opening",
+      "opening.authoring-scene.json",
+    );
+    const relativePath = "scenes/opening/opening.authoring-scene.json";
+    writeFileSync(scenePath, authoringSceneJsonV1("scene.app.opening", "开场", 3));
+    const owner = createAuthoringProjectIndexOwnerV1(sourceRoot);
+    owner.snapshot();
+
+    writeFileSync(scenePath, authoringSceneJsonV1("scene.app.opening", "新开场", 3));
+    owner.invalidate(relativePath);
+    expect(owner.snapshot().scenes).toEqual([
+      {
+        path: relativePath,
+        sceneId: "scene.app.opening",
+        label: "新开场",
+        sourceKind: "authoring_scene",
+      },
+    ]);
+    expect(owner.counters()).toEqual({
+      treeWalks: 1,
+      fileReads: 2,
+      parses: 2,
+      invalidations: 1,
+    });
+  });
+
+  it("indexes the 1,000-scene / 50,000-object generated structure without retaining documents", () => {
+    let generatedObjectCount = 0;
+    for (let sceneIndex = 0; sceneIndex < 1_000; sceneIndex += 1) {
+      const serial = String(sceneIndex).padStart(4, "0");
+      const directory = join(sourceRoot, "scale", serial.slice(0, 2));
+      mkdirSync(directory, { recursive: true });
+      writeFileSync(
+        join(directory, `s${serial}.authoring-scene.json`),
+        authoringSceneJsonV1(`scene.scale.s${serial}`, `场景 ${serial}`, 50),
+      );
+      generatedObjectCount += 50;
+    }
+
+    const owner = createAuthoringProjectIndexOwnerV1(sourceRoot);
+    const index = owner.snapshot();
+    expect(index.scenes).toHaveLength(1_000);
+    expect(index.scenes.every((scene) => scene.sourceKind === "authoring_scene")).toBe(true);
+    expect(generatedObjectCount).toBe(50_000);
+    expect(owner.counters()).toEqual({
+      treeWalks: 1,
+      fileReads: 1_000,
+      parses: 1_000,
+      invalidations: 0,
     });
   });
 });

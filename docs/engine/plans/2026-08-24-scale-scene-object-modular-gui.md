@@ -1,6 +1,6 @@
 # Scale、Scene/Object 与模块化 GUI V1 实施计划
 
-状态：**2026-08-24 经所有者接受并开启；M0–M3 已于同日交付，当前下一项为 M4；
+状态：**2026-08-24 经所有者接受并开启；M0–M4 已于同日交付，当前唯一下一项为 M5；
 M0–M5 必须按序交付，每个里程碑独立复核后再进入下一项。**
 
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 仍是唯一跨计划排序入口；
@@ -480,6 +480,41 @@ registry、plugin system 或 lifecycle authority，而是在现有 package 内�
 合同稳定；nested transform lowering 字节稳定；场外/透明对象与全部 interaction shapes 可被 Inspector
 projection 定位；disjoint parallel channels 同时可见且既有冲突拒绝诚实；compiled runtime 与现有
 Stage/Save/replay 结果等价。
+
+**M4 交付记录（2026-08-24）：**
+
+- `@sillymaker/base` 现在从 bounded source bytes 做一次 Strict JSON + schema/value admission，得到冻结的
+  Authoring Scene IR 与 JSON-pointer source map；compiler 按显式 layer/root/child 顺序做 DFS、稳定整数
+  transform lowering 与 dense z-order，输出低层 `SceneDocumentV1`/runtime plan。hierarchy、inspection、
+  source provenance 与 catalog-backed hit-region/Motion/Timeline/GUI/intent facets 留在 authoring sidecar，
+  不进入 Snapshot/Save，也不形成第二个 Scene/Stage authority。
+- Story config 对每个 scene 显式选择 `authoring_scene` 或 `low_level_scene`。Vite 只替换被声明的精确
+  authoring specifier，普通 Player 只取得 runtime plan；低层 `SceneDocumentV1` 继续是独立 advanced
+  入口，旧 Scene CAS/list port 只暴露 `low_level_scene`，两条路径不猜测、不双写、不保留 wrapper。
+  Template opening 是首个真实 consumer，final-output attribution 继续结构排除 source/compiler fallback。
+- Semantic Stage 通过普通 `setLayerOrder`/`setZOrder` mutation 承接 paint-order reconcile；Core 的 exact
+  rebootstrap hook 只在 Save + lease handoff 已采用后投影一个普通 command，并经同一 Session queue 原子
+  commit。Template definition 提供该 reconcile command；采用这条边界的 Browser R2 successor 保留
+  adopted authoritative Snapshot，只协调仍可见 entry 的 layer/z 顺序。hidden cue targets 与
+  gameplay-owned placement/appearance 不被重置，失败继续走既有 latest-handoff retry/R3 路径；当前
+  Template Web entry 本身仍声明普通 module change 回退 page reload，本记录不把该入口夸大为 R2 E2E。
+  Inspector 没有获得活动 Session writer。
+- 既有 authoring-index benchmark 的 `index-scale` profile 已改为 1,000 个 Authoring Scene、每个 50 个
+  objects。Deno 2.9.5、modified worktree、1 warmup + 5 samples 的 final raw p95 为 cold `189.645 ms`、共享
+  cached sweep `0.052 ms`、single-file invalidate-to-current `0.710 ms`；结构计数分别为
+  `1 walk/1000 reads/1000 parses`、全零、`0 walk/1 read/1 parse/1 invalidation`。报告仍只提供原始趋势，
+  不做 promotion 裁决或保留完整 IR/AST。
+- M4 没有实现最终 Inspector、可写 HitShape/Interaction、Blueprint/curve editor、公共 Mod ABI、第二 clock/
+  scheduler，也没有启用或提升 Deno Desktop HMR/persistence。M5 继续复用同一个 Authoring Host、document
+  session、CAS/operations 与 M2 index，交付 Inspector-first replacement surface 并清除旧 Studio UI。
+- 独立复核无剩余 blocker。canonical `deno task check` 为 `370 files / 5659 tests`，Composition benchmark
+  tests `6 passed`；migration authority-map `14/14`、release dependency receipt `8/8`、受影响的 Chromium/WebKit
+  Browser R2 `8/8`、typecheck、docs build 与 `git diff --check` 全绿。React Doctor changed-scope advisory 的
+  3 个 generic iteration warnings 均无可达缺陷：ordering reconcile 只在 R2 successor 上运行，legacy Scene
+  list 的共享 index cached p95 已实测为 `0.052 ms`，不为这两条冷路径牺牲直接代码。最终规模约为
+  source/config `+2,869/-229 LOC`、tests `+2,040/-14 LOC`、docs/rules `+262/-59 LOC`；保留的复杂度是一个
+  source admission/compiler/facet sidecar、一个 runtime-only Scene subpath、既有 Stage/Core/Index/Vite seam 的
+  小幅扩展和两个真实 Story consumers，没有第二 runtime、State、writer、editor 或 benchmark framework。
 
 ### M5 — Inspector 替代 Studio 与收口
 

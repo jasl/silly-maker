@@ -66,6 +66,46 @@ describe("listSceneSourceFilesV1", () => {
     expect(listed.skipped[0]?.reason.length).toBeGreaterThan(0);
     expect(projectIndexOwner.counters()).toEqual(countersBeforeList);
   });
+
+  it("keeps Authoring Scene sources away from the legacy low-level CAS list", () => {
+    writeFileSync(
+      join(appRoot, "src", "scenes", "opening", "object.authoring-scene.json"),
+      `${
+        JSON.stringify({
+          format: "sillymaker.authoring-scene",
+          version: 1,
+          sceneId: "scene.test.object",
+          label: "对象场景",
+          canvas: { width: 1280, height: 720 },
+          layers: [
+            {
+              layerId: "layer.test.objects",
+              label: "对象",
+              roots: [{ objectId: "tag.test.object", label: "对象" }],
+            },
+          ],
+          cues: [],
+        })
+      }\n`,
+    );
+    writeFileSync(
+      join(appRoot, "src", "scenes", "broken.authoring-scene.json"),
+      "{ nope\n",
+    );
+
+    const index = projectIndexOwner.snapshot();
+    expect(index.scenes.map((scene) => scene.sourceKind)).toEqual([
+      "authoring_scene",
+      "low_level_scene",
+    ]);
+    expect(index.skipped.map((skip) => skip.path)).toEqual([
+      "src/scenes/broken.authoring-scene.json",
+    ]);
+    expect(listSceneSourceFilesV1(index)).toEqual({
+      scenes: [{ path: scenePathV1, sceneId: "scene.test.opening", label: "开场" }],
+      skipped: [],
+    });
+  });
 });
 
 describe("readSceneSourceFileV1", () => {

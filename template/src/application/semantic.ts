@@ -31,7 +31,7 @@ import {
 
 export type TemplateActionIdV1 = Exclude<
   TemplateCommandV1["kind"],
-  "template.narrative_resolve" | "template.time_tick"
+  "template.narrative_resolve" | "template.scene_reconcile" | "template.time_tick"
 >;
 
 export interface TemplateActionDescriptorV1 {

@@ -29,12 +29,12 @@ import {
 } from "@sillymaker/web/internal/application-hmr";
 
 import { labGameApplicationV1 } from "../application/composition.tsx";
-import procedureSceneSourceV1 from "../scenes/procedure/procedure.scene.json" with {
+import procedureSceneSourceV1 from "../scenes/procedure/procedure-studio-detached.scene.json" with {
   type: "json",
 };
 import { labStudioBindingV1 } from "../tooling/studio-binding.tsx";
 
-const procedureScenePathV1 = "src/scenes/procedure/procedure.scene.json";
+const procedureScenePathV1 = "src/scenes/procedure/procedure-studio-detached.scene.json";
 const alphaTagV1 = "tag.e2e.alpha";
 
 interface AuthoringSceneIoFixtureV1 extends SceneSourceIoV1 {

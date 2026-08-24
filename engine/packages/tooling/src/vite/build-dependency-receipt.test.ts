@@ -317,6 +317,9 @@ describe("build dependency receipt", () => {
       "products/neutral-gui/src/presentation/tooling.ts",
       "engine/packages/base/src/index.ts",
       "engine/packages/base/src/authoring/story-resolver.ts",
+      "engine/packages/base/src/authoring/authoring-scene.ts",
+      "engine/packages/base/src/authoring/authoring-scene-compiler.ts",
+      "products/neutral-gui/src/scenes/opening.authoring-scene.json",
       "engine/packages/studio/src/studio-app.tsx",
       "engine/packages/studio/src/workspaces/scene/scene-inspector.tsx",
       "engine/packages/ui/src/debug/dev-source-client.ts",
@@ -331,9 +334,12 @@ describe("build dependency receipt", () => {
       "virtual:products/neutral-gui/src/tooling/generated.ts",
     ])).toEqual({
       authoringImplementation: [
+        "engine/packages/base/src/authoring/authoring-scene-compiler.ts",
+        "engine/packages/base/src/authoring/authoring-scene.ts",
         "engine/packages/studio/src/studio-app.tsx",
         "engine/packages/studio/src/workspaces/scene/scene-inspector.tsx",
         "products/neutral-gui/src/authoring/flow-source.ts",
+        "products/neutral-gui/src/scenes/opening.authoring-scene.json",
         "products/neutral-gui/src/tooling/inspector.ts",
       ],
       inspectorAuthoringImplementation: [
@@ -427,6 +433,20 @@ describe("build dependency receipt", () => {
         agentImplementation: [],
         rpcImplementation: [],
       });
+      expect(
+        moduleIds.some((moduleId) =>
+          moduleId.startsWith("virtual:sillymaker:authoring-scene-source:")
+        ),
+      ).toBe(true);
+      expect(moduleIds).not.toContain(
+        "template/src/scenes/opening/authoring-source.ts",
+      );
+      expect(moduleIds).not.toContain(
+        "template/src/scenes/opening/opening.authoring-scene.json",
+      );
+      expect(moduleIds).not.toContain(
+        "engine/packages/base/src/authoring/authoring-scene-compiler.ts",
+      );
       expect(moduleIds.some((moduleId) => moduleId.startsWith("engine/packages/agent/")))
         .toBe(false);
 

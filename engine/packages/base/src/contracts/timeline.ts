@@ -231,12 +231,12 @@ function parseStepV1(
         ),
       );
       if (record.kind === "parallel") {
-        // Two parallel branches writing the same channel is rejected
-        // statically: overlap analysis stays trivial and authoring mistakes
-        // surface immediately instead of as last-writer-wins flicker.
+        // Two distinct parallel branches writing the same channel is rejected
+        // statically. Sequential writes within one branch are intentional, so
+        // that branch contributes each channel only once to sibling overlap.
         const seen = new Set<string>();
         steps.forEach((branch, index) => {
-          for (const channel of collectChannelsV1(branch)) {
+          for (const channel of new Set(collectChannelsV1(branch))) {
             if (seen.has(channel)) {
               fail("timeline.parallel_conflict", `${path}/steps/${String(index)}`);
             }

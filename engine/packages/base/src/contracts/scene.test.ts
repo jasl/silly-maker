@@ -12,6 +12,7 @@ import {
   parseSceneDocumentV1,
   sceneAmbientCatalogV1,
   sceneCueTransitionIdV1,
+  sceneFromAuthoringRuntimePlanV1,
   sceneFromDocumentV1,
   sceneSettledMutationsV1,
   sceneStageTransitionBindingsV1,
@@ -846,6 +847,19 @@ describe("scene.openMutations", () => {
     expect(scene.openMutations(settled)).toEqual([]);
   });
 
+  it("keeps low-level gameplay-owned z-order continuity", () => {
+    const drifted = applyV1(openedStageV1(), [
+      {
+        kind: "setZOrder",
+        layerId: "layer.app.characters",
+        tag: "tag.hero",
+        zOrder: 99,
+      },
+    ]);
+    expect(drifted.layers[1]?.entries[0]?.zOrder).toBe(99);
+    expect(scene.openMutations(drifted)).toEqual([]);
+  });
+
   it("never touches layers the document does not declare", () => {
     const wideStage = createSemanticStageStateV1({
       stageId: "stage.app.main",
@@ -868,5 +882,105 @@ describe("scene.openMutations", () => {
     const settled = applyV1(withEffect, opened);
     expect(settled.layers[2]?.entries).toHaveLength(1);
     expect(scene.openMutations(settled)).toEqual([]);
+  });
+});
+
+describe("sceneFromAuthoringRuntimePlanV1", () => {
+  const document = parseSceneDocumentV1(sceneDocumentV1());
+  const scene = sceneFromAuthoringRuntimePlanV1({
+    sourceKind: "authoring_scene",
+    sceneDocument: document,
+    orderedLayerIds: [
+      document.entries[0]!.layerId,
+      document.entries[1]!.layerId,
+    ],
+  });
+
+  it("reconciles authored layer and visible z order without showing hidden cue targets", () => {
+    const reversed = createSemanticStageStateV1({
+      stageId: "stage.app.main",
+      layerIds: ["layer.app.characters", "layer.app.background"],
+    });
+    const orderingOnly = scene.reconcileOrderingMutations(reversed);
+    expect(orderingOnly.map((mutation) => mutation.kind)).toEqual(["setLayerOrder"]);
+    const orderedEmpty = applyV1(reversed, orderingOnly);
+    expect(orderedEmpty.layers.every((layer) => layer.entries.length === 0)).toBe(true);
+
+    const settled = applyV1(orderedEmpty, scene.openMutations(orderedEmpty));
+    expect(settled.layers.map((layer) => layer.layerId)).toEqual([
+      "layer.app.background",
+      "layer.app.characters",
+    ]);
+
+    const drifted = applyV1(settled, [
+      {
+        kind: "setZOrder",
+        layerId: "layer.app.characters",
+        tag: "tag.hero",
+        zOrder: 99,
+      },
+    ]);
+    expect(scene.reconcileOrderingMutations(drifted)).toEqual([
+      {
+        kind: "setZOrder",
+        layerId: "layer.app.characters",
+        tag: "tag.hero",
+        zOrder: 10,
+      },
+    ]);
+  });
+
+  it("fails the atomic batch when the authored layer set is incompatible", () => {
+    const incompatible = createSemanticStageStateV1({
+      stageId: "stage.app.main",
+      layerIds: [
+        "layer.app.background",
+        "layer.app.characters",
+        "layer.app.effects",
+      ],
+    });
+    const outcome = reduceStageMutationsV1(
+      incompatible,
+      scene.reconcileOrderingMutations(incompatible),
+    );
+    expect(outcome).toMatchObject({
+      kind: "rejected",
+      rejection: { code: "stage.layer_order_invalid", mutationIndex: 0 },
+    });
+    expect(incompatible.layers.map((layer) => layer.layerId)).toEqual([
+      "layer.app.background",
+      "layer.app.characters",
+      "layer.app.effects",
+    ]);
+  });
+
+  it("orders an authored empty layer without claiming its entry membership", () => {
+    const withEmptyLayer = sceneFromAuthoringRuntimePlanV1({
+      sourceKind: "authoring_scene",
+      sceneDocument: document,
+      orderedLayerIds: [
+        "layer.app.empty" as StageLayerIdV1,
+        document.entries[0]!.layerId,
+        document.entries[1]!.layerId,
+      ],
+    });
+    const stage = createSemanticStageStateV1({
+      stageId: "stage.app.main",
+      layerIds: [
+        "layer.app.empty",
+        "layer.app.background",
+        "layer.app.characters",
+      ],
+    });
+    const withStranger = applyV1(stage, [{
+      kind: "show",
+      layerId: "layer.app.empty",
+      tag: "tag.stranger",
+      contentId: "content.app.character.stranger",
+    }]);
+
+    const opened = withEmptyLayer.openMutations(withStranger);
+    const settled = applyV1(withStranger, opened);
+    expect(settled.layers[0]?.entries).toMatchObject([{ tag: "tag.stranger" }]);
   });
 });

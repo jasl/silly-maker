@@ -104,7 +104,7 @@ const narrativeModuleV1 = kit.defineStatefulModule({
 
 const stageModuleV1 = kit.defineStatefulModule({
   id: "template.stage",
-  contractRevision: 2,
+  contractRevision: 3,
   state: {
     slot: "simulation.stage",
     schema: templateStageStateSchemaV1,
@@ -192,6 +192,14 @@ export function createTemplateGameSimulationV1(): TemplateGameSimulationV1 {
             delta: 1,
             balance: state.inventory.coins + 1,
           });
+          return transaction.complete();
+        });
+      }
+
+      if (command.kind === "template.scene_reconcile") {
+        return transactionRunnerV1.execute(snapshot, rng, (transaction) => {
+          const blocked = emitStage(transaction, command.mutations, []);
+          if (blocked !== null) return transaction.reject({ code: blocked });
           return transaction.complete();
         });
       }

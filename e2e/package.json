@@ -8,6 +8,9 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "imports": {
+    "#sillymaker/scene/procedure": "./src/scenes/procedure/authoring-source.ts"
+  },
   "scripts": {
     "dev": "deno run -A npm:vite",
     "build": "deno task build:web",

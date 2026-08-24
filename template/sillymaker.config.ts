@@ -15,6 +15,14 @@ export const sillymakerAppConfigV1 = {
     module: "src/story.ts",
     exportName: "templateStoryEntryV1",
   },
+  sceneSources: [
+    {
+      sceneId: "scene.template.opening",
+      specifier: "#sillymaker/scene/opening",
+      sourceKind: "authoring_scene",
+      source: "src/scenes/opening/opening.authoring-scene.json",
+    },
+  ],
   assetVerification: true,
   simulate: {
     module: "src/tooling/simulation-target.ts",

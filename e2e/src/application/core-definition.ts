@@ -17,6 +17,7 @@ import type {
 } from "../gameplay/simulation.ts";
 import { labStoryEntryV1 } from "../story.ts";
 import { labSaveStateMigrationRegistryV1 } from "../save-state-migrations.ts";
+import { labProcedureSceneV1 } from "../scenes/procedure/index.ts";
 
 /**
  * The Engine Lab core application definition: the whole application is the
@@ -38,6 +39,15 @@ export const labCoreApplicationDefinitionV1 = defineCoreGameApplicationV1<
 >({
   entry: labStoryEntryV1,
   semantic: labSemanticAdapterV1,
+  projectRebootstrapCommand(snapshot) {
+    if (snapshot.state.simulation.procedure.phase === "idle") return null;
+    const mutations = labProcedureSceneV1.reconcileOrderingMutations(
+      snapshot.state.simulation.stage,
+    );
+    return mutations.length === 0
+      ? null
+      : Object.freeze({ kind: "lab.reconcile_stage_order" as const, mutations });
+  },
   saveStateMigrations: labSaveStateMigrationRegistryV1,
   exportFilename: "engine-lab-save.json",
   // Player rollback (R7): experiments settle results — a hard barrier the

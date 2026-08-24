@@ -400,6 +400,15 @@ describe("shaped hit regions and hover reveal", () => {
     expect(rect.style.clipPath).toBe("");
     // An unshaped button needs no focus sibling; nothing follows it.
     expect(rect.nextElementSibling).toBeNull();
+
+    // Pointer paint order is explicit while DOM order remains the keyboard
+    // focus order: the later catalog region wins overlaps.
+    expect(shaped.style.zIndex).toBe("0");
+    expect(rect.style.zIndex).toBe("1");
+    expect(
+      Array.from(container.querySelectorAll("[data-stage-hit-region]"))
+        .map((element) => element.getAttribute("data-stage-hit-region")),
+    ).toEqual(["zone.chest", "zone.base"]);
   });
 
   it("reveals the hover asset while the pointer is inside and hides it on leave", () => {

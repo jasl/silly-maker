@@ -1,0 +1,87 @@
+{
+  "format": "sillymaker.authoring-scene",
+  "version": 1,
+  "sceneId": "scene.template.opening",
+  "label": "雨后的庭院",
+  "canvas": { "width": 1600, "height": 900 },
+  "layers": [
+    {
+      "layerId": "layer.template.background",
+      "label": "背景",
+      "roots": [
+        {
+          "objectId": "tag.background",
+          "label": "庭院",
+          "visual": { "contentId": "content.template.background.courtyard" }
+        },
+        {
+          "objectId": "tag.mist",
+          "label": "薄雾",
+          "localTransform": {
+            "x": -320,
+            "y": 96,
+            "scalePermille": 1000,
+            "opacityPermille": 550,
+            "mirrored": false
+          },
+          "visual": {
+            "contentId": "content.template.effect.mist",
+            "ambient": { "motionId": "motion.template.mist-drift" }
+          }
+        }
+      ]
+    },
+    {
+      "layerId": "layer.template.characters",
+      "label": "角色",
+      "roots": [
+        {
+          "objectId": "tag.mei",
+          "label": "梅",
+          "localTransform": {
+            "x": 1180,
+            "y": 880,
+            "scalePermille": 1000,
+            "opacityPermille": 1000,
+            "mirrored": false
+          },
+          "visual": {
+            "contentId": "content.template.character.mei",
+            "appearance": { "expression": "calm" },
+            "ambient": { "motionId": "motion.template.mei-blink" }
+          }
+        }
+      ]
+    }
+  ],
+  "cues": [
+    {
+      "cueId": "cue.template.opening.courtyard",
+      "kind": "show",
+      "objectId": "tag.background"
+    },
+    {
+      "cueId": "cue.template.opening.mist",
+      "kind": "show",
+      "objectId": "tag.mist"
+    },
+    {
+      "cueId": "cue.template.opening.mei-enters",
+      "kind": "show",
+      "objectId": "tag.mei",
+      "motionId": "motion.template.mei-entrance"
+    },
+    {
+      "cueId": "cue.template.opening.mei-fetches",
+      "kind": "hide",
+      "objectId": "tag.mei",
+      "cut": true
+    },
+    {
+      "cueId": "cue.template.opening.mei-returns",
+      "kind": "show",
+      "objectId": "tag.mei",
+      "cut": true
+    }
+  ]
+}

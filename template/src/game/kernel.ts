@@ -53,6 +53,11 @@ export type TemplateCommandV1 =
      */
     readonly kind: "template.time_tick";
     readonly tick: TimeTick;
+  }
+  | {
+    /** Package-internal ordinary command used only by an R2 successor. */
+    readonly kind: "template.scene_reconcile";
+    readonly mutations: readonly StageMutation[];
   };
 
 /**
@@ -189,6 +194,23 @@ export const commandSchemaV1: RuntimeSchemaV1<TemplateCommandV1> = Object.freeze
       return Object.freeze({
         kind,
         tick: parseTimeTick((value as { readonly tick?: unknown }).tick, "/tick"),
+      });
+    }
+    if (kind === "template.scene_reconcile") {
+      if (Object.keys(value).toSorted().join("\0") !== "kind\0mutations") {
+        throw new TypeError("invalid template scene reconcile command");
+      }
+      const mutations = (value as { readonly mutations?: unknown }).mutations;
+      if (!Array.isArray(mutations) || mutations.length === 0) {
+        throw new TypeError("invalid template scene reconcile mutations");
+      }
+      return Object.freeze({
+        kind,
+        mutations: Object.freeze(
+          mutations.map((mutation, index) =>
+            parseStageMutation(mutation, `/mutations/${String(index)}`)
+          ),
+        ),
       });
     }
     if (Object.keys(value).join("\0") !== "kind") {

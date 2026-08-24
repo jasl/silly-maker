@@ -16,6 +16,7 @@ import type {
   TemplateSimulationTypesV1,
 } from "../game/simulation.ts";
 import { templateStoryEntryV1 } from "../story.ts";
+import { templateOpeningSceneV1 } from "../scenes/opening/index.ts";
 
 /**
  * The Host-neutral core application: the GamePackage entry plus the
@@ -37,6 +38,14 @@ export const templateCoreApplicationDefinitionV1 = defineCoreGameApplication<
 >({
   entry: templateStoryEntryV1,
   semantic: templateSemanticAdapterV1,
+  projectRebootstrapCommand(snapshot) {
+    const mutations = templateOpeningSceneV1.reconcileOrderingMutations(
+      snapshot.state.simulation.stage,
+    );
+    return mutations.length === 0
+      ? null
+      : Object.freeze({ kind: "template.scene_reconcile" as const, mutations });
+  },
   exportFilename: "template-save.json",
 });
 

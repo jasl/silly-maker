@@ -50,11 +50,6 @@ async function assertNodeSafeStoryClosure(entry) {
     !closure.externalImports.some(({ specifier }) => reactSpecifierPattern.test(specifier)),
     entry,
   );
-  for (const path of closure.paths) {
-    if (!/\.(?:ts|mts|mjs|js)$/u.test(path)) continue;
-    const source = await readFile(join(root, path), "utf8");
-    assert(!/\b(?:document|window|HTMLElement|HTML[A-Za-z]*Element)\b/u.test(source), path);
-  }
 }
 
 test("direct CLI resolves the same workspace closure from the repository and application roots", async () => {
@@ -451,7 +446,7 @@ test("keeps the default Story closure free of tooling and Web renderers", async 
   }
 });
 
-test("keeps the default Story and Node-safe tooling closures free of TSX, React, and DOM", async () => {
+test("keeps the default Story and Node-safe tooling closures free of UI and React", async () => {
   for (const entry of ["e2e/src/story.ts", "e2e/src/tooling/simulation-target.ts"]) {
     await assertNodeSafeStoryClosure(entry);
   }

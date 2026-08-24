@@ -19,6 +19,7 @@ import {
   labStageTagsV1,
   labStoryEntryV1,
 } from "../index.ts";
+import { createLabGameSimulationV1 } from "../gameplay/simulation.ts";
 import { labProcedureSceneV1 } from "../scenes/procedure/index.ts";
 
 function createLabHarnessV1(seed = 61213) {
@@ -52,6 +53,15 @@ async function dispatchCommittedV1(harness: LabHarnessV1, actionId: LabActionIdV
 }
 
 describe("Engine Lab semantic stage", () => {
+  it("rejects an empty rebootstrap reconcile command", () => {
+    expect(() =>
+      createLabGameSimulationV1().commandSchema.parse({
+        kind: "lab.reconcile_stage_order",
+        mutations: [],
+      })
+    ).toThrow("invalid lab reconcile stage order command");
+  });
+
   it("drives backgrounds, characters, and the prop through gameplay commands", async () => {
     const harness = await createLabHarnessV1();
 

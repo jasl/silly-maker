@@ -437,7 +437,7 @@ function StageEntryV1(props: {
       )}
       {onHitRegionActivate === undefined || exiting || entry.hitRegions.length === 0
         ? null
-        : entry.hitRegions.map((region) => {
+        : entry.hitRegions.map((region, regionIndex) => {
           const clipPath = hitRegionClipPathV1(region);
           return (
             <Fragment key={region.regionId}>
@@ -449,6 +449,9 @@ function StageEntryV1(props: {
                 aria-label={region.accessibleNameText}
                 style={{
                   ...hitRegionBoxStyleV1(region),
+                  // Catalog order is paint order: later regions win an
+                  // overlap without changing the independent DOM/focus order.
+                  zIndex: regionIndex,
                   ...(clipPath === undefined ? {} : { clipPath }),
                 }}
                 onClick={() =>

@@ -27,7 +27,10 @@ import {
 
 export type LabActionIdV1 = Exclude<
   LabCommandV1["kind"],
-  "lab.narrative_resolve" | "lab.time_tick" | "lab.engage_collector"
+  | "lab.narrative_resolve"
+  | "lab.time_tick"
+  | "lab.engage_collector"
+  | "lab.reconcile_stage_order"
 >;
 
 export interface LabActionDescriptorV1 {

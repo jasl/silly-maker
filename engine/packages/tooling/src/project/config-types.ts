@@ -52,6 +52,24 @@ export interface StoryWebTargetV1 {
   readonly desktop?: StoryDesktopTargetV1 | null;
 }
 
+/**
+ * Explicit source authority for one Story scene. `source` is app-relative in
+ * `SillymakerAppConfigV1` and repository-relative after
+ * `deriveStoryApplicationV1` anchors the application.
+ */
+export type StorySceneSourceV1 =
+  | {
+    readonly sceneId: string;
+    readonly specifier: string;
+    readonly sourceKind: "authoring_scene";
+    readonly source: string;
+  }
+  | {
+    readonly sceneId: string;
+    readonly specifier: string;
+    readonly sourceKind: "low_level_scene";
+  };
+
 export interface StoryApplicationConfigV1 {
   readonly applicationId: string;
   readonly label: string;
@@ -65,6 +83,8 @@ export interface StoryApplicationConfigV1 {
   readonly web: StoryWebTargetV1 | null;
   /** Module exporting a Studio binding; null when the app opts out of Studio. */
   readonly studio: ProjectModuleRefV1 | null;
+  /** Explicit scene source authorities; omitted when the application has none. */
+  readonly sceneSources?: readonly StorySceneSourceV1[];
 }
 
 export interface SillymakerProjectConfigV1 {
@@ -110,6 +130,11 @@ export interface SillymakerAppConfigV1 {
    * player bundle; omit to opt out.
    */
   readonly studio?: ProjectModuleRefV1 | null;
+  /**
+   * Explicit scene source authorities. Tooling never infers these from files
+   * or the import graph.
+   */
+  readonly sceneSources?: readonly StorySceneSourceV1[];
 }
 
 /**

@@ -3,10 +3,10 @@
 // authority for this scene's visual composition (entries, placements, and
 // cue→motion binding). The script references cues by id and the transition
 // catalog composes the derived bindings; neither repeats placement literals.
-import { sceneFromDocument, sceneStageTransitionBindings } from "@sillymaker/base/story";
-import type { Scene, SceneStageTransitionBindings } from "@sillymaker/base/story";
+import { sceneFromDocument, sceneStageTransitionBindings } from "@sillymaker/base/story/scene";
+import type { Scene, SceneStageTransitionBindings } from "@sillymaker/base/story/scene";
 
-import openingSceneDocumentV1 from "./opening.scene.json" with { type: "json" };
+import openingSceneDocumentV1 from "#sillymaker/scene/opening" with { type: "json" };
 import catEntranceMotionDocumentV1 from "./motions/cat-entrance.motion.json" with {
   type: "json",
 };

@@ -2116,6 +2116,25 @@ function resolvedApplicationWithExtensionFailureV1(error: Error) {
   return result.application;
 }
 
+function resolvedApplicationWithRebootstrapProjectorV1(
+  projectRebootstrapCommand: (
+    snapshot: DeepReadonly<SyntheticSnapshotV1>,
+    resolved: unknown,
+  ) => DeepReadonly<SyntheticCounterCommandV1> | null,
+) {
+  const result = resolveCoreGameApplicationV1(
+    defineCoreGameApplicationV1({
+      ...definitionV1,
+      projectRebootstrapCommand,
+    }),
+    { buildIdentityInput: deterministicBuildIdentityInputV1 },
+  );
+  if (result.kind !== "resolved") {
+    throw new TypeError("rebootstrap projector fixture must resolve");
+  }
+  return result.application;
+}
+
 function leaseReleaseRecordsV1(options: { readonly rejectRelease?: boolean } = {}) {
   const delegate = createMemoryHostRecordStoreV1();
   const releaseError = new Error("synthetic lease release failure");
@@ -6064,6 +6083,162 @@ describe("createCoreGameApplicationInstanceV1", () => {
       await successor.dispose();
     }
   });
+
+  it("reconciles the exact adopted Snapshot through one ordinary replayable command", async () => {
+    const records = createMemoryHostRecordStoreV1();
+    const predecessor = await createInstanceV1({ records, seeds: [77] });
+    await predecessor.semantic.dispatch(incrementV1);
+    await predecessor.semantic.dispatch(incrementV1);
+    const predecessorSnapshot = predecessor.admin.inspectForTest().snapshot;
+    const predecessorDigest = predecessor.admin.stateDigest();
+    const handoff = await disposeCoreGameApplicationForRebootstrapInternalV1(predecessor);
+    const projectRebootstrapCommand = vi.fn(
+      (snapshot: DeepReadonly<SyntheticSnapshotV1>, resolved: unknown) => {
+        expect(canonicalJsonBytes(snapshot)).toEqual(canonicalJsonBytes(predecessorSnapshot));
+        expect(resolved).toBe(application.resolved);
+        return Object.freeze({ kind: "synthetic.increment" as const });
+      },
+    );
+    const application = resolvedApplicationWithRebootstrapProjectorV1(
+      projectRebootstrapCommand,
+    );
+
+    const successor = await createCoreGameApplicationInstanceForRebootstrapInternalV1(
+      application,
+      {
+        host: hostServicesV1(records, [83]),
+        handoff,
+        onRebootstrapStartFailureInternal: () => undefined,
+      },
+    );
+    try {
+      expect(projectRebootstrapCommand).toHaveBeenCalledOnce();
+      expect(successor.admin.inspectForTest().snapshot).toMatchObject({
+        state: { simulation: { counter: { count: 3 } } },
+        commandSequence: 3,
+      });
+      expect(successor.admin.commandLog()).toMatchObject([
+        {
+          source: "game",
+          command: { kind: "synthetic.increment" },
+          preStateDigest: predecessorDigest,
+          commandSequence: { before: 2, after: 3 },
+          outcome: { kind: "committed" },
+        },
+      ]);
+      await expect(successor.admin.replayAuthoritatively()).resolves.toMatchObject({
+        authoritative: true,
+        identityMatch: true,
+        matches: true,
+        executedEntries: 1,
+      });
+      await successor.autoSaveIdle();
+      await expect(storedAutoCurrentV1(records)).resolves.toMatchObject({
+        snapshot: {
+          state: { simulation: { counter: { count: 3 } } },
+          commandSequence: 3,
+        },
+      });
+    } finally {
+      await successor.dispose();
+    }
+  });
+
+  it("does not project on ordinary boot and accepts a null rebootstrap projection", async () => {
+    const records = createMemoryHostRecordStoreV1();
+    const projectRebootstrapCommand = vi.fn(
+      (_snapshot: DeepReadonly<SyntheticSnapshotV1>, _resolved: unknown) => null,
+    );
+    const application = resolvedApplicationWithRebootstrapProjectorV1(
+      projectRebootstrapCommand,
+    );
+    const predecessor = await createCoreGameApplicationInstanceV1(application, {
+      host: hostServicesV1(records, [77]),
+    });
+    expect(projectRebootstrapCommand).not.toHaveBeenCalled();
+    const predecessorSnapshot = predecessor.admin.inspectForTest().snapshot;
+    const handoff = await disposeCoreGameApplicationForRebootstrapInternalV1(predecessor);
+
+    const successor = await createCoreGameApplicationInstanceForRebootstrapInternalV1(
+      application,
+      {
+        host: hostServicesV1(records, [83]),
+        handoff,
+        onRebootstrapStartFailureInternal: () => undefined,
+      },
+    );
+    try {
+      expect(projectRebootstrapCommand).toHaveBeenCalledOnce();
+      expect(canonicalJsonBytes(successor.admin.inspectForTest().snapshot)).toEqual(
+        canonicalJsonBytes(predecessorSnapshot),
+      );
+      expect(successor.admin.commandLog()).toEqual([]);
+    } finally {
+      await successor.dispose();
+    }
+  });
+
+  it.each(["rejected command", "throwing projector"] as const)(
+    "returns a retryable latest handoff after a %s",
+    async (failureKind) => {
+      const records = createMemoryHostRecordStoreV1();
+      const predecessor = await createInstanceV1({ records, seeds: [77] });
+      await predecessor.semantic.dispatch(incrementV1);
+      const predecessorSnapshot = predecessor.admin.inspectForTest().snapshot;
+      const firstHandoff = await disposeCoreGameApplicationForRebootstrapInternalV1(predecessor);
+      const projectionFailure = new Error("synthetic rebootstrap projection failure");
+      const projectRebootstrapCommand = vi.fn(
+        (snapshot: DeepReadonly<SyntheticSnapshotV1>, _resolved: unknown) => {
+          expect(canonicalJsonBytes(snapshot)).toEqual(canonicalJsonBytes(predecessorSnapshot));
+          if (failureKind === "throwing projector") throw projectionFailure;
+          return Object.freeze({ kind: "synthetic.reject" as const });
+        },
+      );
+      let retryHandoff: DeepReadonly<CoreRebootstrapHandoffInternalV1> | undefined;
+      const construction = createCoreGameApplicationInstanceForRebootstrapInternalV1(
+        resolvedApplicationWithRebootstrapProjectorV1(projectRebootstrapCommand),
+        {
+          host: hostServicesV1(records, [83]),
+          handoff: firstHandoff,
+          onRebootstrapStartFailureInternal(outcome) {
+            if (outcome.kind === "ready") retryHandoff = outcome.handoff;
+          },
+        },
+      );
+      if (failureKind === "throwing projector") {
+        await expect(construction).rejects.toBe(projectionFailure);
+      } else {
+        await expect(construction).rejects.toThrow("core.rebootstrap_reconcile_not_committed");
+      }
+      expect(projectRebootstrapCommand).toHaveBeenCalledOnce();
+      expect(retryHandoff).toMatchObject({
+        save: { mediaType: "application/json" },
+        lease: { fencingToken: 2 },
+      });
+      if (retryHandoff === undefined) throw new TypeError("missing retry handoff");
+
+      const retry = await createCoreGameApplicationInstanceForRebootstrapInternalV1(
+        resolvedApplicationV1(),
+        {
+          host: hostServicesV1(records, [89]),
+          handoff: retryHandoff,
+          onRebootstrapStartFailureInternal: () => undefined,
+        },
+      );
+      try {
+        expect(canonicalJsonBytes(retry.admin.inspectForTest().snapshot)).toEqual(
+          canonicalJsonBytes(predecessorSnapshot),
+        );
+        expect(retry.admin.commandLog()).toEqual([]);
+        await expect(retry.persistence.lease.getStatus()).resolves.toMatchObject({
+          kind: "owned",
+          fencingToken: 3,
+        });
+      } finally {
+        await retry.dispose();
+      }
+    },
+  );
 
   it("returns the latest Save and fence when construction fails after authoritative adoption", async () => {
     const records = createMemoryHostRecordStoreV1();

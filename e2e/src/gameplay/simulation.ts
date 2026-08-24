@@ -87,6 +87,11 @@ export type LabCommandV1 =
   | { readonly kind: "lab.begin_procedure" }
   | { readonly kind: "lab.advance_procedure" }
   | { readonly kind: "lab.run_experiment" }
+  | {
+    /** R2 successor reconciliation through the ordinary authoritative queue. */
+    readonly kind: "lab.reconcile_stage_order";
+    readonly mutations: readonly StageMutationV1[];
+  }
   | { readonly kind: "lab.begin_calibration" }
   | { readonly kind: "lab.begin_drill" }
   | { readonly kind: "lab.toggle_collector" }
@@ -322,6 +327,23 @@ const commandSchemaV1: RuntimeSchemaV1<LabCommandV1> = Object.freeze({
         kind,
         expectedHoldOccurrenceId: parseInteractionOccurrenceIdV1(
           (value as { readonly expectedHoldOccurrenceId?: unknown }).expectedHoldOccurrenceId,
+        ),
+      });
+    }
+    if (kind === "lab.reconcile_stage_order") {
+      if (Object.keys(value).toSorted().join("\0") !== "kind\0mutations") {
+        throw new TypeError("invalid lab reconcile stage order command");
+      }
+      const mutations = (value as { readonly mutations?: unknown }).mutations;
+      if (!Array.isArray(mutations) || mutations.length === 0) {
+        throw new TypeError("invalid lab reconcile stage order command");
+      }
+      return Object.freeze({
+        kind,
+        mutations: Object.freeze(
+          mutations.map((mutation, index) =>
+            parseStageMutationV1(mutation, `/mutations/${String(index)}`)
+          ),
         ),
       });
     }
@@ -718,6 +740,14 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
           transaction.emit({ kind: "lab.monitors_settled", accumulator: settlement.accumulator });
         }
       };
+
+      if (command.kind === "lab.reconcile_stage_order") {
+        return labTransactionRunnerV1.execute(snapshot, rng, (transaction) => {
+          const stageRejection = emitStage(transaction, command.mutations);
+          if (stageRejection !== null) return transaction.reject({ code: stageRejection });
+          return transaction.complete();
+        });
+      }
 
       if (command.kind === "lab.collect_sample") {
         const sampleYield =

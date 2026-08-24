@@ -144,13 +144,21 @@ const labStudioCoreBindingV1: StudioBindingV1 = Object.freeze({
       category: "background" as const,
       defaultLayerId: "layer.e2e.background",
       defaultZOrder: 0,
+      defaultPlacement: Object.freeze({
+        x: 0,
+        y: 0,
+        scalePermille: 1000,
+        opacityPermille: 1000,
+        mirrored: false,
+      }),
+      defaultAppearance: Object.freeze({}),
     },
     {
       contentId: "content.e2e.char.alpha",
       label: "研究员甲",
       category: "character" as const,
       defaultLayerId: "layer.e2e.characters",
-      defaultZOrder: 10,
+      defaultZOrder: 0,
       defaultPlacement: Object.freeze({
         x: 480,
         y: 620,
@@ -166,7 +174,7 @@ const labStudioCoreBindingV1: StudioBindingV1 = Object.freeze({
       label: "研究员乙",
       category: "character" as const,
       defaultLayerId: "layer.e2e.characters",
-      defaultZOrder: 10,
+      defaultZOrder: 1,
       defaultPlacement: Object.freeze({
         x: 1120,
         y: 620,

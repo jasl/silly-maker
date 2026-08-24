@@ -44,9 +44,9 @@ export const templateStateContractManifestV1 = Object.freeze({
     }),
     Object.freeze({
       moduleId: parseModuleId("template.stage"),
-      // Revision 2: placement gained the required opacityPermille (semantic
-      // stage contract revision 3).
-      moduleContractRevision: parsePositiveSafeInteger(2),
+      // Revision 3: the Stage rules admit the package-private R2 ordering
+      // reconcile command; the persisted Stage shape remains revision 2.
+      moduleContractRevision: parsePositiveSafeInteger(3),
       stateSlots: Object.freeze([parseStateSlotId("simulation.stage")]),
       stateSchema: Object.freeze({
         schemaId: "schema.template.stage-state",

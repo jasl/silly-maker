@@ -141,6 +141,21 @@ describe("timeline definition contract", () => {
     ).toThrowError(expect.objectContaining({ code: "timeline.parallel_conflict" }));
   });
 
+  it("allows sequential writes to the same channel within one parallel branch", () => {
+    const definition = timelineV1.define(
+      "cue.test.parallel-sequence",
+      timelineV1.parallel(
+        timelineV1.sequence(
+          timelineV1.tween({ target: beacon, property: "offsetX", to: 10, durationMs: 10 }),
+          timelineV1.tween({ target: beacon, property: "offsetX", to: -10, durationMs: 20 }),
+        ),
+        timelineV1.wait(5),
+      ),
+    );
+
+    expect(timelineDurationV1(definition)).toBe(30);
+  });
+
   it("allows parallel branches on different channels of the same target", () => {
     const definition = timelineV1.define(
       "cue.test.ok",

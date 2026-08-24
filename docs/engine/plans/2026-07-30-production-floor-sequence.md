@@ -87,7 +87,12 @@ readiness boundary 按候选需求准备内容。M2 State hot plan 与 single-ow
 metadata-only、path-incremental dev-server authoring index 满足结构预算。M3 也已于 2026-08-24 交付：
 core Player 不再反向 import
 DevDock/preset settings/Inspector/Agent，focused reference subpaths 与真实 final-output receipts 证明
-显式选择和结构排除；当前唯一下一项为 M4 Scene/Object/Layer 渐进模型。
+显式选择和结构排除。M4 Scene/Object/Layer 也已于 2026-08-24 交付：one-pass admitted Authoring Scene
+IR/compiler 输出既有低层 runtime plan 与独立 inspection/source-map facets；Story 显式选择
+`authoring_scene`/`low_level_scene` authority，普通 Stage mutation + exact-rebootstrap Session command
+协调 Browser R2 successor 的 layer/z 顺序而不替换 adopted Snapshot。增量 index 的
+1,000-scene/50,000-object profile 保持 metadata-only 与单文件失效。本车道没有启用 Desktop HMR；
+当前唯一下一项为 M5 Inspector replacement 与收口。
 首个经 release
 source/行为确认包含目标路径的 stable（2.9.6 只是预期候选）仍须重跑同一分层验收，全部通过后才
 正式打开 maintained Desktop development workflow。此前 adapter 保持 package-private、explicit、

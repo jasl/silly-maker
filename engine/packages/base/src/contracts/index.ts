@@ -597,11 +597,14 @@ export {
   sceneCueTransitionIdV1,
   sceneDocumentFormatV1,
   sceneDocumentVersionV1,
+  sceneFromAuthoringRuntimePlanV1,
   sceneFromDocumentV1,
   sceneSettledMutationsV1,
   sceneStageTransitionBindingsV1,
 } from "./scene.ts";
 export type {
+  AuthoringSceneRuntimeV1,
+  AuthoringSceneRuntimePlanV1,
   SceneAmbientCatalogInputV1,
   SceneCanvasV1,
   SceneCueKindV1,

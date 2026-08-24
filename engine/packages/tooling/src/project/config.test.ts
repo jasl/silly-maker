@@ -415,4 +415,96 @@ describe("application and workspace config validation", () => {
       { code: "project.config_invalid" },
     ]);
   });
+
+  it("admits, freezes, and anchors explicit scene source authorities", () => {
+    const config = {
+      applicationId: "example-app",
+      label: "Example app",
+      storyEntry: { module: "src/story.ts", exportName: "entryV1" },
+      assetVerification: true,
+      simulate: null,
+      web: null,
+      sceneSources: [
+        {
+          sceneId: "scene.example.opening",
+          specifier: "#sillymaker/scene/opening",
+          sourceKind: "authoring_scene",
+          source: "src/scenes/opening.authoring-scene.json",
+        },
+        {
+          sceneId: "scene.example.advanced",
+          specifier: "#sillymaker/scene/advanced",
+          sourceKind: "low_level_scene",
+        },
+      ],
+    } as const;
+
+    const admitted = defineSillymakerAppV1(config);
+    expect(admitted.sceneSources).toEqual(config.sceneSources);
+    expect(Object.isFrozen(admitted.sceneSources)).toBe(true);
+    expect(Object.isFrozen(admitted.sceneSources?.[0])).toBe(true);
+
+    expect(deriveStoryApplicationV1("examples/example-app", config).sceneSources).toEqual([
+      {
+        ...config.sceneSources[0],
+        source: "examples/example-app/src/scenes/opening.authoring-scene.json",
+      },
+      config.sceneSources[1],
+    ]);
+  });
+
+  it("rejects ambiguous or unsafe scene source authorities", () => {
+    const base = {
+      applicationId: "example-app",
+      label: "Example app",
+      storyEntry: { module: "src/story.ts", exportName: "entryV1" },
+      assetVerification: true,
+      simulate: null,
+      web: null,
+    } as const;
+    const authoring = {
+      sceneId: "scene.example.opening",
+      specifier: "#sillymaker/scene/opening",
+      sourceKind: "authoring_scene",
+      source: "src/scenes/opening.authoring-scene.json",
+    } as const;
+
+    for (
+      const sceneSources of [
+        [authoring, { ...authoring, specifier: "#sillymaker/scene/other" }],
+        [authoring, { ...authoring, sceneId: "scene.example.other" }],
+      ]
+    ) {
+      expect(
+        diagnosticsOf(() => defineSillymakerAppV1({ ...base, sceneSources })),
+      ).toMatchObject([{ code: "project.scene_source_duplicate" }]);
+    }
+
+    for (
+      const sceneSources of [
+        [{ ...authoring, sceneId: "opening" }],
+        [{ ...authoring, specifier: "#/unsafe" }],
+        [{ ...authoring, specifier: "#sillymaker/../opening" }],
+        [{ ...authoring, source: "../outside.json" }],
+        [{ ...authoring, source: "src/scenes/opening.json" }],
+        [{
+          sceneId: "scene.example.low-level",
+          specifier: "#sillymaker/scene/low-level",
+          sourceKind: "low_level_scene",
+          source: "src/scenes/low-level.scene.json",
+        }],
+      ]
+    ) {
+      expect(
+        diagnosticsOf(() =>
+          defineSillymakerAppV1(
+            {
+              ...base,
+              sceneSources,
+            } as Parameters<typeof defineSillymakerAppV1>[0],
+          )
+        ),
+      ).toMatchObject([{ code: "project.config_invalid" }]);
+    }
+  });
 });

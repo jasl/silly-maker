@@ -1,8 +1,8 @@
 {
   "format": "sillymaker.scene",
   "version": 1,
-  "sceneId": "scene.e2e.procedure",
-  "label": "储藏室实验流程",
+  "sceneId": "scene.e2e.procedure-studio-detached",
+  "label": "旧 Studio 独立 CAS 场景（不参与 Player）",
   "canvas": { "width": 1600, "height": 1000 },
   "entries": [
     {
@@ -15,7 +15,7 @@
       "layerId": "layer.e2e.characters",
       "tag": "tag.e2e.alpha",
       "contentId": "content.e2e.char.alpha",
-      "zOrder": 10,
+      "zOrder": 0,
       "placement": {
         "x": 480,
         "y": 620,
@@ -29,7 +29,7 @@
       "layerId": "layer.e2e.characters",
       "tag": "tag.e2e.beta",
       "contentId": "content.e2e.char.beta",
-      "zOrder": 10,
+      "zOrder": 1,
       "placement": {
         "x": 1120,
         "y": 620,
@@ -40,12 +40,5 @@
       "appearance": { "pose": "standing", "expression": "neutral" }
     }
   ],
-  "cues": [
-    {
-      "cueId": "cue.e2e.alpha-enters",
-      "kind": "show",
-      "tag": "tag.e2e.alpha",
-      "motionId": "motion.e2e.char-enter"
-    }
-  ]
+  "cues": []
 }

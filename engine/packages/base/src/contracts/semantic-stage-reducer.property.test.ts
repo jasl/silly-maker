@@ -75,6 +75,19 @@ const mutationArbitraryV1 = fc.oneof(
     tag: fc.constantFrom(...tagsV1),
     appearance: appearanceArbitraryV1,
   }),
+  fc.record({
+    kind: fc.constant("setZOrder" as const),
+    layerId: fc.constantFrom(...layerIdsV1),
+    tag: fc.constantFrom(...tagsV1),
+    zOrder: fc.integer({ min: -10, max: 10 }),
+  }),
+  fc.record({
+    kind: fc.constant("setLayerOrder" as const),
+    layerIds: fc.shuffledSubarray([...layerIdsV1], {
+      minLength: layerIdsV1.length,
+      maxLength: layerIdsV1.length,
+    }),
+  }),
   fc.record({ kind: fc.constant("clearLayer" as const), layerId: fc.constantFrom(...layerIdsV1) }),
   fc.record({ kind: fc.constant("clearStage" as const) }),
   fc.record({
@@ -160,6 +173,176 @@ describe("reduceStageMutationsV1 properties", () => {
       ),
     );
   });
+
+  it("setZOrder reinserts atomically after existing equal-z peers and preserves entry data", () => {
+    const shown = reduceStageMutationsV1(emptyStageV1(), [
+      {
+        kind: "show",
+        layerId: "layer.characters",
+        tag: "tag.alpha",
+        contentId: "content.char.alpha",
+        zOrder: 0,
+        placement: {
+          x: 12,
+          y: 34,
+          scalePermille: 900,
+          opacityPermille: 800,
+          mirrored: true,
+        },
+        appearance: { pose: "standing" },
+      },
+      {
+        kind: "show",
+        layerId: "layer.characters",
+        tag: "tag.beta",
+        contentId: "content.char.beta",
+        zOrder: 5,
+      },
+      {
+        kind: "show",
+        layerId: "layer.characters",
+        tag: "tag.crate",
+        contentId: "content.prop.crate",
+        zOrder: 5,
+      },
+      {
+        kind: "show",
+        layerId: "layer.characters",
+        tag: "tag.extra",
+        contentId: "content.bg.lab",
+        zOrder: 10,
+      },
+    ]);
+    expect(shown.kind).toBe("applied");
+    if (shown.kind !== "applied") return;
+
+    const moved = reduceStageMutationsV1(shown.state, [
+      { kind: "setZOrder", layerId: "layer.characters", tag: "tag.alpha", zOrder: 5 },
+    ]);
+    expect(moved.kind).toBe("applied");
+    if (moved.kind !== "applied") return;
+
+    const entries = moved.state.layers.find(
+      (candidate) => candidate.layerId === "layer.characters",
+    )?.entries;
+    expect(entries?.map((entry) => [entry.tag, entry.zOrder])).toEqual([
+      ["tag.beta", 5],
+      ["tag.crate", 5],
+      ["tag.alpha", 5],
+      ["tag.extra", 10],
+    ]);
+    expect(entries?.[2]).toMatchObject({
+      tag: "tag.alpha",
+      contentId: "content.char.alpha",
+      placement: {
+        x: 12,
+        y: 34,
+        scalePermille: 900,
+        opacityPermille: 800,
+        mirrored: true,
+      },
+      appearance: { pose: "standing" },
+    });
+
+    const unchangedZ = reduceStageMutationsV1(moved.state, [
+      { kind: "setZOrder", layerId: "layer.characters", tag: "tag.beta", zOrder: 5 },
+    ]);
+    expect(unchangedZ.kind).toBe("applied");
+    if (unchangedZ.kind === "applied") {
+      const stableEntries = unchangedZ.state.layers.find(
+        (candidate) => candidate.layerId === "layer.characters",
+      )?.entries;
+      expect(stableEntries?.map((entry) => entry.tag)).toEqual([
+        "tag.beta",
+        "tag.crate",
+        "tag.alpha",
+        "tag.extra",
+      ]);
+    }
+  });
+
+  it("does not publish a setZOrder when a later mutation in the batch fails", () => {
+    const shown = reduceStageMutationsV1(emptyStageV1(), [
+      {
+        kind: "show",
+        layerId: "layer.characters",
+        tag: "tag.alpha",
+        contentId: "content.char.alpha",
+        zOrder: 0,
+      },
+      {
+        kind: "show",
+        layerId: "layer.characters",
+        tag: "tag.beta",
+        contentId: "content.char.beta",
+        zOrder: 10,
+      },
+    ]);
+    expect(shown.kind).toBe("applied");
+    if (shown.kind !== "applied") return;
+    const beforeDigest = digestSemanticStageStateV1(shown.state);
+
+    const rejected = reduceStageMutationsV1(shown.state, [
+      { kind: "setZOrder", layerId: "layer.characters", tag: "tag.alpha", zOrder: 20 },
+      { kind: "hide", layerId: "layer.characters", tag: "tag.never-shown" },
+    ]);
+    expect(rejected).toMatchObject({
+      kind: "rejected",
+      rejection: { code: "stage.tag_unknown", mutationIndex: 1 },
+    });
+    expect(digestSemanticStageStateV1(shown.state)).toBe(beforeDigest);
+    const entries = shown.state.layers.find(
+      (candidate) => candidate.layerId === "layer.characters",
+    )?.entries;
+    expect(entries?.map((entry) => [entry.tag, entry.zOrder])).toEqual([
+      ["tag.alpha", 0],
+      ["tag.beta", 10],
+    ]);
+  });
+
+  it("setLayerOrder applies an exact same-set permutation", () => {
+    const outcome = reduceStageMutationsV1(emptyStageV1(), [
+      {
+        kind: "setLayerOrder",
+        layerIds: ["layer.props", "layer.background", "layer.characters"],
+      },
+    ]);
+    expect(outcome.kind).toBe("applied");
+    if (outcome.kind === "applied") {
+      expect(outcome.state.layers.map((layer) => layer.layerId)).toEqual([
+        "layer.props",
+        "layer.background",
+        "layer.characters",
+      ]);
+    }
+  });
+
+  it.each([
+    ["duplicate", ["layer.background", "layer.characters", "layer.characters"]],
+    ["missing", ["layer.background", "layer.characters"]],
+    ["extra", [...layerIdsV1, "layer.extra"]],
+  ])(
+    "rejects a %s layer permutation without publishing earlier batch mutations",
+    (_case, layerIds) => {
+      const base = emptyStageV1();
+      const beforeDigest = digestSemanticStageStateV1(base);
+      const outcome = reduceStageMutationsV1(base, [
+        { kind: "setLayerOrder", layerIds: [...layerIdsV1].toReversed() },
+        { kind: "setLayerOrder", layerIds },
+      ]);
+
+      expect(outcome).toMatchObject({
+        kind: "rejected",
+        rejection: {
+          code: "stage.layer_order_invalid",
+          mutationIndex: 1,
+          pointer: "/mutations/1/layerIds",
+        },
+      });
+      expect(digestSemanticStageStateV1(base)).toBe(beforeDigest);
+      expect(base.layers.map((layer) => layer.layerId)).toEqual(layerIdsV1);
+    },
+  );
 
   it("replace keeps identity, order position, placement, and appearance continuity", () => {
     fc.assert(
