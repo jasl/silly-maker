@@ -282,9 +282,6 @@ export type StageCueDispatchV1 =
   | { readonly sceneId: string; readonly cueId: string }
   | { readonly sceneId: string; readonly open: true };
 
-/** Provisional bound pending clone-scale evidence (proposal ruling #4). */
-export const stageCueDispatchLimitV1 = 32;
-
 const stageCueDispatchSceneIdPatternV1 = /^scene\.[a-z0-9_.-]+$/u;
 const stageCueDispatchCueIdPatternV1 = /^cue\.[a-z0-9_.-]+$/u;
 const stageCueDispatchMaxIdLengthV1 = 96;
@@ -314,9 +311,6 @@ export function parseStageCueDispatchesV1(
   path = "/stageCueDispatches",
 ): readonly StageCueDispatchV1[] {
   if (!Array.isArray(value)) return dataFailure(path, "stage_cue_dispatches_invalid");
-  if (value.length > stageCueDispatchLimitV1) {
-    return dataFailure(path, "stage_cue_dispatches_count_invalid");
-  }
   return value.map((entry, index) => {
     const entryPath = `${path}/${String(index)}`;
     if (entry === null || typeof entry !== "object" || Array.isArray(entry)) {

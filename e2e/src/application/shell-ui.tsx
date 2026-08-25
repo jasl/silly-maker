@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Component-only PascalCase React shell widgets (Vite Fast Refresh–safe).
 // Narrative rendering is a passive Story skin; composition owns its lifecycle and actions.
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 
 import type { DeepReadonly } from "@sillymaker/base";
@@ -12,7 +12,10 @@ import { labStageInspectControllerV1 } from "./stage-inspect.ts";
 import { labStageAssetsV1, labStageRenderersV1 } from "./stage-rendering.tsx";
 
 import type { LabActionIdV1 } from "./semantic.ts";
+import type { CompiledCodeSurfaceCompositionV1 } from "@sillymaker/ui/code-surface";
+import type { LabCodeSurfaceContextV1 } from "./code-surface-catalog.ts";
 import type { LabApplicationInstanceV1 } from "./core-definition.ts";
+import type { LabRuntimeInspectorOwnerV1 } from "./runtime-inspection.ts";
 import type { LabUiOverlayIdV1, LabUiPublicationV1 } from "./composition.tsx";
 import { labUiTextV1 } from "./ui-text.ts";
 import {
@@ -23,6 +26,30 @@ import {
 } from "../presentation.ts";
 
 type LabSemanticPortV1 = LabApplicationInstanceV1["semantic"];
+
+const LazyLabCodeSurfaceConformancePanelV1 = lazy(() =>
+  import("./code-surface-conformance.tsx").then((module) => ({
+    default: module.LabCodeSurfaceConformancePanelV1,
+  }))
+);
+
+export function LabCodeSurfaceConformanceV1(props: {
+  readonly semantic: LabSemanticPortV1;
+  readonly composition: CompiledCodeSurfaceCompositionV1<LabCodeSurfaceContextV1>;
+  readonly runtimeInspection?: LabRuntimeInspectorOwnerV1;
+}): ReactElement {
+  return (
+    <Suspense fallback={null}>
+      <LazyLabCodeSurfaceConformancePanelV1
+        semantic={props.semantic}
+        composition={props.composition}
+        {...(props.runtimeInspection === undefined
+          ? {}
+          : { runtimeInspection: props.runtimeInspection })}
+      />
+    </Suspense>
+  );
+}
 
 const labActionTextIdsV1: Readonly<Record<LabActionIdV1, string>> = {
   "lab.collect_sample": "text.e2e.lab.action.collect_sample",

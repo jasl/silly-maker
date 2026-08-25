@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: MIT
-import {
-  compileAuthoringSceneV1,
-  reindexAuthoringSceneDocumentV1,
-} from "@sillymaker/base/authoring/scene";
+import { reindexAuthoringSceneDocumentV1 } from "@sillymaker/base/authoring/scene";
 import type {
   AdmittedAuthoringSceneV1,
   AuthoringSceneDocumentV1,
@@ -15,6 +12,7 @@ import type {
   SceneAuthoringOperationV1,
   SceneAuthoringReductionResultV1,
 } from "./contract.ts";
+import { compileAuthoringSceneWithReceiptInternalV1 } from "../scene-compilation.ts";
 
 function rejectedV1(
   code: SceneAuthoringDiagnosticCodeV1,
@@ -154,11 +152,11 @@ function finalizeV1(
   let next: AdmittedAuthoringSceneV1;
   try {
     next = reindexAuthoringSceneDocumentV1(candidate);
-    compileAuthoringSceneV1(next);
+    compileAuthoringSceneWithReceiptInternalV1(next);
+    return { kind: "reduced", scene: next };
   } catch (error) {
     return rejectedV1("scene_authoring.result_invalid", diagnosticPathV1(error));
   }
-  return { kind: "reduced", scene: next };
 }
 
 function reorderV1<TValue>(

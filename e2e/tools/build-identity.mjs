@@ -24,15 +24,20 @@ const inspectorBindingModulePathV1 = normalizeViteModulePathV1(
   resolve(repositoryRootV1, "e2e/src/tooling/inspector-binding.ts"),
 );
 const procedureAuthoringSourcePathV1 = "e2e/src/scenes/procedure/procedure.authoring-scene.json";
+const drillAuthoringSourcePathV1 = "e2e/src/scenes/drill/drill.authoring-scene.json";
+const authoringSceneSourcePathsV1 = [
+  drillAuthoringSourcePathV1,
+  procedureAuthoringSourcePathV1,
+];
 
 const compareTextV1 = (left, right) => left < right ? -1 : left > right ? 1 : 0;
 
 /**
- * Procedure source changes that alter replay semantics stay in the simulation
+ * Authoring Scene source changes that alter replay semantics stay in simulation
  * facet. Layer/sibling order is omitted because the R2 successor migrates that
  * paint authority through one ordinary Stage command.
  */
-function digestProcedureSceneRuntimePlanV1(plan) {
+function digestSceneRuntimePlanV1(plan) {
   const { entries, cues, ...scene } = plan.sceneDocument;
   const semantic = {
     scene: {
@@ -51,7 +56,7 @@ function digestProcedureSceneRuntimePlanV1(plan) {
 
 /** Object-input convenience for the focused semantic-identity tests. */
 export function digestE2eProcedureSceneSimulationV1(source) {
-  return digestProcedureSceneRuntimePlanV1(
+  return digestSceneRuntimePlanV1(
     compileAuthoringSceneV1(admitAuthoringSceneDocumentV1(source)).runtimePlan,
   );
 }
@@ -71,6 +76,15 @@ const ownerV1 = createStoryBuildIdentityOwnerV1({
   storySourceRoot: "e2e/src/",
   simulation: {
     entry: "e2e/src/simulation-definition.ts",
+    // Addressable unit modules are literal runtime roots rather than static
+    // imports from the simulation entry. BuildIdentity still owns their live
+    // code bytes so an R2 generation cannot ignore changed replay semantics.
+    additionalEntries: [
+      "e2e/src/gameplay/narrative-units/calibration.ts",
+      "e2e/src/gameplay/narrative-units/drill.ts",
+      "e2e/src/scenes/drill/index.ts",
+      "e2e/src/scenes/procedure/index.ts",
+    ],
     forbiddenPrefixes: ["e2e/src/presentation"],
   },
   presentation: {
@@ -97,23 +111,25 @@ export async function collectE2eBuildIdentityV1(root = repositoryRootV1) {
   const identity = await ownerV1.collectBuildIdentityV1(root);
   const rawSourceRecords = await buildImportClosureRecordsV1(
     root,
-    [procedureAuthoringSourcePathV1],
+    authoringSceneSourcePathsV1,
     "story_presentation",
   );
-  const sourcePlan = compileAuthoringSceneV1(
-    admitAuthoringSceneSourceBytesV1(
-      await readFile(resolve(root, procedureAuthoringSourcePathV1)),
-    ),
-  ).runtimePlan;
-  const simulationRecord = {
-    path: procedureAuthoringSourcePathV1,
-    facet: "story_simulation",
-    sha256: digestProcedureSceneRuntimePlanV1(sourcePlan),
-  };
+  const sceneSimulationRecords = await Promise.all(
+    authoringSceneSourcePathsV1.map(async (path) => {
+      const sourcePlan = compileAuthoringSceneV1(
+        admitAuthoringSceneSourceBytesV1(await readFile(resolve(root, path))),
+      ).runtimePlan;
+      return {
+        path,
+        facet: "story_simulation",
+        sha256: digestSceneRuntimePlanV1(sourcePlan),
+      };
+    }),
+  );
   const storySimulation = new Map(
     identity.storySimulation.map((record) => [record.path, record]),
   );
-  storySimulation.set(simulationRecord.path, simulationRecord);
+  for (const record of sceneSimulationRecords) storySimulation.set(record.path, record);
   const storyPresentation = new Map(
     identity.storyPresentation.map((record) => [record.path, record]),
   );

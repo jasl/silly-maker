@@ -576,7 +576,8 @@ describe("authoritative determinism authority map", () => {
     expect(map.saveStateMigrations[0]?.callbacks[1]).toBe(migrateLabStateRevision4To5V1);
     expect(map.saveStateMigrations[0]?.callbacks[2]).toBe(migrateLabStateRevision5To6V1);
     expect(map.authoritativePaths).toEqual(expect.arrayContaining([
-      "e2e/src/gameplay/narrative.ts",
+      "e2e/src/gameplay/narrative-units/calibration.ts",
+      "e2e/src/gameplay/narrative-units/drill.ts",
       "e2e/src/save-state-migrations.ts",
       "engine/packages/base/src/authoring/define-game-simulation.ts",
       "engine/packages/base/src/authoring/define-game-package.ts",

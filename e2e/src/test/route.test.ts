@@ -5,7 +5,7 @@ import type { InteractionResolutionV1 } from "@sillymaker/base";
 import { createGameHarnessV1 } from "@sillymaker/base/testkit";
 
 import type { LabInvocationV1 } from "../index.ts";
-import { labSemanticAdapterV1, labStoryEntryV1 } from "../index.ts";
+import { labHeadlessExecutionContextV1, labSemanticAdapterV1, labStoryEntryV1 } from "../index.ts";
 
 /**
  * The Engine Conformance route: one short, real application path exercising
@@ -19,6 +19,7 @@ function createLabHarnessV1(seed = 23049) {
   return createGameHarnessV1({
     entry: labStoryEntryV1,
     semantic: labSemanticAdapterV1,
+    executionContext: labHeadlessExecutionContextV1,
     seed,
   });
 }

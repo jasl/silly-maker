@@ -60,7 +60,7 @@ export type GameHarnessSemanticAdapterV1<
   TResult
 >;
 
-export interface CreateGameHarnessInputV1<
+interface CreateGameHarnessBaseInputV1<
   TSimulationFacet,
   TPresentationFacet,
   TTypes extends GameSimulationTypeMapV1,
@@ -97,6 +97,39 @@ export interface CreateGameHarnessInputV1<
     snapshot: DeepReadonly<TTypes["snapshot"]>,
   ): never;
 }
+
+export type CreateGameHarnessInputV1<
+  TSimulationFacet,
+  TPresentationFacet,
+  TTypes extends GameSimulationTypeMapV1,
+  TQueries,
+  TGameView,
+  TNarrativeView,
+  TActionDescriptor,
+  TInvocation,
+  TPreview,
+  TResult,
+> =
+  & CreateGameHarnessBaseInputV1<
+    TSimulationFacet,
+    TPresentationFacet,
+    TTypes,
+    TQueries,
+    TGameView,
+    TNarrativeView,
+    TActionDescriptor,
+    TInvocation,
+    TPreview,
+    TResult
+  >
+  & (undefined extends TTypes["executionContext"] ? {
+      /** Optional only when the simulation permits an undefined execution context. */
+      readonly executionContext?: TTypes["executionContext"];
+    }
+    : {
+      /** Already-prepared direct plans required by this simulation's commands. */
+      readonly executionContext: TTypes["executionContext"];
+    });
 
 export interface GameHarnessTraceEntryV1 {
   readonly ordinal: number;
@@ -295,6 +328,7 @@ export async function createGameHarnessV1<
       ownerId: harnessOwnerIdV1,
       nextHandoffRequestId: () => "handoff.sillymaker.testkit.harness",
     },
+    executionContext: input.executionContext,
     ...(input.capabilities === undefined ? {} : { capabilities: input.capabilities }),
   });
 

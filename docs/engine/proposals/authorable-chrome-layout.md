@@ -1,5 +1,9 @@
 # Authorable chrome layout proposal（铬布局文档、Chrome workspace 与意图绑定）
 
+> 2026-08-25 后续裁决：Capacity Contract Reset 删除 boxes/anchors/offsets
+> 合计 256 entries 的任意数量上限。Source 资源预算、每个 member 的结构/值校验以及本历史
+> 提案的 presentation-only 语义仍有效。
+
 状态：**已交付（M0–M2 + 双消费者，2026-08-22 当日闭合）**（同日所有
 者裁决接受：Open questions 按建议定；「不确定这个方案是否能完全解决
 问题，但可以先这么做，下一轮引擎迭代再统筹更系统的方案（如果存

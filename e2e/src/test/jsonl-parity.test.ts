@@ -11,7 +11,7 @@ import { createGameHarnessV1 } from "@sillymaker/base/testkit";
 import { createJsonlAgentClientV1, createJsonlAgentHostV1 } from "@sillymaker/tooling";
 
 import type { LabInvocationV1 } from "../index.ts";
-import { labSemanticAdapterV1, labStoryEntryV1 } from "../index.ts";
+import { labHeadlessExecutionContextV1, labSemanticAdapterV1, labStoryEntryV1 } from "../index.ts";
 
 const resolveV1 = (expectedOccurrenceId: string, resolution: unknown): LabInvocationV1 =>
   Object.freeze({ kind: "resolve", expectedOccurrenceId, resolution }) as LabInvocationV1;
@@ -53,6 +53,7 @@ function createLabHarnessV1() {
   return createGameHarnessV1({
     entry: labStoryEntryV1,
     semantic: labSemanticAdapterV1,
+    executionContext: labHeadlessExecutionContextV1,
     seed: 23049,
   });
 }

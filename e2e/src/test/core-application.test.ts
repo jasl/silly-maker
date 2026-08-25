@@ -6,7 +6,10 @@ import { parseStageMutationV1, reduceStageMutationsV1 } from "@sillymaker/base";
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 
 import type { LabApplicationInstanceV1 } from "../application/core-application.ts";
-import { createLabApplicationInstanceV1 } from "../application/core-application.ts";
+import {
+  createLabApplicationInstanceV1,
+  labHeadlessExecutionContextV1,
+} from "../application/core-application.ts";
 import { labCoreApplicationDefinitionV1 } from "../application/core-definition.ts";
 import type { LabInvocationV1 } from "../application/semantic.ts";
 
@@ -91,7 +94,13 @@ describe("Engine Lab core application", () => {
   it("projects authoring order drift as one ordinary Stage reconcile command", async () => {
     const application = await createLabApplicationInstanceV1();
     const idleSnapshot = application.admin.inspectForTest().snapshot;
-    expect(labCoreApplicationDefinitionV1.projectRebootstrapCommand?.(idleSnapshot, {})).toBeNull();
+    expect(
+      labCoreApplicationDefinitionV1.projectRebootstrapCommand?.(
+        idleSnapshot,
+        {},
+        labHeadlessExecutionContextV1,
+      ),
+    ).toBeNull();
 
     await application.semantic.dispatch(collectV1);
     await application.semantic.dispatch(beginV1);
@@ -137,6 +146,7 @@ describe("Engine Lab core application", () => {
     const command = labCoreApplicationDefinitionV1.projectRebootstrapCommand?.(
       driftedSnapshot,
       {},
+      labHeadlessExecutionContextV1,
     );
     expect(command).toMatchObject({ kind: "lab.reconcile_stage_order" });
     if (command?.kind !== "lab.reconcile_stage_order") {

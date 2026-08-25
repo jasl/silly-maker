@@ -257,6 +257,7 @@ export function createAssetRegistryV1<
   }
 
   const sharedLoads = new Map<string, SharedRuntimeLoadV1>();
+  const loadCyclesByCacheKey = new Map<string, NonNegativeSafeInteger>();
   const reportedDiagnostics = new Set<string>();
   const listeners = new Set<() => void>();
   let disposed = false;
@@ -341,7 +342,10 @@ export function createAssetRegistryV1<
     if (existing !== undefined) return existing;
 
     const controller = new AbortController();
-    const loadCycle = parseNonNegativeSafeInteger(1);
+    const loadCycle = parseNonNegativeSafeInteger(
+      (loadCyclesByCacheKey.get(runtime.cacheKey) ?? 0) + 1,
+    );
+    loadCyclesByCacheKey.set(runtime.cacheKey, loadCycle);
     let requested: Promise<RuntimeAssetLoaderSettlementV1>;
     try {
       requested = loader.load(runtime.request, controller.signal);
@@ -353,6 +357,12 @@ export function createAssetRegistryV1<
       .catch((): RuntimeAssetLoaderSettlementV1 => ({ kind: "failed", code: "fetch_failed" }))
       .then((settlement) => {
         publishSharedSettlementV1(runtime.cacheKey, settlement, loadCycle);
+        if (
+          settlement.kind !== "loaded" &&
+          sharedLoads.get(runtime.cacheKey)?.promise === promise
+        ) {
+          sharedLoads.delete(runtime.cacheKey);
+        }
         return settlement;
       });
     const shared = { controller, loadCycle, promise };

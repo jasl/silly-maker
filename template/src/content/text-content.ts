@@ -10,15 +10,38 @@ export const templateEndingTextPackIdV1 = parseTextContentPackIdV1(
 );
 
 export const templateTextContentManifestV1 = defineTextContentManifestV1({
-  revision: 1,
+  revision: 2,
+  defaultLocale: "zh-CN",
+  locales: [
+    { locale: "zh-CN", fallbackLocale: null },
+    { locale: "en", fallbackLocale: "zh-CN" },
+  ],
   packs: [
     {
       packId: templateOpeningTextPackIdV1,
-      runtimePath: "assets/content/opening.text-pack.json",
+      variants: [
+        {
+          locale: "zh-CN",
+          runtimePath: "assets/content/opening.zh-CN.text-pack.json",
+        },
+        {
+          locale: "en",
+          runtimePath: "assets/content/opening.en.text-pack.json",
+        },
+      ],
     },
     {
       packId: templateEndingTextPackIdV1,
-      runtimePath: "assets/content/ending.text-pack.json",
+      variants: [
+        {
+          locale: "zh-CN",
+          runtimePath: "assets/content/ending.zh-CN.text-pack.json",
+        },
+        {
+          locale: "en",
+          runtimePath: "assets/content/ending.en.text-pack.json",
+        },
+      ],
     },
   ],
 });

@@ -11,9 +11,16 @@ import type { InspectorBindingV1 } from "@sillymaker/studio";
 import { defineExperimentalEmbeddedAgentBindingInternalV1 } from "@sillymaker/studio/internal/agent";
 
 import { labStageRenderersV1 } from "../application/stage-rendering.tsx";
+import { labAddressableRuntimeUnitDeclarationsV1 } from "../application/addressable-runtime.ts";
+import {
+  declareLabRuntimeInspectorDetachedUnitsV1,
+  labRuntimeInspectorSourceV1,
+} from "../application/runtime-inspection.ts";
 import { labStageContentCatalogV1, labTimelineCatalogV1 } from "../presentation.ts";
 
 const labAgentActionIdV1 = "engine-lab.scene.move-alpha";
+
+declareLabRuntimeInspectorDetachedUnitsV1(labAddressableRuntimeUnitDeclarationsV1);
 
 function labAgentArtifactV1(actionId = labAgentActionIdV1): unknown {
   return {
@@ -125,6 +132,7 @@ const labInspectorCoreBindingV1: InspectorBindingV1 = {
   catalog: labStageContentCatalogV1,
   renderers: labStageRenderersV1,
   timelines: labTimelineCatalogV1,
+  runtime: labRuntimeInspectorSourceV1,
 };
 
 export const labInspectorBindingV1: InspectorBindingV1 =

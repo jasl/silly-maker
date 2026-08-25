@@ -68,6 +68,11 @@ type OptionalPublicKeysV1<TValue> = {
 }[keyof TValue];
 
 describe("@sillymaker/ui public managed System surface", () => {
+  it("keeps Code Surface on its focused package entry", () => {
+    expect(publicUiV1).not.toHaveProperty("defineCodeSurfaceV1");
+    expect(publicUiV1).not.toHaveProperty("CodeSurfaceCompositionHostV1");
+  });
+
   it("exports the high-level Narrative definition and renderer contract", () => {
     expectTypeOf<InputContextIdV1>().toEqualTypeOf<
       | "debug"

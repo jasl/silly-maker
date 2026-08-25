@@ -14,8 +14,8 @@ import {
 
 import type { LabMonitorsStateV1 } from "./monitors.ts";
 import { createInitialLabMonitorsStateV1, labMonitorsStateSchemaV1 } from "./monitors.ts";
-import type { LabNarrativeStateV1 } from "./narrative.ts";
-import { createInitialLabNarrativeStateV1, labNarrativeNodeIdsV1 } from "./narrative.ts";
+import type { LabNarrativeStateV1 } from "./narrative-runtime.ts";
+import { createInitialLabNarrativeStateV1, labNarrativeNodeIdsV1 } from "./narrative-runtime.ts";
 import { createInitialLabStageStateV1 } from "./stage.ts";
 
 export interface LabSamplesStateV1 {

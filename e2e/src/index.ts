@@ -102,6 +102,7 @@ export type {
 export {
   createLabApplicationInstanceV1,
   labCoreApplicationDefinitionV1,
+  labHeadlessExecutionContextV1,
 } from "./application/core-application.ts";
 export type { LabSimulationProgramV1 } from "./story.ts";
 export {

@@ -315,7 +315,8 @@ export interface CoreGameApplicationDefinitionV1<
   /**
    * Optional authoritative reconciliation for an exact rebootstrap successor.
    * After the predecessor's exact Save and lease have been adopted, Core hands
-   * this synchronous pure projector the adopted Snapshot and resolved game.
+   * this synchronous pure projector the adopted Snapshot, resolved game, and
+   * the successor's already-prepared execution context.
    * `null` keeps that Snapshot unchanged; a command is dispatched once through
    * the ordinary Session queue and must commit before construction continues.
    * Rejection, fault, or a throwing projector fails construction and leaves the
@@ -325,6 +326,7 @@ export interface CoreGameApplicationDefinitionV1<
   projectRebootstrapCommand?(
     snapshot: DeepReadonly<TTypes["snapshot"]>,
     resolved: unknown,
+    executionContext: TTypes["executionContext"],
   ): DeepReadonly<TTypes["command"]> | null;
   /**
    * Opt-in boot-time resume: after persistence is ready the instance
@@ -748,15 +750,12 @@ export interface CoreApplicationConstructionInstrumentationInternalV1 {
 }
 
 const constructionInstrumentationV1 = new WeakMap<
-  CreateCoreGameApplicationInstanceOptionsV1,
+  object,
   CoreApplicationConstructionInstrumentationInternalV1
 >();
-const snapshotWorkInstrumentationV1 = new WeakMap<
-  CreateCoreGameApplicationInstanceOptionsV1,
-  SnapshotWorkInstrumentationV1
->();
+const snapshotWorkInstrumentationV1 = new WeakMap<object, SnapshotWorkInstrumentationV1>();
 const saveProjectionInstrumentationV1 = new WeakMap<
-  CreateCoreGameApplicationInstanceOptionsV1,
+  object,
   SaveSummaryProjectionInstrumentationInternalV1
 >();
 interface CoreApplicationReadinessHooksStoredInternalV1 {
@@ -764,7 +763,7 @@ interface CoreApplicationReadinessHooksStoredInternalV1 {
   readonly prepareReplacement?: (snapshot: unknown) => Promise<void>;
 }
 const coreApplicationReadinessHooksInternalV1 = new WeakMap<
-  CreateCoreGameApplicationInstanceOptionsV1,
+  object,
   CoreApplicationReadinessHooksStoredInternalV1
 >();
 interface CoreGameApplicationRebootstrapStartInputInternalV1 {
@@ -774,7 +773,7 @@ interface CoreGameApplicationRebootstrapStartInputInternalV1 {
   ) => void;
 }
 const coreGameApplicationRebootstrapStartInputsInternalV1 = new WeakMap<
-  CreateCoreGameApplicationInstanceOptionsV1,
+  object,
   CoreGameApplicationRebootstrapStartInputInternalV1
 >();
 
@@ -784,10 +783,12 @@ const coreGameApplicationRebootstrapStartInputsInternalV1 = new WeakMap<
  *
  * @internal
  */
-export function instrumentCoreApplicationConstructionOptionsInternalV1(
-  options: CreateCoreGameApplicationInstanceOptionsV1,
+export function instrumentCoreApplicationConstructionOptionsInternalV1<
+  TExecutionContext = undefined,
+>(
+  options: CreateCoreGameApplicationInstanceOptionsV1<TExecutionContext>,
   instrumentation: CoreApplicationConstructionInstrumentationInternalV1,
-): CreateCoreGameApplicationInstanceOptionsV1 {
+): CreateCoreGameApplicationInstanceOptionsV1<TExecutionContext> {
   constructionInstrumentationV1.set(options, instrumentation);
   return options;
 }
@@ -799,19 +800,23 @@ export function instrumentCoreApplicationConstructionOptionsInternalV1(
  *
  * @internal Intentionally absent from package barrels.
  */
-export function instrumentCoreApplicationSnapshotWorkOptionsInternalV1(
-  options: CreateCoreGameApplicationInstanceOptionsV1,
+export function instrumentCoreApplicationSnapshotWorkOptionsInternalV1<
+  TExecutionContext = undefined,
+>(
+  options: CreateCoreGameApplicationInstanceOptionsV1<TExecutionContext>,
   instrumentation: SnapshotWorkInstrumentationV1,
-): CreateCoreGameApplicationInstanceOptionsV1 {
+): CreateCoreGameApplicationInstanceOptionsV1<TExecutionContext> {
   snapshotWorkInstrumentationV1.set(options, instrumentation);
   return options;
 }
 
 /** @internal One-shot Base Save-projector observation for package tests. */
-export function instrumentCoreApplicationSaveProjectionOptionsInternalV1(
-  options: CreateCoreGameApplicationInstanceOptionsV1,
+export function instrumentCoreApplicationSaveProjectionOptionsInternalV1<
+  TExecutionContext = undefined,
+>(
+  options: CreateCoreGameApplicationInstanceOptionsV1<TExecutionContext>,
   instrumentation: SaveSummaryProjectionInstrumentationInternalV1,
-): CreateCoreGameApplicationInstanceOptionsV1 {
+): CreateCoreGameApplicationInstanceOptionsV1<TExecutionContext> {
   saveProjectionInstrumentationV1.set(options, instrumentation);
   return options;
 }
@@ -823,15 +828,19 @@ export function instrumentCoreApplicationSaveProjectionOptionsInternalV1(
  *
  * @internal
  */
-export function bindCoreApplicationReadinessOptionsInternalV1<TInvocation, TSnapshot>(
-  options: CreateCoreGameApplicationInstanceOptionsV1,
+export function bindCoreApplicationReadinessOptionsInternalV1<
+  TInvocation,
+  TSnapshot,
+  TExecutionContext = undefined,
+>(
+  options: CreateCoreGameApplicationInstanceOptionsV1<TExecutionContext>,
   hooks: {
     readonly prepareSemanticInvocation?: (
       invocation: DeepReadonly<TInvocation>,
     ) => Promise<void>;
     readonly prepareReplacement?: (snapshot: DeepReadonly<TSnapshot>) => Promise<void>;
   },
-): CreateCoreGameApplicationInstanceOptionsV1 {
+): CreateCoreGameApplicationInstanceOptionsV1<TExecutionContext> {
   coreApplicationReadinessHooksInternalV1.set(
     options,
     hooks as unknown as CoreApplicationReadinessHooksStoredInternalV1,
@@ -907,7 +916,7 @@ export type CoreEpochBoundOutcomeV1<TValue> =
   }
   | { readonly kind: "stale_epoch" };
 
-export interface CreateCoreGameApplicationInstanceOptionsV1 {
+interface CreateCoreGameApplicationInstanceBaseOptionsV1 {
   readonly host: CoreApplicationHostServicesV1;
   readonly capabilities?: { readonly debugTools?: boolean };
   /** Live capability view source for extensions; falls back to static flags. */
@@ -925,14 +934,35 @@ export interface CreateCoreGameApplicationInstanceOptionsV1 {
   readonly appBuildId?: Digest;
 }
 
+/**
+ * Core construction requires the application-owned execution context whenever
+ * the Story's declared context cannot be undefined. Optional-context Stories
+ * retain the ordinary no-context call shape.
+ */
+export type CreateCoreGameApplicationInstanceOptionsV1<TExecutionContext = undefined> =
+  & CreateCoreGameApplicationInstanceBaseOptionsV1
+  & (undefined extends TExecutionContext ? {
+      /** Optional only when the declared execution-context type permits undefined. */
+      readonly executionContext?: TExecutionContext;
+    }
+    : {
+      /**
+       * The Host prepares this direct-plan owner before Core construction;
+       * command, debug, replay, and exact rebootstrap paths receive the same
+       * typed value without performing Host IO.
+       */
+      readonly executionContext: TExecutionContext;
+    });
+
 /** @internal Package-private construction input for one authoritative successor. */
-export interface CreateCoreGameApplicationInstanceForRebootstrapOptionsInternalV1
-  extends CreateCoreGameApplicationInstanceOptionsV1 {
+export type CreateCoreGameApplicationInstanceForRebootstrapOptionsInternalV1<
+  TExecutionContext = undefined,
+> = CreateCoreGameApplicationInstanceOptionsV1<TExecutionContext> & {
   readonly handoff: DeepReadonly<CoreRebootstrapHandoffInternalV1>;
   readonly onRebootstrapStartFailureInternal: (
     outcome: DeepReadonly<CoreRebootstrapStartFailureInternalV1>,
   ) => void;
-}
+};
 
 /** @internal Package-private authoritative state and writer-generation handoff. */
 export type CoreRebootstrapHandoffInternalV1 = PersistenceRebootstrapHandoffInternalV1;
@@ -1134,7 +1164,7 @@ export async function createCoreGameApplicationInstanceV1<
     TPreview,
     TResult
   >,
-  options: CreateCoreGameApplicationInstanceOptionsV1,
+  options: CreateCoreGameApplicationInstanceOptionsV1<TTypes["executionContext"]>,
 ): Promise<
   CoreGameApplicationInstanceV1<
     TTypes,
@@ -1158,6 +1188,7 @@ export async function createCoreGameApplicationInstanceV1<
   coreApplicationReadinessHooksInternalV1.delete(options);
   const autosave = normalizeCoreAutosavePolicyV1(options.autosave);
   const scheduler = options.scheduler ?? defaultSchedulerV1;
+  const executionContext = options.executionContext as TTypes["executionContext"];
   const definition = application.definition;
   const gameSimulation = (application.resolved as { readonly gameSimulation: unknown })
     .gameSimulation as GameSimulationV1<
@@ -1267,12 +1298,12 @@ export async function createCoreGameApplicationInstanceV1<
   const sessionInput: GameSessionInputV1<TTypes> = {
     initialSnapshot: createInitialSnapshotV1(),
     commandSchema: gameSimulation.commandSchema,
-    executionContext: undefined as TTypes["executionContext"],
+    executionContext,
     executeAttempt: (snapshot, command) =>
       gameSimulation.commandExecutor.executeAttempt(
         snapshot,
         command,
-        undefined as TTypes["executionContext"],
+        executionContext,
       ),
     normalizeUnexpectedDispatchFault(error, snapshot) {
       if (definition.normalizeUnexpectedDispatchFault !== undefined) {
@@ -1291,7 +1322,7 @@ export async function createCoreGameApplicationInstanceV1<
           : gameSimulation.debugCommandExecutor.validate(
             snapshot,
             command,
-            undefined as TTypes["executionContext"],
+            executionContext,
           ),
       executeAttempt: (snapshot, command) =>
         isEngineDebugPatchStateKindV1(command)
@@ -1303,7 +1334,7 @@ export async function createCoreGameApplicationInstanceV1<
           : gameSimulation.debugCommandExecutor.executeAttempt(
             snapshot,
             command,
-            undefined as TTypes["executionContext"],
+            executionContext,
           ),
       normalizeUnexpectedFault(error, snapshot) {
         if (definition.normalizeUnexpectedDebugFault !== undefined) {
@@ -1881,6 +1912,7 @@ export async function createCoreGameApplicationInstanceV1<
       const command = definition.projectRebootstrapCommand(
         created.session.getCurrentSnapshot(),
         application.resolved,
+        executionContext,
       );
       if (command !== null) {
         const result = await created.session.dispatch(command);
@@ -2471,7 +2503,7 @@ export async function createCoreGameApplicationInstanceV1<
                     : gameSimulation.debugCommandExecutor.executeAttempt(
                       preSnapshot as never,
                       logged.command as never,
-                      undefined as TTypes["executionContext"],
+                      executionContext,
                     ),
                 (error, snapshot) => {
                   if (definition.normalizeUnexpectedDebugFault === undefined) throw error;
@@ -2519,7 +2551,7 @@ export async function createCoreGameApplicationInstanceV1<
                 gameSimulation.commandExecutor.executeAttempt(
                   preSnapshot as never,
                   logged.command,
-                  undefined as TTypes["executionContext"],
+                  executionContext,
                 ),
               (error, snapshot) => {
                 if (definition.normalizeUnexpectedDispatchFault === undefined) throw error;
@@ -2725,7 +2757,9 @@ export function createCoreGameApplicationInstanceForRebootstrapInternalV1<
     TPreview,
     TResult
   >,
-  options: CreateCoreGameApplicationInstanceForRebootstrapOptionsInternalV1,
+  options: CreateCoreGameApplicationInstanceForRebootstrapOptionsInternalV1<
+    TTypes["executionContext"]
+  >,
 ): Promise<
   CoreGameApplicationInstanceV1<
     TTypes,
@@ -2739,8 +2773,11 @@ export function createCoreGameApplicationInstanceForRebootstrapInternalV1<
 > {
   const readinessHooks = coreApplicationReadinessHooksInternalV1.get(options);
   coreApplicationReadinessHooksInternalV1.delete(options);
-  const publicOptions: CreateCoreGameApplicationInstanceOptionsV1 = {
+  const publicOptions: CreateCoreGameApplicationInstanceOptionsV1<
+    TTypes["executionContext"]
+  > = {
     host: options.host,
+    executionContext: options.executionContext,
     ...(options.capabilities === undefined ? {} : { capabilities: options.capabilities }),
     ...(options.capabilityState === undefined ? {} : { capabilityState: options.capabilityState }),
     ...(options.autosave === undefined ? {} : { autosave: options.autosave }),

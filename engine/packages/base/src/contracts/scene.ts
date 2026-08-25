@@ -16,7 +16,6 @@ import {
   parseStageTagV1,
 } from "./semantic-stage.ts";
 import type { StageMutationV1 } from "./semantic-stage-reducer.ts";
-import { parseStageMutationV1 } from "./semantic-stage-reducer.ts";
 import type {
   StageTargetChangeV1,
   StageTransitionCatalogV1,
@@ -171,10 +170,6 @@ const sceneMotionIdPatternV1 = /^motion\.[a-z0-9_.-]+$/u;
 const sceneMaxIdLengthV1 = 96;
 const sceneMaxLabelLengthV1 = 120;
 const sceneCanvasLimitV1 = 1_000_000;
-/** @internal Shared with the package-private Authoring Scene compiler. */
-export const sceneMaxEntriesInternalV1 = 64;
-/** @internal Shared with the package-private Authoring Scene compiler. */
-export const sceneMaxCuesInternalV1 = 128;
 const sceneZOrderLimitV1 = 1_000_000;
 
 function parseSceneIdV1(value: unknown, path: string): string {
@@ -363,9 +358,6 @@ export function parseSceneDocumentV1(value: unknown, path = ""): SceneDocumentV1
   }
 
   const rawEntries = readArray(record.entries, `${path}/entries`);
-  if (rawEntries.length > sceneMaxEntriesInternalV1) {
-    return dataFailure(`${path}/entries`, "scene_entries_count_invalid");
-  }
   const entries: SceneEntryV1[] = [];
   const entriesByTag = new Map<string, SceneEntryV1>();
   for (const [index, entryValue] of rawEntries.entries()) {
@@ -380,9 +372,6 @@ export function parseSceneDocumentV1(value: unknown, path = ""): SceneDocumentV1
   }
 
   const rawCues = readArray(record.cues, `${path}/cues`);
-  if (rawCues.length > sceneMaxCuesInternalV1) {
-    return dataFailure(`${path}/cues`, "scene_cues_count_invalid");
-  }
   const cues: SceneCueV1[] = [];
   const seenCueIds = new Set<string>();
   for (const [index, cueValue] of rawCues.entries()) {
@@ -454,7 +443,7 @@ function cueMutationPlanV1(
   entry: SceneEntryV1,
   currentContentId: string | undefined,
 ): readonly StageMutationV1[] {
-  const plans: unknown[] = [];
+  const plans: StageMutationV1[] = [];
   switch (cue.kind) {
     case "show": {
       if (currentContentId === undefined) {
@@ -490,9 +479,7 @@ function cueMutationPlanV1(
       return dataFailure(`/cues/${cue.cueId}/kind`, String(exhaustive));
     }
   }
-  return plans.map((plan, planIndex) =>
-    parseStageMutationV1(plan, `/cues/${cue.cueId}/mutations/${String(planIndex)}`)
-  );
+  return plans;
 }
 
 function currentContentIdV1(
@@ -522,7 +509,7 @@ function sameAppearanceV1(current: StageAppearanceV1, declared: StageAppearanceV
 function layerOrderPlanV1(
   orderedLayerIds: readonly StageLayerIdV1[] | undefined,
   stage: SemanticStageStateV1,
-): readonly unknown[] {
+): readonly StageMutationV1[] {
   if (
     orderedLayerIds === undefined ||
     (orderedLayerIds.length === stage.layers.length &&
@@ -533,6 +520,30 @@ function layerOrderPlanV1(
   return [{ kind: "setLayerOrder", layerIds: orderedLayerIds }];
 }
 
+type SceneStageLayerV1 = SemanticStageStateV1["layers"][number];
+type SceneStageEntryV1 = SceneStageLayerV1["entries"][number];
+
+function indexStageEntriesV1(stage: SemanticStageStateV1) {
+  const layersById = new Map<string, SceneStageLayerV1>();
+  const entriesByLayerId = new Map<string, ReadonlyMap<string, SceneStageEntryV1>>();
+  for (const layer of stage.layers) {
+    const layerId = layer.layerId as string;
+    layersById.set(layerId, layer);
+  }
+  return {
+    layersById,
+    entriesForLayer(layerId: string): ReadonlyMap<string, SceneStageEntryV1> {
+      const cached = entriesByLayerId.get(layerId);
+      if (cached !== undefined) return cached;
+      const entries = new Map(
+        (layersById.get(layerId)?.entries ?? []).map((entry) => [entry.tag as string, entry]),
+      );
+      entriesByLayerId.set(layerId, entries);
+      return entries;
+    },
+  };
+}
+
 /** The open plan: strangers on declared layers hide, declared entries settle. */
 function openMutationPlanV1(
   sceneDocument: SceneDocumentV1,
@@ -540,19 +551,15 @@ function openMutationPlanV1(
   stage: SemanticStageStateV1,
   options: SceneFromAdmittedDocumentInternalOptionsV1,
 ): readonly StageMutationV1[] {
-  const plans: unknown[] = [...layerOrderPlanV1(options.orderedLayerIds, stage)];
+  const plans: StageMutationV1[] = [...layerOrderPlanV1(options.orderedLayerIds, stage)];
+  const stageIndex = indexStageEntriesV1(stage);
   // Layer order and entry membership are separate authorities. An authored
   // empty layer participates in paint order, but it does not claim or hide
   // gameplay-owned entries that happen to occupy that layer.
-  const declaredLayerIds: string[] = [];
-  for (const entry of sceneDocument.entries) {
-    if (!declaredLayerIds.includes(entry.layerId as string)) {
-      declaredLayerIds.push(entry.layerId as string);
-    }
-  }
+  const declaredLayerIds = new Set(sceneDocument.entries.map((entry) => entry.layerId));
 
   for (const layerId of declaredLayerIds) {
-    const layer = stage.layers.find((candidate) => (candidate.layerId as string) === layerId);
+    const layer = stageIndex.layersById.get(layerId);
     for (const current of layer?.entries ?? []) {
       const declared = index.entriesByTag.get(current.tag as string);
       if (declared === undefined || (declared.layerId as string) !== layerId) {
@@ -562,8 +569,9 @@ function openMutationPlanV1(
   }
 
   for (const entry of sceneDocument.entries) {
-    const layer = stage.layers.find((candidate) => candidate.layerId === entry.layerId);
-    const current = layer?.entries.find((candidate) => candidate.tag === entry.tag);
+    const current = stageIndex.entriesForLayer(entry.layerId as string).get(
+      entry.tag as string,
+    );
     if (current === undefined) {
       plans.push({
         kind: "show",
@@ -614,19 +622,19 @@ function openMutationPlanV1(
     }
   }
 
-  return plans.map((plan, planIndex) =>
-    parseStageMutationV1(plan, `/open/mutations/${String(planIndex)}`)
-  );
+  return plans;
 }
 
 function authoringOrderingMutationPlanV1(
   plan: AuthoringSceneRuntimePlanV1,
   stage: SemanticStageStateV1,
 ): readonly StageMutationV1[] {
-  const plans: unknown[] = [...layerOrderPlanV1(plan.orderedLayerIds, stage)];
+  const plans: StageMutationV1[] = [...layerOrderPlanV1(plan.orderedLayerIds, stage)];
+  const stageIndex = indexStageEntriesV1(stage);
   for (const entry of plan.sceneDocument.entries) {
-    const layer = stage.layers.find((candidate) => candidate.layerId === entry.layerId);
-    const current = layer?.entries.find((candidate) => candidate.tag === entry.tag);
+    const current = stageIndex.entriesForLayer(entry.layerId as string).get(
+      entry.tag as string,
+    );
     if (
       current !== undefined &&
       entry.zOrder !== undefined &&
@@ -640,9 +648,7 @@ function authoringOrderingMutationPlanV1(
       });
     }
   }
-  return plans.map((mutation, index) =>
-    parseStageMutationV1(mutation, `/reconcile/mutations/${String(index)}`)
-  );
+  return plans;
 }
 
 /** @internal Options used only by package-owned runtime-plan compilers. */
@@ -674,10 +680,15 @@ export function sceneFromAdmittedDocumentInternalV1(
   const index = indexSceneV1(sceneDocument);
 
   const mayShow: string[] = [];
+  const mayShowSet = new Set<string>();
   for (const cue of sceneDocument.cues) {
     if (cue.kind !== "show") continue;
     const entry = requireCueEntryV1(index, cue);
-    if (!mayShow.includes(entry.contentId as string)) mayShow.push(entry.contentId as string);
+    const contentId = entry.contentId as string;
+    if (!mayShowSet.has(contentId)) {
+      mayShowSet.add(contentId);
+      mayShow.push(contentId);
+    }
   }
 
   return {

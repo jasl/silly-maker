@@ -13,7 +13,7 @@ import type {
   LabNarrativeViewV1,
   LabPreviewV1,
 } from "../index.ts";
-import { labSemanticAdapterV1, labStoryEntryV1 } from "../index.ts";
+import { labHeadlessExecutionContextV1, labSemanticAdapterV1, labStoryEntryV1 } from "../index.ts";
 
 type LabAgentPortV1 = AgentGamePortV1<
   LabGameViewV1,
@@ -28,6 +28,7 @@ function createLabHarnessV1(seed = 23049) {
   return createGameHarnessV1({
     entry: labStoryEntryV1,
     semantic: labSemanticAdapterV1,
+    executionContext: labHeadlessExecutionContextV1,
     seed,
   });
 }

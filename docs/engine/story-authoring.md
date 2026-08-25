@@ -12,7 +12,7 @@ A Story owns the game-specific parts of a playable application:
 - validated gameplay data and named deterministic rule providers;
 - the State shape and GameplayModules that own it;
 - commands, rejections, domain events, debug commands, queries, and ViewModels;
-- text, assets, scene graph, interactions, semantic actions, and renderer contributions;
+- text, assets, scene graph, interactions, semantic actions, spatial Scene renderers, and GUI composition/Code Surface definitions;
 - Story-specific application composition and optional tooling.
 
 Generic session, persistence, diagnostics, UI primitives, and browser adapters stay in SillyMaker packages. The Story consumes those packages through workspace public exports.
@@ -97,15 +97,42 @@ The presentation facet contains validated Story-owned data:
 - character rigs/appearances;
 - interaction targets, hit maps, and presentation values.
 
-Story React contributions resolve stable renderer IDs inside the application closure. They receive immutable semantic/presentation projections and send semantic or presentation intents. Scene data that participates in resolution should stay plain and serializable.
+Keep the spatial Scene path and ordinary DOM GUI path separate. Scene plans use
+stable renderer IDs and plain serializable data for Stage objects, paint order,
+hits, and motion. DOM application UI uses a `sillymaker.gui-composition`
+document: stable `nodeId`, a build-known `viewId`, Strict JSON props, and named
+slots whose meaning belongs to the parent definition.
+
+Bind each DOM view through the focused `@sillymaker/ui/code-surface` entry with
+a literal dynamic import, one props admission, a narrow application context,
+and minimal authoring metadata listing public props, preview mode, and state
+ownership. The parent view owns its slot layout/CSS; a child owns its internal
+DOM/CSS. React-local drafts, selection, scroll, IME state, or RPC conversation
+state stay with that component or a dedicated session. Only explicit semantic
+or presentation intents cross into engine authority. Same-realm npm and Story
+code is trusted application code: follow cleanup and input/portal best practices,
+but do not expect SillyMaker to sandbox `document`, listeners, network access,
+or main-thread work.
+
+For a large GUI, keep each composition as a build-known runtime asset and pair it
+with one literal catalog loader in the application's private Code Surface entry.
+The GUI unit owner fetches and admits the composition once, loads the catalog,
+and returns a direct compiled plan under an explicit lease; rendering that plan
+still loads child modules/CSS only when their parent really renders the slot.
+Do not add a second registry or turn module URLs into data. The Engine Lab's
+exact-query Code Surface is the small reference wiring; ordinary Player routes
+exclude its GUI owner, catalog, children and CSS.
 
 For large immutable dialogue, keep stable text IDs in the Story control plan and
 move copy into build-known text packs instead of constructing every localized
 entry during Player module evaluation. Keep only small startup/UI copy in the
 resident `TextCatalogSetV1`. Put each payload under the application's
-`assets/content/` tree as the exact `sillymaker.text-content-pack` V1 wire
-(`format`, `version`, `packId`, `textCatalogs`), and declare its app-relative
-runtime path plus stable `packId` in one `TextContentManifestV1`. The same
+`assets/content/` tree as the exact physical `sillymaker.text-content-pack` V2
+wire (`format`, `version`, `packId`, `locale`, `entries`). In one
+`TextContentManifestV1`, declare the default locale, explicit acyclic fallbacks,
+and logical packs whose locale variants pair an app-relative runtime path with a
+stable `packId`. Every logical pack needs its default variant; translations may
+omit default Text IDs but cannot invent new ones. The same
 manifest belongs in the materialized presentation and the application's
 `textContent` declaration, alongside bootstrap catalogs and build-known
 initial/required pack IDs. Do not add or generate sibling byte-length, SHA or
@@ -118,18 +145,29 @@ composition so Web can bind one readiness hook into the existing Core semantic
 and Persistence authorities. The invocation planner receives Story-admitted
 input before command construction/dispatch; the Snapshot planner receives a
 validated replacement candidate before bind/commit (and before R2
-takeover/install). Do not call `ensure` from a UI callback, and do not fetch or
+takeover/install). Do not call `acquire` from a UI callback, and do not fetch or
 await inside a command executor. UI and automation keep using the ordinary
 semantic port; Save-surface load/import keep using Persistence. A candidate is
 not allowed to replace the old State until its required packs are ready;
 ordinary dev-only State-tuner writes may conservatively prepare all declared
 packs after their capability gate. UI text
-resolution is synchronous through the supplied `TextContentSessionV1`. Missing
+resolution is synchronous through the supplied `TextContentSessionV1`. Each
+prepared logical pack is held by an explicit lease; last release removes its
+parsed variants/indexes, while a successful Web start currently retains prepared packs
+until that application generation is disposed. Missing
 or corrupt content must report a Host/application failure and leave the current
 semantic and Stage publication unchanged. Do not build a second content facade
 or couple the planner to raw Base State.
 
-Treat manifest revision plus sorted `packId`/`runtimePath` topology as
+Locale selection is a Player-profile preference, not gameplay State. Web
+activates the persisted locale before initial acquisition; a locale control
+awaits `playerProfile.updatePreferences({ locale })`, which stages the demanded
+pack variants and fallback chain before publishing/persisting the preference.
+Do not fetch variants or call `activateLocale` from a React component. The Text
+owner keeps only the current locale/fallback variants for demanded packs, apart
+from the short-lived predecessor/candidate overlap during a switch.
+
+Treat manifest revision plus sorted locale/fallback/pack/variant-path topology as
 presentation identity and its bytes as static payload: neither packs nor
 loaded-session indexes enter State, Snapshot, Save, CommandLog, or replay.
 Directly editing text at an existing logical location does not change that
@@ -144,12 +182,26 @@ this split with opening/ending packs, `src/tooling/narrative-flow.ts`, the tooli
 only authoring copy, and its Inspector binding. Run
 `deno task check:assets` after changing any pack or manifest topology; it reads
 every declared pack from its own application root and exercises the same Base
-bounded admission contract. Pack unload and a separate i18n/message-catalog lane
-remain deferred after M0–M5 and require a separate owner-selected, evidence-backed lane.
+bounded admission contract. The active Scalable Authoring / Addressable Runtime / Mods
+plan has delivered addressable acquire/release plus locale-addressable variants
+and atomic active-locale reconciliation in this same text manifest/session.
+
+If one product needs first-party, build-known Mods, keep the extension vocabulary
+in that application rather than inventing a universal Story schema. Declare typed
+extension points that cold-compile contributions into the same direct plans the
+base product already consumes; choose one immutable active set while constructing
+the application generation, and project its ordered `(modId, generation)` identity
+into the application's existing BuildIdentity whenever it changes authoritative
+behavior. The private `@sillymaker/composition/internal/mod-runtime` loads only
+selected literal code sources, dependency-orders the set, and reuses Direct
+lifecycle/rollback. It does not discover packages, own a second State/Save/digest,
+or provide live install/restart. Data/code inside the application realm remains
+trusted JavaScript; use resource-free loaders/compilers and put reversible effects
+under the lifecycle rather than expecting an engine sandbox.
 
 Narrative entrance/exit animation is authored as Motion assets: `sillymaker.motion` JSON documents (strictly admitted integer keyframes with per-segment easing), bound to stage edges through `motionStageTransition` in the transition catalog — or, for a scene-managed scene, through its Scene document's cue bindings. Motions compose over the settled placement (layout stays authoritative) and never enter authoritative State, Saves, digests, or replay. They are the human tuning surface: the reusable focused `MotionWorkbenchV1` can edit/save one document through the shared session/CAS path, while the current Inspector exposes selected-object Motion/Timeline references and scrub read-only. Neither is a Studio workspace. `story check` lints every motion file: admission, unique ids, and filename↔id agreement.
 
-Discrete frame swaps (blinks, breathing sheets, burst frame runs) are the same Motion asset: a `frame` track samples stepwise (no interpolation, no easing) and selects an index into the frame table the content declares via `StageContentResolution.frameAssetIds` (ordered, ≤64; joins asset preloading). The stage host hands the sampled `frameIndex` to the entry renderer — one-shot cue motions override while in flight, an entry's `ambient` loop overrides while settled, otherwise `frameIndex` is `null` and the renderer shows its default appearance. Author frame 0 as the default pose (reduced motion drops the override), and make a one-shot run's last frame equal the settled appearance so the settle is invisible. The runtime clamps out-of-table indices; the Workbench edits frame keyframes like any other track (easing controls replaced by a stepped label).
+Discrete frame swaps (blinks, breathing sheets, burst frame runs) are the same Motion asset: a `frame` track samples stepwise (no interpolation, no easing) and selects an index into the ordered frame table the content declares via `StageContentResolution.frameAssetIds` (all members are validated and join asset preloading; the former arbitrary 64-entry cap is gone). The stage host hands the sampled `frameIndex` to the entry renderer — one-shot cue motions override while in flight, an entry's `ambient` loop overrides while settled, otherwise `frameIndex` is `null` and the renderer shows its default appearance. Author frame 0 as the default pose (reduced motion drops the override), and make a one-shot run's last frame equal the settled appearance so the settle is invisible. The runtime clamps out-of-table indices; the Workbench edits frame keyframes like any other track (easing controls replaced by a stepped label).
 
 Clickable body/prop zones are authored as Regions documents: a `sillymaker.regions` JSON file (`*.regions.json`, strictly admitted) declaring named regions — bounding box plus accessible name, optionally refined by a `polygonPoints` shape (pointer hits then follow the polygon via CSS clip-path; keyboard activation keeps the box) and a `hoverAssetId` silhouette highlight the host reveals on hover/focus when the Story passes an `assets` registry. Story code imports the document, runs `parseRegionsDocumentV1` once, and hands `document.regions` to the content catalog's `resolveContent` (`hitRegions`); activations arrive through the stage's `onHitRegionActivate` and become ordinary semantic invocations — regions never carry gameplay authority, and hover state never enters State, Saves, or replay. `story check` lints every regions file (admission, unique ids, filename↔id agreement), and `story regions trace <image.png>` bootstraps a document from a bitmap alpha silhouette. The current Inspector shows an Authoring Scene object's projected regions and real polygon/rectangle overlay read-only; edit the standalone Regions JSON/code path directly until a future focused editor is justified.
 
@@ -161,7 +213,19 @@ The compiler keeps Player and authoring concerns separate. `runtimePlan` contain
 
 Each application declares one `sceneSources` row per scene in `sillymaker.config.ts`: `sourceKind: "authoring_scene"` provides the source path and exact package specifier; `sourceKind: "low_level_scene"` selects an ordinary `sillymaker.scene` module and provides no source path. Do not infer a source from which files happen to exist, and do not keep two synchronized representations. The low-level `SceneDocumentV1` route remains the Advanced hand-written path and retains the same cue/open/transition contracts. Cat Cafe currently uses that low-level path. The Template opening is the first release Authoring Scene consumer: Vite replaces its declared package import with a runtime-plan-only virtual module, so the final Player excludes the JSON source, compiler, and Deno tooling fallback.
 
-The current standalone/embedded Inspector opens `authoring_scene` sources through the Authoring Scene CAS/session. It provides virtualized scene and object/layer navigation, real Stage preview with off-canvas/transparent/group ghosts, bounded transform/content/appearance/order edits, read-only hit-region/Motion/Timeline/interaction/intent/provenance facets, and detached scrub. It does not edit low-level Scene, standalone Regions/Chrome documents, Blueprint code, or arbitrary TypeScript. Neither source path activates Deno Desktop HMR; the Desktop adapter remains private, explicit, default-off, and separately gated.
+For a large Story, group those existing compiled Scene imports into a
+`SceneUnitManifestV1` with stable Scene IDs and literal loaders. Split the
+control plan independently with `NarrativeUnitManifestV1`: State/Save retains a
+stable `{ unitId, nodeId }` position, each unit declares its public entries and
+cross-unit edges, and its typed dependencies name required Scene, GUI, text-pack
+and asset IDs. Close those references at application composition, then have the
+Host prepare the exact units before an admitted command or replacement. Story
+commands and authoritative replay consume the direct plans from the typed
+execution context; they must never await a file/module/network load. Hold and
+release policies belong to the application consumer—V1 has no automatic LRU or
+prefetcher and does not promise that a loaded ESM module leaves the browser cache.
+
+The current standalone/embedded Inspector opens `authoring_scene` sources through the Authoring Scene CAS/session. It provides virtualized scene and object/layer navigation, real Stage preview with off-canvas/transparent/group ghosts, bounded transform/content/appearance/order edits, read-only hit-region/Motion/Timeline/interaction/intent/provenance facets, and detached scrub. An application may also provide a read-only Runtime Inspector source for Scene/Narrative/GUI/Text owner status, committed current references, acquisition timing/failure/retry, working-set summaries, and explicit Code Surface source/layout/state/policy/lifecycle metadata. Selecting an unloaded unit never loads it; the standalone page shows detached manifest summaries, while the embedded surface can observe the same-realm live owner. It does not edit low-level Scene, standalone Regions/Chrome documents, Blueprint code, or arbitrary TypeScript, and it is not a DOM/module profiler or sandbox. Neither source path activates Deno Desktop HMR; the Desktop adapter remains private, explicit, default-off, and separately gated.
 
 ### Create the Story package
 

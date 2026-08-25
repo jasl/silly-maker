@@ -7,6 +7,7 @@ import { createGameHarnessV1, resolveStoryForTestV1 } from "@sillymaker/base/tes
 import type { LabActionIdV1, LabGameStateV1, LabInvocationV1 } from "../index.ts";
 import {
   labProcedureStepsToCompleteV1,
+  labHeadlessExecutionContextV1,
   labSamplesStateSchemaV1,
   labSemanticAdapterV1,
   labStoryEntryV1,
@@ -16,6 +17,7 @@ function createLabHarnessV1(seed = 23049) {
   return createGameHarnessV1({
     entry: labStoryEntryV1,
     semantic: labSemanticAdapterV1,
+    executionContext: labHeadlessExecutionContextV1,
     seed,
   });
 }

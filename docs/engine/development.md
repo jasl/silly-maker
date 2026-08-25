@@ -261,6 +261,13 @@ values. Keep runtime consumption on `compiled.runtimePlan`; `objectTargets`,
 `bindings`, `inspection`, `sourceMap`, and the result of
 `projectAuthoringSceneFacetsV1` are authoring-only data.
 
+The Scene-specific Inspector session trusts admitted Scene values as immutable
+typed data: history uses identity cloning and `Object.is`, and the reducer's
+required compiler validation and the following Inspector projection share the
+compilation for that exact Scene object. Do not restore JSON clone/equality or a
+second full compile at the consumer. Direct mutation of an admitted object is an
+unsupported same-realm hack, not an engine threat model.
+
 The Vite plugin watches the configured source, intercepts only its exact package
 specifier, and generates a virtual module containing the runtime plan. A small
 source-reading fallback module may support non-Vite Deno Story tooling/tests, but
@@ -338,6 +345,163 @@ held Agent are checked as visible behavior; internal Host/session/run/connection
 CAS, and detailed failure/currentness stay in the focused unit/headless suites. None of these is
 real-backend, OpenUI/A2UI, persistence, Desktop, or universal physical failure/rollback evidence.
 Keep the private seam out of `features.md` until a later promotion has a real second consumer.
+
+### Addressable runtime unit workflow
+
+Use addressable units to keep startup and the resident working set independent
+from total Story size. Do not create one generic loader or registry. Scene units
+wrap the existing configured `#sillymaker/scene/*` compiler outputs; Narrative
+units own stable `{ unitId, nodeId }` positions, public entries, cross-unit edges
+and typed Scene/GUI/text/asset dependencies; text keeps its own manifest/session;
+GUI composition stays behind `@sillymaker/ui/code-surface/internal`; Code Surface
+module/CSS loading and assets remain with literal React loaders and Asset
+Registry respectively.
+
+The application owns one `WebAddressableRuntimeDefinitionV1` per Web start. Its
+literal loaders may do I/O only in `prepareInitial`, admitted invocation
+preparation, or validated replacement preparation. Core receives its typed
+execution context once; command, replay and render code require a resident direct
+plan and never fall back to loading, schema admission or registry lookup. The
+types enforce this boundary: a simulation whose execution context excludes
+`undefined` must provide Core `executionContext` and Web `addressableRuntime`;
+only a context type that includes `undefined` may omit them. Close
+Narrative cross-unit and cross-owner references when composing the application.
+Also list literal dynamic simulation/presentation roots in the existing Story
+BuildIdentity owner's `additionalEntries`; do not copy source hashes into unit
+manifests or let changed authoritative unit code fall into only the application
+facet.
+
+Every successful acquire returns an independent lease. Release it when the real
+consumer no longer needs parsed indexes, subscriptions, React instances or other
+explicit resources; dispose the owner at successor/application close. Do not
+claim that release evicts browser ESM/CSS caches. Engine Lab intentionally keeps
+visited Scene/Narrative units for its generation because its authoritative replay
+is synchronous, and Web currently keeps prepared text packs until start disposal.
+These are conservative consumer policies, not an LRU/current-only engine claim.
+
+Focused M2 checks are:
+
+```sh
+deno run -A npm:vitest run engine/packages/base/src/runtime/content engine/packages/base/src/contracts/text-content.test.ts engine/packages/ui/src/code-surface/gui-composition-units.test.ts engine/packages/ui/src/assets/asset-registry.test.ts engine/packages/web/src/application/web-addressable-runtime.test.ts engine/packages/web/src/application/load-web-runtime-bytes.test.ts e2e/src/test/addressable-runtime.test.ts
+deno run -A npm:@playwright/test/playwright test --config engine/packages/web/playwright.engine.config.ts engine/packages/web/e2e/engine/code-surface.spec.ts engine/packages/web/e2e/engine/pacing.spec.ts --project=chromium --project=webkit
+deno task bench:player:bundle --application e2e
+deno task bench:content:compile --profile content-scale
+deno task bench:content:bundle --profile bundle-scale
+deno task bench:player
+```
+
+The performance commands emit raw, machine-dependent trends only. The Player
+trend uses Chromium's native Long Tasks observer for count/total/max alongside
+startup, interaction, heap and allocation; no threshold means promotion.
+
+### Runtime Inspector workflow
+
+An application may add `InspectorBindingV1.runtime` as a read-only projection of
+its real addressable owners. Keep the projection out of authority: it may report
+stable unit/source identity, committed current references, status/timing,
+diagnostics, working-set counts, and delegate an explicit retry for a failed
+unit. It must not retain leases, compile plans, load on selection, enumerate DOM
+or module inventories, or become a second registry/session. Package-internal
+typed owner results are trusted and are not admitted again.
+
+Publish unit changes by stable ID and no-op an unchanged absolute projection.
+When the Inspector is not subscribed, do not scan or clone the full manifest;
+defer list materialization until a snapshot is actually requested. Standalone and embedded entries are different browser
+realms: the standalone page should say it is detached and show static summaries,
+not acquire a cross-realm coordinator. Add RPC only for a separately accepted
+product consumer.
+
+Code Surface definitions provide source and authoring/cooperation metadata
+explicitly. Use React effect cleanup and typed resource owners for listeners,
+requests, timers, workers, and portals. SillyMaker does not wrap trusted
+same-realm npm/Story code in Proxy, Shadow DOM, descriptor checks, or a synthetic
+event loop. Use the existing raw Player benchmark and browser profiler for long
+tasks/heap; do not turn Inspector lifecycle reporting into a profiler.
+
+Focused M3 checks are:
+
+```sh
+deno run -A npm:vitest run engine/packages/web/src/application/web-addressable-runtime.test.ts engine/packages/ui/src/code-surface/code-surface.test.tsx engine/packages/studio/src/inspector e2e/src/test/runtime-inspection.test.ts e2e/src/test/runtime-inspection-react.test.tsx e2e/src/test/addressable-runtime.test.ts e2e/src/test/inspector-binding.test.ts
+deno run -A npm:@playwright/test/playwright test --config engine/packages/web/playwright.engine.config.ts engine/packages/web/e2e/engine/runtime-inspector.spec.ts --project=chromium --project=webkit
+deno run -A npm:vitest run engine/packages/tooling/src/vite/build-dependency-receipt.test.ts
+```
+
+### Locale-addressable text workflow
+
+Declare locale topology once in `TextContentManifestV1`: one default locale, an
+acyclic explicit fallback for every supported locale, and logical packs whose
+`variants` map available locales to app-root-relative `assets/**` paths. Each
+physical file uses the exact V2 wire
+`{ format, version, packId, locale, entries }`. The default variant defines a
+logical pack's Text IDs; translated variants may be partial but must not add IDs.
+There are no byte-length, SHA, or declared-count receipts to synchronize after a
+translation edit.
+
+Acquire logical packs only through the application readiness planners. The Text
+session loads the active locale plus its declared fallback variants for demanded
+packs, then resolves text synchronously. `activateLocale` stages a complete
+candidate and swaps the current presentation owner atomically; failure retains
+the predecessor and the latest request wins. The Web Player-profile port awaits
+that activation before publishing or persisting a locale preference. A React
+control uses the profile preference port; it does not call `acquire`, invent an
+`ensure` facade, or fetch a variant itself.
+
+The resident parsed working set is active locale chain × demanded logical packs,
+apart from the short-lived predecessor/candidate overlap during a switch. A final
+lease release removes that logical pack from the Text owner. Web currently keeps
+its required logical-pack leases until application disposal, and browser HTTP
+caches remain Host behavior; neither fact is a second engine cache or an eviction
+claim. Directly edited physical bytes become a new immutable content session on
+refresh/restart.
+
+Focused M4 checks are:
+
+```sh
+deno run -A npm:vitest run engine/packages/base/src/contracts/text-content.test.ts engine/packages/web/src/application/load-web-text-content-pack.test.ts engine/packages/web/src/application/text-locale-player-profile.test.ts template/src/test/text-content-runtime.test.ts template/src/test/content-scale-bench.test.ts scripts/assets/verify-runtime-assets.test.ts scripts/performance/content-bundle-scale-helpers.test.ts
+deno task check:assets
+deno task bench:content:compile --profile content-reference
+deno task bench:content:compile --profile content-scale
+deno task bench:content:bundle --profile bundle-reference
+deno task bench:content:bundle --profile bundle-scale
+```
+
+Both benchmark pairs report raw machine-dependent measurements. They neither
+carry a promotion verdict nor establish a universal threshold.
+
+### Private application-local Mod workflow
+
+Use `@sillymaker/composition/internal/mod-runtime` only for a build-known Mod
+selection owned by one application generation. Keep catalog rows small: a data
+row carries its admitted first-party definition; a code row carries only exact
+`modId`/`generation` identity plus a literal/generated loader. Supply the active
+IDs once at application construction. The runtime loads only that set, orders
+declared dependencies before dependents, validates contributions against the
+application's typed extension points, cold-compiles direct values, and then
+mounts optional code lifecycles through the existing Direct parent/child owner.
+There is no supported mutation of the active set; construct an ordinary successor
+application generation to change it.
+
+The application owns each extension point's payload type, contribution kind,
+collision rule, and compiled consumer plan. It also owns projecting ordered
+`activeIdentity` into the existing BuildIdentity/digest inputs when the active
+selection changes authoritative behavior. The Mod runtime must not create a
+second digest, State, Save, Session, or publication authority. Keep `load()` and
+`compile()` resource-free and staging-pure; acquire reversible listeners, timers,
+or other resources only in the existing Direct lifecycle. This is a trusted
+same-realm composition contract, not a sandbox or side-effect interception layer.
+
+Do not add filesystem/package discovery, a public resolver/ABI/SDK, download or
+signature policy, post-release arbitrary-code loading, or install/restart APIs to
+this entry. A no-Mod product must remain complete and omit the private runtime
+from its final graph. The maintained Engine Lab proof is test-only and deliberately
+small; SillyOS, third-party React packages, and Agent conversation are later
+product validation rather than fixtures for this engine slice.
+
+Focused M5 checks are:
+
+```sh
+deno run -A npm:vitest run engine/packages/composition/src/mod-runtime/runtime.test.ts e2e/src/test/mod-conformance.test.ts engine/packages/tooling/src/vite/build-dependency-receipt.test.ts
+```
 
 ### GUI startup and module-update baseline
 
@@ -1027,17 +1191,20 @@ deno task bench:content:compile --profile content-reference
 deno task bench:content:compile --profile content-scale
 ```
 
-The profiles generate 1 and 100 build-known packs of 1,000 text entries while
-sharing the same two-node control plan and minimal mutable State. Each process
-performs one warmup, records five raw manifest-build and first-pack-admission
-samples with p50/p95, and takes isolated retained-heap checkpoints around the
-session after the explicit two-pass GC protocol. Both profiles load only the
-first pack; the scale session therefore retains a larger compact manifest, not
-the other 99 payloads. The generated fixture stays process-local and the JSON
-report lives only in an OS temporary directory; timings and heap remain trend
-evidence. Ordinary tests protect stable counts, one loaded pack/1,000 loaded
-entries, an inline-copy-free control plan, and identical 60-byte State/digest,
-not one machine's measurements.
+The current profiles generate 2 logical packs × 3 locales and 100 packs × 8
+locales, with 1,000 default entries per pack and partial non-default variants,
+while sharing the same two-node control plan and minimal mutable State. Each
+process performs one warmup, records five raw manifest-build, pre-demand locale-
+selection, and first-pack-admission samples with p50/p95, and takes isolated
+retained-heap checkpoints around the session after the explicit two-pass GC
+protocol. Both profiles demand only the first logical pack and load only its
+active plus default-fallback variants: 2 variants / 1,500 admitted entries, with
+zero cold-variant loads. The scale session therefore retains a larger compact
+topology, not the other 99 packs or 798 physical variants. The generated fixture
+stays process-local and the JSON report lives only in an OS temporary directory;
+timings and heap remain trend evidence. Ordinary tests protect these structural
+counts, per-ID fallback, an inline-copy-free control plan, and identical 60-byte
+State/digest, not one machine's measurements.
 
 The 2026-08-24 M1 same-machine five-sample checkpoint used the final modified
 worktree over base HEAD `eb718bcaa6683785634cbfd6efb9ce637efafbd1`. It measured
@@ -1053,6 +1220,15 @@ p50/p95 `0.348/0.363 ms` versus `0.899/0.934 ms`, first-pack admission
 `361,006 B` versus `361,664 B` gzip (`+658 B`). Both profiles still load one
 1,000-entry pack and retain the same 60-byte State/digest; raw reports remain
 temporary owner-review evidence.
+
+The 2026-08-25 M4 five-sample rerun uses the current multi-locale fixture. The
+2-pack/3-locale reference versus 100-pack/8-locale scale profiles measured
+manifest-build p50/p95 `0.177/0.348 ms` versus `4.106/11.922 ms`, pre-demand
+locale selection `0.0045/0.0065 ms` versus `0.0045/0.0061 ms`, and first logical-
+pack admission `5.097/7.041 ms` versus `4.703/7.082 ms`. Both retained exactly
+one demanded pack, two variants, and 1,500 entries with zero cold-variant loads.
+The single retained-heap deltas (`237,352 B` / `583,312 B`) are noisy trend data,
+not a memory budget or proof of proportionality.
 
 `deno task bench:authoring-index` generates a 10-document mixed-family reference
 profile and a 1,000-Authoring-Scene scale profile (50 objects per scene). It
@@ -1091,11 +1267,17 @@ static `imports`, and reports raw/gzip initial and total JavaScript plus separat
 content-asset bytes and source/environment provenance. It does not time builds,
 compare revisions, or decide promotion. Source/build fixtures are deleted from
 OS temp; the small JSON report remains in OS temp unless `--output` is supplied.
-The same final-worktree checkpoint measured initial transitive JavaScript gzip
+The historical 2026-08-24 final-worktree checkpoint measured initial transitive JavaScript gzip
 `361,312 B` versus `366,431 B` (`+5,119 B`, below the accepted 32 KiB structure budget) and pack
 assets gzip `5,850 B` versus `585,737 B`; unlike M0's `+556,838 B` JavaScript
 gap, payload growth is now visible in the deployable content assets where it
 belongs.
+
+The 2026-08-25 M4 V2/variant-topology rerun measured reference versus scale
+initial JavaScript at `1,255,578/329,681 B` versus `1,265,676/330,457 B`
+raw/gzip. External physical variants measured `102,111/5,787 B` versus
+`10,211,100/579,253 B` raw/gzip. These remain raw structural observations; the
+benchmark itself applies no promotion threshold.
 
 For maintained Story payloads, run the product verifier rather than either
 benchmark:

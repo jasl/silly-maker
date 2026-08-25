@@ -119,7 +119,6 @@ export {
   parseStageCueDispatchesV1,
   parseStageTagV1,
   parseStageTransitionDefinitionV1,
-  stageCueDispatchLimitV1,
   motionChannelBaselineV1,
   motionDefinitionFromDocumentV1,
   motionDocumentFormatV1,
@@ -192,10 +191,15 @@ export {
 export type {
   AdmittedTextContentPackV1,
   CanonicalJsonErrorCodeV1,
+  TextContentBootstrapCatalogV1,
   TextContentErrorCodeV1,
+  TextContentLocaleDescriptorV1,
   TextContentManifestV1,
   TextContentPackDescriptorV1,
   TextContentPackIdV1,
+  TextContentPackLeaseV1,
+  TextContentPackTimingV1,
+  TextContentPackVariantDescriptorV1,
   TextContentSessionV1,
   VersionStampV1,
 } from "./contracts/index.ts";
@@ -607,6 +611,16 @@ export type {
   TextId,
 } from "./contracts/index.ts";
 export { resolvePreferredLocaleV1 } from "./contracts/preferred-locale.ts";
+export {
+  admitGuiCompositionDocumentV1,
+  admitGuiCompositionSourceBytesV1,
+  guiCompositionDocumentFormatV1,
+  guiCompositionDocumentVersionV1,
+} from "./contracts/gui-composition.ts";
+export type {
+  GuiCompositionDocumentV1,
+  GuiCompositionNodeV1,
+} from "./contracts/gui-composition.ts";
 export {
   defineSaveStateMigrationRegistryV1,
   parseSaveStateMigrationIdV1,

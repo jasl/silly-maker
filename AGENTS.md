@@ -141,22 +141,25 @@ Read only the documents relevant to the change:
   independent Desktop activation follow-up did not block AR5/AR6, Workspace
   Focus, or Browser R2 closure and does not block other owner-accepted work.
   Browser R2 authoritative handoff is closed. On 2026-08-24 the owner accepted
-  the Scale/Scene Object/Modular GUI plan listed below as the current engine lane.
+  the Scale/Scene Object/Modular GUI plan listed below as the then-current engine lane.
   Its orthogonal M0 scale baselines and M1 static content plane/initial-bundle
   separation delivered the same day. M1 added the Base-owned immutable text-pack
   manifest/session, once-only strict pack admission, Web same-origin progressive
   loading through one semantic-invocation/Snapshot-replacement readiness boundary,
   Template's opening/ending packs, runtime-asset verification, and the
   ordinary-Player separation from tooling-only Flow/source metadata. Static
-  payload stays outside State/Save and initial JavaScript. The compact manifest's
-  revision plus sorted `packId`/`runtimePath` topology is presentation identity;
-  editing passive text bytes at an existing logical location does not change that
+  payload stays outside State/Save and initial JavaScript. M1 originally used the
+  compact manifest's revision plus sorted `packId`/`runtimePath` topology as
+  presentation identity; the later locale-addressable contract extends that
+  identity with locale/fallback/variant-path topology. Editing passive text bytes
+  at an existing logical location does not change that
   identity or add a Save compatibility warning, and a refresh/restart creates the
   new immutable content session. Exact byte-length/SHA/declared-entry receipts and
   their proposed generator were removed as hostile to ordinary translation/Mod
   style local edits; bounded wire/schema admission remains and entry count is derived after
-  admission. Pack unload and a separate i18n/message-catalog lane remain deferred
-  until M0–M5 closes. M2 State hot plans and the single-owner incremental project
+  admission. That plan's M0–M5 are now closed; the completed 2026-08-25 plan
+  subsequently delivered addressable release and locale-addressable text rather
+  than retaining the old defer. M2 State hot plans and the single-owner incremental project
   index delivered 2026-08-24: command execution uses a cold-compiled reducer
   direct plan plus touched-only batched State materialization, and each Vite dev
   server owns one lazy metadata-only authoring index with cached list views and
@@ -215,7 +218,7 @@ Read only the documents relevant to the change:
   state, or add a Save format/migration framework.
 - `docs/engine/proposals/scale-scene-object-and-modular-gui.md` and
   `docs/engine/plans/2026-08-24-scale-scene-object-modular-gui.md` — the accepted
-  target contract and only current execution plan. M0 scale characterization,
+  target contract and completed execution plan. M0 scale characterization,
   M1 static content/runtime/authoring separation, M2 sparse State hot plans plus
   incremental authoring indexing, M3 modular GUI composition, M4's first
   Authoring Scene hierarchy/compiler, and M5's Inspector-first clean replacement
@@ -226,6 +229,39 @@ Read only the documents relevant to the change:
   the old Studio shell. External
   experiment repositories remain pressure sources only and never become source,
   fixture, dependency, naming, or validation authority.
+- `docs/engine/proposals/scalable-authoring-addressable-runtime-and-mods.md` and
+  `docs/engine/plans/2026-08-25-scalable-authoring-addressable-runtime-and-mods.md`
+  — the accepted target contract and completed execution plan. Its order was
+  M0 capacity-contract reset; M1 orthogonal GUI composition plus build-known
+  Code Surfaces; M2 addressable Scene/Narrative/GUI/code/content units; M3
+  Runtime Inspector facets; M4 locale-addressable i18n; and M5 a private,
+  build-known, application-local Mod Runtime. M0–M5 delivered and closed on
+  2026-08-25. M2 added type-specific lease-owned
+  Scene, Narrative, GUI and text units, reused literal Code Surface loaders plus
+  Asset Registry, and connected one application-owned Web readiness/execution-
+  context seam. Engine Lab proves opening/drill/query-only GUI chunk separation
+  without a universal loader, LRU, prefetcher or Worker pool. Its synchronous
+  replay and Web text consumers conservatively retain visited/prepared units
+  until application-generation disposal; current-only eviction is not claimed.
+  M3 added an application-owned read-only Runtime Inspector projection, lazy
+  snapshot materialization when no Inspector subscribes, O(1) per-pack Web Text
+  observation, detached standalone summaries, embedded committed-current
+  observation, and explicit Code Surface source/layout/policy/lifecycle facets.
+  Inspector selection does not load units or own leases/plans; no DOM/module
+  inventory, profiler, same-realm sandbox, or cross-realm coordinator was added.
+  M4 extended the existing Text manifest/session with default locale, explicit
+  fallback topology, V2 locale variants, per-ID fallback, and atomic latest-wins
+  activation while retaining only demanded packs' active chains. M5 added the
+  package-private `./internal/mod-runtime`: it cold-compiles a build-known,
+  generation-immutable active set through application-owned typed extension
+  points, reuses Direct lifecycle/rollback, and leaves identity projection to the
+  application. Products that do not select it structurally exclude it.
+  It uses small original/generated
+  conformance and existing raw benchmarks. Large third-party components, fake
+  Agent conversation, commercial content, and SillyOS are post-lane product
+  validation rather than fixtures. Public Mod resolver/ABI/SDK/distribution,
+  post-release arbitrary code, an untrusted-code sandbox, and Desktop HMR remain
+  inactive.
 - The plans and proposals dated 2026-08-19 through 2026-08-22 own the detailed
   acceptance and closure evidence for the six engine-gap lanes summarized
   above. The authoritative hold clock lane
@@ -363,17 +399,21 @@ and must be updated as each planned capability lands. Design owns the intended
 contract, while the active plan owns task order and acceptance; a task must not
 silently override a design decision.
 
-The Mod design is incubation, not an active implementation plan. Do not start a
-resolver, public Mod ABI, external SDK, or distribution system until the
-roadmap's activation gates are explicitly satisfied and a new active plan is
-accepted.
+The public Mod design remains incubation. The completed 2026-08-25 plan delivered
+only a private, build-known, application-local runtime after its addressable
+content and Code Surface prerequisites. Do not start a public resolver/ABI, external
+SDK, distribution system, post-release arbitrary-code path, or untrusted-code
+sandbox until the roadmap's separate activation gates are explicitly satisfied
+and another active plan is accepted.
 
 ## Architecture baseline
 
 - `@sillymaker/base` owns generic contracts, Story authoring primitives,
   deterministic runtime state, sessions, persistence orchestration, replay, and
-  diagnostics. It has no React, DOM, browser-storage, or game-specific
-  dependency.
+  diagnostics. It also owns the static `sillymaker.gui-composition` document and
+  once-only strict boundary admission; GUI documents/props are presentation
+  content and never enter State, Save, digest, or replay. Base has no React,
+  DOM, browser-storage, or game-specific dependency.
 - `@sillymaker/composition` owns cold-path trusted profile composition. Compile
   services and registries into direct plans before hot execution;
   authoritative profiles seal after mount, while a live candidate requires an
@@ -385,7 +425,11 @@ accepted.
   Direct remains. It must stay structurally excludable from products that
   direct-mount their domains, keep backend/Context types out of domain and public
   contracts, exclude Node HMR, and leave SillyMaker publication/State authority
-  unchanged. A domain or local binding may still be required by a product;
+  unchanged. Its private Mod runtime admits identity for build-known data/code
+  sources, loads and cold-compiles only the selected generation-immutable set
+  through application-owned extension points, and then mounts the resulting
+  contributions through Direct. It owns no resolver, SDK, digest, State, Save,
+  hot-install API, or same-realm sandbox. A domain or local binding may still be required by a product;
   lifecycle composition does not imply product optionality.
 - `@sillymaker/state` is an experimental neutral façade for authoritative
   transactional State, not a generic React/UI store. It must reuse exactly one
@@ -406,7 +450,12 @@ accepted.
   and not as a public ABI.
 - `@sillymaker/ui` owns reusable React presentation, input, interaction,
   overlays, diagnostics UI, assets, characters, stages, and semantic-publication
-  bridges.
+  bridges. Its focused `./code-surface` entry cold-compiles build-known literal
+  loaders, once-admitted props, parent slots, and minimal authoring metadata into
+  direct React plans with lazy children and node-local fault boundaries. The
+  root entry does not re-export that optional path. Same-realm components are
+  trusted application code; policy metadata guides cooperation and inspection,
+  not DOM/network/listener/main-thread sandboxing.
 - `@sillymaker/web` owns browser hosting, Browser/Deno Desktop admitted GUI
   bootstrap and startup readiness, IndexedDB persistence adapters, mounting,
   routing, capabilities, automation, pointer input, and the optional development
@@ -526,6 +575,18 @@ documented migration path.
   boundaries. Cold authoring definitions and resolved graphs may remain sealed
   where that preserves validated registration/digest identity; this is not a
   general runtime immutability policy.
+- Product-selected React/npm/TypeScript code running in the application realm is
+  trusted code, not an engine threat model. Guide it to use scoped CSS, React
+  cleanup, typed ports, short main-thread tasks, and explicit resource owners;
+  do not add listener/network/`document.body` interception, Proxy or descriptor
+  authentication, mandatory Shadow DOM, or a fake side-effect sandbox. A real
+  untrusted-code requirement needs a separately accepted iframe/Worker/process
+  isolation boundary.
+- Do not infer that a component needs Worker/iframe/process isolation from its
+  size, package origin, or third-party status. Event-loop, heap, and startup
+  changes require raw benchmark/profiler evidence and confirmation in a real
+  product; split main-thread work first, and add a new boundary only when the
+  measured behavior requires one.
 - Compile cold configuration and registries into direct plans before hot
   execution. Command, reducer, selector, input, and render paths trust those
   plans and do not repeat schema admission, redundant whole-tree traversal,

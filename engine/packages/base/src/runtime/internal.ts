@@ -30,3 +30,7 @@ export {
   type TimelineEvaluationPlanInternalV1,
   type TimelineEventOccurrenceInternalV1,
 } from "../contracts/timeline.ts";
+export {
+  createRuntimeUnitResidencyInternalV1,
+  RuntimeUnitResidencyStaleErrorInternalV1,
+} from "./content/runtime-unit-residency-internal.ts";

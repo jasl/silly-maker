@@ -21,6 +21,13 @@ interface HeapProfileNodeV1 {
   readonly children?: readonly HeapProfileNodeV1[];
 }
 
+interface LongTaskSummaryV1 {
+  readonly supported: boolean;
+  readonly count: number;
+  readonly totalMs: number;
+  readonly maxMs: number;
+}
+
 const execFile = promisify(execFileCallback);
 const cpuThrottlingRateV1 = 4;
 const samplingIntervalBytesV1 = 32_768;
@@ -81,6 +88,27 @@ async function stopAllocationSamplingV1(session: CDPSession): Promise<number> {
     readonly profile: { readonly head: HeapProfileNodeV1 };
   };
   return sampledBytesV1(result.profile.head);
+}
+
+async function readLongTasksV1(page: Page): Promise<LongTaskSummaryV1> {
+  return await page.evaluate(() => {
+    const state = globalThis as typeof globalThis & {
+      sillymakerLongTasksV1?: {
+        readonly supported: boolean;
+        readonly durations: number[];
+      };
+    };
+    const current = state.sillymakerLongTasksV1;
+    if (current === undefined || !current.supported) {
+      return { supported: false, count: 0, totalMs: 0, maxMs: 0 };
+    }
+    return {
+      supported: true,
+      count: current.durations.length,
+      totalMs: current.durations.reduce((total, duration) => total + duration, 0),
+      maxMs: current.durations.reduce((maximum, duration) => Math.max(maximum, duration), 0),
+    };
+  });
 }
 
 async function collectNarrativeTimingsV1(page: Page): Promise<Readonly<Record<string, number>>> {
@@ -207,69 +235,101 @@ function requireFiniteMeasurementsV1(value: unknown, path = "report"): void {
 }
 
 test.describe("Player performance trend baseline", () => {
-  test("records one fresh-context Narrative, WholeCanvas, heap, and allocation sample", async ({
-    browser,
-    page,
-  }, testInfo) => {
-    const session = await page.context().newCDPSession(page);
-    await session.send("Emulation.setCPUThrottlingRate", { rate: cpuThrottlingRateV1 });
-    const coldStartStartedAt = performance.now();
-    await gotoLabV1(page);
-    const coldStartMs = performance.now() - coldStartStartedAt;
-    const retainedHeapBeforeBytes = await retainedHeapV1(session);
-    const narrativeCore = await collectNarrativeTimingsV1(page);
-    const skipRoundTripMs = await collectSkipRoundTripV1(page);
-    const narrative = Object.freeze({ ...narrativeCore, skipRoundTripMs });
-    const wholeCanvasRun = await collectWholeCanvasTimingsV1(page, session);
-    const wholeCanvas = wholeCanvasRun.timings;
-    const transitionAllocationSampleBytes = wholeCanvasRun.allocationSampleBytes;
-    const retainedHeapAfterBytes = await retainedHeapV1(session);
-    const report = Object.freeze({
-      schemaVersion: 1,
-      generatedAt: new Date().toISOString(),
-      repository: await repositoryStateV1(),
-      environment: Object.freeze({
-        deno: Deno.version.deno,
-        v8: Deno.version.v8,
-        typescript: Deno.version.typescript,
-        os: Deno.build.os,
-        arch: Deno.build.arch,
-        browser: browser.browserType().name(),
-        browserVersion: browser.version(),
-        cpuThrottlingRate: cpuThrottlingRateV1,
-        allocationSamplingIntervalBytes: samplingIntervalBytesV1,
-      }),
-      sampleIndex: testInfo.repeatEachIndex,
-      coldStartMs,
-      narrative,
-      wholeCanvas,
-      memory: Object.freeze({
+  test(
+    "records one fresh-context Narrative, WholeCanvas, heap, allocation, and long-task sample",
+    async ({
+      browser,
+      page,
+    }, testInfo) => {
+      await page.addInitScript(() => {
+        const state = globalThis as typeof globalThis & {
+          sillymakerLongTasksV1?: {
+            readonly supported: boolean;
+            readonly durations: number[];
+            readonly observer?: PerformanceObserver;
+          };
+        };
+        const supported = PerformanceObserver.supportedEntryTypes.includes("longtask");
+        const durations: number[] = [];
+        if (!supported) {
+          state.sillymakerLongTasksV1 = { supported, durations };
+          return;
+        }
+        const observer = new PerformanceObserver((list) => {
+          for (const entry of list.getEntries()) durations.push(entry.duration);
+        });
+        observer.observe({ type: "longtask", buffered: true });
+        state.sillymakerLongTasksV1 = { supported, durations, observer };
+      });
+      const session = await page.context().newCDPSession(page);
+      await session.send("Emulation.setCPUThrottlingRate", { rate: cpuThrottlingRateV1 });
+      const coldStartStartedAt = performance.now();
+      await gotoLabV1(page);
+      const coldStartMs = performance.now() - coldStartStartedAt;
+      const retainedHeapBeforeBytes = await retainedHeapV1(session);
+      const narrativeCore = await collectNarrativeTimingsV1(page);
+      const coldAndNarrativeLongTasks = await readLongTasksV1(page);
+      const skipRoundTripMs = await collectSkipRoundTripV1(page);
+      const skipLongTasks = await readLongTasksV1(page);
+      const narrative = Object.freeze({ ...narrativeCore, skipRoundTripMs });
+      const wholeCanvasRun = await collectWholeCanvasTimingsV1(page, session);
+      const wholeCanvasLongTasks = await readLongTasksV1(page);
+      const wholeCanvas = wholeCanvasRun.timings;
+      const transitionAllocationSampleBytes = wholeCanvasRun.allocationSampleBytes;
+      const retainedHeapAfterBytes = await retainedHeapV1(session);
+      const report = Object.freeze({
+        schemaVersion: 1,
+        generatedAt: new Date().toISOString(),
+        repository: await repositoryStateV1(),
+        environment: Object.freeze({
+          deno: Deno.version.deno,
+          v8: Deno.version.v8,
+          typescript: Deno.version.typescript,
+          os: Deno.build.os,
+          arch: Deno.build.arch,
+          browser: browser.browserType().name(),
+          browserVersion: browser.version(),
+          cpuThrottlingRate: cpuThrottlingRateV1,
+          allocationSamplingIntervalBytes: samplingIntervalBytesV1,
+        }),
+        sampleIndex: testInfo.repeatEachIndex,
+        coldStartMs,
+        narrative,
+        wholeCanvas,
+        mainThread: Object.freeze({
+          coldAndNarrative: coldAndNarrativeLongTasks,
+          skip: skipLongTasks,
+          wholeCanvas: wholeCanvasLongTasks,
+        }),
+        memory: Object.freeze({
+          retainedHeapBeforeBytes,
+          retainedHeapAfterBytes,
+          retainedHeapDeltaBytes: retainedHeapAfterBytes - retainedHeapBeforeBytes,
+          transitionAllocationSampleBytes,
+        }),
+        interpretation: Object.freeze({
+          status: "trend_only",
+          machineBoundHardGate: false,
+          chromiumRuntimeSpecific: true,
+        }),
+      });
+      requireFiniteMeasurementsV1({
+        coldStartMs: report.coldStartMs,
+        narrative: report.narrative,
+        wholeCanvas: report.wholeCanvas,
+        mainThread: report.mainThread,
         retainedHeapBeforeBytes,
         retainedHeapAfterBytes,
-        retainedHeapDeltaBytes: retainedHeapAfterBytes - retainedHeapBeforeBytes,
         transitionAllocationSampleBytes,
-      }),
-      interpretation: Object.freeze({
-        status: "trend_only",
-        machineBoundHardGate: false,
-        chromiumRuntimeSpecific: true,
-      }),
-    });
-    requireFiniteMeasurementsV1({
-      coldStartMs: report.coldStartMs,
-      narrative: report.narrative,
-      wholeCanvas: report.wholeCanvas,
-      retainedHeapBeforeBytes,
-      retainedHeapAfterBytes,
-      transitionAllocationSampleBytes,
-    });
-    expect(typeof report.memory.retainedHeapDeltaBytes).toBe("number");
-    const path = testInfo.outputPath("baseline.json");
-    const body = `${JSON.stringify(report, null, 2)}\n`;
-    await writeFile(path, body, "utf8");
-    await testInfo.attach("player-performance-baseline", {
-      body,
-      contentType: "application/json",
-    });
-  });
+      });
+      expect(typeof report.memory.retainedHeapDeltaBytes).toBe("number");
+      const path = testInfo.outputPath("baseline.json");
+      const body = `${JSON.stringify(report, null, 2)}\n`;
+      await writeFile(path, body, "utf8");
+      await testInfo.attach("player-performance-baseline", {
+        body,
+        contentType: "application/json",
+      });
+    },
+  );
 });

@@ -54,6 +54,12 @@ import type {
   LabInvocationV1,
   LabPreviewV1,
 } from "./semantic.ts";
+import { labAddressableRuntimeV1 } from "./addressable-runtime.ts";
+import type { LabWebExecutionContextV1 } from "./addressable-runtime.ts";
+import { isLabCodeSurfaceConformanceSelectedV1 } from "./conformance-selection.ts";
+import { LabRuntimeInspectionActivationV1 } from "./runtime-inspection-react.tsx";
+import type { LabRuntimeInspectorOwnerV1 } from "./runtime-inspection.ts";
+import type { LabExecutionContextV1 } from "../gameplay/runtime-plans.ts";
 import type { LabApplicationInstanceV1 } from "./core-definition.ts";
 import { labCoreApplicationDefinitionV1 } from "./core-definition.ts";
 import type {
@@ -69,7 +75,13 @@ import {
 } from "../presentation.ts";
 import { labUiTextV1 } from "./ui-text.ts";
 import { createLabNarrativeSurfaceDefinitionV1 } from "./narrative-renderer.tsx";
-import { LabHudV1, LabRollbackControlV1, LabShopOverlayV1, LabStageV1 } from "./shell-ui.tsx";
+import {
+  LabCodeSurfaceConformanceV1,
+  LabHudV1,
+  LabRollbackControlV1,
+  LabShopOverlayV1,
+  LabStageV1,
+} from "./shell-ui.tsx";
 import {
   asLabOverlayControllerV1,
   createLabOverlayConformanceV1,
@@ -246,9 +258,12 @@ export function createLabUiSlotsV1(input: {
   readonly createAudioHost: () => AudioHostV1;
   readonly overlayConformance?: LabOverlayConformanceV1;
   readonly wholeCanvasConformance?: LabWholeCanvasConformanceV1;
+  readonly codeSurfaceConformance?: ReturnType<LabWebExecutionContextV1["requireCodeSurfacePlan"]>;
+  readonly runtimeInspection?: LabRuntimeInspectorOwnerV1;
   readonly registerReplayVoice?: (replay: (() => boolean) | null) => void;
 }): DefaultGameRootSlotsV1<LabUiPublicationV1, LabSemanticPortV1, LabUiOverlayIdV1> {
   const registerReplayVoice = input.registerReplayVoice ?? (() => undefined);
+  const codeSurfaceComposition = input.codeSurfaceConformance;
   const overlayConformance = input.overlayConformance ??
     createLabOverlayConformanceV1({ enabled: false });
   const restartApplication = async (): Promise<void> => {
@@ -256,8 +271,26 @@ export function createLabUiSlotsV1(input: {
   };
   const slots: DefaultGameRootSlotsV1<LabUiPublicationV1, LabSemanticPortV1, LabUiOverlayIdV1> = {
     ...labUiSlotsDefinitionV1,
+    ...(codeSurfaceComposition === undefined ? {} : {
+      auxiliarySurface: (context) => (
+        <LabCodeSurfaceConformanceV1
+          semantic={context.semantic}
+          composition={codeSurfaceComposition}
+          {...(input.runtimeInspection === undefined
+            ? {}
+            : { runtimeInspection: input.runtimeInspection })}
+        />
+      ),
+    }),
     hud: (context) => (
       <>
+        {input.runtimeInspection === undefined ? null : (
+          <LabRuntimeInspectionActivationV1
+            semantic={input.instance.semantic}
+            owner={input.runtimeInspection}
+            codeSurfaceSelected={codeSurfaceComposition !== undefined}
+          />
+        )}
         <LabHudV1 publication={context.publication} semantic={context.semantic} />
         <LabRollbackControlV1 instance={input.instance} publication={context.publication} />
         <GameAudioV1
@@ -534,6 +567,10 @@ export function createLabGameUiDefinitionV1(
   input: Readonly<{
     readonly instance: LabApplicationInstanceV1;
     readonly createAudioHost?: () => AudioHostV1;
+    readonly codeSurfaceComposition?: ReturnType<
+      LabWebExecutionContextV1["requireCodeSurfacePlan"]
+    >;
+    readonly runtimeInspection?: LabRuntimeInspectorOwnerV1;
   }>,
 ) {
   const applicationSearch = new URLSearchParams(globalThis.location?.search ?? "");
@@ -564,6 +601,12 @@ export function createLabGameUiDefinitionV1(
       instance: input.instance,
       overlayConformance,
       ...(wholeCanvasConformance === null ? {} : { wholeCanvasConformance }),
+      ...(input.codeSurfaceComposition === undefined
+        ? {}
+        : { codeSurfaceConformance: input.codeSurfaceComposition }),
+      ...(input.runtimeInspection === undefined
+        ? {}
+        : { runtimeInspection: input.runtimeInspection }),
       registerReplayVoice,
       createAudioHost: input.createAudioHost ?? (() =>
         createWebAudioHostV1({
@@ -638,6 +681,7 @@ export const labGameApplicationV1: WebGameApplicationV1<
     fallbackSize: { width: 1600, height: 1000 },
   },
   core: labCoreApplicationDefinitionV1,
+  addressableRuntime: labAddressableRuntimeV1,
   ...(applicationBuildIdentityInputInternalV1 === undefined
     ? {}
     : { buildIdentityInput: applicationBuildIdentityInputInternalV1 }),
@@ -647,14 +691,24 @@ export const labGameApplicationV1: WebGameApplicationV1<
     playerProfile,
     presentationFreeze,
     presentationRate,
+    executionContext,
   }: {
     readonly instance: LabApplicationInstanceV1;
     readonly capabilities: RuntimeCapabilitySessionOverlayV1;
     readonly playerProfile: PlayerProfileStoreV1;
     readonly presentationFreeze: PresentationFreezePortV1;
     readonly presentationRate: PresentationRatePortV1;
+    readonly executionContext: LabExecutionContextV1;
   }) => {
-    const definition = createLabGameUiDefinitionV1({ instance });
+    const webExecutionContext = executionContext as LabWebExecutionContextV1;
+    const codeSurfaceComposition = isLabCodeSurfaceConformanceSelectedV1()
+      ? webExecutionContext.requireCodeSurfacePlan()
+      : undefined;
+    const definition = createLabGameUiDefinitionV1({
+      instance,
+      runtimeInspection: webExecutionContext.runtimeInspection,
+      ...(codeSurfaceComposition === undefined ? {} : { codeSurfaceComposition }),
+    });
     return ({
       ...definition,
       outerUi: createReferencePlayerOuterUiV1({

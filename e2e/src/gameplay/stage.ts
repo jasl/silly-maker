@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: MIT
-import type { SemanticStageStateV1, StageMutationV1 } from "@sillymaker/base";
+import type {
+  AuthoringSceneRuntimeV1,
+  SemanticStageStateV1,
+  StageMutationV1,
+} from "@sillymaker/base";
 import {
   createSemanticStageStateV1,
   parseStageMutationV1,
@@ -12,7 +16,6 @@ import {
   labStageLayerIdsV1,
   labStageTagsV1,
 } from "../stage-ids.ts";
-import { labProcedureSceneV1 } from "../scenes/procedure/index.ts";
 
 /**
  * Engine Lab semantic stage: two backgrounds, two characters, and one prop
@@ -73,8 +76,17 @@ export function labStageMutationsForCollectV1(
 /** Beginning the procedure opens the one author-managed storeroom scene. */
 export function labStageMutationsForBeginV1(
   stage: SemanticStageStateV1,
+  scene: AuthoringSceneRuntimeV1,
 ): readonly StageMutationV1[] {
-  return labProcedureSceneV1.openMutations(stage);
+  return scene.openMutations(stage);
+}
+
+/** The drill Scene owns only shared layer order, so opening it preserves entries. */
+export function labStageMutationsForDrillV1(
+  stage: SemanticStageStateV1,
+  scene: AuthoringSceneRuntimeV1,
+): readonly StageMutationV1[] {
+  return scene.openMutations(stage);
 }
 
 /** The shop's stage effect: whether the purchased banner already hangs. */

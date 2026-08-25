@@ -179,9 +179,9 @@ authority 缺口；Engine Lab 与 Cat Cafe 的 Chromium/WebKit forward/reverse H
 关闭，无后继任务自动激活。它不等待或激活 Desktop HMR，不承诺任意 React state 跨代，也不新增
 Save format/framework。
 
-2026-08-24 所有者接受并开启
+2026-08-24 所有者接受并开启、2026-08-25 完成交付
 [Scale、Scene/Object 与模块化 GUI V1](plans/2026-08-24-scale-scene-object-modular-gui.md)
-作为当前 engine lane，目标合同见
+作为当时的 engine lane，目标合同见
 [Scale, Scene Object, and Modular GUI](proposals/scale-scene-object-and-modular-gui.md)。本轮以中性
 Scale Lab 与持续预算解决静态大文本、稀疏多模块 transaction、initial bundle 和 authoring index 的
 规模风险；增加编译到现有 Stage/Timeline 的第一阶 ordered layer/object hierarchy；把 GUI kernel、
@@ -226,8 +226,24 @@ virtualize Authoring Scene 与 layer/object 层级，以真实 Stage preview 呈
 顺序编辑，并提供只读 hit-region、Motion、Timeline、interaction/GUI intent、source provenance facet 与
 parallel-channel scrub。旧 Studio route、五 workspace shell、Story binding 与只保护旧 UI 的测试已退出
 维护面；Host、CAS、R1 publication 和 private Agent companion seam 保留，普通 Player 仍排除 Inspector/
-source writer。该交付没有提升 Desktop HMR。M0–M5 现已完成，i18n/message-catalog 与 pack unload 只在
-后续作品重写证据与 owner checkpoint 下独立评估，不自动进入下一顺序。
+source writer。该交付没有提升 Desktop HMR。M0–M5 现已完成。
+
+2026-08-25 所有者以百万词/百倍 Scene、Scene/Region 任意 count caps、React/CSS code-native GUI、
+按需加载、i18n 与 Mod 组合需求完成后续 checkpoint，并接受
+[Scalable Authoring, Addressable Runtime, and Mods V1](plans/2026-08-25-scalable-authoring-addressable-runtime-and-mods.md)
+作为当时的 current engine lane；目标合同见
+[Scalable Authoring, Addressable Runtime, and Mods V1](proposals/scalable-authoring-addressable-runtime-and-mods.md)。
+顺序为 M0 capacity contract reset、M1 orthogonal GUI composition/Code Surface、M2 addressable
+Scene/Narrative/GUI/code/content units、M3 Runtime Inspector facets、M4 locale-addressable i18n，以及
+M5 private/build-known/application-local Mod Runtime。M0–M5 已于 2026-08-25 交付并关闭；M2 已把
+type-specific Scene/Narrative/GUI/text leases、literal Code/asset owners 和一个 Web readiness seam
+接到 Engine Lab；M3 又交付 application-owned read-only runtime projection、Code Surface inspection/
+lifecycle facets、detached standalone summaries 与 embedded live observation。M4 locale-addressable i18n
+是同一 Text session 上的 locale variants/fallback/atomic profile activation；M5 只增加 private、
+immutable-per-generation composition，复用 Direct lifecycle，并由 application 将 ordered active identity
+接入既有 BuildIdentity。作品重写与 SillyOS 现在可在本轮关闭后评价，但尚未自动开启；本轮验收
+只用小型原创/生成 conformance 和既有 raw benchmarks。public Mod resolver/ABI/SDK/distribution、
+untrusted sandbox 与 Desktop HMR 仍未激活。
 
 排序与交付记录以
 [Production-floor sequence](plans/2026-07-30-production-floor-sequence.md) §1
@@ -263,8 +279,9 @@ Direct backend，并删除 Cordis adapter/vendor/dependency。AR2 structured aut
 experimental Agent Host/UiArtifact fake vertical slice 也已于同日交付。AR5 build、Browser GUI Host、
 lifetime 与 performance promotion 及 AR6 closure/owner checkpoint 已于 2026-08-23 交付关闭。目标合同见
 [Application Runtime and Embedded Authoring](design/application-runtime-and-embedded-authoring.md)。
-Application Runtime 本轮只交付引擎基础设施；后继顺序现由 2026-08-24 Scale/Scene Object/Modular
-GUI active plan 接管。未写入 active plan 的候选不是默认 backlog。已接受但未完成的 Desktop HMR stable
+Application Runtime 本轮只交付引擎基础设施；2026-08-25 Scalable Authoring /
+Addressable Runtime / Mods 后继计划也已交付关闭。当前没有自动激活的新 engine lane；未写入新接受
+plan 的候选不是默认 backlog。已接受但未完成的 Desktop HMR stable
 revalidation 与 Desktop production promotion 保持独立、条件性，只 gate 各自的 Desktop claim/
 workflow，不阻塞 core 或其他工作。
 
@@ -616,7 +633,10 @@ Agent workspace 需要 tab/split/task/approval/artifact/history 等独立领域�
 
 ## 12. Strategic track H — Mod incubation
 
-[Mod design](design/mod-system.md) 保留为 accepted direction / incubation，不是当前实现队列。
+[Mod design](design/mod-system.md) 的 public resolver/ABI/SDK/distribution 仍是 accepted direction /
+incubation，不是当前实现队列。2026-08-25 已关闭计划的 M5 只激活 private、build-known、
+application-local Mod Runtime，用来组合当前应用 generation 的第一方 data/code slices；它不构成公共
+生态或 post-release install。
 
 AR1 已选择的 private Direct Extension Runtime 不等于激活 Mod：它没有 resolver、manifest、
 public ABI、external SDK、post-release install 或 distribution，并且仍可从 ordinary
@@ -631,11 +651,11 @@ no-extension game build 完全排除。历史 Cordis adapter/vendor 已删除。
 5. external package smoke 证明 application 可在仓库外消费 engine；
 6. resolver/manifest 不需要万能 `install(context)` 或 load-order override。
 
-第一阶段只做构建期可信 first-party capability。发布后 declarative Mod、trusted code Artifact 与隔离扩展分别立项。不在没有产品需求时建设 untrusted sandbox。
+当前 M5 就是该构建期可信 first-party capability 阶段。发布后 declarative Mod、trusted code Artifact
+与隔离扩展分别立项。不在没有产品需求时建设 untrusted sandbox。
 
-完成 PF7 本身不激活 Mod。即使上述 gates 全部满足，也必须另行接受新的 active
-implementation plan，才能开始 resolver、public ABI、external SDK 或 distribution
-工作。
+完成 PF7 或当前 private M5 都不激活 public Mod platform。即使上述 gates 全部满足，也必须另行接受
+新的 active implementation plan，才能开始 resolver、public ABI、external SDK 或 distribution 工作。
 
 ## 13. Evidence and promotion
 

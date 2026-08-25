@@ -5,7 +5,6 @@ import {
   motionStageTransitionV1,
   parseStageCueDispatchesV1,
   parseStageTransitionDefinitionV1,
-  stageCueDispatchLimitV1,
 } from "./stage-transition.ts";
 
 function rawEntranceMotionV1(): Record<string, unknown> {
@@ -159,16 +158,16 @@ describe("stage cue dispatch admission", () => {
     expect(parseStageCueDispatchesV1([])).toEqual([]);
   });
 
-  it("rejects non-arrays, over-bound lists, malformed entries, and bad ids", () => {
+  it("admits a large generated dispatch list without a semantic count cap", () => {
+    const dispatches = Array.from({ length: 96 }, (_, index) => ({
+      sceneId: "scene.app.opening",
+      cueId: `cue.app.generated.${String(index)}`,
+    }));
+    expect(parseStageCueDispatchesV1(dispatches)).toEqual(dispatches);
+  });
+
+  it("rejects non-arrays, malformed entries, and bad ids", () => {
     expect(() => parseStageCueDispatchesV1(null)).toThrowError(/stage_cue_dispatches_invalid/);
-    expect(() =>
-      parseStageCueDispatchesV1(
-        Array.from({ length: stageCueDispatchLimitV1 + 1 }, () => ({
-          sceneId: "scene.app.opening",
-          open: true,
-        })),
-      )
-    ).toThrowError(/stage_cue_dispatches_count_invalid/);
     expect(() => parseStageCueDispatchesV1(["cue.app.x"])).toThrowError(
       /stage_cue_dispatch_invalid/,
     );

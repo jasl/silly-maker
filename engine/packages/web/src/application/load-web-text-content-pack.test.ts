@@ -8,21 +8,30 @@ import { loadWebTextContentPackBytesInternalV1 } from "./load-web-text-content-p
 const packBytesV1 = Uint8Array.of(0x70, 0x61, 0x63, 0x6b);
 const descriptorV1 = defineTextContentManifestV1({
   revision: 1,
+  defaultLocale: "en",
+  locales: [
+    { locale: "en", fallbackLocale: null },
+    { locale: "zh-CN", fallbackLocale: "en" },
+  ],
   packs: [{
     packId: "text-pack.web.test",
-    runtimePath: "assets/content/test.text-pack.json",
+    variants: [
+      { locale: "en", runtimePath: "assets/content/test.en.text-pack.json" },
+      { locale: "zh-CN", runtimePath: "assets/content/test.zh-CN.text-pack.json" },
+    ],
   }],
 }).packs[0]!;
+const variantV1 = descriptorV1.variants[1]!;
 
 describe("Web text-content pack loader", () => {
   it("loads the descriptor runtime path from the document origin", async () => {
     const fetchImpl = vi.fn(async () => new Response(packBytesV1, { status: 200 }));
 
     await expect(
-      loadWebTextContentPackBytesInternalV1(descriptorV1, fetchImpl),
+      loadWebTextContentPackBytesInternalV1(descriptorV1, variantV1, fetchImpl),
     ).resolves.toEqual(packBytesV1);
     expect(fetchImpl).toHaveBeenCalledExactlyOnceWith(
-      new URL(descriptorV1.runtimePath, document.baseURI),
+      new URL(variantV1.runtimePath, document.baseURI),
     );
   });
 
@@ -30,7 +39,7 @@ describe("Web text-content pack loader", () => {
     const fetchImpl = vi.fn(async () => new Response("missing", { status: 404 }));
 
     await expect(
-      loadWebTextContentPackBytesInternalV1(descriptorV1, fetchImpl),
+      loadWebTextContentPackBytesInternalV1(descriptorV1, variantV1, fetchImpl),
     ).rejects.toThrow("web.text_content_pack_fetch_failed:404");
   });
 
@@ -42,7 +51,7 @@ describe("Web text-content pack loader", () => {
 
     try {
       await expect(
-        loadWebTextContentPackBytesInternalV1(descriptorV1, fetchImpl),
+        loadWebTextContentPackBytesInternalV1(descriptorV1, variantV1, fetchImpl),
       ).rejects.toThrow("web.text_content_pack_origin_mismatch");
       expect(fetchImpl).not.toHaveBeenCalled();
     } finally {

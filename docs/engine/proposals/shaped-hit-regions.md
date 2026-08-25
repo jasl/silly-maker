@@ -1,5 +1,9 @@
 # Shaped hit regions proposal（命中区形状、悬停揭示与区域文档）
 
+> 2026-08-25 后续裁决：Capacity Contract Reset 删除每个 content 的任意
+> region 数量上限。作为几何/算法资源边界的每个 polygon 3..64 顶点以及本提案的
+> paint/pick/accessibility 语义仍有效。
+
 状态：**已接受并交付**（2026-08-21 所有者接受，同日 M0–M5 全部交付，
 含双消费者）。admission 裁决与交付记录见
 [Shaped hit regions 计划](../plans/2026-08-21-shaped-hit-regions.md)。

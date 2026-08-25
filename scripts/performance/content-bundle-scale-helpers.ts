@@ -32,6 +32,7 @@ export function contentBundleScaleEntryIdV1(index: number): string {
 export function contentBundleScalePackJsonV1(input: {
   readonly packIndex: number;
   readonly entriesPerPack: number;
+  readonly locale: string;
 }): string {
   const firstIndex = input.packIndex * input.entriesPerPack;
   const entries = Array.from({ length: input.entriesPerPack }, (_, offset) => {
@@ -44,25 +45,39 @@ export function contentBundleScalePackJsonV1(input: {
   return `${
     JSON.stringify({
       format: "sillymaker.text-content-pack",
-      version: 1,
+      version: 2,
       packId: `text-pack.scale.${String(input.packIndex).padStart(3, "0")}`,
-      textCatalogs: {
-        defaultLocale: "en",
-        catalogs: [{ locale: "en", fallbackLocale: null, entries }],
-      },
+      locale: input.locale,
+      entries,
     })
   }\n`;
 }
 
 export interface ContentBundleScalePackDescriptorV1 {
   readonly packId: string;
-  readonly runtimePath: string;
+  readonly variants: readonly {
+    readonly locale: string;
+    readonly runtimePath: string;
+  }[];
+}
+
+export function contentBundleScaleManifestV1(
+  packs: readonly ContentBundleScalePackDescriptorV1[],
+) {
+  return {
+    revision: 1,
+    defaultLocale: "en",
+    locales: [{ locale: "en", fallbackLocale: null }],
+    packs,
+  } as const;
 }
 
 export function contentBundleScaleManifestSourceV1(
   packs: readonly ContentBundleScalePackDescriptorV1[],
 ): string {
-  return `export const contentManifestV1 = ${JSON.stringify({ revision: 1, packs })} as const;\n`;
+  return `export const contentManifestV1 = ${
+    JSON.stringify(contentBundleScaleManifestV1(packs))
+  } as const;\n`;
 }
 
 interface ViteManifestEntryV1 {

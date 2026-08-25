@@ -156,3 +156,41 @@ export type {
   GameSessionDebugControlV1,
   GameSessionDebugInputV1,
 } from "./session/game-session.ts";
+export {
+  createSceneUnitSessionV1,
+  defineSceneUnitManifestV1,
+  SceneUnitErrorV1,
+} from "./content/scene-units.ts";
+export type {
+  DefineSceneUnitDescriptorV1,
+  LoadedSceneUnitV1,
+  ResidentSceneUnitV1,
+  SceneUnitDescriptorV1,
+  SceneUnitErrorCodeV1,
+  SceneUnitLeaseV1,
+  SceneUnitManifestV1,
+  SceneUnitSessionV1,
+  SceneUnitTimingV1,
+} from "./content/scene-units.ts";
+export {
+  assertNarrativeUnitDependencyClosureV1,
+  createNarrativeUnitSessionV1,
+  defineNarrativeUnitManifestV1,
+  NarrativeUnitErrorV1,
+} from "./content/narrative-units.ts";
+export type {
+  DefineNarrativeUnitDescriptorV1,
+  LoadedNarrativeUnitV1,
+  NarrativeExternalReferenceKindV1,
+  NarrativeExternalReferenceV1,
+  NarrativePositionV1,
+  NarrativeUnitDependencyClosureV1,
+  NarrativeUnitDependenciesV1,
+  NarrativeUnitDescriptorV1,
+  NarrativeUnitErrorCodeV1,
+  NarrativeUnitLeaseV1,
+  NarrativeUnitManifestV1,
+  NarrativeUnitResidentV1,
+  NarrativeUnitSessionV1,
+  NarrativeUnitTimingV1,
+} from "./content/narrative-units.ts";

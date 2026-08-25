@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import type {
   DeepReadonly,
   ResolvedAssetManifestV1,
+  TextContentBootstrapCatalogV1,
   TextCatalogSetV1,
   TextContentManifestV1,
 } from "../../engine/packages/base/src/index.ts";
@@ -78,7 +79,7 @@ const {
   entries: verifiedStoryEntriesV1,
 } = await loadRuntimeAssetModulesV1();
 
-const { createTextContentSessionV1, resolveGamePackageV1, TextContentErrorV1 } = baseModuleV1;
+const { admitTextContentPackV1, resolveGamePackageV1, TextContentErrorV1 } = baseModuleV1;
 const { validateRuntimeAssetManifestV1 } = validatorModuleV1;
 
 const runtimeAssetVerificationBuildIdentityV1 = {
@@ -102,7 +103,7 @@ export interface RuntimeAssetStoryResolutionV1 {
   readonly assets: ResolvedAssetManifestV1;
   readonly textContent?: {
     readonly manifest: TextContentManifestV1;
-    readonly bootstrapCatalogs: TextCatalogSetV1;
+    readonly bootstrapCatalogs: readonly TextContentBootstrapCatalogV1[];
   };
 }
 
@@ -140,7 +141,7 @@ export const runtimeAssetStoryChecksV1: readonly RuntimeAssetStoryCheckV1[] = ve
         ...(textContentManifest === null ? {} : {
           textContent: {
             manifest: textContentManifest,
-            bootstrapCatalogs: presentation.textCatalogs,
+            bootstrapCatalogs: presentation.textCatalogs.catalogs,
           },
         }),
       };
@@ -159,6 +160,118 @@ export type RuntimeAssetEnvironmentFactoryV1 = (
 export interface RuntimeAssetVerificationOptionsV1 {
   readonly environmentFor?: RuntimeAssetEnvironmentFactoryV1;
   readonly validate?: RuntimeAssetManifestValidatorV1;
+}
+
+function textContentFailureV1(
+  storyId: string,
+  packId: string,
+  locale: string,
+  code: string,
+  reference: string | null = null,
+): string {
+  return `${storyId}:${packId}:${locale}:${code}${reference === null ? "" : `:${reference}`}`;
+}
+
+async function verifyTextContentV1(
+  storyId: string,
+  textContent: NonNullable<RuntimeAssetStoryResolutionV1["textContent"]>,
+  environment: RuntimeAssetValidationEnvironmentV1,
+  failures: string[],
+): Promise<void> {
+  const defaultLocale = textContent.manifest.defaultLocale;
+  const bootstrapDefaultIds = new Set(
+    textContent.bootstrapCatalogs
+      .find((catalog) => catalog.locale === defaultLocale)
+      ?.entries.map((entry) => entry.textId) ?? [],
+  );
+  for (const catalog of textContent.bootstrapCatalogs) {
+    if (catalog.locale === defaultLocale) continue;
+    for (const entry of catalog.entries) {
+      if (!bootstrapDefaultIds.has(entry.textId)) {
+        failures.push(textContentFailureV1(
+          storyId,
+          "bootstrap",
+          catalog.locale,
+          "text_content.translation_text_id_unknown",
+          entry.textId,
+        ));
+      }
+    }
+  }
+
+  // Only stable default-locale IDs survive each iteration. Admitted strings
+  // and translation maps are released before moving to the next logical pack.
+  const defaultClosure = new Set(bootstrapDefaultIds);
+  for (const descriptor of textContent.manifest.packs) {
+    const defaultVariant = descriptor.variants.find((variant) => variant.locale === defaultLocale);
+    if (defaultVariant === undefined) continue;
+    let packDefaultIds: ReadonlySet<string> | null = null;
+    try {
+      const admitted = admitTextContentPackV1(
+        descriptor,
+        defaultVariant,
+        await environment.readFile(defaultVariant.runtimePath),
+      );
+      const ids = new Set<string>();
+      for (const textId of admitted.entries.keys()) {
+        ids.add(textId);
+        if (defaultClosure.has(textId)) {
+          failures.push(textContentFailureV1(
+            storyId,
+            descriptor.packId,
+            defaultLocale,
+            "text_content.text_id_duplicate",
+            textId,
+          ));
+        } else {
+          defaultClosure.add(textId);
+        }
+      }
+      packDefaultIds = ids;
+    } catch (error) {
+      if (!(error instanceof TextContentErrorV1)) throw error;
+      failures.push(textContentFailureV1(
+        storyId,
+        descriptor.packId,
+        defaultLocale,
+        error.code,
+        error.reference,
+      ));
+    }
+
+    for (const variant of descriptor.variants) {
+      if (variant.locale === defaultLocale) continue;
+      try {
+        const admitted = admitTextContentPackV1(
+          descriptor,
+          variant,
+          await environment.readFile(variant.runtimePath),
+        );
+        if (packDefaultIds !== null) {
+          for (const textId of admitted.entries.keys()) {
+            if (!packDefaultIds.has(textId)) {
+              failures.push(textContentFailureV1(
+                storyId,
+                descriptor.packId,
+                variant.locale,
+                "text_content.translation_text_id_unknown",
+                textId,
+              ));
+            }
+          }
+        }
+      } catch (error) {
+        if (!(error instanceof TextContentErrorV1)) throw error;
+        failures.push(textContentFailureV1(
+          storyId,
+          descriptor.packId,
+          variant.locale,
+          error.code,
+          error.reference,
+        ));
+      }
+    }
+  }
 }
 
 export function createNodeRuntimeAssetEnvironmentV1(
@@ -189,19 +302,12 @@ export async function verifyRuntimeAssetStoryChecksV1(
       failures.push(`${story.storyId}:${error.assetId}:${error.code}`);
     }
     if (resolution.textContent !== undefined) {
-      const session = createTextContentSessionV1({
-        manifest: resolution.textContent.manifest,
-        bootstrapCatalogs: resolution.textContent.bootstrapCatalogs,
-        loadPackBytes: (descriptor) => environment.readFile(descriptor.runtimePath),
-      });
-      for (const descriptor of resolution.textContent.manifest.packs) {
-        try {
-          await session.ensure(descriptor.packId);
-        } catch (error) {
-          if (!(error instanceof TextContentErrorV1)) throw error;
-          failures.push(`${story.storyId}:${descriptor.packId}:${error.code}`);
-        }
-      }
+      await verifyTextContentV1(
+        story.storyId,
+        resolution.textContent,
+        environment,
+        failures,
+      );
     }
   }
 

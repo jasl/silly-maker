@@ -30,14 +30,6 @@ export type {
   PanelPropsV1,
   ProgressMeterPropsV1,
 } from "./primitives/index.ts";
-export { createUiContributionRegistryV1 } from "./contributions/registry.ts";
-export type {
-  GameRendererContextV1,
-  UiContributionSetV1,
-  UiContributionRegistryV1,
-  UiRendererContributionV1,
-  UiRendererNamespaceV1,
-} from "./contributions/types.ts";
 export {
   DiagnosticExportButtonV1,
   diagnosticExportContentCategoryIdsV1,

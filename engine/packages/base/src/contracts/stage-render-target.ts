@@ -169,9 +169,6 @@ function contentDiagnosticV1(code: string, message: string, pointer: string): Di
  * reports a structured diagnostic; projection failures never change
  * gameplay State.
  */
-/** Per-entry hit-region budget. Picture-dense SLGs need headroom beyond early VN pets. */
-const maxHitRegionsV1 = 64;
-
 /** Per-region polygon vertex budget (shaped-hit-regions, accepted 2026-08-21). */
 const maxPolygonPointsV1 = 64;
 
@@ -240,17 +237,13 @@ function validatePolygonPointsV1(
   return points.map((point) => ({ x: point.x, y: point.y }));
 }
 
-/** Per-entry frame-set budget (authorable-frame-set, accepted 2026-08-21). */
-const maxFrameAssetsV1 = 64;
-
 function validateFrameAssetIdsV1(
   frameAssetIds: readonly AssetId[] | undefined,
   pointer: string,
   diagnostics: DiagnosticEnvelopeV1[],
 ): readonly AssetId[] {
   if (frameAssetIds === undefined || frameAssetIds.length === 0) return [];
-  const ok = frameAssetIds.length <= maxFrameAssetsV1 &&
-    frameAssetIds.every((assetId) => typeof assetId === "string" && assetId.length > 0);
+  const ok = frameAssetIds.every((assetId) => typeof assetId === "string" && assetId.length > 0);
   if (!ok) {
     diagnostics.push(
       contentDiagnosticV1(
@@ -315,8 +308,7 @@ function validateHitRegionsV1(
       region.width > 0 &&
       Number.isSafeInteger(region.height) &&
       region.height > 0 &&
-      !seen.has(region.regionId) &&
-      valid.length < maxHitRegionsV1;
+      !seen.has(region.regionId);
     if (!ok) {
       diagnostics.push(
         contentDiagnosticV1("stage.hit_region_invalid", `invalid stage hit region`, path),

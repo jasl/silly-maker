@@ -29,7 +29,10 @@ import {
 import type { SystemDialogCustomSavesV1 } from "@sillymaker/ui";
 import { createWebHostV1, startWebGameApplicationV1 } from "@sillymaker/web";
 
-import { createLabApplicationInstanceV1 } from "../application/core-application.ts";
+import {
+  createLabApplicationInstanceV1,
+  labHeadlessExecutionContextV1,
+} from "../application/core-application.ts";
 import type { LabApplicationInstanceV1 } from "../application/core-definition.ts";
 import { labCoreApplicationDefinitionV1 } from "../application/core-definition.ts";
 import {
@@ -131,6 +134,7 @@ async function stageLegacyMidBarrierSaveV1(
       ownerId: "owner.sillymaker.e2e.default-ui-legacy" as SessionLeaseOwnerId,
       nextHandoffRequestId: () => "handoff.sillymaker.e2e.default-ui-legacy",
     }),
+    executionContext: labHeadlessExecutionContextV1,
   }) as LabApplicationInstanceV1;
   try {
     await instance.semantic.dispatch({

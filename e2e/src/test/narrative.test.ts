@@ -5,12 +5,13 @@ import type { InteractionResolutionV1, PendingInteractionV1 } from "@sillymaker/
 import { createGameHarnessV1 } from "@sillymaker/base/testkit";
 
 import type { LabInvocationV1 } from "../index.ts";
-import { labSemanticAdapterV1, labStoryEntryV1 } from "../index.ts";
+import { labHeadlessExecutionContextV1, labSemanticAdapterV1, labStoryEntryV1 } from "../index.ts";
 
 function createLabHarnessV1(seed = 90201) {
   return createGameHarnessV1({
     entry: labStoryEntryV1,
     semantic: labSemanticAdapterV1,
+    executionContext: labHeadlessExecutionContextV1,
     seed,
   });
 }

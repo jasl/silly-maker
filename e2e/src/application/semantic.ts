@@ -23,7 +23,8 @@ import {
   labChoiceBlockedByV1,
   labChoiceOptionsForV1,
   labInteractionContextV1,
-} from "../gameplay/narrative.ts";
+} from "../gameplay/narrative-runtime.ts";
+import { labNarrativePositionForCursorV1 } from "../gameplay/narrative-topology.ts";
 
 export type LabActionIdV1 = Exclude<
   LabCommandV1["kind"],
@@ -163,6 +164,9 @@ export function projectLabNarrativeViewV1(queries: LabQueriesV1): LabNarrativeVi
   const pending = queries.narrative.pending;
   return ({
     phase: queries.narrative.phase,
+    unitId: queries.narrative.cursor === null
+      ? null
+      : labNarrativePositionForCursorV1(queries.narrative.cursor).unitId,
     calibration: queries.narrative.calibration,
     history: queries.narrative.history,
     pending,

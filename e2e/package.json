@@ -9,6 +9,7 @@
     ".": "./src/index.ts"
   },
   "imports": {
+    "#sillymaker/scene/drill": "./src/scenes/drill/authoring-source.ts",
     "#sillymaker/scene/procedure": "./src/scenes/procedure/authoring-source.ts"
   },
   "scripts": {

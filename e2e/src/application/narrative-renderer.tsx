@@ -12,7 +12,7 @@ import type {
 } from "@sillymaker/ui";
 import { Button, defineNarrativeSurfaceV1, useStagePointerGestureFenceV1 } from "@sillymaker/ui";
 
-import { labCancelChoiceIdV1 } from "../gameplay/narrative.ts";
+import { labCancelChoiceIdV1 } from "../gameplay/narrative-runtime.ts";
 import type { LabApplicationInstanceV1 } from "./core-definition.ts";
 import { labUiTextV1 } from "./ui-text.ts";
 

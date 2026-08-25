@@ -9,10 +9,12 @@ import type {
   DeepReadonly,
   HostFilePortV1,
   SessionFaultCauseV1,
-  TextCatalogSetV1,
+  TextContentBootstrapCatalogV1,
   TextContentManifestV1,
   TextContentPackDescriptorV1,
   TextContentPackIdV1,
+  TextContentPackLeaseV1,
+  TextContentPackVariantDescriptorV1,
   TextContentSessionV1,
 } from "@sillymaker/base";
 import { createTextContentSessionV1, digestCanonical } from "@sillymaker/base";
@@ -105,6 +107,7 @@ import { createWebGameBootstrapEntropyInternalV1 } from "./create-web-game-boots
 import { installDesktopCloseFlushV1 } from "./install-desktop-close-flush.ts";
 import { createManagedSurfaceApplicationEpochAllocatorInternalV1 } from "./managed-surface-application-epoch.ts";
 import { installPresentationPacingInternalV1 } from "./presentation-pacing.ts";
+import { loadWebRuntimeBytesInternalV1 } from "./load-web-runtime-bytes.ts";
 import { loadWebTextContentPackBytesInternalV1 } from "./load-web-text-content-pack.ts";
 import {
   createPresentationSuccessorAcknowledgmentBrokerInternalV1,
@@ -117,6 +120,19 @@ import {
   type WebApplicationStartupDiagnosticsControllerInternalV1,
 } from "./application-startup-diagnostics.ts";
 import { readApplicationBootstrapConfigFromDocumentInternalV1 } from "./read-application-bootstrap-config.ts";
+import { prepareWebTextLocalePlayerProfileInternalV1 } from "./text-locale-player-profile.ts";
+import {
+  composeWebApplicationReadinessHooksInternalV1,
+  createWebTextContentObservationInternalV1,
+  projectWebTextContentPackObservationInternalV1,
+  startWebAddressableRuntimeInternalV1,
+} from "./web-addressable-runtime.ts";
+import type {
+  CreatedWebTextContentObservationInternalV1,
+  StartedWebAddressableRuntimeInternalV1,
+  WebAddressableRuntimeDefinitionV1,
+  WebTextContentObservationV1,
+} from "./web-addressable-runtime.ts";
 
 type WebSemanticPublicationV1<TGameView, TNarrativeView, TActionDescriptor> = SemanticPublicationV1<
   TGameView,
@@ -318,7 +334,7 @@ export interface WebGameUiDefinitionV1<
   dispose?(): void;
 }
 
-export interface WebGameApplicationV1<
+interface WebGameApplicationFieldsV1<
   TSimulationFacet,
   TPresentationFacet,
   TTypes extends GameSimulationTypeMapV1,
@@ -357,7 +373,7 @@ export interface WebGameApplicationV1<
   /** Build-known read-only text loaded before the Core and UI boundaries that need it. */
   readonly textContent?: {
     readonly manifest: TextContentManifestV1;
-    readonly bootstrapCatalogs: TextCatalogSetV1;
+    readonly bootstrapCatalogs: readonly TextContentBootstrapCatalogV1[];
     readonly initialPackIds: readonly TextContentPackIdV1[];
     /** Admitted semantic invocation → packs that must be ready before dispatch. */
     requiredPackIdsForInvocation?(
@@ -393,6 +409,8 @@ export interface WebGameApplicationV1<
     >;
     /** The application-scoped read-only text resolver, or null when undeclared. */
     readonly textContent: TextContentSessionV1 | null;
+    /** Direct plans bound once for this authoritative Session instance. */
+    readonly executionContext: TTypes["executionContext"];
     readonly assetLoader: RuntimeAssetLoaderV1;
     /** The player profile (Seen registry, playback preferences): Host data
      * outside every Game Save. */
@@ -453,6 +471,70 @@ export interface WebGameApplicationV1<
   >;
 }
 
+type WebAddressableRuntimeDeclarationV1<
+  TExecutionContext,
+  TInvocation,
+  TSnapshot,
+> = undefined extends TExecutionContext ? {
+    /** Optional when this application permits an undefined execution context. */
+    readonly addressableRuntime?: WebAddressableRuntimeDefinitionV1<
+      TExecutionContext,
+      TInvocation,
+      TSnapshot
+    >;
+  }
+  : {
+    /**
+     * Required build-known runtime that constructs the application's declared
+     * execution context before Core startup.
+     */
+    readonly addressableRuntime: WebAddressableRuntimeDefinitionV1<
+      TExecutionContext,
+      TInvocation,
+      TSnapshot
+    >;
+  };
+
+export type WebGameApplicationV1<
+  TSimulationFacet,
+  TPresentationFacet,
+  TTypes extends GameSimulationTypeMapV1,
+  TQueries,
+  TGameView,
+  TNarrativeView,
+  TActionDescriptor,
+  TInvocation,
+  TPreview,
+  TResult,
+  TResolvedCatalog,
+  TStoryUiState,
+  TView,
+  TAssetId,
+  TOverlayId extends string,
+> =
+  & WebGameApplicationFieldsV1<
+    TSimulationFacet,
+    TPresentationFacet,
+    TTypes,
+    TQueries,
+    TGameView,
+    TNarrativeView,
+    TActionDescriptor,
+    TInvocation,
+    TPreview,
+    TResult,
+    TResolvedCatalog,
+    TStoryUiState,
+    TView,
+    TAssetId,
+    TOverlayId
+  >
+  & WebAddressableRuntimeDeclarationV1<
+    TTypes["executionContext"],
+    TInvocation,
+    TTypes["snapshot"]
+  >;
+
 export interface StartWebGameApplicationOptionsV1 {
   readonly rootElement?: HTMLElement;
   readonly host?: ApplicationHostCapabilitiesV1;
@@ -463,7 +545,10 @@ export interface StartWebGameApplicationOptionsV1 {
   /** Injectable pack transport; defaults to a same-origin runtime-path fetch. */
   readonly loadTextContentPackBytes?: (
     descriptor: TextContentPackDescriptorV1,
+    variant: TextContentPackVariantDescriptorV1,
   ) => Promise<Uint8Array>;
+  /** Injectable for tests; defaults to the same-origin runtime-byte loader. */
+  readonly loadRuntimeBytes?: (runtimePath: string) => Promise<Uint8Array>;
   readonly databaseName?: string;
   readonly capabilitySearch?: string;
   /** Register the pagehide teardown listener; disable in tests. */
@@ -524,6 +609,9 @@ interface StartedWebGameApplicationHmrControlInternalV1 {
   readonly loadTextContentPackBytes?: NonNullable<
     StartWebGameApplicationOptionsV1["loadTextContentPackBytes"]
   >;
+  readonly loadRuntimeBytes?: NonNullable<
+    StartWebGameApplicationOptionsV1["loadRuntimeBytes"]
+  >;
 }
 
 const startedWebGameApplicationHmrControlsInternalV1 = new WeakMap<
@@ -545,6 +633,13 @@ export function readStartedWebTextContentPackLoaderInternalV1(
 ): StartWebGameApplicationOptionsV1["loadTextContentPackBytes"] {
   return requireStartedWebGameApplicationHmrControlInternalV1(started)
     .loadTextContentPackBytes;
+}
+
+/** Reads the injected runtime transport so an HMR successor keeps the same Host seam. @internal */
+export function readStartedWebRuntimeBytesLoaderInternalV1(
+  started: StartedWebGameApplicationV1,
+): StartWebGameApplicationOptionsV1["loadRuntimeBytes"] {
+  return requireStartedWebGameApplicationHmrControlInternalV1(started).loadRuntimeBytes;
 }
 
 /** @internal Fences one live Web application before its HMR handoff. */
@@ -776,8 +871,84 @@ export async function startWebGameApplicationV1<
     );
   }
 
+  const rawPlayerProfile = await createPlayerProfileStoreV1({
+    records: host.records,
+    storyId: resolved.application.storyId,
+    reportFailure,
+  }).catch((error: unknown) => {
+    capabilities.dispose();
+    signalStartupFailure("required_domain");
+    throw error;
+  });
+  let playerProfile = rawPlayerProfile;
+
   const textContentDeclaration = application.textContent;
   let textContent: TextContentSessionV1 | null = null;
+  const retainedTextContentLeases = new Map<TextContentPackIdV1, TextContentPackLeaseV1>();
+  const textContentRetentionFlights = new Map<TextContentPackIdV1, Promise<void>>();
+  const textContentAttempts = new Map<TextContentPackIdV1, number>();
+  const textContentFailures = new Map<TextContentPackIdV1, number>();
+  const textContentDiagnostics = new Map<TextContentPackIdV1, string>();
+  const textContentDescriptors = textContentDeclaration === undefined ||
+      application.addressableRuntime === undefined
+    ? null
+    : new Map(
+      textContentDeclaration.manifest.packs.map((descriptor) => [descriptor.packId, descriptor]),
+    );
+  let textContentObservationController:
+    | CreatedWebTextContentObservationInternalV1
+    | null = null;
+  let textContentDisposed = false;
+  const notifyTextContentObservationV1 = (packId: TextContentPackIdV1): void => {
+    textContentObservationController?.notify(packId);
+  };
+  const retainTextContentPackV1 = async (packId: TextContentPackIdV1): Promise<void> => {
+    const session = textContent;
+    if (session === null || retainedTextContentLeases.has(packId)) return;
+    let flight = textContentRetentionFlights.get(packId);
+    if (flight === undefined) {
+      textContentAttempts.set(packId, (textContentAttempts.get(packId) ?? 0) + 1);
+      flight = (async (): Promise<void> => {
+        const lease = await session.acquire(packId);
+        if (textContentDisposed) {
+          lease.release();
+          return;
+        }
+        retainedTextContentLeases.set(packId, lease);
+        textContentDiagnostics.delete(packId);
+      })();
+      textContentRetentionFlights.set(packId, flight);
+      notifyTextContentObservationV1(packId);
+      void flight.then(
+        () => {
+          if (textContentRetentionFlights.get(packId) === flight) {
+            textContentRetentionFlights.delete(packId);
+          }
+          notifyTextContentObservationV1(packId);
+        },
+        () => {
+          if (textContentRetentionFlights.get(packId) === flight) {
+            textContentRetentionFlights.delete(packId);
+          }
+          if (!textContentDisposed) {
+            textContentFailures.set(packId, (textContentFailures.get(packId) ?? 0) + 1);
+            textContentDiagnostics.set(packId, "web.text_content_required");
+          }
+          notifyTextContentObservationV1(packId);
+        },
+      );
+    }
+    await flight;
+  };
+  const disposeTextContentV1 = (): void => {
+    if (textContentDisposed) return;
+    textContentDisposed = true;
+    textContentRetentionFlights.clear();
+    for (const lease of retainedTextContentLeases.values()) lease.release();
+    retainedTextContentLeases.clear();
+    textContent?.dispose();
+    textContentObservationController?.dispose();
+  };
   if (textContentDeclaration !== undefined) {
     try {
       const resolvedManifest = (resolved.application.resolved as {
@@ -800,22 +971,60 @@ export async function startWebGameApplicationV1<
         bootstrapCatalogs: textContentDeclaration.bootstrapCatalogs,
         loadPackBytes: loadTextContentPackBytes,
       });
-      for (const packId of textContentDeclaration.initialPackIds) {
-        await textContent.ensure(packId);
-      }
+      playerProfile = await prepareWebTextLocalePlayerProfileInternalV1({
+        profile: rawPlayerProfile,
+        textContent,
+        reportFailure,
+        prepareInitial: async () => {
+          for (const packId of textContentDeclaration.initialPackIds) {
+            await retainTextContentPackV1(packId);
+          }
+        },
+      });
     } catch (error) {
+      disposeTextContentV1();
       capabilities.dispose();
       signalStartupFailure("required_domain");
       throw error;
     }
   }
   const textContentSession = textContent;
+  if (textContentDeclaration !== undefined && textContentDescriptors !== null) {
+    textContentObservationController = createWebTextContentObservationInternalV1({
+      packs: textContentDeclaration.manifest.packs,
+      get(packId) {
+        const descriptor = textContentDescriptors.get(packId);
+        if (descriptor === undefined) {
+          throw new TypeError(`web.text_content_observation_pack_unknown:${packId}`);
+        }
+        return projectWebTextContentPackObservationInternalV1({
+          descriptor,
+          lease: retainedTextContentLeases.get(packId),
+          acquiring: textContentRetentionFlights.has(packId),
+          attempt: textContentAttempts.get(packId) ?? 0,
+          failureCount: textContentFailures.get(packId) ?? 0,
+          diagnosticCode: textContentDiagnostics.get(packId) ?? null,
+        });
+      },
+      async retry(packId): Promise<boolean> {
+        if (textContentDisposed || !textContentDiagnostics.has(packId)) return false;
+        try {
+          await retainTextContentPackV1(packId);
+          return retainedTextContentLeases.has(packId);
+        } catch {
+          return false;
+        }
+      },
+    });
+  }
+  const textContentObservation: WebTextContentObservationV1 | undefined =
+    textContentObservationController?.observation;
   const ensureRequiredTextContentPacksV1 = async (
     packIds: readonly TextContentPackIdV1[],
   ): Promise<void> => {
     if (textContentSession === null) return;
     try {
-      for (const packId of packIds) await textContentSession.ensure(packId);
+      for (const packId of packIds) await retainTextContentPackV1(packId);
     } catch (error) {
       reportFailure("web.text_content_required", error);
       throw error;
@@ -843,6 +1052,46 @@ export async function startWebGameApplicationV1<
       }),
     });
 
+  let addressableRuntime:
+    | StartedWebAddressableRuntimeInternalV1<
+      TTypes["executionContext"],
+      TInvocation,
+      TTypes["snapshot"]
+    >
+    | null = null;
+  try {
+    if (application.addressableRuntime !== undefined) {
+      addressableRuntime = await startWebAddressableRuntimeInternalV1(
+        application.addressableRuntime,
+        {
+          loadRuntimeBytes: options.loadRuntimeBytes ?? loadWebRuntimeBytesInternalV1,
+          reportFailure,
+          ...(textContentObservation === undefined ? {} : { textContent: textContentObservation }),
+        },
+      );
+    }
+  } catch (error) {
+    disposeTextContentV1();
+    capabilities.dispose();
+    signalStartupFailure("required_domain");
+    throw error;
+  }
+  const disposeAddressableRuntimeV1 = (): void => addressableRuntime?.dispose();
+  const disposeAddressableRuntimeAfterStartupFailureV1 = (): void => {
+    try {
+      disposeAddressableRuntimeV1();
+    } catch (disposeError) {
+      reportFailure("web.addressable_runtime_dispose_failed", disposeError);
+    }
+  };
+  const applicationReadinessHooks = composeWebApplicationReadinessHooksInternalV1<
+    TInvocation,
+    TTypes["snapshot"]
+  >(textContentReadinessHooks, addressableRuntime);
+  const executionContext = addressableRuntime === null
+    ? undefined as TTypes["executionContext"]
+    : addressableRuntime.executionContext;
+
   const applicationBuildId = appBuildIdV1(application.buildIdentityInput);
   // One lease identity per started instance: multi-tab/-window mutual
   // exclusion (and the instancePolicy roles) requires distinct owners.
@@ -858,18 +1107,31 @@ export async function startWebGameApplicationV1<
     },
     capabilities: { debugTools: capabilities.state.getCurrent().debugTools },
     capabilityState: capabilities.state,
+    executionContext,
     autosave: options.autosave ?? application.autosave ?? defaultWebAutosavePolicyV1,
     ...(applicationBuildId === null ? {} : { appBuildId: applicationBuildId }),
   };
   const instance = await (async () => {
     if (rebootstrapStart === undefined) {
-      if (textContentReadinessHooks !== null) {
+      if (applicationReadinessHooks !== null) {
         bindCoreApplicationReadinessOptionsInternalV1<
           TInvocation,
-          TTypes["snapshot"]
-        >(coreStartOptions, textContentReadinessHooks);
+          TTypes["snapshot"],
+          TTypes["executionContext"]
+        >(coreStartOptions, applicationReadinessHooks);
       }
-      return await createCoreGameApplicationInstanceV1(
+      return await createCoreGameApplicationInstanceV1<
+        TSimulationFacet,
+        TPresentationFacet,
+        TTypes,
+        TQueries,
+        TGameView,
+        TNarrativeView,
+        TActionDescriptor,
+        TInvocation,
+        TPreview,
+        TResult
+      >(
         resolved.application,
         coreStartOptions,
       );
@@ -879,17 +1141,32 @@ export async function startWebGameApplicationV1<
       handoff: rebootstrapStart.handoff,
       onRebootstrapStartFailureInternal: notifyRebootstrapStartFailure!,
     };
-    if (textContentReadinessHooks !== null) {
+    if (applicationReadinessHooks !== null) {
       bindCoreApplicationReadinessOptionsInternalV1<
         TInvocation,
-        TTypes["snapshot"]
-      >(rebootstrapOptions, textContentReadinessHooks);
+        TTypes["snapshot"],
+        TTypes["executionContext"]
+      >(rebootstrapOptions, applicationReadinessHooks);
     }
-    return await createCoreGameApplicationInstanceForRebootstrapInternalV1(
+    return await createCoreGameApplicationInstanceForRebootstrapInternalV1<
+      TSimulationFacet,
+      TPresentationFacet,
+      TTypes,
+      TQueries,
+      TGameView,
+      TNarrativeView,
+      TActionDescriptor,
+      TInvocation,
+      TPreview,
+      TResult
+    >(
       resolved.application,
       rebootstrapOptions,
     );
   })().catch((error: unknown) => {
+    disposeAddressableRuntimeAfterStartupFailureV1();
+    disposeTextContentV1();
+    capabilities.dispose();
     signalStartupFailure("required_domain");
     throw error;
   });
@@ -980,12 +1257,20 @@ export async function startWebGameApplicationV1<
       },
       { name: "story_ui", run: () => uiDisposer?.() },
       {
+        name: "addressable_runtime",
+        run: disposeAddressableRuntimeV1,
+      },
+      {
         name: "instance_lease",
         run: () => instanceLease?.dispose(),
       },
       {
         name: "capabilities",
         run: () => capabilities.dispose(),
+      },
+      {
+        name: "text_content",
+        run: disposeTextContentV1,
       },
     ],
     releaseCorePersistence: async (mode) => {
@@ -1048,11 +1333,6 @@ export async function startWebGameApplicationV1<
       flush: () => instance.flushAutoSave(),
       reportFailure: (error) => reportFailure("web.desktop_close_flush_failed", error),
     });
-    const playerProfile = await createPlayerProfileStoreV1({
-      records: host.records,
-      storyId: instance.storyId as string,
-      reportFailure,
-    });
     // Multi-instance role: applies the declared policy against a live
     // holder and keeps the published role fresh (poll + cross-tab nudge).
     // HMR successors skip the boot seizure — the rebootstrap handoff owns
@@ -1102,6 +1382,7 @@ export async function startWebGameApplicationV1<
     const uiDefinition = application.ui({
       instance,
       textContent,
+      executionContext,
       instanceLease: instanceLeaseCoordinator,
       assetLoader: options.assetLoader ??
         createBrowserImageLoaderV1({
@@ -1467,6 +1748,9 @@ export async function startWebGameApplicationV1<
       ...(options.loadTextContentPackBytes === undefined
         ? {}
         : { loadTextContentPackBytes: options.loadTextContentPackBytes }),
+      ...(options.loadRuntimeBytes === undefined
+        ? {}
+        : { loadRuntimeBytes: options.loadRuntimeBytes }),
     },
   );
   return started;

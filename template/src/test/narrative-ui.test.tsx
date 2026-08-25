@@ -35,10 +35,11 @@ it("declares the opaque Narrative surface and mounts a bound passive renderer", 
   });
   const textContent = createTextContentSessionV1({
     manifest: templateTextContentManifestV1,
-    bootstrapCatalogs: templateTextCatalogsV1,
-    loadPackBytes: (descriptor) => readFile(resolve(cwd(), "template", descriptor.runtimePath)),
+    bootstrapCatalogs: templateTextCatalogsV1.catalogs,
+    loadPackBytes: (_descriptor, variant) =>
+      readFile(resolve(cwd(), "template", variant.runtimePath)),
   });
-  await textContent.ensure(templateOpeningTextPackIdV1);
+  const textContentLease = await textContent.acquire(templateOpeningTextPackIdV1);
   try {
     const ui = templateGameApplicationV1.ui(
       { instance, playerProfile, textContent, reportFailure: vi.fn() } as unknown as Parameters<
@@ -75,7 +76,7 @@ it("declares the opaque Narrative surface and mounts a bound passive renderer", 
       pending,
       choiceAvailability: null,
       playerProfile: playerProfile.current(),
-      resolveText: (textId: string) => textContent.resolveText(null, textId as TextId),
+      resolveText: (textId: string) => textContent.resolveText(textId as TextId),
       ...callbacks,
     };
     const preparingProps = ({
@@ -112,6 +113,8 @@ it("declares the opaque Narrative surface and mounts a bound passive renderer", 
     await userEvent.setup().click(screen.getByRole("button", { name: "继续" }));
     expect(onActivate).toHaveBeenCalledTimes(1);
   } finally {
+    textContentLease.release();
+    textContent.dispose();
     await instance.dispose();
   }
 });

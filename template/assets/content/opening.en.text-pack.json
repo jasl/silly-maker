@@ -1,0 +1,15 @@
+{
+  "format": "sillymaker.text-content-pack",
+  "version": 2,
+  "packId": "text-pack.template.opening",
+  "locale": "en",
+  "entries": [
+    { "textId": "text.template.speaker.mei", "text": "Mei" },
+    {
+      "textId": "text.template.line.greeting",
+      "text": "The rain has stopped, and the courtyard stones still shine with water."
+    },
+    { "textId": "text.template.choice.prompt", "text": "What will you do next?" },
+    { "textId": "text.template.choice.look", "text": "See what's moving under the eaves" }
+  ]
+}

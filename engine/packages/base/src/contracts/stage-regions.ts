@@ -49,8 +49,6 @@ const regionsIdPatternV1 = /^regions\.[a-z0-9_.-]+$/u;
 const regionsMaxIdLengthV1 = 96;
 const regionsMaxLabelLengthV1 = 120;
 const regionsMaxNotesLengthV1 = 500;
-/** Same per-set budget the render-target projection enforces. */
-const regionsMaxCountV1 = 64;
 const regionsMaxRegionIdLengthV1 = 96;
 const regionsMaxAccessibleNameLengthV1 = 120;
 const regionsMaxCoordinateV1 = 1_000_000;
@@ -249,9 +247,6 @@ export function parseRegionsDocumentV1(value: unknown, path = ""): RegionsDocume
     return dataFailure(`${path}/label`, "regions_label_invalid");
   }
   const rawRegions = readArray(record.regions, `${path}/regions`);
-  if (rawRegions.length > regionsMaxCountV1) {
-    return dataFailure(`${path}/regions`, "regions_count_invalid");
-  }
   const regions = rawRegions.map((region, index) =>
     parseRegionsRegionV1(region, `${path}/regions/${String(index)}`)
   );

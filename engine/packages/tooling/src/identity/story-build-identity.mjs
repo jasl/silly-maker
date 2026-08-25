@@ -46,8 +46,12 @@ function normalizeFacetInputV1(value, label) {
   if (typeof value !== "object" || value === null) {
     throw new TypeError(`${label} is invalid`);
   }
+  const additionalEntries = Reflect.get(value, "additionalEntries");
   return {
     entry: requireNonEmptyStringV1(Reflect.get(value, "entry"), `${label} entry`),
+    additionalEntries: additionalEntries === undefined
+      ? []
+      : requireStringArrayV1(additionalEntries, `${label} additional entries`),
     forbiddenPrefixes: requireStringArrayV1(
       Reflect.get(value, "forbiddenPrefixes"),
       `${label} forbidden prefixes`,
@@ -157,7 +161,7 @@ async function collectEngineRecordsV1(root) {
 }
 
 async function collectStoryFacetRecordsV1(root, config, input) {
-  const closure = await collectImportClosure(root, [input.entry]);
+  const closure = await collectImportClosure(root, [input.entry, ...input.additionalEntries]);
   throwClosureErrorsV1(input.label, closure.errors);
   assertNoReactImportsV1(input.label, closure.externalImports);
   assertProductionPathsV1(input.label, closure.paths);
@@ -244,12 +248,14 @@ export function createStoryBuildIdentityOwnerV1(input) {
         collectEngineRecordsV1(root),
         collectStoryFacetRecordsV1(root, config, {
           entry: config.simulation.entry,
+          additionalEntries: config.simulation.additionalEntries,
           facet: "story_simulation",
           label: "story simulation",
           forbiddenPrefixes: config.simulation.forbiddenPrefixes,
         }),
         collectStoryFacetRecordsV1(root, config, {
           entry: config.presentation.entry,
+          additionalEntries: config.presentation.additionalEntries,
           facet: "story_presentation",
           label: "story presentation",
           forbiddenPrefixes: config.presentation.forbiddenPrefixes,

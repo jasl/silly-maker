@@ -9,8 +9,8 @@ import {
 } from "@sillymaker/base";
 import { createRuntimeSchemaV1 } from "@sillymaker/base/authoring/runtime-schema";
 
-import type { LabNarrativeStateV1 } from "./narrative.ts";
-import { labDrillChamberNodeIdV1, labDrillDecisionDefinitionIdV1 } from "./narrative.ts";
+import type { LabNarrativeStateV1 } from "./narrative-runtime.ts";
+import { labDrillChamberNodeIdV1, labDrillDecisionDefinitionIdV1 } from "./narrative-runtime.ts";
 
 /**
  * The Lab's authoritative monitors: the conformance rig for the three

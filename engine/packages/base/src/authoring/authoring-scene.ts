@@ -13,7 +13,6 @@ import {
   parseStageTagV1,
 } from "../contracts/semantic-stage.ts";
 import { dataFailure, pointerSegment } from "../contracts/presentation-data.ts";
-import { sceneMaxCuesInternalV1, sceneMaxEntriesInternalV1 } from "../contracts/scene.ts";
 import { parseStrictJson, parseStrictJsonLimitsV1 } from "../contracts/strict-json.ts";
 
 /**
@@ -189,10 +188,9 @@ const authoringSceneCoordinateLimitV1 = 1_000_000;
 const authoringSceneScaleLimitV1 = 100_000;
 const authoringSceneOpacityLimitV1 = 1_000;
 const authoringSceneAmbientPhaseLimitMsV1 = 60_000;
-const authoringSceneMaxLayersV1 = 256;
+/** Resource/stack bounds for the current recursive direct-object traversal. */
 const authoringSceneMaxObjectsV1 = 100_000;
 const authoringSceneMaxDepthV1 = 64;
-const authoringSceneMaxBindingsPerKindV1 = 256;
 
 const sceneIdPatternV1 = /^scene\.[a-z0-9_.-]+$/u;
 const cueIdPatternV1 = /^cue\.[a-z0-9_.-]+$/u;
@@ -415,9 +413,6 @@ function parseReferenceListV1(
   parse: (entry: unknown, path: string) => string,
 ): readonly string[] {
   const raw = arrayV1(value, path);
-  if (raw.length > authoringSceneMaxBindingsPerKindV1) {
-    return dataFailure(path, "authoring_scene_bindings_count_invalid");
-  }
   const result: string[] = [];
   const seen = new Set<string>();
   for (const [index, entry] of raw.entries()) {
@@ -488,9 +483,6 @@ function parseBindingsV1(value: unknown, path: string): AuthoringSceneBindingsV1
   const rawInteractions = Object.hasOwn(record, "interactions")
     ? arrayV1(record.interactions, `${path}/interactions`)
     : [];
-  if (rawInteractions.length > authoringSceneMaxBindingsPerKindV1) {
-    return dataFailure(`${path}/interactions`, "authoring_scene_bindings_count_invalid");
-  }
   const knownRegions = new Set(hitRegionIds);
   const interactionRegions = new Set<string>();
   const interactions = rawInteractions.map((entry, index) => {
@@ -519,9 +511,6 @@ function parseBindingsV1(value: unknown, path: string): AuthoringSceneBindingsV1
   const rawGuiControls = Object.hasOwn(record, "guiControls")
     ? arrayV1(record.guiControls, `${path}/guiControls`)
     : [];
-  if (rawGuiControls.length > authoringSceneMaxBindingsPerKindV1) {
-    return dataFailure(`${path}/guiControls`, "authoring_scene_bindings_count_invalid");
-  }
   const controlIds = new Set<string>();
   const guiControls = rawGuiControls.map((entry, index) => {
     const controlPath = `${path}/guiControls/${String(index)}`;
@@ -555,7 +544,6 @@ function parseBindingsV1(value: unknown, path: string): AuthoringSceneBindingsV1
 
 interface AdmissionStateV1 {
   objectCount: number;
-  visualCount: number;
   readonly active: Set<object>;
   readonly objectIds: Set<string>;
   readonly visualObjectIds: Set<string>;
@@ -596,10 +584,6 @@ function parseObjectV1(
       ? parseVisualV1(record.visual, `${path}/visual`)
       : undefined;
     if (visual !== undefined) {
-      state.visualCount += 1;
-      if (state.visualCount > sceneMaxEntriesInternalV1) {
-        return dataFailure(`${path}/visual`, "authoring_scene_visual_count_invalid");
-      }
       state.visualObjectIds.add(objectId as string);
     }
     const bindings = Object.hasOwn(record, "bindings")
@@ -701,12 +685,8 @@ export function admitAuthoringSceneDocumentV1(value: unknown): AdmittedAuthoring
   if (rawLayers.length === 0) {
     return dataFailure("/layers", "authoring_scene_layers_required");
   }
-  if (rawLayers.length > authoringSceneMaxLayersV1) {
-    return dataFailure("/layers", "authoring_scene_layer_count_invalid");
-  }
   const state: AdmissionStateV1 = {
     objectCount: 0,
-    visualCount: 0,
     active: new Set(),
     objectIds: new Set(),
     visualObjectIds: new Set(),
@@ -723,9 +703,6 @@ export function admitAuthoringSceneDocumentV1(value: unknown): AdmittedAuthoring
   }
 
   const rawCues = arrayV1(record.cues, "/cues");
-  if (rawCues.length > sceneMaxCuesInternalV1) {
-    return dataFailure("/cues", "authoring_scene_cue_count_invalid");
-  }
   const cues: AuthoringSceneCueV1[] = [];
   const seenCueIds = new Set<string>();
   for (const [index, rawCue] of rawCues.entries()) {

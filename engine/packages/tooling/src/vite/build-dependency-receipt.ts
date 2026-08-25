@@ -538,7 +538,8 @@ export function classifyStaticGameDependencyFacetsInternalV1(
     moduleId === "engine/packages/ui/src/reference/default-settings-sections.tsx"
   );
   const dynamicExtensionImplementation = uniqueModuleIds.filter((moduleId) =>
-    moduleId.startsWith("engine/packages/composition/src/extension-runtime/")
+    moduleId.startsWith("engine/packages/composition/src/extension-runtime/") ||
+    moduleId.startsWith("engine/packages/composition/src/mod-runtime/")
   );
   const agentImplementation = uniqueModuleIds.filter((moduleId) =>
     moduleId.startsWith("engine/packages/agent/src/") ||

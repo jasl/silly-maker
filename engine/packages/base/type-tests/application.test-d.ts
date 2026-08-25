@@ -13,6 +13,10 @@ import type {
   SaveInspectionResultV1,
 } from "@sillymaker/base";
 import { createRuntimeCapabilityPortV1 } from "@sillymaker/base/runtime";
+import type {
+  CoreApplicationHostServicesV1,
+  CreateCoreGameApplicationInstanceOptionsV1,
+} from "@sillymaker/base/runtime";
 
 declare const persistence: PlayerPersistencePortV1<
   { id: string },
@@ -205,17 +209,28 @@ export type OldDeveloperControl = import("@sillymaker/base").DeveloperControlPor
   unknown,
   unknown
 >;
-// @ts-expect-error renderer contribution contracts belong to @sillymaker/ui
-export type OldUiRendererBinding = import("@sillymaker/base").UiRendererBindingV1<
-  string,
-  unknown,
-  unknown,
-  unknown
->;
-// @ts-expect-error renderer contribution contracts belong to @sillymaker/ui
-export type OldUiContributionSet = import("@sillymaker/base").UiContributionSetV1<
-  unknown,
-  unknown,
-  unknown,
-  unknown
->;
+
+declare const coreHostV1: CoreApplicationHostServicesV1;
+interface RequiredExecutionContextV1 {
+  readonly scenePlanOwner: "required";
+}
+
+export const requiredExecutionContextOptionsV1: CreateCoreGameApplicationInstanceOptionsV1<
+  RequiredExecutionContextV1
+> = {
+  host: coreHostV1,
+  executionContext: { scenePlanOwner: "required" },
+};
+
+// @ts-expect-error A non-undefined execution-context contract must be supplied at construction.
+export const missingRequiredExecutionContextOptionsV1: CreateCoreGameApplicationInstanceOptionsV1<
+  RequiredExecutionContextV1
+> = { host: coreHostV1 };
+
+export const omittedUndefinedExecutionContextOptionsV1: CreateCoreGameApplicationInstanceOptionsV1<
+  undefined
+> = { host: coreHostV1 };
+
+export const omittedUnionExecutionContextOptionsV1: CreateCoreGameApplicationInstanceOptionsV1<
+  RequiredExecutionContextV1 | undefined
+> = { host: coreHostV1 };

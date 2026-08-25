@@ -103,9 +103,19 @@ interface DebugCounterCommandV1 {
   readonly amount: number;
 }
 
-type DebugSyntheticSimulationTypesV1 = Omit<SyntheticSimulationTypesV1, "debugCommand"> & {
-  readonly debugCommand: DebugCounterCommandV1;
-};
+interface SyntheticExecutionContextV1 {
+  readonly planId: "plan.synthetic.context";
+}
+
+type DebugSyntheticSimulationTypesV1 =
+  & Omit<
+    SyntheticSimulationTypesV1,
+    "debugCommand" | "executionContext"
+  >
+  & {
+    readonly debugCommand: DebugCounterCommandV1;
+    readonly executionContext: SyntheticExecutionContextV1 | undefined;
+  };
 
 type SyntheticSnapshotV1 = DebugSyntheticSimulationTypesV1["snapshot"];
 type SyntheticEquivalenceDebugBundleV1 = DebugBundleEnvelopeV1<
@@ -580,9 +590,18 @@ const rollbackDefinitionV1 = defineCoreGameApplicationV1({
   }),
 });
 
-function debugDefinitionFixtureV1() {
+function debugDefinitionFixtureV1(options: {
+  readonly projectRebootstrapCommand?: (
+    snapshot: DeepReadonly<SyntheticSnapshotV1>,
+    resolved: unknown,
+    executionContext: DebugSyntheticSimulationTypesV1["executionContext"],
+  ) => DeepReadonly<SyntheticCounterCommandV1> | null;
+} = {}) {
   const baseEntry = createSyntheticCounterGamePackageV1();
   let debugExecuteCalls = 0;
+  const gameExecutionContexts: DebugSyntheticSimulationTypesV1["executionContext"][] = [];
+  const debugValidationContexts: DebugSyntheticSimulationTypesV1["executionContext"][] = [];
+  const debugExecutionContexts: DebugSyntheticSimulationTypesV1["executionContext"][] = [];
   let injectZeroRngCandidate = false;
   let normalizeFaultAsZeroRngCommit = false;
   let throwGameExecutor = false;
@@ -649,23 +668,31 @@ function debugDefinitionFixtureV1() {
             executeAttempt(
               snapshot: SyntheticSimulationTypesV1["snapshot"],
               command: SyntheticCounterCommandV1,
-              context: SyntheticSimulationTypesV1["executionContext"],
+              context: DebugSyntheticSimulationTypesV1["executionContext"],
             ) {
+              gameExecutionContexts.push(context);
               if (throwGameExecutor) throw new Error("synthetic game executor failure");
               return corruptCommittedAttemptV1(
-                gameSimulation.commandExecutor.executeAttempt(snapshot, command, context),
+                gameSimulation.commandExecutor.executeAttempt(snapshot, command, undefined),
               );
             },
           }),
           debugCommandSchema: debugCommandSchemaV1,
           debugCommandExecutor: Object.freeze({
-            validate() {
+            validate(
+              _snapshot: SyntheticSimulationTypesV1["snapshot"],
+              _command: DebugCounterCommandV1,
+              context: DebugSyntheticSimulationTypesV1["executionContext"],
+            ) {
+              debugValidationContexts.push(context);
               return Object.freeze({ kind: "allowed" as const });
             },
             executeAttempt(
               snapshot: SyntheticSimulationTypesV1["snapshot"],
               command: DebugCounterCommandV1,
+              context: DebugSyntheticSimulationTypesV1["executionContext"],
             ) {
+              debugExecutionContexts.push(context);
               debugExecuteCalls += 1;
               const rng = createTransactionalRngV1(snapshot.rng);
               const count = parseNonNegativeSafeInteger(
@@ -749,6 +776,9 @@ function debugDefinitionFixtureV1() {
       { readonly countBefore: number },
       SyntheticResultV1
     >,
+    ...(options.projectRebootstrapCommand === undefined
+      ? {}
+      : { projectRebootstrapCommand: options.projectRebootstrapCommand }),
     normalizeUnexpectedDispatchFault(error, snapshot) {
       if (normalizeFaultAsValidCommit) return validCommittedIncrementAttemptV1(snapshot);
       if (!normalizeFaultAsZeroRngCommit) throw error;
@@ -901,6 +931,9 @@ function debugDefinitionFixtureV1() {
   return Object.freeze({
     definition,
     debugExecuteCalls: () => debugExecuteCalls,
+    gameExecutionContexts: () => Object.freeze([...gameExecutionContexts]),
+    debugValidationContexts: () => Object.freeze([...debugValidationContexts]),
+    debugExecutionContexts: () => Object.freeze([...debugExecutionContexts]),
     injectZeroRngCandidate(value: boolean) {
       injectZeroRngCandidate = value;
     },
@@ -3217,6 +3250,60 @@ describe("createCoreGameApplicationInstanceV1", () => {
     }
   });
 
+  it("binds one execution context to live game/debug execution and authoritative replay", async () => {
+    const fixture = debugDefinitionFixtureV1();
+    const resolved = resolveCoreGameApplicationV1(fixture.definition, {
+      buildIdentityInput: deterministicBuildIdentityInputV1,
+    });
+    if (resolved.kind !== "resolved") throw new TypeError("debug synthetic story must resolve");
+    const executionContext = Object.freeze({
+      planId: "plan.synthetic.context" as const,
+    });
+    const instance = await createCoreGameApplicationInstanceV1(resolved.application, {
+      host: hostServicesV1(createMemoryHostRecordStoreV1()),
+      capabilities: { debugTools: true },
+      executionContext,
+    });
+
+    try {
+      await expect(instance.semantic.dispatch(incrementV1)).resolves.toMatchObject({
+        kind: "committed",
+      });
+      const debugControl = instance.admin.debugControl;
+      if (debugControl === undefined) throw new TypeError("debug control must be enabled");
+      await expect(
+        debugControl.execute(
+          Object.freeze({ kind: "debug.synthetic.add", amount: 1 }),
+          () => true,
+        ),
+      ).resolves.toMatchObject({
+        kind: "executed",
+        attempt: { result: { kind: "committed" } },
+      });
+
+      expect(fixture.gameExecutionContexts()).toEqual([executionContext]);
+      expect(fixture.debugValidationContexts()).toEqual([executionContext]);
+      expect(fixture.debugExecutionContexts()).toEqual([executionContext]);
+
+      await expect(instance.admin.replayAuthoritatively()).resolves.toMatchObject({
+        authoritative: true,
+        matches: true,
+        executedEntries: 2,
+      });
+      expect(fixture.gameExecutionContexts()).toEqual([
+        executionContext,
+        executionContext,
+      ]);
+      expect(fixture.debugValidationContexts()).toEqual([executionContext]);
+      expect(fixture.debugExecutionContexts()).toEqual([
+        executionContext,
+        executionContext,
+      ]);
+    } finally {
+      await instance.dispose();
+    }
+  });
+
   it.each(["game", "debug"] as const)(
     "rejects a zero RNG candidate from the Core %s executor before Session finalization",
     async (source) => {
@@ -4826,6 +4913,57 @@ describe("createCoreGameApplicationInstanceV1", () => {
     expect((instance.semantic.observe().game as { readonly count: number }).count).toBe(0);
     expect(instance.presentationAnchor().origin).toBe("bootstrap");
     await instance.dispose();
+  });
+
+  it("passes the successor execution context through rebootstrap projection and replay", async () => {
+    const records = createMemoryHostRecordStoreV1();
+    const executionContext = Object.freeze({
+      planId: "plan.synthetic.context" as const,
+    });
+    const projectRebootstrapCommand = vi.fn(
+      (
+        _snapshot: DeepReadonly<SyntheticSnapshotV1>,
+        _resolved: unknown,
+        context: DebugSyntheticSimulationTypesV1["executionContext"],
+      ) => {
+        expect(context).toBe(executionContext);
+        return Object.freeze({ kind: "synthetic.increment" as const });
+      },
+    );
+    const fixture = debugDefinitionFixtureV1({ projectRebootstrapCommand });
+    const resolved = resolveCoreGameApplicationV1(fixture.definition, {
+      buildIdentityInput: deterministicBuildIdentityInputV1,
+    });
+    if (resolved.kind !== "resolved") throw new TypeError("debug synthetic story must resolve");
+    const predecessor = await createCoreGameApplicationInstanceV1(resolved.application, {
+      host: hostServicesV1(records, [77]),
+    });
+    const handoff = await disposeCoreGameApplicationForRebootstrapInternalV1(predecessor);
+    const successor = await createCoreGameApplicationInstanceForRebootstrapInternalV1(
+      resolved.application,
+      {
+        host: hostServicesV1(records, [83]),
+        executionContext,
+        handoff,
+        onRebootstrapStartFailureInternal: () => undefined,
+      },
+    );
+
+    try {
+      expect(projectRebootstrapCommand).toHaveBeenCalledOnce();
+      expect(fixture.gameExecutionContexts()).toEqual([executionContext]);
+      await expect(successor.admin.replayAuthoritatively()).resolves.toMatchObject({
+        authoritative: true,
+        matches: true,
+        executedEntries: 1,
+      });
+      expect(fixture.gameExecutionContexts()).toEqual([
+        executionContext,
+        executionContext,
+      ]);
+    } finally {
+      await successor.dispose();
+    }
   });
 
   it("continues the exact authoritative Snapshot and replay base across rebootstrap", async () => {

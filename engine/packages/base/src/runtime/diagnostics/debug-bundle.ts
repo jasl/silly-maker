@@ -116,11 +116,9 @@ export type CreateGameDiagnosticsServiceInputV1<
   }
   & (
     | {
-      readonly uiContextSchema: RuntimeSchemaV1<TUiContext>;
       readonly readUiContext: () => unknown;
     }
     | {
-      readonly uiContextSchema?: undefined;
       readonly readUiContext?: undefined;
     }
   );
@@ -264,14 +262,7 @@ export function createGameDiagnosticsServiceV1<
   ) {
     throw new TypeError("invalid Debug Bundle export filename");
   }
-  const uiContextSchema = input.uiContextSchema;
   const readUiContext = input.readUiContext;
-  if ((uiContextSchema === undefined) !== (readUiContext === undefined)) {
-    throw new TypeError("Debug Bundle UI-context schema and reader must be supplied together");
-  }
-  const uiContextProvider = uiContextSchema === undefined || readUiContext === undefined
-    ? undefined
-    : { schema: uiContextSchema, read: readUiContext };
 
   return {
     async exportDebugBundle(): Promise<ExportedDebugBundleV1> {
@@ -279,10 +270,7 @@ export function createGameDiagnosticsServiceV1<
         return await input.readAtQueueFront((currentSnapshot) => {
           const replay = input.getReplayEvidence();
           const failure = input.getFailure();
-          const rawUiContext = uiContextProvider?.read();
-          const uiContext = rawUiContext === undefined
-            ? undefined
-            : uiContextProvider?.schema.parse(rawUiContext);
+          const uiContext = readUiContext?.();
           const runtimeFailures = input
             .getRuntimeFailures()
             .slice(-50)

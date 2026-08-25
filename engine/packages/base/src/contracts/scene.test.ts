@@ -110,6 +110,37 @@ describe("parseSceneDocumentV1", () => {
     expect(document.cues).toHaveLength(3);
   });
 
+  it("admits large generated entry and cue collections without a semantic count cap", () => {
+    const entryCount = 300;
+    const cueCount = 600;
+    const generated = sceneDocumentV1({
+      entries: Array.from({ length: entryCount }, (_, index) => ({
+        layerId: "layer.app.scale",
+        tag: `tag.scale.${String(index)}`,
+        contentId: `content.scale.${String(index)}`,
+      })),
+      cues: Array.from({ length: cueCount }, (_, index) => ({
+        cueId: `cue.scale.${String(index)}`,
+        kind: "show",
+        tag: `tag.scale.${String(index % entryCount)}`,
+      })),
+    });
+
+    const document = parseSceneDocumentV1(generated);
+    expect(document.entries).toHaveLength(entryCount);
+    expect(document.cues).toHaveLength(cueCount);
+
+    const lastCue = document.cues.at(-1)!;
+    expect(sceneFromDocumentV1(document).cueMutations(lastCue.cueId, emptyStageV1())).toEqual([
+      {
+        kind: "show",
+        layerId: "layer.app.scale",
+        tag: `tag.scale.${String((cueCount - 1) % entryCount)}`,
+        contentId: `content.scale.${String((cueCount - 1) % entryCount)}`,
+      },
+    ]);
+  });
+
   it("rejects format, version, id, label, and canvas violations", () => {
     expect(reasonOfV1(() => parseSceneDocumentV1(sceneDocumentV1({ format: "sillymaker.motion" }))))
       .toBe("scene_format_invalid");

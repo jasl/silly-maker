@@ -1,6 +1,6 @@
 # Production-floor execution sequence
 
-状态：持续维护的唯一跨计划排序入口；最近排序修订 2026-08-24。PF0–PF7 与 Complexity
+状态：持续维护的唯一跨计划排序入口；最近排序修订 2026-08-25。PF0–PF7 与 Complexity
 Reset 的 CR0、CR1、CR2.1–CR2.5、CR3、CR4 已于 2026-08-13 完成。CR4 的真实作者纵切没有
 暴露需要通用 PF6 harness 解决的问题，PF6 已重新裁决为
 不激活。同日以真实产品证据接受并完成了
@@ -70,7 +70,7 @@ forward/reverse Chromium/WebKit product evidence。两个消费者都以真实 S
 一次源码更新只换代一次 Game epoch 且零 page reload；该计划现已关闭。不得由本车道派生 Desktop
 activation。2026-08-24 所有者随后接受并开启
 [Scale、Scene/Object 与模块化 GUI V1](2026-08-24-scale-scene-object-modular-gui.md)
-作为当前唯一 engine lane；目标合同见
+作为当时唯一 engine lane；目标合同见
 [Scale, Scene Object, and Modular GUI](../proposals/scale-scene-object-and-modular-gui.md)。它用仓内
 中性生成 workload 先解决大文本/多模块/authoring index 的规模风险，建立编译到现有 Stage/Timeline
 runtime 的第一阶 Authoring Scene object hierarchy，重新划分 core/player/devtools/authoring，并以
@@ -95,8 +95,33 @@ IR/compiler 输出既有低层 runtime plan 与独立 inspection/source-map face
 2026-08-24 所有者在 M5 实现提交前暂停该里程碑并插入的独立 runtime-boundary
 Complexity Reset 已交付：Snapshot/Semantic 整树冻结、Bootstrap/Command/Evidence 的重复 admission/
 handoff/descriptor 防御、只保护实现形状的测试、dead BuildIdentity consumer 与本地 attestation
-tooling 已删除；schema、digest、Save/replay、CAS、generation/currentness 与 RPC 边界保留。暂停的
-M5 实现继续隔离在 stash 中等待所有者复核；复核后唯一下一项为 M5 Inspector replacement 与收口。
+tooling 已删除；schema、digest、Save/replay、CAS、generation/currentness 与 RPC 边界保留。公开能力
+审计与 repository-wide trust/performance reset 通过后，M5 于 2026-08-25 恢复并交付 Inspector-first
+clean replacement：同一 Authoring Host/session/CAS/R1 substrate 现在服务 virtualized Scene/object
+navigation、真实 Stage preview、场外/透明 ghost、有限属性/顺序编辑和只读 Motion/Timeline/intent/source
+facets；旧 Studio route、五 workspace、bindings 与 UI-only tests 同轮删除。Scale / Scene Object /
+Modular GUI M0–M5 因而关闭。
+
+2026-08-25 所有者随后接受
+[Scalable Authoring, Addressable Runtime, and Mods V1](2026-08-25-scalable-authoring-addressable-runtime-and-mods.md)
+作为当时唯一 engine lane；目标合同见
+[Scalable Authoring, Addressable Runtime, and Mods V1](../proposals/scalable-authoring-addressable-runtime-and-mods.md)。
+顺序为 M0 capacity contract reset → M1 orthogonal GUI composition/Code Surface → M2 addressable
+Scene/Narrative/GUI/code/content units → M3 Runtime Inspector facets → M4 locale-addressable i18n → M5
+private build-known application-local Mod Runtime。M0–M5 已于 2026-08-25 交付并关闭。M2 以
+type-specific lease owners、一个 application-owned Web readiness
+seam 与 Engine Lab opening/drill/query-only GUI 路径交付按需边界；没有通用 loader、LRU、prefetcher、
+Worker pool 或 current-only eviction claim。它以小型原创/生成 conformance 和既有 raw benchmark
+验收。M3 以 application-owned read-only projection、unsubscribed O(1) publication、per-pack Text
+observation、virtualized Runtime Inspector 和 Code Surface inspection/lifecycle facet 交付可观察性；standalone
+明确 detached，embedded 才观察 live owner。它不把第三方 React 组件、fake Agent conversation、商业内容
+或 SillyOS 变成本轮 fixture；SillyOS
+重做现在可以作为独立的下一轮综合产品验证，但尚未自动开启。M4 在同一 Text session 上交付 locale
+variants、fallback、atomic preference activation 与 active-only physical residency；M5 只交付 private、
+build-known、immutable-per-generation 的 application-local Mod composition，复用既有 Direct lifecycle
+并由应用把 active identity 接入既有 BuildIdentity。它没有激活 public resolver/ABI/SDK/distribution、
+post-release arbitrary code、untrusted sandbox 或 live hot install。当前没有由本文件自动激活的下一
+engine lane；后续 SillyOS/作品重写先作为产品验证，再由可复现缺口接受新计划。
 首个经 release
 source/行为确认包含目标路径的 stable（2.9.6 只是预期候选）仍须重跑同一分层验收，全部通过后才
 正式打开 maintained Desktop development workflow。此前 adapter 保持 package-private、explicit、
@@ -110,7 +135,8 @@ ABI、runtime code installation、State Format V2、Effect Broker、具体 OpenU
 production Story State migration；Cordis adapter/vendor/dependency 已删除。ordinary no-extension
 静态游戏 release 仍不得包含 author/source-write、selected Direct extension runtime 或 RPC
 implementation。Workspace Focus 与 Browser R2 authoritative handoff 都已关闭；作品/examples/产品或
-其他 engine lane 不得绕过当前 Scale/Scene Object/Modular GUI 计划。stable Deno Desktop revalidation
+作品/examples/产品或其他 engine lane 不得绕过当前 Scalable Authoring / Addressable Runtime / Mods
+计划。stable Deno Desktop revalidation
 只在满足 release source/行为进入条件后作为独立
 activation follow-up 领取，不占用或阻塞当前 Browser lane。
 
@@ -368,7 +394,8 @@ SillyMaker 使用三档信任模型。
 
 ### Public authoring input
 
-包括 Story definitions、schemas、renderer contributions 与 application declarations。
+包括 Story definitions、schemas、spatial Scene renderers、Code Surface definitions 与
+application declarations。
 
 要求：
 

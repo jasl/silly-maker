@@ -237,12 +237,29 @@ describe("Authoring Scene operation executor", () => {
       objectId: "tag.test.alpha" as never,
       localTransform: placementV1(260),
     })).toMatchObject({ kind: "applied" });
+    expect(session.getSnapshot()).toMatchObject({
+      dirty: true,
+      canUndo: true,
+      canRedo: false,
+    });
     expect(await session.save()).toEqual({ kind: "ok", digest: "sha256:written" });
+    expect(session.getSnapshot()).toMatchObject({
+      dirty: false,
+      canUndo: true,
+      canRedo: false,
+    });
     expect(writes).toHaveLength(1);
     expect(writes[0]?.expectedDigest).toBe("sha256:source");
     expect(writes[0]?.admittedScene.document.layers[0]?.roots[0]?.localTransform.x).toBe(260);
     expect(writes[0]?.admittedScene.sourceMap.objects[0]?.jsonPointer).toBe(
       "/layers/0/roots/0",
     );
+
+    session.undo();
+    expect(alphaXv1(session)).toBe(100);
+    expect(session.getSnapshot()).toMatchObject({ dirty: true, canRedo: true });
+    session.redo();
+    expect(alphaXv1(session)).toBe(260);
+    expect(session.getSnapshot()).toMatchObject({ dirty: false, canRedo: false });
   });
 });

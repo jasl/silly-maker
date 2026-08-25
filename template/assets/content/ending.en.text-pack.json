@@ -1,0 +1,16 @@
+{
+  "format": "sillymaker.text-content-pack",
+  "version": 2,
+  "packId": "text-pack.template.ending",
+  "locale": "en",
+  "entries": [
+    {
+      "textId": "text.template.line.cat",
+      "text": "Look—a soaked kitten is hiding beneath the corner of the eaves."
+    },
+    {
+      "textId": "text.template.line.ending-warm",
+      "text": "Mei carries the kitten inside and winks at you. Today is a good day."
+    }
+  ]
+}

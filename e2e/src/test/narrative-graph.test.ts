@@ -8,6 +8,7 @@ import { createGameHarnessV1 } from "@sillymaker/base/testkit";
 import type { LabInvocationV1 } from "../index.ts";
 import {
   labPrefetchPlanV1,
+  labHeadlessExecutionContextV1,
   labSemanticAdapterV1,
   labStoryEntryV1,
   predictLabNarrativeV1,
@@ -20,6 +21,7 @@ function createLabHarnessV1(seed = 424_242) {
   return createGameHarnessV1({
     entry: labStoryEntryV1,
     semantic: labSemanticAdapterV1,
+    executionContext: labHeadlessExecutionContextV1,
     seed,
   });
 }

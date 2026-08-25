@@ -184,6 +184,114 @@ describe("Authoring Scene admission", () => {
     expect(villain?.bindings).toMatchObject({ motionIds: [], timelineIds: [] });
   });
 
+  it("admits and compiles large generated scene collections without semantic count caps", () => {
+    const layerCount = 300;
+    const cueCount = 600;
+    const scene = authoringSceneV1();
+    scene.layers = Array.from({ length: layerCount }, (_, index) => ({
+      layerId: `layer.scale.${String(index)}`,
+      label: `Layer ${String(index)}`,
+      roots: [{
+        objectId: `tag.scale.${String(index)}`,
+        label: `Object ${String(index)}`,
+        visual: { contentId: `content.scale.${String(index)}` },
+      }],
+    }));
+    scene.cues = Array.from({ length: cueCount }, (_, index) => ({
+      cueId: `cue.scale.${String(index)}`,
+      kind: "show",
+      objectId: `tag.scale.${String(index % layerCount)}`,
+    }));
+
+    const admitted = admitAuthoringSceneSourceBytesV1(
+      new TextEncoder().encode(JSON.stringify(scene)),
+    );
+    const compiled = compileAuthoringSceneV1(admitted);
+    expect(compiled.runtimePlan.orderedLayerIds).toHaveLength(layerCount);
+    expect(compiled.runtimePlan.sceneDocument.entries).toHaveLength(layerCount);
+    expect(compiled.runtimePlan.sceneDocument.cues).toHaveLength(cueCount);
+    expect(compiled.runtimePlan.sceneDocument.cues.at(-1)?.cueId).toBe("cue.scale.599");
+  });
+
+  it("retains large generated binding collections without truncation", () => {
+    const bindingCount = 300;
+    const scene = authoringSceneV1();
+    const layers = scene.layers as Record<string, unknown>[];
+    const background = (layers[0]!.roots as Record<string, unknown>[])[0]!;
+    background.bindings = {
+      hitRegionIds: Array.from(
+        { length: bindingCount },
+        (_, index) => `zone-generated-${String(index)}`,
+      ),
+      motionIds: Array.from(
+        { length: bindingCount },
+        (_, index) => `motion.scale.${String(index)}`,
+      ),
+      timelineIds: Array.from(
+        { length: bindingCount },
+        (_, index) => `cue.scale.timeline.${String(index)}`,
+      ),
+      interactions: Array.from({ length: bindingCount }, (_, index) => ({
+        regionId: `zone-generated-${String(index)}`,
+        intentId: `intent.scale.${String(index)}`,
+      })),
+      guiControls: Array.from({ length: bindingCount }, (_, index) => ({
+        controlId: `control.scale.${String(index)}`,
+        intentId: `intent.scale.control.${String(index)}`,
+      })),
+    };
+
+    const compiled = compileAuthoringSceneV1(admitAuthoringSceneDocumentV1(scene));
+    const forBackground = <T extends { readonly objectId: unknown }>(entries: readonly T[]) =>
+      entries.filter((entry) => entry.objectId === "tag.background");
+    expect(forBackground(compiled.bindings.hitRegions)).toHaveLength(bindingCount);
+    expect(forBackground(compiled.bindings.motions)).toHaveLength(bindingCount);
+    expect(forBackground(compiled.bindings.timelines)).toHaveLength(bindingCount);
+    expect(forBackground(compiled.bindings.interactions)).toHaveLength(bindingCount);
+    expect(forBackground(compiled.bindings.guiControls)).toHaveLength(bindingCount);
+  });
+
+  it("keeps source resource bounds separate from trusted direct-object admission", () => {
+    const scene = authoringSceneV1();
+    const layers = scene.layers as Record<string, unknown>[];
+    const background = (layers[0]!.roots as Record<string, unknown>[])[0]!;
+    const appearance = Object.fromEntries(
+      Array.from({ length: 129 }, (_, index) => [`tone${String(index)}`, "plain"]),
+    );
+    background.visual = { contentId: "content.app.background", appearance };
+
+    const admitted = admitAuthoringSceneDocumentV1(scene);
+    expect(Object.keys(admitted.document.layers[0]!.roots[0]!.visual!.appearance)).toHaveLength(
+      129,
+    );
+    expect(
+      reasonV1(() =>
+        admitAuthoringSceneSourceBytesV1(new TextEncoder().encode(JSON.stringify(scene)))
+      ),
+    ).toBe("authoring_scene_json_invalid");
+  });
+
+  it("retains the recursive direct-object depth resource bound", () => {
+    let nested: Record<string, unknown> = {
+      objectId: "tag.depth.65",
+      label: "Depth 65",
+    };
+    for (let depth = 64; depth >= 0; depth -= 1) {
+      nested = {
+        objectId: `tag.depth.${String(depth)}`,
+        label: `Depth ${String(depth)}`,
+        children: [nested],
+      };
+    }
+    const scene = authoringSceneV1();
+    scene.layers = [{ layerId: "layer.depth", label: "Depth", roots: [nested] }];
+    scene.cues = [];
+
+    expect(reasonV1(() => admitAuthoringSceneDocumentV1(scene))).toBe(
+      "authoring_scene_object_depth_invalid",
+    );
+  });
+
   it("rejects extra fields, duplicate identities, non-visual cue targets, and open bindings", () => {
     expect(reasonV1(() => admitAuthoringSceneDocumentV1({ ...authoringSceneV1(), extra: true })))
       .toBe("authoring_scene_object_keys_invalid");

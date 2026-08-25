@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  contentBundleScaleManifestV1,
   contentBundleScalePackJsonV1,
   contentBundleScaleFixtureV1,
   initialJavaScriptPathsFromViteManifestV1,
@@ -29,19 +30,44 @@ describe("content bundle scale fixture", () => {
     const pack = JSON.parse(contentBundleScalePackJsonV1({
       packIndex: 2,
       entriesPerPack: 3,
+      locale: "en",
     }));
     expect(pack).toMatchObject({
       format: "sillymaker.text-content-pack",
-      version: 1,
+      version: 2,
       packId: "text-pack.scale.002",
-      textCatalogs: { defaultLocale: "en" },
+      locale: "en",
     });
-    expect(pack.textCatalogs.catalogs[0].entries.map((entry: { textId: string }) => entry.textId))
+    expect(pack.entries.map((entry: { textId: string }) => entry.textId))
       .toEqual([
         "text.scale.line.000006",
         "text.scale.line.000007",
         "text.scale.line.000008",
       ]);
+  });
+
+  it("generates the current locale and physical-variant manifest topology", () => {
+    const packs = [
+      {
+        packId: "text-pack.scale.000",
+        variants: [{
+          locale: "en",
+          runtimePath: "assets/content/pack-000.en.json",
+        }],
+      },
+    ];
+    expect(contentBundleScaleManifestV1(packs)).toEqual({
+      revision: 1,
+      defaultLocale: "en",
+      locales: [{ locale: "en", fallbackLocale: null }],
+      packs: [{
+        packId: "text-pack.scale.000",
+        variants: [{
+          locale: "en",
+          runtimePath: "assets/content/pack-000.en.json",
+        }],
+      }],
+    });
   });
 
   it("walks the initial static JavaScript closure once", () => {

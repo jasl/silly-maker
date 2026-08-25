@@ -8,6 +8,22 @@ export type {
   NarrativeFlowGraphNodeV1,
   NarrativeFlowGraphV1,
 } from "./core/binding.ts";
+export type {
+  RuntimeInspectorAcquireTimingV1,
+  RuntimeInspectorCodeSurfaceLifecycleV1,
+  RuntimeInspectorCodeSurfaceNodeFacetV1,
+  RuntimeInspectorDiagnosticV1,
+  RuntimeInspectorOwnerStatusV1,
+  RuntimeInspectorReferenceKindV1,
+  RuntimeInspectorSnapshotV1,
+  RuntimeInspectorSourceV1,
+  RuntimeInspectorUnitFacetV1,
+  RuntimeInspectorUnitIdentityV1,
+  RuntimeInspectorUnitKindV1,
+  RuntimeInspectorUnitReferenceV1,
+  RuntimeInspectorUnitStatusV1,
+  RuntimeInspectorWorkingSetV1,
+} from "./core/runtime-inspection.ts";
 
 export { createDevServerSceneIoV1 } from "./core/scene-io.ts";
 export type {

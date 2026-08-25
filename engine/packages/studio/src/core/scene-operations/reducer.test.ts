@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import {
-  admitAuthoringSceneDocumentV1,
-  compileAuthoringSceneV1,
-} from "@sillymaker/base/authoring/scene";
+import { admitAuthoringSceneDocumentV1 } from "@sillymaker/base/authoring/scene";
 import type {
   AdmittedAuthoringSceneV1,
   AuthoringSceneObjectV1,
@@ -113,7 +110,7 @@ function objectV1(scene: AdmittedAuthoringSceneV1, objectId: string): AuthoringS
 describe("reduceSceneAuthoringOperationV1", () => {
   it("edits nested local transforms and re-runs deterministic compilation", () => {
     const current = sceneV1();
-    const next = reducedV1(
+    const result = reduceSceneAuthoringOperationV1(
       current,
       operationV1({
         schemaRevision: 2,
@@ -122,13 +119,14 @@ describe("reduceSceneAuthoringOperationV1", () => {
         localTransform: { ...placementV1(320, 240), mirrored: true },
       }),
     );
+    if (result.kind === "rejected") throw new TypeError(result.diagnostic.code);
+    const next = result.scene;
 
     expect(objectV1(next, "tag.test.beta").localTransform).toEqual({
       ...placementV1(320, 240),
       mirrored: true,
     });
     expect(objectV1(current, "tag.test.beta").localTransform).toEqual(placementV1(200, 100));
-    expect(() => compileAuthoringSceneV1(next)).not.toThrow();
   });
 
   it("edits only an existing Visual's content and appearance", () => {

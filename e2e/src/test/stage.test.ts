@@ -13,6 +13,7 @@ import { createGameHarnessV1 } from "@sillymaker/base/testkit";
 import type { LabActionIdV1, LabGameStateV1, LabInvocationV1 } from "../index.ts";
 import {
   labSemanticAdapterV1,
+  labHeadlessExecutionContextV1,
   labStageContentCatalogV1,
   labStageContentIdsV1,
   labStageMutationsForBeginV1,
@@ -26,6 +27,7 @@ function createLabHarnessV1(seed = 61213) {
   return createGameHarnessV1({
     entry: labStoryEntryV1,
     semantic: labSemanticAdapterV1,
+    executionContext: labHeadlessExecutionContextV1,
     seed,
   });
 }
@@ -83,7 +85,7 @@ describe("Engine Lab semantic stage", () => {
 
     // Beginning the procedure is the whole-scene open derived from the one
     // real authoring document; the undeclared props layer remains untouched.
-    expect(labStageMutationsForBeginV1(collected)).toEqual(
+    expect(labStageMutationsForBeginV1(collected, labProcedureSceneV1)).toEqual(
       labProcedureSceneV1.openMutations(collected),
     );
     await dispatchCommittedV1(harness, "lab.begin_procedure");
@@ -98,7 +100,7 @@ describe("Engine Lab semantic stage", () => {
     expect(entriesOfV1(staged, "layer.e2e.props")).toEqual(
       entriesOfV1(collected, "layer.e2e.props"),
     );
-    expect(labStageMutationsForBeginV1(staged)).toEqual([]);
+    expect(labStageMutationsForBeginV1(staged, labProcedureSceneV1)).toEqual([]);
 
     // Replace preserved the background entry's identity and placement.
     expect(entriesOfV1(staged, "layer.e2e.background")[0]?.placement).toEqual(

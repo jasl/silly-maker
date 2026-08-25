@@ -1,5 +1,9 @@
 # Cue identity proposal（presentation-only 表现边 cue 上下文）
 
+> 2026-08-25 后续裁决：Capacity Contract Reset 仅删除临时
+> `stageCueDispatchLimitV1 = 32` 数量上限及其公开导出。本历史提案的
+> cue identity、member admission、revision/epoch currentness 与其他结论仍有效。
+
 状态：提案（2026-08-17）；同日所有者批复全部 open questions（裁决见文末，已并入
 案文正文）并**接受本提案**；**V1 实现切片同日交付**（交付记录见文末；批列表字
 段按 admission 定名为 `dispatches`，与既有 timeline cue registry 的 `cues` prop

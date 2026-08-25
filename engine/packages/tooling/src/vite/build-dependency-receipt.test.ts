@@ -326,6 +326,7 @@ describe("build dependency receipt", () => {
       "engine/packages/ui/src/debug/dev-dock.tsx",
       "engine/packages/ui/src/reference/default-settings-sections.tsx",
       "engine/packages/composition/src/extension-runtime/backend.ts",
+      "engine/packages/composition/src/mod-runtime/runtime.ts",
       "engine/packages/agent/src/host/agent-host.ts",
       "engine/packages/agent/src/rpc/client.ts",
       "engine/packages/web/src/rpc/client.ts",
@@ -339,7 +340,10 @@ describe("build dependency receipt", () => {
     expect(facets.devSourceImplementation.length).toBeGreaterThan(0);
     expect(facets.devDockImplementation.length).toBeGreaterThan(0);
     expect(facets.presetSettingsImplementation.length).toBeGreaterThan(0);
-    expect(facets.dynamicExtensionImplementation.length).toBeGreaterThan(0);
+    expect(facets.dynamicExtensionImplementation).toEqual([
+      "engine/packages/composition/src/extension-runtime/backend.ts",
+      "engine/packages/composition/src/mod-runtime/runtime.ts",
+    ]);
     expect(facets.agentImplementation.length).toBeGreaterThan(0);
     expect(facets.rpcImplementation.length).toBeGreaterThan(0);
     expect(facets.authoringImplementation).not.toContain(
@@ -535,6 +539,11 @@ describe("build dependency receipt", () => {
       expect(facets.rpcImplementation).toEqual([]);
       expect(moduleIds.some((moduleId) => moduleId.startsWith("engine/packages/agent/")))
         .toBe(false);
+      expect(
+        moduleIds.some((moduleId) =>
+          moduleId.startsWith("engine/packages/composition/src/mod-runtime/")
+        ),
+      ).toBe(false);
     } finally {
       if (previous === undefined) {
         delete process.env[buildDependencyMeasurementEnvironmentKeyInternalV1];
@@ -555,7 +564,8 @@ describe("build dependency receipt", () => {
       appDirectory: "template",
       entry: "reference.html",
     });
-    const facets = classifyStaticGameDependencyFacetsInternalV1(receiptModuleIdsV1(receipt));
+    const moduleIds = receiptModuleIdsV1(receipt);
+    const facets = classifyStaticGameDependencyFacetsInternalV1(moduleIds);
 
     expect(facets.devDockImplementation.length).toBeGreaterThan(0);
     expect(facets.presetSettingsImplementation.length).toBeGreaterThan(0);
@@ -563,6 +573,11 @@ describe("build dependency receipt", () => {
     expect(facets.inspectorAuthoringImplementation).toEqual([]);
     expect(facets.devSourceImplementation).toEqual([]);
     expect(facets.dynamicExtensionImplementation).toEqual([]);
+    expect(
+      moduleIds.some((moduleId) =>
+        moduleId.startsWith("engine/packages/composition/src/mod-runtime/")
+      ),
+    ).toBe(false);
     expect(facets.agentImplementation).toEqual([]);
     expect(facets.rpcImplementation).toEqual([]);
   });

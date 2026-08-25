@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { TemplateInteractionDocV1 } from "../story/narrative-kit.ts";
 import { compileTemplateInteractionDocV1 } from "../story/narrative-kit.ts";
 import { projectTemplateNarrativeFlowV1, templateFlowGraphV1 } from "./narrative-flow.ts";
+import { templateAuthoringTextForLocaleV1 } from "./text-content.ts";
 
 function projectV1(
   doc: Omit<TemplateInteractionDocV1, "prefix" | "docId">,
@@ -18,6 +19,18 @@ function projectV1(
 }
 
 describe("Template Narrative Flow projection", () => {
+  it("uses partial English authoring copy and follows its declared Chinese fallback", () => {
+    expect(
+      templateAuthoringTextForLocaleV1("en", "text.template.line.greeting"),
+    ).toBe("The rain has stopped, and the courtyard stones still shine with water.");
+    expect(
+      templateAuthoringTextForLocaleV1("en", "text.template.choice.inside"),
+    ).toBe("先回屋里");
+    expect(
+      templateAuthoringTextForLocaleV1("en", "text.template.line.ending-plain"),
+    ).toBe("屋里茶还温着。院子里的雨声停了。");
+  });
+
   it("keeps the shipped derived graph grouped, labeled, and source-addressable", () => {
     expect(templateFlowGraphV1.nodes.find((node) => node.nodeId === "node.template.opening"))
       .toMatchObject({

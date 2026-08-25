@@ -18,7 +18,9 @@ import type {
   AuthoringSceneSourceIoV1,
 } from "../core/authoring-scene-io.ts";
 import type { InspectorBindingV1 } from "../core/binding.ts";
-import { InspectorAppV1 } from "./inspector-app.tsx";
+import { createAuthoringHostInternalV1 } from "../core/authoring-host.ts";
+import type { RuntimeInspectorSourceV1 } from "../core/runtime-inspection.ts";
+import { InspectorAppV1, InspectorHostSurfaceInternalV1 } from "./inspector-app.tsx";
 import { InspectorObjectPanelV1 } from "./object-inspector.tsx";
 import { InspectorSceneListV1 } from "./scene-list.tsx";
 import { InspectorSceneTreeV1 } from "./scene-tree.tsx";
@@ -133,6 +135,63 @@ describe("Inspector large-list behavior", () => {
 });
 
 describe("Inspector editing behavior", () => {
+  it("does not attach the runtime observer to an inert publication probe", async () => {
+    const subscribe = vi.fn<RuntimeInspectorSourceV1["subscribe"]>(() => () => undefined);
+    const runtimeSnapshot = {
+      revision: 0,
+      activeOwnerId: null,
+      units: [],
+      codeSurfaceNodes: [],
+      workingSet: {
+        references: 0,
+        unloaded: 0,
+        acquiring: 0,
+        loaded: 0,
+        failed: 0,
+        released: 0,
+      },
+    } as const;
+    const runtime: RuntimeInspectorSourceV1 = {
+      getSnapshot: () => runtimeSnapshot,
+      subscribe,
+      retry: () => Promise.resolve(false),
+    };
+    const host = createAuthoringHostInternalV1({
+      sceneIo: {
+        list: () => Promise.resolve({ kind: "ok", scenes: [], skipped: [] }),
+        read: () => Promise.resolve({ kind: "error", code: "not_found" }),
+        write: () => Promise.resolve({ kind: "error", code: "unavailable" }),
+      },
+      motionIo: emptyMotionIoV1,
+    });
+    const binding: InspectorBindingV1 = { ...bindingV1, runtime };
+    const { rerender } = render(
+      <InspectorHostSurfaceInternalV1
+        host={host}
+        binding={binding}
+        mode="embedded"
+        publicationRole="probe"
+        viewId={9_001}
+      />,
+    );
+
+    expect(screen.queryByRole("region", { name: "Runtime Inspector" })).toBeNull();
+    expect(subscribe).not.toHaveBeenCalled();
+
+    rerender(
+      <InspectorHostSurfaceInternalV1
+        host={host}
+        binding={binding}
+        mode="embedded"
+        publicationRole="visible"
+        viewId={9_001}
+      />,
+    );
+    await waitFor(() => expect(subscribe).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole("region", { name: "Runtime Inspector" })).toBeVisible();
+    await host.dispose();
+  });
+
   it("restores an invalid user contentId without throwing or issuing an operation", () => {
     const scene = sceneV1(1);
     const facets = projectAuthoringSceneFacetsV1(

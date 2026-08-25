@@ -614,7 +614,6 @@ describe("Game diagnostics service", () => {
         return undefined;
       },
       scrubFailure: (failure) => failure,
-      uiContextSchema: uiContextSchemaV1,
       readUiContext,
       metadataClock: Object.freeze({
         now: () => parseIsoUtcInstantV1("2026-07-14T00:00:00.000Z"),
@@ -654,23 +653,43 @@ describe("Game diagnostics service", () => {
     });
   });
 
-  it("parses a fresh UI context immediately and never retains it across exports", async () => {
+  it("admits fresh UI context once through the bundle schema and never retains it", async () => {
     const snapshot = snapshotV1();
     const stateDigest = digestCanonical("sillymaker:state:v1", snapshot);
     const events: string[] = [];
     let currentUiContext: { route: string } | undefined = { route: "play" };
-    const providerSchema: RuntimeSchemaV1<SyntheticUiContextV1> = Object.freeze({
+    let uiContextParseCalls = 0;
+    const singleAdmissionUiContextSchema: RuntimeSchemaV1<SyntheticUiContextV1> = Object.freeze({
       parse(value: unknown) {
+        uiContextParseCalls += 1;
         events.push("parse-ui");
+        if (uiContextParseCalls > 1) throw new TypeError("UI context admitted more than once");
         return uiContextSchemaV1.parse(value);
       },
+    });
+    const singleAdmissionCodec: DebugBundleCodecContextV1<
+      SyntheticSnapshotV1,
+      SyntheticBundleV1
+    > = Object.freeze({
+      bundleSchema: createDebugBundleEnvelopeSchemaV1({
+        provenanceSchema: provenanceSchemaV1,
+        capabilitiesSchema: capabilitiesSchemaV1,
+        simulationLineageSchema: stringArraySchemaV1,
+        snapshotSchema: snapshotSchemaV1,
+        commandLogEntrySchema: stringSchemaV1,
+        diagnosticsSchema: diagnosticsSchemaV1,
+        runtimeFailureSchema: runtimeOperationFaultSchemaV1,
+        failureSchema: failureSchemaV1,
+        uiContextSchema: singleAdmissionUiContextSchema,
+      }),
+      validateEnvelope: codecV1.validateEnvelope,
     });
     const readUiContext = vi.fn((): unknown => {
       events.push("read-ui");
       return currentUiContext;
     });
     const service = createGameDiagnosticsServiceV1({
-      codec: codecV1,
+      codec: singleAdmissionCodec,
       provenance: Object.freeze({ id: "story.synthetic" }),
       getCapabilities: () =>
         Object.freeze({ debugTools: false, cheats: false, automationBridge: false }),
@@ -684,12 +703,10 @@ describe("Game diagnostics service", () => {
       getDiagnostics: () => Object.freeze({ codes: Object.freeze([]) }),
       getRuntimeFailures() {
         events.push("runtime-failures");
-        if (currentUiContext !== undefined) currentUiContext.route = "mutated-after-parse";
         return Object.freeze([]);
       },
       getFailure: () => undefined,
       scrubFailure: (failure) => failure,
-      uiContextSchema: providerSchema,
       readUiContext,
       metadataClock: Object.freeze({
         now: () => parseIsoUtcInstantV1("2026-07-14T00:00:00.000Z"),
@@ -699,7 +716,8 @@ describe("Game diagnostics service", () => {
 
     expect(readUiContext).not.toHaveBeenCalled();
     const first = decodeDebugBundleV1((await service.exportDebugBundle()).bytes, codecV1);
-    expect(events.slice(0, 4)).toEqual(["queue-front", "read-ui", "parse-ui", "runtime-failures"]);
+    expect(events).toEqual(["queue-front", "read-ui", "runtime-failures", "parse-ui"]);
+    expect(uiContextParseCalls).toBe(1);
     expect(first).toMatchObject({ kind: "decoded", bundle: { uiContext: { route: "play" } } });
 
     currentUiContext = undefined;
@@ -710,6 +728,7 @@ describe("Game diagnostics service", () => {
     if (second.kind !== "decoded") throw new TypeError("expected decoded Debug Bundle");
     expect(second.bundle).not.toHaveProperty("uiContext");
     expect(readUiContext).toHaveBeenCalledTimes(2);
+    expect(uiContextParseCalls).toBe(1);
   });
 
   it("reads capability state at each export without changing either Snapshot digest", async () => {

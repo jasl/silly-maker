@@ -10,11 +10,11 @@ import {
   createTextContentSessionV1,
   defineTextContentManifestV1,
   digestCanonical,
-  parseTextCatalogSetV1,
+  parseLocaleId,
   parseTextContentPackIdV1,
   parseTextId,
 } from "@sillymaker/base";
-import type { TextContentManifestV1, TextContentSessionV1 } from "@sillymaker/base";
+import type { LocaleId, TextContentManifestV1, TextContentSessionV1 } from "@sillymaker/base";
 
 import type { TemplateInteractionDocV1 } from "../src/story/narrative-kit.ts";
 import { compileTemplateInteractionDocV1 } from "../src/story/narrative-kit.ts";
@@ -43,13 +43,19 @@ export const contentScaleEntriesPerPackV1 = 1_000;
 export const contentScaleProfilePackCountsV1: Readonly<
   Record<ContentScaleProfileV1, number>
 > = {
-  "content-reference": 1,
+  "content-reference": 2,
   "content-scale": 100,
+};
+export const contentScaleProfileLocaleCountsV1: Readonly<
+  Record<ContentScaleProfileV1, number>
+> = {
+  "content-reference": 3,
+  "content-scale": 8,
 };
 export const contentScaleProfileEntryCountsV1: Readonly<
   Record<ContentScaleProfileV1, number>
 > = {
-  "content-reference": contentScaleEntriesPerPackV1,
+  "content-reference": 2 * contentScaleEntriesPerPackV1,
   "content-scale": 100 * contentScaleEntriesPerPackV1,
 };
 
@@ -79,7 +85,10 @@ const contentScaleControlDocV1: TemplateInteractionDocV1 = {
 export interface ContentScaleFixtureV1 {
   readonly profile: ContentScaleProfileV1;
   readonly packCount: number;
+  readonly localeCount: number;
+  readonly variantCount: number;
   readonly entryCount: number;
+  readonly activeLocale: LocaleId;
   readonly doc: TemplateInteractionDocV1;
   readonly mutableState: typeof contentScaleMinimalMutableStateV1;
 }
@@ -88,12 +97,20 @@ export interface ContentScaleCorrectnessV1 {
   readonly runtimeNodeCount: number;
   readonly inlineTextEntryCount: number;
   readonly manifestPackCount: number;
+  readonly manifestLocaleCount: number;
+  readonly manifestVariantCount: number;
   readonly fixtureTextEntryCount: number;
   readonly loadedPackCount: number;
+  readonly loadedVariantCount: number;
   readonly loadedTextEntryCount: number;
+  readonly requestedVariantLoadCount: number;
+  readonly unrequestedVariantLoadCount: number;
+  readonly coldVariantCount: number;
   readonly firstTextId: string;
   readonly lastTextId: string;
   readonly firstText: string;
+  readonly fallbackText: string;
+  readonly activeLocale: string;
   readonly mutableStateCanonicalBytes: number;
   readonly mutableStateDigest: string;
 }
@@ -114,7 +131,10 @@ interface ContentScaleOptionsV1 {
 
 interface DurationSampleV1 {
   readonly manifestBuild: number;
+  readonly localeSelection: number;
   readonly initialPackAdmission: number;
+  readonly sequentialPackAcquire: number;
+  readonly sequentialPackRelease: number;
 }
 
 interface DurationDistributionV1 {
@@ -132,7 +152,11 @@ interface MemoryUsageV1 {
 
 interface GeneratedContentV1 {
   readonly manifest: TextContentManifestV1;
-  readonly firstPackBytes: Uint8Array;
+  readonly activeLocale: LocaleId;
+  readonly loads: {
+    requested: number;
+    unrequested: number;
+  };
 }
 
 const repositoryRootV1 = resolve(fileURLToPath(new URL("../..", import.meta.url)));
@@ -142,10 +166,17 @@ const usageV1 = "usage: deno run -A --v8-flags=--expose-gc template/bench/conten
   "--profile <content-reference|content-scale> [--warmup <count>] " +
   "[--samples <count>=5+] [--output <path>]";
 const encoderV1 = new TextEncoder();
-const emptyBootstrapCatalogsV1 = parseTextCatalogSetV1({
-  defaultLocale: "en",
-  catalogs: [{ locale: "en", fallbackLocale: null, entries: [] }],
-});
+const emptyBootstrapCatalogsV1 = [{ locale: "en", entries: [] }] as const;
+const contentScaleLocalesV1 = [
+  "en",
+  "ja",
+  "zh-CN",
+  "de",
+  "es",
+  "fr",
+  "ko",
+  "zh-TW",
+] as const;
 
 function entryIdV1(index: number): string {
   return `text.scale.line.${String(index).padStart(6, "0")}`;
@@ -155,49 +186,71 @@ function packIdV1(index: number): string {
   return `text-pack.scale.${String(index).padStart(3, "0")}`;
 }
 
-function packBytesV1(packIndex: number): Uint8Array {
+function packBytesV1(packIndex: number, locale: string): Uint8Array {
   const firstEntryIndex = packIndex * contentScaleEntriesPerPackV1;
   const entries = Array.from({ length: contentScaleEntriesPerPackV1 }, (_, offset) => {
     const index = firstEntryIndex + offset;
     return {
       textId: entryIdV1(index),
-      text: `Synthetic content line ${String(index).padStart(6, "0")}`,
+      text: `${locale} synthetic content line ${String(index).padStart(6, "0")}`,
     };
-  });
+  }).filter((_entry, offset) => locale === "en" || offset % 2 === 0);
   return encoderV1.encode(JSON.stringify({
     format: "sillymaker.text-content-pack",
-    version: 1,
+    version: 2,
     packId: packIdV1(packIndex),
-    textCatalogs: {
-      defaultLocale: "en",
-      catalogs: [{ locale: "en", fallbackLocale: null, entries }],
-    },
+    locale,
+    entries,
   }));
 }
 
 function generateContentV1(fixture: ContentScaleFixtureV1): GeneratedContentV1 {
-  // This benchmark retains the logical manifest and initially demanded payload;
-  // the bundle benchmark separately materializes every external pack.
+  // Materialize only the compact manifest plus the current pack's active and
+  // fallback variants. The other generated variants remain cold descriptors.
+  const locales = contentScaleLocalesV1.slice(0, fixture.localeCount);
   const descriptors = Array.from({ length: fixture.packCount }, (_, packIndex) => ({
     packId: packIdV1(packIndex),
-    runtimePath: `assets/content/scale-${String(packIndex).padStart(3, "0")}.json`,
+    variants: locales.map((locale) => ({
+      locale,
+      runtimePath: `assets/content/scale-${String(packIndex).padStart(3, "0")}.${locale}.json`,
+    })),
   }));
   return {
-    manifest: defineTextContentManifestV1({ revision: 1, packs: descriptors }),
-    firstPackBytes: packBytesV1(0),
+    manifest: defineTextContentManifestV1({
+      revision: 2,
+      defaultLocale: "en",
+      locales: locales.map((locale) => ({
+        locale,
+        fallbackLocale: locale === "en" ? null : "en",
+      })),
+      packs: descriptors,
+    }),
+    activeLocale: parseLocaleId(locales.at(-1)!),
+    loads: { requested: 0, unrequested: 0 },
   };
 }
 
-function createSessionV1(content: GeneratedContentV1): TextContentSessionV1 {
+function createSessionV1(
+  content: GeneratedContentV1,
+  loadPolicy: "first-pack" | "all-packs" = "first-pack",
+): TextContentSessionV1 {
   const firstPackId = content.manifest.packs[0]?.packId;
   if (firstPackId === undefined) throw new TypeError("content scale manifest is empty");
+  const packIndexById = new Map(
+    content.manifest.packs.map((pack, index) => [pack.packId, index] as const),
+  );
   return createTextContentSessionV1({
     manifest: content.manifest,
     bootstrapCatalogs: emptyBootstrapCatalogsV1,
-    loadPackBytes: (descriptor) =>
-      descriptor.packId === firstPackId
-        ? Promise.resolve(content.firstPackBytes)
-        : Promise.reject(new TypeError(`content scale pack not loaded:${descriptor.packId}`)),
+    loadPackBytes: (descriptor, variant) => {
+      const packIndex = packIndexById.get(descriptor.packId);
+      if (packIndex === undefined || (loadPolicy === "first-pack" && packIndex !== 0)) {
+        content.loads.unrequested += 1;
+        return Promise.reject(new TypeError(`content scale pack not loaded:${descriptor.packId}`));
+      }
+      content.loads.requested += 1;
+      return Promise.resolve(packBytesV1(packIndex, variant.locale));
+    },
   });
 }
 
@@ -207,7 +260,13 @@ export function createContentScaleFixtureV1(
   return {
     profile,
     packCount: contentScaleProfilePackCountsV1[profile],
+    localeCount: contentScaleProfileLocaleCountsV1[profile],
+    variantCount: contentScaleProfilePackCountsV1[profile] *
+      contentScaleProfileLocaleCountsV1[profile],
     entryCount: contentScaleProfileEntryCountsV1[profile],
+    activeLocale: parseLocaleId(
+      contentScaleLocalesV1[contentScaleProfileLocaleCountsV1[profile] - 1]!,
+    ),
     doc: contentScaleControlDocV1,
     mutableState: contentScaleMinimalMutableStateV1,
   };
@@ -219,7 +278,8 @@ export async function compileContentScaleFixtureV1(
   const compiled = compileTemplateInteractionDocV1({ doc: fixture.doc });
   const content = generateContentV1(fixture);
   const session = createSessionV1(content);
-  await session.ensure(parseTextContentPackIdV1(packIdV1(0)));
+  await session.activateLocale(content.activeLocale);
+  await session.acquire(parseTextContentPackIdV1(packIdV1(0)));
   const firstTextId = entryIdV1(0);
   return {
     fixture,
@@ -229,12 +289,23 @@ export async function compileContentScaleFixtureV1(
       runtimeNodeCount: compiled.nodes.length,
       inlineTextEntryCount: compiled.textEntries.length,
       manifestPackCount: content.manifest.packs.length,
+      manifestLocaleCount: content.manifest.locales.length,
+      manifestVariantCount: content.manifest.packs.reduce(
+        (total, pack) => total + pack.variants.length,
+        0,
+      ),
       fixtureTextEntryCount: fixture.entryCount,
       loadedPackCount: session.loadedPackIds().length,
+      loadedVariantCount: session.loadedVariantCount(),
       loadedTextEntryCount: session.loadedEntryCount(),
+      requestedVariantLoadCount: content.loads.requested,
+      unrequestedVariantLoadCount: content.loads.unrequested,
+      coldVariantCount: fixture.variantCount - session.loadedVariantCount(),
       firstTextId,
       lastTextId: entryIdV1(fixture.entryCount - 1),
-      firstText: session.resolveText(null, parseTextId(firstTextId)),
+      firstText: session.resolveText(parseTextId(firstTextId)),
+      fallbackText: session.resolveText(parseTextId(entryIdV1(1))),
+      activeLocale: session.currentLocale(),
       mutableStateCanonicalBytes: canonicalJsonBytes(fixture.mutableState).byteLength,
       mutableStateDigest: digestCanonical("sillymaker:state:v1", fixture.mutableState),
     },
@@ -342,14 +413,49 @@ async function measureDurationSampleV1(
   const buildStartedAt = performance.now();
   const content = generateContentV1(fixture);
   const manifestBuild = performance.now() - buildStartedAt;
-  const session = createSessionV1(content);
-  const admissionStartedAt = performance.now();
-  await session.ensure(parseTextContentPackIdV1(packIdV1(0)));
-  const initialPackAdmission = performance.now() - admissionStartedAt;
-  if (session.loadedPackIds().length !== 1 || session.loadedEntryCount() !== 1_000) {
-    throw new TypeError("content scale initial pack invariant failed");
+  const session = createSessionV1(content, "all-packs");
+  const localeStartedAt = performance.now();
+  await session.activateLocale(content.activeLocale);
+  const localeSelection = performance.now() - localeStartedAt;
+  const leases = [];
+  const sequentialAcquireStartedAt = performance.now();
+  const initialAdmissionStartedAt = performance.now();
+  leases.push(await session.acquire(parseTextContentPackIdV1(packIdV1(0))));
+  const initialPackAdmission = performance.now() - initialAdmissionStartedAt;
+  for (let packIndex = 1; packIndex < fixture.packCount; packIndex += 1) {
+    leases.push(await session.acquire(parseTextContentPackIdV1(packIdV1(packIndex))));
   }
-  return { manifestBuild, initialPackAdmission };
+  const sequentialPackAcquire = performance.now() - sequentialAcquireStartedAt;
+  try {
+    if (
+      session.loadedPackIds().length !== fixture.packCount ||
+      session.loadedVariantCount() !== fixture.packCount * 2 ||
+      session.loadedEntryCount() !== fixture.packCount * 1_500 ||
+      content.loads.requested !== fixture.packCount * 2 ||
+      content.loads.unrequested !== 0
+    ) {
+      throw new TypeError("content scale sequential pack invariant failed");
+    }
+    const releaseStartedAt = performance.now();
+    for (let index = leases.length - 1; index >= 0; index -= 1) leases[index]!.release();
+    const sequentialPackRelease = performance.now() - releaseStartedAt;
+    if (
+      session.loadedPackIds().length !== 0 || session.loadedVariantCount() !== 0 ||
+      session.loadedEntryCount() !== 0
+    ) {
+      throw new TypeError("content scale sequential release invariant failed");
+    }
+    return {
+      manifestBuild,
+      localeSelection,
+      initialPackAdmission,
+      sequentialPackAcquire,
+      sequentialPackRelease,
+    };
+  } finally {
+    for (const lease of leases) lease.release();
+    session.dispose();
+  }
 }
 
 function durationDistributionV1(raw: readonly number[]): DurationDistributionV1 {
@@ -399,10 +505,12 @@ async function mainV1(): Promise<void> {
   await collectGarbageV1(gc);
   const afterInitialPack = readMemoryUsageV1();
   const report = {
-    schemaVersion: 3,
+    schemaVersion: 5,
     generatedAt: new Date().toISOString(),
     profile: fixture.profile,
     packCount: fixture.packCount,
+    localeCount: fixture.localeCount,
+    variantCount: fixture.variantCount,
     entryCount: fixture.entryCount,
     repository: await repositoryStateV1(),
     environment: {
@@ -416,6 +524,10 @@ async function mainV1(): Promise<void> {
       profilesPerProcess: 1,
       entriesPerPack: contentScaleEntriesPerPackV1,
       initiallyLoadedPacks: 1,
+      initiallyLoadedVariants: 2,
+      sequentiallyMeasuredPacks: fixture.packCount,
+      activeLocale: fixture.activeLocale,
+      fallbackLocale: "en",
       gcPassesPerCheckpoint: 2,
       macrotaskBetweenGcPasses: true,
       warmupSamples: options.warmup,
@@ -424,8 +536,15 @@ async function mainV1(): Promise<void> {
     },
     durationMs: {
       manifestBuild: durationDistributionV1(samples.map((sample) => sample.manifestBuild)),
+      localeSelection: durationDistributionV1(samples.map((sample) => sample.localeSelection)),
       initialPackAdmission: durationDistributionV1(
         samples.map((sample) => sample.initialPackAdmission),
+      ),
+      sequentialPackAcquire: durationDistributionV1(
+        samples.map((sample) => sample.sequentialPackAcquire),
+      ),
+      sequentialPackRelease: durationDistributionV1(
+        samples.map((sample) => sample.sequentialPackRelease),
       ),
     },
     retainedMemory: {

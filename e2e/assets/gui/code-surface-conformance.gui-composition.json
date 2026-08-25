@@ -1,0 +1,25 @@
+{
+  "format": "sillymaker.gui-composition",
+  "version": 1,
+  "compositionId": "gui.e2e.code-surface-conformance",
+  "root": {
+    "nodeId": "node.e2e.code-surface-shell",
+    "viewId": "view.e2e.code-surface-shell",
+    "props": {
+      "title": "Code Surface conformance"
+    },
+    "slots": {
+      "detail": [
+        {
+          "nodeId": "node.e2e.code-surface-detail",
+          "viewId": "view.e2e.code-surface-detail",
+          "props": {
+            "actionLabel": "Collect sample",
+            "draftLabel": "Local draft"
+          },
+          "slots": {}
+        }
+      ]
+    }
+  }
+}

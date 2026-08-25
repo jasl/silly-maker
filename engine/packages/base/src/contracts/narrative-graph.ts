@@ -149,7 +149,11 @@ export function parseNarrativeGraphNodeV1(value: unknown, path = "/node"): Narra
 export function parseNarrativeGraphV1(value: unknown, path = ""): NarrativeGraphV1 {
   const record = readExactRecord(value, ["entryNodeId", "nodes"], path === "" ? "/" : path);
   const nodesValue = readArray(record.nodes, `${path}/nodes`);
-  if (nodesValue.length === 0 || nodesValue.length > 10_000) {
+  // A graph is product-owned authoring data. Its scale is controlled by the
+  // addressable Narrative-unit working set, not by an arbitrary gameplay cap
+  // on otherwise valid nodes. File/bytes front doors own their own resource
+  // budgets before this typed graph admission.
+  if (nodesValue.length === 0) {
     return dataFailure(`${path}/nodes`, "narrative_nodes_invalid");
   }
   return {

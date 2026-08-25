@@ -13,10 +13,15 @@ export {
 } from "./text-content.ts";
 export type {
   AdmittedTextContentPackV1,
+  TextContentBootstrapCatalogV1,
   TextContentErrorCodeV1,
+  TextContentLocaleDescriptorV1,
   TextContentManifestV1,
   TextContentPackDescriptorV1,
   TextContentPackIdV1,
+  TextContentPackLeaseV1,
+  TextContentPackTimingV1,
+  TextContentPackVariantDescriptorV1,
   TextContentSessionV1,
 } from "./text-content.ts";
 export { commitAttemptV1, faultAttemptV1, rejectAttemptV1 } from "./execution.ts";
@@ -360,6 +365,13 @@ export type {
   StrictJsonValueV1,
 } from "./strict-json.ts";
 export {
+  admitGuiCompositionDocumentV1,
+  admitGuiCompositionSourceBytesV1,
+  guiCompositionDocumentFormatV1,
+  guiCompositionDocumentVersionV1,
+} from "./gui-composition.ts";
+export type { GuiCompositionDocumentV1, GuiCompositionNodeV1 } from "./gui-composition.ts";
+export {
   parseDigest,
   parseModuleId,
   parseNonNegativeSafeInteger,
@@ -588,7 +600,6 @@ export {
   motionStageTransitionV1,
   parseStageCueDispatchesV1,
   parseStageTransitionDefinitionV1,
-  stageCueDispatchLimitV1,
 } from "./stage-transition.ts";
 export type {
   MotionStageTransitionInputV1,

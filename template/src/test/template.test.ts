@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { parseTextCatalogSetV1 } from "@sillymaker/base";
+import { admitTextContentPackV1 } from "@sillymaker/base";
 import { lintNarrativeGraph, sampleMotionAt } from "@sillymaker/base/story";
 import { createGameHarnessV1, resolveStoryForTestV1 } from "@sillymaker/base/testkit";
 
@@ -21,12 +21,37 @@ import { templateOpeningAmbientCatalogV1 } from "../scenes/opening/index.ts";
 import { templateSemanticAdapterV1 } from "../application/semantic.ts";
 import { templateStoryEntryV1 } from "../story.ts";
 import { templateTextContentManifestV1 } from "../content/text-content.ts";
-import endingPackDocumentV1 from "../../assets/content/ending.text-pack.json" with {
+import endingEnglishV1 from "../../assets/content/ending.en.text-pack.json" with {
   type: "json",
 };
-import openingPackDocumentV1 from "../../assets/content/opening.text-pack.json" with {
+import endingChineseV1 from "../../assets/content/ending.zh-CN.text-pack.json" with {
   type: "json",
 };
+import openingEnglishV1 from "../../assets/content/opening.en.text-pack.json" with {
+  type: "json",
+};
+import openingChineseV1 from "../../assets/content/opening.zh-CN.text-pack.json" with {
+  type: "json",
+};
+
+const textPackEncoderV1 = new TextEncoder();
+
+function admittedTemplateTextEntriesV1(
+  packId: string,
+  locale: string,
+  document: unknown,
+) {
+  const pack = templateTextContentManifestV1.packs.find((candidate) => candidate.packId === packId);
+  const variant = pack?.variants.find((candidate) => candidate.locale === locale);
+  if (pack === undefined || variant === undefined) {
+    throw new TypeError(`template.test_text_variant_missing:${packId}:${locale}`);
+  }
+  return admitTextContentPackV1(
+    pack,
+    variant,
+    textPackEncoderV1.encode(JSON.stringify(document)),
+  ).entries;
+}
 
 function probeDocV1(
   doc: Omit<TemplateInteractionDocV1, "prefix" | "docId">,
@@ -102,18 +127,25 @@ describe("template story baseline", () => {
   });
 
   it("resolves every referenced textId from bootstrap or authoring packs", () => {
-    const catalogSets = [
-      templateTextCatalogsV1,
-      parseTextCatalogSetV1(openingPackDocumentV1.textCatalogs),
-      parseTextCatalogSetV1(endingPackDocumentV1.textCatalogs),
-    ];
     const known = new Set(
-      catalogSets.flatMap((catalogSet) =>
-        catalogSet.catalogs.flatMap((catalog) =>
-          catalog.entries.map((entry) => entry.textId as string)
-        )
-      ),
+      templateTextCatalogsV1.catalogs
+        .find((catalog) => catalog.locale === templateTextContentManifestV1.defaultLocale)
+        ?.entries.map((entry) => entry.textId as string) ?? [],
     );
+    for (
+      const textId of admittedTemplateTextEntriesV1(
+        "text-pack.template.opening",
+        "zh-CN",
+        openingChineseV1,
+      ).keys()
+    ) known.add(textId);
+    for (
+      const textId of admittedTemplateTextEntriesV1(
+        "text-pack.template.ending",
+        "zh-CN",
+        endingChineseV1,
+      ).keys()
+    ) known.add(textId);
     for (const node of templateScriptV1) {
       if (node.kind === "say") {
         expect(known.has(node.textId), node.nodeId).toBe(true);
@@ -128,6 +160,34 @@ describe("template story baseline", () => {
         }
       }
     }
+  });
+
+  it("keeps partial English variants inside each default-locale pack closure", () => {
+    const openingDefault = admittedTemplateTextEntriesV1(
+      "text-pack.template.opening",
+      "zh-CN",
+      openingChineseV1,
+    );
+    const openingEnglish = admittedTemplateTextEntriesV1(
+      "text-pack.template.opening",
+      "en",
+      openingEnglishV1,
+    );
+    const endingDefault = admittedTemplateTextEntriesV1(
+      "text-pack.template.ending",
+      "zh-CN",
+      endingChineseV1,
+    );
+    const endingEnglish = admittedTemplateTextEntriesV1(
+      "text-pack.template.ending",
+      "en",
+      endingEnglishV1,
+    );
+
+    expect(openingEnglish.size).toBeLessThan(openingDefault.size);
+    expect(endingEnglish.size).toBeLessThan(endingDefault.size);
+    expect([...openingEnglish.keys()].every((textId) => openingDefault.has(textId))).toBe(true);
+    expect([...endingEnglish.keys()].every((textId) => endingDefault.has(textId))).toBe(true);
   });
 
   it("derives node/interaction/text ids from one short name per node", () => {

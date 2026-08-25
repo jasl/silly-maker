@@ -484,7 +484,7 @@ describe("AssetRegistryV1", () => {
     });
   });
 
-  it("deduplicates one diagnostic for a shared failure in the same load cycle", async () => {
+  it("deduplicates a shared failure per cycle and retries on later demand", async () => {
     const firstId = assetId("asset.e2e.failed-a");
     const secondId = assetId("asset.e2e.failed-b");
     const first = runtimeAssetV1({
@@ -511,15 +511,60 @@ describe("AssetRegistryV1", () => {
     await expect(registry.preload([secondId], neverAbortedSignal)).resolves.toEqual([
       { assetId: secondId, status: "fallback", faultCode: "asset.decode_failed" },
     ]);
-    expect(loader.calls).toEqual([key]);
-    expect(diagnostics).toHaveBeenCalledTimes(1);
-    expect(diagnostics).toHaveBeenCalledWith(
+    expect(loader.calls).toEqual([key, key]);
+    expect(diagnostics).toHaveBeenCalledTimes(2);
+    expect(diagnostics).toHaveBeenNthCalledWith(
+      1,
       expect.objectContaining({
         runtimePath: "assets/shared-failure.webp",
         faultCode: "asset.decode_failed",
         loadCycle: 1,
       }),
     );
+    expect(diagnostics).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        runtimePath: "assets/shared-failure.webp",
+        faultCode: "asset.decode_failed",
+        loadCycle: 2,
+      }),
+    );
+  });
+
+  it("replaces a failed predecessor only after a clean retry settles", async () => {
+    const demandedId = assetId("asset.e2e.retry");
+    const demanded = runtimeAssetV1({
+      assetId: demandedId,
+      runtimePath: "assets/retry.webp",
+    });
+    let attempt = 0;
+    const loader = ({
+      cacheKey: cacheKeyV1,
+      load: vi.fn(() => {
+        attempt += 1;
+        return Promise.resolve(
+          attempt === 1
+            ? { kind: "failed" as const, code: "fetch_failed" as const }
+            : { kind: "loaded" as const, url: "/assets/retry.webp" },
+        );
+      }),
+      dispose: vi.fn(),
+    }) satisfies RuntimeAssetLoaderV1;
+    const registry = createAssetRegistryV1(manifestV1([demanded]), loader, vi.fn());
+
+    await expect(registry.preload([demandedId], neverAbortedSignal)).resolves.toEqual([
+      { assetId: demandedId, status: "fallback", faultCode: "asset.fetch_failed" },
+    ]);
+    expect(registry.resolve(demandedId, sceneUsageV1).delivery).toBe("code_fallback");
+
+    await expect(registry.preload([demandedId], neverAbortedSignal)).resolves.toEqual([
+      { assetId: demandedId, status: "loaded" },
+    ]);
+    expect(registry.resolve(demandedId, sceneUsageV1)).toMatchObject({
+      delivery: "runtime_image",
+      url: "/assets/retry.webp",
+    });
+    expect(loader.load).toHaveBeenCalledTimes(2);
   });
 
   it("uses the validated fallback before readiness and for a usage mismatch", async () => {

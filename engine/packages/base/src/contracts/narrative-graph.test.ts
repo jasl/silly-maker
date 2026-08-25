@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { lintNarrativeGraphV1, parseNarrativeGraphV1 } from "./narrative-graph.ts";
+import {
+  emptyNarrativeDependenciesV1,
+  lintNarrativeGraphV1,
+  parseNarrativeGraphV1,
+} from "./narrative-graph.ts";
 import {
   createNarrativeGraphBuilderV1,
   narrativePredictionToDemandPlanV1,
@@ -37,6 +41,22 @@ function nodeV1(input: {
 }
 
 describe("lintNarrativeGraphV1", () => {
+  it("admits graphs beyond the former per-graph gameplay count cap", () => {
+    const nodes = Array.from({ length: 10_001 }, (_, index) => ({
+      nodeId: `node.scale.${String(index)}`,
+      kind: "end" as const,
+      successors: [],
+      callTarget: null,
+      interaction: null,
+      dependencies: emptyNarrativeDependenciesV1,
+      source: null,
+    }));
+
+    expect(parseNarrativeGraphV1({ entryNodeId: "node.scale.0", nodes }).nodes).toHaveLength(
+      10_001,
+    );
+  });
+
   it("accepts a clean graph", () => {
     const graph = parseNarrativeGraphV1({
       entryNodeId: "node.test.intro",

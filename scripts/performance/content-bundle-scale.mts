@@ -154,18 +154,22 @@ const packIndex = Number.isSafeInteger(requested) && requested >= 0 && requested
   : 0;
 const selectedPack = contentManifestV1.packs[packIndex] ?? contentManifestV1.packs[0];
 if (selectedPack === undefined) throw new Error("content fixture has no selected pack");
+const selectedVariant = selectedPack.variants.find(
+  (variant) => variant.locale === contentManifestV1.defaultLocale,
+);
+if (selectedVariant === undefined) throw new Error("content fixture has no selected variant");
 
 document.documentElement.dataset.scaleSelectedPack = String(packIndex);
 document.documentElement.dataset.scaleSelectedPackId = selectedPack.packId;
+document.documentElement.dataset.scaleSelectedLocale = selectedVariant.locale;
 document.documentElement.dataset.scaleLogicalPackCount = String(contentManifestV1.packs.length);
 
-void fetch(selectedPack.runtimePath).then(async (response) => {
+void fetch(selectedVariant.runtimePath).then(async (response) => {
   if (!response.ok) throw new Error("scale content fetch failed: " + String(response.status));
   const pack = await response.json();
   document.documentElement.dataset.scaleLoadedPackId = String(pack.packId ?? "missing");
-  document.documentElement.dataset.scaleLoadedEntryCount = String(
-    pack.textCatalogs?.catalogs?.[0]?.entries?.length ?? -1,
-  );
+  document.documentElement.dataset.scaleLoadedLocale = String(pack.locale ?? "missing");
+  document.documentElement.dataset.scaleLoadedEntryCount = String(pack.entries?.length ?? -1);
 });
 `,
     "utf8",
@@ -183,15 +187,19 @@ void fetch(selectedPack.runtimePath).then(async (response) => {
     const source = contentBundleScalePackJsonV1({
       packIndex,
       entriesPerPack: fixture.entriesPerPack,
+      locale: "en",
     });
     const bytes = new TextEncoder().encode(source);
     await writeFile(
-      join(contentDirectory, `pack-${suffix}.json`),
+      join(contentDirectory, `pack-${suffix}.en.json`),
       bytes,
     );
     descriptors.push({
       packId: `text-pack.scale.${suffix}`,
-      runtimePath: `assets/content/pack-${suffix}.json`,
+      variants: [{
+        locale: "en",
+        runtimePath: `assets/content/pack-${suffix}.en.json`,
+      }],
     });
   }
   await writeFile(
@@ -320,7 +328,7 @@ async function mainV1(): Promise<void> {
         status: "external_content_pack_measurement",
         selectedPackOnly: true,
         note:
-          "Initial JavaScript carries compact descriptors; fetch selects one external pack payload.",
+          "Initial JavaScript carries compact locale/variant descriptors; fetch selects one external physical variant payload.",
       },
     };
     const path = await outputPathV1(options.output);

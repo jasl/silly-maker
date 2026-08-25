@@ -62,6 +62,23 @@ describe("parseRegionsDocumentV1", () => {
     expect(parsed.regions).toEqual([]);
   });
 
+  it("admits a large generated region list without a semantic count cap", () => {
+    const regions = Array.from({ length: 96 }, (_, index) => ({
+      regionId: `zone.generated-${String(index)}`,
+      accessibleNameText: `Generated ${String(index)}`,
+      x: index,
+      y: index,
+      width: 10,
+      height: 10,
+    }));
+    const parsed = parseRegionsDocumentV1({
+      ...validDocumentV1(),
+      regions,
+    });
+    expect(parsed.regions).toHaveLength(regions.length);
+    expect(parsed.regions.at(-1)?.regionId).toBe("zone.generated-95");
+  });
+
   it("keeps authoring metadata and validates its members", () => {
     const parsed = parseRegionsDocumentV1({
       ...validDocumentV1(),

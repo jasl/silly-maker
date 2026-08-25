@@ -69,8 +69,6 @@ const chromeLayoutMaxIdLengthV1 = 96;
 const chromeLayoutMaxLabelLengthV1 = 120;
 const chromeLayoutMaxNotesLengthV1 = 500;
 const chromeLayoutMaxEntryNameLengthV1 = 96;
-/** Total entries across boxes + anchors + offsets. */
-const chromeLayoutMaxEntriesV1 = 256;
 const chromeLayoutMaxCoordinateV1 = 1_000_000;
 /** Own keys that would mutate object prototypes when assigned. */
 const chromeLayoutDangerousNamesV1 = new Set(["__proto__", "prototype", "constructor"]);
@@ -316,11 +314,6 @@ export function parseChromeLayoutDocumentV1(value: unknown, path = ""): ChromeLa
         "chrome_layout_offset_invalid",
       ),
   );
-  const entryCount = Object.keys(boxes).length + Object.keys(anchors).length +
-    Object.keys(offsets).length;
-  if (entryCount > chromeLayoutMaxEntriesV1) {
-    return dataFailure(path, "chrome_layout_entries_count_invalid");
-  }
   const authoring = hasAuthoring
     ? parseChromeLayoutAuthoringV1(record.authoring, `${path}/authoring`)
     : undefined;

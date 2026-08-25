@@ -38,6 +38,14 @@ export type {
   WebGameOuterUiV1,
   WebGameUiDefinitionV1,
 } from "./application/start-web-game-application.tsx";
+export type {
+  WebAddressableRuntimeDefinitionV1,
+  WebAddressableRuntimeHostV1,
+  WebAddressableRuntimeInstanceV1,
+  WebTextContentObservationV1,
+  WebTextContentPackObservationStatusV1,
+  WebTextContentPackObservationV1,
+} from "./application/web-addressable-runtime.ts";
 export { createWebInstanceLeaseCoordinatorV1 } from "./application/instance-lease.ts";
 export type {
   CreateWebInstanceLeaseCoordinatorInputV1,

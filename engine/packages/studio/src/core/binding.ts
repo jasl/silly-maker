@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import type { StageContentCatalogV1, TimelineCatalogV1 } from "@sillymaker/base";
 import type { AssetUrlRegistryV1, SemanticStageEntryRendererV1 } from "@sillymaker/ui";
+import type { RuntimeInspectorSourceV1 } from "./runtime-inspection.ts";
 
 /**
  * Story-owned, read-only narrative projection. It remains a data contract even
@@ -60,4 +61,6 @@ export interface InspectorBindingV1 {
   readonly renderers: Readonly<Record<string, SemanticStageEntryRendererV1>>;
   readonly assets?: AssetUrlRegistryV1;
   readonly timelines?: TimelineCatalogV1;
+  /** Optional application-owned runtime projection; the Inspector never loads a unit through it. */
+  readonly runtime?: RuntimeInspectorSourceV1;
 }

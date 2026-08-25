@@ -17,7 +17,7 @@ import type {
 } from "../gameplay/simulation.ts";
 import { labStoryEntryV1 } from "../story.ts";
 import { labSaveStateMigrationRegistryV1 } from "../save-state-migrations.ts";
-import { labProcedureSceneV1 } from "../scenes/procedure/index.ts";
+import { labProcedureSceneUnitIdV1 } from "../gameplay/runtime-plans.ts";
 
 /**
  * The Engine Lab core application definition: the whole application is the
@@ -39,11 +39,12 @@ export const labCoreApplicationDefinitionV1 = defineCoreGameApplicationV1<
 >({
   entry: labStoryEntryV1,
   semantic: labSemanticAdapterV1,
-  projectRebootstrapCommand(snapshot) {
+  projectRebootstrapCommand(snapshot, _resolved, executionContext) {
     if (snapshot.state.simulation.procedure.phase === "idle") return null;
-    const mutations = labProcedureSceneV1.reconcileOrderingMutations(
-      snapshot.state.simulation.stage,
-    );
+    const mutations = executionContext.requireScenePlan(labProcedureSceneUnitIdV1)
+      .reconcileOrderingMutations(
+        snapshot.state.simulation.stage,
+      );
     return mutations.length === 0
       ? null
       : ({ kind: "lab.reconcile_stage_order" as const, mutations });

@@ -36,6 +36,7 @@ import {
 
 import type { LabApplicationInstanceV1 } from "../application/core-definition.ts";
 import { labCoreApplicationDefinitionV1 } from "../application/core-definition.ts";
+import { labHeadlessExecutionContextV1 } from "../application/core-application.ts";
 
 const fixtureRootV1 = resolve(import.meta.dirname, "..", "..", "fixtures", "saves");
 const saveKeyV1 = "save-record.v1:story.e2e.engine-lab:quick" as Parameters<
@@ -150,6 +151,7 @@ async function applicationV1(
       ownerId: ownerIdV1,
       nextHandoffRequestId: () => "handoff.sillymaker.e2e.release-corpus",
     }),
+    executionContext: labHeadlessExecutionContextV1,
   }) as LabApplicationInstanceV1;
 }
 

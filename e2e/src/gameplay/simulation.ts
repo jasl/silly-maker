@@ -60,7 +60,7 @@ import {
   labMonitorReportingActiveV1,
   labMonitorsStateSchemaV1,
 } from "./monitors.ts";
-import type { LabNarrativeStateV1 } from "./narrative.ts";
+import type { LabNarrativeStateV1 } from "./narrative-runtime.ts";
 import {
   createInitialLabNarrativeStateV1,
   labChoiceOptionsForV1,
@@ -72,15 +72,22 @@ import {
   labNarrativeAtBeginV1,
   labNarrativeAtDrillBeginV1,
   runLabNarrativeUntilInteractionV1,
-} from "./narrative.ts";
+} from "./narrative-runtime.ts";
+import {
+  labCalibrationNarrativeUnitIdV1,
+  labDrillNarrativeUnitIdV1,
+} from "./narrative-topology.ts";
 import {
   createInitialLabStageStateV1,
   labStageHasBannerV1,
   labStageMutationsForBannerV1,
   labStageMutationsForBeginV1,
   labStageMutationsForCollectV1,
+  labStageMutationsForDrillV1,
   labStageMutationsForProgressV1,
 } from "./stage.ts";
+import type { LabExecutionContextV1 } from "./runtime-plans.ts";
+import { labDrillSceneUnitIdV1, labProcedureSceneUnitIdV1 } from "./runtime-plans.ts";
 
 export type LabCommandV1 =
   | { readonly kind: "lab.collect_sample" }
@@ -216,6 +223,8 @@ export interface LabNarrativeChoiceOptionViewV1 {
 /** The player-safe narrative channel published to UI and agents. */
 export interface LabNarrativeViewV1 {
   readonly phase: LabNarrativeStateV1["phase"];
+  /** Stable current addressable unit; presentation/Inspector data, not a second cursor. */
+  readonly unitId: string | null;
   readonly calibration: number | null;
   readonly pending: PendingInteractionV1 | null;
   /** Availability decorated with the same rule preview/dispatch re-check. */
@@ -267,7 +276,7 @@ export interface LabSimulationTypesV1 extends
   readonly fault: LabFaultV1;
   readonly debugCommand: never;
   readonly debugValidationError: LabDebugValidationErrorV1;
-  readonly executionContext: undefined;
+  readonly executionContext: LabExecutionContextV1;
   readonly queries: LabQueriesV1;
   readonly viewModel: LabGameViewV1;
 }
@@ -655,19 +664,23 @@ const labCompositionV1 = kit.composeModules([
 type LabModulesV1 = typeof labCompositionV1.modules;
 
 type LabCommandExecutorV1 = {
-  executeAttempt(snapshot: LabSnapshotV1, command: LabCommandV1, context: undefined): LabAttemptV1;
+  executeAttempt(
+    snapshot: LabSnapshotV1,
+    command: LabCommandV1,
+    context: LabExecutionContextV1,
+  ): LabAttemptV1;
 };
 
 type LabDebugCommandExecutorV1 = {
   validate(
     snapshot: LabSnapshotV1,
     command: never,
-    context: undefined,
+    context: LabExecutionContextV1,
   ): {
     readonly kind: "validation_failed";
     readonly errors: readonly LabDebugValidationErrorV1[];
   };
-  executeAttempt(snapshot: LabSnapshotV1, command: never, context: undefined): never;
+  executeAttempt(snapshot: LabSnapshotV1, command: never, context: LabExecutionContextV1): never;
 };
 
 export type LabGameSimulationV1 = GameSimulationV1<
@@ -684,7 +697,7 @@ const labTransactionRunnerV1 = labCompositionV1.createTransactionRunner({
 
 export function createLabGameSimulationV1(): LabGameSimulationV1 {
   const commandExecutor: LabCommandExecutorV1 = {
-    executeAttempt(snapshot, command) {
+    executeAttempt(snapshot, command, context) {
       const rng = createTransactionalRngV1(snapshot.rng);
       const state = snapshot.state.simulation;
 
@@ -760,17 +773,32 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
         const entry = command.kind === "lab.begin_calibration"
           ? labNarrativeAtBeginV1
           : labNarrativeAtDrillBeginV1;
+        const narrativePlan = context.requireNarrativePlan(
+          command.kind === "lab.begin_calibration"
+            ? labCalibrationNarrativeUnitIdV1
+            : labDrillNarrativeUnitIdV1,
+        );
         return labTransactionRunnerV1.execute(snapshot, rng, (transaction) => {
           if (state.narrative.pending !== null) {
             return transaction.reject({ code: "lab.narrative_busy" });
           }
           const run = runLabNarrativeUntilInteractionV1(
+            narrativePlan,
             entry(state.narrative),
             state.stage,
             holdSessionRead,
           );
           transaction.emit({ kind: "lab.narrative_advanced", next: run.narrative });
-          const stageRejection = emitStage(transaction, run.stageMutations);
+          const drillSceneMutations = command.kind === "lab.begin_drill"
+            ? labStageMutationsForDrillV1(
+              state.stage,
+              context.requireScenePlan(labDrillSceneUnitIdV1),
+            )
+            : [];
+          const stageRejection = emitStage(transaction, [
+            ...drillSceneMutations,
+            ...run.stageMutations,
+          ]);
           if (stageRejection !== null) return transaction.reject({ code: stageRejection });
           return transaction.complete();
         });
@@ -827,7 +855,11 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
             settleSessionTime(transaction, command.tick.elapsedMs);
             return transaction.complete();
           }
+          const cursor = state.narrative.cursor;
+          if (cursor === null) throw new TypeError("accepted hold without narrative cursor");
+          const narrativePlan = context.requireNarrativePlanForCursor(cursor);
           const continuation = labNarrativeAfterTimeTickV1(
+            narrativePlan,
             state.narrative,
             command.tick,
             holdSessionRead,
@@ -849,6 +881,7 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
             occurrenceId: outcome.hold.occurrenceId,
           });
           const run = runLabNarrativeUntilInteractionV1(
+            narrativePlan,
             continuation.narrative,
             state.stage,
             holdSessionRead,
@@ -877,6 +910,9 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
           }
           const pending = state.narrative.pending;
           if (pending === null) throw new TypeError("accepted resolution without pending");
+          const cursor = state.narrative.cursor;
+          if (cursor === null) throw new TypeError("accepted resolution without narrative cursor");
+          const narrativePlan = context.requireNarrativePlanForCursor(cursor);
           // A choice may carry a declared cross-module cost: the narrative
           // continuation and the sample consumption commit in one atomic
           // command or not at all.
@@ -896,8 +932,14 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
             definitionId: pending.definitionId,
             occurrenceId: pending.occurrenceId,
           });
+          const continuation = labNarrativeAfterResolutionV1(
+            narrativePlan,
+            state.narrative,
+            command.resolution,
+          );
           const run = runLabNarrativeUntilInteractionV1(
-            labNarrativeAfterResolutionV1(state.narrative, command.resolution),
+            narrativePlan,
+            continuation,
             state.stage,
             holdSessionRead,
           );
@@ -1034,7 +1076,13 @@ export function createLabGameSimulationV1(): LabGameSimulationV1 {
             phase: "running",
             stepsTaken: state.procedure.stepsTaken,
           });
-          const stageRejection = emitStage(transaction, labStageMutationsForBeginV1(state.stage));
+          const stageRejection = emitStage(
+            transaction,
+            labStageMutationsForBeginV1(
+              state.stage,
+              context.requireScenePlan(labProcedureSceneUnitIdV1),
+            ),
+          );
           if (stageRejection !== null) return transaction.reject({ code: stageRejection });
           return transaction.complete();
         }

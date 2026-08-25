@@ -89,21 +89,41 @@ function applicationSuccessorIdentityV1(identity: {
 }
 
 describe("Engine Lab BuildIdentity composition owner", () => {
-  it("publishes raw procedure source in presentation and replay semantics in simulation", async () => {
+  it("keeps addressable Scene and Narrative bytes in the owning identity facets", async () => {
     const identity = await collectE2eBuildIdentityV1();
     expect(identity.storySimulation).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        path: "e2e/src/gameplay/narrative-units/calibration.ts",
+        facet: "story_simulation",
+      }),
+      expect.objectContaining({
+        path: "e2e/src/gameplay/narrative-units/drill.ts",
+        facet: "story_simulation",
+      }),
       expect.objectContaining({
         path: "e2e/src/scenes/procedure/index.ts",
         facet: "story_simulation",
       }),
       expect.objectContaining({
+        path: "e2e/src/scenes/drill/index.ts",
+        facet: "story_simulation",
+      }),
+      expect.objectContaining({
         path: "e2e/src/scenes/procedure/procedure.authoring-scene.json",
+        facet: "story_simulation",
+      }),
+      expect.objectContaining({
+        path: "e2e/src/scenes/drill/drill.authoring-scene.json",
         facet: "story_simulation",
       }),
     ]));
     expect(identity.storyPresentation).toEqual(expect.arrayContaining([
       expect.objectContaining({
         path: "e2e/src/scenes/procedure/procedure.authoring-scene.json",
+        facet: "story_presentation",
+      }),
+      expect.objectContaining({
+        path: "e2e/src/scenes/drill/drill.authoring-scene.json",
         facet: "story_presentation",
       }),
     ]));

@@ -15,7 +15,12 @@ import {
 } from "@sillymaker/ui";
 
 import type { LabInvocationV1 } from "../index.ts";
-import { labSemanticAdapterV1, labStoryEntryV1, projectLabNarrativeGraphV1 } from "../index.ts";
+import {
+  labHeadlessExecutionContextV1,
+  labSemanticAdapterV1,
+  labStoryEntryV1,
+  projectLabNarrativeGraphV1,
+} from "../index.ts";
 import { createLabApplicationInstanceV1 } from "../application/core-application.ts";
 import {
   createLabUiSlotsV1,
@@ -38,6 +43,7 @@ function createLabHarnessV1(seed = 61101) {
   return createGameHarnessV1({
     entry: labStoryEntryV1,
     semantic: labSemanticAdapterV1,
+    executionContext: labHeadlessExecutionContextV1,
     seed,
   });
 }

@@ -7,6 +7,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./assets": "./src/assets/index.ts",
+    "./code-surface": "./src/code-surface/index.ts",
+    "./code-surface/internal": "./src/code-surface/internal.ts",
     "./debug": "./src/debug/index.ts",
     "./debug/dev-source-client": {
       "development": "./src/debug/dev-source-client.ts",

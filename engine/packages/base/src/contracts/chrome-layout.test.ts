@@ -158,14 +158,12 @@ describe("parseChromeLayoutDocumentV1", () => {
     );
   });
 
-  it("caps total entries across the three sections", () => {
-    const oversized = validDocumentV1();
+  it("admits large layout sections without a semantic entry cap", () => {
+    const large = validDocumentV1();
     const offsets: Record<string, number> = {};
-    for (let index = 0; index < 254; index += 1) offsets[`offset.${String(index)}`] = index;
-    oversized.offsets = offsets;
-    expect(() => parseChromeLayoutDocumentV1(oversized)).toThrowError(
-      /chrome_layout_entries_count_invalid/u,
-    );
+    for (let index = 0; index < 300; index += 1) offsets[`offset.${String(index)}`] = index;
+    large.offsets = offsets;
+    expect(Object.keys(parseChromeLayoutDocumentV1(large).offsets)).toHaveLength(300);
   });
 
   it("rejects unknown top-level keys and missing sections", () => {

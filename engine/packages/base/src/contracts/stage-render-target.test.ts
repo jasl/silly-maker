@@ -137,7 +137,7 @@ describe("projectStageRenderTargetV1", () => {
     }
   });
 
-  it("passes a valid frame set into the entry and the preload set, drops invalid ones", () => {
+  it("passes valid frame sets into the entry and preload set, and drops malformed ones", () => {
     const frameCatalog = (frameAssetIds: unknown): StageContentCatalogV1 =>
       Object.freeze({
         resolveContent: () =>
@@ -163,12 +163,19 @@ describe("projectStageRenderTargetV1", () => {
     expect(valid.target.requiredAssetIds).toContain("asset.test.eyes-open");
     expect(valid.target.requiredAssetIds).toContain("asset.test.eyes-closed");
 
-    for (
-      const broken of [
-        ["asset.test.eyes-open", ""],
-        Array.from({ length: 65 }, (_ignored, index) => `asset.test.frame-${String(index)}`),
-      ]
-    ) {
+    const generatedFrames = Array.from(
+      { length: 96 },
+      (_ignored, index) => `asset.test.frame-${String(index)}`,
+    );
+    const generated = projectStageRenderTargetV1(
+      stageWithContentV1(),
+      frameCatalog(generatedFrames),
+    );
+    expect(generated.diagnostics).toEqual([]);
+    expect(generated.target.layers[0]?.entries[0]?.frameAssetIds).toEqual(generatedFrames);
+    expect(generated.target.requiredAssetIds).toContain(generatedFrames.at(-1));
+
+    for (const broken of [["asset.test.eyes-open", ""]]) {
       const projection = projectStageRenderTargetV1(stageWithContentV1(), frameCatalog(broken));
       expect(projection.diagnostics.map((diagnostic) => diagnostic.code)).toContain(
         "stage.frame_assets_invalid",
@@ -215,6 +222,31 @@ describe("projectStageRenderTargetV1", () => {
     expect(region?.hoverAssetId).toBe("asset.test.head-glow");
     // The reveal asset preloads with the entry so hover never flashes.
     expect(projection.target.requiredAssetIds).toContain("asset.test.head-glow");
+  });
+
+  it("projects a large generated hit-region list without truncation", () => {
+    const hitRegions = Array.from({ length: 96 }, (_, index) => ({
+      regionId: `region.generated-${String(index)}`,
+      accessibleNameText: `Generated ${String(index)}`,
+      x: index,
+      y: index,
+      width: 10,
+      height: 10,
+    }));
+    const projection = projectStageRenderTargetV1(stageWithContentV1(), {
+      resolveContent: () => ({
+        rendererId: "renderer.test.character",
+        assetIds: [],
+        accessibleName: "角色",
+        props: {},
+        hitRegions,
+      }),
+    });
+    expect(projection.diagnostics).toEqual([]);
+    expect(projection.target.layers[0]?.entries[0]?.hitRegions).toHaveLength(hitRegions.length);
+    expect(projection.target.layers[0]?.entries[0]?.hitRegions.at(-1)?.regionId).toBe(
+      "region.generated-95",
+    );
   });
 
   it("degrades invalid polygons to the bounding box and drops invalid hover assets", () => {

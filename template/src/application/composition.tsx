@@ -1,13 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Composition layer: assembles the script, rules, and UI into a bootable game
 // application (browser and desktop webview share one declaration); orchestration only, owns no gameplay.
-import type {
-  AssetId,
-  DeepReadonly,
-  LocaleId,
-  TextContentSessionV1,
-  TextId,
-} from "@sillymaker/base";
+import type { AssetId, DeepReadonly, TextContentSessionV1, TextId } from "@sillymaker/base";
 import type { StageRenderTarget } from "@sillymaker/base/story";
 import { projectStageRenderTarget } from "@sillymaker/base/story";
 import type {
@@ -330,7 +324,7 @@ export const templateGameApplicationV1: WebGameApplicationV1<
   },
   textContent: {
     manifest: templateTextContentManifestV1,
-    bootstrapCatalogs: templateTextCatalogsV1,
+    bootstrapCatalogs: templateTextCatalogsV1.catalogs,
     initialPackIds: [templateOpeningTextPackIdV1],
     requiredPackIdsForInvocation: (invocation: DeepReadonly<TemplateInvocationV1>) =>
       invocation.kind === "resolve" && invocation.resolution.kind === "choose"
@@ -372,8 +366,7 @@ export const templateGameApplicationV1: WebGameApplicationV1<
               ({ kind: "time" as const, tick }) as never,
             ),
           renderer: TemplateNarrativeRendererV1,
-          resolveText: (locale, textId) =>
-            textContent.resolveText(locale as LocaleId | null, textId as TextId),
+          resolveText: (_locale, textId) => textContent.resolveText(textId as TextId),
           replayCurrentVoice: null,
         } satisfies DefineNarrativeSurfaceInputV1<TemplateSemanticPublicationV1>,
       ),

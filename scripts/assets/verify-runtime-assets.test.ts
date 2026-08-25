@@ -4,7 +4,6 @@ import { resolve, sep } from "node:path";
 
 import {
   defineTextContentManifestV1,
-  parseTextCatalogSetV1,
   type ResolvedAssetManifestV1,
 } from "../../engine/packages/base/src/index.ts";
 import { describe, expect, it } from "vitest";
@@ -26,6 +25,20 @@ function emptyManifestV1(): ResolvedAssetManifestV1 {
     slots: Object.freeze([]),
     assets: Object.freeze([]),
   });
+}
+
+function textVariantBytesV1(
+  packId: string,
+  locale: string,
+  entries: readonly { readonly textId: string; readonly text: string }[],
+): Uint8Array {
+  return new TextEncoder().encode(JSON.stringify({
+    format: "sillymaker.text-content-pack",
+    version: 2,
+    packId,
+    locale,
+    entries,
+  }));
 }
 
 describe("closed runtime asset verification", () => {
@@ -112,31 +125,23 @@ describe("closed runtime asset verification", () => {
   }, 30_000);
 
   it("admits optional and independently edited text packs through the application root", async () => {
-    const bootstrapCatalogs = parseTextCatalogSetV1({
-      defaultLocale: "en",
-      catalogs: [{ locale: "en", fallbackLocale: null, entries: [] }],
-    });
-    const textCatalogs = parseTextCatalogSetV1({
-      defaultLocale: "en",
-      catalogs: [{
-        locale: "en",
-        fallbackLocale: null,
-        entries: [{ textId: "text.test.line", text: "Line" }],
-      }],
-    });
+    const bootstrapCatalogs = [{ locale: "en", entries: [] }] as const;
     const packId = "text-pack.test.runtime";
     const runtimePath = "assets/content/test.text-pack.json";
     const bytes = new TextEncoder().encode(JSON.stringify({
       format: "sillymaker.text-content-pack",
-      version: 1,
+      version: 2,
       packId,
-      textCatalogs,
+      locale: "en",
+      entries: [{ textId: "text.test.line", text: "Line" }],
     }));
     const manifest = defineTextContentManifestV1({
       revision: 1,
+      defaultLocale: "en",
+      locales: [{ locale: "en", fallbackLocale: null }],
       packs: [{
         packId,
-        runtimePath,
+        variants: [{ locale: "en", runtimePath }],
       }],
     });
     const reads: string[] = [];
@@ -168,16 +173,10 @@ describe("closed runtime asset verification", () => {
 
     const editedBytes = new TextEncoder().encode(JSON.stringify({
       format: "sillymaker.text-content-pack",
-      version: 1,
+      version: 2,
       packId,
-      textCatalogs: parseTextCatalogSetV1({
-        defaultLocale: "en",
-        catalogs: [{
-          locale: "en",
-          fallbackLocale: null,
-          entries: [{ textId: "text.test.line", text: "Edited localization" }],
-        }],
-      }),
+      locale: "en",
+      entries: [{ textId: "text.test.line", text: "Edited localization" }],
     }));
     await expect(
       verifyRuntimeAssetStoryChecksV1(
@@ -204,7 +203,128 @@ describe("closed runtime asset verification", () => {
         () => Promise.resolve(Object.freeze({ errors: Object.freeze([]) })),
       ),
     ).rejects.toThrow(
-      "story.test.content:text-pack.test.runtime:text_content.pack_json_invalid",
+      "story.test.content:text-pack.test.runtime:en:text_content.pack_json_invalid",
+    );
+  });
+
+  it("checks every translation variant against its logical pack's default IDs", async () => {
+    const packId = "text-pack.test.localized";
+    const defaultPath = "assets/content/localized.zh-CN.text-pack.json";
+    const englishPath = "assets/content/localized.en.text-pack.json";
+    const manifest = defineTextContentManifestV1({
+      revision: 1,
+      defaultLocale: "zh-CN",
+      locales: [
+        { locale: "zh-CN", fallbackLocale: null },
+        { locale: "en", fallbackLocale: "zh-CN" },
+      ],
+      packs: [{
+        packId,
+        variants: [
+          { locale: "zh-CN", runtimePath: defaultPath },
+          { locale: "en", runtimePath: englishPath },
+        ],
+      }],
+    });
+    const bytes = new Map([
+      [
+        defaultPath,
+        textVariantBytesV1(packId, "zh-CN", [
+          { textId: "text.test.known", text: "已知" },
+        ]),
+      ],
+      [
+        englishPath,
+        textVariantBytesV1(packId, "en", [
+          { textId: "text.test.unknown", text: "Unknown" },
+        ]),
+      ],
+    ]);
+    const reads: string[] = [];
+    const story: RuntimeAssetStoryCheckV1 = {
+      storyId: "story.test.localized",
+      appDirectory: "stories/localized",
+      resolve: () => ({
+        assets: emptyManifestV1(),
+        textContent: { manifest, bootstrapCatalogs: [] },
+      }),
+    };
+
+    await expect(verifyRuntimeAssetStoryChecksV1(
+      [story],
+      () => ({
+        readFile(path) {
+          reads.push(path);
+          return Promise.resolve(bytes.get(path)!);
+        },
+      }),
+      () => Promise.resolve({ errors: [] }),
+    )).rejects.toThrow(
+      "story.test.localized:text-pack.test.localized:en:" +
+        "text_content.translation_text_id_unknown:text.test.unknown",
+    );
+    expect(reads).toEqual([defaultPath, englishPath]);
+  });
+
+  it("keeps a compact default-ID closure across bootstrap and logical packs", async () => {
+    const firstPackId = "text-pack.test.first";
+    const secondPackId = "text-pack.test.second";
+    const firstPath = "assets/content/first.zh-CN.text-pack.json";
+    const secondPath = "assets/content/second.zh-CN.text-pack.json";
+    const manifest = defineTextContentManifestV1({
+      revision: 1,
+      defaultLocale: "zh-CN",
+      locales: [{ locale: "zh-CN", fallbackLocale: null }],
+      packs: [
+        {
+          packId: firstPackId,
+          variants: [{ locale: "zh-CN", runtimePath: firstPath }],
+        },
+        {
+          packId: secondPackId,
+          variants: [{ locale: "zh-CN", runtimePath: secondPath }],
+        },
+      ],
+    });
+    const bytes = new Map([
+      [
+        firstPath,
+        textVariantBytesV1(firstPackId, "zh-CN", [
+          { textId: "text.test.bootstrap", text: "conflicts with bootstrap" },
+          { textId: "text.test.cross-pack", text: "first" },
+        ]),
+      ],
+      [
+        secondPath,
+        textVariantBytesV1(secondPackId, "zh-CN", [
+          { textId: "text.test.cross-pack", text: "second" },
+        ]),
+      ],
+    ]);
+    const story: RuntimeAssetStoryCheckV1 = {
+      storyId: "story.test.default-closure",
+      appDirectory: "stories/default-closure",
+      resolve: () => ({
+        assets: emptyManifestV1(),
+        textContent: {
+          manifest,
+          bootstrapCatalogs: [{
+            locale: "zh-CN",
+            entries: [{ textId: "text.test.bootstrap", text: "bootstrap" }],
+          }],
+        },
+      }),
+    };
+
+    await expect(verifyRuntimeAssetStoryChecksV1(
+      [story],
+      () => ({ readFile: (path) => Promise.resolve(bytes.get(path)!) }),
+      () => Promise.resolve({ errors: [] }),
+    )).rejects.toThrow(
+      "story.test.default-closure:text-pack.test.first:zh-CN:" +
+        "text_content.text_id_duplicate:text.test.bootstrap\n" +
+        "story.test.default-closure:text-pack.test.second:zh-CN:" +
+        "text_content.text_id_duplicate:text.test.cross-pack",
     );
   });
 

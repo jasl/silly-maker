@@ -2,6 +2,7 @@
 import type {
   ApplicationHostCapabilitiesV1,
   ContentPreferencePortV1,
+  GameSimulationTypeMapV1,
   HostAtomicRecordStoreV1,
   RuntimeCapabilityIdV1,
   RuntimeCapabilityPortV1,
@@ -24,6 +25,8 @@ import {
 import type {
   CapabilityRequestParseResultV1,
   RuntimeCapabilitySessionOverlayV1,
+  WebAddressableRuntimeDefinitionV1,
+  WebGameApplicationV1,
   WebGameUiDefinitionV1,
 } from "@sillymaker/web";
 
@@ -170,6 +173,57 @@ capabilitySessionV1.dispose();
 
 // @ts-expect-error session overlays accept only the closed capability ID set.
 createRuntimeCapabilitySessionOverlayV1(persistedCapabilityPortV1, ["unknown"]);
+
+interface RequiredWebExecutionContextV1 {
+  readonly runtimeOwner: "required";
+}
+type SyntheticWebSimulationTypesV1<TExecutionContext> =
+  & Omit<GameSimulationTypeMapV1, "executionContext">
+  & { readonly executionContext: TExecutionContext };
+type SyntheticWebApplicationV1<TExecutionContext> = WebGameApplicationV1<
+  unknown,
+  unknown,
+  SyntheticWebSimulationTypesV1<TExecutionContext>,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  string
+>;
+
+declare const requiredAddressableRuntimeV1: WebAddressableRuntimeDefinitionV1<
+  RequiredWebExecutionContextV1,
+  unknown,
+  SyntheticWebSimulationTypesV1<RequiredWebExecutionContextV1>["snapshot"]
+>;
+
+export const requiredAddressableRuntimeDeclarationV1: Pick<
+  SyntheticWebApplicationV1<RequiredWebExecutionContextV1>,
+  "addressableRuntime"
+> = { addressableRuntime: requiredAddressableRuntimeV1 };
+
+// @ts-expect-error Web must construct every non-undefined Core execution context.
+export const missingRequiredAddressableRuntimeDeclarationV1: Pick<
+  SyntheticWebApplicationV1<RequiredWebExecutionContextV1>,
+  "addressableRuntime"
+> = {};
+
+export const omittedUndefinedAddressableRuntimeDeclarationV1: Pick<
+  SyntheticWebApplicationV1<undefined>,
+  "addressableRuntime"
+> = {};
+
+export const omittedUnionAddressableRuntimeDeclarationV1: Pick<
+  SyntheticWebApplicationV1<RequiredWebExecutionContextV1 | undefined>,
+  "addressableRuntime"
+> = {};
 
 export {
   createRuntimeCapabilitySessionOverlayV1,

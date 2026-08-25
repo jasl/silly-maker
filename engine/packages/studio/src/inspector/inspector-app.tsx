@@ -11,10 +11,7 @@ import {
 import type { ReactElement } from "react";
 
 import type { MotionDefinitionV1 } from "@sillymaker/base";
-import {
-  compileAuthoringSceneV1,
-  projectAuthoringSceneFacetsV1,
-} from "@sillymaker/base/authoring/scene";
+import { projectAuthoringSceneFacetsV1 } from "@sillymaker/base/authoring/scene";
 import type {
   AdmittedAuthoringSceneV1,
   AuthoringSceneFacetProjectionV1,
@@ -34,12 +31,14 @@ import type { AuthoringHostInternalV1 } from "../core/authoring-host.ts";
 import type { InspectorBindingV1 } from "../core/binding.ts";
 import { loadInspectorMotionSourcesV1 } from "../core/motion-sources.ts";
 import { saveWithConflictRefreshInternalV1 } from "../core/save-conflict.ts";
+import { compileAuthoringSceneWithReceiptInternalV1 } from "../core/scene-compilation.ts";
 import type { SceneAuthoringOperationV1 } from "../core/scene-operations/contract.ts";
 import type { MotionSourceIoV1 } from "@sillymaker/ui/debug";
 import { InspectorObjectPanelV1 } from "./object-inspector.tsx";
 import { InspectorSceneListV1 } from "./scene-list.tsx";
 import { InspectorScenePreviewV1 } from "./scene-preview.tsx";
 import { InspectorSceneTreeV1 } from "./scene-tree.tsx";
+import { RuntimeInspectorPanelV1 } from "./runtime-inspector.tsx";
 import { inspectorScrubChoicesV1, sampleInspectorScrubV1 } from "./scrub.ts";
 import styles from "./inspector.module.css";
 
@@ -84,7 +83,7 @@ function errorLabelV1(error: unknown): string {
 function compileSceneV1(draft: AdmittedAuthoringSceneV1 | null): CompilationResultV1 {
   if (draft === null) return { kind: "empty" };
   try {
-    return { kind: "ok", compiled: compileAuthoringSceneV1(draft) };
+    return { kind: "ok", compiled: compileAuthoringSceneWithReceiptInternalV1(draft) };
   } catch (error) {
     return { kind: "error", message: errorLabelV1(error) };
   }
@@ -439,6 +438,10 @@ function InspectorWithHostInternalV1(props: InspectorHostSurfacePropsInternalV1)
             </ul>
           </details>
         )}
+
+      {!visible || props.binding.runtime === undefined
+        ? null
+        : <RuntimeInspectorPanelV1 source={props.binding.runtime} />}
 
       <div className={styles.layout}>
         <aside className={styles.navigator}>

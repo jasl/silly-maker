@@ -11,6 +11,12 @@ export const sillymakerAppConfigV1 = {
   },
   sceneSources: [
     {
+      sceneId: "scene.e2e.drill",
+      specifier: "#sillymaker/scene/drill",
+      sourceKind: "authoring_scene",
+      source: "src/scenes/drill/drill.authoring-scene.json",
+    },
+    {
       sceneId: "scene.e2e.procedure",
       specifier: "#sillymaker/scene/procedure",
       sourceKind: "authoring_scene",

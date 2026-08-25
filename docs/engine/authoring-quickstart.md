@@ -38,15 +38,15 @@ that the exact package specifier compiles to the runtime-only module.
 
 Use the starter template (`template`, minimally playable) or the Engine Lab (`e2e`, full capability) as the runnable example. Scripts are ordinary TypeScript data, not a DSL:
 
-| What to change                                 | Which file                                                                                                                                                                    |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Starter dialogue, narration, option text       | `assets/content/*.text-pack.json`; keep the same stable textId in `src/story/narrative.ts`; no byte/hash/count receipt update is required                                     |
-| Starter resident UI/bootstrap copy             | `templateTextCatalogsV1` in `src/content/presentation.ts`                                                                                                                     |
-| Engine Lab dialogue, narration, option text    | `labTextCatalogsV1` in `src/presentation.ts` (textId → text)                                                                                                                  |
-| Story nodes, branches, stage commands          | starter: `src/story/narrative.ts`; Engine Lab: `src/gameplay/narrative.ts`                                                                                                    |
-| Scene composition (hierarchy, placement, cues) | preferred/current Inspector: `src/scenes/<scene>/<scene>.authoring-scene.json` + explicit `authoring_scene` binding; Advanced manual path: `*.scene.json` + `low_level_scene` |
-| Voice/BGM mapping                              | `src/gameplay/audio.ts`                                                                                                                                                       |
-| Static annotations for the graph lint          | `mayShow` on stage nodes, `successors` on branch nodes                                                                                                                        |
+| What to change                                 | Which file                                                                                                                                                                              |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Starter dialogue, narration, option text       | `assets/content/*.<locale>.text-pack.json`; keep the same stable textId in the default/translation variants and `src/story/narrative.ts`; no byte/hash/count receipt update is required |
+| Starter resident UI/bootstrap copy             | `templateTextCatalogsV1` in `src/content/presentation.ts`                                                                                                                               |
+| Engine Lab dialogue, narration, option text    | `labTextCatalogsV1` in `src/presentation.ts` (textId → text)                                                                                                                            |
+| Story nodes, branches, stage commands          | starter: `src/story/narrative.ts`; Engine Lab: `src/gameplay/narrative.ts`                                                                                                              |
+| Scene composition (hierarchy, placement, cues) | preferred/current Inspector: `src/scenes/<scene>/<scene>.authoring-scene.json` + explicit `authoring_scene` binding; Advanced manual path: `*.scene.json` + `low_level_scene`           |
+| Voice/BGM mapping                              | `src/gameplay/audio.ts`                                                                                                                                                                 |
+| Static annotations for the graph lint          | `mayShow` on stage nodes, `successors` on branch nodes                                                                                                                                  |
 
 Node kinds: `say` (speakerTextId/textId/next), `choice` (options: choiceId/textId/requiresSamples/consumesSamples/next), `stage` (`mutations(stage)` returns a StageMutation array; `mayShow` statically declares the contentIds it might show), `branch` (`choose(context)` is a pure function picking next, which must land inside `successors`), `hold` (durationMs/skippable, optional ordered `when` reroute arms — branch-vocabulary predicate → target, evaluated as cuts on the hold's own occurrence timeline — plus optional tick machinery, `tickQuantumMs`, and a `pace` hint; the screen holds for an authoritative duration settled through the session time verb, a matching arm cuts at its instant, skip folds the remainder through the same walk, and expiry advances to `next`), `barrier`, `custom`, `end`. Every new say/choice needs a brand-new `definitionId` (`interaction.<story>.<name>`); never reuse one.
 
@@ -60,21 +60,27 @@ deno task check:assets                              # bounded pack wire/schema/i
 deno task test:conformance:headless                # all headless conformance tests
 ```
 
-For a starter pack edit, keep the wire's four exact top-level fields. The manifest
-descriptor contains only `packId` and `runtimePath`; there is no byte-length,
-SHA or declared-entry receipt to regenerate. `check:assets` performs the same
-bounded Strict JSON/schema/value admission as runtime, validates the logical pack
-identity/catalog topology, and derives the actual entry count. One pack is capped
-at 16 MiB by `textContentPackJsonLimitsV1`; split larger content into multiple
-packs at real loading boundaries. A running content
-session keeps an admitted pack immutable, so refresh/restart after a direct edit.
-Keep early and later copy in
-separate build-known packs only when the application can declare which pack a
+For a starter pack edit, keep the physical V2 wire's five exact top-level fields:
+`format`, `version`, `packId`, `locale`, and `entries`. The manifest declares one
+`defaultLocale`, the supported locale/fallback graph, and logical pack descriptors
+whose `variants` contain only `locale` and `runtimePath`; there is no byte-length,
+SHA or declared-entry receipt to regenerate. Every logical pack needs its default
+variant. A translated variant may omit Text IDs and fall back, but must not invent
+IDs absent from that default variant. `check:assets` performs the same bounded
+Strict JSON/schema/value admission as runtime and derives actual entry counts.
+One physical variant is capped at 16 MiB by `textContentPackJsonLimitsV1`; split
+larger content into multiple logical packs at real loading boundaries. A running
+content session keeps admitted variants immutable, so refresh/restart after a
+direct edit. Keep early and later copy in separate build-known logical packs only
+when the application can declare which pack a
 startup, semantic invocation, or candidate Snapshot needs through
 `initialPackIds`, `requiredPackIdsForInvocation`, and
 `requiredPackIdsForSnapshot`. Web binds those planners into the existing Core
-semantic/Persistence readiness boundary; do not add an `ensure` call to a
-React/UI callback or create another content facade. Do not
+semantic/Persistence readiness boundary; do not add an `ensure`/`acquire` call to
+a React/UI callback or create another content facade. A locale control awaits the
+Player profile's `updatePreferences({ locale })`; Web first stages the demanded
+pack variants and fallback chain, then publishes/persists the preference only
+after the atomic switch succeeds. Do not
 import the JSON pack into runtime Story/UI code: the Host reads it through `assets/**`, while the
 tooling-only Flow projection may import the same authoring copy under
 `src/tooling/**`.
@@ -144,6 +150,19 @@ deno task story simulate <app> [--scenario s] [--seed n]
 deno task story dev <app> --smoke
 deno task story prebuilt-smoke <app>
 ```
+
+If this application deliberately enables first-party, build-known Mods, keep
+that wiring in an advanced application module and import only the private
+`@sillymaker/composition/internal/mod-runtime` entry. Define the product's typed
+extension points and base behavior first, then list small data definitions or
+literal code loaders plus one startup-time active ID set. Loaders and compilers
+must stay cold and resource-free; reversible effects use the existing Direct
+lifecycle. Feed the returned ordered active identity into the application's
+existing BuildIdentity when it changes authoritative behavior. Changing the set
+requires an ordinary application successor/rebootstrap—there is no live
+install/restart API, package resolver, public Mod SDK, or sandbox. A product that
+does not select this private entry remains complete and excludes it from the
+final graph.
 
 `dist-web/` can be deployed directly to static hosting. A distributed Player
 must make the SillyMaker MIT text and any notices required by its bundled

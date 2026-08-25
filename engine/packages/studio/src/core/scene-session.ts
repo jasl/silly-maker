@@ -32,5 +32,9 @@ export function createSceneDocumentSessionV1(
         admittedScene: input.document,
       }),
   };
-  return createAuthoringDocumentSessionV1({ io: adapted });
+  return createAuthoringDocumentSessionV1({
+    io: adapted,
+    clone: (scene) => scene,
+    equals: Object.is,
+  });
 }
