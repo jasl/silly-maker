@@ -1,9 +1,9 @@
 # Shared Stage Input V1（narrative 挂起共享舞台输入）实施计划
 
-状态：**2026-08-26 开启，M0–M2 当日交付**（所有者当日裁决接受提案，
-open questions 裁决：q1 值域全收满，q2/q3 按建议；M0 base 合同、
-M1 宿主谓词与焦点、M2 Lab conformance + 浏览器真实指针 + 文档段落
-均已提交，剩 M3 实验仓消费）。合同：
+状态：**2026-08-26 开启，M0–M3 当日全部交付（关闭）**（所有者当日
+裁决接受提案，open questions 裁决：q1 值域全收满，q2/q3 按建议；
+M0 base 合同、M1 宿主谓词与焦点、M2 Lab conformance + 浏览器真实指
+针 + 文档段落、M3 实验仓消费均已提交）。合同：
 `docs/engine/proposals/shared-stage-input.md`。兑现
 [mid-hold-input](2026-08-22-mid-hold-input.md) 关闭记录点名的最后一
 段路（命令级组合已交付、UI 宿主 isolation 仍挡指针）。本文只拥有切
@@ -24,9 +24,9 @@ M1 宿主谓词与焦点、M2 Lab conformance + 浏览器真实指针 + 文档�
   跳过 outside-focus recapture 与 Tab trap（挂载 autofocus、Escape、
   History 不变）。宿主测试钉 shared/isolated/history/混合四态 inert
   与焦点矩阵；`game-stage.tsx` 测试零改动（政策公式未动的证明）。
-- **M2（Lab conformance + 文档，随本提交）**：Lab 演习决策菜单与绊
-  线 hold 声明 `shared`；样本箱热区激活按 pending 路由（无挂起 →
-  `lab.collect_sample`，shared choice → 绊线选项决议同一
+- **M2（Lab conformance + 文档，主仓 `da74ef86`）**：Lab 演习决策菜
+  单与绊线 hold 声明 `shared`；样本箱热区激活按 pending 路由（无挂
+  起 → `lab.collect_sample`，shared choice → 绊线选项决议同一
   occurrence，shared hold → `lab.engage_collector` 围栏写；isolated
   下不派发）。jsdom conformance（宿主全应用 + 手动 rAF 泵）钉
   isolated say inert / shared choice·hold 释放 / 围栏写落地 / 切回
@@ -35,6 +35,16 @@ M1 宿主谓词与焦点、M2 Lab conformance + 浏览器真实指针 + 文档�
   写 + 下一结算 t=0 改道）。绊线时长 1500→6000ms（浏览器真实指针
   预算；headless 批切锁沿用常量不受影响）。features.md 一条 +
   stacking 段落一句 + story-authoring.md 模式段随刀。
+- **M3（实验仓消费 + 收口，克隆刀 #352 / 克隆仓 `6a3fd78`）**：
+  `interaction-kit`/`types`/`runner` 透传 `stageInput`；自由看三菜单
+  （touch/left/clothing）与 CE281 右手条四 hold（三段 bar +
+  WAIT-50 尾）声明 `"shared"`；hold click-eater 按声明放行指针
+  （`pointerEvents: "none"`），`composition` 的 `zoneHoldPending`
+  谓词收窄到 shared。单元锁声明清单与 click-eater 两态；浏览器 e2e
+  `shared-stage-zones.spec.ts` 钉自由看直点（头零件 SAY 隔离恢复）
+  与条中途亲 +5 分钟（每击前要求 hold 层仍挂着，菜单/SAY 路径无法
+  假阳性）。克隆全量绿（52 文件 820 测试 + 10 浏览器测试）；
+  fidelity-gaps 台账 #352 收口。
 
 ## Admission 裁决（车道开启时固化）
 

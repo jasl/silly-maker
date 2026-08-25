@@ -20,19 +20,28 @@ plan；目标合同见[统一创作架构设计](../design/authoring-architectur
 
 ## 1. Current and next
 
-当前：[Shared Stage Input V1](2026-08-26-shared-stage-input.md)（提
-案 [shared-stage-input](../proposals/shared-stage-input.md)，
+当前：无活动车道（shared-stage-input 2026-08-26 关闭；等所有者下一
+道指令）。Desktop 持久化仍是独立晋级门。
+
+前一条：[Shared Stage Input V1](2026-08-26-shared-stage-input.md)
+（提案 [shared-stage-input](../proposals/shared-stage-input.md)，
 2026-08-26 所有者裁决接受：q1 值域全收满
 `say`/`choice`/`hold`/`custom`，q2 焦点同键全放，q3 定名
 `stageInput`）——narrative 挂起共享舞台输入：pending 声明式 Host 提
 示（`pace` 同族，缺省 isolated 字节恒等），宿主按 entry 评估
 isolation 注册与焦点独占；`game-stage.tsx` 政策公式零改动、不出第二
 决议路径。兑现 mid-hold-input 关闭记录点名的最后一段路（命令级围栏
-已交付、UI inert 仍挡真实指针）。M0 base 合同 → M1 宿主谓词+焦点 →
-M2 Lab conformance（含 mid-hold 真实指针半张证据）+ 文档 → M3 实验
-仓 CE18 双活路径消费。Desktop 持久化仍是独立晋级门。
+已交付、UI inert 仍挡真实指针）。**同日 M0–M3 全部交付收口**：M0
+（base `stageInput` 四变体条件精确键 admission，未声明字节恒等）→
+M1（宿主 isolation 注册改「任一 entry 要求隔离即注册」+ shared
+focus owner 放行 recapture/Tab trap；`game-stage.tsx` 及测试零改
+动）→ M2（Lab 演习决策菜单/绊线 hold 声明 shared、样本箱热区按
+pending 路由，jsdom 四态矩阵 + 浏览器真实指针 e2e——mid-hold 缺的
+半张证据补齐）→ M3（实验仓克隆刀 #352：自由看三菜单 + CE281 右手条
+四 hold 声明 shared、click-eater 按声明放行，浏览器 e2e 钉自由看直
+点与条中途亲 +5 分钟，CE18 live path 闭合）。
 
-前一条：[Authorable Chrome Layout V1](2026-08-22-authorable-chrome-layout.md)
+再前一条：[Authorable Chrome Layout V1](2026-08-22-authorable-chrome-layout.md)
 （提案
 [authorable-chrome-layout](../proposals/authorable-chrome-layout.md)，
 2026-08-22 所有者裁决接受，q1–q3 全按建议；定性务实 V1，非场景/物

@@ -1,16 +1,31 @@
 # Shared stage input 提案（narrative 挂起共享舞台输入）
 
-状态：**2026-08-26 所有者裁决接受**（open questions 裁决：q1 值域全
-收满——`say`/`custom` 一并收；q2、q3 按建议：焦点同键全放、定名
-`stageInput`）。兑现
+状态：**2026-08-26 所有者裁决接受，同日 M0–M3 全部交付（关闭）**
+（open questions 裁决：q1 值域全收满——`say`/`custom` 一并收；q2、
+q3 按建议：焦点同键全放、定名 `stageInput`）。兑现
 [mid-hold-input](mid-hold-input.md) 关闭记录里点名的最后一段路：命令
 级组合（围栏写 / occurrence 决议）已全部交付，但 UI 宿主的一揽子
 narrative isolation 仍把舞台热区 `inert`，真实浏览器里指针到不了。
 本文只定合同；切片顺序与 admission 由
 [Shared Stage Input V1 计划](../plans/2026-08-26-shared-stage-input.md)
-拥有；
+拥有（交付记录也在该计划）；
 [production-floor sequence](../plans/2026-07-30-production-floor-sequence.md)
 仍是唯一跨计划排序入口。
+
+关闭记录（2026-08-26）：wire 改动一个可选成员，宿主两处放行，政策
+公式零改动。base（主仓 `98e7dfe5`）：`stageInput` 收在四变体，条件
+精确键 admission，未声明字节恒等。宿主（主仓 `4387650c`）：isolation
+注册改「任一 entry 要求隔离即注册」，shared focus owner 跳过
+recapture 与 Tab trap；`game-stage.tsx` 及其测试零改动。Lab + 浏览
+器证据（主仓 `da74ef86`）：演习决策菜单与绊线 hold 声明 shared，样
+本箱热区按 pending 路由（choice 决议同一 occurrence / hold 围栏
+写），jsdom 四态矩阵 + 浏览器真实指针 e2e（原生 inert 强制、点区决
+议、中持有围栏写、下一结算 t=0 改道）——mid-hold-input 缺的半张真实
+指针证据补齐。实验仓消费（克隆刀 #352）：自由看三菜单与 CE281 右手
+条四 hold 声明 shared，hold click-eater 按声明放行指针，浏览器 e2e
+钉「菜单下头零件直点（隔离 SAY 恢复）+ 条中途亲 +5 分钟」，CE18
+live path 闭合。regions 未获路由权、无第二决议路径、`stageInput`
+从未进入权威算术。
 
 一句话：**isolation 从来不是安全机制，是 UX 政策；把它从「有 entry
 就独占」改成「entry 逐个宣告」。** 决议合法性全在命令围栏（stale 整
