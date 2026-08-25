@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-import { parseModuleId } from "@sillymaker/base";
-import type { Brand, DeepReadonly, NonNegativeSafeInteger } from "@sillymaker/base";
+import { parseModuleId } from "@sillymaker/base/values";
+import type { Brand, DeepReadonly, NonNegativeSafeInteger } from "@sillymaker/base/values";
 
 export type InputContextIdV1 =
   | "gameplay"

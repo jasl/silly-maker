@@ -73,8 +73,8 @@ export type StorySceneSourceV1 =
 export interface StoryApplicationConfigV1 {
   readonly applicationId: string;
   readonly label: string;
-  /** The GamePackage entry used by inspect/check and asset verification. */
-  readonly storyEntry: ProjectModuleRefV1;
+  /** The GamePackage entry used by Story commands; null for GUI-only applications. */
+  readonly storyEntry: ProjectModuleRefV1 | null;
   /** Whether `check:assets` resolves and validates this application. */
   readonly assetVerification: boolean;
   /** Module exporting a simulation-target factory; null when not scriptable yet. */
@@ -118,7 +118,8 @@ export interface SillymakerAppWebTargetV1 {
 export interface SillymakerAppConfigV1 {
   readonly applicationId: string;
   readonly label: string;
-  readonly storyEntry: ProjectModuleRefV1;
+  /** Omit for a GUI-only application with no authoritative Story. */
+  readonly storyEntry?: ProjectModuleRefV1 | null;
   readonly assetVerification: boolean;
   readonly simulate?: ProjectModuleRefV1 | null;
   readonly web?: SillymakerAppWebTargetV1 | null;

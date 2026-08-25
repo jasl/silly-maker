@@ -53,6 +53,26 @@ const projectV1 = defineSillymakerProjectV1({
   ],
 });
 
+const guiOnlyApplicationV1 = Object.freeze({
+  ...projectV1.applications[0]!,
+  applicationId: "gui-only",
+  label: "GUI only",
+  storyEntry: null,
+  simulate: null,
+  web: Object.freeze({
+    ...projectV1.applications[0]!.web!,
+    desktop: Object.freeze({
+      name: "GuiOnlyApp",
+      identifier: "dev.sillymaker.gui-only",
+    }),
+  }),
+});
+
+const mixedProjectV1 = defineSillymakerProjectV1({
+  projectId: "project-test",
+  applications: [...projectV1.applications, guiOnlyApplicationV1],
+});
+
 interface FakeRunnerLogV1 {
   readonly runs: {
     command: string;
@@ -291,6 +311,45 @@ describe("runProjectCliV1", () => {
     expect(JSON.parse(check.out.join("\n"))).toEqual([
       { applicationId: "synthetic", ok: true, diagnostics: [] },
     ]);
+  });
+
+  it("skips GUI-only applications in check --all and rejects their Story commands", async () => {
+    const all = await runV1(["check", "--all"], undefined, mixedProjectV1);
+    expect(all.code).toBe(0);
+    expect(JSON.parse(all.out.join("\n"))).toEqual([
+      { applicationId: "synthetic", ok: true, diagnostics: [] },
+    ]);
+
+    for (const command of ["inspect", "check", "simulate"] as const) {
+      const result = await runV1([command, "gui-only"], undefined, mixedProjectV1);
+      expect(result.code).toBe(1);
+      expect(JSON.parse(result.out.join("\n"))).toMatchObject({
+        kind: "error",
+        diagnostics: [{ code: "project.story_unconfigured" }],
+      });
+    }
+  });
+
+  it("keeps web and Desktop process verbs available to GUI-only applications", async () => {
+    const build = createFakeRunnerV1({ exitCode: 0 });
+    expect((await runV1(["build", "gui-only"], build.runner, mixedProjectV1)).code).toBe(0);
+
+    const dev = createFakeRunnerV1({
+      pages: Object.freeze({
+        "http://127.0.0.1:41739/": '<div id="root"></div><script src="/test/entry.tsx"></script>',
+      }),
+    });
+    expect((await runV1(["dev", "gui-only", "--smoke"], dev.runner, mixedProjectV1)).code)
+      .toBe(0);
+
+    const desktop = createFakeRunnerV1({
+      files: Object.freeze({
+        "/repo/test/dist-desktop/GuiOnlyApp.app/Contents/Info.plist": "<plist/>",
+        ...desktopShellFilesV1(),
+      }),
+    });
+    expect((await runV1(["desktop", "gui-only"], desktop.runner, mixedProjectV1)).code)
+      .toBe(0);
   });
 
   it("prints structured diagnostics with exit code 1 for unknown applications", async () => {

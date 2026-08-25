@@ -1,0 +1,16 @@
+.application {
+  inline-size: 100%;
+  min-inline-size: 0;
+  block-size: 100dvh;
+  min-block-size: 0;
+  color: var(--silly-color-text);
+  background: var(--silly-color-canvas);
+}
+
+.surface {
+  inline-size: 100%;
+  min-inline-size: 0;
+  block-size: 100%;
+  min-block-size: 0;
+  overflow: auto;
+}

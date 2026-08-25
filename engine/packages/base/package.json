@@ -6,18 +6,24 @@
   "license": "MIT",
   "exports": {
     ".": "./src/index.ts",
+    "./application-bootstrap": "./src/contracts/application-bootstrap.ts",
     "./authoring": "./src/authoring/index.ts",
     "./authoring/runtime-schema": "./src/authoring/runtime-schema.ts",
     "./authoring/scene": "./src/authoring/scene.ts",
     "./authoring/save-state-migration": "./src/authoring/save-state-migration.ts",
     "./runtime": "./src/runtime/index.ts",
     "./runtime/internal": "./src/runtime/internal.ts",
+    "./gui-composition": "./src/contracts/gui-composition.ts",
+    "./host": "./src/contracts/host-public.ts",
     "./story": "./src/story/index.ts",
     "./story/scene": "./src/story/scene.ts",
     "./testkit": "./src/testkit/index.ts",
     "./testkit/authoritative-determinism": "./src/testkit/authoritative-determinism.ts",
     "./testkit/determinism-vectors": "./src/testkit/determinism-vectors.ts",
-    "./testkit/save-state-migration-determinism": "./src/testkit/save-state-migration-determinism.ts"
+    "./testkit/save-state-migration-determinism": "./src/testkit/save-state-migration-determinism.ts",
+    "./strict-json": "./src/contracts/strict-json-public.ts",
+    "./text-content": "./src/contracts/text-content-public.ts",
+    "./values": "./src/contracts/values.ts"
   },
   "scripts": {
     "test:runtime": "deno run -A npm:vitest run engine/packages/base/src/runtime"

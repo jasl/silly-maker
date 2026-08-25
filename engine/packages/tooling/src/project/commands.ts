@@ -116,12 +116,24 @@ async function loadStoryEntryV1(
   loader: ProjectModuleLoaderV1,
 ): Promise<{
   readonly application: ReturnType<typeof resolveStoryApplicationV1>;
+  readonly storyEntry: NonNullable<ReturnType<typeof resolveStoryApplicationV1>["storyEntry"]>;
   readonly entry: LoadedGamePackageV1;
 }> {
   const application = resolveStoryApplicationV1(project, applicationId);
   const pointer = `/applications/${application.applicationId}/storyEntry`;
+  if (application.storyEntry === null) {
+    commandErrorV1(
+      "project.story_unconfigured",
+      `application "${applicationId}" does not declare a Story entry`,
+      pointer,
+    );
+  }
   const value = await loadExportV1(loader, application.storyEntry, pointer);
-  return { application, entry: requireGamePackageV1(value, pointer) };
+  return {
+    application,
+    storyEntry: application.storyEntry,
+    entry: requireGamePackageV1(value, pointer),
+  };
 }
 
 export interface StoryInspectReportV1 {
@@ -206,7 +218,11 @@ export async function checkStoryApplicationV1(
     readonly repositoryRoot?: string;
   } = {},
 ): Promise<StoryCheckReportV1> {
-  const { application, entry } = await loadStoryEntryV1(project, applicationId, loader);
+  const { application, storyEntry, entry } = await loadStoryEntryV1(
+    project,
+    applicationId,
+    loader,
+  );
   const result = collectGamePackageDiagnosticsV1(entry);
   const packageDiagnostics = result.kind === "valid" ? [] : [...result.diagnostics];
 
@@ -214,7 +230,7 @@ export async function checkStoryApplicationV1(
   // entry; lint them whenever the caller can tell us where the tree lives.
   const sourceRoot = options.repositoryRoot === undefined
     ? null
-    : resolve(options.repositoryRoot, dirname(application.storyEntry.module));
+    : resolve(options.repositoryRoot, dirname(storyEntry.module));
   const sourceDiagnostics = sourceRoot === null ? [] : [
     ...collectChromeLayoutSourceDiagnosticsV1(sourceRoot),
     ...collectMotionSourceDiagnosticsV1(sourceRoot),
@@ -330,6 +346,13 @@ export async function simulateStoryApplicationV1(
   options: StorySimulateOptionsV1 = {},
 ): Promise<StorySimulateReportV1> {
   const application = resolveStoryApplicationV1(project, applicationId);
+  if (application.storyEntry === null) {
+    commandErrorV1(
+      "project.story_unconfigured",
+      `application "${applicationId}" does not declare a Story entry`,
+      `/applications/${applicationId}/storyEntry`,
+    );
+  }
   if (application.simulate === null) {
     commandErrorV1(
       "project.simulation_unconfigured",

@@ -6,6 +6,7 @@
   "license": "MIT",
   "exports": {
     ".": "./src/index.ts",
+    "./gui-application": "./src/application/start-web-gui-application.tsx",
     "./reference": "./src/reference/index.ts",
     "./internal/application-build-identity": "./src/application/application-build-identity.ts",
     "./internal/application-hmr": "./src/application/application-hmr-internal.ts",

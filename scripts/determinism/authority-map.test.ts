@@ -5,7 +5,6 @@ import { join, resolve } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { sillyMakerConfigV1 } from "../../project.config.ts";
 import {
   migrateLabStateRevision3To4V1,
   migrateLabStateRevision4To5V1,
@@ -486,7 +485,7 @@ describe("authoritative determinism authority map", () => {
     ).rejects.toThrow(/does not match configured saveStateMigrations/u);
   }, liveRepositoryIntegrationTimeoutV1);
 
-  it("maps every registered callback owner without absorbing Host or Presentation", async () => {
+  it("maps every Story callback owner and ignores GUI-only applications", async () => {
     const map = await collectDeterminismAuthorityMapV1({
       repositoryRoot: repositoryRootV1,
       additionalAuthorities: Object.freeze([
@@ -497,10 +496,10 @@ describe("authoritative determinism authority map", () => {
       ]),
     });
 
-    expect(map.applications).toHaveLength(sillyMakerConfigV1.appDirectories.length);
-    expect(map.applications.map(({ directory }) => directory)).toEqual(
-      sillyMakerConfigV1.appDirectories,
+    expect(map.applications.map(({ applicationId }) => applicationId)).toEqual(
+      determinismAuthorityPolicyV1.applications.map(({ applicationId }) => applicationId),
     );
+    expect(map.applications.map(({ directory }) => directory)).not.toContain("examples/cards");
     const policyByApplicationId = new Map(
       determinismAuthorityPolicyV1.applications.map(
         (policy) => [policy.applicationId, policy] as const,
@@ -717,7 +716,7 @@ describe("authoritative determinism authority map", () => {
     );
 
     expect(map.diagnostics).toMatchObject({
-      applicationCount: sillyMakerConfigV1.appDirectories.length,
+      applicationCount: determinismAuthorityPolicyV1.applications.length,
       saveProjectorCount: 0,
       saveStateMigrationCount: 1,
       saveStateMigrationCallbackCount: 3,

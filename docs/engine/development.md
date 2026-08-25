@@ -15,8 +15,13 @@ machine attestation, or pre-materialized browser cache.
 
 ```sh
 deno install
-deno task dev
+cd template
+deno run dev
 ```
+
+The repository root deliberately has no default application. Start an
+application from its own directory, or use `deno task app dev <application-id>`
+when a repository-level command must select one explicitly.
 
 Pull requests targeting `main` and pushes to `main` run one quality job followed
 by two independent browser jobs. `CI quality (Deno latest stable)` reports the
@@ -35,7 +40,7 @@ The workspace is ESM, imports TypeScript sources with explicit `.ts`/`.tsx` exte
 
 The root `deno.json` pins `"nodeModulesDir": "manual"`: only `deno install` writes `node_modules`. Auto mode re-materialized the workspace symlinks on every `deno run` startup — including every vitest fork worker — which raced any concurrently running test that resolves through those links (observed as transient `ERR_MODULE_NOT_FOUND` in the determinism authority-map under full-suite load). Re-run `deno install` after dependency changes.
 
-Dependency reference rule: engine and Story sources (everything Vite builds or vitest transforms) declare dependencies in `package.json` and import them as bare specifiers — Vite does not resolve `npm:` URLs (`ERR_UNSUPPORTED_ESM_URL_SCHEME`). `npm:` inline specifiers are valid only in Deno-executed code: `scripts/**`, the story CLI, and `deno.json` tasks. Normal installation may use the network. If a browser test reports a missing Playwright browser, install the requested browser with the Playwright CLI for the current lockfile.
+Dependency reference rule: engine and Story sources (everything Vite builds or vitest transforms) declare dependencies in `package.json` and import them as bare specifiers — Vite does not resolve `npm:` URLs (`ERR_UNSUPPORTED_ESM_URL_SCHEME`). `npm:` inline specifiers are valid only in Deno-executed code: `scripts/**`, the application CLI, and `deno.json` tasks. Normal installation may use the network. If a browser test reports a missing Playwright browser, install the requested browser with the Playwright CLI for the current lockfile.
 
 ## Repository layout
 
@@ -614,7 +619,7 @@ deno run -A npm:vitest run e2e/src/test/application-startup.test.tsx
 deno run -A npm:vitest run engine/packages/web/src/application/application-startup-diagnostics.test.ts
 deno run -A npm:vitest run engine/packages/tooling/src/vite/application-entry-bootstrap.test.ts
 deno run -A npm:vitest run engine/packages/tooling/src/vite/inspector.test.ts
-deno task story build template --profile release
+deno task app build template --profile release
 ```
 
 Focused AR1 activation and placement checks are:
@@ -635,7 +640,7 @@ Focused AR3 Host, R1, R2, release-graph, and browser checks are:
 deno run -A npm:vitest run engine/packages/studio/src/react-publication.test.tsx engine/packages/studio/src/inspector engine/packages/studio/src/core/authoring-scene-io.test.ts
 deno run -A npm:vitest run e2e/src/test/authoring-host-lifetime.test.tsx e2e/src/test/application-hmr.test.tsx e2e/src/test/build-identity-owner.test.ts e2e/src/test/inspector-binding.test.ts
 deno run -A npm:vitest run engine/packages/tooling/src/vite/inspector.test.ts engine/packages/tooling/src/vite/authoring-scene-port.test.ts engine/packages/tooling/src/vite/build-dependency-receipt.test.ts
-deno task story build e2e --profile release
+deno task app build e2e --profile release
 deno run -A npm:@playwright/test/playwright test --config engine/packages/web/playwright.engine.config.ts engine/packages/web/e2e/engine/embedded-authoring.spec.ts engine/packages/web/e2e/engine/inspector.spec.ts --project=chromium --project=webkit
 ```
 
@@ -661,36 +666,35 @@ deno task typecheck
 
 ## Daily commands
 
-| Command                                          | Use                                                                                                                                                        |
-| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `deno task dev`                                  | Start the Vite development server (pick an app with `--mode`; inside an app directory it serves that app).                                                 |
-| `deno task check`                                | Canonical local code-quality and product-behavior check.                                                                                                   |
-| `deno task audit:react`                          | Run the advisory React Doctor scan for new findings introduced by one React/TSX slice; pass `--base <slice-start-ref>` when it has commits.                |
-| `deno task test`                                 | Run engine and game behavior tests.                                                                                                                        |
-| `deno task test:coverage`                        | Run unit tests with engine line-coverage reporting.                                                                                                        |
-| `deno task test:composition-state-bench`         | Run the deterministic Composition/State workload, report-schema, and fake-GC behavior tests without recording timing.                                      |
-| `deno task check:determinism`                    | Recollect and statically check the exact authoritative import closure (also part of `check`).                                                              |
-| `deno task test:determinism:deno`                | Run two Deno repeats of the guarded authoritative matrix.                                                                                                  |
-| `deno task test:determinism:browsers`            | Run the dedicated matrix twice in each locked Chromium, Firefox, and WebKit installation.                                                                  |
-| `deno task test:determinism`                     | Aggregate the Deno and three-browser determinism gates; requires all browser binaries to be installed.                                                     |
-| `deno task bench:snapshot`                       | Write a neutral Snapshot hot-path baseline JSON to a temporary path.                                                                                       |
-| `deno task bench:snapshot:memory`                | Sample retained memory for one long-lived neutral Snapshot Session.                                                                                        |
-| `deno task bench:composition-state`              | Run the neutral 16-module exact-Save/touched-owner matrix and write a trend-only temporary JSON report.                                                    |
-| `deno task bench:composition-state:memory`       | Sample one explicitly selected neutral Composition/State GC cell in an isolated process.                                                                   |
-| `deno task bench:surfaces`                       | Record the 30-row Stable publication lifecycle matrix as a trend-only temporary JSON report.                                                               |
-| `deno task bench:player`                         | Build Engine Lab, then record three Chromium interaction/heap/allocation trend samples in the OS temp directory.                                           |
-| `deno task bench:player:bundle`                  | Fresh-build a release Player; report final graph, contribution IDs, grouped bytes, and Template negative facets to OS temp.                                |
-| `deno task test:e2e:engine`                      | Engine browser suite against the Engine Lab Story.                                                                                                         |
-| `deno task test:e2e`                             | Run the engine and example browser suites.                                                                                                                 |
-| `deno task build:web` (in an app directory)      | Canonical web build → `<app>/dist-web` (`build` is its alias; `preview` serves it over HTTP).                                                              |
-| `deno task build:desktop` (where declared)       | Usable Desktop preview package(s) → `<app>/dist-desktop`; no platform has passed D4 production promotion, and the file store remains a durability preview. |
-| `deno task story <verb> <app>`                   | Story diagnostics and workspace aggregation CLI (JSON reports); verbs below.                                                                               |
-| `deno task check:stories`                        | Structured Story diagnostics for every application (part of `check`).                                                                                      |
-| `deno task story simulate <app> --trace <paths>` | Headless play with per-step numeric trajectories (balance tuning).                                                                                         |
-| `deno task story diff <a.json> <b.json>`         | Structured diff of two JSON files (exported saves, simulate reports).                                                                                      |
-| `deno task simulate:e2e`                         | Scripted Engine Lab run through the Agent port.                                                                                                            |
-| `deno task test:conformance:headless`            | Engine Lab headless conformance suite.                                                                                                                     |
-| `deno task test:e2e:engine:prebuilt`             | Build the Engine Lab and run the engine suite on the built Player.                                                                                         |
+| Command                                        | Use                                                                                                                                                        |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `deno run dev` (in an application directory)   | Start that application's Vite development server; the repository root has no implicit application.                                                         |
+| `deno task check`                              | Canonical local code-quality and product-behavior check.                                                                                                   |
+| `deno task audit:react`                        | Run the advisory React Doctor scan for new findings introduced by one React/TSX slice; pass `--base <slice-start-ref>` when it has commits.                |
+| `deno task test`                               | Run engine and game behavior tests.                                                                                                                        |
+| `deno task test:coverage`                      | Run unit tests with engine line-coverage reporting.                                                                                                        |
+| `deno task test:composition-state-bench`       | Run the deterministic Composition/State workload, report-schema, and fake-GC behavior tests without recording timing.                                      |
+| `deno task check:determinism`                  | Recollect and statically check the exact authoritative import closure (also part of `check`).                                                              |
+| `deno task test:determinism:deno`              | Run two Deno repeats of the guarded authoritative matrix.                                                                                                  |
+| `deno task test:determinism:browsers`          | Run the dedicated matrix twice in each locked Chromium, Firefox, and WebKit installation.                                                                  |
+| `deno task test:determinism`                   | Aggregate the Deno and three-browser determinism gates; requires all browser binaries to be installed.                                                     |
+| `deno task bench:snapshot`                     | Write a neutral Snapshot hot-path baseline JSON to a temporary path.                                                                                       |
+| `deno task bench:snapshot:memory`              | Sample retained memory for one long-lived neutral Snapshot Session.                                                                                        |
+| `deno task bench:composition-state`            | Run the neutral 16-module exact-Save/touched-owner matrix and write a trend-only temporary JSON report.                                                    |
+| `deno task bench:composition-state:memory`     | Sample one explicitly selected neutral Composition/State GC cell in an isolated process.                                                                   |
+| `deno task bench:surfaces`                     | Record the 30-row Stable publication lifecycle matrix as a trend-only temporary JSON report.                                                               |
+| `deno task bench:player`                       | Build Engine Lab, then record three Chromium interaction/heap/allocation trend samples in the OS temp directory.                                           |
+| `deno task bench:player:bundle`                | Fresh-build a release Player; report final graph, contribution IDs, grouped bytes, and Template negative facets to OS temp.                                |
+| `deno task test:e2e:engine`                    | Engine browser suite against the Engine Lab Story.                                                                                                         |
+| `deno task test:e2e`                           | Run the engine and example browser suites.                                                                                                                 |
+| `deno task build:web` (in an app directory)    | Canonical web build → `<app>/dist-web` (`build` is its alias; `preview` serves it over HTTP).                                                              |
+| `deno task build:desktop` (where declared)     | Usable Desktop preview package(s) → `<app>/dist-desktop`; no platform has passed D4 production promotion, and the file store remains a durability preview. |
+| `deno task app <verb> <app>`                   | Explicit repository application lifecycle, Story diagnostics, and aggregation CLI; verbs below.                                                            |
+| `deno task app check --all`                    | Structured Story diagnostics for every Story-capable application (part of `check`).                                                                        |
+| `deno task app simulate <app> --trace <paths>` | Headless play with per-step numeric trajectories (balance tuning).                                                                                         |
+| `deno task app diff <a.json> <b.json>`         | Structured diff of two JSON files (exported saves, simulate reports).                                                                                      |
+| `deno task test:conformance:headless`          | Engine Lab headless conformance suite.                                                                                                                     |
+| `deno task test:e2e:engine:prebuilt`           | Build the Engine Lab and run the engine suite on the built Player.                                                                                         |
 
 Run `audit:react` after implementing and behavior-testing a slice that changes
 React/TSX, before its final handoff. The task declares React Doctor `^0.9.12`,
@@ -713,7 +717,7 @@ part of canonical `deno task check`, and docs-only or non-React slices do not
 run it. Refresh the full baseline whenever the resolved React Doctor version
 changes or an explicit baseline refresh is requested.
 
-Every application is a self-contained project: `<app>/sillymaker.config.ts` declares it (paths app-root-relative), `<app>/vite.config.ts` calls the shared `@sillymaker/tooling/vite` assembly, and the root `project.config.ts` only lists the registered directories for repository-level aggregation. Builds are application tasks; the story CLI is the diagnostics and aggregation surface (it also runs app-locally through `<app>/tools/story.mts`, where `.` selects the app):
+Every application is a self-contained project: `<app>/sillymaker.config.ts` declares it (paths app-root-relative), `<app>/vite.config.ts` calls the shared `@sillymaker/tooling/vite` assembly, and the root `project.config.ts` only lists the registered directories for repository-level aggregation. Builds are application tasks; the application CLI is the diagnostics and aggregation surface (it also runs app-locally through `<app>/tools/app.mts`, where `.` selects the app):
 
 ```text
 # Inside an application directory — canonical build entries:
@@ -723,19 +727,31 @@ deno task build:desktop [--target <triple>]...         # where declared: desktop
 deno task preview                                      # serve dist-web/ over HTTP
 deno task clean                                        # remove dist-web/ and dist-desktop/
 
-# Story diagnostics (app-local `deno task story <verb> .`, or root `deno task story <verb> <app>`):
-deno task story inspect <app>                          # resolved identity/program report (JSON)
-deno task story check <app> | --all                    # structured Story diagnostics (JSON)
-deno task story simulate <app> [--scenario s] [--seed n]  # scripted Agent-port run
-deno task story dev <app> --smoke                      # boot the dev server and prove the page
-deno task story prebuilt-smoke <app>                   # verify the built Player's referenced files
+# Application-local Story diagnostics (`.` means this application):
+deno task app inspect .                               # resolved identity/program report (JSON)
+deno task app check .                                 # structured Story diagnostics (JSON)
+deno task app simulate . [--scenario s] [--seed n]  # scripted Agent-port run
+
+# Repository aggregation and explicit application selection:
+deno task app dev <app>                               # Vite dev server for the selected application
+deno task app dev <app> --smoke                       # boot, prove the page, then stop
+deno task app check --all                             # check every Story-capable application
+deno task app prebuilt-smoke <app>                    # verify the built Player's referenced files
 ```
 
-The `story build`/`story desktop` verbs remain as the plumbing behind the build tasks and for repository-level aggregation (CI builds a registered app from the root); new documentation and automation should use the application's `build:*` tasks. `simulate` plays a named scenario from the application's simulation target (for example `deno task story simulate e2e --scenario opening --seed 23049`) through the same player-safe Agent port real agents use. Story applications (story entry, asset verification, simulation target, web dev/build target) are declared in each application's own `sillymaker.config.ts`; see [build-and-release](build-and-release.md).
+The `app build`/`app desktop` verbs are the plumbing behind application build
+tasks and repository-level aggregation (CI builds a registered application from
+the root); ordinary development should use the application's `build:*` tasks.
+`simulate` plays a named scenario from the application's simulation target (for
+example `deno task app simulate e2e --scenario opening --seed 23049`) through
+the same player-safe Agent port real agents use. Story-capable applications
+(Story entry, asset verification, simulation target, and web dev/build target)
+declare those facets in their own `sillymaker.config.ts`; see
+[build-and-release](build-and-release.md).
 
 ### Local and external application projects
 
-Private studies, outside-checkout validation applications, and other external checkouts do not register into the repository at all: they are ordinary application projects. Copy `template/`, keep `sillymaker.config.ts` + `vite.config.ts` + `tools/story.mts`, and point `package.json` dependencies at the engine packages by relative `file:` path (with `"nodeModulesDir": "manual"` in the project's `deno.json`, required for `file:` npm dependencies). `deno install` inside the project directory materializes the engine link; `deno task dev`, the declared `build:*` tasks, `deno task test`, and the app-local story CLI then run without any root-registry edit or engine `src/**` alias.
+Private studies, outside-checkout validation applications, and other external checkouts do not register into the repository at all: they are ordinary application projects. Copy `template/`, keep `sillymaker.config.ts` + `vite.config.ts` + `tools/app.mts`, and point `package.json` dependencies at the engine packages by relative `file:` path (with `"nodeModulesDir": "manual"` in the project's `deno.json`, required for `file:` npm dependencies). `deno install` inside the project directory materializes the engine link; `deno task dev`, the declared `build:*` tasks, `deno task test`, and the app-local application CLI then run without any root-registry edit or engine `src/**` alias.
 
 An external application may provide anonymous product feedback and help
 prioritize engine work. Promotion evidence must still be reproduced by neutral,
@@ -808,6 +824,15 @@ Advance one reference product at a time through this loop:
 6. After an engine correction, migrate the reference product off its workaround
    and re-run its product evidence. Close it only after confirming that it uses
    the recommended path and still forms a coherent product.
+
+Every new reference product starts from the current tracked `template/` project
+shape, then deletes irrelevant starter domains instead of preserving a fake
+Game/Story skeleton. At closure, classify Starter feedback explicitly: proven
+general defaults, directory shape, documentation, and engineering ergonomics go
+back to `template/`; product data, visual policy, and one-off integration remain
+with the product. This is a one-time review, not continuous synchronization,
+template migration, or a reason to build a scaffold CLI before repeated manual
+copy/rename failures justify one.
 
 This review produces evidence and candidate work, not an automatic engine
 backlog. A later reference product is selected explicitly after the current one
@@ -1512,6 +1537,12 @@ Pre-release workspace API and source-shape compatibility are not product goals.
 Only an explicitly accepted external or persisted contract, such as a Save or
 wire format, can justify a compatibility path; an old export, internal consumer,
 test, or historical implementation does not create that promise.
+
+Authoring files likewise use the current admitted format during pre-release.
+When that format changes, update maintained source, reader, tests, and live docs
+together and remove the old path. Do not add a migration registry, dual parser,
+or per-view revision axis until a concrete released/persisted source population
+has an accepted compatibility requirement.
 
 Cleanup does not remove an accepted independent-engine capability merely because
 the current repository has no consumer. Confirm its accepted contract,

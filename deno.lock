@@ -3828,6 +3828,20 @@
           ]
         }
       },
+      "examples/cards": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/node@26.2.0",
+            "npm:@types/react@19.2.18",
+            "npm:react-dom@19.2.8",
+            "npm:react@19.2.8",
+            "npm:vite@8.2.1",
+            "npm:vitest@4.1.10",
+            "npm:wrangler@4.123.0",
+            "npm:zod@4.4.3"
+          ]
+        }
+      },
       "examples/cat-cafe": {
         "packageJson": {
           "dependencies": [

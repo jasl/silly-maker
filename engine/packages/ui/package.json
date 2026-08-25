@@ -15,12 +15,15 @@
       "default": "./src/debug/dev-source-client-unavailable.ts"
     },
     "./diagnostics": "./src/diagnostics/index.ts",
+    "./input": "./src/input/index.ts",
     "./internal": "./src/internal.ts",
+    "./native-behavior": "./src/shell/native-behavior-reset.ts",
     "./reference": "./src/reference/index.ts",
     "./reference/dev-dock": "./src/reference/dev-dock-entry.ts",
     "./reference/internal": "./src/reference/internal.ts",
     "./reference/settings": "./src/reference/settings-entry.ts",
-    "./styles.css": "./src/theme/global.css"
+    "./styles.css": "./src/theme/global.css",
+    "./viewport": "./src/viewport/index.ts"
   },
   "scripts": {
     "test": "deno run -A npm:vitest run engine/packages/ui/src"

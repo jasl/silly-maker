@@ -143,11 +143,12 @@ async function measureAuthoringBuildGraphV1(input: {
 }
 
 async function measurePlayerEntryBuildGraphV1(input: {
-  readonly appDirectory: "template";
+  readonly appDirectory: "template" | "examples/cards";
   readonly entry: string;
 }): Promise<BuildDependencyReceiptInternalV1> {
+  const applicationSlug = input.appDirectory.replaceAll("/", "-");
   const directory = await mkdtemp(
-    join(tmpdir(), `sillymaker-${input.appDirectory}-player-entry-build-graph-`),
+    join(tmpdir(), `sillymaker-${applicationSlug}-player-entry-build-graph-`),
   );
   const receiptPath = join(directory, "receipt.json");
   const previous = process.env[buildDependencyMeasurementEnvironmentKeyInternalV1];
@@ -580,6 +581,44 @@ describe("build dependency receipt", () => {
     ).toBe(false);
     expect(facets.agentImplementation).toEqual([]);
     expect(facets.rpcImplementation).toEqual([]);
+  });
+
+  it("keeps the GUI-only Cards release graph on focused neutral entries", async () => {
+    const receipt = await measurePlayerEntryBuildGraphV1({
+      appDirectory: "examples/cards",
+      entry: "index.html",
+    });
+    expect(receipt.applicationId).toBe("example-cards");
+    const moduleIds = receiptModuleIdsV1(receipt);
+    expect(classifyStaticGameDependencyFacetsInternalV1(moduleIds)).toEqual({
+      authoringImplementation: [],
+      inspectorAuthoringImplementation: [],
+      devSourceImplementation: [],
+      devDockImplementation: [],
+      presetSettingsImplementation: [],
+      dynamicExtensionImplementation: [],
+      agentImplementation: [],
+      rpcImplementation: [],
+    });
+
+    const excludedImplementationPrefixes = [
+      "engine/packages/agent/",
+      "engine/packages/composition/",
+      "engine/packages/studio/",
+      "engine/packages/base/src/runtime/",
+      "engine/packages/ui/src/composer/",
+      "engine/packages/ui/src/managed-surfaces/",
+      "engine/packages/ui/src/narrative/",
+      "engine/packages/ui/src/persistence/",
+    ];
+    expect(
+      moduleIds.filter((moduleId) =>
+        excludedImplementationPrefixes.some((prefix) => moduleId.startsWith(prefix))
+      ),
+    ).toEqual([]);
+    expect(moduleIds).not.toContain("engine/packages/base/src/index.ts");
+    expect(moduleIds).not.toContain("engine/packages/ui/src/index.ts");
+    expect(moduleIds).not.toContain("engine/packages/web/src/index.ts");
   });
 
   it("keeps the complete Template Author graph free of unselected Agent implementation", async () => {

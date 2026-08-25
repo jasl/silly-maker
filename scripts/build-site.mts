@@ -47,9 +47,10 @@ async function runV1(command: string[], env?: Record<string, string>): Promise<v
 
 console.log(`[site] base: ${siteBase}`);
 
-// 1. Player bundles (story build already runs vite with the target's config).
-await runV1(["deno", "task", "story", "build", "example-cat-cafe"]);
-await runV1(["deno", "task", "story", "build", "example-silly-os"]);
+// 1. Player bundles (app build runs Vite with each target's own config).
+await runV1(["deno", "task", "app", "build", "example-cards"]);
+await runV1(["deno", "task", "app", "build", "example-cat-cafe"]);
+await runV1(["deno", "task", "app", "build", "example-silly-os"]);
 
 // 2. Documentation site with the deployment base.
 await runV1(["deno", "task", "docs:build"], { SITE_BASE: siteBase });

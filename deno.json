@@ -12,6 +12,7 @@
     "./e2e",
     "./template",
     "./examples/bookshop",
+    "./examples/cards",
     "./examples/cat-cafe",
     "./examples/silly-os",
     "./website"

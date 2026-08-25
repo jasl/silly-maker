@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-import { parseNonNegativeSafeInteger } from "@sillymaker/base";
+import { parseNonNegativeSafeInteger } from "@sillymaker/base/values";
 import type {
   HostAtomicRecordStoreV1,
   HostRecordMutationV1,
   HostStoredRecordV1,
-} from "@sillymaker/base";
+} from "@sillymaker/base/host";
 
 type HostAtomicCommitResultV1 = Awaited<ReturnType<HostAtomicRecordStoreV1["commit"]>>;
 type HostRecordKeyV1 = HostStoredRecordV1["key"];

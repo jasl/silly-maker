@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
 import {
   admitApplicationBootstrapConfigV1,
-  parseStrictJson,
-  parseStrictJsonLimitsV1,
   type ApplicationBootstrapConfigV1,
   type ApplicationBootstrapEntryV1,
-  type DeepReadonly,
-} from "@sillymaker/base";
+} from "@sillymaker/base/application-bootstrap";
+import { parseStrictJson, parseStrictJsonLimitsV1 } from "@sillymaker/base/strict-json";
+import type { DeepReadonly } from "@sillymaker/base/values";
 
 const applicationBootstrapElementIdV1 = "sillymaker-application-bootstrap";
 const applicationBootstrapDataAttributeV1 = "data-sillymaker-bootstrap-config";

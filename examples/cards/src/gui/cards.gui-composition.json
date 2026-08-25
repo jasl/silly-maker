@@ -1,0 +1,58 @@
+{
+  "format": "sillymaker.gui-composition",
+  "version": 1,
+  "compositionId": "gui.cards.main",
+  "root": {
+    "nodeId": "node.cards.screen",
+    "viewId": "view.cards.screen.v1",
+    "props": {
+      "eyebrow": "SILLYMAKER SHOWCASE",
+      "title": "Feature Cards",
+      "moduleCountLabel": "3 MODULES",
+      "helpText": "ARROW KEYS move focus · ENTER / SPACE / Z toggle details · GAMEPAD supported"
+    },
+    "slots": {
+      "cards": [
+        {
+          "nodeId": "node.cards.layout",
+          "viewId": "view.cards.feature-card.v1",
+          "props": {
+            "cardId": "layout",
+            "order": 0,
+            "title": "Layout",
+            "caption": "Responsive CSS canvas",
+            "detail": "Rows, columns, gaps, insets, and container-aware reflow stay crisp from phone portrait to desktop.",
+            "accent": "blue"
+          },
+          "slots": {}
+        },
+        {
+          "nodeId": "node.cards.motion",
+          "viewId": "view.cards.feature-card.v1",
+          "props": {
+            "cardId": "motion",
+            "order": 1,
+            "title": "Motion",
+            "caption": "Springs and one-shot drift",
+            "detail": "Focus transitions, damped detail motion, and long ambient tweens remain smooth and honor reduced motion.",
+            "accent": "emerald"
+          },
+          "slots": {}
+        },
+        {
+          "nodeId": "node.cards.input",
+          "viewId": "view.cards.feature-card.v1",
+          "props": {
+            "cardId": "input",
+            "order": 2,
+            "title": "Input",
+            "caption": "Pointer, touch, keys, gamepad",
+            "detail": "Native semantic controls and the SillyMaker Input Router share one focus and activation owner.",
+            "accent": "amber"
+          },
+          "slots": {}
+        }
+      ]
+    }
+  }
+}

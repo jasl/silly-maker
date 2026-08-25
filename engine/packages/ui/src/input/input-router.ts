@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { DeepReadonly } from "@sillymaker/base";
+import type { DeepReadonly } from "@sillymaker/base/values";
 import {
   inputIgnoredV1,
   type InputContextIdV1,

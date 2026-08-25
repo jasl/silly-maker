@@ -378,14 +378,25 @@ export function defineSillymakerProjectV1(
       );
     }
     seen.add(application.applicationId);
+    const storyEntry = application.storyEntry === null
+      ? null
+      : admitModuleRefV1(application.storyEntry, `${pointer}/storyEntry`);
+    const assetVerification = requireBooleanV1(
+      application.assetVerification,
+      `${pointer}/assetVerification`,
+    );
+    if (storyEntry === null && assetVerification) {
+      configErrorV1(
+        "project.asset_verification_story_required",
+        "asset verification requires a Story entry",
+        `${pointer}/assetVerification`,
+      );
+    }
     return {
       applicationId: application.applicationId,
       label: requireNonEmptyStringV1(application.label, `${pointer}/label`),
-      storyEntry: admitModuleRefV1(application.storyEntry, `${pointer}/storyEntry`),
-      assetVerification: requireBooleanV1(
-        application.assetVerification,
-        `${pointer}/assetVerification`,
-      ),
+      storyEntry,
+      assetVerification,
       simulate: application.simulate === null
         ? null
         : admitModuleRefV1(application.simulate, `${pointer}/simulate`),
@@ -403,7 +414,9 @@ export function defineSillymakerProjectV1(
 }
 
 export function listStoryApplicationIdsV1(project: SillymakerProjectConfigV1): readonly string[] {
-  return project.applications.map((application) => application.applicationId);
+  return project.applications
+    .filter((application) => application.storyEntry !== null)
+    .map((application) => application.applicationId);
 }
 
 export function resolveStoryApplicationV1(
@@ -417,9 +430,7 @@ export function resolveStoryApplicationV1(
     configErrorV1(
       "project.application_unknown",
       `unknown application "${applicationId}"; known applications: ${
-        listStoryApplicationIdsV1(
-          project,
-        ).join(", ")
+        project.applications.map((candidate) => candidate.applicationId).join(", ")
       }`,
       "/applications",
     );
@@ -460,15 +471,31 @@ export function joinAppPathV1(appDirectory: string, appRelativePath: string): st
  * normalizes it. Paths stay app-root-relative here; `deriveStoryApplicationV1`
  * anchors them under a directory for workspace-level commands.
  */
-export function defineSillymakerAppV1(config: SillymakerAppConfigV1): SillymakerAppConfigV1 {
+export function defineSillymakerAppV1(
+  config: SillymakerAppConfigV1,
+) {
   const pointer = "/app";
   requireIdentifierV1(config.applicationId, "application ID", `${pointer}/applicationId`);
   const web = config.web ?? null;
+  const storyEntry = config.storyEntry === undefined || config.storyEntry === null
+    ? null
+    : admitModuleRefV1(config.storyEntry, `${pointer}/storyEntry`);
+  const assetVerification = requireBooleanV1(
+    config.assetVerification,
+    `${pointer}/assetVerification`,
+  );
+  if (storyEntry === null && assetVerification) {
+    configErrorV1(
+      "project.asset_verification_story_required",
+      "asset verification requires a Story entry",
+      `${pointer}/assetVerification`,
+    );
+  }
   return {
     applicationId: config.applicationId,
     label: requireNonEmptyStringV1(config.label, `${pointer}/label`),
-    storyEntry: admitModuleRefV1(config.storyEntry, `${pointer}/storyEntry`),
-    assetVerification: requireBooleanV1(config.assetVerification, `${pointer}/assetVerification`),
+    storyEntry,
+    assetVerification,
     simulate: config.simulate === undefined || config.simulate === null
       ? null
       : admitModuleRefV1(config.simulate, `${pointer}/simulate`),
@@ -514,6 +541,63 @@ export function defineSillymakerAppV1(config: SillymakerAppConfigV1): Sillymaker
             `${pointer}/web/desktop/icon`,
           ),
         }),
+      },
+    },
+  };
+}
+
+function joinAdmittedAppPathInternalV1(directory: string, relativePath: string): string {
+  return directory === "." ? relativePath : `${directory}/${relativePath}`;
+}
+
+/** @internal Anchors an already admitted app under an already admitted directory. */
+export function anchorAdmittedSillymakerApplicationInternalV1(
+  directory: string,
+  app: ReturnType<typeof defineSillymakerAppV1>,
+): StoryApplicationConfigV1 {
+  const web = app.web;
+  const webIdentity = web?.identity ?? null;
+  return {
+    applicationId: app.applicationId,
+    label: app.label,
+    storyEntry: app.storyEntry === null ? null : {
+      module: joinAdmittedAppPathInternalV1(directory, app.storyEntry.module),
+      exportName: app.storyEntry.exportName,
+    },
+    assetVerification: app.assetVerification,
+    simulate: app.simulate === null ? null : {
+      module: joinAdmittedAppPathInternalV1(directory, app.simulate.module),
+      exportName: app.simulate.exportName,
+    },
+    inspector: app.inspector === null ? null : {
+      module: joinAdmittedAppPathInternalV1(directory, app.inspector.module),
+      exportName: app.inspector.exportName,
+    },
+    sceneSources: app.sceneSources.map((source) =>
+      source.sourceKind === "authoring_scene"
+        ? {
+          ...source,
+          source: joinAdmittedAppPathInternalV1(directory, source.source),
+        }
+        : source
+    ),
+    web: web === null ? null : {
+      storyRoot: directory,
+      applicationHtml: joinAdmittedAppPathInternalV1(directory, web.applicationHtml),
+      applicationEntry: joinAdmittedAppPathInternalV1(directory, web.applicationEntry),
+      outDir: joinAdmittedAppPathInternalV1(directory, web.outDir),
+      base: web.base,
+      sourcemap: web.sourcemap,
+      identity: webIdentity === null ? null : {
+        module: joinAdmittedAppPathInternalV1(directory, webIdentity.module),
+        collectExport: webIdentity.collectExport,
+        createPluginExport: webIdentity.createPluginExport,
+      },
+      desktop: web.desktop === null ? null : {
+        ...web.desktop,
+        ...(web.desktop.icon === undefined
+          ? {}
+          : { icon: joinAdmittedAppPathInternalV1(directory, web.desktop.icon) }),
       },
     },
   };
@@ -568,51 +652,5 @@ export function deriveStoryApplicationV1(
 ): StoryApplicationConfigV1 {
   const directory = requireStoryRootV1(appDirectory, "/appDirectory");
   const app = defineSillymakerAppV1(config);
-  const web = app.web ?? null;
-  const webIdentity = web?.identity ?? null;
-  const sceneSources = app.sceneSources ?? [];
-  return {
-    applicationId: app.applicationId,
-    label: app.label,
-    storyEntry: {
-      module: joinAppPathV1(directory, app.storyEntry.module),
-      exportName: app.storyEntry.exportName,
-    },
-    assetVerification: app.assetVerification,
-    simulate: app.simulate === null || app.simulate === undefined ? null : {
-      module: joinAppPathV1(directory, app.simulate.module),
-      exportName: app.simulate.exportName,
-    },
-    inspector: app.inspector === null || app.inspector === undefined ? null : {
-      module: joinAppPathV1(directory, app.inspector.module),
-      exportName: app.inspector.exportName,
-    },
-    sceneSources: sceneSources.map((source) =>
-      source.sourceKind === "authoring_scene"
-        ? {
-          ...source,
-          source: joinAppPathV1(directory, source.source),
-        }
-        : source
-    ),
-    web: web === null ? null : {
-      storyRoot: directory,
-      applicationHtml: joinAppPathV1(directory, web.applicationHtml),
-      applicationEntry: joinAppPathV1(directory, web.applicationEntry),
-      outDir: joinAppPathV1(directory, web.outDir ?? "dist-web"),
-      base: web.base,
-      sourcemap: web.sourcemap,
-      identity: webIdentity === null ? null : {
-        module: joinAppPathV1(directory, webIdentity.module),
-        collectExport: webIdentity.collectExport,
-        createPluginExport: webIdentity.createPluginExport,
-      },
-      desktop: web.desktop === null || web.desktop === undefined ? null : {
-        ...web.desktop,
-        ...(web.desktop.icon === undefined
-          ? {}
-          : { icon: joinAppPathV1(directory, web.desktop.icon) }),
-      },
-    },
-  };
+  return anchorAdmittedSillymakerApplicationInternalV1(directory, app);
 }

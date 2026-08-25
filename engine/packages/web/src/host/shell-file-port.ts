@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { HostFilePortV1 } from "@sillymaker/base";
+import type { HostFilePortV1 } from "@sillymaker/base/host";
 
 /**
  * File port for pages served by the desktop shell: the embedded webview does

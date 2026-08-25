@@ -29,6 +29,7 @@ export {
   defaultWebAutosavePolicyV1,
   startWebGameApplicationV1,
 } from "./application/start-web-game-application.tsx";
+export { startWebGuiApplicationV1 } from "./application/start-web-gui-application.tsx";
 export type {
   BoundWebGameOuterUiV1,
   StartWebGameApplicationOptionsV1,
@@ -38,6 +39,13 @@ export type {
   WebGameOuterUiV1,
   WebGameUiDefinitionV1,
 } from "./application/start-web-game-application.tsx";
+export type {
+  StartWebGuiApplicationOptionsV1,
+  StartedWebGuiApplicationV1,
+  WebGuiApplicationV1,
+  WebGuiUiDefinitionV1,
+  WebGuiViewportOptionsV1,
+} from "./application/start-web-gui-application.tsx";
 export type {
   WebAddressableRuntimeDefinitionV1,
   WebAddressableRuntimeHostV1,

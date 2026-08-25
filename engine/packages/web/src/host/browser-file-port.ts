@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { HostFilePortV1 } from "@sillymaker/base";
+import type { HostFilePortV1 } from "@sillymaker/base/host";
 
 type HostFileSelectionResultV1 = Awaited<ReturnType<HostFilePortV1["selectOne"]>>;
 

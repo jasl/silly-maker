@@ -21,14 +21,19 @@ import {
   createWebHostV1,
   mountGameApplicationV1,
   parseCapabilityRequestV1,
+  startWebGuiApplicationV1,
 } from "@sillymaker/web";
 import type {
   CapabilityRequestParseResultV1,
   RuntimeCapabilitySessionOverlayV1,
+  WebGuiApplicationV1,
   WebAddressableRuntimeDefinitionV1,
   WebGameApplicationV1,
   WebGameUiDefinitionV1,
 } from "@sillymaker/web";
+
+declare const publicGuiApplicationV1: WebGuiApplicationV1;
+void startWebGuiApplicationV1(publicGuiApplicationV1, { registerPageLifecycle: false });
 
 declare const pointerActionMapV1: PointerActionMapV1;
 type WebInputDeclarationV1 = NonNullable<

@@ -284,8 +284,12 @@ Addressable Runtime / Mods 后继计划也已交付关闭。同日所有者随�
 [Adaptive Viewport & Layout Variants V1](plans/2026-08-25-adaptive-viewport-layout-variants.md)
 作为下一条有界 engine lane，并于同日交付关闭：补齐 accepted GameViewport design 中的单轴扩展画布和
 container-size 声明式 layout variants，并以 Engine Lab 中立验证为后续完整 Reference Product target
-uplift 提供基础。它没有激活 continuous Input、renderer/asset framework 或 Desktop workflow。当前没有
-自动激活的新 engine lane；未写入新接受 plan 的候选不是默认 backlog。已接受但未完成的 Desktop HMR stable
+uplift 提供基础。它没有激活 continuous Input、renderer/asset framework 或 Desktop workflow。所有者随后
+显式选择并于同日完成 [Cards Reference Application](plans/2026-08-25-cards-reference-application.md)：完整
+重实现 PocketJS Cards 0.6.0，以真实 consumer 交付中性 GUI-only Host/config 与 focused final graph，关闭
+产品预算、独立审查和 Starter feedback。它只领取真实 consumer 证明的窄 correction，不激活 source
+migration framework、project symbol graph、Prefab、scaffold CLI 或 Desktop workflow。当前没有自动激活的
+新 engine lane 或 Reference Product；未写入新接受 plan 的候选不是默认 backlog。已接受但未完成的 Desktop HMR stable
 revalidation 与 Desktop production promotion 保持独立、条件性，只 gate 各自的 Desktop claim/
 workflow，不阻塞 core 或其他工作。
 
@@ -488,8 +492,8 @@ Prisma 风格只借鉴可发现、type-safe 的 query ergonomics；runtime 不�
 
 ### Tooling status and Inspector authoring
 
-已交付的基础包括 `story check/inspect`、Narrative graph viewer、通过
-`story simulate` 运行 named scenario（含 `--trace`）与 `story diff`，以及
+已交付的基础包括 `app check/inspect`、Narrative graph viewer、通过
+`app simulate` 运行 named scenario（含 `--trace`）与 `app diff`，以及
 capability-gated debug command 合同和 DevDock 面板。它们不再作为未来 editor
 工作的前置待办。Motion Workbench（原顺序第 2/3 项）与 editor shell（原第 6 项）
 分别由 [Authorable Motion Workbench](plans/2026-08-13-authorable-motion-workbench.md)

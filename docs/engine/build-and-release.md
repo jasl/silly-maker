@@ -4,7 +4,7 @@
 
 ## Application projects
 
-Every application is a self-contained project: its own directory declares itself in `sillymaker.config.ts` (named export `sillymakerAppConfigV1`, all paths app-root-relative), owns a five-line `vite.config.ts` that calls `createSillymakerAppViteConfigV1` from `@sillymaker/tooling/vite`, and depends on the engine through package exports (`workspace:*` inside this repository; relative `file:` paths for an external checkout until the packages are published). Copying `template/` is the supported way to start a new game — the copy builds anywhere.
+Every application is a self-contained project: its own directory declares itself in `sillymaker.config.ts` (named export `sillymakerAppConfigV1`, all paths app-root-relative), owns a five-line `vite.config.ts` that calls `createSillymakerAppViteConfigV1` from `@sillymaker/tooling/vite`, and depends on the engine through package exports (`workspace:*` inside this repository; relative `file:` paths for an external checkout until the packages are published). Copying `template/` is the supported starting point for a new game or GUI application — the copy builds anywhere. A GUI-only product then deletes the Story/Game-specific directories and tasks instead of retaining no-op authority.
 
 Inside an application directory the web lifecycle is local:
 
@@ -13,30 +13,43 @@ deno task dev                              # vite dev server for this applicatio
 deno task build:web                        # static Player under <app>/dist-web (`build` is its alias)
 deno task preview                          # serve dist-web/ over HTTP
 deno task clean                            # remove dist-web/ and dist-desktop/
-deno task story check .                    # structured JSON diagnostics
-deno task story simulate .                 # scripted run through the Agent port
+deno task app check .                      # structured JSON diagnostics
+deno task app simulate .                   # scripted run through the Agent port
 ```
 
 Applications that declare `web.desktop` and a `build:desktop` task can also
 package Desktop previews under `dist-desktop/`. The Engine Lab has no Desktop
-task. (`.` selects "this application"; `story` wraps the app-local
-`tools/story.mts`.)
+task. (`.` selects "this application"; `app` wraps the app-local
+`tools/app.mts`.)
 
 ## Workspace registry (repository-level aggregation)
 
 The root `project.config.ts` is only the list of registered application directories. Repository-level commands aggregate the per-app declarations:
 
 ```sh
-deno task story inspect <application-id>   # resolved Story identity/content summary as JSON
-deno task story check <application-id>     # structured JSON diagnostics (also: --all)
-deno task story simulate <application-id>  # scripted run through the Agent port
-deno task check:stories                    # check --all; part of deno task check
-deno task simulate:e2e                     # Engine Lab conformance simulation
+deno task app inspect <application-id>   # resolved Story identity/content summary as JSON
+deno task app check <application-id>     # structured JSON diagnostics (also: --all)
+deno task app simulate <application-id>  # scripted run through the Agent port
+deno task app check --all                  # all Story-capable apps; part of deno task check
+deno task app simulate e2e                 # explicit Engine Lab conformance simulation
 ```
 
-`simulate` drives the application's declared simulation target exclusively through the player-safe Agent port. An application without a target answers with a structured `project.simulation_unconfigured` diagnostic.
+`simulate` drives a Story application's declared simulation target exclusively through the player-safe Agent port. A Story application without a target answers with a structured `project.simulation_unconfigured` diagnostic.
 
-The root Vite config keeps `vite --mode <application-id>` as a convenience dispatch (Playwright suites and `deno task dev` use it); it resolves the directory and delegates to the same `@sillymaker/tooling/vite` assembly the application's own config uses. `vite build --mode e2e` therefore produces `e2e/dist-web`, identical to building inside `e2e/`.
+A GUI-only project declares `storyEntry: null` explicitly and normally disables
+Story runtime-asset verification. `inspect`, `check`, and `simulate` then answer
+with `project.story_unconfigured` for that selected application; aggregate Story,
+asset, and determinism checks skip it. `dev`, `build`, `prebuilt-smoke`, and a
+declared Desktop preview remain ordinary application lifecycle commands. The
+product starts through `@sillymaker/web/gui-application`; focused Base/UI package
+entries keep Game Session, Save, Story, Inspector, Agent, Mod, and reference UI
+out of its final graph. `examples/cards` is the maintained complete reference for
+this shape.
+
+The root Vite config keeps `vite --mode <application-id>` only as a test
+dispatch for Playwright suites that coordinate several applications. It has no
+default application and is not a human development entry. Ordinary dev/build
+commands run the selected application's own Vite config from its directory.
 
 `deno task test:e2e:engine` runs the engine browser suite against the Engine Lab
 (declared projects cover desktop pointer, WebKit, touch, and a 16:10 tablet,
@@ -46,9 +59,9 @@ engine suite and the example browser suite.
 ## Development server
 
 ```sh
-deno task dev          # repository root: Engine Lab via --mode dispatch
-deno task dev          # inside an application directory: that application
-deno task author <application-id> # repository root: dev server + standalone Inspector URL
+deno run dev                               # inside an application directory
+deno task app dev <application-id>         # explicit repository-root dispatch
+deno task app dev <application-id> --smoke # boot, verify, then stop
 ```
 
 The development server uses the application root and supports normal Vite development behavior. An application that declares `inspector: { module, exportName }` receives the dev-only standalone `/__sillymaker/inspector/` page and lazy embedded launcher; its Authoring Host/source-write graph is never part of the static Player. Development capability switches and HMR are not separate production build flavors; capability checks remain runtime behavior. Runtime Story assets live at `<appRoot>/assets/**` and are addressed app-root-relative (`assets/x.webp`): the dev server serves them at `/assets/**`, builds copy them into `dist-web/assets/**`.
@@ -57,7 +70,7 @@ The development server uses the application root and supports normal Vite develo
 
 ```sh
 deno task build:web              # inside the application directory (canonical)
-deno task story build <app>      # repository root: workspace aggregation (CI)
+deno task app build <app>        # repository root: workspace aggregation (CI)
 ```
 
 This creates a static Player under the application's own `dist-web/` (the plain
@@ -106,9 +119,9 @@ Production output is minified and mangled by default (Vite's built-in minifier
 protection, not real obfuscation. Debug switches:
 
 ```sh
-deno task story build <app> --profile debug   # sourcemap + no minify in one flag
-deno task story build <app> --sourcemap       # emit .map files next to the chunks
-deno task story build <app> --no-minify       # readable output for debugging
+deno task app build <app> --profile debug   # sourcemap + no minify in one flag
+deno task app build <app> --sourcemap       # emit .map files next to the chunks
+deno task app build <app> --no-minify       # readable output for debugging
 ```
 
 `--profile release` selects the minified, no-sourcemaps preset;
@@ -169,12 +182,12 @@ paths, generated identity, asset loading, persistence bootstrap, or bundle
 composition:
 
 ```sh
-deno task story build e2e            # build e2e/dist-web through the project CLI
-deno task story prebuilt-smoke e2e   # file-level Player verification (no browser)
+deno task app build e2e            # build e2e/dist-web through the project CLI
+deno task app prebuilt-smoke e2e   # file-level Player verification (no browser)
 deno task test:e2e:engine:prebuilt   # the full engine browser suite on dist-web/
 ```
 
-`deno task story dev <app> --smoke` proves the dev server still boots and serves the application page after configuration or dependency changes.
+`deno task app dev <app> --smoke` proves the dev server still boots and serves the application page after configuration or dependency changes.
 
 For ordinary browser work against source, use:
 
@@ -246,7 +259,7 @@ deno task build:desktop                                  # in the app directory:
 deno task build:desktop --target x86_64-pc-windows-msvc  # cross-compiled package
 deno task build:desktop --target aarch64-apple-darwin --target x86_64-unknown-linux-gnu
 deno task build:desktop --compress=zstd --profile debug
-deno task story desktop <app>                            # repository root: same verb via aggregation
+deno task app desktop <app>                            # repository root: same verb via aggregation
 ```
 
 Applications that declare `web.desktop` (safe name + lowercase reverse-DNS
@@ -390,7 +403,7 @@ Before deploying a hosted Player:
 
 1. run `deno task check`;
 2. run browser tests relevant to the change;
-3. run `deno task build:web` (or `deno task story build <app>` from the root);
+3. run `deno task build:web` (or `deno task app build <app>` from the root);
 4. run the prebuilt browser suite for the application;
 5. confirm the deployed product exposes the SillyMaker project license;
 6. record the source revision and any known gameplay/content/platform

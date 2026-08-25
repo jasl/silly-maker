@@ -41,6 +41,23 @@ function projectV1(): SillymakerProjectConfigV1 {
   });
 }
 
+function guiOnlyProjectV1(): SillymakerProjectConfigV1 {
+  return defineSillymakerProjectV1({
+    projectId: "project-test",
+    applications: [
+      {
+        applicationId: "gui-only",
+        label: "GUI only",
+        storyEntry: null,
+        assetVerification: false,
+        simulate: null,
+        inspector: null,
+        web: null,
+      },
+    ],
+  });
+}
+
 async function diagnosticsOfAsync(
   run: () => Promise<unknown>,
 ): Promise<readonly { code: string }[]> {
@@ -122,6 +139,23 @@ describe("project commands", () => {
         )
       ),
     ).resolves.toMatchObject([{ code: "project.export_missing" }]);
+  });
+
+  it("rejects Story commands clearly for a GUI-only application", async () => {
+    const project = guiOnlyProjectV1();
+    const loader = mapLoaderV1({});
+
+    for (
+      const run of [
+        () => inspectStoryApplicationV1(project, "gui-only", loader),
+        () => checkStoryApplicationV1(project, "gui-only", loader),
+        () => simulateStoryApplicationV1(project, "gui-only", loader),
+      ]
+    ) {
+      await expect(diagnosticsOfAsync(run)).resolves.toMatchObject([
+        { code: "project.story_unconfigured" },
+      ]);
+    }
   });
 
   it("simulates through the Agent port only and always disposes the target", async () => {

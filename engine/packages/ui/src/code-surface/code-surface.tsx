@@ -4,8 +4,8 @@ import type { ComponentType, LazyExoticComponent, ReactElement, ReactNode } from
 import type {
   GuiCompositionDocumentV1,
   GuiCompositionNodeV1,
-  StrictJsonObjectV1,
-} from "@sillymaker/base";
+} from "@sillymaker/base/gui-composition";
+import type { StrictJsonObjectV1 } from "@sillymaker/base/strict-json";
 
 export type CodeSurfaceStateOwnerHintV1 =
   | "react_local"

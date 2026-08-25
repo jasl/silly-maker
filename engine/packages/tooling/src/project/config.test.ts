@@ -50,6 +50,14 @@ function headlessApplicationV1(applicationId: string): StoryApplicationConfigV1 
   };
 }
 
+function guiApplicationV1(applicationId: string): StoryApplicationConfigV1 {
+  return {
+    ...webApplicationV1(applicationId),
+    storyEntry: null,
+    assetVerification: false,
+  };
+}
+
 function diagnosticsOf(run: () => unknown): readonly { code: string }[] {
   try {
     run();
@@ -85,9 +93,50 @@ describe("defineSillymakerProjectV1", () => {
     expect(resolveWebBuildTargetV1(project, "temporary-web").storyRoot).toBe(
       "examples/temporary-web",
     );
-    expect(resolveStoryApplicationV1(project, "temporary-web").storyEntry.exportName).toBe(
+    expect(resolveStoryApplicationV1(project, "temporary-web").storyEntry?.exportName).toBe(
       "entryV1",
     );
+  });
+
+  it("normalizes GUI-only applications without listing them as Story applications", () => {
+    const project = defineSillymakerProjectV1({
+      projectId: "project-test",
+      applications: [webApplicationV1("story-web"), guiApplicationV1("gui-only")],
+    });
+
+    expect(listStoryApplicationIdsV1(project)).toEqual(["story-web"]);
+    expect(resolveStoryApplicationV1(project, "gui-only").storyEntry).toBeNull();
+
+    const standalone = defineSillymakerAppV1({
+      applicationId: "gui-only",
+      label: "GUI only",
+      assetVerification: false,
+      web: null,
+    });
+    expect(standalone.storyEntry).toBeNull();
+    expect(deriveStoryApplicationV1("examples/gui-only", standalone).storyEntry).toBeNull();
+  });
+
+  it("requires a Story entry when runtime asset verification is enabled", () => {
+    expect(
+      diagnosticsOf(() =>
+        defineSillymakerAppV1({
+          applicationId: "gui-only",
+          label: "GUI only",
+          assetVerification: true,
+          web: null,
+        })
+      ),
+    ).toMatchObject([{ code: "project.asset_verification_story_required" }]);
+
+    expect(
+      diagnosticsOf(() =>
+        defineSillymakerProjectV1({
+          projectId: "project-test",
+          applications: [{ ...guiApplicationV1("gui-only"), assetVerification: true }],
+        })
+      ),
+    ).toMatchObject([{ code: "project.asset_verification_story_required" }]);
   });
 
   it("rejects duplicate application IDs with a structured diagnostic", () => {

@@ -125,8 +125,11 @@ post-release arbitrary code、untrusted sandbox 或 live hot install。2026-08-2
 engine lane，并于同日交付关闭：在既有单一 logical-canvas owner 上补齐 `expand-height` /
 `expand-width`、container-size 声明式 layout variants、authored Stage origin 与中立 Browser
 conformance；没有激活 continuous Input、renderer/asset framework、Desktop HMR 或设备 profile。
-当前没有自动激活的下一 engine lane；每次只显式选择一个完整 reference application，其
-product/engine review 不自动形成 backlog。
+所有者随后显式选择并于同日完成
+[Cards Reference Application](2026-08-25-cards-reference-application.md)：PocketJS Cards 0.6.0 的完整分母、
+target uplift、中性 GUI-only Host/config、focused final graph、产品预算、独立审查与 Starter feedback 均已
+关闭，只领取了真实 consumer 暴露的窄 engine correction。当前没有自动激活的下一 engine lane 或
+Reference Product，其 product/engine review 不自动形成 backlog。
 首个经 release
 source/行为确认包含目标路径的 stable（2.9.6 只是预期候选）仍须重跑同一分层验收，全部通过后才
 正式打开 maintained Desktop development workflow。此前 adapter 保持 package-private、explicit、

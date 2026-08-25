@@ -3,7 +3,7 @@ import type {
   ApplicationHostCapabilitiesV1,
   HostAtomicRecordStoreV1,
   IsoUtcInstant,
-} from "@sillymaker/base";
+} from "@sillymaker/base/host";
 import { createBrowserFilePortV1 } from "./browser-file-port.ts";
 import { createIndexedDbRecordStoreV1 } from "./indexeddb-record-store.ts";
 

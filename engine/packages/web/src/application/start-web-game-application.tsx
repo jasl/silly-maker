@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-import { useLayoutEffect } from "react";
 import type { ReactElement, ReactNode } from "react";
 
 import type {
@@ -127,6 +126,10 @@ import {
   projectWebTextContentPackObservationInternalV1,
   startWebAddressableRuntimeInternalV1,
 } from "./web-addressable-runtime.ts";
+import {
+  retryCurrentWebApplicationEntryInternalV1,
+  WebApplicationFirstProductCommitInternalV1,
+} from "./web-application-product-commit.tsx";
 import type {
   CreatedWebTextContentObservationInternalV1,
   StartedWebAddressableRuntimeInternalV1,
@@ -140,32 +143,6 @@ type WebSemanticPublicationV1<TGameView, TNarrativeView, TActionDescriptor> = Se
   TActionDescriptor,
   RuntimeSessionStatusV1
 >;
-
-function ApplicationFirstProductCommitInternalV1(props: {
-  readonly children: ReactNode;
-  commit(): void;
-}): ReactElement {
-  const { commit } = props;
-  useLayoutEffect(() => {
-    let mounted = true;
-    // Let an uncaught sibling layout failure win before publishing the first
-    // usable product commit. React runs this cleanup when that commit aborts.
-    queueMicrotask(() => {
-      if (mounted) commit();
-    });
-    return () => {
-      mounted = false;
-    };
-  }, [commit]);
-  return <>{props.children}</>;
-}
-
-function retryCurrentApplicationEntryInternalV1(): void {
-  if (typeof location === "undefined" || typeof location.reload !== "function") {
-    throw new TypeError("web.application_startup.retry_unavailable");
-  }
-  location.reload();
-}
 
 /**
  * Host ports exposed only to an explicitly selected outer GUI composition.
@@ -728,7 +705,7 @@ export async function startWebGameApplicationV1<
     try {
       startupDiagnostics.signalTerminalStartupFailure({
         reason,
-        retry: retryCurrentApplicationEntryInternalV1,
+        retry: retryCurrentWebApplicationEntryInternalV1,
       });
     } catch {
       // Preserve the construction/runtime failure when the Host-owned shell
@@ -1614,7 +1591,7 @@ export async function startWebGameApplicationV1<
       productCommitted = true;
     };
     const rootNode: ReactElement = (
-      <ApplicationFirstProductCommitInternalV1 commit={commitFirstProduct}>
+      <WebApplicationFirstProductCommitInternalV1 commit={commitFirstProduct}>
         <DefaultGameRootV1
           composition={composition}
           semantic={instance.semantic}
@@ -1638,7 +1615,7 @@ export async function startWebGameApplicationV1<
           {...(rootSlots === undefined ? {} : { slots: rootSlots })}
           {...(rootInputMaps === undefined ? {} : { inputMaps: rootInputMaps })}
         />
-      </ApplicationFirstProductCommitInternalV1>
+      </WebApplicationFirstProductCommitInternalV1>
     );
     startupFailureReason = "presentation";
     mounted = mountGameApplicationWithStartupDiagnosticsInternalV1(

@@ -273,8 +273,16 @@ Read only the documents relevant to the change:
   Viewport choice remains presentation data and never enters State, Save,
   replay, BuildIdentity, or application generation. It does not activate
   continuous Input, a renderer/asset/device framework, Desktop HMR, or a final
-  editor/Blueprint format. No next engine lane is automatically active; select
-  one complete Reference Product explicitly.
+  editor/Blueprint format. The owner then selected and completed
+  `docs/engine/plans/2026-08-25-cards-reference-application.md` on 2026-08-25.
+  Cards delivers the complete PocketJS Cards 0.6.0 denominator, Browser/Deno
+  target uplift, the first neutral GUI-only startup consumer, public GUI
+  Composition/Code Surface use, raw product budgets, independent closure, and
+  Starter feedback. Its narrow engine corrections added curated focused exports,
+  once-admitted GUI-only config, neutral Host landmarks, and first-presentation
+  recovery evidence. It did not activate a source-migration framework, project
+  symbol graph, Prefab, scaffold CLI, Desktop HMR, or another Reference Product.
+  No next engine lane or Reference Product is automatically active.
 - The plans and proposals dated 2026-08-19 through 2026-08-22 own the detailed
   acceptance and closure evidence for the six engine-gap lanes summarized
   above. The authoritative hold clock lane

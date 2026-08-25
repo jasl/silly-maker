@@ -10,7 +10,18 @@ deno task dev        # 启动最小 Player（根目录可用 deno task app dev t
 
 需要第一方完整参考外圈时打开同一 dev server 的 `/reference.html`；它显式组合 `@sillymaker/web/reference` 的预制设置与 DevDock，不是最小产品的隐式依赖。从仓库根运行 `deno task app dev template` 会启动这个应用自己的 dev server；随后直接打开同源 `/__sillymaker/inspector/`，或从 reference DevDock 进入独立、仅开发期的 Inspector。它列出 Authoring Scene，显示 Layer/Object 层级与真实 Stage 预览，可修改 local transform、contentId/appearance 和对象/Layer 顺序，查看命中区域、Motion、Timeline、交互与源码位置等 facet，并只读 scrub Motion/Timeline。保存通过 CAS 只写 `src/scenes/opening/opening.authoring-scene.json`；对象创建、cue/Motion 定义和其他不在这个有限编辑面内的内容仍直接改源文件。场景文档是构图、站位和每 cue 表现声明的唯一作者权威；剧本只引用 cue。
 
-复制本目录、全局替换 `template`/`Template` 为你的故事名、改好 `sillymaker.config.ts`，即可开始创作——副本本身就是完整项目（自带 `vite.config.ts` 与本地 story CLI）。在本仓库内开发时，把目录加进根 `project.config.ts` 清单；在仓库外开发时，把 `package.json` 里的引擎依赖改为相对 `file:` 路径并在 `deno.json` 设 `"nodeModulesDir": "manual"`。
+复制本目录、全局替换 `template`/`Template` 为你的故事名、改好 `sillymaker.config.ts`，即可开始创作——副本本身就是完整项目（自带 `vite.config.ts` 与本地 application CLI）。在本仓库内开发时，把目录加进根 `project.config.ts` 清单；在仓库外开发时，把 `package.json` 里的引擎依赖改为相对 `file:` 路径并在 `deno.json` 设 `"nodeModulesDir": "manual"`。
+
+纯 GUI 应用也从这个工程外壳开始，但不要保留空 Game。把
+`storyEntry` 设为 `null`、`assetVerification` 设为 `false`，删除 simulation、
+Inspector/Scene source 与 Story/Game 文件和命令，然后从
+`@sillymaker/web/gui-application` 启动；按实际需要使用
+`@sillymaker/ui/code-surface`、`@sillymaker/ui/input`、
+`@sillymaker/ui/native-behavior` 和 `@sillymaker/ui/viewport` 等 focused entry。
+Story-only 的 `inspect`/`check`/`simulate` 会明确报告不适用，Web build/dev
+与已声明的 Desktop preview 不受影响。完整可发布的参考见
+`examples/cards`。这是一份复制后删减的 recipe，不建立 scaffold CLI 或
+模板同步系统。
 
 ## 现在就能跑
 

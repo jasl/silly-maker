@@ -4,6 +4,8 @@ import { defineConfig, devices } from "@playwright/test";
 import {
   bookshopTargetUrlV1,
   bookshopTargetV1,
+  cardsTargetUrlV1,
+  cardsTargetV1,
   catcafeTargetUrlV1,
   catcafeTargetV1,
   sillyOsTargetUrlV1,
@@ -38,6 +40,15 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 120_000,
       url: bookshopTargetUrlV1(),
+    },
+    {
+      command: `deno run -A npm:vite --mode example-cards --host ${cardsTargetV1.host} --port ${
+        String(cardsTargetV1.port)
+      } --strictPort`,
+      cwd: "../..",
+      reuseExistingServer: false,
+      timeout: 120_000,
+      url: cardsTargetUrlV1(),
     },
     {
       command:

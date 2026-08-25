@@ -10,10 +10,9 @@ import type {
   SillymakerWorkspaceConfigV1,
 } from "./config-types.ts";
 import {
+  anchorAdmittedSillymakerApplicationInternalV1,
   defineSillymakerAppV1,
-  defineSillymakerProjectV1,
   defineSillymakerWorkspaceV1,
-  deriveStoryApplicationV1,
 } from "./config.ts";
 
 /** The file an application project declares itself in, at its root. */
@@ -36,11 +35,13 @@ function workspaceErrorV1(code: string, message: string, pointer: string): never
 /** One loaded application project: its directory plus its own declaration. */
 export interface WorkspaceAppV1 {
   readonly directory: string;
-  readonly config: SillymakerAppConfigV1;
+  readonly config: ReturnType<typeof defineSillymakerAppV1>;
 }
 
 /** Imports `<appRoot>/sillymaker.config.ts` and returns its declaration. */
-export async function loadSillymakerAppConfigV1(appRoot: string): Promise<SillymakerAppConfigV1> {
+export async function loadSillymakerAppConfigV1(
+  appRoot: string,
+): Promise<ReturnType<typeof defineSillymakerAppV1>> {
   const configPath = resolve(appRoot, sillymakerAppConfigFileNameV1);
   let record: Readonly<Record<string, unknown>>;
   try {
@@ -74,6 +75,17 @@ export async function loadWorkspaceAppsV1(input: {
   readonly workspace: SillymakerWorkspaceConfigV1;
 }): Promise<readonly WorkspaceAppV1[]> {
   const workspace = defineSillymakerWorkspaceV1(input.workspace);
+  return await loadWorkspaceAppsFromAdmittedInternalV1({
+    repositoryRoot: input.repositoryRoot,
+    workspace,
+  });
+}
+
+async function loadWorkspaceAppsFromAdmittedInternalV1(input: {
+  readonly repositoryRoot: string;
+  readonly workspace: ReturnType<typeof defineSillymakerWorkspaceV1>;
+}): Promise<readonly WorkspaceAppV1[]> {
+  const workspace = input.workspace;
   const apps = await Promise.all(
     workspace.appDirectories.map(async (directory) => {
       const config = await loadSillymakerAppConfigV1(resolve(input.repositoryRoot, directory));
@@ -107,11 +119,16 @@ export async function loadWorkspaceProjectV1(input: {
   readonly workspace: SillymakerWorkspaceConfigV1;
 }): Promise<SillymakerProjectConfigV1> {
   const workspace = defineSillymakerWorkspaceV1(input.workspace);
-  const apps = await loadWorkspaceAppsV1(input);
-  return defineSillymakerProjectV1({
-    projectId: workspace.projectId,
-    applications: apps.map((app) => deriveStoryApplicationV1(app.directory, app.config)),
+  const apps = await loadWorkspaceAppsFromAdmittedInternalV1({
+    repositoryRoot: input.repositoryRoot,
+    workspace,
   });
+  return {
+    projectId: workspace.projectId,
+    applications: apps.map((app) =>
+      anchorAdmittedSillymakerApplicationInternalV1(app.directory, app.config)
+    ),
+  };
 }
 
 /**
@@ -122,9 +139,6 @@ export async function loadStandaloneAppProjectV1(
   appRoot: string,
 ): Promise<SillymakerProjectConfigV1> {
   const config = await loadSillymakerAppConfigV1(appRoot);
-  const application = deriveStoryApplicationV1(".", config);
-  return defineSillymakerProjectV1({
-    projectId: application.applicationId,
-    applications: [application],
-  });
+  const application = anchorAdmittedSillymakerApplicationInternalV1(".", config);
+  return { projectId: application.applicationId, applications: [application] };
 }

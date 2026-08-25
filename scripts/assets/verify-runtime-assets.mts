@@ -53,12 +53,14 @@ async function loadRuntimeAssetModulesV1() {
     const verifiedApps = apps.filter((app) => app.config.assetVerification);
     const entries = await Promise.all(
       verifiedApps.map(async (app) => {
-        const modulePath = `${app.directory}/${app.config.storyEntry.module}`;
+        // Config admission guarantees that asset verification has a Story.
+        const storyEntry = app.config.storyEntry!;
+        const modulePath = `${app.directory}/${storyEntry.module}`;
         const record = await loader.loadModule(modulePath);
-        const entry = record[app.config.storyEntry.exportName];
+        const entry = record[storyEntry.exportName];
         if (entry === undefined) {
           throw new TypeError(
-            `${app.config.applicationId}: missing Story entry export ${app.config.storyEntry.exportName}`,
+            `${app.config.applicationId}: missing Story entry export ${storyEntry.exportName}`,
           );
         }
         return {

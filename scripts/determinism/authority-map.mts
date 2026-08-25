@@ -926,12 +926,15 @@ export async function collectDeterminismAuthorityMapV1(options: {
   }
 
   const registry = await loadWorkspaceRegistryV1(repositoryRoot);
-  const policyById = validatePolicyCoverageV1(registry.applications, policy);
+  const storyApplications = registry.applications.filter(
+    (application) => application.config.storyEntry !== null,
+  );
+  const policyById = validatePolicyCoverageV1(storyApplications, policy);
   const [applications, baseAuthorities, additionalAuthorities, policyNegativeControls] =
     await Promise
       .all([
         Promise.all(
-          registry.applications.map((application) =>
+          storyApplications.map((application) =>
             collectApplicationAuthorityV1(
               repositoryRoot,
               application,
@@ -959,7 +962,7 @@ export async function collectDeterminismAuthorityMapV1(options: {
     saveStateMigration === null ? [] : [saveStateMigration]
   );
   const presentationNegativeControls = await Promise.all(
-    registry.applications.map((application) =>
+    storyApplications.map((application) =>
       collectNegativeControlV1(repositoryRoot, {
         id: `${application.config.applicationId}-presentation`,
         entry: policyById.get(application.config.applicationId)!.presentationEntry,
