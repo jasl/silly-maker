@@ -551,6 +551,24 @@ function findNarrativeSurfaceFocusOwnerInternalV1(
   return roots.length === 1 && roots[0]?.phase === "preparing" ? roots[0] : null;
 }
 
+/**
+ * A dialogue entry whose pending declares `stageInput: "shared"` keeps the
+ * stage input-reachable: the Host neither registers narrative stage-input
+ * isolation for it nor captures roaming focus/Tab on its behalf. History
+ * overlays and every non-shared entry (preparing, suspended, or retiring
+ * generations included) stay exclusive, so a mixed window conservatively
+ * isolates. The hint is Host vocabulary only — resolution legality stays
+ * with occurrence-fenced commands regardless of what the stage lets
+ * pointers reach.
+ */
+function narrativeSurfaceEntrySharesStageInputInternalV1(
+  entry: NarrativeStableHostRenderEntryInternalV1,
+): boolean {
+  if (entry.kind !== "dialogue") return false;
+  const pending = entry.rendererProps.pending;
+  return pending.kind !== "presentation_barrier" && pending.stageInput === "shared";
+}
+
 function trapNarrativeSurfaceTabInternalV1(
   event: ReactKeyboardEvent<HTMLDivElement>,
 ): void {
@@ -928,7 +946,12 @@ function NarrativeSurfaceEntryShellInternalV1(
       onKeyDown={(event) => {
         if (!narrativeSurfaceOwnerMatchesInternalV1(lifecycle, entry, event.currentTarget)) return;
         if (event.key === "Tab") {
-          trapNarrativeSurfaceTabInternalV1(event);
+          // A shared-stage owner declared the stage a legitimate input
+          // surface, so Tab keeps the natural document order instead of
+          // cycling inside the shell.
+          if (!narrativeSurfaceEntrySharesStageInputInternalV1(entry)) {
+            trapNarrativeSurfaceTabInternalV1(event);
+          }
           return;
         }
         if (event.key !== "Escape" || isDevDockEscapeOwnerTargetV1(event.target)) return;
@@ -1070,7 +1093,10 @@ function NarrativeSurfaceRuntimeInternalV1(
   const lifecycle = lifecycleRef.current;
   lifecycle.snapshot.current = snapshot;
   const armPointerFence = useStagePointerGestureFenceV1("narrative");
-  useStageInputIsolationV1("narrative", snapshot.entries.length > 0);
+  useStageInputIsolationV1(
+    "narrative",
+    snapshot.entries.some((entry) => !narrativeSurfaceEntrySharesStageInputInternalV1(entry)),
+  );
 
   const focusOwnerEntry = findNarrativeSurfaceFocusOwnerInternalV1(snapshot.entries);
   const previousHistory = lifecycle.previousSnapshot.current.entries.find((entry) =>
@@ -1109,6 +1135,9 @@ function NarrativeSurfaceRuntimeInternalV1(
           lifecycle.snapshot.current.entries,
         );
         if (currentOwner?.renderKey !== owner.renderKey) return;
+        // Shared-stage owners do not recapture roaming focus: the stage is
+        // a declared input surface, not an escape from the dialogue.
+        if (narrativeSurfaceEntrySharesStageInputInternalV1(currentOwner)) return;
         focusNarrativeSurfaceElementInternalV1(owner.shell);
       });
     };

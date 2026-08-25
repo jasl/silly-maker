@@ -2800,6 +2800,108 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     portalContainer.remove();
   });
 
+  it("shares the stage for stageInput-shared pendings while History and isolated entries re-isolate", async () => {
+    const createRuntime = vi.spyOn(
+      narrativeFamilyModuleV1,
+      "createNarrativeStableHostRuntimeInternalV1",
+    );
+    const Renderer = (props: NarrativeStableRendererPropsInternalV1) =>
+      props.kind === "dialogue"
+        ? <button type="button" data-testid="shared-stage-root">Dialogue</button>
+        : <button type="button" data-testid="shared-stage-history">History</button>;
+
+    // Shared mount: the host must not register narrative stage isolation.
+    const sharedHarness = hostHarnessV1(Renderer);
+    expect(
+      sharedHarness.bridge.reconcilePendingInternalV1({
+        ...pendingSayV1() as Record<string, unknown>,
+        stageInput: "shared",
+      }),
+    ).toMatchObject({ kind: "applied" });
+    const sharedPortal = document.createElement("div");
+    document.body.append(sharedPortal);
+    const sharedView = render(
+      <StagedNarrativeHostV1
+        session={sharedHarness.session}
+        portalContainer={sharedPortal}
+        inputRouter={sharedHarness.inputRouter}
+        isGestureCurrent={sharedHarness.isGestureCurrent}
+        onLowerAction={vi.fn()}
+      />,
+    );
+    await flushHostMicrotasksV1();
+    const runtime = createRuntime.mock.results.at(-1)?.value as
+      | NarrativeStableHostRuntimeInternalV1
+      | undefined;
+    const committedGestureCurrent = createRuntime.mock.calls.at(-1)?.[0].isGestureCurrent;
+    if (runtime === undefined || committedGestureCurrent === undefined) {
+      throw new Error("expected current Host runtime");
+    }
+    const gameplayLayer = screen.getByTestId("stage-scene-interaction");
+    expect(gameplayLayer).not.toHaveAttribute("inert");
+    expect(screen.getByTestId("stage-narrative")).not.toHaveAttribute("inert");
+
+    // A shared owner neither traps Tab nor recaptures roaming focus: the
+    // stage is a declared input surface.
+    const sharedRootScope = narrativeFocusScopeV1(screen.getByTestId("shared-stage-root"));
+    expect(fireEvent.keyDown(sharedRootScope, { key: "Tab" })).toBe(true);
+    const lowerControl = screen.getByTestId("narrative-lower-action");
+    lowerControl.focus();
+    await flushHostMicrotasksV1();
+    expect(document.activeElement).toBe(lowerControl);
+
+    // History stays exclusive over a shared root: isolation and the focus
+    // machinery return in full while it is open, then release on dismiss.
+    act(() => openHistoryV1(sharedHarness, "shared-stage", committedGestureCurrent));
+    await flushHostMicrotasksV1();
+    expect(gameplayLayer).toHaveAttribute("inert");
+    const historyScope = narrativeFocusScopeV1(screen.getByTestId("shared-stage-history"));
+    expect(document.activeElement).toBe(historyScope);
+    expect(fireEvent.keyDown(historyScope, { key: "Tab" })).toBe(false);
+    lowerControl.focus();
+    await flushHostMicrotasksV1();
+    expect(document.activeElement).toBe(historyScope);
+    act(() => {
+      expect(currentHistoryRenderEntryV1(runtime).controller.dismissInternalV1("routed_cancel"))
+        .toEqual({ kind: "dismissed", completion: null });
+    });
+    await flushHostMicrotasksV1();
+    expect(gameplayLayer).not.toHaveAttribute("inert");
+    sharedView.unmount();
+    await flushHostMicrotasksV1();
+    sharedPortal.remove();
+
+    // Isolated mount: an undeclared pending keeps today's exclusive
+    // behavior — stage inert, Tab trapped, roaming focus recaptured.
+    const isolatedHarness = hostHarnessV1(Renderer);
+    expect(isolatedHarness.bridge.reconcilePendingInternalV1(pendingSayV1())).toMatchObject({
+      kind: "applied",
+    });
+    const isolatedPortal = document.createElement("div");
+    document.body.append(isolatedPortal);
+    const isolatedView = render(
+      <StagedNarrativeHostV1
+        session={isolatedHarness.session}
+        portalContainer={isolatedPortal}
+        inputRouter={isolatedHarness.inputRouter}
+        isGestureCurrent={isolatedHarness.isGestureCurrent}
+        onLowerAction={vi.fn()}
+      />,
+    );
+    await flushHostMicrotasksV1();
+    const isolatedGameplayLayer = screen.getByTestId("stage-scene-interaction");
+    expect(isolatedGameplayLayer).toHaveAttribute("inert");
+    const isolatedRootScope = narrativeFocusScopeV1(screen.getByTestId("shared-stage-root"));
+    expect(fireEvent.keyDown(isolatedRootScope, { key: "Tab" })).toBe(false);
+    const isolatedLowerControl = screen.getByTestId("narrative-lower-action");
+    isolatedLowerControl.focus();
+    await flushHostMicrotasksV1();
+    expect(document.activeElement).toBe(isolatedRootScope);
+    isolatedView.unmount();
+    await flushHostMicrotasksV1();
+    isolatedPortal.remove();
+  });
+
   it("renders max-three phases, retains exact root and History on failure, then cuts over atomically", async () => {
     const createRuntime = vi.spyOn(
       narrativeFamilyModuleV1,
