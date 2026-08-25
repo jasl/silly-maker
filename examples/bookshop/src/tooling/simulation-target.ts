@@ -12,7 +12,7 @@ function resolveStepV1(occurrence: number, resolution: unknown) {
 }
 
 /**
- * Named scenarios for `deno task story simulate bookshop --scenario <name>`.
+ * Named scenarios for `deno task app simulate bookshop --scenario <name>`.
  * Occurrence numbers count interaction boundaries from the start of the
  * session; inserting a boundary shifts every later number.
  *
@@ -55,7 +55,7 @@ const scenariosV1 = {
 };
 
 /**
- * The simulation target for `deno task story simulate bookshop`: a fresh
+ * The simulation target for `deno task app simulate bookshop`: a fresh
  * fixed-seed application instance whose player-safe Agent port drives the
  * run — the same surface real agents and the browser UI use.
  */

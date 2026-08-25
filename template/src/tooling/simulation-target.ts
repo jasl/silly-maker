@@ -4,7 +4,7 @@ import { createInProcessAgentGamePortV1 } from "@sillymaker/base/runtime";
 import { createTemplateApplicationInstanceV1 } from "../application/core-application.ts";
 
 /**
- * Named scenarios for `deno task story simulate template --scenario <name>`.
+ * Named scenarios for `deno task app simulate template --scenario <name>`.
  * Steps are occurrence-free intents: a `resolve` without an
  * `expectedOccurrenceId` targets whatever interaction is currently pending
  * (read from the live publication at dispatch time, exactly like a real
@@ -112,7 +112,7 @@ function withCurrentOccurrenceV1<
 }
 
 /**
- * The simulation target for `deno task story simulate template`: a fresh
+ * The simulation target for `deno task app simulate template`: a fresh
  * fixed-seed application instance whose player-safe Agent port drives the
  * run — the same surface real agents and the browser UI use.
  */

@@ -41,14 +41,14 @@ export interface ProjectCliInputV1 {
 }
 
 const usageV1 =
-  "usage: story <inspect|check|simulate|dev|author|build|prebuilt-smoke|desktop> <application-id> " +
+  "usage: app <inspect|check|simulate|dev|build|prebuilt-smoke|desktop> <application-id> " +
   "[--scenario <name>] [--seed <uint>] [--trace <dot.paths,comma-separated>] [--smoke] " +
   "[--profile <release|debug>] [--sourcemap] [--no-minify] " +
   "[--target <os-arch-triple>]... [--compress[=xz|lzma|zstd]] " +
-  "| story check --all | story diff <before.json> <after.json> " +
-  "| story regions trace <image.png> --out <file.regions.json>";
+  "| app check --all | app diff <before.json> <after.json> " +
+  "| app regions trace <image.png> --out <file.regions.json>";
 
-const regionsTraceUsageV1 = "usage: story regions trace <image.png> --out <file.regions.json> " +
+const regionsTraceUsageV1 = "usage: app regions trace <image.png> --out <file.regions.json> " +
   "[--regions-id <id>] [--label <text>] [--region-id <id>] [--region-name <text>] " +
   "[--alpha-threshold <1-255>] [--max-vertices <3-64>] " +
   "[--anchor-x <permille 0-1000>] [--anchor-y <permille 0-1000>] [--force]";
@@ -339,7 +339,7 @@ function parseRegionsTraceArgsV1(argv: readonly string[]): RegionsTraceParseV1 {
   if (!outPath.endsWith(regionsOutSuffixV1)) {
     return {
       kind: "error",
-      message: `story regions trace writes a regions Document; --out must end with ` +
+      message: `app regions trace writes a regions Document; --out must end with ` +
         `"${regionsOutSuffixV1}" (got "${outPath}")`,
     };
   }
@@ -371,7 +371,7 @@ function parseRegionsTraceArgsV1(argv: readonly string[]): RegionsTraceParseV1 {
 }
 
 /**
- * `story regions trace <image.png> --out <file.regions.json>`: the
+ * `app regions trace <image.png> --out <file.regions.json>`: the
  * legacy-asset bridge (shaped-hit-regions M4). Decodes the PNG's alpha
  * plane, traces the largest silhouette into a polygon within the vertex
  * budget, and writes an editable `sillymaker.regions` Document. Pixel
@@ -405,7 +405,7 @@ async function runRegionsTraceCliV1(input: ProjectCliInputV1): Promise<number> {
       bytes = await runner.readFileBytes(args.imagePath);
     } catch (error) {
       input.writeErr(
-        `story regions trace could not read "${args.imagePath}": ${
+        `app regions trace could not read "${args.imagePath}": ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
@@ -493,7 +493,7 @@ export async function runProjectCliV1(input: ProjectCliInputV1): Promise<number>
           after = JSON.parse(await deps.runner.readFile(afterPath)) as unknown;
         } catch (error) {
           input.writeErr(
-            `story diff could not read inputs: ${
+            `app diff could not read inputs: ${
               error instanceof Error ? error.message : String(error)
             }`,
           );
@@ -537,32 +537,16 @@ export async function runProjectCliV1(input: ProjectCliInputV1): Promise<number>
         return 0;
       }
       case "dev": {
-        if (!parsed.smoke) {
-          input.writeErr("story dev currently supports only --smoke");
-          return 2;
+        const deps = processDeps();
+        if (deps === null) return 2;
+        if (parsed.smoke) {
+          const report = await devSmokeStoryApplicationV1(input.project, selector, deps);
+          input.writeOut(printableV1(report));
+          return report.ok ? 0 : 1;
         }
-        const deps = processDeps();
-        if (deps === null) return 2;
-        const report = await devSmokeStoryApplicationV1(input.project, selector, deps);
-        input.writeOut(printableV1(report));
-        return report.ok ? 0 : 1;
-      }
-      case "author": {
-        // Boots the application's own Vite dev server. Humans open Inspector
-        // from the in-game 调试 dock. Inspector itself
-        // is a dev-only plugin surface.
-        const deps = processDeps();
-        if (deps === null) return 2;
         const application = resolveStoryApplicationV1(input.project, selector);
         if (application.web === null) {
           input.writeErr(`application "${selector}" has no web target`);
-          return 1;
-        }
-        if (application.inspector === null) {
-          input.writeErr(
-            `application "${selector}" declares no inspector binding; ` +
-              "add `inspector: { module, exportName }` to its sillymaker.config.ts",
-          );
           return 1;
         }
         const storyRoot = application.web.storyRoot;

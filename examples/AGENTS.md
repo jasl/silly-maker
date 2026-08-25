@@ -152,7 +152,7 @@ Verification loop after every edit (seconds):
 ```sh
 deno task typecheck
 deno run -A npm:vitest run <this package directory>
-deno task story simulate <appId> --scenario <name>
+deno task app simulate <appId> --scenario <name>
 ```
 
 Rules in brief:
@@ -178,7 +178,7 @@ Narrative entrance/exit animations are `src/**/*.motion.json` assets bound throu
 
 ## Scene collaboration contract
 
-Cat Cafe's opening is scene-managed: `src/scenes/opening/opening.scene.json` is the single authoring authority for that scene's visual composition — entry placements/appearance/zOrder and cue→motion binding. Stage nodes reference cues (`cueMutations`/`cueMayShow`); do not re-add placement literals, `hasTag` guards, or global enter-edge motion inference for a scene-managed scene, and do not edit the same scene through both the document and low-level mutations. Keep sceneId/cueId stable across refactors (transition ids derive from cue ids); the filename stem must stay the sceneId's final segment (`story check` lints scene documents: admission, unique ids, filename↔id, cue motion references, and cross-document edge collisions — two scenes must not bind different motions to one stage edge). The cat-cafe Studio binding also declares the `contents` authoring manifest (Studio's Content browser: backgrounds and 小雨 with structured stage/expression fields); Studio can construct scenes — new documents, entries, cues, and created/cloned motions — without touching any TypeScript.
+Cat Cafe's opening is scene-managed: `src/scenes/opening/opening.scene.json` is the single authoring authority for that scene's visual composition — entry placements/appearance/zOrder and cue→motion binding. Stage nodes reference cues (`cueMutations`/`cueMayShow`); do not re-add placement literals, `hasTag` guards, or global enter-edge motion inference for a scene-managed scene, and do not edit the same scene through both the document and low-level mutations. Keep sceneId/cueId stable across refactors (transition ids derive from cue ids); the filename stem must stay the sceneId's final segment (`app check` lints scene documents: admission, unique ids, filename↔id, cue motion references, and cross-document edge collisions — two scenes must not bind different motions to one stage edge). The cat-cafe Studio binding also declares the `contents` authoring manifest (Studio's Content browser: backgrounds and 小雨 with structured stage/expression fields); Studio can construct scenes — new documents, entries, cues, and created/cloned motions — without touching any TypeScript.
 
 ## Forbidden
 

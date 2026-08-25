@@ -4,9 +4,9 @@ import type { SillymakerWorkspaceConfigV1 } from "@sillymaker/tooling/project/co
 /**
  * The workspace registry: each entry is an application project directory
  * that declares itself in its own `sillymaker.config.ts`. This list only
- * feeds repository-level aggregation — `deno task story … <id>` at the
- * root, `check:stories`, runtime asset verification, and the root Vite
- * `--mode <id>` convenience dispatch. Applications build through their own
+ * feeds repository-level aggregation — `deno task app … <id>` at the root,
+ * runtime asset verification, and the explicit root Vite `--mode <id>` test
+ * dispatch. Applications build through their own
  * project files; adding one here never edits a build switch.
  *
  * This file stays runtime-dependency-free (type-only imports) because Vite

@@ -4,7 +4,7 @@
  * Structured diff over plain JSON-safe data: the "where exactly do two
  * snapshots differ" answer that digests cannot give. Objects recurse by
  * key, arrays by index; every difference reports a JSON-pointer-style
- * path with the before/after values. Used by `story diff` for exported
+ * path with the before/after values. Used by `app diff` for exported
  * saves and simulate reports, and available to DevDock panels and tests.
  */
 

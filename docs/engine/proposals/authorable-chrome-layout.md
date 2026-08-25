@@ -9,7 +9,7 @@
 问题，但可以先这么做，下一轮引擎迭代再统筹更系统的方案（如果存
 在）」——本 lane 是务实分层落地，不是场景/物体/交互统一抽象的终局裁
 决）。闭合记录：M0（Story 侧布局文档）在外部实验仓先行落地，零引擎
-改动；M1（`sillymaker.chrome-layout` 家族 + index + story check +
+改动；M1（`sillymaker.chrome-layout` 家族 + index + `app check` +
 CAS 端口）与 M2（Studio 界面布局工作区 + `StudioBindingV1.chrome`
 fixture + template HUD 仓内消费者，浏览器验收 = template.spec.ts 拖
 框→保存→落盘毕业）当日合入；外部实验仓 HUD 同日迁移到引擎家族并删
@@ -127,7 +127,7 @@ Studio 新增 Chrome workspace：挂 fixture publication 渲染**真实 HUD
   变更不改任何 Save/digest/replay 字节；
 - M2：Studio 拖尖尖 → 保存 → 运行中的游戏热区实时更新（HMR 回路）；
   CAS 409 恢复与 motion 端口同构；
-- AI 回路：agent 改 JSON → `story check` 校验 → 按诊断码修，全程不碰
+- AI 回路：agent 改 JSON → `app check` 校验 → 按诊断码修，全程不碰
   TSX。
 
 ## Open questions（2026-08-22 所有者裁决：均按建议定）

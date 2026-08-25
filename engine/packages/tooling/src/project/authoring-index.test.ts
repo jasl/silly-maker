@@ -263,7 +263,7 @@ describe("buildAuthoringProjectIndexV1", () => {
     });
   });
 
-  it("agrees with the story-check lints about which files exist (S2 parity)", () => {
+  it("agrees with the app-check lints about which files exist (S2 parity)", () => {
     writeFileSync(
       join(sourceRoot, "scenes", "opening", "opening.scene.json"),
       sceneJsonV1("scene.app.opening"),

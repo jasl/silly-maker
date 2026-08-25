@@ -324,7 +324,7 @@ active plan 或一个需要永久保留的 harness。当前产品合同见
 它在既有 GameHarness 之上增加独立的验证层，而不把 DOM/Pixi 瞬时状态塞进
 core Agent transcript：
 
-1. `story check` 验证 definition、slot/cardinality、action、Back、focus 和 input
+1. `app check` 验证 definition、slot/cardinality、action、Back、focus 和 input
    ownership 闭合；
 2. 纯 model/testkit 对有界 Surface transition 做表驱动或穷举验证；
 3. seeded explorer 生成 open/replace/detail/modal/back/readiness/input 序列并

@@ -236,7 +236,7 @@ command identity、Save、state digest、replay 语义、`sceneCueTransitionIdV1
   `mei-returns`（show, cut）同边分歧于 `mei-enters` 的仪式性入场 motion。
 - **验证**：`deno task check` 全绿（4,964 单测，含 base 合同/reconciler/
   SemanticStage 配对/core 实例发射/lint/template 目录与 playthrough 新用例；
-  determinism、五个 Story `story check`、e2e 构建）；引擎切片先行通过全量
+  determinism、五个 Story `app check`、e2e 构建）；引擎切片先行通过全量
   等位门（内容未动时 299 文件全绿三连）；浏览器 examples 套件 81/82 过
   （1 例为 vite 依赖优化器暖身竞态，隔离重跑双浏览器过），template spec 新增
   取猫节拍断言。

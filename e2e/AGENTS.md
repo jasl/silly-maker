@@ -15,7 +15,7 @@ Verification loop after every edit (seconds):
 ```sh
 deno task typecheck
 deno run -A npm:vitest run <this package directory>
-deno task story simulate <appId> --scenario <name>
+deno task app simulate <appId> --scenario <name>
 ```
 
 Rules in brief:

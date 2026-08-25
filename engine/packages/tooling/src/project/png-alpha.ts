@@ -2,7 +2,7 @@
 import { AuthoringDiagnosticErrorV1, createDiagnosticV1 } from "@sillymaker/base";
 
 /**
- * Minimal PNG alpha-plane decoder for the `story regions trace` devtool
+ * Minimal PNG alpha-plane decoder for the `app regions trace` devtool
  * (shaped-hit-regions, accepted 2026-08-21). It reads exactly what a
  * silhouette trace needs — per-pixel alpha — from untrusted file bytes, so
  * admission is strict: bounded dimensions, exact inflated length, and a

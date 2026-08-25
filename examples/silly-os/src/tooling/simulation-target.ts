@@ -4,7 +4,7 @@ import { createInProcessAgentGamePortV1 } from "@sillymaker/base/runtime";
 import { createOsApplicationInstanceV1 } from "../application/core-application.ts";
 
 /**
- * Scenarios for `deno task story simulate example-silly-os`: write/delete files, start
+ * Scenarios for `deno task app simulate example-silly-os`: write/delete files, start
  * minesweeper and reveal a corner (a fixed seed makes the path deterministic), switch wallpaper.
  */
 const scenariosV1 = {

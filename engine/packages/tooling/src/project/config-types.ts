@@ -139,7 +139,7 @@ export interface SillymakerAppConfigV1 {
 /**
  * The repository-level workspace registry: the project ID plus the list of
  * application directories (each holding its own `sillymaker.config.ts`).
- * CI aggregation (`story --all`, asset verification, the root Vite `--mode`
+ * CI aggregation (`app check --all`, asset verification, the root Vite `--mode`
  * dispatch) is its only consumer; applications build through their own
  * project files.
  */

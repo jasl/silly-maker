@@ -12,11 +12,11 @@
     "dev": "deno run -A npm:vite",
     "build": "deno task build:web",
     "build:web": "deno run -A npm:vite build",
-    "build:desktop": "deno run -A ./tools/story.mts desktop .",
+    "build:desktop": "deno run -A ./tools/app.mts desktop .",
     "deploy:cf": "deno task build && deno run -A npm:wrangler@4.123.0 deploy",
     "preview": "deno run -A npm:vite preview",
     "clean": "rm -rf dist-web dist-desktop",
-    "story": "deno run -A ./tools/story.mts",
+    "app": "deno run -A ./tools/app.mts",
     "test": "deno run -A npm:vitest run src"
   },
   "dependencies": {

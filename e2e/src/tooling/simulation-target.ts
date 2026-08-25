@@ -10,7 +10,7 @@ const defaultScriptV1 = [
   { kind: "invoke" as const, actionId: "lab.run_experiment" as const },
 ];
 
-/** Named scenarios selectable with `deno task story simulate e2e --scenario …`. */
+/** Named scenarios selectable with `deno task app simulate e2e --scenario …`. */
 const scenariosV1 = {
   /** The opening beat: gather samples and start the procedure. */
   opening: defaultScriptV1,
@@ -45,7 +45,7 @@ function resolveStepV1(occurrence: number, resolution: unknown) {
 }
 
 /**
- * The Engine Lab simulation target for `deno task story simulate e2e`: a fresh
+ * The Engine Lab simulation target for `deno task app simulate e2e`: a fresh
  * fixed-seed core application instance whose player-safe Agent port drives
  * the whole run, so scripted simulation shares the exact surface real agents
  * use. An explicit `--seed` overrides the deterministic default.

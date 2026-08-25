@@ -165,7 +165,7 @@ typed accessors（形状由 A0 拥有）至少提供：
   落回；同边分歧声明因此合法。无上下文的边走 edge-tuple 回落（仅"全部绑定
   一致"的边保留条目，与前上下文行为逐字节等位）；上下文存在时"本场景无
   dispatch 解释的 change 不得由回落认领"对 cue 与外场景 open 一律适用，
-  **本场景自己的 open** 保持无上下文回落语义（所有者裁决 #2）。`story check` 仍诊断"声明对裸 cue"的同边组合
+  **本场景自己的 open** 保持无上下文回落语义（所有者裁决 #2）。`app check` 仍诊断"声明对裸 cue"的同边组合
   （`scene.cue_binding_scope_collision`，修法是显式声明而非裂 tag）；lint 保守
   起点经真实内容普查后由所有者批复转正（2026-08-17，记录归 cue-identity 提案）；
 - preview case → 每个 cue 可派生 detached settled target + 绑定，直接喂
@@ -224,8 +224,8 @@ interface StageContentGeometryV1 {
 
 ## 5. SillyMaker Studio V1 standalone 外形
 
-- 入口：`deno task author`（分发到 `story author <application-id>`）或
-  `deno task dev` 启动该应用的 Vite dev server 并挂 Studio 页。人类从游戏调试坞
+- 入口：在应用目录运行 `deno run dev`，或从仓库根显式运行
+  `deno task app dev <application-id>`，启动该应用的 Vite dev server 并挂 Studio 页。人类从游戏调试坞
   「场景 → Studio」打开（同源新标签，不替换进行中的会话）。这一 standalone shell
   只存在于 dev（同 `sillymaker:dev-sources` 的 `apply: "serve"` 纪律）；普通构建/预览/
   Player 不包含 source-write 能力，未声明 `studio` 绑定的应用不显示该入口。未来可信
@@ -255,7 +255,7 @@ engine/packages/
   base      # runtime 内核 + 文档合同（scene/motion 的 schema 与 admission）
   ui        # runtime React 表现（stage host、Workbench 组件）
   web       # browser host
-  tooling   # 构建与 dev 端口（scene/motion lint、CAS 写回端口、vite、story CLI）
+  tooling   # 构建与 dev 端口（scene/motion lint、CAS 写回端口、vite、application CLI）
   studio    # 新增：项目级创作 UI（navigator/画布/Inspector/cue 列表）
 ```
 
@@ -277,7 +277,8 @@ Story 侧目录约定（scene-managed Story）：
 ```
 
 Starter 重定位（A4 已定名，2026-08-14）：`template/` 原地重建为 scene-first 起点
-（主入口是启动游戏——`deno task author` 或 `dev`——用户先看到示例场景，再从调试坞
+（主入口是在应用目录运行 `deno run dev`，或从仓库根运行
+`deno task app dev <application-id>`——用户先看到示例场景，再从调试坞
 进 Studio，而不是 TypeScript 工程树），不新建第二个 starter 目录；低层 authoring
 API 以同包 Advanced 层保留（`application/**` 标注 "Advanced — ordinary scene
 authoring does not edit these files."，quickstart 低层 Tier 降为高级路径）。
@@ -297,7 +298,7 @@ scene-managed 消费者。
 
 以 cat-cafe opening 为准的十步闭环（由所有者本人实测）：
 
-1. `deno task author`（或 `dev`）启动游戏后，调试坞 → 工具 → Studio；
+1. 在应用目录运行 `deno run dev`（或从仓库根运行 `deno task app dev <application-id>`）启动游戏后，调试坞 → 工具 → Studio；
 2. navigator 选"雨后的咖啡店门口"；
 3. 画布点击小雨；
 4. 拖动小雨向左；

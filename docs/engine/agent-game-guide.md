@@ -16,7 +16,7 @@ The commands below are implementation gates for a small original starter; they
 do not prove a reference-derived product's full baseline, target-platform
 uplift, content scale, or completion.
 
-The engine's acceptance commands all emit structured JSON, so the agent can self-check and self-correct; deterministic simulation (`story simulate`) lets it play through its own game without opening a browser.
+The engine's acceptance commands all emit structured JSON, so the agent can self-check and self-correct; deterministic simulation (`app simulate`) lets it play through its own game without opening a browser.
 
 ## Task-brief template (paste to the agent; replace the ⟨⟩ parts)
 
@@ -39,8 +39,8 @@ Process requirements:
 Implementation gates (all must pass; these are not product-completion evidence):
 - deno task typecheck
 - deno run -A npm:vitest run examples/⟨new-name⟩
-- deno task story check ⟨app id⟩
-- deno task story simulate ⟨app id⟩ --scenario ⟨one scenario per major route⟩
+- deno task app check ⟨app id⟩
+- deno task app simulate ⟨app id⟩ --scenario ⟨one scenario per major route⟩
 - deno task check (final, full)
 
 Boundaries: import only @sillymaker/* package exports; do not modify the engine or
@@ -55,19 +55,19 @@ product contract.
    the complete baseline and target-platform-uplift coverage table, then obtain
    the independent completion review required by `examples/AGENTS.md`. A
    playable route or successful demo remains WIP evidence only.
-2. **Numbers next**: `deno task story simulate <appId> --scenario <name>` — the report contains the final state and command sequence, so that route's completion is obvious at a glance; trace value trajectories with `--trace <dot.paths>`.
-3. **Then the browser**: `deno task dev` (`--mode <appId>`) and play the declared representative viewport/Input classes and product paths. For the small original brief above, click through its dialogue, choices, and each ending; larger products follow their coverage table.
+2. **Numbers next**: `deno task app simulate <appId> --scenario <name>` — the report contains the final state and command sequence, so that route's completion is obvious at a glance; trace value trajectories with `--trace <dot.paths>`.
+3. **Then the browser**: run `deno run dev` inside the application directory (or `deno task app dev <appId>` from the repository root), then play the declared representative viewport/Input classes and product paths. For the small original brief above, click through its dialogue, choices, and each ending; larger products follow their coverage table.
 4. **Check the change surface**: `git diff --stat` should land only in the accepted application and repository-registration/docs surface. Engine changes require the separate focused-plan loop; unrelated Stories are rejected outright.
-5. **Tuning**: enable developer tools in Settings → the DevDock tuning panel changes values live; compare saves with `deno task story diff <a> <b>`.
+5. **Tuning**: enable developer tools in Settings → the DevDock tuning panel changes values live; compare saves with `deno task app diff <a> <b>`.
 
 ## Common failures and handling
 
-| Symptom                                           | Handling                                                                                                          |
-| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Occurrence assertion mismatch                     | renumber per the failure message (adding/removing interaction boundaries shifts numbers; see the template README) |
-| `story check` reports narrative-graph diagnostics | the report carries node paths: a `branch` target outside `successors`, a missing text id, etc.; fix as stated     |
-| State rejected by canonical JSON                  | saveable state holds integers only (logical units like `scalePermille`); floats never enter saves                 |
-| The agent modified engine code                    | reject: Stories import only package exports; raise engine issues separately, outside the task brief               |
+| Symptom                                         | Handling                                                                                                          |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Occurrence assertion mismatch                   | renumber per the failure message (adding/removing interaction boundaries shifts numbers; see the template README) |
+| `app check` reports narrative-graph diagnostics | the report carries node paths: a `branch` target outside `successors`, a missing text id, etc.; fix as stated     |
+| State rejected by canonical JSON                | saveable state holds integers only (logical units like `scalePermille`); floats never enter saves                 |
+| The agent modified engine code                  | reject: Stories import only package exports; raise engine issues separately, outside the task brief               |
 
 ## Capability upgrade path
 

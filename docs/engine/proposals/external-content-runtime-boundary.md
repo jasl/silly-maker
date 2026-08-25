@@ -56,7 +56,7 @@ Examples of classification:
 ## Acceptance for a real importer
 
 - imported content has no runtime dependency on the original event JSON or script evaluator;
-- `story check` rejects broken foreign keys, missing text/asset IDs and unsupported source constructs with stable diagnostics;
+- `app check` rejects broken foreign keys, missing text/asset IDs and unsupported source constructs with stable diagnostics;
 - same seed + same command sequence yields the same digest;
 - Save/load preserves all mutable gameplay facts but does not serialize renderer/editor/database objects;
 - source map can point a diagnostic back to the imported source without making source format the runtime API;

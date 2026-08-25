@@ -7,13 +7,13 @@ import { createDiagnosticV1, parseChromeLayoutDocumentV1 } from "@sillymaker/bas
 import { listAuthoringSourceFilesV1 } from "./authoring-index.ts";
 
 /**
- * Chrome-layout source lint for `story check` (authorable-chrome-layout,
+ * Chrome-layout source lint for `app check` (authorable-chrome-layout,
  * accepted 2026-08-22): every `*.chrome-layout.json` under the Story's
  * source tree must pass strict chrome-layout admission, keep one unique
  * layoutId per file, and keep the filename in step with the id (the file
  * stem must be the id's final segment) so click-to-locate, the write
  * port's id↔path stability rule, and human navigation all agree. The file
- * walk is the shared Project Authoring Index, so `story check` and the
+ * walk is the shared Project Authoring Index, so `app check` and the
  * Studio ports can never disagree about which files exist.
  */
 

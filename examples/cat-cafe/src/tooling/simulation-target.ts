@@ -22,7 +22,7 @@ const openingV1 = [
 ];
 
 /**
- * `deno task story simulate example-cat-cafe --scenario <name>`：
+ * `deno task app simulate example-cat-cafe --scenario <name>`：
  * opening = the opening narrative; first-day = opening + one full first-day schedule (activities/petting/slot advancement).
  */
 const scenariosV1 = {

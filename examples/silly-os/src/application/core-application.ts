@@ -26,7 +26,7 @@ export interface CreateOsApplicationInstanceOptionsV1 {
   readonly now?: () => IsoUtcInstant;
 }
 
-/** One-shot headless instance for tests and `story simulate` (deterministic by default). */
+/** One-shot headless instance for tests and `app simulate` (deterministic by default). */
 export async function createOsApplicationInstanceV1(
   options: CreateOsApplicationInstanceOptionsV1 = {},
 ): Promise<OsApplicationInstanceV1> {

@@ -55,7 +55,7 @@ catalog。placement/appearance 等权威语义完全不变。
 
 - 每条目 V1 只允许一条 ambient 绑定（呼吸+眨眼合成一份多轨道文档）；
 - motion 文档现有时长/关键帧限额沿用；ambient 条目数受 stage entry 上限约束；
-- Studio/检查器：`story check` 校验 ambient motionId 存在（与 cue motionId 同族
+- Studio/检查器：`app check` 校验 ambient motionId 存在（与 cue motionId 同族
   lint）；Studio 条目检视器提供 ambient 下拉（可与 Scene Construction 合流）。
 
 ### 5. 泛化模式与边界（2026-08-15 评审补充，防"单一消费者专用"跑偏）

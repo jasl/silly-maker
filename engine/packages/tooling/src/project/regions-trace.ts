@@ -11,7 +11,7 @@ import {
 import type { PngAlphaImageV1 } from "./png-alpha.ts";
 
 /**
- * Silhouette-to-polygon tracing for the `story regions trace` devtool
+ * Silhouette-to-polygon tracing for the `app regions trace` devtool
  * (shaped-hit-regions, accepted 2026-08-21). The legacy-asset bridge: a
  * bitmap alpha silhouette becomes one editable `sillymaker.regions`
  * Document. Pixel semantics exist only here, at import time — the runtime

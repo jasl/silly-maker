@@ -9,14 +9,14 @@ import { sillyMakerConfigV1 } from "./project.config.ts";
 const repositoryRoot = import.meta.dirname;
 
 /**
- * Root convenience dispatch: `vite --mode <application-id>` selects a
+ * Repository test dispatch: `vite --mode <application-id>` selects a
  * registered application directory and delegates to the same Vite assembly
  * that application's own `vite.config.ts` uses. Application projects are
- * the source of truth; this file only maps an ID to a directory (Playwright
- * suites and muscle-memory `deno task dev` keep working from the root).
+ * the source of truth; this file only maps an explicit ID to a directory for
+ * Playwright suites that coordinate several applications.
  */
 export default defineConfig(async ({ mode }) => {
-  const applicationId = mode === "development" || mode === "production" ? "e2e" : mode;
+  const applicationId = mode;
   const apps = await loadWorkspaceAppsV1({
     repositoryRoot,
     workspace: sillyMakerConfigV1,

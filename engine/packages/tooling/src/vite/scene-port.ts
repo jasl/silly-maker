@@ -215,7 +215,7 @@ export interface CreateSceneSourceInputV1 {
 /**
  * Creates a brand-new scene document (Scene Construction S4): the file must
  * not exist, the document must pass strict admission, the filename stem
- * must be the sceneId's final segment (the same id↔path rule `story check`
+ * must be the sceneId's final segment (the same id↔path rule `app check`
  * lints), and the sceneId must not already be admitted elsewhere in the
  * story tree. Missing directories are created; the write lands via temp
  * file + atomic rename, same as CAS updates.

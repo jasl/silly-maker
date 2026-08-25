@@ -215,7 +215,7 @@ export interface CreateMotionSourceInputV1 {
  * Creates a brand-new motion document (Scene Construction S4): the file
  * must not exist, the document must pass strict admission, the filename
  * stem must be the motionId's final segment (the same id↔path rule
- * `story check` lints), and the motionId must not already be admitted
+ * `app check` lints), and the motionId must not already be admitted
  * elsewhere in the story tree. The created file enters the Project
  * Authoring Index by convention — Studio's catalog and the Workbench see
  * it with zero registration.

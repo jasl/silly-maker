@@ -20,11 +20,11 @@
 一个"软件"= 各自切片里的组件 + `src/application/apps.tsx` 注册表里的一条声明（id、名字 textId、图标、初始窗口、单例与否、渲染函数）。桌面图标、开始菜单、窗口内容全部从注册表派生。
 
 ```sh
-deno task story check example-silly-os        # Story 诊断
+deno task app check example-silly-os        # Story 诊断
 deno run -A npm:vitest run examples/silly-os  # 规则/确定性/窗口管理器单测
-deno task story simulate example-silly-os --scenario daily
-deno task story build example-silly-os        # 静态产物 → 本目录 dist-web/
-deno task story desktop example-silly-os      # 本机或 --target 交叉目标 Desktop preview
+deno task app simulate example-silly-os --scenario daily
+deno task app build example-silly-os        # 静态产物 → 本目录 dist-web/
+deno task app desktop example-silly-os      # 本机或 --target 交叉目标 Desktop preview
 ```
 
 ## 版权

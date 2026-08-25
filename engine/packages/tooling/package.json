@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "Node-only SillyMaker tooling: the story CLI and Vite assembly for application projects, plus the JSONL agent host protocol.",
+  "description": "Node-only SillyMaker tooling: the application CLI and Vite assembly for application projects, plus the JSONL agent host protocol.",
   "exports": {
     ".": "./src/index.ts",
     "./project": "./src/project/index.ts",

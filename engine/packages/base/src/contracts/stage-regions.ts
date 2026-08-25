@@ -11,7 +11,7 @@ import { hitRegionPolygonValidV1 } from "./stage-render-target.ts";
  * Story catalogs import the file, admit it once through
  * `parseRegionsDocumentV1`, and hand `regions` to their `resolveContent`;
  * the binding stays in Story code, exactly like motion documents binding
- * cues. Studio's region editor and the `story regions trace` devtool read
+ * cues. Studio's region editor and the `app regions trace` devtool read
  * and write this format; the runtime and Saves only ever see parsed data.
  *
  * Admission is strict (a broken Document fails with a structured path);

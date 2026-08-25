@@ -18,7 +18,7 @@
     "build:web": "deno run -A npm:vite build",
     "preview": "deno run -A npm:vite preview",
     "clean": "rm -rf dist-web dist-desktop",
-    "story": "deno run -A ./tools/story.mts",
+    "app": "deno run -A ./tools/app.mts",
     "test": "deno run -A npm:vitest run src"
   },
   "dependencies": {

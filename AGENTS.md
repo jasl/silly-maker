@@ -328,8 +328,8 @@ Read only the documents relevant to the change:
   `docs/engine/proposals/shaped-hit-regions.md` — `polygonPoints` +
   `hoverAssetId` on hit regions with clip-path hits and hover/focus reveal
   through the stage `assets` port, the `sillymaker.regions` document family
-  with story-check lints and dev-server CAS ports, the Studio Regions
-  workspace editing against the real host rendering, the `story regions
+  with `app check` lints and dev-server CAS ports, the Studio Regions
+  workspace editing against the real host rendering, the `app regions
   trace` bitmap-to-polygon devtool (sub-byte palette PNGs first-class), and
   both consumers (the Engine Lab crate collection port in-repo; the external
   experiment repo's three-pose night-bed body zones, where the vendor
@@ -361,7 +361,7 @@ Read only the documents relevant to the change:
   record) and `docs/engine/plans/2026-08-22-authorable-chrome-layout.md` —
   the `sillymaker.chrome-layout` document family (boxes/anchors/offsets in
   logical canvas space) mirroring the regions family end to end
-  (admission, authoring index, story check lints, dev-server CAS port),
+  (admission, authoring index, `app check` lints, dev-server CAS port),
   the Studio Chrome workspace (界面布局: drag/resize boxes and anchors,
   offsets inspector, shared authoring session with CAS graduation)
   rendering Story-declared chrome fixtures (`StudioBindingV1.chrome`,
@@ -513,9 +513,11 @@ documented migration path.
   the floor as a second per-PR lane, or require a browser revision, machine
   attestation, or shell layout. Node compatibility supports dependencies; it
   does not make Node.js a SillyMaker product Host target.
-- Install with `deno install`. Use `deno task dev` for local development and
-  `deno task check` as the canonical local code-quality and product-behavior
-  check.
+- Install with `deno install`. Start a product from its own directory with
+  `deno run dev`; the repository root intentionally has no default application.
+  Use `deno task app dev <application-id>` only when an explicit root-level
+  selector is useful. `deno task check` is the canonical local code-quality
+  and product-behavior check.
 - Use `deno task test` for automated product/engine tests, `deno task test:e2e`
   when browser behavior is affected, and the commands documented in
   `docs/engine/build-and-release.md` for Player builds.

@@ -22,10 +22,10 @@
 ## 运行
 
 ```bash
-deno task story dev example-cat-cafe          # 浏览器开发（Vite）
-deno task story build example-cat-cafe        # 生产构建 → 本目录 dist-web/
-deno task story desktop example-cat-cafe      # 本机或 --target 交叉目标 Desktop preview
-deno task story simulate example-cat-cafe --scenario first-day   # 无头模拟
+deno task app dev example-cat-cafe          # 浏览器开发（Vite）
+deno task app build example-cat-cafe        # 生产构建 → 本目录 dist-web/
+deno task app desktop example-cat-cafe      # 本机或 --target 交叉目标 Desktop preview
+deno task app simulate example-cat-cafe --scenario first-day   # 无头模拟
 deno run -A npm:vitest run examples/cat-cafe  # 单元/语义测试
 ```
 
@@ -42,8 +42,8 @@ deno run -A npm:vitest run examples/cat-cafe  # 单元/语义测试
 配平工具（命令行）：
 
 ```bash
-deno task story simulate example-cat-cafe --scenario seven-weeks --trace game.cat.trust,game.shop.money
-deno task story diff saveA.json saveB.json
+deno task app simulate example-cat-cafe --scenario seven-weeks --trace game.cat.trust,game.shop.money
+deno task app diff saveA.json saveB.json
 ```
 
 ## 美术与素材

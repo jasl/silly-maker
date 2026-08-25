@@ -15,8 +15,8 @@ export interface AppCliInputV1 {
 }
 
 /**
- * The app-local `story` CLI: one application project, rooted at its own
- * directory. `story <verb> .` (or the application ID) resolves against the
+ * The app-local `app` CLI: one application project, rooted at its own
+ * directory. `app <verb> .` (or the application ID) resolves against the
  * app's own `sillymaker.config.ts`; builds run the app's own Vite config.
  */
 export async function runSillymakerAppCliV1(input: AppCliInputV1): Promise<number> {

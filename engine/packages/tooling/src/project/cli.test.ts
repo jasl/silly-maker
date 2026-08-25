@@ -430,7 +430,12 @@ describe("runProjectCliV1", () => {
     expect(fake.log.starts[0]?.killed).toBe(true);
 
     const plainDev = await runV1(["dev", "synthetic"], fake.runner);
-    expect(plainDev.code).toBe(2);
+    expect(plainDev.code).toBe(0);
+    expect(fake.log.runs.at(-1)).toMatchObject({
+      command: "deno",
+      args: ["run", "-A", "npm:vite"],
+      cwd: "/repo/test",
+    });
   });
 
   it("prebuilt-smoke verifies the built artifact's referenced files", async () => {
@@ -1078,7 +1083,7 @@ describe("runProjectCliV1", () => {
 
     const noOut = await runV1(["regions", "trace", "/art/not-png.bin"], fake.runner);
     expect(noOut.code).toBe(2);
-    expect(noOut.err[0]).toContain("usage: story regions trace");
+    expect(noOut.err[0]).toContain("usage: app regions trace");
 
     const badThreshold = await runV1(
       [

@@ -228,7 +228,7 @@ export interface CreateChromeLayoutSourceInputV1 {
 /**
  * Creates a brand-new chrome-layout document: the file must not exist,
  * the document must pass strict admission, the filename stem must be the
- * layoutId's final segment (the same id↔path rule `story check` lints),
+ * layoutId's final segment (the same id↔path rule `app check` lints),
  * and the layoutId must not already be admitted elsewhere in the story
  * tree. The created file enters the Project Authoring Index by
  * convention — Studio's catalog sees it with zero registration.

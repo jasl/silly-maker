@@ -248,7 +248,7 @@ smoke route。前四项沿用 live baseline；最后一项属于 pending Surface
 deno task test:conformance:headless
 deno task test:e2e:engine
 deno task test:e2e:examples
-deno task story build e2e
+deno task app build e2e
 deno task test:e2e:engine:prebuilt
 deno task test:determinism:deno
 deno task test:determinism:browsers

@@ -7,7 +7,7 @@ import { createDiagnosticV1, parseSceneDocumentV1 } from "@sillymaker/base";
 import { buildAuthoringProjectIndexV1, listAuthoringSourceFilesV1 } from "./authoring-index.ts";
 
 /**
- * Scene source lint for `story check`: every `*.scene.json` under the
+ * Scene source lint for `app check`: every `*.scene.json` under the
  * Story's source tree must pass strict Scene admission, keep one unique
  * sceneId per file, keep the filename in step with the id (the file stem
  * must be the id's final segment), and reference only motion ids that a
@@ -24,7 +24,7 @@ import { buildAuthoringProjectIndexV1, listAuthoringSourceFilesV1 } from "./auth
  * re-evaluated after the clone migration completes (owner ruling #3).
  *
  * The file walk and motion-id enumeration are the shared Project Authoring
- * Index, so `story check` and the Studio ports can never disagree about
+ * Index, so `app check` and the Studio ports can never disagree about
  * which files exist. This guards the authored data itself; the
  * single-authoring-authority rule (a scene-managed scene's placements live
  * only in its document) stays a documented collaboration contract, not a

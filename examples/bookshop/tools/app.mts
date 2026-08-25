@@ -4,12 +4,12 @@ import { fileURLToPath } from "node:url";
 
 import { runSillymakerAppCliV1 } from "@sillymaker/tooling/project";
 
-// The app-local story CLI: inspect/check/simulate/dev/build/desktop against
+// The app-local application CLI: inspect/check/simulate/dev/build/desktop against
 // this application's own `sillymaker.config.ts`. `.` selects this app:
 //
-//   deno run -A tools/story.mts check .
-//   deno run -A tools/story.mts simulate . --scenario intro
-//   deno run -A tools/story.mts build .
+//   deno run -A tools/app.mts check .
+//   deno run -A tools/app.mts simulate . --scenario intro
+//   deno run -A tools/app.mts build .
 process.exitCode = await runSillymakerAppCliV1({
   appRoot: resolve(fileURLToPath(new URL(".", import.meta.url)), ".."),
   argv: process.argv.slice(2),

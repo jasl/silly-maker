@@ -75,7 +75,7 @@ check lint 区域 id 唯一、顶点数、外接框边界。
 
 ### 4. 存量素材桥：位图剪影一次转多边形
 
-开发侧工具（`story regions trace <image>`）对 alpha 剪影位图跑
+开发侧工具（`app regions trace <image>`）对 alpha 剪影位图跑
 marching squares + 折线简化，产出一份区域文档供作者继续编辑。像素语义
 只存在于**导入时刻**的开发工具里；运行时与 Save/回放永远只见多边形数
 据。这是「素材不便发挥」的正解：把遗留判定位图变成一等可编辑数据，而

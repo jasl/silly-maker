@@ -21,14 +21,15 @@ Requires Deno >= 2.9.0 (runtime and package manager in one; npm dependencies res
 
 ```sh
 deno install
-deno task dev            # Vite dev server (pick an app with --mode <applicationId>)
+cd template
+deno run dev             # start this application's Vite server
 ```
 
 Common commands:
 
 - `deno task check` — the canonical local gate: format, lint, typecheck, and the product-level test suite;
 - `deno task test` / `deno task test:e2e` — engine/game behavior tests and browser user flows;
-- `deno task story <verb> <app>` — the application lifecycle CLI (inspect / check / simulate / dev --smoke / build / desktop, JSON reports);
+- `deno task app <verb> <app>` — the explicit repository application CLI (dev / inspect / check / simulate / build / desktop, JSON reports where applicable);
 - `deno task site:build` — compose the publishable static site (docs + the playable Cat Cafe and SillyOS 98 examples) into `dist/site`, then deploy via the GitHub Pages workflow or `deno task site:deploy:cf` (Cloudflare Workers); see [build-and-release](docs/engine/build-and-release.md).
 
 Start a new game by copying [`template/`](template/) and following its README. Each application is a self-contained project with its own `sillymaker.config.ts`; the root [`project.config.ts`](project.config.ts) only lists application directories for repository-wide commands.
@@ -46,7 +47,7 @@ Start a new game by copying [`template/`](template/) and following its README. E
 
 ```text
 engine/packages/base     Generic contracts, Story authoring, runtime, saves, diagnostics
-engine/packages/tooling  Project config and story CLI commands
+engine/packages/tooling  Project config and application CLI commands
 engine/packages/ui       Generic React game UI and presentation runtime
 engine/packages/web      Browser host, IndexedDB/HTTP persistence, mounting, automation
 e2e/                     The neutral engine-conformance Story (Engine Lab)

@@ -7,13 +7,13 @@ import { createDiagnosticV1, parseRegionsDocumentV1 } from "@sillymaker/base";
 import { listAuthoringSourceFilesV1 } from "./authoring-index.ts";
 
 /**
- * Regions source lint for `story check` (shaped-hit-regions, accepted
+ * Regions source lint for `app check` (shaped-hit-regions, accepted
  * 2026-08-21): every `*.regions.json` under the Story's source tree must
  * pass strict regions admission, keep one unique regionsId per file, and
  * keep the filename in step with the id (the file stem must be the id's
  * final segment) so click-to-locate, the write port's id↔path stability
  * rule, and human navigation all agree. The file walk is the shared
- * Project Authoring Index, so `story check` and the Studio ports can never
+ * Project Authoring Index, so `app check` and the Studio ports can never
  * disagree about which files exist.
  */
 

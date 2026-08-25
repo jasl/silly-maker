@@ -106,7 +106,7 @@ const teaInteractionV1 = defineInteractionDocV1({
 
 `compileInteractionDocsV1(docs, registries, tables)` 输出既有的叙事节点数组 +
 文案条目（与手写节点**同一运行时 IR**，可与存量脚本逐段共存混编）。
-admission 一次性全量校验，坏数据在 `story check`/vitest 阶段带 JSON pointer
+admission 一次性全量校验，坏数据在 `app check`/vitest 阶段带 JSON pointer
 拒绝：
 
 1. 所有跳转目标（含 `@` 跨文档）可解析；图 lint（复用现有

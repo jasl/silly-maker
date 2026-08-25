@@ -67,7 +67,7 @@ Save/digest/replay 接触。**有玩法意义的换帧不走这里**——gauge 
 ### 5. Workbench / Studio
 
 Workbench 时间线为 `frame` 轨道提供阶梯块编辑（非曲线），块上显示帧缩
-略图；循环预览开关沿用。story check 对声明式绑定处（scene 文档
+略图；循环预览开关沿用。`app check` 对声明式绑定处（scene 文档
 ambient / cue motionId）新增「帧下标不超出内容帧表」的跨文档 lint。
 
 ## 边界与限额

@@ -28,7 +28,7 @@ export interface CreateCatcafeApplicationInstanceOptionsV1 {
 
 /**
  * Creates a disposable headless application instance for tests and the
- * `deno task story simulate catcafe` target. Deterministic by default.
+ * `deno task app simulate catcafe` target. Deterministic by default.
  */
 export async function createCatcafeApplicationInstanceV1(
   options: CreateCatcafeApplicationInstanceOptionsV1 = {},

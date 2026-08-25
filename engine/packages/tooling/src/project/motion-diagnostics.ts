@@ -7,12 +7,12 @@ import { createDiagnosticV1, parseMotionDocumentV1 } from "@sillymaker/base";
 import { listAuthoringSourceFilesV1 } from "./authoring-index.ts";
 
 /**
- * Motion source lint for `story check`: every `*.motion.json` under the
+ * Motion source lint for `app check`: every `*.motion.json` under the
  * Story's source tree must pass strict Motion admission, keep one unique
  * motionId per file, and keep the filename in step with the id (the file
  * stem must be the id's final segment) so click-to-locate, the write port's
  * id↔path stability rule, and human navigation all agree. The file walk is
- * the shared Project Authoring Index, so `story check` and the Studio
+ * the shared Project Authoring Index, so `app check` and the Studio
  * ports can never disagree about which files exist. This guards the
  * authored data itself; the "no inline tunable animation constants in
  * scene code" rule stays a documented collaboration contract, not a

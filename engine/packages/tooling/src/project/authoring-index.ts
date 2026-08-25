@@ -13,7 +13,7 @@ import { admitAuthoringSceneSourceBytesV1 } from "@sillymaker/base/authoring/sce
 /**
  * The Project Authoring Index (Authoring Architecture S2): one
  * directory-convention scan constructs the authoring-source enumeration
- * every tooling consumer shares — the `story check` source lints retain their
+ * every tooling consumer shares — the `app check` source lints retain their
  * source-family walk through `listAuthoringSourceFilesV1`, while one lazy
  * project owner serves every dev-server list endpoint and incrementally admits
  * watcher changes. One-shot CLI consumers use `buildAuthoringProjectIndexV1`.

@@ -104,7 +104,7 @@ project-index/document-session/commands/diagnostics/selection/navigation/preview
 
 接线成本的根源是同一份内容要在多处登记（import、runtime binding、studio
 binding、catalog、barrel）。目标合同：tooling 按目录约定扫描项目并构造统一索引；
-Studio、`story check` 与内容浏览消费同一份枚举/admission 实现。长期 dev server 共享一个
+Studio、`app check` 与内容浏览消费同一份枚举/admission 实现。长期 dev server 共享一个
 project-scoped owner，one-shot CLI 不假装共享它的进程内实例：
 
 ```text
