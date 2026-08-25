@@ -555,7 +555,30 @@ Deck zones、grid topology、LOS/fog、ATB clock 分属 adapter，不进入共�
 - companion；
 - Agent workspace。
 
-示例是架构验收 workload，不只是视觉 demo。
+`examples/*` 是独立、内聚、可发布的完整产品，也是架构验收 workload，不是 API gallery。
+它可以是原创产品，也可以是具名原型的高保真完整重实现；primary baseline 必须是整个具名
+application/version 或覆盖其完整可观察产品的 commercial clean-room specification，不能选取章节、
+地图、路线、模式或功能子集作为完成分母。其用户可观察行为、内容广度/规模和产品深度就是最低
+完成合同。SillyMaker 版本可以增加功能、内容和打磨，但不能用新增炫技抵扣基线缺项，也不能用一个
+完整循环或纵向切片冒充完整产品。原型不支配源码、模块、品牌或素材表达；只有预先接受的目标
+Host 不可能项可以裁剪，许可限制使用原创/兼容替代。引擎表达不足、性能问题和实现成本必须作为
+未完成项或 engine gap 暴露。
+
+完整性 baseline 约束功能、系统、内容覆盖和体验角色，不要求继承原型由 retro、嵌入式或低功耗
+硬件造成的低分辨率、固定布局、输入、素材精细度或内容密度上限。每个此类 example 必须另行接受
+target-platform uplift，面向 Browser 覆盖的当前低端至主流手机/平板/电脑和 Deno Desktop 当前的
+电脑场景，重新设计响应式/高 DPI 布局、相关 touch/pointer/keyboard 输入、accessibility、兼容
+视觉/音频素材、内容深度与打磨。产品可以更丰富，实现仍保持简单、可读，并优先采用成熟的
+React/Web 生态依赖。可用算力、分辨率、存储和内存是预算，不是必须用满的配额；以当前低端
+目标为 floor、保留余量，并用按需/addressable loading 控制首包和常驻 working set。
+
+下一轮实现遵循固定反馈循环：先为已经确认的跨应用 readiness 接受并关闭一条有界 engine plan；
+随后一次只实现一个完整 reference application；收口时分别进行 product review 与 engine review，
+把发现分为应用领域问题、文档/recipe/API ergonomics、可复用的可选 integration，以及可复现的
+通用引擎合同缺口。只有经中立复现的最后一类才可以提出 focused engine plan；可选 integration
+也必须先证明独立维护价值。引擎修正后，当前 example 必须迁回推荐路径再关闭。单个 example 可以揭示
+缺口，但不能替代中立合同测试、第二消费者和本路线既有的 public promotion 要求；后续 example
+清单不是自动 backlog。
 
 ## 10. Strategic track F — presentation and renderer adapters
 
@@ -581,6 +604,13 @@ DOM 默认承载文本密集 HUD、对话、菜单、设置、复杂窗口和 ac
 4. 3D/WebGPU 在明确商业项目和性能原型前不进入 core roadmap。
 
 Save 只存 stable semantic target，不存 renderer instance、decoded media 或播放进度。
+
+成熟 Canvas/WebGL、虚拟化、3D/VRM、物理和媒体库首先作为应用的普通依赖使用。只有出现稳定、
+可复用的 SillyMaker-specific 输入、资源生命周期、Code Surface、Host 或 Inspector 映射时，才在
+首个真实消费者中提取 `contrib/*` 可选 integration package。Core 不依赖 contrib，产品未选择时
+该 integration 不进入最终 graph；`contrib` 是所有权和独立维护边界，不因目录或 package 形态
+自动成为 Composition plugin、private Mod 或 public Mod。public resolver/ABI/SDK/distribution 仍
+由 Track H 的独立 gates 与后续 accepted plan 决定。
 
 ## 11. Strategic track G — companion, Agent and GenUI
 

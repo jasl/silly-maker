@@ -121,7 +121,8 @@ variants、fallback、atomic preference activation 与 active-only physical resi
 build-known、immutable-per-generation 的 application-local Mod composition，复用既有 Direct lifecycle
 并由应用把 active identity 接入既有 BuildIdentity。它没有激活 public resolver/ABI/SDK/distribution、
 post-release arbitrary code、untrusted sandbox 或 live hot install。当前没有由本文件自动激活的下一
-engine lane；后续 SillyOS/作品重写先作为产品验证，再由可复现缺口接受新计划。
+engine lane。下一轮跨应用 readiness 实现必须先由一条新接受的有界 plan 激活；该 plan 关闭后，
+每次只显式选择一个完整 reference application，其 product/engine review 不自动形成 backlog。
 首个经 release
 source/行为确认包含目标路径的 stable（2.9.6 只是预期候选）仍须重跑同一分层验收，全部通过后才
 正式打开 maintained Desktop development workflow。此前 adapter 保持 package-private、explicit、
@@ -134,11 +135,10 @@ headless 只作开发/测试辅助，外部后台与 LLM 统一经 RPC。AR1 没
 ABI、runtime code installation、State Format V2、Effect Broker、具体 OpenUI/A2UI adapter 或
 production Story State migration；Cordis adapter/vendor/dependency 已删除。ordinary no-extension
 静态游戏 release 仍不得包含 author/source-write、selected Direct extension runtime 或 RPC
-implementation。Workspace Focus 与 Browser R2 authoritative handoff 都已关闭；作品/examples/产品或
-作品/examples/产品或其他 engine lane 不得绕过当前 Scalable Authoring / Addressable Runtime / Mods
-计划。stable Deno Desktop revalidation
+implementation。Workspace Focus 与 Browser R2 authoritative handoff 都已关闭；作品/examples/产品
+验证不会自动激活 engine backlog。stable Deno Desktop revalidation
 只在满足 release source/行为进入条件后作为独立
-activation follow-up 领取，不占用或阻塞当前 Browser lane。
+activation follow-up 领取，不占用或阻塞其他 owner-accepted work。
 
 前一条已关闭的能力车道（不形成 active/next）：
 [Authorable Chrome Layout V1](2026-08-22-authorable-chrome-layout.md)

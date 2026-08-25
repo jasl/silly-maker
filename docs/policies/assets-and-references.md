@@ -51,6 +51,17 @@ document public specifications and independently observable behavior; the
 implementer works only from that independent specification and must not inspect
 the incompatible source. Validate the result with ordinary review and tests.
 
+A high-fidelity product target does not override these boundaries. Fidelity is
+measured in independently observable behavior, declared product breadth/scale,
+and experience—not copied expression or branding. Use compatible or
+project-owned substitutions without silently reducing the accepted functional
+coverage.
+
+Fidelity also does not require retaining resolution, layout, control, or media
+limitations caused only by the source hardware. Each application owns its
+target-platform adaptation and performance budgets under the same licensing and
+clean-room rules.
+
 The repository does not maintain a source-history/provenance file, universal
 sidecar schema, legal database, or recursive dependency/vendor scanner. If a
 future change genuinely introduces copied or adapted material, add the required

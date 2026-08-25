@@ -742,6 +742,135 @@ prioritize engine work. Promotion evidence must still be reproduced by neutral,
 maintained repository fixtures/workloads; do not import external content or make
 source, tests, builds, or release claims depend on that checkout.
 
+### Reference applications and the engine feedback loop
+
+Repository examples are independent, complete, publishable reference products
+and architecture workloads, not API galleries. They may be original products or
+high-fidelity reimplementations. Once a reference baseline is accepted, its
+entire user-observable behavior, content breadth/scale, and product depth are
+the minimum completion contract: the SillyMaker version may add or deepen the
+product, but cannot silently narrow or simplify it. The reference does not own
+SillyMaker's module layout, source, names, assets, tests, or runtime structure.
+Nor does its hardware ceiling own the target presentation. A reference shaped
+by retro, embedded, or low-power devices requires an accepted target-platform
+uplift for the Browser's current-low-end through mainstream phone/tablet/
+computer classes and the current computer-class Deno Desktop surface. Preserve
+the complete product denominator and experience roles while redesigning
+responsive/high-DPI layout, relevant touch/pointer/keyboard Input,
+accessibility, compatible media quality, content density, and polish for those
+targets. An intentional retro aesthetic may remain; hardware-imposed limitations
+do not remain by default.
+
+Only a current target-Host impossibility accepted before implementation may
+remove behavior; legal/material constraints use original or compatible
+substitutions. An engine gap, performance problem, or implementation cost keeps
+the product incomplete rather than reducing its denominator. The mandatory
+completion checklist lives in
+[`examples/AGENTS.md`](../../examples/AGENTS.md#reference-application-product-contract).
+
+Advance one reference product at a time through this loop:
+
+1. Define the complete product contract and product budgets. For a
+   reference-derived product, record the primary baseline/version or clean-room
+   specification, secondary inspirations, additive extensions, owner-accepted
+   Host exceptions, compatible material substitutions, and the semantic
+   coverage table required by the checklist. A named baseline means the entire
+   named application/version or a specification of that whole observable
+   product; a chapter, map, route, mode, or feature subset remains only a WIP
+   slice. Also record which constraints came from the source device, the target
+   device/viewport/Input classes, the accepted presentation/content uplift, and
+   the product's current-low-end startup, interaction/frame, memory, storage,
+   and bundle budgets.
+2. Build in manageable slices with supported SillyMaker exports and mature
+   React/Web ecosystem dependencies, but keep the product explicitly WIP until
+   every accepted baseline area is implemented. New showcase features do not
+   offset missing baseline coverage. Do not pre-emptively generalize every
+   application need into the engine.
+3. Reconcile the complete coverage table before using the product as evidence
+   about engine readiness. Validate content registration/reachability, real
+   behavior across early/middle/late/end states and every distinct mode/system,
+   responsive presentation and interaction across the declared representative
+   viewport/Input classes, the release build, final graph, and product-local
+   budget measurements. A completion reviewer other than the implementation
+   author independently compares this evidence with the declared denominator,
+   reviews both the baseline behavior/experience roles and the accepted
+   target-platform uplift, and reports remaining gaps; a passing demo or
+   implementer summary is not that review.
+4. Review the product and engine separately. Classify each finding as an
+   application-domain defect, documentation/recipe/API-ergonomics issue,
+   reusable optional integration candidate, or reproducible general engine
+   contract gap.
+5. Fix the first two at their owner. A reusable integration may be extracted
+   under the rules below. A general engine gap requires a focused accepted plan
+   and a neutral contract test/workload. If the change promotes a public/stable
+   contract, it must also satisfy the applicable second-consumer promotion
+   gate; one example does not freeze a public API by itself.
+6. After an engine correction, migrate the reference product off its workaround
+   and re-run its product evidence. Close it only after confirming that it uses
+   the recommended path and still forms a coherent product.
+
+This review produces evidence and candidate work, not an automatic engine
+backlog. A later reference product is selected explicitly after the current one
+closes.
+
+A representative vertical slice proves only the behavior and architecture of
+that slice. It never proves that the reference product is complete or that the
+engine can carry the reference's full content and scale. The coverage table is
+ordinary Markdown in the product's existing README/design note; do not build a
+new schema, runner, exact upstream file/source/DOM inventory, or pixel-comparison
+framework around it. Product-level additions may increase experience depth, but
+the implementation still favors simple, idiomatic, discoverable modules and
+data-addressable bulk content. Hardware headroom is not a consumption target:
+use progressive/addressable loading and larger assets or working sets only when
+they create user-visible value, and retain the declared current-low-end floor
+plus reasonable headroom. Product budgets use representative profiles and raw
+measurements, not exact SKU/machine attestation.
+
+### Optional ecosystem integration packages
+
+Start with a direct dependency on the mature upstream library. Extract a
+`contrib/<integration>` package only when a real product demonstrates a reusable,
+independently maintainable SillyMaker-specific boundary such as typed
+projection/intent mapping, Input translation, resource ownership and disposal,
+a Code Surface definition, Host readiness, or an Inspector facet. A provider,
+component, hook, or few lines of application configuration do not justify a
+wrapper. Do not create an empty `contrib/` hierarchy, registry, or universal
+integration interface before the first accepted package exists.
+
+Each contrib integration is an opt-in physical package with narrow supported
+exports, its own upstream dependencies, documentation, tests, and applicable
+license notices. The dependency direction is:
+
+```text
+application/example
+  -> selected contrib integration
+       -> supported @sillymaker/* exports
+       -> upstream React/browser library
+
+engine packages  -X-> contrib
+contrib          -X-> engine src/** or @sillymaker/*/internal
+contrib          -X-> examples/**
+```
+
+Fixed product UI may mount the upstream React integration directly;
+authorable/addressable lazy GUI may use the focused
+`@sillymaker/ui/code-surface` entry. A contrib package exports the smallest
+useful component, hook, typed adapter, Code Surface factory, or—only when there
+is genuine cold service/registry composition—a supported
+`CompositionPluginV1`. Do not introduce a Composition profile merely to make an
+ordinary component look like a plugin. Preserve useful upstream escape hatches,
+and keep product rules, State schemas, control mapping, and visual policy in the
+application.
+
+No engine/root umbrella entry re-exports all integrations. An unselected
+integration must be absent from the final application module/source graph;
+installation or lockfile presence alone is not activation. A product may
+locally adapt a contrib factory into its private, build-known Mod extension
+point, but the product continues to own that point's payload, collision policy,
+identity, and activation. Contrib packages never import or publish the private
+Extension/Mod Runtime contract and do not activate a public Mod ABI, resolver,
+SDK, installation protocol, or distribution system.
+
 Use a focused package or test-file command while iterating when that is faster. Run `deno task check` before handing off a change, and add `deno task test:e2e` or prebuilt testing when the affected behavior crosses the browser/build boundary.
 
 `deno task check:determinism` is the browser-free authoritative-source guard.

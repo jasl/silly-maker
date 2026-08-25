@@ -381,6 +381,11 @@ Both targets were validated against a sub-path static server and the local `wran
 
 ## Distribution checklist
 
+For a curated repository example, this distribution gate follows the complete
+reference-product checklist in
+[`examples/AGENTS.md`](../../examples/AGENTS.md#reference-application-product-contract);
+it does not replace product or engine review.
+
 Before deploying a hosted Player:
 
 1. run `deno task check`;
