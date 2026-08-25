@@ -572,6 +572,12 @@ export function SemanticStageHostV1(props: SemanticStageHostPropsV1): ReactEleme
     transform: `scale(${String(geometry.scale)})`,
     transformOrigin: "0 0",
   } as const);
+  const coordinateOriginStyle = geometry === null ? undefined : ({
+    insetInlineStart: `${String(geometry.authoredRect.x)}px`,
+    insetBlockStart: `${String(geometry.authoredRect.y)}px`,
+    inlineSize: `${String(geometry.authoredRect.width)}px`,
+    blockSize: `${String(geometry.authoredRect.height)}px`,
+  } as const);
 
   return (
     <div
@@ -587,41 +593,47 @@ export function SemanticStageHostV1(props: SemanticStageHostPropsV1): ReactEleme
       data-stage-skip-on-input={frame.inputGate.skipOnInput ? "true" : undefined}
     >
       <div
-        className={styles.camera}
-        style={cameraStyleV1(frame, overlayIndex.camera)}
-        data-stage-camera="true"
+        className={styles["coordinate-origin"]}
+        style={coordinateOriginStyle}
+        data-stage-coordinate-origin="true"
       >
-        {frame.layers.map((layer) => (
-          <div
-            key={layer.layerId}
-            className={styles.layer}
-            style={layerStyleV1(layer)}
-            hidden={!layer.transform.visible}
-            data-stage-layer={layer.layerId}
-          >
-            {layer.entries.map((frameEntry) => (
-              <StageEntryV1
-                key={frameEntry.frameKey}
-                layerId={layer.layerId}
-                frameEntry={frameEntry}
-                onHitRegionActivate={props.onHitRegionActivate}
-                assets={props.assets ?? null}
-                inspect={inspect}
-                inspectEnabled={inspectState.enabled}
-                inspectSelected={inspectState.selectedKey === frameEntry.frameKey}
-                hitRegionsHighlighted={props.highlightHitRegions === true ||
-                  inspectState.highlightHitRegions}
-                overlayChannels={overlayIndex.entry.get(
-                  `${layer.layerId}\u0000${frameEntry.entry.tag}`,
-                )}
-                ambientSample={props.ambient?.get(frameEntry.entry.key)}
-                renderer={Object.hasOwn(renderers, frameEntry.entry.rendererId)
-                  ? renderers[frameEntry.entry.rendererId]
-                  : undefined}
-              />
-            ))}
-          </div>
-        ))}
+        <div
+          className={styles.camera}
+          style={cameraStyleV1(frame, overlayIndex.camera)}
+          data-stage-camera="true"
+        >
+          {frame.layers.map((layer) => (
+            <div
+              key={layer.layerId}
+              className={styles.layer}
+              style={layerStyleV1(layer)}
+              hidden={!layer.transform.visible}
+              data-stage-layer={layer.layerId}
+            >
+              {layer.entries.map((frameEntry) => (
+                <StageEntryV1
+                  key={frameEntry.frameKey}
+                  layerId={layer.layerId}
+                  frameEntry={frameEntry}
+                  onHitRegionActivate={props.onHitRegionActivate}
+                  assets={props.assets ?? null}
+                  inspect={inspect}
+                  inspectEnabled={inspectState.enabled}
+                  inspectSelected={inspectState.selectedKey === frameEntry.frameKey}
+                  hitRegionsHighlighted={props.highlightHitRegions === true ||
+                    inspectState.highlightHitRegions}
+                  overlayChannels={overlayIndex.entry.get(
+                    `${layer.layerId}\u0000${frameEntry.entry.tag}`,
+                  )}
+                  ambientSample={props.ambient?.get(frameEntry.entry.key)}
+                  renderer={Object.hasOwn(renderers, frameEntry.entry.rendererId)
+                    ? renderers[frameEntry.entry.rendererId]
+                    : undefined}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

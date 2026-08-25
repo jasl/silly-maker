@@ -199,6 +199,35 @@ or provide live install/restart. Data/code inside the application realm remains
 trusted JavaScript; use resource-free loaders/compilers and put reversible effects
 under the lifecycle rather than expecting an engine sandbox.
 
+Declare responsive presentation at the application viewport boundary, not in gameplay State and not by letting
+individual components measure `window`. A fixed-canvas product may combine the authored fallback with ordered
+container variants:
+
+```ts
+viewport: {
+  canvas: { width: 1600, height: 1000 },
+  maxScale: 4,
+  layoutVariants: [
+    {
+      id: "phone_portrait",
+      when: { maxWidth: 500, maxAspectRatio: 0.8 },
+      mode: "expand-height",
+    },
+  ],
+}
+```
+
+Bounds are inclusive and the first match wins; a non-match uses the top-level canvas/mode and reports
+`layoutVariantId: null`. `fit` letterboxes the complete authored canvas, `fluid` makes the live container the 1:1
+logical canvas, and the two `expand-*` modes preserve the complete authored canvas while exposing symmetric extra
+logical space on one axis. `useGameViewportV1()` returns the live `canvas`, centered `authoredRect`, selected
+`mode` / `layoutVariantId`, scale/letterbox facts, `toCssPx` for distances, and `toCanvasCssPoint` for authored Stage
+points. CSS can select the same authority through `data-viewport-layout-variant` on the canvas. Stage code continues
+to author camera/layer/entry/hit coordinates relative to `authoredRect`; shell React/CSS uses the full live canvas and
+does not inherit Stage scaling. Resize and variant selection are presentation-only and never enter State, Save,
+digest, replay, BuildIdentity, or application generation. DPR affects raster backing stores, not variant selection or
+logical geometry; raster/Canvas/WebGL consumers own their own backing-store density.
+
 Narrative entrance/exit animation is authored as Motion assets: `sillymaker.motion` JSON documents (strictly admitted integer keyframes with per-segment easing), bound to stage edges through `motionStageTransition` in the transition catalog — or, for a scene-managed scene, through its Scene document's cue bindings. Motions compose over the settled placement (layout stays authoritative) and never enter authoritative State, Saves, digests, or replay. They are the human tuning surface: the reusable focused `MotionWorkbenchV1` can edit/save one document through the shared session/CAS path, while the current Inspector exposes selected-object Motion/Timeline references and scrub read-only. Neither is a Studio workspace. `story check` lints every motion file: admission, unique ids, and filename↔id agreement.
 
 Discrete frame swaps (blinks, breathing sheets, burst frame runs) are the same Motion asset: a `frame` track samples stepwise (no interpolation, no easing) and selects an index into the ordered frame table the content declares via `StageContentResolution.frameAssetIds` (all members are validated and join asset preloading; the former arbitrary 64-entry cap is gone). The stage host hands the sampled `frameIndex` to the entry renderer — one-shot cue motions override while in flight, an entry's `ambient` loop overrides while settled, otherwise `frameIndex` is `null` and the renderer shows its default appearance. Author frame 0 as the default pose (reduced motion drops the override), and make a one-shot run's last frame equal the settled appearance so the settle is invisible. The runtime clamps out-of-table indices; the Workbench edits frame keyframes like any other track (easing controls replaced by a stepped label).

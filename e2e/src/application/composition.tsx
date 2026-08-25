@@ -679,6 +679,13 @@ export const labGameApplicationV1: WebGameApplicationV1<
   viewport: {
     canvas: labViewportCanvasV1,
     fallbackSize: { width: 1600, height: 1000 },
+    layoutVariants: [
+      {
+        id: "phone_portrait",
+        when: { maxAspectRatio: 0.8 },
+        mode: "expand-height",
+      },
+    ],
   },
   core: labCoreApplicationDefinitionV1,
   addressableRuntime: labAddressableRuntimeV1,

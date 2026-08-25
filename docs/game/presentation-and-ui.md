@@ -94,7 +94,7 @@ Tavern presentation rebuild 完成的最低标准：
 1. 一条完整游戏循环——开始周期、选择方针、采购、营业推进、触发一段 VN 事件、存档并读档、看到周期结算——全程只使用本文设计的界面；
 2. 黄金路径上零斜纹占位、零裸语义容器；缺失素材只允许出现"朴素但成立"的 code-native 面板；
 3. 常驻文本全部可读（对比度与字号阶达标），焦点可见，命中区 ≥ 44×44 CSS px；
-4. `1600×1000`、`1024×768`、平板横屏与 200% zoom 下核心画面可用，letterbox 正确；
+4. `1600×1000`、`1024×768`、平板横屏与 DPR=2 下核心画面可用，letterbox 正确；
 5. 玩家 UI 零 debug 词汇；`?capability=debug_tools` 时 DevDock 完整出现；
 6. normal 与 reduced-motion 路线得到相同 authoritative 结果；
 7. 以上各条有对应的 PoC/产品 E2E 断言，不依赖人工逐次确认。

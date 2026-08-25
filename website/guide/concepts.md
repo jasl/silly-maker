@@ -23,7 +23,7 @@ Item tables, activity definitions, event candidates, and reaction rules are **co
 
 ## 4. The stage is semantic
 
-What's on screen is described as plain data: layers, entries with content IDs, integer placements, appearances, and optional hit regions. A content catalog resolves IDs to renderer props; React renderers draw them; a viewport letterboxes the whole logical canvas uniformly (absolute layout at a design resolution — static art scales as one unit). Pointer, touch, and keyboard all land in the same semantic path.
+What's on screen is described as plain data: layers, entries with content IDs, integer placements, appearances, and optional hit regions. A content catalog resolves IDs to renderer props; React renderers draw them. One viewport owner can letterbox a design canvas, fill a fluid GUI 1:1, or reveal symmetric extra Stage space for portrait/wide layouts while preserving the authored origin. Ordered container variants adapt the shell without entering gameplay state. Pointer, touch, and keyboard all land in the same semantic path.
 
 ## 5. Explanations are data
 

@@ -262,6 +262,19 @@ Read only the documents relevant to the change:
   validation rather than fixtures. Public Mod resolver/ABI/SDK/distribution,
   post-release arbitrary code, an untrusted-code sandbox, and Desktop HMR remain
   inactive.
+- `docs/engine/design/game-viewport-and-ui-shell.md` and
+  `docs/engine/plans/2026-08-25-adaptive-viewport-layout-variants.md` — the
+  accepted target contract and completed execution plan. M0–M2 delivered on
+  2026-08-25: it adds
+  `expand-height` / `expand-width`, finite ordered container-size layout
+  variants, one authored Stage rect inside the live logical canvas, and neutral
+  Browser geometry/Stage-hit evidence. The authored rect fixes only the Stage
+  origin; shell UI remains CSS-pixel layout over the complete live canvas.
+  Viewport choice remains presentation data and never enters State, Save,
+  replay, BuildIdentity, or application generation. It does not activate
+  continuous Input, a renderer/asset/device framework, Desktop HMR, or a final
+  editor/Blueprint format. No next engine lane is automatically active; select
+  one complete Reference Product explicitly.
 - The plans and proposals dated 2026-08-19 through 2026-08-22 own the detailed
   acceptance and closure evidence for the six engine-gap lanes summarized
   above. The authoritative hold clock lane

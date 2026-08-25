@@ -280,8 +280,12 @@ experimental Agent Host/UiArtifact fake vertical slice 也已于同日交付。A
 lifetime 与 performance promotion 及 AR6 closure/owner checkpoint 已于 2026-08-23 交付关闭。目标合同见
 [Application Runtime and Embedded Authoring](design/application-runtime-and-embedded-authoring.md)。
 Application Runtime 本轮只交付引擎基础设施；2026-08-25 Scalable Authoring /
-Addressable Runtime / Mods 后继计划也已交付关闭。当前没有自动激活的新 engine lane；未写入新接受
-plan 的候选不是默认 backlog。已接受但未完成的 Desktop HMR stable
+Addressable Runtime / Mods 后继计划也已交付关闭。同日所有者随后接受
+[Adaptive Viewport & Layout Variants V1](plans/2026-08-25-adaptive-viewport-layout-variants.md)
+作为下一条有界 engine lane，并于同日交付关闭：补齐 accepted GameViewport design 中的单轴扩展画布和
+container-size 声明式 layout variants，并以 Engine Lab 中立验证为后续完整 Reference Product target
+uplift 提供基础。它没有激活 continuous Input、renderer/asset framework 或 Desktop workflow。当前没有
+自动激活的新 engine lane；未写入新接受 plan 的候选不是默认 backlog。已接受但未完成的 Desktop HMR stable
 revalidation 与 Desktop production promotion 保持独立、条件性，只 gate 各自的 Desktop claim/
 workflow，不阻塞 core 或其他工作。
 

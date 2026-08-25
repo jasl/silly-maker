@@ -1,6 +1,12 @@
 # Game viewport and UI shell design
 
-状态：2026-07-20 接受的目标设计。C3、D2、E2 与 F3 对应基线均已落地：`GameViewportV1` 提供逻辑画布、fit letterbox、两空间查询与 maxScale 居中，Semantic Stage placement 按逻辑坐标渲染，VN/shell surface 锚定到画布安全区，首个 PoC 退役后 player/debug 边界由默认 GameRoot 与浏览器验收持续保护。后来增加的 `fluid` mode 也已交付；`expand-height` / `expand-width` 与显式 layout variant 仍是目标设计而非当前能力。本文记录已交付合同和剩余设计边界，不新增独立里程碑。
+状态：2026-07-20 接受；2026-08-25 由
+[Adaptive Viewport & Layout Variants V1](../plans/2026-08-25-adaptive-viewport-layout-variants.md)
+冻结并交付剩余几何合同。C3、D2、E2 与 F3 对应基线均已落地：`GameViewportV1` 提供逻辑画布、fit
+letterbox、两空间查询与 maxScale 居中，Semantic Stage placement 按 authored 坐标渲染，VN/shell
+surface 在 live canvas 内布局，首个 PoC 退役后 player/debug 边界由默认 GameRoot 与浏览器验收持续保护。
+后来增加的 `fluid` mode 以及 2026-08-25 的 `expand-height` / `expand-width`、显式 layout variant 均已
+交付。
 
 ## 1. Original problem statement
 
@@ -31,22 +37,45 @@ Viewport 把逻辑画布映射到实际窗口：
 
 - **fit**（已交付、默认）：等比缩放至完全可见，两侧或上下留 letterbox/pillarbox；letterbox 区域属于 shell，不可交互、可由主题填充；
 - **fluid**（已交付）：以 1:1 CSS pixel 填满可用区域，不产生 letterbox，适合文档式或桌面式 shell；
-- **expand-height / expand-width**（目标设计）：允许在声明的安全区外露出更多画布，用于为竖屏或极端比例声明扩展构图的 Story；当前公共 mode 尚未提供；
+- **expand-height**：使用保证 authored canvas 完整可见的 fit scale，保持 authored width，并以同一
+  scale 在 block 轴对称扩展 live logical canvas；
+- **expand-width**：与上项正交，保持 authored height，并在 inline 轴对称扩展 live logical canvas；
 - 超过声明的最大逻辑尺寸时居中，不再放大；
 - 缩放因子连续，不要求整数倍；渲染按 `devicePixelRatio` 保持位图与文本清晰。
 
-当前 Story 声明画布、`fit` / `fluid` mode 和安全区 token；引擎负责换算、letterbox 与 resize/DPR/page-zoom 的一致行为。竖屏等显式 layout variant 以及扩展画布 mode 仍是目标合同，不应通过对 16:10 画布的强行拉伸或组件私自测量窗口来模拟。
+`authoredRect` 是 selected authored canvas 在 live logical canvas 内的矩形；该名刻意区别于平台 notch
+所用的 CSS safe-area inset。`fit` 与 `fluid` 的 authored rect
+等于 live canvas；扩展 mode 将 authored origin 对称偏移到 authored rect 左上。Scene 可以用负坐标或超过
+authored width/height 的坐标在扩展区布置内容；既有 authored 区域不会被裁切或拉伸。达到 `maxScale`
+后，剩余区域仍按当前 mode 成为 letterbox 或单轴扩展区。
+
+Story/application 可以声明有限的 ordered layout variants。每项有 stable `id`，以 container 的 CSS
+width 和 aspect ratio 的 inclusive min/max 匹配，首个匹配项可以替换 canvas 与 mode；无匹配项使用
+顶层 fallback。选择不读取 UA、设备型号、DPR、内存或 Host 名称。`layoutVariantId`、live geometry 与
+resize 是 presentation fact，不进入 State、Save、digest、replay、BuildIdentity 或 application
+generation。
+
+引擎负责换算、letterbox 与 resize/DPR 的一致行为。显式 variant 和扩展 mode 不应通过对
+16:10 画布强行拉伸或组件私自测量窗口来模拟。DPR 只影响 raster density；逻辑几何继续使用 CSS
+pixels。平台原生凹口/圆角继续使用 CSS `env(safe-area-inset-*)`，不建立第二个 Host geometry API。
 
 ### 3.3 Two spaces: stage space and shell space
 
 - **Stage space**：background、character、prop、scene interaction 等 playfield 内容位于逻辑画布坐标中，随缩放因子整体缩放；placement 使用逻辑坐标/锚点，禁止直接依赖 CSS 视口单位；
-- **Shell space**：HUD、对话框、Overlay 面板、系统菜单等文本性 UI **锚定**在逻辑画布的分区上（位置、尺寸预算来自逻辑坐标），但内部排版以设备像素渲染（DOM/矢量），保证任意缩放下文本清晰、focus ring 完整、命中区 ≥ 44×44 CSS px。
+- **Shell space**：HUD、对话框、Overlay 面板、系统菜单等文本性 UI 在 live logical canvas 上选择分区，
+  但内部排版以 CSS pixel 渲染（DOM/矢量），保证任意 Stage scale 下文本清晰、focus ring 完整、命中区
+  ≥ 44×44 CSS px。扩展 mode 不把 shell 强制压回缩小后的 `authoredRect`；应用使用同一个
+  `layoutVariantId` / geometry 把额外区域用于 responsive chrome。
 
 这样素材构图获得 Ren'Py 式的确定性，文本 UI 保留 Web 的清晰度与可访问性。两个 space 的换算由 viewport 提供只读查询；renderer 不得自行探测窗口尺寸建立第二套换算。
 
 ### 3.4 Layer anchoring
 
-现有七层（background、character、sceneInteraction、hud、narrative、workspaceOverlay、system）保留 DOM 顺序与输入语义，并按 space 归类：background/character/sceneInteraction 属于 stage space；hud/narrative/workspaceOverlay/system 属于 shell space，各自声明锚定分区（例如顶部 HUD 带、底部 VN 带、中央 Overlay 区）。分区值由 Story/application 主题声明，引擎提供锚定机制与冲突诊断。
+现有层保留 DOM 顺序与输入语义，并按 space 归类：background/character/sceneInteraction 属于 stage
+space；hud/narrative/workspaceOverlay/system 属于 shell space。默认 HUD/Narrative 使用 CSS grid 对齐，
+WholeCanvas 与 blocking surfaces 覆盖 live canvas；产品可用同一 `layoutVariantId` / geometry 声明顶部
+HUD 带、底部 VN 带或其他 responsive 分区。当前没有通用 partition schema 或冲突诊断器，不应把
+应用 CSS/React 布局描述成已交付的 engine DSL。
 
 ## 4. Theme tokens and default surface baseline
 
@@ -80,10 +109,10 @@ Composer 提供的每个默认 surface——Save、Settings、系统对话框、
 
 本文已随以下既有任务完成基线验收，不追加新阶段：
 
-- **C3（UI/Web Composer，已交付）**：default GameRoot 建立 GameViewport（声明画布、fit letterbox、两 space 换算、DPR/resize/page-zoom 行为一致）；默认 surface 满足 §4.3 基线；player/debug 边界按 §5 断言；
+- **C3（UI/Web Composer，已交付）**：default GameRoot 建立 GameViewport（声明画布、fit letterbox、两 space 换算、DPR/resize 行为一致）；默认 surface 满足 §4.3 基线；player/debug 边界按 §5 断言；
 - **D2（Stage projection，已交付）**：StageRenderTarget 的 placement 以逻辑坐标表达并经 viewport 换算渲染；
 - **E2（VN player systems，已交付）**：对话框、history、choice 界面按 shell space 锚定并消费 token；
-- **F1（vertical slice，已交付）**：验收路线在 1600×1000、1024×768、平板横屏与 200% zoom 下核心画面可用、letterbox 正确、文本清晰；
+- **F1（vertical slice，已交付）**：验收路线在 1600×1000、1024×768、平板横屏与 DPR=2 下核心画面可用、letterbox 正确、文本清晰；
 - **F3（PoC migration，已关闭）**：首个 PoC 与其 V1 scene glue 已退役，不再保留待迁移的玩家 UI；当前应用持续遵守 §5。
 
 ## 7. Stop rules

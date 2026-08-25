@@ -97,7 +97,7 @@ export function LabHudV1(props: {
   const monitors = props.publication.semantic.game.monitors;
   return (
     <div data-lab-hud="true">
-      <p>
+      <p data-lab-samples={String(props.publication.view.samplesCollected)}>
         {labUiTextV1("text.e2e.lab.hud.samples")}
         {String(props.publication.view.samplesCollected)} · {labUiTextV1("text.e2e.lab.hud.steps")}
         {String(props.publication.view.procedureSteps)}

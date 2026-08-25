@@ -120,9 +120,13 @@ observation、virtualized Runtime Inspector 和 Code Surface inspection/lifecycl
 variants、fallback、atomic preference activation 与 active-only physical residency；M5 只交付 private、
 build-known、immutable-per-generation 的 application-local Mod composition，复用既有 Direct lifecycle
 并由应用把 active identity 接入既有 BuildIdentity。它没有激活 public resolver/ABI/SDK/distribution、
-post-release arbitrary code、untrusted sandbox 或 live hot install。当前没有由本文件自动激活的下一
-engine lane。下一轮跨应用 readiness 实现必须先由一条新接受的有界 plan 激活；该 plan 关闭后，
-每次只显式选择一个完整 reference application，其 product/engine review 不自动形成 backlog。
+post-release arbitrary code、untrusted sandbox 或 live hot install。2026-08-25 所有者随后接受
+[Adaptive Viewport & Layout Variants V1](2026-08-25-adaptive-viewport-layout-variants.md) 作为下一条有界
+engine lane，并于同日交付关闭：在既有单一 logical-canvas owner 上补齐 `expand-height` /
+`expand-width`、container-size 声明式 layout variants、authored Stage origin 与中立 Browser
+conformance；没有激活 continuous Input、renderer/asset framework、Desktop HMR 或设备 profile。
+当前没有自动激活的下一 engine lane；每次只显式选择一个完整 reference application，其
+product/engine review 不自动形成 backlog。
 首个经 release
 source/行为确认包含目标路径的 stable（2.9.6 只是预期候选）仍须重跑同一分层验收，全部通过后才
 正式打开 maintained Desktop development workflow。此前 adapter 保持 package-private、explicit、

@@ -680,7 +680,7 @@ mocks。
 - Node/Browser semantic revision/outcome/interaction parity 通过；
 - say/choice/barrier Save/load 通过；
 - missing image/audio/renderer fallback 通过；
-- 1600×1000、1024×768、平板横屏与 200% zoom 下 letterbox 与核心画面可用；
+- 1600×1000、1024×768、平板横屏与 DPR=2 下 letterbox 与核心画面可用；
 - no fixture/golden/sleep/coordinate-only test。
 
 ### Task F2 — Prove AI authoring canaries
