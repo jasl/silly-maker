@@ -20,8 +20,17 @@ plan；目标合同见[统一创作架构设计](../design/authoring-architectur
 
 ## 1. Current and next
 
-当前：无 active 车道（Authorable Chrome Layout V1 于 2026-08-22 关
-闭；等所有者下一道命令）。Desktop 持久化仍是独立晋级门。
+当前：[Shared Stage Input V1](2026-08-26-shared-stage-input.md)（提
+案 [shared-stage-input](../proposals/shared-stage-input.md)，
+2026-08-26 所有者裁决接受：q1 值域全收满
+`say`/`choice`/`hold`/`custom`，q2 焦点同键全放，q3 定名
+`stageInput`）——narrative 挂起共享舞台输入：pending 声明式 Host 提
+示（`pace` 同族，缺省 isolated 字节恒等），宿主按 entry 评估
+isolation 注册与焦点独占；`game-stage.tsx` 政策公式零改动、不出第二
+决议路径。兑现 mid-hold-input 关闭记录点名的最后一段路（命令级围栏
+已交付、UI inert 仍挡真实指针）。M0 base 合同 → M1 宿主谓词+焦点 →
+M2 Lab conformance（含 mid-hold 真实指针半张证据）+ 文档 → M3 实验
+仓 CE18 双活路径消费。Desktop 持久化仍是独立晋级门。
 
 前一条：[Authorable Chrome Layout V1](2026-08-22-authorable-chrome-layout.md)
 （提案
