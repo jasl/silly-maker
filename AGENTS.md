@@ -30,8 +30,10 @@ Read only the documents relevant to the change:
   implemented yet.
 - `docs/engine/plans/2026-07-30-production-floor-sequence.md` — the only
   cross-plan execution order. PF0–PF7 and the Complexity Reset are complete;
-  PF6 remains evidence-gated and inactive. The two authoring/presentation lanes
-  accepted on 2026-08-15 both delivered that day:
+  PF6 remains evidence-gated and inactive. There is currently no active lane
+  (shared-stage-input closed 2026-08-26; the recap below runs oldest
+  to newest).
+  Two lanes delivered on 2026-08-15:
   `docs/engine/plans/2026-08-15-authoring-architecture.md` (Studio author-trust
   hardening, the unified authoring shell with workspaces, the project authoring
   index, shared document sessions, story-package locality, Scene Construction,
@@ -380,6 +382,30 @@ Read only the documents relevant to the change:
   onto the engine family). The M3 intent-binding widget layer stays behind
   its own evidence gate. Layout documents stay zero-authority
   presentation data; behavior booleans and legality stay in Story code.
+  The shared-stage-input lane (accepted and delivered 2026-08-26,
+  owner-ruled q1 full value set on `say`/`choice`/`hold`/`custom`,
+  q2/q3 per recommendation) completed M0–M3 the same day:
+  `docs/engine/proposals/shared-stage-input.md` (with the closure
+  record) and `docs/engine/plans/2026-08-26-shared-stage-input.md` —
+  the optional `stageInput?: "isolated" | "shared"` pending hint
+  (`pace`-family: conditional exact-key admission and byte-identical when
+  undeclared; declared values travel with ordinary pending Save/digest/replay
+  data but are never read by authoritative arithmetic or resolution), the narrative
+  host registering stage isolation only when some entry demands it and
+  releasing focus recapture/Tab trap for shared focus owners
+  (`game-stage.tsx` policy formula and tests untouched), Engine Lab
+  conformance (shared decision menu + tripwire hold with
+  pending-routed crate activation, focused Host matrices, and the
+  real-pointer browser spec that supplies mid-hold-input's missing
+  evidence half), and the experiment repo's CE18 free-look menus plus
+  CE281 right-hand bar holds as live consumers (hold click-eater
+  passes the pointer through per declaration; mid-bar kiss lands +5
+  minutes through a real pointer). Regions still never gain routing
+  power and no second resolution path exists.
+  There is no active lane (shared-stage-input closed 2026-08-26;
+  awaiting the owner's next order).
+  Desktop persistence remains an independent promotion gate while the
+  adapter is preview.
 - `docs/engine/plans/2026-07-30-desktop-persistence-durability.md`,
   `docs/engine/plans/2026-07-30-snapshot-commit-performance.md`,
   `docs/engine/plans/2026-07-30-save-migration.md`,

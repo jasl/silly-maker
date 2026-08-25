@@ -529,6 +529,7 @@ export type {
   PaceHintV1,
   PendingInteractionBaseV1,
   PendingInteractionV1,
+  StageInputHintV1,
 } from "./pending-interaction.ts";
 export {
   applyElapsedToHoldV1,

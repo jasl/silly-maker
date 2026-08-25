@@ -5,6 +5,7 @@ import type {
   NarrativeHistoryV1,
   PendingInteractionV1,
   SemanticStageStateV1,
+  StageInputHintV1,
   StageMutationV1,
   StrictJsonObjectV1,
   TimeTickV1,
@@ -142,6 +143,8 @@ export type LabNarrativeNodeV1 =
     readonly seenRevision: number;
     readonly promptTextId: string;
     readonly options: readonly LabChoiceOptionV1[];
+    /** Presentation-only Host hint; the narrative runner never branches on it. */
+    readonly stageInput?: StageInputHintV1;
   }
   | {
     readonly kind: "hold";
@@ -150,6 +153,8 @@ export type LabNarrativeNodeV1 =
     readonly seenRevision: number;
     readonly durationMs: number;
     readonly skippable: boolean;
+    /** Presentation-only Host hint; the narrative runner never branches on it. */
+    readonly stageInput?: StageInputHintV1;
     /**
      * Optional authoritative tick effect settled by threshold crossings:
      * every `everyMs` of consumed hold time deepens rapport by
@@ -223,7 +228,12 @@ export const labDrillVigilTickEveryMsV1 = 300;
 export const labDrillVigilDurationMsV1 = 800;
 export const labDrillVigilRapportThresholdV1 = 2;
 export const labDrillStakeoutDurationMsV1 = 1_500;
-export const labDrillTripwireDurationMsV1 = 1_500;
+/**
+ * Wide enough for the browser shared-stage-input conformance to land a
+ * real pointer click inside the watch under CI variance; headless expiry
+ * tests tick the constant explicitly, so the wider window costs no wall time.
+ */
+export const labDrillTripwireDurationMsV1 = 6_000;
 
 export const labCalibrationApproachOptionsV1: readonly LabChoiceOptionV1[] = [
   {
@@ -401,6 +411,7 @@ function pendingForNodeV1(node: LabNarrativeNodeV1, sequence: number): PendingIn
         occurrenceId,
         promptTextId: node.promptTextId,
         options: node.options.map(({ choiceId, textId }) => ({ choiceId, textId })),
+        ...(node.stageInput === undefined ? {} : { stageInput: node.stageInput }),
       });
     case "hold":
       return parsePendingInteractionV1({
@@ -411,6 +422,7 @@ function pendingForNodeV1(node: LabNarrativeNodeV1, sequence: number): PendingIn
         totalMs: node.durationMs,
         remainingMs: node.durationMs,
         skippable: node.skippable,
+        ...(node.stageInput === undefined ? {} : { stageInput: node.stageInput }),
       });
     case "barrier":
       return parsePendingInteractionV1({

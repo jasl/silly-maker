@@ -129,7 +129,14 @@ conformance；没有激活 continuous Input、renderer/asset framework、Desktop
 [Cards Reference Application](2026-08-25-cards-reference-application.md)：PocketJS Cards 0.6.0 的完整分母、
 target uplift、中性 GUI-only Host/config、focused final graph、产品预算、独立审查与 Starter feedback 均已
 关闭，只领取了真实 consumer 暴露的窄 engine correction。当前没有自动激活的下一 engine lane 或
-Reference Product，其 product/engine review 不自动形成 backlog。
+Reference Product，其 product/engine review 不自动形成 backlog。2026-08-26 从平行商业克隆暴露的
+真实指针缺口吸收并同日关闭
+[Shared Stage Input V1](2026-08-26-shared-stage-input.md)（提案
+[shared-stage-input](../proposals/shared-stage-input.md)）：`say`/`choice`/`hold`/`custom` pending 可声明
+`stageInput: "shared"`，Narrative Host 仅放开既有 Stage 输入隔离与焦点独占，应用仍通过同一
+occurrence-fenced command 路径路由区域激活。声明值随普通 pending 进入 Save/digest/replay，但不参与
+决议、时间算术或 `when`；`game-stage.tsx`、Scene/Region 权威和 Input Router 均未新增分支。当前无活动
+车道，等待所有者下一道指令；Desktop 持久化仍是独立晋级门。
 首个经 release
 source/行为确认包含目标路径的 stable（2.9.6 只是预期候选）仍须重跑同一分层验收，全部通过后才
 正式打开 maintained Desktop development workflow。此前 adapter 保持 package-private、explicit、
@@ -147,7 +154,7 @@ implementation。Workspace Focus 与 Browser R2 authoritative handoff 都已关�
 只在满足 release source/行为进入条件后作为独立
 activation follow-up 领取，不占用或阻塞其他 owner-accepted work。
 
-前一条已关闭的能力车道（不形成 active/next）：
+更早一条已关闭的能力车道（不形成 active/next）：
 [Authorable Chrome Layout V1](2026-08-22-authorable-chrome-layout.md)
 （提案
 [authorable-chrome-layout](../proposals/authorable-chrome-layout.md)，

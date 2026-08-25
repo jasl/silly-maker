@@ -384,6 +384,22 @@ request latch it acted on — the engine does not know your request fields,
 so that hygiene is yours. Never put pointer coordinates, hover state, or
 region ids into authoritative state, and never dispatch per pointer-move.
 
+For a real pointer to reach that zone while the interaction idles, declare
+`stageInput: "shared"` on the pending (`say`/`choice`/`hold`/`custom`;
+absent means today's isolated stage, and `presentation_barrier` never
+takes the member). The hint is presentation-only. It travels with the ordinary
+pending through Snapshot, Save, digest, and replay integrity, while authoritative
+arithmetic, resolution legality, and `when` arms never branch on it — and it does
+not open a second resolution path: the stage activation still lands on
+your occurrence-fenced application routing (resolve the menu's own
+occurrence for a shared `choice`, dispatch the fenced write for a shared
+`hold`), and a shared dialogue also releases the narrative focus trap so
+keyboard users can Tab out to the stage. Declare it per pending — a
+free-look menu can share the stage while the cut-in say right after it
+isolates again — and make sure your Story renders no full-viewport
+click-eater of its own under shared pendings, because the engine only
+releases its layer isolation, not your DOM.
+
 A timing accumulation that must run while the player can still act — a
 decision gauge rising under a live menu, a scene-scoped drip while the player
 reads, a held-interaction drip — is an authoritative monitor, not a hold.

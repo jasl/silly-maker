@@ -35,6 +35,10 @@ export const labDrillNarrativeNodesV1: readonly LabNarrativeNodeV1[] = [
     definitionId: labDrillDecisionDefinitionIdV1,
     seenRevision: 1,
     promptTextId: "text.e2e.lab.narrative.drill.decision",
+    // The decision menu remains authoritative, but the stage stays
+    // pointer-reachable so its region can dispatch an occurrence-fenced
+    // choice resolution at the application layer.
+    stageInput: "shared",
     options: labDrillDecisionOptionsV1,
   },
   {
@@ -80,6 +84,8 @@ export const labDrillNarrativeNodesV1: readonly LabNarrativeNodeV1[] = [
     seenRevision: 1,
     durationMs: labDrillTripwireDurationMsV1,
     skippable: false,
+    // Keep the Stage region reachable for the fenced mid-hold write.
+    stageInput: "shared",
     // The input axis: the arm watches the collector switch, which the
     // fenced `lab.engage_collector` write command (or the ordinary
     // toggle) flips between settlements. The write never routes — the

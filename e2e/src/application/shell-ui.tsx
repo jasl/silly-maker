@@ -18,6 +18,7 @@ import type { LabApplicationInstanceV1 } from "./core-definition.ts";
 import type { LabRuntimeInspectorOwnerV1 } from "./runtime-inspection.ts";
 import type { LabUiOverlayIdV1, LabUiPublicationV1 } from "./composition.tsx";
 import { labUiTextV1 } from "./ui-text.ts";
+import { labDrillTripwireChoiceIdV1 } from "../gameplay/narrative-runtime.ts";
 import {
   labBeaconPulseCueIdV1,
   labStageAmbientCatalogV1,
@@ -190,9 +191,47 @@ export function LabStageV1(props: {
         assets={labStageAssetsV1}
         onHitRegionActivate={(activation) => {
           if (activation.regionId !== "zone.crate.collect") return;
-          void context.semantic.dispatch(
-            { kind: "invoke" as const, actionId: "lab.collect_sample" as const },
-          );
+          // Pending-aware routing (the shared-stage-input composition):
+          // regions never gain routing power — every branch lands on an
+          // occurrence-fenced command that rejects stale fences whole.
+          const pending = context.publication.semantic.narrative.pending;
+          if (pending === null) {
+            void context.semantic.dispatch(
+              { kind: "invoke" as const, actionId: "lab.collect_sample" as const },
+            );
+            return;
+          }
+          if (
+            pending.kind === "choice" && pending.stageInput === "shared" &&
+            pending.options.some((option) => option.choiceId === labDrillTripwireChoiceIdV1)
+          ) {
+            // The night-menu shape: the crate is the collector fixture, so
+            // activating it chooses the tripwire option on this occurrence.
+            void context.semantic.dispatch(
+              {
+                kind: "resolve" as const,
+                expectedOccurrenceId: pending.occurrenceId,
+                resolution: {
+                  kind: "choose" as const,
+                  choiceId: labDrillTripwireChoiceIdV1,
+                },
+              },
+            );
+            return;
+          }
+          if (pending.kind === "hold" && pending.stageInput === "shared") {
+            // The mid-hold input write, fenced to this hold's occurrence;
+            // the hold's own arm reads it at the next settlement's t=0.
+            void context.semantic.dispatch(
+              {
+                kind: "hold_write" as const,
+                actionId: "lab.engage_collector" as const,
+                expectedHoldOccurrenceId: pending.occurrenceId,
+              },
+            );
+          }
+          // Isolated pendings: the stage is inert for real pointers; a
+          // synthetic activation must not dispatch anything.
         }}
         inspect={labStageInspectControllerV1}
       />
