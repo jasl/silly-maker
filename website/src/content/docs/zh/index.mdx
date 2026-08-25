@@ -1,0 +1,134 @@
+---
+title: SillyMaker
+description: 用 React 与 TypeScript 构建 GUI 应用和游戏，再主动选择确定性运行时、规模化内容与作者工具。
+template: splash
+hero:
+  title: SillyMaker
+---
+
+import { HomeConsoleLauncherV1 } from "../../../components/HomeConsoleLauncher.tsx";
+
+<section className="sm-home-hero">
+  <div className="sm-home-hero__copy">
+    <p className="sm-home-kicker">面向 GUI 应用与游戏的 React + TypeScript 引擎</p>
+    <h1 id="_top">保留 Web。<span>按需加入引擎。</span></h1>
+    <p className="sm-home-hero__lead">{"从普通 React、CSS 和前端生态开始；只有当产品真正需要时，才加入确定性 State、场景、输入、规模化内容、Save/replay 与作者工具。"}</p>
+    <div className="sm-home-actions">
+      <a className="sm-home-button sm-home-button--primary" href="./start/">
+        {"开始构建 "}<span aria-hidden="true">→</span>
+      </a>
+      <a className="sm-home-button" href="./concepts/">了解引擎如何配合</a>
+    </div>
+    <ul className="sm-home-proof" aria-label="当前产品目标">
+      <li>浏览器</li>
+      <li>Deno Desktop</li>
+      <li>默认响应式</li>
+      <li>MIT 许可</li>
+    </ul>
+  </div>
+
+  <HomeConsoleLauncherV1 locale="zh-CN" client:load />
+</section>
+
+<section className="sm-home-section">
+  <div className="sm-home-section__heading">
+    <p>先确定产品形态</p>
+    <h2>一套 Web 基础，两条主动选择的运行时路径。</h2>
+    <p>{"GUI 应用不需要伪装成游戏；游戏也可以保留同一套 React 表面，再加入权威运行时能力，无需维护第二套前端技术栈。"}</p>
+  </div>
+
+  <div className="sm-product-shapes">
+    <a className="sm-home-card sm-home-card--gui" href="./guides/gui-application/">
+      <span className="sm-home-card__number">GUI 应用</span>
+      <strong>直接构建产品特有的界面。</strong>
+      <span>{"使用语义化 HTML、CSS、React 依赖、响应式布局、类型化 Host 端口、GUI Composition 与聚焦的 Code Surface；不需要伪造 Game Session。"}</span>
+      <ul><li>React + CSS</li><li>输入</li><li>GUI Host</li></ul>
+    </a>
+    <a className="sm-home-card sm-home-card--game" href="./guides/game-application/">
+      <span className="sm-home-card__number">游戏</span>
+      <strong>在玩法需要处加入权威连续性。</strong>
+      <span>{"组合场景、对象、图层、动画、叙事、确定性 State、Save 与 replay，同时让应用外壳继续使用 Web 生态。"}</span>
+      <ul><li>场景</li><li>State</li><li>Save + replay</li></ul>
+    </a>
+  </div>
+</section>
+
+<section className="sm-home-section">
+  <div className="sm-home-section__heading">
+    <p>渐进式引擎</p>
+    <h2>只使用足以解决产品问题的最小层级。</h2>
+    <p>{"SillyMaker 让能力保持正交：普通 UI 继续普通；游戏规模的状态、内容与作者工具则拥有明确的 owner 和边界。"}</p>
+  </div>
+
+  <ol className="sm-capability-ladder">
+    <li>
+      <strong>React 表面</strong>
+      <span>继续使用普通组件、CSS、浏览器语义与成熟前端依赖。</span>
+    </li>
+    <li>
+      <strong>组合与输入</strong>
+      <span>声明构建期已知的 GUI 结构，并主动路由键盘、鼠标、触摸或手柄。</span>
+    </li>
+    <li>
+      <strong>状态与连续性</strong>
+      <span>只为权威产品数据加入唯一的确定性 State、Session、Save 与 replay 路径。</span>
+    </li>
+    <li>
+      <strong>规模与作者工具</strong>
+      <span>独立寻址场景、叙事、GUI、代码与文本，并检查实时运行时。</span>
+    </li>
+  </ol>
+</section>
+
+<section className="sm-home-section">
+  <div className="sm-agent-panel">
+    <div className="sm-agent-panel__copy">
+      <p>同时服务人类与 coding agent</p>
+      <h3>让两种协作者理解同一张工程地图。</h3>
+      <p>{"公开 package 入口、局部手册、声明式文档与可执行验收命令，让 agent 读取与人类开发者相同的边界。Agent-first 改变的是协作方式，不是产品架构。"}</p>
+      <a className="sm-agent-link" href="./start/">打开 Agent-first 快速开始 →</a>
+    </div>
+    <pre className="sm-agent-prompt"><code>{`读取 AGENTS.md 与 starter handbook。
+从 template/ 构建一个响应式 GUI 应用。
+只使用聚焦的 @sillymaker package 入口。
+普通 React 状态保持局部。
+运行 deno task app check . 与产品测试。`}</code></pre>
+  </div>
+</section>
+
+<section className="sm-home-section">
+  <div className="sm-home-section__heading">
+    <p>完整产品，而非功能碎片</p>
+    <h2>示例的职责是向引擎施压。</h2>
+    <p>{"每个示例都应当是独立、可理解的完整产品；它负责暴露缺失抽象，再把通用改进反馈到引擎与 starter kit。"}</p>
+  </div>
+
+  <div className="sm-example-grid">
+    <a className="sm-example-card sm-example-card--bookshop" href="./examples/bookshop/">
+      <span>叙事作者工具</span>
+      <strong>Bookshop</strong>
+      <span>用于检验叙事结构与作者工作流的聚焦产品。</span>
+    </a>
+    <a className="sm-example-card sm-example-card--cafe" href="./examples/cat-cafe/">
+      <span>游戏</span>
+      <strong>Cat Cafe</strong>
+      <span>用场景、叙事、交互、State、Save 和 replay 持续向引擎施压的游戏。</span>
+    </a>
+    <a className="sm-example-card sm-example-card--os" href="./examples/silly-os/">
+      <span>GUI 应用</span>
+      <strong>SillyOS</strong>
+      <span>探索可组合窗口、工具与产品特有 UI 的自定义应用外壳。</span>
+    </a>
+  </div>
+</section>
+
+<section className="sm-final-cta">
+  <div>
+    <h2>从产品开始，再逐层获得引擎能力。</h2>
+    <p>选择 GUI 或游戏路径，让第一轮实现保持小而清晰。</p>
+  </div>
+  <div className="sm-home-actions">
+    <a className="sm-home-button sm-home-button--primary" href="./start/">立即开始</a>
+    <a className="sm-home-button" href="./reference/packages/">Package 参考</a>
+  </div>
+</section>

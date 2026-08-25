@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="SillyMaker">
+  <defs>
+    <linearGradient id="a" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6c63ff" />
+      <stop offset="1" stop-color="#16a887" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="17" fill="#11182f" />
+  <path d="M45 18H27c-6 0-10 3-10 8s4 8 10 8h10c3 0 5 1 5 4s-2 4-5 4H18" fill="none"
+    stroke="url(#a)" stroke-width="8" stroke-linecap="round" />
+</svg>

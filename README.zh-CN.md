@@ -30,7 +30,7 @@ deno run dev             # 启动这个应用自己的 Vite 服务
 - `deno task check`——本地主门禁：格式、静态检查、类型检查与产品级测试套件；
 - `deno task test` / `deno task test:e2e`——引擎/游戏行为测试与浏览器用户流程；
 - `deno task app <verb> <app>`——显式选择目标的仓库应用 CLI（dev / inspect / check / simulate / build / desktop，适用时输出 JSON 报告）；
-- `deno task site:build`——组装可发布静态站（文档 + 《雨巷猫舍》与 SillyOS 98 试玩）到 `dist/site`，经 GitHub Pages workflow 或 `deno task site:deploy:cf`（Cloudflare Workers）发布；见[构建与发布](docs/engine/build-and-release.md)。
+- `deno task site:build`——组装可发布静态站（文档 + Cards、《雨巷猫舍》和 SillyOS 98）到 `dist/site`，经 GitHub Pages workflow 或 `deno task site:deploy:cf`（Cloudflare Workers）发布；见[构建与发布](docs/engine/build-and-release.md)。
 
 开新游戏从复制 [`template/`](template/) 开始（见其 README）。每个应用都是带自己 `sillymaker.config.ts` 的独立项目；根 [`project.config.ts`](project.config.ts) 只为仓库级聚合命令列出应用目录。
 
@@ -41,7 +41,7 @@ deno run dev             # 启动这个应用自己的 Vite 服务
 - [开发与测试](docs/engine/development.md) · [Story 编写](docs/engine/story-authoring.md) · [创作快速上手](docs/engine/authoring-quickstart.md)
 - [Agent 游戏生成指南](docs/engine/agent-game-guide.md)——把仓库交给 coding agent，收获一个游戏
 - [构建与发布](docs/engine/build-and-release.md)（网页、静态托管、桌面打包）
-- 对外文档站（VitePress，中英双语）在 [`website/`](website/)
+- 对外文档站（Astro + Starlight，Markdown/MDX，中英双语）在 [`website/`](website/)
 
 ## 仓库结构
 
@@ -52,11 +52,11 @@ engine/packages/ui       通用 React 游戏 UI 与 presentation 运行时
 engine/packages/web      浏览器 Host、IndexedDB/HTTP 持久化、挂载与自动化
 e2e/                     中立引擎一致性 Story（Engine Lab）
 template/                新游戏起点骨架
-examples/                示例 Story（bookshop、cat-cafe、silly-os）
+examples/                完整示例（bookshop、cards、cat-cafe、silly-os）
 project.config.ts        仓库级聚合命令使用的应用目录清单
 scripts/                 构建身份、资产校验、桌面存档服务器、发布站组装
 docs/                    内部工程文档（计划、研究、提案、政策）
-website/                 对外文档站（VitePress，中英双语）
+website/                 对外文档站（Astro + Starlight，中英双语）
 ```
 
 各 workspace 包均为私有包；"public export" 表示仓库内受支持的包入口，不表示已发布到 npm。

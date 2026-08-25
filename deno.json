@@ -40,8 +40,8 @@
   "tasks": {
     "format": "deno fmt",
     "format:check": "deno fmt --check",
-    "lint": "deno run -A npm:oxlint --type-aware --deny-warnings --react-plugin --import-plugin engine e2e examples template scripts vite.config.ts vitest.config.ts",
-    "lint:styles": "deno run -A npm:stylelint \"engine/packages/**/*.css\" \"e2e/**/*.css\" \"examples/**/*.css\" \"template/**/*.css\"",
+    "lint": "deno run -A npm:oxlint --type-aware --deny-warnings --react-plugin --import-plugin engine e2e examples template website scripts vite.config.ts vitest.config.ts",
+    "lint:styles": "deno run -A npm:stylelint \"engine/packages/**/*.css\" \"e2e/**/*.css\" \"examples/**/*.css\" \"template/**/*.css\" \"website/**/*.css\"",
     "audit:react": "deno run -A --no-lock npm:react-doctor@^0.9.12 . --verbose --scope changed --base HEAD --include-untracked --no-score --no-supply-chain --yes --no-color --blocking none",
     "typecheck": "deno run -A npm:typescript/tsc -p tsconfig.check.json --noEmit --pretty false",
     "check:determinism": "deno run --allow-read=. scripts/determinism/check.mts",
@@ -73,9 +73,10 @@
     "test:e2e:engine:prebuilt": "deno task app build e2e && deno run -A npm:@playwright/test/playwright test --config engine/packages/web/playwright.engine-prebuilt.config.ts",
     "check": "deno task format:check && deno task lint && deno task lint:styles && deno task typecheck && deno task check:determinism && deno task test && deno task check:assets && deno task app check --all && deno task app build e2e",
     "desktop:save-server": "deno run -A scripts/desktop/save-server.mts",
-    "docs:dev": "deno run -A npm:vitepress dev website",
-    "docs:build": "deno run -A npm:vitepress build website",
-    "docs:preview": "deno run -A npm:vitepress preview website",
+    "docs:dev": "cd website && deno run -A npm:astro@^7.2.6 dev",
+    "docs:check": "deno run -A npm:astro@^7.2.6 sync --root website && deno run -A npm:typescript@^6.0.3/tsc -p website/tsconfig.check.json --noEmit --pretty false",
+    "docs:build": "deno task docs:check && deno run -A npm:astro@^7.2.6 build --root website",
+    "docs:preview": "deno run -A npm:vite@^8.2.1 preview website",
     "site:build": "deno run -A scripts/build-site.mts",
     "site:deploy:cf": "deno run -A npm:wrangler@4.123.0 deploy"
   }

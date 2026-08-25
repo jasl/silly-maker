@@ -1,0 +1,86 @@
+{
+  "format": "sillymaker.gui-composition",
+  "version": 1,
+  "compositionId": "gui.website.home-console.en",
+  "root": {
+    "nodeId": "node.website.home-console.screen",
+    "viewId": "view.website.home-console.screen.v1",
+    "props": {
+      "label": "Navigation console",
+      "statusLabel": "GUI READY",
+      "routeLabel": "SillyMaker routes",
+      "openLabel": "Open this route",
+      "previousLabel": "Previous route",
+      "nextLabel": "Next route",
+      "helpText": "TAB enters · ARROW KEYS choose · ENTER opens · POINTER and TOUCH supported"
+    },
+    "slots": {
+      "routes": [
+        {
+          "nodeId": "node.website.home-console.start",
+          "viewId": "view.website.home-console.route.v1",
+          "props": {
+            "routeId": "start",
+            "order": 0,
+            "number": "01",
+            "eyebrow": "AGENT-FIRST START",
+            "title": "Give a coding agent a bounded first mission.",
+            "summary": "Start from an understandable project map, focused public entries, and executable acceptance commands instead of a blank prompt.",
+            "href": "./start/",
+            "accent": "indigo",
+            "tags": ["Quickstart", "Starter", "Agent-readable"]
+          },
+          "slots": {}
+        },
+        {
+          "nodeId": "node.website.home-console.gui",
+          "viewId": "view.website.home-console.route.v1",
+          "props": {
+            "routeId": "gui",
+            "order": 1,
+            "number": "02",
+            "eyebrow": "GUI APPLICATIONS",
+            "title": "Keep ordinary React where ordinary React works.",
+            "summary": "Use the frontend ecosystem directly, then add GUI Composition, input, Host ports, and runtime boundaries only where the product needs them.",
+            "href": "./guides/gui-application/",
+            "accent": "mint",
+            "tags": ["React", "CSS", "GUI Host"]
+          },
+          "slots": {}
+        },
+        {
+          "nodeId": "node.website.home-console.game",
+          "viewId": "view.website.home-console.route.v1",
+          "props": {
+            "routeId": "game",
+            "order": 2,
+            "number": "03",
+            "eyebrow": "GAMES AND INTERACTIVE STORIES",
+            "title": "Add an authoritative runtime without replacing the Web.",
+            "summary": "Compose scenes, narrative, interaction, deterministic State, Save, and replay while application chrome remains a normal responsive interface.",
+            "href": "./guides/game-application/",
+            "accent": "amber",
+            "tags": ["Scene", "State", "Save + replay"]
+          },
+          "slots": {}
+        },
+        {
+          "nodeId": "node.website.home-console.examples",
+          "viewId": "view.website.home-console.route.v1",
+          "props": {
+            "routeId": "examples",
+            "order": 3,
+            "number": "04",
+            "eyebrow": "COMPLETE PRODUCTS",
+            "title": "See the engine tested by products, not fragments.",
+            "summary": "Open independent examples built to expose missing abstractions, validate public capabilities, and feed improvements back into the engine and starter.",
+            "href": "./examples/",
+            "accent": "violet",
+            "tags": ["Cat Cafe", "SillyOS", "Bookshop"]
+          },
+          "slots": {}
+        }
+      ]
+    }
+  }
+}

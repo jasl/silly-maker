@@ -1,0 +1,86 @@
+{
+  "format": "sillymaker.gui-composition",
+  "version": 1,
+  "compositionId": "gui.website.home-console.zh-cn",
+  "root": {
+    "nodeId": "node.website.home-console.screen",
+    "viewId": "view.website.home-console.screen.v1",
+    "props": {
+      "label": "导航主机",
+      "statusLabel": "GUI 已就绪",
+      "routeLabel": "SillyMaker 路线",
+      "openLabel": "打开这条路线",
+      "previousLabel": "上一条路线",
+      "nextLabel": "下一条路线",
+      "helpText": "TAB 进入 · 方向键选择 · ENTER 打开 · 支持鼠标和触控"
+    },
+    "slots": {
+      "routes": [
+        {
+          "nodeId": "node.website.home-console.start",
+          "viewId": "view.website.home-console.route.v1",
+          "props": {
+            "routeId": "start",
+            "order": 0,
+            "number": "01",
+            "eyebrow": "AGENT-FIRST 开始",
+            "title": "交给 coding agent 一项边界清晰的首个任务。",
+            "summary": "从可理解的工程地图、聚焦的公开入口和可执行验收命令开始，而不是只留下一段空泛提示词。",
+            "href": "./start/",
+            "accent": "indigo",
+            "tags": ["快速开始", "Starter", "Agent 可读"]
+          },
+          "slots": {}
+        },
+        {
+          "nodeId": "node.website.home-console.gui",
+          "viewId": "view.website.home-console.route.v1",
+          "props": {
+            "routeId": "gui",
+            "order": 1,
+            "number": "02",
+            "eyebrow": "GUI 应用",
+            "title": "普通 React 足够时，就继续使用普通 React。",
+            "summary": "直接使用前端生态；只在产品需要处加入 GUI Composition、输入、Host 端口和运行时边界。",
+            "href": "./guides/gui-application/",
+            "accent": "mint",
+            "tags": ["React", "CSS", "GUI Host"]
+          },
+          "slots": {}
+        },
+        {
+          "nodeId": "node.website.home-console.game",
+          "viewId": "view.website.home-console.route.v1",
+          "props": {
+            "routeId": "game",
+            "order": 2,
+            "number": "03",
+            "eyebrow": "游戏与互动叙事",
+            "title": "加入权威运行时，但不替换 Web。",
+            "summary": "组合场景、叙事、交互、确定性 State、Save 与 replay，同时让应用外壳保持普通的响应式界面。",
+            "href": "./guides/game-application/",
+            "accent": "amber",
+            "tags": ["场景", "State", "Save + replay"]
+          },
+          "slots": {}
+        },
+        {
+          "nodeId": "node.website.home-console.examples",
+          "viewId": "view.website.home-console.route.v1",
+          "props": {
+            "routeId": "examples",
+            "order": 3,
+            "number": "04",
+            "eyebrow": "完整产品",
+            "title": "看产品如何检验引擎，而不是只看功能碎片。",
+            "summary": "打开彼此独立的完整示例；它们负责暴露缺失抽象、验证公开能力，并把改进反馈给引擎与 Starter。",
+            "href": "./examples/",
+            "accent": "violet",
+            "tags": ["Cat Cafe", "SillyOS", "Bookshop"]
+          },
+          "slots": {}
+        }
+      ]
+    }
+  }
+}

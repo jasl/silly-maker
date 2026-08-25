@@ -57,7 +57,7 @@ e2e/                     neutral Engine Conformance Story (MIT test consumer)
 template    minimal starter Story (new-project skeleton)
 examples/                curated example Stories (bookshop; cat-cafe; SillyOS)
 project.config.ts        the workspace registry (application directory list)
-website/                 the public documentation site (VitePress, en + zh; deno task docs:dev)
+website/                 the public documentation site (Astro + Starlight, en + zh; deno task docs:dev)
 scripts                  maintained build, asset, and product tooling
 docs/engine            active engine documentation
 docs/game              active gameplay design

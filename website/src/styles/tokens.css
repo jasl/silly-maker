@@ -1,0 +1,116 @@
+/* SPDX-License-Identifier: MIT */
+
+:root {
+  --sm-font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "BlinkMacSystemFont", "Segoe UI",
+    sans-serif;
+  --sm-font-mono: ui-monospace, "SFMono-Regular", "Cascadia Code", "Roboto Mono", monospace;
+  --sm-canvas: #080d1b;
+  --sm-surface-1: #10182a;
+  --sm-surface-2: #131d31;
+  --sm-surface-raised: #172239;
+  --sm-border: rgb(151 171 216 / 18%);
+  --sm-border-strong: rgb(151 171 216 / 28%);
+  --sm-text-strong: #f3f6ff;
+  --sm-text: #c7d0e4;
+  --sm-text-muted: #8f9cb7;
+  --sm-brand-blue: #7192ff;
+  --sm-brand-blue-strong: #8ea8ff;
+  --sm-brand-mint: #43d2a8;
+  --sm-brand-amber: #eca753;
+  --sm-brand-violet: #aa91ff;
+  --sm-focus: #8ea8ff;
+  --sm-logo-canvas: #10182a;
+  --sm-nav-hover: rgb(119 146 255 / 9%);
+  --sm-nav-active-bg: #dfe8ff;
+  --sm-nav-active-text: #142851;
+  --sm-showcase-frame: #0d1424;
+  --sm-showcase-stage: #090f1e;
+  --sm-showcase-control: #1a2540;
+  --sm-showcase-text: #f3f6ff;
+  --sm-showcase-muted: #97a4be;
+  --sm-shadow-xs: 0 0.2rem 0.7rem rgb(0 0 0 / 12%);
+  --sm-shadow-lg: 0 1.5rem 4rem rgb(0 0 0 / 24%);
+  --sm-shadow-xl: 0 2rem 5rem rgb(0 0 0 / 34%);
+  --sl-color-white: #f3f6ff;
+  --sl-color-gray-1: #e3e9f7;
+  --sl-color-gray-2: #c1cbdf;
+  --sl-color-gray-3: #8f9cb7;
+  --sl-color-gray-4: #5a6883;
+  --sl-color-gray-5: #28344c;
+  --sl-color-gray-6: #121b2e;
+  --sl-color-black: #080d1b;
+  --sl-color-accent-low: #182856;
+  --sl-color-accent: #7192ff;
+  --sl-color-accent-high: #dce5ff;
+  --sl-color-text: var(--sl-color-gray-2);
+  --sl-color-text-accent: var(--sl-color-accent-high);
+  --sl-color-text-invert: #142851;
+  --sl-color-bg: var(--sm-canvas);
+  --sl-color-bg-nav: rgb(8 13 27 / 86%);
+  --sl-color-bg-sidebar: #0c1424;
+  --sl-color-bg-inline-code: #182238;
+  --sl-color-bg-accent: var(--sl-color-accent-high);
+  --sl-color-hairline-light: #263149;
+  --sl-color-hairline: #172137;
+  --sl-color-hairline-shade: #070b16;
+  --sl-color-backdrop-overlay: rgb(4 8 17 / 72%);
+  --sl-content-width: 49rem;
+  --sl-sidebar-width: 18rem;
+  --sl-nav-height: 4.5rem;
+  --sl-font: var(--sm-font-sans);
+}
+
+:root[data-theme="light"] {
+  --sm-canvas: #f6f7fb;
+  --sm-surface-1: #fff;
+  --sm-surface-2: #f0f3f9;
+  --sm-surface-raised: #fff;
+  --sm-border: #d9dfeb;
+  --sm-border-strong: #c8d1e2;
+  --sm-text-strong: #182035;
+  --sm-text: #3f4b65;
+  --sm-text-muted: #69758f;
+  --sm-brand-blue: #3b64e6;
+  --sm-brand-blue-strong: #2d55cf;
+  --sm-brand-mint: #0f9d78;
+  --sm-brand-amber: #c87808;
+  --sm-brand-violet: #7558df;
+  --sm-focus: #315fdc;
+  --sm-logo-canvas: #11182d;
+  --sm-nav-hover: #edf2ff;
+  --sm-nav-active-bg: #244fbd;
+  --sm-nav-active-text: #fff;
+  --sm-shadow-xs: 0 0.2rem 0.7rem rgb(40 55 88 / 10%);
+  --sm-shadow-lg: 0 1.5rem 4rem rgb(40 55 88 / 14%);
+  --sm-shadow-xl: 0 2rem 5rem rgb(33 45 75 / 19%);
+  --sl-color-white: #182035;
+  --sl-color-gray-1: #253047;
+  --sl-color-gray-2: #46516a;
+  --sl-color-gray-3: #6f7a91;
+  --sl-color-gray-4: #9aa4b7;
+  --sl-color-gray-5: #cdd4e0;
+  --sl-color-gray-6: #edf0f6;
+  --sl-color-gray-7: #f6f7fb;
+  --sl-color-black: #fff;
+  --sl-color-accent-high: #173d99;
+  --sl-color-accent: #315fdc;
+  --sl-color-accent-low: #dfe8ff;
+  --sl-color-text: var(--sl-color-gray-2);
+  --sl-color-text-accent: var(--sl-color-accent);
+  --sl-color-text-invert: #fff;
+  --sl-color-bg: var(--sm-canvas);
+  --sl-color-bg-nav: rgb(250 251 254 / 90%);
+  --sl-color-bg-sidebar: #f0f2f7;
+  --sl-color-bg-inline-code: #e9edf5;
+  --sl-color-bg-accent: var(--sl-color-accent);
+  --sl-color-hairline-light: #e4e8f0;
+  --sl-color-hairline: #dce2ed;
+  --sl-color-hairline-shade: #d5dce8;
+  --sl-color-backdrop-overlay: rgb(40 50 72 / 58%);
+}
+
+@media (width < 50rem) {
+  :root {
+    --sl-nav-height: 4rem;
+  }
+}

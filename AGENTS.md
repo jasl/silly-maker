@@ -406,7 +406,8 @@ Read only the documents relevant to the change:
 - `docs/engine/build-and-release.md` — local Player build and Artifact workflow.
 - `docs/game/README.md` — game design notes (historical Project Tavern status;
   new gameplay design also lands here).
-- `website/**` — the public documentation site (VitePress, en + zh); internal
+- `website/**` — the public documentation site (Astro + Starlight, en + zh);
+  ordinary pages use Markdown and interactive pages may use MDX; internal
   plans/research/proposals stay under `docs/` and are not published.
 - `docs/policies/licensing.md` and `docs/policies/assets-and-references.md` —
   project licensing and asset-use policy.

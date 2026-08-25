@@ -1,0 +1,330 @@
+---
+// SPDX-License-Identifier: MIT
+import Search from "virtual:starlight/components/Search";
+import SiteLanguageLinks from "./SiteLanguageLinks.astro";
+import SiteThemeToggle from "./SiteThemeToggle.astro";
+
+const isChinese = Astro.locals.starlightRoute.lang === "zh-CN";
+const base = import.meta.env.BASE_URL.endsWith("/")
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
+const localeRoot = isChinese ? `${base}zh/` : base;
+const href = (path: string): string => path === "" ? localeRoot : `${localeRoot}${path}/`;
+const currentPath = Astro.url.pathname;
+const hasSidebar = Astro.locals.starlightRoute.hasSidebar;
+const copy = isChinese
+  ? { home: "首页", docs: "文档", guides: "指南", examples: "示例", github: "GitHub 源码" }
+  : { home: "Home", docs: "Docs", guides: "Guides", examples: "Examples", github: "GitHub" };
+const navigation = [
+  { label: copy.home, href: href(""), active: currentPath === href("") },
+  { label: copy.docs, href: href("start"), active: currentPath.includes("/start/") },
+  { label: copy.guides, href: href("guides/gui-application"), active: currentPath.includes("/guides/") },
+  { label: copy.examples, href: href("examples"), active: currentPath.includes("/examples/") },
+].map((item) => ({ ...item, current: currentPath === item.href }));
+---
+
+<div class="site-header">
+  <a class="site-brand" href={href("")} aria-label={isChinese ? "SillyMaker 首页" : "SillyMaker home"}>
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <defs>
+        <linearGradient id="site-brand-gradient" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#6688ff"></stop>
+          <stop offset="1" stop-color="#38d6a6"></stop>
+        </linearGradient>
+      </defs>
+      <rect width="64" height="64" rx="18" fill="currentColor"></rect>
+      <path d="M45 18H27c-6 0-10 3-10 8s4 8 10 8h10c3 0 5 1 5 4s-2 4-5 4H18" fill="none" stroke="url(#site-brand-gradient)" stroke-width="8" stroke-linecap="round"></path>
+    </svg>
+    <span>SillyMaker</span>
+  </a>
+
+  <nav class="site-nav" aria-label={isChinese ? "主要导航" : "Primary navigation"}>
+    {navigation.map((item) => (
+      <a
+        href={item.href}
+        data-active={item.active ? "true" : undefined}
+        aria-current={item.current ? "page" : undefined}
+      >{item.label}</a>
+    ))}
+  </nav>
+
+  <div class="site-search">
+    <Search />
+  </div>
+
+  <div class="site-actions">
+    <a
+      class="github-link"
+      href="https://github.com/jasl/silly-maker"
+      aria-label={copy.github}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 2.6a9.6 9.6 0 0 0-3 18.7c.5.1.7-.2.7-.5v-1.9c-2.8.6-3.4-1.2-3.4-1.2-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 0 1.6 1.1 1.6 1.1.9 1.6 2.4 1.1 3 .8.1-.7.4-1.1.7-1.4-2.3-.3-4.7-1.1-4.7-4.8 0-1.1.4-1.9 1-2.6-.1-.3-.4-1.3.1-2.6 0 0 .8-.3 2.7 1a9.3 9.3 0 0 1 4.9 0c1.9-1.3 2.7-1 2.7-1 .5 1.3.2 2.3.1 2.6.6.7 1 1.5 1 2.6 0 3.7-2.4 4.5-4.7 4.8.4.3.7 1 .7 1.9v2.8c0 .4.2.6.7.5A9.6 9.6 0 0 0 12 2.6Z"></path>
+      </svg>
+      <span>{copy.github}</span>
+    </a>
+    <SiteThemeToggle />
+    <SiteLanguageLinks />
+  </div>
+
+  {!hasSidebar && (
+    <details class="mobile-site-menu">
+      <summary aria-label={isChinese ? "打开网站导航" : "Open website navigation"}>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 7h16M4 12h16M4 17h16"></path>
+        </svg>
+      </summary>
+      <div class="mobile-site-menu__panel">
+        <nav aria-label={isChinese ? "移动端主要导航" : "Mobile primary navigation"}>
+          {navigation.map((item) => (
+            <a
+              href={item.href}
+              data-active={item.active ? "true" : undefined}
+              aria-current={item.current ? "page" : undefined}
+            >{item.label}</a>
+          ))}
+          <a href="https://github.com/jasl/silly-maker">{copy.github}</a>
+        </nav>
+        <div class="mobile-site-menu__preferences">
+          <SiteThemeToggle />
+          <SiteLanguageLinks />
+        </div>
+      </div>
+    </details>
+  )}
+</div>
+
+<style>
+  .site-header {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto auto minmax(8rem, 1fr) auto;
+    gap: clamp(0.75rem, 2vw, 1.5rem);
+    align-items: center;
+    width: min(100%, 96rem);
+    height: 100%;
+    margin-inline: auto;
+  }
+
+  .site-brand {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.62rem;
+    color: var(--sm-text-strong);
+    font-size: 1.05rem;
+    font-weight: 780;
+    letter-spacing: -0.025em;
+    text-decoration: none;
+  }
+
+  .site-brand svg {
+    width: 2rem;
+    height: 2rem;
+    flex: none;
+    color: var(--sm-logo-canvas);
+    filter: drop-shadow(0 0.35rem 0.8rem rgb(44 92 210 / 18%));
+  }
+
+  .site-brand:focus-visible,
+  .github-link:focus-visible,
+  .site-nav a:focus-visible {
+    border-radius: 0.45rem;
+    outline: 2px solid var(--sm-focus);
+    outline-offset: 3px;
+  }
+
+  .site-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+  }
+
+  .site-nav a {
+    padding: 0.52rem 0.65rem;
+    border-radius: 0.6rem;
+    color: var(--sm-text-muted);
+    font-size: 0.84rem;
+    font-weight: 650;
+    text-decoration: none;
+  }
+
+  .site-nav a:hover,
+  .site-nav a[data-active="true"] {
+    color: var(--sm-text-strong);
+    background: var(--sm-nav-hover);
+  }
+
+  .site-search {
+    display: flex;
+    min-width: 0;
+    justify-content: center;
+  }
+
+  .site-search :global(site-search) {
+    width: min(100%, 22rem);
+  }
+
+  .site-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.55rem;
+  }
+
+  .mobile-site-menu {
+    display: none;
+  }
+
+  .mobile-site-menu summary {
+    display: grid;
+    width: 2.35rem;
+    height: 2.35rem;
+    place-items: center;
+    border: 1px solid var(--sm-border);
+    border-radius: 0.7rem;
+    color: var(--sm-text);
+    background: var(--sm-surface-1);
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .mobile-site-menu summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .mobile-site-menu summary:hover,
+  .mobile-site-menu[open] summary {
+    border-color: var(--sm-brand-blue);
+    color: var(--sm-text-strong);
+    background: var(--sm-surface-raised);
+  }
+
+  .mobile-site-menu summary:focus-visible {
+    outline: 2px solid var(--sm-focus);
+    outline-offset: 2px;
+  }
+
+  .mobile-site-menu summary svg {
+    width: 1.12rem;
+    height: 1.12rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-width: 1.8;
+  }
+
+  .mobile-site-menu__panel {
+    position: absolute;
+    z-index: 5;
+    display: grid;
+    gap: 1rem;
+    padding: 0.8rem;
+    border: 1px solid var(--sm-border-strong);
+    border-radius: 0.9rem;
+    background: var(--sm-surface-raised);
+    box-shadow: var(--sm-shadow-xl);
+    inset: calc(100% + 0.55rem) 0 auto;
+  }
+
+  .mobile-site-menu__panel nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+
+  .mobile-site-menu__panel nav a {
+    padding: 0.65rem 0.7rem;
+    border-radius: 0.6rem;
+    color: var(--sm-text);
+    background: var(--sm-surface-1);
+    font-size: 0.8rem;
+    font-weight: 680;
+    text-align: center;
+    text-decoration: none;
+  }
+
+  .mobile-site-menu__panel nav a:hover,
+  .mobile-site-menu__panel nav a[data-active="true"] {
+    color: var(--sm-nav-active-text);
+    background: var(--sm-nav-active-bg);
+  }
+
+  .mobile-site-menu__panel nav a:focus-visible {
+    outline: 2px solid var(--sm-focus);
+    outline-offset: 2px;
+  }
+
+  .mobile-site-menu__preferences {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding-block-start: 0.75rem;
+    border-block-start: 1px solid var(--sm-border);
+  }
+
+  .mobile-site-menu__preferences :global(.theme-toggle span) {
+    display: inline;
+  }
+
+  .mobile-site-menu__preferences :global(.theme-toggle) {
+    width: auto;
+    padding-inline: 0.7rem;
+  }
+
+  .github-link {
+    display: inline-flex;
+    min-height: 2.25rem;
+    align-items: center;
+    gap: 0.42rem;
+    color: var(--sm-text-muted);
+    font-size: 0.78rem;
+    font-weight: 650;
+    text-decoration: none;
+  }
+
+  .github-link:hover {
+    color: var(--sm-text-strong);
+  }
+
+  .github-link svg {
+    width: 1.15rem;
+    height: 1.15rem;
+    fill: currentColor;
+  }
+
+  @media (width < 66rem) {
+    .site-header {
+      grid-template-columns: auto minmax(6rem, 1fr) auto;
+    }
+
+    .site-nav {
+      display: none;
+    }
+
+    .github-link span {
+      display: none;
+    }
+  }
+
+  @media (width < 50rem) {
+    .site-header {
+      grid-template-columns: minmax(0, auto) 1fr auto;
+      gap: 0.65rem;
+    }
+
+    .site-brand span,
+    .site-actions {
+      display: none;
+    }
+
+    .site-search {
+      justify-content: flex-end;
+    }
+
+    .mobile-site-menu {
+      display: block;
+    }
+  }
+</style>

@@ -1,0 +1,134 @@
+---
+title: SillyMaker
+description: Build GUI applications and games with React and TypeScript, then add deterministic runtime, scalable content, and authoring capabilities deliberately.
+template: splash
+hero:
+  title: SillyMaker
+---
+
+import { HomeConsoleLauncherV1 } from "../../components/HomeConsoleLauncher.tsx";
+
+<section className="sm-home-hero">
+  <div className="sm-home-hero__copy">
+    <p className="sm-home-kicker">React + TypeScript engine for GUI applications and games</p>
+    <h1 id="_top">Keep the Web. <span>Add an engine.</span></h1>
+    <p className="sm-home-hero__lead">{"Start with ordinary React, CSS, and the frontend ecosystem. Add deterministic State, scenes, input, scalable content, Save/replay, and authoring only when the product needs them."}</p>
+    <div className="sm-home-actions">
+      <a className="sm-home-button sm-home-button--primary" href="./start/">
+        {"Start building "}<span aria-hidden="true">→</span>
+      </a>
+      <a className="sm-home-button" href="./concepts/">How the engine fits</a>
+    </div>
+    <ul className="sm-home-proof" aria-label="Current product targets">
+      <li>Browser</li>
+      <li>Deno Desktop</li>
+      <li>Responsive by default</li>
+      <li>MIT licensed</li>
+    </ul>
+  </div>
+
+  <HomeConsoleLauncherV1 locale="en" client:load />
+</section>
+
+<section className="sm-home-section">
+  <div className="sm-home-section__heading">
+    <p>Choose the product shape</p>
+    <h2>One Web foundation, two deliberate runtime paths.</h2>
+    <p>{"A GUI application does not need to pretend to be a game. A game can keep the same React surface and add authoritative runtime capabilities without creating a second frontend stack."}</p>
+  </div>
+
+  <div className="sm-product-shapes">
+    <a className="sm-home-card sm-home-card--gui" href="./guides/gui-application/">
+      <span className="sm-home-card__number">GUI APPLICATION</span>
+      <strong>Build product-specific interfaces directly.</strong>
+      <span>{"Use semantic HTML, CSS, React packages, responsive layout, typed Host ports, GUI Composition, and focused Code Surfaces. No fake Game Session required."}</span>
+      <ul><li>React + CSS</li><li>Input</li><li>GUI Host</li></ul>
+    </a>
+    <a className="sm-home-card sm-home-card--game" href="./guides/game-application/">
+      <span className="sm-home-card__number">GAME</span>
+      <strong>Add authoritative continuity where gameplay needs it.</strong>
+      <span>{"Compose scenes, objects, layers, motion, narrative, deterministic State, Save, and replay while keeping application chrome in the Web ecosystem."}</span>
+      <ul><li>Scene</li><li>State</li><li>Save + replay</li></ul>
+    </a>
+  </div>
+</section>
+
+<section className="sm-home-section">
+  <div className="sm-home-section__heading">
+    <p>A progressive engine</p>
+    <h2>Use the smallest layer that solves the product problem.</h2>
+    <p>{"SillyMaker keeps capabilities orthogonal: ordinary UI stays ordinary, while game-scale state, content, and authoring have explicit owners and boundaries."}</p>
+  </div>
+
+  <ol className="sm-capability-ladder">
+    <li>
+      <strong>React surface</strong>
+      <span>Use normal components, CSS, browser semantics, and mature frontend dependencies.</span>
+    </li>
+    <li>
+      <strong>Composition and input</strong>
+      <span>Declare build-known GUI structure and route keyboard, pointer, touch, or gamepad intentionally.</span>
+    </li>
+    <li>
+      <strong>State and continuity</strong>
+      <span>Add one deterministic State, Session, Save, and replay path only for authoritative product data.</span>
+    </li>
+    <li>
+      <strong>Scale and authoring</strong>
+      <span>Address scenes, narrative, GUI, code, and text independently, then inspect the live runtime.</span>
+    </li>
+  </ol>
+</section>
+
+<section className="sm-home-section">
+  <div className="sm-agent-panel">
+    <div className="sm-agent-panel__copy">
+      <p>Built for people and coding agents</p>
+      <h3>A project map both collaborators can understand.</h3>
+      <p>{"Public package entries, local handbooks, declarative documents, and executable acceptance commands give an agent the same boundaries a human developer reads. Agent-first changes the workflow, not the product architecture."}</p>
+      <a className="sm-agent-link" href="./start/">Open the agent-first quickstart →</a>
+    </div>
+    <pre className="sm-agent-prompt"><code>{`Read AGENTS.md and the starter handbook.
+Build a responsive GUI application from template/.
+Use focused @sillymaker package entries only.
+Keep ordinary React state local.
+Run deno task app check . and the product tests.`}</code></pre>
+  </div>
+</section>
+
+<section className="sm-home-section">
+  <div className="sm-home-section__heading">
+    <p>Complete products, not feature fragments</p>
+    <h2>Examples exist to pressure-test the engine.</h2>
+    <p>{"Each example is intended to be an independent, understandable product. Its job is to expose missing abstractions and feed reusable improvements back into the engine and starter kit."}</p>
+  </div>
+
+  <div className="sm-example-grid">
+    <a className="sm-example-card sm-example-card--bookshop" href="./examples/bookshop/">
+      <span>NARRATIVE AUTHORING</span>
+      <strong>Bookshop</strong>
+      <span>A focused product for narrative structure and authoring workflows.</span>
+    </a>
+    <a className="sm-example-card sm-example-card--cafe" href="./examples/cat-cafe/">
+      <span>GAME</span>
+      <strong>Cat Cafe</strong>
+      <span>A playful pressure source for scenes, narrative, interaction, State, Save, and replay.</span>
+    </a>
+    <a className="sm-example-card sm-example-card--os" href="./examples/silly-os/">
+      <span>GUI APPLICATION</span>
+      <strong>SillyOS</strong>
+      <span>A custom application shell exploring composable windows, tools, and product-specific UI.</span>
+    </a>
+  </div>
+</section>
+
+<section className="sm-final-cta">
+  <div>
+    <h2>Start with a product, then earn the engine layers.</h2>
+    <p>Choose the GUI or game path and keep the first iteration small enough to understand.</p>
+  </div>
+  <div className="sm-home-actions">
+    <a className="sm-home-button sm-home-button--primary" href="./start/">Start now</a>
+    <a className="sm-home-button" href="./reference/packages/">Package reference</a>
+  </div>
+</section>

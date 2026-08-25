@@ -14,7 +14,9 @@ Active documentation describes the code and decisions maintained after the first
 - [Build and release](engine/build-and-release.md) — development server, Player build, optional local handoff Artifact, desktop save server, and smoke verification.
 - [Authoring quickstart](engine/authoring-quickstart.md) — the layered playbook agents and humans follow for Story edits.
 
-The public documentation site lives in `website/` (VitePress, English and Chinese) and is the audience-facing portal; this `docs/` tree holds internal engineering documents and is not published.
+The public documentation site lives in `website/` (Astro + Starlight, Markdown/MDX,
+English and Chinese) and is the audience-facing portal; this `docs/` tree holds
+internal engineering documents and is not published.
 
 ## Accepted direction and execution plans
 

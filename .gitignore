@@ -28,8 +28,8 @@ dist/
 dist-web/
 dist-desktop/
 *.app/
-website/.vitepress/cache/
-website/.vitepress/.temp/
+website/.astro/
+output/
 build/
 coverage/
 .vite/

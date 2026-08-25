@@ -1,0 +1,127 @@
+---
+// SPDX-License-Identifier: MIT
+import Default from "@astrojs/starlight/components/Footer.astro";
+
+const basePrefix = import.meta.env.BASE_URL.replace(/\/$/u, "");
+const relativePath = Astro.url.pathname.startsWith(basePrefix)
+  ? Astro.url.pathname.slice(basePrefix.length)
+  : Astro.url.pathname;
+const isChinese = relativePath === "/zh" || relativePath === "/zh/";
+const isHome = relativePath === "/" || relativePath === "" || isChinese;
+const localeRoot = `${basePrefix}${isChinese ? "/zh/" : "/"}`;
+const link = (path: string): string => `${localeRoot}${path}`;
+const copy = isChinese
+  ? {
+    description: "面向 GUI 应用与游戏的 React + TypeScript 引擎。",
+    home: "首页",
+    docs: "文档",
+    examples: "示例",
+    source: "源码",
+    license: "MIT 许可",
+  }
+  : {
+    description: "A React and TypeScript engine for GUI applications and games.",
+    home: "Home",
+    docs: "Docs",
+    examples: "Examples",
+    source: "Source",
+    license: "MIT licensed",
+  };
+---
+
+{
+  isHome
+    ? (
+      <footer class="site-footer">
+        <div>
+          <a class="site-footer__brand" href={localeRoot}>SillyMaker</a>
+          <p>{copy.description}</p>
+        </div>
+        <nav aria-label={isChinese ? "页脚导航" : "Footer navigation"}>
+          <a href={localeRoot}>{copy.home}</a>
+          <a href={link("start/")}>{copy.docs}</a>
+          <a href={link("examples/")}>{copy.examples}</a>
+          <a href="https://github.com/jasl/silly-maker">{copy.source}</a>
+        </nav>
+        <p class="site-footer__meta">© 2026 SillyMaker · {copy.license}</p>
+      </footer>
+    )
+    : <Default><slot /></Default>
+}
+
+<style>
+  .site-footer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 1.5rem 3rem;
+    align-items: start;
+    padding-block: 2rem max(2rem, env(safe-area-inset-bottom));
+    border-block-start: 1px solid var(--sm-border);
+  }
+
+  .site-footer p {
+    margin: 0;
+  }
+
+  .site-footer > div {
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .site-footer__brand {
+    width: fit-content;
+    color: var(--sm-text-strong);
+    font-size: 1rem;
+    font-weight: 780;
+    letter-spacing: -0.03em;
+    text-decoration: none;
+  }
+
+  .site-footer > div p,
+  .site-footer__meta {
+    color: var(--sm-text-muted);
+    font-size: 0.72rem;
+  }
+
+  .site-footer nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem 1rem;
+    justify-content: flex-end;
+  }
+
+  .site-footer nav a {
+    color: var(--sm-text);
+    font-size: 0.76rem;
+    font-weight: 650;
+    text-decoration: none;
+  }
+
+  .site-footer nav a:hover {
+    color: var(--sm-brand-blue-strong);
+  }
+
+  .site-footer a:focus-visible {
+    border-radius: 0.35rem;
+    outline: 2px solid var(--sm-focus);
+    outline-offset: 3px;
+  }
+
+  .site-footer__meta {
+    grid-column: 1 / -1;
+  }
+
+  @media (width <= 44rem) {
+    .site-footer {
+      grid-template-columns: 1fr;
+    }
+
+    .site-footer nav {
+      justify-content: flex-start;
+    }
+
+    .site-footer__meta {
+      grid-column: auto;
+    }
+  }
+</style>

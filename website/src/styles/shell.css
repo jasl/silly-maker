@@ -1,0 +1,137 @@
+/* SPDX-License-Identifier: MIT */
+/* stylelint-disable no-descending-specificity -- Starlight regions have separate DOM owners. */
+
+html {
+  background: var(--sm-canvas);
+}
+
+body {
+  min-width: 20rem;
+  color: var(--sm-text);
+  font-family: var(--sm-font-sans);
+  text-rendering: optimizelegibility;
+}
+
+body > .page > header.header {
+  border-block-end-color: var(--sm-border);
+  background: var(--sl-color-bg-nav);
+  backdrop-filter: blur(1.2rem) saturate(135%);
+}
+
+.site-header site-search button[data-open-modal] {
+  border-color: var(--sm-border);
+  border-radius: 0.7rem;
+  color: var(--sm-text-muted);
+  background: var(--sm-surface-1);
+  box-shadow: none;
+}
+
+.site-header site-search button[data-open-modal]:hover {
+  border-color: var(--sm-border-strong);
+  color: var(--sm-text-strong);
+  background: var(--sm-surface-raised);
+}
+
+.site-header site-search button[data-open-modal]:focus-visible {
+  outline: 2px solid var(--sm-focus);
+  outline-offset: 2px;
+}
+
+.sidebar-pane {
+  background: var(--sl-color-bg-sidebar);
+}
+
+[id="starlight__sidebar"] {
+  padding-block-end: 1rem;
+}
+
+[id="starlight__sidebar"] a {
+  border-radius: 0.55rem;
+}
+
+[id="starlight__sidebar"] a[aria-current="page"] {
+  color: var(--sm-nav-active-text);
+  background: var(--sm-nav-active-bg);
+  box-shadow: var(--sm-shadow-xs);
+}
+
+[id="starlight__sidebar"] a:not([aria-current="page"]):hover {
+  color: var(--sm-text-strong);
+  background: var(--sm-nav-hover);
+}
+
+[id="starlight__sidebar"] summary {
+  color: var(--sm-text-strong);
+  font-weight: 720;
+}
+
+.right-sidebar {
+  background: color-mix(in srgb, var(--sl-color-bg) 94%, var(--sm-surface-1));
+}
+
+.right-sidebar a[aria-current="true"] {
+  color: var(--sl-color-text-accent);
+}
+
+.sl-markdown-content {
+  color: var(--sm-text);
+}
+
+.sl-markdown-content h1,
+.sl-markdown-content h2,
+.sl-markdown-content h3,
+.sl-markdown-content h4 {
+  color: var(--sm-text-strong);
+  letter-spacing: -0.025em;
+}
+
+.sl-markdown-content h1 {
+  letter-spacing: -0.04em;
+}
+
+.sl-markdown-content a:not([class]) {
+  text-decoration-color: color-mix(in srgb, var(--sl-color-accent) 55%, transparent);
+  text-underline-offset: 0.18em;
+}
+
+.sl-markdown-content a:not([class]):hover {
+  text-decoration-color: currentcolor;
+}
+
+.sl-markdown-content code:not(:where(.expressive-code *)) {
+  border: 1px solid var(--sm-border);
+  border-radius: 0.35rem;
+}
+
+.expressive-code {
+  /* stylelint-disable-next-line custom-property-pattern -- Expressive Code public token. */
+  --ec-brdRad: 0.85rem;
+}
+
+.pagination-links a {
+  border-color: var(--sm-border);
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--sm-surface-1) 75%, transparent);
+}
+
+.pagination-links a:hover {
+  border-color: var(--sm-brand-blue);
+  background: var(--sm-surface-raised);
+}
+
+dialog[aria-label] {
+  color: var(--sm-text);
+  background: var(--sm-surface-1);
+}
+
+@media (width >= 50rem) {
+  .sidebar-pane {
+    box-shadow: inset -1px 0 var(--sm-border);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}

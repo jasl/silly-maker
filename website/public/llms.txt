@@ -1,0 +1,52 @@
+# SillyMaker
+
+SillyMaker is a React and TypeScript engine for GUI applications and games. It
+keeps ordinary React, CSS, browser semantics, and frontend packages available,
+then lets a product add deterministic State, Scene, Save/replay, scalable
+content, input, and authoring capabilities deliberately.
+
+## Choose a path
+
+- GUI application: ./guides/gui-application/
+- Game: ./guides/game-application/
+- Core concepts: ./concepts/
+
+## Start a project
+
+- Agent-first guide: ./start/
+- Manual setup: ./start/manual/
+- Project structure: ./start/project-structure/
+
+Quick repository workflow:
+
+```sh
+git clone https://github.com/jasl/silly-maker
+cd silly-maker
+deno install
+deno task app dev template
+```
+
+## Build and understand
+
+- Layout and input: ./guides/layout-and-input/
+- State, Save, and replay: ./guides/state-save-replay/
+- Content and localization: ./guides/localization/
+- Inspect and debug: ./guides/inspect-and-debug/
+- Build and publish: ./guides/build-and-publish/
+- Package entries: ./reference/packages/
+- Project configuration: ./reference/project-config/
+- Data formats: ./reference/formats/
+
+## Working products
+
+- Interactive SillyMaker navigation console: ./
+- Complete examples: ./examples/
+- Cat Cafe: ./examples/cat-cafe/
+- SillyOS: ./examples/silly-os/
+- Bookshop: ./examples/bookshop/
+
+## Source
+
+- Repository: https://github.com/jasl/silly-maker
+- Engine authoring quickstart: https://github.com/jasl/silly-maker/blob/main/docs/engine/authoring-quickstart.md
+- Public documentation source: https://github.com/jasl/silly-maker/tree/main/website/src/content/docs

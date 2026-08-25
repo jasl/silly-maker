@@ -30,7 +30,7 @@ Common commands:
 - `deno task check` — the canonical local gate: format, lint, typecheck, and the product-level test suite;
 - `deno task test` / `deno task test:e2e` — engine/game behavior tests and browser user flows;
 - `deno task app <verb> <app>` — the explicit repository application CLI (dev / inspect / check / simulate / build / desktop, JSON reports where applicable);
-- `deno task site:build` — compose the publishable static site (docs + the playable Cat Cafe and SillyOS 98 examples) into `dist/site`, then deploy via the GitHub Pages workflow or `deno task site:deploy:cf` (Cloudflare Workers); see [build-and-release](docs/engine/build-and-release.md).
+- `deno task site:build` — compose the publishable static site (docs + Cards, Cat Cafe, and SillyOS 98) into `dist/site`, then deploy via the GitHub Pages workflow or `deno task site:deploy:cf` (Cloudflare Workers); see [build-and-release](docs/engine/build-and-release.md).
 
 Start a new game by copying [`template/`](template/) and following its README. Each application is a self-contained project with its own `sillymaker.config.ts`; the root [`project.config.ts`](project.config.ts) only lists application directories for repository-wide commands.
 
@@ -41,7 +41,7 @@ Start a new game by copying [`template/`](template/) and following its README. E
 - [Development and testing](docs/engine/development.md) · [Story authoring](docs/engine/story-authoring.md) · [Authoring quickstart](docs/engine/authoring-quickstart.md)
 - [Agent game guide](docs/engine/agent-game-guide.md) — point a coding agent at this repo and get a game back
 - [Build and release](docs/engine/build-and-release.md) (web, static hosting, desktop packaging)
-- Public site (VitePress, en/zh) lives in [`website/`](website/)
+- Public site (Astro + Starlight, Markdown/MDX, en/zh) lives in [`website/`](website/)
 
 ## Repository map
 
@@ -52,11 +52,11 @@ engine/packages/ui       Generic React game UI and presentation runtime
 engine/packages/web      Browser host, IndexedDB/HTTP persistence, mounting, automation
 e2e/                     The neutral engine-conformance Story (Engine Lab)
 template/                The starter skeleton for new games
-examples/                Example Stories (bookshop, cat-cafe, silly-os)
+examples/                Complete examples (bookshop, cards, cat-cafe, silly-os)
 project.config.ts        Repository directory list for aggregate commands
 scripts/                 Build identity, asset checks, desktop save server, site composer
 docs/                    Internal engineering docs (plans, research, proposals, policies)
-website/                 The public documentation site (VitePress, en + zh)
+website/                 The public documentation site (Astro + Starlight, en + zh)
 ```
 
 Workspace packages are private; “public export” means a supported in-repo package entry, not an npm release.

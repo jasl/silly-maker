@@ -1,0 +1,155 @@
+---
+// SPDX-License-Identifier: MIT
+const isChinese = Astro.locals.starlightRoute.lang === "zh-CN";
+const labels = isChinese
+  ? {
+    dark: "深色",
+    light: "浅色",
+    switchToDark: "切换到深色主题",
+    switchToLight: "切换到浅色主题",
+  }
+  : {
+    dark: "Dark",
+    light: "Light",
+    switchToDark: "Switch to dark theme",
+    switchToLight: "Switch to light theme",
+  };
+---
+
+<sillymaker-theme-toggle>
+  <button
+    type="button"
+    class="theme-toggle"
+    data-theme-toggle
+    data-dark-label={labels.dark}
+    data-light-label={labels.light}
+    data-switch-dark-label={labels.switchToDark}
+    data-switch-light-label={labels.switchToLight}
+  >
+    <svg class="theme-icon theme-icon--sun" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="3.5"></circle>
+      <path d="M12 2.2v2.1M12 19.7v2.1M2.2 12h2.1M19.7 12h2.1M5.1 5.1l1.5 1.5M17.4 17.4l1.5 1.5M18.9 5.1l-1.5 1.5M6.6 17.4l-1.5 1.5"></path>
+    </svg>
+    <svg class="theme-icon theme-icon--moon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M20 15.3A8.4 8.4 0 0 1 8.7 4a8.4 8.4 0 1 0 11.3 11.3Z"></path>
+    </svg>
+    <span data-theme-label>{labels.dark}</span>
+  </button>
+</sillymaker-theme-toggle>
+
+<script>
+  const storageKey = "starlight-theme";
+
+  class SillyMakerThemeToggle extends HTMLElement {
+    private observer: MutationObserver | null = null;
+
+    connectedCallback(): void {
+      const button = this.querySelector<HTMLButtonElement>("[data-theme-toggle]");
+      const label = this.querySelector<HTMLElement>("[data-theme-label]");
+      if (button === null || label === null) return;
+
+      const update = (): void => {
+        const theme = document.documentElement.dataset.theme === "light" ? "light" : "dark";
+        const nextLabel = theme === "dark"
+          ? button.dataset.switchLightLabel
+          : button.dataset.switchDarkLabel;
+        button.dataset.currentTheme = theme;
+        button.setAttribute("aria-label", nextLabel ?? "Toggle theme");
+        label.textContent = theme === "dark"
+          ? (button.dataset.darkLabel ?? "Dark")
+          : (button.dataset.lightLabel ?? "Light");
+      };
+
+      button.addEventListener("click", () => {
+        const current = document.documentElement.dataset.theme === "light" ? "light" : "dark";
+        const next = current === "dark" ? "light" : "dark";
+        document.documentElement.dataset.theme = next;
+        localStorage.setItem(storageKey, next);
+        const provider = Reflect.get(globalThis, "StarlightThemeProvider") as
+          | { updatePickers(theme?: string): void }
+          | undefined;
+        provider?.updatePickers(next);
+        update();
+      });
+
+      this.observer = new MutationObserver(update);
+      this.observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["data-theme"],
+      });
+      update();
+    }
+
+    disconnectedCallback(): void {
+      this.observer?.disconnect();
+      this.observer = null;
+    }
+  }
+
+  if (!customElements.get("sillymaker-theme-toggle")) {
+    customElements.define("sillymaker-theme-toggle", SillyMakerThemeToggle);
+  }
+</script>
+
+<style>
+  .theme-toggle {
+    display: inline-flex;
+    min-height: 2.35rem;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.45rem 0.7rem;
+    border: 1px solid var(--sm-border);
+    border-radius: 999px;
+    color: var(--sm-text);
+    background: var(--sm-surface-1);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 650;
+    transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease;
+  }
+
+  .theme-toggle:hover {
+    border-color: var(--sm-brand-blue);
+    color: var(--sm-text-strong);
+    background: var(--sm-surface-raised);
+  }
+
+  .theme-toggle:focus-visible {
+    outline: 2px solid var(--sm-focus);
+    outline-offset: 2px;
+  }
+
+  .theme-icon {
+    width: 1rem;
+    height: 1rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.7;
+  }
+
+  :global(:root[data-theme="dark"]) .theme-icon--sun,
+  :global(:root[data-theme="light"]) .theme-icon--moon {
+    display: none;
+  }
+
+  @media (width < 72rem) {
+    .theme-toggle span {
+      display: none;
+    }
+
+    .theme-toggle {
+      width: 2.35rem;
+      justify-content: center;
+      padding-inline: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .theme-toggle {
+      transition: none;
+    }
+  }
+</style>

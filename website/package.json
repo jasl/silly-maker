@@ -4,8 +4,26 @@
   "private": true,
   "license": "MIT",
   "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "check": "astro sync && tsc -p tsconfig.check.json --noEmit --pretty false",
+    "build": "deno task check && astro build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@sillymaker/base": "workspace:*",
+    "@sillymaker/ui": "workspace:*",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "zod": "^4.4.3"
+  },
   "devDependencies": {
-    "vitepress": "1.6.4",
-    "vue": "3.5.41"
+    "@astrojs/react": "^6.0.4",
+    "@astrojs/starlight": "^0.41.8",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "astro": "^7.2.6",
+    "typescript": "^6.0.3",
+    "vite": "^8.2.1"
   }
 }

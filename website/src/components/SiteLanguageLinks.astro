@@ -1,0 +1,61 @@
+---
+// SPDX-License-Identifier: MIT
+const basePrefix = import.meta.env.BASE_URL.replace(/\/$/u, "");
+const currentPath = Astro.url.pathname;
+const relativePath = currentPath.startsWith(basePrefix)
+  ? currentPath.slice(basePrefix.length)
+  : currentPath;
+const canonicalPath = relativePath === "/zh" || relativePath === "/zh/"
+  ? "/"
+  : relativePath.startsWith("/zh/")
+  ? relativePath.slice(3)
+  : relativePath;
+const normalizedPath = canonicalPath.startsWith("/") ? canonicalPath : `/${canonicalPath}`;
+const englishHref = `${basePrefix}${normalizedPath}` || "/";
+const chineseHref = `${basePrefix}/zh${normalizedPath === "/" ? "/" : normalizedPath}`;
+const isChinese = Astro.locals.starlightRoute.lang === "zh-CN";
+---
+
+<nav class="language-links" aria-label={isChinese ? "语言" : "Language"}>
+  <a href={englishHref} lang="en" aria-current={isChinese ? undefined : "page"}>EN</a>
+  <a href={chineseHref} lang="zh-CN" aria-current={isChinese ? "page" : undefined}>中文</a>
+</nav>
+
+<style>
+  .language-links {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.2rem;
+    border: 1px solid var(--sm-border);
+    border-radius: 999px;
+    background: var(--sm-surface-1);
+  }
+
+  .language-links a {
+    min-width: 2.25rem;
+    padding: 0.34rem 0.55rem;
+    border-radius: 999px;
+    color: var(--sm-text-muted);
+    font-size: 0.74rem;
+    font-weight: 700;
+    line-height: 1.2;
+    text-align: center;
+    text-decoration: none;
+  }
+
+  .language-links a:hover {
+    color: var(--sm-text-strong);
+  }
+
+  .language-links a[aria-current="page"] {
+    color: var(--sm-nav-active-text);
+    background: var(--sm-nav-active-bg);
+    box-shadow: var(--sm-shadow-xs);
+  }
+
+  .language-links a:focus-visible {
+    outline: 2px solid var(--sm-focus);
+    outline-offset: 2px;
+  }
+</style>

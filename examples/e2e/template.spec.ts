@@ -12,8 +12,8 @@ async function advanceSayV1(page: Page): Promise<void> {
 }
 
 test("Template uses the production Narrative renderer through completion", async ({ page }) => {
-  const openingPackRuntimePath = "assets/content/opening.text-pack.json";
-  const endingPackRuntimePath = "assets/content/ending.text-pack.json";
+  const openingPackRuntimePath = "assets/content/opening.zh-CN.text-pack.json";
+  const endingPackRuntimePath = "assets/content/ending.zh-CN.text-pack.json";
   const requestedPackRuntimePaths = new Set<string>();
   page.on("request", (request) => {
     const pathname = new URL(request.url()).pathname;
@@ -68,7 +68,7 @@ test("Template uses the production Narrative renderer through completion", async
 });
 
 test("Template automation dispatch prepares the selected content pack", async ({ page }) => {
-  const endingPackRuntimePath = "assets/content/ending.text-pack.json";
+  const endingPackRuntimePath = "assets/content/ending.zh-CN.text-pack.json";
   let endingPackRequested = false;
   page.on("request", (request) => {
     if (new URL(request.url()).pathname.endsWith(`/${endingPackRuntimePath}`)) {

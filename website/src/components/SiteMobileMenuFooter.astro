@@ -1,0 +1,71 @@
+---
+// SPDX-License-Identifier: MIT
+import SiteLanguageLinks from "./SiteLanguageLinks.astro";
+import SiteThemeToggle from "./SiteThemeToggle.astro";
+
+const isChinese = Astro.locals.starlightRoute.lang === "zh-CN";
+const base = import.meta.env.BASE_URL.endsWith("/")
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
+const localeRoot = isChinese ? `${base}zh/` : base;
+---
+
+<div class="mobile-footer">
+  <nav aria-label={isChinese ? "网站" : "Website"}>
+    <a href={localeRoot}>{isChinese ? "返回首页" : "Home"}</a>
+    <a href={`${localeRoot}start/`}>{isChinese ? "文档入口" : "Docs"}</a>
+    <a href={`${localeRoot}examples/`}>{isChinese ? "完整示例" : "Examples"}</a>
+    <a href="https://github.com/jasl/silly-maker">GitHub</a>
+  </nav>
+  <div class="preferences">
+    <SiteThemeToggle />
+    <SiteLanguageLinks />
+  </div>
+</div>
+
+<style>
+  .mobile-footer {
+    display: grid;
+    gap: 1rem;
+    padding-block: 1rem max(1rem, env(safe-area-inset-bottom));
+    border-block-start: 1px solid var(--sm-border);
+  }
+
+  nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+
+  nav a {
+    padding: 0.55rem 0.7rem;
+    border-radius: 0.65rem;
+    color: var(--sm-text);
+    background: var(--sm-surface-1);
+    font-size: 0.82rem;
+    font-weight: 650;
+    text-align: center;
+    text-decoration: none;
+  }
+
+  nav a:focus-visible {
+    outline: 2px solid var(--sm-focus);
+    outline-offset: 2px;
+  }
+
+  .preferences {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .preferences :global(.theme-toggle span) {
+    display: inline;
+  }
+
+  .preferences :global(.theme-toggle) {
+    width: auto;
+    padding-inline: 0.7rem;
+  }
+</style>

@@ -1,0 +1,12 @@
+---
+// SPDX-License-Identifier: MIT
+import Default from "@astrojs/starlight/components/Hero.astro";
+
+const basePrefix = import.meta.env.BASE_URL.replace(/\/$/u, "");
+const relativePath = Astro.url.pathname.startsWith(basePrefix)
+  ? Astro.url.pathname.slice(basePrefix.length)
+  : Astro.url.pathname;
+const isHome = relativePath === "/" || relativePath === "" || relativePath === "/zh/" || relativePath === "/zh";
+---
+
+{isHome ? null : <Default><slot /></Default>}

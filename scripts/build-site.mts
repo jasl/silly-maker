@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Composes the publishable static site under dist/site:
-//   /                VitePress documentation (website/)
+//   /                Astro/Starlight documentation (website/)
+//   /play/cards/      the neutral GUI Reference Product
 //   /play/cat-cafe/  the Cat Cafe Player bundle (relative-base, static saves
 //                    live in the visitor's browser via IndexedDB)
 //   /play/silly-os/  the SillyOS 98 retro-desktop example
@@ -58,16 +59,19 @@ await runV1(["deno", "task", "docs:build"], { SITE_BASE: siteBase });
 // 3. Compose.
 await rm(siteDir, { recursive: true, force: true });
 await mkdir(join(siteDir, "play"), { recursive: true });
-await cp(join(repoRoot, "website", ".vitepress", "dist"), siteDir, { recursive: true });
+await cp(join(repoRoot, "website", "dist"), siteDir, { recursive: true });
+await cp(join(repoRoot, "examples", "cards", "dist-web"), join(siteDir, "play", "cards"), {
+  recursive: true,
+});
 await cp(join(repoRoot, "examples", "cat-cafe", "dist-web"), join(siteDir, "play", "cat-cafe"), {
   recursive: true,
 });
 await cp(join(repoRoot, "examples", "silly-os", "dist-web"), join(siteDir, "play", "silly-os"), {
   recursive: true,
 });
-// GitHub Pages runs Jekyll by default which drops underscore-prefixed
-// files (VitePress emits assets/…, fine — but .nojekyll is the standard
-// belt-and-braces switch and is inert elsewhere).
+// GitHub Pages runs Jekyll by default, which drops Astro's underscore-prefixed
+// asset directory. `.nojekyll` preserves the generated site and is inert on
+// other static hosts.
 await writeFile(join(siteDir, ".nojekyll"), "");
 
 // 4. Share metadata absolutization: crawlers require absolute URLs for
