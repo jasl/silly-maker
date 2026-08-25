@@ -148,11 +148,13 @@ export type PendingInteractionV1 =
     readonly speakerTextId: string | null;
     readonly textId: string;
     readonly advancePolicy: "confirm" | "auto";
+    readonly stageInput?: StageInputHintV1;
   })
   | (PendingInteractionBaseV1 & {
     readonly kind: "choice";
     readonly promptTextId: string;
     readonly options: readonly InteractionChoiceOptionV1[];
+    readonly stageInput?: StageInputHintV1;
   })
   | (PendingInteractionBaseV1 & {
     readonly kind: "hold";
@@ -177,6 +179,7 @@ export type PendingInteractionV1 =
      * alone. See {@link PaceHintV1}.
      */
     readonly pace?: PaceHintV1;
+    readonly stageInput?: StageInputHintV1;
   })
   | (PendingInteractionBaseV1 & {
     readonly kind: "presentation_barrier";
@@ -187,6 +190,7 @@ export type PendingInteractionV1 =
     readonly kind: "custom";
     readonly surfaceId: string;
     readonly params: StrictJsonObjectV1;
+    readonly stageInput?: StageInputHintV1;
   });
 
 /**
@@ -218,7 +222,46 @@ export function isPaceHintV1(value: unknown): value is PaceHintV1 {
   return value === "cinematic" || value === "realtime";
 }
 
+/**
+ * Host stage-input hint declared by the Story block on `say`, `choice`,
+ * `hold`, and `custom` pendings: `shared` declares that the stage
+ * gameplay layers stay input-reachable while this pending is up — the
+ * narrative surface host neither registers narrative stage-input
+ * isolation nor captures roaming focus for such an entry. Absent means
+ * `isolated` (today's exclusive behavior) and the canonical shape omits
+ * the member entirely, keeping earlier pendings byte-identical. The hint
+ * never enters authoritative arithmetic, resolution legality, hold-arm
+ * evaluation, or replay/digest semantics: stage clicks still land on
+ * occurrence-fenced commands that reject stale fences wholesale.
+ * `presentation_barrier` never carries the hint (an auto-acknowledged
+ * settlement boundary has no user input to share).
+ */
+export type StageInputHintV1 = "isolated" | "shared";
+
+/** Shared admission guard so a future stage-input value lands in one place. */
+export function isStageInputHintV1(value: unknown): value is StageInputHintV1 {
+  return value === "isolated" || value === "shared";
+}
+
 const interactionBaseKeysV1 = ["kind", "definitionId", "seenRevision", "occurrenceId"] as const;
+
+/**
+ * Validates the conditionally admitted `stageInput` member after
+ * `readExactRecord` already proved key exactness. The canonical shape
+ * omits the member when the block does not declare it, keeping earlier
+ * pendings byte-identical (same discipline as `pace`/`tickQuantumMs`).
+ */
+function parseStageInputMemberV1(
+  record: Record<string, unknown>,
+  declares: boolean,
+  path: string,
+): { readonly stageInput?: StageInputHintV1 } {
+  if (!declares) return {};
+  if (!isStageInputHintV1(record.stageInput)) {
+    return dataFailure(`${path}/stageInput`, "stage_input_invalid");
+  }
+  return { stageInput: record.stageInput };
+}
 
 function parseInteractionBaseV1(
   record: Record<string, unknown>,
@@ -242,9 +285,16 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
   const kind = (value as { readonly kind?: unknown }).kind;
   switch (kind) {
     case "say": {
+      const declaresStageInput = Object.hasOwn(value, "stageInput");
       const record = readExactRecord(
         value,
-        [...interactionBaseKeysV1, "speakerTextId", "textId", "advancePolicy"],
+        [
+          ...interactionBaseKeysV1,
+          "speakerTextId",
+          "textId",
+          "advancePolicy",
+          ...(declaresStageInput ? ["stageInput"] : []),
+        ],
         path,
       );
       if (record.advancePolicy !== "confirm" && record.advancePolicy !== "auto") {
@@ -260,12 +310,19 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
         ),
         textId: parseInteractionIdV1(record.textId, `${path}/textId`, "text_id_invalid"),
         advancePolicy: record.advancePolicy,
+        ...parseStageInputMemberV1(record, declaresStageInput, path),
       });
     }
     case "choice": {
+      const declaresStageInput = Object.hasOwn(value, "stageInput");
       const record = readExactRecord(
         value,
-        [...interactionBaseKeysV1, "promptTextId", "options"],
+        [
+          ...interactionBaseKeysV1,
+          "promptTextId",
+          "options",
+          ...(declaresStageInput ? ["stageInput"] : []),
+        ],
         path,
       );
       const optionsValue = readArray(record.options, `${path}/options`);
@@ -305,11 +362,13 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
           "text_id_invalid",
         ),
         options: freezeInteractionDataInternalV1(options),
+        ...parseStageInputMemberV1(record, declaresStageInput, path),
       });
     }
     case "hold": {
       const declaresTickQuantum = Object.hasOwn(value, "tickQuantumMs");
       const declaresPace = Object.hasOwn(value, "pace");
+      const declaresStageInput = Object.hasOwn(value, "stageInput");
       const record = readExactRecord(
         value,
         [
@@ -319,6 +378,7 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
           "skippable",
           ...(declaresTickQuantum ? ["tickQuantumMs"] : []),
           ...(declaresPace ? ["pace"] : []),
+          ...(declaresStageInput ? ["stageInput"] : []),
         ],
         path,
       );
@@ -349,6 +409,7 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
           }
           : {}),
         ...(declaresPace ? { pace: record.pace as PaceHintV1 } : {}),
+        ...parseStageInputMemberV1(record, declaresStageInput, path),
       });
     }
     case "presentation_barrier": {
@@ -372,9 +433,15 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
       });
     }
     case "custom": {
+      const declaresStageInput = Object.hasOwn(value, "stageInput");
       const record = readExactRecord(
         value,
-        [...interactionBaseKeysV1, "surfaceId", "params"],
+        [
+          ...interactionBaseKeysV1,
+          "surfaceId",
+          "params",
+          ...(declaresStageInput ? ["stageInput"] : []),
+        ],
         path,
       );
       return freezeInteractionDataInternalV1({
@@ -386,6 +453,7 @@ export function parsePendingInteractionV1(value: unknown, path = "/pending"): Pe
           "surface_id_invalid",
         ),
         params: parseInteractionJsonObjectV1(record.params, `${path}/params`),
+        ...parseStageInputMemberV1(record, declaresStageInput, path),
       });
     }
     default:

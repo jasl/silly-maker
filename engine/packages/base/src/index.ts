@@ -307,6 +307,7 @@ export type {
   PaceHintV1,
   PendingInteractionBaseV1,
   PendingInteractionV1,
+  StageInputHintV1,
   PersistenceSafepointClassificationV1,
   PersistenceSafepointPolicyV1,
   TimeTickOutcomeV1,

@@ -476,6 +476,95 @@ describe("PendingInteractionV1", () => {
     expect(afterPartial.pending.remainingMs).toBe(600);
   });
 
+  it("admits the optional stage-input hint on say/choice/hold/custom and rejects it on barriers", () => {
+    const declaredRawsV1 = [
+      {
+        kind: "say",
+        definitionId: "interaction.test.free-look-line",
+        seenRevision: 1,
+        occurrenceId: interactionOccurrenceIdV1(21),
+        speakerTextId: null,
+        textId: "text.test.line",
+        advancePolicy: "confirm",
+        stageInput: "shared",
+      },
+      {
+        kind: "choice",
+        definitionId: "interaction.test.night-menu",
+        seenRevision: 1,
+        occurrenceId: interactionOccurrenceIdV1(22),
+        promptTextId: "text.test.prompt",
+        options: [{ choiceId: "choice.test.zone", textId: "text.test.zone" }],
+        stageInput: "shared",
+      },
+      {
+        kind: "hold",
+        definitionId: "interaction.test.touch-bar",
+        seenRevision: 1,
+        occurrenceId: interactionOccurrenceIdV1(23),
+        totalMs: 8000,
+        remainingMs: 8000,
+        skippable: false,
+        stageInput: "shared",
+      },
+      {
+        kind: "custom",
+        definitionId: "interaction.test.map",
+        seenRevision: 1,
+        occurrenceId: interactionOccurrenceIdV1(24),
+        surfaceId: "surface.test.map",
+        params: {},
+        stageInput: "shared",
+      },
+    ] as const;
+    for (const raw of declaredRawsV1) {
+      const shared = parsePendingInteractionV1(raw);
+      if (shared.kind === "presentation_barrier") throw new Error("unexpected barrier");
+      expect(shared.stageInput).toBe("shared");
+      // Explicit "isolated" is admitted and kept, like an explicit
+      // "cinematic" pace.
+      const explicit = parsePendingInteractionV1({ ...raw, stageInput: "isolated" });
+      if (explicit.kind === "presentation_barrier") throw new Error("unexpected barrier");
+      expect(explicit.stageInput).toBe("isolated");
+      // The canonical shape omits the member when the block does not
+      // declare it, so earlier pendings stay byte-identical (isolated by
+      // absence).
+      const { stageInput: _omitted, ...plainRawV1 } = raw;
+      const plain = parsePendingInteractionV1(plainRawV1);
+      expect(Object.hasOwn(plain, "stageInput")).toBe(false);
+      expect(canonicalJsonBytes(plain)).not.toEqual(canonicalJsonBytes(shared));
+
+      for (const stageInput of ["exclusive", "", 1, null, true]) {
+        expect(() => parsePendingInteractionV1({ ...raw, stageInput })).toThrow(
+          "stage_input_invalid",
+        );
+      }
+    }
+
+    // Barriers are auto-acknowledged settlement boundaries with no user
+    // input to share: exact-key admission rejects the member outright.
+    expect(() =>
+      parsePendingInteractionV1({
+        kind: "presentation_barrier",
+        definitionId: "interaction.test.flash",
+        seenRevision: 1,
+        occurrenceId: interactionOccurrenceIdV1(25),
+        expectedTransitionId: "transition.test.fade",
+        loadRecovery: "settle",
+        stageInput: "shared",
+      })
+    ).toThrow(PresentationDataError);
+
+    // The hint is Host vocabulary: hold arithmetic ignores it but carries
+    // it across partial ticks so mid-bar Saves keep the declaration.
+    const sharedHold = parsePendingInteractionV1(declaredRawsV1[2]);
+    if (sharedHold.kind !== "hold") throw new Error("expected hold");
+    const afterPartial = applyElapsedToHoldV1(sharedHold, 500);
+    if (afterPartial.kind !== "holding") throw new Error("expected holding");
+    expect(afterPartial.pending.stageInput).toBe("shared");
+    expect(afterPartial.pending.remainingMs).toBe(7500);
+  });
+
   it("fences barriers by transition identity and customs by payload schema", () => {
     const barrier = parsePendingInteractionV1({
       kind: "presentation_barrier",
