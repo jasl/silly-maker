@@ -148,7 +148,7 @@ recapture，跳过 Tab trap（Tab/Shift+Tab 可自然进出舞台焦点序）。
 - **ui host（jsdom）**：shared choice → gameplay 层无 `inert`，下层
   按钮可点且菜单按钮同时可点；isolated → 今日行为钉死；history 压
   shared → 隔离回归；shared owner 不夺焦、Tab 可出；isolated 退场
-  + shared 当前的混合窗口保守隔离。
+  - shared 当前的混合窗口保守隔离。
 - **Engine Lab**：夜菜单式 conformance 节点（shared choice + region
   激活决议同一 occurrence）；mid-hold 输入粒度补上真实指针半张证据
   （浏览器 e2e 点区 → 围栏写 → 下一结算 t=0 改道）。

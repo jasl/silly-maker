@@ -1,13 +1,40 @@
 # Shared Stage Input V1（narrative 挂起共享舞台输入）实施计划
 
-状态：**2026-08-26 开启**（所有者当日裁决接受提案，open questions
-裁决：q1 值域全收满，q2/q3 按建议）。合同：
+状态：**2026-08-26 开启，M0–M2 当日交付**（所有者当日裁决接受提案，
+open questions 裁决：q1 值域全收满，q2/q3 按建议；M0 base 合同、
+M1 宿主谓词与焦点、M2 Lab conformance + 浏览器真实指针 + 文档段落
+均已提交，剩 M3 实验仓消费）。合同：
 `docs/engine/proposals/shared-stage-input.md`。兑现
 [mid-hold-input](2026-08-22-mid-hold-input.md) 关闭记录点名的最后一
 段路（命令级组合已交付、UI 宿主 isolation 仍挡指针）。本文只拥有切
 片顺序、admission 落地与验收；
 [production-floor sequence](2026-07-30-production-floor-sequence.md)
 仍是唯一跨计划排序入口。
+
+## 交付记录（2026-08-26）
+
+- **M0（base 合同，主仓 `98e7dfe5`）**：`stageInput?: StageInputHintV1`
+  收在 `say`/`choice`/`hold`/`custom` 四变体（`pace` 同模式条件精确
+  键 admission；守卫包内、类型公开导出）。测试锁全收：四 kind 声明
+  往返、非法值拒、barrier 带键拒、未声明 `canonicalJsonBytes` 字节
+  恒等（旧 Save 解析不变）。
+- **M1（宿主谓词 + 焦点，主仓 `4387650c`）**：isolation 注册改「任
+  一 entry 要求隔离即注册」（dialogue 读 `pending.stageInput`，
+  history 恒要求，preparing/suspended/退场保守）；shared focus owner
+  跳过 outside-focus recapture 与 Tab trap（挂载 autofocus、Escape、
+  History 不变）。宿主测试钉 shared/isolated/history/混合四态 inert
+  与焦点矩阵；`game-stage.tsx` 测试零改动（政策公式未动的证明）。
+- **M2（Lab conformance + 文档，随本提交）**：Lab 演习决策菜单与绊
+  线 hold 声明 `shared`；样本箱热区激活按 pending 路由（无挂起 →
+  `lab.collect_sample`，shared choice → 绊线选项决议同一
+  occurrence，shared hold → `lab.engage_collector` 围栏写；isolated
+  下不派发）。jsdom conformance（宿主全应用 + 手动 rAF 泵）钉
+  isolated say inert / shared choice·hold 释放 / 围栏写落地 / 切回
+  isolated say 复隔离；浏览器 e2e `shared-stage-input.spec.ts` 补真
+  实指针半张证据（Chromium 原生 inert 强制 + 点区决议 + 中持有围栏
+  写 + 下一结算 t=0 改道）。绊线时长 1500→6000ms（浏览器真实指针
+  预算；headless 批切锁沿用常量不受影响）。features.md 一条 +
+  stacking 段落一句 + story-authoring.md 模式段随刀。
 
 ## Admission 裁决（车道开启时固化）
 

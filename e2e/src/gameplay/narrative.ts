@@ -145,6 +145,12 @@ export type LabNarrativeNodeV1 =
     readonly seenRevision: number;
     readonly promptTextId: string;
     readonly options: readonly LabChoiceOptionV1[];
+    /**
+     * Optional Host stage-input hint carried onto the pending verbatim:
+     * `shared` keeps the stage gameplay layers input-reachable while this
+     * menu is up (the night-menu shape). Never read by the runner.
+     */
+    readonly stageInput?: "isolated" | "shared";
   }
   | {
     readonly kind: "hold";
@@ -153,6 +159,8 @@ export type LabNarrativeNodeV1 =
     readonly seenRevision: number;
     readonly durationMs: number;
     readonly skippable: boolean;
+    /** Same Host hint as on choice nodes; never read by the runner. */
+    readonly stageInput?: "isolated" | "shared";
     /**
      * Optional authoritative tick effect settled by threshold crossings:
      * every `everyMs` of consumed hold time deepens rapport by
@@ -257,7 +265,12 @@ export const labDrillVigilTickEveryMsV1 = 300;
 export const labDrillVigilDurationMsV1 = 800;
 export const labDrillVigilRapportThresholdV1 = 2;
 export const labDrillStakeoutDurationMsV1 = 1_500;
-export const labDrillTripwireDurationMsV1 = 1_500;
+/**
+ * Wide enough for the browser shared-stage-input conformance to land a
+ * real pointer click inside the watch under CI variance; every headless
+ * expiry test ticks the constant explicitly, so the width costs nothing.
+ */
+export const labDrillTripwireDurationMsV1 = 6_000;
 
 export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
   {
@@ -538,6 +551,10 @@ export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
     definitionId: labDrillDecisionDefinitionIdV1,
     seenRevision: 1,
     promptTextId: "text.e2e.lab.narrative.drill.decision",
+    // The night-menu shape: the decision menu shares the stage, so the
+    // crate's collection port stays pointer-reachable and resolves the
+    // tripwire option against this same occurrence.
+    stageInput: "shared",
     options: [
       {
         choiceId: labDrillReleaseChoiceIdV1,
@@ -619,6 +636,9 @@ export const labNarrativeScriptV1: readonly LabNarrativeNodeV1[] = [
     seenRevision: 1,
     durationMs: labDrillTripwireDurationMsV1,
     skippable: false,
+    // Shared stage input: the crate region stays pointer-reachable while
+    // the watch runs, so the fenced write below has a real pointer path.
+    stageInput: "shared",
     // The input axis: the arm watches the collector switch, which the
     // fenced `lab.engage_collector` write command (or the ordinary
     // toggle) flips between settlements. The write never routes — the
@@ -761,6 +781,7 @@ function pendingForNodeV1(node: LabNarrativeNodeV1, sequence: number): PendingIn
         occurrenceId,
         promptTextId: node.promptTextId,
         options: node.options.map(({ choiceId, textId }) => ({ choiceId, textId })),
+        ...(node.stageInput !== undefined ? { stageInput: node.stageInput } : {}),
       });
     case "hold":
       return parsePendingInteractionV1({
@@ -771,6 +792,7 @@ function pendingForNodeV1(node: LabNarrativeNodeV1, sequence: number): PendingIn
         totalMs: node.durationMs,
         remainingMs: node.durationMs,
         skippable: node.skippable,
+        ...(node.stageInput !== undefined ? { stageInput: node.stageInput } : {}),
       });
     case "barrier":
       return parsePendingInteractionV1({
