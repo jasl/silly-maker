@@ -48,8 +48,9 @@ function createPiAgentV1(input) {
       systemPrompt: input.systemPrompt,
       model: input.model,
       thinkingLevel: "off",
-      tools: [tool],
+      tools: [...input.workspaceTools, tool],
     },
+    toolExecution: "sequential",
   });
   const unsubscribe = agent.subscribe((event) => {
     if (
@@ -94,9 +95,38 @@ export function createDeterministicPiAgentV1(input) {
   );
   const faux = fauxProvider({
     tokenSize: { min: 64, max: 64 },
-    tokensPerSecond: holdForCancellation ? 1 : 0,
+    tokensPerSecond: 0,
   });
+  const readResponse = fauxAssistantMessage(
+    fauxToolCall("read", { path: "/workspace/.sillyos/p3a-round-trip.txt" }, {
+      id: `sillyos-read-${input.runNumber}`,
+    }),
+    { stopReason: "toolUse" },
+  );
   faux.setResponses([
+    fauxAssistantMessage(
+      fauxToolCall("write", {
+        path: "/workspace/.sillyos/p3a-round-trip.txt",
+        content: input.submit.text,
+      }, {
+        id: `sillyos-write-${input.runNumber}`,
+      }),
+      { stopReason: "toolUse" },
+    ),
+    holdForCancellation
+      ? async (_context, options) => {
+        if (!options?.signal?.aborted) {
+          await new Promise((resolve) => {
+            const timeout = setTimeout(resolve, 30_000);
+            options?.signal?.addEventListener("abort", () => {
+              clearTimeout(timeout);
+              resolve();
+            }, { once: true });
+          });
+        }
+        return readResponse;
+      }
+      : readResponse,
     fauxAssistantMessage(
       fauxToolCall(creatorProgramRevisionToolNameV1, { requirement: input.submit.text }, {
         id: `sillyos-tool-${input.runNumber}`,
@@ -111,7 +141,7 @@ export function createDeterministicPiAgentV1(input) {
     streamFn: faux.provider.streamSimple,
     model: faux.getModel(),
     systemPrompt:
-      "You are the deterministic SillyOS Creator Agent test runtime. Use the one provided tool exactly once.",
+      "You are the deterministic SillyOS Creator Agent test runtime. Write and read one disposable workspace artifact, then propose one Program revision.",
   });
 }
 

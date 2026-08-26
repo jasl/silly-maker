@@ -3,8 +3,9 @@
 # SillyOS product and visual contract
 
 Status: active Browser-first dual-target rewrite with P2 Browser Program
-persistence and bounded terminal Agent-run receipts delivered, 2026-08-27. The former
-"SillyOS 98" desktop
+persistence, bounded terminal Agent-run receipts, and P3a-B0's disposable
+Browser execution workspace delivered, 2026-08-27. P3a remains open; P3a-B1 and
+later workspace slices remain inactive. The former "SillyOS 98" desktop
 experiment has been retired as a product direction. It remains useful only as
 repository history; it is not a compatibility baseline for this rewrite.
 
@@ -316,6 +317,65 @@ For proposal revisions, the model-visible tool accepts only a requirement; the
 trusted handler binds all proposal/currentness fields from the admitted submit,
 and the Worker rechecks the resulting candidate.
 
+### First Browser workspace slice
+
+P3a-B0 adds an explicitly disposable execution projection, not the future
+durable Program workspace. Opening an existing Creator work area creates a new
+opaque `workspaceSessionId`, generation `1`, one empty in-memory volume, and one
+stable Pi `ExecutionEnv`. `programId`, the existing Creator `workspaceId`, and
+the execution-only `workspaceSessionId` remain distinct. Every ephemeral Agent
+submit envelope carries a separate exact execution binding beside the unchanged
+durable Agent-run value; no Worker ambient state or `programId` inference
+silently chooses a filesystem. Admission initializes a run-local generation
+cursor, which advances after each sequential mutating tool settles so one run
+can safely perform `write -> read` or more than one write.
+
+Only Pi 0.84.3's public native `write` and `read` factories are bound in this
+slice. A tiny binder supplies the stable `{ env }` context and an exact
+sequential call scope without changing Pi's tool name, schema, argument
+preparation, algorithm, updates, cancellation signal, or model-visible result.
+The environment is the byte-effect authority; Pi remains the tool and Agent
+authority. The shell half reports unavailable, and no Host path or command is a
+fallback.
+
+A write call has two independent terminal facts:
+
+```text
+Workspace mutation-call outcome: succeeded | failed | cancelled
+Workspace byte effect: none | changed
+```
+
+The volume generation advances once only when the final bytes changed, even if
+Pi observes cancellation after the write; a byte-identical write also leaves
+observable modification time unchanged. Its session-local, bounded mutation
+receipt records the exact Program/workspace/session, product Agent run, tool
+call, expected/base/resulting generations, outcome, effect, at most one
+normalized changed path, and a closed diagnostic. It records no arguments,
+contents, transcript, provider data, credential, or Pi session identity. The
+transport projects transient Pi run identity to product `agentRunId` and makes
+the mutation receipt visible before the associated terminal Agent-run event.
+An initially stale execution binding is rejected before Pi starts and therefore
+does not invent a tool call or mutation receipt.
+For replacement only, a successor that exactly names the still-active
+predecessor's admitted generation may wait for that predecessor's unpublished
+effects to drain and then rebase once to the resulting descriptor. The Worker
+checks this eligibility before it aborts the predecessor; unrelated stale
+bindings neither cancel current work nor enter Pi.
+
+P2 and P3a-B0 deliberately do not pretend to share durability. Repository V2's
+bounded Agent-run receipt survives reload and reports whole-run/Program commit
+meaning. The P3a-B0 mutation receipt and bytes live only for the open execution
+session and report actual volume effects even when a run is failed, cancelled,
+replaced, or produces no admissible Program candidate. Reload resets the volume
+and generation and must be shown as such. Persistent workspace bytes, receipts,
+artifacts, and snapshots remain P3c.
+
+The exact DTO, close/cancel ordering, query/ack backpressure, generation rules,
+path and capacity ceilings, and Browser acceptance are owned by the delivered
+P3a-B0 contract in [PLAN.md](./PLAN.md). This slice does not activate OPFS,
+just-bash, Wasm, Git, Python, extension discovery, a Linux/sandbox claim,
+Desktop execution, or any SillyMaker engine API.
+
 The Browser route calls a product-qualified provider directly from the Agent
 Worker. A compatible custom endpoint must declare its protocol, HTTPS base URL,
 and model rather than relying on endpoint guessing, and must pass CORS,
@@ -525,21 +585,21 @@ passing a pixel threshold alone is not design approval.
 This table is the completion denominator for the rewrite. A working preview is
 evidence for the preview only.
 
-| Area               | Accepted product role                                     | Current preview evidence                                    | Remaining before product-ready                         |
-| ------------------ | --------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------ |
-| Creator home       | Express intent and create/open a Program                  | Local request + B0a/B0b setup + P2 recent reopen            | Attachments and general Provider UI                    |
-| Creator supervisor | Chat supervises one Program without becoming Program data | Durable projection + completed/cancelled Agent-run receipts | Pi-native workspace/session binding                    |
-| Program workspace  | One focused mutable workspace produces reviewed snapshots | Durable Program/proposal lineage; no file volume            | Durable volume, execution environment, and outputs     |
-| Human review       | Accept/reject an exact proposed revision                  | Durable exact decision + cross-page stale rejection         | Workspace-generation/snapshot publication              |
-| Activity           | Explain what happened and what needs review               | Durable revision, decision, and terminal Agent-run events   | Real tool/action history and approvals                 |
-| Capabilities       | Required Agent and UI abilities are understandable        | Labels + one bounded B0a/B0b Pi AgentTool                   | Workspace capabilities and UI bindings                 |
-| Generated UI       | Agent-authored UI remains legible and controllable        | Not implemented                                             | OpenUI mapped to closed SillyMaker components          |
-| Source             | Inspect and refine the Program where useful               | Presentation-only recipe preview                            | Persistent draft volume and accepted snapshots         |
-| Translation        | A usable translation Program                              | Intent classification only                                  | Complete workflow, data, QA, export                    |
-| Writing            | A usable writing Program                                  | Intent classification only                                  | Complete workflow, data, revision tools                |
-| Role-play          | A usable role-play Program                                | Intent classification only                                  | Complete sessions, characters, VN behavior             |
-| Browser            | Publishable local-first product with BYO Provider         | Responsive fixed-profile Pi + durable Program/run receipts  | General Provider UI, workspace tools, closure          |
-| Deno Desktop       | Same product with admitted Host integrations              | Responsive preview target                                   | Companion acceptance, storage, packaging qualification |
+| Area               | Accepted product role                                     | Current preview evidence                                         | Remaining before product-ready                         |
+| ------------------ | --------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------ |
+| Creator home       | Express intent and create/open a Program                  | Local request + B0a/B0b setup + P2 recent reopen                 | Attachments and general Provider UI                    |
+| Creator supervisor | Chat supervises one Program without becoming Program data | Durable run receipts + explicit disposable Pi session binding    | Durable artifact/snapshot supervision                  |
+| Program workspace  | One focused mutable workspace produces reviewed snapshots | Durable Program lineage + disposable native read/write volume    | Durable volume, edit/bash, and admitted outputs        |
+| Human review       | Accept/reject an exact proposed revision                  | Durable exact decision + cross-page stale rejection              | Workspace-generation/snapshot publication              |
+| Activity           | Explain what happened and what needs review               | Durable run events + session-local last-write receipt            | Complete tool/action history and approvals             |
+| Capabilities       | Required Agent and UI abilities are understandable        | Proposal tool + native read/write + truthful workspace status    | Edit/bash and adapter-specific capability composition  |
+| Generated UI       | Agent-authored UI remains legible and controllable        | Not implemented                                                  | OpenUI mapped to closed SillyMaker components          |
+| Source             | Inspect and refine the Program where useful               | Presentation-only recipe preview                                 | Persistent draft volume and accepted snapshots         |
+| Translation        | A usable translation Program                              | Intent classification only                                       | Complete workflow, data, QA, export                    |
+| Writing            | A usable writing Program                                  | Intent classification only                                       | Complete workflow, data, revision tools                |
+| Role-play          | A usable role-play Program                                | Intent classification only                                       | Complete sessions, characters, VN behavior             |
+| Browser            | Publishable local-first product with BYO Provider         | Fixed-profile Pi + durable Program/run + disposable native tools | General Provider UI, durable workspace, closure        |
+| Deno Desktop       | Same product with admitted Host integrations              | Responsive preview target                                        | Companion acceptance, storage, packaging qualification |
 
 Before SillyOS is called a complete reference product, this table must be
 reconciled with implementation and tests, the current-low-end startup,

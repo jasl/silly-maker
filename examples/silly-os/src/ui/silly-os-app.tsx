@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: MIT
 import { LoaderCircle, RotateCcw, TriangleAlert } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 import type { BrowserPiWorkerRuntimeV1 } from "../agent/browser-pi-worker-protocol.ts";
 import { getSillyOsCopyV1, resolveSillyOsCopyV1, type SillyOsLocaleV1 } from "../content/copy.ts";
@@ -8,6 +15,10 @@ import type {
   CreatorControllerV1,
   CreatorDurabilityStateV1,
 } from "../product/creator-controller.ts";
+import {
+  acknowledgeAppliedAgentTerminalV1,
+  canConsumeAgentTerminalV1,
+} from "./agent-terminal-acknowledgement.ts";
 import { CreatorHomeV1 } from "./creator-home.tsx";
 import { ProgramWorkspaceV1 } from "./program-workspace.tsx";
 import "./silly-os.css";
@@ -74,6 +85,7 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
   >(null);
   const agentPortRef = useRef<BrowserCreatorAgentPortV1 | null>(null);
   const agentSetupEpochRef = useRef(0);
+  const agentWorkspaceLifecycleRef = useRef<Promise<void>>(Promise.resolve());
   const claimedTerminalRunIdsRef = useRef(new Set<string>());
   const controllerSnapshot = useSyncExternalStore(
     controller.subscribe,
@@ -83,6 +95,12 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
   const snapshot = controllerSnapshot.session;
   const durability = controllerSnapshot.durability;
   const copy = getSillyOsCopyV1(locale);
+  const routedProgramId = snapshot.route === "workspace"
+    ? snapshot.program?.programId ?? null
+    : null;
+  const routedWorkspaceId = snapshot.route === "workspace"
+    ? snapshot.workspace?.workspaceId ?? null
+    : null;
 
   useEffect(() => {
     void controller.initialize();
@@ -123,23 +141,104 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
     const port = agentPortRef.current;
     const terminal = agentSnapshot?.terminalRuns[0];
     if (
-      port === null || terminal === undefined || durability.phase === "saving" ||
-      durability.phase === "reconciling" ||
+      port === null || terminal === undefined || !canConsumeAgentTerminalV1(durability.phase) ||
       claimedTerminalRunIdsRef.current.has(terminal.run.agentRunId)
     ) return;
     claimedTerminalRunIdsRef.current.add(terminal.run.agentRunId);
-    void controller.recordAgentRunTerminal(terminal).then((result) => {
-      if (result.kind === "busy") {
+    void (async (): Promise<void> => {
+      try {
+        const persistence = await controller.recordAgentRunTerminal(terminal);
+        if (persistence.kind === "busy") return;
+        const acknowledgement = await acknowledgeAppliedAgentTerminalV1({
+          persistence,
+          agentRunId: terminal.run.agentRunId,
+          receipts: port.getSnapshot().workspace.receipts,
+          acknowledgeWorkspaceReceipts: (throughSequence) =>
+            port.acknowledgeWorkspaceReceipts(throughSequence),
+          acknowledgeTerminal: (agentRunId) => port.acknowledgeTerminal(agentRunId),
+        });
+        if (acknowledgement.kind === "retained") {
+          reportFailure("silly_os.browser_pi_terminal_rejected", persistence);
+        } else if (acknowledgement.kind === "workspace_unavailable") {
+          reportFailure(
+            "silly_os.browser_pi_workspace_receipt_acknowledge_failed",
+            acknowledgement.diagnostic,
+          );
+        } else if (acknowledgement.kind === "terminal_unavailable") {
+          reportFailure("silly_os.browser_pi_terminal_acknowledge_failed", terminal.run.agentRunId);
+        }
+      } catch (error) {
+        reportFailure("silly_os.browser_pi_terminal_rejected", error);
+      } finally {
         claimedTerminalRunIdsRef.current.delete(terminal.run.agentRunId);
-        return;
       }
-      port.acknowledgeTerminal(terminal.run.agentRunId);
-      claimedTerminalRunIdsRef.current.delete(terminal.run.agentRunId);
-      if (result.kind !== "completed" || result.value.kind !== "applied") {
-        reportFailure("silly_os.browser_pi_terminal_rejected", result);
-      }
-    });
+    })();
   }, [agentSnapshot, controller, durability.phase, reportFailure]);
+
+  const queueAgentWorkspaceV1 = useCallback((
+    port: BrowserCreatorAgentPortV1,
+    desired: { readonly programId: string; readonly workspaceId: string } | null,
+  ): Promise<boolean> => {
+    const operation = agentWorkspaceLifecycleRef.current.then(async () => {
+      if (agentPortRef.current !== port) {
+        return false;
+      }
+      const current = port.getSnapshot().workspace;
+      if (desired === null) {
+        if (current.descriptor === null || current.phase === "closed") {
+          return true;
+        }
+        const closed = await port.closeWorkspace(current.descriptor.workspaceSessionId);
+        if (closed.kind === "unavailable") {
+          reportFailure("silly_os.browser_pi_workspace_close_failed", closed.diagnostic);
+          return false;
+        }
+        return true;
+      }
+      if (
+        current.phase === "open" && current.descriptor?.programId === desired.programId &&
+        current.descriptor.workspaceId === desired.workspaceId
+      ) {
+        return true;
+      }
+      if (current.descriptor !== null && current.phase !== "closed") {
+        const closed = await port.closeWorkspace(current.descriptor.workspaceSessionId);
+        if (closed.kind === "unavailable") {
+          reportFailure("silly_os.browser_pi_workspace_close_failed", closed.diagnostic);
+          return false;
+        }
+      }
+      if (agentPortRef.current !== port) {
+        return false;
+      }
+      const opened = await port.openWorkspace(desired);
+      if (opened.kind === "unavailable") {
+        reportFailure("silly_os.browser_pi_workspace_open_failed", opened.diagnostic);
+        return false;
+      }
+      return true;
+    }).catch((error: unknown) => {
+      reportFailure("silly_os.browser_pi_workspace_lifecycle_failed", error);
+      return false;
+    });
+    agentWorkspaceLifecycleRef.current = operation.then(() => undefined);
+    return operation;
+  }, [reportFailure]);
+
+  useEffect(() => {
+    const port = agentPortRef.current;
+    if (port === null || piAgentSetupStatus !== "ready") return;
+    const desired = routedProgramId !== null && routedWorkspaceId !== null
+      ? { programId: routedProgramId, workspaceId: routedWorkspaceId }
+      : null;
+    void queueAgentWorkspaceV1(port, desired);
+  }, [
+    agentPort,
+    piAgentSetupStatus,
+    queueAgentWorkspaceV1,
+    routedProgramId,
+    routedWorkspaceId,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -216,6 +315,18 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
       reportFailure("silly_os.browser_pi_unavailable", "initialize_required");
       return false;
     }
+    const currentSession = controller.getSnapshot().session;
+    if (
+      currentSession.route !== "workspace" || currentSession.program === null ||
+      currentSession.workspace === null ||
+      !await queueAgentWorkspaceV1(port, {
+        programId: currentSession.program.programId,
+        workspaceId: currentSession.workspace.workspaceId,
+      })
+    ) {
+      reportFailure("silly_os.browser_pi_workspace_unavailable", "workspace_not_open");
+      return false;
+    }
     const prepared = controller.prepareAgentRun(text);
     if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
       reportFailure("silly_os.browser_pi_submit_rejected", prepared);
@@ -229,6 +340,11 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
 
   const agentMutationPending = agentSnapshot?.phase === "running" ||
     (agentSnapshot?.terminalRuns.length ?? 0) > 0;
+  const executionWorkspaceReady = !piAgentRequested ||
+    (snapshot.route === "workspace" && snapshot.program !== null && snapshot.workspace !== null &&
+      agentSnapshot?.workspace.phase === "open" &&
+      agentSnapshot.workspace.descriptor?.programId === snapshot.program.programId &&
+      agentSnapshot.workspace.descriptor.workspaceId === snapshot.workspace.workspaceId);
 
   return (
     <div
@@ -296,7 +412,8 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
             copy={copy}
             snapshot={snapshot}
             mutationPending={durability.phase === "saving" ||
-              durability.phase === "reconciling" || agentMutationPending}
+              durability.phase === "reconciling" || agentMutationPending ||
+              !executionWorkspaceReady}
             onHome={() => controller.openHome()}
             onLocaleChange={changeLocaleV1}
             onAccept={() => {
@@ -331,6 +448,7 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
             }}
             onSend={sendFollowUpV1}
             {...(agentSnapshot === null ? {} : {
+              executionWorkspace: agentSnapshot.workspace,
               piAgentRun: {
                 runtime: piRuntime ?? "deterministic_test",
                 status: piAgentRunStatusV1(agentSnapshot.phase),

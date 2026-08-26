@@ -274,6 +274,8 @@ test("the query-gated Browser Pi Worker publishes one exact successor without re
   const workspace = page.getByRole("main", { name: "SillyOS program workspace" });
   await expect(workspace).toBeVisible();
   await expectProgramStorageReadyV1(page);
+  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "open");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "1");
   const programId = await readProgramIdV1(workspace);
 
   const followUp = "Make every review decision explicit.";
@@ -287,12 +289,20 @@ test("the query-gated Browser Pi Worker publishes one exact successor without re
     ),
   ).toBeVisible();
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "2");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-effect", "changed");
+  await expect(workspace).toHaveAttribute(
+    "data-execution-workspace-path",
+    ".sillyos/p3a-round-trip.txt",
+  );
 
   await page.getByRole("tab", { name: "Source" }).click();
   await expect(page.getByLabel("Program preview source")).toContainText("revision: 2");
   await expect(page.getByLabel("Program preview source")).toContainText(followUp);
   await page.getByRole("tab", { name: "Capabilities" }).click();
   await expect(page.getByText("Pi 0.84.3 test wiring", { exact: true })).toBeVisible();
+  await expect(page.getByText("Disposable execution workspace", { exact: true })).toBeVisible();
+  await expect(page.getByText("Open · generation 2", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Creator home" }).click();
   await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
@@ -320,6 +330,10 @@ test("the query-gated Browser Pi Worker publishes one exact successor without re
     revision: 2,
     status: "Preview",
   });
+  const reopenedWorkspace = page.getByRole("main", { name: "SillyOS program workspace" });
+  await expect(reopenedWorkspace).toHaveAttribute("data-execution-workspace-state", "open");
+  await expect(reopenedWorkspace).toHaveAttribute("data-execution-workspace-generation", "1");
+  await expect(reopenedWorkspace).not.toHaveAttribute("data-execution-workspace-receipt", /.+/u);
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
   await expect(page.getByText(followUp, { exact: true })).toBeVisible();
   await expect(
@@ -440,6 +454,8 @@ test("a cancelled Browser Pi run remains terminal across reload without advancin
   const workspace = page.getByRole("main", { name: "SillyOS program workspace" });
   await expect(workspace).toBeVisible();
   await expectProgramStorageReadyV1(page);
+  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "open");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "1");
   const programId = await readProgramIdV1(workspace);
   const cancelledText =
     "Hold this deterministic run until cancelled: preserve cancellation as a product receipt.";
@@ -447,6 +463,8 @@ test("a cancelled Browser Pi run remains terminal across reload without advancin
   await page.getByRole("textbox", { name: "Ask for a change…" }).fill(cancelledText);
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.locator('[data-pi-agent-run-status="running"]')).toBeVisible();
+  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "2");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-effect", "changed");
   await page.getByRole("button", { name: "Cancel run" }).click();
 
   await expectProgramStorageReadyV1(page);
@@ -454,6 +472,7 @@ test("a cancelled Browser Pi run remains terminal across reload without advancin
   await expect(page.getByText(cancelledText, { exact: true })).toBeVisible();
   await page.getByRole("tab", { name: "Activity" }).click();
   await expect(page.getByText("Cancelled Creator Agent run", { exact: true })).toBeVisible();
+  await expect(page.getByText("Last write: succeeded / changed", { exact: false })).toBeVisible();
 
   await page.getByRole("button", { name: "Creator home" }).click();
   await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
@@ -470,6 +489,9 @@ test("a cancelled Browser Pi run remains terminal across reload without advancin
     status: "Preview",
   });
   await expect(reopened).toHaveAttribute("data-program-revision", "1");
+  await expect(reopened).toHaveAttribute("data-execution-workspace-state", "open");
+  await expect(reopened).toHaveAttribute("data-execution-workspace-generation", "1");
+  await expect(reopened).not.toHaveAttribute("data-execution-workspace-receipt", /.+/u);
   await expect(page.getByText(cancelledText, { exact: true })).toBeVisible();
   await page.getByRole("tab", { name: "Activity" }).click();
   await expect(page.getByText("Cancelled Creator Agent run", { exact: true })).toBeVisible();

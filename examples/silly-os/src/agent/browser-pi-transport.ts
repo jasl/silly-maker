@@ -7,9 +7,12 @@ import type {
 
 import {
   admitBrowserPiEngineRequestV1,
-  admitBrowserPiWorkerOutboundMessageV1,
+  admitBrowserPiWorkerAnyOutboundMessageV1,
   type BrowserPiWorkerInitializeV1,
   type BrowserPiWorkerRuntimeV1,
+  type BrowserPiWorkspaceMutationReceiptWireV1,
+  type BrowserPiWorkspaceRequestRecordV1,
+  type BrowserPiWorkspaceSnapshotWireV1,
 } from "./browser-pi-worker-protocol.ts";
 
 type BrowserPiWorkerMessageListenerV1 = (event: { readonly data: unknown }) => void;
@@ -27,27 +30,53 @@ export interface BrowserPiWorkerLikeV1 {
 export type BrowserPiWorkerFactoryV1 = () => BrowserPiWorkerLikeV1;
 
 export interface BrowserPiWorkerRawTransportV1 extends AgentRpcRawTransportInternalV1 {
+  openWorkspace(input: {
+    readonly programId: string;
+    readonly workspaceId: string;
+  }): Promise<BrowserPiWorkspaceSnapshotWireV1>;
+  closeWorkspace(workspaceSessionId: string): Promise<BrowserPiWorkspaceSnapshotWireV1>;
+  queryWorkspace(workspaceSessionId: string): Promise<BrowserPiWorkspaceSnapshotWireV1>;
+  acknowledgeWorkspaceReceipts(input: {
+    readonly workspaceSessionId: string;
+    readonly throughSequence: number;
+  }): Promise<BrowserPiWorkspaceSnapshotWireV1>;
+  subscribeWorkspaceReceipts(
+    listener: (receipt: BrowserPiWorkspaceMutationReceiptWireV1) => void,
+  ): () => void;
   /** Terminates an initializing or connected Worker and drops any unposted credential. */
   forget(): Promise<void>;
 }
 
 interface PendingCallV1 {
-  readonly method: "start" | "submit" | "cancel";
+  readonly method:
+    | "start"
+    | "submit"
+    | "cancel"
+    | BrowserPiWorkspaceRequestRecordV1["method"];
   readonly resolve: (value: unknown) => void;
   readonly reject: (reason: Error) => void;
 }
+
+type BufferedWorkerEventV1 =
+  | { readonly kind: "rpc_record"; readonly record: unknown }
+  | {
+    readonly kind: "workspace_receipt";
+    readonly receipt: BrowserPiWorkspaceMutationReceiptWireV1;
+  };
 
 interface ConnectionStateV1 {
   readonly worker: BrowserPiWorkerLikeV1;
   readonly onRecord: (record: unknown) => void;
   readonly pending: Map<number, PendingCallV1>;
-  readonly bufferedRecords: unknown[];
+  readonly bufferedEvents: BufferedWorkerEventV1[];
   readonly resolveReady: (ready: boolean) => void;
   messageListener: BrowserPiWorkerMessageListenerV1;
   errorListener: BrowserPiWorkerErrorListenerV1;
   cancelReadyTimer: (() => void) | null;
   nextCallId: number;
   pendingSubmitGates: number;
+  activeWorkspace: BrowserPiWorkspaceSnapshotWireV1 | null;
+  workspaceReceiptSequence: number;
   ready: boolean;
   closed: boolean;
 }
@@ -67,6 +96,10 @@ function transportErrorV1(code: string): TypeError {
   return new TypeError(`sillyos.browser_pi_transport.${code}`);
 }
 
+function isWorkspaceMethodV1(method: PendingCallV1["method"]): boolean {
+  return method.endsWith("_workspace") || method === "acknowledge_workspace_receipts";
+}
+
 export function createBrowserPiWorkerRawTransportV1({
   apiKey: suppliedApiKey,
   runtime,
@@ -82,6 +115,9 @@ export function createBrowserPiWorkerRawTransportV1({
     : null;
   suppliedApiKey = "";
   let activeState: ConnectionStateV1 | null = null;
+  const workspaceReceiptListeners = new Set<
+    (receipt: BrowserPiWorkspaceMutationReceiptWireV1) => void
+  >();
 
   const closeState = (state: ConnectionStateV1, reason: string): void => {
     if (state.closed) return;
@@ -96,7 +132,7 @@ export function createBrowserPiWorkerRawTransportV1({
       pending.reject(transportErrorV1(reason));
     }
     state.pending.clear();
-    state.bufferedRecords.length = 0;
+    state.bufferedEvents.length = 0;
     state.resolveReady(false);
     try {
       state.worker.terminate();
@@ -132,32 +168,70 @@ export function createBrowserPiWorkerRawTransportV1({
         worker,
         onRecord,
         pending: new Map<number, PendingCallV1>(),
-        bufferedRecords: [],
+        bufferedEvents: [],
         resolveReady,
         messageListener: undefined as unknown as BrowserPiWorkerMessageListenerV1,
         errorListener: undefined as unknown as BrowserPiWorkerErrorListenerV1,
         cancelReadyTimer: null,
         nextCallId: 2,
         pendingSubmitGates: 0,
+        activeWorkspace: null,
+        workspaceReceiptSequence: 0,
         ready: false,
         closed: false,
       };
 
-      const flushRecords = (): void => {
-        if (state.closed || state.pendingSubmitGates !== 0) return;
-        const records = state.bufferedRecords.splice(0);
-        for (const record of records) {
+      const deliverWorkspaceReceipt = (
+        receipt: BrowserPiWorkspaceMutationReceiptWireV1,
+      ): void => {
+        const current = state.activeWorkspace;
+        if (
+          current === null || current.phase !== "open" ||
+          receipt.programId !== current.programId ||
+          receipt.workspaceId !== current.workspaceId ||
+          receipt.workspaceSessionId !== current.workspaceSessionId ||
+          receipt.baseGeneration !== current.generation ||
+          receipt.sequence !== state.workspaceReceiptSequence + 1 ||
+          current.receipts.length >= 32
+        ) {
+          closeState(state, "workspace_receipt_invalid");
+          return;
+        }
+        state.activeWorkspace = Object.freeze({
+          ...current,
+          generation: receipt.resultingGeneration,
+          receipts: Object.freeze([...current.receipts, receipt]),
+        });
+        state.workspaceReceiptSequence = receipt.sequence;
+        for (const listener of [...workspaceReceiptListeners]) {
           try {
-            state.onRecord(record);
+            listener(receipt);
           } catch {
-            // The raw record consumer is observational at this transport boundary.
+            // Workspace receipt observers cannot change transport lifecycle.
           }
+        }
+      };
+
+      const flushEvents = (): void => {
+        if (state.closed || state.pendingSubmitGates !== 0) return;
+        const events = state.bufferedEvents.splice(0);
+        for (const event of events) {
+          if (event.kind === "workspace_receipt") {
+            deliverWorkspaceReceipt(event.receipt);
+          } else {
+            try {
+              state.onRecord(event.record);
+            } catch {
+              // The raw record consumer is observational at this transport boundary.
+            }
+          }
+          if (state.closed) return;
         }
       };
 
       state.messageListener = (event: { readonly data: unknown }): void => {
         if (state.closed) return;
-        const message = admitBrowserPiWorkerOutboundMessageV1(event.data);
+        const message = admitBrowserPiWorkerAnyOutboundMessageV1(event.data);
         if (message === null || message.kind === "protocol_failure") {
           closeState(state, "protocol_failure");
           return;
@@ -182,16 +256,21 @@ export function createBrowserPiWorkerRawTransportV1({
           closeState(state, "duplicate_ready");
           return;
         }
-        if (message.kind === "rpc_record") {
+        if (message.kind === "rpc_record" || message.kind === "workspace_receipt") {
+          const buffered: BufferedWorkerEventV1 = message.kind === "rpc_record"
+            ? { kind: "rpc_record", record: message.record }
+            : { kind: "workspace_receipt", receipt: message.receipt };
           if (state.pendingSubmitGates !== 0) {
-            if (state.bufferedRecords.length >= bufferedRecordMaximumV1) {
+            if (state.bufferedEvents.length >= bufferedRecordMaximumV1) {
               closeState(state, "record_buffer_limit");
               return;
             }
-            state.bufferedRecords.push(message.record);
+            state.bufferedEvents.push(buffered);
+          } else if (buffered.kind === "workspace_receipt") {
+            deliverWorkspaceReceipt(buffered.receipt);
           } else {
             try {
-              state.onRecord(message.record);
+              state.onRecord(buffered.record);
             } catch {
               // The raw record consumer is observational at this transport boundary.
             }
@@ -204,8 +283,41 @@ export function createBrowserPiWorkerRawTransportV1({
           return;
         }
         state.pending.delete(message.requestId);
-        if (message.ok) pending.resolve(message.response);
-        else pending.reject(transportErrorV1(`rpc_${message.code}`));
+        if (message.kind === "workspace_response") {
+          if (!isWorkspaceMethodV1(pending.method)) {
+            closeState(state, "workspace_response_mismatch");
+            return;
+          }
+          if (message.ok) {
+            const previousWorkspaceSessionId = state.activeWorkspace?.workspaceSessionId;
+            state.activeWorkspace = message.response.snapshot;
+            const lastReceipt = message.response.snapshot.receipts.at(-1);
+            if (message.response.method === "acknowledge_workspace_receipts") {
+              state.workspaceReceiptSequence = Math.max(
+                state.workspaceReceiptSequence,
+                message.response.throughSequence,
+                lastReceipt?.sequence ?? 0,
+              );
+            } else if (
+              previousWorkspaceSessionId !== message.response.snapshot.workspaceSessionId
+            ) {
+              state.workspaceReceiptSequence = lastReceipt?.sequence ?? 0;
+            } else if (lastReceipt !== undefined) {
+              state.workspaceReceiptSequence = Math.max(
+                state.workspaceReceiptSequence,
+                lastReceipt.sequence,
+              );
+            }
+            pending.resolve(message.response);
+          } else pending.reject(transportErrorV1(`workspace_${message.code}`));
+        } else {
+          if (isWorkspaceMethodV1(pending.method)) {
+            closeState(state, "rpc_response_mismatch");
+            return;
+          }
+          if (message.ok) pending.resolve(message.response);
+          else pending.reject(transportErrorV1(`rpc_${message.code}`));
+        }
         if (pending.method === "submit") {
           // Engine request settlement/tracking and the product facade continuation
           // both run before a synchronously delivered Worker record is released.
@@ -213,7 +325,7 @@ export function createBrowserPiWorkerRawTransportV1({
             queueMicrotask(() => {
               if (state.closed) return;
               state.pendingSubmitGates -= 1;
-              flushRecords();
+              flushEvents();
             })
           );
         }
@@ -265,12 +377,32 @@ export function createBrowserPiWorkerRawTransportV1({
           return new Promise<unknown>((resolve, reject) => {
             state.pending.set(callId, { method: request.method, resolve, reject });
             try {
-              const envelope = Object.freeze({
-                revision: 1,
-                kind: "rpc_request",
-                requestId: callId,
-                record: request,
-              });
+              const envelope = request.method === "submit"
+                ? (() => {
+                  const workspace = state.activeWorkspace;
+                  if (workspace === null || workspace.phase !== "open") {
+                    throw transportErrorV1("workspace_unavailable");
+                  }
+                  return Object.freeze({
+                    revision: 1,
+                    kind: "rpc_request",
+                    requestId: callId,
+                    record: request,
+                    execution: Object.freeze({
+                      revision: 1,
+                      programId: workspace.programId,
+                      workspaceId: workspace.workspaceId,
+                      workspaceSessionId: workspace.workspaceSessionId,
+                      expectedGeneration: workspace.generation,
+                    }),
+                  });
+                })()
+                : Object.freeze({
+                  revision: 1,
+                  kind: "rpc_request",
+                  requestId: callId,
+                  record: request,
+                });
               // Worker.postMessage has no targetOrigin parameter.
               // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker has no targetOrigin
               state.worker.postMessage(envelope);
@@ -287,10 +419,75 @@ export function createBrowserPiWorkerRawTransportV1({
       };
       return { kind: "connected", connection };
     },
+    openWorkspace(input): Promise<BrowserPiWorkspaceSnapshotWireV1> {
+      return workspaceRequestV1({
+        method: "open_workspace",
+        programId: input.programId,
+        workspaceId: input.workspaceId,
+      });
+    },
+    closeWorkspace(workspaceSessionId): Promise<BrowserPiWorkspaceSnapshotWireV1> {
+      return workspaceRequestV1({ method: "close_workspace", workspaceSessionId });
+    },
+    queryWorkspace(workspaceSessionId): Promise<BrowserPiWorkspaceSnapshotWireV1> {
+      return workspaceRequestV1({ method: "query_workspace", workspaceSessionId });
+    },
+    acknowledgeWorkspaceReceipts(input): Promise<BrowserPiWorkspaceSnapshotWireV1> {
+      return workspaceRequestV1({
+        method: "acknowledge_workspace_receipts",
+        workspaceSessionId: input.workspaceSessionId,
+        throughSequence: input.throughSequence,
+      });
+    },
+    subscribeWorkspaceReceipts(listener): () => void {
+      workspaceReceiptListeners.add(listener);
+      return () => workspaceReceiptListeners.delete(listener);
+    },
     async forget(): Promise<void> {
       pendingApiKey = null;
-      if (activeState !== null) closeState(activeState, "forgotten");
+      const state = activeState;
+      if (state === null) return;
+      const workspace = state.activeWorkspace;
+      if (workspace?.phase === "open") {
+        await workspaceRequestV1({
+          method: "close_workspace",
+          workspaceSessionId: workspace.workspaceSessionId,
+        }).catch(() => undefined);
+      }
+      closeState(state, "forgotten");
     },
+  };
+
+  const workspaceRequestV1 = async (
+    record: BrowserPiWorkspaceRequestRecordV1,
+  ): Promise<BrowserPiWorkspaceSnapshotWireV1> => {
+    const state = activeState;
+    if (state === null || state.closed || !state.ready) {
+      throw transportErrorV1("workspace_connection_unavailable");
+    }
+    const requestId = state.nextCallId++;
+    const response = await new Promise<unknown>((resolve, reject) => {
+      state.pending.set(requestId, { method: record.method, resolve, reject });
+      try {
+        const envelope = Object.freeze({
+          revision: 1,
+          kind: "workspace_request",
+          requestId,
+          record: Object.freeze(record),
+        });
+        // Worker.postMessage has no targetOrigin parameter.
+        // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker has no targetOrigin
+        state.worker.postMessage(envelope);
+      } catch {
+        state.pending.delete(requestId);
+        reject(transportErrorV1("workspace_post_failed"));
+      }
+    });
+    if (
+      response === null || typeof response !== "object" ||
+      !Object.hasOwn(response, "snapshot")
+    ) throw transportErrorV1("workspace_response_invalid");
+    return (response as { readonly snapshot: BrowserPiWorkspaceSnapshotWireV1 }).snapshot;
   };
   return transport;
 }

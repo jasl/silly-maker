@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 
+import type { AgentTool } from "./pi-workspace-runtime-bridge.js";
+
 import type { CreatorAgentSubmitV1 } from "../product/contracts.ts";
 
 export const creatorProgramRevisionToolNameV1: "sillyos_propose_program_revision";
@@ -13,6 +15,7 @@ export interface PiAgentPortV1 {
 
 export interface PiAgentRunInputV1 {
   readonly submit: CreatorAgentSubmitV1;
+  readonly workspaceTools: readonly AgentTool[];
   readonly onTextDelta: (delta: string) => void;
   readonly onCandidate: (candidate: unknown) => void | Promise<void>;
 }

@@ -11,10 +11,23 @@ import {
   type BrowserPiWorkerLikeV1,
 } from "../agent/browser-pi-transport.ts";
 import { createBrowserPiWorkerRuntimeV1 } from "../agent/browser-pi-worker-runtime.ts";
-import type { BrowserPiWorkerOutboundMessageV1 } from "../agent/browser-pi-worker-protocol.ts";
-import { createBrowserCreatorAgentPortV1 } from "../agent/creator-agent-port.ts";
+import type {
+  BrowserPiWorkerAnyOutboundMessageV1,
+  BrowserPiWorkerExecutionBindingV1,
+  BrowserPiWorkspaceSnapshotWireV1,
+} from "../agent/browser-pi-worker-protocol.ts";
+import {
+  createBrowserCreatorAgentPortV1,
+  type CreatorAgentPortV1,
+} from "../agent/creator-agent-port.ts";
+import { deterministicCancellationHoldPrefixV1 } from "../agent/browser-pi-runtime-bridge.js";
 import { serializeCreatorAgentSubmitV1 } from "../product/creator-agent-admission.ts";
 import type { CreatorAgentRunRequestV1, CreatorAgentSubmitV1 } from "../product/contracts.ts";
+import { workspaceRootV1 } from "../workspace/contracts.ts";
+
+const workspaceIdV1 = "workspace.preview.1";
+const workspaceSessionIdV1 = "sillyos.workspace.session.1";
+const roundTripArtifactPathV1 = `${workspaceRootV1}/.sillyos/p3a-round-trip.txt`;
 
 const submitV1: CreatorAgentSubmitV1 = {
   revision: 1,
@@ -49,13 +62,42 @@ async function waitUntilV1(predicate: () => boolean): Promise<void> {
 function rpcRequestV1(
   requestId: number,
   record: Readonly<Record<string, unknown>>,
+  execution?: BrowserPiWorkerExecutionBindingV1,
 ): Readonly<Record<string, unknown>> {
+  return execution === undefined
+    ? { revision: 1, kind: "rpc_request", requestId, record }
+    : { revision: 1, kind: "rpc_request", requestId, record, execution };
+}
+
+function workspaceRequestV1(
+  requestId: number,
+  record: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> {
+  return { revision: 1, kind: "workspace_request", requestId, record };
+}
+
+function executionBindingV1(expectedGeneration = 1): BrowserPiWorkerExecutionBindingV1 {
   return {
     revision: 1,
-    kind: "rpc_request",
-    requestId,
-    record,
+    programId: submitV1.programId,
+    workspaceId: workspaceIdV1,
+    workspaceSessionId: workspaceSessionIdV1,
+    expectedGeneration,
   };
+}
+
+async function openProductWorkspaceV1(port: CreatorAgentPortV1): Promise<void> {
+  await expect(port.openWorkspace({ programId: submitV1.programId, workspaceId: workspaceIdV1 }))
+    .resolves.toEqual({
+      kind: "opened",
+      descriptor: {
+        revision: 1,
+        programId: submitV1.programId,
+        workspaceId: workspaceIdV1,
+        workspaceSessionId: expect.any(String),
+        generation: 1,
+      },
+    });
 }
 
 class InMemoryBrowserPiWorkerV1 {
@@ -174,9 +216,11 @@ class RuntimeMismatchBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
 class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
   terminated = false;
   latestPiRunId: string | null = null;
+  latestExecution: BrowserPiWorkerExecutionBindingV1 | null = null;
   private readonly messageListeners = new Set<(event: { readonly data: unknown }) => void>();
   private readonly errorListeners = new Set<(event: unknown) => void>();
   private nextPiRunOrdinal = 1;
+  private workspace: BrowserPiWorkspaceSnapshotWireV1 | null = null;
 
   private emit(message: unknown): void {
     const data = structuredClone(message);
@@ -197,6 +241,53 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
       return;
     }
     const record = envelope.record as Readonly<Record<string, unknown>>;
+    if (envelope.kind === "workspace_request") {
+      if (record.method === "open_workspace") {
+        this.workspace = {
+          revision: 1,
+          phase: "open",
+          programId: record.programId as string,
+          workspaceId: record.workspaceId as string,
+          workspaceSessionId: "controlled.workspace.session.1",
+          generation: 1,
+          receipts: [],
+        };
+      } else if (this.workspace === null) {
+        this.emit({
+          revision: 1,
+          kind: "workspace_response",
+          requestId: envelope.requestId,
+          ok: false,
+          code: "workspace_mismatch",
+        });
+        return;
+      } else if (record.method === "close_workspace") {
+        this.workspace = { ...this.workspace, phase: "closed" };
+      } else if (record.method === "acknowledge_workspace_receipts") {
+        const throughSequence = record.throughSequence as number;
+        this.workspace = {
+          ...this.workspace,
+          receipts: this.workspace.receipts.filter((receipt) => receipt.sequence > throughSequence),
+        };
+      }
+      const workspace = this.workspace;
+      if (workspace === null) throw new Error("expected controlled Workspace snapshot");
+      const response = record.method === "acknowledge_workspace_receipts"
+        ? {
+          method: record.method,
+          throughSequence: record.throughSequence,
+          snapshot: workspace,
+        }
+        : { method: record.method, snapshot: workspace };
+      this.emit({
+        revision: 1,
+        kind: "workspace_response",
+        requestId: envelope.requestId,
+        ok: true,
+        response,
+      });
+      return;
+    }
     if (record.method === "start") {
       this.emit({
         revision: 1,
@@ -208,6 +299,24 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
       return;
     }
     if (record.method === "submit") {
+      const execution = envelope.execution as BrowserPiWorkerExecutionBindingV1 | undefined;
+      if (
+        execution === undefined || this.workspace?.phase !== "open" ||
+        execution.programId !== this.workspace.programId ||
+        execution.workspaceId !== this.workspace.workspaceId ||
+        execution.workspaceSessionId !== this.workspace.workspaceSessionId ||
+        execution.expectedGeneration !== this.workspace.generation
+      ) {
+        this.emit({
+          revision: 1,
+          kind: "rpc_response",
+          requestId: envelope.requestId,
+          ok: false,
+          code: "invalid_request",
+        });
+        return;
+      }
+      this.latestExecution = execution;
       this.latestPiRunId = `controlled.run.${String(this.nextPiRunOrdinal++)}`;
       this.emit({
         revision: 1,
@@ -337,7 +446,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
   });
 
   it("rejects non-exact protocol envelopes without invoking accessors", () => {
-    const messages: BrowserPiWorkerOutboundMessageV1[] = [];
+    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
     const runtime = createBrowserPiWorkerRuntimeV1({
       postMessage: (message) => messages.push(structuredClone(message)),
     });
@@ -382,7 +491,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
   });
 
   it("initializes the explicit live profile before any Provider run exists", () => {
-    const messages: BrowserPiWorkerOutboundMessageV1[] = [];
+    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
     const runtime = createBrowserPiWorkerRuntimeV1({
       postMessage: (message) => messages.push(structuredClone(message)),
     });
@@ -406,7 +515,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
   });
 
   it("runs real Pi Agent tool flow and posts the submit response before its bounded records", async () => {
-    const messages: BrowserPiWorkerOutboundMessageV1[] = [];
+    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
     const runtime = createBrowserPiWorkerRuntimeV1({
       postMessage: (message) => messages.push(structuredClone(message)),
     });
@@ -417,8 +526,21 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       runtime: "deterministic_test",
       credential: { kind: "api_key", value: "sentinel-browser-key" },
     });
-    runtime.receive(rpcRequestV1(2, { revision: 1, requestId: 1, method: "start" }));
-    runtime.receive(rpcRequestV1(3, {
+    runtime.receive(workspaceRequestV1(2, {
+      method: "open_workspace",
+      programId: submitV1.programId,
+      workspaceId: workspaceIdV1,
+    }));
+    runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "workspace_response" && message.requestId === 2 && message.ok
+      ) &&
+      messages.some((message) =>
+        message.kind === "rpc_response" && message.requestId === 3 && message.ok
+      )
+    );
+    runtime.receive(rpcRequestV1(4, {
       revision: 1,
       requestId: 2,
       method: "submit",
@@ -426,7 +548,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         sessionId: "sillyos.session.1",
         text: serializeCreatorAgentSubmitV1(submitV1),
       },
-    }));
+    }, executionBindingV1()));
 
     await waitUntilV1(() =>
       messages.some((message) =>
@@ -443,11 +565,43 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       distribution: browserPiDistributionIdentityV1,
     });
     const submitResponseIndex = messages.findIndex((message) =>
-      message.kind === "rpc_response" && message.requestId === 3
+      message.kind === "rpc_response" && message.requestId === 4
     );
     const firstRecordIndex = messages.findIndex((message) => message.kind === "rpc_record");
+    const receiptIndex = messages.findIndex((message) => message.kind === "workspace_receipt");
+    const terminalIndex = messages.findIndex((message) =>
+      message.kind === "rpc_record" &&
+      (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
+    );
     expect(submitResponseIndex).toBeGreaterThanOrEqual(0);
     expect(firstRecordIndex).toBeGreaterThan(submitResponseIndex);
+    expect(receiptIndex).toBeGreaterThan(submitResponseIndex);
+    expect(terminalIndex).toBeGreaterThan(receiptIndex);
+
+    const receiptMessage = messages[receiptIndex];
+    if (receiptMessage?.kind !== "workspace_receipt") {
+      throw new Error("expected one raw Workspace mutation receipt");
+    }
+    expect(receiptMessage.receipt).toMatchObject({
+      revision: 1,
+      sequence: 1,
+      programId: submitV1.programId,
+      workspaceId: workspaceIdV1,
+      workspaceSessionId: workspaceSessionIdV1,
+      sessionId: "sillyos.session.1",
+      runId: "sillyos.run.1",
+      tool: "write",
+      expectedGeneration: 1,
+      baseGeneration: 1,
+      resultingGeneration: 2,
+      outcome: "succeeded",
+      effect: "changed",
+      changedPaths: [".sillyos/p3a-round-trip.txt"],
+      diagnosticCode: null,
+    });
+    expect(`${workspaceRootV1}/${receiptMessage.receipt.changedPaths[0]}`).toBe(
+      roundTripArtifactPathV1,
+    );
 
     const records = messages.flatMap((message) =>
       message.kind === "rpc_record" ? [message.record as Readonly<Record<string, unknown>>] : []
@@ -465,8 +619,8 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     runtime.dispose();
   });
 
-  it("fences replaced and cancelled runs by session, run, and contiguous sequence", async () => {
-    const messages: BrowserPiWorkerOutboundMessageV1[] = [];
+  it("rejects a stale execution binding without disturbing the active run and retries from query", async () => {
+    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
     const runtime = createBrowserPiWorkerRuntimeV1({
       postMessage: (message) => messages.push(structuredClone(message)),
     });
@@ -477,8 +631,151 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       runtime: "deterministic_test",
       credential: { kind: "api_key", value: "key" },
     });
-    runtime.receive(rpcRequestV1(2, { revision: 1, requestId: 1, method: "start" }));
-    runtime.receive(rpcRequestV1(3, {
+    runtime.receive(workspaceRequestV1(2, {
+      method: "open_workspace",
+      programId: submitV1.programId,
+      workspaceId: workspaceIdV1,
+    }));
+    runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "workspace_response" && message.requestId === 2 && message.ok
+      ) &&
+      messages.some((message) =>
+        message.kind === "rpc_response" && message.requestId === 3 && message.ok
+      )
+    );
+
+    runtime.receive(rpcRequestV1(4, {
+      revision: 1,
+      requestId: 2,
+      method: "submit",
+      params: {
+        sessionId: "sillyos.session.1",
+        text: serializeCreatorAgentSubmitV1({
+          ...submitV1,
+          text: `${deterministicCancellationHoldPrefixV1} stale preflight`,
+        }),
+      },
+    }, executionBindingV1(1)));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "workspace_receipt" && message.receipt.runId === "sillyos.run.1"
+      )
+    );
+
+    runtime.receive(rpcRequestV1(5, {
+      revision: 1,
+      requestId: 3,
+      method: "submit",
+      params: {
+        sessionId: "sillyos.session.1",
+        text: serializeCreatorAgentSubmitV1({
+          ...submitV1,
+          proposalId: "workspace.preview.1.proposal.stale",
+          text: "This future generation must be rejected before Pi.",
+        }),
+      },
+    }, executionBindingV1(3)));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "rpc_response" && message.requestId === 5 && !message.ok
+      )
+    );
+    expect(messages.find((message) => message.kind === "rpc_response" && message.requestId === 5))
+      .toEqual({
+        revision: 1,
+        kind: "rpc_response",
+        requestId: 5,
+        ok: false,
+        code: "invalid_request",
+      });
+    expect(messages.filter((message) => message.kind === "workspace_receipt")).toHaveLength(1);
+    expect(messages.some((message) =>
+      message.kind === "rpc_record" &&
+      (message.record as Readonly<Record<string, unknown>>).runId === "sillyos.run.1" &&
+      (message.record as Readonly<Record<string, unknown>>).kind === "run_failed"
+    )).toBe(false);
+
+    runtime.receive(workspaceRequestV1(6, {
+      method: "query_workspace",
+      workspaceSessionId: workspaceSessionIdV1,
+    }));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "workspace_response" && message.requestId === 6 && message.ok
+      )
+    );
+    const queried = messages.find((message) =>
+      message.kind === "workspace_response" && message.requestId === 6 && message.ok
+    );
+    if (queried?.kind !== "workspace_response" || !queried.ok) {
+      throw new Error("expected the current Workspace descriptor after stale rejection");
+    }
+    expect(queried.response.snapshot).toMatchObject({ generation: 2 });
+    expect(queried.response.snapshot.receipts).toHaveLength(1);
+
+    runtime.receive(rpcRequestV1(7, {
+      revision: 1,
+      requestId: 4,
+      method: "submit",
+      params: {
+        sessionId: "sillyos.session.1",
+        text: serializeCreatorAgentSubmitV1({
+          ...submitV1,
+          proposalId: "workspace.preview.1.proposal.retry",
+          text: "Retry from the queried generation.",
+        }),
+      },
+    }, executionBindingV1(queried.response.snapshot.generation)));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "rpc_record" &&
+        (message.record as Readonly<Record<string, unknown>>).runId === "sillyos.run.2" &&
+        (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
+      )
+    );
+    expect(messages.find((message) => message.kind === "rpc_response" && message.requestId === 7))
+      .toMatchObject({
+        ok: true,
+        response: { kind: "submitted", runId: "sillyos.run.2" },
+      });
+    expect(messages.some((message) =>
+      message.kind === "rpc_record" &&
+      (message.record as Readonly<Record<string, unknown>>).runId === "sillyos.run.1" &&
+      (message.record as Readonly<Record<string, unknown>>).kind === "run_failed" &&
+      (message.record as Readonly<Record<string, unknown>>).code === "replaced"
+    )).toBe(true);
+    runtime.dispose();
+  });
+
+  it("fences replaced and cancelled runs by session, run, and contiguous sequence", async () => {
+    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const runtime = createBrowserPiWorkerRuntimeV1({
+      postMessage: (message) => messages.push(structuredClone(message)),
+    });
+    runtime.receive({
+      revision: 1,
+      kind: "initialize",
+      requestId: 1,
+      runtime: "deterministic_test",
+      credential: { kind: "api_key", value: "key" },
+    });
+    runtime.receive(workspaceRequestV1(2, {
+      method: "open_workspace",
+      programId: submitV1.programId,
+      workspaceId: workspaceIdV1,
+    }));
+    runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "workspace_response" && message.requestId === 2 && message.ok
+      ) &&
+      messages.some((message) =>
+        message.kind === "rpc_response" && message.requestId === 3 && message.ok
+      )
+    );
+    runtime.receive(rpcRequestV1(4, {
       revision: 1,
       requestId: 2,
       method: "submit",
@@ -486,8 +783,8 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         sessionId: "sillyos.session.1",
         text: serializeCreatorAgentSubmitV1(submitV1),
       },
-    }));
-    runtime.receive(rpcRequestV1(4, {
+    }, executionBindingV1()));
+    runtime.receive(rpcRequestV1(5, {
       revision: 1,
       requestId: 3,
       method: "submit",
@@ -499,7 +796,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
           text: "Replace the prior run.",
         }),
       },
-    }));
+    }, executionBindingV1()));
 
     await waitUntilV1(() =>
       messages.some((message) =>
@@ -524,7 +821,24 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       "run_completed",
     );
 
-    runtime.receive(rpcRequestV1(5, {
+    runtime.receive(workspaceRequestV1(6, {
+      method: "query_workspace",
+      workspaceSessionId: workspaceSessionIdV1,
+    }));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "workspace_response" && message.requestId === 6 && message.ok
+      )
+    );
+    const queried = messages.find((message) =>
+      message.kind === "workspace_response" && message.requestId === 6 && message.ok
+    );
+    if (queried?.kind !== "workspace_response" || !queried.ok) {
+      throw new Error("expected current Workspace snapshot");
+    }
+    const currentGeneration = queried.response.snapshot.generation;
+
+    runtime.receive(rpcRequestV1(7, {
       revision: 1,
       requestId: 4,
       method: "submit",
@@ -533,11 +847,26 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         text: serializeCreatorAgentSubmitV1({
           ...submitV1,
           proposalId: "workspace.preview.1.proposal.3",
-          text: "Cancel this run.",
+          text: `${deterministicCancellationHoldPrefixV1} post-effect ordering`,
         }),
       },
-    }));
-    runtime.receive(rpcRequestV1(6, {
+    }, executionBindingV1(currentGeneration)));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "rpc_response" && message.requestId === 7 && message.ok &&
+        (message.response as Readonly<Record<string, unknown>>).kind === "submitted" &&
+        (message.response as Readonly<Record<string, unknown>>).runId === "sillyos.run.3"
+      )
+    );
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "workspace_receipt" && message.receipt.runId === "sillyos.run.3"
+      )
+    );
+    const preCancelReceiptIndex = messages.findIndex((message) =>
+      message.kind === "workspace_receipt" && message.receipt.runId === "sillyos.run.3"
+    );
+    runtime.receive(rpcRequestV1(8, {
       revision: 1,
       requestId: 5,
       method: "cancel",
@@ -546,17 +875,44 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     await waitUntilV1(() =>
       messages.some((message) =>
         message.kind === "rpc_record" &&
-        (message.record as Readonly<Record<string, unknown>>).runId === "sillyos.run.3"
+        (message.record as Readonly<Record<string, unknown>>).runId === "sillyos.run.3" &&
+        (message.record as Readonly<Record<string, unknown>>).kind === "run_failed"
       )
     );
     const cancelResponseIndex = messages.findIndex((message) =>
-      message.kind === "rpc_response" && message.requestId === 6
+      message.kind === "rpc_response" && message.requestId === 8
     );
     const cancelledRecordIndex = messages.findIndex((message) =>
       message.kind === "rpc_record" &&
-      (message.record as Readonly<Record<string, unknown>>).runId === "sillyos.run.3"
+      (message.record as Readonly<Record<string, unknown>>).runId === "sillyos.run.3" &&
+      (message.record as Readonly<Record<string, unknown>>).kind === "run_failed"
     );
+    const cancelledReceiptIndex = messages.findIndex((message) =>
+      message.kind === "workspace_receipt" && message.receipt.runId === "sillyos.run.3"
+    );
+    expect(cancelResponseIndex).toBeGreaterThan(preCancelReceiptIndex);
     expect(cancelledRecordIndex).toBeGreaterThan(cancelResponseIndex);
+    expect(cancelledRecordIndex).toBeGreaterThan(cancelledReceiptIndex);
+    const cancelledReceipt = messages[cancelledReceiptIndex];
+    if (cancelledReceipt?.kind !== "workspace_receipt") {
+      throw new Error("expected the post-effect cancelled run's Workspace receipt");
+    }
+    expect(cancelledReceipt.receipt).toMatchObject({
+      revision: 1,
+      programId: submitV1.programId,
+      workspaceId: workspaceIdV1,
+      workspaceSessionId: workspaceSessionIdV1,
+      sessionId: "sillyos.session.1",
+      runId: "sillyos.run.3",
+      tool: "write",
+      expectedGeneration: currentGeneration,
+      baseGeneration: currentGeneration,
+      resultingGeneration: currentGeneration + 1,
+      outcome: "succeeded",
+      effect: "changed",
+      changedPaths: [".sillyos/p3a-round-trip.txt"],
+      diagnosticCode: null,
+    });
     expect((messages[cancelledRecordIndex] as { record: unknown }).record).toEqual({
       kind: "run_failed",
       code: "cancelled",
@@ -645,6 +1001,14 @@ describe("SillyOS Browser Pi transport and product port", () => {
       kind: "started",
       sessionId: "sillyos.session.1",
     });
+    await expect(
+      transport.openWorkspace({ programId: submitV1.programId, workspaceId: workspaceIdV1 }),
+    ).resolves.toMatchObject({
+      phase: "open",
+      programId: submitV1.programId,
+      workspaceId: workspaceIdV1,
+      generation: 1,
+    });
     const submitted = client.submit({
       sessionId: "sillyos.session.1",
       text: serializeCreatorAgentSubmitV1(submitV1),
@@ -681,6 +1045,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
       terminalRuns: [],
     });
     await expect(port.initialize()).resolves.toEqual({ kind: "ready" });
+    await openProductWorkspaceV1(port);
 
     let survivingObserverCalls = 0;
     port.subscribe(() => {
@@ -718,6 +1083,40 @@ describe("SillyOS Browser Pi transport and product port", () => {
     expect(JSON.stringify(terminal)).not.toContain('"runId"');
     expect(survivingObserverCalls).toBeGreaterThan(0);
 
+    const workspace = port.getSnapshot().workspace;
+    expect(workspace).toMatchObject({
+      phase: "open",
+      descriptor: { generation: 2 },
+      receipts: [{
+        revision: 1,
+        sequence: 1,
+        programId: run.programId,
+        workspaceId: workspaceIdV1,
+        agentRunId: run.agentRunId,
+        tool: "write",
+        expectedGeneration: 1,
+        baseGeneration: 1,
+        resultingGeneration: 2,
+        outcome: "succeeded",
+        effect: "changed",
+        changedPaths: [".sillyos/p3a-round-trip.txt"],
+        diagnosticCode: null,
+      }],
+    });
+    expect(`${workspaceRootV1}/${workspace.receipts[0]?.changedPaths[0]}`).toBe(
+      roundTripArtifactPathV1,
+    );
+    const serializedWorkspace = JSON.stringify(workspace);
+    expect(serializedWorkspace).not.toContain("sillyos.session.1");
+    expect(serializedWorkspace).not.toContain("sillyos.run.1");
+    expect(serializedWorkspace).not.toContain('"sessionId"');
+    expect(serializedWorkspace).not.toContain('"runId"');
+    await expect(port.acknowledgeWorkspaceReceipts(1)).resolves.toEqual({
+      kind: "acknowledged",
+      throughSequence: 1,
+    });
+    expect(port.getSnapshot().workspace.receipts).toEqual([]);
+
     expect(port.acknowledgeTerminal(run.agentRunId)).toBe(true);
     expect(port.getSnapshot()).toMatchObject({ phase: "ready", terminalRuns: [] });
     expect(port.acknowledgeTerminal(run.agentRunId)).toBe(false);
@@ -738,6 +1137,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
       workerFactory: () => new InMemoryBrowserPiWorkerV1(),
     });
     await expect(port.initialize()).resolves.toEqual({ kind: "ready" });
+    await openProductWorkspaceV1(port);
     const firstRun = productRunV1({ agentRunId: "agent.run.replaced" });
     const latestRun = productRunV1({
       agentRunId: "agent.run.latest",
@@ -798,6 +1198,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
       workerFactory: () => worker,
     });
     const run = productRunV1({ agentRunId: "agent.run.failed" });
+    await openProductWorkspaceV1(port);
     await expect(port.submit(run)).resolves.toEqual({
       kind: "submitted",
       agentRunId: run.agentRunId,
@@ -828,6 +1229,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
       workerFactory: () => worker,
     });
     const run = productRunV1({ agentRunId: "agent.run.whitespace" });
+    await openProductWorkspaceV1(port);
     await expect(port.submit(run)).resolves.toEqual({
       kind: "submitted",
       agentRunId: run.agentRunId,
@@ -854,6 +1256,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
       workerFactory: () => worker,
     });
     const run = productRunV1({ agentRunId: "agent.run.cancelled" });
+    await openProductWorkspaceV1(port);
     await expect(port.submit(run)).resolves.toEqual({
       kind: "submitted",
       agentRunId: run.agentRunId,

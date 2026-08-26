@@ -3,13 +3,14 @@
 # SillyOS product-incubation plan
 
 Status: accepted Browser-first, dual-target product lane with validated P0,
-P1-B B0a/B0b, and P2 implementations plus a dev-only Pi launch helper,
+P1-B B0a/B0b, P2, and P3a-B0 implementations plus a dev-only Pi launch helper,
 2026-08-27. P2-B0 delivered the product-owned IndexedDB Worker and exact Program
 catalog; P2-B1 then delivered Repository V2 plus bounded terminal Agent-run
-receipts. P2 is closed. No later slice is automatically active: P1-D remains
-owner-paused and P3a is the next bounded candidate but remains inactive pending
-owner activation. The raw launcher is not the typed product RPC; the live
-Browser route is a separate product path. This plan is local to
+receipts. P2 is closed. P3a-B0 has now delivered the exact Browser disposable-
+workspace contract below; P3a remains open and no next slice is automatically
+active. P1-D remains owner-paused, and P3a-B1, P3b, and later slices remain
+inactive. The raw launcher is not the typed product RPC; the live Browser route
+is a separate product path. This plan is local to
 `examples/silly-os`; it does not activate an engine lane or change an engine
 API. The implementation baseline before P0 is commit
 `56ba8ef8ecf0a38243e92cba548f53c1c57c0b73`.
@@ -850,9 +851,9 @@ OPFS, just-bash, or Wasm asset. No SillyMaker engine gap was reproduced.
 
 ### P3a — Pi-native workspace tool binding
 
-P2-B1 has closed the bounded product terminal Agent-run receipt needed by P3a's
-first real tool consumer. P3a remains inactive until the owner explicitly
-activates that next slice.
+P2-B1 closed the bounded product terminal Agent-run receipt needed by P3a's
+first real tool consumer. P3a-B0 delivered on 2026-08-27. This does not activate
+P3a-B1 or any later workspace phase.
 
 Use the fixed Pi 0.84.3 workspace tools rather than adding a SillyOS equivalent.
 The Browser Agent Worker imports Pi's shipped `createReadTool`,
@@ -922,6 +923,207 @@ write/read artifact round trip, native Pi schemas/results, stale-generation
 preflight, cancellation, one terminal mutation receipt, and whole cleanup. It
 does not add a custom workspace tool, OPFS, just-bash, Wasm, Git, Python,
 extension discovery, persistence, or a Linux/sandbox claim.
+
+#### P3a-B0 delivered implementation contract
+
+P3a-B0 has one session-local execution owner. `open_workspace` takes the exact
+durable `programId` and existing Creator `workspaceId`, creates a fresh opaque
+`workspaceSessionId`, generation `1`, one stable `ExecutionEnv` instance, and
+one empty disposable volume. The three identities are not aliases: the
+Creator `workspaceId` identifies the product work area, while
+`workspaceSessionId` identifies only this open execution volume. Repeating an
+open for the same pair returns the current descriptor; a different pair must
+close the current session before it can open. B0 admits one active Agent run
+and one native tool call scope at a time.
+
+Every Agent submit envelope carries this separate session-local binding beside
+the unchanged durable `CreatorAgentRunRequestV1`; the binding never enters P2's
+terminal receipt:
+
+```ts
+interface CreatorAgentExecutionBindingV1 {
+  revision: 1;
+  programId: string;
+  workspaceId: string;
+  workspaceSessionId: string;
+  expectedGeneration: number;
+}
+```
+
+The Browser Worker determines its transient Pi `(sessionId, runId)` before
+constructing the Agent and bound tools. Submit admission checks that the binding
+matches the open workspace and initializes a run-local generation cursor from
+`expectedGeneration`. The binder then admits each native invocation under
+`(workspaceSessionId, sessionId, runId, toolCallId)` and supplies the same
+`{ env }` object to Pi. Duplicate, nested, cross-workspace, post-close, or
+concurrent scopes fail before an effect. The low-level Pi `Agent` explicitly
+uses `toolExecution: "sequential"`; no product dispatcher receives a tool name
+or reinterprets Pi arguments.
+
+The execution generation is a positive session-local integer. It starts at
+`1` and advances exactly once when one `write` call leaves different file bytes
+in the volume, including when Pi later reports that call as failed or cancelled.
+Writing byte-identical content is a complete no-op: it changes neither
+generation nor observable `mtimeMs`. Implicit parent-directory creation is part
+of that one logical write and is not a second generation or changed path. A
+rejected or failed call with no byte effect leaves the generation unchanged.
+`read` never changes the generation. The port rejects an already-stale submit
+before starting Pi, with no tool call and therefore no mutation receipt; the
+caller obtains the current descriptor before retrying. Each later tool scope
+rechecks the runtime generation against the run-local cursor before entering
+the environment, then advances that cursor to the settled
+`resultingGeneration`. This permits sequential `write -> read` and multiple
+writes in one run without weakening the initial stale fence. On every receipt,
+`expectedGeneration` remains the generation admitted at submit while
+`baseGeneration` is the cursor at that tool-call boundary. An unexpected cursor
+mismatch is a pre-effect protocol failure and also produces no mutation
+receipt.
+
+Only an attempted `write` produces `WorkspaceMutationReceiptV1`; `read` is
+proved through Pi's native tool result and produces no mutation receipt. The
+product-facing receipt is exact:
+
+```ts
+interface WorkspaceMutationReceiptV1 {
+  revision: 1;
+  sequence: number;
+  programId: string;
+  workspaceId: string;
+  workspaceSessionId: string;
+  agentRunId: string;
+  toolCallId: string;
+  tool: "write";
+  expectedGeneration: number;
+  baseGeneration: number;
+  resultingGeneration: number;
+  outcome: "succeeded" | "failed" | "cancelled";
+  effect: "none" | "changed";
+  changedPaths: string[];
+  diagnosticCode:
+    | null
+    | "cancelled"
+    | "path_rejected"
+    | "capacity_exceeded"
+    | "execution_failed";
+}
+```
+
+`sequence` is contiguous within one `workspaceSessionId`. `changedPaths` is
+empty for `none` and contains exactly one normalized workspace-relative POSIX
+path for B0's `changed` write. `succeeded` has a null diagnostic; failed and
+cancelled calls use the matching closed diagnostic while their effect
+independently reports the final bytes. The receipt contains no tool arguments,
+file contents, Pi transcript, provider data, credential, or transient Pi
+session/run identity.
+
+The outcome/diagnostic combinations are closed: `succeeded` requires `null`,
+`cancelled` requires `cancelled`, and `failed` requires `path_rejected`,
+`capacity_exceeded`, or `execution_failed`. Outcome and effect remain
+independent. Stale submit, duplicate identity, nested/concurrent scope,
+cross-workspace scope, post-close scope, cursor mismatch, and a full receipt
+queue are admission rejections; none creates a mutation receipt.
+
+The Worker may use transient Pi identity internally, but the product transport
+must project it to `agentRunId` while that mapping is still live and remove the
+Pi identities before exposing the receipt. The port retains at most 32
+unacknowledged receipts. Every mutating tool scope reserves one queue slot
+before invoking Pi; when no slot remains, that tool call fails before effect and
+without creating another receipt. Acknowledgement removes only a contiguous
+prefix; uncertain receipt delivery never retries the `write` call. For cancel
+or replacement, the Worker first marks the run non-current and aborts it, then
+waits for the active environment effect to quiesce, settles and publishes its
+mutation receipt, and only then publishes the associated terminal Agent event
+and releases the correlation mapping. A replacement request may be accepted
+while that drain occurs, but the successor cannot enter `prompt()` or a tool
+scope until the predecessor's receipt and terminal event are published. A
+changed receipt therefore survives a failed, cancelled, replaced,
+stale-candidate, or proposal-free Agent outcome for the remainder of the open
+product session.
+
+Replacement has one deliberately narrow generation rule. The Worker checks the
+successor binding before disturbing the predecessor. It accepts an exact
+current descriptor, or the predecessor's admitted generation while that
+predecessor still owns unpublished mutation effects. After the predecessor is
+drained and its receipt plus terminal event are published, the Worker rebases
+that accepted successor once to the resulting descriptor before constructing
+Pi. No other stale binding is rebased, and a rejected stale request neither
+cancels the current run nor enters Pi.
+
+The two receipt families remain orthogonal. P2's durable Agent-run receipt says
+how the whole Creator run ended and whether a Program successor committed; it
+does not claim that workspace bytes persist. P3a-B0's mutation receipt says
+what happened to the disposable volume; it does not make a Program revision or
+survive reload. Repository V2 remains unchanged. Reload creates a new
+`workspaceSessionId`, empty volume, and generation `1`; the UI must report that
+the execution workspace reset rather than infer recovery from a restored P2
+receipt. Durable bytes, mutation receipts, admitted artifacts, and snapshot
+references remain P3c work.
+
+The B0 volume admits canonical paths below `/workspace` only, has no symlinks
+and no Host fallback, and uses these fixed ceilings:
+
+- canonical relative path: 512 UTF-8 bytes and 32 components;
+- one regular file: 256 KiB after UTF-8 encoding;
+- whole volume: 2 MiB and 256 regular files;
+- native `readBinaryFile()` input: one admitted file of at most 256 KiB;
+- unacknowledged mutation receipts: 32, with at most one changed path each.
+
+Capacity and containment failures are atomic and occur before volume mutation.
+The unused `Shell.exec` half of `ExecutionEnv` returns Pi's admitted execution
+failure rather than invoking an ambient command. `close_workspace` rejects new
+work, aborts and awaits any active scope, publishes any reserved mutating
+scope's terminal receipt before the Agent terminal event, calls environment
+cleanup exactly once, and then rejects all filesystem and scope operations.
+Close retains the bounded receipt queue for contiguous acknowledgement even
+after the volume is unavailable. Explicit Worker forget is the authority to
+abandon remaining unacknowledged receipts; it performs close and terminal
+ordering first, then discards both the disposable bytes and the queue.
+
+P3a-B0 acceptance requires focused conformance for stable environment identity,
+native Pi schemas and results, multiple cursor-advancing writes, same-byte
+writes, stale submit without Pi prompt/effect/receipt and descriptor-based retry,
+duplicate scopes, per-tool receipt backpressure, path/capacity rejection,
+abort-before-write, write-committed-then-aborted, replacement ordering,
+receipt acknowledgement, close/forget cleanup, and Repository V2
+reopen truthfulness. Chromium and WebKit must exercise the real lazy Pi Worker
+factory path through one combined
+`write -> read -> sillyos_propose_program_revision -> completed` journey and
+observe both the session-local mutation receipt and durable P2 terminal receipt.
+A cancelled or replaced run after a byte change must separately prove that
+Agent outcome and workspace effect can differ. The release graph must continue to exclude OPFS, just-bash, Wasm,
+Node filesystem/process adapters, Host `PATH`, extension discovery, and all
+P3a-B1/P3b assets.
+
+P3a-B0 closed on 2026-08-27. One product-owned in-memory runtime now opens and
+closes the disposable volume, owns its stable `ExecutionEnv`, generation cursor,
+bounded mutation journal, acknowledgement, drain, cleanup, and forget behavior.
+The fixed Pi 0.84.3 native `createWriteTool` and `createReadTool` factories are
+bound without changing their schemas or results; the low-level Agent runs them
+sequentially in its lazy Worker. Raw mutation records retain Pi correlation only
+inside the Worker/transport boundary and are projected to product `agentRunId`
+receipts before the associated terminal event. Creator UI opens the execution
+session explicitly, reports its disposable generation and last write truth, and
+acknowledges mutation receipts only after the durable P2 terminal mutation has
+settled.
+
+The fixed Pi runtime values pass through a local ESM bridge while TypeScript sees
+only the public tool/environment structures this product consumes. This avoids
+expanding an unrelated provider SDK declaration closure under the repository's
+TypeScript 7 check; it is neither a Pi fork nor a copied tool implementation and
+does not relax `skipLibCheck`. Focused workspace/protocol conformance passes 13
+cases, and the complete SillyOS unit suite passes 90 cases across ten files.
+Chromium and WebKit pass all 18 SillyOS journeys, including the native
+`write -> read -> proposal -> completed` path, reload reset to generation `1`,
+and a post-effect cancellation whose workspace receipt remains
+`succeeded/changed` while the whole Agent run is cancelled. The local live
+OpenAI qualification also passes in both engines with two successful Responses
+requests per completion, cancellation currentness, no durable credential, and
+explicit Worker forget. The production build emits the Pi Worker only as a lazy
+416.96 kB asset and the Agent port as a lazy 41.32 kB chunk; ordinary startup
+still excludes them. Source and output scans contain no OPFS, just-bash, Wasm,
+or extension-discovery asset in the Browser product; the P3a diff adds no Node
+filesystem/process adapter or Host `PATH` fallback. No SillyMaker engine gap was
+reproduced and no engine API changed.
 
 The following **P3a-B1** completes the default Browser execution-tool surface:
 bind Pi `edit`, then bind Pi `bash` with a just-bash-backed `Shell.exec` over a

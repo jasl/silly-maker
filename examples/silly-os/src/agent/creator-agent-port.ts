@@ -24,11 +24,20 @@ import {
   browserPiDistributionIdentityV1,
   type BrowserPiDistributionIdentityV1,
 } from "./browser-pi-distribution.ts";
+import type {
+  WorkspaceExecutionDescriptorV1,
+  WorkspaceMutationReceiptV1,
+} from "../workspace/contracts.ts";
+import { workspaceMutationReceiptMaximumV1 } from "../workspace/contracts.ts";
 import {
   createBrowserPiWorkerRawTransportV1,
   type BrowserPiWorkerFactoryV1,
 } from "./browser-pi-transport.ts";
-import type { BrowserPiWorkerRuntimeV1 } from "./browser-pi-worker-protocol.ts";
+import type {
+  BrowserPiWorkerRuntimeV1,
+  BrowserPiWorkspaceMutationReceiptWireV1,
+  BrowserPiWorkspaceSnapshotWireV1,
+} from "./browser-pi-worker-protocol.ts";
 
 export type CreatorAgentPhaseV1 =
   | "uninitialized"
@@ -45,6 +54,23 @@ export interface CreatorAgentDiagnosticV1 {
   readonly path: string;
 }
 
+export type CreatorAgentWorkspacePhaseV1 =
+  | "closed"
+  | "opening"
+  | "open"
+  | "closing"
+  | "failed"
+  | "forgotten"
+  | "disposed";
+
+export interface CreatorAgentWorkspaceSnapshotV1 {
+  readonly phase: CreatorAgentWorkspacePhaseV1;
+  readonly descriptor: WorkspaceExecutionDescriptorV1 | null;
+  readonly receipts: readonly WorkspaceMutationReceiptV1[];
+  readonly lastReceipt: WorkspaceMutationReceiptV1 | null;
+  readonly diagnostic: CreatorAgentDiagnosticV1 | null;
+}
+
 export interface CreatorAgentSnapshotV1 {
   readonly revision: number;
   readonly phase: CreatorAgentPhaseV1;
@@ -56,6 +82,8 @@ export interface CreatorAgentSnapshotV1 {
   /** Unacknowledged terminal product projections, in arrival order. */
   readonly terminalRuns: readonly CreatorAgentTerminalRunV1[];
   readonly diagnostic: CreatorAgentDiagnosticV1 | null;
+  /** Disposable execution state; it is intentionally not a durable Program receipt. */
+  readonly workspace: CreatorAgentWorkspaceSnapshotV1;
 }
 
 export type CreatorAgentInitializeResultV1 =
@@ -71,10 +99,31 @@ export type CreatorAgentPortCancelResultV1 =
   | { readonly kind: "idle" }
   | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentDiagnosticV1 };
 
+export type CreatorAgentOpenWorkspaceResultV1 =
+  | { readonly kind: "opened"; readonly descriptor: WorkspaceExecutionDescriptorV1 }
+  | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentDiagnosticV1 };
+
+export type CreatorAgentCloseWorkspaceResultV1 =
+  | { readonly kind: "closed"; readonly descriptor: WorkspaceExecutionDescriptorV1 }
+  | { readonly kind: "idle" }
+  | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentDiagnosticV1 };
+
+export type CreatorAgentAcknowledgeWorkspaceReceiptsResultV1 =
+  | { readonly kind: "acknowledged"; readonly throughSequence: number }
+  | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentDiagnosticV1 };
+
 export interface CreatorAgentPortV1 {
   getSnapshot(): CreatorAgentSnapshotV1;
   subscribe(listener: () => void): () => void;
   initialize(): Promise<CreatorAgentInitializeResultV1>;
+  openWorkspace(input: {
+    readonly programId: string;
+    readonly workspaceId: string;
+  }): Promise<CreatorAgentOpenWorkspaceResultV1>;
+  closeWorkspace(workspaceSessionId?: string): Promise<CreatorAgentCloseWorkspaceResultV1>;
+  acknowledgeWorkspaceReceipts(
+    throughSequence: number,
+  ): Promise<CreatorAgentAcknowledgeWorkspaceReceiptsResultV1>;
   submit(input: CreatorAgentRunRequestV1): Promise<CreatorAgentPortSubmitResultV1>;
   cancel(agentRunId?: string): Promise<CreatorAgentPortCancelResultV1>;
   acknowledgeTerminal(agentRunId: string): boolean;
@@ -104,6 +153,7 @@ interface FailedTerminalProjectionV1 {
 
 export const creatorAgentTerminalRunMaximumV1 = 32;
 const creatorAgentPendingStreamEventMaximumV1 = 2_048;
+const creatorAgentPendingWorkspaceReceiptMaximumV1 = 64;
 
 const identifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
 
@@ -199,6 +249,28 @@ function piRunKeyV1(sessionId: string, piRunId: string): string {
   return `${sessionId}\u0000${piRunId}`;
 }
 
+function workspaceDescriptorV1(
+  value: BrowserPiWorkspaceSnapshotWireV1,
+): WorkspaceExecutionDescriptorV1 {
+  return Object.freeze({
+    revision: 1,
+    programId: value.programId,
+    workspaceId: value.workspaceId,
+    workspaceSessionId: value.workspaceSessionId,
+    generation: value.generation,
+  });
+}
+
+function mapWorkspaceFailureV1(value: unknown, path: string): CreatorAgentDiagnosticV1 {
+  const message = value instanceof Error ? value.message : "";
+  return diagnosticV1(
+    message.includes("protocol") || message.includes("receipt_sequence_invalid")
+      ? "protocol_invalid"
+      : "request_failed",
+    path,
+  );
+}
+
 function matchesRunV1(
   candidate: CreatorProgramRevisionCandidateV1,
   run: CreatorAgentRunRequestV1,
@@ -256,6 +328,10 @@ export function createBrowserCreatorAgentPortV1(input: {
   const trackedByProductRunId = new Map<string, TrackedCreatorAgentRunV1>();
   const trackedByPiRun = new Map<string, TrackedCreatorAgentRunV1>();
   const pendingStreamEvents = new Map<string, AgentRpcStreamEventInternalV1[]>();
+  const pendingWorkspaceReceipts = new Map<
+    string,
+    BrowserPiWorkspaceMutationReceiptWireV1[]
+  >();
   const submitSettlementGates = new Set<string>();
   const terminalDiagnostics = new Map<string, CreatorAgentDiagnosticV1>();
   let lifecycleEpoch = 0;
@@ -263,6 +339,7 @@ export function createBrowserCreatorAgentPortV1(input: {
   let revision = 0;
   let nextRunOrdinal = 1;
   let pendingStreamEventCount = 0;
+  let pendingWorkspaceReceiptCount = 0;
   let phase: CreatorAgentPhaseV1 = "uninitialized";
   let sessionId: string | null = null;
   let activeRunId: string | null = null;
@@ -270,7 +347,16 @@ export function createBrowserCreatorAgentPortV1(input: {
   let candidate: CreatorProgramRevisionCandidateV1 | null = null;
   let terminalRuns: readonly CreatorAgentTerminalRunV1[] = [];
   let diagnostic: CreatorAgentDiagnosticV1 | null = null;
+  let workspacePhase: CreatorAgentWorkspacePhaseV1 = "closed";
+  let workspaceDescriptor: WorkspaceExecutionDescriptorV1 | null = null;
+  let workspaceReceipts: readonly WorkspaceMutationReceiptV1[] = [];
+  let workspaceLastReceipt: WorkspaceMutationReceiptV1 | null = null;
+  let workspaceDiagnostic: CreatorAgentDiagnosticV1 | null = null;
+  let workspaceLastObservedSequence = 0;
+  let workspaceControlBusy = false;
   let initializePromise: Promise<CreatorAgentInitializeResultV1> | null = null;
+  let finishPromise: Promise<void> | null = null;
+  let unsubscribeWorkspaceReceipts: (() => void) | null = null;
   let snapshot!: CreatorAgentSnapshotV1;
 
   const latestTrackedRunV1 = (): TrackedCreatorAgentRunV1 | null => {
@@ -321,6 +407,13 @@ export function createBrowserCreatorAgentPortV1(input: {
       candidate,
       terminalRuns: Object.freeze([...terminalRuns]),
       diagnostic,
+      workspace: Object.freeze({
+        phase: workspacePhase,
+        descriptor: workspaceDescriptor,
+        receipts: Object.freeze([...workspaceReceipts]),
+        lastReceipt: workspaceLastReceipt,
+        diagnostic: workspaceDiagnostic,
+      }),
     });
   };
   const publish = (): void => {
@@ -341,6 +434,11 @@ export function createBrowserCreatorAgentPortV1(input: {
     diagnostic = nextDiagnostic;
     publish();
   };
+  const failWorkspaceV1 = (nextDiagnostic: CreatorAgentDiagnosticV1): void => {
+    workspacePhase = "failed";
+    workspaceDiagnostic = nextDiagnostic;
+    publish();
+  };
 
   const hasUnmappedSubmitForSessionV1 = (expectedSessionId: string): boolean => {
     for (const tracked of trackedByProductRunId.values()) {
@@ -359,6 +457,86 @@ export function createBrowserCreatorAgentPortV1(input: {
     }
   };
 
+  const discardOrphanedWorkspaceReceiptsV1 = (expectedSessionId: string): void => {
+    if (hasUnmappedSubmitForSessionV1(expectedSessionId)) return;
+    const prefix = `${expectedSessionId}\u0000`;
+    for (const [key, receipts] of pendingWorkspaceReceipts) {
+      if (!key.startsWith(prefix) || trackedByPiRun.has(key)) continue;
+      pendingWorkspaceReceipts.delete(key);
+      pendingWorkspaceReceiptCount -= receipts.length;
+    }
+  };
+
+  const projectWorkspaceReceiptV1 = (
+    tracked: TrackedCreatorAgentRunV1,
+    value: BrowserPiWorkspaceMutationReceiptWireV1,
+  ): void => {
+    const descriptor = workspaceDescriptor;
+    if (
+      descriptor === null || value.programId !== descriptor.programId ||
+      value.workspaceId !== descriptor.workspaceId ||
+      value.workspaceSessionId !== descriptor.workspaceSessionId ||
+      value.programId !== tracked.run.programId ||
+      value.sequence !== workspaceLastObservedSequence + 1 ||
+      workspaceReceipts.length >= workspaceMutationReceiptMaximumV1
+    ) {
+      failWorkspaceV1(diagnosticV1("protocol_invalid", "/workspace/receipt"));
+      return;
+    }
+    const receipt: WorkspaceMutationReceiptV1 = Object.freeze({
+      revision: 1,
+      sequence: value.sequence,
+      programId: value.programId,
+      workspaceId: value.workspaceId,
+      workspaceSessionId: value.workspaceSessionId,
+      agentRunId: tracked.run.agentRunId,
+      toolCallId: value.toolCallId,
+      tool: value.tool,
+      expectedGeneration: value.expectedGeneration,
+      baseGeneration: value.baseGeneration,
+      resultingGeneration: value.resultingGeneration,
+      outcome: value.outcome,
+      effect: value.effect,
+      changedPaths: Object.freeze([...value.changedPaths]),
+      diagnosticCode: value.diagnosticCode,
+    });
+    workspaceLastObservedSequence = receipt.sequence;
+    workspaceDescriptor = Object.freeze({
+      ...descriptor,
+      generation: receipt.resultingGeneration,
+    });
+    workspaceReceipts = Object.freeze([...workspaceReceipts, receipt]);
+    workspaceLastReceipt = receipt;
+    workspaceDiagnostic = null;
+    publish();
+  };
+
+  const bufferWorkspaceReceiptV1 = (
+    key: string,
+    receipt: BrowserPiWorkspaceMutationReceiptWireV1,
+  ): void => {
+    if (pendingWorkspaceReceiptCount >= creatorAgentPendingWorkspaceReceiptMaximumV1) {
+      failWorkspaceV1(diagnosticV1("protocol_invalid", "/workspace/receiptBuffer"));
+      return;
+    }
+    const receipts = pendingWorkspaceReceipts.get(key);
+    if (receipts === undefined) pendingWorkspaceReceipts.set(key, [receipt]);
+    else receipts.push(receipt);
+    pendingWorkspaceReceiptCount += 1;
+  };
+
+  const flushWorkspaceReceiptsV1 = (key: string): void => {
+    const receipts = pendingWorkspaceReceipts.get(key);
+    if (receipts === undefined) return;
+    pendingWorkspaceReceipts.delete(key);
+    pendingWorkspaceReceiptCount -= receipts.length;
+    for (const receipt of receipts) {
+      const tracked = trackedByPiRun.get(key);
+      if (tracked === undefined) return;
+      projectWorkspaceReceiptV1(tracked, receipt);
+    }
+  };
+
   const removeTrackedRunV1 = (tracked: TrackedCreatorAgentRunV1): void => {
     trackedByProductRunId.delete(tracked.run.agentRunId);
     if (tracked.piRunId !== null) {
@@ -370,8 +548,14 @@ export function createBrowserCreatorAgentPortV1(input: {
         pendingStreamEvents.delete(key);
         pendingStreamEventCount -= pending.length;
       }
+      const pendingReceipts = pendingWorkspaceReceipts.get(key);
+      if (pendingReceipts !== undefined) {
+        pendingWorkspaceReceipts.delete(key);
+        pendingWorkspaceReceiptCount -= pendingReceipts.length;
+      }
     }
     discardOrphanedStreamEventsV1(tracked.sessionId);
+    discardOrphanedWorkspaceReceiptsV1(tracked.sessionId);
   };
 
   const settleTrackedRunV1 = (
@@ -380,17 +564,24 @@ export function createBrowserCreatorAgentPortV1(input: {
     terminalDiagnostic: CreatorAgentDiagnosticV1 | null = null,
   ): void => {
     if (!trackedByProductRunId.has(tracked.run.agentRunId)) return;
-    removeTrackedRunV1(tracked);
+    if (tracked.piRunId !== null) {
+      flushWorkspaceReceiptsV1(piRunKeyV1(tracked.sessionId, tracked.piRunId));
+    }
     if (terminalRuns.length >= creatorAgentTerminalRunMaximumV1) {
+      removeTrackedRunV1(tracked);
       failFacadeV1(diagnosticV1("protocol_invalid", "/terminalRuns"));
       return;
     }
+    // The terminal snapshot no longer treats this run as active, while the
+    // private Pi correlation remains available through terminal publication.
+    trackedByProductRunId.delete(tracked.run.agentRunId);
     terminalRuns = Object.freeze([...terminalRuns, Object.freeze(terminalRun)]);
     if (terminalDiagnostic !== null) {
       terminalDiagnostics.set(tracked.run.agentRunId, terminalDiagnostic);
     }
     refreshFacadeV1();
     publish();
+    removeTrackedRunV1(tracked);
   };
 
   rebuildSnapshot();
@@ -528,8 +719,27 @@ export function createBrowserCreatorAgentPortV1(input: {
     handleStreamEventV1(tracked, event);
   });
 
+  unsubscribeWorkspaceReceipts = transport.subscribeWorkspaceReceipts((receipt) => {
+    if (terminal) return;
+    const key = piRunKeyV1(receipt.sessionId, receipt.runId);
+    const tracked = trackedByPiRun.get(key);
+    if (tracked === undefined) {
+      if (hasUnmappedSubmitForSessionV1(receipt.sessionId)) {
+        bufferWorkspaceReceiptV1(key, receipt);
+      } else {
+        failWorkspaceV1(diagnosticV1("protocol_invalid", "/workspace/receipt/run"));
+      }
+      return;
+    }
+    if (submitSettlementGates.has(key)) {
+      bufferWorkspaceReceiptV1(key, receipt);
+      return;
+    }
+    projectWorkspaceReceiptV1(tracked, receipt);
+  });
+
   const initialize = (): Promise<CreatorAgentInitializeResultV1> => {
-    if (terminal) {
+    if (terminal || finishPromise !== null) {
       return Promise.resolve({ kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") });
     }
     if (sessionId !== null) return Promise.resolve({ kind: "ready" });
@@ -570,24 +780,205 @@ export function createBrowserCreatorAgentPortV1(input: {
     return attempt;
   };
 
+  const adoptWorkspaceSnapshotV1 = (value: BrowserPiWorkspaceSnapshotWireV1): void => {
+    const nextDescriptor = workspaceDescriptorV1(value);
+    if (workspaceDescriptor?.workspaceSessionId !== nextDescriptor.workspaceSessionId) {
+      workspaceReceipts = [];
+      workspaceLastReceipt = null;
+      workspaceLastObservedSequence = 0;
+    }
+    workspaceDescriptor = nextDescriptor;
+    workspacePhase = value.phase;
+    workspaceDiagnostic = null;
+  };
+
+  const openWorkspace = async (raw: {
+    readonly programId: string;
+    readonly workspaceId: string;
+  }): Promise<CreatorAgentOpenWorkspaceResultV1> => {
+    if (terminal || finishPromise !== null) {
+      return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
+    }
+    if (
+      !identifierPatternV1.test(raw.programId) || !identifierPatternV1.test(raw.workspaceId)
+    ) {
+      return {
+        kind: "unavailable",
+        diagnostic: diagnosticV1("submit_invalid", "/workspace/open"),
+      };
+    }
+    if (workspaceControlBusy) {
+      return {
+        kind: "unavailable",
+        diagnostic: diagnosticV1("request_failed", "/workspace/busy"),
+      };
+    }
+    workspaceControlBusy = true;
+    const previousPhase = workspacePhase;
+    workspacePhase = "opening";
+    workspaceDiagnostic = null;
+    publish();
+    try {
+      const initialized = await initialize();
+      if (initialized.kind !== "ready") {
+        workspacePhase = workspaceDescriptor === null ? "failed" : previousPhase;
+        workspaceDiagnostic = initialized.diagnostic;
+        publish();
+        return initialized;
+      }
+      if (terminal || finishPromise !== null) {
+        return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
+      }
+      const result = await transport.openWorkspace(raw);
+      adoptWorkspaceSnapshotV1(result);
+      publish();
+      return { kind: "opened", descriptor: workspaceDescriptorV1(result) };
+    } catch (error) {
+      const mapped = mapWorkspaceFailureV1(error, "/workspace/open");
+      workspacePhase = workspaceDescriptor === null ? "failed" : previousPhase;
+      workspaceDiagnostic = mapped;
+      publish();
+      return { kind: "unavailable", diagnostic: mapped };
+    } finally {
+      workspaceControlBusy = false;
+    }
+  };
+
+  const closeWorkspace = async (
+    requestedWorkspaceSessionId?: string,
+  ): Promise<CreatorAgentCloseWorkspaceResultV1> => {
+    if (terminal || finishPromise !== null) {
+      return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
+    }
+    const descriptor = workspaceDescriptor;
+    if (descriptor === null || workspacePhase === "closed") return { kind: "idle" };
+    if (
+      requestedWorkspaceSessionId !== undefined &&
+      requestedWorkspaceSessionId !== descriptor.workspaceSessionId
+    ) {
+      return {
+        kind: "unavailable",
+        diagnostic: diagnosticV1("request_failed", "/workspace/close/workspaceSessionId"),
+      };
+    }
+    if (workspaceControlBusy) {
+      return {
+        kind: "unavailable",
+        diagnostic: diagnosticV1("request_failed", "/workspace/busy"),
+      };
+    }
+    workspaceControlBusy = true;
+    const previousPhase = workspacePhase;
+    workspacePhase = "closing";
+    workspaceDiagnostic = null;
+    publish();
+    try {
+      const result = await transport.closeWorkspace(descriptor.workspaceSessionId);
+      if (result.workspaceSessionId !== descriptor.workspaceSessionId) {
+        throw new TypeError("sillyos.creator_agent.workspace_close_mismatch");
+      }
+      adoptWorkspaceSnapshotV1(result);
+      workspacePhase = "closed";
+      publish();
+      return { kind: "closed", descriptor: workspaceDescriptorV1(result) };
+    } catch (error) {
+      const mapped = mapWorkspaceFailureV1(error, "/workspace/close");
+      workspacePhase = previousPhase;
+      workspaceDiagnostic = mapped;
+      publish();
+      return { kind: "unavailable", diagnostic: mapped };
+    } finally {
+      workspaceControlBusy = false;
+    }
+  };
+
+  const acknowledgeWorkspaceReceipts = async (
+    throughSequence: number,
+  ): Promise<CreatorAgentAcknowledgeWorkspaceReceiptsResultV1> => {
+    if (terminal || finishPromise !== null) {
+      return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
+    }
+    const descriptor = workspaceDescriptor;
+    if (
+      descriptor === null || !Number.isSafeInteger(throughSequence) || throughSequence <= 0 ||
+      !workspaceReceipts.some((receipt) => receipt.sequence === throughSequence)
+    ) {
+      return {
+        kind: "unavailable",
+        diagnostic: diagnosticV1("request_failed", "/workspace/acknowledge/throughSequence"),
+      };
+    }
+    if (workspaceControlBusy) {
+      return {
+        kind: "unavailable",
+        diagnostic: diagnosticV1("request_failed", "/workspace/busy"),
+      };
+    }
+    workspaceControlBusy = true;
+    try {
+      const result = await transport.acknowledgeWorkspaceReceipts({
+        workspaceSessionId: descriptor.workspaceSessionId,
+        throughSequence,
+      });
+      if (result.workspaceSessionId !== descriptor.workspaceSessionId) {
+        throw new TypeError("sillyos.creator_agent.workspace_acknowledge_mismatch");
+      }
+      workspaceDescriptor = workspaceDescriptorV1(result);
+      workspaceReceipts = Object.freeze(
+        workspaceReceipts.filter((receipt) => receipt.sequence > throughSequence),
+      );
+      workspacePhase = result.phase;
+      workspaceDiagnostic = null;
+      publish();
+      return { kind: "acknowledged", throughSequence };
+    } catch (error) {
+      const mapped = mapWorkspaceFailureV1(error, "/workspace/acknowledge");
+      workspaceDiagnostic = mapped;
+      publish();
+      return { kind: "unavailable", diagnostic: mapped };
+    } finally {
+      workspaceControlBusy = false;
+    }
+  };
+
   const finish = async (finalPhase: "forgotten" | "disposed"): Promise<void> => {
     if (terminal) return;
-    terminal = true;
+    if (finishPromise !== null) return finishPromise;
     lifecycleEpoch += 1;
-    sessionId = null;
-    trackedByProductRunId.clear();
-    trackedByPiRun.clear();
-    pendingStreamEvents.clear();
-    submitSettlementGates.clear();
-    pendingStreamEventCount = 0;
-    activeRunId = null;
-    draft = "";
-    candidate = null;
-    diagnostic = null;
-    phase = finalPhase;
-    await Promise.allSettled([client.dispose(), transport.forget()]);
+    workspacePhase = workspaceDescriptor === null ? "closed" : "closing";
+    workspaceDiagnostic = null;
     publish();
-    listeners.clear();
+    const attempt = (async (): Promise<void> => {
+      // Keep subscriptions and Pi-to-product correlation alive until close has
+      // drained its final receipt and Agent terminal records.
+      await transport.forget().catch(() => undefined);
+      await client.dispose().catch(() => undefined);
+      unsubscribeWorkspaceReceipts?.();
+      unsubscribeWorkspaceReceipts = null;
+      terminal = true;
+      sessionId = null;
+      trackedByProductRunId.clear();
+      trackedByPiRun.clear();
+      pendingStreamEvents.clear();
+      pendingWorkspaceReceipts.clear();
+      submitSettlementGates.clear();
+      pendingStreamEventCount = 0;
+      pendingWorkspaceReceiptCount = 0;
+      activeRunId = null;
+      draft = "";
+      candidate = null;
+      diagnostic = null;
+      phase = finalPhase;
+      workspacePhase = finalPhase;
+      workspaceDescriptor = null;
+      workspaceReceipts = [];
+      workspaceLastReceipt = null;
+      workspaceDiagnostic = null;
+      publish();
+      listeners.clear();
+    })();
+    finishPromise = attempt;
+    return attempt;
   };
 
   return {
@@ -598,8 +989,11 @@ export function createBrowserCreatorAgentPortV1(input: {
       return () => listeners.delete(listener);
     },
     initialize,
+    openWorkspace,
+    closeWorkspace,
+    acknowledgeWorkspaceReceipts,
     async submit(rawRun: CreatorAgentRunRequestV1): Promise<CreatorAgentPortSubmitResultV1> {
-      if (terminal) {
+      if (terminal || finishPromise !== null) {
         return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
       }
       const normalized = normalizeCreatorAgentRunV1(rawRun);
@@ -651,6 +1045,15 @@ export function createBrowserCreatorAgentPortV1(input: {
         return {
           kind: "unavailable",
           diagnostic: diagnosticV1("protocol_invalid", "/terminalRuns"),
+        };
+      }
+      if (
+        workspacePhase !== "open" || workspaceDescriptor === null ||
+        workspaceDescriptor.programId !== normalized.run.programId
+      ) {
+        return {
+          kind: "unavailable",
+          diagnostic: diagnosticV1("request_failed", "/workspace/submit"),
         };
       }
       const expectedEpoch = lifecycleEpoch;
@@ -706,13 +1109,16 @@ export function createBrowserCreatorAgentPortV1(input: {
       queueMicrotask(() =>
         queueMicrotask(() => {
           submitSettlementGates.delete(key);
-          if (!terminal) flushStreamEventsV1(key);
+          if (!terminal) {
+            flushWorkspaceReceiptsV1(key);
+            flushStreamEventsV1(key);
+          }
         })
       );
       return { kind: "submitted", agentRunId: tracked.run.agentRunId };
     },
     async cancel(agentRunId?: string): Promise<CreatorAgentPortCancelResultV1> {
-      if (terminal) {
+      if (terminal || finishPromise !== null) {
         return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
       }
       if (agentRunId === undefined) return { kind: "idle" };

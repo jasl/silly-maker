@@ -25,6 +25,22 @@ import { SillyButtonV1 as Button, SillyTabsV1 as Tabs } from "./controls.tsx";
 
 export type WorkpieceTabV1 = "view" | "source" | "capabilities" | "activity";
 
+export interface WorkpieceExecutionWorkspaceV1 {
+  readonly phase: "closed" | "opening" | "open" | "closing" | "failed" | "forgotten" | "disposed";
+  readonly descriptor: {
+    readonly workspaceSessionId: string;
+    readonly generation: number;
+  } | null;
+  readonly lastReceipt: {
+    readonly sequence: number;
+    readonly agentRunId: string;
+    readonly outcome: "succeeded" | "failed" | "cancelled";
+    readonly effect: "none" | "changed";
+    readonly resultingGeneration: number;
+    readonly changedPaths: readonly string[];
+  } | null;
+}
+
 export interface WorkpiecePanePropsV1 {
   readonly copy: SillyOsCopyV1;
   readonly program: PreviewProgramV1;
@@ -33,6 +49,7 @@ export interface WorkpiecePanePropsV1 {
   readonly activeTab: WorkpieceTabV1;
   readonly fullscreen: boolean;
   readonly agentMode?: BrowserPiWorkerRuntimeV1;
+  readonly executionWorkspace?: WorkpieceExecutionWorkspaceV1;
   readonly outputRef: React.RefObject<HTMLElement | null>;
   readonly onTabChange: (tab: WorkpieceTabV1) => void;
   readonly onToggleFullscreen: () => void;
@@ -70,6 +87,7 @@ export function WorkpiecePaneV1({
   activeTab,
   fullscreen,
   agentMode,
+  executionWorkspace,
   outputRef,
   onTabChange,
   onToggleFullscreen,
@@ -149,9 +167,16 @@ export function WorkpiecePaneV1({
             copy={copy}
             capabilities={program.suggestedCapabilities}
             {...(agentMode === undefined ? {} : { agentMode })}
+            {...(executionWorkspace === undefined ? {} : { executionWorkspace })}
           />
         )}
-        {activeTab === "activity" && <ProgramActivityV1 copy={copy} activity={activity} />}
+        {activeTab === "activity" && (
+          <ProgramActivityV1
+            copy={copy}
+            activity={activity}
+            {...(executionWorkspace === undefined ? {} : { executionWorkspace })}
+          />
+        )}
       </div>
     </section>
   );
@@ -364,10 +389,12 @@ function ProgramCapabilitiesV1({
   copy,
   capabilities,
   agentMode,
+  executionWorkspace,
 }: {
   readonly copy: SillyOsCopyV1;
   readonly capabilities: readonly PreviewProgramCapabilityV1[];
   readonly agentMode?: BrowserPiWorkerRuntimeV1;
+  readonly executionWorkspace?: WorkpieceExecutionWorkspaceV1;
 }): ReactNode {
   return (
     <div className="program-capabilities">
@@ -399,12 +426,12 @@ function ProgramCapabilitiesV1({
           <p>
             {agentMode === "deterministic_test"
               ? copy.locale === "zh-CN"
-                ? "固定版本 Pi Agent 正在 Browser Worker 中运行确定性 provider 与一个受限 proposal 工具；这不是 live LLM。"
-                : "The pinned Pi Agent runs a deterministic provider and one bounded proposal tool in a Browser Worker. This is not a live LLM."
+                ? "固定版本 Pi Agent 正在 Browser Worker 中通过原生 read/write 与受限 proposal 工具操作一次性 Program workspace；这不是 live LLM。"
+                : "The pinned Pi Agent uses native read/write and one bounded proposal tool over a disposable Program workspace in a Browser Worker. This is not a live LLM."
               : agentMode === "openai_direct"
               ? copy.locale === "zh-CN"
-                ? "固定版本 Pi Agent 正在 Browser Worker 中通过 OpenAI gpt-4.1-nano 运行一个受限 proposal 工具；key 仅保留在 Worker 内存。"
-                : "The pinned Pi Agent runs one bounded proposal tool through OpenAI gpt-4.1-nano in a Browser Worker. The key stays in Worker memory."
+                ? "固定版本 Pi Agent 正在 Browser Worker 中通过 OpenAI gpt-4.1-nano 使用原生 read/write 与受限 proposal 工具；key 和一次性 workspace 仅保留在 Worker 内存。"
+                : "The pinned Pi Agent exposes native read/write and one bounded proposal tool through OpenAI gpt-4.1-nano in a Browser Worker. The key and disposable workspace stay in Worker memory."
               : copy.locale === "zh-CN"
               ? "Pi、模型、工具执行与数据库属于未来的 typed RPC companion。"
               : "Pi, models, tool execution, and the database belong to a future typed RPC companion."}
@@ -418,6 +445,9 @@ function ProgramCapabilitiesV1({
               ? "尚未连接"
               : "Not connected"}
           </small>
+          {agentMode !== undefined && executionWorkspace !== undefined && (
+            <ExecutionWorkspaceStatusV1 copy={copy} workspace={executionWorkspace} />
+          )}
         </article>
       </div>
     </div>
@@ -427,9 +457,11 @@ function ProgramCapabilitiesV1({
 function ProgramActivityV1({
   copy,
   activity,
+  executionWorkspace,
 }: {
   readonly copy: SillyOsCopyV1;
   readonly activity: readonly CreatorActivityV1[];
+  readonly executionWorkspace?: WorkpieceExecutionWorkspaceV1;
 }): ReactNode {
   return (
     <div className="program-activity">
@@ -439,6 +471,9 @@ function ProgramActivityV1({
           <h2>{copy.activityTab}</h2>
         </div>
       </header>
+      {executionWorkspace !== undefined && (
+        <ExecutionWorkspaceStatusV1 copy={copy} workspace={executionWorkspace} />
+      )}
       <ol>
         {activity.map((item) => (
           <li key={item.activityId}>
@@ -454,5 +489,62 @@ function ProgramActivityV1({
         ))}
       </ol>
     </div>
+  );
+}
+
+function ExecutionWorkspaceStatusV1({
+  copy,
+  workspace,
+}: {
+  readonly copy: SillyOsCopyV1;
+  readonly workspace: WorkpieceExecutionWorkspaceV1;
+}): ReactNode {
+  const generation = workspace.descriptor?.generation;
+  const receipt = workspace.lastReceipt;
+  const changedPath = receipt?.changedPaths[0];
+  const phaseLabel = workspace.phase === "open"
+    ? copy.locale === "zh-CN" ? "已打开" : "Open"
+    : workspace.phase === "opening"
+    ? copy.locale === "zh-CN" ? "正在打开" : "Opening"
+    : workspace.phase === "closing"
+    ? copy.locale === "zh-CN" ? "正在关闭" : "Closing"
+    : workspace.phase === "failed"
+    ? copy.locale === "zh-CN" ? "不可用" : "Unavailable"
+    : copy.locale === "zh-CN"
+    ? "已关闭"
+    : "Closed";
+  return (
+    <aside
+      className="program-execution-workspace"
+      role="status"
+      data-execution-workspace-status={workspace.phase}
+      data-execution-workspace-generation={generation}
+      data-execution-workspace-receipt-sequence={receipt?.sequence}
+    >
+      <strong>
+        {copy.locale === "zh-CN" ? "一次性执行工作区" : "Disposable execution workspace"}
+      </strong>
+      <span>
+        {phaseLabel}
+        {generation === undefined
+          ? ""
+          : copy.locale === "zh-CN"
+          ? ` · 第 ${String(generation)} 代`
+          : ` · generation ${String(generation)}`}
+      </span>
+      <small>
+        {receipt === null
+          ? copy.locale === "zh-CN"
+            ? "仅存在于当前页面会话；重新加载会回到空工作区。"
+            : "Session only; reload starts with an empty workspace."
+          : copy.locale === "zh-CN"
+          ? `最近一次 write：${receipt.outcome} / ${receipt.effect}${
+            changedPath === undefined ? "" : ` · ${changedPath}`
+          }`
+          : `Last write: ${receipt.outcome} / ${receipt.effect}${
+            changedPath === undefined ? "" : ` · ${changedPath}`
+          }`}
+      </small>
+    </aside>
   );
 }

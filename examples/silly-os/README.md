@@ -42,12 +42,19 @@ Forget 已在本地及 Cloudflare 部署源的 Chromium/WebKit 完整通过。B0
 初始 proposal 仍由本地 deterministic preview 产生；接受 proposal 也不会生成或发布
 真实应用。这个边界会在界面中如实显示，不使用假网络层来伪装后端。
 
-路线仍是 **Browser 优先、Desktop 保留**。P2-B0 已闭合事务提交后发布、最近 Program
-重开、双页面 stale currentness 和凭据不落盘。B0a 已闭合无真实 key 的
-Pi/Worker/typed-RPC 接线；B0b 已完成固定 OpenAI profile 的本地及部署源资格化。当前未
-自动激活下一切片；通用 Provider UI、Pi terminal receipt、工具转发和 workspace runtime
-会继续各自经过明确计划与验收。Desktop 底层仍计划由私有 companion 启动产品打包的 Pi
-coding-agent，但当前没有激活。
+P3a-B0 还为已打开的 Program 提供一个明确标注为 disposable 的 Browser execution
+workspace。固定 Pi 0.84.3 的原生 `write`/`read` 工具通过稳定 `ExecutionEnv` 操作同一个
+内存卷；界面显示 session、generation 和最后一次写入的 outcome/effect。它与 IndexedDB
+Program repository 正交：刷新会得到空卷和 generation `1`，workspace 文件与 mutation
+receipt 都不会被伪装成已持久化。
+
+路线仍是 **Browser 优先、Desktop 保留**。P2 已闭合事务提交后发布、最近 Program
+重开、双页面 stale currentness、凭据不落盘和 bounded terminal receipt。B0a 已闭合无
+真实 key 的 Pi/Worker/typed-RPC 接线；B0b 已完成固定 OpenAI profile 的本地及部署源
+资格化；P3a-B0 已闭合原生 Pi `write`/`read`、disposable volume、generation、mutation
+receipt、取消和清理。当前未自动激活下一切片；P3a-B1 的 `edit`/just-bash、通用
+Provider UI 和持久化 workspace 会继续各自经过明确计划与验收。Desktop 底层仍计划由
+私有 companion 启动产品打包的 Pi coding-agent，但当前没有激活。
 
 详细的产品范围、Cloudflare OS 参考快照、语义映射、桌面/移动布局、键盘/IME、
 防截断和视觉验收矩阵见 [DESIGN.md](./DESIGN.md)。从真实 Pi typed RPC、产品数据库、
@@ -76,7 +83,9 @@ React 产品面；Desktop 是产品目标，不会另外模拟操作系统桌面
 
 要运行不访问 LLM 的 Browser Pi B0a 接线检查，在该地址追加
 `?locale=zh-CN&agent=pi-test`，输入任意可丢弃的合成测试值并初始化，再创建 Program、
-提交一次 follow-up。普通 URL 不会加载 Pi Worker 或它的 provider/runtime 代码。
+提交一次 follow-up。确定性 Pi 流程会用原生 `write`/`read` 在 disposable execution
+workspace 完成一次文件往返，再形成 proposal；普通 URL 不会加载 Pi Worker 或它的
+provider/runtime 代码。
 
 要运行 B0b live 路线，在地址追加 `?locale=zh-CN&agent=pi-openai`，通过页面加载
 OpenAI key，再创建 Program 并提交 follow-up。加载完成只表示 Worker profile 已配置；

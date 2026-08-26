@@ -6,18 +6,21 @@ denominator explicitly:
 
 | Package                | Showcases                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | License           |
 | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| `silly-os/`            | GUI-only Creator Preview: Creator Home opens a Program Workspace where the one built-in Agent Creator produces an exact proposal/review flow. The opt-in `?agent=pi-test` B0a route proves deterministic pinned-Pi Worker wiring; `?agent=pi-openai` B0b uses the same typed path with one fixed, qualified live OpenAI profile. P2-B0 adds a Worker-owned Browser Program catalog with exact durable revisions and reload/reopen; no workspace runtime, Mod activation, general Provider surface, or Desktop companion is active. Design contract in `silly-os/DESIGN.md`.                                                                                                                        | Code and text MIT |
+| `silly-os/`            | GUI-only Creator Preview: Creator Home opens a Program Workspace where the one built-in Agent Creator produces an exact proposal/review flow. The opt-in `?agent=pi-test` B0a route proves deterministic pinned-Pi Worker wiring; `?agent=pi-openai` B0b uses the same typed path with one fixed, qualified live OpenAI profile. P2 adds a Worker-owned Browser Program catalog, exact durable revisions/terminal receipts, and reload/reopen. P3a-B0 adds a disposable in-memory Browser execution workspace bound to fixed Pi's native `write`/`read`; no durable workspace, Mod activation, general Provider surface, or Desktop companion is active. Design contract in `silly-os/DESIGN.md`.                             | Code and text MIT |
 | `vn-last-sound-check/` | **One Last Sound Check**, the maintained flagship product. Its independent package, 110-unique / 82-per-route story, two Authoring Scenes, engine-maintained default VN Player, final media/audio, Back/Forward, responsive/accessibility matrix, system menu and Save surfaces, persistent settings/live locale, layered recovery, Agent/participant authoring handoff, and independent product/engine reviews are complete. Browser forced close restores the last durable autosave rather than promising a last-moment async flush. On 2026-08-29 the owner removed representative real current-low-end qualification from this product's completion gates because no suitable device was available; it was not run or passed, and the product makes no corresponding low-end claim. M4 closed on that reduced evidence scope and M5 completed the flagship cutover. | MIT               |
 
 SillyOS is a GUI-only Creator product lane. Preserve its current public
 journey—Creator Home → Program Workspace—and label the default deterministic
 preview, deterministic Pi wiring route, and fixed live OpenAI route honestly.
 Agent Creator is its only built-in user-facing program. Accepting a proposal
-never invokes Pi or activates a Mod. Only query-gated B0a/B0b follow-ups cross
-the typed Agent Worker RPC; B0b is one fixed qualified profile, not a general
-Provider surface. P2-B0 persists only product-owned Program facts through its
-own repository Worker; it never stores credentials, raw Pi/provider records,
-Pi session data, workspace bytes, or a fictional capability result.
+never invokes Pi or activates a Mod. Only the query-gated Pi routes cross the
+typed Agent Worker RPC; B0b is one fixed qualified profile, not a general
+Provider surface. P3a-B0 extends that same boundary with an explicitly opened,
+session-local execution binding and native Pi `write`/`read`; its volume and
+mutation receipts reset on close/reload. P2 persists only product-owned Program
+facts through its own repository Worker; it never stores credentials, raw
+Pi/provider records, Pi session data, workspace bytes, or a fictional
+capability result.
 
 ## Reference application product contract
 

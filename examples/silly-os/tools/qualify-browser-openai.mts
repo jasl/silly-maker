@@ -170,9 +170,11 @@ async function qualifyBrowserV1(
       requireV1(!durableProjection.includes(apiKey), "credential_persisted");
 
       phase = "forget";
-      await page.getByRole("button", { name: "Forget OpenAI key" }).click();
+      const forgetButton = page.getByRole("button", { name: "Forget OpenAI key" });
+      await forgetButton.click();
+      await forgetButton.waitFor({ state: "detached" });
       requireV1(
-        await page.getByRole("button", { name: "Forget OpenAI key" }).count() === 0,
+        await forgetButton.count() === 0,
         "credential_not_forgotten",
       );
 

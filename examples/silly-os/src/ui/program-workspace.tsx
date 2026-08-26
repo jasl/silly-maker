@@ -18,7 +18,11 @@ import type {
 } from "../product/contracts.ts";
 import { ChatPaneV1, type ChatPanePropsV1 } from "./chat-pane.tsx";
 import { SillyButtonV1 as Button } from "./controls.tsx";
-import { type WorkpieceTabV1, WorkpiecePaneV1 } from "./workpiece-pane.tsx";
+import {
+  type WorkpieceExecutionWorkspaceV1,
+  type WorkpieceTabV1,
+  WorkpiecePaneV1,
+} from "./workpiece-pane.tsx";
 import {
   ProgramWorkspaceMobileNavV1,
   ProgramWorkspaceTopbarV1,
@@ -58,6 +62,7 @@ export interface ProgramWorkspacePropsV1 {
   readonly onSend: ChatPanePropsV1["onSend"];
   readonly mutationPending?: boolean;
   readonly piAgentRun?: ChatPanePropsV1["piAgentRun"];
+  readonly executionWorkspace?: WorkpieceExecutionWorkspaceV1;
 }
 
 export function ProgramWorkspaceV1({
@@ -87,6 +92,7 @@ function ProgramWorkspaceReadyV1({
   onSend,
   mutationPending = false,
   piAgentRun,
+  executionWorkspace,
 }: ProgramWorkspaceReadyPropsV1): ReactNode {
   const narrow = useNarrowViewportV1();
   const splitRef = useRef<HTMLDivElement>(null);
@@ -173,6 +179,12 @@ function ProgramWorkspaceReadyV1({
       data-workspace-layout={narrow ? "single-pane" : "dual-pane"}
       data-program-id={program.programId}
       data-program-revision={program.revision}
+      data-execution-workspace-state={executionWorkspace?.phase}
+      data-execution-workspace-session={executionWorkspace?.descriptor?.workspaceSessionId}
+      data-execution-workspace-generation={executionWorkspace?.descriptor?.generation}
+      data-execution-workspace-receipt={executionWorkspace?.lastReceipt?.sequence}
+      data-execution-workspace-effect={executionWorkspace?.lastReceipt?.effect}
+      data-execution-workspace-path={executionWorkspace?.lastReceipt?.changedPaths[0]}
       aria-label={copy.workspaceAria}
       style={workspaceStyle}
     >
@@ -248,6 +260,7 @@ function ProgramWorkspaceReadyV1({
                 activeTab={activeTab}
                 fullscreen={fullscreen}
                 {...(piAgentRun === undefined ? {} : { agentMode: piAgentRun.runtime })}
+                {...(executionWorkspace === undefined ? {} : { executionWorkspace })}
                 outputRef={outputRef}
                 onTabChange={(tab) => {
                   setActiveTab(tab);
