@@ -32,8 +32,8 @@ Pi `Agent`、确定性本地 provider 和唯一的 `sillyos_propose_program_revi
 `?agent=pi-openai` 是刻意受限的 B0b live 入口：它仍使用相同的固定 Pi `Agent`、唯一
 proposal tool、typed RPC 和 currentness，只把 provider stream 换成固定的 OpenAI
 Responses `gpt-4.1-nano`。真实 follow-up、工具候选、取消、v2 successor、内存 key 和
-Forget 已在本地 Chromium/WebKit 完整通过；部署后的 Cloudflare origin 尚未验收，所以
-B0b 仍未关闭，也不是通用 Provider 设置界面。
+Forget 已在本地及 Cloudflare 部署源的 Chromium/WebKit 完整通过。B0b 已关闭，但它仍
+不是通用 Provider 设置界面。
 
 当前产品仍没有数据库、workspace tool harness（包括任何 WASM payload）、持久化或通用
 外部服务配置。初始 proposal 仍由本地 deterministic preview 产生；接受 proposal 也不会
@@ -43,7 +43,7 @@ B0b 仍未关闭，也不是通用 Provider 设置界面。
 Worker 中运行 Pi 的 `Agent`/`pi-ai`，逐个资格化通过 UI 接受用户自己的 provider API key 或明确
 协议的 HTTPS endpoint，并把 Pi 工具直接转发给拥有 OPFS 工作卷的 Workspace Host
 Worker。B0a 已闭合无真实 key 的 Pi/Worker/typed-RPC 接线；B0b 已完成固定 OpenAI
-profile 的本地集成资格化，等待部署源证据。Desktop 使用同一产品接口和能力核心，底层
+profile 的本地及部署源资格化。Desktop 使用同一产品接口和能力核心，底层
 改由私有 companion 启动产品打包的 Pi coding-agent；Desktop live route 尚未实现。
 
 详细的产品范围、Cloudflare OS 参考快照、语义映射、桌面/移动布局、键盘/IME、
@@ -80,6 +80,11 @@ OpenAI key，再创建 Program 并提交 follow-up。加载完成只表示 Worke
 真正的凭据/Provider 验证发生在首次运行。Key 输入会立即清空，Forget 会终止持有 key 的
 Worker。这个显式路线只支持当前固定模型，不读取开发机 `.env`。
 
+当前已资格化的 Cloudflare 部署是
+[silly-maker-silly-os.jasl9187.workers.dev](https://silly-maker-silly-os.jasl9187.workers.dev/)。
+它只托管静态产品；OpenAI key 和模型请求从 Agent Worker 直接发送给 OpenAI，不经过
+SillyOS 或 Cloudflare relay。
+
 开发资格检查会从本目录的 `.env` 读取 `OPENAI_API_KEY`，依次启动 Chromium/WebKit，
 证明真实请求后的取消不会推进 v1、下一次运行形成精确 v2、测试的持久化投影不含 key，
 然后执行 Forget。它不读取或打印 Provider 请求头、请求体或 key。先在另一个终端以
@@ -94,8 +99,8 @@ deno task qualify:browser:openai
 
 Browser 目标可作为 Cloudflare Workers Static Assets 发布的本地优先产品。部署方只
 提供静态应用；B0b 的模型请求从浏览器 Agent Worker 直接到 OpenAI，不经过 SillyOS
-官方代理。当前本地 B0b 已验证 Worker 内存/forget 所有权，但 Cloudflare 部署源仍待同一
-资格检查通过。生产 UI key 仍须保持只在 Worker 内存中，不能
+官方代理。当前本地与部署源 B0b 均已验证 Worker 内存/forget 所有权。生产 UI key 仍须
+保持只在 Worker 内存中，不能
 写入 React state、URL、日志、Program 数据、IndexedDB、OPFS 或导出文件。自定义
 endpoint 仍必须满足 HTTPS、CORS、streaming 与取消合同，并非 Pi 在 Desktop 支持的
 全部 provider 都会自动出现在 Browser 能力列表中。

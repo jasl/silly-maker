@@ -2,11 +2,10 @@
 
 # SillyOS product-incubation plan
 
-Status: accepted Browser-first, dual-target product lane with validated P0 and
-P1-B B0a implementations plus a dev-only Pi launch helper, 2026-08-27. B0b is
-the active deliberately bounded slice: its fixed direct OpenAI profile has
-passed the integrated local Chromium/WebKit journey, while qualification from a
-deployed Cloudflare static origin remains open. No later phase is active. The
+Status: accepted Browser-first, dual-target product lane with validated P0,
+P1-B B0a/B0b implementations, and a dev-only Pi launch helper, 2026-08-27. B0b
+closed after its fixed direct OpenAI profile passed the same integrated journey
+in local and deployed-origin Chromium/WebKit. No later phase is active. The
 raw launcher is not the typed product RPC; the live Browser route is a separate
 product path. This plan is local to `examples/silly-os`; it does not activate an
 engine lane or change an engine API. The implementation baseline before P0 is commit
@@ -64,8 +63,8 @@ Pi Agent runs a deterministic provider and one bounded AgentTool, then offers
 an exact P0 successor candidate for atomic publication. The ordinary initial
 graph still excludes Pi. B0b adds a second explicit query-gated route whose
 follow-ups use the same Pi Agent, tool, RPC, and product currentness with a fixed
-OpenAI Responses profile. That integrated route is locally qualified, but not
-yet from the deployed Cloudflare origin. The product still has no database,
+OpenAI Responses profile. That integrated route is qualified locally and from
+its deployed Cloudflare origin. The product still has no database,
 durable project, workspace runtime, WASM guest, provider selector, or generally
 active capability. Its initial proposal, Source, translation rows, remaining
 capability labels, and downloaded manifest remain explicit preview material.
@@ -385,9 +384,17 @@ the next follow-up completed the single trusted proposal-tool path and offered
 the exact v2 successor; the tested durable-store projection contained no key;
 and Forget removed the live surface by terminating the Worker. The permanent
 qualification command reads `OPENAI_API_KEY` from the local `.env`, inspects no
-request headers or bodies, and emits only bounded status evidence. B0b remains
-open until the same command passes against the deployed Cloudflare static
-origin.
+request headers or bodies, and emits only bounded status evidence.
+
+B0b closed on 2026-08-27 after Wrangler 4.123.0 deployed commit
+`6d353ab4ac215c059603f86a8707dab5433e7c92` to
+`https://silly-maker-silly-os.jasl9187.workers.dev` as Cloudflare version
+`acfb774e-eb05-4a44-8d4c-ddb151f6cd55`. The origin returned HTTP 200, the exact
+build identity, and the expected `connect-src` policy. The permanent
+qualification then passed in Chromium and WebKit with the same cancellation,
+exact v2, two completion requests at HTTP 200, durable-key absence, and Forget
+receipts as the local run. This closes only the fixed B0b profile; it does not
+activate a general Provider UI, persistence, workspace tools, or a later phase.
 
 The current B0b production build keeps the Agent facade lazy at 23.32 kB and
 emits one 388.00 kB Pi Worker asset; the ordinary HTML preload graph still

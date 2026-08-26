@@ -130,14 +130,15 @@ AgentTool, typed RPC, and product currentness with direct OpenAI Responses model
 `gpt-4.1-nano`. Its key is transferred from an uncontrolled password input to
 Worker memory and initialization means only that the profile is configured;
 authentication is established by a run. The integrated follow-up/cancel/Forget
-journey has passed locally in Chromium and WebKit. It has not passed from the
-deployed Cloudflare static origin and is not a general provider surface.
+journey has passed locally and from the deployed Cloudflare static origin in
+Chromium and WebKit. It remains one fixed profile, not a general provider
+surface.
 
 It does **not** claim:
 
 - that the ordinary/B0a route makes a real model request, or that B0b's one
-  fixed live follow-up profile proves general BYO Provider, deployed-origin,
-  workspace tool, Wasm, network-service, or database readiness;
+  fixed live follow-up profile proves general BYO Provider, workspace tool,
+  Wasm, network-service, or database readiness;
 - persistence across reload, project import/export, background execution,
   generated-code execution, or arbitrary package installation;
 - a public Mod, Agent, Program, Blueprint, or connection ABI;
@@ -454,20 +455,20 @@ passing a pixel threshold alone is not design approval.
 This table is the completion denominator for the rewrite. A working preview is
 evidence for the preview only.
 
-| Area              | Accepted product role                                     | Current preview evidence                                   | Remaining before product-ready                         |
-| ----------------- | --------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------ |
-| Creator home      | Express intent and create/open a Program                  | Deterministic local request + B0a/B0b setup                | Attachments, persisted Programs, general Provider UI   |
-| Program workspace | Conversation and work product stay in one focused context | Local revisions + fixed-profile live B0b successor         | Durable Agent revisions and outputs                    |
-| Human review      | Accept/reject an exact proposed revision                  | Local exact reference + stale rejection                    | Durable transactional check and effects                |
-| Activity          | Explain what happened and what needs review               | Local revision and decision events                         | Real tool/action history and approvals                 |
-| Capabilities      | Required Agent and UI abilities are understandable        | Labels + one bounded B0a/B0b Pi AgentTool                  | Workspace capabilities and UI bindings                 |
-| Generated UI      | Agent-authored UI remains legible and controllable        | Not implemented                                            | OpenUI mapped to closed SillyMaker components          |
-| Source            | Inspect and refine the Program where useful               | Presentation-only recipe preview                           | Persistent draft volume and accepted snapshots         |
-| Translation       | A usable translation Program                              | Intent classification only                                 | Complete workflow, data, QA, export                    |
-| Writing           | A usable writing Program                                  | Intent classification only                                 | Complete workflow, data, revision tools                |
-| Role-play         | A usable role-play Program                                | Intent classification only                                 | Complete sessions, characters, VN behavior             |
-| Browser           | Publishable local-first product with BYO Provider         | Responsive preview + local fixed-profile B0b qualification | Deployed-origin proof, storage, tools, closure         |
-| Deno Desktop      | Same product with admitted Host integrations              | Responsive preview target                                  | Companion acceptance, storage, packaging qualification |
+| Area              | Accepted product role                                     | Current preview evidence                                      | Remaining before product-ready                         |
+| ----------------- | --------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------ |
+| Creator home      | Express intent and create/open a Program                  | Deterministic local request + B0a/B0b setup                   | Attachments, persisted Programs, general Provider UI   |
+| Program workspace | Conversation and work product stay in one focused context | Local revisions + fixed-profile live B0b successor            | Durable Agent revisions and outputs                    |
+| Human review      | Accept/reject an exact proposed revision                  | Local exact reference + stale rejection                       | Durable transactional check and effects                |
+| Activity          | Explain what happened and what needs review               | Local revision and decision events                            | Real tool/action history and approvals                 |
+| Capabilities      | Required Agent and UI abilities are understandable        | Labels + one bounded B0a/B0b Pi AgentTool                     | Workspace capabilities and UI bindings                 |
+| Generated UI      | Agent-authored UI remains legible and controllable        | Not implemented                                               | OpenUI mapped to closed SillyMaker components          |
+| Source            | Inspect and refine the Program where useful               | Presentation-only recipe preview                              | Persistent draft volume and accepted snapshots         |
+| Translation       | A usable translation Program                              | Intent classification only                                    | Complete workflow, data, QA, export                    |
+| Writing           | A usable writing Program                                  | Intent classification only                                    | Complete workflow, data, revision tools                |
+| Role-play         | A usable role-play Program                                | Intent classification only                                    | Complete sessions, characters, VN behavior             |
+| Browser           | Publishable local-first product with BYO Provider         | Responsive preview + deployed fixed-profile B0b qualification | General Provider UI, storage, tools, closure           |
+| Deno Desktop      | Same product with admitted Host integrations              | Responsive preview target                                     | Companion acceptance, storage, packaging qualification |
 
 Before SillyOS is called a complete reference product, this table must be
 reconciled with implementation and tests, the current-low-end startup,
