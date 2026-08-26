@@ -164,6 +164,7 @@ export function ChatPaneV1({
                 size="sm"
                 variant="ghost"
                 icon={KeyRound}
+                disabled={mutationPending || piAgentRun.status === "running"}
                 onClick={piAgentRun.onForget}
               >
                 {agentForget}

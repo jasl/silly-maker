@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+/// <reference lib="dom" />
 import type { Locator, Page } from "@playwright/test";
 
 import { expect, sillyOsTargetUrlV1, test } from "./fixtures.ts";
@@ -39,6 +40,56 @@ async function readProgramIdV1(workspace: Locator): Promise<string> {
   const programId = await workspace.getAttribute("data-program-id");
   if (programId === null) throw new Error("SillyOS workspace has no Program identity");
   return programId;
+}
+
+interface DurableAgentRunReceiptV2 {
+  readonly agentRunId: string;
+  readonly sequence: number;
+  readonly proposalId: string;
+  readonly userMessageId: string;
+  readonly creatorMessageId: string | null;
+  readonly baseProgramRevision: number;
+  readonly baseRepositoryRevision: number;
+  readonly resultingProgramRevision: number | null;
+  readonly outcome: "completed" | "failed" | "cancelled" | "replaced";
+  readonly diagnosticCode: string | null;
+}
+
+interface DurableProgramProjectionV2 {
+  readonly schemaVersion: number;
+  readonly programId: string;
+  readonly agentRunReceipts: readonly DurableAgentRunReceiptV2[];
+  readonly snapshot: {
+    readonly messages: readonly {
+      readonly messageId: string;
+      readonly role: string;
+      readonly text: string;
+    }[];
+    readonly activity: readonly { readonly kind: string; readonly summary: string }[];
+  };
+}
+
+async function readDurableProgramV2(
+  page: Page,
+  programId: string,
+): Promise<DurableProgramProjectionV2> {
+  return await page.evaluate(async (requestedProgramId) => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("sillymaker.example-silly-os.programs");
+      request.addEventListener("error", () => reject(request.error));
+      request.addEventListener("success", () => resolve(request.result));
+    });
+    try {
+      return await new Promise<DurableProgramProjectionV2>((resolve, reject) => {
+        const transaction = database.transaction("programs", "readonly");
+        const request = transaction.objectStore("programs").get(requestedProgramId);
+        request.addEventListener("error", () => reject(request.error));
+        request.addEventListener("success", () => resolve(request.result));
+      });
+    } finally {
+      database.close();
+    }
+  }, programId);
 }
 
 async function openRecentTranslationProgramV1(
@@ -281,6 +332,41 @@ test("the query-gated Browser Pi Worker publishes one exact successor without re
   await expect(page.getByLabel("Program preview source")).toContainText("revision: 2");
   await expect(page.getByLabel("Program preview source")).toContainText(followUp);
 
+  const completedAggregate = await readDurableProgramV2(page, programId);
+  expect(completedAggregate).toMatchObject({ schemaVersion: 2, programId });
+  expect(completedAggregate.agentRunReceipts).toHaveLength(1);
+  const completedReceipt = completedAggregate.agentRunReceipts[0];
+  expect(Object.keys(completedReceipt ?? {}).sort()).toEqual([
+    "agentRunId",
+    "baseProgramRevision",
+    "baseRepositoryRevision",
+    "creatorMessageId",
+    "diagnosticCode",
+    "outcome",
+    "proposalId",
+    "resultingProgramRevision",
+    "sequence",
+    "userMessageId",
+  ].sort());
+  expect(completedReceipt).toMatchObject({
+    sequence: 1,
+    outcome: "completed",
+    baseProgramRevision: 1,
+    baseRepositoryRevision: 1,
+    resultingProgramRevision: 2,
+    diagnosticCode: null,
+  });
+  expect(
+    completedAggregate.snapshot.messages.find(({ messageId }) =>
+      messageId === completedReceipt?.userMessageId
+    ),
+  ).toMatchObject({ role: "user", text: followUp });
+  expect(
+    completedAggregate.snapshot.messages.find(({ messageId }) =>
+      messageId === completedReceipt?.creatorMessageId
+    ),
+  ).toMatchObject({ role: "creator", text: "Deterministic test proposal ready." });
+
   const durableProjection = await page.evaluate(async () => {
     const storageValues = [
       ...Object.entries(localStorage),
@@ -337,6 +423,68 @@ test("the query-gated Browser Pi Worker publishes one exact successor without re
 
   await page.getByRole("button", { name: "Forget test key" }).click();
   await expect(page.getByRole("button", { name: "Forget test key" })).toHaveCount(0);
+});
+
+test("a cancelled Browser Pi run remains terminal across reload without advancing the Program", async ({ page }) => {
+  await page.goto(sillyOsTargetUrlV1("?locale=en&agent=pi-test"));
+  await expectProgramStorageReadyV1(page);
+  const keyInput = page.getByLabel("Synthetic test key (memory only)");
+  await keyInput.fill("sillyos-browser-pi-cancel-key");
+  await page.getByRole("button", { name: "Initialize Pi test" }).click();
+  await expect(page.getByText("Pi test ready", { exact: true })).toBeVisible();
+
+  await page.getByRole("textbox", { name: "What would you like to make?" }).fill(
+    translationIntentV1,
+  );
+  await page.getByRole("button", { name: "Create program" }).click();
+  const workspace = page.getByRole("main", { name: "SillyOS program workspace" });
+  await expect(workspace).toBeVisible();
+  await expectProgramStorageReadyV1(page);
+  const programId = await readProgramIdV1(workspace);
+  const cancelledText =
+    "Hold this deterministic run until cancelled: preserve cancellation as a product receipt.";
+
+  await page.getByRole("textbox", { name: "Ask for a change…" }).fill(cancelledText);
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.locator('[data-pi-agent-run-status="running"]')).toBeVisible();
+  await page.getByRole("button", { name: "Cancel run" }).click();
+
+  await expectProgramStorageReadyV1(page);
+  await expect(workspace).toHaveAttribute("data-program-revision", "1");
+  await expect(page.getByText(cancelledText, { exact: true })).toBeVisible();
+  await page.getByRole("tab", { name: "Activity" }).click();
+  await expect(page.getByText("Cancelled Creator Agent run", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Creator home" }).click();
+  await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
+  await page.reload();
+  await expectProgramStorageReadyV1(page);
+  const reloadedKeyInput = page.getByLabel("Synthetic test key (memory only)");
+  await reloadedKeyInput.fill("sillyos-browser-pi-cancel-key");
+  await page.getByRole("button", { name: "Initialize Pi test" }).click();
+  await expect(page.getByText("Pi test ready", { exact: true })).toBeVisible();
+
+  const reopened = await openRecentTranslationProgramV1(page, {
+    programId,
+    revision: 1,
+    status: "Preview",
+  });
+  await expect(reopened).toHaveAttribute("data-program-revision", "1");
+  await expect(page.getByText(cancelledText, { exact: true })).toBeVisible();
+  await page.getByRole("tab", { name: "Activity" }).click();
+  await expect(page.getByText("Cancelled Creator Agent run", { exact: true })).toBeVisible();
+
+  const cancelledAggregate = await readDurableProgramV2(page, programId);
+  expect(cancelledAggregate.agentRunReceipts).toHaveLength(1);
+  expect(cancelledAggregate.agentRunReceipts[0]).toMatchObject({
+    sequence: 1,
+    outcome: "cancelled",
+    baseProgramRevision: 1,
+    baseRepositoryRevision: 1,
+    creatorMessageId: null,
+    resultingProgramRevision: null,
+    diagnosticCode: null,
+  });
 });
 
 test("desktop workspace keeps its minimum geometry and keyboard-resizable split", async ({ page }) => {

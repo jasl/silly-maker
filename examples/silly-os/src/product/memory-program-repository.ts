@@ -1,42 +1,44 @@
 // SPDX-License-Identifier: MIT
 
 import {
-  applyProgramRepositoryDecisionV1,
-  applyProgramRepositoryRevisionV1,
-  buildProgramRepositoryCreateV1,
-  cloneProgramRepositoryAggregateV1,
-  createProgramRepositoryFailureV1,
-  normalizeProgramRepositoryApplyRevisionInputV1,
-  normalizeProgramRepositoryCreateInputV1,
-  normalizeProgramRepositoryDecideInputV1,
-  normalizeProgramRepositoryProgramIdV1,
-  programRepositoryMaximumProgramsV1,
-  programRepositoryAggregatesEqualV1,
-  sortProgramRepositorySummariesV1,
-  summarizeProgramRepositoryAggregateV1,
-  type ProgramRepositoryAggregateV1,
-  type ProgramRepositoryV1,
+  applyProgramRepositoryAgentRunTerminalV2,
+  applyProgramRepositoryDecisionV2,
+  applyProgramRepositoryRevisionV2,
+  buildProgramRepositoryCreateV2,
+  cloneProgramRepositoryAggregateV2,
+  createProgramRepositoryFailureV2,
+  normalizeProgramRepositoryApplyRevisionInputV2,
+  normalizeProgramRepositoryCreateInputV2,
+  normalizeProgramRepositoryDecideInputV2,
+  normalizeProgramRepositorySettleAgentRunInputV2,
+  normalizeProgramRepositoryProgramIdV2,
+  programRepositoryMaximumProgramsV2,
+  programRepositoryAggregatesEqualV2,
+  sortProgramRepositorySummariesV2,
+  summarizeProgramRepositoryAggregateV2,
+  type ProgramRepositoryAggregateV2,
+  type ProgramRepositoryV2,
 } from "./program-repository.ts";
 
-export interface MemoryProgramRepositoryBackingV1 {
-  readonly programs: Map<string, ProgramRepositoryAggregateV1>;
+export interface MemoryProgramRepositoryBackingV2 {
+  readonly programs: Map<string, ProgramRepositoryAggregateV2>;
 }
 
-export function createMemoryProgramRepositoryBackingV1(): MemoryProgramRepositoryBackingV1 {
+export function createMemoryProgramRepositoryBackingV2(): MemoryProgramRepositoryBackingV2 {
   return { programs: new Map() };
 }
 
-/** Deterministic P2-B0 conformance adapter. It shares only an explicit backing. */
-export function createMemoryProgramRepositoryV1(input: {
-  readonly backing?: MemoryProgramRepositoryBackingV1;
-} = {}): ProgramRepositoryV1 {
-  const backing = input.backing ?? createMemoryProgramRepositoryBackingV1();
+/** Deterministic P2 conformance adapter. It shares only an explicit backing. */
+export function createMemoryProgramRepositoryV2(input: {
+  readonly backing?: MemoryProgramRepositoryBackingV2;
+} = {}): ProgramRepositoryV2 {
+  const backing = input.backing ?? createMemoryProgramRepositoryBackingV2();
   let disposed = false;
 
   const assertAvailableV1 = (
-    operation: Parameters<typeof createProgramRepositoryFailureV1>[1],
+    operation: Parameters<typeof createProgramRepositoryFailureV2>[1],
   ): void => {
-    if (disposed) throw createProgramRepositoryFailureV1("disposed", operation);
+    if (disposed) throw createProgramRepositoryFailureV2("disposed", operation);
   };
 
   return {
@@ -46,48 +48,48 @@ export function createMemoryProgramRepositoryV1(input: {
 
     async list() {
       assertAvailableV1("list");
-      return sortProgramRepositorySummariesV1(
+      return sortProgramRepositorySummariesV2(
         [...backing.programs.values()].map((aggregate) =>
-          summarizeProgramRepositoryAggregateV1(aggregate)
+          summarizeProgramRepositoryAggregateV2(aggregate)
         ),
       );
     },
 
     async load(rawProgramId) {
       assertAvailableV1("load");
-      const programId = normalizeProgramRepositoryProgramIdV1(rawProgramId);
+      const programId = normalizeProgramRepositoryProgramIdV2(rawProgramId);
       const aggregate = backing.programs.get(programId);
-      return aggregate === undefined ? null : cloneProgramRepositoryAggregateV1(aggregate);
+      return aggregate === undefined ? null : cloneProgramRepositoryAggregateV2(aggregate);
     },
 
     async create(rawInput) {
       assertAvailableV1("create");
-      const normalized = normalizeProgramRepositoryCreateInputV1(rawInput);
-      const candidate = buildProgramRepositoryCreateV1(normalized);
+      const normalized = normalizeProgramRepositoryCreateInputV2(rawInput);
+      const candidate = buildProgramRepositoryCreateV2(normalized);
       const existing = backing.programs.get(candidate.programId);
       if (existing !== undefined) {
-        if (programRepositoryAggregatesEqualV1(existing, candidate)) {
-          return { kind: "unchanged", aggregate: cloneProgramRepositoryAggregateV1(existing) };
+        if (programRepositoryAggregatesEqualV2(existing, candidate)) {
+          return { kind: "unchanged", aggregate: cloneProgramRepositoryAggregateV2(existing) };
         }
-        return { kind: "conflict", current: cloneProgramRepositoryAggregateV1(existing) };
+        return { kind: "conflict", current: cloneProgramRepositoryAggregateV2(existing) };
       }
-      if (backing.programs.size >= programRepositoryMaximumProgramsV1) {
-        throw createProgramRepositoryFailureV1("quota_exceeded", "create");
+      if (backing.programs.size >= programRepositoryMaximumProgramsV2) {
+        throw createProgramRepositoryFailureV2("quota_exceeded", "create");
       }
-      backing.programs.set(candidate.programId, cloneProgramRepositoryAggregateV1(candidate));
-      return { kind: "committed", aggregate: cloneProgramRepositoryAggregateV1(candidate) };
+      backing.programs.set(candidate.programId, cloneProgramRepositoryAggregateV2(candidate));
+      return { kind: "committed", aggregate: cloneProgramRepositoryAggregateV2(candidate) };
     },
 
     async applyRevision(rawInput) {
       assertAvailableV1("apply_revision");
-      const normalized = normalizeProgramRepositoryApplyRevisionInputV1(rawInput);
+      const normalized = normalizeProgramRepositoryApplyRevisionInputV2(rawInput);
       const current = backing.programs.get(normalized.programId);
       if (current === undefined) return { kind: "conflict", current: null };
-      const result = applyProgramRepositoryRevisionV1(current, normalized);
+      const result = applyProgramRepositoryRevisionV2(current, normalized);
       if (result.kind === "committed") {
         backing.programs.set(
           normalized.programId,
-          cloneProgramRepositoryAggregateV1(result.aggregate),
+          cloneProgramRepositoryAggregateV2(result.aggregate),
         );
       }
       if (result.kind === "conflict") {
@@ -95,22 +97,22 @@ export function createMemoryProgramRepositoryV1(input: {
           kind: "conflict",
           current: result.current === null
             ? null
-            : cloneProgramRepositoryAggregateV1(result.current),
+            : cloneProgramRepositoryAggregateV2(result.current),
         };
       }
-      return { ...result, aggregate: cloneProgramRepositoryAggregateV1(result.aggregate) };
+      return { ...result, aggregate: cloneProgramRepositoryAggregateV2(result.aggregate) };
     },
 
     async decide(rawInput) {
       assertAvailableV1("decide");
-      const normalized = normalizeProgramRepositoryDecideInputV1(rawInput);
+      const normalized = normalizeProgramRepositoryDecideInputV2(rawInput);
       const current = backing.programs.get(normalized.programId);
       if (current === undefined) return { kind: "conflict", current: null };
-      const result = applyProgramRepositoryDecisionV1(current, normalized);
+      const result = applyProgramRepositoryDecisionV2(current, normalized);
       if (result.kind === "committed") {
         backing.programs.set(
           normalized.programId,
-          cloneProgramRepositoryAggregateV1(result.aggregate),
+          cloneProgramRepositoryAggregateV2(result.aggregate),
         );
       }
       if (result.kind === "conflict") {
@@ -118,10 +120,33 @@ export function createMemoryProgramRepositoryV1(input: {
           kind: "conflict",
           current: result.current === null
             ? null
-            : cloneProgramRepositoryAggregateV1(result.current),
+            : cloneProgramRepositoryAggregateV2(result.current),
         };
       }
-      return { ...result, aggregate: cloneProgramRepositoryAggregateV1(result.aggregate) };
+      return { ...result, aggregate: cloneProgramRepositoryAggregateV2(result.aggregate) };
+    },
+
+    async settleAgentRun(rawInput) {
+      assertAvailableV1("settle_agent_run");
+      const normalized = normalizeProgramRepositorySettleAgentRunInputV2(rawInput);
+      const current = backing.programs.get(normalized.programId);
+      if (current === undefined) return { kind: "conflict", current: null };
+      const result = applyProgramRepositoryAgentRunTerminalV2(current, normalized);
+      if (result.kind === "committed") {
+        backing.programs.set(
+          normalized.programId,
+          cloneProgramRepositoryAggregateV2(result.aggregate),
+        );
+      }
+      if (result.kind === "conflict") {
+        return {
+          kind: "conflict",
+          current: result.current === null
+            ? null
+            : cloneProgramRepositoryAggregateV2(result.current),
+        };
+      }
+      return { ...result, aggregate: cloneProgramRepositoryAggregateV2(result.aggregate) };
     },
 
     async dispose(): Promise<void> {

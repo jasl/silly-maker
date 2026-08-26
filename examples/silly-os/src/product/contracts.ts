@@ -54,6 +54,16 @@ export interface CreatorAgentSubmitV1 {
   readonly text: string;
 }
 
+/** Product-owned identity and exact Program base for one accepted Creator run. */
+export interface CreatorAgentRunRequestV1 {
+  readonly agentRunId: string;
+  readonly proposalId: string;
+  readonly programId: string;
+  readonly baseProgramRevision: number;
+  readonly baseRepositoryRevision: number;
+  readonly text: string;
+}
+
 /** Complete inert Agent result. Applying it still requires a current-session recheck. */
 export interface CreatorProgramRevisionCandidateV1 {
   readonly revision: 1;
@@ -70,13 +80,50 @@ export interface CreatorProgramRevisionBaseV1 {
   readonly baseProgramRevision: number;
 }
 
+export type CreatorAgentDiagnosticCodeV1 =
+  | "unconfigured"
+  | "connection_failed"
+  | "request_failed"
+  | "protocol_invalid"
+  | "submit_invalid"
+  | "candidate_invalid"
+  | "draft_too_large"
+  | "run_failed"
+  | "disposed";
+
+export type CreatorAgentRunOutcomeV1 = "completed" | "failed" | "cancelled" | "replaced";
+
+/**
+ * Target-neutral terminal projection. Pi session/run identifiers are transient
+ * transport fences and never enter this product-owned value.
+ */
+export type CreatorAgentTerminalRunV1 =
+  | {
+    readonly run: CreatorAgentRunRequestV1;
+    readonly outcome: "completed";
+    readonly candidate: CreatorProgramRevisionCandidateV1;
+    readonly finalAssistantReply: string;
+  }
+  | {
+    readonly run: CreatorAgentRunRequestV1;
+    readonly outcome: "failed";
+    readonly diagnosticCode: CreatorAgentDiagnosticCodeV1;
+  }
+  | {
+    readonly run: CreatorAgentRunRequestV1;
+    readonly outcome: "cancelled" | "replaced";
+  };
+
 export type CreatorActivityKindV1 =
   | "intent_submitted"
   | "follow_up_submitted"
   | "proposal_created"
   | "proposal_revised"
   | "proposal_accepted"
-  | "proposal_rejected";
+  | "proposal_rejected"
+  | "agent_run_failed"
+  | "agent_run_cancelled"
+  | "agent_run_replaced";
 
 export interface CreatorActivityV1 {
   readonly activityId: string;
@@ -157,6 +204,22 @@ export type CreatorProgramRevisionApplyResultV1 =
   }
   | { readonly kind: "unavailable" };
 
+export type CreatorAgentTerminalApplyResultV1 =
+  | {
+    readonly kind: "applied";
+    readonly outcome: CreatorAgentRunOutcomeV1;
+  }
+  | { readonly kind: "stale"; readonly current: CreatorProgramRevisionBaseV1 }
+  | {
+    readonly kind: "rejected";
+    readonly reason:
+      | "terminal_invalid"
+      | "candidate_invalid"
+      | "assistant_reply_empty"
+      | "assistant_reply_too_long";
+  }
+  | { readonly kind: "unavailable" };
+
 export interface CreatorSessionV1 {
   getSnapshot(): CreatorSessionSnapshotV1;
   subscribe(listener: () => void): () => void;
@@ -166,6 +229,7 @@ export interface CreatorSessionV1 {
     readonly candidate: CreatorProgramRevisionCandidateV1;
     readonly finalAssistantReply: string;
   }): CreatorProgramRevisionApplyResultV1;
+  applyAgentRunTerminal(input: CreatorAgentTerminalRunV1): CreatorAgentTerminalApplyResultV1;
   acceptProposal(expected: ProgramProposalReferenceV1): CreatorProposalDecisionResultV1;
   rejectProposal(expected: ProgramProposalReferenceV1): CreatorProposalDecisionResultV1;
   openHome(): boolean;

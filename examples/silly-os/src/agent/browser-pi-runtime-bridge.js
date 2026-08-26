@@ -6,6 +6,7 @@ import { fauxAssistantMessage, fauxProvider, fauxToolCall, Type } from "@earendi
 import { creatorAgentTextMaximumCharactersV1 } from "../product/contracts.ts";
 
 export const creatorProgramRevisionToolNameV1 = "sillyos_propose_program_revision";
+export const deterministicCancellationHoldPrefixV1 = "Hold this deterministic run until cancelled:";
 
 const deterministicFinalReplyV1 = "Deterministic test proposal ready.";
 
@@ -88,9 +89,12 @@ function createPiAgentV1(input) {
  * The adjacent declaration intentionally exposes only the product's bounded port.
  */
 export function createDeterministicPiAgentV1(input) {
+  const holdForCancellation = input.submit.text.startsWith(
+    deterministicCancellationHoldPrefixV1,
+  );
   const faux = fauxProvider({
     tokenSize: { min: 64, max: 64 },
-    tokensPerSecond: 0,
+    tokensPerSecond: holdForCancellation ? 1 : 0,
   });
   faux.setResponses([
     fauxAssistantMessage(

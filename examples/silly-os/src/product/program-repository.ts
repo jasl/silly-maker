@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 
 import type {
+  CreatorAgentDiagnosticCodeV1,
+  CreatorAgentRunOutcomeV1,
+  CreatorAgentTerminalRunV1,
   CreatorProgramRevisionBaseV1,
   CreatorSessionSnapshotV1,
   PreviewProgramKindV1,
@@ -10,28 +13,30 @@ import type {
   ProgramProposalV1,
 } from "./contracts.ts";
 
-export const programRepositorySchemaVersionV1 = 1 as const;
-export const programRepositoryAggregateMaximumBytesV1 = 512 * 1024;
-export const programRepositoryMaximumProgramsV1 = 64;
-export const programRepositoryMaximumProgramRevisionsV1 = 32;
-export const programRepositoryMaximumDecisionsV1 = 32;
-export const programRepositoryMaximumMessagesV1 = 96;
-export const programRepositoryMaximumActivitiesV1 = 96;
-export const programRepositoryMaximumRequirementsV1 = 32;
-export const programRepositoryMaximumCapabilitiesV1 = 32;
+export const programRepositorySchemaVersionV2 = 2 as const;
+export const programRepositoryAggregateMaximumBytesV2 = 512 * 1024;
+export const programRepositoryMaximumProgramsV2 = 64;
+export const programRepositoryMaximumProgramRevisionsV2 = 32;
+export const programRepositoryMaximumDecisionsV2 = 32;
+export const programRepositoryMaximumMessagesV2 = 96;
+export const programRepositoryMaximumActivitiesV2 = 96;
+export const programRepositoryMaximumRequirementsV2 = 32;
+export const programRepositoryMaximumCapabilitiesV2 = 32;
+export const programRepositoryMaximumAgentRunReceiptsV2 = 32;
 
 const identifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
 
-export type ProgramRepositoryOperationV1 =
+export type ProgramRepositoryOperationV2 =
   | "initialize"
   | "list"
   | "load"
   | "create"
   | "apply_revision"
   | "decide"
+  | "settle_agent_run"
   | "dispose";
 
-export type ProgramRepositoryFailureCodeV1 =
+export type ProgramRepositoryFailureCodeV2 =
   | "unavailable"
   | "database_newer"
   | "upgrade_blocked"
@@ -43,12 +48,12 @@ export type ProgramRepositoryFailureCodeV1 =
   | "wire_invalid"
   | "outcome_unknown";
 
-export interface ProgramRepositoryFailureV1 extends Error {
-  readonly code: ProgramRepositoryFailureCodeV1;
-  readonly operation: ProgramRepositoryOperationV1;
+export interface ProgramRepositoryFailureV2 extends Error {
+  readonly code: ProgramRepositoryFailureCodeV2;
+  readonly operation: ProgramRepositoryOperationV2;
 }
 
-export interface ProgramRepositoryDecisionV1 {
+export interface ProgramRepositoryDecisionV2 {
   readonly proposalId: string;
   readonly programRevision: number;
   readonly status: "accepted" | "rejected";
@@ -56,19 +61,33 @@ export interface ProgramRepositoryDecisionV1 {
   readonly repositoryRevision: number;
 }
 
-/** The only durable P2-B0 unit: one bounded aggregate per Program. */
-export interface ProgramRepositoryAggregateV1 {
-  readonly schemaVersion: 1;
+export interface ProgramAgentRunReceiptV2 {
+  readonly agentRunId: string;
+  readonly sequence: number;
+  readonly proposalId: string;
+  readonly userMessageId: string;
+  readonly creatorMessageId: string | null;
+  readonly baseProgramRevision: number;
+  readonly baseRepositoryRevision: number;
+  readonly resultingProgramRevision: number | null;
+  readonly outcome: CreatorAgentRunOutcomeV1;
+  readonly diagnosticCode: CreatorAgentDiagnosticCodeV1 | null;
+}
+
+/** The only durable P2 unit: one bounded aggregate per Program. */
+export interface ProgramRepositoryAggregateV2 {
+  readonly schemaVersion: 2;
   readonly programId: string;
   readonly repositoryRevision: number;
   /** Caller-supplied Unix epoch milliseconds. The repository owns no clock. */
   readonly updatedAt: number;
   readonly snapshot: CreatorSessionSnapshotV1;
   readonly programRevisions: readonly PreviewProgramV1[];
-  readonly decisions: readonly ProgramRepositoryDecisionV1[];
+  readonly decisions: readonly ProgramRepositoryDecisionV2[];
+  readonly agentRunReceipts: readonly ProgramAgentRunReceiptV2[];
 }
 
-export interface ProgramRepositorySummaryV1 {
+export interface ProgramRepositorySummaryV2 {
   readonly programId: string;
   readonly name: string;
   readonly kind: PreviewProgramKindV1;
@@ -78,12 +97,12 @@ export interface ProgramRepositorySummaryV1 {
   readonly repositoryRevision: number;
 }
 
-export interface ProgramRepositoryCreateInputV1 {
+export interface ProgramRepositoryCreateInputV2 {
   readonly snapshot: CreatorSessionSnapshotV1;
   readonly updatedAt: number;
 }
 
-export interface ProgramRepositoryApplyRevisionInputV1 {
+export interface ProgramRepositoryApplyRevisionInputV2 {
   readonly programId: string;
   readonly expectedRepositoryRevision: number;
   readonly expectedBase: CreatorProgramRevisionBaseV1;
@@ -91,7 +110,7 @@ export interface ProgramRepositoryApplyRevisionInputV1 {
   readonly updatedAt: number;
 }
 
-export interface ProgramRepositoryDecideInputV1 {
+export interface ProgramRepositoryDecideInputV2 {
   readonly programId: string;
   readonly expectedRepositoryRevision: number;
   readonly expectedProposal: ProgramProposalReferenceV1;
@@ -100,27 +119,38 @@ export interface ProgramRepositoryDecideInputV1 {
   readonly updatedAt: number;
 }
 
-export type ProgramRepositoryCommitResultV1 =
-  | { readonly kind: "committed"; readonly aggregate: ProgramRepositoryAggregateV1 }
-  | { readonly kind: "unchanged"; readonly aggregate: ProgramRepositoryAggregateV1 }
+export interface ProgramRepositorySettleAgentRunInputV2 {
+  readonly programId: string;
+  readonly expectedRepositoryRevision: number;
+  readonly terminal: CreatorAgentTerminalRunV1;
+  readonly snapshot: CreatorSessionSnapshotV1;
+  readonly updatedAt: number;
+}
+
+export type ProgramRepositoryCommitResultV2 =
+  | { readonly kind: "committed"; readonly aggregate: ProgramRepositoryAggregateV2 }
+  | { readonly kind: "unchanged"; readonly aggregate: ProgramRepositoryAggregateV2 }
   | {
     readonly kind: "conflict";
-    readonly current: ProgramRepositoryAggregateV1 | null;
+    readonly current: ProgramRepositoryAggregateV2 | null;
   };
 
-export interface ProgramRepositoryV1 {
+export interface ProgramRepositoryV2 {
   initialize(): Promise<void>;
-  list(): Promise<readonly ProgramRepositorySummaryV1[]>;
-  load(programId: string): Promise<ProgramRepositoryAggregateV1 | null>;
-  create(input: ProgramRepositoryCreateInputV1): Promise<ProgramRepositoryCommitResultV1>;
+  list(): Promise<readonly ProgramRepositorySummaryV2[]>;
+  load(programId: string): Promise<ProgramRepositoryAggregateV2 | null>;
+  create(input: ProgramRepositoryCreateInputV2): Promise<ProgramRepositoryCommitResultV2>;
   applyRevision(
-    input: ProgramRepositoryApplyRevisionInputV1,
-  ): Promise<ProgramRepositoryCommitResultV1>;
-  decide(input: ProgramRepositoryDecideInputV1): Promise<ProgramRepositoryCommitResultV1>;
+    input: ProgramRepositoryApplyRevisionInputV2,
+  ): Promise<ProgramRepositoryCommitResultV2>;
+  decide(input: ProgramRepositoryDecideInputV2): Promise<ProgramRepositoryCommitResultV2>;
+  settleAgentRun(
+    input: ProgramRepositorySettleAgentRunInputV2,
+  ): Promise<ProgramRepositoryCommitResultV2>;
   dispose(): Promise<void>;
 }
 
-export type ProgramRepositoryAdmissionResultV1<TValue> =
+export type ProgramRepositoryAdmissionResultV2<TValue> =
   | { readonly kind: "admitted"; readonly value: TValue }
   | { readonly kind: "rejected"; readonly path: string };
 
@@ -151,11 +181,11 @@ function exactRecordV1(value: unknown, keys: readonly string[]): ExactRecordV1 |
   }
 }
 
-function rejectV1<TValue>(path: string): ProgramRepositoryAdmissionResultV1<TValue> {
+function rejectV1<TValue>(path: string): ProgramRepositoryAdmissionResultV2<TValue> {
   return { kind: "rejected", path };
 }
 
-function admittedV1<TValue>(value: TValue): ProgramRepositoryAdmissionResultV1<TValue> {
+function admittedV1<TValue>(value: TValue): ProgramRepositoryAdmissionResultV2<TValue> {
   return { kind: "admitted", value };
 }
 
@@ -169,6 +199,13 @@ function nonNegativeSafeIntegerV1(value: unknown): value is number {
 
 function identifierV1(value: unknown): value is string {
   return typeof value === "string" && identifierPatternV1.test(value);
+}
+
+function creatorAgentDiagnosticCodeV1(value: unknown): value is CreatorAgentDiagnosticCodeV1 {
+  return value === "unconfigured" || value === "connection_failed" ||
+    value === "request_failed" || value === "protocol_invalid" ||
+    value === "submit_invalid" || value === "candidate_invalid" ||
+    value === "draft_too_large" || value === "run_failed" || value === "disposed";
 }
 
 function boundedTextV1(
@@ -211,7 +248,7 @@ function utf8ByteLengthV1(value: string): number {
 function admitCapabilityV1(
   value: unknown,
   path: string,
-): ProgramRepositoryAdmissionResultV1<PreviewProgramV1["suggestedCapabilities"][number]> {
+): ProgramRepositoryAdmissionResultV2<PreviewProgramV1["suggestedCapabilities"][number]> {
   const record = exactRecordV1(value, ["capabilityId", "label", "description"]);
   if (record === null) return rejectV1(path);
   if (!identifierV1(record.capabilityId)) return rejectV1(`${path}/capabilityId`);
@@ -231,7 +268,7 @@ function admitCapabilityV1(
 function admitProgramV1(
   value: unknown,
   path: string,
-): ProgramRepositoryAdmissionResultV1<PreviewProgramV1> {
+): ProgramRepositoryAdmissionResultV2<PreviewProgramV1> {
   const record = exactRecordV1(value, [
     "programId",
     "revision",
@@ -252,7 +289,7 @@ function admitProgramV1(
   if (!boundedTextV1(record.purpose, 4_000, { trimmed: true })) {
     return rejectV1(`${path}/purpose`);
   }
-  const rawRequirements = arrayV1(record.requirements, programRepositoryMaximumRequirementsV1);
+  const rawRequirements = arrayV1(record.requirements, programRepositoryMaximumRequirementsV2);
   if (rawRequirements === null || rawRequirements.length === 0) {
     return rejectV1(`${path}/requirements`);
   }
@@ -266,7 +303,7 @@ function admitProgramV1(
   }
   const rawCapabilities = arrayV1(
     record.suggestedCapabilities,
-    programRepositoryMaximumCapabilitiesV1,
+    programRepositoryMaximumCapabilitiesV2,
   );
   if (rawCapabilities === null) return rejectV1(`${path}/suggestedCapabilities`);
   const suggestedCapabilities: PreviewProgramV1["suggestedCapabilities"][number][] = [];
@@ -298,7 +335,7 @@ function admitProgramV1(
 function admitSnapshotV1(
   value: unknown,
   path: string,
-): ProgramRepositoryAdmissionResultV1<CreatorSessionSnapshotV1> {
+): ProgramRepositoryAdmissionResultV2<CreatorSessionSnapshotV1> {
   const record = exactRecordV1(value, [
     "revision",
     "source",
@@ -331,7 +368,7 @@ function admitSnapshotV1(
     title: workspaceRecord.title,
   };
 
-  const rawMessages = arrayV1(record.messages, programRepositoryMaximumMessagesV1);
+  const rawMessages = arrayV1(record.messages, programRepositoryMaximumMessagesV2);
   if (rawMessages === null || rawMessages.length === 0) return rejectV1(`${path}/messages`);
   const messages: CreatorSessionSnapshotV1["messages"][number][] = [];
   for (let index = 0; index < rawMessages.length; index += 1) {
@@ -342,7 +379,8 @@ function admitSnapshotV1(
     if (messageRecord.role !== "user" && messageRecord.role !== "creator") {
       return rejectV1(`${messagePath}/role`);
     }
-    if (!boundedTextV1(messageRecord.text, 8_192, { trimmed: true })) {
+    const maximumCharacters = messageRecord.role === "user" ? 4_000 : 8_192;
+    if (!boundedTextV1(messageRecord.text, maximumCharacters, { trimmed: true })) {
       return rejectV1(`${messagePath}/text`);
     }
     messages.push({
@@ -381,7 +419,7 @@ function admitSnapshotV1(
     return rejectV1(`${path}/proposal/programRevision`);
   }
 
-  const rawActivity = arrayV1(record.activity, programRepositoryMaximumActivitiesV1);
+  const rawActivity = arrayV1(record.activity, programRepositoryMaximumActivitiesV2);
   if (rawActivity === null || rawActivity.length === 0) return rejectV1(`${path}/activity`);
   const activity: CreatorSessionSnapshotV1["activity"][number][] = [];
   const activityKinds = new Set([
@@ -391,6 +429,9 @@ function admitSnapshotV1(
     "proposal_revised",
     "proposal_accepted",
     "proposal_rejected",
+    "agent_run_failed",
+    "agent_run_cancelled",
+    "agent_run_replaced",
   ]);
   for (let index = 0; index < rawActivity.length; index += 1) {
     const activityRecord = exactRecordV1(rawActivity[index], [
@@ -450,9 +491,9 @@ function isLogicalSuccessorV1(previous: PreviewProgramV1, next: PreviewProgramV1
   return true;
 }
 
-export function admitProgramRepositoryAggregateV1(
+export function admitProgramRepositoryAggregateV2(
   value: unknown,
-): ProgramRepositoryAdmissionResultV1<ProgramRepositoryAggregateV1> {
+): ProgramRepositoryAdmissionResultV2<ProgramRepositoryAggregateV2> {
   const record = exactRecordV1(value, [
     "schemaVersion",
     "programId",
@@ -461,9 +502,10 @@ export function admitProgramRepositoryAggregateV1(
     "snapshot",
     "programRevisions",
     "decisions",
+    "agentRunReceipts",
   ]);
   if (record === null) return rejectV1("/");
-  if (record.schemaVersion !== programRepositorySchemaVersionV1) {
+  if (record.schemaVersion !== programRepositorySchemaVersionV2) {
     return rejectV1("/schemaVersion");
   }
   if (!identifierV1(record.programId)) return rejectV1("/programId");
@@ -477,7 +519,7 @@ export function admitProgramRepositoryAggregateV1(
 
   const rawRevisions = arrayV1(
     record.programRevisions,
-    programRepositoryMaximumProgramRevisionsV1,
+    programRepositoryMaximumProgramRevisionsV2,
   );
   if (rawRevisions === null || rawRevisions.length === 0) {
     return rejectV1("/programRevisions");
@@ -501,9 +543,9 @@ export function admitProgramRepositoryAggregateV1(
     return rejectV1("/snapshot/program");
   }
 
-  const rawDecisions = arrayV1(record.decisions, programRepositoryMaximumDecisionsV1);
+  const rawDecisions = arrayV1(record.decisions, programRepositoryMaximumDecisionsV2);
   if (rawDecisions === null) return rejectV1("/decisions");
-  const decisions: ProgramRepositoryDecisionV1[] = [];
+  const decisions: ProgramRepositoryDecisionV2[] = [];
   for (let index = 0; index < rawDecisions.length; index += 1) {
     const decisionRecord = exactRecordV1(rawDecisions[index], [
       "proposalId",
@@ -550,23 +592,143 @@ export function admitProgramRepositoryAggregateV1(
     (currentProposal.status !== "pending" && currentDecision?.status !== currentProposal.status)
   ) return rejectV1("/snapshot/proposal/status");
 
-  const aggregate: ProgramRepositoryAggregateV1 = {
-    schemaVersion: 1,
+  const rawReceipts = arrayV1(
+    record.agentRunReceipts,
+    programRepositoryMaximumAgentRunReceiptsV2,
+  );
+  if (rawReceipts === null) return rejectV1("/agentRunReceipts");
+  const agentRunReceipts: ProgramAgentRunReceiptV2[] = [];
+  const usedUserMessageIds = new Set<string>();
+  const usedCreatorMessageIds = new Set<string>();
+  for (let index = 0; index < rawReceipts.length; index += 1) {
+    const receiptRecord = exactRecordV1(rawReceipts[index], [
+      "agentRunId",
+      "sequence",
+      "proposalId",
+      "userMessageId",
+      "creatorMessageId",
+      "baseProgramRevision",
+      "baseRepositoryRevision",
+      "resultingProgramRevision",
+      "outcome",
+      "diagnosticCode",
+    ]);
+    const receiptPath = `/agentRunReceipts/${String(index)}`;
+    if (receiptRecord === null) return rejectV1(receiptPath);
+    if (!identifierV1(receiptRecord.agentRunId)) {
+      return rejectV1(`${receiptPath}/agentRunId`);
+    }
+    if (receiptRecord.sequence !== index + 1) return rejectV1(`${receiptPath}/sequence`);
+    if (
+      !identifierV1(receiptRecord.proposalId) ||
+      receiptRecord.proposalId !== currentProposal.proposalId
+    ) return rejectV1(`${receiptPath}/proposalId`);
+    if (!identifierV1(receiptRecord.userMessageId)) {
+      return rejectV1(`${receiptPath}/userMessageId`);
+    }
+    if (usedUserMessageIds.has(receiptRecord.userMessageId)) {
+      return rejectV1(`${receiptPath}/userMessageId`);
+    }
+    const userMessageIndex = snapshot.value.messages.findIndex((message) =>
+      message.messageId === receiptRecord.userMessageId
+    );
+    const userMessage = snapshot.value.messages[userMessageIndex];
+    if (userMessage?.role !== "user" || userMessage.text.length > 4_000) {
+      return rejectV1(`${receiptPath}/userMessageId`);
+    }
+    if (
+      !positiveSafeIntegerV1(receiptRecord.baseProgramRevision) ||
+      receiptRecord.baseProgramRevision > currentProgram.revision
+    ) return rejectV1(`${receiptPath}/baseProgramRevision`);
+    if (
+      !positiveSafeIntegerV1(receiptRecord.baseRepositoryRevision) ||
+      receiptRecord.baseRepositoryRevision > record.repositoryRevision
+    ) return rejectV1(`${receiptPath}/baseRepositoryRevision`);
+    if (
+      receiptRecord.outcome !== "completed" && receiptRecord.outcome !== "failed" &&
+      receiptRecord.outcome !== "cancelled" && receiptRecord.outcome !== "replaced"
+    ) return rejectV1(`${receiptPath}/outcome`);
+
+    let creatorMessageId: string | null = null;
+    let resultingProgramRevision: number | null = null;
+    let diagnosticCode: CreatorAgentDiagnosticCodeV1 | null = null;
+    if (receiptRecord.outcome === "completed") {
+      if (
+        !identifierV1(receiptRecord.creatorMessageId) ||
+        usedCreatorMessageIds.has(receiptRecord.creatorMessageId)
+      ) return rejectV1(`${receiptPath}/creatorMessageId`);
+      const creatorMessageIndex = snapshot.value.messages.findIndex((message) =>
+        message.messageId === receiptRecord.creatorMessageId
+      );
+      const creatorMessage = snapshot.value.messages[creatorMessageIndex];
+      if (
+        creatorMessage?.role !== "creator" || creatorMessage.text.length > 8_192 ||
+        creatorMessageIndex !== userMessageIndex + 1
+      ) return rejectV1(`${receiptPath}/creatorMessageId`);
+      if (
+        !positiveSafeIntegerV1(receiptRecord.resultingProgramRevision) ||
+        receiptRecord.resultingProgramRevision !== receiptRecord.baseProgramRevision + 1 ||
+        receiptRecord.resultingProgramRevision > currentProgram.revision
+      ) return rejectV1(`${receiptPath}/resultingProgramRevision`);
+      if (receiptRecord.diagnosticCode !== null) {
+        return rejectV1(`${receiptPath}/diagnosticCode`);
+      }
+      creatorMessageId = receiptRecord.creatorMessageId;
+      resultingProgramRevision = receiptRecord.resultingProgramRevision;
+      usedCreatorMessageIds.add(creatorMessageId);
+    } else {
+      if (receiptRecord.creatorMessageId !== null) {
+        return rejectV1(`${receiptPath}/creatorMessageId`);
+      }
+      if (receiptRecord.resultingProgramRevision !== null) {
+        return rejectV1(`${receiptPath}/resultingProgramRevision`);
+      }
+      if (receiptRecord.outcome === "failed") {
+        if (!creatorAgentDiagnosticCodeV1(receiptRecord.diagnosticCode)) {
+          return rejectV1(`${receiptPath}/diagnosticCode`);
+        }
+        diagnosticCode = receiptRecord.diagnosticCode;
+      } else if (receiptRecord.diagnosticCode !== null) {
+        return rejectV1(`${receiptPath}/diagnosticCode`);
+      }
+    }
+    usedUserMessageIds.add(receiptRecord.userMessageId);
+    agentRunReceipts.push({
+      agentRunId: receiptRecord.agentRunId,
+      sequence: receiptRecord.sequence,
+      proposalId: receiptRecord.proposalId,
+      userMessageId: receiptRecord.userMessageId,
+      creatorMessageId,
+      baseProgramRevision: receiptRecord.baseProgramRevision,
+      baseRepositoryRevision: receiptRecord.baseRepositoryRevision,
+      resultingProgramRevision,
+      outcome: receiptRecord.outcome,
+      diagnosticCode,
+    });
+  }
+  if (
+    new Set(agentRunReceipts.map(({ agentRunId }) => agentRunId)).size !==
+      agentRunReceipts.length
+  ) return rejectV1("/agentRunReceipts");
+
+  const aggregate: ProgramRepositoryAggregateV2 = {
+    schemaVersion: 2,
     programId: record.programId,
     repositoryRevision: record.repositoryRevision,
     updatedAt: record.updatedAt,
     snapshot: snapshot.value,
     programRevisions,
     decisions,
+    agentRunReceipts,
   };
-  if (utf8ByteLengthV1(JSON.stringify(aggregate)) > programRepositoryAggregateMaximumBytesV1) {
+  if (utf8ByteLengthV1(JSON.stringify(aggregate)) > programRepositoryAggregateMaximumBytesV2) {
     return rejectV1("/");
   }
   return admittedV1(aggregate);
 }
 
 function requireAdmittedV1<TValue>(
-  result: ProgramRepositoryAdmissionResultV1<TValue>,
+  result: ProgramRepositoryAdmissionResultV2<TValue>,
   label: string,
 ): TValue {
   if (result.kind === "rejected") {
@@ -575,26 +737,35 @@ function requireAdmittedV1<TValue>(
   return result.value;
 }
 
-export function cloneProgramRepositoryAggregateV1(
-  aggregate: ProgramRepositoryAggregateV1,
-): ProgramRepositoryAggregateV1 {
-  return requireAdmittedV1(admitProgramRepositoryAggregateV1(aggregate), "aggregate");
+export function cloneProgramRepositoryAggregateV2(
+  aggregate: ProgramRepositoryAggregateV2,
+): ProgramRepositoryAggregateV2 {
+  return requireAdmittedV1(admitProgramRepositoryAggregateV2(aggregate), "aggregate");
 }
 
-export function programRepositoryAggregatesEqualV1(
-  left: ProgramRepositoryAggregateV1,
-  right: ProgramRepositoryAggregateV1,
+export function findProgramAgentRunReceiptV2(
+  aggregate: ProgramRepositoryAggregateV2,
+  agentRunId: string,
+): ProgramAgentRunReceiptV2 | null {
+  const admitted = cloneProgramRepositoryAggregateV2(aggregate);
+  if (!identifierV1(agentRunId)) return null;
+  return admitted.agentRunReceipts.find((receipt) => receipt.agentRunId === agentRunId) ?? null;
+}
+
+export function programRepositoryAggregatesEqualV2(
+  left: ProgramRepositoryAggregateV2,
+  right: ProgramRepositoryAggregateV2,
 ): boolean {
   return equalV1(
-    cloneProgramRepositoryAggregateV1(left),
-    cloneProgramRepositoryAggregateV1(right),
+    cloneProgramRepositoryAggregateV2(left),
+    cloneProgramRepositoryAggregateV2(right),
   );
 }
 
-export function summarizeProgramRepositoryAggregateV1(
-  aggregate: ProgramRepositoryAggregateV1,
-): ProgramRepositorySummaryV1 {
-  const admitted = cloneProgramRepositoryAggregateV1(aggregate);
+export function summarizeProgramRepositoryAggregateV2(
+  aggregate: ProgramRepositoryAggregateV2,
+): ProgramRepositorySummaryV2 {
+  const admitted = cloneProgramRepositoryAggregateV2(aggregate);
   const program = admitted.snapshot.program;
   const proposal = admitted.snapshot.proposal;
   if (program === null || proposal === null) throw new TypeError("invalid Program aggregate");
@@ -609,22 +780,22 @@ export function summarizeProgramRepositoryAggregateV1(
   };
 }
 
-export function sortProgramRepositorySummariesV1(
-  summaries: readonly ProgramRepositorySummaryV1[],
-): readonly ProgramRepositorySummaryV1[] {
+export function sortProgramRepositorySummariesV2(
+  summaries: readonly ProgramRepositorySummaryV2[],
+): readonly ProgramRepositorySummaryV2[] {
   return summaries.toSorted((left, right) =>
     right.updatedAt - left.updatedAt || left.programId.localeCompare(right.programId, "en")
   );
 }
 
-export function normalizeProgramRepositoryProgramIdV1(value: unknown): string {
+export function normalizeProgramRepositoryProgramIdV2(value: unknown): string {
   if (!identifierV1(value)) throw new TypeError("sillyos.program_repository.program_id.invalid");
   return value;
 }
 
-export function normalizeProgramRepositoryCreateInputV1(
+export function normalizeProgramRepositoryCreateInputV2(
   value: unknown,
-): ProgramRepositoryCreateInputV1 {
+): ProgramRepositoryCreateInputV2 {
   const record = exactRecordV1(value, ["snapshot", "updatedAt"]);
   if (record === null) throw new TypeError("sillyos.program_repository.create.invalid/");
   const snapshot = requireAdmittedV1(admitSnapshotV1(record.snapshot, "/snapshot"), "create");
@@ -634,9 +805,9 @@ export function normalizeProgramRepositoryCreateInputV1(
   return { snapshot, updatedAt: record.updatedAt };
 }
 
-export function normalizeProgramRepositoryApplyRevisionInputV1(
+export function normalizeProgramRepositoryApplyRevisionInputV2(
   value: unknown,
-): ProgramRepositoryApplyRevisionInputV1 {
+): ProgramRepositoryApplyRevisionInputV2 {
   const record = exactRecordV1(value, [
     "programId",
     "expectedRepositoryRevision",
@@ -645,7 +816,7 @@ export function normalizeProgramRepositoryApplyRevisionInputV1(
     "updatedAt",
   ]);
   if (record === null) throw new TypeError("sillyos.program_repository.apply.invalid/");
-  const programId = normalizeProgramRepositoryProgramIdV1(record.programId);
+  const programId = normalizeProgramRepositoryProgramIdV2(record.programId);
   if (!positiveSafeIntegerV1(record.expectedRepositoryRevision)) {
     throw new TypeError("sillyos.program_repository.apply.invalid/expectedRepositoryRevision");
   }
@@ -677,9 +848,9 @@ export function normalizeProgramRepositoryApplyRevisionInputV1(
   };
 }
 
-export function normalizeProgramRepositoryDecideInputV1(
+export function normalizeProgramRepositoryDecideInputV2(
   value: unknown,
-): ProgramRepositoryDecideInputV1 {
+): ProgramRepositoryDecideInputV2 {
   const record = exactRecordV1(value, [
     "programId",
     "expectedRepositoryRevision",
@@ -689,7 +860,7 @@ export function normalizeProgramRepositoryDecideInputV1(
     "updatedAt",
   ]);
   if (record === null) throw new TypeError("sillyos.program_repository.decide.invalid/");
-  const programId = normalizeProgramRepositoryProgramIdV1(record.programId);
+  const programId = normalizeProgramRepositoryProgramIdV2(record.programId);
   if (!positiveSafeIntegerV1(record.expectedRepositoryRevision)) {
     throw new TypeError("sillyos.program_repository.decide.invalid/expectedRepositoryRevision");
   }
@@ -720,22 +891,156 @@ export function normalizeProgramRepositoryDecideInputV1(
   };
 }
 
-export function buildProgramRepositoryCreateV1(
-  input: ProgramRepositoryCreateInputV1,
-): ProgramRepositoryAggregateV1 {
-  const normalized = normalizeProgramRepositoryCreateInputV1(input);
+function normalizeCreatorAgentTerminalRunV1(value: unknown): CreatorAgentTerminalRunV1 {
+  const discriminator = exactRecordV1(value, ["run", "outcome"]);
+  const completed = exactRecordV1(value, [
+    "run",
+    "outcome",
+    "candidate",
+    "finalAssistantReply",
+  ]);
+  const failed = exactRecordV1(value, ["run", "outcome", "diagnosticCode"]);
+  const terminal = completed ?? failed ?? discriminator;
+  if (terminal === null) {
+    throw new TypeError("sillyos.program_repository.settle_agent_run.invalid/terminal");
+  }
+  const run = exactRecordV1(terminal.run, [
+    "agentRunId",
+    "proposalId",
+    "programId",
+    "baseProgramRevision",
+    "baseRepositoryRevision",
+    "text",
+  ]);
+  if (
+    run === null || !identifierV1(run.agentRunId) || !identifierV1(run.proposalId) ||
+    !identifierV1(run.programId) || !positiveSafeIntegerV1(run.baseProgramRevision) ||
+    !positiveSafeIntegerV1(run.baseRepositoryRevision) ||
+    !boundedTextV1(run.text, 4_000, { trimmed: true })
+  ) throw new TypeError("sillyos.program_repository.settle_agent_run.invalid/terminal/run");
+  const normalizedRun = {
+    agentRunId: run.agentRunId,
+    proposalId: run.proposalId,
+    programId: run.programId,
+    baseProgramRevision: run.baseProgramRevision,
+    baseRepositoryRevision: run.baseRepositoryRevision,
+    text: run.text,
+  };
+  if (completed !== null && completed.outcome === "completed") {
+    const candidate = exactRecordV1(completed.candidate, [
+      "revision",
+      "proposalId",
+      "programId",
+      "baseProgramRevision",
+      "text",
+      "requirement",
+    ]);
+    if (
+      candidate === null || candidate.revision !== 1 ||
+      !identifierV1(candidate.proposalId) || !identifierV1(candidate.programId) ||
+      !positiveSafeIntegerV1(candidate.baseProgramRevision) ||
+      !boundedTextV1(candidate.text, 4_000, { trimmed: true }) ||
+      !boundedTextV1(candidate.requirement, 4_000, { trimmed: true }) ||
+      candidate.proposalId !== normalizedRun.proposalId ||
+      candidate.programId !== normalizedRun.programId ||
+      candidate.baseProgramRevision !== normalizedRun.baseProgramRevision ||
+      candidate.text !== normalizedRun.text ||
+      typeof completed.finalAssistantReply !== "string" ||
+      completed.finalAssistantReply.length > 8_192 ||
+      completed.finalAssistantReply.trim().length === 0
+    ) {
+      throw new TypeError(
+        "sillyos.program_repository.settle_agent_run.invalid/terminal/completed",
+      );
+    }
+    return {
+      run: normalizedRun,
+      outcome: "completed",
+      candidate: {
+        revision: 1,
+        proposalId: candidate.proposalId,
+        programId: candidate.programId,
+        baseProgramRevision: candidate.baseProgramRevision,
+        text: candidate.text,
+        requirement: candidate.requirement,
+      },
+      finalAssistantReply: completed.finalAssistantReply.trim(),
+    };
+  }
+  if (failed !== null && failed.outcome === "failed") {
+    if (!creatorAgentDiagnosticCodeV1(failed.diagnosticCode)) {
+      throw new TypeError(
+        "sillyos.program_repository.settle_agent_run.invalid/terminal/diagnosticCode",
+      );
+    }
+    return {
+      run: normalizedRun,
+      outcome: "failed",
+      diagnosticCode: failed.diagnosticCode,
+    };
+  }
+  if (
+    discriminator !== null &&
+    (discriminator.outcome === "cancelled" || discriminator.outcome === "replaced")
+  ) {
+    return { run: normalizedRun, outcome: discriminator.outcome };
+  }
+  throw new TypeError("sillyos.program_repository.settle_agent_run.invalid/terminal/outcome");
+}
+
+export function normalizeProgramRepositorySettleAgentRunInputV2(
+  value: unknown,
+): ProgramRepositorySettleAgentRunInputV2 {
+  const record = exactRecordV1(value, [
+    "programId",
+    "expectedRepositoryRevision",
+    "terminal",
+    "snapshot",
+    "updatedAt",
+  ]);
+  if (record === null) {
+    throw new TypeError("sillyos.program_repository.settle_agent_run.invalid/");
+  }
+  const programId = normalizeProgramRepositoryProgramIdV2(record.programId);
+  if (!positiveSafeIntegerV1(record.expectedRepositoryRevision)) {
+    throw new TypeError(
+      "sillyos.program_repository.settle_agent_run.invalid/expectedRepositoryRevision",
+    );
+  }
+  const terminal = normalizeCreatorAgentTerminalRunV1(record.terminal);
+  const snapshot = requireAdmittedV1(
+    admitSnapshotV1(record.snapshot, "/snapshot"),
+    "settle_agent_run",
+  );
+  if (!nonNegativeSafeIntegerV1(record.updatedAt)) {
+    throw new TypeError("sillyos.program_repository.settle_agent_run.invalid/updatedAt");
+  }
+  return {
+    programId,
+    expectedRepositoryRevision: record.expectedRepositoryRevision,
+    terminal,
+    snapshot,
+    updatedAt: record.updatedAt,
+  };
+}
+
+export function buildProgramRepositoryCreateV2(
+  input: ProgramRepositoryCreateInputV2,
+): ProgramRepositoryAggregateV2 {
+  const normalized = normalizeProgramRepositoryCreateInputV2(input);
   const program = normalized.snapshot.program;
   if (program === null || program.revision !== 1) {
     throw new TypeError("sillyos.program_repository.create.invalid/snapshot/program/revision");
   }
-  return cloneProgramRepositoryAggregateV1({
-    schemaVersion: 1,
+  return cloneProgramRepositoryAggregateV2({
+    schemaVersion: 2,
     programId: program.programId,
     repositoryRevision: 1,
     updatedAt: normalized.updatedAt,
     snapshot: normalized.snapshot,
     programRevisions: [program],
     decisions: [],
+    agentRunReceipts: [],
   });
 }
 
@@ -746,12 +1051,12 @@ function hasPrefixV1<TValue>(
   return next.length >= previous.length && equalV1(next.slice(0, previous.length), previous);
 }
 
-export function applyProgramRepositoryRevisionV1(
-  currentValue: ProgramRepositoryAggregateV1,
-  inputValue: ProgramRepositoryApplyRevisionInputV1,
-): ProgramRepositoryCommitResultV1 {
-  const current = cloneProgramRepositoryAggregateV1(currentValue);
-  const input = normalizeProgramRepositoryApplyRevisionInputV1(inputValue);
+export function applyProgramRepositoryRevisionV2(
+  currentValue: ProgramRepositoryAggregateV2,
+  inputValue: ProgramRepositoryApplyRevisionInputV2,
+): ProgramRepositoryCommitResultV2 {
+  const current = cloneProgramRepositoryAggregateV2(currentValue);
+  const input = normalizeProgramRepositoryApplyRevisionInputV2(inputValue);
   const currentProgram = current.snapshot.program;
   const currentProposal = current.snapshot.proposal;
   const nextProgram = input.snapshot.program;
@@ -788,7 +1093,7 @@ export function applyProgramRepositoryRevisionV1(
     nextProposal.proposalId !== currentProposal.proposalId ||
     nextProposal.status !== "pending" || !isLogicalSuccessorV1(currentProgram, nextProgram)
   ) throw new TypeError("sillyos.program_repository.apply.invalid_transition");
-  const aggregate = cloneProgramRepositoryAggregateV1({
+  const aggregate = cloneProgramRepositoryAggregateV2({
     ...current,
     repositoryRevision: current.repositoryRevision + 1,
     updatedAt: input.updatedAt,
@@ -798,12 +1103,167 @@ export function applyProgramRepositoryRevisionV1(
   return { kind: "committed", aggregate };
 }
 
-export function applyProgramRepositoryDecisionV1(
-  currentValue: ProgramRepositoryAggregateV1,
-  inputValue: ProgramRepositoryDecideInputV1,
-): ProgramRepositoryCommitResultV1 {
-  const current = cloneProgramRepositoryAggregateV1(currentValue);
-  const input = normalizeProgramRepositoryDecideInputV1(inputValue);
+function agentRunReceiptMatchesTerminalV2(
+  aggregate: ProgramRepositoryAggregateV2,
+  receipt: ProgramAgentRunReceiptV2,
+  terminal: CreatorAgentTerminalRunV1,
+): boolean {
+  const userMessage = aggregate.snapshot.messages.find((message) =>
+    message.messageId === receipt.userMessageId
+  );
+  if (
+    aggregate.programId !== terminal.run.programId ||
+    receipt.agentRunId !== terminal.run.agentRunId ||
+    receipt.proposalId !== terminal.run.proposalId ||
+    receipt.baseProgramRevision !== terminal.run.baseProgramRevision ||
+    receipt.baseRepositoryRevision !== terminal.run.baseRepositoryRevision ||
+    receipt.outcome !== terminal.outcome || userMessage?.role !== "user" ||
+    userMessage.text !== terminal.run.text
+  ) return false;
+  if (terminal.outcome === "completed") {
+    const creatorMessage = aggregate.snapshot.messages.find((message) =>
+      message.messageId === receipt.creatorMessageId
+    );
+    const resultingProgram = receipt.resultingProgramRevision === null
+      ? undefined
+      : aggregate.programRevisions[receipt.resultingProgramRevision - 1];
+    return receipt.diagnosticCode === null &&
+      receipt.resultingProgramRevision === terminal.run.baseProgramRevision + 1 &&
+      creatorMessage?.role === "creator" &&
+      creatorMessage.text === terminal.finalAssistantReply &&
+      resultingProgram?.requirements.at(-1) === terminal.candidate.requirement;
+  }
+  if (receipt.creatorMessageId !== null || receipt.resultingProgramRevision !== null) return false;
+  return terminal.outcome === "failed"
+    ? receipt.diagnosticCode === terminal.diagnosticCode
+    : receipt.diagnosticCode === null;
+}
+
+function snapshotIsDurablePrefixV2(
+  current: ProgramRepositoryAggregateV2,
+  snapshot: CreatorSessionSnapshotV1,
+): boolean {
+  const program = snapshot.program;
+  return program !== null && equalV1(snapshot.workspace, current.snapshot.workspace) &&
+    hasPrefixV1(current.snapshot.messages, snapshot.messages) &&
+    hasPrefixV1(current.snapshot.activity, snapshot.activity) &&
+    equalV1(current.programRevisions[program.revision - 1], program);
+}
+
+export function applyProgramRepositoryAgentRunTerminalV2(
+  currentValue: ProgramRepositoryAggregateV2,
+  inputValue: ProgramRepositorySettleAgentRunInputV2,
+): ProgramRepositoryCommitResultV2 {
+  const current = cloneProgramRepositoryAggregateV2(currentValue);
+  const input = normalizeProgramRepositorySettleAgentRunInputV2(inputValue);
+  const { terminal } = input;
+  const { run } = terminal;
+  const existingReceipt = current.agentRunReceipts.find((receipt) =>
+    receipt.agentRunId === run.agentRunId
+  );
+  if (existingReceipt !== undefined) {
+    return agentRunReceiptMatchesTerminalV2(current, existingReceipt, terminal) &&
+        snapshotIsDurablePrefixV2(current, input.snapshot)
+      ? { kind: "unchanged", aggregate: current }
+      : { kind: "conflict", current };
+  }
+
+  const currentProgram = current.snapshot.program;
+  const currentProposal = current.snapshot.proposal;
+  const nextProgram = input.snapshot.program;
+  const nextProposal = input.snapshot.proposal;
+  if (currentProgram === null || currentProposal === null) {
+    throw new TypeError("invalid current Program aggregate");
+  }
+  if (
+    current.programId !== input.programId || run.programId !== input.programId ||
+    current.repositoryRevision !== input.expectedRepositoryRevision ||
+    run.baseRepositoryRevision > input.expectedRepositoryRevision ||
+    run.proposalId !== currentProposal.proposalId ||
+    run.baseProgramRevision !== currentProgram.revision ||
+    currentProposal.programRevision !== currentProgram.revision
+  ) return { kind: "conflict", current };
+
+  const messages = input.snapshot.messages;
+  const activity = input.snapshot.activity;
+  const appendedUserMessage = messages[current.snapshot.messages.length];
+  if (
+    input.updatedAt < current.updatedAt ||
+    input.snapshot.revision !== current.snapshot.revision + 1 ||
+    !equalV1(input.snapshot.workspace, current.snapshot.workspace) ||
+    !hasPrefixV1(messages, current.snapshot.messages) ||
+    !hasPrefixV1(activity, current.snapshot.activity) ||
+    appendedUserMessage?.role !== "user" || appendedUserMessage.text !== run.text
+  ) throw new TypeError("sillyos.program_repository.settle_agent_run.invalid_transition");
+
+  let creatorMessageId: string | null = null;
+  let resultingProgramRevision: number | null = null;
+  let diagnosticCode: CreatorAgentDiagnosticCodeV1 | null = null;
+  let programRevisions = current.programRevisions;
+  if (terminal.outcome === "completed") {
+    const appendedCreatorMessage = messages[current.snapshot.messages.length + 1];
+    const firstActivity = activity[current.snapshot.activity.length];
+    const secondActivity = activity[current.snapshot.activity.length + 1];
+    if (
+      messages.length !== current.snapshot.messages.length + 2 ||
+      activity.length !== current.snapshot.activity.length + 2 ||
+      appendedCreatorMessage?.role !== "creator" ||
+      appendedCreatorMessage.text !== terminal.finalAssistantReply ||
+      firstActivity?.kind !== "follow_up_submitted" ||
+      secondActivity?.kind !== "proposal_revised" || nextProgram === null ||
+      nextProposal === null || nextProposal.proposalId !== currentProposal.proposalId ||
+      nextProposal.status !== "pending" ||
+      !isLogicalSuccessorV1(currentProgram, nextProgram) ||
+      nextProgram.requirements.at(-1) !== terminal.candidate.requirement
+    ) throw new TypeError("sillyos.program_repository.settle_agent_run.invalid_transition");
+    creatorMessageId = appendedCreatorMessage.messageId;
+    resultingProgramRevision = nextProgram.revision;
+    programRevisions = [...current.programRevisions, nextProgram];
+  } else {
+    const expectedActivityKind = terminal.outcome === "failed"
+      ? "agent_run_failed"
+      : terminal.outcome === "cancelled"
+      ? "agent_run_cancelled"
+      : "agent_run_replaced";
+    const appendedActivity = activity[current.snapshot.activity.length];
+    if (
+      messages.length !== current.snapshot.messages.length + 1 ||
+      activity.length !== current.snapshot.activity.length + 1 ||
+      appendedActivity?.kind !== expectedActivityKind ||
+      !equalV1(nextProgram, currentProgram) || !equalV1(nextProposal, currentProposal)
+    ) throw new TypeError("sillyos.program_repository.settle_agent_run.invalid_transition");
+    diagnosticCode = terminal.outcome === "failed" ? terminal.diagnosticCode : null;
+  }
+
+  const receipt: ProgramAgentRunReceiptV2 = {
+    agentRunId: run.agentRunId,
+    sequence: current.agentRunReceipts.length + 1,
+    proposalId: run.proposalId,
+    userMessageId: appendedUserMessage.messageId,
+    creatorMessageId,
+    baseProgramRevision: run.baseProgramRevision,
+    baseRepositoryRevision: run.baseRepositoryRevision,
+    resultingProgramRevision,
+    outcome: terminal.outcome,
+    diagnosticCode,
+  };
+  const aggregate = cloneProgramRepositoryAggregateV2({
+    ...current,
+    repositoryRevision: current.repositoryRevision + 1,
+    updatedAt: input.updatedAt,
+    snapshot: input.snapshot,
+    programRevisions,
+    agentRunReceipts: [...current.agentRunReceipts, receipt],
+  });
+  return { kind: "committed", aggregate };
+}
+
+export function applyProgramRepositoryDecisionV2(
+  currentValue: ProgramRepositoryAggregateV2,
+  inputValue: ProgramRepositoryDecideInputV2,
+): ProgramRepositoryCommitResultV2 {
+  const current = cloneProgramRepositoryAggregateV2(currentValue);
+  const input = normalizeProgramRepositoryDecideInputV2(inputValue);
   const currentProposal = current.snapshot.proposal;
   const nextProposal = input.snapshot.proposal;
   if (currentProposal === null) throw new TypeError("invalid current Program aggregate");
@@ -840,7 +1300,7 @@ export function applyProgramRepositoryDecisionV1(
     nextProposal.status !== input.status
   ) throw new TypeError("sillyos.program_repository.decide.invalid_transition");
   const nextRepositoryRevision = current.repositoryRevision + 1;
-  const aggregate = cloneProgramRepositoryAggregateV1({
+  const aggregate = cloneProgramRepositoryAggregateV2({
     ...current,
     repositoryRevision: nextRepositoryRevision,
     updatedAt: input.updatedAt,
@@ -858,9 +1318,9 @@ export function applyProgramRepositoryDecisionV1(
   return { kind: "committed", aggregate };
 }
 
-export function admitProgramRepositorySummaryV1(
+export function admitProgramRepositorySummaryV2(
   value: unknown,
-): ProgramRepositoryAdmissionResultV1<ProgramRepositorySummaryV1> {
+): ProgramRepositoryAdmissionResultV2<ProgramRepositorySummaryV2> {
   const record = exactRecordV1(value, [
     "programId",
     "name",
@@ -897,12 +1357,12 @@ export function admitProgramRepositorySummaryV1(
   });
 }
 
-export function admitProgramRepositoryCommitResultV1(
+export function admitProgramRepositoryCommitResultV2(
   value: unknown,
-): ProgramRepositoryAdmissionResultV1<ProgramRepositoryCommitResultV1> {
+): ProgramRepositoryAdmissionResultV2<ProgramRepositoryCommitResultV2> {
   const base = exactRecordV1(value, ["kind", "aggregate"]);
   if (base !== null && (base.kind === "committed" || base.kind === "unchanged")) {
-    const aggregate = admitProgramRepositoryAggregateV1(base.aggregate);
+    const aggregate = admitProgramRepositoryAggregateV2(base.aggregate);
     return aggregate.kind === "rejected"
       ? rejectV1(`/aggregate${aggregate.path}`)
       : admittedV1({ kind: base.kind, aggregate: aggregate.value });
@@ -910,18 +1370,18 @@ export function admitProgramRepositoryCommitResultV1(
   const conflict = exactRecordV1(value, ["kind", "current"]);
   if (conflict === null || conflict.kind !== "conflict") return rejectV1("/");
   if (conflict.current === null) return admittedV1({ kind: "conflict", current: null });
-  const current = admitProgramRepositoryAggregateV1(conflict.current);
+  const current = admitProgramRepositoryAggregateV2(conflict.current);
   return current.kind === "rejected"
     ? rejectV1(`/current${current.path}`)
     : admittedV1({ kind: "conflict", current: current.value });
 }
 
-export function createProgramRepositoryFailureV1(
-  code: ProgramRepositoryFailureCodeV1,
-  operation: ProgramRepositoryOperationV1,
-): ProgramRepositoryFailureV1 {
-  const failure = new Error(`sillyos.program_repository.${code}`) as ProgramRepositoryFailureV1;
-  failure.name = "ProgramRepositoryFailureV1";
+export function createProgramRepositoryFailureV2(
+  code: ProgramRepositoryFailureCodeV2,
+  operation: ProgramRepositoryOperationV2,
+): ProgramRepositoryFailureV2 {
+  const failure = new Error(`sillyos.program_repository.${code}`) as ProgramRepositoryFailureV2;
+  failure.name = "ProgramRepositoryFailureV2";
   Object.defineProperties(failure, {
     code: { value: code, enumerable: true },
     operation: { value: operation, enumerable: true },
@@ -930,9 +1390,9 @@ export function createProgramRepositoryFailureV1(
   return failure;
 }
 
-export function isProgramRepositoryFailureV1(
+export function isProgramRepositoryFailureV2(
   value: unknown,
-): value is ProgramRepositoryFailureV1 {
-  return value instanceof Error && value.name === "ProgramRepositoryFailureV1" &&
-    typeof (value as Partial<ProgramRepositoryFailureV1>).code === "string";
+): value is ProgramRepositoryFailureV2 {
+  return value instanceof Error && value.name === "ProgramRepositoryFailureV2" &&
+    typeof (value as Partial<ProgramRepositoryFailureV2>).code === "string";
 }

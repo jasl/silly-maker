@@ -1,89 +1,96 @@
 // SPDX-License-Identifier: MIT
 
 import {
-  admitProgramRepositoryAggregateV1,
-  admitProgramRepositoryCommitResultV1,
-  admitProgramRepositorySummaryV1,
-  normalizeProgramRepositoryApplyRevisionInputV1,
-  normalizeProgramRepositoryCreateInputV1,
-  normalizeProgramRepositoryDecideInputV1,
-  normalizeProgramRepositoryProgramIdV1,
-  programRepositoryMaximumProgramsV1,
-  type ProgramRepositoryAdmissionResultV1,
-  type ProgramRepositoryApplyRevisionInputV1,
-  type ProgramRepositoryCommitResultV1,
-  type ProgramRepositoryCreateInputV1,
-  type ProgramRepositoryDecideInputV1,
-  type ProgramRepositoryFailureCodeV1,
-  type ProgramRepositoryOperationV1,
-  type ProgramRepositorySummaryV1,
-  type ProgramRepositoryAggregateV1,
+  admitProgramRepositoryAggregateV2,
+  admitProgramRepositoryCommitResultV2,
+  admitProgramRepositorySummaryV2,
+  normalizeProgramRepositoryApplyRevisionInputV2,
+  normalizeProgramRepositoryCreateInputV2,
+  normalizeProgramRepositoryDecideInputV2,
+  normalizeProgramRepositoryProgramIdV2,
+  normalizeProgramRepositorySettleAgentRunInputV2,
+  programRepositoryMaximumProgramsV2,
+  type ProgramRepositoryAdmissionResultV2,
+  type ProgramRepositoryApplyRevisionInputV2,
+  type ProgramRepositoryCommitResultV2,
+  type ProgramRepositoryCreateInputV2,
+  type ProgramRepositoryDecideInputV2,
+  type ProgramRepositorySettleAgentRunInputV2,
+  type ProgramRepositoryFailureCodeV2,
+  type ProgramRepositoryOperationV2,
+  type ProgramRepositorySummaryV2,
+  type ProgramRepositoryAggregateV2,
 } from "./program-repository.ts";
 
-export type ProgramRepositoryWorkerMethodV1 =
+export type ProgramRepositoryWorkerMethodV2 =
   | "initialize"
   | "list"
   | "load"
   | "create"
   | "apply_revision"
+  | "settle_agent_run"
   | "decide"
   | "dispose";
 
-export type ProgramRepositoryWorkerRequestV1 =
+export type ProgramRepositoryWorkerRequestV2 =
   | { readonly method: "initialize" }
   | { readonly method: "list" }
   | { readonly method: "load"; readonly programId: string }
-  | { readonly method: "create"; readonly input: ProgramRepositoryCreateInputV1 }
+  | { readonly method: "create"; readonly input: ProgramRepositoryCreateInputV2 }
   | {
     readonly method: "apply_revision";
-    readonly input: ProgramRepositoryApplyRevisionInputV1;
+    readonly input: ProgramRepositoryApplyRevisionInputV2;
   }
-  | { readonly method: "decide"; readonly input: ProgramRepositoryDecideInputV1 }
+  | {
+    readonly method: "settle_agent_run";
+    readonly input: ProgramRepositorySettleAgentRunInputV2;
+  }
+  | { readonly method: "decide"; readonly input: ProgramRepositoryDecideInputV2 }
   | { readonly method: "dispose" };
 
-export interface ProgramRepositoryWorkerRequestEnvelopeV1 {
-  readonly revision: 1;
+export interface ProgramRepositoryWorkerRequestEnvelopeV2 {
+  readonly revision: 2;
   readonly kind: "rpc_request";
   readonly requestId: string;
-  readonly record: ProgramRepositoryWorkerRequestV1;
+  readonly record: ProgramRepositoryWorkerRequestV2;
 }
 
-export type ProgramRepositoryWorkerSuccessV1 =
+export type ProgramRepositoryWorkerSuccessV2 =
   | { readonly kind: "success"; readonly method: "initialize"; readonly value: null }
   | {
     readonly kind: "success";
     readonly method: "list";
-    readonly value: readonly ProgramRepositorySummaryV1[];
+    readonly value: readonly ProgramRepositorySummaryV2[];
   }
   | {
     readonly kind: "success";
     readonly method: "load";
-    readonly value: ProgramRepositoryAggregateV1 | null;
+    readonly value: ProgramRepositoryAggregateV2 | null;
   }
   | {
     readonly kind: "success";
-    readonly method: "create" | "apply_revision" | "decide";
-    readonly value: ProgramRepositoryCommitResultV1;
+    readonly method: "create" | "apply_revision" | "settle_agent_run" | "decide";
+    readonly value: ProgramRepositoryCommitResultV2;
   }
   | { readonly kind: "success"; readonly method: "dispose"; readonly value: null };
 
-export interface ProgramRepositoryWorkerFailureV1 {
+export interface ProgramRepositoryWorkerFailureV2 {
   readonly kind: "failure";
-  readonly method: ProgramRepositoryWorkerMethodV1;
-  readonly code: ProgramRepositoryFailureCodeV1;
-  readonly operation: ProgramRepositoryOperationV1;
+  readonly method: ProgramRepositoryWorkerMethodV2;
+  readonly code: ProgramRepositoryFailureCodeV2;
+  readonly operation: ProgramRepositoryOperationV2;
 }
 
-export interface ProgramRepositoryWorkerResponseEnvelopeV1 {
-  readonly revision: 1;
+export interface ProgramRepositoryWorkerResponseEnvelopeV2 {
+  readonly revision: 2;
   readonly kind: "rpc_response";
   readonly requestId: string;
-  readonly record: ProgramRepositoryWorkerSuccessV1 | ProgramRepositoryWorkerFailureV1;
+  readonly record: ProgramRepositoryWorkerSuccessV2 | ProgramRepositoryWorkerFailureV2;
 }
 
-type ExactRecordV1 = Readonly<Record<string, unknown>>;
+type ExactRecordV2 = Readonly<Record<string, unknown>>;
 
-function exactRecordV1(value: unknown, keys: readonly string[]): ExactRecordV1 | null {
+function exactRecordV2(value: unknown, keys: readonly string[]): ExactRecordV2 | null {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
   try {
     const prototype = Object.getPrototypeOf(value);
@@ -108,161 +115,167 @@ function exactRecordV1(value: unknown, keys: readonly string[]): ExactRecordV1 |
   }
 }
 
-function rejectedV1<TValue>(path: string): ProgramRepositoryAdmissionResultV1<TValue> {
+function rejectedV2<TValue>(path: string): ProgramRepositoryAdmissionResultV2<TValue> {
   return { kind: "rejected", path };
 }
 
-function admittedV1<TValue>(value: TValue): ProgramRepositoryAdmissionResultV1<TValue> {
+function admittedV2<TValue>(value: TValue): ProgramRepositoryAdmissionResultV2<TValue> {
   return { kind: "admitted", value };
 }
 
-function requestIdV1(value: unknown): value is string {
+function requestIdV2(value: unknown): value is string {
   return typeof value === "string" && /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u.test(value);
 }
 
-function failureCodeV1(value: unknown): value is ProgramRepositoryFailureCodeV1 {
+function failureCodeV2(value: unknown): value is ProgramRepositoryFailureCodeV2 {
   return value === "unavailable" || value === "database_newer" || value === "upgrade_blocked" ||
     value === "quota_exceeded" || value === "transaction_aborted" ||
     value === "request_failed" || value === "schema_invalid" || value === "disposed" ||
     value === "wire_invalid" || value === "outcome_unknown";
 }
 
-export function operationForProgramRepositoryWorkerMethodV1(
-  method: ProgramRepositoryWorkerMethodV1,
-): ProgramRepositoryOperationV1 {
+export function operationForProgramRepositoryWorkerMethodV2(
+  method: ProgramRepositoryWorkerMethodV2,
+): ProgramRepositoryOperationV2 {
   return method;
 }
 
-function admitRequestRecordV1(
+function admitRequestRecordV2(
   value: unknown,
-): ProgramRepositoryAdmissionResultV1<ProgramRepositoryWorkerRequestV1> {
-  const unit = exactRecordV1(value, ["method"]);
+): ProgramRepositoryAdmissionResultV2<ProgramRepositoryWorkerRequestV2> {
+  const unit = exactRecordV2(value, ["method"]);
   if (
     unit !== null &&
     (unit.method === "initialize" || unit.method === "list" || unit.method === "dispose")
   ) {
-    return admittedV1({ method: unit.method });
+    return admittedV2({ method: unit.method });
   }
-  const load = exactRecordV1(value, ["method", "programId"]);
+  const load = exactRecordV2(value, ["method", "programId"]);
   if (load !== null && load.method === "load") {
     try {
-      return admittedV1({
+      return admittedV2({
         method: "load",
-        programId: normalizeProgramRepositoryProgramIdV1(load.programId),
+        programId: normalizeProgramRepositoryProgramIdV2(load.programId),
       });
     } catch {
-      return rejectedV1("/record/programId");
+      return rejectedV2("/record/programId");
     }
   }
-  const call = exactRecordV1(value, ["method", "input"]);
-  if (call === null) return rejectedV1("/record");
+  const call = exactRecordV2(value, ["method", "input"]);
+  if (call === null) return rejectedV2("/record");
   try {
     if (call.method === "create") {
-      return admittedV1({
+      return admittedV2({
         method: "create",
-        input: normalizeProgramRepositoryCreateInputV1(call.input),
+        input: normalizeProgramRepositoryCreateInputV2(call.input),
       });
     }
     if (call.method === "apply_revision") {
-      return admittedV1({
+      return admittedV2({
         method: "apply_revision",
-        input: normalizeProgramRepositoryApplyRevisionInputV1(call.input),
+        input: normalizeProgramRepositoryApplyRevisionInputV2(call.input),
+      });
+    }
+    if (call.method === "settle_agent_run") {
+      return admittedV2({
+        method: "settle_agent_run",
+        input: normalizeProgramRepositorySettleAgentRunInputV2(call.input),
       });
     }
     if (call.method === "decide") {
-      return admittedV1({
+      return admittedV2({
         method: "decide",
-        input: normalizeProgramRepositoryDecideInputV1(call.input),
+        input: normalizeProgramRepositoryDecideInputV2(call.input),
       });
     }
   } catch {
-    return rejectedV1("/record/input");
+    return rejectedV2("/record/input");
   }
-  return rejectedV1("/record/method");
+  return rejectedV2("/record/method");
 }
 
-export function admitProgramRepositoryWorkerRequestEnvelopeV1(
+export function admitProgramRepositoryWorkerRequestEnvelopeV2(
   value: unknown,
-): ProgramRepositoryAdmissionResultV1<ProgramRepositoryWorkerRequestEnvelopeV1> {
-  const envelope = exactRecordV1(value, ["revision", "kind", "requestId", "record"]);
-  if (envelope === null) return rejectedV1("/");
-  if (envelope.revision !== 1) return rejectedV1("/revision");
-  if (envelope.kind !== "rpc_request") return rejectedV1("/kind");
-  if (!requestIdV1(envelope.requestId)) return rejectedV1("/requestId");
-  const record = admitRequestRecordV1(envelope.record);
+): ProgramRepositoryAdmissionResultV2<ProgramRepositoryWorkerRequestEnvelopeV2> {
+  const envelope = exactRecordV2(value, ["revision", "kind", "requestId", "record"]);
+  if (envelope === null) return rejectedV2("/");
+  if (envelope.revision !== 2) return rejectedV2("/revision");
+  if (envelope.kind !== "rpc_request") return rejectedV2("/kind");
+  if (!requestIdV2(envelope.requestId)) return rejectedV2("/requestId");
+  const record = admitRequestRecordV2(envelope.record);
   if (record.kind === "rejected") return record;
-  return admittedV1({
-    revision: 1,
+  return admittedV2({
+    revision: 2,
     kind: "rpc_request",
     requestId: envelope.requestId,
     record: record.value,
   });
 }
 
-function admitSuccessValueV1(
-  method: ProgramRepositoryWorkerMethodV1,
+function admitSuccessValueV2(
+  method: ProgramRepositoryWorkerMethodV2,
   value: unknown,
-): ProgramRepositoryAdmissionResultV1<ProgramRepositoryWorkerSuccessV1> {
+): ProgramRepositoryAdmissionResultV2<ProgramRepositoryWorkerSuccessV2> {
   if (method === "initialize" || method === "dispose") {
     return value === null
-      ? admittedV1({ kind: "success", method, value: null })
-      : rejectedV1("/record/value");
+      ? admittedV2({ kind: "success", method, value: null })
+      : rejectedV2("/record/value");
   }
   if (method === "list") {
-    if (!Array.isArray(value) || value.length > programRepositoryMaximumProgramsV1) {
-      return rejectedV1("/record/value");
+    if (!Array.isArray(value) || value.length > programRepositoryMaximumProgramsV2) {
+      return rejectedV2("/record/value");
     }
-    const summaries: ProgramRepositorySummaryV1[] = [];
+    const summaries: ProgramRepositorySummaryV2[] = [];
     for (let index = 0; index < value.length; index += 1) {
-      const summary = admitProgramRepositorySummaryV1(value[index]);
+      const summary = admitProgramRepositorySummaryV2(value[index]);
       if (summary.kind === "rejected") {
-        return rejectedV1(`/record/value/${String(index)}${summary.path}`);
+        return rejectedV2(`/record/value/${String(index)}${summary.path}`);
       }
       summaries.push(summary.value);
     }
-    return admittedV1({ kind: "success", method: "list", value: summaries });
+    return admittedV2({ kind: "success", method: "list", value: summaries });
   }
   if (method === "load") {
-    if (value === null) return admittedV1({ kind: "success", method: "load", value: null });
-    const aggregate = admitProgramRepositoryAggregateV1(value);
+    if (value === null) return admittedV2({ kind: "success", method: "load", value: null });
+    const aggregate = admitProgramRepositoryAggregateV2(value);
     return aggregate.kind === "rejected"
-      ? rejectedV1(`/record/value${aggregate.path}`)
-      : admittedV1({ kind: "success", method: "load", value: aggregate.value });
+      ? rejectedV2(`/record/value${aggregate.path}`)
+      : admittedV2({ kind: "success", method: "load", value: aggregate.value });
   }
-  const result = admitProgramRepositoryCommitResultV1(value);
-  if (result.kind === "rejected") return rejectedV1(`/record/value${result.path}`);
-  return admittedV1({ kind: "success", method, value: result.value });
+  const result = admitProgramRepositoryCommitResultV2(value);
+  if (result.kind === "rejected") return rejectedV2(`/record/value${result.path}`);
+  return admittedV2({ kind: "success", method, value: result.value });
 }
 
-export function admitProgramRepositoryWorkerResponseEnvelopeV1(
+export function admitProgramRepositoryWorkerResponseEnvelopeV2(
   value: unknown,
-  expectedMethod: ProgramRepositoryWorkerMethodV1,
-): ProgramRepositoryAdmissionResultV1<ProgramRepositoryWorkerResponseEnvelopeV1> {
-  const envelope = exactRecordV1(value, ["revision", "kind", "requestId", "record"]);
-  if (envelope === null) return rejectedV1("/");
-  if (envelope.revision !== 1) return rejectedV1("/revision");
-  if (envelope.kind !== "rpc_response") return rejectedV1("/kind");
-  if (!requestIdV1(envelope.requestId)) return rejectedV1("/requestId");
-  const success = exactRecordV1(envelope.record, ["kind", "method", "value"]);
+  expectedMethod: ProgramRepositoryWorkerMethodV2,
+): ProgramRepositoryAdmissionResultV2<ProgramRepositoryWorkerResponseEnvelopeV2> {
+  const envelope = exactRecordV2(value, ["revision", "kind", "requestId", "record"]);
+  if (envelope === null) return rejectedV2("/");
+  if (envelope.revision !== 2) return rejectedV2("/revision");
+  if (envelope.kind !== "rpc_response") return rejectedV2("/kind");
+  if (!requestIdV2(envelope.requestId)) return rejectedV2("/requestId");
+  const success = exactRecordV2(envelope.record, ["kind", "method", "value"]);
   if (success !== null && success.kind === "success") {
-    if (success.method !== expectedMethod) return rejectedV1("/record/method");
-    const admitted = admitSuccessValueV1(expectedMethod, success.value);
+    if (success.method !== expectedMethod) return rejectedV2("/record/method");
+    const admitted = admitSuccessValueV2(expectedMethod, success.value);
     if (admitted.kind === "rejected") return admitted;
-    return admittedV1({
-      revision: 1,
+    return admittedV2({
+      revision: 2,
       kind: "rpc_response",
       requestId: envelope.requestId,
       record: admitted.value,
     });
   }
-  const failure = exactRecordV1(envelope.record, ["kind", "method", "code", "operation"]);
-  const operation = operationForProgramRepositoryWorkerMethodV1(expectedMethod);
+  const failure = exactRecordV2(envelope.record, ["kind", "method", "code", "operation"]);
+  const operation = operationForProgramRepositoryWorkerMethodV2(expectedMethod);
   if (
     failure === null || failure.kind !== "failure" || failure.method !== expectedMethod ||
-    !failureCodeV1(failure.code) || failure.operation !== operation
-  ) return rejectedV1("/record");
-  return admittedV1({
-    revision: 1,
+    !failureCodeV2(failure.code) || failure.operation !== operation
+  ) return rejectedV2("/record");
+  return admittedV2({
+    revision: 2,
     kind: "rpc_response",
     requestId: envelope.requestId,
     record: {

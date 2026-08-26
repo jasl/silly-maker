@@ -4,7 +4,6 @@ import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } fro
 
 import type { BrowserPiWorkerRuntimeV1 } from "../agent/browser-pi-worker-protocol.ts";
 import { getSillyOsCopyV1, resolveSillyOsCopyV1, type SillyOsLocaleV1 } from "../content/copy.ts";
-import type { CreatorAgentSubmitV1 } from "../product/contracts.ts";
 import type {
   CreatorControllerV1,
   CreatorDurabilityStateV1,
@@ -75,7 +74,7 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
   >(null);
   const agentPortRef = useRef<BrowserCreatorAgentPortV1 | null>(null);
   const agentSetupEpochRef = useRef(0);
-  const claimedRunIdRef = useRef<string | null>(null);
+  const claimedTerminalRunIdsRef = useRef(new Set<string>());
   const controllerSnapshot = useSyncExternalStore(
     controller.subscribe,
     controller.getSnapshot,
@@ -121,22 +120,26 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
   }, [agentPort]);
 
   useEffect(() => {
-    const current = agentSnapshot;
+    const port = agentPortRef.current;
+    const terminal = agentSnapshot?.terminalRuns[0];
     if (
-      current?.phase !== "completed" || current.activeRunId === null ||
-      current.candidate === null || claimedRunIdRef.current === current.activeRunId
+      port === null || terminal === undefined || durability.phase === "saving" ||
+      durability.phase === "reconciling" ||
+      claimedTerminalRunIdsRef.current.has(terminal.run.agentRunId)
     ) return;
-    const operation = controller.applyProgramRevisionCandidate({
-      candidate: current.candidate,
-      finalAssistantReply: current.draft,
-    });
-    claimedRunIdRef.current = current.activeRunId;
-    void operation.then((result) => {
+    claimedTerminalRunIdsRef.current.add(terminal.run.agentRunId);
+    void controller.recordAgentRunTerminal(terminal).then((result) => {
+      if (result.kind === "busy") {
+        claimedTerminalRunIdsRef.current.delete(terminal.run.agentRunId);
+        return;
+      }
+      port.acknowledgeTerminal(terminal.run.agentRunId);
+      claimedTerminalRunIdsRef.current.delete(terminal.run.agentRunId);
       if (result.kind !== "completed" || result.value.kind !== "applied") {
-        reportFailure("silly_os.browser_pi_candidate_rejected", result);
+        reportFailure("silly_os.browser_pi_terminal_rejected", result);
       }
     });
-  }, [agentSnapshot, controller, reportFailure]);
+  }, [agentSnapshot, controller, durability.phase, reportFailure]);
 
   useEffect(() => {
     return () => {
@@ -177,7 +180,7 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
     const predecessor = agentPortRef.current;
     agentPortRef.current = port;
     setAgentPort(port);
-    claimedRunIdRef.current = null;
+    claimedTerminalRunIdsRef.current.clear();
     if (predecessor !== null) void predecessor.dispose();
     void port.initialize().then((result) => {
       if (agentSetupEpochRef.current !== epoch || agentPortRef.current !== port) return;
@@ -196,7 +199,7 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
     agentPortRef.current = null;
     setAgentPort(null);
     setAgentSnapshot(null);
-    claimedRunIdRef.current = null;
+    claimedTerminalRunIdsRef.current.clear();
     setPiAgentSetupStatus(agentFactoryRef.current === null ? "loading" : "available");
     if (current !== null) void current.forget();
   };
@@ -209,28 +212,23 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
       return false;
     }
     const port = agentPortRef.current;
-    const current = controller.getSnapshot().session;
-    const proposal = current.proposal;
-    const program = current.program;
-    if (
-      port === null || piAgentSetupStatus !== "ready" || proposal === null || program === null ||
-      proposal.programRevision !== program.revision
-    ) {
+    if (port === null || piAgentSetupStatus !== "ready") {
       reportFailure("silly_os.browser_pi_unavailable", "initialize_required");
       return false;
     }
-    const input: CreatorAgentSubmitV1 = {
-      revision: 1,
-      proposalId: proposal.proposalId,
-      programId: program.programId,
-      baseProgramRevision: program.revision,
-      text,
-    };
-    const result = await port.submit(input);
+    const prepared = controller.prepareAgentRun(text);
+    if (prepared.kind !== "completed" || prepared.value.kind !== "prepared") {
+      reportFailure("silly_os.browser_pi_submit_rejected", prepared);
+      return false;
+    }
+    const result = await port.submit(prepared.value.run);
     if (result.kind === "submitted") return true;
     reportFailure("silly_os.browser_pi_submit_failed", result.diagnostic);
     return false;
   };
+
+  const agentMutationPending = agentSnapshot?.phase === "running" ||
+    (agentSnapshot?.terminalRuns.length ?? 0) > 0;
 
   return (
     <div
@@ -297,7 +295,8 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
             key={snapshot.workspace?.workspaceId}
             copy={copy}
             snapshot={snapshot}
-            mutationPending={durability.phase === "saving" || durability.phase === "reconciling"}
+            mutationPending={durability.phase === "saving" ||
+              durability.phase === "reconciling" || agentMutationPending}
             onHome={() => controller.openHome()}
             onLocaleChange={changeLocaleV1}
             onAccept={() => {
@@ -339,8 +338,9 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
                 diagnosticPath: agentSnapshot.diagnostic?.path ?? null,
                 onCancel: () => {
                   const current = agentPortRef.current;
-                  if (current === null) return;
-                  void current.cancel().then((result) => {
+                  const activeRunId = agentSnapshot.activeRunId;
+                  if (current === null || activeRunId === null) return;
+                  void current.cancel(activeRunId).then((result) => {
                     if (result.kind === "unavailable") {
                       reportFailure("silly_os.browser_pi_cancel_failed", result.diagnostic);
                     }

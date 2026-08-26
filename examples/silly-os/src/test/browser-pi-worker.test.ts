@@ -14,7 +14,7 @@ import { createBrowserPiWorkerRuntimeV1 } from "../agent/browser-pi-worker-runti
 import type { BrowserPiWorkerOutboundMessageV1 } from "../agent/browser-pi-worker-protocol.ts";
 import { createBrowserCreatorAgentPortV1 } from "../agent/creator-agent-port.ts";
 import { serializeCreatorAgentSubmitV1 } from "../product/creator-agent-admission.ts";
-import type { CreatorAgentSubmitV1 } from "../product/contracts.ts";
+import type { CreatorAgentRunRequestV1, CreatorAgentSubmitV1 } from "../product/contracts.ts";
 
 const submitV1: CreatorAgentSubmitV1 = {
   revision: 1,
@@ -23,6 +23,20 @@ const submitV1: CreatorAgentSubmitV1 = {
   baseProgramRevision: 1,
   text: "Make review explicit.",
 };
+
+function productRunV1(
+  overrides: Partial<CreatorAgentRunRequestV1> = {},
+): CreatorAgentRunRequestV1 {
+  return {
+    agentRunId: "agent.run.product.1",
+    proposalId: submitV1.proposalId,
+    programId: submitV1.programId,
+    baseProgramRevision: submitV1.baseProgramRevision,
+    baseRepositoryRevision: 1,
+    text: submitV1.text,
+    ...overrides,
+  };
+}
 
 async function waitUntilV1(predicate: () => boolean): Promise<void> {
   for (let attempt = 0; attempt < 200; attempt += 1) {
@@ -125,6 +139,162 @@ class RuntimeMismatchBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
         });
       }
     });
+  }
+
+  addEventListener(
+    type: "message" | "error",
+    listener: ((event: { readonly data: unknown }) => void) | ((event: unknown) => void),
+  ): void {
+    if (type === "message") {
+      this.messageListeners.add(listener as (event: { readonly data: unknown }) => void);
+    } else {
+      this.errorListeners.add(listener as (event: unknown) => void);
+    }
+  }
+
+  removeEventListener(
+    type: "message" | "error",
+    listener: ((event: { readonly data: unknown }) => void) | ((event: unknown) => void),
+  ): void {
+    if (type === "message") {
+      this.messageListeners.delete(listener as (event: { readonly data: unknown }) => void);
+    } else {
+      this.errorListeners.delete(listener as (event: unknown) => void);
+    }
+  }
+
+  terminate(): void {
+    this.terminated = true;
+    this.messageListeners.clear();
+    this.errorListeners.clear();
+  }
+}
+
+/** Minimal controllable Worker used only to drive product-terminal edge cases. */
+class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
+  terminated = false;
+  latestPiRunId: string | null = null;
+  private readonly messageListeners = new Set<(event: { readonly data: unknown }) => void>();
+  private readonly errorListeners = new Set<(event: unknown) => void>();
+  private nextPiRunOrdinal = 1;
+
+  private emit(message: unknown): void {
+    const data = structuredClone(message);
+    for (const listener of [...this.messageListeners]) listener({ data });
+  }
+
+  postMessage(message: unknown): void {
+    if (this.terminated) throw new Error("Worker is terminated");
+    const envelope = structuredClone(message) as Readonly<Record<string, unknown>>;
+    if (envelope.kind === "initialize") {
+      this.emit({
+        revision: 1,
+        kind: "ready",
+        requestId: envelope.requestId,
+        runtime: envelope.runtime,
+        distribution: browserPiDistributionIdentityV1,
+      });
+      return;
+    }
+    const record = envelope.record as Readonly<Record<string, unknown>>;
+    if (record.method === "start") {
+      this.emit({
+        revision: 1,
+        kind: "rpc_response",
+        requestId: envelope.requestId,
+        ok: true,
+        response: { kind: "started", sessionId: "controlled.session.1" },
+      });
+      return;
+    }
+    if (record.method === "submit") {
+      this.latestPiRunId = `controlled.run.${String(this.nextPiRunOrdinal++)}`;
+      this.emit({
+        revision: 1,
+        kind: "rpc_response",
+        requestId: envelope.requestId,
+        ok: true,
+        response: { kind: "submitted", runId: this.latestPiRunId },
+      });
+      return;
+    }
+    if (record.method === "cancel") {
+      this.emit({
+        revision: 1,
+        kind: "rpc_response",
+        requestId: envelope.requestId,
+        ok: true,
+        response: { kind: "cancel_requested" },
+      });
+    }
+  }
+
+  emitRunFailure(
+    code: "cancelled" | "pi_failed",
+    piRunId: string = this.latestPiRunId ?? "",
+  ): void {
+    this.emit({
+      revision: 1,
+      kind: "rpc_record",
+      record: {
+        kind: "run_failed",
+        code,
+        sessionId: "controlled.session.1",
+        runId: piRunId,
+        sequence: 1,
+      },
+    });
+  }
+
+  emitCompleted(run: CreatorAgentRunRequestV1, text: string): void {
+    const runId = this.latestPiRunId ?? "";
+    const records = [
+      { kind: "artifact_chunk", text },
+      {
+        kind: "artifact_complete",
+        candidate: {
+          revision: 1,
+          proposalId: run.proposalId,
+          programId: run.programId,
+          baseProgramRevision: run.baseProgramRevision,
+          text: run.text,
+          requirement: run.text,
+        },
+      },
+      { kind: "run_completed" },
+    ];
+    records.forEach((record, index) => {
+      this.emit({
+        revision: 1,
+        kind: "rpc_record",
+        record: {
+          ...record,
+          sessionId: "controlled.session.1",
+          runId,
+          sequence: index + 1,
+        },
+      });
+    });
+  }
+
+  emitArtifactChunks(
+    count: number,
+    firstSequence: number,
+    piRunId: string = this.latestPiRunId ?? "",
+  ): void {
+    for (let index = 0; index < count; index += 1) {
+      this.emit({
+        revision: 1,
+        kind: "rpc_record",
+        record: {
+          kind: "artifact_chunk",
+          text: "late",
+          sessionId: "controlled.session.1",
+          runId: piRunId,
+          sequence: firstSequence + index,
+        },
+      });
+    }
   }
 
   addEventListener(
@@ -495,7 +665,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     expect((worker as unknown as InMemoryBrowserPiWorkerV1).terminated).toBe(true);
   });
 
-  it("exposes only product state and retains the latest concurrent run candidate", async () => {
+  it("publishes one completed product terminal without exposing Pi identities", async () => {
     let worker: InMemoryBrowserPiWorkerV1 | null = null;
     const port = createBrowserCreatorAgentPortV1({
       apiKey: "sentinel-browser-key",
@@ -508,30 +678,49 @@ describe("SillyOS Browser Pi transport and product port", () => {
     expect(port.getSnapshot()).toMatchObject({
       phase: "uninitialized",
       distribution: browserPiDistributionIdentityV1,
+      terminalRuns: [],
     });
     await expect(port.initialize()).resolves.toEqual({ kind: "ready" });
 
-    const first = port.submit(submitV1);
-    const latestSubmit: CreatorAgentSubmitV1 = {
-      ...submitV1,
-      proposalId: "workspace.preview.1.proposal.latest",
-      text: "Keep only the latest candidate.",
-    };
-    const latest = port.submit(latestSubmit);
-    await expect(first).resolves.toMatchObject({ kind: "submitted" });
-    await expect(latest).resolves.toMatchObject({ kind: "submitted" });
-    await waitUntilV1(() => port.getSnapshot().phase === "completed");
-
-    expect(port.getSnapshot()).toMatchObject({
-      phase: "completed",
-      activeRunId: "sillyos.run.2",
-      draft: "Deterministic test proposal ready.",
-      candidate: {
-        ...latestSubmit,
-        requirement: latestSubmit.text,
-      },
-      diagnostic: null,
+    let survivingObserverCalls = 0;
+    port.subscribe(() => {
+      throw new Error("terminal observer failure must remain observational");
     });
+    port.subscribe(() => {
+      survivingObserverCalls += 1;
+    });
+    const run = productRunV1();
+    await expect(port.submit(run)).resolves.toEqual({
+      kind: "submitted",
+      agentRunId: run.agentRunId,
+    });
+    await waitUntilV1(() => port.getSnapshot().terminalRuns.length === 1);
+
+    const terminal = port.getSnapshot().terminalRuns[0];
+    expect(terminal).toEqual({
+      run,
+      outcome: "completed",
+      candidate: {
+        revision: 1,
+        proposalId: run.proposalId,
+        programId: run.programId,
+        baseProgramRevision: run.baseProgramRevision,
+        text: run.text,
+        requirement: run.text,
+      },
+      finalAssistantReply: "Deterministic test proposal ready.",
+    });
+    expect(port.getSnapshot().terminalRuns.filter(({ outcome }) => outcome === "completed"))
+      .toHaveLength(1);
+    expect(JSON.stringify(terminal)).not.toContain("sillyos.session.");
+    expect(JSON.stringify(terminal)).not.toContain("sillyos.run.");
+    expect(JSON.stringify(terminal)).not.toContain('"sessionId"');
+    expect(JSON.stringify(terminal)).not.toContain('"runId"');
+    expect(survivingObserverCalls).toBeGreaterThan(0);
+
+    expect(port.acknowledgeTerminal(run.agentRunId)).toBe(true);
+    expect(port.getSnapshot()).toMatchObject({ phase: "ready", terminalRuns: [] });
+    expect(port.acknowledgeTerminal(run.agentRunId)).toBe(false);
     await port.forget();
     expect(port.getSnapshot()).toMatchObject({
       phase: "forgotten",
@@ -540,5 +729,156 @@ describe("SillyOS Browser Pi transport and product port", () => {
       candidate: null,
     });
     expect((worker as unknown as InMemoryBrowserPiWorkerV1).terminated).toBe(true);
+  });
+
+  it("retains a predecessor replacement after the latest run becomes current", async () => {
+    const port = createBrowserCreatorAgentPortV1({
+      apiKey: "sentinel-browser-key",
+      runtime: "deterministic_test",
+      workerFactory: () => new InMemoryBrowserPiWorkerV1(),
+    });
+    await expect(port.initialize()).resolves.toEqual({ kind: "ready" });
+    const firstRun = productRunV1({ agentRunId: "agent.run.replaced" });
+    const latestRun = productRunV1({
+      agentRunId: "agent.run.latest",
+      proposalId: "workspace.preview.1.proposal.latest",
+      text: "Keep only the latest candidate.",
+    });
+
+    const first = port.submit(firstRun);
+    const latest = port.submit(latestRun);
+    await expect(first).resolves.toEqual({
+      kind: "submitted",
+      agentRunId: firstRun.agentRunId,
+    });
+    await expect(latest).resolves.toEqual({
+      kind: "submitted",
+      agentRunId: latestRun.agentRunId,
+    });
+    await waitUntilV1(() => port.getSnapshot().terminalRuns.length === 2);
+
+    const terminals = port.getSnapshot().terminalRuns;
+    expect(terminals).toHaveLength(2);
+    expect(terminals.filter(({ run }) => run.agentRunId === firstRun.agentRunId)).toEqual([{
+      run: firstRun,
+      outcome: "replaced",
+    }]);
+    expect(terminals.filter(({ run }) => run.agentRunId === latestRun.agentRunId)).toEqual([{
+      run: latestRun,
+      outcome: "completed",
+      candidate: {
+        revision: 1,
+        proposalId: latestRun.proposalId,
+        programId: latestRun.programId,
+        baseProgramRevision: latestRun.baseProgramRevision,
+        text: latestRun.text,
+        requirement: latestRun.text,
+      },
+      finalAssistantReply: "Deterministic test proposal ready.",
+    }]);
+    expect(terminals.filter(({ outcome }) => outcome === "replaced")).toHaveLength(1);
+    expect(terminals.filter(({ outcome }) => outcome === "completed")).toHaveLength(1);
+    expect(JSON.stringify(terminals)).not.toContain('"sessionId"');
+    expect(JSON.stringify(terminals)).not.toContain('"runId"');
+
+    expect(port.acknowledgeTerminal(firstRun.agentRunId)).toBe(true);
+    expect(port.getSnapshot().terminalRuns.map(({ run }) => run.agentRunId)).toEqual([
+      latestRun.agentRunId,
+    ]);
+    expect(port.acknowledgeTerminal(latestRun.agentRunId)).toBe(true);
+    expect(port.getSnapshot().terminalRuns).toEqual([]);
+    await port.dispose();
+  });
+
+  it("maps an authoritative remote failure exactly once", async () => {
+    const worker = new ControllableBrowserPiWorkerV1();
+    const port = createBrowserCreatorAgentPortV1({
+      apiKey: "sentinel-browser-key",
+      runtime: "deterministic_test",
+      workerFactory: () => worker,
+    });
+    const run = productRunV1({ agentRunId: "agent.run.failed" });
+    await expect(port.submit(run)).resolves.toEqual({
+      kind: "submitted",
+      agentRunId: run.agentRunId,
+    });
+    const piRunId = worker.latestPiRunId;
+    if (piRunId === null) throw new Error("expected a transient Pi run id");
+
+    worker.emitRunFailure("pi_failed", piRunId);
+    worker.emitRunFailure("pi_failed", piRunId);
+    await waitUntilV1(() => port.getSnapshot().terminalRuns.length === 1);
+
+    expect(port.getSnapshot().terminalRuns).toEqual([{
+      run,
+      outcome: "failed",
+      diagnosticCode: "run_failed",
+    }]);
+    expect(JSON.stringify(port.getSnapshot().terminalRuns)).not.toContain(piRunId);
+    expect(JSON.stringify(port.getSnapshot().terminalRuns)).not.toContain("controlled.session.1");
+    expect(port.acknowledgeTerminal(run.agentRunId)).toBe(true);
+    await port.dispose();
+  });
+
+  it("projects a whitespace-only completed reply as one failed terminal", async () => {
+    const worker = new ControllableBrowserPiWorkerV1();
+    const port = createBrowserCreatorAgentPortV1({
+      apiKey: "sentinel-browser-key",
+      runtime: "deterministic_test",
+      workerFactory: () => worker,
+    });
+    const run = productRunV1({ agentRunId: "agent.run.whitespace" });
+    await expect(port.submit(run)).resolves.toEqual({
+      kind: "submitted",
+      agentRunId: run.agentRunId,
+    });
+
+    worker.emitCompleted(run, "   ");
+    await waitUntilV1(() => port.getSnapshot().terminalRuns.length === 1);
+
+    expect(port.getSnapshot().terminalRuns).toEqual([{
+      run,
+      outcome: "failed",
+      diagnosticCode: "protocol_invalid",
+    }]);
+    expect(port.getSnapshot().phase).toBe("failed");
+    expect(port.acknowledgeTerminal(run.agentRunId)).toBe(true);
+    await port.dispose();
+  });
+
+  it("keeps cancel requested non-terminal until the Worker emits cancelled", async () => {
+    const worker = new ControllableBrowserPiWorkerV1();
+    const port = createBrowserCreatorAgentPortV1({
+      apiKey: "sentinel-browser-key",
+      runtime: "deterministic_test",
+      workerFactory: () => worker,
+    });
+    const run = productRunV1({ agentRunId: "agent.run.cancelled" });
+    await expect(port.submit(run)).resolves.toEqual({
+      kind: "submitted",
+      agentRunId: run.agentRunId,
+    });
+    const piRunId = worker.latestPiRunId;
+    if (piRunId === null) throw new Error("expected a transient Pi run id");
+
+    await expect(port.cancel(run.agentRunId)).resolves.toEqual({ kind: "cancel_requested" });
+    expect(port.getSnapshot()).toMatchObject({
+      phase: "running",
+      activeRunId: run.agentRunId,
+      terminalRuns: [],
+    });
+
+    worker.emitRunFailure("cancelled", piRunId);
+    await waitUntilV1(() => port.getSnapshot().terminalRuns.length === 1);
+    expect(port.getSnapshot().terminalRuns).toEqual([{ run, outcome: "cancelled" }]);
+    expect(port.getSnapshot().terminalRuns.filter(({ outcome }) => outcome === "cancelled"))
+      .toHaveLength(1);
+    expect(JSON.stringify(port.getSnapshot().terminalRuns)).not.toContain(piRunId);
+    expect(JSON.stringify(port.getSnapshot().terminalRuns)).not.toContain("controlled.session.1");
+    expect(port.acknowledgeTerminal(run.agentRunId)).toBe(true);
+    expect(port.acknowledgeTerminal(run.agentRunId)).toBe(false);
+    worker.emitArtifactChunks(2_049, 2, piRunId);
+    expect(port.getSnapshot()).toMatchObject({ phase: "ready", terminalRuns: [] });
+    await port.dispose();
   });
 });

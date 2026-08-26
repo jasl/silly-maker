@@ -3,9 +3,13 @@
 import {
   creatorAgentFinalReplyMaximumCharactersV1,
   creatorAgentTextMaximumCharactersV1,
+  type CreatorAgentDiagnosticCodeV1,
+  type CreatorAgentRunRequestV1,
+  type CreatorAgentTerminalApplyResultV1,
   type CreatorActivityV1,
   type CreatorFollowUpResultV1,
   type CreatorPreviewPortV1,
+  type CreatorProgramRevisionCandidateV1,
   type CreatorProgramRevisionApplyResultV1,
   type CreatorProposalDecisionResultV1,
   type CreatorSessionSnapshotV1,
@@ -18,6 +22,165 @@ import { admitCreatorProgramRevisionCandidateV1 } from "./creator-agent-admissio
 
 export const creatorIntentMaximumCharactersV1 = 4_000;
 export const creatorFollowUpMaximumCharactersV1 = creatorAgentTextMaximumCharactersV1;
+
+const creatorAgentIdentifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
+
+type ExactRecordV1 = Readonly<Record<string, unknown>>;
+
+type AdmittedAgentTerminalV1 =
+  | {
+    readonly run: CreatorAgentRunRequestV1;
+    readonly outcome: "completed";
+    readonly candidate: CreatorProgramRevisionCandidateV1;
+    readonly finalAssistantReply: string;
+  }
+  | {
+    readonly run: CreatorAgentRunRequestV1;
+    readonly outcome: "failed";
+    readonly diagnosticCode: CreatorAgentDiagnosticCodeV1;
+  }
+  | {
+    readonly run: CreatorAgentRunRequestV1;
+    readonly outcome: "cancelled" | "replaced";
+  };
+
+type AgentTerminalAdmissionResultV1 =
+  | { readonly kind: "admitted"; readonly value: AdmittedAgentTerminalV1 }
+  | {
+    readonly kind: "rejected";
+    readonly reason:
+      | "terminal_invalid"
+      | "candidate_invalid"
+      | "assistant_reply_empty"
+      | "assistant_reply_too_long";
+  };
+
+function exactRecordV1(value: unknown, keys: readonly string[]): ExactRecordV1 | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  try {
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) return null;
+    if (Object.getOwnPropertySymbols(value).length !== 0) return null;
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    if (
+      Object.keys(descriptors).length !== keys.length ||
+      !keys.every((key) => Object.hasOwn(descriptors, key))
+    ) return null;
+    for (const key of keys) {
+      const descriptor = descriptors[key];
+      if (
+        descriptor === undefined || !descriptor.enumerable || !Object.hasOwn(descriptor, "value")
+      ) return null;
+    }
+    return Object.fromEntries(keys.map((key) => [key, descriptors[key]?.value]));
+  } catch {
+    return null;
+  }
+}
+
+function positiveSafeIntegerV1(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
+function admittedIdentifierV1(value: unknown): value is string {
+  return typeof value === "string" && creatorAgentIdentifierPatternV1.test(value);
+}
+
+function admitAgentRunRequestV1(value: unknown): CreatorAgentRunRequestV1 | null {
+  const record = exactRecordV1(value, [
+    "agentRunId",
+    "proposalId",
+    "programId",
+    "baseProgramRevision",
+    "baseRepositoryRevision",
+    "text",
+  ]);
+  if (
+    record === null || !admittedIdentifierV1(record.agentRunId) ||
+    !admittedIdentifierV1(record.proposalId) || !admittedIdentifierV1(record.programId) ||
+    !positiveSafeIntegerV1(record.baseProgramRevision) ||
+    !positiveSafeIntegerV1(record.baseRepositoryRevision) || typeof record.text !== "string" ||
+    record.text.length === 0 || record.text.length > creatorAgentTextMaximumCharactersV1 ||
+    record.text !== record.text.trim()
+  ) return null;
+  return {
+    agentRunId: record.agentRunId,
+    proposalId: record.proposalId,
+    programId: record.programId,
+    baseProgramRevision: record.baseProgramRevision,
+    baseRepositoryRevision: record.baseRepositoryRevision,
+    text: record.text,
+  };
+}
+
+function isCreatorAgentDiagnosticCodeV1(value: unknown): value is CreatorAgentDiagnosticCodeV1 {
+  return value === "unconfigured" || value === "connection_failed" || value === "request_failed" ||
+    value === "protocol_invalid" || value === "submit_invalid" || value === "candidate_invalid" ||
+    value === "draft_too_large" || value === "run_failed" || value === "disposed";
+}
+
+function rejectAgentTerminalV1(
+  reason: Extract<AgentTerminalAdmissionResultV1, { readonly kind: "rejected" }>["reason"],
+): AgentTerminalAdmissionResultV1 {
+  return { kind: "rejected", reason };
+}
+
+function admitAgentTerminalV1(value: unknown): AgentTerminalAdmissionResultV1 {
+  const completed = exactRecordV1(value, [
+    "run",
+    "outcome",
+    "candidate",
+    "finalAssistantReply",
+  ]);
+  if (completed !== null && completed.outcome === "completed") {
+    const run = admitAgentRunRequestV1(completed.run);
+    if (run === null) return rejectAgentTerminalV1("terminal_invalid");
+    const candidate = admitCreatorProgramRevisionCandidateV1(completed.candidate);
+    if (candidate.kind === "rejected") return rejectAgentTerminalV1("candidate_invalid");
+    if (
+      typeof completed.finalAssistantReply !== "string" ||
+      completed.finalAssistantReply.trim().length === 0
+    ) return rejectAgentTerminalV1("assistant_reply_empty");
+    if (completed.finalAssistantReply.length > creatorAgentFinalReplyMaximumCharactersV1) {
+      return rejectAgentTerminalV1("assistant_reply_too_long");
+    }
+    if (
+      candidate.value.proposalId !== run.proposalId ||
+      candidate.value.programId !== run.programId ||
+      candidate.value.baseProgramRevision !== run.baseProgramRevision ||
+      candidate.value.text !== run.text
+    ) return rejectAgentTerminalV1("terminal_invalid");
+    return {
+      kind: "admitted",
+      value: {
+        run,
+        outcome: "completed",
+        candidate: candidate.value,
+        finalAssistantReply: completed.finalAssistantReply.trim(),
+      },
+    };
+  }
+
+  const failed = exactRecordV1(value, ["run", "outcome", "diagnosticCode"]);
+  if (failed !== null && failed.outcome === "failed") {
+    const run = admitAgentRunRequestV1(failed.run);
+    if (run === null || !isCreatorAgentDiagnosticCodeV1(failed.diagnosticCode)) {
+      return rejectAgentTerminalV1("terminal_invalid");
+    }
+    return {
+      kind: "admitted",
+      value: { run, outcome: "failed", diagnosticCode: failed.diagnosticCode },
+    };
+  }
+
+  const ended = exactRecordV1(value, ["run", "outcome"]);
+  if (ended !== null && (ended.outcome === "cancelled" || ended.outcome === "replaced")) {
+    const run = admitAgentRunRequestV1(ended.run);
+    if (run === null) return rejectAgentTerminalV1("terminal_invalid");
+    return { kind: "admitted", value: { run, outcome: ended.outcome } };
+  }
+  return rejectAgentTerminalV1("terminal_invalid");
+}
 
 function proposalReferenceV1(proposal: ProgramProposalV1): ProgramProposalReferenceV1 {
   return {
@@ -65,6 +228,33 @@ function decisionActivityV1(
       : (chinese
         ? `拒绝 Program 方案 v${String(programRevision)}`
         : `Rejected Program proposal v${String(programRevision)}`),
+  };
+}
+
+function agentRunActivityV1(
+  workspaceId: string,
+  sequence: number,
+  outcome: "failed" | "cancelled" | "replaced",
+  chinese: boolean,
+): CreatorActivityV1 {
+  const detail = outcome === "failed"
+    ? {
+      kind: "agent_run_failed" as const,
+      summary: chinese ? "Creator Agent 运行失败" : "Creator Agent run failed",
+    }
+    : outcome === "cancelled"
+    ? {
+      kind: "agent_run_cancelled" as const,
+      summary: chinese ? "取消 Creator Agent 运行" : "Cancelled Creator Agent run",
+    }
+    : {
+      kind: "agent_run_replaced" as const,
+      summary: chinese ? "替换 Creator Agent 运行" : "Replaced Creator Agent run",
+    };
+  return {
+    activityId: `${workspaceId}.activity.${String(sequence)}`,
+    sequence,
+    ...detail,
   };
 }
 
@@ -347,6 +537,69 @@ export function createCreatorSessionV1(input: {
         creatorReply: callInput.finalAssistantReply.trim(),
       });
       return { kind: "applied", proposal: nextProposal };
+    },
+    applyAgentRunTerminal(callInput): CreatorAgentTerminalApplyResultV1 {
+      const workspace = snapshot.workspace;
+      const program = snapshot.program;
+      const proposal = snapshot.proposal;
+      if (workspace === null || program === null || proposal === null) {
+        return { kind: "unavailable" };
+      }
+      const terminal = admitAgentTerminalV1(callInput);
+      if (terminal.kind === "rejected") {
+        return { kind: "rejected", reason: terminal.reason };
+      }
+      const current = {
+        proposalId: proposal.proposalId,
+        programId: program.programId,
+        baseProgramRevision: program.revision,
+      };
+      const run = terminal.value.run;
+      if (
+        run.proposalId !== current.proposalId || run.programId !== current.programId ||
+        run.baseProgramRevision !== current.baseProgramRevision ||
+        run.baseProgramRevision !== proposal.programRevision
+      ) return { kind: "stale", current };
+
+      if (terminal.value.outcome === "completed") {
+        publishSuccessor({
+          workspace,
+          proposal,
+          program,
+          text: run.text,
+          requirement: terminal.value.candidate.requirement,
+          creatorReply: terminal.value.finalAssistantReply,
+        });
+        return { kind: "applied", outcome: "completed" };
+      }
+
+      const nextMessageOrdinal = snapshot.messages.length + 1;
+      const nextActivitySequence = snapshot.activity.length + 1;
+      const chinese = /[\u3400-\u9fff]/u.test(`${workspace.intent}${run.text}`);
+      publish({
+        route: "workspace",
+        workspace,
+        messages: [
+          ...snapshot.messages,
+          {
+            messageId: `${workspace.workspaceId}.message.${String(nextMessageOrdinal)}`,
+            role: "user",
+            text: run.text,
+          },
+        ],
+        proposal,
+        program,
+        activity: [
+          ...snapshot.activity,
+          agentRunActivityV1(
+            workspace.workspaceId,
+            nextActivitySequence,
+            terminal.value.outcome,
+            chinese,
+          ),
+        ],
+      });
+      return { kind: "applied", outcome: terminal.value.outcome };
     },
     acceptProposal: (expected) => decide("accepted", expected),
     rejectProposal: (expected) => decide("rejected", expected),

@@ -149,7 +149,15 @@ async function qualifyBrowserV1(
       const completionRequestBaseline = providerRequestCount;
       await followUp.fill(completedFollowUpV1);
       await page.getByRole("button", { name: "Send" }).click();
-      await page.locator('[data-pi-agent-run-status="completed"]').waitFor({ timeout: 45_000 });
+      await page.waitForFunction(
+        () =>
+          document.querySelector('[data-proposal-status="pending"]')?.textContent?.includes(
+            "v2",
+          ) === true,
+        undefined,
+        { timeout: 45_000 },
+      );
+      await page.locator('[data-program-storage-state="ready"]').waitFor();
       requireV1((await proposal.textContent())?.includes("v2") === true, "successor_missing");
       requireV1(
         providerRequestCount - completionRequestBaseline === 2,

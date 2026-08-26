@@ -2,60 +2,62 @@
 /// <reference lib="dom" />
 
 import {
-  createProgramRepositoryFailureV1,
-  type ProgramRepositoryApplyRevisionInputV1,
-  type ProgramRepositoryCreateInputV1,
-  type ProgramRepositoryDecideInputV1,
-  type ProgramRepositoryOperationV1,
-  type ProgramRepositoryV1,
+  createProgramRepositoryFailureV2,
+  type ProgramRepositoryApplyRevisionInputV2,
+  type ProgramRepositoryCreateInputV2,
+  type ProgramRepositoryDecideInputV2,
+  type ProgramRepositoryOperationV2,
+  type ProgramRepositorySettleAgentRunInputV2,
+  type ProgramRepositoryV2,
 } from "./program-repository.ts";
 import {
-  admitProgramRepositoryWorkerRequestEnvelopeV1,
-  admitProgramRepositoryWorkerResponseEnvelopeV1,
-  operationForProgramRepositoryWorkerMethodV1,
-  type ProgramRepositoryWorkerMethodV1,
-  type ProgramRepositoryWorkerRequestEnvelopeV1,
-  type ProgramRepositoryWorkerRequestV1,
-  type ProgramRepositoryWorkerSuccessV1,
+  admitProgramRepositoryWorkerRequestEnvelopeV2,
+  admitProgramRepositoryWorkerResponseEnvelopeV2,
+  operationForProgramRepositoryWorkerMethodV2,
+  type ProgramRepositoryWorkerMethodV2,
+  type ProgramRepositoryWorkerRequestEnvelopeV2,
+  type ProgramRepositoryWorkerRequestV2,
+  type ProgramRepositoryWorkerSuccessV2,
 } from "./program-repository-worker-protocol.ts";
 
-interface ProgramRepositoryWorkerMessageEventV1 {
+interface ProgramRepositoryWorkerMessageEventV2 {
   readonly data: unknown;
 }
 
-export interface ProgramRepositoryWorkerLikeV1 {
+export interface ProgramRepositoryWorkerLikeV2 {
   addEventListener(
     type: "message",
-    listener: (event: ProgramRepositoryWorkerMessageEventV1) => void,
+    listener: (event: ProgramRepositoryWorkerMessageEventV2) => void,
   ): void;
   addEventListener(type: "error" | "messageerror", listener: () => void): void;
   removeEventListener(
     type: "message",
-    listener: (event: ProgramRepositoryWorkerMessageEventV1) => void,
+    listener: (event: ProgramRepositoryWorkerMessageEventV2) => void,
   ): void;
   removeEventListener(type: "error" | "messageerror", listener: () => void): void;
   postMessage(message: unknown): void;
   terminate(): void;
 }
 
-export interface CreateBrowserProgramRepositoryOptionsV1 {
-  readonly createWorker?: () => ProgramRepositoryWorkerLikeV1;
+export interface CreateBrowserProgramRepositoryOptionsV2 {
+  readonly createWorker?: () => ProgramRepositoryWorkerLikeV2;
 }
 
-interface PendingCallV1 {
-  readonly method: ProgramRepositoryWorkerMethodV1;
-  readonly operation: ProgramRepositoryOperationV1;
+interface PendingCallV2 {
+  readonly method: ProgramRepositoryWorkerMethodV2;
+  readonly operation: ProgramRepositoryOperationV2;
   readonly mutation: boolean;
   delivered: boolean;
-  readonly resolve: (record: ProgramRepositoryWorkerSuccessV1) => void;
+  readonly resolve: (record: ProgramRepositoryWorkerSuccessV2) => void;
   readonly reject: (error: unknown) => void;
 }
 
-function isMutationMethodV1(method: ProgramRepositoryWorkerMethodV1): boolean {
-  return method === "create" || method === "apply_revision" || method === "decide";
+function isMutationMethodV2(method: ProgramRepositoryWorkerMethodV2): boolean {
+  return method === "create" || method === "apply_revision" ||
+    method === "settle_agent_run" || method === "decide";
 }
 
-function responseRequestIdV1(value: unknown): string | null {
+function responseRequestIdV2(value: unknown): string | null {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
   try {
     const descriptor = Object.getOwnPropertyDescriptor(value, "requestId");
@@ -68,33 +70,33 @@ function responseRequestIdV1(value: unknown): string | null {
   }
 }
 
-function defaultProgramRepositoryWorkerV1(): ProgramRepositoryWorkerLikeV1 {
+function defaultProgramRepositoryWorkerV2(): ProgramRepositoryWorkerLikeV2 {
   return new Worker(new URL("./program-repository.worker.ts", import.meta.url), {
     type: "module",
-    name: "sillyos-program-repository-v1",
+    name: "sillyos-program-repository-v2",
   });
 }
 
 /** Page-side product facade. No IndexedDB handle crosses this boundary. */
-export function createBrowserProgramRepositoryV1(
-  options: CreateBrowserProgramRepositoryOptionsV1 = {},
-): ProgramRepositoryV1 {
-  const worker = options.createWorker?.() ?? defaultProgramRepositoryWorkerV1();
-  const pending = new Map<string, PendingCallV1>();
+export function createBrowserProgramRepositoryV2(
+  options: CreateBrowserProgramRepositoryOptionsV2 = {},
+): ProgramRepositoryV2 {
+  const worker = options.createWorker?.() ?? defaultProgramRepositoryWorkerV2();
+  const pending = new Map<string, PendingCallV2>();
   let nextRequestId = 1;
   let lifecycle: "active" | "disposing" | "disposed" = "active";
   let disposePromise: Promise<void> | null = null;
 
-  const removeWorkerListenersV1 = (): void => {
-    worker.removeEventListener("message", onMessageV1);
-    worker.removeEventListener("error", onTransportLossV1);
-    worker.removeEventListener("messageerror", onTransportLossV1);
+  const removeWorkerListenersV2 = (): void => {
+    worker.removeEventListener("message", onMessageV2);
+    worker.removeEventListener("error", onTransportLossV2);
+    worker.removeEventListener("messageerror", onTransportLossV2);
   };
 
-  const rejectPendingForLossV1 = (readCode: "unavailable" | "disposed"): void => {
+  const rejectPendingForLossV2 = (readCode: "unavailable" | "disposed"): void => {
     for (const call of pending.values()) {
       call.reject(
-        createProgramRepositoryFailureV1(
+        createProgramRepositoryFailureV2(
           call.mutation && call.delivered ? "outcome_unknown" : readCode,
           call.operation,
         ),
@@ -103,32 +105,32 @@ export function createBrowserProgramRepositoryV1(
     pending.clear();
   };
 
-  const terminateV1 = (readCode: "unavailable" | "disposed"): void => {
+  const terminateV2 = (readCode: "unavailable" | "disposed"): void => {
     if (lifecycle === "disposed") return;
     lifecycle = "disposed";
-    removeWorkerListenersV1();
-    rejectPendingForLossV1(readCode);
+    removeWorkerListenersV2();
+    rejectPendingForLossV2(readCode);
     worker.terminate();
   };
 
-  function onTransportLossV1(): void {
-    terminateV1("unavailable");
+  function onTransportLossV2(): void {
+    terminateV2("unavailable");
   }
 
-  function onMessageV1(event: ProgramRepositoryWorkerMessageEventV1): void {
-    const requestId = responseRequestIdV1(event.data);
+  function onMessageV2(event: ProgramRepositoryWorkerMessageEventV2): void {
+    const requestId = responseRequestIdV2(event.data);
     if (requestId === null) return;
     const call = pending.get(requestId);
     if (call === undefined) return;
-    const response = admitProgramRepositoryWorkerResponseEnvelopeV1(event.data, call.method);
+    const response = admitProgramRepositoryWorkerResponseEnvelopeV2(event.data, call.method);
     if (response.kind === "rejected" || response.value.requestId !== requestId) {
-      terminateV1("unavailable");
+      terminateV2("unavailable");
       return;
     }
     pending.delete(requestId);
     if (response.value.record.kind === "failure") {
       call.reject(
-        createProgramRepositoryFailureV1(
+        createProgramRepositoryFailureV2(
           response.value.record.code,
           response.value.record.operation,
         ),
@@ -138,36 +140,36 @@ export function createBrowserProgramRepositoryV1(
     call.resolve(response.value.record);
   }
 
-  worker.addEventListener("message", onMessageV1);
-  worker.addEventListener("error", onTransportLossV1);
-  worker.addEventListener("messageerror", onTransportLossV1);
+  worker.addEventListener("message", onMessageV2);
+  worker.addEventListener("error", onTransportLossV2);
+  worker.addEventListener("messageerror", onTransportLossV2);
 
-  const callV1 = (
-    record: ProgramRepositoryWorkerRequestV1,
+  const callV2 = (
+    record: ProgramRepositoryWorkerRequestV2,
     allowDisposing = false,
-  ): Promise<ProgramRepositoryWorkerSuccessV1> => {
-    const operation = operationForProgramRepositoryWorkerMethodV1(record.method);
+  ): Promise<ProgramRepositoryWorkerSuccessV2> => {
+    const operation = operationForProgramRepositoryWorkerMethodV2(record.method);
     if (lifecycle === "disposed" || (lifecycle === "disposing" && !allowDisposing)) {
-      return Promise.reject(createProgramRepositoryFailureV1("disposed", operation));
+      return Promise.reject(createProgramRepositoryFailureV2("disposed", operation));
     }
     const requestId = `program-repository.rpc.${String(nextRequestId++)}`;
-    const candidate: ProgramRepositoryWorkerRequestEnvelopeV1 = {
-      revision: 1,
+    const candidate: ProgramRepositoryWorkerRequestEnvelopeV2 = {
+      revision: 2,
       kind: "rpc_request",
       requestId,
       record,
     };
-    const admitted = admitProgramRepositoryWorkerRequestEnvelopeV1(candidate);
+    const admitted = admitProgramRepositoryWorkerRequestEnvelopeV2(candidate);
     if (admitted.kind === "rejected") {
       return Promise.reject(
         new TypeError(`sillyos.program_repository.request.invalid${admitted.path}`),
       );
     }
     return new Promise((resolve, reject) => {
-      const call: PendingCallV1 = {
+      const call: PendingCallV2 = {
         method: record.method,
         operation,
-        mutation: isMutationMethodV1(record.method),
+        mutation: isMutationMethodV2(record.method),
         delivered: false,
         resolve,
         reject,
@@ -180,43 +182,51 @@ export function createBrowserProgramRepositoryV1(
         call.delivered = true;
       } catch {
         pending.delete(requestId);
-        reject(createProgramRepositoryFailureV1("unavailable", operation));
+        reject(createProgramRepositoryFailureV2("unavailable", operation));
       }
     });
   };
 
   return {
     async initialize(): Promise<void> {
-      const response = await callV1({ method: "initialize" });
+      const response = await callV2({ method: "initialize" });
       if (response.method !== "initialize") throw new TypeError("invalid initialize response");
     },
 
     async list() {
-      const response = await callV1({ method: "list" });
+      const response = await callV2({ method: "list" });
       if (response.method !== "list") throw new TypeError("invalid list response");
       return response.value;
     },
 
     async load(programId) {
-      const response = await callV1({ method: "load", programId });
+      const response = await callV2({ method: "load", programId });
       if (response.method !== "load") throw new TypeError("invalid load response");
       return response.value;
     },
 
-    async create(input: ProgramRepositoryCreateInputV1) {
-      const response = await callV1({ method: "create", input });
+    async create(input: ProgramRepositoryCreateInputV2) {
+      const response = await callV2({ method: "create", input });
       if (response.method !== "create") throw new TypeError("invalid create response");
       return response.value;
     },
 
-    async applyRevision(input: ProgramRepositoryApplyRevisionInputV1) {
-      const response = await callV1({ method: "apply_revision", input });
+    async applyRevision(input: ProgramRepositoryApplyRevisionInputV2) {
+      const response = await callV2({ method: "apply_revision", input });
       if (response.method !== "apply_revision") throw new TypeError("invalid apply response");
       return response.value;
     },
 
-    async decide(input: ProgramRepositoryDecideInputV1) {
-      const response = await callV1({ method: "decide", input });
+    async settleAgentRun(input: ProgramRepositorySettleAgentRunInputV2) {
+      const response = await callV2({ method: "settle_agent_run", input });
+      if (response.method !== "settle_agent_run") {
+        throw new TypeError("invalid Agent terminal response");
+      }
+      return response.value;
+    },
+
+    async decide(input: ProgramRepositoryDecideInputV2) {
+      const response = await callV2({ method: "decide", input });
       if (response.method !== "decide") throw new TypeError("invalid decision response");
       return response.value;
     },
@@ -227,10 +237,10 @@ export function createBrowserProgramRepositoryV1(
       lifecycle = "disposing";
       disposePromise = (async () => {
         try {
-          const response = await callV1({ method: "dispose" }, true);
+          const response = await callV2({ method: "dispose" }, true);
           if (response.method !== "dispose") throw new TypeError("invalid dispose response");
         } finally {
-          terminateV1("disposed");
+          terminateV2("disposed");
         }
       })();
       return disposePromise;

@@ -3,6 +3,7 @@
 import type { CreatorAgentSubmitV1 } from "../product/contracts.ts";
 
 export const creatorProgramRevisionToolNameV1: "sillyos_propose_program_revision";
+export const deterministicCancellationHoldPrefixV1: "Hold this deterministic run until cancelled:";
 
 export interface PiAgentPortV1 {
   prompt(text: string): Promise<{ readonly stopReason: "stop" | "error" | "aborted" }>;

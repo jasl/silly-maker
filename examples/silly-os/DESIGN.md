@@ -2,8 +2,8 @@
 
 # SillyOS product and visual contract
 
-Status: active Browser-first dual-target rewrite with the P2-B0 Browser Program
-catalog delivered, 2026-08-27. The former
+Status: active Browser-first dual-target rewrite with P2 Browser Program
+persistence and bounded terminal Agent-run receipts delivered, 2026-08-27. The former
 "SillyOS 98" desktop
 experiment has been retired as a product direction. It remains useful only as
 repository history; it is not a compatibility baseline for this rewrite.
@@ -174,9 +174,10 @@ copy. The B0a route must separately identify its real Pi Agent plus
 deterministic provider and must not imply that the synthetic test value is a
 provider key. B0b must identify its live fixed OpenAI profile, model, memory-only
 key ownership, and still-limited qualification status.
-Fake events use the same product-owned session model as the UI. P2-B0 persists
-that admitted product projection through the real Program repository; it does
-not rename the projection Pi history or wrap it in a generic storage framework.
+Fake events use the same product-owned session model as the UI. P2 persists
+that admitted product projection and bounded terminal run meaning through the
+real Program repository; it does not rename the projection Pi history or wrap
+it in a generic storage framework.
 
 ## Product and engine ownership
 
@@ -192,7 +193,7 @@ change a real product behavior.
   or command authority.
 - A Creator supervisor session owns Chat, live Pi-session binding, and review
   coordination. The Program owns its selected Pi profile/capabilities and
-  accepted artifacts, not that live conversation. P2-B0's bounded
+  accepted artifacts, not that live conversation. P2's bounded
   `CreatorSessionSnapshot` packaging is an implementation-stage persistence
   shape, not the final domain claim that Chat belongs to Program content.
 - The mutable workspace volume owns working-tree bytes. The SillyOS product
@@ -228,9 +229,10 @@ change a real product behavior.
 - Pi owns Agent session behavior and its native session data. SillyOS owns
   Program revisions, human decisions, product artifacts, and domain data, with
   only opaque Pi session/credential references crossing that boundary. Neither
-  is deterministic game Save. P2-B0 durably stores the bounded Program catalog
-  and product-session projection; Pi session, credentials, and Workspace files
-  remain non-durable.
+  is deterministic game Save. P2 durably stores the bounded Program catalog,
+  product-session projection, and terminal product receipt keyed by a
+  product-owned `agentRunId`; Pi session/run identities, credentials, provider
+  data, and Workspace files remain non-durable.
 - Browser binds Pi's shipped `read`, `write`, `edit`, and `bash` tool factories
   to one stable Program-scoped Pi `ExecutionEnv`. The product-private workspace
   boundary eventually owns runtime lifecycle, capability truth, generation
@@ -523,21 +525,21 @@ passing a pixel threshold alone is not design approval.
 This table is the completion denominator for the rewrite. A working preview is
 evidence for the preview only.
 
-| Area               | Accepted product role                                     | Current preview evidence                                      | Remaining before product-ready                         |
-| ------------------ | --------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------ |
-| Creator home       | Express intent and create/open a Program                  | Local request + B0a/B0b setup + P2-B0 recent reopen           | Attachments and general Provider UI                    |
-| Creator supervisor | Chat supervises one Program without becoming Program data | Bounded durable projection + fixed-profile live B0b successor | Final session binding and review receipts              |
-| Program workspace  | One focused mutable workspace produces reviewed snapshots | Durable Program/proposal lineage; no file volume              | Durable volume, execution environment, and outputs     |
-| Human review       | Accept/reject an exact proposed revision                  | Durable exact decision + cross-page stale rejection           | Workspace-generation/snapshot publication              |
-| Activity           | Explain what happened and what needs review               | Durable revision and decision events                          | Real tool/action history and approvals                 |
-| Capabilities       | Required Agent and UI abilities are understandable        | Labels + one bounded B0a/B0b Pi AgentTool                     | Workspace capabilities and UI bindings                 |
-| Generated UI       | Agent-authored UI remains legible and controllable        | Not implemented                                               | OpenUI mapped to closed SillyMaker components          |
-| Source             | Inspect and refine the Program where useful               | Presentation-only recipe preview                              | Persistent draft volume and accepted snapshots         |
-| Translation        | A usable translation Program                              | Intent classification only                                    | Complete workflow, data, QA, export                    |
-| Writing            | A usable writing Program                                  | Intent classification only                                    | Complete workflow, data, revision tools                |
-| Role-play          | A usable role-play Program                                | Intent classification only                                    | Complete sessions, characters, VN behavior             |
-| Browser            | Publishable local-first product with BYO Provider         | Responsive preview + deployed fixed-profile B0b qualification | General Provider UI, storage, tools, closure           |
-| Deno Desktop       | Same product with admitted Host integrations              | Responsive preview target                                     | Companion acceptance, storage, packaging qualification |
+| Area               | Accepted product role                                     | Current preview evidence                                    | Remaining before product-ready                         |
+| ------------------ | --------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------ |
+| Creator home       | Express intent and create/open a Program                  | Local request + B0a/B0b setup + P2 recent reopen            | Attachments and general Provider UI                    |
+| Creator supervisor | Chat supervises one Program without becoming Program data | Durable projection + completed/cancelled Agent-run receipts | Pi-native workspace/session binding                    |
+| Program workspace  | One focused mutable workspace produces reviewed snapshots | Durable Program/proposal lineage; no file volume            | Durable volume, execution environment, and outputs     |
+| Human review       | Accept/reject an exact proposed revision                  | Durable exact decision + cross-page stale rejection         | Workspace-generation/snapshot publication              |
+| Activity           | Explain what happened and what needs review               | Durable revision, decision, and terminal Agent-run events   | Real tool/action history and approvals                 |
+| Capabilities       | Required Agent and UI abilities are understandable        | Labels + one bounded B0a/B0b Pi AgentTool                   | Workspace capabilities and UI bindings                 |
+| Generated UI       | Agent-authored UI remains legible and controllable        | Not implemented                                             | OpenUI mapped to closed SillyMaker components          |
+| Source             | Inspect and refine the Program where useful               | Presentation-only recipe preview                            | Persistent draft volume and accepted snapshots         |
+| Translation        | A usable translation Program                              | Intent classification only                                  | Complete workflow, data, QA, export                    |
+| Writing            | A usable writing Program                                  | Intent classification only                                  | Complete workflow, data, revision tools                |
+| Role-play          | A usable role-play Program                                | Intent classification only                                  | Complete sessions, characters, VN behavior             |
+| Browser            | Publishable local-first product with BYO Provider         | Responsive fixed-profile Pi + durable Program/run receipts  | General Provider UI, workspace tools, closure          |
+| Deno Desktop       | Same product with admitted Host integrations              | Responsive preview target                                   | Companion acceptance, storage, packaging qualification |
 
 Before SillyOS is called a complete reference product, this table must be
 reconciled with implementation and tests, the current-low-end startup,

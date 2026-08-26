@@ -3,14 +3,15 @@
 # SillyOS product-incubation plan
 
 Status: accepted Browser-first, dual-target product lane with validated P0,
-P1-B B0a/B0b, and P2-B0 implementations plus a dev-only Pi launch helper,
-2026-08-27. P2-B0 closed after its product-owned IndexedDB Worker passed exact
-repository, refresh/reopen, credential-sentinel, and two-page currentness
-evidence in Chromium and WebKit. No later slice is automatically active; P1-D
-remains owner-paused and P2-B1/P3 remain inactive. The raw launcher is not the
-typed product RPC; the live Browser route is a separate product path. This plan
-is local to `examples/silly-os`; it does not activate an engine lane or change
-an engine API. The implementation baseline before P0 is commit
+P1-B B0a/B0b, and P2 implementations plus a dev-only Pi launch helper,
+2026-08-27. P2-B0 delivered the product-owned IndexedDB Worker and exact Program
+catalog; P2-B1 then delivered Repository V2 plus bounded terminal Agent-run
+receipts. P2 is closed. No later slice is automatically active: P1-D remains
+owner-paused and P3a is the next bounded candidate but remains inactive pending
+owner activation. The raw launcher is not the typed product RPC; the live
+Browser route is a separate product path. This plan is local to
+`examples/silly-os`; it does not activate an engine lane or change an engine
+API. The implementation baseline before P0 is commit
 `56ba8ef8ecf0a38243e92cba548f53c1c57c0b73`.
 
 ## Product invariant and execution rule
@@ -833,10 +834,25 @@ P2-B1 closes P2. It does not store workspace generations, file mutations, tool
 receipts, or snapshots; those first gain a real owner and consumer in P3a and
 P3c.
 
+P2-B1 closed on 2026-08-27. Program Repository V2 is now the only repository
+aggregate, memory adapter, IndexedDB schema, and Worker wire. IndexedDB performs
+fresh `0 -> 2` creation or a row-blind destructive `1 -> 2` preview reset. One
+atomic `settle_agent_run` mutation covers completed, failed, cancelled, and
+replaced outcomes under Program CAS and exact replay; Pi session/run identities,
+provider records, streaming data, credentials, and workspace bytes remain
+transient or absent. Focused product tests pass 75 cases; Chromium and WebKit
+pass all 18 SillyOS journeys, including completed and cancelled receipts across
+reload plus the credential sentinel. The one-shot live OpenAI qualification also
+passes in both engines with cancellation, a v2 successor, two successful
+Responses requests, no durable key, and explicit Worker forget. The release
+build keeps the Pi port and Worker in lazy assets and contains no Workspace,
+OPFS, just-bash, or Wasm asset. No SillyMaker engine gap was reproduced.
+
 ### P3a — Pi-native workspace tool binding
 
-P3a remains inactive until P2-B1 closes the bounded product terminal Agent-run
-receipt needed by its first real tool consumer.
+P2-B1 has closed the bounded product terminal Agent-run receipt needed by P3a's
+first real tool consumer. P3a remains inactive until the owner explicitly
+activates that next slice.
 
 Use the fixed Pi 0.84.3 workspace tools rather than adding a SillyOS equivalent.
 The Browser Agent Worker imports Pi's shipped `createReadTool`,

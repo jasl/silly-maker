@@ -2,32 +2,34 @@
 /// <reference lib="dom" />
 
 import {
-  admitProgramRepositoryAggregateV1,
-  applyProgramRepositoryDecisionV1,
-  applyProgramRepositoryRevisionV1,
-  buildProgramRepositoryCreateV1,
-  cloneProgramRepositoryAggregateV1,
-  createProgramRepositoryFailureV1,
-  isProgramRepositoryFailureV1,
-  normalizeProgramRepositoryApplyRevisionInputV1,
-  normalizeProgramRepositoryCreateInputV1,
-  normalizeProgramRepositoryDecideInputV1,
-  normalizeProgramRepositoryProgramIdV1,
-  programRepositoryMaximumProgramsV1,
-  programRepositoryAggregatesEqualV1,
-  sortProgramRepositorySummariesV1,
-  summarizeProgramRepositoryAggregateV1,
-  type ProgramRepositoryAggregateV1,
-  type ProgramRepositoryFailureCodeV1,
-  type ProgramRepositoryOperationV1,
-  type ProgramRepositoryV1,
+  admitProgramRepositoryAggregateV2,
+  applyProgramRepositoryAgentRunTerminalV2,
+  applyProgramRepositoryDecisionV2,
+  applyProgramRepositoryRevisionV2,
+  buildProgramRepositoryCreateV2,
+  cloneProgramRepositoryAggregateV2,
+  createProgramRepositoryFailureV2,
+  isProgramRepositoryFailureV2,
+  normalizeProgramRepositoryApplyRevisionInputV2,
+  normalizeProgramRepositoryCreateInputV2,
+  normalizeProgramRepositoryDecideInputV2,
+  normalizeProgramRepositorySettleAgentRunInputV2,
+  normalizeProgramRepositoryProgramIdV2,
+  programRepositoryMaximumProgramsV2,
+  programRepositoryAggregatesEqualV2,
+  sortProgramRepositorySummariesV2,
+  summarizeProgramRepositoryAggregateV2,
+  type ProgramRepositoryAggregateV2,
+  type ProgramRepositoryFailureCodeV2,
+  type ProgramRepositoryOperationV2,
+  type ProgramRepositoryV2,
 } from "./program-repository.ts";
 
-export const programRepositoryDatabaseNameV1 = "sillymaker.example-silly-os.programs";
-export const programRepositoryDatabaseVersionV1 = 1;
-export const programRepositoryObjectStoreNameV1 = "programs";
+export const programRepositoryDatabaseNameV2 = "sillymaker.example-silly-os.programs";
+export const programRepositoryDatabaseVersionV2 = 2;
+export const programRepositoryObjectStoreNameV2 = "programs";
 
-export interface CreateIndexedDbProgramRepositoryOptionsV1 {
+export interface CreateIndexedDbProgramRepositoryOptionsV2 {
   readonly indexedDB: IDBFactory;
   readonly databaseName?: string;
 }
@@ -43,17 +45,17 @@ function domExceptionNameV1(value: unknown): string | null {
 
 function mapFailureV1(
   value: unknown,
-  operation: ProgramRepositoryOperationV1,
+  operation: ProgramRepositoryOperationV2,
 ): unknown {
-  if (isProgramRepositoryFailureV1(value) || value instanceof TypeError) return value;
+  if (isProgramRepositoryFailureV2(value) || value instanceof TypeError) return value;
   const name = domExceptionNameV1(value);
-  let code: ProgramRepositoryFailureCodeV1;
+  let code: ProgramRepositoryFailureCodeV2;
   if (name === "VersionError") code = "database_newer";
   else if (name === "SecurityError" || name === "NotAllowedError") code = "unavailable";
   else if (name === "QuotaExceededError") code = "quota_exceeded";
   else if (name === "AbortError") code = "transaction_aborted";
   else code = "request_failed";
-  return createProgramRepositoryFailureV1(code, operation);
+  return createProgramRepositoryFailureV2(code, operation);
 }
 
 function requestResultV1<TValue>(request: IDBRequest<TValue>): Promise<TValue> {
@@ -111,12 +113,12 @@ function domStringListValuesV1(value: DOMStringList): readonly string[] {
 function hasExactSchemaV1(database: IDBDatabase): boolean {
   try {
     if (
-      database.version !== programRepositoryDatabaseVersionV1 ||
+      database.version !== programRepositoryDatabaseVersionV2 ||
       domStringListValuesV1(database.objectStoreNames).join("\0") !==
-        programRepositoryObjectStoreNameV1
+        programRepositoryObjectStoreNameV2
     ) return false;
-    const transaction = database.transaction(programRepositoryObjectStoreNameV1, "readonly");
-    const objectStore = transaction.objectStore(programRepositoryObjectStoreNameV1);
+    const transaction = database.transaction(programRepositoryObjectStoreNameV2, "readonly");
+    const objectStore = transaction.objectStore(programRepositoryObjectStoreNameV2);
     return objectStore.keyPath === "programId" && !objectStore.autoIncrement &&
       objectStore.indexNames.length === 0;
   } catch {
@@ -127,13 +129,13 @@ function hasExactSchemaV1(database: IDBDatabase): boolean {
 function openDatabaseV1(input: {
   readonly indexedDB: IDBFactory;
   readonly databaseName: string;
-  readonly operation: ProgramRepositoryOperationV1;
+  readonly operation: ProgramRepositoryOperationV2;
   readonly onConnectionClosed: () => void;
 }): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     let request: IDBOpenDBRequest;
     try {
-      request = input.indexedDB.open(input.databaseName, programRepositoryDatabaseVersionV1);
+      request = input.indexedDB.open(input.databaseName, programRepositoryDatabaseVersionV2);
     } catch (error) {
       reject(mapFailureV1(error, input.operation));
       return;
@@ -148,11 +150,24 @@ function openDatabaseV1(input: {
     request.addEventListener("upgradeneeded", (event) => {
       try {
         if (
-          event.oldVersion !== 0 || event.newVersion !== programRepositoryDatabaseVersionV1
+          (event.oldVersion !== 0 && event.oldVersion !== 1) ||
+          event.newVersion !== programRepositoryDatabaseVersionV2
         ) {
-          throw createProgramRepositoryFailureV1("schema_invalid", input.operation);
+          throw createProgramRepositoryFailureV2("schema_invalid", input.operation);
         }
-        request.result.createObjectStore(programRepositoryObjectStoreNameV1, {
+        if (event.oldVersion === 1) {
+          if (
+            domStringListValuesV1(request.result.objectStoreNames).join("\0") !==
+              programRepositoryObjectStoreNameV2
+          ) throw createProgramRepositoryFailureV2("schema_invalid", input.operation);
+          const oldStore = request.transaction?.objectStore(programRepositoryObjectStoreNameV2);
+          if (
+            oldStore === undefined || oldStore.keyPath !== "programId" ||
+            oldStore.autoIncrement || oldStore.indexNames.length !== 0
+          ) throw createProgramRepositoryFailureV2("schema_invalid", input.operation);
+          request.result.deleteObjectStore(programRepositoryObjectStoreNameV2);
+        }
+        request.result.createObjectStore(programRepositoryObjectStoreNameV2, {
           keyPath: "programId",
           autoIncrement: false,
         });
@@ -166,7 +181,7 @@ function openDatabaseV1(input: {
       }
     });
     request.addEventListener("blocked", () => {
-      rejectOnceV1(createProgramRepositoryFailureV1("upgrade_blocked", input.operation));
+      rejectOnceV1(createProgramRepositoryFailureV2("upgrade_blocked", input.operation));
     });
     request.addEventListener("error", () => {
       rejectOnceV1(
@@ -182,7 +197,7 @@ function openDatabaseV1(input: {
       }
       if (!hasExactSchemaV1(database)) {
         database.close();
-        rejectOnceV1(createProgramRepositoryFailureV1("schema_invalid", input.operation));
+        rejectOnceV1(createProgramRepositoryFailureV2("schema_invalid", input.operation));
         return;
       }
       settled = true;
@@ -198,30 +213,30 @@ function openDatabaseV1(input: {
 
 function storedAggregateV1(
   value: unknown,
-  operation: ProgramRepositoryOperationV1,
-): ProgramRepositoryAggregateV1 {
-  const admitted = admitProgramRepositoryAggregateV1(value);
+  operation: ProgramRepositoryOperationV2,
+): ProgramRepositoryAggregateV2 {
+  const admitted = admitProgramRepositoryAggregateV2(value);
   if (admitted.kind === "rejected") {
-    throw createProgramRepositoryFailureV1("schema_invalid", operation);
+    throw createProgramRepositoryFailureV2("schema_invalid", operation);
   }
   return admitted.value;
 }
 
 /**
- * Worker-side P2-B0 adapter. Page code must use the typed Worker port instead of this owner.
+ * Worker-side P2 adapter. Page code must use the typed Worker port instead of this owner.
  */
-export function createIndexedDbProgramRepositoryV1(
-  options: CreateIndexedDbProgramRepositoryOptionsV1,
-): ProgramRepositoryV1 {
-  const databaseName = options.databaseName ?? programRepositoryDatabaseNameV1;
+export function createIndexedDbProgramRepositoryV2(
+  options: CreateIndexedDbProgramRepositoryOptionsV2,
+): ProgramRepositoryV2 {
+  const databaseName = options.databaseName ?? programRepositoryDatabaseNameV2;
   let databasePromise: Promise<IDBDatabase> | undefined;
   let disposed = false;
 
-  const getDatabaseV1 = (operation: ProgramRepositoryOperationV1): Promise<IDBDatabase> => {
-    if (disposed) return Promise.reject(createProgramRepositoryFailureV1("disposed", operation));
+  const getDatabaseV1 = (operation: ProgramRepositoryOperationV2): Promise<IDBDatabase> => {
+    if (disposed) return Promise.reject(createProgramRepositoryFailureV2("disposed", operation));
     const indexedDB = options.indexedDB as IDBFactory | undefined;
     if (indexedDB === undefined || typeof indexedDB.open !== "function") {
-      return Promise.reject(createProgramRepositoryFailureV1("unavailable", operation));
+      return Promise.reject(createProgramRepositoryFailureV2("unavailable", operation));
     }
     if (databasePromise === undefined) {
       let cached: Promise<IDBDatabase>;
@@ -267,15 +282,15 @@ export function createIndexedDbProgramRepositoryV1(
     async list() {
       try {
         const database = await getDatabaseV1("list");
-        const transaction = database.transaction(programRepositoryObjectStoreNameV1, "readonly");
+        const transaction = database.transaction(programRepositoryObjectStoreNameV2, "readonly");
         const completion = transactionCompletionV1(transaction);
         void completion.catch(() => undefined);
         const rows = await requestResultV1(
-          transaction.objectStore(programRepositoryObjectStoreNameV1).getAll(),
+          transaction.objectStore(programRepositoryObjectStoreNameV2).getAll(),
         );
         await completion;
-        return sortProgramRepositorySummariesV1(
-          rows.map((row) => summarizeProgramRepositoryAggregateV1(storedAggregateV1(row, "list"))),
+        return sortProgramRepositorySummariesV2(
+          rows.map((row) => summarizeProgramRepositoryAggregateV2(storedAggregateV1(row, "list"))),
         );
       } catch (error) {
         throw mapFailureV1(error, "list");
@@ -283,14 +298,14 @@ export function createIndexedDbProgramRepositoryV1(
     },
 
     async load(rawProgramId) {
-      const programId = normalizeProgramRepositoryProgramIdV1(rawProgramId);
+      const programId = normalizeProgramRepositoryProgramIdV2(rawProgramId);
       try {
         const database = await getDatabaseV1("load");
-        const transaction = database.transaction(programRepositoryObjectStoreNameV1, "readonly");
+        const transaction = database.transaction(programRepositoryObjectStoreNameV2, "readonly");
         const completion = transactionCompletionV1(transaction);
         void completion.catch(() => undefined);
         const row = await requestResultV1(
-          transaction.objectStore(programRepositoryObjectStoreNameV1).get(programId),
+          transaction.objectStore(programRepositoryObjectStoreNameV2).get(programId),
         );
         await completion;
         return row === undefined ? null : storedAggregateV1(row, "load");
@@ -300,34 +315,34 @@ export function createIndexedDbProgramRepositoryV1(
     },
 
     async create(rawInput) {
-      const input = normalizeProgramRepositoryCreateInputV1(rawInput);
-      const candidate = buildProgramRepositoryCreateV1(input);
+      const input = normalizeProgramRepositoryCreateInputV2(rawInput);
+      const candidate = buildProgramRepositoryCreateV2(input);
       let transaction: IDBTransaction | undefined;
       let completion: Promise<void> | undefined;
       try {
         const database = await getDatabaseV1("create");
-        transaction = database.transaction(programRepositoryObjectStoreNameV1, "readwrite");
+        transaction = database.transaction(programRepositoryObjectStoreNameV2, "readwrite");
         completion = transactionCompletionV1(transaction);
         void completion.catch(() => undefined);
-        const store = transaction.objectStore(programRepositoryObjectStoreNameV1);
+        const store = transaction.objectStore(programRepositoryObjectStoreNameV2);
         const currentRow = await requestResultV1(store.get(candidate.programId));
         if (currentRow !== undefined) {
           const current = storedAggregateV1(currentRow, "create");
           await completion;
-          if (programRepositoryAggregatesEqualV1(current, candidate)) {
+          if (programRepositoryAggregatesEqualV2(current, candidate)) {
             return { kind: "unchanged", aggregate: current };
           }
           return { kind: "conflict", current };
         }
         const programCount = await requestResultV1(store.count());
-        if (programCount >= programRepositoryMaximumProgramsV1) {
+        if (programCount >= programRepositoryMaximumProgramsV2) {
           transaction.abort();
           await completion.catch(() => undefined);
-          throw createProgramRepositoryFailureV1("quota_exceeded", "create");
+          throw createProgramRepositoryFailureV2("quota_exceeded", "create");
         }
-        await requestResultV1(store.add(cloneProgramRepositoryAggregateV1(candidate)));
+        await requestResultV1(store.add(cloneProgramRepositoryAggregateV2(candidate)));
         await completion;
-        return { kind: "committed", aggregate: cloneProgramRepositoryAggregateV1(candidate) };
+        return { kind: "committed", aggregate: cloneProgramRepositoryAggregateV2(candidate) };
       } catch (error) {
         await abortAfterFailureV1(transaction, completion);
         throw mapFailureV1(error, "create");
@@ -335,21 +350,21 @@ export function createIndexedDbProgramRepositoryV1(
     },
 
     async applyRevision(rawInput) {
-      const input = normalizeProgramRepositoryApplyRevisionInputV1(rawInput);
+      const input = normalizeProgramRepositoryApplyRevisionInputV2(rawInput);
       let transaction: IDBTransaction | undefined;
       let completion: Promise<void> | undefined;
       try {
         const database = await getDatabaseV1("apply_revision");
-        transaction = database.transaction(programRepositoryObjectStoreNameV1, "readwrite");
+        transaction = database.transaction(programRepositoryObjectStoreNameV2, "readwrite");
         completion = transactionCompletionV1(transaction);
         void completion.catch(() => undefined);
-        const store = transaction.objectStore(programRepositoryObjectStoreNameV1);
+        const store = transaction.objectStore(programRepositoryObjectStoreNameV2);
         const currentRow = await requestResultV1(store.get(input.programId));
         if (currentRow === undefined) {
           await completion;
           return { kind: "conflict", current: null };
         }
-        const result = applyProgramRepositoryRevisionV1(
+        const result = applyProgramRepositoryRevisionV2(
           storedAggregateV1(currentRow, "apply_revision"),
           input,
         );
@@ -357,11 +372,11 @@ export function createIndexedDbProgramRepositoryV1(
           await completion;
           return result;
         }
-        await requestResultV1(store.put(cloneProgramRepositoryAggregateV1(result.aggregate)));
+        await requestResultV1(store.put(cloneProgramRepositoryAggregateV2(result.aggregate)));
         await completion;
         return {
           kind: "committed",
-          aggregate: cloneProgramRepositoryAggregateV1(result.aggregate),
+          aggregate: cloneProgramRepositoryAggregateV2(result.aggregate),
         };
       } catch (error) {
         await abortAfterFailureV1(transaction, completion);
@@ -370,21 +385,21 @@ export function createIndexedDbProgramRepositoryV1(
     },
 
     async decide(rawInput) {
-      const input = normalizeProgramRepositoryDecideInputV1(rawInput);
+      const input = normalizeProgramRepositoryDecideInputV2(rawInput);
       let transaction: IDBTransaction | undefined;
       let completion: Promise<void> | undefined;
       try {
         const database = await getDatabaseV1("decide");
-        transaction = database.transaction(programRepositoryObjectStoreNameV1, "readwrite");
+        transaction = database.transaction(programRepositoryObjectStoreNameV2, "readwrite");
         completion = transactionCompletionV1(transaction);
         void completion.catch(() => undefined);
-        const store = transaction.objectStore(programRepositoryObjectStoreNameV1);
+        const store = transaction.objectStore(programRepositoryObjectStoreNameV2);
         const currentRow = await requestResultV1(store.get(input.programId));
         if (currentRow === undefined) {
           await completion;
           return { kind: "conflict", current: null };
         }
-        const result = applyProgramRepositoryDecisionV1(
+        const result = applyProgramRepositoryDecisionV2(
           storedAggregateV1(currentRow, "decide"),
           input,
         );
@@ -392,15 +407,50 @@ export function createIndexedDbProgramRepositoryV1(
           await completion;
           return result;
         }
-        await requestResultV1(store.put(cloneProgramRepositoryAggregateV1(result.aggregate)));
+        await requestResultV1(store.put(cloneProgramRepositoryAggregateV2(result.aggregate)));
         await completion;
         return {
           kind: "committed",
-          aggregate: cloneProgramRepositoryAggregateV1(result.aggregate),
+          aggregate: cloneProgramRepositoryAggregateV2(result.aggregate),
         };
       } catch (error) {
         await abortAfterFailureV1(transaction, completion);
         throw mapFailureV1(error, "decide");
+      }
+    },
+
+    async settleAgentRun(rawInput) {
+      const input = normalizeProgramRepositorySettleAgentRunInputV2(rawInput);
+      let transaction: IDBTransaction | undefined;
+      let completion: Promise<void> | undefined;
+      try {
+        const database = await getDatabaseV1("settle_agent_run");
+        transaction = database.transaction(programRepositoryObjectStoreNameV2, "readwrite");
+        completion = transactionCompletionV1(transaction);
+        void completion.catch(() => undefined);
+        const store = transaction.objectStore(programRepositoryObjectStoreNameV2);
+        const currentRow = await requestResultV1(store.get(input.programId));
+        if (currentRow === undefined) {
+          await completion;
+          return { kind: "conflict", current: null };
+        }
+        const result = applyProgramRepositoryAgentRunTerminalV2(
+          storedAggregateV1(currentRow, "settle_agent_run"),
+          input,
+        );
+        if (result.kind !== "committed") {
+          await completion;
+          return result;
+        }
+        await requestResultV1(store.put(cloneProgramRepositoryAggregateV2(result.aggregate)));
+        await completion;
+        return {
+          kind: "committed",
+          aggregate: cloneProgramRepositoryAggregateV2(result.aggregate),
+        };
+      } catch (error) {
+        await abortAfterFailureV1(transaction, completion);
+        throw mapFailureV1(error, "settle_agent_run");
       }
     },
 

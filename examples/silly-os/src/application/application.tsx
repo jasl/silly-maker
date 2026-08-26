@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import type { WebGuiApplicationV1 } from "@sillymaker/web/gui-application";
 
-import { createBrowserProgramRepositoryV1 } from "../product/browser-program-repository.ts";
+import { createBrowserProgramRepositoryV2 } from "../product/browser-program-repository.ts";
 import { createCreatorControllerV1 } from "../product/creator-controller.ts";
 import { createDeterministicFakeCreatorV1 } from "../product/fake-creator.ts";
 import { SillyOsAppV1 } from "../ui/silly-os-app.tsx";
@@ -17,7 +17,7 @@ export const sillyOsApplicationV1: WebGuiApplicationV1 = {
   ui: ({ reportFailure }) => {
     const controller = createCreatorControllerV1({
       creator: createDeterministicFakeCreatorV1(),
-      createRepository: createBrowserProgramRepositoryV1,
+      createRepository: createBrowserProgramRepositoryV2,
     });
     return {
       content: <SillyOsAppV1 controller={controller} reportFailure={reportFailure} />,
