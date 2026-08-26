@@ -302,8 +302,9 @@ does not own a player controller, clock, Host, Semantic Stage, Session, or
 writable lifecycle store. `DefaultGameRootV1` mounts the production Host from
 the composition definition, so do not add `slots.narrative`, a direct semantic
 writer, or a second stage claimant. Engine Lab, the starter template, Bookshop,
-and Cat Cafe are the maintained examples. SillyOS intentionally omits the
-definition and therefore mounts no Narrative surface.
+and Cat Cafe are the maintained Game examples. A GUI-only application such as
+the current SillyOS uses `startWebGuiApplicationV1` instead of omitting fields
+from a Game Story declaration.
 
 An authoritative screen-hold between two lines is authored as a `hold`
 interaction: positive integer `totalMs`/`remainingMs` plus the author's
@@ -477,8 +478,9 @@ focus, and detail lifecycle. Existing `titleScreen` declarations automatically
 use the same package-owned Splash/Title authority without requiring
 `ui.wholeCanvas`. A Story-defined WholeCanvas consumer omits `ui.wholeCanvas`
 when unused; an application allocates no WholeCanvas Host, source, lease, or
-subscription only when both that field and `titleScreen` are absent, as SillyOS
-demonstrates.
+subscription only when both that field and `titleScreen` are absent. Focused
+composition tests protect that Game-application omission contract; GUI-only
+applications do not instantiate the Game Host at all.
 
 Declare each gameplay window with `defineWorkspaceOverlayV1`, including its
 contract revision, dismissal policy, and required port IDs. Supply concrete

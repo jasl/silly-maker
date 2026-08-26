@@ -1,0 +1,347 @@
+<!-- SPDX-License-Identifier: MIT -->
+
+# SillyOS product and visual contract
+
+Status: active clean rewrite, 2026-08-26. The former "SillyOS 98" desktop
+experiment has been retired as a product direction. It remains useful only as
+repository history; it is not a compatibility baseline for this rewrite.
+
+## Product definition
+
+SillyOS is a creator-oriented Agent product built with SillyMaker. Its purpose
+is to turn a person's intent into a Program that both the person and a coding
+agent can understand, run, inspect, and revise.
+
+**Creator is the only built-in user-facing program.** Platform services, model
+access, storage, RPC transports, tool runtimes, and databases are infrastructure,
+not icons in an imitation desktop. Creator starts on a focused prompt surface,
+then opens the resulting Program in a persistent work area.
+
+In this product, a **Program** is one cohesive unit:
+
+```text
+Program = project + harness + agent + app
+```
+
+- **project** — the Program's sources, content, configuration, accepted
+  revisions, and project-local data;
+- **harness** — the instructions, tools, capabilities, constraints, and
+  executable acceptance that guide both the person and the agent;
+- **agent** — the Program's task/session behavior and its selected Agent
+  capabilities;
+- **app** — the runnable user-facing interface and outputs.
+
+This equation describes product ownership, not four authorities or four things
+that must always be optional. A translation Program, for example, may require
+translation and model capabilities and still be one complete product.
+
+The initial intended product families are translation, writing, role-play, and
+general creator tools. They are not four built-in applications. Creator makes a
+Program by selecting and configuring the required product capabilities.
+
+## Reference and fidelity boundary
+
+The primary interaction reference for the workspace is
+[Cloudflare OS](https://github.com/cloudflare/cloudflare-os/tree/6223e261f18849b817a8d7ca03fe3678b77048ca)
+at commit `6223e261f18849b817a8d7ca03fe3678b77048ca` (2026-08-25), together with the
+owner-supplied "Q3 Planning Workspace" screenshot reviewed on 2026-08-26. The
+reference establishes the practical two-pane Agent workspace, compact chrome,
+workpiece tabs, focused output, and single-pane mobile adaptation.
+
+The reference is an interaction and product-design input, not a runtime or
+source dependency:
+
+- do not copy Cloudflare branding, logo, orange identity, screenshots, demo
+  text, fonts, illustrations, or other assets;
+- do not copy the Cloudflare Workers backend, Durable Objects, Dynamic Workers,
+  Gatekeepers, deployment topology, authentication, or multi-user system;
+- do not import or read `references/cloudflare-os` from product code, tests,
+  builds, fixtures, screenshots, or generated Artifacts;
+- do not fork its large frontend. Implement the accepted roles natively with
+  SillyMaker, React, CSS, and deliberately selected upstream UI dependencies;
+- preserve SillyOS's own blue/mint identity and approachable light surfaces.
+
+High fidelity means preserving the reference's user-observable roles, spatial
+clarity, responsive behavior, input quality, and visual finish. It does not mean
+preserving Cloudflare's names, content, architecture, or distinctive expression.
+
+| Cloudflare OS role           | SillyOS role                   | First-preview status                                |
+| ---------------------------- | ------------------------------ | --------------------------------------------------- |
+| Home prompt                  | Creator home                   | Deterministic local prompt flow                     |
+| Workspace chat               | Creator session                | User and Creator messages                           |
+| Gadget / workpiece           | Program and its current output | One proposed Program                                |
+| Blueprint                    | Program recipe/template        | Deferred; no public format yet                      |
+| App / document / slides view | View                           | Fake runnable preview                               |
+| Code                         | Source                         | Presentation-only placeholder or omitted until real |
+| Connections                  | Capabilities                   | Declared preview only; no real connection           |
+| Activity                     | Proposal and action history    | Pending/accepted/rejected history                   |
+| Provisional change           | Program proposal revision      | Accept or reject locally                            |
+
+## First-stage boundary: Creator Preview
+
+The first deliverable is deliberately called **SillyOS Creator Preview**. It
+exists to settle the product model, visual system, responsive work area, and
+human/Agent revision interaction before integrating an expensive or stateful
+backend.
+
+It may provide:
+
+- a Creator home prompt for translation, writing, role-play, or a general
+  request;
+- a deterministic local Creator response;
+- one Program proposal containing a name, summary, selected capabilities, and
+  fake output preview;
+- a Program work area with the user/Creator conversation, the proposal, and
+  activity;
+- local pending, accepted, and rejected proposal states.
+
+It does **not** claim:
+
+- a real model, Pi Agent, shell, WASM tool environment, network service, or
+  database;
+- persistence across reload, project import/export, background execution,
+  generated-code execution, or arbitrary package installation;
+- a public Mod, Agent, Program, Blueprint, or connection ABI;
+- production translation, writing, role-play, or OpenUI behavior;
+- that an accepted fake proposal has created a distributable application.
+
+The preview must identify itself as deterministic/local in visible copy. Fake
+events use the same product-owned session model as the UI, but they must not be
+wrapped in a pretend transport, persistence layer, or generic framework.
+
+## Product and engine ownership
+
+SillyOS is a GUI product for Browser and Deno Desktop. The same React product
+surface and responsive contracts apply to both targets. Target-specific chrome
+or services belong to a Host boundary only when they change a real product
+behavior.
+
+- Creator session and Program proposal state are product authorities. They do
+  not create a second SillyMaker game State, Save, replay, or command authority.
+- The first preview uses no Game/Story simulation and no Save path.
+- Program presentation may use ordinary React and mature web packages. A
+  third-party component remains responsible for ordinary same-realm browser
+  behavior; SillyMaker does not invent a JavaScript sandbox around trusted UI.
+- The existing private, build-known Mod runtime is not a public ecosystem and
+  is not selected by the first preview. A future Program capability set must
+  use an explicitly accepted product/engine contract rather than pretending
+  that arbitrary generated code is already a Mod.
+- Pi, model providers, a database, a WASM shell, companion processes, and
+  external services stay outside the renderer and connect through a typed RPC
+  or Host port. Boundary data is admitted once and then trusted as typed data.
+- Agent/session/project persistence is product storage, not deterministic game
+  Save. Its schema and lifecycle will be designed when a real persistence
+  consumer is accepted.
+
+## Information architecture
+
+### Creator home
+
+Home is a quiet starting surface, not a desktop or launcher. It contains the
+Creator prompt, concise examples of supported intent, and—once persistence
+exists—recent Programs. It must not display fake operating-system status,
+battery, Wi-Fi, clocks, taskbars, or decorative windows.
+
+Submitting a request creates or opens a Program work area. In the preview this
+is a deterministic local transition; later the same user journey may be backed
+by typed Agent RPC.
+
+### Program work area
+
+The work area has three stable regions:
+
+1. a compact product bar containing Home, Program identity, and low-frequency
+   Program actions;
+2. a Creator conversation pane;
+3. a focused Program pane containing View and, only when real, Source,
+   Capabilities, and Activity facets.
+
+The conversation explains and revises the Program. The Program pane is the
+primary work product, not a decorative demo placed beside marketing copy. A
+proposal requiring human review is visible in the conversation and Activity;
+accept/reject operates on that exact proposal revision.
+
+## Visual system
+
+The visual tone is light, calm, flat, and tool-like. It borrows the reference's
+near-neutral surface hierarchy and compact density while using SillyMaker
+identity:
+
+- near-white canvas, slightly raised/tinted work surfaces, and neutral 1px
+  hairlines;
+- one blue primary accent and a restrained mint status accent; accent denotes
+  intent, selection, focus, or status—not decoration;
+- modest radii, no liquid glass, fake reflections, textured canvas, oversized
+  shadows, or ornamental gradients behind working content;
+- standard, legible React controls with coherent hover, pressed, disabled, and
+  focus-visible states;
+- the actual runtime system font stack. Visual checks wait for
+  `document.fonts.ready`; they never assume that Cloudflare's reference fonts
+  exist on the machine.
+
+Cloudflare's screenshot is framed by outside whitespace, a rounded container,
+and a presentation shadow. Those belong to the screenshot composition. The
+actual SillyOS application fills its visual viewport.
+
+## Responsive layout contract
+
+### Desktop and tablet landscape (`width >= 768px`)
+
+- Product bar: `56px` high.
+- Program pane toolbar: `48px` high.
+- Conversation pane: `420px` default, `280px` minimum.
+- Program pane: `400px` minimum.
+- The visible divider is `1px`; its pointer hit target extends `8px` on each
+  side without changing layout.
+- Resizing uses pointer capture so crossing an iframe or embedded surface does
+  not lose the drag. The width is clamped again on window resize and may be
+  remembered as a presentation preference.
+- The active Program/output tab remains completely visible after selection and
+  after pane resizing. Other tabs may truncate and the strip may scroll; tool
+  buttons never shrink or leave the viewport.
+
+At the breakpoint boundary, the layout must switch modes rather than allowing
+either pane to become narrower than its contract.
+
+### Phone and narrow window (`width <= 767px`)
+
+- Product bar is `52px` high.
+- A `56px` switcher exposes Chat, Preview, and Activity as full-width,
+  single-pane views.
+- The compact facet strip remains available in the visible workpiece and may
+  scroll horizontally; a More menu is only introduced if real facet pressure
+  later makes that simpler than the strip.
+- The divider and output rail do not render and leave no tabbable descendants.
+- Primary touch targets are at least `44px`; text inputs use at least `16px`
+  text to avoid unwanted mobile zoom.
+- The layout uses dynamic viewport height and safe-area insets. The composer
+  and modal actions stay reachable without scrolling the entire application
+  behind them; a direct `visualViewport` owner is added only if a reproduced
+  keyboard defect cannot be expressed with those platform primitives.
+
+### Scroll ownership
+
+- The application viewport and workspace shell do not scroll.
+- Conversation messages, Program content, Source, Capabilities, Activity, and
+  tab strips own only the scroll axis they need.
+- Every flex ancestor on a scroll path declares the needed `min-width: 0` or
+  `min-height: 0`.
+- The composer remains attached to the bottom of the visible conversation pane;
+  long history scrolls behind its own boundary.
+- A long Program name or tab label may use a documented single-line ellipsis
+  with an accessible full name. Conversation, proposal, error, and action text
+  wrap and must never be silently clipped.
+
+## Text, alignment, and anti-clipping contract
+
+The public website iteration exposed two failures this product must not repeat:
+font descenders were clipped by a tight line box, and independently sized
+inline items appeared on different baselines.
+
+- Do not give variable user text a fixed height. Except for explicit one-line
+  labels, a text ancestor must not use `overflow: hidden`.
+- Body and control text have an explicit, font-appropriate line height. Display
+  text reserves real ascender and descender space; a highlight or gradient
+  layer cannot double as the text clipping mask.
+- Controls in one bar use shared height tokens and `align-items: center`.
+  Icon centers in the same bar may differ by at most one CSS pixel; do not tune
+  individual controls with unexplained transforms or negative margins.
+- Chinese, English, mixed-script text, long Program names, long model names,
+  long capability names, and 200% text size are first-class cases.
+- No key content or action may depend on hover to become discoverable. Hover
+  affordances remain reachable through focus and touch alternatives.
+- A layout is not accepted until it has been viewed with the actual shipped
+  font. Placeholder-font screenshots do not count.
+
+## Pointer and keyboard contract
+
+- Tab order follows product bar, current pane navigation/actions, current pane
+  content, then the Creator composer. Hidden panes contain no focusable nodes.
+- Tabs expose an accessible selected state. Every interactive control has a
+  visible focus indicator that is not clipped by an overflow ancestor.
+- In the composer, `Enter` submits and `Shift+Enter` inserts a newline.
+- During IME composition, Enter, Escape, arrows, and candidate-selection keys
+  remain owned by the IME. Do not submit or dismiss from `isComposing` events
+  (including the legacy key-code `229` signal).
+- Editable names use Enter to commit and Escape to cancel.
+- The desktop divider is an accessible vertical separator. Pointer drag and
+  keyboard resize share the same clamp: Arrow adjusts by a small step,
+  Shift+Arrow by a larger step, and Home/End select the minimum/maximum.
+- Full-screen View moves focus into an accessible dialog/surface. Escape exits
+  even when focus is in an embedded surface; exit restores the invoking
+  element, or a stable fallback if that element no longer exists.
+- Opening and closing a proposal, menu, dialog, mobile pane, or fullscreen View
+  preserves a useful focus location rather than returning focus to `body`.
+
+## Verification matrix
+
+Behavior tests and real screenshots are complementary. Geometry tests catch
+overflow and ownership errors; screenshots catch glyph clipping, SVG mistakes,
+baseline drift, and one-pixel seams. Tests protect product behavior, not a full
+DOM identity inventory.
+
+| Viewport      | Required evidence                                               |
+| ------------- | --------------------------------------------------------------- |
+| `1600 x 1000` | Populated reference desktop workspace screenshot and behavior   |
+| `1280 x 800`  | Long bilingual content, multiple tabs, proposal actions         |
+| `768 x 700`   | Exact two-pane breakpoint boundary                              |
+| `767 x 700`   | Exact single-pane breakpoint boundary                           |
+| `390 x 844`   | Phone Chat and Preview screenshots plus pane switching          |
+| `320 x 568`   | Narrow/short wrapping, menu, composer, and touch reachability   |
+| `1024 x 520`  | Short visual viewport and keyboard-safe modal/composer behavior |
+
+Each relevant case checks:
+
+- `document.scrollWidth <= document.clientWidth`;
+- product bar and pane toolbar heights;
+- desktop pane minimums and the one-pixel seam;
+- the composer and visible actions remain inside the visual viewport;
+- visible text and focus indicators remain inside their clipping ancestors;
+- pointer resizing, keyboard resizing, pane switching, IME-safe submission,
+  fullscreen Escape, and focus restoration;
+- long English, long Chinese, and mixed-script fixtures;
+- reduced motion without removing state changes;
+- Chromium and WebKit. The maintained Deno Desktop preview receives a real
+  visual and interaction smoke before a release claim.
+
+Golden screenshots use deterministic fake data, device scale factor 1, the
+runtime font stack, completed font loading, reduced motion, and settled layout.
+Only nondeterministic values such as a real timestamp may be masked. Header,
+tabs, conversation, proposal, composer, pane boundaries, and long text must
+remain visible to the diff. Updating a baseline requires viewing the result;
+passing a pixel threshold alone is not design approval.
+
+## Semantic coverage and honest status
+
+This table is the completion denominator for the rewrite. A working preview is
+evidence for the preview only.
+
+| Area              | Accepted product role                                     | Current preview evidence               | Remaining before product-ready                |
+| ----------------- | --------------------------------------------------------- | -------------------------------------- | --------------------------------------------- |
+| Creator home      | Express intent and create/open a Program                  | Deterministic local request            | Attachments, real Agent, persisted Programs   |
+| Program workspace | Conversation and work product stay in one focused context | One fake proposal and View             | Multiple real revisions and outputs           |
+| Human review      | Accept/reject an exact proposed revision                  | Local pending/accepted/rejected states | Durable CAS and external effects              |
+| Activity          | Explain what happened and what needs review               | Local proposal events                  | Real tool/action history and approvals        |
+| Capabilities      | Required services and modules are understandable          | Declared preview labels                | Real typed capability bindings                |
+| Source            | Inspect and refine the Program where useful               | Presentation-only recipe preview       | Real project/source owner and editor decision |
+| Translation       | A usable translation Program                              | Intent classification only             | Complete workflow, data, QA, export           |
+| Writing           | A usable writing Program                                  | Intent classification only             | Complete workflow, data, revision tools       |
+| Role-play         | A usable role-play Program                                | Intent classification only             | Complete sessions, characters, VN behavior    |
+| Browser           | Publishable responsive product                            | Preview target                         | Product and performance closure               |
+| Deno Desktop      | Same product with admitted Host integrations              | Preview target                         | Real service/storage/packaging qualification  |
+
+Before SillyOS is called a complete reference product, this table must be
+reconciled with implementation and tests, the current-low-end startup,
+interaction, memory, and bundle budgets must be measured, and an independent
+review must confirm the declared major journeys. A convincing fake conversation
+or one generated Program is not evidence that the complete product exists.
+
+## Explicit defers
+
+The following require their own product consumer and acceptance before they
+become implementation work: real Pi integration; model routing; persistent
+project/session database; WASM shell and tools; arbitrary generated code;
+Program import/export; share and collaboration; background schedules; a public
+Mod/Program SDK; marketplace or distribution; final Source editor; and dynamic
+UI protocols. Their future need does not justify placeholders or framework code
+in the Creator Preview.

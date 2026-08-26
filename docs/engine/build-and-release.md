@@ -370,22 +370,27 @@ Desktop APIs; the web Player is the stable fallback.
 
 `deno task site:build` composes a publishable static site at `dist/site`: the
 Astro/Starlight documentation at the root, the Cat Cafe Player at
-`/play/cat-cafe/`, and the SillyOS 98 Player at `/play/silly-os/`. Player bundles
-build with `base: "./"` and resolve
-runtime assets against `document.baseURI`, so they are location-independent;
-only the docs site needs the deployment base, supplied through `SITE_BASE`
-(defaults to `/`). Saves stay in the visitor's browser (IndexedDB) — no server
-component is required.
+`/play/cat-cafe/`, and the GUI-only SillyOS Creator Preview at
+`/play/silly-os/`. SillyOS currently exposes the Creator Home → Program
+Workspace journey with one built-in Agent Creator and a deterministic local
+preview. It does not claim real Pi, database, RPC, Mod activation, or
+persistence. Player bundles build with `base: "./"` and resolve runtime assets
+against `document.baseURI`, so they are location-independent; only the docs site
+needs the deployment base, supplied through `SITE_BASE` (defaults to `/`). Cat
+Cafe saves stay in the visitor's browser (IndexedDB); the current SillyOS
+preview starts a new local session after reload. Neither static deployment
+requires a server component.
 
 - **GitHub Pages** — `.github/workflows/deploy-pages.yml` uses `deno ci`, builds with `SITE_BASE=/<repo>/`, and deploys through `actions/deploy-pages`. One-time setup: repository Settings → Pages → Source: "GitHub Actions", then run the workflow from the Actions tab. Push deployment is intentionally disabled; enabling it requires the deployment build to wait for the same commit's required CI quality and Engine Lab prebuilt-smoke gates. The site lands at `https://<owner>.github.io/<repo>/`.
 - **Cloudflare Workers** — `wrangler.jsonc` declares an assets-only Worker serving `dist/site`. Deploy from a local machine with `deno task site:build && deno task site:deploy:cf` (authenticate once with `deno run -A npm:wrangler@4.123.0 login`). Root-based hosting, so the default `SITE_BASE=/` is correct; the site lands at `https://silly-maker.<account>.workers.dev/` or a custom domain.
 
 ### Standalone application deployment (one Player, no docs site)
 
-A Player bundle is already self-contained static hosting input — relative base,
-assets resolved against `document.baseURI`, saves in the visitor's IndexedDB —
-so publishing one application independently can deploy `dist-web/` directly.
-It does not need an additional handoff-preparation step.
+A Player bundle is already self-contained static hosting input: it uses a
+relative base, resolves assets against `document.baseURI`, and keeps any
+application-owned browser storage client-side. Publishing one application
+independently can therefore deploy `dist-web/` directly. It does not need an
+additional handoff-preparation step.
 
 - **Cloudflare Workers** — the template and each example carry an app-local `wrangler.jsonc` (assets-only Worker serving `./dist-web`) and a `deploy:cf` script. From the application directory: `deno task deploy:cf` (builds, then deploys; authenticate once with `deno run -A npm:wrangler@4.123.0 login`). The Player lands at `https://<worker-name>.<account>.workers.dev/`. The `name` field in `wrangler.jsonc` is the Worker name — template copies rename it with the rest of the project; each application deploys as its own Worker, independent of the composed site. The wrangler version is pinned in each project's `package.json` and task; bump both together.
 - **GitHub Pages** — one repository owns one Pages site, and this repository's Pages slot serves the composed site (which already hosts the Player under `/play/<app>/`). For a truly standalone Pages deployment, publish the built `dist-web/` contents from a dedicated repository; the relative-base bundle works unchanged from any path.

@@ -55,7 +55,7 @@ engine/packages/ui       generic React presentation, Narrative/WholeCanvas surfa
 engine/packages/web      browser Host and application adapters
 e2e/                     neutral Engine Conformance Story (MIT test consumer)
 template    minimal starter Story (new-project skeleton)
-examples/                curated example Stories (bookshop; cat-cafe; SillyOS)
+examples/                curated applications (Bookshop and Cat Cafe Stories; GUI-only SillyOS)
 project.config.ts        the workspace registry (application directory list)
 website/                 the public documentation site (Astro + Starlight, en + zh; deno task docs:dev)
 scripts                  maintained build, asset, and product tooling
@@ -499,7 +499,7 @@ Do not add filesystem/package discovery, a public resolver/ABI/SDK, download or
 signature policy, post-release arbitrary-code loading, or install/restart APIs to
 this entry. A no-Mod product must remain complete and omit the private runtime
 from its final graph. The maintained Engine Lab proof is test-only and deliberately
-small; SillyOS, third-party React packages, and Agent conversation are later
+small; SillyOS, third-party React packages, and Agent conversation are downstream
 product validation rather than fixtures for this engine slice.
 
 Focused M5 checks are:
@@ -1552,7 +1552,7 @@ documentation together unless a concrete compatibility promise says otherwise.
 
 ## Testing policy
 
-Browser commands exercise the Engine Lab Story ([E2E engine validation design](design/e2e-engine-validation.md)); the retired PoC product suite left with its application. Production Narrative coverage also runs through the starter template, Bookshop, and Cat Cafe, while SillyOS proves that omitting Narrative remains valid. WholeCanvas browser coverage uses Engine Lab's exact `whole_canvas_conformance=1` opt-in plus Cat Cafe's real ending, and SillyOS proves omission. The promoted matrix exercises the same public definitions and default Hosts used by applications rather than conformance-only engine entries.
+Browser commands exercise the Engine Lab Story ([E2E engine validation design](design/e2e-engine-validation.md)); the retired PoC product suite left with its application. Production Narrative coverage also runs through the starter template, Bookshop, and Cat Cafe. WholeCanvas browser coverage uses Engine Lab's exact `whole_canvas_conformance=1` opt-in plus Cat Cafe's real ending. GUI-only applications such as the current SillyOS use the separate `startWebGuiApplicationV1` path and therefore make no Story, Narrative, or WholeCanvas claim. Focused composition tests protect omission inside Game applications. The promoted matrix exercises the same public definitions and default Hosts used by applications rather than conformance-only engine entries.
 
 Playwright tests and E2E runs are silent by default so local and CI execution do
 not play audible media. The real audio Host, playback, interruption, cleanup,

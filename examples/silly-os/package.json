@@ -1,13 +1,10 @@
 {
-  "name": "@sillymaker/story-silly-os",
+  "name": "@sillymaker/example-silly-os",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "SillyOS 98: a retro desktop shell example (windows, taskbar, Minesweeper, Notepad, browser) built entirely on the SillyMaker engine.",
-  "exports": {
-    ".": "./src/story.ts"
-  },
+  "description": "SillyOS: a creator-agent product prototype built with SillyMaker.",
   "scripts": {
     "dev": "deno run -A npm:vite",
     "build": "deno task build:web",
@@ -20,12 +17,10 @@
     "test": "deno run -A npm:vitest run src"
   },
   "dependencies": {
-    "@sillymaker/base": "workspace:*",
-    "@sillymaker/ui": "workspace:*",
     "@sillymaker/web": "workspace:*",
+    "lucide-react": "^1.34.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "zod": "4.4.3"
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@sillymaker/tooling": "workspace:*",

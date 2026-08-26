@@ -1,13 +1,19 @@
 # examples/ agent handbook
 
-This directory collects the example Stories; each subdirectory is an independent,
+This directory collects the example applications; each subdirectory is an independent,
 cohesive, complete, and publishable application package:
 
 | Package     | Showcases                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | License                             |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
 | `bookshop/` | Minimal complete script authoring example                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | MIT                                 |
 | `cat-cafe/` | The flagship complete game: content database, stage hit regions, turn structure, event pool, meta progression, i18n, tuning channel, runtime art pipeline (transparent character art + CSS idle/feedback animation), scene-driven audio layer (BGM/rain/SFX), Narrative runtime QoL (typewriter/auto/skip/history), player rollback (contest start and endings are barriers), save safepoints, package-owned splash + title screen, a publication-selected WholeCanvas ending + epilogue, host/cross-target desktop packaging preview (Darwin icon; file persistence not durability-promoted); design spec in `cat-cafe/DESIGN.md` | Code and text MIT; media assets CC0 |
-| `silly-os/` | Retro desktop shell: window manager (overlap/focus/minimize/maximize/drag, UI-transient), app registry, deterministic minesweeper (transaction-RNG mine placement, mine positions never reach the publication), notepad (saving is the hard disk), iframe browser, browser-language auto i18n, fully self-drawn system look (autosave/boot restore, control-panel window, taskbar volume tray, zero engine preset UI exposed)                                                                                                                                                                                                      | Code and text MIT; pixel icons CC0  |
+| `silly-os/` | GUI-only Creator Preview: Creator Home opens a Program Workspace where the one built-in Agent Creator produces a deterministic local proposal, preview, and review flow. The current slice does not connect real Pi, a database, RPC, Mod activation, or persistence; design contract in `silly-os/DESIGN.md`                                                                                                                                                                                                                                                                                                                      | Code and text MIT                   |
+
+SillyOS is a GUI-only Creator product slice. Preserve its current public
+journey—Creator Home → Program Workspace—and label the deterministic local
+preview honestly. Agent Creator is its only built-in user-facing program. Do
+not imply that accepting a preview proposal invokes real Pi, stores a Program,
+crosses an RPC boundary, activates a Mod, or persists anything.
 
 ## Reference application product contract
 
@@ -165,9 +171,9 @@ deno task app simulate <appId> --scenario <name>
 Rules in brief:
 
 - Every new say/choice needs a brand-new `definitionId` (`interaction.<story>.<name>`); never reuse one.
-- Bookshop and Cat Cafe use the composition-owned production Narrative surface; SillyOS intentionally omits `application.ui().narrative`. Do not add a second Narrative writer or revive the retired panel/player helpers.
+- Bookshop and Cat Cafe use the composition-owned production Narrative surface; GUI-only applications do not declare that surface. Do not add a second Narrative writer or revive the retired panel/player helpers.
 - Cat Cafe is the first Story WholeCanvas consumer: semantic ending state selects its sole `catcafe.ending` primary, Continue enters the endless epilogue, and Restart installs fresh gameplay without returning to Title. Keep the renderer frame-only and dispatch those exact owner actions through the definition; never restore the retired HUD ending writer.
-- Existing Splash/Title authoring remains the `titleScreen` declaration even though the package now renders both through its WholeCanvas authority. SillyOS intentionally omits both `titleScreen` and `application.ui().wholeCanvas`, so its default and shutdown paths allocate no WholeCanvas Host or Story definition.
+- Existing Splash/Title authoring remains the `titleScreen` declaration even though the package now renders both through its WholeCanvas authority. A GUI-only application with `storyEntry: null` allocates neither a WholeCanvas Host nor a Story definition.
 - A `stage` node's `mayShow` honestly lists every contentId it might show; a `branch`'s `choose` must land inside `successors` (tests enforce both).
 - New stage content is wired in three places: the contentId constant in narrative, the content catalog in presentation, the renderer in composition. For a scene-managed scene the narrative side is its Scene document (see the scene collaboration contract below).
 - Saveable state holds integers only (logical units like `scalePermille`); floats are rejected by canonical JSON.

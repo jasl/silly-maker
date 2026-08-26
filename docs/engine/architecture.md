@@ -1313,8 +1313,9 @@ normalizes the existing `titleScreen` declaration into the same WholeCanvas
 authority, so Splash and Title are package-owned front-door renderers rather
 than a parallel System or Root writer. Cat Cafe's ending is the first real
 consumer, Engine Lab's `whole_canvas_conformance=1` route is the opt-in second
-consumer. SillyOS declares neither `titleScreen` nor `ui.wholeCanvas`, so it
-intentionally allocates no WholeCanvas Host, source, lease, or subscription.
+consumer. The GUI-only SillyOS uses the neutral Web GUI entry rather than a
+Story/Game declaration, so it allocates no WholeCanvas Host, source, lease, or
+subscription.
 The public catalog and target inputs are normalized once by that front door.
 The package-private session trusts the resulting root target, computes only its
 stable canonical key, and retains the real catalog/placement constraint. A

@@ -11,7 +11,12 @@ targets.
 
 **Play the flagship example**: the [Cat Cafe](examples/cat-cafe/) (《雨巷猫舍》) is a complete, publishable game built to drive the engine — title screen, scheduling gameplay, petting hit-regions, a turn-based contest, an album, multiple endings with a postgame, dialogue playback QoL (typewriter / auto / skip / history / rollback), scene-driven audio, save slots with safepoints, bilingual text, and a host/cross-target desktop-packaging preview.
 
-**Then break the genre**: [SillyOS 98](examples/silly-os/) is a retro desktop shell — overlapping draggable windows, a taskbar, a Start menu, deterministic Minesweeper (mines drawn from the transactional RNG, never leaked to the UI), a Notepad whose files persist through engine saves, and a period browser. Same engine, zero visual-novel assumptions.
+**Explore the GUI product direction**: [SillyOS](examples/silly-os/) is being
+rebuilt around one visible program, **Agent Creator**. It turns a creative intent
+into a reviewable Program workspace where the conversation, proposal, workpiece,
+and activity stay together. The current build is an explicit deterministic local
+preview: it validates the responsive human-review flow, but does not claim real
+Pi, database, RPC, Mod activation, or persistence.
 
 ## Why SillyMaker
 
@@ -42,7 +47,10 @@ Common commands:
 - `deno task check` — the canonical local gate: format, lint, typecheck, and the product-level test suite;
 - `deno task test` / `deno task test:e2e` — engine/game behavior tests and browser user flows;
 - `deno task app <verb> <app>` — the explicit repository application CLI (dev / inspect / check / simulate / build / desktop, JSON reports where applicable);
-- `deno task site:build` — compose the publishable static site (docs + Cat Cafe and SillyOS 98) into `dist/site`, then deploy via the GitHub Pages workflow or `deno task site:deploy:cf` (Cloudflare Workers); see [build-and-release](docs/engine/build-and-release.md).
+- `deno task site:build` — compose the publishable static site (docs + Cat Cafe
+  and the SillyOS Creator Preview) into `dist/site`, then deploy via the GitHub
+  Pages workflow or `deno task site:deploy:cf` (Cloudflare Workers); see
+  [build-and-release](docs/engine/build-and-release.md).
 
 Start a new product by copying [`template/`](template/) and following its
 README. It is game-first; GUI-only products use the documented copy-and-reduce

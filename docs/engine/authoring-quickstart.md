@@ -120,7 +120,8 @@ contextual typing and reject extra keys. Put the React renderer in `ui.tsx` and
 return the definition as `ui.narrative`. The renderer uses only its immutable
 public props and bounded callbacks; never add `slots.narrative`, import the
 removed playback/conformance components, or mount another Host/Stage writer.
-Applications without Narrative simply omit `ui.narrative`, as SillyOS does.
+Game applications without Narrative simply omit `ui.narrative`. GUI-only
+applications use `startWebGuiApplicationV1` and do not declare a Story.
 
 For a Story-defined WholeCanvas application surface, create exactly one
 definition with `defineWholeCanvasSurfaceV1`. Pass its ordinary seven-key input (`catalog`, `source`,
@@ -137,7 +138,8 @@ scenes: gameplay HUD/stage/narrative stay concealed until New game/Continue/Load
 dismisses the front door. Openings that need an explicit boot command belong on
 `titleScreen.beginNewGame(semantic)`, not a second in-game control. An application
 allocates no WholeCanvas Host, source, lease, or subscription only when it omits
-both `titleScreen` and `ui.wholeCanvas`, as SillyOS does.
+both `titleScreen` and `ui.wholeCanvas`. This is a Game-application
+composition rule; GUI-only applications do not instantiate the Game Host.
 
 ```sh
 deno task dev                    # inside the application directory

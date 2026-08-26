@@ -69,7 +69,7 @@ export default defineConfig({
       use: { ...devices["Desktop Firefox"] },
     },
     {
-      // Mobile portrait: a minimal watch on SillyOS fluid tiling and touch usability.
+      // Mobile portrait: SillyOS switches the Creator workspace to one navigable pane.
       name: "mobile-portrait",
       grep: /@mobile/,
       use: {

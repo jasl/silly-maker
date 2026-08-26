@@ -112,18 +112,6 @@ const applicationPoliciesV1 = [
     ],
   },
   {
-    applicationId: "example-silly-os",
-    callbackOwnerEntry: "examples/silly-os/src/game/simulation-definition.ts",
-    presentationEntry: "examples/silly-os/src/content/presentation.ts",
-    coreDefinition: {
-      module: "examples/silly-os/src/application/core-definition.ts",
-      exportName: "osCoreApplicationDefinitionV1",
-    },
-    dependencySeedEntries: [
-      "examples/silly-os/src/game/simulation-definition.ts",
-    ],
-  },
-  {
     applicationId: "example-cat-cafe",
     callbackOwnerEntry: "examples/cat-cafe/src/game/simulation-definition.ts",
     presentationEntry: "examples/cat-cafe/src/content/presentation.ts",

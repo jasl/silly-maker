@@ -3,7 +3,8 @@
 //   /                Astro/Starlight documentation (website/)
 //   /play/cat-cafe/  the Cat Cafe Player bundle (relative-base, static saves
 //                    live in the visitor's browser via IndexedDB)
-//   /play/silly-os/  the SillyOS 98 retro-desktop example
+//   /play/silly-os/  the GUI-only SillyOS Creator Home to Program Workspace
+//                    deterministic preview
 //
 // SITE_BASE selects the deployment base path. Root deployments (Cloudflare
 // Workers, custom domains) omit it; GitHub Pages project sites set

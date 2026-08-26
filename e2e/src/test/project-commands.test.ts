@@ -27,7 +27,6 @@ describe("project commands against the real repository config", () => {
       "e2e",
       "template",
       "example-bookshop",
-      "example-silly-os",
       "example-cat-cafe",
     ]);
 

@@ -1,0 +1,226 @@
+// SPDX-License-Identifier: MIT
+import { ArrowUp, CircleCheck, CircleX, FileText, Paperclip, Sparkles } from "lucide-react";
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
+
+import type { SillyOsCopyV1 } from "../content/copy.ts";
+import type {
+  CreatorChatMessageV1,
+  PreviewProgramV1,
+  ProgramProposalV1,
+} from "../product/contracts.ts";
+import { SillyButtonV1 as Button } from "./controls.tsx";
+
+export interface ChatPanePropsV1 {
+  readonly copy: SillyOsCopyV1;
+  readonly messages: readonly CreatorChatMessageV1[];
+  readonly proposal: ProgramProposalV1 | null;
+  readonly program: PreviewProgramV1 | null;
+  readonly workpieceOpen: boolean;
+  readonly onAccept: () => void;
+  readonly onReject: () => void;
+  readonly onOpenWorkpiece: () => void;
+  readonly onSend: (text: string) => void;
+}
+
+export function ChatPaneV1({
+  copy,
+  messages,
+  proposal,
+  program,
+  workpieceOpen,
+  onAccept,
+  onReject,
+  onOpenWorkpiece,
+  onSend,
+}: ChatPanePropsV1): ReactNode {
+  const [draft, setDraft] = useState("");
+  const feedEndRef = useRef<HTMLDivElement>(null);
+  const resourceInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    feedEndRef.current?.scrollIntoView({ block: "end" });
+  }, [messages.length]);
+
+  const submitV1 = (event?: FormEvent): void => {
+    event?.preventDefault();
+    const text = draft.trim();
+    if (text.length === 0) return;
+    onSend(text);
+    setDraft("");
+  };
+
+  return (
+    <section className="chat-pane" aria-label={copy.chat} data-workspace-pane="chat">
+      <div className="chat-pane__feed" role="log" aria-live="polite">
+        <div className="chat-pane__intro">
+          <span className="chat-pane__creator-avatar" aria-hidden="true">
+            <Sparkles size={16} fill="currentColor" />
+          </span>
+          <div>
+            <strong>{copy.creatorName}</strong>
+          </div>
+        </div>
+
+        {messages.map((message) => (
+          <article
+            className={`chat-message chat-message--${message.role}`}
+            key={message.messageId}
+            data-chat-role={message.role}
+          >
+            <span className="chat-message__avatar" aria-hidden="true">
+              {message.role === "creator"
+                ? <Sparkles size={14} fill="currentColor" />
+                : copy.locale === "zh-CN"
+                ? "你"
+                : "Y"}
+            </span>
+            <div className="chat-message__body">
+              <strong>
+                {message.role === "creator"
+                  ? copy.creatorName
+                  : copy.locale === "zh-CN"
+                  ? "你"
+                  : "You"}
+              </strong>
+              <p>{message.text}</p>
+            </div>
+          </article>
+        ))}
+
+        {program !== null && proposal !== null && (
+          <article className="program-proposal" data-proposal-status={proposal.status}>
+            <div className="program-proposal__heading">
+              <span className="program-proposal__icon" aria-hidden="true">
+                <FileText size={17} />
+              </span>
+              <div>
+                <span>{copy.proposedProgram}</span>
+                <strong>{program.name}</strong>
+              </div>
+              <span className="program-proposal__status">
+                {proposal.status === "pending"
+                  ? copy.preview
+                  : proposal.status === "accepted"
+                  ? copy.accepted
+                  : copy.rejected}
+              </span>
+            </div>
+            <p>{program.purpose}</p>
+            <ul>
+              {program.suggestedCapabilities.map((capability) => (
+                <li key={capability.capabilityId}>
+                  <CircleCheck size={15} aria-hidden="true" />
+                  <span>
+                    <strong>{capability.label}</strong>
+                    <small>{capability.description}</small>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {proposal.status === "pending"
+              ? (
+                <div className="program-proposal__actions">
+                  <Button size="sm" variant="primary" icon={CircleCheck} onClick={onAccept}>
+                    {copy.accept}
+                  </Button>
+                  <Button size="sm" variant="secondary" icon={CircleX} onClick={onReject}>
+                    {copy.reject}
+                  </Button>
+                </div>
+              )
+              : (
+                <div className={`program-proposal__decision is-${proposal.status}`}>
+                  {proposal.status === "accepted"
+                    ? <CircleCheck size={16} fill="currentColor" aria-hidden="true" />
+                    : <CircleX size={16} fill="currentColor" aria-hidden="true" />}
+                  <span>{proposal.status === "accepted" ? copy.accepted : copy.rejected}</span>
+                </div>
+              )}
+          </article>
+        )}
+
+        {program !== null && (
+          <button
+            type="button"
+            className="workpiece-link"
+            onClick={onOpenWorkpiece}
+            aria-expanded={workpieceOpen}
+          >
+            <span className="workpiece-link__thumbnail" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
+            <span>
+              <strong>{program.name}</strong>
+              <small>{workpieceOpen ? copy.previewTab : copy.openPreview}</small>
+            </span>
+            <span aria-hidden="true">↗</span>
+          </button>
+        )}
+        <div ref={feedEndRef} />
+      </div>
+
+      <form className="chat-composer" onSubmit={submitV1}>
+        <label className="silly-os-visually-hidden" htmlFor="workspace-follow-up">
+          {copy.sendPlaceholder}
+        </label>
+        <textarea
+          id="workspace-follow-up"
+          value={draft}
+          rows={3}
+          maxLength={4_000}
+          placeholder={copy.sendPlaceholder}
+          onChange={(event) => setDraft(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing) return;
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              submitV1();
+            }
+          }}
+        />
+        <div className="chat-composer__actions">
+          <input
+            ref={resourceInputRef}
+            hidden
+            type="file"
+            multiple
+            onChange={(event) => {
+              const names = Array.from(event.currentTarget.files ?? [], (file) => file.name);
+              if (names.length === 0) return;
+              onSend(
+                copy.locale === "zh-CN"
+                  ? `为这个程序添加资料：${
+                    names.join("、")
+                  }。当前只记录附件名称，尚未导入文件内容。`
+                  : `Add these resources to the program: ${
+                    names.join(", ")
+                  }. Only the attachment names are recorded; file contents are not imported yet.`,
+              );
+              event.currentTarget.value = "";
+            }}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            shape="square"
+            size="sm"
+            icon={Paperclip}
+            aria-label={copy.addResource}
+            onClick={() => resourceInputRef.current?.click()}
+          />
+          <Button
+            type="submit"
+            variant="primary"
+            shape="square"
+            size="sm"
+            icon={ArrowUp}
+            aria-label={copy.send}
+            disabled={draft.trim().length === 0}
+          />
+        </div>
+      </form>
+    </section>
+  );
+}

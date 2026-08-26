@@ -531,9 +531,7 @@ describe("authoritative determinism authority map", () => {
 
     expect(
       map.applications
-        .filter(({ directory }) =>
-          ["template", "examples/bookshop", "examples/silly-os"].includes(directory)
-        )
+        .filter(({ directory }) => ["template", "examples/bookshop"].includes(directory))
         .every(({ dependencySource }) => dependencySource === "explicit_dependency_seed"),
     ).toBe(true);
     expect(
@@ -542,7 +540,6 @@ describe("authoritative determinism authority map", () => {
           ![
             "template",
             "examples/bookshop",
-            "examples/silly-os",
           ].includes(directory)
         )
         .every(({ dependencySource }) => dependencySource === "managed_build_identity"),

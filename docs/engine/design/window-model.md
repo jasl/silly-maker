@@ -46,7 +46,7 @@ exact-parent transient detail 作为独立 product layer 迁入同一 authority�
 ## 立场：完整 WindowManager 暂不进引擎
 
 按路线图证据规则（能力需要真实 Story
-需求证明），自由窗口管理（最小化/最大化/任务栏/位置持久化/点击置前）**不预先实现**：已交付的品类（VN/养成/SLG）在业界惯例里就是固定窗体。CSS 像素标题栏拖拽已经作为 L1 原语交付：`useClampedElementDragV1` 用 `setPointerCapture` 把浮窗钳在宿主盒内，供 letterbox 画布上的调试窗（`DevDockV1`）使用。等比缩放 / 逻辑坐标 MDI（SillyOS）继续用自己的 `viewport.scale` 换算，不要迁到这个 hook。`OverlayHostV1` 仍是玩法窗体的 lifecycle；调试窗不走 Overlay 槽。
+需求证明），自由窗口管理（最小化/最大化/任务栏/位置持久化/点击置前）**不预先实现**：已交付的品类（VN/养成/SLG）在业界惯例里就是固定窗体。CSS 像素标题栏拖拽已经作为 L1 原语交付：`useClampedElementDragV1` 用 `setPointerCapture` 把浮窗钳在宿主盒内，供 letterbox 画布上的调试窗（`DevDockV1`）使用。等比缩放 / 逻辑坐标 MDI（已退役的 SillyOS 98 实验）曾用自己的 `viewport.scale` 换算，不应迁到这个 hook。`OverlayHostV1` 仍是玩法窗体的 lifecycle；调试窗不走 Overlay 槽。
 
 ## 游戏侧配方（需要时照此实现）
 
@@ -57,7 +57,7 @@ exact-parent transient detail 作为独立 product layer 迁入同一 authority�
   `useGameViewportV1()` 的换算**（屏幕像素 ≠
   逻辑像素）；位置存 **Story UI state**，或由非游戏产品自己的 workspace
   repository 持久化，绝不混入 gameplay State/Game
-  Save；窗口位置随窗体尺寸变化要钳制在舞台内。SillyOS 走这条配方。
+  Save；窗口位置随窗体尺寸变化要钳制在舞台内。已退役的 SillyOS 98 实验曾走这条配方。
 - **最小化/折叠**：一个 Story UI state
   布尔切换内容区显隐即可（标题栏保留）；"最小化到任务栏"先别做——那是 MDI
   品类的隐喻。
@@ -70,7 +70,10 @@ exact-parent transient detail 作为独立 product layer 迁入同一 authority�
 - **表单**：直接写原生
   `<input>/<select>/<textarea>`，引擎主题自动生效；不要为样式引第三方表单库。
 
-## SillyOS 实证（2026-07-28）
+## 已退役的 SillyOS 98 历史实证（2026-07-28）
+
+本节只记录已经删除的 2026-07-28 实现如何影响当时的引擎裁决，不描述当前
+`examples/silly-os` Creator 产品，也不再充当 live consumer 或当前验收证据。
 
 `examples/silly-os`（复古桌面 shell：重叠窗口/焦点 z
 序/最小化/最大化/标题栏拖拽/任务栏/开始菜单 + 确定性扫雷 + 存档持久的记事本 +
@@ -83,18 +86,17 @@ subscribe），外加一个 WindowFrame 组件。不需要引擎 WindowManager
 几何、最小化和任务栏等产品状态；其中会改变全局 input/focus/modality 的边界在
 Surface track 登记为 managed contribution，而不是另建一套全局输入权威。
 
-SillyOS 也验证了 Narrative 的显式省略路径：它不声明
+旧实验当时也验证了 Narrative 的显式省略路径：它不声明
 `NarrativeSurfaceDefinitionV1`，root slots 中也没有 narrative writer，因此自定义桌面
 shell 不会意外分配 Narrative Host、player 或 Stage claimant。S4b.1c 同样保持显式省略
 `WholeCanvasSurfaceDefinitionV1`：SillyOS 的 MDI geometry、focus/z-order、最小化与任务栏仍是
 单一 custom-shell product store，不是 whole-canvas primary/detail 消费者。
 
-该省略**不是新的 fullscreen writer 逃逸口**。当前 SillyOS boot/shutdown screen 仍以 custom-shell
-local state 改变全局 input/focus/modality，是已登记但尚未迁移的 tracked debt；它不计入
-S4b.1c 的 Cat Cafe 第一消费者、Engine Lab 第二消费者或 promotion evidence，已完成的
-WholeCanvas cutover 也不宣称覆盖该 custom-shell fullscreen debt。若后续要把 custom-root
-front door 纳入 managed authority，必须先有新的 exact entry 与原子 removal gate；
-S4b.1c 没有顺带迁移 MDI、boot 或 shutdown。
+该省略**不是新的 fullscreen writer 逃逸口**。当时的 boot/shutdown screen 曾以
+custom-shell local state 改变全局 input/focus/modality，并被登记为未迁移债务；该债务已随
+旧产品实现删除，不是当前 Creator Preview 的合同。它从未计入 S4b.1c 的 Cat Cafe
+第一消费者、Engine Lab 第二消费者或 promotion evidence，已完成的 WholeCanvas cutover
+也没有宣称覆盖该历史 custom-shell fullscreen 路径。
 
 实证出的关键配方（新增到手册）：
 

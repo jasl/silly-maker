@@ -10,8 +10,10 @@ claim.
 
 - **Cat Cafe** — the current complete in-repository game and flagship pressure
   source. [Play it](../play/cat-cafe/).
-- **SillyOS** — a runnable experimental React desktop-style GUI product, not the
-  final planned agent-product redesign. [Open it](../play/silly-os/).
+- **SillyOS** — a GUI-only Creator Home → Program Workspace product slice. Its
+  one built-in Agent Creator drives a deterministic local preview and review
+  flow; real Pi, database, RPC, Mod activation, and persistence are not connected.
+  [Open it](../play/silly-os/).
 - **Bookshop** — a focused narrative-authoring example maintained in the
   repository.
 

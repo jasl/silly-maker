@@ -1,32 +1,84 @@
-# SillyOS 98
+<!-- SPDX-License-Identifier: MIT -->
 
-用 SillyMaker 做的一次**不务正业**尝试：复古桌面（重叠窗口、任务栏、开始菜单、扫雷、记事本、浏览器），而不是视觉小说。它回答——**引擎的窗体与状态机制离开 VN 舒适区还站得住吗？**
+# SillyOS Creator Preview
 
-英文界面/中文界面由浏览器上报语言自动决定（中文 → 中文，其余 → English），设置页可手动覆盖并持久。持久化完全走引擎内部通路，对玩家不暴露存档规则或槽位 UI——关机再开机，硬盘还在。
+SillyOS 正在从复古桌面示例重写为一个服务创作者的 Agent 产品：人类描述想做什么，
+Creator 把意图整理成双方都能理解、运行、检查和继续修改的 Program。
 
-## 玩法与机制映射
-
-| 应用           | 引擎机制                                                                                                                                                                           |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 扫雷           | 真正的确定性模拟：雷区在首次翻格时由**事务 RNG** 布下（首点永不踩雷），翻格/插旗是命令，重放同种子必得同一雷区。进行中的雷位**不出现在语义发布面**上——UI 与自动化都无法作弊。      |
-| 记事本         | 文件写在权威游戏状态里（`os.filesystem`）：对这台电脑来说就是**硬盘**。关机后再开机，文件还在。                                                                                    |
-| Silly Explorer | 内置主页 + 真 `iframe`（带 sandbox）。多数现代网站以 `X-Frame-Options` / CSP `frame-ancestors` 拒绝内嵌——这是对方的安全策略，主页里如实说明。                                      |
-| 显示属性       | 壁纸选择写入权威状态；下次开机仍在。                                                                                                                                               |
-| 桌面 shell     | **窗口管理器是纯 UI 瞬态**（Story 侧 store）：打开/关闭/聚焦（z 前置）/最小化/最大化/标题栏拖拽/任务栏/开始菜单。桌面按 1024×768 逻辑画布布局，整体随视口连续缩放。                |
-| 开始菜单与托盘 | 设置是普通桌面窗口（控制面板），音量在任务栏喇叭弹窗——引擎默认标题屏/系统菜单/设置对话框全部不出现（无 `titleScreen` + `hideSystemMenu`）；关机 = "现在您可以安全地关闭计算机了"。 |
-
-## 加一个新应用
-
-一个"软件"= 各自切片里的组件 + `src/application/apps.tsx` 注册表里的一条声明（id、名字 textId、图标、初始窗口、单例与否、渲染函数）。桌面图标、开始菜单、窗口内容全部从注册表派生。
-
-```sh
-deno task app check example-silly-os        # Story 诊断
-deno run -A npm:vitest run examples/silly-os  # 规则/确定性/窗口管理器单测
-deno task app simulate example-silly-os --scenario daily
-deno task app build example-silly-os        # 静态产物 → 本目录 dist-web/
-deno task app desktop example-silly-os      # 本机或 --target 交叉目标 Desktop preview
+```text
+Program = project + harness + agent + app
 ```
 
-## 版权
+Creator 是唯一内置的用户程序；生成的 Program 是工程、Agent harness 和可运行应用的
+内聚整体，不是桌面上的玩具窗口。
 
-代码与文案 MIT。像素图标为本仓库原创手绘（CC0）——原版 Windows 98 图标是 Microsoft 版权物，未使用；"SillyOS 98" 为独立命名，机制致意年代交互，不使用 Microsoft 商标。
+## 目前能体验什么
+
+当前阶段是明确标注的 **deterministic local fake preview**，用于先验证产品模型和
+Cloudflare OS 风格的高质量 Agent 工作区：
+
+- 从 Creator Home 提交翻译、写作、角色扮演或通用创作意图；
+- 查看确定性的本地 Creator 回复和一份 Program proposal；
+- 在 Program workspace 中同时查看人类/Creator 对话、proposal、预览和 activity；
+- 接受或拒绝 proposal，并观察 `pending` / `accepted` / `rejected` 状态。
+
+当前没有接入真实 LLM、Pi、数据库、WASM shell、外部服务或持久化。接受 proposal
+也不会生成或发布真实应用。这个边界会在界面中如实显示，不使用假网络层来伪装后端。
+
+详细的产品范围、Cloudflare OS 参考快照、语义映射、桌面/移动布局、键盘/IME、
+防截断和视觉验收矩阵见 [DESIGN.md](./DESIGN.md)。
+
+## 运行
+
+在仓库根目录：
+
+```sh
+deno task app dev example-silly-os
+```
+
+或者进入本目录：
+
+```sh
+deno task dev
+```
+
+然后打开终端中 Vite 输出的地址。当前 Browser 和 Deno Desktop 共享同一个响应式
+React 产品面；Desktop 是产品目标，不会另外模拟操作系统桌面。
+
+## 检查
+
+```sh
+deno task test
+deno task build
+deno task build:desktop
+```
+
+产品模型的 focused test：
+
+```sh
+deno run -A npm:vitest run src/test/creator-session.test.ts
+```
+
+视觉验收不能只看一张宽屏截图。开发完成前至少覆盖 `1600x1000`、`1280x800`、
+`768x700`、`767x700`、`390x844`、`320x568` 和 `1024x520`，并使用长中文、
+长英文、键盘、IME、拖动分栏和全屏焦点恢复进行真实 Browser 检查。
+
+## 当前代码边界
+
+| 位置                               | 所有权                                              |
+| ---------------------------------- | --------------------------------------------------- |
+| `src/product/contracts.ts`         | Program、proposal、activity 与 Creator session 合同 |
+| `src/product/creator-session.ts`   | 本地 session 状态转换与 proposal review             |
+| `src/product/fake-creator.ts`      | 确定性 fake Creator；不是 transport 或真实 Agent    |
+| `src/application/`                 | Browser/Deno 共用的 React 产品入口与工作区表现      |
+| `src/test/creator-session.test.ts` | fake flow 和 review 状态的 focused 行为证据         |
+
+后续真实 Pi、数据库、模型、工具环境和外部服务属于 companion/Host 能力，通过 typed
+RPC 接入 renderer；它们不是进程内插件，也不进入 SillyMaker 的确定性 game Save。
+
+## 参考与授权
+
+工作区交互参考
+[Cloudflare OS `6223e261`](https://github.com/cloudflare/cloudflare-os/tree/6223e261f18849b817a8d7ca03fe3678b77048ca)，
+但 SillyOS 不复制其品牌、资产、文案、截图、前端源码或 Cloudflare Workers 后端。
+产品代码与文案按本仓库 MIT 许可发布；第一方媒体素材如后续加入，按仓库素材政策处理。

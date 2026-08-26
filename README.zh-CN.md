@@ -9,7 +9,10 @@ coding agent 在同一组所有权边界与运行证据内实现。浏览器与
 
 **试玩旗舰示例**：[《雨巷猫舍》](examples/cat-cafe/)是一款为驱动引擎而生的完整可发布游戏——标题屏、日程经营、抚摸命中区域、回合制运动会、成长图鉴、多结局与后日谈、对话播放体验（打字机/自动/快进/历史/回退）、场景驱动的声音层、带安全点的存档槽位、双语文本，以及本机/交叉目标桌面打包 preview。
 
-**再看它跳出类型**：[SillyOS 98](examples/silly-os/) 是一个复古桌面 shell——重叠可拖拽窗口、任务栏、开始菜单、确定性扫雷（雷区来自事务 RNG、绝不泄漏给 UI）、文件随引擎存档持久的记事本，以及一台年代感浏览器。同一台引擎，零视觉小说预设。
+**探索 GUI 产品方向**：[SillyOS](examples/silly-os/) 正在围绕唯一可见程序
+**Agent Creator** 重写。它把创作意图整理进可审查的 Program 工作区，让对话、方案、
+工作成果与活动记录保持在一起。当前版本明确是确定性的本地预览：用于验证响应式的
+人类审查流程，不声称已经接入真实 Pi、数据库、RPC、Mod 激活或持久化。
 
 ## 为什么是 SillyMaker
 
@@ -38,7 +41,10 @@ deno run dev             # 启动这个应用自己的 Vite 服务
 - `deno task check`——本地主门禁：格式、静态检查、类型检查与产品级测试套件；
 - `deno task test` / `deno task test:e2e`——引擎/游戏行为测试与浏览器用户流程；
 - `deno task app <verb> <app>`——显式选择目标的仓库应用 CLI（dev / inspect / check / simulate / build / desktop，适用时输出 JSON 报告）；
-- `deno task site:build`——组装可发布静态站（文档 +《雨巷猫舍》和 SillyOS 98）到 `dist/site`，经 GitHub Pages workflow 或 `deno task site:deploy:cf`（Cloudflare Workers）发布；见[构建与发布](docs/engine/build-and-release.md)。
+- `deno task site:build`——组装可发布静态站（文档 +《雨巷猫舍》和 SillyOS Creator
+  Preview）到 `dist/site`，经 GitHub Pages workflow 或
+  `deno task site:deploy:cf`（Cloudflare Workers）发布；见
+  [构建与发布](docs/engine/build-and-release.md)。
 
 开新产品从复制 [`template/`](template/) 开始（见其 README）。它以游戏为默认起点；
 纯 GUI 产品使用文档中的复制后删减 recipe，不保留空的游戏 owner。每个应用都是

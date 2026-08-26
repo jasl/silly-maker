@@ -26,7 +26,7 @@ export function catcafeTargetUrlV1(query = ""): string {
   return `http://${catcafeTargetV1.host}:${String(catcafeTargetV1.port)}/${query}`;
 }
 
-/** SillyOS 98: fully custom desktop shell (windows/taskbar/apps; persistence opaque to the player). */
+/** SillyOS: GUI-only Creator product preview and Program workspace. */
 export const sillyOsTargetV1 = { host: hostV1, port: 41739 };
 
 export function sillyOsTargetUrlV1(query = ""): string {
