@@ -104,6 +104,58 @@ class InMemoryBrowserPiWorkerV1 {
   }
 }
 
+class RuntimeMismatchBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
+  terminated = false;
+  private readonly messageListeners = new Set<(event: { readonly data: unknown }) => void>();
+  private readonly errorListeners = new Set<(event: unknown) => void>();
+
+  postMessage(message: unknown): void {
+    const runtime = (message as { readonly runtime?: unknown }).runtime;
+    const mismatchedRuntime = runtime === "openai_direct" ? "deterministic_test" : "openai_direct";
+    queueMicrotask(() => {
+      for (const listener of [...this.messageListeners]) {
+        listener({
+          data: {
+            revision: 1,
+            kind: "ready",
+            requestId: 1,
+            runtime: mismatchedRuntime,
+            distribution: browserPiDistributionIdentityV1,
+          },
+        });
+      }
+    });
+  }
+
+  addEventListener(
+    type: "message" | "error",
+    listener: ((event: { readonly data: unknown }) => void) | ((event: unknown) => void),
+  ): void {
+    if (type === "message") {
+      this.messageListeners.add(listener as (event: { readonly data: unknown }) => void);
+    } else {
+      this.errorListeners.add(listener as (event: unknown) => void);
+    }
+  }
+
+  removeEventListener(
+    type: "message" | "error",
+    listener: ((event: { readonly data: unknown }) => void) | ((event: unknown) => void),
+  ): void {
+    if (type === "message") {
+      this.messageListeners.delete(listener as (event: { readonly data: unknown }) => void);
+    } else {
+      this.errorListeners.delete(listener as (event: unknown) => void);
+    }
+  }
+
+  terminate(): void {
+    this.terminated = true;
+    this.messageListeners.clear();
+    this.errorListeners.clear();
+  }
+}
+
 describe("SillyOS Browser Pi Worker runtime", () => {
   it("keeps the admitted Browser Pi identity equal to exact product dependencies", async () => {
     const manifest = JSON.parse(
@@ -142,12 +194,44 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       credential: { kind: "api_key", value: "key" },
       extra: true,
     });
+    runtime.receive({
+      revision: 1,
+      kind: "initialize",
+      requestId: 3,
+      runtime: "host_path_pi",
+      credential: { kind: "api_key", value: "key" },
+    });
 
     expect(getterCalls).toBe(0);
     expect(messages).toEqual([
       { revision: 1, kind: "protocol_failure", code: "invalid_message" },
       { revision: 1, kind: "protocol_failure", code: "invalid_message" },
+      { revision: 1, kind: "protocol_failure", code: "invalid_message" },
     ]);
+    runtime.dispose();
+  });
+
+  it("initializes the explicit live profile before any Provider run exists", () => {
+    const messages: BrowserPiWorkerOutboundMessageV1[] = [];
+    const runtime = createBrowserPiWorkerRuntimeV1({
+      postMessage: (message) => messages.push(structuredClone(message)),
+    });
+    runtime.receive({
+      revision: 1,
+      kind: "initialize",
+      requestId: 1,
+      runtime: "openai_direct",
+      credential: { kind: "api_key", value: "sentinel-live-key" },
+    });
+
+    expect(messages).toEqual([{
+      revision: 1,
+      kind: "ready",
+      requestId: 1,
+      runtime: "openai_direct",
+      distribution: browserPiDistributionIdentityV1,
+    }]);
+    expect(JSON.stringify(messages)).not.toContain("sentinel-live-key");
     runtime.dispose();
   });
 
@@ -352,6 +436,22 @@ describe("SillyOS Browser Pi transport and product port", () => {
       diagnostic: { code: "connection_failed", path: "/connect" },
     });
     await failed.dispose();
+  });
+
+  it("rejects a Worker that reports a different configured runtime", async () => {
+    const worker = new RuntimeMismatchBrowserPiWorkerV1();
+    const port = createBrowserCreatorAgentPortV1({
+      apiKey: "synthetic-key",
+      runtime: "openai_direct",
+      workerFactory: () => worker,
+    });
+
+    await expect(port.initialize()).resolves.toEqual({
+      kind: "unavailable",
+      diagnostic: { code: "connection_failed", path: "/connect" },
+    });
+    expect(worker.terminated).toBe(true);
+    await port.dispose();
   });
 
   it("creates the Worker lazily, posts the key once, settles submit first, and terminates", async () => {

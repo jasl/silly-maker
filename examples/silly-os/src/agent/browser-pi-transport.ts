@@ -9,6 +9,7 @@ import {
   admitBrowserPiEngineRequestV1,
   admitBrowserPiWorkerOutboundMessageV1,
   type BrowserPiWorkerInitializeV1,
+  type BrowserPiWorkerRuntimeV1,
 } from "./browser-pi-worker-protocol.ts";
 
 type BrowserPiWorkerMessageListenerV1 = (event: { readonly data: unknown }) => void;
@@ -72,7 +73,7 @@ export function createBrowserPiWorkerRawTransportV1({
   workerFactory = defaultBrowserPiWorkerFactoryV1,
 }: {
   readonly apiKey: string;
-  readonly runtime: "deterministic_test";
+  readonly runtime: BrowserPiWorkerRuntimeV1;
   readonly workerFactory?: BrowserPiWorkerFactoryV1;
 }): BrowserPiWorkerRawTransportV1 {
   let pendingApiKey = suppliedApiKey.length > 0 &&
@@ -162,7 +163,10 @@ export function createBrowserPiWorkerRawTransportV1({
           return;
         }
         if (!state.ready) {
-          if (message.kind !== "ready" || message.requestId !== 1) {
+          if (
+            message.kind !== "ready" || message.requestId !== 1 ||
+            message.runtime !== runtime
+          ) {
             closeState(state, "ready_invalid");
             return;
           }

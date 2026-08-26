@@ -25,6 +25,7 @@ import {
   createBrowserPiWorkerRawTransportV1,
   type BrowserPiWorkerFactoryV1,
 } from "./browser-pi-transport.ts";
+import type { BrowserPiWorkerRuntimeV1 } from "./browser-pi-worker-protocol.ts";
 
 export type CreatorAgentPhaseV1 =
   | "uninitialized"
@@ -114,7 +115,7 @@ function mapCallFailureV1(value: AgentRpcCallFailureInternalV1): CreatorAgentDia
 
 export function createBrowserCreatorAgentPortV1(input: {
   readonly apiKey: string;
-  readonly runtime: "deterministic_test";
+  readonly runtime: BrowserPiWorkerRuntimeV1;
   readonly workerFactory?: BrowserPiWorkerFactoryV1;
 }): CreatorAgentPortV1 {
   const transport = createBrowserPiWorkerRawTransportV1(input);

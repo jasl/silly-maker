@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { type FormEvent, type ReactNode, useRef, useState } from "react";
 
+import type { BrowserPiWorkerRuntimeV1 } from "../agent/browser-pi-worker-protocol.ts";
 import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../content/copy.ts";
 import { SillyButtonV1 as Button } from "./controls.tsx";
 import { LocaleSwitchV1, SillyOsBrandV1 } from "./product-chrome.tsx";
@@ -22,9 +23,10 @@ export interface CreatorHomePropsV1 {
   readonly onCreate: (intent: string, resourceNames: readonly string[]) => void;
   readonly onLocaleChange: (locale: SillyOsLocaleV1) => void;
   readonly createDisabled?: boolean;
-  readonly piTestSetup?: {
+  readonly piAgentSetup?: {
+    readonly runtime: BrowserPiWorkerRuntimeV1;
     readonly status: "loading" | "available" | "initializing" | "ready" | "failed";
-    readonly onInitialize: (syntheticKey: string) => void;
+    readonly onInitialize: (credential: string) => void;
   };
 }
 
@@ -33,12 +35,20 @@ export function CreatorHomeV1({
   onCreate,
   onLocaleChange,
   createDisabled = false,
-  piTestSetup,
+  piAgentSetup,
 }: CreatorHomePropsV1): ReactNode {
   const [intent, setIntent] = useState("");
   const [resourceNames, setResourceNames] = useState<readonly string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const piTestKeyRef = useRef<HTMLInputElement>(null);
+  const piAgentKeyRef = useRef<HTMLInputElement>(null);
+  const liveAgent = piAgentSetup?.runtime === "openai_direct";
+  const agentTitle = liveAgent ? copy.piLiveTitle : copy.piTestTitle;
+  const agentDescription = liveAgent ? copy.piLiveDescription : copy.piTestDescription;
+  const agentKeyLabel = liveAgent ? copy.piLiveKeyLabel : copy.piTestKeyLabel;
+  const agentKeyPlaceholder = liveAgent ? copy.piLiveKeyPlaceholder : copy.piTestKeyPlaceholder;
+  const agentInitialize = liveAgent ? copy.piLiveInitialize : copy.piTestInitialize;
+  const agentReady = liveAgent ? copy.piLiveReady : copy.piTestReady;
+  const agentFailed = liveAgent ? copy.piLiveFailed : copy.piTestFailed;
 
   const submitV1 = (event?: FormEvent): void => {
     event?.preventDefault();
@@ -65,60 +75,61 @@ export function CreatorHomeV1({
           <h1 id="creator-home-title">{copy.creatorTitle}</h1>
           <p className="creator-home__description">{copy.creatorDescription}</p>
 
-          {piTestSetup !== undefined && (
+          {piAgentSetup !== undefined && (
             <form
-              className="pi-test-setup"
-              data-pi-test-status={piTestSetup.status}
+              className="pi-agent-setup"
+              data-pi-agent-runtime={piAgentSetup.runtime}
+              data-pi-agent-status={piAgentSetup.status}
               onSubmit={(event) => {
                 event.preventDefault();
-                const input = piTestKeyRef.current;
+                const input = piAgentKeyRef.current;
                 if (input === null || input.value.length === 0) return;
-                let syntheticKey = input.value;
+                let credential = input.value;
                 input.value = "";
-                piTestSetup.onInitialize(syntheticKey);
-                syntheticKey = "";
+                piAgentSetup.onInitialize(credential);
+                credential = "";
               }}
             >
-              <div className="pi-test-setup__heading">
+              <div className="pi-agent-setup__heading">
                 <KeyRound size={16} aria-hidden="true" />
-                <strong>{copy.piTestTitle}</strong>
+                <strong>{agentTitle}</strong>
                 <span>
-                  {piTestSetup.status === "ready"
-                    ? copy.piTestReady
-                    : piTestSetup.status === "failed"
-                    ? copy.piTestFailed
-                    : piTestSetup.status === "initializing"
+                  {piAgentSetup.status === "ready"
+                    ? agentReady
+                    : piAgentSetup.status === "failed"
+                    ? agentFailed
+                    : piAgentSetup.status === "initializing"
                     ? copy.piTestInitializing
-                    : piTestSetup.status === "loading"
+                    : piAgentSetup.status === "loading"
                     ? copy.piTestLoading
                     : copy.preview}
                 </span>
               </div>
-              <p>{copy.piTestDescription}</p>
-              {piTestSetup.status !== "ready" && (
-                <div className="pi-test-setup__controls">
-                  <label htmlFor="pi-test-key">{copy.piTestKeyLabel}</label>
+              <p>{agentDescription}</p>
+              {piAgentSetup.status !== "ready" && (
+                <div className="pi-agent-setup__controls">
+                  <label htmlFor="pi-agent-key">{agentKeyLabel}</label>
                   <input
-                    id="pi-test-key"
-                    ref={piTestKeyRef}
+                    id="pi-agent-key"
+                    ref={piAgentKeyRef}
                     type="password"
                     required
                     autoComplete="off"
                     spellCheck={false}
-                    placeholder={copy.piTestKeyPlaceholder}
-                    disabled={piTestSetup.status === "loading" ||
-                      piTestSetup.status === "initializing"}
+                    placeholder={agentKeyPlaceholder}
+                    disabled={piAgentSetup.status === "loading" ||
+                      piAgentSetup.status === "initializing"}
                   />
                   <Button
                     type="submit"
                     size="sm"
                     variant="secondary"
-                    disabled={piTestSetup.status === "loading" ||
-                      piTestSetup.status === "initializing"}
+                    disabled={piAgentSetup.status === "loading" ||
+                      piAgentSetup.status === "initializing"}
                   >
-                    {piTestSetup.status === "initializing"
+                    {piAgentSetup.status === "initializing"
                       ? copy.piTestInitializing
-                      : copy.piTestInitialize}
+                      : agentInitialize}
                   </Button>
                 </div>
               )}

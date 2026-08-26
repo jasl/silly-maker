@@ -4,11 +4,12 @@
 
 Status: accepted Browser-first, dual-target product lane with validated P0 and
 P1-B B0a implementations plus a dev-only Pi launch helper, 2026-08-27. B0b is
-the next deliberately bounded slice, but it remains evidence-gated until the
-owner supplies a live provider key; no later phase is active. The raw launcher
-is not the typed product RPC or a live Creator integration. This plan is local
-to `examples/silly-os`; it does not activate an engine lane or change an engine
-API. The implementation baseline before P0 is commit
+the active deliberately bounded slice: its fixed direct OpenAI profile has
+passed the integrated local Chromium/WebKit journey, while qualification from a
+deployed Cloudflare static origin remains open. No later phase is active. The
+raw launcher is not the typed product RPC; the live Browser route is a separate
+product path. This plan is local to `examples/silly-os`; it does not activate an
+engine lane or change an engine API. The implementation baseline before P0 is commit
 `56ba8ef8ecf0a38243e92cba548f53c1c57c0b73`.
 
 ## Product invariant and execution rule
@@ -57,14 +58,17 @@ that an earlier phase did not produce. Product code may not import the ignored
 ## Current baseline and gaps
 
 The committed P0 Creator Preview is a real responsive product shell backed by
-one deterministic in-memory initial producer. B0a now adds a query-gated,
+one deterministic in-memory initial producer. B0a adds a query-gated,
 product-owned Browser Pi Worker behind a typed product facade: the real pinned
 Pi Agent runs a deterministic provider and one bounded AgentTool, then offers
 an exact P0 successor candidate for atomic publication. The ordinary initial
-graph still excludes Pi. The product still has no live model request, database,
-durable project, workspace runtime, WASM guest, or generally active capability.
-Its Source, translation rows, remaining capability labels, and downloaded
-manifest are explicit preview material.
+graph still excludes Pi. B0b adds a second explicit query-gated route whose
+follow-ups use the same Pi Agent, tool, RPC, and product currentness with a fixed
+OpenAI Responses profile. That integrated route is locally qualified, but not
+yet from the deployed Cloudflare origin. The product still has no database,
+durable project, workspace runtime, WASM guest, provider selector, or generally
+active capability. Its initial proposal, Source, translation rows, remaining
+capability labels, and downloaded manifest remain explicit preview material.
 
 The first contract gap was smaller than those integrations: the design said
 accept/reject targets an exact proposal revision, but the baseline proposal had
@@ -93,7 +97,7 @@ promotion gate, not a prerequisite for the 2.9.5 companion preview path.
 | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | Program identity, accepted revisions, proposals, decisions, and publication receipts                          | SillyOS product database                   | Product repository and typed product services                                                                                               |
 | Draft sources, `.git`, generated files, artifacts, file-resident product data, `AGENTS.md`, and skills        | One workspace volume per workspace Agent   | A product-selected `WorkspaceRuntime`; accepted Program state names an exact immutable snapshot                                             |
-| Agent loop, session semantics, compaction, model/provider calls, tool dispatch, and Agent extension lifecycle | Pi                                         | Pinned Pi coding-agent and its public extension/tool contracts                                                                              |
+| Agent loop, session semantics, compaction, model/provider calls, tool dispatch, and Agent extension lifecycle | Pi                                         | Fixed `pi-agent-core`/`pi-ai` in Browser; complete fixed `pi-coding-agent` companion in Desktop; public Pi tool/extension contracts         |
 | Presentation-facing Agent transport                                                                           | SillyOS target adapter                     | Browser Worker or Desktop companion projects only admitted commands/events; raw Pi/provider records never enter React state                 |
 | Agent-side product functions                                                                                  | Pi plus pinned SillyOS capability adapters | One shared schema/prompt/handler core, registered as a Browser `AgentTool` or Desktop `ExtensionAPI` tool; no parallel Agent/plugin runtime |
 | Workspace process and filesystem execution                                                                    | Product-selected workspace runtime         | Typed Pi-tool forwarding into one isolated logical runtime; no renderer or database access                                                  |
@@ -105,6 +109,31 @@ Pi, product storage, workspace runtimes, and tool implementations are
 infrastructure for Programs that need them. They are not optional desktop
 icons. Agent-facing capabilities are real Pi extensions/tools selected by a
 Program; SillyOS does not mirror them into another executable plugin system.
+
+SillyOS does not fork or browser-port `pi-coding-agent`. The fixed Pi 0.84.3
+distribution already separates the useful shared runtime from the Node-oriented
+coding product:
+
+- Browser uses the public `pi-agent-core` `Agent`, `AgentTool`, session/resource
+  primitives, and abstract filesystem/shell execution contracts together with
+  selectively imported `pi-ai` providers.
+- Desktop packages the complete fixed `pi-coding-agent` artifact because its
+  native session files, resource discovery, coding tools, JSONL RPC, and public
+  Extension API are real Desktop capabilities.
+- The 0.84.3 `AgentHarness` convenience surface is not selected yet: its public
+  shape exists, but its prompt, resume, compaction, navigation, lane, and wait
+  operations still fail as unimplemented. Browser uses the stable public
+  `Agent` rather than filling those methods with a SillyOS-owned harness.
+
+Removing Node/TUI/filesystem/loader behavior from a fork would leave the two
+packages Pi already publishes for Browser while creating a permanent merge and
+compatibility burden. A fork is reconsidered only if this product reproduces a
+neutral shared capability gap. The first response to such a gap is a focused Pi
+upstream extraction or public subpath, not a private SillyOS Agent runtime.
+Keeping the complete Desktop artifact also preserves Pi's native extension path
+for future user-selected plugins. The current raw launcher and first companion
+slice do not yet enable arbitrary user or workspace extension discovery; the
+first product extension remains build-known and version-pinned.
 
 One workspace Agent is paired with one **logical** `WorkspaceRuntime` and one
 persistent volume. The word logical is deliberate: the harness may use
@@ -248,9 +277,15 @@ complete schema-admitted result may propose a P0 successor. Free-form and
 streaming model text is transient and inert. Full `pi-coding-agent`, its Node
 extension loader, dynamic Pi Packages, ambient extensions/skills/prompts, host
 read/bash/edit/write tools, and extension UI are not imported into Browser.
+The model-visible tool schema contains only `requirement`; its trusted handler
+binds `revision`, proposal and Program identities, base revision, and original
+text from the already admitted submit. The Worker then rechecks the complete
+candidate before publication, so prompt compliance never owns currentness.
 
-The Browser setup surface is Bring Your Own Provider: the user supplies either
-a product-qualified provider profile or an HTTPS compatible endpoint. A custom
+The accepted Browser setup target is Bring Your Own Provider: the user will
+supply either a product-qualified provider profile or an HTTPS compatible
+endpoint. B0b deliberately implements only fixed OpenAI Responses model
+`gpt-4.1-nano`; it does not yet expose this general surface. A later custom
 profile is explicit rather than guessed and minimally contains:
 
 - protocol: `openai-responses`, `openai-chat`, or `anthropic-messages`;
@@ -295,12 +330,17 @@ P1-B is deliberately split at the credential boundary:
    Creator initial graph must exclude Pi and provider code. A synthetic key
    proves by inspection and browser tests that no durable store, URL, log, or
    product record contains it.
-2. **B0b, live qualification after an operator supplies a key.** Run one
-   product-qualified provider through the deployed Cloudflare static origin in
-   Chromium and WebKit and observe real streaming, cancellation, one tool call,
-   and an exact P0 successor. Only this evidence promotes the real Browser route
-   from available-for-qualification to available. A missing key never causes a
-   silent fallback to the deterministic preview.
+2. **B0b, one live provider profile.** Add the explicit
+   `?agent=pi-openai` route with fixed OpenAI Responses model
+   `gpt-4.1-nano`. Its uncontrolled password input transfers one key directly
+   to the existing Agent Worker and clears immediately. The Worker uses the
+   same Pi `Agent`, product tool, typed RPC, currentness, cancellation, and
+   candidate admission as B0a; only the Pi-owned provider stream changes. One
+   real follow-up must stream a bounded reply, call the one tool, and offer an
+   exact P0 successor. A missing or rejected key fails visibly and never falls
+   back to the deterministic provider. Local Chromium/WebKit evidence is
+   necessary but not sufficient: the same route must pass through the deployed
+   Cloudflare static origin before B0b closes.
 
 B0a closed on 2026-08-27. Exact `0.84.3` dependencies for
 `pi-agent-core`, `pi-ai`, and the separate Desktop/development
@@ -325,10 +365,45 @@ does not appear in the input after transfer, URL, DOM, console, network, or
 browser durable-store projection. The production build emits Pi only in a lazy
 23.29 kB facade plus 195.85 kB Worker asset; the ordinary HTML preload graph
 contains neither, every asset is far below Cloudflare's 25 MiB limit, and no
-coding-agent or live provider implementation appears in the Browser output.
+coding-agent or live provider implementation appeared in the B0a Browser
+output.
 Repository TypeScript, focused lint/style/format, lockfile, and diff gates pass.
-No real provider key was used, so B0b remains unavailable rather than silently
-falling back to this deterministic route.
+The B0b pre-implementation gate used operator-supplied keys without logging or
+persisting their values. Direct Pi 0.84.3 Deno probes returned HTTP 200 and a
+complete response for Anthropic, OpenAI, DeepSeek, and xAI. The selected
+OpenRouter model failed with a permission-class error, while the selected
+Gemini model failed as unavailable; neither is promoted or diagnosed further
+by this slice. A raw OpenAI Responses request from the local SillyOS origin then
+returned HTTP 200, a streamed body, and an observed abort in both Chromium and
+WebKit. This establishes the first profile's credential, CORS, preflight,
+streaming, and cancellation prerequisites.
+
+The integrated B0b route then passed locally in Chromium and WebKit. In each
+browser the uncontrolled input cleared after transferring the key; a run was
+cancelled after an actual Provider request and could not advance proposal v1;
+the next follow-up completed the single trusted proposal-tool path and offered
+the exact v2 successor; the tested durable-store projection contained no key;
+and Forget removed the live surface by terminating the Worker. The permanent
+qualification command reads `OPENAI_API_KEY` from the local `.env`, inspects no
+request headers or bodies, and emits only bounded status evidence. B0b remains
+open until the same command passes against the deployed Cloudflare static
+origin.
+
+The current B0b production build keeps the Agent facade lazy at 23.32 kB and
+emits one 388.00 kB Pi Worker asset; the ordinary HTML preload graph still
+excludes both and every asset remains below 25 MiB. The Cloudflare `_headers`
+artifact admits only self and `https://api.openai.com` under `connect-src` for
+this profile. Vite reports that Pi's `provider-env` `node:fs` fallback was
+externalized for Browser compatibility. Both real browsers pass because that
+guarded Bun fallback is unreachable on this route. Pi 0.84.3 has no narrower
+public Provider entry that removes the warning without copying Pi model or
+adapter authority into SillyOS, so this slice records the warning instead of
+forking or patching Pi.
+
+B0b intentionally does not add a provider selector, custom endpoint, OAuth,
+credential persistence, multi-turn Pi transcript persistence, WorkspaceRuntime,
+or another provider adapter. Those remain separate evidence gates after the one
+fixed profile proves the complete product path.
 
 P1-B adds no workspace VFS, shell, Wasm payload, database, durable Pi session,
 provider relay, OAuth flow, general endpoint proxy, or OpenUI. Cloudflare owns

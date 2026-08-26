@@ -4,15 +4,20 @@ import type { CreatorAgentSubmitV1 } from "../product/contracts.ts";
 
 export const creatorProgramRevisionToolNameV1: "sillyos_propose_program_revision";
 
-export interface DeterministicPiAgentPortV1 {
+export interface PiAgentPortV1 {
   prompt(text: string): Promise<{ readonly stopReason: "stop" | "error" | "aborted" }>;
   abort(): void;
   dispose(): void;
 }
 
-export function createDeterministicPiAgentV1(input: {
+export interface PiAgentRunInputV1 {
   readonly submit: CreatorAgentSubmitV1;
-  readonly runNumber: number;
   readonly onTextDelta: (delta: string) => void;
   readonly onCandidate: (candidate: unknown) => void | Promise<void>;
-}): DeterministicPiAgentPortV1;
+}
+
+export type DeterministicPiAgentPortV1 = PiAgentPortV1;
+
+export function createDeterministicPiAgentV1(
+  input: PiAgentRunInputV1 & { readonly runNumber: number },
+): PiAgentPortV1;

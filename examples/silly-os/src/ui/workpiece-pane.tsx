@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 
+import type { BrowserPiWorkerRuntimeV1 } from "../agent/browser-pi-worker-protocol.ts";
 import type { SillyOsCopyV1 } from "../content/copy.ts";
 import type {
   CreatorActivityV1,
@@ -31,7 +32,7 @@ export interface WorkpiecePanePropsV1 {
   readonly activity: readonly CreatorActivityV1[];
   readonly activeTab: WorkpieceTabV1;
   readonly fullscreen: boolean;
-  readonly agentMode?: "browser_pi_deterministic_test";
+  readonly agentMode?: BrowserPiWorkerRuntimeV1;
   readonly outputRef: React.RefObject<HTMLElement | null>;
   readonly onTabChange: (tab: WorkpieceTabV1) => void;
   readonly onToggleFullscreen: () => void;
@@ -366,7 +367,7 @@ function ProgramCapabilitiesV1({
 }: {
   readonly copy: SillyOsCopyV1;
   readonly capabilities: readonly PreviewProgramCapabilityV1[];
-  readonly agentMode?: "browser_pi_deterministic_test";
+  readonly agentMode?: BrowserPiWorkerRuntimeV1;
 }): ReactNode {
   return (
     <div className="program-capabilities">
@@ -396,17 +397,23 @@ function ProgramCapabilitiesV1({
           <PlugZap size={20} aria-hidden="true" />
           <strong>{copy.locale === "zh-CN" ? "Agent Host" : "Agent Host"}</strong>
           <p>
-            {agentMode === "browser_pi_deterministic_test"
+            {agentMode === "deterministic_test"
               ? copy.locale === "zh-CN"
                 ? "固定版本 Pi Agent 正在 Browser Worker 中运行确定性 provider 与一个受限 proposal 工具；这不是 live LLM。"
                 : "The pinned Pi Agent runs a deterministic provider and one bounded proposal tool in a Browser Worker. This is not a live LLM."
+              : agentMode === "openai_direct"
+              ? copy.locale === "zh-CN"
+                ? "固定版本 Pi Agent 正在 Browser Worker 中通过 OpenAI gpt-4.1-nano 运行一个受限 proposal 工具；key 仅保留在 Worker 内存。"
+                : "The pinned Pi Agent runs one bounded proposal tool through OpenAI gpt-4.1-nano in a Browser Worker. The key stays in Worker memory."
               : copy.locale === "zh-CN"
               ? "Pi、模型、工具执行与数据库属于未来的 typed RPC companion。"
               : "Pi, models, tool execution, and the database belong to a future typed RPC companion."}
           </p>
           <small>
-            {agentMode === "browser_pi_deterministic_test"
+            {agentMode === "deterministic_test"
               ? copy.locale === "zh-CN" ? "Pi 0.84.3 测试接线" : "Pi 0.84.3 test wiring"
+              : agentMode === "openai_direct"
+              ? copy.locale === "zh-CN" ? "Pi 0.84.3 · OpenAI 实时连接" : "Pi 0.84.3 · live OpenAI"
               : copy.locale === "zh-CN"
               ? "尚未连接"
               : "Not connected"}

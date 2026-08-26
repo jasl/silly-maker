@@ -4,7 +4,7 @@ import { admitCreatorAgentSubmitTextV1 } from "../product/creator-agent-admissio
 import { isBrowserPiDistributionIdentityV1 } from "./browser-pi-distribution.ts";
 import type { BrowserPiDistributionIdentityV1 } from "./browser-pi-distribution.ts";
 
-export type BrowserPiWorkerRuntimeV1 = "deterministic_test";
+export type BrowserPiWorkerRuntimeV1 = "deterministic_test" | "openai_direct";
 
 export interface BrowserPiWorkerInitializeV1 {
   readonly revision: 1;
@@ -154,7 +154,11 @@ export function admitBrowserPiWorkerInboundMessageV1(
       record: discriminator.record,
     };
   }
-  if (discriminator.kind !== "initialize" || discriminator.runtime !== "deterministic_test") {
+  if (
+    discriminator.kind !== "initialize" ||
+    (discriminator.runtime !== "deterministic_test" &&
+      discriminator.runtime !== "openai_direct")
+  ) {
     return null;
   }
   const credential = exactDataRecordV1(discriminator.credential, ["kind", "value"]);
@@ -167,7 +171,7 @@ export function admitBrowserPiWorkerInboundMessageV1(
     revision: 1,
     kind: "initialize",
     requestId: discriminator.requestId,
-    runtime: "deterministic_test",
+    runtime: discriminator.runtime,
     credential: { kind: "api_key", value: credential.value },
   };
 }
@@ -194,14 +198,14 @@ export function admitBrowserPiWorkerOutboundMessageV1(
   if (!isRequestIdV1(base.requestId)) return null;
   if (base.kind === "ready") {
     if (
-      base.runtime !== "deterministic_test" ||
+      (base.runtime !== "deterministic_test" && base.runtime !== "openai_direct") ||
       !isBrowserPiDistributionIdentityV1(base.distribution)
     ) return null;
     return {
       revision: 1,
       kind: "ready",
       requestId: base.requestId,
-      runtime: "deterministic_test",
+      runtime: base.runtime,
       distribution: base.distribution,
     };
   }

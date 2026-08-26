@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 
+import type { BrowserPiWorkerRuntimeV1 } from "../agent/browser-pi-worker-protocol.ts";
 import type { SillyOsCopyV1 } from "../content/copy.ts";
 import type {
   CreatorChatMessageV1,
@@ -30,7 +31,8 @@ export interface ChatPanePropsV1 {
   readonly onReject: () => void;
   readonly onOpenWorkpiece: () => void;
   readonly onSend: (text: string) => boolean | void | Promise<boolean | void>;
-  readonly piTestRun?: {
+  readonly piAgentRun?: {
+    readonly runtime: BrowserPiWorkerRuntimeV1;
     readonly status:
       | "connecting"
       | "ready"
@@ -39,6 +41,7 @@ export interface ChatPanePropsV1 {
       | "failed"
       | "disposed";
     readonly draft: string;
+    readonly diagnosticPath: string | null;
     readonly onCancel: () => void;
     readonly onForget: () => void;
   };
@@ -54,11 +57,16 @@ export function ChatPaneV1({
   onReject,
   onOpenWorkpiece,
   onSend,
-  piTestRun,
+  piAgentRun,
 }: ChatPanePropsV1): ReactNode {
   const [draft, setDraft] = useState("");
   const feedEndRef = useRef<HTMLDivElement>(null);
   const resourceInputRef = useRef<HTMLInputElement>(null);
+  const liveAgent = piAgentRun?.runtime === "openai_direct";
+  const agentTitle = liveAgent ? copy.piLiveTitle : copy.piTestTitle;
+  const agentReady = liveAgent ? copy.piLiveReady : copy.piTestReady;
+  const agentFailed = liveAgent ? copy.piLiveFailed : copy.piTestFailed;
+  const agentForget = liveAgent ? copy.piLiveForget : copy.piTestForget;
 
   useEffect(() => {
     feedEndRef.current?.scrollIntoView({ block: "end" });
@@ -112,34 +120,39 @@ export function ChatPaneV1({
           </article>
         ))}
 
-        {piTestRun !== undefined && (
-          <aside className="pi-test-run" data-pi-test-run-status={piTestRun.status}>
-            <div className="pi-test-run__heading">
-              {piTestRun.status === "running"
+        {piAgentRun !== undefined && (
+          <aside
+            className="pi-agent-run"
+            data-pi-agent-runtime={piAgentRun.runtime}
+            data-pi-agent-run-status={piAgentRun.status}
+            data-pi-agent-diagnostic={piAgentRun.diagnosticPath ?? undefined}
+          >
+            <div className="pi-agent-run__heading">
+              {piAgentRun.status === "running"
                 ? <LoaderCircle className="is-spinning" size={15} aria-hidden="true" />
                 : <KeyRound size={15} aria-hidden="true" />}
-              <strong>{copy.piTestTitle}</strong>
+              <strong>{agentTitle}</strong>
               <span role="status">
-                {piTestRun.status === "running"
+                {piAgentRun.status === "running"
                   ? copy.piTestDraft
-                  : piTestRun.status === "failed" || piTestRun.status === "disposed"
-                  ? copy.piTestFailed
-                  : copy.piTestReady}
+                  : piAgentRun.status === "failed" || piAgentRun.status === "disposed"
+                  ? agentFailed
+                  : agentReady}
               </span>
             </div>
-            {piTestRun.status === "running" && piTestRun.draft.length > 0 && (
-              <p className="pi-test-run__draft" aria-live="polite">
-                {piTestRun.draft}
+            {piAgentRun.status === "running" && piAgentRun.draft.length > 0 && (
+              <p className="pi-agent-run__draft" aria-live="polite">
+                {piAgentRun.draft}
               </p>
             )}
-            <div className="pi-test-run__actions">
-              {piTestRun.status === "running" && (
+            <div className="pi-agent-run__actions">
+              {piAgentRun.status === "running" && (
                 <Button
                   type="button"
                   size="sm"
                   variant="secondary"
                   icon={StopCircle}
-                  onClick={piTestRun.onCancel}
+                  onClick={piAgentRun.onCancel}
                 >
                   {copy.piTestCancel}
                 </Button>
@@ -149,9 +162,9 @@ export function ChatPaneV1({
                 size="sm"
                 variant="ghost"
                 icon={KeyRound}
-                onClick={piTestRun.onForget}
+                onClick={piAgentRun.onForget}
               >
-                {copy.piTestForget}
+                {agentForget}
               </Button>
             </div>
           </aside>

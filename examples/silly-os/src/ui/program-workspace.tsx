@@ -56,7 +56,7 @@ export interface ProgramWorkspacePropsV1 {
   readonly onAccept: () => void;
   readonly onReject: () => void;
   readonly onSend: ChatPanePropsV1["onSend"];
-  readonly piTestRun?: ChatPanePropsV1["piTestRun"];
+  readonly piAgentRun?: ChatPanePropsV1["piAgentRun"];
 }
 
 export function ProgramWorkspaceV1({
@@ -84,7 +84,7 @@ function ProgramWorkspaceReadyV1({
   onAccept,
   onReject,
   onSend,
-  piTestRun,
+  piAgentRun,
 }: ProgramWorkspaceReadyPropsV1): ReactNode {
   const narrow = useNarrowViewportV1();
   const splitRef = useRef<HTMLDivElement>(null);
@@ -204,7 +204,7 @@ function ProgramWorkspaceReadyV1({
               if (narrow) setMobilePane("preview");
             }}
             onSend={onSend}
-            {...(piTestRun === undefined ? {} : { piTestRun })}
+            {...(piAgentRun === undefined ? {} : { piAgentRun })}
           />
         </div>
 
@@ -241,9 +241,7 @@ function ProgramWorkspaceReadyV1({
                 activity={snapshot.activity}
                 activeTab={activeTab}
                 fullscreen={fullscreen}
-                {...(piTestRun === undefined
-                  ? {}
-                  : { agentMode: "browser_pi_deterministic_test" as const })}
+                {...(piAgentRun === undefined ? {} : { agentMode: piAgentRun.runtime })}
                 outputRef={outputRef}
                 onTabChange={(tab) => {
                   setActiveTab(tab);

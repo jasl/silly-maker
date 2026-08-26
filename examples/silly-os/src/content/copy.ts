@@ -46,6 +46,14 @@ export interface SillyOsCopyV1 {
   readonly piTestDraft: string;
   readonly piTestCancel: string;
   readonly piTestForget: string;
+  readonly piLiveTitle: string;
+  readonly piLiveDescription: string;
+  readonly piLiveKeyLabel: string;
+  readonly piLiveKeyPlaceholder: string;
+  readonly piLiveInitialize: string;
+  readonly piLiveReady: string;
+  readonly piLiveFailed: string;
+  readonly piLiveForget: string;
   readonly samplePrompts: readonly string[];
 }
 
@@ -96,6 +104,15 @@ const englishV1: SillyOsCopyV1 = {
   piTestDraft: "Agent Creator draft",
   piTestCancel: "Cancel run",
   piTestForget: "Forget test key",
+  piLiveTitle: "Browser Pi · OpenAI",
+  piLiveDescription:
+    "Uses product-pinned Pi 0.84.3 with OpenAI gpt-4.1-nano for live follow-up revisions. Your key moves to Agent Worker memory and is not saved.",
+  piLiveKeyLabel: "OpenAI API key (memory only)",
+  piLiveKeyPlaceholder: "Paste an OpenAI API key",
+  piLiveInitialize: "Load OpenAI key",
+  piLiveReady: "OpenAI Agent configured",
+  piLiveFailed: "OpenAI Agent unavailable",
+  piLiveForget: "Forget OpenAI key",
   samplePrompts: [
     "Translate a visual novel and keep each character’s voice consistent",
     "Turn my research notes into a chapter-by-chapter writing room",
@@ -150,6 +167,15 @@ const chineseV1: SillyOsCopyV1 = {
   piTestDraft: "Agent Creator 草稿",
   piTestCancel: "取消运行",
   piTestForget: "忘记测试 key",
+  piLiveTitle: "浏览器 Pi · OpenAI",
+  piLiveDescription:
+    "使用产品固定的 Pi 0.84.3 与 OpenAI gpt-4.1-nano 实时处理后续修订。Key 会直接进入 Agent Worker 内存，并且不会保存。",
+  piLiveKeyLabel: "OpenAI API key（仅内存）",
+  piLiveKeyPlaceholder: "粘贴 OpenAI API key",
+  piLiveInitialize: "加载 OpenAI key",
+  piLiveReady: "OpenAI Agent 已配置",
+  piLiveFailed: "OpenAI Agent 不可用",
+  piLiveForget: "忘记 OpenAI key",
   samplePrompts: [
     "翻译一部视觉小说，并保持每位角色的语言风格一致",
     "把我的调研笔记整理成可以逐章推进的写作工作室",

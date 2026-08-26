@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
+import type { BrowserPiWorkerRuntimeV1 } from "../agent/browser-pi-worker-protocol.ts";
 import { getSillyOsCopyV1, resolveSillyOsCopyV1, type SillyOsLocaleV1 } from "../content/copy.ts";
 import type { CreatorAgentSubmitV1 } from "../product/contracts.ts";
 import { createCreatorSessionV1 } from "../product/creator-session.ts";
@@ -18,14 +19,17 @@ type BrowserCreatorAgentPortV1 = ReturnType<
   BrowserCreatorAgentModuleV1["createBrowserCreatorAgentPortV1"]
 >;
 type BrowserCreatorAgentSnapshotV1 = ReturnType<BrowserCreatorAgentPortV1["getSnapshot"]>;
-type PiTestSetupStatusV1 = "loading" | "available" | "initializing" | "ready" | "failed";
+type PiAgentSetupStatusV1 = "loading" | "available" | "initializing" | "ready" | "failed";
 
-function browserPiTestRequestedV1(): boolean {
-  return typeof location !== "undefined" &&
-    new URLSearchParams(location.search).get("agent") === "pi-test";
+function requestedBrowserPiRuntimeV1(): BrowserPiWorkerRuntimeV1 | null {
+  if (typeof location === "undefined") return null;
+  const requested = new URLSearchParams(location.search).get("agent");
+  if (requested === "pi-test") return "deterministic_test";
+  if (requested === "pi-openai") return "openai_direct";
+  return null;
 }
 
-function piTestRunStatusV1(
+function piAgentRunStatusV1(
   phase: BrowserCreatorAgentSnapshotV1["phase"],
 ): "connecting" | "ready" | "running" | "completed" | "failed" | "disposed" {
   switch (phase) {
@@ -54,8 +58,9 @@ export function SillyOsAppV1({ reportFailure }: SillyOsAppPropsV1): ReactNode {
   );
   const initialCopy = resolveSillyOsCopyV1();
   const [locale, setLocale] = useState<SillyOsLocaleV1>(initialCopy.locale);
-  const [piTestRequested] = useState(browserPiTestRequestedV1);
-  const [piTestSetupStatus, setPiTestSetupStatus] = useState<PiTestSetupStatusV1>("loading");
+  const [piRuntime] = useState(requestedBrowserPiRuntimeV1);
+  const piAgentRequested = piRuntime !== null;
+  const [piAgentSetupStatus, setPiAgentSetupStatus] = useState<PiAgentSetupStatusV1>("loading");
   const [agentPort, setAgentPort] = useState<BrowserCreatorAgentPortV1 | null>(null);
   const [agentSnapshot, setAgentSnapshot] = useState<BrowserCreatorAgentSnapshotV1 | null>(null);
   const agentFactoryRef = useRef<
@@ -72,17 +77,17 @@ export function SillyOsAppV1({ reportFailure }: SillyOsAppPropsV1): ReactNode {
   const copy = getSillyOsCopyV1(locale);
 
   useEffect(() => {
-    if (!piTestRequested) return undefined;
+    if (!piAgentRequested) return undefined;
     let current = true;
     void import("../agent/creator-agent-port.ts").then(
       (module) => {
         if (!current) return;
         agentFactoryRef.current = module.createBrowserCreatorAgentPortV1;
-        setPiTestSetupStatus("available");
+        setPiAgentSetupStatus("available");
       },
       (error: unknown) => {
         if (!current) return;
-        setPiTestSetupStatus("failed");
+        setPiAgentSetupStatus("failed");
         reportFailure("silly_os.browser_pi_adapter_unavailable", error);
       },
     );
@@ -90,7 +95,7 @@ export function SillyOsAppV1({ reportFailure }: SillyOsAppPropsV1): ReactNode {
       current = false;
       agentFactoryRef.current = null;
     };
-  }, [piTestRequested, reportFailure]);
+  }, [piAgentRequested, reportFailure]);
 
   useEffect(() => {
     if (agentPort === null) {
@@ -134,22 +139,22 @@ export function SillyOsAppV1({ reportFailure }: SillyOsAppPropsV1): ReactNode {
     history.replaceState(history.state, "", url);
   };
 
-  const initializePiTestV1 = (syntheticKey: string): void => {
+  const initializePiAgentV1 = (suppliedCredential: string): void => {
     const factory = agentFactoryRef.current;
-    if (factory === null || syntheticKey.length === 0) {
-      setPiTestSetupStatus("failed");
+    if (factory === null || piRuntime === null || suppliedCredential.length === 0) {
+      setPiAgentSetupStatus("failed");
       reportFailure("silly_os.browser_pi_adapter_unavailable", "factory_unavailable");
       return;
     }
     const epoch = ++agentSetupEpochRef.current;
-    setPiTestSetupStatus("initializing");
-    let credential = syntheticKey;
+    setPiAgentSetupStatus("initializing");
+    let credential = suppliedCredential;
     let port: BrowserCreatorAgentPortV1;
     try {
-      port = factory({ apiKey: credential, runtime: "deterministic_test" });
+      port = factory({ apiKey: credential, runtime: piRuntime });
     } catch (error) {
       credential = "";
-      setPiTestSetupStatus("failed");
+      setPiAgentSetupStatus("failed");
       reportFailure("silly_os.browser_pi_initialize_failed", error);
       return;
     }
@@ -162,27 +167,27 @@ export function SillyOsAppV1({ reportFailure }: SillyOsAppPropsV1): ReactNode {
     void port.initialize().then((result) => {
       if (agentSetupEpochRef.current !== epoch || agentPortRef.current !== port) return;
       if (result.kind === "ready") {
-        setPiTestSetupStatus("ready");
+        setPiAgentSetupStatus("ready");
         return;
       }
-      setPiTestSetupStatus("failed");
+      setPiAgentSetupStatus("failed");
       reportFailure("silly_os.browser_pi_initialize_failed", result.diagnostic);
     });
   };
 
-  const forgetPiTestV1 = (): void => {
+  const forgetPiAgentV1 = (): void => {
     agentSetupEpochRef.current += 1;
     const current = agentPortRef.current;
     agentPortRef.current = null;
     setAgentPort(null);
     setAgentSnapshot(null);
     consumedRunIdRef.current = null;
-    setPiTestSetupStatus(agentFactoryRef.current === null ? "loading" : "available");
+    setPiAgentSetupStatus(agentFactoryRef.current === null ? "loading" : "available");
     if (current !== null) void current.forget();
   };
 
   const sendFollowUpV1 = async (text: string): Promise<boolean> => {
-    if (!piTestRequested) {
+    if (!piAgentRequested) {
       const result = session.sendFollowUp(text);
       if (result.kind === "sent") return true;
       reportFailure("silly_os.follow_up_rejected", result);
@@ -193,7 +198,7 @@ export function SillyOsAppV1({ reportFailure }: SillyOsAppPropsV1): ReactNode {
     const proposal = current.proposal;
     const program = current.program;
     if (
-      port === null || piTestSetupStatus !== "ready" || proposal === null || program === null ||
+      port === null || piAgentSetupStatus !== "ready" || proposal === null || program === null ||
       proposal.programRevision !== program.revision
     ) {
       reportFailure("silly_os.browser_pi_unavailable", "initialize_required");
@@ -218,13 +223,14 @@ export function SillyOsAppV1({ reportFailure }: SillyOsAppPropsV1): ReactNode {
         ? (
           <CreatorHomeV1
             copy={copy}
-            createDisabled={piTestRequested && piTestSetupStatus !== "ready"}
+            createDisabled={piAgentRequested && piAgentSetupStatus !== "ready"}
             onLocaleChange={changeLocaleV1}
-            {...(piTestRequested
+            {...(piAgentRequested && piRuntime !== null
               ? {
-                piTestSetup: {
-                  status: piTestSetupStatus,
-                  onInitialize: initializePiTestV1,
+                piAgentSetup: {
+                  runtime: piRuntime,
+                  status: piAgentSetupStatus,
+                  onInitialize: initializePiAgentV1,
                 },
               }
               : {})}
@@ -288,9 +294,11 @@ export function SillyOsAppV1({ reportFailure }: SillyOsAppPropsV1): ReactNode {
             }}
             onSend={sendFollowUpV1}
             {...(agentSnapshot === null ? {} : {
-              piTestRun: {
-                status: piTestRunStatusV1(agentSnapshot.phase),
+              piAgentRun: {
+                runtime: piRuntime ?? "deterministic_test",
+                status: piAgentRunStatusV1(agentSnapshot.phase),
                 draft: agentSnapshot.draft,
+                diagnosticPath: agentSnapshot.diagnostic?.path ?? null,
                 onCancel: () => {
                   const current = agentPortRef.current;
                   if (current === null) return;
@@ -300,7 +308,7 @@ export function SillyOsAppV1({ reportFailure }: SillyOsAppPropsV1): ReactNode {
                     }
                   });
                 },
-                onForget: forgetPiTestV1,
+                onForget: forgetPiAgentV1,
               },
             })}
           />

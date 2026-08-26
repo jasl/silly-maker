@@ -10,14 +10,13 @@ import {
   type CreatorProgramRevisionCandidateV1,
 } from "../product/contracts.ts";
 import { browserPiDistributionIdentityV1 } from "./browser-pi-distribution.ts";
-import {
-  createDeterministicPiAgentV1,
-  type DeterministicPiAgentPortV1,
-} from "./browser-pi-runtime-bridge.js";
+import { createDeterministicPiAgentV1 } from "./browser-pi-runtime-bridge.js";
+import { createOpenAiPiAgentV1 } from "./browser-pi-openai-runtime-bridge.js";
 import {
   admitBrowserPiEngineRequestV1,
   admitBrowserPiWorkerInboundMessageV1,
   type BrowserPiWorkerOutboundMessageV1,
+  type BrowserPiWorkerRuntimeV1,
 } from "./browser-pi-worker-protocol.ts";
 
 export { creatorProgramRevisionToolNameV1 } from "./browser-pi-runtime-bridge.js";
@@ -25,11 +24,22 @@ export { creatorProgramRevisionToolNameV1 } from "./browser-pi-runtime-bridge.js
 interface ActivePiRunV1 {
   readonly sessionId: string;
   readonly runId: string;
-  readonly agent: DeterministicPiAgentPortV1;
+  readonly agent: PiAgentPortV1;
   sequence: number;
   draft: string;
   candidate: CreatorProgramRevisionCandidateV1 | null;
+  candidateFailure:
+    | "candidate_invalid"
+    | "candidate_context_mismatch"
+    | "candidate_duplicate"
+    | null;
   terminal: boolean;
+}
+
+interface PiAgentPortV1 {
+  prompt(text: string): Promise<{ readonly stopReason: "stop" | "error" | "aborted" }>;
+  abort(): void;
+  dispose(): void;
 }
 
 export interface BrowserPiWorkerRuntimePortV1 {
@@ -41,6 +51,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
   readonly postMessage: (message: BrowserPiWorkerOutboundMessageV1) => void;
 }): BrowserPiWorkerRuntimePortV1 {
   let credentialKey: string | null = null;
+  let configuredRuntime: BrowserPiWorkerRuntimeV1 | null = null;
   let initialized = false;
   let disposed = false;
   let nextSessionId = 1;
@@ -81,7 +92,15 @@ export function createBrowserPiWorkerRuntimeV1(input: {
 
   const failRun = (
     run: ActivePiRunV1,
-    code: "cancelled" | "replaced" | "draft_limit" | "candidate_missing" | "pi_failed",
+    code:
+      | "cancelled"
+      | "replaced"
+      | "draft_limit"
+      | "candidate_missing"
+      | "candidate_invalid"
+      | "candidate_context_mismatch"
+      | "candidate_duplicate"
+      | "pi_failed",
     requireCurrent = true,
   ): void => {
     if (run.terminal || (requireCurrent && activeRun !== run)) return;
@@ -95,16 +114,22 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     if (sessionId === null) throw new TypeError("Creator session is not started");
     const runNumber = nextRunId++;
     let run!: ActivePiRunV1;
-    const agent = createDeterministicPiAgentV1({
+    const runtime = configuredRuntime;
+    const apiKey = credentialKey;
+    if (runtime === null || apiKey === null) {
+      throw new TypeError("Browser Pi runtime is not initialized");
+    }
+    const agentInput = {
       submit,
-      runNumber,
-      onCandidate(value): void {
+      onCandidate(value: unknown): void {
         if (activeRun !== run || run.terminal) throw new Error("Creator run was cancelled");
         if (run.candidate !== null) {
+          run.candidateFailure = "candidate_duplicate";
           throw new Error("Only one Program revision candidate is allowed");
         }
         const admitted = admitCreatorProgramRevisionCandidateV1(value);
         if (admitted.kind === "rejected") {
+          run.candidateFailure = "candidate_invalid";
           throw new TypeError(`Invalid Program revision candidate${admitted.path}`);
         }
         if (
@@ -114,13 +139,14 @@ export function createBrowserPiWorkerRuntimeV1(input: {
           admitted.value.baseProgramRevision !== submit.baseProgramRevision ||
           admitted.value.text !== submit.text
         ) {
+          run.candidateFailure = "candidate_context_mismatch";
           throw new TypeError(
             "Program revision candidate does not match the admitted submit context",
           );
         }
         run.candidate = Object.freeze(admitted.value);
       },
-      onTextDelta(delta): void {
+      onTextDelta(delta: string): void {
         if (activeRun !== run || run.terminal || delta.length === 0) return;
         if (run.draft.length + delta.length > creatorAgentFinalReplyMaximumCharactersV1) {
           failRun(run, "draft_limit");
@@ -129,7 +155,10 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         run.draft += delta;
         emitRecord(run, { kind: "artifact_chunk", text: delta });
       },
-    });
+    };
+    const agent = runtime === "deterministic_test"
+      ? createDeterministicPiAgentV1({ ...agentInput, runNumber })
+      : createOpenAiPiAgentV1({ ...agentInput, apiKey });
     run = {
       sessionId,
       runId: `sillyos.run.${runNumber}`,
@@ -137,6 +166,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       sequence: 0,
       draft: "",
       candidate: null,
+      candidateFailure: null,
       terminal: false,
     };
     return run;
@@ -144,7 +174,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
 
   const executeRun = async (run: ActivePiRunV1, submitText: string): Promise<void> => {
     if (disposed || activeRun !== run || run.terminal) return;
-    let outcome: Awaited<ReturnType<DeterministicPiAgentPortV1["prompt"]>>;
+    let outcome: Awaited<ReturnType<PiAgentPortV1["prompt"]>>;
     try {
       outcome = await run.agent.prompt(submitText);
     } catch {
@@ -152,6 +182,10 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       return;
     }
     if (disposed || activeRun !== run || run.terminal) return;
+    if (run.candidateFailure !== null) {
+      failRun(run, run.candidateFailure);
+      return;
+    }
     if (outcome.stopReason !== "stop") {
       failRun(run, outcome.stopReason === "aborted" ? "cancelled" : "pi_failed");
       return;
@@ -186,12 +220,13 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         return;
       }
       credentialKey = message.credential.value;
+      configuredRuntime = message.runtime;
       initialized = true;
       post(Object.freeze({
         revision: 1,
         kind: "ready",
         requestId: message.requestId,
-        runtime: "deterministic_test",
+        runtime: message.runtime,
         distribution: browserPiDistributionIdentityV1,
       }));
       return;
@@ -267,6 +302,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       if (disposed) return;
       disposed = true;
       credentialKey = null;
+      configuredRuntime = null;
       initialized = false;
       if (activeRun !== null && !activeRun.terminal) {
         activeRun.terminal = true;

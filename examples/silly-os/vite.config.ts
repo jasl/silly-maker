@@ -5,9 +5,10 @@ import { createSillymakerAppViteConfigV1 } from "@sillymaker/tooling/vite";
 
 import { sillymakerAppConfigV1 } from "./sillymaker.config.ts";
 
-export default defineConfig(() =>
-  createSillymakerAppViteConfigV1({
+export default defineConfig(async () => {
+  const config = await createSillymakerAppViteConfigV1({
     appRoot: import.meta.dirname,
     config: sillymakerAppConfigV1,
-  })
-);
+  });
+  return { ...config, publicDir: "public" };
+});
