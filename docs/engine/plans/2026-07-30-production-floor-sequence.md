@@ -20,8 +20,16 @@ plan；目标合同见[统一创作架构设计](../design/authoring-architectur
 
 ## 1. Current and next
 
-当前：无活动车道（shared-stage-input 2026-08-26 关闭；等所有者下一
-道指令）。Desktop 持久化仍是独立晋级门。
+当前：[Narrative Aside V1](2026-08-27-narrative-aside.md)（提案
+[narrative-aside](../proposals/narrative-aside.md)，2026-08-27 所有
+者下令开启，硬约束：通用 + 与既有能力正交；open questions 按建议固
+化：q1 推流、q2 引擎合同 + Story 像素、q3 定名 aside、q4 挂起权威对
+话时到达即丢）——插话：hold 进行中的零权威台词批。commit-only 推流
+（transient effect 同族：sequence + epoch 盖章、消费者水位线），ui
+交纯翻页控制器，像素归 Story 渲染器；pending 槽、hold 算术、决议合法
+性、宿主 isolation / 焦点政策零改动。M0 base 合同 → M1 ui 控制器 →
+M2 Lab conformance + 浏览器证据 + 文档 → M3 实验仓消费 + 收口。
+Desktop 持久化仍是独立晋级门。
 
 前一条：[Shared Stage Input V1](2026-08-26-shared-stage-input.md)
 （提案 [shared-stage-input](../proposals/shared-stage-input.md)，
