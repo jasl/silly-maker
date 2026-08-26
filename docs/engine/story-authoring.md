@@ -251,6 +251,27 @@ isolates again — and make sure your Story renders no full-viewport
 click-eater of its own under shared pendings, because the engine only
 releases its layer isolation, not your DOM.
 
+Flavor speech that should appear over a running hold without ending it —
+the character reacting to a mid-bar touch while the bar keeps filling — is
+a narrative aside, not a `say`. Implement the adapter seam
+`projectNarrativeAside(events)`: derive 1–16 pages (`speakerTextId`
+nullable plus `textId`, the same text-id vocabulary as `say`) from your
+committed domain events — typically the event your occurrence-fenced
+mid-hold write emits — and return `[]` from every commit that raises
+none. The instance stamps each push with a monotonic `asideSequence` and
+the commit-time presentation epoch; consume it in a Story renderer through
+`useNarrativeAsideV1` (or the pure `createNarrativeAsideControllerV1`),
+which pages locally, dismisses past the last page, drops a push that
+arrives while an authoritative `say`/`choice` owns the dialogue surface,
+and force-dismisses when one takes it or the epoch moves. An aside has no
+occurrence, no resolution, and no routing power: it never touches the
+pending slot, State, Saves, digests, History, or replay, and load/restart
+re-deliver nothing — if the speech must blockingly own the surface or
+change the route, author a real `say` or a `when` reroute instead. Mount
+your aside window in an ordinary Story slot (the HUD stays
+pointer-reachable during shared holds); do not route it through the
+narrative surface host or register stage isolation for it.
+
 A timing accumulation that must run while the player can still act — a
 decision gauge rising under a live menu, a scene-scoped drip while the player
 reads, a held-interaction drip — is an authoritative monitor, not a hold.

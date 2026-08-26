@@ -50,7 +50,13 @@ import {
 } from "../presentation.ts";
 import { labUiTextV1 } from "./ui-text.ts";
 import { createLabNarrativeSurfaceDefinitionV1 } from "./narrative-renderer.tsx";
-import { LabHudV1, LabRollbackControlV1, LabShopOverlayV1, LabStageV1 } from "./shell-ui.tsx";
+import {
+  LabAsideWindowV1,
+  LabHudV1,
+  LabRollbackControlV1,
+  LabShopOverlayV1,
+  LabStageV1,
+} from "./shell-ui.tsx";
 import {
   asLabOverlayControllerV1,
   createLabOverlayConformanceV1,
@@ -246,6 +252,7 @@ export function createLabUiSlotsV1(input: {
       <>
         <LabHudV1 publication={context.publication} semantic={context.semantic} />
         <LabRollbackControlV1 instance={input.instance} publication={context.publication} />
+        <LabAsideWindowV1 instance={input.instance} publication={context.publication} />
         <GameAudioV1
           ports={input.instance}
           createHost={input.createAudioHost}
