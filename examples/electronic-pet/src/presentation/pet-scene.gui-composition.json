@@ -1,0 +1,13 @@
+{
+  "format": "sillymaker.gui-composition",
+  "version": 1,
+  "compositionId": "gui.electronic-pet.home.m1",
+  "root": {
+    "nodeId": "node.electronic-pet.home-canvas",
+    "viewId": "view.electronic-pet.home-canvas.v1",
+    "props": {
+      "quality": "balanced"
+    },
+    "slots": {}
+  }
+}

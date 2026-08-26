@@ -22,6 +22,7 @@ export function createExperimentalEmbeddedAgentCompanionInternalV1(
   return {
     compatibilityId: binding.configurationId,
     contentSignature: binding.actionSignature,
+    surfacePlacement: "after-inspector",
     createOwner(): ExperimentalEmbeddedAgentOwnerInternalV1 {
       const host = createAgentHostInternalV1({
         client: binding.createClient(),

@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 
 import type { InspectorToolingPlanV1 } from "./composition.ts";
+import { AuthoringCompanionSurfaceInternalV1 } from "./core/authoring-companion-surface.tsx";
 import { createAuthoringHostInternalV1 } from "./core/authoring-host.ts";
 import type { AuthoringHostInternalV1 } from "./core/authoring-host.ts";
 import { EmbeddedAuthoringSurfaceInternalV1 } from "./embedded-authoring.tsx";
@@ -409,8 +410,10 @@ export function createInspectorToolingReactPublicationInternalV1(
         sceneIo: plan.sceneIo,
         motionIo: plan.motionIo,
       });
-      const companionDefinition = mode === "embedded"
-        ? resolveEmbeddedAuthoringCompanionInternalV1(plan.binding)
+      const configuredCompanion = resolveEmbeddedAuthoringCompanionInternalV1(plan.binding);
+      const companionDefinition = mode === "embedded" ||
+          configuredCompanion?.surfacePlacement === "replace-inspector"
+        ? configuredCompanion
         : null;
       if (!companionConfigurationInitialized) {
         companionConfigurationInitialized = true;
@@ -441,6 +444,15 @@ export function createInspectorToolingReactPublicationInternalV1(
                 definition: companionDefinition,
               },
             })}
+          />
+        )
+        : companionDefinition?.surfacePlacement === "replace-inspector" &&
+            companionOwner !== null
+        ? (
+          <AuthoringCompanionSurfaceInternalV1
+            host={host}
+            publicationRole={target}
+            companion={{ owner: companionOwner, definition: companionDefinition }}
           />
         )
         : (

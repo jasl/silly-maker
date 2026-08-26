@@ -5,6 +5,7 @@ import type { ReactElement } from "react";
 import type { InspectorBindingV1 } from "./core/binding.ts";
 import type { AuthoringHostInternalV1 } from "./core/authoring-host.ts";
 import { resolveAuthoringHostOwnerInternalV1 } from "./core/authoring-host.ts";
+import { AuthoringCompanionSurfaceInternalV1 } from "./core/authoring-companion-surface.tsx";
 import type {
   EmbeddedAuthoringCompanionDefinitionInternalV1,
   EmbeddedAuthoringCompanionOwnerInternalV1,
@@ -37,7 +38,13 @@ export function EmbeddedAuthoringSurfaceInternalV1(
   const [confirmClose, setConfirmClose] = useState(false);
   const closeDialogRef = useRef<HTMLDialogElement>(null);
   const closeState = owner.getCloseState();
-  const closeLabel = snapshot.dirty ? "关闭内嵌创作（有未保存修改）" : "关闭内嵌创作";
+  const companionReplacesInspector =
+    props.companion?.definition.surfacePlacement === "replace-inspector";
+  const closeLabel = companionReplacesInspector
+    ? "收起产品创作视图"
+    : snapshot.dirty
+    ? "关闭内嵌创作（有未保存修改）"
+    : "关闭内嵌创作";
 
   useEffect(() => {
     if (!confirmClose) return undefined;
@@ -52,6 +59,10 @@ export function EmbeddedAuthoringSurfaceInternalV1(
   }, [confirmClose]);
 
   const requestClose = (): void => {
+    if (companionReplacesInspector) {
+      setOpen(false);
+      return;
+    }
     if (closeState.dirty) {
       setConfirmClose(true);
       return;
@@ -85,7 +96,7 @@ export function EmbeddedAuthoringSurfaceInternalV1(
           data-embedded-authoring-open="true"
           onClick={() => setOpen(true)}
         >
-          打开内嵌创作
+          {companionReplacesInspector ? "展开产品创作视图" : "打开内嵌创作"}
         </button>
       )}
       <section
@@ -96,29 +107,31 @@ export function EmbeddedAuthoringSurfaceInternalV1(
       >
         <header className={styles["embedded-toolbar"]}>
           <strong>Authoring Host</strong>
-          <span>与独立 Inspector 共享实现</span>
+          <span>{companionReplacesInspector ? "产品创作视图" : "与独立 Inspector 共享实现"}</span>
           <button
             type="button"
             data-embedded-authoring-close="true"
             aria-label={closeLabel}
             onClick={requestClose}
           >
-            关闭
+            {companionReplacesInspector ? "收起" : "关闭"}
           </button>
         </header>
-        <InspectorHostSurfaceInternalV1
-          host={props.host}
-          binding={props.binding}
-          mode="embedded"
-          publicationRole={props.publicationRole}
-          viewId={props.viewId}
-        />
+        {companionReplacesInspector ? null : (
+          <InspectorHostSurfaceInternalV1
+            host={props.host}
+            binding={props.binding}
+            mode="embedded"
+            publicationRole={props.publicationRole}
+            viewId={props.viewId}
+          />
+        )}
         {props.companion === undefined ? null : (
-          props.companion.definition.render(props.companion.owner, {
-            sceneOperations: owner.sceneOperations,
-            authoringRevision: snapshot.revision,
-            publicationRole: props.publicationRole,
-          })
+          <AuthoringCompanionSurfaceInternalV1
+            host={props.host}
+            publicationRole={props.publicationRole}
+            companion={props.companion}
+          />
         )}
       </section>
       {!confirmClose ? null : (

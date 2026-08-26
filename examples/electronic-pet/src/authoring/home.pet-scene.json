@@ -1,0 +1,213 @@
+{
+  "format": "sillymaker.pet-scene",
+  "version": 1,
+  "sceneId": "scene.electronic-pet.home",
+  "label": "New home",
+  "activeCameraId": "pet.camera.main",
+  "objects": [
+    {
+      "kind": "group",
+      "objectId": "pet.home",
+      "label": "Home",
+      "transform": {
+        "position": { "x": 0, "y": 0, "z": 0 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "scale": { "x": 1, "y": 1, "z": 1 }
+      },
+      "children": [
+        {
+          "kind": "model",
+          "objectId": "pet.room",
+          "label": "Room",
+          "transform": {
+            "position": { "x": 0, "y": 0, "z": 0 },
+            "rotation": { "x": 0, "y": 0, "z": 0 },
+            "scale": { "x": 1, "y": 1, "z": 1 }
+          },
+          "model": {
+            "modelId": "electronic-pet.room.low-poly",
+            "appearance": {
+              "primaryMaterialSourceName": "RoomPrimary",
+              "primaryColor": "#f4e9dc"
+            },
+            "nodes": [{ "nodeId": "room.shell", "sourceName": "RoomShell" }],
+            "bones": [],
+            "sockets": [],
+            "clips": []
+          }
+        },
+        {
+          "kind": "model",
+          "objectId": "pet.cat",
+          "label": "New kitten",
+          "transform": {
+            "position": { "x": 0, "y": 0.42, "z": 0 },
+            "rotation": { "x": 0, "y": 0, "z": 0 },
+            "scale": { "x": 1, "y": 1, "z": 1 }
+          },
+          "model": {
+            "modelId": "electronic-pet.cat.low-poly",
+            "appearance": {
+              "primaryMaterialSourceName": "CatFurPrimary",
+              "primaryColor": "#d9b38c"
+            },
+            "animation": {
+              "idleClipId": "cat.idle",
+              "speed": 1,
+              "blendDurationMs": 180
+            },
+            "nodes": [{ "nodeId": "cat.body", "sourceName": "CatBody" }],
+            "bones": [
+              { "boneId": "cat.root", "sourceName": "Root" },
+              { "boneId": "cat.spine", "sourceName": "Spine" },
+              { "boneId": "cat.head", "sourceName": "Head" },
+              { "boneId": "cat.tail", "sourceName": "Tail" }
+            ],
+            "sockets": [
+              {
+                "socketId": "cat.face",
+                "sourceName": "FaceSocket",
+                "boneId": "cat.head",
+                "transform": {
+                  "position": { "x": 0, "y": 0.02, "z": 0.12 },
+                  "rotation": { "x": 0, "y": 0, "z": 0 },
+                  "scale": { "x": 1, "y": 1, "z": 1 }
+                }
+              },
+              {
+                "socketId": "cat.neck",
+                "sourceName": "NeckSocket",
+                "boneId": "cat.spine",
+                "transform": {
+                  "position": { "x": 0, "y": 0.1, "z": 0.3 },
+                  "rotation": { "x": 0, "y": 0, "z": 0 },
+                  "scale": { "x": 1, "y": 1, "z": 1 }
+                }
+              },
+              {
+                "socketId": "cat.back",
+                "sourceName": "BackSocket",
+                "boneId": "cat.spine",
+                "transform": {
+                  "position": { "x": 0, "y": 0.06, "z": -0.28 },
+                  "rotation": { "x": 0, "y": 0, "z": 0 },
+                  "scale": { "x": 1, "y": 1, "z": 1 }
+                }
+              }
+            ],
+            "clips": [{ "clipId": "cat.idle", "sourceName": "Idle" }]
+          }
+        },
+        {
+          "kind": "model",
+          "objectId": "pet.toy",
+          "label": "Ball toy",
+          "transform": {
+            "position": { "x": -1.1, "y": 0.18, "z": 0.85 },
+            "rotation": { "x": 0, "y": 0, "z": 0 },
+            "scale": { "x": 1, "y": 1, "z": 1 }
+          },
+          "model": {
+            "modelId": "electronic-pet.toy.ball",
+            "appearance": {
+              "primaryMaterialSourceName": "BallPrimary",
+              "primaryColor": "#e65f5c"
+            },
+            "nodes": [{ "nodeId": "toy.ball", "sourceName": "Ball" }],
+            "bones": [],
+            "sockets": [],
+            "clips": []
+          }
+        },
+        {
+          "kind": "camera",
+          "objectId": "pet.camera.main",
+          "label": "Main camera",
+          "transform": {
+            "position": { "x": 0, "y": 2.4, "z": 5.8 },
+            "rotation": { "x": -0.24, "y": 0, "z": 0 },
+            "scale": { "x": 1, "y": 1, "z": 1 }
+          },
+          "camera": {
+            "projection": "perspective",
+            "fovDegrees": 42,
+            "near": 0.1,
+            "far": 100
+          }
+        },
+        {
+          "kind": "light",
+          "objectId": "pet.light.key",
+          "label": "Window light",
+          "transform": {
+            "position": { "x": 2.4, "y": 4.2, "z": 3 },
+            "rotation": { "x": 0, "y": 0, "z": 0 },
+            "scale": { "x": 1, "y": 1, "z": 1 }
+          },
+          "light": {
+            "lightKind": "directional",
+            "color": "#fff3df",
+            "intensity": 2.2
+          }
+        },
+        {
+          "kind": "interaction-volume",
+          "objectId": "pet.interaction.face",
+          "label": "Face and forehead interaction",
+          "transform": {
+            "position": { "x": 0, "y": 0, "z": 0 },
+            "rotation": { "x": 0, "y": 0, "z": 0 },
+            "scale": { "x": 1, "y": 1, "z": 1 }
+          },
+          "interaction": {
+            "interactionId": "interaction.pet.face",
+            "shape": { "kind": "sphere", "radius": 0.24 },
+            "preferredStrokeDirection": { "x": 0, "y": -1, "z": 0 },
+            "attachment": {
+              "modelObjectId": "pet.cat",
+              "socketId": "cat.face"
+            }
+          }
+        },
+        {
+          "kind": "interaction-volume",
+          "objectId": "pet.interaction.neck",
+          "label": "Neck and shoulder interaction",
+          "transform": {
+            "position": { "x": 0, "y": 0, "z": 0 },
+            "rotation": { "x": 0, "y": 0, "z": 0 },
+            "scale": { "x": 1, "y": 1, "z": 1 }
+          },
+          "interaction": {
+            "interactionId": "interaction.pet.neck",
+            "shape": { "kind": "sphere", "radius": 0.34 },
+            "preferredStrokeDirection": { "x": 0, "y": 0, "z": -1 },
+            "attachment": {
+              "modelObjectId": "pet.cat",
+              "socketId": "cat.neck"
+            }
+          }
+        },
+        {
+          "kind": "interaction-volume",
+          "objectId": "pet.interaction.back",
+          "label": "Back interaction",
+          "transform": {
+            "position": { "x": 0, "y": 0, "z": 0 },
+            "rotation": { "x": 0, "y": 0, "z": 0 },
+            "scale": { "x": 1, "y": 1, "z": 1 }
+          },
+          "interaction": {
+            "interactionId": "interaction.pet.back",
+            "shape": { "kind": "sphere", "radius": 0.38 },
+            "preferredStrokeDirection": { "x": 0, "y": 0, "z": -1 },
+            "attachment": {
+              "modelObjectId": "pet.cat",
+              "socketId": "cat.back"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -12,6 +12,7 @@ import type { MotionSourceIoV1 } from "@sillymaker/ui/debug";
 import type { InspectorToolingPlanV1 } from "./composition.ts";
 import type { AuthoringSceneSourceIoV1 } from "./core/authoring-scene-io.ts";
 import type { InspectorBindingV1 } from "./core/binding.ts";
+import { defineEmbeddedAuthoringCompanionInternalV1 } from "./core/embedded-authoring-companion.ts";
 import {
   createInspectorToolingReactPublicationV1,
   createPersistentReactLayoutPublicationInternalV1,
@@ -219,5 +220,29 @@ describe("Inspector tooling publication", () => {
       new AbortController().signal,
     )).rejects.toThrow("cannot replace its scene IO owner");
     expect(container.querySelector("[data-authoring-host]")).toBe(host);
+  });
+
+  it("renders a replacement companion in the standalone Inspector", async () => {
+    const container = containerV1();
+    const owner = { dispose: vi.fn(() => Promise.resolve()) };
+    const binding = defineEmbeddedAuthoringCompanionInternalV1(bindingV1(), {
+      compatibilityId: "test.standalone-companion.v1",
+      contentSignature: "test.standalone-content.v1",
+      surfacePlacement: "replace-inspector",
+      createOwner: () => owner,
+      render: (_owner, input) => (
+        <section data-standalone-product-authoring={input.publicationRole}>
+          Product authoring
+        </section>
+      ),
+    });
+    const publication = createInspectorToolingReactPublicationV1({ container });
+    mountedPublications.push(publication);
+
+    await publication.mount(planV1(binding));
+
+    expect(container.querySelector('[data-standalone-product-authoring="visible"]'))
+      .toHaveTextContent("Product authoring");
+    expect(container.querySelector('[data-inspector-root="true"]')).toBeNull();
   });
 });

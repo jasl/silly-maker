@@ -238,7 +238,10 @@ conformance；大型第三方组件与真实 Agent conversation 仍是本轮之�
   history for explicit retry. One persistent visible root and connected inert R1
   staging preserve the compatible Host/session and selected private companion;
   ordinary Player graphs exclude Inspector/source-write and Agent/RPC unless the
-  Engine Lab private companion entry is selected.
+  Engine Lab private companion entry is selected. A workspace-private
+  `@sillymaker/studio/internal/authoring-companion` entry lets one product attach
+  that neutral sibling, but exposes neither companion lookup nor a registry/public
+  ABI.
 - Final-output attribution proves both boundaries without freezing a module
   inventory or machine number: Template's ordinary no-extension build contains
   no authoring or real dev-source implementation and no dynamic-extension/RPC

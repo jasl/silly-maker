@@ -28,6 +28,7 @@ describe("project commands against the real repository config", () => {
       "template",
       "example-bookshop",
       "example-cat-cafe",
+      "example-electronic-pet",
     ]);
 
     for (const applicationId of listStoryApplicationIdsV1(validatedProjectV1)) {

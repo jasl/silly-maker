@@ -1,0 +1,114 @@
+/* SPDX-License-Identifier: MIT */
+.pet-wand {
+  display: grid;
+  gap: 12px;
+  inline-size: min(100%, 560px);
+  padding: 16px;
+  border: 1px solid rgb(53 83 74 / 14%);
+  border-radius: 20px;
+  color: #293531;
+  background: rgb(255 253 248 / 95%);
+  box-shadow: 0 18px 46px rgb(77 60 42 / 12%);
+  font-family:
+    Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC",
+    sans-serif;
+}
+
+.pet-wand__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.pet-wand__header > div {
+  display: grid;
+  gap: 3px;
+}
+
+.pet-wand__header span,
+.pet-wand > p,
+.pet-wand__status {
+  margin: 0;
+  color: #66716d;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.pet-wand__header button {
+  min-block-size: 38px;
+  padding: 8px 12px;
+  border: 1px solid rgb(73 92 85 / 18%);
+  border-radius: 11px;
+  color: #2d3a36;
+  background: #fffefa;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.pet-wand__header button:focus-visible {
+  outline: 3px solid rgb(53 131 108 / 30%);
+  outline-offset: 2px;
+}
+
+.pet-wand__header button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.pet-wand__surface {
+  --pet-wand-x: 72%;
+  --pet-wand-y: 36%;
+
+  position: relative;
+  min-block-size: clamp(180px, 34vw, 260px);
+  overflow: hidden;
+  border: 1px solid rgb(73 92 85 / 16%);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 22% 74%, rgb(170 211 196 / 46%) 0 9%, transparent 10%),
+    linear-gradient(155deg, #f8f2e9 0%, #eef5ed 100%);
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+}
+
+.pet-wand__surface[data-pet-wand-active="true"] {
+  cursor: grabbing;
+}
+
+.pet-wand__cat {
+  position: absolute;
+  inset-inline-start: 20%;
+  inset-block-end: 19%;
+  color: #6b5c54;
+  font-size: clamp(52px, 11vw, 78px);
+  line-height: 1;
+  filter: drop-shadow(0 10px 9px rgb(57 43 34 / 16%));
+}
+
+.pet-wand__toy {
+  position: absolute;
+  inset-inline-start: var(--pet-wand-x);
+  inset-block-start: var(--pet-wand-y);
+  inline-size: 23px;
+  block-size: 23px;
+  border-radius: 50%;
+  background: #e76758;
+  box-shadow: 0 6px 12px rgb(160 69 57 / 25%);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.pet-wand__toy i {
+  position: absolute;
+  inset-inline-start: 50%;
+  inset-block-end: 17px;
+  inline-size: 2px;
+  block-size: 64px;
+  background: #66594f;
+  transform: rotate(18deg);
+  transform-origin: bottom;
+}

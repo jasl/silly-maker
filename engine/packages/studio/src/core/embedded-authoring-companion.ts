@@ -22,6 +22,7 @@ export interface EmbeddedAuthoringCompanionOwnerInternalV1 {
 export interface EmbeddedAuthoringCompanionDefinitionInternalV1 {
   readonly compatibilityId: string;
   readonly contentSignature: string;
+  readonly surfacePlacement: "after-inspector" | "replace-inspector";
   createOwner(): EmbeddedAuthoringCompanionOwnerInternalV1;
   render(
     owner: EmbeddedAuthoringCompanionOwnerInternalV1,

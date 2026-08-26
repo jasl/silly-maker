@@ -1,6 +1,6 @@
 # Production-floor execution sequence
 
-状态：持续维护的唯一跨计划排序入口；最近排序修订 2026-08-26。PF0–PF7 与 Complexity
+状态：持续维护的唯一跨计划排序入口；最近排序修订 2026-08-27。PF0–PF7 与 Complexity
 Reset 的 CR0、CR1、CR2.1–CR2.5、CR3、CR4 已于 2026-08-13 完成。CR4 的真实作者纵切没有
 暴露需要通用 PF6 harness 解决的问题，PF6 已重新裁决为
 不激活。同日以真实产品证据接受并完成了
@@ -22,6 +22,20 @@ active authority；完成里程碑摘要在
 
 ## 1. Current and next
 
+2026-08-27 所有者接受
+[Electronic Pet Reference Product](2026-08-27-electronic-pet-reference-product.md) 作为当前唯一活动
+Reference Product；产品合同见
+[Electronic Pet Reference Product](../../game/electronic-pet.md)。M0 已冻结原创产品分母、信赖 × 心情
+规则、姿态/邀请/手势反馈、Object ↔ code ↔ source/operation 作者合同、Cat Cafe 接替矩阵与停止条件；M1
+已完成一间房、一只猫、一个玩具和一个 bone/socket interaction volume 的 3D runtime + Inspector 作者闭环；
+M2 已完成首个可玩照料循环、持久化进程和鼠标/触控手势反馈，M3 是尚未开始的下一执行项。Cat Cafe 在新产品
+完成前继续作为当前旗舰与维护中的 Save/browser evidence；
+只有完整产品、human/Agent
+作者任务、独立 product/engine review 和接替矩阵都关闭后，才显式终止 Cat Cafe revision 1 Save 支持并原子
+删除旧应用。真实产品暴露的 Inspector/3D 缺口必须先最小复现，不得提前建设通用 3D engine、ECS、Prefab、
+Blueprint、public Mod ABI 或最终编辑器。条件性的 Desktop HMR stable revalidation 与 production promotion
+保持独立，不阻塞本产品。
+
 2026-08-26 所有者接受并于同日交付关闭
 [Neutral GUI Host Readiness、Close 与 Optional Desktop Companion V1](2026-08-26-neutral-gui-host-readiness-close-companion.md)
 。M0 交付中性 GUI required-readiness latch + product-selected close
@@ -29,7 +43,7 @@ participant，M1 package-private/explicit/最多一个的 Desktop product compan
 交付 tooling-owned neutral conformance/final-graph evidence/live-doc handoff。Browser external-service interop、
 static Deno Desktop preview 与等待 verified stable 的 Desktop HMR revalidation 是三条正交路径；本车道
 不激活 public subprocess/companion/Agent/Mod ABI、registry、进程扫描、Pi/SillyOS fixture、Desktop
-production 或 maintained HMR。当前无活动车道；没有后继 engine lane 或 Reference Product 自动激活。
+production 或 maintained HMR。该 closure 没有自动激活后继；电子宠物是所有者在次日另行接受的产品车道。
 
 2026-08-19 至 2026-08-22 的六条 engine-gap lane 全部交付关闭后，恢复并完成
 2026-08-18 所有者以新产品方向证据接受的
@@ -139,16 +153,16 @@ conformance；没有激活 continuous Input、renderer/asset framework、Desktop
 target uplift、中性 GUI-only Host/config、focused final graph、产品预算、独立审查与 Starter feedback 均已
 关闭，只领取了真实 consumer 暴露的窄 engine correction。2026-08-26 官网 Console 与小型 GUI-only
 conformance fixture 分别接替可见产品展示和 Host/final-graph 证明后，Cards 产品退役；历史 closure 保留。
-当前没有自动激活的下一 engine lane 或
-Reference Product，其 product/engine review 不自动形成 backlog。2026-08-26 从平行商业克隆暴露的
+Cards closure 没有自动激活下一 engine lane 或 Reference Product，其 product/engine review 不自动形成
+backlog；所有者随后于 2026-08-27 另行接受电子宠物产品车道。2026-08-26 从平行商业克隆暴露的
 真实指针缺口吸收并同日关闭
 [Shared Stage Input V1](2026-08-26-shared-stage-input.md)（提案
 [shared-stage-input](../proposals/shared-stage-input.md)）：`say`/`choice`/`hold`/`custom` pending 可声明
 `stageInput: "shared"`，Narrative Host 仅放开既有 Stage 输入隔离与焦点独占，应用仍通过同一
 occurrence-fenced command 路径路由区域激活。声明值随普通 pending 进入 Save/digest/replay，但不参与
 决议、时间算术或 `when`；`game-stage.tsx`、Scene/Region 权威和 Input Router 均未新增分支。Shared
-Stage Input 关闭后完成的 Neutral GUI Host slice 见本节开头；当前无活动车道，Desktop 持久化仍是
-独立晋级门。
+Stage Input 关闭后完成的 Neutral GUI Host slice 见本节开头；其关闭当时没有活动车道，Desktop 持久化仍是
+独立晋级门。当前产品车道由本节第一段拥有。
 首个经 release
 source/行为确认包含目标路径的 stable（2.9.6 只是预期候选）仍须重跑同一分层验收，全部通过后才
 正式打开 maintained Desktop development workflow。此前 adapter 保持 package-private、explicit、

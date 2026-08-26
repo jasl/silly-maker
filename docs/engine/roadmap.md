@@ -1,6 +1,6 @@
 # SillyMaker engine roadmap
 
-状态：2026-07-19 接受，最近审查修订 2026-08-25。已 promotion 的稳定能力以
+状态：2026-07-19 接受，最近审查修订 2026-08-27。已 promotion 的稳定能力以
 [features](features.md) 为准；已交付但仍 provisional/package-private 的实验 seam 以对应 active
 plan closure 与 [architecture](architecture.md) 为准；历史交付见
 [roadmap archive](roadmap-archive.md)。当前执行入口只有
@@ -295,10 +295,21 @@ example。随后对下一 Reference Product 的只读 Host audit 暴露三个跨
 接受 [Neutral GUI Host Readiness、Close 与 Optional Desktop Companion V1](plans/2026-08-26-neutral-gui-host-readiness-close-companion.md)
 作为当前有界 engine lane：一个 application-owned required-readiness latch、一个 product-selected close
 participant，以及一个 build-known/exact-target/package-private Desktop direct-child transport。三项实现已
-通过 focused、Browser、native preview 与 repository validation 并关闭；没有后继 Reference Product
-或 engine lane 自动激活。该 lane 不定义产品 RPC protocol，不让 Browser 依赖
+通过 focused、Browser、native preview 与 repository validation 并关闭；该 closure 本身没有自动激活后继
+Reference Product 或 engine lane。该 lane 不定义产品 RPC protocol，不让 Browser 依赖
 本地 companion，并且不改变已接受但未完成的 Desktop HMR stable revalidation 与 Desktop production
 promotion；后两者保持独立、条件性，只 gate 各自的 Desktop claim/workflow，不阻塞 core 或其他工作。
+
+2026-08-27 所有者另行接受
+[Electronic Pet Reference Product](plans/2026-08-27-electronic-pet-reference-product.md) 为当前唯一产品车道，
+其活动产品合同在 [docs/game/electronic-pet.md](../game/electronic-pet.md)。它以原创的新领养小猫产品验证长期
+State/Save、信赖 × 心情规则、3D/React integration、响应式输入，以及 Object ↔ code binding、Inspector 与
+human/Agent handoff；Cat Cafe 在完整接替前保持当前旗舰。M1 已用一只猫、一个玩具和一个挂点互动区完成
+最小 3D runtime 与作者闭环，M2 已完成首个可玩照料循环、持久化进程和鼠标/触控手势反馈；M3 是尚未开始的
+下一执行项。后续仍只有中立可复现的通用缺口才领取 focused
+engine correction，不预建通用 3D engine、Prefab、
+Blueprint 或最终编辑器。完成后显式处置 Cat Cafe revision 1 Save floor 并原子切换发布，不做跨产品 Save
+迁移或兼容 wrapper。
 
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实

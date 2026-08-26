@@ -33,6 +33,13 @@ export function sillyOsTargetUrlV1(query = ""): string {
   return `http://${sillyOsTargetV1.host}:${String(sillyOsTargetV1.port)}/${query}`;
 }
 
+/** Electronic Pet: product-local Three runtime and dev-only 3D authoring companion. */
+export const electronicPetTargetV1 = { host: hostV1, port: 41743 };
+
+export function electronicPetTargetUrlV1(query = ""): string {
+  return `http://${electronicPetTargetV1.host}:${String(electronicPetTargetV1.port)}/${query}`;
+}
+
 interface PageDiagnosticsV1 {
   readonly pageErrors: readonly string[];
   readonly consoleErrors: readonly string[];

@@ -121,6 +121,18 @@ const applicationPoliciesV1 = [
     },
     dependencySeedEntries: [],
   },
+  {
+    applicationId: "example-electronic-pet",
+    callbackOwnerEntry: "examples/electronic-pet/src/game/simulation-definition.ts",
+    presentationEntry: "examples/electronic-pet/src/content/presentation.ts",
+    coreDefinition: {
+      module: "examples/electronic-pet/src/application/core-definition.ts",
+      exportName: "electronicPetCoreApplicationDefinitionV1",
+    },
+    dependencySeedEntries: [
+      "examples/electronic-pet/src/game/simulation-definition.ts",
+    ],
+  },
 ] satisfies readonly ApplicationAuthorityPolicyV1[];
 
 const baseAuthorityPoliciesV1 = [

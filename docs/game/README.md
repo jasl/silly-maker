@@ -1,6 +1,15 @@
-# Project Tavern gameplay redesign
+# Game design index
 
-状态：历史设计意图存档 + 未来可选方向。当前旗舰游戏是《雨巷猫舍》（`examples/cat-cafe`，设计规格在其 `DESIGN.md`）；Tavern 题材是引擎成熟后可能重启的方向之一，不约束当前开发。
+状态：活动游戏设计索引。当前旗舰仍是《雨巷猫舍》（`examples/cat-cafe`，设计规格在其 `DESIGN.md`）；
+2026-08-27 已接受 [Electronic Pet Reference Product](electronic-pet.md) 作为独立 WIP successor，完成产品、
+作者工作流和证据接替后才会原子退役 Cat Cafe。Tavern 题材是引擎成熟后可能重启的方向之一，不约束当前开发。
+
+## Active design
+
+- [Electronic Pet Reference Product](electronic-pet.md)：新领养小猫的长期陪伴游戏；以信赖 × 心情、猫的自主
+  意愿和可读身体反馈为核心，同时验证 3D Object ↔ code binding、Inspector 与 human/Agent handoff。
+
+## Historical direction: Project Tavern
 
 ## Product intent that remains useful
 
@@ -41,7 +50,7 @@ Project Tavern 仍以“经营一家酒馆，并通过经营选择推动人物�
 7. 货币和比例是否真的需要 Decimal，还是整数最小单位与清晰上界更合适？
 8. 哪一组最小内容足以支持第一次有价值的人工试玩？
 
-## Active design documents
+## Tavern design documents
 
 - [Presentation and UI redesign](presentation-and-ui.md)：画面框架、视觉语言、素材计划与"能玩"验收；实现随 vNext C3/D/E2 分片推进。
 

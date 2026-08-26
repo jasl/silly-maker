@@ -48,6 +48,7 @@ describe("closed runtime asset verification", () => {
       "story.template.starter",
       "story.example.bookshop",
       "story.example.cat-cafe",
+      "story.electronic-pet",
     ]);
   });
 
@@ -91,9 +92,9 @@ describe("closed runtime asset verification", () => {
     expect(verified).toEqual(["story.test.1", "story.test.2"]);
   });
 
-  it("verifies the live Template content packs and cat-cafe runtime art", async () => {
-    // e2e/bookshop stay code-native. Template text packs and cat-cafe art
-    // are both runtime files and pass through their format-specific admissions.
+  it("verifies live manifest-owned Template and Cat Cafe runtime assets", async () => {
+    // e2e/bookshop stay code-native. Electronic Pet's GLB is a product-local
+    // fetch resource covered by its GLTF unit test rather than the Base asset manifest.
     const reads: string[] = [];
     const root = resolve(import.meta.dirname, "../..");
     await expect(
@@ -112,6 +113,7 @@ describe("closed runtime asset verification", () => {
       "story.template.starter",
       "story.example.bookshop",
       "story.example.cat-cafe",
+      "story.electronic-pet",
     ]);
     expect(reads.length).toBeGreaterThan(0);
     expect(reads.some((path) => path.includes(`template${sep}assets${sep}content`))).toBe(true);

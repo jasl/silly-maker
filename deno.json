@@ -13,6 +13,7 @@
     "./template",
     "./examples/bookshop",
     "./examples/cat-cafe",
+    "./examples/electronic-pet",
     "./examples/silly-os",
     "./website"
   ],

@@ -6,6 +6,8 @@ import {
   bookshopTargetV1,
   catcafeTargetUrlV1,
   catcafeTargetV1,
+  electronicPetTargetUrlV1,
+  electronicPetTargetV1,
   sillyOsTargetUrlV1,
   sillyOsTargetV1,
   templateTargetUrlV1,
@@ -58,6 +60,18 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 120_000,
       url: sillyOsTargetUrlV1(),
+    },
+    {
+      // Use the product-owned config: its dev-only source route is part of
+      // the embedded 3D authoring closure exercised by this suite.
+      command:
+        `deno run -A npm:vite --config examples/electronic-pet/vite.config.ts --host ${electronicPetTargetV1.host} --port ${
+          String(electronicPetTargetV1.port)
+        } --strictPort`,
+      cwd: "../..",
+      reuseExistingServer: false,
+      timeout: 120_000,
+      url: electronicPetTargetUrlV1(),
     },
   ],
   projects: [

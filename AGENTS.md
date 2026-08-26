@@ -12,9 +12,12 @@ Desktop CLI arguments may provide admitted startup configuration, and headless
 code may support development, tests, conformance, and automation. Required
 external or companion services, including LLMs, connect through typed RPC
 boundaries; they are not in-process plugins. The current flagship is the Cat
-Cafe example (`examples/cat-cafe`); the retired Project Tavern PoC lives only in
-history. The active work may redesign gameplay, engine APIs, application
-hosting, state management, presentation, and authoring workflows.
+Cafe example (`examples/cat-cafe`); the accepted Electronic Pet Reference
+Product is its independent WIP successor and does not replace the flagship
+until its complete product, authoring, evidence-transfer, and retirement gates
+close. The retired Project Tavern PoC lives only in history. The active work may
+redesign gameplay, engine APIs, application hosting, state management,
+presentation, and authoring workflows.
 
 Prefer a coherent maintainable system over compatibility with the completed
 first-PoC implementation. When a durable public contract changes, update its
@@ -30,7 +33,14 @@ Read only the documents relevant to the change:
   implemented yet.
 - `docs/engine/plans/2026-07-30-production-floor-sequence.md` — the only
   cross-plan execution order. PF0–PF7 and the Complexity Reset are complete;
-  PF6 remains evidence-gated and inactive. There is currently no active lane:
+  PF6 remains evidence-gated and inactive. The current lane is
+  `docs/engine/plans/2026-08-27-electronic-pet-reference-product.md`: M0 product
+  contract, M1's first 3D runtime plus Inspector authoring closure, and M2's
+  first playable care loop are complete; M3 is next but has not started. Its
+  gameplay authority is `docs/game/electronic-pet.md`. Cat Cafe
+  remains the flagship and maintained Save/browser product until the successor's
+  complete denominator, human/Agent author tasks, evidence transfer, and atomic
+  retirement gate close. The preceding
   `docs/engine/plans/2026-08-26-neutral-gui-host-readiness-close-companion.md`
   delivered and closed M0–M2 on 2026-08-26. The recap below runs oldest to
   newest.

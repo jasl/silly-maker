@@ -21,5 +21,6 @@ export const sillyMakerConfigV1 = {
     "examples/bookshop",
     "examples/silly-os",
     "examples/cat-cafe",
+    "examples/electronic-pet",
   ],
 } as const satisfies SillymakerWorkspaceConfigV1;

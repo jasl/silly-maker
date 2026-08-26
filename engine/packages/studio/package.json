@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./composition": "./src/composition.ts",
+    "./internal/authoring-companion": "./src/internal-authoring-companion.ts",
     "./internal/agent": "./src/internal-agent.ts"
   },
   "scripts": {
