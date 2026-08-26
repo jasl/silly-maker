@@ -73,12 +73,6 @@
   display: grid;
 }
 
-.game-stage__layer[data-stage-layer="system"] {
-  z-index: var(--silly-stage-z-system);
-  display: grid;
-  place-items: start end;
-}
-
 .game-stage__layer:is([data-stage-layer="hud"], [data-stage-layer="workspace_overlay"], [data-stage-layer="narrative"], [data-stage-layer="system"]) {
   box-sizing: border-box;
   padding-block: var(--silly-safe-area-block-start) var(--silly-safe-area-block-end);
@@ -87,8 +81,13 @@
 
 /* Extra gutter is for flowed system chrome (the default menu). The HUD
    layer keeps only the safe-area inset so a Story's absolute 1024×576
-   chrome stays on the picture; system isolation still covers that layer. */
+   chrome stays on the picture; system isolation still covers that layer.
+   This block stays after the shared safe-area rule: same specificity, and
+   the start-edge gutter must win the cascade. */
 .game-stage__layer[data-stage-layer="system"] {
+  z-index: var(--silly-stage-z-system);
+  display: grid;
+  place-items: start end;
   padding-block-start: calc(var(--silly-safe-area-block-start) + var(--silly-space-2));
   padding-inline:
     calc(var(--silly-safe-area-inline-start) + var(--silly-space-2))
