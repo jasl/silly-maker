@@ -2,6 +2,7 @@
 import { AuthoringDiagnosticErrorV1, createDiagnosticV1 } from "@sillymaker/base";
 
 import type {
+  DesktopTargetTripleV1,
   ProjectModuleRefV1,
   SillymakerAppConfigV1,
   SillymakerProjectConfigV1,
@@ -10,8 +11,10 @@ import type {
   StorySceneSourceV1,
   StoryWebTargetV1,
 } from "./config-types.ts";
+import { DESKTOP_TARGET_TRIPLES_V1 } from "./config-types.ts";
 
 export type {
+  DesktopTargetTripleV1,
   ProjectModuleRefV1,
   SillymakerAppConfigV1,
   SillymakerAppWebTargetV1,
@@ -172,6 +175,65 @@ function requireDesktopIdentifierV1(value: unknown, pointer: string): string {
     );
   }
   return value;
+}
+
+function admitDesktopCompanionV1(
+  value: unknown,
+  pointer: string,
+): {
+  readonly artifacts: readonly {
+    readonly target: DesktopTargetTripleV1;
+    readonly path: string;
+  }[];
+} {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    configErrorV1("project.config_invalid", "desktop companion must be an object", pointer);
+  }
+  const artifacts = (value as { readonly artifacts?: unknown }).artifacts;
+  if (!Array.isArray(artifacts) || artifacts.length === 0) {
+    configErrorV1(
+      "project.config_invalid",
+      "desktop companion must declare at least one target artifact",
+      `${pointer}/artifacts`,
+    );
+  }
+  const seen = new Set<DesktopTargetTripleV1>();
+  return {
+    artifacts: artifacts.map((artifact, index) => {
+      const artifactPointer = `${pointer}/artifacts/${String(index)}`;
+      if (typeof artifact !== "object" || artifact === null || Array.isArray(artifact)) {
+        configErrorV1(
+          "project.config_invalid",
+          "desktop companion artifact must be an object",
+          artifactPointer,
+        );
+      }
+      const record = artifact as { readonly target?: unknown; readonly path?: unknown };
+      if (
+        typeof record.target !== "string" ||
+        !(DESKTOP_TARGET_TRIPLES_V1 as readonly string[]).includes(record.target)
+      ) {
+        configErrorV1(
+          "project.config_invalid",
+          "desktop companion artifact target is unsupported",
+          `${artifactPointer}/target`,
+        );
+      }
+      const target = record.target as DesktopTargetTripleV1;
+      if (seen.has(target)) {
+        configErrorV1(
+          "project.config_invalid",
+          `desktop companion target "${target}" is declared more than once`,
+          `${artifactPointer}/target`,
+        );
+      }
+      seen.add(target);
+      return {
+        target,
+        path: requireRepositoryPathV1(record.path, `${artifactPointer}/path`),
+      };
+    }),
+  };
 }
 
 function requireBooleanV1(value: unknown, pointer: string): boolean {
@@ -352,6 +414,12 @@ function admitWebTargetV1(web: StoryWebTargetV1, pointer: string): StoryWebTarge
       ),
       ...(web.desktop.icon === undefined ? {} : {
         icon: requireDesktopIconPathV1(web.desktop.icon, `${pointer}/desktop/icon`),
+      }),
+      ...(web.desktop.companion === undefined ? {} : {
+        companion: admitDesktopCompanionV1(
+          web.desktop.companion,
+          `${pointer}/desktop/companion`,
+        ),
       }),
     },
   };
@@ -541,6 +609,12 @@ export function defineSillymakerAppV1(
             `${pointer}/web/desktop/icon`,
           ),
         }),
+        ...(web.desktop.companion === undefined ? {} : {
+          companion: admitDesktopCompanionV1(
+            web.desktop.companion,
+            `${pointer}/web/desktop/companion`,
+          ),
+        }),
       },
     },
   };
@@ -598,6 +672,14 @@ export function anchorAdmittedSillymakerApplicationInternalV1(
         ...(web.desktop.icon === undefined
           ? {}
           : { icon: joinAdmittedAppPathInternalV1(directory, web.desktop.icon) }),
+        ...(web.desktop.companion === undefined ? {} : {
+          companion: {
+            artifacts: web.desktop.companion.artifacts.map((artifact) => ({
+              target: artifact.target,
+              path: joinAdmittedAppPathInternalV1(directory, artifact.path),
+            })),
+          },
+        }),
       },
     },
   };

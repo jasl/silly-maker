@@ -529,6 +529,16 @@ validated and published its registry. Terminal failures restore the static shell
 with a bounded `SM-STARTUP-*` code and Retry, never the raw error. These are
 Host/test signals, not State or persistence data.
 
+The GUI-only application definition is constructed synchronously. Products with
+an asynchronously available required domain return their recovery/configuration
+UI together with one `requiredDomainReady` Promise; the product may commit while
+the Host remains `starting`, and the required-domain signal publishes only after
+that Promise resolves. Omission keeps the synchronous-ready default. Irrecoverable
+rejection uses `SM-STARTUP-REQUIRED`; disposal and terminal presentation fence a
+late settlement. GUI products may additionally provide one product-aggregated
+Desktop close preparation (`fence` synchronously and idempotently, then await
+`prepare`). Do not introduce one hook per database, service, or child resource.
+
 The explicitly selected reference DevDock host invokes its literal loader only
 after `debug_tools`, single-flights one open, reuses ready, and exposes a bounded
 failure with explicit retry while core/static siblings remain mounted. Core

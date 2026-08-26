@@ -447,6 +447,90 @@ describe("application and workspace config validation", () => {
     }
   });
 
+  it("admits and anchors exact-target Desktop companion artifacts", () => {
+    const app = defineSillymakerAppV1({
+      applicationId: "companion-app",
+      label: "Companion app",
+      storyEntry: null,
+      assetVerification: false,
+      simulate: null,
+      inspector: null,
+      web: {
+        applicationHtml: "index.html",
+        applicationEntry: "src/entry.tsx",
+        outDir: "dist-web",
+        base: "./",
+        sourcemap: false,
+        identity: null,
+        desktop: {
+          name: "CompanionApp",
+          identifier: "dev.sillymaker.companion-app",
+          companion: {
+            artifacts: [
+              { target: "aarch64-apple-darwin", path: "bin/companion" },
+              { target: "x86_64-pc-windows-msvc", path: "bin/companion.exe" },
+            ],
+          },
+        },
+      },
+    });
+
+    expect(app.web?.desktop?.companion?.artifacts).toEqual([
+      { target: "aarch64-apple-darwin", path: "bin/companion" },
+      { target: "x86_64-pc-windows-msvc", path: "bin/companion.exe" },
+    ]);
+    expect(
+      deriveStoryApplicationV1("examples/companion-app", app).web?.desktop?.companion?.artifacts,
+    ).toEqual([
+      { target: "aarch64-apple-darwin", path: "examples/companion-app/bin/companion" },
+      { target: "x86_64-pc-windows-msvc", path: "examples/companion-app/bin/companion.exe" },
+    ]);
+  });
+
+  it.each([
+    ["empty artifacts", []],
+    [
+      "unsupported target",
+      [{ target: "riscv64-unknown-linux-gnu", path: "bin/companion" }],
+    ],
+    [
+      "duplicate target",
+      [
+        { target: "aarch64-apple-darwin", path: "bin/first" },
+        { target: "aarch64-apple-darwin", path: "bin/second" },
+      ],
+    ],
+    ["unsafe path", [{ target: "aarch64-apple-darwin", path: "../companion" }]],
+  ])("rejects invalid Desktop companion config: %s", (_label, artifacts) => {
+    expect(
+      diagnosticsOf(() =>
+        defineSillymakerAppV1(
+          {
+            applicationId: "companion-app",
+            label: "Companion app",
+            storyEntry: null,
+            assetVerification: false,
+            simulate: null,
+            inspector: null,
+            web: {
+              applicationHtml: "index.html",
+              applicationEntry: "src/entry.tsx",
+              outDir: "dist-web",
+              base: "./",
+              sourcemap: false,
+              identity: null,
+              desktop: {
+                name: "CompanionApp",
+                identifier: "dev.sillymaker.companion-app",
+                companion: { artifacts },
+              },
+            },
+          } as Parameters<typeof defineSillymakerAppV1>[0],
+        )
+      ),
+    ).toMatchObject([{ code: "project.config_invalid" }]);
+  });
+
   it("rejects unsafe application roots before joining app-relative paths", () => {
     const config = {
       applicationId: "example-app",

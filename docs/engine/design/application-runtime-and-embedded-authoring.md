@@ -8,7 +8,9 @@
 拥有；[Production-floor sequence](../plans/2026-07-30-production-floor-sequence.md)
 仍是唯一跨计划排序入口。AR0–AR4 已于 2026-08-22 交付；AR5 build、Browser GUI Host、
 lifetime/performance promotion 与 AR6 closure 已于 2026-08-23 交付关闭，下一条 lane 交还 owner
-选择；下文明确
+选择。2026-08-26 所有者接受的
+[Neutral GUI Host Readiness、Close 与 Optional Desktop Companion V1](../plans/2026-08-26-neutral-gui-host-readiness-close-companion.md)
+已完成 focused、Browser、native preview 与 repository validation 并关闭；下文明确
 标注实现状态的部分才是 live capability，其他目标仍不因
 设计存在而自动生效。
 
@@ -70,6 +72,12 @@ cross-process 边界做 shape、size、depth、sequence 和 cancellation admissi
 `GameSession` writer、任意 `FilePort`、AuthoringDocumentSession writer 或 DOM owner。关闭本地连接
 只能撤销本地资源，不能声称回滚已经发生的远端 effect。
 
+Browser 产品从 admitted endpoint/config 直接建立自己的 typed RPC client，不需要本地进程或
+Desktop companion。Deno Desktop 产品若必须随包携带一个后台，可以另行选择下文的私有 transport：
+它只把固定 same-origin HTTP namespace 接到该 direct child 的 loopback endpoint；RPC schema、framing、
+stream、retry 和产品 readiness 仍由产品自己的 typed client 拥有。平台 transport 不因复用 HTTP
+而成为通用 RPC protocol、provider registry 或进程内 plugin。
+
 进程内 plugin/extension 则组合 trusted domain、workspace、UI contribution 与可逆生命周期。
 RPC service availability 不是 plugin presence，extension dispose 也不是远端事务 rollback。两种边界
 不得由一个模糊的 `context` 或 service locator 合并。
@@ -108,6 +116,43 @@ Deno Desktop 可以从普通 CLI 参数读取 endpoint、project path、启动 m
 required RPC 不可用时，依赖它的 domain 不得谎报 ready；GUI 仍须显示明确的 unavailable、配置、
 诊断和 retry 状态，而不是白屏。optional workspace/Agent/网络失败不得卸载无关 domain。这些信号
 属于 Host 诊断，不进入 authoritative State、Save 或 replay。
+
+live GUI Host 把 first product commit 与 required readiness 分开。产品可以提供一个
+application-generation-owned readiness Promise：UI 同步挂载并保持可操作，Promise pending 时 Host
+继续报告 `starting`，第一次 resolve 才把 required domain 推进为 ready；未提供时保持静态 GUI 的
+即时 ready。recoverable unavailable/retry 留在产品 UI 与 typed client 中；不可恢复 rejection 使用既有
+required-startup failure 路径。该 latch 只表达一个 generation 首次满足必要依赖，不是多服务 registry、
+依赖图、健康检查器或网络重连状态机。
+
+GUI 产品还可以选择正好一个 close participant：同步、幂等的 `fence()` 停止新的 product mutation/
+submission，`prepare()` 等待产品自己的 pending write 或 typed-client drain。没有 participant 的无状态
+GUI 保持即时回执；需要关闭多个产品资源时由产品聚合，而不是让 Host 枚举数据库、RPC、Extension 或
+React descendants。该异步保证只接入 Desktop native-close receipt；explicit dispose 与 Browser
+`pagehide` 仍只做确定性的本地 cleanup，不伪装成浏览器会等待 durable flush。
+
+### 3.1 Optional Desktop companion preview
+
+Deno Desktop packaging 可以为每个 exact target 从 build-known application config 中选择最多一个
+application-private companion artifact。只有选中的 package 才 stage 该 artifact 与 package-private
+Host owner、include companion bytes，并授予未限定的 `--allow-run`；默认/未选择路径 stage 一个 inert
+config，不包含 companion Host/artifact、不启动 child，也没有 subprocess permission 或 renderer
+bootstrap。Deno 2.9.5 会在启动时解析 scoped `--allow-run=<name/path>`，无法用它授权之后才从 compiled
+VFS 物化出来的随机绝对路径，因此该 preview 只在明确选择 companion 时承担 unscoped permission；
+这不是 engine-wide permission policy 或生产安全资格。
+
+private Host 把 included artifact 复制到 product user-data 下自己拥有的随机物理路径，在 POSIX 上设为
+`0700`，并只直接启动这一份固定 artifact。child stdout 的第一行是至多 1,024 bytes 的 bounded JSON
+launch receipt（`revision: 1` 与 loopback `port`）；Host 据此把
+`/sillymaker/companion/*` 交给现有 exact-origin/capability HTTP admission，再代理到
+`127.0.0.1:<port>`。renderer 只得到 package-private HTTP port，不得到 artifact path、PID、signal、
+`Deno.Command`、`Deno.ChildProcess` 或任意命令执行能力。
+
+native close 的顺序固定为：renderer product `fence()` / `prepare()` → shell 停止 private ingress 并
+drain 已接收的 Host requests → companion stdin EOF → shell 等待自己直接持有的 child exit 0 → native
+exit。失败不得伪造成正常退出；Host 不扫描或终止孙进程，也不建立 PID/currentness、SIGKILL、进程树
+清理、多 companion registry 或 supervisor。该 preview 不承诺 persistence durability、signing、安装器、
+跨平台资格或产品 RPC protocol，并且与 Desktop HMR update-source defer 正交：它不启动 Vite、不产生
+candidate/generation，也不改变 stable revalidation gate。
 
 ## 4. Module update, extension lifecycle, and publication
 

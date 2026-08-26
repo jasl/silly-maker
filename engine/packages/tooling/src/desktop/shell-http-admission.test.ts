@@ -88,6 +88,15 @@ describe("Desktop shell HTTP admission", () => {
         capabilityV1,
       ),
     ).toEqual({ kind: "files", subPath: "/download" });
+    expect(
+      classifyShellHttpRequestInternalV1(
+        requestV1("http://127.0.0.1:41800/sillymaker/companion/rpc?stream=1", {
+          capability: capabilityV1,
+        }),
+        expectedOriginV1,
+        capabilityV1,
+      ),
+    ).toEqual({ kind: "companion", subPath: "/rpc", search: "?stream=1" });
   });
 
   it("rejects DNS-rebinding Host or port values and cross-site requests", () => {
@@ -164,6 +173,10 @@ describe("Desktop shell HTTP admission", () => {
         calls.push("records");
         return new Response("records");
       },
+      handleCompanion: (_request, subPath, search) => {
+        calls.push(`companion:${subPath}${search}`);
+        return new Response("companion");
+      },
     });
 
     expect((await handler(requestV1("http://attacker.example/index.html"))).status).toBe(421);
@@ -182,5 +195,32 @@ describe("Desktop shell HTTP admission", () => {
       ).status,
     ).toBe(200);
     expect(calls).toEqual(["records"]);
+
+    expect(
+      (
+        await handler(
+          requestV1("http://127.0.0.1:41800/sillymaker/companion/rpc?stream=1", {
+            capability: capabilityV1,
+          }),
+        )
+      ).status,
+    ).toBe(200);
+    expect(calls).toEqual(["records", "companion:/rpc?stream=1"]);
+  });
+
+  it("keeps the fixed companion namespace inert when no application selects it", async () => {
+    const handler = createShellHttpHandlerInternalV1({
+      expectedOrigin: () => expectedOriginV1,
+      capability: capabilityV1,
+      handleStatic: () => new Response("static"),
+      handleFiles: () => new Response("files"),
+      handleRecords: () => new Response("records"),
+    });
+    const response = await handler(
+      requestV1("http://127.0.0.1:41800/sillymaker/companion/rpc", {
+        capability: capabilityV1,
+      }),
+    );
+    expect(response.status).toBe(404);
   });
 });

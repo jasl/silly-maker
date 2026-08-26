@@ -1,6 +1,6 @@
 # Production-floor execution sequence
 
-状态：持续维护的唯一跨计划排序入口；最近排序修订 2026-08-25。PF0–PF7 与 Complexity
+状态：持续维护的唯一跨计划排序入口；最近排序修订 2026-08-26。PF0–PF7 与 Complexity
 Reset 的 CR0、CR1、CR2.1–CR2.5、CR3、CR4 已于 2026-08-13 完成。CR4 的真实作者纵切没有
 暴露需要通用 PF6 harness 解决的问题，PF6 已重新裁决为
 不激活。同日以真实产品证据接受并完成了
@@ -21,6 +21,15 @@ active authority；完成里程碑摘要在
 [roadmap archive](../roadmap-archive.md)，更细的历史仍由 Git 保留。
 
 ## 1. Current and next
+
+2026-08-26 所有者接受并于同日交付关闭
+[Neutral GUI Host Readiness、Close 与 Optional Desktop Companion V1](2026-08-26-neutral-gui-host-readiness-close-companion.md)
+。M0 交付中性 GUI required-readiness latch + product-selected close
+participant，M1 package-private/explicit/最多一个的 Desktop product companion preview，M2
+交付 tooling-owned neutral conformance/final-graph evidence/live-doc handoff。Browser external-service interop、
+static Deno Desktop preview 与等待 verified stable 的 Desktop HMR revalidation 是三条正交路径；本车道
+不激活 public subprocess/companion/Agent/Mod ABI、registry、进程扫描、Pi/SillyOS fixture、Desktop
+production 或 maintained HMR。当前无活动车道；没有后继 engine lane 或 Reference Product 自动激活。
 
 2026-08-19 至 2026-08-22 的六条 engine-gap lane 全部交付关闭后，恢复并完成
 2026-08-18 所有者以新产品方向证据接受的
@@ -137,8 +146,9 @@ Reference Product，其 product/engine review 不自动形成 backlog。2026-08-
 [shared-stage-input](../proposals/shared-stage-input.md)）：`say`/`choice`/`hold`/`custom` pending 可声明
 `stageInput: "shared"`，Narrative Host 仅放开既有 Stage 输入隔离与焦点独占，应用仍通过同一
 occurrence-fenced command 路径路由区域激活。声明值随普通 pending 进入 Save/digest/replay，但不参与
-决议、时间算术或 `when`；`game-stage.tsx`、Scene/Region 权威和 Input Router 均未新增分支。当前无活动
-车道，等待所有者下一道指令；Desktop 持久化仍是独立晋级门。
+决议、时间算术或 `when`；`game-stage.tsx`、Scene/Region 权威和 Input Router 均未新增分支。Shared
+Stage Input 关闭后完成的 Neutral GUI Host slice 见本节开头；当前无活动车道，Desktop 持久化仍是
+独立晋级门。
 首个经 release
 source/行为确认包含目标路径的 stable（2.9.6 只是预期候选）仍须重跑同一分层验收，全部通过后才
 正式打开 maintained Desktop development workflow。此前 adapter 保持 package-private、explicit、

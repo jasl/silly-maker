@@ -10,7 +10,8 @@
     "./reference": "./src/reference/index.ts",
     "./internal/application-build-identity": "./src/application/application-build-identity.ts",
     "./internal/application-hmr": "./src/application/application-hmr-internal.ts",
-    "./internal/application-startup": "./src/application/application-startup.ts"
+    "./internal/application-startup": "./src/application/application-startup.ts",
+    "./internal/desktop-companion": "./src/host/desktop-companion-port.ts"
   },
   "scripts": {
     "test": "deno run -A npm:vitest run engine/packages/web/src",

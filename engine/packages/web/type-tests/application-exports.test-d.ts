@@ -26,7 +26,9 @@ import {
 import type {
   CapabilityRequestParseResultV1,
   RuntimeCapabilitySessionOverlayV1,
+  WebGuiClosePreparationV1,
   WebGuiApplicationV1,
+  WebGuiUiDefinitionV1,
   WebAddressableRuntimeDefinitionV1,
   WebGameApplicationV1,
   WebGameUiDefinitionV1,
@@ -34,6 +36,13 @@ import type {
 
 declare const publicGuiApplicationV1: WebGuiApplicationV1;
 void startWebGuiApplicationV1(publicGuiApplicationV1, { registerPageLifecycle: false });
+declare const publicGuiClosePreparationV1: WebGuiClosePreparationV1;
+const publicGuiUiDefinitionV1: WebGuiUiDefinitionV1 = {
+  content: null,
+  requiredDomainReady: Promise.resolve(),
+  closePreparation: publicGuiClosePreparationV1,
+};
+void publicGuiUiDefinitionV1;
 
 declare const pointerActionMapV1: PointerActionMapV1;
 type WebInputDeclarationV1 = NonNullable<

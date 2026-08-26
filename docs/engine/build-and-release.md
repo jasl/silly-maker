@@ -280,6 +280,41 @@ stable Deno. The engine/tooling compatibility floor remains `>=2.9.0`, but
 Desktop build and promotion deliberately track current stable fixes; promotion
 records the actual version without pinning one patch.
 
+An application may additionally declare one optional Desktop companion preview
+as an exact-target artifact map:
+
+```ts
+desktop: {
+  name: "My App",
+  identifier: "dev.example.my-app",
+  companion: {
+    artifacts: [
+      { target: "aarch64-apple-darwin", path: "bin/companion-aarch64-darwin" },
+      { target: "x86_64-pc-windows-msvc", path: "bin/companion-x86_64.exe" },
+    ],
+  },
+}
+```
+
+Every requested output must have exactly one matching, non-empty artifact; a
+host package also requires the tooling to identify the host's exact supported
+target. Packaging fails before replacing prior output when the selected artifact
+is missing. Only a selected companion package stages that artifact and the
+package-private Host implementation, adds the companion include, and grants
+unscoped `--allow-run`. The ordinary/no-companion package stages an inert config
+only: it includes no companion artifact or Host implementation, grants no
+subprocess permission, and launches no child.
+
+The unscoped permission is an explicit preview tradeoff. Deno 2.9.5 resolves a
+scoped `--allow-run=<name/path>` at process startup, while the included companion
+must first be materialized from the compiled VFS to a random absolute path in
+the application's user-data directory; the eventual path therefore cannot be
+authorized by that startup scope. This does not grant renderer code a process
+API: the private shell still executes only the exact build-selected artifact,
+owns only that direct child, and exposes no path, PID, signal, `Deno.Command`,
+or `Deno.ChildProcess` handle. Treat this as a packaging preview, not a
+production permission/signing qualification.
+
 This command stages a static runtime Player only. It does not package an author
 entry, source-write/CAS endpoints, the embedded Authoring Host, or the real
 dev-source client, and it does not pass Deno Desktop's development `--hmr`
@@ -299,18 +334,23 @@ that candidate; it becomes a maintained development workflow only after the
 first stable containing the target upstream semantics passes the same source-and-
 behavior revalidation. This independent activation defer does not block other
 engine or product work. Do not turn the private intent into a packaging flag or
-substitute an external proxy/companion, shim, Deno fork, undocumented marker, or
-presumed 2.9.6 version gate.
+use the product companion as an HMR/Vite proxy, shim, Deno fork, undocumented
+marker, or presumed 2.9.6 version gate.
 
 The shell adopts Deno Desktop's startup window instead of creating a second
-window. Closing that window first fences renderer mutation ingress, asks the
-page to verify the exact current authoritative Snapshot in `auto.current`, and
-waits for that close request's acknowledgement. Only then does the shell stop
-new download admission, cancel non-authoritative downloads still receiving a
-body, stop HTTP ingress, drain active record commits and already-complete
-download publications, and exit. A failed or missing acknowledgement keeps the
-shell and download coordinator alive instead of discarding the latest
-Snapshot; no page heartbeat or timeout force-exits the process.
+window. Closing that window first asks the renderer to execute the selected
+product close contract. A Game entry fences mutation ingress, verifies the exact
+current authoritative Snapshot in `auto.current`, and flushes autosave; a GUI
+entry runs its one optional product participant's synchronous `fence()` and
+awaits `prepare()`. A stateless GUI with no participant acknowledges immediately.
+Only after the renderer reports success does the shell stop new download and
+companion-route admission, cancel non-authoritative downloads still receiving a
+body, stop HTTP ingress, and drain active record/companion requests plus already-
+complete download publications. If a companion child was actually launched, the
+shell then closes its stdin and requires direct-child exit 0 before normal native
+exit. A failed/missing renderer acknowledgement, Host drain, or child exit keeps
+the shell from claiming a successful close; no page heartbeat, timeout, process
+scan, tree kill, or SIGKILL force-exits it.
 
 The shell binds its HTTP ingress explicitly to loopback and admits every
 request only for the exact origin (host and runtime-selected port) allocated to
@@ -321,6 +361,15 @@ instead of silently falling back. Launch-specific HTML is never cached and
 cannot be embedded in another page, so a stale capability or clickjacked shell
 cannot become an ingress path. The capability is a browser-network fence, not
 protection against same-origin script compromise or another trusted local process.
+
+When a companion is selected, the same classifier admits one additional fixed
+`/sillymaker/companion/*` namespace and proxies it to the child-reported loopback
+port. The first stdout line is a bounded JSON receipt whose admitted fields are
+`revision: 1` and the port; subsequent application traffic remains ordinary
+HTTP. The product owns the typed RPC schema, framing, streaming, retry,
+readiness, and response consumption above this transport. Browser applications
+connect to their admitted external-service endpoint directly and do not need or
+receive this local process owner.
 
 The shell also serves
 `/sillymaker/files/download` for the embedded webview, which does not honor
@@ -361,10 +410,11 @@ is currently forwarded only to darwin outputs.
 
 Cross-compiled outputs are usable packaging previews: this repository still has not
 promoted installers beyond these formats, signing, notarization, auto-update,
-or crash-atomic desktop persistence. A release claim requires a real build →
-launch → write → exit → reopen smoke on each named platform, not only an
-output-directory marker. Engine and Story packages remain independent of Deno
-Desktop APIs; the web Player is the stable fallback.
+crash-atomic desktop persistence, or optional companion operation on every named
+platform. A release claim requires a real build → launch → write → exit → reopen
+smoke on each named platform, plus the product's own companion/RPC evidence when
+selected—not only an output-directory marker. Engine and Story packages remain
+independent of Deno Desktop APIs; the web Player is the stable fallback.
 
 ## Publish to static hosting (GitHub Pages / Cloudflare Workers)
 

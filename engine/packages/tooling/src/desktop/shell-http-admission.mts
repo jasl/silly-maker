@@ -5,11 +5,17 @@ import { randomBytes } from "node:crypto";
 export const shellCapabilityHeaderInternalV1 = "x-sillymaker-shell-capability";
 export const shellFilesPathPrefixInternalV1 = "/sillymaker/files";
 export const shellRecordsPathPrefixInternalV1 = "/sillymaker/records";
+export const shellCompanionPathPrefixInternalV1 = "/sillymaker/companion";
 
 export type ShellHttpAdmissionInternalV1 =
   | Readonly<{ readonly kind: "static"; readonly pathname: string }>
   | Readonly<{ readonly kind: "files"; readonly subPath: string }>
   | Readonly<{ readonly kind: "records"; readonly subPath: string }>
+  | Readonly<{
+    readonly kind: "companion";
+    readonly subPath: string;
+    readonly search: string;
+  }>
   | Readonly<{ readonly kind: "rejected"; readonly status: 403 | 421 }>;
 
 const shellCapabilityPatternInternalV1 = /^[A-Za-z0-9_-]{43}$/u;
@@ -38,6 +44,35 @@ export function allocateShellCapabilityInternalV1(
   return capability;
 }
 
+function parseShellRequestUrlInternalV1(
+  request: Request,
+  expectedOrigin: URL | null,
+): URL | 421 {
+  let url: URL;
+  try {
+    url = new URL(request.url);
+  } catch {
+    return 421;
+  }
+  return expectedOrigin === null ||
+      url.origin !== expectedOrigin.origin ||
+      url.username !== "" ||
+      url.password !== ""
+    ? 421
+    : url;
+}
+
+function rejectPrivateShellRequestInternalV1(
+  request: Request,
+  expectedOrigin: URL,
+  capability: string,
+): 403 | null {
+  if (request.headers.get("sec-fetch-site") === "cross-site") return 403;
+  const origin = request.headers.get("origin");
+  if (origin !== null && origin !== expectedOrigin.origin) return 403;
+  return request.headers.get(shellCapabilityHeaderInternalV1) === capability ? null : 403;
+}
+
 /**
  * Owns the shell's route classification so a caller cannot accidentally treat
  * a private endpoint as static. Every request must target the exact origin
@@ -51,20 +86,9 @@ export function classifyShellHttpRequestInternalV1(
   expectedOrigin: URL | null,
   capability: string,
 ): ShellHttpAdmissionInternalV1 {
-  let url: URL;
-  try {
-    url = new URL(request.url);
-  } catch {
-    return { kind: "rejected", status: 421 };
-  }
-  if (
-    expectedOrigin === null ||
-    url.origin !== expectedOrigin.origin ||
-    url.username !== "" ||
-    url.password !== ""
-  ) {
-    return { kind: "rejected", status: 421 };
-  }
+  const parsed = parseShellRequestUrlInternalV1(request, expectedOrigin);
+  if (parsed === 421) return { kind: "rejected", status: 421 };
+  const url = parsed;
 
   const route = url.pathname === shellFilesPathPrefixInternalV1 ||
       url.pathname.startsWith(`${shellFilesPathPrefixInternalV1}/`)
@@ -78,19 +102,18 @@ export function classifyShellHttpRequestInternalV1(
       kind: "records" as const,
       subPath: url.pathname.slice(shellRecordsPathPrefixInternalV1.length),
     }
+    : url.pathname === shellCompanionPathPrefixInternalV1 ||
+        url.pathname.startsWith(`${shellCompanionPathPrefixInternalV1}/`)
+    ? {
+      kind: "companion" as const,
+      subPath: url.pathname.slice(shellCompanionPathPrefixInternalV1.length),
+      search: url.search,
+    }
     : { kind: "static" as const, pathname: url.pathname };
   if (route.kind === "static") return route;
 
-  if (request.headers.get("sec-fetch-site") === "cross-site") {
-    return { kind: "rejected", status: 403 };
-  }
-  const origin = request.headers.get("origin");
-  if (origin !== null && origin !== expectedOrigin.origin) {
-    return { kind: "rejected", status: 403 };
-  }
-  return request.headers.get(shellCapabilityHeaderInternalV1) === capability
-    ? route
-    : { kind: "rejected", status: 403 };
+  const rejection = rejectPrivateShellRequestInternalV1(request, parsed, capability);
+  return rejection === null ? route : { kind: "rejected", status: rejection };
 }
 
 export function createShellHttpHandlerInternalV1(input: {
@@ -99,6 +122,11 @@ export function createShellHttpHandlerInternalV1(input: {
   readonly handleStatic: (request: Request, pathname: string) => Response | Promise<Response>;
   readonly handleFiles: (request: Request, subPath: string) => Response | Promise<Response>;
   readonly handleRecords: (request: Request, subPath: string) => Response | Promise<Response>;
+  readonly handleCompanion?: (
+    request: Request,
+    subPath: string,
+    search: string,
+  ) => Response | Promise<Response>;
 }): (request: Request) => Promise<Response> {
   return async (request: Request): Promise<Response> => {
     const admission = classifyShellHttpRequestInternalV1(
@@ -116,6 +144,11 @@ export function createShellHttpHandlerInternalV1(input: {
     }
     if (admission.kind === "records") {
       return await input.handleRecords(request, admission.subPath);
+    }
+    if (admission.kind === "companion") {
+      return input.handleCompanion === undefined
+        ? new Response("not found", { status: 404 })
+        : await input.handleCompanion(request, admission.subPath, admission.search);
     }
     return await input.handleStatic(request, admission.pathname);
   };

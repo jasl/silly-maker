@@ -43,6 +43,7 @@ export type {
   StartWebGuiApplicationOptionsV1,
   StartedWebGuiApplicationV1,
   WebGuiApplicationV1,
+  WebGuiClosePreparationV1,
   WebGuiUiDefinitionV1,
   WebGuiViewportOptionsV1,
 } from "./application/start-web-gui-application.tsx";

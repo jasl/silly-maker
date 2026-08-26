@@ -14,6 +14,10 @@ import {
 } from "@sillymaker/ui";
 
 import { createWebHostV1 } from "../host/create-web-host.ts";
+import {
+  applicationStartupSignalEventNameInternalV1,
+  type ApplicationStartupSignalDetailInternalV1,
+} from "./application-startup-diagnostics.ts";
 import { desktopCloseFlushGlobalKeyV1 } from "./install-desktop-close-flush.ts";
 import {
   startWebGuiApplicationV1,
@@ -26,6 +30,30 @@ const openActionV1 = parseInputActionIdV1("gui-conformance.open");
 const desktopCapabilityV1 = "a".repeat(43);
 
 let startedApplicationsV1: StartedWebGuiApplicationV1[] = [];
+
+function deferredV1(): {
+  readonly promise: Promise<void>;
+  resolve(): void;
+  reject(error: unknown): void;
+} {
+  let resolve!: () => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<void>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
+function observeStartupSignalsV1(shell: HTMLElement): string[] {
+  const signals: string[] = [];
+  shell.addEventListener(applicationStartupSignalEventNameInternalV1, (event) => {
+    signals.push(
+      (event as CustomEvent<ApplicationStartupSignalDetailInternalV1>).detail.signal,
+    );
+  });
+  return signals;
+}
 
 afterEach(async () => {
   for (const started of startedApplicationsV1) await started.dispose();
@@ -213,10 +241,15 @@ describe("startWebGuiApplicationV1", () => {
   it("keeps the startup recovery shell when the first React presentation fails", async () => {
     const { root, shell } = installDocumentEntryV1("browser");
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const requiredDomain = deferredV1();
+    const signals = observeStartupSignalsV1(shell);
 
     const started = await startWebGuiApplicationV1(
       createApplicationV1({
-        ui: () => ({ content: <FailingPresentationV1 /> }),
+        ui: () => ({
+          content: <FailingPresentationV1 />,
+          requiredDomainReady: requiredDomain.promise,
+        }),
       }),
       { host: createHostV1(), registerPageLifecycle: false },
     );
@@ -233,6 +266,103 @@ describe("startWebGuiApplicationV1", () => {
     expect(shell.querySelector('[data-sillymaker-startup-retry="actionable"]')).not.toBeNull();
     expect(shell).toHaveAttribute("data-sillymaker-startup-product-commit", "pending");
     expect(consoleError).not.toHaveBeenCalled();
+
+    requiredDomain.resolve();
+    await Promise.resolve();
+    expect(shell).toHaveAttribute("data-sillymaker-startup-required-domain", "failed");
+    expect(signals).not.toContain("required_domain_ready");
+  });
+
+  it("mounts recovery UI while required-domain readiness is pending, then publishes ready once", async () => {
+    const { root, shell } = installDocumentEntryV1("browser");
+    const requiredDomain = deferredV1();
+    const signals = observeStartupSignalsV1(shell);
+
+    const started = await startV1(
+      createApplicationV1({
+        ui: () => ({
+          content: <main aria-label="Connection recovery">Connect to continue</main>,
+          requiredDomainReady: requiredDomain.promise,
+        }),
+      }),
+      { host: createHostV1(), registerPageLifecycle: false },
+    );
+
+    expect(root.querySelector('main[aria-label="Connection recovery"]')).not.toBeNull();
+    expect(shell.hidden).toBe(true);
+    expect(shell).toHaveAttribute("data-sillymaker-startup-state", "starting");
+    expect(shell).toHaveAttribute("data-sillymaker-startup-product-commit", "presentation");
+    expect(shell).toHaveAttribute("data-sillymaker-startup-required-domain", "pending");
+    expect(signals).not.toContain("required_domain_ready");
+
+    await act(async () => {
+      requiredDomain.resolve();
+      await Promise.resolve();
+    });
+    expect(shell).toHaveAttribute("data-sillymaker-startup-state", "ready");
+    expect(shell).toHaveAttribute("data-sillymaker-startup-required-domain", "ready");
+    expect(signals.filter((signal) => signal === "required_domain_ready")).toHaveLength(1);
+
+    await act(async () => await started.dispose());
+  });
+
+  it("turns irrecoverable required-domain rejection into the existing startup failure", async () => {
+    const { root, shell } = installDocumentEntryV1("browser");
+    const requiredDomain = deferredV1();
+    const host = createHostV1();
+    const writeLog = vi.spyOn(host.log, "write");
+    const started = await startV1(
+      createApplicationV1({
+        ui: () => ({
+          content: <main aria-label="Connection recovery">Retrying</main>,
+          requiredDomainReady: requiredDomain.promise,
+        }),
+      }),
+      { host, registerPageLifecycle: false },
+    );
+
+    const failure = new Error("private connection failure");
+    await act(async () => {
+      requiredDomain.reject(failure);
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(started.isDisposed()).toBe(true));
+
+    expect(root).toBeEmptyDOMElement();
+    expect(shell).toHaveAttribute("data-sillymaker-startup-state", "failed");
+    expect(shell).toHaveAttribute(
+      "data-sillymaker-startup-diagnostic-code",
+      "SM-STARTUP-REQUIRED",
+    );
+    expect(shell).not.toHaveTextContent(failure.message);
+    expect(writeLog).toHaveBeenCalledWith(
+      "warn",
+      "web.gui_application_required_domain_failed",
+      { message: failure.message },
+    );
+  });
+
+  it("fences a pending required-domain settlement after disposal", async () => {
+    const { shell } = installDocumentEntryV1("browser");
+    const requiredDomain = deferredV1();
+    const signals = observeStartupSignalsV1(shell);
+    const started = await startV1(
+      createApplicationV1({
+        ui: () => ({
+          content: <RoutedCounterV1 />,
+          requiredDomainReady: requiredDomain.promise,
+        }),
+      }),
+      { host: createHostV1(), registerPageLifecycle: false },
+    );
+
+    await act(async () => await started.dispose());
+    requiredDomain.resolve();
+    await Promise.resolve();
+
+    expect(shell).toHaveAttribute("data-sillymaker-startup-controller", "disposed");
+    expect(shell).toHaveAttribute("data-sillymaker-startup-required-domain", "pending");
+    expect(signals).not.toContain("required_domain_ready");
   });
 
   it("publishes the shared document startup receipt and serves a no-op Desktop close flush", async () => {
@@ -266,6 +396,72 @@ describe("startWebGuiApplicationV1", () => {
     expect(Reflect.has(globalThis, desktopCloseFlushGlobalKeyV1)).toBe(false);
   });
 
+  it("routes Desktop close through one product-owned fence and async preparation", async () => {
+    installDocumentEntryV1("deno_desktop");
+    Reflect.set(globalThis, "__SILLYMAKER_RECORDS__", "local");
+    Reflect.set(globalThis, "__SILLYMAKER_DESKTOP_CAPABILITY__", desktopCapabilityV1);
+    const firstPreparation = deferredV1();
+    const retryPreparation = deferredV1();
+    const preparations = [firstPreparation.promise, retryPreparation.promise];
+    let preparationIndex = 0;
+    const operations: string[] = [];
+    const fence = vi.fn(() => operations.push("fence"));
+    const prepare = vi.fn(() => {
+      operations.push("prepare");
+      return preparations[preparationIndex++] ?? Promise.resolve();
+    });
+    const started = await startV1(
+      createApplicationV1({
+        ui: () => ({
+          content: <RoutedCounterV1 />,
+          closePreparation: { fence, prepare },
+        }),
+      }),
+      { host: createHostV1(), registerPageLifecycle: false },
+    );
+    const close = Reflect.get(globalThis, desktopCloseFlushGlobalKeyV1) as (
+      action: unknown,
+    ) => { readonly kind: string };
+
+    expect(close({ operation: "prepare", protocolRevision: 1, requestId: 9 })).toMatchObject({
+      kind: "preparing",
+      requestId: 9,
+    });
+    expect(close({ operation: "prepare", protocolRevision: 1, requestId: 9 })).toMatchObject({
+      kind: "preparing",
+      requestId: 9,
+    });
+    expect(operations).toEqual(["fence", "prepare"]);
+    expect(fence).toHaveBeenCalledOnce();
+    expect(prepare).toHaveBeenCalledOnce();
+
+    firstPreparation.reject(new Error("prepare retry"));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(close({ operation: "read", protocolRevision: 1, requestId: 9 })).toMatchObject({
+      kind: "failed",
+      requestId: 9,
+    });
+
+    expect(close({ operation: "prepare", protocolRevision: 1, requestId: 10 })).toMatchObject({
+      kind: "preparing",
+      requestId: 10,
+    });
+    expect(operations).toEqual(["fence", "prepare", "prepare"]);
+    expect(fence).toHaveBeenCalledOnce();
+    expect(prepare).toHaveBeenCalledTimes(2);
+
+    retryPreparation.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(close({ operation: "read", protocolRevision: 1, requestId: 10 })).toMatchObject({
+      kind: "flushed",
+      requestId: 10,
+    });
+
+    await act(async () => await started.dispose());
+  });
+
   it("rejects a document target that disagrees with the admitted Desktop Host marker", async () => {
     const { shell } = installDocumentEntryV1("browser");
     Reflect.set(globalThis, "__SILLYMAKER_RECORDS__", "local");
@@ -284,9 +480,15 @@ describe("startWebGuiApplicationV1", () => {
   it("uses pagehide as the same idempotent root and UI teardown", async () => {
     const root = createRootV1();
     const disposeUi = vi.fn();
+    const fenceClose = vi.fn();
+    const prepareClose = vi.fn(() => Promise.resolve());
     const started = await startV1(
       createApplicationV1({
-        ui: () => ({ content: <RoutedCounterV1 />, dispose: disposeUi }),
+        ui: () => ({
+          content: <RoutedCounterV1 />,
+          closePreparation: { fence: fenceClose, prepare: prepareClose },
+          dispose: disposeUi,
+        }),
       }),
       { rootElement: root, host: createHostV1() },
     );
@@ -300,5 +502,7 @@ describe("startWebGuiApplicationV1", () => {
     expect(started.isDisposed()).toBe(true);
     expect(root).toBeEmptyDOMElement();
     expect(disposeUi).toHaveBeenCalledOnce();
+    expect(fenceClose).not.toHaveBeenCalled();
+    expect(prepareClose).not.toHaveBeenCalled();
   });
 });

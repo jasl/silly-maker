@@ -204,6 +204,17 @@ function createNodeRunnerV1(): ProjectCommandRunnerV1 {
       : process.platform === "linux"
       ? "linux"
       : null,
+    hostTarget: process.platform === "darwin" && process.arch === "arm64"
+      ? "aarch64-apple-darwin"
+      : process.platform === "darwin" && process.arch === "x64"
+      ? "x86_64-apple-darwin"
+      : process.platform === "win32" && process.arch === "x64"
+      ? "x86_64-pc-windows-msvc"
+      : process.platform === "linux" && process.arch === "arm64"
+      ? "aarch64-unknown-linux-gnu"
+      : process.platform === "linux" && process.arch === "x64"
+      ? "x86_64-unknown-linux-gnu"
+      : null,
     run: (command, args, options) =>
       new Promise<number>((resolve, reject) => {
         const child = spawn(command, [...args], {

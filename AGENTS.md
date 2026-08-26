@@ -30,9 +30,10 @@ Read only the documents relevant to the change:
   implemented yet.
 - `docs/engine/plans/2026-07-30-production-floor-sequence.md` — the only
   cross-plan execution order. PF0–PF7 and the Complexity Reset are complete;
-  PF6 remains evidence-gated and inactive. There is currently no active lane
-  (shared-stage-input closed 2026-08-26; the recap below runs oldest
-  to newest).
+  PF6 remains evidence-gated and inactive. There is currently no active lane:
+  `docs/engine/plans/2026-08-26-neutral-gui-host-readiness-close-companion.md`
+  delivered and closed M0–M2 on 2026-08-26. The recap below runs oldest to
+  newest.
   Two lanes delivered on 2026-08-15:
   `docs/engine/plans/2026-08-15-authoring-architecture.md` (Studio author-trust
   hardening, the unified authoring shell with workspaces, the project authoring
@@ -407,8 +408,15 @@ Read only the documents relevant to the change:
   passes the pointer through per declaration; mid-bar kiss lands +5
   minutes through a real pointer). Regions still never gain routing
   power and no second resolution path exists.
-  There is no active lane (shared-stage-input closed 2026-08-26;
-  awaiting the owner's next order).
+  The owner then accepted
+  `docs/engine/plans/2026-08-26-neutral-gui-host-readiness-close-companion.md`.
+  M0–M2 delivered and closed the same day with three orthogonal seams: one optional
+  application-owned required-readiness latch, one optional product close
+  participant, and one build-known/exact-target/package-private Desktop direct
+  companion. Focused contracts, Chromium/WebKit GUI conformance, the complete
+  repository check, and one disposable Deno 2.9.5 compiled-VFS/direct-child/
+  HTTP-proxy/normal-close smoke passed; the smoke was removed rather than retained
+  as a new harness. No successor lane is automatically active.
   Desktop persistence remains an independent promotion gate while the
   adapter is preview.
 - `docs/engine/plans/2026-07-30-desktop-persistence-durability.md`,
@@ -510,14 +518,29 @@ and another active plan is accepted.
   trusted application code; policy metadata guides cooperation and inspection,
   not DOM/network/listener/main-thread sandboxing.
 - `@sillymaker/web` owns browser hosting, Browser/Deno Desktop admitted GUI
-  bootstrap and startup readiness, IndexedDB persistence adapters, mounting,
+  bootstrap, first-product-commit and required-readiness signaling, the single
+  product-selected close participant, IndexedDB persistence adapters, mounting,
   routing, capabilities, automation, pointer input, and the optional development
-  rebootstrap helper. Engine Lab's Vite development entry is the maintained R2
+  rebootstrap helper. Its package-private Desktop companion port exposes only a
+  fixed same-origin HTTP namespace and a request-drain close participant; it does
+  not expose a process handle or define a product RPC protocol. Engine Lab's Vite
+  development entry is the maintained R2
   conformance boundary; it admits simulation/presentation identity changes at
   the composition owner while preserving the sibling Authoring Host. Vite React
   Fast Refresh remains available to boundary-safe application UI modules, and
   refresh-ineligible or equal-R2 application changes request R3 full-page reload.
   Ordinary static builds do not install this development boundary.
+- `@sillymaker/tooling` owns the optional Desktop companion's build-time exact-
+  target selection and the package-private shell owner. A selected package stages
+  exactly one build-known artifact plus its private Host implementation and grants
+  unscoped `--allow-run`; an unselected package stages neither and grants no
+  subprocess permission. Deno 2.9.5 cannot use startup-resolved name/path scoping
+  for the later random absolute path materialized from its compiled VFS, so do not
+  pretend this preview is narrowly permission-scoped or production-qualified. The
+  shell owns only its direct child and closes in the order product fence/prepare,
+  Host ingress drain, child stdin EOF, and child exit 0. Do not grow this into a
+  subprocess API, provider registry, process-tree supervisor, public companion/RPC
+  ABI, or Desktop HMR path.
 - Story packages at the repository top level own game-specific state, rules,
   content, projections, application composition, and Story tooling: `e2e/` (the
   neutral Engine Lab conformance Story), `template/` (the minimal starter), and

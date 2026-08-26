@@ -622,6 +622,9 @@ describe("build dependency receipt", () => {
     expect(moduleIds).not.toContain("engine/packages/base/src/index.ts");
     expect(moduleIds).not.toContain("engine/packages/ui/src/index.ts");
     expect(moduleIds).not.toContain("engine/packages/web/src/index.ts");
+    expect(moduleIds).not.toContain(
+      "engine/packages/web/src/host/desktop-companion-port.ts",
+    );
   });
 
   it("keeps the complete Template Author graph free of unselected Agent implementation", async () => {

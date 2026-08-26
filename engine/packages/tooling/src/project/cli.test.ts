@@ -73,6 +73,25 @@ const mixedProjectV1 = defineSillymakerProjectV1({
   applications: [...projectV1.applications, guiOnlyApplicationV1],
 });
 
+const companionProjectV1 = defineSillymakerProjectV1({
+  projectId: "project-test",
+  applications: [{
+    ...projectV1.applications[0]!,
+    web: {
+      ...projectV1.applications[0]!.web!,
+      desktop: {
+        ...projectV1.applications[0]!.web!.desktop!,
+        companion: {
+          artifacts: [{
+            target: "aarch64-apple-darwin",
+            path: "test/bin/companion",
+          }],
+        },
+      },
+    },
+  }],
+});
+
 interface FakeRunnerLogV1 {
   readonly runs: {
     command: string;
@@ -90,6 +109,7 @@ interface FakeRunnerLogV1 {
 function createFakeRunnerV1(input: {
   readonly exitCode?: number;
   readonly hostPlatform?: "darwin" | "windows" | "linux";
+  readonly hostTarget?: ProjectCommandRunnerV1["hostTarget"];
   readonly pages?: Readonly<Record<string, string>>;
   readonly files?: Readonly<Record<string, string>>;
   readonly binaryFiles?: Readonly<Record<string, Uint8Array>>;
@@ -105,6 +125,13 @@ function createFakeRunnerV1(input: {
   };
   const runner: ProjectCommandRunnerV1 = {
     hostPlatform: input.hostPlatform ?? "darwin",
+    hostTarget: input.hostTarget === undefined
+      ? input.hostPlatform === "windows"
+        ? "x86_64-pc-windows-msvc"
+        : input.hostPlatform === "linux"
+        ? "x86_64-unknown-linux-gnu"
+        : "aarch64-apple-darwin"
+      : input.hostTarget,
     run: (command, args, options) => {
       log.runs.push({
         command,
@@ -144,9 +171,10 @@ function createFakeRunnerV1(input: {
       return Promise.resolve(
         input.nonRegularFiles?.includes(path) === true
           ? null
-          : input.files?.[path] === undefined
+          : input.files?.[path] === undefined && input.binaryFiles?.[path] === undefined
           ? null
-          : new TextEncoder().encode(input.files[path]).byteLength,
+          : input.binaryFiles?.[path]?.byteLength ??
+            new TextEncoder().encode(input.files?.[path] ?? "").byteLength,
       );
     },
     writeFile: (path, contents) => {
@@ -158,7 +186,7 @@ function createFakeRunnerV1(input: {
       return Promise.resolve();
     },
     copyFile: (source, destination) => {
-      if (input.files?.[source] === undefined) {
+      if (input.files?.[source] === undefined && input.binaryFiles?.[source] === undefined) {
         return Promise.reject(new Error(`missing copy source: ${source}`));
       }
       log.copies.push({ source, destination });
@@ -281,6 +309,10 @@ function desktopShellFilesV1(): Record<string, string> {
       'const appIdentifierV1 = "__SILLYMAKER_APP_IDENTIFIER__";\nconst distDirNameV1 = "__SILLYMAKER_DIST_DIR__";\n',
     [fileURLToPath(new URL("../desktop/application-bootstrap-html.mts", import.meta.url))]:
       "export const applicationBootstrapHtmlV1 = 1;\n",
+    [fileURLToPath(new URL("../desktop/companion-config.mts", import.meta.url))]:
+      "export const createSelectedCompanionInternalV1 = () => null;\n",
+    [fileURLToPath(new URL("../desktop/companion-host.mts", import.meta.url))]:
+      "export const createIncludedCompanionHostInternalV1 = 1;\n",
     [fileURLToPath(new URL("../desktop/desktop-html.mts", import.meta.url))]:
       "export const desktopHtmlV1 = 1;\n",
     [fileURLToPath(new URL("../desktop/desktop-shell-arguments.mts", import.meta.url))]:
@@ -561,6 +593,7 @@ describe("runProjectCliV1", () => {
       ],
       cwd: "/repo/test/dist-desktop/staging",
     });
+    expect(fake.log.runs[1]?.args).not.toContain("--allow-run");
     expect(fake.log.copies).toEqual([
       { source: "/repo/dist/synthetic", destination: "/repo/test/dist-desktop/staging/dist" },
     ]);
@@ -570,6 +603,8 @@ describe("runProjectCliV1", () => {
     expect(written).toContain(
       "/repo/test/dist-desktop/staging/application-bootstrap-html.mts",
     );
+    expect(written).toContain("/repo/test/dist-desktop/staging/companion-config.mts");
+    expect(written).not.toContain("/repo/test/dist-desktop/staging/companion-host.mts");
     expect(written).toContain("/repo/test/dist-desktop/staging/desktop-html.mts");
     expect(written).toContain("/repo/test/dist-desktop/staging/desktop-shell-arguments.mts");
     expect(written).toContain("/repo/test/dist-desktop/staging/record-file-store.mts");
@@ -589,6 +624,65 @@ describe("runProjectCliV1", () => {
         backend: "webview",
       },
     });
+  });
+
+  it("desktop conditionally stages and permits one exact-target companion", async () => {
+    const fake = createFakeRunnerV1({
+      hostTarget: "aarch64-apple-darwin",
+      files: {
+        "/repo/test/dist-desktop/SyntheticApp.app/Contents/Info.plist": "<plist/>",
+        ...desktopShellFilesV1(),
+      },
+      binaryFiles: {
+        "/repo/test/bin/companion": new Uint8Array([1, 2, 3]),
+      },
+    });
+
+    const result = await runV1(["desktop", "synthetic"], fake.runner, companionProjectV1);
+    expect(result.code).toBe(0);
+    expect(fake.log.runs[1]?.args).toEqual([
+      "desktop",
+      "--allow-env",
+      "--allow-read",
+      "--allow-write",
+      "--allow-net",
+      "--allow-run",
+      "--include",
+      "dist",
+      "--include",
+      "companion",
+      "--output",
+      "../SyntheticApp.app",
+      "main.ts",
+    ]);
+    expect(fake.log.copies).toContainEqual({
+      source: "/repo/test/bin/companion",
+      destination: "/repo/test/dist-desktop/staging/companion/sillymaker-companion",
+    });
+    expect(fake.log.writes.map((entry) => entry.path)).toContain(
+      "/repo/test/dist-desktop/staging/companion-host.mts",
+    );
+    const selected =
+      fake.log.writes.filter((entry) => entry.path.endsWith("companion-config.mts")).at(-1)
+        ?.contents ?? "";
+    expect(selected).toContain('"companion/sillymaker-companion"');
+    expect(selected).not.toContain("/repo/test/bin/companion");
+  });
+
+  it("desktop rejects a missing companion artifact before build or output mutation", async () => {
+    const fake = createFakeRunnerV1({
+      hostTarget: "aarch64-apple-darwin",
+      files: desktopShellFilesV1(),
+    });
+
+    const result = await runV1(["desktop", "synthetic"], fake.runner, companionProjectV1);
+    expect(result.code).toBe(1);
+    expect(JSON.parse(result.out.join("\n"))).toMatchObject({
+      kind: "error",
+      diagnostics: [{ code: "project.desktop_companion_artifact_invalid" }],
+    });
+    expect(fake.log.runs).toEqual([]);
+    expect(fake.log.removals).toEqual([]);
   });
 
   it("desktop --target packages one output per triple with per-OS formats", async () => {

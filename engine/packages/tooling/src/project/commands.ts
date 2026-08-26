@@ -23,6 +23,8 @@ import {
 } from "../vite/version-stamp.ts";
 import type { SillymakerProjectConfigV1 } from "./config.ts";
 import { joinAppPathV1, resolveStoryApplicationV1 } from "./config.ts";
+import type { DesktopTargetTripleV1 } from "./config-types.ts";
+import { DESKTOP_TARGET_TRIPLES_V1 } from "./config-types.ts";
 import { collectChromeLayoutSourceDiagnosticsV1 } from "./chrome-layout-diagnostics.ts";
 import { collectMotionSourceDiagnosticsV1 } from "./motion-diagnostics.ts";
 import { collectRegionsSourceDiagnosticsV1 } from "./regions-diagnostics.ts";
@@ -434,6 +436,8 @@ export async function simulateStoryApplicationV1(
 export interface ProjectCommandRunnerV1 {
   /** Host OS used when desktop packaging omits an explicit target. */
   readonly hostPlatform: "darwin" | "windows" | "linux" | null;
+  /** Exact host target used to select a build-known Desktop companion artifact. */
+  readonly hostTarget: DesktopTargetTripleV1 | null;
   /** Runs a command to completion and resolves with its exit code. */
   run(
     command: string,
@@ -548,16 +552,8 @@ async function buildStoryApplicationWithReceiptInternalV1(
   };
 }
 
-/** SillyMaker's explicitly admitted `deno desktop --target` triples. */
-export const DESKTOP_TARGET_TRIPLES_V1 = [
-  "x86_64-apple-darwin",
-  "aarch64-apple-darwin",
-  "x86_64-pc-windows-msvc",
-  "x86_64-unknown-linux-gnu",
-  "aarch64-unknown-linux-gnu",
-] as const;
-
-export type DesktopTargetTripleV1 = (typeof DESKTOP_TARGET_TRIPLES_V1)[number];
+export { DESKTOP_TARGET_TRIPLES_V1 } from "./config-types.ts";
+export type { DesktopTargetTripleV1 } from "./config-types.ts";
 
 export type DesktopCompressionV1 = "xz" | "lzma" | "zstd";
 
@@ -669,6 +665,37 @@ function isDesktopTargetTripleV1(value: unknown): value is DesktopTargetTripleV1
   return (
     typeof value === "string" && (DESKTOP_TARGET_TRIPLES_V1 as readonly string[]).includes(value)
   );
+}
+
+function renderDesktopShellInternalV1(
+  template: string,
+  identifier: string,
+): string {
+  return template
+    .replace('"__SILLYMAKER_APP_IDENTIFIER__"', JSON.stringify(identifier))
+    .replace('"__SILLYMAKER_DIST_DIR__"', JSON.stringify("dist"));
+}
+
+function selectedDesktopCompanionConfigInternalV1(executableName: string): string {
+  return `// SPDX-License-Identifier: MIT\n\n` +
+    `import { join } from "node:path";\n` +
+    `import {\n` +
+    `  createIncludedCompanionHostInternalV1,\n` +
+    `  type DesktopCompanionHostInternalV1,\n` +
+    `} from "./companion-host.mts";\n\n` +
+    `export type SelectedDesktopCompanionInternalV1 = DesktopCompanionHostInternalV1;\n\n` +
+    `export function createSelectedCompanionInternalV1(input: {\n` +
+    `  readonly moduleDir: string;\n` +
+    `  readonly userDataDir: string;\n` +
+    `}): SelectedDesktopCompanionInternalV1 | null {\n` +
+    `  return createIncludedCompanionHostInternalV1({\n` +
+    `    includedArtifactPath: join(input.moduleDir, ${
+      JSON.stringify(`companion/${executableName}`)
+    }),\n` +
+    `    materializationDirectory: join(input.userDataDir, "companion"),\n` +
+    `    executableName: ${JSON.stringify(executableName)},\n` +
+    `  });\n` +
+    `}\n`;
 }
 
 /**
@@ -805,10 +832,43 @@ export async function desktopStoryApplicationWithDependenciesInternalV1(
   const artifactStem = desktopArtifactStemInternalV1(desktop.name, versionStamp);
   // Resolve and validate every final filename before starting the web build or
   // deleting any previous output.
-  const outputPlans = requestedTargets.map((target) => ({
-    target,
-    outputName: desktopOutputNameV1(artifactStem, target, hostPlatform),
-  }));
+  const outputPlans = requestedTargets.map((target) => {
+    const targetTriple = target === "host" ? deps.runner.hostTarget : target;
+    if (desktop.companion !== undefined && targetTriple === null) {
+      commandErrorV1(
+        "project.desktop_companion_host_unsupported",
+        "Desktop companion packaging cannot identify this host's exact target triple",
+        `/applications/${applicationId}/web/desktop/companion`,
+      );
+    }
+    const companionArtifact = desktop.companion === undefined
+      ? null
+      : desktop.companion.artifacts.find((artifact) => artifact.target === targetTriple) ?? null;
+    if (desktop.companion !== undefined && companionArtifact === null) {
+      commandErrorV1(
+        "project.desktop_companion_target_missing",
+        `Desktop companion declares no artifact for target "${String(targetTriple)}"`,
+        `/applications/${applicationId}/web/desktop/companion/artifacts`,
+      );
+    }
+    return {
+      target,
+      outputName: desktopOutputNameV1(artifactStem, target, hostPlatform),
+      companionArtifact,
+    };
+  });
+  for (const plan of outputPlans) {
+    if (plan.companionArtifact === null) continue;
+    const sourcePath = `${deps.repositoryRoot}/${plan.companionArtifact.path}`;
+    const artifactSize = await deps.runner.fileSize(sourcePath);
+    if (artifactSize === null || artifactSize <= 0) {
+      commandErrorV1(
+        "project.desktop_companion_artifact_invalid",
+        `Desktop companion artifact "${plan.companionArtifact.path}" must be a non-empty regular file`,
+        `/applications/${applicationId}/web/desktop/companion/artifacts`,
+      );
+    }
+  }
 
   // The desktop bundle wraps the exact bytes a web build produces around
   // the webview shell: the shell serves dist/ itself through Deno.serve
@@ -849,14 +909,13 @@ export async function desktopStoryApplicationWithDependenciesInternalV1(
   );
   await deps.runner.writeFile(
     `${stagingDir}/main.ts`,
-    shellTemplate
-      .replace('"__SILLYMAKER_APP_IDENTIFIER__"', JSON.stringify(desktop.identifier))
-      .replace('"__SILLYMAKER_DIST_DIR__"', JSON.stringify("dist")),
+    renderDesktopShellInternalV1(shellTemplate, desktop.identifier),
   );
   // Every module shell-main.ts imports must ship into the staging directory,
   // or the `deno desktop` type-check fails on a missing local specifier.
   const shellModuleNames = [
     "application-bootstrap-html.mts",
+    "companion-config.mts",
     "desktop-html.mts",
     "desktop-shell-arguments.mts",
     "file-download-handler.mts",
@@ -871,6 +930,14 @@ export async function desktopStoryApplicationWithDependenciesInternalV1(
       `${stagingDir}/${moduleName}`,
       await deps.runner.readFile(
         fileURLToPath(new URL(`../desktop/${moduleName}`, import.meta.url)),
+      ),
+    );
+  }
+  if (desktop.companion !== undefined) {
+    await deps.runner.writeFile(
+      `${stagingDir}/companion-host.mts`,
+      await deps.runner.readFile(
+        fileURLToPath(new URL("../desktop/companion-host.mts", import.meta.url)),
       ),
     );
   }
@@ -903,7 +970,25 @@ export async function desktopStoryApplicationWithDependenciesInternalV1(
     : [`--compress=${compression}`];
 
   const outputs: StoryDesktopOutputV1[] = [];
-  for (const { target, outputName } of outputPlans) {
+  for (const { target, outputName, companionArtifact } of outputPlans) {
+    const companionExecutableName = companionArtifact === null
+      ? null
+      : target === "host"
+      ? hostPlatform === "windows" ? "sillymaker-companion.exe" : "sillymaker-companion"
+      : target.includes("windows")
+      ? "sillymaker-companion.exe"
+      : "sillymaker-companion";
+    if (companionArtifact !== null && companionExecutableName !== null) {
+      await deps.runner.removeDirectory(`${stagingDir}/companion`);
+      await deps.runner.copyFile(
+        `${deps.repositoryRoot}/${companionArtifact.path}`,
+        `${stagingDir}/companion/${companionExecutableName}`,
+      );
+      await deps.runner.writeFile(
+        `${stagingDir}/companion-config.mts`,
+        selectedDesktopCompanionConfigInternalV1(companionExecutableName),
+      );
+    }
     const outputPath = `${desktopRoot}/${outputName}`;
     let exitCode: number;
     try {
@@ -915,8 +1000,10 @@ export async function desktopStoryApplicationWithDependenciesInternalV1(
           "--allow-read",
           "--allow-write",
           "--allow-net",
+          ...(companionArtifact === null ? [] : ["--allow-run"]),
           "--include",
           "dist",
+          ...(companionArtifact === null ? [] : ["--include", "companion"]),
           ...compressArgs,
           ...(target === "host" ? [] : ["--target", target]),
           ...(target === "host"

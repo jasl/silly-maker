@@ -6,6 +6,10 @@ import { fileURLToPath } from "node:url";
 import { createDesktopHtmlResponseInternalV1 } from "./desktop-html.mts";
 import { parseDesktopShellArgumentsV1 } from "./desktop-shell-arguments.mts";
 import { createFileDownloadRequestCoordinatorInternalV1 } from "./file-download-handler.mts";
+import {
+  createSelectedCompanionInternalV1,
+  type SelectedDesktopCompanionInternalV1,
+} from "./companion-config.mts";
 import { createRecordFileStoreV1 } from "./record-file-store.mts";
 import { handleRecordHttpRequestV1 } from "./record-http-handler.mts";
 import {
@@ -88,6 +92,10 @@ function userDataDirV1(): string {
 
 const savesDir = join(userDataDirV1(), "saves");
 const store = createRecordFileStoreV1(savesDir);
+const companionV1: SelectedDesktopCompanionInternalV1 | null = createSelectedCompanionInternalV1({
+  moduleDir: moduleDirV1,
+  userDataDir: userDataDirV1(),
+});
 
 /** Exports (state/save JSON) land where a browser download would. */
 function downloadsDirV1(): string {
@@ -179,6 +187,10 @@ const shellHandlerV1 = createShellHttpHandlerInternalV1({
   },
   handleFiles: (request, subPath) => downloadRequestsV1.handle(request, subPath),
   handleRecords: (request, subPath) => handleRecordHttpRequestV1(request, subPath, store),
+  ...(companionV1 === null ? {} : {
+    handleCompanion: (request: Request, subPath: string, search: string) =>
+      companionV1.handle(request, subPath, search),
+  }),
 });
 const serverV1 = Deno.serve({ hostname: "127.0.0.1", port: 0 }, shellHandlerV1);
 if (serverV1.addr.hostname !== "127.0.0.1") {
@@ -187,16 +199,21 @@ if (serverV1.addr.hostname !== "127.0.0.1") {
 shellOriginV1 = new URL(`http://127.0.0.1:${String(serverV1.addr.port)}`);
 
 // The first BrowserWindow construction adopts the implicit startup window.
-// Its close request first fences gameplay and waits for the renderer's
-// verified autosave receipt, then stops ingress and drains active record
-// writes before exit. No page heartbeat or timeout can interrupt persistence.
+// Its close request first runs the renderer product's selected fence/prepare,
+// then stops private ingress, drains accepted Host requests, and closes any
+// launched direct companion before native exit. No heartbeat or timeout turns
+// an incomplete product or Host drain into a successful close.
 adoptedWindowV1 = adoptShellWindowV1({
   browserWindow: Deno.BrowserWindow,
   requestShutdown: createShellShutdownV1({
     prepare: () => requestShellRendererFlushV1(adoptedWindowV1),
     shutdown: createShellServerDrainInternalV1({
       cancelNonAuthoritativeRequests: () => downloadRequestsV1.close(),
-      shutdown: () => serverV1.shutdown(),
+      shutdown: async () => {
+        const serverShutdownV1 = serverV1.shutdown();
+        await serverShutdownV1;
+        await companionV1?.close();
+      },
     }),
     exit: () => Deno.exit(0),
   }),

@@ -23,6 +23,32 @@ export interface StoryWebIdentityRefV1 {
   readonly createPluginExport: string;
 }
 
+/** SillyMaker's build-known Deno Desktop package targets. */
+export const DESKTOP_TARGET_TRIPLES_V1 = [
+  "x86_64-apple-darwin",
+  "aarch64-apple-darwin",
+  "x86_64-pc-windows-msvc",
+  "x86_64-unknown-linux-gnu",
+  "aarch64-unknown-linux-gnu",
+] as const;
+
+export type DesktopTargetTripleV1 = (typeof DESKTOP_TARGET_TRIPLES_V1)[number];
+
+/** One application-owned executable selected at package time for its exact target. */
+export interface StoryDesktopCompanionArtifactV1 {
+  readonly target: DesktopTargetTripleV1;
+  /** App-relative before workspace anchoring; repository-relative afterwards. */
+  readonly path: string;
+}
+
+/**
+ * Optional Desktop companion preview selected at package time. The private shell
+ * owns at most one direct child; the renderer receives only its same-origin HTTP proxy.
+ */
+export interface StoryDesktopCompanionV1 {
+  readonly artifacts: readonly StoryDesktopCompanionArtifactV1[];
+}
+
 /**
  * Desktop packaging preview for a web application: a thin `deno desktop`
  * host that serves the already built web Player. Engine and Story code never
@@ -36,6 +62,8 @@ export interface StoryDesktopTargetV1 {
   readonly identifier: string;
   /** Optional repository-relative Darwin app icon (`.png` or `.icns`). */
   readonly icon?: string;
+  /** Optional build-known, application-private direct-child companion. */
+  readonly companion?: StoryDesktopCompanionV1;
 }
 
 /** The dev/build target of a browser-hosted Story application. */

@@ -291,9 +291,14 @@ uplift 提供基础。它没有激活 continuous Input、renderer/asset framewor
 migration framework、project symbol graph、Prefab、scaffold CLI 或 Desktop workflow。2026-08-26 官网 Console
 接替可见 GUI Composition/Input 展示、tooling-owned GUI-only fixture 接替 Host startup/final-graph conformance 后，
 Cards 独立产品与 `/play/cards/` 退役；历史完整产品与性能证据保留，不再作为 workspace application 或维护中
-example。当前没有自动激活的新 engine lane 或 Reference Product；未写入新接受 plan 的候选不是默认 backlog。已接受但未完成的 Desktop HMR stable
-revalidation 与 Desktop production promotion 保持独立、条件性，只 gate 各自的 Desktop claim/
-workflow，不阻塞 core 或其他工作。
+example。随后对下一 Reference Product 的只读 Host audit 暴露三个跨产品缺口，所有者于 2026-08-26
+接受 [Neutral GUI Host Readiness、Close 与 Optional Desktop Companion V1](plans/2026-08-26-neutral-gui-host-readiness-close-companion.md)
+作为当前有界 engine lane：一个 application-owned required-readiness latch、一个 product-selected close
+participant，以及一个 build-known/exact-target/package-private Desktop direct-child transport。三项实现已
+通过 focused、Browser、native preview 与 repository validation 并关闭；没有后继 Reference Product
+或 engine lane 自动激活。该 lane 不定义产品 RPC protocol，不让 Browser 依赖
+本地 companion，并且不改变已接受但未完成的 Desktop HMR stable revalidation 与 Desktop production
+promotion；后两者保持独立、条件性，只 gate 各自的 Desktop claim/workflow，不阻塞 core 或其他工作。
 
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实
@@ -668,6 +673,25 @@ bootstrap/private-route/HMR 无 reload/正常关闭 characterization。preflight
 probe/report/durable evidence；native 不重复 R1/R2、Agent、CAS 或 failure/retry matrix；canary PASS
 仍不构成 live capability、maintained workflow 或 Desktop production promotion。该 defer 只 gate maintained
 Desktop workflow，不阻塞 AR6 或其他工作。
+
+2026-08-26 的 neutral GUI Host lane 已交付关闭，把缺失的平台接缝收敛成三条正交能力：
+
+- GUI 产品可以先提交可操作的 recovery/configuration UI，再由一个 application-owned latch 把 required
+  domain 首次推进为 ready；没有 latch 的静态 GUI 保持即时 ready；
+- 一个 product-selected close participant 负责 fence 与 async preparation，Host 不枚举数据库、RPC
+  client、Extension 或 React descendants；
+- Deno Desktop package 可以按 exact target 显式选择最多一个 build-known private direct child。只有
+  该 package stage artifact/Host 并取得 `--allow-run`，无 companion package 保持零 subprocess 权限和
+  零 companion Host 实现。现有 same-origin/capability HTTP ingress 只代理固定
+  `/sillymaker/companion/*` namespace，
+  product-owned typed RPC 继续拥有 schema、stream、retry 和 readiness。
+
+Deno 2.9.5 无法用启动时解析的 scoped `--allow-run=<name/path>` 授权运行期从 compiled VFS 物化到随机
+绝对路径的 artifact，因此选中 companion 的 preview package 使用 unscoped permission；该明确 tradeoff
+不构成 production security、signing 或跨平台资格。关闭顺序保持 renderer product fence/prepare →
+Host ingress drain → child stdin EOF/exit 0；只管理直接 child，不增加通用 subprocess API、process-tree
+supervisor 或 public companion/RPC ABI。Browser 外部服务仍直接通过 admitted endpoint 的 typed client
+接入。该 transport 与 Desktop HMR 无关，stable revalidation/activation defer 原样保留。
 
 Agent workspace 需要 tab/split/task/approval/artifact/history 等独立领域模型；不要把现有游戏 Overlay 膨胀成桌面 WindowManager。流式半成品是 transient presentation；只有完整验证的 document 可持久化，replay 渲染保存 document 而不是重新调用模型。
 

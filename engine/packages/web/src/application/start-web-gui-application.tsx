@@ -40,6 +40,18 @@ import styles from "./start-web-gui-application.module.css";
 export interface WebGuiUiDefinitionV1 {
   /** The application-owned React tree mounted inside the declared viewport. */
   readonly content: ReactNode;
+  /**
+   * One-shot readiness for application-owned required domains. The UI mounts
+   * before this settles so connection or recovery surfaces remain available.
+   * Omit it when every required domain is ready after synchronous construction.
+   */
+  readonly requiredDomainReady?: Promise<void>;
+  /**
+   * The single product-owned Deno Desktop close preparation. `fence` must be a
+   * synchronous, idempotent stop-ingress transition; `prepare` awaits the
+   * product's already-aggregated durable work and owned resources.
+   */
+  readonly closePreparation?: WebGuiClosePreparationV1;
   /** Optional physical input adapters feeding the shared semantic router. */
   readonly input?: {
     readonly keyboard?: KeyboardActionMapV1;
@@ -53,6 +65,11 @@ export interface WebGuiUiDefinitionV1 {
   };
   /** Releases application-owned resources created while binding the UI. */
   dispose?(): void;
+}
+
+export interface WebGuiClosePreparationV1 {
+  fence(): void;
+  prepare(): Promise<void>;
 }
 
 export type WebGuiViewportOptionsV1 = Omit<GameViewportPropsV1, "children">;
@@ -212,6 +229,7 @@ export async function startWebGuiApplicationV1(
   let nativeBehaviorReset: { dispose(): void } | undefined;
   let removeDesktopCloseFlush: (() => void) | undefined;
   let removePageLifecycle: (() => void) | undefined;
+  let closeFenced = false;
   let disposalStarted = false;
   let disposalPromise: Promise<void> | null = null;
 
@@ -309,8 +327,12 @@ export async function startWebGuiApplicationV1(
     }
     removeDesktopCloseFlush = installDesktopCloseFlushV1({
       enabled: usesDesktopShell,
-      fence: () => {},
-      flush: () => Promise.resolve(),
+      fence: () => {
+        if (closeFenced) return;
+        uiDefinition?.closePreparation?.fence();
+        closeFenced = true;
+      },
+      flush: () => uiDefinition?.closePreparation?.prepare() ?? Promise.resolve(),
       reportFailure: (error) => reportFailure("web.desktop_close_flush_failed", error),
     });
 
@@ -330,8 +352,22 @@ export async function startWebGuiApplicationV1(
     throw error;
   }
 
-  startupDiagnostics?.signalRequiredDomainReady();
   startupAccepted = true;
+  if (uiDefinition.requiredDomainReady === undefined) {
+    startupDiagnostics?.signalRequiredDomainReady();
+  } else {
+    void uiDefinition.requiredDomainReady.then(
+      () => {
+        if (!disposalStarted) startupDiagnostics?.signalRequiredDomainReady();
+      },
+      (error: unknown) => {
+        if (disposalStarted) return;
+        signalStartupFailure("required_domain");
+        reportFailure("web.gui_application_required_domain_failed", error);
+        void disposeRuntime(false);
+      },
+    );
+  }
   return {
     applicationId: application.applicationId,
     host,
