@@ -8,26 +8,46 @@ import type {
   CreatorSessionSnapshotV1,
   CreatorSessionV1,
   CreatorSubmitResultV1,
+  ProgramProposalReferenceV1,
+  ProgramProposalV1,
 } from "./contracts.ts";
 
 export const creatorIntentMaximumCharactersV1 = 4_000;
 export const creatorFollowUpMaximumCharactersV1 = 4_000;
 
-function decisionMessageV1(status: "accepted" | "rejected", chinese: boolean): string {
+function proposalReferenceV1(proposal: ProgramProposalV1): ProgramProposalReferenceV1 {
+  return {
+    proposalId: proposal.proposalId,
+    programRevision: proposal.programRevision,
+  };
+}
+
+function decisionMessageV1(
+  status: "accepted" | "rejected",
+  programRevision: number,
+  chinese: boolean,
+): string {
   if (status === "accepted") {
     return chinese
-      ? "方案已接受。你可以继续补充要求，完善这个 Program。"
-      : "Proposal accepted. You can keep refining this Program with follow-up requests.";
+      ? `方案 v${String(programRevision)} 已接受。你可以继续补充要求，形成新的待审版本。`
+      : `Proposal v${
+        String(programRevision)
+      } accepted. Follow-up requests will create a new revision for review.`;
   }
   return chinese
-    ? "方案已拒绝。你可以补充背景，或者返回首页重新开始。"
-    : "Proposal rejected. You can add more context or return home to start again.";
+    ? `方案 v${
+      String(programRevision)
+    } 已拒绝。你可以补充背景，形成新的待审版本，或者返回首页重新开始。`
+    : `Proposal v${
+      String(programRevision)
+    } rejected. Add context to create a new revision for review, or return home to start again.`;
 }
 
 function decisionActivityV1(
   workspaceId: string,
   sequence: number,
   status: "accepted" | "rejected",
+  programRevision: number,
   chinese: boolean,
 ): CreatorActivityV1 {
   return {
@@ -35,8 +55,12 @@ function decisionActivityV1(
     sequence,
     kind: status === "accepted" ? "proposal_accepted" : "proposal_rejected",
     summary: status === "accepted"
-      ? (chinese ? "接受 Program 方案" : "Accepted the Program proposal")
-      : (chinese ? "拒绝 Program 方案" : "Rejected the Program proposal"),
+      ? (chinese
+        ? `接受 Program 方案 v${String(programRevision)}`
+        : `Accepted Program proposal v${String(programRevision)}`)
+      : (chinese
+        ? `拒绝 Program 方案 v${String(programRevision)}`
+        : `Rejected Program proposal v${String(programRevision)}`),
   };
 }
 
@@ -77,12 +101,20 @@ export function createCreatorSessionV1(input: {
 
   const decide = (
     status: "accepted" | "rejected",
+    expected: ProgramProposalReferenceV1,
   ): CreatorProposalDecisionResultV1 => {
     const workspace = snapshot.workspace;
     const proposal = snapshot.proposal;
     if (workspace === null || proposal === null) return { kind: "unavailable" };
+    const current = proposalReferenceV1(proposal);
+    if (
+      expected.proposalId !== current.proposalId ||
+      expected.programRevision !== current.programRevision
+    ) {
+      return { kind: "stale", current };
+    }
     if (proposal.status !== "pending") {
-      return { kind: "unchanged", status: proposal.status };
+      return { kind: "unchanged", status: proposal.status, proposal: current };
     }
 
     const chinese = /[\u3400-\u9fff]/u.test(workspace.intent);
@@ -95,17 +127,23 @@ export function createCreatorSessionV1(input: {
         {
           messageId: `${workspace.workspaceId}.message.${String(snapshot.messages.length + 1)}`,
           role: "creator",
-          text: decisionMessageV1(status, chinese),
+          text: decisionMessageV1(status, proposal.programRevision, chinese),
         },
       ],
       proposal: { ...proposal, status },
       program: snapshot.program,
       activity: [
         ...snapshot.activity,
-        decisionActivityV1(workspace.workspaceId, nextActivitySequence, status, chinese),
+        decisionActivityV1(
+          workspace.workspaceId,
+          nextActivitySequence,
+          status,
+          proposal.programRevision,
+          chinese,
+        ),
       ],
     });
-    return { kind: "applied", status };
+    return { kind: "applied", status, proposal: current };
   };
 
   return {
@@ -136,7 +174,11 @@ export function createCreatorSessionV1(input: {
             text: preview.creatorReply,
           },
         ],
-        proposal: { proposalId: `${workspaceId}.proposal.1`, status: "pending" },
+        proposal: {
+          proposalId: `${workspaceId}.proposal.1`,
+          programRevision: preview.program.revision,
+          status: "pending",
+        },
         program: preview.program,
         activity: [
           {
@@ -149,7 +191,9 @@ export function createCreatorSessionV1(input: {
             activityId: `${workspaceId}.activity.2`,
             sequence: 2,
             kind: "proposal_created",
-            summary: chinese ? "生成 Program 方案" : "Created a Program proposal",
+            summary: chinese
+              ? `生成 Program 方案 v${String(preview.program.revision)}`
+              : `Created Program proposal v${String(preview.program.revision)}`,
           },
         ],
       });
@@ -157,14 +201,23 @@ export function createCreatorSessionV1(input: {
     },
     sendFollowUp(rawText): CreatorFollowUpResultV1 {
       const workspace = snapshot.workspace;
-      if (workspace === null) return { kind: "unavailable" };
+      const program = snapshot.program;
+      const proposal = snapshot.proposal;
+      if (workspace === null || program === null || proposal === null) {
+        return { kind: "unavailable" };
+      }
       const text = rawText.trim();
       if (text.length === 0) return { kind: "rejected", reason: "empty_message" };
       if (text.length > creatorFollowUpMaximumCharactersV1) {
         return { kind: "rejected", reason: "message_too_long" };
       }
 
-      const creatorReply = input.creator.followUp({ workspace, text });
+      const creatorReply = input.creator.followUp({ workspace, program, text });
+      const nextProgram = {
+        ...program,
+        revision: program.revision + 1,
+        requirements: [...program.requirements, text],
+      };
       const firstMessageOrdinal = snapshot.messages.length + 1;
       const nextActivitySequence = snapshot.activity.length + 1;
       publish({
@@ -183,8 +236,12 @@ export function createCreatorSessionV1(input: {
             text: creatorReply,
           },
         ],
-        proposal: snapshot.proposal,
-        program: snapshot.program,
+        proposal: {
+          proposalId: proposal.proposalId,
+          programRevision: nextProgram.revision,
+          status: "pending",
+        },
+        program: nextProgram,
         activity: [
           ...snapshot.activity,
           {
@@ -195,12 +252,20 @@ export function createCreatorSessionV1(input: {
               ? "补充创作要求"
               : "Added a creator follow-up",
           },
+          {
+            activityId: `${workspace.workspaceId}.activity.${String(nextActivitySequence + 1)}`,
+            sequence: nextActivitySequence + 1,
+            kind: "proposal_revised",
+            summary: /[\u3400-\u9fff]/u.test(`${workspace.intent}${text}`)
+              ? `生成 Program 方案 v${String(nextProgram.revision)}`
+              : `Created Program proposal v${String(nextProgram.revision)}`,
+          },
         ],
       });
-      return { kind: "sent" };
+      return { kind: "sent", programRevision: nextProgram.revision };
     },
-    acceptProposal: () => decide("accepted"),
-    rejectProposal: () => decide("rejected"),
+    acceptProposal: (expected) => decide("accepted", expected),
+    rejectProposal: (expected) => decide("rejected", expected),
     openHome() {
       if (snapshot.route === "home") return false;
       publish({

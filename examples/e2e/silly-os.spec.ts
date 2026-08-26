@@ -57,11 +57,11 @@ test("Creator Home creates and accepts a reviewable Program", async ({ page }) =
 
   await page.getByRole("tab", { name: "Activity" }).click();
   await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible();
-  await expect(page.getByText("Accepted the Program proposal", { exact: true })).toBeVisible();
+  await expect(page.getByText("Accepted Program proposal v1", { exact: true })).toBeVisible();
   await expectNoPageOverflowV1(page);
 });
 
-test("proposal rejection and follow-up stay visible in the current session", async ({ page }) => {
+test("a follow-up creates a new exact Program revision for review", async ({ page }) => {
   await openTranslationWorkspaceV1(page);
 
   await page.getByRole("button", { name: "Reject proposal" }).click();
@@ -73,12 +73,21 @@ test("proposal rejection and follow-up stay visible in the current session", asy
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByText(followUp, { exact: true })).toBeVisible();
   await expect(
-    page.getByText(/I recorded that follow-up in the .* session/u),
+    page.getByText(/I incorporated that follow-up into .* proposal v2/u),
   ).toBeVisible();
+  await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
+  await expect(page.getByRole("button", { name: "Accept program" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Reject proposal" })).toBeVisible();
+
+  await page.getByRole("tab", { name: "Source" }).click();
+  const source = page.getByLabel("Program preview source");
+  await expect(source).toContainText("revision: 2");
+  await expect(source).toContainText(followUp);
 
   await page.getByRole("tab", { name: "Activity" }).click();
-  await expect(page.getByText("Rejected the Program proposal", { exact: true })).toBeVisible();
+  await expect(page.getByText("Rejected Program proposal v1", { exact: true })).toBeVisible();
   await expect(page.getByText("Added a creator follow-up", { exact: true })).toBeVisible();
+  await expect(page.getByText("Created Program proposal v2", { exact: true })).toBeVisible();
 });
 
 test("desktop workspace keeps its minimum geometry and keyboard-resizable split", async ({ page }) => {

@@ -320,7 +320,11 @@ function ProgramSourceV1({
     "",
     "export default defineProgram({",
     `  name: ${JSON.stringify(program.name)},`,
+    `  revision: ${String(program.revision)},`,
     `  purpose: ${JSON.stringify(program.purpose)},`,
+    "  requirements: [",
+    ...program.requirements.map((requirement) => `    ${JSON.stringify(requirement)},`),
+    "  ],",
     "  capabilities: [",
     ...program.suggestedCapabilities.map((capability) =>
       `    ${JSON.stringify(capability.capabilityId)},`

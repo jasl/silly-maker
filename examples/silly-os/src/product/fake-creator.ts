@@ -124,17 +124,22 @@ export function createDeterministicFakeCreatorV1(): CreatorPreviewPortV1 {
           : `I shaped a “${name}” proposal from your intent. Review its purpose, capabilities, and work surface before accepting it.`,
         program: {
           programId: `program.${workspaceId}`,
+          revision: 1,
           kind,
           name,
           purpose: zh ? recipe.purposeZh : recipe.purposeEn,
+          requirements: [intent],
           suggestedCapabilities: zh ? recipe.capabilitiesZh : recipe.capabilitiesEn,
         },
       };
     },
-    followUp({ workspace, text }): string {
+    followUp({ workspace, program, text }) {
+      const revision = program.revision + 1;
       return usesChineseV1(`${workspace.intent}${text}`)
-        ? `我已把这条补充记录到“${workspace.title}”会话中，后续修改时可以继续参考。`
-        : `I recorded that follow-up in the “${workspace.title}” session for the next revision.`;
+        ? `我已把这条补充纳入“${workspace.title}”方案 v${String(revision)}，请检查后决定是否接受。`
+        : `I incorporated that follow-up into “${workspace.title}” proposal v${
+          String(revision)
+        }. Review it before accepting.`;
     },
   };
 }

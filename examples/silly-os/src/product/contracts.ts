@@ -21,15 +21,24 @@ export interface PreviewProgramCapabilityV1 {
 
 export interface PreviewProgramV1 {
   readonly programId: string;
+  /** Monotonic within this Program. The preview starts at 1. */
+  readonly revision: number;
   readonly kind: PreviewProgramKindV1;
   readonly name: string;
   readonly purpose: string;
+  /** The initial intent followed by each admitted follow-up in revision order. */
+  readonly requirements: readonly string[];
   /** Proposed composition only. This preview does not install or activate Mods. */
   readonly suggestedCapabilities: readonly PreviewProgramCapabilityV1[];
 }
 
-export interface ProgramProposalV1 {
+export interface ProgramProposalReferenceV1 {
   readonly proposalId: string;
+  /** The exact Program revision presented for review. */
+  readonly programRevision: number;
+}
+
+export interface ProgramProposalV1 extends ProgramProposalReferenceV1 {
   readonly status: ProgramProposalStatusV1;
 }
 
@@ -37,6 +46,7 @@ export type CreatorActivityKindV1 =
   | "intent_submitted"
   | "follow_up_submitted"
   | "proposal_created"
+  | "proposal_revised"
   | "proposal_accepted"
   | "proposal_rejected";
 
@@ -79,6 +89,7 @@ export interface CreatorPreviewPortV1 {
   }): CreatorPreviewResultV1;
   followUp(input: {
     readonly workspace: CreatorWorkspaceV1;
+    readonly program: PreviewProgramV1;
     readonly text: string;
   }): string;
 }
@@ -88,12 +99,21 @@ export type CreatorSubmitResultV1 =
   | { readonly kind: "rejected"; readonly reason: "empty_intent" | "intent_too_long" };
 
 export type CreatorProposalDecisionResultV1 =
-  | { readonly kind: "applied"; readonly status: "accepted" | "rejected" }
-  | { readonly kind: "unchanged"; readonly status: ProgramProposalStatusV1 }
+  | {
+    readonly kind: "applied";
+    readonly status: "accepted" | "rejected";
+    readonly proposal: ProgramProposalReferenceV1;
+  }
+  | {
+    readonly kind: "unchanged";
+    readonly status: ProgramProposalStatusV1;
+    readonly proposal: ProgramProposalReferenceV1;
+  }
+  | { readonly kind: "stale"; readonly current: ProgramProposalReferenceV1 }
   | { readonly kind: "unavailable" };
 
 export type CreatorFollowUpResultV1 =
-  | { readonly kind: "sent" }
+  | { readonly kind: "sent"; readonly programRevision: number }
   | { readonly kind: "rejected"; readonly reason: "empty_message" | "message_too_long" }
   | { readonly kind: "unavailable" };
 
@@ -102,7 +122,7 @@ export interface CreatorSessionV1 {
   subscribe(listener: () => void): () => void;
   submitIntent(intent: string): CreatorSubmitResultV1;
   sendFollowUp(text: string): CreatorFollowUpResultV1;
-  acceptProposal(): CreatorProposalDecisionResultV1;
-  rejectProposal(): CreatorProposalDecisionResultV1;
+  acceptProposal(expected: ProgramProposalReferenceV1): CreatorProposalDecisionResultV1;
+  rejectProposal(expected: ProgramProposalReferenceV1): CreatorProposalDecisionResultV1;
   openHome(): boolean;
 }

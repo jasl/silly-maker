@@ -98,11 +98,13 @@ export function ChatPaneV1({
                 <strong>{program.name}</strong>
               </div>
               <span className="program-proposal__status">
-                {proposal.status === "pending"
-                  ? copy.preview
-                  : proposal.status === "accepted"
-                  ? copy.accepted
-                  : copy.rejected}
+                {`v${String(program.revision)} · ${
+                  proposal.status === "pending"
+                    ? copy.preview
+                    : proposal.status === "accepted"
+                    ? copy.accepted
+                    : copy.rejected
+                }`}
               </span>
             </div>
             <p>{program.purpose}</p>

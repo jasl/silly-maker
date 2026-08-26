@@ -12,6 +12,7 @@
     "build:desktop": "deno run -A ./tools/app.mts desktop .",
     "deploy:cf": "deno task build && deno run -A npm:wrangler@4.123.0 deploy",
     "preview": "deno run -A npm:vite preview",
+    "pi:rpc": "deno run -A ./tools/pi-rpc.mts",
     "clean": "rm -rf dist-web dist-desktop",
     "app": "deno run -A ./tools/app.mts",
     "test": "deno run -A npm:vitest run src"

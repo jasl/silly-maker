@@ -66,15 +66,35 @@ export function SillyOsAppV1({ reportFailure }: SillyOsAppPropsV1): ReactNode {
             onHome={() => session.openHome()}
             onLocaleChange={changeLocaleV1}
             onAccept={() => {
-              const result = session.acceptProposal();
-              if (result.kind === "unavailable") {
-                reportFailure("silly_os.proposal_unavailable", result);
+              const proposal = snapshot.proposal;
+              if (proposal === null) {
+                reportFailure("silly_os.proposal_unavailable", proposal);
+                return;
+              }
+              const result = session.acceptProposal(proposal);
+              if (result.kind === "unavailable" || result.kind === "stale") {
+                reportFailure(
+                  result.kind === "stale"
+                    ? "silly_os.proposal_stale"
+                    : "silly_os.proposal_unavailable",
+                  result,
+                );
               }
             }}
             onReject={() => {
-              const result = session.rejectProposal();
-              if (result.kind === "unavailable") {
-                reportFailure("silly_os.proposal_unavailable", result);
+              const proposal = snapshot.proposal;
+              if (proposal === null) {
+                reportFailure("silly_os.proposal_unavailable", proposal);
+                return;
+              }
+              const result = session.rejectProposal(proposal);
+              if (result.kind === "unavailable" || result.kind === "stale") {
+                reportFailure(
+                  result.kind === "stale"
+                    ? "silly_os.proposal_stale"
+                    : "silly_os.proposal_unavailable",
+                  result,
+                );
               }
             }}
             onSend={(text) => {
