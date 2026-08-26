@@ -60,6 +60,12 @@ it starts, but it may not silently weaken this product model or claim evidence
 that an earlier phase did not produce. Product code may not import the ignored
 `references/` checkouts.
 
+Until the first stable release, every phase also follows DESIGN's clean
+replacement rule: breaking product-private contracts may reset preview data,
+and the same slice deletes the superseded implementation, types, fixtures, and
+tests. Do not retain compatibility shims, dual schemas, deprecated aliases, or
+fallback behavior merely to preserve an earlier preview.
+
 ## Current baseline and gaps
 
 The committed P0 Creator Preview is a real responsive product shell backed by
@@ -580,10 +586,13 @@ raw provider records to React or stores credentials in Program data.
 
 ### P2 — product persistence and database ownership
 
-Give SillyOS one product repository contract and one schema/migration owner for
-the Program catalog, immutable Program revisions, exact P0 proposal decisions,
-and P1 terminal Agent-run receipts. An opaque Pi session reference is added only
-for a target that has proved a Pi-owned persistent session implementation.
+Give SillyOS one product repository contract and one exact current schema owner
+for the Program catalog, immutable Program revisions, exact P0 proposal
+decisions, and P1 terminal Agent-run receipts. Before the first stable release,
+a breaking repository change replaces and resets the preview schema instead of
+carrying a migrator or dual reader; migration obligations begin only after a
+durable contract is explicitly frozen. An opaque Pi session reference is added
+only for a target that has proved a Pi-owned persistent session implementation.
 Stream drafts, process state, raw Pi events, and non-terminal progress remain
 transient. Pi owns Agent session history/compaction and its own session format.
 Provider credentials stay in the target-local Pi owner and never enter Program
@@ -598,7 +607,7 @@ real consumer; derived indexes remain rebuildable.
 Durable ownership stays outside React state. The first Browser adapter is a
 Worker-owned IndexedDB repository because P2 needs bounded catalog records, not
 a speculative SQL/Wasm stack. SQLite-WASM/OPFS remains an evidence-gated option
-if a real query, migration, or transaction need exceeds that adapter. A
+if a real query or transaction need exceeds that adapter. A
 companion-owned native SQLite driver is the Deno Desktop candidate. Selected
 database adapters run the same product repository conformance and schema-version
 contract, while exactly one adapter owns a live catalog in either target. Pi
@@ -610,7 +619,7 @@ artifact references, a workspace volume, snapshot format, filesystem adapter,
 or cross-store publication path. P3a adds only the session-scoped workspace
 identity and terminal tool receipt needed by its real control-volume consumer.
 P3b selects the runtime/storage pair. P3c introduces durable workspace,
-admitted artifact, and snapshot references with their owning migration. This
+admitted artifact, and snapshot references with their exact owning schema. This
 prevents the product database from pre-committing to facts without a consumer or
 to a filesystem a winning runtime cannot mount.
 
@@ -773,15 +782,15 @@ aggregate. The existing maxima of 96 messages, 96 Activity entries, 32 Program
 revisions, and 512 KiB for the complete encoded aggregate remain hard limits;
 crossing any one rejects the whole mutation.
 
-Opening a fresh database performs `0 -> 2` and creates that one exact store.
-Opening database V1 performs one `1 -> 2` versionchange transaction: cursor over
-every row, strictly admit it as the old aggregate V1, preserve every existing
-payload field and repository revision, replace `schemaVersion` with 2, then add
-`agentRunReceipts: []`. Any invalid row, cursor/write failure, quota failure, or
-blocked upgrade aborts the entire migration and exposes no partially upgraded
-catalog. Database versions newer than 2 still fail explicitly. Outside this one
-upgrade path, runtime code and Worker wire admit and return only aggregate V2;
-they do not silently default a missing collection or carry a mixed V1/V2 union.
+Opening a fresh database performs `0 -> 2` and creates that one exact store. An
+earlier preview database performs a deliberately destructive versionchange: it
+deletes the old `programs` store without reading or admitting any row, then
+creates an empty exact V2 store. This is a preview-data reset, not a migration.
+All Program Repository V1 aggregate types, admitters, Worker wire shapes, memory
+implementations, fixtures, and tests are replaced in the same slice; none remain
+as compatibility code. Upgrade failure or a blocked connection leaves no
+claimed success, and database versions newer than 2 still fail explicitly.
+Runtime code and Worker wire admit and return only aggregate V2.
 
 For `completed`, one repository transaction appends the terminal receipt while
 performing the existing admitted `applyRevision` transition, so the final
@@ -805,9 +814,10 @@ correctly fenced from the current UI.
 
 P2-B1 acceptance is:
 
-- repository conformance proves fresh V2 creation, exact V1-to-V2 reopen with
-  preserved heads/decisions and an empty receipt list, malformed-row atomic
-  upgrade abort, blocked/newer-version behavior, and V2-only runtime admission;
+- repository conformance proves fresh V2 creation, destructive reset of an old
+  preview catalog to an empty V2 store without reading or retaining its rows,
+  blocked/newer-version behavior, and V2-only runtime admission; a structural
+  check finds no retained Program Repository V1 aggregate/admitter/wire path;
 - focused port/controller/repository tests cover completion, provider failure,
   cancellation, replacement, duplicate delivery, stale CAS, and post-commit
   lost-response reconciliation;

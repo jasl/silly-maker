@@ -8,6 +8,15 @@ catalog delivered, 2026-08-27. The former
 experiment has been retired as a product direction. It remains useful only as
 repository history; it is not a compatibility baseline for this rewrite.
 
+Until the first stable release, SillyOS promises no backward compatibility for
+its product-private APIs, persisted preview schemas, launch flags, or internal
+artifacts. A breaking product change replaces the old contract and may reset
+preview-local data. Delete superseded implementations, types, admissions,
+fixtures, and tests in the same slice; do not add dual readers, migration
+frameworks, shims, fallback paths, or deprecated aliases. Once a stable release
+explicitly freezes a public or durable contract, later plans must define its
+migration policy before changing it.
+
 ## Product definition
 
 SillyOS is a creator-oriented Agent product built with SillyMaker. Its purpose
