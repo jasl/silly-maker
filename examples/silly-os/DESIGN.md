@@ -25,18 +25,31 @@ In this product, a **Program** is one cohesive unit:
 Program = project + harness + agent + app
 ```
 
-- **project** — the Program's persistent working volume, sources, content,
+- **project** — the Program's durable identity, sources, content,
   configuration, generated artifacts, project-local data, and exact accepted
   snapshot lineage;
 - **harness** — the Pi instructions, extensions, skills, tools, constraints,
   and executable acceptance that guide both the person and the agent;
-- **agent** — the Program's Pi Agent session and its explicitly selected Pi
-  capabilities;
+- **agent** — the Program's explicitly selected Pi profile and capability
+  composition, not one live Pi session or transcript;
 - **app** — the runnable user-facing interface and outputs.
 
 This equation describes product ownership, not four authorities or four things
-that must always be optional. A translation Program, for example, may require
-translation and model capabilities and still be one complete product.
+that must always be optional. A Program **has** a Workspace; it is not identical
+to the mutable Workspace instance. The Workspace is the operational projection
+of the project and harness for one generation, while an accepted Program
+revision names an immutable reviewed snapshot. A translation Program, for
+example, may require translation and model capabilities and still be one
+complete product.
+
+Creator Chat is the Program's supervisor and editor surface, not Program
+content. A Creator supervisor session binds a live Pi session to one Program
+and its current Workspace, explains work, requests changes, and coordinates
+review. The same Program can be reopened under a later supervisor session, and
+conversation does not enter an accepted Program revision unless the user or a
+tool deliberately saves some content as a project artifact. Opaque session
+references and bounded activity receipts may be product metadata without making
+the transcript part of the Program.
 
 The initial intended product families are translation, writing, role-play, and
 general creator tools. They are not four built-in applications. Creator makes a
@@ -48,16 +61,17 @@ Program-specific Agent behavior is implemented with Pi's extension, skill,
 prompt, model, and tool contracts. SillyMaker owns the GUI and interaction
 surface that presents those capabilities; it does not become their backend.
 
-Each workspace Agent is paired with one logical workspace runtime and one
-persistent volume. The volume contains the mutable working tree, `.git`, Agent
-outputs, artifacts, file-resident Program data, `AGENTS.md`, and Program skills
-and prompts. Pi tools may change this draft. An accepted Program revision is a
-separate immutable snapshot selected through exact human review; it does not
-advance merely because a tool wrote a file. The stable requirement is a
-familiar Linux-tools harness over this one volume, not a particular container
-technology. A logical runtime may combine TypeScript commands, several workers
-or Wasm modules, and a target-native companion; it is not required to pretend
-that a complete Linux environment is one literal WebAssembly instance.
+Each opened Program Workspace is paired with one logical execution environment
+and one persistent volume. The volume contains the mutable working tree, `.git`,
+Agent outputs, artifacts, file-resident Program data, `AGENTS.md`, and Program
+skills and prompts. Pi tools may change this draft. An accepted Program revision
+is a separate immutable snapshot selected through exact human review; it does
+not advance merely because a tool wrote a file. The stable requirement is a
+familiar coding-tool environment over this one volume, not a particular
+container or a complete Linux claim. A logical environment may combine
+TypeScript commands, several workers or Wasm modules, and a target-native or
+user-selected sandbox provider; it is not required to pretend that a complete
+Linux environment is one literal WebAssembly instance.
 
 ## Reference and fidelity boundary
 
@@ -164,8 +178,14 @@ The same React product surface and responsive contracts apply to both targets.
 Target-specific chrome or services belong to a Host boundary only when they
 change a real product behavior.
 
-- Creator session and Program proposal state are product authorities. They do
-  not create a second SillyMaker game State, Save, replay, or command authority.
+- Creator supervisor session and Program proposal state are separate product
+  authorities. They do not create a second SillyMaker game State, Save, replay,
+  or command authority.
+- A Creator supervisor session owns Chat, live Pi-session binding, and review
+  coordination. The Program owns its selected Pi profile/capabilities and
+  accepted artifacts, not that live conversation. P2-B0's bounded
+  `CreatorSessionSnapshot` packaging is an implementation-stage persistence
+  shape, not the final domain claim that Chat belongs to Program content.
 - The mutable workspace volume owns working-tree bytes. The SillyOS product
   database owns Program catalog metadata, exact accepted revision/snapshot
   references, decisions, and product-visible receipts; it does not duplicate
@@ -199,12 +219,27 @@ change a real product behavior.
 - Pi owns Agent session behavior and its native session data. SillyOS owns
   Program revisions, human decisions, product artifacts, and domain data, with
   only opaque Pi session/credential references crossing that boundary. Neither
-  is deterministic game Save. The preview still creates no durable records.
-- Pi's public extension/tool contracts forward admitted workspace operations to
-  a product-private typed runtime port. SillyMaker renders their projected
-  state and interactions only; it does not register tools, run shell processes,
-  or own the Agent loop. Executable Pi extensions remain build-known and cannot
-  be loaded from the Agent-writable workspace volume.
+  is deterministic game Save. P2-B0 durably stores the bounded Program catalog
+  and product-session projection; Pi session, credentials, and Workspace files
+  remain non-durable.
+- Browser binds Pi's shipped `read`, `write`, `edit`, and `bash` tool factories
+  to one stable Program-scoped Pi `ExecutionEnv`. The product-private workspace
+  boundary eventually owns runtime lifecycle, capability truth, generation
+  fencing, the change journal, persistence, and terminal receipts; it does not
+  redefine those four tool schemas or results. A sequential outer call scope
+  binds product run/tool identity and generation around the native Pi
+  `tool.execute(...)`, because Pi environment primitives do not receive that
+  identity themselves. `read`/`write`/`edit` use the environment's filesystem
+  projection directly. Browser Local implements only the environment's shell
+  half with just-bash over a second thin filesystem projection onto the same
+  volume. Desktop may use the fixed coding-agent's public factory/SDK operation
+  hooks through a programmatically constructed fixed tool set or another proved
+  public integration route; those hooks are not Extension API overrides. A later
+  BYO Sandbox supplies an admitted remote environment. None may fall back to
+  ambient Host files or tools. SillyMaker renders projected state and
+  interactions only; it does not register tools, run shell processes, or own the
+  Agent loop. Executable Pi extensions remain build-known and cannot be loaded
+  from the Agent-writable workspace volume.
 - Future OpenUI output is admitted as data and mapped through a closed catalog
   to SillyMaker UI components and interaction intents. OpenUI never loads a
   renderer, executes arbitrary actions, or bypasses Program authority.
@@ -217,11 +252,24 @@ runtime:
 
 ```text
 Browser: React -> typed MessagePort -> Agent Worker -> pi-agent-core/pi-ai
-                                      -> Workspace Host Worker -> OPFS
+                                      -> Pi core read/write/edit/bash
+                                      -> Program-scoped ExecutionEnv
+                                           -> typed environment RPC
+                                           -> Workspace Host Worker
+                                                filesystem -> volume/OPFS
+                                                shell.exec -> just-bash -> same volume
 
 Desktop: React -> private Host route -> companion -> Pi coding-agent subprocess
-                                      -> local workspace adapter/volume
+                                      -> proved tool-factory/SDK operation hooks
+                                      -> local workspace provider/volume
+
+BYO:     React -> Agent owner -> admitted sandbox RPC -> remote environment
 ```
+
+P3a may co-locate its disposable volume and just-bash inside one owned Browser
+Local runtime. P3c may move that unit into the Workspace Host Worker for OPFS.
+There is no dedicated just-bash Worker requirement; only a later
+non-cooperative custom or Wasm command needs its own terminable Worker.
 
 The current raw Desktop/development launcher resolves only this product's exact
 `@earendil-works/pi-coding-agent@0.84.3` CLI artifact from the lockfile-backed
@@ -237,10 +285,16 @@ chunk hash and application commit stamp identify the resulting product build.
 Neither target searches a host installation or silently falls back when its
 product-owned distribution is unavailable.
 
-Browser registers the shared product capability core as a public Pi
-`AgentTool`. Desktop registers that same core with Pi's public
-`ExtensionAPI.registerTool()`. SillyOS does not emulate the complete Extension
-API in Browser or create its own Agent/plugin lifecycle. Pi owns the loop,
+Browser registers product-specific capabilities such as Program proposal as
+public Pi `AgentTool` values and separately binds Pi's shipped workspace tools
+to the Program `ExecutionEnv`. Desktop registers the same product-specific cores
+with Pi's public `ExtensionAPI.registerTool()`. Its workspace built-ins are a
+different integration problem: the public `ReadOperations`, `WriteOperations`,
+`EditOperations`, and `BashOperations` are tool-factory/SDK hooks, not
+`ExtensionAPI` overrides, so the companion must prove a programmatically
+constructed fixed tool set or another public route before claiming isolated
+workspace effects. SillyOS does not emulate the complete Extension API in
+Browser or create its own Agent/plugin lifecycle. Pi owns the loop, tool schemas,
 session semantics, model stream, tool invocation, and Agent-visible lifecycle;
 SillyMaker owns only the GUI and interaction surface.
 SillyOS does not fork or browser-port `pi-coding-agent`: Browser uses its fixed
@@ -292,9 +346,11 @@ The work area has three stable regions:
 3. a focused Program pane containing View and, only when real, Source,
    Capabilities, and Activity facets.
 
-The conversation explains and revises the Program. The Program pane is the
-primary work product, not a decorative demo placed beside marketing copy. A
-proposal requiring human review is visible in the conversation and Activity.
+The conversation is the Creator supervisor that explains and revises the
+Program; it is not a component of the Program or its app. The Program pane is
+the primary work product, not a decorative demo placed beside marketing copy.
+A proposal requiring human review is visible in the supervisor conversation and
+Activity.
 The preview's accept/reject operates on the exact
 `(proposalId, programRevision)` pair. Once a mutable workspace exists, the
 review envelope additionally names the base accepted Program revision and exact
@@ -458,20 +514,21 @@ passing a pixel threshold alone is not design approval.
 This table is the completion denominator for the rewrite. A working preview is
 evidence for the preview only.
 
-| Area              | Accepted product role                                     | Current preview evidence                                      | Remaining before product-ready                         |
-| ----------------- | --------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------ |
-| Creator home      | Express intent and create/open a Program                  | Deterministic local request + B0a/B0b setup                   | Attachments, persisted Programs, general Provider UI   |
-| Program workspace | Conversation and work product stay in one focused context | Local revisions + fixed-profile live B0b successor            | Durable Agent revisions and outputs                    |
-| Human review      | Accept/reject an exact proposed revision                  | Local exact reference + stale rejection                       | Durable transactional check and effects                |
-| Activity          | Explain what happened and what needs review               | Local revision and decision events                            | Real tool/action history and approvals                 |
-| Capabilities      | Required Agent and UI abilities are understandable        | Labels + one bounded B0a/B0b Pi AgentTool                     | Workspace capabilities and UI bindings                 |
-| Generated UI      | Agent-authored UI remains legible and controllable        | Not implemented                                               | OpenUI mapped to closed SillyMaker components          |
-| Source            | Inspect and refine the Program where useful               | Presentation-only recipe preview                              | Persistent draft volume and accepted snapshots         |
-| Translation       | A usable translation Program                              | Intent classification only                                    | Complete workflow, data, QA, export                    |
-| Writing           | A usable writing Program                                  | Intent classification only                                    | Complete workflow, data, revision tools                |
-| Role-play         | A usable role-play Program                                | Intent classification only                                    | Complete sessions, characters, VN behavior             |
-| Browser           | Publishable local-first product with BYO Provider         | Responsive preview + deployed fixed-profile B0b qualification | General Provider UI, storage, tools, closure           |
-| Deno Desktop      | Same product with admitted Host integrations              | Responsive preview target                                     | Companion acceptance, storage, packaging qualification |
+| Area               | Accepted product role                                     | Current preview evidence                                      | Remaining before product-ready                         |
+| ------------------ | --------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------ |
+| Creator home       | Express intent and create/open a Program                  | Local request + B0a/B0b setup + P2-B0 recent reopen           | Attachments and general Provider UI                    |
+| Creator supervisor | Chat supervises one Program without becoming Program data | Bounded durable projection + fixed-profile live B0b successor | Final session binding and review receipts              |
+| Program workspace  | One focused mutable workspace produces reviewed snapshots | Durable Program/proposal lineage; no file volume              | Durable volume, execution environment, and outputs     |
+| Human review       | Accept/reject an exact proposed revision                  | Durable exact decision + cross-page stale rejection           | Workspace-generation/snapshot publication              |
+| Activity           | Explain what happened and what needs review               | Durable revision and decision events                          | Real tool/action history and approvals                 |
+| Capabilities       | Required Agent and UI abilities are understandable        | Labels + one bounded B0a/B0b Pi AgentTool                     | Workspace capabilities and UI bindings                 |
+| Generated UI       | Agent-authored UI remains legible and controllable        | Not implemented                                               | OpenUI mapped to closed SillyMaker components          |
+| Source             | Inspect and refine the Program where useful               | Presentation-only recipe preview                              | Persistent draft volume and accepted snapshots         |
+| Translation        | A usable translation Program                              | Intent classification only                                    | Complete workflow, data, QA, export                    |
+| Writing            | A usable writing Program                                  | Intent classification only                                    | Complete workflow, data, revision tools                |
+| Role-play          | A usable role-play Program                                | Intent classification only                                    | Complete sessions, characters, VN behavior             |
+| Browser            | Publishable local-first product with BYO Provider         | Responsive preview + deployed fixed-profile B0b qualification | General Provider UI, storage, tools, closure           |
+| Deno Desktop       | Same product with admitted Host integrations              | Responsive preview target                                     | Companion acceptance, storage, packaging qualification |
 
 Before SillyOS is called a complete reference product, this table must be
 reconciled with implementation and tests, the current-low-end startup,
@@ -482,9 +539,9 @@ or one generated Program is not evidence that the complete product exists.
 ## Explicit defers
 
 The phases in [PLAN.md](./PLAN.md) govern real Pi integration, product
-persistence, Pi tool forwarding, the Linux-tools workspace harness research
-gate, Pi capability composition, OpenUI-to-SillyMaker mapping, and the first
-complete product families. Runtime candidates and the common Browser/Deno
+persistence, Pi-native workspace tool binding, the workspace execution provider
+research gate, Pi capability composition, OpenUI-to-SillyMaker mapping, and the
+first complete product families. Runtime candidates and the common Browser/Deno
 evidence corpus are recorded in
 [WASM-WORKSPACE-RESEARCH.md](./WASM-WORKSPACE-RESEARCH.md). A later phase is not
 current implementation merely because a plan names it. Provider OAuth/login,

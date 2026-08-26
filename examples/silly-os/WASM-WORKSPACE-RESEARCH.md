@@ -2,52 +2,73 @@
 
 # SillyOS workspace harness and WASM research
 
-Status: Browser-first research gate, revised 2026-08-27. No runtime is selected
-or implemented by this document. The owning product sequence is
+Status: Browser-first research gate, revised 2026-08-27. just-bash is selected
+only as the bounded P3a-B1 Browser Local shell control; no persistent workspace
+execution provider is selected or implemented. The owning product sequence is
 [PLAN.md](./PLAN.md).
 
 ## Decision to make
 
-SillyOS needs two separate contracts:
+SillyOS needs three orthogonal contracts:
 
-1. Pi remains the Agent and tool-call authority. A pinned Pi extension forwards
-   selected Pi tools through one typed product-private port.
-2. Each workspace Agent receives one logical `WorkspaceRuntime` with one
-   persistent volume and a familiar Linux-tools harness: shell composition,
-   repository/file inspection, archives, Git, and optional scripting runtimes.
+1. Pi remains the Agent and model-visible tool authority. Fixed Pi 0.84.3
+   already supplies the `read`, `write`, `edit`, and `bash` schemas, algorithms,
+   updates, and results; SillyOS does not redefine them.
+2. Pi's public `ExecutionEnv = FileSystem + Shell` is the tool-facing execution
+   projection. A Program-scoped environment connects those tools to one
+   workspace byte authority.
+3. `WorkspaceRuntimePort` is the eventual product-private owner of provider
+   selection, lifecycle, capabilities, volume generation, change journal,
+   persistence, and terminal receipts. It may select Browser Local, Desktop
+   native, or a later BYO Sandbox without becoming a second tool dispatcher.
+   The first control implements only open/close, sequential call scope,
+   generation preflight, volume effects, and a terminal mutation receipt.
 
-The product invariant is the harness behavior and volume ownership, not Wasm.
-Wasm is a strong candidate mechanism because it can run portable code behind a
-bounded Host interface, especially in Browser, but the winning implementation
-may combine TypeScript, Web Workers, individual Wasm payloads, or a native
-Desktop companion. It need not put the shell, every tool, and the filesystem in
-one Wasm image or call the result a container.
+The product invariant is a familiar coding-tool environment and one volume
+authority, not Wasm or Linux. Wasm is a strong candidate mechanism because it
+can run portable code behind a bounded Host interface, especially in Browser,
+but the winning implementation may combine TypeScript, Web Workers, individual
+Wasm payloads, a native Desktop companion, or an admitted remote sandbox. It
+need not put the shell, every tool, and the filesystem in one Wasm image or call
+the result a container.
 
-The first contract can be implemented and tested without claiming that the
-second is already Linux or a container. The runtime remains replaceable behind
-the same port until one target pair passes the Chromium, WebKit, and Deno
-Desktop corpus.
+The Pi tool binding and product call scope can be implemented and tested without
+claiming that the physical execution provider is already Linux or a container.
+The runtime remains replaceable behind the same port until one target pair
+passes the Chromium, WebKit, and Deno Desktop corpus.
 
 ```text
 Browser target
   React UI <- admitted Agent events/actions -> Agent DedicatedWorker
-     pi-agent-core/pi-ai -> direct typed tool channel -> Workspace Host Worker
-                                                    -> selected harness
-                                                    -> OPFS volume
+     pi-agent-core/pi-ai -> Pi native read/write/edit/bash
+                         -> stable Program-scoped ExecutionEnv
+                              -> typed environment RPC -> Workspace Host Worker
+                                                           FileSystem -> volume/OPFS
+                                                           Shell.exec -> just-bash -> same volume
 
 Deno Desktop target
   React UI <- admitted Agent events/actions -> private companion route
-  Pi companion -> local WorkspaceRuntimePort adapter
-               -> selected runtime -> admitted native/runtime volume
+  fixed Pi companion -> proved tool-factory/SDK operation hooks
+                     -> local WorkspaceRuntimePort provider
+                     -> admitted native/runtime volume
+
+BYO Sandbox target
+  Agent owner -> admitted environment RPC -> remote filesystem/shell provider
 ```
 
+P3a may co-locate its disposable volume and just-bash in one Browser Local
+runtime. P3c may move that unit into the Workspace Host Worker for OPFS. A
+dedicated just-bash Worker is not required; only a later non-cooperative custom
+or Wasm command needs a separately terminable Worker.
+
 SillyMaker owns only the React GUI and interaction behavior. Pi owns the Agent
-loop, providers, session semantics, tool registration/calls, extensions, skills,
-and prompts. SillyOS owns the two thin target adapters, typed tool channel,
-Browser Worker Host, workspace identity, target-local volume lifecycle, accepted
-Program snapshots, and product database. A Browser Agent Worker reaches OPFS
-through the owning Workspace Host Worker; a remote or Deno companion cannot own
-an origin's OPFS directly. Pi tool requests never pass through React state.
+loop, providers, session semantics, model-visible tool definitions/calls,
+extensions, skills, and prompts. SillyOS owns the target environment adapters,
+typed environment/volume channels, Browser Worker Host, workspace identity,
+target-local volume lifecycle, accepted Program snapshots, and product database.
+A Browser Agent Worker reaches OPFS through the owning Workspace Host Worker; a
+remote or Deno companion cannot own an origin's OPFS directly. Pi tool effects
+never pass through React state.
 
 ## Workspace and persistence model
 
@@ -115,44 +136,111 @@ reported corruption/recovery case, never a silent fallback to different bytes.
 
 One logical runtime may use TypeScript, multiple Web Workers, WebAssembly
 modules, a native companion, or guest processes. The product contract is the
-tool/volume semantics and lifecycle per workspace Agent, not one literal
+tool/volume semantics and lifecycle per open Program Workspace, not one literal
 `WebAssembly.Instance` or one implementation substrate across targets.
 
-## Typed Pi tool forwarding
+## Pi-native tools and typed execution binding
 
-The shared SillyOS capability core defines the tool schema and handler once. For
-the first proof, a thin Browser adapter registers one real workspace
-`AgentTool`; the Desktop adapter later registers the same core through
-`ExtensionAPI.registerTool()`. Once the runtime is selected, the adapters
-preferentially use Pi's public filesystem/tool operation seams where they fit so
-Pi retains its native schemas and result shapes. Each call into
-`WorkspaceRuntimePort` contains:
+The exact Pi 0.84.3 release exports `createReadTool`, `createWriteTool`,
+`createEditTool`, and `createBashTool` from `pi-agent-core`, together with the
+host-abstract `ExecutionEnv` they consume. The factories already own the
+model-visible schemas, argument normalization, edit behavior, output
+truncation, progress shape, and native Pi results. See the fixed
+[tool exports](https://github.com/earendil-works/pi/blob/4e58f324fae8ebfa98a3d45181fb248072a2afac/packages/agent/src/harness/tools/index.ts),
+[environment contract](https://github.com/earendil-works/pi/blob/4e58f324fae8ebfa98a3d45181fb248072a2afac/packages/agent/src/harness/types.ts),
+and [coding-agent binding precedent](https://github.com/earendil-works/pi/blob/4e58f324fae8ebfa98a3d45181fb248072a2afac/packages/coding-agent/src/server/create-harness.ts).
 
-- `workspaceId` and expected workspace generation;
-- Pi `toolCallId`, tool name, admitted arguments, and working directory;
-- a bounded environment projection rather than ambient host environment;
-- Pi's cancellation signal and bounded progress callback.
+This is a SillyOS-qualified Browser path, not a blanket upstream Browser
+guarantee: the package metadata still declares Node, while the Node environment
+implementation is isolated under the separate `pi-agent-core/node` export. The
+audit's temporary exact-root-entry bundle succeeded with esbuild
+`platform=browser` and no Node built-ins; every selected tool/provider
+combination still requires the real SillyOS Worker build plus current Chromium
+and WebKit evidence.
 
-The result contains typed completion/failure/cancellation, bounded structured
-content or stdout/stderr, the resulting workspace generation, and a bounded
-change summary. Cross-workspace, stale, and duplicate requests are rejected
-before execution, and mutating calls are initially serialized per workspace.
-Arbitrary shell commands are not transactional and are not promised rollback.
-Cancellation terminates the command and all descendants before returning one
-terminal receipt with the real final generation and change summary. Late
-progress can be discarded; a possibly mutating terminal receipt cannot, because
-doing so would hide real file effects. React never receives raw Pi tool events,
-guest handles, filesystem handles, or runtime-specific errors.
+Browser therefore keeps the mature Pi `Agent` and uses one tiny product-private
+binder: it preserves every harness-tool field and binds the fifth execution
+argument to a stable `{ env }` context. Pi 0.84.3's broader `AgentHarness` is not
+selected because its prompt, resume, compaction, navigation, cancellation, and
+wait operations still report `HarnessNotImplemented`; SillyOS does not complete
+or fork that Agent framework. The four tools initially execute sequentially.
+Pi's file-mutation queue is keyed by `ExecutionEnv` identity and path, so an open
+Program Workspace reuses one environment instance rather than constructing a
+new wrapper for every call.
 
-Workspace `AGENTS.md`, skills, and prompts are data. Pi's current public resource
-discovery accepts host filesystem paths, not arbitrary virtual-file contents.
-With ambient discovery disabled, the research must prove either controlled,
-read-only materialization of one exact workspace generation into Pi's isolated
-resource path or projection through a supported public extension prompt/context
-hook. Neither route creates a SillyOS skill loader. Executable Pi extensions
-remain trusted, build-known companion dependencies outside the Agent-writable
-volume. Loading a guest-authored extension into host Pi would escape the
-workspace boundary and is not part of this lane.
+The wrapper receives Pi's ordinary `toolCallId`, params, `AbortSignal`, and
+update callback. It first enters one product-owned call scope, then invokes the
+native harness tool as `tool.execute(toolCallId, params, signal, onUpdate,
+{ env })`, and closes the scope only after environment effects quiesce and its
+terminal receipt settles. Pi does not forward `toolCallId` into `FileSystem` or
+`Shell` methods, so the stable environment owner resolves the current scope
+internally while those primitives run. The first implementation permits only
+one scope at a time and rejects nesting or parallel calls; this makes generation
+preflight and receipts implementable without replacing the stable environment
+object or changing Pi's tool contract.
+
+The current Pi `read` implementation still calls `readBinaryFile()` for the
+complete file before applying offset or output truncation. The first control
+volume therefore admits a bounded file size. A later real large-file failure is
+a neutral Pi-tool requirement to reproduce and hand upstream, not a reason to
+invent a SillyOS read schema or a SillyMaker engine API.
+
+The boundaries are deliberately nested:
+
+```text
+Pi Agent/tool lifecycle
+  -> Pi read/write/edit/bash schema and algorithm
+  -> stable Program-scoped Pi ExecutionEnv
+       FileSystem -> PiFileSystemAdapter -> WorkspaceVolumePort
+       Shell.exec -> JustBashShellAdapter -> just-bash
+                                      \-> JustBashFileSystemAdapter
+                                           -> same WorkspaceVolumePort
+
+WorkspaceRuntimePort (outside the Pi result)
+  -> provider/session lifecycle, workspace lease, expected generation
+  -> change journal, persistence/snapshot, capability truth, terminal receipt
+```
+
+Pi's `FileSystem` and just-bash's `IFileSystem` have incompatible error/return
+contracts, so one class must not pretend to implement both. They are two thin
+adapters over one product-owned volume. Pi `read`, `write`, and `edit` call the
+Pi filesystem adapter directly; converting them into quoted shell commands
+would discard typed semantics and native results. Pi `bash` alone calls
+`ExecutionEnv.exec`, which Browser Local maps to just-bash. just-bash commands
+receive its separate filesystem projection onto the same bytes, including
+workspace-owned temporary paths. There is no second MEMFS to synchronize.
+
+Cross-Worker and remote transport carries environment primitives such as
+filesystem operations or one coherent shell execution, not a generic
+`{ toolName, arguments }` envelope. The product's outer call scope binds
+`workspaceId`, expected generation, admitted `(sessionId, runId, toolCallId)`,
+bounded cwd/env, the execution lease, cancellation, and the final change
+receipt. Duplicate, stale, cross-workspace, and post-lease operations fail
+before effects. Native Pi tool content still flows to Pi and the model; the
+product receipt separately records the real final generation and bounded change
+summary. A possibly mutating receipt is reconciled even after its Agent run
+becomes stale, because discarding it would hide real file effects. React
+receives only admitted progress/result/receipt projections.
+
+Browser Local cannot initially claim descendant termination: just-bash offers
+cooperative `AbortSignal`, while its public `exec()` returns aggregate terminal
+stdout/stderr rather than a live output callback. The adapter maps cancellation,
+timeout, errors, cwd, and environment into Pi's typed `Result`, reports
+terminal-only output truthfully, and runs any future non-cooperative custom or
+Wasm command in a separately terminable Worker before strengthening the claim.
+Desktop and BYO providers execute their own coherent shell requests rather than
+placing just-bash in front of a native or remote process host.
+
+Workspace `AGENTS.md`, skills, and prompts remain inert data throughout P3. P3b
+characterizes and P3c persists their bytes but neither interprets them or ties
+resource activation to an execution-provider choice. P4 may qualify a current
+public Pi resource route per target. Agent-core's current `AgentHarness` resource
+surface is not usable evidence for Browser discovery. With ambient discovery
+disabled, that later slice may prove controlled read-only materialization of one
+exact workspace generation for Desktop or a supported public prompt/context
+route. Neither creates a SillyOS skill loader. Executable Pi extensions remain
+trusted, build-known dependencies outside the Agent-writable volume; loading
+guest-authored extension code into Host Pi would escape the workspace boundary.
 
 ## Why Emscripten is a payload choice, not the harness contract
 
@@ -191,10 +279,11 @@ product cases; see
 
 ## Candidate evidence, not a selection
 
-| Candidate family                | Evidence relevant to this product                                                                                                                                | Unproved or mismatched boundary                                                                                                                                                                                                       |
+| Candidate or pressure source    | Evidence relevant to this product                                                                                                                                | Unproved or mismatched boundary                                                                                                                                                                                                       |
 | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Emscripten/WASI modular toolbox | Strong Browser-JS interop; compile individual search/archive/QuickJS controls; explicit host calls and filesystem adapters                                       | No general Linux `fork`/`exec`, process tree, PTY, or job control; Ripgrep still requires an actual port proof; shell orchestration would be product/runtime code                                                                     |
 | just-bash                       | Apache-2.0 TypeScript shell with a Browser bundle, bounded execution, `AbortSignal`, an asynchronous filesystem interface, and build-known custom commands       | A simulated shell rather than Linux; no bundled persistent Browser backend or Git; Browser excludes Tar, Python, SQLite, YQ, Xan, and its optional QuickJS command; hard cancellation of custom commands requires a Worker/process    |
+| Oh My Pi                        | MIT Pi fork demonstrating a curated essential/discoverable Agent-tool registry, structured search/LSP/eval/subagent tools, and an in-process shell/CLI strategy  | Bun/Node/Rust/N-API coding product rather than Browser core; its schemas, Brush shell/utilities, internal URLs, extension loader, and Host-filesystem fallback are product-specific and are not a portable execution provider         |
 | agent-sandbox                   | MIT Rust/Wasmtime control with a WASIp1 toolbox, host-directory volume, native Node binding, separate stdout/stderr and exit code, fuel and memory limits        | Native Wasmtime/N-API host, not a Browser runtime; custom partial Git/Ripgrep/Node and sequential shell rather than actual Linux tools/processes; no public abort and the current wall timeout cannot stop a running blocking task    |
 | Wasmer JS + WASIX               | Public Browser SDK exposes WASIX processes, pipes, TTY, subprocess-oriented extensions, and mounted directories                                                  | WASIX is non-standard; Browser cross-origin isolation is required; the JS SDK is not current Deno-native evidence; persistent OPFS, cold reopen, costs, and cancellation need direct proof                                            |
 | BrowserPod                      | Existing Browser product closest to the desired model: Bash, Git, BusyBox tools, preview Python, worker-backed processes, Ext2-style disk, and local persistence | Version 3.0.1 is proprietary; ordinary plans require a metered API key and do not include self-hosting; Deno Desktop, redistribution/offline operation, Ripgrep/QuickJS, and process-tree cancellation require separate qualification |
@@ -208,7 +297,8 @@ Primary sources:
   [filesystem guide](https://docs.wasmer.io/sdk/wasmer-js/how-to/use-filesystem/)
 - [WASIX documentation](https://wasix.org/docs/)
 - [just-bash](https://github.com/vercel-labs/just-bash) and its
-  [Browser exclusions](https://github.com/vercel-labs/just-bash/blob/main/packages/just-bash/src/commands/browser-excluded.ts)
+  [Browser exclusions](https://github.com/vercel-labs/just-bash/blob/de3c2f368ee1c11bab4d7250aaf43306e052a008/packages/just-bash/src/commands/browser-excluded.ts)
+- [Oh My Pi](https://github.com/can1357/oh-my-pi/tree/d17c270090562d730e4d42d1aa3fdd93b45cf41a)
 - [agent-sandbox](https://github.com/Parassharmaa/agent-sandbox)
 - [BrowserPod architecture deep dive](https://labs.leaningtech.com/blog/browserpod-deep-dive)
   and [BrowserPod documentation](https://browserpod.io/docs/overview)
@@ -305,27 +395,28 @@ Desktop.
 ## Modular-toolbox disposition
 
 `just-bash` is the strongest current candidate for the **shell and composition
-layer outside Wasm**, not a container. At inspected commit
-`63cd01319691db61d4f239335c58940257c1f864`, package 3.4.2 is explicitly beta
-but provides a Browser export, shell parser/interpreter, bounded in-memory
-filesystem, an asynchronous `IFileSystem` boundary, explicit command allowlist,
-custom commands, stdin/stdout/stderr/exit results, and cooperative
-`AbortSignal`. Its custom-command context already carries the filesystem,
-working directory, environment, stdin, execution budget, and signal needed to
-adapt one build-known external command, including an optional Wasm payload. See
-the [package README](https://github.com/vercel-labs/just-bash/blob/63cd01319691db61d4f239335c58940257c1f864/packages/just-bash/README.md),
-[`IFileSystem`](https://github.com/vercel-labs/just-bash/blob/63cd01319691db61d4f239335c58940257c1f864/packages/just-bash/src/fs/interface.ts),
-and [custom-command contract](https://github.com/vercel-labs/just-bash/blob/63cd01319691db61d4f239335c58940257c1f864/packages/just-bash/src/custom-commands.ts).
+layer for Browser Local**, not a container or an Agent tool registry. At
+inspected commit `de3c2f368ee1c11bab4d7250aaf43306e052a008`, package 3.4.2 is
+explicitly beta but provides a Browser export, shell parser/interpreter, bounded
+execution, an `IFileSystem` boundary, explicit command allowlists, custom
+commands, stdin/stdout/stderr/exit results, and cooperative `AbortSignal`. Its
+custom-command context already carries the filesystem, working directory,
+environment, stdin, execution budget, and signal needed to adapt one build-known
+external command, including an optional Wasm payload. See the
+[package README](https://github.com/vercel-labs/just-bash/blob/de3c2f368ee1c11bab4d7250aaf43306e052a008/packages/just-bash/README.md),
+[`IFileSystem`](https://github.com/vercel-labs/just-bash/blob/de3c2f368ee1c11bab4d7250aaf43306e052a008/packages/just-bash/src/fs/interface.ts),
+and [custom-command contract](https://github.com/vercel-labs/just-bash/blob/de3c2f368ee1c11bab4d7250aaf43306e052a008/packages/just-bash/src/custom-commands.ts).
 
 Its limitations are also useful because they keep the claim honest. It is a
 virtual shell with JavaScript command implementations, not Linux and not a
 process host. Its Browser build excludes Tar, Python, SQLite, YQ, and Xan; its
 optional QuickJS command is also documented as unavailable in Browser. It has
 no Git command and no OPFS/IndexedDB persistence adapter. Cancellation is
-cooperative for the interpreter. The project explicitly warns that arbitrary
-host custom-command code cannot be forcibly stopped and needs a terminable
-Worker or process when external side effects require that guarantee. Therefore
-the first proof can use the Browser shell and filesystem shape, but every
+cooperative for the interpreter, and its public `exec()` has no streaming output
+callback. The project explicitly warns that arbitrary host custom-command code
+cannot be forcibly stopped and needs a terminable Worker or process when
+external side effects require that guarantee. The source's Browser exclusion
+list, rather than broad README wording, is the qualification authority. Every
 required command still runs the shared corpus and every mutating custom command
 that executes untrusted or non-cooperative code runs in an owned Worker that
 acknowledges termination.
@@ -334,23 +425,56 @@ The valid composition is one filesystem authority rather than two synchronized
 trees:
 
 ```text
-Pi extension -> WorkspaceRuntimePort.exec
-             -> just-bash shell + admitted built-ins
-             -> build-known custom command in owned Worker
-                (Wasm payload when useful)
-             -> the same WorkspaceVolumePort
+Pi createReadTool/createWriteTool/createEditTool
+  -> Pi ExecutionEnv.FileSystem -> PiFileSystemAdapter
+  -> typed volume operations -> Browser Local runtime -> WorkspaceVolumePort
+
+Pi createBashTool
+  -> Pi ExecutionEnv.Shell.exec -> JustBashShellAdapter
+  -> coherent exec operation -> Browser Local runtime -> just-bash
+                                                   -> JustBashFileSystemAdapter
+                                                   -> same WorkspaceVolumePort
+  -> admitted built-in or build-known custom-command Worker
+     (Wasm payload only when useful)
 ```
 
-`WorkspaceVolumePort` remains the product boundary. A Browser adapter may back
-it with an indexed OPFS owner and expose the required `IFileSystem` projection
-to just-bash. A Wasm-backed command must reach that same volume through admitted
-WASI host calls or a narrow tool RPC; it must not receive a second MEMFS and copy
-the whole workspace before and after each call. A TypeScript command may operate
-directly on the same filesystem projection. Args, cwd, bounded env, exact stdin,
-separate stdout/stderr, exit code, and `AbortSignal` cross the custom-command
-adapter in either case. The command set is pinned SillyOS runtime code selected
-behind Pi's tools, not a user-facing just-bash plugin registry or another Agent
-extension system.
+`WorkspaceVolumePort` remains the byte boundary. A Browser adapter may back it
+with an indexed OPFS owner and expose separate Pi and just-bash filesystem
+projections. just-bash's otherwise asynchronous interface includes a synchronous
+path inventory, so Browser Local co-locates just-bash and that bounded
+generation-indexed view with the volume owner instead of adding a dedicated
+just-bash Worker. This implementation constraint does not become the product
+storage contract. A Wasm-backed command must reach the same volume through
+admitted WASI host calls or a narrow command RPC; it must not receive a second
+MEMFS and copy the whole workspace before and after each call. Args, cwd,
+bounded env, exact stdin, terminal stdout/stderr, exit code, and `AbortSignal`
+cross the command adapter. The command set is pinned SillyOS runtime code used by
+Pi `bash`, not a user-facing just-bash plugin registry or another Agent extension
+system.
+
+Oh My Pi is a distinct Agent-product reference, not an execution-provider
+candidate. At inspected MIT commit
+`d17c270090562d730e4d42d1aa3fdd93b45cf41a` (18.0.7), it exposes 31 built-in
+tools, keeps a small essential set model-visible, leaves many core utilities
+inside its in-process shell, and promotes structured capabilities such as
+`grep`, `glob`, LSP, eval, subagents, browser control, and memory to Agent tools.
+That reinforces two SillyOS rules: a shell command remains under Pi `bash` when
+shell composition is its value; a capability earns a separate Pi `AgentTool`
+only when structured inputs/results, policy, lifecycle, or model ergonomics
+justify it. SillyOS does not expose every command as a tool.
+
+OMP itself is not reusable Browser infrastructure. Its coding-agent and Agent
+core require Bun/Node APIs plus in-process Rust/N-API Brush shell and utility
+packages, TUI and Host integrations; its `browser` tool is Puppeteer/CDP
+automation, not evidence that the Agent runs inside a Web Browser. Its dynamic edit formats,
+internal-URL filesystem, `xd://` transport, registry/extension behavior,
+persistent process model, and Host-filesystem fallback are OMP product choices,
+not stock Pi contracts. SillyOS keeps the fixed earendil-works Pi distribution
+and treats OMP only as pressure evidence for later build-known Pi capabilities.
+See OMP's [tool catalog](https://github.com/can1357/oh-my-pi/blob/d17c270090562d730e4d42d1aa3fdd93b45cf41a/README.md),
+[built-in names](https://github.com/can1357/oh-my-pi/blob/d17c270090562d730e4d42d1aa3fdd93b45cf41a/packages/coding-agent/src/tools/builtin-names.ts),
+[essential-tool policy](https://github.com/can1357/oh-my-pi/blob/d17c270090562d730e4d42d1aa3fdd93b45cf41a/packages/coding-agent/src/tools/essential-tools.ts),
+and [runtime package](https://github.com/can1357/oh-my-pi/blob/d17c270090562d730e4d42d1aa3fdd93b45cf41a/packages/coding-agent/package.json).
 
 `agent-sandbox` is a different control. At inspected commit
 `3c121bee522a8cbcf52968039bd06cc2767eeb11`, Rust 0.4.0/npm 0.4.1 is MIT and
@@ -377,7 +501,7 @@ cancellation receipt.
 
 The resulting preferred experiment order is:
 
-1. just-bash as the Browser-capable shell/control and deterministic P3a adapter;
+1. just-bash as the Browser-capable `ExecutionEnv.exec` control for P3a-B1;
 2. one Worker-owned external command sharing the same volume, with a Wasm search
    or archive payload as the portability control rather than a requirement;
 3. agent-sandbox as a separate Deno companion control, without transferring its
@@ -519,31 +643,41 @@ sandbox claim; the mere use of WebAssembly does not.
 
 ## Research and implementation order
 
-1. Finish P1-B first: one browser Pi Agent Worker, typed product RPC, memory-only
-   provider key ownership, and one proposal `AgentTool`. This proves the Agent
-   path without pretending a VFS or shell exists.
-2. Freeze `WorkspaceRuntimePort` from one Browser Pi tool and a deterministic
-   runtime. Then give one Workspace Host Worker an OPFS workspace and prove one
-   create/read artifact action, reload/cold reopen byte identity, 1,000 small
-   files, one 16 MiB file, quota-full recovery, and interrupted-write recovery.
-   This B1 slice still has no shell, Git, Python, or Linux claim.
-3. Characterize just-bash as the Browser shell/control over that same
-   single-owner volume. Run one build-known Worker-owned Wasm Ripgrep or Tar
-   command against the same bytes. This B2 slice tests composition without
-   selecting a full container.
-4. Run the full corpus against agent-sandbox on Deno, Wasmer/WASIX, BrowserPod,
+1. Treat delivered P1-B as the Agent prerequisite: one Browser Pi Agent Worker,
+   typed product RPC, memory-only provider key ownership, and one product
+   proposal `AgentTool`. It proves the Agent path without pretending a VFS or
+   shell exists.
+2. Execute P2-B1: persist one product-owned terminal Agent-run receipt for
+   completion, failure, cancellation, or replacement under the existing Program
+   CAS. Prove idempotence, reopen, lost-response reconciliation, and credential
+   absence without storing Pi history, deltas, or tool payloads.
+3. Execute P3a-B0: bind Pi's shipped `write` and `read` to one stable
+   Program-scoped `ExecutionEnv` over a deterministic disposable volume. Prove
+   a real artifact round trip, native Pi schema/result behavior, generation
+   preflight, cancellation, terminal receipt, and cleanup. Do not introduce a
+   custom tool schema or persistence claim.
+4. Execute P3a-B1: bind Pi `edit`, then map Pi `bash`'s `Shell.exec` to
+   just-bash over the same volume. Prove edit, cwd/env, pipe/redirection,
+   terminal output, timeout/abort mapping, and honest capability status. This
+   closes the Browser default-tool control without Git, Wasm, Python, PTY,
+   process-tree, or Linux claims.
+5. In P3b, run one build-known Worker-owned Wasm search or archive command over
+   the same volume, then run the full corpus against agent-sandbox on Deno,
+   Wasmer/WASIX, BrowserPod,
    and CoWasm where licensing and target access allow. A Deno-specific adapter
    is allowed behind the same contract; SDK identity across targets is not a
    goal. Keep full-Linux emulation and WebContainers as measured controls rather
    than assumed dependencies.
-5. Select only the smallest target pair that passes the required semantics in
-   Chromium, WebKit, and Deno Desktop. Record unsupported shell behavior
-   explicitly, then promote it behind the already-proved Pi forwarding path.
-   Expand toward Pi's native read/write/edit/bash operations and the required CLI
-   image only after that proof and review.
+6. In P3c, select only the smallest Browser Local/Desktop provider pair that
+   passes the required semantics. Give the Browser Workspace Host Worker an OPFS
+   volume and prove reload/cold-reopen byte identity, 1,000 small files, one
+   16 MiB file, quota-full recovery, interrupted-write recovery, snapshot
+   publication, and the complete Pi default-tool path. Qualify BYO Sandbox
+   separately against the applicable conformance rather than making it a local
+   shipping prerequisite.
 
 This order does not start a public tool ABI, package manager, Linux distribution,
 container orchestrator, untrusted-code sandbox, remote build service, or Pi
 replacement. If no target pair passes the complete matrix, SillyOS retains the
-typed port and ships a smaller admitted Linux-tools harness rather than claiming
-Linux or a container.
+Pi `ExecutionEnv` binding and ships a smaller admitted coding-tool environment
+rather than claiming Linux or a container.

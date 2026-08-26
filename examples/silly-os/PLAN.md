@@ -30,12 +30,15 @@ responsive, keyboard, IME, focus, and anti-clipping contracts in
 [DESIGN.md](./DESIGN.md) remain the visual/product baseline while this lane adds
 real behavior.
 
-The `agent` term above means a Pi Agent session plus the explicitly selected Pi
-extensions, skills, prompts, models, and tools that make that Program useful.
-SillyOS does not implement a second Agent loop, provider layer, tool dispatcher,
-session format, or extension system. SillyMaker remains responsible for GUI and
-interaction contracts; it does not absorb Pi, model, Program-database, or tool
-runtime responsibilities.
+The `agent` term above means the explicitly selected Pi profile, extensions,
+skills, prompts, models, and tools that make that Program useful. A live Pi
+session and Creator Chat belong to the Creator supervisor that opens and edits a
+Program; they are not Program content. A Program has a mutable Workspace and
+names immutable reviewed Workspace snapshots, but is not identical to either
+one live Workspace instance or one conversation. SillyOS does not implement a
+second Agent loop, provider layer, tool dispatcher, session format, or extension
+system. SillyMaker remains responsible for GUI and interaction contracts; it
+does not absorb Pi, model, Program-database, or tool runtime responsibilities.
 
 Future generated UI follows the same split. Pi may produce an admitted OpenUI
 artifact through a Pi extension tool, while a closed adapter maps supported
@@ -44,7 +47,8 @@ contracts. OpenUI is an interchange description, not a second renderer,
 application authority, or path to arbitrary component execution.
 
 The workspace requirement is likewise behavioral rather than technological.
-Each Agent needs a familiar Linux-tools harness plus one product-owned volume
+Each opened Program needs a familiar coding-tool environment plus one
+product-owned volume
 that coherently contains inputs, outputs, the working tree, temporary files,
 file-resident data, `AGENTS.md`, and skills. WebAssembly is a promising portable
 execution mechanism, especially in Browser, but it is not the product contract:
@@ -99,11 +103,14 @@ promotion gate, not a prerequisite for the 2.9.5 companion preview path.
 | Authority                                                                                                     | Owner                                      | Boundary                                                                                                                                    |
 | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | Program identity, accepted revisions, proposals, decisions, and publication receipts                          | SillyOS product database                   | Product repository and typed product services                                                                                               |
-| Draft sources, `.git`, generated files, artifacts, file-resident product data, `AGENTS.md`, and skills        | One workspace volume per workspace Agent   | A product-selected `WorkspaceRuntime`; accepted Program state names an exact immutable snapshot                                             |
+| Creator Chat, live Pi-session binding, and review coordination                                                | SillyOS Creator supervisor                 | Session-local control plane plus bounded durable references/receipts; conversation is not Program content                                   |
+| Draft sources, `.git`, generated files, artifacts, file-resident product data, `AGENTS.md`, and skills        | One workspace volume per Program           | A product-selected `WorkspaceRuntime`; accepted Program state names an exact immutable snapshot                                             |
 | Agent loop, session semantics, compaction, model/provider calls, tool dispatch, and Agent extension lifecycle | Pi                                         | Fixed `pi-agent-core`/`pi-ai` in Browser; complete fixed `pi-coding-agent` companion in Desktop; public Pi tool/extension contracts         |
+| `read`/`write`/`edit`/`bash` Agent schemas, validation, execution algorithms, updates, and results            | Pi                                         | Browser uses the shipped agent-core factories; Desktop retains fixed coding-agent built-ins and proved public tool-factory/SDK hooks        |
 | Presentation-facing Agent transport                                                                           | SillyOS target adapter                     | Browser Worker or Desktop companion projects only admitted commands/events; raw Pi/provider records never enter React state                 |
 | Agent-side product functions                                                                                  | Pi plus pinned SillyOS capability adapters | One shared schema/prompt/handler core, registered as a Browser `AgentTool` or Desktop `ExtensionAPI` tool; no parallel Agent/plugin runtime |
-| Workspace process and filesystem execution                                                                    | Product-selected workspace runtime         | Typed Pi-tool forwarding into one isolated logical runtime; no renderer or database access                                                  |
+| Workspace lifecycle, capabilities, generation, change journal, and terminal mutation receipts                 | SillyOS `WorkspaceRuntimePort`             | Product-private owner that supplies a stable Program-scoped Pi `ExecutionEnv`; it is not a second tool API                                  |
+| Workspace filesystem and shell effects                                                                        | Product-selected execution provider        | Browser Local VFS plus just-bash shell, Desktop native companion, or admitted BYO Sandbox; no Host-filesystem fallback                      |
 | Pi session and provider credentials                                                                           | Target-local Pi owners                     | Browser Agent Worker owns an ephemeral key/session initially; Desktop owns isolated Pi session/auth storage; Program data holds no secret   |
 | Responsive presentation and application mounting                                                              | SillyMaker GUI contracts                   | React/UI components, input, focus, accessibility, responsive layout, and admitted UI interaction                                            |
 | Human approval and publication                                                                                | SillyOS Program authority                  | Exact proposal, base accepted revision, and reviewed workspace generation are rechecked before snapshot publication                         |
@@ -113,13 +120,27 @@ infrastructure for Programs that need them. They are not optional desktop
 icons. Agent-facing capabilities are real Pi extensions/tools selected by a
 Program; SillyOS does not mirror them into another executable plugin system.
 
+`WorkspaceRuntimePort` and Pi `ExecutionEnv` are orthogonal rather than
+competing abstractions. The former is the eventual owner of a Program
+Workspace's lifecycle, provider selection, leases, generations, persistence,
+capability truth, and receipts; each phase implements only the fields with a
+real consumer. Its Pi-facing execution projection satisfies the latter's
+`FileSystem + Shell` contract. Cross-Worker or remote RPC carries those
+environment primitives and product call scope; it does not send
+`{ toolName, arguments }` through a second tool dispatcher. Browser Local uses
+two thin adapters over one byte authority: Pi's filesystem adapter for
+`read`/`write`/`edit`, and just-bash's `IFileSystem` adapter for commands invoked
+by Pi `bash`. The adapters must not create two synchronized VFS trees.
+
 SillyOS does not fork or browser-port `pi-coding-agent`. The fixed Pi 0.84.3
 distribution already separates the useful shared runtime from the Node-oriented
 coding product:
 
-- Browser uses the public `pi-agent-core` `Agent`, `AgentTool`, session/resource
-  primitives, and abstract filesystem/shell execution contracts together with
-  selectively imported `pi-ai` providers.
+- Browser uses the public `pi-agent-core` `Agent`, `AgentTool`, shipped
+  `createReadTool`/`createWriteTool`/`createEditTool`/`createBashTool` factories,
+  and host-abstract `ExecutionEnv` contract together with selectively
+  imported `pi-ai` providers. A tiny product-private binder supplies the stable
+  `{ env }` context without copying the tools' schemas or algorithms.
 - Desktop packages the complete fixed `pi-coding-agent` artifact because its
   native session files, resource discovery, coding tools, JSONL RPC, and public
   Extension API are real Desktop capabilities.
@@ -138,20 +159,33 @@ for future user-selected plugins. The current raw launcher and first companion
 slice do not yet enable arbitrary user or workspace extension discovery; the
 first product extension remains build-known and version-pinned.
 
-One workspace Agent is paired with one **logical** `WorkspaceRuntime` and one
-persistent volume. The word logical is deliberate: the harness may use
+One opened Program Workspace is paired with one **logical** `WorkspaceRuntime`
+and one persistent volume. The word logical is deliberate: the harness may use
 TypeScript commands, multiple Web Workers, WebAssembly modules, or a native
-companion, and the target adapters need not use the same SDK. Product
-correctness must not depend on the fiction that a complete shell, process tree,
-Python, Git, and every CLI inhabit one `WebAssembly.Instance`. The volume is the
-mutable working copy; an accepted Program revision is an immutable snapshot of
-an exact volume generation plus product metadata.
+companion or remote sandbox, and the target adapters need not use the same SDK.
+Product correctness must not depend on the fiction that a complete shell,
+process tree, Python, Git, and every CLI inhabit one `WebAssembly.Instance`.
+The volume is the mutable working copy; an accepted Program revision is an
+immutable snapshot of an exact volume generation plus product metadata.
 
 The engine's workspace-private `@sillymaker/composition/internal/mod-runtime`
 is not a public ABI, resolver, SDK, or distribution system. This product plan
 does not depend on it. A selected Pi extension may be a build-known,
 version-pinned product dependency, but it is not a SillyMaker Mod and it never
 turns generated TypeScript into an admitted runtime module.
+
+There is currently no newly reproduced SillyMaker engine gap for the workspace
+execution lane. Program/Workspace semantics, Creator supervision, Pi tools and
+extensions, provider keys, OPFS/VFS, just-bash, Wasm payloads, Desktop or BYO
+sandbox adapters, persistence, receipts, and product workflows remain in
+`examples/silly-os`. SillyMaker owns only use-case-neutral GUI/Host/input/focus
+contracts and the already private admitted Agent-UI seam. A candidate is handed
+back to the engine only after a minimal neutral reproduction outside SillyOS
+shows a generally useful GUI/Host capability missing, names a second consumer,
+and explains why a product-local adapter is insufficient. Such a reproduction
+uses no Pi, Program, Workspace, sandbox, translation, writing, or role-play
+vocabulary. The engine's private Mod Runtime is never treated as the Pi plugin
+system, an execution sandbox, or a public ABI.
 
 ## Reference decisions
 
@@ -163,12 +197,26 @@ The local reference checkouts were inspected at these clean revisions:
 - Pi `8fa7eebd235355522c8104166b4f1f959b4e2f10` supplies two relevant public
   paths. Its Browser smoke bundles `pi-ai`, `pi-agent-core`'s `Agent`, an
   in-memory session repository, and a selectively imported provider; this is
-  the P1-B basis. Its full coding-agent Extension loader remains Node-oriented,
-  while its working JSONL subprocess mode is the Desktop basis. The newer
-  strict CBOR protocol packages still provide no standalone coding-agent
-  service and are not selected. One product capability core is adapted to a Pi
-  `AgentTool` in Browser and `ExtensionAPI.registerTool()` in Desktop; SillyOS
-  does not reproduce the Extension API in Browser.
+  the P1-B basis. The exact 0.84.3 release also exports host-abstract
+  `ExecutionEnv` plus native `read`/`write`/`edit`/`bash` harness-tool factories;
+  these are the Browser workspace-tool basis. Its full coding-agent Extension
+  loader and public tool-factory/SDK operation hooks remain Node-oriented, while
+  its working JSONL subprocess mode is the Desktop basis. The newer strict CBOR protocol
+  packages still provide no standalone coding-agent service and are not
+  selected. Product capabilities are adapted to a Pi `AgentTool` in Browser and
+  `ExtensionAPI.registerTool()` in Desktop; SillyOS does not reproduce the
+  Extension API in Browser.
+- Oh My Pi `d17c270090562d730e4d42d1aa3fdd93b45cf41a` is a useful tool-composition
+  pressure source: it keeps a curated model-visible registry, distinguishes
+  essential and discoverable tools, leaves many command-line utilities inside
+  its shell, and promotes structured capabilities such as search, LSP, eval,
+  browser control, and subagents to Agent tools. It is not a SillyOS dependency
+  or fork base. Its Agent/coding product requires Bun and Node APIs plus
+  in-process Rust/N-API Brush shell and utility packages, TUI, and other Host
+  integrations, so removing a few tools would not create the shared Browser core
+  SillyOS needs. Its
+  host-filesystem fallback and product-specific schemas also do not replace the
+  stricter Program Workspace authority.
 - OpenUI `cda504b5e1a8ab8fb945316bdaad09dbb28c2a3f` informs closed renderer
   catalogs, explicit partial/final state, and structured admission failures.
   A future adapter will map admitted OpenUI names and props to SillyMaker UI
@@ -194,8 +242,9 @@ The product references do not supply a ready Browser-and-Deno workspace harness
 for a Pi tool. Current shell, volume, portable-payload, native, and full-
 environment candidates and their evidence are tracked separately in
 [WASM-WORKSPACE-RESEARCH.md](./WASM-WORKSPACE-RESEARCH.md). The first
-implementation remains one pinned Pi capability with thin target adapters and
-must prove one real Program action before it is generalized; it does not create
+workspace implementation binds Pi's shipped `write` and `read` to one stable
+Browser `ExecutionEnv` and must prove one real Program artifact action before
+it grows to `edit`, `bash`, persistence, or another provider. It does not create
 another Agent tool ABI.
 
 ## Phased product lane
@@ -674,69 +723,212 @@ The Browser build emits the Program repository as its own Worker asset while the
 ordinary initial graph continues to exclude Pi/provider code. These results do
 not activate P2-B1, P3, Desktop persistence, or any engine work.
 
-### P3a — Pi tool forwarding into one workspace runtime
+#### P2-B1 — bounded terminal Agent-run receipts
 
-Extend the shared Creator capability core with exactly one workspace-backed
-tool, then grow only along Pi's existing tool contracts. A thin Browser adapter
-registers it as a Pi `AgentTool`; a thin Desktop extension adapter registers the
-same core with `ExtensionAPI.registerTool()`. Pi owns the tool name and schema,
-tool-call identity, Agent-facing dispatch, cancellation signal, streaming
-update, and result lifecycle. The adapter delegates execution to a
-product-private typed `WorkspaceRuntimePort`; SillyOS does not introduce a
-parallel tool registry, planner, call loop, permission dialogue, or session
-protocol.
+P2-B1 is the next bounded Browser product slice. It extends the existing
+Program repository only far enough to persist the terminal product meaning of
+one submitted Creator run before P3 introduces real workspace effects. It does
+not persist Pi messages, provider records, streaming deltas, tool-call payloads,
+credentials, stack traces, mutable Agent phase, or Pi session files.
 
-Each request carries the exact workspace identity and generation, Pi tool-call
-identity, working directory, admitted arguments, bounded environment data, and
-cancellation. Each result carries typed status, bounded stdout/stderr or
-structured content, the resulting workspace generation, and a change summary.
-Duplicate, stale, or cross-workspace requests are rejected before execution.
-The first runtime serializes mutating calls per workspace. Pi's `onUpdate` path
-may project bounded progress, and late progress is ignored after termination.
-An arbitrary shell command is not transactional and receives no fictional
-rollback: cancellation first terminates the command and its descendants, then
-returns one terminal receipt containing the real final workspace generation and
-change summary. A possibly mutating terminal receipt is reconciled even if the
-originating Agent run is no longer current; discarding it would hide real file
-effects.
+Before submit, the Creator controller allocates one product-owned `agentRunId`
+that is unique within the Program and binds it to the exact `programId`,
+`proposalId`, `baseProgramRevision`, and expected repository revision. The
+transient adapter pairs that identity with Pi's `(sessionId, runId)` after Pi
+accepts the submit; Pi identifiers remain lifecycle fences and never become the
+durable primary key. Exactly one terminal projection may then be committed:
 
-Read-only and mutating tools initially operate on a disposable, bounded control
-volume. A successful file command may create real files and advance its working
-generation, but P3a does not claim cold-reopen durability or publish those bytes
-as an accepted Program revision. It proves Pi call identity, pre-execution
-generation checks, mutation visibility, cancellation, terminal receipts, and
-one bounded workspace command without inventing a second apply protocol.
+- `completed`, with the bounded final Creator reply and the exact admitted
+  candidate reference that P0 may later apply;
+- `failed`, with one admitted product diagnostic code;
+- `cancelled`; or
+- `replaced`.
 
-The first proof freezes the port with a deterministic runtime, then registers
-one tool backed by one bounded implementation and performs a real file action
-against the disposable control volume. That is evidence for forwarding only,
-not persistence, WebAssembly, or a Linux workspace. A Wasm-backed command is a
-P3b characterization case rather than P3a acceptance. Later `read`, `write`,
-`edit`, and `bash` equivalents may be exposed by the same pinned capability core
-only after their Pi-visible behavior and runtime cancellation are characterized.
-Pi and the model see only those Pi tool schemas and results, not the command
-implementation, product database connection, or a second capability registry.
-The Browser and Desktop adapters remain trusted, build-known product code.
+The durable shape is one deliberate Program Repository schema V2, not a second
+store or a general event log. The IndexedDB database version becomes 2 while
+retaining exactly one `programs` object store with `keyPath: "programId"`, no
+auto-increment, and no indexes. The exact aggregate changes from
+`schemaVersion: 1` to `schemaVersion: 2` and adds only
+`agentRunReceipts`, with at most 32 entries per Program. Every receipt has these
+exact fields:
 
-`AGENTS.md`, skills, and prompts in the workspace volume are data owned by the
-Program harness. P3b must prove a target-appropriate use of Pi's public resource
-contracts: Browser reads admitted files from the Workspace Host Worker and
-supplies them through the public Agent/skill inputs; Desktop may instead use
-companion-controlled, read-only materialization of one exact workspace
-generation or a supported extension prompt/context hook. Neither route creates
-a SillyOS skill loader. Executable extension modules are different: only
-build-known, version-pinned product dependencies may execute. Agent-writable
-TypeScript inside the volume is never loaded as a Pi extension in either target.
+- `agentRunId`, `proposalId`, `userMessageId`, and nullable
+  `creatorMessageId` use the existing 1–128-character identifier grammar;
+- `sequence` is contiguous from 1, while `baseProgramRevision`,
+  `baseRepositoryRevision`, and nullable `resultingProgramRevision` are positive
+  safe integers;
+- `outcome` is exactly `completed | failed | cancelled | replaced`; and
+- `diagnosticCode` is null except for `failed`, where it is one value from the
+  existing closed `CreatorAgentDiagnosticCodeV1` set. No diagnostic text is
+  stored.
 
-### P3b — Linux-tools workspace harness research gate
+Each receipt's `userMessageId` must resolve to a `role: "user"` message whose
+text passes the existing submit limit of 4,000 characters. A completed receipt
+must resolve `creatorMessageId` to a `role: "creator"` message of at most 8,192
+characters and set `resultingProgramRevision` to
+`baseProgramRevision + 1`; all three other outcomes require both completed-only
+fields to be null and leave the Program revision unchanged. Receipt IDs are
+unique, sequences are contiguous, and references must resolve within the same
+aggregate. The existing maxima of 96 messages, 96 Activity entries, 32 Program
+revisions, and 512 KiB for the complete encoded aggregate remain hard limits;
+crossing any one rejects the whole mutation.
 
-Characterize the user's proposed environment before choosing an implementation:
-one logical runtime per workspace Agent, a persistent volume as the working
-tree and unified owner of inputs, outputs, temporary files, and file-resident
-data, familiar shell behavior, pipes/redirection, process creation and
-cancellation, `grep`/`rg`, Git, Tar, optional CPython and QuickJS, and the same
-typed P3a port in Browser and Deno Desktop. The contract is this harness and
-volume behavior; putting every part inside Wasm is neither required nor assumed.
+Opening a fresh database performs `0 -> 2` and creates that one exact store.
+Opening database V1 performs one `1 -> 2` versionchange transaction: cursor over
+every row, strictly admit it as the old aggregate V1, preserve every existing
+payload field and repository revision, replace `schemaVersion` with 2, then add
+`agentRunReceipts: []`. Any invalid row, cursor/write failure, quota failure, or
+blocked upgrade aborts the entire migration and exposes no partially upgraded
+catalog. Database versions newer than 2 still fail explicitly. Outside this one
+upgrade path, runtime code and Worker wire admit and return only aggregate V2;
+they do not silently default a missing collection or carry a mixed V1/V2 union.
+
+For `completed`, one repository transaction appends the terminal receipt while
+performing the existing admitted `applyRevision` transition, so the final
+Creator reply, successor Program/proposal, messages, and Activity become durable
+together. It does not store a second copy of the candidate or a durable
+completion that points at an unapplied successor. For `failed`, `cancelled`, or
+`replaced`, the transaction atomically appends the submitted `role: "user"`
+message, the receipt, and one bounded Activity projection. It appends no Creator
+message and does not change the Program or proposal revision. Thus every
+`userMessageId` resolves without introducing a separate pre-submit durable
+start state.
+
+Every mutation runs under the existing Program CAS. Duplicate delivery of an
+identical `agentRunId` and terminal value is unchanged; a different terminal
+value, cross-Program identity, stale base, or mismatched candidate is rejected
+as a whole. The controller publishes terminal success only after transaction
+completion. A lost response becomes `outcome_unknown` and is reconciled by
+loading the exact Program aggregate rather than resubmitting the Agent run. A
+replacement or cancellation remains terminal even when its late Pi records are
+correctly fenced from the current UI.
+
+P2-B1 acceptance is:
+
+- repository conformance proves fresh V2 creation, exact V1-to-V2 reopen with
+  preserved heads/decisions and an empty receipt list, malformed-row atomic
+  upgrade abort, blocked/newer-version behavior, and V2-only runtime admission;
+- focused port/controller/repository tests cover completion, provider failure,
+  cancellation, replacement, duplicate delivery, stale CAS, and post-commit
+  lost-response reconciliation;
+- reopen restores the exact terminal receipt and bounded Activity projection
+  without reconstructing a Pi session or a transcript;
+- the existing credential sentinel still finds no key or provider-auth value in
+  any durable store, exportable record, URL, or log; and
+- Chromium and WebKit prove one completed run and one cancelled or replaced run
+  across reload, while the initial graph still excludes workspace, OPFS,
+  just-bash, and Wasm assets.
+
+P2-B1 closes P2. It does not store workspace generations, file mutations, tool
+receipts, or snapshots; those first gain a real owner and consumer in P3a and
+P3c.
+
+### P3a — Pi-native workspace tool binding
+
+P3a remains inactive until P2-B1 closes the bounded product terminal Agent-run
+receipt needed by its first real tool consumer.
+
+Use the fixed Pi 0.84.3 workspace tools rather than adding a SillyOS equivalent.
+The Browser Agent Worker imports Pi's shipped `createReadTool`,
+`createWriteTool`, `createEditTool`, and `createBashTool`. A tiny binder turns
+each five-argument harness tool into an ordinary `AgentTool` by supplying one
+stable, Program-scoped `{ env: ExecutionEnv }` context. Pi therefore continues
+to own tool names, schemas, argument preparation, validation, file-edit
+algorithms, truncation, updates, cancellation inputs, and model-visible results.
+The existing `sillyos_propose_program_revision` tool remains a separate
+product-domain capability; it is not replaced by a workspace primitive.
+
+The Browser keeps using the mature low-level Pi `Agent`. Pi 0.84.3's
+`AgentHarness` has useful types and factories but its run/lifecycle operations
+remain an unimplemented scaffold, so SillyOS neither depends on it nor fills in
+its missing Agent behavior. The Desktop companion retains the complete fixed
+coding-agent and later routes its same-named built-ins through Pi's public
+`ReadOperations`, `WriteOperations`, `EditOperations`, and `BashOperations`
+factory/SDK operation hooks. Those hooks are not `ExtensionAPI` overrides. A
+Desktop workspace provider therefore requires a programmatically constructed,
+fixed companion tool set through that public surface, or another specifically
+proved public coding-agent integration route. Product-specific Agent tools
+remain the separate `ExtensionAPI.registerTool()` case. Shared product semantics
+and conformance do not require the two targets to import the same physical
+wrapper.
+
+`WorkspaceRuntimePort` is the eventual product owner of provider choice,
+execution lifecycle, generations, the change journal, capability state,
+persistence, teardown, and terminal receipts. Its Pi-facing projection is the
+public `ExecutionEnv = FileSystem + Shell`; the port does not receive a tool name
+and re-dispatch admitted tool arguments. P3a-B0 implements only open/close, one
+sequential call scope, generation preflight, volume effects, and one terminal
+mutation receipt. Provider selection, persistence, and broader capability
+composition stay in their later phases.
+
+Pi does not pass a tool-call identity into `ExecutionEnv` primitives. The tiny
+binder therefore wraps the whole native `tool.execute(...)` invocation in a
+product call scope containing exact Program/Workspace identity, expected
+generation, admitted `(sessionId, runId, toolCallId)`, cancellation, and bounded
+cwd/env. The stable environment owner resolves that current scope internally
+for each filesystem or shell primitive, waits for its effects to quiesce, then
+settles the final mutation receipt before the scope closes. Initial execution is
+strictly sequential: nested or concurrent scopes are rejected. This keeps the
+same `ExecutionEnv` object identity for Pi's mutation queue without changing
+Pi's params or result shape. A later Worker or BYO Sandbox adapter transports
+the scoped environment primitives, not a generic tool call.
+
+The same stable `ExecutionEnv` instance is reused for one open Workspace so
+Pi's per-environment, per-path mutation queue remains effective. The first
+surface additionally selects sequential Pi tool execution until shell mutation
+and Workspace lease concurrency have independent evidence. Directory
+containment, symlink policy, temp-file ownership, and absence of ambient Host
+fallback are execution-environment responsibilities. A possibly mutating
+terminal receipt is reconciled even if the originating Agent run is no longer
+current; discarding it would hide real file effects.
+
+One known Pi-side limitation remains bounded rather than hidden: the 0.84.3
+agent-core `read` tool currently obtains the complete file with
+`readBinaryFile()` before applying offset/truncation. P3a-B0 therefore admits a
+small-file ceiling. If a real large-file product corpus exceeds it, reproduce
+the issue against neutral Pi `ExecutionEnv` conformance and hand an incremental
+read requirement to Pi; do not replace the native tool or modify SillyMaker.
+
+The deliberately bounded first implementation slice, **P3a-B0**, is Browser
+only. It supplies one deterministic disposable Workspace volume and stable Pi
+`ExecutionEnv`, binds only Pi's shipped `write` and `read`, and proves a real
+write/read artifact round trip, native Pi schemas/results, stale-generation
+preflight, cancellation, one terminal mutation receipt, and whole cleanup. It
+does not add a custom workspace tool, OPFS, just-bash, Wasm, Git, Python,
+extension discovery, persistence, or a Linux/sandbox claim.
+
+The following **P3a-B1** completes the default Browser execution-tool surface:
+bind Pi `edit`, then bind Pi `bash` with a just-bash-backed `Shell.exec` over a
+second thin filesystem adapter to the **same** disposable volume. It proves
+exact edit results, cwd/env mapping, pipelines/redirection, terminal
+stdout/stderr/exit status, timeout/abort mapping, bounded output, and truthful
+capability flags. just-bash's public call returns terminal aggregate output, so
+this slice does not claim live shell streaming, PTY, background jobs, process
+trees, Git, Tar, Python, or Linux. Non-cooperative future custom/Wasm commands
+must run in an owned terminable Worker before stronger cancellation can be
+claimed. P3a closes only after B0 and B1; durable bytes remain P3c.
+
+`AGENTS.md`, skills, and prompts in the workspace volume remain inert data in
+P3. P3b characterizes and P3c persists their bytes; neither phase activates or
+interprets them. P4 may qualify a target-appropriate public Pi resource route:
+Browser can supply admitted resources through proven Agent inputs, while
+Desktop may use companion-controlled, read-only materialization of one exact
+workspace generation or another supported prompt/context hook. Neither route
+creates a SillyOS skill loader. Executable extension modules are different:
+only build-known, version-pinned product dependencies may execute.
+Agent-writable TypeScript inside the volume is never loaded as a Pi extension in
+either target.
+
+### P3b — Workspace execution provider research gate
+
+Characterize physical execution providers before choosing the persistent
+denominator: one logical environment per open Program Workspace, a persistent
+volume as the working tree and unified owner of inputs, outputs, temporary
+files, and file-resident data, familiar shell behavior, pipes/redirection,
+declared process/cancellation semantics, `grep`/`rg`, Git, Tar, optional CPython
+and QuickJS, and the same P3a product lifecycle/receipt contract in Browser and
+Deno Desktop. This is a workspace execution capability profile, not a blanket
+Linux promise; putting every part inside Wasm is neither required nor assumed.
 
 Emscripten remains a preferred toolchain/control for individual programs and
 JavaScript/filesystem interoperability, not an assumed Linux container. It
@@ -744,6 +936,20 @@ does not itself supply a Linux kernel, general `fork`/`exec`, job control, or a
 multi-process shell. A conforming runtime may combine TypeScript commands,
 several Wasm modules and workers, or a target-native companion while still
 presenting one logical workspace instance and one filesystem authority.
+
+The three provider roles remain explicit:
+
+```text
+WorkspaceRuntimePort
+  -> Browser Local: VFS/OPFS owner + just-bash Shell + optional Worker/Wasm commands
+  -> Desktop Native: fixed Pi companion + admitted native volume/processes
+  -> BYO Sandbox: typed HTTPS/WSS RPC + provider-declared filesystem/shell capabilities
+```
+
+just-bash is a Browser Local facade, not a mandatory hop in front of Desktop or
+BYO Sandbox. A remote provider receives coherent environment operations and
+executes its own declared shell; SillyOS does not split one pipeline across a
+local just-bash parser and a remote process host.
 
 The research compares just-bash as a Browser-capable shell/control,
 agent-sandbox as a Deno-native Wasmtime control, an individual Emscripten/WASI
@@ -762,10 +968,12 @@ and the public process API does not yet prove dependable cancellation or
 process-tree termination. The exact licensing, target, persistence, and semantic
 gates live in [WASM-WORKSPACE-RESEARCH.md](./WASM-WORKSPACE-RESEARCH.md).
 
-No candidate is selected until both targets have evidence for startup, command
-semantics, persistence/reopen, cancellation, output bounds, filesystem
-isolation, representative repository operations, bundle/memory cost, and
-license/distribution fit. Network is initially absent; remote Git, package
+No persistent provider denominator is selected until Browser Local and Desktop
+have evidence for startup, command semantics, persistence/reopen, cancellation,
+output bounds, filesystem isolation, representative repository operations,
+bundle/memory cost, and license/distribution fit. BYO Sandbox is independently
+qualified against the same applicable conformance; it is not required for the
+local product to ship. Network is initially absent; remote Git, package
 installation, credentials, and arbitrary outbound access require a later
 explicit broker/capability decision. No implementation substrate is advertised
 as a security sandbox without a stated threat model and executable boundary
@@ -809,11 +1017,16 @@ success requires that the snapshot remain reopenable. A later tool write makes
 the pending decision stale as a whole and can never add unreviewed bytes at
 click time.
 
-Where Pi's current public `ReadOperations`, `WriteOperations`, `EditOperations`,
-`BashOperations`, and `create*Tool` remote-execution seams fit the selected
-runtime, P3c implements those operation contracts so Pi retains its native tool
-schemas and result shapes. A product-private adapter remains only where a real
-target mismatch requires it; it does not become a parallel tool API.
+Browser P3c implements Pi agent-core's public `ExecutionEnv` over the selected
+volume and shell provider so Pi retains its native tool schemas and result
+shapes. Desktop uses the fixed coding-agent's public `ReadOperations`,
+`WriteOperations`, `EditOperations`, and `BashOperations` where its companion
+needs remote or isolated effects. These are public tool-factory/SDK operation
+hooks, not `ExtensionAPI` overrides; the selected Desktop route must prove a
+programmatically constructed fixed companion tool set or another supported
+public integration path. A product-private lifecycle/receipt adapter remains
+only around those Pi seams where Program identity, generation, or a real target
+mismatch requires it; it does not become a parallel tool API.
 
 CPython and QuickJS join the runtime only when the first real product uses them
 and their startup, memory, file semantics, cancellation, and distribution cost
