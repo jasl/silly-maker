@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 import type { SessionLeaseOwnerId } from "../../contracts/application.ts";
 import type { TransientEffectRequestV1, TransientEffectV1 } from "../../contracts/asset-demand.ts";
+import type { NarrativeAsidePageV1, NarrativeAsideV1 } from "../../contracts/narrative-aside.ts";
+import { parseNarrativeAsidePagesV1 } from "../../contracts/narrative-aside.ts";
 import type { SemanticGamePortSourceV1, SemanticGamePortV1 } from "../../contracts/application.ts";
 import type {
   StageCueDispatchBatchV1,
@@ -254,6 +256,19 @@ export interface CoreSemanticAdapterV1<
   projectStageCueDispatches?(
     events: readonly DeepReadonly<TTypes["event"]>[],
   ): readonly StageCueDispatchV1[];
+  /**
+   * Optional zero-authority aside dialogue (narrative-aside proposal,
+   * opened 2026-08-27): a one-shot batch of dialogue pages this commit
+   * presents alongside the current pending interaction (typically a
+   * running hold). The instance admits the page list once, stamps it with
+   * a monotonic per-instance sequence plus the presentation epoch at
+   * commit time, and pushes it to `subscribeNarrativeAsides`. Asides never
+   * enter State, Saves, digests, replay, publications, or command
+   * identity; an empty list means "no aside this commit".
+   */
+  projectNarrativeAside?(
+    events: readonly DeepReadonly<TTypes["event"]>[],
+  ): readonly NarrativeAsidePageV1[];
 }
 
 /**
@@ -995,6 +1010,15 @@ export interface CoreGameApplicationInstanceV1<
    */
   subscribeTransientEffects(listener: (effect: TransientEffectV1) => void): () => void;
   /**
+   * Commit-only narrative aside push (narrative-aside proposal): a
+   * zero-authority batch of dialogue pages stamped with a monotonic
+   * per-instance sequence and the presentation epoch at commit time.
+   * Nothing is stored and load/bootstrap publications carry no history, so
+   * new epochs never replay old asides; consumers keep an epoch check plus
+   * a sequence watermark exactly like transient effects.
+   */
+  subscribeNarrativeAsides(listener: (aside: NarrativeAsideV1) => void): () => void;
+  /**
    * The latest commit's presentation edge context (cue-identity proposal,
    * accepted 2026-08-17): scene cue dispatches projected from that commit's
    * events, stamped with exactly its semantic publication revision and the
@@ -1729,13 +1753,49 @@ export async function createCoreGameApplicationInstanceV1<
       }
     }
 
+    // Commit-only narrative aside push: zero-authority dialogue pages
+    // derived from committed events (narrative-aside proposal). The Story
+    // projection is public input, so it is admitted once here; a failed or
+    // invalid projection drops the aside and the commit presents without
+    // it — the authoritative result is unaffected either way.
+    const asideListeners = new Set<(aside: NarrativeAsideV1) => void>();
+    let asideSequence = 0;
+    cleanups.push(() => asideListeners.clear());
+    function emitNarrativeAsideFromEventsV1(
+      events: readonly DeepReadonly<TTypes["event"]>[],
+    ): void {
+      const project = definition.semantic.projectNarrativeAside;
+      if (project === undefined || disposed) return;
+      let pages: readonly NarrativeAsidePageV1[];
+      try {
+        pages = parseNarrativeAsidePagesV1(project(events));
+      } catch (error) {
+        reportObserverFailure(error);
+        return;
+      }
+      if (pages.length === 0) return;
+      asideSequence += 1;
+      const aside: NarrativeAsideV1 = Object.freeze({
+        asideSequence,
+        epoch: epoch as number,
+        pages,
+      });
+      for (const listener of [...asideListeners]) {
+        try {
+          listener(aside);
+        } catch (error) {
+          reportObserverFailure(error);
+        }
+      }
+    }
+
     function emitTransientEffectsV1(result: SessionDispatchResultOfV1<TTypes>): void {
       if (result.kind !== "executed" || result.execution.kind !== "committed") {
         return;
       }
-      emitTransientEffectsFromEventsV1(
-        result.execution.events as readonly DeepReadonly<TTypes["event"]>[],
-      );
+      const events = result.execution.events as readonly DeepReadonly<TTypes["event"]>[];
+      emitTransientEffectsFromEventsV1(events);
+      emitNarrativeAsideFromEventsV1(events);
     }
 
     // Presentation edge context: the Story projection is public input, so
@@ -2468,9 +2528,10 @@ export async function createCoreGameApplicationInstanceV1<
                 // Dispatch batches for committed debug commands are staged
                 // by `onAttempt` and stamped by the semantic-port
                 // subscriber, exactly like gameplay commits.
-                emitTransientEffectsFromEventsV1(
-                  result.attempt.result.events as readonly DeepReadonly<TTypes["event"]>[],
-                );
+                const committedEvents = result.attempt.result
+                  .events as readonly DeepReadonly<TTypes["event"]>[];
+                emitTransientEffectsFromEventsV1(committedEvents);
+                emitNarrativeAsideFromEventsV1(committedEvents);
               }
               return result;
             },
@@ -2516,6 +2577,10 @@ export async function createCoreGameApplicationInstanceV1<
       subscribeTransientEffects: (listener: (effect: TransientEffectV1) => void) => {
         effectListeners.add(listener);
         return () => effectListeners.delete(listener);
+      },
+      subscribeNarrativeAsides: (listener: (aside: NarrativeAsideV1) => void) => {
+        asideListeners.add(listener);
+        return () => asideListeners.delete(listener);
       },
       stageCueDispatches: () => latestStageCueDispatchBatchV1,
       bindToCurrentEpoch: <TArgs extends readonly unknown[], TValue>(
