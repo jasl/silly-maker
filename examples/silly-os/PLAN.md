@@ -3,12 +3,14 @@
 # SillyOS product-incubation plan
 
 Status: accepted Browser-first, dual-target product lane with validated P0,
-P1-B B0a/B0b implementations, and a dev-only Pi launch helper, 2026-08-27. B0b
-closed after its fixed direct OpenAI profile passed the same integrated journey
-in local and deployed-origin Chromium/WebKit. No later phase is active. The
-raw launcher is not the typed product RPC; the live Browser route is a separate
-product path. This plan is local to `examples/silly-os`; it does not activate an
-engine lane or change an engine API. The implementation baseline before P0 is commit
+P1-B B0a/B0b, and P2-B0 implementations plus a dev-only Pi launch helper,
+2026-08-27. P2-B0 closed after its product-owned IndexedDB Worker passed exact
+repository, refresh/reopen, credential-sentinel, and two-page currentness
+evidence in Chromium and WebKit. No later slice is automatically active; P1-D
+remains owner-paused and P2-B1/P3 remain inactive. The raw launcher is not the
+typed product RPC; the live Browser route is a separate product path. This plan
+is local to `examples/silly-os`; it does not activate an engine lane or change
+an engine API. The implementation baseline before P0 is commit
 `56ba8ef8ecf0a38243e92cba548f53c1c57c0b73`.
 
 ## Product invariant and execution rule
@@ -64,10 +66,12 @@ an exact P0 successor candidate for atomic publication. The ordinary initial
 graph still excludes Pi. B0b adds a second explicit query-gated route whose
 follow-ups use the same Pi Agent, tool, RPC, and product currentness with a fixed
 OpenAI Responses profile. That integrated route is qualified locally and from
-its deployed Cloudflare origin. The product still has no database,
-durable project, workspace runtime, WASM guest, provider selector, or generally
-active capability. Its initial proposal, Source, translation rows, remaining
-capability labels, and downloaded manifest remain explicit preview material.
+its deployed Cloudflare origin. P2-B0 now adds a bounded Browser-local Program
+database, durable exact Program revisions and decisions, and recent-Program
+reload/reopen. The product still has no persistent Pi session, workspace
+volume/runtime, WASM guest, provider selector, or generally active capability.
+Its initial proposal, Source, translation rows, remaining capability labels,
+and downloaded manifest remain explicit preview material.
 
 The first contract gap was smaller than those integrations: the design said
 accept/reject targets an exact proposal revision, but the baseline proposal had
@@ -510,10 +514,14 @@ P1-D does not expose Pi RPC types, paths, provider records, extension UI, or
 session files to React. It does not enable Pi's read/bash/edit/write tools,
 user/project extension discovery, Pi Packages, or dynamic extension paths. Its
 integrated bootstrap/readiness/close claim waits for acceptance of the neutral
-Host candidate above. The companion preview can be validated on the maintained
-Deno 2.9.5 runtime; only Desktop HMR promotion waits for the separate stable
-2.9.6 gate. P1 does not adopt the experimental Pi protocol/client/server
-packages until a real coding-agent service and target-runtime evidence exist.
+Host candidate above. Individual companion contracts may still be characterized
+on the maintained Deno 2.9.5 runtime. That does not activate the Desktop product
+lane: by owner sequencing P1-D remains paused while Browser is the implementation
+priority and until Desktop work is resumed explicitly. Stable Deno 2.9.6 remains
+only the separate Desktop HMR promotion gate; it is not a prerequisite for
+companion contract work. P1 does not adopt the experimental Pi
+protocol/client/server packages until a real coding-agent service and
+target-runtime evidence exist.
 
 Provider integration stays inside Pi in both targets. SillyOS does not implement
 provider SDKs or translate provider streams itself. Browser calls a qualified
@@ -565,6 +573,106 @@ a substitute. Desktop may remove `--no-session`, assign an isolated Pi session
 directory/lifecycle to the Program, and store only its opaque reference plus
 product-side currentness. Product persistence can ship before both target Agent
 session adapters have parity, provided the UI reports the session limitation.
+
+#### P2-B0 — Browser durable Program catalog
+
+P2-B0 is the delivered first persistence implementation after B0b. It proves
+one useful Browser product path without pre-committing P3's
+workspace runtime or generalizing storage into an engine framework:
+
+```text
+React Creator
+  -> product-private ProgramRepositoryV1
+  -> admitted repository Worker RPC
+  -> Dedicated Program Repository Worker
+  -> sillymaker.example-silly-os.programs IndexedDB schema V1
+```
+
+The first repository owns only facts that already have a P0 consumer: a bounded
+Program catalog head, immutable admitted Program revisions, the exact current
+proposal pair and accepted/rejected decisions, and bounded product-visible
+messages and Activity. V1 admits at most 64 Programs per origin, 32 revisions,
+96 messages, and 96 Activity entries per Program, with a 512 KiB encoded
+aggregate ceiling and summary-only list results. Crossing a bound rejects the
+whole mutation. The visible messages are a product projection, not Pi's session
+format or a replacement for Pi history/compaction. Browser reload still starts
+a fresh Pi session and requires fresh credential setup.
+
+The Browser adapter owns its database connection, exact schema/version
+admission, transactions, and lifecycle inside one Dedicated Worker. React and
+the Agent Worker receive no `IDBDatabase`, object-store handle, or raw stored
+row. The repository wire is product-private and exposes only `initialize`,
+`list`, `load`, `create`, `applyRevision`, `decide`, and `dispose`. It is not a
+general CRUD, SQL, migration, or cross-product storage protocol. The existing
+Web Host record store is implementation evidence, but its closed
+`save | lease | settings` ownership is not used as a Program namespace and no
+private engine source is imported.
+
+Every mutation carries the expected repository revision and the applicable P0
+proposal/base-Program currentness. The Worker rereads and checks those values
+inside one `readwrite` transaction. A successor revision is appended without
+rewriting earlier logical revisions; its catalog head, messages, and Activity
+commit atomically. Decision history is exact and append-only. The page treats
+only the transaction `complete` receipt as success, then publishes the new
+product snapshot. Abort, quota, stale, corrupt-schema, blocked-upgrade, or
+unavailable failures proven before commit retain the previous durable and
+visible Program; there is no optimistic success followed by rollback and no
+silent in-memory fallback. If the Worker or transport disappears after commit
+could have completed but before its receipt arrives, the result is
+`outcome_unknown`: the controller reloads and reconciles the exact durable head
+before it reports success or offers a retry. It never blindly repeats that
+mutation.
+
+The first user-visible surface is deliberately small. Creator Home loads a
+recent-Programs list with name, kind, current revision, and proposal status.
+Creating a Program, applying a deterministic or Pi successor, and deciding a
+proposal show success only after commit. Returning Home does not delete the
+Program. Reloading the origin and opening a recent Program restores the exact
+durable revision, proposal status, messages, and Activity while requiring a
+fresh Browser Pi setup. Repository-unavailable and write-failure states are
+explicit and retryable.
+
+P2-B0 acceptance is:
+
+- one product repository conformance covers create/list/load, immutable v1/v2
+  revisions, exact accepted/rejected decisions, idempotence, stale CAS, and
+  reopen;
+- schema/open failure, corrupt rows, transaction abort/quota, Worker disposal,
+  post-commit lost receipts, and two-client conflicts never expose a partial
+  successor or trigger a blind replay;
+- focused Creator tests prove commit-before-publication, unchanged state on
+  repository failure, and retry of a Pi candidate whose first commit failed;
+- Chromium and WebKit prove create -> Home -> reload -> reopen, decision
+  continuity, v2 follow-up continuity, and cross-page stale rejection;
+- the existing B0a/B0b credential sentinel scans every durable store and still
+  finds no key; and
+- the ordinary initial graph contains the Program repository Worker but still
+  excludes Pi, provider, OPFS, workspace runtime, and Wasm assets.
+
+P2-B0 does not yet close all of P2. P1 terminal Agent-run receipts remain P2-B1
+because the current Agent facade needs one bounded product receipt identity and
+terminal projection before failure/cancel/replacement can be stored without
+copying Pi lifecycle state. P2-B0 also excludes credential/profile persistence,
+a general Provider UI, Pi session references, attachments, OPFS, workspace
+identity, filesystem bytes, artifacts, snapshots, tool receipts, export/import,
+quota dashboards, `navigator.storage.persist()` policy, SQLite, and Desktop
+parity. Those remain separate slices with real consumers and target evidence.
+In particular, P2-B0 does not rename its Program catalog a workspace volume or
+pull P3 forward.
+
+P2-B0 closed on 2026-08-27. One shared memory/IndexedDB conformance proves exact
+create/revision/decision replay, immutable revision history, CAS, reopen,
+schema/version admission, bounded capacity, quota/abort behavior, and detached
+results. Typed Worker tests prove that a lost post-commit response becomes
+`outcome_unknown` and that an invalid matching response terminates the transport
+without hanging replacement. Focused product tests prove commit-before-visible
+publication and exact retry/reconcile behavior. The complete SillyOS suite
+passed 56 tests, and the eight-product-journey matrix passed all 16 Chromium and
+WebKit cases, including accepted v1 reload/reopen, Pi-test v2 reload with fresh
+credential setup, credential sentinel scanning, and two-page stale rejection.
+The Browser build emits the Program repository as its own Worker asset while the
+ordinary initial graph continues to exclude Pi/provider code. These results do
+not activate P2-B1, P3, Desktop persistence, or any engine work.
 
 ### P3a — Pi tool forwarding into one workspace runtime
 

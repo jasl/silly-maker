@@ -68,7 +68,9 @@ function decisionActivityV1(
   };
 }
 
-function initialSnapshotV1(source: CreatorPreviewPortV1["source"]): CreatorSessionSnapshotV1 {
+export function createEmptyCreatorSessionSnapshotV1(
+  source: CreatorPreviewPortV1["source"],
+): CreatorSessionSnapshotV1 {
   return {
     revision: 0,
     source,
@@ -87,10 +89,15 @@ function initialSnapshotV1(source: CreatorPreviewPortV1["source"]): CreatorSessi
  */
 export function createCreatorSessionV1(input: {
   readonly creator: CreatorPreviewPortV1;
+  readonly initialSnapshot?: CreatorSessionSnapshotV1;
+  readonly createWorkspaceId?: () => string;
 }): CreatorSessionV1 {
   const listeners = new Set<() => void>();
   let nextWorkspaceOrdinal = 0;
-  let snapshot = initialSnapshotV1(input.creator.source);
+  let snapshot = input.initialSnapshot ?? createEmptyCreatorSessionSnapshotV1(input.creator.source);
+  if (snapshot.source !== input.creator.source) {
+    throw new TypeError("sillyos.creator_session.source_mismatch");
+  }
 
   const publish = (
     next: Omit<CreatorSessionSnapshotV1, "revision" | "source">,
@@ -233,7 +240,8 @@ export function createCreatorSessionV1(input: {
       }
 
       nextWorkspaceOrdinal += 1;
-      const workspaceId = `workspace.preview.${String(nextWorkspaceOrdinal)}`;
+      const workspaceId = input.createWorkspaceId?.() ??
+        `workspace.preview.${String(nextWorkspaceOrdinal)}`;
       const preview = input.creator.create({ intent, workspaceId });
       const chinese = /[\u3400-\u9fff]/u.test(intent);
       publish({

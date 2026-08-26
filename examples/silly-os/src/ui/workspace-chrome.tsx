@@ -11,11 +11,13 @@ export type WorkspaceMobilePaneV1 = "chat" | "preview" | "activity";
 export function ProgramWorkspaceTopbarV1({
   copy,
   workspaceTitle,
+  homeDisabled = false,
   onHome,
   onLocaleChange,
 }: {
   readonly copy: SillyOsCopyV1;
   readonly workspaceTitle: string;
+  readonly homeDisabled?: boolean;
   readonly onHome: () => void;
   readonly onLocaleChange: (locale: SillyOsLocaleV1) => void;
 }): ReactNode {
@@ -28,6 +30,7 @@ export function ProgramWorkspaceTopbarV1({
           size="sm"
           icon={ArrowLeft}
           aria-label={copy.home}
+          disabled={homeDisabled}
           onClick={onHome}
         />
         <SillyOsBrandV1 copy={copy} />

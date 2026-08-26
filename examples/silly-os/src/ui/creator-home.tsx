@@ -3,6 +3,7 @@ import {
   ArrowRight,
   Drama,
   FileText,
+  FolderOpen,
   KeyRound,
   Languages,
   Paperclip,
@@ -13,6 +14,7 @@ import { type FormEvent, type ReactNode, useRef, useState } from "react";
 
 import type { BrowserPiWorkerRuntimeV1 } from "../agent/browser-pi-worker-protocol.ts";
 import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../content/copy.ts";
+import type { PreviewProgramKindV1, ProgramProposalStatusV1 } from "../product/contracts.ts";
 import { SillyButtonV1 as Button } from "./controls.tsx";
 import { LocaleSwitchV1, SillyOsBrandV1 } from "./product-chrome.tsx";
 
@@ -23,6 +25,18 @@ export interface CreatorHomePropsV1 {
   readonly onCreate: (intent: string, resourceNames: readonly string[]) => void;
   readonly onLocaleChange: (locale: SillyOsLocaleV1) => void;
   readonly createDisabled?: boolean;
+  readonly programCatalog?: {
+    readonly status: "loading" | "ready" | "failed";
+    readonly programs: readonly {
+      readonly programId: string;
+      readonly name: string;
+      readonly kind: PreviewProgramKindV1;
+      readonly programRevision: number;
+      readonly proposalStatus: ProgramProposalStatusV1;
+    }[];
+    readonly openDisabled: boolean;
+    readonly onOpen: (programId: string) => void;
+  };
   readonly piAgentSetup?: {
     readonly runtime: BrowserPiWorkerRuntimeV1;
     readonly status: "loading" | "available" | "initializing" | "ready" | "failed";
@@ -36,6 +50,7 @@ export function CreatorHomeV1({
   onLocaleChange,
   createDisabled = false,
   piAgentSetup,
+  programCatalog,
 }: CreatorHomePropsV1): ReactNode {
   const [intent, setIntent] = useState("");
   const [resourceNames, setResourceNames] = useState<readonly string[]>([]);
@@ -50,8 +65,24 @@ export function CreatorHomeV1({
   const agentReady = liveAgent ? copy.piLiveReady : copy.piTestReady;
   const agentFailed = liveAgent ? copy.piLiveFailed : copy.piTestFailed;
 
+  const programKindLabelV1 = (kind: PreviewProgramKindV1): string => {
+    switch (kind) {
+      case "translation":
+        return copy.programKindTranslation;
+      case "writing":
+        return copy.programKindWriting;
+      case "roleplay":
+        return copy.programKindRoleplay;
+      case "general":
+        return copy.programKindGeneral;
+    }
+    const exhaustive: never = kind;
+    return exhaustive;
+  };
+
   const submitV1 = (event?: FormEvent): void => {
     event?.preventDefault();
+    if (createDisabled) return;
     const normalized = intent.trim();
     if (normalized.length === 0) return;
     onCreate(normalized, resourceNames);
@@ -195,6 +226,62 @@ export function CreatorHomeV1({
             </div>
           </form>
         </section>
+
+        {programCatalog !== undefined && (
+          <section
+            className="creator-home__recent"
+            aria-labelledby="recent-programs-title"
+            data-program-catalog-state={programCatalog.status}
+          >
+            <div className="creator-home__section-heading">
+              <h2 id="recent-programs-title">{copy.recentProgramsLabel}</h2>
+              <span>{copy.browserLocal}</span>
+            </div>
+            {programCatalog.status === "loading"
+              ? <p className="creator-home__catalog-state" role="status">{copy.programsLoading}</p>
+              : programCatalog.status === "failed"
+              ? (
+                <p className="creator-home__catalog-state is-failed" role="alert">
+                  {copy.programsUnavailable}
+                </p>
+              )
+              : programCatalog.programs.length === 0
+              ? <p className="creator-home__catalog-state">{copy.recentProgramsEmpty}</p>
+              : (
+                <div className="creator-home__program-grid">
+                  {programCatalog.programs.map((program) => (
+                    <button
+                      type="button"
+                      className="creator-home__program"
+                      key={program.programId}
+                      data-program-id={program.programId}
+                      aria-label={`${copy.openProgram}: ${program.name}`}
+                      disabled={programCatalog.openDisabled}
+                      onClick={() => programCatalog.onOpen(program.programId)}
+                    >
+                      <span className="creator-home__program-icon" aria-hidden="true">
+                        <FolderOpen size={17} />
+                      </span>
+                      <span className="creator-home__program-main">
+                        <strong>{program.name}</strong>
+                        <small>{programKindLabelV1(program.kind)}</small>
+                      </span>
+                      <span className="creator-home__program-meta">
+                        {`v${String(program.programRevision)} · ${
+                          program.proposalStatus === "pending"
+                            ? copy.preview
+                            : program.proposalStatus === "accepted"
+                            ? copy.accepted
+                            : copy.rejected
+                        }`}
+                      </span>
+                      <ArrowRight size={16} aria-hidden="true" />
+                    </button>
+                  ))}
+                </div>
+              )}
+          </section>
+        )}
 
         <section className="creator-home__ideas" aria-labelledby="starter-ideas-title">
           <div className="creator-home__section-heading">

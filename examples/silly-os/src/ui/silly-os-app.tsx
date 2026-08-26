@@ -1,16 +1,20 @@
 // SPDX-License-Identifier: MIT
+import { LoaderCircle, RotateCcw, TriangleAlert } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import type { BrowserPiWorkerRuntimeV1 } from "../agent/browser-pi-worker-protocol.ts";
 import { getSillyOsCopyV1, resolveSillyOsCopyV1, type SillyOsLocaleV1 } from "../content/copy.ts";
 import type { CreatorAgentSubmitV1 } from "../product/contracts.ts";
-import { createCreatorSessionV1 } from "../product/creator-session.ts";
-import { createDeterministicFakeCreatorV1 } from "../product/fake-creator.ts";
+import type {
+  CreatorControllerV1,
+  CreatorDurabilityStateV1,
+} from "../product/creator-controller.ts";
 import { CreatorHomeV1 } from "./creator-home.tsx";
 import { ProgramWorkspaceV1 } from "./program-workspace.tsx";
 import "./silly-os.css";
 
 export interface SillyOsAppPropsV1 {
+  readonly controller: CreatorControllerV1;
   readonly reportFailure: (code: string, error: unknown) => void;
 }
 
@@ -52,10 +56,13 @@ function piAgentRunStatusV1(
   return exhaustive;
 }
 
-export function SillyOsAppV1({ reportFailure }: SillyOsAppPropsV1): ReactNode {
-  const [session] = useState(() =>
-    createCreatorSessionV1({ creator: createDeterministicFakeCreatorV1() })
-  );
+function storageOperationV1(
+  durability: CreatorDurabilityStateV1,
+): string | undefined {
+  return "operation" in durability ? durability.operation : undefined;
+}
+
+export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): ReactNode {
   const initialCopy = resolveSillyOsCopyV1();
   const [locale, setLocale] = useState<SillyOsLocaleV1>(initialCopy.locale);
   const [piRuntime] = useState(requestedBrowserPiRuntimeV1);
@@ -68,13 +75,19 @@ export function SillyOsAppV1({ reportFailure }: SillyOsAppPropsV1): ReactNode {
   >(null);
   const agentPortRef = useRef<BrowserCreatorAgentPortV1 | null>(null);
   const agentSetupEpochRef = useRef(0);
-  const consumedRunIdRef = useRef<string | null>(null);
-  const snapshot = useSyncExternalStore(
-    session.subscribe,
-    session.getSnapshot,
-    session.getSnapshot,
+  const claimedRunIdRef = useRef<string | null>(null);
+  const controllerSnapshot = useSyncExternalStore(
+    controller.subscribe,
+    controller.getSnapshot,
+    controller.getSnapshot,
   );
+  const snapshot = controllerSnapshot.session;
+  const durability = controllerSnapshot.durability;
   const copy = getSillyOsCopyV1(locale);
+
+  useEffect(() => {
+    void controller.initialize();
+  }, [controller]);
 
   useEffect(() => {
     if (!piAgentRequested) return undefined;
@@ -111,17 +124,19 @@ export function SillyOsAppV1({ reportFailure }: SillyOsAppPropsV1): ReactNode {
     const current = agentSnapshot;
     if (
       current?.phase !== "completed" || current.activeRunId === null ||
-      current.candidate === null || consumedRunIdRef.current === current.activeRunId
+      current.candidate === null || claimedRunIdRef.current === current.activeRunId
     ) return;
-    consumedRunIdRef.current = current.activeRunId;
-    const result = session.applyProgramRevisionCandidate({
+    const operation = controller.applyProgramRevisionCandidate({
       candidate: current.candidate,
       finalAssistantReply: current.draft,
     });
-    if (result.kind !== "applied") {
-      reportFailure("silly_os.browser_pi_candidate_rejected", result);
-    }
-  }, [agentSnapshot, reportFailure, session]);
+    claimedRunIdRef.current = current.activeRunId;
+    void operation.then((result) => {
+      if (result.kind !== "completed" || result.value.kind !== "applied") {
+        reportFailure("silly_os.browser_pi_candidate_rejected", result);
+      }
+    });
+  }, [agentSnapshot, controller, reportFailure]);
 
   useEffect(() => {
     return () => {
@@ -162,7 +177,7 @@ export function SillyOsAppV1({ reportFailure }: SillyOsAppPropsV1): ReactNode {
     const predecessor = agentPortRef.current;
     agentPortRef.current = port;
     setAgentPort(port);
-    consumedRunIdRef.current = null;
+    claimedRunIdRef.current = null;
     if (predecessor !== null) void predecessor.dispose();
     void port.initialize().then((result) => {
       if (agentSetupEpochRef.current !== epoch || agentPortRef.current !== port) return;
@@ -181,20 +196,20 @@ export function SillyOsAppV1({ reportFailure }: SillyOsAppPropsV1): ReactNode {
     agentPortRef.current = null;
     setAgentPort(null);
     setAgentSnapshot(null);
-    consumedRunIdRef.current = null;
+    claimedRunIdRef.current = null;
     setPiAgentSetupStatus(agentFactoryRef.current === null ? "loading" : "available");
     if (current !== null) void current.forget();
   };
 
   const sendFollowUpV1 = async (text: string): Promise<boolean> => {
     if (!piAgentRequested) {
-      const result = session.sendFollowUp(text);
-      if (result.kind === "sent") return true;
+      const result = await controller.sendFollowUp(text);
+      if (result.kind === "completed" && result.value.kind === "sent") return true;
       reportFailure("silly_os.follow_up_rejected", result);
       return false;
     }
     const port = agentPortRef.current;
-    const current = session.getSnapshot();
+    const current = controller.getSnapshot().session;
     const proposal = current.proposal;
     const program = current.program;
     if (
@@ -218,12 +233,36 @@ export function SillyOsAppV1({ reportFailure }: SillyOsAppPropsV1): ReactNode {
   };
 
   return (
-    <div className="silly-os" lang={locale} data-locale={locale}>
+    <div
+      className="silly-os"
+      lang={locale}
+      data-locale={locale}
+      data-program-storage-state={durability.phase}
+      data-program-storage-operation={storageOperationV1(durability)}
+    >
       {snapshot.route === "home"
         ? (
           <CreatorHomeV1
             copy={copy}
-            createDisabled={piAgentRequested && piAgentSetupStatus !== "ready"}
+            createDisabled={durability.phase !== "ready" ||
+              (piAgentRequested && piAgentSetupStatus !== "ready")}
+            programCatalog={{
+              status: durability.phase === "loading" && durability.operation === "catalog"
+                ? "loading"
+                : durability.phase === "failed" && durability.operation === "catalog"
+                ? "failed"
+                : "ready",
+              programs: controllerSnapshot.recentPrograms,
+              openDisabled: durability.phase !== "ready" ||
+                (piAgentRequested && piAgentSetupStatus !== "ready"),
+              onOpen: (programId) => {
+                void controller.openProgram(programId).then((result) => {
+                  if (result.kind !== "completed") {
+                    reportFailure("silly_os.program_open_failed", result);
+                  }
+                });
+              },
+            }}
             onLocaleChange={changeLocaleV1}
             {...(piAgentRequested && piRuntime !== null
               ? {
@@ -235,12 +274,12 @@ export function SillyOsAppV1({ reportFailure }: SillyOsAppPropsV1): ReactNode {
               }
               : {})}
             onCreate={(intent, resourceNames) => {
-              const result = session.submitIntent(intent);
-              if (result.kind !== "created") {
-                reportFailure("silly_os.creator_intent_rejected", result.reason);
-                return;
-              }
-              if (resourceNames.length > 0) {
+              void controller.submitIntent(intent).then(async (result) => {
+                if (result.kind !== "completed" || result.value.kind !== "created") {
+                  reportFailure("silly_os.creator_intent_rejected", result);
+                  return;
+                }
+                if (resourceNames.length === 0) return;
                 const resourceSummary = locale === "zh-CN"
                   ? `已添加这些附件名称：${
                     resourceNames.join("、")
@@ -248,8 +287,8 @@ export function SillyOsAppV1({ reportFailure }: SillyOsAppPropsV1): ReactNode {
                   : `Added these attachment names: ${
                     resourceNames.join(", ")
                   }. File contents were not sent to an Agent Host.`;
-                void sendFollowUpV1(resourceSummary);
-              }
+                await sendFollowUpV1(resourceSummary);
+              });
             }}
           />
         )
@@ -258,7 +297,8 @@ export function SillyOsAppV1({ reportFailure }: SillyOsAppPropsV1): ReactNode {
             key={snapshot.workspace?.workspaceId}
             copy={copy}
             snapshot={snapshot}
-            onHome={() => session.openHome()}
+            mutationPending={durability.phase === "saving" || durability.phase === "reconciling"}
+            onHome={() => controller.openHome()}
             onLocaleChange={changeLocaleV1}
             onAccept={() => {
               const proposal = snapshot.proposal;
@@ -266,15 +306,14 @@ export function SillyOsAppV1({ reportFailure }: SillyOsAppPropsV1): ReactNode {
                 reportFailure("silly_os.proposal_unavailable", proposal);
                 return;
               }
-              const result = session.acceptProposal(proposal);
-              if (result.kind === "unavailable" || result.kind === "stale") {
-                reportFailure(
-                  result.kind === "stale"
-                    ? "silly_os.proposal_stale"
-                    : "silly_os.proposal_unavailable",
-                  result,
-                );
-              }
+              void controller.acceptProposal(proposal).then((result) => {
+                if (
+                  result.kind !== "completed" ||
+                  result.value.kind === "unavailable" || result.value.kind === "stale"
+                ) {
+                  reportFailure("silly_os.proposal_accept_failed", result);
+                }
+              });
             }}
             onReject={() => {
               const proposal = snapshot.proposal;
@@ -282,15 +321,14 @@ export function SillyOsAppV1({ reportFailure }: SillyOsAppPropsV1): ReactNode {
                 reportFailure("silly_os.proposal_unavailable", proposal);
                 return;
               }
-              const result = session.rejectProposal(proposal);
-              if (result.kind === "unavailable" || result.kind === "stale") {
-                reportFailure(
-                  result.kind === "stale"
-                    ? "silly_os.proposal_stale"
-                    : "silly_os.proposal_unavailable",
-                  result,
-                );
-              }
+              void controller.rejectProposal(proposal).then((result) => {
+                if (
+                  result.kind !== "completed" ||
+                  result.value.kind === "unavailable" || result.value.kind === "stale"
+                ) {
+                  reportFailure("silly_os.proposal_reject_failed", result);
+                }
+              });
             }}
             onSend={sendFollowUpV1}
             {...(agentSnapshot === null ? {} : {
@@ -313,6 +351,36 @@ export function SillyOsAppV1({ reportFailure }: SillyOsAppPropsV1): ReactNode {
             })}
           />
         )}
+      {(durability.phase === "saving" || durability.phase === "reconciling" ||
+        durability.phase === "failed") && (
+        <aside
+          className={`program-storage-status is-${durability.phase}`}
+          role={durability.phase === "failed" ? "alert" : "status"}
+          aria-live="polite"
+        >
+          {durability.phase === "saving" || durability.phase === "reconciling"
+            ? <LoaderCircle className="is-spinning" size={16} aria-hidden="true" />
+            : <TriangleAlert size={16} aria-hidden="true" />}
+          <span>
+            {durability.phase === "saving"
+              ? copy.savingProgram
+              : durability.phase === "reconciling"
+              ? copy.persistenceOutcomeUnknown
+              : durability.code === "conflict"
+              ? copy.persistenceConflict
+              : copy.persistenceFailure}
+          </span>
+          {durability.phase === "failed" && durability.recovery !== null && (
+            <button
+              type="button"
+              onClick={() => void controller.retry()}
+            >
+              <RotateCcw size={14} aria-hidden="true" />
+              {copy.retry}
+            </button>
+          )}
+        </aside>
+      )}
     </div>
   );
 }

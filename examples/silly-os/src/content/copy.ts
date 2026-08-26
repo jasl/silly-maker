@@ -14,6 +14,21 @@ export interface SillyOsCopyV1 {
   readonly create: string;
   readonly addResource: string;
   readonly examplesLabel: string;
+  readonly recentProgramsLabel: string;
+  readonly browserLocal: string;
+  readonly recentProgramsEmpty: string;
+  readonly programsLoading: string;
+  readonly programsUnavailable: string;
+  readonly openProgram: string;
+  readonly savingProgram: string;
+  readonly retry: string;
+  readonly persistenceFailure: string;
+  readonly persistenceConflict: string;
+  readonly persistenceOutcomeUnknown: string;
+  readonly programKindTranslation: string;
+  readonly programKindWriting: string;
+  readonly programKindRoleplay: string;
+  readonly programKindGeneral: string;
   readonly home: string;
   readonly chat: string;
   readonly previewTab: string;
@@ -71,6 +86,21 @@ const englishV1: SillyOsCopyV1 = {
   create: "Create program",
   addResource: "Add resource",
   examplesLabel: "Try a starting point",
+  recentProgramsLabel: "Recent programs",
+  browserLocal: "Stored in this browser",
+  recentProgramsEmpty: "Programs you create here will appear in this browser.",
+  programsLoading: "Opening the local Program catalog…",
+  programsUnavailable: "The local Program catalog is unavailable.",
+  openProgram: "Open program",
+  savingProgram: "Saving Program…",
+  retry: "Retry",
+  persistenceFailure: "The Program was not saved. Your previous committed version is unchanged.",
+  persistenceConflict: "Another page updated this Program. The durable version has been reopened.",
+  persistenceOutcomeUnknown: "Checking whether the Program was committed…",
+  programKindTranslation: "Translation",
+  programKindWriting: "Writing",
+  programKindRoleplay: "Role-play",
+  programKindGeneral: "Creator tool",
   home: "Creator home",
   chat: "Chat",
   previewTab: "View",
@@ -134,6 +164,21 @@ const chineseV1: SillyOsCopyV1 = {
   create: "创建程序",
   addResource: "添加资料",
   examplesLabel: "从一个想法开始",
+  recentProgramsLabel: "最近的程序",
+  browserLocal: "保存在此浏览器中",
+  recentProgramsEmpty: "你在这里创建的程序会出现在此浏览器中。",
+  programsLoading: "正在打开本地 Program 目录……",
+  programsUnavailable: "本地 Program 目录当前不可用。",
+  openProgram: "打开程序",
+  savingProgram: "正在保存 Program……",
+  retry: "重试",
+  persistenceFailure: "Program 未保存；上一个已提交版本保持不变。",
+  persistenceConflict: "另一个页面已更新此 Program，已重新打开持久版本。",
+  persistenceOutcomeUnknown: "正在核对 Program 是否已经提交……",
+  programKindTranslation: "翻译",
+  programKindWriting: "写作",
+  programKindRoleplay: "角色扮演",
+  programKindGeneral: "创作工具",
   home: "Creator 首页",
   chat: "对话",
   previewTab: "界面",

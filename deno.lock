@@ -6770,6 +6770,7 @@
             "npm:@earendil-works/pi-coding-agent@0.84.3",
             "npm:@types/node@26.2.0",
             "npm:@types/react@19.2.18",
+            "npm:fake-indexeddb@6.2.5",
             "npm:lucide-react@^1.34.0",
             "npm:react-dom@19.2.8",
             "npm:react@19.2.8",

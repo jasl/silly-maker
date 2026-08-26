@@ -2,7 +2,8 @@
 
 # SillyOS product and visual contract
 
-Status: active Browser-first dual-target rewrite, 2026-08-27. The former
+Status: active Browser-first dual-target rewrite with the P2-B0 Browser Program
+catalog delivered, 2026-08-27. The former
 "SillyOS 98" desktop
 experiment has been retired as a product direction. It remains useful only as
 repository history; it is not a compatibility baseline for this rewrite.
@@ -138,9 +139,9 @@ It does **not** claim:
 
 - that the ordinary/B0a route makes a real model request, or that B0b's one
   fixed live follow-up profile proves general BYO Provider, workspace tool,
-  Wasm, network-service, or database readiness;
-- persistence across reload, project import/export, background execution,
-  generated-code execution, or arbitrary package installation;
+  Wasm, network-service, or workspace-runtime readiness;
+- Pi-session or workspace-file persistence, project import/export, background
+  execution, generated-code execution, or arbitrary package installation;
 - a public Mod, Agent, Program, Blueprint, or connection ABI;
 - production translation, writing, role-play, or OpenUI behavior;
 - that an accepted fake proposal has created a distributable application.
@@ -150,8 +151,9 @@ copy. The B0a route must separately identify its real Pi Agent plus
 deterministic provider and must not imply that the synthetic test value is a
 provider key. B0b must identify its live fixed OpenAI profile, model, memory-only
 key ownership, and still-limited qualification status.
-Fake events use the same product-owned session model as the UI, but they must
-not be wrapped in a pretend persistence layer or generic framework.
+Fake events use the same product-owned session model as the UI. P2-B0 persists
+that admitted product projection through the real Program repository; it does
+not rename the projection Pi history or wrap it in a generic storage framework.
 
 ## Product and engine ownership
 
@@ -186,13 +188,14 @@ change a real product behavior.
   provider/model and supply credentials without a UI. They remain companion
   configuration: no key, provider record, or environment snapshot enters React,
   bootstrap HTML, Program data, logs, or the product RPC wire.
-- The deployed Browser route instead accepts a user-supplied provider key or
-  compatible HTTPS endpoint through UI. The key necessarily enters the password
-  input, then transfers immediately to the Agent Worker and remains memory-only
-  by default. It never enters React state, URLs, logs, telemetry, Program data,
-  IndexedDB, OPFS, Cache API, exports, or downloads. Terminating the Worker is
-  the forget operation. This ownership split is not a defense against
-  same-origin script compromise or privileged browser extensions.
+- The deployed fixed Browser route accepts a user-supplied OpenAI key through
+  UI. A later qualified profile may additionally accept a compatible HTTPS
+  endpoint; that surface is not implemented yet. The key necessarily enters the
+  password input, then transfers immediately to the Agent Worker and remains
+  memory-only by default. It never enters React state, URLs, logs, telemetry,
+  Program data, IndexedDB, OPFS, Cache API, exports, or downloads. Terminating
+  the Worker is the forget operation. This ownership split is not a defense
+  against same-origin script compromise or privileged browser extensions.
 - Pi owns Agent session behavior and its native session data. SillyOS owns
   Program revisions, human decisions, product artifacts, and domain data, with
   only opaque Pi session/credential references crossing that boundary. Neither
@@ -271,8 +274,8 @@ origin is a data migration rather than an invisible upgrade.
 ### Creator home
 
 Home is a quiet starting surface, not a desktop or launcher. It contains the
-Creator prompt, concise examples of supported intent, and—once persistence
-exists—recent Programs. It must not display fake operating-system status,
+Creator prompt, concise examples of supported intent, and recent Programs from
+the Browser-local catalog. It must not display fake operating-system status,
 battery, Wi-Fi, clocks, taskbars, or decorative windows.
 
 Submitting a request creates or opens a Program work area. In the preview this

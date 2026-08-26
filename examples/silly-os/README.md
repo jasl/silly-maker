@@ -20,7 +20,9 @@ Cloudflare OS 风格的高质量 Agent 工作区：
 - 从 Creator Home 提交翻译、写作、角色扮演或通用创作意图；
 - 查看确定性的本地 Creator 回复和带明确版本的 Program proposal；
 - 在 Program workspace 中同时查看人类/Creator 对话、proposal、预览和 activity；
-- 接受或拒绝当前精确版本；补充要求会形成新的 `pending` 版本，旧版本决定会被完整拒绝。
+- 接受或拒绝当前精确版本；补充要求会形成新的 `pending` 版本，旧版本决定会被完整拒绝；
+- Program 会在事务提交后写入此浏览器的本地目录，返回 Home 或刷新页面后可以从“最近的
+  程序”重开同一修订、决定、消息和 Activity。
 
 另有一个只在 `?agent=pi-test` 出现的 B0a 验证入口：它会把产品 lockfile 固定的
 `pi-agent-core` / `pi-ai` 0.84.3 懒加载进 Dedicated Worker，通过 typed RPC 运行真实
@@ -35,16 +37,17 @@ Responses `gpt-4.1-nano`。真实 follow-up、工具候选、取消、v2 success
 Forget 已在本地及 Cloudflare 部署源的 Chromium/WebKit 完整通过。B0b 已关闭，但它仍
 不是通用 Provider 设置界面。
 
-当前产品仍没有数据库、workspace tool harness（包括任何 WASM payload）、持久化或通用
-外部服务配置。初始 proposal 仍由本地 deterministic preview 产生；接受 proposal 也不会
-生成或发布真实应用。这个边界会在界面中如实显示，不使用假网络层来伪装后端。
+当前产品已经有由 Dedicated Worker 持有的 Browser IndexedDB Program repository；它只
+保存有界的产品 Program 投影，不保存 API key、Pi session、附件内容或 workspace 文件。
+初始 proposal 仍由本地 deterministic preview 产生；接受 proposal 也不会生成或发布
+真实应用。这个边界会在界面中如实显示，不使用假网络层来伪装后端。
 
-已接受的下一条路线是 **Browser 优先、Desktop 并行保留**。Browser 将在 Dedicated
-Worker 中运行 Pi 的 `Agent`/`pi-ai`，逐个资格化通过 UI 接受用户自己的 provider API key 或明确
-协议的 HTTPS endpoint，并把 Pi 工具直接转发给拥有 OPFS 工作卷的 Workspace Host
-Worker。B0a 已闭合无真实 key 的 Pi/Worker/typed-RPC 接线；B0b 已完成固定 OpenAI
-profile 的本地及部署源资格化。Desktop 使用同一产品接口和能力核心，底层
-改由私有 companion 启动产品打包的 Pi coding-agent；Desktop live route 尚未实现。
+路线仍是 **Browser 优先、Desktop 保留**。P2-B0 已闭合事务提交后发布、最近 Program
+重开、双页面 stale currentness 和凭据不落盘。B0a 已闭合无真实 key 的
+Pi/Worker/typed-RPC 接线；B0b 已完成固定 OpenAI profile 的本地及部署源资格化。当前未
+自动激活下一切片；通用 Provider UI、Pi terminal receipt、工具转发和 workspace runtime
+会继续各自经过明确计划与验收。Desktop 底层仍计划由私有 companion 启动产品打包的 Pi
+coding-agent，但当前没有激活。
 
 详细的产品范围、Cloudflare OS 参考快照、语义映射、桌面/移动布局、键盘/IME、
 防截断和视觉验收矩阵见 [DESIGN.md](./DESIGN.md)。从真实 Pi typed RPC、产品数据库、

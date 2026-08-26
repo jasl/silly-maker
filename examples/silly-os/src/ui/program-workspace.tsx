@@ -56,6 +56,7 @@ export interface ProgramWorkspacePropsV1 {
   readonly onAccept: () => void;
   readonly onReject: () => void;
   readonly onSend: ChatPanePropsV1["onSend"];
+  readonly mutationPending?: boolean;
   readonly piAgentRun?: ChatPanePropsV1["piAgentRun"];
 }
 
@@ -84,6 +85,7 @@ function ProgramWorkspaceReadyV1({
   onAccept,
   onReject,
   onSend,
+  mutationPending = false,
   piAgentRun,
 }: ProgramWorkspaceReadyPropsV1): ReactNode {
   const narrow = useNarrowViewportV1();
@@ -169,12 +171,15 @@ function ProgramWorkspaceReadyV1({
       className="program-workspace"
       data-silly-os-view="workspace"
       data-workspace-layout={narrow ? "single-pane" : "dual-pane"}
+      data-program-id={program.programId}
+      data-program-revision={program.revision}
       aria-label={copy.workspaceAria}
       style={workspaceStyle}
     >
       <ProgramWorkspaceTopbarV1
         copy={copy}
         workspaceTitle={workspace.title}
+        homeDisabled={mutationPending}
         onHome={onHome}
         onLocaleChange={onLocaleChange}
       />
@@ -204,6 +209,7 @@ function ProgramWorkspaceReadyV1({
               if (narrow) setMobilePane("preview");
             }}
             onSend={onSend}
+            mutationPending={mutationPending}
             {...(piAgentRun === undefined ? {} : { piAgentRun })}
           />
         </div>

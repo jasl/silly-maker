@@ -31,6 +31,7 @@ export interface ChatPanePropsV1 {
   readonly onReject: () => void;
   readonly onOpenWorkpiece: () => void;
   readonly onSend: (text: string) => boolean | void | Promise<boolean | void>;
+  readonly mutationPending?: boolean;
   readonly piAgentRun?: {
     readonly runtime: BrowserPiWorkerRuntimeV1;
     readonly status:
@@ -57,6 +58,7 @@ export function ChatPaneV1({
   onReject,
   onOpenWorkpiece,
   onSend,
+  mutationPending = false,
   piAgentRun,
 }: ChatPanePropsV1): ReactNode {
   const [draft, setDraft] = useState("");
@@ -205,10 +207,22 @@ export function ChatPaneV1({
             {proposal.status === "pending"
               ? (
                 <div className="program-proposal__actions">
-                  <Button size="sm" variant="primary" icon={CircleCheck} onClick={onAccept}>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    icon={CircleCheck}
+                    disabled={mutationPending}
+                    onClick={onAccept}
+                  >
                     {copy.accept}
                   </Button>
-                  <Button size="sm" variant="secondary" icon={CircleX} onClick={onReject}>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon={CircleX}
+                    disabled={mutationPending}
+                    onClick={onReject}
+                  >
                     {copy.reject}
                   </Button>
                 </div>
@@ -256,6 +270,7 @@ export function ChatPaneV1({
           rows={3}
           maxLength={4_000}
           placeholder={copy.sendPlaceholder}
+          disabled={mutationPending}
           onChange={(event) => setDraft(event.currentTarget.value)}
           onKeyDown={(event) => {
             if (event.nativeEvent.isComposing) return;
@@ -293,6 +308,7 @@ export function ChatPaneV1({
             size="sm"
             icon={Paperclip}
             aria-label={copy.addResource}
+            disabled={mutationPending}
             onClick={() => resourceInputRef.current?.click()}
           />
           <Button
@@ -302,7 +318,7 @@ export function ChatPaneV1({
             size="sm"
             icon={ArrowUp}
             aria-label={copy.send}
-            disabled={draft.trim().length === 0}
+            disabled={mutationPending || draft.trim().length === 0}
           />
         </div>
       </form>
