@@ -1,5 +1,14 @@
 // SPDX-License-Identifier: MIT
-import { ArrowRight, Drama, FileText, Languages, Paperclip, PenTool, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  Drama,
+  FileText,
+  KeyRound,
+  Languages,
+  Paperclip,
+  PenTool,
+  Sparkles,
+} from "lucide-react";
 import { type FormEvent, type ReactNode, useRef, useState } from "react";
 
 import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../content/copy.ts";
@@ -12,16 +21,24 @@ export interface CreatorHomePropsV1 {
   readonly copy: SillyOsCopyV1;
   readonly onCreate: (intent: string, resourceNames: readonly string[]) => void;
   readonly onLocaleChange: (locale: SillyOsLocaleV1) => void;
+  readonly createDisabled?: boolean;
+  readonly piTestSetup?: {
+    readonly status: "loading" | "available" | "initializing" | "ready" | "failed";
+    readonly onInitialize: (syntheticKey: string) => void;
+  };
 }
 
 export function CreatorHomeV1({
   copy,
   onCreate,
   onLocaleChange,
+  createDisabled = false,
+  piTestSetup,
 }: CreatorHomePropsV1): ReactNode {
   const [intent, setIntent] = useState("");
   const [resourceNames, setResourceNames] = useState<readonly string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const piTestKeyRef = useRef<HTMLInputElement>(null);
 
   const submitV1 = (event?: FormEvent): void => {
     event?.preventDefault();
@@ -47,6 +64,66 @@ export function CreatorHomeV1({
           <p className="creator-home__kicker">{copy.creatorKicker}</p>
           <h1 id="creator-home-title">{copy.creatorTitle}</h1>
           <p className="creator-home__description">{copy.creatorDescription}</p>
+
+          {piTestSetup !== undefined && (
+            <form
+              className="pi-test-setup"
+              data-pi-test-status={piTestSetup.status}
+              onSubmit={(event) => {
+                event.preventDefault();
+                const input = piTestKeyRef.current;
+                if (input === null || input.value.length === 0) return;
+                let syntheticKey = input.value;
+                input.value = "";
+                piTestSetup.onInitialize(syntheticKey);
+                syntheticKey = "";
+              }}
+            >
+              <div className="pi-test-setup__heading">
+                <KeyRound size={16} aria-hidden="true" />
+                <strong>{copy.piTestTitle}</strong>
+                <span>
+                  {piTestSetup.status === "ready"
+                    ? copy.piTestReady
+                    : piTestSetup.status === "failed"
+                    ? copy.piTestFailed
+                    : piTestSetup.status === "initializing"
+                    ? copy.piTestInitializing
+                    : piTestSetup.status === "loading"
+                    ? copy.piTestLoading
+                    : copy.preview}
+                </span>
+              </div>
+              <p>{copy.piTestDescription}</p>
+              {piTestSetup.status !== "ready" && (
+                <div className="pi-test-setup__controls">
+                  <label htmlFor="pi-test-key">{copy.piTestKeyLabel}</label>
+                  <input
+                    id="pi-test-key"
+                    ref={piTestKeyRef}
+                    type="password"
+                    required
+                    autoComplete="off"
+                    spellCheck={false}
+                    placeholder={copy.piTestKeyPlaceholder}
+                    disabled={piTestSetup.status === "loading" ||
+                      piTestSetup.status === "initializing"}
+                  />
+                  <Button
+                    type="submit"
+                    size="sm"
+                    variant="secondary"
+                    disabled={piTestSetup.status === "loading" ||
+                      piTestSetup.status === "initializing"}
+                  >
+                    {piTestSetup.status === "initializing"
+                      ? copy.piTestInitializing
+                      : copy.piTestInitialize}
+                  </Button>
+                </div>
+              )}
+            </form>
+          )}
 
           <form className="creator-composer" onSubmit={submitV1}>
             <label className="silly-os-visually-hidden" htmlFor="creator-intent">
@@ -100,7 +177,7 @@ export function CreatorHomeV1({
                 type="submit"
                 variant="primary"
                 icon={ArrowRight}
-                disabled={intent.trim().length === 0}
+                disabled={createDisabled || intent.trim().length === 0}
               >
                 {copy.create}
               </Button>

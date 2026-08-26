@@ -34,6 +34,18 @@ export interface SillyOsCopyV1 {
   readonly workspaceAria: string;
   readonly resizeAria: string;
   readonly mobileNavigation: string;
+  readonly piTestTitle: string;
+  readonly piTestDescription: string;
+  readonly piTestKeyLabel: string;
+  readonly piTestKeyPlaceholder: string;
+  readonly piTestInitialize: string;
+  readonly piTestLoading: string;
+  readonly piTestInitializing: string;
+  readonly piTestReady: string;
+  readonly piTestFailed: string;
+  readonly piTestDraft: string;
+  readonly piTestCancel: string;
+  readonly piTestForget: string;
   readonly samplePrompts: readonly string[];
 }
 
@@ -71,6 +83,19 @@ const englishV1: SillyOsCopyV1 = {
   workspaceAria: "SillyOS program workspace",
   resizeAria: "Resize conversation and workpiece panes",
   mobileNavigation: "Workspace views",
+  piTestTitle: "Browser Pi wiring check",
+  piTestDescription:
+    "Runs the product-pinned Pi 0.84.3 Agent with a deterministic local provider. It does not contact an LLM or validate a real provider key.",
+  piTestKeyLabel: "Synthetic test key (memory only)",
+  piTestKeyPlaceholder: "Enter a disposable test value",
+  piTestInitialize: "Initialize Pi test",
+  piTestLoading: "Loading the Browser adapter…",
+  piTestInitializing: "Starting the Agent Worker…",
+  piTestReady: "Pi test ready",
+  piTestFailed: "Pi test unavailable",
+  piTestDraft: "Agent Creator draft",
+  piTestCancel: "Cancel run",
+  piTestForget: "Forget test key",
   samplePrompts: [
     "Translate a visual novel and keep each character’s voice consistent",
     "Turn my research notes into a chapter-by-chapter writing room",
@@ -112,6 +137,19 @@ const chineseV1: SillyOsCopyV1 = {
   workspaceAria: "SillyOS 程序工作区",
   resizeAria: "调整对话区和工作界面的宽度",
   mobileNavigation: "工作区视图",
+  piTestTitle: "浏览器 Pi 接线检查",
+  piTestDescription:
+    "使用产品固定的 Pi 0.84.3 Agent 和确定性本地 provider；不会连接 LLM，也不会校验真实 provider key。",
+  piTestKeyLabel: "合成测试 key（仅内存）",
+  piTestKeyPlaceholder: "输入可随时丢弃的测试值",
+  piTestInitialize: "初始化 Pi 测试",
+  piTestLoading: "正在加载 Browser 适配器……",
+  piTestInitializing: "正在启动 Agent Worker……",
+  piTestReady: "Pi 测试已就绪",
+  piTestFailed: "Pi 测试不可用",
+  piTestDraft: "Agent Creator 草稿",
+  piTestCancel: "取消运行",
+  piTestForget: "忘记测试 key",
   samplePrompts: [
     "翻译一部视觉小说，并保持每位角色的语言风格一致",
     "把我的调研笔记整理成可以逐章推进的写作工作室",

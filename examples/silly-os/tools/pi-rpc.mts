@@ -54,6 +54,19 @@ const spec = createPiRpcLaunchSpecV1({
   environment,
 });
 
+let artifactInfo: Deno.FileInfo;
+try {
+  artifactInfo = await Deno.lstat(spec.artifactPath);
+} catch (error) {
+  if (error instanceof Deno.errors.NotFound) {
+    failV1("sillyos.pi_rpc_startup.pinned_artifact_missing", 127);
+  }
+  failV1("sillyos.pi_rpc_startup.pinned_artifact_unavailable", 126);
+}
+if (!artifactInfo.isFile) {
+  failV1("sillyos.pi_rpc_startup.pinned_artifact_not_regular", 126);
+}
+
 if (parsed.dryRun) {
   console.log(JSON.stringify(summarizePiRpcLaunchV1(spec), null, 2));
   Deno.exit(0);
@@ -67,8 +80,8 @@ try {
 
 let child: Deno.ChildProcess;
 try {
-  child = new Deno.Command(spec.command, {
-    args: [...spec.arguments],
+  child = new Deno.Command(Deno.execPath(), {
+    args: ["run", "-A", "--node-modules-dir=auto", spec.artifactPath, ...spec.arguments],
     cwd: spec.directory,
     env: { ...spec.environment },
     clearEnv: true,
@@ -77,7 +90,7 @@ try {
     stderr: "inherit",
   }).spawn();
 } catch {
-  failV1("sillyos.pi_rpc_startup.command_unavailable", 127);
+  failV1("sillyos.pi_rpc_startup.pinned_artifact_launch_failed", 126);
 }
 
 const status = await child.status;

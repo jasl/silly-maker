@@ -1,19 +1,23 @@
 // SPDX-License-Identifier: MIT
 
-import type {
-  CreatorActivityV1,
-  CreatorFollowUpResultV1,
-  CreatorPreviewPortV1,
-  CreatorProposalDecisionResultV1,
-  CreatorSessionSnapshotV1,
-  CreatorSessionV1,
-  CreatorSubmitResultV1,
-  ProgramProposalReferenceV1,
-  ProgramProposalV1,
+import {
+  creatorAgentFinalReplyMaximumCharactersV1,
+  creatorAgentTextMaximumCharactersV1,
+  type CreatorActivityV1,
+  type CreatorFollowUpResultV1,
+  type CreatorPreviewPortV1,
+  type CreatorProgramRevisionApplyResultV1,
+  type CreatorProposalDecisionResultV1,
+  type CreatorSessionSnapshotV1,
+  type CreatorSessionV1,
+  type CreatorSubmitResultV1,
+  type ProgramProposalReferenceV1,
+  type ProgramProposalV1,
 } from "./contracts.ts";
+import { admitCreatorProgramRevisionCandidateV1 } from "./creator-agent-admission.ts";
 
 export const creatorIntentMaximumCharactersV1 = 4_000;
-export const creatorFollowUpMaximumCharactersV1 = 4_000;
+export const creatorFollowUpMaximumCharactersV1 = creatorAgentTextMaximumCharactersV1;
 
 function proposalReferenceV1(proposal: ProgramProposalV1): ProgramProposalReferenceV1 {
   return {
@@ -146,6 +150,75 @@ export function createCreatorSessionV1(input: {
     return { kind: "applied", status, proposal: current };
   };
 
+  const publishSuccessor = (successor: {
+    readonly workspace: NonNullable<CreatorSessionSnapshotV1["workspace"]>;
+    readonly proposal: ProgramProposalV1;
+    readonly program: NonNullable<CreatorSessionSnapshotV1["program"]>;
+    readonly text: string;
+    readonly requirement: string;
+    readonly creatorReply: string;
+  }): ProgramProposalReferenceV1 => {
+    const nextProgram = {
+      ...successor.program,
+      revision: successor.program.revision + 1,
+      requirements: [...successor.program.requirements, successor.requirement],
+    };
+    const firstMessageOrdinal = snapshot.messages.length + 1;
+    const nextActivitySequence = snapshot.activity.length + 1;
+    const chinese = /[\u3400-\u9fff]/u.test(`${successor.workspace.intent}${successor.text}`);
+    const nextProposal = {
+      proposalId: successor.proposal.proposalId,
+      programRevision: nextProgram.revision,
+    };
+    publish({
+      route: "workspace",
+      workspace: successor.workspace,
+      messages: [
+        ...snapshot.messages,
+        {
+          messageId: `${successor.workspace.workspaceId}.message.${String(firstMessageOrdinal)}`,
+          role: "user",
+          text: successor.text,
+        },
+        {
+          messageId: `${successor.workspace.workspaceId}.message.${
+            String(firstMessageOrdinal + 1)
+          }`,
+          role: "creator",
+          text: successor.creatorReply,
+        },
+      ],
+      proposal: { ...nextProposal, status: "pending" },
+      program: nextProgram,
+      activity: [
+        ...snapshot.activity,
+        {
+          activityId: `${successor.workspace.workspaceId}.activity.${
+            String(
+              nextActivitySequence,
+            )
+          }`,
+          sequence: nextActivitySequence,
+          kind: "follow_up_submitted",
+          summary: chinese ? "补充创作要求" : "Added a creator follow-up",
+        },
+        {
+          activityId: `${successor.workspace.workspaceId}.activity.${
+            String(
+              nextActivitySequence + 1,
+            )
+          }`,
+          sequence: nextActivitySequence + 1,
+          kind: "proposal_revised",
+          summary: chinese
+            ? `生成 Program 方案 v${String(nextProgram.revision)}`
+            : `Created Program proposal v${String(nextProgram.revision)}`,
+        },
+      ],
+    });
+    return nextProposal;
+  };
+
   return {
     getSnapshot: () => snapshot,
     subscribe(listener) {
@@ -213,56 +286,59 @@ export function createCreatorSessionV1(input: {
       }
 
       const creatorReply = input.creator.followUp({ workspace, program, text });
-      const nextProgram = {
-        ...program,
-        revision: program.revision + 1,
-        requirements: [...program.requirements, text],
-      };
-      const firstMessageOrdinal = snapshot.messages.length + 1;
-      const nextActivitySequence = snapshot.activity.length + 1;
-      publish({
-        route: "workspace",
+      const nextProposal = publishSuccessor({
         workspace,
-        messages: [
-          ...snapshot.messages,
-          {
-            messageId: `${workspace.workspaceId}.message.${String(firstMessageOrdinal)}`,
-            role: "user",
-            text,
-          },
-          {
-            messageId: `${workspace.workspaceId}.message.${String(firstMessageOrdinal + 1)}`,
-            role: "creator",
-            text: creatorReply,
-          },
-        ],
-        proposal: {
-          proposalId: proposal.proposalId,
-          programRevision: nextProgram.revision,
-          status: "pending",
-        },
-        program: nextProgram,
-        activity: [
-          ...snapshot.activity,
-          {
-            activityId: `${workspace.workspaceId}.activity.${String(nextActivitySequence)}`,
-            sequence: nextActivitySequence,
-            kind: "follow_up_submitted",
-            summary: /[\u3400-\u9fff]/u.test(`${workspace.intent}${text}`)
-              ? "补充创作要求"
-              : "Added a creator follow-up",
-          },
-          {
-            activityId: `${workspace.workspaceId}.activity.${String(nextActivitySequence + 1)}`,
-            sequence: nextActivitySequence + 1,
-            kind: "proposal_revised",
-            summary: /[\u3400-\u9fff]/u.test(`${workspace.intent}${text}`)
-              ? `生成 Program 方案 v${String(nextProgram.revision)}`
-              : `Created Program proposal v${String(nextProgram.revision)}`,
-          },
-        ],
+        proposal,
+        program,
+        text,
+        requirement: text,
+        creatorReply,
       });
-      return { kind: "sent", programRevision: nextProgram.revision };
+      return { kind: "sent", programRevision: nextProposal.programRevision };
+    },
+    applyProgramRevisionCandidate(callInput): CreatorProgramRevisionApplyResultV1 {
+      const workspace = snapshot.workspace;
+      const program = snapshot.program;
+      const proposal = snapshot.proposal;
+      if (workspace === null || program === null || proposal === null) {
+        return { kind: "unavailable" };
+      }
+      const admitted = admitCreatorProgramRevisionCandidateV1(callInput.candidate);
+      if (admitted.kind === "rejected") {
+        return { kind: "rejected", reason: "candidate_invalid" };
+      }
+      if (
+        typeof callInput.finalAssistantReply !== "string" ||
+        callInput.finalAssistantReply.trim().length === 0
+      ) {
+        return { kind: "rejected", reason: "assistant_reply_empty" };
+      }
+      if (callInput.finalAssistantReply.length > creatorAgentFinalReplyMaximumCharactersV1) {
+        return { kind: "rejected", reason: "assistant_reply_too_long" };
+      }
+      const candidate = admitted.value;
+      const current = {
+        proposalId: proposal.proposalId,
+        programId: program.programId,
+        baseProgramRevision: program.revision,
+      };
+      if (
+        candidate.proposalId !== current.proposalId ||
+        candidate.programId !== current.programId ||
+        candidate.baseProgramRevision !== current.baseProgramRevision ||
+        candidate.baseProgramRevision !== proposal.programRevision
+      ) {
+        return { kind: "stale", current };
+      }
+      const nextProposal = publishSuccessor({
+        workspace,
+        proposal,
+        program,
+        text: candidate.text,
+        requirement: candidate.requirement,
+        creatorReply: callInput.finalAssistantReply.trim(),
+      });
+      return { kind: "applied", proposal: nextProposal };
     },
     acceptProposal: (expected) => decide("accepted", expected),
     rejectProposal: (expected) => decide("rejected", expected),

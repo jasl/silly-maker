@@ -396,6 +396,69 @@ body,
   text-wrap: pretty;
 }
 
+.pi-test-setup {
+  inline-size: min(100%, 760px);
+  margin-block-end: 14px;
+  padding: 12px 14px;
+  border: 1px solid #cfd8f1;
+  border-radius: 12px;
+  color: var(--sos-ink-soft);
+  background: #f7f9ff;
+  text-align: start;
+}
+
+.pi-test-setup__heading {
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+  gap: 7px;
+}
+
+.pi-test-setup__heading svg {
+  flex: 0 0 auto;
+  color: var(--sos-accent-dark);
+}
+
+.pi-test-setup__heading strong {
+  color: var(--sos-ink);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.pi-test-setup__heading span {
+  margin-inline-start: auto;
+  color: var(--sos-accent-dark);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.pi-test-setup > p {
+  margin: 7px 0 10px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.pi-test-setup__controls {
+  display: grid;
+  grid-template-columns: auto minmax(140px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.pi-test-setup__controls label {
+  color: var(--sos-ink);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.pi-test-setup__controls input {
+  block-size: 32px;
+  padding-inline: 9px;
+  font-size: 12px;
+}
+
 .creator-composer {
   inline-size: min(100%, 760px);
   padding: 10px;
@@ -809,6 +872,66 @@ body,
   line-height: 1.62;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+.pi-test-run {
+  margin: 16px 0 0 38px;
+  padding: 10px 11px;
+  border: 1px solid #cfd8f1;
+  border-radius: 10px;
+  background: #f7f9ff;
+}
+
+.pi-test-run__heading {
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+  gap: 6px;
+}
+
+.pi-test-run__heading svg {
+  flex: 0 0 auto;
+  color: var(--sos-accent-dark);
+}
+
+.pi-test-run__heading strong {
+  color: var(--sos-ink);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.pi-test-run__heading span {
+  margin-inline-start: auto;
+  color: var(--sos-ink-muted);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.pi-test-run__draft {
+  margin: 8px 0 0;
+  color: var(--sos-ink-soft);
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.pi-test-run__actions {
+  display: flex;
+  margin-block-start: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pi-test-run .is-spinning {
+  animation: silly-os-spin 900ms linear infinite;
+}
+
+@keyframes silly-os-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .program-proposal {
@@ -1899,6 +2022,15 @@ body,
     border-radius: 15px;
   }
 
+  .pi-test-setup__controls {
+    grid-template-columns: 1fr;
+  }
+
+  .pi-test-setup__controls input,
+  .pi-test-setup__controls button {
+    min-block-size: 42px;
+  }
+
   .creator-composer textarea {
     min-block-size: 116px;
     padding: 12px;
@@ -1999,6 +2131,7 @@ body,
   }
 
   .program-proposal,
+  .pi-test-run,
   .workpiece-link {
     margin-inline-start: 0;
     inline-size: 100%;
@@ -2083,5 +2216,9 @@ body,
 @media (prefers-reduced-motion: reduce) {
   .creator-home__idea {
     transition: none;
+  }
+
+  .pi-test-run .is-spinning {
+    animation: none;
   }
 }

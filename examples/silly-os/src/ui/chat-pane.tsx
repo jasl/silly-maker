@@ -1,5 +1,15 @@
 // SPDX-License-Identifier: MIT
-import { ArrowUp, CircleCheck, CircleX, FileText, Paperclip, Sparkles } from "lucide-react";
+import {
+  ArrowUp,
+  CircleCheck,
+  CircleX,
+  FileText,
+  KeyRound,
+  LoaderCircle,
+  Paperclip,
+  Sparkles,
+  StopCircle,
+} from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 
 import type { SillyOsCopyV1 } from "../content/copy.ts";
@@ -19,7 +29,19 @@ export interface ChatPanePropsV1 {
   readonly onAccept: () => void;
   readonly onReject: () => void;
   readonly onOpenWorkpiece: () => void;
-  readonly onSend: (text: string) => void;
+  readonly onSend: (text: string) => boolean | void | Promise<boolean | void>;
+  readonly piTestRun?: {
+    readonly status:
+      | "connecting"
+      | "ready"
+      | "running"
+      | "completed"
+      | "failed"
+      | "disposed";
+    readonly draft: string;
+    readonly onCancel: () => void;
+    readonly onForget: () => void;
+  };
 }
 
 export function ChatPaneV1({
@@ -32,6 +54,7 @@ export function ChatPaneV1({
   onReject,
   onOpenWorkpiece,
   onSend,
+  piTestRun,
 }: ChatPanePropsV1): ReactNode {
   const [draft, setDraft] = useState("");
   const feedEndRef = useRef<HTMLDivElement>(null);
@@ -45,8 +68,10 @@ export function ChatPaneV1({
     event?.preventDefault();
     const text = draft.trim();
     if (text.length === 0) return;
-    onSend(text);
-    setDraft("");
+    void Promise.resolve(onSend(text)).then((accepted) => {
+      if (accepted === false) return;
+      setDraft((current) => current.trim() === text ? "" : current);
+    });
   };
 
   return (
@@ -86,6 +111,51 @@ export function ChatPaneV1({
             </div>
           </article>
         ))}
+
+        {piTestRun !== undefined && (
+          <aside className="pi-test-run" data-pi-test-run-status={piTestRun.status}>
+            <div className="pi-test-run__heading">
+              {piTestRun.status === "running"
+                ? <LoaderCircle className="is-spinning" size={15} aria-hidden="true" />
+                : <KeyRound size={15} aria-hidden="true" />}
+              <strong>{copy.piTestTitle}</strong>
+              <span role="status">
+                {piTestRun.status === "running"
+                  ? copy.piTestDraft
+                  : piTestRun.status === "failed" || piTestRun.status === "disposed"
+                  ? copy.piTestFailed
+                  : copy.piTestReady}
+              </span>
+            </div>
+            {piTestRun.status === "running" && piTestRun.draft.length > 0 && (
+              <p className="pi-test-run__draft" aria-live="polite">
+                {piTestRun.draft}
+              </p>
+            )}
+            <div className="pi-test-run__actions">
+              {piTestRun.status === "running" && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  icon={StopCircle}
+                  onClick={piTestRun.onCancel}
+                >
+                  {copy.piTestCancel}
+                </Button>
+              )}
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                icon={KeyRound}
+                onClick={piTestRun.onForget}
+              >
+                {copy.piTestForget}
+              </Button>
+            </div>
+          </aside>
+        )}
 
         {program !== null && proposal !== null && (
           <article className="program-proposal" data-proposal-status={proposal.status}>
@@ -191,7 +261,7 @@ export function ChatPaneV1({
             onChange={(event) => {
               const names = Array.from(event.currentTarget.files ?? [], (file) => file.name);
               if (names.length === 0) return;
-              onSend(
+              void Promise.resolve(onSend(
                 copy.locale === "zh-CN"
                   ? `为这个程序添加资料：${
                     names.join("、")
@@ -199,7 +269,7 @@ export function ChatPaneV1({
                   : `Add these resources to the program: ${
                     names.join(", ")
                   }. Only the attachment names are recorded; file contents are not imported yet.`,
-              );
+              ));
               event.currentTarget.value = "";
             }}
           />

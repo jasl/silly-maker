@@ -2,11 +2,12 @@
 
 # SillyOS product-incubation plan
 
-Status: accepted Browser-first, dual-target product lane with a validated P0
-implementation and a dev-only pre-P1 Pi launch helper, 2026-08-27. P1-B below
-is the next deliberately bounded product slice; no later phase is active. The
-helper is not a product RPC or live Creator integration. This plan is local to
-`examples/silly-os`; it does not activate an engine lane or change an engine
+Status: accepted Browser-first, dual-target product lane with validated P0 and
+P1-B B0a implementations plus a dev-only Pi launch helper, 2026-08-27. B0b is
+the next deliberately bounded slice, but it remains evidence-gated until the
+owner supplies a live provider key; no later phase is active. The raw launcher
+is not the typed product RPC or a live Creator integration. This plan is local
+to `examples/silly-os`; it does not activate an engine lane or change an engine
 API. The implementation baseline before P0 is commit
 `56ba8ef8ecf0a38243e92cba548f53c1c57c0b73`.
 
@@ -55,11 +56,15 @@ that an earlier phase did not produce. Product code may not import the ignored
 
 ## Current baseline and gaps
 
-The committed Creator Preview is a real responsive product shell backed by one
-deterministic in-memory producer. It has no network transport, model, Pi
-process, database, durable project, WASM guest, or active capability. Its
-Source, translation rows, capability labels, and downloaded manifest are
-explicit preview material.
+The committed P0 Creator Preview is a real responsive product shell backed by
+one deterministic in-memory initial producer. B0a now adds a query-gated,
+product-owned Browser Pi Worker behind a typed product facade: the real pinned
+Pi Agent runs a deterministic provider and one bounded AgentTool, then offers
+an exact P0 successor candidate for atomic publication. The ordinary initial
+graph still excludes Pi. The product still has no live model request, database,
+durable project, workspace runtime, WASM guest, or generally active capability.
+Its Source, translation rows, remaining capability labels, and downloaded
+manifest are explicit preview material.
 
 The first contract gap was smaller than those integrations: the design said
 accept/reject targets an exact proposal revision, but the baseline proposal had
@@ -72,19 +77,15 @@ it supplies an application-owned React tree and Host capabilities, while a
 product-owned Dedicated Worker can host Pi behind a typed MessagePort boundary
 without changing the engine.
 
-The audit did reproduce three neutral Host gaps for a later integrated Desktop
-claim: the maintained Deno Desktop shell cannot bootstrap or route to an
-application-private companion, a GUI application cannot delay required-domain
-readiness on an asynchronous external service, and native close preparation
-does not let a GUI application await its database or companion drain. Those
-findings were handed to the main engine task on 2026-08-26. Its uncommitted
-candidate independently passed the SillyOS contract review on 2026-08-27: it
-adds orthogonal async readiness, one product close participant, and an
-exact-target private companion while keeping default Browser/Desktop graphs
-free of the companion. The engine task still owns its cleanup and commit; this
-product change does not contain or activate it. The gaps do not block P1-B.
-Deno 2.9.6 is a separate Desktop HMR promotion gate, not a prerequisite for
-validating the 2.9.5 companion preview path.
+The audit reproduced three neutral Host gaps for a later integrated Desktop
+claim: application-private companion routing, async required-domain readiness,
+and awaited product close preparation. The main engine task delivered those
+general capabilities independently in commit
+`8038da10c2b4be7ae42d9ec1e3f6b65cee2db5c0`; the SillyOS review passed its
+focused contracts, Chromium/WebKit product path, full repository check, and the
+Deno 2.9.5 companion preview. This product branch neither contains nor consumes
+that engine commit in B0a. Deno 2.9.6 remains only the separate Desktop HMR
+promotion gate, not a prerequisite for the 2.9.5 companion preview path.
 
 ## Ownership decisions
 
@@ -197,8 +198,9 @@ Acceptance:
   accepted/rejected current revision, stale whole rejection, input bounds,
   observable publication, the Browser-facing follow-up to pending-successor
   journey, and return to Home;
-- the existing Browser/Deno build graph still contains no Pi, database, Agent,
-  composition-runtime, or WASM dependency;
+- at P0 closure, the Browser/Deno build graph contained no Pi, database, Agent,
+  composition-runtime, or WASM dependency; B0a later added Pi only to its
+  query-gated lazy Browser route;
 - visible copy continues to say deterministic/local and preview-only;
 - the package documentation describes both the delivered slice and every
   remaining defer without promoting the product.
@@ -300,6 +302,34 @@ P1-B is deliberately split at the credential boundary:
    from available-for-qualification to available. A missing key never causes a
    silent fallback to the deterministic preview.
 
+B0a closed on 2026-08-27. Exact `0.84.3` dependencies for
+`pi-agent-core`, `pi-ai`, and the separate Desktop/development
+`pi-coding-agent` artifact are product-manifest and root-lockfile inputs. The
+ordinary Creator entry dynamically imports only the product facade after the
+explicit `?agent=pi-test` request; that facade constructs the Agent Worker only
+after setup. The Worker reports the exact Browser distribution identity, owns
+the one-time synthetic credential, runs Pi's real `Agent` with its deterministic
+faux provider, registers only `sillyos_propose_program_revision`, and returns
+only admitted product records. The same exact candidate/currentness check backs
+both deterministic and Pi-produced P0 successors. Forget/dispose terminates the
+Worker; no fallback to a host Pi, private Mod Runtime, or separate Agent loop
+exists.
+
+B0a evidence is seven focused Browser Pi tests covering fixed distribution
+identity, exact admission, unavailable setup, real Pi tool execution,
+submit-before-stream ordering, contiguous sequencing, replacement,
+cancellation, current-run retention, and Worker teardown; the four focused
+SillyOS files pass 33 cases. The query-gated
+product journey passes in Chromium and WebKit and checks that its synthetic key
+does not appear in the input after transfer, URL, DOM, console, network, or
+browser durable-store projection. The production build emits Pi only in a lazy
+23.29 kB facade plus 195.85 kB Worker asset; the ordinary HTML preload graph
+contains neither, every asset is far below Cloudflare's 25 MiB limit, and no
+coding-agent or live provider implementation appears in the Browser output.
+Repository TypeScript, focused lint/style/format, lockfile, and diff gates pass.
+No real provider key was used, so B0b remains unavailable rather than silently
+falling back to this deterministic route.
+
 P1-B adds no workspace VFS, shell, Wasm payload, database, durable Pi session,
 provider relay, OAuth flow, general endpoint proxy, or OpenUI. Cloudflare owns
 only static application delivery in this slice. A single static asset must stay
@@ -338,6 +368,15 @@ For local development and testing, the product-private `pi:rpc` launcher accepts
 Pi's existing `--provider`, `--model`, and selected-provider `--api-key` surface,
 inherits process environment variables, and uses Deno's exact `--env-file`
 support plus the runtime's standard parser for a selected directory's `.env`.
+A Pi executable is not startup configuration: the launcher never searches host
+`PATH` and exposes no environment or argument override. It resolves only the
+exact `@earendil-works/pi-coding-agent@0.84.3` CLI artifact materialized by this
+product's lockfile-backed dependency installation, requires a local regular
+file, and runs it with the current Deno executable. A missing or malformed
+artifact fails before dry-run or launch. Desktop packaging must later copy that
+same fixed package closure into the product rather than consulting a host
+installation. Browser `pi-agent-core` / `pi-ai` dependencies are separately
+pinned and never consume the coding-agent CLI artifact.
 A raw key argument is an explicit
 developer convenience that may be visible in shell history or process
 inspection, and surrounding task runners may echo their received arguments. The

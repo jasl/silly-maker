@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-/** This phase is an in-browser product preview. It is not connected to Pi or another LLM. */
+/** Identifies the deterministic producer of the initial preview Program. */
 export type CreatorSourceV1 = "deterministic_fake_preview";
 
 export type CreatorSessionRouteV1 = "home" | "workspace";
 export type ProgramProposalStatusV1 = "pending" | "accepted" | "rejected";
 export type PreviewProgramKindV1 = "translation" | "writing" | "roleplay" | "general";
+
+export const creatorAgentTextMaximumCharactersV1 = 4_000;
+export const creatorAgentFinalReplyMaximumCharactersV1 = 8_192;
 
 export interface CreatorChatMessageV1 {
   readonly messageId: string;
@@ -40,6 +43,31 @@ export interface ProgramProposalReferenceV1 {
 
 export interface ProgramProposalV1 extends ProgramProposalReferenceV1 {
   readonly status: ProgramProposalStatusV1;
+}
+
+/** Product payload serialized into the engine Agent RPC submit text field. */
+export interface CreatorAgentSubmitV1 {
+  readonly revision: 1;
+  readonly proposalId: string;
+  readonly programId: string;
+  readonly baseProgramRevision: number;
+  readonly text: string;
+}
+
+/** Complete inert Agent result. Applying it still requires a current-session recheck. */
+export interface CreatorProgramRevisionCandidateV1 {
+  readonly revision: 1;
+  readonly proposalId: string;
+  readonly programId: string;
+  readonly baseProgramRevision: number;
+  readonly text: string;
+  readonly requirement: string;
+}
+
+export interface CreatorProgramRevisionBaseV1 {
+  readonly proposalId: string;
+  readonly programId: string;
+  readonly baseProgramRevision: number;
 }
 
 export type CreatorActivityKindV1 =
@@ -117,11 +145,27 @@ export type CreatorFollowUpResultV1 =
   | { readonly kind: "rejected"; readonly reason: "empty_message" | "message_too_long" }
   | { readonly kind: "unavailable" };
 
+export type CreatorProgramRevisionApplyResultV1 =
+  | { readonly kind: "applied"; readonly proposal: ProgramProposalReferenceV1 }
+  | { readonly kind: "stale"; readonly current: CreatorProgramRevisionBaseV1 }
+  | {
+    readonly kind: "rejected";
+    readonly reason:
+      | "candidate_invalid"
+      | "assistant_reply_empty"
+      | "assistant_reply_too_long";
+  }
+  | { readonly kind: "unavailable" };
+
 export interface CreatorSessionV1 {
   getSnapshot(): CreatorSessionSnapshotV1;
   subscribe(listener: () => void): () => void;
   submitIntent(intent: string): CreatorSubmitResultV1;
   sendFollowUp(text: string): CreatorFollowUpResultV1;
+  applyProgramRevisionCandidate(input: {
+    readonly candidate: CreatorProgramRevisionCandidateV1;
+    readonly finalAssistantReply: string;
+  }): CreatorProgramRevisionApplyResultV1;
   acceptProposal(expected: ProgramProposalReferenceV1): CreatorProposalDecisionResultV1;
   rejectProposal(expected: ProgramProposalReferenceV1): CreatorProposalDecisionResultV1;
   openHome(): boolean;

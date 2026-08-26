@@ -7,7 +7,12 @@ import {
   creatorFollowUpMaximumCharactersV1,
   creatorIntentMaximumCharactersV1,
 } from "../product/creator-session.ts";
-import type { CreatorSessionV1, ProgramProposalReferenceV1 } from "../product/contracts.ts";
+import {
+  creatorAgentFinalReplyMaximumCharactersV1,
+  type CreatorProgramRevisionCandidateV1,
+  type CreatorSessionV1,
+  type ProgramProposalReferenceV1,
+} from "../product/contracts.ts";
 import { createDeterministicFakeCreatorV1 } from "../product/fake-creator.ts";
 
 function createSessionV1() {
@@ -209,6 +214,139 @@ describe("SillyOS Creator preview session", () => {
     });
     expect(session.getSnapshot()).toBe(before);
     expect(followUp).not.toHaveBeenCalled();
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("atomically applies an exact external Program successor without calling the fake", () => {
+    const creator = createDeterministicFakeCreatorV1();
+    const followUp = vi.spyOn(creator, "followUp");
+    const session = createCreatorSessionV1({ creator });
+    session.submitIntent("Create a focused workspace.");
+    const firstProposal = currentProposalReferenceV1(session);
+    expect(session.acceptProposal(firstProposal).kind).toBe("applied");
+    const before = session.getSnapshot();
+    const listener = vi.fn();
+    session.subscribe(listener);
+    const program = before.program;
+    if (program === null) throw new Error("expected a current Program");
+
+    expect(
+      session.applyProgramRevisionCandidate({
+        candidate: {
+          revision: 1,
+          proposalId: firstProposal.proposalId,
+          programId: program.programId,
+          baseProgramRevision: 1,
+          text: "Make the review step more explicit.",
+          requirement: "Require an explicit human review checkpoint.",
+        },
+        finalAssistantReply: "  I prepared Program proposal v2 for review.  ",
+      }),
+    ).toEqual({
+      kind: "applied",
+      proposal: { proposalId: firstProposal.proposalId, programRevision: 2 },
+    });
+
+    const snapshot = session.getSnapshot();
+    expect(snapshot.revision).toBe(before.revision + 1);
+    expect(snapshot.proposal).toEqual({
+      proposalId: firstProposal.proposalId,
+      programRevision: 2,
+      status: "pending",
+    });
+    expect(snapshot.program).toMatchObject({
+      programId: program.programId,
+      revision: 2,
+      requirements: [
+        "Create a focused workspace.",
+        "Require an explicit human review checkpoint.",
+      ],
+    });
+    expect(snapshot.messages.slice(-2).map(({ text }) => text)).toEqual([
+      "Make the review step more explicit.",
+      "I prepared Program proposal v2 for review.",
+    ]);
+    expect(snapshot.activity.slice(-2).map(({ kind }) => kind)).toEqual([
+      "follow_up_submitted",
+      "proposal_revised",
+    ]);
+    expect(followUp).not.toHaveBeenCalled();
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects or stales an external candidate without partial publication", () => {
+    const unavailable = createSessionV1();
+    const unavailableCandidate: CreatorProgramRevisionCandidateV1 = {
+      revision: 1,
+      proposalId: "workspace.preview.1.proposal.1",
+      programId: "program.workspace.preview.1",
+      baseProgramRevision: 1,
+      text: "Make a change.",
+      requirement: "Make a change.",
+    };
+    expect(
+      unavailable.applyProgramRevisionCandidate({
+        candidate: unavailableCandidate,
+        finalAssistantReply: "Done.",
+      }),
+    ).toEqual({ kind: "unavailable" });
+
+    const session = createSessionV1();
+    session.submitIntent("Create a focused workspace.");
+    const snapshot = session.getSnapshot();
+    const proposal = snapshot.proposal;
+    const program = snapshot.program;
+    if (proposal === null || program === null) throw new Error("expected a current proposal");
+    const candidate: CreatorProgramRevisionCandidateV1 = {
+      revision: 1,
+      proposalId: proposal.proposalId,
+      programId: program.programId,
+      baseProgramRevision: program.revision,
+      text: "Make a change.",
+      requirement: "Make a change.",
+    };
+    const listener = vi.fn();
+    session.subscribe(listener);
+    const current = {
+      proposalId: proposal.proposalId,
+      programId: program.programId,
+      baseProgramRevision: program.revision,
+    };
+
+    for (
+      const staleCandidate of [
+        { ...candidate, proposalId: "workspace.preview.other.proposal.1" },
+        { ...candidate, programId: "program.workspace.preview.other" },
+        { ...candidate, baseProgramRevision: program.revision + 1 },
+      ]
+    ) {
+      expect(
+        session.applyProgramRevisionCandidate({
+          candidate: staleCandidate,
+          finalAssistantReply: "Done.",
+        }),
+      ).toEqual({ kind: "stale", current });
+    }
+
+    expect(
+      session.applyProgramRevisionCandidate({
+        candidate: { ...candidate, extra: true } as CreatorProgramRevisionCandidateV1,
+        finalAssistantReply: "Done.",
+      }),
+    ).toEqual({ kind: "rejected", reason: "candidate_invalid" });
+    expect(
+      session.applyProgramRevisionCandidate({
+        candidate,
+        finalAssistantReply: "   ",
+      }),
+    ).toEqual({ kind: "rejected", reason: "assistant_reply_empty" });
+    expect(
+      session.applyProgramRevisionCandidate({
+        candidate,
+        finalAssistantReply: "x".repeat(creatorAgentFinalReplyMaximumCharactersV1 + 1),
+      }),
+    ).toEqual({ kind: "rejected", reason: "assistant_reply_too_long" });
+    expect(session.getSnapshot()).toBe(snapshot);
     expect(listener).not.toHaveBeenCalled();
   });
 

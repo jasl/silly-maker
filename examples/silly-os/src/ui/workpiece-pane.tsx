@@ -31,17 +31,21 @@ export interface WorkpiecePanePropsV1 {
   readonly activity: readonly CreatorActivityV1[];
   readonly activeTab: WorkpieceTabV1;
   readonly fullscreen: boolean;
+  readonly agentMode?: "browser_pi_deterministic_test";
   readonly outputRef: React.RefObject<HTMLElement | null>;
   readonly onTabChange: (tab: WorkpieceTabV1) => void;
   readonly onToggleFullscreen: () => void;
   readonly onClose: () => void;
 }
 
-function savePreviewV1(program: PreviewProgramV1): void {
+function savePreviewV1(
+  program: PreviewProgramV1,
+  agentMode: WorkpiecePanePropsV1["agentMode"],
+): void {
   const payload = JSON.stringify(
     {
       previewOnly: true,
-      source: "deterministic_fake_preview",
+      source: agentMode ?? "deterministic_fake_preview",
       program,
     },
     null,
@@ -64,6 +68,7 @@ export function WorkpiecePaneV1({
   activity,
   activeTab,
   fullscreen,
+  agentMode,
   outputRef,
   onTabChange,
   onToggleFullscreen,
@@ -112,7 +117,7 @@ export function WorkpiecePaneV1({
             size="sm"
             icon={Download}
             aria-label="Download preview manifest"
-            onClick={() => savePreviewV1(program)}
+            onClick={() => savePreviewV1(program, agentMode)}
           />
           <Button
             variant="ghost"
@@ -139,7 +144,11 @@ export function WorkpiecePaneV1({
         )}
         {activeTab === "source" && <ProgramSourceV1 program={program} />}
         {activeTab === "capabilities" && (
-          <ProgramCapabilitiesV1 copy={copy} capabilities={program.suggestedCapabilities} />
+          <ProgramCapabilitiesV1
+            copy={copy}
+            capabilities={program.suggestedCapabilities}
+            {...(agentMode === undefined ? {} : { agentMode })}
+          />
         )}
         {activeTab === "activity" && <ProgramActivityV1 copy={copy} activity={activity} />}
       </div>
@@ -353,9 +362,11 @@ function ProgramSourceV1({
 function ProgramCapabilitiesV1({
   copy,
   capabilities,
+  agentMode,
 }: {
   readonly copy: SillyOsCopyV1;
   readonly capabilities: readonly PreviewProgramCapabilityV1[];
+  readonly agentMode?: "browser_pi_deterministic_test";
 }): ReactNode {
   return (
     <div className="program-capabilities">
@@ -385,11 +396,21 @@ function ProgramCapabilitiesV1({
           <PlugZap size={20} aria-hidden="true" />
           <strong>{copy.locale === "zh-CN" ? "Agent Host" : "Agent Host"}</strong>
           <p>
-            {copy.locale === "zh-CN"
+            {agentMode === "browser_pi_deterministic_test"
+              ? copy.locale === "zh-CN"
+                ? "固定版本 Pi Agent 正在 Browser Worker 中运行确定性 provider 与一个受限 proposal 工具；这不是 live LLM。"
+                : "The pinned Pi Agent runs a deterministic provider and one bounded proposal tool in a Browser Worker. This is not a live LLM."
+              : copy.locale === "zh-CN"
               ? "Pi、模型、工具执行与数据库属于未来的 typed RPC companion。"
               : "Pi, models, tool execution, and the database belong to a future typed RPC companion."}
           </p>
-          <small>{copy.locale === "zh-CN" ? "尚未连接" : "Not connected"}</small>
+          <small>
+            {agentMode === "browser_pi_deterministic_test"
+              ? copy.locale === "zh-CN" ? "Pi 0.84.3 测试接线" : "Pi 0.84.3 test wiring"
+              : copy.locale === "zh-CN"
+              ? "尚未连接"
+              : "Not connected"}
+          </small>
         </article>
       </div>
     </div>

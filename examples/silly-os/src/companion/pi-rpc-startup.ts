@@ -1,11 +1,24 @@
 // SPDX-License-Identifier: MIT
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const providerMaximumLengthV1 = 128;
 const modelMaximumLengthV1 = 512;
 const apiKeyMaximumLengthV1 = 64 * 1024;
 const pathMaximumLengthV1 = 4 * 1024;
 const forbiddenControlPatternV1 = /[\0\r\n]/;
+
+export const pinnedPiCodingAgentVersionV1 = "0.84.3";
+
+/** Resolves only the exact package declared by this product and admitted by the root lockfile. */
+export function resolvePinnedPiCodingAgentArtifactV1(): string {
+  return fileURLToPath(
+    new URL(
+      "../../node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js",
+      import.meta.url,
+    ),
+  );
+}
 
 function startupFailureV1(code: string): TypeError {
   return new TypeError(`sillyos.pi_rpc_startup.${code}`);
@@ -53,7 +66,6 @@ export interface PiRpcStartupArgumentsV1 {
   readonly model: string | null;
   readonly apiKey: string | null;
   readonly directory: string | null;
-  readonly piCommand: string | null;
   readonly listModels: false | true | string;
   readonly dryRun: boolean;
   readonly help: boolean;
@@ -70,7 +82,6 @@ export function parsePiRpcStartupArgumentsV1(
   let model: string | undefined;
   let apiKey: string | undefined;
   let directory: string | undefined;
-  let piCommand: string | undefined;
   let listModels: false | true | string = false;
   let listModelsSeen = false;
   let dryRun = false;
@@ -107,12 +118,6 @@ export function parsePiRpcStartupArgumentsV1(
       case "--directory": {
         const [value, nextIndex] = readFlagValueV1(argv, index, argument);
         directory = requireSingleValueV1(directory, value, argument);
-        index = nextIndex;
-        break;
-      }
-      case "--pi-command": {
-        const [value, nextIndex] = readFlagValueV1(argv, index, argument);
-        piCommand = requireSingleValueV1(piCommand, value, argument);
         index = nextIndex;
         break;
       }
@@ -153,9 +158,6 @@ export function parsePiRpcStartupArgumentsV1(
   const normalizedDirectory = directory === undefined
     ? null
     : requireOpaqueValueV1(directory, "invalid_directory", pathMaximumLengthV1);
-  const normalizedPiCommand = piCommand === undefined
-    ? null
-    : requireOpaqueValueV1(piCommand, "invalid_pi_command", pathMaximumLengthV1);
   const normalizedListModels = typeof listModels === "string"
     ? requireOpaqueValueV1(listModels, "invalid_model_filter", modelMaximumLengthV1)
     : listModels;
@@ -176,7 +178,6 @@ export function parsePiRpcStartupArgumentsV1(
     model: normalizedModel,
     apiKey: normalizedApiKey,
     directory: normalizedDirectory,
-    piCommand: normalizedPiCommand,
     listModels: normalizedListModels,
     dryRun,
     help,
@@ -194,7 +195,8 @@ const isolatedPiArgumentsV1 = Object.freeze([
 ]);
 
 export interface PiRpcLaunchSpecV1 {
-  readonly command: string;
+  readonly artifactPath: string;
+  readonly artifactVersion: typeof pinnedPiCodingAgentVersionV1;
   readonly arguments: readonly string[];
   readonly directory: string;
   readonly environment: Readonly<Record<string, string>>;
@@ -229,11 +231,7 @@ export function createPiRpcLaunchSpecV1(input: {
   if (parsed.help) throw startupFailureV1("help_has_no_launch_spec");
 
   const directory = resolve(input.cwd, parsed.directory ?? ".");
-  const command = requireOpaqueValueV1(
-    parsed.piCommand ?? input.environment.SILLYOS_PI_COMMAND ?? "pi",
-    "invalid_pi_command",
-    pathMaximumLengthV1,
-  );
+  const artifactPath = resolvePinnedPiCodingAgentArtifactV1();
   const configuredAgentDirectory = input.environment.PI_CODING_AGENT_DIR;
   const piAgentDirectory = resolve(
     directory,
@@ -270,7 +268,8 @@ export function createPiRpcLaunchSpecV1(input: {
   }
 
   return Object.freeze({
-    command,
+    artifactPath,
+    artifactVersion: pinnedPiCodingAgentVersionV1,
     arguments: Object.freeze(piArguments),
     directory,
     environment: Object.freeze({
@@ -287,7 +286,8 @@ export function createPiRpcLaunchSpecV1(input: {
 
 export interface PiRpcLaunchSummaryV1 {
   readonly revision: 1;
-  readonly command: string;
+  readonly artifactPath: string;
+  readonly artifactVersion: typeof pinnedPiCodingAgentVersionV1;
   readonly arguments: readonly string[];
   readonly directory: string;
   readonly piAgentDirectory: string;
@@ -308,7 +308,8 @@ export function summarizePiRpcLaunchV1(
   }
   return Object.freeze({
     revision: 1,
-    command: spec.command,
+    artifactPath: spec.artifactPath,
+    artifactVersion: spec.artifactVersion,
     arguments: Object.freeze(safeArguments),
     directory: spec.directory,
     piAgentDirectory: spec.piAgentDirectory,
@@ -330,7 +331,6 @@ Options:
   --model <id>          Opaque model id or pattern validated by Pi
   --api-key <secret>    Non-persistent key for the selected provider
   --directory <path>    Pi working directory (default: current directory)
-  --pi-command <path>   Pi executable (default: SILLYOS_PI_COMMAND or pi)
   --list-models [text]  Ask Pi for currently available provider/models
   --dry-run             Print a redacted launch summary without starting Pi
   --help, -h            Show this help
@@ -343,5 +343,10 @@ For development and testing only. A raw --api-key can be visible in shell
 history, task-runner output, and process inspection; prefer Pi-supported
 environment variables such as ANTHROPIC_API_KEY, OPENAI_API_KEY, and
 OPENROUTER_API_KEY. Use "deno task --quiet" when intentionally passing a raw
-key through the task runner. This launcher is not the typed SillyOS companion
-and is not connected to the Creator UI.`;
+key through the task runner.
+
+The launcher never searches PATH or accepts a Pi command override. It resolves
+only this product's locked @earendil-works/pi-coding-agent@${pinnedPiCodingAgentVersionV1}
+CLI artifact and runs it with the current Deno executable. A missing or
+non-regular artifact fails before dry-run or launch. This launcher is not the
+typed SillyOS companion and is not connected to the Creator UI.`;

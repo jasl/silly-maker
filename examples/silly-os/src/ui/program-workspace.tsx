@@ -16,7 +16,7 @@ import type {
   CreatorWorkspaceV1,
   PreviewProgramV1,
 } from "../product/contracts.ts";
-import { ChatPaneV1 } from "./chat-pane.tsx";
+import { ChatPaneV1, type ChatPanePropsV1 } from "./chat-pane.tsx";
 import { SillyButtonV1 as Button } from "./controls.tsx";
 import { type WorkpieceTabV1, WorkpiecePaneV1 } from "./workpiece-pane.tsx";
 import {
@@ -55,7 +55,8 @@ export interface ProgramWorkspacePropsV1 {
   readonly onLocaleChange: (locale: SillyOsLocaleV1) => void;
   readonly onAccept: () => void;
   readonly onReject: () => void;
-  readonly onSend: (text: string) => void;
+  readonly onSend: ChatPanePropsV1["onSend"];
+  readonly piTestRun?: ChatPanePropsV1["piTestRun"];
 }
 
 export function ProgramWorkspaceV1({
@@ -83,6 +84,7 @@ function ProgramWorkspaceReadyV1({
   onAccept,
   onReject,
   onSend,
+  piTestRun,
 }: ProgramWorkspaceReadyPropsV1): ReactNode {
   const narrow = useNarrowViewportV1();
   const splitRef = useRef<HTMLDivElement>(null);
@@ -202,6 +204,7 @@ function ProgramWorkspaceReadyV1({
               if (narrow) setMobilePane("preview");
             }}
             onSend={onSend}
+            {...(piTestRun === undefined ? {} : { piTestRun })}
           />
         </div>
 
@@ -238,6 +241,9 @@ function ProgramWorkspaceReadyV1({
                 activity={snapshot.activity}
                 activeTab={activeTab}
                 fullscreen={fullscreen}
+                {...(piTestRun === undefined
+                  ? {}
+                  : { agentMode: "browser_pi_deterministic_test" as const })}
                 outputRef={outputRef}
                 onTabChange={(tab) => {
                   setActiveTab(tab);

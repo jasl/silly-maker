@@ -14,7 +14,7 @@ Creator 是唯一内置的用户程序；生成的 Program 是工程、Agent har
 
 ## 目前能体验什么
 
-当前阶段是明确标注的 **deterministic local fake preview**，用于先验证产品模型和
+默认入口仍是明确标注的 **deterministic local fake preview**，用于先验证产品模型和
 Cloudflare OS 风格的高质量 Agent 工作区：
 
 - 从 Creator Home 提交翻译、写作、角色扮演或通用创作意图；
@@ -22,15 +22,25 @@ Cloudflare OS 风格的高质量 Agent 工作区：
 - 在 Program workspace 中同时查看人类/Creator 对话、proposal、预览和 activity；
 - 接受或拒绝当前精确版本；补充要求会形成新的 `pending` 版本，旧版本决定会被完整拒绝。
 
-当前 Creator 产品面没有接入真实 LLM、Pi、数据库、workspace tool harness（包括任何
-WASM payload）、外部服务或持久化。接受 proposal 也不会生成或发布真实应用。这个边界
-会在界面中如实显示，不使用假网络层来伪装后端。
+另有一个只在 `?agent=pi-test` 出现的 B0a 验证入口：它会把产品 lockfile 固定的
+`pi-agent-core` / `pi-ai` 0.84.3 懒加载进 Dedicated Worker，通过 typed RPC 运行真实
+Pi `Agent`、确定性本地 provider 和唯一的 `sillyos_propose_program_revision`
+`AgentTool`，并让一次 follow-up 产生精确的 v2 proposal。这个入口只接受合成测试值；
+它不会请求 LLM，也不会把测试值写入 React state、URL、日志、网络请求、Program 数据或
+浏览器持久化存储，forget 会终止 Worker。
+
+当前产品仍没有 live LLM/provider、数据库、workspace tool harness（包括任何 WASM
+payload）、外部服务或持久化。初始 proposal 仍由本地 deterministic preview 产生；
+接受 proposal 也不会生成或发布真实应用。这个边界会在界面中如实显示，不使用假网络层
+来伪装后端。
 
 已接受的下一条路线是 **Browser 优先、Desktop 并行保留**。Browser 将在 Dedicated
 Worker 中运行 Pi 的 `Agent`/`pi-ai`，通过 UI 接受用户自己的 provider API key 或明确
 协议的 HTTPS endpoint，并把 Pi 工具直接转发给拥有 OPFS 工作卷的 Workspace Host
-Worker。Desktop 使用同一产品接口和能力核心，底层改由私有 companion 启动 Pi
-coding-agent。当前提交尚未实现这两条 live route。
+Worker。B0a 已闭合无真实 key 的 Pi/Worker/typed-RPC 接线；下一步 B0b 才会在用户提供
+key 后资格化 live Browser provider。Desktop 使用同一产品接口和能力核心，底层改由
+私有 companion 启动产品打包的 Pi coding-agent；当前尚未实现 Browser live-provider
+route 和 Desktop live route。
 
 详细的产品范围、Cloudflare OS 参考快照、语义映射、桌面/移动布局、键盘/IME、
 防截断和视觉验收矩阵见 [DESIGN.md](./DESIGN.md)。从真实 Pi typed RPC、产品数据库、
@@ -57,18 +67,27 @@ deno task dev
 然后打开终端中 Vite 输出的地址。当前 Browser 和 Deno Desktop 共享同一个响应式
 React 产品面；Desktop 是产品目标，不会另外模拟操作系统桌面。
 
+要运行不访问 LLM 的 Browser Pi B0a 接线检查，在该地址追加
+`?locale=zh-CN&agent=pi-test`，输入任意可丢弃的合成测试值并初始化，再创建 Program、
+提交一次 follow-up。普通 URL 不会加载 Pi Worker 或它的 provider/runtime 代码。
+
 Browser 目标可作为 Cloudflare Workers Static Assets 发布的本地优先产品。部署方只
-提供静态应用；默认的模型请求从浏览器 Agent Worker 直接到通过产品验收的 HTTPS
-provider，不经过 SillyOS 官方代理。Browser UI 中的 key 默认只保留在 Worker 内存，
-不会写入 React state、URL、日志、Program 数据、IndexedDB、OPFS 或导出文件；忘记
-凭据会终止并重建 Worker。自定义 endpoint 仍必须满足 HTTPS、CORS、streaming 与取消
-合同，并非 Pi 在 Desktop 支持的全部 provider 都会自动出现在 Browser 能力列表中。
+提供静态应用；B0b 的模型请求将从浏览器 Agent Worker 直接到通过产品验收的 HTTPS
+provider，不经过 SillyOS 官方代理。当前 B0a 已验证同样的 Worker 内存/forget 所有权，
+但没有把合成测试输入冒充 provider key。生产 UI key 仍须保持只在 Worker 内存中，不能
+写入 React state、URL、日志、Program 数据、IndexedDB、OPFS 或导出文件。自定义
+endpoint 仍必须满足 HTTPS、CORS、streaming 与取消合同，并非 Pi 在 Desktop 支持的
+全部 provider 都会自动出现在 Browser 能力列表中。
 
 ### Pi RPC 开发启动器
 
 仓库另带一个 **尚未连接 Creator UI** 的原始 Pi RPC 启动器，用来验证 provider、model、
-凭据与固定隔离参数。它需要本机存在与计划 pin 对应的 `pi` executable；也可通过
-`SILLYOS_PI_COMMAND` 或 `--pi-command` 指定路径。
+凭据与固定隔离参数。它绝不搜索 `PATH`，也不接受 Pi 命令或路径覆盖；只解析本产品在
+`package.json` 与根 lockfile 中固定的 `@earendil-works/pi-coding-agent@0.84.3` CLI
+artifact，并使用当前 Deno executable 启动。依赖未物化或不是普通文件时，会在
+dry-run/启动前明确失败，不会回退到机器上已安装的 `pi`。未来 Desktop 包也必须把同一
+固定 package closure 物化进产品。这条路线与 Browser 中单独固定、懒加载的
+`pi-agent-core` / `pi-ai` Worker 依赖相互独立。
 
 先让 Pi 列出当前隔离配置和凭据下可用的 provider/model：
 
@@ -129,10 +148,14 @@ deno task build
 deno task build:desktop
 ```
 
-产品模型的 focused test：
+产品模型、Browser Pi Worker 和固定 Desktop 启动合同的 focused tests：
 
 ```sh
-deno run -A npm:vitest run src/test/creator-session.test.ts
+deno run -A npm:vitest run \
+  src/test/creator-session.test.ts \
+  src/test/creator-agent-admission.test.ts \
+  src/test/browser-pi-worker.test.ts \
+  src/test/pi-rpc-startup.test.ts
 ```
 
 视觉验收不能只看一张宽屏截图。开发完成前至少覆盖 `1600x1000`、`1280x800`、
@@ -141,17 +164,20 @@ deno run -A npm:vitest run src/test/creator-session.test.ts
 
 ## 当前代码边界
 
-| 位置                               | 所有权                                              |
-| ---------------------------------- | --------------------------------------------------- |
-| `src/product/contracts.ts`         | Program、proposal、activity 与 Creator session 合同 |
-| `src/product/creator-session.ts`   | 本地 session 状态转换与 proposal review             |
-| `src/product/fake-creator.ts`      | 确定性 fake Creator；不是 transport 或真实 Agent    |
-| `src/companion/pi-rpc-startup.ts`  | dev-only Pi 启动参数、隔离 flags 与脱敏摘要         |
-| `src/application/`                 | Browser/Deno 共用的 React 产品入口与工作区表现      |
-| `src/test/creator-session.test.ts` | fake flow 和 review 状态的 focused 行为证据         |
-| `tools/pi-rpc.mts`                 | raw Pi RPC 开发启动器；尚未连接 Creator             |
-| `PLAN.md`                          | 独立产品孵化顺序、所有权、停止条件与明确 defer      |
-| `WASM-WORKSPACE-RESEARCH.md`       | workspace harness 候选、共同语料和选型证据门        |
+| 位置                                     | 所有权                                                      |
+| ---------------------------------------- | ----------------------------------------------------------- |
+| `src/product/contracts.ts`               | Program、proposal、activity 与 Creator session 合同         |
+| `src/product/creator-session.ts`         | 本地 session、proposal review 与 Agent candidate 原子发布   |
+| `src/product/creator-agent-admission.ts` | submit/candidate 的严格 product wire admission              |
+| `src/product/fake-creator.ts`            | 默认初始 proposal 的确定性 fake Creator                     |
+| `src/agent/creator-agent-port.ts`        | React 可见的 product facade；不暴露 raw Pi records          |
+| `src/agent/browser-pi-*`                 | 懒加载 Worker transport、固定 Pi identity 与 B0a Pi 适配    |
+| `src/companion/pi-rpc-startup.ts`        | dev-only 固定 Pi artifact、启动参数、隔离 flags 与脱敏摘要  |
+| `src/application/`                       | Browser/Deno 共用的 React 产品入口与工作区表现              |
+| `src/test/browser-pi-worker.test.ts`     | Pi tool、RPC 顺序/currentness、取消、替换与 Worker teardown |
+| `tools/pi-rpc.mts`                       | raw Pi RPC 开发启动器；尚未连接 Creator                     |
+| `PLAN.md`                                | 独立产品孵化顺序、所有权、停止条件与明确 defer              |
+| `WASM-WORKSPACE-RESEARCH.md`             | workspace harness 候选、共同语料和选型证据门                |
 
 后续 Agent loop、模型/provider、会话、tool dispatch 与 Agent 扩展统一由 Pi 负责。
 Browser Agent Worker 或 Desktop companion 只做目标适配、Program 数据所有权和 typed

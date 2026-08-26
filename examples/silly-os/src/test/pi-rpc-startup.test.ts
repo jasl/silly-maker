@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: MIT
+import { readFile } from "node:fs/promises";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -6,9 +8,19 @@ import {
   mergePiRpcEnvironmentV1,
   parsePiRpcStartupArgumentsV1,
   summarizePiRpcLaunchV1,
+  pinnedPiCodingAgentVersionV1,
 } from "../companion/pi-rpc-startup.ts";
 
 describe("SillyOS Pi RPC development startup", () => {
+  it("keeps the Desktop/development Pi artifact dependency exact", async () => {
+    const manifest = JSON.parse(
+      await readFile(new URL("../../package.json", import.meta.url), "utf8"),
+    ) as { readonly dependencies?: Readonly<Record<string, unknown>> };
+    expect(manifest.dependencies?.["@earendil-works/pi-coding-agent"]).toBe(
+      pinnedPiCodingAgentVersionV1,
+    );
+  });
+
   it("lets process environment override the selected directory .env", () => {
     expect(
       mergePiRpcEnvironmentV1({
@@ -39,18 +51,16 @@ describe("SillyOS Pi RPC development startup", () => {
       "sentinel-secret",
       "--directory",
       "project",
-      "--pi-command",
-      "/tools/pi",
     ]);
 
     const spec = createPiRpcLaunchSpecV1({
       parsed,
       cwd: "/workspace",
-      environment: {},
+      environment: { PATH: "/attacker-controlled-bin" },
     });
 
     expect(spec).toMatchObject({
-      command: "/tools/pi",
+      artifactVersion: "0.84.3",
       directory: "/workspace/project",
       piAgentDirectory: "/workspace/project/tmp/sillyos-pi-agent",
       mode: "rpc",
@@ -58,6 +68,9 @@ describe("SillyOS Pi RPC development startup", () => {
       model: "family/model:high",
       credentialSource: "argument",
     });
+    expect(spec.artifactPath).toMatch(
+      /@earendil-works\/pi-coding-agent\/dist\/bundle\/cli\.js$/u,
+    );
     expect(spec.arguments).toEqual([
       "--mode",
       "rpc",
@@ -88,17 +101,19 @@ describe("SillyOS Pi RPC development startup", () => {
       parsed,
       cwd: "/workspace",
       environment: {
-        SILLYOS_PI_COMMAND: "pi-pinned",
         PI_CODING_AGENT_DIR: "/isolated/pi",
       },
     });
 
     expect(spec).toMatchObject({
-      command: "pi-pinned",
+      artifactVersion: "0.84.3",
       piAgentDirectory: "/isolated/pi",
       mode: "list_models",
       credentialSource: "pi_auth_or_environment",
     });
+    expect(spec.artifactPath).toMatch(
+      /@earendil-works\/pi-coding-agent\/dist\/bundle\/cli\.js$/u,
+    );
     expect(spec.arguments).toEqual([
       "--list-models",
       "claude",

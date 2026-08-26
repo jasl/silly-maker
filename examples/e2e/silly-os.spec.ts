@@ -90,6 +90,110 @@ test("a follow-up creates a new exact Program revision for review", async ({ pag
   await expect(page.getByText("Created Program proposal v2", { exact: true })).toBeVisible();
 });
 
+test("the query-gated Browser Pi Worker publishes one exact successor without retaining its test key", async ({ page }) => {
+  const sentinel = "sillyos-browser-pi-sentinel-key";
+  const observedNetwork: string[] = [];
+  const observedConsole: string[] = [];
+  page.on("request", (request) => {
+    observedNetwork.push(
+      `${request.url()}\n${request.postData() ?? ""}\n${JSON.stringify(request.headers())}`,
+    );
+  });
+  page.on("console", (message) => observedConsole.push(message.text()));
+
+  await page.goto(sillyOsTargetUrlV1("?locale=en&agent=pi-test"));
+  await expect(page.getByRole("heading", { name: "What would you like to make?", level: 1 }))
+    .toBeVisible();
+  await expect(page.getByText("Browser Pi wiring check", { exact: true })).toBeVisible();
+
+  const keyInput = page.getByLabel("Synthetic test key (memory only)");
+  await keyInput.fill(sentinel);
+  await page.getByRole("button", { name: "Initialize Pi test" }).click();
+  await expect(keyInput).toHaveValue("");
+  await expect(page.getByText("Pi test ready", { exact: true })).toBeVisible();
+
+  await page.getByRole("textbox", { name: "What would you like to make?" }).fill(
+    translationIntentV1,
+  );
+  await page.getByRole("button", { name: "Create program" }).click();
+  await expect(page.getByRole("main", { name: "SillyOS program workspace" })).toBeVisible();
+
+  const followUp = "Make every review decision explicit.";
+  await page.getByRole("textbox", { name: "Ask for a change…" }).fill(followUp);
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByText(followUp, { exact: true })).toBeVisible();
+  await expect(
+    page.locator('[data-chat-role="creator"]').getByText(
+      "Deterministic test proposal ready.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
+
+  await page.getByRole("tab", { name: "Source" }).click();
+  await expect(page.getByLabel("Program preview source")).toContainText("revision: 2");
+  await expect(page.getByLabel("Program preview source")).toContainText(followUp);
+  await page.getByRole("tab", { name: "Capabilities" }).click();
+  await expect(page.getByText("Pi 0.84.3 test wiring", { exact: true })).toBeVisible();
+
+  const durableProjection = await page.evaluate(async () => {
+    const storageValues = [
+      ...Object.entries(localStorage),
+      ...Object.entries(sessionStorage),
+    ];
+    const indexedDbValues: unknown[] = [];
+    if (typeof indexedDB.databases === "function") {
+      for (const database of await indexedDB.databases()) {
+        const databaseName = database.name;
+        if (databaseName === undefined) continue;
+        const opened = await new Promise<IDBDatabase>((resolve, reject) => {
+          const request = indexedDB.open(databaseName);
+          request.addEventListener("error", () => reject(request.error));
+          request.addEventListener("success", () => resolve(request.result));
+        });
+        try {
+          const storeNames = [...opened.objectStoreNames];
+          for (const storeName of storeNames) {
+            const transaction = opened.transaction(storeName, "readonly");
+            const values = await new Promise<unknown[]>((resolve, reject) => {
+              const request = transaction.objectStore(storeName).getAll();
+              request.addEventListener("error", () => reject(request.error));
+              request.addEventListener("success", () => resolve(request.result));
+            });
+            indexedDbValues.push(...values);
+          }
+        } finally {
+          opened.close();
+        }
+      }
+    }
+    const cacheValues: string[] = [];
+    if ("caches" in globalThis) {
+      for (const cacheName of await caches.keys()) {
+        const cache = await caches.open(cacheName);
+        for (const request of await cache.keys()) {
+          cacheValues.push(request.url);
+          const response = await cache.match(request);
+          if (response !== undefined) cacheValues.push(await response.clone().text());
+        }
+      }
+    }
+    return JSON.stringify({
+      url: location.href,
+      document: document.documentElement.outerHTML,
+      storageValues,
+      indexedDbValues,
+      cacheValues,
+    });
+  });
+  expect(durableProjection).not.toContain(sentinel);
+  expect(observedNetwork.join("\n")).not.toContain(sentinel);
+  expect(observedConsole.join("\n")).not.toContain(sentinel);
+
+  await page.getByRole("button", { name: "Forget test key" }).click();
+  await expect(page.getByRole("button", { name: "Forget test key" })).toHaveCount(0);
+});
+
 test("desktop workspace keeps its minimum geometry and keyboard-resizable split", async ({ page }) => {
   const workspace = await openTranslationWorkspaceV1(page);
   await expect(workspace).toHaveAttribute("data-workspace-layout", "dual-pane");

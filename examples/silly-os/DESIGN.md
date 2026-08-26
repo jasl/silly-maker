@@ -117,19 +117,29 @@ It may provide:
 - deterministic follow-up revisions and whole rejection of a decision naming a
   stale `(proposalId, programRevision)` pair.
 
+The opt-in `?agent=pi-test` B0a route may additionally lazy-load the product's
+lockfile-pinned `pi-agent-core` / `pi-ai` 0.84.3 into one Dedicated Worker, run
+Pi's real `Agent` against its deterministic faux provider, register the single
+`sillyos_propose_program_revision` `AgentTool`, stream a bounded final reply,
+and offer that tool's exact candidate to the same product revision authority.
+This is wiring evidence, not a live provider or a second Creator product mode.
+The ordinary route does not load that Worker graph.
+
 It does **not** claim:
 
-- a real model, Pi Agent, workspace tool harness, Wasm payload, network service,
-  or database;
+- a real model/provider request, live LLM answer, workspace tool harness, Wasm
+  payload, network service, or database;
 - persistence across reload, project import/export, background execution,
   generated-code execution, or arbitrary package installation;
 - a public Mod, Agent, Program, Blueprint, or connection ABI;
 - production translation, writing, role-play, or OpenUI behavior;
 - that an accepted fake proposal has created a distributable application.
 
-The preview must identify itself as deterministic/local in visible copy. Fake
-events use the same product-owned session model as the UI, but they must not be
-wrapped in a pretend transport, persistence layer, or generic framework.
+The preview must identify itself as deterministic/local in visible copy. The
+B0a route must separately identify its real Pi Agent plus deterministic
+provider and must not imply that the synthetic test value is a provider key.
+Fake events use the same product-owned session model as the UI, but they must
+not be wrapped in a pretend persistence layer or generic framework.
 
 ## Product and engine ownership
 
@@ -197,6 +207,20 @@ Browser: React -> typed MessagePort -> Agent Worker -> pi-agent-core/pi-ai
 Desktop: React -> private Host route -> companion -> Pi coding-agent subprocess
                                       -> local workspace adapter/volume
 ```
+
+The current raw Desktop/development launcher resolves only this product's exact
+`@earendil-works/pi-coding-agent@0.84.3` CLI artifact from the lockfile-backed
+dependency installation and runs it with the current Deno executable. It has no
+`PATH`, environment, or argument command override and fails when the local
+artifact is absent or is not a regular file. A future Desktop package must
+materialize that same fixed artifact closure inside the product; no engine API
+owns its materialization. Browser separately bundles the exact
+`pi-agent-core` / `pi-ai` dependencies into its lazy Worker chunk and reports
+their exact versions in the admitted Worker readiness identity. Exact package
+manifest versions plus the root lockfile own dependency resolution; the built
+chunk hash and application commit stamp identify the resulting product build.
+Neither target searches a host installation or silently falls back when its
+product-owned distribution is unavailable.
 
 Browser registers the shared product capability core as a public Pi
 `AgentTool`. Desktop registers that same core with Pi's public
@@ -412,20 +436,20 @@ passing a pixel threshold alone is not design approval.
 This table is the completion denominator for the rewrite. A working preview is
 evidence for the preview only.
 
-| Area              | Accepted product role                                     | Current preview evidence                | Remaining before product-ready                            |
-| ----------------- | --------------------------------------------------------- | --------------------------------------- | --------------------------------------------------------- |
-| Creator home      | Express intent and create/open a Program                  | Deterministic local request             | Attachments, real Agent, persisted Programs               |
-| Program workspace | Conversation and work product stay in one focused context | Deterministic local successor revisions | Real Agent-produced revisions and outputs                 |
-| Human review      | Accept/reject an exact proposed revision                  | Local exact reference + stale rejection | Durable transactional check and effects                   |
-| Activity          | Explain what happened and what needs review               | Local revision and decision events      | Real tool/action history and approvals                    |
-| Capabilities      | Required Agent and UI abilities are understandable        | Declared preview labels                 | Real Pi extension/tool and UI bindings                    |
-| Generated UI      | Agent-authored UI remains legible and controllable        | Not implemented                         | OpenUI mapped to closed SillyMaker components             |
-| Source            | Inspect and refine the Program where useful               | Presentation-only recipe preview        | Persistent draft volume and accepted snapshots            |
-| Translation       | A usable translation Program                              | Intent classification only              | Complete workflow, data, QA, export                       |
-| Writing           | A usable writing Program                                  | Intent classification only              | Complete workflow, data, revision tools                   |
-| Role-play         | A usable role-play Program                                | Intent classification only              | Complete sessions, characters, VN behavior                |
-| Browser           | Publishable local-first product with BYO Provider         | Responsive fake preview                 | Agent Worker, qualified provider, storage, tools, closure |
-| Deno Desktop      | Same product with admitted Host integrations              | Responsive preview target               | Companion acceptance, storage, packaging qualification    |
+| Area              | Accepted product role                                     | Current preview evidence                  | Remaining before product-ready                         |
+| ----------------- | --------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------ |
+| Creator home      | Express intent and create/open a Program                  | Deterministic local request + B0a setup   | Attachments, live Agent, persisted Programs            |
+| Program workspace | Conversation and work product stay in one focused context | Local revisions + B0a Pi tool successor   | Live Agent-produced revisions and outputs              |
+| Human review      | Accept/reject an exact proposed revision                  | Local exact reference + stale rejection   | Durable transactional check and effects                |
+| Activity          | Explain what happened and what needs review               | Local revision and decision events        | Real tool/action history and approvals                 |
+| Capabilities      | Required Agent and UI abilities are understandable        | Labels + one bounded B0a Pi AgentTool     | Live Pi capability and UI bindings                     |
+| Generated UI      | Agent-authored UI remains legible and controllable        | Not implemented                           | OpenUI mapped to closed SillyMaker components          |
+| Source            | Inspect and refine the Program where useful               | Presentation-only recipe preview          | Persistent draft volume and accepted snapshots         |
+| Translation       | A usable translation Program                              | Intent classification only                | Complete workflow, data, QA, export                    |
+| Writing           | A usable writing Program                                  | Intent classification only                | Complete workflow, data, revision tools                |
+| Role-play         | A usable role-play Program                                | Intent classification only                | Complete sessions, characters, VN behavior             |
+| Browser           | Publishable local-first product with BYO Provider         | Responsive preview + pinned Pi Worker B0a | Qualified provider, storage, tools, closure            |
+| Deno Desktop      | Same product with admitted Host integrations              | Responsive preview target                 | Companion acceptance, storage, packaging qualification |
 
 Before SillyOS is called a complete reference product, this table must be
 reconciled with implementation and tests, the current-low-end startup,
