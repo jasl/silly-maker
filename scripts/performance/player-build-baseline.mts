@@ -159,7 +159,7 @@ async function buildReleaseWithDependencyReceiptV1(input: {
   try {
     await execFile(
       "deno",
-      ["task", "story", "build", input.applicationId, "--profile", "release"],
+      ["task", "app", "build", input.applicationId, "--profile", "release"],
       {
         cwd: repositoryRootV1,
         env: {

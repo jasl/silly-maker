@@ -779,8 +779,8 @@ derives its whole-Snapshot digest, and returns detached typed attempts or a low-
 receipt. A successful migrated replacement installs that non-durable receipt in
 the Session while one prepared commit updates Persistence/autosave, CommandLog,
 and Session before publication; failures preserve the prior authorities and
-receipt. Engine Lab configures the maintained revision 3/4-to-current 5 chain.
-Its three checked-in canonical records and Cat Cafe's revision 1 record form the
+receipt. Engine Lab configures the maintained revision 3/4/5-to-current 6 chain.
+Its four checked-in canonical records and Cat Cafe's revision 1 record form the
 explicit supported release corpus; they do not claim capture from a historical
 public release or imply support for any unlisted identity.
 

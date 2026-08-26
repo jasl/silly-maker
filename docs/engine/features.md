@@ -377,9 +377,9 @@ conformance；大型第三方组件与真实 Agent conversation 仍是本轮之�
   the legacy current-revision path, as do callers that explicitly choose the
   legacy replacement-prepare callback; migrated replacement fails closed.
   Engine Lab publishes the first real app-local registry/owner and maintains a
-  neutral revision 3/4-to-current 5 conformance chain. Cat Cafe revision 1 is its
-  first supported Save floor. Four maintained canonical byte fixtures (Engine Lab
-  3/4/5 and Cat Cafe 1) run inspection, migration/adoption where applicable,
+  neutral revision 3/4/5-to-current 6 conformance chain. Cat Cafe revision 1 is its
+  first supported Save floor. Five maintained canonical byte fixtures (Engine Lab
+  3/4/5/6 and Cat Cafe 1) run inspection, migration/adoption where applicable,
   current validation, load, backup/restore, and fresh-save round-trip; the same
   ordered corpus runs normalized parity in Deno, Chromium, Firefox, and WebKit.
   No unsupported revision is inferred from schema similarity or generated from a
@@ -492,7 +492,7 @@ The engine does not currently provide a backend/account service, networked multi
 
 The Save migration product surface described above is implemented: supported
 identities have checked-in canonical bytes, single-slot inspection and bounded
-backup/recovery are player-accessible, and the maintained four-fixture corpus
+backup/recovery are player-accessible, and the maintained five-fixture corpus
 runs through Story lifecycle and four-runtime parity gates. Opaque low-level
 custom runtime controls and explicit legacy prepare-callback callers remain
 outside the composite migration guarantee. PF5/M3 is complete; current/next work

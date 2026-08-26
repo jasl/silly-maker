@@ -200,8 +200,8 @@ deno task test:e2e
 
 A release may claim Save compatibility only for identities backed by checked-in
 canonical byte fixtures. The maintained corpus currently contains Engine Lab
-State revisions 3, 4, and current 5 (the supported adjacent chain is
-`3 -> 4 -> 5`) plus Cat Cafe revision 1, its first supported Save floor. These
+State revisions 3, 4, 5, and current 6 (the supported adjacent chain is
+`3 -> 4 -> 5 -> 6`) plus Cat Cafe revision 1, its first supported Save floor. These
 fixtures are long-lived compatibility inputs, not a claim that every one was
 captured from a historical public release; do not regenerate an older shape from
 the current encoder or infer support for an unlisted revision.
@@ -473,7 +473,7 @@ Before deploying a hosted Player:
    limitations in the deployment note.
 
 If the release advertises compatibility with maintained Saves, also run the
-four-fixture lifecycle corpus and four-runtime migration matrix described above;
+five-fixture lifecycle corpus and four-runtime migration matrix described above;
 list the supported floor explicitly rather than promising unbounded historical
 compatibility.
 

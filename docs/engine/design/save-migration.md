@@ -53,7 +53,7 @@ M2e 已闭合 executable migration 的 maintained conformance owner 与跨运行
 
 1. M2c 已把 exact registry 接入 import/load staged admission，能够迁移后经 current
    schema/digest/compatibility/reference/invariant validation，并使用既有 replay-anchor
-   replacement；Engine Lab 现维护 revision 3/4 到 current revision 5 的相邻迁移 owner，
+   replacement；Engine Lab 现维护 revision 3/4/5 到 current revision 6 的相邻迁移 owner，
    list/export/annotation 仍有意不执行 callback；
 2. successful migrated replacement 已由 Session 安装 non-durable receipt；ordinary command、
    Save capture 与 CommandLog eviction 保留 exact receipt，无 receipt replay-base replacement
@@ -849,8 +849,8 @@ RED/implementation gate推进到 M3.6c Browser repeated-download no-clobber evid
 - fixture 代表用户可见的兼容承诺，符合项目测试原则；它不是计划执行凭据；
 - Cat Cafe 当前 State revision 1 是该产品首个受支持 Save floor；M3 不虚构 Cat revision
   0/历史 fixture，也不对不存在的已发布 Cat Save 作兼容承诺；
-- Engine Lab 维护 revision 3、4 到 current revision 5 的 compatibility fixtures，并只通过
-  既有相邻 chain `3 -> 4 -> 5` 验收；这些 bytes 是长期维护的兼容合同，不伪称来自历史
+- Engine Lab 维护 revision 3、4、5 到 current revision 6 的 compatibility fixtures，并只通过
+  既有相邻 chain `3 -> 4 -> 5 -> 6` 验收；这些 bytes 是长期维护的兼容合同，不伪称来自历史
   product release capture，也不能由 current encoder 反向生成来冒充旧 shape；
 - Engine Lab 曾出现的 same-revision/different-digest revision 5 不在支持 floor。若找到真实
   released bytes 必须支持它，M3 立即停止并先接受显式 recovery/State-migration contract；

@@ -1257,8 +1257,8 @@ invalid-output, and migration-plus-adoption cases in a separate short-lived
 Worker. `deno task test:determinism` compares its exact callback counts,
 attempt/receipt, whole-Snapshot digests, adoption, and source-byte preservation
 twice in Deno and twice in Chromium, Firefox, and WebKit. The same authoritative
-matrix now also consumes the checked-in four-record release corpus: Engine Lab
-State revisions 3/4/current 5 and Cat Cafe revision 1. Story-local lifecycle
+matrix now also consumes the checked-in five-record release corpus: Engine Lab
+State revisions 3/4/5/current 6 and Cat Cafe revision 1. Story-local lifecycle
 suites own inspection, applicable migration/adoption or re-anchor, current
 validation, load, backup/restore, and fresh-save round-trip.
 Registry inspection and callback counting use the repository-only
@@ -1608,8 +1608,8 @@ accessor, or captured-intrinsic defenses.
 
 A checked-in fixture is justified when its bytes are themselves a maintained external format or compatibility promise—for example, a Save migration sample. Document what compatibility it protects and provide an intentional update path.
 
-The Save compatibility release corpus keeps its four canonical records as
-physical, immutable files: Engine Lab revisions 3/4/5 and Cat Cafe revision 1.
+The Save compatibility release corpus keeps its five canonical records as
+physical, immutable files: Engine Lab revisions 3/4/5/6 and Cat Cafe revision 1.
 Do not regenerate an older record from the current encoder, re-encode it inside
 a test, or infer an unlisted compatibility floor. A supported State change must
 update the deliberate fixture declaration and rerun the Story lifecycle corpus,
