@@ -1,9 +1,11 @@
 # Narrative aside 提案（插话：hold 进行中的零权威台词批）
 
-状态：**2026-08-27 所有者下令开启（M0–M3 交付中）**。下令语带两条硬
-约束：引擎侧新需求必须**通用**（不是实验仓专用形状），且与既有引擎能
-力保持**正交**（不动已交付合同）；open questions 按建议随 admission
-固化。兑现 [mid-hold-input](mid-hold-input.md) 交付后实验仓台账里明
+状态：**2026-08-27 所有者下令开启，同日 M0–M3 全部交付（关闭）**。
+下令语带两条硬约束：引擎侧新需求必须**通用**（不是实验仓专用形状），
+且与既有引擎能力保持**正交**（不动已交付合同）；open questions 按建
+议随 admission 固化（q1 推流、q2 引擎合同 + Story 像素、q3 定名
+aside、q4 挂起权威对话时到达即丢）。兑现
+[mid-hold-input](mid-hold-input.md) 交付后实验仓台账里明
 记的 ENGINE 缺口：围栏写与 `when` 臂改道已闭合，但原作在并行事件持条
 时叠在画面上的**风味台词**至今无处落——pending 槽是权威轨，塞进去要
 么停条要么造第二决议路径。本文只定合同；切片顺序与 admission 由
@@ -11,6 +13,28 @@
 拥有（交付记录也在该计划）；
 [production-floor sequence](../plans/2026-07-30-production-floor-sequence.md)
 仍是唯一跨计划排序入口。
+
+关闭记录（2026-08-27）：base 一个合同文件 + 一个投影钩子 + 一路推
+流，ui 一个纯状态机 + 一个 hook，宿主政策与权威算术零改动。base
+（主仓 `dea06ab0`）：`NarrativeAsidePageV1` / `NarrativeAsideV1`
+（`asideSequence` 单调 + epoch 盖章）、`parseNarrativeAsidePagesV1`
+一次准入（1–16 页、精确键、与 say pending 同文案界），
+`CoreSemanticAdapterV1.projectNarrativeAside` 从提交事件投影，实例
+`subscribeNarrativeAsides` 推流（被拒命令零推、准入失败 observer
+fault fail-open、load/restart 零重放且 epoch 推进）。ui（主仓
+`3d8ff796`）：`createNarrativeAsideControllerV1` 纯翻页状态机 +
+`useNarrativeAsideV1` 接线（打开/翻页/末页退场、say/choice 到达强
+退、挂起期到达即丢、水位线去重、新批替换、全程零 dispatch），引擎
+不画窗、像素归 Story。Lab + 浏览器证据（主仓 `f1f2b613`）：绊线
+hold 的围栏写投影两页插话，jsdom 锁「条上可翻、hold occurrence 与
+余额不动、`when` 改道 catch say 强退」，浏览器真实指针 e2e 全绿；
+`game-stage.tsx` 及其测试零改动。实验仓消费（克隆刀 #387）：
+`imouto.zone_press` 提交时按命令起点状态收 CE18 区臂 SAY 页上插话
+（`imouto.zone_aside` 事件 → 投影 → MV 底部消息几何窗），模拟锁
+sleep/t200-out/thigh 三路页序 + hold 不动，浏览器钉「中途亲 +5 后
+插话叠在共享舞台上、翻完自关、右手插图存活」——E3 台账缺口闭合，
+澡窗「先条后句」家族（#365–#369、#372）留作克隆侧逐刀回填。插话
+未获决议权/路由权、不进 State/Save/digest/replay/History。
 
 一句话：**台词不一定是决议。把「一次性、零权威的台词批」做成
 commit-only 表现通道家族的第三个类型化成员（transient effect 同族推

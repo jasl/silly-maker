@@ -20,18 +20,30 @@ plan；目标合同见[统一创作架构设计](../design/authoring-architectur
 
 ## 1. Current and next
 
-当前：[Narrative Aside V1](2026-08-27-narrative-aside.md)（提案
+当前：无活 lane（narrative-aside 2026-08-27 关闭；等所有者下一道
+令）。Desktop 持久化仍是独立晋级门。
+
+前一条：[Narrative Aside V1](2026-08-27-narrative-aside.md)（提案
 [narrative-aside](../proposals/narrative-aside.md)，2026-08-27 所有
 者下令开启，硬约束：通用 + 与既有能力正交；open questions 按建议固
 化：q1 推流、q2 引擎合同 + Story 像素、q3 定名 aside、q4 挂起权威对
 话时到达即丢）——插话：hold 进行中的零权威台词批。commit-only 推流
 （transient effect 同族：sequence + epoch 盖章、消费者水位线），ui
 交纯翻页控制器，像素归 Story 渲染器；pending 槽、hold 算术、决议合法
-性、宿主 isolation / 焦点政策零改动。M0 base 合同 → M1 ui 控制器 →
-M2 Lab conformance + 浏览器证据 + 文档 → M3 实验仓消费 + 收口。
-Desktop 持久化仍是独立晋级门。
+性、宿主 isolation / 焦点政策零改动。**同日 M0–M3 全部交付收口**：
+M0（base `NarrativeAsidePageV1` 准入 + `projectNarrativeAside` 投影
+钩子 + 实例 `subscribeNarrativeAsides` 推流：被拒命令零推、准入失败
+observer fault fail-open、load/restart 零重放且 epoch 推进）→ M1
+（ui `createNarrativeAsideControllerV1` 纯状态机 +
+`useNarrativeAsideV1`：翻页/强退/挂起即丢/水位线去重，零 dispatch）
+→ M2（Lab 绊线 hold 围栏写投影两页插话，jsdom 锁条上可翻 + hold 轨
+迹不动 + `when` 改道强退，浏览器真实指针 e2e；features /
+story-authoring 各一段）→ M3（实验仓克隆刀 #387：`zone_press` 按命
+令起点状态收 CE18 区臂 SAY 页上插话，模拟锁 sleep/t200-out/thigh 三
+路页序 + hold 不动，浏览器钉中途亲 +5 后插话叠共享舞台、翻完自关、
+右手插图存活——E3 台账缺口闭合）。
 
-前一条：[Shared Stage Input V1](2026-08-26-shared-stage-input.md)
+再前一条：[Shared Stage Input V1](2026-08-26-shared-stage-input.md)
 （提案 [shared-stage-input](../proposals/shared-stage-input.md)，
 2026-08-26 所有者裁决接受：q1 值域全收满
 `say`/`choice`/`hold`/`custom`，q2 焦点同键全放，q3 定名

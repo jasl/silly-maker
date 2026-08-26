@@ -97,13 +97,13 @@ locality、Scene Construction 与只读 Flow workspace，目标合同见
 `pause` 并入 `hold`）、并行监视器（2026-08-20，唯一时间动词 `TimeTickV1`、领域
 事件 + reducer、权威监视器 V1、持久化安全点、监视器节奏环）、可创作帧集/命中区
 形状/hold `when`（均 2026-08-21）、持有中输入（2026-08-22，零新引擎原语）、可创
-作 chrome 布局（2026-08-22）、共享舞台输入（2026-08-26）。
-**当前 active 车道：Narrative Aside V1**（2026-08-27 所有者下令开启，硬约束通用
-
-- 正交）——插话：hold 进行中的零权威台词批（commit-only 推流、transient effect
-  同族；引擎交合同与控制器，像素归 Story）；排序与交付记录以
-  [Production-floor sequence](plans/2026-07-30-production-floor-sequence.md) §1
-  为准，live capability 以 [features](features.md) 为准。
+作 chrome 布局（2026-08-22）、共享舞台输入（2026-08-26）、插话
+（narrative aside，2026-08-27，硬约束通用 + 正交：hold 进行中的零权威台词批，
+commit-only 推流、transient effect 同族；引擎交合同与控制器，像素归 Story）。
+**当前无 active 车道**（narrative-aside 2026-08-27 关闭，等所有者下一道令）；排
+序与交付记录以
+[Production-floor sequence](plans/2026-07-30-production-floor-sequence.md) §1
+为准，live capability 以 [features](features.md) 为准。
 
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实
@@ -147,8 +147,8 @@ SQLite operational contract；除非出现 concrete blocker，不再把 journal/
   （2026-08-22 接受，同日完成）
 - [Shared stage input](plans/2026-08-26-shared-stage-input.md)（2026-08-26 接
   受，同日完成）
-- [Narrative aside](plans/2026-08-27-narrative-aside.md)（2026-08-27 开启，交付
-  中）
+- [Narrative aside](plans/2026-08-27-narrative-aside.md)（2026-08-27 开启，同日
+  完成）
 
 原则是**一次只迁移一个可独立验收的 authority**。不接受把 Surface、Save、
 Snapshot 数据结构、determinism guard 或 Mod resolver 作为一个大改动交给 Agent。

@@ -1,9 +1,13 @@
 # Narrative Aside V1（插话）实施计划
 
-状态：**2026-08-27 开启（M0–M3 交付中）**。所有者下令开启并附两条硬
-约束（通用、与既有能力正交）；open questions 按提案建议随 admission
-固化（q1 推流、q2 引擎合同 + Story 像素、q3 定名 aside、q4 挂起权威
-对话时到达即丢）。合同：
+状态：**2026-08-27 开启，同日 M0–M3 全部交付（关闭）**。所有者下令
+开启并附两条硬约束（通用、与既有能力正交）；open questions 按提案建
+议随 admission 固化（q1 推流、q2 引擎合同 + Story 像素、q3 定名
+aside、q4 挂起权威对话时到达即丢）。交付：M0 base 合同与推流（主仓
+`dea06ab0`，114 测绿）、M1 ui 控制器 + hook（主仓 `3d8ff796`）、M2
+Engine Lab conformance + 浏览器证据 + 文档（主仓 `f1f2b613`）、M3
+实验仓消费（克隆刀 #387：条中途亲吻 SAY 页上插话，E3 台账闭合）与
+本关闭记录。合同（含关闭记录）：
 [docs/engine/proposals/narrative-aside.md](../proposals/narrative-aside.md)。
 本计划拥有切片顺序、admission 落地与验收；
 [production-floor sequence](2026-07-30-production-floor-sequence.md)

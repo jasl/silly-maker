@@ -22,15 +22,9 @@ Read only the documents relevant to the change:
   implemented yet.
 - `docs/engine/plans/2026-07-30-production-floor-sequence.md` — the only
   cross-plan execution order. PF0–PF7 and the Complexity Reset are complete;
-  PF6 remains evidence-gated and inactive. The active lane is narrative-aside
-  (opened 2026-08-27 by owner order with generality and orthogonality as hard
-  constraints): `docs/engine/proposals/narrative-aside.md` and
-  `docs/engine/plans/2026-08-27-narrative-aside.md` — a typed, zero-authority,
-  commit-only aside-dialogue push channel (transient-effect family:
-  sequence + epoch stamps, consumer watermark) with a ui paging controller;
-  Story renderers own the pixels; the pending slot, hold arithmetic,
-  resolution legality, and stage-input policy are untouched. The recap below
-  runs oldest to newest.
+  PF6 remains evidence-gated and inactive. There is currently no active
+  lane (narrative-aside closed 2026-08-27; the recap below runs oldest
+  to newest).
   Two lanes delivered on 2026-08-15:
   `docs/engine/plans/2026-08-15-authoring-architecture.md` (Studio author-trust
   hardening, the unified authoring shell with workspaces, the project authoring
@@ -156,8 +150,30 @@ Read only the documents relevant to the change:
   passes the pointer through per declaration; mid-bar kiss lands +5
   minutes through a real pointer). Regions still never gain routing
   power and no second resolution path exists.
-  The active lane is narrative-aside (opened 2026-08-27; contract and
-  milestones above).
+  The narrative-aside lane (opened 2026-08-27 by owner order with
+  generality and orthogonality as hard constraints, delivered and
+  closed the same day) completed M0–M3:
+  `docs/engine/proposals/narrative-aside.md` (with the closure record)
+  and `docs/engine/plans/2026-08-27-narrative-aside.md` — a typed,
+  zero-authority, commit-only aside-dialogue push channel
+  (transient-effect family: `asideSequence` + epoch stamps, consumer
+  watermark; pages admitted once, rejected commands push nothing,
+  load/restart replays nothing), the ui paging controller
+  (`createNarrativeAsideControllerV1` + `useNarrativeAsideV1`: local
+  paging, force-dismiss when an authoritative say/choice arrives,
+  drop-on-arrival while dialogue is pending, zero dispatch) with Story
+  renderers owning the pixels, Engine Lab conformance (tripwire-hold
+  fenced write projects a two-page aside; jsdom locks paging over the
+  running hold, untouched hold trajectory, and `when`-reroute forced
+  dismissal; real-pointer browser spec), and the experiment repo's
+  CE18 mid-bar zone SAY pages as the live consumer (knife #387: pages
+  collected against command-start state ride the fenced `zone_press`
+  commit and paint over the still-running bar; the E3 ledger gap is
+  closed). The pending slot, hold arithmetic, resolution legality, and
+  stage-input policy are untouched; asides never enter
+  State/Save/digest/replay/History.
+  There is no active lane (narrative-aside closed 2026-08-27;
+  awaiting the owner's next order).
   Desktop persistence remains an independent promotion gate while the
   adapter is preview.
 - `docs/engine/plans/2026-07-30-desktop-persistence-durability.md`,
