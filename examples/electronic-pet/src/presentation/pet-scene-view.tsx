@@ -153,6 +153,16 @@ export default function ElectronicPetSceneViewV1(
             : "正在布置新家…"}
         </strong>
         <small>{moodLabelV1(props.context.view.mood)}</small>
+        <output
+          key={reaction?.occurrence ?? 0}
+          className={reaction === null
+            ? "pet-scene__counter"
+            : "pet-scene__counter pet-scene__counter--fresh"}
+          data-pet-last-outcome={visibleOutcome ?? "none"}
+          data-pet-reaction-occurrence={reaction?.occurrence ?? 0}
+        >
+          {outcomeLabelV1(visibleOutcome, props.context.view.trustStage)}
+        </output>
       </header>
       <div className="pet-scene__interaction-card">
         <span>{interactionCopy.eyebrow}</span>
@@ -171,16 +181,6 @@ export default function ElectronicPetSceneViewV1(
         <span ref={pointerFeedbackLabelRef} className="pet-scene__pointer-label">
           移动到小猫身上开始互动
         </span>
-      </output>
-      <output
-        key={reaction?.occurrence ?? 0}
-        className={reaction === null
-          ? "pet-scene__counter"
-          : "pet-scene__counter pet-scene__counter--fresh"}
-        data-pet-last-outcome={visibleOutcome ?? "none"}
-        data-pet-reaction-occurrence={reaction?.occurrence ?? 0}
-      >
-        {outcomeLabelV1(visibleOutcome, props.context.view.trustStage)}
       </output>
     </section>
   );

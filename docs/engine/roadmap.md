@@ -305,8 +305,8 @@ promotion；后两者保持独立、条件性，只 gate 各自的 Desktop claim
 其活动产品合同在 [docs/game/electronic-pet.md](../game/electronic-pet.md)。它以原创的新领养小猫产品验证长期
 State/Save、信赖 × 心情规则、3D/React integration、响应式输入，以及 Object ↔ code binding、Inspector 与
 human/Agent handoff；Cat Cafe 在完整接替前保持当前旗舰。M1 已用一只猫、一个玩具和一个挂点互动区完成
-最小 3D runtime 与作者闭环，M2 已完成首个可玩照料循环、持久化进程和鼠标/触控手势反馈；M3 是尚未开始的
-下一执行项。后续仍只有中立可复现的通用缺口才领取 focused
+最小 3D runtime 与作者闭环，M2 已完成首个可玩照料循环、持久化进程和鼠标/触控手势反馈；M3 已开始并完成
+首个产品视觉与宽窄屏构图切片，其余 M3 分母仍开放，M4–M5 未关闭。后续仍只有中立可复现的通用缺口才领取 focused
 engine correction，不预建通用 3D engine、Prefab、
 Blueprint 或最终编辑器。完成后显式处置 Cat Cafe revision 1 Save floor 并原子切换发布，不做跨产品 Save
 迁移或兼容 wrapper。

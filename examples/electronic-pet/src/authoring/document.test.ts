@@ -19,17 +19,12 @@ describe("PetSceneDocumentV1", () => {
     const plan = compiledDefaultV1();
     expect(plan.sceneId).toBe("scene.electronic-pet.home");
     expect(plan.activeCameraId).toBe("pet.camera.main");
-    expect(plan.objects.map((object) => [object.objectId, object.kind])).toEqual([
-      ["pet.home", "group"],
-      ["pet.room", "model"],
-      ["pet.cat", "model"],
-      ["pet.toy", "model"],
-      ["pet.camera.main", "camera"],
-      ["pet.light.key", "light"],
-      ["pet.interaction.face", "interaction-volume"],
-      ["pet.interaction.neck", "interaction-volume"],
-      ["pet.interaction.back", "interaction-volume"],
-    ]);
+    expect(plan.objectById.get("pet.room")).toMatchObject({ kind: "model" });
+    expect(plan.objectById.get("pet.camera.main")).toMatchObject({ kind: "camera" });
+    expect(plan.objectById.get("pet.light.fill")).toMatchObject({
+      kind: "light",
+      light: { lightKind: "ambient" },
+    });
 
     const cat = plan.objectById.get("pet.cat") as PetSceneRuntimeModelPlanV1;
     expect(cat.parentObjectId).toBe("pet.home");
@@ -49,14 +44,11 @@ describe("PetSceneDocumentV1", () => {
       sourceName: "BackSocket",
     });
     expect(cat.model.clipSourceById.get("cat.idle")).toBe("Idle");
-    expect(cat.model.appearance).toEqual({
+    expect(cat.model.appearance).toMatchObject({
       primaryMaterialSourceName: "CatFurPrimary",
-      primaryColor: "#d9b38c",
     });
-    expect(cat.model.animation).toEqual({
+    expect(cat.model.animation).toMatchObject({
       idleClipId: "cat.idle",
-      speed: 1,
-      blendDurationMs: 180,
     });
 
     expect(plan.objectById.get("pet.interaction.neck")).toMatchObject({
@@ -100,11 +92,12 @@ describe("PetSceneDocumentV1", () => {
     (volume.interaction.preferredStrokeDirection as { x: number; y: number; z: number }).x = 0;
     (volume.interaction.preferredStrokeDirection as { x: number; y: number; z: number }).y = 0;
     (volume.interaction.preferredStrokeDirection as { x: number; y: number; z: number }).z = 0;
+    const volumeIndex = invalidHome.children.indexOf(volume);
     expect(admitPetSceneDocumentV1(invalidDirection)).toMatchObject({
       kind: "rejected",
       diagnostic: {
         code: "pet_scene.document_invalid",
-        path: "/objects/0/children/5/interaction/preferredStrokeDirection",
+        path: `/objects/0/children/${volumeIndex}/interaction/preferredStrokeDirection`,
       },
     });
   });
@@ -190,6 +183,8 @@ describe("PetSceneDocumentV1", () => {
     if (volume?.kind !== "interaction-volume") {
       throw new TypeError("missing interaction fixture");
     }
+    const catIndex = home.children.indexOf(cat);
+    const volumeIndex = home.children.indexOf(volume);
 
     const modelConflict = {
       ...electronicPetM1SceneDocumentV1,
@@ -206,7 +201,7 @@ describe("PetSceneDocumentV1", () => {
       kind: "rejected",
       diagnostic: {
         code: "pet_scene.runtime_binding_conflict",
-        path: "/objects/0/children/1/model/modelId",
+        path: `/objects/0/children/${catIndex}/model/modelId`,
       },
     });
 
@@ -228,7 +223,7 @@ describe("PetSceneDocumentV1", () => {
       kind: "rejected",
       diagnostic: {
         code: "pet_scene.runtime_binding_conflict",
-        path: "/objects/0/children/6/interaction/interactionId",
+        path: `/objects/0/children/${volumeIndex}/interaction/interactionId`,
       },
     });
 
@@ -251,7 +246,7 @@ describe("PetSceneDocumentV1", () => {
       kind: "rejected",
       diagnostic: {
         code: "pet_scene.runtime_binding_missing",
-        path: "/objects/0/children/8/model/modelId",
+        path: `/objects/0/children/${home.children.length}/model/modelId`,
       },
     });
 
@@ -313,6 +308,37 @@ describe("PetSceneDocumentV1", () => {
 
     const home = electronicPetM1SceneDocumentV1.objects[0];
     if (home?.kind !== "group") throw new TypeError("missing home group");
+    const camera = home.children.find((object) => object.objectId === "pet.camera.main");
+    if (camera?.kind !== "camera") throw new TypeError("missing camera");
+    const cameraIndex = home.children.indexOf(camera);
+    const missingFramingSubject = {
+      ...electronicPetM1SceneDocumentV1,
+      objects: [{
+        ...home,
+        children: home.children.map((object) =>
+          object.objectId === camera.objectId
+            ? {
+              ...camera,
+              camera: {
+                ...camera.camera,
+                responsiveFraming: {
+                  ...camera.camera.responsiveFraming,
+                  subjectObjectId: "pet.missing",
+                },
+              },
+            }
+            : object
+        ),
+      }],
+    } satisfies PetSceneDocumentV1;
+    expect(compilePetSceneDocumentV1(missingFramingSubject)).toEqual({
+      kind: "rejected",
+      diagnostic: {
+        code: "pet_scene.mapping_target_missing",
+        path: `/objects/0/children/${cameraIndex}/camera/responsiveFraming/subjectObjectId`,
+      },
+    });
+
     const volume = home.children.at(-1);
     if (volume?.kind !== "interaction-volume") throw new TypeError("missing interaction volume");
     const missingSocket = {

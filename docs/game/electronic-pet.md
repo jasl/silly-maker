@@ -1,6 +1,6 @@
 # Electronic Pet Reference Product
 
-状态：**2026-08-27 经所有者接受的活动产品合同；M1–M2 已实现，完整产品仍为 WIP，M3–M5 尚未开始。**
+状态：**2026-08-27 经所有者接受的活动产品合同；M1–M2 已实现，M3 已开始，完整产品仍为 WIP。**
 `electronic-pet` 是工作名与预期应用 ID，最终品牌名不属于本合同。实现计划见
 [Electronic Pet Reference Product 实施计划](../engine/plans/2026-08-27-electronic-pet-reference-product.md)。
 
@@ -234,8 +234,9 @@ renderer，不进入 State、Save 或 replay。指针进度直接投影同一个
 `accept | tolerate | warn | refuse` 四类表现映射；Save/reopen、reset、有界离线结算与回归摘要也已接入。
 同页嵌入式 Inspector 通过产品私有只读 publisher 显示 activity/reason、pose、mood、needs 与关系摘要，
 没有 gameplay write port；独立 Inspector 没有同页 Player 时保持 detached。其余完整产品分母继续由 M3–M5
-承担。当前猫模型、房间几何、材质和构图仍是 M1 作者闭环与 3D runtime 的原创验证素材，不是最终美术验收：
-M3 开始替换为统一、清晰且具有产品吸引力的猫与居住空间，并同步扩充姿态、动画和声音反馈；M4 再完成代表性
+承担。M3 的首个视觉切片已经用产品本地房间构图、环境补光、阴影和宽窄屏响应式相机替换了最早的空房验证
+画面，并保持同一作者 camera/light/Object authority；现有猫 GLB 和房间细节仍不是最终美术验收。M3 将继续
+统一猫与居住空间的产品方向，并同步扩充姿态、动画和声音反馈；M4 再完成代表性
 设备上的视觉、可访问性和性能收口。交互是否可发现、目标是否可触达、反馈是否可读不属于“以后美化”，必须在
 对应玩法里即时修正。
 

@@ -97,7 +97,24 @@ const cameraSchemaV1 = z.strictObject({
   fovDegrees: z.number().finite().min(1).max(179),
   near: z.number().finite().positive(),
   far: z.number().finite().positive(),
-}).refine((camera) => camera.far > camera.near, { path: ["far"] });
+  responsiveFraming: z.strictObject({
+    startAspect: z.number().finite().positive().max(4),
+    fullAspect: z.number().finite().positive().max(4),
+    positionOffset: positionSchemaV1,
+    fovOffsetDegrees: z.number().finite().min(-90).max(90),
+    subjectObjectId: idSchemaV1,
+    subjectXWeight: z.number().finite().min(0).max(1),
+  }),
+}).refine((camera) => camera.far > camera.near, { path: ["far"] }).refine(
+  (camera) => camera.responsiveFraming.startAspect > camera.responsiveFraming.fullAspect,
+  { path: ["responsiveFraming", "fullAspect"] },
+).refine(
+  (camera) => {
+    const narrowFov = camera.fovDegrees + camera.responsiveFraming.fovOffsetDegrees;
+    return narrowFov >= 1 && narrowFov <= 179;
+  },
+  { path: ["responsiveFraming", "fovOffsetDegrees"] },
+);
 
 const lightSchemaV1 = z.strictObject({
   lightKind: z.enum(["ambient", "directional", "point"]),
@@ -419,6 +436,17 @@ export function compilePetSceneDocumentV1(
     }
     if (activeCamera.kind !== "camera") {
       failV1("pet_scene.active_camera_invalid", "/activeCameraId");
+    }
+
+    for (const object of objects) {
+      if (object.kind !== "camera") continue;
+      const subject = objectById.get(object.camera.responsiveFraming.subjectObjectId);
+      if (subject?.kind !== "model") {
+        failV1(
+          "pet_scene.mapping_target_missing",
+          `${object.sourcePath}/camera/responsiveFraming/subjectObjectId`,
+        );
+      }
     }
 
     for (const { object } of pendingInteractions) {

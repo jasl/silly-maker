@@ -3,7 +3,7 @@
 # Electronic Pet Reference Product
 
 这是 SillyMaker 的原创电子宠物 Reference Product。**M1 的 3D runtime 与作者闭环、M2 的权威领养与
-照料循环均已实现；完整产品仍是 WIP，M3–M5 尚未开始。** 它从当前
+照料循环均已实现；M3 已完成首个产品视觉与宽窄屏构图切片，完整产品仍是 WIP。** 它从当前
 `template/` 工程形状创建，但已经移除模板的雨夜 Narrative、coin、2D opening、Chrome、
 reference outer UI 和对应测试，不把 starter 占位能力伪装成产品能力。
 
@@ -18,8 +18,8 @@ reference outer UI 和对应测试，不把 starter 占位能力伪装成产品�
 鼠标/触控 Pointer Events；键盘继续服务普通 DOM UI，不模拟抚摸，手柄不属于产品输入分母。
 
 尾根仍保留“高个体差异敏感区”的设计政策，但当前没有 authored volume、runtime binding 或 gameplay
-rule；它明确 defer，不作为 M2 已实现互动。腹部、梳理、另外两种玩具、后期关系、完整内容与产品打磨属于
-M3–M5。
+rule；它明确 defer，不作为 M2 已实现互动。腹部、梳理、另外两种玩具、后期关系、完整内容与产品打磨仍由
+M3–M5 承担。
 在完整产品分母、作者任务、产品证据和独立审查关闭前，本项目不能被称为完整游戏，也不会
 替代当前旗舰 Cat Cafe。
 

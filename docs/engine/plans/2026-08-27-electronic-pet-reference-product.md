@@ -1,6 +1,6 @@
 # Electronic Pet Reference Product 实施计划
 
-状态：**2026-08-27 经所有者接受；M0–M2 已实现，产品仍为 WIP，M3–M5 尚未开始。**
+状态：**2026-08-27 经所有者接受；M0–M2 已实现，M3 已开始，产品仍为 WIP，M4–M5 尚未开始。**
 
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 是唯一跨计划排序入口。本计划是
 Neutral GUI Host 关闭后所有者显式选择的唯一 Reference Product 车道，不是 broad engine lane。产品合同见
@@ -231,8 +231,8 @@ M2 post-closure usability correction（2026-08-27）：
   `deno task check` 为 `390` 个 Vitest 文件、`5,475` 项测试与 `6` 项 composition-state workload，并通过 assets、
   全部 application checks 与 E2E release build。
 
-M3–M5 不因 M2 关闭而自动开始，完整产品分母、后期关系、剩余互动/玩具/行为、音频/i18n、作者接手与
-retirement gate 均保持开放。
+M3 已由所有者另行启动并进入首个视觉与构图切片；其余完整产品分母、后期关系、剩余互动/玩具/行为、
+音频/i18n 与作者接手仍保持开放，M4–M5 和 retirement gate 均未关闭。
 
 ### M3 — 关系深度、互动宽度与反馈质量
 
@@ -247,6 +247,14 @@ retirement gate 均保持开放。
 - 完成偏好发现、玩具熟练度、照片/回忆册、托管/旅行模式、设置、音频和 locale-addressable 中英文本；
 - 使用 addressable content/asset/code boundaries 控制初始 graph 与 resident working set，不为单只猫建立通用
   loader、Worker scheduler 或 cache framework。
+
+2026-08-27 完成 M3 的首个视觉与构图切片：Scene 作者数据新增可编辑的 ambient fill light；产品本地 Three
+runtime 以作者 camera 为宽屏基线，只在 resize 与 activity change 时派生窄屏 framing，不在反应动画逐帧更新
+相机；房间的窗框、踢脚线、圆形地毯、窝垫和食碗收进独立的 product-local procedural asset builder，当前仍是
+一个 `pet.room` 聚合对象的内部 children，尚未成为逐个可选择、可编辑的 authored objects。该实现只扩展
+Electronic Pet 私有 camera 数据，未增加引擎 API、通用 Scene schema、registry 或第二套 Object authority；猫、球、阴影和宽窄屏浮层构图经真实
+1280×800、390×844 与 Chromium/WebKit 产品旅程验证。该切片只关闭验证级构图与可触达性阻断，最终猫与房间
+美术、后期关系、剩余互动/玩具/行为、音频、i18n、设置、相册和完整 M3 分母仍然开放。
 
 ### M4 — 产品完整性、作者接手与性能审查
 

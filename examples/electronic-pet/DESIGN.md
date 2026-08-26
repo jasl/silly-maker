@@ -2,7 +2,7 @@
 
 # Electronic Pet product and authoring ledger
 
-状态：**M1–M2 已实现；完整 Reference Product 仍为 WIP，M3–M5 尚未开始。** Primary baseline 是仓库内的
+状态：**M1–M2 已实现，M3 已开始；完整 Reference Product 仍为 WIP。** Primary baseline 是仓库内的
 [`docs/game/electronic-pet.md`](../../docs/game/electronic-pet.md)，不是任何第三方应用。
 
 ## Semantic coverage
@@ -14,7 +14,7 @@
 | 自主行为                 | 至少 16 个，含驻留、打断与重复抑制                                          | M2 完成 8/16 个及 8 个表现映射   | M3 完成 16 个与内容打磨                                |
 | 互动                     | 八类主要互动、腹部邀请与边界反馈                                            | M2 完成脸、颈、背 3/8 类         | 尾根明确 defer；M3 完成其余互动                        |
 | 玩具与照料               | 三种玩具、喂食、梳理、共同游戏                                              | M2 完成照料、闻手与逗猫棒 1/3    | M3 完成梳理及另外两种玩具                              |
-| 3D 表现                  | 房间、rigged cat、动画与响应式质量档位                                      | M1 runtime slice 已完成          | 使用成熟 Three 生态，不建设通用 3D engine              |
+| 3D 表现                  | 房间、rigged cat、动画与响应式质量档位                                      | M3 首个视觉/宽窄屏构图切片已完成 | 最终猫、房间细节与动画仍开放；不建设通用 3D engine     |
 | 作者工作流               | Object 到代码/资源/互动/source 可定位，人类与 Agent 共用 operation/CAS/undo | M1 作者闭环已完成                | 不要求无代码开发                                       |
 | Save/recovery/offline    | 独立 Save floor、有限离线结算与回归摘要                                     | M2 完成 Save/reopen/reset 与摘要 | M5 完成完整 recovery/release 证据                      |
 | i18n/audio/accessibility | 中英文本、音频、普通 DOM UI 的键盘与无障碍语义                              | 尚未实现                         | M3–M4 完成                                             |

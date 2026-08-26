@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 import {
+  ACESFilmicToneMapping,
   AmbientLight,
   AnimationMixer,
   ArrowHelper,
@@ -13,7 +14,6 @@ import {
   MeshStandardMaterial,
   Object3D,
   PerspectiveCamera,
-  PlaneGeometry,
   PointLight,
   Raycaster,
   Scene,
@@ -24,14 +24,7 @@ import {
   Vector3,
   WebGLRenderer,
 } from "three";
-import type {
-  AnimationAction,
-  BufferGeometry,
-  ColorRepresentation,
-  Material,
-  SkinnedMesh,
-  Texture,
-} from "three";
+import type { AnimationAction, BufferGeometry, Material, SkinnedMesh, Texture } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 import type {
@@ -63,6 +56,7 @@ import type {
   PetActivityPresentationV1,
   PetReactionPresentationV1,
 } from "./pet-companion-presentation.ts";
+import { createPetBallV1, createPetRoomV1 } from "./pet-procedural-assets.ts";
 
 export interface PetThreeRuntimeMetricsV1 {
   readonly renderedFrames: number;
@@ -146,57 +140,6 @@ function applyTransformV1(object: Object3D, transform: PetTransformV1): void {
     transform.rotation.z,
   );
   object.scale.set(transform.scale.x, transform.scale.y, transform.scale.z);
-}
-
-function createMaterialV1(
-  color: ColorRepresentation,
-  roughness = 0.72,
-): MeshStandardMaterial {
-  return new MeshStandardMaterial({ color, roughness, metalness: 0.02 });
-}
-
-function createRoomV1(primaryMaterialSourceName: string, primaryColor: string): Group {
-  const room = new Group();
-  room.name = "RoomShell";
-  const floorMaterial = createMaterialV1(0xd8b991, 0.88);
-  const wallMaterial = createMaterialV1(primaryColor, 0.95);
-  wallMaterial.name = primaryMaterialSourceName;
-  const rugMaterial = createMaterialV1(0x7eb6ad, 0.92);
-  const floor = new Mesh(new PlaneGeometry(8, 6), floorMaterial);
-  floor.rotation.x = -Math.PI / 2;
-  floor.receiveShadow = true;
-  room.add(floor);
-  const back = new Mesh(new PlaneGeometry(8, 4.6), wallMaterial);
-  back.position.set(0, 2.3, -3);
-  room.add(back);
-  const side = new Mesh(new PlaneGeometry(6, 4.6), wallMaterial.clone());
-  side.position.set(-4, 2.3, 0);
-  side.rotation.y = Math.PI / 2;
-  room.add(side);
-  const rug = new Mesh(new PlaneGeometry(3.2, 2.35), rugMaterial);
-  rug.rotation.x = -Math.PI / 2;
-  rug.position.set(0.25, 0.012, 0.15);
-  room.add(rug);
-
-  const window = new Mesh(
-    new PlaneGeometry(1.8, 1.75),
-    new MeshStandardMaterial({ color: 0xbfe0eb, roughness: 0.55, emissive: 0x163441 }),
-  );
-  window.position.set(-2.35, 2.65, -2.97);
-  room.add(window);
-  return room;
-}
-
-function createToyV1(primaryMaterialSourceName: string, primaryColor: string): Group {
-  const toy = new Group();
-  toy.name = "Ball";
-  const material = createMaterialV1(primaryColor, 0.58);
-  material.name = primaryMaterialSourceName;
-  const ball = new Mesh(new SphereGeometry(0.19, 24, 16), material);
-  ball.castShadow = true;
-  ball.receiveShadow = true;
-  toy.add(ball);
-  return toy;
 }
 
 function applyPrimaryColorV1(
@@ -306,7 +249,9 @@ export function createPetThreeRuntimeV1(
   });
   const quality = input.quality ?? "balanced";
   renderer.outputColorSpace = SRGBColorSpace;
-  renderer.setClearColor(new Color(0xf4eee5), 1);
+  renderer.toneMapping = ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.04;
+  renderer.setClearColor(new Color(0xe8eee9), 1);
   renderer.shadowMap.enabled = true;
 
   const scene = new Scene();
@@ -348,6 +293,7 @@ export function createPetThreeRuntimeV1(
   let activeAnimationFrames = 0;
   let lastFrameMs = 0;
   let disposed = false;
+  let viewportAspect = 1;
 
   const cameraPlan = input.plan.objectById.get(input.plan.activeCameraId);
   if (cameraPlan?.kind !== "camera") {
@@ -385,6 +331,16 @@ export function createPetThreeRuntimeV1(
         : lightKind === "point"
         ? new PointLight(color, intensity)
         : new DirectionalLight(color, intensity);
+      if (runtimeObject instanceof DirectionalLight) {
+        runtimeObject.castShadow = true;
+        runtimeObject.shadow.mapSize.set(1_024, 1_024);
+        runtimeObject.shadow.camera.near = 0.1;
+        runtimeObject.shadow.camera.far = 16;
+        runtimeObject.shadow.camera.left = -4.5;
+        runtimeObject.shadow.camera.right = 4.5;
+        runtimeObject.shadow.camera.top = 4.5;
+        runtimeObject.shadow.camera.bottom = -2;
+      }
     } else {
       runtimeObject = new Group();
     }
@@ -402,6 +358,32 @@ export function createPetThreeRuntimeV1(
   if (catPlan?.kind !== "model" || catRoot === undefined) {
     throw new TypeError("pet.companion_model_unavailable");
   }
+  const cameraFraming = cameraPlan.camera.responsiveFraming;
+  const cameraSubjectPlan = input.plan.objectById.get(cameraFraming.subjectObjectId)!;
+  let cameraSubjectX = cameraSubjectPlan.transform.position.x;
+
+  const applyCameraCompositionV1 = (): void => {
+    const aspectSpan = cameraFraming.startAspect - cameraFraming.fullAspect;
+    const narrowness = Math.max(
+      0,
+      Math.min(1, (cameraFraming.startAspect - viewportAspect) / aspectSpan),
+    );
+    camera.position.set(
+      cameraPlan.transform.position.x +
+        narrowness *
+          (cameraFraming.positionOffset.x +
+            (cameraSubjectX - cameraPlan.transform.position.x) * cameraFraming.subjectXWeight),
+      cameraPlan.transform.position.y + narrowness * cameraFraming.positionOffset.y,
+      cameraPlan.transform.position.z + narrowness * cameraFraming.positionOffset.z,
+    );
+    camera.rotation.set(
+      cameraPlan.transform.rotation.x,
+      cameraPlan.transform.rotation.y,
+      cameraPlan.transform.rotation.z,
+    );
+    camera.fov = cameraPlan.camera.fovDegrees + narrowness * cameraFraming.fovOffsetDegrees;
+    camera.updateProjectionMatrix();
+  };
 
   const applyCompanionTransformV1 = (reactionStrength = 0): void => {
     const activity = activityPresentation;
@@ -672,6 +654,9 @@ export function createPetThreeRuntimeV1(
     currentPoseId = view.poseId;
     currentTrustStage = view.trustStage;
     activityPresentation = petActivityPresentationV1(view.activityId);
+    if (cameraFraming.subjectObjectId === catPlan.objectId) {
+      cameraSubjectX = catPlan.transform.position.x + activityPresentation.positionOffset.x;
+    }
     interactionEnabled = (input.authoring ?? false) || activityPresentation.interactionEnabled;
     reachableInteractionObjects = !interactionEnabled
       ? []
@@ -703,6 +688,7 @@ export function createPetThreeRuntimeV1(
       for (const { action } of clipActions) action.stop();
       applyCompanionTransformV1();
     }
+    if (activityChanged) applyCameraCompositionV1();
     requestRenderV1();
   };
 
@@ -859,8 +845,9 @@ export function createPetThreeRuntimeV1(
     const dpr = Math.min(globalThis.devicePixelRatio || 1, quality === "quality" ? 2 : 1.5);
     renderer.setPixelRatio(dpr);
     renderer.setSize(width, height, false);
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
+    viewportAspect = width / height;
+    camera.aspect = viewportAspect;
+    applyCameraCompositionV1();
     requestRenderV1();
   };
   const observer = new ResizeObserver(resizeV1);
@@ -878,8 +865,8 @@ export function createPetThreeRuntimeV1(
     if (runtimeBinding.runtimeKind !== "gltf") {
       const appearance = object.model.appearance;
       const model = runtimeBinding.runtimeKind === "procedural-room"
-        ? createRoomV1(appearance.primaryMaterialSourceName, appearance.primaryColor)
-        : createToyV1(appearance.primaryMaterialSourceName, appearance.primaryColor);
+        ? createPetRoomV1(appearance.primaryMaterialSourceName, appearance.primaryColor)
+        : createPetBallV1(appearance.primaryMaterialSourceName, appearance.primaryColor);
       modelRoot.add(model);
       collectDisposableResourcesV1(model, geometries, materials, textures, skinnedMeshes);
       if (input.authoring ?? false) {
@@ -902,6 +889,11 @@ export function createPetThreeRuntimeV1(
       return;
     }
     gltf.scene.name = object.label;
+    gltf.scene.traverse((candidate) => {
+      if (!(candidate instanceof Mesh)) return;
+      candidate.castShadow = true;
+      candidate.receiveShadow = true;
+    });
     collectDisposableResourcesV1(gltf.scene, geometries, materials, textures, skinnedMeshes);
     applyPrimaryColorV1(
       gltf.scene,

@@ -69,6 +69,16 @@ export interface PetPerspectiveCameraV1 {
   readonly fovDegrees: number;
   readonly near: number;
   readonly far: number;
+  readonly responsiveFraming: {
+    /** Begin blending away from the authored wide camera below this canvas aspect. */
+    readonly startAspect: number;
+    /** Apply the complete narrow offset at or below this canvas aspect. */
+    readonly fullAspect: number;
+    readonly positionOffset: PetVec3V1;
+    readonly fovOffsetDegrees: number;
+    readonly subjectObjectId: string;
+    readonly subjectXWeight: number;
+  };
 }
 
 export type PetLightKindV1 = "ambient" | "directional" | "point";

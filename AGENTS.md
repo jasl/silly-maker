@@ -36,7 +36,11 @@ Read only the documents relevant to the change:
   PF6 remains evidence-gated and inactive. The current lane is
   `docs/engine/plans/2026-08-27-electronic-pet-reference-product.md`: M0 product
   contract, M1's first 3D runtime plus Inspector authoring closure, and M2's
-  first playable care loop are complete; M3 is next but has not started. Its
+  first playable care loop are complete. M3 is in progress: its first
+  product-local visual slice delivered responsive camera composition, a clearer
+  room/light/material direction, and wide/narrow overlay cleanup without adding
+  a generic 3D engine layer; the relationship, interaction, content, audio,
+  i18n, and product-system denominator remains open. Its
   gameplay authority is `docs/game/electronic-pet.md`. Cat Cafe
   remains the flagship and maintained Save/browser product until the successor's
   complete denominator, human/Agent author tasks, evidence transfer, and atomic

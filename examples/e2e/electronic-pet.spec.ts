@@ -120,7 +120,7 @@ async function observeAutomationGameV1(page: Page): Promise<unknown> {
   }, automationKeyV1);
 }
 
-test.describe("Electronic Pet M2 browser product", () => {
+test.describe("Electronic Pet browser product", () => {
   test("loads the real GLB and exposes the care journey beside the ready 3D scene", async ({ page }) => {
     const scene = await openReadyPetSceneV1(page);
     await expect(scene.getByText("它还不准备被触碰", { exact: true })).toBeVisible();
@@ -402,8 +402,25 @@ test.describe("Electronic Pet M2 browser product", () => {
     await expect(runtime.getByText("social_interest", { exact: true })).toBeVisible();
     expect(await observeAutomationGameV1(page)).toEqual(gameBeforeAuthoring);
 
-    await hierarchy.getByRole("button", { name: /Neck and shoulder interaction/u }).click();
     const properties = companion.getByRole("complementary", { name: "Selected object properties" });
+    await hierarchy.locator('[data-pet-object-id="pet.camera.main"]').click();
+    await expect(properties.locator("header code")).toHaveText("pet.camera.main");
+    await expect(properties.getByText("Camera framing", { exact: true })).toBeVisible();
+    await expect(properties.getByRole("spinbutton", { name: "Blend below aspect" })).toBeVisible();
+    const narrowFov = properties.getByRole("spinbutton", { name: "Narrow FOV offset" });
+    const initialNarrowFov = Number(await narrowFov.inputValue());
+    expect(Number.isFinite(initialNarrowFov)).toBe(true);
+    await narrowFov.fill(String(initialNarrowFov + 1));
+    await narrowFov.press("Tab");
+    await expect(narrowFov).toHaveValue(String(initialNarrowFov + 1));
+    const undo = companion.getByRole("button", { name: "Undo", exact: true });
+    await expect(undo).toBeEnabled();
+    await undo.click();
+    await expect(properties.getByRole("spinbutton", { name: "Narrow FOV offset" })).toHaveValue(
+      String(initialNarrowFov),
+    );
+
+    await hierarchy.getByRole("button", { name: /Neck and shoulder interaction/u }).click();
     await expect(properties.locator("header code")).toHaveText("pet.interaction.neck");
     await expect(properties.getByRole("spinbutton", { name: "Radius" })).toHaveValue("0.34");
     const direction = properties.getByRole("group", { name: "Preferred fur direction" });
@@ -414,7 +431,6 @@ test.describe("Electronic Pet M2 browser product", () => {
     await companion.getByRole("button", { name: "Agent adjusts volume" }).click();
     await expect(properties.getByRole("spinbutton", { name: "Radius" })).toHaveValue("0.38");
     expect(await observeAutomationGameV1(page)).toEqual(gameBeforeAuthoring);
-    const undo = companion.getByRole("button", { name: "Undo", exact: true });
     await expect(undo).toBeEnabled();
     await undo.click();
     await expect(properties.getByRole("spinbutton", { name: "Radius" })).toHaveValue("0.34");

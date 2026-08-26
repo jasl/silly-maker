@@ -11,6 +11,7 @@ import type { ReactElement } from "react";
 
 import type {
   PetModelBindingV1,
+  PetPerspectiveCameraV1,
   PetSceneDocumentV1,
   PetSceneObjectV1,
   PetSceneOperationExecutorV1,
@@ -292,6 +293,16 @@ export function ElectronicPetSceneInspectorV1(
     });
   };
 
+  const setCameraV1 = (camera: PetPerspectiveCameraV1): void => {
+    if (selectedSource?.kind !== "camera") return;
+    executeV1({
+      schemaRevision: 1,
+      kind: "pet_scene.camera.set",
+      objectId: selectedSource.objectId,
+      camera,
+    });
+  };
+
   const saveV1 = async (): Promise<void> => {
     const result = await saveWithConflictRefreshInternalV1(props.owner.session);
     setMessage(
@@ -447,18 +458,85 @@ export function ElectronicPetSceneInspectorV1(
               <TransformFieldsV1 value={selectedSource.transform} onCommit={setTransformV1} />
               {selectedSource.kind === "camera"
                 ? (
-                  <NumberFieldV1
-                    label="Field of view"
-                    value={selectedSource.camera.fovDegrees}
-                    step={1}
-                    onCommit={(fovDegrees) =>
-                      executeV1({
-                        schemaRevision: 1,
-                        kind: "pet_scene.camera.set",
-                        objectId: selectedSource.objectId,
-                        camera: { ...selectedSource.camera, fovDegrees },
-                      })}
-                  />
+                  <div className="pet-authoring__facet">
+                    <strong>Camera framing</strong>
+                    <NumberFieldV1
+                      label="Field of view"
+                      value={selectedSource.camera.fovDegrees}
+                      step={1}
+                      onCommit={(fovDegrees) =>
+                        setCameraV1({ ...selectedSource.camera, fovDegrees })}
+                    />
+                    <small>
+                      Narrow framing follows{" "}
+                      <code>{selectedSource.camera.responsiveFraming.subjectObjectId}</code>
+                    </small>
+                    <NumberFieldV1
+                      label="Blend below aspect"
+                      value={selectedSource.camera.responsiveFraming.startAspect}
+                      step={0.05}
+                      onCommit={(startAspect) =>
+                        setCameraV1({
+                          ...selectedSource.camera,
+                          responsiveFraming: {
+                            ...selectedSource.camera.responsiveFraming,
+                            startAspect,
+                          },
+                        })}
+                    />
+                    <NumberFieldV1
+                      label="Full at aspect"
+                      value={selectedSource.camera.responsiveFraming.fullAspect}
+                      step={0.05}
+                      onCommit={(fullAspect) =>
+                        setCameraV1({
+                          ...selectedSource.camera,
+                          responsiveFraming: {
+                            ...selectedSource.camera.responsiveFraming,
+                            fullAspect,
+                          },
+                        })}
+                    />
+                    <VectorFieldsV1
+                      label="Narrow position offset"
+                      value={selectedSource.camera.responsiveFraming.positionOffset}
+                      step={0.05}
+                      onCommit={(positionOffset) =>
+                        setCameraV1({
+                          ...selectedSource.camera,
+                          responsiveFraming: {
+                            ...selectedSource.camera.responsiveFraming,
+                            positionOffset,
+                          },
+                        })}
+                    />
+                    <NumberFieldV1
+                      label="Narrow FOV offset"
+                      value={selectedSource.camera.responsiveFraming.fovOffsetDegrees}
+                      step={1}
+                      onCommit={(fovOffsetDegrees) =>
+                        setCameraV1({
+                          ...selectedSource.camera,
+                          responsiveFraming: {
+                            ...selectedSource.camera.responsiveFraming,
+                            fovOffsetDegrees,
+                          },
+                        })}
+                    />
+                    <NumberFieldV1
+                      label="Subject X weight"
+                      value={selectedSource.camera.responsiveFraming.subjectXWeight}
+                      step={0.1}
+                      onCommit={(subjectXWeight) =>
+                        setCameraV1({
+                          ...selectedSource.camera,
+                          responsiveFraming: {
+                            ...selectedSource.camera.responsiveFraming,
+                            subjectXWeight,
+                          },
+                        })}
+                    />
+                  </div>
                 )
                 : null}
               {selectedSource.kind === "light"

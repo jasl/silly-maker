@@ -2,7 +2,7 @@
 .pet-care {
   position: absolute;
   z-index: 4;
-  inset-block-start: clamp(126px, 18vh, 150px);
+  inset-block-start: clamp(164px, 22vh, 184px);
   inset-inline-start: clamp(14px, 3vw, 28px);
   display: grid;
   inline-size: min(360px, calc(100% - 28px));

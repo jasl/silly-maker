@@ -28,7 +28,8 @@ Reference Product；产品合同见
 [Electronic Pet Reference Product](../../game/electronic-pet.md)。M0 已冻结原创产品分母、信赖 × 心情
 规则、姿态/邀请/手势反馈、Object ↔ code ↔ source/operation 作者合同、Cat Cafe 接替矩阵与停止条件；M1
 已完成一间房、一只猫、一个玩具和一个 bone/socket interaction volume 的 3D runtime + Inspector 作者闭环；
-M2 已完成首个可玩照料循环、持久化进程和鼠标/触控手势反馈，M3 是尚未开始的下一执行项。Cat Cafe 在新产品
+M2 已完成首个可玩照料循环、持久化进程和鼠标/触控手势反馈；M3 已开始并完成首个产品视觉与宽窄屏构图
+切片，其余关系、互动、内容、音频、i18n 与产品系统分母仍开放，M4–M5 未关闭。Cat Cafe 在新产品
 完成前继续作为当前旗舰与维护中的 Save/browser evidence；
 只有完整产品、human/Agent
 作者任务、独立 product/engine review 和接替矩阵都关闭后，才显式终止 Cat Cafe revision 1 Save 支持并原子

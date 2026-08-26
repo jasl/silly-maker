@@ -125,8 +125,7 @@
 }
 
 .pet-scene__status,
-.pet-scene__interaction-card,
-.pet-scene__counter {
+.pet-scene__interaction-card {
   position: absolute;
   z-index: 2;
   pointer-events: none;
@@ -181,12 +180,16 @@
 }
 
 .pet-scene__counter {
-  inset-inline-start: clamp(14px, 3vw, 28px);
-  inset-block-end: clamp(14px, 3vw, 28px);
-  padding: 8px 12px;
-  border-radius: 999px;
+  display: block;
+  justify-self: start;
+  max-inline-size: min(260px, calc(100vw - 60px));
+  margin-block-start: 5px;
+  padding: 6px 9px;
+  border-radius: 9px;
   color: #5c6864;
-  font-size: 12px;
+  background: rgb(80 117 108 / 8%);
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .pet-scene__counter--fresh {
@@ -218,11 +221,6 @@
     inset-block: 142px auto;
     inline-size: auto;
     padding: 14px;
-  }
-
-  .pet-scene__counter {
-    inset-inline-start: 14px;
-    inset-block: 98px auto;
   }
 }
 

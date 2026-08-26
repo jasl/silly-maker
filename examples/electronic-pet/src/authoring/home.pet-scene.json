@@ -49,7 +49,7 @@
             "modelId": "electronic-pet.cat.low-poly",
             "appearance": {
               "primaryMaterialSourceName": "CatFurPrimary",
-              "primaryColor": "#d9b38c"
+              "primaryColor": "#c98e63"
             },
             "animation": {
               "idleClipId": "cat.idle",
@@ -132,7 +132,30 @@
             "projection": "perspective",
             "fovDegrees": 42,
             "near": 0.1,
-            "far": 100
+            "far": 100,
+            "responsiveFraming": {
+              "startAspect": 1.15,
+              "fullAspect": 0.45,
+              "positionOffset": { "x": 0, "y": 0.08, "z": 2 },
+              "fovOffsetDegrees": 4,
+              "subjectObjectId": "pet.cat",
+              "subjectXWeight": 1
+            }
+          }
+        },
+        {
+          "kind": "light",
+          "objectId": "pet.light.fill",
+          "label": "Room fill",
+          "transform": {
+            "position": { "x": 0, "y": 0, "z": 0 },
+            "rotation": { "x": 0, "y": 0, "z": 0 },
+            "scale": { "x": 1, "y": 1, "z": 1 }
+          },
+          "light": {
+            "lightKind": "ambient",
+            "color": "#dce7ef",
+            "intensity": 1.05
           }
         },
         {
@@ -147,7 +170,7 @@
           "light": {
             "lightKind": "directional",
             "color": "#fff3df",
-            "intensity": 2.2
+            "intensity": 1.8
           }
         },
         {

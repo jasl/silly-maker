@@ -74,7 +74,9 @@ describe("PetSceneOperationV1", () => {
   it("edits each typed payload without adding another state authority", () => {
     const fixture = fixtureV1();
     const cat = objectV1(electronicPetM1SceneDocumentV1, "pet.cat");
+    const camera = objectV1(electronicPetM1SceneDocumentV1, "pet.camera.main");
     if (cat.kind !== "model") throw new TypeError("missing cat model");
+    if (camera.kind !== "camera") throw new TypeError("missing camera");
     const edits: readonly PetSceneOperationV1[] = [
       {
         schemaRevision: 1,
@@ -95,7 +97,15 @@ describe("PetSceneOperationV1", () => {
         schemaRevision: 1,
         kind: "pet_scene.camera.set",
         objectId: "pet.camera.main",
-        camera: { projection: "perspective", fovDegrees: 38, near: 0.1, far: 80 },
+        camera: {
+          ...camera.camera,
+          fovDegrees: 38,
+          far: 80,
+          responsiveFraming: {
+            ...camera.camera.responsiveFraming,
+            positionOffset: { x: 0.1, y: 0.1, z: 2.2 },
+          },
+        },
       },
       {
         schemaRevision: 1,
@@ -137,7 +147,12 @@ describe("PetSceneOperationV1", () => {
         },
       },
     });
-    expect(objectV1(draft, "pet.camera.main")).toMatchObject({ camera: { fovDegrees: 38 } });
+    expect(objectV1(draft, "pet.camera.main")).toMatchObject({
+      camera: {
+        fovDegrees: 38,
+        responsiveFraming: { positionOffset: { x: 0.1, y: 0.1, z: 2.2 } },
+      },
+    });
     expect(objectV1(draft, "pet.light.key")).toMatchObject({ light: { intensity: 1.8 } });
     expect(objectV1(draft, "pet.interaction.neck")).toMatchObject({
       interaction: { shape: { radius: 0.5 } },
@@ -237,9 +252,11 @@ describe("PetSceneOperationV1", () => {
   it("rejects invalid replacement values before they enter the authoring draft", () => {
     const fixture = fixtureV1();
     const cat = objectV1(electronicPetM1SceneDocumentV1, "pet.cat");
+    const camera = objectV1(electronicPetM1SceneDocumentV1, "pet.camera.main");
     if (cat.kind !== "model" || cat.model.animation === undefined) {
       throw new TypeError("missing animated cat model");
     }
+    if (camera.kind !== "camera") throw new TypeError("missing camera");
     const invalidOperations: readonly {
       readonly operation: PetSceneOperationV1;
       readonly path: string;
@@ -259,7 +276,7 @@ describe("PetSceneOperationV1", () => {
           schemaRevision: 1,
           kind: "pet_scene.camera.set",
           objectId: "pet.camera.main",
-          camera: { projection: "perspective", fovDegrees: 999, near: 0.1, far: 100 },
+          camera: { ...camera.camera, fovDegrees: 999 },
         },
       },
       {

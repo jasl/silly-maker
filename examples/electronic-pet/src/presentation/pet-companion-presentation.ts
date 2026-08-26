@@ -27,7 +27,7 @@ export interface PetReactionPresentationV1 {
 
 const activityPresentationByIdV1 = {
   hide_in_den: {
-    positionOffset: { x: -1.25, y: -0.12, z: -0.62 },
+    positionOffset: { x: -0.95, y: -0.12, z: -0.62 },
     rotationOffset: { x: 0, y: 0.52, z: 0 },
     scaleMultiplier: { x: 0.78, y: 0.72, z: 0.78 },
     interactionEnabled: false,
