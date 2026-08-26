@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Composes the publishable static site under dist/site:
 //   /                Astro/Starlight documentation (website/)
-//   /play/cards/      the neutral GUI Reference Product
 //   /play/cat-cafe/  the Cat Cafe Player bundle (relative-base, static saves
 //                    live in the visitor's browser via IndexedDB)
 //   /play/silly-os/  the SillyOS 98 retro-desktop example
@@ -49,7 +48,6 @@ async function runV1(command: string[], env?: Record<string, string>): Promise<v
 console.log(`[site] base: ${siteBase}`);
 
 // 1. Player bundles (app build runs Vite with each target's own config).
-await runV1(["deno", "task", "app", "build", "example-cards"]);
 await runV1(["deno", "task", "app", "build", "example-cat-cafe"]);
 await runV1(["deno", "task", "app", "build", "example-silly-os"]);
 
@@ -60,9 +58,6 @@ await runV1(["deno", "task", "docs:build"], { SITE_BASE: siteBase });
 await rm(siteDir, { recursive: true, force: true });
 await mkdir(join(siteDir, "play"), { recursive: true });
 await cp(join(repoRoot, "website", "dist"), siteDir, { recursive: true });
-await cp(join(repoRoot, "examples", "cards", "dist-web"), join(siteDir, "play", "cards"), {
-  recursive: true,
-});
 await cp(join(repoRoot, "examples", "cat-cafe", "dist-web"), join(siteDir, "play", "cat-cafe"), {
   recursive: true,
 });

@@ -21,8 +21,8 @@ import {
   type WebGuiApplicationV1,
 } from "./start-web-gui-application.tsx";
 
-const nextCardActionV1 = parseInputActionIdV1("cards.next");
-const openCardActionV1 = parseInputActionIdV1("cards.open");
+const nextActionV1 = parseInputActionIdV1("gui-conformance.next");
+const openActionV1 = parseInputActionIdV1("gui-conformance.open");
 const desktopCapabilityV1 = "a".repeat(43);
 
 let startedApplicationsV1: StartedWebGuiApplicationV1[] = [];
@@ -83,7 +83,7 @@ function RoutedCounterV1(): ReactElement {
       handle(event) {
         if (
           event.kind !== "action" ||
-          (event.actionId !== nextCardActionV1 && event.actionId !== openCardActionV1)
+          (event.actionId !== nextActionV1 && event.actionId !== openActionV1)
         ) {
           return inputIgnoredV1;
         }
@@ -98,7 +98,7 @@ function createApplicationV1(
   overrides: Partial<WebGuiApplicationV1> = {},
 ): WebGuiApplicationV1 {
   return {
-    applicationId: "example-cards",
+    applicationId: "gui-conformance",
     viewport: {
       canvas: { width: 480, height: 272 },
       mode: "fit",
@@ -111,7 +111,7 @@ function createApplicationV1(
 }
 
 function FailingPresentationV1(): ReactElement {
-  throw new Error("private Cards presentation detail");
+  throw new Error("private GUI presentation detail");
 }
 
 async function startV1(
@@ -139,7 +139,7 @@ describe("startWebGuiApplicationV1", () => {
       ui: () => ({
         content: <RoutedCounterV1 />,
         input: {
-          keyboard: { ArrowRight: nextCardActionV1 },
+          keyboard: { ArrowRight: nextActionV1 },
           nativeBehavior: {},
         },
         dispose: disposeUi,
@@ -151,7 +151,7 @@ describe("startWebGuiApplicationV1", () => {
       registerPageLifecycle: false,
     });
 
-    expect(root.querySelector('[data-application-id="example-cards"]')).not.toBeNull();
+    expect(root.querySelector('[data-application-id="gui-conformance"]')).not.toBeNull();
     expect(root.querySelectorAll("main")).toHaveLength(0);
     expect(root.querySelector('[data-testid="game-viewport"]')).not.toBeNull();
     expect(document.body).toHaveAttribute("data-silly-native-reset", "true");
@@ -192,7 +192,7 @@ describe("startWebGuiApplicationV1", () => {
     const application = createApplicationV1({
       ui: () => ({
         content: <RoutedCounterV1 />,
-        input: { gamepad: { 0: openCardActionV1 } },
+        input: { gamepad: { 0: openActionV1 } },
       }),
     });
     const started = await startV1(application, {

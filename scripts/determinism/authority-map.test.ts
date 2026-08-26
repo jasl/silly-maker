@@ -499,7 +499,6 @@ describe("authoritative determinism authority map", () => {
     expect(map.applications.map(({ applicationId }) => applicationId)).toEqual(
       determinismAuthorityPolicyV1.applications.map(({ applicationId }) => applicationId),
     );
-    expect(map.applications.map(({ directory }) => directory)).not.toContain("examples/cards");
     const policyByApplicationId = new Map(
       determinismAuthorityPolicyV1.applications.map(
         (policy) => [policy.applicationId, policy] as const,

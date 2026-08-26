@@ -1,6 +1,6 @@
 ---
 title: SillyMaker
-description: 用 React 与 TypeScript 构建 GUI 应用和游戏，再主动选择确定性运行时、规模化内容与作者工具。
+description: 面向 GUI 应用与游戏的人类–Agent 共创引擎，以共享工件、可检查行为和可执行验收组织协作。
 template: splash
 hero:
   title: SillyMaker
@@ -10,19 +10,19 @@ import { HomeConsoleLauncherV1 } from "../../../components/HomeConsoleLauncher.t
 
 <section className="sm-home-hero">
   <div className="sm-home-hero__copy">
-    <p className="sm-home-kicker">面向 GUI 应用与游戏的 React + TypeScript 引擎</p>
-    <h1 id="_top">保留 Web。<span>按需加入引擎。</span></h1>
-    <p className="sm-home-hero__lead">{"从普通 React、CSS 和前端生态开始；只有当产品真正需要时，才加入确定性 State、场景、输入、规模化内容、Save/replay 与作者工具。"}</p>
+    <p className="sm-home-kicker">面向 GUI 应用与游戏的人类 × coding agent 共创引擎</p>
+    <h1 id="_top">不只生成代码。<span>和 Agent 一起完成作品。</span></h1>
+    <p className="sm-home-hero__lead">{"SillyMaker 把产品意图落实为双方都能理解和检查的工程：Agent 可导航的结构化工件、人类可审查的运行结果，以及双方共同遵循的可执行验收，同时把最终决定权留在人手中。"}</p>
     <div className="sm-home-actions">
       <a className="sm-home-button sm-home-button--primary" href="./start/">
-        {"开始构建 "}<span aria-hidden="true">→</span>
+        {"开始一个共创项目 "}<span aria-hidden="true">→</span>
       </a>
-      <a className="sm-home-button" href="./concepts/">了解引擎如何配合</a>
+      <a className="sm-home-button" href="./examples/">查看当前示例</a>
     </div>
-    <ul className="sm-home-proof" aria-label="当前产品目标">
+    <ul className="sm-home-proof" aria-label="当前产品边界">
       <li>浏览器</li>
-      <li>Deno Desktop</li>
-      <li>默认响应式</li>
+      <li>Deno Desktop 预览目标</li>
+      <li>React + TypeScript</li>
       <li>MIT 许可</li>
     </ul>
   </div>
@@ -32,9 +32,78 @@ import { HomeConsoleLauncherV1 } from "../../../components/HomeConsoleLauncher.t
 
 <section className="sm-home-section">
   <div className="sm-home-section__heading">
-    <p>先确定产品形态</p>
-    <h2>一套 Web 基础，两条主动选择的运行时路径。</h2>
-    <p>{"GUI 应用不需要伪装成游戏；游戏也可以保留同一套 React 表面，再加入权威运行时能力，无需维护第二套前端技术栈。"}</p>
+    <p>人类意图 × 共同实现</p>
+    <h2>同一份意图，同一个工程，同一条反馈闭环。</h2>
+    <p>{"人类定义完整结果和需要判断、打磨的部分；coding agent 在同一批源文件、所有权边界和完成定义内工作，而不是临时发明一套平行系统。"}</p>
+  </div>
+
+  <ol className="sm-capability-ladder">
+    <li>
+      <strong>表达完整意图</strong>
+      <span>明确用户可见范围、约束、目标设备与输入、需要人工打磨的部分，以及验收路径。</span>
+    </li>
+    <li>
+      <strong>在边界内实现</strong>
+      <span>让聚焦的 package 入口、明确 owner、结构化文档和普通 React 代码共同约束实现。</span>
+    </li>
+    <li>
+      <strong>检查运行行为</strong>
+      <span>审查实际产品、权威状态、场景、内容、诊断和开发期 Inspector，而不是只相信代码形状。</span>
+    </li>
+    <li>
+      <strong>验收并迭代</strong>
+      <span>通过聚焦测试、模拟、浏览器证据和人工审查，判断什么已经完成、遗漏或仍是引擎缺口。</span>
+    </li>
+  </ol>
+</section>
+
+<section className="sm-home-section">
+  <div className="sm-agent-panel">
+    <div className="sm-agent-panel__copy">
+      <p>引擎就是协作 Harness</p>
+      <h3>生成了代码不等于完成。</h3>
+      <p>{"SillyMaker 让范围、所有权、运行行为和验收变得可观察。只要声明的完整范围尚未交付，纵向切片就仍然只是切片；Agent 分别报告证据与遗漏，人类审查结果并保留最终决定权。"}</p>
+      <a className="sm-agent-link" href="./start/">写下第一份共享任务简报 →</a>
+    </div>
+    <pre className="sm-agent-prompt"><code>{`产品目标：
+完整的用户可见范围：
+必须包含的页面 / 场景 / 路线 / 内容：
+目标设备与输入：
+需要人工打磨或不可妥协的部分：
+自动验收：
+人工验收：
+明确不做：`}</code></pre>
+  </div>
+</section>
+
+<section className="sm-home-section">
+  <div className="sm-home-section__heading">
+    <p>当前边界</p>
+    <h2>使用今天已有的能力，也看清未来方向。</h2>
+    <p>{"SillyMaker 是仍在积极演进的 source-first 引擎，不是已经完成的可视化编辑器，也不承诺无代码开发。当前工作流与创作方向必须明确分开。"}</p>
+  </div>
+
+  <div className="sm-product-shapes">
+    <article className="sm-home-card sm-home-card--current sm-home-card--status">
+      <span className="sm-home-card__number">现在已经具备</span>
+      <strong>共享工件与可执行反馈。</strong>
+      <span>{"源文件驱动的场景与内容、确定性游戏合同、受支持的 workspace package 入口、结构化诊断、headless 模拟、浏览器验收，以及支持有限 Scene 编辑和只读 runtime facet 的开发期 Inspector。"}</span>
+      <ul><li>源码 + 数据</li><li>Inspector</li><li>验证证据</li></ul>
+    </article>
+    <article className="sm-home-card sm-home-card--direction sm-home-card--status">
+      <span className="sm-home-card__number">演进方向 · 尚未形成完整工作流</span>
+      <strong>让编辑器成为共享意图界面。</strong>
+      <span>{"目标是让人类可视化勾勒并打磨场景、对象、交互与验收，让 Agent 操作同一批可检查工件与运行反馈。代码仍是一等公民，人工审查仍决定最终交付。"}</span>
+      <ul><li>可视化意图</li><li>代码保持开放</li><li>人类掌控</li></ul>
+    </article>
+  </div>
+</section>
+
+<section className="sm-home-section">
+  <div className="sm-home-section__heading">
+    <p>两种产品路径</p>
+    <h2>同一种共创方式，服务 GUI 应用和游戏。</h2>
+    <p>{"两条路径都保留 Web 生态；差别只在于产品是否真正需要权威运行时能力。"}</p>
   </div>
 
   <div className="sm-product-shapes">
@@ -46,7 +115,7 @@ import { HomeConsoleLauncherV1 } from "../../../components/HomeConsoleLauncher.t
     </a>
     <a className="sm-home-card sm-home-card--game" href="./guides/game-application/">
       <span className="sm-home-card__number">游戏</span>
-      <strong>在玩法需要处加入权威连续性。</strong>
+      <strong>让变化的世界只有一份权威事实。</strong>
       <span>{"组合场景、对象、图层、动画、叙事、确定性 State、Save 与 replay，同时让应用外壳继续使用 Web 生态。"}</span>
       <ul><li>场景</li><li>State</li><li>Save + replay</li></ul>
     </a>
@@ -55,80 +124,37 @@ import { HomeConsoleLauncherV1 } from "../../../components/HomeConsoleLauncher.t
 
 <section className="sm-home-section">
   <div className="sm-home-section__heading">
-    <p>渐进式引擎</p>
-    <h2>只使用足以解决产品问题的最小层级。</h2>
-    <p>{"SillyMaker 让能力保持正交：普通 UI 继续普通；游戏规模的状态、内容与作者工具则拥有明确的 owner 和边界。"}</p>
-  </div>
-
-  <ol className="sm-capability-ladder">
-    <li>
-      <strong>React 表面</strong>
-      <span>继续使用普通组件、CSS、浏览器语义与成熟前端依赖。</span>
-    </li>
-    <li>
-      <strong>组合与输入</strong>
-      <span>声明构建期已知的 GUI 结构，并主动路由键盘、鼠标、触摸或手柄。</span>
-    </li>
-    <li>
-      <strong>状态与连续性</strong>
-      <span>只为权威产品数据加入唯一的确定性 State、Session、Save 与 replay 路径。</span>
-    </li>
-    <li>
-      <strong>规模与作者工具</strong>
-      <span>独立寻址场景、叙事、GUI、代码与文本，并检查实时运行时。</span>
-    </li>
-  </ol>
-</section>
-
-<section className="sm-home-section">
-  <div className="sm-agent-panel">
-    <div className="sm-agent-panel__copy">
-      <p>同时服务人类与 coding agent</p>
-      <h3>让两种协作者理解同一张工程地图。</h3>
-      <p>{"公开 package 入口、局部手册、声明式文档与可执行验收命令，让 agent 读取与人类开发者相同的边界。Agent-first 改变的是协作方式，不是产品架构。"}</p>
-      <a className="sm-agent-link" href="./start/">打开 Agent-first 快速开始 →</a>
-    </div>
-    <pre className="sm-agent-prompt"><code>{`读取 AGENTS.md 与 starter handbook。
-从 template/ 构建一个响应式 GUI 应用。
-只使用聚焦的 @sillymaker package 入口。
-普通 React 状态保持局部。
-运行 deno task app check . 与产品测试。`}</code></pre>
-  </div>
-</section>
-
-<section className="sm-home-section">
-  <div className="sm-home-section__heading">
-    <p>完整产品，而非功能碎片</p>
-    <h2>示例的职责是向引擎施压。</h2>
-    <p>{"每个示例都应当是独立、可理解的完整产品；它负责暴露缺失抽象，再把通用改进反馈到引擎与 starter kit。"}</p>
+    <p>作品会暴露抽象缺口</p>
+    <h2>示例是验证证据，不是功能碎片。</h2>
+    <p>{"仓库同时包含旗舰游戏、实验性 GUI 产品和聚焦的创作示例；每个项目都有明确职责，任何小型纵向切片都不能冒充完整产品。"}</p>
   </div>
 
   <div className="sm-example-grid">
     <a className="sm-example-card sm-example-card--bookshop" href="./examples/bookshop/">
-      <span>叙事作者工具</span>
+      <span>聚焦的创作示例</span>
       <strong>Bookshop</strong>
-      <span>用于检验叙事结构与作者工作流的聚焦产品。</span>
+      <span>用于检验叙事结构与作者工作流的紧凑压力源。</span>
     </a>
     <a className="sm-example-card sm-example-card--cafe" href="./examples/cat-cafe/">
-      <span>游戏</span>
+      <span>当前旗舰</span>
       <strong>Cat Cafe</strong>
-      <span>用场景、叙事、交互、State、Save 和 replay 持续向引擎施压的游戏。</span>
+      <span>用场景、交互、State、Save、replay 与多语言持续向引擎施压的仓库内完整游戏。</span>
     </a>
     <a className="sm-example-card sm-example-card--os" href="./examples/silly-os/">
-      <span>GUI 应用</span>
+      <span>实验性 GUI 产品</span>
       <strong>SillyOS</strong>
-      <span>探索可组合窗口、工具与产品特有 UI 的自定义应用外壳。</span>
+      <span>用于检验自定义窗口、持久化工具和产品特有 React UI 的复古桌面外壳。</span>
     </a>
   </div>
 </section>
 
 <section className="sm-final-cta">
   <div>
-    <h2>从产品开始，再逐层获得引擎能力。</h2>
-    <p>选择 GUI 或游戏路径，让第一轮实现保持小而清晰。</p>
+    <h2>带着创意开始，把结果的决定权留在手中。</h2>
+    <p>和 coding agent 一起定义完整作品，再用相同的验收证据审查每一个实现切片。</p>
   </div>
   <div className="sm-home-actions">
-    <a className="sm-home-button sm-home-button--primary" href="./start/">立即开始</a>
-    <a className="sm-home-button" href="./reference/packages/">Package 参考</a>
+    <a className="sm-home-button sm-home-button--primary" href="./start/">开始共创</a>
+    <a className="sm-home-button" href="./start/manual/">手动开始</a>
   </div>
 </section>

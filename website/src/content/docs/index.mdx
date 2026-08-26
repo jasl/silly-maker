@@ -1,6 +1,6 @@
 ---
 title: SillyMaker
-description: Build GUI applications and games with React and TypeScript, then add deterministic runtime, scalable content, and authoring capabilities deliberately.
+description: A human–agent co-creation engine for GUI applications and games, built around shared artifacts, inspectable behavior, and executable acceptance.
 template: splash
 hero:
   title: SillyMaker
@@ -10,19 +10,19 @@ import { HomeConsoleLauncherV1 } from "../../components/HomeConsoleLauncher.tsx"
 
 <section className="sm-home-hero">
   <div className="sm-home-hero__copy">
-    <p className="sm-home-kicker">React + TypeScript engine for GUI applications and games</p>
-    <h1 id="_top">Keep the Web. <span>Add an engine.</span></h1>
-    <p className="sm-home-hero__lead">{"Start with ordinary React, CSS, and the frontend ecosystem. Add deterministic State, scenes, input, scalable content, Save/replay, and authoring only when the product needs them."}</p>
+    <p className="sm-home-kicker">Human × coding-agent co-creation for GUI applications and games</p>
+    <h1 id="_top">Don't just generate code. <span>Finish the product together.</span></h1>
+    <p className="sm-home-hero__lead">{"SillyMaker turns product intent into shared, inspectable work: structured artifacts a coding agent can navigate, runtime behavior a human can review, and executable acceptance both can follow—without giving up human control."}</p>
     <div className="sm-home-actions">
       <a className="sm-home-button sm-home-button--primary" href="./start/">
-        {"Start building "}<span aria-hidden="true">→</span>
+        {"Start a co-creation project "}<span aria-hidden="true">→</span>
       </a>
-      <a className="sm-home-button" href="./concepts/">How the engine fits</a>
+      <a className="sm-home-button" href="./examples/">See current examples</a>
     </div>
-    <ul className="sm-home-proof" aria-label="Current product targets">
+    <ul className="sm-home-proof" aria-label="Current product boundary">
       <li>Browser</li>
-      <li>Deno Desktop</li>
-      <li>Responsive by default</li>
+      <li>Deno Desktop preview</li>
+      <li>React + TypeScript</li>
       <li>MIT licensed</li>
     </ul>
   </div>
@@ -32,9 +32,78 @@ import { HomeConsoleLauncherV1 } from "../../components/HomeConsoleLauncher.tsx"
 
 <section className="sm-home-section">
   <div className="sm-home-section__heading">
-    <p>Choose the product shape</p>
-    <h2>One Web foundation, two deliberate runtime paths.</h2>
-    <p>{"A GUI application does not need to pretend to be a game. A game can keep the same React surface and add authoritative runtime capabilities without creating a second frontend stack."}</p>
+    <p>Human intent × shared execution</p>
+    <h2>One intent, one project, one feedback loop.</h2>
+    <p>{"People define the complete outcome and the places that need judgment. Coding agents work against the same source artifacts, ownership boundaries, and definition of done instead of improvising a parallel system."}</p>
+  </div>
+
+  <ol className="sm-capability-ladder">
+    <li>
+      <strong>Frame the intent</strong>
+      <span>State the complete user-visible scope, constraints, target devices and input, human-tuned areas, and acceptance paths.</span>
+    </li>
+    <li>
+      <strong>Build within boundaries</strong>
+      <span>Let focused package entries, explicit owners, structured documents, and ordinary React code constrain the implementation.</span>
+    </li>
+    <li>
+      <strong>Inspect the behavior</strong>
+      <span>Review the running product, authoritative state, scenes, content, diagnostics, and development Inspector rather than trusting source shape alone.</span>
+    </li>
+    <li>
+      <strong>Verify and refine</strong>
+      <span>Use focused tests, simulation, browser evidence, and human review to decide what is complete, omitted, or still an engine gap.</span>
+    </li>
+  </ol>
+</section>
+
+<section className="sm-home-section">
+  <div className="sm-agent-panel">
+    <div className="sm-agent-panel__copy">
+      <p>The engine is the harness</p>
+      <h3>Code appearing is not completion.</h3>
+      <p>{"SillyMaker makes scope, ownership, runtime behavior, and acceptance observable. A vertical slice stays a slice until the declared complete scope is delivered; an agent reports evidence and omissions separately, while a human reviews the result and keeps the final decision."}</p>
+      <a className="sm-agent-link" href="./start/">Write the first shared brief →</a>
+    </div>
+    <pre className="sm-agent-prompt"><code>{`Product goal:
+Complete user-visible scope:
+Required screens / scenes / routes / content:
+Target devices and input:
+Human-tuned or non-negotiable areas:
+Automated acceptance:
+Manual acceptance:
+Explicitly out of scope:`}</code></pre>
+  </div>
+</section>
+
+<section className="sm-home-section">
+  <div className="sm-home-section__heading">
+    <p>Current boundary</p>
+    <h2>Use what exists today. See the direction clearly.</h2>
+    <p>{"SillyMaker is an active source-first engine, not a finished visual editor or a no-code promise. The current workflow and the authoring direction stay deliberately separate."}</p>
+  </div>
+
+  <div className="sm-product-shapes">
+    <article className="sm-home-card sm-home-card--current sm-home-card--status">
+      <span className="sm-home-card__number">AVAILABLE TODAY</span>
+      <strong>Shared artifacts and executable feedback.</strong>
+      <span>{"Source-backed scenes and content, deterministic game contracts, supported workspace package entries, structured diagnostics, headless simulation, browser acceptance, and a development Inspector with bounded Scene editing and read-only runtime facets."}</span>
+      <ul><li>Source + data</li><li>Inspector</li><li>Evidence</li></ul>
+    </article>
+    <article className="sm-home-card sm-home-card--direction sm-home-card--status">
+      <span className="sm-home-card__number">DIRECTION · NOT YET A COMPLETE WORKFLOW</span>
+      <strong>The editor becomes a shared intent surface.</strong>
+      <span>{"The direction is a broader surface where people can sketch and refine scenes, objects, interaction, and acceptance while agents act on the same inspectable artifacts and runtime feedback. Code remains first-class; human review remains decisive."}</span>
+      <ul><li>Visual intent</li><li>Code stays open</li><li>Human control</li></ul>
+    </article>
+  </div>
+</section>
+
+<section className="sm-home-section">
+  <div className="sm-home-section__heading">
+    <p>Two product paths</p>
+    <h2>The same collaboration model serves GUI applications and games.</h2>
+    <p>{"Both paths keep the Web ecosystem available. They differ only in which authoritative runtime capabilities the product actually needs."}</p>
   </div>
 
   <div className="sm-product-shapes">
@@ -46,7 +115,7 @@ import { HomeConsoleLauncherV1 } from "../../components/HomeConsoleLauncher.tsx"
     </a>
     <a className="sm-home-card sm-home-card--game" href="./guides/game-application/">
       <span className="sm-home-card__number">GAME</span>
-      <strong>Add authoritative continuity where gameplay needs it.</strong>
+      <strong>Give changing worlds one authoritative truth.</strong>
       <span>{"Compose scenes, objects, layers, motion, narrative, deterministic State, Save, and replay while keeping application chrome in the Web ecosystem."}</span>
       <ul><li>Scene</li><li>State</li><li>Save + replay</li></ul>
     </a>
@@ -55,80 +124,37 @@ import { HomeConsoleLauncherV1 } from "../../components/HomeConsoleLauncher.tsx"
 
 <section className="sm-home-section">
   <div className="sm-home-section__heading">
-    <p>A progressive engine</p>
-    <h2>Use the smallest layer that solves the product problem.</h2>
-    <p>{"SillyMaker keeps capabilities orthogonal: ordinary UI stays ordinary, while game-scale state, content, and authoring have explicit owners and boundaries."}</p>
-  </div>
-
-  <ol className="sm-capability-ladder">
-    <li>
-      <strong>React surface</strong>
-      <span>Use normal components, CSS, browser semantics, and mature frontend dependencies.</span>
-    </li>
-    <li>
-      <strong>Composition and input</strong>
-      <span>Declare build-known GUI structure and route keyboard, pointer, touch, or gamepad intentionally.</span>
-    </li>
-    <li>
-      <strong>State and continuity</strong>
-      <span>Add one deterministic State, Session, Save, and replay path only for authoritative product data.</span>
-    </li>
-    <li>
-      <strong>Scale and authoring</strong>
-      <span>Address scenes, narrative, GUI, code, and text independently, then inspect the live runtime.</span>
-    </li>
-  </ol>
-</section>
-
-<section className="sm-home-section">
-  <div className="sm-agent-panel">
-    <div className="sm-agent-panel__copy">
-      <p>Built for people and coding agents</p>
-      <h3>A project map both collaborators can understand.</h3>
-      <p>{"Public package entries, local handbooks, declarative documents, and executable acceptance commands give an agent the same boundaries a human developer reads. Agent-first changes the workflow, not the product architecture."}</p>
-      <a className="sm-agent-link" href="./start/">Open the agent-first quickstart →</a>
-    </div>
-    <pre className="sm-agent-prompt"><code>{`Read AGENTS.md and the starter handbook.
-Build a responsive GUI application from template/.
-Use focused @sillymaker package entries only.
-Keep ordinary React state local.
-Run deno task app check . and the product tests.`}</code></pre>
-  </div>
-</section>
-
-<section className="sm-home-section">
-  <div className="sm-home-section__heading">
-    <p>Complete products, not feature fragments</p>
-    <h2>Examples exist to pressure-test the engine.</h2>
-    <p>{"Each example is intended to be an independent, understandable product. Its job is to expose missing abstractions and feed reusable improvements back into the engine and starter kit."}</p>
+    <p>Products expose abstraction gaps</p>
+    <h2>Examples are evidence, not feature fragments.</h2>
+    <p>{"The repository mixes a flagship game, an experimental GUI product, and a focused authoring example. Each has a declared role; none turns a small vertical slice into a claim that the whole product is complete."}</p>
   </div>
 
   <div className="sm-example-grid">
     <a className="sm-example-card sm-example-card--bookshop" href="./examples/bookshop/">
-      <span>NARRATIVE AUTHORING</span>
+      <span>FOCUSED AUTHORING EXAMPLE</span>
       <strong>Bookshop</strong>
-      <span>A focused product for narrative structure and authoring workflows.</span>
+      <span>A compact pressure source for narrative structure and authoring workflows.</span>
     </a>
     <a className="sm-example-card sm-example-card--cafe" href="./examples/cat-cafe/">
-      <span>GAME</span>
+      <span>CURRENT FLAGSHIP</span>
       <strong>Cat Cafe</strong>
-      <span>A playful pressure source for scenes, narrative, interaction, State, Save, and replay.</span>
+      <span>A complete in-repository game that pressures scenes, interaction, State, Save, replay, and localization.</span>
     </a>
     <a className="sm-example-card sm-example-card--os" href="./examples/silly-os/">
-      <span>GUI APPLICATION</span>
+      <span>EXPERIMENTAL GUI PRODUCT</span>
       <strong>SillyOS</strong>
-      <span>A custom application shell exploring composable windows, tools, and product-specific UI.</span>
+      <span>A retro desktop shell testing custom windows, persistent tools, and product-specific React UI.</span>
     </a>
   </div>
 </section>
 
 <section className="sm-final-cta">
   <div>
-    <h2>Start with a product, then earn the engine layers.</h2>
-    <p>Choose the GUI or game path and keep the first iteration small enough to understand.</p>
+    <h2>Bring the idea. Keep control of the result.</h2>
+    <p>Define the complete work with a coding agent, then review each implementation slice against the same evidence.</p>
   </div>
   <div className="sm-home-actions">
-    <a className="sm-home-button sm-home-button--primary" href="./start/">Start now</a>
-    <a className="sm-home-button" href="./reference/packages/">Package reference</a>
+    <a className="sm-home-button sm-home-button--primary" href="./start/">Start together</a>
+    <a className="sm-home-button" href="./start/manual/">Start manually</a>
   </div>
 </section>

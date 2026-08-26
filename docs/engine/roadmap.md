@@ -288,8 +288,10 @@ uplift 提供基础。它没有激活 continuous Input、renderer/asset framewor
 显式选择并于同日完成 [Cards Reference Application](plans/2026-08-25-cards-reference-application.md)：完整
 重实现 PocketJS Cards 0.6.0，以真实 consumer 交付中性 GUI-only Host/config 与 focused final graph，关闭
 产品预算、独立审查和 Starter feedback。它只领取真实 consumer 证明的窄 correction，不激活 source
-migration framework、project symbol graph、Prefab、scaffold CLI 或 Desktop workflow。当前没有自动激活的
-新 engine lane 或 Reference Product；未写入新接受 plan 的候选不是默认 backlog。已接受但未完成的 Desktop HMR stable
+migration framework、project symbol graph、Prefab、scaffold CLI 或 Desktop workflow。2026-08-26 官网 Console
+接替可见 GUI Composition/Input 展示、tooling-owned GUI-only fixture 接替 Host startup/final-graph conformance 后，
+Cards 独立产品与 `/play/cards/` 退役；历史完整产品与性能证据保留，不再作为 workspace application 或维护中
+example。当前没有自动激活的新 engine lane 或 Reference Product；未写入新接受 plan 的候选不是默认 backlog。已接受但未完成的 Desktop HMR stable
 revalidation 与 Desktop production promotion 保持独立、条件性，只 gate 各自的 Desktop claim/
 workflow，不阻塞 core 或其他工作。
 

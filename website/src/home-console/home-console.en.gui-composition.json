@@ -23,12 +23,12 @@
             "routeId": "start",
             "order": 0,
             "number": "01",
-            "eyebrow": "AGENT-FIRST START",
-            "title": "Give a coding agent a bounded first mission.",
-            "summary": "Start from an understandable project map, focused public entries, and executable acceptance commands instead of a blank prompt.",
+            "eyebrow": "SHARED BRIEF",
+            "title": "Turn an idea into a bounded first mission.",
+            "summary": "Define the complete visible scope, constraints, human-tuned areas, and acceptance before asking a coding agent to implement a reviewable slice.",
             "href": "./start/",
             "accent": "indigo",
-            "tags": ["Quickstart", "Starter", "Agent-readable"]
+            "tags": ["Scope", "Constraints", "Acceptance"]
           },
           "slots": {}
         },
@@ -39,12 +39,12 @@
             "routeId": "gui",
             "order": 1,
             "number": "02",
-            "eyebrow": "GUI APPLICATIONS",
-            "title": "Keep ordinary React where ordinary React works.",
-            "summary": "Use the frontend ecosystem directly, then add GUI Composition, input, Host ports, and runtime boundaries only where the product needs them.",
+            "eyebrow": "HUMAN-READABLE SURFACE",
+            "title": "Keep the interface understandable while it evolves.",
+            "summary": "Use ordinary React and CSS together with structured GUI Composition and input so people can review the same product surface an agent edits.",
             "href": "./guides/gui-application/",
             "accent": "mint",
-            "tags": ["React", "CSS", "GUI Host"]
+            "tags": ["React", "Composition", "Human review"]
           },
           "slots": {}
         },
@@ -55,12 +55,12 @@
             "routeId": "game",
             "order": 2,
             "number": "03",
-            "eyebrow": "GAMES AND INTERACTIVE STORIES",
-            "title": "Add an authoritative runtime without replacing the Web.",
-            "summary": "Compose scenes, narrative, interaction, deterministic State, Save, and replay while application chrome remains a normal responsive interface.",
+            "eyebrow": "VERIFIABLE BEHAVIOR",
+            "title": "Make stateful behavior explainable and repeatable.",
+            "summary": "Give scenes, interaction, deterministic State, Save, and replay explicit owners so an agent can implement against evidence a human can inspect.",
             "href": "./guides/game-application/",
             "accent": "amber",
-            "tags": ["Scene", "State", "Save + replay"]
+            "tags": ["State", "Save", "Evidence"]
           },
           "slots": {}
         },
@@ -71,9 +71,9 @@
             "routeId": "examples",
             "order": 3,
             "number": "04",
-            "eyebrow": "COMPLETE PRODUCTS",
-            "title": "See the engine tested by products, not fragments.",
-            "summary": "Open independent examples built to expose missing abstractions, validate public capabilities, and feed improvements back into the engine and starter.",
+            "eyebrow": "PRODUCT FEEDBACK",
+            "title": "Use real products to expose engine gaps.",
+            "summary": "Open examples with declared roles and scope. Their job is to reveal missing abstractions and feed reusable improvements back into the engine and starter.",
             "href": "./examples/",
             "accent": "violet",
             "tags": ["Cat Cafe", "SillyOS", "Bookshop"]

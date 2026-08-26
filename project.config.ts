@@ -19,7 +19,6 @@ export const sillyMakerConfigV1 = {
     "e2e",
     "template",
     "examples/bookshop",
-    "examples/cards",
     "examples/silly-os",
     "examples/cat-cafe",
   ],

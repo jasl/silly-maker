@@ -19,13 +19,6 @@ export function bookshopTargetUrlV1(query = ""): string {
   return `http://${bookshopTargetV1.host}:${String(bookshopTargetV1.port)}/${query}`;
 }
 
-/** Feature Cards: GUI-only responsive layout, motion, and unified input. */
-export const cardsTargetV1 = { host: hostV1, port: 41736 };
-
-export function cardsTargetUrlV1(query = ""): string {
-  return `http://${cardsTargetV1.host}:${String(cardsTargetV1.port)}/${query}`;
-}
-
 /** Cat cafe: stage hit regions, dialogue playback, save safepoints, rollback. */
 export const catcafeTargetV1 = { host: hostV1, port: 41737 };
 

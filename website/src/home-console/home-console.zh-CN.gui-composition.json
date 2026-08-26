@@ -23,12 +23,12 @@
             "routeId": "start",
             "order": 0,
             "number": "01",
-            "eyebrow": "AGENT-FIRST 开始",
-            "title": "交给 coding agent 一项边界清晰的首个任务。",
-            "summary": "从可理解的工程地图、聚焦的公开入口和可执行验收命令开始，而不是只留下一段空泛提示词。",
+            "eyebrow": "共享任务简报",
+            "title": "先把创意变成边界清晰的任务。",
+            "summary": "在要求 coding agent 实现可审查切片前，先定义完整可见范围、约束、人工打磨部分和验收。",
             "href": "./start/",
             "accent": "indigo",
-            "tags": ["快速开始", "Starter", "Agent 可读"]
+            "tags": ["范围", "约束", "验收"]
           },
           "slots": {}
         },
@@ -39,12 +39,12 @@
             "routeId": "gui",
             "order": 1,
             "number": "02",
-            "eyebrow": "GUI 应用",
-            "title": "普通 React 足够时，就继续使用普通 React。",
-            "summary": "直接使用前端生态；只在产品需要处加入 GUI Composition、输入、Host 端口和运行时边界。",
+            "eyebrow": "人类可读的界面",
+            "title": "让界面在演进中始终可理解、可打磨。",
+            "summary": "把普通 React 和 CSS 与结构化 GUI Composition、输入结合，让人类审查 Agent 正在修改的同一个产品表面。",
             "href": "./guides/gui-application/",
             "accent": "mint",
-            "tags": ["React", "CSS", "GUI Host"]
+            "tags": ["React", "组合", "人工审查"]
           },
           "slots": {}
         },
@@ -55,12 +55,12 @@
             "routeId": "game",
             "order": 2,
             "number": "03",
-            "eyebrow": "游戏与互动叙事",
-            "title": "加入权威运行时，但不替换 Web。",
-            "summary": "组合场景、叙事、交互、确定性 State、Save 与 replay，同时让应用外壳保持普通的响应式界面。",
+            "eyebrow": "可验证的行为",
+            "title": "让有状态的行为可解释、可复现。",
+            "summary": "为场景、交互、确定性 State、Save 与 replay 指定明确 owner，让 Agent 面向人类可检查的证据实现。",
             "href": "./guides/game-application/",
             "accent": "amber",
-            "tags": ["场景", "State", "Save + replay"]
+            "tags": ["State", "Save", "证据"]
           },
           "slots": {}
         },
@@ -71,9 +71,9 @@
             "routeId": "examples",
             "order": 3,
             "number": "04",
-            "eyebrow": "完整产品",
-            "title": "看产品如何检验引擎，而不是只看功能碎片。",
-            "summary": "打开彼此独立的完整示例；它们负责暴露缺失抽象、验证公开能力，并把改进反馈给引擎与 Starter。",
+            "eyebrow": "产品反馈",
+            "title": "用真实作品暴露引擎缺口。",
+            "summary": "打开职责和范围都明确的示例；它们负责暴露缺失抽象，并把可复用改进反馈给引擎与 Starter。",
             "href": "./examples/",
             "accent": "violet",
             "tags": ["Cat Cafe", "SillyOS", "Bookshop"]

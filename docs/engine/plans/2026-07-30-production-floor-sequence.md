@@ -128,7 +128,9 @@ conformance；没有激活 continuous Input、renderer/asset framework、Desktop
 所有者随后显式选择并于同日完成
 [Cards Reference Application](2026-08-25-cards-reference-application.md)：PocketJS Cards 0.6.0 的完整分母、
 target uplift、中性 GUI-only Host/config、focused final graph、产品预算、独立审查与 Starter feedback 均已
-关闭，只领取了真实 consumer 暴露的窄 engine correction。当前没有自动激活的下一 engine lane 或
+关闭，只领取了真实 consumer 暴露的窄 engine correction。2026-08-26 官网 Console 与小型 GUI-only
+conformance fixture 分别接替可见产品展示和 Host/final-graph 证明后，Cards 产品退役；历史 closure 保留。
+当前没有自动激活的下一 engine lane 或
 Reference Product，其 product/engine review 不自动形成 backlog。2026-08-26 从平行商业克隆暴露的
 真实指针缺口吸收并同日关闭
 [Shared Stage Input V1](2026-08-26-shared-stage-input.md)（提案

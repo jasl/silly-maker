@@ -2,7 +2,10 @@
 
 [English](README.md) | 简体中文
 
-对 LLM 友好的 TypeScript + React 游戏引擎，面向视觉小说、模拟经营与 RPG 风格的剧情游戏。确定性运行时合同、语义舞台、原子存档——人类与 AI 代理都能创作，运行在 [Deno](https://deno.com/) 上。
+面向 GUI 应用与游戏的人类–Agent 共创引擎，使用 TypeScript 和 React 构建。
+SillyMaker 把产品意图落实为共享、可检查的工件与可执行验收：人类定义并打磨结果，
+coding agent 在同一组所有权边界与运行证据内实现。浏览器与
+[Deno](https://deno.com/) Desktop preview 是当前目标。
 
 **试玩旗舰示例**：[《雨巷猫舍》](examples/cat-cafe/)是一款为驱动引擎而生的完整可发布游戏——标题屏、日程经营、抚摸命中区域、回合制运动会、成长图鉴、多结局与后日谈、对话播放体验（打字机/自动/快进/历史/回退）、场景驱动的声音层、带安全点的存档槽位、双语文本，以及本机/交叉目标桌面打包 preview。
 
@@ -10,10 +13,15 @@
 
 ## 为什么是 SillyMaker
 
+- **引擎就是协作 Harness**——工程地图、结构化源工件、明确 owner、诊断、模拟、
+  浏览器证据与人工审查，让 coding agent 始终面对同一份完成定义。只要声明的
+  产品范围尚未完成，可玩的纵向切片就仍然只是切片。
 - **受支持路径上的确定性**——一个会话拥有权威状态；经准入的命令要么原子提交、要么不留痕迹；事务性 RNG 随快照存储，受支持的重放与回退路径会复现已记录结果。
 - **语义舞台，而非画布**——Story 发布纯数据的舞台目标（内容 ID、位置、外观、命中区域）；渲染器是可替换的 React 组件；存档永不包含渲染器状态。
 - **静态数据即内容表**——物品、活动、事件、反应都定义在带类型查询的内容数据库表里并在解析期校验；可变状态归模块；调参就是改一行表数据。
-- **同时服务两种作者**——AI 代理有结构化诊断、headless 模拟与创作金丝雀；人类有 DevDock 实时检查器、可写调参面板、数值轨迹与存档对比。
+- **人类控制保持明确**——当前开发期 Inspector 支持有限的 Authoring Scene 编辑和
+  只读 runtime facet；代码与源数据仍是一等公民。更完整的共享编辑器是演进方向，
+  不是已经交付的无代码承诺。
 
 ## 快速开始
 
@@ -30,16 +38,20 @@ deno run dev             # 启动这个应用自己的 Vite 服务
 - `deno task check`——本地主门禁：格式、静态检查、类型检查与产品级测试套件；
 - `deno task test` / `deno task test:e2e`——引擎/游戏行为测试与浏览器用户流程；
 - `deno task app <verb> <app>`——显式选择目标的仓库应用 CLI（dev / inspect / check / simulate / build / desktop，适用时输出 JSON 报告）；
-- `deno task site:build`——组装可发布静态站（文档 + Cards、《雨巷猫舍》和 SillyOS 98）到 `dist/site`，经 GitHub Pages workflow 或 `deno task site:deploy:cf`（Cloudflare Workers）发布；见[构建与发布](docs/engine/build-and-release.md)。
+- `deno task site:build`——组装可发布静态站（文档 +《雨巷猫舍》和 SillyOS 98）到 `dist/site`，经 GitHub Pages workflow 或 `deno task site:deploy:cf`（Cloudflare Workers）发布；见[构建与发布](docs/engine/build-and-release.md)。
 
-开新游戏从复制 [`template/`](template/) 开始（见其 README）。每个应用都是带自己 `sillymaker.config.ts` 的独立项目；根 [`project.config.ts`](project.config.ts) 只为仓库级聚合命令列出应用目录。
+开新产品从复制 [`template/`](template/) 开始（见其 README）。它以游戏为默认起点；
+纯 GUI 产品使用文档中的复制后删减 recipe，不保留空的游戏 owner。每个应用都是
+带自己 `sillymaker.config.ts` 的独立项目；根
+[`project.config.ts`](project.config.ts) 只为仓库级聚合命令列出应用目录。
 
 ## 文档
 
 - [文档地图](docs/README.md)——下述一切的索引
 - [架构](docs/engine/architecture.md) · [特性](docs/engine/features.md) · [路线图](docs/engine/roadmap.md)
 - [开发与测试](docs/engine/development.md) · [Story 编写](docs/engine/story-authoring.md) · [创作快速上手](docs/engine/authoring-quickstart.md)
-- [Agent 游戏生成指南](docs/engine/agent-game-guide.md)——把仓库交给 coding agent，收获一个游戏
+- [Agent 游戏协作指南](docs/engine/agent-game-guide.md)——把完整产品简报转化为可审查的
+  实现切片与验证证据
 - [构建与发布](docs/engine/build-and-release.md)（网页、静态托管、桌面打包）
 - 对外文档站（Astro + Starlight，Markdown/MDX，中英双语）在 [`website/`](website/)
 
@@ -48,11 +60,11 @@ deno run dev             # 启动这个应用自己的 Vite 服务
 ```text
 engine/packages/base     通用合同、Story 创作、运行时、存档与诊断
 engine/packages/tooling  项目配置与 application CLI 命令
-engine/packages/ui       通用 React 游戏 UI 与 presentation 运行时
+engine/packages/ui       通用 React GUI/游戏 UI 与 presentation 运行时
 engine/packages/web      浏览器 Host、IndexedDB/HTTP 持久化、挂载与自动化
 e2e/                     中立引擎一致性 Story（Engine Lab）
 template/                新游戏起点骨架
-examples/                完整示例（bookshop、cards、cat-cafe、silly-os）
+examples/                产品与聚焦示例（bookshop、cat-cafe、silly-os）
 project.config.ts        仓库级聚合命令使用的应用目录清单
 scripts/                 构建身份、资产校验、桌面存档服务器、发布站组装
 docs/                    内部工程文档（计划、研究、提案、政策）

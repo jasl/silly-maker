@@ -284,7 +284,12 @@ Read only the documents relevant to the change:
   once-admitted GUI-only config, neutral Host landmarks, and first-presentation
   recovery evidence. It did not activate a source-migration framework, project
   symbol graph, Prefab, scaffold CLI, Desktop HMR, or another Reference Product.
-  No next engine lane or Reference Product is automatically active.
+  On 2026-08-26 the standalone Cards product retired after its reusable GUI-only
+  startup/final-graph proof moved to a small tooling conformance fixture and its
+  visible GUI Composition/Input role moved to the website console. The historical
+  closure and raw product evidence remain valid; Cards is no longer a workspace
+  application, published route, or maintained example. No next engine lane or
+  Reference Product is automatically active.
 - The plans and proposals dated 2026-08-19 through 2026-08-22 own the detailed
   acceptance and closure evidence for the six engine-gap lanes summarized
   above. The authoritative hold clock lane

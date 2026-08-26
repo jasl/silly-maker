@@ -1,4 +1,4 @@
-# Having a coding agent generate a game
+# Building a game with a coding agent
 
 Status: operating guide for the current implementation. For anyone using an LLM coding agent to build a new game in this repository. The maintained examples and acceptance commands demonstrate the supported workflow.
 
@@ -8,7 +8,9 @@ The repository prepares three tiers of material for the agent; feed them as need
 
 1. **Handbook** (required reading, cheap in tokens): `template/AGENTS.md` — the starter skeleton's change discipline, the engine baseline (what you get for free), and the optional-wiring checklist (audio/rollback/save guard etc., one entry point each).
 2. **Quickstart** (look up per task): `docs/engine/authoring-quickstart.md` — the difficulty-tiered operating guide and diagnostics quick-reference.
-3. **Reference implementations** (copy as needed): `examples/bookshop` (minimal complete script) and `examples/cat-cafe` (full-capability flagship; design spec in its `DESIGN.md`).
+3. **Reference implementations** (copy as needed): `examples/bookshop` (focused
+   narrative-authoring example) and `examples/cat-cafe` (full-capability
+   flagship; design spec in its `DESIGN.md`).
 
 A curated repository example also follows the complete
 [reference-application product contract](../../examples/AGENTS.md#reference-application-product-contract).
@@ -16,7 +18,10 @@ The commands below are implementation gates for a small original starter; they
 do not prove a reference-derived product's full baseline, target-platform
 uplift, content scale, or completion.
 
-The engine's acceptance commands all emit structured JSON, so the agent can self-check and self-correct; deterministic simulation (`app simulate`) lets it play through its own game without opening a browser.
+The application CLI's `inspect`, `check`, and `simulate` commands emit
+structured reports, so the agent can self-check and self-correct; deterministic
+simulation lets it play through declared routes without opening a browser.
+Typecheck, Vitest, and the complete repository gate keep their native output.
 
 ## Task-brief template (paste to the agent; replace the ⟨⟩ parts)
 
@@ -28,13 +33,18 @@ Process requirements:
 1. First read template/AGENTS.md, examples/AGENTS.md, and
    docs/engine/authoring-quickstart.md.
 2. Copy template/ to examples/⟨new-name⟩, global-rename (template/Template → ⟨new-name⟩),
-   register the application and simulate target in the root project.config.ts,
-   update metadata.json.
-3. Write the script (src/story/narrative.ts + the text catalog in src/content/presentation.ts);
+   register the application directory in the root project.config.ts, keep the
+   application's own simulate target in its sillymaker.config.ts, and update
+   metadata.json.
+3. Write narrative control and stable text references in src/story/narrative.ts;
+   put narrative copy in assets/content/*.text-pack.json and its compact manifest
+   in src/content/text-content.ts; resident UI copy stays in
+   src/content/presentation.ts;
    gameplay state goes into modules
    (src/game/state.ts → src/game/simulation.ts → src/application/semantic.ts → src/story.ts).
-4. Before touching the script, table the node sequence (one occurrence number per
-   say/choice) so the scenario script and tests are written correctly in one pass.
+4. Before touching the script, table the complete user-visible route/content
+   denominator and acceptance. Starter scenarios resolve the current pending
+   interaction; pin an occurrence only for an explicit stale-fence test.
 
 Implementation gates (all must pass; these are not product-completion evidence):
 - deno task typecheck
@@ -58,16 +68,19 @@ product contract.
 2. **Numbers next**: `deno task app simulate <appId> --scenario <name>` — the report contains the final state and command sequence, so that route's completion is obvious at a glance; trace value trajectories with `--trace <dot.paths>`.
 3. **Then the browser**: run `deno run dev` inside the application directory (or `deno task app dev <appId>` from the repository root), then play the declared representative viewport/Input classes and product paths. For the small original brief above, click through its dialogue, choices, and each ending; larger products follow their coverage table.
 4. **Check the change surface**: `git diff --stat` should land only in the accepted application and repository-registration/docs surface. Engine changes require the separate focused-plan loop; unrelated Stories are rejected outright.
-5. **Tuning**: enable developer tools in Settings → the DevDock tuning panel changes values live; compare saves with `deno task app diff <a> <b>`.
+5. **Tuning and inspection**: open the development Inspector for bounded
+   Authoring Scene edits and read-only runtime facets; edit unsupported
+   authoring data directly at its source. Compare saves with
+   `deno task app diff <a> <b>`.
 
 ## Common failures and handling
 
-| Symptom                                         | Handling                                                                                                          |
-| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Occurrence assertion mismatch                   | renumber per the failure message (adding/removing interaction boundaries shifts numbers; see the template README) |
-| `app check` reports narrative-graph diagnostics | the report carries node paths: a `branch` target outside `successors`, a missing text id, etc.; fix as stated     |
-| State rejected by canonical JSON                | saveable state holds integers only (logical units like `scalePermille`); floats never enter saves                 |
-| The agent modified engine code                  | reject: Stories import only package exports; raise engine issues separately, outside the task brief               |
+| Symptom                                         | Handling                                                                                                      |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Explicit stale-fence occurrence mismatch        | update only the deliberately pinned expected occurrence after reviewing the new interaction order             |
+| `app check` reports narrative-graph diagnostics | the report carries node paths: a `branch` target outside `successors`, a missing text id, etc.; fix as stated |
+| State rejected by canonical JSON                | saveable state holds integers only (logical units like `scalePermille`); floats never enter saves             |
+| The agent modified engine code                  | reject: Stories import only package exports; raise engine issues separately, outside the task brief           |
 
 ## Capability upgrade path
 

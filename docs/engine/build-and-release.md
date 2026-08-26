@@ -43,8 +43,9 @@ asset, and determinism checks skip it. `dev`, `build`, `prebuilt-smoke`, and a
 declared Desktop preview remain ordinary application lifecycle commands. The
 product starts through `@sillymaker/web/gui-application`; focused Base/UI package
 entries keep Game Session, Save, Story, Inspector, Agent, Mod, and reference UI
-out of its final graph. `examples/cards` is the maintained complete reference for
-this shape.
+out of its final graph. A small tooling-owned GUI-only application fixture owns
+the real Vite final-graph and Browser-startup conformance for this shape; it is
+not a product template or published example.
 
 The root Vite config keeps `vite --mode <application-id>` only as a test
 dispatch for Playwright suites that coordinate several applications. It has no
@@ -368,9 +369,9 @@ Desktop APIs; the web Player is the stable fallback.
 ## Publish to static hosting (GitHub Pages / Cloudflare Workers)
 
 `deno task site:build` composes a publishable static site at `dist/site`: the
-Astro/Starlight documentation at the root, the Cards GUI Reference Product at
-`/play/cards/`, the Cat Cafe Player at `/play/cat-cafe/`, and the SillyOS 98
-Player at `/play/silly-os/`. Player bundles build with `base: "./"` and resolve
+Astro/Starlight documentation at the root, the Cat Cafe Player at
+`/play/cat-cafe/`, and the SillyOS 98 Player at `/play/silly-os/`. Player bundles
+build with `base: "./"` and resolve
 runtime assets against `document.baseURI`, so they are location-independent;
 only the docs site needs the deployment base, supplied through `SITE_BASE`
 (defaults to `/`). Saves stay in the visitor's browser (IndexedDB) — no server

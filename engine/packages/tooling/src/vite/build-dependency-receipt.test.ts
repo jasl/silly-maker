@@ -143,7 +143,7 @@ async function measureAuthoringBuildGraphV1(input: {
 }
 
 async function measurePlayerEntryBuildGraphV1(input: {
-  readonly appDirectory: "template" | "examples/cards";
+  readonly appDirectory: "template" | "engine/packages/tooling/test-fixtures/gui-only-application";
   readonly entry: string;
 }): Promise<BuildDependencyReceiptInternalV1> {
   const applicationSlug = input.appDirectory.replaceAll("/", "-");
@@ -583,13 +583,16 @@ describe("build dependency receipt", () => {
     expect(facets.rpcImplementation).toEqual([]);
   });
 
-  it("keeps the GUI-only Cards release graph on focused neutral entries", async () => {
+  it("keeps a GUI-only release graph on focused neutral entries", async () => {
     const receipt = await measurePlayerEntryBuildGraphV1({
-      appDirectory: "examples/cards",
+      appDirectory: "engine/packages/tooling/test-fixtures/gui-only-application",
       entry: "index.html",
     });
-    expect(receipt.applicationId).toBe("example-cards");
+    expect(receipt.applicationId).toBe("conformance-gui-only");
     const moduleIds = receiptModuleIdsV1(receipt);
+    expect(moduleIds).toContain(
+      "engine/packages/web/src/application/start-web-gui-application.tsx",
+    );
     expect(classifyStaticGameDependencyFacetsInternalV1(moduleIds)).toEqual({
       authoringImplementation: [],
       inspectorAuthoringImplementation: [],

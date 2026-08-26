@@ -17,7 +17,7 @@ export default defineConfig({
     starlight({
       title: "SillyMaker",
       description:
-        "A React and TypeScript engine for GUI applications and games, designed for people and coding agents.",
+        "A human–agent co-creation engine for GUI applications and games, built around shared artifacts, inspectable behavior, and executable acceptance.",
       locales: {
         root: { label: "English", lang: "en" },
         zh: { label: "简体中文", lang: "zh-CN" },
@@ -81,7 +81,7 @@ export default defineConfig({
         },
         {
           label: "Examples",
-          translations: { "zh-CN": "完整示例" },
+          translations: { "zh-CN": "示例与产品" },
           items: [
             { slug: "examples" },
             { slug: "examples/cat-cafe" },

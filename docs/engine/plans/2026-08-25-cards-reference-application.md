@@ -172,3 +172,16 @@ motion 和产品测试保持本地。没有持续同步、template migration 或
 
 本计划关闭后没有自动激活的下一 engine lane 或 Reference Product；后续仍由所有者显式选择。条件性的
 Desktop stable revalidation/promotion 车道保持原状态。
+
+## 6. 产品退役与证明迁移（2026-08-26）
+
+Cards 已完成作为首个 GUI-only Reference Product 的历史任务。官网重建后，其可见 GUI Composition、Code
+Surface、Input、响应式与 reduced-motion 展示由网站首页 Console 接替；中性
+`@sillymaker/web/gui-application` 的 `storyEntry: null` Vite final graph、首个真实 Browser presentation、
+遗漏 Game/Story/Save/Agent/Inspector/Mod owner 和 root barrel 的结构排除，则迁移到 tooling-owned 小型
+conformance fixture。该 fixture 只保留产品无关的启动与依赖图合同，不复制 Cards 的三卡内容、视觉、
+motion、设备矩阵、性能 characterization 或产品测试。
+
+因此 `examples/cards`、example E2E server/spec、`/play/cards/` 发布路径和所有活跃 workspace 引用同轮删除。
+本计划前述 denominator、review、raw measurement 与 2026-08-25 closure 是已发生的历史证据，继续保留；
+Cards 不再是维护中的 example、workspace application 或当前产品能力 owner。

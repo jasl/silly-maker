@@ -6,7 +6,8 @@
     "src/components/**/*.ts",
     "src/components/**/*.tsx",
     "src/home-console/**/*.ts",
-    "src/home-console/**/*.tsx"
+    "src/home-console/**/*.tsx",
+    "e2e/**/*.ts"
   ],
   "exclude": ["dist", "node_modules"]
 }

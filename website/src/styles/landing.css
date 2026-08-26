@@ -99,10 +99,13 @@ html[data-has-hero] .sl-markdown-content > :first-child {
 
 html[lang="zh-CN"] .sm-home-hero h1 {
   font-size: clamp(2.8rem, 5vw, 4.8rem);
+  line-height: 1.04;
 }
 
 html[lang="zh-CN"] .sm-home-hero h1 span {
+  display: block;
   margin-inline-start: 0;
+  padding-block-end: 0.08em;
 }
 
 .sm-home-hero__lead {
@@ -178,18 +181,20 @@ html[lang="zh-CN"] .sm-home-hero h1 span {
 .sm-home-proof {
   display: flex;
   flex-wrap: wrap;
+  align-items: baseline;
   gap: 0.5rem 1rem;
   margin: 0.25rem 0 0;
   padding: 0;
   color: var(--sm-text-muted);
   font-size: 0.72rem;
   font-weight: 650;
+  line-height: 1.25;
   list-style: none;
 }
 
 .sm-home-proof li {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 0.35rem;
 }
 
@@ -268,10 +273,24 @@ html[lang="zh-CN"] .sm-home-hero h1 span {
   --card-accent: var(--sm-brand-mint);
 }
 
+.sm-home-card--current {
+  --card-accent: var(--sm-brand-blue);
+}
+
+.sm-home-card--direction {
+  --card-accent: var(--sm-brand-violet);
+}
+
 .sm-home-card:hover {
   border-color: color-mix(in srgb, var(--card-accent) 60%, var(--sm-border));
   box-shadow: var(--sm-shadow-lg);
   transform: translateY(-3px);
+}
+
+.sm-home-card--status:hover {
+  border-color: var(--sm-border);
+  box-shadow: none;
+  transform: none;
 }
 
 .sm-home-card__number {

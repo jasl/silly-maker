@@ -1,32 +1,40 @@
 # SillyMaker
 
-SillyMaker is a React and TypeScript engine for GUI applications and games. It
-keeps ordinary React, CSS, browser semantics, and frontend packages available,
-then lets a product add deterministic State, Scene, Save/replay, scalable
-content, input, and authoring capabilities deliberately.
+SillyMaker is a human–agent co-creation engine for GUI applications and games.
+It organizes product intent into shared, inspectable artifacts and executable
+acceptance: people define and refine the result, while coding agents implement
+against the same ownership boundaries, runtime behavior, and definition of
+done.
 
-## Choose a path
+## Current boundary
+
+- Current product targets: Browser and Deno Desktop preview.
+- Current use: supported workspace package entries from a source checkout; the
+  packages are not published to npm.
+- Current authoring: ordinary TypeScript/React, structured Scene/content/layout
+  documents, diagnostics, simulation, browser evidence, and a development
+  Inspector with bounded Scene editing and read-only runtime facets.
+- Direction, not a shipped claim: a broader shared editor surface for people
+  and agents. SillyMaker is not yet a complete visual editor or no-code tool.
+
+## Start with a shared brief
+
+- Coding-agent start: ./start/
+- Manual start: ./start/manual/
+- Project structure: ./start/project-structure/
+
+Define the complete user-visible scope, required screens/scenes/routes/content,
+target devices and input, human-tuned areas, automated acceptance, manual
+acceptance, and explicit exclusions before implementation. A vertical slice is
+not completion unless the brief says it is the whole product.
+
+## Choose a product path
 
 - GUI application: ./guides/gui-application/
 - Game: ./guides/game-application/
 - Core concepts: ./concepts/
 
-## Start a project
-
-- Agent-first guide: ./start/
-- Manual setup: ./start/manual/
-- Project structure: ./start/project-structure/
-
-Quick repository workflow:
-
-```sh
-git clone https://github.com/jasl/silly-maker
-cd silly-maker
-deno install
-deno task app dev template
-```
-
-## Build and understand
+## Inspect and verify
 
 - Layout and input: ./guides/layout-and-input/
 - State, Save, and replay: ./guides/state-save-replay/
@@ -37,16 +45,18 @@ deno task app dev template
 - Project configuration: ./reference/project-config/
 - Data formats: ./reference/formats/
 
-## Working products
+## Current examples
 
-- Interactive SillyMaker navigation console: ./
-- Complete examples: ./examples/
-- Cat Cafe: ./examples/cat-cafe/
-- SillyOS: ./examples/silly-os/
-- Bookshop: ./examples/bookshop/
+- Example roles and status: ./examples/
+- Cat Cafe, current flagship game: ./examples/cat-cafe/
+- SillyOS, experimental GUI product: ./examples/silly-os/
+- Bookshop, focused narrative-authoring example: ./examples/bookshop/
 
-## Source
+## Repository sources
 
 - Repository: https://github.com/jasl/silly-maker
-- Engine authoring quickstart: https://github.com/jasl/silly-maker/blob/main/docs/engine/authoring-quickstart.md
+- Repository rules: https://github.com/jasl/silly-maker/blob/main/AGENTS.md
+- Implemented features: https://github.com/jasl/silly-maker/blob/main/docs/engine/features.md
+- Authoring quickstart: https://github.com/jasl/silly-maker/blob/main/docs/engine/authoring-quickstart.md
+- Architecture: https://github.com/jasl/silly-maker/blob/main/docs/engine/architecture.md
 - Public documentation source: https://github.com/jasl/silly-maker/tree/main/website/src/content/docs

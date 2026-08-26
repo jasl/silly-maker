@@ -19,9 +19,9 @@ Inspector/Scene source 与 Story/Game 文件和命令，然后从
 `@sillymaker/ui/code-surface`、`@sillymaker/ui/input`、
 `@sillymaker/ui/native-behavior` 和 `@sillymaker/ui/viewport` 等 focused entry。
 Story-only 的 `inspect`/`check`/`simulate` 会明确报告不适用，Web build/dev
-与已声明的 Desktop preview 不受影响。完整可发布的参考见
-`examples/cards`。这是一份复制后删减的 recipe，不建立 scaffold CLI 或
-模板同步系统。
+与已声明的 Desktop preview 不受影响。这是一份复制后删减的 recipe，不建立
+scaffold CLI 或模板同步系统；工具链中的小型 GUI-only conformance fixture
+持续验证 focused build graph，而不是再维护一个只为证明工程形状存在的示例产品。
 
 ## 现在就能跑
 
@@ -41,9 +41,10 @@ deno task clean                                       # 清理 dist-web/ 与 dis
 
 | 想改什么                            | 文件                                                                                                                                  |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| 台词、选项（含文字）                | `src/story/narrative.ts` 的剧本数组（文本内联；一个短名派生全部 id——加一句只改这一处）                                                |
+| 叙事控制、稳定 textId 引用          | `src/story/narrative.ts` 的纯数据 block（一个短名派生全部 id，可显式 override）                                                       |
+| 台词、选项文案与多语言              | `assets/content/*.text-pack.json` + `src/content/text-content.ts` 的 compact manifest                                                 |
 | 场景构图（层级/站位/外观/cue 绑定） | `src/scenes/opening/opening.authoring-scene.json`（Inspector 支持有限字段，其余直接编辑）+ `src/scenes/opening/motions/*.motion.json` |
-| 界面文案、多语言覆盖                | `src/content/presentation.ts`（textId → 文本；剧本条目自动并入，其他语言按同 textId 覆盖）                                            |
+| 常驻界面文案                        | `src/content/presentation.ts`（不随 addressable narrative text pack 装卸的 UI copy）                                                  |
 | 舞台内容与渲染器绑定                | `src/content/presentation.ts` 的 `templateStageContentCatalogV1` + `src/ui/stage-renderers.tsx`                                       |
 | 玩法规则与命令                      | `src/game/simulation.ts`（`template.inventory` 是可替换的空壳模块）                                                                   |
 | 玩家可见的动作目录                  | `src/application/semantic.ts`（Advanced 层）                                                                                          |
@@ -53,7 +54,20 @@ deno task clean                                       # 清理 dist-web/ 与 dis
 
 ## 剧本模型（不是 DSL，就是 TypeScript 数据）
 
-块五种：`say`（对白，等玩家确认）、`stage`（场景 open/cue 或 `setAppearance` 舞台操作）、`choice`（菜单，选项可设 flag、可原子消耗金币）、`branch`（按已保存 flags 声明式路由，末条可为 else 臂）、`end`。场景条目还可声明存在期循环动效（`ambient`，如开场的薄雾漂移——普通 motion 文档在条目 settle 期间按表现时钟循环采样，纯表现、零权威字节）。剧本是**纯数据交互文档**，由 `src/story/narrative-kit.ts` 的 kit 编译（interaction-table 提案的 template 版）：一个短名派生 `node.*`/`interaction.*`/`text.*` 全部 id 且每个派生 id 都有显式覆盖位（迁移存量剧本可保 id 字节不变），默认语言台词直接写在块里；重名、同 id 异文本、未知 speaker、未解析跳转、坏 stage op 都在构造期报错。编译仍可产出只读 `NarrativeFlowGraph` 投影（带标签边 + 文档分组），但当前 Inspector 不提供 Flow workspace。原有 Regions/Chrome 编辑 UI 同样已退出；对应 JSON 数据与运行时合同仍保留，直接编辑并由检查/测试验证。Engine Lab（`e2e`）额外演示 `pause`/`barrier`/`custom` 三种边界与音频、玩家播放系统。
+块六种：`say`（对白，等玩家确认）、`stage`（场景 open/cue 或
+`setAppearance` 舞台操作）、`choice`（菜单，选项可设 flag、可原子消耗金币）、
+`branch`（按已保存 flags 声明式路由，末条可为 else 臂）、`hold`（按权威时间
+等待，并可通过声明的 `when` 条件提前转向）、`end`。场景条目还可声明存在期循环
+动效（`ambient`，如开场的薄雾漂移——普通 motion 文档在条目 settle 期间按表现
+时钟循环采样，纯表现、零权威字节）。剧本是**纯数据交互文档**，由
+`src/story/narrative-kit.ts` 的 kit 编译（interaction-table 提案的 template 版）：
+一个短名派生 `node.*`/`interaction.*`/`text.*` 全部 id，且每个派生 id 都有
+显式覆盖位（迁移存量剧本可保 id 字节不变）；实际文案由同一 textId 对应到
+`assets/content/*.text-pack.json`。重名、未知 speaker、未解析跳转与坏 stage op
+等会在构造或应用检查时报告。编译仍可产出只读 `NarrativeFlowGraph` 投影（带标签
+边 + 文档分组），但当前 Inspector 不提供 Flow workspace。原有 Regions/Chrome
+编辑 UI 同样已退出；对应 JSON 数据与运行时合同仍保留，直接编辑并由检查/测试验证。
+Engine Lab（`e2e`）额外演示更低层的边界、音频与玩家播放系统。
 
 改完剧本的验证环（几秒钟）：
 
