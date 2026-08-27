@@ -29,6 +29,7 @@ import {
   type BrowserWorkspaceHostEnvironmentOutboundMessageV1,
   type BrowserWorkspaceHostExportOutboundMessageV1,
   type BrowserWorkspaceHostExportProgressWireV1,
+  type BrowserWorkspaceImmutableSnapshotReceiptWireV1,
   type BrowserWorkspaceVolumeAnchorWireV1,
 } from "../workspace/browser-workspace-host-protocol.ts";
 
@@ -60,6 +61,9 @@ interface FakeVolumeV1 {
   archiveFailure: Error | null;
   holdArchiveUntilAbort: boolean;
   archiveStarted: (() => void) | null;
+  preparedSnapshot: BrowserWorkspaceImmutableSnapshotReceiptWireV1 | null;
+  snapshotPrepareStarted: (() => void) | null;
+  snapshotPrepareGate: Promise<void> | null;
 }
 
 const programIdV1 = "program.preview.1";
@@ -227,6 +231,63 @@ class FakeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
     };
   }
 
+  async prepareImmutableSnapshot(
+    input: Parameters<BrowserWorkspaceHostVolumeLeasePortV1["prepareImmutableSnapshot"]>[0],
+  ): ReturnType<BrowserWorkspaceHostVolumeLeasePortV1["prepareImmutableSnapshot"]> {
+    this.volume.snapshotPrepareStarted?.();
+    if (this.volume.snapshotPrepareGate !== null) await this.volume.snapshotPrepareGate;
+    const receipt: BrowserWorkspaceImmutableSnapshotReceiptWireV1 = {
+      revision: 1,
+      snapshotId: input.snapshotId,
+      programId: this.anchor.programId,
+      workspaceId: this.anchor.workspaceId,
+      volumeId: this.anchor.volumeId,
+      workspaceFormat: 1,
+      proposalId: input.proposalId,
+      programRevision: input.programRevision,
+      baseRepositoryRevision: input.baseRepositoryRevision,
+      checkpointId: input.expectedHead.checkpointId,
+      generation: input.expectedHead.generation,
+      fileCount: this.volume.files.size,
+      archiveBytes: Math.max(
+        1,
+        [...this.volume.files.values()].reduce(
+          (total, bytes) => total + bytes.byteLength,
+          0,
+        ),
+      ),
+    };
+    if (
+      this.volume.preparedSnapshot !== null &&
+      JSON.stringify(this.volume.preparedSnapshot) !== JSON.stringify(receipt)
+    ) throw new BrowserWorkspaceHostStorageErrorV1("snapshot_mismatch", "snapshot mismatch");
+    if (
+      this.volume.preparedSnapshot === null &&
+      (input.expectedHead.checkpointId !== this.volume.head.checkpointId ||
+        input.expectedHead.generation !== this.volume.head.generation)
+    ) throw new BrowserWorkspaceHostStorageErrorV1("snapshot_stale", "snapshot stale");
+    this.volume.preparedSnapshot = receipt;
+    return receipt;
+  }
+
+  queryImmutableSnapshot(
+    snapshotId: string,
+  ): Promise<BrowserWorkspaceImmutableSnapshotReceiptWireV1 | null> {
+    return Promise.resolve(
+      this.volume.preparedSnapshot?.snapshotId === snapshotId ? this.volume.preparedSnapshot : null,
+    );
+  }
+
+  async discardImmutableSnapshot(
+    expected: BrowserWorkspaceImmutableSnapshotReceiptWireV1,
+  ): Promise<void> {
+    if (
+      this.volume.preparedSnapshot !== null &&
+      JSON.stringify(this.volume.preparedSnapshot) !== JSON.stringify(expected)
+    ) throw new BrowserWorkspaceHostStorageErrorV1("snapshot_mismatch", "snapshot mismatch");
+    this.volume.preparedSnapshot = null;
+  }
+
   async close(): Promise<void> {
     if (!this.closed) this.volume.leaseCloseCalls += 1;
     this.closed = true;
@@ -279,6 +340,9 @@ class FakeBootstrapV1 implements BrowserWorkspaceHostBootstrapPortV1 {
       archiveFailure: null,
       holdArchiveUntilAbort: false,
       archiveStarted: null,
+      preparedSnapshot: null,
+      snapshotPrepareStarted: null,
+      snapshotPrepareGate: null,
     });
     return anchor;
   }
@@ -357,6 +421,32 @@ function startExportRequestV1(
   });
 }
 
+function prepareSnapshotRequestV1(
+  requestId: number,
+  workspaceSessionId: string,
+  overrides: Readonly<
+    Partial<{
+      snapshotId: string;
+      proposalId: string;
+      expectedCheckpointId: string;
+      expectedGeneration: number;
+      programRevision: number;
+      baseRepositoryRevision: number;
+    }>
+  > = {},
+): Record<string, unknown> {
+  return controlRequestV1(requestId, {
+    method: "prepare_snapshot",
+    workspaceSessionId,
+    snapshotId: overrides.snapshotId ?? "snapshot.preview.1",
+    proposalId: overrides.proposalId ?? "proposal.preview.1",
+    expectedCheckpointId: overrides.expectedCheckpointId ?? "checkpoint.1",
+    expectedGeneration: overrides.expectedGeneration ?? 1,
+    programRevision: overrides.programRevision ?? 2,
+    baseRepositoryRevision: overrides.baseRepositoryRevision ?? 1,
+  });
+}
+
 async function flushEnvironmentV1(): Promise<void> {
   for (let index = 0; index < 8; index += 1) await Promise.resolve();
 }
@@ -392,6 +482,305 @@ function lastV1<T>(values: readonly T[]): T {
 }
 
 describe("SillyOS Browser Workspace Host runtime", () => {
+  it("prepares, queries, and exactly discards one immutable snapshot without advancing the head", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    const workspaceSessionId = "workspace-session.snapshot";
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      postControlMessage: (message) => controls.push(message),
+      createWorkspaceSessionId: () => workspaceSessionId,
+    });
+    await runtime.receiveControl(controlRequestV1(1, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    const anchor = (lastV1(controls) as {
+      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+    }).response.anchor;
+    const volume = bootstrap.volumes.get(anchor.volumeId);
+    if (volume === undefined) throw new Error("expected fake volume");
+    volume.files.set("AGENTS.md", new TextEncoder().encode("snapshot instructions"));
+    volume.files.set("src/main.ts", new TextEncoder().encode("export const value = 1;"));
+    await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
+
+    await runtime.receiveControl(prepareSnapshotRequestV1(3, workspaceSessionId));
+    const receipt = (lastV1(controls) as {
+      readonly response: {
+        readonly method: "prepare_snapshot";
+        readonly receipt: BrowserWorkspaceImmutableSnapshotReceiptWireV1;
+      };
+    }).response.receipt;
+    expect(receipt).toEqual({
+      revision: 1,
+      snapshotId: "snapshot.preview.1",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+      volumeId: anchor.volumeId,
+      workspaceFormat: 1,
+      proposalId: "proposal.preview.1",
+      programRevision: 2,
+      baseRepositoryRevision: 1,
+      checkpointId: "checkpoint.1",
+      generation: 1,
+      fileCount: 2,
+      archiveBytes: 44,
+    });
+    expect(volume.head).toMatchObject({ checkpointId: "checkpoint.1", generation: 1 });
+
+    await runtime.receiveControl(controlRequestV1(4, {
+      method: "query_snapshot",
+      workspaceSessionId,
+      snapshotId: receipt.snapshotId,
+    }));
+    expect(lastV1(controls)).toEqual({
+      revision: 1,
+      kind: "control_response",
+      requestId: 4,
+      ok: true,
+      response: { method: "query_snapshot", receipt },
+    });
+
+    await runtime.receiveControl(prepareSnapshotRequestV1(5, workspaceSessionId));
+    expect(lastV1(controls)).toMatchObject({
+      requestId: 5,
+      ok: true,
+      response: { method: "prepare_snapshot", receipt },
+    });
+    await runtime.receiveControl(prepareSnapshotRequestV1(6, workspaceSessionId, {
+      proposalId: "proposal.preview.conflict",
+    }));
+    expect(lastV1(controls)).toMatchObject({
+      requestId: 6,
+      ok: false,
+      code: "snapshot_mismatch",
+    });
+
+    const mismatchedReceipt = { ...receipt, programRevision: receipt.programRevision + 1 };
+    await runtime.receiveControl(controlRequestV1(7, {
+      method: "discard_snapshot",
+      workspaceSessionId,
+      expected: mismatchedReceipt,
+    }));
+    expect(lastV1(controls)).toMatchObject({
+      requestId: 7,
+      ok: false,
+      code: "snapshot_mismatch",
+    });
+    expect(volume.preparedSnapshot).toEqual(receipt);
+
+    await runtime.receiveControl(controlRequestV1(8, {
+      method: "discard_snapshot",
+      workspaceSessionId,
+      expected: receipt,
+    }));
+    expect(lastV1(controls)).toEqual({
+      revision: 1,
+      kind: "control_response",
+      requestId: 8,
+      ok: true,
+      response: { method: "discard_snapshot", snapshotId: receipt.snapshotId },
+    });
+    await runtime.receiveControl(controlRequestV1(9, {
+      method: "query_snapshot",
+      workspaceSessionId,
+      snapshotId: receipt.snapshotId,
+    }));
+    expect(lastV1(controls)).toMatchObject({
+      requestId: 9,
+      ok: true,
+      response: { method: "query_snapshot", receipt: null },
+    });
+    await runtime.receiveControl(controlRequestV1(10, {
+      method: "query_workspace",
+      workspaceSessionId,
+    }));
+    expect(lastV1(controls)).toMatchObject({
+      requestId: 10,
+      ok: true,
+      response: {
+        method: "query_workspace",
+        snapshot: {
+          checkpointId: "checkpoint.1",
+          descriptor: { generation: 1 },
+        },
+      },
+    });
+    await runtime.dispose();
+  });
+
+  it("rejects a stale immutable snapshot head when no exact candidate exists", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    const workspaceSessionId = "workspace-session.snapshot-stale";
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      postControlMessage: (message) => controls.push(message),
+      createWorkspaceSessionId: () => workspaceSessionId,
+    });
+    await runtime.receiveControl(controlRequestV1(1, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    const anchor = (lastV1(controls) as {
+      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+    }).response.anchor;
+    const volume = bootstrap.volumes.get(anchor.volumeId);
+    if (volume === undefined) throw new Error("expected fake volume");
+    await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
+
+    await runtime.receiveControl(prepareSnapshotRequestV1(3, workspaceSessionId, {
+      expectedGeneration: 2,
+    }));
+    expect(lastV1(controls)).toMatchObject({
+      requestId: 3,
+      ok: false,
+      code: "snapshot_stale",
+    });
+    expect(volume.preparedSnapshot).toBeNull();
+    expect(volume.head).toMatchObject({ checkpointId: "checkpoint.1", generation: 1 });
+    await runtime.dispose();
+  });
+
+  it("returns an exact existing candidate after the mutable head advances", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    const workspaceSessionId = "workspace-session.snapshot-idempotent";
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      postControlMessage: (message) => controls.push(message),
+      createWorkspaceSessionId: () => workspaceSessionId,
+    });
+    await runtime.receiveControl(controlRequestV1(1, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    const anchor = (lastV1(controls) as {
+      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+    }).response.anchor;
+    const volume = bootstrap.volumes.get(anchor.volumeId);
+    if (volume === undefined) throw new Error("expected fake volume");
+    await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
+    await runtime.receiveControl(prepareSnapshotRequestV1(3, workspaceSessionId));
+    const prepared = lastV1(controls);
+    expect(prepared).toMatchObject({ requestId: 3, ok: true });
+
+    volume.head = {
+      ...volume.head,
+      checkpointId: "checkpoint.after-snapshot.1",
+      generation: 2,
+    };
+    await runtime.receiveControl(prepareSnapshotRequestV1(4, workspaceSessionId));
+    expect(lastV1(controls)).toEqual({ ...prepared, requestId: 4 });
+    await runtime.dispose();
+  });
+
+  it("fences immutable snapshot preparation against Pi runs and portable exports", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    const workspaceSessionId = "workspace-session.snapshot-fence";
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      postControlMessage: (message) => controls.push(message),
+      createWorkspaceSessionId: () => workspaceSessionId,
+      createObjectUrl: () => "blob:workspace.snapshot-fence",
+    });
+    await runtime.receiveControl(controlRequestV1(1, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    const anchor = (lastV1(controls) as {
+      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+    }).response.anchor;
+    const volume = bootstrap.volumes.get(anchor.volumeId);
+    if (volume === undefined) throw new Error("expected fake volume");
+    await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
+    const environmentPort = new FakeMessagePortV1();
+    await runtime.receiveControl(
+      controlRequestV1(3, { method: "attach_environment", workspaceSessionId }),
+      [environmentPort],
+    );
+    environmentPort.send(environmentRequestV1(4, {
+      method: "begin_run",
+      binding: {
+        revision: 1,
+        programId: programIdV1,
+        workspaceId: workspaceIdV1,
+        workspaceSessionId,
+        expectedGeneration: 1,
+      },
+      sessionId: "pi-session.snapshot-fence.1",
+      runId: "pi-run.snapshot-fence.1",
+    }));
+    expect(await waitForEnvironmentResponseV1(environmentPort, 4)).toMatchObject({ ok: true });
+    await runtime.receiveControl(prepareSnapshotRequestV1(5, workspaceSessionId));
+    expect(lastV1(controls)).toMatchObject({
+      requestId: 5,
+      ok: false,
+      code: "workspace_busy",
+    });
+    environmentPort.send(environmentRequestV1(6, { method: "end_run" }));
+    expect(await waitForEnvironmentResponseV1(environmentPort, 6)).toMatchObject({ ok: true });
+
+    let signalSnapshotStarted!: () => void;
+    const snapshotStarted = new Promise<void>((resolve) => (signalSnapshotStarted = resolve));
+    let releaseSnapshot!: () => void;
+    volume.snapshotPrepareStarted = signalSnapshotStarted;
+    volume.snapshotPrepareGate = new Promise<void>((resolve) => (releaseSnapshot = resolve));
+    const prepare = runtime.receiveControl(prepareSnapshotRequestV1(7, workspaceSessionId));
+    await snapshotStarted;
+    environmentPort.send(environmentRequestV1(8, {
+      method: "begin_run",
+      binding: {
+        revision: 1,
+        programId: programIdV1,
+        workspaceId: workspaceIdV1,
+        workspaceSessionId,
+        expectedGeneration: 1,
+      },
+      sessionId: "pi-session.snapshot-fence.2",
+      runId: "pi-run.snapshot-fence.2",
+    }));
+    expect(await waitForEnvironmentResponseV1(environmentPort, 8)).toMatchObject({
+      ok: false,
+      code: "run_busy",
+    });
+    volume.snapshotPrepareGate = null;
+    releaseSnapshot();
+    await prepare;
+    expect(lastV1(controls)).toMatchObject({
+      requestId: 7,
+      ok: true,
+      response: { method: "prepare_snapshot" },
+    });
+
+    const exportPort = new FakeMessagePortV1();
+    await runtime.receiveControl(
+      startExportRequestV1(9, workspaceSessionId, "export.snapshot-fence.1"),
+      [exportPort],
+    );
+    await flushEnvironmentV1();
+    expect(lastV1(exportPort.messages)).toMatchObject({ kind: "workspace_export_ready" });
+    await runtime.receiveControl(prepareSnapshotRequestV1(10, workspaceSessionId));
+    expect(lastV1(controls)).toMatchObject({
+      requestId: 10,
+      ok: false,
+      code: "workspace_busy",
+    });
+    exportPort.send({
+      revision: 1,
+      kind: "workspace_export_release",
+      exportId: "export.snapshot-fence.1",
+    });
+    await flushEnvironmentV1();
+    expect(lastV1(exportPort.messages)).toMatchObject({ kind: "workspace_export_released" });
+    await runtime.dispose();
+  });
+
   it("projects native and shell volume capacity failures without advancing the head", async () => {
     const bootstrap = new FakeBootstrapV1();
     const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];

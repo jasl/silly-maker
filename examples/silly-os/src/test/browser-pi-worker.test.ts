@@ -38,6 +38,7 @@ import {
   type BrowserWorkspaceHostControlRequestRecordV1,
   type BrowserWorkspaceHostControlSuccessResponseV1,
   type BrowserWorkspaceHostSnapshotWireV1,
+  type BrowserWorkspaceImmutableSnapshotReceiptWireV1,
   type BrowserWorkspaceVolumeAnchorWireV1,
 } from "../workspace/browser-workspace-host-protocol.ts";
 import { BrowserWorkspaceHostControlErrorV1 } from "../workspace/browser-workspace-host-port.ts";
@@ -117,6 +118,7 @@ function executionBindingV1(expectedGeneration = 1): BrowserPiWorkerExecutionBin
 
 interface TestBrowserWorkspaceVolumeStateV1 {
   head: BrowserWorkspaceHostDurableHeadV1;
+  preparedSnapshot: BrowserWorkspaceImmutableSnapshotReceiptWireV1 | null;
   readonly files: Map<string, Uint8Array>;
   readonly readFileRangeRequests: {
     readonly path: string;
@@ -253,6 +255,45 @@ class TestBrowserWorkspaceVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLea
     };
   }
 
+  async prepareImmutableSnapshot(
+    input: Parameters<BrowserWorkspaceHostVolumeLeasePortV1["prepareImmutableSnapshot"]>[0],
+  ): ReturnType<BrowserWorkspaceHostVolumeLeasePortV1["prepareImmutableSnapshot"]> {
+    const receipt: BrowserWorkspaceImmutableSnapshotReceiptWireV1 = {
+      revision: 1,
+      snapshotId: input.snapshotId,
+      programId: this.anchor.programId,
+      workspaceId: this.anchor.workspaceId,
+      volumeId: this.anchor.volumeId,
+      workspaceFormat: 1,
+      proposalId: input.proposalId,
+      programRevision: input.programRevision,
+      baseRepositoryRevision: input.baseRepositoryRevision,
+      checkpointId: input.expectedHead.checkpointId,
+      generation: input.expectedHead.generation,
+      fileCount: this.state.files.size,
+      archiveBytes: 22,
+    };
+    this.state.preparedSnapshot = receipt;
+    return receipt;
+  }
+
+  queryImmutableSnapshot(
+    snapshotId: string,
+  ): Promise<BrowserWorkspaceImmutableSnapshotReceiptWireV1 | null> {
+    return Promise.resolve(
+      this.state.preparedSnapshot?.snapshotId === snapshotId ? this.state.preparedSnapshot : null,
+    );
+  }
+
+  discardImmutableSnapshot(
+    expected: BrowserWorkspaceImmutableSnapshotReceiptWireV1,
+  ): Promise<void> {
+    if (this.state.preparedSnapshot?.snapshotId === expected.snapshotId) {
+      this.state.preparedSnapshot = null;
+    }
+    return Promise.resolve();
+  }
+
   async close(): Promise<void> {
     this.closed = true;
   }
@@ -274,6 +315,7 @@ class TestBrowserWorkspaceBootstrapV1 implements BrowserWorkspaceHostBootstrapPo
       checkpointId: "sillyos.workspace.checkpoint.test.1",
       generation: 1,
     },
+    preparedSnapshot: null,
     files: new Map(),
     readFileRangeRequests: [],
     sourceReadRequests: [],

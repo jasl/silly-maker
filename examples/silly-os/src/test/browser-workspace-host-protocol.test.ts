@@ -64,6 +64,27 @@ function receiptV1(overrides: Record<string, unknown> = {}): Record<string, unkn
   };
 }
 
+function immutableSnapshotReceiptV1(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    revision: 1,
+    snapshotId: "snapshot.preview.1",
+    programId: anchorV1.programId,
+    workspaceId: anchorV1.workspaceId,
+    volumeId: anchorV1.volumeId,
+    workspaceFormat: 1,
+    proposalId: "proposal.preview.1",
+    programRevision: 2,
+    baseRepositoryRevision: 4,
+    checkpointId: "checkpoint.preview.3",
+    generation: 7,
+    fileCount: 3,
+    archiveBytes: 512,
+    ...overrides,
+  };
+}
+
 describe("SillyOS Browser Workspace Host protocol", () => {
   it("admits exact candidate, generation-free anchor open, discard, and attach requests", () => {
     expect(
@@ -401,6 +422,145 @@ describe("SillyOS Browser Workspace Host protocol", () => {
         },
       },
     });
+  });
+
+  it("admits exact immutable snapshot prepare, query, and receipt-bound discard records", () => {
+    const prepare = {
+      method: "prepare_snapshot",
+      workspaceSessionId: descriptorV1.workspaceSessionId,
+      snapshotId: "snapshot.preview.1",
+      proposalId: "proposal.preview.1",
+      expectedCheckpointId: "checkpoint.preview.3",
+      expectedGeneration: 7,
+      programRevision: 2,
+      baseRepositoryRevision: 4,
+    } as const;
+    expect(
+      admitBrowserWorkspaceHostControlRequestV1(controlRequestV1(prepare)),
+    ).toMatchObject({ record: prepare });
+    expect(
+      admitBrowserWorkspaceHostControlRequestV1(
+        controlRequestV1({
+          method: "query_snapshot",
+          workspaceSessionId: descriptorV1.workspaceSessionId,
+          snapshotId: "snapshot.preview.1",
+        }),
+      ),
+    ).toMatchObject({ record: { method: "query_snapshot", snapshotId: "snapshot.preview.1" } });
+    expect(
+      admitBrowserWorkspaceHostControlRequestV1(
+        controlRequestV1({
+          method: "discard_snapshot",
+          workspaceSessionId: descriptorV1.workspaceSessionId,
+          expected: immutableSnapshotReceiptV1(),
+        }),
+      ),
+    ).toMatchObject({
+      record: {
+        method: "discard_snapshot",
+        expected: { snapshotId: "snapshot.preview.1", archiveBytes: 512 },
+      },
+    });
+  });
+
+  it("admits exact immutable snapshot responses, including an absent queried candidate", () => {
+    const response = (method: string, value: Record<string, unknown>) => ({
+      revision: 1,
+      kind: "control_response",
+      requestId: 3,
+      ok: true,
+      response: { method, ...value },
+    });
+    expect(
+      admitBrowserWorkspaceHostControlOutboundMessageV1(
+        response("prepare_snapshot", { receipt: immutableSnapshotReceiptV1() }),
+      ),
+    ).toMatchObject({ response: { method: "prepare_snapshot", receipt: { archiveBytes: 512 } } });
+    expect(
+      admitBrowserWorkspaceHostControlOutboundMessageV1(
+        response("query_snapshot", { receipt: immutableSnapshotReceiptV1() }),
+      ),
+    ).toMatchObject({
+      response: { method: "query_snapshot", receipt: { snapshotId: "snapshot.preview.1" } },
+    });
+    expect(
+      admitBrowserWorkspaceHostControlOutboundMessageV1(
+        response("query_snapshot", { receipt: null }),
+      ),
+    ).toMatchObject({ response: { method: "query_snapshot", receipt: null } });
+    expect(
+      admitBrowserWorkspaceHostControlOutboundMessageV1(
+        response("discard_snapshot", { snapshotId: "snapshot.preview.1" }),
+      ),
+    ).toMatchObject({ response: { method: "discard_snapshot", snapshotId: "snapshot.preview.1" } });
+  });
+
+  it("rejects malformed or widened immutable snapshot records", () => {
+    const prepare = {
+      method: "prepare_snapshot",
+      workspaceSessionId: descriptorV1.workspaceSessionId,
+      snapshotId: "snapshot.preview.1",
+      proposalId: "proposal.preview.1",
+      expectedCheckpointId: "checkpoint.preview.3",
+      expectedGeneration: 7,
+      programRevision: 2,
+      baseRepositoryRevision: 4,
+    } as const;
+    for (
+      const record of [
+        { ...prepare, baseRepositoryRevision: 0 },
+        { ...prepare, repositoryRevision: 4 },
+        {
+          method: "query_snapshot",
+          workspaceSessionId: descriptorV1.workspaceSessionId,
+          snapshotId: "snapshot.preview.1",
+          proposalId: "forbidden",
+        },
+        {
+          method: "discard_snapshot",
+          workspaceSessionId: descriptorV1.workspaceSessionId,
+          expected: immutableSnapshotReceiptV1({ archiveBytes: 0 }),
+        },
+        {
+          method: "discard_snapshot",
+          workspaceSessionId: descriptorV1.workspaceSessionId,
+          expected: immutableSnapshotReceiptV1({ provider: "forbidden" }),
+        },
+      ]
+    ) {
+      expect(
+        admitBrowserWorkspaceHostControlRequestV1(controlRequestV1(record)),
+      ).toBeNull();
+    }
+
+    const exactResponse = {
+      revision: 1,
+      kind: "control_response",
+      requestId: 3,
+      ok: true,
+      response: {
+        method: "prepare_snapshot",
+        receipt: immutableSnapshotReceiptV1(),
+      },
+    } as const;
+    for (
+      const response of [
+        { ...exactResponse, response: { ...exactResponse.response, provider: "forbidden" } },
+        {
+          ...exactResponse,
+          response: {
+            ...exactResponse.response,
+            receipt: immutableSnapshotReceiptV1({ fileCount: -1 }),
+          },
+        },
+        {
+          ...exactResponse,
+          response: { method: "query_snapshot", receipt: false },
+        },
+      ]
+    ) {
+      expect(admitBrowserWorkspaceHostControlOutboundMessageV1(response)).toBeNull();
+    }
   });
 
   it("admits capacity_exceeded as a stable control failure", () => {

@@ -10,9 +10,11 @@ the automated Chromium/persistent-WebKit `20 MiB+` scale gate, and canonical
 portable ZIP download. P3a-B1 checkpoint 1 also delivered on 2026-08-27,
 binding fixed Pi's native `edit` to the same OPFS authority. P3a-B1 checkpoint
 2 subsequently delivered native Pi `bash` through the bounded Browser Local
-just-bash profile and closed P3a that day. No SillyOS implementation slice is
-currently active. Broad execution-provider research, immutable snapshot
-publication, import, and later workspace slices remain inactive. The
+just-bash profile and closed P3a that day. P3c-B1 checkpoint 1 then delivered a
+Host-owned immutable snapshot candidate plus cold-reopen contract on
+2026-08-27; publication into an accepted Program revision remains a later
+checkpoint and is not active. There is no active SillyOS implementation slice. Broad execution-provider
+research, import, and later workspace slices remain inactive. The
 former "SillyOS 98" desktop
 experiment has been retired as a product direction. It remains useful only as
 repository history; it is not a compatibility baseline for this rewrite.
@@ -389,8 +391,9 @@ meaning. The P3a-B0 mutation receipt and bytes live only for the open execution
 session and report actual volume effects even when a run is failed, cancelled,
 replaced, or produces no admissible Program candidate. Reload resets the volume
 and generation and must be shown as such. P3c-B0 now owns persistent workspace
-bytes and their portable download; durable tool receipts, artifacts, and
-immutable snapshots remain later independent work.
+bytes and their portable download; durable tool receipts and admitted artifacts
+remain later independent work. Delivered P3c-B1 checkpoint 1 owns only the first
+immutable Host candidate, not accepted-revision publication.
 
 The exact DTO, close/cancel ordering, query/ack backpressure, generation rules,
 path and capacity ceilings, and Browser acceptance are owned by the delivered
@@ -553,6 +556,49 @@ Git, provider selector, BYO Sandbox, Pi extension discovery, Desktop storage,
 or SillyMaker engine API. The smaller Browser persistence path has passed
 cold-reopen, quota/recovery, streaming-scale, and export evidence; those broader
 boundaries nevertheless remain inactive and require separate activation.
+
+## First immutable snapshot candidate
+
+P3c-B1 starts by making one exact quiescent mutable head retainable without
+changing Accept. The Browser Workspace Host streams that head through the
+existing canonical, STORE-only writer into a Host-owned OPFS snapshot package.
+The package contains the bounded workspace manifest and VFS bytes. Before
+archive I/O, one compact prepare marker at the volume control root reserves the
+only unpublished candidate and records its exact review/head envelope. A
+separate compact commit marker inside `snapshots/<snapshotId>/`, written only
+after the archive closes and its exact length is re-read, records an opaque
+product-attempt `snapshotId`, the proposal, Program revision,
+`baseRepositoryRevision`, volume/workspace
+identity, exact checkpoint/generation, file count, and archive length. A valid
+marker plus the exact retained archive is the only reopenable state. No public
+API can mutate snapshot bytes.
+
+Both markers are exact-key UTF-8 JSON bounded to `2 KiB` with revision 1. The
+prepare marker contains `snapshotId`, `programId`, `workspaceId`, `volumeId`,
+`workspaceFormat`, `proposalId`, `programRevision`,
+`baseRepositoryRevision`, `checkpointId`, and `generation`. The commit marker
+is the exact receipt and adds `fileCount` and `archiveBytes`; only it is a
+candidate commit point. A volume retains at most one complete unpublished
+candidate. The same identity and envelope is idempotent; another identity or
+envelope is rejected until explicit discard.
+
+Checkpoint 1 exposes only product-private prepare, exact query, and explicit
+discard operations under the current origin-wide volume lease. Prepare is
+rejected while an Agent run, tool, or portable
+export is active or when the requested durable head is stale. It preserves the
+existing `1 MiB` source-chunk and `4 MiB` aggregate filesystem-I/O bounds; VFS
+bytes never cross React, the page, or IndexedDB. It snapshots the exact portable
+V1 VFS set, including workspace-local scratch present at that head, while Host
+control/export/snapshot temporaries remain outside the VFS. Cold reopen admits the exact
+marker and archive, removes incomplete artifact debris, and never treats a
+complete unreferenced prepare as accepted.
+
+The Program repository still owns no snapshot reference in checkpoint 1. The
+next checkpoint will publish the exact Host receipt only after a repository CAS
+rechecks proposal, Program/repository revision, and continuation. That ordered
+composition is the durable cross-store receipt; it is not a fabricated OPFS +
+IndexedDB transaction. Import/restore, broader artifacts, Desktop parity, BYO
+Sandbox, capability composition, OpenUI, and engine APIs remain outside B1.
 
 ## Information architecture
 
@@ -748,8 +794,8 @@ evidence for the preview only.
 | Area               | Accepted product role                                     | Current preview evidence                                                      | Remaining before product-ready                              |
 | ------------------ | --------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | Creator home       | Express intent and create/open a Program                  | Local request + B0a/B0b setup + P2 recent reopen                              | Attachments and general Provider UI                         |
-| Creator supervisor | Chat supervises one Program without becoming Program data | Durable run receipts + fresh Pi session over a durable checkpoint             | Program-anchored artifacts and immutable snapshots          |
-| Program workspace  | One focused mutable workspace produces reviewed snapshots | OPFS checkpoint + native read/write/edit/bash + recovery/scale + portable ZIP | Import and immutable snapshots                              |
+| Creator supervisor | Chat supervises one Program without becoming Program data | Durable run receipts + fresh Pi session over a durable checkpoint             | Program-anchored artifacts and published snapshots          |
+| Program workspace  | One focused mutable workspace produces reviewed snapshots | OPFS checkpoint + native read/write/edit/bash + recovery/scale + portable ZIP | B1 candidate, then publication, then import                 |
 | Human review       | Accept/reject an exact proposed revision                  | Durable exact decision + cross-page stale rejection                           | Workspace-generation/snapshot publication                   |
 | Activity           | Explain what happened and what needs review               | Durable run events + session-local last-mutation receipt                      | Complete tool/action history and approvals                  |
 | Capabilities       | Required Agent and UI abilities are understandable        | Proposal tool + native read/write/edit/bash + closed Browser Local profile    | Broader capability composition                              |
@@ -772,8 +818,9 @@ or one generated Program is not evidence that the complete product exists.
 The closed P3c-B0 slice in [PLAN.md](./PLAN.md) governs the delivered Browser
 OPFS checkpoint and portable download plus the delivered P3a-B1 native Pi
 `edit` and bounded Pi `bash`/just-bash checkpoints over that same volume. P3a
-is closed and no SillyOS implementation slice is currently active. Broader
-execution-provider research, immutable snapshots, and import remain inactive. The plan also
+is closed and P3c-B1 checkpoint 1 is delivered. There is no active SillyOS
+implementation slice. Broader execution-provider research,
+snapshot-publication checkpoints 2/3, and import remain inactive. The plan also
 governs later real Pi integration, product persistence, Pi-native workspace
 tool binding, provider research, Pi capability composition,
 OpenUI-to-SillyMaker mapping, and the first complete product families. Runtime

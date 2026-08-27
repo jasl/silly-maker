@@ -24,6 +24,7 @@ import {
   type BrowserWorkspaceHostFileErrorWireV1,
   type BrowserWorkspaceHostMutationReceiptWireV1,
   type BrowserWorkspaceHostSnapshotWireV1,
+  type BrowserWorkspaceImmutableSnapshotReceiptWireV1,
   type BrowserWorkspaceVolumeAnchorWireV1,
   isBrowserWorkspaceHostNormalizedPathV1,
 } from "./browser-workspace-host-protocol.ts";
@@ -95,6 +96,15 @@ export interface BrowserWorkspaceHostPortableArchiveV1 {
   release(): Promise<void>;
 }
 
+export interface BrowserWorkspaceHostImmutableSnapshotInputV1 {
+  readonly snapshotId: string;
+  readonly proposalId: string;
+  readonly programRevision: number;
+  readonly baseRepositoryRevision: number;
+  readonly expectedHead: BrowserWorkspaceHostDurableHeadV1;
+  readonly signal: AbortSignal;
+}
+
 /** One exclusive, already-acquired volume lease. Only the Host receives this port. */
 export interface BrowserWorkspaceHostVolumeLeasePortV1 {
   readonly anchor: BrowserWorkspaceVolumeAnchorWireV1;
@@ -116,6 +126,15 @@ export interface BrowserWorkspaceHostVolumeLeasePortV1 {
   createPortableArchive(
     input: BrowserWorkspaceHostPortableArchiveInputV1,
   ): Promise<BrowserWorkspaceHostPortableArchiveV1>;
+  prepareImmutableSnapshot(
+    input: BrowserWorkspaceHostImmutableSnapshotInputV1,
+  ): Promise<BrowserWorkspaceImmutableSnapshotReceiptWireV1>;
+  queryImmutableSnapshot(
+    snapshotId: string,
+  ): Promise<BrowserWorkspaceImmutableSnapshotReceiptWireV1 | null>;
+  discardImmutableSnapshot(
+    expected: BrowserWorkspaceImmutableSnapshotReceiptWireV1,
+  ): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -153,6 +172,8 @@ export type BrowserWorkspaceHostStorageFailureCodeV1 =
   | "volume_missing"
   | "volume_corrupt"
   | "candidate_mismatch"
+  | "snapshot_stale"
+  | "snapshot_mismatch"
   | "storage_unavailable"
   | "capacity_exceeded"
   | "request_failed";
@@ -250,6 +271,7 @@ interface SessionStateV1 {
   reservedReceiptSlots: number;
   environment: EnvironmentAttachmentV1 | null;
   exportOperation: ExportOperationV1 | null;
+  snapshotPreparing: boolean;
   closeDrain: Promise<void> | null;
 }
 
@@ -1552,7 +1574,10 @@ export function createBrowserWorkspaceHostRuntimeV1(
         environmentFailure(session, request.requestId, "workspace_closed");
         return;
       }
-      if (session.activeRun !== null || session.exportOperation !== null) {
+      if (
+        session.activeRun !== null || session.exportOperation !== null ||
+        session.snapshotPreparing
+      ) {
         environmentFailure(session, request.requestId, "run_busy");
         return;
       }
@@ -2051,6 +2076,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
           reservedReceiptSlots: 0,
           environment: null,
           exportOperation: null,
+          snapshotPreparing: false,
           closeDrain: null,
         };
         candidateAnchors.delete(record.anchor.volumeId);
@@ -2084,10 +2110,116 @@ export function createBrowserWorkspaceHostRuntimeV1(
       });
       return;
     }
+    if (record.method === "prepare_snapshot") {
+      if (
+        session.phase !== "open" || !session.accepting || session.lease === null ||
+        session.activeRun !== null || session.exportOperation !== null ||
+        session.snapshotPreparing
+      ) {
+        controlFailure(requestId, "workspace_busy");
+        return;
+      }
+      session.snapshotPreparing = true;
+      try {
+        const receipt = await session.lease.prepareImmutableSnapshot({
+          snapshotId: record.snapshotId,
+          proposalId: record.proposalId,
+          programRevision: record.programRevision,
+          baseRepositoryRevision: record.baseRepositoryRevision,
+          expectedHead: {
+            revision: 1,
+            volumeId: session.anchor.volumeId,
+            workspaceFormat: session.anchor.workspaceFormat,
+            checkpointId: record.expectedCheckpointId,
+            generation: record.expectedGeneration,
+          },
+          signal: new AbortController().signal,
+        });
+        if (
+          receipt.programId !== session.anchor.programId ||
+          receipt.workspaceId !== session.anchor.workspaceId ||
+          receipt.volumeId !== session.anchor.volumeId ||
+          receipt.workspaceFormat !== session.anchor.workspaceFormat ||
+          receipt.snapshotId !== record.snapshotId || receipt.proposalId !== record.proposalId ||
+          receipt.programRevision !== record.programRevision ||
+          receipt.baseRepositoryRevision !== record.baseRepositoryRevision ||
+          receipt.checkpointId !== record.expectedCheckpointId ||
+          receipt.generation !== record.expectedGeneration
+        ) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "volume_corrupt",
+            "Workspace immutable snapshot owner returned an invalid receipt",
+          );
+        }
+        postControl({
+          revision: 1,
+          kind: "control_response",
+          requestId,
+          ok: true,
+          response: { method: "prepare_snapshot", receipt },
+        });
+      } catch (error) {
+        controlFailure(requestId, storageFailureCodeV1(error));
+      } finally {
+        session.snapshotPreparing = false;
+      }
+      return;
+    }
+    if (record.method === "query_snapshot") {
+      try {
+        const receipt = await session.lease?.queryImmutableSnapshot(record.snapshotId) ?? null;
+        postControl({
+          revision: 1,
+          kind: "control_response",
+          requestId,
+          ok: true,
+          response: { method: "query_snapshot", receipt },
+        });
+      } catch (error) {
+        controlFailure(requestId, storageFailureCodeV1(error));
+      }
+      return;
+    }
+    if (record.method === "discard_snapshot") {
+      if (
+        session.phase !== "open" || !session.accepting || session.lease === null ||
+        session.activeRun !== null || session.exportOperation !== null ||
+        session.snapshotPreparing
+      ) {
+        controlFailure(requestId, "workspace_busy");
+        return;
+      }
+      if (
+        record.expected.programId !== session.anchor.programId ||
+        record.expected.workspaceId !== session.anchor.workspaceId ||
+        record.expected.volumeId !== session.anchor.volumeId ||
+        record.expected.workspaceFormat !== session.anchor.workspaceFormat
+      ) {
+        controlFailure(requestId, "snapshot_mismatch");
+        return;
+      }
+      try {
+        await session.lease.discardImmutableSnapshot(record.expected);
+        postControl({
+          revision: 1,
+          kind: "control_response",
+          requestId,
+          ok: true,
+          response: {
+            method: "discard_snapshot",
+            snapshotId: record.expected.snapshotId,
+          },
+        });
+      } catch (error) {
+        controlFailure(requestId, storageFailureCodeV1(error));
+      }
+      return;
+    }
     if (record.method === "start_export") {
       if (
         session.phase !== "open" || !session.accepting || session.lease === null ||
-        session.activeRun !== null || session.exportOperation !== null
+        session.activeRun !== null || session.exportOperation !== null ||
+        session.snapshotPreparing
       ) {
         closeTransferredPorts(transferredPorts);
         controlFailure(requestId, "workspace_busy");

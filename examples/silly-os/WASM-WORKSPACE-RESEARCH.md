@@ -9,8 +9,9 @@ automated Chromium/persistent-WebKit `20 MiB+` scale gate pass, and the exact
 head downloads as a bounded canonical ZIP. P3a-B1 checkpoint 1 subsequently
 delivered Pi's native `edit` over that same volume and passed independent
 review. P3a-B1 checkpoint 2 subsequently delivered exact just-bash 3.4.2 as
-the bounded Browser Local shell facade and closed P3a. No SillyOS implementation
-slice is currently active; no broader
+the bounded Browser Local shell facade and closed P3a. P3c-B1 checkpoint 1 then
+delivered the Host-owned immutable snapshot candidate and cold-reopen contract.
+There is no active SillyOS implementation slice; no broader
 shell/process provider or BYO Sandbox is selected or implemented. The owning
 product sequence is [PLAN.md](./PLAN.md).
 
@@ -123,8 +124,8 @@ for `persist()` only through an explicit action after the user creates important
 work, catches `QuotaExceededError`, and treats private browsing and user-cleared
 site data as explicit states. Persistence is best effort: `false` does not fail
 or disable the workspace, and `true` neither increases quota nor turns local
-bytes into a backup. Checkpoint 3 portable export, import/restore, and optional
-sync remain unimplemented independent decisions.
+bytes into a backup. P3c-B0 checkpoint 3 portable export is delivered;
+import/restore and optional sync remain unimplemented independent decisions.
 
 OPFS and IndexedDB do not provide one cross-API transaction. Publication uses
 temporary files plus an atomic same-filesystem replacement where supported, a
@@ -144,12 +145,14 @@ previous accepted revision and the repairable draft.
 
 Later immutable publication uses a durable receipt rather than pretending
 IndexedDB/SQLite and the volume form one transaction. The volume owner will
-atomically create and flush an immutable snapshot, return an opaque identity
+close and verify an immutable snapshot candidate, return an opaque identity
 that it guarantees can be reopened, and only then allow the product database to
 publish that reference after rechecking the review envelope. That snapshot path
 is not part of P3c-B0: the delivered path persists only the mutable head and
-reconciles its small continuation manifest. Checkpoint 3 may export that head
-without publishing it as an immutable snapshot.
+reconciles its small continuation manifest. The delivered P3c-B0 checkpoint 3
+exports that head without publishing it as an immutable snapshot. P3c-B1
+checkpoint 1 now owns only the separately retained Host candidate and reopen
+contract; repository publication remains gated and inactive.
 
 One logical runtime may use TypeScript, multiple Web Workers, WebAssembly
 modules, a native companion, or guest processes. The product contract is the

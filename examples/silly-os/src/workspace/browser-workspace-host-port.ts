@@ -8,6 +8,7 @@ import {
   type BrowserWorkspaceHostControlSuccessResponseV1,
   type BrowserWorkspaceHostSnapshotWireV1,
   type BrowserWorkspaceHostExportProgressWireV1,
+  type BrowserWorkspaceImmutableSnapshotReceiptWireV1,
   type BrowserWorkspaceVolumeAnchorWireV1,
 } from "./browser-workspace-host-protocol.ts";
 import {
@@ -125,6 +126,23 @@ export interface BrowserWorkspaceHostPagePortV1 {
       commitRelease: () => boolean,
     ) => "release" | "cancel" | Promise<"release" | "cancel">;
   }): Promise<BrowserWorkspaceHostExportResultV1>;
+  prepareSnapshot(input: {
+    readonly workspaceSessionId: string;
+    readonly snapshotId: string;
+    readonly proposalId: string;
+    readonly expectedCheckpointId: string;
+    readonly expectedGeneration: number;
+    readonly programRevision: number;
+    readonly baseRepositoryRevision: number;
+  }): Promise<BrowserWorkspaceImmutableSnapshotReceiptWireV1>;
+  querySnapshot(input: {
+    readonly workspaceSessionId: string;
+    readonly snapshotId: string;
+  }): Promise<BrowserWorkspaceImmutableSnapshotReceiptWireV1 | null>;
+  discardSnapshot(input: {
+    readonly workspaceSessionId: string;
+    readonly expected: BrowserWorkspaceImmutableSnapshotReceiptWireV1;
+  }): Promise<void>;
   subscribeFatal(listener: (fatal: BrowserWorkspaceHostFatalV1) => void): () => void;
   dispose(): void;
 }
@@ -160,7 +178,8 @@ export function createBrowserWorkspaceHostPagePortV1(
   };
 
   const lostResponseError = (request: PendingControlRequestV1): Error => {
-    const outcomeUnknown = request.method !== "query_workspace";
+    const outcomeUnknown = request.method !== "query_workspace" &&
+      request.method !== "query_snapshot";
     return new BrowserWorkspaceHostControlErrorV1(
       outcomeUnknown ? "outcome_unknown" : "unavailable",
       outcomeUnknown
@@ -223,7 +242,9 @@ export function createBrowserWorkspaceHostPagePortV1(
   const transportFailureListener = (event: Event): void => {
     event.preventDefault();
     poisonTransport({
-      code: [...pending.values()].some(({ method }) => method !== "query_workspace")
+      code: [...pending.values()].some(({ method }) =>
+          method !== "query_workspace" && method !== "query_snapshot"
+        )
         ? "outcome_unknown"
         : "unavailable",
     });
@@ -252,7 +273,9 @@ export function createBrowserWorkspaceHostPagePortV1(
       } catch (error) {
         void error;
         poisonTransport({
-          code: record.method === "query_workspace" ? "unavailable" : "outcome_unknown",
+          code: record.method === "query_workspace" || record.method === "query_snapshot"
+            ? "unavailable"
+            : "outcome_unknown",
         });
       }
     });
@@ -616,6 +639,41 @@ export function createBrowserWorkspaceHostPagePortV1(
         input.signal.removeEventListener("abort", cancelListener);
         channel.port2.removeEventListener("message", exportListener);
         closeChannel();
+      }
+    },
+
+    async prepareSnapshot(input) {
+      const response = await request({ method: "prepare_snapshot", ...input });
+      if (response.method !== "prepare_snapshot") {
+        throw new BrowserWorkspaceHostControlErrorV1(
+          "invalid_response",
+          "Workspace Host omitted its immutable snapshot receipt",
+        );
+      }
+      return response.receipt;
+    },
+
+    async querySnapshot(input) {
+      const response = await request({ method: "query_snapshot", ...input });
+      if (response.method !== "query_snapshot") {
+        throw new BrowserWorkspaceHostControlErrorV1(
+          "invalid_response",
+          "Workspace Host omitted its immutable snapshot query result",
+        );
+      }
+      return response.receipt;
+    },
+
+    async discardSnapshot(input) {
+      const response = await request({ method: "discard_snapshot", ...input });
+      if (
+        response.method !== "discard_snapshot" ||
+        response.snapshotId !== input.expected.snapshotId
+      ) {
+        throw new BrowserWorkspaceHostControlErrorV1(
+          "invalid_response",
+          "Workspace Host omitted its immutable snapshot discard receipt",
+        );
       }
     },
 

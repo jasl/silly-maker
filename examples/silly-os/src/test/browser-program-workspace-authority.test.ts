@@ -127,6 +127,15 @@ function fakeHostV1(
         }
         : { kind: "cancelled", ...progress };
     },
+    prepareSnapshot() {
+      return Promise.reject(new Error("snapshot preparation is not used by this authority test"));
+    },
+    querySnapshot() {
+      return Promise.resolve(null);
+    },
+    discardSnapshot() {
+      return Promise.resolve();
+    },
     async closeWorkspace(workspaceSessionId) {
       const current = sessions.get(workspaceSessionId);
       if (current === undefined) throw new Error("workspace mismatch");

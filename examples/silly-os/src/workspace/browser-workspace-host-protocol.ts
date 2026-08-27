@@ -43,6 +43,23 @@ export interface BrowserWorkspaceHostSnapshotWireV1 {
   readonly anchor: BrowserWorkspaceVolumeAnchorWireV1;
 }
 
+/** Exact Host-owned immutable candidate prepared from one selected mutable head. */
+export interface BrowserWorkspaceImmutableSnapshotReceiptWireV1 {
+  readonly revision: 1;
+  readonly snapshotId: string;
+  readonly programId: string;
+  readonly workspaceId: string;
+  readonly volumeId: string;
+  readonly workspaceFormat: 1;
+  readonly proposalId: string;
+  readonly programRevision: number;
+  readonly baseRepositoryRevision: number;
+  readonly checkpointId: string;
+  readonly generation: number;
+  readonly fileCount: number;
+  readonly archiveBytes: number;
+}
+
 export interface BrowserWorkspaceHostExportProgressWireV1 {
   readonly filesCompleted: number;
   readonly filesTotal: number;
@@ -142,6 +159,26 @@ export type BrowserWorkspaceHostControlRequestRecordV1 =
     readonly repositoryRevision: number;
   }
   | {
+    readonly method: "prepare_snapshot";
+    readonly workspaceSessionId: string;
+    readonly snapshotId: string;
+    readonly proposalId: string;
+    readonly expectedCheckpointId: string;
+    readonly expectedGeneration: number;
+    readonly programRevision: number;
+    readonly baseRepositoryRevision: number;
+  }
+  | {
+    readonly method: "query_snapshot";
+    readonly workspaceSessionId: string;
+    readonly snapshotId: string;
+  }
+  | {
+    readonly method: "discard_snapshot";
+    readonly workspaceSessionId: string;
+    readonly expected: BrowserWorkspaceImmutableSnapshotReceiptWireV1;
+  }
+  | {
     readonly method: "close_workspace" | "query_workspace" | "attach_environment";
     readonly workspaceSessionId: string;
   };
@@ -163,6 +200,8 @@ export type BrowserWorkspaceHostControlFailureCodeV1 =
   | "candidate_mismatch"
   | "environment_attached"
   | "export_stale"
+  | "snapshot_stale"
+  | "snapshot_mismatch"
   | "storage_unavailable"
   | "capacity_exceeded"
   | "request_failed"
@@ -187,6 +226,15 @@ export interface BrowserWorkspaceHostControlSuccessResponseV1 {
       readonly exportId: string;
       readonly snapshot: BrowserWorkspaceHostSnapshotWireV1;
     }
+    | {
+      readonly method: "prepare_snapshot";
+      readonly receipt: BrowserWorkspaceImmutableSnapshotReceiptWireV1;
+    }
+    | {
+      readonly method: "query_snapshot";
+      readonly receipt: BrowserWorkspaceImmutableSnapshotReceiptWireV1 | null;
+    }
+    | { readonly method: "discard_snapshot"; readonly snapshotId: string }
     | { readonly method: "create_candidate"; readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 }
     | { readonly method: "discard_candidate"; readonly volumeId: string };
 }
@@ -606,6 +654,86 @@ export function admitBrowserWorkspaceHostControlRequestV1(
       },
     };
   }
+  const prepareSnapshot = exactRecordV1(envelope.record, [
+    "method",
+    "workspaceSessionId",
+    "snapshotId",
+    "proposalId",
+    "expectedCheckpointId",
+    "expectedGeneration",
+    "programRevision",
+    "baseRepositoryRevision",
+  ]);
+  if (
+    prepareSnapshot !== null && prepareSnapshot.method === "prepare_snapshot" &&
+    identifierV1(prepareSnapshot.workspaceSessionId) &&
+    identifierV1(prepareSnapshot.snapshotId) && identifierV1(prepareSnapshot.proposalId) &&
+    identifierV1(prepareSnapshot.expectedCheckpointId) &&
+    positiveSafeIntegerV1(prepareSnapshot.expectedGeneration) &&
+    positiveSafeIntegerV1(prepareSnapshot.programRevision) &&
+    positiveSafeIntegerV1(prepareSnapshot.baseRepositoryRevision)
+  ) {
+    return {
+      revision: 1,
+      kind: "control_request",
+      requestId: envelope.requestId,
+      record: {
+        method: "prepare_snapshot",
+        workspaceSessionId: prepareSnapshot.workspaceSessionId,
+        snapshotId: prepareSnapshot.snapshotId,
+        proposalId: prepareSnapshot.proposalId,
+        expectedCheckpointId: prepareSnapshot.expectedCheckpointId,
+        expectedGeneration: prepareSnapshot.expectedGeneration,
+        programRevision: prepareSnapshot.programRevision,
+        baseRepositoryRevision: prepareSnapshot.baseRepositoryRevision,
+      },
+    };
+  }
+  const scopedSnapshot = exactRecordV1(envelope.record, [
+    "method",
+    "workspaceSessionId",
+    "snapshotId",
+  ]);
+  if (
+    scopedSnapshot !== null &&
+    scopedSnapshot.method === "query_snapshot" &&
+    identifierV1(scopedSnapshot.workspaceSessionId) && identifierV1(scopedSnapshot.snapshotId)
+  ) {
+    return {
+      revision: 1,
+      kind: "control_request",
+      requestId: envelope.requestId,
+      record: {
+        method: scopedSnapshot.method,
+        workspaceSessionId: scopedSnapshot.workspaceSessionId,
+        snapshotId: scopedSnapshot.snapshotId,
+      },
+    };
+  }
+  const discardSnapshot = exactRecordV1(envelope.record, [
+    "method",
+    "workspaceSessionId",
+    "expected",
+  ]);
+  if (
+    discardSnapshot !== null && discardSnapshot.method === "discard_snapshot" &&
+    identifierV1(discardSnapshot.workspaceSessionId)
+  ) {
+    const expected = admitBrowserWorkspaceImmutableSnapshotReceiptWireV1(
+      discardSnapshot.expected,
+    );
+    if (expected === null) return null;
+    return {
+      revision: 1,
+      kind: "control_request",
+      requestId: envelope.requestId,
+      record: {
+        method: "discard_snapshot",
+        workspaceSessionId: discardSnapshot.workspaceSessionId,
+        expected,
+      },
+    };
+  }
   const scoped = exactRecordV1(envelope.record, ["method", "workspaceSessionId"]);
   if (
     scoped === null ||
@@ -917,6 +1045,38 @@ function admitSnapshotV1(value: unknown): BrowserWorkspaceHostSnapshotWireV1 | n
   };
 }
 
+export function admitBrowserWorkspaceImmutableSnapshotReceiptWireV1(
+  value: unknown,
+): BrowserWorkspaceImmutableSnapshotReceiptWireV1 | null {
+  const record = exactRecordV1(value, [
+    "revision",
+    "snapshotId",
+    "programId",
+    "workspaceId",
+    "volumeId",
+    "workspaceFormat",
+    "proposalId",
+    "programRevision",
+    "baseRepositoryRevision",
+    "checkpointId",
+    "generation",
+    "fileCount",
+    "archiveBytes",
+  ]);
+  if (
+    record === null || record.revision !== 1 || !identifierV1(record.snapshotId) ||
+    !identifierV1(record.programId) || !identifierV1(record.workspaceId) ||
+    !identifierV1(record.volumeId) || record.workspaceFormat !== 1 ||
+    !identifierV1(record.proposalId) || !positiveSafeIntegerV1(record.programRevision) ||
+    !positiveSafeIntegerV1(record.baseRepositoryRevision) ||
+    !identifierV1(record.checkpointId) ||
+    !positiveSafeIntegerV1(record.generation) ||
+    !nonNegativeSafeIntegerV1(record.fileCount) ||
+    !positiveSafeIntegerV1(record.archiveBytes)
+  ) return null;
+  return record as unknown as BrowserWorkspaceImmutableSnapshotReceiptWireV1;
+}
+
 export function admitBrowserWorkspaceHostControlOutboundMessageV1(
   value: unknown,
 ): BrowserWorkspaceHostControlOutboundMessageV1 | null {
@@ -968,6 +1128,45 @@ export function admitBrowserWorkspaceHostControlOutboundMessageV1(
         },
       };
     }
+    const preparedSnapshot = exactRecordV1(success.response, ["method", "receipt"]);
+    if (preparedSnapshot !== null && preparedSnapshot.method === "prepare_snapshot") {
+      const receipt = admitBrowserWorkspaceImmutableSnapshotReceiptWireV1(
+        preparedSnapshot.receipt,
+      );
+      return receipt === null ? null : {
+        revision: 1,
+        kind: "control_response",
+        requestId: success.requestId,
+        ok: true,
+        response: { method: "prepare_snapshot", receipt },
+      };
+    }
+    const queriedSnapshot = exactRecordV1(success.response, ["method", "receipt"]);
+    if (queriedSnapshot !== null && queriedSnapshot.method === "query_snapshot") {
+      const receipt = queriedSnapshot.receipt === null
+        ? null
+        : admitBrowserWorkspaceImmutableSnapshotReceiptWireV1(queriedSnapshot.receipt);
+      return queriedSnapshot.receipt !== null && receipt === null ? null : {
+        revision: 1,
+        kind: "control_response",
+        requestId: success.requestId,
+        ok: true,
+        response: { method: "query_snapshot", receipt },
+      };
+    }
+    const discardedSnapshot = exactRecordV1(success.response, ["method", "snapshotId"]);
+    if (
+      discardedSnapshot !== null && discardedSnapshot.method === "discard_snapshot" &&
+      identifierV1(discardedSnapshot.snapshotId)
+    ) {
+      return {
+        revision: 1,
+        kind: "control_response",
+        requestId: success.requestId,
+        ok: true,
+        response: { method: "discard_snapshot", snapshotId: discardedSnapshot.snapshotId },
+      };
+    }
     const candidate = exactRecordV1(success.response, ["method", "anchor"]);
     if (candidate !== null && candidate.method === "create_candidate") {
       const anchor = admitBrowserWorkspaceVolumeAnchorWireV1(candidate.anchor);
@@ -1003,6 +1202,8 @@ export function admitBrowserWorkspaceHostControlOutboundMessageV1(
       failure.code !== "volume_missing" && failure.code !== "volume_corrupt" &&
       failure.code !== "environment_attached" &&
       failure.code !== "export_stale" &&
+      failure.code !== "snapshot_stale" &&
+      failure.code !== "snapshot_mismatch" &&
       failure.code !== "candidate_mismatch" &&
       failure.code !== "storage_unavailable" && failure.code !== "capacity_exceeded" &&
       failure.code !== "request_failed" &&

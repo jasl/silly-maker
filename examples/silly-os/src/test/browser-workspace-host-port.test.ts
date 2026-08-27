@@ -7,6 +7,7 @@ import {
   createBrowserWorkspaceHostPagePortV1,
   type BrowserWorkspaceHostExportReadyV1,
 } from "../workspace/browser-workspace-host-port.ts";
+import type { BrowserWorkspaceImmutableSnapshotReceiptWireV1 } from "../workspace/browser-workspace-host-protocol.ts";
 import type {
   BrowserWorkspaceHostExclusiveLeaseV1,
   BrowserWorkspaceHostExclusiveLockPortV1,
@@ -27,6 +28,7 @@ class FakeWorkerV1 {
   readonly exportPorts = new Map<string, MessagePort>();
   readonly exportInbound: unknown[] = [];
   startExportPhase: "open" | "closed" = "open";
+  preparedSnapshot: BrowserWorkspaceImmutableSnapshotReceiptWireV1 | null = null;
   terminated = false;
 
   postMessage(message: unknown, transfer: Transferable[] = []): void {
@@ -65,10 +67,36 @@ class FakeWorkerV1 {
       descriptor,
       anchor,
     } as const;
+    if (method === "prepare_snapshot") {
+      this.preparedSnapshot = {
+        revision: 1,
+        snapshotId: request.record.snapshotId as string,
+        programId: anchor.programId,
+        workspaceId: anchor.workspaceId,
+        volumeId: anchor.volumeId,
+        workspaceFormat: 1,
+        proposalId: request.record.proposalId as string,
+        programRevision: request.record.programRevision as number,
+        baseRepositoryRevision: request.record.baseRepositoryRevision as number,
+        checkpointId: request.record.expectedCheckpointId as string,
+        generation: request.record.expectedGeneration as number,
+        fileCount: 3,
+        archiveBytes: 512,
+      };
+    }
     const response = method === "create_candidate"
       ? { method, anchor }
       : method === "discard_candidate"
       ? { method, volumeId: anchor.volumeId }
+      : method === "prepare_snapshot"
+      ? { method, receipt: this.preparedSnapshot }
+      : method === "query_snapshot"
+      ? { method, receipt: this.preparedSnapshot }
+      : method === "discard_snapshot"
+      ? {
+        method,
+        snapshotId: (request.record.expected as { readonly snapshotId: string }).snapshotId,
+      }
       : method === "start_export"
       ? {
         method,
@@ -89,6 +117,7 @@ class FakeWorkerV1 {
       port.addEventListener("message", (event) => this.exportInbound.push(event.data));
       port.start();
     }
+    if (method === "discard_snapshot") this.preparedSnapshot = null;
     queueMicrotask(() => {
       for (const listener of this.listeners) {
         listener({
@@ -283,6 +312,137 @@ describe("SillyOS Browser Workspace Host page port", () => {
       expect(fatals).toEqual([{ code: expectedCode }]);
       expect(worker.terminated).toBe(true);
     }
+  });
+
+  it("roundtrips immutable snapshot prepare, nullable query, and receipt-bound discard", async () => {
+    const worker = new FakeWorkerV1();
+    const port = createBrowserWorkspaceHostPagePortV1({
+      worker,
+      bootstrapLockPort: new FakeBootstrapLockPortV1(),
+    });
+    const receipt = await port.prepareSnapshot({
+      workspaceSessionId: "workspace-session.preview.1",
+      snapshotId: "snapshot.preview.1",
+      proposalId: "proposal.preview.1",
+      expectedCheckpointId: "checkpoint.preview.1",
+      expectedGeneration: 1,
+      programRevision: 2,
+      baseRepositoryRevision: 4,
+    });
+
+    expect(receipt).toEqual({
+      revision: 1,
+      snapshotId: "snapshot.preview.1",
+      programId: "program.preview.1",
+      workspaceId: "workspace.preview.1",
+      volumeId: "volume.preview.1",
+      workspaceFormat: 1,
+      proposalId: "proposal.preview.1",
+      programRevision: 2,
+      baseRepositoryRevision: 4,
+      checkpointId: "checkpoint.preview.1",
+      generation: 1,
+      fileCount: 3,
+      archiveBytes: 512,
+    });
+    await expect(
+      port.querySnapshot({
+        workspaceSessionId: "workspace-session.preview.1",
+        snapshotId: "snapshot.preview.1",
+      }),
+    ).resolves.toEqual(receipt);
+    await expect(
+      port.discardSnapshot({
+        workspaceSessionId: "workspace-session.preview.1",
+        expected: receipt,
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      port.querySnapshot({
+        workspaceSessionId: "workspace-session.preview.1",
+        snapshotId: "snapshot.preview.1",
+      }),
+    ).resolves.toBeNull();
+    expect(worker.methods).toEqual([
+      "prepare_snapshot",
+      "query_snapshot",
+      "discard_snapshot",
+      "query_snapshot",
+    ]);
+    port.dispose();
+  });
+
+  it("bounds lost immutable snapshot writes while classifying a lost query as unavailable", async () => {
+    const input = {
+      workspaceSessionId: "workspace-session.preview.1",
+      snapshotId: "snapshot.preview.1",
+      proposalId: "proposal.preview.1",
+      expectedCheckpointId: "checkpoint.preview.1",
+      expectedGeneration: 1,
+      programRevision: 2,
+      baseRepositoryRevision: 4,
+    } as const;
+    const expected = {
+      revision: 1,
+      snapshotId: input.snapshotId,
+      programId: "program.preview.1",
+      workspaceId: "workspace.preview.1",
+      volumeId: "volume.preview.1",
+      workspaceFormat: 1,
+      proposalId: input.proposalId,
+      programRevision: input.programRevision,
+      baseRepositoryRevision: input.baseRepositoryRevision,
+      checkpointId: input.expectedCheckpointId,
+      generation: input.expectedGeneration,
+      fileCount: 3,
+      archiveBytes: 512,
+    } as const;
+
+    for (
+      const [method, expectedCode] of [
+        ["prepare_snapshot", "outcome_unknown"],
+        ["discard_snapshot", "outcome_unknown"],
+        ["query_snapshot", "unavailable"],
+      ] as const
+    ) {
+      const worker = new FakeWorkerV1();
+      worker.dropMethods.add(method);
+      const port = createBrowserWorkspaceHostPagePortV1({
+        worker,
+        bootstrapLockPort: new FakeBootstrapLockPortV1(),
+      });
+      const fatals: unknown[] = [];
+      port.subscribeFatal((fatal) => fatals.push(fatal));
+      const pending = method === "prepare_snapshot"
+        ? port.prepareSnapshot(input)
+        : method === "discard_snapshot"
+        ? port.discardSnapshot({ workspaceSessionId: input.workspaceSessionId, expected })
+        : port.querySnapshot({
+          workspaceSessionId: input.workspaceSessionId,
+          snapshotId: input.snapshotId,
+        });
+      await Promise.resolve();
+      worker.fail("messageerror");
+
+      await expect(pending).rejects.toMatchObject({ code: expectedCode });
+      expect(fatals).toEqual([{ code: expectedCode }]);
+      expect(worker.terminated).toBe(true);
+    }
+
+    const throwingWorker = new FakeWorkerV1();
+    throwingWorker.throwMethods.add("query_snapshot");
+    const throwingPort = createBrowserWorkspaceHostPagePortV1({
+      worker: throwingWorker,
+      bootstrapLockPort: new FakeBootstrapLockPortV1(),
+    });
+    const fatals: unknown[] = [];
+    throwingPort.subscribeFatal((fatal) => fatals.push(fatal));
+    await expect(throwingPort.querySnapshot({
+      workspaceSessionId: input.workspaceSessionId,
+      snapshotId: input.snapshotId,
+    })).rejects.toMatchObject({ code: "unavailable" });
+    expect(fatals).toEqual([{ code: "unavailable" }]);
+    expect(throwingWorker.terminated).toBe(true);
   });
 
   it("publishes one invalid-response fatal while normal disposal stays silent", () => {

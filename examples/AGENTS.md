@@ -29,9 +29,12 @@ and `bash` over the same OPFS volume and passed independent review on
 the exact `just-bash@3.4.2` Browser Local implementation, the single persistent
 volume, bounded terminal aggregate, generation, and session-local mutation
 receipt. The shell profile is deliberately small and is not Linux, a container,
-or a sandbox. No SillyOS slice is currently active; do not broaden it with
-Wasm, Git, Python/QuickJS, package/network access, another tool dispatcher, or
-a SillyMaker engine API without a later accepted slice.
+or a sandbox. P3c-B1 checkpoint 1 delivered the Host/OPFS prepare, exact query,
+explicit discard, and cold-reopen contract for one bounded immutable snapshot
+candidate on 2026-08-27. There is no active SillyOS slice. It does not connect
+Accept, change the Program repository schema/UI, or activate checkpoints 2/3. Do not broaden it
+with Wasm, Git, Python/QuickJS, package/network access, another tool dispatcher,
+or a SillyMaker engine API without a later accepted slice.
 
 P3c-B0 checkpoints 1 and 2 delivered the exact
 Host-internal durable head, origin-wide bootstrap/volume leases, bounded
@@ -63,7 +66,7 @@ Pi-session substitute; continuous file generations stay in OPFS rather than
 producing a per-write IndexedDB saga. Agent Forget releases transient
 Pi/execution state and the lease but preserves the durable volume. P3b remains
 inactive; do not activate a broader shell/process provider, Wasm, Git,
-Provider/BYO Sandbox, immutable snapshot publication, import, Desktop
+Provider/BYO Sandbox, accepted snapshot publication, import, Desktop
 persistence, or a new engine API without a later accepted slice.
 
 ## Reference application product contract

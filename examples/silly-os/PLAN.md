@@ -15,9 +15,11 @@ ownership, and dual-engine byte evidence, so P3c-B0 closed on 2026-08-27. The
 bounded P3a-B1 sequence then delivered fixed Pi's native `edit` and `bash` over
 that same authority in two independently reviewed checkpoints. Checkpoint 2
 uses exact `just-bash@3.4.2` only as the bounded Browser Local shell inside the
-Host Worker, so P3a also closed on 2026-08-27. No SillyOS implementation slice
-is currently active. P1-D remains owner-paused, while P3b, immutable snapshot
-publication, import, and later slices remain inactive. The raw
+Host Worker, so P3a also closed on 2026-08-27. P3c-B1 checkpoint 1 then
+delivered the Browser Workspace Host's bounded immutable snapshot candidate and
+cold-reopen contract on 2026-08-27. Checkpoints 2 and 3 remain gated and do not
+start automatically. There is no active SillyOS implementation slice. P1-D
+remains owner-paused, while P3b, import, and later slices remain inactive. The raw
 launcher is not the typed product RPC; the live Browser route is a separate
 product path. This plan is local to `examples/silly-os`; it does not activate
 an engine lane or change an engine API. The implementation baseline before P0
@@ -94,8 +96,10 @@ continuation anchor, a fresh Pi session over cold reopen, recovery/contender
 semantics, explicit Browser storage state, the automated dual-engine
 `21,897,216`-byte scale gate, and a canonical portable ZIP containing only its
 manifest and VFS files. The product still has no persistent Pi session,
-import/restore, immutable snapshot publication, WASM guest, provider selector,
-or generally active capability. Its initial proposal, Source, translation rows,
+import/restore, published accepted snapshot, WASM guest, provider selector,
+or generally active capability. P3c-B1 checkpoint 1 now retains one exact
+Host-owned candidate because the existing real Pi tool path can mutate a
+durable head that the current review decision does not yet name. Its initial proposal, Source, translation rows,
 remaining capability labels, and separate preview manifest remain explicit
 preview material.
 
@@ -1881,13 +1885,121 @@ network, shell, `edit`, `bash`, just-bash, Wasm, Git, Python, QuickJS, provider
 selection, BYO Sandbox, Desktop persistence, a sandbox claim, or an engine API.
 No later P3c slice becomes active when B0 closes.
 
+### P3c-B1 — exact reviewed snapshot publication (checkpoint 1 delivered; checkpoints 2–3 gated)
+
+P3c-B1 closes the first integrity gap created by real workspace tools: Pi may
+change the durable mutable head, while the current Accept action still names
+only `(proposalId, programRevision)`. The existing fixed `pi-test` journey is
+the consumer: its admitted `write -> edit -> read -> bash/rg -> proposal` path
+finishes at one exact durable head. Accept must eventually publish those exact
+bytes, not whichever head happens to exist when a later operation settles.
+
+The Browser implementation first uses a Host-owned immutable snapshot
+candidate. It is not another live volume, repository row containing file
+bytes, or in-memory clone. Before archive I/O, the Workspace Host writes one
+compact prepare marker that owns the volume's only unpublished candidate. It
+then streams one run-quiescent `(checkpointId, generation)` through the already
+bounded canonical STORE-only archive writer directly into that candidate's
+OPFS package. A second compact commit marker is written last, after the archive
+writer closes and its exact length is re-read. A product-attempt-generated
+opaque `snapshotId`, admitted before Host I/O, plus the committed receipt names the
+Program/workspace/volume, proposal, Program revision and
+`baseRepositoryRevision`, workspace
+format, durable head, file count, and byte length. Only a complete artifact and
+valid marker are reopenable. There is no mutation method for a snapshot.
+
+Checkpoint 1 allows at most one complete, unpublished snapshot candidate per
+Program volume. Repeating the same `snapshotId` and exact prepare envelope is
+idempotent; any different ID or field is rejected until the current candidate
+is explicitly discarded. This bounds retained duplicate bytes without guessing
+whether an unpublished candidate was accepted.
+
+The V1 prepare marker is compact UTF-8 JSON with exact keys
+`revision`, `snapshotId`, `programId`, `workspaceId`, `volumeId`,
+`workspaceFormat`, `proposalId`, `programRevision`,
+`baseRepositoryRevision`, `checkpointId`, and `generation`. The V1 commit
+marker is the exact snapshot receipt: it has those keys plus `fileCount` and
+`archiveBytes`. Both markers have revision 1, exact-key admission, and an
+encoded ceiling of `2 KiB`. The prepare marker lives at the volume control
+root; the commit marker lives inside `snapshots/<snapshotId>/` and is the only
+candidate commit point. Prepare, query, and discard run only under the current
+origin-wide volume lease and must match that volume's Program/workspace
+identity. The candidate includes exactly the portable V1 VFS file set,
+including workspace-local scratch that exists at the selected head; Host
+control, export temporaries, and snapshot temporaries live outside that VFS and
+are excluded.
+
+OPFS and IndexedDB remain separate durability authorities. B1 does not pretend
+they share a transaction:
+
+```text
+quiesce + recheck review/head
+  -> Host close and re-read immutable snapshot candidate
+  -> Repository CAS rechecks proposal / Program / repository / continuation
+  -> one accepted decision publishes the exact snapshot receipt
+  -> reload reconciles exact snapshot identity after an unknown outcome
+```
+
+A stale proposal, repository revision, continuation, checkpoint, generation,
+active Agent run/tool/export, quota failure, invalid marker, or missing artifact
+publishes nothing. The previous accepted revision and mutable draft remain.
+Complete unreferenced prepares are not guessed to be accepted: the later
+publication checkpoint either matches and publishes their exact identity or
+explicitly discards them. Incomplete Host artifacts are crash debris and are
+removed before another snapshot operation. Missing bytes for a published
+reference fail closed as recovery-required rather than silently accepting the
+mutable head.
+
+P3c-B1 is deliberately split into independently reviewed checkpoints:
+
+1. **Checkpoint 1 — Host immutable snapshot candidate.** Add only the product-private
+   Host/OPFS prepare, query, and explicit discard contract. Prove exact-head and
+   run-quiescent admission, streaming bounds, archive-close-before-commit-marker ordering,
+   cold reopen, idempotent exact-identity query, immutability after later draft
+   mutation, interrupted-artifact cleanup, two-Program isolation, and no page
+   or IndexedDB file-byte copy. No production Accept path calls it yet.
+2. **Checkpoint 2 — publication transaction.** Cleanly replace the preview
+   repository schema with one exact accepted-snapshot reference per accepted
+   decision, bind proposal creation/revision to the reviewed workspace head,
+   and compose Host prepare with Repository CAS and unknown-outcome
+   reconciliation. Reject remains a decision with no snapshot. A conflict
+   explicitly discards only the prepare owned by that failed attempt.
+3. **Checkpoint 3 — product evidence.** Connect the existing Accept UI, display
+   the accepted snapshot identity/head and truthful mutable-head divergence,
+   then prove stale cross-page Accept rejection, cold reopen, later-draft
+   independence, and exact archive bytes for the existing `1,001`-file,
+   `21,897,216`-byte corpus in Chromium and persistent-profile WebKit.
+
+Checkpoint 1 delivered on 2026-08-27. Its product-private typed control admits
+prepare, nullable exact query, and receipt-CAS discard. OPFS writes the sole
+unpublished ownership pointer before archive I/O, streams the canonical archive
+directly into a per-identity Host-private package, and writes the exact commit
+receipt last after close and length verification. Exact same-envelope retry is
+idempotent even after the mutable head advances; another envelope is rejected
+until explicit discard. Cold reopen preserves only a complete candidate,
+cleans an unmaterialized pointer or invalid/incomplete commit, and fails closed
+when committed identity or archive bytes disagree. Focused protocol, Page-port,
+runtime, and OPFS tests cover lost-outcome classification, run/export fencing,
+quota cleanup, later-draft independence, same-ID two-Program isolation, and
+discard ordering. An independent storage/runtime review found no remaining
+blocker. This closure does not activate checkpoint 2, Accept publication, a
+repository schema, or UI.
+
+Checkpoint 1 is delivered. No P3c-B1 implementation work is active;
+checkpoints 2 and 3 do not start automatically and each receives focused review
+of its predecessor first.
+P3c-B1 adds no archive import/restore reader, artifact admission, sync/share,
+background execution, provider selector, custom endpoint, broader shell or
+process provider, Wasm, Git implementation, Python, QuickJS, BYO Sandbox,
+Desktop persistence, Pi extension composition, OpenUI, or SillyMaker engine
+API.
+
 #### Later P3c slices (inactive)
 
-Immutable reviewed snapshot publication, exact proposal-generation binding,
-admitted artifact references, import/restore, Desktop volume parity, and any
-larger-file Pi tool requirement each need a separately reviewed slice with a
-real consumer. Broad shell/process/provider selection remains P3a-B1/P3b work;
-it is not retroactively folded into persistence.
+Admitted artifact references beyond the reviewed snapshot, import/restore,
+Desktop volume parity, and any larger-file Pi tool requirement each need a
+separately reviewed slice with a real consumer. Broad shell/process/provider
+selection remains P3b work; it is not retroactively folded into persistence.
 
 ### P4 — Pi extension composition and OpenUI mapping
 
