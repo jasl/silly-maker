@@ -504,6 +504,10 @@ test("VN Settings localize live and persist player preferences outside Save", as
   const autoWait = settings.locator('[data-default-settings-auto-wait="true"]');
   const muted = settings.locator('[data-default-settings-muted="true"]');
 
+  // The product starts audible. The repository Playwright base silences the
+  // final device sink so this real audio lifecycle remains inaudible in CI.
+  await expect(muted).not.toBeChecked();
+
   await bgm.fill("650");
   await voice.fill("750");
   await sfx.fill("500");
@@ -820,9 +824,9 @@ test("VN audio unlocks and Player Auto waits for replayed current voice", async 
   const publication = await reachOldCallV1(page);
   const occurrenceId = publication.narrative.pending?.occurrenceId;
   if (occurrenceId === undefined) throw new TypeError("old-call occurrence missing");
-  // The game mounted after the New Game gesture. This is the first gesture
-  // the mounted Player can use to unlock a suspended AudioContext; browsers
-  // that already run the context may have loaded the same demand sooner.
+  // The visible Title pre-creates the suspended AudioContext; New Game
+  // supplies the gesture that unlocks it. The first demand may start
+  // immediately or queue until that resume settles.
   await page.getByRole("button", { name: "语音" }).click();
   await expect.poll(() => loadedAudio.has("/assets/audio/voice-old-call.mp3")).toBe(true);
   expect(loadedAudio).toContain("/assets/audio/bgm-last-shift.mp3");

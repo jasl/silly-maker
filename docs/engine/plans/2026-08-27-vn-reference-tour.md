@@ -40,7 +40,7 @@ VN Reference Tour 是一个原创、独立、内聚、可发布的小型 Visual 
   的恢复证据；
 - locale-addressable `zh-CN` / `en` text packs 与显式 fallback；shared、archive route 与 present route 分成
   三个按剧情需求准备的 pack，不把全部剧情 copy 留在 initial JavaScript；
-- wide/narrow 响应式构图、鼠标/触控/键盘、200% zoom/reflow、reduced motion、无障碍焦点与默认静音测试；
+- wide/narrow 响应式构图、鼠标/触控/键盘、200% zoom/reflow、reduced motion、无障碍焦点与自动化无声测试；
 - Browser 独立 build/publish 与当前 Deno Desktop static preview。Desktop HMR、durability 与 production
   packaging promotion 仍由各自条件车道决定。
 
@@ -214,7 +214,7 @@ Web Audio Host 增加声道活动 currentness 与 stale async load fencing，不
 gameplay。八项 MP3 在 Chromium/WebKit 逐一真实解码；真实产品路径证明挂载后的 gesture unlock、voice replay 与
 voice-aware Auto，不可解码媒体证明静音降级。仓库 Playwright 默认静音改为连接到 0-gain terminal，而非断开
 destination，因此 WebKit 的真实 `ended` 生命周期仍被覆盖。focused unit/product tests、typecheck、`app check`、
-asset check 与 Chromium/WebKit E2E 覆盖该切片；volume/mute settings 仍属于 M3，默认静音验收属于 M4，
+asset check 与 Chromium/WebKit E2E 覆盖该切片；volume/mute settings 仍属于 M3，自动化无声验收属于 M4，
 rollback/forward 在后续第四切片交付，完整矩阵仍开放，本记录不关闭 M2。
 
 第四切片把上述缺口收敛为现有 Core rollback port 的小型扩展，而没有建立第二个 VN 历史系统。Core 的单一
@@ -242,7 +242,7 @@ mobile project 单独覆盖 touch。一次 participant-assisted Chrome 200% brow
 产品或建立长期 harness 的前提下确认标题、Say、History、Choice、ending 与 44px 控件均留在产品 canvas 内，
 无水平溢出；页面额外纵向高度来自 canvas 外的 dev-only Inspector launcher。History `<ol tabIndex={0}>` 是为
 解决 Axe `scrollable-region-focusable` 的有意可访问性选择，也是 React Doctor 唯一 advisory。M3 继续拥有
-Splash/入口、Save/recovery 与 settings；M2 关闭不推导产品完成、旗舰提升、默认静音发布证据或 Desktop promotion。
+Splash/入口、Save/recovery 与 settings；M2 关闭不推导产品完成、旗舰提升、自动化无声证据或 Desktop promotion。
 最终稳定工作树通过 382 个测试文件、5,449 项 unit、6 项 Composition benchmark、40 项 examples Browser E2E
 （另有 2 项按项目条件明确跳过）、全仓 `deno task check` 与 VN production build；后者保留现有
 `advancedChunks` deprecated 和单一大 chunk advisory，不把 M3 之外的 bundle 策略工作偷渡进本切片。
@@ -319,13 +319,14 @@ production build 与独立实现审查。React Doctor 唯一新增 advisory 对�
 
 ### M4 — 作者任务、产品证据与 Starter feedback
 
-状态：**2026-08-28 进行中。第一 authoring slice 与 Agent 接手任务已完成；人类接手、完整产品证据、独立评审
-与 Starter feedback 仍开放。**
+状态：**2026-08-28 进行中。第一 authoring slice、Agent 接手任务与 workstation 自动化产品证据已完成；
+人类接手、代表性 current-low-end qualification、独立评审与 Starter feedback 仍开放。**
 
 - 一名人类从 Inspector 微调场景构图/appearance/Motion reference，一名 Agent 使用同一 source、diagnostics、
   structured operation/CAS 路径完成修改；人类随后继续审查、undo/redo 与保存；
 - focused tests、两条 simulate、`app check`、Chromium/WebKit 产品 E2E、build/prebuilt smoke、Deno Desktop static
-  preview、accessibility 与默认静音测试全部通过；修改 React/TSX 时运行项目约定的 React Doctor advisory audit；
+  preview、accessibility 与自动化默认无声测试全部通过；产品默认非静音，mute 仍是持久化用户偏好；修改
+  React/TSX 时运行项目约定的 React Doctor advisory audit；
 - 记录 startup/first interactive、initial JS/CSS/assets、关键交互 Long Tasks、frame time 与 heap 的 raw
   measurement；阈值只来自本产品预算，不做跨项目 promotion 排名；
 - 独立 product review 对照 semantic coverage table 逐项确认早期、中段、分支、结局、恢复和作者任务；独立
@@ -349,14 +350,29 @@ Agent 已在真实 standalone Inspector 中打开屋顶 Scene，把“摆动电�
 executor/source-loader/Inspector tests 与真实 Browser 操作共同覆盖该路径。人类仍必须使用同一 Inspector 审查
 构图和动画，完成至少一次可观察调整、undo/redo 与保存；自动化 Agent 任务不替代该参与证据。
 
-第一批 raw measurement 来自 2026-08-28 的本地 Apple M4 Max / 128 GiB / macOS 26.6.2 / Deno 2.9.5 /
-Chromium 151 workstation characterization，不是低端设备 qualification。7 次 GUI ready / first-interactive
-分别为 162.46/162.52、132.32/132.37、139.25/139.31、131.48/131.52、123.40/123.46、
-158.39/158.43、132.27/132.31 ms（同一次采样两者相差不超过 0.06ms）。release build 为 400.13ms；JS gzip
-344,214 B，CSS gzip 9,058 B，runtime assets raw/gzip 1,571,711/1,422,603 B，完整产物 raw/gzip
-2,937,099/1,775,875 B，均在 §7 冻结预算内；prebuilt smoke 通过。initial media transfer、Long Tasks、frame
-time、单路线 heap、Desktop static preview、默认静音发布证据与完整 Browser/产品评审仍待本里程碑后续证据，
-不得从这批 workstation raw data 推导低端设备达标。
+最终 raw measurement 来自 2026-08-28 的本地 Apple M4 Max / 128 GiB / macOS 26.6.2 / Deno 2.9.5 /
+Chromium 151 workstation characterization，不是低端设备 qualification。音频修正后的 7 次 GUI ready /
+first-interactive 分别为 199.20/199.26、130.70/130.76、131.83/131.89、124.35/124.40、
+134.12/134.17、133.06/133.15、100.97/100.99 ms。release build 为 418.59ms；JS gzip 344,235 B，
+CSS gzip 9,058 B，runtime assets raw/gzip 1,571,801/1,422,632 B，完整产物 raw/gzip
+2,937,217/1,775,925 B。Title 的 initial media transfer 为 0；第一 Say 累计 713,414 B，完整 archive route
+累计 1,396,433 B。
+
+第一轮真实交互 profile 曾发现 New Game 的冷 `new AudioContext()` 在点击任务内占用 130–203ms，超过 §7
+单次 `<100ms` 预算。修正只让现有 Web Audio Host 在可见 Title 挂载时预建 context，继续等待真实手势解锁，
+没有新增公开 API、音频状态机或预加载媒体。修正后 5 个独立 Chromium 进程从 New Game 到第一 Say 分别为
+64.54、68.61、72.93、81.94、70.80ms，New Game 与随后完整 route 均记录 0 个 Long Task。最终 Stage/ambient
+挂载时的 180 个 frame intervals 为 median 8.3ms、p95 9.4ms、max 17.3ms，0 个超过 33.34/50ms；强制 GC 后
+heap 从 Title 4.77 MiB 到单路线结束 8.76 MiB，回到 Title 后每隔 2 秒三次均为 8.59 MiB，没有持续单调增长。
+上述 raw facts 全部在 §7 冻结预算内，但不得据此声称 current-low-end 设备 qualification。
+
+Browser 产品矩阵在 Chromium/WebKit/mobile 为 25 passed、2 个 project-conditional skipped，覆盖 Axe、
+200% 等效 reflow、reduced motion、中英文 overflow、真实音频解码与 Profile 持久化；测试基座把真实音频图
+接到 0-gain terminal，产品默认值则由测试锁定为非静音。release Browser build、8 项 Engine Lab prebuilt
+`@smoke`、当前 Deno Desktop static package 的真实 Title 启动与正常关闭均通过；Desktop 证据仍只是 static
+preview，不提升 HMR、durability 或 production packaging。两条 44-step named simulation 完整覆盖两个结局；
+真实 Browser 完整走通 archive route，并在 present route 覆盖到权威 partial-hold/reopen 边界。这是按权威
+状态机与 Host 接缝分层的产品证据，不冒充两次逐点击的 Browser 人工游玩。
 
 本 authoring slice 的提交前回归覆盖 6 个 focused test files / 32 tests、Inspector Chromium/WebKit 2 项
 真实编辑 E2E、两条 44-step named simulation、VN Chromium/WebKit 24 项产品 E2E（另有 2 项按 project

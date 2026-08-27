@@ -55,7 +55,7 @@ export interface AudioHostV1 {
   /** Per-bus player volume multiplied under the master gain. */
   setBusGain(bus: AudioBusV1, gainPermille: number): void;
   setMuted(muted: boolean): void;
-  /** Page-visibility suspension; resume continues continuous channels. */
+  /** Page-visibility lifecycle; resume may prepare Host resources and continues continuous channels. */
   suspend(): void;
   resume(): void;
   dispose(): void;

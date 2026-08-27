@@ -2,7 +2,7 @@
 import { expect, gotoLabV1, test } from "./fixtures.ts";
 import { engineTargetUrlV1 } from "./fixtures.ts";
 
-test.describe("Runtime Inspector facets", () => {
+test.describe("@dev-authoring Runtime Inspector facets", () => {
   test("standalone Inspector shows detached manifest summaries without loading them", async ({ page }) => {
     await page.goto(engineTargetUrlV1("__sillymaker/inspector/"));
     const inspector = page.locator('[data-inspector-root="true"]');

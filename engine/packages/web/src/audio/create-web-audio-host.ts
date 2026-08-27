@@ -136,7 +136,9 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
     }
   };
 
-  const ensureContextV1 = (): WebAudioContextLikeV1 | null => {
+  const ensureContextV1 = (
+    reportSuspendedDiagnostic = true,
+  ): WebAudioContextLikeV1 | null => {
     if (disposed) return null;
     if (context !== null) return context;
     try {
@@ -165,11 +167,13 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
     if (context.state === "running") {
       unlocked = true;
     } else {
-      reportDiagnostic({
-        code: "audio.autoplay_denied",
-        assetId: null,
-        detail: "AudioContext is suspended until a user gesture unlocks it",
-      });
+      if (reportSuspendedDiagnostic) {
+        reportDiagnostic({
+          code: "audio.autoplay_denied",
+          assetId: null,
+          detail: "AudioContext is suspended until a user gesture unlocks it",
+        });
+      }
       registerUnlockListenersV1();
     }
     return context;
@@ -418,8 +422,9 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
       void context.suspend().catch(() => undefined);
     },
     resume(): void {
-      if (disposed || context === null || !unlocked) return;
-      void context.resume().catch(() => undefined);
+      const activeContext = ensureContextV1(false);
+      if (activeContext === null || !unlocked) return;
+      void activeContext.resume().catch(() => undefined);
     },
     dispose(): void {
       if (disposed) return;

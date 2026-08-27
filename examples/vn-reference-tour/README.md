@@ -5,7 +5,8 @@
 状态：**M0–M3 已交付 / WIP；M4 进行中。独立 package、完整双路线作者数据与 simulation、
 引擎维护的 default VN Player、最终 Stage/ending 媒体、冻结的八项音频分母、interaction-level
 Back/Forward、responsive/input/accessibility 产品矩阵、system menu/Save、持久设置/live locale 与分层恢复
-矩阵均已完成。Browser 强制关闭只恢复最后已经持久化的 autosave；作者接手、预算、发布与完整产品验收仍未完成。**
+矩阵均已完成。Browser 强制关闭只恢复最后已经持久化的 autosave；M4 workstation 自动化产品证据已完成，
+人类作者接手、代表性 current-low-end qualification、独立审查与 Starter feedback 仍未完成。**
 
 M1 已用本产品的完整 Story/Scene author data 原子替换 tracked Template 的临时内容；M2 已交付 Player、
 Stage 媒体、结局、音频、Back/Forward 与完整响应式/无障碍矩阵；M3 已关闭产品入口、Save/recovery 与设置。
@@ -109,8 +110,10 @@ archive-voice
 present-voice
 ```
 
-完整产品关闭还需要默认静音发布证据、Browser publish、Desktop static preview、剩余 raw profiling，以及人类
-使用同一 authoring/CAS 路径继续 Agent 已完成的 ambient Motion 接手任务。
+M4 自动化证据已覆盖 Browser build/publish、Deno Desktop static preview、raw profiling，以及默认把真实音频图
+接到 0-gain terminal 的无声测试运行；产品本身默认非静音，mute 仍是持久化用户偏好。完整产品关闭还需要人类
+使用同一 authoring/CAS 路径继续 Agent 已完成的 ambient Motion 接手任务，以及独立 product/engine review 与
+Starter feedback 裁决。
 
 ## 许可
 

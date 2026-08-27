@@ -320,8 +320,9 @@ Ctrl/Tab/H/V/鼠标中键、竖屏布局、最终媒体/音频、rollback/end co
 Save/recovery/settings 也已关闭：产品入口与默认 VN system menu、quick/manual/import/export、完整最小
 Settings/live locale、normal-dispose exact flush、已持久化 autosave reload、return-to-title/Continue，以及
 Web hidden presentation-time exclusion均有分层证据。Browser `pagehide` 仍只是同步 fence + best-effort flush，
-不承诺最后一刻异步 IndexedDB durability。M4 已交付 ambient binding/phase 的 Agent Inspector/CAS 接手；
-人类接手、发布矩阵、剩余 raw measurements 与独立审查尚未完成，
+不承诺最后一刻异步 IndexedDB durability。M4 已交付 ambient binding/phase 的 Agent Inspector/CAS 接手，
+以及 workstation Browser/build/static-Desktop/accessibility/silent-run/raw-performance 证据；人类接手、
+代表性 current-low-end qualification、独立 product/engine review 与 Starter feedback 尚未完成，
 当前 WIP 仍不是完整产品或完成证据。Cat Cafe 已在
 本轮开始前独立终止，应用、revision-1 Save 支持、产品 E2E 与 live 发布责任同步结束，不做跨产品 Save 迁移
 或兼容 wrapper。VN 开发期间没有当前旗舰；Bookshop 只保持 maintained minimal Narrative example，不是旗舰

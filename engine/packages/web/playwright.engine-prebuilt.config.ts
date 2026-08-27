@@ -13,9 +13,9 @@ export default defineConfig({
   // DET0's source-served determinism probe intentionally stays outside the
   // production Artifact and its BuildIdentity closure.
   testIgnore: /authoritative-determinism\.spec\.ts/u,
-  // Source editing is a Vite-dev capability. Production previews intentionally
-  // expose no filesystem read/write endpoint.
-  grepInvert: /@dev-source-io/u,
+  // Source editing and Authoring Inspector surfaces are Vite-dev capabilities.
+  // Production previews intentionally expose neither boundary.
+  grepInvert: /@dev-(?:source-io|authoring)/u,
   fullyParallel: false,
   workers: 1,
   retries: 0,

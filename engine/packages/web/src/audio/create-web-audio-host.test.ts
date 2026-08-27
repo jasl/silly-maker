@@ -395,6 +395,31 @@ describe("createWebAudioHostV1", () => {
     host.dispose();
   });
 
+  it("prepares a suspended context on visible mount without reporting autoplay failure", async () => {
+    const { host, context, diagnostics } = hostV1({ contextState: "suspended" });
+
+    host.resume();
+    expect(context.state).toBe("suspended");
+    expect(context.startedSources()).toHaveLength(0);
+    expect(diagnostics).toEqual([]);
+
+    document.dispatchEvent(new Event("pointerdown"));
+    await flushV1();
+    expect(context.state).toBe("running");
+
+    host.play({
+      channel: "bgm",
+      assetId: "audio.test.theme",
+      loop: true,
+      gainPermille: 1000,
+      fadeMs: 0,
+    });
+    await flushV1();
+    expect(context.startedSources()).toHaveLength(1);
+    expect(diagnostics).toEqual([]);
+    host.dispose();
+  });
+
   it("ends pending activity when gesture unlock fails", async () => {
     const { host, diagnostics } = hostV1({
       contextState: "suspended",
