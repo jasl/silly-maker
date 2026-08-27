@@ -11,6 +11,8 @@ const narrativeFocusScopeSelectorV1 = "[data-narrative-surface-focus-scope]";
 export interface DefaultVnPlayerLabelsInternalV1 {
   readonly advance: string;
   readonly playbackControls: string;
+  readonly back: string;
+  readonly forward: string;
   readonly history: string;
   readonly voice: string;
   readonly skip: string;
@@ -59,8 +61,17 @@ type DefaultVnPlayerChoicePropsV1 = Omit<DefaultVnPlayerDialoguePropsV1, "pendin
   >;
 };
 
+interface DefaultVnPlayerRollbackInternalV1 {
+  readonly backAvailable: boolean;
+  readonly forwardAvailable: boolean;
+  readonly onBack: () => void;
+  readonly onForward: () => void;
+}
+
 function DefaultVnPlayerPlaybackButtonV1(props: {
   readonly children: string;
+  readonly disabled?: boolean;
+  readonly dataNavigation?: "back" | "forward";
   readonly pressed?: boolean;
   readonly dataPlayback?: "auto" | "skip";
   readonly dataHistory?: boolean;
@@ -71,6 +82,10 @@ function DefaultVnPlayerPlaybackButtonV1(props: {
     <button
       type="button"
       className={styles["playback-button"]}
+      disabled={props.disabled ?? false}
+      {...(props.dataNavigation === undefined
+        ? {}
+        : { "data-dialogue-navigation": props.dataNavigation })}
       {...(props.dataPlayback === undefined ? {} : {
         "data-dialogue-playback": props.dataPlayback,
         "aria-pressed": props.pressed ?? false,
@@ -151,7 +166,10 @@ function DefaultVnPlayerHistoryV1(
 }
 
 function DefaultVnPlayerSayV1(
-  props: DefaultVnPlayerSayPropsV1 & { readonly labels: DefaultVnPlayerLabelsInternalV1 },
+  props: DefaultVnPlayerSayPropsV1 & {
+    readonly labels: DefaultVnPlayerLabelsInternalV1;
+    readonly rollback: DefaultVnPlayerRollbackInternalV1;
+  },
 ): ReactElement {
   const playerView = props.playerView.kind === "say" ? props.playerView : null;
   const resolvedSpeakerText = playerView?.resolvedSpeakerText ??
@@ -167,6 +185,7 @@ function DefaultVnPlayerSayV1(
         type="button"
         className={styles["advance-surface"]}
         data-dialogue-advance="true"
+        data-pointer-wheel-surface="true"
         aria-label={props.labels.advance}
         aria-describedby={textId}
         tabIndex={-1}
@@ -190,6 +209,20 @@ function DefaultVnPlayerSayV1(
           onClick={(event) => event.stopPropagation()}
           onKeyDown={returnNarrativeFocusOnEscapeV1}
         >
+          <DefaultVnPlayerPlaybackButtonV1
+            dataNavigation="back"
+            disabled={!props.rollback.backAvailable}
+            onActivate={props.rollback.onBack}
+          >
+            {props.labels.back}
+          </DefaultVnPlayerPlaybackButtonV1>
+          <DefaultVnPlayerPlaybackButtonV1
+            dataNavigation="forward"
+            disabled={!props.rollback.forwardAvailable}
+            onActivate={props.rollback.onForward}
+          >
+            {props.labels.forward}
+          </DefaultVnPlayerPlaybackButtonV1>
           <DefaultVnPlayerPlaybackButtonV1 dataHistory onActivate={props.onOpenHistory}>
             {props.labels.history}
           </DefaultVnPlayerPlaybackButtonV1>
@@ -228,7 +261,10 @@ function DefaultVnPlayerSayV1(
 }
 
 function DefaultVnPlayerChoiceV1(
-  props: DefaultVnPlayerChoicePropsV1,
+  props: DefaultVnPlayerChoicePropsV1 & {
+    readonly labels: DefaultVnPlayerLabelsInternalV1;
+    readonly rollback: DefaultVnPlayerRollbackInternalV1;
+  },
 ): ReactElement {
   const promptId = useId();
   const reasonIdPrefix = useId();
@@ -279,6 +315,26 @@ function DefaultVnPlayerChoiceV1(
           })}
         </div>
       </section>
+      <nav
+        className={styles["playback-bar"]}
+        aria-label={props.labels.playbackControls}
+        onKeyDown={returnNarrativeFocusOnEscapeV1}
+      >
+        <DefaultVnPlayerPlaybackButtonV1
+          dataNavigation="back"
+          disabled={!props.rollback.backAvailable}
+          onActivate={props.rollback.onBack}
+        >
+          {props.labels.back}
+        </DefaultVnPlayerPlaybackButtonV1>
+        <DefaultVnPlayerPlaybackButtonV1
+          dataNavigation="forward"
+          disabled={!props.rollback.forwardAvailable}
+          onActivate={props.rollback.onForward}
+        >
+          {props.labels.forward}
+        </DefaultVnPlayerPlaybackButtonV1>
+      </nav>
     </div>
   );
 }
@@ -317,6 +373,7 @@ export function DefaultVnPlayerChromeHiddenSurfaceInternalV1(props: {
 export function DefaultVnPlayerRendererInternalV1(props: {
   readonly labels: DefaultVnPlayerLabelsInternalV1;
   readonly renderer: NarrativeSurfaceRendererPropsV1;
+  readonly rollback: DefaultVnPlayerRollbackInternalV1;
 }): ReactElement | null {
   if (props.renderer.kind === "history") {
     return <DefaultVnPlayerHistoryV1 {...props.renderer} labels={props.labels} />;
@@ -327,11 +384,19 @@ export function DefaultVnPlayerRendererInternalV1(props: {
         {...props.renderer}
         pending={props.renderer.pending}
         labels={props.labels}
+        rollback={props.rollback}
       />
     );
   }
   if (props.renderer.pending.kind === "choice") {
-    return <DefaultVnPlayerChoiceV1 {...props.renderer} pending={props.renderer.pending} />;
+    return (
+      <DefaultVnPlayerChoiceV1
+        {...props.renderer}
+        pending={props.renderer.pending}
+        labels={props.labels}
+        rollback={props.rollback}
+      />
+    );
   }
   return null;
 }

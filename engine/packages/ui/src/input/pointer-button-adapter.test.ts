@@ -131,6 +131,32 @@ describe("pointer-button adapter", () => {
     dispose();
   });
 
+  it("allows an explicit canvas-style button to retain mapped wheel navigation", () => {
+    const spy = routerSpyV1();
+    const dispose = installPointerButtonAdapterV1({
+      router: spy.router as never,
+      map: { wheelUp: historyV1 },
+    });
+    const surface = document.createElement("button");
+    const child = document.createElement("span");
+    surface.append(child);
+    document.body.append(surface);
+
+    const ordinary = new WheelEvent("wheel", { deltaY: -3, bubbles: true, cancelable: true });
+    child.dispatchEvent(ordinary);
+    expect(ordinary.defaultPrevented).toBe(false);
+    expect(spy.routed).toEqual([]);
+
+    surface.dataset.pointerWheelSurface = "true";
+    const optedIn = new WheelEvent("wheel", { deltaY: -3, bubbles: true, cancelable: true });
+    child.dispatchEvent(optedIn);
+    expect(optedIn.defaultPrevented).toBe(true);
+    expect(spy.routed).toEqual(["player.history_back"]);
+
+    surface.remove();
+    dispose();
+  });
+
   it("keeps native wheel scrolling in a scrollable ancestor from another Window realm", () => {
     const frame = document.createElement("iframe");
     document.body.append(frame);

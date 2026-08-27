@@ -108,7 +108,18 @@
   letter-spacing: 0.03em;
 }
 
-.playback-button:hover,
+.playback-button:disabled {
+  cursor: default;
+  opacity: 0.38;
+}
+
+.playback-button:focus-visible,
+.history-close:focus-visible {
+  outline: 2px solid var(--silly-vn-player-focus, #f5d17e);
+  outline-offset: 2px;
+}
+
+.playback-button:hover:not(:disabled),
 .history-close:hover,
 .playback-button[aria-pressed="true"] {
   color: var(--silly-vn-player-text, #fff);
@@ -124,12 +135,6 @@
   background: var(--silly-vn-player-accent, #e7bc5f);
   content: "";
   vertical-align: 0.1em;
-}
-
-.playback-button:focus-visible,
-.history-close:focus-visible {
-  outline: 2px solid var(--silly-vn-player-focus, #f5d17e);
-  outline-offset: 2px;
 }
 
 .continue-indicator {

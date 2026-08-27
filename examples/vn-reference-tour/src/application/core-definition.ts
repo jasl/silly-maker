@@ -60,6 +60,24 @@ export const vnReferenceTourCoreApplicationDefinitionV1 = defineCoreGameApplicat
       assets: (context.resolved as { readonly assets: ResolvedAssetManifestV1 }).assets,
     } satisfies VnReferenceTourExtensionsV1,
   }),
+  rollback: {
+    capacity: 64,
+    classify(command) {
+      switch (command.kind) {
+        case "vn-reference-tour.begin_story":
+          return "barrier";
+        case "vn-reference-tour.narrative_resolve":
+          return command.resolution.kind === "barrier_completed" ? "transparent" : "checkpoint";
+        case "vn-reference-tour.time_tick":
+        case "vn-reference-tour.scene_reconcile":
+          return "transparent";
+        default: {
+          const exhaustive: never = command;
+          throw new TypeError(`unknown vn-reference-tour rollback command ${String(exhaustive)}`);
+        }
+      }
+    },
+  },
   exportFilename: "vn-reference-tour-save.json",
 });
 

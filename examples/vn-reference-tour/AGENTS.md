@@ -9,8 +9,9 @@ named headless simulations are implemented. M2's first Player slice now selects
 the engine-maintained focused default VN Player, which adds flush-bottom responsive dialogue/choice chrome, say-only full-canvas
 pointer advance, History/playback controls, Ctrl/Tab/H/V VN input, and a portrait layout variant.
 Later slices add the final Stage media and ending surface plus BGM, two ambient
-tracks, three SFX, two current voices, replay, and voice-aware Auto. Correct
-rollback/forward controls, the full product matrix, and M2 closure remain open;
+tracks, three SFX, two current voices, replay, and voice-aware Auto. A later
+slice adds interaction-level Back/Forward through the engine Snapshot timeline,
+PageUp/PageDown and wheel input, plus ending Back. The full product matrix and M2 closure remain open;
 this playable WIP is not a complete reference or evidence that M2–M5 have shipped.
 
 Read, in order:
@@ -59,7 +60,7 @@ Player and product-matrix gates remain M2 work.
 - `src/content/presentation.ts`: resident UI copy and Stage/transition catalog.
 - `src/content/audio.ts`: audio manifest and intent/effect mapping.
 - `src/game/**`: minimal authoritative route/narrative/stage/audio state.
-- `@sillymaker/ui/narrative-player`: default VN chrome, focus and Ctrl/Tab/H policy.
+- `@sillymaker/ui/narrative-player`: default VN chrome, focus, Ctrl/Tab/H and Back/Forward policy.
 - `src/application/composition.tsx`: product wiring, text-label mapping, and preset selection only; no story copy or rules.
 - `src/tooling/**`: dev-only Inspector/Flow/simulation projections.
 

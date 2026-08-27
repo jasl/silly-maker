@@ -46,6 +46,26 @@ export const templateCoreApplicationDefinitionV1 = defineCoreGameApplication<
       ? null
       : ({ kind: "template.scene_reconcile" as const, mutations });
   },
+  rollback: {
+    capacity: 64,
+    classify(command) {
+      switch (command.kind) {
+        case "template.begin_story":
+          return "barrier";
+        case "template.narrative_resolve":
+          return command.resolution.kind === "barrier_completed" ? "transparent" : "checkpoint";
+        case "template.time_tick":
+        case "template.scene_reconcile":
+          return "transparent";
+        case "template.earn_coin":
+          return "checkpoint";
+        default: {
+          const exhaustive: never = command;
+          throw new TypeError(`unknown template rollback command ${String(exhaustive)}`);
+        }
+      }
+    },
+  },
   exportFilename: "template-save.json",
 });
 

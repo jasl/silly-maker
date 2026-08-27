@@ -24,7 +24,12 @@ interface VnPublicationV1 {
     };
   };
   readonly narrative: {
-    readonly pending: { readonly kind: string; readonly occurrenceId: string } | null;
+    readonly phase: "idle" | "active" | "completed";
+    readonly pending: {
+      readonly kind: string;
+      readonly occurrenceId: string;
+      readonly remainingMs?: number;
+    } | null;
   };
 }
 
@@ -42,21 +47,69 @@ async function observeV1(page: Page): Promise<VnPublicationV1> {
 async function advanceCurrentSayV1(page: Page, pending: {
   readonly occurrenceId: string;
 }): Promise<void> {
+  await dispatchV1(page, {
+    kind: "resolve",
+    expectedOccurrenceId: pending.occurrenceId,
+    resolution: { kind: "advance" },
+  });
+}
+
+async function dispatchV1(page: Page, invocation: unknown): Promise<void> {
   const result = await page.evaluate(
-    async ({ key, occurrenceId }) => {
+    async ({ key, invocation: bridgeInvocation }) => {
       const automation = Reflect.get(globalThis, key) as
         | { dispatch(invocation: unknown): Promise<{ readonly kind: string }> }
         | undefined;
       if (automation === undefined) throw new TypeError("automation bridge unavailable");
-      return await automation.dispatch({
-        kind: "resolve",
-        expectedOccurrenceId: occurrenceId,
-        resolution: { kind: "advance" },
-      });
+      return await automation.dispatch(bridgeInvocation);
     },
-    { key: automationKeyV1, occurrenceId: pending.occurrenceId },
+    { key: automationKeyV1, invocation },
   );
   expect(result.kind).toBe("ok");
+}
+
+async function finishArchiveRouteV1(page: Page): Promise<void> {
+  for (let step = 0; step < 64; step += 1) {
+    const publication = await observeV1(page);
+    if (publication.narrative.phase === "completed") return;
+    const pending = publication.narrative.pending;
+    if (pending === null) throw new TypeError("active VN route has no pending interaction");
+
+    if (pending.kind === "say") {
+      await advanceCurrentSayV1(page, pending);
+      continue;
+    }
+    if (pending.kind === "choice") {
+      await dispatchV1(page, {
+        kind: "resolve",
+        expectedOccurrenceId: pending.occurrenceId,
+        resolution: {
+          kind: "choose",
+          choiceId: "choice.vn-reference-tour.archive-voice",
+        },
+      });
+      continue;
+    }
+    if (pending.kind === "hold" && pending.remainingMs !== undefined) {
+      await dispatchV1(page, {
+        kind: "time",
+        tick: {
+          elapsedMs: pending.remainingMs,
+          expectedHoldOccurrenceId: pending.occurrenceId,
+        },
+      });
+      continue;
+    }
+    if (pending.kind === "presentation_barrier") {
+      await expect.poll(
+        async () => (await observeV1(page)).narrative.pending?.occurrenceId,
+        { timeout: 4_000 },
+      ).not.toBe(pending.occurrenceId);
+      continue;
+    }
+    throw new TypeError(`unexpected VN route boundary: ${pending.kind}`);
+  }
+  throw new TypeError("archive route did not finish within its frozen denominator");
 }
 
 async function reachOldCallV1(page: Page): Promise<VnPublicationV1> {
@@ -104,6 +157,70 @@ test("the frozen VN audio denominator decodes in Browser", async ({ page }) => {
   }, authoredAudioPathsV1);
   expect(decoded.map(({ path }) => path)).toEqual(authoredAudioPathsV1);
   expect(decoded.every(({ status, duration }) => status === 200 && (duration ?? 0) > 0)).toBe(true);
+});
+
+test("VN Back and Forward navigate interaction checkpoints through physical input", async ({ page }) => {
+  await page.goto(vnReferenceTourTargetUrlV1("?capability=automation_bridge"));
+  await page.getByRole("button", { name: "新游戏" }).click();
+  await page.waitForFunction(
+    (key) => Reflect.get(globalThis, key) !== undefined,
+    automationKeyV1,
+  );
+
+  const first = await observeV1(page);
+  const firstPending = first.narrative.pending;
+  if (firstPending?.kind !== "say") throw new TypeError("opening Say missing");
+  await advanceCurrentSayV1(page, firstPending);
+  const secondOccurrenceId = (await observeV1(page)).narrative.pending?.occurrenceId;
+  if (secondOccurrenceId === undefined) throw new TypeError("second Say missing");
+
+  const back = page.getByRole("button", { name: "回退" });
+  const forward = page.getByRole("button", { name: "前进" });
+  await expect(back).toBeEnabled();
+  await expect(forward).toBeDisabled();
+
+  const stage = await page.locator("[data-stage-root='true']").boundingBox();
+  if (stage === null) throw new TypeError("VN stage missing");
+  await page.mouse.move(stage.x + 24, stage.y + 24);
+  await page.mouse.wheel(0, -200);
+  await expect.poll(
+    async () => (await observeV1(page)).narrative.pending?.occurrenceId,
+  ).toBe(firstPending.occurrenceId);
+  await expect(forward).toBeEnabled();
+
+  await page.keyboard.press("PageDown");
+  await expect.poll(
+    async () => (await observeV1(page)).narrative.pending?.occurrenceId,
+  ).toBe(secondOccurrenceId);
+  await expect(forward).toBeDisabled();
+
+  await page.keyboard.press("PageUp");
+  await expect.poll(
+    async () => (await observeV1(page)).narrative.pending?.occurrenceId,
+  ).toBe(firstPending.occurrenceId);
+  await advanceCurrentSayV1(page, firstPending);
+  await expect(forward).toBeDisabled();
+});
+
+test("the completed ending keeps physical Back and Forward navigation available", async ({ page }) => {
+  await page.goto(vnReferenceTourTargetUrlV1("?capability=automation_bridge"));
+  await page.getByRole("button", { name: "新游戏" }).click();
+  await page.waitForFunction(
+    (key) => Reflect.get(globalThis, key) !== undefined,
+    automationKeyV1,
+  );
+  await finishArchiveRouteV1(page);
+
+  const ending = page.locator("[data-vn-reference-tour-ending='true']");
+  await expect(ending).toBeVisible();
+  await expect(page.getByRole("button", { name: "返回标题" })).not.toBeFocused();
+
+  await page.keyboard.press("PageUp");
+  await expect(ending).toBeHidden();
+  await expect(page.getByRole("button", { name: "继续" })).toBeVisible();
+
+  await page.keyboard.press("PageDown");
+  await expect(ending).toBeVisible();
 });
 
 test("VN audio unlocks and Player Auto waits for replayed current voice", async ({ page }) => {

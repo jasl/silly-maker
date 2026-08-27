@@ -36,6 +36,9 @@ export const pointerInteractiveSelectorV1 =
   'input, textarea, select, button, a, option, [contenteditable]:not([contenteditable="false"]), ' +
   '[role="button"], [role="textbox"], [role="combobox"]';
 
+/** Package-internal opt-in for an interactive element that is also a canvas surface. */
+const pointerWheelSurfaceSelectorInternalV1 = '[data-pointer-wheel-surface="true"]';
+
 function closestAncestorV1(target: unknown, selector: string): Element | null {
   const candidate = target as { closest?: (selectors: string) => Element | null } | null;
   if (typeof candidate?.closest !== "function") return null;
@@ -117,7 +120,14 @@ export function installPointerButtonAdapterV1(
     if (wheelEvent.defaultPrevented) return;
     const actionId = wheelEvent.deltaY < 0 ? options.map.wheelUp : options.map.wheelDown;
     if (actionId === undefined || wheelEvent.deltaY === 0) return;
-    if (isInteractiveTargetV1(wheelEvent.target) || insideScrollableV1(wheelEvent.target)) return;
+    const isWheelSurface = closestAncestorV1(
+      wheelEvent.target,
+      pointerWheelSurfaceSelectorInternalV1,
+    ) !== null;
+    if (
+      (!isWheelSurface && isInteractiveTargetV1(wheelEvent.target)) ||
+      insideScrollableV1(wheelEvent.target)
+    ) return;
     const at = now();
     if (at - lastWheelAt < wheelIntervalMs) return;
     lastWheelAt = at;

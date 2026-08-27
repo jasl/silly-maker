@@ -273,11 +273,14 @@ function createVnReferenceTourUiSlotsV1(
                 )}
                 kicker={vnReferenceTourUiTextV1("text.vn-reference-tour.ending.kicker")}
                 summary={vnReferenceTourUiTextV1("text.vn-reference-tour.ending.summary")}
+                backLabel={vnReferenceTourUiTextV1("text.vn-reference-tour.playback.back")}
                 returnLabel={vnReferenceTourUiTextV1("text.vn-reference-tour.ending.return")}
                 returningLabel={vnReferenceTourUiTextV1("text.vn-reference-tour.ending.returning")}
                 returnFailure={vnReferenceTourUiTextV1(
                   "text.vn-reference-tour.ending.return-failed",
                 )}
+                input={context.input}
+                rollback={instance.rollback}
                 onReturnToTitle={context.systemDialogs.returnToTitle}
               />
             )}
@@ -290,6 +293,8 @@ function createVnReferenceTourUiSlotsV1(
 const vnReferenceTourVnPlayerLabelTextIdsV1 = {
   advance: "text.vn-reference-tour.narrative.advance",
   playbackControls: "text.vn-reference-tour.playback.controls",
+  back: "text.vn-reference-tour.playback.back",
+  forward: "text.vn-reference-tour.playback.forward",
   history: "text.vn-reference-tour.playback.history",
   voice: "text.vn-reference-tour.playback.voice",
   skip: "text.vn-reference-tour.playback.skip",
@@ -495,6 +500,7 @@ export const vnReferenceTourGameApplicationV1: WebGameApplicationV1<
     };
     const vnPlayer = createDefaultVnPlayerV1({
       heldInput,
+      rollback: instance.rollback,
       labelTextIds: vnReferenceTourVnPlayerLabelTextIdsV1,
     });
     return ({

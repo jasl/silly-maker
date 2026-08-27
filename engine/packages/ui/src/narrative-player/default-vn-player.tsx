@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import type { ComponentType, ReactElement } from "react";
+import type { CoreRollbackPortV1 } from "@sillymaker/base/runtime";
 
 import {
   inputHandledV1,
@@ -11,6 +12,7 @@ import {
 import type { HeldInputPortV1, HeldKeyMapV1 } from "../input/held-key-adapter.ts";
 import { useInputRouterV1 } from "../input/input-context.tsx";
 import type { KeyboardActionMapV1 } from "../input/keyboard-adapter.ts";
+import type { PointerActionMapV1 } from "../input/pointer-button-adapter.ts";
 import type { NarrativeSurfaceRendererPropsV1 } from "../narrative/narrative-surface-composition.tsx";
 import {
   DefaultVnPlayerChromeHiddenSurfaceInternalV1,
@@ -21,6 +23,8 @@ import type { DefaultVnPlayerLabelsInternalV1 } from "./default-vn-player-render
 export interface DefaultVnPlayerLabelsV1 {
   readonly advance: string;
   readonly playbackControls: string;
+  readonly back: string;
+  readonly forward: string;
   readonly history: string;
   readonly voice: string;
   readonly skip: string;
@@ -36,6 +40,8 @@ export type DefaultVnPlayerLabelKeyV1 = keyof DefaultVnPlayerLabelsV1;
 export const defaultVnPlayerLabelsV1: DefaultVnPlayerLabelsV1 = {
   advance: "Continue",
   playbackControls: "Playback controls",
+  back: "Back",
+  forward: "Forward",
   history: "History",
   voice: "Voice",
   skip: "Skip",
@@ -48,6 +54,7 @@ export const defaultVnPlayerLabelsV1: DefaultVnPlayerLabelsV1 = {
 
 export interface CreateDefaultVnPlayerInputV1 {
   readonly heldInput: HeldInputPortV1;
+  readonly rollback: CoreRollbackPortV1;
   /** Optional product text IDs, resolved through the Narrative text resolver on every render. */
   readonly labelTextIds?: Readonly<Partial<Record<DefaultVnPlayerLabelKeyV1, string>>>;
 }
@@ -57,6 +64,7 @@ export interface DefaultVnPlayerV1 {
   readonly input: Readonly<{
     readonly keyboard: KeyboardActionMapV1;
     readonly held: HeldKeyMapV1;
+    readonly pointer: PointerActionMapV1;
   }>;
 }
 
@@ -217,6 +225,58 @@ function useDefaultVnPlayerHeldSkipInternalV1(
   }, [activeSay, enabled, held, onToggleSkip, playbackMode]);
 }
 
+function useDefaultVnPlayerRollbackInternalV1(
+  rollback: CoreRollbackPortV1,
+  enabled: boolean,
+): {
+  readonly backAvailable: boolean;
+  readonly forwardAvailable: boolean;
+  readonly onBack: () => void;
+  readonly onForward: () => void;
+} {
+  const router = useInputRouterV1();
+  const backSteps = useSyncExternalStore(
+    rollback.subscribe,
+    () => rollback.available().steps,
+    () => rollback.available().steps,
+  );
+  const forwardSteps = useSyncExternalStore(
+    rollback.subscribe,
+    () => rollback.available().forwardSteps,
+    () => rollback.available().forwardSteps,
+  );
+  const backAvailable = enabled && backSteps > 0;
+  const forwardAvailable = enabled && forwardSteps > 0;
+  const onBack = (): void => {
+    if (backAvailable) void rollback.toPrevious();
+  };
+  const onForward = (): void => {
+    if (forwardAvailable) void rollback.toNext();
+  };
+
+  useEffect(
+    () =>
+      router.register({
+        context: "narrative",
+        handle: (event) => {
+          if (event.kind !== "action") return inputIgnoredV1;
+          if (event.actionId === playerInputActionIdsV1.rollback && backAvailable) {
+            void rollback.toPrevious();
+            return inputHandledV1;
+          }
+          if (event.actionId === playerInputActionIdsV1.rollForward && forwardAvailable) {
+            void rollback.toNext();
+            return inputHandledV1;
+          }
+          return inputIgnoredV1;
+        },
+      }),
+    [backAvailable, forwardAvailable, rollback, router],
+  );
+
+  return { backAvailable, forwardAvailable, onBack, onForward };
+}
+
 function resolveLabelsInternalV1(
   props: NarrativeSurfaceRendererPropsV1,
   textIds: CreateDefaultVnPlayerInputV1["labelTextIds"],
@@ -228,6 +288,8 @@ function resolveLabelsInternalV1(
   return {
     advance: resolve("advance"),
     playbackControls: resolve("playbackControls"),
+    back: resolve("back"),
+    forward: resolve("forward"),
     history: resolve("history"),
     voice: resolve("voice"),
     skip: resolve("skip"),
@@ -243,12 +305,19 @@ const defaultVnPlayerKeyboardMapInternalV1: KeyboardActionMapV1 = {
   Enter: systemInputActionIdsV1.narrativeAdvance,
   KeyH: playerInputActionIdsV1.toggleUi,
   KeyV: playerInputActionIdsV1.replayVoice,
+  PageDown: playerInputActionIdsV1.rollForward,
+  PageUp: playerInputActionIdsV1.rollback,
   Space: systemInputActionIdsV1.narrativeAdvance,
   Tab: playerInputActionIdsV1.toggleSkip,
 };
 
 const defaultVnPlayerHeldKeyMapInternalV1: HeldKeyMapV1 = {
   Control: playerInputActionIdsV1.fastForward,
+};
+
+const defaultVnPlayerPointerMapInternalV1: PointerActionMapV1 = {
+  wheelDown: playerInputActionIdsV1.rollForward,
+  wheelUp: playerInputActionIdsV1.rollback,
 };
 
 /**
@@ -271,6 +340,10 @@ export function createDefaultVnPlayerV1(input: CreateDefaultVnPlayerInputV1): De
       props.playerView.kind === "say" && props.playerView.phase === "active";
     useDefaultVnPlayerHideInputInternalV1({ allowHide: activeSay, chrome });
     useDefaultVnPlayerHeldSkipInternalV1(props, input.heldInput, chromePhase === "visible");
+    const rollback = useDefaultVnPlayerRollbackInternalV1(
+      input.rollback,
+      props.kind === "dialogue" && chromePhase === "visible",
+    );
 
     const occurrenceId = props.kind === "dialogue" ? props.pending.occurrenceId : null;
     const playbackMode = props.kind === "dialogue" ? props.playerView.playbackMode : "normal";
@@ -313,7 +386,13 @@ export function createDefaultVnPlayerV1(input: CreateDefaultVnPlayerInputV1): De
         />
       );
     }
-    return <DefaultVnPlayerRendererInternalV1 labels={labels} renderer={props} />;
+    return (
+      <DefaultVnPlayerRendererInternalV1
+        labels={labels}
+        renderer={props}
+        rollback={rollback}
+      />
+    );
   }
 
   return {
@@ -321,6 +400,7 @@ export function createDefaultVnPlayerV1(input: CreateDefaultVnPlayerInputV1): De
     input: {
       keyboard: defaultVnPlayerKeyboardMapInternalV1,
       held: defaultVnPlayerHeldKeyMapInternalV1,
+      pointer: defaultVnPlayerPointerMapInternalV1,
     },
   };
 }

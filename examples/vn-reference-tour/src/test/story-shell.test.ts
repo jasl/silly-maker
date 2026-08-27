@@ -30,6 +30,16 @@ function currentOccurrenceIdV1(
   return pending.occurrenceId;
 }
 
+async function advanceCurrentV1(
+  application: Awaited<ReturnType<typeof createVnReferenceTourApplicationInstanceV1>>,
+): Promise<void> {
+  await expect(application.semantic.dispatch({
+    kind: "resolve",
+    expectedOccurrenceId: currentOccurrenceIdV1(application),
+    resolution: { kind: "advance" },
+  } as never)).resolves.toMatchObject({ kind: "committed" });
+}
+
 describe("VN Reference Tour M1 story shell", () => {
   it("resolves only the selected narrative and Stage authorities", () => {
     const resolved = resolveStoryForTestV1(vnReferenceTourStoryEntryV1);
@@ -138,6 +148,78 @@ describe("VN Reference Tour M1 story shell", () => {
         codes: ["interaction.occurrence_mismatch"],
       });
       expect(application.admin.stateDigest()).toBe(before);
+    } finally {
+      await application.dispose();
+    }
+  });
+
+  it("navigates interaction checkpoints without exposing hold ticks as history stops", async () => {
+    const application = await createVnReferenceTourApplicationInstanceV1();
+    try {
+      await application.semantic.dispatch({
+        kind: "invoke",
+        actionId: "vn-reference-tour.begin_story",
+      } as never);
+
+      for (let index = 0; index < 26; index += 1) await advanceCurrentV1(application);
+      const choice = application.semantic.observe().narrative.pending;
+      if (choice === null || choice.kind !== "choice") {
+        throw new TypeError("vn-reference-tour.test_choice_missing");
+      }
+      await expect(application.semantic.dispatch({
+        kind: "resolve",
+        expectedOccurrenceId: choice.occurrenceId,
+        resolution: {
+          kind: "choose",
+          choiceId: "choice.vn-reference-tour.archive-voice",
+        },
+      } as never)).resolves.toMatchObject({ kind: "committed" });
+
+      for (let index = 0; index < 5; index += 1) await advanceCurrentV1(application);
+      const beforeHold = application.semantic.observe().narrative.pending;
+      if (beforeHold === null || beforeHold.kind !== "say") {
+        throw new TypeError("vn-reference-tour.test_pre_hold_say_missing");
+      }
+      const beforeHoldDigest = application.admin.stateDigest();
+
+      await advanceCurrentV1(application);
+      const hold = application.semantic.observe().narrative.pending;
+      if (hold === null || hold.kind !== "hold") {
+        throw new TypeError("vn-reference-tour.test_hold_missing");
+      }
+      const stepsAtHold = application.rollback.available().steps;
+      await expect(application.semantic.dispatch({
+        kind: "time",
+        tick: { elapsedMs: 400, expectedHoldOccurrenceId: hold.occurrenceId },
+      } as never)).resolves.toMatchObject({ kind: "committed" });
+      expect(application.rollback.available().steps).toBe(stepsAtHold);
+
+      await expect(application.semantic.dispatch({
+        kind: "time",
+        tick: { elapsedMs: 800, expectedHoldOccurrenceId: hold.occurrenceId },
+      } as never)).resolves.toMatchObject({ kind: "committed" });
+      expect(application.semantic.observe().narrative.pending).toMatchObject({
+        kind: "say",
+        textId: expect.stringContaining("text.vn-reference-tour.archive.roof."),
+      });
+      const afterHoldDigest = application.admin.stateDigest();
+
+      await expect(application.rollback.toPrevious()).resolves.toMatchObject({
+        kind: "rolled_back",
+      });
+      expect(application.admin.stateDigest()).toBe(beforeHoldDigest);
+      expect(application.semantic.observe().narrative.pending).toEqual(beforeHold);
+      expect(application.rollback.available().forwardSteps).toBe(1);
+
+      await expect(application.rollback.toNext()).resolves.toMatchObject({
+        kind: "rolled_forward",
+      });
+      expect(application.admin.stateDigest()).toBe(afterHoldDigest);
+      expect(application.rollback.available().forwardSteps).toBe(0);
+
+      await application.rollback.toPrevious();
+      await advanceCurrentV1(application);
+      expect(application.rollback.available().forwardSteps).toBe(0);
     } finally {
       await application.dispose();
     }

@@ -33,6 +33,8 @@ export const templateTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.template.narrative.advance", text: "继续" },
         { textId: "text.template.playback.auto", text: "自动" },
         { textId: "text.template.playback.skip", text: "快进" },
+        { textId: "text.template.playback.back", text: "回退" },
+        { textId: "text.template.playback.forward", text: "前进" },
         { textId: "text.template.playback.history", text: "历史" },
         { textId: "text.template.playback.controls", text: "播放控制" },
         { textId: "text.template.playback.show-ui", text: "显示对话界面" },

@@ -41,6 +41,7 @@ export type {
   CoreRollbackPolicyV1,
   CoreRollbackPortV1,
   CoreRollbackResultV1,
+  CoreRollForwardResultV1,
   CoreSchedulerV1,
   CoreSemanticAdapterV1,
   CreateCoreGameApplicationInstanceOptionsV1,

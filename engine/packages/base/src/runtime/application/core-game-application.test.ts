@@ -69,6 +69,7 @@ import type {
   CoreApplicationHostServicesV1,
   CoreAutosavePolicyV1,
   CoreRebootstrapHandoffInternalV1,
+  CoreRollbackPolicyV1,
   CoreSchedulerV1,
   CoreSemanticAdapterV1,
 } from "./core-game-application.ts";
@@ -149,6 +150,9 @@ interface SyntheticEquivalenceExtensionsV1 {
       readonly kind: "not_executed";
       readonly code: "session_unavailable" | "hmr_invalidated";
     }
+  >;
+  executeDebugAdd(amount: number): ReturnType<
+    CoreApplicationExtensionContextV1<DebugSyntheticSimulationTypesV1>["debugControl"]["execute"]
   >;
   captureCurrentAutoSave(): void;
 }
@@ -597,6 +601,7 @@ function debugDefinitionFixtureV1(options: {
     resolved: unknown,
     executionContext: DebugSyntheticSimulationTypesV1["executionContext"],
   ) => DeepReadonly<SyntheticCounterCommandV1> | null;
+  readonly rollback?: CoreRollbackPolicyV1<SyntheticCounterCommandV1>;
 } = {}) {
   const baseEntry = createSyntheticCounterGamePackageV1();
   let debugExecuteCalls = 0;
@@ -777,6 +782,7 @@ function debugDefinitionFixtureV1(options: {
       { readonly countBefore: number },
       SyntheticResultV1
     >,
+    ...(options.rollback === undefined ? {} : { rollback: options.rollback }),
     ...(options.projectRebootstrapCommand === undefined
       ? {}
       : { projectRebootstrapCommand: options.projectRebootstrapCommand }),
@@ -921,6 +927,11 @@ function debugDefinitionFixtureV1(options: {
           diagnostics,
           codec,
           anchorDebugBundle,
+          executeDebugAdd: (amount: number) =>
+            context.debugControl.execute(
+              Object.freeze({ kind: "debug.synthetic.add" as const, amount }),
+              () => context.capabilityState.getCurrent().debugTools,
+            ),
           captureCurrentAutoSave: () =>
             context.persistence.captureAutoSave(
               snapshotSchema.parse(context.session.getCurrentSnapshot()),
@@ -1158,6 +1169,19 @@ function resolvedRollbackApplicationV1() {
   const result = resolveCoreGameApplicationV1(rollbackDefinitionV1, {
     buildIdentityInput: deterministicBuildIdentityInputV1,
   });
+  if (result.kind !== "resolved") {
+    throw new Error("synthetic rollback story must resolve");
+  }
+  return result.application;
+}
+
+function resolvedRollbackApplicationWithPolicyV1(
+  rollback: CoreRollbackPolicyV1<SyntheticCounterCommandV1>,
+) {
+  const result = resolveCoreGameApplicationV1(
+    defineCoreGameApplicationV1({ ...definitionV1, rollback }),
+    { buildIdentityInput: deterministicBuildIdentityInputV1 },
+  );
   if (result.kind !== "resolved") {
     throw new Error("synthetic rollback story must resolve");
   }
@@ -3884,6 +3908,240 @@ describe("createCoreGameApplicationInstanceV1", () => {
       await instance.dispose();
     }
   });
+
+  it("coalesces transparent commits into one stop and restores the retained future exactly", async () => {
+    const classifications = ["checkpoint", "transparent"] as const;
+    let classificationIndex = 0;
+    const instance = await createCoreGameApplicationInstanceV1(
+      resolvedRollbackApplicationWithPolicyV1({
+        capacity: 4,
+        classify: () => classifications[classificationIndex++] ?? "checkpoint",
+      }),
+      { host: hostServicesV1(createMemoryHostRecordStoreV1()) },
+    );
+
+    try {
+      await instance.semantic.dispatch(incrementV1);
+      await instance.semantic.dispatch(incrementV1);
+      await instance.autoSaveIdle();
+      const forwardSnapshot = instance.admin.inspectForTest().snapshot;
+      const forwardBytes = canonicalJsonBytes(forwardSnapshot);
+      const forwardDigest = instance.admin.stateDigest();
+      expect(instance.rollback.available()).toEqual({ steps: 1, forwardSteps: 0 });
+
+      await expect(instance.rollback.toPrevious()).resolves.toEqual({
+        kind: "rolled_back",
+        commandSequence: 0,
+      });
+      expect(instance.semantic.observe().game).toEqual({ count: 0 });
+      expect(instance.rollback.available()).toEqual({ steps: 0, forwardSteps: 1 });
+      expect(instance.presentationAnchor()).toEqual({ epoch: 1, origin: "rollback" });
+
+      await expect(instance.rollback.toNext()).resolves.toEqual({
+        kind: "rolled_forward",
+        commandSequence: 2,
+      });
+      expect(canonicalJsonBytes(instance.admin.inspectForTest().snapshot)).toEqual(forwardBytes);
+      expect(instance.admin.stateDigest()).toBe(forwardDigest);
+      expect(instance.rollback.available()).toEqual({ steps: 1, forwardSteps: 0 });
+      expect(instance.presentationAnchor()).toEqual({ epoch: 2, origin: "rollforward" });
+    } finally {
+      await instance.dispose();
+    }
+  });
+
+  it("rejects Back queued after a load that replaces its captured timeline", async () => {
+    const instance = await createCoreGameApplicationInstanceV1(
+      resolvedRollbackApplicationV1(),
+      { host: hostServicesV1(createMemoryHostRecordStoreV1()) },
+    );
+
+    try {
+      await expect(instance.persistence.save("manual.1")).resolves.toMatchObject({
+        kind: "saved",
+      });
+      await instance.semantic.dispatch(incrementV1);
+      await instance.semantic.dispatch(incrementV1);
+      expect(instance.rollback.available()).toEqual({ steps: 2, forwardSteps: 0 });
+
+      const load = instance.persistence.load("manual.1");
+      const back = instance.rollback.toPrevious();
+      await expect(load).resolves.toMatchObject({ kind: "loaded", commandSequence: 0 });
+      await expect(back).resolves.toEqual({
+        kind: "rejected",
+        code: "rollback_unavailable",
+      });
+      expect(instance.semantic.observe().game).toEqual({ count: 0 });
+      expect(instance.rollback.available()).toEqual({ steps: 0, forwardSteps: 0 });
+    } finally {
+      await instance.dispose();
+    }
+  });
+
+  it("rejects Back when an earlier same-tick semantic commit advances its checkpoint", async () => {
+    const instance = await createCoreGameApplicationInstanceV1(
+      resolvedRollbackApplicationV1(),
+      { host: hostServicesV1(createMemoryHostRecordStoreV1()) },
+    );
+
+    try {
+      await instance.semantic.dispatch(incrementV1);
+      const commit = instance.semantic.dispatch(incrementV1);
+      const back = instance.rollback.toPrevious();
+
+      await expect(commit).resolves.toEqual({ kind: "committed", count: 2 });
+      await expect(back).resolves.toEqual({
+        kind: "rejected",
+        code: "rollback_unavailable",
+      });
+      expect(instance.semantic.observe().game).toEqual({ count: 2 });
+      expect(instance.rollback.available()).toEqual({ steps: 2, forwardSteps: 0 });
+    } finally {
+      await instance.dispose();
+    }
+  });
+
+  it.each(["checkpoint", "transparent"] as const)(
+    "drops the retained future before a new %s commit",
+    async (branchClassification) => {
+      const classifications = ["checkpoint", "checkpoint", branchClassification] as const;
+      let classificationIndex = 0;
+      const instance = await createCoreGameApplicationInstanceV1(
+        resolvedRollbackApplicationWithPolicyV1({
+          capacity: 4,
+          classify: () => classifications[classificationIndex++] ?? "checkpoint",
+        }),
+        { host: hostServicesV1(createMemoryHostRecordStoreV1()) },
+      );
+
+      try {
+        await instance.semantic.dispatch(incrementV1);
+        await instance.semantic.dispatch(incrementV1);
+        await instance.autoSaveIdle();
+        await expect(instance.rollback.toPrevious()).resolves.toMatchObject({
+          kind: "rolled_back",
+          commandSequence: 1,
+        });
+        expect(instance.rollback.available()).toEqual({ steps: 1, forwardSteps: 1 });
+
+        await instance.semantic.dispatch(incrementV1);
+        await instance.autoSaveIdle();
+        expect(instance.semantic.observe().game).toEqual({ count: 2 });
+        expect(instance.rollback.available()).toEqual({
+          steps: branchClassification === "checkpoint" ? 2 : 1,
+          forwardSteps: 0,
+        });
+        await expect(instance.rollback.toNext()).resolves.toEqual({
+          kind: "rejected",
+          code: "rollforward_unavailable",
+        });
+      } finally {
+        await instance.dispose();
+      }
+    },
+  );
+
+  it("keeps capacity checkpoints behind current and clears both directions at a barrier", async () => {
+    const capacityOne = await createCoreGameApplicationInstanceV1(
+      resolvedRollbackApplicationWithPolicyV1({
+        capacity: 1,
+        classify: () => "checkpoint",
+      }),
+      { host: hostServicesV1(createMemoryHostRecordStoreV1()) },
+    );
+    try {
+      await capacityOne.semantic.dispatch(incrementV1);
+      expect(capacityOne.rollback.available()).toEqual({ steps: 1, forwardSteps: 0 });
+      await capacityOne.semantic.dispatch(incrementV1);
+      expect(capacityOne.rollback.available()).toEqual({ steps: 1, forwardSteps: 0 });
+      await expect(capacityOne.rollback.toPrevious()).resolves.toEqual({
+        kind: "rolled_back",
+        commandSequence: 1,
+      });
+      await expect(capacityOne.rollback.toPrevious()).resolves.toEqual({
+        kind: "rejected",
+        code: "rollback_unavailable",
+      });
+    } finally {
+      await capacityOne.dispose();
+    }
+
+    const classifications = ["checkpoint", "barrier"] as const;
+    let classificationIndex = 0;
+    const barrier = await createCoreGameApplicationInstanceV1(
+      resolvedRollbackApplicationWithPolicyV1({
+        capacity: 4,
+        classify: () => classifications[classificationIndex++] ?? "checkpoint",
+      }),
+      { host: hostServicesV1(createMemoryHostRecordStoreV1()) },
+    );
+    try {
+      await barrier.semantic.dispatch(incrementV1);
+      await barrier.semantic.dispatch(incrementV1);
+      expect(barrier.rollback.available()).toEqual({ steps: 0, forwardSteps: 0 });
+      await expect(barrier.rollback.toPrevious()).resolves.toEqual({
+        kind: "rejected",
+        code: "rollback_unavailable",
+      });
+      await expect(barrier.rollback.toNext()).resolves.toEqual({
+        kind: "rejected",
+        code: "rollforward_unavailable",
+      });
+    } finally {
+      await barrier.dispose();
+    }
+  });
+
+  it.each(["admin", "extension"] as const)(
+    "restarts the timeline at a committed %s debug mutation",
+    async (surface) => {
+      const fixture = debugDefinitionFixtureV1({
+        rollback: Object.freeze({
+          capacity: 4,
+          classify: () => "checkpoint" as const,
+        }),
+      });
+      const resolved = resolveCoreGameApplicationV1(fixture.definition, {
+        buildIdentityInput: deterministicBuildIdentityInputV1,
+      });
+      if (resolved.kind !== "resolved") throw new TypeError("debug synthetic story must resolve");
+      const instance = await createCoreGameApplicationInstanceV1(resolved.application, {
+        host: hostServicesV1(createMemoryHostRecordStoreV1()),
+        capabilities: { debugTools: true },
+      });
+
+      try {
+        await instance.semantic.dispatch(incrementV1);
+        await instance.semantic.dispatch(incrementV1);
+        await instance.autoSaveIdle();
+        await instance.rollback.toPrevious();
+        expect(instance.rollback.available()).toEqual({ steps: 1, forwardSteps: 1 });
+        await expect(
+          surface === "admin"
+            ? instance.admin.debugControl?.execute(
+              Object.freeze({ kind: "debug.synthetic.add", amount: 5 }),
+              () => true,
+            ) ?? Promise.reject(new TypeError("debug control must be enabled"))
+            : (instance.extensions as SyntheticEquivalenceExtensionsV1).executeDebugAdd(5),
+        ).resolves.toMatchObject({
+          kind: "executed",
+          attempt: { result: { kind: "committed" } },
+        });
+        expect(instance.semantic.observe().game).toEqual({ count: 6 });
+        expect(instance.rollback.available()).toEqual({ steps: 0, forwardSteps: 0 });
+        await expect(instance.rollback.toPrevious()).resolves.toEqual({
+          kind: "rejected",
+          code: "rollback_unavailable",
+        });
+        await expect(instance.rollback.toNext()).resolves.toEqual({
+          kind: "rejected",
+          code: "rollforward_unavailable",
+        });
+      } finally {
+        await instance.dispose();
+      }
+    },
+  );
 
   it("leaves no active owner behind after a failed construction", async () => {
     const { counting, writes } = countingRecordsV1();

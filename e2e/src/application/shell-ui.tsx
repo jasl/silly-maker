@@ -66,7 +66,7 @@ const labActionTextIdsV1: Readonly<Record<LabActionIdV1, string>> = {
 
 /**
  * The player rollback control (R7): availability comes from the instance
- * ring on every publication render, and the action is the instance port —
+ * timeline on every publication render, and the action is the instance port —
  * pure player surface, no debug capability involved.
  */
 export function LabRollbackControlV1(props: {
@@ -84,7 +84,7 @@ export function LabRollbackControlV1(props: {
       data-lab-rollback="true"
       data-lab-rollback-steps={String(steps)}
       disabled={steps < 1}
-      onClick={() => void props.instance.rollback.toPrevious()}
+      onClick={() => void rollback.toPrevious()}
     >
       {labUiTextV1("text.e2e.lab.player.rollback")}
     </Button>

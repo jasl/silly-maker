@@ -911,13 +911,14 @@ export type CorePresentationAnchorOriginV1 =
   | "restart"
   | "replay_anchor"
   | "rollback"
+  | "rollforward"
   | "replacement";
 
 /**
  * Instance-local presentation continuity marker. The epoch advances whenever
  * the authoritative replay base is replaced (load, import, restart, debug
- * anchor); it never enters SemanticPublication, semantic revisions, or Agent
- * transcripts.
+ * anchor, rollback, or rollforward); it never enters SemanticPublication,
+ * semantic revisions, or Agent transcripts.
  */
 export interface CorePresentationAnchorV1 {
   readonly epoch: NonNegativeSafeInteger;
@@ -991,17 +992,18 @@ export type CoreRebootstrapStartFailureInternalV1 =
   | { readonly kind: "terminal" };
 
 /**
- * The player-rollback policy (R7): an opt-in, bounded checkpoint ring over
- * committed Snapshots. `classify` marks commands whose commit is a hard
- * barrier — settlements, day changes, irreversible story beats — that
- * rollback can never cross. RNG state travels inside every Snapshot, so a
- * rolled-back retry of the same command reproduces the same outcome
- * (pinned by default; no save-scum rerolls).
+ * The player-rollback policy (R7): an opt-in, bounded checkpoint timeline over
+ * committed Snapshots. `checkpoint` adds an interaction-level stop,
+ * `transparent` updates the current stop without exposing an intermediate
+ * commit, and `barrier` begins a new timeline that rollback cannot cross. RNG
+ * state travels inside every Snapshot, so a rolled-back retry of the same
+ * command reproduces the same outcome (pinned by default; no save-scum
+ * rerolls).
  */
 export interface CoreRollbackPolicyV1<TCommand> {
-  /** Ring capacity (checkpoints kept beyond the current state), 1..256. */
+  /** History capacity (checkpoints kept behind the current state), 1..256. */
   readonly capacity: number;
-  classify(command: DeepReadonly<TCommand>): "checkpoint" | "barrier";
+  classify(command: DeepReadonly<TCommand>): "checkpoint" | "transparent" | "barrier";
 }
 
 export type CoreRollbackResultV1 =
@@ -1014,12 +1016,27 @@ export type CoreRollbackResultV1 =
     readonly code: "rollback_unavailable" | "rollback_unconfigured" | "hmr_invalidated";
   };
 
+export type CoreRollForwardResultV1 =
+  | {
+    readonly kind: "rolled_forward";
+    readonly commandSequence: NonNegativeSafeInteger;
+  }
+  | {
+    readonly kind: "rejected";
+    readonly code: "rollforward_unavailable" | "rollback_unconfigured" | "hmr_invalidated";
+  };
+
 export interface CoreRollbackPortV1 {
-  /** Checkpoints currently reachable behind the live state. */
-  available(): { readonly steps: NonNegativeSafeInteger };
+  /** Checkpoints currently reachable on either side of the live state. */
+  available(): {
+    readonly steps: NonNegativeSafeInteger;
+    readonly forwardSteps: NonNegativeSafeInteger;
+  };
   /** Restores the checkpoint `steps` behind the live state (default 1). */
   toPrevious(steps?: number): Promise<CoreRollbackResultV1>;
-  /** Notifies after every ring change (commit, rollback, reseed). */
+  /** Restores the checkpoint `steps` ahead of the live state (default 1). */
+  toNext(steps?: number): Promise<CoreRollForwardResultV1>;
+  /** Notifies after every timeline change (commit, navigation, reseed). */
   subscribe(listener: () => void): () => void;
 }
 
@@ -1067,7 +1084,7 @@ export interface CoreGameApplicationInstanceV1<
   readonly lifecycle: {
     restart(): Promise<SessionAnchorResultV1>;
   };
-  /** Player rollback over the bounded checkpoint ring (R7). */
+  /** Player navigation over the bounded checkpoint timeline (R7). */
   readonly rollback: CoreRollbackPortV1;
   readonly diagnostics: {
     runtimeFailures(): readonly RuntimeOperationFaultV1[];
@@ -1099,7 +1116,7 @@ export interface CoreGameApplicationInstanceV1<
    * accepted 2026-08-17): scene cue dispatches projected from that commit's
    * events, stamped with exactly its semantic publication revision and the
    * presentation epoch at commit time. Nothing is stored beyond the latest
-   * batch, anchor replacement (load/import/restart/rollback) clears it, and
+   * batch, anchor replacement (load/import/restart/rollback/rollforward) clears it, and
    * consumers must drop a batch whose revision or epoch does not match the
    * publication they present — absence degrades to context-free resolution.
    */
@@ -1753,13 +1770,17 @@ export async function createCoreGameApplicationInstanceV1<
     cleanups.push(
       created.session.subscribe(() => {
         const replayBase = created.commandLog.replayBase();
-        if (replayBase === lastReplayBase) return;
-        lastReplayBase = replayBase;
-        epoch = parseNonNegativeSafeInteger(epoch + 1);
-        latestStageCueDispatchBatchV1 = null;
         const publicationContext = readActiveAuthoritativeReplacementPublicationContextInternalV1(
           created.runtimeControl,
         );
+        // Replacing the live Session with the existing replay-base Snapshot is
+        // still an authoritative presentation discontinuity (for example,
+        // Back to the bootstrap checkpoint). Ordinary commits have no active
+        // replacement context and remain silent when the base is unchanged.
+        if (replayBase === lastReplayBase && publicationContext === null) return;
+        lastReplayBase = replayBase;
+        epoch = parseNonNegativeSafeInteger(epoch + 1);
+        latestStageCueDispatchBatchV1 = null;
         if (publicationContext === null) {
           origin = "replacement";
         } else {
@@ -1773,11 +1794,11 @@ export async function createCoreGameApplicationInstanceV1<
         // Safepoint tracking belongs to the replaced base too: the new
         // anchor's classification starts fresh on its first commit.
         resetSafepointTrackingForAnchorV1();
-        // A replaced replay base invalidates the rollback lineage — except
-        // for rollback itself, which already trimmed the surviving prefix.
-        if (!rollingBack && rollbackCapacity > 0) {
-          rollbackRing = [currentCheckpointV1()];
-          notifyRollbackV1();
+        // External replay-base replacement starts a new rollback lineage.
+        // Timeline navigation retains both sides and moves its cursor after
+        // the authoritative replacement succeeds.
+        if (origin !== "rollback" && origin !== "rollforward") {
+          resetRollbackTimelineV1();
         }
         const anchor = currentAnchorV1();
         const event: CorePresentationAnchorEventInternalV1 = {
@@ -2219,14 +2240,14 @@ export async function createCoreGameApplicationInstanceV1<
     };
     const restartV1 = (): Promise<SessionAnchorResultV1> => prepareRestartV1().run();
 
-    // Player rollback (R7): a bounded ring of committed Snapshots. The ring
-    // is instance-local presentation-adjacent state — it never enters Saves
-    // — and it reseeds from the live Snapshot whenever the replay base is
-    // replaced (load, import, restart, debug anchor), so rollback can never
-    // cross into a different lineage. A barrier commit clears everything
-    // behind it. Checkpoints retain engine-owned Snapshot references; mutating
-    // them through casts or other unsupported JavaScript tricks is outside the
-    // runtime contract.
+    // Player rollback (R7): a bounded timeline of committed Snapshots. The
+    // timeline is instance-local presentation-adjacent state — it never enters
+    // Saves — and it reseeds from the live Snapshot whenever the replay base
+    // is replaced (load, import, restart, debug anchor), so rollback can never
+    // cross into a different lineage. A new commit after Back drops the future
+    // branch before its policy is applied. Checkpoints retain engine-owned
+    // Snapshot references; mutating them through casts or other unsupported
+    // JavaScript tricks is outside the runtime contract.
     interface RollbackCheckpointV1 {
       readonly snapshot: DeepReadonly<TTypes["snapshot"]>;
       readonly commandSequence: NonNegativeSafeInteger;
@@ -2235,8 +2256,10 @@ export async function createCoreGameApplicationInstanceV1<
     const rollbackCapacity = rollbackPolicy === null
       ? 0
       : Math.max(1, Math.min(256, Math.trunc(rollbackPolicy.capacity)));
-    let rollbackRing: RollbackCheckpointV1[] = [];
-    let rollingBack = false;
+    let rollbackTimeline: RollbackCheckpointV1[] = [];
+    let rollbackCursor = 0;
+    let rollbackTimelineGeneration = 0;
+    let navigatingRollbackTimeline = false;
     const rollbackListeners = new Set<() => void>();
     cleanups.push(() => rollbackListeners.clear());
     const notifyRollbackV1 = (): void => {
@@ -2248,6 +2271,10 @@ export async function createCoreGameApplicationInstanceV1<
         }
       }
     };
+    const publishRollbackTimelineChangeV1 = (): void => {
+      rollbackTimelineGeneration += 1;
+      notifyRollbackV1();
+    };
 
     const currentCheckpointV1 = (): RollbackCheckpointV1 => {
       const snapshot = created.session.getCurrentSnapshot();
@@ -2258,6 +2285,13 @@ export async function createCoreGameApplicationInstanceV1<
       };
     };
 
+    const resetRollbackTimelineV1 = (): void => {
+      if (rollbackCapacity === 0) return;
+      rollbackTimeline = [currentCheckpointV1()];
+      rollbackCursor = 0;
+      publishRollbackTimelineChangeV1();
+    };
+
     function recordRollbackCheckpointV1(
       command: DeepReadonly<TTypes["command"]>,
       result: SessionDispatchResultOfV1<TTypes>,
@@ -2266,20 +2300,120 @@ export async function createCoreGameApplicationInstanceV1<
       if (result.kind !== "executed" || result.execution.kind !== "committed") {
         return;
       }
-      // The pre-commit state is already in the ring (seeded at bootstrap and
-      // after every commit). A barrier commit invalidates everything behind
-      // itself: the post-barrier state becomes the new earliest checkpoint.
-      if (rollbackPolicy.classify(command) === "barrier") {
-        rollbackRing = [currentCheckpointV1()];
-        notifyRollbackV1();
+      // Any new commit after Back chooses a new branch. Classification then
+      // decides whether the post-commit Snapshot starts a new lineage, adds a
+      // user-visible stop, or only advances the current stop.
+      rollbackTimeline = rollbackTimeline.slice(0, rollbackCursor + 1);
+      const classification = rollbackPolicy.classify(command);
+      if (classification === "barrier") {
+        rollbackTimeline = [currentCheckpointV1()];
+        rollbackCursor = 0;
+        publishRollbackTimelineChangeV1();
         return;
       }
-      rollbackRing.push(currentCheckpointV1());
-      if (rollbackRing.length > rollbackCapacity) {
-        rollbackRing = rollbackRing.slice(rollbackRing.length - rollbackCapacity);
+      if (classification === "transparent") {
+        rollbackTimeline[rollbackCursor] = currentCheckpointV1();
+        publishRollbackTimelineChangeV1();
+        return;
       }
-      notifyRollbackV1();
+      rollbackTimeline.push(currentCheckpointV1());
+      rollbackCursor = rollbackTimeline.length - 1;
+      const maximumEntries = rollbackCapacity + 1;
+      if (rollbackTimeline.length > maximumEntries) {
+        rollbackTimeline = rollbackTimeline.slice(rollbackTimeline.length - maximumEntries);
+        rollbackCursor = rollbackTimeline.length - 1;
+      }
+      publishRollbackTimelineChangeV1();
     }
+
+    const navigateRollbackTimelineV1 = async (
+      targetIndex: number,
+      navigationOrigin: "rollback" | "rollforward",
+    ): Promise<
+      | {
+        readonly kind: "anchored";
+        readonly commandSequence: NonNegativeSafeInteger;
+      }
+      | { readonly kind: "unavailable" }
+      | { readonly kind: "hmr_invalidated" }
+    > => {
+      const sourceCursor = rollbackCursor;
+      const sourceCheckpoint = rollbackTimeline[sourceCursor];
+      const target = rollbackTimeline[targetIndex];
+      const timelineGeneration = rollbackTimelineGeneration;
+      if (sourceCheckpoint === undefined || target === undefined || navigatingRollbackTimeline) {
+        return { kind: "unavailable" };
+      }
+      navigatingRollbackTimeline = true;
+      try {
+        const anchored = await withOriginV1(
+          navigationOrigin,
+          (publicationContext) =>
+            created.runtimeControl.enqueueAuthoritative<
+              SessionAnchorResultV1 | { readonly kind: "unavailable" }
+            >(
+              async (current) => {
+                if (
+                  rollbackTimelineGeneration !== timelineGeneration ||
+                  rollbackCursor !== sourceCursor ||
+                  rollbackTimeline[sourceCursor] !== sourceCheckpoint ||
+                  rollbackTimeline[targetIndex] !== target ||
+                  current !== sourceCheckpoint.snapshot
+                ) {
+                  return {
+                    kind: "preserve" as const,
+                    result: { kind: "unavailable" as const },
+                  };
+                }
+                const outcome = {
+                  kind: "replace" as const,
+                  snapshot: target.snapshot as TTypes["snapshot"],
+                  result: {
+                    kind: "anchored" as const,
+                    commandSequence: target.commandSequence,
+                  },
+                  anchor: "replace_replay_base" as const,
+                };
+                bindPersistenceAnchorReplacementInternalV1(
+                  persistence,
+                  outcome,
+                  [],
+                  () => {
+                    rollbackCursor = targetIndex;
+                    publishRollbackTimelineChangeV1();
+                  },
+                  () => ({
+                    kind: "faulted" as const,
+                    code: "runtime.anchor_failed" as const,
+                  }),
+                  publicationContext,
+                );
+                return outcome;
+              },
+              () => ({
+                kind: "faulted" as const,
+                code: "runtime.anchor_failed" as const,
+              }),
+              undefined,
+              () => ({
+                kind: "rejected" as const,
+                code: "hmr_invalidated" as const,
+              }),
+            ),
+        );
+        if (anchored.kind !== "anchored") {
+          return anchored.kind === "rejected" && anchored.code === "hmr_invalidated"
+            ? { kind: "hmr_invalidated" }
+            : { kind: "unavailable" };
+        }
+        return {
+          kind: "anchored",
+          commandSequence: target.commandSequence,
+        };
+      } finally {
+        navigatingRollbackTimeline = false;
+      }
+    };
 
     const rollbackPortV1: CoreRollbackPortV1 = {
       subscribe(listener: () => void): () => void {
@@ -2287,9 +2421,10 @@ export async function createCoreGameApplicationInstanceV1<
         return () => rollbackListeners.delete(listener);
       },
       available: () => ({
-        // The newest ring entry mirrors the live state; reachable
-        // checkpoints are the ones strictly behind it.
-        steps: parseNonNegativeSafeInteger(Math.max(0, rollbackRing.length - 1)),
+        steps: parseNonNegativeSafeInteger(rollbackCursor),
+        forwardSteps: parseNonNegativeSafeInteger(
+          Math.max(0, rollbackTimeline.length - rollbackCursor - 1),
+        ),
       }),
       toPrevious: async (steps = 1): Promise<CoreRollbackResultV1> => {
         if (rollbackPolicy === null) {
@@ -2301,95 +2436,97 @@ export async function createCoreGameApplicationInstanceV1<
         if (
           !Number.isSafeInteger(steps) ||
           steps < 1 ||
-          steps > Math.max(0, rollbackRing.length - 1) ||
-          rollingBack
+          steps > rollbackCursor ||
+          navigatingRollbackTimeline
         ) {
           return {
             kind: "rejected" as const,
             code: "rollback_unavailable" as const,
           };
         }
-        const targetIndex = rollbackRing.length - 1 - steps;
-        const target = rollbackRing[targetIndex];
-        if (target === undefined) {
-          return {
-            kind: "rejected" as const,
-            code: "rollback_unavailable" as const,
-          };
-        }
-        rollingBack = true;
-        try {
-          const anchored = await withOriginV1(
-            "rollback",
-            (publicationContext) =>
-              created.runtimeControl.enqueueAuthoritative<SessionAnchorResultV1>(
-                async () => {
-                  const outcome = {
-                    kind: "replace" as const,
-                    snapshot: target.snapshot as TTypes["snapshot"],
-                    result: {
-                      kind: "anchored" as const,
-                      commandSequence: target.commandSequence,
-                    },
-                    anchor: "replace_replay_base" as const,
-                  };
-                  bindPersistenceAnchorReplacementInternalV1(
-                    persistence,
-                    outcome,
-                    [],
-                    undefined,
-                    () => ({
-                      kind: "faulted" as const,
-                      code: "runtime.anchor_failed" as const,
-                    }),
-                    publicationContext,
-                  );
-                  return outcome;
-                },
-                () => ({
-                  kind: "faulted" as const,
-                  code: "runtime.anchor_failed" as const,
-                }),
-                undefined,
-                () => ({
-                  kind: "rejected" as const,
-                  code: "hmr_invalidated" as const,
-                }),
-              ),
-          );
-          if (anchored.kind !== "anchored") {
-            return anchored.kind === "rejected" && anchored.code === "hmr_invalidated"
-              ? {
-                kind: "rejected" as const,
-                code: "hmr_invalidated" as const,
-              }
-              : {
-                kind: "rejected" as const,
-                code: "rollback_unavailable" as const,
-              };
-          }
-          // Keep the target and everything before it: the player may step
-          // further back. (The anchor listener reseeds the ring on replay
-          // base replacement; trim to the target here so the reseed appends
-          // onto the surviving prefix.)
-          rollbackRing = rollbackRing.slice(0, targetIndex + 1);
-          notifyRollbackV1();
+        const navigated = await navigateRollbackTimelineV1(
+          rollbackCursor - steps,
+          "rollback",
+        );
+        if (navigated.kind === "anchored") {
           return {
             kind: "rolled_back" as const,
-            commandSequence: target.commandSequence,
+            commandSequence: navigated.commandSequence,
           };
-        } finally {
-          rollingBack = false;
         }
+        return {
+          kind: "rejected" as const,
+          code: navigated.kind === "hmr_invalidated"
+            ? "hmr_invalidated" as const
+            : "rollback_unavailable" as const,
+        };
+      },
+      toNext: async (steps = 1): Promise<CoreRollForwardResultV1> => {
+        if (rollbackPolicy === null) {
+          return {
+            kind: "rejected" as const,
+            code: "rollback_unconfigured" as const,
+          };
+        }
+        if (
+          !Number.isSafeInteger(steps) ||
+          steps < 1 ||
+          steps > rollbackTimeline.length - rollbackCursor - 1 ||
+          navigatingRollbackTimeline
+        ) {
+          return {
+            kind: "rejected" as const,
+            code: "rollforward_unavailable" as const,
+          };
+        }
+        const navigated = await navigateRollbackTimelineV1(
+          rollbackCursor + steps,
+          "rollforward",
+        );
+        if (navigated.kind === "anchored") {
+          return {
+            kind: "rolled_forward" as const,
+            commandSequence: navigated.commandSequence,
+          };
+        }
+        return {
+          kind: "rejected" as const,
+          code: navigated.kind === "hmr_invalidated"
+            ? "hmr_invalidated" as const
+            : "rollforward_unavailable" as const,
+        };
       },
     };
 
-    // Seed the rollback ring with the bootstrap state so the first commit
+    // Seed the rollback timeline with the bootstrap state so the first commit
     // already has a checkpoint behind it.
-    if (rollbackCapacity > 0) rollbackRing = [currentCheckpointV1()];
+    if (rollbackCapacity > 0) rollbackTimeline = [currentCheckpointV1()];
 
     // Story extensions: composer-constructed, composer-disposed. The UI
     // context reader binds late (after the UI composition mounts).
+    const applicationDebugControlV1: GameSessionDebugControlV1<TTypes> = {
+      ...validatedDebugControl,
+      execute: async (
+        command: DeepReadonly<TTypes["debugCommand"]>,
+        isCapabilityEnabled: () => boolean,
+      ) => {
+        const result = await validatedDebugControl.execute(command, isCapabilityEnabled);
+        if (result.kind === "executed" && result.attempt.result.kind === "committed") {
+          // Debug execution is an out-of-band mutation authority rather than
+          // a player checkpoint. Start a fresh timeline at the committed
+          // Snapshot so Back/Forward cannot restore stale pre-debug state.
+          resetRollbackTimelineV1();
+          // Dispatch batches for committed debug commands are staged by
+          // `onAttempt` and stamped by the semantic-port subscriber, exactly
+          // like gameplay commits.
+          const committedEvents = result.attempt.result
+            .events as readonly DeepReadonly<TTypes["event"]>[];
+          emitTransientEffectsFromEventsV1(committedEvents);
+          emitNarrativeAsideFromEventsV1(committedEvents);
+        }
+        return result;
+      },
+    };
     let uiContextReader: (() => unknown) | undefined;
     const capabilityStateV1 = options.capabilityState ?? {
       getCurrent: () => ({
@@ -2411,7 +2548,7 @@ export async function createCoreGameApplicationInstanceV1<
         },
         runtimeControl: validatedRuntimeControl,
         commandLog: created.commandLog,
-        debugControl: validatedDebugControl,
+        debugControl: applicationDebugControlV1,
         invalidationController: {
           invalidateForHmr: invalidateForHmrV1,
         },
@@ -2630,28 +2767,7 @@ export async function createCoreGameApplicationInstanceV1<
       lastFaultCause: () => created.session.getLastFaultCause(),
       ...(options.capabilities?.debugTools === true
         ? {
-          debugControl: {
-            ...validatedDebugControl,
-            // Committed debug commands raise the same commit-only
-            // transient effects as gameplay: tuning previews (forced
-            // encounters, SFX) render through one path.
-            execute: async (
-              command: DeepReadonly<TTypes["debugCommand"]>,
-              isCapabilityEnabled: () => boolean,
-            ) => {
-              const result = await validatedDebugControl.execute(command, isCapabilityEnabled);
-              if (result.kind === "executed" && result.attempt.result.kind === "committed") {
-                // Dispatch batches for committed debug commands are staged
-                // by `onAttempt` and stamped by the semantic-port
-                // subscriber, exactly like gameplay commits.
-                const committedEvents = result.attempt.result
-                  .events as readonly DeepReadonly<TTypes["event"]>[];
-                emitTransientEffectsFromEventsV1(committedEvents);
-                emitNarrativeAsideFromEventsV1(committedEvents);
-              }
-              return result;
-            },
-          },
+          debugControl: applicationDebugControlV1,
         }
         : {}),
     };

@@ -69,24 +69,45 @@
   text-wrap: pretty;
 }
 
-.return-button {
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
   justify-self: start;
-  min-block-size: 3rem;
   margin-block-start: 0.65rem;
+}
+
+.back-button,
+.return-button {
+  min-block-size: 3rem;
   padding: 0.7rem 1.15rem;
   border: 1px solid rgb(255 255 255 / 24%);
   border-radius: 0.35rem;
-  color: #16202b;
-  background: var(--vn-ending-signal);
   cursor: pointer;
   font: inherit;
   font-weight: 760;
   transition: filter 130ms ease, transform 130ms ease;
 }
 
+.back-button {
+  color: var(--vn-ending-ink);
+  background: rgb(255 255 255 / 8%);
+}
+
+.return-button {
+  color: #16202b;
+  background: var(--vn-ending-signal);
+}
+
+.back-button:focus-visible,
 .return-button:focus-visible {
   outline: 3px solid var(--vn-ending-focus);
   outline-offset: 3px;
+}
+
+.back-button:disabled {
+  cursor: default;
+  opacity: 0.5;
 }
 
 .return-button:disabled {
@@ -94,6 +115,7 @@
   opacity: 0.72;
 }
 
+.back-button:hover:not(:disabled),
 .return-button:hover:not(:disabled) {
   filter: brightness(1.08);
   transform: translateY(-1px);
@@ -122,12 +144,15 @@
     font-size: clamp(1.75rem, 8cqi, 2.6rem);
   }
 
+  .actions,
+  .back-button,
   .return-button {
     inline-size: 100%;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .back-button,
   .return-button {
     transition: none;
   }

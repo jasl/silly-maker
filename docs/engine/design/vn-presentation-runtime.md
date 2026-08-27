@@ -128,7 +128,7 @@ Presentation Clock 是可注入 Host-neutral interface。浏览器使用 monoton
 
 Save 不记录 elapsed time。Load/HMR 时 renderer 丢弃旧 transient tree，恢复 target；如果仍有合法 barrier，就按恢复策略重新播放或立即 settle/acknowledge，而不是伪造原动画进度。
 
-每次 projection 产生的 `RuntimePresentationPublication` 还要携带非 gameplay 的 presentation anchor，例如 `{ epoch, cause }`。`cause` 至少区分 bootstrap、dispatch、load、rollback、replay 和 rebootstrap/HMR；load、rollback 或 rebootstrap 会提升 epoch。Transition、voice、SFX 和其他一次性 effect 的迟到 callback 必须同时匹配当前 epoch 与 occurrence/run ID，否则被丢弃。该 anchor 用于隔离表现生命周期，不进入 SemanticPublication、semantic revision、Agent transcript、Game State、Save digest 或 CommandLog。
+每次 projection 产生的 `RuntimePresentationPublication` 还要携带非 gameplay 的 presentation anchor，例如 `{ epoch, cause }`。`cause` 至少区分 bootstrap、dispatch、load、rollback、rollforward、replay 和 rebootstrap/HMR；load、rollback、rollforward 或 rebootstrap 会提升 epoch。Transition、voice、SFX 和其他一次性 effect 的迟到 callback 必须同时匹配当前 epoch 与 occurrence/run ID，否则被丢弃。该 anchor 用于隔离表现生命周期，不进入 SemanticPublication、semantic revision、Agent transcript、Game State、Save digest 或 CommandLog。
 
 每个 committed Snapshot 仍然是合法 Save 候选，但浏览器持久化不能因此在每句台词后立即写 IndexedDB。Application composer 接受可注入的 autosave/checkpoint policy，按显式 checkpoint、debounce、最大等待和 page lifecycle 决定何时刷盘；测试可使用同步 policy。节流只影响持久化时机，不改变 Snapshot 是否可保存，也不能让 UI 自行选择另一份 State。
 
@@ -176,7 +176,7 @@ focus/inert、History、Barrier completion 与 successor fencing。
 
 活动 VN M2 已在这条 seam 上交付第一版引擎维护的 focused default VN Player preset。VN application
 必须显式选择它；`DefaultGameRootV1` 不会隐式 import、安装或渲染 VN UI。preset 拥有一套
-Ren'Py-aligned 的默认对话/选项/History/playback chrome、say-only 全画布推进与 Ctrl/Tab/H
+Ren'Py-aligned 的默认对话/选项/History/playback chrome、say-only 全画布推进、Ctrl/Tab/H 与 Back/Forward
 交互/输入政策，但只消费上述 projection/actions，不新增 gameplay State、player state machine 或
 writable writer。产品继续拥有主题与品牌、Story、Stage/media renderer 和特殊 surface；可以覆盖
 preset 的表现，也可以 eject/替换整个 renderer。替换必须取代 preset，而不是与它并行安装第二个
@@ -201,19 +201,20 @@ writable lifecycle authority。
   负责 `H` 的 transient modal hide/show、始终可恢复的输入路径，以及 Auto/Skip in-flight advance
   收敛后的进入边界；
 - **Voice replay**：S4 V1只允许exact current ready-active Say通过captured optional voice callable重播；History voice replay延期；
+- **Back/Forward**：PageUp/PageDown、滚轮和 chrome 按钮消费同一个 Core Snapshot timeline；History/隐藏态不建立第二个输入或历史 owner；
 - **Playback policy**：normal、auto、skip 的一套显式状态机。
 
-History、Seen、CommandLog、Debug replay 和未来 Player rollback 是五个不同概念：
+History、Seen、CommandLog、Debug replay 和 Player Back/Forward 是五个不同概念：
 
 - History 面向玩家阅读；
 - Seen 面向“是否已读”和跨周目策略；
 - CommandLog 面向诊断；
 - Debug replay 面向复现；
-- Rollback 面向恢复到可交互的历史 GameSnapshot。
+- Back/Forward 面向在可交互的历史 GameSnapshot 时间线上导航。
 
 第一版明确采用以下持久化边界：
 
-- NarrativeHistory 是 Story/Narrative authoritative State 中的稳定语义记录，进入 Save，并随 Player rollback 恢复到 checkpoint 对应内容；
+- NarrativeHistory 是 Story/Narrative authoritative State 中的稳定语义记录，进入 Save，并随 Player Back/Forward 恢复到 checkpoint 对应内容；
 - Seen registry 与文本速度、auto wait、skip policy、`skipCutscenes`、音量等 preference 属于 Host profile，不进入单个 Game Save，也不随 rollback 撤销；`skipCutscenes` 只允许 Story 立即结算明确可跳过的 PresentationRun、wait 或 fade 到稳定终值，不得跳过 PendingInteraction、choice、权威 scheduler time 或 semantic command；
 - 当前 typewriter cursor、hover、focus 和临时 auto/skip 执行状态属于 UI transient state，load 后按 preference 与当前 PendingInteraction 重建。
 
@@ -335,15 +336,17 @@ Editor 输出普通 TS 或由 TS 引用的稳定 Story data。编辑器预览不
 
 ## 11. Player rollback path
 
-Rollback 是后续正式能力，不再被列为永久 non-goal。设计基于现有 immutable GameSnapshot：
+Player Back/Forward 已基于现有 immutable GameSnapshot 交付：
 
-- Session 保存 bounded checkpoint ring；
+- Core 保存一条 bounded checkpoint timeline 与 current cursor，不建立独立 Forward ring；
 - checkpoint 同时包含 State、RNG、command sequence 和必要 identity metadata；
-- Story/engine 声明 soft checkpoint、hard barrier 和 pinned-outcome policy；
+- Story 声明 player-visible `checkpoint`、内部结算 `transparent` 与不可跨越的 `barrier`；
 - 营业结算、跨日、外部副作用或明确不可逆剧情可以形成 barrier；
-- rollback 恢复 Snapshot 后重新投影 settled Stage target、PendingInteraction 和 audio intent；
+- Back/Forward 都通过权威 Snapshot replacement 恢复并重新投影 settled Stage target、PendingInteraction 和 audio intent；
+- Back 保留已执行 Snapshot 后缀供 Forward 使用；任一新 commit 先丢弃该后缀；
+- load/import/restart/rebootstrap/debug mutation 重置 timeline，不能跨 authoritative lineage 导航；
 - renderer transient state、SFX 和 seen profile 不回滚；
-- roll-forward choice data 在真实需求出现后增加。
+- 两方向导航提升 presentation epoch，迟到的 transition/audio callback 仍受 existing fencing 拒绝。
 
 默认 rollback 恢复 checkpoint 中的 RNG state，checkpoint 之后的随机结果随 State 一并撤销；若某个结算需要防止反复重掷，Story 必须显式保存 pinned outcome 或在结算处建立 hard barrier，而不是让 renderer/Host 私自保留随机结果。
 

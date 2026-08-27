@@ -35,6 +35,8 @@ export const systemInputActionIdsV1 = {
  * PendingInteraction through the semantic contract.
  */
 export const playerInputActionIdsV1 = {
+  rollback: parseInputActionIdV1("player.rollback"),
+  rollForward: parseInputActionIdV1("player.roll_forward"),
   toggleAuto: parseInputActionIdV1("player.toggle_auto"),
   toggleSkip: parseInputActionIdV1("player.toggle_skip"),
   toggleHistory: parseInputActionIdV1("player.toggle_history"),

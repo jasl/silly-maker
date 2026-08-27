@@ -40,6 +40,8 @@ export const vnReferenceTourTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogS
         { textId: "text.vn-reference-tour.narrative.advance", text: "继续" },
         { textId: "text.vn-reference-tour.playback.auto", text: "自动" },
         { textId: "text.vn-reference-tour.playback.skip", text: "快进" },
+        { textId: "text.vn-reference-tour.playback.back", text: "回退" },
+        { textId: "text.vn-reference-tour.playback.forward", text: "前进" },
         { textId: "text.vn-reference-tour.playback.history", text: "历史" },
         { textId: "text.vn-reference-tour.playback.voice", text: "语音" },
         { textId: "text.vn-reference-tour.playback.controls", text: "播放控制" },

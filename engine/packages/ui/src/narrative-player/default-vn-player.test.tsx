@@ -5,10 +5,12 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { userEvent } from "@testing-library/user-event";
 import {
   emptyNarrativeHistoryV1,
+  parseNonNegativeSafeInteger,
   parsePendingInteractionV1,
   type PendingInteractionV1,
 } from "@sillymaker/base";
 import { defaultPlayerProfileV1 } from "@sillymaker/base/runtime";
+import type { CoreRollbackPortV1 } from "@sillymaker/base/runtime";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { playerInputActionIdsV1, systemInputActionIdsV1 } from "../input/contracts.ts";
@@ -20,7 +22,10 @@ import type {
   NarrativeSurfaceHistoryRendererPropsV1,
   NarrativeSurfaceRendererPropsV1,
 } from "../narrative/narrative-surface-composition.tsx";
-import { createDefaultVnPlayerV1 } from "./default-vn-player.tsx";
+import {
+  createDefaultVnPlayerV1,
+  type CreateDefaultVnPlayerInputV1,
+} from "./default-vn-player.tsx";
 
 afterEach(cleanup);
 
@@ -151,6 +156,53 @@ function createHeldInputHarnessV1() {
   };
 }
 
+function createRollbackHarnessV1(input: {
+  readonly steps?: number;
+  readonly forwardSteps?: number;
+} = {}) {
+  let steps = input.steps ?? 0;
+  let forwardSteps = input.forwardSteps ?? 0;
+  const listeners = new Set<() => void>();
+  const toPrevious = vi.fn(async () => ({
+    kind: "rejected" as const,
+    code: "rollback_unavailable" as const,
+  }));
+  const toNext = vi.fn(async () => ({
+    kind: "rejected" as const,
+    code: "rollforward_unavailable" as const,
+  }));
+  const port: CoreRollbackPortV1 = {
+    available: () => ({
+      steps: parseNonNegativeSafeInteger(steps),
+      forwardSteps: parseNonNegativeSafeInteger(forwardSteps),
+    }),
+    toPrevious,
+    toNext,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+  return {
+    port,
+    toPrevious,
+    toNext,
+    setAvailable(next: { readonly steps: number; readonly forwardSteps: number }): void {
+      steps = next.steps;
+      forwardSteps = next.forwardSteps;
+      for (const listener of listeners) listener();
+    },
+  };
+}
+
+function createPlayerV1(input: Partial<CreateDefaultVnPlayerInputV1> = {}) {
+  return createDefaultVnPlayerV1({
+    heldInput: input.heldInput ?? createHeldInputHarnessV1().port,
+    rollback: input.rollback ?? createRollbackHarnessV1().port,
+    ...(input.labelTextIds === undefined ? {} : { labelTextIds: input.labelTextIds }),
+  });
+}
+
 function renderPlayerV1(input: {
   readonly player: ReturnType<typeof createDefaultVnPlayerV1>;
   readonly props: NarrativeSurfaceRendererPropsV1;
@@ -177,11 +229,13 @@ function renderPlayerV1(input: {
 describe("createDefaultVnPlayerV1", () => {
   it("returns conventional VN input defaults and resolves product-owned label text IDs", () => {
     const held = createHeldInputHarnessV1();
-    const player = createDefaultVnPlayerV1({
+    const player = createPlayerV1({
       heldInput: held.port,
       labelTextIds: {
         advance: "label.advance",
         playbackControls: "label.playback",
+        back: "label.back",
+        forward: "label.forward",
         history: "label.history",
         voice: "label.voice",
         skip: "label.skip",
@@ -196,10 +250,16 @@ describe("createDefaultVnPlayerV1", () => {
         Enter: systemInputActionIdsV1.narrativeAdvance,
         KeyH: playerInputActionIdsV1.toggleUi,
         KeyV: playerInputActionIdsV1.replayVoice,
+        PageDown: playerInputActionIdsV1.rollForward,
+        PageUp: playerInputActionIdsV1.rollback,
         Space: systemInputActionIdsV1.narrativeAdvance,
         Tab: playerInputActionIdsV1.toggleSkip,
       },
       held: { Control: playerInputActionIdsV1.fastForward },
+      pointer: {
+        wheelDown: playerInputActionIdsV1.rollForward,
+        wheelUp: playerInputActionIdsV1.rollback,
+      },
     });
 
     const props = {
@@ -208,6 +268,8 @@ describe("createDefaultVnPlayerV1", () => {
         ({
           "label.advance": "下一句",
           "label.playback": "播放控制",
+          "label.back": "回退",
+          "label.forward": "前进",
           "label.history": "回想",
           "label.voice": "语音",
           "label.skip": "快进",
@@ -219,15 +281,19 @@ describe("createDefaultVnPlayerV1", () => {
 
     expect(screen.getByRole("button", { name: "下一句" })).toBeVisible();
     expect(screen.getByRole("navigation", { name: "播放控制" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "回退" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "前进" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "回想" })).toBeVisible();
     expect(screen.getByRole("button", { name: "语音" })).toBeVisible();
     expect(screen.getByRole("button", { name: "快进" })).toBeVisible();
     expect(screen.getByRole("button", { name: "自动" })).toBeVisible();
+    expect(playerInputActionIdsV1.rollback).toBe("player.rollback");
+    expect(playerInputActionIdsV1.rollForward).toBe("player.roll_forward");
   });
 
   it("advances only a Say from the full canvas and returns pointer focus to Narrative", async () => {
     const callbacks = callbacksV1();
-    const player = createDefaultVnPlayerV1({ heldInput: createHeldInputHarnessV1().port });
+    const player = createPlayerV1();
     const view = renderPlayerV1({ player, props: dialoguePropsV1({ callbacks }) });
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Continue" }));
@@ -238,7 +304,7 @@ describe("createDefaultVnPlayerV1", () => {
 
   it("replays the current Say voice from the default playback bar and restores focus", async () => {
     const callbacks = callbacksV1();
-    const player = createDefaultVnPlayerV1({ heldInput: createHeldInputHarnessV1().port });
+    const player = createPlayerV1();
     const view = renderPlayerV1({
       player,
       props: dialoguePropsV1({ callbacks, voiceReplayAvailable: true }),
@@ -255,7 +321,7 @@ describe("createDefaultVnPlayerV1", () => {
   });
 
   it("omits voice replay when the current Say has no replayable voice", () => {
-    const player = createDefaultVnPlayerV1({ heldInput: createHeldInputHarnessV1().port });
+    const player = createPlayerV1();
     renderPlayerV1({ player, props: dialoguePropsV1() });
 
     expect(screen.queryByRole("button", { name: "Voice" })).toBeNull();
@@ -263,7 +329,7 @@ describe("createDefaultVnPlayerV1", () => {
 
   it("renders Choice availability without a full-canvas advance surface", async () => {
     const callbacks = callbacksV1();
-    const player = createDefaultVnPlayerV1({ heldInput: createHeldInputHarnessV1().port });
+    const player = createPlayerV1();
     const view = renderPlayerV1({
       player,
       props: dialoguePropsV1({
@@ -291,10 +357,63 @@ describe("createDefaultVnPlayerV1", () => {
     expect(callbacks.onChoose).toHaveBeenCalledWith("choice.test.go");
   });
 
+  it("offers live Back and Forward controls on Say and Choice", async () => {
+    const rollback = createRollbackHarnessV1({ steps: 1 });
+    const player = createPlayerV1({ rollback: rollback.port });
+    const view = renderPlayerV1({ player, props: dialoguePropsV1() });
+
+    const back = screen.getByRole("button", { name: "Back" });
+    const forward = screen.getByRole("button", { name: "Forward" });
+    expect(back).toBeEnabled();
+    expect(forward).toBeDisabled();
+    await userEvent.setup().click(back);
+    expect(rollback.toPrevious).toHaveBeenCalledExactlyOnceWith();
+    expect(view.scope).toHaveFocus();
+
+    act(() => rollback.setAvailable({ steps: 0, forwardSteps: 2 }));
+    expect(back).toBeDisabled();
+    expect(forward).toBeEnabled();
+    await userEvent.setup().click(forward);
+    expect(rollback.toNext).toHaveBeenCalledExactlyOnceWith();
+
+    view.rerender(dialoguePropsV1({ pending: choicePendingV1() }));
+    expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Forward" })).toBeEnabled();
+  });
+
+  it("routes rollback only for visible dialogue, leaving History and hidden mode alone", () => {
+    const rollback = createRollbackHarnessV1({ steps: 1, forwardSteps: 1 });
+    const router = createInputRouterV1();
+    const player = createPlayerV1({ rollback: rollback.port });
+    const view = renderPlayerV1({ player, props: historyPropsV1(), router });
+    const goBack = (): ReturnType<typeof router.route> =>
+      router.route({ kind: "action", actionId: playerInputActionIdsV1.rollback });
+    const goForward = (): ReturnType<typeof router.route> =>
+      router.route({ kind: "action", actionId: playerInputActionIdsV1.rollForward });
+
+    expect(goBack()).toEqual({ kind: "ignored" });
+    expect(goForward()).toEqual({ kind: "ignored" });
+
+    view.rerender(dialoguePropsV1());
+    expect(goBack()).toEqual({ kind: "handled", context: "narrative" });
+    expect(goForward()).toEqual({ kind: "handled", context: "narrative" });
+    expect(rollback.toPrevious).toHaveBeenCalledTimes(1);
+    expect(rollback.toNext).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      expect(router.route({ kind: "action", actionId: playerInputActionIdsV1.toggleUi }))
+        .toEqual({ kind: "handled", context: "narrative" });
+    });
+    expect(view.scope.querySelector("[data-dialogue-chrome-hidden='true']")).not.toBeNull();
+    expect(goBack()).toEqual({ kind: "ignored" });
+    expect(goForward()).toEqual({ kind: "ignored" });
+    expect(rollback.toPrevious).toHaveBeenCalledTimes(1);
+    expect(rollback.toNext).toHaveBeenCalledTimes(1);
+  });
+
   it("shows resolved History entries and closes the panel", async () => {
     const onCloseHistory = vi.fn();
-    const player = createDefaultVnPlayerV1({
-      heldInput: createHeldInputHarnessV1().port,
+    const player = createPlayerV1({
       labelTextIds: {
         historyTitle: "label.history-title",
         historyClose: "label.history-close",
@@ -335,8 +454,7 @@ describe("createDefaultVnPlayerV1", () => {
   it("drains Skip and resumed Auto before H hides chrome, then restores in place", () => {
     const callbacks = callbacksV1();
     const router = createInputRouterV1();
-    const player = createDefaultVnPlayerV1({
-      heldInput: createHeldInputHarnessV1().port,
+    const player = createPlayerV1({
       labelTextIds: { showUi: "label.show-ui" },
     });
     const props = {
@@ -367,7 +485,7 @@ describe("createDefaultVnPlayerV1", () => {
   it("lets one held Ctrl own Skip start and stop without crossing a stopped boundary", () => {
     const held = createHeldInputHarnessV1();
     const callbacks = callbacksV1();
-    const player = createDefaultVnPlayerV1({ heldInput: held.port });
+    const player = createPlayerV1({ heldInput: held.port });
     const normal = dialoguePropsV1({ callbacks });
     const view = renderPlayerV1({ player, props: normal });
 
@@ -389,7 +507,7 @@ describe("createDefaultVnPlayerV1", () => {
   it("carries a stopping hide through successor handoff, then clears hidden after a root gap", async () => {
     const callbacks = callbacksV1();
     const router = createInputRouterV1();
-    const player = createDefaultVnPlayerV1({ heldInput: createHeldInputHarnessV1().port });
+    const player = createPlayerV1();
     const firstProps = dialoguePropsV1({ playbackMode: "skip", callbacks });
     const first = renderPlayerV1({ player, props: firstProps, router });
 
@@ -418,7 +536,7 @@ describe("createDefaultVnPlayerV1", () => {
   });
 
   it("keeps aria targets local when parallel renderer instances overlap", () => {
-    const player = createDefaultVnPlayerV1({ heldInput: createHeldInputHarnessV1().port });
+    const player = createPlayerV1();
     const Renderer = player.renderer;
     const router = createInputRouterV1();
     const pair = (props: NarrativeSurfaceRendererPropsV1) => (

@@ -48,6 +48,16 @@ describe("player rollback (R7)", () => {
       expect(anchor.epoch).toBe(epochBefore + 1);
       const rolledDigest = instance.admin.stateDigest();
       expect(instance.admin.commandLog()).toEqual([]);
+      expect(instance.rollback.available().forwardSteps).toBe(1);
+
+      const rolledForward = await instance.rollback.toNext();
+      expect(rolledForward).toMatchObject({ kind: "rolled_forward" });
+      expect(instance.semantic.observe().narrative.pending?.occurrenceId).toBe(
+        "interaction-occurrence.2",
+      );
+      expect(instance.presentationAnchor().origin).toBe("rollforward");
+
+      await instance.rollback.toPrevious();
 
       // The timeline continues normally from the restored boundary.
       await dispatchCommittedV1(instance, advanceV1(1));
@@ -55,6 +65,7 @@ describe("player rollback (R7)", () => {
       expect(instance.semantic.observe().narrative.pending?.occurrenceId).toBe(
         "interaction-occurrence.2",
       );
+      expect(instance.rollback.available().forwardSteps).toBe(0);
     } finally {
       await instance.dispose();
     }

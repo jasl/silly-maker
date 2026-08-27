@@ -51,9 +51,11 @@ Read only the documents relevant to the change:
   controls, Ctrl/Tab/H/V VN input, and a portrait layout variant. Later M2 slices
   delivered final Stage media and ending surface plus the frozen eight-asset
   audio denominator, current-voice replay, and voice-aware Auto across Chromium
-  and WebKit. Correct rollback/forward controls, the full responsive/accessibility
-  matrix, and M2 closure remain open; this playable WIP is not product-completion
-  evidence.
+  and WebKit. The next M2 slice delivered interaction-level Back/Forward: Core owns one
+  bounded Snapshot timeline with checkpoint/transparent/barrier classification,
+  while the focused preset maps PageUp/PageDown and wheel gestures and the VN
+  classifies hold ticks as transparent. The full responsive/accessibility matrix
+  and M2 closure remain open; this playable WIP is not product-completion evidence.
   Cat Cafe terminated on 2026-08-27 before this lane began; its application,
   revision-1 Save support, product E2E, and live release responsibility ended
   together, without a cross-product migration. Bookshop remains the maintained

@@ -4,10 +4,10 @@
 
 状态：**M0–M1 已交付 / WIP；M2 进行中。独立 package、完整双路线作者数据与 simulation 已完成；当前已可试玩
 第一版引擎维护的 default VN Player 已提供对话/选择界面、全画布点击推进、History/播放控制、贴底响应式布局和 VN 键盘习惯；
-最终 Stage 媒体、结局 surface 与冻结的八项音频分母也已接入。正确的 rollback/forward controls 与完整产品验收仍未完成。**
+最终 Stage 媒体、结局 surface、冻结的八项音频分母与 interaction-level Back/Forward 也已接入。完整产品验收仍未完成。**
 
 M1 已用本产品的完整 Story/Scene author data 原子替换 tracked Template 的临时内容；当前 M2 已交付 Player、
-Stage 媒体、结局与音频切片，但不代表 rollback、完整响应式/无障碍矩阵、Save/recovery 或产品验收。《最后一次试音》仍不是完整产品参考
+Stage 媒体、结局、音频与 Back/Forward 切片，但不代表完整响应式/无障碍矩阵、Save/recovery 或产品验收。《最后一次试音》仍不是完整产品参考
 或旗舰。完整产品合同见 [DESIGN.md](DESIGN.md)。
 
 ## 产品目标
@@ -46,8 +46,9 @@ skip-read，按住 `Ctrl` 临时 skip-read。`H` 会先停止正在生效的 Aut
 签发，它会在界面仍可见时完成，隐藏只从稳定的新台词开始。隐藏后按 `H`、`Enter`、`Space` 或点按画面只
 恢复界面、不推进，且不会自动重启播放模式。快进默认遇未读台词或 Choice
 停止，Auto 与 Skip 保持为两个独立模式。`Shift+Tab` 从 gameplay scope 进入播放控件，控件内 `Tab` / `Shift+Tab`
-保留原生焦点次序，`Escape` 返回 gameplay scope。PageUp/滚轮回退与 PageDown/滚轮前进尚未宣称完成：现有
-command-level rollback 缺少 VN 所需的 transparent checkpoint 分类，且还没有 roll-forward port。
+保留原生焦点次序，`Escape` 返回 gameplay scope。`PageUp` / 滚轮向上回到上一交互，回退后可用 `PageDown` /
+滚轮向下沿 exact 已执行 Snapshot 前进；Say/Choice 的“回退”“前进”按钮使用同一 port。新的剧情提交会丢弃
+Forward 后缀，hold tick 不会成为额外的玩家停靠点。
 当前有语音的台词可用“语音”按钮或 `V` 重放；Auto 的文本等待到期后仍会等待当前语音自然结束。浏览器拒绝
 自动播放或媒体不可解码时只降级为静音，不阻塞剧情。
 

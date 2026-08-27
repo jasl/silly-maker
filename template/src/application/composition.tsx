@@ -343,9 +343,12 @@ export const templateGameApplicationV1: WebGameApplicationV1<
     if (textContent === null) throw new TypeError("template.text_content_session_missing");
     const vnPlayer = createDefaultVnPlayerV1({
       heldInput,
+      rollback: instance.rollback,
       labelTextIds: {
         advance: "text.template.narrative.advance",
         playbackControls: "text.template.playback.controls",
+        back: "text.template.playback.back",
+        forward: "text.template.playback.forward",
         history: "text.template.playback.history",
         skip: "text.template.playback.skip",
         auto: "text.template.playback.auto",
