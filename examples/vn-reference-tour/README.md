@@ -4,8 +4,8 @@
 
 状态：**M0–M2 已交付 / WIP；M3 进行中。独立 package、完整双路线作者数据与 simulation、
 引擎维护的 default VN Player、最终 Stage/ending 媒体、冻结的八项音频分母、interaction-level
-Back/Forward，以及 responsive/input/accessibility/i18n 产品矩阵均已完成。M3 已接通 boot-time autosave resume；
-产品菜单、return-to-title 连续性、其余 Save/recovery/settings 与完整产品验收仍未完成。**
+Back/Forward，以及 responsive/input/accessibility/i18n 产品矩阵均已完成。M3 已接通 boot-time autosave resume
+和 return-to-title/Continue 连续性；产品菜单、其余 Save/recovery/settings 与完整产品验收仍未完成。**
 
 M1 已用本产品的完整 Story/Scene author data 原子替换 tracked Template 的临时内容；M2 已交付 Player、
 Stage 媒体、结局、音频、Back/Forward 与完整响应式/无障碍矩阵，但不代表 Save/recovery 或产品验收。《最后一次试音》仍不是完整产品参考

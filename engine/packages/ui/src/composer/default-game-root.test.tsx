@@ -749,6 +749,8 @@ function renderHostedLifecycleRootV1(
     readonly withSaveUi?: boolean;
     readonly withCustomSaves?: boolean;
     readonly saveSlotHealth?: "empty" | "valid";
+    readonly rejectContinueLoad?: boolean;
+    readonly rejectReturnFlush?: boolean;
     readonly withFrontDoor?: boolean;
     readonly withSplash?: boolean;
     readonly hudProbe?: boolean;
@@ -773,6 +775,9 @@ function renderHostedLifecycleRootV1(
   let epochCursor = 0;
   const loadToken = Object.freeze({ kind: "hosted-load-test-token" });
   const load = vi.fn(async () => {
+    if (options.rejectContinueLoad === true) {
+      return Object.freeze({ kind: "rejected" as const, code: "busy" as const });
+    }
     anchorEvents.publish(
       Object.freeze({
         anchor: Object.freeze({ epoch: 1, origin: "load" }),
@@ -834,8 +839,16 @@ function renderHostedLifecycleRootV1(
       throw new TypeError("hosted save export is outside this fixture");
     },
   }) satisfies SaveOverlayPortV1;
+  const lifecycleEvents: string[] = [];
+  const flushAutoSave = vi.fn(async () => {
+    lifecycleEvents.push("flush");
+    if (options.rejectReturnFlush === true) {
+      throw new TypeError("persistence.autosave_flush_failed");
+    }
+  });
   const restartToken = Object.freeze({ kind: "return-to-title-test-token" });
   const restart = vi.fn(async () => {
+    lifecycleEvents.push("restart");
     anchorEvents.publish(
       Object.freeze({
         anchor: Object.freeze({ epoch: 2, origin: "restart" }),
@@ -923,7 +936,7 @@ function renderHostedLifecycleRootV1(
               : null,
             beginNewGame: null,
           }),
-          lifecycle: Object.freeze({ restart }),
+          lifecycle: Object.freeze({ restart, flushAutoSave }),
           savePort: options.withSaveUi === true || options.withCustomSaves === true
             ? savePort
             : null,
@@ -1024,7 +1037,9 @@ function renderHostedLifecycleRootV1(
     anchorEvents,
     composition,
     failed,
+    flushAutoSave,
     installed,
+    lifecycleEvents,
     load,
     loadToken,
     restart,
@@ -1052,7 +1067,7 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
     fixture.composition.dispose();
   });
 
-  it("promotes a saved-session Title after dismissing the package-owned Splash", async () => {
+  it("loads the current autosave before Continue dismisses a saved-session Title", async () => {
     const fixture = renderHostedLifecycleRootV1({
       withFrontDoor: true,
       withSaveUi: true,
@@ -1076,7 +1091,88 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       return candidate!;
     });
     expect(title.closest("[data-whole-canvas-phase='current']")).not.toBeNull();
-    await waitFor(() => expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled());
+    const continueButton = await waitFor(() => {
+      const candidate = screen.getByRole("button", { name: "Continue" });
+      expect(candidate).toBeEnabled();
+      return candidate;
+    });
+
+    await userEvent.setup().click(continueButton);
+
+    expect(fixture.load).toHaveBeenCalledExactlyOnceWith("auto.current");
+    await waitFor(() => {
+      expect(document.querySelector("[data-title-screen='true']")).toBeNull();
+    });
+    expect(screen.getByRole("application")).toHaveAttribute(
+      "data-presentation-epoch",
+      "1",
+    );
+
+    fixture.composition.dispose();
+  });
+
+  it("keeps the saved-session Title visible when Continue cannot load", async () => {
+    const fixture = renderHostedLifecycleRootV1({
+      withFrontDoor: true,
+      withSaveUi: true,
+      withSplash: true,
+      rejectContinueLoad: true,
+    });
+
+    await userEvent.setup().click(
+      await waitFor(() => {
+        const candidate = document.querySelector<HTMLElement>(
+          "[data-boot-splash='true']",
+        );
+        expect(candidate).toBeVisible();
+        return candidate!;
+      }),
+    );
+    const continueButton = await waitFor(() => {
+      const candidate = screen.getByRole("button", { name: "Continue" });
+      expect(candidate).toBeEnabled();
+      return candidate;
+    });
+
+    await userEvent.setup().click(continueButton);
+
+    expect(fixture.load).toHaveBeenCalledExactlyOnceWith("auto.current");
+    expect(document.querySelector("[data-title-screen='true']")).toBeVisible();
+    expect(screen.getByRole("application")).toHaveAttribute(
+      "data-presentation-epoch",
+      "0",
+    );
+
+    fixture.composition.dispose();
+  });
+
+  it("keeps the current game when return-to-title autosave flush fails", async () => {
+    const fixture = renderHostedLifecycleRootV1({
+      withFrontDoor: true,
+      rejectReturnFlush: true,
+    });
+
+    await userEvent.setup().click(
+      await screen.findByRole("button", { name: "New game" }),
+    );
+    await waitFor(() => {
+      expect(document.querySelector("[data-title-screen='true']")).toBeNull();
+    });
+    fixture.restart.mockClear();
+    fixture.lifecycleEvents.splice(0);
+
+    await expect(fixture.returnToTitle()).rejects.toThrow(
+      "persistence.autosave_flush_failed",
+    );
+
+    expect(fixture.flushAutoSave).toHaveBeenCalledTimes(1);
+    expect(fixture.restart).not.toHaveBeenCalled();
+    expect(fixture.lifecycleEvents).toEqual(["flush"]);
+    expect(document.querySelector("[data-title-screen='true']")).toBeNull();
+    expect(screen.getByRole("application")).toHaveAttribute(
+      "data-presentation-epoch",
+      "2",
+    );
 
     fixture.composition.dispose();
   });
@@ -1913,6 +2009,7 @@ describe("DefaultGameRootV1 lifecycle result handling", () => {
       });
 
       expect(fixture.restart).toHaveBeenCalledTimes(1);
+      expect(fixture.lifecycleEvents).toEqual(["flush", "restart"]);
       expect(openResult).toEqual({ kind: "executed" });
       expect(freshInstanceId).toBe("surface-instance.e23.n2");
       expect(fixture.installed).toEqual([

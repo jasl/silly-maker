@@ -6,7 +6,8 @@
 交付并选择引擎维护的 focused default VN Player：responsive 对话/选择 chrome、say-only 全画布点击推进、
 History/播放控制、贴底布局、Ctrl/Tab/H/V 与鼠标中键、最终 Stage/ending 媒体、冻结的八项音频分母、
 current-voice replay、voice-aware Auto、interaction-level Back/Forward 和产品矩阵。M3 的 boot-time autosave
-resume 已接通并通过 fresh-instance/Browser reload 证据；完整 Save/recovery/settings 与产品证据仍未关闭。**
+resume 与 return-to-title/Continue 连续性已接通并通过 fresh-instance/Browser 证据；完整 Save/recovery/settings
+与产品证据仍未关闭。**
 
 M1 已用本产品完整 Story/Scene author data 原子替换 tracked Template 的临时内容，但只关闭 author data 与
 headless routes。M2 已有 Player、Stage 媒体、ending、音频、Back/Forward 与完整矩阵；Save/recovery 与产品验收仍未完成，

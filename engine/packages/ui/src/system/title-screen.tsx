@@ -7,7 +7,8 @@ import styles from "./title-screen.module.css";
 /**
  * The default title screen: the front door a finished game presents
  * before any gameplay UI. New game restarts the session to its initial
- * state; Continue reveals the session the Host already restored. A Story
+ * state; Continue loads the runnable current autosave, whose successful
+ * presentation anchor dismisses the Title. A Story
  * that replaces Saves with `customSaves` turns the middle control into Load
  * (disabled until any slot can be loaded). Every action is bound by the
  * owning whole-canvas frame, so this component is a passive renderer with

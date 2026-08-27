@@ -348,8 +348,9 @@ export interface CoreGameApplicationDefinitionV1<
    * loads `auto.current` when it holds a runnable autosave, so a fresh
    * page (or headless host) continues the previous session instead of
    * bootstrapping a new one. An empty or incompatible slot silently
-   * keeps the fresh bootstrap. This is what makes a title-screen
-   * "Continue" button truthful.
+   * keeps the fresh bootstrap. The default title-screen Continue action
+   * still loads the current autosave explicitly; this option controls the
+   * instance's boot state independently of that visible action.
    */
   readonly resumeFromAutosave?: boolean;
   /**

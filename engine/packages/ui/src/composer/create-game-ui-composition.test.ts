@@ -216,6 +216,7 @@ function createHostedWholeCanvasAggregateV1(input: Readonly<{
           kind: "anchored" as const,
           commandSequence: parseNonNegativeSafeInteger(0),
         })),
+        flushAutoSave: async () => undefined,
       },
       savePort: null,
       customSavesConfigured: false,
@@ -2367,7 +2368,7 @@ describe("hosted presentation successor acknowledgment", () => {
             splash: null,
             beginNewGame: null,
           },
-          lifecycle: { restart },
+          lifecycle: { restart, flushAutoSave: async () => undefined },
           savePort: null,
           customSavesConfigured: false,
           labels: {

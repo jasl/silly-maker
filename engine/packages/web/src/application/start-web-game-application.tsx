@@ -1424,7 +1424,10 @@ export async function startWebGameApplicationV1<
         return ({
           definition: wholeCanvasDefinition,
           titleScreen: normalizedTitleScreen,
-          lifecycle: composedLifecycle,
+          lifecycle: {
+            restart: () => composedLifecycle.restart(),
+            flushAutoSave: () => instance.flushAutoSave(),
+          },
           savePort: saveSurfaces.saveUi?.port ??
             (saveSurfaces.customSaves === undefined ? null : saveSurfaces.maintenance.savePort),
           customSavesConfigured: saveSurfaces.customSaves !== undefined,

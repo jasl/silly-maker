@@ -354,6 +354,7 @@ type HostedWholeCanvasInputInternalV1<TSemanticPublication> = Readonly<{
   readonly titleScreen: HostedWholeCanvasTitleScreenInternalV1 | null;
   readonly lifecycle: Readonly<{
     readonly restart: () => Promise<SessionAnchorResultV1>;
+    readonly flushAutoSave: () => Promise<void>;
   }>;
   readonly savePort: SaveOverlayPortV1 | null;
   readonly customSavesConfigured: boolean;
@@ -773,7 +774,8 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
           await runNewGame();
           return;
         case "whole-canvas.title.continue":
-          closeTitle();
+          if (!state.continueAvailable || input.savePort === null) return;
+          await input.savePort.load("auto.current");
           return;
         case "whole-canvas.title.open-load":
           if (input.customSavesConfigured && !state.loadAvailable) return;
@@ -934,6 +936,8 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
         const generation = ++mutationGeneration;
         returningToTitle = true;
         try {
+          await input.lifecycle.flushAutoSave();
+          if (disposed || generation !== mutationGeneration) return;
           const result = await input.lifecycle.restart();
           if (disposed || generation !== mutationGeneration) return;
           if (result.kind !== "anchored") {

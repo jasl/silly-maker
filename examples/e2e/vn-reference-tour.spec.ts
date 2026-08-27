@@ -592,6 +592,17 @@ test("the completed ending keeps physical Back and Forward navigation available"
 
   await page.keyboard.press("PageDown");
   await expect(ending).toBeVisible();
+
+  const completed = await observeV1(page);
+  expect(completed.narrative.phase).toBe("completed");
+  await page.getByRole("button", { name: "返回标题" }).click();
+  await expect(page.locator("[data-title-screen='true']")).toBeVisible();
+  const continueButton = page.getByRole("button", { name: "继续游戏" });
+  await expect(continueButton).toBeEnabled();
+
+  await continueButton.click();
+  await expect(ending).toBeVisible();
+  expect((await observeV1(page)).narrative.phase).toBe("completed");
 });
 
 test("VN audio unlocks and Player Auto waits for replayed current voice", async ({ page }) => {

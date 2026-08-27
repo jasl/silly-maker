@@ -12,8 +12,8 @@ Later slices added the final Stage media and ending surface plus BGM, two ambien
 tracks, three SFX, two current voices, replay, and voice-aware Auto. A later
 slice added interaction-level Back/Forward through the engine Snapshot timeline,
 PageUp/PageDown and wheel input, plus ending Back. The responsive/input/accessibility/i18n product matrix
-closed M2. M3's first slice opts into boot-time autosave resume and proves fresh-instance plus Browser-reload
-continuity. Product menu, return-to-title continuity, the remaining Save/recovery matrix, settings, and later product evidence remain open, so this playable WIP is not a
+closed M2. M3's first two slices opt into boot-time autosave resume and prove fresh-instance, Browser-reload,
+and return-to-title/Continue continuity. Product menu, the remaining Save/recovery matrix, settings, and later product evidence remain open, so this playable WIP is not a
 complete reference or evidence that M3–M5 have shipped.
 
 Read, in order:

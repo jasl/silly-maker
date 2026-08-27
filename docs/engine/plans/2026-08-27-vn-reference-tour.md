@@ -249,9 +249,11 @@ Splash/入口、Save/recovery 与 settings；M2 关闭不推导产品完成、�
 
 ### M3 — 产品入口、Save/recovery 与设置
 
-状态：**2026-08-28 已开启。第一切片已接通 boot-time autosave resume；其余 M3 工作仍开放。**
+状态：**2026-08-28 已开启。前两个切片已接通 boot-time autosave resume 与
+return-to-title/Continue 连续性；其余 M3 工作仍开放。**
 
-- 完成 Splash/Title、New/Continue/Load/Settings、return-to-title/restart；`resumeFromAutosave` 使 Continue 语义真实；
+- 完成 Splash/Title、New/Continue/Load/Settings、return-to-title/restart；默认 Continue 显式载入当前 autosave，
+  `resumeFromAutosave` 独立控制 boot-time resume；
 - 完成 quick/manual Save/load、import/export、autosave flush、mid-line/mid-choice/mid-hold reopen 与 rollback；
 - 完成 locale、text speed、auto wait、music/ambient/SFX/voice volume、mute 与产品需要的最小设置；
 - closing/hidden/reload/restart 后 Stage、Narrative、continuous audio、History、hold remainder 与 current route 恢复
@@ -264,8 +266,15 @@ Stage，而 command log 与 rollback timeline 按合同从新的实例局部基�
 旅程证明 fresh boot 的 Continue 禁用，写入 autosave 后重新加载会启用 Continue，并显露同一 pending occurrence。
 稳定工作树通过 382 个测试文件、5,450 项 unit、6 项 Composition benchmark、42 项 examples Browser E2E
 （另有 2 项按 project 条件明确跳过）、全仓 `deno task check` 与 VN production build。
-返回标题后再次 Continue 的语义、可见 Save/quick controls、mid-choice/mid-hold reopen、import/export 与 settings
-仍属于后续切片；不得把本记录报告为 M3 关闭。
+第二切片修正共享默认 Title 的真实 Continue 合同：它载入据以启用按钮的 `auto.current`，只由成功 load
+产生的既有 presentation anchor 关闭 Title；rejected load 保持 Title 与当前 epoch，不增加新 lifecycle 或错误协议。
+共享的 package-private Host lifecycle 只在 return-to-title 的 restart 前 flush autosave；New Game 仍直接 restart，
+VN ending 保持纯委托并沿用已有的 fail-closed/retry 交互。Chromium/WebKit 旅程证明立即返回标题再 Continue
+仍恢复 completed ending。可见 Save/quick controls、mid-choice/mid-hold reopen、import/export 与 settings 仍属于
+后续切片；不得把本记录报告为 M3 关闭。第二切片稳定工作树通过 382 个测试文件、5,452 项 unit、6 项
+Composition benchmark、42 项 examples Browser E2E（另有 2 项按 project 条件明确跳过）、全仓
+`deno task check`、VN production build，以及从 `2704ceef` 起算的 React Doctor changed-files audit（0 findings）；
+production build 仅保留既有 `advancedChunks` deprecated 与单一大 chunk advisory。
 
 ### M4 — 作者任务、产品证据与 Starter feedback
 
