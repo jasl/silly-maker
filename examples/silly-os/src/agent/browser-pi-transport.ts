@@ -158,15 +158,24 @@ export function createBrowserPiWorkerRawTransportV1({
     : null;
   suppliedApiKey = "";
   let activeState: ConnectionStateV1 | null = null;
+  let workspaceEnvironmentDetachSettlement = Promise.resolve();
   const workspaceReceiptListeners = new Set<
     (receipt: BrowserPiWorkspaceMutationReceiptWireV1) => void
   >();
   const workspaceFailureListeners = new Set<(failure: BrowserPiWorkspaceFailureV1) => void>();
 
+  const detachWorkspaceEnvironment = (workspaceSessionId: string): Promise<void> => {
+    const settlement = workspaceEnvironmentDetachSettlement.then(() =>
+      workspaceAuthority.detachWorkspaceEnvironment(workspaceSessionId)
+    );
+    workspaceEnvironmentDetachSettlement = settlement.catch(() => undefined);
+    return settlement;
+  };
+
   const closeState = (
     state: ConnectionStateV1,
     reason: string,
-    releaseWorkspaceAuthority = true,
+    detachEnvironment = true,
   ): void => {
     if (state.closed) return;
     state.closed = true;
@@ -190,8 +199,8 @@ export function createBrowserPiWorkerRawTransportV1({
     } catch {
       // Termination is best-effort after the Worker has become unreachable.
     }
-    if (releaseWorkspaceAuthority && workspaceSessionId !== null) {
-      void workspaceAuthority.closeWorkspace(workspaceSessionId).catch(() => undefined);
+    if (detachEnvironment && workspaceSessionId !== null) {
+      void detachWorkspaceEnvironment(workspaceSessionId).catch(() => undefined);
     }
     if (activeState === state) activeState = null;
   };
@@ -200,7 +209,7 @@ export function createBrowserPiWorkerRawTransportV1({
     const state = activeState;
     if (state === null || state.closed) return;
     const workspace = state.activeWorkspace?.phase === "open" ? state.activeWorkspace : null;
-    closeState(state, "workspace_host_unavailable", false);
+    closeState(state, "workspace_host_unavailable");
     if (workspace === null) return;
     const failure = Object.freeze(
       {
@@ -513,9 +522,22 @@ export function createBrowserPiWorkerRawTransportV1({
         }
         return snapshot;
       } catch (error) {
-        await workspaceAuthority.closeWorkspace(
-          opened.snapshot.descriptor.workspaceSessionId,
-        ).catch(() => undefined);
+        try {
+          opened.environmentPort.close();
+        } catch {
+          // The port may already have transferred to Pi; detachment remains best-effort.
+        }
+        const workspaceSessionId = opened.snapshot.descriptor.workspaceSessionId;
+        const state = activeState;
+        if (
+          state !== null && !state.closed &&
+          state.activeWorkspace?.workspaceSessionId === workspaceSessionId
+        ) {
+          await workspaceRequestV1({ method: "close_workspace", workspaceSessionId }).catch(() => {
+            closeState(state, "workspace_attachment_failed");
+          });
+        }
+        await detachWorkspaceEnvironment(workspaceSessionId).catch(() => undefined);
         throw error;
       }
     },
@@ -524,9 +546,13 @@ export function createBrowserPiWorkerRawTransportV1({
       try {
         piSnapshot = await workspaceRequestV1({ method: "close_workspace", workspaceSessionId });
       } catch (error) {
+        const state = activeState;
+        if (state !== null) closeState(state, "workspace_close_failed");
+        await workspaceEnvironmentDetachSettlement;
         await workspaceAuthority.closeWorkspace(workspaceSessionId).catch(() => undefined);
         throw error;
       }
+      await detachWorkspaceEnvironment(workspaceSessionId);
       const hostSnapshot = await workspaceAuthority.closeWorkspace(workspaceSessionId);
       if (!hostDescriptorMatchesPiSnapshotV1(hostSnapshot, piSnapshot)) {
         throw transportErrorV1("workspace_close_mismatch");
@@ -565,18 +591,21 @@ export function createBrowserPiWorkerRawTransportV1({
       const state = activeState;
       if (state !== null) {
         const workspace = state.activeWorkspace;
+        const workspaceSessionId = workspace?.phase === "open"
+          ? workspace.workspaceSessionId
+          : null;
         if (workspace?.phase === "open") {
           await workspaceRequestV1({
             method: "close_workspace",
             workspaceSessionId: workspace.workspaceSessionId,
           }).catch(() => undefined);
-          await workspaceAuthority.closeWorkspace(workspace.workspaceSessionId).catch(
-            () => undefined,
-          );
         }
-        closeState(state, "forgotten");
+        if (workspaceSessionId !== null) {
+          await detachWorkspaceEnvironment(workspaceSessionId).catch(() => undefined);
+        }
+        closeState(state, "forgotten", false);
       }
-      await workspaceAuthority.dispose();
+      await workspaceEnvironmentDetachSettlement;
     },
   };
 

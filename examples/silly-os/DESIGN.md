@@ -15,8 +15,10 @@ Host-owned immutable snapshot candidate plus cold-reopen contract on
 2026-08-27. Checkpoint 2's bounded Host publication-lifecycle slice then
 delivered target-neutral receipts, exact retained-package ownership, review-head
 capture, explicit publication resume, and the transient Host fence that day.
-Repository replacement is now the active internal boundary; Controller
-composition and product evidence remain gated behind focused predecessor review.
+Repository V3/physical V4 and the single shared Repository/Host Authority then
+cut over together and passed independent review on 2026-08-28. Checkpoint 3 is
+the active Browser product-evidence boundary; the changed Accept path remains
+non-deployed until that evidence passes.
 Broad execution-provider
 research, import, and later workspace slices remain inactive. The
 former "SillyOS 98" desktop
@@ -628,7 +630,7 @@ a permanent lock on the mutable Workspace. Adopt returns only `adopted` or
 discard returns `discarded`, `absent`, or `retained` and never silently removes
 retained bytes.
 
-Repository V3 will own one proposal-scoped review binding separate from the
+Repository V3 owns one proposal-scoped `reviewBinding` separate from the
 Creator session snapshot. It names the exact pending proposal and Program, the
 base accepted Program revision, current Repository revision, workspace/volume/
 format, and the durable checkpoint/generation observed when that proposal
@@ -639,6 +641,15 @@ captures a run-quiescent Host head and stores that head with the successor in
 the same transaction. A terminal that produces no successor retains the prior
 reviewed head; if tools changed the mutable volume, Accept therefore becomes
 stale instead of relabelling those bytes as reviewed.
+
+The binding is one flat exact record with `proposalId`, `programId`,
+`programRevision`, `baseAcceptedProgramRevision`, `repositoryRevision`,
+`workspaceId`, `volumeId`, `workspaceFormat`, `checkpointId`, and `generation`;
+only `baseAcceptedProgramRevision` may be null. Aggregate V3 keeps the
+`reviewBinding` property present: pending means non-null and a decided proposal
+means null. An accepted decision alone has a `snapshot` property containing the
+complete target-neutral `ProgramWorkspaceSnapshotReceiptV1`; a rejected
+decision omits that property entirely.
 
 The review state machine is exact. A pending proposal has one review binding;
 an accepted or rejected proposal has none, because its decision is then the
@@ -667,9 +678,9 @@ is active. Home/route close waits or returns busy through the same authority.
 Application shutdown admits no new operation, drains Pi, settles publication,
 closes the Host session, and disposes the shared authority/Repository last.
 
-The existing Accept control switches to this non-visual composition in
-checkpoint 2 because the clean replacement schema has no snapshot-less accepted
-shape. Checkpoint 3 adds identity/head/divergence presentation and real cross-
+The existing Accept control has switched internally to this non-visual
+composition in checkpoint 2 because the clean replacement schema has no
+snapshot-less accepted shape. Checkpoint 3 adds identity/head/divergence presentation and real cross-
 page/dual-browser evidence; it does not introduce a second Accept path. This
 ordered composition is the durable cross-store receipt, not a fabricated OPFS +
 IndexedDB transaction. Import/restore, broader artifacts, Desktop parity, BYO
@@ -898,10 +909,10 @@ The closed P3c-B0 slice in [PLAN.md](./PLAN.md) governs the delivered Browser
 OPFS checkpoint and portable download plus the delivered P3a-B1 native Pi
 `edit` and bounded Pi `bash`/just-bash checkpoints over that same volume. P3a
 is closed, P3c-B1 checkpoint 1 is delivered, and checkpoint 2's C2a Host
-publication-lifecycle sub-checkpoint is also delivered. C2b Repository
-replacement is the next internal boundary but cannot become a deployable
-selected schema without the atomic C2c Controller/shared-authority cutover;
-C2c and checkpoint 3 remain gated. Broader execution-
+publication-lifecycle sub-checkpoint is also delivered. C2b Repository V3/
+physical V4 and C2c Controller/shared-Authority composition subsequently closed
+together as an internal cutover on 2026-08-28. Checkpoint 3 is active and still
+gates deployment plus real Browser product evidence. Broader execution-
 provider research and import remain inactive. The plan also
 governs later real Pi integration, product persistence, Pi-native workspace
 tool binding, provider research, Pi capability composition,

@@ -2,88 +2,121 @@
 
 import {
   advanceBrowserProgramContinuationV1,
-  applyProgramRepositoryAgentRunTerminalV2,
-  applyProgramRepositoryDecisionV2,
-  applyProgramRepositoryRevisionV2,
+  applyProgramRepositoryAgentRunTerminalV3,
+  applyProgramRepositoryDecisionV3,
+  applyProgramRepositoryRevisionV3,
   browserProgramContinuationManifestsEqualV1,
   browserProgramContinuationMatchesAggregateV1,
-  buildProgramRepositoryCreateV2,
+  browserProgramContinuationMatchesMutationPreStateV3,
+  buildProgramRepositoryCreateV3,
   cloneBrowserProgramContinuationManifestV1,
-  cloneProgramRepositoryAggregateV2,
-  createProgramRepositoryFailureV2,
-  normalizeProgramRepositoryApplyRevisionInputV2,
-  normalizeProgramRepositoryCreateInputV2,
-  normalizeProgramRepositoryDecideInputV2,
-  normalizeProgramRepositorySettleAgentRunInputV2,
-  normalizeProgramRepositoryProgramIdV2,
-  normalizeProgramRepositoryWorkspaceContinuationInsertV1,
-  programRepositoryMaximumProgramsV2,
-  programRepositoryAggregatesEqualV2,
-  sortProgramRepositorySummariesV2,
-  summarizeProgramRepositoryAggregateV2,
+  cloneProgramRepositoryAggregateV3,
+  createProgramRepositoryFailureV3,
+  normalizeProgramRepositoryApplyRevisionInputV3,
+  normalizeProgramRepositoryCreateInputV3,
+  normalizeProgramRepositoryDecideInputV3,
+  normalizeProgramRepositorySettleAgentRunInputV3,
+  normalizeProgramRepositoryProgramIdV3,
+  programRepositoryMaximumProgramsV3,
+  programRepositoryAggregatesEqualV3,
+  sortProgramRepositorySummariesV3,
+  summarizeProgramRepositoryAggregateV3,
   type BrowserProgramContinuationManifestV1,
-  type ProgramRepositoryAggregateV2,
+  type ProgramRepositoryAggregateV3,
   type ProgramRepositoryWithWorkspaceContinuationV1,
 } from "./program-repository.ts";
 
-export interface MemoryProgramRepositoryBackingV2 {
-  readonly programs: Map<string, ProgramRepositoryAggregateV2>;
+export interface MemoryProgramRepositoryBackingV3 {
+  readonly programs: Map<string, ProgramRepositoryAggregateV3>;
   readonly workspaceContinuations: Map<string, BrowserProgramContinuationManifestV1>;
 }
 
-export function createMemoryProgramRepositoryBackingV2(): MemoryProgramRepositoryBackingV2 {
+export function createMemoryProgramRepositoryBackingV3(): MemoryProgramRepositoryBackingV3 {
   return { programs: new Map(), workspaceContinuations: new Map() };
 }
 
-/** Deterministic P2 conformance adapter. It shares only an explicit backing. */
-export function createMemoryProgramRepositoryV2(input: {
-  readonly backing?: MemoryProgramRepositoryBackingV2;
+/** Deterministic V3 conformance adapter. It shares only an explicit backing. */
+export function createMemoryProgramRepositoryV3(input: {
+  readonly backing?: MemoryProgramRepositoryBackingV3;
 } = {}): ProgramRepositoryWithWorkspaceContinuationV1 {
-  const backing = input.backing ?? createMemoryProgramRepositoryBackingV2();
+  const backing = input.backing ?? createMemoryProgramRepositoryBackingV3();
   let disposed = false;
 
   const assertAvailableV1 = (
-    operation: Parameters<typeof createProgramRepositoryFailureV2>[1],
+    operation: Parameters<typeof createProgramRepositoryFailureV3>[1],
   ): void => {
-    if (disposed) throw createProgramRepositoryFailureV2("disposed", operation);
+    if (disposed) throw createProgramRepositoryFailureV3("disposed", operation);
   };
 
-  const loadStoredContinuationV1 = (
+  const loadStoredPairV3 = (
     programId: string,
-    aggregate: ProgramRepositoryAggregateV2 | undefined,
-    operation: Parameters<typeof createProgramRepositoryFailureV2>[1],
-  ): BrowserProgramContinuationManifestV1 | null => {
-    const stored = backing.workspaceContinuations.get(programId);
-    if (stored === undefined) return null;
+    operation: Parameters<typeof createProgramRepositoryFailureV3>[1],
+  ): {
+    readonly aggregate: ProgramRepositoryAggregateV3;
+    readonly continuation: BrowserProgramContinuationManifestV1;
+  } | null => {
+    const storedAggregate = backing.programs.get(programId);
+    const storedContinuation = backing.workspaceContinuations.get(programId);
+    if (storedAggregate === undefined && storedContinuation === undefined) return null;
+    if (storedAggregate === undefined || storedContinuation === undefined) {
+      throw createProgramRepositoryFailureV3("schema_invalid", operation);
+    }
+    let aggregate: ProgramRepositoryAggregateV3;
     let continuation: BrowserProgramContinuationManifestV1;
     try {
-      continuation = cloneBrowserProgramContinuationManifestV1(stored);
+      aggregate = cloneProgramRepositoryAggregateV3(storedAggregate);
+      continuation = cloneBrowserProgramContinuationManifestV1(storedContinuation);
     } catch {
-      throw createProgramRepositoryFailureV2("schema_invalid", operation);
+      throw createProgramRepositoryFailureV3("schema_invalid", operation);
     }
-    if (
-      aggregate === undefined ||
-      !browserProgramContinuationMatchesAggregateV1(continuation, aggregate)
-    ) throw createProgramRepositoryFailureV2("schema_invalid", operation);
-    return continuation;
+    if (!browserProgramContinuationMatchesAggregateV1(continuation, aggregate)) {
+      throw createProgramRepositoryFailureV3("schema_invalid", operation);
+    }
+    return { aggregate, continuation };
   };
 
-  const commitAggregateV1 = (
-    current: ProgramRepositoryAggregateV2,
-    next: ProgramRepositoryAggregateV2,
-    operation: Parameters<typeof createProgramRepositoryFailureV2>[1],
-  ): void => {
-    const continuation = loadStoredContinuationV1(current.programId, current, operation);
-    const nextContinuation = continuation === null
-      ? null
-      : advanceBrowserProgramContinuationV1(continuation, next);
-    backing.programs.set(next.programId, cloneProgramRepositoryAggregateV2(next));
-    if (nextContinuation !== null) {
-      backing.workspaceContinuations.set(
-        next.programId,
-        cloneBrowserProgramContinuationManifestV1(nextContinuation),
-      );
+  const writePairAtomicallyV3 = (pair: {
+    readonly programId: string;
+    readonly aggregate: ProgramRepositoryAggregateV3;
+    readonly continuation: BrowserProgramContinuationManifestV1;
+    readonly operation: Parameters<typeof createProgramRepositoryFailureV3>[1];
+  }): void => {
+    const previousAggregate = backing.programs.get(pair.programId);
+    const previousContinuation = backing.workspaceContinuations.get(pair.programId);
+    try {
+      backing.programs.set(pair.programId, pair.aggregate);
+      backing.workspaceContinuations.set(pair.programId, pair.continuation);
+    } catch {
+      try {
+        if (previousAggregate === undefined) backing.programs.delete(pair.programId);
+        else backing.programs.set(pair.programId, previousAggregate);
+        if (previousContinuation === undefined) {
+          backing.workspaceContinuations.delete(pair.programId);
+        } else backing.workspaceContinuations.set(pair.programId, previousContinuation);
+      } catch {
+        // One-shot conformance failures restore through the same backing. A backing
+        // that also rejects rollback is unavailable to this deterministic adapter.
+      }
+      throw createProgramRepositoryFailureV3("transaction_aborted", pair.operation);
     }
+  };
+
+  const commitPairV3 = (
+    current: {
+      readonly aggregate: ProgramRepositoryAggregateV3;
+      readonly continuation: BrowserProgramContinuationManifestV1;
+    },
+    next: ProgramRepositoryAggregateV3,
+    operation: Parameters<typeof createProgramRepositoryFailureV3>[1],
+  ): void => {
+    const nextAggregate = cloneProgramRepositoryAggregateV3(next);
+    const nextContinuation = advanceBrowserProgramContinuationV1(current.continuation, next);
+    writePairAtomicallyV3({
+      programId: next.programId,
+      aggregate: nextAggregate,
+      continuation: nextContinuation,
+      operation,
+    });
   };
 
   return {
@@ -93,154 +126,162 @@ export function createMemoryProgramRepositoryV2(input: {
 
     async list() {
       assertAvailableV1("list");
-      return sortProgramRepositorySummariesV2(
-        [...backing.programs.values()].map((aggregate) =>
-          summarizeProgramRepositoryAggregateV2(aggregate)
-        ),
+      const programIds = new Set([
+        ...backing.programs.keys(),
+        ...backing.workspaceContinuations.keys(),
+      ]);
+      return sortProgramRepositorySummariesV3(
+        [...programIds].map((programId) => {
+          const pair = loadStoredPairV3(programId, "list");
+          if (pair === null) throw createProgramRepositoryFailureV3("schema_invalid", "list");
+          return summarizeProgramRepositoryAggregateV3(pair.aggregate);
+        }),
       );
     },
 
     async load(rawProgramId) {
       assertAvailableV1("load");
-      const programId = normalizeProgramRepositoryProgramIdV2(rawProgramId);
-      const aggregate = backing.programs.get(programId);
-      return aggregate === undefined ? null : cloneProgramRepositoryAggregateV2(aggregate);
+      const programId = normalizeProgramRepositoryProgramIdV3(rawProgramId);
+      return loadStoredPairV3(programId, "load")?.aggregate ?? null;
     },
 
     async loadWorkspaceContinuation(rawProgramId) {
       assertAvailableV1("load_workspace_continuation");
-      const programId = normalizeProgramRepositoryProgramIdV2(rawProgramId);
-      const aggregate = backing.programs.get(programId);
-      return loadStoredContinuationV1(
-        programId,
-        aggregate,
-        "load_workspace_continuation",
-      );
+      const programId = normalizeProgramRepositoryProgramIdV3(rawProgramId);
+      return loadStoredPairV3(programId, "load_workspace_continuation")?.continuation ?? null;
     },
 
     async create(rawInput) {
       assertAvailableV1("create");
-      const normalized = normalizeProgramRepositoryCreateInputV2(rawInput);
-      const candidate = buildProgramRepositoryCreateV2(normalized);
-      const existing = backing.programs.get(candidate.programId);
-      loadStoredContinuationV1(candidate.programId, existing, "create");
-      if (existing !== undefined) {
-        if (programRepositoryAggregatesEqualV2(existing, candidate)) {
-          return { kind: "unchanged", aggregate: cloneProgramRepositoryAggregateV2(existing) };
+      const normalized = normalizeProgramRepositoryCreateInputV3(rawInput);
+      const candidate = buildProgramRepositoryCreateV3(normalized);
+      const existing = loadStoredPairV3(candidate.programId, "create");
+      if (existing !== null) {
+        if (
+          programRepositoryAggregatesEqualV3(existing.aggregate, candidate) &&
+          browserProgramContinuationManifestsEqualV1(
+            existing.continuation,
+            normalized.continuation,
+          )
+        ) {
+          return {
+            kind: "unchanged",
+            aggregate: cloneProgramRepositoryAggregateV3(existing.aggregate),
+          };
         }
-        return { kind: "conflict", current: cloneProgramRepositoryAggregateV2(existing) };
+        return {
+          kind: "conflict",
+          current: cloneProgramRepositoryAggregateV3(existing.aggregate),
+        };
       }
-      if (backing.programs.size >= programRepositoryMaximumProgramsV2) {
-        throw createProgramRepositoryFailureV2("quota_exceeded", "create");
+      if (backing.programs.size >= programRepositoryMaximumProgramsV3) {
+        throw createProgramRepositoryFailureV3("quota_exceeded", "create");
       }
-      backing.programs.set(candidate.programId, cloneProgramRepositoryAggregateV2(candidate));
-      return { kind: "committed", aggregate: cloneProgramRepositoryAggregateV2(candidate) };
+      const storedAggregate = cloneProgramRepositoryAggregateV3(candidate);
+      const storedContinuation = cloneBrowserProgramContinuationManifestV1(normalized.continuation);
+      writePairAtomicallyV3({
+        programId: candidate.programId,
+        aggregate: storedAggregate,
+        continuation: storedContinuation,
+        operation: "create",
+      });
+      return { kind: "committed", aggregate: cloneProgramRepositoryAggregateV3(candidate) };
     },
 
     async applyRevision(rawInput) {
       assertAvailableV1("apply_revision");
-      const normalized = normalizeProgramRepositoryApplyRevisionInputV2(rawInput);
-      const current = backing.programs.get(normalized.programId);
-      loadStoredContinuationV1(normalized.programId, current, "apply_revision");
-      if (current === undefined) return { kind: "conflict", current: null };
-      const result = applyProgramRepositoryRevisionV2(current, normalized);
+      const normalized = normalizeProgramRepositoryApplyRevisionInputV3(rawInput);
+      const current = loadStoredPairV3(normalized.programId, "apply_revision");
+      if (current === null) return { kind: "conflict", current: null };
+      if (
+        !browserProgramContinuationMatchesMutationPreStateV3(
+          normalized.continuation,
+          current.continuation,
+          normalized.expectedRepositoryRevision,
+        )
+      ) {
+        return {
+          kind: "conflict",
+          current: cloneProgramRepositoryAggregateV3(current.aggregate),
+        };
+      }
+      const result = applyProgramRepositoryRevisionV3(current.aggregate, normalized);
       if (result.kind === "committed") {
-        commitAggregateV1(current, result.aggregate, "apply_revision");
+        commitPairV3(current, result.aggregate, "apply_revision");
       }
       if (result.kind === "conflict") {
         return {
           kind: "conflict",
           current: result.current === null
             ? null
-            : cloneProgramRepositoryAggregateV2(result.current),
+            : cloneProgramRepositoryAggregateV3(result.current),
         };
       }
-      return { ...result, aggregate: cloneProgramRepositoryAggregateV2(result.aggregate) };
+      return { ...result, aggregate: cloneProgramRepositoryAggregateV3(result.aggregate) };
     },
 
     async decide(rawInput) {
       assertAvailableV1("decide");
-      const normalized = normalizeProgramRepositoryDecideInputV2(rawInput);
-      const current = backing.programs.get(normalized.programId);
-      loadStoredContinuationV1(normalized.programId, current, "decide");
-      if (current === undefined) return { kind: "conflict", current: null };
-      const result = applyProgramRepositoryDecisionV2(current, normalized);
+      const normalized = normalizeProgramRepositoryDecideInputV3(rawInput);
+      const current = loadStoredPairV3(normalized.programId, "decide");
+      if (current === null) return { kind: "conflict", current: null };
+      if (
+        !browserProgramContinuationMatchesMutationPreStateV3(
+          normalized.continuation,
+          current.continuation,
+          normalized.expectedRepositoryRevision,
+        )
+      ) {
+        return {
+          kind: "conflict",
+          current: cloneProgramRepositoryAggregateV3(current.aggregate),
+        };
+      }
+      const result = applyProgramRepositoryDecisionV3(current.aggregate, normalized);
       if (result.kind === "committed") {
-        commitAggregateV1(current, result.aggregate, "decide");
+        commitPairV3(current, result.aggregate, "decide");
       }
       if (result.kind === "conflict") {
         return {
           kind: "conflict",
           current: result.current === null
             ? null
-            : cloneProgramRepositoryAggregateV2(result.current),
+            : cloneProgramRepositoryAggregateV3(result.current),
         };
       }
-      return { ...result, aggregate: cloneProgramRepositoryAggregateV2(result.aggregate) };
+      return { ...result, aggregate: cloneProgramRepositoryAggregateV3(result.aggregate) };
     },
 
     async settleAgentRun(rawInput) {
       assertAvailableV1("settle_agent_run");
-      const normalized = normalizeProgramRepositorySettleAgentRunInputV2(rawInput);
-      const current = backing.programs.get(normalized.programId);
-      loadStoredContinuationV1(normalized.programId, current, "settle_agent_run");
-      if (current === undefined) return { kind: "conflict", current: null };
-      const result = applyProgramRepositoryAgentRunTerminalV2(current, normalized);
+      const normalized = normalizeProgramRepositorySettleAgentRunInputV3(rawInput);
+      const current = loadStoredPairV3(normalized.programId, "settle_agent_run");
+      if (current === null) return { kind: "conflict", current: null };
+      if (
+        !browserProgramContinuationMatchesMutationPreStateV3(
+          normalized.continuation,
+          current.continuation,
+          normalized.expectedRepositoryRevision,
+        )
+      ) {
+        return {
+          kind: "conflict",
+          current: cloneProgramRepositoryAggregateV3(current.aggregate),
+        };
+      }
+      const result = applyProgramRepositoryAgentRunTerminalV3(current.aggregate, normalized);
       if (result.kind === "committed") {
-        commitAggregateV1(current, result.aggregate, "settle_agent_run");
+        commitPairV3(current, result.aggregate, "settle_agent_run");
       }
       if (result.kind === "conflict") {
         return {
           kind: "conflict",
           current: result.current === null
             ? null
-            : cloneProgramRepositoryAggregateV2(result.current),
+            : cloneProgramRepositoryAggregateV3(result.current),
         };
       }
-      return { ...result, aggregate: cloneProgramRepositoryAggregateV2(result.aggregate) };
-    },
-
-    async insertWorkspaceContinuation(rawContinuation) {
-      assertAvailableV1("insert_workspace_continuation");
-      const continuation = normalizeProgramRepositoryWorkspaceContinuationInsertV1(
-        rawContinuation,
-      );
-      const aggregate = backing.programs.get(continuation.programId);
-      const current = loadStoredContinuationV1(
-        continuation.programId,
-        aggregate,
-        "insert_workspace_continuation",
-      );
-      if (
-        aggregate === undefined ||
-        !browserProgramContinuationMatchesAggregateV1(continuation, aggregate)
-      ) {
-        return {
-          kind: "conflict",
-          current: current === null ? null : cloneBrowserProgramContinuationManifestV1(current),
-        };
-      }
-      if (
-        current !== null &&
-        browserProgramContinuationManifestsEqualV1(current, continuation)
-      ) {
-        return {
-          kind: "unchanged",
-          continuation: cloneBrowserProgramContinuationManifestV1(current),
-        };
-      }
-      if (current !== null) {
-        return {
-          kind: "conflict",
-          current: cloneBrowserProgramContinuationManifestV1(current),
-        };
-      }
-      const inserted = cloneBrowserProgramContinuationManifestV1(continuation);
-      backing.workspaceContinuations.set(inserted.programId, inserted);
-      return {
-        kind: "committed",
-        continuation: cloneBrowserProgramContinuationManifestV1(inserted),
-      };
+      return { ...result, aggregate: cloneProgramRepositoryAggregateV3(result.aggregate) };
     },
 
     async dispose(): Promise<void> {

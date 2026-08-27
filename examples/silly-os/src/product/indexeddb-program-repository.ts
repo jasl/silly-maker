@@ -2,48 +2,53 @@
 /// <reference lib="dom" />
 
 import {
-  admitProgramRepositoryAggregateV2,
   advanceBrowserProgramContinuationV1,
-  applyProgramRepositoryAgentRunTerminalV2,
-  applyProgramRepositoryDecisionV2,
-  applyProgramRepositoryRevisionV2,
+  applyProgramRepositoryAgentRunTerminalV3,
+  applyProgramRepositoryDecisionV3,
+  applyProgramRepositoryRevisionV3,
   browserProgramContinuationManifestsEqualV1,
   browserProgramContinuationMatchesAggregateV1,
-  buildProgramRepositoryCreateV2,
+  browserProgramContinuationMatchesMutationPreStateV3,
+  buildProgramRepositoryCreateV3,
   cloneBrowserProgramContinuationManifestV1,
-  cloneProgramRepositoryAggregateV2,
-  createProgramRepositoryFailureV2,
-  isProgramRepositoryFailureV2,
-  normalizeProgramRepositoryApplyRevisionInputV2,
-  normalizeProgramRepositoryCreateInputV2,
-  normalizeProgramRepositoryDecideInputV2,
-  normalizeProgramRepositorySettleAgentRunInputV2,
-  normalizeProgramRepositoryProgramIdV2,
-  normalizeProgramRepositoryWorkspaceContinuationInsertV1,
-  programRepositoryMaximumProgramsV2,
-  programRepositoryAggregatesEqualV2,
-  sortProgramRepositorySummariesV2,
-  summarizeProgramRepositoryAggregateV2,
+  cloneProgramRepositoryAggregateV3,
+  createProgramRepositoryFailureV3,
+  isProgramRepositoryFailureV3,
+  normalizeProgramRepositoryApplyRevisionInputV3,
+  normalizeProgramRepositoryCreateInputV3,
+  normalizeProgramRepositoryDecideInputV3,
+  normalizeProgramRepositoryProgramIdV3,
+  normalizeProgramRepositorySettleAgentRunInputV3,
+  programRepositoryAggregatesEqualV3,
+  programRepositoryMaximumProgramsV3,
+  sortProgramRepositorySummariesV3,
+  summarizeProgramRepositoryAggregateV3,
   type BrowserProgramContinuationManifestV1,
-  type ProgramRepositoryAggregateV2,
-  type ProgramRepositoryFailureCodeV2,
-  type ProgramRepositoryOperationV2,
+  type ProgramRepositoryAggregateV3,
+  type ProgramRepositoryCommitResultV3,
+  type ProgramRepositoryFailureCodeV3,
+  type ProgramRepositoryOperationV3,
   type ProgramRepositoryWithWorkspaceContinuationV1,
 } from "./program-repository.ts";
 
-export const programRepositoryDatabaseNameV3 = "sillymaker.example-silly-os.programs";
-export const programRepositoryDatabaseVersionV3 = 3;
-export const programRepositoryProgramObjectStoreNameV3 = "programs";
-export const programRepositoryWorkspaceContinuationObjectStoreNameV3 = "workspace_continuations";
+export const programRepositoryDatabaseNameV4 = "sillymaker.example-silly-os.programs";
+export const programRepositoryDatabaseVersionV4 = 4;
+export const programRepositoryProgramObjectStoreNameV4 = "programs";
+export const programRepositoryWorkspaceContinuationObjectStoreNameV4 = "workspace_continuations";
 
-const programRepositoryMutationObjectStoreNamesV3 = [
-  programRepositoryProgramObjectStoreNameV3,
-  programRepositoryWorkspaceContinuationObjectStoreNameV3,
+const programRepositoryObjectStoreNamesV4 = [
+  programRepositoryProgramObjectStoreNameV4,
+  programRepositoryWorkspaceContinuationObjectStoreNameV4,
 ] as const;
 
-export interface CreateIndexedDbProgramRepositoryOptionsV3 {
+export interface CreateIndexedDbProgramRepositoryOptionsV4 {
   readonly indexedDB: IDBFactory;
   readonly databaseName?: string;
+}
+
+interface StoredProgramPairV1 {
+  readonly aggregate: ProgramRepositoryAggregateV3;
+  readonly continuation: BrowserProgramContinuationManifestV1;
 }
 
 function domExceptionNameV1(value: unknown): string | null {
@@ -57,17 +62,22 @@ function domExceptionNameV1(value: unknown): string | null {
 
 function mapFailureV1(
   value: unknown,
-  operation: ProgramRepositoryOperationV2,
+  operation: ProgramRepositoryOperationV3,
 ): unknown {
-  if (isProgramRepositoryFailureV2(value) || value instanceof TypeError) return value;
+  if (isProgramRepositoryFailureV3(value)) {
+    return value.operation === operation
+      ? value
+      : createProgramRepositoryFailureV3(value.code, operation);
+  }
+  if (value instanceof TypeError) return value;
   const name = domExceptionNameV1(value);
-  let code: ProgramRepositoryFailureCodeV2;
+  let code: ProgramRepositoryFailureCodeV3;
   if (name === "VersionError") code = "database_newer";
   else if (name === "SecurityError" || name === "NotAllowedError") code = "unavailable";
   else if (name === "QuotaExceededError") code = "quota_exceeded";
   else if (name === "AbortError") code = "transaction_aborted";
   else code = "request_failed";
-  return createProgramRepositoryFailureV2(code, operation);
+  return createProgramRepositoryFailureV3(code, operation);
 }
 
 function requestResultV1<TValue>(request: IDBRequest<TValue>): Promise<TValue> {
@@ -122,45 +132,70 @@ function domStringListValuesV1(value: DOMStringList): readonly string[] {
   return values;
 }
 
+function hasExactProgramStoreShapeV1(store: IDBObjectStore): boolean {
+  return store.keyPath === "programId" && !store.autoIncrement && store.indexNames.length === 0;
+}
+
+function hasExactStoreNamesV1(database: IDBDatabase): boolean {
+  return domStringListValuesV1(database.objectStoreNames).join("\0") ===
+    programRepositoryObjectStoreNamesV4.join("\0");
+}
+
 function hasExactSchemaV1(database: IDBDatabase): boolean {
   try {
     if (
-      database.version !== programRepositoryDatabaseVersionV3 ||
-      domStringListValuesV1(database.objectStoreNames).join("\0") !==
-        [
-          programRepositoryProgramObjectStoreNameV3,
-          programRepositoryWorkspaceContinuationObjectStoreNameV3,
-        ].join("\0")
+      database.version !== programRepositoryDatabaseVersionV4 || !hasExactStoreNamesV1(database)
     ) return false;
-    const transaction = database.transaction(
-      [
-        programRepositoryProgramObjectStoreNameV3,
-        programRepositoryWorkspaceContinuationObjectStoreNameV3,
-      ],
-      "readonly",
+    const transaction = database.transaction(programRepositoryObjectStoreNamesV4, "readonly");
+    return programRepositoryObjectStoreNamesV4.every((storeName) =>
+      hasExactProgramStoreShapeV1(transaction.objectStore(storeName))
     );
-    const programs = transaction.objectStore(programRepositoryProgramObjectStoreNameV3);
-    const continuations = transaction.objectStore(
-      programRepositoryWorkspaceContinuationObjectStoreNameV3,
-    );
-    return programs.keyPath === "programId" && !programs.autoIncrement &&
-      programs.indexNames.length === 0 && continuations.keyPath === "programId" &&
-      !continuations.autoIncrement && continuations.indexNames.length === 0;
   } catch {
     return false;
   }
 }
 
+function createCurrentStoresV1(database: IDBDatabase): void {
+  for (const storeName of programRepositoryObjectStoreNamesV4) {
+    database.createObjectStore(storeName, {
+      keyPath: "programId",
+      autoIncrement: false,
+    });
+  }
+}
+
+function resetExactPhysicalV3V1(
+  request: IDBOpenDBRequest,
+  operation: ProgramRepositoryOperationV3,
+): void {
+  const database = request.result;
+  const transaction = request.transaction;
+  if (transaction === null || !hasExactStoreNamesV1(database)) {
+    throw createProgramRepositoryFailureV3("schema_invalid", operation);
+  }
+  for (const storeName of programRepositoryObjectStoreNamesV4) {
+    if (!hasExactProgramStoreShapeV1(transaction.objectStore(storeName))) {
+      throw createProgramRepositoryFailureV3("schema_invalid", operation);
+    }
+  }
+  // The preview schema has no migration obligation. Delete both exact stores without
+  // opening a cursor or reading a row, then create the V4 catalog directly.
+  for (const storeName of programRepositoryObjectStoreNamesV4) {
+    database.deleteObjectStore(storeName);
+  }
+  createCurrentStoresV1(database);
+}
+
 function openDatabaseV1(input: {
   readonly indexedDB: IDBFactory;
   readonly databaseName: string;
-  readonly operation: ProgramRepositoryOperationV2;
+  readonly operation: ProgramRepositoryOperationV3;
   readonly onConnectionClosed: () => void;
 }): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     let request: IDBOpenDBRequest;
     try {
-      request = input.indexedDB.open(input.databaseName, programRepositoryDatabaseVersionV3);
+      request = input.indexedDB.open(input.databaseName, programRepositoryDatabaseVersionV4);
     } catch (error) {
       reject(mapFailureV1(error, input.operation));
       return;
@@ -173,41 +208,29 @@ function openDatabaseV1(input: {
       reject(mapFailureV1(error, input.operation));
     };
     request.addEventListener("upgradeneeded", (event) => {
+      if (settled) {
+        try {
+          request.transaction?.abort();
+        } catch {
+          // A previously reported blocked open must not mutate the database later.
+        }
+        return;
+      }
       try {
         if (
-          (event.oldVersion !== 0 && event.oldVersion !== 2) ||
-          event.newVersion !== programRepositoryDatabaseVersionV3
+          (event.oldVersion !== 0 && event.oldVersion !== 3) ||
+          event.newVersion !== programRepositoryDatabaseVersionV4
         ) {
-          throw createProgramRepositoryFailureV2("schema_invalid", input.operation);
+          throw createProgramRepositoryFailureV3("schema_invalid", input.operation);
         }
         if (event.oldVersion === 0) {
-          if (
-            domStringListValuesV1(request.result.objectStoreNames).length !== 0
-          ) throw createProgramRepositoryFailureV2("schema_invalid", input.operation);
-          request.result.createObjectStore(programRepositoryProgramObjectStoreNameV3, {
-            keyPath: "programId",
-            autoIncrement: false,
-          });
+          if (request.result.objectStoreNames.length !== 0) {
+            throw createProgramRepositoryFailureV3("schema_invalid", input.operation);
+          }
+          createCurrentStoresV1(request.result);
         } else {
-          if (
-            domStringListValuesV1(request.result.objectStoreNames).join("\0") !==
-              programRepositoryProgramObjectStoreNameV3
-          ) throw createProgramRepositoryFailureV2("schema_invalid", input.operation);
-          const programs = request.transaction?.objectStore(
-            programRepositoryProgramObjectStoreNameV3,
-          );
-          if (
-            programs === undefined || programs.keyPath !== "programId" ||
-            programs.autoIncrement || programs.indexNames.length !== 0
-          ) throw createProgramRepositoryFailureV2("schema_invalid", input.operation);
+          resetExactPhysicalV3V1(request, input.operation);
         }
-        request.result.createObjectStore(
-          programRepositoryWorkspaceContinuationObjectStoreNameV3,
-          {
-            keyPath: "programId",
-            autoIncrement: false,
-          },
-        );
       } catch (error) {
         upgradeFailure = error;
         try {
@@ -218,7 +241,7 @@ function openDatabaseV1(input: {
       }
     });
     request.addEventListener("blocked", () => {
-      rejectOnceV1(createProgramRepositoryFailureV2("upgrade_blocked", input.operation));
+      rejectOnceV1(createProgramRepositoryFailureV3("upgrade_blocked", input.operation));
     });
     request.addEventListener("error", () => {
       rejectOnceV1(
@@ -234,7 +257,7 @@ function openDatabaseV1(input: {
       }
       if (!hasExactSchemaV1(database)) {
         database.close();
-        rejectOnceV1(createProgramRepositoryFailureV2("schema_invalid", input.operation));
+        rejectOnceV1(createProgramRepositoryFailureV3("schema_invalid", input.operation));
         return;
       }
       settled = true;
@@ -250,63 +273,96 @@ function openDatabaseV1(input: {
 
 function storedAggregateV1(
   value: unknown,
-  operation: ProgramRepositoryOperationV2,
-): ProgramRepositoryAggregateV2 {
-  const admitted = admitProgramRepositoryAggregateV2(value);
-  if (admitted.kind === "rejected") {
-    throw createProgramRepositoryFailureV2("schema_invalid", operation);
+  operation: ProgramRepositoryOperationV3,
+): ProgramRepositoryAggregateV3 {
+  try {
+    return cloneProgramRepositoryAggregateV3(value as ProgramRepositoryAggregateV3);
+  } catch {
+    throw createProgramRepositoryFailureV3("schema_invalid", operation);
   }
-  return admitted.value;
 }
 
-function storedWorkspaceContinuationV1(
+function storedContinuationV1(
   value: unknown,
-  aggregate: ProgramRepositoryAggregateV2 | undefined,
-  operation: ProgramRepositoryOperationV2,
+  operation: ProgramRepositoryOperationV3,
 ): BrowserProgramContinuationManifestV1 {
-  let continuation: BrowserProgramContinuationManifestV1;
   try {
-    continuation = cloneBrowserProgramContinuationManifestV1(
+    return cloneBrowserProgramContinuationManifestV1(
       value as BrowserProgramContinuationManifestV1,
     );
   } catch {
-    throw createProgramRepositoryFailureV2("schema_invalid", operation);
+    throw createProgramRepositoryFailureV3("schema_invalid", operation);
   }
-  if (
-    aggregate === undefined ||
-    !browserProgramContinuationMatchesAggregateV1(continuation, aggregate)
-  ) throw createProgramRepositoryFailureV2("schema_invalid", operation);
-  return continuation;
 }
 
-async function advanceStoredWorkspaceContinuationV1(input: {
-  readonly store: IDBObjectStore;
-  readonly current: ProgramRepositoryAggregateV2;
-  readonly next: ProgramRepositoryAggregateV2;
-  readonly operation: ProgramRepositoryOperationV2;
+function storedPairV1(
+  programRow: unknown,
+  continuationRow: unknown,
+  operation: ProgramRepositoryOperationV3,
+): StoredProgramPairV1 | null {
+  if (programRow === undefined && continuationRow === undefined) return null;
+  if (programRow === undefined || continuationRow === undefined) {
+    throw createProgramRepositoryFailureV3("schema_invalid", operation);
+  }
+  const aggregate = storedAggregateV1(programRow, operation);
+  const continuation = storedContinuationV1(continuationRow, operation);
+  if (!browserProgramContinuationMatchesAggregateV1(continuation, aggregate)) {
+    throw createProgramRepositoryFailureV3("schema_invalid", operation);
+  }
+  return { aggregate, continuation };
+}
+
+async function loadPairFromTransactionV1(input: {
+  readonly transaction: IDBTransaction;
+  readonly programId: string;
+  readonly operation: ProgramRepositoryOperationV3;
+}): Promise<StoredProgramPairV1 | null> {
+  const programRequest = input.transaction.objectStore(programRepositoryProgramObjectStoreNameV4)
+    .get(input.programId);
+  const continuationRequest = input.transaction.objectStore(
+    programRepositoryWorkspaceContinuationObjectStoreNameV4,
+  ).get(input.programId);
+  const [programRow, continuationRow] = await Promise.all([
+    requestResultV1(programRequest),
+    requestResultV1(continuationRequest),
+  ]);
+  return storedPairV1(programRow, continuationRow, input.operation);
+}
+
+async function writeCommittedPairV1(input: {
+  readonly transaction: IDBTransaction;
+  readonly current: StoredProgramPairV1;
+  readonly next: ProgramRepositoryAggregateV3;
 }): Promise<void> {
-  const row = await requestResultV1(input.store.get(input.current.programId));
-  if (row === undefined) return;
-  const current = storedWorkspaceContinuationV1(row, input.current, input.operation);
-  const next = advanceBrowserProgramContinuationV1(current, input.next);
-  await requestResultV1(input.store.put(cloneBrowserProgramContinuationManifestV1(next)));
+  const nextContinuation = advanceBrowserProgramContinuationV1(
+    input.current.continuation,
+    input.next,
+  );
+  const programStore = input.transaction.objectStore(programRepositoryProgramObjectStoreNameV4);
+  const continuationStore = input.transaction.objectStore(
+    programRepositoryWorkspaceContinuationObjectStoreNameV4,
+  );
+  await Promise.all([
+    requestResultV1(programStore.put(cloneProgramRepositoryAggregateV3(input.next))),
+    requestResultV1(
+      continuationStore.put(cloneBrowserProgramContinuationManifestV1(nextContinuation)),
+    ),
+  ]);
 }
 
-/**
- * Worker-side P2 adapter. Page code must use the typed Worker port instead of this owner.
- */
-export function createIndexedDbProgramRepositoryV3(
-  options: CreateIndexedDbProgramRepositoryOptionsV3,
+/** Worker-side product adapter. Page code uses the typed Repository Worker port. */
+export function createIndexedDbProgramRepositoryV4(
+  options: CreateIndexedDbProgramRepositoryOptionsV4,
 ): ProgramRepositoryWithWorkspaceContinuationV1 {
-  const databaseName = options.databaseName ?? programRepositoryDatabaseNameV3;
+  const databaseName = options.databaseName ?? programRepositoryDatabaseNameV4;
   let databasePromise: Promise<IDBDatabase> | undefined;
   let disposed = false;
 
-  const getDatabaseV1 = (operation: ProgramRepositoryOperationV2): Promise<IDBDatabase> => {
-    if (disposed) return Promise.reject(createProgramRepositoryFailureV2("disposed", operation));
+  const getDatabaseV1 = (operation: ProgramRepositoryOperationV3): Promise<IDBDatabase> => {
+    if (disposed) return Promise.reject(createProgramRepositoryFailureV3("disposed", operation));
     const indexedDB = options.indexedDB as IDBFactory | undefined;
     if (indexedDB === undefined || typeof indexedDB.open !== "function") {
-      return Promise.reject(createProgramRepositoryFailureV2("unavailable", operation));
+      return Promise.reject(createProgramRepositoryFailureV3("unavailable", operation));
     }
     if (databasePromise === undefined) {
       let cached: Promise<IDBDatabase>;
@@ -340,6 +396,55 @@ export function createIndexedDbProgramRepositoryV3(
     await completion?.catch(() => undefined);
   };
 
+  const mutateV1 = async (
+    operation: "apply_revision" | "settle_agent_run" | "decide",
+    programId: string,
+    continuation: BrowserProgramContinuationManifestV1,
+    expectedRepositoryRevision: number,
+    apply: (current: ProgramRepositoryAggregateV3) => ProgramRepositoryCommitResultV3,
+  ): Promise<ProgramRepositoryCommitResultV3> => {
+    let transaction: IDBTransaction | undefined;
+    let completion: Promise<void> | undefined;
+    try {
+      const database = await getDatabaseV1(operation);
+      transaction = database.transaction(programRepositoryObjectStoreNamesV4, "readwrite");
+      completion = transactionCompletionV1(transaction);
+      void completion.catch(() => undefined);
+      const current = await loadPairFromTransactionV1({ transaction, programId, operation });
+      if (current === null) {
+        await completion;
+        return { kind: "conflict", current: null };
+      }
+      if (
+        !browserProgramContinuationMatchesMutationPreStateV3(
+          continuation,
+          current.continuation,
+          expectedRepositoryRevision,
+        )
+      ) {
+        await completion;
+        return {
+          kind: "conflict",
+          current: cloneProgramRepositoryAggregateV3(current.aggregate),
+        };
+      }
+      const result = apply(current.aggregate);
+      if (result.kind !== "committed") {
+        await completion;
+        return result;
+      }
+      await writeCommittedPairV1({ transaction, current, next: result.aggregate });
+      await completion;
+      return {
+        kind: "committed",
+        aggregate: cloneProgramRepositoryAggregateV3(result.aggregate),
+      };
+    } catch (error) {
+      await abortAfterFailureV1(transaction, completion);
+      throw mapFailureV1(error, operation);
+    }
+  };
+
   return {
     async initialize(): Promise<void> {
       try {
@@ -352,18 +457,44 @@ export function createIndexedDbProgramRepositoryV3(
     async list() {
       try {
         const database = await getDatabaseV1("list");
-        const transaction = database.transaction(
-          programRepositoryProgramObjectStoreNameV3,
-          "readonly",
-        );
+        const transaction = database.transaction(programRepositoryObjectStoreNamesV4, "readonly");
         const completion = transactionCompletionV1(transaction);
         void completion.catch(() => undefined);
-        const rows = await requestResultV1(
-          transaction.objectStore(programRepositoryProgramObjectStoreNameV3).getAll(),
-        );
+        const programRequest = transaction.objectStore(programRepositoryProgramObjectStoreNameV4)
+          .getAll();
+        const continuationRequest = transaction.objectStore(
+          programRepositoryWorkspaceContinuationObjectStoreNameV4,
+        ).getAll();
+        const [programRows, continuationRows] = await Promise.all([
+          requestResultV1(programRequest),
+          requestResultV1(continuationRequest),
+        ]);
+        if (programRows.length !== continuationRows.length) {
+          throw createProgramRepositoryFailureV3("schema_invalid", "list");
+        }
+        const continuations = new Map<string, BrowserProgramContinuationManifestV1>();
+        for (const row of continuationRows) {
+          const continuation = storedContinuationV1(row, "list");
+          if (continuations.has(continuation.programId)) {
+            throw createProgramRepositoryFailureV3("schema_invalid", "list");
+          }
+          continuations.set(continuation.programId, continuation);
+        }
+        const aggregates = programRows.map((row) => storedAggregateV1(row, "list"));
+        for (const aggregate of aggregates) {
+          const continuation = continuations.get(aggregate.programId);
+          if (
+            continuation === undefined ||
+            !browserProgramContinuationMatchesAggregateV1(continuation, aggregate)
+          ) throw createProgramRepositoryFailureV3("schema_invalid", "list");
+          continuations.delete(aggregate.programId);
+        }
+        if (continuations.size !== 0) {
+          throw createProgramRepositoryFailureV3("schema_invalid", "list");
+        }
         await completion;
-        return sortProgramRepositorySummariesV2(
-          rows.map((row) => summarizeProgramRepositoryAggregateV2(storedAggregateV1(row, "list"))),
+        return sortProgramRepositorySummariesV3(
+          aggregates.map(summarizeProgramRepositoryAggregateV3),
         );
       } catch (error) {
         throw mapFailureV1(error, "list");
@@ -371,100 +502,104 @@ export function createIndexedDbProgramRepositoryV3(
     },
 
     async load(rawProgramId) {
-      const programId = normalizeProgramRepositoryProgramIdV2(rawProgramId);
+      const programId = normalizeProgramRepositoryProgramIdV3(rawProgramId);
       try {
         const database = await getDatabaseV1("load");
-        const transaction = database.transaction(
-          programRepositoryProgramObjectStoreNameV3,
-          "readonly",
-        );
+        const transaction = database.transaction(programRepositoryObjectStoreNamesV4, "readonly");
         const completion = transactionCompletionV1(transaction);
         void completion.catch(() => undefined);
-        const row = await requestResultV1(
-          transaction.objectStore(programRepositoryProgramObjectStoreNameV3).get(programId),
-        );
+        const pair = await loadPairFromTransactionV1({ transaction, programId, operation: "load" });
         await completion;
-        return row === undefined ? null : storedAggregateV1(row, "load");
+        return pair?.aggregate ?? null;
       } catch (error) {
         throw mapFailureV1(error, "load");
       }
     },
 
     async loadWorkspaceContinuation(rawProgramId) {
-      const programId = normalizeProgramRepositoryProgramIdV2(rawProgramId);
+      const programId = normalizeProgramRepositoryProgramIdV3(rawProgramId);
       try {
         const database = await getDatabaseV1("load_workspace_continuation");
-        const transaction = database.transaction(
-          programRepositoryMutationObjectStoreNamesV3,
-          "readonly",
-        );
+        const transaction = database.transaction(programRepositoryObjectStoreNamesV4, "readonly");
         const completion = transactionCompletionV1(transaction);
         void completion.catch(() => undefined);
-        const programRow = await requestResultV1(
-          transaction.objectStore(programRepositoryProgramObjectStoreNameV3).get(programId),
-        );
-        const continuationRow = await requestResultV1(
-          transaction.objectStore(programRepositoryWorkspaceContinuationObjectStoreNameV3).get(
-            programId,
-          ),
-        );
-        const aggregate = programRow === undefined
-          ? undefined
-          : storedAggregateV1(programRow, "load_workspace_continuation");
-        const continuation = continuationRow === undefined ? null : storedWorkspaceContinuationV1(
-          continuationRow,
-          aggregate,
-          "load_workspace_continuation",
-        );
+        const pair = await loadPairFromTransactionV1({
+          transaction,
+          programId,
+          operation: "load_workspace_continuation",
+        });
         await completion;
-        return continuation;
+        return pair?.continuation ?? null;
       } catch (error) {
         throw mapFailureV1(error, "load_workspace_continuation");
       }
     },
 
     async create(rawInput) {
-      const input = normalizeProgramRepositoryCreateInputV2(rawInput);
-      const candidate = buildProgramRepositoryCreateV2(input);
+      const input = normalizeProgramRepositoryCreateInputV3(rawInput);
+      const candidate = buildProgramRepositoryCreateV3(input);
+      const candidateContinuation = cloneBrowserProgramContinuationManifestV1(input.continuation);
       let transaction: IDBTransaction | undefined;
       let completion: Promise<void> | undefined;
       try {
         const database = await getDatabaseV1("create");
-        transaction = database.transaction(
-          programRepositoryMutationObjectStoreNamesV3,
-          "readwrite",
-        );
+        transaction = database.transaction(programRepositoryObjectStoreNamesV4, "readwrite");
         completion = transactionCompletionV1(transaction);
         void completion.catch(() => undefined);
-        const store = transaction.objectStore(programRepositoryProgramObjectStoreNameV3);
-        const continuationStore = transaction.objectStore(
-          programRepositoryWorkspaceContinuationObjectStoreNameV3,
-        );
-        const currentRow = await requestResultV1(store.get(candidate.programId));
-        const continuationRow = await requestResultV1(continuationStore.get(candidate.programId));
-        const current = currentRow === undefined
-          ? undefined
-          : storedAggregateV1(currentRow, "create");
-        if (continuationRow !== undefined) {
-          storedWorkspaceContinuationV1(continuationRow, current, "create");
-        }
-        if (currentRow !== undefined) {
-          if (current === undefined) throw new TypeError("invalid current Program aggregate");
+        const current = await loadPairFromTransactionV1({
+          transaction,
+          programId: candidate.programId,
+          operation: "create",
+        });
+        if (current !== null) {
           await completion;
-          if (programRepositoryAggregatesEqualV2(current, candidate)) {
-            return { kind: "unchanged", aggregate: current };
+          if (
+            programRepositoryAggregatesEqualV3(current.aggregate, candidate) &&
+            browserProgramContinuationManifestsEqualV1(
+              current.continuation,
+              candidateContinuation,
+            )
+          ) {
+            return {
+              kind: "unchanged",
+              aggregate: cloneProgramRepositoryAggregateV3(current.aggregate),
+            };
           }
-          return { kind: "conflict", current };
+          return {
+            kind: "conflict",
+            current: cloneProgramRepositoryAggregateV3(current.aggregate),
+          };
         }
-        const programCount = await requestResultV1(store.count());
-        if (programCount >= programRepositoryMaximumProgramsV2) {
+        const programStore = transaction.objectStore(programRepositoryProgramObjectStoreNameV4);
+        const continuationStore = transaction.objectStore(
+          programRepositoryWorkspaceContinuationObjectStoreNameV4,
+        );
+        const programCount = await requestResultV1(programStore.count());
+        if (programCount >= programRepositoryMaximumProgramsV3) {
           transaction.abort();
           await completion.catch(() => undefined);
-          throw createProgramRepositoryFailureV2("quota_exceeded", "create");
+          throw createProgramRepositoryFailureV3("quota_exceeded", "create");
         }
-        await requestResultV1(store.add(cloneProgramRepositoryAggregateV2(candidate)));
+        const programWrite = requestResultV1(
+          programStore.add(cloneProgramRepositoryAggregateV3(candidate)),
+        );
+        // Observe the first request before constructing the second. A synchronous
+        // continuation-store failure still aborts this transaction and must not leave
+        // the already-started Program request as an unhandled rejection.
+        void programWrite.catch(() => undefined);
+        let continuationWrite: Promise<IDBValidKey>;
+        try {
+          continuationWrite = requestResultV1(continuationStore.add(candidateContinuation));
+        } catch (error) {
+          await programWrite.catch(() => undefined);
+          throw error;
+        }
+        await Promise.all([programWrite, continuationWrite]);
         await completion;
-        return { kind: "committed", aggregate: cloneProgramRepositoryAggregateV2(candidate) };
+        return {
+          kind: "committed",
+          aggregate: cloneProgramRepositoryAggregateV3(candidate),
+        };
       } catch (error) {
         await abortAfterFailureV1(transaction, completion);
         throw mapFailureV1(error, "create");
@@ -472,237 +607,36 @@ export function createIndexedDbProgramRepositoryV3(
     },
 
     async applyRevision(rawInput) {
-      const input = normalizeProgramRepositoryApplyRevisionInputV2(rawInput);
-      let transaction: IDBTransaction | undefined;
-      let completion: Promise<void> | undefined;
-      try {
-        const database = await getDatabaseV1("apply_revision");
-        transaction = database.transaction(
-          programRepositoryMutationObjectStoreNamesV3,
-          "readwrite",
-        );
-        completion = transactionCompletionV1(transaction);
-        void completion.catch(() => undefined);
-        const programStore = transaction.objectStore(programRepositoryProgramObjectStoreNameV3);
-        const continuationStore = transaction.objectStore(
-          programRepositoryWorkspaceContinuationObjectStoreNameV3,
-        );
-        const currentRow = await requestResultV1(programStore.get(input.programId));
-        const continuationRow = await requestResultV1(continuationStore.get(input.programId));
-        if (currentRow === undefined) {
-          if (continuationRow !== undefined) {
-            storedWorkspaceContinuationV1(continuationRow, undefined, "apply_revision");
-          }
-          await completion;
-          return { kind: "conflict", current: null };
-        }
-        const current = storedAggregateV1(currentRow, "apply_revision");
-        if (continuationRow !== undefined) {
-          storedWorkspaceContinuationV1(continuationRow, current, "apply_revision");
-        }
-        const result = applyProgramRepositoryRevisionV2(
-          current,
-          input,
-        );
-        if (result.kind !== "committed") {
-          await completion;
-          return result;
-        }
-        await advanceStoredWorkspaceContinuationV1({
-          store: continuationStore,
-          current,
-          next: result.aggregate,
-          operation: "apply_revision",
-        });
-        await requestResultV1(
-          programStore.put(cloneProgramRepositoryAggregateV2(result.aggregate)),
-        );
-        await completion;
-        return {
-          kind: "committed",
-          aggregate: cloneProgramRepositoryAggregateV2(result.aggregate),
-        };
-      } catch (error) {
-        await abortAfterFailureV1(transaction, completion);
-        throw mapFailureV1(error, "apply_revision");
-      }
-    },
-
-    async decide(rawInput) {
-      const input = normalizeProgramRepositoryDecideInputV2(rawInput);
-      let transaction: IDBTransaction | undefined;
-      let completion: Promise<void> | undefined;
-      try {
-        const database = await getDatabaseV1("decide");
-        transaction = database.transaction(
-          programRepositoryMutationObjectStoreNamesV3,
-          "readwrite",
-        );
-        completion = transactionCompletionV1(transaction);
-        void completion.catch(() => undefined);
-        const programStore = transaction.objectStore(programRepositoryProgramObjectStoreNameV3);
-        const continuationStore = transaction.objectStore(
-          programRepositoryWorkspaceContinuationObjectStoreNameV3,
-        );
-        const currentRow = await requestResultV1(programStore.get(input.programId));
-        const continuationRow = await requestResultV1(continuationStore.get(input.programId));
-        if (currentRow === undefined) {
-          if (continuationRow !== undefined) {
-            storedWorkspaceContinuationV1(continuationRow, undefined, "decide");
-          }
-          await completion;
-          return { kind: "conflict", current: null };
-        }
-        const current = storedAggregateV1(currentRow, "decide");
-        if (continuationRow !== undefined) {
-          storedWorkspaceContinuationV1(continuationRow, current, "decide");
-        }
-        const result = applyProgramRepositoryDecisionV2(
-          current,
-          input,
-        );
-        if (result.kind !== "committed") {
-          await completion;
-          return result;
-        }
-        await advanceStoredWorkspaceContinuationV1({
-          store: continuationStore,
-          current,
-          next: result.aggregate,
-          operation: "decide",
-        });
-        await requestResultV1(
-          programStore.put(cloneProgramRepositoryAggregateV2(result.aggregate)),
-        );
-        await completion;
-        return {
-          kind: "committed",
-          aggregate: cloneProgramRepositoryAggregateV2(result.aggregate),
-        };
-      } catch (error) {
-        await abortAfterFailureV1(transaction, completion);
-        throw mapFailureV1(error, "decide");
-      }
+      const input = normalizeProgramRepositoryApplyRevisionInputV3(rawInput);
+      return await mutateV1(
+        "apply_revision",
+        input.programId,
+        input.continuation,
+        input.expectedRepositoryRevision,
+        (current) => applyProgramRepositoryRevisionV3(current, input),
+      );
     },
 
     async settleAgentRun(rawInput) {
-      const input = normalizeProgramRepositorySettleAgentRunInputV2(rawInput);
-      let transaction: IDBTransaction | undefined;
-      let completion: Promise<void> | undefined;
-      try {
-        const database = await getDatabaseV1("settle_agent_run");
-        transaction = database.transaction(
-          programRepositoryMutationObjectStoreNamesV3,
-          "readwrite",
-        );
-        completion = transactionCompletionV1(transaction);
-        void completion.catch(() => undefined);
-        const programStore = transaction.objectStore(programRepositoryProgramObjectStoreNameV3);
-        const continuationStore = transaction.objectStore(
-          programRepositoryWorkspaceContinuationObjectStoreNameV3,
-        );
-        const currentRow = await requestResultV1(programStore.get(input.programId));
-        const continuationRow = await requestResultV1(continuationStore.get(input.programId));
-        if (currentRow === undefined) {
-          if (continuationRow !== undefined) {
-            storedWorkspaceContinuationV1(continuationRow, undefined, "settle_agent_run");
-          }
-          await completion;
-          return { kind: "conflict", current: null };
-        }
-        const current = storedAggregateV1(currentRow, "settle_agent_run");
-        if (continuationRow !== undefined) {
-          storedWorkspaceContinuationV1(continuationRow, current, "settle_agent_run");
-        }
-        const result = applyProgramRepositoryAgentRunTerminalV2(
-          current,
-          input,
-        );
-        if (result.kind !== "committed") {
-          await completion;
-          return result;
-        }
-        await advanceStoredWorkspaceContinuationV1({
-          store: continuationStore,
-          current,
-          next: result.aggregate,
-          operation: "settle_agent_run",
-        });
-        await requestResultV1(
-          programStore.put(cloneProgramRepositoryAggregateV2(result.aggregate)),
-        );
-        await completion;
-        return {
-          kind: "committed",
-          aggregate: cloneProgramRepositoryAggregateV2(result.aggregate),
-        };
-      } catch (error) {
-        await abortAfterFailureV1(transaction, completion);
-        throw mapFailureV1(error, "settle_agent_run");
-      }
+      const input = normalizeProgramRepositorySettleAgentRunInputV3(rawInput);
+      return await mutateV1(
+        "settle_agent_run",
+        input.programId,
+        input.continuation,
+        input.expectedRepositoryRevision,
+        (current) => applyProgramRepositoryAgentRunTerminalV3(current, input),
+      );
     },
 
-    async insertWorkspaceContinuation(rawContinuation) {
-      const continuation = normalizeProgramRepositoryWorkspaceContinuationInsertV1(
-        rawContinuation,
+    async decide(rawInput) {
+      const input = normalizeProgramRepositoryDecideInputV3(rawInput);
+      return await mutateV1(
+        "decide",
+        input.programId,
+        input.continuation,
+        input.expectedRepositoryRevision,
+        (current) => applyProgramRepositoryDecisionV3(current, input),
       );
-      let transaction: IDBTransaction | undefined;
-      let completion: Promise<void> | undefined;
-      try {
-        const database = await getDatabaseV1("insert_workspace_continuation");
-        transaction = database.transaction(
-          programRepositoryMutationObjectStoreNamesV3,
-          "readwrite",
-        );
-        completion = transactionCompletionV1(transaction);
-        void completion.catch(() => undefined);
-        const programStore = transaction.objectStore(programRepositoryProgramObjectStoreNameV3);
-        const continuationStore = transaction.objectStore(
-          programRepositoryWorkspaceContinuationObjectStoreNameV3,
-        );
-        const programRow = await requestResultV1(
-          programStore.get(continuation.programId),
-        );
-        const continuationRow = await requestResultV1(
-          continuationStore.get(continuation.programId),
-        );
-        const aggregate = programRow === undefined
-          ? undefined
-          : storedAggregateV1(programRow, "insert_workspace_continuation");
-        const current = continuationRow === undefined ? null : storedWorkspaceContinuationV1(
-          continuationRow,
-          aggregate,
-          "insert_workspace_continuation",
-        );
-        if (
-          aggregate === undefined ||
-          !browserProgramContinuationMatchesAggregateV1(continuation, aggregate)
-        ) {
-          await completion;
-          return { kind: "conflict", current };
-        }
-        if (
-          current !== null &&
-          browserProgramContinuationManifestsEqualV1(current, continuation)
-        ) {
-          await completion;
-          return { kind: "unchanged", continuation: current };
-        }
-        if (current !== null) {
-          await completion;
-          return { kind: "conflict", current };
-        }
-        const inserted = cloneBrowserProgramContinuationManifestV1(continuation);
-        await requestResultV1(continuationStore.add(inserted));
-        await completion;
-        return {
-          kind: "committed",
-          continuation: cloneBrowserProgramContinuationManifestV1(inserted),
-        };
-      } catch (error) {
-        await abortAfterFailureV1(transaction, completion);
-        throw mapFailureV1(error, "insert_workspace_continuation");
-      }
     },
 
     async dispose(): Promise<void> {

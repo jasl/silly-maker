@@ -13,13 +13,25 @@ import type {
 } from "./contracts.ts";
 import { creatorAgentTextMaximumCharactersV1 } from "./contracts.ts";
 import { createCreatorSessionV1, createEmptyCreatorSessionSnapshotV1 } from "./creator-session.ts";
-import { programRepositoryMaximumAgentRunReceiptsV2 } from "./program-repository.ts";
+import type { BrowserProgramWorkspaceAuthorityV1 } from "./browser-program-workspace-authority.ts";
+import { programRepositoryMaximumAgentRunReceiptsV3 } from "./program-repository.ts";
 import type {
-  ProgramRepositoryAggregateV2,
-  ProgramRepositoryCommitResultV2,
-  ProgramRepositorySummaryV2,
-  ProgramRepositoryV2,
+  ProgramRepositoryAggregateV3,
+  ProgramRepositoryCommitResultV3,
+  ProgramRepositorySummaryV3,
 } from "./program-repository.ts";
+
+export type CreatorControllerAuthorityV1 = Pick<
+  BrowserProgramWorkspaceAuthorityV1,
+  | "initialize"
+  | "list"
+  | "load"
+  | "create"
+  | "applyRevision"
+  | "settleAgentRun"
+  | "decide"
+  | "closeActiveWorkspace"
+>;
 
 export type CreatorDurabilityOperationV1 =
   | "catalog"
@@ -37,21 +49,17 @@ export type CreatorDurabilityStateV1 =
     readonly operation: "create" | "revision" | "decision" | "agent_run";
   }
   | {
-    readonly phase: "reconciling";
-    readonly operation: "create" | "revision" | "decision" | "agent_run";
-  }
-  | {
     readonly phase: "failed";
     readonly operation: CreatorDurabilityOperationV1;
     readonly code: string;
-    readonly recovery: "retry" | "reconcile" | null;
+    readonly recovery: "retry" | null;
   }
   | { readonly phase: "disposed" };
 
 export interface CreatorControllerSnapshotV1 {
   readonly revision: number;
   readonly session: CreatorSessionSnapshotV1;
-  readonly recentPrograms: readonly ProgramRepositorySummaryV2[];
+  readonly recentPrograms: readonly ProgramRepositorySummaryV3[];
   readonly durability: CreatorDurabilityStateV1;
 }
 
@@ -82,7 +90,7 @@ export interface CreatorControllerV1 {
   rejectProposal(
     expected: ProgramProposalReferenceV1,
   ): Promise<CreatorControllerResultV1<CreatorProposalDecisionResultV1>>;
-  openHome(): boolean;
+  openHome(): Promise<boolean>;
   retry(): Promise<boolean>;
   dispose(): Promise<void>;
 }
@@ -108,18 +116,11 @@ function failureCodeV1(error: unknown): string {
     const code = Reflect.get(error, "code");
     if (typeof code === "string" && code.length > 0 && code.length <= 128) return code;
   }
-  return "repository_failed";
-}
-
-function sameSnapshotV1(
-  left: CreatorSessionSnapshotV1,
-  right: CreatorSessionSnapshotV1,
-): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return "authority_failed";
 }
 
 function aggregateHasTerminalV1(
-  aggregate: ProgramRepositoryAggregateV2,
+  aggregate: ProgramRepositoryAggregateV3,
   terminal: CreatorAgentTerminalRunV1,
 ): boolean {
   const receipt = aggregate.agentRunReceipts.find(({ agentRunId }) =>
@@ -157,8 +158,8 @@ function aggregateHasTerminalV1(
 }
 
 function summaryFromAggregateV1(
-  aggregate: ProgramRepositoryAggregateV2,
-): ProgramRepositorySummaryV2 {
+  aggregate: ProgramRepositoryAggregateV3,
+): ProgramRepositorySummaryV3 {
   const program = aggregate.snapshot.program;
   const proposal = aggregate.snapshot.proposal;
   if (program === null || proposal === null) {
@@ -176,9 +177,9 @@ function summaryFromAggregateV1(
 }
 
 function upsertRecentV1(
-  current: readonly ProgramRepositorySummaryV2[],
-  aggregate: ProgramRepositoryAggregateV2,
-): readonly ProgramRepositorySummaryV2[] {
+  current: readonly ProgramRepositorySummaryV3[],
+  aggregate: ProgramRepositoryAggregateV3,
+): readonly ProgramRepositorySummaryV3[] {
   const summary = summaryFromAggregateV1(aggregate);
   return [summary, ...current.filter((candidate) => candidate.programId !== summary.programId)]
     .toSorted((left, right) =>
@@ -187,12 +188,12 @@ function upsertRecentV1(
 }
 
 function isMutationBusyV1(state: CreatorDurabilityStateV1): boolean {
-  return state.phase === "saving" || state.phase === "reconciling";
+  return state.phase === "saving";
 }
 
 export function createCreatorControllerV1(input: {
   readonly creator: CreatorPreviewPortV1;
-  readonly createRepository: () => ProgramRepositoryV2;
+  readonly authority: CreatorControllerAuthorityV1;
   readonly createWorkspaceId?: () => string;
   readonly createAgentRunId?: () => string;
   readonly now?: () => number;
@@ -201,9 +202,10 @@ export function createCreatorControllerV1(input: {
   const createWorkspaceId = input.createWorkspaceId ?? defaultWorkspaceIdV1;
   const createAgentRunId = input.createAgentRunId ?? defaultAgentRunIdV1;
   const now = input.now ?? Date.now;
-  let repository = input.createRepository();
-  let activeAggregate: ProgramRepositoryAggregateV2 | null = null;
+  const authority = input.authority;
+  let activeAggregate: ProgramRepositoryAggregateV3 | null = null;
   let retryCommand: RetryCommandV1 | null = null;
+  let homeTransitionPending = false;
   let disposed = false;
   let snapshot: CreatorControllerSnapshotV1 = {
     revision: 0,
@@ -219,7 +221,7 @@ export function createCreatorControllerV1(input: {
       try {
         listener();
       } catch {
-        // Product observers cannot change repository/controller precedence.
+        // Product observers cannot change authority/controller precedence.
       }
     }
   };
@@ -232,7 +234,9 @@ export function createCreatorControllerV1(input: {
     });
   };
 
-  const installAggregate = (aggregate: ProgramRepositoryAggregateV2): void => {
+  const isBusy = (): boolean => homeTransitionPending || isMutationBusyV1(snapshot.durability);
+
+  const installAggregate = (aggregate: ProgramRepositoryAggregateV3): void => {
     if (disposed) return;
     activeAggregate = aggregate;
     retryCommand = null;
@@ -243,23 +247,10 @@ export function createCreatorControllerV1(input: {
     });
   };
 
-  const replaceRepository = async (): Promise<void> => {
-    if (disposed) throw new TypeError("sillyos.creator_controller.disposed");
-    const predecessor = repository;
-    const successor = input.createRepository();
-    await Promise.resolve(predecessor.dispose()).catch(() => undefined);
-    if (disposed) {
-      await Promise.resolve(successor.dispose()).catch(() => undefined);
-      throw new TypeError("sillyos.creator_controller.disposed");
-    }
-    repository = successor;
-    await successor.initialize();
-  };
-
   const fail = (
     operation: CreatorDurabilityOperationV1,
     code: string,
-    recovery: "retry" | "reconcile" | null,
+    recovery: "retry" | null,
     retry: RetryCommandV1 | null,
   ): CreatorControllerResultV1<never> => {
     if (disposed) return { kind: "failed", code: "disposed" };
@@ -268,69 +259,21 @@ export function createCreatorControllerV1(input: {
     return { kind: "failed", code };
   };
 
-  const reconcileMutation = async (mutation: {
-    readonly operation: "create" | "revision" | "decision" | "agent_run";
-    readonly programId: string;
-    readonly previous: ProgramRepositoryAggregateV2 | null;
-    readonly desiredSnapshot: CreatorSessionSnapshotV1;
-    readonly matchesDurable?: (aggregate: ProgramRepositoryAggregateV2) => boolean;
-    readonly retryMutation: RetryCommandV1;
-  }): Promise<CreatorControllerResultV1<void>> => {
-    if (disposed) return { kind: "failed", code: "disposed" };
-    publishDurability({ phase: "reconciling", operation: mutation.operation });
-    try {
-      await replaceRepository();
-      const durable = await repository.load(mutation.programId);
-      if (disposed) return { kind: "failed", code: "disposed" };
-      if (
-        durable !== null &&
-        (mutation.matchesDurable?.(durable) ??
-          sameSnapshotV1(durable.snapshot, mutation.desiredSnapshot))
-      ) {
-        installAggregate(durable);
-        return { kind: "completed", value: undefined };
-      }
-      if (
-        (durable === null && mutation.previous === null) ||
-        (durable !== null && mutation.previous !== null &&
-          durable.repositoryRevision === mutation.previous.repositoryRevision &&
-          sameSnapshotV1(durable.snapshot, mutation.previous.snapshot))
-      ) {
-        return fail(
-          mutation.operation,
-          "not_committed",
-          "retry",
-          mutation.retryMutation,
-        );
-      }
-      if (durable !== null) installAggregate(durable);
-      return fail(mutation.operation, "conflict", null, null);
-    } catch (error) {
-      if (disposed) return { kind: "failed", code: "disposed" };
-      const code = failureCodeV1(error);
-      const retryReconcile = () =>
-        reconcileMutation(mutation).then((result) => result.kind === "completed");
-      return fail(mutation.operation, code, "reconcile", retryReconcile);
-    }
-  };
-
   const runCommit = async <T>(mutation: {
     readonly operation: "create" | "revision" | "decision" | "agent_run";
-    readonly programId: string;
-    readonly previous: ProgramRepositoryAggregateV2 | null;
-    readonly desiredSnapshot: CreatorSessionSnapshotV1;
     readonly domainResult: T;
-    readonly matchesDurable?: (aggregate: ProgramRepositoryAggregateV2) => boolean;
-    readonly commit: (repository: ProgramRepositoryV2) => Promise<ProgramRepositoryCommitResultV2>;
+    readonly commit: (
+      authority: CreatorControllerAuthorityV1,
+    ) => Promise<ProgramRepositoryCommitResultV3>;
   }): Promise<CreatorControllerResultV1<T>> => {
-    if (disposed || isMutationBusyV1(snapshot.durability)) return { kind: "busy" };
+    if (disposed || isBusy()) return { kind: "busy" };
     const retryMutation = async (): Promise<boolean> => {
       const result = await runCommit(mutation);
       return result.kind === "completed";
     };
     publishDurability({ phase: "saving", operation: mutation.operation });
     try {
-      const result = await mutation.commit(repository);
+      const result = await mutation.commit(authority);
       if (disposed) return { kind: "failed", code: "disposed" };
       if (result.kind === "conflict") {
         if (result.current !== null) installAggregate(result.current);
@@ -341,32 +284,17 @@ export function createCreatorControllerV1(input: {
     } catch (error) {
       if (disposed) return { kind: "failed", code: "disposed" };
       const code = failureCodeV1(error);
-      if (code === "outcome_unknown") {
-        const reconciled = await reconcileMutation({
-          operation: mutation.operation,
-          programId: mutation.programId,
-          previous: mutation.previous,
-          desiredSnapshot: mutation.desiredSnapshot,
-          ...(mutation.matchesDurable === undefined
-            ? {}
-            : { matchesDurable: mutation.matchesDurable }),
-          retryMutation,
-        });
-        return reconciled.kind === "completed"
-          ? { kind: "completed", value: mutation.domainResult }
-          : reconciled;
-      }
       return fail(mutation.operation, code, "retry", retryMutation);
     }
   };
 
   const initialize = async (): Promise<void> => {
-    if (disposed) return;
+    if (disposed || homeTransitionPending) return;
     retryCommand = null;
     publishDurability({ phase: "loading", operation: "catalog" });
     try {
-      await repository.initialize();
-      const recentPrograms = await repository.list();
+      await authority.initialize();
+      const recentPrograms = await authority.list();
       if (disposed) return;
       publish({
         session: snapshot.session,
@@ -387,11 +315,12 @@ export function createCreatorControllerV1(input: {
     status: "accepted" | "rejected",
     expected: ProgramProposalReferenceV1,
   ): Promise<CreatorControllerResultV1<CreatorProposalDecisionResultV1>> => {
+    if (disposed) return { kind: "busy" };
     const previous = activeAggregate;
     if (previous === null) {
       return { kind: "completed", value: { kind: "unavailable" } };
     }
-    if (isMutationBusyV1(snapshot.durability)) return { kind: "busy" };
+    if (isBusy()) return { kind: "busy" };
     const staged = createCreatorSessionV1({
       creator: input.creator,
       initialSnapshot: previous.snapshot,
@@ -414,12 +343,9 @@ export function createCreatorControllerV1(input: {
     }
     return runCommit({
       operation: "decision",
-      programId: program.programId,
-      previous,
-      desiredSnapshot,
       domainResult,
-      commit: (candidateRepository) =>
-        candidateRepository.decide({
+      commit: (candidateAuthority) =>
+        candidateAuthority.decide({
           programId: program.programId,
           expectedRepositoryRevision: previous.repositoryRevision,
           expectedProposal: expectedReference,
@@ -433,11 +359,11 @@ export function createCreatorControllerV1(input: {
   const openProgram = async (
     programId: string,
   ): Promise<CreatorControllerResultV1<boolean>> => {
-    if (disposed || isMutationBusyV1(snapshot.durability)) return { kind: "busy" };
+    if (disposed || isBusy()) return { kind: "busy" };
     retryCommand = null;
     publishDurability({ phase: "loading", operation: "open" });
     try {
-      const aggregate = await repository.load(programId);
+      const aggregate = await authority.load(programId);
       if (disposed) return { kind: "failed", code: "disposed" };
       if (aggregate === null) return fail("open", "not_found", null, null);
       installAggregate(aggregate);
@@ -462,7 +388,7 @@ export function createCreatorControllerV1(input: {
     initialize,
     openProgram,
     async submitIntent(intent) {
-      if (disposed || isMutationBusyV1(snapshot.durability)) return { kind: "busy" };
+      if (disposed || isBusy()) return { kind: "busy" };
       const workspaceId = createWorkspaceId();
       const staged = createCreatorSessionV1({
         creator: input.creator,
@@ -478,20 +404,18 @@ export function createCreatorControllerV1(input: {
       const updatedAt = now();
       return runCommit({
         operation: "create",
-        programId: program.programId,
-        previous: null,
-        desiredSnapshot,
         domainResult,
-        commit: (candidateRepository) =>
-          candidateRepository.create({ snapshot: desiredSnapshot, updatedAt }),
+        commit: (candidateAuthority) =>
+          candidateAuthority.create({ snapshot: desiredSnapshot, updatedAt }),
       });
     },
     async sendFollowUp(text) {
+      if (disposed) return { kind: "busy" };
       const previous = activeAggregate;
       if (previous === null) {
         return { kind: "completed", value: { kind: "unavailable" } };
       }
-      if (isMutationBusyV1(snapshot.durability)) return { kind: "busy" };
+      if (isBusy()) return { kind: "busy" };
       const staged = createCreatorSessionV1({
         creator: input.creator,
         initialSnapshot: previous.snapshot,
@@ -507,12 +431,9 @@ export function createCreatorControllerV1(input: {
       const updatedAt = now();
       return runCommit({
         operation: "revision",
-        programId: currentProgram.programId,
-        previous,
-        desiredSnapshot,
         domainResult,
-        commit: (candidateRepository) =>
-          candidateRepository.applyRevision({
+        commit: (candidateAuthority) =>
+          candidateAuthority.applyRevision({
             programId: currentProgram.programId,
             expectedRepositoryRevision: previous.repositoryRevision,
             expectedBase: {
@@ -526,12 +447,13 @@ export function createCreatorControllerV1(input: {
       });
     },
     prepareAgentRun(rawText) {
+      if (disposed) return { kind: "busy" };
       const previous = activeAggregate;
       if (previous === null) {
         return { kind: "completed", value: { kind: "unavailable" } };
       }
-      if (isMutationBusyV1(snapshot.durability)) return { kind: "busy" };
-      if (previous.agentRunReceipts.length >= programRepositoryMaximumAgentRunReceiptsV2) {
+      if (isBusy()) return { kind: "busy" };
+      if (previous.agentRunReceipts.length >= programRepositoryMaximumAgentRunReceiptsV3) {
         return { kind: "completed", value: { kind: "unavailable" } };
       }
       const text = rawText.trim();
@@ -567,6 +489,7 @@ export function createCreatorControllerV1(input: {
       };
     },
     async recordAgentRunTerminal(terminal) {
+      if (disposed) return { kind: "busy" };
       const previous = activeAggregate;
       if (previous === null) {
         return { kind: "completed", value: { kind: "unavailable" } };
@@ -581,7 +504,7 @@ export function createCreatorControllerV1(input: {
         agentRunId === terminal.run.agentRunId
       );
       if (existing !== undefined) return fail("agent_run", "conflict", null, null);
-      if (isMutationBusyV1(snapshot.durability)) return { kind: "busy" };
+      if (isBusy()) return { kind: "busy" };
       const staged = createCreatorSessionV1({
         creator: input.creator,
         initialSnapshot: previous.snapshot,
@@ -594,13 +517,9 @@ export function createCreatorControllerV1(input: {
       const updatedAt = now();
       return runCommit({
         operation: "agent_run",
-        programId: terminal.run.programId,
-        previous,
-        desiredSnapshot,
         domainResult,
-        matchesDurable: (aggregate) => aggregateHasTerminalV1(aggregate, terminal),
-        commit: (candidateRepository) =>
-          candidateRepository.settleAgentRun({
+        commit: (candidateAuthority) =>
+          candidateAuthority.settleAgentRun({
             programId: terminal.run.programId,
             expectedRepositoryRevision: previous.repositoryRevision,
             terminal,
@@ -611,19 +530,28 @@ export function createCreatorControllerV1(input: {
     },
     acceptProposal: (expected) => decide("accepted", expected),
     rejectProposal: (expected) => decide("rejected", expected),
-    openHome() {
-      if (disposed || isMutationBusyV1(snapshot.durability)) return false;
-      activeAggregate = null;
-      retryCommand = null;
-      publish({
-        session: createEmptyCreatorSessionSnapshotV1(input.creator.source),
-        recentPrograms: snapshot.recentPrograms,
-        durability: { phase: "ready" },
-      });
-      return true;
+    async openHome() {
+      if (disposed || isBusy()) return false;
+      homeTransitionPending = true;
+      try {
+        await authority.closeActiveWorkspace();
+        if (disposed) return false;
+        activeAggregate = null;
+        retryCommand = null;
+        publish({
+          session: createEmptyCreatorSessionSnapshotV1(input.creator.source),
+          recentPrograms: snapshot.recentPrograms,
+          durability: { phase: "ready" },
+        });
+        return true;
+      } catch {
+        return false;
+      } finally {
+        homeTransitionPending = false;
+      }
     },
     async retry() {
-      if (disposed || retryCommand === null || isMutationBusyV1(snapshot.durability)) return false;
+      if (disposed || retryCommand === null || isBusy()) return false;
       const command = retryCommand;
       retryCommand = null;
       return command();
@@ -632,7 +560,6 @@ export function createCreatorControllerV1(input: {
       if (disposed) return;
       disposed = true;
       retryCommand = null;
-      await Promise.resolve(repository.dispose()).catch(() => undefined);
       snapshot = {
         revision: snapshot.revision + 1,
         session: snapshot.session,

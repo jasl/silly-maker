@@ -15,6 +15,7 @@ import type {
   CreatorControllerV1,
   CreatorDurabilityStateV1,
 } from "../product/creator-controller.ts";
+import type { BrowserProgramWorkspaceAuthorityV1 } from "../product/browser-program-workspace-authority.ts";
 import {
   acknowledgeAppliedAgentTerminalV1,
   canConsumeAgentTerminalV1,
@@ -32,7 +33,14 @@ import "./silly-os.css";
 
 export interface SillyOsAppPropsV1 {
   readonly controller: CreatorControllerV1;
+  readonly workspaceAuthority: BrowserProgramWorkspaceAuthorityV1;
+  readonly agentDrainRegistry: SillyOsAgentDrainRegistryV1;
   readonly reportFailure: (code: string, error: unknown) => void;
+}
+
+export interface SillyOsAgentDrainRegistryV1 {
+  isAccepting(): boolean;
+  register(drain: () => Promise<void>): () => void;
 }
 
 type BrowserCreatorAgentModuleV1 = typeof import("../agent/creator-agent-port.ts");
@@ -146,7 +154,12 @@ async function startWorkspaceDownloadV1(
   return "release";
 }
 
-export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): ReactNode {
+export function SillyOsAppV1({
+  controller,
+  workspaceAuthority,
+  agentDrainRegistry,
+  reportFailure,
+}: SillyOsAppPropsV1): ReactNode {
   const initialCopy = resolveSillyOsCopyV1();
   const [locale, setLocale] = useState<SillyOsLocaleV1>(initialCopy.locale);
   const [piRuntime] = useState(requestedBrowserPiRuntimeV1);
@@ -169,8 +182,10 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
   >(null);
   const agentPortRef = useRef<BrowserCreatorAgentPortV1 | null>(null);
   const agentSetupEpochRef = useRef(0);
+  const agentSetupSettlementRef = useRef<Promise<void>>(Promise.resolve());
   const agentTeardownRef = useRef<Promise<void>>(Promise.resolve());
   const agentWorkspaceLifecycleRef = useRef<Promise<void>>(Promise.resolve());
+  const agentTerminalSettlementRef = useRef<Promise<void>>(Promise.resolve());
   const browserStorageOperationEpochRef = useRef(0);
   const browserStorageRequestPendingRef = useRef(false);
   const workspaceExportEpochRef = useRef(0);
@@ -194,21 +209,58 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
     null;
   const executionWorkspaceGeneration = agentSnapshot?.workspace.descriptor?.generation ?? null;
 
+  const queueAgentPortTeardownV1 = useCallback((
+    port: BrowserCreatorAgentPortV1,
+    finalPhase: "forgotten" | "disposed",
+  ): Promise<void> => {
+    const precedingTeardown = agentTeardownRef.current;
+    const workspaceSettlement = agentWorkspaceLifecycleRef.current;
+    const terminalSettlement = agentTerminalSettlementRef.current;
+    const teardown = Promise.all([
+      precedingTeardown.catch(() => undefined),
+      workspaceSettlement.catch(() => undefined),
+      terminalSettlement.catch(() => undefined),
+    ]).then(() => finalPhase === "forgotten" ? port.forget() : port.dispose()).catch(
+      () => undefined,
+    );
+    agentTeardownRef.current = teardown;
+    return teardown;
+  }, []);
+
+  const drainAgentGraphV1 = useCallback(async (): Promise<void> => {
+    agentSetupEpochRef.current += 1;
+    browserStorageOperationEpochRef.current += 1;
+    workspaceExportEpochRef.current += 1;
+    workspaceExportAbortRef.current?.abort();
+    workspaceExportAbortRef.current = null;
+    claimedTerminalRunIdsRef.current.clear();
+    const current = agentPortRef.current;
+    agentPortRef.current = null;
+    if (current !== null) void queueAgentPortTeardownV1(current, "disposed");
+    await Promise.all([
+      agentSetupSettlementRef.current.catch(() => undefined),
+      agentWorkspaceLifecycleRef.current.catch(() => undefined),
+      agentTerminalSettlementRef.current.catch(() => undefined),
+      agentTeardownRef.current.catch(() => undefined),
+    ]);
+    await agentTeardownRef.current.catch(() => undefined);
+  }, [queueAgentPortTeardownV1]);
+
   useEffect(() => {
     void controller.initialize();
   }, [controller]);
 
   useEffect(() => {
-    if (!piAgentRequested) return undefined;
+    if (!piAgentRequested || !agentDrainRegistry.isAccepting()) return undefined;
     let current = true;
     void import("../agent/creator-agent-port.ts").then(
       (module) => {
-        if (!current) return;
+        if (!current || !agentDrainRegistry.isAccepting()) return;
         agentFactoryRef.current = module.createBrowserCreatorAgentPortV1;
         setPiAgentSetupStatus("available");
       },
       (error: unknown) => {
-        if (!current) return;
+        if (!current || !agentDrainRegistry.isAccepting()) return;
         setPiAgentSetupStatus("failed");
         reportFailure("silly_os.browser_pi_adapter_unavailable", error);
       },
@@ -217,7 +269,7 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
       current = false;
       agentFactoryRef.current = null;
     };
-  }, [piAgentRequested, reportFailure]);
+  }, [agentDrainRegistry, piAgentRequested, reportFailure]);
 
   useEffect(() => {
     if (agentPort === null) {
@@ -273,7 +325,7 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
       claimedTerminalRunIdsRef.current.has(terminal.run.agentRunId)
     ) return;
     claimedTerminalRunIdsRef.current.add(terminal.run.agentRunId);
-    void (async (): Promise<void> => {
+    const settlement = (async (): Promise<void> => {
       try {
         const persistence = await controller.recordAgentRunTerminal(terminal);
         if (persistence.kind === "busy") return;
@@ -301,6 +353,7 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
         claimedTerminalRunIdsRef.current.delete(terminal.run.agentRunId);
       }
     })();
+    agentTerminalSettlementRef.current = settlement;
   }, [agentSnapshot, controller, durability.phase, reportFailure]);
 
   const queueAgentWorkspaceV1 = useCallback((
@@ -308,7 +361,7 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
     desired: { readonly programId: string; readonly workspaceId: string } | null,
   ): Promise<boolean> => {
     const operation = agentWorkspaceLifecycleRef.current.then(async () => {
-      if (agentPortRef.current !== port) {
+      if (!agentDrainRegistry.isAccepting() || agentPortRef.current !== port) {
         return false;
       }
       const current = port.getSnapshot().workspace;
@@ -336,7 +389,7 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
           return false;
         }
       }
-      if (agentPortRef.current !== port) {
+      if (!agentDrainRegistry.isAccepting() || agentPortRef.current !== port) {
         return false;
       }
       const opened = await port.openWorkspace(desired);
@@ -351,17 +404,20 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
     });
     agentWorkspaceLifecycleRef.current = operation.then(() => undefined);
     return operation;
-  }, [reportFailure]);
+  }, [agentDrainRegistry, reportFailure]);
 
   useEffect(() => {
     const port = agentPortRef.current;
-    if (port === null || piAgentSetupStatus !== "ready") return;
+    if (
+      port === null || piAgentSetupStatus !== "ready" || !agentDrainRegistry.isAccepting()
+    ) return;
     const desired = routedProgramId !== null && routedWorkspaceId !== null
       ? { programId: routedProgramId, workspaceId: routedWorkspaceId }
       : null;
     void queueAgentWorkspaceV1(port, desired);
   }, [
     agentPort,
+    agentDrainRegistry,
     piAgentSetupStatus,
     queueAgentWorkspaceV1,
     routedProgramId,
@@ -369,21 +425,8 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
   ]);
 
   useEffect(() => {
-    return () => {
-      agentSetupEpochRef.current += 1;
-      browserStorageOperationEpochRef.current += 1;
-      workspaceExportEpochRef.current += 1;
-      workspaceExportAbortRef.current?.abort();
-      workspaceExportAbortRef.current = null;
-      const current = agentPortRef.current;
-      agentPortRef.current = null;
-      if (current !== null) {
-        agentTeardownRef.current = agentTeardownRef.current.then(() => current.dispose()).catch(
-          () => undefined,
-        );
-      }
-    };
-  }, []);
+    return agentDrainRegistry.register(drainAgentGraphV1);
+  }, [agentDrainRegistry, drainAgentGraphV1]);
 
   const changeLocaleV1 = (next: SillyOsLocaleV1): void => {
     setLocale(next);
@@ -394,7 +437,10 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
 
   const initializePiAgentV1 = (suppliedCredential: string): void => {
     const factory = agentFactoryRef.current;
-    if (factory === null || piRuntime === null || suppliedCredential.length === 0) {
+    if (
+      !agentDrainRegistry.isAccepting() || factory === null || piRuntime === null ||
+      suppliedCredential.length === 0
+    ) {
       setPiAgentSetupStatus("failed");
       reportFailure("silly_os.browser_pi_adapter_unavailable", "factory_unavailable");
       return;
@@ -404,7 +450,11 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
     let credential = suppliedCredential;
     let port: BrowserCreatorAgentPortV1;
     try {
-      port = factory({ apiKey: credential, runtime: piRuntime });
+      port = factory({
+        apiKey: credential,
+        runtime: piRuntime,
+        workspaceAuthority,
+      });
     } catch (error) {
       credential = "";
       setPiAgentSetupStatus("failed");
@@ -418,20 +468,21 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
     setAgentSnapshot(null);
     claimedTerminalRunIdsRef.current.clear();
     if (predecessor !== null) {
-      agentTeardownRef.current = agentTeardownRef.current.then(() => predecessor.dispose()).catch(
-        () => undefined,
-      );
+      void queueAgentPortTeardownV1(predecessor, "disposed");
     }
-    void (async (): Promise<void> => {
+    const setup = (async (): Promise<void> => {
       await agentTeardownRef.current;
-      if (agentSetupEpochRef.current !== epoch) {
-        await port.forget();
+      if (agentSetupEpochRef.current !== epoch || !agentDrainRegistry.isAccepting()) {
+        await port.forget().catch(() => undefined);
         return;
       }
       agentPortRef.current = port;
       setAgentPort(port);
       const result = await port.initialize();
-      if (agentSetupEpochRef.current !== epoch || agentPortRef.current !== port) return;
+      if (
+        agentSetupEpochRef.current !== epoch || agentPortRef.current !== port ||
+        !agentDrainRegistry.isAccepting()
+      ) return;
       if (result.kind === "ready") {
         setPiAgentSetupStatus("ready");
         return;
@@ -439,6 +490,7 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
       setPiAgentSetupStatus("failed");
       reportFailure("silly_os.browser_pi_initialize_failed", result.diagnostic);
     })();
+    agentSetupSettlementRef.current = setup;
   };
 
   const forgetPiAgentV1 = (): void => {
@@ -454,9 +506,18 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
     claimedTerminalRunIdsRef.current.clear();
     setPiAgentSetupStatus(agentFactoryRef.current === null ? "loading" : "available");
     if (current !== null) {
-      agentTeardownRef.current = agentTeardownRef.current.then(() => current.forget()).catch(
-        () => undefined,
-      );
+      void queueAgentPortTeardownV1(current, "forgotten");
+    }
+  };
+
+  const openHomeV1 = async (): Promise<void> => {
+    const port = agentPortRef.current;
+    if (port !== null && !await queueAgentWorkspaceV1(port, null)) {
+      reportFailure("silly_os.home_close_failed", "agent_workspace_close_failed");
+      return;
+    }
+    if (!await controller.openHome()) {
+      reportFailure("silly_os.home_close_failed", "workspace_authority_close_failed");
     }
   };
 
@@ -726,13 +787,11 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
             key={snapshot.workspace?.workspaceId}
             copy={copy}
             snapshot={snapshot}
-            homeDisabled={durability.phase === "saving" ||
-              durability.phase === "reconciling" || agentMutationPending ||
+            homeDisabled={durability.phase === "saving" || agentMutationPending ||
               agentWorkspaceLifecyclePending || workspaceExportPending}
-            mutationPending={durability.phase === "saving" ||
-              durability.phase === "reconciling" || agentMutationPending ||
+            mutationPending={durability.phase === "saving" || agentMutationPending ||
               !executionWorkspaceReady || workspaceExportPending}
-            onHome={() => controller.openHome()}
+            onHome={() => void openHomeV1()}
             onLocaleChange={changeLocaleV1}
             onAccept={() => {
               const proposal = snapshot.proposal;
@@ -798,21 +857,18 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
             })}
           />
         )}
-      {(durability.phase === "saving" || durability.phase === "reconciling" ||
-        durability.phase === "failed") && (
+      {(durability.phase === "saving" || durability.phase === "failed") && (
         <aside
           className={`program-storage-status is-${durability.phase}`}
           role={durability.phase === "failed" ? "alert" : "status"}
           aria-live="polite"
         >
-          {durability.phase === "saving" || durability.phase === "reconciling"
+          {durability.phase === "saving"
             ? <LoaderCircle className="is-spinning" size={16} aria-hidden="true" />
             : <TriangleAlert size={16} aria-hidden="true" />}
           <span>
             {durability.phase === "saving"
               ? copy.savingProgram
-              : durability.phase === "reconciling"
-              ? copy.persistenceOutcomeUnknown
               : durability.code === "conflict"
               ? copy.persistenceConflict
               : copy.persistenceFailure}

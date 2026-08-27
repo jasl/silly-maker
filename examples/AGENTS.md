@@ -31,10 +31,13 @@ volume, bounded terminal aggregate, generation, and session-local mutation
 receipt. The shell profile is deliberately small and is not Linux, a container,
 or a sandbox. P3c-B1 checkpoint 1 delivered the Host/OPFS prepare, exact query,
 explicit discard, and cold-reopen contract for one bounded immutable snapshot
-candidate on 2026-08-27. There is no active SillyOS slice. It does not connect
-Accept, change the Program repository schema/UI, or activate checkpoints 2/3. Do not broaden it
-with Wasm, Git, Python/QuickJS, package/network access, another tool dispatcher,
-or a SillyMaker engine API without a later accepted slice.
+candidate on 2026-08-27. Checkpoint 2's C2a Host publication lifecycle has
+since delivered. C2b Repository V3/physical V4 and C2c's single shared
+Repository/Host Authority cut over together on 2026-08-28 and passed independent
+review. This remains an internal, non-deployed checkpoint; checkpoint 3 is the
+active Browser product-evidence boundary. Do not broaden it with Wasm, Git,
+Python/QuickJS, package/network access, another tool dispatcher, or a
+SillyMaker engine API.
 
 P3c-B0 checkpoints 1 and 2 delivered the exact
 Host-internal durable head, origin-wide bootstrap/volume leases, bounded
@@ -66,8 +69,9 @@ Pi-session substitute; continuous file generations stay in OPFS rather than
 producing a per-write IndexedDB saga. Agent Forget releases transient
 Pi/execution state and the lease but preserves the durable volume. P3b remains
 inactive; do not activate a broader shell/process provider, Wasm, Git,
-Provider/BYO Sandbox, accepted snapshot publication, import, Desktop
-persistence, or a new engine API without a later accepted slice.
+Provider/BYO Sandbox, import, Desktop persistence, or a new engine API without
+a later accepted slice. The internal accepted-snapshot cutover may not be
+deployed or claimed as Browser product evidence before checkpoint 3 passes.
 
 ## Reference application product contract
 

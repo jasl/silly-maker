@@ -19,13 +19,18 @@ Host Worker, so P3a also closed on 2026-08-27. P3c-B1 checkpoint 1 then
 delivered the Browser Workspace Host's bounded immutable snapshot candidate and
 cold-reopen contract on 2026-08-27. The owner continued the lane that day;
 checkpoint 2's bounded Host publication-lifecycle slice (C2a below) is now
-delivered and independently reviewed. Its Repository replacement slice C2b is
-the next active internal boundary, while C2c and checkpoint 3 remain gated.
+delivered and independently reviewed. C2b then delivered Repository V3,
+physical IndexedDB V4, and Worker wire V4; C2c atomically selected that schema
+through one application-owned Repository/Host Authority shared by Controller
+and fixed Pi. Both passed independent review on 2026-08-28. They remain an
+internal, non-deployed cutover; checkpoint 3 is the active Browser
+product-evidence boundary.
 P1-D remains owner-paused, while P3b, import, and later slices remain inactive.
 The raw launcher is not the typed product RPC; the live Browser route is a
-separate product path. This plan is local to `examples/silly-os`; it does not
-activate an engine lane or change an engine API. The implementation baseline
-before P0 is commit
+separate product path. This plan remains local to `examples/silly-os`; the
+neutral async GUI disposer was delivered separately by the engine task and is
+consumed here without adding a SillyOS- or Pi-specific engine API. The
+implementation baseline before P0 is commit
 `56ba8ef8ecf0a38243e92cba548f53c1c57c0b73`.
 
 ## Product invariant and execution rule
@@ -1887,7 +1892,7 @@ network, shell, `edit`, `bash`, just-bash, Wasm, Git, Python, QuickJS, provider
 selection, BYO Sandbox, Desktop persistence, a sandbox claim, or an engine API.
 No later P3c slice becomes active when B0 closes.
 
-### P3c-B1 — exact reviewed snapshot publication (checkpoint 1 and C2a delivered; C2b active)
+### P3c-B1 — exact reviewed snapshot publication (checkpoints 1–2 delivered internally; checkpoint 3 active)
 
 P3c-B1 closes the first integrity gap created by real workspace tools: Pi may
 change the durable mutable head, while the current Accept action still names
@@ -1978,7 +1983,8 @@ P3c-B1 is deliberately split into independently reviewed checkpoints:
    `21,897,216`-byte corpus in Chromium and persistent-profile WebKit.
 
 Checkpoint 2 is itself bounded by three independently reviewed sub-checkpoints.
-C2a is delivered; C2b is the active internal boundary, and C2c remains gated:
+C2a–C2c are delivered; checkpoint 3 remains the deployment and Browser-product
+evidence gate:
 
 1. **C2a — Host publication lifecycle (delivered 2026-08-27).** Move the exact immutable receipt to a
    target-neutral SillyOS workspace contract shared by Host wire and the later
@@ -2013,7 +2019,7 @@ C2a is delivered; C2b is the active internal boundary, and C2c remains gated:
    tests prove cold discovery without a known ID, retained reopen, ID collision
    rejection, lost mutation outcomes, and the critical-section fence. C2a adds
    no Repository row, Controller call, UI, or browser E2E.
-2. **C2b — exact Repository replacement (active).** Replace Aggregate V2 with V3,
+2. **C2b — exact Repository replacement (delivered 2026-08-28).** Replace Aggregate V2 with V3,
    physical IndexedDB V3 with a clean-reset V4, and Worker V3 with V4; delete
    the superseded product-private schemas and readers. Aggregate V3 owns one
    proposal-scoped, target-neutral review binding containing proposal/Program
@@ -2040,7 +2046,18 @@ C2a is delivered; C2b is the active internal boundary, and C2c remains gated:
    continuation row, and the detached insert-continuation mutation is deleted.
    Missing, orphaned, or mismatched aggregate/continuation pairs fail as
    `schema_invalid` on every load and mutation.
-3. **C2c — product-owned composition and atomic cutover.** Make one application-owned Browser
+
+   The exact Aggregate V3 property is `reviewBinding`. It is non-null exactly
+   while the current proposal is pending and otherwise null. Its exact flat
+   fields are `proposalId`, `programId`, `programRevision`,
+   `baseAcceptedProgramRevision`, `repositoryRevision`, `workspaceId`,
+   `volumeId`, `workspaceFormat`, `checkpointId`, and `generation`.
+   `baseAcceptedProgramRevision` is the only nullable field. The exact accepted
+   decision property is `snapshot`; it contains the complete target-neutral
+   `ProgramWorkspaceSnapshotReceiptV1`. The rejected decision shape omits
+   `snapshot` entirely rather than storing null. These names are product-private
+   durable schema, not a Browser Host wire or public engine API.
+3. **C2c — product-owned composition and atomic cutover (delivered 2026-08-28).** Make one application-owned Browser
    Program Workspace Authority serve both fixed Pi and the Controller. The
    Controller no longer creates or disposes a separate Repository client; the
    shared authority owns Repository plus Host and is disposed last by the
@@ -2082,6 +2099,18 @@ C2a is delivered; C2b is the active internal boundary, and C2c remains gated:
    its own. Checkpoint 3 supplies the real Browser acceptance before the changed
    Accept path is deployed; focused C2 composition tests are not presented as
    Browser product evidence.
+
+C2b and C2c closed together after independent Repository, Controller, Authority,
+and product-integration reviews. The clean cutover deletes Aggregate V2, selects
+the exact two-store V3/V4 pair, verifies every accepted historical receipt, and
+routes real `CreatorAgentPort` submit through the same Authority serialization as
+review-head capture and Repository CAS. Focused Repository/Worker/Controller/
+Authority/Pi coverage passes 81/81; the complete SillyOS unit suite passes
+237/237, along with typecheck and the production build. Review-found regressions
+now pin disposed Controller admission, cold Reject cleanup, all-history accepted
+recovery, exact create ownership after unknown or mismatched outcomes, and the
+Agent-submit fence. This is code-level closure only: no changed Accept path is
+deployed and no checkpoint-3 Browser evidence is claimed.
 
 The shared receipt has exactly the checkpoint-1 fields: revision,
 `snapshotId`, Program/workspace/volume/format identity, proposal and Program
@@ -2137,10 +2166,10 @@ discard cleanup boundary. Three independent read-only reviews found no blocker;
 one recorded that a failed pointer removal deliberately needs cold reopen after
 the package has already been removed, and the focused fault-injection test now
 pins that recovery. C2a adds no Repository row, Controller call, UI, or Browser
-product claim and is not deployed. C2b is now the active internal
-implementation/review boundary. C2c and checkpoint 3 remain gated until their
-immediate predecessor is implemented and independently reviewed; C2b still
-cannot select a deployable production schema without the atomic C2c cutover.
+product claim and is not deployed. C2b and C2c subsequently closed as one
+internal cutover on 2026-08-28 after focused and independent review. Checkpoint
+3 is now active and still gates deployment, identity/head/divergence
+presentation, and real cross-page/dual-browser product acceptance.
 P3c-B1 adds no archive import/restore reader, artifact admission, sync/share,
 background execution, provider selector, custom endpoint, broader shell or
 process provider, Wasm, Git implementation, Python, QuickJS, BYO Sandbox,

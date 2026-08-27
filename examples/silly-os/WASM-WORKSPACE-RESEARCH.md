@@ -10,10 +10,13 @@ head downloads as a bounded canonical ZIP. P3a-B1 checkpoint 1 subsequently
 delivered Pi's native `edit` over that same volume and passed independent
 review. P3a-B1 checkpoint 2 subsequently delivered exact just-bash 3.4.2 as
 the bounded Browser Local shell facade and closed P3a. P3c-B1 checkpoint 1 then
-delivered the Host-owned immutable snapshot candidate and cold-reopen contract.
-There is no active SillyOS implementation slice; no broader
-shell/process provider or BYO Sandbox is selected or implemented. The owning
-product sequence is [PLAN.md](./PLAN.md).
+delivered the Host-owned immutable snapshot candidate and cold-reopen contract,
+and checkpoint 2's C2a Host publication lifecycle has also delivered. C2b
+Repository V3/physical V4 and C2c's shared Repository/Host Authority then closed
+together as an independently reviewed, non-deployed internal cutover on
+2026-08-28. Checkpoint 3 is the active Browser product-evidence boundary. No
+broader shell/process provider or BYO Sandbox is selected or implemented. The
+owning product sequence is [PLAN.md](./PLAN.md).
 
 ## Decision to make
 

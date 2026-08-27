@@ -21,7 +21,6 @@ import {
   type CreatorProgramRevisionCandidateV1,
 } from "../product/contracts.ts";
 import {
-  createBrowserProgramWorkspaceAuthorityV1,
   type BrowserProgramWorkspaceExportProgressV1,
   type BrowserProgramWorkspaceExportReadyV1,
   type BrowserProgramWorkspaceAuthorityV1,
@@ -398,10 +397,9 @@ export function createBrowserCreatorAgentPortV1(input: {
   readonly apiKey: string;
   readonly runtime: BrowserPiWorkerRuntimeV1;
   readonly workerFactory?: BrowserPiWorkerFactoryV1;
-  readonly workspaceAuthority?: BrowserProgramWorkspaceAuthorityV1;
+  readonly workspaceAuthority: BrowserProgramWorkspaceAuthorityV1;
 }): CreatorAgentPortV1 {
-  const workspaceAuthority = input.workspaceAuthority ??
-    createBrowserProgramWorkspaceAuthorityV1();
+  const { workspaceAuthority } = input;
   const transport = createBrowserPiWorkerRawTransportV1({ ...input, workspaceAuthority });
   const client = createAgentRpcClientInternalV1({ transport });
   const listeners = new Set<() => void>();
@@ -1293,9 +1291,10 @@ export function createBrowserCreatorAgentPortV1(input: {
           diagnostic: diagnosticV1("protocol_invalid", "/terminalRuns"),
         };
       }
+      const submitWorkspace = workspaceDescriptor;
       if (
-        workspacePhase !== "open" || workspaceDescriptor === null ||
-        workspaceDescriptor.programId !== normalized.run.programId
+        workspacePhase !== "open" || submitWorkspace === null ||
+        submitWorkspace.programId !== normalized.run.programId
       ) {
         return {
           kind: "unavailable",
@@ -1333,10 +1332,37 @@ export function createBrowserCreatorAgentPortV1(input: {
         publish();
         return { kind: "unavailable", diagnostic: invalid };
       }
-      const result = await client.submit({
-        sessionId: expectedSessionId,
-        text: serializedSubmit,
-      });
+      const admittedSubmit = await (async () => {
+        try {
+          // This product facade, not the lower raw Pi transport, owns submit
+          // admission. Holding the shared Authority operation through the RPC
+          // response prevents submit from crossing a review-head/Repository CAS.
+          const result = await workspaceAuthority.withAgentSubmitAdmission({
+            programId: normalized.run.programId,
+            workspaceSessionId: submitWorkspace.workspaceSessionId,
+            expectedProgramRevision: normalized.run.baseProgramRevision,
+            expectedRepositoryRevision: normalized.run.baseRepositoryRevision,
+            expectedGeneration: submitWorkspace.generation,
+            operation: () =>
+              client.submit({
+                sessionId: expectedSessionId,
+                text: serializedSubmit,
+              }),
+          });
+          return { kind: "settled" as const, result };
+        } catch {
+          return { kind: "rejected" as const };
+        }
+      })();
+      if (admittedSubmit.kind === "rejected") {
+        removeTrackedRunV1(tracked);
+        refreshFacadeV1();
+        const rejected = diagnosticV1("request_failed", "/workspace/submit/admission");
+        diagnostic = rejected;
+        publish();
+        return { kind: "unavailable", diagnostic: rejected };
+      }
+      const result = admittedSubmit.result;
       if (terminal || lifecycleEpoch !== expectedEpoch) {
         removeTrackedRunV1(tracked);
         return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };

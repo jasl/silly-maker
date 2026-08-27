@@ -3,7 +3,7 @@
 import { readFile } from "node:fs/promises";
 
 import { createAgentRpcClientInternalV1 } from "@sillymaker/agent/internal";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { browserPiDistributionIdentityV1 } from "../agent/browser-pi-distribution.ts";
 import {
@@ -61,6 +61,13 @@ const workspaceSessionIdV1 = "sillyos.workspace.session.1";
 const roundTripArtifactRelativePathV1 = ".sillyos/p3a-round-trip.txt";
 const roundTripArtifactPathV1 = `${workspaceRootV1}/${roundTripArtifactRelativePathV1}`;
 const roundTripEditMarkerV1 = "SillyOS native edit checkpoint pending:\n";
+const testWorkspaceAuthoritiesV1 = new Set<{ dispose(): Promise<void> }>();
+
+afterEach(async () => {
+  const authorities = [...testWorkspaceAuthoritiesV1];
+  testWorkspaceAuthoritiesV1.clear();
+  await Promise.all(authorities.map((authority) => authority.dispose()));
+});
 
 const submitV1: CreatorAgentSubmitV1 = {
   revision: 1,
@@ -423,12 +430,16 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
   private nextCheckpointOrdinal = 2;
   private disposed = false;
   closeWorkspaceCalls = 0;
+  agentSubmitAdmissionCalls = 0;
+  readonly detachWorkspaceEnvironmentCalls: string[] = [];
+  disposeCalls = 0;
   exportCalls = 0;
   exportAborted = false;
   holdExport = false;
   nextOpenFailureCode: BrowserWorkspaceHostControlFailureCodeV1 | null = null;
 
   constructor() {
+    testWorkspaceAuthoritiesV1.add(this);
     this.runtime = createBrowserWorkspaceHostRuntimeV1({
       bootstrap: this.bootstrap,
       postControlMessage: (message) => this.controls.push(structuredClone(message)),
@@ -436,6 +447,46 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
       createCheckpointId: () =>
         `sillyos.workspace.checkpoint.test.${String(this.nextCheckpointOrdinal++)}`,
     });
+  }
+
+  async initialize(): Promise<void> {}
+
+  async list(): Promise<never> {
+    throw new Error("test repository catalog is unavailable");
+  }
+
+  async load(): Promise<never> {
+    throw new Error("test repository load is unavailable");
+  }
+
+  async create(): Promise<never> {
+    throw new Error("test repository create is unavailable");
+  }
+
+  async applyRevision(): Promise<never> {
+    throw new Error("test repository revision is unavailable");
+  }
+
+  async settleAgentRun(): Promise<never> {
+    throw new Error("test repository Agent settlement is unavailable");
+  }
+
+  async decide(): Promise<never> {
+    throw new Error("test repository decision is unavailable");
+  }
+
+  async withAgentSubmitAdmission<T>(
+    input: {
+      readonly programId: string;
+      readonly workspaceSessionId: string;
+      readonly expectedProgramRevision: number;
+      readonly expectedRepositoryRevision: number;
+      readonly expectedGeneration: number;
+      readonly operation: () => Promise<T>;
+    },
+  ): Promise<T> {
+    this.agentSubmitAdmissionCalls += 1;
+    return await input.operation();
   }
 
   get readFileRangeRequests(): TestBrowserWorkspaceVolumeStateV1["readFileRangeRequests"] {
@@ -505,6 +556,10 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
     return response.snapshot;
   }
 
+  async detachWorkspaceEnvironment(workspaceSessionId: string): Promise<void> {
+    this.detachWorkspaceEnvironmentCalls.push(workspaceSessionId);
+  }
+
   exportWorkspace(
     input: Parameters<BrowserProgramWorkspaceAuthorityV1["exportWorkspace"]>[0],
   ): ReturnType<BrowserProgramWorkspaceAuthorityV1["exportWorkspace"]> {
@@ -555,6 +610,14 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
     return response.snapshot;
   }
 
+  async closeActiveWorkspace(): Promise<BrowserWorkspaceHostSnapshotWireV1 | null> {
+    try {
+      return await this.closeWorkspace(workspaceSessionIdV1);
+    } catch {
+      return null;
+    }
+  }
+
   subscribeFatal(listener: (fatal: BrowserProgramWorkspaceFatalV1) => void): () => void {
     this.fatalListeners.add(listener);
     return () => this.fatalListeners.delete(listener);
@@ -567,6 +630,7 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
+    this.disposeCalls += 1;
     this.fatalListeners.clear();
     await this.runtime.dispose();
   }
@@ -1594,6 +1658,13 @@ describe("SillyOS Browser Pi transport and product port", () => {
       phase: "forgotten",
       workspace: { phase: "forgotten", descriptor: null },
     });
+    expect(workspaceAuthority.closeWorkspaceCalls).toBe(0);
+    expect(workspaceAuthority.detachWorkspaceEnvironmentCalls).toEqual([workspaceSessionIdV1]);
+    expect(workspaceAuthority.disposeCalls).toBe(0);
+    await expect(workspaceAuthority.queryWorkspace(workspaceSessionIdV1)).resolves.toMatchObject({
+      phase: "open",
+      descriptor: { workspaceSessionId: workspaceSessionIdV1 },
+    });
   });
 
   it("aborts and drains a held export before closing its workspace", async () => {
@@ -1624,6 +1695,9 @@ describe("SillyOS Browser Pi transport and product port", () => {
       descriptor: { workspaceSessionId: workspaceSessionIdV1, generation: 1 },
     });
     await port.dispose();
+    expect(workspaceAuthority.closeWorkspaceCalls).toBe(1);
+    expect(workspaceAuthority.detachWorkspaceEnvironmentCalls).toEqual([workspaceSessionIdV1]);
+    expect(workspaceAuthority.disposeCalls).toBe(0);
   });
 
   it("shows a retryable busy failure after a closed workspace and then reopens", async () => {
@@ -1675,14 +1749,26 @@ describe("SillyOS Browser Pi transport and product port", () => {
       ["outcome_unknown", "recovery_required"],
     ] as const;
     for (const [hostCode, productCode] of cases) {
+      const repositoryUnavailable = (): Promise<never> =>
+        Promise.reject(new Error("test repository is unavailable"));
       const authority: BrowserProgramWorkspaceAuthorityV1 = {
+        initialize: () => Promise.resolve(),
+        list: repositoryUnavailable,
+        load: repositoryUnavailable,
+        create: repositoryUnavailable,
+        applyRevision: repositoryUnavailable,
+        settleAgentRun: repositoryUnavailable,
+        decide: repositoryUnavailable,
+        withAgentSubmitAdmission: async (input) => await input.operation(),
         openWorkspace: () =>
           Promise.reject(
             new BrowserWorkspaceHostControlErrorV1(hostCode, `synthetic ${hostCode}`),
           ),
         queryWorkspace: () => Promise.reject(new Error("not open")),
         exportWorkspace: () => Promise.reject(new Error("not open")),
+        detachWorkspaceEnvironment: () => Promise.resolve(),
         closeWorkspace: () => Promise.reject(new Error("not open")),
+        closeActiveWorkspace: () => Promise.resolve(null),
         subscribeFatal: () => () => {},
         dispose: () => Promise.resolve(),
       };
@@ -1867,6 +1953,8 @@ describe("SillyOS Browser Pi transport and product port", () => {
     await client.dispose();
     await transport.forget();
     expect(failures).toHaveLength(1);
+    expect(workspaceAuthority.detachWorkspaceEnvironmentCalls).toEqual([workspaceSessionIdV1]);
+    expect(workspaceAuthority.disposeCalls).toBe(0);
   });
 
   it("projects a fatal Workspace Host into one failed product run and a retained recovery descriptor", async () => {
@@ -1910,6 +1998,8 @@ describe("SillyOS Browser Pi transport and product port", () => {
     });
     expect(worker.terminated).toBe(true);
     expect(workspaceAuthority.closeWorkspaceCalls).toBe(0);
+    await waitUntilV1(() => workspaceAuthority.detachWorkspaceEnvironmentCalls.length === 1);
+    expect(workspaceAuthority.detachWorkspaceEnvironmentCalls).toEqual([workspaceSessionIdV1]);
     expect(port.acknowledgeTerminal(run.agentRunId)).toBe(true);
     expect(port.getSnapshot()).toMatchObject({
       phase: "failed",
@@ -1957,15 +2047,18 @@ describe("SillyOS Browser Pi transport and product port", () => {
     });
     expect(worker.terminated).toBe(true);
     expect(workspaceAuthority.closeWorkspaceCalls).toBe(0);
+    await waitUntilV1(() => workspaceAuthority.detachWorkspaceEnvironmentCalls.length === 1);
+    expect(workspaceAuthority.detachWorkspaceEnvironmentCalls).toEqual([workspaceSessionIdV1]);
     await port.dispose();
   });
 
   it("publishes one completed product terminal without exposing Pi identities", async () => {
     let worker: InMemoryBrowserPiWorkerV1 | null = null;
+    const workspaceAuthority = testWorkspaceAuthorityV1();
     const port = createBrowserCreatorAgentPortV1({
       apiKey: "sentinel-browser-key",
       runtime: "deterministic_test",
-      workspaceAuthority: testWorkspaceAuthorityV1(),
+      workspaceAuthority,
       workerFactory: () => {
         worker = new InMemoryBrowserPiWorkerV1();
         return worker as BrowserPiWorkerLikeV1;
@@ -1991,6 +2084,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
       kind: "submitted",
       agentRunId: run.agentRunId,
     });
+    expect(workspaceAuthority.agentSubmitAdmissionCalls).toBe(1);
     await waitUntilV1(() => port.getSnapshot().terminalRuns.length === 1);
 
     const terminal = port.getSnapshot().terminalRuns[0];

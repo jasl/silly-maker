@@ -1,56 +1,56 @@
 // SPDX-License-Identifier: MIT
 
 import {
-  createProgramRepositoryFailureV2,
-  isProgramRepositoryFailureV2,
-  type ProgramRepositoryFailureCodeV2,
+  createProgramRepositoryFailureV3,
+  isProgramRepositoryFailureV3,
+  type ProgramRepositoryFailureCodeV3,
   type ProgramRepositoryWithWorkspaceContinuationV1,
 } from "./program-repository.ts";
 import {
-  admitProgramRepositoryWorkerRequestEnvelopeV3,
-  admitProgramRepositoryWorkerResponseEnvelopeV3,
-  operationForProgramRepositoryWorkerMethodV3,
-  type ProgramRepositoryWorkerMethodV3,
-  type ProgramRepositoryWorkerResponseEnvelopeV3,
-  type ProgramRepositoryWorkerSuccessV3,
+  admitProgramRepositoryWorkerRequestEnvelopeV4,
+  admitProgramRepositoryWorkerResponseEnvelopeV4,
+  operationForProgramRepositoryWorkerMethodV4,
+  type ProgramRepositoryWorkerMethodV4,
+  type ProgramRepositoryWorkerResponseEnvelopeV4,
+  type ProgramRepositoryWorkerSuccessV4,
 } from "./program-repository-worker-protocol.ts";
 
-export interface ProgramRepositoryWorkerRuntimeV3 {
+export interface ProgramRepositoryWorkerRuntimeV4 {
   receive(message: unknown): void;
   dispose(): void;
 }
 
-function failureCodeForRuntimeErrorV2(error: unknown): ProgramRepositoryFailureCodeV2 {
-  if (isProgramRepositoryFailureV2(error)) return error.code;
+function failureCodeForRuntimeErrorV4(error: unknown): ProgramRepositoryFailureCodeV3 {
+  if (isProgramRepositoryFailureV3(error)) return error.code;
   if (error instanceof TypeError) return "wire_invalid";
   return "request_failed";
 }
 
-export function createProgramRepositoryWorkerRuntimeV3(input: {
+export function createProgramRepositoryWorkerRuntimeV4(input: {
   readonly repository: ProgramRepositoryWithWorkspaceContinuationV1;
-  readonly postMessage: (message: ProgramRepositoryWorkerResponseEnvelopeV3) => void;
+  readonly postMessage: (message: ProgramRepositoryWorkerResponseEnvelopeV4) => void;
   readonly onFatalError?: (error: unknown) => void;
-}): ProgramRepositoryWorkerRuntimeV3 {
+}): ProgramRepositoryWorkerRuntimeV4 {
   let disposed = false;
   let tail = Promise.resolve();
 
-  const postV3 = (
+  const postV4 = (
     requestId: string,
-    method: ProgramRepositoryWorkerMethodV3,
-    record: ProgramRepositoryWorkerSuccessV3,
+    method: ProgramRepositoryWorkerMethodV4,
+    record: ProgramRepositoryWorkerSuccessV4,
   ): void => {
     if (disposed) return;
-    const response: ProgramRepositoryWorkerResponseEnvelopeV3 = {
-      revision: 3,
+    const response: ProgramRepositoryWorkerResponseEnvelopeV4 = {
+      revision: 4,
       kind: "rpc_response",
       requestId,
       record,
     };
-    const admitted = admitProgramRepositoryWorkerResponseEnvelopeV3(response, method);
+    const admitted = admitProgramRepositoryWorkerResponseEnvelopeV4(response, method);
     if (admitted.kind === "rejected") {
-      throw createProgramRepositoryFailureV2(
+      throw createProgramRepositoryFailureV3(
         "wire_invalid",
-        operationForProgramRepositoryWorkerMethodV3(method),
+        operationForProgramRepositoryWorkerMethodV4(method),
       );
     }
     // DedicatedWorkerGlobalScope.postMessage has no targetOrigin parameter.
@@ -58,9 +58,9 @@ export function createProgramRepositoryWorkerRuntimeV3(input: {
     input.postMessage(admitted.value);
   };
 
-  const handleV3 = async (message: unknown): Promise<void> => {
+  const handleV4 = async (message: unknown): Promise<void> => {
     if (disposed) return;
-    const admitted = admitProgramRepositoryWorkerRequestEnvelopeV3(message);
+    const admitted = admitProgramRepositoryWorkerRequestEnvelopeV4(message);
     if (admitted.kind === "rejected") return;
     const { requestId, record } = admitted.value;
     const { method } = record;
@@ -69,76 +69,70 @@ export function createProgramRepositoryWorkerRuntimeV3(input: {
       if (method === "initialize") {
         await input.repository.initialize();
         repositorySettled = true;
-        postV3(requestId, method, { kind: "success", method, value: null });
+        postV4(requestId, method, { kind: "success", method, value: null });
         return;
       }
       if (method === "list") {
         const value = await input.repository.list();
         repositorySettled = true;
-        postV3(requestId, method, { kind: "success", method, value });
+        postV4(requestId, method, { kind: "success", method, value });
         return;
       }
       if (method === "load") {
         const value = await input.repository.load(record.programId);
         repositorySettled = true;
-        postV3(requestId, method, { kind: "success", method, value });
+        postV4(requestId, method, { kind: "success", method, value });
         return;
       }
       if (method === "load_workspace_continuation") {
         const value = await input.repository.loadWorkspaceContinuation(record.programId);
         repositorySettled = true;
-        postV3(requestId, method, { kind: "success", method, value });
+        postV4(requestId, method, { kind: "success", method, value });
         return;
       }
       if (method === "create") {
         const value = await input.repository.create(record.input);
         repositorySettled = true;
-        postV3(requestId, method, { kind: "success", method, value });
+        postV4(requestId, method, { kind: "success", method, value });
         return;
       }
       if (method === "apply_revision") {
         const value = await input.repository.applyRevision(record.input);
         repositorySettled = true;
-        postV3(requestId, method, { kind: "success", method, value });
+        postV4(requestId, method, { kind: "success", method, value });
         return;
       }
       if (method === "settle_agent_run") {
         const value = await input.repository.settleAgentRun(record.input);
         repositorySettled = true;
-        postV3(requestId, method, { kind: "success", method, value });
+        postV4(requestId, method, { kind: "success", method, value });
         return;
       }
       if (method === "decide") {
         const value = await input.repository.decide(record.input);
         repositorySettled = true;
-        postV3(requestId, method, { kind: "success", method, value });
-        return;
-      }
-      if (method === "insert_workspace_continuation") {
-        const value = await input.repository.insertWorkspaceContinuation(record.continuation);
-        repositorySettled = true;
-        postV3(requestId, method, { kind: "success", method, value });
+        postV4(requestId, method, { kind: "success", method, value });
         return;
       }
       await input.repository.dispose();
       repositorySettled = true;
-      postV3(requestId, method, { kind: "success", method, value: null });
+      postV4(requestId, method, { kind: "success", method, value: null });
     } catch (error) {
       if (disposed) return;
       if (repositorySettled) throw error;
-      const operation = operationForProgramRepositoryWorkerMethodV3(method);
-      const response: ProgramRepositoryWorkerResponseEnvelopeV3 = {
-        revision: 3,
+      const operation = operationForProgramRepositoryWorkerMethodV4(method);
+      const response: ProgramRepositoryWorkerResponseEnvelopeV4 = {
+        revision: 4,
         kind: "rpc_response",
         requestId,
         record: {
           kind: "failure",
           method,
-          code: failureCodeForRuntimeErrorV2(error),
+          code: failureCodeForRuntimeErrorV4(error),
           operation,
         },
       };
-      const responseAdmission = admitProgramRepositoryWorkerResponseEnvelopeV3(response, method);
+      const responseAdmission = admitProgramRepositoryWorkerResponseEnvelopeV4(response, method);
       if (responseAdmission.kind === "admitted") {
         // Worker ports have no targetOrigin parameter.
         // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker has no targetOrigin
@@ -149,7 +143,7 @@ export function createProgramRepositoryWorkerRuntimeV3(input: {
 
   return {
     receive(message): void {
-      tail = tail.then(() => handleV3(message)).catch((error: unknown) => {
+      tail = tail.then(() => handleV4(message)).catch((error: unknown) => {
         if (disposed) return;
         disposed = true;
         void input.repository.dispose();
