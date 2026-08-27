@@ -721,6 +721,16 @@ test("ordinary Browser Settings preserves Home and Workspace navigation at the m
   );
   await expect(page.locator('[data-provider-id="anthropic"]')).toHaveAttribute(
     "data-availability",
+    "qualified",
+  );
+  for (const providerId of ["google", "deepseek", "xai"]) {
+    await expect(page.locator(`[data-provider-id="${providerId}"]`)).toHaveAttribute(
+      "data-availability",
+      "qualified",
+    );
+  }
+  await expect(page.locator('[data-provider-id="openrouter"]')).toHaveAttribute(
+    "data-availability",
     "candidate",
   );
   const globalBackBox = await globalBack.boundingBox();
@@ -733,6 +743,24 @@ test("ordinary Browser Settings preserves Home and Workspace navigation at the m
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
   }
   await expectNoPageOverflowV1(page);
+
+  await page.locator('[data-provider-id="anthropic"]').click();
+  await expect(
+    page.locator('[data-model-id="claude-sonnet-4-5-20250929"] input'),
+  ).toBeEnabled();
+  await expect(page.locator('[data-model-id="claude-sonnet-4-5"]')).toHaveAttribute(
+    "data-availability",
+    "candidate",
+  );
+  await expect(page.locator('[data-model-id="claude-sonnet-4-5"] input')).toBeDisabled();
+  await page.getByRole("button", { name: "Back to Providers" }).click();
+
+  await page.locator('[data-provider-id="openrouter"]').click();
+  await expect(
+    page.locator('[data-model-id="google/gemini-2.5-flash"] input'),
+  ).toBeDisabled();
+  await expect(page.getByLabel("API key (memory only)")).toHaveCount(0);
+  await page.getByRole("button", { name: "Back to Providers" }).click();
 
   await page.locator('[data-provider-id="openai"]').click();
   await expect(page.getByRole("button", { name: "Back to Providers" })).toBeFocused();

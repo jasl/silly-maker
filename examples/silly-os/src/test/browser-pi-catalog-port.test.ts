@@ -99,8 +99,24 @@ describe("SillyOS Browser Pi catalog port", () => {
         provider.models.filter(({ availability }) => availability === "qualified").map((model) =>
           `${provider.id}/${model.id}`
         )
+      ).sort(),
+    ).toEqual([
+      "anthropic/claude-sonnet-4-5-20250929",
+      "deepseek/deepseek-v4-flash",
+      "google/gemini-2.5-flash",
+      "openai/gpt-4.1-nano",
+      "xai/grok-4.3",
+    ]);
+    expect(
+      result.catalog.providers.flatMap((provider) =>
+        provider.models.filter(({ availability }) => availability === "candidate").map((model) =>
+          `${provider.id}/${model.id}`
+        )
       ),
-    ).toEqual(["openai/gpt-4.1-nano"]);
+    ).toEqual([
+      "anthropic/claude-sonnet-4-5",
+      "openrouter/google/gemini-2.5-flash",
+    ]);
     expect(worker.posted).toEqual([{ revision: 1, kind: "catalog_request", requestId: 1 }]);
     expect(JSON.stringify(worker.posted)).not.toContain("credential");
     expect(worker.terminated).toBe(true);

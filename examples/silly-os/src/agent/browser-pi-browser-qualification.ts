@@ -9,20 +9,17 @@ export interface BrowserPiModelQualificationFactsV1 {
   readonly baseUrl: string;
 }
 
-export const browserPiQualifiedSelectionV1 = Object.freeze(
-  {
-    providerId: "openai",
-    modelId: "gpt-4.1-nano",
-    api: "openai-responses",
-    baseUrl: "https://api.openai.com/v1",
-  } as const,
-);
-
-const browserPiCandidateSelectionsV1 = Object.freeze(
+export const browserPiQualifiedSelectionsV1 = Object.freeze(
   [
     Object.freeze({
+      providerId: "openai",
+      modelId: "gpt-4.1-nano",
+      api: "openai-responses",
+      baseUrl: "https://api.openai.com/v1",
+    }),
+    Object.freeze({
       providerId: "anthropic",
-      modelId: "claude-sonnet-4-5",
+      modelId: "claude-sonnet-4-5-20250929",
       api: "anthropic-messages",
       baseUrl: "https://api.anthropic.com",
     }),
@@ -31,12 +28,6 @@ const browserPiCandidateSelectionsV1 = Object.freeze(
       modelId: "gemini-2.5-flash",
       api: "google-generative-ai",
       baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-    }),
-    Object.freeze({
-      providerId: "openrouter",
-      modelId: "openai/gpt-5.4",
-      api: "openai-completions",
-      baseUrl: "https://openrouter.ai/api/v1",
     }),
     Object.freeze({
       providerId: "deepseek",
@@ -53,6 +44,23 @@ const browserPiCandidateSelectionsV1 = Object.freeze(
   ] satisfies readonly BrowserPiModelQualificationFactsV1[],
 );
 
+const browserPiCandidateSelectionsV1 = Object.freeze(
+  [
+    Object.freeze({
+      providerId: "anthropic",
+      modelId: "claude-sonnet-4-5",
+      api: "anthropic-messages",
+      baseUrl: "https://api.anthropic.com",
+    }),
+    Object.freeze({
+      providerId: "openrouter",
+      modelId: "google/gemini-2.5-flash",
+      api: "openai-completions",
+      baseUrl: "https://openrouter.ai/api/v1",
+    }),
+  ] satisfies readonly BrowserPiModelQualificationFactsV1[],
+);
+
 function matchesFactsV1(
   left: BrowserPiModelQualificationFactsV1,
   right: BrowserPiModelQualificationFactsV1,
@@ -64,7 +72,9 @@ function matchesFactsV1(
 export function getBrowserPiModelAvailabilityV1(
   facts: BrowserPiModelQualificationFactsV1,
 ): BrowserPiCatalogAvailabilityV1 {
-  if (matchesFactsV1(facts, browserPiQualifiedSelectionV1)) return "qualified";
+  if (browserPiQualifiedSelectionsV1.some((qualified) => matchesFactsV1(facts, qualified))) {
+    return "qualified";
+  }
   return browserPiCandidateSelectionsV1.some((candidate) => matchesFactsV1(facts, candidate))
     ? "candidate"
     : "unavailable";

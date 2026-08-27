@@ -29,9 +29,14 @@ qualification passed. P1-B1a has now delivered and closed the clean
 replacement: the ordinary route exposes Pi-owned Provider/model discovery,
 SillyOS-owned Settings, and selection of the exact qualified OpenAI profile. Its
 local gate passed 265 product tests plus the Settings and real OpenAI journeys
-in Chromium and persistent-profile WebKit. B1b/B1c, broad execution-provider
-research, import, and later workspace slices remain inactive; no successor
-checkpoint is activated by this closure. The B1a implementation commit
+in Chromium and persistent-profile WebKit. The owner then activated B1b. Its
+current local product gate has independently promoted exact Anthropic fixed-
+snapshot, Google, DeepSeek, and xAI profiles in both engines; OpenRouter remains
+a disabled candidate because the current account/key returns Provider
+Terms-of-Service 403. B1b therefore remains active rather than falsely closing;
+its local gate passes 270 product tests, two Settings journeys, and all ten
+qualified-profile Provider journeys. B1c, broad execution-provider research,
+import, and later workspace slices stay inactive. The B1a implementation commit
 `66eb6755b04d3d625830dbbe915c465886ba13dc` is deployed at the canonical origin
 as Cloudflare version `28022baa-1676-4c79-a194-85d95e5f326d`; that origin also
 passed the same Chromium/persistent-WebKit Settings and real OpenAI qualifier.
@@ -185,11 +190,12 @@ The ordinary Browser route exposes one application-level Settings surface.
 Opening it lazily asks the product-pinned Pi Worker for its complete public
 Provider/model catalog before any credential exists; React renders a bounded
 projection and never imports Pi or maintains another catalog. SillyOS overlays
-only exact target facts. In B1a, only Pi's
-`(openai, gpt-4.1-nano, openai-responses, https://api.openai.com/v1)` profile is
-qualified and selectable. Other Pi records remain inspectable but disabled;
-five named B1b profiles may be labelled candidates without becoming support
-claims. The removed `?agent=pi-openai` value has no user-facing compatibility
+only exact target facts. The qualified set is now Pi's exact OpenAI
+`gpt-4.1-nano`, Anthropic `claude-sonnet-4-5-20250929`, Google
+`gemini-2.5-flash`, DeepSeek `deepseek-v4-flash`, and xAI `grok-4.3` tuples.
+Anthropic's mutable alias and the tested OpenRouter profile remain candidates;
+all other Pi records stay inspectable but disabled. The removed
+`?agent=pi-openai` value has no user-facing compatibility
 behavior and resolves like any ordinary URL.
 
 The selected API key moves from an uncontrolled password input directly to a
@@ -203,8 +209,8 @@ IndexedDB, OPFS, URL, logs, or exports.
 
 It does **not** claim:
 
-- that B0a makes a real model request, or that B1a's one qualified live
-  follow-up profile proves general BYO Provider, workspace tool,
+- that B0a makes a real model request, or that five qualified live follow-up
+  profiles prove general BYO Provider, workspace tool,
   Wasm, network-service, or workspace-runtime readiness;
 - Pi-session or workspace-file persistence, project import/export, background
   execution, generated-code execution, or arbitrary package installation;
@@ -261,9 +267,10 @@ change a real product behavior.
   provider/model and supply credentials without a UI. They remain companion
   configuration: no key, provider record, or environment snapshot enters React,
   bootstrap HTML, Program data, logs, or the product RPC wire.
-- The deployed fixed Browser route accepts a user-supplied OpenAI key through
-  UI. A later qualified profile may additionally accept a compatible HTTPS
-  endpoint; that surface is not implemented yet. The key necessarily enters the
+- The Browser route accepts a user-supplied key through UI for each exact
+  qualified OpenAI, Anthropic, Google, DeepSeek, or xAI profile. A later custom
+  profile may additionally accept a compatible HTTPS endpoint; that surface is
+  not implemented yet. The key necessarily enters the
   password input, then transfers immediately to the Agent Worker and remains
   memory-only by default. It never enters React state, URLs, logs, telemetry,
   Program data, IndexedDB, OPFS, Cache API, exports, or downloads. Terminating
@@ -448,8 +455,9 @@ later explicit fallback for otherwise compatible endpoints without browser
 CORS support. CSP and CORS are orthogonal: SillyOS may permit an HTTPS origin in
 `connect-src`, but only that Provider can return a response readable by the
 deployed origin. Neither `no-cors`, a Service Worker, nor a broader CSP repairs
-a failed CORS contract. B1a therefore retains the already-qualified OpenAI
-origin; B1b adds only the five exact official origins under test. Arbitrary
+a failed CORS contract. The static policy now retains OpenAI and adds only the
+five exact B1b origins; an admitted origin is not itself a Browser-support
+claim, so OpenRouter may remain permitted while its profile is disabled. Arbitrary
 custom origins require B1c's selected-origin Worker response policy rather than
 global document `connect-src https:`.
 
@@ -922,7 +930,7 @@ evidence for the preview only.
 
 | Area               | Accepted product role                                     | Current preview evidence                                                             | Remaining before product-ready                         |
 | ------------------ | --------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------ |
-| Creator home       | Express intent and create/open a Program                  | Pi catalog Settings + exact OpenAI profile + P2 recent reopen                        | Attachments and broader qualified Provider set         |
+| Creator home       | Express intent and create/open a Program                  | Pi catalog Settings + five exact qualified profiles + P2 recent reopen               | Attachments and broader qualified Provider set         |
 | Creator supervisor | Chat supervises one Program without becoming Program data | Durable run receipts + fresh Pi session over a durable checkpoint                    | Program-anchored artifacts                             |
 | Program workspace  | One focused mutable workspace produces reviewed snapshots | OPFS checkpoint + native tools + recovery/scale/export + immutable accepted snapshot | Import and admitted artifacts                          |
 | Human review       | Accept/reject an exact proposed revision                  | Exact accepted snapshot/head + truthful divergence + winner-held stale rejection     | Rich diff and approval history                         |
@@ -933,7 +941,7 @@ evidence for the preview only.
 | Translation        | A usable translation Program                              | Intent classification only                                                           | Complete workflow, data, QA, export                    |
 | Writing            | A usable writing Program                                  | Intent classification only                                                           | Complete workflow, data, revision tools                |
 | Role-play          | A usable role-play Program                                | Intent classification only                                                           | Complete sessions, characters, VN behavior             |
-| Browser            | Publishable local-first product with BYO Provider         | Pi-owned catalog + one exact qualified profile + exportable `20 MiB+` workspace      | B1b direct profiles, B1c custom HTTPS, product closure |
+| Browser            | Publishable local-first product with BYO Provider         | Pi-owned catalog + five exact qualified profiles + exportable `20 MiB+` workspace    | OpenRouter requalification, B1c custom HTTPS, closure  |
 | Deno Desktop       | Same product with admitted Host integrations              | Responsive preview target                                                            | Companion acceptance, storage, packaging qualification |
 
 Before SillyOS is called a complete reference product, this table must be
@@ -953,8 +961,9 @@ and dual-browser product evidence, closed on 2026-08-28. Deployment is a release
 operation from that committed baseline and completed that day. P1-B1a's clean
 replacement and local dual-browser gate are delivered and closed; its committed
 deployment and public-origin qualification are also closed release receipts,
-not another product contract. B1b/B1c, broader execution-provider research,
-and import remain inactive. The plan also
+not another product contract. B1b is active with four of its five named
+profiles promoted locally and OpenRouter still candidate; B1c, broader
+execution-provider research, and import remain inactive. The plan also
 governs later real Pi integration, product persistence, Pi-native workspace
 tool binding, provider research, Pi capability composition,
 OpenUI-to-SillyMaker mapping, and the first complete product families. Runtime

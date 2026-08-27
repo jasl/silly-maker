@@ -67,6 +67,16 @@ const qualifiedSelectionV1 = Object.freeze(
     modelId: "gpt-4.1-nano",
   } as const,
 );
+const qualifiedProviderSelectionsV1 = Object.freeze([
+  qualifiedSelectionV1,
+  Object.freeze({
+    providerId: "anthropic",
+    modelId: "claude-sonnet-4-5-20250929",
+  }),
+  Object.freeze({ providerId: "google", modelId: "gemini-2.5-flash" }),
+  Object.freeze({ providerId: "deepseek", modelId: "deepseek-v4-flash" }),
+  Object.freeze({ providerId: "xai", modelId: "grok-4.3" }),
+]);
 const testWorkspaceAuthoritiesV1 = new Set<{ dispose(): Promise<void> }>();
 
 afterEach(async () => {
@@ -1107,33 +1117,35 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     runtime.dispose();
   });
 
-  it("initializes the explicit live profile before any Provider run exists", () => {
-    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
-    const runtime = createBrowserPiWorkerRuntimeV1({
-      postMessage: (message) => messages.push(structuredClone(message)),
-    });
-    runtime.receive({
-      revision: 1,
-      kind: "initialize",
-      requestId: 1,
-      runtime: "pi_provider",
-      selection: qualifiedSelectionV1,
-      credential: { kind: "api_key", value: "sentinel-live-key" },
-    });
+  it("initializes each exact qualified Provider profile before any run exists", () => {
+    for (const [index, selection] of qualifiedProviderSelectionsV1.entries()) {
+      const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+      const runtime = createBrowserPiWorkerRuntimeV1({
+        postMessage: (message) => messages.push(structuredClone(message)),
+      });
+      runtime.receive({
+        revision: 1,
+        kind: "initialize",
+        requestId: index + 1,
+        runtime: "pi_provider",
+        selection,
+        credential: { kind: "api_key", value: `sentinel-live-key-${index}` },
+      });
 
-    expect(messages).toEqual([{
-      revision: 1,
-      kind: "ready",
-      requestId: 1,
-      runtime: "pi_provider",
-      selection: qualifiedSelectionV1,
-      distribution: browserPiDistributionIdentityV1,
-    }]);
-    expect(JSON.stringify(messages)).not.toContain("sentinel-live-key");
-    runtime.dispose();
+      expect(messages).toEqual([{
+        revision: 1,
+        kind: "ready",
+        requestId: index + 1,
+        runtime: "pi_provider",
+        selection,
+        distribution: browserPiDistributionIdentityV1,
+      }]);
+      expect(JSON.stringify(messages)).not.toContain(`sentinel-live-key-${index}`);
+      runtime.dispose();
+    }
   });
 
-  it("projects the pinned Pi catalog before credentials and rejects candidate activation", () => {
+  it("projects exact qualified profiles and rejects the mutable Anthropic candidate", () => {
     const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
     const runtime = createBrowserPiWorkerRuntimeV1({
       postMessage: (message) => messages.push(structuredClone(message)),
@@ -1163,16 +1175,24 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         availability: model.availability,
       }))
     );
-    expect(projected.filter(({ availability }) => availability === "qualified")).toEqual([{
-      ...qualifiedSelectionV1,
-      availability: "qualified",
-    }]);
+    expect(projected.filter(({ availability }) => availability === "qualified")).toEqual([
+      {
+        providerId: "anthropic",
+        modelId: "claude-sonnet-4-5-20250929",
+        availability: "qualified",
+      },
+      { providerId: "deepseek", modelId: "deepseek-v4-flash", availability: "qualified" },
+      { providerId: "google", modelId: "gemini-2.5-flash", availability: "qualified" },
+      { ...qualifiedSelectionV1, availability: "qualified" },
+      { providerId: "xai", modelId: "grok-4.3", availability: "qualified" },
+    ]);
     expect(projected.filter(({ availability }) => availability === "candidate")).toEqual([
       { providerId: "anthropic", modelId: "claude-sonnet-4-5", availability: "candidate" },
-      { providerId: "deepseek", modelId: "deepseek-v4-flash", availability: "candidate" },
-      { providerId: "google", modelId: "gemini-2.5-flash", availability: "candidate" },
-      { providerId: "openrouter", modelId: "openai/gpt-5.4", availability: "candidate" },
-      { providerId: "xai", modelId: "grok-4.3", availability: "candidate" },
+      {
+        providerId: "openrouter",
+        modelId: "google/gemini-2.5-flash",
+        availability: "candidate",
+      },
     ]);
 
     runtime.receive({
@@ -1196,7 +1216,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       kind: "initialize",
       requestId: 9,
       runtime: "pi_provider",
-      selection: qualifiedSelectionV1,
+      selection: { providerId: "anthropic", modelId: "claude-sonnet-4-5-20250929" },
       credential: { kind: "api_key", value: "qualified-sentinel-key" },
     });
     expect(messages.at(-1)).toEqual({
@@ -1204,7 +1224,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       kind: "ready",
       requestId: 9,
       runtime: "pi_provider",
-      selection: qualifiedSelectionV1,
+      selection: { providerId: "anthropic", modelId: "claude-sonnet-4-5-20250929" },
       distribution: browserPiDistributionIdentityV1,
     });
     expect(JSON.stringify(messages)).not.toContain("qualified-sentinel-key");

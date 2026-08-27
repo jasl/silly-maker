@@ -12,6 +12,8 @@ export function isBrowserPiSelectionQualifiedV1(
   selection: BrowserPiModelSelectionV1,
 ): boolean;
 
+export function browserPiCreatorToolChoiceV1(proposed: boolean): "auto" | "none";
+
 export function createBrowserPiProviderAgentV1(
   input: PiAgentRunInputV1 & {
     readonly apiKey: string;

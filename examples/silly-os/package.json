@@ -13,7 +13,10 @@
     "deploy:cf": "deno task build && deno run -A npm:wrangler@4.123.0 deploy",
     "preview": "deno run -A npm:vite preview",
     "pi:rpc": "deno run -A ./tools/pi-rpc.mts",
-    "qualify:browser:openai": "deno run -A --env-file=.env ./tools/qualify-browser-openai.mts",
+    "qualify:browser:provider": "deno run -A --env-file=.env ./tools/qualify-browser-provider.mts",
+    "qualify:browser:b1b": "deno task qualify:browser:provider b1b",
+    "qualify:browser:qualified": "deno task qualify:browser:provider qualified",
+    "qualify:browser:openai": "deno task qualify:browser:provider openai",
     "clean": "rm -rf dist-web dist-desktop",
     "app": "deno run -A ./tools/app.mts",
     "test": "deno run -A npm:vitest run src"

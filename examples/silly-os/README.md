@@ -15,9 +15,10 @@ Creator 是唯一内置的用户程序；生成的 Program 是工程、Agent har
 ## 目前能体验什么
 
 普通入口现在提供 Pi-owned Browser Provider 设置；用户需要先从设置中选择已经通过
-SillyOS Browser 资格验证的模型，并把自己的 API key 直接交给 Agent Worker。当前第一个
-可连接的精确 profile 是 `openai/gpt-4.1-nano`，其余 Pi catalog 记录仍可搜索和查看，但
-不会因为出现在目录中就被伪装成浏览器可用。连接后可以体验：
+SillyOS Browser 资格验证的模型，并把自己的 API key 直接交给 Agent Worker。当前可连接的
+精确 profile 是 OpenAI `gpt-4.1-nano`、Anthropic `claude-sonnet-4-5-20250929`、Google
+`gemini-2.5-flash`、DeepSeek `deepseek-v4-flash` 与 xAI `grok-4.3`。其余 Pi catalog
+记录仍可搜索和查看，但不会因为出现在目录中就被伪装成浏览器可用。连接后可以体验：
 
 - 从 Creator Home 提交翻译、写作、角色扮演或通用创作意图；
 - 查看确定性的本地 Creator 回复和带明确版本的 Program proposal；
@@ -107,8 +108,13 @@ generation-1002 的 accepted snapshot、generation-1005 的独立 later draft、
 时的 stale Accept、cold reopen，以及 `1,001` 个文件逐字节一致的 `22,065,863`-byte retained
 ZIP。该物理 ZIP 读取是 test-only OPFS 证据，不是产品下载 API。P1-B1a 已交付并通过本地
 release gate：25 个文件的 265 个产品测试、Chromium/持久 WebKit 的普通设置旅程，以及两种
-浏览器中的真实 OpenAI stream/tool/cancel/currentness/Forget 资格检查均通过。B1b 的五个
-direct Provider 与 B1c 的自定义 HTTPS endpoint 尚未激活。BYO Sandbox、Wasm/更完整
+浏览器中的真实 OpenAI stream/tool/cancel/currentness/Forget 资格检查均通过。B1b 随后被
+激活；Anthropic 固定快照、Google、DeepSeek 与 xAI 的精确 profile 已在 Chromium 和持久
+WebKit 中通过同一真实 Pi gate。OpenRouter 当前测试 profile 因现有账号/key 返回 Provider
+Terms-of-Service 403 而仍是 candidate；这不是 CSP 或 CORS 成功/失败的替代结论。B1b 尚未
+关闭。当前 B1b 本地 gate 通过 27 个文件的 270 个产品测试、Chromium/持久 WebKit 的 2 个
+Settings 旅程，以及 5 个 qualified profile × 2 个浏览器的 10 个真实 Provider 旅程。
+B1c 的自定义 HTTPS endpoint 也未激活。BYO Sandbox、Wasm/更完整
 执行环境和 import 仍未激活。Desktop
 底层仍计划由私有 companion 启动产品打包的 Pi coding-agent，但当前没有激活。
 
@@ -146,12 +152,12 @@ close 完成并刷新页面后，重新初始化 Pi test 仍会打开同一 gene
 Creator Home 不会实例化 Pi Worker、Workspace Host 或 just-bash；首次打开设置时才会启动
 一个无凭据 catalog Worker，并在得到目录后立即终止它。
 
-要运行 live 路线，直接打开普通 URL，进入“设置”，选择 OpenAI 和
-`gpt-4.1-nano`，再输入 OpenAI key 并连接 Agent Creator。连接完成只表示 Worker profile
-已配置；真正的凭据/Provider 验证发生在首次运行。Key 输入会立即清空，Forget 会终止持有
-key 的 Worker。网页不会读取开发机 `.env`。Anthropic、Gemini、OpenRouter、DeepSeek 和
-xAI 的指定 profile 当前作为待完整资格验证的候选显示，不能连接；Pi 的其他目录项也不会
-被自动视为 Browser 支持。
+要运行 live 路线，直接打开普通 URL，进入“设置”，选择上述任一已资格化的精确模型，再
+输入该 Provider 的 key 并连接 Agent Creator。连接完成只表示 Worker profile 已配置；真正
+的凭据/Provider 验证发生在首次运行。Key 输入会立即清空，Forget 会终止持有 key 的 Worker。
+网页不会读取开发机 `.env`。Anthropic 的可变别名 `claude-sonnet-4-5` 与 OpenRouter
+`google/gemini-2.5-flash` 仍作为 candidate 显示且不能连接；Pi 的其他目录项也不会被自动
+视为 Browser 支持。
 
 当前已资格化的 Cloudflare 部署是
 [silly-os.jasl9187.workers.dev](https://silly-os.jasl9187.workers.dev/)。
@@ -164,18 +170,24 @@ cancel/v2 tool proposal/两次 HTTP 200/持久化投影无 key/Forget 资格检�
 它只托管静态产品；OpenAI key 和模型请求从 Agent Worker 直接发送给 OpenAI，不经过
 SillyOS 或 Cloudflare relay。
 
-开发资格检查会从本目录的 `.env` 读取 `OPENAI_API_KEY`，依次启动普通 Chromium context
-与运行后删除的一次性持久 WebKit profile，
-证明真实请求后的取消不会推进 v1、下一次运行形成精确 v2、测试的持久化投影不含 key，
-然后执行 Forget。它不读取或打印 Provider 请求头、请求体或 key。先在另一个终端以
+开发资格检查会按精确 profile 从本目录的 `.env` 读取对应 Provider key，依次启动普通
+Chromium context 与运行后删除的一次性持久 WebKit profile，
+先用明确无效的凭据证明 Provider 4xx 可读且产品只持久化有界 `run_failed`，再证明真实请求
+后的取消不会推进 v1、下一次运行形成精确 v2、测试的持久化投影不含 key，最后等待 Forget
+实际终止 Agent Worker。它不读取或打印 Provider 请求头、请求体或 key。先在另一个终端以
 `--port 4175 --strictPort` 启动 Vite，再运行：
 
 ```sh
 deno task dev --host 127.0.0.1 --port 4175 --strictPort
-deno task qualify:browser:openai
+deno task qualify:browser:qualified
 ```
 
-验收部署源时可把 HTTPS 地址作为参数传入同一命令。
+`qualified` 会检查当前五个可选 profile；也可通过
+`deno task qualify:browser:provider anthropic` 检查一个精确 profile。验收部署源时可把
+HTTPS 地址作为下一个参数传入同一命令。OpenRouter candidate 不属于 `qualified` 集合；
+重新资格化它需要先在受控候选 build 中开放该精确 tuple，而不能绕过正式 UI 的 disabled
+状态。`qualify:browser:b1b` 表示五个命名 B1b 目标的完整 checkpoint，因此 OpenRouter 未
+通过期间预期为红；日常 release matrix 使用 `qualified`。
 
 共享 examples Playwright 套件也必须通过 `examples/silly-os/vite.config.ts` 启动本产品，
 这样 dev/E2E 使用与普通开发相同的 Worker alias 和固定 Pi 依赖预打包；这不改变生产 chunk、
@@ -183,7 +195,7 @@ Provider 资格或 CSP。
 
 Browser 目标可作为 Cloudflare Workers Static Assets 发布的本地优先产品。部署方只
 提供静态应用；模型请求从浏览器 Agent Worker 直接到用户选择的已资格化 Provider，不经过
-SillyOS 官方代理。当前第一个 profile 已验证 Worker 内存/forget 所有权。生产 UI key 仍须
+SillyOS 官方代理。当前五个精确 profile 已验证 Worker 内存/forget 所有权。生产 UI key 仍须
 保持只在 Worker 内存中，不能写入 React state、URL、日志、Program 数据、IndexedDB、
 OPFS 或导出文件。自定义 endpoint 仍必须满足 HTTPS、CSP、CORS、streaming 与取消合同，
 并非 Pi 在 Desktop 支持的全部 Provider 都会自动获得 Browser 资格。CSP 只决定页面可连接
@@ -270,7 +282,9 @@ deno task build:desktop
 deno run -A npm:vitest run \
   src/test/creator-session.test.ts \
   src/test/creator-agent-admission.test.ts \
+  src/test/browser-pi-browser-qualification.test.ts \
   src/test/browser-pi-catalog-port.test.ts \
+  src/test/browser-pi-provider-runtime-bridge.test.ts \
   src/test/browser-pi-worker.test.ts \
   src/test/provider-settings-ui.test.tsx \
   src/test/pi-rpc-startup.test.ts

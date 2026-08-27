@@ -42,9 +42,9 @@ Provider/model catalog, SillyOS-owned Settings, and ordinary-route selection of
 the exact qualified OpenAI profile. Its local release gate passed 265 product
 tests, the ordinary Settings journey in Chromium and persistent-profile WebKit,
 and the real OpenAI stream/tool/cancel/currentness/Forget qualifier in both
-engines. B1b's named direct-Provider qualification is the accepted next
-checkpoint but is not activated by B1a closure; broader endpoint and credential
-behavior does not enter it by implication.
+engines. B1b's named direct-Provider qualification was accepted next but was not
+activated by B1a closure; the owner's later explicit order activated it without
+bringing broader endpoint and credential behavior in by implication.
 The clean B1a implementation commit
 `66eb6755b04d3d625830dbbe915c465886ba13dc` was then deployed to the canonical
 origin as Cloudflare version `28022baa-1676-4c79-a194-85d95e5f326d`. The public
@@ -54,6 +54,28 @@ qualified and Anthropic still a candidate and logged no errors. The same public
 origin then passed the real Chromium and persistent-WebKit qualifier with the
 same cancel/v2/HTTP-200/durable-key-absence/Forget receipts, so B1a's release
 operation is also closed.
+The owner then explicitly activated B1b: qualify the five named direct HTTPS
+profiles through Pi, add only their exact official origins to the static CSP,
+and keep every profile disabled unless its own deployed dual-browser gate
+passes. This does not activate arbitrary endpoints, OAuth, relays, or B1c.
+The current local B1b gate promotes exact Anthropic
+`claude-sonnet-4-5-20250929`, Google `gemini-2.5-flash`, DeepSeek
+`deepseek-v4-flash`, and xAI `grok-4.3` profiles after all ten real Pi journeys
+passed Chromium and persistent-profile WebKit. Each journey first observed a
+readable invalid-credential 4xx and the bounded durable `run_failed` mapping,
+then proved cancellation, exact v2, currentness, key absence, and actual Worker
+termination. It also corrected SillyOS's
+cross-Provider use of Pi to the neutral `toolChoice` values `auto` before the
+proposal tool and `none` afterward; the earlier OpenAI-specific `required`
+literal was invalid for Anthropic. The Anthropic mutable alias remains a
+candidate. OpenRouter `google/gemini-2.5-flash` also remains disabled because
+both the Browser path and a direct minimal request with the current account/key
+returned HTTP 403 for Provider Terms of Service; that is not recorded as a CORS
+failure. B1b remains active until its public deployment gate is recorded and
+the OpenRouter disposition is owner-accepted or successfully requalified.
+The current local release gate passes 27 files / 270 product tests, the Settings
+journey in both engines, and the complete 5-profile × 2-browser real-Provider
+matrix.
 The raw launcher is not the typed product RPC; the live Browser route is a
 separate product path. This plan remains local to `examples/silly-os`; the
 neutral async GUI disposer was delivered separately by the engine task and is
@@ -103,11 +125,11 @@ execution mechanism, especially in Browser, but it is not the product contract:
 the selected target adapters may combine TypeScript, Workers, Wasm payloads, or
 a native companion behind the same typed workspace boundary.
 
-At most one phase below is active at a time. P1-B1a is closed after P3c-B1, and
-no later P1-B1 checkpoint becomes active merely because B1a closed. A later
-phase may be refined before it starts, but it may not silently weaken this
-product model or claim evidence that an earlier phase did not produce. Product
-code may not import the ignored `references/` checkouts.
+At most one phase below is active at a time. P1-B1a is closed after P3c-B1; its
+closure did not activate a successor, but the owner's next order has now
+activated P1-B1b. A later phase may be refined before it starts, but it may not
+silently weaken this product model or claim evidence that an earlier phase did
+not produce. Product code may not import the ignored `references/` checkouts.
 
 Until the first stable release, every phase also follows DESIGN's clean
 replacement rule: breaking product-private contracts may reset preview data,
@@ -325,8 +347,9 @@ The accepted execution order is no longer the numeric subsection order:
 5. **P1-B1a delivered and closed 2026-08-28:** Pi-owned Provider/model
    discovery, one native Settings surface, and the exact qualified OpenAI
    profile clean-replaced fixed B0b on the ordinary Browser route.
-6. P1-B1b/B1c, P3b execution-provider characterization, later P3c
-   import/artifact/Desktop
+6. **P1-B1b is active:** qualify the five exact named direct-Provider profiles
+   through Pi and the deployed dual-browser gate. B1c, P3b execution-provider
+   characterization, later P3c import/artifact/Desktop
    work, P1-D, and P4+ require separate owner activation. None is automatically
    active or retroactively part of P3c-B0/B1 or P1-B1.
 
@@ -555,7 +578,7 @@ only static application delivery in this slice. A single static asset must stay
 below the platform's 25 MiB limit; large future Wasm/tool payloads are split or
 streamed rather than folded into the Creator bundle.
 
-#### P1-B1 — Pi-owned Browser Provider settings (B1a closed; B1b/B1c inactive)
+#### P1-B1 — Pi-owned Browser Provider settings (B1a closed; B1b active)
 
 P1-B1 replaces B0b's fixed query-only profile; it does not preserve that
 pre-stable user-facing route as a compatibility mode. Agent Creator remains the
@@ -647,7 +670,7 @@ The accepted checkpoint order is:
    cancellation retained v1, the next run used Pi's exact tool to publish v2,
    both completion requests returned 200, the durable projection contained no
    key, and Forget terminated the Worker.
-2. **B1b — direct-Provider qualification (inactive).** Use Pi's own Provider factories and
+2. **B1b — direct-Provider qualification (active).** Use Pi's own Provider factories and
    model stream for one named Anthropic, Google Gemini, OpenRouter, DeepSeek,
    and xAI profile apiece. Qualification is attached to the exact
    `(providerId, modelId, api, endpoint origin)` profile, not to every model
@@ -657,6 +680,19 @@ The accepted checkpoint order is:
    allowlist and promote each independently only after the real-key dual-browser
    gate above. A failing candidate remains visible with an honest status and
    cannot silently fall back to OpenAI or the deterministic provider.
+
+   The current implementation admits only five total qualified tuples: the
+   already-closed OpenAI profile plus the fixed Anthropic snapshot, Google,
+   DeepSeek, and xAI profiles above. Their readable invalid-credential 4xx,
+   bounded `run_failed` mapping, real cancellation, exact v2 tool proposal, two
+   successful completion requests, currentness, durable-key absence, and
+   Worker-termination journeys pass in Chromium and persistent WebKit. The
+   static CSP names only self plus the six exact Provider origins under B1a/B1b.
+   Anthropic's mutable alias and the tested OpenRouter tuple remain disabled
+   candidates; OpenRouter's current 403 is an account/Provider outcome, not
+   evidence that CSP or CORS failed. The generic qualifier reads the exact
+   profile's environment key without printing keys, request headers, request
+   bodies, or URLs and defaults to the five qualified tuples.
 3. **B1c — custom HTTPS profile and non-secret persistence (inactive).** Admit an explicit
    Pi protocol/API family, normalized HTTPS endpoint, model identity and bounded
    Provider-specific fields; never infer protocol from a URL. Add a small
@@ -672,7 +708,8 @@ The accepted checkpoint order is:
 
 B1a deliberately proved catalog authority, navigation, model selection,
 credential lifetime, ordinary-route activation, and clean replacement with one
-already-qualified Provider before B1b adds five exact profiles. Its tests are
+already-qualified Provider before B1b independently evaluated five exact
+profiles. Its tests are
 mutation-sensitive to copied catalog data, secret persistence, disabled
 candidate selection, stale profile activation, Worker replacement, and
 responsive/keyboard regressions. Production build/chunk evidence, the local

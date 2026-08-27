@@ -19,6 +19,10 @@ After the tool succeeds, reply with one short sentence explaining that the revis
 
 let cachedProvidersV1;
 
+export function browserPiCreatorToolChoiceV1(proposed) {
+  return proposed ? "none" : "auto";
+}
+
 function providersV1() {
   if (cachedProvidersV1 !== undefined) return cachedProvidersV1;
   const providers = builtinProviders();
@@ -115,11 +119,11 @@ export function createBrowserPiProviderAgentV1(input) {
         message.role === "toolResult" &&
         message.toolName === "sillyos_propose_program_revision"
       );
-      return resolved.provider.stream(selectedModel, context, {
+      return resolved.provider.streamSimple(selectedModel, context, {
         ...options,
         maxRetries: 0,
         timeoutMs: 30_000,
-        toolChoice: proposed ? "none" : "required",
+        toolChoice: browserPiCreatorToolChoiceV1(proposed),
         transport: "sse",
       });
     },
