@@ -116,7 +116,7 @@ export interface BrowserPiWorkspaceMutationReceiptWireV1 {
   readonly sessionId: string;
   readonly runId: string;
   readonly toolCallId: string;
-  readonly tool: "write" | "edit";
+  readonly tool: "write" | "edit" | "bash";
   readonly expectedGeneration: number;
   readonly baseGeneration: number;
   readonly resultingGeneration: number;
@@ -400,6 +400,9 @@ function isWorkspaceDiagnosticCodeV1(
     value === "capacity_exceeded" || value === "execution_failed";
 }
 
+const browserPiWorkspaceBashChangedPathMaximumV1 = 64;
+const browserPiWorkspaceBashGenerationDeltaMaximumV1 = 128;
+
 export function admitBrowserPiWorkspaceMutationReceiptWireV1(
   value: unknown,
 ): BrowserPiWorkspaceMutationReceiptWireV1 | null {
@@ -426,7 +429,7 @@ export function admitBrowserPiWorkspaceMutationReceiptWireV1(
     !isIdentifierV1(receipt.programId) || !isIdentifierV1(receipt.workspaceId) ||
     !isIdentifierV1(receipt.workspaceSessionId) || !isIdentifierV1(receipt.sessionId) ||
     !isIdentifierV1(receipt.runId) || !isIdentifierV1(receipt.toolCallId) ||
-    (receipt.tool !== "write" && receipt.tool !== "edit") ||
+    (receipt.tool !== "write" && receipt.tool !== "edit" && receipt.tool !== "bash") ||
     !isPositiveSafeIntegerV1(receipt.expectedGeneration) ||
     !isPositiveSafeIntegerV1(receipt.baseGeneration) ||
     !isPositiveSafeIntegerV1(receipt.resultingGeneration) ||
@@ -437,19 +440,29 @@ export function admitBrowserPiWorkspaceMutationReceiptWireV1(
     !isWorkspaceDiagnosticCodeV1(receipt.diagnosticCode)
   ) return null;
 
-  const changedPaths = exactArrayV1(receipt.changedPaths, 1);
+  const changedPaths = exactArrayV1(
+    receipt.changedPaths,
+    receipt.tool === "bash" ? browserPiWorkspaceBashChangedPathMaximumV1 : 1,
+  );
   if (changedPaths === null) return null;
-  if (
-    (receipt.effect === "none" && changedPaths.length !== 0) ||
-    (receipt.effect === "changed" &&
-      (changedPaths.length !== 1 || !isNormalizedWorkspacePathV1(changedPaths[0])))
-  ) return null;
-  if (
-    (receipt.effect === "none" && receipt.resultingGeneration !== receipt.baseGeneration) ||
-    (receipt.effect === "changed" &&
-      (receipt.baseGeneration === Number.MAX_SAFE_INTEGER ||
-        receipt.resultingGeneration !== receipt.baseGeneration + 1))
-  ) return null;
+  if (receipt.effect === "none") {
+    if (changedPaths.length !== 0 || receipt.resultingGeneration !== receipt.baseGeneration) {
+      return null;
+    }
+  } else {
+    if (
+      changedPaths.length === 0 ||
+      changedPaths.some((path) => !isNormalizedWorkspacePathV1(path)) ||
+      new Set(changedPaths).size !== changedPaths.length
+    ) return null;
+    const generationDelta = receipt.resultingGeneration - receipt.baseGeneration;
+    if (
+      receipt.tool === "bash"
+        ? generationDelta < 1 ||
+          generationDelta > browserPiWorkspaceBashGenerationDeltaMaximumV1
+        : changedPaths.length !== 1 || generationDelta !== 1
+    ) return null;
+  }
   if (
     (receipt.outcome === "succeeded" && receipt.diagnosticCode !== null) ||
     (receipt.outcome === "cancelled" && receipt.diagnosticCode !== "cancelled") ||

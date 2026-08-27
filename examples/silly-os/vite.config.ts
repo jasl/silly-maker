@@ -10,5 +10,17 @@ export default defineConfig(async () => {
     appRoot: import.meta.dirname,
     config: sillymakerAppConfigV1,
   });
-  return { ...config, publicDir: "public" };
+  return {
+    ...config,
+    publicDir: "public",
+    resolve: {
+      ...config.resolve,
+      alias: {
+        "node:zlib": new URL(
+          "./src/workspace/browser-node-zlib-unavailable.ts",
+          import.meta.url,
+        ).pathname,
+      },
+    },
+  };
 });

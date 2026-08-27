@@ -9,7 +9,12 @@ import {
   admitBrowserWorkspaceHostEnvironmentRequestV1,
   admitBrowserWorkspaceHostExportInboundMessageV1,
   admitBrowserWorkspaceHostExportOutboundMessageV1,
+  browserWorkspaceBashChangedPathMaximumV1,
+  browserWorkspaceBashMutationAttemptMaximumV1,
   browserWorkspaceNativePiToolPayloadMaximumBytesV1,
+  browserWorkspaceShellCommandMaximumUtf8BytesV1,
+  browserWorkspaceShellEnvironmentMaximumEntriesV1,
+  browserWorkspaceShellOutputMaximumUtf8BytesV1,
   isBrowserWorkspaceHostNormalizedPathV1,
 } from "../workspace/browser-workspace-host-protocol.ts";
 
@@ -231,6 +236,142 @@ describe("SillyOS Browser Workspace Host protocol", () => {
     ).toMatchObject({ receipt: { tool: "edit" } });
   });
 
+  it("admits the bounded native Pi bash scope and exact shell records", () => {
+    expect(browserWorkspaceBashMutationAttemptMaximumV1).toBe(128);
+    expect(browserWorkspaceBashChangedPathMaximumV1).toBe(64);
+    expect(
+      admitBrowserWorkspaceHostEnvironmentRequestV1(
+        environmentRequestV1({
+          method: "begin_tool",
+          toolCallId: "pi-tool.bash.1",
+          tool: "bash",
+        }),
+      ),
+    ).toMatchObject({ record: { method: "begin_tool", tool: "bash" } });
+
+    const shell = {
+      method: "execute_shell",
+      command: "printf hello > output.txt",
+      cwd: "/workspace",
+      env: { FEATURE: "creator" },
+      inheritEnv: true,
+      timeoutMilliseconds: 2_500,
+    } as const;
+    expect(
+      admitBrowserWorkspaceHostEnvironmentRequestV1(environmentRequestV1(shell)),
+    ).toMatchObject({ record: shell });
+    expect(
+      admitBrowserWorkspaceHostEnvironmentRequestV1(
+        environmentRequestV1({ ...shell, command: "x".repeat(16_385) }),
+      ),
+    ).toBeNull();
+    expect(browserWorkspaceShellCommandMaximumUtf8BytesV1).toBe(16 * 1024);
+    expect(
+      admitBrowserWorkspaceHostEnvironmentRequestV1(
+        environmentRequestV1({
+          ...shell,
+          env: Object.fromEntries(
+            Array.from(
+              { length: browserWorkspaceShellEnvironmentMaximumEntriesV1 + 1 },
+              (_, index) => [`KEY_${String(index)}`, "value"],
+            ),
+          ),
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      admitBrowserWorkspaceHostEnvironmentRequestV1(
+        environmentRequestV1({ ...shell, env: { "NOT-A-VARIABLE": "value" } }),
+      ),
+    ).toBeNull();
+    expect(
+      admitBrowserWorkspaceHostEnvironmentRequestV1(
+        environmentRequestV1({ ...shell, timeoutMilliseconds: 30_001 }),
+      ),
+    ).toBeNull();
+    expect(
+      admitBrowserWorkspaceHostEnvironmentRequestV1(
+        environmentRequestV1({ ...shell, cwd: "/tmp" }),
+      ),
+    ).toBeNull();
+
+    for (
+      const record of [
+        {
+          method: "append_file",
+          path: ".sillyos/tmp/bash-log.log",
+          bytes: new Uint8Array([1]),
+        },
+        { method: "create_temp_file", prefix: "bash-", suffix: ".log" },
+        { method: "cancel_tool", toolCallId: "pi-tool.bash.1" },
+      ]
+    ) {
+      expect(
+        admitBrowserWorkspaceHostEnvironmentRequestV1(environmentRequestV1(record)),
+      ).toMatchObject({ record: { method: record.method } });
+    }
+    expect(
+      admitBrowserWorkspaceHostEnvironmentRequestV1(
+        environmentRequestV1({ method: "create_temp_file", prefix: "shell-", suffix: ".log" }),
+      ),
+    ).toBeNull();
+
+    const terminal = {
+      revision: 1,
+      kind: "environment_response",
+      requestId: 2,
+      ok: true,
+      response: {
+        method: "execute_shell",
+        termination: "completed",
+        stdout: "hello",
+        stderr: "",
+        exitCode: 0,
+      },
+    } as const;
+    expect(admitBrowserWorkspaceHostEnvironmentOutboundMessageV1(terminal)).toEqual(terminal);
+    expect(
+      admitBrowserWorkspaceHostEnvironmentOutboundMessageV1({
+        ...terminal,
+        response: {
+          ...terminal.response,
+          stdout: "x".repeat(browserWorkspaceShellOutputMaximumUtf8BytesV1 + 1),
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it("admits multi-generation bash receipts without weakening native write receipts", () => {
+    const bashReceipt = receiptV1({
+      tool: "bash",
+      toolCallId: "pi-tool.bash.1",
+      resultingGeneration: 9,
+      changedPaths: ["output.txt", ".sillyos/tmp/bash-output.log"],
+    });
+    expect(
+      admitBrowserWorkspaceHostEnvironmentOutboundMessageV1({
+        revision: 1,
+        kind: "workspace_receipt",
+        receipt: bashReceipt,
+      }),
+    ).toMatchObject({ receipt: { tool: "bash", resultingGeneration: 9 } });
+    for (
+      const receipt of [
+        { ...bashReceipt, changedPaths: ["output.txt", "output.txt"] },
+        { ...bashReceipt, resultingGeneration: 136 },
+        receiptV1({ changedPaths: ["a.txt", "b.txt"], resultingGeneration: 9 }),
+      ]
+    ) {
+      expect(
+        admitBrowserWorkspaceHostEnvironmentOutboundMessageV1({
+          revision: 1,
+          kind: "workspace_receipt",
+          receipt,
+        }),
+      ).toBeNull();
+    }
+  });
+
   it("keeps checkpoint identity distinct from execution descriptor generation in snapshots", () => {
     const admitted = admitBrowserWorkspaceHostControlOutboundMessageV1({
       revision: 1,
@@ -386,6 +527,37 @@ describe("SillyOS Browser Workspace Host protocol", () => {
           ...event,
           receipt: invalidReceipt,
         }),
+      ).toBeNull();
+    }
+  });
+
+  it("admits only the closed outcome and diagnostic combinations", () => {
+    const event = { revision: 1, kind: "workspace_receipt" } as const;
+    for (
+      const receipt of [
+        receiptV1({ outcome: "succeeded", diagnosticCode: null }),
+        receiptV1({ outcome: "failed", diagnosticCode: "path_rejected" }),
+        receiptV1({ outcome: "failed", diagnosticCode: "capacity_exceeded" }),
+        receiptV1({ outcome: "failed", diagnosticCode: "execution_failed" }),
+        receiptV1({ outcome: "cancelled", diagnosticCode: "cancelled" }),
+      ]
+    ) {
+      expect(
+        admitBrowserWorkspaceHostEnvironmentOutboundMessageV1({ ...event, receipt }),
+      ).not.toBeNull();
+    }
+
+    for (
+      const receipt of [
+        receiptV1({ outcome: "succeeded", diagnosticCode: "execution_failed" }),
+        receiptV1({ outcome: "failed", diagnosticCode: null }),
+        receiptV1({ outcome: "failed", diagnosticCode: "cancelled" }),
+        receiptV1({ outcome: "cancelled", diagnosticCode: null }),
+        receiptV1({ outcome: "cancelled", diagnosticCode: "capacity_exceeded" }),
+      ]
+    ) {
+      expect(
+        admitBrowserWorkspaceHostEnvironmentOutboundMessageV1({ ...event, receipt }),
       ).toBeNull();
     }
   });

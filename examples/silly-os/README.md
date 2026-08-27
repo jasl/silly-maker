@@ -49,6 +49,12 @@ P3c-B0 的三个检查点已经把 P3a 验证过的字节路径迁入产品自�
 durable head 则持有连续 generation。关闭后完整刷新页面会用新的 `workspaceSessionId` 重开
 同一字节与 generation；mutation receipt 仍是 session-local，不会伪装成 Pi 或 Chat 持久化。
 
+P3a 现已把固定 Pi 的四个原生 workspace 工具全部接到这一个 authority：`read`、`write`、
+`edit` 与 `bash`。Browser Local 的 `bash` 由 Workspace Host Worker 内固定的
+`just-bash@3.4.2` 执行，闭合 profile 明确标为 `terminal_aggregate`；Pi 仍拥有工具 schema、
+截断/溢出文件算法与模型可见结果。它是带有限命令和资源边界的浏览器虚拟 shell，不是
+Linux、容器、sandbox 或 live-streaming 终端，也没有 Git、Python/QuickJS、网络或包管理器。
+
 checkpoint 2 已在 Chromium 与持久 WebKit 中自动写入并冷重开 `1,000 × 5 KiB` 文件和一个
 `16 MiB` 文件，共 `1,001` 个文件、`21,897,216` 字节，最终 generation 为 `1002`；
 `100 MiB`、`256 MiB` 只保留为 origin 容量允许时的可选原始测量，不是支持承诺。固定边界是
@@ -81,11 +87,13 @@ import/restore reader 或 immutable snapshot。Agent Forget 会清理 Pi/执行�
 资格化；P3c-B0 已闭合原生 Pi `write`/`read` 到 OPFS checkpoint 的 authority、close/cold
 reopen、连续 generation、mutation receipt、取消、清理、恢复/争用、storage UI、自动双引擎
 `20 MiB+` gate，以及真实取消/下载/解包逐字节验证的 canonical portable ZIP。完整 B0 已在
-2026-08-27 独立验收并关闭。随后 P3a-B1 checkpoint 1 也已交付并通过独立验收：固定 Pi
-0.84.3 的原生 `edit` 已接到同一 OPFS volume，真实路径为
-`write -> edit -> read -> proposal`，编辑后的 bytes 与 generation 可跨冷重开保留。
-当前没有激活中的 SillyOS 实现片；checkpoint 2 的 Pi `bash`/just-bash、广泛 Provider/BYO Sandbox 研究、immutable snapshot
-publication 和 import 仍未激活。Desktop
+2026-08-27 独立验收并关闭。随后 P3a-B1 的两个 checkpoint 也已交付并通过独立验收：固定
+Pi 0.84.3 的原生 `edit` 与 `bash` 已接到同一 OPFS volume，确定性真实路径为
+`write -> edit -> read -> bash/rg -> proposal`，最终 bytes 与 generation `4` 可跨冷重开保留；
+超过 Pi 50 KiB 阈值的已完成输出会把完整 aggregate 持久化到同一卷的
+`.sillyos/tmp/bash-<opaque>.log`。P3a 因而关闭。当前没有激活中的 SillyOS 实现片；广泛
+Provider/BYO Sandbox 研究、Wasm/更完整执行环境、immutable snapshot publication 和 import
+仍未激活。Desktop
 底层仍计划由私有 companion 启动产品打包的 Pi coding-agent，但当前没有激活。
 
 详细的产品范围、Cloudflare OS 参考快照、语义映射、桌面/移动布局、键盘/IME、
@@ -116,9 +124,10 @@ React 产品面；Desktop 是产品目标，不会另外模拟操作系统桌面
 要运行不访问 LLM 的 Browser Pi B0a 接线检查，在该地址追加
 `?locale=zh-CN&agent=pi-test`，输入任意可丢弃的合成测试值并初始化，再创建 Program、
 提交一次 follow-up。确定性 Pi 流程会用原生 `write`/`edit`/`read` 在持久 Program
-workspace 完成一次编辑往返，再形成 proposal；返回 Home、等待 workspace close 完成并刷新页面后，
-重新初始化 Pi test 仍会打开同一 generation 和文件。普通 URL 不会加载 Pi Worker 或它的
-provider/runtime 代码。
+workspace 完成编辑往返，再由原生 `bash` 调用 Browser Local 的 `tee` 与 `rg` 验证另一个
+持久文件，最后形成 proposal；此时 workspace generation 为 `4`。返回 Home、等待 workspace
+close 完成并刷新页面后，重新初始化 Pi test 仍会打开同一 generation 和文件。普通 URL 不会
+加载 Pi Worker、Workspace Host 或 just-bash 的 lazy runtime 代码。
 
 要运行 B0b live 路线，在地址追加 `?locale=zh-CN&agent=pi-openai`，通过页面加载
 OpenAI key，再创建 Program 并提交 follow-up。加载完成只表示 Worker profile 已配置；

@@ -3,3 +3,5 @@ Required Notice: Copyright 2026 Jun Jiang (jasl).
 This repository is MIT-licensed; project-owned media assets are dedicated to the public domain under CC0 1.0. See LICENSE.md for scope and LICENSES/ for the standard legal texts.
 
 The SillyOS portable workspace export includes client-zip 2.5.0, Copyright 2020 David Junger, under the MIT license in LICENSES/client-zip-MIT.txt.
+
+The SillyOS Browser Workspace Host Worker includes just-bash 3.4.2, Copyright 2025 Vercel Inc., under the Apache License 2.0 in LICENSES/just-bash-Apache-2.0.txt.

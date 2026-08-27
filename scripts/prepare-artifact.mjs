@@ -7,6 +7,8 @@ const projectLegalFilesV1 = [
   "LICENSE.md",
   "LICENSES/CC0-1.0.txt",
   "LICENSES/MIT.txt",
+  "LICENSES/client-zip-MIT.txt",
+  "LICENSES/just-bash-Apache-2.0.txt",
   "NOTICE",
   "TRADEMARKS.md",
 ];

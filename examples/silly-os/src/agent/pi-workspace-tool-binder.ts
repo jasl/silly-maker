@@ -25,7 +25,7 @@ export type BoundPiWorkspaceToolV1<TTool extends WorkspaceHarnessToolV1> =
 function bindPiWorkspaceToolV1<TTool extends WorkspaceHarnessToolV1>(
   tool: TTool,
   run: WorkspaceAgentRunV1,
-  kind: "read" | "write" | "edit",
+  kind: "read" | "write" | "edit" | "bash",
 ): BoundPiWorkspaceToolV1<TTool> {
   const context = Object.freeze({ env: run.env });
   const bound: AgentTool = {
@@ -50,6 +50,8 @@ function bindPiWorkspaceToolV1<TTool extends WorkspaceHarnessToolV1>(
           return run.executeWriteCall(input);
         case "edit":
           return run.executeEditCall(input);
+        case "bash":
+          return run.executeBashCall(input);
         default: {
           const exhaustive: never = kind;
           throw new TypeError(`Unsupported Pi workspace tool kind: ${String(exhaustive)}`);
@@ -79,4 +81,11 @@ export function bindPiWorkspaceEditToolV1<TTool extends WorkspaceHarnessToolV1>(
   run: WorkspaceAgentRunV1,
 ): BoundPiWorkspaceToolV1<TTool> {
   return bindPiWorkspaceToolV1(tool, run, "edit");
+}
+
+export function bindPiWorkspaceBashToolV1<TTool extends WorkspaceHarnessToolV1>(
+  tool: TTool,
+  run: WorkspaceAgentRunV1,
+): BoundPiWorkspaceToolV1<TTool> {
+  return bindPiWorkspaceToolV1(tool, run, "bash");
 }

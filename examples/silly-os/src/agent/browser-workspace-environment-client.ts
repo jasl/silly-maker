@@ -20,6 +20,7 @@ import type {
 import { WorkspaceToolCallAdmissionErrorV1 } from "../workspace/contracts.ts";
 import {
   admitBrowserWorkspaceHostEnvironmentOutboundMessageV1,
+  browserWorkspaceShellRequestedTimeoutMaximumMillisecondsV1,
   type BrowserWorkspaceHostEnvironmentFailureCodeV1,
   type BrowserWorkspaceHostEnvironmentRequestRecordV1,
   type BrowserWorkspaceHostEnvironmentSuccessV1,
@@ -176,15 +177,18 @@ class RemoteWorkspaceExecutionEnvV1 implements ExecutionEnv {
     record: BrowserWorkspaceHostEnvironmentRequestRecordV1,
   ) => Promise<BrowserWorkspaceHostEnvironmentSuccessV1>;
   private readonly isClosed: () => boolean;
+  private readonly getActiveToolCallId: () => string | null;
 
   constructor(
     call: (
       record: BrowserWorkspaceHostEnvironmentRequestRecordV1,
     ) => Promise<BrowserWorkspaceHostEnvironmentSuccessV1>,
     isClosed: () => boolean,
+    getActiveToolCallId: () => string | null,
   ) {
     this.call = call;
     this.isClosed = isClosed;
+    this.getActiveToolCallId = getActiveToolCallId;
   }
 
   private async pathCall<TValue>(
@@ -279,8 +283,31 @@ class RemoteWorkspaceExecutionEnvV1 implements ExecutionEnv {
     }
   }
 
-  appendFile(path: string): Promise<Result<void, FileError>> {
-    return localFileFailureV1("Append is not available in P3c-B0", path);
+  async appendFile(
+    path: string,
+    content: string | Uint8Array,
+    abortSignal?: AbortSignal,
+  ): Promise<Result<void, FileError>> {
+    if (this.isClosed()) {
+      return err(new FileError("invalid", "Workspace execution environment is closed"));
+    }
+    if (abortSignal?.aborted) {
+      return err(new FileError("aborted", "Workspace filesystem operation was aborted", path));
+    }
+    const bytes = typeof content === "string" ? new TextEncoder().encode(content) : content.slice();
+    try {
+      const response = await this.call({ method: "append_file", path, bytes });
+      if (response.method !== "append_file") {
+        throw new TypeError("workspace environment response mismatch");
+      }
+      return ok(undefined);
+    } catch (error) {
+      return err(
+        error instanceof BrowserWorkspaceEnvironmentCallErrorV1
+          ? remoteFileErrorV1(error, path)
+          : new FileError("unknown", error instanceof Error ? error.message : String(error), path),
+      );
+    }
   }
 
   renameFile(sourcePath: string): Promise<Result<void, FileError>> {
@@ -315,22 +342,190 @@ class RemoteWorkspaceExecutionEnvV1 implements ExecutionEnv {
     return localFileFailureV1("Temporary directories are not available in P3c-B0", prefix);
   }
 
-  createTempFile(): Promise<Result<string, FileError>> {
-    return localFileFailureV1("Temporary files are not available in P3c-B0");
-  }
-
-  exec(
-    _command: string,
-    options?: ShellExecOptions,
-  ): Promise<Result<{ stdout: string; stderr: string; exitCode: number }, ExecutionError>> {
+  async createTempFile(options?: {
+    readonly prefix?: string;
+    readonly suffix?: string;
+    readonly abortSignal?: AbortSignal;
+  }): Promise<Result<string, FileError>> {
+    if (this.isClosed()) {
+      return err(new FileError("invalid", "Workspace execution environment is closed"));
+    }
     if (options?.abortSignal?.aborted) {
-      return Promise.resolve(
-        err(new ExecutionError("aborted", "Workspace shell request was aborted")),
+      return err(new FileError("aborted", "Workspace temporary-file request was aborted"));
+    }
+    if (options?.prefix !== "bash-" || options.suffix !== ".log") {
+      return err(
+        new FileError(
+          "not_supported",
+          "Browser Local only creates Pi bash overflow logs with prefix bash- and suffix .log",
+        ),
       );
     }
-    return Promise.resolve(
-      err(new ExecutionError("shell_unavailable", "Shell execution is not available in P3c-B0")),
-    );
+    try {
+      const response = await this.call({
+        method: "create_temp_file",
+        prefix: "bash-",
+        suffix: ".log",
+      });
+      if (response.method !== "create_temp_file") {
+        throw new TypeError("workspace environment response mismatch");
+      }
+      return ok(response.value);
+    } catch (error) {
+      return err(
+        error instanceof BrowserWorkspaceEnvironmentCallErrorV1
+          ? remoteFileErrorV1(error)
+          : new FileError("unknown", error instanceof Error ? error.message : String(error)),
+      );
+    }
+  }
+
+  async exec(
+    command: string,
+    options?: ShellExecOptions,
+  ): Promise<Result<{ stdout: string; stderr: string; exitCode: number }, ExecutionError>> {
+    if (this.isClosed()) {
+      return err(
+        new ExecutionError("shell_unavailable", "Workspace execution environment is closed"),
+      );
+    }
+    if (options?.abortSignal?.aborted) {
+      return err(new ExecutionError("aborted", "Workspace shell request was aborted"));
+    }
+
+    let timeoutMilliseconds: number | null = null;
+    if (options?.timeout !== undefined) {
+      if (!Number.isFinite(options.timeout) || options.timeout <= 0) {
+        return err(
+          new ExecutionError(
+            "unknown",
+            "Browser Local shell timeout must be a finite positive number of seconds",
+          ),
+        );
+      }
+      if (options.timeout * 1000 > browserWorkspaceShellRequestedTimeoutMaximumMillisecondsV1) {
+        return err(
+          new ExecutionError(
+            "unknown",
+            "Browser Local shell timeout cannot exceed 30 seconds",
+          ),
+        );
+      }
+      timeoutMilliseconds = Math.ceil(options.timeout * 1000);
+    }
+
+    const toolCallId = this.getActiveToolCallId();
+    if (toolCallId === null) {
+      return err(
+        new ExecutionError(
+          "shell_unavailable",
+          "Workspace shell execution requires an active Pi bash tool scope",
+        ),
+      );
+    }
+
+    const abortSignal = options?.abortSignal;
+    let completed = false;
+    let firstCause: "aborted" | "timeout" | null = null;
+    const cancellation: {
+      promise: Promise<BrowserWorkspaceHostEnvironmentSuccessV1> | null;
+    } = { promise: null };
+    const requestCancellation = (): void => {
+      if (completed) return;
+      firstCause ??= "aborted";
+      cancellation.promise ??= this.call({ method: "cancel_tool", toolCallId });
+      void cancellation.promise.catch(() => undefined);
+    };
+    abortSignal?.addEventListener("abort", requestCancellation, { once: true });
+
+    let response: BrowserWorkspaceHostEnvironmentSuccessV1;
+    try {
+      response = await this.call({
+        method: "execute_shell",
+        command,
+        cwd: options?.cwd ?? this.cwd,
+        env: { ...options?.env },
+        inheritEnv: options?.inheritEnv ?? true,
+        timeoutMilliseconds,
+      });
+      completed = true;
+      abortSignal?.removeEventListener("abort", requestCancellation);
+      if (response.method !== "execute_shell") {
+        throw new TypeError("workspace environment response mismatch");
+      }
+      if (response.termination === "timeout" && firstCause === null) {
+        firstCause = timeoutMilliseconds === null ? null : "timeout";
+      } else if (response.termination === "aborted" && firstCause === null) {
+        firstCause = "aborted";
+      }
+      if (cancellation.promise !== null) {
+        await cancellation.promise.catch(() => undefined);
+      }
+    } catch (error) {
+      completed = true;
+      abortSignal?.removeEventListener("abort", requestCancellation);
+      if (cancellation.promise !== null) {
+        await cancellation.promise.catch(() => undefined);
+      }
+      if (firstCause === "aborted") {
+        return err(new ExecutionError("aborted", "Workspace shell request was aborted"));
+      }
+      return err(
+        new ExecutionError(
+          "unknown",
+          error instanceof Error ? error.message : String(error),
+          error instanceof Error ? error : undefined,
+        ),
+      );
+    }
+
+    let callbackFailure: Error | null = null;
+    try {
+      options?.onStdout?.(response.stdout);
+    } catch (error) {
+      callbackFailure = error instanceof Error ? error : new Error(String(error));
+    }
+    try {
+      options?.onStderr?.(response.stderr);
+    } catch (error) {
+      callbackFailure ??= error instanceof Error ? error : new Error(String(error));
+    }
+    if (callbackFailure !== null) {
+      return err(
+        new ExecutionError(
+          "callback_error",
+          "Workspace shell output callback failed",
+          callbackFailure,
+        ),
+      );
+    }
+    if (firstCause === "aborted") {
+      return err(new ExecutionError("aborted", "Workspace shell request was aborted"));
+    }
+    if (firstCause === "timeout") {
+      return err(
+        new ExecutionError(
+          "timeout",
+          `Workspace shell request timed out after ${options?.timeout} seconds`,
+        ),
+      );
+    }
+    if (response.termination === "timeout") {
+      return err(
+        new ExecutionError("unknown", "Browser Local shell reported an unrequested timeout"),
+      );
+    }
+    if (response.termination === "aborted") {
+      return err(new ExecutionError("aborted", "Workspace shell request was aborted"));
+    }
+    if (response.exitCode === null) {
+      return err(new ExecutionError("unknown", "Workspace shell returned no exit code"));
+    }
+    return ok({
+      stdout: response.stdout,
+      stderr: response.stderr,
+      exitCode: response.exitCode,
+    });
   }
 
   cleanup(): Promise<void> {
@@ -349,6 +544,7 @@ class RemoteWorkspaceAgentRunV1 implements WorkspaceAgentRunV1 {
     this.env = new RemoteWorkspaceExecutionEnvV1(
       (record) => owner.call(record),
       () => state.finished || owner.isDisposed(),
+      () => state.activeToolCallId,
     );
   }
 
@@ -366,6 +562,10 @@ class RemoteWorkspaceAgentRunV1 implements WorkspaceAgentRunV1 {
 
   executeEditCall<TValue>(input: WorkspaceToolCallInputV1<TValue>): Promise<TValue> {
     return this.owner.executeToolCall(this.state, "edit", input);
+  }
+
+  executeBashCall<TValue>(input: WorkspaceToolCallInputV1<TValue>): Promise<TValue> {
+    return this.owner.executeToolCall(this.state, "bash", input);
   }
 
   abortAndDrain(): Promise<void> {
@@ -574,7 +774,7 @@ class BrowserWorkspaceEnvironmentClientOwnerV1 implements BrowserWorkspaceEnviro
 
   executeToolCall<TValue>(
     state: ActiveRunStateV1,
-    tool: "read" | "write" | "edit",
+    tool: "read" | "write" | "edit" | "bash",
     input: WorkspaceToolCallInputV1<TValue>,
   ): Promise<TValue> {
     if (this.activeRun !== state || state.finished) {
@@ -612,7 +812,7 @@ class BrowserWorkspaceEnvironmentClientOwnerV1 implements BrowserWorkspaceEnviro
 
   private async performToolCall<TValue>(
     state: ActiveRunStateV1,
-    tool: "read" | "write" | "edit",
+    tool: "read" | "write" | "edit" | "bash",
     input: WorkspaceToolCallInputV1<TValue>,
   ): Promise<TValue> {
     try {

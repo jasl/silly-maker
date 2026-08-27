@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   BrowserWorkspaceHostIoBudgetV1,
   browserWorkspaceHostControlFileMaximumBytesV1,
+  browserWorkspaceHostDirectoryListChildMaximumV1,
   browserWorkspaceHostExportDirectoryChildMaximumV1,
   browserWorkspaceHostExportDirectoryMaximumV1,
   browserWorkspaceHostIoBytesInFlightMaximumV1,
@@ -40,6 +41,7 @@ class FakeFaultsV1 {
   afterCloseFailure: ((name: string, failure: FakeCloseFailureV1) => void) | null = null;
   afterFileSlice: ((name: string) => void) | null = null;
   afterRemove: ((name: string) => void) | null = null;
+  beforeFileMetadata: ((name: string) => Promise<void> | void) | null = null;
 }
 
 class FakeFileV1 {
@@ -54,6 +56,7 @@ class FakeFileV1 {
       name: this.name,
       isSameEntry: async () => false,
       getFile: async () => {
+        await this.faults.beforeFileMetadata?.(this.name);
         const file = new File([this.bytes], this.name, { lastModified: this.lastModified });
         const slice = file.slice.bind(file);
         Object.defineProperty(file, "slice", {
@@ -442,6 +445,18 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       size: 0,
       mtimeMs: 0,
     });
+    await expect(lease.listDirectory({
+      path: "",
+      signal: new AbortController().signal,
+    })).resolves.toEqual([
+      { name: "assets", kind: "directory", size: 0, mtimeMs: 0 },
+      { name: "large.bin", kind: "file", size: 16 * 1024 * 1024, mtimeMs: 1_700_000_000_000 },
+      { name: "program.md", kind: "file", size: 3, mtimeMs: 1_700_000_000_000 },
+    ]);
+    await expect(lease.listDirectory({
+      path: "assets",
+      signal: new AbortController().signal,
+    })).resolves.toEqual([]);
     const initialHead = await lease.readHead();
     const changed = await lease.replaceFile(
       replaceInputV1(initialHead, new TextEncoder().encode("new"), "checkpoint.2"),
@@ -813,6 +828,68 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       onProgress() {},
     })).rejects.toMatchObject({ code: "capacity_exceeded" });
     expect(await opened.lease.readHead()).toEqual(head);
+    await opened.lease.close();
+    await opened.bootstrap.dispose();
+  });
+
+  it("lists more than the portable-export child cap within the shell traversal cap", async () => {
+    const opened = await openedOpfsV1("volume.shell-directory-list-limit.1");
+    const workspace = fakeDirectoryNodeV1(opened.root, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+      opened.lease.anchor.volumeId,
+      "workspace",
+    ]);
+    const childCount = browserWorkspaceHostExportDirectoryChildMaximumV1 + 1;
+    expect(childCount).toBeLessThanOrEqual(browserWorkspaceHostDirectoryListChildMaximumV1);
+    for (let index = 0; index < childCount; index += 1) {
+      const name = `child-${String(index).padStart(5, "0")}`;
+      workspace.entries.set(name, new FakeDirectoryV1(name, opened.root.faults));
+    }
+
+    const children = await opened.lease.listDirectory({
+      path: "",
+      signal: new AbortController().signal,
+    });
+
+    expect(children).toHaveLength(childCount);
+    expect(children[0]?.name).toBe("child-00000");
+    expect(children.at(-1)?.name).toBe(`child-${String(childCount - 1).padStart(5, "0")}`);
+    await opened.lease.close();
+    await opened.bootstrap.dispose();
+  });
+
+  it("rejects a directory listing aborted during final file metadata", async () => {
+    const opened = await openedOpfsV1("volume.shell-directory-metadata-abort.1");
+    const workspace = fakeDirectoryNodeV1(opened.root, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+      opened.lease.anchor.volumeId,
+      "workspace",
+    ]);
+    workspace.entries.set("slow.txt", new FakeFileV1("slow.txt", opened.root.faults));
+    const controller = new AbortController();
+    let notifyMetadataStarted: (() => void) | null = null;
+    const metadataStarted = new Promise<void>((resolve) => {
+      notifyMetadataStarted = resolve;
+    });
+    opened.root.faults.beforeFileMetadata = async (name) => {
+      if (name !== "slow.txt") return;
+      notifyMetadataStarted?.();
+      await new Promise<void>((resolve) => {
+        if (controller.signal.aborted) resolve();
+        else controller.signal.addEventListener("abort", () => resolve(), { once: true });
+      });
+    };
+
+    const listing = opened.lease.listDirectory({ path: "", signal: controller.signal });
+    await metadataStarted;
+    controller.abort();
+
+    await expect(listing).rejects.toMatchObject({
+      code: "request_failed",
+      fileError: { code: "aborted", path: "/workspace" },
+    });
     await opened.lease.close();
     await opened.bootstrap.dispose();
   });

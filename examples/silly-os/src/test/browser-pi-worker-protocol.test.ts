@@ -273,6 +273,24 @@ describe("Browser Pi Worker P3a-B0 protocol", () => {
     expect(
       admitBrowserPiWorkerWorkspaceOutboundMessageV1({
         ...event,
+        receipt: receiptV1({
+          tool: "bash",
+          toolCallId: "pi.tool.bash.1",
+          resultingGeneration: 3,
+          changedPaths: ["artifact.txt", "logs/bash.log"],
+        }),
+      }),
+    ).toMatchObject({
+      receipt: {
+        tool: "bash",
+        toolCallId: "pi.tool.bash.1",
+        resultingGeneration: 3,
+        changedPaths: ["artifact.txt", "logs/bash.log"],
+      },
+    });
+    expect(
+      admitBrowserPiWorkerWorkspaceOutboundMessageV1({
+        ...event,
         receipt: receiptV1({ tool: "read", effect: "none", changedPaths: [] }),
       }),
     ).toBeNull();
@@ -315,6 +333,71 @@ describe("Browser Pi Worker P3a-B0 protocol", () => {
         receiptV1({ changedPaths: ["a".repeat(513)] }),
         receiptV1({ changedPaths: [Array.from({ length: 33 }, () => "a").join("/")] }),
         receiptV1({ expectedGeneration: 2, baseGeneration: 1 }),
+      ]
+    ) {
+      expect(
+        admitBrowserPiWorkerWorkspaceOutboundMessageV1({ ...event, receipt: invalidReceipt }),
+      ).toBeNull();
+    }
+  });
+
+  it("admits bounded unique multi-path bash effects without relaxing write or edit", () => {
+    const event = { revision: 1, kind: "workspace_receipt" };
+    const paths = Array.from({ length: 64 }, (_, index) => `artifacts/bash-${String(index)}.txt`);
+    const bashReceipt = receiptV1({
+      tool: "bash",
+      toolCallId: "pi.tool.bash.1",
+      resultingGeneration: 129,
+      changedPaths: paths,
+    });
+    expect(
+      admitBrowserPiWorkerWorkspaceOutboundMessageV1({ ...event, receipt: bashReceipt }),
+    ).toMatchObject({
+      receipt: { tool: "bash", baseGeneration: 1, resultingGeneration: 129, changedPaths: paths },
+    });
+    expect(
+      admitBrowserPiWorkerWorkspaceOutboundMessageV1({
+        ...event,
+        receipt: receiptV1({
+          tool: "bash",
+          toolCallId: "pi.tool.bash.read-only",
+          effect: "none",
+          resultingGeneration: 1,
+          changedPaths: [],
+        }),
+      }),
+    ).not.toBeNull();
+
+    for (
+      const invalidReceipt of [
+        receiptV1({ tool: "write", changedPaths: ["one", "two"], resultingGeneration: 3 }),
+        receiptV1({ tool: "edit", changedPaths: ["one"], resultingGeneration: 3 }),
+        receiptV1({
+          tool: "bash",
+          changedPaths: [...paths, "artifacts/bash-65.txt"],
+          resultingGeneration: 66,
+        }),
+        receiptV1({ tool: "bash", changedPaths: ["same", "same"], resultingGeneration: 3 }),
+        receiptV1({ tool: "bash", changedPaths: ["../escape"], resultingGeneration: 2 }),
+        receiptV1({ tool: "bash", changedPaths: ["artifact"], resultingGeneration: 130 }),
+        receiptV1({
+          tool: "bash",
+          effect: "changed",
+          changedPaths: [],
+          resultingGeneration: 1,
+        }),
+        receiptV1({
+          tool: "bash",
+          effect: "none",
+          changedPaths: ["artifact"],
+          resultingGeneration: 1,
+        }),
+        receiptV1({
+          tool: "bash",
+          effect: "none",
+          changedPaths: [],
+          resultingGeneration: 2,
+        }),
       ]
     ) {
       expect(

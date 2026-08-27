@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-import { createEditTool, createReadTool, createWriteTool } from "./pi-workspace-runtime-bridge.js";
+import {
+  createBashTool,
+  createEditTool,
+  createReadTool,
+  createWriteTool,
+} from "./pi-workspace-runtime-bridge.js";
 
 import {
   admitCreatorAgentSubmitTextV1,
@@ -30,6 +35,7 @@ import {
   type BrowserPiWorkspaceSnapshotWireV1,
 } from "./browser-pi-worker-protocol.ts";
 import {
+  bindPiWorkspaceBashToolV1,
   bindPiWorkspaceEditToolV1,
   bindPiWorkspaceReadToolV1,
   bindPiWorkspaceWriteToolV1,
@@ -283,6 +289,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       bindPiWorkspaceReadToolV1(createReadTool(), workspaceRun),
       bindPiWorkspaceWriteToolV1(createWriteTool(), workspaceRun),
       bindPiWorkspaceEditToolV1(createEditTool(), workspaceRun),
+      bindPiWorkspaceBashToolV1(createBashTool(), workspaceRun),
     ];
     let run!: ActivePiRunV1;
     const agentInput = {

@@ -5,8 +5,11 @@ import {
   admitBrowserWorkspaceHostControlRequestV1,
   admitBrowserWorkspaceHostEnvironmentRequestV1,
   admitBrowserWorkspaceVolumeAnchorWireV1,
+  browserWorkspaceBashChangedPathMaximumV1,
+  browserWorkspaceBashMutationAttemptMaximumV1,
   browserWorkspaceHostReceiptMaximumV1,
   browserWorkspaceNativePiToolPayloadMaximumBytesV1,
+  browserWorkspaceShellOutputMaximumUtf8BytesV1,
   type BrowserWorkspaceExecutionDescriptorWireV1,
   type BrowserWorkspaceHostControlFailureCodeV1,
   type BrowserWorkspaceHostControlOutboundMessageV1,
@@ -24,9 +27,14 @@ import {
   type BrowserWorkspaceVolumeAnchorWireV1,
   isBrowserWorkspaceHostNormalizedPathV1,
 } from "./browser-workspace-host-protocol.ts";
+import type {
+  BrowserWorkspaceJustBashPathViewV1,
+  BrowserWorkspaceJustBashVolumePortV1,
+} from "./browser-workspace-just-bash-runtime.ts";
 
 const identityPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
 const workspaceRootV1 = "/workspace";
+const workspaceReadRangeChunkMaximumBytesV1 = 1024 * 1024;
 
 export interface BrowserWorkspaceHostDurableHeadV1 {
   readonly revision: 1;
@@ -40,6 +48,13 @@ export interface BrowserWorkspaceHostFileMetadataV1 {
   readonly kind: "missing" | "file" | "directory";
   readonly size: number;
   /** File.lastModified for files; 0 for OPFS directories, the virtual root, and missing paths. */
+  readonly mtimeMs: number;
+}
+
+export interface BrowserWorkspaceHostDirectoryEntryV1 {
+  readonly name: string;
+  readonly kind: "file" | "directory";
+  readonly size: number;
   readonly mtimeMs: number;
 }
 
@@ -85,6 +100,10 @@ export interface BrowserWorkspaceHostVolumeLeasePortV1 {
   readonly anchor: BrowserWorkspaceVolumeAnchorWireV1;
   readHead(): Promise<BrowserWorkspaceHostDurableHeadV1>;
   stat(path: string): Promise<BrowserWorkspaceHostFileMetadataV1>;
+  listDirectory(input: {
+    readonly path: string;
+    readonly signal: AbortSignal;
+  }): Promise<readonly BrowserWorkspaceHostDirectoryEntryV1[]>;
   readFileRange(input: {
     readonly path: string;
     readonly offset: number;
@@ -170,6 +189,7 @@ export interface BrowserWorkspaceHostRuntimeOptionsV1 {
   readonly postControlMessage: (message: BrowserWorkspaceHostControlOutboundMessageV1) => void;
   readonly createWorkspaceSessionId?: () => string;
   readonly createCheckpointId?: () => string;
+  readonly createShellTempFileId?: () => string;
   readonly createObjectUrl?: (file: File) => string;
   readonly revokeObjectUrl?: (url: string) => void;
   readonly exportReadyTimeoutMilliseconds?: number;
@@ -190,12 +210,14 @@ interface NormalizedPathV1 {
 
 interface ToolScopeV1 {
   readonly toolCallId: string;
-  readonly tool: "read" | "write" | "edit";
+  readonly tool: "read" | "write" | "edit" | "bash";
   readonly baseGeneration: number;
   readonly abortController: AbortController;
   activeOperation: Promise<unknown> | null;
-  writeAttempted: boolean;
-  changedPath: string | null;
+  mutationAttempts: number;
+  readonly changedPaths: string[];
+  readonly changedPathSet: Set<string>;
+  readonly overflowLogPaths: Set<string>;
   failureDiagnostic:
     | null
     | "cancelled"
@@ -248,6 +270,43 @@ interface ExportOperationV1 {
   cancelRequested: boolean;
   protocolFailed: boolean;
   ready: boolean;
+}
+
+interface ShellExecutionCancellationV1 {
+  readonly signal: AbortSignal;
+  readonly cause: () => "aborted" | "timeout" | null;
+  readonly settle: () => void;
+}
+
+function shellExecutionCancellationV1(
+  externalSignal: AbortSignal,
+  timeoutMilliseconds: number | null,
+): ShellExecutionCancellationV1 {
+  const controller = new AbortController();
+  let cause: "aborted" | "timeout" | null = null;
+  let settled = false;
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const abort = (nextCause: "aborted" | "timeout"): void => {
+    if (settled || cause !== null) return;
+    cause = nextCause;
+    controller.abort();
+  };
+  const onExternalAbort = (): void => abort("aborted");
+  externalSignal.addEventListener("abort", onExternalAbort, { once: true });
+  if (externalSignal.aborted) onExternalAbort();
+  if (timeoutMilliseconds !== null && cause === null) {
+    timeoutHandle = setTimeout(() => abort("timeout"), timeoutMilliseconds);
+  }
+  return {
+    signal: controller.signal,
+    cause: () => cause,
+    settle: () => {
+      if (settled) return;
+      settled = true;
+      externalSignal.removeEventListener("abort", onExternalAbort);
+      if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+    },
+  };
 }
 
 function positiveSafeIntegerV1(value: unknown): value is number {
@@ -376,6 +435,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
     (() => `sillyos.workspace.session.${crypto.randomUUID()}`);
   const createCheckpointId = options.createCheckpointId ??
     (() => `sillyos.workspace.checkpoint.${crypto.randomUUID()}`);
+  const createShellTempFileId = options.createShellTempFileId ?? (() => crypto.randomUUID());
   const createObjectUrl = options.createObjectUrl ?? ((file: File) => URL.createObjectURL(file));
   const revokeObjectUrl = options.revokeObjectUrl ?? ((url: string) => URL.revokeObjectURL(url));
   const exportReadyTimeoutMilliseconds = options.exportReadyTimeoutMilliseconds ?? 30_000;
@@ -479,8 +539,8 @@ export function createBrowserWorkspaceHostRuntimeV1(
     outcome: "succeeded" | "failed" | "cancelled",
   ): void => {
     if (run.activeScope !== scope) return;
-    if (scope.tool === "write" || scope.tool === "edit") {
-      const effect = scope.changedPath === null ? "none" : "changed";
+    if (scope.tool === "write" || scope.tool === "edit" || scope.tool === "bash") {
+      const effect = scope.changedPaths.length === 0 ? "none" : "changed";
       const diagnosticCode = outcome === "cancelled"
         ? "cancelled"
         : scope.failureDiagnostic ?? (outcome === "failed" ? "execution_failed" : null);
@@ -499,7 +559,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
         resultingGeneration: session.head.generation,
         outcome,
         effect,
-        changedPaths: scope.changedPath === null ? [] : [scope.changedPath],
+        changedPaths: [...scope.changedPaths],
         diagnosticCode,
       };
       session.receipts.push(receipt);
@@ -551,6 +611,218 @@ export function createBrowserWorkspaceHostRuntimeV1(
     return run === null || run.activeScope === null ? null : { run, scope: run.activeScope };
   };
 
+  const replacePersistentFile = async (
+    session: SessionStateV1,
+    run: RunStateV1,
+    scope: ToolScopeV1,
+    path: NormalizedPathV1,
+    source: BrowserWorkspaceHostFileRangeSourceV1,
+    signal: AbortSignal = scope.abortController.signal,
+  ): Promise<void> => {
+    const lease = session.lease;
+    if (lease === null || signal.aborted) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "request_failed",
+        "Workspace mutation was aborted",
+        fileErrorV1("aborted", "Workspace filesystem operation was aborted", path.absolute),
+      );
+    }
+    if (scope.tool === "read") {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "request_failed",
+        "Read scope cannot mutate workspace bytes",
+        fileErrorV1("permission_denied", "Workspace scope is read-only", path.absolute),
+      );
+    }
+    const attemptMaximum = scope.tool === "bash" ? browserWorkspaceBashMutationAttemptMaximumV1 : 1;
+    if (scope.mutationAttempts >= attemptMaximum) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "capacity_exceeded",
+        "Workspace mutation-attempt limit was reached",
+        fileErrorV1("invalid", "Workspace mutation-attempt limit was reached", path.absolute),
+      );
+    }
+    if (
+      scope.tool === "bash" &&
+      !scope.changedPathSet.has(path.relative) &&
+      scope.changedPathSet.size >= browserWorkspaceBashChangedPathMaximumV1
+    ) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "capacity_exceeded",
+        "Workspace changed-path limit was reached",
+        fileErrorV1("invalid", "Workspace changed-path limit was reached", path.absolute),
+      );
+    }
+    scope.mutationAttempts += 1;
+    const nextCheckpointId = createCheckpointId();
+    if (!validIdentityV1(nextCheckpointId)) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "request_failed",
+        "Checkpoint identity factory returned an invalid identity",
+      );
+    }
+    const result = await lease.replaceFile({
+      path: path.relative,
+      source,
+      expectedHead: session.head,
+      nextCheckpointId,
+      signal,
+    });
+    const admittedHead = durableHeadV1(result.head, session.anchor);
+    if (admittedHead === null) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "volume_corrupt",
+        "Workspace volume returned an invalid durable head",
+      );
+    }
+    if (result.changed) {
+      if (
+        admittedHead.generation !== session.head.generation + 1 ||
+        admittedHead.checkpointId !== nextCheckpointId
+      ) {
+        throw new BrowserWorkspaceHostStorageErrorV1(
+          "volume_corrupt",
+          "Changed workspace bytes did not publish the exact successor head",
+        );
+      }
+      session.head = admittedHead;
+      run.cursor = admittedHead.generation;
+      if (!scope.changedPathSet.has(path.relative)) {
+        scope.changedPathSet.add(path.relative);
+        scope.changedPaths.push(path.relative);
+      }
+      return;
+    }
+    if (!sameHeadV1(admittedHead, session.head)) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "volume_corrupt",
+        "Same-byte workspace write changed its durable head",
+      );
+    }
+  };
+
+  const sourceFromBytes = (
+    bytes: Uint8Array,
+    absolutePath: string,
+  ): BrowserWorkspaceHostFileRangeSourceV1 => ({
+    byteLength: bytes.byteLength,
+    async readRange({ offset, length, signal }) {
+      if (signal.aborted) {
+        throw new BrowserWorkspaceHostStorageErrorV1(
+          "request_failed",
+          "Workspace write was aborted",
+          fileErrorV1("aborted", "Workspace filesystem operation was aborted", absolutePath),
+        );
+      }
+      return bytes.slice(offset, offset + length);
+    },
+  });
+
+  const appendSource = async (
+    lease: BrowserWorkspaceHostVolumeLeasePortV1,
+    path: NormalizedPathV1,
+    bytes: Uint8Array,
+    signal: AbortSignal,
+  ): Promise<BrowserWorkspaceHostFileRangeSourceV1> => {
+    const metadata = await lease.stat(path.relative);
+    if (metadata.kind === "directory") {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "request_failed",
+        "Workspace append target is a directory",
+        fileErrorV1("is_directory", "Workspace path is a directory", path.absolute),
+      );
+    }
+    const existingSize = metadata.kind === "file" ? metadata.size : 0;
+    if (!Number.isSafeInteger(existingSize + bytes.byteLength)) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "capacity_exceeded",
+        "Workspace append size exceeds the supported range",
+      );
+    }
+    return {
+      byteLength: existingSize + bytes.byteLength,
+      async readRange({ offset, length, signal: readSignal }) {
+        if (signal.aborted || readSignal.aborted) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "request_failed",
+            "Workspace append was aborted",
+            fileErrorV1("aborted", "Workspace filesystem operation was aborted", path.absolute),
+          );
+        }
+        const result = new Uint8Array(length);
+        const existingLength = Math.max(0, Math.min(length, existingSize - offset));
+        if (existingLength > 0) {
+          result.set(
+            await lease.readFileRange({
+              path: path.relative,
+              offset,
+              length: existingLength,
+              signal: readSignal,
+            }),
+          );
+        }
+        const appendedLength = length - existingLength;
+        if (appendedLength > 0) {
+          const appendedOffset = Math.max(0, offset - existingSize);
+          result.set(
+            bytes.slice(appendedOffset, appendedOffset + appendedLength),
+            existingLength,
+          );
+        }
+        return result;
+      },
+    };
+  };
+
+  const buildShellPathView = async (
+    lease: BrowserWorkspaceHostVolumeLeasePortV1,
+    generation: number,
+    signal: AbortSignal,
+    maximumEntries: number,
+    maximumDepth: number,
+  ): Promise<BrowserWorkspaceJustBashPathViewV1> => {
+    const entries: Array<{ readonly path: string; readonly kind: "file" | "directory" }> = [];
+    const pending: Array<{ readonly path: string; readonly depth: number }> = [{
+      path: "",
+      depth: 0,
+    }];
+    while (pending.length > 0) {
+      if (signal.aborted) throw new DOMException("Workspace shell scan was aborted", "AbortError");
+      const current = pending.pop()!;
+      const children = await lease.listDirectory({ path: current.path, signal });
+      const directories: Array<{ readonly path: string; readonly depth: number }> = [];
+      for (const child of children) {
+        const path = current.path.length === 0 ? child.name : `${current.path}/${child.name}`;
+        if (!isBrowserWorkspaceHostNormalizedPathV1(path)) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "volume_corrupt",
+            "Workspace shell scan encountered an invalid stored path",
+          );
+        }
+        const depth = current.depth + 1;
+        if (depth > maximumDepth) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "capacity_exceeded",
+            "Workspace shell traversal-depth limit was reached",
+          );
+        }
+        entries.push({ path, kind: child.kind });
+        if (entries.length > maximumEntries) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "capacity_exceeded",
+            "Workspace shell traversal-entry limit was reached",
+          );
+        }
+        if (child.kind === "directory") directories.push({ path, depth });
+      }
+      directories.sort((left, right) =>
+        left.path < right.path ? 1 : left.path > right.path ? -1 : 0
+      );
+      pending.push(...directories);
+    }
+    return { generation, entries };
+  };
+
   const handleFileCall = async (
     session: SessionStateV1,
     requestId: number,
@@ -565,7 +837,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
       return;
     }
     const { run, scope } = current;
-    if (!session.accepting || scope.abortController.signal.aborted) {
+    if (!session.accepting) {
       scope.failureDiagnostic = "cancelled";
       environmentFailure(
         session,
@@ -585,6 +857,18 @@ export function createBrowserWorkspaceHostRuntimeV1(
     if (isFileErrorV1(path)) {
       scope.failureDiagnostic = "path_rejected";
       environmentFailure(session, requestId, "request_failed", path);
+      return;
+    }
+    const postCancellationBashAppend = record.method === "append_file" &&
+      scope.tool === "bash" && scope.overflowLogPaths.has(path.relative);
+    if (scope.abortController.signal.aborted && !postCancellationBashAppend) {
+      scope.failureDiagnostic = "cancelled";
+      environmentFailure(
+        session,
+        requestId,
+        "workspace_closed",
+        fileErrorV1("aborted", "Workspace filesystem operation was aborted", path.absolute),
+      );
       return;
     }
     try {
@@ -695,76 +979,90 @@ export function createBrowserWorkspaceHostRuntimeV1(
         });
         return;
       }
-      if (record.method !== "write_file") return;
-      if ((scope.tool !== "write" && scope.tool !== "edit") || scope.writeAttempted) {
+      if (record.method !== "write_file" && record.method !== "append_file") return;
+      if (record.method === "append_file" && scope.tool !== "bash") {
         environmentFailure(session, requestId, "scope_busy");
         return;
       }
-      scope.writeAttempted = true;
-      const nextCheckpointId = createCheckpointId();
-      if (!validIdentityV1(nextCheckpointId)) {
-        throw new BrowserWorkspaceHostStorageErrorV1(
-          "request_failed",
-          "Checkpoint identity factory returned an invalid identity",
-        );
+      if (
+        record.method === "write_file" && scope.tool !== "write" && scope.tool !== "edit" &&
+        scope.tool !== "bash"
+      ) {
+        environmentFailure(session, requestId, "scope_busy");
+        return;
+      }
+      if (scope.tool !== "bash" && scope.mutationAttempts > 0) {
+        environmentFailure(session, requestId, "scope_busy");
+        return;
       }
       await operate(scope, async () => {
-        const result = await lease.replaceFile({
-          path: path.relative,
-          source: {
-            byteLength: record.bytes.byteLength,
-            async readRange({ offset, length, signal }) {
-              if (signal.aborted) {
-                throw new BrowserWorkspaceHostStorageErrorV1(
-                  "request_failed",
-                  "Workspace write was aborted",
-                  fileErrorV1(
-                    "aborted",
-                    "Workspace filesystem operation was aborted",
-                    path.absolute,
-                  ),
-                );
-              }
-              return record.bytes.slice(offset, offset + length);
-            },
-          },
-          expectedHead: session.head,
-          nextCheckpointId,
-          signal: scope.abortController.signal,
-        });
-        const admittedHead = durableHeadV1(result.head, session.anchor);
-        if (admittedHead === null) {
-          throw new BrowserWorkspaceHostStorageErrorV1(
-            "volume_corrupt",
-            "Workspace volume returned an invalid durable head",
-          );
-        }
-        if (result.changed) {
-          if (
-            admittedHead.generation !== session.head.generation + 1 ||
-            admittedHead.checkpointId !== nextCheckpointId
-          ) {
+        const mutationSignal = postCancellationBashAppend
+          ? new AbortController().signal
+          : scope.abortController.signal;
+        let existingSize = 0;
+        if (record.method === "append_file") {
+          const metadata = await lease.stat(path.relative);
+          if (metadata.kind === "directory") {
             throw new BrowserWorkspaceHostStorageErrorV1(
-              "volume_corrupt",
-              "Changed workspace bytes did not publish the exact successor head",
+              "request_failed",
+              "Workspace append target is a directory",
+              fileErrorV1("is_directory", "Workspace path is a directory", path.absolute),
             );
           }
-          session.head = admittedHead;
-          run.cursor = admittedHead.generation;
-          scope.changedPath = path.relative;
-        } else if (!sameHeadV1(admittedHead, session.head)) {
+          existingSize = metadata.kind === "file" ? metadata.size : 0;
+        }
+        if (!Number.isSafeInteger(existingSize + record.bytes.byteLength)) {
           throw new BrowserWorkspaceHostStorageErrorV1(
-            "volume_corrupt",
-            "Same-byte workspace write changed its durable head",
+            "capacity_exceeded",
+            "Workspace append size exceeds the supported range",
           );
         }
+        const byteLength = existingSize + record.bytes.byteLength;
+        await replacePersistentFile(session, run, scope, path, {
+          byteLength,
+          async readRange({ offset, length, signal }) {
+            if (signal.aborted) {
+              throw new BrowserWorkspaceHostStorageErrorV1(
+                "request_failed",
+                "Workspace write was aborted",
+                fileErrorV1(
+                  "aborted",
+                  "Workspace filesystem operation was aborted",
+                  path.absolute,
+                ),
+              );
+            }
+            if (existingSize === 0) return record.bytes.slice(offset, offset + length);
+            const result = new Uint8Array(length);
+            const existingLength = Math.max(0, Math.min(length, existingSize - offset));
+            if (existingLength > 0) {
+              result.set(
+                await lease.readFileRange({
+                  path: path.relative,
+                  offset,
+                  length: existingLength,
+                  signal,
+                }),
+              );
+            }
+            const appendedLength = length - existingLength;
+            if (appendedLength > 0) {
+              const appendedOffset = Math.max(0, offset - existingSize);
+              result.set(
+                record.bytes.slice(appendedOffset, appendedOffset + appendedLength),
+                existingLength,
+              );
+            }
+            return result;
+          },
+        }, mutationSignal);
       });
       postEnvironment(session, {
         revision: 1,
         kind: "environment_response",
         requestId,
         ok: true,
-        response: { method: "write_file", value: null },
+        response: { method: record.method, value: null },
       });
     } catch (error) {
       scope.failureDiagnostic = error instanceof BrowserWorkspaceHostStorageErrorV1 &&
@@ -774,6 +1072,400 @@ export function createBrowserWorkspaceHostRuntimeV1(
         : "execution_failed";
       environmentFailure(session, requestId, "request_failed", storageFileErrorV1(error));
     }
+  };
+
+  const handleCreateTempFile = async (
+    session: SessionStateV1,
+    requestId: number,
+  ): Promise<void> => {
+    const current = activeScope(session);
+    if (current === null) {
+      environmentFailure(session, requestId, "scope_missing");
+      return;
+    }
+    const { run, scope } = current;
+    if (scope.tool !== "bash") {
+      environmentFailure(session, requestId, "scope_busy");
+      return;
+    }
+    const lease = session.lease;
+    if (!session.accepting || lease === null) {
+      scope.failureDiagnostic = "cancelled";
+      environmentFailure(session, requestId, "workspace_closed");
+      return;
+    }
+    try {
+      const id = createShellTempFileId();
+      if (!validIdentityV1(id)) {
+        throw new BrowserWorkspaceHostStorageErrorV1(
+          "request_failed",
+          "Shell temporary-file identity factory returned an invalid identity",
+        );
+      }
+      const relative = `.sillyos/tmp/bash-${id}.log`;
+      const path = normalizedPathV1(relative);
+      if (isFileErrorV1(path) || path.relative !== relative) {
+        throw new BrowserWorkspaceHostStorageErrorV1(
+          "request_failed",
+          "Shell temporary-file identity produced an invalid path",
+        );
+      }
+      await operate(scope, async () => {
+        const metadata = await lease.stat(path.relative);
+        if (metadata.kind !== "missing") {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "request_failed",
+            "Shell temporary-file identity collided with an existing path",
+          );
+        }
+        await replacePersistentFile(
+          session,
+          run,
+          scope,
+          path,
+          sourceFromBytes(new Uint8Array(), path.absolute),
+          new AbortController().signal,
+        );
+      });
+      scope.overflowLogPaths.add(path.relative);
+      postEnvironment(session, {
+        revision: 1,
+        kind: "environment_response",
+        requestId,
+        ok: true,
+        response: { method: "create_temp_file", value: path.absolute },
+      });
+    } catch (error) {
+      scope.failureDiagnostic = error instanceof BrowserWorkspaceHostStorageErrorV1 &&
+            error.code === "capacity_exceeded" ||
+          error instanceof DOMException && error.name === "QuotaExceededError"
+        ? "capacity_exceeded"
+        : "execution_failed";
+      environmentFailure(session, requestId, "request_failed", storageFileErrorV1(error));
+    }
+  };
+
+  const handleExecuteShell = async (
+    session: SessionStateV1,
+    requestId: number,
+    record: Extract<
+      BrowserWorkspaceHostEnvironmentRequestRecordV1,
+      { readonly method: "execute_shell" }
+    >,
+  ): Promise<void> => {
+    const current = activeScope(session);
+    if (current === null) {
+      environmentFailure(session, requestId, "scope_missing");
+      return;
+    }
+    const { run, scope } = current;
+    if (scope.tool !== "bash") {
+      environmentFailure(session, requestId, "scope_busy");
+      return;
+    }
+    const lease = session.lease;
+    if (!session.accepting || lease === null || scope.abortController.signal.aborted) {
+      scope.failureDiagnostic = "cancelled";
+      environmentFailure(session, requestId, "workspace_closed");
+      return;
+    }
+    let shellVolumeCapacityExceeded = false;
+    const cancellation = shellExecutionCancellationV1(
+      scope.abortController.signal,
+      record.timeoutMilliseconds,
+    );
+    const cancellationResponse = () => {
+      const cause = cancellation.cause();
+      return cause === null ? null : {
+        method: "execute_shell" as const,
+        termination: cause,
+        stdout: "",
+        stderr: "",
+        exitCode: null,
+      };
+    };
+    try {
+      const response = await operate(scope, async () => {
+        try {
+          const runtime = await import("./browser-workspace-just-bash-runtime.ts");
+          const cancelledAfterImport = cancellationResponse();
+          if (cancelledAfterImport !== null) return cancelledAfterImport;
+          const observeVolumeOperation = async <T>(operation: () => Promise<T>): Promise<T> => {
+            try {
+              return await operation();
+            } catch (error) {
+              if (
+                error instanceof BrowserWorkspaceHostStorageErrorV1 &&
+                  error.code === "capacity_exceeded" ||
+                error instanceof DOMException && error.name === "QuotaExceededError"
+              ) shellVolumeCapacityExceeded = true;
+              throw error;
+            }
+          };
+          const pathView = await buildShellPathView(
+            lease,
+            session.head.generation,
+            cancellation.signal,
+            runtime.browserWorkspaceJustBashExecutionProfileV1.limits.traversalEntries,
+            runtime.browserWorkspaceJustBashExecutionProfileV1.limits.traversalDepth,
+          );
+          const cancelledAfterPathView = cancellationResponse();
+          if (cancelledAfterPathView !== null) return cancelledAfterPathView;
+          const admittedPath = (value: string): NormalizedPathV1 => {
+            const path = normalizedPathV1(value);
+            if (isFileErrorV1(path) || path.relative !== value) {
+              throw new BrowserWorkspaceHostStorageErrorV1(
+                "request_failed",
+                "Shell runtime supplied a non-normalized persistent path",
+                isFileErrorV1(path)
+                  ? path
+                  : fileErrorV1("invalid", "Workspace path is not normalized", value),
+              );
+            }
+            return path;
+          };
+          const volume: BrowserWorkspaceJustBashVolumePortV1 = {
+            async stat(relative, signal) {
+              return await observeVolumeOperation(async () => {
+                const path = admittedPath(relative);
+                if (signal.aborted) {
+                  throw new DOMException("Workspace shell stat aborted", "AbortError");
+                }
+                const metadata = await lease.stat(path.relative);
+                return metadata.kind === "missing"
+                  ? null
+                  : { kind: metadata.kind, size: metadata.size, mtimeMs: metadata.mtimeMs };
+              });
+            },
+            async list(relative, signal) {
+              return await observeVolumeOperation(async () => {
+                const path = admittedPath(relative);
+                return (await lease.listDirectory({ path: path.relative, signal })).map((
+                  entry,
+                ) => ({
+                  name: entry.name,
+                  kind: entry.kind,
+                }));
+              });
+            },
+            async read(relative, signal) {
+              return await observeVolumeOperation(async () => {
+                const path = admittedPath(relative);
+                const metadata = await lease.stat(path.relative);
+                if (metadata.kind !== "file") {
+                  throw new BrowserWorkspaceHostStorageErrorV1(
+                    "request_failed",
+                    metadata.kind === "directory"
+                      ? "Workspace shell read target is a directory"
+                      : "Workspace shell read target is missing",
+                    fileErrorV1(
+                      metadata.kind === "directory" ? "is_directory" : "not_found",
+                      metadata.kind === "directory"
+                        ? "Workspace path is a directory"
+                        : "Workspace file was not found",
+                      path.absolute,
+                    ),
+                  );
+                }
+                if (
+                  metadata.size >
+                    runtime.browserWorkspaceJustBashExecutionProfileV1.limits.shellReadBytes
+                ) {
+                  throw new BrowserWorkspaceHostStorageErrorV1(
+                    "capacity_exceeded",
+                    "Workspace shell read exceeds its per-file limit",
+                  );
+                }
+                const bytes = new Uint8Array(metadata.size);
+                for (let offset = 0; offset < metadata.size;) {
+                  const length = Math.min(
+                    workspaceReadRangeChunkMaximumBytesV1,
+                    metadata.size - offset,
+                  );
+                  bytes.set(
+                    await lease.readFileRange({ path: path.relative, offset, length, signal }),
+                    offset,
+                  );
+                  offset += length;
+                }
+                return bytes;
+              });
+            },
+            async replace(input) {
+              return await observeVolumeOperation(async () => {
+                const path = admittedPath(input.path);
+                if (input.expectedGeneration !== session.head.generation) {
+                  throw new BrowserWorkspaceHostStorageErrorV1(
+                    "request_failed",
+                    "Workspace shell replacement used a stale generation",
+                  );
+                }
+                const baseGeneration = session.head.generation;
+                await replacePersistentFile(
+                  session,
+                  run,
+                  scope,
+                  path,
+                  sourceFromBytes(input.bytes, path.absolute),
+                  input.signal,
+                );
+                return {
+                  changed: session.head.generation !== baseGeneration,
+                  generation: session.head.generation,
+                };
+              });
+            },
+            async append(input) {
+              return await observeVolumeOperation(async () => {
+                const path = admittedPath(input.path);
+                if (input.expectedGeneration !== session.head.generation) {
+                  throw new BrowserWorkspaceHostStorageErrorV1(
+                    "request_failed",
+                    "Workspace shell append used a stale generation",
+                  );
+                }
+                const baseGeneration = session.head.generation;
+                await replacePersistentFile(
+                  session,
+                  run,
+                  scope,
+                  path,
+                  await appendSource(lease, path, input.bytes, input.signal),
+                  input.signal,
+                );
+                return {
+                  changed: session.head.generation !== baseGeneration,
+                  generation: session.head.generation,
+                };
+              });
+            },
+          };
+          const result = await runtime.executeBrowserWorkspaceJustBashV1({
+            command: record.command,
+            cwd: record.cwd,
+            environment: record.env,
+            inheritEnv: record.inheritEnv,
+            cancellation: {
+              signal: cancellation.signal,
+              cause: cancellation.cause,
+            },
+            pathView,
+            volume,
+          });
+          cancellation.settle();
+          const pathsMatch = result.changedPaths.length === scope.changedPaths.length &&
+            result.changedPaths.every((path, index) => path === scope.changedPaths[index]);
+          const outputBytes = new TextEncoder().encode(result.stdout).byteLength +
+            new TextEncoder().encode(result.stderr).byteLength;
+          if (
+            result.generation !== session.head.generation ||
+            !Number.isSafeInteger(result.mutationAttempts) || result.mutationAttempts < 0 ||
+            result.mutationAttempts > browserWorkspaceBashMutationAttemptMaximumV1 ||
+            result.mutationAttempts < scope.mutationAttempts ||
+            !pathsMatch || outputBytes > browserWorkspaceShellOutputMaximumUtf8BytesV1 ||
+            (result.ok &&
+              (!Number.isSafeInteger(result.exitCode) || result.exitCode < 0 ||
+                result.exitCode > 255))
+          ) {
+            throw new BrowserWorkspaceHostStorageErrorV1(
+              "volume_corrupt",
+              "Workspace shell runtime returned an inconsistent mutation state",
+            );
+          }
+          // The facade counts persistent attempts rejected before reaching OPFS
+          // (for example, a missing parent or a 65th distinct path). Reconcile
+          // that bounded count into the Host-owned scope before native Pi may
+          // request its overflow file so both paths share the same 128-attempt
+          // authority.
+          scope.mutationAttempts = result.mutationAttempts;
+          if (shellVolumeCapacityExceeded) {
+            throw new BrowserWorkspaceHostStorageErrorV1(
+              "capacity_exceeded",
+              "Workspace shell volume capacity was exhausted",
+            );
+          }
+          if (!result.ok && result.code === "capacity_exceeded") {
+            throw new BrowserWorkspaceHostStorageErrorV1(
+              "capacity_exceeded",
+              result.message,
+              fileErrorV1("invalid", result.message, null),
+            );
+          }
+          if (!result.ok && result.code === "unknown") {
+            const message = result.message.length === 0
+              ? "Workspace shell execution failed"
+              : result.message.slice(0, 512);
+            throw new BrowserWorkspaceHostStorageErrorV1(
+              "request_failed",
+              message,
+              fileErrorV1("unknown", message, null),
+            );
+          }
+          return result.ok
+            ? {
+              method: "execute_shell" as const,
+              termination: "completed" as const,
+              stdout: result.stdout,
+              stderr: result.stderr,
+              exitCode: result.exitCode,
+            }
+            : {
+              method: "execute_shell" as const,
+              termination: result.code === "aborted" ? "aborted" as const : "timeout" as const,
+              stdout: result.stdout,
+              stderr: result.stderr,
+              exitCode: null,
+            };
+        } catch (error) {
+          cancellation.settle();
+          const cancelled = cancellationResponse();
+          if (cancelled !== null) return cancelled;
+          throw error;
+        }
+      });
+      postEnvironment(session, {
+        revision: 1,
+        kind: "environment_response",
+        requestId,
+        ok: true,
+        response,
+      });
+    } catch (error) {
+      scope.failureDiagnostic = scope.abortController.signal.aborted
+        ? "cancelled"
+        : error instanceof BrowserWorkspaceHostStorageErrorV1 &&
+              error.code === "capacity_exceeded" ||
+            error instanceof DOMException && error.name === "QuotaExceededError"
+        ? "capacity_exceeded"
+        : "execution_failed";
+      environmentFailure(session, requestId, "request_failed", storageFileErrorV1(error));
+    } finally {
+      cancellation.settle();
+    }
+  };
+
+  const handleCancelTool = (
+    session: SessionStateV1,
+    requestId: number,
+    toolCallId: string,
+  ): void => {
+    const current = activeScope(session);
+    if (current === null) {
+      environmentFailure(session, requestId, "scope_missing");
+      return;
+    }
+    if (current.scope.toolCallId !== toolCallId) {
+      environmentFailure(session, requestId, "run_not_current");
+      return;
+    }
+    current.scope.abortController.abort();
+    postEnvironment(session, {
+      revision: 1,
+      kind: "environment_response",
+      requestId,
+      ok: true,
+      response: { method: "cancel_tool", value: null },
+    });
   };
 
   const handleEnvironment = async (session: SessionStateV1, message: unknown): Promise<void> => {
@@ -799,9 +1491,21 @@ export function createBrowserWorkspaceHostRuntimeV1(
       record.method === "absolute_path" || record.method === "canonical_path" ||
       record.method === "exists" || record.method === "file_info" ||
       record.method === "read_binary_file" ||
-      record.method === "write_file"
+      record.method === "write_file" || record.method === "append_file"
     ) {
       await handleFileCall(session, request.requestId, record);
+      return;
+    }
+    if (record.method === "create_temp_file") {
+      await handleCreateTempFile(session, request.requestId);
+      return;
+    }
+    if (record.method === "execute_shell") {
+      await handleExecuteShell(session, request.requestId, record);
+      return;
+    }
+    if (record.method === "cancel_tool") {
+      handleCancelTool(session, request.requestId, record.toolCallId);
       return;
     }
     if (record.method === "query_receipts") {
@@ -907,7 +1611,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
         return;
       }
       if (
-        (record.tool === "write" || record.tool === "edit") &&
+        (record.tool === "write" || record.tool === "edit" || record.tool === "bash") &&
         session.receipts.length + session.reservedReceiptSlots >=
           browserWorkspaceHostReceiptMaximumV1
       ) {
@@ -915,15 +1619,19 @@ export function createBrowserWorkspaceHostRuntimeV1(
         return;
       }
       run.toolCallIds.add(record.toolCallId);
-      if (record.tool === "write" || record.tool === "edit") session.reservedReceiptSlots += 1;
+      if (record.tool === "write" || record.tool === "edit" || record.tool === "bash") {
+        session.reservedReceiptSlots += 1;
+      }
       run.activeScope = {
         toolCallId: record.toolCallId,
         tool: record.tool,
         baseGeneration: run.cursor,
         abortController: new AbortController(),
         activeOperation: null,
-        writeAttempted: false,
-        changedPath: null,
+        mutationAttempts: 0,
+        changedPaths: [],
+        changedPathSet: new Set(),
+        overflowLogPaths: new Set(),
         failureDiagnostic: null,
       };
       postEnvironment(session, {

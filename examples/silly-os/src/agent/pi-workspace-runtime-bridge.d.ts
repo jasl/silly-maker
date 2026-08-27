@@ -155,6 +155,7 @@ export type AgentHarnessTool<
 
 export function ok<TValue, TError = never>(value: TValue): Result<TValue, TError>;
 export function err<TValue = never, TError = Error>(error: TError): Result<TValue, TError>;
+export function createBashTool(): AgentHarnessTool<ExecutionToolContext>;
 export function createEditTool(): AgentHarnessTool<ExecutionToolContext>;
 export function createReadTool(): AgentHarnessTool<ExecutionToolContext>;
 export function createWriteTool(): AgentHarnessTool<ExecutionToolContext>;

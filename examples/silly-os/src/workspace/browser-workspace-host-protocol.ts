@@ -7,8 +7,16 @@ export const browserWorkspaceNativePiToolPayloadMaximumBytesV1 = 256 * 1024;
 export const browserWorkspaceHostReceiptMaximumV1 = 32;
 export const browserWorkspaceHostPathMaximumUtf8BytesV1 = 512;
 export const browserWorkspaceHostPathMaximumPartsV1 = 32;
+export const browserWorkspaceBashMutationAttemptMaximumV1 = 128;
+export const browserWorkspaceBashChangedPathMaximumV1 = 64;
+export const browserWorkspaceShellCommandMaximumUtf8BytesV1 = 16 * 1024;
+export const browserWorkspaceShellEnvironmentMaximumEntriesV1 = 32;
+export const browserWorkspaceShellEnvironmentMaximumUtf8BytesV1 = 8 * 1024;
+export const browserWorkspaceShellOutputMaximumUtf8BytesV1 = 256 * 1024;
+export const browserWorkspaceShellRequestedTimeoutMaximumMillisecondsV1 = 30_000;
 
 const identifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
+const shellEnvironmentKeyPatternV1 = /^[a-zA-Z_][a-zA-Z0-9_]*$/u;
 
 export interface BrowserWorkspaceVolumeAnchorWireV1 {
   readonly revision: 1;
@@ -101,7 +109,7 @@ export interface BrowserWorkspaceHostMutationReceiptWireV1 {
   readonly sessionId: string;
   readonly runId: string;
   readonly toolCallId: string;
-  readonly tool: "write" | "edit";
+  readonly tool: "write" | "edit" | "bash";
   readonly expectedGeneration: number;
   readonly baseGeneration: number;
   readonly resultingGeneration: number;
@@ -222,7 +230,7 @@ export type BrowserWorkspaceHostEnvironmentRequestRecordV1 =
   | {
     readonly method: "begin_tool";
     readonly toolCallId: string;
-    readonly tool: "read" | "write" | "edit";
+    readonly tool: "read" | "write" | "edit" | "bash";
   }
   | {
     readonly method: "end_tool";
@@ -235,6 +243,21 @@ export type BrowserWorkspaceHostEnvironmentRequestRecordV1 =
   }
   | { readonly method: "read_binary_file"; readonly path: string }
   | { readonly method: "write_file"; readonly path: string; readonly bytes: Uint8Array }
+  | { readonly method: "append_file"; readonly path: string; readonly bytes: Uint8Array }
+  | {
+    readonly method: "create_temp_file";
+    readonly prefix: "bash-";
+    readonly suffix: ".log";
+  }
+  | {
+    readonly method: "execute_shell";
+    readonly command: string;
+    readonly cwd: string;
+    readonly env: Readonly<Record<string, string>>;
+    readonly inheritEnv: boolean;
+    readonly timeoutMilliseconds: number | null;
+  }
+  | { readonly method: "cancel_tool"; readonly toolCallId: string }
   | { readonly method: "query_receipts" }
   | { readonly method: "acknowledge_receipts"; readonly throughSequence: number };
 
@@ -253,7 +276,15 @@ export type BrowserWorkspaceHostEnvironmentSuccessV1 =
   | { readonly method: "exists"; readonly value: boolean }
   | { readonly method: "file_info"; readonly value: BrowserWorkspaceHostFileInfoWireV1 }
   | { readonly method: "read_binary_file"; readonly value: Uint8Array }
-  | { readonly method: "write_file"; readonly value: null }
+  | { readonly method: "write_file" | "append_file" | "cancel_tool"; readonly value: null }
+  | { readonly method: "create_temp_file"; readonly value: string }
+  | {
+    readonly method: "execute_shell";
+    readonly termination: "completed" | "aborted" | "timeout";
+    readonly stdout: string;
+    readonly stderr: string;
+    readonly exitCode: number | null;
+  }
   | {
     readonly method: "query_receipts";
     readonly receipts: readonly BrowserWorkspaceHostMutationReceiptWireV1[];
@@ -396,6 +427,44 @@ function utf8LengthV1(value: string): number | null {
   } catch {
     return null;
   }
+}
+
+function admittedShellEnvironmentV1(value: unknown): Readonly<Record<string, string>> | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  try {
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) return null;
+    if (Object.getOwnPropertySymbols(value).length !== 0) return null;
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const keys = Object.keys(descriptors);
+    if (keys.length > browserWorkspaceShellEnvironmentMaximumEntriesV1) return null;
+    let byteLength = 0;
+    const admitted: Record<string, string> = Object.create(null);
+    for (const key of keys) {
+      const descriptor = descriptors[key];
+      if (
+        descriptor === undefined || !descriptor.enumerable ||
+        !Object.hasOwn(descriptor, "value") || typeof descriptor.value !== "string" ||
+        !shellEnvironmentKeyPatternV1.test(key)
+      ) return null;
+      const keyBytes = utf8LengthV1(key);
+      const valueBytes = utf8LengthV1(descriptor.value);
+      if (keyBytes === null || valueBytes === null) return null;
+      byteLength += keyBytes + valueBytes;
+      if (byteLength > browserWorkspaceShellEnvironmentMaximumUtf8BytesV1) return null;
+      admitted[key] = descriptor.value;
+    }
+    return admitted;
+  } catch {
+    return null;
+  }
+}
+
+function isWorkspaceAbsolutePathV1(value: unknown): value is string {
+  return typeof value === "string" &&
+    (value === "/workspace" ||
+      (value.startsWith("/workspace/") &&
+        isBrowserWorkspaceHostNormalizedPathV1(value.slice("/workspace/".length))));
 }
 
 export function isBrowserWorkspaceHostNormalizedPathV1(value: unknown): value is string {
@@ -596,7 +665,8 @@ export function admitBrowserWorkspaceHostEnvironmentRequestV1(
   if (
     beginTool !== null && beginTool.method === "begin_tool" &&
     identifierV1(beginTool.toolCallId) &&
-    (beginTool.tool === "read" || beginTool.tool === "write" || beginTool.tool === "edit")
+    (beginTool.tool === "read" || beginTool.tool === "write" || beginTool.tool === "edit" ||
+      beginTool.tool === "bash")
   ) {
     return {
       revision: 1,
@@ -642,7 +712,8 @@ export function admitBrowserWorkspaceHostEnvironmentRequestV1(
   }
   const write = exactRecordV1(envelope.record, ["method", "path", "bytes"]);
   if (
-    write !== null && write.method === "write_file" && typeof write.path === "string" &&
+    write !== null && (write.method === "write_file" || write.method === "append_file") &&
+    typeof write.path === "string" &&
     write.bytes instanceof Uint8Array &&
     write.bytes.byteLength <= browserWorkspaceNativePiToolPayloadMaximumBytesV1
   ) {
@@ -650,7 +721,69 @@ export function admitBrowserWorkspaceHostEnvironmentRequestV1(
       revision: 1,
       kind: "environment_request",
       requestId: envelope.requestId,
-      record: { method: "write_file", path: write.path, bytes: write.bytes },
+      record: { method: write.method, path: write.path, bytes: write.bytes },
+    };
+  }
+  const createTemp = exactRecordV1(envelope.record, ["method", "prefix", "suffix"]);
+  if (
+    createTemp !== null && createTemp.method === "create_temp_file" &&
+    createTemp.prefix === "bash-" && createTemp.suffix === ".log"
+  ) {
+    return {
+      revision: 1,
+      kind: "environment_request",
+      requestId: envelope.requestId,
+      record: { method: "create_temp_file", prefix: "bash-", suffix: ".log" },
+    };
+  }
+  const executeShell = exactRecordV1(envelope.record, [
+    "method",
+    "command",
+    "cwd",
+    "env",
+    "inheritEnv",
+    "timeoutMilliseconds",
+  ]);
+  if (
+    executeShell !== null && executeShell.method === "execute_shell" &&
+    typeof executeShell.command === "string" &&
+    (utf8LengthV1(executeShell.command) ?? Number.POSITIVE_INFINITY) <=
+      browserWorkspaceShellCommandMaximumUtf8BytesV1 &&
+    isWorkspaceAbsolutePathV1(executeShell.cwd) &&
+    typeof executeShell.inheritEnv === "boolean" &&
+    (executeShell.timeoutMilliseconds === null ||
+      (typeof executeShell.timeoutMilliseconds === "number" &&
+        Number.isFinite(executeShell.timeoutMilliseconds) &&
+        executeShell.timeoutMilliseconds > 0 &&
+        executeShell.timeoutMilliseconds <=
+          browserWorkspaceShellRequestedTimeoutMaximumMillisecondsV1))
+  ) {
+    const env = admittedShellEnvironmentV1(executeShell.env);
+    if (env === null) return null;
+    return {
+      revision: 1,
+      kind: "environment_request",
+      requestId: envelope.requestId,
+      record: {
+        method: "execute_shell",
+        command: executeShell.command,
+        cwd: executeShell.cwd,
+        env,
+        inheritEnv: executeShell.inheritEnv,
+        timeoutMilliseconds: executeShell.timeoutMilliseconds,
+      },
+    };
+  }
+  const cancelTool = exactRecordV1(envelope.record, ["method", "toolCallId"]);
+  if (
+    cancelTool !== null && cancelTool.method === "cancel_tool" &&
+    identifierV1(cancelTool.toolCallId)
+  ) {
+    return {
+      revision: 1,
+      kind: "environment_request",
+      requestId: envelope.requestId,
+      record: { method: "cancel_tool", toolCallId: cancelTool.toolCallId },
     };
   }
   const acknowledge = exactRecordV1(envelope.record, ["method", "throughSequence"]);
@@ -695,7 +828,7 @@ function admitReceiptV1(value: unknown): BrowserWorkspaceHostMutationReceiptWire
     !identifierV1(record.programId) || !identifierV1(record.workspaceId) ||
     !identifierV1(record.workspaceSessionId) || !identifierV1(record.sessionId) ||
     !identifierV1(record.runId) || !identifierV1(record.toolCallId) ||
-    (record.tool !== "write" && record.tool !== "edit") ||
+    (record.tool !== "write" && record.tool !== "edit" && record.tool !== "bash") ||
     !positiveSafeIntegerV1(record.expectedGeneration) ||
     !positiveSafeIntegerV1(record.baseGeneration) ||
     !positiveSafeIntegerV1(record.resultingGeneration) ||
@@ -707,14 +840,33 @@ function admitReceiptV1(value: unknown): BrowserWorkspaceHostMutationReceiptWire
       record.diagnosticCode !== "capacity_exceeded" &&
       record.diagnosticCode !== "execution_failed")
   ) return null;
-  const changedPaths = exactArrayV1(record.changedPaths, 1);
+  const changedPaths = exactArrayV1(
+    record.changedPaths,
+    record.tool === "bash" ? browserWorkspaceBashChangedPathMaximumV1 : 1,
+  );
+  const normalizedPaths = changedPaths !== null && changedPaths.every(
+    isBrowserWorkspaceHostNormalizedPathV1,
+  );
+  const uniquePaths = changedPaths !== null && new Set(changedPaths).size === changedPaths.length;
+  const bashChanged = record.tool === "bash" && record.effect === "changed" &&
+    changedPaths !== null && changedPaths.length > 0 && normalizedPaths && uniquePaths &&
+    record.resultingGeneration > record.baseGeneration &&
+    record.resultingGeneration - record.baseGeneration <=
+      browserWorkspaceBashMutationAttemptMaximumV1;
+  const nativeChanged = record.tool !== "bash" && record.effect === "changed" &&
+    changedPaths !== null && changedPaths.length === 1 && normalizedPaths &&
+    record.resultingGeneration === record.baseGeneration + 1;
   if (
     changedPaths === null ||
     (record.effect === "none" &&
       (changedPaths.length !== 0 || record.resultingGeneration !== record.baseGeneration)) ||
-    (record.effect === "changed" &&
-      (changedPaths.length !== 1 || !isBrowserWorkspaceHostNormalizedPathV1(changedPaths[0]) ||
-        record.resultingGeneration !== record.baseGeneration + 1))
+    (record.effect === "changed" && !nativeChanged && !bashChanged)
+  ) return null;
+  if (
+    (record.outcome === "succeeded" && record.diagnosticCode !== null) ||
+    (record.outcome === "cancelled" && record.diagnosticCode !== "cancelled") ||
+    (record.outcome === "failed" &&
+      (record.diagnosticCode === null || record.diagnosticCode === "cancelled"))
   ) return null;
   return record as unknown as BrowserWorkspaceHostMutationReceiptWireV1;
 }
@@ -1132,13 +1284,66 @@ export function admitBrowserWorkspaceHostEnvironmentOutboundMessageV1(
         response: { method: "read_binary_file", value: path.value },
       };
     }
-    if (path !== null && path.method === "write_file" && path.value === null) {
+    if (
+      path !== null &&
+      (path.method === "write_file" || path.method === "append_file" ||
+        path.method === "cancel_tool") &&
+      path.value === null
+    ) {
       return {
         revision: 1,
         kind: "environment_response",
         requestId: success.requestId,
         ok: true,
-        response: { method: "write_file", value: null },
+        response: { method: path.method, value: null },
+      };
+    }
+    if (
+      path !== null && path.method === "create_temp_file" &&
+      isWorkspaceAbsolutePathV1(path.value) &&
+      path.value.startsWith("/workspace/.sillyos/tmp/bash-") && path.value.endsWith(".log")
+    ) {
+      return {
+        revision: 1,
+        kind: "environment_response",
+        requestId: success.requestId,
+        ok: true,
+        response: { method: "create_temp_file", value: path.value },
+      };
+    }
+    const executeShell = exactRecordV1(success.response, [
+      "method",
+      "termination",
+      "stdout",
+      "stderr",
+      "exitCode",
+    ]);
+    const shellOutputBytes = typeof executeShell?.stdout === "string" &&
+        typeof executeShell.stderr === "string"
+      ? (utf8LengthV1(executeShell.stdout) ?? Number.POSITIVE_INFINITY) +
+        (utf8LengthV1(executeShell.stderr) ?? Number.POSITIVE_INFINITY)
+      : Number.POSITIVE_INFINITY;
+    if (
+      executeShell !== null && executeShell.method === "execute_shell" &&
+      typeof executeShell.stdout === "string" && typeof executeShell.stderr === "string" &&
+      shellOutputBytes <= browserWorkspaceShellOutputMaximumUtf8BytesV1 &&
+      ((executeShell.termination === "completed" &&
+        nonNegativeSafeIntegerV1(executeShell.exitCode) && executeShell.exitCode <= 255) ||
+        ((executeShell.termination === "aborted" || executeShell.termination === "timeout") &&
+          executeShell.exitCode === null))
+    ) {
+      return {
+        revision: 1,
+        kind: "environment_response",
+        requestId: success.requestId,
+        ok: true,
+        response: {
+          method: "execute_shell",
+          termination: executeShell.termination,
+          stdout: executeShell.stdout,
+          stderr: executeShell.stderr,
+          exitCode: executeShell.exitCode,
+        },
       };
     }
     const query = exactRecordV1(success.response, ["method", "receipts"]);

@@ -8,6 +8,7 @@ import {
 } from "./browser-workspace-host-protocol.ts";
 import {
   type BrowserWorkspaceHostBootstrapPortV1,
+  type BrowserWorkspaceHostDirectoryEntryV1,
   type BrowserWorkspaceHostDurableHeadV1,
   type BrowserWorkspaceHostFileMetadataV1,
   type BrowserWorkspaceHostPortableArchiveInputV1,
@@ -47,6 +48,7 @@ export const browserWorkspaceHostIoBytesInFlightMaximumV1 = 4 *
 export const browserWorkspaceHostControlFileMaximumBytesV1 = 64 * 1024;
 export const browserWorkspaceHostExportDirectoryMaximumV1 = 16_384;
 export const browserWorkspaceHostExportDirectoryChildMaximumV1 = 4_096;
+export const browserWorkspaceHostDirectoryListChildMaximumV1 = 8_192;
 
 export interface BrowserWorkspaceHostIoObservationV1 {
   /** Largest individual payload buffer covered by this reservation. */
@@ -1050,6 +1052,109 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
         return { kind: "missing", size: 0, mtimeMs: 0 };
       }
       throw opfsErrorV1(error, "Workspace metadata lookup failed");
+    }
+  }
+
+  async listDirectory(input: {
+    readonly path: string;
+    readonly signal: AbortSignal;
+  }): Promise<readonly BrowserWorkspaceHostDirectoryEntryV1[]> {
+    this.assertOpen();
+    if (input.signal.aborted) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "request_failed",
+        "Workspace directory listing was aborted",
+        fileErrorV1(
+          "aborted",
+          "Workspace filesystem operation was aborted",
+          input.path.length === 0 ? "/workspace" : `/workspace/${input.path}`,
+        ),
+      );
+    }
+    try {
+      const directory = input.path.length === 0 ? this.workspace : await (async () => {
+        const { parent, name } = await resolveParentV1(this.workspace, input.path, false);
+        return await parent.getDirectoryHandle(name);
+      })();
+      if (input.signal.aborted) {
+        throw new DOMException("Workspace directory listing was aborted", "AbortError");
+      }
+      if (typeof directory.entries !== "function") {
+        throw new BrowserWorkspaceHostStorageErrorV1(
+          "storage_unavailable",
+          "Workspace directory enumeration is unavailable",
+        );
+      }
+      const children: Array<[string, FileSystemDirectoryHandle | FileSystemFileHandle]> = [];
+      for await (const child of directory.entries()) {
+        if (input.signal.aborted) {
+          throw new DOMException("Workspace directory listing was aborted", "AbortError");
+        }
+        children.push(child);
+        if (children.length > browserWorkspaceHostDirectoryListChildMaximumV1) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "capacity_exceeded",
+            "Workspace directory listing exceeds its child-count limit",
+          );
+        }
+      }
+      if (input.signal.aborted) {
+        throw new DOMException("Workspace directory listing was aborted", "AbortError");
+      }
+      children.sort(([left], [right]) => compareCodeUnitsV1(left, right));
+      const admitted: BrowserWorkspaceHostDirectoryEntryV1[] = [];
+      for (const [name, handle] of children) {
+        if (input.signal.aborted) {
+          throw new DOMException("Workspace directory listing was aborted", "AbortError");
+        }
+        const path = input.path.length === 0 ? name : `${input.path}/${name}`;
+        if (!isBrowserWorkspaceHostNormalizedPathV1(path)) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "volume_corrupt",
+            "Workspace directory listing encountered an invalid stored path",
+          );
+        }
+        if (handle.kind === "directory") {
+          admitted.push({ name, kind: "directory", size: 0, mtimeMs: 0 });
+          continue;
+        }
+        if (handle.kind !== "file") {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "volume_corrupt",
+            "Workspace directory listing encountered an unsupported entry",
+          );
+        }
+        const file = await handle.getFile();
+        if (input.signal.aborted) {
+          throw new DOMException("Workspace directory listing was aborted", "AbortError");
+        }
+        admitted.push({ name, kind: "file", size: file.size, mtimeMs: file.lastModified });
+      }
+      return admitted;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw new BrowserWorkspaceHostStorageErrorV1(
+          "request_failed",
+          "Workspace directory listing was aborted",
+          fileErrorV1(
+            "aborted",
+            "Workspace filesystem operation was aborted",
+            input.path.length === 0 ? "/workspace" : `/workspace/${input.path}`,
+          ),
+        );
+      }
+      if (error instanceof DOMException && error.name === "TypeMismatchError") {
+        throw new BrowserWorkspaceHostStorageErrorV1(
+          "request_failed",
+          "Workspace path is not a directory",
+          fileErrorV1(
+            "not_directory",
+            "Workspace path is not a directory",
+            input.path.length === 0 ? "/workspace" : `/workspace/${input.path}`,
+          ),
+        );
+      }
+      throw opfsErrorV1(error, "Workspace directory listing failed");
     }
   }
 

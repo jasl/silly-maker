@@ -8,8 +8,9 @@ the native Pi `read`/`write` bytes, recovery/contention/storage policy and the
 automated Chromium/persistent-WebKit `20 MiB+` scale gate pass, and the exact
 head downloads as a bounded canonical ZIP. P3a-B1 checkpoint 1 subsequently
 delivered Pi's native `edit` over that same volume and passed independent
-review. No SillyOS implementation slice is currently active. just-bash remains
-the gated checkpoint-2 Browser Local shell candidate; no
+review. P3a-B1 checkpoint 2 subsequently delivered exact just-bash 3.4.2 as
+the bounded Browser Local shell facade and closed P3a. No SillyOS implementation
+slice is currently active; no broader
 shell/process provider or BYO Sandbox is selected or implemented. The owning
 product sequence is [PLAN.md](./PLAN.md).
 
@@ -49,11 +50,11 @@ passes the Chromium, WebKit, and Deno Desktop corpus.
 Browser target
   React UI <- admitted Agent events/actions -> Agent DedicatedWorker
      pi-agent-core/pi-ai -> Pi native read/write/edit
-                         -> later bash
+                         -> delivered bounded bash checkpoint
                          -> stable Program-scoped ExecutionEnv
                               -> typed environment RPC -> Workspace Host Worker
                                                            FileSystem -> volume/OPFS
-                                                           later Shell.exec -> just-bash
+                                                           Shell.exec -> just-bash 3.4.2
                                                              -> same volume
 
 Deno Desktop target
@@ -68,7 +69,8 @@ BYO Sandbox target
 
 P3a-B0 co-locates its disposable volume with the Agent Worker. P3c-B0 moves the
 proved `read`/`write` byte authority into the Workspace Host Worker and OPFS
-before just-bash is introduced. A dedicated just-bash Worker is not required;
+before just-bash is introduced. Delivered P3a-B1 checkpoint 2 co-locates it
+with that owner. A dedicated just-bash Worker is not required;
 only a later non-cooperative custom or Wasm command needs a separately
 terminable Worker.
 
@@ -536,15 +538,18 @@ Pi createReadTool/createWriteTool/createEditTool
 
 Pi createBashTool
   -> Pi ExecutionEnv.Shell.exec -> JustBashShellAdapter
-  -> coherent exec operation -> Browser Local runtime -> just-bash
-                                                   -> JustBashFileSystemAdapter
-                                                   -> same WorkspaceVolumePort
+  -> coherent exec operation -> Workspace Host Worker -> just-bash 3.4.2
+       MountableFs
+         ephemeral InMemoryFs -> /bin /usr/bin /dev /proc /tmp
+         persistent mount     -> /workspace -> JustBashFileSystemAdapter
+                                             -> same WorkspaceVolumePort
   -> admitted built-in or build-known custom-command Worker
      (Wasm payload only when useful)
 ```
 
-`WorkspaceVolumePort` remains the byte boundary. A Browser adapter may back it
-with an indexed OPFS owner and expose separate Pi and just-bash filesystem
+`WorkspaceVolumePort` remains the byte boundary. The delivered P3a-B1 checkpoint-2
+Browser adapter backs it
+with an indexed OPFS owner and exposes separate Pi and just-bash filesystem
 projections. just-bash's otherwise asynchronous interface includes a synchronous
 path inventory, so Browser Local co-locates just-bash and that bounded
 generation-indexed view with the volume owner instead of adding a dedicated
@@ -762,11 +767,13 @@ sandbox claim; the mere use of WebAssembly does not.
    provider selection, BYO Sandbox, Desktop adapter, or engine API.
 3. Focused and independent checkpoint-1 review passed. Its acceptance does not
    close P3a-B1 or automatically start a shell.
-4. P3a-B1 checkpoint 2 may then freeze the exact just-bash Browser build,
-   command and resource bounds, cooperative cancellation, Pi overflow-log
-   writes, and multi-path mutation semantics before binding native Pi `bash` to
-   the same persistent volume. just-bash remains a shell implementation, not
-   the storage owner, Agent/tool/plugin authority, Linux, or a sandbox.
+4. **P3a-B1 checkpoint 2 delivered and closed P3a on 2026-08-27.** Its
+   corrected contract fixes the exact just-bash Browser build, command and
+   resource bounds, one Host-owned timeout across path-view construction and
+   execution, Pi overflow-log writes, terminal-aggregate output, and multi-path
+   mutation semantics while binding native Pi `bash` to the same persistent
+   volume. just-bash remains a shell implementation, not the storage owner,
+   Agent/tool/plugin authority, Linux, or a sandbox.
 5. If separately activated, P3b may run the Wasm, agent-sandbox, Wasmer/WASIX,
    BrowserPod, CoWasm, full-Linux, and WebContainers characterization corpus.
    Those results choose only broader command/process adapters; they do not

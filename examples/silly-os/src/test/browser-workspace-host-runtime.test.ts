@@ -3,6 +3,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createBrowserWorkspaceEnvironmentClientV1,
+  type BrowserWorkspaceEnvironmentMessagePortV1,
+} from "../agent/browser-workspace-environment-client.ts";
+import { bindPiWorkspaceBashToolV1 } from "../agent/pi-workspace-tool-binder.ts";
+import { createBashTool } from "../agent/pi-workspace-runtime-bridge.js";
+import {
   BrowserWorkspaceHostCleanupErrorV1,
   BrowserWorkspaceHostStorageErrorV1,
   createBrowserWorkspaceHostRuntimeV1,
@@ -44,6 +50,8 @@ interface FakeVolumeV1 {
   readonly readFileRangeRequests: FakeRangeRequestV1[];
   readonly sourceReadRequests: FakeSourceRequestV1[];
   leaseCloseCalls: number;
+  holdNextListUntilAbort: boolean;
+  heldListEntered: (() => void) | null;
   holdNextChangedWrite: boolean;
   heldWriteEntered: (() => void) | null;
   replaceError: Error | null;
@@ -80,9 +88,55 @@ class FakeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
     const file = this.volume.files.get(path);
     if (file !== undefined) return { kind: "file", size: file.byteLength, mtimeMs: fileMtimeMsV1 };
     const size = this.volume.metadataSizes.get(path);
+    if (
+      [...this.volume.files.keys(), ...this.volume.metadataSizes.keys()].some((candidate) =>
+        candidate.startsWith(`${path}/`)
+      )
+    ) return { kind: "directory", size: 0, mtimeMs: 0 };
     return size === undefined
       ? { kind: "missing", size: 0, mtimeMs: 0 }
       : { kind: "file", size, mtimeMs: fileMtimeMsV1 };
+  }
+
+  async listDirectory(input: { readonly path: string; readonly signal: AbortSignal }) {
+    if (input.signal.aborted) throw new DOMException("Workspace listing aborted", "AbortError");
+    if (this.volume.holdNextListUntilAbort) {
+      this.volume.holdNextListUntilAbort = false;
+      this.volume.heldListEntered?.();
+      await new Promise<void>((resolve) => {
+        if (input.signal.aborted) resolve();
+        else input.signal.addEventListener("abort", () => resolve(), { once: true });
+      });
+      if (input.signal.aborted) throw new DOMException("Workspace listing aborted", "AbortError");
+    }
+    const prefix = input.path.length === 0 ? "" : `${input.path}/`;
+    const entries = new Map<string, "file" | "directory">();
+    for (
+      const path of new Set([
+        ...this.volume.files.keys(),
+        ...this.volume.metadataSizes.keys(),
+      ])
+    ) {
+      if (!path.startsWith(prefix)) continue;
+      const remainder = path.slice(prefix.length);
+      if (remainder.length === 0) continue;
+      const separator = remainder.indexOf("/");
+      entries.set(
+        separator < 0 ? remainder : remainder.slice(0, separator),
+        separator < 0 ? "file" : "directory",
+      );
+    }
+    return [...entries].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0).map(
+      ([name, kind]) => ({
+        name,
+        kind,
+        size: kind === "file"
+          ? (this.volume.files.get(`${prefix}${name}`)?.byteLength ??
+            this.volume.metadataSizes.get(`${prefix}${name}`) ?? 0)
+          : 0,
+        mtimeMs: kind === "file" ? fileMtimeMsV1 : 0,
+      }),
+    );
   }
 
   async readFileRange(input: {
@@ -210,6 +264,8 @@ class FakeBootstrapV1 implements BrowserWorkspaceHostBootstrapPortV1 {
       readFileRangeRequests: [],
       sourceReadRequests: [],
       leaseCloseCalls: 0,
+      holdNextListUntilAbort: false,
+      heldListEntered: null,
       holdNextChangedWrite: false,
       heldWriteEntered: null,
       replaceError: null,
@@ -302,9 +358,31 @@ function startExportRequestV1(
 }
 
 async function flushEnvironmentV1(): Promise<void> {
-  await Promise.resolve();
-  await Promise.resolve();
-  await Promise.resolve();
+  for (let index = 0; index < 8; index += 1) await Promise.resolve();
+}
+
+async function waitForEnvironmentResponseV1(
+  port: FakeMessagePortV1,
+  requestId: number,
+): Promise<
+  Extract<
+    BrowserWorkspaceHostEnvironmentOutboundMessageV1,
+    { readonly kind: "environment_response" }
+  >
+> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const response = port.messages.findLast(
+      (
+        message,
+      ): message is Extract<
+        BrowserWorkspaceHostEnvironmentOutboundMessageV1,
+        { readonly kind: "environment_response" }
+      > => message.kind === "environment_response" && message.requestId === requestId,
+    );
+    if (response !== undefined) return response;
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error(`Timed out waiting for environment response ${String(requestId)}`);
 }
 
 function lastV1<T>(values: readonly T[]): T {
@@ -314,7 +392,7 @@ function lastV1<T>(values: readonly T[]): T {
 }
 
 describe("SillyOS Browser Workspace Host runtime", () => {
-  it("projects a wrapped storage quota failure as capacity_exceeded without advancing the head", async () => {
+  it("projects native and shell volume capacity failures without advancing the head", async () => {
     const bootstrap = new FakeBootstrapV1();
     const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
     const runtime = createBrowserWorkspaceHostRuntimeV1({
@@ -392,6 +470,79 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     );
     expect(volume.head.generation).toBe(1);
     expect(volume.files.has("capacity.md")).toBe(false);
+    port.send(environmentRequestV1(8, {
+      method: "begin_tool",
+      toolCallId: "pi-tool.bash-capacity",
+      tool: "bash",
+    }));
+    await waitForEnvironmentResponseV1(port, 8);
+    port.send(environmentRequestV1(9, {
+      method: "execute_shell",
+      command: "printf blocked | tee bash-capacity.md > /dev/null",
+      cwd: "/workspace",
+      env: {},
+      inheritEnv: true,
+      timeoutMilliseconds: null,
+    }));
+    expect(await waitForEnvironmentResponseV1(port, 9)).toMatchObject({
+      ok: false,
+      code: "request_failed",
+    });
+    port.send(environmentRequestV1(10, {
+      method: "end_tool",
+      toolCallId: "pi-tool.bash-capacity",
+      outcome: "failed",
+    }));
+    await waitForEnvironmentResponseV1(port, 10);
+    expect(port.messages.findLast((message) => message.kind === "workspace_receipt")).toMatchObject(
+      {
+        receipt: {
+          tool: "bash",
+          outcome: "failed",
+          effect: "none",
+          resultingGeneration: 1,
+          diagnosticCode: "capacity_exceeded",
+        },
+      },
+    );
+    expect(volume.files.has("bash-capacity.md")).toBe(false);
+    volume.replaceError = null;
+    volume.metadataSizes.set("oversized-shell-read.bin", 16 * 1024 * 1024 + 1);
+    port.send(environmentRequestV1(11, {
+      method: "begin_tool",
+      toolCallId: "pi-tool.bash-read-capacity",
+      tool: "bash",
+    }));
+    await waitForEnvironmentResponseV1(port, 11);
+    port.send(environmentRequestV1(12, {
+      method: "execute_shell",
+      command: "cat oversized-shell-read.bin",
+      cwd: "/workspace",
+      env: {},
+      inheritEnv: true,
+      timeoutMilliseconds: null,
+    }));
+    expect(await waitForEnvironmentResponseV1(port, 12)).toMatchObject({
+      ok: false,
+      code: "request_failed",
+    });
+    port.send(environmentRequestV1(13, {
+      method: "end_tool",
+      toolCallId: "pi-tool.bash-read-capacity",
+      outcome: "failed",
+    }));
+    await waitForEnvironmentResponseV1(port, 13);
+    expect(port.messages.findLast((message) => message.kind === "workspace_receipt")).toMatchObject(
+      {
+        receipt: {
+          tool: "bash",
+          outcome: "failed",
+          effect: "none",
+          resultingGeneration: 1,
+          diagnosticCode: "capacity_exceeded",
+        },
+      },
+    );
     await runtime.dispose();
   });
 
@@ -687,6 +838,517 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       byteLength: after.byteLength,
     }]);
     expect(volume.head).toMatchObject({ checkpointId: "checkpoint.edit.2", generation: 2 });
+    await runtime.dispose();
+  });
+
+  it("executes just-bash through the shell protocol against the sole volume and one multi-effect receipt", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    let checkpointCalls = 1;
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      postControlMessage: (message) => controls.push(message),
+      createWorkspaceSessionId: () => "workspace-session.bash",
+      createCheckpointId: () => `checkpoint.bash.${String(++checkpointCalls)}`,
+      createShellTempFileId: () => "overflow.1",
+    });
+    await runtime.receiveControl(controlRequestV1(1, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    const anchor = (lastV1(controls) as {
+      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+    }).response.anchor;
+    await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
+    const port = new FakeMessagePortV1();
+    await runtime.receiveControl(
+      controlRequestV1(3, {
+        method: "attach_environment",
+        workspaceSessionId: "workspace-session.bash",
+      }),
+      [port],
+    );
+    port.send(environmentRequestV1(4, {
+      method: "begin_run",
+      binding: {
+        revision: 1,
+        programId: programIdV1,
+        workspaceId: workspaceIdV1,
+        workspaceSessionId: "workspace-session.bash",
+        expectedGeneration: 1,
+      },
+      sessionId: "pi-session.bash",
+      runId: "pi-run.bash",
+    }));
+    await waitForEnvironmentResponseV1(port, 4);
+    port.send(environmentRequestV1(5, {
+      method: "begin_tool",
+      toolCallId: "pi-tool.bash.1",
+      tool: "bash",
+    }));
+    await waitForEnvironmentResponseV1(port, 5);
+    port.send(environmentRequestV1(6, {
+      method: "execute_shell",
+      command: "printf 'alpha\\nbeta\\n' | grep beta > result.txt; cat result.txt",
+      cwd: "/workspace",
+      env: { SILLY_VALUE: "admitted" },
+      inheritEnv: true,
+      timeoutMilliseconds: null,
+    }));
+    expect(await waitForEnvironmentResponseV1(port, 6)).toMatchObject({
+      ok: true,
+      response: {
+        method: "execute_shell",
+        termination: "completed",
+        stdout: "beta\n",
+        stderr: "",
+        exitCode: 0,
+      },
+    });
+    port.send(environmentRequestV1(7, {
+      method: "create_temp_file",
+      prefix: "bash-",
+      suffix: ".log",
+    }));
+    expect(await waitForEnvironmentResponseV1(port, 7)).toMatchObject({
+      ok: true,
+      response: {
+        method: "create_temp_file",
+        value: "/workspace/.sillyos/tmp/bash-overflow.1.log",
+      },
+    });
+    port.send(environmentRequestV1(8, {
+      method: "append_file",
+      path: "/workspace/.sillyos/tmp/bash-overflow.1.log",
+      bytes: new TextEncoder().encode("complete output\n"),
+    }));
+    await waitForEnvironmentResponseV1(port, 8);
+    port.send(environmentRequestV1(9, {
+      method: "end_tool",
+      toolCallId: "pi-tool.bash.1",
+      outcome: "succeeded",
+    }));
+    const ended = await waitForEnvironmentResponseV1(port, 9);
+    const volume = bootstrap.volumes.get(anchor.volumeId);
+    if (volume === undefined) throw new Error("expected fake volume");
+    expect(ended).toMatchObject({
+      ok: true,
+      response: { method: "end_tool", generation: volume.head.generation },
+    });
+    expect(new TextDecoder().decode(volume.files.get("result.txt"))).toBe("beta\n");
+    expect(
+      new TextDecoder().decode(volume.files.get(".sillyos/tmp/bash-overflow.1.log")),
+    ).toBe("complete output\n");
+    expect(port.messages.findLast((message) => message.kind === "workspace_receipt")).toMatchObject(
+      {
+        receipt: {
+          tool: "bash",
+          baseGeneration: 1,
+          resultingGeneration: volume.head.generation,
+          outcome: "succeeded",
+          effect: "changed",
+          changedPaths: ["result.txt", ".sillyos/tmp/bash-overflow.1.log"],
+          diagnosticCode: null,
+        },
+      },
+    );
+    expect(volume.head.generation).toBeGreaterThan(3);
+    await runtime.dispose();
+  });
+
+  it("applies one requested timeout across the Host path view before effects", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    const workspaceSessionId = "workspace-session.bash-path-timeout";
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      postControlMessage: (message) => controls.push(message),
+      createWorkspaceSessionId: () => workspaceSessionId,
+      createCheckpointId: () => "checkpoint.bash-path-timeout.unexpected",
+    });
+    await runtime.receiveControl(controlRequestV1(1, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    const anchor = (lastV1(controls) as {
+      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+    }).response.anchor;
+    const volume = bootstrap.volumes.get(anchor.volumeId);
+    if (volume === undefined) throw new Error("expected fake volume");
+    volume.holdNextListUntilAbort = true;
+    let notifyListEntered: (() => void) | null = null;
+    const listEntered = new Promise<void>((resolve) => {
+      notifyListEntered = resolve;
+    });
+    volume.heldListEntered = () => notifyListEntered?.();
+
+    await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
+    const port = new FakeMessagePortV1();
+    await runtime.receiveControl(
+      controlRequestV1(3, { method: "attach_environment", workspaceSessionId }),
+      [port],
+    );
+    port.send(environmentRequestV1(4, {
+      method: "begin_run",
+      binding: {
+        revision: 1,
+        programId: programIdV1,
+        workspaceId: workspaceIdV1,
+        workspaceSessionId,
+        expectedGeneration: 1,
+      },
+      sessionId: "pi-session.bash-path-timeout",
+      runId: "pi-run.bash-path-timeout",
+    }));
+    await waitForEnvironmentResponseV1(port, 4);
+    port.send(environmentRequestV1(5, {
+      method: "begin_tool",
+      toolCallId: "pi-tool.bash-path-timeout.1",
+      tool: "bash",
+    }));
+    await waitForEnvironmentResponseV1(port, 5);
+    port.send(environmentRequestV1(6, {
+      method: "execute_shell",
+      command: "printf too-late > should-not-exist.txt",
+      cwd: "/workspace",
+      env: {},
+      inheritEnv: true,
+      timeoutMilliseconds: 100,
+    }));
+    await listEntered;
+    expect(await waitForEnvironmentResponseV1(port, 6)).toMatchObject({
+      ok: true,
+      response: {
+        method: "execute_shell",
+        termination: "timeout",
+        stdout: "",
+        stderr: "",
+        exitCode: null,
+      },
+    });
+    expect(volume.head).toMatchObject({ checkpointId: "checkpoint.1", generation: 1 });
+    expect(volume.files.has("should-not-exist.txt")).toBe(false);
+
+    port.send(environmentRequestV1(7, {
+      method: "end_tool",
+      toolCallId: "pi-tool.bash-path-timeout.1",
+      outcome: "failed",
+    }));
+    await waitForEnvironmentResponseV1(port, 7);
+    expect(port.messages.findLast((message) => message.kind === "workspace_receipt")).toMatchObject(
+      {
+        receipt: {
+          tool: "bash",
+          baseGeneration: 1,
+          resultingGeneration: 1,
+          outcome: "failed",
+          effect: "none",
+          changedPaths: [],
+          diagnosticCode: "execution_failed",
+        },
+      },
+    );
+    await runtime.dispose();
+  });
+
+  it("persists completed native Pi bash overflow through the real Host environment", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    let checkpointCalls = 1;
+    const workspaceSessionId = "workspace-session.native-overflow";
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      postControlMessage: (message) => controls.push(message),
+      createWorkspaceSessionId: () => workspaceSessionId,
+      createCheckpointId: () => `checkpoint.native-overflow.${String(++checkpointCalls)}`,
+      createShellTempFileId: () => "native-overflow.1",
+    });
+    await runtime.receiveControl(controlRequestV1(1, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    const anchor = (lastV1(controls) as {
+      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+    }).response.anchor;
+    await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
+
+    const channel = new MessageChannel();
+    await runtime.receiveControl(
+      controlRequestV1(3, { method: "attach_environment", workspaceSessionId }),
+      [channel.port1 as unknown as BrowserWorkspaceHostMessagePortV1],
+    );
+    const client = createBrowserWorkspaceEnvironmentClientV1({
+      port: channel.port2 as unknown as BrowserWorkspaceEnvironmentMessagePortV1,
+      descriptor: {
+        revision: 1,
+        programId: programIdV1,
+        workspaceId: workspaceIdV1,
+        workspaceSessionId,
+        generation: 1,
+      },
+    });
+    const begun = await client.beginAgentRun({
+      binding: {
+        revision: 1,
+        programId: programIdV1,
+        workspaceId: workspaceIdV1,
+        workspaceSessionId,
+        expectedGeneration: 1,
+      },
+      piSessionId: "pi-session.native-overflow",
+      piRunId: "pi-run.native-overflow",
+    });
+    expect(begun.kind).toBe("started");
+    if (begun.kind !== "started") throw new Error("expected native Pi run to start");
+
+    const bash = bindPiWorkspaceBashToolV1(createBashTool(), begun.run);
+    const result = await bash.execute(
+      "pi-tool.native-overflow.1",
+      { command: "printf '%060000d' 0" },
+    );
+    const overflowPath = "/workspace/.sillyos/tmp/bash-native-overflow.1.log";
+    expect(result.details).toMatchObject({
+      fullOutputPath: overflowPath,
+      truncation: { truncated: true },
+    });
+    expect(client.getDescriptor().generation).toBe(3);
+    expect(client.queryMutationRecords()).toEqual([expect.objectContaining({
+      revision: 1,
+      sequence: 1,
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+      workspaceSessionId,
+      piSessionId: "pi-session.native-overflow",
+      piRunId: "pi-run.native-overflow",
+      toolCallId: "pi-tool.native-overflow.1",
+      tool: "bash",
+      expectedGeneration: 1,
+      baseGeneration: 1,
+      resultingGeneration: 3,
+      outcome: "succeeded",
+      effect: "changed",
+      changedPaths: [".sillyos/tmp/bash-native-overflow.1.log"],
+      diagnosticCode: null,
+    })]);
+    const volume = bootstrap.volumes.get(anchor.volumeId);
+    if (volume === undefined) throw new Error("expected fake volume");
+    const persisted = volume.files.get(".sillyos/tmp/bash-native-overflow.1.log");
+    expect(persisted).toBeDefined();
+    expect(new TextDecoder().decode(persisted)).toBe("0".repeat(60_000));
+
+    begun.run.finish();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    client.dispose();
+    await runtime.dispose();
+  });
+
+  it("lets native Pi drain its bounded overflow file after bash cancellation", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    let checkpointCalls = 1;
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      postControlMessage: (message) => controls.push(message),
+      createWorkspaceSessionId: () => "workspace-session.bash-cancel-overflow",
+      createCheckpointId: () => `checkpoint.bash-cancel.${String(++checkpointCalls)}`,
+      createShellTempFileId: () => "cancelled.1",
+    });
+    await runtime.receiveControl(controlRequestV1(1, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    const anchor = (lastV1(controls) as {
+      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+    }).response.anchor;
+    await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
+    const port = new FakeMessagePortV1();
+    await runtime.receiveControl(
+      controlRequestV1(3, {
+        method: "attach_environment",
+        workspaceSessionId: "workspace-session.bash-cancel-overflow",
+      }),
+      [port],
+    );
+    port.send(environmentRequestV1(4, {
+      method: "begin_run",
+      binding: {
+        revision: 1,
+        programId: programIdV1,
+        workspaceId: workspaceIdV1,
+        workspaceSessionId: "workspace-session.bash-cancel-overflow",
+        expectedGeneration: 1,
+      },
+      sessionId: "pi-session.bash-cancel-overflow",
+      runId: "pi-run.bash-cancel-overflow",
+    }));
+    await waitForEnvironmentResponseV1(port, 4);
+    port.send(environmentRequestV1(5, {
+      method: "begin_tool",
+      toolCallId: "pi-tool.bash-cancel-overflow.1",
+      tool: "bash",
+    }));
+    await waitForEnvironmentResponseV1(port, 5);
+    port.send(environmentRequestV1(6, {
+      method: "cancel_tool",
+      toolCallId: "pi-tool.bash-cancel-overflow.1",
+    }));
+    await waitForEnvironmentResponseV1(port, 6);
+    port.send(environmentRequestV1(7, {
+      method: "append_file",
+      path: "/workspace/not-an-overflow.log",
+      bytes: new TextEncoder().encode("must not land\n"),
+    }));
+    expect(await waitForEnvironmentResponseV1(port, 7)).toMatchObject({
+      ok: false,
+      code: "workspace_closed",
+    });
+    port.send(environmentRequestV1(8, {
+      method: "create_temp_file",
+      prefix: "bash-",
+      suffix: ".log",
+    }));
+    expect(await waitForEnvironmentResponseV1(port, 8)).toMatchObject({
+      ok: true,
+      response: {
+        method: "create_temp_file",
+        value: "/workspace/.sillyos/tmp/bash-cancelled.1.log",
+      },
+    });
+    port.send(environmentRequestV1(9, {
+      method: "append_file",
+      path: "/workspace/.sillyos/tmp/bash-cancelled.1.log",
+      bytes: new TextEncoder().encode("cancelled aggregate\n"),
+    }));
+    await waitForEnvironmentResponseV1(port, 9);
+    port.send(environmentRequestV1(10, {
+      method: "end_tool",
+      toolCallId: "pi-tool.bash-cancel-overflow.1",
+      outcome: "cancelled",
+    }));
+    await waitForEnvironmentResponseV1(port, 10);
+
+    const volume = bootstrap.volumes.get(anchor.volumeId);
+    if (volume === undefined) throw new Error("expected fake volume");
+    expect(
+      new TextDecoder().decode(volume.files.get(".sillyos/tmp/bash-cancelled.1.log")),
+    ).toBe("cancelled aggregate\n");
+    expect(volume.files.has("not-an-overflow.log")).toBe(false);
+    expect(port.messages.findLast((message) => message.kind === "workspace_receipt")).toMatchObject(
+      {
+        receipt: {
+          tool: "bash",
+          baseGeneration: 1,
+          resultingGeneration: volume.head.generation,
+          outcome: "cancelled",
+          effect: "changed",
+          changedPaths: [".sillyos/tmp/bash-cancelled.1.log"],
+          diagnosticCode: "cancelled",
+        },
+      },
+    );
+    await runtime.dispose();
+  });
+
+  it("reconciles facade-rejected attempts before a Pi overflow request", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    let checkpointCalls = 1;
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      postControlMessage: (message) => controls.push(message),
+      createWorkspaceSessionId: () => "workspace-session.bash-capacity",
+      createCheckpointId: () => `checkpoint.bash-capacity.${String(++checkpointCalls)}`,
+    });
+    await runtime.receiveControl(controlRequestV1(1, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    const anchor = (lastV1(controls) as {
+      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+    }).response.anchor;
+    await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
+    const port = new FakeMessagePortV1();
+    await runtime.receiveControl(
+      controlRequestV1(3, {
+        method: "attach_environment",
+        workspaceSessionId: "workspace-session.bash-capacity",
+      }),
+      [port],
+    );
+    port.send(environmentRequestV1(4, {
+      method: "begin_run",
+      binding: {
+        revision: 1,
+        programId: programIdV1,
+        workspaceId: workspaceIdV1,
+        workspaceSessionId: "workspace-session.bash-capacity",
+        expectedGeneration: 1,
+      },
+      sessionId: "pi-session.bash-capacity",
+      runId: "pi-run.bash-capacity",
+    }));
+    await waitForEnvironmentResponseV1(port, 4);
+    port.send(environmentRequestV1(5, {
+      method: "begin_tool",
+      toolCallId: "pi-tool.bash-capacity.1",
+      tool: "bash",
+    }));
+    await waitForEnvironmentResponseV1(port, 5);
+    port.send(environmentRequestV1(6, {
+      method: "execute_shell",
+      command: Array.from(
+        { length: 128 },
+        () => "printf x | tee missing/blocked.log > /dev/null",
+      ).join("; "),
+      cwd: "/workspace",
+      env: {},
+      inheritEnv: true,
+      timeoutMilliseconds: null,
+    }));
+    expect(await waitForEnvironmentResponseV1(port, 6)).toMatchObject({
+      ok: true,
+      response: {
+        method: "execute_shell",
+        termination: "completed",
+      },
+    });
+    port.send(environmentRequestV1(7, {
+      method: "create_temp_file",
+      prefix: "bash-",
+      suffix: ".log",
+    }));
+    expect(await waitForEnvironmentResponseV1(port, 7)).toMatchObject({
+      ok: false,
+      code: "request_failed",
+    });
+    port.send(environmentRequestV1(8, {
+      method: "end_tool",
+      toolCallId: "pi-tool.bash-capacity.1",
+      outcome: "failed",
+    }));
+    await waitForEnvironmentResponseV1(port, 8);
+
+    const volume = bootstrap.volumes.get(anchor.volumeId);
+    if (volume === undefined) throw new Error("expected fake volume");
+    expect([...volume.files.keys()].some((path) => path.startsWith(".sillyos/tmp/"))).toBe(false);
+    expect(port.messages.findLast((message) => message.kind === "workspace_receipt")).toMatchObject(
+      {
+        receipt: {
+          tool: "bash",
+          baseGeneration: 1,
+          resultingGeneration: 1,
+          outcome: "failed",
+          effect: "none",
+          changedPaths: [],
+          diagnosticCode: "capacity_exceeded",
+        },
+      },
+    );
     await runtime.dispose();
   });
 

@@ -48,7 +48,7 @@ export interface WorkpieceExecutionWorkspaceV1 {
   readonly lastReceipt: {
     readonly sequence: number;
     readonly agentRunId: string;
-    readonly tool: "write" | "edit";
+    readonly tool: "write" | "edit" | "bash";
     readonly outcome: "succeeded" | "failed" | "cancelled";
     readonly effect: "none" | "changed";
     readonly resultingGeneration: number;
@@ -700,12 +700,12 @@ function ProgramCapabilitiesV1({
           <p>
             {agentMode === "deterministic_test"
               ? copy.locale === "zh-CN"
-                ? "固定版本 Pi Agent 正在 Browser Worker 中通过原生 read/write/edit 与受限 proposal 工具操作持久化 Program workspace；这不是 live LLM。"
-                : "The pinned Pi Agent uses native read/write/edit and one bounded proposal tool over a persistent Program workspace in Browser Workers. This is not a live LLM."
+                ? "固定版本 Pi Agent 正在 Browser Worker 中通过原生 read/write/edit/bash 与受限 proposal 工具操作持久化 Program workspace；bash 使用 Browser Local 虚拟 shell 的终端聚合输出，并非 Linux 容器或 live LLM。"
+                : "The pinned Pi Agent uses native read/write/edit/bash and one bounded proposal tool over a persistent Program workspace in Browser Workers. Bash uses terminal-aggregate output from the Browser Local virtual shell; this is neither a Linux container nor a live LLM."
               : agentMode === "openai_direct"
               ? copy.locale === "zh-CN"
-                ? "固定版本 Pi Agent 正在 Browser Worker 中通过 OpenAI gpt-4.1-nano 使用原生 read/write/edit 与受限 proposal 工具；key 仅在 Agent Worker 内存中，Program workspace 持久化在当前浏览器。"
-                : "The pinned Pi Agent exposes native read/write/edit and one bounded proposal tool through OpenAI gpt-4.1-nano in Browser Workers. The key stays in Agent Worker memory; the Program workspace persists in this browser."
+                ? "固定版本 Pi Agent 正在 Browser Worker 中通过 OpenAI gpt-4.1-nano 使用原生 read/write/edit/bash 与受限 proposal 工具；bash 是 Browser Local 虚拟 shell 的终端聚合输出，key 仅在 Agent Worker 内存中，Program workspace 持久化在当前浏览器。"
+                : "The pinned Pi Agent exposes native read/write/edit/bash and one bounded proposal tool through OpenAI gpt-4.1-nano in Browser Workers. Bash uses terminal-aggregate output from the Browser Local virtual shell; the key stays in Agent Worker memory and the Program workspace persists in this browser."
               : copy.locale === "zh-CN"
               ? "Pi、模型、工具执行与数据库属于未来的 typed RPC companion。"
               : "Pi, models, tool execution, and the database belong to a future typed RPC companion."}

@@ -11,14 +11,13 @@ replaced P3a's disposable byte owner with the exact OPFS authority/cold-reopen
 contract; checkpoint 2 delivered recovery/contender semantics, storage policy,
 and the automated Chromium/persistent-WebKit `20 MiB+` scale gate. Checkpoint 3
 delivered canonical portable ZIP download, cancellation, bounded Host-resource
-ownership, and dual-engine byte evidence, so P3c-B0 closed on 2026-08-27. P3a
-remains open. The owner activated the bounded P3a-B1 sequence on 2026-08-27;
-checkpoint 1 delivered and passed independent review that day, adding native
-Pi `edit` over the same persistent volume. Checkpoint 2, native Pi `bash`
-through an exact-pinned just-bash adapter, remains inactive until its shell and
-multi-effect contract is separately frozen and accepted. No SillyOS
-implementation slice is currently active. P1-D remains owner-paused, while P3b, immutable
-snapshot publication, import, and later slices remain inactive. The raw
+ownership, and dual-engine byte evidence, so P3c-B0 closed on 2026-08-27. The
+bounded P3a-B1 sequence then delivered fixed Pi's native `edit` and `bash` over
+that same authority in two independently reviewed checkpoints. Checkpoint 2
+uses exact `just-bash@3.4.2` only as the bounded Browser Local shell inside the
+Host Worker, so P3a also closed on 2026-08-27. No SillyOS implementation slice
+is currently active. P1-D remains owner-paused, while P3b, immutable snapshot
+publication, import, and later slices remain inactive. The raw
 launcher is not the typed product RPC; the live Browser route is a separate
 product path. This plan is local to `examples/silly-os`; it does not activate
 an engine lane or change an engine API. The implementation baseline before P0
@@ -890,8 +889,9 @@ first real tool consumer. P3a-B0 delivered on 2026-08-27, and P3c-B0 persistence
 and portable download subsequently delivered before P3a-B1 began. The owner
 activated P3a-B1 on 2026-08-27 as two mandatory checkpoints. Checkpoint 1
 delivered and passed independent review that day, adding only native Pi
-`edit`; checkpoint 2 remains inactive until its own exact contract is frozen
-and accepted.
+`edit`; checkpoint 2's exact contract was then frozen, corrected through
+independent review, delivered, and independently accepted the same day. With
+P3a-B0 and both B1 checkpoints complete, P3a is closed.
 
 Use the fixed Pi 0.84.3 workspace tools rather than adding a SillyOS equivalent.
 The Browser Agent Worker imports Pi's shipped `createReadTool`,
@@ -1223,17 +1223,132 @@ the 395-file/5,549-case repository check, release build, and ordinary/lazy
 graph exclusion scans. No SillyMaker engine gap was reproduced and no engine
 API changed.
 
-**Checkpoint 2 — native Pi `bash` through just-bash — remains inactive.** Before
-implementation, freeze an exact just-bash version and final Browser graph,
-explicit command allowlist, cwd/env/input/output/temporary-file limits,
-aggregate stdout/stderr/exit mapping, cooperative timeout/abort behavior, and
-one bash call's bounded multi-write/multi-path generation and receipt semantics.
-This must cover both shell redirection and Pi's own overflow-output temporary
-log writes. A second thin just-bash `IFileSystem` adapter reaches the **same**
-OPFS authority; just-bash does not own storage, Agent schemas, plugins, or
-capability composition. The selected package must first pass a fail-closed
-Browser build characterization because the exact 3.4.2 Browser publication
-still contains a `node:zlib` edge. Network remains disabled.
+**Checkpoint 2 — native Pi `bash` through just-bash — delivered and closed on
+2026-08-27.** The dependency is
+exact `just-bash@3.4.2` (Apache-2.0), resolved by the shared lockfile. Its npm
+tarball integrity is
+`sha512-T0Vpy7YRgCjxJdqG3tkxn0ZnIDLJvVwb8hH4L+6NVdp+Te27jQxjxnszW9ODjEKbWxWujj83rP5S0GQxCSufgg==`
+and the corresponding upstream tag resolves to
+`a021f95f53f7e01df48dab71b46ffd4637fb4b53`. SillyOS imports only
+`just-bash/browser`. A strict Browser characterization reproduces the published
+bundle's unresolved static `node:zlib` imports from gzip and compressed-file
+`rg`; the runtime `commands` filter cannot tree-shake that already-published
+bundle. The bounded product build therefore aliases only `node:zlib` to a
+build-known fail-closed module with the exact named exports `gzipSync`,
+`gunzipSync`, and `constants`: the two functions throw, and every constants
+property read throws. The
+runtime allowlist excludes `gzip`, `gunzip`, and `zcat`, and SillyOS does not
+claim compressed-file `rg`. The alias is not a zlib implementation or a
+general Node-compatibility layer. The characterized upstream Browser artifact
+is about 1.24 MB raw / 348 kB gzip before the product build; only the final
+release graph is acceptance evidence. Network, Python, JavaScript execution,
+custom commands, and optional Wasm runtimes remain disabled.
+
+The exact bundled-command allowlist is `basename`, `cat`, `cut`, `dirname`,
+`echo`, `env`, `false`, `find`, `grep`, `head`, `ls`, `printenv`, `printf`,
+`pwd`, `rg`, `sed`, `sleep`, `sort`, `stat`, `tail`, `tee`, `tr`, `true`,
+`uniq`, and `wc`. just-bash's shell grammar and builtins remain available where
+their required primitive exists; this list is a product capability profile,
+not a security boundary and not a claim that every GNU flag is compatible.
+`mkdir`, `touch`, `rm`, `cp`, `mv`, links, permissions, Git, Tar, compression,
+`awk`, `jq`, Python, QuickJS/Node, SQLite, package managers, fetch, and sockets
+are absent. Pipes plus `>`, `>>`, and the admitted `tee` command may create or
+replace files only under an already-existing persistent directory. Native Pi
+`write` remains the first way to create a missing parent directory in this
+checkpoint.
+
+The physical runtime is co-located with the sole Workspace Host/OPFS owner and
+is reached by one coherent typed shell-exec request from the Agent Worker.
+This is required because just-bash's `IFileSystem.getAllPaths()` is synchronous.
+Each execution first builds one bounded generation-current path view. Before
+constructing `Bash`, the Host creates a fresh `InMemoryFs` with an explicit
+2 MiB retained-byte ceiling and uses its public async methods to initialize the
+small `/bin`, `/usr/bin`, `/dev/fd`, `/proc/self/fd`, `/tmp`, device-file, and
+virtual-process support set. It then mounts the persistent OPFS projection at
+`/workspace` with `MountableFs`. `/bin`, `/usr/bin`, `/dev`, `/proc`, and `/tmp` are
+execution-local shell support and never enter OPFS, generation, receipts, or
+portable exports. The persistent adapter implements only read, stat, directory
+listing, replacement, append, existence, path resolution, `lstat = stat`,
+realpath-without-links, and the synchronous current path view. It still
+implements the complete required `IFileSystem` shape; `mkdir`, remove,
+copy/move, chmod/utimes, and symbolic/hard-link methods fail with stable
+unsupported errors. `find` uses `readdir` plus `lstat`, while `rg` uses the
+available async directory listing. There is no second persistent MEMFS and no
+copy-back phase. just-bash's `maxFileSystemBytes` is not misrepresented as a
+limit on either this explicit ephemeral base or the OPFS mount.
+
+The admitted cwd is an existing directory inside `/workspace`. `inheritEnv`
+means only the fixed product shell environment plus Pi's prepared per-call
+values, never Window/Worker globals, provider credentials, `.env`, or Host
+process variables. Product defaults are `HOME=/workspace`, `PWD=/workspace`,
+`OLDPWD=/workspace`, `PATH=/usr/bin:/bin`, `TMPDIR=/tmp`, and
+`LANG/LC_ALL=C.UTF-8`; `inheritEnv: false` starts from Pi's supplied map plus
+the cwd-derived `PWD`. At most 32 per-call keys and 8 KiB of UTF-8 key/value
+data cross the wire. The command source is at most 16 KiB UTF-8. One shell read
+materializes at most 16 MiB in the Host Worker; aggregate input is 32 MiB,
+retained live/intermediate data is 64 MiB, aggregate terminal output is
+256 KiB, a heredoc is 1 MiB, one traversal visits at most 8,192 entries and 32
+levels, and one execution admits at most 512 commands, 10,000 loop/transform
+iterations, 100,000 work units, 128 file descriptors, and 30 seconds of
+cooperatively checked just-bash wall time. A Pi-requested timeout must be finite,
+positive, and no greater than 30 seconds; larger values fail before effects.
+These are execution-call limits, not OPFS volume limits or fixed Worker-heap
+claims.
+
+Pi 0.84.3 remains the only `bash` tool authority: SillyOS imports its unchanged
+`createBashTool()` and binds the existing stable `ExecutionEnv`. The Host returns
+just-bash's terminal aggregate stdout, stderr, and exit code. Because its public
+Browser API exposes no production-time chunks, this bounded Browser Local
+backend intentionally does not conform to Pi `Shell`'s production-time callback
+guidance: it invokes Pi's stdout callback once and then its stderr callback once
+before settling. Native Pi still owns the schema, tail/overflow algorithm and
+tool result, but its merged Browser output is explicitly stdout aggregate then
+stderr aggregate rather than chronological interleave. Capability truth and
+tests must say `terminal_aggregate`; there is no live-streaming claim.
+
+Nonzero exit is a successful Shell result that Pi turns into its native tool
+failure. External abort observed first maps to `ExecutionError("aborted")`; a
+requested timeout of at most 30 seconds observed first maps to
+`ExecutionError("timeout")`; callback failure maps to `callback_error`; and an
+ordinary command that itself exits 124 remains an ordinary nonzero exit. A
+requested timeout above 30 seconds fails before effects as `ExecutionError`
+`unknown` with an explicit Browser Local limit message, never as a false elapsed
+timeout. With no requested timeout, just-bash's 30-second execution-capacity
+limit remains its ordinary bounded exit/status and is not mapped to Pi timeout,
+avoiding Pi's `undefined seconds` message. The adapter records the first
+external-abort/requested-timeout cause separately from exit code so a later
+signal cannot reclassify an already-settled command.
+
+Every persistent byte-changing replacement or append publishes its own exact
+successor head immediately; same-byte primitives do not advance generation.
+One bash scope admits at most 128 persistent mutation attempts and 64 distinct
+changed paths, in first-change order. Every 129th persistent mutation attempt
+fails before any effect. After 64 distinct changed paths, the first attempt to
+touch a 65th persistent path also fails before effect, while a remaining
+in-bound attempt may revisit one of those 64 paths. The scope reserves exactly one mutation receipt even
+for a read-only command. Its `tool` discriminator is `bash`, its base generation
+is the generation at native Pi tool admission, its resulting generation is the
+last durably published head, and its de-duplicated paths cover both shell
+redirection/`tee` and Pi's own overflow log. Redirection is intentionally not
+transactional: a truncate and later rewrite may advance twice, and a later
+failure, timeout, cancellation, or Worker loss never rolls back an already
+published effect. Existing P3c-B0 per-replacement journal recovery remains the
+only crash authority; terminal receipts remain session-local.
+
+Pi's native 2,000-line/50 KiB tail rule remains unchanged. When it requests a
+full-output file, the environment accepts only Pi's `bash-`/`.log` pattern,
+creates a unique persistent
+`/workspace/.sillyos/tmp/bash-<opaque>.log`, and appends the sanitized aggregate
+output through the same OPFS mutation scope. The just-bash 256 KiB aggregate
+output bound also bounds this file's new content per call. Creation or append
+failure fails the native Pi tool without hiding earlier shell effects. Creating
+the previously absent empty file is itself one namespace-changing mutation and
+publishes one successor generation; append may publish another. If creation
+succeeds and append fails, the empty file, changed path, generation, and failed/
+changed receipt remain truthful. Both steps count toward the same 128-attempt/
+64-path native bash scope. These
+product-visible logs survive cold reopen and appear in a portable workspace
+export; shell-internal `/tmp` does not.
 
 Checkpoint 2 proves explicit cwd/env mapping, allowed pipelines/redirection,
 terminal aggregate stdout/stderr/exit status, bounded output and temporary
@@ -1243,9 +1358,38 @@ shell streaming, PTY, background jobs, process trees, arbitrary binaries,
 transactional rollback, Git, Tar, compression, Python, QuickJS, SQLite, GNU
 compatibility, Linux, a container, or a sandbox. Non-cooperative future
 custom/Wasm commands must run in an owned terminable Worker before stronger
-cancellation can be claimed. P3a closes only after B0 and both B1 checkpoints.
-P3c-B0 durable `read`/`write` bytes precede B1 rather than waiting for P3a to
-close.
+cancellation can be claimed. P3c-B0 durable `read`/`write` bytes preceded B1
+rather than waiting for P3a to close.
+
+Checkpoint 2 delivered and passed independent review on 2026-08-27. The
+unchanged native Pi `createBashTool()` now reaches one closed
+`browser_local_just_bash` profile whose exact output mode is
+`terminal_aggregate`; the allowlist and resource bounds above are its actual
+runtime inputs. One Host-owned first-cause deadline starts before the lazy
+runtime import and covers the generation-current OPFS path view plus command
+execution without restarting the requested timeout. OPFS enumeration checks
+cooperative cancellation through final file metadata. Capacity failures remain
+distinct from ordinary execution failure, and already-published bytes are not
+rolled back.
+
+The real deterministic Pi journey is now
+`write -> edit -> read -> bash(tee + rg) -> proposal`, reaches durable
+generation `4`, and cold-reopens the exact files in Chromium and persistent
+WebKit. A separate full-chain native Pi test persists and byte-compares a
+completed `60,000`-byte aggregate at
+`.sillyos/tmp/bash-<opaque>.log`; abort/timeout tests prove classification and
+retained effects but deliberately do not claim that just-bash preserves partial
+terminal output after physical interruption. Raw protocol evidence separately
+proves that only the run-owned Pi overflow path may drain after cancellation.
+Focused contracts, the complete repository unit suite, the dual-engine product
+journey, release build, and lazy-graph scans pass. The ordinary page and Pi
+Worker exclude just-bash; only the Workspace Host Worker contains it. The
+Host chunk necessarily retains dormant code and registry strings from the
+published just-bash monolith, but the closed allowlist plus `python: false` and
+`javascript: false` expose no Python, QuickJS, SQLite, or Wasm command and the
+build emits no separate runtime/Wasm/native asset. There is no Node
+Host-filesystem/PATH fallback or engine API change. This closes P3a-B1 and P3a
+without activating P3b.
 
 `AGENTS.md`, skills, and prompts in the workspace volume remain inert data in
 P3. P3c-B0 persists their bytes without activating them; later P3b
@@ -1334,7 +1478,9 @@ It replaces only the disposable byte owner with a product-owned Workspace Host
 Worker whose OPFS volume can survive Agent Worker disposal and a full page
 reload. `edit`, `bash`, just-bash, Wasm, Git, provider research, and Desktop
 parity were not P3c-B0 prerequisites. Native `edit` subsequently delivered in
-P3a-B1 checkpoint 1; the other listed capabilities remain inactive.
+P3a-B1 checkpoint 1, and the separately delivered checkpoint-2 native Pi
+`bash` followed without retroactively changing P3c-B0. The other listed
+capabilities remain inactive.
 
 Implementation proceeds through three review checkpoints without creating more
 slice numbers:
@@ -1356,7 +1502,8 @@ slice numbers:
 Each checkpoint received focused review and could commit independently, but none
 alone closed or advertised P3c-B0. The complete B0 acceptance below has passed;
 P3a-B1 checkpoint 1 was the separately selected next slice and has since
-delivered; checkpoint 2 and P3b remain inactive.
+delivered; checkpoint 2 subsequently delivered and closed P3a, while P3b
+remains inactive.
 
 Checkpoint 1 delivered on 2026-08-27. The Program repository now owns one exact
 insert-only continuation record and advances its Program/repository anchors in
