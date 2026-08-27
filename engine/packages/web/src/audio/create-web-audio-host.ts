@@ -76,6 +76,11 @@ interface ActiveChannelV1 {
   readonly assetId: string;
 }
 
+interface PendingChannelPlayV1 {
+  readonly input: AudioHostPlayInputV1;
+  readonly generation: number;
+}
+
 async function defaultFetchBytesV1(url: string): Promise<Uint8Array> {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`audio fetch failed with status ${String(response.status)}`);
@@ -104,9 +109,21 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
   let disposed = false;
   const buffers = new Map<string, Promise<WebAudioBufferLikeV1 | null>>();
   const channels = new Map<AudioHostChannelV1, ActiveChannelV1>();
+  const channelGenerations = new Map<AudioHostChannelV1, number>();
   /** Desired continuous playback applied once the context unlocks. */
-  const pendingChannelPlays = new Map<AudioHostChannelV1, AudioHostPlayInputV1>();
+  const pendingChannelPlays = new Map<AudioHostChannelV1, PendingChannelPlayV1>();
   let removeUnlockListeners: (() => void) | undefined;
+
+  const advanceChannelGenerationV1 = (channel: AudioHostChannelV1): number => {
+    const generation = (channelGenerations.get(channel) ?? 0) + 1;
+    channelGenerations.set(channel, generation);
+    return generation;
+  };
+
+  const isCurrentChannelGenerationV1 = (
+    channel: AudioHostChannelV1,
+    generation: number,
+  ): boolean => channelGenerations.get(channel) === generation;
 
   const ensureContextV1 = (): WebAudioContextLikeV1 | null => {
     if (disposed) return null;
@@ -175,7 +192,9 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
     }
     unlocked = true;
     removeUnlockListeners?.();
-    for (const [, play] of pendingChannelPlays) startChannelV1(play);
+    for (const { input, generation } of pendingChannelPlays.values()) {
+      startChannelV1(input, generation);
+    }
     pendingChannelPlays.clear();
   };
 
@@ -252,16 +271,19 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
     }
   };
 
-  const startChannelV1 = (input: AudioHostPlayInputV1): void => {
+  const startChannelV1 = (input: AudioHostPlayInputV1, generation: number): void => {
+    if (!isCurrentChannelGenerationV1(input.channel, generation)) return;
     const activeContext = ensureContextV1();
     if (activeContext === null || masterGain === null || disposed) return;
     if (!unlocked) {
-      pendingChannelPlays.set(input.channel, input);
+      pendingChannelPlays.set(input.channel, { input, generation });
       return;
     }
     void loadBufferV1(input.assetId).then((buffer) => {
-      if (buffer === null || disposed) return;
-      // The desired state may have moved on while the bytes loaded.
+      if (
+        buffer === null || disposed ||
+        !isCurrentChannelGenerationV1(input.channel, generation)
+      ) return;
       const pendingReplacement = channels.get(input.channel);
       if (pendingReplacement?.assetId === input.assetId) return;
       stopChannelV1(input.channel, 0);
@@ -298,9 +320,10 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
   return ({
     play(input: AudioHostPlayInputV1): void {
       if (disposed) return;
-      startChannelV1(input);
+      startChannelV1(input, advanceChannelGenerationV1(input.channel));
     },
     stop(channel: AudioHostChannelV1, fadeMs: number): void {
+      advanceChannelGenerationV1(channel);
       pendingChannelPlays.delete(channel);
       stopChannelV1(channel, fadeMs);
     },
@@ -363,7 +386,10 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
       disposed = true;
       removeUnlockListeners?.();
       pendingChannelPlays.clear();
-      for (const channel of [...channels.keys()]) stopChannelV1(channel, 0);
+      for (const channel of ["bgm", "ambient", "voice"] as const) {
+        advanceChannelGenerationV1(channel);
+        stopChannelV1(channel, 0);
+      }
       buffers.clear();
       if (context !== null) void context.close().catch(() => undefined);
       context = null;

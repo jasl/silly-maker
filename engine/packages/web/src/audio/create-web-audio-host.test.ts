@@ -12,6 +12,7 @@ function manifestV1() {
   return resolveAudioManifestV1(
     [
       { assetId: "audio.test.theme", kind: "music", fallback: "silence", loadGroup: "bootstrap" },
+      { assetId: "audio.test.alternate", kind: "music", fallback: "silence", loadGroup: "scene" },
       { assetId: "audio.test.silent", kind: "ambient", fallback: "silence", loadGroup: "scene" },
       { assetId: "audio.test.broken", kind: "sfx", fallback: "silence", loadGroup: "on_demand" },
     ],
@@ -19,6 +20,12 @@ function manifestV1() {
       {
         assetId: "audio.test.theme",
         runtimePath: "audio/theme.ogg",
+        mediaType: "audio/ogg",
+        durationMs: 1000,
+      },
+      {
+        assetId: "audio.test.alternate",
+        runtimePath: "audio/alternate.ogg",
         mediaType: "audio/ogg",
         durationMs: 1000,
       },
@@ -37,7 +44,10 @@ interface FakeContextV1 extends WebAudioContextLikeV1 {
   setState(state: "suspended" | "running"): void;
 }
 
-function createFakeContextV1(initialState: "suspended" | "running"): FakeContextV1 {
+function createFakeContextV1(
+  initialState: "suspended" | "running",
+  decodeAudioData?: (bytes: ArrayBuffer) => Promise<{ readonly duration: number }>,
+): FakeContextV1 {
   let state: "suspended" | "running" | "closed" = initialState;
   const sources: { assetId: string | null; loop: boolean; stopped: boolean }[] = [];
   const gainNode = () => ({
@@ -89,12 +99,12 @@ function createFakeContextV1(initialState: "suspended" | "running"): FakeContext
         addEventListener: () => undefined,
       };
     },
-    decodeAudioData: (bytes: ArrayBuffer) => {
+    decodeAudioData: decodeAudioData ?? ((bytes: ArrayBuffer) => {
       if (bytes.byteLength === 4 && new Uint8Array(bytes)[0] === 0xff) {
         return Promise.reject(new Error("undecodable bytes"));
       }
       return Promise.resolve({ duration: 1 });
-    },
+    }),
     startedSources: () => sources,
     setState: (next) => {
       state = next;
@@ -105,8 +115,13 @@ function createFakeContextV1(initialState: "suspended" | "running"): FakeContext
 function hostV1(input: {
   readonly contextState?: "suspended" | "running";
   readonly bytesByPath?: Readonly<Record<string, Uint8Array>>;
+  readonly decodeAudioData?: (bytes: ArrayBuffer) => Promise<{ readonly duration: number }>;
+  readonly fetchBytes?: (url: string) => Promise<Uint8Array>;
 }) {
-  const context = createFakeContextV1(input.contextState ?? "running");
+  const context = createFakeContextV1(
+    input.contextState ?? "running",
+    input.decodeAudioData,
+  );
   const diagnostics: AudioHostDiagnosticV1[] = [];
   const bytesByPath = input.bytesByPath ?? {
     "audio/theme.ogg": new Uint8Array([1, 2, 3, 4]),
@@ -115,12 +130,12 @@ function hostV1(input: {
     manifest: manifestV1(),
     resolveRuntimeUrl: (runtimePath) => runtimePath,
     createContext: () => context,
-    fetchBytes: (url) => {
+    fetchBytes: input.fetchBytes ?? ((url) => {
       const bytes = bytesByPath[url];
       return bytes === undefined
         ? Promise.reject(new Error(`no bytes for ${url}`))
         : Promise.resolve(bytes);
-    },
+    }),
     reportDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
     unlockTarget: document,
   });
@@ -132,6 +147,17 @@ const flushV1 = async (): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, 0));
   await new Promise((resolve) => setTimeout(resolve, 0));
 };
+
+function deferredV1<T>(): {
+  readonly promise: Promise<T>;
+  readonly resolve: (value: T) => void;
+} {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
 
 describe("createWebAudioHostV1", () => {
   it("plays decoded continuous audio when the context is already unlocked", async () => {
@@ -148,6 +174,99 @@ describe("createWebAudioHostV1", () => {
     expect(context.startedSources()[0]?.loop).toBe(true);
     expect(diagnostics).toEqual([]);
     host.dispose();
+  });
+
+  it("keeps the current continuous retarget when an obsolete load resolves later", async () => {
+    const themeBytes = deferredV1<Uint8Array>();
+    const alternateBytes = deferredV1<Uint8Array>();
+    const { host, context } = hostV1({
+      fetchBytes: (url) => {
+        if (url === "audio/theme.ogg") return themeBytes.promise;
+        if (url === "audio/alternate.ogg") return alternateBytes.promise;
+        return Promise.reject(new Error(`unexpected audio URL ${url}`));
+      },
+    });
+
+    host.play({
+      channel: "bgm",
+      assetId: "audio.test.theme",
+      loop: true,
+      gainPermille: 1000,
+      fadeMs: 0,
+    });
+    host.play({
+      channel: "bgm",
+      assetId: "audio.test.alternate",
+      loop: true,
+      gainPermille: 1000,
+      fadeMs: 0,
+    });
+
+    alternateBytes.resolve(new Uint8Array([5, 6, 7, 8]));
+    await flushV1();
+    const currentSource = context.startedSources()[0];
+    expect(currentSource).toBeDefined();
+    expect(currentSource?.stopped).toBe(false);
+
+    themeBytes.resolve(new Uint8Array([1, 2, 3, 4]));
+    await flushV1();
+    expect(context.startedSources()).toEqual([currentSource]);
+    expect(currentSource?.stopped).toBe(false);
+    host.dispose();
+  });
+
+  it("does not start a continuous channel stopped while decode is pending", async () => {
+    const decodeStarted = deferredV1<void>();
+    const decoded = deferredV1<{ readonly duration: number }>();
+    const { host, context } = hostV1({
+      decodeAudioData: () => {
+        decodeStarted.resolve();
+        return decoded.promise;
+      },
+    });
+
+    host.play({
+      channel: "voice",
+      assetId: "audio.test.theme",
+      loop: false,
+      gainPermille: 1000,
+      fadeMs: 0,
+    });
+    await decodeStarted.promise;
+    host.stop("voice", 0);
+    decoded.resolve({ duration: 1 });
+    await flushV1();
+
+    expect(context.startedSources()).toHaveLength(0);
+    host.dispose();
+  });
+
+  it("does not start a pending continuous channel or effect after disposal", async () => {
+    const themeBytes = deferredV1<Uint8Array>();
+    const effectBytes = deferredV1<Uint8Array>();
+    const { host, context } = hostV1({
+      fetchBytes: (url) => {
+        if (url === "audio/theme.ogg") return themeBytes.promise;
+        if (url === "audio/broken.ogg") return effectBytes.promise;
+        return Promise.reject(new Error(`unexpected audio URL ${url}`));
+      },
+    });
+
+    host.play({
+      channel: "bgm",
+      assetId: "audio.test.theme",
+      loop: true,
+      gainPermille: 1000,
+      fadeMs: 0,
+    });
+    host.playEffect({ assetId: "audio.test.broken", gainPermille: 1000 });
+    host.dispose();
+    themeBytes.resolve(new Uint8Array([1, 2, 3, 4]));
+    effectBytes.resolve(new Uint8Array([5, 6, 7, 8]));
+    await flushV1();
+
+    expect(context.startedSources()).toHaveLength(0);
+    expect(context.state).toBe("closed");
   });
 
   it("queues continuous playback until a gesture unlocks autoplay, dropping one-shots", async () => {
