@@ -7,6 +7,8 @@ import { creatorAgentTextMaximumCharactersV1 } from "../product/contracts.ts";
 
 export const creatorProgramRevisionToolNameV1 = "sillyos_propose_program_revision";
 export const deterministicCancellationHoldPrefixV1 = "Hold this deterministic run until cancelled:";
+export const deterministicPersistenceReadPrefixV1 =
+  "Verify the persisted workspace contains exactly: ";
 
 const deterministicFinalReplyV1 = "Deterministic test proposal ready.";
 
@@ -93,6 +95,9 @@ export function createDeterministicPiAgentV1(input) {
   const holdForCancellation = input.submit.text.startsWith(
     deterministicCancellationHoldPrefixV1,
   );
+  const verifyPersistentRead = input.submit.text.startsWith(
+    deterministicPersistenceReadPrefixV1,
+  );
   const faux = fauxProvider({
     tokenSize: { min: 64, max: 64 },
     tokensPerSecond: 0,
@@ -103,45 +108,67 @@ export function createDeterministicPiAgentV1(input) {
     }),
     { stopReason: "toolUse" },
   );
-  faux.setResponses([
-    fauxAssistantMessage(
-      fauxToolCall("write", {
-        path: "/workspace/.sillyos/p3a-round-trip.txt",
-        content: input.submit.text,
-      }, {
-        id: `sillyos-write-${input.runNumber}`,
-      }),
-      { stopReason: "toolUse" },
-    ),
-    holdForCancellation
-      ? async (_context, options) => {
-        if (!options?.signal?.aborted) {
-          await new Promise((resolve) => {
-            const timeout = setTimeout(resolve, 30_000);
-            options?.signal?.addEventListener("abort", () => {
-              clearTimeout(timeout);
-              resolve();
-            }, { once: true });
-          });
+  const proposalResponse = fauxAssistantMessage(
+    fauxToolCall(creatorProgramRevisionToolNameV1, { requirement: input.submit.text }, {
+      id: `sillyos-tool-${input.runNumber}`,
+    }),
+    { stopReason: "toolUse" },
+  );
+  if (verifyPersistentRead) {
+    const expected = input.submit.text.slice(deterministicPersistenceReadPrefixV1.length);
+    faux.setResponses([
+      readResponse,
+      (context) => {
+        const result = context.messages.toReversed().find((message) =>
+          message.role === "toolResult" && message.toolName === "read"
+        );
+        const actual = result?.role === "toolResult"
+          ? result.content.filter((block) => block.type === "text").map((block) => block.text)
+            .join("\n")
+          : null;
+        if (result?.role !== "toolResult" || result.isError || actual !== expected) {
+          throw new Error("Persistent workspace read did not match the exact prior bytes");
         }
-        return readResponse;
-      }
-      : readResponse,
-    fauxAssistantMessage(
-      fauxToolCall(creatorProgramRevisionToolNameV1, { requirement: input.submit.text }, {
-        id: `sillyos-tool-${input.runNumber}`,
-      }),
-      { stopReason: "toolUse" },
-    ),
-    fauxAssistantMessage(deterministicFinalReplyV1),
-  ]);
+        return proposalResponse;
+      },
+      fauxAssistantMessage(deterministicFinalReplyV1),
+    ]);
+  } else {
+    faux.setResponses([
+      fauxAssistantMessage(
+        fauxToolCall("write", {
+          path: "/workspace/.sillyos/p3a-round-trip.txt",
+          content: input.submit.text,
+        }, {
+          id: `sillyos-write-${input.runNumber}`,
+        }),
+        { stopReason: "toolUse" },
+      ),
+      holdForCancellation
+        ? async (_context, options) => {
+          if (!options?.signal?.aborted) {
+            await new Promise((resolve) => {
+              const timeout = setTimeout(resolve, 30_000);
+              options?.signal?.addEventListener("abort", () => {
+                clearTimeout(timeout);
+                resolve();
+              }, { once: true });
+            });
+          }
+          return readResponse;
+        }
+        : readResponse,
+      proposalResponse,
+      fauxAssistantMessage(deterministicFinalReplyV1),
+    ]);
+  }
 
   return createPiAgentV1({
     ...input,
     streamFn: faux.provider.streamSimple,
     model: faux.getModel(),
     systemPrompt:
-      "You are the deterministic SillyOS Creator Agent test runtime. Write and read one disposable workspace artifact, then propose one Program revision.",
+      "You are the deterministic SillyOS Creator Agent test runtime. Exercise the pinned native Pi read/write tools against the current Program workspace, then propose one Program revision.",
   });
 }
 

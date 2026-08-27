@@ -21,6 +21,10 @@ import {
   type CreatorProgramRevisionCandidateV1,
 } from "../product/contracts.ts";
 import {
+  createBrowserProgramWorkspaceAuthorityV1,
+  type BrowserProgramWorkspaceAuthorityV1,
+} from "../product/browser-program-workspace-authority.ts";
+import {
   browserPiDistributionIdentityV1,
   type BrowserPiDistributionIdentityV1,
 } from "./browser-pi-distribution.ts";
@@ -82,7 +86,7 @@ export interface CreatorAgentSnapshotV1 {
   /** Unacknowledged terminal product projections, in arrival order. */
   readonly terminalRuns: readonly CreatorAgentTerminalRunV1[];
   readonly diagnostic: CreatorAgentDiagnosticV1 | null;
-  /** Disposable execution state; it is intentionally not a durable Program receipt. */
+  /** Session-local execution projection; durable bytes remain owned by the Workspace Host. */
   readonly workspace: CreatorAgentWorkspaceSnapshotV1;
 }
 
@@ -321,8 +325,11 @@ export function createBrowserCreatorAgentPortV1(input: {
   readonly apiKey: string;
   readonly runtime: BrowserPiWorkerRuntimeV1;
   readonly workerFactory?: BrowserPiWorkerFactoryV1;
+  readonly workspaceAuthority?: BrowserProgramWorkspaceAuthorityV1;
 }): CreatorAgentPortV1 {
-  const transport = createBrowserPiWorkerRawTransportV1(input);
+  const workspaceAuthority = input.workspaceAuthority ??
+    createBrowserProgramWorkspaceAuthorityV1();
+  const transport = createBrowserPiWorkerRawTransportV1({ ...input, workspaceAuthority });
   const client = createAgentRpcClientInternalV1({ transport });
   const listeners = new Set<() => void>();
   const trackedByProductRunId = new Map<string, TrackedCreatorAgentRunV1>();

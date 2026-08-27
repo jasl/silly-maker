@@ -5,6 +5,8 @@ import type {
   AgentRpcRawTransportInternalV1,
 } from "@sillymaker/agent/internal";
 
+import type { BrowserProgramWorkspaceAuthorityV1 } from "../product/browser-program-workspace-authority.ts";
+import type { BrowserWorkspaceHostSnapshotWireV1 } from "../workspace/browser-workspace-host-protocol.ts";
 import {
   admitBrowserPiEngineRequestV1,
   admitBrowserPiWorkerAnyOutboundMessageV1,
@@ -19,7 +21,7 @@ type BrowserPiWorkerMessageListenerV1 = (event: { readonly data: unknown }) => v
 type BrowserPiWorkerErrorListenerV1 = (event: unknown) => void;
 
 export interface BrowserPiWorkerLikeV1 {
-  postMessage(message: unknown): void;
+  postMessage(message: unknown, transfer?: Transferable[]): void;
   addEventListener(type: "message", listener: BrowserPiWorkerMessageListenerV1): void;
   addEventListener(type: "error", listener: BrowserPiWorkerErrorListenerV1): void;
   removeEventListener(type: "message", listener: BrowserPiWorkerMessageListenerV1): void;
@@ -100,13 +102,39 @@ function isWorkspaceMethodV1(method: PendingCallV1["method"]): boolean {
   return method.endsWith("_workspace") || method === "acknowledge_workspace_receipts";
 }
 
+function hostDescriptorMatchesPiSnapshotV1(
+  host: BrowserWorkspaceHostSnapshotWireV1,
+  pi: BrowserPiWorkspaceSnapshotWireV1,
+): boolean {
+  return host.phase === pi.phase && host.descriptor.programId === pi.programId &&
+    host.descriptor.workspaceId === pi.workspaceId &&
+    host.descriptor.workspaceSessionId === pi.workspaceSessionId &&
+    host.descriptor.generation === pi.generation;
+}
+
+function executionBindingFromHostV1(
+  host: BrowserWorkspaceHostSnapshotWireV1,
+): Extract<BrowserPiWorkspaceRequestRecordV1, { readonly method: "attach_workspace" }>[
+  "descriptor"
+] {
+  return Object.freeze({
+    revision: 1,
+    programId: host.descriptor.programId,
+    workspaceId: host.descriptor.workspaceId,
+    workspaceSessionId: host.descriptor.workspaceSessionId,
+    expectedGeneration: host.descriptor.generation,
+  });
+}
+
 export function createBrowserPiWorkerRawTransportV1({
   apiKey: suppliedApiKey,
   runtime,
+  workspaceAuthority,
   workerFactory = defaultBrowserPiWorkerFactoryV1,
 }: {
   readonly apiKey: string;
   readonly runtime: BrowserPiWorkerRuntimeV1;
+  readonly workspaceAuthority: BrowserProgramWorkspaceAuthorityV1;
   readonly workerFactory?: BrowserPiWorkerFactoryV1;
 }): BrowserPiWorkerRawTransportV1 {
   let pendingApiKey = suppliedApiKey.length > 0 &&
@@ -122,6 +150,9 @@ export function createBrowserPiWorkerRawTransportV1({
   const closeState = (state: ConnectionStateV1, reason: string): void => {
     if (state.closed) return;
     state.closed = true;
+    const workspaceSessionId = state.activeWorkspace?.phase === "open"
+      ? state.activeWorkspace.workspaceSessionId
+      : null;
     if (state.cancelReadyTimer !== null) {
       state.cancelReadyTimer();
       state.cancelReadyTimer = null;
@@ -138,6 +169,9 @@ export function createBrowserPiWorkerRawTransportV1({
       state.worker.terminate();
     } catch {
       // Termination is best-effort after the Worker has become unreachable.
+    }
+    if (workspaceSessionId !== null) {
+      void workspaceAuthority.closeWorkspace(workspaceSessionId).catch(() => undefined);
     }
     if (activeState === state) activeState = null;
   };
@@ -419,18 +453,50 @@ export function createBrowserPiWorkerRawTransportV1({
       };
       return { kind: "connected", connection };
     },
-    openWorkspace(input): Promise<BrowserPiWorkspaceSnapshotWireV1> {
-      return workspaceRequestV1({
-        method: "open_workspace",
-        programId: input.programId,
-        workspaceId: input.workspaceId,
-      });
+    async openWorkspace(input): Promise<BrowserPiWorkspaceSnapshotWireV1> {
+      const opened = await workspaceAuthority.openWorkspace(input);
+      try {
+        const snapshot = await workspaceRequestV1(
+          {
+            method: "attach_workspace",
+            descriptor: executionBindingFromHostV1(opened.snapshot),
+          },
+          [opened.environmentPort],
+        );
+        if (!hostDescriptorMatchesPiSnapshotV1(opened.snapshot, snapshot)) {
+          throw transportErrorV1("workspace_attachment_mismatch");
+        }
+        return snapshot;
+      } catch (error) {
+        await workspaceAuthority.closeWorkspace(
+          opened.snapshot.descriptor.workspaceSessionId,
+        ).catch(() => undefined);
+        throw error;
+      }
     },
-    closeWorkspace(workspaceSessionId): Promise<BrowserPiWorkspaceSnapshotWireV1> {
-      return workspaceRequestV1({ method: "close_workspace", workspaceSessionId });
+    async closeWorkspace(workspaceSessionId): Promise<BrowserPiWorkspaceSnapshotWireV1> {
+      let piSnapshot: BrowserPiWorkspaceSnapshotWireV1;
+      try {
+        piSnapshot = await workspaceRequestV1({ method: "close_workspace", workspaceSessionId });
+      } catch (error) {
+        await workspaceAuthority.closeWorkspace(workspaceSessionId).catch(() => undefined);
+        throw error;
+      }
+      const hostSnapshot = await workspaceAuthority.closeWorkspace(workspaceSessionId);
+      if (!hostDescriptorMatchesPiSnapshotV1(hostSnapshot, piSnapshot)) {
+        throw transportErrorV1("workspace_close_mismatch");
+      }
+      return piSnapshot;
     },
-    queryWorkspace(workspaceSessionId): Promise<BrowserPiWorkspaceSnapshotWireV1> {
-      return workspaceRequestV1({ method: "query_workspace", workspaceSessionId });
+    async queryWorkspace(workspaceSessionId): Promise<BrowserPiWorkspaceSnapshotWireV1> {
+      const [piSnapshot, hostSnapshot] = await Promise.all([
+        workspaceRequestV1({ method: "query_workspace", workspaceSessionId }),
+        workspaceAuthority.queryWorkspace(workspaceSessionId),
+      ]);
+      if (!hostDescriptorMatchesPiSnapshotV1(hostSnapshot, piSnapshot)) {
+        throw transportErrorV1("workspace_query_mismatch");
+      }
+      return piSnapshot;
     },
     acknowledgeWorkspaceReceipts(input): Promise<BrowserPiWorkspaceSnapshotWireV1> {
       return workspaceRequestV1({
@@ -446,20 +512,26 @@ export function createBrowserPiWorkerRawTransportV1({
     async forget(): Promise<void> {
       pendingApiKey = null;
       const state = activeState;
-      if (state === null) return;
-      const workspace = state.activeWorkspace;
-      if (workspace?.phase === "open") {
-        await workspaceRequestV1({
-          method: "close_workspace",
-          workspaceSessionId: workspace.workspaceSessionId,
-        }).catch(() => undefined);
+      if (state !== null) {
+        const workspace = state.activeWorkspace;
+        if (workspace?.phase === "open") {
+          await workspaceRequestV1({
+            method: "close_workspace",
+            workspaceSessionId: workspace.workspaceSessionId,
+          }).catch(() => undefined);
+          await workspaceAuthority.closeWorkspace(workspace.workspaceSessionId).catch(
+            () => undefined,
+          );
+        }
+        closeState(state, "forgotten");
       }
-      closeState(state, "forgotten");
+      await workspaceAuthority.dispose();
     },
   };
 
   const workspaceRequestV1 = async (
     record: BrowserPiWorkspaceRequestRecordV1,
+    transfer: Transferable[] = [],
   ): Promise<BrowserPiWorkspaceSnapshotWireV1> => {
     const state = activeState;
     if (state === null || state.closed || !state.ready) {
@@ -475,9 +547,7 @@ export function createBrowserPiWorkerRawTransportV1({
           requestId,
           record: Object.freeze(record),
         });
-        // Worker.postMessage has no targetOrigin parameter.
-        // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker has no targetOrigin
-        state.worker.postMessage(envelope);
+        state.worker.postMessage(envelope, transfer);
       } catch {
         state.pending.delete(requestId);
         reject(transportErrorV1("workspace_post_failed"));

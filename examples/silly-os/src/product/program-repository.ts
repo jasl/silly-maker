@@ -23,6 +23,7 @@ export const programRepositoryMaximumActivitiesV2 = 96;
 export const programRepositoryMaximumRequirementsV2 = 32;
 export const programRepositoryMaximumCapabilitiesV2 = 32;
 export const programRepositoryMaximumAgentRunReceiptsV2 = 32;
+export const browserProgramContinuationManifestMaximumBytesV1 = 1_024;
 
 const identifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
 
@@ -30,10 +31,12 @@ export type ProgramRepositoryOperationV2 =
   | "initialize"
   | "list"
   | "load"
+  | "load_workspace_continuation"
   | "create"
   | "apply_revision"
   | "decide"
   | "settle_agent_run"
+  | "insert_workspace_continuation"
   | "dispose";
 
 export type ProgramRepositoryFailureCodeV2 =
@@ -127,6 +130,26 @@ export interface ProgramRepositorySettleAgentRunInputV2 {
   readonly updatedAt: number;
 }
 
+export interface BrowserProgramContinuationManifestV1 {
+  readonly revision: 1;
+  readonly programId: string;
+  readonly workspaceId: string;
+  readonly volumeId: string;
+  readonly workspaceFormat: 1;
+  readonly programRevision: number;
+  readonly repositoryRevision: number;
+}
+
+export type ProgramRepositoryWorkspaceContinuationInsertResultV1 =
+  | {
+    readonly kind: "committed" | "unchanged";
+    readonly continuation: BrowserProgramContinuationManifestV1;
+  }
+  | {
+    readonly kind: "conflict";
+    readonly current: BrowserProgramContinuationManifestV1 | null;
+  };
+
 export type ProgramRepositoryCommitResultV2 =
   | { readonly kind: "committed"; readonly aggregate: ProgramRepositoryAggregateV2 }
   | { readonly kind: "unchanged"; readonly aggregate: ProgramRepositoryAggregateV2 }
@@ -149,6 +172,19 @@ export interface ProgramRepositoryV2 {
   ): Promise<ProgramRepositoryCommitResultV2>;
   dispose(): Promise<void>;
 }
+
+export interface ProgramRepositoryWorkspaceContinuationV1 {
+  loadWorkspaceContinuation(
+    programId: string,
+  ): Promise<BrowserProgramContinuationManifestV1 | null>;
+  insertWorkspaceContinuation(
+    continuation: BrowserProgramContinuationManifestV1,
+  ): Promise<ProgramRepositoryWorkspaceContinuationInsertResultV1>;
+}
+
+export type ProgramRepositoryWithWorkspaceContinuationV1 =
+  & ProgramRepositoryV2
+  & ProgramRepositoryWorkspaceContinuationV1;
 
 export type ProgramRepositoryAdmissionResultV2<TValue> =
   | { readonly kind: "admitted"; readonly value: TValue }
@@ -243,6 +279,113 @@ function utf8ByteLengthV1(value: string): number {
     }
   }
   return byteLength;
+}
+
+export function admitBrowserProgramContinuationManifestV1(
+  value: unknown,
+): ProgramRepositoryAdmissionResultV2<BrowserProgramContinuationManifestV1> {
+  const record = exactRecordV1(value, [
+    "revision",
+    "programId",
+    "workspaceId",
+    "volumeId",
+    "workspaceFormat",
+    "programRevision",
+    "repositoryRevision",
+  ]);
+  if (record === null) return rejectV1("/");
+  if (record.revision !== 1) return rejectV1("/revision");
+  if (!identifierV1(record.programId)) return rejectV1("/programId");
+  if (!identifierV1(record.workspaceId)) return rejectV1("/workspaceId");
+  if (!identifierV1(record.volumeId)) return rejectV1("/volumeId");
+  if (record.workspaceFormat !== 1) return rejectV1("/workspaceFormat");
+  if (!positiveSafeIntegerV1(record.programRevision)) return rejectV1("/programRevision");
+  if (!positiveSafeIntegerV1(record.repositoryRevision)) {
+    return rejectV1("/repositoryRevision");
+  }
+  const manifest: BrowserProgramContinuationManifestV1 = {
+    revision: 1,
+    programId: record.programId,
+    workspaceId: record.workspaceId,
+    volumeId: record.volumeId,
+    workspaceFormat: 1,
+    programRevision: record.programRevision,
+    repositoryRevision: record.repositoryRevision,
+  };
+  if (
+    utf8ByteLengthV1(JSON.stringify(manifest)) >
+      browserProgramContinuationManifestMaximumBytesV1
+  ) return rejectV1("/");
+  return admittedV1(manifest);
+}
+
+export function cloneBrowserProgramContinuationManifestV1(
+  value: BrowserProgramContinuationManifestV1,
+): BrowserProgramContinuationManifestV1 {
+  const admitted = admitBrowserProgramContinuationManifestV1(value);
+  if (admitted.kind === "rejected") {
+    throw new TypeError(
+      `sillyos.program_repository.workspace_continuation.invalid${admitted.path}`,
+    );
+  }
+  return admitted.value;
+}
+
+export function browserProgramContinuationManifestsEqualV1(
+  left: BrowserProgramContinuationManifestV1,
+  right: BrowserProgramContinuationManifestV1,
+): boolean {
+  return left.revision === right.revision && left.programId === right.programId &&
+    left.workspaceId === right.workspaceId && left.volumeId === right.volumeId &&
+    left.workspaceFormat === right.workspaceFormat &&
+    left.programRevision === right.programRevision &&
+    left.repositoryRevision === right.repositoryRevision;
+}
+
+export function browserProgramContinuationMatchesAggregateV1(
+  continuation: BrowserProgramContinuationManifestV1,
+  aggregate: ProgramRepositoryAggregateV2,
+): boolean {
+  const program = aggregate.snapshot.program;
+  const workspace = aggregate.snapshot.workspace;
+  return program !== null && workspace !== null &&
+    continuation.programId === aggregate.programId &&
+    continuation.workspaceId === workspace.workspaceId &&
+    continuation.programRevision === program.revision &&
+    continuation.repositoryRevision === aggregate.repositoryRevision;
+}
+
+export function advanceBrowserProgramContinuationV1(
+  continuationValue: BrowserProgramContinuationManifestV1,
+  aggregateValue: ProgramRepositoryAggregateV2,
+): BrowserProgramContinuationManifestV1 {
+  const continuation = cloneBrowserProgramContinuationManifestV1(continuationValue);
+  const aggregate = cloneProgramRepositoryAggregateV2(aggregateValue);
+  const program = aggregate.snapshot.program;
+  const workspace = aggregate.snapshot.workspace;
+  if (
+    program === null || workspace === null || continuation.programId !== aggregate.programId ||
+    continuation.workspaceId !== workspace.workspaceId
+  ) {
+    throw new TypeError("sillyos.program_repository.workspace_continuation.aggregate_mismatch");
+  }
+  return cloneBrowserProgramContinuationManifestV1({
+    ...continuation,
+    programRevision: program.revision,
+    repositoryRevision: aggregate.repositoryRevision,
+  });
+}
+
+export function normalizeProgramRepositoryWorkspaceContinuationInsertV1(
+  value: unknown,
+): BrowserProgramContinuationManifestV1 {
+  const continuation = admitBrowserProgramContinuationManifestV1(value);
+  if (continuation.kind === "rejected") {
+    throw new TypeError(
+      `sillyos.program_repository.workspace_continuation_insert.invalid${continuation.path}`,
+    );
+  }
+  return continuation.value;
 }
 
 function admitCapabilityV1(
@@ -1371,6 +1514,25 @@ export function admitProgramRepositoryCommitResultV2(
   if (conflict === null || conflict.kind !== "conflict") return rejectV1("/");
   if (conflict.current === null) return admittedV1({ kind: "conflict", current: null });
   const current = admitProgramRepositoryAggregateV2(conflict.current);
+  return current.kind === "rejected"
+    ? rejectV1(`/current${current.path}`)
+    : admittedV1({ kind: "conflict", current: current.value });
+}
+
+export function admitProgramRepositoryWorkspaceContinuationInsertResultV1(
+  value: unknown,
+): ProgramRepositoryAdmissionResultV2<ProgramRepositoryWorkspaceContinuationInsertResultV1> {
+  const settled = exactRecordV1(value, ["kind", "continuation"]);
+  if (settled !== null && (settled.kind === "committed" || settled.kind === "unchanged")) {
+    const continuation = admitBrowserProgramContinuationManifestV1(settled.continuation);
+    return continuation.kind === "rejected"
+      ? rejectV1(`/continuation${continuation.path}`)
+      : admittedV1({ kind: settled.kind, continuation: continuation.value });
+  }
+  const conflict = exactRecordV1(value, ["kind", "current"]);
+  if (conflict === null || conflict.kind !== "conflict") return rejectV1("/");
+  if (conflict.current === null) return admittedV1({ kind: "conflict", current: null });
+  const current = admitBrowserProgramContinuationManifestV1(conflict.current);
   return current.kind === "rejected"
     ? rejectV1(`/current${current.path}`)
     : admittedV1({ kind: "conflict", current: current.value });

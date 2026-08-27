@@ -53,7 +53,7 @@ export interface WorkspaceMutationReceiptV1 {
   readonly diagnosticCode: WorkspaceMutationDiagnosticCodeV1 | null;
 }
 
-/** Worker-local mutation fact emitted by the disposable execution runtime. */
+/** Session-local mutation fact emitted after a workspace tool operation settles. */
 export interface WorkspaceMutationRecordV1 {
   readonly revision: 1;
   readonly sequence: number;

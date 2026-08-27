@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   createBrowserProgramRepositoryV2,
-  type ProgramRepositoryWorkerLikeV2,
+  type ProgramRepositoryWorkerLikeV3,
 } from "../product/browser-program-repository.ts";
 import {
   createMemoryProgramRepositoryBackingV2,
@@ -12,19 +12,21 @@ import {
 } from "../product/memory-program-repository.ts";
 import {
   createProgramRepositoryFailureV2,
-  type ProgramRepositoryV2,
+  type BrowserProgramContinuationManifestV1,
+  type ProgramRepositoryAggregateV2,
+  type ProgramRepositoryWithWorkspaceContinuationV1,
 } from "../product/program-repository.ts";
-import { admitProgramRepositoryWorkerRequestEnvelopeV2 } from "../product/program-repository-worker-protocol.ts";
-import { createProgramRepositoryWorkerRuntimeV2 } from "../product/program-repository-worker-runtime.ts";
+import { admitProgramRepositoryWorkerRequestEnvelopeV3 } from "../product/program-repository-worker-protocol.ts";
+import { createProgramRepositoryWorkerRuntimeV3 } from "../product/program-repository-worker-runtime.ts";
 import { createCreatorSessionV1 } from "../product/creator-session.ts";
 import { createDeterministicFakeCreatorV1 } from "../product/fake-creator.ts";
 
-interface WorkerMessageEventV2 {
+interface WorkerMessageEventV3 {
   readonly data: unknown;
 }
 
-class FakeProgramRepositoryWorkerV2 implements ProgramRepositoryWorkerLikeV2 {
-  readonly messageListeners = new Set<(event: WorkerMessageEventV2) => void>();
+class FakeProgramRepositoryWorkerV3 implements ProgramRepositoryWorkerLikeV3 {
+  readonly messageListeners = new Set<(event: WorkerMessageEventV3) => void>();
   readonly errorListeners = new Set<() => void>();
   readonly messageErrorListeners = new Set<() => void>();
   readonly postMessageSpy = vi.fn<(message: unknown) => void>();
@@ -34,20 +36,20 @@ class FakeProgramRepositoryWorkerV2 implements ProgramRepositoryWorkerLikeV2 {
 
   addEventListener(
     type: "message" | "error" | "messageerror",
-    listener: ((event: WorkerMessageEventV2) => void) | (() => void),
+    listener: ((event: WorkerMessageEventV3) => void) | (() => void),
   ): void {
     if (type === "message") {
-      this.messageListeners.add(listener as (event: WorkerMessageEventV2) => void);
+      this.messageListeners.add(listener as (event: WorkerMessageEventV3) => void);
     } else if (type === "error") this.errorListeners.add(listener as () => void);
     else this.messageErrorListeners.add(listener as () => void);
   }
 
   removeEventListener(
     type: "message" | "error" | "messageerror",
-    listener: ((event: WorkerMessageEventV2) => void) | (() => void),
+    listener: ((event: WorkerMessageEventV3) => void) | (() => void),
   ): void {
     if (type === "message") {
-      this.messageListeners.delete(listener as (event: WorkerMessageEventV2) => void);
+      this.messageListeners.delete(listener as (event: WorkerMessageEventV3) => void);
     } else if (type === "error") this.errorListeners.delete(listener as () => void);
     else this.messageErrorListeners.delete(listener as () => void);
   }
@@ -72,12 +74,12 @@ class FakeProgramRepositoryWorkerV2 implements ProgramRepositoryWorkerLikeV2 {
   }
 }
 
-function createLoopbackWorkerV2(input: {
-  readonly repository: ProgramRepositoryV2;
+function createLoopbackWorkerV3(input: {
+  readonly repository: ProgramRepositoryWithWorkspaceContinuationV1;
   readonly throwResponse?: () => boolean;
 }) {
-  const worker = new FakeProgramRepositoryWorkerV2();
-  const runtime = createProgramRepositoryWorkerRuntimeV2({
+  const worker = new FakeProgramRepositoryWorkerV3();
+  const runtime = createProgramRepositoryWorkerRuntimeV3({
     repository: input.repository,
     postMessage: (message) => {
       if (input.throwResponse?.() === true) throw new Error("synthetic Worker post failure");
@@ -98,6 +100,23 @@ function initialSnapshotV1(workspaceId: string) {
   const result = session.submitIntent("Create a focused writing workspace.");
   if (result.kind !== "created") throw new Error("expected Program creation");
   return session.getSnapshot();
+}
+
+function continuationForAggregateV1(
+  aggregate: ProgramRepositoryAggregateV2,
+): BrowserProgramContinuationManifestV1 {
+  const program = aggregate.snapshot.program;
+  const workspace = aggregate.snapshot.workspace;
+  if (program === null || workspace === null) throw new Error("expected Program workspace");
+  return {
+    revision: 1,
+    programId: aggregate.programId,
+    workspaceId: workspace.workspaceId,
+    volumeId: `${aggregate.programId}.volume.1`,
+    workspaceFormat: 1,
+    programRevision: program.revision,
+    repositoryRevision: aggregate.repositoryRevision,
+  };
 }
 
 function completedAgentRunV2(workspaceId: string) {
@@ -136,32 +155,97 @@ function completedAgentRunV2(workspaceId: string) {
   return { initial, terminal, settled: session.getSnapshot() };
 }
 
-describe("Browser ProgramRepositoryV2 Worker boundary", () => {
-  it("rejects the retired V1 request envelope", () => {
+describe("Browser ProgramRepositoryV2 Worker V3 boundary", () => {
+  it("rejects retired envelopes and admits only the direct continuation-insert shape", () => {
+    const continuation: BrowserProgramContinuationManifestV1 = {
+      revision: 1,
+      programId: "program.continuation-insert",
+      workspaceId: "workspace.continuation-insert",
+      volumeId: "volume.continuation-insert",
+      workspaceFormat: 1,
+      programRevision: 1,
+      repositoryRevision: 1,
+    };
     expect(
-      admitProgramRepositoryWorkerRequestEnvelopeV2({
-        revision: 1,
+      admitProgramRepositoryWorkerRequestEnvelopeV3({
+        revision: 2,
         kind: "rpc_request",
         requestId: "program-repository.rpc.legacy",
         record: { method: "initialize" },
       }),
     ).toEqual({ kind: "rejected", path: "/revision" });
+    expect(
+      admitProgramRepositoryWorkerRequestEnvelopeV3({
+        revision: 3,
+        kind: "rpc_request",
+        requestId: "program-repository.rpc.continuation-load",
+        record: {
+          method: "load_workspace_continuation",
+          programId: "program.continuation-load",
+        },
+      }),
+    ).toMatchObject({
+      kind: "admitted",
+      value: { record: { method: "load_workspace_continuation" } },
+    });
+    expect(
+      admitProgramRepositoryWorkerRequestEnvelopeV3({
+        revision: 3,
+        kind: "rpc_request",
+        requestId: "program-repository.rpc.continuation-insert",
+        record: { method: "insert_workspace_continuation", continuation },
+      }),
+    ).toMatchObject({
+      kind: "admitted",
+      value: { record: { method: "insert_workspace_continuation", continuation } },
+    });
+    expect(
+      admitProgramRepositoryWorkerRequestEnvelopeV3({
+        revision: 3,
+        kind: "rpc_request",
+        requestId: "program-repository.rpc.retired-continuation-cas",
+        record: {
+          method: "compare_and_set_workspace_continuation",
+          input: { expected: null, continuation },
+        },
+      }),
+    ).toEqual({ kind: "rejected", path: "/record/method" });
+    expect(
+      admitProgramRepositoryWorkerRequestEnvelopeV3({
+        revision: 3,
+        kind: "rpc_request",
+        requestId: "program-repository.rpc.wrapped-continuation-insert",
+        record: {
+          method: "insert_workspace_continuation",
+          input: { continuation },
+        },
+      }),
+    ).toEqual({ kind: "rejected", path: "/record/method" });
   });
 
   it("round-trips admitted product methods and disposes the Dedicated Worker", async () => {
     const backing = createMemoryProgramRepositoryBackingV2();
-    const worker = createLoopbackWorkerV2({
+    const worker = createLoopbackWorkerV3({
       repository: createMemoryProgramRepositoryV2({ backing }),
     });
     const repository = createBrowserProgramRepositoryV2({ createWorker: () => worker });
     const fixture = completedAgentRunV2("workspace.worker.roundtrip");
 
     await repository.initialize();
-    await expect(repository.create({ snapshot: fixture.initial, updatedAt: 10 })).resolves
-      .toMatchObject({
-        kind: "committed",
-        aggregate: { repositoryRevision: 1 },
-      });
+    const created = await repository.create({ snapshot: fixture.initial, updatedAt: 10 });
+    expect(created).toMatchObject({
+      kind: "committed",
+      aggregate: { repositoryRevision: 1 },
+    });
+    if (created.kind !== "committed") throw new Error("expected Program commit");
+    const continuation = continuationForAggregateV1(created.aggregate);
+    await expect(repository.insertWorkspaceContinuation(continuation)).resolves.toEqual({
+      kind: "committed",
+      continuation,
+    });
+    await expect(repository.loadWorkspaceContinuation(continuation.programId)).resolves.toEqual(
+      continuation,
+    );
     await expect(repository.list()).resolves.toEqual([
       expect.objectContaining({ updatedAt: 10, repositoryRevision: 1 }),
     ]);
@@ -188,6 +272,8 @@ describe("Browser ProgramRepositoryV2 Worker boundary", () => {
       repositoryRevision: 2,
       agentRunReceipts: [{ agentRunId: fixture.terminal.run.agentRunId }],
     });
+    await expect(repository.loadWorkspaceContinuation(continuation.programId)).resolves
+      .toMatchObject({ programRevision: 2, repositoryRevision: 2 });
     await repository.dispose();
 
     expect(worker.terminated).toBe(true);
@@ -197,7 +283,7 @@ describe("Browser ProgramRepositoryV2 Worker boundary", () => {
   it("reports outcome_unknown when commit succeeded but Worker response publication failed", async () => {
     const backing = createMemoryProgramRepositoryBackingV2();
     let throwNextResponse = false;
-    const worker = createLoopbackWorkerV2({
+    const worker = createLoopbackWorkerV3({
       repository: createMemoryProgramRepositoryV2({ backing }),
       throwResponse: () => {
         if (!throwNextResponse) return false;
@@ -221,10 +307,52 @@ describe("Browser ProgramRepositoryV2 Worker boundary", () => {
     await expect(repository.dispose()).resolves.toBeUndefined();
   });
 
+  it("reconciles a lost continuation-insert response by exact replay", async () => {
+    const backing = createMemoryProgramRepositoryBackingV2();
+    let throwNextResponse = false;
+    const worker = createLoopbackWorkerV3({
+      repository: createMemoryProgramRepositoryV2({ backing }),
+      throwResponse: () => {
+        if (!throwNextResponse) return false;
+        throwNextResponse = false;
+        return true;
+      },
+    });
+    const repository = createBrowserProgramRepositoryV2({ createWorker: () => worker });
+    const snapshot = initialSnapshotV1("workspace.worker.continuation-unknown");
+    const created = await repository.create({ snapshot, updatedAt: 20 });
+    if (created.kind !== "committed") throw new Error("expected Program commit");
+    const continuation = continuationForAggregateV1(created.aggregate);
+
+    throwNextResponse = true;
+    await expect(repository.insertWorkspaceContinuation(continuation)).rejects.toMatchObject({
+      code: "outcome_unknown",
+      operation: "insert_workspace_continuation",
+    });
+    expect(worker.terminated).toBe(true);
+    expect(backing.workspaceContinuations.get(continuation.programId)).toEqual(continuation);
+
+    const reconcilerWorker = createLoopbackWorkerV3({
+      repository: createMemoryProgramRepositoryV2({ backing }),
+    });
+    const reconciler = createBrowserProgramRepositoryV2({
+      createWorker: () => reconcilerWorker,
+    });
+    await expect(reconciler.insertWorkspaceContinuation(continuation)).resolves.toEqual({
+      kind: "unchanged",
+      continuation,
+    });
+    await expect(reconciler.loadWorkspaceContinuation(continuation.programId)).resolves.toEqual(
+      continuation,
+    );
+    await reconciler.dispose();
+    await expect(repository.dispose()).resolves.toBeUndefined();
+  });
+
   it("retains an exact terminal receipt when its post-commit Worker response is lost", async () => {
     const backing = createMemoryProgramRepositoryBackingV2();
     let throwNextResponse = false;
-    const worker = createLoopbackWorkerV2({
+    const worker = createLoopbackWorkerV3({
       repository: createMemoryProgramRepositoryV2({ backing }),
       throwResponse: () => {
         if (!throwNextResponse) return false;
@@ -236,7 +364,10 @@ describe("Browser ProgramRepositoryV2 Worker boundary", () => {
     const fixture = completedAgentRunV2("workspace.worker.terminal-unknown");
 
     await repository.initialize();
-    await repository.create({ snapshot: fixture.initial, updatedAt: 20 });
+    const created = await repository.create({ snapshot: fixture.initial, updatedAt: 20 });
+    if (created.kind !== "committed") throw new Error("expected Program commit");
+    const continuation = continuationForAggregateV1(created.aggregate);
+    await repository.insertWorkspaceContinuation(continuation);
     throwNextResponse = true;
     await expect(
       repository.settleAgentRun({
@@ -260,17 +391,24 @@ describe("Browser ProgramRepositoryV2 Worker boundary", () => {
         resultingProgramRevision: 2,
       }],
     });
+    expect(backing.workspaceContinuations.get(fixture.terminal.run.programId)).toMatchObject({
+      programRevision: 2,
+      repositoryRevision: 2,
+      volumeId: continuation.volumeId,
+    });
     const reconciler = createMemoryProgramRepositoryV2({ backing });
     await expect(reconciler.load(fixture.terminal.run.programId)).resolves.toMatchObject({
       repositoryRevision: 2,
       agentRunReceipts: [{ agentRunId: fixture.terminal.run.agentRunId }],
     });
+    await expect(reconciler.loadWorkspaceContinuation(fixture.terminal.run.programId)).resolves
+      .toMatchObject({ programRevision: 2, repositoryRevision: 2 });
     await reconciler.dispose();
     await expect(repository.dispose()).resolves.toBeUndefined();
   });
 
   it("terminates on a matching-id invalid response and settles every pending call", async () => {
-    const worker = new FakeProgramRepositoryWorkerV2();
+    const worker = new FakeProgramRepositoryWorkerV3();
     let firstRequest = true;
     worker.receive = (message) => {
       if (!firstRequest) return;
@@ -278,7 +416,7 @@ describe("Browser ProgramRepositoryV2 Worker boundary", () => {
       const requestId = (message as { readonly requestId: string }).requestId;
       queueMicrotask(() => {
         worker.emitMessage({
-          revision: 2,
+          revision: 3,
           kind: "rpc_response",
           requestId,
           record: { kind: "success", method: "create", value: null },
@@ -300,7 +438,7 @@ describe("Browser ProgramRepositoryV2 Worker boundary", () => {
   });
 
   it("keeps a pre-delivery postMessage failure retry-safe and admits known Worker failures", async () => {
-    const postFailureWorker = new FakeProgramRepositoryWorkerV2();
+    const postFailureWorker = new FakeProgramRepositoryWorkerV3();
     postFailureWorker.postMessageSpy.mockImplementationOnce(() => {
       throw new Error("synthetic clone failure");
     });
@@ -315,7 +453,7 @@ describe("Browser ProgramRepositoryV2 Worker boundary", () => {
     ).rejects.toMatchObject({ code: "unavailable", operation: "create" });
     postFailureWorker.terminate();
 
-    const failureWorker = createLoopbackWorkerV2({
+    const failureWorker = createLoopbackWorkerV3({
       repository: {
         ...createMemoryProgramRepositoryV2(),
         create: async () => {

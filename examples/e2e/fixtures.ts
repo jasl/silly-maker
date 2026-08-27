@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Browser fixtures for the examples suite: one dev-server target per example;
 // diagnostics policy matches the engine suite (a page or console error fails the test, evidence attached).
+import type { Page } from "@playwright/test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { expect, test as base } from "../../scripts/testing/playwright-test.ts";
 
 const hostV1 = "127.0.0.1";
@@ -46,7 +50,17 @@ interface PageDiagnosticsV1 {
   consumeExpectedConsoleError(message: string): void;
 }
 
-export const test = base.extend<{ pageDiagnostics: PageDiagnosticsV1 }>({
+interface DurableProgramPageFixturesV1 {
+  /**
+   * Playwright WebKit's ordinary isolated context has ephemeral/private storage and rejects OPFS.
+   * Persistent-workspace acceptance therefore uses a fresh durable profile, deleted after use.
+   */
+  readonly durableProgramPage: Page;
+}
+
+export const test = base.extend<
+  { pageDiagnostics: PageDiagnosticsV1 } & DurableProgramPageFixturesV1
+>({
   pageDiagnostics: [
     async ({ page }, use, testInfo) => {
       const pageErrors: string[] = [];
@@ -98,6 +112,40 @@ export const test = base.extend<{ pageDiagnostics: PageDiagnosticsV1 }>({
     },
     { auto: true },
   ],
+  durableProgramPage: async ({ browserName, page, playwright }, use, testInfo) => {
+    if (browserName !== "webkit") {
+      await use(page);
+      return;
+    }
+
+    const profileDirectory = await mkdtemp(join(tmpdir(), "sillyos-webkit-profile-"));
+    const context = await playwright.webkit.launchPersistentContext(profileDirectory, {
+      headless: true,
+      viewport: { width: 1280, height: 720 },
+    });
+    const durablePage = context.pages()[0] ?? await context.newPage();
+    const pageErrors: string[] = [];
+    const consoleErrors: string[] = [];
+    durablePage.on("pageerror", (error) => pageErrors.push(error.message));
+    durablePage.on("console", (message) => {
+      if (message.type() === "error") consoleErrors.push(message.text());
+    });
+
+    try {
+      await use(durablePage);
+    } finally {
+      await context.close();
+      await rm(profileDirectory, { recursive: true, force: true });
+    }
+    if (pageErrors.length > 0 || consoleErrors.length > 0) {
+      await testInfo.attach("durable-page-diagnostics", {
+        body: JSON.stringify({ pageErrors, consoleErrors }, null, 2),
+        contentType: "application/json",
+      });
+    }
+    expect(pageErrors, "the durable page must not raise uncaught errors").toEqual([]);
+    expect(consoleErrors, "the durable page must not log console errors").toEqual([]);
+  },
 });
 
 export { expect };

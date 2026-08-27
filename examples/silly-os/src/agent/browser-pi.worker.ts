@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT
 
 import { createBrowserPiWorkerRuntimeV1 } from "./browser-pi-worker-runtime.ts";
+import type { BrowserWorkspaceEnvironmentMessagePortV1 } from "./browser-workspace-environment-client.ts";
 
 interface BrowserPiWorkerScopeV1 {
-  addEventListener(type: "message", listener: (event: { readonly data: unknown }) => void): void;
+  addEventListener(
+    type: "message",
+    listener: (event: { readonly data: unknown; readonly ports: readonly MessagePort[] }) => void,
+  ): void;
   postMessage(message: unknown): void;
 }
 
@@ -14,4 +18,8 @@ const runtimeV1 = createBrowserPiWorkerRuntimeV1({
   postMessage: (message) => scopeV1.postMessage(message),
 });
 
-scopeV1.addEventListener("message", (event) => runtimeV1.receive(event.data));
+scopeV1.addEventListener("message", (event) =>
+  runtimeV1.receive(
+    event.data,
+    event.ports as readonly BrowserWorkspaceEnvironmentMessagePortV1[],
+  ));

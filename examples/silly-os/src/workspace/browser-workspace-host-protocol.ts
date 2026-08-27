@@ -1,0 +1,877 @@
+// SPDX-License-Identifier: MIT
+
+export const browserWorkspaceHostProtocolRevisionV1 = 1 as const;
+export const browserWorkspaceFormatRevisionV1 = 1 as const;
+/** Current Pi 0.84.3 whole-value read/write payload guard, never an OPFS file or volume limit. */
+export const browserWorkspaceNativePiToolPayloadMaximumBytesV1 = 256 * 1024;
+export const browserWorkspaceHostReceiptMaximumV1 = 32;
+export const browserWorkspaceHostPathMaximumUtf8BytesV1 = 512;
+export const browserWorkspaceHostPathMaximumPartsV1 = 32;
+
+const identifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
+
+export interface BrowserWorkspaceVolumeAnchorWireV1 {
+  readonly revision: 1;
+  readonly programId: string;
+  readonly workspaceId: string;
+  readonly volumeId: string;
+  readonly workspaceFormat: 1;
+}
+
+export interface BrowserWorkspaceExecutionDescriptorWireV1 {
+  readonly revision: 1;
+  readonly programId: string;
+  readonly workspaceId: string;
+  readonly workspaceSessionId: string;
+  readonly generation: number;
+}
+
+export interface BrowserWorkspaceHostSnapshotWireV1 {
+  readonly revision: 1;
+  readonly phase: "open" | "closed";
+  readonly volumeId: string;
+  readonly checkpointId: string;
+  readonly descriptor: BrowserWorkspaceExecutionDescriptorWireV1;
+  readonly anchor: BrowserWorkspaceVolumeAnchorWireV1;
+}
+
+export interface BrowserWorkspaceHostMutationReceiptWireV1 {
+  readonly revision: 1;
+  readonly sequence: number;
+  readonly programId: string;
+  readonly workspaceId: string;
+  readonly workspaceSessionId: string;
+  readonly sessionId: string;
+  readonly runId: string;
+  readonly toolCallId: string;
+  readonly tool: "write";
+  readonly expectedGeneration: number;
+  readonly baseGeneration: number;
+  readonly resultingGeneration: number;
+  readonly outcome: "succeeded" | "failed" | "cancelled";
+  readonly effect: "none" | "changed";
+  readonly changedPaths: readonly string[];
+  readonly diagnosticCode:
+    | null
+    | "cancelled"
+    | "path_rejected"
+    | "capacity_exceeded"
+    | "execution_failed";
+}
+
+export type BrowserWorkspaceHostControlRequestRecordV1 =
+  | {
+    readonly method: "create_candidate";
+    readonly programId: string;
+    readonly workspaceId: string;
+  }
+  | { readonly method: "open_workspace"; readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 }
+  | { readonly method: "discard_candidate"; readonly volumeId: string }
+  | {
+    readonly method: "close_workspace" | "query_workspace" | "attach_environment";
+    readonly workspaceSessionId: string;
+  };
+
+export interface BrowserWorkspaceHostControlRequestV1 {
+  readonly revision: 1;
+  readonly kind: "control_request";
+  readonly requestId: number;
+  readonly record: BrowserWorkspaceHostControlRequestRecordV1;
+}
+
+export type BrowserWorkspaceHostControlFailureCodeV1 =
+  | "invalid_request"
+  | "workspace_busy"
+  | "workspace_mismatch"
+  | "volume_busy"
+  | "volume_missing"
+  | "volume_corrupt"
+  | "candidate_mismatch"
+  | "environment_attached"
+  | "storage_unavailable"
+  | "request_failed"
+  | "disposed";
+
+export interface BrowserWorkspaceHostControlSuccessResponseV1 {
+  readonly revision: 1;
+  readonly kind: "control_response";
+  readonly requestId: number;
+  readonly ok: true;
+  readonly response:
+    | {
+      readonly method:
+        | "open_workspace"
+        | "close_workspace"
+        | "query_workspace"
+        | "attach_environment";
+      readonly snapshot: BrowserWorkspaceHostSnapshotWireV1;
+    }
+    | { readonly method: "create_candidate"; readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 }
+    | { readonly method: "discard_candidate"; readonly volumeId: string };
+}
+
+export interface BrowserWorkspaceHostControlFailureResponseV1 {
+  readonly revision: 1;
+  readonly kind: "control_response";
+  readonly requestId: number;
+  readonly ok: false;
+  readonly code: BrowserWorkspaceHostControlFailureCodeV1;
+}
+
+export type BrowserWorkspaceHostControlOutboundMessageV1 =
+  | BrowserWorkspaceHostControlSuccessResponseV1
+  | BrowserWorkspaceHostControlFailureResponseV1;
+
+export interface BrowserWorkspaceHostExecutionBindingWireV1 {
+  readonly revision: 1;
+  readonly programId: string;
+  readonly workspaceId: string;
+  readonly workspaceSessionId: string;
+  readonly expectedGeneration: number;
+}
+
+export type BrowserWorkspaceHostEnvironmentRequestRecordV1 =
+  | {
+    readonly method: "begin_run";
+    readonly binding: BrowserWorkspaceHostExecutionBindingWireV1;
+    readonly sessionId: string;
+    readonly runId: string;
+  }
+  | { readonly method: "abort_run" | "end_run" }
+  | {
+    readonly method: "begin_tool";
+    readonly toolCallId: string;
+    readonly tool: "read" | "write";
+  }
+  | {
+    readonly method: "end_tool";
+    readonly toolCallId: string;
+    readonly outcome: "succeeded" | "failed" | "cancelled";
+  }
+  | { readonly method: "absolute_path" | "exists" | "canonical_path"; readonly path: string }
+  | { readonly method: "read_binary_file"; readonly path: string }
+  | { readonly method: "write_file"; readonly path: string; readonly bytes: Uint8Array }
+  | { readonly method: "query_receipts" }
+  | { readonly method: "acknowledge_receipts"; readonly throughSequence: number };
+
+export interface BrowserWorkspaceHostEnvironmentRequestV1 {
+  readonly revision: 1;
+  readonly kind: "environment_request";
+  readonly requestId: number;
+  readonly record: BrowserWorkspaceHostEnvironmentRequestRecordV1;
+}
+
+export type BrowserWorkspaceHostEnvironmentSuccessV1 =
+  | { readonly method: "begin_run" | "end_run" | "abort_run"; readonly generation: number }
+  | { readonly method: "begin_tool"; readonly baseGeneration: number }
+  | { readonly method: "end_tool"; readonly generation: number }
+  | { readonly method: "absolute_path" | "canonical_path"; readonly value: string }
+  | { readonly method: "exists"; readonly value: boolean }
+  | { readonly method: "read_binary_file"; readonly value: Uint8Array }
+  | { readonly method: "write_file"; readonly value: null }
+  | {
+    readonly method: "query_receipts";
+    readonly receipts: readonly BrowserWorkspaceHostMutationReceiptWireV1[];
+  }
+  | { readonly method: "acknowledge_receipts"; readonly throughSequence: number };
+
+export type BrowserWorkspaceHostFileErrorCodeV1 =
+  | "aborted"
+  | "not_found"
+  | "permission_denied"
+  | "not_directory"
+  | "is_directory"
+  | "invalid"
+  | "not_supported"
+  | "unknown";
+
+export interface BrowserWorkspaceHostFileErrorWireV1 {
+  readonly kind: "file_error";
+  readonly code: BrowserWorkspaceHostFileErrorCodeV1;
+  readonly message: string;
+  readonly path: string | null;
+}
+
+export type BrowserWorkspaceHostEnvironmentFailureCodeV1 =
+  | "invalid_request"
+  | "invalid_binding"
+  | "workspace_closed"
+  | "run_busy"
+  | "run_not_current"
+  | "duplicate_run"
+  | "duplicate_tool_call"
+  | "scope_busy"
+  | "scope_missing"
+  | "cursor_mismatch"
+  | "receipt_queue_full"
+  | "request_failed"
+  | "disposed";
+
+export interface BrowserWorkspaceHostEnvironmentSuccessResponseV1 {
+  readonly revision: 1;
+  readonly kind: "environment_response";
+  readonly requestId: number;
+  readonly ok: true;
+  readonly response: BrowserWorkspaceHostEnvironmentSuccessV1;
+}
+
+export interface BrowserWorkspaceHostEnvironmentFailureResponseV1 {
+  readonly revision: 1;
+  readonly kind: "environment_response";
+  readonly requestId: number;
+  readonly ok: false;
+  readonly code: BrowserWorkspaceHostEnvironmentFailureCodeV1;
+  readonly fileError: BrowserWorkspaceHostFileErrorWireV1 | null;
+}
+
+export interface BrowserWorkspaceHostEnvironmentReceiptEventV1 {
+  readonly revision: 1;
+  readonly kind: "workspace_receipt";
+  readonly receipt: BrowserWorkspaceHostMutationReceiptWireV1;
+}
+
+export type BrowserWorkspaceHostEnvironmentOutboundMessageV1 =
+  | BrowserWorkspaceHostEnvironmentSuccessResponseV1
+  | BrowserWorkspaceHostEnvironmentFailureResponseV1
+  | BrowserWorkspaceHostEnvironmentReceiptEventV1;
+
+type ExactRecordV1 = Readonly<Record<string, unknown>>;
+
+function exactRecordV1(value: unknown, keys: readonly string[]): ExactRecordV1 | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  try {
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) return null;
+    if (Object.getOwnPropertySymbols(value).length !== 0) return null;
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    if (
+      Object.keys(descriptors).length !== keys.length ||
+      !keys.every((key) => Object.hasOwn(descriptors, key))
+    ) return null;
+    const entries: [string, unknown][] = [];
+    for (const key of keys) {
+      const descriptor = descriptors[key];
+      if (
+        descriptor === undefined || !descriptor.enumerable ||
+        !Object.hasOwn(descriptor, "value")
+      ) return null;
+      entries.push([key, descriptor.value]);
+    }
+    return Object.fromEntries(entries);
+  } catch {
+    return null;
+  }
+}
+
+function identifierV1(value: unknown): value is string {
+  return typeof value === "string" && identifierPatternV1.test(value);
+}
+
+function requestIdV1(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
+function positiveSafeIntegerV1(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
+function boundedMessageV1(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 && value.length <= 512;
+}
+
+function exactArrayV1(value: unknown, maximumLength: number): readonly unknown[] | null {
+  if (!Array.isArray(value) || value.length > maximumLength) return null;
+  try {
+    if (Object.getPrototypeOf(value) !== Array.prototype) return null;
+    if (Object.getOwnPropertySymbols(value).length !== 0) return null;
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    if (Object.keys(descriptors).length !== value.length + 1) return null;
+    const admitted: unknown[] = [];
+    for (let index = 0; index < value.length; index += 1) {
+      const descriptor = descriptors[String(index)];
+      if (
+        descriptor === undefined || !descriptor.enumerable ||
+        !Object.hasOwn(descriptor, "value")
+      ) return null;
+      admitted.push(descriptor.value);
+    }
+    return admitted;
+  } catch {
+    return null;
+  }
+}
+
+function utf8LengthV1(value: string): number | null {
+  try {
+    return new TextEncoder().encode(value).byteLength;
+  } catch {
+    return null;
+  }
+}
+
+export function isBrowserWorkspaceHostNormalizedPathV1(value: unknown): value is string {
+  if (
+    typeof value !== "string" || value.length === 0 || value.startsWith("/") ||
+    value.endsWith("/") || value.includes("\0") || value.includes("\\")
+  ) return false;
+  const parts = value.split("/");
+  const byteLength = utf8LengthV1(value);
+  return byteLength !== null && byteLength <= browserWorkspaceHostPathMaximumUtf8BytesV1 &&
+    parts.length <= browserWorkspaceHostPathMaximumPartsV1 &&
+    parts.every((part) => part.length > 0 && part !== "." && part !== "..");
+}
+
+export function admitBrowserWorkspaceVolumeAnchorWireV1(
+  value: unknown,
+): BrowserWorkspaceVolumeAnchorWireV1 | null {
+  const record = exactRecordV1(value, [
+    "revision",
+    "programId",
+    "workspaceId",
+    "volumeId",
+    "workspaceFormat",
+  ]);
+  if (
+    record === null || record.revision !== 1 || !identifierV1(record.programId) ||
+    !identifierV1(record.workspaceId) || !identifierV1(record.volumeId) ||
+    record.workspaceFormat !== 1
+  ) return null;
+  return {
+    revision: 1,
+    programId: record.programId,
+    workspaceId: record.workspaceId,
+    volumeId: record.volumeId,
+    workspaceFormat: 1,
+  };
+}
+
+function admitExecutionBindingV1(
+  value: unknown,
+): BrowserWorkspaceHostExecutionBindingWireV1 | null {
+  const record = exactRecordV1(value, [
+    "revision",
+    "programId",
+    "workspaceId",
+    "workspaceSessionId",
+    "expectedGeneration",
+  ]);
+  if (
+    record === null || record.revision !== 1 || !identifierV1(record.programId) ||
+    !identifierV1(record.workspaceId) || !identifierV1(record.workspaceSessionId) ||
+    !positiveSafeIntegerV1(record.expectedGeneration)
+  ) return null;
+  return {
+    revision: 1,
+    programId: record.programId,
+    workspaceId: record.workspaceId,
+    workspaceSessionId: record.workspaceSessionId,
+    expectedGeneration: record.expectedGeneration,
+  };
+}
+
+export function admitBrowserWorkspaceHostControlRequestV1(
+  value: unknown,
+): BrowserWorkspaceHostControlRequestV1 | null {
+  const envelope = exactRecordV1(value, ["revision", "kind", "requestId", "record"]);
+  if (
+    envelope === null || envelope.revision !== 1 || envelope.kind !== "control_request" ||
+    !requestIdV1(envelope.requestId)
+  ) return null;
+  const create = exactRecordV1(envelope.record, ["method", "programId", "workspaceId"]);
+  if (
+    create !== null && create.method === "create_candidate" && identifierV1(create.programId) &&
+    identifierV1(create.workspaceId)
+  ) {
+    return {
+      revision: 1,
+      kind: "control_request",
+      requestId: envelope.requestId,
+      record: {
+        method: "create_candidate",
+        programId: create.programId,
+        workspaceId: create.workspaceId,
+      },
+    };
+  }
+  const open = exactRecordV1(envelope.record, ["method", "anchor"]);
+  if (open !== null && open.method === "open_workspace") {
+    const anchor = admitBrowserWorkspaceVolumeAnchorWireV1(open.anchor);
+    if (anchor === null) return null;
+    return {
+      revision: 1,
+      kind: "control_request",
+      requestId: envelope.requestId,
+      record: { method: "open_workspace", anchor },
+    };
+  }
+  const discard = exactRecordV1(envelope.record, ["method", "volumeId"]);
+  if (
+    discard !== null && discard.method === "discard_candidate" &&
+    identifierV1(discard.volumeId)
+  ) {
+    return {
+      revision: 1,
+      kind: "control_request",
+      requestId: envelope.requestId,
+      record: { method: "discard_candidate", volumeId: discard.volumeId },
+    };
+  }
+  const scoped = exactRecordV1(envelope.record, ["method", "workspaceSessionId"]);
+  if (
+    scoped === null ||
+    (scoped.method !== "close_workspace" && scoped.method !== "query_workspace" &&
+      scoped.method !== "attach_environment") ||
+    !identifierV1(scoped.workspaceSessionId)
+  ) return null;
+  return {
+    revision: 1,
+    kind: "control_request",
+    requestId: envelope.requestId,
+    record: { method: scoped.method, workspaceSessionId: scoped.workspaceSessionId },
+  };
+}
+
+export function admitBrowserWorkspaceHostEnvironmentRequestV1(
+  value: unknown,
+): BrowserWorkspaceHostEnvironmentRequestV1 | null {
+  const envelope = exactRecordV1(value, ["revision", "kind", "requestId", "record"]);
+  if (
+    envelope === null || envelope.revision !== 1 || envelope.kind !== "environment_request" ||
+    !requestIdV1(envelope.requestId)
+  ) return null;
+  const unit = exactRecordV1(envelope.record, ["method"]);
+  if (
+    unit !== null &&
+    (unit.method === "abort_run" || unit.method === "end_run" ||
+      unit.method === "query_receipts")
+  ) {
+    return {
+      revision: 1,
+      kind: "environment_request",
+      requestId: envelope.requestId,
+      record: { method: unit.method },
+    };
+  }
+  const beginRun = exactRecordV1(envelope.record, ["method", "binding", "sessionId", "runId"]);
+  if (
+    beginRun !== null && beginRun.method === "begin_run" && identifierV1(beginRun.sessionId) &&
+    identifierV1(beginRun.runId)
+  ) {
+    const binding = admitExecutionBindingV1(beginRun.binding);
+    if (binding === null) return null;
+    return {
+      revision: 1,
+      kind: "environment_request",
+      requestId: envelope.requestId,
+      record: {
+        method: "begin_run",
+        binding,
+        sessionId: beginRun.sessionId,
+        runId: beginRun.runId,
+      },
+    };
+  }
+  const beginTool = exactRecordV1(envelope.record, ["method", "toolCallId", "tool"]);
+  if (
+    beginTool !== null && beginTool.method === "begin_tool" &&
+    identifierV1(beginTool.toolCallId) &&
+    (beginTool.tool === "read" || beginTool.tool === "write")
+  ) {
+    return {
+      revision: 1,
+      kind: "environment_request",
+      requestId: envelope.requestId,
+      record: {
+        method: "begin_tool",
+        toolCallId: beginTool.toolCallId,
+        tool: beginTool.tool,
+      },
+    };
+  }
+  const endTool = exactRecordV1(envelope.record, ["method", "toolCallId", "outcome"]);
+  if (
+    endTool !== null && endTool.method === "end_tool" && identifierV1(endTool.toolCallId) &&
+    (endTool.outcome === "succeeded" || endTool.outcome === "failed" ||
+      endTool.outcome === "cancelled")
+  ) {
+    return {
+      revision: 1,
+      kind: "environment_request",
+      requestId: envelope.requestId,
+      record: {
+        method: "end_tool",
+        toolCallId: endTool.toolCallId,
+        outcome: endTool.outcome,
+      },
+    };
+  }
+  const pathCall = exactRecordV1(envelope.record, ["method", "path"]);
+  if (
+    pathCall !== null && typeof pathCall.path === "string" &&
+    (pathCall.method === "absolute_path" || pathCall.method === "exists" ||
+      pathCall.method === "canonical_path" || pathCall.method === "read_binary_file")
+  ) {
+    return {
+      revision: 1,
+      kind: "environment_request",
+      requestId: envelope.requestId,
+      record: { method: pathCall.method, path: pathCall.path },
+    };
+  }
+  const write = exactRecordV1(envelope.record, ["method", "path", "bytes"]);
+  if (
+    write !== null && write.method === "write_file" && typeof write.path === "string" &&
+    write.bytes instanceof Uint8Array &&
+    write.bytes.byteLength <= browserWorkspaceNativePiToolPayloadMaximumBytesV1
+  ) {
+    return {
+      revision: 1,
+      kind: "environment_request",
+      requestId: envelope.requestId,
+      record: { method: "write_file", path: write.path, bytes: write.bytes },
+    };
+  }
+  const acknowledge = exactRecordV1(envelope.record, ["method", "throughSequence"]);
+  if (
+    acknowledge !== null && acknowledge.method === "acknowledge_receipts" &&
+    positiveSafeIntegerV1(acknowledge.throughSequence)
+  ) {
+    return {
+      revision: 1,
+      kind: "environment_request",
+      requestId: envelope.requestId,
+      record: {
+        method: "acknowledge_receipts",
+        throughSequence: acknowledge.throughSequence,
+      },
+    };
+  }
+  return null;
+}
+
+function admitReceiptV1(value: unknown): BrowserWorkspaceHostMutationReceiptWireV1 | null {
+  const record = exactRecordV1(value, [
+    "revision",
+    "sequence",
+    "programId",
+    "workspaceId",
+    "workspaceSessionId",
+    "sessionId",
+    "runId",
+    "toolCallId",
+    "tool",
+    "expectedGeneration",
+    "baseGeneration",
+    "resultingGeneration",
+    "outcome",
+    "effect",
+    "changedPaths",
+    "diagnosticCode",
+  ]);
+  if (
+    record === null || record.revision !== 1 || !positiveSafeIntegerV1(record.sequence) ||
+    !identifierV1(record.programId) || !identifierV1(record.workspaceId) ||
+    !identifierV1(record.workspaceSessionId) || !identifierV1(record.sessionId) ||
+    !identifierV1(record.runId) || !identifierV1(record.toolCallId) || record.tool !== "write" ||
+    !positiveSafeIntegerV1(record.expectedGeneration) ||
+    !positiveSafeIntegerV1(record.baseGeneration) ||
+    !positiveSafeIntegerV1(record.resultingGeneration) ||
+    (record.outcome !== "succeeded" && record.outcome !== "failed" &&
+      record.outcome !== "cancelled") ||
+    (record.effect !== "none" && record.effect !== "changed") ||
+    (record.diagnosticCode !== null && record.diagnosticCode !== "cancelled" &&
+      record.diagnosticCode !== "path_rejected" &&
+      record.diagnosticCode !== "capacity_exceeded" &&
+      record.diagnosticCode !== "execution_failed")
+  ) return null;
+  const changedPaths = exactArrayV1(record.changedPaths, 1);
+  if (
+    changedPaths === null ||
+    (record.effect === "none" &&
+      (changedPaths.length !== 0 || record.resultingGeneration !== record.baseGeneration)) ||
+    (record.effect === "changed" &&
+      (changedPaths.length !== 1 || !isBrowserWorkspaceHostNormalizedPathV1(changedPaths[0]) ||
+        record.resultingGeneration !== record.baseGeneration + 1))
+  ) return null;
+  return record as unknown as BrowserWorkspaceHostMutationReceiptWireV1;
+}
+
+function admitDescriptorV1(value: unknown): BrowserWorkspaceExecutionDescriptorWireV1 | null {
+  const record = exactRecordV1(value, [
+    "revision",
+    "programId",
+    "workspaceId",
+    "workspaceSessionId",
+    "generation",
+  ]);
+  if (
+    record === null || record.revision !== 1 || !identifierV1(record.programId) ||
+    !identifierV1(record.workspaceId) || !identifierV1(record.workspaceSessionId) ||
+    !positiveSafeIntegerV1(record.generation)
+  ) return null;
+  return record as unknown as BrowserWorkspaceExecutionDescriptorWireV1;
+}
+
+function admitSnapshotV1(value: unknown): BrowserWorkspaceHostSnapshotWireV1 | null {
+  const record = exactRecordV1(value, [
+    "revision",
+    "phase",
+    "volumeId",
+    "checkpointId",
+    "descriptor",
+    "anchor",
+  ]);
+  if (
+    record === null || record.revision !== 1 ||
+    (record.phase !== "open" && record.phase !== "closed") || !identifierV1(record.volumeId) ||
+    !identifierV1(record.checkpointId)
+  ) return null;
+  const descriptor = admitDescriptorV1(record.descriptor);
+  const anchor = admitBrowserWorkspaceVolumeAnchorWireV1(record.anchor);
+  if (
+    descriptor === null || anchor === null || record.volumeId !== anchor.volumeId ||
+    descriptor.programId !== anchor.programId || descriptor.workspaceId !== anchor.workspaceId
+  ) return null;
+  return {
+    revision: 1,
+    phase: record.phase,
+    volumeId: record.volumeId,
+    checkpointId: record.checkpointId,
+    descriptor,
+    anchor,
+  };
+}
+
+export function admitBrowserWorkspaceHostControlOutboundMessageV1(
+  value: unknown,
+): BrowserWorkspaceHostControlOutboundMessageV1 | null {
+  const success = exactRecordV1(value, [
+    "revision",
+    "kind",
+    "requestId",
+    "ok",
+    "response",
+  ]);
+  if (
+    success !== null && success.revision === 1 && success.kind === "control_response" &&
+    requestIdV1(success.requestId) && success.ok === true
+  ) {
+    const response = exactRecordV1(success.response, ["method", "snapshot"]);
+    const snapshot = response === null ? null : admitSnapshotV1(response.snapshot);
+    if (
+      response !== null && snapshot !== null &&
+      (response.method === "open_workspace" || response.method === "close_workspace" ||
+        response.method === "query_workspace" || response.method === "attach_environment")
+    ) {
+      return {
+        revision: 1,
+        kind: "control_response",
+        requestId: success.requestId,
+        ok: true,
+        response: { method: response.method, snapshot },
+      };
+    }
+    const candidate = exactRecordV1(success.response, ["method", "anchor"]);
+    if (candidate !== null && candidate.method === "create_candidate") {
+      const anchor = admitBrowserWorkspaceVolumeAnchorWireV1(candidate.anchor);
+      return anchor === null ? null : {
+        revision: 1,
+        kind: "control_response",
+        requestId: success.requestId,
+        ok: true,
+        response: { method: "create_candidate", anchor },
+      };
+    }
+    const discarded = exactRecordV1(success.response, ["method", "volumeId"]);
+    if (
+      discarded !== null && discarded.method === "discard_candidate" &&
+      identifierV1(discarded.volumeId)
+    ) {
+      return {
+        revision: 1,
+        kind: "control_response",
+        requestId: success.requestId,
+        ok: true,
+        response: { method: "discard_candidate", volumeId: discarded.volumeId },
+      };
+    }
+    return null;
+  }
+  const failure = exactRecordV1(value, ["revision", "kind", "requestId", "ok", "code"]);
+  if (
+    failure === null || failure.revision !== 1 || failure.kind !== "control_response" ||
+    !requestIdV1(failure.requestId) || failure.ok !== false ||
+    (failure.code !== "invalid_request" && failure.code !== "workspace_busy" &&
+      failure.code !== "workspace_mismatch" && failure.code !== "volume_busy" &&
+      failure.code !== "volume_missing" && failure.code !== "volume_corrupt" &&
+      failure.code !== "environment_attached" &&
+      failure.code !== "candidate_mismatch" &&
+      failure.code !== "storage_unavailable" && failure.code !== "request_failed" &&
+      failure.code !== "disposed")
+  ) return null;
+  return failure as unknown as BrowserWorkspaceHostControlFailureResponseV1;
+}
+
+function admitFileErrorV1(value: unknown): BrowserWorkspaceHostFileErrorWireV1 | null {
+  const record = exactRecordV1(value, ["kind", "code", "message", "path"]);
+  if (
+    record === null || record.kind !== "file_error" || !boundedMessageV1(record.message) ||
+    (record.path !== null && typeof record.path !== "string") ||
+    (record.code !== "aborted" && record.code !== "not_found" &&
+      record.code !== "permission_denied" && record.code !== "not_directory" &&
+      record.code !== "is_directory" && record.code !== "invalid" &&
+      record.code !== "not_supported" && record.code !== "unknown")
+  ) return null;
+  return record as unknown as BrowserWorkspaceHostFileErrorWireV1;
+}
+
+export function admitBrowserWorkspaceHostEnvironmentOutboundMessageV1(
+  value: unknown,
+): BrowserWorkspaceHostEnvironmentOutboundMessageV1 | null {
+  const receiptEvent = exactRecordV1(value, ["revision", "kind", "receipt"]);
+  if (
+    receiptEvent !== null && receiptEvent.revision === 1 &&
+    receiptEvent.kind === "workspace_receipt"
+  ) {
+    const receipt = admitReceiptV1(receiptEvent.receipt);
+    return receipt === null ? null : { revision: 1, kind: "workspace_receipt", receipt };
+  }
+  const success = exactRecordV1(value, [
+    "revision",
+    "kind",
+    "requestId",
+    "ok",
+    "response",
+  ]);
+  if (
+    success !== null && success.revision === 1 && success.kind === "environment_response" &&
+    requestIdV1(success.requestId) && success.ok === true
+  ) {
+    const generation = exactRecordV1(success.response, ["method", "generation"]);
+    if (
+      generation !== null && positiveSafeIntegerV1(generation.generation) &&
+      (generation.method === "begin_run" || generation.method === "end_run" ||
+        generation.method === "abort_run" || generation.method === "end_tool")
+    ) {
+      return {
+        revision: 1,
+        kind: "environment_response",
+        requestId: success.requestId,
+        ok: true,
+        response: { method: generation.method, generation: generation.generation },
+      };
+    }
+    const beginTool = exactRecordV1(success.response, ["method", "baseGeneration"]);
+    if (
+      beginTool !== null && beginTool.method === "begin_tool" &&
+      positiveSafeIntegerV1(beginTool.baseGeneration)
+    ) {
+      return {
+        revision: 1,
+        kind: "environment_response",
+        requestId: success.requestId,
+        ok: true,
+        response: { method: "begin_tool", baseGeneration: beginTool.baseGeneration },
+      };
+    }
+    const path = exactRecordV1(success.response, ["method", "value"]);
+    if (
+      path !== null && typeof path.value === "string" && path.value.startsWith("/workspace") &&
+      (path.method === "absolute_path" || path.method === "canonical_path")
+    ) {
+      return {
+        revision: 1,
+        kind: "environment_response",
+        requestId: success.requestId,
+        ok: true,
+        response: { method: path.method, value: path.value },
+      };
+    }
+    if (path !== null && path.method === "exists" && typeof path.value === "boolean") {
+      return {
+        revision: 1,
+        kind: "environment_response",
+        requestId: success.requestId,
+        ok: true,
+        response: { method: "exists", value: path.value },
+      };
+    }
+    if (
+      path !== null && path.method === "read_binary_file" &&
+      path.value instanceof Uint8Array &&
+      path.value.byteLength <= browserWorkspaceNativePiToolPayloadMaximumBytesV1
+    ) {
+      return {
+        revision: 1,
+        kind: "environment_response",
+        requestId: success.requestId,
+        ok: true,
+        response: { method: "read_binary_file", value: path.value },
+      };
+    }
+    if (path !== null && path.method === "write_file" && path.value === null) {
+      return {
+        revision: 1,
+        kind: "environment_response",
+        requestId: success.requestId,
+        ok: true,
+        response: { method: "write_file", value: null },
+      };
+    }
+    const query = exactRecordV1(success.response, ["method", "receipts"]);
+    if (query !== null && query.method === "query_receipts") {
+      const values = exactArrayV1(query.receipts, browserWorkspaceHostReceiptMaximumV1);
+      if (values === null) return null;
+      const receipts = values.map(admitReceiptV1);
+      if (receipts.some((receipt) => receipt === null)) return null;
+      return {
+        revision: 1,
+        kind: "environment_response",
+        requestId: success.requestId,
+        ok: true,
+        response: {
+          method: "query_receipts",
+          receipts: receipts as readonly BrowserWorkspaceHostMutationReceiptWireV1[],
+        },
+      };
+    }
+    const acknowledge = exactRecordV1(success.response, ["method", "throughSequence"]);
+    if (
+      acknowledge !== null && acknowledge.method === "acknowledge_receipts" &&
+      positiveSafeIntegerV1(acknowledge.throughSequence)
+    ) {
+      return {
+        revision: 1,
+        kind: "environment_response",
+        requestId: success.requestId,
+        ok: true,
+        response: {
+          method: "acknowledge_receipts",
+          throughSequence: acknowledge.throughSequence,
+        },
+      };
+    }
+    return null;
+  }
+  const failure = exactRecordV1(value, [
+    "revision",
+    "kind",
+    "requestId",
+    "ok",
+    "code",
+    "fileError",
+  ]);
+  if (
+    failure === null || failure.revision !== 1 || failure.kind !== "environment_response" ||
+    !requestIdV1(failure.requestId) || failure.ok !== false ||
+    (failure.fileError !== null && admitFileErrorV1(failure.fileError) === null) ||
+    (failure.code !== "invalid_request" && failure.code !== "invalid_binding" &&
+      failure.code !== "workspace_closed" && failure.code !== "run_busy" &&
+      failure.code !== "run_not_current" && failure.code !== "duplicate_run" &&
+      failure.code !== "duplicate_tool_call" && failure.code !== "scope_busy" &&
+      failure.code !== "scope_missing" && failure.code !== "cursor_mismatch" &&
+      failure.code !== "receipt_queue_full" && failure.code !== "request_failed" &&
+      failure.code !== "disposed")
+  ) return null;
+  return failure as unknown as BrowserWorkspaceHostEnvironmentFailureResponseV1;
+}

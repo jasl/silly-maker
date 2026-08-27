@@ -42,6 +42,14 @@ async function readProgramIdV1(workspace: Locator): Promise<string> {
   return programId;
 }
 
+async function readWorkspaceSessionIdV1(workspace: Locator): Promise<string> {
+  const workspaceSessionId = await workspace.getAttribute("data-execution-workspace-session");
+  if (workspaceSessionId === null) {
+    throw new Error("SillyOS workspace has no execution session identity");
+  }
+  return workspaceSessionId;
+}
+
 interface DurableAgentRunReceiptV2 {
   readonly agentRunId: string;
   readonly sequence: number;
@@ -185,7 +193,9 @@ test("a follow-up creates a new exact Program revision for review", async ({ pag
   const followUp = "Use a warmer voice for the protagonist.";
   await page.getByRole("textbox", { name: "Ask for a change…" }).fill(followUp);
   await page.getByRole("button", { name: "Send" }).click();
-  await expect(page.getByText(followUp, { exact: true })).toBeVisible();
+  await expect(
+    page.locator('[data-chat-role="user"]').getByText(followUp, { exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByText(/I incorporated that follow-up into .* proposal v2/u),
   ).toBeVisible();
@@ -240,7 +250,7 @@ test("two pages keep the durable winner when one submits a stale revision", asyn
   await stalePage.close();
 });
 
-test("the query-gated Browser Pi Worker publishes one exact successor without retaining its test key", async ({ page }) => {
+test("the query-gated Browser Pi Worker cold-reopens its Program workspace without retaining its test key", async ({ durableProgramPage: page }) => {
   const sentinel = "sillyos-browser-pi-sentinel-key";
   const observedNetwork: string[] = [];
   const observedConsole: string[] = [];
@@ -277,6 +287,7 @@ test("the query-gated Browser Pi Worker publishes one exact successor without re
   await expect(workspace).toHaveAttribute("data-execution-workspace-state", "open");
   await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "1");
   const programId = await readProgramIdV1(workspace);
+  const firstWorkspaceSessionId = await readWorkspaceSessionIdV1(workspace);
 
   const followUp = "Make every review decision explicit.";
   await page.getByRole("textbox", { name: "Ask for a change…" }).fill(followUp);
@@ -301,12 +312,13 @@ test("the query-gated Browser Pi Worker publishes one exact successor without re
   await expect(page.getByLabel("Program preview source")).toContainText(followUp);
   await page.getByRole("tab", { name: "Capabilities" }).click();
   await expect(page.getByText("Pi 0.84.3 test wiring", { exact: true })).toBeVisible();
-  await expect(page.getByText("Disposable execution workspace", { exact: true })).toBeVisible();
+  await expect(page.getByText("Program workspace checkpoint", { exact: true })).toBeVisible();
   await expect(page.getByText("Open · generation 2", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Creator home" }).click();
   await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
   await expectProgramStorageReadyV1(page);
+  await expect(page.locator(".silly-os")).toHaveAttribute("data-agent-workspace-state", "closed");
   await page.reload();
   await expectProgramStorageReadyV1(page);
   await expect(page.getByRole("heading", { name: "Recent programs", level: 2 })).toBeVisible();
@@ -332,7 +344,12 @@ test("the query-gated Browser Pi Worker publishes one exact successor without re
   });
   const reopenedWorkspace = page.getByRole("main", { name: "SillyOS program workspace" });
   await expect(reopenedWorkspace).toHaveAttribute("data-execution-workspace-state", "open");
-  await expect(reopenedWorkspace).toHaveAttribute("data-execution-workspace-generation", "1");
+  await expect(reopenedWorkspace).toHaveAttribute("data-execution-workspace-generation", "2");
+  await expect(reopenedWorkspace).not.toHaveAttribute(
+    "data-execution-workspace-session",
+    firstWorkspaceSessionId,
+  );
+  const reopenedWorkspaceSessionId = await readWorkspaceSessionIdV1(reopenedWorkspace);
   await expect(reopenedWorkspace).not.toHaveAttribute("data-execution-workspace-receipt", /.+/u);
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
   await expect(page.getByText(followUp, { exact: true })).toBeVisible();
@@ -342,13 +359,22 @@ test("the query-gated Browser Pi Worker publishes one exact successor without re
       { exact: true },
     ),
   ).toBeVisible();
+  const persistenceProbe = `Verify the persisted workspace contains exactly: ${followUp}`;
+  await page.getByRole("textbox", { name: "Ask for a change…" }).fill(persistenceProbe);
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByText(persistenceProbe, { exact: true })).toBeVisible();
+  await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v3");
+  await expect(reopenedWorkspace).toHaveAttribute("data-execution-workspace-generation", "2");
+  await expect(reopenedWorkspace).not.toHaveAttribute("data-execution-workspace-receipt", /.+/u);
+
   await page.getByRole("tab", { name: "Source" }).click();
-  await expect(page.getByLabel("Program preview source")).toContainText("revision: 2");
+  await expect(page.getByLabel("Program preview source")).toContainText("revision: 3");
   await expect(page.getByLabel("Program preview source")).toContainText(followUp);
+  await expect(page.getByLabel("Program preview source")).toContainText(persistenceProbe);
 
   const completedAggregate = await readDurableProgramV2(page, programId);
   expect(completedAggregate).toMatchObject({ schemaVersion: 2, programId });
-  expect(completedAggregate.agentRunReceipts).toHaveLength(1);
+  expect(completedAggregate.agentRunReceipts).toHaveLength(2);
   const completedReceipt = completedAggregate.agentRunReceipts[0];
   expect(Object.keys(completedReceipt ?? {}).sort()).toEqual([
     "agentRunId",
@@ -380,6 +406,20 @@ test("the query-gated Browser Pi Worker publishes one exact successor without re
       messageId === completedReceipt?.creatorMessageId
     ),
   ).toMatchObject({ role: "creator", text: "Deterministic test proposal ready." });
+  const persistenceReceipt = completedAggregate.agentRunReceipts[1];
+  expect(persistenceReceipt).toMatchObject({
+    sequence: 2,
+    outcome: "completed",
+    baseProgramRevision: 2,
+    baseRepositoryRevision: 2,
+    resultingProgramRevision: 3,
+    diagnosticCode: null,
+  });
+  expect(
+    completedAggregate.snapshot.messages.find(({ messageId }) =>
+      messageId === persistenceReceipt?.userMessageId
+    ),
+  ).toMatchObject({ role: "user", text: persistenceProbe });
 
   const durableProjection = await page.evaluate(async () => {
     const storageValues = [
@@ -437,9 +477,29 @@ test("the query-gated Browser Pi Worker publishes one exact successor without re
 
   await page.getByRole("button", { name: "Forget test key" }).click();
   await expect(page.getByRole("button", { name: "Forget test key" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Creator home" }).click();
+  await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
+  const replacementKeyInput = page.getByLabel("Synthetic test key (memory only)");
+  await replacementKeyInput.fill("sillyos-browser-pi-reinitialize-key");
+  await page.getByRole("button", { name: "Initialize Pi test" }).click();
+  await expect(page.getByText("Pi test ready", { exact: true })).toBeVisible();
+  const replacedWorkspace = await openRecentTranslationProgramV1(page, {
+    programId,
+    revision: 3,
+    status: "Preview",
+  });
+  await expect(replacedWorkspace).toHaveAttribute("data-execution-workspace-state", "open");
+  await expect(replacedWorkspace).toHaveAttribute("data-execution-workspace-generation", "2");
+  await expect(replacedWorkspace).not.toHaveAttribute(
+    "data-execution-workspace-session",
+    reopenedWorkspaceSessionId,
+  );
+  await page.getByRole("button", { name: "Creator home" }).click();
+  await expect(page.locator(".silly-os")).toHaveAttribute("data-agent-workspace-state", "closed");
 });
 
-test("a cancelled Browser Pi run remains terminal across reload without advancing the Program", async ({ page }) => {
+test("a cancelled Browser Pi run remains terminal across reload without advancing the Program", async ({ durableProgramPage: page }) => {
   await page.goto(sillyOsTargetUrlV1("?locale=en&agent=pi-test"));
   await expectProgramStorageReadyV1(page);
   const keyInput = page.getByLabel("Synthetic test key (memory only)");
@@ -457,6 +517,7 @@ test("a cancelled Browser Pi run remains terminal across reload without advancin
   await expect(workspace).toHaveAttribute("data-execution-workspace-state", "open");
   await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "1");
   const programId = await readProgramIdV1(workspace);
+  const firstWorkspaceSessionId = await readWorkspaceSessionIdV1(workspace);
   const cancelledText =
     "Hold this deterministic run until cancelled: preserve cancellation as a product receipt.";
 
@@ -476,6 +537,7 @@ test("a cancelled Browser Pi run remains terminal across reload without advancin
 
   await page.getByRole("button", { name: "Creator home" }).click();
   await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
+  await expect(page.locator(".silly-os")).toHaveAttribute("data-agent-workspace-state", "closed");
   await page.reload();
   await expectProgramStorageReadyV1(page);
   const reloadedKeyInput = page.getByLabel("Synthetic test key (memory only)");
@@ -490,7 +552,11 @@ test("a cancelled Browser Pi run remains terminal across reload without advancin
   });
   await expect(reopened).toHaveAttribute("data-program-revision", "1");
   await expect(reopened).toHaveAttribute("data-execution-workspace-state", "open");
-  await expect(reopened).toHaveAttribute("data-execution-workspace-generation", "1");
+  await expect(reopened).toHaveAttribute("data-execution-workspace-generation", "2");
+  await expect(reopened).not.toHaveAttribute(
+    "data-execution-workspace-session",
+    firstWorkspaceSessionId,
+  );
   await expect(reopened).not.toHaveAttribute("data-execution-workspace-receipt", /.+/u);
   await expect(page.getByText(cancelledText, { exact: true })).toBeVisible();
   await page.getByRole("tab", { name: "Activity" }).click();

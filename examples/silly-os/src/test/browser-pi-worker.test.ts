@@ -20,10 +20,31 @@ import {
   createBrowserCreatorAgentPortV1,
   type CreatorAgentPortV1,
 } from "../agent/creator-agent-port.ts";
-import { deterministicCancellationHoldPrefixV1 } from "../agent/browser-pi-runtime-bridge.js";
+import {
+  deterministicCancellationHoldPrefixV1,
+  deterministicPersistenceReadPrefixV1,
+} from "../agent/browser-pi-runtime-bridge.js";
+import type { BrowserProgramWorkspaceAuthorityV1 } from "../product/browser-program-workspace-authority.ts";
 import { serializeCreatorAgentSubmitV1 } from "../product/creator-agent-admission.ts";
 import type { CreatorAgentRunRequestV1, CreatorAgentSubmitV1 } from "../product/contracts.ts";
 import { workspaceRootV1 } from "../workspace/contracts.ts";
+import type {
+  BrowserWorkspaceHostControlOutboundMessageV1,
+  BrowserWorkspaceHostControlRequestRecordV1,
+  BrowserWorkspaceHostControlSuccessResponseV1,
+  BrowserWorkspaceHostSnapshotWireV1,
+  BrowserWorkspaceVolumeAnchorWireV1,
+} from "../workspace/browser-workspace-host-protocol.ts";
+import {
+  createBrowserWorkspaceHostRuntimeV1,
+  type BrowserWorkspaceHostBootstrapPortV1,
+  type BrowserWorkspaceHostDurableHeadV1,
+  type BrowserWorkspaceHostFileMetadataV1,
+  type BrowserWorkspaceHostMessagePortV1,
+  type BrowserWorkspaceHostReplaceFileInputV1,
+  type BrowserWorkspaceHostReplaceFileResultV1,
+  type BrowserWorkspaceHostVolumeLeasePortV1,
+} from "../workspace/browser-workspace-host-runtime.ts";
 
 const workspaceIdV1 = "workspace.preview.1";
 const workspaceSessionIdV1 = "sillyos.workspace.session.1";
@@ -86,6 +107,236 @@ function executionBindingV1(expectedGeneration = 1): BrowserPiWorkerExecutionBin
   };
 }
 
+interface TestBrowserWorkspaceVolumeStateV1 {
+  head: BrowserWorkspaceHostDurableHeadV1;
+  readonly files: Map<string, Uint8Array>;
+}
+
+function bytesEqualV1(left: Uint8Array, right: Uint8Array): boolean {
+  return left.byteLength === right.byteLength && left.every((byte, index) => byte === right[index]);
+}
+
+class TestBrowserWorkspaceVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
+  private closed = false;
+
+  constructor(
+    readonly anchor: BrowserWorkspaceVolumeAnchorWireV1,
+    private readonly state: TestBrowserWorkspaceVolumeStateV1,
+  ) {}
+
+  async readHead(): Promise<BrowserWorkspaceHostDurableHeadV1> {
+    return { ...this.state.head };
+  }
+
+  async stat(path: string): Promise<BrowserWorkspaceHostFileMetadataV1> {
+    if (path.length === 0) return { kind: "directory", size: 0 };
+    const bytes = this.state.files.get(path);
+    return bytes === undefined
+      ? { kind: "missing", size: 0 }
+      : { kind: "file", size: bytes.length };
+  }
+
+  async readFile(path: string): Promise<Uint8Array> {
+    return this.state.files.get(path)?.slice() ?? new Uint8Array();
+  }
+
+  async replaceFile(
+    input: BrowserWorkspaceHostReplaceFileInputV1,
+  ): Promise<BrowserWorkspaceHostReplaceFileResultV1> {
+    if (this.closed) throw new Error("test Workspace volume lease is closed");
+    if (input.signal.aborted) throw new DOMException("Workspace write aborted", "AbortError");
+    if (
+      input.expectedHead.checkpointId !== this.state.head.checkpointId ||
+      input.expectedHead.generation !== this.state.head.generation
+    ) throw new Error("test Workspace durable head is stale");
+    const previous = this.state.files.get(input.path);
+    if (previous !== undefined && bytesEqualV1(previous, input.bytes)) {
+      return { changed: false, head: { ...this.state.head } };
+    }
+    this.state.files.set(input.path, input.bytes.slice());
+    this.state.head = {
+      ...this.state.head,
+      checkpointId: input.nextCheckpointId,
+      generation: this.state.head.generation + 1,
+    };
+    return { changed: true, head: { ...this.state.head } };
+  }
+
+  async close(): Promise<void> {
+    this.closed = true;
+  }
+}
+
+class TestBrowserWorkspaceBootstrapV1 implements BrowserWorkspaceHostBootstrapPortV1 {
+  readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 = Object.freeze({
+    revision: 1,
+    programId: submitV1.programId,
+    workspaceId: workspaceIdV1,
+    volumeId: "sillyos.workspace.volume.test.1",
+    workspaceFormat: 1,
+  });
+  private readonly state: TestBrowserWorkspaceVolumeStateV1 = {
+    head: {
+      revision: 1,
+      volumeId: this.anchor.volumeId,
+      workspaceFormat: 1,
+      checkpointId: "sillyos.workspace.checkpoint.test.1",
+      generation: 1,
+    },
+    files: new Map(),
+  };
+  private candidate = false;
+
+  async createCandidate(input: {
+    readonly programId: string;
+    readonly workspaceId: string;
+  }): Promise<BrowserWorkspaceVolumeAnchorWireV1> {
+    if (
+      input.programId !== this.anchor.programId || input.workspaceId !== this.anchor.workspaceId
+    ) {
+      throw new Error("test Workspace identity mismatch");
+    }
+    this.candidate = true;
+    return this.anchor;
+  }
+
+  async discardCandidate(volumeId: string): Promise<void> {
+    if (!this.candidate || volumeId !== this.anchor.volumeId) {
+      throw new Error("test Workspace candidate mismatch");
+    }
+    this.candidate = false;
+  }
+
+  async openVolume(
+    anchor: BrowserWorkspaceVolumeAnchorWireV1,
+  ): Promise<BrowserWorkspaceHostVolumeLeasePortV1> {
+    if (anchor.volumeId !== this.anchor.volumeId) throw new Error("test Workspace volume missing");
+    this.candidate = false;
+    return new TestBrowserWorkspaceVolumeLeaseV1(this.anchor, this.state);
+  }
+
+  async dispose(): Promise<void> {}
+}
+
+/** Explicit Host-side test authority; no disposable Pi-side workspace fallback exists. */
+class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceAuthorityV1 {
+  private readonly controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+  private readonly runtime;
+  private anchor: BrowserWorkspaceVolumeAnchorWireV1 | null = null;
+  private nextRequestId = 1;
+  private nextCheckpointOrdinal = 2;
+  private disposed = false;
+
+  constructor() {
+    this.runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap: new TestBrowserWorkspaceBootstrapV1(),
+      postControlMessage: (message) => this.controls.push(structuredClone(message)),
+      createWorkspaceSessionId: () => workspaceSessionIdV1,
+      createCheckpointId: () =>
+        `sillyos.workspace.checkpoint.test.${String(this.nextCheckpointOrdinal++)}`,
+    });
+  }
+
+  private async control(
+    record: BrowserWorkspaceHostControlRequestRecordV1,
+    ports: readonly BrowserWorkspaceHostMessagePortV1[] = [],
+  ): Promise<BrowserWorkspaceHostControlSuccessResponseV1["response"]> {
+    if (this.disposed) throw new Error("test Workspace authority is disposed");
+    const requestId = this.nextRequestId++;
+    await this.runtime.receiveControl(
+      { revision: 1, kind: "control_request", requestId, record },
+      ports,
+    );
+    const response = this.controls.find((message) => message.requestId === requestId);
+    if (response === undefined || !response.ok) {
+      throw new Error(`test Workspace Host rejected ${record.method}`);
+    }
+    return response.response;
+  }
+
+  async openWorkspace(input: {
+    readonly programId: string;
+    readonly workspaceId: string;
+  }): Promise<{
+    readonly snapshot: BrowserWorkspaceHostSnapshotWireV1;
+    readonly environmentPort: MessagePort;
+  }> {
+    if (this.anchor === null) {
+      const created = await this.control({ method: "create_candidate", ...input });
+      if (created.method !== "create_candidate") {
+        throw new Error("test candidate response mismatch");
+      }
+      this.anchor = created.anchor;
+    }
+    const opened = await this.control({ method: "open_workspace", anchor: this.anchor });
+    if (opened.method !== "open_workspace") throw new Error("test open response mismatch");
+    const channel = new MessageChannel();
+    const attached = await this.control(
+      {
+        method: "attach_environment",
+        workspaceSessionId: opened.snapshot.descriptor.workspaceSessionId,
+      },
+      [channel.port1 as unknown as BrowserWorkspaceHostMessagePortV1],
+    );
+    if (attached.method !== "attach_environment") {
+      channel.port2.close();
+      throw new Error("test environment attachment response mismatch");
+    }
+    return { snapshot: attached.snapshot, environmentPort: channel.port2 };
+  }
+
+  async queryWorkspace(workspaceSessionId: string): Promise<BrowserWorkspaceHostSnapshotWireV1> {
+    const response = await this.control({ method: "query_workspace", workspaceSessionId });
+    if (response.method !== "query_workspace") throw new Error("test query response mismatch");
+    return response.snapshot;
+  }
+
+  async closeWorkspace(workspaceSessionId: string): Promise<BrowserWorkspaceHostSnapshotWireV1> {
+    const response = await this.control({ method: "close_workspace", workspaceSessionId });
+    if (response.method !== "close_workspace") throw new Error("test close response mismatch");
+    return response.snapshot;
+  }
+
+  async dispose(): Promise<void> {
+    if (this.disposed) return;
+    this.disposed = true;
+    await this.runtime.dispose();
+  }
+}
+
+function testWorkspaceAuthorityV1(): BrowserProgramWorkspaceAuthorityV1 {
+  return new TestBrowserProgramWorkspaceAuthorityV1();
+}
+
+async function attachRuntimeWorkspaceV1(
+  runtime: ReturnType<typeof createBrowserPiWorkerRuntimeV1>,
+  messages: readonly BrowserPiWorkerAnyOutboundMessageV1[],
+  authority: BrowserProgramWorkspaceAuthorityV1,
+  requestId = 2,
+): Promise<BrowserPiWorkerExecutionBindingV1> {
+  const opened = await authority.openWorkspace({
+    programId: submitV1.programId,
+    workspaceId: workspaceIdV1,
+  });
+  const descriptor: BrowserPiWorkerExecutionBindingV1 = {
+    revision: 1,
+    programId: opened.snapshot.descriptor.programId,
+    workspaceId: opened.snapshot.descriptor.workspaceId,
+    workspaceSessionId: opened.snapshot.descriptor.workspaceSessionId,
+    expectedGeneration: opened.snapshot.descriptor.generation,
+  };
+  runtime.receive(
+    workspaceRequestV1(requestId, { method: "attach_workspace", descriptor }),
+    [opened.environmentPort],
+  );
+  await waitUntilV1(() =>
+    messages.some((message) =>
+      message.kind === "workspace_response" && message.requestId === requestId && message.ok
+    )
+  );
+  return descriptor;
+}
+
 async function openProductWorkspaceV1(port: CreatorAgentPortV1): Promise<void> {
   await expect(port.openWorkspace({ programId: submitV1.programId, workspaceId: workspaceIdV1 }))
     .resolves.toEqual({
@@ -112,11 +363,11 @@ class InMemoryBrowserPiWorkerV1 {
     },
   });
 
-  postMessage(message: unknown): void {
+  postMessage(message: unknown, transfer: Transferable[] = []): void {
     if (this.terminated) throw new Error("Worker is terminated");
     const data = structuredClone(message);
     this.posted.push(data);
-    this.runtime.receive(data);
+    this.runtime.receive(data, transfer as unknown as MessagePort[]);
   }
 
   addEventListener(
@@ -221,13 +472,14 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
   private readonly errorListeners = new Set<(event: unknown) => void>();
   private nextPiRunOrdinal = 1;
   private workspace: BrowserPiWorkspaceSnapshotWireV1 | null = null;
+  private environmentPort: MessagePort | null = null;
 
   private emit(message: unknown): void {
     const data = structuredClone(message);
     for (const listener of [...this.messageListeners]) listener({ data });
   }
 
-  postMessage(message: unknown): void {
+  postMessage(message: unknown, transfer: Transferable[] = []): void {
     if (this.terminated) throw new Error("Worker is terminated");
     const envelope = structuredClone(message) as Readonly<Record<string, unknown>>;
     if (envelope.kind === "initialize") {
@@ -242,14 +494,16 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
     }
     const record = envelope.record as Readonly<Record<string, unknown>>;
     if (envelope.kind === "workspace_request") {
-      if (record.method === "open_workspace") {
+      if (record.method === "attach_workspace") {
+        const descriptor = record.descriptor as BrowserPiWorkerExecutionBindingV1;
+        this.environmentPort = transfer[0] as MessagePort | undefined ?? null;
         this.workspace = {
           revision: 1,
           phase: "open",
-          programId: record.programId as string,
-          workspaceId: record.workspaceId as string,
-          workspaceSessionId: "controlled.workspace.session.1",
-          generation: 1,
+          programId: descriptor.programId,
+          workspaceId: descriptor.workspaceId,
+          workspaceSessionId: descriptor.workspaceSessionId,
+          generation: descriptor.expectedGeneration,
           receipts: [],
         };
       } else if (this.workspace === null) {
@@ -430,6 +684,8 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
 
   terminate(): void {
     this.terminated = true;
+    this.environmentPort?.close();
+    this.environmentPort = null;
     this.messageListeners.clear();
     this.errorListeners.clear();
   }
@@ -516,6 +772,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
 
   it("runs real Pi Agent tool flow and posts the submit response before its bounded records", async () => {
     const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const workspaceAuthority = testWorkspaceAuthorityV1();
     const runtime = createBrowserPiWorkerRuntimeV1({
       postMessage: (message) => messages.push(structuredClone(message)),
     });
@@ -526,16 +783,9 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       runtime: "deterministic_test",
       credential: { kind: "api_key", value: "sentinel-browser-key" },
     });
-    runtime.receive(workspaceRequestV1(2, {
-      method: "open_workspace",
-      programId: submitV1.programId,
-      workspaceId: workspaceIdV1,
-    }));
+    const execution = await attachRuntimeWorkspaceV1(runtime, messages, workspaceAuthority);
     runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
     await waitUntilV1(() =>
-      messages.some((message) =>
-        message.kind === "workspace_response" && message.requestId === 2 && message.ok
-      ) &&
       messages.some((message) =>
         message.kind === "rpc_response" && message.requestId === 3 && message.ok
       )
@@ -548,7 +798,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         sessionId: "sillyos.session.1",
         text: serializeCreatorAgentSubmitV1(submitV1),
       },
-    }, executionBindingV1()));
+    }, execution));
 
     await waitUntilV1(() =>
       messages.some((message) =>
@@ -615,12 +865,37 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       requirement: submitV1.text,
     });
     expect(records.at(-1)?.kind).toBe("run_completed");
+
+    const persistenceProbe = `${deterministicPersistenceReadPrefixV1}${submitV1.text}`;
+    runtime.receive(rpcRequestV1(5, {
+      revision: 1,
+      requestId: 3,
+      method: "submit",
+      params: {
+        sessionId: "sillyos.session.1",
+        text: serializeCreatorAgentSubmitV1({
+          ...submitV1,
+          proposalId: "workspace.preview.1.proposal.persistence-probe",
+          text: persistenceProbe,
+        }),
+      },
+    }, { ...execution, expectedGeneration: 2 }));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "rpc_record" &&
+        (message.record as Readonly<Record<string, unknown>>).runId === "sillyos.run.2" &&
+        (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
+      )
+    );
+    expect(messages.filter((message) => message.kind === "workspace_receipt")).toHaveLength(1);
     expect(JSON.stringify(messages)).not.toContain("sentinel-browser-key");
     runtime.dispose();
+    await workspaceAuthority.dispose();
   });
 
   it("rejects a stale execution binding without disturbing the active run and retries from query", async () => {
     const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const workspaceAuthority = testWorkspaceAuthorityV1();
     const runtime = createBrowserPiWorkerRuntimeV1({
       postMessage: (message) => messages.push(structuredClone(message)),
     });
@@ -631,16 +906,9 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       runtime: "deterministic_test",
       credential: { kind: "api_key", value: "key" },
     });
-    runtime.receive(workspaceRequestV1(2, {
-      method: "open_workspace",
-      programId: submitV1.programId,
-      workspaceId: workspaceIdV1,
-    }));
+    const execution = await attachRuntimeWorkspaceV1(runtime, messages, workspaceAuthority);
     runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
     await waitUntilV1(() =>
-      messages.some((message) =>
-        message.kind === "workspace_response" && message.requestId === 2 && message.ok
-      ) &&
       messages.some((message) =>
         message.kind === "rpc_response" && message.requestId === 3 && message.ok
       )
@@ -657,7 +925,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
           text: `${deterministicCancellationHoldPrefixV1} stale preflight`,
         }),
       },
-    }, executionBindingV1(1)));
+    }, execution));
     await waitUntilV1(() =>
       messages.some((message) =>
         message.kind === "workspace_receipt" && message.receipt.runId === "sillyos.run.1"
@@ -747,10 +1015,12 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       (message.record as Readonly<Record<string, unknown>>).code === "replaced"
     )).toBe(true);
     runtime.dispose();
+    await workspaceAuthority.dispose();
   });
 
   it("fences replaced and cancelled runs by session, run, and contiguous sequence", async () => {
     const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const workspaceAuthority = testWorkspaceAuthorityV1();
     const runtime = createBrowserPiWorkerRuntimeV1({
       postMessage: (message) => messages.push(structuredClone(message)),
     });
@@ -761,16 +1031,9 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       runtime: "deterministic_test",
       credential: { kind: "api_key", value: "key" },
     });
-    runtime.receive(workspaceRequestV1(2, {
-      method: "open_workspace",
-      programId: submitV1.programId,
-      workspaceId: workspaceIdV1,
-    }));
+    const execution = await attachRuntimeWorkspaceV1(runtime, messages, workspaceAuthority);
     runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
     await waitUntilV1(() =>
-      messages.some((message) =>
-        message.kind === "workspace_response" && message.requestId === 2 && message.ok
-      ) &&
       messages.some((message) =>
         message.kind === "rpc_response" && message.requestId === 3 && message.ok
       )
@@ -783,7 +1046,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         sessionId: "sillyos.session.1",
         text: serializeCreatorAgentSubmitV1(submitV1),
       },
-    }, executionBindingV1()));
+    }, execution));
     runtime.receive(rpcRequestV1(5, {
       revision: 1,
       requestId: 3,
@@ -796,7 +1059,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
           text: "Replace the prior run.",
         }),
       },
-    }, executionBindingV1()));
+    }, execution));
 
     await waitUntilV1(() =>
       messages.some((message) =>
@@ -921,6 +1184,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       sequence: 1,
     });
     runtime.dispose();
+    await workspaceAuthority.dispose();
   });
 });
 
@@ -930,6 +1194,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     const unconfigured = createBrowserCreatorAgentPortV1({
       apiKey: "",
       runtime: "deterministic_test",
+      workspaceAuthority: testWorkspaceAuthorityV1(),
       workerFactory: () => {
         emptyKeyFactoryCalls += 1;
         throw new Error("must not construct");
@@ -949,6 +1214,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     const failed = createBrowserCreatorAgentPortV1({
       apiKey: "synthetic-key",
       runtime: "deterministic_test",
+      workspaceAuthority: testWorkspaceAuthorityV1(),
       workerFactory: () => {
         throw new Error("worker unavailable");
       },
@@ -969,6 +1235,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     const port = createBrowserCreatorAgentPortV1({
       apiKey: "synthetic-key",
       runtime: "openai_direct",
+      workspaceAuthority: testWorkspaceAuthorityV1(),
       workerFactory: () => worker,
     });
 
@@ -985,6 +1252,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     const transport = createBrowserPiWorkerRawTransportV1({
       apiKey: "sentinel-browser-key",
       runtime: "deterministic_test",
+      workspaceAuthority: testWorkspaceAuthorityV1(),
       workerFactory: () => {
         worker = new InMemoryBrowserPiWorkerV1();
         return worker as BrowserPiWorkerLikeV1;
@@ -1027,6 +1295,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
 
     await client.dispose();
     expect((worker as unknown as InMemoryBrowserPiWorkerV1).terminated).toBe(true);
+    await transport.forget();
   });
 
   it("publishes one completed product terminal without exposing Pi identities", async () => {
@@ -1034,6 +1303,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     const port = createBrowserCreatorAgentPortV1({
       apiKey: "sentinel-browser-key",
       runtime: "deterministic_test",
+      workspaceAuthority: testWorkspaceAuthorityV1(),
       workerFactory: () => {
         worker = new InMemoryBrowserPiWorkerV1();
         return worker as BrowserPiWorkerLikeV1;
@@ -1134,6 +1404,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     const port = createBrowserCreatorAgentPortV1({
       apiKey: "sentinel-browser-key",
       runtime: "deterministic_test",
+      workspaceAuthority: testWorkspaceAuthorityV1(),
       workerFactory: () => new InMemoryBrowserPiWorkerV1(),
     });
     await expect(port.initialize()).resolves.toEqual({ kind: "ready" });
@@ -1195,6 +1466,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     const port = createBrowserCreatorAgentPortV1({
       apiKey: "sentinel-browser-key",
       runtime: "deterministic_test",
+      workspaceAuthority: testWorkspaceAuthorityV1(),
       workerFactory: () => worker,
     });
     const run = productRunV1({ agentRunId: "agent.run.failed" });
@@ -1226,6 +1498,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     const port = createBrowserCreatorAgentPortV1({
       apiKey: "sentinel-browser-key",
       runtime: "deterministic_test",
+      workspaceAuthority: testWorkspaceAuthorityV1(),
       workerFactory: () => worker,
     });
     const run = productRunV1({ agentRunId: "agent.run.whitespace" });
@@ -1253,6 +1526,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     const port = createBrowserCreatorAgentPortV1({
       apiKey: "sentinel-browser-key",
       runtime: "deterministic_test",
+      workspaceAuthority: testWorkspaceAuthorityV1(),
       workerFactory: () => worker,
     });
     const run = productRunV1({ agentRunId: "agent.run.cancelled" });

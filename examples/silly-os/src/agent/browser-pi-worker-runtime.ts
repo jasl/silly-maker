@@ -12,8 +12,6 @@ import {
   type CreatorProgramRevisionCandidateV1,
 } from "../product/contracts.ts";
 import {
-  createDisposableWorkspaceRuntimeV1,
-  type DisposableWorkspaceRuntimeV1,
   type WorkspaceAgentRunV1,
   type WorkspaceExecutionDescriptorV1,
   type WorkspaceMutationRecordV1,
@@ -35,6 +33,11 @@ import {
   bindPiWorkspaceReadToolV1,
   bindPiWorkspaceWriteToolV1,
 } from "./pi-workspace-tool-binder.ts";
+import {
+  createBrowserWorkspaceEnvironmentClientV1,
+  type BrowserWorkspaceEnvironmentClientV1,
+  type BrowserWorkspaceEnvironmentMessagePortV1,
+} from "./browser-workspace-environment-client.ts";
 
 type RunFailureCodeV1 =
   | "cancelled"
@@ -73,7 +76,7 @@ interface PiAgentPortV1 {
 }
 
 export interface BrowserPiWorkerRuntimePortV1 {
-  receive(message: unknown): void;
+  receive(message: unknown, ports?: readonly BrowserWorkspaceEnvironmentMessagePortV1[]): void;
   dispose(): void;
 }
 
@@ -86,27 +89,12 @@ export function createBrowserPiWorkerRuntimeV1(input: {
   let disposed = false;
   let nextSessionId = 1;
   let nextRunId = 1;
-  let nextWorkspaceSessionId = 1;
   let activeSessionId: string | null = null;
   let activeRun: ActivePiRunV1 | null = null;
+  let workspaceClient: BrowserWorkspaceEnvironmentClientV1 | null = null;
+  let workspacePhase: "open" | "closed" = "closed";
   let operationQueue = Promise.resolve();
   const emittedWorkspaceReceipts = new Set<string>();
-  const workspaceRuntime: DisposableWorkspaceRuntimeV1 = createDisposableWorkspaceRuntimeV1({
-    createWorkspaceSessionId: () => `sillyos.workspace.session.${String(nextWorkspaceSessionId++)}`,
-    onMutationRecord: (record) => {
-      queueMicrotask(() => {
-        if (disposed) return;
-        const key = `${record.workspaceSessionId}\u0000${String(record.sequence)}`;
-        if (emittedWorkspaceReceipts.has(key)) return;
-        emittedWorkspaceReceipts.add(key);
-        post(Object.freeze({
-          revision: 1,
-          kind: "workspace_receipt",
-          receipt: mutationReceiptWireV1(record),
-        }));
-      });
-    },
-  });
 
   const post = (message: BrowserPiWorkerAnyOutboundMessageV1): void => {
     // This is a Worker-port callback, not Window.postMessage.
@@ -190,14 +178,28 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       workspaceSessionId: descriptor.workspaceSessionId,
       generation: descriptor.generation,
       receipts: Object.freeze(
-        workspaceRuntime.queryMutationRecords(descriptor.workspaceSessionId).map(
+        (workspaceClient?.queryMutationRecords() ?? []).map(
           mutationReceiptWireV1,
         ),
       ),
     });
 
+  const handleMutationRecordV1 = (record: WorkspaceMutationRecordV1): void => {
+    queueMicrotask(() => {
+      if (disposed) return;
+      const key = `${record.workspaceSessionId}\u0000${String(record.sequence)}`;
+      if (emittedWorkspaceReceipts.has(key)) return;
+      emittedWorkspaceReceipts.add(key);
+      post(Object.freeze({
+        revision: 1,
+        kind: "workspace_receipt",
+        receipt: mutationReceiptWireV1(record),
+      }));
+    });
+  };
+
   const flushWorkspaceReceipts = (run: ActivePiRunV1): void => {
-    const records = workspaceRuntime.queryMutationRecords(run.workspaceSessionId);
+    const records = workspaceClient?.queryMutationRecords() ?? [];
     for (const record of records) {
       if (record.piSessionId !== run.sessionId || record.piRunId !== run.runId) continue;
       const key = `${record.workspaceSessionId}\u0000${String(record.sequence)}`;
@@ -257,16 +259,19 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     return run.settlement ?? Promise.resolve();
   };
 
-  const createRun = (
+  const createRun = async (
     submit: CreatorAgentSubmitV1,
     execution: BrowserPiWorkerExecutionBindingV1,
     sessionId: string,
     runId: string,
-  ): ActivePiRunV1 | null => {
+  ): Promise<ActivePiRunV1 | null> => {
     const runtime = configuredRuntime;
     const apiKey = credentialKey;
-    if (runtime === null || apiKey === null) return null;
-    const begun = workspaceRuntime.beginAgentRun({
+    const client = workspaceClient;
+    if (runtime === null || apiKey === null || client === null || workspacePhase !== "open") {
+      return null;
+    }
+    const begun = await client.beginAgentRun({
       binding: execution,
       piSessionId: sessionId,
       piRunId: runId,
@@ -369,8 +374,9 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       return;
     }
     const predecessor = activeRun;
-    const descriptorBeforeDrain = workspaceRuntime.getCurrentDescriptor();
-    const matchesCurrentWorkspace = descriptorBeforeDrain !== null &&
+    const client = workspaceClient;
+    const descriptorBeforeDrain = client?.getDescriptor() ?? null;
+    const matchesCurrentWorkspace = workspacePhase === "open" && descriptorBeforeDrain !== null &&
       descriptorBeforeDrain.programId === execution.programId &&
       descriptorBeforeDrain.workspaceId === execution.workspaceId &&
       descriptorBeforeDrain.workspaceSessionId === execution.workspaceSessionId;
@@ -390,7 +396,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       await requestRunFailure(predecessor, "replaced");
     }
     if (disposed || activeSessionId !== request.params.sessionId) return;
-    const descriptorAfterDrain = workspaceRuntime.getCurrentDescriptor();
+    const descriptorAfterDrain = workspaceClient?.getDescriptor() ?? null;
     if (
       descriptorAfterDrain === null ||
       descriptorAfterDrain.programId !== execution.programId ||
@@ -407,7 +413,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         expectedGeneration: descriptorAfterDrain.generation,
       });
     const runId = `sillyos.run.${String(nextRunId++)}`;
-    const run = createRun(
+    const run = await createRun(
       admittedSubmit.value,
       effectiveExecution,
       request.params.sessionId,
@@ -433,43 +439,67 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     { kind: "workspace_request" }
   >;
 
-  const handleWorkspaceRequest = async (message: WorkspaceRequestV1): Promise<void> => {
+  const handleWorkspaceRequest = async (
+    message: WorkspaceRequestV1,
+    ports: readonly BrowserWorkspaceEnvironmentMessagePortV1[],
+  ): Promise<void> => {
     if (!initialized || credentialKey === null) {
       respondWorkspaceFailure(message.requestId, "not_initialized");
       return;
     }
     const record = message.record;
-    if (record.method === "open_workspace") {
-      const result = workspaceRuntime.openWorkspace(record);
-      if (result.kind === "rejected") {
-        respondWorkspaceFailure(
-          message.requestId,
-          result.code === "workspace_busy" ? "workspace_busy" : "invalid_request",
-        );
+    if (record.method === "attach_workspace") {
+      const environmentPort = ports[0];
+      if (ports.length !== 1 || environmentPort === undefined || workspacePhase === "open") {
+        respondWorkspaceFailure(message.requestId, "workspace_busy");
         return;
       }
+      workspaceClient?.dispose();
+      emittedWorkspaceReceipts.clear();
+      const descriptor: WorkspaceExecutionDescriptorV1 = Object.freeze({
+        revision: 1,
+        programId: record.descriptor.programId,
+        workspaceId: record.descriptor.workspaceId,
+        workspaceSessionId: record.descriptor.workspaceSessionId,
+        generation: record.descriptor.expectedGeneration,
+      });
+      workspaceClient = createBrowserWorkspaceEnvironmentClientV1({
+        port: environmentPort,
+        descriptor,
+        onMutationRecord: handleMutationRecordV1,
+      });
+      workspacePhase = "open";
       post(Object.freeze({
         revision: 1,
         kind: "workspace_response",
         requestId: message.requestId,
         ok: true,
         response: Object.freeze({
-          method: "open_workspace",
-          snapshot: workspaceSnapshotV1(result.descriptor, "open"),
+          method: "attach_workspace",
+          snapshot: workspaceSnapshotV1(descriptor, "open"),
         }),
       }));
       return;
     }
     if (record.method === "close_workspace") {
+      if (ports.length !== 0) {
+        respondWorkspaceFailure(message.requestId, "invalid_request");
+        return;
+      }
+      const client = workspaceClient;
+      const descriptor = client?.getDescriptor() ?? null;
+      if (
+        client === null || descriptor === null ||
+        descriptor.workspaceSessionId !== record.workspaceSessionId
+      ) {
+        respondWorkspaceFailure(message.requestId, "workspace_mismatch");
+        return;
+      }
       const run = activeRun;
       if (run !== null && !run.terminal && run.workspaceSessionId === record.workspaceSessionId) {
         await requestRunFailure(run, "cancelled");
       }
-      const result = await workspaceRuntime.closeWorkspace(record.workspaceSessionId);
-      if (result.kind === "rejected") {
-        respondWorkspaceFailure(message.requestId, "workspace_mismatch");
-        return;
-      }
+      workspacePhase = "closed";
       post(Object.freeze({
         revision: 1,
         kind: "workspace_response",
@@ -477,23 +507,37 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         ok: true,
         response: Object.freeze({
           method: "close_workspace",
-          snapshot: workspaceSnapshotV1(result.descriptor, "closed"),
+          snapshot: workspaceSnapshotV1(client.getDescriptor(), "closed"),
         }),
       }));
       return;
     }
-    const descriptor = workspaceRuntime.getDescriptor(record.workspaceSessionId);
-    if (descriptor === null) {
+    if (ports.length !== 0) {
+      respondWorkspaceFailure(message.requestId, "invalid_request");
+      return;
+    }
+    const client = workspaceClient;
+    const descriptor = client?.getDescriptor() ?? null;
+    if (
+      client === null || descriptor === null ||
+      descriptor.workspaceSessionId !== record.workspaceSessionId
+    ) {
       respondWorkspaceFailure(message.requestId, "workspace_mismatch");
       return;
     }
     if (record.method === "acknowledge_workspace_receipts") {
-      const acknowledged = workspaceRuntime.acknowledgeMutationRecords(record);
-      if (acknowledged.kind === "rejected") {
+      if (
+        !client.queryMutationRecords().some(({ sequence }) => sequence === record.throughSequence)
+      ) {
         respondWorkspaceFailure(message.requestId, "receipt_sequence_invalid");
         return;
       }
-      const current = workspaceRuntime.getCurrentDescriptor();
+      try {
+        await client.acknowledgeMutationRecords(record.throughSequence);
+      } catch {
+        respondWorkspaceFailure(message.requestId, "workspace_failed");
+        return;
+      }
       post(Object.freeze({
         revision: 1,
         kind: "workspace_response",
@@ -501,16 +545,12 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         ok: true,
         response: Object.freeze({
           method: "acknowledge_workspace_receipts",
-          throughSequence: acknowledged.throughSequence,
-          snapshot: workspaceSnapshotV1(
-            descriptor,
-            current?.workspaceSessionId === descriptor.workspaceSessionId ? "open" : "closed",
-          ),
+          throughSequence: record.throughSequence,
+          snapshot: workspaceSnapshotV1(client.getDescriptor(), workspacePhase),
         }),
       }));
       return;
     }
-    const current = workspaceRuntime.getCurrentDescriptor();
     post(Object.freeze({
       revision: 1,
       kind: "workspace_response",
@@ -518,15 +558,15 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       ok: true,
       response: Object.freeze({
         method: "query_workspace",
-        snapshot: workspaceSnapshotV1(
-          descriptor,
-          current?.workspaceSessionId === descriptor.workspaceSessionId ? "open" : "closed",
-        ),
+        snapshot: workspaceSnapshotV1(client.getDescriptor(), workspacePhase),
       }),
     }));
   };
 
-  const receive = (raw: unknown): void => {
+  const receive = (
+    raw: unknown,
+    ports: readonly BrowserWorkspaceEnvironmentMessagePortV1[] = [],
+  ): void => {
     if (disposed) return;
     const message = admitBrowserPiWorkerInboundMessageV1(raw);
     if (message === null) {
@@ -551,7 +591,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       return;
     }
     if (message.kind === "workspace_request") {
-      enqueue(() => handleWorkspaceRequest(message));
+      enqueue(() => handleWorkspaceRequest(message, ports));
       return;
     }
     if (!initialized || credentialKey === null) {
@@ -625,7 +665,9 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         void run.workspaceRun.abortAndDrain();
         run.agent.dispose();
       }
-      void workspaceRuntime.forget();
+      workspacePhase = "closed";
+      workspaceClient?.dispose();
+      workspaceClient = null;
     },
   };
 }

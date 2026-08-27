@@ -127,16 +127,15 @@ describe("Browser Pi Worker P3a-B0 protocol", () => {
     expect(admitBrowserPiWorkerInboundMessageV1(rpcEnvelopeV1(invalidInner))).not.toBeNull();
   });
 
-  it("admits exact open, close, query, and contiguous-prefix acknowledgement requests", () => {
+  it("admits exact attach, close, query, and contiguous-prefix acknowledgement requests", () => {
     expect(
       admitBrowserPiWorkerInboundMessageV1(
         workspaceEnvelopeV1({
-          method: "open_workspace",
-          programId: programIdV1,
-          workspaceId: workspaceIdV1,
+          method: "attach_workspace",
+          descriptor: executionBindingV1,
         }),
       ),
-    ).toMatchObject({ kind: "workspace_request", record: { method: "open_workspace" } });
+    ).toMatchObject({ kind: "workspace_request", record: { method: "attach_workspace" } });
     for (const method of ["close_workspace", "query_workspace"] as const) {
       expect(
         admitBrowserPiWorkerInboundMessageV1(

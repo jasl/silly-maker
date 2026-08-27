@@ -3,11 +3,11 @@
 # SillyOS product and visual contract
 
 Status: active Browser-first dual-target rewrite with P2 Browser Program
-persistence, bounded terminal Agent-run receipts, and P3a-B0's disposable
-Browser execution workspace delivered, 2026-08-27. The deliberately bounded
-P3c-B0 Browser Program checkpoint is the active next slice; P3a-B1, broad
-execution-provider research, snapshot publication, and later workspace slices
-remain inactive. The former "SillyOS 98" desktop
+persistence, bounded terminal Agent-run receipts, and P3c-B0 checkpoint 1's
+OPFS Program workspace authority plus cold reopen delivered, 2026-08-27.
+P3c-B0 recovery/scale and portable export remain active checkpoints; P3a-B1,
+broad execution-provider research, snapshot publication, and later workspace
+slices remain inactive. The former "SillyOS 98" desktop
 experiment has been retired as a product direction. It remains useful only as
 repository history; it is not a compatibility baseline for this rewrite.
 
@@ -235,10 +235,10 @@ change a real product behavior.
   is deterministic game Save. P2 durably stores the bounded Program catalog,
   product-session projection, and terminal product receipt keyed by a
   product-owned `agentRunId`; Pi session/run identities, credentials, provider
-  data, and Workspace files remain non-durable in the delivered P2/P3a-B0
-  baseline. P3c-B0 adds only an OPFS-backed mutable Program checkpoint and a
-  small product continuation manifest; it still does not persist Pi private
-  sessions or Creator Chat.
+  data remain non-durable in the delivered baseline. P3c-B0 checkpoint 1 adds
+  only an OPFS-backed mutable Program checkpoint and a small product
+  continuation manifest; it still does not persist Pi private sessions,
+  credentials, Provider data, mutation receipts, or Creator Chat.
 - Browser ultimately binds Pi's shipped `read`, `write`, `edit`, and `bash` tool factories
   to one stable Program-scoped Pi `ExecutionEnv`. The product-private workspace
   boundary eventually owns runtime lifecycle, capability truth, generation
@@ -416,11 +416,12 @@ execution state, never the durable volume or continuation manifest.
 The first open has a separate short-lived bootstrap lease keyed by the durable
 Program/workspace identity, because two tabs do not yet share a `volumeId`.
 Inside that lease the product reloads the continuation manifest, creates a
-candidate volume only when it is still absent, and resolves the exact repository
-CAS before exposing a workspace. A CAS loser or unknown response reloads the
-winning manifest, closes and removes its unattached orphan candidate, and then
-opens only the winner's volume. Pi never starts before the winning manifest is
-known and its volume lease has been acquired.
+candidate volume only when it is still absent, and resolves the repository's
+exact insert-if-absent operation before exposing a workspace. A conflict or
+unknown response reloads the winning manifest, closes and removes its unattached
+orphan candidate when ownership is known, and then opens only the winner's
+volume. Pi never starts before the winning manifest is known and its volume
+lease has been acquired.
 
 The Program repository owns one small exact continuation manifest per Program:
 `programId`, `workspaceId`, opaque `volumeId`, workspace format revision, and
@@ -679,21 +680,21 @@ passing a pixel threshold alone is not design approval.
 This table is the completion denominator for the rewrite. A working preview is
 evidence for the preview only.
 
-| Area               | Accepted product role                                     | Current preview evidence                                         | Remaining before product-ready                                     |
-| ------------------ | --------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Creator home       | Express intent and create/open a Program                  | Local request + B0a/B0b setup + P2 recent reopen                 | Attachments and general Provider UI                                |
-| Creator supervisor | Chat supervises one Program without becoming Program data | Durable run receipts + explicit disposable Pi session binding    | Program-anchored checkpoint continuation, then artifacts/snapshots |
-| Program workspace  | One focused mutable workspace produces reviewed snapshots | Durable Program lineage + disposable native read/write volume    | OPFS checkpoint/reopen/export first; later edit/bash and snapshots |
-| Human review       | Accept/reject an exact proposed revision                  | Durable exact decision + cross-page stale rejection              | Workspace-generation/snapshot publication                          |
-| Activity           | Explain what happened and what needs review               | Durable run events + session-local last-write receipt            | Complete tool/action history and approvals                         |
-| Capabilities       | Required Agent and UI abilities are understandable        | Proposal tool + native read/write + truthful workspace status    | Edit/bash and adapter-specific capability composition              |
-| Generated UI       | Agent-authored UI remains legible and controllable        | Not implemented                                                  | OpenUI mapped to closed SillyMaker components                      |
-| Source             | Inspect and refine the Program where useful               | Presentation-only recipe preview                                 | Persistent draft checkpoint first; accepted snapshots later        |
-| Translation        | A usable translation Program                              | Intent classification only                                       | Complete workflow, data, QA, export                                |
-| Writing            | A usable writing Program                                  | Intent classification only                                       | Complete workflow, data, revision tools                            |
-| Role-play          | A usable role-play Program                                | Intent classification only                                       | Complete sessions, characters, VN behavior                         |
-| Browser            | Publishable local-first product with BYO Provider         | Fixed-profile Pi + durable Program/run + disposable native tools | OPFS checkpoint/export first; Provider UI and closure later        |
-| Deno Desktop       | Same product with admitted Host integrations              | Responsive preview target                                        | Companion acceptance, storage, packaging qualification             |
+| Area               | Accepted product role                                     | Current preview evidence                                          | Remaining before product-ready                              |
+| ------------------ | --------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------- |
+| Creator home       | Express intent and create/open a Program                  | Local request + B0a/B0b setup + P2 recent reopen                  | Attachments and general Provider UI                         |
+| Creator supervisor | Chat supervises one Program without becoming Program data | Durable run receipts + fresh Pi session over a durable checkpoint | Program-anchored artifacts/snapshots after complete P3c-B0  |
+| Program workspace  | One focused mutable workspace produces reviewed snapshots | OPFS checkpoint + exact continuation + cold reopen                | Recovery/scale/export; later edit/bash and snapshots        |
+| Human review       | Accept/reject an exact proposed revision                  | Durable exact decision + cross-page stale rejection               | Workspace-generation/snapshot publication                   |
+| Activity           | Explain what happened and what needs review               | Durable run events + session-local last-write receipt             | Complete tool/action history and approvals                  |
+| Capabilities       | Required Agent and UI abilities are understandable        | Proposal tool + native read/write + truthful workspace status     | Edit/bash and adapter-specific capability composition       |
+| Generated UI       | Agent-authored UI remains legible and controllable        | Not implemented                                                   | OpenUI mapped to closed SillyMaker components               |
+| Source             | Inspect and refine the Program where useful               | Presentation-only recipe preview                                  | Persistent draft checkpoint first; accepted snapshots later |
+| Translation        | A usable translation Program                              | Intent classification only                                        | Complete workflow, data, QA, export                         |
+| Writing            | A usable writing Program                                  | Intent classification only                                        | Complete workflow, data, revision tools                     |
+| Role-play          | A usable role-play Program                                | Intent classification only                                        | Complete sessions, characters, VN behavior                  |
+| Browser            | Publishable local-first product with BYO Provider         | Fixed-profile Pi + durable Program/run/workspace checkpoint       | Recovery/scale/export first; Provider UI and closure later  |
+| Deno Desktop       | Same product with admitted Host integrations              | Responsive preview target                                         | Companion acceptance, storage, packaging qualification      |
 
 Before SillyOS is called a complete reference product, this table must be
 reconciled with implementation and tests, the current-low-end startup,

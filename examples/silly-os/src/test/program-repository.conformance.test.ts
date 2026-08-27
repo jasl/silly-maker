@@ -4,9 +4,10 @@ import { IDBFactory as FakeIDBFactory, IDBObjectStore as FakeIDBObjectStore } fr
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-  createIndexedDbProgramRepositoryV2,
-  programRepositoryDatabaseVersionV2,
-  programRepositoryObjectStoreNameV2,
+  createIndexedDbProgramRepositoryV3,
+  programRepositoryDatabaseVersionV3,
+  programRepositoryProgramObjectStoreNameV3,
+  programRepositoryWorkspaceContinuationObjectStoreNameV3,
 } from "../product/indexeddb-program-repository.ts";
 import {
   createMemoryProgramRepositoryBackingV2,
@@ -14,12 +15,15 @@ import {
 } from "../product/memory-program-repository.ts";
 import {
   admitProgramRepositoryAggregateV2,
+  admitBrowserProgramContinuationManifestV1,
   programRepositoryMaximumAgentRunReceiptsV2,
   programRepositoryMaximumProgramsV2,
   type ProgramRepositoryApplyRevisionInputV2,
+  type BrowserProgramContinuationManifestV1,
+  type ProgramRepositoryAggregateV2,
   type ProgramRepositoryDecideInputV2,
   type ProgramRepositorySettleAgentRunInputV2,
-  type ProgramRepositoryV2,
+  type ProgramRepositoryWithWorkspaceContinuationV1,
 } from "../product/program-repository.ts";
 import type {
   CreatorAgentRunOutcomeV1,
@@ -31,7 +35,7 @@ import { createCreatorSessionV1 } from "../product/creator-session.ts";
 import { createDeterministicFakeCreatorV1 } from "../product/fake-creator.ts";
 
 interface RepositoryHarnessV2 {
-  open(): ProgramRepositoryV2;
+  open(): ProgramRepositoryWithWorkspaceContinuationV1;
 }
 
 function createMemoryHarnessV2(): RepositoryHarnessV2 {
@@ -43,7 +47,7 @@ function createIndexedDbHarnessV2(): RepositoryHarnessV2 {
   const indexedDB = new FakeIDBFactory();
   return {
     open: () =>
-      createIndexedDbProgramRepositoryV2({
+      createIndexedDbProgramRepositoryV3({
         indexedDB,
         databaseName: "sillyos-program-repository-conformance",
       }),
@@ -100,6 +104,24 @@ function createSnapshotSequenceV1(workspaceId: string) {
       snapshot: accepted,
       updatedAt: 300,
     } satisfies ProgramRepositoryDecideInputV2,
+  };
+}
+
+function continuationForAggregateV1(
+  aggregate: ProgramRepositoryAggregateV2,
+  volumeId = `${aggregate.programId}.volume.1`,
+): BrowserProgramContinuationManifestV1 {
+  const program = aggregate.snapshot.program;
+  const workspace = aggregate.snapshot.workspace;
+  if (program === null || workspace === null) throw new Error("expected Program workspace");
+  return {
+    revision: 1,
+    programId: aggregate.programId,
+    workspaceId: workspace.workspaceId,
+    volumeId,
+    workspaceFormat: 1,
+    programRevision: program.revision,
+    repositoryRevision: aggregate.repositoryRevision,
   };
 }
 
@@ -186,6 +208,13 @@ for (
       await Promise.all([first.initialize(), second.initialize()]);
       const created = await first.create({ snapshot: snapshots.initial, updatedAt: 100 });
       expect(created).toMatchObject({ kind: "committed", aggregate: { repositoryRevision: 1 } });
+      if (created.kind !== "committed") throw new Error("expected initial commit");
+      const initialContinuation = continuationForAggregateV1(created.aggregate);
+      await expect(first.loadWorkspaceContinuation(programId)).resolves.toBeNull();
+      await expect(first.insertWorkspaceContinuation(initialContinuation)).resolves.toEqual({
+        kind: "committed",
+        continuation: initialContinuation,
+      });
       await expect(first.create({ snapshot: snapshots.initial, updatedAt: 100 })).resolves
         .toMatchObject({ kind: "unchanged", aggregate: { repositoryRevision: 1 } });
       expect(await first.list()).toEqual([
@@ -201,6 +230,11 @@ for (
       expect(revised).toMatchObject({
         kind: "committed",
         aggregate: { repositoryRevision: 2, updatedAt: 200 },
+      });
+      await expect(second.loadWorkspaceContinuation(programId)).resolves.toMatchObject({
+        programRevision: 2,
+        repositoryRevision: 2,
+        volumeId: initialContinuation.volumeId,
       });
       await expect(second.applyRevision(snapshots.applyInput)).resolves.toMatchObject({
         kind: "unchanged",
@@ -228,6 +262,11 @@ for (
           decisions: [{ programRevision: 2, status: "accepted", repositoryRevision: 3 }],
         },
       });
+      await expect(first.loadWorkspaceContinuation(programId)).resolves.toMatchObject({
+        programRevision: 2,
+        repositoryRevision: 3,
+        volumeId: initialContinuation.volumeId,
+      });
       await expect(first.decide(snapshots.decideInput)).resolves.toMatchObject({
         kind: "unchanged",
         aggregate: { repositoryRevision: 3 },
@@ -246,6 +285,57 @@ for (
         snapshot: { proposal: { status: "accepted" } },
         programRevisions: [{ revision: 1 }, { revision: 2 }],
       });
+      await expect(reopened.loadWorkspaceContinuation(programId)).resolves.toMatchObject({
+        programRevision: 2,
+        repositoryRevision: 3,
+        volumeId: initialContinuation.volumeId,
+      });
+      await reopened.dispose();
+    });
+
+    it("inserts one exact detached workspace continuation without replacing its owner", async () => {
+      const harness = createHarness();
+      const repository = harness.open();
+      const snapshot = createSnapshotSequenceV1(
+        `workspace.${name.toLowerCase()}.continuation-insert`,
+      ).initial;
+      const created = await repository.create({ snapshot, updatedAt: 1 });
+      if (created.kind !== "committed") throw new Error("expected Program commit");
+      const first = continuationForAggregateV1(created.aggregate);
+
+      await expect(repository.loadWorkspaceContinuation(first.programId)).resolves.toBeNull();
+      const committed = await repository.insertWorkspaceContinuation(first);
+      expect(committed).toEqual({ kind: "committed", continuation: first });
+      if (committed.kind !== "committed") throw new Error("expected continuation commit");
+      (committed.continuation as { volumeId: string }).volumeId = "volume.detached.mutation";
+      await expect(repository.loadWorkspaceContinuation(first.programId)).resolves.toEqual(first);
+
+      await expect(repository.insertWorkspaceContinuation(first)).resolves.toEqual({
+        kind: "unchanged",
+        continuation: first,
+      });
+      await expect(repository.insertWorkspaceContinuation({
+        expected: null,
+        continuation: first,
+      } as unknown as BrowserProgramContinuationManifestV1)).rejects.toThrow(
+        "sillyos.program_repository.workspace_continuation_insert.invalid/",
+      );
+
+      const replacement = { ...first, volumeId: `${first.volumeId}.replacement` };
+      await expect(repository.insertWorkspaceContinuation(replacement)).resolves.toEqual({
+        kind: "conflict",
+        current: first,
+      });
+      await expect(repository.insertWorkspaceContinuation({
+        ...replacement,
+        repositoryRevision: 2,
+      })).resolves.toEqual({ kind: "conflict", current: first });
+
+      await repository.dispose();
+      const reopened = harness.open();
+      await expect(reopened.loadWorkspaceContinuation(first.programId)).resolves.toEqual(
+        first,
+      );
       await reopened.dispose();
     });
 
@@ -267,8 +357,11 @@ for (
         if (program === null) throw new Error("expected initial Program");
         const repository = harness.open();
         await repository.initialize();
-        await expect(repository.create({ snapshot: initial, updatedAt: 1 })).resolves
-          .toMatchObject({ kind: "committed", aggregate: { repositoryRevision: 1 } });
+        const created = await repository.create({ snapshot: initial, updatedAt: 1 });
+        expect(created).toMatchObject({ kind: "committed", aggregate: { repositoryRevision: 1 } });
+        if (created.kind !== "committed") throw new Error("expected initial commit");
+        const continuation = continuationForAggregateV1(created.aggregate);
+        await repository.insertWorkspaceContinuation(continuation);
 
         const run = currentAgentRunV1({
           session,
@@ -313,6 +406,12 @@ for (
         expect(settled.aggregate.programRevisions.map(({ revision }) => revision)).toEqual(
           outcome === "completed" ? [1, 2] : [1],
         );
+        await expect(repository.loadWorkspaceContinuation(program.programId)).resolves
+          .toMatchObject({
+            programRevision: outcome === "completed" ? 2 : 1,
+            repositoryRevision: 2,
+            volumeId: continuation.volumeId,
+          });
 
         await expect(repository.settleAgentRun(input)).resolves.toEqual({
           kind: "unchanged",
@@ -353,6 +452,11 @@ for (
         await repository.dispose();
         const reopened = harness.open();
         await expect(reopened.load(program.programId)).resolves.toEqual(settled.aggregate);
+        await expect(reopened.loadWorkspaceContinuation(program.programId)).resolves
+          .toMatchObject({
+            programRevision: outcome === "completed" ? 2 : 1,
+            repositoryRevision: 2,
+          });
         await reopened.dispose();
       }
     });
@@ -484,6 +588,54 @@ describe("ProgramRepositoryV2 strict admission", () => {
     });
   });
 
+  it("fails closed for an orphan or stale memory continuation", async () => {
+    const backing = createMemoryProgramRepositoryBackingV2();
+    const repository = createMemoryProgramRepositoryV2({ backing });
+    const { initial } = createSnapshotSequenceV1("workspace.memory.corrupt-continuation");
+    const created = await repository.create({ snapshot: initial, updatedAt: 1 });
+    if (created.kind !== "committed") throw new Error("expected Program aggregate");
+    const continuation = continuationForAggregateV1(created.aggregate);
+    await repository.insertWorkspaceContinuation(continuation);
+    await repository.dispose();
+
+    backing.programs.delete(continuation.programId);
+    const orphan = createMemoryProgramRepositoryV2({ backing });
+    await expect(orphan.loadWorkspaceContinuation(continuation.programId)).rejects.toMatchObject({
+      code: "schema_invalid",
+      operation: "load_workspace_continuation",
+    });
+    await expect(orphan.create({ snapshot: initial, updatedAt: 1 })).rejects.toMatchObject({
+      code: "schema_invalid",
+      operation: "create",
+    });
+    await orphan.dispose();
+  });
+
+  it("admits only the exact bounded workspace-continuation manifest", async () => {
+    const repository = createMemoryProgramRepositoryV2();
+    const { initial } = createSnapshotSequenceV1("workspace.admission.continuation");
+    const created = await repository.create({ snapshot: initial, updatedAt: 1 });
+    if (created.kind !== "committed") throw new Error("expected Program aggregate");
+    const continuation = continuationForAggregateV1(created.aggregate);
+    expect(admitBrowserProgramContinuationManifestV1(continuation)).toEqual({
+      kind: "admitted",
+      value: continuation,
+    });
+    expect(admitBrowserProgramContinuationManifestV1({
+      ...continuation,
+      unexpected: true,
+    })).toEqual({ kind: "rejected", path: "/" });
+    expect(admitBrowserProgramContinuationManifestV1({
+      ...continuation,
+      volumeId: `volume.${"x".repeat(128)}`,
+    })).toEqual({ kind: "rejected", path: "/volumeId" });
+    expect(admitBrowserProgramContinuationManifestV1({
+      ...continuation,
+      repositoryRevision: 0,
+    })).toEqual({ kind: "rejected", path: "/repositoryRevision" });
+    await repository.dispose();
+  });
+
   it("admits exact receipts and rejects malformed receipt identity and linkage", async () => {
     const repository = createMemoryProgramRepositoryV2();
     const session = createAgentSessionV1("workspace.admission.receipts");
@@ -579,11 +731,11 @@ function completeTransactionV2(transaction: IDBTransaction): Promise<void> {
   });
 }
 
-describe("IndexedDB ProgramRepositoryV2 physical contract", () => {
-  it("creates a fresh exact v2 programs store", async () => {
+describe("IndexedDB ProgramRepository physical V3 contract", () => {
+  it("creates fresh exact V3 programs and workspace-continuation stores", async () => {
     const currentFactory = new FakeIDBFactory();
     const currentName = "sillyos-program-repository-schema-current";
-    const repository = createIndexedDbProgramRepositoryV2({
+    const repository = createIndexedDbProgramRepositoryV3({
       indexedDB: currentFactory,
       databaseName: currentName,
     });
@@ -592,90 +744,102 @@ describe("IndexedDB ProgramRepositoryV2 physical contract", () => {
     const current = await openRawDatabaseV2(
       currentFactory,
       currentName,
-      programRepositoryDatabaseVersionV2,
+      programRepositoryDatabaseVersionV3,
     );
-    expect([...current.objectStoreNames]).toEqual([programRepositoryObjectStoreNameV2]);
-    expect(
-      current.transaction(programRepositoryObjectStoreNameV2).objectStore(
-        programRepositoryObjectStoreNameV2,
-      ).keyPath,
-    ).toBe("programId");
-    expect(
-      current.transaction(programRepositoryObjectStoreNameV2).objectStore(
-        programRepositoryObjectStoreNameV2,
-      ).autoIncrement,
-    ).toBe(false);
-    expect(
-      current.transaction(programRepositoryObjectStoreNameV2).objectStore(
-        programRepositoryObjectStoreNameV2,
-      ).indexNames,
-    ).toHaveLength(0);
+    expect([...current.objectStoreNames]).toEqual([
+      programRepositoryProgramObjectStoreNameV3,
+      programRepositoryWorkspaceContinuationObjectStoreNameV3,
+    ]);
+    for (
+      const storeName of [
+        programRepositoryProgramObjectStoreNameV3,
+        programRepositoryWorkspaceContinuationObjectStoreNameV3,
+      ]
+    ) {
+      const store = current.transaction(storeName).objectStore(storeName);
+      expect(store.keyPath).toBe("programId");
+      expect(store.autoIncrement).toBe(false);
+      expect(store.indexNames).toHaveLength(0);
+    }
     current.close();
     await repository.dispose();
   });
 
-  it("destructively resets the exact v1 store and rejects malformed v1 or v2 schemas", async () => {
+  it("upgrades exact V2 without rewriting programs and rejects V1 or malformed V2", async () => {
     const legacyFactory = new FakeIDBFactory();
-    const legacyName = "sillyos-program-repository-schema-v1-reset";
-    const legacy = await openRawDatabaseV2(legacyFactory, legacyName, 1, (database) => {
-      database.createObjectStore(programRepositoryObjectStoreNameV2, { keyPath: "programId" });
+    const legacyName = "sillyos-program-repository-schema-v2-upgrade";
+    const snapshot = createSnapshotSequenceV1("workspace.schema.v2-upgrade").initial;
+    const memory = createMemoryProgramRepositoryV2();
+    const built = await memory.create({ snapshot, updatedAt: 10 });
+    if (built.kind !== "committed") throw new Error("expected V2 aggregate");
+    await memory.dispose();
+    const legacy = await openRawDatabaseV2(legacyFactory, legacyName, 2, (database) => {
+      database.createObjectStore(programRepositoryProgramObjectStoreNameV3, {
+        keyPath: "programId",
+      });
     });
-    const transaction = legacy.transaction(programRepositoryObjectStoreNameV2, "readwrite");
+    const transaction = legacy.transaction(programRepositoryProgramObjectStoreNameV3, "readwrite");
     const completion = completeTransactionV2(transaction);
-    transaction.objectStore(programRepositoryObjectStoreNameV2).put({
-      schemaVersion: 1,
-      programId: "program.legacy",
-    });
+    transaction.objectStore(programRepositoryProgramObjectStoreNameV3).put(built.aggregate);
     await completion;
     legacy.close();
 
-    const reset = createIndexedDbProgramRepositoryV2({
+    const upgraded = createIndexedDbProgramRepositoryV3({
       indexedDB: legacyFactory,
       databaseName: legacyName,
     });
-    await reset.initialize();
-    await expect(reset.list()).resolves.toEqual([]);
-    await expect(reset.load("program.legacy")).resolves.toBeNull();
-    await reset.dispose();
+    await upgraded.initialize();
+    await expect(upgraded.load(built.aggregate.programId)).resolves.toEqual(built.aggregate);
+    await expect(upgraded.loadWorkspaceContinuation(built.aggregate.programId)).resolves.toBeNull();
+    await upgraded.dispose();
 
-    const malformedLegacyFactory = new FakeIDBFactory();
-    const malformedLegacyName = "sillyos-program-repository-schema-v1-malformed";
-    const malformedLegacy = await openRawDatabaseV2(
-      malformedLegacyFactory,
-      malformedLegacyName,
+    const v1Factory = new FakeIDBFactory();
+    const v1Name = "sillyos-program-repository-schema-v1-rejected";
+    const v1 = await openRawDatabaseV2(
+      v1Factory,
+      v1Name,
       1,
       (database) => {
-        database.createObjectStore(programRepositoryObjectStoreNameV2, { keyPath: "programId" });
-        database.createObjectStore("unexpected");
+        database.createObjectStore(programRepositoryProgramObjectStoreNameV3, {
+          keyPath: "programId",
+        });
       },
     );
-    malformedLegacy.close();
+    v1.close();
     await expect(
-      createIndexedDbProgramRepositoryV2({
-        indexedDB: malformedLegacyFactory,
-        databaseName: malformedLegacyName,
+      createIndexedDbProgramRepositoryV3({
+        indexedDB: v1Factory,
+        databaseName: v1Name,
       }).initialize(),
     ).rejects.toMatchObject({ code: "schema_invalid", operation: "initialize" });
 
-    const invalidFactory = new FakeIDBFactory();
-    const invalidName = "sillyos-program-repository-schema-invalid";
-    const invalid = await openRawDatabaseV2(invalidFactory, invalidName, 2, (database) => {
-      database.createObjectStore(programRepositoryObjectStoreNameV2, { keyPath: "wrong" });
+    const malformedFactory = new FakeIDBFactory();
+    const malformedName = "sillyos-program-repository-schema-v2-malformed";
+    const malformed = await openRawDatabaseV2(malformedFactory, malformedName, 2, (database) => {
+      database.createObjectStore(programRepositoryProgramObjectStoreNameV3, {
+        keyPath: "programId",
+      });
+      database.createObjectStore("unexpected");
     });
-    invalid.close();
+    malformed.close();
     await expect(
-      createIndexedDbProgramRepositoryV2({ indexedDB: invalidFactory, databaseName: invalidName })
+      createIndexedDbProgramRepositoryV3({
+        indexedDB: malformedFactory,
+        databaseName: malformedName,
+      })
         .initialize(),
     ).rejects.toMatchObject({ code: "schema_invalid" });
   });
 
-  it("reports a blocked v1 upgrade and a newer database without fallback", async () => {
+  it("reports a blocked exact V2 upgrade and a newer database without fallback", async () => {
     const blockedFactory = new FakeIDBFactory();
     const blockedName = "sillyos-program-repository-schema-blocked";
-    const blocker = await openRawDatabaseV2(blockedFactory, blockedName, 1, (database) => {
-      database.createObjectStore(programRepositoryObjectStoreNameV2, { keyPath: "programId" });
+    const blocker = await openRawDatabaseV2(blockedFactory, blockedName, 2, (database) => {
+      database.createObjectStore(programRepositoryProgramObjectStoreNameV3, {
+        keyPath: "programId",
+      });
     });
-    const blockedRepository = createIndexedDbProgramRepositoryV2({
+    const blockedRepository = createIndexedDbProgramRepositoryV3({
       indexedDB: blockedFactory,
       databaseName: blockedName,
     });
@@ -688,19 +852,19 @@ describe("IndexedDB ProgramRepositoryV2 physical contract", () => {
 
     const futureFactory = new FakeIDBFactory();
     const futureName = "sillyos-program-repository-schema-future";
-    const future = await openRawDatabaseV2(futureFactory, futureName, 3, (database) => {
+    const future = await openRawDatabaseV2(futureFactory, futureName, 4, (database) => {
       database.createObjectStore("future");
     });
     future.close();
     await expect(
-      createIndexedDbProgramRepositoryV2({ indexedDB: futureFactory, databaseName: futureName })
+      createIndexedDbProgramRepositoryV3({ indexedDB: futureFactory, databaseName: futureName })
         .initialize(),
     ).rejects.toMatchObject({ code: "database_newer", operation: "initialize" });
   });
 
-  it("fails closed for unavailable IndexedDB and a corrupt aggregate row", async () => {
+  it("fails closed for unavailable IndexedDB and corrupt or orphan rows", async () => {
     await expect(
-      createIndexedDbProgramRepositoryV2({
+      createIndexedDbProgramRepositoryV3({
         indexedDB: undefined as unknown as IDBFactory,
         databaseName: "sillyos-program-repository-unavailable",
       }).initialize(),
@@ -708,34 +872,115 @@ describe("IndexedDB ProgramRepositoryV2 physical contract", () => {
 
     const indexedDB = new FakeIDBFactory();
     const databaseName = "sillyos-program-repository-corrupt-row";
-    const initialized = createIndexedDbProgramRepositoryV2({ indexedDB, databaseName });
+    const initialized = createIndexedDbProgramRepositoryV3({ indexedDB, databaseName });
     await initialized.initialize();
     await initialized.dispose();
-    const database = await openRawDatabaseV2(indexedDB, databaseName, 2);
-    const transaction = database.transaction(programRepositoryObjectStoreNameV2, "readwrite");
+    const database = await openRawDatabaseV2(
+      indexedDB,
+      databaseName,
+      programRepositoryDatabaseVersionV3,
+    );
+    const transaction = database.transaction(
+      programRepositoryProgramObjectStoreNameV3,
+      "readwrite",
+    );
     const completion = completeTransactionV2(transaction);
-    transaction.objectStore(programRepositoryObjectStoreNameV2).put({
+    transaction.objectStore(programRepositoryProgramObjectStoreNameV3).put({
       programId: "program.corrupt",
       schemaVersion: 1,
     });
     await completion;
     database.close();
 
-    const reopened = createIndexedDbProgramRepositoryV2({ indexedDB, databaseName });
+    const reopened = createIndexedDbProgramRepositoryV3({ indexedDB, databaseName });
     await expect(reopened.load("program.corrupt")).rejects.toMatchObject({
       code: "schema_invalid",
       operation: "load",
     });
     await reopened.dispose();
+
+    const continuationFactory = new FakeIDBFactory();
+    const continuationName = "sillyos-program-repository-corrupt-continuation";
+    const continuationRepository = createIndexedDbProgramRepositoryV3({
+      indexedDB: continuationFactory,
+      databaseName: continuationName,
+    });
+    const snapshot = createSnapshotSequenceV1("workspace.corrupt.continuation").initial;
+    const created = await continuationRepository.create({ snapshot, updatedAt: 1 });
+    if (created.kind !== "committed") throw new Error("expected Program commit");
+    const continuation = continuationForAggregateV1(created.aggregate);
+    await continuationRepository.dispose();
+    const continuationDatabase = await openRawDatabaseV2(
+      continuationFactory,
+      continuationName,
+      programRepositoryDatabaseVersionV3,
+    );
+    const continuationTransaction = continuationDatabase.transaction(
+      programRepositoryWorkspaceContinuationObjectStoreNameV3,
+      "readwrite",
+    );
+    const continuationCompletion = completeTransactionV2(continuationTransaction);
+    continuationTransaction.objectStore(programRepositoryWorkspaceContinuationObjectStoreNameV3)
+      .put({ ...continuation, repositoryRevision: 99 });
+    await continuationCompletion;
+    continuationDatabase.close();
+    const corruptContinuation = createIndexedDbProgramRepositoryV3({
+      indexedDB: continuationFactory,
+      databaseName: continuationName,
+    });
+    await expect(
+      corruptContinuation.loadWorkspaceContinuation(continuation.programId),
+    ).rejects.toMatchObject({
+      code: "schema_invalid",
+      operation: "load_workspace_continuation",
+    });
+    await corruptContinuation.dispose();
+
+    const orphanFactory = new FakeIDBFactory();
+    const orphanName = "sillyos-program-repository-orphan-continuation";
+    const orphanInitializer = createIndexedDbProgramRepositoryV3({
+      indexedDB: orphanFactory,
+      databaseName: orphanName,
+    });
+    await orphanInitializer.initialize();
+    await orphanInitializer.dispose();
+    const orphanDatabase = await openRawDatabaseV2(
+      orphanFactory,
+      orphanName,
+      programRepositoryDatabaseVersionV3,
+    );
+    const orphanTransaction = orphanDatabase.transaction(
+      programRepositoryWorkspaceContinuationObjectStoreNameV3,
+      "readwrite",
+    );
+    const orphanCompletion = completeTransactionV2(orphanTransaction);
+    orphanTransaction.objectStore(programRepositoryWorkspaceContinuationObjectStoreNameV3).put(
+      continuation,
+    );
+    await orphanCompletion;
+    orphanDatabase.close();
+    const orphanRepository = createIndexedDbProgramRepositoryV3({
+      indexedDB: orphanFactory,
+      databaseName: orphanName,
+    });
+    await expect(orphanRepository.loadWorkspaceContinuation(continuation.programId)).rejects
+      .toMatchObject({ code: "schema_invalid" });
+    await expect(orphanRepository.create({ snapshot, updatedAt: 1 })).rejects.toMatchObject({
+      code: "schema_invalid",
+      operation: "create",
+    });
+    await orphanRepository.dispose();
   });
 
-  it("maps quota and post-request abort without retaining a successor", async () => {
+  it("atomically retains both Program and continuation on quota or abort", async () => {
     const indexedDB = new FakeIDBFactory();
     const databaseName = "sillyos-program-repository-commit-failures";
-    const repository = createIndexedDbProgramRepositoryV2({ indexedDB, databaseName });
+    const repository = createIndexedDbProgramRepositoryV3({ indexedDB, databaseName });
     const snapshots = createSnapshotSequenceV1("workspace.commit.failure");
     const created = await repository.create({ snapshot: snapshots.initial, updatedAt: 100 });
     if (created.kind !== "committed") throw new Error("expected initial commit");
+    const continuation = continuationForAggregateV1(created.aggregate);
+    await repository.insertWorkspaceContinuation(continuation);
 
     vi.spyOn(FakeIDBObjectStore.prototype, "put").mockImplementationOnce(() => {
       throw new DOMException("synthetic quota", "QuotaExceededError");
@@ -746,6 +991,8 @@ describe("IndexedDB ProgramRepositoryV2 physical contract", () => {
     });
     vi.restoreAllMocks();
     expect((await repository.load(created.aggregate.programId))?.repositoryRevision).toBe(1);
+    await expect(repository.loadWorkspaceContinuation(created.aggregate.programId)).resolves
+      .toEqual(continuation);
 
     const originalPut = FakeIDBObjectStore.prototype.put;
     vi.spyOn(FakeIDBObjectStore.prototype, "put").mockImplementationOnce(function (
@@ -762,6 +1009,8 @@ describe("IndexedDB ProgramRepositoryV2 physical contract", () => {
     });
     vi.restoreAllMocks();
     expect((await repository.load(created.aggregate.programId))?.repositoryRevision).toBe(1);
+    await expect(repository.loadWorkspaceContinuation(created.aggregate.programId)).resolves
+      .toEqual(continuation);
     await repository.dispose();
   });
 });

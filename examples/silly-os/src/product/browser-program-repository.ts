@@ -8,31 +8,31 @@ import {
   type ProgramRepositoryDecideInputV2,
   type ProgramRepositoryOperationV2,
   type ProgramRepositorySettleAgentRunInputV2,
-  type ProgramRepositoryV2,
+  type ProgramRepositoryWithWorkspaceContinuationV1,
 } from "./program-repository.ts";
 import {
-  admitProgramRepositoryWorkerRequestEnvelopeV2,
-  admitProgramRepositoryWorkerResponseEnvelopeV2,
-  operationForProgramRepositoryWorkerMethodV2,
-  type ProgramRepositoryWorkerMethodV2,
-  type ProgramRepositoryWorkerRequestEnvelopeV2,
-  type ProgramRepositoryWorkerRequestV2,
-  type ProgramRepositoryWorkerSuccessV2,
+  admitProgramRepositoryWorkerRequestEnvelopeV3,
+  admitProgramRepositoryWorkerResponseEnvelopeV3,
+  operationForProgramRepositoryWorkerMethodV3,
+  type ProgramRepositoryWorkerMethodV3,
+  type ProgramRepositoryWorkerRequestEnvelopeV3,
+  type ProgramRepositoryWorkerRequestV3,
+  type ProgramRepositoryWorkerSuccessV3,
 } from "./program-repository-worker-protocol.ts";
 
-interface ProgramRepositoryWorkerMessageEventV2 {
+interface ProgramRepositoryWorkerMessageEventV3 {
   readonly data: unknown;
 }
 
-export interface ProgramRepositoryWorkerLikeV2 {
+export interface ProgramRepositoryWorkerLikeV3 {
   addEventListener(
     type: "message",
-    listener: (event: ProgramRepositoryWorkerMessageEventV2) => void,
+    listener: (event: ProgramRepositoryWorkerMessageEventV3) => void,
   ): void;
   addEventListener(type: "error" | "messageerror", listener: () => void): void;
   removeEventListener(
     type: "message",
-    listener: (event: ProgramRepositoryWorkerMessageEventV2) => void,
+    listener: (event: ProgramRepositoryWorkerMessageEventV3) => void,
   ): void;
   removeEventListener(type: "error" | "messageerror", listener: () => void): void;
   postMessage(message: unknown): void;
@@ -40,21 +40,22 @@ export interface ProgramRepositoryWorkerLikeV2 {
 }
 
 export interface CreateBrowserProgramRepositoryOptionsV2 {
-  readonly createWorker?: () => ProgramRepositoryWorkerLikeV2;
+  readonly createWorker?: () => ProgramRepositoryWorkerLikeV3;
 }
 
-interface PendingCallV2 {
-  readonly method: ProgramRepositoryWorkerMethodV2;
+interface PendingCallV3 {
+  readonly method: ProgramRepositoryWorkerMethodV3;
   readonly operation: ProgramRepositoryOperationV2;
   readonly mutation: boolean;
   delivered: boolean;
-  readonly resolve: (record: ProgramRepositoryWorkerSuccessV2) => void;
+  readonly resolve: (record: ProgramRepositoryWorkerSuccessV3) => void;
   readonly reject: (error: unknown) => void;
 }
 
-function isMutationMethodV2(method: ProgramRepositoryWorkerMethodV2): boolean {
+function isMutationMethodV3(method: ProgramRepositoryWorkerMethodV3): boolean {
   return method === "create" || method === "apply_revision" ||
-    method === "settle_agent_run" || method === "decide";
+    method === "settle_agent_run" || method === "decide" ||
+    method === "insert_workspace_continuation";
 }
 
 function responseRequestIdV2(value: unknown): string | null {
@@ -70,19 +71,19 @@ function responseRequestIdV2(value: unknown): string | null {
   }
 }
 
-function defaultProgramRepositoryWorkerV2(): ProgramRepositoryWorkerLikeV2 {
+function defaultProgramRepositoryWorkerV3(): ProgramRepositoryWorkerLikeV3 {
   return new Worker(new URL("./program-repository.worker.ts", import.meta.url), {
     type: "module",
-    name: "sillyos-program-repository-v2",
+    name: "sillyos-program-repository-v3",
   });
 }
 
 /** Page-side product facade. No IndexedDB handle crosses this boundary. */
 export function createBrowserProgramRepositoryV2(
   options: CreateBrowserProgramRepositoryOptionsV2 = {},
-): ProgramRepositoryV2 {
-  const worker = options.createWorker?.() ?? defaultProgramRepositoryWorkerV2();
-  const pending = new Map<string, PendingCallV2>();
+): ProgramRepositoryWithWorkspaceContinuationV1 {
+  const worker = options.createWorker?.() ?? defaultProgramRepositoryWorkerV3();
+  const pending = new Map<string, PendingCallV3>();
   let nextRequestId = 1;
   let lifecycle: "active" | "disposing" | "disposed" = "active";
   let disposePromise: Promise<void> | null = null;
@@ -117,12 +118,12 @@ export function createBrowserProgramRepositoryV2(
     terminateV2("unavailable");
   }
 
-  function onMessageV2(event: ProgramRepositoryWorkerMessageEventV2): void {
+  function onMessageV2(event: ProgramRepositoryWorkerMessageEventV3): void {
     const requestId = responseRequestIdV2(event.data);
     if (requestId === null) return;
     const call = pending.get(requestId);
     if (call === undefined) return;
-    const response = admitProgramRepositoryWorkerResponseEnvelopeV2(event.data, call.method);
+    const response = admitProgramRepositoryWorkerResponseEnvelopeV3(event.data, call.method);
     if (response.kind === "rejected" || response.value.requestId !== requestId) {
       terminateV2("unavailable");
       return;
@@ -145,31 +146,31 @@ export function createBrowserProgramRepositoryV2(
   worker.addEventListener("messageerror", onTransportLossV2);
 
   const callV2 = (
-    record: ProgramRepositoryWorkerRequestV2,
+    record: ProgramRepositoryWorkerRequestV3,
     allowDisposing = false,
-  ): Promise<ProgramRepositoryWorkerSuccessV2> => {
-    const operation = operationForProgramRepositoryWorkerMethodV2(record.method);
+  ): Promise<ProgramRepositoryWorkerSuccessV3> => {
+    const operation = operationForProgramRepositoryWorkerMethodV3(record.method);
     if (lifecycle === "disposed" || (lifecycle === "disposing" && !allowDisposing)) {
       return Promise.reject(createProgramRepositoryFailureV2("disposed", operation));
     }
     const requestId = `program-repository.rpc.${String(nextRequestId++)}`;
-    const candidate: ProgramRepositoryWorkerRequestEnvelopeV2 = {
-      revision: 2,
+    const candidate: ProgramRepositoryWorkerRequestEnvelopeV3 = {
+      revision: 3,
       kind: "rpc_request",
       requestId,
       record,
     };
-    const admitted = admitProgramRepositoryWorkerRequestEnvelopeV2(candidate);
+    const admitted = admitProgramRepositoryWorkerRequestEnvelopeV3(candidate);
     if (admitted.kind === "rejected") {
       return Promise.reject(
         new TypeError(`sillyos.program_repository.request.invalid${admitted.path}`),
       );
     }
     return new Promise((resolve, reject) => {
-      const call: PendingCallV2 = {
+      const call: PendingCallV3 = {
         method: record.method,
         operation,
-        mutation: isMutationMethodV2(record.method),
+        mutation: isMutationMethodV3(record.method),
         delivered: false,
         resolve,
         reject,
@@ -205,6 +206,14 @@ export function createBrowserProgramRepositoryV2(
       return response.value;
     },
 
+    async loadWorkspaceContinuation(programId) {
+      const response = await callV2({ method: "load_workspace_continuation", programId });
+      if (response.method !== "load_workspace_continuation") {
+        throw new TypeError("invalid workspace continuation load response");
+      }
+      return response.value;
+    },
+
     async create(input: ProgramRepositoryCreateInputV2) {
       const response = await callV2({ method: "create", input });
       if (response.method !== "create") throw new TypeError("invalid create response");
@@ -228,6 +237,17 @@ export function createBrowserProgramRepositoryV2(
     async decide(input: ProgramRepositoryDecideInputV2) {
       const response = await callV2({ method: "decide", input });
       if (response.method !== "decide") throw new TypeError("invalid decision response");
+      return response.value;
+    },
+
+    async insertWorkspaceContinuation(continuation) {
+      const response = await callV2({
+        method: "insert_workspace_continuation",
+        continuation,
+      });
+      if (response.method !== "insert_workspace_continuation") {
+        throw new TypeError("invalid workspace continuation insert response");
+      }
       return response.value;
     },
 

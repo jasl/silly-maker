@@ -60,6 +60,7 @@ export interface ProgramWorkspacePropsV1 {
   readonly onAccept: () => void;
   readonly onReject: () => void;
   readonly onSend: ChatPanePropsV1["onSend"];
+  readonly homeDisabled?: boolean;
   readonly mutationPending?: boolean;
   readonly piAgentRun?: ChatPanePropsV1["piAgentRun"];
   readonly executionWorkspace?: WorkpieceExecutionWorkspaceV1;
@@ -90,6 +91,7 @@ function ProgramWorkspaceReadyV1({
   onAccept,
   onReject,
   onSend,
+  homeDisabled = false,
   mutationPending = false,
   piAgentRun,
   executionWorkspace,
@@ -191,7 +193,7 @@ function ProgramWorkspaceReadyV1({
       <ProgramWorkspaceTopbarV1
         copy={copy}
         workspaceTitle={workspace.title}
-        homeDisabled={mutationPending}
+        homeDisabled={homeDisabled}
         onHome={onHome}
         onLocaleChange={onLocaleChange}
       />

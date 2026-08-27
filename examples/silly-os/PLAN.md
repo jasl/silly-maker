@@ -3,14 +3,14 @@
 # SillyOS product-incubation plan
 
 Status: accepted Browser-first, dual-target product lane with validated P0,
-P1-B B0a/B0b, P2, and P3a-B0 implementations plus a dev-only Pi launch helper,
-2026-08-27. P2-B0 delivered the product-owned IndexedDB Worker and exact Program
-catalog; P2-B1 then delivered Repository V2 plus bounded terminal Agent-run
-receipts. P2 is closed. P3a-B0 has now delivered the exact Browser disposable-
-workspace contract below. The owner has activated the deliberately bounded
-P3c-B0 Browser persistent Program checkpoint as the next slice. P3a remains
-open, while P1-D remains owner-paused and P3a-B1, P3b, snapshot publication,
-import, and later slices remain inactive. The raw launcher is not the typed
+P1-B B0a/B0b, P2, P3a-B0, and P3c-B0 checkpoint 1 implementations plus a
+dev-only Pi launch helper, 2026-08-27. P2-B0 delivered the product-owned
+IndexedDB Worker and exact Program catalog; P2-B1 then delivered Repository V2
+plus bounded terminal Agent-run receipts. P2 is closed. P3c-B0 checkpoint 1 has
+replaced P3a's disposable byte owner with the exact OPFS authority/cold-reopen
+contract below. Recovery/scale is the next P3c-B0 checkpoint; P3c-B0 is not
+closed. P3a remains open, while P1-D remains owner-paused and P3a-B1, P3b,
+snapshot publication, import, and later slices remain inactive. The raw launcher is not the typed
 product RPC; the live Browser route is a separate product path. This plan is local to
 `examples/silly-os`; it does not activate an engine lane or change an engine
 API. The implementation baseline before P0 is commit
@@ -81,10 +81,11 @@ follow-ups use the same Pi Agent, tool, RPC, and product currentness with a fixe
 OpenAI Responses profile. That integrated route is qualified locally and from
 its deployed Cloudflare origin. P2-B0 now adds a bounded Browser-local Program
 database, durable exact Program revisions and decisions, and recent-Program
-reload/reopen. The product still has no persistent Pi session, durable workspace
-volume, WASM guest, provider selector, or generally active capability.
-P3c-B0 is the accepted next implementation contract that closes only the
-Browser mutable-workspace persistence part of that list.
+reload/reopen. P3c-B0 checkpoint 1 now adds one durable OPFS workspace volume,
+an exact continuation anchor, and a fresh Pi session over cold reopen. The
+product still has no persistent Pi session, recovery/scale qualification,
+portable export, WASM guest, provider selector, or generally active capability.
+The remaining P3c-B0 checkpoints close only recovery/scale and portable export.
 Its initial proposal, Source, translation rows, remaining capability labels,
 and downloaded manifest remain explicit preview material.
 
@@ -1264,6 +1265,21 @@ Each checkpoint receives focused review and may commit independently, but none
 alone closes or advertises P3c-B0. P3a-B1 and P3b remain inactive until the
 complete B0 acceptance below passes and the next slice is explicitly selected.
 
+Checkpoint 1 delivered on 2026-08-27. The Program repository now owns one exact
+insert-only continuation record and advances its Program/repository anchors in
+the same transaction as later P2 mutations. A product-owned Workspace Host
+Worker exclusively owns the OPFS volume/head/journal and volume Web Lock; the
+Pi Worker receives only a transferred typed environment port and continues to
+use Pi 0.84.3's native `write`/`read`. Chromium and persistent-profile WebKit
+both prove `write -> close-settled -> full reload -> reopen -> exact read`, a
+fresh `workspaceSessionId`, continued generation, an empty reopened mutation
+queue, cancellation ordering, and Forget/reinitialize lock release. Playwright's
+ephemeral/private WebKit context rejects OPFS and is not used to manufacture a
+success claim; private-mode recovery remains checkpoint 2. The retired
+disposable runtime and arbitrary continuation replacement path were deleted.
+This delivery makes no scale, recovery-completeness, export, shell, or sandbox
+claim and does not close P3c-B0.
+
 One Program has one mutable Browser volume. Its identities stay distinct:
 
 - durable `programId` names the Program aggregate;
@@ -1378,10 +1394,11 @@ it into a new Pi session. Browser Pi starts fresh and may inspect the admitted
 Program projection and workspace files through existing product paths only.
 
 Ownership creation is the one bounded OPFS/IndexedDB coordination: the Host
-creates an empty `volumeId`, then one Program-repository CAS inserts its
-manifest anchored to the exact current Program/repository revision. Failure or
-an unknown response is reconciled by that identity and may leave only a bounded
-new-volume orphan for cleanup; it never creates two visible owners. Later P2
+creates an empty `volumeId`, then one Program-repository insert-if-absent
+operation publishes its manifest anchored to the exact current
+Program/repository revision. Failure or an unknown response is reconciled by
+that identity and may leave only a bounded new-volume orphan for cleanup; it
+never creates two visible owners. Later P2
 Program mutations advance the two revision anchors, when a manifest exists, in
 the same IndexedDB transaction as the Program aggregate. They neither read OPFS
 nor claim a byte snapshot.
@@ -1391,8 +1408,8 @@ serialized under a short-lived origin-wide bootstrap Web Lock keyed by the
 durable `programId` and `workspaceId`. Each contender reloads the manifest only
 after entering that lock. It creates a candidate volume only if the record is
 still absent, and it does not publish handles, create a `workspaceSessionId`, or
-enter Pi before the manifest CAS settles and the selected volume lease is held.
-If CAS conflicts or its response is unknown, the contender reloads the exact
+enter Pi before the manifest insertion settles and the selected volume lease is
+held. If insertion conflicts or its response is unknown, the contender reloads the exact
 record. When another `volumeId` won, it closes and deletes its still-unattached
 orphan and proceeds only with the winner; when its own identity won, it resumes
 that candidate. Simultaneous first open therefore cannot create two public

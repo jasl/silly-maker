@@ -46,9 +46,8 @@ export type BrowserPiWorkerRpcRequestV1 =
 
 export type BrowserPiWorkspaceRequestRecordV1 =
   | {
-    readonly method: "open_workspace";
-    readonly programId: string;
-    readonly workspaceId: string;
+    readonly method: "attach_workspace";
+    readonly descriptor: BrowserPiWorkerExecutionBindingV1;
   }
   | {
     readonly method: "close_workspace" | "query_workspace";
@@ -144,7 +143,7 @@ export interface BrowserPiWorkspaceSnapshotWireV1 {
 
 export type BrowserPiWorkspaceSuccessResponseV1 =
   | {
-    readonly method: "open_workspace" | "close_workspace" | "query_workspace";
+    readonly method: "attach_workspace" | "close_workspace" | "query_workspace";
     readonly snapshot: BrowserPiWorkspaceSnapshotWireV1;
   }
   | {
@@ -361,12 +360,11 @@ function admitExecutionBindingV1(value: unknown): BrowserPiWorkerExecutionBindin
 }
 
 function admitWorkspaceRequestRecordV1(value: unknown): BrowserPiWorkspaceRequestRecordV1 | null {
-  const open = exactDataRecordV1(value, ["method", "programId", "workspaceId"]);
-  if (
-    open !== null && open.method === "open_workspace" && isIdentifierV1(open.programId) &&
-    isIdentifierV1(open.workspaceId)
-  ) {
-    return { method: "open_workspace", programId: open.programId, workspaceId: open.workspaceId };
+  const attach = exactDataRecordV1(value, ["method", "descriptor"]);
+  if (attach !== null && attach.method === "attach_workspace") {
+    const descriptor = admitExecutionBindingV1(attach.descriptor);
+    if (descriptor === null) return null;
+    return { method: "attach_workspace", descriptor };
   }
   const scoped = exactDataRecordV1(value, ["method", "workspaceSessionId"]);
   if (
@@ -663,12 +661,12 @@ function admitWorkspaceSuccessResponseV1(
   const ordinary = exactDataRecordV1(value, ["method", "snapshot"]);
   if (
     ordinary !== null &&
-    (ordinary.method === "open_workspace" || ordinary.method === "close_workspace" ||
+    (ordinary.method === "attach_workspace" || ordinary.method === "close_workspace" ||
       ordinary.method === "query_workspace")
   ) {
     const snapshot = admitBrowserPiWorkspaceSnapshotWireV1(ordinary.snapshot);
     if (
-      snapshot === null || (ordinary.method === "open_workspace" && snapshot.phase !== "open") ||
+      snapshot === null || (ordinary.method === "attach_workspace" && snapshot.phase !== "open") ||
       (ordinary.method === "close_workspace" && snapshot.phase !== "closed")
     ) return null;
     return { method: ordinary.method, snapshot };
