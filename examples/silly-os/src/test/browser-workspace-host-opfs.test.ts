@@ -14,11 +14,12 @@ import type {
 } from "../workspace/browser-workspace-host-runtime.ts";
 
 type FakeEntryV1 = FakeDirectoryV1 | FakeFileV1;
-type FakeCloseFailureV1 = "before_commit" | "after_commit" | "corrupt_then_fail";
+type FakeCloseFailureV1 = "before_commit" | "after_commit" | "corrupt_then_fail" | "quota";
 
 class FakeFaultsV1 {
   readonly closeFailures = new Map<string, FakeCloseFailureV1>();
   readonly removeFailures = new Set<string>();
+  afterRemove: ((name: string) => void) | null = null;
 }
 
 class FakeFileV1 {
@@ -47,6 +48,9 @@ class FakeFileV1 {
           close: async () => {
             const failure = this.faults.closeFailures.get(this.name);
             this.faults.closeFailures.delete(this.name);
+            if (failure === "quota") {
+              throw new DOMException(`injected ${this.name} quota failure`, "QuotaExceededError");
+            }
             if (failure === "before_commit") throw new Error(`injected ${this.name} close failure`);
             if (failure === "corrupt_then_fail") {
               this.bytes = new TextEncoder().encode("{corrupt");
@@ -59,6 +63,12 @@ class FakeFileV1 {
         } as unknown as FileSystemWritableFileStream;
       },
     } as unknown as FileSystemFileHandle;
+  }
+
+  clone(faults: FakeFaultsV1): FakeFileV1 {
+    const clone = new FakeFileV1(this.name, faults);
+    clone.bytes = this.bytes.slice();
+    return clone;
   }
 }
 
@@ -101,6 +111,15 @@ class FakeDirectoryV1 {
       throw new Error(`injected ${name} remove failure`);
     }
     if (!this.entries.delete(name)) throw new DOMException("missing entry", "NotFoundError");
+    this.faults.afterRemove?.(name);
+  }
+
+  clone(faults = new FakeFaultsV1()): FakeDirectoryV1 {
+    const clone = new FakeDirectoryV1(this.name, faults);
+    for (const [name, entry] of this.entries) {
+      clone.entries.set(name, entry.clone(faults));
+    }
+    return clone;
   }
 
   handle(): FileSystemDirectoryHandle {
@@ -141,6 +160,19 @@ async function fakeDirectoryV1(
 ): Promise<FileSystemDirectoryHandle> {
   let current = root.handle();
   for (const part of path) current = await current.getDirectoryHandle(part);
+  return current;
+}
+
+function fakeDirectoryNodeV1(
+  root: FakeDirectoryV1,
+  path: readonly string[],
+): FakeDirectoryV1 {
+  let current = root;
+  for (const part of path) {
+    const next = current.entries.get(part);
+    if (!(next instanceof FakeDirectoryV1)) throw new Error(`missing fake directory ${part}`);
+    current = next;
+  }
   return current;
 }
 
@@ -239,6 +271,181 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     await bootstrap.dispose();
   });
 
+  it("reuses one stable opaque candidate after Worker loss and clears its durable marker only on open", async () => {
+    const root = new FakeDirectoryV1("root");
+    const first = createBrowserWorkspaceHostOpfsBootstrapV1({
+      getRootDirectory: async () => root.handle(),
+      lockPort: new FakeLockPortV1(),
+      createInitialCheckpointId: () => "checkpoint.stable.1",
+    });
+    const input = {
+      programId: "program.preview.1",
+      workspaceId: "workspace.preview.1",
+    };
+    const firstAnchor = await first.createCandidate(input);
+    expect(firstAnchor.volumeId).toMatch(/^sillyos\.volume\.[a-f0-9]{64}$/u);
+    await first.dispose();
+
+    const second = createBrowserWorkspaceHostOpfsBootstrapV1({
+      getRootDirectory: async () => root.handle(),
+      lockPort: new FakeLockPortV1(),
+      createInitialCheckpointId: () => "checkpoint.must-not-replace.1",
+    });
+    const resumedAnchor = await second.createCandidate(input);
+    expect(resumedAnchor).toEqual(firstAnchor);
+    const volumesNode = fakeDirectoryNodeV1(root, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+    ]);
+    expect(volumesNode.entries.size).toBe(1);
+    const volume = await fakeDirectoryV1(root, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+      firstAnchor.volumeId,
+    ]);
+    const marker = await (await volume.getFileHandle("candidate.json")).getFile();
+    expect(JSON.parse(await marker.text())).toEqual(firstAnchor);
+
+    const lease = await second.openVolume(resumedAnchor);
+    await expect(lease.readHead()).resolves.toEqual({
+      revision: 1,
+      volumeId: firstAnchor.volumeId,
+      workspaceFormat: 1,
+      checkpointId: "checkpoint.stable.1",
+      generation: 1,
+    });
+    await expect(volume.getFileHandle("candidate.json")).rejects.toMatchObject({
+      name: "NotFoundError",
+    });
+    await lease.close();
+
+    const other = await second.createCandidate({
+      ...input,
+      workspaceId: "workspace.preview.2",
+    });
+    expect(other.volumeId).not.toBe(firstAnchor.volumeId);
+    expect(volumesNode.entries.size).toBe(2);
+    await second.discardCandidate(other.volumeId);
+    await second.dispose();
+  });
+
+  it("maps unavailable OPFS states once and reports quota exhaustion as capacity exceeded", async () => {
+    for (
+      const name of [
+        "SecurityError",
+        "UnknownError",
+        "NotAllowedError",
+        "InvalidStateError",
+        "NotSupportedError",
+      ]
+    ) {
+      let rootRequests = 0;
+      const unavailable = createBrowserWorkspaceHostOpfsBootstrapV1({
+        getRootDirectory: () => {
+          rootRequests += 1;
+          return Promise.reject(new DOMException(`injected ${name}`, name));
+        },
+        lockPort: new FakeLockPortV1(),
+        createVolumeId: () => `volume.${name}.1`,
+      });
+      await expect(unavailable.createCandidate({
+        programId: "program.preview.1",
+        workspaceId: "workspace.preview.1",
+      })).rejects.toMatchObject({ code: "storage_unavailable" });
+      expect(rootRequests).toBe(1);
+      await unavailable.dispose();
+    }
+
+    let quotaRootRequests = 0;
+    const unavailableCapacity = createBrowserWorkspaceHostOpfsBootstrapV1({
+      getRootDirectory: () => {
+        quotaRootRequests += 1;
+        return Promise.reject(new DOMException("injected quota", "QuotaExceededError"));
+      },
+      lockPort: new FakeLockPortV1(),
+      createVolumeId: () => "volume.quota-root.1",
+    });
+    await expect(unavailableCapacity.createCandidate({
+      programId: "program.preview.1",
+      workspaceId: "workspace.preview.1",
+    })).rejects.toMatchObject({ code: "capacity_exceeded" });
+    expect(quotaRootRequests).toBe(1);
+    await unavailableCapacity.dispose();
+
+    const mutationCapacity = await openedOpfsV1("volume.quota-mutation.1");
+    const head = await mutationCapacity.lease.readHead();
+    mutationCapacity.root.faults.closeFailures.set("next.bin", "quota");
+    await expect(mutationCapacity.lease.replaceFile(
+      replaceInputV1(head, new TextEncoder().encode("new"), "checkpoint.quota.2"),
+    )).rejects.toMatchObject({ code: "capacity_exceeded" });
+    await expect(mutationCapacity.lease.readHead()).resolves.toEqual(head);
+    await mutationCapacity.lease.close();
+    await mutationCapacity.bootstrap.dispose();
+  });
+
+  it("does not create a substitute for a manifest-known missing or corrupt volume", async () => {
+    const missingRoot = new FakeDirectoryV1("root");
+    const missingFirst = createBrowserWorkspaceHostOpfsBootstrapV1({
+      getRootDirectory: async () => missingRoot.handle(),
+      lockPort: new FakeLockPortV1(),
+      createVolumeId: () => "volume.known-missing.1",
+      createInitialCheckpointId: () => "checkpoint.known-missing.1",
+    });
+    const missingAnchor = await missingFirst.createCandidate({
+      programId: "program.preview.1",
+      workspaceId: "workspace.preview.1",
+    });
+    await missingFirst.dispose();
+    const missingVolumes = fakeDirectoryNodeV1(missingRoot, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+    ]);
+    missingVolumes.entries.delete(missingAnchor.volumeId);
+    const missingReopen = createBrowserWorkspaceHostOpfsBootstrapV1({
+      getRootDirectory: async () => missingRoot.handle(),
+      lockPort: new FakeLockPortV1(),
+    });
+    await expect(missingReopen.openVolume(missingAnchor)).rejects.toMatchObject({
+      code: "volume_missing",
+    });
+    expect(missingVolumes.entries.size).toBe(0);
+    await missingReopen.dispose();
+
+    const corruptRoot = new FakeDirectoryV1("root");
+    const corruptFirst = createBrowserWorkspaceHostOpfsBootstrapV1({
+      getRootDirectory: async () => corruptRoot.handle(),
+      lockPort: new FakeLockPortV1(),
+      createVolumeId: () => "volume.known-corrupt.1",
+      createInitialCheckpointId: () => "checkpoint.known-corrupt.1",
+    });
+    const corruptAnchor = await corruptFirst.createCandidate({
+      programId: "program.preview.1",
+      workspaceId: "workspace.preview.1",
+    });
+    await corruptFirst.dispose();
+    const corruptControl = await fakeDirectoryV1(corruptRoot, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+      corruptAnchor.volumeId,
+      "control",
+    ]);
+    await putBytesV1(corruptControl, "head.json", new TextEncoder().encode("{corrupt"));
+    const corruptReopen = createBrowserWorkspaceHostOpfsBootstrapV1({
+      getRootDirectory: async () => corruptRoot.handle(),
+      lockPort: new FakeLockPortV1(),
+    });
+    const corruptLease = await corruptReopen.openVolume(corruptAnchor);
+    await expect(corruptLease.readHead()).rejects.toMatchObject({ code: "volume_corrupt" });
+    expect(
+      fakeDirectoryNodeV1(corruptRoot, [
+        ".sillyos-workspace-host-v1",
+        "volumes",
+      ]).entries.size,
+    ).toBe(1);
+    await corruptLease.close();
+    await corruptReopen.dispose();
+  });
+
   it("does not delete a candidate on dispose because an unknown Repository CAS may have published it", async () => {
     const root = new FakeDirectoryV1("root");
     const lockPort = new FakeLockPortV1();
@@ -268,6 +475,142 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     });
     await reopened.close();
     await reopenedBootstrap.dispose();
+  });
+
+  it("treats a valid staged-only record as cleanup debris rather than replay authority", async () => {
+    const opened = await openedOpfsV1("volume.staged-only.1");
+    const head = await opened.lease.readHead();
+    const workspace = await fakeDirectoryV1(opened.root, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+      opened.lease.anchor.volumeId,
+      "workspace",
+    ]);
+    const staging = await fakeDirectoryV1(opened.root, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+      opened.lease.anchor.volumeId,
+      "control",
+      "staging",
+    ]);
+    await putBytesV1(workspace, "program.md", new TextEncoder().encode("current"));
+    await putBytesV1(staging, "next.bin", new TextEncoder().encode("unpublished"));
+    await putBytesV1(staging, "previous.bin", new TextEncoder().encode("stale"));
+    await putBytesV1(
+      staging,
+      "pending-stage.json",
+      new TextEncoder().encode(JSON.stringify({
+        revision: 1,
+        volumeId: opened.lease.anchor.volumeId,
+        workspaceFormat: 1,
+        path: "program.md",
+        baseCheckpointId: head.checkpointId,
+        baseGeneration: head.generation,
+        nextCheckpointId: "checkpoint.unpublished.2",
+        nextGeneration: head.generation + 1,
+        previous: "file",
+        createdDirectories: [],
+      })),
+    );
+    await opened.lease.close();
+
+    const cold = createBrowserWorkspaceHostOpfsBootstrapV1({
+      getRootDirectory: async () => opened.root.handle(),
+      lockPort: new FakeLockPortV1(),
+    });
+    const recovered = await cold.openVolume(opened.lease.anchor);
+    await expect(recovered.readHead()).resolves.toEqual(head);
+    await expect(recovered.readFile("program.md")).resolves.toEqual(
+      new TextEncoder().encode("current"),
+    );
+    for (const name of ["next.bin", "previous.bin", "pending-stage.json"]) {
+      await expect(staging.getFileHandle(name)).rejects.toMatchObject({ name: "NotFoundError" });
+    }
+    await recovered.close();
+    await cold.dispose();
+    await opened.bootstrap.dispose();
+  });
+
+  it("cold-recovers every cleanup removal boundary after committed and rolled-back writes", async () => {
+    const cleanupNames = [
+      "pending.json",
+      "next.bin",
+      "previous.bin",
+      "pending-stage.json",
+    ] as const;
+
+    for (const cleanupName of cleanupNames) {
+      const committed = await openedOpfsV1(`volume.cold-commit-${cleanupName}.1`);
+      const base = await committed.lease.readHead();
+      const workspace = await fakeDirectoryV1(committed.root, [
+        ".sillyos-workspace-host-v1",
+        "volumes",
+        committed.lease.anchor.volumeId,
+        "workspace",
+      ]);
+      await putBytesV1(workspace, "program.md", new TextEncoder().encode("old"));
+      let snapshot: FakeDirectoryV1 | null = null;
+      committed.root.faults.afterRemove = (name) => {
+        if (name === cleanupName && snapshot === null) snapshot = committed.root.clone();
+      };
+      const changed = await committed.lease.replaceFile(
+        replaceInputV1(base, new TextEncoder().encode("new"), "checkpoint.cold-commit.2"),
+      );
+      committed.root.faults.afterRemove = null;
+      if (snapshot === null) throw new Error(`cleanup boundary ${cleanupName} was not captured`);
+
+      const cold = createBrowserWorkspaceHostOpfsBootstrapV1({
+        getRootDirectory: async () => snapshot!.handle(),
+        lockPort: new FakeLockPortV1(),
+      });
+      const recovered = await cold.openVolume(committed.lease.anchor);
+      await expect(recovered.readHead()).resolves.toEqual(changed.head);
+      await expect(recovered.readFile("program.md")).resolves.toEqual(
+        new TextEncoder().encode("new"),
+      );
+      await recovered.close();
+      await cold.dispose();
+      await committed.lease.close();
+      await committed.bootstrap.dispose();
+    }
+
+    for (const cleanupName of cleanupNames) {
+      const rolledBack = await openedOpfsV1(`volume.cold-rollback-${cleanupName}.1`);
+      const base = await rolledBack.lease.readHead();
+      const workspace = await fakeDirectoryV1(rolledBack.root, [
+        ".sillyos-workspace-host-v1",
+        "volumes",
+        rolledBack.lease.anchor.volumeId,
+        "workspace",
+      ]);
+      await putBytesV1(workspace, "program.md", new TextEncoder().encode("old"));
+      let snapshot: FakeDirectoryV1 | null = null;
+      rolledBack.root.faults.afterRemove = (name) => {
+        if (name === cleanupName && snapshot === null) snapshot = rolledBack.root.clone();
+      };
+      rolledBack.root.faults.closeFailures.set("program.md", "before_commit");
+      await expect(
+        rolledBack.lease.replaceFile(
+          replaceInputV1(base, new TextEncoder().encode("new"), "checkpoint.cold-rollback.2"),
+        ),
+      ).rejects.toMatchObject({ code: "request_failed" });
+      rolledBack.root.faults.afterRemove = null;
+      if (snapshot === null) throw new Error(`cleanup boundary ${cleanupName} was not captured`);
+
+      const cold = createBrowserWorkspaceHostOpfsBootstrapV1({
+        getRootDirectory: async () => snapshot!.handle(),
+        lockPort: new FakeLockPortV1(),
+      });
+      const recovered = await cold.openVolume(rolledBack.lease.anchor);
+      await expect(recovered.readHead()).resolves.toEqual(base);
+      await expect(recovered.readFile("program.md")).resolves.toEqual(
+        new TextEncoder().encode("old"),
+      );
+      await recovered.close();
+      await cold.dispose();
+      await rolledBack.lease.close();
+      await rolledBack.bootstrap.dispose();
+    }
   });
 
   it("reconciles target, head, and cleanup faults before the live lease accepts more work", async () => {

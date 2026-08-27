@@ -24,17 +24,22 @@ import {
   deterministicCancellationHoldPrefixV1,
   deterministicPersistenceReadPrefixV1,
 } from "../agent/browser-pi-runtime-bridge.js";
-import type { BrowserProgramWorkspaceAuthorityV1 } from "../product/browser-program-workspace-authority.ts";
+import type {
+  BrowserProgramWorkspaceAuthorityV1,
+  BrowserProgramWorkspaceFatalV1,
+} from "../product/browser-program-workspace-authority.ts";
 import { serializeCreatorAgentSubmitV1 } from "../product/creator-agent-admission.ts";
 import type { CreatorAgentRunRequestV1, CreatorAgentSubmitV1 } from "../product/contracts.ts";
 import { workspaceRootV1 } from "../workspace/contracts.ts";
 import type {
+  BrowserWorkspaceHostControlFailureCodeV1,
   BrowserWorkspaceHostControlOutboundMessageV1,
   BrowserWorkspaceHostControlRequestRecordV1,
   BrowserWorkspaceHostControlSuccessResponseV1,
   BrowserWorkspaceHostSnapshotWireV1,
   BrowserWorkspaceVolumeAnchorWireV1,
 } from "../workspace/browser-workspace-host-protocol.ts";
+import { BrowserWorkspaceHostControlErrorV1 } from "../workspace/browser-workspace-host-port.ts";
 import {
   createBrowserWorkspaceHostRuntimeV1,
   type BrowserWorkspaceHostBootstrapPortV1,
@@ -221,11 +226,16 @@ class TestBrowserWorkspaceBootstrapV1 implements BrowserWorkspaceHostBootstrapPo
 /** Explicit Host-side test authority; no disposable Pi-side workspace fallback exists. */
 class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceAuthorityV1 {
   private readonly controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+  private readonly fatalListeners = new Set<
+    (fatal: BrowserProgramWorkspaceFatalV1) => void
+  >();
   private readonly runtime;
   private anchor: BrowserWorkspaceVolumeAnchorWireV1 | null = null;
   private nextRequestId = 1;
   private nextCheckpointOrdinal = 2;
   private disposed = false;
+  closeWorkspaceCalls = 0;
+  nextOpenFailureCode: BrowserWorkspaceHostControlFailureCodeV1 | null = null;
 
   constructor() {
     this.runtime = createBrowserWorkspaceHostRuntimeV1({
@@ -261,6 +271,11 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
     readonly snapshot: BrowserWorkspaceHostSnapshotWireV1;
     readonly environmentPort: MessagePort;
   }> {
+    if (this.nextOpenFailureCode !== null) {
+      const code = this.nextOpenFailureCode;
+      this.nextOpenFailureCode = null;
+      throw new BrowserWorkspaceHostControlErrorV1(code, `synthetic ${code}`);
+    }
     if (this.anchor === null) {
       const created = await this.control({ method: "create_candidate", ...input });
       if (created.method !== "create_candidate") {
@@ -292,14 +307,25 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
   }
 
   async closeWorkspace(workspaceSessionId: string): Promise<BrowserWorkspaceHostSnapshotWireV1> {
+    this.closeWorkspaceCalls += 1;
     const response = await this.control({ method: "close_workspace", workspaceSessionId });
     if (response.method !== "close_workspace") throw new Error("test close response mismatch");
     return response.snapshot;
   }
 
+  subscribeFatal(listener: (fatal: BrowserProgramWorkspaceFatalV1) => void): () => void {
+    this.fatalListeners.add(listener);
+    return () => this.fatalListeners.delete(listener);
+  }
+
+  failHost(fatal: BrowserProgramWorkspaceFatalV1): void {
+    for (const listener of [...this.fatalListeners]) listener(fatal);
+  }
+
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
+    this.fatalListeners.clear();
     await this.runtime.dispose();
   }
 }
@@ -466,6 +492,7 @@ class RuntimeMismatchBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
 /** Minimal controllable Worker used only to drive product-terminal edge cases. */
 class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
   terminated = false;
+  dropSubmitResponses = false;
   latestPiRunId: string | null = null;
   latestExecution: BrowserPiWorkerExecutionBindingV1 | null = null;
   private readonly messageListeners = new Set<(event: { readonly data: unknown }) => void>();
@@ -572,6 +599,7 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
       }
       this.latestExecution = execution;
       this.latestPiRunId = `controlled.run.${String(this.nextPiRunOrdinal++)}`;
+      if (this.dropSubmitResponses) return;
       this.emit({
         revision: 1,
         kind: "rpc_response",
@@ -1189,6 +1217,86 @@ describe("SillyOS Browser Pi Worker runtime", () => {
 });
 
 describe("SillyOS Browser Pi transport and product port", () => {
+  it("shows a retryable busy failure after a closed workspace and then reopens", async () => {
+    const workspaceAuthority = new TestBrowserProgramWorkspaceAuthorityV1();
+    const port = createBrowserCreatorAgentPortV1({
+      apiKey: "sentinel-browser-key",
+      runtime: "deterministic_test",
+      workspaceAuthority,
+      workerFactory: () => new ControllableBrowserPiWorkerV1(),
+    });
+    await openProductWorkspaceV1(port);
+    await expect(port.closeWorkspace(workspaceSessionIdV1)).resolves.toMatchObject({
+      kind: "closed",
+    });
+    expect(port.getSnapshot().workspace).toMatchObject({
+      phase: "closed",
+      descriptor: { workspaceSessionId: workspaceSessionIdV1, generation: 1 },
+    });
+
+    workspaceAuthority.nextOpenFailureCode = "volume_busy";
+    await expect(
+      port.openWorkspace({ programId: submitV1.programId, workspaceId: workspaceIdV1 }),
+    ).resolves.toEqual({
+      kind: "unavailable",
+      diagnostic: { code: "workspace_busy", path: "/workspace/open" },
+    });
+    expect(port.getSnapshot().workspace).toMatchObject({
+      phase: "failed",
+      descriptor: null,
+      diagnostic: { code: "workspace_busy", path: "/workspace/open" },
+    });
+
+    await openProductWorkspaceV1(port);
+    expect(port.getSnapshot().workspace).toMatchObject({
+      phase: "open",
+      diagnostic: null,
+    });
+    await port.dispose();
+  });
+
+  it("keeps Workspace Host recovery reasons distinct from Agent diagnostics", async () => {
+    const cases = [
+      ["volume_busy", "workspace_busy"],
+      ["storage_unavailable", "storage_unavailable"],
+      ["volume_missing", "volume_missing"],
+      ["workspace_mismatch", "volume_corrupt"],
+      ["capacity_exceeded", "capacity_exceeded"],
+      ["invalid_response", "protocol_invalid"],
+      ["outcome_unknown", "recovery_required"],
+    ] as const;
+    for (const [hostCode, productCode] of cases) {
+      const authority: BrowserProgramWorkspaceAuthorityV1 = {
+        openWorkspace: () =>
+          Promise.reject(
+            new BrowserWorkspaceHostControlErrorV1(hostCode, `synthetic ${hostCode}`),
+          ),
+        queryWorkspace: () => Promise.reject(new Error("not open")),
+        closeWorkspace: () => Promise.reject(new Error("not open")),
+        subscribeFatal: () => () => {},
+        dispose: () => Promise.resolve(),
+      };
+      const port = createBrowserCreatorAgentPortV1({
+        apiKey: "sentinel-browser-key",
+        runtime: "deterministic_test",
+        workspaceAuthority: authority,
+        workerFactory: () => new ControllableBrowserPiWorkerV1(),
+      });
+      await expect(
+        port.openWorkspace({ programId: submitV1.programId, workspaceId: workspaceIdV1 }),
+      ).resolves.toEqual({
+        kind: "unavailable",
+        diagnostic: { code: productCode, path: "/workspace/open" },
+      });
+      expect(port.getSnapshot().workspace).toMatchObject({
+        phase: "failed",
+        descriptor: null,
+        diagnostic: { code: productCode, path: "/workspace/open" },
+      });
+      await port.dispose();
+    }
+  });
+
   it("reports unconfigured and failed Worker setup without inventing a fallback", async () => {
     let emptyKeyFactoryCalls = 0;
     const unconfigured = createBrowserCreatorAgentPortV1({
@@ -1296,6 +1404,150 @@ describe("SillyOS Browser Pi transport and product port", () => {
     await client.dispose();
     expect((worker as unknown as InMemoryBrowserPiWorkerV1).terminated).toBe(true);
     await transport.forget();
+  });
+
+  it("fences Pi and rejects pending work when the Workspace Host becomes fatal", async () => {
+    const workspaceAuthority = new TestBrowserProgramWorkspaceAuthorityV1();
+    const worker = new ControllableBrowserPiWorkerV1();
+    const transport = createBrowserPiWorkerRawTransportV1({
+      apiKey: "sentinel-browser-key",
+      runtime: "deterministic_test",
+      workspaceAuthority,
+      workerFactory: () => worker,
+    });
+    const failures: unknown[] = [];
+    transport.subscribeWorkspaceFailures(() => {
+      throw new Error("Workspace failure observation must remain observational");
+    });
+    transport.subscribeWorkspaceFailures((failure) => failures.push(failure));
+    const client = createAgentRpcClientInternalV1({ transport });
+
+    await expect(client.connect()).resolves.toEqual({ kind: "ready" });
+    await expect(client.start()).resolves.toEqual({
+      kind: "started",
+      sessionId: "controlled.session.1",
+    });
+    await expect(
+      transport.openWorkspace({ programId: submitV1.programId, workspaceId: workspaceIdV1 }),
+    ).resolves.toMatchObject({ phase: "open", generation: 1 });
+    worker.dropSubmitResponses = true;
+    const submitted = client.submit({
+      sessionId: "controlled.session.1",
+      text: serializeCreatorAgentSubmitV1(submitV1),
+    });
+    await waitUntilV1(() => worker.latestExecution !== null);
+
+    workspaceAuthority.failHost({ code: "outcome_unknown" });
+
+    await expect(submitted).resolves.toEqual({
+      kind: "unavailable",
+      diagnostic: { code: "rpc.request_failed", path: "/request" },
+    });
+    expect(failures).toEqual([{
+      revision: 1,
+      code: "outcome_unknown",
+      programId: submitV1.programId,
+      workspaceId: workspaceIdV1,
+      workspaceSessionId: workspaceSessionIdV1,
+      generation: 1,
+    }]);
+    expect(worker.terminated).toBe(true);
+    expect(workspaceAuthority.closeWorkspaceCalls).toBe(0);
+
+    await client.dispose();
+    await transport.forget();
+    expect(failures).toHaveLength(1);
+  });
+
+  it("projects a fatal Workspace Host into one failed product run and a retained recovery descriptor", async () => {
+    const workspaceAuthority = new TestBrowserProgramWorkspaceAuthorityV1();
+    const worker = new ControllableBrowserPiWorkerV1();
+    const port = createBrowserCreatorAgentPortV1({
+      apiKey: "sentinel-browser-key",
+      runtime: "deterministic_test",
+      workspaceAuthority,
+      workerFactory: () => worker,
+    });
+    await expect(port.initialize()).resolves.toEqual({ kind: "ready" });
+    await openProductWorkspaceV1(port);
+    const run = productRunV1({ agentRunId: "agent.run.workspace-host-fatal" });
+    await expect(port.submit(run)).resolves.toEqual({
+      kind: "submitted",
+      agentRunId: run.agentRunId,
+    });
+
+    workspaceAuthority.failHost({ code: "outcome_unknown" });
+    await waitUntilV1(() => port.getSnapshot().workspace.phase === "failed");
+
+    expect(port.getSnapshot()).toMatchObject({
+      phase: "failed",
+      diagnostic: { code: "connection_failed", path: "/workspace/host" },
+      workspace: {
+        phase: "failed",
+        descriptor: {
+          programId: submitV1.programId,
+          workspaceId: workspaceIdV1,
+          workspaceSessionId: workspaceSessionIdV1,
+          generation: 1,
+        },
+        diagnostic: { code: "recovery_required", path: "/workspace/host" },
+      },
+      terminalRuns: [{
+        run,
+        outcome: "failed",
+        diagnosticCode: "connection_failed",
+      }],
+    });
+    expect(worker.terminated).toBe(true);
+    expect(workspaceAuthority.closeWorkspaceCalls).toBe(0);
+    expect(port.acknowledgeTerminal(run.agentRunId)).toBe(true);
+    expect(port.getSnapshot()).toMatchObject({
+      phase: "failed",
+      diagnostic: { code: "connection_failed", path: "/workspace/host" },
+      terminalRuns: [],
+      workspace: {
+        phase: "failed",
+        diagnostic: { code: "recovery_required", path: "/workspace/host" },
+      },
+    });
+    await port.dispose();
+  });
+
+  it("does not publish a terminal when the Workspace Host rejects a still-pending submit", async () => {
+    const workspaceAuthority = new TestBrowserProgramWorkspaceAuthorityV1();
+    const worker = new ControllableBrowserPiWorkerV1();
+    const port = createBrowserCreatorAgentPortV1({
+      apiKey: "sentinel-browser-key",
+      runtime: "deterministic_test",
+      workspaceAuthority,
+      workerFactory: () => worker,
+    });
+    await expect(port.initialize()).resolves.toEqual({ kind: "ready" });
+    await openProductWorkspaceV1(port);
+    worker.dropSubmitResponses = true;
+    const run = productRunV1({ agentRunId: "agent.run.workspace-host-pending" });
+    const submitted = port.submit(run);
+    await waitUntilV1(() => worker.latestExecution !== null);
+
+    workspaceAuthority.failHost({ code: "outcome_unknown" });
+
+    await expect(submitted).resolves.toEqual({
+      kind: "unavailable",
+      diagnostic: { code: "connection_failed", path: "/workspace/host" },
+    });
+    expect(port.getSnapshot()).toMatchObject({
+      phase: "failed",
+      activeRunId: null,
+      diagnostic: { code: "connection_failed", path: "/workspace/host" },
+      terminalRuns: [],
+      workspace: {
+        phase: "failed",
+        diagnostic: { code: "recovery_required", path: "/workspace/host" },
+      },
+    });
+    expect(worker.terminated).toBe(true);
+    expect(workspaceAuthority.closeWorkspaceCalls).toBe(0);
+    await port.dispose();
   });
 
   it("publishes one completed product terminal without exposing Pi identities", async () => {

@@ -22,6 +22,7 @@ class FakeWorkerV1 {
   ]);
   readonly methods: string[] = [];
   readonly dropMethods = new Set<string>();
+  readonly throwMethods = new Set<string>();
   terminated = false;
 
   postMessage(message: unknown): void {
@@ -46,6 +47,7 @@ class FakeWorkerV1 {
     const method = request.record.method;
     if (typeof method !== "string") throw new Error("expected method");
     this.methods.push(method);
+    if (this.throwMethods.has(method)) throw new Error("synthetic post failure");
     if (this.dropMethods.has(method)) return;
     const response = method === "create_candidate"
       ? { method, anchor }
@@ -104,6 +106,10 @@ class FakeWorkerV1 {
   fail(type: "error" | "messageerror"): void {
     const event = new Event(type, { cancelable: true });
     for (const listener of this.failureListeners.get(type) ?? []) listener(event);
+  }
+
+  emit(data: unknown): void {
+    for (const listener of this.listeners) listener({ data });
   }
 }
 
@@ -172,6 +178,8 @@ describe("SillyOS Browser Workspace Host page port", () => {
       worker: candidateWorker,
       bootstrapLockPort: new FakeBootstrapLockPortV1(),
     });
+    const candidateFatals: unknown[] = [];
+    candidatePort.subscribeFatal((fatal) => candidateFatals.push(fatal));
     const candidate = candidatePort.withBootstrapLease({
       programId: "program.preview.1",
       workspaceId: "workspace.preview.1",
@@ -184,6 +192,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
     await Promise.resolve();
     candidateWorker.fail("error");
     await expect(candidate).rejects.toMatchObject({ code: "outcome_unknown" });
+    expect(candidateFatals).toEqual([{ code: "outcome_unknown" }]);
     expect(candidateWorker.methods).toEqual(["create_candidate"]);
     expect(candidateWorker.methods).not.toContain("discard_candidate");
     expect(candidateWorker.terminated).toBe(true);
@@ -201,6 +210,8 @@ describe("SillyOS Browser Workspace Host page port", () => {
         worker,
         bootstrapLockPort: new FakeBootstrapLockPortV1(),
       });
+      const fatals: unknown[] = [];
+      port.subscribeFatal((fatal) => fatals.push(fatal));
       const pending = method === "open_workspace"
         ? port.openWorkspace({
           revision: 1,
@@ -215,7 +226,56 @@ describe("SillyOS Browser Workspace Host page port", () => {
       await Promise.resolve();
       worker.fail("messageerror");
       await expect(pending).rejects.toMatchObject({ code: expectedCode });
+      expect(fatals).toEqual([{ code: expectedCode }]);
       expect(worker.terminated).toBe(true);
     }
+  });
+
+  it("publishes one invalid-response fatal while normal disposal stays silent", () => {
+    const failedWorker = new FakeWorkerV1();
+    const failedPort = createBrowserWorkspaceHostPagePortV1({
+      worker: failedWorker,
+      bootstrapLockPort: new FakeBootstrapLockPortV1(),
+    });
+    const fatals: unknown[] = [];
+    failedPort.subscribeFatal(() => {
+      throw new Error("fatal observation must stay observational");
+    });
+    failedPort.subscribeFatal((fatal) => fatals.push(fatal));
+
+    failedWorker.emit({ revision: 1, kind: "invalid" });
+    failedWorker.fail("error");
+
+    expect(fatals).toEqual([{ code: "invalid_response" }]);
+    expect(failedWorker.terminated).toBe(true);
+
+    const disposedWorker = new FakeWorkerV1();
+    const disposedPort = createBrowserWorkspaceHostPagePortV1({
+      worker: disposedWorker,
+      bootstrapLockPort: new FakeBootstrapLockPortV1(),
+    });
+    const disposedFatals: unknown[] = [];
+    disposedPort.subscribeFatal((fatal) => disposedFatals.push(fatal));
+    disposedPort.dispose();
+
+    expect(disposedFatals).toEqual([]);
+    expect(disposedWorker.terminated).toBe(true);
+  });
+
+  it("publishes a bounded fatal when posting to the Host Worker fails", async () => {
+    const worker = new FakeWorkerV1();
+    worker.throwMethods.add("query_workspace");
+    const port = createBrowserWorkspaceHostPagePortV1({
+      worker,
+      bootstrapLockPort: new FakeBootstrapLockPortV1(),
+    });
+    const fatals: unknown[] = [];
+    port.subscribeFatal((fatal) => fatals.push(fatal));
+
+    await expect(port.queryWorkspace("workspace-session.preview.1")).rejects.toMatchObject({
+      code: "unavailable",
+    });
+    expect(fatals).toEqual([{ code: "unavailable" }]);
+    expect(worker.terminated).toBe(true);
   });
 });

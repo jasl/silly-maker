@@ -5,7 +5,10 @@ import type {
   AgentRpcRawTransportInternalV1,
 } from "@sillymaker/agent/internal";
 
-import type { BrowserProgramWorkspaceAuthorityV1 } from "../product/browser-program-workspace-authority.ts";
+import type {
+  BrowserProgramWorkspaceAuthorityV1,
+  BrowserProgramWorkspaceFatalV1,
+} from "../product/browser-program-workspace-authority.ts";
 import type { BrowserWorkspaceHostSnapshotWireV1 } from "../workspace/browser-workspace-host-protocol.ts";
 import {
   admitBrowserPiEngineRequestV1,
@@ -31,6 +34,15 @@ export interface BrowserPiWorkerLikeV1 {
 
 export type BrowserPiWorkerFactoryV1 = () => BrowserPiWorkerLikeV1;
 
+export interface BrowserPiWorkspaceFailureV1 {
+  readonly revision: 1;
+  readonly code: BrowserProgramWorkspaceFatalV1["code"];
+  readonly programId: string;
+  readonly workspaceId: string;
+  readonly workspaceSessionId: string;
+  readonly generation: number;
+}
+
 export interface BrowserPiWorkerRawTransportV1 extends AgentRpcRawTransportInternalV1 {
   openWorkspace(input: {
     readonly programId: string;
@@ -44,6 +56,9 @@ export interface BrowserPiWorkerRawTransportV1 extends AgentRpcRawTransportInter
   }): Promise<BrowserPiWorkspaceSnapshotWireV1>;
   subscribeWorkspaceReceipts(
     listener: (receipt: BrowserPiWorkspaceMutationReceiptWireV1) => void,
+  ): () => void;
+  subscribeWorkspaceFailures(
+    listener: (failure: BrowserPiWorkspaceFailureV1) => void,
   ): () => void;
   /** Terminates an initializing or connected Worker and drops any unposted credential. */
   forget(): Promise<void>;
@@ -146,8 +161,13 @@ export function createBrowserPiWorkerRawTransportV1({
   const workspaceReceiptListeners = new Set<
     (receipt: BrowserPiWorkspaceMutationReceiptWireV1) => void
   >();
+  const workspaceFailureListeners = new Set<(failure: BrowserPiWorkspaceFailureV1) => void>();
 
-  const closeState = (state: ConnectionStateV1, reason: string): void => {
+  const closeState = (
+    state: ConnectionStateV1,
+    reason: string,
+    releaseWorkspaceAuthority = true,
+  ): void => {
     if (state.closed) return;
     state.closed = true;
     const workspaceSessionId = state.activeWorkspace?.phase === "open"
@@ -170,11 +190,36 @@ export function createBrowserPiWorkerRawTransportV1({
     } catch {
       // Termination is best-effort after the Worker has become unreachable.
     }
-    if (workspaceSessionId !== null) {
+    if (releaseWorkspaceAuthority && workspaceSessionId !== null) {
       void workspaceAuthority.closeWorkspace(workspaceSessionId).catch(() => undefined);
     }
     if (activeState === state) activeState = null;
   };
+
+  const unsubscribeWorkspaceAuthorityFatal = workspaceAuthority.subscribeFatal((fatal) => {
+    const state = activeState;
+    if (state === null || state.closed) return;
+    const workspace = state.activeWorkspace?.phase === "open" ? state.activeWorkspace : null;
+    closeState(state, "workspace_host_unavailable", false);
+    if (workspace === null) return;
+    const failure = Object.freeze(
+      {
+        revision: 1,
+        code: fatal.code,
+        programId: workspace.programId,
+        workspaceId: workspace.workspaceId,
+        workspaceSessionId: workspace.workspaceSessionId,
+        generation: workspace.generation,
+      } satisfies BrowserPiWorkspaceFailureV1,
+    );
+    for (const listener of [...workspaceFailureListeners]) {
+      try {
+        listener(failure);
+      } catch {
+        // Workspace failure observers cannot change transport lifecycle.
+      }
+    }
+  });
 
   const transport: BrowserPiWorkerRawTransportV1 = {
     isConfigured(): boolean {
@@ -509,8 +554,14 @@ export function createBrowserPiWorkerRawTransportV1({
       workspaceReceiptListeners.add(listener);
       return () => workspaceReceiptListeners.delete(listener);
     },
+    subscribeWorkspaceFailures(listener): () => void {
+      workspaceFailureListeners.add(listener);
+      return () => workspaceFailureListeners.delete(listener);
+    },
     async forget(): Promise<void> {
       pendingApiKey = null;
+      unsubscribeWorkspaceAuthorityFatal();
+      workspaceFailureListeners.clear();
       const state = activeState;
       if (state !== null) {
         const workspace = state.activeWorkspace;

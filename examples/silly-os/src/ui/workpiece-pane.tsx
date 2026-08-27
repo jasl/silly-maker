@@ -8,6 +8,7 @@ import {
   Maximize2,
   Minimize2,
   PlugZap,
+  RotateCcw,
   Sparkles,
   X,
 } from "lucide-react";
@@ -25,6 +26,17 @@ import { SillyButtonV1 as Button, SillyTabsV1 as Tabs } from "./controls.tsx";
 
 export type WorkpieceTabV1 = "view" | "source" | "capabilities" | "activity";
 
+export type WorkpieceExecutionWorkspaceDiagnosticCodeV1 =
+  | "request_failed"
+  | "protocol_invalid"
+  | "workspace_busy"
+  | "storage_unavailable"
+  | "volume_missing"
+  | "volume_corrupt"
+  | "capacity_exceeded"
+  | "recovery_required"
+  | "disposed";
+
 export interface WorkpieceExecutionWorkspaceV1 {
   readonly phase: "closed" | "opening" | "open" | "closing" | "failed" | "forgotten" | "disposed";
   readonly descriptor: {
@@ -38,6 +50,16 @@ export interface WorkpieceExecutionWorkspaceV1 {
     readonly effect: "none" | "changed";
     readonly resultingGeneration: number;
     readonly changedPaths: readonly string[];
+    readonly diagnosticCode:
+      | null
+      | "cancelled"
+      | "path_rejected"
+      | "capacity_exceeded"
+      | "execution_failed";
+  } | null;
+  readonly diagnostic: {
+    readonly code: WorkpieceExecutionWorkspaceDiagnosticCodeV1;
+    readonly path: string;
   } | null;
 }
 
@@ -51,6 +73,7 @@ export interface WorkpiecePanePropsV1 {
   readonly agentMode?: BrowserPiWorkerRuntimeV1;
   readonly executionWorkspace?: WorkpieceExecutionWorkspaceV1;
   readonly outputRef: React.RefObject<HTMLElement | null>;
+  readonly onRetryExecutionWorkspace?: () => void;
   readonly onTabChange: (tab: WorkpieceTabV1) => void;
   readonly onToggleFullscreen: () => void;
   readonly onClose: () => void;
@@ -89,6 +112,7 @@ export function WorkpiecePaneV1({
   agentMode,
   executionWorkspace,
   outputRef,
+  onRetryExecutionWorkspace,
   onTabChange,
   onToggleFullscreen,
   onClose,
@@ -168,6 +192,7 @@ export function WorkpiecePaneV1({
             capabilities={program.suggestedCapabilities}
             {...(agentMode === undefined ? {} : { agentMode })}
             {...(executionWorkspace === undefined ? {} : { executionWorkspace })}
+            {...(onRetryExecutionWorkspace === undefined ? {} : { onRetryExecutionWorkspace })}
           />
         )}
         {activeTab === "activity" && (
@@ -175,6 +200,7 @@ export function WorkpiecePaneV1({
             copy={copy}
             activity={activity}
             {...(executionWorkspace === undefined ? {} : { executionWorkspace })}
+            {...(onRetryExecutionWorkspace === undefined ? {} : { onRetryExecutionWorkspace })}
           />
         )}
       </div>
@@ -390,11 +416,13 @@ function ProgramCapabilitiesV1({
   capabilities,
   agentMode,
   executionWorkspace,
+  onRetryExecutionWorkspace,
 }: {
   readonly copy: SillyOsCopyV1;
   readonly capabilities: readonly PreviewProgramCapabilityV1[];
   readonly agentMode?: BrowserPiWorkerRuntimeV1;
   readonly executionWorkspace?: WorkpieceExecutionWorkspaceV1;
+  readonly onRetryExecutionWorkspace?: () => void;
 }): ReactNode {
   return (
     <div className="program-capabilities">
@@ -446,7 +474,13 @@ function ProgramCapabilitiesV1({
               : "Not connected"}
           </small>
           {agentMode !== undefined && executionWorkspace !== undefined && (
-            <ExecutionWorkspaceStatusV1 copy={copy} workspace={executionWorkspace} />
+            <ExecutionWorkspaceStatusV1
+              copy={copy}
+              workspace={executionWorkspace}
+              {...(onRetryExecutionWorkspace === undefined
+                ? {}
+                : { onRetry: onRetryExecutionWorkspace })}
+            />
           )}
         </article>
       </div>
@@ -458,10 +492,12 @@ function ProgramActivityV1({
   copy,
   activity,
   executionWorkspace,
+  onRetryExecutionWorkspace,
 }: {
   readonly copy: SillyOsCopyV1;
   readonly activity: readonly CreatorActivityV1[];
   readonly executionWorkspace?: WorkpieceExecutionWorkspaceV1;
+  readonly onRetryExecutionWorkspace?: () => void;
 }): ReactNode {
   return (
     <div className="program-activity">
@@ -472,7 +508,13 @@ function ProgramActivityV1({
         </div>
       </header>
       {executionWorkspace !== undefined && (
-        <ExecutionWorkspaceStatusV1 copy={copy} workspace={executionWorkspace} />
+        <ExecutionWorkspaceStatusV1
+          copy={copy}
+          workspace={executionWorkspace}
+          {...(onRetryExecutionWorkspace === undefined
+            ? {}
+            : { onRetry: onRetryExecutionWorkspace })}
+        />
       )}
       <ol>
         {activity.map((item) => (
@@ -492,16 +534,71 @@ function ProgramActivityV1({
   );
 }
 
+function executionWorkspaceFailureCopyV1(
+  copy: SillyOsCopyV1,
+  code: WorkpieceExecutionWorkspaceDiagnosticCodeV1,
+): string {
+  switch (code) {
+    case "request_failed":
+      return copy.locale === "zh-CN"
+        ? "工作区请求失败。请稍后再试。"
+        : "The workspace request failed. Try again later.";
+    case "protocol_invalid":
+      return copy.locale === "zh-CN"
+        ? "工作区返回了无效协议响应，无法安全继续。"
+        : "The workspace returned an invalid protocol response and cannot continue safely.";
+    case "workspace_busy":
+      return copy.locale === "zh-CN"
+        ? "另一个页面正在使用此 Program 工作区。关闭另一页面后重试。"
+        : "Another page is using this Program workspace. Close the other page, then retry.";
+    case "storage_unavailable":
+      return copy.locale === "zh-CN"
+        ? "此浏览器上下文无法提供持久化本地工作区；SillyOS 没有创建替代卷。"
+        : "This browser context cannot provide a durable local workspace. SillyOS did not create a replacement volume.";
+    case "volume_missing":
+      return copy.locale === "zh-CN"
+        ? "此 Program 的本地工作区数据已丢失或被清除；SillyOS 没有用空卷替代它。"
+        : "This Program's local workspace data is missing or was cleared. SillyOS did not substitute an empty volume.";
+    case "volume_corrupt":
+      return copy.locale === "zh-CN"
+        ? "此 Program 的检查点无法可靠恢复；SillyOS 没有用空卷替代它。"
+        : "This Program's checkpoint cannot be recovered reliably. SillyOS did not substitute an empty volume.";
+    case "capacity_exceeded":
+      return copy.locale === "zh-CN"
+        ? "浏览器存储容量已用尽；先前的完整检查点仍被保留。"
+        : "Browser storage capacity was exhausted. The previous complete checkpoint is retained.";
+    case "recovery_required":
+      return copy.locale === "zh-CN"
+        ? "Workspace Host 在操作期间停止。请重新加载并重新初始化 Agent；结果未知的写入不会被盲目重放。"
+        : "The Workspace Host stopped during an operation. Reload and initialize the Agent again; a write with an unknown outcome is not replayed blindly.";
+    case "disposed":
+      return copy.locale === "zh-CN"
+        ? "Agent 工作区连接已关闭。请重新初始化 Agent。"
+        : "The Agent workspace connection is closed. Initialize the Agent again.";
+  }
+  const exhaustive: never = code;
+  return exhaustive;
+}
+
 function ExecutionWorkspaceStatusV1({
   copy,
   workspace,
+  onRetry,
 }: {
   readonly copy: SillyOsCopyV1;
   readonly workspace: WorkpieceExecutionWorkspaceV1;
+  readonly onRetry?: () => void;
 }): ReactNode {
   const generation = workspace.descriptor?.generation;
   const receipt = workspace.lastReceipt;
   const changedPath = receipt?.changedPaths[0];
+  const failureCopy = workspace.phase === "failed"
+    ? workspace.diagnostic === null
+      ? copy.locale === "zh-CN"
+        ? "工作区当前不可用，且未返回诊断信息。"
+        : "The workspace is unavailable and did not return a diagnostic."
+      : executionWorkspaceFailureCopyV1(copy, workspace.diagnostic.code)
+    : null;
   const phaseLabel = workspace.phase === "open"
     ? copy.locale === "zh-CN" ? "已打开" : "Open"
     : workspace.phase === "opening"
@@ -516,13 +613,17 @@ function ExecutionWorkspaceStatusV1({
   return (
     <aside
       className="program-execution-workspace"
-      role="status"
+      role={workspace.phase === "failed" ? "alert" : "status"}
       data-execution-workspace-status={workspace.phase}
       data-execution-workspace-generation={generation}
       data-execution-workspace-receipt-sequence={receipt?.sequence}
     >
       <strong>
-        {copy.locale === "zh-CN" ? "Program 工作区检查点" : "Program workspace checkpoint"}
+        {workspace.phase === "failed"
+          ? copy.locale === "zh-CN" ? "Program 工作区" : "Program workspace"
+          : copy.locale === "zh-CN"
+          ? "Program 工作区检查点"
+          : "Program workspace checkpoint"}
       </strong>
       <span>
         {phaseLabel}
@@ -533,7 +634,13 @@ function ExecutionWorkspaceStatusV1({
           : ` · generation ${String(generation)}`}
       </span>
       <small>
-        {receipt === null
+        {failureCopy !== null
+          ? failureCopy
+          : receipt?.diagnosticCode === "capacity_exceeded"
+          ? copy.locale === "zh-CN"
+            ? "最近一次 write 因浏览器容量不足而失败；先前的完整检查点仍被保留。"
+            : "The last write exceeded browser capacity. The previous complete checkpoint is retained."
+          : receipt === null
           ? copy.locale === "zh-CN"
             ? "当前检查点保存在此浏览器中；重新加载会恢复同一卷与代数，mutation receipt 仅属于本次会话。"
             : "The current checkpoint is stored in this browser. Reload reopens the same volume and generation; mutation receipts remain session-only."
@@ -545,6 +652,12 @@ function ExecutionWorkspaceStatusV1({
             changedPath === undefined ? "" : ` · ${changedPath}`
           }`}
       </small>
+      {workspace.phase === "failed" && workspace.diagnostic?.code === "workspace_busy" &&
+        onRetry !== undefined && (
+        <Button type="button" size="sm" icon={RotateCcw} onClick={onRetry}>
+          {copy.retry}
+        </Button>
+      )}
     </aside>
   );
 }

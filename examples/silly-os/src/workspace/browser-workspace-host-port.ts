@@ -63,6 +63,10 @@ export interface BrowserWorkspaceHostPagePortOptionsV1 {
   readonly createMessageChannel?: () => MessageChannel;
 }
 
+export interface BrowserWorkspaceHostFatalV1 {
+  readonly code: "invalid_response" | "outcome_unknown" | "unavailable";
+}
+
 export interface BrowserWorkspaceHostPagePortV1 {
   withBootstrapLease<T>(input: {
     readonly programId: string;
@@ -85,6 +89,7 @@ export interface BrowserWorkspaceHostPagePortV1 {
     readonly environmentPort: MessagePort;
   }>;
   closeWorkspace(workspaceSessionId: string): Promise<BrowserWorkspaceHostSnapshotWireV1>;
+  subscribeFatal(listener: (fatal: BrowserWorkspaceHostFatalV1) => void): () => void;
   dispose(): void;
 }
 
@@ -96,6 +101,7 @@ export function createBrowserWorkspaceHostPagePortV1(
   const createMessageChannel = options.createMessageChannel ?? (() => new MessageChannel());
   const pending = new Map<number, PendingControlRequestV1>();
   const candidateBootstrapKeys = new Map<string, string>();
+  const fatalListeners = new Set<(fatal: BrowserWorkspaceHostFatalV1) => void>();
   let nextRequestId = 1;
   let disposed = false;
   let activeBootstrapKey: string | null = null;
@@ -115,7 +121,7 @@ export function createBrowserWorkspaceHostPagePortV1(
     );
   };
 
-  const poisonTransport = (): void => {
+  const poisonTransport = (fatal: BrowserWorkspaceHostFatalV1): void => {
     if (disposed) return;
     disposed = true;
     options.worker.removeEventListener("message", listener);
@@ -125,12 +131,20 @@ export function createBrowserWorkspaceHostPagePortV1(
     pending.clear();
     candidateBootstrapKeys.clear();
     options.worker.terminate();
+    for (const fatalListener of [...fatalListeners]) {
+      try {
+        fatalListener(fatal);
+      } catch {
+        // Fatal observers cannot change Host transport lifecycle.
+      }
+    }
+    fatalListeners.clear();
   };
 
   const listener = (event: Readonly<{ data: unknown }>): void => {
     const response = admitBrowserWorkspaceHostControlOutboundMessageV1(event.data);
     if (response === null) {
-      poisonTransport();
+      poisonTransport({ code: "invalid_response" });
       return;
     }
     const request = pending.get(response.requestId);
@@ -146,7 +160,7 @@ export function createBrowserWorkspaceHostPagePortV1(
       return;
     }
     if (response.response.method !== request.method) {
-      poisonTransport();
+      poisonTransport({ code: "invalid_response" });
       return;
     }
     pending.delete(response.requestId);
@@ -154,7 +168,11 @@ export function createBrowserWorkspaceHostPagePortV1(
   };
   const transportFailureListener = (event: Event): void => {
     event.preventDefault();
-    poisonTransport();
+    poisonTransport({
+      code: [...pending.values()].some(({ method }) => method !== "query_workspace")
+        ? "outcome_unknown"
+        : "unavailable",
+    });
   };
   options.worker.addEventListener("message", listener);
   options.worker.addEventListener("error", transportFailureListener);
@@ -179,7 +197,9 @@ export function createBrowserWorkspaceHostPagePortV1(
         );
       } catch (error) {
         void error;
-        poisonTransport();
+        poisonTransport({
+          code: record.method === "query_workspace" ? "unavailable" : "outcome_unknown",
+        });
       }
     });
   };
@@ -299,6 +319,12 @@ export function createBrowserWorkspaceHostPagePortV1(
       return snapshotResponse({ method: "close_workspace", workspaceSessionId });
     },
 
+    subscribeFatal(fatalListener) {
+      if (disposed) return () => {};
+      fatalListeners.add(fatalListener);
+      return () => fatalListeners.delete(fatalListener);
+    },
+
     dispose() {
       if (disposed) return;
       disposed = true;
@@ -309,6 +335,7 @@ export function createBrowserWorkspaceHostPagePortV1(
         new BrowserWorkspaceHostControlErrorV1("disposed", "Workspace Host port was disposed"),
       );
       candidateBootstrapKeys.clear();
+      fatalListeners.clear();
       options.worker.terminate();
     },
   };

@@ -89,6 +89,7 @@ export type BrowserWorkspaceHostControlFailureCodeV1 =
   | "candidate_mismatch"
   | "environment_attached"
   | "storage_unavailable"
+  | "capacity_exceeded"
   | "request_failed"
   | "disposed";
 
@@ -706,7 +707,8 @@ export function admitBrowserWorkspaceHostControlOutboundMessageV1(
       failure.code !== "volume_missing" && failure.code !== "volume_corrupt" &&
       failure.code !== "environment_attached" &&
       failure.code !== "candidate_mismatch" &&
-      failure.code !== "storage_unavailable" && failure.code !== "request_failed" &&
+      failure.code !== "storage_unavailable" && failure.code !== "capacity_exceeded" &&
+      failure.code !== "request_failed" &&
       failure.code !== "disposed")
   ) return null;
   return failure as unknown as BrowserWorkspaceHostControlFailureResponseV1;

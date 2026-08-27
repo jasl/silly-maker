@@ -199,6 +199,18 @@ describe("SillyOS Browser Workspace Host protocol", () => {
     });
   });
 
+  it("admits capacity_exceeded as a stable control failure", () => {
+    expect(
+      admitBrowserWorkspaceHostControlOutboundMessageV1({
+        revision: 1,
+        kind: "control_response",
+        requestId: 4,
+        ok: false,
+        code: "capacity_exceeded",
+      }),
+    ).toMatchObject({ ok: false, code: "capacity_exceeded" });
+  });
+
   it("keeps raw receipts payload-free and enforces effect generation transitions", () => {
     const event = { revision: 1, kind: "workspace_receipt" } as const;
     const admitted = admitBrowserWorkspaceHostEnvironmentOutboundMessageV1({

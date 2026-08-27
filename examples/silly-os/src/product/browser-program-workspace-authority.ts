@@ -2,6 +2,7 @@
 
 import {
   createBrowserWorkspaceHostPagePortV1,
+  type BrowserWorkspaceHostFatalV1,
   type BrowserWorkspaceHostPagePortV1,
 } from "../workspace/browser-workspace-host-port.ts";
 import type {
@@ -36,6 +37,8 @@ export interface BrowserProgramWorkspaceOpenResultV1 {
   readonly environmentPort: MessagePort;
 }
 
+export type BrowserProgramWorkspaceFatalV1 = BrowserWorkspaceHostFatalV1;
+
 export interface BrowserProgramWorkspaceAuthorityV1 {
   openWorkspace(input: {
     readonly programId: string;
@@ -43,6 +46,7 @@ export interface BrowserProgramWorkspaceAuthorityV1 {
   }): Promise<BrowserProgramWorkspaceOpenResultV1>;
   queryWorkspace(workspaceSessionId: string): Promise<BrowserWorkspaceHostSnapshotWireV1>;
   closeWorkspace(workspaceSessionId: string): Promise<BrowserWorkspaceHostSnapshotWireV1>;
+  subscribeFatal(listener: (fatal: BrowserProgramWorkspaceFatalV1) => void): () => void;
   dispose(): Promise<void>;
 }
 
@@ -129,6 +133,18 @@ export function createBrowserProgramWorkspaceAuthorityV1(
   let initialized: Promise<void> | null = null;
   let activeSessionId: string | null = null;
   let disposed = false;
+  const fatalListeners = new Set<(fatal: BrowserProgramWorkspaceFatalV1) => void>();
+  const unsubscribeHostFatal = host.subscribeFatal((fatal) => {
+    if (disposed) return;
+    activeSessionId = null;
+    for (const listener of [...fatalListeners]) {
+      try {
+        listener(fatal);
+      } catch {
+        // Fatal observers cannot change Program Workspace authority lifecycle.
+      }
+    }
+  });
 
   const initialize = (): Promise<void> => {
     if (disposed) return Promise.reject(authorityErrorV1("disposed"));
@@ -262,14 +278,22 @@ export function createBrowserProgramWorkspaceAuthorityV1(
       return closed;
     },
 
+    subscribeFatal(listener) {
+      if (disposed) return () => {};
+      fatalListeners.add(listener);
+      return () => fatalListeners.delete(listener);
+    },
+
     async dispose() {
       if (disposed) return;
+      disposed = true;
+      unsubscribeHostFatal();
+      fatalListeners.clear();
       const sessionId = activeSessionId;
+      activeSessionId = null;
       if (sessionId !== null) {
         await host.closeWorkspace(sessionId).catch(() => undefined);
-        activeSessionId = null;
       }
-      disposed = true;
       host.dispose();
       await repository.dispose().catch(() => undefined);
     },

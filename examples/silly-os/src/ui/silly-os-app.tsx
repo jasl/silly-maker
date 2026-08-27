@@ -360,6 +360,19 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
     return false;
   };
 
+  const retryAgentWorkspaceV1 = (): void => {
+    const port = agentPortRef.current;
+    const currentSession = controller.getSnapshot().session;
+    if (
+      port === null || currentSession.route !== "workspace" || currentSession.program === null ||
+      currentSession.workspace === null
+    ) return;
+    void queueAgentWorkspaceV1(port, {
+      programId: currentSession.program.programId,
+      workspaceId: currentSession.workspace.workspaceId,
+    });
+  };
+
   const agentMutationPending = agentSnapshot?.phase === "running" ||
     (agentSnapshot?.terminalRuns.length ?? 0) > 0;
   const agentWorkspaceLifecyclePending = agentSnapshot?.workspace.phase === "opening" ||
@@ -477,6 +490,7 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
             onSend={sendFollowUpV1}
             {...(agentSnapshot === null ? {} : {
               executionWorkspace: agentSnapshot.workspace,
+              onRetryExecutionWorkspace: retryAgentWorkspaceV1,
               piAgentRun: {
                 runtime: piRuntime ?? "deterministic_test",
                 status: piAgentRunStatusV1(agentSnapshot.phase),

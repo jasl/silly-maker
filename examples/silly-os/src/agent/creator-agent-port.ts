@@ -67,12 +67,28 @@ export type CreatorAgentWorkspacePhaseV1 =
   | "forgotten"
   | "disposed";
 
+export type CreatorAgentWorkspaceDiagnosticCodeV1 =
+  | "request_failed"
+  | "protocol_invalid"
+  | "workspace_busy"
+  | "storage_unavailable"
+  | "volume_missing"
+  | "volume_corrupt"
+  | "capacity_exceeded"
+  | "recovery_required"
+  | "disposed";
+
+export interface CreatorAgentWorkspaceDiagnosticV1 {
+  readonly code: CreatorAgentWorkspaceDiagnosticCodeV1;
+  readonly path: string;
+}
+
 export interface CreatorAgentWorkspaceSnapshotV1 {
   readonly phase: CreatorAgentWorkspacePhaseV1;
   readonly descriptor: WorkspaceExecutionDescriptorV1 | null;
   readonly receipts: readonly WorkspaceMutationReceiptV1[];
   readonly lastReceipt: WorkspaceMutationReceiptV1 | null;
-  readonly diagnostic: CreatorAgentDiagnosticV1 | null;
+  readonly diagnostic: CreatorAgentWorkspaceDiagnosticV1 | null;
 }
 
 export interface CreatorAgentSnapshotV1 {
@@ -105,16 +121,16 @@ export type CreatorAgentPortCancelResultV1 =
 
 export type CreatorAgentOpenWorkspaceResultV1 =
   | { readonly kind: "opened"; readonly descriptor: WorkspaceExecutionDescriptorV1 }
-  | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentDiagnosticV1 };
+  | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentWorkspaceDiagnosticV1 };
 
 export type CreatorAgentCloseWorkspaceResultV1 =
   | { readonly kind: "closed"; readonly descriptor: WorkspaceExecutionDescriptorV1 }
   | { readonly kind: "idle" }
-  | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentDiagnosticV1 };
+  | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentWorkspaceDiagnosticV1 };
 
 export type CreatorAgentAcknowledgeWorkspaceReceiptsResultV1 =
   | { readonly kind: "acknowledged"; readonly throughSequence: number }
-  | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentDiagnosticV1 };
+  | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentWorkspaceDiagnosticV1 };
 
 export interface CreatorAgentPortV1 {
   getSnapshot(): CreatorAgentSnapshotV1;
@@ -162,6 +178,13 @@ const creatorAgentPendingWorkspaceReceiptMaximumV1 = 64;
 const identifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
 
 function diagnosticV1(code: CreatorAgentDiagnosticCodeV1, path: string): CreatorAgentDiagnosticV1 {
+  return Object.freeze({ code, path });
+}
+
+function workspaceDiagnosticV1(
+  code: CreatorAgentWorkspaceDiagnosticCodeV1,
+  path: string,
+): CreatorAgentWorkspaceDiagnosticV1 {
   return Object.freeze({ code, path });
 }
 
@@ -265,14 +288,44 @@ function workspaceDescriptorV1(
   });
 }
 
-function mapWorkspaceFailureV1(value: unknown, path: string): CreatorAgentDiagnosticV1 {
+function mapWorkspaceFailureV1(value: unknown, path: string): CreatorAgentWorkspaceDiagnosticV1 {
+  const code = value !== null && typeof value === "object" ? Reflect.get(value, "code") : null;
   const message = value instanceof Error ? value.message : "";
-  return diagnosticV1(
-    message.includes("protocol") || message.includes("receipt_sequence_invalid")
-      ? "protocol_invalid"
-      : "request_failed",
-    path,
-  );
+  if (code === "workspace_busy" || code === "volume_busy") {
+    return workspaceDiagnosticV1("workspace_busy", path);
+  }
+  if (code === "environment_attached") {
+    return workspaceDiagnosticV1("workspace_busy", path);
+  }
+  if (
+    code === "storage_unavailable" || code === "volume_missing" ||
+    code === "volume_corrupt" || code === "capacity_exceeded" || code === "disposed"
+  ) return workspaceDiagnosticV1(code, path);
+  if (code === "workspace_mismatch") {
+    return workspaceDiagnosticV1("volume_corrupt", path);
+  }
+  if (
+    code === "invalid_request" || code === "invalid_response" || message.includes("protocol") ||
+    message.includes("_mismatch") ||
+    message.includes("receipt_sequence_invalid")
+  ) {
+    return workspaceDiagnosticV1("protocol_invalid", path);
+  }
+  if (
+    code === "outcome_unknown" || code === "unavailable" ||
+    code === "workspace_host_unavailable" || code === "candidate_mismatch"
+  ) return workspaceDiagnosticV1("recovery_required", path);
+  return workspaceDiagnosticV1("request_failed", path);
+}
+
+function mapAgentFailureToWorkspaceV1(
+  value: CreatorAgentDiagnosticV1,
+): CreatorAgentWorkspaceDiagnosticV1 {
+  if (value.code === "disposed") return workspaceDiagnosticV1("disposed", value.path);
+  if (value.code === "protocol_invalid") {
+    return workspaceDiagnosticV1("protocol_invalid", value.path);
+  }
+  return workspaceDiagnosticV1("request_failed", value.path);
 }
 
 function matchesRunV1(
@@ -354,16 +407,18 @@ export function createBrowserCreatorAgentPortV1(input: {
   let candidate: CreatorProgramRevisionCandidateV1 | null = null;
   let terminalRuns: readonly CreatorAgentTerminalRunV1[] = [];
   let diagnostic: CreatorAgentDiagnosticV1 | null = null;
+  let connectionFailureDiagnostic: CreatorAgentDiagnosticV1 | null = null;
   let workspacePhase: CreatorAgentWorkspacePhaseV1 = "closed";
   let workspaceDescriptor: WorkspaceExecutionDescriptorV1 | null = null;
   let workspaceReceipts: readonly WorkspaceMutationReceiptV1[] = [];
   let workspaceLastReceipt: WorkspaceMutationReceiptV1 | null = null;
-  let workspaceDiagnostic: CreatorAgentDiagnosticV1 | null = null;
+  let workspaceDiagnostic: CreatorAgentWorkspaceDiagnosticV1 | null = null;
   let workspaceLastObservedSequence = 0;
   let workspaceControlBusy = false;
   let initializePromise: Promise<CreatorAgentInitializeResultV1> | null = null;
   let finishPromise: Promise<void> | null = null;
   let unsubscribeWorkspaceReceipts: (() => void) | null = null;
+  let unsubscribeWorkspaceFailures: (() => void) | null = null;
   let snapshot!: CreatorAgentSnapshotV1;
 
   const latestTrackedRunV1 = (): TrackedCreatorAgentRunV1 | null => {
@@ -388,6 +443,11 @@ export function createBrowserCreatorAgentPortV1(input: {
     draft = "";
     candidate = null;
     const latestTerminal = terminalRuns.at(-1);
+    if (connectionFailureDiagnostic !== null) {
+      phase = "failed";
+      diagnostic = connectionFailureDiagnostic;
+      return;
+    }
     if (latestTerminal?.outcome === "completed") {
       phase = "completed";
       diagnostic = null;
@@ -441,11 +501,12 @@ export function createBrowserCreatorAgentPortV1(input: {
     diagnostic = nextDiagnostic;
     publish();
   };
-  const failWorkspaceV1 = (nextDiagnostic: CreatorAgentDiagnosticV1): void => {
+  const failWorkspaceV1 = (nextDiagnostic: CreatorAgentWorkspaceDiagnosticV1): void => {
     workspacePhase = "failed";
     workspaceDiagnostic = nextDiagnostic;
     publish();
   };
+  const workspaceFailedV1 = (): boolean => workspacePhase === "failed";
 
   const hasUnmappedSubmitForSessionV1 = (expectedSessionId: string): boolean => {
     for (const tracked of trackedByProductRunId.values()) {
@@ -487,7 +548,7 @@ export function createBrowserCreatorAgentPortV1(input: {
       value.sequence !== workspaceLastObservedSequence + 1 ||
       workspaceReceipts.length >= workspaceMutationReceiptMaximumV1
     ) {
-      failWorkspaceV1(diagnosticV1("protocol_invalid", "/workspace/receipt"));
+      failWorkspaceV1(workspaceDiagnosticV1("protocol_invalid", "/workspace/receipt"));
       return;
     }
     const receipt: WorkspaceMutationReceiptV1 = Object.freeze({
@@ -523,7 +584,7 @@ export function createBrowserCreatorAgentPortV1(input: {
     receipt: BrowserPiWorkspaceMutationReceiptWireV1,
   ): void => {
     if (pendingWorkspaceReceiptCount >= creatorAgentPendingWorkspaceReceiptMaximumV1) {
-      failWorkspaceV1(diagnosticV1("protocol_invalid", "/workspace/receiptBuffer"));
+      failWorkspaceV1(workspaceDiagnosticV1("protocol_invalid", "/workspace/receiptBuffer"));
       return;
     }
     const receipts = pendingWorkspaceReceipts.get(key);
@@ -734,7 +795,7 @@ export function createBrowserCreatorAgentPortV1(input: {
       if (hasUnmappedSubmitForSessionV1(receipt.sessionId)) {
         bufferWorkspaceReceiptV1(key, receipt);
       } else {
-        failWorkspaceV1(diagnosticV1("protocol_invalid", "/workspace/receipt/run"));
+        failWorkspaceV1(workspaceDiagnosticV1("protocol_invalid", "/workspace/receipt/run"));
       }
       return;
     }
@@ -743,6 +804,57 @@ export function createBrowserCreatorAgentPortV1(input: {
       return;
     }
     projectWorkspaceReceiptV1(tracked, receipt);
+  });
+
+  unsubscribeWorkspaceFailures = transport.subscribeWorkspaceFailures((failure) => {
+    if (terminal) return;
+    const current = workspaceDescriptor;
+    const exactWorkspace = current === null ||
+      (current.programId === failure.programId && current.workspaceId === failure.workspaceId &&
+        current.workspaceSessionId === failure.workspaceSessionId);
+    workspaceDescriptor = exactWorkspace
+      ? Object.freeze({
+        revision: 1,
+        programId: failure.programId,
+        workspaceId: failure.workspaceId,
+        workspaceSessionId: failure.workspaceSessionId,
+        generation: failure.generation,
+      })
+      : current;
+    const hostFailureDiagnostic = workspaceDiagnosticV1(
+      !exactWorkspace || failure.code === "invalid_response"
+        ? "protocol_invalid"
+        : "recovery_required",
+      "/workspace/host",
+    );
+    workspacePhase = "failed";
+    workspaceDiagnostic = hostFailureDiagnostic;
+
+    const interrupted = [...trackedByProductRunId.values()];
+    connectionFailureDiagnostic = diagnosticV1("connection_failed", "/workspace/host");
+    const acceptedRuns: TrackedCreatorAgentRunV1[] = [];
+    for (const tracked of interrupted) {
+      if (tracked.piRunId === null) removeTrackedRunV1(tracked);
+      else acceptedRuns.push(tracked);
+    }
+    if (acceptedRuns.length === 0) {
+      failFacadeV1(connectionFailureDiagnostic);
+      return;
+    }
+    for (const tracked of acceptedRuns) {
+      settleTrackedRunV1(
+        tracked,
+        Object.freeze({
+          run: tracked.run,
+          outcome: "failed",
+          diagnosticCode: "connection_failed",
+        }),
+        diagnosticV1("connection_failed", "/workspace/host"),
+      );
+    }
+    workspacePhase = "failed";
+    workspaceDiagnostic = hostFailureDiagnostic;
+    publish();
   });
 
   const initialize = (): Promise<CreatorAgentInitializeResultV1> => {
@@ -775,6 +887,7 @@ export function createBrowserCreatorAgentPortV1(input: {
         return { kind: "unavailable", diagnostic: mapped };
       }
       sessionId = started.sessionId;
+      connectionFailureDiagnostic = null;
       phase = "ready";
       diagnostic = null;
       publish();
@@ -804,37 +917,50 @@ export function createBrowserCreatorAgentPortV1(input: {
     readonly workspaceId: string;
   }): Promise<CreatorAgentOpenWorkspaceResultV1> => {
     if (terminal || finishPromise !== null) {
-      return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
+      return {
+        kind: "unavailable",
+        diagnostic: workspaceDiagnosticV1("disposed", "/"),
+      };
     }
     if (
       !identifierPatternV1.test(raw.programId) || !identifierPatternV1.test(raw.workspaceId)
     ) {
       return {
         kind: "unavailable",
-        diagnostic: diagnosticV1("submit_invalid", "/workspace/open"),
+        diagnostic: workspaceDiagnosticV1("protocol_invalid", "/workspace/open"),
       };
     }
     if (workspaceControlBusy) {
       return {
         kind: "unavailable",
-        diagnostic: diagnosticV1("request_failed", "/workspace/busy"),
+        diagnostic: workspaceDiagnosticV1("workspace_busy", "/workspace/busy"),
       };
     }
     workspaceControlBusy = true;
     const previousPhase = workspacePhase;
+    if (previousPhase === "closed") {
+      workspaceDescriptor = null;
+      workspaceReceipts = [];
+      workspaceLastReceipt = null;
+      workspaceLastObservedSequence = 0;
+    }
     workspacePhase = "opening";
     workspaceDiagnostic = null;
     publish();
     try {
       const initialized = await initialize();
       if (initialized.kind !== "ready") {
-        workspacePhase = workspaceDescriptor === null ? "failed" : previousPhase;
-        workspaceDiagnostic = initialized.diagnostic;
+        const mapped = mapAgentFailureToWorkspaceV1(initialized.diagnostic);
+        workspacePhase = "failed";
+        workspaceDiagnostic = mapped;
         publish();
-        return initialized;
+        return { kind: "unavailable", diagnostic: mapped };
       }
       if (terminal || finishPromise !== null) {
-        return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
+        return {
+          kind: "unavailable",
+          diagnostic: workspaceDiagnosticV1("disposed", "/"),
+        };
       }
       const result = await transport.openWorkspace(raw);
       adoptWorkspaceSnapshotV1(result);
@@ -842,8 +968,10 @@ export function createBrowserCreatorAgentPortV1(input: {
       return { kind: "opened", descriptor: workspaceDescriptorV1(result) };
     } catch (error) {
       const mapped = mapWorkspaceFailureV1(error, "/workspace/open");
-      workspacePhase = workspaceDescriptor === null ? "failed" : previousPhase;
-      workspaceDiagnostic = mapped;
+      if (!workspaceFailedV1()) {
+        workspacePhase = "failed";
+        workspaceDiagnostic = mapped;
+      }
       publish();
       return { kind: "unavailable", diagnostic: mapped };
     } finally {
@@ -855,7 +983,10 @@ export function createBrowserCreatorAgentPortV1(input: {
     requestedWorkspaceSessionId?: string,
   ): Promise<CreatorAgentCloseWorkspaceResultV1> => {
     if (terminal || finishPromise !== null) {
-      return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
+      return {
+        kind: "unavailable",
+        diagnostic: workspaceDiagnosticV1("disposed", "/"),
+      };
     }
     const descriptor = workspaceDescriptor;
     if (descriptor === null || workspacePhase === "closed") return { kind: "idle" };
@@ -865,13 +996,16 @@ export function createBrowserCreatorAgentPortV1(input: {
     ) {
       return {
         kind: "unavailable",
-        diagnostic: diagnosticV1("request_failed", "/workspace/close/workspaceSessionId"),
+        diagnostic: workspaceDiagnosticV1(
+          "protocol_invalid",
+          "/workspace/close/workspaceSessionId",
+        ),
       };
     }
     if (workspaceControlBusy) {
       return {
         kind: "unavailable",
-        diagnostic: diagnosticV1("request_failed", "/workspace/busy"),
+        diagnostic: workspaceDiagnosticV1("workspace_busy", "/workspace/busy"),
       };
     }
     workspaceControlBusy = true;
@@ -890,8 +1024,10 @@ export function createBrowserCreatorAgentPortV1(input: {
       return { kind: "closed", descriptor: workspaceDescriptorV1(result) };
     } catch (error) {
       const mapped = mapWorkspaceFailureV1(error, "/workspace/close");
-      workspacePhase = previousPhase;
-      workspaceDiagnostic = mapped;
+      if (!workspaceFailedV1()) {
+        workspacePhase = previousPhase;
+        workspaceDiagnostic = mapped;
+      }
       publish();
       return { kind: "unavailable", diagnostic: mapped };
     } finally {
@@ -903,7 +1039,10 @@ export function createBrowserCreatorAgentPortV1(input: {
     throughSequence: number,
   ): Promise<CreatorAgentAcknowledgeWorkspaceReceiptsResultV1> => {
     if (terminal || finishPromise !== null) {
-      return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
+      return {
+        kind: "unavailable",
+        diagnostic: workspaceDiagnosticV1("disposed", "/"),
+      };
     }
     const descriptor = workspaceDescriptor;
     if (
@@ -912,13 +1051,16 @@ export function createBrowserCreatorAgentPortV1(input: {
     ) {
       return {
         kind: "unavailable",
-        diagnostic: diagnosticV1("request_failed", "/workspace/acknowledge/throughSequence"),
+        diagnostic: workspaceDiagnosticV1(
+          "protocol_invalid",
+          "/workspace/acknowledge/throughSequence",
+        ),
       };
     }
     if (workspaceControlBusy) {
       return {
         kind: "unavailable",
-        diagnostic: diagnosticV1("request_failed", "/workspace/busy"),
+        diagnostic: workspaceDiagnosticV1("workspace_busy", "/workspace/busy"),
       };
     }
     workspaceControlBusy = true;
@@ -940,7 +1082,7 @@ export function createBrowserCreatorAgentPortV1(input: {
       return { kind: "acknowledged", throughSequence };
     } catch (error) {
       const mapped = mapWorkspaceFailureV1(error, "/workspace/acknowledge");
-      workspaceDiagnostic = mapped;
+      if (!workspaceFailedV1()) workspaceDiagnostic = mapped;
       publish();
       return { kind: "unavailable", diagnostic: mapped };
     } finally {
@@ -962,6 +1104,8 @@ export function createBrowserCreatorAgentPortV1(input: {
       await client.dispose().catch(() => undefined);
       unsubscribeWorkspaceReceipts?.();
       unsubscribeWorkspaceReceipts = null;
+      unsubscribeWorkspaceFailures?.();
+      unsubscribeWorkspaceFailures = null;
       terminal = true;
       sessionId = null;
       trackedByProductRunId.clear();
@@ -975,6 +1119,7 @@ export function createBrowserCreatorAgentPortV1(input: {
       draft = "";
       candidate = null;
       diagnostic = null;
+      connectionFailureDiagnostic = null;
       phase = finalPhase;
       workspacePhase = finalPhase;
       workspaceDescriptor = null;
@@ -1095,6 +1240,13 @@ export function createBrowserCreatorAgentPortV1(input: {
       if (terminal || lifecycleEpoch !== expectedEpoch) {
         removeTrackedRunV1(tracked);
         return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
+      }
+      if (!trackedByProductRunId.has(tracked.run.agentRunId)) {
+        return {
+          kind: "unavailable",
+          diagnostic: connectionFailureDiagnostic ??
+            diagnosticV1("request_failed", "/workspace/submit"),
+        };
       }
       if (result.kind !== "submitted") {
         removeTrackedRunV1(tracked);

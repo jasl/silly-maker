@@ -64,6 +64,7 @@ export interface ProgramWorkspacePropsV1 {
   readonly mutationPending?: boolean;
   readonly piAgentRun?: ChatPanePropsV1["piAgentRun"];
   readonly executionWorkspace?: WorkpieceExecutionWorkspaceV1;
+  readonly onRetryExecutionWorkspace?: () => void;
 }
 
 export function ProgramWorkspaceV1({
@@ -95,6 +96,7 @@ function ProgramWorkspaceReadyV1({
   mutationPending = false,
   piAgentRun,
   executionWorkspace,
+  onRetryExecutionWorkspace,
 }: ProgramWorkspaceReadyPropsV1): ReactNode {
   const narrow = useNarrowViewportV1();
   const splitRef = useRef<HTMLDivElement>(null);
@@ -182,6 +184,7 @@ function ProgramWorkspaceReadyV1({
       data-program-id={program.programId}
       data-program-revision={program.revision}
       data-execution-workspace-state={executionWorkspace?.phase}
+      data-execution-workspace-diagnostic={executionWorkspace?.diagnostic?.code}
       data-execution-workspace-session={executionWorkspace?.descriptor?.workspaceSessionId}
       data-execution-workspace-generation={executionWorkspace?.descriptor?.generation}
       data-execution-workspace-receipt={executionWorkspace?.lastReceipt?.sequence}
@@ -263,6 +266,7 @@ function ProgramWorkspaceReadyV1({
                 fullscreen={fullscreen}
                 {...(piAgentRun === undefined ? {} : { agentMode: piAgentRun.runtime })}
                 {...(executionWorkspace === undefined ? {} : { executionWorkspace })}
+                {...(onRetryExecutionWorkspace === undefined ? {} : { onRetryExecutionWorkspace })}
                 outputRef={outputRef}
                 onTabChange={(tab) => {
                   setActiveTab(tab);

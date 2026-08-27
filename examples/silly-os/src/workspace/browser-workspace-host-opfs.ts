@@ -21,6 +21,7 @@ const volumesDirectoryNameV1 = "volumes";
 const controlDirectoryNameV1 = "control";
 const workspaceDirectoryNameV1 = "workspace";
 const stagingDirectoryNameV1 = "staging";
+const candidateFileNameV1 = "candidate.json";
 const anchorFileNameV1 = "anchor.json";
 const headFileNameV1 = "head.json";
 const pendingFileNameV1 = "pending.json";
@@ -73,7 +74,10 @@ interface WebLockManagerV1 {
 export interface BrowserWorkspaceHostOpfsOptionsV1 {
   readonly getRootDirectory?: () => Promise<FileSystemDirectoryHandle>;
   readonly lockPort?: BrowserWorkspaceHostExclusiveLockPortV1;
-  readonly createVolumeId?: () => string;
+  readonly createVolumeId?: (input: {
+    readonly programId: string;
+    readonly workspaceId: string;
+  }) => string | Promise<string>;
   readonly createInitialCheckpointId?: () => string;
 }
 
@@ -83,6 +87,21 @@ interface CandidateStateV1 {
 
 function randomIdentityV1(prefix: string): string {
   return `${prefix}.${crypto.randomUUID()}`;
+}
+
+async function stableVolumeIdentityV1(input: {
+  readonly programId: string;
+  readonly workspaceId: string;
+}): Promise<string> {
+  const digest = new Uint8Array(
+    await crypto.subtle.digest(
+      "SHA-256",
+      ownedArrayBufferV1(
+        encodedJsonV1([browserWorkspaceFormatRevisionV1, input.programId, input.workspaceId]),
+      ),
+    ),
+  );
+  return `sillyos.volume.${[...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 }
 
 function exactKeysV1(value: object, keys: readonly string[]): boolean {
@@ -192,7 +211,22 @@ function fileErrorV1(
   return { kind: "file_error", code, message, path };
 }
 
-function opfsErrorV1(error: unknown, fallback: string): BrowserWorkspaceHostStorageErrorV1 {
+function storageUnavailableDomExceptionV1(error: unknown): error is DOMException {
+  return error instanceof DOMException &&
+    [
+      "SecurityError",
+      "UnknownError",
+      "NotAllowedError",
+      "InvalidStateError",
+      "NotSupportedError",
+    ].includes(error.name);
+}
+
+function quotaExceededDomExceptionV1(error: unknown): error is DOMException {
+  return error instanceof DOMException && error.name === "QuotaExceededError";
+}
+
+function opfsErrorV1(error: unknown, fallback: string): Error {
   if (error instanceof BrowserWorkspaceHostStorageErrorV1) return error;
   if (error instanceof DOMException) {
     if (error.name === "NotFoundError") {
@@ -200,18 +234,35 @@ function opfsErrorV1(error: unknown, fallback: string): BrowserWorkspaceHostStor
         cause: error,
       });
     }
-    if (error.name === "QuotaExceededError") {
+    if (quotaExceededDomExceptionV1(error)) {
       return new BrowserWorkspaceHostStorageErrorV1(
-        "request_failed",
+        "capacity_exceeded",
         fallback,
         fileErrorV1("unknown", "Workspace storage quota was exceeded", null),
         { cause: error },
       );
     }
+    if (storageUnavailableDomExceptionV1(error)) {
+      return new BrowserWorkspaceHostStorageErrorV1("storage_unavailable", fallback, null, {
+        cause: error,
+      });
+    }
   }
   return new BrowserWorkspaceHostStorageErrorV1("request_failed", fallback, null, {
     cause: error instanceof Error ? error : new Error(String(error)),
   });
+}
+
+function decodeFailureV1(error: unknown, message: string): Error {
+  if (storageUnavailableDomExceptionV1(error) || quotaExceededDomExceptionV1(error)) {
+    return opfsErrorV1(error, message);
+  }
+  return new BrowserWorkspaceHostStorageErrorV1(
+    "volume_corrupt",
+    message,
+    null,
+    { cause: error instanceof Error ? error : new Error(String(error)) },
+  );
 }
 
 async function readJsonV1(handle: FileSystemDirectoryHandle, name: string): Promise<unknown> {
@@ -427,6 +478,60 @@ function sameHeadV1(
     left.checkpointId === right.checkpointId && left.generation === right.generation;
 }
 
+type CandidateMarkerInspectionV1 =
+  | { readonly kind: "missing" }
+  | { readonly kind: "invalid" }
+  | { readonly kind: "valid"; readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+
+interface CompleteCandidateInspectionV1 {
+  readonly anchor: BrowserWorkspaceVolumeAnchorWireV1;
+  readonly head: BrowserWorkspaceHostDurableHeadV1;
+}
+
+async function inspectCandidateMarkerV1(
+  volume: FileSystemDirectoryHandle,
+): Promise<CandidateMarkerInspectionV1> {
+  let handle: FileSystemFileHandle;
+  try {
+    handle = await volume.getFileHandle(candidateFileNameV1);
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "NotFoundError") {
+      return { kind: "missing" };
+    }
+    if (error instanceof DOMException && error.name === "TypeMismatchError") {
+      return { kind: "invalid" };
+    }
+    throw error;
+  }
+  try {
+    const anchor = admitAnchorV1(JSON.parse(await (await handle.getFile()).text()) as unknown);
+    return anchor === null ? { kind: "invalid" } : { kind: "valid", anchor };
+  } catch (error) {
+    if (storageUnavailableDomExceptionV1(error) || quotaExceededDomExceptionV1(error)) throw error;
+    return { kind: "invalid" };
+  }
+}
+
+async function inspectCompleteCandidateV1(
+  volume: FileSystemDirectoryHandle,
+): Promise<CompleteCandidateInspectionV1 | null> {
+  try {
+    const control = await volume.getDirectoryHandle(controlDirectoryNameV1);
+    await control.getDirectoryHandle(stagingDirectoryNameV1);
+    await volume.getDirectoryHandle(workspaceDirectoryNameV1);
+    const anchor = admitAnchorV1(await readJsonV1(control, anchorFileNameV1));
+    const head = admitHeadV1(await readJsonV1(control, headFileNameV1));
+    return anchor === null || head === null ? null : { anchor, head };
+  } catch (error) {
+    if (
+      error instanceof SyntaxError ||
+      (error instanceof DOMException &&
+        (error.name === "NotFoundError" || error.name === "TypeMismatchError"))
+    ) return null;
+    throw error;
+  }
+}
+
 export function createBrowserWorkspaceHostWebLockPortV1(
   lockManager: WebLockManagerV1,
 ): BrowserWorkspaceHostExclusiveLockPortV1 {
@@ -466,6 +571,7 @@ export function createBrowserWorkspaceHostWebLockPortV1(
 
 class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
   readonly anchor: BrowserWorkspaceVolumeAnchorWireV1;
+  private readonly volume: FileSystemDirectoryHandle;
   private readonly control: FileSystemDirectoryHandle;
   private readonly staging: FileSystemDirectoryHandle;
   private readonly workspace: FileSystemDirectoryHandle;
@@ -475,12 +581,14 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
 
   constructor(input: {
     readonly anchor: BrowserWorkspaceVolumeAnchorWireV1;
+    readonly volume: FileSystemDirectoryHandle;
     readonly control: FileSystemDirectoryHandle;
     readonly staging: FileSystemDirectoryHandle;
     readonly workspace: FileSystemDirectoryHandle;
     readonly volumeLease: BrowserWorkspaceHostExclusiveLeaseV1;
   }) {
     this.anchor = input.anchor;
+    this.volume = input.volume;
     this.control = input.control;
     this.staging = input.staging;
     this.workspace = input.workspace;
@@ -503,12 +611,7 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
     try {
       rawHead = await readJsonV1(this.control, headFileNameV1);
     } catch (error) {
-      throw new BrowserWorkspaceHostStorageErrorV1(
-        "volume_corrupt",
-        "Workspace durable head cannot be decoded",
-        null,
-        { cause: error instanceof Error ? error : new Error(String(error)) },
-      );
+      throw decodeFailureV1(error, "Workspace durable head cannot be decoded");
     }
     const head = admitHeadV1(rawHead);
     if (
@@ -526,22 +629,21 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
   async stat(path: string): Promise<BrowserWorkspaceHostFileMetadataV1> {
     this.assertOpen();
     if (path.length === 0) return { kind: "directory", size: 0 };
-    let resolved: { readonly parent: FileSystemDirectoryHandle; readonly name: string };
     try {
-      resolved = await resolveParentV1(this.workspace, path, false);
+      const resolved = await resolveParentV1(this.workspace, path, false);
+      const fileHandle = await fileHandleIfPresentV1(resolved.parent, resolved.name);
+      if (fileHandle !== null) {
+        const file = await fileHandle.getFile();
+        return { kind: "file", size: file.size };
+      }
+      const directory = await directoryHandleIfPresentV1(resolved.parent, resolved.name);
+      return directory === null ? { kind: "missing", size: 0 } : { kind: "directory", size: 0 };
     } catch (error) {
       if (error instanceof DOMException && error.name === "NotFoundError") {
         return { kind: "missing", size: 0 };
       }
       throw opfsErrorV1(error, "Workspace metadata lookup failed");
     }
-    const fileHandle = await fileHandleIfPresentV1(resolved.parent, resolved.name);
-    if (fileHandle !== null) {
-      const file = await fileHandle.getFile();
-      return { kind: "file", size: file.size };
-    }
-    const directory = await directoryHandleIfPresentV1(resolved.parent, resolved.name);
-    return directory === null ? { kind: "missing", size: 0 } : { kind: "directory", size: 0 };
   }
 
   async readFile(path: string): Promise<Uint8Array> {
@@ -650,31 +752,30 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
   async recoverPending(): Promise<void> {
     this.assertOpen();
     const pendingHandle = await fileHandleIfPresentV1(this.control, pendingFileNameV1);
+    if (pendingHandle === null) {
+      // Staging is preparatory and cleanup-only. Only the control journal may
+      // authorize target/head reconciliation after a Worker loss.
+      await this.clearStaging();
+      return;
+    }
     const stagedPendingHandle = await fileHandleIfPresentV1(
       this.staging,
       pendingStageFileNameV1,
     );
-    if (pendingHandle === null && stagedPendingHandle === null) {
-      await this.clearStaging();
+    const pending = await this.readPendingFile(pendingHandle);
+    if (pending === null) {
+      // A failed/invalid primary publication did not authorize target replay.
+      await this.clearPendingAndStaging();
       return;
     }
-    const pending = pendingHandle === null ? null : await this.readPendingFile(pendingHandle);
     const stagedPending = stagedPendingHandle === null
       ? null
       : await this.readPendingFile(stagedPendingHandle);
     const head = await this.readHead();
-    if (pendingHandle === null && stagedPendingHandle !== null && stagedPending === null) {
-      // A failed staging write cannot have reached the target or durable head.
-      await this.clearStaging();
-      return;
-    }
-    const effectivePending = pending ?? stagedPending;
     if (
-      effectivePending === null ||
-      (pending !== null && stagedPending !== null &&
-        JSON.stringify(pending) !== JSON.stringify(stagedPending)) ||
-      effectivePending.volumeId !== this.anchor.volumeId ||
-      effectivePending.workspaceFormat !== this.anchor.workspaceFormat
+      (stagedPending !== null && JSON.stringify(pending) !== JSON.stringify(stagedPending)) ||
+      pending.volumeId !== this.anchor.volumeId ||
+      pending.workspaceFormat !== this.anchor.workspaceFormat
     ) {
       throw new BrowserWorkspaceHostStorageErrorV1(
         "volume_corrupt",
@@ -682,25 +783,24 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
       );
     }
     if (
-      head.checkpointId === effectivePending.baseCheckpointId &&
-      head.generation === effectivePending.baseGeneration
+      head.checkpointId === pending.baseCheckpointId &&
+      head.generation === pending.baseGeneration
     ) {
-      const resolved = await resolveParentV1(this.workspace, effectivePending.path, true);
-      if (effectivePending.previous === "missing") {
+      const resolved = await resolveParentV1(this.workspace, pending.path, true);
+      if (pending.previous === "missing") {
         await removeEntryIfPresentV1(resolved.parent, resolved.name);
       } else {
         const previous = await (await this.staging.getFileHandle(previousStageFileNameV1))
           .getFile();
         await copyFileV1(previous, resolved.parent, resolved.name);
       }
-      await pruneCreatedDirectoriesV1(this.workspace, effectivePending.createdDirectories);
+      await pruneCreatedDirectoriesV1(this.workspace, pending.createdDirectories);
     } else if (
-      head.checkpointId === effectivePending.nextCheckpointId &&
-      head.generation === effectivePending.nextGeneration
+      head.checkpointId === pending.nextCheckpointId &&
+      head.generation === pending.nextGeneration
     ) {
-      const resolved = await resolveParentV1(this.workspace, effectivePending.path, true);
-      const next = await (await this.staging.getFileHandle(nextStageFileNameV1)).getFile();
-      await copyFileV1(next, resolved.parent, resolved.name);
+      // Target bytes close before the durable head is published. Once the head
+      // names the successor, staged copies are cleanup debris, not replay input.
     } else {
       throw new BrowserWorkspaceHostStorageErrorV1(
         "volume_corrupt",
@@ -708,6 +808,25 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
       );
     }
     await this.clearPendingAndStaging();
+  }
+
+  async adoptCandidate(): Promise<void> {
+    this.assertOpen();
+    const marker = await inspectCandidateMarkerV1(this.volume);
+    if (marker.kind === "missing") return;
+    if (marker.kind === "invalid") {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "volume_corrupt",
+        "Workspace candidate marker is invalid",
+      );
+    }
+    if (!sameAnchorV1(marker.anchor, this.anchor)) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "candidate_mismatch",
+        "Workspace candidate marker does not match its Program manifest",
+      );
+    }
+    await removeEntryIfPresentV1(this.volume, candidateFileNameV1);
   }
 
   async close(): Promise<void> {
@@ -768,7 +887,10 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
   private async readPendingFile(handle: FileSystemFileHandle): Promise<PendingMutationV1 | null> {
     try {
       return admitPendingV1(JSON.parse(await (await handle.getFile()).text()) as unknown);
-    } catch {
+    } catch (error) {
+      if (storageUnavailableDomExceptionV1(error) || quotaExceededDomExceptionV1(error)) {
+        throw opfsErrorV1(error, "Workspace pending mutation could not be read");
+      }
       return null;
     }
   }
@@ -779,7 +901,7 @@ export function createBrowserWorkspaceHostOpfsBootstrapV1(
 ): BrowserWorkspaceHostBootstrapPortV1 {
   const getRootDirectory = options.getRootDirectory ?? (() => navigator.storage.getDirectory());
   const lockPort = options.lockPort ?? createBrowserWorkspaceHostWebLockPortV1(navigator.locks);
-  const createVolumeId = options.createVolumeId ?? (() => randomIdentityV1("sillyos.volume"));
+  const createVolumeId = options.createVolumeId ?? stableVolumeIdentityV1;
   const createInitialCheckpointId = options.createInitialCheckpointId ??
     (() => randomIdentityV1("sillyos.checkpoint"));
   const candidates = new Map<string, CandidateStateV1>();
@@ -815,12 +937,7 @@ export function createBrowserWorkspaceHostOpfsBootstrapV1(
       try {
         rawAnchor = await readJsonV1(control, anchorFileNameV1);
       } catch (error) {
-        throw new BrowserWorkspaceHostStorageErrorV1(
-          "volume_corrupt",
-          "Workspace volume anchor cannot be decoded",
-          null,
-          { cause: error instanceof Error ? error : new Error(String(error)) },
-        );
+        throw decodeFailureV1(error, "Workspace volume anchor cannot be decoded");
       }
       const storedAnchor = admitAnchorV1(rawAnchor);
       if (storedAnchor === null || !sameAnchorV1(storedAnchor, anchor)) {
@@ -831,12 +948,14 @@ export function createBrowserWorkspaceHostOpfsBootstrapV1(
       }
       const lease = new OpfsVolumeLeaseV1({
         anchor,
+        volume,
         control,
         staging,
         workspace,
         volumeLease,
       });
       await lease.recoverPending();
+      await lease.adoptCandidate();
       openLeases.add(lease);
       return lease;
     } catch (error) {
@@ -847,30 +966,69 @@ export function createBrowserWorkspaceHostOpfsBootstrapV1(
 
   return {
     async createCandidate(input) {
-      const volumeId = createVolumeId();
-      const checkpointId = createInitialCheckpointId();
-      if (!identifierPatternV1.test(volumeId) || !identifierPatternV1.test(checkpointId)) {
-        throw new BrowserWorkspaceHostStorageErrorV1(
-          "request_failed",
-          "Workspace identity factory returned an invalid identity",
-        );
-      }
-      const anchor: BrowserWorkspaceVolumeAnchorWireV1 = {
-        revision: 1,
-        programId: input.programId,
-        workspaceId: input.workspaceId,
-        volumeId,
-        workspaceFormat: browserWorkspaceFormatRevisionV1,
-      };
+      let volumeId = "";
+      let volumeRoot: FileSystemDirectoryHandle | null = null;
+      let removeOwnedVolumeOnFailure = false;
       try {
-        const volumeRoot = await volumes();
-        if (await directoryHandleIfPresentV1(volumeRoot, volumeId) !== null) {
+        volumeId = await createVolumeId(input);
+        if (!identifierPatternV1.test(volumeId)) {
           throw new BrowserWorkspaceHostStorageErrorV1(
             "request_failed",
-            "Workspace volume identity already exists",
+            "Workspace identity factory returned an invalid identity",
+          );
+        }
+        const anchor: BrowserWorkspaceVolumeAnchorWireV1 = {
+          revision: 1,
+          programId: input.programId,
+          workspaceId: input.workspaceId,
+          volumeId,
+          workspaceFormat: browserWorkspaceFormatRevisionV1,
+        };
+        volumeRoot = await volumes();
+        const existing = await directoryHandleIfPresentV1(volumeRoot, volumeId);
+        if (existing !== null) {
+          const marker = await inspectCandidateMarkerV1(existing);
+          const complete = await inspectCompleteCandidateV1(existing);
+          if (marker.kind === "valid" && !sameAnchorV1(marker.anchor, anchor)) {
+            throw new BrowserWorkspaceHostStorageErrorV1(
+              "candidate_mismatch",
+              "Workspace candidate identity belongs to another Program workspace",
+            );
+          }
+          if (marker.kind === "valid" && complete !== null) {
+            if (
+              !sameAnchorV1(complete.anchor, anchor) ||
+              complete.head.volumeId !== anchor.volumeId ||
+              complete.head.workspaceFormat !== anchor.workspaceFormat ||
+              complete.head.generation !== 1
+            ) {
+              throw new BrowserWorkspaceHostStorageErrorV1(
+                "volume_corrupt",
+                "Workspace candidate does not contain its exact initial volume",
+              );
+            }
+            candidates.set(volumeId, { anchor });
+            return anchor;
+          }
+          if (marker.kind !== "valid" && complete !== null) {
+            throw new BrowserWorkspaceHostStorageErrorV1(
+              marker.kind === "missing" ? "candidate_mismatch" : "volume_corrupt",
+              "Workspace volume exists without its exact candidate marker",
+            );
+          }
+          await removeEntryIfPresentV1(volumeRoot, volumeId, { recursive: true });
+        }
+
+        const checkpointId = createInitialCheckpointId();
+        if (!identifierPatternV1.test(checkpointId)) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "request_failed",
+            "Workspace identity factory returned an invalid identity",
           );
         }
         const volume = await volumeRoot.getDirectoryHandle(volumeId, { create: true });
+        removeOwnedVolumeOnFailure = true;
+        await writeFileV1(volume, candidateFileNameV1, encodedJsonV1(anchor));
         const control = await volume.getDirectoryHandle(controlDirectoryNameV1, { create: true });
         await control.getDirectoryHandle(stagingDirectoryNameV1, { create: true });
         await volume.getDirectoryHandle(workspaceDirectoryNameV1, { create: true });
@@ -889,11 +1047,14 @@ export function createBrowserWorkspaceHostOpfsBootstrapV1(
           ),
         );
         candidates.set(volumeId, { anchor });
+        removeOwnedVolumeOnFailure = false;
         return anchor;
       } catch (error) {
-        await removeEntryIfPresentV1(await volumes(), volumeId, { recursive: true }).catch(
-          () => undefined,
-        );
+        if (removeOwnedVolumeOnFailure && volumeRoot !== null) {
+          await removeEntryIfPresentV1(volumeRoot, volumeId, { recursive: true }).catch(
+            () => undefined,
+          );
+        }
         throw opfsErrorV1(error, "Workspace candidate creation failed");
       }
     },

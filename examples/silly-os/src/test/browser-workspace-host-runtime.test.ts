@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BrowserWorkspaceHostStorageErrorV1,
   createBrowserWorkspaceHostRuntimeV1,
   type BrowserWorkspaceHostBootstrapPortV1,
   type BrowserWorkspaceHostDurableHeadV1,
@@ -30,6 +31,7 @@ interface FakeVolumeV1 {
   leaseCloseCalls: number;
   holdNextChangedWrite: boolean;
   heldWriteEntered: (() => void) | null;
+  replaceError: Error | null;
 }
 
 function bytesEqualV1(left: Uint8Array, right: Uint8Array): boolean {
@@ -65,6 +67,7 @@ class FakeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
     input: BrowserWorkspaceHostReplaceFileInputV1,
   ): Promise<BrowserWorkspaceHostReplaceFileResultV1> {
     if (this.closed) throw new Error("lease closed");
+    if (this.volume.replaceError !== null) throw this.volume.replaceError;
     const existing = this.volume.files.get(input.path);
     if (existing !== undefined && bytesEqualV1(existing, input.bytes)) {
       return { changed: false, head: { ...this.volume.head } };
@@ -127,6 +130,7 @@ class FakeBootstrapV1 implements BrowserWorkspaceHostBootstrapPortV1 {
       leaseCloseCalls: 0,
       holdNextChangedWrite: false,
       heldWriteEntered: null,
+      replaceError: null,
     });
     return anchor;
   }
@@ -201,6 +205,87 @@ function lastV1<T>(values: readonly T[]): T {
 }
 
 describe("SillyOS Browser Workspace Host runtime", () => {
+  it("projects a wrapped storage quota failure as capacity_exceeded without advancing the head", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      postControlMessage: (message) => controls.push(message),
+      createWorkspaceSessionId: () => "workspace-session.capacity",
+    });
+    await runtime.receiveControl(controlRequestV1(1, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    const anchor = (lastV1(controls) as {
+      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+    }).response.anchor;
+    const volume = bootstrap.volumes.get(anchor.volumeId);
+    if (volume === undefined) throw new Error("expected fake volume");
+    volume.replaceError = new BrowserWorkspaceHostStorageErrorV1(
+      "capacity_exceeded",
+      "Workspace capacity was exhausted",
+    );
+    await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
+    const port = new FakeMessagePortV1();
+    await runtime.receiveControl(
+      controlRequestV1(3, {
+        method: "attach_environment",
+        workspaceSessionId: "workspace-session.capacity",
+      }),
+      [port],
+    );
+    port.send(environmentRequestV1(4, {
+      method: "begin_run",
+      binding: {
+        revision: 1,
+        programId: programIdV1,
+        workspaceId: workspaceIdV1,
+        workspaceSessionId: "workspace-session.capacity",
+        expectedGeneration: 1,
+      },
+      sessionId: "pi-session.capacity",
+      runId: "pi-run.capacity",
+    }));
+    port.send(environmentRequestV1(5, {
+      method: "begin_tool",
+      toolCallId: "pi-tool.capacity",
+      tool: "write",
+    }));
+    await flushEnvironmentV1();
+    port.send(environmentRequestV1(6, {
+      method: "write_file",
+      path: "capacity.md",
+      bytes: new TextEncoder().encode("will not fit"),
+    }));
+    await flushEnvironmentV1();
+    expect(lastV1(port.messages)).toMatchObject({
+      requestId: 6,
+      ok: false,
+      code: "request_failed",
+    });
+    port.send(environmentRequestV1(7, {
+      method: "end_tool",
+      toolCallId: "pi-tool.capacity",
+      outcome: "failed",
+    }));
+    await flushEnvironmentV1();
+    expect(port.messages.findLast((message) => message.kind === "workspace_receipt")).toMatchObject(
+      {
+        receipt: {
+          outcome: "failed",
+          effect: "none",
+          resultingGeneration: 1,
+          diagnosticCode: "capacity_exceeded",
+        },
+      },
+    );
+    expect(volume.head.generation).toBe(1);
+    expect(volume.files.has("capacity.md")).toBe(false);
+    await runtime.dispose();
+  });
+
   it("keeps candidates session-free, publishes changed receipts before end_tool, and cold-reopens retained bytes", async () => {
     const bootstrap = new FakeBootstrapV1();
     const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];

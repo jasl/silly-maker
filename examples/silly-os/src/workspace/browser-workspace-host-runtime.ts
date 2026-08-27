@@ -97,6 +97,7 @@ export type BrowserWorkspaceHostStorageFailureCodeV1 =
   | "volume_corrupt"
   | "candidate_mismatch"
   | "storage_unavailable"
+  | "capacity_exceeded"
   | "request_failed";
 
 export class BrowserWorkspaceHostStorageErrorV1 extends Error {
@@ -620,7 +621,9 @@ export function createBrowserWorkspaceHostRuntimeV1(
         response: { method: "write_file", value: null },
       });
     } catch (error) {
-      scope.failureDiagnostic = error instanceof DOMException && error.name === "QuotaExceededError"
+      scope.failureDiagnostic = error instanceof BrowserWorkspaceHostStorageErrorV1 &&
+            error.code === "capacity_exceeded" ||
+          error instanceof DOMException && error.name === "QuotaExceededError"
         ? "capacity_exceeded"
         : "execution_failed";
       environmentFailure(session, requestId, "request_failed", storageFileErrorV1(error));

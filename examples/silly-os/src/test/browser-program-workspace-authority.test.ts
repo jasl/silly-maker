@@ -15,7 +15,10 @@ import {
 } from "../product/program-repository.ts";
 import { createCreatorSessionV1 } from "../product/creator-session.ts";
 import { createDeterministicFakeCreatorV1 } from "../product/fake-creator.ts";
-import type { BrowserWorkspaceHostPagePortV1 } from "../workspace/browser-workspace-host-port.ts";
+import type {
+  BrowserWorkspaceHostFatalV1,
+  BrowserWorkspaceHostPagePortV1,
+} from "../workspace/browser-workspace-host-port.ts";
 import type {
   BrowserWorkspaceHostSnapshotWireV1,
   BrowserWorkspaceVolumeAnchorWireV1,
@@ -34,11 +37,13 @@ function fakeHostBackingV1(): FakeHostBackingV1 {
 function fakeHostV1(backing: FakeHostBackingV1): BrowserWorkspaceHostPagePortV1 & {
   readonly created: string[];
   readonly discarded: string[];
+  fail(fatal: BrowserWorkspaceHostFatalV1): void;
 } {
   const created: string[] = [];
   const discarded: string[] = [];
   const sessions = new Map<string, BrowserWorkspaceHostSnapshotWireV1>();
   const channels = new Map<string, MessageChannel>();
+  const fatalListeners = new Set<(fatal: BrowserWorkspaceHostFatalV1) => void>();
   return {
     created,
     discarded,
@@ -102,12 +107,20 @@ function fakeHostV1(backing: FakeHostBackingV1): BrowserWorkspaceHostPagePortV1 
       channels.delete(workspaceSessionId);
       return snapshot;
     },
+    subscribeFatal(listener) {
+      fatalListeners.add(listener);
+      return () => fatalListeners.delete(listener);
+    },
+    fail(fatal) {
+      for (const listener of [...fatalListeners]) listener(fatal);
+    },
     dispose() {
       for (const channel of channels.values()) {
         channel.port1.close();
         channel.port2.close();
       }
       channels.clear();
+      fatalListeners.clear();
     },
   };
 }
@@ -202,5 +215,29 @@ describe("Browser Program workspace authority", () => {
     expect(host.discarded).toEqual([]);
     expect(hostBacking.volumes.has(opened.snapshot.volumeId)).toBe(true);
     await authority.dispose();
+  });
+
+  it("fences the active session and forwards one Host fatal without reporting normal disposal", async () => {
+    const repositoryBacking = createMemoryProgramRepositoryBackingV2();
+    const repository = createMemoryProgramRepositoryV2({ backing: repositoryBacking });
+    const identity = await seedProgramV1(repository);
+    const host = fakeHostV1(fakeHostBackingV1());
+    const authority = createBrowserProgramWorkspaceAuthorityV1({ repository, host });
+    const fatals: unknown[] = [];
+    authority.subscribeFatal(() => {
+      throw new Error("fatal observation must remain observational");
+    });
+    authority.subscribeFatal((fatal) => fatals.push(fatal));
+    const opened = await authority.openWorkspace(identity);
+
+    host.fail({ code: "outcome_unknown" });
+
+    expect(fatals).toEqual([{ code: "outcome_unknown" }]);
+    await expect(authority.queryWorkspace(opened.snapshot.descriptor.workspaceSessionId)).rejects
+      .toThrow("sillyos.browser_program_workspace.workspace_mismatch");
+    await expect(authority.closeWorkspace(opened.snapshot.descriptor.workspaceSessionId)).rejects
+      .toThrow("sillyos.browser_program_workspace.workspace_mismatch");
+    await authority.dispose();
+    expect(fatals).toEqual([{ code: "outcome_unknown" }]);
   });
 });
