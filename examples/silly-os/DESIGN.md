@@ -4,8 +4,10 @@
 
 Status: active Browser-first dual-target rewrite with P2 Browser Program
 persistence, bounded terminal Agent-run receipts, and P3a-B0's disposable
-Browser execution workspace delivered, 2026-08-27. P3a remains open; P3a-B1 and
-later workspace slices remain inactive. The former "SillyOS 98" desktop
+Browser execution workspace delivered, 2026-08-27. The deliberately bounded
+P3c-B0 Browser Program checkpoint is the active next slice; P3a-B1, broad
+execution-provider research, snapshot publication, and later workspace slices
+remain inactive. The former "SillyOS 98" desktop
 experiment has been retired as a product direction. It remains useful only as
 repository history; it is not a compatibility baseline for this rewrite.
 
@@ -233,18 +235,21 @@ change a real product behavior.
   is deterministic game Save. P2 durably stores the bounded Program catalog,
   product-session projection, and terminal product receipt keyed by a
   product-owned `agentRunId`; Pi session/run identities, credentials, provider
-  data, and Workspace files remain non-durable.
-- Browser binds Pi's shipped `read`, `write`, `edit`, and `bash` tool factories
+  data, and Workspace files remain non-durable in the delivered P2/P3a-B0
+  baseline. P3c-B0 adds only an OPFS-backed mutable Program checkpoint and a
+  small product continuation manifest; it still does not persist Pi private
+  sessions or Creator Chat.
+- Browser ultimately binds Pi's shipped `read`, `write`, `edit`, and `bash` tool factories
   to one stable Program-scoped Pi `ExecutionEnv`. The product-private workspace
   boundary eventually owns runtime lifecycle, capability truth, generation
   fencing, the change journal, persistence, and terminal receipts; it does not
   redefine those four tool schemas or results. A sequential outer call scope
   binds product run/tool identity and generation around the native Pi
   `tool.execute(...)`, because Pi environment primitives do not receive that
-  identity themselves. `read`/`write`/`edit` use the environment's filesystem
-  projection directly. Browser Local implements only the environment's shell
-  half with just-bash over a second thin filesystem projection onto the same
-  volume. Desktop may use the fixed coding-agent's public factory/SDK operation
+  identity themselves. `read`/`write` and the later `edit` use the environment's
+  filesystem projection directly. A later Browser Local slice may implement the
+  environment's shell half with just-bash over a second thin filesystem
+  projection onto the same volume. Desktop may use the fixed coding-agent's public factory/SDK operation
   hooks through a programmatically constructed fixed tool set or another proved
   public integration route; those hooks are not Extension API overrides. A later
   BYO Sandbox supplies an admitted remote environment. None may fall back to
@@ -264,12 +269,13 @@ runtime:
 
 ```text
 Browser: React -> typed MessagePort -> Agent Worker -> pi-agent-core/pi-ai
-                                      -> Pi core read/write/edit/bash
+                                      -> Pi core read/write
+                                      -> later edit/bash
                                       -> Program-scoped ExecutionEnv
                                            -> typed environment RPC
                                            -> Workspace Host Worker
-                                                filesystem -> volume/OPFS
-                                                shell.exec -> just-bash -> same volume
+                                                filesystem -> OPFS volume
+                                                later shell.exec -> just-bash -> same volume
 
 Desktop: React -> private Host route -> companion -> Pi coding-agent subprocess
                                       -> proved tool-factory/SDK operation hooks
@@ -278,9 +284,10 @@ Desktop: React -> private Host route -> companion -> Pi coding-agent subprocess
 BYO:     React -> Agent owner -> admitted sandbox RPC -> remote environment
 ```
 
-P3a may co-locate its disposable volume and just-bash inside one owned Browser
-Local runtime. P3c may move that unit into the Workspace Host Worker for OPFS.
-There is no dedicated just-bash Worker requirement; only a later
+P3a-B0 co-locates its disposable volume with the Agent Worker. P3c-B0 moves the
+already-proved `read`/`write` filesystem projection behind the Workspace Host
+Worker and OPFS before any shell is selected. P3a-B1 may later add just-bash;
+there is no dedicated just-bash Worker requirement. Only a later
 non-cooperative custom or Wasm command needs its own terminable Worker.
 
 The current raw Desktop/development launcher resolves only this product's exact
@@ -367,8 +374,9 @@ bounded Agent-run receipt survives reload and reports whole-run/Program commit
 meaning. The P3a-B0 mutation receipt and bytes live only for the open execution
 session and report actual volume effects even when a run is failed, cancelled,
 replaced, or produces no admissible Program candidate. Reload resets the volume
-and generation and must be shown as such. Persistent workspace bytes, receipts,
-artifacts, and snapshots remain P3c.
+and generation and must be shown as such. P3c-B0 now owns only persistent
+workspace bytes; durable tool receipts, artifacts, and snapshots remain later
+independent work.
 
 The exact DTO, close/cancel ordering, query/ack backpressure, generation rules,
 path and capacity ceilings, and Browser acceptance are owned by the delivered
@@ -385,14 +393,100 @@ general Cloudflare proxy are outside the baseline; a user-deployed relay is a
 later explicit fallback for otherwise compatible endpoints without browser
 CORS support.
 
-The Browser workspace is origin-local. One Workspace Host Worker owns OPFS
-project bytes; IndexedDB owns the Program catalog and bounded recovery metadata;
-Cache API owns the application shell and immutable runtime assets. These stores
-share origin quota and eviction fate. The product must expose quota and
-persistence state, request persistent storage only after the user creates
-important work, handle interrupted/quota-full writes, and provide export/import.
-Local browser storage is not presented as a backup, and changing the deployment
-origin is a data migration rather than an invisible upgrade.
+### First persistent Browser Program checkpoint
+
+P3c-B0 promotes only the mutable Browser working checkpoint. One product-owned
+Workspace Host Worker is the sole OPFS byte owner; the Agent Worker reaches its
+filesystem through typed environment RPC, never through React state. A first
+open creates one opaque `volumeId`, while each reopen still creates a fresh
+execution-only `workspaceSessionId`. The durable volume generation starts at
+`1` and continues monotonically across cold reopen instead of resetting with
+the Agent Worker. A Host-only OPFS head records exact
+`(volumeId, workspaceFormat, checkpointId, generation)` currentness; the opaque
+`checkpointId` changes only with bytes and identifies the mutable head, not an
+immutable Program snapshot.
+
+The Workspace Host's Dedicated Worker is not sufficient mutual exclusion
+across tabs. Each open session holds one origin-wide exclusive lease for its
+`volumeId` through Web Locks or a Chromium/WebKit-proved equivalent. A second
+tab receives bounded busy state. Close or Agent Forget drains and flushes,
+releases OPFS handles and then the lease; Forget deletes only transient Pi/
+execution state, never the durable volume or continuation manifest.
+
+The first open has a separate short-lived bootstrap lease keyed by the durable
+Program/workspace identity, because two tabs do not yet share a `volumeId`.
+Inside that lease the product reloads the continuation manifest, creates a
+candidate volume only when it is still absent, and resolves the exact repository
+CAS before exposing a workspace. A CAS loser or unknown response reloads the
+winning manifest, closes and removes its unattached orphan candidate, and then
+opens only the winner's volume. Pi never starts before the winning manifest is
+known and its volume lease has been acquired.
+
+The Program repository owns one small exact continuation manifest per Program:
+`programId`, `workspaceId`, opaque `volumeId`, workspace format revision, and
+the exact anchored Program and repository revisions. It contains no workspace
+generation, file list or bytes, Creator Chat, model/provider record, credential,
+Pi transcript, or Pi private session/run identity. The OPFS volume head—not
+IndexedDB—owns continuous generation. Tool writes therefore update and flush
+only OPFS; they do not create a Program-repository transaction for every
+mutation. The manifest is not an accepted Program snapshot, immutable
+publication receipt, or mutation history. P3a's tool receipts remain bounded
+and session-local.
+
+Continuation is the composition of existing authorities rather than new
+duplicated content. The manifest selects one exact P2 Program/repository
+projection: the Program intent and accumulated requirements provide the goal,
+the current proposal supplies phase and open review work, and existing exact
+decisions, Activity, and terminal receipts provide bounded decision meaning.
+The Workspace Host separately opens the current durable volume head. The
+manifest never copies the Creator message list, and a fresh Pi session never
+receives a replayed Chat or a serialized Pi session as synthetic context.
+Later P2 mutations advance the manifest's Program/repository anchors in the same
+IndexedDB transaction; workspace mutations do not touch those anchors.
+
+The Host reads and writes OPFS files by range or stream and keeps only bounded
+directory/index pages and active-operation buffers in memory. It never loads or
+copies the complete volume through the page, Agent Worker, structured clone, or
+one unconditional `ArrayBuffer`. P3a-B0's `2 MiB` ceiling remains solely the
+disposable in-memory control's guardrail; it is not the persistent Program
+capacity. P3c-B0's Chromium and WebKit baseline must successfully retain 1,000
+small files plus one `16 MiB` file with at least `20 MiB` total content.
+`100 MiB`, `256 MiB`, and larger several-hundred-MiB runs are raw
+characterizations when the current origin quota permits, while the product
+reports `navigator.storage.estimate()` and preserves working/export headroom.
+They are not universal support promises, and the UI never advertises a fixed
+browser quota. The Host declares fixed maximum I/O chunk and aggregate
+bytes-in-flight budgets that do not grow with volume size. The current Pi read
+path rejects a file over `256 KiB` from Host metadata before allocating or
+cloning its contents; that tool bound is not an OPFS capacity limit.
+
+Cold reopen combines the exact anchored P2 projection with the current durable
+OPFS head and its generation under a new execution lease. Missing or corrupt
+manifests or volumes, interrupted writes, quota exhaustion, private browsing, rejected
+`persist()`, user-cleared site data, and a changed deployment origin are
+explicit recovery states; none silently creates an empty replacement for a
+known Program. OPFS, IndexedDB, and Cache API share origin quota and eviction
+fate, so local persistence is not presented as backup.
+
+P3c-B0 also adds one user-triggered portable ZIP export of a quiescent
+checkpoint. The cross-browser baseline writes normalized `workspace/` paths in
+canonical lexical order and an exact revision-1 `sillyos-workspace.json` into a
+quota-checked OPFS temporary while honoring stream backpressure, progress, and
+`AbortSignal`. It exposes the completed OPFS-backed browser `File` through a
+short-lived object URL, then revokes the URL and removes the temporary on
+success, cancellation, or failure. A directly selected writable file is only an
+enhancement. No path builds a whole-volume `Blob`, routes the full archive
+through React, or holds it in memory. Export never changes the checkpoint head.
+The archive excludes the Program database, Chat, credentials, provider data, Pi
+sessions, and session-local receipts. This is an export writer only; SillyOS
+import/restore remains a later independently admitted slice.
+
+This checkpoint does not publish immutable reviewed snapshots or connect
+workspace bytes to P2 accept/reject. It adds no `edit`, `bash`, shell, Wasm,
+Git, provider selector, BYO Sandbox, Pi extension discovery, Desktop storage,
+or SillyMaker engine API. Those boundaries remain inactive until this smaller
+Browser persistence path has passed cold-reopen, quota/recovery, streaming-
+scale, and export evidence.
 
 ## Information architecture
 
@@ -585,21 +679,21 @@ passing a pixel threshold alone is not design approval.
 This table is the completion denominator for the rewrite. A working preview is
 evidence for the preview only.
 
-| Area               | Accepted product role                                     | Current preview evidence                                         | Remaining before product-ready                         |
-| ------------------ | --------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------ |
-| Creator home       | Express intent and create/open a Program                  | Local request + B0a/B0b setup + P2 recent reopen                 | Attachments and general Provider UI                    |
-| Creator supervisor | Chat supervises one Program without becoming Program data | Durable run receipts + explicit disposable Pi session binding    | Durable artifact/snapshot supervision                  |
-| Program workspace  | One focused mutable workspace produces reviewed snapshots | Durable Program lineage + disposable native read/write volume    | Durable volume, edit/bash, and admitted outputs        |
-| Human review       | Accept/reject an exact proposed revision                  | Durable exact decision + cross-page stale rejection              | Workspace-generation/snapshot publication              |
-| Activity           | Explain what happened and what needs review               | Durable run events + session-local last-write receipt            | Complete tool/action history and approvals             |
-| Capabilities       | Required Agent and UI abilities are understandable        | Proposal tool + native read/write + truthful workspace status    | Edit/bash and adapter-specific capability composition  |
-| Generated UI       | Agent-authored UI remains legible and controllable        | Not implemented                                                  | OpenUI mapped to closed SillyMaker components          |
-| Source             | Inspect and refine the Program where useful               | Presentation-only recipe preview                                 | Persistent draft volume and accepted snapshots         |
-| Translation        | A usable translation Program                              | Intent classification only                                       | Complete workflow, data, QA, export                    |
-| Writing            | A usable writing Program                                  | Intent classification only                                       | Complete workflow, data, revision tools                |
-| Role-play          | A usable role-play Program                                | Intent classification only                                       | Complete sessions, characters, VN behavior             |
-| Browser            | Publishable local-first product with BYO Provider         | Fixed-profile Pi + durable Program/run + disposable native tools | General Provider UI, durable workspace, closure        |
-| Deno Desktop       | Same product with admitted Host integrations              | Responsive preview target                                        | Companion acceptance, storage, packaging qualification |
+| Area               | Accepted product role                                     | Current preview evidence                                         | Remaining before product-ready                                     |
+| ------------------ | --------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Creator home       | Express intent and create/open a Program                  | Local request + B0a/B0b setup + P2 recent reopen                 | Attachments and general Provider UI                                |
+| Creator supervisor | Chat supervises one Program without becoming Program data | Durable run receipts + explicit disposable Pi session binding    | Program-anchored checkpoint continuation, then artifacts/snapshots |
+| Program workspace  | One focused mutable workspace produces reviewed snapshots | Durable Program lineage + disposable native read/write volume    | OPFS checkpoint/reopen/export first; later edit/bash and snapshots |
+| Human review       | Accept/reject an exact proposed revision                  | Durable exact decision + cross-page stale rejection              | Workspace-generation/snapshot publication                          |
+| Activity           | Explain what happened and what needs review               | Durable run events + session-local last-write receipt            | Complete tool/action history and approvals                         |
+| Capabilities       | Required Agent and UI abilities are understandable        | Proposal tool + native read/write + truthful workspace status    | Edit/bash and adapter-specific capability composition              |
+| Generated UI       | Agent-authored UI remains legible and controllable        | Not implemented                                                  | OpenUI mapped to closed SillyMaker components                      |
+| Source             | Inspect and refine the Program where useful               | Presentation-only recipe preview                                 | Persistent draft checkpoint first; accepted snapshots later        |
+| Translation        | A usable translation Program                              | Intent classification only                                       | Complete workflow, data, QA, export                                |
+| Writing            | A usable writing Program                                  | Intent classification only                                       | Complete workflow, data, revision tools                            |
+| Role-play          | A usable role-play Program                                | Intent classification only                                       | Complete sessions, characters, VN behavior                         |
+| Browser            | Publishable local-first product with BYO Provider         | Fixed-profile Pi + durable Program/run + disposable native tools | OPFS checkpoint/export first; Provider UI and closure later        |
+| Deno Desktop       | Same product with admitted Host integrations              | Responsive preview target                                        | Companion acceptance, storage, packaging qualification             |
 
 Before SillyOS is called a complete reference product, this table must be
 reconciled with implementation and tests, the current-low-end startup,
@@ -609,10 +703,12 @@ or one generated Program is not evidence that the complete product exists.
 
 ## Explicit defers
 
-The phases in [PLAN.md](./PLAN.md) govern real Pi integration, product
-persistence, Pi-native workspace tool binding, the workspace execution provider
-research gate, Pi capability composition, OpenUI-to-SillyMaker mapping, and the
-first complete product families. Runtime candidates and the common Browser/Deno
+The active P3c-B0 slice in [PLAN.md](./PLAN.md) governs the Browser OPFS
+checkpoint before Pi `edit`/`bash` or execution-provider research. The plan also
+governs later real Pi integration, product persistence, Pi-native workspace
+tool binding, provider research, Pi capability composition,
+OpenUI-to-SillyMaker mapping, and the first complete product families. Runtime
+candidates and the common Browser/Deno
 evidence corpus are recorded in
 [WASM-WORKSPACE-RESEARCH.md](./WASM-WORKSPACE-RESEARCH.md). A later phase is not
 current implementation merely because a plan names it. Provider OAuth/login,

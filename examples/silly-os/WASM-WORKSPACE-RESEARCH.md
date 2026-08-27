@@ -2,10 +2,12 @@
 
 # SillyOS workspace harness and WASM research
 
-Status: Browser-first research gate, revised 2026-08-27. just-bash is selected
-only as the bounded P3a-B1 Browser Local shell control; no persistent workspace
-execution provider is selected or implemented. The owning product sequence is
-[PLAN.md](./PLAN.md).
+Status: Browser-first research record, reordered 2026-08-27. The active product
+slice is P3c-B0: persist the delivered Pi `read`/`write` control through a
+Workspace Host Worker and OPFS before adding a shell or running broad execution-
+provider research. just-bash remains only a later P3a-B1 Browser Local shell
+candidate; no shell/process provider or BYO Sandbox is selected or implemented.
+The owning product sequence is [PLAN.md](./PLAN.md).
 
 ## Decision to make
 
@@ -21,8 +23,10 @@ SillyOS needs three orthogonal contracts:
    selection, lifecycle, capabilities, volume generation, change journal,
    persistence, and terminal receipts. It may select Browser Local, Desktop
    native, or a later BYO Sandbox without becoming a second tool dispatcher.
-   The first control implements only open/close, sequential call scope,
-   generation preflight, volume effects, and a terminal mutation receipt.
+   The delivered control implements only open/close, sequential call scope,
+   generation preflight, disposable volume effects, and a terminal mutation
+   receipt. P3c-B0 adds only Browser OPFS continuity and export to that proven
+   surface.
 
 The product invariant is a familiar coding-tool environment and one volume
 authority, not Wasm or Linux. Wasm is a strong candidate mechanism because it
@@ -40,11 +44,13 @@ passes the Chromium, WebKit, and Deno Desktop corpus.
 ```text
 Browser target
   React UI <- admitted Agent events/actions -> Agent DedicatedWorker
-     pi-agent-core/pi-ai -> Pi native read/write/edit/bash
+     pi-agent-core/pi-ai -> Pi native read/write
+                         -> later edit/bash
                          -> stable Program-scoped ExecutionEnv
                               -> typed environment RPC -> Workspace Host Worker
                                                            FileSystem -> volume/OPFS
-                                                           Shell.exec -> just-bash -> same volume
+                                                           later Shell.exec -> just-bash
+                                                             -> same volume
 
 Deno Desktop target
   React UI <- admitted Agent events/actions -> private companion route
@@ -56,10 +62,11 @@ BYO Sandbox target
   Agent owner -> admitted environment RPC -> remote filesystem/shell provider
 ```
 
-P3a may co-locate its disposable volume and just-bash in one Browser Local
-runtime. P3c may move that unit into the Workspace Host Worker for OPFS. A
-dedicated just-bash Worker is not required; only a later non-cooperative custom
-or Wasm command needs a separately terminable Worker.
+P3a-B0 co-locates its disposable volume with the Agent Worker. P3c-B0 moves the
+proved `read`/`write` byte authority into the Workspace Host Worker and OPFS
+before just-bash is introduced. A dedicated just-bash Worker is not required;
+only a later non-cooperative custom or Wasm command needs a separately
+terminable Worker.
 
 SillyMaker owns only the React GUI and interaction behavior. Pi owns the Agent
 loop, providers, session semantics, model-visible tool definitions/calls,
@@ -108,7 +115,8 @@ product uses `navigator.storage.estimate()`, requests `persist()` only after the
 user creates important work, catches `QuotaExceededError`, and treats private
 browsing, user-cleared site data, and a rejected persistence request as explicit
 states. Persistence does not increase quota or turn local bytes into a backup;
-export/import or optional later sync is required for recovery.
+P3c-B0 supplies portable export first, while import/restore and optional sync
+remain later independent decisions.
 
 OPFS and IndexedDB do not provide one cross-API transaction. Publication uses
 temporary files plus an atomic same-filesystem replacement where supported, a
@@ -126,18 +134,95 @@ generation/snapshot. Only a successful product transaction makes that snapshot
 the next accepted Program revision. Failed or stale publication retains the
 previous accepted revision and the repairable draft.
 
-Cross-store publication uses a durable receipt rather than pretending SQLite
-and the volume form one transaction. The volume owner atomically creates and
-flushes an immutable snapshot, returns an opaque identity that it guarantees can
-be reopened, and only then may the product database publish that reference after
-rechecking the review envelope. A database failure leaves an unreachable orphan
-for bounded cleanup. A database success pointing to a missing snapshot is a
-reported corruption/recovery case, never a silent fallback to different bytes.
+Later immutable publication uses a durable receipt rather than pretending
+IndexedDB/SQLite and the volume form one transaction. The volume owner will
+atomically create and flush an immutable snapshot, return an opaque identity
+that it guarantees can be reopened, and only then allow the product database to
+publish that reference after rechecking the review envelope. That snapshot path
+is not part of P3c-B0: the active slice persists and exports only the mutable
+head and reconciles its small continuation manifest.
 
 One logical runtime may use TypeScript, multiple Web Workers, WebAssembly
 modules, a native companion, or guest processes. The product contract is the
 tool/volume semantics and lifecycle per open Program Workspace, not one literal
 `WebAssembly.Instance` or one implementation substrate across targets.
+
+## Storage-first P3c-B0 boundary
+
+P3c-B0 deliberately selects Browser OPFS ownership without selecting a shell or
+execution-provider denominator. The already-qualified native Pi `read`/`write`
+path is sufficient to prove that useful Agent-produced Program bytes can become
+a durable mutable checkpoint. One Workspace Host Worker owns each open
+Program's OPFS handles and streams filesystem primitives over a typed
+MessagePort; the page and Agent Worker never own or whole-value clone the tree.
+
+The product repository stores only the exact bounded continuation manifest
+defined in [PLAN.md](./PLAN.md): Program/workspace identity, opaque `volumeId`,
+workspace format, and exact anchored Program/repository revisions. It is not a
+chat log, Pi session repository, provider record, file index, generation
+mirror, mutation journal, or accepted snapshot reference. Goal, phase,
+decisions, and open review work remain in the exact existing P2 Program
+projection selected by those anchors; the manifest neither duplicates Chat nor
+replays it into Pi. A reopen combines that projection with the OPFS-owned
+current volume head, creates a fresh execution lease and empty session-local
+receipt queue, and continues the durable generation and bytes. The exact
+Host-private `BrowserWorkspaceDurableHeadV1` in [PLAN.md](./PLAN.md) identifies
+that mutable head by `(volumeId, workspaceFormat, checkpointId, generation)`;
+“last acknowledged receipt” is not a recovery identity, and this head is not an
+immutable published snapshot.
+
+Creating the first volume and indexing its ownership is one bounded cross-store
+operation. After that, OPFS alone owns continuous generation and every changed
+tool operation: no per-mutation IndexedDB update is allowed. P2 Program changes
+move the manifest's revision anchors only inside the same Program-repository
+transaction, without reading or publishing OPFS bytes.
+
+Before that manifest exists, contenders use a short-lived bootstrap lock keyed
+by the durable Program/workspace identity rather than by an as-yet-unknown
+`volumeId`. The winner resolves the repository CAS before the workspace or Pi is
+made available. A conflict or unknown-response loser reloads the winner,
+deletes only its unattached orphan candidate, and then competes for the winner's
+ordinary volume lease.
+
+The Worker owns OPFS handles, but a separate origin-wide lease owns write
+exclusivity for the complete open volume session. P3c-B0 uses Web Locks or an
+equivalent mechanism proved in both Chromium and WebKit; an in-memory mutex,
+`BroadcastChannel`, or last-writer-wins policy is insufficient. Close and Agent
+Forget reject new work, drain and flush the head, release handles, and then
+release that lease. Forget removes transient Pi/execution state only; it never
+deletes the durable volume or continuation manifest.
+
+The Chromium/WebKit baseline must persist 1,000 small files plus one `16 MiB`
+file with at least `20 MiB` total content. `100 MiB`, `256 MiB`, and larger runs
+are raw evidence points rather than mandatory supported capacities. Browser
+capacity is a dynamic origin property, `estimate()` is advisory, `persist()` is
+best effort, and quota/full-disk/site-clear/private-mode states remain visible.
+The delivered P3a-B0 `2 MiB` ceiling belongs only to its disposable in-memory
+control; carrying it into OPFS would be a false product limit. Conversely, a
+successful large local run does not promise the same quota on another device or
+origin.
+
+Range/stream access and bounded directory pages keep page, Agent Worker, and
+Workspace Host Worker memory proportional to the active operation. The B0
+implementation pins `1 MiB` maximum chunks and `4 MiB` aggregate filesystem
+bytes in flight independent of total volume size. Before a Pi `read`, the Host
+rejects any file above `256 KiB` from metadata with the exact existing Pi
+`FileError` fixed in [PLAN.md](./PLAN.md), before reading or cloning its bytes.
+The Host never materializes the whole volume or portable archive in a page or
+Worker heap. P3c-B0's cross-Chromium/WebKit export baseline writes a canonical
+revision-1 ZIP to an OPFS temporary with backpressure, progress, and
+`AbortSignal`; success exposes the completed OPFS-backed `File`, while every
+settlement revokes any object URL and removes the temporary. Both browsers must
+unpack and byte-check it with an independent reader. A direct user-selected
+writable file is only an optional enhancement. The inspectable archive invokes
+no Pi `bash`, Tar, Git, or Wasm. An import reader, immutable snapshot publication,
+sync, and restore semantics remain inactive.
+
+This storage-first slice therefore supplies direct evidence to later runtime
+research: candidates must mount or coherently reach the same volume rather than
+forcing persistence to wait for a Linux-like environment. It activates no
+just-bash, Wasm command, Git, provider/BYO Sandbox route, Desktop adapter,
+sandbox claim, or SillyMaker engine work.
 
 ## Pi-native tools and typed execution binding
 
@@ -163,7 +248,9 @@ binder: it preserves every harness-tool field and binds the fifth execution
 argument to a stable `{ env }` context. Pi 0.84.3's broader `AgentHarness` is not
 selected because its prompt, resume, compaction, navigation, cancellation, and
 wait operations still report `HarnessNotImplemented`; SillyOS does not complete
-or fork that Agent framework. The four tools initially execute sequentially.
+or fork that Agent framework. The delivered `read`/`write` pair executes
+sequentially; later `edit`/`bash` must preserve that outer ordering until their
+own mutation/cancellation evidence says otherwise.
 Pi's file-mutation queue is keyed by `ExecutionEnv` identity and path, so an open
 Program Workspace reuses one environment instance rather than constructing a
 new wrapper for every call.
@@ -231,9 +318,10 @@ Wasm command in a separately terminable Worker before strengthening the claim.
 Desktop and BYO providers execute their own coherent shell requests rather than
 placing just-bash in front of a native or remote process host.
 
-Workspace `AGENTS.md`, skills, and prompts remain inert data throughout P3. P3b
-characterizes and P3c persists their bytes but neither interprets them or ties
-resource activation to an execution-provider choice. P4 may qualify a current
+Workspace `AGENTS.md`, skills, and prompts remain inert data throughout P3.
+P3c-B0 persists their bytes before P3b characterizes broader execution
+providers; neither interprets them or ties resource activation to an execution-
+provider choice. P4 may qualify a current
 public Pi resource route per target. Agent-core's current `AgentHarness` resource
 surface is not usable evidence for Browser discovery. With ambient discovery
 disabled, that later slice may prove controlled read-only materialization of one
@@ -499,7 +587,8 @@ Until this is fixed or isolated behind a killable process, agent-sandbox may
 measure Deno-native startup and command behavior but cannot back P3a's mutating
 cancellation receipt.
 
-The resulting preferred experiment order is:
+After P3c-B0 has independently proved the shared OPFS volume, the preferred
+execution experiment order is:
 
 1. just-bash as the Browser-capable `ExecutionEnv.exec` control for P3a-B1;
 2. one Worker-owned external command sharing the same volume, with a Wasm search
@@ -632,7 +721,8 @@ decision evidence.
 
 ## Executable trust boundary
 
-Once P3c executes Agent-generated shell commands or scripts, guest code is
+Once a later P3a-B1/P3b or subsequent P3c slice executes Agent-generated shell
+commands or scripts, guest code is
 untrusted relative to companion credentials, the product database, Host APIs,
 and every other workspace. The initial guest capability is its own volume,
 bounded compute/memory/output, admitted time/cancellation, and no network.
@@ -643,38 +733,28 @@ sandbox claim; the mere use of WebAssembly does not.
 
 ## Research and implementation order
 
-1. Treat delivered P1-B as the Agent prerequisite: one Browser Pi Agent Worker,
-   typed product RPC, memory-only provider key ownership, and one product
-   proposal `AgentTool`. It proves the Agent path without pretending a VFS or
-   shell exists.
-2. Execute P2-B1: persist one product-owned terminal Agent-run receipt for
-   completion, failure, cancellation, or replacement under the existing Program
-   CAS. Prove idempotence, reopen, lost-response reconciliation, and credential
-   absence without storing Pi history, deltas, or tool payloads.
-3. Execute P3a-B0: bind Pi's shipped `write` and `read` to one stable
-   Program-scoped `ExecutionEnv` over a deterministic disposable volume. Prove
-   a real artifact round trip, native Pi schema/result behavior, generation
-   preflight, cancellation, terminal receipt, and cleanup. Do not introduce a
-   custom tool schema or persistence claim.
-4. Execute P3a-B1: bind Pi `edit`, then map Pi `bash`'s `Shell.exec` to
-   just-bash over the same volume. Prove edit, cwd/env, pipe/redirection,
-   terminal output, timeout/abort mapping, and honest capability status. This
-   closes the Browser default-tool control without Git, Wasm, Python, PTY,
-   process-tree, or Linux claims.
-5. In P3b, run one build-known Worker-owned Wasm search or archive command over
-   the same volume, then run the full corpus against agent-sandbox on Deno,
-   Wasmer/WASIX, BrowserPod,
-   and CoWasm where licensing and target access allow. A Deno-specific adapter
-   is allowed behind the same contract; SDK identity across targets is not a
-   goal. Keep full-Linux emulation and WebContainers as measured controls rather
-   than assumed dependencies.
-6. In P3c, select only the smallest Browser Local/Desktop provider pair that
-   passes the required semantics. Give the Browser Workspace Host Worker an OPFS
-   volume and prove reload/cold-reopen byte identity, 1,000 small files, one
-   16 MiB file, quota-full recovery, interrupted-write recovery, snapshot
-   publication, and the complete Pi default-tool path. Qualify BYO Sandbox
-   separately against the applicable conformance rather than making it a local
-   shipping prerequisite.
+1. Treat delivered P1-B, P2-B1, and P3a-B0 as prerequisites: one Browser Pi
+   Agent Worker, typed product RPC, bounded durable whole-run receipt, and one
+   disposable native `write`/`read` workspace with exact mutation truth.
+2. **Execute P3c-B0 now.** Move only that byte authority behind the Browser
+   Workspace Host Worker and OPFS. Add the bounded product continuation
+   manifest, durable generation, cold reopen, dynamic-quota/recovery behavior,
+   raw streaming characterization at `20 MiB`, `100 MiB`, and `256 MiB` when
+   origin quota permits, and one portable export writer. Do not add a shell,
+   snapshot publication, import, Wasm, Git, provider selection, BYO Sandbox,
+   Desktop adapter, or engine API.
+3. Stop for independent P3c-B0 review. Its closure does not automatically start
+   another implementation or research lane.
+4. If separately activated, P3a-B1 may bind Pi `edit` and just-bash-backed
+   `bash` over the same persistent volume without making just-bash the storage
+   owner or claiming Linux.
+5. If separately activated, P3b may run the Wasm, agent-sandbox, Wasmer/WASIX,
+   BrowserPod, CoWasm, full-Linux, and WebContainers characterization corpus.
+   Those results choose only broader command/process adapters; they do not
+   reopen the already-settled Browser OPFS ownership.
+6. Later P3c slices may add immutable snapshot publication, import/restore,
+   admitted artifacts, Desktop parity, or a qualified BYO Sandbox one at a
+   time. None is folded into B0 retroactively.
 
 This order does not start a public tool ABI, package manager, Linux distribution,
 container orchestrator, untrusted-code sandbox, remote build service, or Pi

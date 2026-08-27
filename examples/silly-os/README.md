@@ -42,19 +42,26 @@ Forget 已在本地及 Cloudflare 部署源的 Chromium/WebKit 完整通过。B0
 初始 proposal 仍由本地 deterministic preview 产生；接受 proposal 也不会生成或发布
 真实应用。这个边界会在界面中如实显示，不使用假网络层来伪装后端。
 
-P3a-B0 还为已打开的 Program 提供一个明确标注为 disposable 的 Browser execution
+已交付的 P3a-B0 还为已打开的 Program 提供一个明确标注为 disposable 的 Browser execution
 workspace。固定 Pi 0.84.3 的原生 `write`/`read` 工具通过稳定 `ExecutionEnv` 操作同一个
 内存卷；界面显示 session、generation 和最后一次写入的 outcome/effect。它与 IndexedDB
 Program repository 正交：刷新会得到空卷和 generation `1`，workspace 文件与 mutation
 receipt 都不会被伪装成已持久化。
 
+当前激活、但尚未交付的下一切片是 P3c-B0。它只把这条已验证的 `read`/`write` 字节路径
+迁入 OPFS Workspace Host：用产品自有的小型 continuation manifest 锚定精确的 Program/
+repository 修订，用 Host 内部 durable head、跨页面 volume lease、cold reopen 和流式
+可携导出来保持一个可变 Program checkpoint。它不会保存或恢复 Chat、Pi 私有 session 或
+Provider 数据；Agent Forget 会清理 Pi/执行态并释放 lease，但不会删除 durable volume。
+
 路线仍是 **Browser 优先、Desktop 保留**。P2 已闭合事务提交后发布、最近 Program
 重开、双页面 stale currentness、凭据不落盘和 bounded terminal receipt。B0a 已闭合无
 真实 key 的 Pi/Worker/typed-RPC 接线；B0b 已完成固定 OpenAI profile 的本地及部署源
 资格化；P3a-B0 已闭合原生 Pi `write`/`read`、disposable volume、generation、mutation
-receipt、取消和清理。当前未自动激活下一切片；P3a-B1 的 `edit`/just-bash、通用
-Provider UI 和持久化 workspace 会继续各自经过明确计划与验收。Desktop 底层仍计划由
-私有 companion 启动产品打包的 Pi coding-agent，但当前没有激活。
+receipt、取消和清理。P3c-B0 现在优先实现 Browser 持久化 Program checkpoint；只有它
+独立验收并再次明确激活后，才会继续 P3a-B1 的 `edit`/just-bash、广泛 Provider/
+BYO Sandbox 研究、immutable snapshot publication 或 import。Desktop 底层仍计划由私有
+companion 启动产品打包的 Pi coding-agent，但当前没有激活。
 
 详细的产品范围、Cloudflare OS 参考快照、语义映射、桌面/移动布局、键盘/IME、
 防截断和视觉验收矩阵见 [DESIGN.md](./DESIGN.md)。从真实 Pi typed RPC、产品数据库、

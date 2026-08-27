@@ -7,10 +7,11 @@ P1-B B0a/B0b, P2, and P3a-B0 implementations plus a dev-only Pi launch helper,
 2026-08-27. P2-B0 delivered the product-owned IndexedDB Worker and exact Program
 catalog; P2-B1 then delivered Repository V2 plus bounded terminal Agent-run
 receipts. P2 is closed. P3a-B0 has now delivered the exact Browser disposable-
-workspace contract below; P3a remains open and no next slice is automatically
-active. P1-D remains owner-paused, and P3a-B1, P3b, and later slices remain
-inactive. The raw launcher is not the typed product RPC; the live Browser route
-is a separate product path. This plan is local to
+workspace contract below. The owner has activated the deliberately bounded
+P3c-B0 Browser persistent Program checkpoint as the next slice. P3a remains
+open, while P1-D remains owner-paused and P3a-B1, P3b, snapshot publication,
+import, and later slices remain inactive. The raw launcher is not the typed
+product RPC; the live Browser route is a separate product path. This plan is local to
 `examples/silly-os`; it does not activate an engine lane or change an engine
 API. The implementation baseline before P0 is commit
 `56ba8ef8ecf0a38243e92cba548f53c1c57c0b73`.
@@ -80,8 +81,10 @@ follow-ups use the same Pi Agent, tool, RPC, and product currentness with a fixe
 OpenAI Responses profile. That integrated route is qualified locally and from
 its deployed Cloudflare origin. P2-B0 now adds a bounded Browser-local Program
 database, durable exact Program revisions and decisions, and recent-Program
-reload/reopen. The product still has no persistent Pi session, workspace
-volume/runtime, WASM guest, provider selector, or generally active capability.
+reload/reopen. The product still has no persistent Pi session, durable workspace
+volume, WASM guest, provider selector, or generally active capability.
+P3c-B0 is the accepted next implementation contract that closes only the
+Browser mutable-workspace persistence part of that list.
 Its initial proposal, Source, translation rows, remaining capability labels,
 and downloaded manifest remain explicit preview material.
 
@@ -256,6 +259,20 @@ it grows to `edit`, `bash`, persistence, or another provider. It does not create
 another Agent tool ABI.
 
 ## Phased product lane
+
+The accepted execution order is no longer the numeric subsection order:
+
+1. P0, P1-B, P2, and P3a-B0 are delivered prerequisites.
+2. **P3c-B0 is active:** persist the already-proved Browser `read`/`write`
+   workspace as a mutable OPFS checkpoint, cold-reopen it, and export it.
+3. Review that checkpoint independently. Do not start another slice merely
+   because B0 closes.
+4. P3a-B1 (`edit`/`bash`), P3b execution-provider characterization, later P3c
+   immutable snapshot/import work, P1-D, and P4+ require separate owner
+   activation. None is a prerequisite for P3c-B0.
+
+This order replaces the earlier assumption that shell breadth or a shared
+Browser/Desktop provider winner must precede useful Browser persistence.
 
 ### P0 — exact Creator proposal revisions
 
@@ -620,10 +637,13 @@ P2 deliberately does not add durable workspace identity, tool receipts,
 artifact references, a workspace volume, snapshot format, filesystem adapter,
 or cross-store publication path. P3a adds only the session-scoped workspace
 identity and terminal tool receipt needed by its real control-volume consumer.
-P3b selects the runtime/storage pair. P3c introduces durable workspace,
-admitted artifact, and snapshot references with their exact owning schema. This
-prevents the product database from pre-committing to facts without a consumer or
-to a filesystem a winning runtime cannot mount.
+P3c-B0 now introduces only Browser OPFS workspace continuity plus its exact
+small continuation manifest, using the already-proved `read`/`write` consumer.
+It does not wait for a shell/provider winner and does not introduce admitted
+artifact or immutable snapshot references. P3b and later P3c slices own those
+broader questions only after the checkpoint is real. This prevents the product
+database from pre-committing to facts without a consumer while no longer making
+basic Browser file durability depend on speculative runtime research.
 
 P2 keeps the target distinction explicit. Browser initially creates a fresh
 in-memory Pi session after reload; durable Browser Agent history waits for a
@@ -852,8 +872,9 @@ OPFS, just-bash, or Wasm asset. No SillyMaker engine gap was reproduced.
 ### P3a — Pi-native workspace tool binding
 
 P2-B1 closed the bounded product terminal Agent-run receipt needed by P3a's
-first real tool consumer. P3a-B0 delivered on 2026-08-27. This does not activate
-P3a-B1 or any later workspace phase.
+first real tool consumer. P3a-B0 delivered on 2026-08-27. The next active slice
+is P3c-B0 persistence, not P3a-B1; this does not activate `edit`, `bash`, a
+shell, or broad provider research.
 
 Use the fixed Pi 0.84.3 workspace tools rather than adding a SillyOS equivalent.
 The Browser Agent Worker imports Pi's shipped `createReadTool`,
@@ -1125,20 +1146,22 @@ or extension-discovery asset in the Browser product; the P3a diff adds no Node
 filesystem/process adapter or Host `PATH` fallback. No SillyMaker engine gap was
 reproduced and no engine API changed.
 
-The following **P3a-B1** completes the default Browser execution-tool surface:
+The inactive **P3a-B1** may later complete the default Browser execution-tool surface:
 bind Pi `edit`, then bind Pi `bash` with a just-bash-backed `Shell.exec` over a
-second thin filesystem adapter to the **same** disposable volume. It proves
+second thin filesystem adapter to the **same** persistent Program volume. It proves
 exact edit results, cwd/env mapping, pipelines/redirection, terminal
 stdout/stderr/exit status, timeout/abort mapping, bounded output, and truthful
 capability flags. just-bash's public call returns terminal aggregate output, so
 this slice does not claim live shell streaming, PTY, background jobs, process
 trees, Git, Tar, Python, or Linux. Non-cooperative future custom/Wasm commands
 must run in an owned terminable Worker before stronger cancellation can be
-claimed. P3a closes only after B0 and B1; durable bytes remain P3c.
+claimed. P3a closes only after B0 and B1. P3c-B0 durable `read`/`write` bytes
+now precede B1 rather than waiting for P3a to close.
 
 `AGENTS.md`, skills, and prompts in the workspace volume remain inert data in
-P3. P3b characterizes and P3c persists their bytes; neither phase activates or
-interprets them. P4 may qualify a target-appropriate public Pi resource route:
+P3. P3c-B0 persists their bytes without activating them; later P3b
+characterizes execution providers but does not reinterpret those files. P4 may
+qualify a target-appropriate public Pi resource route:
 Browser can supply admitted resources through proven Agent inputs, while
 Desktop may use companion-controlled, read-only materialization of one exact
 workspace generation or another supported prompt/context hook. Neither route
@@ -1149,8 +1172,9 @@ either target.
 
 ### P3b — Workspace execution provider research gate
 
-Characterize physical execution providers before choosing the persistent
-denominator: one logical environment per open Program Workspace, a persistent
+After P3c-B0 independently proves Browser OPFS continuity, characterize broader
+physical execution providers before choosing any shell/process denominator:
+one logical environment per open Program Workspace, a persistent
 volume as the working tree and unified owner of inputs, outputs, temporary
 files, and file-resident data, familiar shell behavior, pipes/redirection,
 declared process/cancellation semantics, `grep`/`rg`, Git, Tar, optional CPython
@@ -1196,75 +1220,322 @@ and the public process API does not yet prove dependable cancellation or
 process-tree termination. The exact licensing, target, persistence, and semantic
 gates live in [WASM-WORKSPACE-RESEARCH.md](./WASM-WORKSPACE-RESEARCH.md).
 
-No persistent provider denominator is selected until Browser Local and Desktop
-have evidence for startup, command semantics, persistence/reopen, cancellation,
-output bounds, filesystem isolation, representative repository operations,
-bundle/memory cost, and license/distribution fit. BYO Sandbox is independently
-qualified against the same applicable conformance; it is not required for the
-local product to ship. Network is initially absent; remote Git, package
-installation, credentials, and arbitrary outbound access require a later
-explicit broker/capability decision. No implementation substrate is advertised
-as a security sandbox without a stated threat model and executable boundary
-tests; WebAssembly alone is not such evidence.
+No broader shell/process provider denominator is selected until Browser Local
+and Desktop have evidence for startup, command semantics, cancellation, output
+bounds, filesystem isolation, representative repository operations,
+bundle/memory cost, and license/distribution fit. P3c-B0's OPFS byte owner is a
+Browser storage decision, not that provider selection. BYO Sandbox is
+independently qualified against the same applicable conformance; it is not
+required for the local product to ship. Network is initially absent; remote
+Git, package installation, credentials, and arbitrary outbound access require a
+later explicit broker/capability decision. No implementation substrate is
+advertised as a security sandbox without a stated threat model and executable
+boundary tests; WebAssembly alone is not such evidence.
 
-### P3c — selected persistent workspace denominator
+### P3c — Browser Program workspace continuity
 
-Only after P3b selects a viable target pair, connect the winner to the P3a port
-and prove one real Pi session can create an artifact, inspect it, cancel a
-running command, dispose the runtime, reopen the volume, and observe identical
-acknowledged bytes. The required initial command denominator is local-only Bash
-or an honestly smaller shell, `grep`, Ripgrep, Tar, and local Git operations.
-Unsupported PTY, job-control, signal, symlink, or permission behavior must be
-declared rather than approximated invisibly.
+#### P3c-B0 active implementation contract
 
-P3c gives each Program its durable workspace volume. The volume is the sole
-owner of mutable working-tree and artifact bytes: sources, `.git`, generated
-files, file-resident application data, `AGENTS.md`, skills, and prompts. The
-product database owns only admitted artifact metadata/references/receipts and
-accepted workspace snapshot references. Git history may be useful evidence
-inside the volume, but a Git hash is not by itself the Program authority.
+P3c-B0 persists the filesystem behavior already proved by P3a-B0; it does not
+select a broader execution provider. The Browser route keeps Pi 0.84.3's native
+`read` and `write`, the exact product execution binding, sequential call scope,
+generation fence, cancellation ordering, and session-local mutation receipt.
+It replaces only the disposable byte owner with a product-owned Workspace Host
+Worker whose OPFS volume can survive Agent Worker disposal and a full page
+reload. `edit`, `bash`, just-bash, Wasm, Git, provider research, and Desktop
+parity are not prerequisites and remain inactive.
 
-Target topology is allowed to differ behind the same contract. In Browser, a
-product-owned Workspace Host Worker owns the origin's OPFS volume, and the Agent
-Worker reaches it through a direct typed MessagePort tool channel without
-routing calls through React state. IndexedDB owns only catalog/recovery metadata,
-not a duplicate tree. In Deno Desktop, the companion may invoke a local runtime
-adapter over an admitted native directory or runtime-owned volume. The targets
-share logical operations and conformance, not necessarily one SDK or physical
-storage implementation.
+Implementation proceeds through three review checkpoints without creating more
+slice numbers:
 
-Every workspace-backed proposal review envelope adds
-`baseAcceptedProgramRevision` and `expectedWorkspaceGeneration` to the existing
-proposal identity and proposed Program revision. The reviewed preview and diff
-derive from that exact generation. On accept, the volume owner atomically
-creates and durably flushes an immutable snapshot only if that generation is
-still current, then returns an opaque reopenable snapshot receipt. One product
-database transaction rechecks the complete pending envelope and publishes that
-receipt. Database failure leaves a recoverable orphan snapshot; database
-success requires that the snapshot remain reopenable. A later tool write makes
-the pending decision stale as a whole and can never add unreviewed bytes at
-click time.
+1. **Authority and cold reopen.** Add the exact continuation store, bootstrap
+   and volume leases, Workspace Host Worker with its private head/journal, and
+   the Agent environment proxy. The real Browser product path must complete
+   native Pi `write -> close -> full reload -> reopen -> read` with a new
+   `workspaceSessionId` and continued generation before this checkpoint lands.
+   It adds no scale claim or export UI.
+2. **Recovery and scale.** Exercise every stated ownership/mutation crash point,
+   two-tab first/open contention, quota and persistence states, the mandatory
+   `20 MiB` corpus, fixed Worker memory budgets, and oversized Pi-read failure.
+3. **Portable export.** Add only the canonical cancellable ZIP writer, download
+   lifecycle, independent Chromium/WebKit unpacking, and secret/exclusion scans.
 
-Browser P3c implements Pi agent-core's public `ExecutionEnv` over the selected
-volume and shell provider so Pi retains its native tool schemas and result
-shapes. Desktop uses the fixed coding-agent's public `ReadOperations`,
-`WriteOperations`, `EditOperations`, and `BashOperations` where its companion
-needs remote or isolated effects. These are public tool-factory/SDK operation
-hooks, not `ExtensionAPI` overrides; the selected Desktop route must prove a
-programmatically constructed fixed companion tool set or another supported
-public integration path. A product-private lifecycle/receipt adapter remains
-only around those Pi seams where Program identity, generation, or a real target
-mismatch requires it; it does not become a parallel tool API.
+Each checkpoint receives focused review and may commit independently, but none
+alone closes or advertises P3c-B0. P3a-B1 and P3b remain inactive until the
+complete B0 acceptance below passes and the next slice is explicitly selected.
 
-CPython and QuickJS join the runtime only when the first real product uses them
-and their startup, memory, file semantics, cancellation, and distribution cost
-pass the same target corpus. They remain scripting payloads, not proof that the
-surrounding runtime is Linux. This phase does not enable package installation,
-remote Git, guest networking, or workspace-authored executable Pi extensions.
-Agent-generated code is untrusted relative to companion credentials, the
-product database, Host APIs, and other workspaces; P3c must enforce and test its
-bounded volume/compute/memory/output/no-network capability before any sandbox
-claim.
+One Program has one mutable Browser volume. Its identities stay distinct:
+
+- durable `programId` names the Program aggregate;
+- durable `workspaceId` names its product work area;
+- opaque durable `volumeId` locates one OPFS volume without becoming a Host
+  path; and
+- fresh `workspaceSessionId` names only one open execution lease and is never
+  persisted.
+
+The first persistent open creates an empty volume at generation `1`. A cold
+reopen creates a new `workspaceSessionId` but returns the exact last durable
+generation and bytes. Later writes continue that monotonic generation; they do
+not reset it merely because the Agent Worker or page restarted. A known
+manifest whose volume is missing or corrupt fails explicitly and never falls
+back to a new empty volume.
+
+The OPFS volume owns one exact internal current-head record:
+
+```ts
+interface BrowserWorkspaceDurableHeadV1 {
+  revision: 1;
+  volumeId: string;
+  workspaceFormat: 1;
+  checkpointId: string;
+  generation: number;
+}
+```
+
+`checkpointId` is a fresh opaque identifier for the initial head and each
+byte-changing mutation; a same-byte write preserves both it and `generation`.
+The record lives in a reserved Host-only OPFS metadata namespace that Pi tools
+cannot name and portable export omits. It identifies only the current mutable
+head and is not an immutable or accepted Program snapshot; an older
+`checkpointId` is not promised to remain reopenable. A bounded volume-local
+pending-mutation record plus staged replacement lets reopen either discard an
+unapplied write or finish a file replacement whose new bytes are already
+durable before publishing the new head. Recovery never guesses generation from
+a directory scan or a Program-repository value.
+
+The Browser topology is exact and product-private:
+
+```text
+Program Repository Worker -> IndexedDB continuation manifest
+React/product controller  -> typed workspace lifecycle/export commands
+Agent Worker              -> direct typed environment MessagePort
+                              -> Workspace Host Worker
+                                   -> one Program OPFS volume
+```
+
+The Workspace Host Worker is the only OPFS writer. React, the Program
+Repository Worker, and the Agent Worker receive neither OPFS handles nor a
+complete file-tree clone. The Agent channel carries admitted filesystem
+primitives plus the existing run/tool scope, not `{ toolName, arguments }` and
+not raw Pi records. One Host instance may serve only the currently open Program
+in B0; a pool, shared scheduler, generic VFS protocol, and cross-origin service
+are unnecessary.
+
+A Dedicated Worker is not an origin-wide lock because another tab can create a
+second Worker. Before opening an existing `volumeId`, the Host must acquire one
+exclusive origin-wide volume lease keyed by that opaque identity. The baseline
+candidate is Web Locks held for the complete open workspace session; a proved
+equivalent is allowed only if Chromium and WebKit demonstrate the same crash
+release and mutual exclusion. An in-memory mutex, BroadcastChannel election, or
+"last writer wins" is not sufficient. Failure to acquire returns a bounded
+`workspace_busy` state without opening handles or entering Pi. Close/Forget
+first reject new work, drain and flush the durable head, release OPFS handles,
+then release the origin lease; Worker termination must also let the platform
+release it before another tab reopens the exact head.
+
+The existing Program repository database advances only far enough to own a
+separate `workspace_continuations` record keyed by `programId`. The Program V2
+aggregate remains the Program authority and does not absorb file bytes. The
+database schema becomes exact V3: the existing `programs` store and V2 aggregate
+stay byte-for-byte admitted as before, while one `workspace_continuations`
+object store uses `keyPath: "programId"`, no auto-increment, and no indexes.
+Fresh creation makes both stores; upgrading the exact delivered V2 database
+adds only the empty continuation store and neither reads nor rewrites Program
+rows. This is one current schema, not a dual reader or migration framework.
+Newer/unknown schemas still fail explicitly. The continuation value is exact
+and bounded:
+
+```ts
+interface BrowserProgramContinuationManifestV1 {
+  revision: 1;
+  programId: string;
+  workspaceId: string;
+  volumeId: string;
+  workspaceFormat: 1;
+  programRevision: number;
+  repositoryRevision: number;
+}
+```
+
+All identities use the current product identifier grammar,
+`programRevision` and `repositoryRevision` are positive safe integers, and the
+encoded record is at most `1 KiB`. There is at most one manifest per Program
+and no secondary index. It contains no filenames, hashes, file bytes, accepted
+snapshot reference, Creator message or transcript, prompt/model/provider
+record, credential, `agentRunId`, workspace generation, Pi session/run
+identity, or Pi private session state.
+
+The manifest is the product-owned volume/index anchor to one exact P2 Program
+projection, not a second source for continuation semantics. On reopen, the
+product repository loads the exact anchored Program/repository revision. Its
+current Program intent and accumulated requirements provide the goal; current
+proposal status provides the phase and open review work; existing exact
+decisions, Activity, and terminal product receipts provide bounded decision
+meaning. The Workspace Host separately supplies the current durable generation
+and bytes. This composition never copies the Creator message list into the
+manifest, never treats that UI projection as Program content, and never replays
+it into a new Pi session. Browser Pi starts fresh and may inspect the admitted
+Program projection and workspace files through existing product paths only.
+
+Ownership creation is the one bounded OPFS/IndexedDB coordination: the Host
+creates an empty `volumeId`, then one Program-repository CAS inserts its
+manifest anchored to the exact current Program/repository revision. Failure or
+an unknown response is reconciled by that identity and may leave only a bounded
+new-volume orphan for cleanup; it never creates two visible owners. Later P2
+Program mutations advance the two revision anchors, when a manifest exists, in
+the same IndexedDB transaction as the Program aggregate. They neither read OPFS
+nor claim a byte snapshot.
+
+Because a missing manifest provides no common `volumeId`, first ownership is
+serialized under a short-lived origin-wide bootstrap Web Lock keyed by the
+durable `programId` and `workspaceId`. Each contender reloads the manifest only
+after entering that lock. It creates a candidate volume only if the record is
+still absent, and it does not publish handles, create a `workspaceSessionId`, or
+enter Pi before the manifest CAS settles and the selected volume lease is held.
+If CAS conflicts or its response is unknown, the contender reloads the exact
+record. When another `volumeId` won, it closes and deletes its still-unattached
+orphan and proceeds only with the winner; when its own identity won, it resumes
+that candidate. Simultaneous first open therefore cannot create two public
+workspaces even though later mutual exclusion is keyed by `volumeId`.
+
+Continuous filesystem generation belongs solely to the Workspace Host's
+durable OPFS volume head. Every changed tool operation settles its file and that
+head without writing IndexedDB. P3a terminal mutation receipts remain session-
+local and reopen with an empty queue. A lost filesystem response is reconciled
+against the Host's exact call/volume head and is never blindly replayed, but it
+does not create a per-write cross-store saga. On cold reopen, a mismatched
+manifest identity/format, missing volume, or invalid OPFS head is reported as
+recovery-required corruption; no owner substitutes different bytes.
+
+Close rejects new work, drains the current P3a scope, durably flushes the OPFS
+volume head, releases all OPFS handles, and then closes the execution lease. It
+does not perform a Program-repository write merely because generation changed.
+Agent Forget still clears the credential, Pi session, transient mapping, and
+receipt queue, but no longer deletes the Program's durable volume or
+continuation manifest. Program deletion is not introduced by this slice.
+
+P3a-B0's fixed `2 MiB` volume and `256 KiB` file ceilings are guardrails for its
+disposable in-memory control only. They are not inherited as OPFS capacity.
+P3c-B0 makes the accepted `1,000 small files + one 16 MiB file + at least 20 MiB
+total` corpus its minimum Chromium/WebKit success gate. `100 MiB`, `256 MiB`,
+and larger several-hundred-MiB workloads remain raw characterizations when the
+current origin has room, not promised quotas. Browser capacity is dynamic
+across engine, device, free disk, engagement, private mode, and origin policy.
+The product records `navigator.storage.estimate()` before large growth, keeps
+explicit working/export headroom, requests
+`navigator.storage.persist()` only after the user has created important work,
+catches `QuotaExceededError`, and reports whether persistence was granted. A
+rejected request does not make the volume unusable, and a granted request does
+not turn local storage into backup.
+
+The Host uses range/stream operations and bounded directory/index pages. It
+must not retain the complete volume, copy the whole tree across a Worker
+message, or allocate an unconditional whole-volume `ArrayBuffer`/string. Peak
+page, Agent Worker, and Workspace Host Worker memory therefore stays bounded by
+the active operation, not workspace size. The implementation publishes fixed
+`1 MiB` maximum I/O chunks and `4 MiB` aggregate filesystem bytes in flight;
+focused tests inspect those bounds while the volume grows. Pi 0.84.3 `read`
+still reads one complete selected file before truncating its model-visible
+result, so the delivered tool keeps an explicit `256 KiB` per-call file bound.
+After obtaining only OPFS file metadata, the Workspace Host rejects a larger
+file through the existing Pi error type:
+
+```ts
+new FileError(
+  "invalid",
+  "Workspace file exceeds the 256 KiB native Pi read ceiling",
+  absolutePath,
+);
+```
+
+It does so before opening a content stream, slicing or allocating a content
+buffer, calling `arrayBuffer()`, or cloning bytes to the Agent Worker. This is
+an existing Pi environment failure, not a new SillyOS read schema, and it does
+not become the OPFS volume limit.
+
+P3c-B0 adds one user-triggered portable ZIP writer. Export first quiesces the
+workspace at an exact durable Host generation, then streams a standard ZIP
+archive into a quota-checked OPFS temporary. Archive format revision 1 uses
+normalized POSIX `workspace/<relative-path>` entries in Unicode code-point
+lexical order plus exact `sillyos-workspace.json`; duplicate, absolute, dot,
+parent, and backslash entry names are impossible. The manifest contains only
+export revision, Program/workspace identities, anchored Program/repository
+revisions, workspace format, current `checkpointId`, and checkpoint generation.
+It excludes the Program database, Creator Chat, credentials, provider data, Pi
+sessions, terminal/mutation receipts, OPFS metadata, and export temporaries.
+
+The writer awaits destination backpressure, emits bounded
+`filesCompleted/bytesWritten` progress, and accepts `AbortSignal`. Cancellation
+or failure aborts the writer and removes the OPFS temporary without producing a
+`File` or changing the durable head. After successful flush the Host returns an
+OPFS-backed browser `File`; the page creates the download object URL and always
+revokes it, while an explicit release/finally path removes the temporary after
+download handoff. Neither success nor failure constructs a whole-archive
+`Blob`/`ArrayBuffer`. This is the common Chromium/WebKit baseline. A directly
+selected `FileSystemWritableFileStream` may be a later feature-detected
+enhancement, never the only export path. Product export code does not invoke Pi
+`bash`, Tar, Git, or a Wasm payload. Import/restore is not implemented and no
+reader is admitted in B0.
+
+P3c-B0 acceptance is deliberately bounded:
+
+- focused Host conformance proves new open, changed and same-byte writes,
+  exact durable head/checkpoint identity, close, fresh-lease cold reopen,
+  two-Program isolation, bounded listing/range behavior, and no ambient Host
+  fallback;
+- two-tab Chromium/WebKit evidence proves origin-wide mutual exclusion,
+  bounded busy admission, automatic lease release after Worker loss, and exact
+  head reopen by the successor rather than concurrent writers; a simultaneous
+  first-open case also proves one winning manifest, cleanup of any unattached
+  loser volume, and no Pi/public workspace before ownership settles;
+- first-ownership crash points cover volume creation, manifest insertion, and
+  response delivery; mutation crash points separately cover file replacement,
+  OPFS volume-head flush, and response delivery with no IndexedDB write. They
+  prove old-or-new complete recovery, no blind write retry, no missing-volume
+  fallback, and explicit corruption states;
+- repository conformance proves the manifest's Program/repository anchors move
+  only inside the existing P2 aggregate transaction, while repeated workspace
+  generation changes neither write IndexedDB nor copy Chat into the manifest;
+- quota tests cover advisory estimates, rejected persistence, quota exhaustion,
+  and cleanup of incomplete export temporaries. Chromium and WebKit must both
+  retain and cold-reopen 1,000 small files plus one `16 MiB` file with at least
+  `20 MiB` total content. Separate raw `100 MiB`, `256 MiB`, and larger
+  characterizations record actual origin quota and either complete or return the
+  exact capacity rejection; none becomes a universal promise;
+- memory evidence covers the page, Agent Worker, and byte-owning Workspace Host
+  Worker; it asserts the `1 MiB` chunk and `4 MiB` aggregate in-flight bounds
+  during listing, cold reopen, the `20 MiB` corpus, and export, with no
+  whole-value clone of the volume;
+- an oversized-read regression persists and exports the `16 MiB` file but
+  proves native Pi `read` returns the fixed existing `FileError` after metadata
+  inspection and before content read, allocation, `arrayBuffer()`, or Worker
+  transfer;
+- Chromium and WebKit run `write -> close -> full reload -> recent Program ->
+  reopen -> read` and export the same checkpoint bytes under a new
+  `workspaceSessionId`, while reload exposes no old mutation receipts or fake
+  Pi continuation; both browsers unpack the ZIP with an independent standard
+  reader and compare every canonical path, byte, and manifest field, while a
+  cancelled export leaves the checkpoint unchanged and no temporary/object URL;
+- credential/durable-store scans find no key, provider record, transcript, or
+  Pi private identity in OPFS, IndexedDB, the export, URL, or log; and
+- source/final-graph checks exclude just-bash, Wasm, Git implementations,
+  shell/process adapters, Provider/BYO Sandbox code, snapshot publication,
+  import readers, and SillyMaker private engine modules.
+
+P3c-B0 does not change P2 accept/reject or make a mutable checkpoint an accepted
+Program revision. It does not add immutable snapshots, proposal-generation
+publication, artifact admission, import, sync/share, background execution,
+network, shell, `edit`, `bash`, just-bash, Wasm, Git, Python, QuickJS, provider
+selection, BYO Sandbox, Desktop persistence, a sandbox claim, or an engine API.
+No later P3c slice becomes active when B0 closes.
+
+#### Later P3c slices (inactive)
+
+Immutable reviewed snapshot publication, exact proposal-generation binding,
+admitted artifact references, import/restore, Desktop volume parity, and any
+larger-file Pi tool requirement each need a separately reviewed slice with a
+real consumer. Broad shell/process/provider selection remains P3a-B1/P3b work;
+it is not retroactively folded into persistence.
 
 ### P4 — Pi extension composition and OpenUI mapping
 
