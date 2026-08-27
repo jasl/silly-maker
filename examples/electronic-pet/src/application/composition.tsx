@@ -68,16 +68,27 @@ function createSlotsV1(input: {
         context={{
           view: publication.view,
           async dispatchGesture(result) {
-            const outcome = await input.dispatch({
-              kind: "pet.contact_complete",
-              expectedActivityOccurrence: publication.view.activityOccurrence,
-              ...(publication.view.invitation?.kind === "head_contact" &&
-                  (result.targetInteractionId === "interaction.pet.face" ||
-                    result.targetInteractionId === "interaction.pet.neck")
-                ? { expectedInvitationOccurrence: publication.view.invitation.occurrence }
-                : {}),
-              ...result,
-            });
+            const outcome = await (async () => {
+              if (result.interactionKind === "grooming") {
+                const { interactionKind: _, ...gesture } = result;
+                return await input.dispatch({
+                  kind: "pet.groom_complete",
+                  expectedActivityOccurrence: publication.view.activityOccurrence,
+                  ...gesture,
+                });
+              }
+              const { interactionKind: _, ...gesture } = result;
+              return await input.dispatch({
+                kind: "pet.contact_complete",
+                expectedActivityOccurrence: publication.view.activityOccurrence,
+                ...(publication.view.invitation?.kind === "head_contact" &&
+                    (result.targetInteractionId === "interaction.pet.face" ||
+                      result.targetInteractionId === "interaction.pet.neck")
+                  ? { expectedInvitationOccurrence: publication.view.invitation.occurrence }
+                  : {}),
+                ...gesture,
+              });
+            })();
             if (outcome.kind === "committed" && outcome.game.lastOutcome !== null) {
               return outcome.game.lastOutcome;
             }

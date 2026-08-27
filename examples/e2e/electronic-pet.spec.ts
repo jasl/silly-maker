@@ -120,6 +120,124 @@ async function observeAutomationGameV1(page: Page): Promise<unknown> {
   }, automationKeyV1);
 }
 
+async function dispatchAutomationV1(page: Page, invocation: unknown): Promise<unknown> {
+  const envelope = await page.evaluate(async ({ key, payload }) => {
+    const automation = Reflect.get(globalThis, key) as
+      | Readonly<{ dispatch(invocation: unknown): Promise<unknown> }>
+      | undefined;
+    if (automation === undefined) throw new TypeError("automation bridge unavailable");
+    return await automation.dispatch(payload);
+  }, { key: automationKeyV1, payload: invocation });
+  expect(envelope).toMatchObject({ kind: "ok", value: { kind: "committed" } });
+  return envelope;
+}
+
+interface ElectronicPetAutomationViewV1 {
+  readonly progression: string;
+  readonly trustStage: string;
+  readonly activityOccurrence: number;
+  readonly invitation: { readonly kind: string; readonly occurrence: number } | null;
+  readonly home: {
+    readonly returnSummary: { readonly visitOrdinal: number } | null;
+  };
+  readonly lastOutcome: string | null;
+  readonly lastInteractionKind: string | null;
+}
+
+async function reachTrustingV1(page: Page): Promise<ElectronicPetArrivalV1> {
+  const arrival = await completeFirstApproachV1(
+    page,
+    "pointer",
+    "?capability=automation_bridge",
+  );
+  let game = await observeAutomationGameV1(page) as ElectronicPetAutomationViewV1;
+  await dispatchAutomationV1(page, {
+    kind: "pet.play_complete",
+    expectedActivityOccurrence: game.activityOccurrence,
+    toyId: "toy.wand",
+    roundResult: "caught",
+  });
+  game = await observeAutomationGameV1(page) as ElectronicPetAutomationViewV1;
+  await dispatchAutomationV1(page, {
+    kind: "pet.contact_complete",
+    expectedActivityOccurrence: game.activityOccurrence,
+    targetInteractionId: "interaction.pet.neck",
+    gesture: "stroke",
+    direction: "with-fur",
+    speed: "slow",
+    duration: "brief",
+  });
+
+  let observedAtMs = Date.now() + 16 * 60_000;
+  await dispatchAutomationV1(page, {
+    kind: "pet.time_settle",
+    mode: "session_open",
+    observedAtMs,
+    elapsedMs: 0,
+  });
+  game = await observeAutomationGameV1(page) as ElectronicPetAutomationViewV1;
+  if (game.home.returnSummary !== null) {
+    await dispatchAutomationV1(page, {
+      kind: "pet.return_summary_dismiss",
+      expectedVisitOrdinal: game.home.returnSummary.visitOrdinal,
+    });
+  }
+  await dispatchAutomationV1(page, { kind: "pet.food_place", foodId: "food.chicken" });
+  game = await observeAutomationGameV1(page) as ElectronicPetAutomationViewV1;
+  expect(game.progression).toBe("routine");
+
+  for (let step = 0; step < 12 && game.invitation?.kind !== "head_contact"; step += 1) {
+    observedAtMs += 15 * 60_000;
+    await dispatchAutomationV1(page, {
+      kind: "pet.time_settle",
+      mode: "active",
+      observedAtMs,
+      elapsedMs: 15 * 60_000,
+    });
+    game = await observeAutomationGameV1(page) as ElectronicPetAutomationViewV1;
+  }
+  expect(game.invitation?.kind).toBe("head_contact");
+  await expect(arrival.care.getByText("它主动把头靠近了你。", { exact: true })).toBeVisible();
+
+  const geometry = await petCanvasGeometryV1(arrival.scene);
+  await page.mouse.move(geometry.contact.x, geometry.contact.y);
+  await page.mouse.down();
+  await page.mouse.move(geometry.contact.x + 24, geometry.contact.y, { steps: 6 });
+  await page.waitForTimeout(350);
+  await page.mouse.up();
+  await expect(arrival.care.getByText("信赖 · 信赖", { exact: true })).toBeVisible();
+  await expect(arrival.scene.locator("[data-pet-reaction-occurrence]")).toHaveAttribute(
+    "data-pet-reaction-occurrence",
+    "1",
+  );
+  return arrival;
+}
+
+async function findGroomingPointV1(page: Page, scene: Locator): Promise<{ x: number; y: number }> {
+  const canvas = scene.getByLabel("小猫与房间的三维互动场景");
+  const box = await canvas.boundingBox();
+  if (box === null) throw new TypeError("player canvas geometry unavailable");
+  const candidates: Array<{ readonly x: number; readonly y: number }> = [];
+  for (const yFraction of [0.5, 0.55, 0.6, 0.65, 0.7]) {
+    for (const xFraction of [0.4, 0.45, 0.5, 0.55, 0.6]) {
+      const point = { x: box.x + box.width * xFraction, y: box.y + box.height * yFraction };
+      await page.mouse.move(point.x, point.y);
+      if (await canvas.evaluate((element) => getComputedStyle(element).cursor) === "crosshair") {
+        candidates.push(point);
+      }
+    }
+  }
+  const center = { x: box.x + box.width * 0.5, y: box.y + box.height * 0.6 };
+  const point =
+    candidates.toSorted((left, right) =>
+      Math.hypot(left.x - center.x, left.y - center.y) -
+      Math.hypot(right.x - center.x, right.y - center.y)
+    )[0];
+  if (point === undefined) throw new TypeError("reachable grooming point unavailable");
+  await page.mouse.move(point.x, point.y);
+  return point;
+}
+
 test.describe("Electronic Pet browser product", () => {
   test("loads the real GLB and exposes the care journey beside the ready 3D scene", async ({ page }) => {
     const scene = await openReadyPetSceneV1(page);
@@ -135,7 +253,7 @@ test.describe("Electronic Pet browser product", () => {
     );
     const geometry = await petCanvasGeometryV1(scene);
     const canvas = scene.locator("canvas");
-    const pointerFeedback = scene.getByLabel("抚摸反馈");
+    const pointerFeedback = scene.getByLabel("互动反馈");
     await page.mouse.move(geometry.hiddenContact.x, geometry.hiddenContact.y);
     await expect(canvas).toHaveCSS("cursor", "not-allowed");
     await expect(pointerFeedback).toContainText("它还不准备被触碰");
@@ -166,7 +284,7 @@ test.describe("Electronic Pet browser product", () => {
     await expect(scene.getByText("先让它闻闻你的手", { exact: true })).toBeVisible();
     const outcome = scene.locator("[data-pet-last-outcome]");
     const canvas = scene.locator("canvas");
-    const pointerFeedback = scene.getByLabel("抚摸反馈");
+    const pointerFeedback = scene.getByLabel("互动反馈");
     const geometry = await petCanvasGeometryV1(scene);
 
     await page.mouse.move(geometry.contact.x, geometry.contact.y);
@@ -243,6 +361,74 @@ test.describe("Electronic Pet browser product", () => {
     await expect(wand).toHaveCount(0);
     await expect(care.getByText("它追到了逗猫棒，玩得很尽兴", { exact: true })).toBeVisible();
     await expect(care.getByRole("button", { name: "一起玩逗猫棒" })).toBeVisible();
+  });
+
+  test("crosses visits into trusting and commits one real mouse grooming stroke", async ({ page }) => {
+    const { scene, care } = await reachTrustingV1(page);
+    const toolControl = scene.locator("[data-pet-interaction-tool]");
+    const brush = toolControl.getByRole("button");
+    await expect(brush).toBeEnabled();
+    await brush.click();
+    await expect(toolControl).toHaveAttribute("data-pet-interaction-tool", "brush");
+    await expect(brush).toHaveAttribute("aria-pressed", "true");
+    await expect(scene.getByText("从肩背顺着毛发轻轻梳理", { exact: true })).toBeVisible();
+
+    const point = await findGroomingPointV1(page, scene);
+    const canvas = scene.getByLabel("小猫与房间的三维互动场景");
+    const feedback = scene.getByLabel("互动反馈");
+    await expect(canvas).toHaveCSS("cursor", "crosshair");
+    await expect(feedback).toContainText("这里可以梳理");
+    await page.mouse.down();
+    await page.mouse.move(point.x + 3, point.y);
+    await page.mouse.up();
+    await expect(feedback).toContainText("再梳长一点");
+    await expect(scene.locator("[data-pet-reaction-occurrence]")).toHaveAttribute(
+      "data-pet-reaction-occurrence",
+      "1",
+    );
+
+    await page.mouse.move(point.x, point.y);
+    await page.mouse.down();
+    await page.mouse.move(point.x - 8, point.y, { steps: 2 });
+    await page.mouse.move(point.x - 16, point.y, { steps: 2 });
+    await page.mouse.move(point.x - 26, point.y, { steps: 3 });
+    await page.waitForTimeout(350);
+    await page.mouse.up();
+    await expect(scene.locator("[data-pet-reaction-occurrence]")).toHaveAttribute(
+      "data-pet-reaction-occurrence",
+      "2",
+    );
+    await expect(scene.locator("[data-pet-last-outcome]")).toHaveAttribute(
+      "data-pet-last-outcome",
+      "accept",
+    );
+    await expect(scene.getByText("它放松身体，舒服地贴近了梳子", { exact: true })).toBeVisible();
+    expect(await observeAutomationGameV1(page)).toMatchObject({
+      progression: "trust",
+      trustStage: "trusting",
+      lastOutcome: "accept",
+      lastInteractionKind: "grooming",
+    });
+
+    await page.waitForTimeout(1_500);
+    const modelResponse = page.waitForResponse((response) =>
+      new URL(response.url()).pathname.endsWith(catModelPathV1)
+    );
+    await page.reload();
+    expect((await modelResponse).ok()).toBe(true);
+    const reopenedScene = page.getByRole("region", { name: "小猫的新家" });
+    await expect(reopenedScene).toHaveAttribute("data-pet-scene-status", "ready");
+    await expect(care.getByText("信赖 · 信赖", { exact: true })).toBeVisible();
+    await expect(reopenedScene.locator("[data-pet-interaction-tool]")).toHaveAttribute(
+      "data-pet-interaction-tool",
+      "hand",
+    );
+    await expect(reopenedScene.getByRole("button", { name: /拿起梳子/u })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    await expect(reopenedScene.getByText("它放松身体，舒服地贴近了梳子", { exact: true }))
+      .toBeVisible();
   });
 
   test("rejects stale pose and invitation commands without a partial browser-visible change", async ({ page }) => {
@@ -351,6 +537,16 @@ test.describe("Electronic Pet browser product", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     const scene = await openReadyPetSceneV1(page);
     await expectViewportFitV1(page, scene);
+    const toolControl = scene.locator(".pet-scene__tool-control");
+    const care = page.getByRole("complementary", { name: "照料与关系" });
+    const [toolBox, careBox] = await Promise.all([
+      toolControl.boundingBox(),
+      care.boundingBox(),
+    ]);
+    if (toolBox === null || careBox === null) {
+      throw new TypeError("narrow product controls geometry unavailable");
+    }
+    expect(toolBox.y + toolBox.height).toBeLessThan(careBox.y);
     const guide = scene.locator(".pet-scene__interaction-card");
     const guideBox = await guide.boundingBox();
     if (guideBox === null) throw new TypeError("interaction guide geometry unavailable");
@@ -368,7 +564,7 @@ test.describe("Electronic Pet browser product", () => {
     await expect(scene).toHaveAttribute("data-pet-scene-status", "ready");
   });
 
-  test("opens the dev-only 3D Inspector with current behavior and three authored fur-direction volumes", async ({ page }) => {
+  test("opens the dev-only 3D Inspector with current behavior, brush, and grooming volume", async ({ page }) => {
     const { scene: playerScene } = await completeFirstApproachV1(
       page,
       "pointer",
@@ -388,6 +584,9 @@ test.describe("Electronic Pet browser product", () => {
     await expect(hierarchy.getByRole("button", { name: /Neck and shoulder interaction/u }))
       .toBeVisible();
     await expect(hierarchy.getByRole("button", { name: /Back interaction/u })).toBeVisible();
+    await expect(hierarchy.getByRole("button", { name: /Grooming brush/u })).toBeVisible();
+    await expect(hierarchy.getByRole("button", { name: /Back grooming interaction/u }))
+      .toBeVisible();
     await expect(companion.getByLabel("3D authoring preview")).toBeVisible();
     await expect(companion.locator('[data-pet-authoring-message="true"]')).toHaveText(
       "3D preview ready",
@@ -428,6 +627,16 @@ test.describe("Electronic Pet browser product", () => {
     await expect(direction.getByRole("spinbutton", { name: "Y" })).toHaveValue("0");
     await expect(direction.getByRole("spinbutton", { name: "Z" })).toHaveValue("-1");
 
+    await hierarchy.getByRole("button", { name: /Grooming brush/u }).click();
+    await expect(properties.locator("header code")).toHaveText("pet.tool.brush");
+    await expect(properties.getByText("electronic-pet.tool.brush", { exact: true })).toBeVisible();
+    await hierarchy.getByRole("button", { name: /Back grooming interaction/u }).click();
+    await expect(properties.locator("header code")).toHaveText("pet.interaction.groom.back");
+    await expect(properties.getByRole("spinbutton", { name: "Radius" })).toHaveValue("0.3");
+    await expect(properties).toContainText("grooming · Action · care.groom.back");
+
+    await hierarchy.getByRole("button", { name: /Neck and shoulder interaction/u }).click();
+    await expect(properties.locator("header code")).toHaveText("pet.interaction.neck");
     await companion.getByRole("button", { name: "Agent adjusts volume" }).click();
     await expect(properties.getByRole("spinbutton", { name: "Radius" })).toHaveValue("0.38");
     expect(await observeAutomationGameV1(page)).toEqual(gameBeforeAuthoring);
@@ -466,7 +675,7 @@ test.describe("Electronic Pet browser product", () => {
   });
 });
 
-test.describe("Electronic Pet M2 touch input", () => {
+test.describe("Electronic Pet direct touch input", () => {
   test.use({ hasTouch: true });
 
   test("ignores a tap and routes one real touch stroke through the same semantic action", async ({ browserName, page }) => {
@@ -478,7 +687,7 @@ test.describe("Electronic Pet M2 touch input", () => {
     let touchActive = false;
     try {
       const hiddenScene = await openReadyPetSceneV1(page);
-      const hiddenFeedback = hiddenScene.getByLabel("抚摸反馈");
+      const hiddenFeedback = hiddenScene.getByLabel("互动反馈");
       const hiddenOutcome = hiddenScene.locator("[data-pet-last-outcome]");
       const hiddenGeometry = await petCanvasGeometryV1(hiddenScene);
       await client.send("Input.dispatchTouchEvent", {
@@ -493,7 +702,7 @@ test.describe("Electronic Pet M2 touch input", () => {
 
       const { scene } = await completeFirstApproachV1(page);
       const outcome = scene.locator("[data-pet-last-outcome]");
-      const pointerFeedback = scene.getByLabel("抚摸反馈");
+      const pointerFeedback = scene.getByLabel("互动反馈");
       const { contact } = await petCanvasGeometryV1(scene);
       await expect(pointerFeedback).toContainText("移动到小猫身上开始互动");
       await client.send("Input.dispatchTouchEvent", {
@@ -529,6 +738,57 @@ test.describe("Electronic Pet M2 touch input", () => {
       );
       await expect(outcome).toHaveAttribute("data-pet-reaction-occurrence", "1");
       await expect(outcome).not.toHaveAttribute("data-pet-last-outcome", "none");
+    } finally {
+      if (touchActive) {
+        await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      }
+      await client.detach();
+    }
+  });
+
+  test("keeps brush selection transient and commits one grooming result from native touch", async ({ browserName, page }) => {
+    test.skip(
+      browserName !== "chromium",
+      "Playwright exposes native touch-drag injection through Chromium CDP only",
+    );
+    const { scene } = await reachTrustingV1(page);
+    await scene.getByRole("button", { name: /拿起梳子/u }).click();
+    const point = await findGroomingPointV1(page, scene);
+    const feedback = scene.getByLabel("互动反馈");
+    const occurrence = scene.locator("[data-pet-reaction-occurrence]");
+    const client = await page.context().newCDPSession(page);
+    let touchActive = false;
+    try {
+      await client.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [point],
+      });
+      touchActive = true;
+      await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      touchActive = false;
+      await expect(feedback).toContainText("再梳长一点");
+      await expect(occurrence).toHaveAttribute("data-pet-reaction-occurrence", "1");
+
+      await client.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [point],
+      });
+      touchActive = true;
+      for (const offset of [8, 16, 26]) {
+        await client.send("Input.dispatchTouchEvent", {
+          type: "touchMove",
+          touchPoints: [{ x: point.x - offset, y: point.y }],
+        });
+      }
+      await page.waitForTimeout(350);
+      await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      touchActive = false;
+      await expect(occurrence).toHaveAttribute("data-pet-reaction-occurrence", "2");
+      expect(await observeAutomationGameV1(page)).toMatchObject({
+        trustStage: "trusting",
+        lastOutcome: "accept",
+        lastInteractionKind: "grooming",
+      });
     } finally {
       if (touchActive) {
         await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });

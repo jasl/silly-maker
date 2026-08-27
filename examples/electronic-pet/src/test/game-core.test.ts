@@ -22,11 +22,28 @@ import { createTransactionalRngV1, parseNonZeroUint32 } from "@sillymaker/base";
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 import type { ElectronicPetCareHudPropsV1 } from "../ui/pet-care-hud.tsx";
 
-const neckStrokeV1 = (occurrence: number, direction: "with-fur" | "against-fur" = "with-fur") =>
+const neckStrokeV1 = (
+  occurrence: number,
+  direction: "with-fur" | "cross-fur" | "against-fur" = "with-fur",
+) =>
   ({
     kind: "pet.contact_complete",
     expectedActivityOccurrence: occurrence,
     targetInteractionId: "interaction.pet.neck",
+    gesture: "stroke",
+    direction,
+    speed: "slow",
+    duration: "brief",
+  }) as const satisfies ElectronicPetCommandV1;
+
+const backGroomV1 = (
+  occurrence: number,
+  direction: "with-fur" | "cross-fur" | "against-fur" = "with-fur",
+) =>
+  ({
+    kind: "pet.groom_complete",
+    expectedActivityOccurrence: occurrence,
+    targetInteractionId: "interaction.pet.groom.back",
     gesture: "stroke",
     direction,
     speed: "slow",
@@ -77,7 +94,7 @@ function activeStateV1(input: {
   };
 }
 
-describe("Electronic Pet M2 authoritative domain", () => {
+describe("Electronic Pet authoritative domain", () => {
   it("starts with one guarded newcomer and exposes only coarse player needs", async () => {
     const application = await createElectronicPetApplicationInstanceV1();
     try {
@@ -364,6 +381,18 @@ describe("Electronic Pet M2 authoritative domain", () => {
         expectedInvitationOccurrence: 9,
       }),
     ).toEqual({ kind: "blocked", code: "pet.target_unavailable" });
+    expect(
+      evaluateElectronicPetCommandV1({
+        ...state,
+        companion: {
+          ...state.companion,
+          invitation: { ...state.companion.invitation, activityOccurrence: 8 },
+        },
+      }, {
+        ...neckStrokeV1(state.companion.activity.occurrence),
+        expectedInvitationOccurrence: 9,
+      }),
+    ).toEqual({ kind: "blocked", code: "pet.invitation_stale" });
   });
 
   it("makes with-fur contact better than against-fur under identical state", () => {
@@ -389,6 +418,115 @@ describe("Electronic Pet M2 authoritative domain", () => {
       kind: "allowed",
       outcome: "warn",
     });
+  });
+
+  it("gates grooming on current activity, authored target, and trusting", () => {
+    const familiar = activeStateV1({
+      activityId: "rest_nearby",
+      poseId: "resting",
+      worldMinute: 20,
+      minimumUntilMinute: 32,
+      needs: { food: 20, rest: 20, safety: 20, stimulation: 20 },
+    });
+    expect(evaluateElectronicPetCommandV1(familiar, backGroomV1(4))).toEqual({
+      kind: "blocked",
+      code: "pet.action_unavailable",
+    });
+
+    const trusting = {
+      ...familiar,
+      relationship: { ...familiar.relationship, trustStage: "trusting" as const },
+      companion: {
+        ...familiar.companion,
+        mood: { kind: "social" as const, cause: "contact" as const, sinceMinute: 20 },
+      },
+    };
+    expect(evaluateElectronicPetCommandV1(trusting, backGroomV1(3))).toEqual({
+      kind: "blocked",
+      code: "pet.activity_stale",
+    });
+    expect(evaluateElectronicPetCommandV1(trusting, {
+      ...backGroomV1(4),
+      targetInteractionId: "interaction.pet.back",
+    })).toEqual({ kind: "blocked", code: "pet.target_unavailable" });
+    expect(evaluateElectronicPetCommandV1({
+      ...trusting,
+      companion: {
+        ...trusting.companion,
+        activity: { ...trusting.companion.activity, poseId: "watching" as const },
+      },
+    }, backGroomV1(4))).toEqual({ kind: "blocked", code: "pet.target_unavailable" });
+    expect(evaluateElectronicPetCommandV1(trusting, backGroomV1(4))).toEqual({
+      kind: "allowed",
+      outcome: "accept",
+    });
+  });
+
+  it("records one accepted grooming result without turning refusals into progress", () => {
+    const initial = activeStateV1({
+      activityId: "rest_nearby",
+      poseId: "resting",
+      worldMinute: 20,
+      minimumUntilMinute: 32,
+      needs: { food: 20, rest: 20, safety: 20, stimulation: 20 },
+    });
+    const trusting = {
+      ...initial,
+      relationship: { ...initial.relationship, trustStage: "trusting" as const },
+      companion: {
+        ...initial.companion,
+        mood: { kind: "social" as const, cause: "contact" as const, sinceMinute: 20 },
+      },
+    };
+    const accepted = applyElectronicPetCommandV1(
+      trusting,
+      backGroomV1(4),
+      "accept",
+      createTransactionalRngV1(parseNonZeroUint32(63)),
+    );
+    expect(accepted.relationship.facts).toContain("relationship.first_grooming");
+    expect(accepted.relationship.discoveredPreferenceIds).toContain(
+      "preference.care.grooming",
+    );
+    expect(accepted.companion.recentMemory.at(-1)).toEqual({
+      kind: "care",
+      actionId: "care.groom.back",
+      outcome: "accept",
+      atMinute: 20,
+    });
+    expect(accepted.companion.mood).toMatchObject({ kind: "social", cause: "care" });
+    expect(projectElectronicPetPlayerViewV1(accepted)).toMatchObject({
+      lastOutcome: "accept",
+      lastInteractionKind: "grooming",
+    });
+
+    const upset = {
+      ...trusting,
+      companion: {
+        ...trusting.companion,
+        mood: { kind: "overstimulated" as const, cause: "contact" as const, sinceMinute: 20 },
+      },
+    };
+    const refusedCommand = {
+      ...backGroomV1(4, "against-fur"),
+      speed: "fast" as const,
+      duration: "sustained" as const,
+    };
+    expect(evaluateElectronicPetCommandV1(upset, refusedCommand)).toEqual({
+      kind: "allowed",
+      outcome: "refuse",
+    });
+    const refused = applyElectronicPetCommandV1(
+      upset,
+      refusedCommand,
+      "refuse",
+      createTransactionalRngV1(parseNonZeroUint32(65)),
+    );
+    expect(refused.relationship.facts).not.toContain("relationship.first_grooming");
+    expect(refused.relationship.discoveredPreferenceIds).not.toContain(
+      "preference.care.grooming",
+    );
+    expect(refused.companion.mood).toMatchObject({ kind: "guarded", cause: "care" });
   });
 
   it("lets a recent refusal reduce acceptance for the same contact area", () => {
@@ -1003,6 +1141,189 @@ describe("Electronic Pet M2 authoritative domain", () => {
     expect(state.relationship.evidence.calmCare.count).toBe(2);
     expect(state.relationship.facts).toContain("relationship.routine_established");
   });
+
+  it("turns a later approach into a head-contact invitation only after routine", () => {
+    const approachReadyStateV1 = (routineEstablished: boolean): ElectronicPetStateV1 => {
+      const state = activeStateV1({
+        activityId: "rest_nearby",
+        poseId: "resting",
+        worldMinute: 10,
+        minimumUntilMinute: 10,
+        needs: { food: 20, rest: 20, safety: 50, stimulation: 20 },
+      });
+      return {
+        ...state,
+        relationship: {
+          ...state.relationship,
+          facts: routineEstablished
+            ? [
+              "home.food_ready",
+              "relationship.first_approach",
+              "relationship.first_hand_sniff",
+              "relationship.routine_established",
+            ]
+            : [
+              "home.food_ready",
+              "relationship.first_approach",
+              "relationship.first_hand_sniff",
+            ],
+        },
+        companion: {
+          ...state.companion,
+          recentActivityIds: ["hide_in_den", "observe_player"],
+        },
+      };
+    };
+    const settleV1 = (state: ElectronicPetStateV1): ElectronicPetStateV1 =>
+      applyElectronicPetCommandV1(
+        state,
+        {
+          kind: "pet.time_settle",
+          mode: "active",
+          observedAtMs: 1_060_000,
+          elapsedMs: 60_000,
+        },
+        null,
+        createTransactionalRngV1(parseNonZeroUint32(67)),
+      );
+
+    const beforeRoutine = settleV1(approachReadyStateV1(false));
+    expect(beforeRoutine.companion.activity.activityId).toBe("approach_player");
+    expect(beforeRoutine.companion.invitation).toMatchObject({
+      kind: "sniff_hand",
+      activityOccurrence: beforeRoutine.companion.activity.occurrence,
+    });
+
+    const afterRoutine = settleV1(approachReadyStateV1(true));
+    expect(afterRoutine.companion.activity.activityId).toBe("approach_player");
+    expect(afterRoutine.companion.invitation).toMatchObject({
+      kind: "head_contact",
+      activityOccurrence: afterRoutine.companion.activity.occurrence,
+    });
+  });
+
+  it("credits only an accepted current head invitation and advances trusting across visits", () => {
+    const headInvitationStateV1 = (visitOrdinal: number): ElectronicPetStateV1 => {
+      const state = activeStateV1({
+        activityId: "approach_player",
+        poseId: "near_player",
+        worldMinute: 20,
+        minimumUntilMinute: 23,
+        needs: { food: 20, rest: 20, safety: 20, stimulation: 20 },
+      });
+      return {
+        ...state,
+        home: { ...state.home, visitOrdinal },
+        relationship: {
+          ...state.relationship,
+          facts: [
+            "relationship.first_approach",
+            "relationship.first_hand_sniff",
+            "relationship.first_shared_play",
+            "relationship.routine_established",
+          ],
+          evidence: {
+            ...state.relationship.evidence,
+            calmCare: { count: 2, lastVisit: visitOrdinal },
+            invitationResponse: { count: 1, lastVisit: 1 },
+            sharedPlay: { count: 1, lastVisit: 1 },
+          },
+        },
+        companion: {
+          ...state.companion,
+          mood: { kind: "social", cause: "contact", sinceMinute: 20 },
+          invitation: {
+            kind: "head_contact",
+            occurrence: 9,
+            activityOccurrence: state.companion.activity.occurrence,
+            expiresAtMinute: 23,
+          },
+        },
+      };
+    };
+    const acceptedCommand = {
+      ...neckStrokeV1(4),
+      expectedInvitationOccurrence: 9,
+    } as const;
+
+    const sameVisit = headInvitationStateV1(1);
+    expect(evaluateElectronicPetCommandV1(sameVisit, acceptedCommand)).toEqual({
+      kind: "allowed",
+      outcome: "accept",
+    });
+    const sameVisitAfter = applyElectronicPetCommandV1(
+      sameVisit,
+      acceptedCommand,
+      "accept",
+      createTransactionalRngV1(parseNonZeroUint32(71)),
+    );
+    expect(sameVisitAfter.relationship.evidence.invitationResponse).toEqual({
+      count: 1,
+      lastVisit: 1,
+    });
+    expect(sameVisitAfter.relationship.trustStage).toBe("familiar");
+
+    const laterVisit = headInvitationStateV1(2);
+    const laterVisitAfter = applyElectronicPetCommandV1(
+      laterVisit,
+      acceptedCommand,
+      "accept",
+      createTransactionalRngV1(parseNonZeroUint32(73)),
+    );
+    expect(laterVisitAfter.relationship.evidence.invitationResponse).toEqual({
+      count: 2,
+      lastVisit: 2,
+    });
+    expect(laterVisitAfter.relationship.discoveredPreferenceIds).toContain(
+      "preference.contact.neck",
+    );
+    expect(laterVisitAfter.relationship.trustStage).toBe("trusting");
+
+    const toleratedVisit = headInvitationStateV1(2);
+    const toleratedCommand = {
+      ...neckStrokeV1(4, "cross-fur"),
+      speed: "fast",
+      expectedInvitationOccurrence: 9,
+    } as const;
+    expect(evaluateElectronicPetCommandV1(toleratedVisit, toleratedCommand)).toEqual({
+      kind: "allowed",
+      outcome: "tolerate",
+    });
+    const toleratedAfter = applyElectronicPetCommandV1(
+      toleratedVisit,
+      toleratedCommand,
+      "tolerate",
+      createTransactionalRngV1(parseNonZeroUint32(75)),
+    );
+    expect(toleratedAfter.relationship.evidence.invitationResponse).toEqual({
+      count: 1,
+      lastVisit: 1,
+    });
+    expect(toleratedAfter.relationship.trustStage).toBe("familiar");
+  });
+
+  it.each(["trusting", "bonded"] as const)(
+    "never demotes an existing %s relationship stage",
+    (trustStage) => {
+      const state = activeStateV1({
+        activityId: "rest_nearby",
+        poseId: "resting",
+        worldMinute: 20,
+        minimumUntilMinute: 32,
+        needs: { food: 20, rest: 20, safety: 20, stimulation: 20 },
+      });
+      const after = applyElectronicPetCommandV1(
+        {
+          ...state,
+          relationship: { ...state.relationship, trustStage },
+        },
+        { kind: "pet.food_place", foodId: "food.chicken" },
+        "accept",
+        createTransactionalRngV1(parseNonZeroUint32(77)),
+      );
+      expect(after.relationship.trustStage).toBe(trustStage);
+    },
+  );
 
   it("bounds recent memory and keeps all eight autonomous activities product-local", () => {
     expect(electronicPetActivityDefinitionsV1.map((entry) => entry.activityId)).toEqual([

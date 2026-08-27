@@ -64,6 +64,7 @@ export const electronicPetProgressionFactsV1 = [
   "relationship.first_contact",
   "relationship.first_shared_play",
   "relationship.routine_established",
+  "relationship.first_grooming",
 ] as const;
 export type ElectronicPetProgressionFactIdV1 = (typeof electronicPetProgressionFactsV1)[number];
 export const electronicPetInteractionOutcomesV1 = ["accept", "tolerate", "warn", "refuse"] as const;

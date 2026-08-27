@@ -3,13 +3,13 @@ import type { StrictJsonObjectV1 } from "@sillymaker/base/strict-json";
 import { defineCodeSurfaceCatalogV1, defineCodeSurfaceV1 } from "@sillymaker/ui/code-surface";
 import { z } from "zod";
 
-import type { ElectronicPetContactResultV1, ElectronicPetGameViewV1 } from "../game/kernel.ts";
+import type { ElectronicPetGameViewV1, ElectronicPetSceneGestureResultV1 } from "../game/kernel.ts";
 import type { ElectronicPetInteractionOutcomeV1 } from "../game/state.ts";
 
 export interface ElectronicPetSceneContextV1 {
   readonly view: ElectronicPetGameViewV1;
   dispatchGesture(
-    result: ElectronicPetContactResultV1,
+    result: ElectronicPetSceneGestureResultV1,
   ): Promise<ElectronicPetInteractionOutcomeV1 | null>;
   reportFailure(error: unknown): void;
 }

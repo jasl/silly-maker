@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { electronicPetInteractionBindingsV1 } from "./runtime-bindings.ts";
+import { electronicPetDirectInteractionBindingsV1 } from "./runtime-bindings.ts";
 import type { ElectronicPetPoseIdV1 } from "../game/state.ts";
 
 export interface ElectronicPetInteractionRuleV1 {
@@ -52,9 +52,16 @@ export function findElectronicPetInteractionRuleV1(
 }
 
 export function isElectronicPetBoundInteractionV1(interactionId: string): boolean {
-  return electronicPetInteractionBindingsV1.some((binding) =>
+  return electronicPetDirectInteractionBindingsV1.some((binding) =>
     binding.interactionId === interactionId
   );
+}
+
+export function isElectronicPetRegionReachableV1(
+  poseId: ElectronicPetPoseIdV1,
+  region: ElectronicPetInteractionRuleV1["region"],
+): boolean {
+  return (electronicPetReachableRegionsByPoseV1[poseId] as readonly string[]).includes(region);
 }
 
 export function isElectronicPetInteractionReachableV1(
@@ -62,6 +69,5 @@ export function isElectronicPetInteractionReachableV1(
   interactionId: string,
 ): boolean {
   const rule = findElectronicPetInteractionRuleV1(interactionId);
-  return rule !== null &&
-    (electronicPetReachableRegionsByPoseV1[poseId] as readonly string[]).includes(rule.region);
+  return rule !== null && isElectronicPetRegionReachableV1(poseId, rule.region);
 }

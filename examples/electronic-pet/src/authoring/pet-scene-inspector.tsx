@@ -614,7 +614,9 @@ export function ElectronicPetSceneInspectorV1(
                       ? <small>Missing behavior binding</small>
                       : (
                         <small>
-                          Behavior · {selectedInteractionBinding.behaviorOwner}
+                          {selectedInteractionBinding.interactionKind} · Action ·{"  "}
+                          {selectedInteractionBinding.actionId} · Behavior ·{"  "}
+                          {selectedInteractionBinding.behaviorOwner}
                         </small>
                       )}
                   </div>

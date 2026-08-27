@@ -3,6 +3,7 @@ import type { CoreSemanticAdapterV1 } from "@sillymaker/base/runtime";
 
 import { electronicPetInteractionBindingsV1 } from "../content/runtime-bindings.ts";
 import { isElectronicPetInteractionReachableV1 } from "../content/interactions.ts";
+import { isElectronicPetGroomingReachableV1 } from "../content/grooming.ts";
 import type {
   ElectronicPetCommandV1,
   ElectronicPetGameViewV1,
@@ -61,10 +62,17 @@ export const electronicPetSemanticAdapterV1: CoreSemanticAdapterV1<
     },
     ...electronicPetInteractionBindingsV1.map((binding) => ({
       actionId: binding.actionId,
-      enabled: isElectronicPetInteractionReachableV1(
-        queries.player.poseId,
-        binding.interactionId,
-      ),
+      enabled: binding.interactionKind === "contact"
+        ? isElectronicPetInteractionReachableV1(
+          queries.player.poseId,
+          binding.interactionId,
+        )
+        : (queries.state.relationship.trustStage === "trusting" ||
+          queries.state.relationship.trustStage === "bonded") &&
+          isElectronicPetGroomingReachableV1(
+            queries.player.poseId,
+            binding.interactionId,
+          ),
     })),
     {
       actionId: "play.wand",

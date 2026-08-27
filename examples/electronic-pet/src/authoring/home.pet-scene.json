@@ -120,6 +120,27 @@
           }
         },
         {
+          "kind": "model",
+          "objectId": "pet.tool.brush",
+          "label": "Grooming brush",
+          "transform": {
+            "position": { "x": 1.42, "y": 0.12, "z": 0.78 },
+            "rotation": { "x": 0, "y": -0.28, "z": 0 },
+            "scale": { "x": 1, "y": 1, "z": 1 }
+          },
+          "model": {
+            "modelId": "electronic-pet.tool.brush",
+            "appearance": {
+              "primaryMaterialSourceName": "BrushPrimary",
+              "primaryColor": "#6b8f86"
+            },
+            "nodes": [{ "nodeId": "tool.brush", "sourceName": "Brush" }],
+            "bones": [],
+            "sockets": [],
+            "clips": []
+          }
+        },
+        {
           "kind": "camera",
           "objectId": "pet.camera.main",
           "label": "Main camera",
@@ -223,6 +244,25 @@
           "interaction": {
             "interactionId": "interaction.pet.back",
             "shape": { "kind": "sphere", "radius": 0.38 },
+            "preferredStrokeDirection": { "x": 0, "y": 0, "z": -1 },
+            "attachment": {
+              "modelObjectId": "pet.cat",
+              "socketId": "cat.back"
+            }
+          }
+        },
+        {
+          "kind": "interaction-volume",
+          "objectId": "pet.interaction.groom.back",
+          "label": "Back grooming interaction",
+          "transform": {
+            "position": { "x": 0.2, "y": 0.1, "z": -0.02 },
+            "rotation": { "x": 0, "y": 0, "z": 0 },
+            "scale": { "x": 1, "y": 1, "z": 1 }
+          },
+          "interaction": {
+            "interactionId": "interaction.pet.groom.back",
+            "shape": { "kind": "sphere", "radius": 0.3 },
             "preferredStrokeDirection": { "x": 0, "y": 0, "z": -1 },
             "attachment": {
               "modelObjectId": "pet.cat",

@@ -20,6 +20,7 @@ const progressionLabelsV1 = {
   arrival: "刚到新家",
   approach: "开始靠近",
   routine: "成为日常",
+  trust: "建立信任",
 } as const;
 
 const trustLabelsV1 = {
@@ -71,8 +72,9 @@ function resultMessageV1(
       case "pet.time_settle":
         return "时间已经同步";
       case "pet.contact_complete":
+      case "pet.groom_complete":
         return result.game.lastOutcome === null ? "互动已经完成" : ({
-          accept: "它很喜欢",
+          accept: invocation.kind === "pet.groom_complete" ? "它舒服地贴近了梳子" : "它很喜欢",
           tolerate: "它接受了，但仍在观察",
           warn: "它在提醒你放慢一点",
           refuse: "它现在想保留一些空间",

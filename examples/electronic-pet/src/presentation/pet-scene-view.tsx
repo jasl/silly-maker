@@ -9,7 +9,11 @@ import type {
 } from "./pet-scene-catalog.ts";
 import type { ElectronicPetInteractionOutcomeV1 } from "../game/state.ts";
 import { createPetThreeRuntimeV1 } from "./pet-three-runtime.ts";
-import type { PetPointerFeedbackV1, PetThreeRuntimeV1 } from "./pet-three-runtime.ts";
+import type {
+  PetInteractionToolV1,
+  PetPointerFeedbackV1,
+  PetThreeRuntimeV1,
+} from "./pet-three-runtime.ts";
 import { electronicPetM1SceneDocumentV1 } from "../authoring/default-document.ts";
 import { compilePetSceneDocumentV1 } from "../authoring/document.ts";
 import "./pet-scene.css";
@@ -39,22 +43,37 @@ export default function ElectronicPetSceneViewV1(
   const pointerFeedbackLabelRef = useRef<HTMLSpanElement>(null);
   const contextRef = useRef(props.context);
   const runtimeRef = useRef<PetThreeRuntimeV1 | null>(null);
+  const [requestedTool, setRequestedTool] = useState<PetInteractionToolV1>("hand");
   const [status, setStatus] = useState<"loading" | "ready" | "failed">("loading");
   const [reaction, setReaction] = useState<
     {
       readonly occurrence: number;
       readonly outcome: ElectronicPetInteractionOutcomeV1;
+      readonly interactionKind: "contact" | "grooming";
     } | null
   >(null);
-  const interactionCopy = interactionCopyV1(props.context.view);
+  const groomingAvailable = props.context.view.trustStage === "trusting" ||
+    props.context.view.trustStage === "bonded";
+  const interactionTool = groomingAvailable ? requestedTool : "hand";
+  const toolRef = useRef<PetInteractionToolV1>(interactionTool);
+  const interactionCopy = interactionCopyV1(props.context.view, interactionTool);
   const visibleOutcome = props.context.view.lastOutcome === null
     ? null
     : reaction?.outcome ?? props.context.view.lastOutcome;
+  const visibleInteractionKind = reaction?.interactionKind ??
+    props.context.view.lastInteractionKind ?? "contact";
 
   useLayoutEffect(() => {
     contextRef.current = props.context;
     runtimeRef.current?.setCompanionPresentation(props.context.view);
   }, [props.context]);
+
+  useLayoutEffect(() => {
+    toolRef.current = interactionTool;
+    runtimeRef.current?.setInteractionTool(interactionTool);
+    const label = pointerFeedbackLabelRef.current;
+    if (label !== null) label.textContent = pointerFeedbackLabelV1("idle", interactionTool);
+  }, [interactionTool]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -74,7 +93,7 @@ export default function ElectronicPetSceneViewV1(
       if (feedback.phase !== appliedPointerFeedbackPhase) {
         appliedPointerFeedbackPhase = feedback.phase;
         indicator.dataset.phase = feedback.phase;
-        label.textContent = pointerFeedbackLabelV1(feedback.phase);
+        label.textContent = pointerFeedbackLabelV1(feedback.phase, toolRef.current);
       }
       if (feedback.phase === "idle") return;
       indicator.style.setProperty("--pet-pointer-x", `${feedback.x}px`);
@@ -96,6 +115,7 @@ export default function ElectronicPetSceneViewV1(
           setReaction((current) => ({
             occurrence: (current?.occurrence ?? 0) + 1,
             outcome,
+            interactionKind: result.interactionKind,
           }));
         }
       },
@@ -112,6 +132,7 @@ export default function ElectronicPetSceneViewV1(
       },
     });
     runtimeRef.current = runtime;
+    runtime.setInteractionTool(toolRef.current);
     runtime.setCompanionPresentation(contextRef.current.view);
     void runtime.ready.then(() => {
       runtime.setCompanionPresentation(contextRef.current.view);
@@ -126,7 +147,7 @@ export default function ElectronicPetSceneViewV1(
         pointerFeedbackIndicator.style.removeProperty("--pet-pointer-x");
         pointerFeedbackIndicator.style.removeProperty("--pet-pointer-y");
         pointerFeedbackIndicator.style.removeProperty("--pet-pointer-progress");
-        pointerFeedbackLabel.textContent = pointerFeedbackLabelV1("idle");
+        pointerFeedbackLabel.textContent = pointerFeedbackLabelV1("idle", "hand");
       }
     };
   }, [props.props.quality]);
@@ -161,9 +182,25 @@ export default function ElectronicPetSceneViewV1(
           data-pet-last-outcome={visibleOutcome ?? "none"}
           data-pet-reaction-occurrence={reaction?.occurrence ?? 0}
         >
-          {outcomeLabelV1(visibleOutcome, props.context.view.trustStage)}
+          {outcomeLabelV1(
+            visibleOutcome,
+            props.context.view.trustStage,
+            visibleInteractionKind,
+          )}
         </output>
       </header>
+      <div className="pet-scene__tool-control" data-pet-interaction-tool={interactionTool}>
+        <span>照料工具</span>
+        <button
+          type="button"
+          disabled={!groomingAvailable}
+          aria-pressed={interactionTool === "brush"}
+          onClick={() => setRequestedTool((current) => current === "hand" ? "brush" : "hand")}
+        >
+          <strong>{interactionTool === "brush" ? "放下梳子" : "拿起梳子"}</strong>
+          <small>{groomingAvailable ? "信赖后可梳理背部" : "建立信任后解锁"}</small>
+        </button>
+      </div>
       <div className="pet-scene__interaction-card">
         <span>{interactionCopy.eyebrow}</span>
         <strong>{interactionCopy.title}</strong>
@@ -173,7 +210,7 @@ export default function ElectronicPetSceneViewV1(
         ref={pointerFeedbackRef}
         className="pet-scene__pointer-feedback"
         data-phase="idle"
-        aria-label="抚摸反馈"
+        aria-label="互动反馈"
         aria-live="polite"
         aria-atomic="true"
       >
@@ -186,7 +223,21 @@ export default function ElectronicPetSceneViewV1(
   );
 }
 
-function pointerFeedbackLabelV1(phase: PetPointerFeedbackV1["phase"]): string {
+function pointerFeedbackLabelV1(
+  phase: PetPointerFeedbackV1["phase"],
+  tool: PetInteractionToolV1,
+): string {
+  if (tool === "brush") {
+    return ({
+      idle: "在背部顺着毛发滑动",
+      hover: "这里可以梳理",
+      blocked: "当前姿势不能梳理",
+      tracking: "顺着毛发继续梳",
+      ready: "现在松手完成梳理",
+      incomplete: "再梳长一点",
+      complete: "完成了一次梳理",
+    } as const)[phase];
+  }
   return ({
     idle: "移动到小猫身上开始互动",
     hover: "这里可以抚摸",
@@ -198,11 +249,21 @@ function pointerFeedbackLabelV1(phase: PetPointerFeedbackV1["phase"]): string {
   } as const)[phase];
 }
 
-function interactionCopyV1(view: ElectronicPetSceneContextV1["view"]): {
+function interactionCopyV1(
+  view: ElectronicPetSceneContextV1["view"],
+  tool: PetInteractionToolV1,
+): {
   readonly eyebrow: string;
   readonly title: string;
   readonly detail: string;
 } {
+  if (tool === "brush") {
+    return {
+      eyebrow: "梳理时间",
+      title: "从肩背顺着毛发轻轻梳理",
+      detail: "用鼠标或手指持续滑动。逆毛、过快或在它烦躁时继续，会得到不同反馈。",
+    };
+  }
   if (view.poseId === "hidden") {
     return {
       eyebrow: "保持距离",
@@ -257,11 +318,20 @@ function moodLabelV1(mood: ElectronicPetSceneContextV1["view"]["mood"]): string 
 function outcomeLabelV1(
   outcome: ElectronicPetSceneContextV1["view"]["lastOutcome"],
   trustStage: ElectronicPetSceneContextV1["view"]["trustStage"],
+  interactionKind: "contact" | "grooming",
 ): string {
   if (outcome === null) {
     return trustStage === "newcomer"
       ? "先准备环境、保持距离，再等待它主动靠近"
       : "按住小猫并轻轻滑动，观察它的反应";
+  }
+  if (interactionKind === "grooming") {
+    return ({
+      accept: "它放松身体，舒服地贴近了梳子",
+      tolerate: "它允许你继续，但还在观察手法",
+      warn: "尾巴轻甩了一下，请放慢并顺着毛发",
+      refuse: "它避开了梳子，现在需要一点空间",
+    } as const)[outcome];
   }
   return ({
     accept: "它很喜欢刚才的互动",

@@ -31,6 +31,12 @@ export interface ElectronicPetContactResultV1 {
   readonly duration: (typeof electronicPetGestureDurationsV1)[number];
 }
 
+export type ElectronicPetGroomResultV1 = ElectronicPetContactResultV1;
+
+export type ElectronicPetSceneGestureResultV1 =
+  | ElectronicPetContactResultV1 & { readonly interactionKind: "contact" }
+  | ElectronicPetGroomResultV1 & { readonly interactionKind: "grooming" };
+
 export type ElectronicPetCommandV1 =
   | { readonly kind: "pet.home_prepare"; readonly resource: "water" | "litter" | "hideaway" }
   | { readonly kind: "pet.food_place"; readonly foodId: (typeof electronicPetFoodIdsV1)[number] }
@@ -44,6 +50,10 @@ export type ElectronicPetCommandV1 =
     readonly kind: "pet.contact_complete";
     readonly expectedActivityOccurrence: number;
     readonly expectedInvitationOccurrence?: number | undefined;
+  }
+  | ElectronicPetGroomResultV1 & {
+    readonly kind: "pet.groom_complete";
+    readonly expectedActivityOccurrence: number;
   }
   | {
     readonly kind: "pet.play_complete";
@@ -99,7 +109,7 @@ export interface ElectronicPetDebugValidationErrorV1 {
 }
 
 export interface ElectronicPetPlayerViewV1 {
-  readonly progression: "arrival" | "approach" | "routine";
+  readonly progression: "arrival" | "approach" | "routine" | "trust";
   readonly trustStage: ElectronicPetStateV1["relationship"]["trustStage"];
   readonly mood: ElectronicPetStateV1["companion"]["mood"]["kind"];
   readonly activityId: ElectronicPetStateV1["companion"]["activity"]["activityId"];
@@ -116,6 +126,7 @@ export interface ElectronicPetPlayerViewV1 {
     readonly stimulation: "comfortable" | "watch" | "needs-care";
   };
   readonly lastOutcome: ElectronicPetInteractionOutcomeV1 | null;
+  readonly lastInteractionKind: "contact" | "grooming" | null;
 }
 export interface ElectronicPetQueriesV1 {
   readonly state: ElectronicPetStateV1;
@@ -171,6 +182,15 @@ const commandZodV1 = z.discriminatedUnion("kind", [
     kind: z.literal("pet.contact_complete"),
     expectedActivityOccurrence: occurrenceV1,
     expectedInvitationOccurrence: occurrenceV1.optional(),
+    targetInteractionId: z.string().min(1).max(128),
+    gesture: z.literal("stroke"),
+    direction: z.enum(electronicPetGestureDirectionsV1),
+    speed: z.enum(electronicPetGestureSpeedsV1),
+    duration: z.enum(electronicPetGestureDurationsV1),
+  }),
+  z.strictObject({
+    kind: z.literal("pet.groom_complete"),
+    expectedActivityOccurrence: occurrenceV1,
     targetInteractionId: z.string().min(1).max(128),
     gesture: z.literal("stroke"),
     direction: z.enum(electronicPetGestureDirectionsV1),

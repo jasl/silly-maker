@@ -5,6 +5,7 @@ import {
   electronicPetReachableRegionsByPoseV1,
   isElectronicPetInteractionReachableV1,
 } from "./interactions.ts";
+import { isElectronicPetGroomingReachableV1 } from "./grooming.ts";
 
 describe("electronic pet contact reachability", () => {
   it("keeps hidden poses non-interactive and near-player poses fully reachable", () => {
@@ -27,5 +28,18 @@ describe("electronic pet contact reachability", () => {
     expect(isElectronicPetInteractionReachableV1("resting", "interaction.pet.unknown")).toBe(
       false,
     );
+  });
+
+  it("keeps the authored grooming target on poses that expose the back", () => {
+    expect(isElectronicPetGroomingReachableV1("resting", "interaction.pet.groom.back")).toBe(
+      true,
+    );
+    expect(isElectronicPetGroomingReachableV1("near_player", "interaction.pet.groom.back")).toBe(
+      true,
+    );
+    expect(isElectronicPetGroomingReachableV1("watching", "interaction.pet.groom.back")).toBe(
+      false,
+    );
+    expect(isElectronicPetGroomingReachableV1("resting", "interaction.pet.back")).toBe(false);
   });
 });

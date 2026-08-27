@@ -93,6 +93,8 @@ export function createElectronicPetGameSimulationV1(): ElectronicPetGameSimulati
         if (evaluation.outcome !== null) {
           const actionId = command.kind === "pet.contact_complete"
             ? command.targetInteractionId
+            : command.kind === "pet.groom_complete"
+            ? "care.groom.back"
             : command.kind === "pet.play_complete"
             ? command.toyId
             : command.kind === "pet.hand_offer"

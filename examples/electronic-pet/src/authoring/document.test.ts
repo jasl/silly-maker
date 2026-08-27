@@ -25,6 +25,10 @@ describe("PetSceneDocumentV1", () => {
       kind: "light",
       light: { lightKind: "ambient" },
     });
+    expect(plan.objectById.get("pet.tool.brush")).toMatchObject({
+      kind: "model",
+      model: { modelId: "electronic-pet.tool.brush" },
+    });
 
     const cat = plan.objectById.get("pet.cat") as PetSceneRuntimeModelPlanV1;
     expect(cat.parentObjectId).toBe("pet.home");
@@ -57,6 +61,13 @@ describe("PetSceneDocumentV1", () => {
         interactionId: "interaction.pet.neck",
         preferredStrokeDirection: { x: 0, y: 0, z: -1 },
         attachment: { modelObjectId: "pet.cat", socketId: "cat.neck" },
+      },
+    });
+    expect(plan.objectById.get("pet.interaction.groom.back")).toMatchObject({
+      kind: "interaction-volume",
+      interaction: {
+        interactionId: "interaction.pet.groom.back",
+        attachment: { modelObjectId: "pet.cat", socketId: "cat.back" },
       },
     });
   });

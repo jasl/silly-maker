@@ -16,6 +16,7 @@ export const electronicPetCatProfileV1 = {
     "interaction.pet.face": 2,
     "interaction.pet.neck": 2,
     "interaction.pet.back": 0,
+    "interaction.pet.groom.back": 2,
   },
 } as const;
 

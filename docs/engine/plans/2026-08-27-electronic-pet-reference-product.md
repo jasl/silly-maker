@@ -256,6 +256,19 @@ Electronic Pet 私有 camera 数据，未增加引擎 API、通用 Scene schema�
 1280×800、390×844 与 Chromium/WebKit 产品旅程验证。该切片只关闭验证级构图与可触达性阻断，最终猫与房间
 美术、后期关系、剩余互动/玩具/行为、音频、i18n、设置、相册和完整 M3 分母仍然开放。
 
+2026-08-27 完成 M3 的第二个关系与梳理切片：产品通过已存在的关系事实、跨 visit evidence、共同游戏与偏好
+发现形成一条真实可达且单调的 `routine -> trusting` 旅程；后续主动靠近发出的头部接触邀请同时受 invitation /
+activity occurrence currentness 约束，只有真实接受的当前邀请按 visit 记一次，重复同 visit、`tolerate` 与 stale
+输入均无进展。Scene 作者数据新增一个可见 brush object 和绑定到猫背 socket 的 grooming volume，并复用现有
+compiler、Inspector、operation/CAS/undo、runtime binding、raycast 与 stroke accumulator；没有建立 tool manager、
+gesture DSL、第二套 hit authority、新 Scene kind 或 public engine API。工具选择和 pointer trajectory 留在
+renderer-local presentation；独立 `pet.groom_complete` 在权威边界验证 current activity、目标、姿态与信赖，
+再由普通 TypeScript 规则结合 mood、preference、毛流方向、速度、时长和近期记忆求值。接受结果写入一个真实
+关系事实和既有有界 care memory，Save/reload 保留权威结果但不会恢复手持工具。Chromium/WebKit 已覆盖跨 visit
+信任旅程、真实 mouse 梳理、短拖零提交、Save/reload、Inspector object/volume 和 Chromium native touch；WebKit
+仅因 Playwright 不支持 native touch-drag injection 跳过触控案例。该切片未加入音频，也未关闭 bonded、腹部
+邀请、另外两种玩具、剩余行为/反应、i18n、设置、相册或完整 M3。
+
 ### M4 — 产品完整性、作者接手与性能审查
 
 - 非实现作者逐项核对 semantic coverage table、数量、领养早/中/后期、所有 interaction families、离线回归、

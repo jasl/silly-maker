@@ -9,11 +9,11 @@
 
 | Area                     | Baseline                                                                    | Current implementation/evidence  | Intentional difference or open work                    |
 | ------------------------ | --------------------------------------------------------------------------- | -------------------------------- | ------------------------------------------------------ |
-| 新领养到成为家人         | 五段可观察进展                                                              | M2 完成到家、靠近、形成日常      | M3 完成建立信任与成为家人                              |
-| 信赖 × 心情              | 正交规则与可解释恢复                                                        | M2 单一权威 owner 与原因投影     | M3 完成后期深度与反馈                                  |
+| 新领养到成为家人         | 五段可观察进展                                                              | M3 已可跨 visit 建立信任         | 成为家人仍开放                                         |
+| 信赖 × 心情              | 正交规则与可解释恢复                                                        | M3 完成首条真实 trusting 旅程    | bonded 与后期反馈仍开放                                |
 | 自主行为                 | 至少 16 个，含驻留、打断与重复抑制                                          | M2 完成 8/16 个及 8 个表现映射   | M3 完成 16 个与内容打磨                                |
 | 互动                     | 八类主要互动、腹部邀请与边界反馈                                            | M2 完成脸、颈、背 3/8 类         | 尾根明确 defer；M3 完成其余互动                        |
-| 玩具与照料               | 三种玩具、喂食、梳理、共同游戏                                              | M2 完成照料、闻手与逗猫棒 1/3    | M3 完成梳理及另外两种玩具                              |
+| 玩具与照料               | 三种玩具、喂食、梳理、共同游戏                                              | M3 已完成首个背部梳理闭环        | 另外两种玩具仍开放                                     |
 | 3D 表现                  | 房间、rigged cat、动画与响应式质量档位                                      | M3 首个视觉/宽窄屏构图切片已完成 | 最终猫、房间细节与动画仍开放；不建设通用 3D engine     |
 | 作者工作流               | Object 到代码/资源/互动/source 可定位，人类与 Agent 共用 operation/CAS/undo | M1 作者闭环已完成                | 不要求无代码开发                                       |
 | Save/recovery/offline    | 独立 Save floor、有限离线结算与回归摘要                                     | M2 完成 Save/reopen/reset 与摘要 | M5 完成完整 recovery/release 证据                      |
@@ -90,6 +90,23 @@ Worker、LRU/prefetch 或新 Host seam。
   application checks 与 E2E build 通过；
 - 这些数字只用于同环境趋势。M2 没有因包体或启动结果增加 Worker、prefetch/cache framework、通用 3D
   renderer 层或 promotion threshold。
+
+### M3 trust and grooming slice（2026-08-27）
+
+- `trusting` 现在由真实产品旅程到达：形成日常后，猫在后续主动靠近中发出头部接触邀请；只有当前邀请与
+  activity occurrence 同时匹配且真实接触被接受时，才会按 visit 记一次响应证据。建立信任还要求跨 visit 的
+  两次邀请响应、共同游戏和已发现偏好；重复同一 visit、`tolerate`、stale invitation/activity 均不能刷取进展；
+- Scene 作者数据新增可见的梳子对象与绑定到猫背的 grooming interaction volume。两者复用既有 Scene
+  compiler、Inspector、operation/CAS/undo 和 runtime binding，不增加通用 tool manager、gesture DSL、Scene
+  kind 或 public engine API；Inspector 可从对象追到 interaction kind、action 和 behavior owner；
+- 玩家取得信任后可用普通 DOM 控件拿起梳子。工具选择和原始轨迹只属于当前 renderer，会在 Save/reload 后
+  回到手部模式；mouse/touch 继续共用 raycast、局部轨迹累计和 pointer-up 单次语义提交，短拖、取消、空白或
+  不可达目标均零提交；
+- 权威侧使用独立的 `pet.groom_complete` 边界，按 current activity、目标、姿态、信赖、心情、偏好、
+  毛流方向、速度、时长与近期梳理求值。接受后只写一次 `relationship.first_grooming` 与现有有界 care memory，
+  不新增可重复刷取的梳理计数；Save/reload 保留 trusting、事实和最近结果；
+- 本切片没有加入音频，也没有关闭 bonded、腹部邀请、另外两种玩具、剩余行为/反应、i18n、设置、相册或完整
+  M3。产品 Vitest、Chromium/WebKit 全旅程与最终仓库验证以本次提交记录为准。
 
 ## Asset and reference ledger
 

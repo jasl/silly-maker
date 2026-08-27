@@ -34,13 +34,14 @@ import type {
   PetSceneRuntimePlanV1,
   PetTransformV1,
 } from "../authoring/index.ts";
-import type { ElectronicPetContactResultV1, ElectronicPetGameViewV1 } from "../game/kernel.ts";
+import type { ElectronicPetGameViewV1, ElectronicPetSceneGestureResultV1 } from "../game/kernel.ts";
 import type { ElectronicPetInteractionOutcomeV1 } from "../game/state.ts";
 import {
   findElectronicPetInteractionBindingV1,
   findElectronicPetModelBindingV1,
 } from "../content/runtime-bindings.ts";
 import { isElectronicPetInteractionReachableV1 } from "../content/interactions.ts";
+import { isElectronicPetGroomingReachableV1 } from "../content/grooming.ts";
 import {
   appendPetStrokePointV1,
   beginPetStrokeGestureV1,
@@ -56,7 +57,7 @@ import type {
   PetActivityPresentationV1,
   PetReactionPresentationV1,
 } from "./pet-companion-presentation.ts";
-import { createPetBallV1, createPetRoomV1 } from "./pet-procedural-assets.ts";
+import { createPetBallV1, createPetBrushV1, createPetRoomV1 } from "./pet-procedural-assets.ts";
 
 export interface PetThreeRuntimeMetricsV1 {
   readonly renderedFrames: number;
@@ -87,7 +88,7 @@ export interface CreatePetThreeRuntimeInputV1 {
   readonly authoring?: boolean;
   readonly selectedObjectId?: string | null;
   readonly onPick?: (objectId: string | null) => void;
-  readonly onGesture?: (result: ElectronicPetContactResultV1) => void | Promise<void>;
+  readonly onGesture?: (result: ElectronicPetSceneGestureResultV1) => void | Promise<void>;
   readonly onPointerFeedback?: (feedback: PetPointerFeedbackV1) => void;
   readonly onReady?: () => void;
   readonly onFailure?: (error: unknown) => void;
@@ -96,6 +97,7 @@ export interface CreatePetThreeRuntimeInputV1 {
 export interface PetThreeRuntimeV1 {
   readonly ready: Promise<void>;
   setSelectedObject(objectId: string | null): void;
+  setInteractionTool(tool: PetInteractionToolV1): void;
   setCompanionPresentation(view: ElectronicPetGameViewV1): void;
   presentReaction(reaction: ElectronicPetInteractionOutcomeV1): void;
   requestRender(): void;
@@ -103,11 +105,14 @@ export interface PetThreeRuntimeV1 {
   dispose(): void;
 }
 
+export type PetInteractionToolV1 = "hand" | "brush";
+
 interface PointerGestureV1 {
   readonly pointerId: number;
   readonly startedAt: number;
   readonly objectId: string;
   readonly interactionId: string;
+  readonly interactionKind: "contact" | "grooming";
   readonly plan: PetSceneRuntimeInteractionVolumePlanV1;
   accumulator: PetStrokeGestureAccumulatorV1;
 }
@@ -287,6 +292,7 @@ export function createPetThreeRuntimeV1(
   let currentActivityId: ElectronicPetGameViewV1["activityId"] | null = null;
   let currentPoseId: ElectronicPetGameViewV1["poseId"] | null = null;
   let currentTrustStage: ElectronicPetGameViewV1["trustStage"] | null = null;
+  let interactionTool: PetInteractionToolV1 = "hand";
   let interactionEnabled = true;
   let reachableInteractionObjects: Object3D[] = [];
   let renderedFrames = 0;
@@ -358,6 +364,7 @@ export function createPetThreeRuntimeV1(
   if (catPlan?.kind !== "model" || catRoot === undefined) {
     throw new TypeError("pet.companion_model_unavailable");
   }
+  const brushRoot = modelRootsById.get("pet.tool.brush") ?? null;
   const cameraFraming = cameraPlan.camera.responsiveFraming;
   const cameraSubjectPlan = input.plan.objectById.get(cameraFraming.subjectObjectId)!;
   let cameraSubjectX = cameraSubjectPlan.transform.position.x;
@@ -501,7 +508,7 @@ export function createPetThreeRuntimeV1(
     }
   };
 
-  const reportGestureV1 = (result: ElectronicPetContactResultV1): void => {
+  const reportGestureV1 = (result: ElectronicPetSceneGestureResultV1): void => {
     try {
       const reported = input.onGesture?.(result);
       void Promise.resolve(reported).catch((error: unknown) => input.onFailure?.(error));
@@ -558,7 +565,7 @@ export function createPetThreeRuntimeV1(
 
   const publishPointerFeedbackV1 = (
     feedback: PetPointerFeedbackV1,
-    cursor: "default" | "grab" | "grabbing" | "not-allowed",
+    cursor: "default" | "grab" | "grabbing" | "crosshair" | "not-allowed",
   ): void => {
     if (feedbackResetTimer !== null) {
       clearTimeout(feedbackResetTimer);
@@ -584,6 +591,8 @@ export function createPetThreeRuntimeV1(
       { phase, ...position, completion },
       phase === "blocked"
         ? "not-allowed"
+        : interactionTool === "brush"
+        ? "crosshair"
         : phase === "tracking" || phase === "ready"
         ? "grabbing"
         : "grab",
@@ -646,6 +655,45 @@ export function createPetThreeRuntimeV1(
     return gesture;
   };
 
+  const recomputeReachableInteractionsV1 = (): void => {
+    if (!interactionEnabled) {
+      reachableInteractionObjects = [];
+      return;
+    }
+    if (input.authoring ?? false) {
+      reachableInteractionObjects = interactionObjects;
+      return;
+    }
+    const poseId = currentPoseId;
+    if (poseId === null) {
+      reachableInteractionObjects = [];
+      return;
+    }
+    reachableInteractionObjects = interactionObjects.filter((object) => {
+      const objectId = typeof object.userData.objectId === "string"
+        ? object.userData.objectId
+        : null;
+      const binding = objectId === null ? null : findElectronicPetInteractionBindingV1(objectId);
+      if (binding === null) return false;
+      if (interactionTool === "hand") {
+        return binding.interactionKind === "contact" &&
+          isElectronicPetInteractionReachableV1(poseId, binding.interactionId);
+      }
+      return binding.interactionKind === "grooming" &&
+        isElectronicPetGroomingReachableV1(poseId, binding.interactionId);
+    });
+  };
+
+  const setInteractionToolV1 = (tool: PetInteractionToolV1): void => {
+    if (disposed || interactionTool === tool) return;
+    interactionTool = tool;
+    if (brushRoot !== null) brushRoot.visible = tool !== "brush";
+    recomputeReachableInteractionsV1();
+    if (activeGesture !== null) releaseGestureV1(activeGesture.pointerId, true);
+    resetPointerFeedbackV1();
+    requestRenderV1();
+  };
+
   const setCompanionPresentationV1 = (view: ElectronicPetGameViewV1): void => {
     if (disposed) return;
     const activityChanged = currentActivityId !== view.activityId;
@@ -658,23 +706,14 @@ export function createPetThreeRuntimeV1(
       cameraSubjectX = catPlan.transform.position.x + activityPresentation.positionOffset.x;
     }
     interactionEnabled = (input.authoring ?? false) || activityPresentation.interactionEnabled;
-    reachableInteractionObjects = !interactionEnabled
-      ? []
-      : (input.authoring ?? false)
-      ? interactionObjects
-      : interactionObjects.filter((object) => {
-        const objectId = typeof object.userData.objectId === "string"
-          ? object.userData.objectId
-          : null;
-        const binding = objectId === null ? null : findElectronicPetInteractionBindingV1(objectId);
-        return binding !== null &&
-          isElectronicPetInteractionReachableV1(view.poseId, binding.interactionId);
-      });
+    recomputeReachableInteractionsV1();
     if (
       activeGesture !== null &&
       (!interactionEnabled ||
         (!(input.authoring ?? false) &&
-          !isElectronicPetInteractionReachableV1(view.poseId, activeGesture.interactionId)))
+          !(activeGesture.interactionKind === "grooming"
+            ? isElectronicPetGroomingReachableV1(view.poseId, activeGesture.interactionId)
+            : isElectronicPetInteractionReachableV1(view.poseId, activeGesture.interactionId))))
     ) {
       if (releaseGestureV1(activeGesture.pointerId, true) !== null) {
         resetPointerFeedbackV1();
@@ -720,6 +759,7 @@ export function createPetThreeRuntimeV1(
       startedAt: performance.now(),
       objectId: hit.objectId,
       interactionId: interaction.interactionId,
+      interactionKind: interaction.interactionKind,
       plan,
       accumulator: beginPetStrokeGestureV1(hit.point),
     };
@@ -812,11 +852,21 @@ export function createPetThreeRuntimeV1(
     }
     publishLocatedPointerFeedbackV1("complete", event.clientX, event.clientY, 1);
     scheduleTerminalFeedbackResetV1(event, 420);
-    reportGestureV1({
-      targetInteractionId: gesture.interactionId,
-      gesture: "stroke",
-      ...classification,
-    });
+    if (gesture.interactionKind === "grooming") {
+      reportGestureV1({
+        interactionKind: "grooming",
+        targetInteractionId: gesture.interactionId,
+        gesture: "stroke",
+        ...classification,
+      });
+    } else {
+      reportGestureV1({
+        interactionKind: "contact",
+        targetInteractionId: gesture.interactionId,
+        gesture: "stroke",
+        ...classification,
+      });
+    }
   };
 
   const cancelPointerV1 = (event: PointerEvent): void => {
@@ -864,9 +914,29 @@ export function createPetThreeRuntimeV1(
     }
     if (runtimeBinding.runtimeKind !== "gltf") {
       const appearance = object.model.appearance;
-      const model = runtimeBinding.runtimeKind === "procedural-room"
-        ? createPetRoomV1(appearance.primaryMaterialSourceName, appearance.primaryColor)
-        : createPetBallV1(appearance.primaryMaterialSourceName, appearance.primaryColor);
+      const model = (() => {
+        switch (runtimeBinding.runtimeKind) {
+          case "procedural-room":
+            return createPetRoomV1(
+              appearance.primaryMaterialSourceName,
+              appearance.primaryColor,
+            );
+          case "procedural-toy":
+            return createPetBallV1(
+              appearance.primaryMaterialSourceName,
+              appearance.primaryColor,
+            );
+          case "procedural-brush":
+            return createPetBrushV1(
+              appearance.primaryMaterialSourceName,
+              appearance.primaryColor,
+            );
+          default: {
+            const unreachable: never = runtimeBinding;
+            return unreachable;
+          }
+        }
+      })();
       modelRoot.add(model);
       collectDisposableResourcesV1(model, geometries, materials, textures, skinnedMeshes);
       if (input.authoring ?? false) {
@@ -954,16 +1024,7 @@ export function createPetThreeRuntimeV1(
     socket.add(volume);
     interactiveObjects.push(volume);
     interactionObjects.push(volume);
-    if (interactionEnabled) {
-      const binding = findElectronicPetInteractionBindingV1(object.objectId);
-      if (
-        (input.authoring ?? false) ||
-        (currentPoseId !== null && binding !== null &&
-          isElectronicPetInteractionReachableV1(currentPoseId, binding.interactionId))
-      ) {
-        reachableInteractionObjects = [...reachableInteractionObjects, volume];
-      }
-    }
+    recomputeReachableInteractionsV1();
     interactionPlansById.set(object.objectId, object);
     selectableObjects.set(object.objectId, volume);
     collectDisposableResourcesV1(volume, geometries, materials, textures, skinnedMeshes);
@@ -1081,6 +1142,7 @@ export function createPetThreeRuntimeV1(
   return {
     ready,
     setSelectedObject: updateSelectionV1,
+    setInteractionTool: setInteractionToolV1,
     setCompanionPresentation: setCompanionPresentationV1,
     presentReaction: presentReactionV1,
     requestRender: requestRenderV1,

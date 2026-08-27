@@ -28,12 +28,20 @@ export const electronicPetRuntimeModelBindingsV1 = [
     runtimeAssetPath: null,
     rendererOwner: "pet.presentation.three",
   },
+  {
+    objectId: "pet.tool.brush",
+    modelId: "electronic-pet.tool.brush",
+    runtimeKind: "procedural-brush",
+    runtimeAssetPath: null,
+    rendererOwner: "pet.presentation.three",
+  },
 ] as const;
 
 export const electronicPetFaceInteractionBindingV1 = {
   objectId: "pet.interaction.face",
   interactionId: "interaction.pet.face",
   actionId: "pet.stroke_face",
+  interactionKind: "contact",
   behaviorOwner: "pet.game.companion",
 } as const;
 
@@ -41,6 +49,7 @@ export const electronicPetNeckInteractionBindingV1 = {
   objectId: "pet.interaction.neck",
   interactionId: "interaction.pet.neck",
   actionId: "pet.stroke_neck",
+  interactionKind: "contact",
   behaviorOwner: "pet.game.companion",
 } as const;
 
@@ -48,13 +57,27 @@ export const electronicPetBackInteractionBindingV1 = {
   objectId: "pet.interaction.back",
   interactionId: "interaction.pet.back",
   actionId: "pet.stroke_back",
+  interactionKind: "contact",
+  behaviorOwner: "pet.game.companion",
+} as const;
+
+export const electronicPetDirectInteractionBindingsV1 = [
+  electronicPetFaceInteractionBindingV1,
+  electronicPetNeckInteractionBindingV1,
+  electronicPetBackInteractionBindingV1,
+] as const;
+
+export const electronicPetGroomingInteractionBindingV1 = {
+  objectId: "pet.interaction.groom.back",
+  interactionId: "interaction.pet.groom.back",
+  actionId: "care.groom.back",
+  interactionKind: "grooming",
   behaviorOwner: "pet.game.companion",
 } as const;
 
 export const electronicPetInteractionBindingsV1 = [
-  electronicPetFaceInteractionBindingV1,
-  electronicPetNeckInteractionBindingV1,
-  electronicPetBackInteractionBindingV1,
+  ...electronicPetDirectInteractionBindingsV1,
+  electronicPetGroomingInteractionBindingV1,
 ] as const;
 
 export type ElectronicPetRuntimeModelBindingV1 =

@@ -130,3 +130,36 @@ export function createPetBallV1(
   toy.add(ball);
   return toy;
 }
+
+export function createPetBrushV1(
+  primaryMaterialSourceName: string,
+  primaryColor: string,
+): Group {
+  const brush = new Group();
+  brush.name = "Brush";
+  const bodyMaterial = createPetMaterialV1(primaryColor, 0.62);
+  bodyMaterial.name = primaryMaterialSourceName;
+  const bristleMaterial = createPetMaterialV1(0xf0d7b1, 0.96);
+
+  const head = new Mesh(new BoxGeometry(0.34, 0.1, 0.48), bodyMaterial);
+  head.position.z = -0.12;
+  head.castShadow = true;
+  head.receiveShadow = true;
+  brush.add(head);
+
+  const handle = new Mesh(new CylinderGeometry(0.055, 0.07, 0.48, 18), bodyMaterial);
+  handle.rotation.x = Math.PI / 2;
+  handle.position.z = 0.33;
+  handle.castShadow = true;
+  brush.add(handle);
+
+  for (const x of [-0.1, 0, 0.1]) {
+    for (const z of [-0.27, -0.14, -0.01]) {
+      const bristle = new Mesh(new CylinderGeometry(0.012, 0.016, 0.08, 8), bristleMaterial);
+      bristle.position.set(x, -0.085, z);
+      bristle.castShadow = true;
+      brush.add(bristle);
+    }
+  }
+  return brush;
+}

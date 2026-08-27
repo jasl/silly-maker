@@ -14,6 +14,10 @@ import {
   isElectronicPetBoundInteractionV1,
   isElectronicPetInteractionReachableV1,
 } from "../content/interactions.ts";
+import {
+  electronicPetGroomingRuleV1,
+  isElectronicPetGroomingReachableV1,
+} from "../content/grooming.ts";
 import type { ElectronicPetCommandV1, ElectronicPetRejectionCodeV1 } from "./kernel.ts";
 import type {
   ElectronicPetActivityIdV1,
@@ -22,11 +26,18 @@ import type {
   ElectronicPetInteractionOutcomeV1,
   ElectronicPetProgressionFactIdV1,
   ElectronicPetStateV1,
+  ElectronicPetTrustStageV1,
 } from "./state.ts";
 
 const visitGapMsV1 = 15 * 60 * 1_000;
 const maximumSettlementMinutesV1 = 24 * 60;
 const minuteMsV1 = 60_000;
+const trustStageRanksV1 = {
+  newcomer: 0,
+  familiar: 1,
+  trusting: 2,
+  bonded: 3,
+} as const satisfies Record<ElectronicPetTrustStageV1, number>;
 
 export type ElectronicPetCommandEvaluationV1 =
   | { readonly kind: "blocked"; readonly code: ElectronicPetRejectionCodeV1 }
@@ -54,14 +65,20 @@ function creditEvidenceV1(
 
 export function electronicPetProgressionForV1(
   state: ElectronicPetStateV1,
-): "arrival" | "approach" | "routine" {
+): "arrival" | "approach" | "routine" | "trust" {
+  if (state.relationship.trustStage === "trusting" || state.relationship.trustStage === "bonded") {
+    return "trust";
+  }
   if (state.relationship.facts.includes("relationship.routine_established")) return "routine";
   if (state.relationship.facts.includes("relationship.first_approach")) return "approach";
   return "arrival";
 }
 
 export function projectElectronicPetPlayerViewV1(state: ElectronicPetStateV1) {
-  const lastContact = state.companion.recentMemory.findLast((memory) => memory.kind === "contact");
+  const lastInteraction = state.companion.recentMemory.findLast((memory) =>
+    memory.kind === "contact" ||
+    (memory.kind === "care" && memory.actionId === "care.groom.back")
+  );
   const needBand = (value: number): "comfortable" | "watch" | "needs-care" =>
     value >= 70 ? "needs-care" : value >= 40 ? "watch" : "comfortable";
   return {
@@ -87,7 +104,12 @@ export function projectElectronicPetPlayerViewV1(state: ElectronicPetStateV1) {
       safety: needBand(state.companion.needs.safety),
       stimulation: needBand(state.companion.needs.stimulation),
     },
-    lastOutcome: lastContact?.outcome ?? null,
+    lastOutcome: lastInteraction?.outcome ?? null,
+    lastInteractionKind: lastInteraction === undefined
+      ? null
+      : lastInteraction.kind === "contact"
+      ? "contact"
+      : "grooming",
   } as const;
 }
 
@@ -131,11 +153,46 @@ function contactOutcomeV1(
   return score >= 5 ? "accept" : score >= 2 ? "tolerate" : score >= -1 ? "warn" : "refuse";
 }
 
+function groomingOutcomeV1(
+  state: ElectronicPetStateV1,
+  command: Extract<ElectronicPetCommandV1, { kind: "pet.groom_complete" }>,
+): ElectronicPetInteractionOutcomeV1 {
+  let score = electronicPetGroomingRuleV1.baseAcceptance +
+    electronicPetPreferenceForInteractionV1(command.targetInteractionId) +
+    (state.relationship.trustStage === "bonded" ? 3 : 2);
+  score += ({ guarded: -2, calm: 0, social: 2, playful: 0, overstimulated: -4 } as const)[
+    state.companion.mood.kind
+  ];
+  score += ({ "with-fur": 2, "cross-fur": -1, "against-fur": -4 } as const)[command.direction];
+  score += ({ slow: 1, steady: 0, fast: -2 } as const)[command.speed];
+  if (command.duration === "sustained") score -= 1;
+  const recentGrooming = state.companion.recentMemory.findLast((memory) =>
+    memory.kind === "care" && memory.actionId === "care.groom.back"
+  );
+  if (recentGrooming?.outcome === "tolerate") score -= 1;
+  else if (recentGrooming?.outcome === "warn") score -= 2;
+  else if (recentGrooming?.outcome === "refuse") score -= 3;
+  if (command.direction === "against-fur") return score >= 0 ? "warn" : "refuse";
+  return score >= 5 ? "accept" : score >= 2 ? "tolerate" : score >= -1 ? "warn" : "refuse";
+}
+
 function invitationAllowsContactV1(
   invitation: NonNullable<ElectronicPetStateV1["companion"]["invitation"]>,
   region: "face" | "neck" | "back",
 ): boolean {
   return invitation.kind === "head_contact" && (region === "face" || region === "neck");
+}
+
+function invitationKindForActivityV1(
+  state: ElectronicPetStateV1,
+  activityId: ElectronicPetActivityIdV1,
+): NonNullable<ElectronicPetStateV1["companion"]["invitation"]>["kind"] | null {
+  if (activityId === "approach_player") {
+    return state.relationship.facts.includes("relationship.routine_established")
+      ? "head_contact"
+      : "sniff_hand";
+  }
+  return activityId === "solo_ball_play" ? "shared_play" : null;
 }
 
 export function evaluateElectronicPetCommandV1(
@@ -179,7 +236,9 @@ export function evaluateElectronicPetCommandV1(
       }
       if (
         command.expectedInvitationOccurrence !== undefined &&
-        state.companion.invitation?.occurrence !== command.expectedInvitationOccurrence
+        (state.companion.invitation?.occurrence !== command.expectedInvitationOccurrence ||
+          state.companion.invitation.activityOccurrence !==
+            state.companion.activity.occurrence)
       ) return { kind: "blocked", code: "pet.invitation_stale" };
       const rule = findElectronicPetInteractionRuleV1(command.targetInteractionId);
       if (!isElectronicPetBoundInteractionV1(command.targetInteractionId) || rule === null) {
@@ -205,6 +264,29 @@ export function evaluateElectronicPetCommandV1(
         return { kind: "allowed", outcome: "refuse" };
       }
       return { kind: "allowed", outcome: contactOutcomeV1(state, command) };
+    }
+    case "pet.groom_complete": {
+      if (command.expectedActivityOccurrence !== state.companion.activity.occurrence) {
+        return { kind: "blocked", code: "pet.activity_stale" };
+      }
+      if (command.targetInteractionId !== electronicPetGroomingRuleV1.interactionId) {
+        return { kind: "blocked", code: "pet.target_unavailable" };
+      }
+      if (
+        !isElectronicPetGroomingReachableV1(
+          state.companion.activity.poseId,
+          command.targetInteractionId,
+        )
+      ) {
+        return { kind: "blocked", code: "pet.target_unavailable" };
+      }
+      if (
+        state.relationship.trustStage !== "trusting" &&
+        state.relationship.trustStage !== "bonded"
+      ) {
+        return { kind: "blocked", code: "pet.action_unavailable" };
+      }
+      return { kind: "allowed", outcome: groomingOutcomeV1(state, command) };
     }
     case "pet.play_complete": {
       if (command.expectedActivityOccurrence !== state.companion.activity.occurrence) {
@@ -520,12 +602,24 @@ function updateProgressionV1(state: ElectronicPetStateV1): ElectronicPetStateV1 
   }
   const familiar = facts.includes("relationship.first_hand_sniff") &&
     state.relationship.evidence.calmCare.count > 0;
+  const trusting = facts.includes("relationship.routine_established") &&
+    state.relationship.evidence.invitationResponse.count >= 2 &&
+    state.relationship.evidence.sharedPlay.count > 0 &&
+    state.relationship.discoveredPreferenceIds.length > 0;
+  const candidateStage: ElectronicPetTrustStageV1 = trusting
+    ? "trusting"
+    : familiar
+    ? "familiar"
+    : "newcomer";
   return {
     ...state,
     relationship: {
       ...state.relationship,
       facts,
-      trustStage: familiar ? "familiar" : state.relationship.trustStage,
+      trustStage:
+        trustStageRanksV1[candidateStage] > trustStageRanksV1[state.relationship.trustStage]
+          ? candidateStage
+          : state.relationship.trustStage,
     },
   };
 }
@@ -638,6 +732,10 @@ export function applyElectronicPetCommandV1(
     };
   } else if (command.kind === "pet.contact_complete" && outcome !== null) {
     const rule = findElectronicPetInteractionRuleV1(command.targetInteractionId);
+    const acceptedHeadContactInvitation = outcome === "accept" &&
+      state.companion.invitation?.kind === "head_contact" &&
+      state.companion.invitation.occurrence === command.expectedInvitationOccurrence &&
+      state.companion.invitation.activityOccurrence === state.companion.activity.occurrence;
     const revealsPreference = state.relationship.trustStage !== "newcomer" ||
       command.expectedInvitationOccurrence !== undefined;
     const discovered = !revealsPreference || rule === null ||
@@ -651,6 +749,15 @@ export function applyElectronicPetCommandV1(
         facts: outcome === "accept"
           ? addFactV1(state.relationship.facts, "relationship.first_contact")
           : state.relationship.facts,
+        evidence: acceptedHeadContactInvitation
+          ? {
+            ...state.relationship.evidence,
+            invitationResponse: creditEvidenceV1(
+              state.relationship.evidence.invitationResponse,
+              state.home.visitOrdinal,
+            ),
+          }
+          : state.relationship.evidence,
         discoveredPreferenceIds: discovered,
       },
       companion: {
@@ -673,6 +780,47 @@ export function applyElectronicPetCommandV1(
           kind: "contact",
           targetInteractionId: command.targetInteractionId,
           direction: command.direction,
+          outcome,
+          atMinute: state.home.worldMinute,
+        }, 8),
+      },
+    };
+  } else if (command.kind === "pet.groom_complete" && outcome !== null) {
+    const accepted = outcome === "accept";
+    const discovered = !accepted ||
+        state.relationship.discoveredPreferenceIds.includes(
+          electronicPetGroomingRuleV1.preferenceId,
+        )
+      ? state.relationship.discoveredPreferenceIds
+      : [
+        ...state.relationship.discoveredPreferenceIds,
+        electronicPetGroomingRuleV1.preferenceId,
+      ].toSorted();
+    next = {
+      ...state,
+      relationship: {
+        ...state.relationship,
+        facts: accepted
+          ? addFactV1(state.relationship.facts, "relationship.first_grooming")
+          : state.relationship.facts,
+        discoveredPreferenceIds: discovered,
+      },
+      companion: {
+        ...state.companion,
+        mood: {
+          kind: accepted
+            ? "social"
+            : outcome === "tolerate"
+            ? "calm"
+            : outcome === "warn"
+            ? "overstimulated"
+            : "guarded",
+          cause: "care",
+          sinceMinute: state.home.worldMinute,
+        },
+        recentMemory: appendBoundedV1(state.companion.recentMemory, {
+          kind: "care",
+          actionId: "care.groom.back",
           outcome,
           atMinute: state.home.worldMinute,
         }, 8),
@@ -783,11 +931,10 @@ export function applyElectronicPetCommandV1(
       const settledBase = activityCompleted ? settleCompletedActivityV1(base) : base;
       const selected = chooseActivityV1(settledBase, rng);
       const occurrence = settledBase.companion.nextActivityOccurrence;
-      const invitationKind = selected.definition.activityId === "approach_player"
-        ? "sniff_hand"
-        : selected.definition.activityId === "solo_ball_play"
-        ? "shared_play"
-        : null;
+      const invitationKind = invitationKindForActivityV1(
+        settledBase,
+        selected.definition.activityId,
+      );
       next = {
         ...settledBase,
         relationship: selected.definition.activityId === "approach_player"
