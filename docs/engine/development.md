@@ -537,7 +537,13 @@ that Promise resolves. Omission keeps the synchronous-ready default. Irrecoverab
 rejection uses `SM-STARTUP-REQUIRED`; disposal and terminal presentation fence a
 late settlement. GUI products may additionally provide one product-aggregated
 Desktop close preparation (`fence` synchronously and idempotently, then await
-`prepare`). Do not introduce one hook per database, service, or child resource.
+`prepare`). For explicit application teardown, aggregate ordered local RPC,
+session, and repository shutdown behind the UI definition's single `dispose`
+callback; `started.dispose()` unmounts the React root and awaits that callback.
+Its rejection becomes a bounded Host diagnostic rather than rejecting teardown.
+The `pagehide` listener starts the same cleanup but does not claim that the
+browser waits for asynchronous work or makes it durable. Do not introduce one
+hook per database, service, or child resource.
 
 The explicitly selected reference DevDock host invokes its literal loader only
 after `debug_tools`, single-flights one open, reuses ready, and exposes a bounded

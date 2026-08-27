@@ -204,6 +204,63 @@ describe("startWebGuiApplicationV1", () => {
     expect(commitRecords).not.toHaveBeenCalled();
   });
 
+  it("waits for the single UI-owned async disposal and shares that completion", async () => {
+    const root = createRootV1();
+    const uiDisposal = deferredV1();
+    const disposeUi = vi.fn(() => uiDisposal.promise);
+    const started = await startV1(
+      createApplicationV1({
+        ui: () => ({
+          content: <RoutedCounterV1 />,
+          dispose: disposeUi,
+        }),
+      }),
+      { rootElement: root, host: createHostV1(), registerPageLifecycle: false },
+    );
+
+    let firstSettled = false;
+    let secondSettled = false;
+    const first = started.dispose().then(() => {
+      firstSettled = true;
+    });
+    const second = started.dispose().then(() => {
+      secondSettled = true;
+    });
+    await Promise.resolve();
+
+    expect(started.isDisposed()).toBe(true);
+    expect(root).toBeEmptyDOMElement();
+    expect(disposeUi).toHaveBeenCalledOnce();
+    expect(firstSettled).toBe(false);
+    expect(secondSettled).toBe(false);
+
+    uiDisposal.resolve();
+    await Promise.all([first, second]);
+    expect(firstSettled).toBe(true);
+    expect(secondSettled).toBe(true);
+  });
+
+  it("isolates an async UI disposal rejection through the existing diagnostic", async () => {
+    const host = createHostV1();
+    const writeLog = vi.spyOn(host.log, "write");
+    const started = await startV1(
+      createApplicationV1({
+        ui: () => ({
+          content: <RoutedCounterV1 />,
+          dispose: () => Promise.reject(new Error("private repository close failure")),
+        }),
+      }),
+      { rootElement: createRootV1(), host, registerPageLifecycle: false },
+    );
+
+    await expect(started.dispose()).resolves.toBeUndefined();
+    expect(writeLog).toHaveBeenCalledWith(
+      "warn",
+      "web.gui_application_disposal_step_failed",
+      { message: "ui" },
+    );
+  });
+
   it("routes a configured gamepad edge through the same application input router", async () => {
     const root = createRootV1();
     let scheduled: (() => void) | undefined;

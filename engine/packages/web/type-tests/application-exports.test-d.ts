@@ -41,8 +41,15 @@ const publicGuiUiDefinitionV1: WebGuiUiDefinitionV1 = {
   content: null,
   requiredDomainReady: Promise.resolve(),
   closePreparation: publicGuiClosePreparationV1,
+  dispose: async () => await Promise.resolve(),
 };
 void publicGuiUiDefinitionV1;
+type PublicGuiAsyncDisposeResultV1 = Exclude<
+  ReturnType<NonNullable<WebGuiUiDefinitionV1["dispose"]>>,
+  void
+>;
+const publicGuiAsyncDisposeResultV1: PublicGuiAsyncDisposeResultV1 = Promise.resolve();
+void publicGuiAsyncDisposeResultV1;
 
 declare const pointerActionMapV1: PointerActionMapV1;
 type WebInputDeclarationV1 = NonNullable<

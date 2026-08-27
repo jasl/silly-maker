@@ -128,7 +128,9 @@ GUI 产品还可以选择正好一个 close participant：同步、幂等的 `fe
 submission，`prepare()` 等待产品自己的 pending write 或 typed-client drain。没有 participant 的无状态
 GUI 保持即时回执；需要关闭多个产品资源时由产品聚合，而不是让 Host 枚举数据库、RPC、Extension 或
 React descendants。该异步保证只接入 Desktop native-close receipt；explicit dispose 与 Browser
-`pagehide` 仍只做确定性的本地 cleanup，不伪装成浏览器会等待 durable flush。
+`pagehide` 不自动取得 native-close receipt。explicit dispose 会在卸载 React root 后等待产品聚合的
+单一 UI disposer，并把 rejection 隔离为既有 bounded diagnostic；`pagehide` 只启动同一路径，不伪装成
+浏览器会等待异步 cleanup 或 durable flush。
 
 ### 3.1 Optional Desktop companion preview
 

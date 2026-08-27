@@ -1031,7 +1031,11 @@ until the product-owned domain is ready. Its rejection uses the existing bounded
 required-domain failure, and application disposal or terminal presentation fences
 late settlement. A GUI product may also supply one close preparation: a synchronous
 idempotent ingress fence plus one async, product-aggregated preparation consumed by
-the Desktop close receipt. There is no close-hook registry. The entry deliberately
+the Desktop close receipt. Explicit application disposal unmounts the React root and
+then awaits the UI definition's single product-owned disposer; the product aggregates
+any ordered local RPC, session, or repository teardown behind that one boundary.
+Disposer failure uses the existing bounded diagnostic and does not reject Host
+teardown. There is no close-hook registry. The entry deliberately
 does not create a Story/Game Session,
 Snapshot, Save or lease, semantic gameplay, automation bridge, rebootstrap
 controller, or second renderer runtime. Host wrappers remain semantically

@@ -63,8 +63,11 @@ export interface WebGuiUiDefinitionV1 {
      */
     readonly nativeBehavior?: NativeBehaviorResetConfigV1 | false;
   };
-  /** Releases application-owned resources created while binding the UI. */
-  dispose?(): void;
+  /**
+   * Releases application-owned resources created while binding the UI. The
+   * Host awaits this single product-owned disposer during explicit teardown.
+   */
+  dispose?(): void | Promise<void>;
 }
 
 export interface WebGuiClosePreparationV1 {
@@ -259,10 +262,17 @@ export async function startWebGuiApplicationV1(
           ["gamepad", () => gamepad?.dispose()],
           ["native_behavior", () => nativeBehaviorReset?.dispose()],
           ["root", () => mounted?.unmount()],
-          ["ui", () => uiDefinition?.dispose?.()],
         ] as const
       ) {
         runCleanup(step, cleanup);
+      }
+      try {
+        await uiDefinition?.dispose?.();
+      } catch (error) {
+        reportFailure(
+          "web.gui_application_disposal_step_failed",
+          new Error("ui", { cause: error }),
+        );
       }
       completeDisposal();
     }
