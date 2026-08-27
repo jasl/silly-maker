@@ -22,7 +22,7 @@ function projectV1(
 }
 
 describe("VnReferenceTour Narrative Flow projection", () => {
-  it("joins the editable English packs and their declared Chinese fallback", () => {
+  it("joins the editable English packs and resident UI catalog", () => {
     expect(
       vnReferenceTourAuthoringTextForLocaleV1(
         "en",
@@ -39,7 +39,7 @@ describe("VnReferenceTour Narrative Flow projection", () => {
     ).toBe("This Moment, Archived");
     expect(
       vnReferenceTourAuthoringTextForLocaleV1("en", "text.vn-reference-tour.speaker.lin"),
-    ).toBe("林澄");
+    ).toBe("Lin Cheng");
   });
 
   it("keeps the shipped story source-addressable and labels its material route", () => {

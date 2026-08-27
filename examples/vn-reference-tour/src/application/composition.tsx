@@ -53,11 +53,10 @@ import type {
   VnReferenceTourSimulationTypesV1,
 } from "../game/simulation.ts";
 import {
+  createVnReferenceTourStageContentCatalogV1,
   vnReferenceTourStageAmbientCatalogV1,
-  vnReferenceTourStageContentCatalogV1,
   vnReferenceTourStageTransitionCatalogV1,
   vnReferenceTourTextCatalogsV1,
-  vnReferenceTourUiTextV1,
 } from "../content/presentation.ts";
 import {
   vnReferenceTourArchiveTextPackIdV1,
@@ -140,31 +139,36 @@ export type VnReferenceTourUiPublicationV1 = RuntimePresentationPublicationV1<
 
 export type VnReferenceTourUiOverlayIdV1 = never;
 
-const projectorDefinitionV1: GameUiProjectorV1<
+function createVnReferenceTourUiProjectorV1(
+  textContent: TextContentSessionV1,
+): GameUiProjectorV1<
   VnReferenceTourSemanticPublicationV1,
   null,
   Record<never, never>,
   VnReferenceTourPresentationViewV1,
   AssetId
-> = {
-  resolvedCatalog: null,
-  initialUiState: {},
-  project: (input) => {
-    const projection = projectStageRenderTarget(
-      input.semantic.game.stage,
-      vnReferenceTourStageContentCatalogV1,
-    );
-    return ({
-      view: {
-        anchorEpoch: input.uiState.anchor.epoch,
-        stageTarget: projection.target,
-      },
-      requiredAssetIds: projection.target.requiredAssetIds,
-    });
-  },
-};
-
-export const vnReferenceTourUiProjectorV1 = projectorDefinitionV1;
+> {
+  const stageContentCatalog = createVnReferenceTourStageContentCatalogV1(
+    (textId) => textContent.resolveText(textId as TextId),
+  );
+  return {
+    resolvedCatalog: null,
+    initialUiState: {},
+    project: (input) => {
+      const projection = projectStageRenderTarget(
+        input.semantic.game.stage,
+        stageContentCatalog,
+      );
+      return ({
+        view: {
+          anchorEpoch: input.uiState.anchor.epoch,
+          stageTarget: projection.target,
+        },
+        requiredAssetIds: projection.target.requiredAssetIds,
+      });
+    },
+  };
+}
 
 type VnReferenceTourStageContextV1 = Parameters<
   NonNullable<
@@ -177,6 +181,7 @@ type VnReferenceTourStageContextV1 = Parameters<
 >[0];
 
 function VnReferenceTourStageSurfaceV1(props: {
+  readonly accessibleName: string;
   readonly context: VnReferenceTourStageContextV1;
   readonly instance: VnReferenceTourApplicationInstanceV1;
   readonly presentationFreeze: PresentationFreezePortV1;
@@ -197,7 +202,7 @@ function VnReferenceTourStageSurfaceV1(props: {
   return (
     <section
       data-vn-reference-tour-stage="true"
-      aria-label={vnReferenceTourUiTextV1("text.vn-reference-tour.stage.name")}
+      aria-label={props.accessibleName}
     >
       <SemanticStageV1
         target={props.context.publication.view.stageTarget}
@@ -208,7 +213,7 @@ function VnReferenceTourStageSurfaceV1(props: {
         ambient={vnReferenceTourStageAmbientCatalogV1}
         renderers={props.renderers}
         assets={props.registry}
-        accessibleName={vnReferenceTourUiTextV1("text.vn-reference-tour.stage.name")}
+        accessibleName={props.accessibleName}
         clock={props.presentationFreeze.clock}
       />
     </section>
@@ -230,6 +235,7 @@ function createVnReferenceTourUiSlotsV1(
   VnReferenceTourSemanticPortV1,
   VnReferenceTourUiOverlayIdV1
 > {
+  const uiText = (textId: string): string => textContent.resolveText(textId as TextId);
   const createAudioHost = () =>
     createWebAudioHostV1({
       manifest: vnReferenceTourAudioManifestV1,
@@ -243,6 +249,7 @@ function createVnReferenceTourUiSlotsV1(
   return {
     background: (context) => (
       <VnReferenceTourStageSurfaceV1
+        accessibleName={uiText("text.vn-reference-tour.stage.name")}
         context={context}
         instance={instance}
         presentationFreeze={presentationFreeze}
@@ -271,14 +278,12 @@ function createVnReferenceTourUiSlotsV1(
                 title={textContent.resolveText(
                   `text.vn-reference-tour.${narrative.signalChoice}.ending.title` as TextId,
                 )}
-                kicker={vnReferenceTourUiTextV1("text.vn-reference-tour.ending.kicker")}
-                summary={vnReferenceTourUiTextV1("text.vn-reference-tour.ending.summary")}
-                backLabel={vnReferenceTourUiTextV1("text.vn-reference-tour.playback.back")}
-                returnLabel={vnReferenceTourUiTextV1("text.vn-reference-tour.ending.return")}
-                returningLabel={vnReferenceTourUiTextV1("text.vn-reference-tour.ending.returning")}
-                returnFailure={vnReferenceTourUiTextV1(
-                  "text.vn-reference-tour.ending.return-failed",
-                )}
+                kicker={uiText("text.vn-reference-tour.ending.kicker")}
+                summary={uiText("text.vn-reference-tour.ending.summary")}
+                backLabel={uiText("text.vn-reference-tour.playback.back")}
+                returnLabel={uiText("text.vn-reference-tour.ending.return")}
+                returningLabel={uiText("text.vn-reference-tour.ending.returning")}
+                returnFailure={uiText("text.vn-reference-tour.ending.return-failed")}
                 input={context.input}
                 rollback={instance.rollback}
                 onReturnToTitle={context.systemDialogs.returnToTitle}
@@ -305,17 +310,24 @@ const vnReferenceTourVnPlayerLabelTextIdsV1 = {
   historyClose: "text.vn-reference-tour.playback.history.close",
 };
 
-export const vnReferenceTourRootLabelsV1: Partial<DefaultGameRootLabelsV1> = {
-  systemMenuLabel: "系统",
-  saveLabel: "保存",
-  settingsLabel: "设置",
-  settingsTitle: "设置",
-  settingsEmptyText: "暂无可配置项。",
-  settingsMutedLabel: "静音",
-  titleNewGameLabel: "新游戏",
-  titleContinueLabel: "继续",
-  closeLabel: "关闭",
-};
+function createVnReferenceTourRootLabelsV1(
+  textContent: TextContentSessionV1,
+): Partial<DefaultGameRootLabelsV1> {
+  const resolve = (textId: string): string => textContent.resolveText(textId as TextId);
+  return {
+    systemMenuLabel: resolve("text.vn-reference-tour.system.label"),
+    saveLabel: resolve("text.vn-reference-tour.system.save"),
+    settingsLabel: resolve("text.vn-reference-tour.system.settings"),
+    settingsTitle: resolve("text.vn-reference-tour.system.settings"),
+    settingsEmptyText: resolve("text.vn-reference-tour.system.settings-empty"),
+    settingsMutedLabel: resolve("text.vn-reference-tour.system.mute"),
+    titleNewGameLabel: resolve("text.vn-reference-tour.title.new-game"),
+    titleNewGameFailedText: resolve("text.vn-reference-tour.title.new-game-failed"),
+    titleContinueLabel: resolve("text.vn-reference-tour.title.continue"),
+    titleLoadGameLabel: resolve("text.vn-reference-tour.title.load"),
+    closeLabel: resolve("text.vn-reference-tour.system.close"),
+  };
+}
 
 export const vnReferenceTourSaveOverlayLabelsV1: SaveOverlayLabelsV1 = {
   accessibleName: "保存",
@@ -510,14 +522,15 @@ export const vnReferenceTourGameApplicationV1: WebGameApplicationV1<
         registry.dispose();
       },
       titleScreen: {
-        title: "最后一次试音",
+        title: textContent.resolveText("text.vn-reference-tour.app.name" as TextId),
         beginNewGame: () =>
           instance.semantic.dispatch({
             kind: "invoke",
             actionId: "vn-reference-tour.begin_story",
           }),
       },
-      projector: vnReferenceTourUiProjectorV1,
+      accessibleName: textContent.resolveText("text.vn-reference-tour.app.name" as TextId),
+      projector: createVnReferenceTourUiProjectorV1(textContent),
       narrative: defineNarrativeSurfaceV1<VnReferenceTourSemanticPublicationV1>(
         {
           selectNarrative: projectVnReferenceTourNarrativeSurfaceSelectionV1,
@@ -553,7 +566,7 @@ export const vnReferenceTourGameApplicationV1: WebGameApplicationV1<
         registerCurrentVoicePlaying,
         reportFailure,
       ),
-      labels: vnReferenceTourRootLabelsV1,
+      labels: createVnReferenceTourRootLabelsV1(textContent),
       saveLabels: vnReferenceTourSaveOverlayLabelsV1,
       // M2 owns compact VN player chrome. The generic floating
       // Save/Settings/Mute cluster returns through product UI in M3.

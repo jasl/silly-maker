@@ -131,6 +131,32 @@ describe("pointer-button adapter", () => {
     dispose();
   });
 
+  it("routes the middle button on scene surfaces while leaving ordinary controls native", () => {
+    const spy = routerSpyV1();
+    const dispose = installPointerButtonAdapterV1({
+      router: spy.router as never,
+      map: { middle: historyV1 },
+    });
+    const surface = document.createElement("button");
+    const child = document.createElement("span");
+    surface.append(child);
+    document.body.append(surface);
+
+    const ordinary = new MouseEvent("auxclick", { button: 1, bubbles: true, cancelable: true });
+    child.dispatchEvent(ordinary);
+    expect(ordinary.defaultPrevented).toBe(false);
+    expect(spy.routed).toEqual([]);
+
+    surface.dataset.pointerActionSurface = "true";
+    const optedIn = new MouseEvent("auxclick", { button: 1, bubbles: true, cancelable: true });
+    child.dispatchEvent(optedIn);
+    expect(optedIn.defaultPrevented).toBe(true);
+    expect(spy.routed).toEqual(["player.history_back"]);
+
+    surface.remove();
+    dispose();
+  });
+
   it("allows an explicit canvas-style button to retain mapped wheel navigation", () => {
     const spy = routerSpyV1();
     const dispose = installPointerButtonAdapterV1({
@@ -147,7 +173,7 @@ describe("pointer-button adapter", () => {
     expect(ordinary.defaultPrevented).toBe(false);
     expect(spy.routed).toEqual([]);
 
-    surface.dataset.pointerWheelSurface = "true";
+    surface.dataset.pointerActionSurface = "true";
     const optedIn = new WheelEvent("wheel", { deltaY: -3, bubbles: true, cancelable: true });
     child.dispatchEvent(optedIn);
     expect(optedIn.defaultPrevented).toBe(true);

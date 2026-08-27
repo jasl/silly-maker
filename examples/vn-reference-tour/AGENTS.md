@@ -2,17 +2,18 @@
 
 ## Status and authority
 
-This package is **M0–M1 delivered / WIP; M2 is in progress**. The product contract,
+This package is **M0–M2 delivered / WIP; M3 is next**. The product contract,
 independent package, supported-export application shell, starter-domain
 deletion, complete two-route script, two Authoring Scenes, author data, and
-named headless simulations are implemented. M2's first Player slice now selects
+named headless simulations are implemented. M2 selects
 the engine-maintained focused default VN Player, which adds flush-bottom responsive dialogue/choice chrome, say-only full-canvas
-pointer advance, History/playback controls, Ctrl/Tab/H/V VN input, and a portrait layout variant.
-Later slices add the final Stage media and ending surface plus BGM, two ambient
+pointer advance, History/playback controls, Ctrl/Tab/H/V and middle-button VN input, and a portrait layout variant.
+Later slices added the final Stage media and ending surface plus BGM, two ambient
 tracks, three SFX, two current voices, replay, and voice-aware Auto. A later
-slice adds interaction-level Back/Forward through the engine Snapshot timeline,
-PageUp/PageDown and wheel input, plus ending Back. The full product matrix and M2 closure remain open;
-this playable WIP is not a complete reference or evidence that M2–M5 have shipped.
+slice added interaction-level Back/Forward through the engine Snapshot timeline,
+PageUp/PageDown and wheel input, plus ending Back. The responsive/input/accessibility/i18n product matrix
+closed M2. Save/recovery/settings and later product evidence remain open, so this playable WIP is not a
+complete reference or evidence that M3–M5 have shipped.
 
 Read, in order:
 
@@ -47,8 +48,8 @@ Story/Scene/text/asset/action IDs are lower-case kebab-case. TypeScript symbols
 use `vnReferenceTour` / `VnReferenceTour`. M0 removed the starter Story identity,
 coins/inventory, and starter HUD/action owners. M1 replaced the temporary
 opening Story/Scene author content with the complete two-route author data; do
-not restore aliases, disabled modules, or a second graph. The remaining VN
-Player and product-matrix gates remain M2 work.
+not restore aliases, disabled modules, or a second graph. M3 now owns the
+remaining product entry, Save/recovery, and settings work.
 
 ## Ownership and locality
 
@@ -60,7 +61,7 @@ Player and product-matrix gates remain M2 work.
 - `src/content/presentation.ts`: resident UI copy and Stage/transition catalog.
 - `src/content/audio.ts`: audio manifest and intent/effect mapping.
 - `src/game/**`: minimal authoritative route/narrative/stage/audio state.
-- `@sillymaker/ui/narrative-player`: default VN chrome, focus, Ctrl/Tab/H and Back/Forward policy.
+- `@sillymaker/ui/narrative-player`: default VN chrome, focus, Ctrl/Tab/H, middle-button, and Back/Forward policy.
 - `src/application/composition.tsx`: product wiring, text-label mapping, and preset selection only; no story copy or rules.
 - `src/tooling/**`: dev-only Inspector/Flow/simulation projections.
 
@@ -114,7 +115,7 @@ deno task build:web
 ```
 
 Green focused checks prove the implemented author data and current Player,
-Stage-media, and audio slices only. They do not prove M2 closure, M3 Save/recovery,
+Stage-media, audio, and product-matrix slices only. They do not prove M3 Save/recovery
 or M4 product evidence. Record actual gate results rather than
 inferring them from milestone status. If a public/wire/Save/CAS or license
 boundary must change, stop and request owner review; otherwise choose the

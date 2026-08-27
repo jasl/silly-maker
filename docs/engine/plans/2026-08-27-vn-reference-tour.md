@@ -1,10 +1,9 @@
 # VN Reference Tour 实施计划
 
-状态：**2026-08-27 经所有者接受，当前唯一活动 Reference Product；M0–M1 已交付，M2 进行中。第一版
-引擎维护的 focused default VN Player preset、say-only 全画布推进、贴底布局与 Ctrl/Tab/H 输入已由 Template
-和本产品共同选择并可试玩；最终 Stage 视觉、结局 surface 与 Player/Inspector 共用媒体链已经接入，
-冻结的八项音频、current-voice replay 与 voice-aware Auto 也已接入；interaction-level Back/Forward、
-PageUp/PageDown 与滚轮导航现已接入。完整产品矩阵仍未关闭，当前 WIP 不是产品完成证据或旗舰。**
+状态：**2026-08-27 经所有者接受，当前唯一活动 Reference Product；M0–M2 已交付，M3 是下一里程碑。
+引擎维护的 focused default VN Player preset、say-only 全画布推进、贴底布局、Ctrl/Tab/H/V 与鼠标中键、
+最终 Stage/ending 媒体、冻结的八项音频、current-voice replay、voice-aware Auto、interaction-level
+Back/Forward 和完整产品 UI 矩阵均已交付。当前 WIP 仍不是产品完成证据或旗舰。**
 
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 是唯一跨计划排序入口。本计划同时拥有
 产品分母、实现顺序、证据门槛与旗舰提升条件；Bookshop 的后续教学角色不由本计划预裁。它不是 broad engine
@@ -146,7 +145,7 @@ example。focused tests、`app check`、临时 `scaffold` simulation、Browser p
 
 ### M1 — 完整剧本、场景与作者数据
 
-状态：**2026-08-27 已交付。M2 进行中。**
+状态：**2026-08-27 已交付。M2 已于 2026-08-28 交付；M3 是下一里程碑。**
 
 - 写完并注册全部 59 条文案、二选一、两条 route 与两个 ending；先用 compatible placeholder media 也必须
   保持完整内容 breadth，不以单 route 关闭；
@@ -169,7 +168,7 @@ VN Player、最终视觉/音频、Save/recovery、Browser 产品旅程或旗舰�
 
 ### M2 — VN Player、视觉与音频
 
-状态：**进行中。**
+状态：**2026-08-28 已交付并关闭。**
 
 - 交付引擎维护、focused entry、显式选择的 default VN Player preset：responsive 对话/选项、History、
   playback toolbar、say-only 全画布推进与 Ctrl/Tab/H 默认政策；generic GameRoot 和非 VN final graph 不包含它；
@@ -232,6 +231,21 @@ barrier；presentation-barrier acknowledgement 也不额外制造玩家历史停
 Chromium/WebKit/mobile E2E、2 项 Engine Lab Chromium/WebKit rollback E2E、VN/Template production build、
 全仓 `deno task check` 与 React Doctor changed-files audit 覆盖本切片；两轮独立 Core/UI 复查均无剩余 blocker。
 完整 responsive/zoom/accessibility/中英 overflow 矩阵仍开放，本记录不关闭 M2。
+
+第五切片关闭产品 UI 矩阵。focused default VN Player 的 History 按实际可用性启用，滚动 History 可由键盘
+聚焦；鼠标中键与 `H` 复用同一个 hide/restore action，不建立第二条 chrome 状态路径。Web Host 从已经成功
+激活的 Text session 发布 `<html lang>`，应用必须显式选择 locale-aware root `accessibleName`，标题文本不再
+隐式覆盖静态应用名称。产品补齐中英文 root/Stage/Player/ending 文案与可访问名称，保持普通 Player 的静态
+默认权威不变。真实产品矩阵覆盖 1280×720、360×640、640×360 的 200% reflow proxy、鼠标/触控/键盘焦点、
+reduced motion、Axe WCAG 2 A/AA、中文/英文长文案、Choice、History 与 ending；Chromium 与 WebKit 均执行，
+mobile project 单独覆盖 touch。一次 participant-assisted Chrome 200% browser zoom characterization 在不修改
+产品或建立长期 harness 的前提下确认标题、Say、History、Choice、ending 与 44px 控件均留在产品 canvas 内，
+无水平溢出；页面额外纵向高度来自 canvas 外的 dev-only Inspector launcher。History `<ol tabIndex={0}>` 是为
+解决 Axe `scrollable-region-focusable` 的有意可访问性选择，也是 React Doctor 唯一 advisory。M3 继续拥有
+Splash/入口、Save/recovery 与 settings；M2 关闭不推导产品完成、旗舰提升、默认静音发布证据或 Desktop promotion。
+最终稳定工作树通过 382 个测试文件、5,449 项 unit、6 项 Composition benchmark、40 项 examples Browser E2E
+（另有 2 项按项目条件明确跳过）、全仓 `deno task check` 与 VN production build；后者保留现有
+`advancedChunks` deprecated 和单一大 chunk advisory，不把 M3 之外的 bundle 策略工作偷渡进本切片。
 
 ### M3 — 产品入口、Save/recovery 与设置
 

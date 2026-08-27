@@ -79,7 +79,7 @@
 
 .back-button,
 .return-button {
-  min-block-size: 3rem;
+  min-block-size: var(--silly-target-min-size, 44px);
   padding: 0.7rem 1.15rem;
   border: 1px solid rgb(255 255 255 / 24%);
   border-radius: 0.35rem;

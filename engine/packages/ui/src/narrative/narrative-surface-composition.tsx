@@ -115,6 +115,8 @@ export interface NarrativeSurfaceDialogueRendererPropsV1 {
   readonly choiceAvailability: readonly NarrativeChoiceAvailabilityV1[] | null;
   readonly playerProfile: DeepReadonly<PlayerProfileV1>;
   readonly playerView: DeepReadonly<NarrativeSurfacePlayerViewV1>;
+  /** Whether the Host currently has at least one committed History entry. */
+  readonly historyAvailable: boolean;
   readonly voiceReplayAvailable: boolean;
   readonly resolveText: (textId: string) => string;
   readonly onActivate: () => void;
@@ -425,6 +427,7 @@ function NarrativeSurfacePublicRendererAdapterInternalV1(
       choiceAvailability: currentAvailability,
       playerProfile: props.rendererProps.playerProfile,
       playerView,
+      historyAvailable: (selection?.history.entries.length ?? 0) > 0,
       voiceReplayAvailable: selection?.pending?.kind === "say" &&
         selection.pending.occurrenceId === props.rendererProps.pending.occurrenceId &&
         selection.voiceReplayAvailable === true,

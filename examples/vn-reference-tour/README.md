@@ -2,12 +2,12 @@
 
 # 《最后一次试音》— VN Reference Tour
 
-状态：**M0–M1 已交付 / WIP；M2 进行中。独立 package、完整双路线作者数据与 simulation 已完成；当前已可试玩
-第一版引擎维护的 default VN Player 已提供对话/选择界面、全画布点击推进、History/播放控制、贴底响应式布局和 VN 键盘习惯；
-最终 Stage 媒体、结局 surface、冻结的八项音频分母与 interaction-level Back/Forward 也已接入。完整产品验收仍未完成。**
+状态：**M0–M2 已交付 / WIP；M3 是下一里程碑。独立 package、完整双路线作者数据与 simulation、
+引擎维护的 default VN Player、最终 Stage/ending 媒体、冻结的八项音频分母、interaction-level
+Back/Forward，以及 responsive/input/accessibility/i18n 产品矩阵均已完成。Save/recovery/settings 与完整产品验收仍未完成。**
 
-M1 已用本产品的完整 Story/Scene author data 原子替换 tracked Template 的临时内容；当前 M2 已交付 Player、
-Stage 媒体、结局、音频与 Back/Forward 切片，但不代表完整响应式/无障碍矩阵、Save/recovery 或产品验收。《最后一次试音》仍不是完整产品参考
+M1 已用本产品的完整 Story/Scene author data 原子替换 tracked Template 的临时内容；M2 已交付 Player、
+Stage 媒体、结局、音频、Back/Forward 与完整响应式/无障碍矩阵，但不代表 Save/recovery 或产品验收。《最后一次试音》仍不是完整产品参考
 或旗舰。完整产品合同见 [DESIGN.md](DESIGN.md)。
 
 ## 产品目标
@@ -42,8 +42,8 @@ deno task build:web
 ```
 
 当前 Player 操作：鼠标/触控点按画面或按 `Enter` / `Space` 先完成逐字显示、再推进；`Tab` 切换持续
-skip-read，按住 `Ctrl` 临时 skip-read。`H` 会先停止正在生效的 Auto/Skip，再进入模态隐藏；若自动推进已经
-签发，它会在界面仍可见时完成，隐藏只从稳定的新台词开始。隐藏后按 `H`、`Enter`、`Space` 或点按画面只
+skip-read，按住 `Ctrl` 临时 skip-read。`H` 或鼠标中键会先停止正在生效的 Auto/Skip，再进入模态隐藏；若自动推进已经
+签发，它会在界面仍可见时完成，隐藏只从稳定的新台词开始。隐藏后按 `H`、鼠标中键、`Enter`、`Space` 或点按画面只
 恢复界面、不推进，且不会自动重启播放模式。快进默认遇未读台词或 Choice
 停止，Auto 与 Skip 保持为两个独立模式。`Shift+Tab` 从 gameplay scope 进入播放控件，控件内 `Tab` / `Shift+Tab`
 保留原生焦点次序，`Escape` 返回 gameplay scope。`PageUp` / 滚轮向上回到上一交互，回退后可用 `PageDown` /
@@ -52,13 +52,12 @@ Forward 后缀，hold tick 不会成为额外的玩家停靠点。
 当前有语音的台词可用“语音”按钮或 `V` 重放；Auto 的文本等待到期后仍会等待当前语音自然结束。浏览器拒绝
 自动播放或媒体不可解码时只降级为静音，不阻塞剧情。
 
-这些命令的 M1 green run 只证明完整 author data、两条 deterministic headless routes 与当前项目接线；在 M2–M4
-对应 evidence 关闭前，不得把它报告为完整 VN Player、Save/recovery 或发布完成。M1 关闭时 focused tests、
-两条 simulation、`app check`、product build、asset/determinism checks、React Doctor 与串行 repository check 均通过。
+这些命令的 green run 证明当前 author data、两条 deterministic headless routes 与 M2 Player 接线；M3–M4
+对应 evidence 关闭前，不得把它报告为 Save/recovery、完整产品或发布完成。
 
 ## 作者地图
 
-以下是当前及后续里程碑的唯一 owner；尚未进入后续 M2/M3 切片的文件不是另找位置写入的许可。
+以下是当前及后续里程碑的唯一 owner；尚未进入后续 M3/M4 切片的文件不是另找位置写入的许可。
 
 | 想修改什么                                 | 唯一 owner                                    |
 | ------------------------------------------ | --------------------------------------------- |
@@ -89,8 +88,8 @@ Forward 后缀，hold tick 不会成为额外的玩家停靠点。
 
 产品从 Template 起步，但不 import Template、Bookshop 或其他 example。M0 已删除 coins/inventory/HUD action、
 reference-only outer UI 与临时 Story identity，不保留 compatibility alias 或零值模块。M1 已用冻结的完整产品
-剧情、两个场景与兼容 placeholder presentation 替换 temporary author scaffold；第一版 focused default VN Player、
-最终 Stage/ending 媒体与音频已接入，剩余 Player 验收留给 M2。
+剧情、两个场景与兼容 placeholder presentation 替换 temporary author scaffold；M2 已关闭 focused default VN Player、
+最终 Stage/ending 媒体、音频和产品矩阵，后续入口、Save/recovery/settings 留给 M3。
 
 本产品不建立 Ren'Py DSL/Save compatibility、自定义解释器、broad VN framework、Blueprint、最终编辑器、Mod/Agent、
 特殊 pending 或 Desktop HMR。`NarrativeAside` 不是 denominator；只有完整剧本自然需要时才可选择最多一处。
@@ -107,8 +106,7 @@ archive-voice
 present-voice
 ```
 
-完整关闭还需要 Chromium/WebKit 产品旅程、Save/reopen、zh/en overflow、360×640、1280×720、200% zoom、
-reduced motion、默认静音、accessibility、Browser build/publish、Desktop static preview、raw budgets，以及人类和
+完整产品关闭还需要 Save/reopen、默认静音、Browser publish、Desktop static preview、raw budgets，以及人类和
 Agent 使用同一 authoring/CAS 路径的接手任务。
 
 ## 许可

@@ -21,3 +21,7 @@
   gap: 10px;
   min-inline-size: min(70vw, 280px);
 }
+
+.menu > button {
+  min-block-size: var(--silly-target-min-size, 44px);
+}

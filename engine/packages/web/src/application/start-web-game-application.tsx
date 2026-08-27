@@ -212,6 +212,8 @@ export interface WebGameUiDefinitionV1<
     TSemantic,
     TOverlayId
   >;
+  /** Explicit localized name for the root application landmark. */
+  readonly accessibleName?: string;
   readonly labels?: Partial<DefaultGameRootLabelsV1>;
   readonly saveLabels?: SaveOverlayLabelsV1;
   /** Hides the default floating system menu (custom shells own the entries). */
@@ -1174,6 +1176,7 @@ export async function startWebGameApplicationV1<
     | undefined;
   let removePageLifecycle: (() => void) | undefined;
   let removeDesktopCloseFlush: (() => void) | undefined;
+  let removeDocumentLanguage: (() => void) | undefined;
   let instanceLease: WebInstanceLeasePortV1 | undefined;
   let unbindPresentationFreeze: (() => void) | undefined;
   let presentationPacing: { dispose(): void } | undefined;
@@ -1205,6 +1208,10 @@ export async function startWebGameApplicationV1<
       {
         name: "desktop_close_flush",
         run: () => removeDesktopCloseFlush?.(),
+      },
+      {
+        name: "document_language",
+        run: () => removeDocumentLanguage?.(),
       },
       { name: "root", run: () => mounted?.unmount() },
       {
@@ -1356,6 +1363,11 @@ export async function startWebGameApplicationV1<
         }
       }
     };
+    const publishDocumentLanguage = (): void => {
+      document.documentElement.lang = textContent?.currentLocale() ?? document.documentElement.lang;
+    };
+    publishDocumentLanguage();
+    removeDocumentLanguage = playerProfile.subscribe(publishDocumentLanguage);
     const uiDefinition = application.ui({
       instance,
       textContent,
@@ -1595,7 +1607,7 @@ export async function startWebGameApplicationV1<
         <DefaultGameRootV1
           composition={composition}
           semantic={instance.semantic}
-          accessibleName={application.accessibleName}
+          accessibleName={uiDefinition.accessibleName ?? application.accessibleName}
           applicationId={application.applicationId}
           viewport={application.viewport}
           playerProfile={playerProfile}

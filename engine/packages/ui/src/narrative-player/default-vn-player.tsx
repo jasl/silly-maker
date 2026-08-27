@@ -152,7 +152,8 @@ function useDefaultVnPlayerHideInputInternalV1(input: {
           ) {
             return inputIgnoredV1;
           }
-          chrome.requestHide();
+          if (chrome.state.getCurrent() === "hidden") chrome.show();
+          else chrome.requestHide();
           return inputHandledV1;
         },
       }),
@@ -316,6 +317,7 @@ const defaultVnPlayerHeldKeyMapInternalV1: HeldKeyMapV1 = {
 };
 
 const defaultVnPlayerPointerMapInternalV1: PointerActionMapV1 = {
+  middle: playerInputActionIdsV1.toggleUi,
   wheelDown: playerInputActionIdsV1.rollForward,
   wheelUp: playerInputActionIdsV1.rollback,
 };

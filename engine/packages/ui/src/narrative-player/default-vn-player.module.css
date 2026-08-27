@@ -69,7 +69,7 @@
   position: relative;
   z-index: 1;
   min-block-size: 3.3em;
-  margin: 2.35rem 0 0;
+  margin: 2.25rem 0 0;
   color: var(--silly-vn-player-text, #f8f7f3);
   font-size: clamp(1.08rem, 1.8cqi, 1.45rem);
   font-weight: 450;
@@ -96,7 +96,7 @@
 .playback-button,
 .history-close {
   min-inline-size: 3.25rem;
-  min-block-size: 2.75rem;
+  min-block-size: var(--silly-target-min-size, 44px);
   padding: 0.55rem 0.85rem;
   border: 0;
   border-radius: var(--silly-vn-player-control-radius, 0.35rem);
@@ -348,6 +348,15 @@
   .history-panel {
     inline-size: 100%;
     max-block-size: 88%;
+  }
+}
+
+@media (height <= 32rem) {
+  @container game-stage (max-width: 52rem) {
+    .dialogue-window {
+      block-size: clamp(10.75rem, 42%, 12rem);
+      max-block-size: none;
+    }
   }
 }
 

@@ -85,6 +85,7 @@ function dialoguePropsV1(input: {
   readonly playbackMode?: "normal" | "auto" | "skip";
   readonly callbacks?: DialogueCallbacksV1;
   readonly choiceAvailability?: NarrativeSurfaceDialogueRendererPropsV1["choiceAvailability"];
+  readonly historyAvailable?: boolean;
   readonly voiceReplayAvailable?: boolean;
 } = {}): NarrativeSurfaceDialogueRendererPropsV1 {
   const pending = input.pending ?? sayPendingV1();
@@ -93,6 +94,7 @@ function dialoguePropsV1(input: {
     kind: "dialogue",
     pending,
     choiceAvailability: input.choiceAvailability ?? null,
+    historyAvailable: input.historyAvailable ?? true,
     voiceReplayAvailable: input.voiceReplayAvailable ?? false,
     playerProfile: defaultPlayerProfileV1,
     playerView: pending.kind === "say"
@@ -257,6 +259,7 @@ describe("createDefaultVnPlayerV1", () => {
       },
       held: { Control: playerInputActionIdsV1.fastForward },
       pointer: {
+        middle: playerInputActionIdsV1.toggleUi,
         wheelDown: playerInputActionIdsV1.rollForward,
         wheelUp: playerInputActionIdsV1.rollback,
       },
@@ -325,6 +328,19 @@ describe("createDefaultVnPlayerV1", () => {
     renderPlayerV1({ player, props: dialoguePropsV1() });
 
     expect(screen.queryByRole("button", { name: "Voice" })).toBeNull();
+  });
+
+  it("disables History until the Host reports a committed entry", () => {
+    const player = createPlayerV1();
+    const view = renderPlayerV1({
+      player,
+      props: dialoguePropsV1({ historyAvailable: false }),
+    });
+
+    expect(screen.getByRole("button", { name: "History" })).toBeDisabled();
+
+    view.rerender(dialoguePropsV1({ historyAvailable: true }));
+    expect(screen.getByRole("button", { name: "History" })).toBeEnabled();
   });
 
   it("renders Choice availability without a full-canvas advance surface", async () => {
@@ -480,6 +496,17 @@ describe("createDefaultVnPlayerV1", () => {
     expect(screen.getByText("The signal is clear.")).toBeVisible();
     expect(view.scope).toHaveFocus();
     expect(callbacks.onActivate).not.toHaveBeenCalled();
+
+    act(() => {
+      expect(router.route({ kind: "action", actionId: playerInputActionIdsV1.toggleUi }))
+        .toEqual({ kind: "handled", context: "narrative" });
+    });
+    expect(screen.getByRole("button", { name: "显示对话界面" })).toBeVisible();
+    act(() => {
+      expect(router.route({ kind: "action", actionId: playerInputActionIdsV1.toggleUi }))
+        .toEqual({ kind: "handled", context: "narrative" });
+    });
+    expect(screen.getByText("The signal is clear.")).toBeVisible();
   });
 
   it("lets one held Ctrl own Skip start and stop without crossing a stopped boundary", () => {

@@ -100,6 +100,24 @@ describe("@sillymaker/ui public managed System surface", () => {
     expectTypeOf<NarrativeSurfaceRendererPropsV1>().toEqualTypeOf<
       NarrativeSurfaceDialogueRendererPropsV1 | NarrativeSurfaceHistoryRendererPropsV1
     >();
+    expectTypeOf<keyof NarrativeSurfaceDialogueRendererPropsV1>().toEqualTypeOf<
+      | "kind"
+      | "pending"
+      | "choiceAvailability"
+      | "playerProfile"
+      | "playerView"
+      | "historyAvailable"
+      | "voiceReplayAvailable"
+      | "resolveText"
+      | "onActivate"
+      | "onChoose"
+      | "onResume"
+      | "onSubmitCustom"
+      | "onToggleAuto"
+      | "onToggleSkip"
+      | "onOpenHistory"
+      | "onReplayVoice"
+    >();
     expectTypeOf<NarrativeSurfacePlayerViewV1>().not.toBeNever();
     expectTypeOf<keyof DefineNarrativeSurfaceInputV1<unknown>>().toEqualTypeOf<
       | "selectNarrative"

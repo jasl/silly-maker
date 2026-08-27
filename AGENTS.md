@@ -44,18 +44,19 @@ Read only the documents relevant to the change:
   all-engine API gallery or a Ren'Py DSL. M0–M1 have delivered the independent
   WIP package, frozen product denominator, supported-export boundary, clean
   deletion of unselected starter domains, complete two-route script, two
-  Authoring Scenes, author data, and named headless route simulations. M2 is in
-  progress: its first Player slice has migrated into the engine-maintained,
-  focused `@sillymaker/ui/narrative-player` preset with a flush-bottom responsive
-  dialogue/choice skin, say-only full-canvas pointer advance, History/playback
-  controls, Ctrl/Tab/H/V VN input, and a portrait layout variant. Later M2 slices
-  delivered final Stage media and ending surface plus the frozen eight-asset
-  audio denominator, current-voice replay, and voice-aware Auto across Chromium
-  and WebKit. The next M2 slice delivered interaction-level Back/Forward: Core owns one
-  bounded Snapshot timeline with checkpoint/transparent/barrier classification,
-  while the focused preset maps PageUp/PageDown and wheel gestures and the VN
-  classifies hold ticks as transparent. The full responsive/accessibility matrix
-  and M2 closure remain open; this playable WIP is not product-completion evidence.
+  Authoring Scenes, author data, and named headless route simulations. M2 has
+  delivered and closed the engine-maintained focused
+  `@sillymaker/ui/narrative-player` preset, flush-bottom responsive
+  dialogue/choice chrome, say-only full-canvas pointer advance,
+  History/playback controls, Ctrl/Tab/H/V plus middle-button hide/restore,
+  portrait layout, final Stage media and ending surface, the frozen eight-asset
+  audio denominator, current-voice replay, voice-aware Auto, and
+  interaction-level Back/Forward over Core's single bounded Snapshot timeline.
+  Chromium/WebKit/mobile evidence covers 360×640 through 1280×720, a 200%-zoom
+  reflow proxy, pointer/touch/keyboard focus, reduced motion, accessibility, and
+  Chinese/English overflow; a participant also characterized the product in
+  Chrome at literal 200% zoom. M3 product entry, Save/recovery, and settings are
+  next, so this playable WIP is still not product-completion evidence.
   Cat Cafe terminated on 2026-08-27 before this lane began; its application,
   revision-1 Save support, product E2E, and live release responsibility ended
   together, without a cross-product migration. Bookshop remains the maintained

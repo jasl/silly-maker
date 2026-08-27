@@ -73,6 +73,7 @@ it("keeps a current Choice disabled until coins enable the same occurrence", asy
       kind: "dialogue" as const,
       pending,
       choiceAvailability,
+      historyAvailable: before.history.entries.length > 0,
       voiceReplayAvailable: false,
       playerProfile: playerProfile.current(),
       playerView: {

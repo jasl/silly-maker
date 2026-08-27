@@ -16,6 +16,8 @@ import type { InputActionIdV1, InputRouterV1 } from "./contracts.ts";
 export interface PointerActionMapV1 {
   /** Secondary button, delivered via `contextmenu`. */
   readonly secondary?: InputActionIdV1;
+  /** Middle button, delivered via `auxclick`. */
+  readonly middle?: InputActionIdV1;
   readonly wheelUp?: InputActionIdV1;
   readonly wheelDown?: InputActionIdV1;
 }
@@ -37,7 +39,7 @@ export const pointerInteractiveSelectorV1 =
   '[role="button"], [role="textbox"], [role="combobox"]';
 
 /** Package-internal opt-in for an interactive element that is also a canvas surface. */
-const pointerWheelSurfaceSelectorInternalV1 = '[data-pointer-wheel-surface="true"]';
+const pointerActionSurfaceSelectorInternalV1 = '[data-pointer-action-surface="true"]';
 
 function closestAncestorV1(target: unknown, selector: string): Element | null {
   const candidate = target as { closest?: (selectors: string) => Element | null } | null;
@@ -122,7 +124,7 @@ export function installPointerButtonAdapterV1(
     if (actionId === undefined || wheelEvent.deltaY === 0) return;
     const isWheelSurface = closestAncestorV1(
       wheelEvent.target,
-      pointerWheelSurfaceSelectorInternalV1,
+      pointerActionSurfaceSelectorInternalV1,
     ) !== null;
     if (
       (!isWheelSurface && isInteractiveTargetV1(wheelEvent.target)) ||
@@ -135,10 +137,26 @@ export function installPointerButtonAdapterV1(
     if (result.kind === "handled") wheelEvent.preventDefault();
   };
 
+  const onAuxClick = (event: Event): void => {
+    const mouseEvent = event as MouseEvent;
+    if (mouseEvent.defaultPrevented || mouseEvent.button !== 1) return;
+    const actionId = options.map.middle;
+    if (actionId === undefined) return;
+    const isActionSurface = closestAncestorV1(
+      mouseEvent.target,
+      pointerActionSurfaceSelectorInternalV1,
+    ) !== null;
+    if (!isActionSurface && isInteractiveTargetV1(mouseEvent.target)) return;
+    mouseEvent.preventDefault();
+    options.router.route({ kind: "action", actionId });
+  };
+
   target.addEventListener("contextmenu", onContextMenu);
+  target.addEventListener("auxclick", onAuxClick);
   target.addEventListener("wheel", onWheel, { passive: false } as AddEventListenerOptions);
   return () => {
     target.removeEventListener("contextmenu", onContextMenu);
+    target.removeEventListener("auxclick", onAuxClick);
     target.removeEventListener("wheel", onWheel);
   };
 }

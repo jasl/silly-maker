@@ -3,12 +3,12 @@ import type { SillymakerAppConfigV1 } from "@sillymaker/tooling/project/config-t
 
 /**
  * Product-owned application shell. M1 replaced the temporary Story/Scene
- * scaffold with the complete author data frozen in DESIGN.md; M2 owns the
- * playable VN presentation.
+ * scaffold with the complete author data frozen in DESIGN.md; M2 delivered
+ * the playable VN presentation and product UI matrix.
  */
 export const sillymakerAppConfigV1 = {
   applicationId: "example-vn-reference-tour",
-  label: "Example Story: 最后一次试音 (Product WIP · M1 author data)",
+  label: "Example Story: 最后一次试音 (Product WIP · M2 Player complete)",
   storyEntry: {
     module: "src/story.ts",
     exportName: "vnReferenceTourStoryEntryV1",

@@ -313,10 +313,10 @@ Player QoL、Save/rollback、audio、locale-addressable content、responsive Inp
 handoff。它只选择 VN 产品真正需要的能力，不是全引擎 API gallery，也不建立 Ren'Py DSL、Save 兼容、
 custom interpreter、公共 VN framework 或最终编辑器。M0–M1 已交付独立 WIP package、冻结产品分母、
 supported-export/application shell、未选择 starter domain 的 clean deletion，以及完整双路线剧本、两个
-Authoring Scene、作者数据和两条 named headless simulation；M2 进行中，引擎维护的 focused default VN Player
+Authoring Scene、作者数据和两条 named headless simulation；M2 已交付并关闭，引擎维护的 focused default VN Player
 已经由 Template 与该产品共同选择，对话/选择 chrome、say-only 全画布推进、History/播放控制、贴底布局、
-Ctrl/Tab/H 输入和竖屏布局已可试玩，最终媒体/音频、rollback/end controls 与完整产品
-矩阵仍开放。当前 WIP 仍不是完整产品或完成证据。Cat Cafe 已在
+Ctrl/Tab/H/V/鼠标中键、竖屏布局、最终媒体/音频、rollback/end controls 与完整产品矩阵均已完成。M3
+Save/recovery/settings 是下一里程碑；当前 WIP 仍不是完整产品或完成证据。Cat Cafe 已在
 本轮开始前独立终止，应用、revision-1 Save 支持、产品 E2E 与 live 发布责任同步结束，不做跨产品 Save 迁移
 或兼容 wrapper。VN 开发期间没有当前旗舰；Bookshop 只保持 maintained minimal Narrative example，不是旗舰
 或完整 VN 产品参考。完整产品及独立审查关闭后，才原子提升 VN 为旗舰。预期届时维护的产品例子是 SillyOS +

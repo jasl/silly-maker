@@ -146,7 +146,12 @@ describe("VN Reference Tour runtime text-content gate", () => {
       expect(textContent.resolveText("text.vn-reference-tour.present.ending.title" as TextId)).toBe(
         "This Moment, Archived",
       );
-      expect(textContent.resolveText("text.vn-reference-tour.speaker.lin" as TextId)).toBe("林澄");
+      expect(textContent.resolveText("text.vn-reference-tour.speaker.lin" as TextId)).toBe(
+        "Lin Cheng",
+      );
+      expect(textContent.resolveText("text.vn-reference-tour.playback.history" as TextId)).toBe(
+        "History",
+      );
     } finally {
       presentLease.release();
       archiveLease.release();

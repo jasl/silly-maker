@@ -1,9 +1,18 @@
 // SPDX-License-Identifier: MIT
+import { AxeBuilder } from "@axe-core/playwright";
+import { defaultPlayerProfileV1 } from "@sillymaker/base/runtime";
 import type { Page } from "@playwright/test";
+
+import {
+  SILLYMAKER_DATABASE_VERSION_V1,
+  SILLYMAKER_RECORD_STORE_NAME_V1,
+} from "../../engine/packages/web/src/host/indexeddb-record-store.ts";
 
 import { expect, test, vnReferenceTourTargetUrlV1 } from "./fixtures.ts";
 
 const automationKeyV1 = "__SILLYMAKER_AUTOMATION_V1__";
+const databaseNameV1 = "sillymaker.example-vn-reference-tour";
+const profileKeyV1 = "player-profile/story.example.vn-reference-tour";
 const oldCallAssetIdV1 = "voice.vn-reference-tour.zhou-old-call";
 const authoredAudioPathsV1 = [
   "/assets/audio/bgm-last-shift.mp3",
@@ -31,6 +40,125 @@ interface VnPublicationV1 {
       readonly remainingMs?: number;
     } | null;
   };
+}
+
+async function expectNoWcagViolationsV1(page: Page, surface: string): Promise<void> {
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22a", "wcag22aa"])
+    .analyze();
+  expect(results.violations, `axe violations on ${surface}`).toEqual([]);
+}
+
+async function seedPlayerLocaleV1(page: Page, locale: string): Promise<void> {
+  await page.evaluate(
+    async ({ databaseName, databaseVersion, profile, profileKey, storeName }) => {
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open(databaseName, databaseVersion);
+        request.addEventListener("success", () => resolve(request.result));
+        request.addEventListener(
+          "error",
+          () =>
+            reject(request.error ?? new Error("player profile fixture could not open IndexedDB")),
+        );
+      });
+      try {
+        const encoded = new TextEncoder().encode(JSON.stringify(profile));
+        await new Promise<void>((resolve, reject) => {
+          const transaction = database.transaction(storeName, "readwrite");
+          transaction.objectStore(storeName).put({
+            namespace: "settings",
+            key: profileKey,
+            revision: 1,
+            bytes: encoded.buffer,
+          });
+          transaction.addEventListener("complete", () => resolve());
+          transaction.addEventListener(
+            "error",
+            () => reject(transaction.error ?? new Error("player profile fixture write failed")),
+          );
+          transaction.addEventListener(
+            "abort",
+            () => reject(transaction.error ?? new Error("player profile fixture write aborted")),
+          );
+        });
+      } finally {
+        database.close();
+      }
+    },
+    {
+      databaseName: databaseNameV1,
+      databaseVersion: SILLYMAKER_DATABASE_VERSION_V1,
+      profile: {
+        ...defaultPlayerProfileV1,
+        preferences: { ...defaultPlayerProfileV1.preferences, locale },
+      },
+      profileKey: profileKeyV1,
+      storeName: SILLYMAKER_RECORD_STORE_NAME_V1,
+    },
+  );
+}
+
+async function expectInteractiveSurfaceFitsV1(
+  page: Page,
+  options: { readonly interactiveRoot?: string; readonly checkDialogue?: boolean } = {},
+): Promise<void> {
+  const layout = await page.evaluate(({ checkDialogue, interactiveRoot }) => {
+    const canvas = document.querySelector<HTMLElement>("[data-game-viewport-canvas]") ??
+      document.querySelector<HTMLElement>("[data-title-screen='true']");
+    if (canvas === null) throw new TypeError("VN interactive surface missing");
+    const canvasRect = canvas.getBoundingClientRect();
+    const interactiveSurface = interactiveRoot === null
+      ? canvas
+      : document.querySelector<HTMLElement>(interactiveRoot);
+    if (interactiveSurface === null) throw new TypeError("VN selected interactive root missing");
+    const visibleControls = [
+      ...interactiveSurface.querySelectorAll<HTMLElement>("button:not(:disabled)"),
+    ]
+      .filter((element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      })
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        return ({ width: rect.width, height: rect.height });
+      });
+    const dialogueText = checkDialogue
+      ? canvas.querySelector<HTMLElement>("[data-dialogue='say'] p")
+      : null;
+    const playback = checkDialogue
+      ? canvas.querySelector<HTMLElement>("[data-default-vn-player] nav")
+      : null;
+    return {
+      canvas: {
+        left: canvasRect.left,
+        top: canvasRect.top,
+        right: canvasRect.right,
+        bottom: canvasRect.bottom,
+        clientWidth: canvas.clientWidth,
+        scrollWidth: canvas.scrollWidth,
+      },
+      viewport: { width: innerWidth, height: innerHeight },
+      controlCount: visibleControls.length,
+      minimumControlWidth: Math.min(...visibleControls.map(({ width }) => width)),
+      minimumControlHeight: Math.min(...visibleControls.map(({ height }) => height)),
+      dialogueBottom: dialogueText?.getBoundingClientRect().bottom ?? null,
+      playbackTop: playback?.getBoundingClientRect().top ?? null,
+    };
+  }, {
+    checkDialogue: options.checkDialogue ?? true,
+    interactiveRoot: options.interactiveRoot ?? null,
+  });
+  expect(layout.canvas.left).toBeGreaterThanOrEqual(0);
+  expect(layout.canvas.top).toBeGreaterThanOrEqual(0);
+  expect(layout.canvas.right).toBeLessThanOrEqual(layout.viewport.width);
+  expect(layout.canvas.bottom).toBeLessThanOrEqual(layout.viewport.height);
+  expect(layout.canvas.scrollWidth).toBeLessThanOrEqual(layout.canvas.clientWidth);
+  expect(layout.controlCount).toBeGreaterThan(0);
+  expect(layout.minimumControlWidth).toBeGreaterThanOrEqual(44);
+  expect(layout.minimumControlHeight).toBeGreaterThanOrEqual(44);
+  if (layout.dialogueBottom !== null && layout.playbackTop !== null) {
+    expect(layout.dialogueBottom).toBeLessThanOrEqual(layout.playbackTop);
+  }
 }
 
 async function observeV1(page: Page): Promise<VnPublicationV1> {
@@ -112,6 +240,37 @@ async function finishArchiveRouteV1(page: Page): Promise<void> {
   throw new TypeError("archive route did not finish within its frozen denominator");
 }
 
+async function reachSignalChoiceV1(page: Page): Promise<VnPublicationV1> {
+  for (let step = 0; step < 40; step += 1) {
+    const publication = await observeV1(page);
+    const pending = publication.narrative.pending;
+    if (pending?.kind === "choice") return publication;
+    if (pending?.kind === "say") {
+      await advanceCurrentSayV1(page, pending);
+      continue;
+    }
+    if (pending?.kind === "presentation_barrier") {
+      await expect.poll(
+        async () => (await observeV1(page)).narrative.pending?.occurrenceId,
+        { timeout: 4_000 },
+      ).not.toBe(pending.occurrenceId);
+      continue;
+    }
+    if (pending?.kind === "hold" && pending.remainingMs !== undefined) {
+      await dispatchV1(page, {
+        kind: "time",
+        tick: {
+          elapsedMs: pending.remainingMs,
+          expectedHoldOccurrenceId: pending.occurrenceId,
+        },
+      });
+      continue;
+    }
+    throw new TypeError(`unexpected VN boundary before choice: ${pending?.kind ?? "none"}`);
+  }
+  throw new TypeError("signal choice was not reached");
+}
+
 async function reachOldCallV1(page: Page): Promise<VnPublicationV1> {
   await page.goto(vnReferenceTourTargetUrlV1("?capability=automation_bridge"));
   await page.getByRole("button", { name: "新游戏" }).click();
@@ -137,6 +296,172 @@ async function reachOldCallV1(page: Page): Promise<VnPublicationV1> {
   }
   throw new TypeError("old-call voice boundary was not reached");
 }
+
+test("VN Player reflows across wide, portrait, and 200% equivalent viewports", async ({ page }) => {
+  const viewports = [
+    { width: 1_280, height: 720 },
+    { width: 360, height: 640 },
+    // A 1280 x 720 product canvas reflowed into half its CSS-pixel viewport.
+    { width: 640, height: 360 },
+  ] as const;
+
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+    await page.goto(vnReferenceTourTargetUrlV1());
+    await expect(page.locator("[data-title-screen='true']")).toBeVisible();
+    await expectInteractiveSurfaceFitsV1(page);
+
+    await page.getByRole("button", { name: "新游戏" }).click();
+    const advance = page.locator("[data-dialogue-advance='true']");
+    const history = page.getByRole("button", { name: "历史" });
+    await expect(advance).toBeVisible();
+    await expect(history).toBeDisabled();
+
+    await advance.click();
+    await expect(page.locator("[data-dialogue-reveal='complete']")).toBeVisible();
+    await expectInteractiveSurfaceFitsV1(page);
+
+    await page.keyboard.press("Shift+Tab");
+    await expect.poll(() =>
+      page.locator("[data-default-vn-player] nav").evaluate((navigation) =>
+        navigation.contains(document.activeElement)
+      )
+    ).toBe(true);
+    await page.keyboard.press("Escape");
+    await expect(page.locator("[data-narrative-surface-focus-scope]")).toBeFocused();
+
+    await advance.click();
+    await expect(history).toBeEnabled();
+    await history.click();
+    await expect(page.getByRole("dialog", { name: "对话历史" })).toBeVisible();
+    await expectInteractiveSurfaceFitsV1(page, {
+      interactiveRoot: "[data-default-vn-player='history']",
+      checkDialogue: false,
+    });
+    await page.locator("[data-dialogue-history-close='true']").click();
+    await expect(page.getByRole("dialog", { name: "对话历史" })).toBeHidden();
+  }
+});
+
+test("the middle pointer button hides and restores VN chrome without advancing", async ({ page }) => {
+  await page.goto(vnReferenceTourTargetUrlV1("?capability=automation_bridge"));
+  await page.getByRole("button", { name: "新游戏" }).click();
+  await page.waitForFunction(
+    (key) => Reflect.get(globalThis, key) !== undefined,
+    automationKeyV1,
+  );
+  const occurrenceId = (await observeV1(page)).narrative.pending?.occurrenceId;
+  if (occurrenceId === undefined) throw new TypeError("opening Say missing");
+
+  const advance = page.locator("[data-dialogue-advance='true']");
+  await advance.click();
+  await expect(page.locator("[data-dialogue-reveal='complete']")).toBeVisible();
+  await advance.click({ button: "middle" });
+  const restore = page.locator("[data-dialogue-chrome-hidden='true']");
+  await expect(restore).toBeVisible();
+  expect((await observeV1(page)).narrative.pending?.occurrenceId).toBe(occurrenceId);
+
+  await restore.click({ button: "middle" });
+  await expect(advance).toBeVisible();
+  expect((await observeV1(page)).narrative.pending?.occurrenceId).toBe(occurrenceId);
+});
+
+test(
+  "@mobile touch reveals, advances, and restores the VN focus owner",
+  async ({ page }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== "mobile-portrait",
+      "touch evidence runs in the touch project",
+    );
+    await page.goto(vnReferenceTourTargetUrlV1("?capability=automation_bridge"));
+    await page.getByRole("button", { name: "新游戏" }).tap();
+    await page.waitForFunction(
+      (key) => Reflect.get(globalThis, key) !== undefined,
+      automationKeyV1,
+    );
+
+    const firstOccurrenceId = (await observeV1(page)).narrative.pending?.occurrenceId;
+    if (firstOccurrenceId === undefined) throw new TypeError("opening Say missing");
+    const advance = page.locator("[data-dialogue-advance='true']");
+    await advance.tap({ position: { x: 40, y: 120 } });
+    await expect(page.locator("[data-dialogue-reveal='complete']")).toBeVisible();
+    await advance.tap({ position: { x: 40, y: 120 } });
+    await expect.poll(
+      async () => (await observeV1(page)).narrative.pending?.occurrenceId,
+    ).not.toBe(firstOccurrenceId);
+    await expect(page.locator("[data-narrative-surface-focus-scope]")).toBeFocused();
+
+    await page.getByRole("button", { name: "历史" }).tap();
+    await expect(page.getByRole("dialog", { name: "对话历史" })).toBeVisible();
+    await expectInteractiveSurfaceFitsV1(page, {
+      interactiveRoot: "[data-default-vn-player='history']",
+      checkDialogue: false,
+    });
+    await page.locator("[data-dialogue-history-close='true']").tap();
+    await expect(page.getByRole("dialog", { name: "对话历史" })).toBeHidden();
+  },
+);
+
+test("English and reduced-motion remain complete through title, choice, History, and ending", async ({ page }) => {
+  await page.setViewportSize({ width: 640, height: 360 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto(vnReferenceTourTargetUrlV1("?capability=automation_bridge"));
+  await expect(page.locator("#sillymaker-application-boot-shell")).toHaveAttribute(
+    "data-sillymaker-startup-state",
+    "ready",
+  );
+  await seedPlayerLocaleV1(page, "en");
+  await page.reload();
+
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.getByRole("application", { name: "One Last Sound Check" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "One Last Sound Check" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "New game" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Load game" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /新游戏|读取存档|设置/ })).toHaveCount(0);
+  await expectInteractiveSurfaceFitsV1(page);
+  await expectNoWcagViolationsV1(page, "English title");
+
+  await page.getByRole("button", { name: "New game" }).click();
+  await page.waitForFunction(
+    (key) => Reflect.get(globalThis, key) !== undefined,
+    automationKeyV1,
+  );
+  await expect(page.locator("[data-dialogue-reveal='complete']")).toBeVisible();
+  await expect(page.getByRole("img", { name: "Night control room" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Mixing console" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Zhou Yao" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Playback controls" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "History" })).toBeDisabled();
+  await expectInteractiveSurfaceFitsV1(page);
+  await expectNoWcagViolationsV1(page, "English dialogue");
+
+  await reachSignalChoiceV1(page);
+  await expect(page.getByText("The archive window permits one final transmission.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Send the restored station call" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Record a new call for this moment" }))
+    .toBeVisible();
+  await expectInteractiveSurfaceFitsV1(page);
+  await expectNoWcagViolationsV1(page, "English choice");
+
+  await page.getByRole("button", { name: "Send the restored station call" }).click();
+  await expect(page.getByRole("button", { name: "History" })).toBeEnabled();
+  await page.getByRole("button", { name: "History" }).click();
+  await expect(page.getByRole("dialog", { name: "Dialogue history" })).toBeVisible();
+  await expectInteractiveSurfaceFitsV1(page, {
+    interactiveRoot: "[data-default-vn-player='history']",
+    checkDialogue: false,
+  });
+  await expectNoWcagViolationsV1(page, "English History");
+  await page.locator("[data-dialogue-history-close='true']").click();
+
+  await finishArchiveRouteV1(page);
+  await expect(page.getByRole("heading", { name: "The Old Voice, Archived" })).toBeVisible();
+  await expect(page.getByText("Broadcast complete")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Return to title" })).toBeVisible();
+  await expectInteractiveSurfaceFitsV1(page);
+  await expectNoWcagViolationsV1(page, "English ending");
+});
 
 test("the frozen VN audio denominator decodes in Browser", async ({ page }) => {
   await page.goto(vnReferenceTourTargetUrlV1());

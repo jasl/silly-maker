@@ -141,7 +141,7 @@ function DefaultVnPlayerHistoryV1(
         {props.history.entries.length === 0
           ? <p className={styles["history-empty"]}>{props.labels.historyEmpty}</p>
           : (
-            <ol className={styles["history-list"]}>
+            <ol className={styles["history-list"]} tabIndex={0}>
               {props.history.entries.map((entry) => (
                 <li
                   key={entry.occurrenceId}
@@ -185,7 +185,7 @@ function DefaultVnPlayerSayV1(
         type="button"
         className={styles["advance-surface"]}
         data-dialogue-advance="true"
-        data-pointer-wheel-surface="true"
+        data-pointer-action-surface="true"
         aria-label={props.labels.advance}
         aria-describedby={textId}
         tabIndex={-1}
@@ -223,7 +223,11 @@ function DefaultVnPlayerSayV1(
           >
             {props.labels.forward}
           </DefaultVnPlayerPlaybackButtonV1>
-          <DefaultVnPlayerPlaybackButtonV1 dataHistory onActivate={props.onOpenHistory}>
+          <DefaultVnPlayerPlaybackButtonV1
+            dataHistory
+            disabled={!props.historyAvailable}
+            onActivate={props.onOpenHistory}
+          >
             {props.labels.history}
           </DefaultVnPlayerPlaybackButtonV1>
           {props.voiceReplayAvailable
@@ -361,6 +365,7 @@ export function DefaultVnPlayerChromeHiddenSurfaceInternalV1(props: {
       className={styles["restore-chrome-surface"]}
       data-dialogue-chrome-hidden="true"
       data-dialogue-occurrence={props.occurrenceId}
+      data-pointer-action-surface="true"
       data-blocking-focus-scope="true"
       aria-label={props.label}
       ref={focusChromeRestoreSurfaceV1}
