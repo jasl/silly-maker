@@ -4,7 +4,7 @@ import type { ElectronicPetPoseIdV1 } from "../game/state.ts";
 
 export interface ElectronicPetInteractionRuleV1 {
   readonly interactionId: string;
-  readonly region: "face" | "neck" | "back";
+  readonly region: "face" | "neck" | "back" | "belly";
   readonly baseAcceptance: number;
   readonly preferenceId: string;
 }
@@ -28,6 +28,12 @@ export const electronicPetInteractionRulesV1 = [
     baseAcceptance: 0,
     preferenceId: "preference.contact.back",
   },
+  {
+    interactionId: "interaction.pet.belly",
+    region: "belly",
+    baseAcceptance: 0,
+    preferenceId: "preference.contact.belly",
+  },
 ] as const satisfies readonly ElectronicPetInteractionRuleV1[];
 
 export const electronicPetReachableRegionsByPoseV1 = {
@@ -39,6 +45,7 @@ export const electronicPetReachableRegionsByPoseV1 = {
   resting: ["face", "neck", "back"],
   grooming: ["back"],
   pouncing: ["back"],
+  supine_relaxed: ["face", "neck", "belly"],
 } as const satisfies Record<
   ElectronicPetPoseIdV1,
   readonly ElectronicPetInteractionRuleV1["region"][]

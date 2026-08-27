@@ -43,6 +43,13 @@ import {
 import { isElectronicPetInteractionReachableV1 } from "../content/interactions.ts";
 import { isElectronicPetGroomingReachableV1 } from "../content/grooming.ts";
 import {
+  petBellyContinuationDelayMsV1,
+  petBellyWarningDelayMsV1,
+  settlePetBellyGestureV1,
+  shouldWarnPetBellyGestureV1,
+} from "./pet-belly-gesture.ts";
+import type { PetBellyGesturePhaseV1 } from "./pet-belly-gesture.ts";
+import {
   appendPetStrokePointV1,
   beginPetStrokeGestureV1,
   classifyPetStrokeGestureV1,
@@ -73,11 +80,14 @@ export type PetPointerFeedbackV1 =
       | "blocked"
       | "tracking"
       | "ready"
+      | "warning"
+      | "escalated"
       | "incomplete"
       | "complete";
     readonly x: number;
     readonly y: number;
     readonly completion: number;
+    readonly targetInteractionId: string | null;
   };
 
 export interface CreatePetThreeRuntimeInputV1 {
@@ -107,18 +117,38 @@ export interface PetThreeRuntimeV1 {
 
 export type PetInteractionToolV1 = "hand" | "brush";
 
-interface PointerGestureV1 {
+interface PointerGestureBaseV1 {
   readonly pointerId: number;
   readonly startedAt: number;
   readonly objectId: string;
   readonly interactionId: string;
-  readonly interactionKind: "contact" | "grooming";
   readonly plan: PetSceneRuntimeInteractionVolumePlanV1;
+  readonly expectedActivityOccurrence: number;
+  readonly startedInvitationOccurrence: number | null;
+  readonly expectedInvitationOccurrence: number | null;
+  lastClientX: number;
+  lastClientY: number;
   accumulator: PetStrokeGestureAccumulatorV1;
 }
 
+interface PointerContactGestureV1 extends PointerGestureBaseV1 {
+  readonly interactionKind: "contact" | "grooming";
+}
+
+interface PointerBellyGestureV1 extends PointerGestureBaseV1 {
+  readonly interactionKind: "belly";
+  readonly hasBellyOffer: boolean;
+  phase: PetBellyGesturePhaseV1;
+  warningTimer: ReturnType<typeof globalThis.setTimeout> | null;
+  continuationTimer: ReturnType<typeof globalThis.setTimeout> | null;
+}
+
+type PointerGestureV1 = PointerContactGestureV1 | PointerBellyGestureV1;
+
 interface InteractionHitV1 {
   readonly objectId: string;
+  readonly interactionId: string;
+  readonly interactionKind: "contact" | "grooming" | "belly";
   readonly point: { readonly x: number; readonly y: number; readonly z: number };
 }
 
@@ -290,6 +320,8 @@ export function createPetThreeRuntimeV1(
   let activeReaction: ActivePetReactionV1 | null = null;
   let activityPresentation: PetActivityPresentationV1 | null = null;
   let currentActivityId: ElectronicPetGameViewV1["activityId"] | null = null;
+  let currentActivityOccurrence: number | null = null;
+  let currentInvitation: ElectronicPetGameViewV1["invitation"] = null;
   let currentPoseId: ElectronicPetGameViewV1["poseId"] | null = null;
   let currentTrustStage: ElectronicPetGameViewV1["trustStage"] | null = null;
   let interactionTool: PetInteractionToolV1 = "hand";
@@ -543,10 +575,15 @@ export function createPetThreeRuntimeV1(
     const objectId = typeof hit?.object.userData.objectId === "string"
       ? hit.object.userData.objectId
       : null;
-    if (hit === null || objectId === null || !interactionPlansById.has(objectId)) return null;
+    const binding = objectId === null ? null : findElectronicPetInteractionBindingV1(objectId);
+    if (
+      hit === null || objectId === null || binding === null || !interactionPlansById.has(objectId)
+    ) return null;
     const localPoint = hit.object.worldToLocal(hit.point.clone());
     return {
       objectId,
+      interactionId: binding.interactionId,
+      interactionKind: binding.interactionKind,
       point: { x: localPoint.x, y: localPoint.y, z: localPoint.z },
     };
   };
@@ -585,15 +622,16 @@ export function createPetThreeRuntimeV1(
     clientX: number,
     clientY: number,
     completion: number,
+    targetInteractionId: string | null,
   ): void => {
     const position = pointerPositionV1(clientX, clientY);
     publishPointerFeedbackV1(
-      { phase, ...position, completion },
+      { phase, ...position, completion, targetInteractionId },
       phase === "blocked"
         ? "not-allowed"
         : interactionTool === "brush"
         ? "crosshair"
-        : phase === "tracking" || phase === "ready"
+        : phase === "tracking" || phase === "ready" || phase === "warning"
         ? "grabbing"
         : "grab",
     );
@@ -610,9 +648,10 @@ export function createPetThreeRuntimeV1(
       feedbackResetTimer = null;
       if (disposed || activeGesture !== null) return;
       const hit = pointerType === "mouse" ? pickInteractionV1(clientX, clientY) : null;
-      if (hit !== null) publishLocatedPointerFeedbackV1("hover", clientX, clientY, 0);
-      else if (pointerType === "mouse" && hitsInteractionV1(clientX, clientY)) {
-        publishLocatedPointerFeedbackV1("blocked", clientX, clientY, 0);
+      if (hit !== null) {
+        publishLocatedPointerFeedbackV1("hover", clientX, clientY, 0, hit.interactionId);
+      } else if (pointerType === "mouse" && hitsInteractionV1(clientX, clientY)) {
+        publishLocatedPointerFeedbackV1("blocked", clientX, clientY, 0, null);
       } else resetPointerFeedbackV1();
     }, delayMs);
   };
@@ -635,11 +674,28 @@ export function createPetThreeRuntimeV1(
       if (disposed || activeGesture !== null || point === null) return;
       const hit = pickInteractionV1(point.clientX, point.clientY);
       if (hit !== null) {
-        publishLocatedPointerFeedbackV1("hover", point.clientX, point.clientY, 0);
+        publishLocatedPointerFeedbackV1(
+          "hover",
+          point.clientX,
+          point.clientY,
+          0,
+          hit.interactionId,
+        );
       } else if (hitsInteractionV1(point.clientX, point.clientY)) {
-        publishLocatedPointerFeedbackV1("blocked", point.clientX, point.clientY, 0);
+        publishLocatedPointerFeedbackV1("blocked", point.clientX, point.clientY, 0, null);
       } else resetPointerFeedbackV1();
     });
+  };
+
+  const clearBellyGestureTimersV1 = (gesture: PointerBellyGestureV1): void => {
+    if (gesture.warningTimer !== null) {
+      clearTimeout(gesture.warningTimer);
+      gesture.warningTimer = null;
+    }
+    if (gesture.continuationTimer !== null) {
+      clearTimeout(gesture.continuationTimer);
+      gesture.continuationTimer = null;
+    }
   };
 
   const releaseGestureV1 = (
@@ -649,6 +705,7 @@ export function createPetThreeRuntimeV1(
     if (activeGesture?.pointerId !== pointerId) return null;
     const gesture = activeGesture;
     activeGesture = null;
+    if (gesture.interactionKind === "belly") clearBellyGestureTimersV1(gesture);
     if (releaseCapture && input.canvas.hasPointerCapture(pointerId)) {
       input.canvas.releasePointerCapture(pointerId);
     }
@@ -676,7 +733,7 @@ export function createPetThreeRuntimeV1(
       const binding = objectId === null ? null : findElectronicPetInteractionBindingV1(objectId);
       if (binding === null) return false;
       if (interactionTool === "hand") {
-        return binding.interactionKind === "contact" &&
+        return (binding.interactionKind === "contact" || binding.interactionKind === "belly") &&
           isElectronicPetInteractionReachableV1(poseId, binding.interactionId);
       }
       return binding.interactionKind === "grooming" &&
@@ -698,7 +755,13 @@ export function createPetThreeRuntimeV1(
     if (disposed) return;
     const activityChanged = currentActivityId !== view.activityId;
     const trustChanged = currentTrustStage !== null && currentTrustStage !== view.trustStage;
+    const invitationOccurrence = view.invitation?.occurrence ?? null;
+    const gestureCurrent = activeGesture === null ||
+      (activeGesture.expectedActivityOccurrence === view.activityOccurrence &&
+        activeGesture.startedInvitationOccurrence === invitationOccurrence);
     currentActivityId = view.activityId;
+    currentActivityOccurrence = view.activityOccurrence;
+    currentInvitation = view.invitation;
     currentPoseId = view.poseId;
     currentTrustStage = view.trustStage;
     activityPresentation = petActivityPresentationV1(view.activityId);
@@ -709,7 +772,8 @@ export function createPetThreeRuntimeV1(
     recomputeReachableInteractionsV1();
     if (
       activeGesture !== null &&
-      (!interactionEnabled ||
+      (!gestureCurrent ||
+        !interactionEnabled ||
         (!(input.authoring ?? false) &&
           !(activeGesture.interactionKind === "grooming"
             ? isElectronicPetGroomingReachableV1(view.poseId, activeGesture.interactionId)
@@ -731,6 +795,61 @@ export function createPetThreeRuntimeV1(
     requestRenderV1();
   };
 
+  const gestureFenceV1 = (gesture: PointerGestureV1) => ({
+    expectedActivityOccurrence: gesture.expectedActivityOccurrence,
+    ...(gesture.expectedInvitationOccurrence === null
+      ? {}
+      : { expectedInvitationOccurrence: gesture.expectedInvitationOccurrence }),
+  });
+
+  const enterBellyWarningV1 = (gesture: PointerBellyGestureV1): void => {
+    if (activeGesture !== gesture || gesture.phase === "warning") return;
+    gesture.phase = "warning";
+    if (gesture.warningTimer !== null) {
+      clearTimeout(gesture.warningTimer);
+      gesture.warningTimer = null;
+    }
+    publishLocatedPointerFeedbackV1(
+      "warning",
+      gesture.lastClientX,
+      gesture.lastClientY,
+      1,
+      gesture.interactionId,
+    );
+    presentReactionV1("warn");
+  };
+
+  const scheduleBellyTimersV1 = (gesture: PointerBellyGestureV1): void => {
+    gesture.warningTimer = globalThis.setTimeout(() => {
+      gesture.warningTimer = null;
+      enterBellyWarningV1(gesture);
+    }, petBellyWarningDelayMsV1);
+    gesture.continuationTimer = globalThis.setTimeout(() => {
+      gesture.continuationTimer = null;
+      if (activeGesture !== gesture) return;
+      enterBellyWarningV1(gesture);
+      const released = releaseGestureV1(gesture.pointerId, true);
+      if (released === null) return;
+      publishLocatedPointerFeedbackV1(
+        "escalated",
+        gesture.lastClientX,
+        gesture.lastClientY,
+        1,
+        gesture.interactionId,
+      );
+      feedbackResetTimer = globalThis.setTimeout(() => {
+        feedbackResetTimer = null;
+        if (!disposed && activeGesture === null) resetPointerFeedbackV1();
+      }, 700);
+      reportGestureV1({
+        interactionKind: "belly",
+        targetInteractionId: gesture.interactionId,
+        terminal: "continued_after_warning",
+        ...gestureFenceV1(gesture),
+      });
+    }, petBellyContinuationDelayMsV1);
+  };
+
   const onPointerDownV1 = (event: PointerEvent): void => {
     cancelHoverFrameV1();
     if (input.onPick !== undefined) {
@@ -741,29 +860,62 @@ export function createPetThreeRuntimeV1(
       activeGesture !== null ||
       !event.isPrimary ||
       event.button !== 0 ||
-      (event.pointerType !== "mouse" && event.pointerType !== "touch")
+      (event.pointerType !== "mouse" && event.pointerType !== "touch") ||
+      currentActivityOccurrence === null
     ) return;
     const hit = pickInteractionV1(event.clientX, event.clientY);
     const plan = hit === null ? null : interactionPlansById.get(hit.objectId) ?? null;
-    const interaction = hit === null ? null : findElectronicPetInteractionBindingV1(hit.objectId);
-    if (hit === null || plan === null || interaction === null) {
+    if (hit === null || plan === null) {
       if (hitsInteractionV1(event.clientX, event.clientY)) {
-        publishLocatedPointerFeedbackV1("blocked", event.clientX, event.clientY, 0);
+        publishLocatedPointerFeedbackV1("blocked", event.clientX, event.clientY, 0, null);
         scheduleTerminalFeedbackResetV1(event, 700);
       } else resetPointerFeedbackV1();
       return;
     }
+    const startedInvitationOccurrence = currentInvitation?.occurrence ?? null;
+    const expectedInvitationOccurrence = hit.interactionKind === "belly"
+      ? currentInvitation?.kind === "belly_offer" ? currentInvitation.occurrence : null
+      : hit.interactionKind === "contact" &&
+          currentInvitation?.kind === "head_contact" &&
+          (hit.interactionId === "interaction.pet.face" ||
+            hit.interactionId === "interaction.pet.neck")
+      ? currentInvitation.occurrence
+      : null;
     input.canvas.setPointerCapture(event.pointerId);
-    activeGesture = {
+    const baseGesture = {
       pointerId: event.pointerId,
       startedAt: performance.now(),
       objectId: hit.objectId,
-      interactionId: interaction.interactionId,
-      interactionKind: interaction.interactionKind,
+      interactionId: hit.interactionId,
       plan,
+      expectedActivityOccurrence: currentActivityOccurrence,
+      startedInvitationOccurrence,
+      expectedInvitationOccurrence,
+      lastClientX: event.clientX,
+      lastClientY: event.clientY,
       accumulator: beginPetStrokeGestureV1(hit.point),
     };
-    publishLocatedPointerFeedbackV1("tracking", event.clientX, event.clientY, 0);
+    if (hit.interactionKind === "belly") {
+      const gesture: PointerBellyGestureV1 = {
+        ...baseGesture,
+        interactionKind: "belly",
+        hasBellyOffer: currentInvitation?.kind === "belly_offer",
+        phase: "tracking",
+        warningTimer: null,
+        continuationTimer: null,
+      };
+      activeGesture = gesture;
+      scheduleBellyTimersV1(gesture);
+    } else {
+      activeGesture = { ...baseGesture, interactionKind: hit.interactionKind };
+    }
+    publishLocatedPointerFeedbackV1(
+      "tracking",
+      event.clientX,
+      event.clientY,
+      0,
+      hit.interactionId,
+    );
   };
 
   const onPointerMoveV1 = (event: PointerEvent): void => {
@@ -776,6 +928,8 @@ export function createPetThreeRuntimeV1(
       if (releaseGestureV1(event.pointerId, true) !== null) resetPointerFeedbackV1();
       return;
     }
+    gesture.lastClientX = event.clientX;
+    gesture.lastClientY = event.clientY;
     const hit = pickInteractionV1(event.clientX, event.clientY);
     if (hit === null) {
       const completion = petStrokeCompletionV1(
@@ -783,10 +937,15 @@ export function createPetThreeRuntimeV1(
         gesture.plan.interaction.shape,
       );
       publishLocatedPointerFeedbackV1(
-        completion >= 1 ? "ready" : "tracking",
+        gesture.interactionKind === "belly" && gesture.phase === "warning"
+          ? "warning"
+          : completion >= 1
+          ? "ready"
+          : "tracking",
         event.clientX,
         event.clientY,
         completion,
+        gesture.interactionId,
       );
       return;
     }
@@ -803,11 +962,29 @@ export function createPetThreeRuntimeV1(
       gesture.accumulator,
       gesture.plan.interaction.shape,
     );
+    if (gesture.interactionKind === "belly" && gesture.phase === "tracking") {
+      const elapsedMs = Math.max(0, Math.round(performance.now() - gesture.startedAt));
+      const stroke = classifyPetStrokeGestureV1(
+        gesture.accumulator,
+        gesture.plan.interaction.preferredStrokeDirection,
+        gesture.plan.interaction.shape,
+        elapsedMs,
+      );
+      if (shouldWarnPetBellyGestureV1(stroke, elapsedMs)) {
+        enterBellyWarningV1(gesture);
+        return;
+      }
+    }
     publishLocatedPointerFeedbackV1(
-      completion >= 1 ? "ready" : "tracking",
+      gesture.interactionKind === "belly" && gesture.phase === "warning"
+        ? "warning"
+        : completion >= 1
+        ? "ready"
+        : "tracking",
       event.clientX,
       event.clientY,
       completion,
+      gesture.interactionId,
     );
   };
 
@@ -826,17 +1003,76 @@ export function createPetThreeRuntimeV1(
         current.plan.interaction.preferredStrokeDirection,
       );
     }
-    const gesture = releaseGestureV1(event.pointerId, true)!;
+    current.lastClientX = event.clientX;
+    current.lastClientY = event.clientY;
     const durationMs = Math.min(
       10_000,
-      Math.max(0, Math.round(performance.now() - gesture.startedAt)),
+      Math.max(0, Math.round(performance.now() - current.startedAt)),
     );
     const classification = classifyPetStrokeGestureV1(
-      gesture.accumulator,
-      gesture.plan.interaction.preferredStrokeDirection,
-      gesture.plan.interaction.shape,
+      current.accumulator,
+      current.plan.interaction.preferredStrokeDirection,
+      current.plan.interaction.shape,
       durationMs,
     );
+    if (current.interactionKind === "belly") {
+      const settlement = settlePetBellyGestureV1({
+        phase: current.phase,
+        hasBellyOffer: current.hasBellyOffer,
+        stroke: classification,
+        elapsedMs: durationMs,
+      });
+      if (
+        settlement?.terminal === "stopped_in_warning" ||
+        settlement?.terminal === "continued_after_warning"
+      ) {
+        enterBellyWarningV1(current);
+      }
+      const gesture = releaseGestureV1(event.pointerId, true)!;
+      if (settlement === null) {
+        publishLocatedPointerFeedbackV1(
+          "incomplete",
+          event.clientX,
+          event.clientY,
+          petStrokeCompletionV1(
+            gesture.accumulator,
+            gesture.plan.interaction.shape,
+          ),
+          gesture.interactionId,
+        );
+        scheduleTerminalFeedbackResetV1(event, 700);
+        return;
+      }
+      const warned = settlement.terminal === "stopped_in_warning";
+      const escalated = settlement.terminal === "continued_after_warning";
+      publishLocatedPointerFeedbackV1(
+        escalated ? "escalated" : warned ? "warning" : "complete",
+        event.clientX,
+        event.clientY,
+        1,
+        gesture.interactionId,
+      );
+      scheduleTerminalFeedbackResetV1(event, warned || escalated ? 700 : 420);
+      if (settlement.terminal === "completed_before_warning") {
+        reportGestureV1({
+          interactionKind: "belly",
+          targetInteractionId: gesture.interactionId,
+          terminal: settlement.terminal,
+          gesture: "stroke",
+          ...settlement.stroke,
+          ...gestureFenceV1(gesture),
+        });
+      } else {
+        reportGestureV1({
+          interactionKind: "belly",
+          targetInteractionId: gesture.interactionId,
+          terminal: settlement.terminal,
+          ...gestureFenceV1(gesture),
+        });
+      }
+      return;
+    }
+    const gesture = releaseGestureV1(event.pointerId, true)!;
     if (classification === null) {
       publishLocatedPointerFeedbackV1(
         "incomplete",
@@ -846,11 +1082,18 @@ export function createPetThreeRuntimeV1(
           gesture.accumulator,
           gesture.plan.interaction.shape,
         ),
+        gesture.interactionId,
       );
       scheduleTerminalFeedbackResetV1(event, 700);
       return;
     }
-    publishLocatedPointerFeedbackV1("complete", event.clientX, event.clientY, 1);
+    publishLocatedPointerFeedbackV1(
+      "complete",
+      event.clientX,
+      event.clientY,
+      1,
+      gesture.interactionId,
+    );
     scheduleTerminalFeedbackResetV1(event, 420);
     if (gesture.interactionKind === "grooming") {
       reportGestureV1({
@@ -858,6 +1101,7 @@ export function createPetThreeRuntimeV1(
         targetInteractionId: gesture.interactionId,
         gesture: "stroke",
         ...classification,
+        ...gestureFenceV1(gesture),
       });
     } else {
       reportGestureV1({
@@ -865,6 +1109,7 @@ export function createPetThreeRuntimeV1(
         targetInteractionId: gesture.interactionId,
         gesture: "stroke",
         ...classification,
+        ...gestureFenceV1(gesture),
       });
     }
   };
@@ -1041,6 +1286,7 @@ export function createPetThreeRuntimeV1(
     input.canvas.removeEventListener("lostpointercapture", cancelPointerV1);
     input.canvas.removeEventListener("pointerleave", onPointerLeaveV1);
     cancelHoverFrameV1();
+    if (activeGesture !== null) releaseGestureV1(activeGesture.pointerId, true);
     if (feedbackResetTimer !== null) {
       clearTimeout(feedbackResetTimer);
       feedbackResetTimer = null;

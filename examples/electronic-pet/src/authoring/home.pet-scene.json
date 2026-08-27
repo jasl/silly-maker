@@ -93,6 +93,16 @@
                   "rotation": { "x": 0, "y": 0, "z": 0 },
                   "scale": { "x": 1, "y": 1, "z": 1 }
                 }
+              },
+              {
+                "socketId": "cat.belly",
+                "sourceName": "BellySocket",
+                "boneId": "cat.spine",
+                "transform": {
+                  "position": { "x": 0, "y": -0.13, "z": -0.34 },
+                  "rotation": { "x": 0, "y": 0, "z": 0 },
+                  "scale": { "x": 1, "y": 1, "z": 1 }
+                }
               }
             ],
             "clips": [{ "clipId": "cat.idle", "sourceName": "Idle" }]
@@ -267,6 +277,25 @@
             "attachment": {
               "modelObjectId": "pet.cat",
               "socketId": "cat.back"
+            }
+          }
+        },
+        {
+          "kind": "interaction-volume",
+          "objectId": "pet.interaction.belly",
+          "label": "Belly interaction",
+          "transform": {
+            "position": { "x": 0, "y": 0, "z": 0 },
+            "rotation": { "x": 0, "y": 0, "z": 0 },
+            "scale": { "x": 1, "y": 1, "z": 1 }
+          },
+          "interaction": {
+            "interactionId": "interaction.pet.belly",
+            "shape": { "kind": "sphere", "radius": 0.32 },
+            "preferredStrokeDirection": { "x": 0, "y": 0, "z": -1 },
+            "attachment": {
+              "modelObjectId": "pet.cat",
+              "socketId": "cat.belly"
             }
           }
         }

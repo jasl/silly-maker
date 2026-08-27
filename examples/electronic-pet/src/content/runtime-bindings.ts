@@ -67,6 +67,14 @@ export const electronicPetDirectInteractionBindingsV1 = [
   electronicPetBackInteractionBindingV1,
 ] as const;
 
+export const electronicPetBellyInteractionBindingV1 = {
+  objectId: "pet.interaction.belly",
+  interactionId: "interaction.pet.belly",
+  actionId: "pet.touch_belly",
+  interactionKind: "belly",
+  behaviorOwner: "pet.game.companion",
+} as const;
+
 export const electronicPetGroomingInteractionBindingV1 = {
   objectId: "pet.interaction.groom.back",
   interactionId: "interaction.pet.groom.back",
@@ -77,6 +85,7 @@ export const electronicPetGroomingInteractionBindingV1 = {
 
 export const electronicPetInteractionBindingsV1 = [
   ...electronicPetDirectInteractionBindingsV1,
+  electronicPetBellyInteractionBindingV1,
   electronicPetGroomingInteractionBindingV1,
 ] as const;
 

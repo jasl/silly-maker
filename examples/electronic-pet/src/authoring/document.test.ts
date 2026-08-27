@@ -47,6 +47,10 @@ describe("PetSceneDocumentV1", () => {
       boneId: "cat.spine",
       sourceName: "BackSocket",
     });
+    expect(cat.model.socketById.get("cat.belly")).toMatchObject({
+      boneId: "cat.spine",
+      sourceName: "BellySocket",
+    });
     expect(cat.model.clipSourceById.get("cat.idle")).toBe("Idle");
     expect(cat.model.appearance).toMatchObject({
       primaryMaterialSourceName: "CatFurPrimary",
@@ -68,6 +72,15 @@ describe("PetSceneDocumentV1", () => {
       interaction: {
         interactionId: "interaction.pet.groom.back",
         attachment: { modelObjectId: "pet.cat", socketId: "cat.back" },
+      },
+    });
+    expect(plan.objectById.get("pet.interaction.belly")).toMatchObject({
+      kind: "interaction-volume",
+      interaction: {
+        interactionId: "interaction.pet.belly",
+        shape: { kind: "sphere", radius: 0.32 },
+        preferredStrokeDirection: { x: 0, y: 0, z: -1 },
+        attachment: { modelObjectId: "pet.cat", socketId: "cat.belly" },
       },
     });
   });

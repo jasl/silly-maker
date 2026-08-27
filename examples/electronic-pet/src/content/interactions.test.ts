@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
+import { findElectronicPetActivityDefinitionV1 } from "./activities.ts";
+import { electronicPetCatProfileV1 } from "./cat.ts";
 import {
   electronicPetReachableRegionsByPoseV1,
   isElectronicPetInteractionReachableV1,
 } from "./interactions.ts";
 import { isElectronicPetGroomingReachableV1 } from "./grooming.ts";
+import { electronicPetBellyInteractionBindingV1 } from "./runtime-bindings.ts";
 
 describe("electronic pet contact reachability", () => {
   it("keeps hidden poses non-interactive and near-player poses fully reachable", () => {
@@ -41,5 +44,30 @@ describe("electronic pet contact reachability", () => {
       false,
     );
     expect(isElectronicPetGroomingReachableV1("resting", "interaction.pet.back")).toBe(false);
+  });
+
+  it("keeps belly exposure separate from the authored belly interaction", () => {
+    expect(findElectronicPetActivityDefinitionV1("belly_expose")).toMatchObject({
+      poseId: "supine_relaxed",
+    });
+    expect(electronicPetCatProfileV1.preferenceByInteractionId["interaction.pet.belly"])
+      .toBeGreaterThan(0);
+    expect(electronicPetBellyInteractionBindingV1).toMatchObject({
+      interactionId: "interaction.pet.belly",
+      actionId: "pet.touch_belly",
+      interactionKind: "belly",
+    });
+
+    expect(isElectronicPetInteractionReachableV1(
+      "supine_relaxed",
+      "interaction.pet.belly",
+    )).toBe(true);
+    expect(isElectronicPetInteractionReachableV1(
+      "near_player",
+      "interaction.pet.belly",
+    )).toBe(false);
+    expect(new Set(electronicPetReachableRegionsByPoseV1.supine_relaxed)).toEqual(
+      new Set(["face", "neck", "belly"]),
+    );
   });
 });

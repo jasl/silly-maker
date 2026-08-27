@@ -115,6 +115,13 @@
   animation: pet-pointer-incomplete 260ms ease-out;
 }
 
+.pet-scene__pointer-feedback[data-phase="warning"] .pet-scene__pointer-ring,
+.pet-scene__pointer-feedback[data-phase="escalated"] .pet-scene__pointer-ring {
+  border-color: #c85b45;
+  background: rgb(200 91 69 / 28%);
+  animation: pet-pointer-incomplete 240ms ease-out;
+}
+
 .pet-scene__pointer-feedback[data-phase="ready"] .pet-scene__pointer-label,
 .pet-scene__pointer-feedback[data-phase="complete"] .pet-scene__pointer-label {
   color: #165b49;
@@ -122,6 +129,11 @@
 
 .pet-scene__pointer-feedback[data-phase="incomplete"] .pet-scene__pointer-label {
   color: #7b4b22;
+}
+
+.pet-scene__pointer-feedback[data-phase="warning"] .pet-scene__pointer-label,
+.pet-scene__pointer-feedback[data-phase="escalated"] .pet-scene__pointer-label {
+  color: #8c2f23;
 }
 
 .pet-scene__status,

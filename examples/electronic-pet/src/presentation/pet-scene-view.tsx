@@ -31,6 +31,12 @@ function modelUrlV1(modelId: string): string | null {
   return resolveElectronicPetModelAssetUrlV1(modelId, "application", document.baseURI);
 }
 
+type PetBellyTerminalV1 =
+  | "completed_before_warning"
+  | "stopped_before_warning"
+  | "stopped_in_warning"
+  | "continued_after_warning";
+
 export default function ElectronicPetSceneViewV1(
   props: CodeSurfaceViewPropsV1<
     ElectronicPetSceneContextV1,
@@ -49,12 +55,16 @@ export default function ElectronicPetSceneViewV1(
     {
       readonly occurrence: number;
       readonly outcome: ElectronicPetInteractionOutcomeV1;
-      readonly interactionKind: "contact" | "grooming";
+      readonly interactionKind: "contact" | "grooming" | "belly";
+      readonly targetInteractionId: string;
+      readonly bellyTerminal: PetBellyTerminalV1 | null;
     } | null
   >(null);
   const groomingAvailable = props.context.view.trustStage === "trusting" ||
     props.context.view.trustStage === "bonded";
-  const interactionTool = groomingAvailable ? requestedTool : "hand";
+  const interactionTool = groomingAvailable && props.context.view.poseId !== "supine_relaxed"
+    ? requestedTool
+    : "hand";
   const toolRef = useRef<PetInteractionToolV1>(interactionTool);
   const interactionCopy = interactionCopyV1(props.context.view, interactionTool);
   const visibleOutcome = props.context.view.lastOutcome === null
@@ -62,6 +72,9 @@ export default function ElectronicPetSceneViewV1(
     : reaction?.outcome ?? props.context.view.lastOutcome;
   const visibleInteractionKind = reaction?.interactionKind ??
     props.context.view.lastInteractionKind ?? "contact";
+  const visibleInteractionTargetId = reaction?.targetInteractionId ??
+    props.context.view.lastInteractionTargetId;
+  const visibleBellyTerminal = reaction?.bellyTerminal ?? props.context.view.lastBellyTerminal;
 
   useLayoutEffect(() => {
     contextRef.current = props.context;
@@ -72,7 +85,13 @@ export default function ElectronicPetSceneViewV1(
     toolRef.current = interactionTool;
     runtimeRef.current?.setInteractionTool(interactionTool);
     const label = pointerFeedbackLabelRef.current;
-    if (label !== null) label.textContent = pointerFeedbackLabelV1("idle", interactionTool);
+    if (label !== null) {
+      label.textContent = pointerFeedbackLabelV1(
+        { phase: "idle" },
+        interactionTool,
+        contextRef.current.view,
+      );
+    }
   }, [interactionTool]);
 
   useEffect(() => {
@@ -82,7 +101,7 @@ export default function ElectronicPetSceneViewV1(
     const pointerFeedbackLabel = pointerFeedbackLabelRef.current;
     let pendingPointerFeedback: PetPointerFeedbackV1 | null = null;
     let pointerFeedbackFrame = 0;
-    let appliedPointerFeedbackPhase: PetPointerFeedbackV1["phase"] = "idle";
+    let appliedPointerFeedbackKey = "";
     const applyPointerFeedbackV1 = (): void => {
       pointerFeedbackFrame = 0;
       const feedback = pendingPointerFeedback;
@@ -90,10 +109,18 @@ export default function ElectronicPetSceneViewV1(
       const indicator = pointerFeedbackRef.current;
       const label = pointerFeedbackLabelRef.current;
       if (feedback === null || indicator === null || label === null) return;
-      if (feedback.phase !== appliedPointerFeedbackPhase) {
-        appliedPointerFeedbackPhase = feedback.phase;
+      const feedbackTarget = feedback.phase === "idle" ? null : feedback.targetInteractionId;
+      const feedbackKey = `${feedback.phase}:${feedbackTarget ?? ""}:${toolRef.current}:${
+        contextRef.current.view.invitation?.kind ?? "none"
+      }`;
+      if (feedbackKey !== appliedPointerFeedbackKey) {
+        appliedPointerFeedbackKey = feedbackKey;
         indicator.dataset.phase = feedback.phase;
-        label.textContent = pointerFeedbackLabelV1(feedback.phase, toolRef.current);
+        label.textContent = pointerFeedbackLabelV1(
+          feedback,
+          toolRef.current,
+          contextRef.current.view,
+        );
       }
       if (feedback.phase === "idle") return;
       indicator.style.setProperty("--pet-pointer-x", `${feedback.x}px`);
@@ -111,11 +138,17 @@ export default function ElectronicPetSceneViewV1(
       onGesture: async (result) => {
         const outcome = await contextRef.current.dispatchGesture(result);
         if (outcome !== null) {
-          runtime.presentReaction(outcome);
+          if (
+            result.interactionKind !== "belly" ||
+            result.terminal !== "stopped_in_warning" ||
+            outcome !== "warn"
+          ) runtime.presentReaction(outcome);
           setReaction((current) => ({
             occurrence: (current?.occurrence ?? 0) + 1,
             outcome,
             interactionKind: result.interactionKind,
+            targetInteractionId: result.targetInteractionId,
+            bellyTerminal: result.interactionKind === "belly" ? result.terminal : null,
           }));
         }
       },
@@ -147,7 +180,11 @@ export default function ElectronicPetSceneViewV1(
         pointerFeedbackIndicator.style.removeProperty("--pet-pointer-x");
         pointerFeedbackIndicator.style.removeProperty("--pet-pointer-y");
         pointerFeedbackIndicator.style.removeProperty("--pet-pointer-progress");
-        pointerFeedbackLabel.textContent = pointerFeedbackLabelV1("idle", "hand");
+        pointerFeedbackLabel.textContent = pointerFeedbackLabelV1(
+          { phase: "idle" },
+          "hand",
+          contextRef.current.view,
+        );
       }
     };
   }, [props.props.quality]);
@@ -168,7 +205,7 @@ export default function ElectronicPetSceneViewV1(
         <span className="pet-scene__eyebrow">MOCHI · {props.context.view.trustStage}</span>
         <strong>
           {status === "ready"
-            ? activityLabelV1(props.context.view.activityId)
+            ? activityLabelV1(props.context.view)
             : status === "failed"
             ? "场景载入失败"
             : "正在布置新家…"}
@@ -186,6 +223,8 @@ export default function ElectronicPetSceneViewV1(
             visibleOutcome,
             props.context.view.trustStage,
             visibleInteractionKind,
+            visibleInteractionTargetId,
+            visibleBellyTerminal,
           )}
         </output>
       </header>
@@ -224,29 +263,79 @@ export default function ElectronicPetSceneViewV1(
 }
 
 function pointerFeedbackLabelV1(
-  phase: PetPointerFeedbackV1["phase"],
+  feedback: PetPointerFeedbackV1,
   tool: PetInteractionToolV1,
+  view: ElectronicPetSceneContextV1["view"],
 ): string {
-  if (tool === "brush") {
-    return ({
-      idle: "在背部顺着毛发滑动",
-      hover: "这里可以梳理",
-      blocked: "当前姿势不能梳理",
-      tracking: "顺着毛发继续梳",
-      ready: "现在松手完成梳理",
-      incomplete: "再梳长一点",
-      complete: "完成了一次梳理",
-    } as const)[phase];
+  const phase = feedback.phase;
+  const targetInteractionId = phase === "idle" ? null : feedback.targetInteractionId;
+  if (targetInteractionId === "interaction.pet.belly") {
+    const invited = view.invitation?.kind === "belly_offer";
+    switch (phase) {
+      case "idle":
+        return "移动到小猫身上开始互动";
+      case "hover":
+        return invited ? "它正邀请你短暂碰一碰腹部" : "露出肚皮不等于邀请；可以摸头或先观察";
+      case "blocked":
+        return "现在不能触碰腹部";
+      case "tracking":
+        return invited ? "保持缓慢、短暂，留意它的动作" : "它收紧了后腿——现在停手";
+      case "ready":
+        return invited ? "现在松手，保持这次接触短暂" : "它在提醒你停手";
+      case "warning":
+        return "尾巴开始甩动——立刻停手";
+      case "escalated":
+        return "你没有停手，它翻身退开了";
+      case "incomplete":
+        return invited ? "轻点不是一次完整互动" : "你及时停下，它重新放松了";
+      case "complete":
+        return invited ? "完成了一次短暂的腹部互动" : "你尊重了它的边界";
+    }
   }
-  return ({
-    idle: "移动到小猫身上开始互动",
-    hover: "这里可以抚摸",
-    blocked: "它还不准备被触碰",
-    tracking: "继续滑动",
-    ready: "现在松手即可完成",
-    incomplete: "再滑动一点",
-    complete: "完成了一次抚摸",
-  } as const)[phase];
+  if (tool === "brush") {
+    switch (phase) {
+      case "idle":
+        return "在背部顺着毛发滑动";
+      case "hover":
+        return "这里可以梳理";
+      case "blocked":
+        return "当前姿势不能梳理";
+      case "tracking":
+        return "顺着毛发继续梳";
+      case "ready":
+        return "现在松手完成梳理";
+      case "warning":
+        return "它在提醒你停下梳子";
+      case "escalated":
+        return "它避开了梳子";
+      case "incomplete":
+        return "再梳长一点";
+      case "complete":
+        return "完成了一次梳理";
+    }
+  }
+  switch (phase) {
+    case "idle":
+      return "移动到小猫身上开始互动";
+    case "hover":
+      return "这里可以抚摸";
+    case "blocked":
+      return "它还不准备被触碰";
+    case "tracking":
+      return "继续滑动";
+    case "ready":
+      return "现在松手即可完成";
+    case "warning":
+      return "它在提醒你停手";
+    case "escalated":
+      return "它退开了";
+    case "incomplete":
+      return "再滑动一点";
+    case "complete":
+      return "完成了一次抚摸";
+  }
+  const unreachable: never = phase;
+  return unreachable;
 }
 
 function interactionCopyV1(
@@ -257,6 +346,20 @@ function interactionCopyV1(
   readonly title: string;
   readonly detail: string;
 } {
+  if (view.poseId === "supine_relaxed") {
+    if (view.invitation?.kind === "belly_offer") {
+      return {
+        eyebrow: "明确邀请",
+        title: "它放松前爪，愿意让你短暂碰一碰腹部",
+        detail: "慢慢按住并顺着毛发轻触；看到尾巴或后腿收紧就立刻停手。",
+      };
+    }
+    return {
+      eyebrow: "脆弱姿态",
+      title: "它把肚皮露给你看了——这是信任，不是触摸邀请",
+      detail: "可以轻轻摸头，或在它收紧后腿时及时停下；不要把露腹当成许可。",
+    };
+  }
   if (tool === "brush") {
     return {
       eyebrow: "梳理时间",
@@ -269,6 +372,13 @@ function interactionCopyV1(
       eyebrow: "保持距离",
       title: "它还不准备被触碰",
       detail: "先用照料按钮准备清水、猫砂、藏身处和食物，让它自己决定何时出来。",
+    };
+  }
+  if (view.activityReason === "boundary") {
+    return {
+      eyebrow: "给它空间",
+      title: "它已经翻身退开",
+      detail: "刚才的警告没有被及时尊重。先停止触碰，让它自己恢复平静。",
     };
   }
   if (view.trustStage === "newcomer" && view.invitation?.kind === "sniff_hand") {
@@ -292,7 +402,8 @@ function interactionCopyV1(
   };
 }
 
-function activityLabelV1(activityId: ElectronicPetSceneContextV1["view"]["activityId"]): string {
+function activityLabelV1(view: ElectronicPetSceneContextV1["view"]): string {
+  if (view.activityReason === "boundary") return "它翻身退开，正在重新观察你";
   return ({
     hide_in_den: "还躲在安全的小窝里",
     observe_player: "正在悄悄观察你",
@@ -302,7 +413,8 @@ function activityLabelV1(activityId: ElectronicPetSceneContextV1["view"]["activi
     rest_nearby: "愿意在你附近休息",
     self_groom: "正在认真梳理自己",
     solo_ball_play: "正在追逐小球",
-  } as const)[activityId];
+    belly_expose: "它在你面前放松地露出肚皮",
+  } as const)[view.activityId];
 }
 
 function moodLabelV1(mood: ElectronicPetSceneContextV1["view"]["mood"]): string {
@@ -318,7 +430,9 @@ function moodLabelV1(mood: ElectronicPetSceneContextV1["view"]["mood"]): string 
 function outcomeLabelV1(
   outcome: ElectronicPetSceneContextV1["view"]["lastOutcome"],
   trustStage: ElectronicPetSceneContextV1["view"]["trustStage"],
-  interactionKind: "contact" | "grooming",
+  interactionKind: "contact" | "grooming" | "belly",
+  targetInteractionId: string | null,
+  bellyTerminal: PetBellyTerminalV1 | null,
 ): string {
   if (outcome === null) {
     return trustStage === "newcomer"
@@ -331,6 +445,23 @@ function outcomeLabelV1(
       tolerate: "它允许你继续，但还在观察手法",
       warn: "尾巴轻甩了一下，请放慢并顺着毛发",
       refuse: "它避开了梳子，现在需要一点空间",
+    } as const)[outcome];
+  }
+  if (interactionKind === "belly" || targetInteractionId === "interaction.pet.belly") {
+    if (bellyTerminal === "stopped_before_warning") {
+      return "你及时收回手，它安心地继续保持放松";
+    }
+    if (bellyTerminal === "stopped_in_warning") {
+      return "你在警告后停了下来，它正在重新放松";
+    }
+    if (bellyTerminal === "continued_after_warning") {
+      return "你没有停手，它翻身退开，需要一点空间";
+    }
+    return ({
+      accept: "它放松前爪，舒服地接受了短暂触碰",
+      tolerate: "它允许了这次接触，但仍在观察",
+      warn: "尾巴开始甩动——现在应该停手",
+      refuse: "它翻身退开，结束了这次接触",
     } as const)[outcome];
   }
   return ({

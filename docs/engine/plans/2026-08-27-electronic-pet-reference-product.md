@@ -231,7 +231,8 @@ M2 post-closure usability correction（2026-08-27）：
   `deno task check` 为 `390` 个 Vitest 文件、`5,475` 项测试与 `6` 项 composition-state workload，并通过 assets、
   全部 application checks 与 E2E release build。
 
-M3 已由所有者另行启动并进入首个视觉与构图切片；其余完整产品分母、后期关系、剩余互动/玩具/行为、
+M3 已由所有者另行启动，并完成视觉/构图、`trusting`/梳理和首个 `bonded`/腹部边界纵向切片；其余完整产品
+分母、后期关系内容、剩余互动/玩具/行为、
 音频/i18n 与作者接手仍保持开放，M4–M5 和 retirement gate 均未关闭。
 
 ### M3 — 关系深度、互动宽度与反馈质量
@@ -268,6 +269,28 @@ renderer-local presentation；独立 `pet.groom_complete` 在权威边界验证 
 信任旅程、真实 mouse 梳理、短拖零提交、Save/reload、Inspector object/volume 和 Chromium native touch；WebKit
 仅因 Playwright 不支持 native touch-drag injection 跳过触控案例。该切片未加入音频，也未关闭 bonded、腹部
 邀请、另外两种玩具、剩余行为/反应、i18n、设置、相册或完整 M3。
+
+2026-08-27 完成 M3 的第三个腹部边界切片：第 9 个自主行为 `belly_expose` 使用独立
+`supine_relaxed` 姿态；姿态本身只表达脆弱与信任，只有已经 `bonded`、心情为 calm/social 且产品偏好允许时，
+后续新的 activity occurrence 才生成 `belly_offer`。`bonded` 的真实单调路径要求已有 `trusting`、首次梳理，
+以及两个不同 visit 中在 warning 前主动停止腹部试探；同一次成为 bonded 的露腹不会追溯生成邀请，重复同 visit、
+warning 后停手和继续越过 warning 均不能刷取关系证据；`newcomer` / `familiar` 的同类触碰只得到防备反馈，
+不会预存未来的 `boundaryRespect`。
+
+Scene 作者数据增加绑定到 Spine 的 `cat.belly` socket 与独立 sphere volume，并通过现有 compiler、Inspector、
+operation/CAS/undo、binding 与 raycast 表达；作者位置经真实产品画面修正，腹部目标在仰卧身体上可见、可 hover、
+可命中且不再被头颈 volume 完全遮住。gesture runtime 只用当前 gesture 的两个 one-shot timer 表达 warning 与
+继续越界，不创建权威 warning 状态、timer manager 或 gesture DSL。State/Save 只接收一次
+`completed_before_warning | stopped_before_warning | stopped_in_warning | continued_after_warning` 终态：warning 后
+停手只恢复 calm，继续则 overstimulated 并切到新的 `observe_player` occurrence。
+
+本切片同时修正了 Scene gesture 的 currentness 所有权：contact、grooming 与 belly 都在 pointer-down 捕获 activity
+occurrence 及相关 invitation occurrence，pointer-up 不再借用最新 publication token；successor 使进行中的手势
+失效，权威边界继续原子拒绝 stale command。新增 Chromium/WebKit 旅程只覆盖真实 renderer-local warning、warning
+前停手、跨 visit bonded、后续明确邀请和慢速短 stroke；既有专项 E2E 继续独立保护
+390×844/1280×800、Inspector belly object/volume、stale activity/invitation 零部分变更和 Save/reload。该切片把
+实现宽度推进到 9/16 个自主行为和脸/颈/背/腹部 4/8 类直接互动，但未关闭另外两种玩具、其余行为/反应、音频、
+i18n、设置、相册或完整 M3。
 
 ### M4 — 产品完整性、作者接手与性能审查
 

@@ -67,12 +67,17 @@ export const electronicPetSemanticAdapterV1: CoreSemanticAdapterV1<
           queries.player.poseId,
           binding.interactionId,
         )
-        : (queries.state.relationship.trustStage === "trusting" ||
+        : binding.interactionKind === "grooming"
+        ? (queries.state.relationship.trustStage === "trusting" ||
           queries.state.relationship.trustStage === "bonded") &&
           isElectronicPetGroomingReachableV1(
             queries.player.poseId,
             binding.interactionId,
-          ),
+          )
+        : isElectronicPetInteractionReachableV1(
+          queries.player.poseId,
+          binding.interactionId,
+        ),
     })),
     {
       actionId: "play.wand",

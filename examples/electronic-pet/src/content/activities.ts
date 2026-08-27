@@ -17,6 +17,12 @@ export const electronicPetActivityDefinitionsV1 = [
   { activityId: "rest_nearby", poseId: "resting", minimumMinutes: 12, weight: 7 },
   { activityId: "self_groom", poseId: "grooming", minimumMinutes: 6, weight: 5 },
   { activityId: "solo_ball_play", poseId: "pouncing", minimumMinutes: 5, weight: 4 },
+  {
+    activityId: "belly_expose",
+    poseId: "supine_relaxed",
+    minimumMinutes: 5,
+    weight: 2,
+  },
 ] as const satisfies readonly ElectronicPetActivityDefinitionV1[];
 
 export function findElectronicPetActivityDefinitionV1(

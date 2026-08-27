@@ -79,6 +79,23 @@ function resultMessageV1(
           warn: "它在提醒你放慢一点",
           refuse: "它现在想保留一些空间",
         } as const)[result.game.lastOutcome];
+      case "pet.belly_complete":
+        return invocation.terminal === "stopped_before_warning"
+          ? result.game.lastOutcome === "accept"
+            ? "你及时停下，它安心地继续保持放松"
+            : "它收起后腿，提醒你先保持距离"
+          : invocation.terminal === "stopped_in_warning"
+          ? "你在警告后停手，它正在重新放松"
+          : invocation.terminal === "continued_after_warning"
+          ? "你没有停手，它翻身退开了"
+          : result.game.lastOutcome === null
+          ? "互动已经完成"
+          : ({
+            accept: "它接受了这次短暂的腹部触碰",
+            tolerate: "它允许了短暂接触，但仍在观察",
+            warn: "这次触碰不够轻缓，它在提醒你停手",
+            refuse: "它结束了这次接触并翻身退开",
+          } as const)[result.game.lastOutcome];
     }
   }
   if (result.kind === "rejected") return "情况已经变化，请观察后再试";
@@ -216,7 +233,9 @@ export function ElectronicPetCareHudV1(
             ? "它正在靠近，先把手停在原地让它闻。"
             : invitation.kind === "shared_play"
             ? "它盯着玩具，似乎想和你一起玩。"
-            : "它主动把头靠近了你。"}
+            : invitation.kind === "head_contact"
+            ? "它主动把头靠近了你。"
+            : "它放松前爪并持续看着你，愿意让你短暂碰一碰腹部。"}
         </p>
       )}
 

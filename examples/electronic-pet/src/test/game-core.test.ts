@@ -13,7 +13,7 @@ import {
   projectElectronicPetInspectorV1,
   projectElectronicPetPlayerViewV1,
 } from "../game/rules.ts";
-import { createInitialElectronicPetStateV1 } from "../game/state.ts";
+import { createInitialElectronicPetStateV1, electronicPetStateSchemaV1 } from "../game/state.ts";
 import type { ElectronicPetStateV1 } from "../game/state.ts";
 import { electronicPetActivityDefinitionsV1 } from "../content/activities.ts";
 import { electronicPetPreferenceForActivityV1 } from "../content/cat.ts";
@@ -48,6 +48,44 @@ const backGroomV1 = (
     direction,
     speed: "slow",
     duration: "brief",
+  }) as const satisfies ElectronicPetCommandV1;
+
+const bellyStrokeV1 = (input: {
+  readonly occurrence?: number;
+  readonly invitationOccurrence?: number;
+  readonly direction?: "with-fur" | "cross-fur" | "against-fur";
+  readonly speed?: "slow" | "steady" | "fast";
+  readonly duration?: "brief" | "sustained";
+} = {}) =>
+  ({
+    kind: "pet.belly_complete",
+    expectedActivityOccurrence: input.occurrence ?? 4,
+    ...(input.invitationOccurrence === undefined
+      ? {}
+      : { expectedInvitationOccurrence: input.invitationOccurrence }),
+    targetInteractionId: "interaction.pet.belly",
+    terminal: "completed_before_warning",
+    gesture: "stroke",
+    direction: input.direction ?? "with-fur",
+    speed: input.speed ?? "slow",
+    duration: input.duration ?? "brief",
+  }) as const satisfies ElectronicPetCommandV1;
+
+const bellyStopV1 = (
+  terminal:
+    | "stopped_before_warning"
+    | "stopped_in_warning"
+    | "continued_after_warning",
+  input: { readonly occurrence?: number; readonly invitationOccurrence?: number } = {},
+) =>
+  ({
+    kind: "pet.belly_complete",
+    expectedActivityOccurrence: input.occurrence ?? 4,
+    ...(input.invitationOccurrence === undefined
+      ? {}
+      : { expectedInvitationOccurrence: input.invitationOccurrence }),
+    targetInteractionId: "interaction.pet.belly",
+    terminal,
   }) as const satisfies ElectronicPetCommandV1;
 
 function activeStateV1(input: {
@@ -94,7 +132,229 @@ function activeStateV1(input: {
   };
 }
 
+function bellyStateV1(input: {
+  readonly visitOrdinal?: number;
+  readonly trustStage?: ElectronicPetStateV1["relationship"]["trustStage"];
+  readonly invitationOccurrence?: number;
+  readonly boundaryRespect?: ElectronicPetStateV1["relationship"]["evidence"]["boundaryRespect"];
+  readonly includeFirstGrooming?: boolean;
+} = {}): ElectronicPetStateV1 {
+  const state = activeStateV1({
+    activityId: "belly_expose",
+    poseId: "supine_relaxed",
+    worldMinute: 30,
+    minimumUntilMinute: 36,
+    needs: { food: 20, rest: 20, safety: 20, stimulation: 20 },
+  });
+  return {
+    ...state,
+    home: { ...state.home, visitOrdinal: input.visitOrdinal ?? 1 },
+    relationship: {
+      ...state.relationship,
+      trustStage: input.trustStage ?? "trusting",
+      facts: input.includeFirstGrooming
+        ? [...state.relationship.facts, "relationship.first_grooming" as const].toSorted()
+        : state.relationship.facts,
+      evidence: {
+        ...state.relationship.evidence,
+        boundaryRespect: input.boundaryRespect ?? state.relationship.evidence.boundaryRespect,
+      },
+    },
+    companion: {
+      ...state.companion,
+      mood: { kind: "calm", cause: "care", sinceMinute: 30 },
+      invitation: input.invitationOccurrence === undefined ? null : {
+        kind: "belly_offer",
+        occurrence: input.invitationOccurrence,
+        activityOccurrence: state.companion.activity.occurrence,
+        expiresAtMinute: 36,
+      },
+      nextInvitationOccurrence: input.invitationOccurrence === undefined
+        ? state.companion.nextInvitationOccurrence
+        : input.invitationOccurrence + 1,
+    },
+  };
+}
+
 describe("Electronic Pet authoritative domain", () => {
+  it("keeps belly exposure separate from an exact current offer", () => {
+    const exposed = bellyStateV1({ trustStage: "bonded" });
+    expect(evaluateElectronicPetCommandV1(exposed, bellyStrokeV1())).toEqual({
+      kind: "allowed",
+      outcome: "warn",
+    });
+
+    const offered = bellyStateV1({ trustStage: "bonded", invitationOccurrence: 9 });
+    expect(evaluateElectronicPetCommandV1(offered, bellyStrokeV1())).toEqual({
+      kind: "blocked",
+      code: "pet.invitation_stale",
+    });
+    expect(evaluateElectronicPetCommandV1(
+      offered,
+      bellyStrokeV1({ invitationOccurrence: 9 }),
+    )).toEqual({ kind: "allowed", outcome: "accept" });
+    expect(evaluateElectronicPetCommandV1(
+      offered,
+      bellyStrokeV1({ invitationOccurrence: 8 }),
+    )).toEqual({ kind: "blocked", code: "pet.invitation_stale" });
+    expect(evaluateElectronicPetCommandV1(
+      offered,
+      bellyStrokeV1({ occurrence: 3, invitationOccurrence: 9 }),
+    )).toEqual({ kind: "blocked", code: "pet.activity_stale" });
+    expect(evaluateElectronicPetCommandV1(
+      offered,
+      bellyStrokeV1({ invitationOccurrence: 9, speed: "fast" }),
+    )).toEqual({ kind: "allowed", outcome: "warn" });
+  });
+
+  it("credits a pre-warning stop without an offer once per visit and reaches bonded", () => {
+    const command = bellyStopV1("stopped_before_warning");
+    const first = bellyStateV1({ includeFirstGrooming: true });
+    expect(evaluateElectronicPetCommandV1(first, command)).toEqual({
+      kind: "allowed",
+      outcome: "accept",
+    });
+    const afterFirst = applyElectronicPetCommandV1(
+      first,
+      command,
+      "accept",
+      createTransactionalRngV1(parseNonZeroUint32(79)),
+    );
+    expect(afterFirst.relationship.evidence.boundaryRespect).toEqual({ count: 1, lastVisit: 1 });
+    const sameVisit = applyElectronicPetCommandV1(
+      afterFirst,
+      command,
+      "accept",
+      createTransactionalRngV1(parseNonZeroUint32(81)),
+    );
+    expect(sameVisit.relationship.evidence.boundaryRespect).toEqual({ count: 1, lastVisit: 1 });
+
+    const laterVisit = {
+      ...sameVisit,
+      home: { ...sameVisit.home, visitOrdinal: 2 },
+    } satisfies ElectronicPetStateV1;
+    const bonded = applyElectronicPetCommandV1(
+      laterVisit,
+      command,
+      "accept",
+      createTransactionalRngV1(parseNonZeroUint32(83)),
+    );
+    expect(bonded.relationship.evidence.boundaryRespect).toEqual({ count: 2, lastVisit: 2 });
+    expect(bonded.relationship.trustStage).toBe("bonded");
+    expect(bonded.relationship.facts).not.toContain("relationship.first_belly_contact");
+  });
+
+  it("does not bank belly-boundary evidence before the trusting stage", () => {
+    for (const trustStage of ["newcomer", "familiar"] as const) {
+      const state = bellyStateV1({ trustStage, includeFirstGrooming: true });
+      const command = bellyStopV1("stopped_before_warning");
+      expect(evaluateElectronicPetCommandV1(state, command)).toEqual({
+        kind: "allowed",
+        outcome: "warn",
+      });
+
+      const after = applyElectronicPetCommandV1(
+        state,
+        command,
+        "warn",
+        createTransactionalRngV1(parseNonZeroUint32(84)),
+      );
+      expect(after.relationship.evidence.boundaryRespect.count).toBe(0);
+      expect(after.relationship.trustStage).toBe(trustStage);
+      expect(after.companion.mood.kind).toBe("guarded");
+    }
+  });
+
+  it("records an accepted belly offer and republishes its saved semantic result", () => {
+    const state = bellyStateV1({ trustStage: "bonded", invitationOccurrence: 9 });
+    const command = bellyStrokeV1({ invitationOccurrence: 9 });
+    const after = applyElectronicPetCommandV1(
+      state,
+      command,
+      evaluateElectronicPetCommandV1(state, command).kind === "allowed" ? "accept" : null,
+      createTransactionalRngV1(parseNonZeroUint32(85)),
+    );
+    expect(after.relationship.evidence.invitationResponse).toEqual({ count: 1, lastVisit: 1 });
+    expect(after.relationship.facts).toContain("relationship.first_belly_contact");
+    expect(after.relationship.discoveredPreferenceIds).toContain("preference.contact.belly");
+    expect(after.companion.invitation).toBeNull();
+    expect(after.companion.recentMemory.at(-1)).toEqual({
+      kind: "belly",
+      targetInteractionId: "interaction.pet.belly",
+      terminal: "completed_before_warning",
+      outcome: "accept",
+      atMinute: 30,
+    });
+    expect(electronicPetStateSchemaV1.parse(after)).toEqual(after);
+    expect(projectElectronicPetPlayerViewV1(after)).toMatchObject({
+      lastOutcome: "accept",
+      lastInteractionKind: "belly",
+      lastInteractionTargetId: "interaction.pet.belly",
+      lastBellyTerminal: "completed_before_warning",
+    });
+  });
+
+  it("treats stopping an offered belly interaction as boundary respect, not offer completion", () => {
+    const state = bellyStateV1({ trustStage: "bonded", invitationOccurrence: 9 });
+    const command = bellyStopV1("stopped_before_warning", { invitationOccurrence: 9 });
+    expect(evaluateElectronicPetCommandV1(state, command)).toEqual({
+      kind: "allowed",
+      outcome: "accept",
+    });
+
+    const after = applyElectronicPetCommandV1(
+      state,
+      command,
+      "accept",
+      createTransactionalRngV1(parseNonZeroUint32(86)),
+    );
+    expect(after.relationship.evidence.boundaryRespect).toEqual({ count: 1, lastVisit: 1 });
+    expect(after.relationship.evidence.invitationResponse.count).toBe(0);
+    expect(after.relationship.facts).not.toContain("relationship.first_belly_contact");
+    expect(after.relationship.discoveredPreferenceIds).not.toContain("preference.contact.belly");
+  });
+
+  it("separates warning recovery from continued boundary escalation", () => {
+    const state = bellyStateV1({
+      invitationOccurrence: 9,
+      boundaryRespect: { count: 1, lastVisit: 1 },
+    });
+    const stopped = bellyStopV1("stopped_in_warning", { invitationOccurrence: 9 });
+    expect(evaluateElectronicPetCommandV1(state, stopped)).toEqual({
+      kind: "allowed",
+      outcome: "warn",
+    });
+    const recovered = applyElectronicPetCommandV1(
+      state,
+      stopped,
+      "warn",
+      createTransactionalRngV1(parseNonZeroUint32(87)),
+    );
+    expect(recovered.companion.mood.kind).toBe("calm");
+    expect(recovered.relationship.evidence.boundaryRespect).toEqual({ count: 1, lastVisit: 1 });
+    expect(recovered.relationship.evidence.invitationResponse.count).toBe(0);
+
+    const continued = bellyStopV1("continued_after_warning", { invitationOccurrence: 9 });
+    expect(evaluateElectronicPetCommandV1(state, continued)).toEqual({
+      kind: "allowed",
+      outcome: "refuse",
+    });
+    const escalated = applyElectronicPetCommandV1(
+      state,
+      continued,
+      "refuse",
+      createTransactionalRngV1(parseNonZeroUint32(89)),
+    );
+    expect(escalated.companion.mood.kind).toBe("overstimulated");
+    expect(escalated.companion.activity).toMatchObject({
+      activityId: "observe_player",
+      poseId: "watching",
+      occurrence: 5,
+      reason: "boundary",
+    });
+    expect(escalated.companion.nextActivityOccurrence).toBe(6);
+    expect(escalated.relationship.evidence.boundaryRespect).toEqual({ count: 1, lastVisit: 1 });
+  });
   it("starts with one guarded newcomer and exposes only coarse player needs", async () => {
     const application = await createElectronicPetApplicationInstanceV1();
     try {
@@ -1325,7 +1585,7 @@ describe("Electronic Pet authoritative domain", () => {
     },
   );
 
-  it("bounds recent memory and keeps all eight autonomous activities product-local", () => {
+  it("bounds recent memory and keeps all nine autonomous activities product-local", () => {
     expect(electronicPetActivityDefinitionsV1.map((entry) => entry.activityId)).toEqual([
       "hide_in_den",
       "observe_player",
@@ -1335,6 +1595,7 @@ describe("Electronic Pet authoritative domain", () => {
       "rest_nearby",
       "self_groom",
       "solo_ball_play",
+      "belly_expose",
     ]);
     let state = createInitialElectronicPetStateV1();
     const rng = createTransactionalRngV1(parseNonZeroUint32(47));

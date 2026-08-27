@@ -7,18 +7,18 @@
 
 ## Semantic coverage
 
-| Area                     | Baseline                                                                    | Current implementation/evidence  | Intentional difference or open work                    |
-| ------------------------ | --------------------------------------------------------------------------- | -------------------------------- | ------------------------------------------------------ |
-| 新领养到成为家人         | 五段可观察进展                                                              | M3 已可跨 visit 建立信任         | 成为家人仍开放                                         |
-| 信赖 × 心情              | 正交规则与可解释恢复                                                        | M3 完成首条真实 trusting 旅程    | bonded 与后期反馈仍开放                                |
-| 自主行为                 | 至少 16 个，含驻留、打断与重复抑制                                          | M2 完成 8/16 个及 8 个表现映射   | M3 完成 16 个与内容打磨                                |
-| 互动                     | 八类主要互动、腹部邀请与边界反馈                                            | M2 完成脸、颈、背 3/8 类         | 尾根明确 defer；M3 完成其余互动                        |
-| 玩具与照料               | 三种玩具、喂食、梳理、共同游戏                                              | M3 已完成首个背部梳理闭环        | 另外两种玩具仍开放                                     |
-| 3D 表现                  | 房间、rigged cat、动画与响应式质量档位                                      | M3 首个视觉/宽窄屏构图切片已完成 | 最终猫、房间细节与动画仍开放；不建设通用 3D engine     |
-| 作者工作流               | Object 到代码/资源/互动/source 可定位，人类与 Agent 共用 operation/CAS/undo | M1 作者闭环已完成                | 不要求无代码开发                                       |
-| Save/recovery/offline    | 独立 Save floor、有限离线结算与回归摘要                                     | M2 完成 Save/reopen/reset 与摘要 | M5 完成完整 recovery/release 证据                      |
-| i18n/audio/accessibility | 中英文本、音频、普通 DOM UI 的键盘与无障碍语义                              | 尚未实现                         | M3–M4 完成                                             |
-| Browser/Desktop          | Browser 产品与当前 Deno Desktop static preview                              | 工程外壳已声明                   | 不声明 Desktop HMR、durability 或 production promotion |
+| Area                     | Baseline                                                                    | Current implementation/evidence             | Intentional difference or open work                    |
+| ------------------------ | --------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------ |
+| 新领养到成为家人         | 五段可观察进展                                                              | M3 已可跨 visit 到达 bonded                 | 成为家人的完整内容宽度仍开放                           |
+| 信赖 × 心情              | 正交规则与可解释恢复                                                        | M3 完成 trusting、bonded 与腹部边界纵向切片 | 其余后期反馈仍开放                                     |
+| 自主行为                 | 至少 16 个，含驻留、打断与重复抑制                                          | M3 完成 9/16 个及 9 个表现映射              | M3 完成 16 个与内容打磨                                |
+| 互动                     | 八类主要互动、腹部邀请与边界反馈                                            | M3 完成脸、颈、背、腹部 4/8 类              | 尾根明确 defer；M3 完成其余互动                        |
+| 玩具与照料               | 三种玩具、喂食、梳理、共同游戏                                              | M3 已完成首个背部梳理闭环                   | 另外两种玩具仍开放                                     |
+| 3D 表现                  | 房间、rigged cat、动画与响应式质量档位                                      | M3 首个视觉/宽窄屏构图切片已完成            | 最终猫、房间细节与动画仍开放；不建设通用 3D engine     |
+| 作者工作流               | Object 到代码/资源/互动/source 可定位，人类与 Agent 共用 operation/CAS/undo | M1 作者闭环已完成                           | 不要求无代码开发                                       |
+| Save/recovery/offline    | 独立 Save floor、有限离线结算与回归摘要                                     | M2 完成 Save/reopen/reset 与摘要            | M5 完成完整 recovery/release 证据                      |
+| i18n/audio/accessibility | 中英文本、音频、普通 DOM UI 的键盘与无障碍语义                              | 尚未实现                                    | M3–M4 完成                                             |
+| Browser/Desktop          | Browser 产品与当前 Deno Desktop static preview                              | 工程外壳已声明                              | 不声明 Desktop HMR、durability 或 production promotion |
 
 完成状态只能由完整产品分母和独立审查决定；一个漂亮的 3D 纵向切片不能关闭上表。
 
@@ -107,6 +107,28 @@ Worker、LRU/prefetch 或新 Host seam。
   不新增可重复刷取的梳理计数；Save/reload 保留 trusting、事实和最近结果；
 - 本切片没有加入音频，也没有关闭 bonded、腹部邀请、另外两种玩具、剩余行为/反应、i18n、设置、相册或完整
   M3。产品 Vitest、Chromium/WebKit 全旅程与最终仓库验证以本次提交记录为准。
+
+### M3 belly boundary slice（2026-08-27）
+
+- 新增第 9 个自主行为 `belly_expose` 与独立姿态 `supine_relaxed`。姿态只开放脸、颈和腹部目标；露腹表示
+  脆弱姿态，不自动生成授权。只有已经 `bonded`、心情为 calm/social 且产品偏好允许时，后续新 activity
+  occurrence 才会生成一次当前 `belly_offer`，成为 bonded 的同一次露腹不会追溯获得邀请；
+- `bonded` 是真实可达且单调的权威阶段：已经 `trusting`、完成首次梳理，并在两个不同 visit 中于 warning
+  前主动停止腹部试探。`newcomer` / `familiar` 的同类触碰只得到防备反馈，不预存成长证据；重复同 visit、
+  warning 后才停手或继续越过警告也不刷取关系证据；
+- warning window 只由当前 pointer gesture 的两个 one-shot timer 与瞬时 renderer phase 表达。State/Save
+  只接收一次 `completed_before_warning | stopped_before_warning | stopped_in_warning |
+  continued_after_warning` 终态；warning 后停手只恢复 calm，不增加关系证据，继续则进入 overstimulated 并
+  产生新的 `observe_player` activity occurrence；
+- Scene gesture 在 pointer-down 捕获 activity occurrence 与相关 invitation occurrence，pointer-up 不再借用
+  最新 publication 的 token。contact、grooming 与 belly 共用这一 currentness 原则，stale successor 在权威
+  边界原子拒绝；
+- Scene 作者数据新增可由 Inspector 定位和修改的 `cat.belly` socket 与腹部 sphere volume。volume 位于仰卧
+  身体的可见区域，不与头颈目标形成不可命中的遮挡；新增产品旅程只覆盖真实 hover、renderer-local warning、
+  warning 前停手、跨 visit bonded、明确邀请和慢速短 stroke。既有专项 E2E 继续独立保护
+  390×844/1280×800、Save/reload 和 stale activity/invitation 零部分变更；
+- 本切片未增加 timer manager、gesture DSL、第二份 gameplay store 或 public engine API，也没有关闭另外两种
+  玩具、其余行为/反应、音频、i18n、设置、相册或完整 M3。
 
 ## Asset and reference ledger
 

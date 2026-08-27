@@ -30,6 +30,7 @@ export const electronicPetActivityIdsV1 = [
   "rest_nearby",
   "self_groom",
   "solo_ball_play",
+  "belly_expose",
 ] as const;
 export type ElectronicPetActivityIdV1 = (typeof electronicPetActivityIdsV1)[number];
 export const electronicPetPoseIdsV1 = [
@@ -41,6 +42,7 @@ export const electronicPetPoseIdsV1 = [
   "resting",
   "grooming",
   "pouncing",
+  "supine_relaxed",
 ] as const;
 export type ElectronicPetPoseIdV1 = (typeof electronicPetPoseIdsV1)[number];
 export const electronicPetActivityReasonsV1 = [
@@ -52,6 +54,7 @@ export const electronicPetActivityReasonsV1 = [
   "curiosity",
   "social_interest",
   "routine",
+  "boundary",
 ] as const;
 export type ElectronicPetActivityReasonV1 = (typeof electronicPetActivityReasonsV1)[number];
 export const electronicPetProgressionFactsV1 = [
@@ -65,10 +68,18 @@ export const electronicPetProgressionFactsV1 = [
   "relationship.first_shared_play",
   "relationship.routine_established",
   "relationship.first_grooming",
+  "relationship.first_belly_contact",
 ] as const;
 export type ElectronicPetProgressionFactIdV1 = (typeof electronicPetProgressionFactsV1)[number];
 export const electronicPetInteractionOutcomesV1 = ["accept", "tolerate", "warn", "refuse"] as const;
 export type ElectronicPetInteractionOutcomeV1 = (typeof electronicPetInteractionOutcomesV1)[number];
+export const electronicPetBellyTerminalsV1 = [
+  "completed_before_warning",
+  "stopped_before_warning",
+  "stopped_in_warning",
+  "continued_after_warning",
+] as const;
+export type ElectronicPetBellyTerminalV1 = (typeof electronicPetBellyTerminalsV1)[number];
 
 export interface ElectronicPetEvidenceCounterV1 {
   readonly count: number;
@@ -120,6 +131,13 @@ export type ElectronicPetRecentMemoryV1 =
     readonly toyId: string;
     readonly outcome: ElectronicPetInteractionOutcomeV1;
     readonly atMinute: number;
+  }
+  | {
+    readonly kind: "belly";
+    readonly targetInteractionId: string;
+    readonly terminal: ElectronicPetBellyTerminalV1;
+    readonly outcome: ElectronicPetInteractionOutcomeV1;
+    readonly atMinute: number;
   };
 export interface ElectronicPetCompanionStateV1 {
   readonly mood: {
@@ -144,7 +162,7 @@ export interface ElectronicPetCompanionStateV1 {
   };
   readonly nextActivityOccurrence: number;
   readonly invitation: {
-    readonly kind: "sniff_hand" | "head_contact" | "shared_play";
+    readonly kind: "sniff_hand" | "head_contact" | "shared_play" | "belly_offer";
     readonly occurrence: number;
     readonly activityOccurrence: number;
     readonly expiresAtMinute: number;
@@ -182,6 +200,13 @@ const memoryZodV1 = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("play"),
     toyId: z.string().min(1).max(128),
+    outcome: z.enum(electronicPetInteractionOutcomesV1),
+    atMinute: safeCounterV1,
+  }),
+  z.strictObject({
+    kind: z.literal("belly"),
+    targetInteractionId: z.string().min(1).max(128),
+    terminal: z.enum(electronicPetBellyTerminalsV1),
     outcome: z.enum(electronicPetInteractionOutcomesV1),
     atMinute: safeCounterV1,
   }),
@@ -241,7 +266,7 @@ const petStateZodV1 = z.strictObject({
     }),
     nextActivityOccurrence: safeCounterV1,
     invitation: z.strictObject({
-      kind: z.enum(["sniff_hand", "head_contact", "shared_play"]),
+      kind: z.enum(["sniff_hand", "head_contact", "shared_play", "belly_offer"]),
       occurrence: safeCounterV1,
       activityOccurrence: safeCounterV1,
       expiresAtMinute: safeCounterV1,

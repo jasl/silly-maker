@@ -3,7 +3,7 @@
 # Electronic Pet Reference Product
 
 这是 SillyMaker 的原创电子宠物 Reference Product。**M1 的 3D runtime 与作者闭环、M2 的权威领养与
-照料循环均已实现；M3 已完成首个产品视觉与宽窄屏构图切片，完整产品仍是 WIP。** 它从当前
+照料循环均已实现；M3 已完成视觉/宽窄屏、`trusting`/梳理与首个腹部边界互动切片，完整产品仍是 WIP。** 它从当前
 `template/` 工程形状创建，但已经移除模板的雨夜 Narrative、coin、2D opening、Chrome、
 reference outer UI 和对应测试，不把 starter 占位能力伪装成产品能力。
 
@@ -12,13 +12,15 @@ reference outer UI 和对应测试，不把 starter 占位能力伪装成产品�
 - [`docs/game/electronic-pet.md`](../../docs/game/electronic-pet.md)
 - [`docs/engine/plans/2026-08-27-electronic-pet-reference-product.md`](../../docs/engine/plans/2026-08-27-electronic-pet-reference-product.md)
 
-当前实现包含到家、观察、第一次靠近与跨会话形成日常的早期关系闭环，8/16 个自主行为、脸/颈/背
-3/8 类互动、逗猫棒 1/3 种玩具，以及 `accept | tolerate | warn | refuse` 四类结果表现。Save/reopen、
+当前实现包含到家、观察、第一次靠近、跨会话形成日常，以及通过梳理与跨 visit 尊重边界进入 `bonded` 的
+关系纵深，9/16 个自主行为、脸/颈/背/腹部 4/8 类直接互动、背部梳理、逗猫棒 1/3 种玩具，以及
+`accept | tolerate | warn | refuse` 四类结果表现。露腹与触摸邀请保持分离：`supine_relaxed` 本身不授权
+腹部触摸，只有后续新的当前 `belly_offer` 才授权一次短暂顺毛互动。Save/reopen、
 重置确认、有界离线结算和回归摘要由同一个权威 State/Session owner 持有。直接抚摸与逗猫棒玩法只接受
 鼠标/触控 Pointer Events；键盘继续服务普通 DOM UI，不模拟抚摸，手柄不属于产品输入分母。
 
 尾根仍保留“高个体差异敏感区”的设计政策，但当前没有 authored volume、runtime binding 或 gameplay
-rule；它明确 defer，不作为 M2 已实现互动。腹部、梳理、另外两种玩具、后期关系、完整内容与产品打磨仍由
+rule；它明确 defer，不作为已实现互动。另外两种玩具、其余自主行为/反应、完整后期内容与产品打磨仍由
 M3–M5 承担。
 在完整产品分母、作者任务、产品证据和独立审查关闭前，本项目不能被称为完整游戏，也不会
 替代当前旗舰 Cat Cafe。

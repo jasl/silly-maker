@@ -73,19 +73,19 @@ function createSlotsV1(input: {
                 const { interactionKind: _, ...gesture } = result;
                 return await input.dispatch({
                   kind: "pet.groom_complete",
-                  expectedActivityOccurrence: publication.view.activityOccurrence,
+                  ...gesture,
+                });
+              }
+              if (result.interactionKind === "belly") {
+                const { interactionKind: _, ...gesture } = result;
+                return await input.dispatch({
+                  kind: "pet.belly_complete",
                   ...gesture,
                 });
               }
               const { interactionKind: _, ...gesture } = result;
               return await input.dispatch({
                 kind: "pet.contact_complete",
-                expectedActivityOccurrence: publication.view.activityOccurrence,
-                ...(publication.view.invitation?.kind === "head_contact" &&
-                    (result.targetInteractionId === "interaction.pet.face" ||
-                      result.targetInteractionId === "interaction.pet.neck")
-                  ? { expectedInvitationOccurrence: publication.view.invitation.occurrence }
-                  : {}),
                 ...gesture,
               });
             })();

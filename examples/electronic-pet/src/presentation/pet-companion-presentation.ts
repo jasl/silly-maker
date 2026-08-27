@@ -74,6 +74,12 @@ const activityPresentationByIdV1 = {
     scaleMultiplier: { x: 1.04, y: 0.92, z: 1.12 },
     interactionEnabled: true,
   },
+  belly_expose: {
+    positionOffset: { x: 0.15, y: 0.26, z: 0.28 },
+    rotationOffset: { x: -0.18, y: 0.12, z: 2.72 },
+    scaleMultiplier: { x: 1.06, y: 0.92, z: 1.04 },
+    interactionEnabled: true,
+  },
 } as const satisfies Record<ElectronicPetActivityIdV1, PetActivityPresentationV1>;
 
 const reactionPresentationByOutcomeV1 = {

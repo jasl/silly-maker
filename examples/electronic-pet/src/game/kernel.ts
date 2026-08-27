@@ -13,6 +13,7 @@ import { z } from "zod";
 
 import { electronicPetFoodIdsV1, electronicPetToyIdsV1 } from "../content/items.ts";
 import type {
+  ElectronicPetBellyTerminalV1,
   ElectronicPetGameStateV1,
   ElectronicPetInteractionOutcomeV1,
   ElectronicPetStateV1,
@@ -32,10 +33,34 @@ export interface ElectronicPetContactResultV1 {
 }
 
 export type ElectronicPetGroomResultV1 = ElectronicPetContactResultV1;
+export interface ElectronicPetGestureCurrentnessV1 {
+  readonly expectedActivityOccurrence: number;
+  readonly expectedInvitationOccurrence?: number | undefined;
+}
+export type ElectronicPetBellyResultV1 =
+  | {
+    readonly targetInteractionId: string;
+    readonly terminal: "completed_before_warning";
+    readonly gesture: "stroke";
+    readonly direction: (typeof electronicPetGestureDirectionsV1)[number];
+    readonly speed: (typeof electronicPetGestureSpeedsV1)[number];
+    readonly duration: (typeof electronicPetGestureDurationsV1)[number];
+  }
+  | {
+    readonly targetInteractionId: string;
+    readonly terminal: Exclude<ElectronicPetBellyTerminalV1, "completed_before_warning">;
+  };
 
 export type ElectronicPetSceneGestureResultV1 =
-  | ElectronicPetContactResultV1 & { readonly interactionKind: "contact" }
-  | ElectronicPetGroomResultV1 & { readonly interactionKind: "grooming" };
+  | ElectronicPetContactResultV1 & ElectronicPetGestureCurrentnessV1 & {
+    readonly interactionKind: "contact";
+  }
+  | ElectronicPetGroomResultV1 & ElectronicPetGestureCurrentnessV1 & {
+    readonly interactionKind: "grooming";
+  }
+  | ElectronicPetBellyResultV1 & ElectronicPetGestureCurrentnessV1 & {
+    readonly interactionKind: "belly";
+  };
 
 export type ElectronicPetCommandV1 =
   | { readonly kind: "pet.home_prepare"; readonly resource: "water" | "litter" | "hideaway" }
@@ -46,14 +71,14 @@ export type ElectronicPetCommandV1 =
     readonly expectedActivityOccurrence: number;
     readonly expectedInvitationOccurrence: number;
   }
-  | ElectronicPetContactResultV1 & {
+  | ElectronicPetContactResultV1 & ElectronicPetGestureCurrentnessV1 & {
     readonly kind: "pet.contact_complete";
-    readonly expectedActivityOccurrence: number;
-    readonly expectedInvitationOccurrence?: number | undefined;
   }
-  | ElectronicPetGroomResultV1 & {
+  | ElectronicPetGroomResultV1 & ElectronicPetGestureCurrentnessV1 & {
     readonly kind: "pet.groom_complete";
-    readonly expectedActivityOccurrence: number;
+  }
+  | ElectronicPetBellyResultV1 & ElectronicPetGestureCurrentnessV1 & {
+    readonly kind: "pet.belly_complete";
   }
   | {
     readonly kind: "pet.play_complete";
@@ -126,7 +151,9 @@ export interface ElectronicPetPlayerViewV1 {
     readonly stimulation: "comfortable" | "watch" | "needs-care";
   };
   readonly lastOutcome: ElectronicPetInteractionOutcomeV1 | null;
-  readonly lastInteractionKind: "contact" | "grooming" | null;
+  readonly lastInteractionKind: "contact" | "grooming" | "belly" | null;
+  readonly lastInteractionTargetId: string | null;
+  readonly lastBellyTerminal: ElectronicPetBellyResultV1["terminal"] | null;
 }
 export interface ElectronicPetQueriesV1 {
   readonly state: ElectronicPetStateV1;
@@ -163,7 +190,7 @@ export type ElectronicPetAttemptV1 = CommandExecutionAttemptEnvelopeV1<
 >;
 
 const occurrenceV1 = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
-const commandZodV1 = z.discriminatedUnion("kind", [
+const ordinaryCommandZodV1 = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("pet.home_prepare"),
     resource: z.enum(["water", "litter", "hideaway"]),
@@ -191,6 +218,7 @@ const commandZodV1 = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("pet.groom_complete"),
     expectedActivityOccurrence: occurrenceV1,
+    expectedInvitationOccurrence: occurrenceV1.optional(),
     targetInteractionId: z.string().min(1).max(128),
     gesture: z.literal("stroke"),
     direction: z.enum(electronicPetGestureDirectionsV1),
@@ -214,6 +242,30 @@ const commandZodV1 = z.discriminatedUnion("kind", [
     expectedVisitOrdinal: occurrenceV1,
   }),
 ]);
+const bellyCommandZodV1 = z.discriminatedUnion("terminal", [
+  z.strictObject({
+    kind: z.literal("pet.belly_complete"),
+    expectedActivityOccurrence: occurrenceV1,
+    expectedInvitationOccurrence: occurrenceV1.optional(),
+    targetInteractionId: z.string().min(1).max(128),
+    terminal: z.literal("completed_before_warning"),
+    gesture: z.literal("stroke"),
+    direction: z.enum(electronicPetGestureDirectionsV1),
+    speed: z.enum(electronicPetGestureSpeedsV1),
+    duration: z.enum(electronicPetGestureDurationsV1),
+  }),
+  ...(["stopped_before_warning", "stopped_in_warning", "continued_after_warning"] as const).map(
+    (terminal) =>
+      z.strictObject({
+        kind: z.literal("pet.belly_complete"),
+        expectedActivityOccurrence: occurrenceV1,
+        expectedInvitationOccurrence: occurrenceV1.optional(),
+        targetInteractionId: z.string().min(1).max(128),
+        terminal: z.literal(terminal),
+      }),
+  ),
+]);
+const commandZodV1 = z.union([ordinaryCommandZodV1, bellyCommandZodV1]);
 export const electronicPetCommandSchemaV1: RuntimeSchemaV1<ElectronicPetCommandV1> = {
   parse: (value) => commandZodV1.parse(value),
 };

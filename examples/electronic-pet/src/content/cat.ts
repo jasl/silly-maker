@@ -11,12 +11,14 @@ export const electronicPetCatProfileV1 = {
     rest_nearby: 2,
     self_groom: 1,
     solo_ball_play: 3,
+    belly_expose: 1,
   },
   preferenceByInteractionId: {
     "interaction.pet.face": 2,
     "interaction.pet.neck": 2,
     "interaction.pet.back": 0,
     "interaction.pet.groom.back": 2,
+    "interaction.pet.belly": 2,
   },
 } as const;
 

@@ -289,6 +289,15 @@
     grid-template-columns: 1fr;
   }
 
+  .pet-authoring__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pet-authoring__actions button {
+    min-inline-size: 0;
+  }
+
   .pet-authoring__workspace {
     grid-template-columns: 150px minmax(260px, 1fr);
   }
