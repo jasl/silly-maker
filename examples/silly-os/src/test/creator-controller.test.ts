@@ -16,6 +16,7 @@ import {
 } from "../product/creator-controller.ts";
 import type { CreatorAgentTerminalRunV1 } from "../product/contracts.ts";
 import { createDeterministicFakeCreatorV1 } from "../product/fake-creator.ts";
+import { createCreatorSessionV1 } from "../product/creator-session.ts";
 import {
   createMemoryProgramRepositoryBackingV3,
   createMemoryProgramRepositoryV3,
@@ -27,7 +28,10 @@ import {
   type ProgramRepositoryCommitResultV3,
   type ProgramRepositoryWithWorkspaceContinuationV1,
 } from "../product/program-repository.ts";
-import type { ProgramWorkspaceSnapshotReceiptV1 } from "../workspace/contracts.ts";
+import type {
+  ProgramWorkspaceReviewProjectionV1,
+  ProgramWorkspaceSnapshotReceiptV1,
+} from "../workspace/contracts.ts";
 
 const intentV1 = "Create a focused writing workspace.";
 const workspaceIdV1 = "workspace.controller.test";
@@ -42,6 +46,10 @@ interface AuthorityCallsV1 {
   readonly applyRevision: BrowserProgramWorkspaceApplyRevisionInputV1[];
   readonly settleAgentRun: BrowserProgramWorkspaceSettleAgentRunInputV1[];
   readonly decide: BrowserProgramWorkspaceDecideInputV1[];
+  readonly inspectProgramWorkspace: Array<{
+    readonly programId: string;
+    readonly hostAccess: "required" | "active_only";
+  }>;
 }
 
 interface TestAuthorityHarnessV1 {
@@ -95,6 +103,52 @@ function reviewedHeadV1(programId: string, programRevision: number) {
   } as const;
 }
 
+function reviewProjectionV1(
+  aggregate: ProgramRepositoryAggregateV3,
+): ProgramWorkspaceReviewProjectionV1 {
+  const program = aggregate.snapshot.program;
+  if (program === null) throw new Error("expected Program for review projection");
+  const mutableHead = reviewedHeadV1(program.programId, program.revision);
+  const latestAcceptedDecision = aggregate.decisions.findLast((decision) =>
+    decision.status === "accepted"
+  );
+  const latestAccepted = latestAcceptedDecision?.status === "accepted"
+    ? {
+      snapshotId: latestAcceptedDecision.snapshot.snapshotId,
+      programRevision: latestAcceptedDecision.snapshot.programRevision,
+      checkpointId: latestAcceptedDecision.snapshot.checkpointId,
+      generation: latestAcceptedDecision.snapshot.generation,
+      fileCount: latestAcceptedDecision.snapshot.fileCount,
+      archiveBytes: latestAcceptedDecision.snapshot.archiveBytes,
+    }
+    : null;
+  const binding = aggregate.reviewBinding;
+  const pendingReview = binding === null ? null : {
+    proposalId: binding.proposalId,
+    programRevision: binding.programRevision,
+    checkpointId: binding.checkpointId,
+    generation: binding.generation,
+  };
+  return {
+    revision: 1,
+    latestAccepted,
+    pendingReview,
+    mutableHead,
+    acceptedStatus: latestAccepted === null
+      ? null
+      : latestAccepted.checkpointId === mutableHead.checkpointId &&
+          latestAccepted.generation === mutableHead.generation
+      ? "matches"
+      : "changed",
+    pendingStatus: pendingReview === null
+      ? null
+      : pendingReview.checkpointId === mutableHead.checkpointId &&
+          pendingReview.generation === mutableHead.generation
+      ? "matches"
+      : "changed",
+  };
+}
+
 function createTestAuthorityV1(): TestAuthorityHarnessV1 {
   const backing = createMemoryProgramRepositoryBackingV3();
   const repository = createMemoryProgramRepositoryV3({ backing });
@@ -103,6 +157,7 @@ function createTestAuthorityV1(): TestAuthorityHarnessV1 {
     applyRevision: [],
     settleAgentRun: [],
     decide: [],
+    inspectProgramWorkspace: [],
   };
   const acceptedReceipts: ProgramWorkspaceSnapshotReceiptV1[] = [];
   let disposeCalls = 0;
@@ -204,6 +259,14 @@ function createTestAuthorityV1(): TestAuthorityHarnessV1 {
       if (existing === undefined) acceptedReceipts.push(snapshotReceipt);
       return await repository.decide({ ...input, continuation, snapshotReceipt });
     },
+    async inspectProgramWorkspace(programId, options) {
+      calls.inspectProgramWorkspace.push({
+        programId,
+        hostAccess: options?.hostAccess ?? "required",
+      });
+      const aggregate = await repository.load(programId);
+      return aggregate === null ? null : { aggregate, review: reviewProjectionV1(aggregate) };
+    },
     async closeActiveWorkspace() {
       return null;
     },
@@ -232,6 +295,8 @@ function proxyAuthorityV1(
     applyRevision: overrides.applyRevision ?? ((input) => delegate.applyRevision(input)),
     settleAgentRun: overrides.settleAgentRun ?? ((input) => delegate.settleAgentRun(input)),
     decide: overrides.decide ?? ((input) => delegate.decide(input)),
+    inspectProgramWorkspace: overrides.inspectProgramWorkspace ??
+      ((programId, options) => delegate.inspectProgramWorkspace(programId, options)),
     closeActiveWorkspace: overrides.closeActiveWorkspace ?? (() => delegate.closeActiveWorkspace()),
   };
 }
@@ -323,13 +388,30 @@ describe("SillyOS durable Creator controller", () => {
 
     expect(observed.phases).toEqual(["saving", "ready"]);
     expect(observed.routes).toEqual(["home", "workspace"]);
-    expect(controller.getSnapshot().session.program?.revision).toBe(1);
+    const createdProgram = controller.getSnapshot().session.program;
+    const createdProposal = controller.getSnapshot().session.proposal;
+    if (createdProgram === null || createdProposal === null) {
+      throw new Error("expected created Program review");
+    }
+    expect(createdProgram.revision).toBe(1);
+    expect(controller.getSnapshot().workspaceReview).toEqual({
+      revision: 1,
+      latestAccepted: null,
+      pendingReview: {
+        proposalId: createdProposal.proposalId,
+        programRevision: 1,
+        ...reviewedHeadV1(createdProgram.programId, 1),
+      },
+      mutableHead: reviewedHeadV1(createdProgram.programId, 1),
+      acceptedStatus: null,
+      pendingStatus: "matches",
+    });
     expect(controller.getSnapshot().recentPrograms).toHaveLength(1);
     observed.unsubscribe();
     await controller.dispose();
   });
 
-  it("keeps accepted snapshot receipts inside Authority and does not own its lifecycle", async () => {
+  it("projects accepted snapshot identity across cold reopen and later drafts", async () => {
     const harness = createTestAuthorityV1();
     const controller = createControllerV1({ authority: harness.authority });
     await controller.initialize();
@@ -354,6 +436,22 @@ describe("SillyOS durable Creator controller", () => {
     expect(harness.acceptedReceipts).toHaveLength(1);
     const programId = controller.getSnapshot().session.program?.programId;
     if (programId === undefined) throw new Error("expected Program id");
+    const acceptedProjection = controller.getSnapshot().workspaceReview;
+    expect(acceptedProjection).toEqual({
+      revision: 1,
+      latestAccepted: {
+        snapshotId: harness.acceptedReceipts[0]?.snapshotId,
+        programRevision: proposal.programRevision,
+        checkpointId: harness.acceptedReceipts[0]?.checkpointId,
+        generation: harness.acceptedReceipts[0]?.generation,
+        fileCount: harness.acceptedReceipts[0]?.fileCount,
+        archiveBytes: harness.acceptedReceipts[0]?.archiveBytes,
+      },
+      pendingReview: null,
+      mutableHead: reviewedHeadV1(programId, proposal.programRevision),
+      acceptedStatus: "matches",
+      pendingStatus: null,
+    });
     const durable = await harness.authority.load(programId);
     expect(durable?.decisions).toEqual([
       expect.objectContaining({
@@ -375,6 +473,16 @@ describe("SillyOS durable Creator controller", () => {
       value: true,
     });
     expect(secondController.getSnapshot().session.proposal?.status).toBe("accepted");
+    expect(secondController.getSnapshot().workspaceReview).toEqual(acceptedProjection);
+
+    await expect(secondController.sendFollowUp("Keep an editable later draft.")).resolves
+      .toMatchObject({ kind: "completed", value: { kind: "sent", programRevision: 2 } });
+    expect(secondController.getSnapshot().workspaceReview).toMatchObject({
+      latestAccepted: acceptedProjection?.latestAccepted,
+      pendingReview: { programRevision: 2 },
+      acceptedStatus: "changed",
+      pendingStatus: "matches",
+    });
     await secondController.dispose();
     expect(harness.disposeCalls()).toBe(0);
     await harness.authority.dispose();
@@ -564,32 +672,115 @@ describe("SillyOS durable Creator controller", () => {
     await controller.dispose();
   });
 
-  it("surfaces an Authority conflict without retaining a blind retry", async () => {
+  it("installs a cross-page decision winner through conflict-safe inspection", async () => {
     const harness = createTestAuthorityV1();
-    let terminalCalls = 0;
+    let conflictReturned = false;
+    let conflictInspectionHostAccess: "required" | "active_only" | null = null;
+    let decisionCalls = 0;
     const authority = proxyAuthorityV1(harness.authority, {
-      async settleAgentRun(input) {
-        terminalCalls += 1;
-        return { kind: "conflict", current: await harness.authority.load(input.programId) };
+      async decide(input) {
+        decisionCalls += 1;
+        const durable = await harness.authority.load(input.programId);
+        if (
+          durable === null || durable.snapshot.program === null ||
+          durable.snapshot.proposal === null
+        ) {
+          throw new Error("expected durable decision base");
+        }
+        const winnerSession = createCreatorSessionV1({
+          creator: createDeterministicFakeCreatorV1(),
+          initialSnapshot: durable.snapshot,
+        });
+        if (winnerSession.sendFollowUp("A different page advanced the Program.").kind !== "sent") {
+          throw new Error("expected winner revision");
+        }
+        const winner = await harness.authority.applyRevision({
+          programId: input.programId,
+          expectedRepositoryRevision: durable.repositoryRevision,
+          expectedBase: {
+            proposalId: durable.snapshot.proposal.proposalId,
+            programId: input.programId,
+            baseProgramRevision: durable.snapshot.program.revision,
+          },
+          snapshot: winnerSession.getSnapshot(),
+          updatedAt: input.updatedAt + 1,
+        });
+        if (winner.kind === "conflict") throw new Error("expected cross-page winner");
+        conflictReturned = true;
+        return { kind: "conflict", current: winner.aggregate };
+      },
+      async inspectProgramWorkspace(programId, options) {
+        if (conflictReturned) {
+          conflictInspectionHostAccess = options?.hostAccess ?? "required";
+          if (conflictInspectionHostAccess !== "active_only") {
+            throw new Error("required inspection would contend for the winner Host");
+          }
+        }
+        return await harness.authority.inspectProgramWorkspace(programId);
       },
     });
     const controller = createControllerV1({ authority });
     await controller.initialize();
     await controller.submitIntent(intentV1);
-    const before = controller.getSnapshot().session;
+    const proposal = controller.getSnapshot().session.proposal;
+    if (proposal === null) throw new Error("expected stale proposal");
 
-    await expect(controller.recordAgentRunTerminal(completedTerminalV1(controller))).resolves
+    await expect(controller.acceptProposal(proposal)).resolves
       .toEqual({ kind: "failed", code: "conflict" });
 
     expect(controller.getSnapshot().durability).toEqual({
       phase: "failed",
-      operation: "agent_run",
+      operation: "decision",
       code: "conflict",
       recovery: null,
     });
-    expect(controller.getSnapshot().session).toEqual(before);
+    expect(controller.getSnapshot().session).toMatchObject({
+      program: { revision: 2 },
+      proposal: { status: "pending", programRevision: 2 },
+    });
+    expect(controller.getSnapshot().workspaceReview).toMatchObject({
+      pendingReview: { programRevision: 2 },
+      pendingStatus: "matches",
+    });
+    expect(conflictInspectionHostAccess).toBe("active_only");
     await expect(controller.retry()).resolves.toBe(false);
-    expect(terminalCalls).toBe(1);
+    expect(decisionCalls).toBe(1);
+    await controller.dispose();
+  });
+
+  it("does not invent currentness when post-commit inspection fails", async () => {
+    const harness = createTestAuthorityV1();
+    let failInspection = false;
+    const authority = proxyAuthorityV1(harness.authority, {
+      async inspectProgramWorkspace(programId) {
+        if (failInspection) throw new Error("inspection unavailable");
+        return await harness.authority.inspectProgramWorkspace(programId);
+      },
+    });
+    const controller = createControllerV1({ authority });
+    await controller.initialize();
+    await controller.submitIntent(intentV1);
+    const before = controller.getSnapshot();
+
+    failInspection = true;
+    await expect(controller.sendFollowUp("This commit cannot yet be projected.")).resolves.toEqual({
+      kind: "failed",
+      code: "authority_failed",
+    });
+
+    expect(controller.getSnapshot().session).toBe(before.session);
+    expect(controller.getSnapshot().workspaceReview).toEqual({
+      ...before.workspaceReview,
+      mutableHead: null,
+      acceptedStatus: null,
+      pendingStatus: "unavailable",
+    });
+    expect(controller.getSnapshot().durability).toEqual({
+      phase: "failed",
+      operation: "revision",
+      code: "authority_failed",
+      recovery: "retry",
+    });
     await controller.dispose();
   });
 
@@ -616,6 +807,7 @@ describe("SillyOS durable Creator controller", () => {
     closeGate.resolve(null);
     await expect(pendingHome).resolves.toBe(true);
     expect(controller.getSnapshot().session.route).toBe("home");
+    expect(controller.getSnapshot().workspaceReview).toBeNull();
 
     const reopened = await controller.openProgram(before.program?.programId ?? "missing");
     expect(reopened).toEqual({ kind: "completed", value: true });
@@ -629,6 +821,7 @@ describe("SillyOS durable Creator controller", () => {
 
     await expect(failingController.openHome()).resolves.toBe(false);
     expect(failingController.getSnapshot().session).toEqual(reopenedSnapshot);
+    expect(failingController.getSnapshot().workspaceReview).not.toBeNull();
     expect(failingController.getSnapshot().durability).toEqual({ phase: "ready" });
     await failingController.dispose();
     await controller.dispose();
@@ -717,6 +910,7 @@ describe("SillyOS durable Creator controller", () => {
 
     await controller.dispose();
     const disposedSnapshot = controller.getSnapshot();
+    expect(disposedSnapshot.workspaceReview).toBeNull();
 
     expect(controller.prepareAgentRun("This must not mint another run.")).toEqual({ kind: "busy" });
     expect(agentRunIdCalls).toBe(1);

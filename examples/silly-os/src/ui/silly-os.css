@@ -1212,6 +1212,105 @@ body,
   background: var(--sos-accent-soft);
 }
 
+.program-workspace-review {
+  margin: 12px 0 0 38px;
+  padding: 12px 13px;
+  border: 1px solid var(--sos-line);
+  border-radius: 11px;
+  background: #f8faf9;
+}
+
+.program-workspace-review h3 {
+  margin: 0 0 9px;
+  color: var(--sos-ink);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.program-workspace-review dl {
+  display: grid;
+  margin: 0;
+  gap: 9px;
+}
+
+.program-workspace-review dl > div {
+  display: grid;
+  grid-template-columns: minmax(78px, 0.32fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+}
+
+.program-workspace-review dt {
+  color: var(--sos-ink-muted);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.program-workspace-review dd {
+  display: grid;
+  min-inline-size: 0;
+  margin: 0;
+  gap: 3px;
+  color: var(--sos-ink-soft);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.program-workspace-review dd > span {
+  display: flex;
+  min-inline-size: 0;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 3px 6px;
+}
+
+.program-workspace-review dd > span > span {
+  color: var(--sos-ink-muted);
+}
+
+.program-workspace-review code {
+  min-inline-size: 0;
+  color: var(--sos-ink);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.program-workspace-review small {
+  color: var(--sos-ink-muted);
+  font-size: 10px;
+}
+
+.program-workspace-review__status {
+  display: grid;
+  margin-block-start: 10px;
+  gap: 5px;
+}
+
+.program-workspace-review__status p {
+  margin: 0;
+  padding: 7px 8px;
+  border-radius: 7px;
+  color: var(--sos-teal);
+  background: var(--sos-teal-soft);
+  font-size: 10px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.program-workspace-review__status p[data-review-status="changed"] {
+  color: #8a3d27;
+  background: var(--sos-accent-soft);
+}
+
+.program-workspace-review__status p[data-review-status="unavailable"] {
+  color: var(--sos-ink-soft);
+  background: #efefec;
+}
+
 .workpiece-link {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -2450,6 +2549,7 @@ body,
 
   .program-proposal,
   .pi-agent-run,
+  .program-workspace-review,
   .workpiece-link {
     margin-inline-start: 0;
     inline-size: 100%;

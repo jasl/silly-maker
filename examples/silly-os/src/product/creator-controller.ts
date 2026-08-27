@@ -20,6 +20,7 @@ import type {
   ProgramRepositoryCommitResultV3,
   ProgramRepositorySummaryV3,
 } from "./program-repository.ts";
+import type { ProgramWorkspaceReviewProjectionV1 } from "../workspace/contracts.ts";
 
 export type CreatorControllerAuthorityV1 = Pick<
   BrowserProgramWorkspaceAuthorityV1,
@@ -30,6 +31,7 @@ export type CreatorControllerAuthorityV1 = Pick<
   | "applyRevision"
   | "settleAgentRun"
   | "decide"
+  | "inspectProgramWorkspace"
   | "closeActiveWorkspace"
 >;
 
@@ -60,6 +62,7 @@ export interface CreatorControllerSnapshotV1 {
   readonly revision: number;
   readonly session: CreatorSessionSnapshotV1;
   readonly recentPrograms: readonly ProgramRepositorySummaryV3[];
+  readonly workspaceReview: ProgramWorkspaceReviewProjectionV1 | null;
   readonly durability: CreatorDurabilityStateV1;
 }
 
@@ -191,6 +194,18 @@ function isMutationBusyV1(state: CreatorDurabilityStateV1): boolean {
   return state.phase === "saving";
 }
 
+function unavailableWorkspaceReviewV1(
+  review: ProgramWorkspaceReviewProjectionV1 | null,
+): ProgramWorkspaceReviewProjectionV1 | null {
+  if (review === null) return null;
+  return {
+    ...review,
+    mutableHead: null,
+    acceptedStatus: review.latestAccepted === null ? null : "unavailable",
+    pendingStatus: review.pendingReview === null ? null : "unavailable",
+  };
+}
+
 export function createCreatorControllerV1(input: {
   readonly creator: CreatorPreviewPortV1;
   readonly authority: CreatorControllerAuthorityV1;
@@ -211,6 +226,7 @@ export function createCreatorControllerV1(input: {
     revision: 0,
     session: createEmptyCreatorSessionSnapshotV1(input.creator.source),
     recentPrograms: [],
+    workspaceReview: null,
     durability: { phase: "loading", operation: "catalog" },
   };
 
@@ -230,19 +246,25 @@ export function createCreatorControllerV1(input: {
     publish({
       session: snapshot.session,
       recentPrograms: snapshot.recentPrograms,
+      workspaceReview: snapshot.workspaceReview,
       durability,
     });
   };
 
   const isBusy = (): boolean => homeTransitionPending || isMutationBusyV1(snapshot.durability);
 
-  const installAggregate = (aggregate: ProgramRepositoryAggregateV3): void => {
+  const installProgram = (inspection: {
+    readonly aggregate: ProgramRepositoryAggregateV3;
+    readonly review: ProgramWorkspaceReviewProjectionV1;
+  }): void => {
     if (disposed) return;
+    const { aggregate, review } = inspection;
     activeAggregate = aggregate;
     retryCommand = null;
     publish({
       session: aggregate.snapshot,
       recentPrograms: upsertRecentV1(snapshot.recentPrograms, aggregate),
+      workspaceReview: review,
       durability: { phase: "ready" },
     });
   };
@@ -252,15 +274,22 @@ export function createCreatorControllerV1(input: {
     code: string,
     recovery: "retry" | null,
     retry: RetryCommandV1 | null,
+    workspaceReview: ProgramWorkspaceReviewProjectionV1 | null = snapshot.workspaceReview,
   ): CreatorControllerResultV1<never> => {
     if (disposed) return { kind: "failed", code: "disposed" };
     retryCommand = retry;
-    publishDurability({ phase: "failed", operation, code, recovery });
+    publish({
+      session: snapshot.session,
+      recentPrograms: snapshot.recentPrograms,
+      workspaceReview,
+      durability: { phase: "failed", operation, code, recovery },
+    });
     return { kind: "failed", code };
   };
 
   const runCommit = async <T>(mutation: {
     readonly operation: "create" | "revision" | "decision" | "agent_run";
+    readonly programId: string;
     readonly domainResult: T;
     readonly commit: (
       authority: CreatorControllerAuthorityV1,
@@ -276,15 +305,59 @@ export function createCreatorControllerV1(input: {
       const result = await mutation.commit(authority);
       if (disposed) return { kind: "failed", code: "disposed" };
       if (result.kind === "conflict") {
-        if (result.current !== null) installAggregate(result.current);
+        if (result.current === null) return fail(mutation.operation, "conflict", null, null);
+        let inspection: Awaited<
+          ReturnType<CreatorControllerAuthorityV1["inspectProgramWorkspace"]>
+        >;
+        try {
+          inspection = await authority.inspectProgramWorkspace(mutation.programId, {
+            hostAccess: "active_only",
+          });
+        } catch {
+          return fail(
+            mutation.operation,
+            "conflict",
+            null,
+            null,
+            unavailableWorkspaceReviewV1(snapshot.workspaceReview),
+          );
+        }
+        if (disposed) return { kind: "failed", code: "disposed" };
+        if (inspection === null) {
+          return fail(
+            mutation.operation,
+            "conflict",
+            null,
+            null,
+            unavailableWorkspaceReviewV1(snapshot.workspaceReview),
+          );
+        }
+        installProgram(inspection);
         return fail(mutation.operation, "conflict", null, null);
       }
-      installAggregate(result.aggregate);
+      const inspection = await authority.inspectProgramWorkspace(mutation.programId);
+      if (disposed) return { kind: "failed", code: "disposed" };
+      if (inspection === null) {
+        return fail(
+          mutation.operation,
+          "workspace_inspection_unavailable",
+          "retry",
+          retryMutation,
+          unavailableWorkspaceReviewV1(snapshot.workspaceReview),
+        );
+      }
+      installProgram(inspection);
       return { kind: "completed", value: mutation.domainResult };
     } catch (error) {
       if (disposed) return { kind: "failed", code: "disposed" };
       const code = failureCodeV1(error);
-      return fail(mutation.operation, code, "retry", retryMutation);
+      return fail(
+        mutation.operation,
+        code,
+        "retry",
+        retryMutation,
+        unavailableWorkspaceReviewV1(snapshot.workspaceReview),
+      );
     }
   };
 
@@ -299,6 +372,7 @@ export function createCreatorControllerV1(input: {
       publish({
         session: snapshot.session,
         recentPrograms,
+        workspaceReview: snapshot.workspaceReview,
         durability: { phase: "ready" },
       });
     } catch (error) {
@@ -343,6 +417,7 @@ export function createCreatorControllerV1(input: {
     }
     return runCommit({
       operation: "decision",
+      programId: program.programId,
       domainResult,
       commit: (candidateAuthority) =>
         candidateAuthority.decide({
@@ -363,10 +438,10 @@ export function createCreatorControllerV1(input: {
     retryCommand = null;
     publishDurability({ phase: "loading", operation: "open" });
     try {
-      const aggregate = await authority.load(programId);
+      const inspection = await authority.inspectProgramWorkspace(programId);
       if (disposed) return { kind: "failed", code: "disposed" };
-      if (aggregate === null) return fail("open", "not_found", null, null);
-      installAggregate(aggregate);
+      if (inspection === null) return fail("open", "not_found", null, null);
+      installProgram(inspection);
       return { kind: "completed", value: true };
     } catch (error) {
       if (disposed) return { kind: "failed", code: "disposed" };
@@ -404,6 +479,7 @@ export function createCreatorControllerV1(input: {
       const updatedAt = now();
       return runCommit({
         operation: "create",
+        programId: program.programId,
         domainResult,
         commit: (candidateAuthority) =>
           candidateAuthority.create({ snapshot: desiredSnapshot, updatedAt }),
@@ -431,6 +507,7 @@ export function createCreatorControllerV1(input: {
       const updatedAt = now();
       return runCommit({
         operation: "revision",
+        programId: currentProgram.programId,
         domainResult,
         commit: (candidateAuthority) =>
           candidateAuthority.applyRevision({
@@ -517,6 +594,7 @@ export function createCreatorControllerV1(input: {
       const updatedAt = now();
       return runCommit({
         operation: "agent_run",
+        programId: terminal.run.programId,
         domainResult,
         commit: (candidateAuthority) =>
           candidateAuthority.settleAgentRun({
@@ -541,6 +619,7 @@ export function createCreatorControllerV1(input: {
         publish({
           session: createEmptyCreatorSessionSnapshotV1(input.creator.source),
           recentPrograms: snapshot.recentPrograms,
+          workspaceReview: null,
           durability: { phase: "ready" },
         });
         return true;
@@ -564,6 +643,7 @@ export function createCreatorControllerV1(input: {
         revision: snapshot.revision + 1,
         session: snapshot.session,
         recentPrograms: snapshot.recentPrograms,
+        workspaceReview: null,
         durability: { phase: "disposed" },
       };
       listeners.clear();

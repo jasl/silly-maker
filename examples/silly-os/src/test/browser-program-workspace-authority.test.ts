@@ -83,6 +83,7 @@ function fakeHostBackingV1(): FakeHostBackingV1 {
 }
 
 interface FakeHostHooksV1 {
+  beforeOpen?: () => void | Promise<void>;
   beforeCapture?: () => void | Promise<void>;
   beforeExportReady?: () => void | Promise<void>;
   beforeAdopt?: () => void | Promise<void>;
@@ -187,6 +188,7 @@ function fakeHostV1(
     },
     async openWorkspace(anchor) {
       sharedEvents.push("host:open");
+      await hooks.beforeOpen?.();
       const volume = backing.volumes.get(anchor.volumeId);
       if (volume === undefined || JSON.stringify(volume.anchor) !== JSON.stringify(anchor)) {
         throw codedHostErrorV1("volume_missing");
@@ -642,6 +644,277 @@ describe("Browser Program workspace authority V1", () => {
       reopened.snapshot.descriptor.workspaceSessionId,
     );
     await second.authority.dispose();
+  });
+
+  it("projects a first pending review as unavailable without opening Host for inspection", async () => {
+    const harness = authorityHarnessV1();
+    const { fixture, result } = await createProgramV1(
+      harness,
+      "workspace.authority.inspect-unavailable",
+    );
+    if (result.kind === "conflict") throw new Error("expected initial Program");
+    const binding = result.aggregate.reviewBinding;
+    if (binding === null) throw new Error("expected pending review binding");
+    const eventsBeforeInspection = [...harness.host.events];
+
+    await expect(harness.authority.inspectProgramWorkspace(fixture.programId)).resolves.toEqual({
+      aggregate: result.aggregate,
+      review: {
+        revision: 1,
+        latestAccepted: null,
+        pendingReview: {
+          proposalId: binding.proposalId,
+          programRevision: binding.programRevision,
+          checkpointId: binding.checkpointId,
+          generation: binding.generation,
+        },
+        mutableHead: null,
+        acceptedStatus: null,
+        pendingStatus: "unavailable",
+      },
+    });
+    expect(harness.host.events).toEqual(eventsBeforeInspection);
+    expect(harness.host.activeSessionId).toBeNull();
+    await harness.authority.dispose();
+  });
+
+  it("projects exact accepted and later-pending review heads against the mutable head", async () => {
+    const first = authorityHarnessV1();
+    const { fixture } = await createProgramV1(first, "workspace.authority.inspect-review");
+    const accepted = await decideV1({
+      authority: first.authority,
+      session: fixture.session,
+      fixture,
+      status: "accepted",
+      expectedRepositoryRevision: 1,
+      updatedAt: 2,
+    });
+    if (accepted.kind === "conflict") throw new Error("expected accepted revision");
+    const receipt = accepted.aggregate.decisions.flatMap((decision) =>
+      decision.status === "accepted" ? [decision.snapshot] : []
+    ).at(-1);
+    if (receipt === undefined) throw new Error("expected accepted snapshot receipt");
+    const acceptedProjection = {
+      snapshotId: receipt.snapshotId,
+      programRevision: receipt.programRevision,
+      checkpointId: receipt.checkpointId,
+      generation: receipt.generation,
+      fileCount: receipt.fileCount,
+      archiveBytes: receipt.archiveBytes,
+    };
+    await first.authority.dispose();
+
+    const harness = authorityHarnessV1({
+      repositoryBacking: first.repositoryBacking,
+      hostBacking: first.hostBacking,
+    });
+
+    await expect(harness.authority.inspectProgramWorkspace(fixture.programId)).resolves.toEqual({
+      aggregate: accepted.aggregate,
+      review: {
+        revision: 1,
+        latestAccepted: acceptedProjection,
+        pendingReview: null,
+        mutableHead: {
+          checkpointId: receipt.checkpointId,
+          generation: receipt.generation,
+        },
+        acceptedStatus: "matches",
+        pendingStatus: null,
+      },
+    });
+    expect(harness.host.events).toContain("host:query_retained");
+    expect(harness.host.events).toContain("host:query");
+
+    const workspaceSessionId = harness.host.activeSessionId;
+    if (workspaceSessionId === null) throw new Error("expected recovered Host session");
+    const laterHead = harness.host.advanceHead(workspaceSessionId);
+    const revised = await applyFollowUpV1({
+      authority: harness.authority,
+      fixture,
+      expectedRepositoryRevision: accepted.aggregate.repositoryRevision,
+      text: "Create a later independent draft.",
+      updatedAt: 3,
+    });
+    if (revised.kind === "conflict") throw new Error("expected later pending revision");
+    const pending = revised.aggregate.reviewBinding;
+    if (pending === null) throw new Error("expected later pending review binding");
+
+    await expect(harness.authority.inspectProgramWorkspace(fixture.programId)).resolves.toEqual({
+      aggregate: revised.aggregate,
+      review: {
+        revision: 1,
+        latestAccepted: acceptedProjection,
+        pendingReview: {
+          proposalId: pending.proposalId,
+          programRevision: pending.programRevision,
+          checkpointId: pending.checkpointId,
+          generation: pending.generation,
+        },
+        mutableHead: {
+          checkpointId: laterHead.checkpointId,
+          generation: laterHead.descriptor.generation,
+        },
+        acceptedStatus: "changed",
+        pendingStatus: "matches",
+      },
+    });
+
+    const newestHead = harness.host.advanceHead(workspaceSessionId);
+    await expect(harness.authority.inspectProgramWorkspace(fixture.programId)).resolves
+      .toMatchObject(
+        {
+          aggregate: revised.aggregate,
+          review: {
+            latestAccepted: acceptedProjection,
+            mutableHead: {
+              checkpointId: newestHead.checkpointId,
+              generation: newestHead.descriptor.generation,
+            },
+            acceptedStatus: "changed",
+            pendingStatus: "changed",
+          },
+        },
+      );
+    await harness.authority.dispose();
+  });
+
+  it("returns durable current for stale Accept before any snapshot Host operation", async () => {
+    const harness = authorityHarnessV1();
+    const { fixture } = await createProgramV1(harness, "workspace.authority.stale-accept");
+    const staleSession = sessionFromSnapshotV1(fixture.session.getSnapshot());
+    const revised = await applyFollowUpV1({
+      authority: harness.authority,
+      fixture,
+      expectedRepositoryRevision: 1,
+      text: "A concurrent page won with revision two.",
+      updatedAt: 2,
+    });
+    if (revised.kind === "conflict") throw new Error("expected concurrent winner");
+    const eventsBeforeAccept = [...harness.host.events];
+
+    await expect(decideV1({
+      authority: harness.authority,
+      session: staleSession,
+      fixture,
+      status: "accepted",
+      expectedRepositoryRevision: 1,
+      updatedAt: 3,
+    })).resolves.toEqual({ kind: "conflict", current: revised.aggregate });
+    expect(harness.host.events).toEqual(eventsBeforeAccept);
+    expect(harness.host.prepared).toHaveLength(0);
+    expect(harness.host.adopted).toHaveLength(0);
+    expect(harness.host.discardedSnapshots).toHaveLength(0);
+    await harness.authority.dispose();
+  });
+
+  it("rejects a historical accepted replay before Host and inspects its winner without opening", async () => {
+    const winner = authorityHarnessV1();
+    const { fixture } = await createProgramV1(
+      winner,
+      "workspace.authority.historical-accept",
+    );
+    const revision2 = await applyFollowUpV1({
+      authority: winner.authority,
+      fixture,
+      expectedRepositoryRevision: 1,
+      text: "Prepare accepted revision two.",
+      updatedAt: 2,
+    });
+    if (revision2.kind === "conflict") throw new Error("expected revision two");
+    const staleSession = sessionFromSnapshotV1(fixture.session.getSnapshot());
+    const accepted = await decideV1({
+      authority: winner.authority,
+      session: fixture.session,
+      fixture,
+      status: "accepted",
+      expectedRepositoryRevision: 2,
+      updatedAt: 3,
+    });
+    if (accepted.kind === "conflict") throw new Error("expected accepted revision two");
+    const revision3 = await applyFollowUpV1({
+      authority: winner.authority,
+      fixture,
+      expectedRepositoryRevision: 3,
+      text: "Advance the winner to revision three.",
+      updatedAt: 4,
+    });
+    if (revision3.kind === "conflict") throw new Error("expected revision three");
+    expect(winner.host.activeSessionId).not.toBeNull();
+
+    const stale = authorityHarnessV1({
+      repositoryBacking: winner.repositoryBacking,
+      hostBacking: winner.hostBacking,
+      hooks: {
+        beforeOpen() {
+          throw codedHostErrorV1("workspace_busy");
+        },
+      },
+    });
+    await stale.authority.initialize();
+    const eventsBeforeReplay = [...stale.host.events];
+    await expect(decideV1({
+      authority: stale.authority,
+      session: staleSession,
+      fixture,
+      status: "accepted",
+      expectedRepositoryRevision: 2,
+      updatedAt: 3,
+    })).resolves.toEqual({ kind: "conflict", current: revision3.aggregate });
+    expect(stale.host.events).toEqual(eventsBeforeReplay);
+
+    const receipt = accepted.aggregate.decisions.find((decision) =>
+      decision.status === "accepted" && decision.programRevision === 2
+    );
+    const pending = revision3.aggregate.reviewBinding;
+    if (receipt?.status !== "accepted" || pending === null) {
+      throw new Error("expected durable accepted and pending anchors");
+    }
+    await expect(stale.authority.inspectProgramWorkspace(fixture.programId, {
+      hostAccess: "active_only",
+    })).resolves.toEqual({
+      aggregate: revision3.aggregate,
+      review: {
+        revision: 1,
+        latestAccepted: {
+          snapshotId: receipt.snapshot.snapshotId,
+          programRevision: receipt.snapshot.programRevision,
+          checkpointId: receipt.snapshot.checkpointId,
+          generation: receipt.snapshot.generation,
+          fileCount: receipt.snapshot.fileCount,
+          archiveBytes: receipt.snapshot.archiveBytes,
+        },
+        pendingReview: {
+          proposalId: pending.proposalId,
+          programRevision: pending.programRevision,
+          checkpointId: pending.checkpointId,
+          generation: pending.generation,
+        },
+        mutableHead: null,
+        acceptedStatus: "unavailable",
+        pendingStatus: "unavailable",
+      },
+    });
+    expect(stale.host.events).toEqual(eventsBeforeReplay);
+    await stale.authority.dispose();
+    await winner.authority.dispose();
+  });
+
+  it("exposes a stable Authority error code while preserving the existing message", async () => {
+    const harness = authorityHarnessV1();
+    const error = await harness.authority.queryWorkspace("workspace-session.missing").then(
+      () => null,
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(TypeError);
+    expect(error).toMatchObject({
+      code: "workspace_mismatch",
+      message: "sillyos.browser_program_workspace.workspace_mismatch",
+    });
+    if (error === null || typeof error !== "object") throw new Error("expected Authority error");
+    expect(Reflect.set(error, "code", "changed")).toBe(false);
+    expect(Reflect.get(error, "code")).toBe("workspace_mismatch");
+    await harness.authority.dispose();
   });
 
   it("cleans a lost-create candidate only when fresh Repository truth is known-unowned", async () => {

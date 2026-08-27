@@ -16,6 +16,7 @@ import type {
   CreatorWorkspaceV1,
   PreviewProgramV1,
 } from "../product/contracts.ts";
+import type { ProgramWorkspaceReviewProjectionV1 } from "../workspace/contracts.ts";
 import { ChatPaneV1, type ChatPanePropsV1 } from "./chat-pane.tsx";
 import { SillyButtonV1 as Button } from "./controls.tsx";
 import {
@@ -57,6 +58,7 @@ function useNarrowViewportV1(): boolean {
 export interface ProgramWorkspacePropsV1 {
   readonly copy: SillyOsCopyV1;
   readonly snapshot: CreatorSessionSnapshotV1;
+  readonly workspaceReview: ProgramWorkspaceReviewProjectionV1 | null;
   readonly onHome: () => void;
   readonly onLocaleChange: (locale: SillyOsLocaleV1) => void;
   readonly onAccept: () => void;
@@ -73,6 +75,51 @@ export interface ProgramWorkspacePropsV1 {
   readonly onRequestStoragePersistence?: () => void;
   readonly onExportWorkspace?: () => void;
   readonly onCancelWorkspaceExport?: () => void;
+}
+
+function unavailableWorkspaceReviewV1(
+  review: ProgramWorkspaceReviewProjectionV1,
+): ProgramWorkspaceReviewProjectionV1 {
+  return {
+    ...review,
+    mutableHead: null,
+    acceptedStatus: review.latestAccepted === null ? null : "unavailable",
+    pendingStatus: review.pendingReview === null ? null : "unavailable",
+  };
+}
+
+/**
+ * Reconciles the last exact Authority projection with the newer session-local
+ * execution projection without promoting the latter into a review receipt.
+ */
+export function presentWorkspaceReviewV1(
+  review: ProgramWorkspaceReviewProjectionV1 | null,
+  executionWorkspace: WorkpieceExecutionWorkspaceV1 | undefined,
+): ProgramWorkspaceReviewProjectionV1 | null {
+  if (review === null || executionWorkspace === undefined) return review;
+  if (executionWorkspace.phase !== "open" || executionWorkspace.descriptor === null) {
+    return unavailableWorkspaceReviewV1(review);
+  }
+  if (
+    review.mutableHead === null ||
+    executionWorkspace.descriptor.generation === review.mutableHead.generation
+  ) return review;
+
+  const liveGeneration = executionWorkspace.descriptor.generation;
+  return {
+    ...review,
+    mutableHead: null,
+    acceptedStatus: review.latestAccepted === null
+      ? null
+      : liveGeneration > review.latestAccepted.generation
+      ? "changed"
+      : "unavailable",
+    pendingStatus: review.pendingReview === null
+      ? null
+      : liveGeneration > review.pendingReview.generation
+      ? "changed"
+      : "unavailable",
+  };
 }
 
 export function ProgramWorkspaceV1({
@@ -93,6 +140,7 @@ interface ProgramWorkspaceReadyPropsV1 extends ProgramWorkspacePropsV1 {
 function ProgramWorkspaceReadyV1({
   copy,
   snapshot,
+  workspaceReview,
   workspace,
   program,
   onHome,
@@ -122,6 +170,10 @@ function ProgramWorkspaceReadyV1({
   const [fullscreen, setFullscreen] = useState(false);
   const [activeTab, setActiveTab] = useState<WorkpieceTabV1>("view");
   const [mobilePane, setMobilePane] = useState<WorkspaceMobilePaneV1>("chat");
+  const presentedWorkspaceReview = presentWorkspaceReviewV1(
+    workspaceReview,
+    executionWorkspace,
+  );
 
   useEffect(() => {
     const split = splitRef.current;
@@ -197,6 +249,32 @@ function ProgramWorkspaceReadyV1({
       data-workspace-layout={narrow ? "single-pane" : "dual-pane"}
       data-program-id={program.programId}
       data-program-revision={program.revision}
+      data-workspace-review-revision={presentedWorkspaceReview?.revision}
+      data-workspace-review-accepted-snapshot-id={presentedWorkspaceReview?.latestAccepted
+        ?.snapshotId}
+      data-workspace-review-accepted-program-revision={presentedWorkspaceReview?.latestAccepted
+        ?.programRevision}
+      data-workspace-review-accepted-checkpoint-id={presentedWorkspaceReview?.latestAccepted
+        ?.checkpointId}
+      data-workspace-review-accepted-generation={presentedWorkspaceReview?.latestAccepted
+        ?.generation}
+      data-workspace-review-accepted-file-count={presentedWorkspaceReview?.latestAccepted
+        ?.fileCount}
+      data-workspace-review-accepted-archive-bytes={presentedWorkspaceReview?.latestAccepted
+        ?.archiveBytes}
+      data-workspace-review-accepted-status={presentedWorkspaceReview?.acceptedStatus ?? undefined}
+      data-workspace-review-pending-proposal-id={presentedWorkspaceReview?.pendingReview
+        ?.proposalId}
+      data-workspace-review-pending-program-revision={presentedWorkspaceReview?.pendingReview
+        ?.programRevision}
+      data-workspace-review-pending-checkpoint-id={presentedWorkspaceReview?.pendingReview
+        ?.checkpointId}
+      data-workspace-review-pending-generation={presentedWorkspaceReview?.pendingReview
+        ?.generation}
+      data-workspace-review-pending-status={presentedWorkspaceReview?.pendingStatus ?? undefined}
+      data-workspace-review-mutable-checkpoint-id={presentedWorkspaceReview?.mutableHead
+        ?.checkpointId}
+      data-workspace-review-mutable-generation={presentedWorkspaceReview?.mutableHead?.generation}
       data-execution-workspace-state={executionWorkspace?.phase}
       data-execution-workspace-diagnostic={executionWorkspace?.diagnostic?.code}
       data-execution-workspace-session={executionWorkspace?.descriptor?.workspaceSessionId}
@@ -234,6 +312,7 @@ function ProgramWorkspaceReadyV1({
             messages={snapshot.messages}
             proposal={snapshot.proposal}
             program={program}
+            workspaceReview={presentedWorkspaceReview}
             workpieceOpen={workpieceOpen}
             onAccept={onAccept}
             onReject={onReject}

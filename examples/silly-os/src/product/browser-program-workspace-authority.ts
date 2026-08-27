@@ -15,6 +15,7 @@ import type {
 } from "../workspace/browser-workspace-host-protocol.ts";
 import {
   programWorkspaceSnapshotReceiptsEqualV1,
+  type ProgramWorkspaceReviewProjectionV1,
   type ProgramWorkspaceSnapshotReceiptV1,
 } from "../workspace/contracts.ts";
 import { createBrowserProgramRepositoryV3 } from "./browser-program-repository.ts";
@@ -107,6 +108,15 @@ export interface BrowserProgramWorkspaceAuthorityV1 {
   initialize(): Promise<void>;
   list(): Promise<readonly ProgramRepositorySummaryV3[]>;
   load(programId: string): Promise<ProgramRepositoryAggregateV3 | null>;
+  inspectProgramWorkspace(
+    programId: string,
+    options?: { readonly hostAccess?: "required" | "active_only" },
+  ): Promise<
+    {
+      readonly aggregate: ProgramRepositoryAggregateV3;
+      readonly review: ProgramWorkspaceReviewProjectionV1;
+    } | null
+  >;
   create(
     input: BrowserProgramWorkspaceCreateInputV1,
   ): Promise<ProgramRepositoryCommitResultV3>;
@@ -168,8 +178,22 @@ function defaultSnapshotIdV1(): string {
   return `snapshot.local.${crypto.randomUUID()}`;
 }
 
-function authorityErrorV1(code: string): TypeError {
-  return new TypeError(`sillyos.browser_program_workspace.${code}`);
+export class BrowserProgramWorkspaceAuthorityErrorV1 extends TypeError {
+  readonly #code: string;
+
+  constructor(code: string) {
+    super(`sillyos.browser_program_workspace.${code}`);
+    this.name = "BrowserProgramWorkspaceAuthorityErrorV1";
+    this.#code = code;
+  }
+
+  get code(): string {
+    return this.#code;
+  }
+}
+
+function authorityErrorV1(code: string): BrowserProgramWorkspaceAuthorityErrorV1 {
+  return new BrowserProgramWorkspaceAuthorityErrorV1(code);
 }
 
 function failureCodeV1(error: unknown): string | null {
@@ -288,6 +312,68 @@ function acceptedDecisionReceiptsV1(
   return aggregate.decisions.flatMap((decision) =>
     decision.status === "accepted" ? [decision.snapshot] : []
   );
+}
+
+function latestAcceptedDecisionReceiptV1(
+  aggregate: ProgramRepositoryAggregateV3,
+): ProgramWorkspaceSnapshotReceiptV1 | null {
+  return acceptedDecisionReceiptsV1(aggregate).at(-1) ?? null;
+}
+
+function reviewProjectionV1(
+  aggregate: ProgramRepositoryAggregateV3,
+  mutableHead: { readonly checkpointId: string; readonly generation: number } | null,
+): ProgramWorkspaceReviewProjectionV1 {
+  const accepted = latestAcceptedDecisionReceiptV1(aggregate);
+  const pending = aggregate.reviewBinding;
+  const statusV1 = (
+    anchor: { readonly checkpointId: string; readonly generation: number } | null,
+  ): "matches" | "changed" | "unavailable" | null => {
+    if (anchor === null) return null;
+    if (mutableHead === null) return "unavailable";
+    return anchor.checkpointId === mutableHead.checkpointId &&
+        anchor.generation === mutableHead.generation
+      ? "matches"
+      : "changed";
+  };
+  return {
+    revision: 1,
+    latestAccepted: accepted === null ? null : {
+      snapshotId: accepted.snapshotId,
+      programRevision: accepted.programRevision,
+      checkpointId: accepted.checkpointId,
+      generation: accepted.generation,
+      fileCount: accepted.fileCount,
+      archiveBytes: accepted.archiveBytes,
+    },
+    pendingReview: pending === null ? null : {
+      proposalId: pending.proposalId,
+      programRevision: pending.programRevision,
+      checkpointId: pending.checkpointId,
+      generation: pending.generation,
+    },
+    mutableHead,
+    acceptedStatus: statusV1(accepted),
+    pendingStatus: statusV1(pending),
+  };
+}
+
+function acceptedInputMatchesCurrentReviewV1(
+  aggregate: ProgramRepositoryAggregateV3,
+  input: BrowserProgramWorkspaceDecisionInputBaseV1,
+): boolean {
+  const binding = aggregate.reviewBinding;
+  const proposal = aggregate.snapshot.proposal;
+  const program = aggregate.snapshot.program;
+  return aggregate.repositoryRevision === input.expectedRepositoryRevision && binding !== null &&
+    proposal !== null && proposal.status === "pending" && program !== null &&
+    proposal.proposalId === input.expectedProposal.proposalId &&
+    proposal.programRevision === input.expectedProposal.programRevision &&
+    program.revision === input.expectedProposal.programRevision &&
+    binding.programId === input.programId &&
+    binding.proposalId === input.expectedProposal.proposalId &&
+    binding.programRevision === input.expectedProposal.programRevision &&
+    binding.repositoryRevision === input.expectedRepositoryRevision;
 }
 
 function receiptMatchesBindingV1(
@@ -538,6 +624,71 @@ export function createBrowserProgramWorkspaceAuthorityV1(
     }
   };
 
+  const inspectProgramWorkspaceV1 = async (
+    programId: string,
+    hostAccess: "required" | "active_only",
+  ): Promise<
+    {
+      readonly aggregate: ProgramRepositoryAggregateV3;
+      readonly review: ProgramWorkspaceReviewProjectionV1;
+    } | null
+  > => {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const loaded = await loadPairV1(programId);
+      if (loaded === null) return null;
+      const initial = pairWorkspaceV1(loaded, programId);
+      const accepted = latestAcceptedDecisionReceiptV1(initial.aggregate);
+      if (hostAccess === "required" && accepted !== null) {
+        await reconcileAcceptedSnapshotsV1(initial);
+      }
+
+      const workspace = initial.aggregate.snapshot.workspace;
+      if (workspace === null) throw authorityErrorV1("program_workspace_mismatch");
+      let workspaceSessionId: string | null = null;
+      if (
+        hostAccess === "active_only" &&
+        activeWorkspace?.programId === initial.aggregate.programId &&
+        activeWorkspace.workspaceId === workspace.workspaceId
+      ) {
+        workspaceSessionId = activeWorkspace.workspaceSessionId;
+      } else if (hostAccess === "required" && accepted !== null) {
+        workspaceSessionId = matchingActiveSessionForPairV1(initial) ??
+          await ensureHostSessionForPairV1(initial);
+      } else if (
+        hostAccess === "required" &&
+        activeWorkspace?.programId === initial.aggregate.programId &&
+        activeWorkspace.workspaceId === workspace.workspaceId
+      ) {
+        workspaceSessionId = activeWorkspace.workspaceSessionId;
+      }
+
+      let mutableHead: { readonly checkpointId: string; readonly generation: number } | null = null;
+      if (workspaceSessionId !== null) {
+        const hostSnapshot = validateHostSnapshotV1(
+          await host.queryWorkspace(workspaceSessionId),
+          initial,
+          workspaceSessionId,
+        );
+        mutableHead = {
+          checkpointId: hostSnapshot.checkpointId,
+          generation: hostSnapshot.descriptor.generation,
+        };
+      }
+
+      const reloaded = await loadPairV1(programId);
+      if (reloaded !== null) {
+        const current = pairWorkspaceV1(reloaded, programId);
+        if (pairsEqualV1(initial, current)) {
+          return {
+            aggregate: current.aggregate,
+            review: reviewProjectionV1(current.aggregate, mutableHead),
+          };
+        }
+      }
+    }
+    throw authorityErrorV1("repository_pair_changed");
+  };
+
   const discardUnreferencedSnapshotV1 = async (
     workspaceSessionId: string,
     receipt: ProgramWorkspaceSnapshotReceiptV1,
@@ -599,6 +750,23 @@ export function createBrowserProgramWorkspaceAuthorityV1(
   ): Promise<ProgramRepositoryCommitResultV3> => {
     const initial = await requirePairV1(input.programId);
     const existingReceipt = acceptedDecisionForInputV1(initial.aggregate, input);
+    if (
+      existingReceipt === null && !acceptedInputMatchesCurrentReviewV1(initial.aggregate, input)
+    ) {
+      return { kind: "conflict", current: initial.aggregate };
+    }
+    if (existingReceipt !== null) {
+      const replay = applyProgramRepositoryDecisionV3(initial.aggregate, {
+        ...input,
+        continuation: predecessorContinuationV1(
+          initial.continuation,
+          input.expectedProposal.programRevision,
+          input.expectedRepositoryRevision,
+        ),
+        snapshotReceipt: existingReceipt,
+      });
+      if (replay.kind === "conflict") return replay;
+    }
     let workspaceSessionId: string;
     let receipt: ProgramWorkspaceSnapshotReceiptV1;
     if (existingReceipt !== null) {
@@ -709,6 +877,15 @@ export function createBrowserProgramWorkspaceAuthorityV1(
         await reconcileAcceptedSnapshotsV1(pair);
         return pair.aggregate;
       });
+    },
+
+    inspectProgramWorkspace(programId, inspectionOptions) {
+      return serializeV1(async () =>
+        await inspectProgramWorkspaceV1(
+          programId,
+          inspectionOptions?.hostAccess ?? "required",
+        )
+      );
     },
 
     create(input) {

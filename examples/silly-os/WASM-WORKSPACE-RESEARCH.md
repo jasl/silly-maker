@@ -13,8 +13,10 @@ the bounded Browser Local shell facade and closed P3a. P3c-B1 checkpoint 1 then
 delivered the Host-owned immutable snapshot candidate and cold-reopen contract,
 and checkpoint 2's C2a Host publication lifecycle has also delivered. C2b
 Repository V3/physical V4 and C2c's shared Repository/Host Authority then closed
-together as an independently reviewed, non-deployed internal cutover on
-2026-08-28. Checkpoint 3 is the active Browser product-evidence boundary. No
+together as an independently reviewed internal cutover on 2026-08-28.
+Checkpoint 3 then closed P3c-B1 with exact accepted snapshot presentation and
+retained-package evidence in Chromium and persistent-profile WebKit. Deployment
+from that committed baseline remains a release operation. No
 broader shell/process provider or BYO Sandbox is selected or implemented. The
 owning product sequence is [PLAN.md](./PLAN.md).
 
@@ -146,16 +148,17 @@ generation/snapshot. Only a successful product transaction makes that snapshot
 the next accepted Program revision. Failed or stale publication retains the
 previous accepted revision and the repairable draft.
 
-Later immutable publication uses a durable receipt rather than pretending
-IndexedDB/SQLite and the volume form one transaction. The volume owner will
-close and verify an immutable snapshot candidate, return an opaque identity
-that it guarantees can be reopened, and only then allow the product database to
+Delivered immutable publication uses a durable receipt rather than pretending
+IndexedDB/SQLite and the volume form one transaction. The volume owner closes
+and verifies an immutable snapshot candidate, returns an opaque identity that
+it guarantees can be reopened, and only then allows the product database to
 publish that reference after rechecking the review envelope. That snapshot path
 is not part of P3c-B0: the delivered path persists only the mutable head and
 reconciles its small continuation manifest. The delivered P3c-B0 checkpoint 3
-exports that head without publishing it as an immutable snapshot. P3c-B1
-checkpoint 1 now owns only the separately retained Host candidate and reopen
-contract; repository publication remains gated and inactive.
+exports that head without publishing it as an immutable snapshot. P3c-B1 now
+owns the separately retained Host package, Repository publication receipt, and
+accepted/reviewed/mutable identity projection. Import/restore and user-facing
+accepted-snapshot download remain separate inactive work.
 
 One logical runtime may use TypeScript, multiple Web Workers, WebAssembly
 modules, a native companion, or guest processes. The product contract is the
@@ -231,8 +234,9 @@ identity/generation and exact Program/repository anchors. It must exclude Chat,
 the Program database, credentials, provider data, Pi/provider sessions,
 terminal/mutation receipts, Host metadata, and export temporaries, and streams
 through an OPFS temporary with backpressure rather than materializing the whole
-volume or archive through the page. No import reader, immutable snapshot
-publication, sync, or restore semantics are active.
+volume or archive through the page. No import reader, accepted-snapshot
+download, sync, or restore semantics are active in this portable-export path;
+P3c-B1 separately owns accepted snapshot publication.
 
 This storage-first slice therefore supplies direct evidence to later runtime
 research: candidates must mount or coherently reach the same volume rather than
@@ -784,9 +788,9 @@ sandbox claim; the mere use of WebAssembly does not.
    BrowserPod, CoWasm, full-Linux, and WebContainers characterization corpus.
    Those results choose only broader command/process adapters; they do not
    reopen the already-settled Browser OPFS ownership.
-6. Later P3c slices may add immutable snapshot publication, import/restore,
-   admitted artifacts, Desktop parity, or a qualified BYO Sandbox one at a
-   time. None is folded into B0 retroactively.
+6. P3c-B1 accepted snapshot publication is delivered. Later P3c slices may add
+   import/restore, admitted artifacts, Desktop parity, or a qualified BYO
+   Sandbox one at a time. None is folded into B0 retroactively.
 
 This order does not start a public tool ABI, package manager, Linux distribution,
 container orchestrator, untrusted-code sandbox, remote build service, or Pi

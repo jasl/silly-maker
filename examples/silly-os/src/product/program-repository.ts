@@ -930,8 +930,7 @@ export function admitProgramRepositoryAggregateV3(
   if (
     (currentProposal.status === "pending" && currentDecision !== undefined) ||
     (currentProposal.status !== "pending" &&
-      (currentDecision?.status !== currentProposal.status ||
-        currentDecision.repositoryRevision !== record.repositoryRevision))
+      currentDecision?.status !== currentProposal.status)
   ) return rejectV1("/snapshot/proposal/status");
 
   const admittedReviewBinding = record.reviewBinding === null
@@ -1085,6 +1084,21 @@ export function admitProgramRepositoryAggregateV3(
     new Set(agentRunReceipts.map(({ agentRunId }) => agentRunId)).size !==
       agentRunReceipts.length
   ) return rejectV1("/agentRunReceipts");
+  if (currentProposal.status !== "pending" && currentDecision !== undefined) {
+    let retainedProposalRevision = currentDecision.repositoryRevision;
+    for (const receipt of agentRunReceipts) {
+      if (receipt.baseRepositoryRevision < currentDecision.repositoryRevision) continue;
+      if (
+        receipt.baseRepositoryRevision !== retainedProposalRevision ||
+        receipt.baseProgramRevision !== currentProposal.programRevision ||
+        receipt.outcome === "completed"
+      ) return rejectV1("/snapshot/proposal/status");
+      retainedProposalRevision += 1;
+    }
+    if (retainedProposalRevision !== record.repositoryRevision) {
+      return rejectV1("/snapshot/proposal/status");
+    }
+  }
   const reachableRepositoryRevision = programRevisions.length + decisions.length +
     agentRunReceipts.filter((receipt) => receipt.outcome !== "completed").length;
   if (record.repositoryRevision !== reachableRepositoryRevision) {
@@ -1114,15 +1128,15 @@ export function admitProgramRepositoryAggregateV3(
     }
     const receipt = receiptsByRepositoryRevision.get(repositoryRevision);
     if (receipt !== undefined) {
-      if (
-        !simulatedProposalPending ||
-        receipt.baseProgramRevision !== simulatedProgramRevision
-      ) return rejectV1("/repositoryRevision");
+      if (receipt.baseProgramRevision !== simulatedProgramRevision) {
+        return rejectV1("/repositoryRevision");
+      }
       if (receipt.outcome === "completed") {
         simulatedProgramRevision += 1;
         if (receipt.resultingProgramRevision !== simulatedProgramRevision) {
           return rejectV1("/repositoryRevision");
         }
+        simulatedProposalPending = true;
       }
       continue;
     }
@@ -1791,6 +1805,9 @@ export function applyProgramRepositoryAgentRunTerminalV3(
   if (currentProgram === null || currentProposal === null) {
     throw new TypeError("invalid current Program aggregate");
   }
+  const currentReviewStateMatchesProposal = currentProposal.status === "pending"
+    ? current.reviewBinding !== null
+    : current.reviewBinding === null;
   if (
     current.programId !== input.programId || run.programId !== input.programId ||
     current.repositoryRevision !== input.expectedRepositoryRevision ||
@@ -1798,7 +1815,7 @@ export function applyProgramRepositoryAgentRunTerminalV3(
     run.proposalId !== currentProposal.proposalId ||
     run.baseProgramRevision !== currentProgram.revision ||
     currentProposal.programRevision !== currentProgram.revision ||
-    currentProposal.status !== "pending" || current.reviewBinding === null ||
+    !currentReviewStateMatchesProposal ||
     !browserProgramContinuationMatchesAggregateV1(input.continuation, current)
   ) return { kind: "conflict", current };
 
@@ -1819,7 +1836,7 @@ export function applyProgramRepositoryAgentRunTerminalV3(
   let diagnosticCode: CreatorAgentDiagnosticCodeV1 | null = null;
   let programRevisions = current.programRevisions;
   const nextRepositoryRevision = current.repositoryRevision + 1;
-  let reviewBinding: ProgramRepositoryReviewBindingV3;
+  let reviewBinding: ProgramRepositoryReviewBindingV3 | null;
   if (terminal.outcome === "completed") {
     const appendedCreatorMessage = messages[current.snapshot.messages.length + 1];
     const firstActivity = activity[current.snapshot.activity.length];
@@ -1864,7 +1881,7 @@ export function applyProgramRepositoryAgentRunTerminalV3(
       !equalV1(nextProgram, currentProgram) || !equalV1(nextProposal, currentProposal)
     ) throw new TypeError("sillyos.program_repository.settle_agent_run.invalid_transition");
     diagnosticCode = terminal.outcome === "failed" ? terminal.diagnosticCode : null;
-    reviewBinding = cloneProgramRepositoryReviewBindingV3({
+    reviewBinding = current.reviewBinding === null ? null : cloneProgramRepositoryReviewBindingV3({
       ...current.reviewBinding,
       repositoryRevision: nextRepositoryRevision,
     });

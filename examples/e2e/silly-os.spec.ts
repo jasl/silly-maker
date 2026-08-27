@@ -51,7 +51,7 @@ async function readWorkspaceSessionIdV1(workspace: Locator): Promise<string> {
   return workspaceSessionId;
 }
 
-interface DurableAgentRunReceiptV2 {
+interface DurableAgentRunReceiptV3 {
   readonly agentRunId: string;
   readonly sequence: number;
   readonly proposalId: string;
@@ -64,11 +64,63 @@ interface DurableAgentRunReceiptV2 {
   readonly diagnosticCode: string | null;
 }
 
-interface DurableProgramProjectionV2 {
-  readonly schemaVersion: number;
+interface DurableProgramWorkspaceSnapshotReceiptV1 {
+  readonly revision: 1;
+  readonly snapshotId: string;
   readonly programId: string;
-  readonly agentRunReceipts: readonly DurableAgentRunReceiptV2[];
+  readonly workspaceId: string;
+  readonly volumeId: string;
+  readonly workspaceFormat: 1;
+  readonly proposalId: string;
+  readonly programRevision: number;
+  readonly baseRepositoryRevision: number;
+  readonly checkpointId: string;
+  readonly generation: number;
+  readonly fileCount: number;
+  readonly archiveBytes: number;
+}
+
+type DurableProgramDecisionV3 =
+  | {
+    readonly proposalId: string;
+    readonly programRevision: number;
+    readonly status: "accepted";
+    readonly repositoryRevision: number;
+    readonly snapshot: DurableProgramWorkspaceSnapshotReceiptV1;
+  }
+  | {
+    readonly proposalId: string;
+    readonly programRevision: number;
+    readonly status: "rejected";
+    readonly repositoryRevision: number;
+  };
+
+interface DurableProgramReviewBindingV3 {
+  readonly proposalId: string;
+  readonly programId: string;
+  readonly programRevision: number;
+  readonly baseAcceptedProgramRevision: number | null;
+  readonly repositoryRevision: number;
+  readonly workspaceId: string;
+  readonly volumeId: string;
+  readonly workspaceFormat: 1;
+  readonly checkpointId: string;
+  readonly generation: number;
+}
+
+interface DurableProgramProjectionV3 {
+  readonly schemaVersion: 3;
+  readonly programId: string;
+  readonly repositoryRevision: number;
+  readonly decisions: readonly DurableProgramDecisionV3[];
+  readonly agentRunReceipts: readonly DurableAgentRunReceiptV3[];
+  readonly reviewBinding: DurableProgramReviewBindingV3 | null;
   readonly snapshot: {
+    readonly proposal: {
+      readonly proposalId: string;
+      readonly programRevision: number;
+      readonly status: "pending" | "accepted" | "rejected";
+    } | null;
     readonly messages: readonly {
       readonly messageId: string;
       readonly role: string;
@@ -86,6 +138,12 @@ interface DurableWorkspaceContinuationV1 {
   readonly workspaceFormat: 1;
   readonly programRevision: number;
   readonly repositoryRevision: number;
+}
+
+interface DurableProgramDatabaseStateV4 {
+  readonly version: 4;
+  readonly programRows: readonly unknown[];
+  readonly continuationRows: readonly unknown[];
 }
 
 interface WorkspaceScaleQualificationReceiptV1 {
@@ -297,6 +355,46 @@ function assertQualificationArchiveV1(
   }
 }
 
+async function downloadRetainedWorkspaceSnapshotV1(
+  page: Page,
+  receipt: DurableProgramWorkspaceSnapshotReceiptV1,
+  outputPath: string,
+): Promise<Uint8Array> {
+  const downloadPromise = page.waitForEvent("download");
+  await page.evaluate(
+    async ({ snapshotId, volumeId }) => {
+      let directory = await navigator.storage.getDirectory();
+      for (
+        const name of [
+          ".sillyos-workspace-host-v1",
+          "volumes",
+          volumeId,
+          "control",
+          "snapshots",
+          snapshotId,
+        ]
+      ) {
+        directory = await directory.getDirectoryHandle(name);
+      }
+      const file = await (await directory.getFileHandle("workspace.zip")).getFile();
+      const url = URL.createObjectURL(file);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${snapshotId}.zip`;
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1_000);
+    },
+    { snapshotId: receipt.snapshotId, volumeId: receipt.volumeId },
+  );
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe(`${receipt.snapshotId}.zip`);
+  await download.saveAs(outputPath);
+  expect(await download.failure()).toBeNull();
+  return new Uint8Array(await readFile(outputPath));
+}
+
 async function initializePiTestV1(page: Page, key: string): Promise<void> {
   const keyInput = page.getByLabel("Synthetic test key (memory only)");
   await keyInput.fill(key);
@@ -502,10 +600,10 @@ async function runWorkspaceScaleQualificationV1(
   }, record);
 }
 
-async function readDurableProgramV2(
+async function readDurableProgramV3(
   page: Page,
   programId: string,
-): Promise<DurableProgramProjectionV2> {
+): Promise<DurableProgramProjectionV3 | null> {
   return await page.evaluate(async (requestedProgramId) => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open("sillymaker.example-silly-os.programs");
@@ -513,16 +611,49 @@ async function readDurableProgramV2(
       request.addEventListener("success", () => resolve(request.result));
     });
     try {
-      return await new Promise<DurableProgramProjectionV2>((resolve, reject) => {
+      return await new Promise<DurableProgramProjectionV3 | null>((resolve, reject) => {
         const transaction = database.transaction("programs", "readonly");
         const request = transaction.objectStore("programs").get(requestedProgramId);
         request.addEventListener("error", () => reject(request.error));
-        request.addEventListener("success", () => resolve(request.result));
+        request.addEventListener("success", () => resolve(request.result ?? null));
       });
     } finally {
       database.close();
     }
   }, programId);
+}
+
+async function readProgramDatabaseStateV4(page: Page): Promise<DurableProgramDatabaseStateV4> {
+  return await page.evaluate(async () => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("sillymaker.example-silly-os.programs");
+      request.addEventListener("error", () => reject(request.error));
+      request.addEventListener("success", () => resolve(request.result));
+    });
+    try {
+      const transaction = database.transaction(
+        ["programs", "workspace_continuations"],
+        "readonly",
+      );
+      const readAllV1 = (storeName: string): Promise<unknown[]> =>
+        new Promise((resolve, reject) => {
+          const request = transaction.objectStore(storeName).getAll();
+          request.addEventListener("error", () => reject(request.error));
+          request.addEventListener("success", () => resolve(request.result));
+        });
+      const [programRows, continuationRows] = await Promise.all([
+        readAllV1("programs"),
+        readAllV1("workspace_continuations"),
+      ]);
+      return {
+        version: database.version,
+        programRows,
+        continuationRows,
+      } as DurableProgramDatabaseStateV4;
+    } finally {
+      database.close();
+    }
+  });
 }
 
 async function openRecentTranslationProgramV1(
@@ -563,7 +694,7 @@ async function expectNoPageOverflowV1(page: Page): Promise<void> {
   expect(overflow.body).toBeLessThanOrEqual(1);
 }
 
-test("Creator Home persists and reopens an exact accepted Program", async ({ page }) => {
+test("Creator Home persists and reopens an exact accepted Program", async ({ durableProgramPage: page }) => {
   const workspace = await openTranslationWorkspaceV1(page);
   const programId = await readProgramIdV1(workspace);
   await expect(workspace).toHaveAttribute("data-program-revision", "1");
@@ -608,7 +739,7 @@ test("Creator Home persists and reopens an exact accepted Program", async ({ pag
   await expect(page.getByText("Accepted Program proposal v1", { exact: true })).toBeVisible();
 });
 
-test("a follow-up creates a new exact Program revision for review", async ({ page }) => {
+test("a follow-up creates a new exact Program revision for review", async ({ durableProgramPage: page }) => {
   await openTranslationWorkspaceV1(page);
 
   await page.getByRole("button", { name: "Reject proposal" }).click();
@@ -639,11 +770,11 @@ test("a follow-up creates a new exact Program revision for review", async ({ pag
   await expect(page.getByText("Created Program proposal v2", { exact: true })).toBeVisible();
 });
 
-test("two pages keep the durable winner when one submits a stale revision", async ({ page, context }) => {
+test("two pages keep the durable winner when one submits a stale revision", async ({ durableProgramPage: page }) => {
   const firstWorkspace = await openTranslationWorkspaceV1(page);
   const programId = await readProgramIdV1(firstWorkspace);
 
-  const stalePage = await context.newPage();
+  const stalePage = await page.context().newPage();
   await stalePage.goto(sillyOsTargetUrlV1("?locale=en"));
   await expectProgramStorageReadyV1(stalePage);
   const staleWorkspace = await openRecentTranslationProgramV1(stalePage, {
@@ -799,8 +930,9 @@ test("the query-gated Browser Pi Worker cold-reopens its Program workspace witho
   await expect(page.getByLabel("Program preview source")).toContainText(followUp);
   await expect(page.getByLabel("Program preview source")).toContainText(persistenceProbe);
 
-  const completedAggregate = await readDurableProgramV2(page, programId);
-  expect(completedAggregate).toMatchObject({ schemaVersion: 2, programId });
+  const completedAggregate = await readDurableProgramV3(page, programId);
+  if (completedAggregate === null) throw new Error("expected durable Program aggregate");
+  expect(completedAggregate).toMatchObject({ schemaVersion: 3, programId });
   expect(completedAggregate.agentRunReceipts).toHaveLength(2);
   const completedReceipt = completedAggregate.agentRunReceipts[0];
   expect(Object.keys(completedReceipt ?? {}).sort()).toEqual([
@@ -930,7 +1062,14 @@ test("two pages fence first ownership and cold-recover the exact checkpoint afte
   test.setTimeout(120_000);
   const initialWorkspace = await openTranslationWorkspaceV1(page);
   const programId = await readProgramIdV1(initialWorkspace);
-  await expect(readWorkspaceContinuationV1(page, programId)).resolves.toBeNull();
+  const initialContinuation = await readWorkspaceContinuationV1(page, programId);
+  expect(initialContinuation).toMatchObject({
+    revision: 1,
+    programId,
+    workspaceFormat: 1,
+    programRevision: 1,
+    repositoryRevision: 1,
+  });
   await page.getByRole("button", { name: "Creator home" }).click();
 
   const contenderPage = await page.context().newPage();
@@ -988,13 +1127,7 @@ test("two pages fence first ownership and cold-recover the exact checkpoint afte
   await expect(contender.page.getByRole("button", { name: "Retry" })).toBeVisible();
   await expect.poll(() => readWorkspaceContinuationV1(owner.page, programId)).not.toBeNull();
   const continuation = await readWorkspaceContinuationV1(owner.page, programId);
-  expect(continuation).toMatchObject({
-    revision: 1,
-    programId,
-    workspaceFormat: 1,
-    programRevision: 1,
-    repositoryRevision: 1,
-  });
+  expect(continuation).toEqual(initialContinuation);
 
   const durableText = "Retain these exact bytes across a real Workspace Host loss.";
   await owner.page.getByRole("textbox", { name: "Ask for a change…" }).fill(durableText);
@@ -1054,30 +1187,21 @@ test("Playwright WebKit's non-persistent context reports unavailable OPFS withou
     translationIntentV1,
   );
   await page.getByRole("button", { name: "Create program" }).click();
-  const workspace = page.getByRole("main", { name: "SillyOS program workspace" });
-  await expect(workspace).toBeVisible();
-  await expectProgramStorageReadyV1(page);
-  await expect(workspace).toHaveAttribute("data-program-revision", "1");
-  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "failed");
-  await expect(workspace).toHaveAttribute(
-    "data-execution-workspace-diagnostic",
-    "storage_unavailable",
+  await expect(page.locator('[data-program-storage-state="failed"]')).toBeVisible();
+  await expect(page.locator(".silly-os")).toHaveAttribute(
+    "data-program-storage-operation",
+    "create",
   );
-  await expect(workspace).not.toHaveAttribute("data-execution-workspace-session", /.+/u);
-  await expect(workspace).not.toHaveAttribute("data-execution-workspace-generation", /.+/u);
-  await expect(workspace).not.toHaveAttribute("data-execution-workspace-receipt", /.+/u);
-  await page.getByRole("tab", { name: "Capabilities" }).click();
-  await expect(page.getByRole("alert")).toContainText(
-    "This browser context cannot provide a durable local workspace. SillyOS did not create a replacement volume.",
-  );
-  await expect(page.getByRole("textbox", { name: "Ask for a change…" })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Send" })).toBeDisabled();
-
-  const programId = await readProgramIdV1(workspace);
-  await expect(readWorkspaceContinuationV1(page, programId)).resolves.toBeNull();
-  const aggregate = await readDurableProgramV2(page, programId);
-  expect(aggregate).toMatchObject({ schemaVersion: 2, programId });
-  expect(aggregate.agentRunReceipts).toEqual([]);
+  await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
+  await expect(page.getByRole("main", { name: "SillyOS program workspace" })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Open program: Translation Workshop", exact: true }),
+  ).toHaveCount(0);
+  await expect(readProgramDatabaseStateV4(page)).resolves.toEqual({
+    version: 4,
+    programRows: [],
+    continuationRows: [],
+  });
 });
 
 test("an explicit persistence request reports the browser outcome without disabling the workspace", async ({ durableProgramPage: page }) => {
@@ -1138,9 +1262,9 @@ test("an explicit persistence request reports the browser outcome without disabl
 });
 
 test(
-  "the Browser workspace cold-reopens and exports a bounded 20 MiB corpus without sending volume bytes to the page",
+  "the Browser workspace cold-reopens, accepts, and retains a bounded 20 MiB corpus",
   async ({ durableProgramPage: page }, testInfo) => {
-    test.setTimeout(420_000);
+    test.setTimeout(600_000);
     await page.goto(sillyOsTargetUrlV1("?locale=en&agent=pi-test"));
     await expectProgramStorageReadyV1(page);
     await initializePiTestV1(page, "sillyos-scale-qualification");
@@ -1307,6 +1431,366 @@ test(
     await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
     await expect(reopened).toHaveAttribute("data-execution-workspace-generation", "1002");
     await expect(reopened).not.toHaveAttribute("data-execution-workspace-receipt", /.+/u);
+
+    const pendingV2 = await readDurableProgramV3(page, programId);
+    if (pendingV2 === null) throw new Error("Scale qualification lost its durable Program");
+    expect(pendingV2).toMatchObject({
+      schemaVersion: 3,
+      programId,
+      repositoryRevision: 2,
+      snapshot: {
+        proposal: {
+          programRevision: 2,
+          status: "pending",
+        },
+      },
+      decisions: [],
+    });
+    const v2Proposal = pendingV2.snapshot.proposal;
+    const v2Binding = pendingV2.reviewBinding;
+    if (v2Proposal === null || v2Binding === null) {
+      throw new Error("Scale qualification v2 has no exact pending review binding");
+    }
+    expect(v2Binding).toEqual({
+      proposalId: v2Proposal.proposalId,
+      programId,
+      programRevision: 2,
+      baseAcceptedProgramRevision: null,
+      repositoryRevision: 2,
+      workspaceId: continuation.workspaceId,
+      volumeId: continuation.volumeId,
+      workspaceFormat: 1,
+      checkpointId: created.head.checkpointId,
+      generation: 1002,
+    });
+    await expect(reopened).toHaveAttribute("data-workspace-review-revision", "1");
+    await expect(reopened).toHaveAttribute(
+      "data-workspace-review-pending-proposal-id",
+      v2Proposal.proposalId,
+    );
+    await expect(reopened).toHaveAttribute(
+      "data-workspace-review-pending-checkpoint-id",
+      created.head.checkpointId,
+    );
+    await expect(reopened).toHaveAttribute("data-workspace-review-pending-generation", "1002");
+    await expect(reopened).toHaveAttribute("data-workspace-review-pending-status", "matches");
+    await expect(reopened).toHaveAttribute(
+      "data-workspace-review-mutable-checkpoint-id",
+      created.head.checkpointId,
+    );
+    await expect(reopened).toHaveAttribute("data-workspace-review-mutable-generation", "1002");
+
+    const stalePage = await page.context().newPage();
+    await stalePage.goto(sillyOsTargetUrlV1("?locale=en"));
+    await expectProgramStorageReadyV1(stalePage);
+    const staleWorkspace = await openRecentTranslationProgramV1(stalePage, {
+      programId,
+      revision: 2,
+      status: "Preview",
+    });
+    await expect(staleWorkspace).toHaveAttribute(
+      "data-workspace-review-pending-proposal-id",
+      v2Proposal.proposalId,
+    );
+    await expect(staleWorkspace).toHaveAttribute(
+      "data-workspace-review-pending-generation",
+      "1002",
+    );
+
+    await page.getByRole("button", { name: "Accept program" }).click();
+    await expectProgramStorageReadyV1(page);
+    await expect(page.locator('[data-proposal-status="accepted"]')).toBeVisible();
+    await expect.poll(async () =>
+      (await readDurableProgramV3(page, programId))?.decisions.length ?? -1
+    ).toBe(1);
+    const acceptedV2 = await readDurableProgramV3(page, programId);
+    if (acceptedV2 === null) throw new Error("Accepted scale qualification Program is missing");
+    expect(acceptedV2).toMatchObject({
+      schemaVersion: 3,
+      programId,
+      repositoryRevision: 3,
+      reviewBinding: null,
+      snapshot: {
+        proposal: {
+          proposalId: v2Proposal.proposalId,
+          programRevision: 2,
+          status: "accepted",
+        },
+      },
+    });
+    const acceptedDecision = acceptedV2.decisions[0];
+    if (acceptedDecision?.status !== "accepted") {
+      throw new Error("Scale qualification v2 has no accepted durable decision");
+    }
+    expect(Object.keys(acceptedDecision).sort()).toEqual([
+      "programRevision",
+      "proposalId",
+      "repositoryRevision",
+      "snapshot",
+      "status",
+    ].sort());
+    expect(Object.keys(acceptedDecision.snapshot).sort()).toEqual([
+      "archiveBytes",
+      "baseRepositoryRevision",
+      "checkpointId",
+      "fileCount",
+      "generation",
+      "programId",
+      "programRevision",
+      "proposalId",
+      "revision",
+      "snapshotId",
+      "volumeId",
+      "workspaceFormat",
+      "workspaceId",
+    ].sort());
+    expect(acceptedDecision).toEqual({
+      proposalId: v2Proposal.proposalId,
+      programRevision: 2,
+      status: "accepted",
+      repositoryRevision: 3,
+      snapshot: {
+        revision: 1,
+        snapshotId: acceptedDecision.snapshot.snapshotId,
+        programId,
+        workspaceId: continuation.workspaceId,
+        volumeId: continuation.volumeId,
+        workspaceFormat: 1,
+        proposalId: v2Proposal.proposalId,
+        programRevision: 2,
+        baseRepositoryRevision: 2,
+        checkpointId: created.head.checkpointId,
+        generation: 1002,
+        fileCount: 1001,
+        archiveBytes: acceptedDecision.snapshot.archiveBytes,
+      },
+    });
+    expect(acceptedDecision.snapshot.snapshotId.length).toBeGreaterThan(0);
+    expect(acceptedDecision.snapshot.archiveBytes).toBeGreaterThan(created.totalBytes);
+    await expect(reopened).toHaveAttribute(
+      "data-workspace-review-accepted-snapshot-id",
+      acceptedDecision.snapshot.snapshotId,
+    );
+    await expect(reopened).toHaveAttribute(
+      "data-workspace-review-accepted-program-revision",
+      "2",
+    );
+    await expect(reopened).toHaveAttribute(
+      "data-workspace-review-accepted-checkpoint-id",
+      created.head.checkpointId,
+    );
+    await expect(reopened).toHaveAttribute("data-workspace-review-accepted-generation", "1002");
+    await expect(reopened).toHaveAttribute("data-workspace-review-accepted-file-count", "1001");
+    await expect(reopened).toHaveAttribute(
+      "data-workspace-review-accepted-archive-bytes",
+      String(acceptedDecision.snapshot.archiveBytes),
+    );
+    await expect(reopened).toHaveAttribute("data-workspace-review-accepted-status", "matches");
+    await expect(reopened).not.toHaveAttribute(
+      "data-workspace-review-pending-proposal-id",
+      /.+/u,
+    );
+
+    const laterDraft = "Create a later mutable draft that must remain independent of accepted v2.";
+    await page.getByRole("textbox", { name: "Ask for a change…" }).fill(laterDraft);
+    await page.getByRole("button", { name: "Send" }).click();
+    await expect(page.getByText(laterDraft, { exact: true })).toBeVisible();
+    await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v3");
+    await expect(reopened).toHaveAttribute("data-execution-workspace-generation", "1005");
+    await expect.poll(async () =>
+      (await readDurableProgramV3(page, programId))?.repositoryRevision ?? -1
+    ).toBe(4);
+    const laterV3 = await readDurableProgramV3(page, programId);
+    if (laterV3 === null || laterV3.reviewBinding === null) {
+      throw new Error("Later scale qualification draft has no durable review binding");
+    }
+    expect(laterV3.decisions).toEqual([acceptedDecision]);
+    expect(laterV3.snapshot.proposal).toMatchObject({
+      programRevision: 3,
+      status: "pending",
+    });
+    const v3Proposal = laterV3.snapshot.proposal;
+    if (v3Proposal === null) throw new Error("Later scale qualification draft has no proposal");
+    expect(laterV3.reviewBinding).toEqual({
+      proposalId: v3Proposal.proposalId,
+      programId,
+      programRevision: 3,
+      baseAcceptedProgramRevision: 2,
+      repositoryRevision: 4,
+      workspaceId: continuation.workspaceId,
+      volumeId: continuation.volumeId,
+      workspaceFormat: 1,
+      checkpointId: laterV3.reviewBinding.checkpointId,
+      generation: 1005,
+    });
+    expect(laterV3.reviewBinding.checkpointId).not.toBe(created.head.checkpointId);
+    await expect(reopened).toHaveAttribute(
+      "data-workspace-review-accepted-snapshot-id",
+      acceptedDecision.snapshot.snapshotId,
+    );
+    await expect(reopened).toHaveAttribute(
+      "data-workspace-review-accepted-checkpoint-id",
+      created.head.checkpointId,
+    );
+    await expect(reopened).toHaveAttribute("data-workspace-review-accepted-generation", "1002");
+    await expect(reopened).toHaveAttribute("data-workspace-review-accepted-status", "changed");
+    await expect(reopened).toHaveAttribute(
+      "data-workspace-review-pending-proposal-id",
+      v3Proposal.proposalId,
+    );
+    await expect(reopened).toHaveAttribute("data-workspace-review-pending-program-revision", "3");
+    await expect(reopened).toHaveAttribute(
+      "data-workspace-review-pending-checkpoint-id",
+      laterV3.reviewBinding.checkpointId,
+    );
+    await expect(reopened).toHaveAttribute("data-workspace-review-pending-generation", "1005");
+    await expect(reopened).toHaveAttribute("data-workspace-review-pending-status", "matches");
+    await expect(reopened).toHaveAttribute(
+      "data-workspace-review-mutable-checkpoint-id",
+      laterV3.reviewBinding.checkpointId,
+    );
+    await expect(reopened).toHaveAttribute("data-workspace-review-mutable-generation", "1005");
+
+    await stalePage.getByRole("button", { name: "Accept program" }).click();
+    await expect(stalePage.locator('[data-program-storage-state="failed"]')).toBeVisible();
+    await expect(
+      stalePage.getByRole("alert").filter({
+        hasText: "Another page updated this Program. The durable version has been reopened.",
+      }),
+    ).toBeVisible();
+    await expect(staleWorkspace).toHaveAttribute("data-program-revision", "3");
+    await expect(staleWorkspace).toHaveAttribute(
+      "data-workspace-review-accepted-snapshot-id",
+      acceptedDecision.snapshot.snapshotId,
+    );
+    await expect(staleWorkspace).toHaveAttribute(
+      "data-workspace-review-accepted-checkpoint-id",
+      created.head.checkpointId,
+    );
+    await expect(staleWorkspace).toHaveAttribute(
+      "data-workspace-review-accepted-status",
+      "unavailable",
+    );
+    await expect(staleWorkspace).toHaveAttribute(
+      "data-workspace-review-pending-proposal-id",
+      v3Proposal.proposalId,
+    );
+    await expect(staleWorkspace).toHaveAttribute(
+      "data-workspace-review-pending-checkpoint-id",
+      laterV3.reviewBinding.checkpointId,
+    );
+    await expect(staleWorkspace).toHaveAttribute(
+      "data-workspace-review-pending-status",
+      "unavailable",
+    );
+    await expect(staleWorkspace).not.toHaveAttribute(
+      "data-workspace-review-mutable-checkpoint-id",
+      /.+/u,
+    );
+    await expect(staleWorkspace).not.toHaveAttribute(
+      "data-workspace-review-mutable-generation",
+      /.+/u,
+    );
+    const afterStaleAccept = await readDurableProgramV3(stalePage, programId);
+    if (afterStaleAccept === null) throw new Error("Stale Accept lost the durable winner");
+    expect(afterStaleAccept.repositoryRevision).toBe(4);
+    expect(afterStaleAccept.decisions).toEqual([acceptedDecision]);
+    expect(afterStaleAccept.reviewBinding).toEqual(laterV3.reviewBinding);
+
+    await stalePage.getByRole("button", { name: "Creator home" }).click();
+    await expect(stalePage.locator('[data-silly-os-view="home"]')).toBeVisible();
+    await stalePage.close();
+
+    await page.getByRole("button", { name: "Creator home" }).click();
+    await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
+    await expect(page.locator(".silly-os")).toHaveAttribute("data-agent-workspace-state", "closed");
+
+    await page.reload();
+    await expectProgramStorageReadyV1(page);
+    await initializePiTestV1(page, "sillyos-scale-cold-reopen");
+    const coldReopened = await openRecentTranslationProgramV1(page, {
+      programId,
+      revision: 3,
+      status: "Preview",
+    });
+    await expect(coldReopened).toHaveAttribute("data-execution-workspace-state", "open");
+    await expect(coldReopened).toHaveAttribute("data-execution-workspace-generation", "1005");
+    await expect(coldReopened).toHaveAttribute(
+      "data-workspace-review-accepted-snapshot-id",
+      acceptedDecision.snapshot.snapshotId,
+    );
+    await expect(coldReopened).toHaveAttribute(
+      "data-workspace-review-accepted-program-revision",
+      "2",
+    );
+    await expect(coldReopened).toHaveAttribute(
+      "data-workspace-review-accepted-checkpoint-id",
+      created.head.checkpointId,
+    );
+    await expect(coldReopened).toHaveAttribute(
+      "data-workspace-review-accepted-generation",
+      "1002",
+    );
+    await expect(coldReopened).toHaveAttribute(
+      "data-workspace-review-accepted-status",
+      "changed",
+    );
+    await expect(coldReopened).toHaveAttribute(
+      "data-workspace-review-pending-proposal-id",
+      v3Proposal.proposalId,
+    );
+    await expect(coldReopened).toHaveAttribute(
+      "data-workspace-review-pending-checkpoint-id",
+      laterV3.reviewBinding.checkpointId,
+    );
+    await expect(coldReopened).toHaveAttribute(
+      "data-workspace-review-pending-generation",
+      "1005",
+    );
+    await expect(coldReopened).toHaveAttribute("data-workspace-review-pending-status", "matches");
+    await expect(coldReopened).toHaveAttribute(
+      "data-workspace-review-mutable-checkpoint-id",
+      laterV3.reviewBinding.checkpointId,
+    );
+    await expect(coldReopened).toHaveAttribute(
+      "data-workspace-review-mutable-generation",
+      "1005",
+    );
+
+    const retainedArchivePath = testInfo.outputPath(
+      `${acceptedDecision.snapshot.snapshotId}.zip`,
+    );
+    const retainedArchiveBytes = await downloadRetainedWorkspaceSnapshotV1(
+      page,
+      acceptedDecision.snapshot,
+      retainedArchivePath,
+    );
+    expect(retainedArchiveBytes.byteLength).toBe(acceptedDecision.snapshot.archiveBytes);
+    assertQualificationArchiveV1(retainedArchiveBytes, {
+      revision: 1,
+      kind: "sillyos-workspace",
+      exportFormat: 1,
+      workspaceFormat: 1,
+      programId,
+      workspaceId: continuation.workspaceId,
+      programRevision: 2,
+      repositoryRevision: 2,
+      checkpointId: created.head.checkpointId,
+      generation: 1002,
+    });
+    expect(
+      readZipCentralDirectoryV1(retainedArchiveBytes).some((entry) =>
+        entry.name === "workspace/.sillyos/p3a-round-trip.txt" ||
+        entry.name === "workspace/.sillyos/p3a-bash-round-trip.txt"
+      ),
+    ).toBe(false);
+    const coldAggregate = await readDurableProgramV3(page, programId);
+    if (coldAggregate === null) throw new Error("Cold reopen lost the durable Program");
+    expect(coldAggregate.decisions).toEqual([acceptedDecision]);
+    expect(coldAggregate.reviewBinding).toEqual(laterV3.reviewBinding);
+
+    await page.getByRole("button", { name: "Creator home" }).click();
+    await expect(page.locator(".silly-os")).toHaveAttribute("data-agent-workspace-state", "closed");
   },
 );
 
@@ -1374,7 +1858,8 @@ test("a cancelled Browser Pi run remains terminal across reload without advancin
   await page.getByRole("tab", { name: "Activity" }).click();
   await expect(page.getByText("Cancelled Creator Agent run", { exact: true })).toBeVisible();
 
-  const cancelledAggregate = await readDurableProgramV2(page, programId);
+  const cancelledAggregate = await readDurableProgramV3(page, programId);
+  if (cancelledAggregate === null) throw new Error("expected durable cancelled Program aggregate");
   expect(cancelledAggregate.agentRunReceipts).toHaveLength(1);
   expect(cancelledAggregate.agentRunReceipts[0]).toMatchObject({
     sequence: 1,
@@ -1387,7 +1872,7 @@ test("a cancelled Browser Pi run remains terminal across reload without advancin
   });
 });
 
-test("desktop workspace keeps its minimum geometry and keyboard-resizable split", async ({ page }) => {
+test("desktop workspace keeps its minimum geometry and keyboard-resizable split", async ({ durableProgramPage: page }) => {
   const workspace = await openTranslationWorkspaceV1(page);
   await expect(workspace).toHaveAttribute("data-workspace-layout", "dual-pane");
 
@@ -1420,7 +1905,7 @@ test("desktop workspace keeps its minimum geometry and keyboard-resizable split"
   await expectNoPageOverflowV1(page);
 });
 
-test("workspace switches cleanly at the desktop and mobile boundary", async ({ page }) => {
+test("workspace switches cleanly at the desktop and mobile boundary", async ({ durableProgramPage: page }) => {
   await page.setViewportSize({ width: 768, height: 700 });
   const workspace = await openTranslationWorkspaceV1(page);
   await expect(workspace).toHaveAttribute("data-workspace-layout", "dual-pane");
@@ -1436,7 +1921,7 @@ test("workspace switches cleanly at the desktop and mobile boundary", async ({ p
   await expectNoPageOverflowV1(page);
 });
 
-test("full-screen workpiece exits with Escape and restores focus", async ({ page }) => {
+test("full-screen workpiece exits with Escape and restores focus", async ({ durableProgramPage: page }) => {
   await openTranslationWorkspaceV1(page);
   const enterFullscreen = page.getByRole("button", { name: "Open full screen" });
   await enterFullscreen.focus();
@@ -1456,7 +1941,7 @@ test("full-screen workpiece exits with Escape and restores focus", async ({ page
   await expectNoPageOverflowV1(page);
 });
 
-test("@mobile portrait uses one navigable pane without page overflow", async ({ page }) => {
+test("@mobile portrait uses one navigable pane without page overflow", async ({ durableProgramPage: page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const workspace = await openTranslationWorkspaceV1(page);
   await expect(workspace).toHaveAttribute("data-workspace-layout", "single-pane");

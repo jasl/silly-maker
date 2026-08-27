@@ -22,10 +22,15 @@ checkpoint 2's bounded Host publication-lifecycle slice (C2a below) is now
 delivered and independently reviewed. C2b then delivered Repository V3,
 physical IndexedDB V4, and Worker wire V4; C2c atomically selected that schema
 through one application-owned Repository/Host Authority shared by Controller
-and fixed Pi. Both passed independent review on 2026-08-28. They remain an
-internal, non-deployed cutover; checkpoint 3 is the active Browser
-product-evidence boundary.
-P1-D remains owner-paused, while P3b, import, and later slices remain inactive.
+and fixed Pi. Both passed independent review on 2026-08-28. Checkpoint 3 then
+delivered accepted snapshot identity/head presentation, truthful live-head
+divergence, winner-held stale rejection, cold reopen, and exact retained-package
+evidence in Chromium and persistent-profile WebKit. Both engines verified the
+existing `1,001`-file / `21,897,216`-byte corpus inside a `22,065,863`-byte
+immutable ZIP, so P3c-B1 closed on 2026-08-28. Deployment from this committed
+cutover is the next release operation, not another product slice. P1-D remains
+owner-paused, while P3b, import, and later slices remain inactive; no SillyOS
+implementation slice is automatically active after B1.
 The raw launcher is not the typed product RPC; the live Browser route is a
 separate product path. This plan remains local to `examples/silly-os`; the
 neutral async GUI disposer was delivered separately by the engine task and is
@@ -75,10 +80,10 @@ execution mechanism, especially in Browser, but it is not the product contract:
 the selected target adapters may combine TypeScript, Workers, Wasm payloads, or
 a native companion behind the same typed workspace boundary.
 
-Only one phase below is active at a time. A later phase may be refined before
-it starts, but it may not silently weaken this product model or claim evidence
-that an earlier phase did not produce. Product code may not import the ignored
-`references/` checkouts.
+At most one phase below is active at a time; none is active after P3c-B1
+closure. A later phase may be refined before it starts, but it may not silently
+weaken this product model or claim evidence that an earlier phase did not
+produce. Product code may not import the ignored `references/` checkouts.
 
 Until the first stable release, every phase also follows DESIGN's clean
 replacement rule: breaking product-private contracts may reset preview data,
@@ -102,11 +107,12 @@ reload/reopen. P3c-B0 now adds one durable OPFS workspace volume, an exact
 continuation anchor, a fresh Pi session over cold reopen, recovery/contender
 semantics, explicit Browser storage state, the automated dual-engine
 `21,897,216`-byte scale gate, and a canonical portable ZIP containing only its
-manifest and VFS files. The product still has no persistent Pi session,
-import/restore, published accepted snapshot, WASM guest, provider selector,
-or generally active capability. P3c-B1 checkpoint 1 now retains one exact
-Host-owned candidate because the existing real Pi tool path can mutate a
-durable head that the current review decision does not yet name. Its initial proposal, Source, translation rows,
+manifest and VFS files. P3c-B1 now publishes one exact reviewed head as an
+immutable accepted snapshot, keeps later mutable drafts independent, and shows
+accepted/reviewed/current identity without making React a byte owner. The
+product still has no persistent Pi session, import/restore, user-facing
+accepted-snapshot download, WASM guest, provider selector, or generally active
+capability. Its initial proposal, Source, translation rows,
 remaining capability labels, and separate preview manifest remain explicit
 preview material.
 
@@ -290,9 +296,11 @@ The accepted execution order is no longer the numeric subsection order:
    and exports as one bounded canonical ZIP.
 3. Its independent checkpoint review is complete. No subsequent slice becomes
    active merely because B0 closed.
-4. P3a-B1 (`edit`/`bash`), P3b execution-provider characterization, later P3c
-   immutable snapshot/import work, P1-D, and P4+ require separate owner
-   activation. None is a prerequisite for P3c-B0.
+4. P3a-B1 (`edit`/`bash`) and P3c-B1 (exact accepted snapshot publication) are
+   delivered and closed.
+5. P3b execution-provider characterization, later P3c import/artifact/Desktop
+   work, P1-D, and P4+ require separate owner activation. None is automatically
+   active or retroactively part of P3c-B0/B1.
 
 This order replaces the earlier assumption that shell breadth or a shared
 Browser/Desktop provider winner must precede useful Browser persistence.
@@ -1892,7 +1900,7 @@ network, shell, `edit`, `bash`, just-bash, Wasm, Git, Python, QuickJS, provider
 selection, BYO Sandbox, Desktop persistence, a sandbox claim, or an engine API.
 No later P3c slice becomes active when B0 closes.
 
-### P3c-B1 — exact reviewed snapshot publication (checkpoints 1–2 delivered internally; checkpoint 3 active)
+### P3c-B1 — exact reviewed snapshot publication (delivered 2026-08-28)
 
 P3c-B1 closes the first integrity gap created by real workspace tools: Pi may
 change the durable mutable head, while the current Accept action still names
@@ -1976,15 +1984,15 @@ P3c-B1 is deliberately split into independently reviewed checkpoints:
    existing Controller Accept command to the complete non-visual publication
    composition; it does not leave a dormant second decision path for checkpoint
    3.
-3. **Checkpoint 3 — product evidence.** Keep the existing Accept control and add
+3. **Checkpoint 3 — product evidence (delivered 2026-08-28).** Keep the existing Accept control and add
    the accepted snapshot identity/head plus truthful mutable-head divergence,
    then prove stale cross-page Accept rejection, cold reopen, later-draft
    independence, and exact archive bytes for the existing `1,001`-file,
    `21,897,216`-byte corpus in Chromium and persistent-profile WebKit.
 
 Checkpoint 2 is itself bounded by three independently reviewed sub-checkpoints.
-C2a–C2c are delivered; checkpoint 3 remains the deployment and Browser-product
-evidence gate:
+C2a–C2c and checkpoint 3 are delivered; only publication from the committed
+baseline remains as the release operation:
 
 1. **C2a — Host publication lifecycle (delivered 2026-08-27).** Move the exact immutable receipt to a
    target-neutral SillyOS workspace contract shared by Host wire and the later
@@ -2109,8 +2117,29 @@ Authority/Pi coverage passes 81/81; the complete SillyOS unit suite passes
 237/237, along with typecheck and the production build. Review-found regressions
 now pin disposed Controller admission, cold Reject cleanup, all-history accepted
 recovery, exact create ownership after unknown or mismatched outcomes, and the
-Agent-submit fence. This is code-level closure only: no changed Accept path is
-deployed and no checkpoint-3 Browser evidence is claimed.
+Agent-submit fence. Checkpoint 3 subsequently replaced that code-only disposition
+with the Browser evidence below; deployment still occurs only from its committed
+baseline.
+
+Checkpoint 3 passed on 2026-08-28. The UI retains the existing Accept control
+and now projects the latest accepted snapshot receipt, pending reviewed head,
+and observable mutable head. A newer live Pi execution generation immediately
+marks the review changed without presenting an old checkpoint as current; a
+failed or unavailable Host makes currentness unavailable. Historical accepted
+identity remains visible across later pending or rejected revisions. Chromium
+and persistent-profile WebKit each accepted the generation-1002 corpus,
+advanced an independent pending v3 draft to generation 1005, rejected stale v2
+Accept while the winner page still owned the Host, cold-reopened the winner,
+and directly verified the retained immutable package. In both engines the
+mutable export and retained package were exactly `22,065,863` bytes; the ZIP
+manifest names Program v2/base Repository revision 2, all `1,001` VFS entries
+match byte-for-byte, and the later-draft file is absent. The physical ZIP read
+is test-only OPFS evidence, not a user-facing accepted-snapshot download API.
+The final product gate also passes the complete 23-file SillyOS unit suite
+(`250/250`), focused Repository/Authority/Controller checks (`89/89`), targeted
+independent re-review checks (`66/66`), the remaining Chromium/WebKit file
+matrix (`23` passed, one intentional non-applicable skip), mobile portrait
+(`1/1`), canonical typecheck, scoped lint/style/format, and the release build.
 
 The shared receipt has exactly the checkpoint-1 fields: revision,
 `snapshotId`, Program/workspace/volume/format identity, proposal and Program
@@ -2168,8 +2197,9 @@ the package has already been removed, and the focused fault-injection test now
 pins that recovery. C2a adds no Repository row, Controller call, UI, or Browser
 product claim and is not deployed. C2b and C2c subsequently closed as one
 internal cutover on 2026-08-28 after focused and independent review. Checkpoint
-3 is now active and still gates deployment, identity/head/divergence
-presentation, and real cross-page/dual-browser product acceptance.
+3 then closed P3c-B1 with identity/head/divergence presentation and real
+cross-page/dual-browser product acceptance. The cutover is ready to deploy only
+from this committed checkpoint; no later feature is implied.
 P3c-B1 adds no archive import/restore reader, artifact admission, sync/share,
 background execution, provider selector, custom endpoint, broader shell or
 process provider, Wasm, Git implementation, Python, QuickJS, BYO Sandbox,

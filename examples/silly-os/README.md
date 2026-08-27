@@ -39,8 +39,9 @@ Forget 已在本地及 Cloudflare 部署源的 Chromium/WebKit 完整通过。B0
 
 当前产品已经有由 Dedicated Worker 持有的 Browser IndexedDB Program repository；它只
 保存有界的产品 Program 投影，不保存 API key、Pi session、附件内容或 workspace 文件。
-初始 proposal 仍由本地 deterministic preview 产生；接受 proposal 也不会生成或发布
-真实应用。这个边界会在界面中如实显示，不使用假网络层来伪装后端。
+初始 proposal 仍由本地 deterministic preview 产生；接受 proposal 会把精确复核过的
+workspace head 发布为本地不可变 Program snapshot，但不会因此生成、部署或托管一个真实
+应用。这个边界会在界面中如实显示，不使用假网络层来伪装后端。
 
 P3c-B0 的三个检查点已经把 P3a 验证过的字节路径迁入产品自有的 OPFS Workspace Host，
 闭合恢复、争用、规模和可携下载证据。
@@ -78,8 +79,14 @@ terminal/mutation receipts 或 Host metadata。Host Worker 独占 ZIP 临时文�
 不接收 volume bytes，整卷也不需要常驻内存。Host 为 ready 状态保留默认 30 秒 watchdog；
 页面点击下载并调用 `commitRelease()` 锁定不可取消的 finalizing 后，会保留 1,000ms 浏览器
 handoff，随后才返回 release；Host 再 revoke URL、删除临时文件并终结任务。目前仍没有
-import/restore reader 或 immutable snapshot。Agent Forget 会清理 Pi/执行态并释放 lease，但
+import/restore reader。Agent Forget 会清理 Pi/执行态并释放 lease，但
 不会删除 durable volume。
+
+Accept 现在会保留另一份 Host-owned immutable snapshot，并在审查卡片中分别显示最新 accepted
+snapshot、pending proposal 的 reviewed head 与当前 mutable head。Pi 工具在运行中推进 generation
+时，旧 checkpoint 不会继续显示成 current；Host 不可用时 currentness 会明确显示 unavailable。
+后续 pending/rejected revision 也不会抹掉已接受 snapshot 的身份。当前“下载工作区 ZIP”仍只
+导出 mutable head；产品尚未提供 accepted snapshot 的用户下载按钮或 import/restore。
 
 路线仍是 **Browser 优先、Desktop 保留**。P2 已闭合事务提交后发布、最近 Program
 重开、双页面 stale currentness、凭据不落盘和 bounded terminal receipt。B0a 已闭合无
@@ -92,8 +99,11 @@ Pi 0.84.3 的原生 `edit` 与 `bash` 已接到同一 OPFS volume，确定性真
 `write -> edit -> read -> bash/rg -> proposal`，最终 bytes 与 generation `4` 可跨冷重开保留；
 超过 Pi 50 KiB 阈值的已完成输出会把完整 aggregate 持久化到同一卷的
 `.sillyos/tmp/bash-<opaque>.log`。P3a 因而关闭。当前没有激活中的 SillyOS 实现片；广泛
-Provider/BYO Sandbox 研究、Wasm/更完整执行环境、immutable snapshot publication 和 import
-仍未激活。Desktop
+P3c-B1 的三个 checkpoint 也已在 2026-08-28 关闭：Chromium 与持久 WebKit 都验证了
+generation-1002 的 accepted snapshot、generation-1005 的独立 later draft、胜出页持有 Host
+时的 stale Accept、cold reopen，以及 `1,001` 个文件逐字节一致的 `22,065,863`-byte retained
+ZIP。该物理 ZIP 读取是 test-only OPFS 证据，不是产品下载 API。广泛 Provider/BYO Sandbox
+研究、Wasm/更完整执行环境和 import 仍未激活。Desktop
 底层仍计划由私有 companion 启动产品打包的 Pi coding-agent，但当前没有激活。
 
 详细的产品范围、Cloudflare OS 参考快照、语义映射、桌面/移动布局、键盘/IME、

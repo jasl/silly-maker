@@ -16,9 +16,12 @@ Host-owned immutable snapshot candidate plus cold-reopen contract on
 delivered target-neutral receipts, exact retained-package ownership, review-head
 capture, explicit publication resume, and the transient Host fence that day.
 Repository V3/physical V4 and the single shared Repository/Host Authority then
-cut over together and passed independent review on 2026-08-28. Checkpoint 3 is
-the active Browser product-evidence boundary; the changed Accept path remains
-non-deployed until that evidence passes.
+cut over together and passed independent review on 2026-08-28. Checkpoint 3
+then delivered the accepted/reviewed/mutable head presentation, truthful live
+divergence, winner-held stale rejection, cold reopen, and exact retained ZIP
+evidence in Chromium and persistent-profile WebKit. P3c-B1 therefore closed on
+2026-08-28; deployment from the committed baseline remains the next release
+operation.
 Broad execution-provider
 research, import, and later workspace slices remain inactive. The
 former "SillyOS 98" desktop
@@ -398,9 +401,10 @@ session and report actual volume effects even when a run is failed, cancelled,
 replaced, or produces no admissible Program candidate. Reload resets the volume
 and generation and must be shown as such. P3c-B0 now owns persistent workspace
 bytes and their portable download; durable tool receipts and admitted artifacts
-remain later independent work. Delivered P3c-B1 checkpoint 1 plus C2a own the
-immutable Host candidate and its publication lifecycle, not accepted-revision
-publication.
+remain later independent work. Delivered P3c-B1 owns the immutable Host package,
+its publication lifecycle, the exact accepted-revision receipt, and the
+accepted/reviewed/mutable identity projection; it still does not turn tool
+receipts or arbitrary artifacts into Program content.
 
 The exact DTO, close/cancel ordering, query/ack backpressure, generation rules,
 path and capacity ceilings, and Browser acceptance are owned by the delivered
@@ -681,7 +685,13 @@ closes the Host session, and disposes the shared authority/Repository last.
 The existing Accept control has switched internally to this non-visual
 composition in checkpoint 2 because the clean replacement schema has no
 snapshot-less accepted shape. Checkpoint 3 adds identity/head/divergence presentation and real cross-
-page/dual-browser evidence; it does not introduce a second Accept path. This
+page/dual-browser evidence; it does not introduce a second Accept path. The UI
+shows the latest accepted snapshot receipt and pending reviewed head separately
+from the mutable head. A newer live execution generation removes the old
+mutable checkpoint from the current position and marks the relevant anchors
+changed; a non-open or failed execution projection makes currentness
+unavailable. Historical accepted identity remains visible across later pending
+or rejected revisions. This
 ordered composition is the durable cross-store receipt, not a fabricated OPFS +
 IndexedDB transaction. Import/restore, broader artifacts, Desktop parity, BYO
 Sandbox, capability composition, OpenUI, and engine APIs remain outside B1. The
@@ -881,21 +891,21 @@ passing a pixel threshold alone is not design approval.
 This table is the completion denominator for the rewrite. A working preview is
 evidence for the preview only.
 
-| Area               | Accepted product role                                     | Current preview evidence                                                                                      | Remaining before product-ready                              |
-| ------------------ | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| Creator home       | Express intent and create/open a Program                  | Local request + B0a/B0b setup + P2 recent reopen                                                              | Attachments and general Provider UI                         |
-| Creator supervisor | Chat supervises one Program without becoming Program data | Durable run receipts + fresh Pi session over a durable checkpoint                                             | Program-anchored artifacts and published snapshots          |
-| Program workspace  | One focused mutable workspace produces reviewed snapshots | OPFS checkpoint + native read/write/edit/bash + recovery/scale + portable ZIP + B1 Host publication lifecycle | Publication, then import                                    |
-| Human review       | Accept/reject an exact proposed revision                  | Durable exact decision + cross-page stale rejection                                                           | Workspace-generation/snapshot publication                   |
-| Activity           | Explain what happened and what needs review               | Durable run events + session-local last-mutation receipt                                                      | Complete tool/action history and approvals                  |
-| Capabilities       | Required Agent and UI abilities are understandable        | Proposal tool + native read/write/edit/bash + closed Browser Local profile                                    | Broader capability composition                              |
-| Generated UI       | Agent-authored UI remains legible and controllable        | Not implemented                                                                                               | OpenUI mapped to closed SillyMaker components               |
-| Source             | Inspect and refine the Program where useful               | Presentation-only recipe preview                                                                              | Persistent draft checkpoint first; accepted snapshots later |
-| Translation        | A usable translation Program                              | Intent classification only                                                                                    | Complete workflow, data, QA, export                         |
-| Writing            | A usable writing Program                                  | Intent classification only                                                                                    | Complete workflow, data, revision tools                     |
-| Role-play          | A usable role-play Program                                | Intent classification only                                                                                    | Complete sessions, characters, VN behavior                  |
-| Browser            | Publishable local-first product with BYO Provider         | Fixed-profile Pi + exportable `20 MiB+` workspace                                                             | General Provider UI and later product closure               |
-| Deno Desktop       | Same product with admitted Host integrations              | Responsive preview target                                                                                     | Companion acceptance, storage, packaging qualification      |
+| Area               | Accepted product role                                     | Current preview evidence                                                             | Remaining before product-ready                         |
+| ------------------ | --------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------ |
+| Creator home       | Express intent and create/open a Program                  | Local request + B0a/B0b setup + P2 recent reopen                                     | Attachments and general Provider UI                    |
+| Creator supervisor | Chat supervises one Program without becoming Program data | Durable run receipts + fresh Pi session over a durable checkpoint                    | Program-anchored artifacts                             |
+| Program workspace  | One focused mutable workspace produces reviewed snapshots | OPFS checkpoint + native tools + recovery/scale/export + immutable accepted snapshot | Import and admitted artifacts                          |
+| Human review       | Accept/reject an exact proposed revision                  | Exact accepted snapshot/head + truthful divergence + winner-held stale rejection     | Rich diff and approval history                         |
+| Activity           | Explain what happened and what needs review               | Durable run events + session-local last-mutation receipt                             | Complete tool/action history and approvals             |
+| Capabilities       | Required Agent and UI abilities are understandable        | Proposal tool + native read/write/edit/bash + closed Browser Local profile           | Broader capability composition                         |
+| Generated UI       | Agent-authored UI remains legible and controllable        | Not implemented                                                                      | OpenUI mapped to closed SillyMaker components          |
+| Source             | Inspect and refine the Program where useful               | Presentation-only recipe preview                                                     | Persistent source/artifact views                       |
+| Translation        | A usable translation Program                              | Intent classification only                                                           | Complete workflow, data, QA, export                    |
+| Writing            | A usable writing Program                                  | Intent classification only                                                           | Complete workflow, data, revision tools                |
+| Role-play          | A usable role-play Program                                | Intent classification only                                                           | Complete sessions, characters, VN behavior             |
+| Browser            | Publishable local-first product with BYO Provider         | Fixed-profile Pi + exportable `20 MiB+` workspace                                    | General Provider UI and later product closure          |
+| Deno Desktop       | Same product with admitted Host integrations              | Responsive preview target                                                            | Companion acceptance, storage, packaging qualification |
 
 Before SillyOS is called a complete reference product, this table must be
 reconciled with implementation and tests, the current-low-end startup,
@@ -908,12 +918,11 @@ or one generated Program is not evidence that the complete product exists.
 The closed P3c-B0 slice in [PLAN.md](./PLAN.md) governs the delivered Browser
 OPFS checkpoint and portable download plus the delivered P3a-B1 native Pi
 `edit` and bounded Pi `bash`/just-bash checkpoints over that same volume. P3a
-is closed, P3c-B1 checkpoint 1 is delivered, and checkpoint 2's C2a Host
-publication-lifecycle sub-checkpoint is also delivered. C2b Repository V3/
-physical V4 and C2c Controller/shared-Authority composition subsequently closed
-together as an internal cutover on 2026-08-28. Checkpoint 3 is active and still
-gates deployment plus real Browser product evidence. Broader execution-
-provider research and import remain inactive. The plan also
+is closed. P3c-B1 checkpoints 1–3, including Repository V3/physical V4, the
+shared Repository/Host Authority, accepted snapshot identity/head presentation,
+and dual-browser product evidence, closed on 2026-08-28. Deployment is a release
+operation from that committed baseline; broader execution-provider research and
+import remain inactive. The plan also
 governs later real Pi integration, product persistence, Pi-native workspace
 tool binding, provider research, Pi capability composition,
 OpenUI-to-SillyMaker mapping, and the first complete product families. Runtime

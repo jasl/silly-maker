@@ -87,6 +87,33 @@ export interface ProgramWorkspaceSnapshotReceiptV1 {
   readonly archiveBytes: number;
 }
 
+export type ProgramWorkspaceReviewStatusV1 = "matches" | "changed" | "unavailable";
+
+/** Target-neutral projection of durable review anchors against the observable mutable head. */
+export interface ProgramWorkspaceReviewProjectionV1 {
+  readonly revision: 1;
+  readonly latestAccepted: {
+    readonly snapshotId: string;
+    readonly programRevision: number;
+    readonly checkpointId: string;
+    readonly generation: number;
+    readonly fileCount: number;
+    readonly archiveBytes: number;
+  } | null;
+  readonly pendingReview: {
+    readonly proposalId: string;
+    readonly programRevision: number;
+    readonly checkpointId: string;
+    readonly generation: number;
+  } | null;
+  readonly mutableHead: {
+    readonly checkpointId: string;
+    readonly generation: number;
+  } | null;
+  readonly acceptedStatus: ProgramWorkspaceReviewStatusV1 | null;
+  readonly pendingStatus: ProgramWorkspaceReviewStatusV1 | null;
+}
+
 export function admitProgramWorkspaceSnapshotReceiptV1(
   value: unknown,
 ): ProgramWorkspaceSnapshotReceiptV1 | null {

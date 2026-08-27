@@ -46,6 +46,25 @@ export interface SillyOsCopyV1 {
   readonly accepted: string;
   readonly rejected: string;
   readonly proposedProgram: string;
+  readonly workspaceReview: string;
+  readonly acceptedSnapshot: string;
+  readonly pendingReview: string;
+  readonly snapshotId: string;
+  readonly proposalId: string;
+  readonly programRevision: string;
+  readonly acceptedHead: string;
+  readonly reviewedHead: string;
+  readonly mutableHead: string;
+  readonly generation: string;
+  readonly fileCount: string;
+  readonly archiveSize: string;
+  readonly mutableHeadUnavailable: string;
+  readonly pendingReviewMatches: string;
+  readonly pendingReviewChanged: string;
+  readonly pendingReviewUnavailable: string;
+  readonly acceptedSnapshotMatches: string;
+  readonly acceptedSnapshotChanged: string;
+  readonly acceptedSnapshotUnavailable: string;
   readonly workspaceAria: string;
   readonly resizeAria: string;
   readonly mobileNavigation: string;
@@ -118,6 +137,29 @@ const englishV1: SillyOsCopyV1 = {
   accepted: "Program accepted",
   rejected: "Proposal rejected",
   proposedProgram: "Proposed program",
+  workspaceReview: "Workspace review",
+  acceptedSnapshot: "Accepted snapshot",
+  pendingReview: "Pending review",
+  snapshotId: "Snapshot ID",
+  proposalId: "Proposal ID",
+  programRevision: "Program revision",
+  acceptedHead: "Accepted head",
+  reviewedHead: "Reviewed head",
+  mutableHead: "Current working head",
+  generation: "Generation",
+  fileCount: "Files",
+  archiveSize: "Archive bytes",
+  mutableHeadUnavailable: "Unavailable",
+  pendingReviewMatches: "The working copy matches the reviewed proposal.",
+  pendingReviewChanged:
+    "The workspace changed after this proposal was reviewed. Ask Agent Creator for a new revision before accepting.",
+  pendingReviewUnavailable:
+    "The current working head is unavailable, so its relationship to this proposal is unknown.",
+  acceptedSnapshotMatches: "The working copy matches the accepted snapshot.",
+  acceptedSnapshotChanged:
+    "The working copy has changes after the accepted snapshot. Those changes are not accepted.",
+  acceptedSnapshotUnavailable:
+    "The current working head is unavailable, so its relationship to the accepted snapshot is unknown.",
   workspaceAria: "SillyOS program workspace",
   resizeAria: "Resize conversation and workpiece panes",
   mobileNavigation: "Workspace views",
@@ -196,6 +238,26 @@ const chineseV1: SillyOsCopyV1 = {
   accepted: "已接受程序",
   rejected: "已拒绝方案",
   proposedProgram: "建议的程序",
+  workspaceReview: "工作区审查",
+  acceptedSnapshot: "已接受快照",
+  pendingReview: "待审查方案",
+  snapshotId: "快照 ID",
+  proposalId: "方案 ID",
+  programRevision: "Program 版本",
+  acceptedHead: "已接受版本头",
+  reviewedHead: "已审查版本头",
+  mutableHead: "当前工作版本头",
+  generation: "代次",
+  fileCount: "文件数",
+  archiveSize: "归档字节数",
+  mutableHeadUnavailable: "不可用",
+  pendingReviewMatches: "当前工作副本与已审查方案一致。",
+  pendingReviewChanged:
+    "工作区在本方案完成审查后发生了变化。请先让 Agent Creator 生成新的修订版本，再执行接受。",
+  pendingReviewUnavailable: "当前工作版本头不可用，因此无法判断它与本方案的关系。",
+  acceptedSnapshotMatches: "当前工作副本与已接受快照一致。",
+  acceptedSnapshotChanged: "当前工作副本在已接受快照之后发生了变化；这些变化尚未被接受。",
+  acceptedSnapshotUnavailable: "当前工作版本头不可用，因此无法判断它与已接受快照的关系。",
   workspaceAria: "SillyOS 程序工作区",
   resizeAria: "调整对话区和工作界面的宽度",
   mobileNavigation: "工作区视图",

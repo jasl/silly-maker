@@ -459,6 +459,10 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
     throw new Error("test repository load is unavailable");
   }
 
+  async inspectProgramWorkspace(): Promise<never> {
+    throw new Error("test workspace review inspection is unavailable");
+  }
+
   async create(): Promise<never> {
     throw new Error("test repository create is unavailable");
   }
@@ -1755,6 +1759,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
         initialize: () => Promise.resolve(),
         list: repositoryUnavailable,
         load: repositoryUnavailable,
+        inspectProgramWorkspace: repositoryUnavailable,
         create: repositoryUnavailable,
         applyRevision: repositoryUnavailable,
         settleAgentRun: repositoryUnavailable,

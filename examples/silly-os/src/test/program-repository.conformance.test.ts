@@ -633,6 +633,103 @@ for (
       }
     });
 
+    it("settles Agent terminals from exact-current accepted and rejected proposals", async () => {
+      for (
+        const [decisionStatus, outcome] of [
+          ["accepted", "completed"],
+          ["accepted", "failed"],
+          ["accepted", "cancelled"],
+          ["accepted", "replaced"],
+          ["rejected", "completed"],
+        ] as const satisfies readonly (readonly [
+          "accepted" | "rejected",
+          CreatorAgentRunOutcomeV1,
+        ])[]
+      ) {
+        const repository = createHarness().open();
+        const fixture = createProgramFixtureV1(
+          `workspace.${name.toLowerCase()}.agent-after-${decisionStatus}-${outcome}`,
+        );
+        const created = await repository.create(createInputV1(fixture, 1));
+        if (created.kind !== "committed") throw new Error("expected create");
+        const decided = await decideV1({
+          repository,
+          session: fixture.session,
+          continuation: fixture.continuation,
+          aggregate: created.aggregate,
+          status: decisionStatus,
+          updatedAt: 2,
+        });
+        expect(decided.aggregate.reviewBinding).toBeNull();
+
+        const continuation = await requireContinuationV1(
+          repository,
+          created.aggregate.programId,
+        );
+        const run = currentAgentRunV1({
+          session: fixture.session,
+          agentRunId: `agent-run.${name.toLowerCase()}.${decisionStatus}.${outcome}`,
+          baseRepositoryRevision: continuation.repositoryRevision,
+        });
+        const terminal = agentTerminalV1(run, outcome);
+        applyAgentTerminalV1(fixture.session, terminal);
+        const reviewedHead = outcome === "completed"
+          ? {
+            checkpointId: `checkpoint.${name.toLowerCase()}.${decisionStatus}.${outcome}`,
+            generation: 2,
+          }
+          : null;
+        const mutation = {
+          programId: run.programId,
+          expectedRepositoryRevision: continuation.repositoryRevision,
+          terminal,
+          snapshot: fixture.session.getSnapshot(),
+          continuation,
+          reviewedHead,
+          updatedAt: 3,
+        } satisfies ProgramRepositorySettleAgentRunInputV3;
+
+        const settled = await repository.settleAgentRun(mutation);
+        if (settled.kind !== "committed") throw new Error("expected Agent settlement");
+        expect(settled.aggregate.decisions).toEqual(decided.aggregate.decisions);
+        expect(settled.aggregate.agentRunReceipts.at(-1)).toMatchObject({
+          agentRunId: run.agentRunId,
+          outcome,
+          baseProgramRevision: 1,
+          baseRepositoryRevision: 2,
+          resultingProgramRevision: outcome === "completed" ? 2 : null,
+        });
+        if (outcome === "completed") {
+          expect(settled.aggregate.snapshot.proposal).toMatchObject({
+            status: "pending",
+            programRevision: 2,
+          });
+          expect(settled.aggregate.reviewBinding).toMatchObject({
+            programRevision: 2,
+            baseAcceptedProgramRevision: decisionStatus === "accepted" ? 1 : null,
+            repositoryRevision: 3,
+            checkpointId: reviewedHead?.checkpointId,
+            generation: reviewedHead?.generation,
+          });
+        } else {
+          expect(settled.aggregate.snapshot.proposal).toMatchObject({
+            status: decisionStatus,
+            programRevision: 1,
+          });
+          expect(settled.aggregate.reviewBinding).toBeNull();
+        }
+        await expect(repository.settleAgentRun(mutation)).resolves.toEqual({
+          kind: "unchanged",
+          aggregate: settled.aggregate,
+        });
+        await expect(repository.loadWorkspaceContinuation(run.programId)).resolves.toMatchObject({
+          programRevision: outcome === "completed" ? 2 : 1,
+          repositoryRevision: 3,
+        });
+        await repository.dispose();
+      }
+    });
+
     it("enforces receipt and Program bounds without partially advancing the pair", async () => {
       const repository = createHarness().open();
       const fixture = createProgramFixtureV1(`workspace.${name.toLowerCase()}.receipt-bound`);
@@ -989,7 +1086,10 @@ describe("ProgramRepositoryV3 strict admission and pair integrity", () => {
     expect(admitProgramRepositoryAggregateV3({
       ...rejected.aggregate,
       decisions: [{ ...rejectedDecision, repositoryRevision: 2 }],
-    })).toEqual({ kind: "rejected", path: "/snapshot/proposal/status" });
+    })).toEqual({
+      kind: "rejected",
+      path: "/agentRunReceipts/0/baseRepositoryRevision",
+    });
 
     const continuation3 = await requireContinuationV1(repository, run.programId);
     const pending = await applyFollowUpV1({

@@ -19,13 +19,148 @@ import type {
   PreviewProgramV1,
   ProgramProposalV1,
 } from "../product/contracts.ts";
+import type { ProgramWorkspaceReviewProjectionV1 } from "../workspace/contracts.ts";
 import { SillyButtonV1 as Button } from "./controls.tsx";
+
+const pendingReviewStatusDescriptionIdV1 = "workspace-review-pending-status";
+
+function acceptedStatusCopyV1(
+  copy: SillyOsCopyV1,
+  status: ProgramWorkspaceReviewProjectionV1["acceptedStatus"],
+): string | null {
+  if (status === "matches") return copy.acceptedSnapshotMatches;
+  if (status === "changed") return copy.acceptedSnapshotChanged;
+  if (status === "unavailable") return copy.acceptedSnapshotUnavailable;
+  return null;
+}
+
+function pendingStatusCopyV1(
+  copy: SillyOsCopyV1,
+  status: ProgramWorkspaceReviewProjectionV1["pendingStatus"],
+): string | null {
+  if (status === "matches") return copy.pendingReviewMatches;
+  if (status === "changed") return copy.pendingReviewChanged;
+  if (status === "unavailable") return copy.pendingReviewUnavailable;
+  return null;
+}
+
+export function ProgramWorkspaceReviewV1({
+  copy,
+  review,
+}: {
+  readonly copy: SillyOsCopyV1;
+  readonly review: ProgramWorkspaceReviewProjectionV1 | null;
+}): ReactNode {
+  if (
+    review === null || (review.latestAccepted === null && review.pendingReview === null)
+  ) return null;
+  const acceptedStatus = acceptedStatusCopyV1(copy, review.acceptedStatus);
+  const pendingStatus = pendingStatusCopyV1(copy, review.pendingStatus);
+  const numberFormat = new Intl.NumberFormat(copy.locale);
+
+  return (
+    <section
+      className="program-workspace-review"
+      data-workspace-review=""
+      aria-labelledby="workspace-review-heading"
+    >
+      <h3 id="workspace-review-heading">{copy.workspaceReview}</h3>
+      <dl>
+        {review.latestAccepted === null ? null : (
+          <div data-workspace-review-accepted="">
+            <dt>{copy.acceptedSnapshot}</dt>
+            <dd>
+              <span>
+                <span>{copy.snapshotId}</span>
+                <code>{review.latestAccepted.snapshotId}</code>
+              </span>
+              <span>
+                <span>{copy.programRevision}</span>
+                <strong>{`v${String(review.latestAccepted.programRevision)}`}</strong>
+              </span>
+              <span>
+                <span>{copy.acceptedHead}</span>
+                <code>{review.latestAccepted.checkpointId}</code>
+                <small>
+                  {`${copy.generation} ${String(review.latestAccepted.generation)}`}
+                </small>
+              </span>
+              <span>
+                <span>{copy.fileCount}</span>
+                <strong>{numberFormat.format(review.latestAccepted.fileCount)}</strong>
+                <span aria-hidden="true">·</span>
+                <span>{copy.archiveSize}</span>
+                <strong>{numberFormat.format(review.latestAccepted.archiveBytes)}</strong>
+              </span>
+            </dd>
+          </div>
+        )}
+        {review.pendingReview === null ? null : (
+          <div data-workspace-review-pending="">
+            <dt>{copy.pendingReview}</dt>
+            <dd>
+              <span>
+                <span>{copy.proposalId}</span>
+                <code>{review.pendingReview.proposalId}</code>
+              </span>
+              <span>
+                <span>{copy.programRevision}</span>
+                <strong>{`v${String(review.pendingReview.programRevision)}`}</strong>
+              </span>
+              <span>
+                <span>{copy.reviewedHead}</span>
+                <code>{review.pendingReview.checkpointId}</code>
+                <small>{`${copy.generation} ${String(review.pendingReview.generation)}`}</small>
+              </span>
+            </dd>
+          </div>
+        )}
+        <div data-workspace-review-mutable="">
+          <dt>{copy.mutableHead}</dt>
+          <dd>
+            {review.mutableHead === null ? <span>{copy.mutableHeadUnavailable}</span> : (
+              <span>
+                <code>{review.mutableHead.checkpointId}</code>
+                <small>{`${copy.generation} ${String(review.mutableHead.generation)}`}</small>
+              </span>
+            )}
+          </dd>
+        </div>
+      </dl>
+      <div
+        className="program-workspace-review__status"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {acceptedStatus === null ? null : (
+          <p
+            data-workspace-review-accepted-message=""
+            data-review-status={review.acceptedStatus ?? undefined}
+          >
+            {acceptedStatus}
+          </p>
+        )}
+        {pendingStatus === null ? null : (
+          <p
+            id={pendingReviewStatusDescriptionIdV1}
+            data-workspace-review-pending-message=""
+            data-review-status={review.pendingStatus ?? undefined}
+          >
+            {pendingStatus}
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
 
 export interface ChatPanePropsV1 {
   readonly copy: SillyOsCopyV1;
   readonly messages: readonly CreatorChatMessageV1[];
   readonly proposal: ProgramProposalV1 | null;
   readonly program: PreviewProgramV1 | null;
+  readonly workspaceReview: ProgramWorkspaceReviewProjectionV1 | null;
   readonly workpieceOpen: boolean;
   readonly onAccept: () => void;
   readonly onReject: () => void;
@@ -53,6 +188,7 @@ export function ChatPaneV1({
   messages,
   proposal,
   program,
+  workspaceReview,
   workpieceOpen,
   onAccept,
   onReject,
@@ -69,6 +205,7 @@ export function ChatPaneV1({
   const agentReady = liveAgent ? copy.piLiveReady : copy.piTestReady;
   const agentFailed = liveAgent ? copy.piLiveFailed : copy.piTestFailed;
   const agentForget = liveAgent ? copy.piLiveForget : copy.piTestForget;
+  const pendingReviewChanged = workspaceReview?.pendingStatus === "changed";
 
   useEffect(() => {
     feedEndRef.current?.scrollIntoView({ block: "end" });
@@ -212,7 +349,10 @@ export function ChatPaneV1({
                     size="sm"
                     variant="primary"
                     icon={CircleCheck}
-                    disabled={mutationPending}
+                    disabled={mutationPending || pendingReviewChanged}
+                    aria-describedby={pendingReviewChanged
+                      ? pendingReviewStatusDescriptionIdV1
+                      : undefined}
                     onClick={onAccept}
                   >
                     {copy.accept}
@@ -238,6 +378,8 @@ export function ChatPaneV1({
               )}
           </article>
         )}
+
+        <ProgramWorkspaceReviewV1 copy={copy} review={workspaceReview} />
 
         {program !== null && (
           <button

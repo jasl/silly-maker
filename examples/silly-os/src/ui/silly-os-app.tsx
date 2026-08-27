@@ -787,6 +787,7 @@ export function SillyOsAppV1({
             key={snapshot.workspace?.workspaceId}
             copy={copy}
             snapshot={snapshot}
+            workspaceReview={controllerSnapshot.workspaceReview}
             homeDisabled={durability.phase === "saving" || agentMutationPending ||
               agentWorkspaceLifecyclePending || workspaceExportPending}
             mutationPending={durability.phase === "saving" || agentMutationPending ||
