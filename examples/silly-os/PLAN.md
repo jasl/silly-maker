@@ -27,10 +27,13 @@ delivered accepted snapshot identity/head presentation, truthful live-head
 divergence, winner-held stale rejection, cold reopen, and exact retained-package
 evidence in Chromium and persistent-profile WebKit. Both engines verified the
 existing `1,001`-file / `21,897,216`-byte corpus inside a `22,065,863`-byte
-immutable ZIP, so P3c-B1 closed on 2026-08-28. Deployment from this committed
-cutover is the next release operation, not another product slice. P1-D remains
-owner-paused, while P3b, import, and later slices remain inactive; no SillyOS
-implementation slice is automatically active after B1.
+immutable ZIP, so P3c-B1 closed on 2026-08-28. The committed cutover
+`87de75cbfc990b5d2738b26c24a0864474a10c98` was deployed that day as Cloudflare
+version `a99ade98-e333-49a7-a92f-cd46e6e8e074`; the public origin returned
+HTTP 200 and completed a fresh Creator Home -> durable Program workspace smoke
+without page, console, or request errors. P1-D remains owner-paused, while P3b,
+import, and later slices remain inactive; no SillyOS implementation slice is
+automatically active after B1.
 The raw launcher is not the typed product RPC; the live Browser route is a
 separate product path. This plan remains local to `examples/silly-os`; the
 neutral async GUI disposer was delivered separately by the engine task and is
@@ -1991,8 +1994,8 @@ P3c-B1 is deliberately split into independently reviewed checkpoints:
    `21,897,216`-byte corpus in Chromium and persistent-profile WebKit.
 
 Checkpoint 2 is itself bounded by three independently reviewed sub-checkpoints.
-C2a–C2c and checkpoint 3 are delivered; only publication from the committed
-baseline remains as the release operation:
+C2a–C2c and checkpoint 3 are delivered. Their committed baseline was published
+and smoke-verified from the public Cloudflare origin on 2026-08-28:
 
 1. **C2a — Host publication lifecycle (delivered 2026-08-27).** Move the exact immutable receipt to a
    target-neutral SillyOS workspace contract shared by Host wire and the later
@@ -2195,11 +2198,12 @@ discard cleanup boundary. Three independent read-only reviews found no blocker;
 one recorded that a failed pointer removal deliberately needs cold reopen after
 the package has already been removed, and the focused fault-injection test now
 pins that recovery. C2a adds no Repository row, Controller call, UI, or Browser
-product claim and is not deployed. C2b and C2c subsequently closed as one
-internal cutover on 2026-08-28 after focused and independent review. Checkpoint
-3 then closed P3c-B1 with identity/head/divergence presentation and real
-cross-page/dual-browser product acceptance. The cutover is ready to deploy only
-from this committed checkpoint; no later feature is implied.
+product claim by itself. C2b and C2c subsequently closed as one internal cutover
+on 2026-08-28 after focused and independent review. Checkpoint 3 then closed
+P3c-B1 with identity/head/divergence presentation and real cross-page/dual-browser
+product acceptance. The complete cutover was deployed only from commit
+`87de75cbfc990b5d2738b26c24a0864474a10c98` as Cloudflare version
+`a99ade98-e333-49a7-a92f-cd46e6e8e074`; no later feature is implied.
 P3c-B1 adds no archive import/restore reader, artifact admission, sync/share,
 background execution, provider selector, custom endpoint, broader shell or
 process provider, Wasm, Git implementation, Python, QuickJS, BYO Sandbox,

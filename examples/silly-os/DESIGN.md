@@ -20,9 +20,10 @@ cut over together and passed independent review on 2026-08-28. Checkpoint 3
 then delivered the accepted/reviewed/mutable head presentation, truthful live
 divergence, winner-held stale rejection, cold reopen, and exact retained ZIP
 evidence in Chromium and persistent-profile WebKit. P3c-B1 therefore closed on
-2026-08-28; deployment from the committed baseline remains the next release
-operation.
-Broad execution-provider
+2026-08-28. Commit `87de75cbfc990b5d2738b26c24a0864474a10c98` was deployed
+that day as Cloudflare version `a99ade98-e333-49a7-a92f-cd46e6e8e074`; a fresh
+public-origin Creator Home -> durable Program workspace smoke returned HTTP 200
+without page, console, or request errors. Broad execution-provider
 research, import, and later workspace slices remain inactive. The
 former "SillyOS 98" desktop
 experiment has been retired as a product direction. It remains useful only as
@@ -921,8 +922,8 @@ OPFS checkpoint and portable download plus the delivered P3a-B1 native Pi
 is closed. P3c-B1 checkpoints 1–3, including Repository V3/physical V4, the
 shared Repository/Host Authority, accepted snapshot identity/head presentation,
 and dual-browser product evidence, closed on 2026-08-28. Deployment is a release
-operation from that committed baseline; broader execution-provider research and
-import remain inactive. The plan also
+operation from that committed baseline and completed that day; broader
+execution-provider research and import remain inactive. The plan also
 governs later real Pi integration, product persistence, Pi-native workspace
 tool binding, provider research, Pi capability composition,
 OpenUI-to-SillyMaker mapping, and the first complete product families. Runtime

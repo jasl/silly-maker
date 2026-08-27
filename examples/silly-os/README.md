@@ -146,6 +146,10 @@ Worker。这个显式路线只支持当前固定模型，不读取开发机 `.en
 
 当前已资格化的 Cloudflare 部署是
 [silly-maker-silly-os.jasl9187.workers.dev](https://silly-maker-silly-os.jasl9187.workers.dev/)。
+P3c-B1 checkpoint 3 的提交
+`87de75cbfc990b5d2738b26c24a0864474a10c98` 已于 2026-08-28 发布为 Cloudflare
+版本 `a99ade98-e333-49a7-a92f-cd46e6e8e074`；全新浏览器上下文从公网完成了 Creator
+Home 到持久 Program workspace 的冒烟检查，HTTP、页面、console 和资源请求均无错误。
 它只托管静态产品；OpenAI key 和模型请求从 Agent Worker 直接发送给 OpenAI，不经过
 SillyOS 或 Cloudflare relay。
 

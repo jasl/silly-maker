@@ -15,8 +15,9 @@ and checkpoint 2's C2a Host publication lifecycle has also delivered. C2b
 Repository V3/physical V4 and C2c's shared Repository/Host Authority then closed
 together as an independently reviewed internal cutover on 2026-08-28.
 Checkpoint 3 then closed P3c-B1 with exact accepted snapshot presentation and
-retained-package evidence in Chromium and persistent-profile WebKit. Deployment
-from that committed baseline remains a release operation. No
+retained-package evidence in Chromium and persistent-profile WebKit. The
+committed baseline was deployed and smoke-verified from the public Cloudflare
+origin on 2026-08-28. No
 broader shell/process provider or BYO Sandbox is selected or implemented. The
 owning product sequence is [PLAN.md](./PLAN.md).
 
