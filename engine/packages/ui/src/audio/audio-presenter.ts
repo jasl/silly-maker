@@ -28,6 +28,8 @@ export interface AudioPresenterV1 {
   onTransientEffect(effect: TransientEffectV1): void;
   /** Replays the current voice line (player control; no gameplay effect). */
   replayVoice(): boolean;
+  /** True only while the current authored voice line is still playing. */
+  isCurrentVoicePlaying(): boolean;
   suspend(): void;
   resume(): void;
   dispose(): void;
@@ -153,6 +155,10 @@ export function createAudioPresenterV1(options: CreateAudioPresenterOptionsV1): 
         fadeMs: 0,
       });
       return true;
+    },
+
+    isCurrentVoicePlaying(): boolean {
+      return !disposed && current.voice !== null && options.host.isChannelActive("voice");
     },
 
     suspend(): void {

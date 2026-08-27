@@ -3,11 +3,11 @@
 # 《最后一次试音》— VN Reference Tour
 
 状态：**M0–M1 已交付 / WIP；M2 进行中。独立 package、完整双路线作者数据与 simulation 已完成；当前已可试玩
-第一版引擎维护的 default VN Player 已提供对话/选择界面、全画布点击推进、History/播放控制、贴底响应式布局和 VN 键盘习惯。最终 Stage 媒体、音频、
-rollback/end controls 与完整产品验收仍未完成。**
+第一版引擎维护的 default VN Player 已提供对话/选择界面、全画布点击推进、History/播放控制、贴底响应式布局和 VN 键盘习惯；
+最终 Stage 媒体、结局 surface 与冻结的八项音频分母也已接入。正确的 rollback/forward controls 与完整产品验收仍未完成。**
 
-M1 已用本产品的完整 Story/Scene author data 原子替换 tracked Template 的临时内容；当前 M2 只交付了第一版
-Player 交互与 chrome，不代表最终视觉/音频、Save/recovery 或产品验收。《最后一次试音》仍不是完整产品参考
+M1 已用本产品的完整 Story/Scene author data 原子替换 tracked Template 的临时内容；当前 M2 已交付 Player、
+Stage 媒体、结局与音频切片，但不代表 rollback、完整响应式/无障碍矩阵、Save/recovery 或产品验收。《最后一次试音》仍不是完整产品参考
 或旗舰。完整产品合同见 [DESIGN.md](DESIGN.md)。
 
 ## 产品目标
@@ -48,9 +48,11 @@ skip-read，按住 `Ctrl` 临时 skip-read。`H` 会先停止正在生效的 Aut
 停止，Auto 与 Skip 保持为两个独立模式。`Shift+Tab` 从 gameplay scope 进入播放控件，控件内 `Tab` / `Shift+Tab`
 保留原生焦点次序，`Escape` 返回 gameplay scope。PageUp/滚轮回退与 PageDown/滚轮前进尚未宣称完成：现有
 command-level rollback 缺少 VN 所需的 transparent checkpoint 分类，且还没有 roll-forward port。
+当前有语音的台词可用“语音”按钮或 `V` 重放；Auto 的文本等待到期后仍会等待当前语音自然结束。浏览器拒绝
+自动播放或媒体不可解码时只降级为静音，不阻塞剧情。
 
 这些命令的 M1 green run 只证明完整 author data、两条 deterministic headless routes 与当前项目接线；在 M2–M4
-对应 evidence 关闭前，不得把它报告为 VN Player、最终媒体、Save/recovery 或发布完成。M1 关闭时 focused tests、
+对应 evidence 关闭前，不得把它报告为完整 VN Player、Save/recovery 或发布完成。M1 关闭时 focused tests、
 两条 simulation、`app check`、product build、asset/determinism checks、React Doctor 与串行 repository check 均通过。
 
 ## 作者地图
@@ -86,8 +88,8 @@ command-level rollback 缺少 VN 所需的 transparent checkpoint 分类，且�
 
 产品从 Template 起步，但不 import Template、Bookshop 或其他 example。M0 已删除 coins/inventory/HUD action、
 reference-only outer UI 与临时 Story identity，不保留 compatibility alias 或零值模块。M1 已用冻结的完整产品
-剧情、两个场景与兼容 placeholder presentation 替换 temporary author scaffold；第一版 focused default VN Player
-已由引擎提供，最终媒体与剩余 Player 验收留给 M2。
+剧情、两个场景与兼容 placeholder presentation 替换 temporary author scaffold；第一版 focused default VN Player、
+最终 Stage/ending 媒体与音频已接入，剩余 Player 验收留给 M2。
 
 本产品不建立 Ren'Py DSL/Save compatibility、自定义解释器、broad VN framework、Blueprint、最终编辑器、Mod/Agent、
 特殊 pending 或 Desktop HMR。`NarrativeAside` 不是 denominator；只有完整剧本自然需要时才可选择最多一处。
@@ -111,5 +113,6 @@ Agent 使用同一 authoring/CAS 路径的接手任务。
 ## 许可
 
 产品代码与原创文本采用 MIT。图片、字体、音乐、环境声、SFX 与 voice 只使用项目原创、明确兼容许可或合法
-生成的表达，并保留相应 notice。不得复制 Ren'Py、Bookshop、Template 或第三方 VN 的文案、角色、素材、录音
-和品牌。
+生成的表达，并保留相应 notice。当前 BGM、ambient 与 SFX 是项目用 FFmpeg 9.0.1 程序化生成的原创音频；两段
+voice 使用 Apache-2.0 的 Kokoro 82M v1.1-zh 生成，未随产品分发模型、工具链或第三方录音。不得复制 Ren'Py、
+Bookshop、Template 或第三方 VN 的文案、角色、素材、录音和品牌。

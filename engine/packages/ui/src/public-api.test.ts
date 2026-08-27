@@ -89,7 +89,7 @@ describe("@sillymaker/ui public managed System surface", () => {
     expectTypeOf<Extract<keyof NarrativeSurfaceDefinitionV1<unknown>, string>>()
       .toEqualTypeOf<never>();
     expectTypeOf<keyof NarrativeSurfaceSelectionV1>().toEqualTypeOf<
-      "pending" | "history" | "choiceAvailability"
+      "pending" | "history" | "choiceAvailability" | "voiceReplayAvailable"
     >();
     expectTypeOf<keyof NarrativeChoiceAvailabilityV1>().toEqualTypeOf<
       "choiceId" | "status" | "reasonTextIds"
@@ -108,6 +108,7 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "renderer"
       | "resolveText"
       | "replayCurrentVoice"
+      | "isCurrentVoicePlaying"
     >();
     expectTypeOf<Extract<keyof DefaultGameRootSlotsV1<unknown, unknown, string>, "narrative">>()
       .toEqualTypeOf<never>();

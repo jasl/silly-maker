@@ -22,6 +22,7 @@ import {
   vnReferenceTourChoiceOptionsForV1,
   vnReferenceTourInteractionContextV1,
 } from "../story/narrative.ts";
+import { projectVnReferenceTourTransientEffectsV1 } from "../content/audio.ts";
 
 /**
  * The semantic surface: what UI, agents, and automation can see and do.
@@ -232,4 +233,5 @@ export const vnReferenceTourSemanticAdapterV1: CoreSemanticAdapterV1<
     events.flatMap((event) =>
       event.kind === "vn-reference-tour.stage_changed" ? event.dispatches ?? [] : []
     ),
+  projectTransientEffects: (events) => projectVnReferenceTourTransientEffectsV1(events),
 };

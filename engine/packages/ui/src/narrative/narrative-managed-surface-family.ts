@@ -259,6 +259,10 @@ export interface NarrativeStableVoiceReplayPortInternalV1 {
   readonly replayCurrentVoiceInternalV1: () => boolean;
 }
 
+export interface NarrativeStableVoiceActivityPortInternalV1 {
+  readonly isCurrentVoicePlayingInternalV1: () => boolean;
+}
+
 export interface NarrativeStableHistoryAvailabilityPortInternalV1 {
   readonly readHistoryAvailabilityInternalV1: () => boolean;
 }
@@ -308,6 +312,7 @@ export interface NarrativeStableCandidateSnapshotInternalV1 {
   readonly presentationClock: NarrativeStableDialoguePlayerClockPortInternalV1;
   readonly textResolver: NarrativeStableDialoguePlayerTextResolverPortInternalV1;
   readonly voiceReplayPort: NarrativeStableVoiceReplayPortInternalV1 | null;
+  readonly voiceActivityPort?: NarrativeStableVoiceActivityPortInternalV1 | null;
   readonly quickMenuContribution: object | ((...args: never[]) => unknown) | null;
 }
 
@@ -6370,6 +6375,14 @@ function requestNarrativeStableDialoguePlayerTickInternalV1(
         record.automaticRemainingMs = record.policy.autoWaitMs;
       } else if (wasComplete) {
         record.automaticRemainingMs = Math.max(0, record.automaticRemainingMs - elapsed);
+      }
+      if (
+        record.automaticRemainingMs === 0 &&
+        record.frame?.candidateSnapshot.voiceActivityPort
+            ?.isCurrentVoicePlayingInternalV1() === true
+      ) {
+        requestNarrativeStableDialoguePlayerTickInternalV1(record, generation);
+        return;
       }
       if (record.automaticRemainingMs === 0) {
         const attempt = issueNarrativeStableDialoguePlayerAutomaticAttemptInternalV1(

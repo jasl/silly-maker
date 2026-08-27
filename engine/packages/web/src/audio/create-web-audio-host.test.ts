@@ -40,16 +40,27 @@ function manifestV1() {
 }
 
 interface FakeContextV1 extends WebAudioContextLikeV1 {
-  startedSources(): readonly { assetId: string | null; loop: boolean; stopped: boolean }[];
+  startedSources(): readonly {
+    assetId: string | null;
+    loop: boolean;
+    stopped: boolean;
+    finish(): void;
+  }[];
   setState(state: "suspended" | "running"): void;
 }
 
 function createFakeContextV1(
   initialState: "suspended" | "running",
   decodeAudioData?: (bytes: ArrayBuffer) => Promise<{ readonly duration: number }>,
+  resumeContext?: () => Promise<void>,
 ): FakeContextV1 {
   let state: "suspended" | "running" | "closed" = initialState;
-  const sources: { assetId: string | null; loop: boolean; stopped: boolean }[] = [];
+  const sources: {
+    assetId: string | null;
+    loop: boolean;
+    stopped: boolean;
+    finish(): void;
+  }[] = [];
   const gainNode = () => ({
     gain: {
       value: 1,
@@ -67,6 +78,7 @@ function createFakeContextV1(
     currentTime: 0,
     destination: {},
     resume: () => {
+      if (resumeContext !== undefined) return resumeContext();
       state = "running";
       return Promise.resolve();
     },
@@ -80,7 +92,15 @@ function createFakeContextV1(
     },
     createGain: gainNode,
     createBufferSource: () => {
-      const record = { assetId: null as string | null, loop: false, stopped: false };
+      const endedListeners: Array<() => void> = [];
+      const record = {
+        assetId: null as string | null,
+        loop: false,
+        stopped: false,
+        finish(): void {
+          for (const listener of endedListeners.splice(0)) listener();
+        },
+      };
       sources.push(record);
       return {
         buffer: null,
@@ -96,7 +116,9 @@ function createFakeContextV1(
         stop: () => {
           record.stopped = true;
         },
-        addEventListener: () => undefined,
+        addEventListener: (_type: "ended", listener: () => void) => {
+          endedListeners.push(listener);
+        },
       };
     },
     decodeAudioData: decodeAudioData ?? ((bytes: ArrayBuffer) => {
@@ -117,10 +139,12 @@ function hostV1(input: {
   readonly bytesByPath?: Readonly<Record<string, Uint8Array>>;
   readonly decodeAudioData?: (bytes: ArrayBuffer) => Promise<{ readonly duration: number }>;
   readonly fetchBytes?: (url: string) => Promise<Uint8Array>;
+  readonly resumeContext?: () => Promise<void>;
 }) {
   const context = createFakeContextV1(
     input.contextState ?? "running",
     input.decodeAudioData,
+    input.resumeContext,
   );
   const diagnostics: AudioHostDiagnosticV1[] = [];
   const bytesByPath = input.bytesByPath ?? {
@@ -169,10 +193,14 @@ describe("createWebAudioHostV1", () => {
       gainPermille: 800,
       fadeMs: 0,
     });
+    expect(host.isChannelActive("bgm")).toBe(true);
     await flushV1();
     expect(context.startedSources()).toHaveLength(1);
     expect(context.startedSources()[0]?.loop).toBe(true);
+    expect(host.isChannelActive("bgm")).toBe(true);
     expect(diagnostics).toEqual([]);
+    context.startedSources()[0]?.finish();
+    expect(host.isChannelActive("bgm")).toBe(false);
     host.dispose();
   });
 
@@ -201,6 +229,7 @@ describe("createWebAudioHostV1", () => {
       gainPermille: 1000,
       fadeMs: 0,
     });
+    expect(host.isChannelActive("bgm")).toBe(true);
 
     alternateBytes.resolve(new Uint8Array([5, 6, 7, 8]));
     await flushV1();
@@ -212,6 +241,70 @@ describe("createWebAudioHostV1", () => {
     await flushV1();
     expect(context.startedSources()).toEqual([currentSource]);
     expect(currentSource?.stopped).toBe(false);
+    expect(host.isChannelActive("bgm")).toBe(true);
+    host.dispose();
+  });
+
+  it("keeps replacement activity when the stopped predecessor ends late", async () => {
+    const { host, context } = hostV1({
+      bytesByPath: {
+        "audio/theme.ogg": new Uint8Array([1, 2, 3, 4]),
+        "audio/alternate.ogg": new Uint8Array([5, 6, 7, 8]),
+      },
+    });
+    host.play({
+      channel: "voice",
+      assetId: "audio.test.theme",
+      loop: false,
+      gainPermille: 1000,
+      fadeMs: 0,
+    });
+    await flushV1();
+    const predecessor = context.startedSources()[0];
+
+    host.play({
+      channel: "voice",
+      assetId: "audio.test.alternate",
+      loop: false,
+      gainPermille: 1000,
+      fadeMs: 0,
+    });
+    await flushV1();
+    const successor = context.startedSources()[1];
+    expect(predecessor?.stopped).toBe(true);
+    expect(host.isChannelActive("voice")).toBe(true);
+
+    predecessor?.finish();
+    expect(host.isChannelActive("voice")).toBe(true);
+    successor?.finish();
+    expect(host.isChannelActive("voice")).toBe(false);
+    host.dispose();
+  });
+
+  it("restarts the same voice asset for an explicit replay demand", async () => {
+    const { host, context } = hostV1({});
+    const input = {
+      channel: "voice" as const,
+      assetId: "audio.test.theme",
+      loop: false,
+      gainPermille: 1000,
+      fadeMs: 0,
+    };
+    host.play(input);
+    await flushV1();
+    const first = context.startedSources()[0];
+
+    host.play(input);
+    await flushV1();
+    const replay = context.startedSources()[1];
+    expect(first?.stopped).toBe(true);
+    expect(replay?.stopped).toBe(false);
+    expect(host.isChannelActive("voice")).toBe(true);
+
+    first?.finish();
+    expect(host.isChannelActive("voice")).toBe(true);
+    replay?.finish();
+    expect(host.isChannelActive("voice")).toBe(false);
     host.dispose();
   });
 
@@ -232,12 +325,15 @@ describe("createWebAudioHostV1", () => {
       gainPermille: 1000,
       fadeMs: 0,
     });
+    expect(host.isChannelActive("voice")).toBe(true);
     await decodeStarted.promise;
     host.stop("voice", 0);
+    expect(host.isChannelActive("voice")).toBe(false);
     decoded.resolve({ duration: 1 });
     await flushV1();
 
     expect(context.startedSources()).toHaveLength(0);
+    expect(host.isChannelActive("voice")).toBe(false);
     host.dispose();
   });
 
@@ -259,8 +355,10 @@ describe("createWebAudioHostV1", () => {
       gainPermille: 1000,
       fadeMs: 0,
     });
+    expect(host.isChannelActive("bgm")).toBe(true);
     host.playEffect({ assetId: "audio.test.broken", gainPermille: 1000 });
     host.dispose();
+    expect(host.isChannelActive("bgm")).toBe(false);
     themeBytes.resolve(new Uint8Array([1, 2, 3, 4]));
     effectBytes.resolve(new Uint8Array([5, 6, 7, 8]));
     await flushV1();
@@ -278,6 +376,7 @@ describe("createWebAudioHostV1", () => {
       gainPermille: 1000,
       fadeMs: 0,
     });
+    expect(host.isChannelActive("bgm")).toBe(true);
     host.playEffect({ assetId: "audio.test.theme", gainPermille: 1000 });
     await flushV1();
     expect(context.startedSources()).toHaveLength(0);
@@ -292,6 +391,67 @@ describe("createWebAudioHostV1", () => {
     await flushV1();
     expect(context.state).toBe("running");
     expect(context.startedSources()).toHaveLength(1);
+    expect(host.isChannelActive("bgm")).toBe(true);
+    host.dispose();
+  });
+
+  it("ends pending activity when gesture unlock fails", async () => {
+    const { host, diagnostics } = hostV1({
+      contextState: "suspended",
+      resumeContext: () => Promise.reject(new Error("gesture rejected")),
+    });
+    host.play({
+      channel: "voice",
+      assetId: "audio.test.theme",
+      loop: false,
+      gainPermille: 1000,
+      fadeMs: 0,
+    });
+    expect(host.isChannelActive("voice")).toBe(true);
+
+    document.dispatchEvent(new Event("pointerdown"));
+    await flushV1();
+    expect(host.isChannelActive("voice")).toBe(false);
+    expect(diagnostics.map(({ code }) => code)).toEqual([
+      "audio.autoplay_denied",
+      "audio.autoplay_denied",
+    ]);
+    host.dispose();
+  });
+
+  it("ends current demand when continuous media is missing or undecodable", async () => {
+    const { host, context, diagnostics } = hostV1({
+      bytesByPath: {
+        "audio/theme.ogg": new Uint8Array([1, 2, 3, 4]),
+        "audio/broken.ogg": new Uint8Array([0xff, 0, 0, 0]),
+      },
+    });
+    host.play({
+      channel: "voice",
+      assetId: "audio.test.ghost",
+      loop: false,
+      gainPermille: 1000,
+      fadeMs: 0,
+    });
+    expect(host.isChannelActive("voice")).toBe(true);
+    await flushV1();
+    expect(host.isChannelActive("voice")).toBe(false);
+
+    host.play({
+      channel: "voice",
+      assetId: "audio.test.broken",
+      loop: false,
+      gainPermille: 1000,
+      fadeMs: 0,
+    });
+    expect(host.isChannelActive("voice")).toBe(true);
+    await flushV1();
+    expect(host.isChannelActive("voice")).toBe(false);
+    expect(context.startedSources()).toHaveLength(0);
+    expect(diagnostics.map(({ code }) => code)).toEqual([
+      "audio.asset_missing",
+      "audio.decode_failed",
+    ]);
     host.dispose();
   });
 
@@ -313,6 +473,7 @@ describe("createWebAudioHostV1", () => {
       gainPermille: 500,
       fadeMs: 0,
     });
+    expect(host.isChannelActive("ambient")).toBe(true);
     // Unknown asset id.
     host.playEffect({ assetId: "audio.test.ghost", gainPermille: 1000 });
     // Replacement bytes decode and play normally.
@@ -328,6 +489,7 @@ describe("createWebAudioHostV1", () => {
     await flushV1();
 
     expect(context.startedSources()).toHaveLength(1);
+    expect(host.isChannelActive("ambient")).toBe(false);
     expect(diagnostics.map(({ code, assetId }) => `${code}:${String(assetId)}`)).toEqual([
       "audio.asset_missing:audio.test.ghost",
       "audio.decode_failed:audio.test.broken",

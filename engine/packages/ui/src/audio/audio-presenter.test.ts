@@ -157,6 +157,7 @@ describe("createAudioPresenterV1", () => {
 
   it("ties voice to the say occurrence with stop_on_advance and sustain", () => {
     const { host, presenter } = presenterV1();
+    expect(presenter.isCurrentVoicePlaying()).toBe(false);
 
     presenter.retarget({
       intent: intentV1({
@@ -166,10 +167,15 @@ describe("createAudioPresenterV1", () => {
       epoch: 0,
     });
     expect(host.channel("voice")).toMatchObject({ assetId: "audio.test.line1" });
+    expect(presenter.isCurrentVoicePlaying()).toBe(true);
+
+    host.finishChannel("voice");
+    expect(presenter.isCurrentVoicePlaying()).toBe(false);
 
     // Advance: stop_on_advance stops the old line even with no new voice.
     presenter.retarget({ intent: intentV1({}), revision: 2, epoch: 0 });
     expect(host.channel("voice")).toBeNull();
+    expect(presenter.isCurrentVoicePlaying()).toBe(false);
 
     // Sustain: the line keeps playing when the interaction moves on.
     presenter.retarget({
@@ -183,8 +189,12 @@ describe("createAudioPresenterV1", () => {
       revision: 3,
       epoch: 0,
     });
+    expect(presenter.isCurrentVoicePlaying()).toBe(true);
     presenter.retarget({ intent: intentV1({}), revision: 4, epoch: 0 });
     expect(host.channel("voice")).toMatchObject({ assetId: "audio.test.line2" });
+    // A sustained predecessor remains audible, but it is not the current
+    // unvoiced Say and therefore must not hold current-line Auto advance.
+    expect(presenter.isCurrentVoicePlaying()).toBe(false);
 
     // A NEW voice line always replaces the sustained one.
     presenter.retarget({
@@ -195,9 +205,11 @@ describe("createAudioPresenterV1", () => {
       epoch: 0,
     });
     expect(host.channel("voice")).toMatchObject({ assetId: "audio.test.line3" });
+    expect(presenter.isCurrentVoicePlaying()).toBe(true);
 
     // Voice replay is a player control that re-triggers the current line.
     expect(presenter.replayVoice()).toBe(true);
+    expect(presenter.isCurrentVoicePlaying()).toBe(true);
     expect(host.operations().filter((op) => op.startsWith("play:voice"))).toHaveLength(4);
   });
 
@@ -213,6 +225,7 @@ describe("createAudioPresenterV1", () => {
 
     presenter.dispose();
     expect(host.channel("bgm")).toBeNull();
+    expect(presenter.isCurrentVoicePlaying()).toBe(false);
     presenter.onTransientEffect(effectV1(9, 0));
     expect(host.effects()).toHaveLength(0);
     presenter.retarget({ intent: intentV1({ bgm: "audio.test.storm" }), revision: 2, epoch: 0 });

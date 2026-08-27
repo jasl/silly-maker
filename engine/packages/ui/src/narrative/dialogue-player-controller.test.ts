@@ -274,6 +274,7 @@ function dialoguePlayerHarnessV1(input: {
   readonly rawProfilePort?: unknown;
   readonly rawTextResolverPort?: unknown;
   readonly semanticDispatchPort?: NarrativeStableSemanticResolutionPortInternalV1;
+  readonly isCurrentVoicePlaying?: () => boolean;
 } = {}): DialoguePlayerHarnessV1 {
   const contract = createNarrativeManagedSurfaceFamilyContractInternalV1();
   const kernelBundle = createManagedSurfaceCompositeKernelBundleInternalV1({
@@ -303,6 +304,9 @@ function dialoguePlayerHarnessV1(input: {
         presentationClock: input.rawClockPort ?? clock.port,
         textResolver: input.rawTextResolverPort ?? text.port,
         voiceReplayPort: null,
+        voiceActivityPort: input.isCurrentVoicePlaying === undefined ? null : {
+          isCurrentVoicePlayingInternalV1: input.isCurrentVoicePlaying,
+        },
         quickMenuContribution: null,
       },
     }),
@@ -1622,6 +1626,49 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     expect(harness.profile.markSeen).toHaveBeenCalledOnce();
     expect(() => clock.fire(1_601)).toThrowError("expected one scheduled Dialogue tick");
     expect(dispatchResolution).toHaveBeenCalledOnce();
+
+    admission.disposeInternalV1();
+    controller.disposeInternalV1();
+  });
+
+  it("holds player Auto at its expired deadline until the current voice becomes idle", () => {
+    const dispatchResolution = vi.fn(() => Promise.resolve("voice-aware-auto-complete"));
+    const clock = manualDialogueClockV1({ initialNowMs: 1_000 });
+    let voicePlaying = true;
+    const isCurrentVoicePlaying = vi.fn(() => voicePlaying);
+    const harness = dialoguePlayerHarnessV1({
+      clock,
+      profile: mutableDialogueProfileV1(
+        playerProfileWithPreferencesV1({ autoWaitMs: 100 }),
+      ),
+      semanticDispatchPort: {
+        dispatchResolutionInternalV1: dispatchResolution,
+      },
+      isCurrentVoicePlaying,
+    });
+    const current = installSayCandidateV1(harness);
+    const controller = createControllerV1(harness, current.target, current.frame);
+    settleCurrentNarrativeReadyV1(harness);
+    const admission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: harness.bridge,
+      inputRouter: createInputRouterV1(),
+      isGestureCurrent: () => true,
+    });
+    togglePlaybackModeV1(admission, "auto", "voice-aware-auto");
+
+    clock.fire(1_100);
+    expect(controller.getSnapshotInternalV1()).toMatchObject({ revealComplete: true });
+    clock.fire(1_200);
+    expect(isCurrentVoicePlaying).toHaveBeenCalled();
+    expect(dispatchResolution).not.toHaveBeenCalled();
+
+    voicePlaying = false;
+    clock.fire(1_201);
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+    expect(dispatchResolution).toHaveBeenCalledWith({
+      expectedOccurrenceId: "interaction-occurrence.1",
+      resolution: { kind: "advance" },
+    });
 
     admission.disposeInternalV1();
     controller.disposeInternalV1();

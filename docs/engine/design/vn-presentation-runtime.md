@@ -194,7 +194,8 @@ writable lifecycle authority。
 - **Text reveal**：`ui.confirm`与`narrative.advance`使用同一个activate-say alias；第一次activation显示全文，第二次才resolve say；
 - **History/backlog**：玩家可读的本次运行台词记录，不等于 CommandLog；
 - **Seen registry**：跨 Save/周目的稳定 line/interaction identity，用作者控制的 `seenRevision` 处理文本改写；
-- **Auto**：S4 V1只在全文reveal后按Host profile `autoWaitMs`等待；voice与transition不进入本版auto gate；
+- **Auto**：S4 V1 在全文 reveal 后按 Host profile `autoWaitMs` 等待；若 exact current Say 的 voice 仍活动，
+  deadline 保持并沿既有 presentation tick 重检，语音自然结束或失败降级后才推进；transition 不进入本版 auto gate；
 - **Skip-read / skip-all**：`skip_read`遇unread停止，二者遇任一choice、hold、barrier或custom都停止；
 - **Hide UI**：generic managed Narrative catalog 不隐式增加隐藏动作；focused default VN preset
   负责 `H` 的 transient modal hide/show、始终可恢复的输入路径，以及 Auto/Skip in-flight advance

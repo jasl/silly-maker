@@ -26,6 +26,13 @@ export function sillyOsTargetUrlV1(query = ""): string {
   return `http://${sillyOsTargetV1.host}:${String(sillyOsTargetV1.port)}/${query}`;
 }
 
+/** VN Reference Tour: current product-owned Player, Stage, and audio path. */
+export const vnReferenceTourTargetV1 = { host: hostV1, port: 41741 };
+
+export function vnReferenceTourTargetUrlV1(query = ""): string {
+  return `http://${vnReferenceTourTargetV1.host}:${String(vnReferenceTourTargetV1.port)}/${query}`;
+}
+
 interface PageDiagnosticsV1 {
   readonly pageErrors: readonly string[];
   readonly consoleErrors: readonly string[];

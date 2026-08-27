@@ -22,6 +22,7 @@ export interface DefaultVnPlayerLabelsV1 {
   readonly advance: string;
   readonly playbackControls: string;
   readonly history: string;
+  readonly voice: string;
   readonly skip: string;
   readonly auto: string;
   readonly showUi: string;
@@ -36,6 +37,7 @@ export const defaultVnPlayerLabelsV1: DefaultVnPlayerLabelsV1 = {
   advance: "Continue",
   playbackControls: "Playback controls",
   history: "History",
+  voice: "Voice",
   skip: "Skip",
   auto: "Auto",
   showUi: "Show dialogue interface",
@@ -227,6 +229,7 @@ function resolveLabelsInternalV1(
     advance: resolve("advance"),
     playbackControls: resolve("playbackControls"),
     history: resolve("history"),
+    voice: resolve("voice"),
     skip: resolve("skip"),
     auto: resolve("auto"),
     showUi: resolve("showUi"),
@@ -239,6 +242,7 @@ function resolveLabelsInternalV1(
 const defaultVnPlayerKeyboardMapInternalV1: KeyboardActionMapV1 = {
   Enter: systemInputActionIdsV1.narrativeAdvance,
   KeyH: playerInputActionIdsV1.toggleUi,
+  KeyV: playerInputActionIdsV1.replayVoice,
   Space: systemInputActionIdsV1.narrativeAdvance,
   Tab: playerInputActionIdsV1.toggleSkip,
 };

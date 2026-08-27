@@ -73,7 +73,7 @@ export interface CreateWebAudioHostOptionsV1 {
 interface ActiveChannelV1 {
   readonly source: WebBufferSourceLikeV1;
   readonly gain: WebGainNodeLikeV1;
-  readonly assetId: string;
+  readonly generation: number;
 }
 
 interface PendingChannelPlayV1 {
@@ -110,6 +110,8 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
   const buffers = new Map<string, Promise<WebAudioBufferLikeV1 | null>>();
   const channels = new Map<AudioHostChannelV1, ActiveChannelV1>();
   const channelGenerations = new Map<AudioHostChannelV1, number>();
+  /** Current play demand, including unlock/fetch/decode before a source starts. */
+  const activeChannelDemands = new Map<AudioHostChannelV1, number>();
   /** Desired continuous playback applied once the context unlocks. */
   const pendingChannelPlays = new Map<AudioHostChannelV1, PendingChannelPlayV1>();
   let removeUnlockListeners: (() => void) | undefined;
@@ -124,6 +126,15 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
     channel: AudioHostChannelV1,
     generation: number,
   ): boolean => channelGenerations.get(channel) === generation;
+
+  const finishChannelDemandV1 = (
+    channel: AudioHostChannelV1,
+    generation: number,
+  ): void => {
+    if (activeChannelDemands.get(channel) === generation) {
+      activeChannelDemands.delete(channel);
+    }
+  };
 
   const ensureContextV1 = (): WebAudioContextLikeV1 | null => {
     if (disposed) return null;
@@ -187,7 +198,18 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
     if (disposed || context === null || unlocked) return;
     try {
       await context.resume();
-    } catch {
+    } catch (error) {
+      for (const [channel, pending] of pendingChannelPlays) {
+        finishChannelDemandV1(channel, pending.generation);
+      }
+      pendingChannelPlays.clear();
+      reportDiagnostic({
+        code: "audio.autoplay_denied",
+        assetId: null,
+        detail: `AudioContext unlock failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      });
       return;
     }
     unlocked = true;
@@ -274,18 +296,27 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
   const startChannelV1 = (input: AudioHostPlayInputV1, generation: number): void => {
     if (!isCurrentChannelGenerationV1(input.channel, generation)) return;
     const activeContext = ensureContextV1();
-    if (activeContext === null || masterGain === null || disposed) return;
+    if (activeContext === null || masterGain === null || disposed) {
+      finishChannelDemandV1(input.channel, generation);
+      return;
+    }
     if (!unlocked) {
       pendingChannelPlays.set(input.channel, { input, generation });
       return;
     }
     void loadBufferV1(input.assetId).then((buffer) => {
-      if (
-        buffer === null || disposed ||
-        !isCurrentChannelGenerationV1(input.channel, generation)
-      ) return;
-      const pendingReplacement = channels.get(input.channel);
-      if (pendingReplacement?.assetId === input.assetId) return;
+      if (buffer === null) {
+        if (isCurrentChannelGenerationV1(input.channel, generation)) {
+          stopChannelV1(input.channel, 0);
+        }
+        finishChannelDemandV1(input.channel, generation);
+        return;
+      }
+      if (disposed) {
+        finishChannelDemandV1(input.channel, generation);
+        return;
+      }
+      if (!isCurrentChannelGenerationV1(input.channel, generation)) return;
       stopChannelV1(input.channel, 0);
       const gain = activeContext.createGain();
       const source = activeContext.createBufferSource();
@@ -306,27 +337,36 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
       source.addEventListener(
         "ended",
         () => {
-          if (channels.get(input.channel)?.source === source) channels.delete(input.channel);
+          const current = channels.get(input.channel);
+          if (current?.source === source) {
+            channels.delete(input.channel);
+            finishChannelDemandV1(input.channel, current.generation);
+          }
           source.disconnect();
           gain.disconnect();
         },
         { once: true },
       );
       source.start();
-      channels.set(input.channel, { source, gain, assetId: input.assetId });
+      channels.set(input.channel, { source, gain, generation });
     });
   };
 
   return ({
     play(input: AudioHostPlayInputV1): void {
       if (disposed) return;
-      startChannelV1(input, advanceChannelGenerationV1(input.channel));
+      const generation = advanceChannelGenerationV1(input.channel);
+      activeChannelDemands.set(input.channel, generation);
+      startChannelV1(input, generation);
     },
     stop(channel: AudioHostChannelV1, fadeMs: number): void {
       advanceChannelGenerationV1(channel);
+      activeChannelDemands.delete(channel);
       pendingChannelPlays.delete(channel);
       stopChannelV1(channel, fadeMs);
     },
+    isChannelActive: (channel: AudioHostChannelV1) =>
+      !disposed && activeChannelDemands.has(channel),
     playEffect(input: AudioHostEffectInputV1): void {
       if (disposed) return;
       const activeContext = ensureContextV1();
@@ -386,6 +426,7 @@ export function createWebAudioHostV1(options: CreateWebAudioHostOptionsV1): Audi
       disposed = true;
       removeUnlockListeners?.();
       pendingChannelPlays.clear();
+      activeChannelDemands.clear();
       for (const channel of ["bgm", "ambient", "voice"] as const) {
         advanceChannelGenerationV1(channel);
         stopChannelV1(channel, 0);

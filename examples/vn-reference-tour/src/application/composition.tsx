@@ -3,12 +3,14 @@
 // application (browser and desktop webview share one declaration); orchestration only, owns no gameplay.
 import { useEffect } from "react";
 import type {
+  AudioIntentV1,
   AssetId,
   DeepReadonly,
   ResolvedAssetManifestV1,
   TextContentSessionV1,
   TextId,
 } from "@sillymaker/base";
+import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import type { StageRenderTarget } from "@sillymaker/base/story";
 import { projectStageRenderTarget } from "@sillymaker/base/story";
 import type {
@@ -23,9 +25,15 @@ import type {
   AssetRegistryV1,
   SaveOverlayLabelsV1,
 } from "@sillymaker/ui";
-import { createAssetRegistryV1, defineNarrativeSurfaceV1, SemanticStageV1 } from "@sillymaker/ui";
+import {
+  createAssetRegistryV1,
+  defineNarrativeSurfaceV1,
+  GameAudioV1,
+  SemanticStageV1,
+} from "@sillymaker/ui";
 import { createDefaultVnPlayerV1 } from "@sillymaker/ui/narrative-player";
 import type { WebGameApplicationV1 } from "@sillymaker/web";
+import { createWebAudioHostV1 } from "@sillymaker/web";
 
 import type {
   VnReferenceTourActionDescriptorV1,
@@ -57,6 +65,10 @@ import {
   vnReferenceTourSharedTextPackIdV1,
   vnReferenceTourTextContentManifestV1,
 } from "../content/text-content.ts";
+import {
+  resolveVnReferenceTourEffectAssetV1,
+  vnReferenceTourAudioManifestV1,
+} from "../content/audio.ts";
 import type { VnReferenceTourNarrativeStateV1 } from "../story/narrative.ts";
 import { VnReferenceTourEndingSurfaceV1 } from "../ui/ending-surface.tsx";
 import { createVnReferenceTourStageRenderersV1 } from "../ui/stage-renderers.tsx";
@@ -74,6 +86,9 @@ type VnReferenceTourAssetRegistryV1 = AssetRegistryV1<
   VnReferenceTourAssetUsageV1,
   string
 >;
+
+const selectVnReferenceTourAudioIntentV1 = (publication: unknown): AudioIntentV1 =>
+  (publication as { readonly game: { readonly audio: AudioIntentV1 } }).game.audio;
 
 const noNarrativeChoiceReasonsV1: readonly string[] = [];
 function vnReferenceTourRouteTextPackV1(
@@ -107,6 +122,8 @@ export function projectVnReferenceTourNarrativeSurfaceSelectionV1(
     pending: narrative.pending,
     history: narrative.history,
     choiceAvailability,
+    voiceReplayAvailable: narrative.pending?.kind === "say" &&
+      publication.game.audio.voice?.occurrenceId === narrative.pending.occurrenceId,
   });
 }
 
@@ -204,12 +221,25 @@ function createVnReferenceTourUiSlotsV1(
   textContent: TextContentSessionV1,
   registry: VnReferenceTourAssetRegistryV1,
   renderers: ReturnType<typeof createVnReferenceTourStageRenderersV1>,
+  playerProfile: PlayerProfileStoreV1,
+  registerReplayVoice: (replay: (() => boolean) | null) => void,
+  registerCurrentVoicePlaying: (query: (() => boolean) | null) => void,
   reportFailure: (code: string, error: unknown) => void,
 ): DefaultGameRootSlotsV1<
   VnReferenceTourUiPublicationV1,
   VnReferenceTourSemanticPortV1,
   VnReferenceTourUiOverlayIdV1
 > {
+  const createAudioHost = () =>
+    createWebAudioHostV1({
+      manifest: vnReferenceTourAudioManifestV1,
+      resolveRuntimeUrl: (runtimePath) => new URL(runtimePath, document.baseURI).href,
+      reportDiagnostic: (diagnostic) =>
+        reportFailure(
+          "vn-reference-tour.audio_fault",
+          new Error(`${diagnostic.code}: ${diagnostic.detail}`),
+        ),
+    });
   return {
     background: (context) => (
       <VnReferenceTourStageSurfaceV1
@@ -223,18 +253,35 @@ function createVnReferenceTourUiSlotsV1(
     ),
     hud: (context) => {
       const narrative = context.publication.semantic.narrative;
-      if (narrative.phase !== "completed" || narrative.signalChoice === null) return null;
-      const endingTitleId = `text.vn-reference-tour.${narrative.signalChoice}.ending.title`;
       return (
-        <VnReferenceTourEndingSurfaceV1
-          title={textContent.resolveText(endingTitleId as TextId)}
-          kicker={vnReferenceTourUiTextV1("text.vn-reference-tour.ending.kicker")}
-          summary={vnReferenceTourUiTextV1("text.vn-reference-tour.ending.summary")}
-          returnLabel={vnReferenceTourUiTextV1("text.vn-reference-tour.ending.return")}
-          returningLabel={vnReferenceTourUiTextV1("text.vn-reference-tour.ending.returning")}
-          returnFailure={vnReferenceTourUiTextV1("text.vn-reference-tour.ending.return-failed")}
-          onReturnToTitle={context.systemDialogs.returnToTitle}
-        />
+        <>
+          <GameAudioV1
+            ports={instance}
+            createHost={createAudioHost}
+            selectIntent={selectVnReferenceTourAudioIntentV1}
+            resolveEffectAsset={resolveVnReferenceTourEffectAssetV1}
+            playerProfile={playerProfile}
+            registerReplayVoice={registerReplayVoice}
+            registerCurrentVoicePlaying={registerCurrentVoicePlaying}
+          />
+          {narrative.phase !== "completed" || narrative.signalChoice === null
+            ? null
+            : (
+              <VnReferenceTourEndingSurfaceV1
+                title={textContent.resolveText(
+                  `text.vn-reference-tour.${narrative.signalChoice}.ending.title` as TextId,
+                )}
+                kicker={vnReferenceTourUiTextV1("text.vn-reference-tour.ending.kicker")}
+                summary={vnReferenceTourUiTextV1("text.vn-reference-tour.ending.summary")}
+                returnLabel={vnReferenceTourUiTextV1("text.vn-reference-tour.ending.return")}
+                returningLabel={vnReferenceTourUiTextV1("text.vn-reference-tour.ending.returning")}
+                returnFailure={vnReferenceTourUiTextV1(
+                  "text.vn-reference-tour.ending.return-failed",
+                )}
+                onReturnToTitle={context.systemDialogs.returnToTitle}
+              />
+            )}
+        </>
       );
     },
   };
@@ -244,6 +291,7 @@ const vnReferenceTourVnPlayerLabelTextIdsV1 = {
   advance: "text.vn-reference-tour.narrative.advance",
   playbackControls: "text.vn-reference-tour.playback.controls",
   history: "text.vn-reference-tour.playback.history",
+  voice: "text.vn-reference-tour.playback.voice",
   skip: "text.vn-reference-tour.playback.skip",
   auto: "text.vn-reference-tour.playback.auto",
   showUi: "text.vn-reference-tour.playback.show-ui",
@@ -411,10 +459,19 @@ export const vnReferenceTourGameApplicationV1: WebGameApplicationV1<
   },
   core: vnReferenceTourCoreApplicationDefinitionV1,
   ui: (
-    { assetLoader, heldInput, instance, presentationFreeze, reportFailure, textContent }: {
+    {
+      assetLoader,
+      heldInput,
+      instance,
+      playerProfile,
+      presentationFreeze,
+      reportFailure,
+      textContent,
+    }: {
       readonly assetLoader: Parameters<typeof createAssetRegistryV1>[1];
       readonly heldInput: HeldInputPortV1;
       readonly instance: VnReferenceTourApplicationInstanceV1;
+      readonly playerProfile: PlayerProfileStoreV1;
       readonly presentationFreeze: PresentationFreezePortV1;
       readonly textContent: TextContentSessionV1 | null;
       reportFailure(code: string, error: unknown): void;
@@ -428,12 +485,24 @@ export const vnReferenceTourGameApplicationV1: WebGameApplicationV1<
       (diagnostic) => reportFailure("vn-reference-tour.asset_fault", diagnostic),
     ) as VnReferenceTourAssetRegistryV1;
     const renderers = createVnReferenceTourStageRenderersV1(registry);
+    const replayVoiceRef: { current: (() => boolean) | null } = { current: null };
+    const registerReplayVoice = (replay: (() => boolean) | null): void => {
+      replayVoiceRef.current = replay;
+    };
+    const currentVoicePlayingRef: { current: (() => boolean) | null } = { current: null };
+    const registerCurrentVoicePlaying = (query: (() => boolean) | null): void => {
+      currentVoicePlayingRef.current = query;
+    };
     const vnPlayer = createDefaultVnPlayerV1({
       heldInput,
       labelTextIds: vnReferenceTourVnPlayerLabelTextIdsV1,
     });
     return ({
-      dispose: () => registry.dispose(),
+      dispose: () => {
+        registerCurrentVoicePlaying(null);
+        registerReplayVoice(null);
+        registry.dispose();
+      },
       titleScreen: {
         title: "最后一次试音",
         beginNewGame: () =>
@@ -463,7 +532,8 @@ export const vnReferenceTourGameApplicationV1: WebGameApplicationV1<
             ),
           renderer: vnPlayer.renderer,
           resolveText: (_locale, textId) => textContent.resolveText(textId as TextId),
-          replayCurrentVoice: null,
+          replayCurrentVoice: () => replayVoiceRef.current?.() ?? false,
+          isCurrentVoicePlaying: () => currentVoicePlayingRef.current?.() ?? false,
         } satisfies DefineNarrativeSurfaceInputV1<VnReferenceTourSemanticPublicationV1>,
       ),
       slots: createVnReferenceTourUiSlotsV1(
@@ -472,6 +542,9 @@ export const vnReferenceTourGameApplicationV1: WebGameApplicationV1<
         textContent,
         registry,
         renderers,
+        playerProfile,
+        registerReplayVoice,
+        registerCurrentVoicePlaying,
         reportFailure,
       ),
       labels: vnReferenceTourRootLabelsV1,

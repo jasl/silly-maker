@@ -80,6 +80,7 @@ function dialoguePropsV1(input: {
   readonly playbackMode?: "normal" | "auto" | "skip";
   readonly callbacks?: DialogueCallbacksV1;
   readonly choiceAvailability?: NarrativeSurfaceDialogueRendererPropsV1["choiceAvailability"];
+  readonly voiceReplayAvailable?: boolean;
 } = {}): NarrativeSurfaceDialogueRendererPropsV1 {
   const pending = input.pending ?? sayPendingV1();
   const callbacks = input.callbacks ?? callbacksV1();
@@ -87,6 +88,7 @@ function dialoguePropsV1(input: {
     kind: "dialogue",
     pending,
     choiceAvailability: input.choiceAvailability ?? null,
+    voiceReplayAvailable: input.voiceReplayAvailable ?? false,
     playerProfile: defaultPlayerProfileV1,
     playerView: pending.kind === "say"
       ? {
@@ -181,6 +183,7 @@ describe("createDefaultVnPlayerV1", () => {
         advance: "label.advance",
         playbackControls: "label.playback",
         history: "label.history",
+        voice: "label.voice",
         skip: "label.skip",
         auto: "label.auto",
         historyTitle: "label.history-title",
@@ -192,6 +195,7 @@ describe("createDefaultVnPlayerV1", () => {
       keyboard: {
         Enter: systemInputActionIdsV1.narrativeAdvance,
         KeyH: playerInputActionIdsV1.toggleUi,
+        KeyV: playerInputActionIdsV1.replayVoice,
         Space: systemInputActionIdsV1.narrativeAdvance,
         Tab: playerInputActionIdsV1.toggleSkip,
       },
@@ -205,15 +209,18 @@ describe("createDefaultVnPlayerV1", () => {
           "label.advance": "下一句",
           "label.playback": "播放控制",
           "label.history": "回想",
+          "label.voice": "语音",
           "label.skip": "快进",
           "label.auto": "自动",
         })[textId] ?? textV1(textId),
+      voiceReplayAvailable: true,
     } satisfies NarrativeSurfaceDialogueRendererPropsV1;
     renderPlayerV1({ player, props });
 
     expect(screen.getByRole("button", { name: "下一句" })).toBeVisible();
     expect(screen.getByRole("navigation", { name: "播放控制" })).toBeVisible();
     expect(screen.getByRole("button", { name: "回想" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "语音" })).toBeVisible();
     expect(screen.getByRole("button", { name: "快进" })).toBeVisible();
     expect(screen.getByRole("button", { name: "自动" })).toBeVisible();
   });
@@ -227,6 +234,31 @@ describe("createDefaultVnPlayerV1", () => {
 
     expect(callbacks.onActivate).toHaveBeenCalledTimes(1);
     expect(view.scope).toHaveFocus();
+  });
+
+  it("replays the current Say voice from the default playback bar and restores focus", async () => {
+    const callbacks = callbacksV1();
+    const player = createDefaultVnPlayerV1({ heldInput: createHeldInputHarnessV1().port });
+    const view = renderPlayerV1({
+      player,
+      props: dialoguePropsV1({ callbacks, voiceReplayAvailable: true }),
+    });
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Voice" }));
+
+    expect(callbacks.onReplayVoice).toHaveBeenCalledTimes(1);
+    expect(callbacks.onActivate).not.toHaveBeenCalled();
+    expect(view.scope).toHaveFocus();
+
+    view.rerender(dialoguePropsV1({ pending: choicePendingV1(), callbacks }));
+    expect(screen.queryByRole("button", { name: "Voice" })).toBeNull();
+  });
+
+  it("omits voice replay when the current Say has no replayable voice", () => {
+    const player = createDefaultVnPlayerV1({ heldInput: createHeldInputHarnessV1().port });
+    renderPlayerV1({ player, props: dialoguePropsV1() });
+
+    expect(screen.queryByRole("button", { name: "Voice" })).toBeNull();
   });
 
   it("renders Choice availability without a full-canvas advance surface", async () => {

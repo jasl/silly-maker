@@ -48,9 +48,12 @@ Read only the documents relevant to the change:
   progress: its first Player slice has migrated into the engine-maintained,
   focused `@sillymaker/ui/narrative-player` preset with a flush-bottom responsive
   dialogue/choice skin, say-only full-canvas pointer advance, History/playback
-  controls, Ctrl/Tab/H VN input, and a portrait layout variant. Final Stage media, audio,
-  rollback/end controls, the full responsive/accessibility matrix, and M2
-  closure remain open; this playable WIP is not product-completion evidence.
+  controls, Ctrl/Tab/H/V VN input, and a portrait layout variant. Later M2 slices
+  delivered final Stage media and ending surface plus the frozen eight-asset
+  audio denominator, current-voice replay, and voice-aware Auto across Chromium
+  and WebKit. Correct rollback/forward controls, the full responsive/accessibility
+  matrix, and M2 closure remain open; this playable WIP is not product-completion
+  evidence.
   Cat Cafe terminated on 2026-08-27 before this lane began; its application,
   revision-1 Save support, product E2E, and live release responsibility ended
   together, without a cross-product migration. Bookshop remains the maintained

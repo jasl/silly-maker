@@ -83,6 +83,8 @@ export interface NarrativeSurfaceSelectionV1 {
   readonly pending: DeepReadonly<PendingInteractionV1> | null;
   readonly history: DeepReadonly<NarrativeHistoryV1>;
   readonly choiceAvailability: readonly NarrativeChoiceAvailabilityV1[] | null;
+  /** True only when the current Say owns a voice asset that can be replayed. */
+  readonly voiceReplayAvailable?: boolean;
 }
 
 export interface NarrativeSurfaceResolutionRequestV1 {
@@ -113,6 +115,7 @@ export interface NarrativeSurfaceDialogueRendererPropsV1 {
   readonly choiceAvailability: readonly NarrativeChoiceAvailabilityV1[] | null;
   readonly playerProfile: DeepReadonly<PlayerProfileV1>;
   readonly playerView: DeepReadonly<NarrativeSurfacePlayerViewV1>;
+  readonly voiceReplayAvailable: boolean;
   readonly resolveText: (textId: string) => string;
   readonly onActivate: () => void;
   readonly onChoose: (choiceId: string) => void;
@@ -164,6 +167,8 @@ export interface DefineNarrativeSurfaceInputV1<TSemanticPublication> {
   readonly renderer: ComponentType<NarrativeSurfaceRendererPropsV1>;
   readonly resolveText: (locale: string | null, textId: string) => string;
   readonly replayCurrentVoice: (() => boolean) | null;
+  /** Optional playback-lifecycle query used only to hold Player Auto at its deadline. */
+  readonly isCurrentVoicePlaying?: () => boolean;
 }
 
 /** Compile-time opacity only; admitted runtime definitions remain ordinary typed data. */
@@ -277,6 +282,7 @@ interface NarrativeSurfacePublicDefinitionBindingInternalV1 {
   readonly renderer: ComponentType<NarrativeSurfaceRendererPropsV1>;
   readonly resolveText: (locale: string | null, textId: string) => string;
   readonly replayCurrentVoice: (() => boolean) | null;
+  readonly isCurrentVoicePlaying: (() => boolean) | null;
   readonly rendererComponent: ComponentType<
     | NarrativeStableDialogueRendererPropsInternalV1
     | NarrativeStableHistoryRendererPropsInternalV1
@@ -419,6 +425,9 @@ function NarrativeSurfacePublicRendererAdapterInternalV1(
       choiceAvailability: currentAvailability,
       playerProfile: props.rendererProps.playerProfile,
       playerView,
+      voiceReplayAvailable: selection?.pending?.kind === "say" &&
+        selection.pending.occurrenceId === props.rendererProps.pending.occurrenceId &&
+        selection.voiceReplayAvailable === true,
       resolveText,
       onActivate,
       onChoose,
@@ -533,6 +542,9 @@ function createNarrativeSurfacePublicCandidateInternalV1(
       voiceReplayPort: binding.replayCurrentVoice === null ? null : {
         replayCurrentVoiceInternalV1: () => binding.replayCurrentVoice!(),
       },
+      voiceActivityPort: binding.isCurrentVoicePlaying === null ? null : {
+        isCurrentVoicePlayingInternalV1: () => binding.isCurrentVoicePlaying!(),
+      },
       quickMenuContribution: null,
     },
   };
@@ -555,13 +567,15 @@ export function defineNarrativeSurfaceV1<TSemanticPublication>(
       const renderer = input.renderer;
       const resolveText = input.resolveText;
       const replayCurrentVoice = input.replayCurrentVoice;
+      const isCurrentVoicePlaying = input.isCurrentVoicePlaying;
       if (
         typeof selectNarrative === "function" &&
         typeof dispatchResolution === "function" &&
         (dispatchTime === null || typeof dispatchTime === "function") &&
         typeof renderer === "function" &&
         typeof resolveText === "function" &&
-        (replayCurrentVoice === null || typeof replayCurrentVoice === "function")
+        (replayCurrentVoice === null || typeof replayCurrentVoice === "function") &&
+        (isCurrentVoicePlaying === undefined || typeof isCurrentVoicePlaying === "function")
       ) {
         admitted = {
           selectNarrative,
@@ -570,6 +584,7 @@ export function defineNarrativeSurfaceV1<TSemanticPublication>(
           renderer,
           resolveText,
           replayCurrentVoice,
+          isCurrentVoicePlaying: isCurrentVoicePlaying ?? null,
         } as Omit<NarrativeSurfacePublicDefinitionBindingInternalV1, "rendererComponent">;
       }
     }
@@ -752,7 +767,19 @@ function captureSelectionInternalV1(value: unknown): NarrativeSurfaceSelectionIn
     value.choiceAvailability,
     pending,
   );
-  return { pending, history, choiceAvailability };
+  const voiceReplayAvailable = value.voiceReplayAvailable ?? false;
+  if (
+    typeof voiceReplayAvailable !== "boolean" ||
+    (voiceReplayAvailable && pending?.kind !== "say")
+  ) {
+    throw new TypeError("ui.narrative_surface_selection_invalid");
+  }
+  return {
+    pending,
+    history,
+    choiceAvailability,
+    ...(voiceReplayAvailable ? { voiceReplayAvailable: true } : {}),
+  };
 }
 
 function bridgeResultAcceptedInternalV1(result: { readonly kind: string }): boolean {

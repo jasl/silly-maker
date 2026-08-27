@@ -4,6 +4,17 @@ import { parseNarrativeGraph } from "@sillymaker/base/story";
 
 import type { VnReferenceTourNarrativeNodeV1 } from "./narrative.ts";
 import { vnReferenceTourScriptV1 } from "./narrative.ts";
+import {
+  predictVnReferenceTourStageAudioAssetsV1,
+  vnReferenceTourSfxAssetForDefinitionV1,
+  vnReferenceTourVoiceAssetForDefinitionV1,
+} from "../content/audio.ts";
+
+function interactionAudioAssetsV1(definitionId: string): readonly string[] {
+  const voice = vnReferenceTourVoiceAssetForDefinitionV1(definitionId);
+  const sfx = vnReferenceTourSfxAssetForDefinitionV1(definitionId);
+  return [voice, sfx].filter((assetId): assetId is string => assetId !== null);
+}
 
 /**
  * Projects the typed script into the generic narrative graph so
@@ -23,7 +34,7 @@ function graphNodeForV1(node: VnReferenceTourNarrativeNodeV1): unknown {
         interaction: { definitionId: node.definitionId, seenRevision: node.seenRevision },
         dependencies: {
           textIds: node.speakerTextId === null ? [node.textId] : [node.speakerTextId, node.textId],
-          assetIds: [],
+          assetIds: interactionAudioAssetsV1(node.definitionId),
           stageContentIds: [],
         },
       };
@@ -41,7 +52,11 @@ function graphNodeForV1(node: VnReferenceTourNarrativeNodeV1): unknown {
         kind: "pure",
         successors: [node.next],
         interaction: null,
-        dependencies: { textIds: [], assetIds: [], stageContentIds: node.mayShow },
+        dependencies: {
+          textIds: [],
+          assetIds: predictVnReferenceTourStageAudioAssetsV1(node.mayShow),
+          stageContentIds: node.mayShow,
+        },
       };
     case "choice":
       return {
@@ -61,7 +76,11 @@ function graphNodeForV1(node: VnReferenceTourNarrativeNodeV1): unknown {
         kind: "interaction",
         successors: [node.next],
         interaction: { definitionId: node.definitionId, seenRevision: node.seenRevision },
-        dependencies: { textIds: [], assetIds: [], stageContentIds: [] },
+        dependencies: {
+          textIds: [],
+          assetIds: interactionAudioAssetsV1(node.definitionId),
+          stageContentIds: [],
+        },
       };
     case "end":
       return {

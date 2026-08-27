@@ -69,8 +69,12 @@ describe("GameAudioV1", () => {
       storyId: "story.test.audio",
       reportFailure: () => {},
     });
+    const voiceControls: {
+      replay: (() => boolean) | null;
+      playing: (() => boolean) | null;
+    } = { replay: null, playing: null };
 
-    render(
+    const view = render(
       <GameAudioV1
         ports={instance.ports}
         createHost={() => host}
@@ -78,12 +82,19 @@ describe("GameAudioV1", () => {
         resolveEffectAsset={(effect) =>
           effect.effectId === "sfx" ? { assetId: String(effect.payload.assetId) } : null}
         playerProfile={playerProfile}
+        registerReplayVoice={(replay) => {
+          voiceControls.replay = replay;
+        }}
+        registerCurrentVoicePlaying={(playing) => {
+          voiceControls.playing = playing;
+        }}
       />,
     );
 
     // Profile defaults are applied on mount.
     expect(host.masterGainPermille()).toBe(playerProfile.current().preferences.masterGainPermille);
     expect(host.isMuted()).toBe(false);
+    expect(voiceControls.playing?.()).toBe(false);
 
     // A publication with a BGM intent starts the channel.
     act(() =>
@@ -101,6 +112,26 @@ describe("GameAudioV1", () => {
       )
     );
     expect(host.channel("bgm")?.assetId).toBe("audio.test.bgm");
+
+    act(() =>
+      instance.publish(
+        Object.freeze({
+          bgm: null,
+          ambient: null,
+          voice: Object.freeze({
+            assetId: "audio.test.voice",
+            interactionDefinitionId: "interaction.test.say",
+            occurrenceId: "interaction-occurrence.test.1",
+            stopPolicy: "stop_on_advance" as const,
+          }),
+        }),
+      )
+    );
+    expect(voiceControls.playing?.()).toBe(true);
+    host.finishChannel("voice");
+    expect(voiceControls.playing?.()).toBe(false);
+    expect(voiceControls.replay?.()).toBe(true);
+    expect(voiceControls.playing?.()).toBe(true);
 
     // A transient effect plays a one-shot; duplicates are fenced.
     const effect = Object.freeze({
@@ -128,6 +159,10 @@ describe("GameAudioV1", () => {
     expect(host.busGainPermille("voice")).toBe(400);
     expect(host.busGainPermille("sfx")).toBe(300);
     expect(host.isMuted()).toBe(true);
+
+    view.unmount();
+    expect(voiceControls.replay).toBeNull();
+    expect(voiceControls.playing).toBeNull();
   });
 
   it("stops all channels and disposes the host on unmount", () => {

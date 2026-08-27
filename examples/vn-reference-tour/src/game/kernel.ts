@@ -3,6 +3,7 @@
 // schema, and the authoring kit feature slices build on. Aggregation
 // lives in simulation.ts; feature slices live under game/features/.
 import type {
+  AudioIntentV1,
   CommandExecutionAttemptEnvelopeV1,
   GameSimulationTypeMapV1,
   GameSnapshotEnvelopeV1,
@@ -130,6 +131,8 @@ export interface VnReferenceTourNarrativeViewV1 {
 export interface VnReferenceTourGameViewV1 {
   /** The semantic stage target: plain saveable data, observable headless. */
   readonly stage: SemanticStageState;
+  /** Save-restorable continuous audio projected from Narrative and Stage. */
+  readonly audio: AudioIntentV1;
 }
 
 export interface VnReferenceTourBootstrapInputV1 {

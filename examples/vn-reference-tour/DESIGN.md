@@ -4,11 +4,11 @@
 
 状态：**M0–M1 已交付 / WIP；M2 进行中。2026-08-27 冻结产品分母并交付完整双路线作者数据；M2 第一切片已
 交付并选择引擎维护的 focused default VN Player：responsive 对话/选择 chrome、say-only 全画布点击推进、
-History/播放控制、贴底布局与 Ctrl/Tab/H 键盘习惯；最终
-Stage 媒体、音频、rollback/end controls 与完整产品证据仍未关闭。**
+History/播放控制、贴底布局与 Ctrl/Tab/H/V 键盘习惯；后续切片已交付最终 Stage/ending 媒体和冻结的八项音频
+分母、current-voice replay 与 voice-aware Auto。正确的 rollback/forward controls 与完整产品证据仍未关闭。**
 
 M1 已用本产品完整 Story/Scene author data 原子替换 tracked Template 的临时内容，但只关闭 author data 与
-headless routes。当前 M2 只有首个可玩 Player UI 切片；最终视觉/音频、Save/recovery 与产品验收仍未完成，
+headless routes。当前 M2 已有 Player、Stage 媒体、ending 与音频切片；rollback、完整矩阵、Save/recovery 与产品验收仍未完成，
 当前 WIP 不是完整产品参考或旗舰。实施顺序由
 [VN Reference Tour plan](../../docs/engine/plans/2026-08-27-vn-reference-tour.md) 拥有。
 
@@ -204,10 +204,10 @@ Ren'Py 源码审计冻结以下通用 VN 检查表；它是产品行为清单，
 | ---------------------------------------------------------------------------------------------- | --------------------------------------------------- |
 | 左键 / Enter / Space 第一次完成逐字显示、第二次推进；Choice 只接受选项输入                     | M2 第一切片已实现                                   |
 | Ctrl 按住临时 skip-read、松开停止；Tab 切换持续 Skip；未读和 Choice 默认中止                   | M2 第一切片已实现                                   |
-| Auto 与 Skip 正交；延时随文本与揭示进度，未来有语音时还要等待当前语音；普通 Choice 不自动选择  | 文本路径已实现，语音等待留在 M2                     |
+| Auto 与 Skip 正交；延时随文本与揭示进度，有语音时等待当前语音；普通 Choice 不自动选择          | 文本与当前语音等待已实现                            |
 | H 在已签发推进可见收敛、播放停止后模态隐藏；恢复不推进且不自动重启播放                         | M2 第一切片已实现；鼠标中键等效操作留在剩余输入矩阵 |
 | 对话层全宽贴底、说话人位于框内、播放控制不挤占正文；窄屏增加高度和点击目标                     | M2 第一切片已实现，完整 zoom/touch 证据仍开放       |
-| History 保留说话人与台词；当前语音可重放                                                       | History 已实现，语音重放留在 M2                     |
+| History 保留说话人与台词；当前语音可重放                                                       | History 与当前语音重放已实现                        |
 | PageUp / 滚轮向上回到上一交互；回退后 PageDown / 滚轮向下沿已执行结果前进                      | 需要下述 focused engine correction，禁止误接线      |
 | Escape / 右键打开菜单；快速栏提供 Back、History、Skip、Auto、Save、Q.Save、Q.Load、Preferences | 产品菜单与存读档归 M3；Back 受上述引擎缺口阻塞      |
 
@@ -247,7 +247,7 @@ evidence。
 | Endings          | 旧声入档 / 此刻入档                                     | route-specific text、voice、ending          | M1 route text/ending 已实现；voice/Player 留给 M2                                      |
 | Motion           | entrance、crossfade、ambient、frame blink、appearance   | Scene/Motion checks + Browser               | M1 author sources/bindings 已实现；Browser 播放留 M2                                   |
 | Hold             | carrier lock                                            | normal/skip/reopen 收敛                     | M1 已 authored；Player skip 与 reopen 留给 M2/M3                                       |
-| Audio            | BGM、2 ambient、3 SFX、2 current voices                 | manifest、intent/effect、replay、mute       | 未实现；M2                                                                             |
+| Audio            | BGM、2 ambient、3 SFX、2 current voices                 | manifest、intent/effect、replay、mute       | 八项媒体、intent/effect、replay、voice-aware Auto 已实现；volume/mute settings 留给 M3 |
 | Player QoL       | reveal、auto、skip-read、History、rollback              | focused tests + Browser                     | reveal/auto/skip/History、Ctrl/Tab/H 与全画布推进已接入；rollback 与 M2 closure 未完成 |
 | Save/recovery    | autosave、manual/quick、load、import/export、3 稳定点   | focused + reopen E2E                        | 未实现；M3                                                                             |
 | i18n             | 3 packs × zh-CN/en + fallback                           | pack admission、切换、overflow              | M1 pack/copy topology 已实现；UI/overflow 留 M2/M4                                     |
@@ -275,5 +275,6 @@ M0–M1 已交付 package/identity、负能力删除和完整 author data/headle
 ## 10. 许可与素材
 
 产品代码与原创文本采用 MIT。图片、字体、音乐、环境声、SFX 和 voice 必须是项目原创、明确兼容许可或合法
-生成的表达，并随包保留所需 notice。不得复制 Ren'Py、Bookshop、Template 或第三方 VN 的文案、角色、构图、
-录音、素材与品牌；参考产品只能用于行为层研究。
+生成的表达，并随包保留所需 notice。当前 BGM、ambient 与 SFX 是项目用 FFmpeg 9.0.1 程序化生成的原创音频；
+两段 voice 使用 Apache-2.0 的 Kokoro 82M v1.1-zh 生成，未分发模型、工具链或第三方录音。不得复制 Ren'Py、
+Bookshop、Template 或第三方 VN 的文案、角色、构图、录音、素材与品牌；参考产品只能用于行为层研究。

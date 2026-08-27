@@ -7,10 +7,11 @@ independent package, supported-export application shell, starter-domain
 deletion, complete two-route script, two Authoring Scenes, author data, and
 named headless simulations are implemented. M2's first Player slice now selects
 the engine-maintained focused default VN Player, which adds flush-bottom responsive dialogue/choice chrome, say-only full-canvas
-pointer advance, History/playback controls, Ctrl/Tab/H VN input, and a portrait layout variant.
-Final Stage media/audio, rollback/end controls, the full product matrix, and
-M2 closure remain open; this playable WIP is not a complete reference or
-evidence that M2–M5 have shipped.
+pointer advance, History/playback controls, Ctrl/Tab/H/V VN input, and a portrait layout variant.
+Later slices add the final Stage media and ending surface plus BGM, two ambient
+tracks, three SFX, two current voices, replay, and voice-aware Auto. Correct
+rollback/forward controls, the full product matrix, and M2 closure remain open;
+this playable WIP is not a complete reference or evidence that M2–M5 have shipped.
 
 Read, in order:
 
@@ -45,8 +46,8 @@ Story/Scene/text/asset/action IDs are lower-case kebab-case. TypeScript symbols
 use `vnReferenceTour` / `VnReferenceTour`. M0 removed the starter Story identity,
 coins/inventory, and starter HUD/action owners. M1 replaced the temporary
 opening Story/Scene author content with the complete two-route author data; do
-not restore aliases, disabled modules, or a second graph. Final media and the
-remaining VN Player gates remain M2 work.
+not restore aliases, disabled modules, or a second graph. The remaining VN
+Player and product-matrix gates remain M2 work.
 
 ## Ownership and locality
 
@@ -111,8 +112,8 @@ deno task app simulate . --scenario present-voice
 deno task build:web
 ```
 
-Green focused checks prove the implemented author data and current Player
-slice only. They do not prove M2 final media/audio and closure, M3 Save/recovery,
+Green focused checks prove the implemented author data and current Player,
+Stage-media, and audio slices only. They do not prove M2 closure, M3 Save/recovery,
 or M4 product evidence. Record actual gate results rather than
 inferring them from milestone status. If a public/wire/Save/CAS or license
 boundary must change, stop and request owner review; otherwise choose the

@@ -13,6 +13,7 @@ import { createVnReferenceTourApplicationInstanceV1 } from "../application/core-
 import { vnReferenceTourCoreApplicationDefinitionV1 } from "../application/core-definition.ts";
 import { vnReferenceTourSemanticAdapterV1 } from "../application/semantic.ts";
 import { vnReferenceTourAssetIdsV1 } from "../content/assets.ts";
+import { vnReferenceTourAudioAssetIdsV1 } from "../content/audio.ts";
 import { vnReferenceTourStageContentCatalogV1 } from "../content/presentation.ts";
 import { vnReferenceTourRooftopAntennaSceneV1 } from "../scenes/rooftop-antenna/index.ts";
 import { projectVnReferenceTourNarrativeGraphV1 } from "../story/narrative-graph.ts";
@@ -77,6 +78,9 @@ describe("VN Reference Tour M1 story shell", () => {
       "content.vn-reference-tour.prop.signal-light",
       "content.vn-reference-tour.character.zhou",
     ]);
+    expect(
+      new Set(narrativeGraph.nodes.flatMap((node) => node.dependencies.assetIds)),
+    ).toEqual(new Set(Object.values(vnReferenceTourAudioAssetIdsV1)));
   });
 
   it("begins headlessly and advances through the occurrence-fenced semantic port", async () => {

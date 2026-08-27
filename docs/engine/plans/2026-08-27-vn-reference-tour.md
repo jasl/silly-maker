@@ -2,9 +2,9 @@
 
 状态：**2026-08-27 经所有者接受，当前唯一活动 Reference Product；M0–M1 已交付，M2 进行中。第一版
 引擎维护的 focused default VN Player preset、say-only 全画布推进、贴底布局与 Ctrl/Tab/H 输入已由 Template
-和本产品共同选择并可试玩；最终 Stage 视觉、结局 surface 与 Player/Inspector 共用媒体链已经接入，音频、
-remaining Player work、rollback controls 与完整产品
-矩阵仍未关闭，当前 WIP 不是产品完成证据或旗舰。**
+和本产品共同选择并可试玩；最终 Stage 视觉、结局 surface 与 Player/Inspector 共用媒体链已经接入，
+冻结的八项音频、current-voice replay 与 voice-aware Auto 也已接入；remaining Player work、
+rollback/forward controls 与完整产品矩阵仍未关闭，当前 WIP 不是产品完成证据或旗舰。**
 
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 是唯一跨计划排序入口。本计划同时拥有
 产品分母、实现顺序、证据门槛与旗舰提升条件；Bookshop 的后续教学角色不由本计划预裁。它不是 broad engine
@@ -204,9 +204,19 @@ resolved Asset manifest，Player 只预载当前 Stage demand，Inspector 使用
 composition lifecycle 回收其 dev-only registry。九件道具仍是九个独立 Authoring Scene 对象，不因图集生成
 来源合并为一张不可编辑舞台图；真实宽屏、`expand-height` 竖屏、两条场景转换和内嵌 Inspector 已走查。
 完成态使用产品自有 ending surface，并调用既有 `returnToTitle` system dialog，不建立第二条 restart 路径。
-focused Studio/VN tests、typecheck、`app check` 与真实 Browser 资产加载覆盖该切片。audio、voice replay、
-rollback/forward controls、完整中英/200% zoom/accessibility/Chromium+WebKit 矩阵仍开放；本记录不
+focused Studio/VN tests、typecheck、`app check` 与真实 Browser 资产加载覆盖该切片。rollback/forward controls、
+完整中英/200% zoom/accessibility/Chromium+WebKit 矩阵仍开放；本记录不
 关闭 M2。
+
+第三切片接入冻结的 1 BGM、2 ambient、3 SFX 与 2 current voices。Story 继续只发布可保存的 continuous intent，
+SFX 只来自 commit-only effect，Narrative graph 声明同一组预测依赖；Player 的“语音”/`V` 只调用当前语音 replay，
+Auto 在文本 deadline 后等待 exact current voice，自然结束或 fetch/decode 失败后沿同一 semantic advance 路径继续。
+Web Audio Host 增加声道活动 currentness 与 stale async load fencing，不保存 buffer/node/cursor，也不让媒体失败阻塞
+gameplay。八项 MP3 在 Chromium/WebKit 逐一真实解码；真实产品路径证明挂载后的 gesture unlock、voice replay 与
+voice-aware Auto，不可解码媒体证明静音降级。仓库 Playwright 默认静音改为连接到 0-gain terminal，而非断开
+destination，因此 WebKit 的真实 `ended` 生命周期仍被覆盖。focused unit/product tests、typecheck、`app check`、
+asset check 与 Chromium/WebKit E2E 覆盖该切片；volume/mute settings 仍属于 M3，默认静音验收属于 M4，正确的
+rollback/forward 与完整矩阵仍开放，本记录不关闭 M2。
 
 ### M3 — 产品入口、Save/recovery 与设置
 

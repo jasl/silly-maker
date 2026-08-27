@@ -8,6 +8,8 @@ import {
   sillyOsTargetV1,
   templateTargetUrlV1,
   templateTargetV1,
+  vnReferenceTourTargetUrlV1,
+  vnReferenceTourTargetV1,
 } from "./fixtures.ts";
 
 /** Examples browser suite: one dev server per example application; desktop dual-engine acceptance. */
@@ -46,6 +48,16 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 120_000,
       url: sillyOsTargetUrlV1(),
+    },
+    {
+      command:
+        `deno run -A npm:vite --mode example-vn-reference-tour --host ${vnReferenceTourTargetV1.host} --port ${
+          String(vnReferenceTourTargetV1.port)
+        } --strictPort`,
+      cwd: "../..",
+      reuseExistingServer: false,
+      timeout: 120_000,
+      url: vnReferenceTourTargetUrlV1(),
     },
   ],
   projects: [

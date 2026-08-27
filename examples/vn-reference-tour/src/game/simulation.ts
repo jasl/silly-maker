@@ -36,6 +36,7 @@ import {
   vnReferenceTourNarrativeAfterTimeTickV1,
   vnReferenceTourNarrativeAtBeginV1,
 } from "../story/narrative.ts";
+import { projectVnReferenceTourAudioIntentV1 } from "../content/audio.ts";
 
 /** Narrative and Stage are the only authoritative modules in this product. */
 
@@ -303,6 +304,7 @@ export function createVnReferenceTourGameSimulationV1(): VnReferenceTourGameSimu
     projectGameView(queries: VnReferenceTourQueriesV1) {
       return ({
         stage: queries.stage,
+        audio: projectVnReferenceTourAudioIntentV1(queries),
       });
     },
   });

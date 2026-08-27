@@ -47,6 +47,8 @@ export interface AudioHostV1 {
   play(input: AudioHostPlayInputV1): void;
   /** Stops a continuous channel, fading out over fadeMs. */
   stop(channel: AudioHostChannelV1, fadeMs: number): void;
+  /** True from accepted play demand until the channel ends or is stopped. */
+  isChannelActive(channel: AudioHostChannelV1): boolean;
   /** Fire-and-forget one-shot effect; never tracked, never restored. */
   playEffect(input: AudioHostEffectInputV1): void;
   setMasterGain(gainPermille: number): void;
@@ -68,6 +70,8 @@ export interface FakeAudioChannelStateV1 {
 
 export interface FakeAudioHostV1 extends AudioHostV1 {
   channel(channel: AudioHostChannelV1): FakeAudioChannelStateV1 | null;
+  /** Ends the current channel as if its source finished naturally. */
+  finishChannel(channel: AudioHostChannelV1): void;
   effects(): readonly AudioHostEffectInputV1[];
   operations(): readonly string[];
   isSuspended(): boolean;
@@ -109,6 +113,7 @@ export function createFakeAudioHostV1(): FakeAudioHostV1 {
         operations.push(`stop:${channel}:fade=${String(fadeMs)}`);
       }
     },
+    isChannelActive: (channel: AudioHostChannelV1) => channels.has(channel),
     playEffect(input: AudioHostEffectInputV1): void {
       if (disposed) return;
       effects.push(input);
@@ -143,6 +148,10 @@ export function createFakeAudioHostV1(): FakeAudioHostV1 {
       operations.push("dispose");
     },
     channel: (channel: AudioHostChannelV1) => channels.get(channel) ?? null,
+    finishChannel(channel: AudioHostChannelV1): void {
+      if (disposed || !channels.delete(channel)) return;
+      operations.push(`finish:${channel}`);
+    },
     effects: () => [...effects],
     operations: () => [...operations],
     isSuspended: () => suspended,

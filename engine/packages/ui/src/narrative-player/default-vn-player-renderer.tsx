@@ -12,6 +12,7 @@ export interface DefaultVnPlayerLabelsInternalV1 {
   readonly advance: string;
   readonly playbackControls: string;
   readonly history: string;
+  readonly voice: string;
   readonly skip: string;
   readonly auto: string;
   readonly showUi: string;
@@ -63,6 +64,7 @@ function DefaultVnPlayerPlaybackButtonV1(props: {
   readonly pressed?: boolean;
   readonly dataPlayback?: "auto" | "skip";
   readonly dataHistory?: boolean;
+  readonly dataVoice?: boolean;
   readonly onActivate: () => void;
 }): ReactElement {
   return (
@@ -74,6 +76,7 @@ function DefaultVnPlayerPlaybackButtonV1(props: {
         "aria-pressed": props.pressed ?? false,
       })}
       {...(props.dataHistory === true ? { "data-dialogue-history-open": "true" } : {})}
+      {...(props.dataVoice === true ? { "data-dialogue-voice-replay": "true" } : {})}
       onClick={(event) => {
         event.stopPropagation();
         restoreNarrativeFocusAfterPointerActivationV1(event, props.onActivate);
@@ -190,6 +193,13 @@ function DefaultVnPlayerSayV1(
           <DefaultVnPlayerPlaybackButtonV1 dataHistory onActivate={props.onOpenHistory}>
             {props.labels.history}
           </DefaultVnPlayerPlaybackButtonV1>
+          {props.voiceReplayAvailable
+            ? (
+              <DefaultVnPlayerPlaybackButtonV1 dataVoice onActivate={props.onReplayVoice}>
+                {props.labels.voice}
+              </DefaultVnPlayerPlaybackButtonV1>
+            )
+            : null}
           <DefaultVnPlayerPlaybackButtonV1
             dataPlayback="skip"
             pressed={props.playerView.playbackMode === "skip"}

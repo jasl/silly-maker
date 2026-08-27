@@ -39,6 +39,8 @@ export interface GameAudioPropsV1 {
   readonly playerProfile?: PlayerProfileStoreV1;
   /** Receives the voice-replay control (player UI); null on unmount. */
   registerReplayVoice?(replay: (() => boolean) | null): void;
+  /** Receives a synchronous current-line voice activity query; null on unmount. */
+  registerCurrentVoicePlaying?(query: (() => boolean) | null): void;
 }
 
 /**
@@ -57,6 +59,7 @@ export function GameAudioV1(props: GameAudioPropsV1): null {
     sfxGainPermille,
     playerProfile,
     registerReplayVoice,
+    registerCurrentVoicePlaying,
   } = props;
   useEffect(() => {
     const host = createHost();
@@ -97,7 +100,9 @@ export function GameAudioV1(props: GameAudioPropsV1): null {
     };
     if (hasDocument) document.addEventListener("visibilitychange", onVisibilityChange);
     registerReplayVoice?.(() => presenter.replayVoice());
+    registerCurrentVoicePlaying?.(() => presenter.isCurrentVoicePlaying());
     return () => {
+      registerCurrentVoicePlaying?.(null);
       registerReplayVoice?.(null);
       if (hasDocument) document.removeEventListener("visibilitychange", onVisibilityChange);
       unsubscribeProfile?.();
@@ -115,6 +120,7 @@ export function GameAudioV1(props: GameAudioPropsV1): null {
     sfxGainPermille,
     playerProfile,
     registerReplayVoice,
+    registerCurrentVoicePlaying,
   ]);
   return null;
 }
