@@ -30,7 +30,11 @@ import type {
 } from "../product/browser-program-workspace-authority.ts";
 import { serializeCreatorAgentSubmitV1 } from "../product/creator-agent-admission.ts";
 import type { CreatorAgentRunRequestV1, CreatorAgentSubmitV1 } from "../product/contracts.ts";
-import { workspaceRootV1 } from "../workspace/contracts.ts";
+import {
+  programWorkspaceSnapshotReceiptsEqualV1,
+  type ProgramWorkspaceSnapshotReceiptV1,
+  workspaceRootV1,
+} from "../workspace/contracts.ts";
 import {
   browserWorkspaceNativePiToolPayloadMaximumBytesV1,
   type BrowserWorkspaceHostControlFailureCodeV1,
@@ -38,7 +42,6 @@ import {
   type BrowserWorkspaceHostControlRequestRecordV1,
   type BrowserWorkspaceHostControlSuccessResponseV1,
   type BrowserWorkspaceHostSnapshotWireV1,
-  type BrowserWorkspaceImmutableSnapshotReceiptWireV1,
   type BrowserWorkspaceVolumeAnchorWireV1,
 } from "../workspace/browser-workspace-host-protocol.ts";
 import { BrowserWorkspaceHostControlErrorV1 } from "../workspace/browser-workspace-host-port.ts";
@@ -118,7 +121,8 @@ function executionBindingV1(expectedGeneration = 1): BrowserPiWorkerExecutionBin
 
 interface TestBrowserWorkspaceVolumeStateV1 {
   head: BrowserWorkspaceHostDurableHeadV1;
-  preparedSnapshot: BrowserWorkspaceImmutableSnapshotReceiptWireV1 | null;
+  preparedSnapshot: ProgramWorkspaceSnapshotReceiptV1 | null;
+  readonly retainedSnapshots: Map<string, ProgramWorkspaceSnapshotReceiptV1>;
   readonly files: Map<string, Uint8Array>;
   readonly readFileRangeRequests: {
     readonly path: string;
@@ -258,7 +262,7 @@ class TestBrowserWorkspaceVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLea
   async prepareImmutableSnapshot(
     input: Parameters<BrowserWorkspaceHostVolumeLeasePortV1["prepareImmutableSnapshot"]>[0],
   ): ReturnType<BrowserWorkspaceHostVolumeLeasePortV1["prepareImmutableSnapshot"]> {
-    const receipt: BrowserWorkspaceImmutableSnapshotReceiptWireV1 = {
+    const receipt: ProgramWorkspaceSnapshotReceiptV1 = {
       revision: 1,
       snapshotId: input.snapshotId,
       programId: this.anchor.programId,
@@ -277,21 +281,68 @@ class TestBrowserWorkspaceVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLea
     return receipt;
   }
 
-  queryImmutableSnapshot(
-    snapshotId: string,
-  ): Promise<BrowserWorkspaceImmutableSnapshotReceiptWireV1 | null> {
+  queryCurrentImmutableSnapshotCandidate(): Promise<ProgramWorkspaceSnapshotReceiptV1 | null> {
+    return Promise.resolve(this.state.preparedSnapshot);
+  }
+
+  queryRetainedImmutableSnapshot(
+    expected: ProgramWorkspaceSnapshotReceiptV1,
+  ): Promise<ProgramWorkspaceSnapshotReceiptV1 | null> {
+    const retained = this.state.retainedSnapshots.get(expected.snapshotId) ?? null;
     return Promise.resolve(
-      this.state.preparedSnapshot?.snapshotId === snapshotId ? this.state.preparedSnapshot : null,
+      retained !== null && programWorkspaceSnapshotReceiptsEqualV1(retained, expected)
+        ? retained
+        : null,
     );
   }
 
-  discardImmutableSnapshot(
-    expected: BrowserWorkspaceImmutableSnapshotReceiptWireV1,
-  ): Promise<void> {
-    if (this.state.preparedSnapshot?.snapshotId === expected.snapshotId) {
-      this.state.preparedSnapshot = null;
+  resumeImmutableSnapshotPublication(
+    expected: ProgramWorkspaceSnapshotReceiptV1,
+  ): Promise<ProgramWorkspaceSnapshotReceiptV1> {
+    if (
+      this.state.preparedSnapshot === null ||
+      !programWorkspaceSnapshotReceiptsEqualV1(this.state.preparedSnapshot, expected) ||
+      this.state.head.checkpointId !== expected.checkpointId ||
+      this.state.head.generation !== expected.generation
+    ) throw new Error("test Workspace snapshot resume mismatch");
+    return Promise.resolve(expected);
+  }
+
+  adoptImmutableSnapshot(
+    expected: ProgramWorkspaceSnapshotReceiptV1,
+  ): Promise<"adopted" | "already_retained"> {
+    const retained = this.state.retainedSnapshots.get(expected.snapshotId);
+    if (retained !== undefined) {
+      if (!programWorkspaceSnapshotReceiptsEqualV1(retained, expected)) {
+        throw new Error("test Workspace retained snapshot mismatch");
+      }
+      return Promise.resolve("already_retained");
     }
-    return Promise.resolve();
+    if (
+      this.state.preparedSnapshot === null ||
+      !programWorkspaceSnapshotReceiptsEqualV1(this.state.preparedSnapshot, expected)
+    ) throw new Error("test Workspace snapshot adopt mismatch");
+    this.state.retainedSnapshots.set(expected.snapshotId, expected);
+    this.state.preparedSnapshot = null;
+    return Promise.resolve("adopted");
+  }
+
+  discardImmutableSnapshot(
+    expected: ProgramWorkspaceSnapshotReceiptV1,
+  ): Promise<"discarded" | "absent" | "retained"> {
+    const retained = this.state.retainedSnapshots.get(expected.snapshotId);
+    if (retained !== undefined) {
+      if (!programWorkspaceSnapshotReceiptsEqualV1(retained, expected)) {
+        throw new Error("test Workspace retained snapshot mismatch");
+      }
+      return Promise.resolve("retained");
+    }
+    if (this.state.preparedSnapshot === null) return Promise.resolve("absent");
+    if (!programWorkspaceSnapshotReceiptsEqualV1(this.state.preparedSnapshot, expected)) {
+      throw new Error("test Workspace snapshot discard mismatch");
+    }
+    this.state.preparedSnapshot = null;
+    return Promise.resolve("discarded");
   }
 
   async close(): Promise<void> {
@@ -316,6 +367,7 @@ class TestBrowserWorkspaceBootstrapV1 implements BrowserWorkspaceHostBootstrapPo
       generation: 1,
     },
     preparedSnapshot: null,
+    retainedSnapshots: new Map(),
     files: new Map(),
     readFileRangeRequests: [],
     sourceReadRequests: [],
@@ -325,14 +377,19 @@ class TestBrowserWorkspaceBootstrapV1 implements BrowserWorkspaceHostBootstrapPo
   async createCandidate(input: {
     readonly programId: string;
     readonly workspaceId: string;
-  }): Promise<BrowserWorkspaceVolumeAnchorWireV1> {
+  }) {
     if (
       input.programId !== this.anchor.programId || input.workspaceId !== this.anchor.workspaceId
     ) {
       throw new Error("test Workspace identity mismatch");
     }
     this.candidate = true;
-    return this.anchor;
+    return {
+      revision: 1,
+      anchor: this.anchor,
+      checkpointId: this.state.head.checkpointId,
+      generation: this.state.head.generation,
+    } as const;
   }
 
   async discardCandidate(volumeId: string): Promise<void> {
@@ -423,7 +480,7 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
       if (created.method !== "create_candidate") {
         throw new Error("test candidate response mismatch");
       }
-      this.anchor = created.anchor;
+      this.anchor = created.candidate.anchor;
     }
     const opened = await this.control({ method: "open_workspace", anchor: this.anchor });
     if (opened.method !== "open_workspace") throw new Error("test open response mismatch");

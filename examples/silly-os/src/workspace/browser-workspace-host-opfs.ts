@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: MIT
 
 import {
-  admitBrowserWorkspaceImmutableSnapshotReceiptWireV1,
   browserWorkspaceFormatRevisionV1,
   type BrowserWorkspaceHostFileErrorWireV1,
-  type BrowserWorkspaceImmutableSnapshotReceiptWireV1,
   type BrowserWorkspaceVolumeAnchorWireV1,
   isBrowserWorkspaceHostNormalizedPathV1,
 } from "./browser-workspace-host-protocol.ts";
+import {
+  admitProgramWorkspaceSnapshotReceiptV1,
+  programWorkspaceSnapshotReceiptsEqualV1,
+  type ProgramWorkspaceSnapshotReceiptV1,
+} from "./contracts.ts";
 import {
   type BrowserWorkspaceHostBootstrapPortV1,
   type BrowserWorkspaceHostDirectoryEntryV1,
@@ -925,16 +928,10 @@ function sameHeadV1(
 }
 
 function sameImmutableSnapshotReceiptV1(
-  left: BrowserWorkspaceImmutableSnapshotReceiptWireV1,
-  right: BrowserWorkspaceImmutableSnapshotReceiptWireV1,
+  left: ProgramWorkspaceSnapshotReceiptV1,
+  right: ProgramWorkspaceSnapshotReceiptV1,
 ): boolean {
-  return left.snapshotId === right.snapshotId && left.programId === right.programId &&
-    left.workspaceId === right.workspaceId && left.volumeId === right.volumeId &&
-    left.workspaceFormat === right.workspaceFormat && left.proposalId === right.proposalId &&
-    left.programRevision === right.programRevision &&
-    left.baseRepositoryRevision === right.baseRepositoryRevision &&
-    left.checkpointId === right.checkpointId && left.generation === right.generation &&
-    left.fileCount === right.fileCount && left.archiveBytes === right.archiveBytes;
+  return programWorkspaceSnapshotReceiptsEqualV1(left, right);
 }
 
 function immutableSnapshotPrepareMarkerV1(
@@ -969,7 +966,7 @@ function sameImmutableSnapshotPrepareMarkerV1(
 }
 
 function immutableSnapshotReceiptMatchesMarkerV1(
-  receipt: BrowserWorkspaceImmutableSnapshotReceiptWireV1,
+  receipt: ProgramWorkspaceSnapshotReceiptV1,
   marker: ImmutableSnapshotPrepareMarkerV1,
 ): boolean {
   return receipt.snapshotId === marker.snapshotId && receipt.programId === marker.programId &&
@@ -1208,11 +1205,29 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
     return await directoryHandleIfPresentV1(this.snapshots, snapshotId);
   }
 
-  private async readImmutableSnapshotCommitV1(
-    marker: ImmutableSnapshotPrepareMarkerV1,
+  private requireImmutableSnapshotReceiptV1(
+    value: unknown,
+  ): ProgramWorkspaceSnapshotReceiptV1 {
+    const receipt = admitProgramWorkspaceSnapshotReceiptV1(value);
+    if (
+      receipt === null || receipt.programId !== this.anchor.programId ||
+      receipt.workspaceId !== this.anchor.workspaceId ||
+      receipt.volumeId !== this.anchor.volumeId ||
+      receipt.workspaceFormat !== this.anchor.workspaceFormat
+    ) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "snapshot_mismatch",
+        "Workspace immutable snapshot receipt does not belong to this volume",
+      );
+    }
+    return receipt;
+  }
+
+  private async readImmutableSnapshotPackageV1(
+    snapshotId: string,
     invalidCommit: "corrupt" | "incomplete" = "corrupt",
-  ): Promise<BrowserWorkspaceImmutableSnapshotReceiptWireV1 | null> {
-    const directory = await this.immutableSnapshotDirectoryV1(marker.snapshotId, false);
+  ): Promise<ProgramWorkspaceSnapshotReceiptV1 | null> {
+    const directory = await this.immutableSnapshotDirectoryV1(snapshotId, false);
     if (directory === null) return null;
     const handle = await fileHandleIfPresentV1(directory, immutableSnapshotCommitFileNameV1);
     if (handle === null) return null;
@@ -1248,7 +1263,7 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
         { cause: error instanceof Error ? error : new Error(String(error)) },
       );
     }
-    const receipt = admitBrowserWorkspaceImmutableSnapshotReceiptWireV1(decoded);
+    const receipt = admitProgramWorkspaceSnapshotReceiptV1(decoded);
     if (receipt === null) {
       if (invalidCommit === "incomplete") return null;
       throw new BrowserWorkspaceHostStorageErrorV1(
@@ -1256,10 +1271,15 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
         "Workspace immutable snapshot commit is invalid",
       );
     }
-    if (!immutableSnapshotReceiptMatchesMarkerV1(receipt, marker)) {
+    if (
+      receipt.snapshotId !== snapshotId || receipt.programId !== this.anchor.programId ||
+      receipt.workspaceId !== this.anchor.workspaceId ||
+      receipt.volumeId !== this.anchor.volumeId ||
+      receipt.workspaceFormat !== this.anchor.workspaceFormat
+    ) {
       throw new BrowserWorkspaceHostStorageErrorV1(
         "volume_corrupt",
-        "Workspace immutable snapshot commit does not match its prepare marker",
+        "Workspace immutable snapshot commit does not match its retained package",
       );
     }
     const archiveHandle = await fileHandleIfPresentV1(
@@ -1277,6 +1297,23 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
       throw new BrowserWorkspaceHostStorageErrorV1(
         "volume_corrupt",
         "Workspace immutable snapshot archive length does not match its marker",
+      );
+    }
+    return receipt;
+  }
+
+  private async readImmutableSnapshotCommitV1(
+    marker: ImmutableSnapshotPrepareMarkerV1,
+    invalidCommit: "corrupt" | "incomplete" = "corrupt",
+  ): Promise<ProgramWorkspaceSnapshotReceiptV1 | null> {
+    const receipt = await this.readImmutableSnapshotPackageV1(
+      marker.snapshotId,
+      invalidCommit,
+    );
+    if (receipt !== null && !immutableSnapshotReceiptMatchesMarkerV1(receipt, marker)) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "volume_corrupt",
+        "Workspace immutable snapshot commit does not match its prepare marker",
       );
     }
     return receipt;
@@ -1675,7 +1712,7 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
 
   async prepareImmutableSnapshot(
     input: BrowserWorkspaceHostImmutableSnapshotInputV1,
-  ): Promise<BrowserWorkspaceImmutableSnapshotReceiptWireV1> {
+  ): Promise<ProgramWorkspaceSnapshotReceiptV1> {
     this.assertOpen();
     if (input.signal.aborted) {
       throw new DOMException("Workspace immutable snapshot preparation was aborted", "AbortError");
@@ -1697,6 +1734,16 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
       await removeEntryIfPresentV1(
         this.control,
         immutableSnapshotPrepareMarkerFileNameV1,
+      );
+    }
+
+    if (
+      await this.immutableSnapshotDirectoryV1(input.snapshotId, false) !== null ||
+      await fileHandleIfPresentV1(this.snapshots, input.snapshotId) !== null
+    ) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "snapshot_mismatch",
+        "Workspace immutable snapshot identity is already retained",
       );
     }
 
@@ -1730,7 +1777,6 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
           "Workspace immutable snapshot directory could not be created",
         );
       }
-      await removeEntryIfPresentV1(snapshotDirectory, immutableSnapshotCommitFileNameV1);
       const archive = await this.createArchiveAtV1(
         {
           programRevision: input.programRevision,
@@ -1749,7 +1795,7 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
           "Workspace durable head changed during immutable snapshot preparation",
         );
       }
-      const receipt: BrowserWorkspaceImmutableSnapshotReceiptWireV1 = {
+      const receipt: ProgramWorkspaceSnapshotReceiptV1 = {
         revision: 1,
         snapshotId: input.snapshotId,
         programId: this.anchor.programId,
@@ -1805,39 +1851,122 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
     }
   }
 
-  async queryImmutableSnapshot(
-    snapshotId: string,
-  ): Promise<BrowserWorkspaceImmutableSnapshotReceiptWireV1 | null> {
+  async queryCurrentImmutableSnapshotCandidate(): Promise<
+    ProgramWorkspaceSnapshotReceiptV1 | null
+  > {
     this.assertOpen();
     const marker = await this.readImmutableSnapshotPrepareMarkerV1();
-    if (marker === null || marker.snapshotId !== snapshotId) return null;
+    if (marker === null) return null;
     return await this.readImmutableSnapshotCommitV1(marker);
   }
 
-  async discardImmutableSnapshot(
-    expected: BrowserWorkspaceImmutableSnapshotReceiptWireV1,
-  ): Promise<void> {
+  async queryRetainedImmutableSnapshot(
+    expected: ProgramWorkspaceSnapshotReceiptV1,
+  ): Promise<ProgramWorkspaceSnapshotReceiptV1 | null> {
     this.assertOpen();
-    const admitted = admitBrowserWorkspaceImmutableSnapshotReceiptWireV1(expected);
-    if (admitted === null) {
+    const admitted = this.requireImmutableSnapshotReceiptV1(expected);
+    const marker = await this.readImmutableSnapshotPrepareMarkerV1();
+    if (marker !== null && marker.snapshotId === admitted.snapshotId) {
+      const current = await this.readImmutableSnapshotCommitV1(marker);
+      if (current === null || !sameImmutableSnapshotReceiptV1(current, admitted)) {
+        throw new BrowserWorkspaceHostStorageErrorV1(
+          "snapshot_mismatch",
+          "Workspace retained snapshot query does not match the current candidate",
+        );
+      }
+      return null;
+    }
+    const retained = await this.readImmutableSnapshotPackageV1(admitted.snapshotId);
+    if (retained === null) return null;
+    if (!sameImmutableSnapshotReceiptV1(retained, admitted)) {
       throw new BrowserWorkspaceHostStorageErrorV1(
         "snapshot_mismatch",
-        "Workspace immutable snapshot discard receipt is invalid",
+        "Workspace retained snapshot query does not match stored bytes",
       );
     }
+    return retained;
+  }
+
+  async resumeImmutableSnapshotPublication(
+    expected: ProgramWorkspaceSnapshotReceiptV1,
+  ): Promise<ProgramWorkspaceSnapshotReceiptV1> {
+    this.assertOpen();
+    const admitted = this.requireImmutableSnapshotReceiptV1(expected);
     const marker = await this.readImmutableSnapshotPrepareMarkerV1();
-    if (marker === null) return;
-    if (!immutableSnapshotReceiptMatchesMarkerV1(admitted, marker)) {
+    if (marker === null || !immutableSnapshotReceiptMatchesMarkerV1(admitted, marker)) {
       throw new BrowserWorkspaceHostStorageErrorV1(
         "snapshot_mismatch",
-        "Workspace immutable snapshot discard receipt is stale",
+        "Workspace immutable snapshot candidate no longer matches publication",
       );
     }
     const current = await this.readImmutableSnapshotCommitV1(marker);
-    if (current !== null && !sameImmutableSnapshotReceiptV1(current, admitted)) {
+    if (current === null || !sameImmutableSnapshotReceiptV1(current, admitted)) {
       throw new BrowserWorkspaceHostStorageErrorV1(
         "snapshot_mismatch",
-        "Workspace immutable snapshot discard receipt does not match stored bytes",
+        "Workspace immutable snapshot publication does not match stored bytes",
+      );
+    }
+    const head = await this.readHead();
+    if (
+      head.checkpointId !== admitted.checkpointId || head.generation !== admitted.generation
+    ) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "snapshot_stale",
+        "Workspace durable head changed after immutable snapshot preparation",
+      );
+    }
+    return current;
+  }
+
+  async adoptImmutableSnapshot(
+    expected: ProgramWorkspaceSnapshotReceiptV1,
+  ): Promise<"adopted" | "already_retained"> {
+    this.assertOpen();
+    const admitted = this.requireImmutableSnapshotReceiptV1(expected);
+    const marker = await this.readImmutableSnapshotPrepareMarkerV1();
+    if (marker !== null && marker.snapshotId === admitted.snapshotId) {
+      const current = await this.readImmutableSnapshotCommitV1(marker);
+      if (
+        current === null || !immutableSnapshotReceiptMatchesMarkerV1(admitted, marker) ||
+        !sameImmutableSnapshotReceiptV1(current, admitted)
+      ) {
+        throw new BrowserWorkspaceHostStorageErrorV1(
+          "snapshot_mismatch",
+          "Workspace immutable snapshot adoption does not match the current candidate",
+        );
+      }
+      await removeEntryIfPresentV1(
+        this.control,
+        immutableSnapshotPrepareMarkerFileNameV1,
+      );
+      return "adopted";
+    }
+    const retained = await this.queryRetainedImmutableSnapshot(admitted);
+    if (retained !== null) return "already_retained";
+    throw new BrowserWorkspaceHostStorageErrorV1(
+      "snapshot_mismatch",
+      "Workspace immutable snapshot adoption target is absent",
+    );
+  }
+
+  async discardImmutableSnapshot(
+    expected: ProgramWorkspaceSnapshotReceiptV1,
+  ): Promise<"discarded" | "absent" | "retained"> {
+    this.assertOpen();
+    const admitted = this.requireImmutableSnapshotReceiptV1(expected);
+    const marker = await this.readImmutableSnapshotPrepareMarkerV1();
+    if (marker === null || marker.snapshotId !== admitted.snapshotId) {
+      const retained = await this.queryRetainedImmutableSnapshot(admitted);
+      return retained === null ? "absent" : "retained";
+    }
+    const current = await this.readImmutableSnapshotCommitV1(marker);
+    if (
+      current === null || !immutableSnapshotReceiptMatchesMarkerV1(admitted, marker) ||
+      !sameImmutableSnapshotReceiptV1(current, admitted)
+    ) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "snapshot_mismatch",
+        "Workspace immutable snapshot discard does not match the current candidate",
       );
     }
     await removeEntryIfPresentV1(this.snapshots, marker.snapshotId, { recursive: true });
@@ -1845,6 +1974,7 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
       this.control,
       immutableSnapshotPrepareMarkerFileNameV1,
     );
+    return "discarded";
   }
 
   async replaceFile(
@@ -2269,7 +2399,12 @@ export function createBrowserWorkspaceHostOpfsBootstrapV1(
               );
             }
             candidates.set(volumeId, { anchor });
-            return anchor;
+            return {
+              revision: 1,
+              anchor,
+              checkpointId: complete.head.checkpointId,
+              generation: complete.head.generation,
+            };
           }
           if (marker.kind !== "valid" && complete !== null) {
             throw new BrowserWorkspaceHostStorageErrorV1(
@@ -2316,7 +2451,12 @@ export function createBrowserWorkspaceHostOpfsBootstrapV1(
         );
         candidates.set(volumeId, { anchor });
         removeOwnedVolumeOnFailure = false;
-        return anchor;
+        return {
+          revision: 1,
+          anchor,
+          checkpointId,
+          generation: 1,
+        };
       } catch (error) {
         if (removeOwnedVolumeOnFailure && volumeRoot !== null) {
           await removeEntryIfPresentV1(volumeRoot, volumeId, { recursive: true }).catch(

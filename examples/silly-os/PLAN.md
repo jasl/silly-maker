@@ -17,13 +17,15 @@ that same authority in two independently reviewed checkpoints. Checkpoint 2
 uses exact `just-bash@3.4.2` only as the bounded Browser Local shell inside the
 Host Worker, so P3a also closed on 2026-08-27. P3c-B1 checkpoint 1 then
 delivered the Browser Workspace Host's bounded immutable snapshot candidate and
-cold-reopen contract on 2026-08-27. Checkpoints 2 and 3 remain gated and do not
-start automatically. There is no active SillyOS implementation slice. P1-D
-remains owner-paused, while P3b, import, and later slices remain inactive. The raw
-launcher is not the typed product RPC; the live Browser route is a separate
-product path. This plan is local to `examples/silly-os`; it does not activate
-an engine lane or change an engine API. The implementation baseline before P0
-is commit
+cold-reopen contract on 2026-08-27. The owner continued the lane that day;
+checkpoint 2's bounded Host publication-lifecycle slice (C2a below) is now
+delivered and independently reviewed. Its Repository replacement slice C2b is
+the next active internal boundary, while C2c and checkpoint 3 remain gated.
+P1-D remains owner-paused, while P3b, import, and later slices remain inactive.
+The raw launcher is not the typed product RPC; the live Browser route is a
+separate product path. This plan is local to `examples/silly-os`; it does not
+activate an engine lane or change an engine API. The implementation baseline
+before P0 is commit
 `56ba8ef8ecf0a38243e92cba548f53c1c57c0b73`.
 
 ## Product invariant and execution rule
@@ -1885,7 +1887,7 @@ network, shell, `edit`, `bash`, just-bash, Wasm, Git, Python, QuickJS, provider
 selection, BYO Sandbox, Desktop persistence, a sandbox claim, or an engine API.
 No later P3c slice becomes active when B0 closes.
 
-### P3c-B1 — exact reviewed snapshot publication (checkpoint 1 delivered; checkpoints 2–3 gated)
+### P3c-B1 — exact reviewed snapshot publication (checkpoint 1 and C2a delivered; C2b active)
 
 P3c-B1 closes the first integrity gap created by real workspace tools: Pi may
 change the durable mutable head, while the current Accept action still names
@@ -1960,15 +1962,150 @@ P3c-B1 is deliberately split into independently reviewed checkpoints:
    or IndexedDB file-byte copy. No production Accept path calls it yet.
 2. **Checkpoint 2 — publication transaction.** Cleanly replace the preview
    repository schema with one exact accepted-snapshot reference per accepted
-   decision, bind proposal creation/revision to the reviewed workspace head,
-   and compose Host prepare with Repository CAS and unknown-outcome
-   reconciliation. Reject remains a decision with no snapshot. A conflict
-   explicitly discards only the prepare owned by that failed attempt.
-3. **Checkpoint 3 — product evidence.** Connect the existing Accept UI, display
-   the accepted snapshot identity/head and truthful mutable-head divergence,
+   decision, bind every durable pending proposal to the workspace head reviewed
+   when that proposal became current, and compose Host prepare with Repository
+   CAS and unknown-outcome reconciliation. Reject remains a decision with no
+   snapshot. A known conflict explicitly discards only the unpublished prepare
+   owned by that failed attempt. Because the replacement schema no longer admits
+   an accepted decision without a snapshot, this checkpoint also switches the
+   existing Controller Accept command to the complete non-visual publication
+   composition; it does not leave a dormant second decision path for checkpoint
+   3.
+3. **Checkpoint 3 — product evidence.** Keep the existing Accept control and add
+   the accepted snapshot identity/head plus truthful mutable-head divergence,
    then prove stale cross-page Accept rejection, cold reopen, later-draft
    independence, and exact archive bytes for the existing `1,001`-file,
    `21,897,216`-byte corpus in Chromium and persistent-profile WebKit.
+
+Checkpoint 2 is itself bounded by three independently reviewed sub-checkpoints.
+C2a is delivered; C2b is the active internal boundary, and C2c remains gated:
+
+1. **C2a — Host publication lifecycle (delivered 2026-08-27).** Move the exact immutable receipt to a
+   target-neutral SillyOS workspace contract shared by Host wire and the later
+   Repository. Cleanly replace the ID-requiring candidate query with the
+   unambiguous query for the volume's sole unpublished candidate; add exact
+   retained-package verification and an idempotent adopt operation that removes
+   only the unpublished ownership pointer after re-reading the commit plus
+   archive length. Adopt keeps `snapshots/<snapshotId>/workspace.zip` and its
+   commit receipt. Discard may delete only the exact pointer-owned unpublished
+   package and becomes a no-op once that package is retained. Prepare refuses
+   to overwrite any retained package with the same ID. Candidate creation also
+   returns its already-written exact initial durable head, and a separate
+   run/export/publication-quiescent capture operation returns the authoritative
+   head for a later proposal-producing mutation; ordinary page state is not a
+   review receipt.
+
+   A prepare that materializes a new candidate owns one transient Host
+   publication fence for that exact receipt until adopt, discard, or session
+   close; an exact retry in that already-fenced session retains the fence. A
+   reopened existing candidate does not acquire it. The fence rejects a new
+   Agent run, export, or different publication attempt after prepare and before
+   Repository settlement; same-envelope retry remains idempotent. Session close
+   abandons only this in-memory fence and neither adopts nor discards the durable
+   candidate. Because checkpoint-1 exact prepare intentionally reopens an
+   existing candidate even after mutable-head drift, recovery uses a distinct
+   exact `resume publication` mutation: it verifies the unpublished receipt,
+   re-reads the live head, requires that head to equal the receipt/review binding,
+   and only then reacquires the fence. Repository CAS is forbidden without that
+   fence. Adopt reports `adopted` or `already_retained` only after full receipt
+   and archive-length verification; discard reports `discarded`, `absent`, or
+   `retained` and never silently deletes retained bytes. Focused OPFS/runtime/protocol/Page-port
+   tests prove cold discovery without a known ID, retained reopen, ID collision
+   rejection, lost mutation outcomes, and the critical-section fence. C2a adds
+   no Repository row, Controller call, UI, or browser E2E.
+2. **C2b — exact Repository replacement (active).** Replace Aggregate V2 with V3,
+   physical IndexedDB V3 with a clean-reset V4, and Worker V3 with V4; delete
+   the superseded product-private schemas and readers. Aggregate V3 owns one
+   proposal-scoped, target-neutral review binding containing proposal/Program
+   identity, the base accepted Program revision, repository revision,
+   workspace/volume/format, and exact checkpoint/generation. Accepted and
+   rejected decisions are exact discriminated shapes: accepted contains the
+   complete snapshot receipt; rejected has no snapshot field. Initial creation
+   stores aggregate, continuation, and initial reviewed head in one two-store
+   transaction. A proposal-producing revision stores its already-captured
+   run-quiescent head in the same transaction; a non-producing Agent terminal
+   retains the prior proposal's reviewed head, so later head divergence is
+   stale rather than silently re-labelled as reviewed. Every Program mutation
+   advances the continuation and the review binding's repository currentness
+   together. The accepted CAS requires the receipt head to equal the durable
+   review binding and its `baseRepositoryRevision` to equal the exact pre-state.
+   A fresh V4 database is created directly; exact physical V3 is deleted and
+   rebuilt without row conversion; malformed, unknown, or future schema fails
+   closed. OPFS is outside that reset and is neither scanned nor guessed into
+   the new catalog. A pending proposal always has one review binding; an accepted
+   or rejected proposal always has none because the decision is then the
+   historical evidence. `baseAcceptedProgramRevision` is null for the first
+   proposal and otherwise equals the latest accepted decision's Program
+   revision; Reject never advances it. Every V3 Program row has exactly one
+   continuation row, and the detached insert-continuation mutation is deleted.
+   Missing, orphaned, or mismatched aggregate/continuation pairs fail as
+   `schema_invalid` on every load and mutation.
+3. **C2c — product-owned composition and atomic cutover.** Make one application-owned Browser
+   Program Workspace Authority serve both fixed Pi and the Controller. The
+   Controller no longer creates or disposes a separate Repository client; the
+   shared authority owns Repository plus Host and is disposed last by the
+   application. Agent Forget drains and detaches only its Pi attachment. It may
+   neither close nor dispose the shared Host while review/publication is active;
+   Forget, Home, and route close wait or return busy through the authority, which
+   serializes final session close. Application disposal stops admission, drains
+   Pi, settles publication, closes the Host session, and disposes the shared
+   authority/Repository last. Proposal-producing Controller mutations obtain the authoritative
+   Host head before their Repository CAS, including the initial candidate head,
+   so a pending proposal is never durably created without its review binding.
+   Accept discovers or creates the sole exact candidate, reacquires the Host
+   publication fence, rechecks current proposal/repository/continuation, commits
+   the accepted receipt, reconciles an unknown result by fresh Repository load,
+   and only then adopts. Exact durable accepted receipt is the recovery truth:
+   missing or corrupt retained bytes are `recovery_required`, never a mutable-
+   head fallback. A proven conflict may exact-discard; an unknown Repository
+   outcome or durable accepted reference never may. Reject performs only its
+   Repository decision and contains no snapshot; after a durable Reject, an
+   unrelated failed Accept candidate may be exact-discarded only after proving
+   that no decision references it. Focused composition/Controller tests replace
+   the old Accept behavior without adding snapshot identity UI. C2b is an
+   internal conformance/review boundary, not a deployable half-product: C2b and
+   C2c land in one production cutover that selects V3/V4, resets the preview DB,
+   and deletes V2/V3 only after the shared authority can create and revise V3
+   Programs. No long-lived dual reader or fallback is committed.
+
+   Initial creation is exact: stage the Program/workspace identities, create a
+   candidate volume and its exact initial head under the bootstrap lease, then
+   create aggregate + continuation + review binding in one Repository
+   transaction. An unknown result reloads both rows; only exact durable
+   ownership permits open/attach, while a known conflict discards only the
+   unowned candidate. A follow-up or successful Agent terminal captures a Host-
+   linearized quiescent head after the run ends, then stores that head with the
+   successor in one transaction. The authority serializes a new Agent submit
+   until that mutation settles.
+
+   C2c is not deployed or advertised as a user-reachable product checkpoint on
+   its own. Checkpoint 3 supplies the real Browser acceptance before the changed
+   Accept path is deployed; focused C2 composition tests are not presented as
+   Browser product evidence.
+
+The shared receipt has exactly the checkpoint-1 fields: revision,
+`snapshotId`, Program/workspace/volume/format identity, proposal and Program
+revision, `baseRepositoryRevision`, checkpoint/generation, file count, and
+archive length. The Repository does not import a Browser Host protocol, and
+the Host does not import Repository code. The product-private coordinator is
+the only OPFS/IndexedDB composition owner; React, Pi, and SillyMaker never own a
+snapshot ID or imitate a cross-store transaction.
+
+The exact recovery table is deliberately small:
+
+| Repository truth                                                  | Host truth                      | Required action                                                                   |
+| ----------------------------------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------- |
+| any admitted decision history contains the exact accepted receipt | exact unpublished candidate     | adopt                                                                             |
+| any admitted decision history contains the exact accepted receipt | exact retained package          | succeed                                                                           |
+| any admitted decision history contains the exact accepted receipt | missing/corrupt/different bytes | recovery required; never discard or fall back                                     |
+| exact decision pre-state                                          | exact unpublished candidate     | retry only after exact head-equal resume; otherwise exact discard or report stale |
+| exact decision pre-state                                          | no candidate                    | prepare only if live head still equals the durable review binding                 |
+| exact decision pre-state                                          | retained package                | recovery required; never infer an accepted decision                               |
+| unknown or unavailable Repository truth                           | any candidate/package state     | preserve bytes and retry the exact query; never discard                           |
+| durable state proven not to reference the receipt                 | exact unpublished candidate     | exact discard, then report conflict                                               |
+
+No retained package is automatically adopted, deleted, enumerated, or attached
+to another Program merely because it exists.
 
 Checkpoint 1 delivered on 2026-08-27. Its product-private typed control admits
 prepare, nullable exact query, and receipt-CAS discard. OPFS writes the sole
@@ -1985,9 +2122,25 @@ discard ordering. An independent storage/runtime review found no remaining
 blocker. This closure does not activate checkpoint 2, Accept publication, a
 repository schema, or UI.
 
-Checkpoint 1 is delivered. No P3c-B1 implementation work is active;
-checkpoints 2 and 3 do not start automatically and each receives focused review
-of its predecessor first.
+Checkpoint 1 is delivered. The owner activated checkpoint 2 on 2026-08-27 after
+focused Repository, composition, and persistence audits of checkpoint 1. Those
+audits reproduced the missing candidate discovery, retained adoption, durable
+review binding, exact decision reconciliation, and prepare-to-CAS fencing
+requirements above. C2a then delivered the target-neutral receipt, exact
+candidate and retained-package queries, initial candidate head, review-head
+capture, explicit head-equal publication resume, typed adopt/discard, and the
+transient Host publication fence. Focused protocol, Page-port, runtime, OPFS,
+authority, and Pi-worker tests pass, including lost-response classification,
+cold reopen, retained-package survival, retained-ID collision, successful and
+stale resume, run/export fencing, and the fail-closed package-then-pointer
+discard cleanup boundary. Three independent read-only reviews found no blocker;
+one recorded that a failed pointer removal deliberately needs cold reopen after
+the package has already been removed, and the focused fault-injection test now
+pins that recovery. C2a adds no Repository row, Controller call, UI, or Browser
+product claim and is not deployed. C2b is now the active internal
+implementation/review boundary. C2c and checkpoint 3 remain gated until their
+immediate predecessor is implemented and independently reviewed; C2b still
+cannot select a deployable production schema without the atomic C2c cutover.
 P3c-B1 adds no archive import/restore reader, artifact admission, sync/share,
 background execution, provider selector, custom endpoint, broader shell or
 process provider, Wasm, Git implementation, Python, QuickJS, BYO Sandbox,

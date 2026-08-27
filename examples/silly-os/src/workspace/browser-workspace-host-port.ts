@@ -8,13 +8,14 @@ import {
   type BrowserWorkspaceHostControlSuccessResponseV1,
   type BrowserWorkspaceHostSnapshotWireV1,
   type BrowserWorkspaceHostExportProgressWireV1,
-  type BrowserWorkspaceImmutableSnapshotReceiptWireV1,
   type BrowserWorkspaceVolumeAnchorWireV1,
+  type BrowserWorkspaceVolumeCandidateWireV1,
 } from "./browser-workspace-host-protocol.ts";
 import {
   type BrowserWorkspaceHostExclusiveLockPortV1,
   createBrowserWorkspaceHostWebLockPortV1,
 } from "./browser-workspace-host-opfs.ts";
+import type { ProgramWorkspaceSnapshotReceiptV1 } from "./contracts.ts";
 
 interface BrowserWorkspaceHostWorkerPortV1 {
   postMessage(message: unknown, transfer?: Transferable[]): void;
@@ -100,7 +101,7 @@ export interface BrowserWorkspaceHostPagePortV1 {
   createCandidate(input: {
     readonly programId: string;
     readonly workspaceId: string;
-  }): Promise<BrowserWorkspaceVolumeAnchorWireV1>;
+  }): Promise<BrowserWorkspaceVolumeCandidateWireV1>;
   discardCandidate(volumeId: string): Promise<void>;
   openWorkspace(
     anchor: BrowserWorkspaceVolumeAnchorWireV1,
@@ -134,15 +135,27 @@ export interface BrowserWorkspaceHostPagePortV1 {
     readonly expectedGeneration: number;
     readonly programRevision: number;
     readonly baseRepositoryRevision: number;
-  }): Promise<BrowserWorkspaceImmutableSnapshotReceiptWireV1>;
-  querySnapshot(input: {
+  }): Promise<ProgramWorkspaceSnapshotReceiptV1>;
+  querySnapshotCandidate(
+    workspaceSessionId: string,
+  ): Promise<ProgramWorkspaceSnapshotReceiptV1 | null>;
+  queryRetainedSnapshot(input: {
     readonly workspaceSessionId: string;
-    readonly snapshotId: string;
-  }): Promise<BrowserWorkspaceImmutableSnapshotReceiptWireV1 | null>;
+    readonly expected: ProgramWorkspaceSnapshotReceiptV1;
+  }): Promise<ProgramWorkspaceSnapshotReceiptV1 | null>;
+  captureReviewHead(workspaceSessionId: string): Promise<BrowserWorkspaceHostSnapshotWireV1>;
+  resumeSnapshotPublication(input: {
+    readonly workspaceSessionId: string;
+    readonly expected: ProgramWorkspaceSnapshotReceiptV1;
+  }): Promise<ProgramWorkspaceSnapshotReceiptV1>;
+  adoptSnapshot(input: {
+    readonly workspaceSessionId: string;
+    readonly expected: ProgramWorkspaceSnapshotReceiptV1;
+  }): Promise<"adopted" | "already_retained">;
   discardSnapshot(input: {
     readonly workspaceSessionId: string;
-    readonly expected: BrowserWorkspaceImmutableSnapshotReceiptWireV1;
-  }): Promise<void>;
+    readonly expected: ProgramWorkspaceSnapshotReceiptV1;
+  }): Promise<"discarded" | "absent" | "retained">;
   subscribeFatal(listener: (fatal: BrowserWorkspaceHostFatalV1) => void): () => void;
   dispose(): void;
 }
@@ -177,9 +190,14 @@ export function createBrowserWorkspaceHostPagePortV1(
     }
   };
 
+  const mutationOutcomeCanBeUnknown = (
+    method: BrowserWorkspaceHostControlRequestRecordV1["method"],
+  ): boolean =>
+    method !== "query_workspace" && method !== "query_snapshot_candidate" &&
+    method !== "query_retained_snapshot" && method !== "capture_review_head";
+
   const lostResponseError = (request: PendingControlRequestV1): Error => {
-    const outcomeUnknown = request.method !== "query_workspace" &&
-      request.method !== "query_snapshot";
+    const outcomeUnknown = mutationOutcomeCanBeUnknown(request.method);
     return new BrowserWorkspaceHostControlErrorV1(
       outcomeUnknown ? "outcome_unknown" : "unavailable",
       outcomeUnknown
@@ -242,9 +260,7 @@ export function createBrowserWorkspaceHostPagePortV1(
   const transportFailureListener = (event: Event): void => {
     event.preventDefault();
     poisonTransport({
-      code: [...pending.values()].some(({ method }) =>
-          method !== "query_workspace" && method !== "query_snapshot"
-        )
+      code: [...pending.values()].some(({ method }) => mutationOutcomeCanBeUnknown(method))
         ? "outcome_unknown"
         : "unavailable",
     });
@@ -273,9 +289,7 @@ export function createBrowserWorkspaceHostPagePortV1(
       } catch (error) {
         void error;
         poisonTransport({
-          code: record.method === "query_workspace" || record.method === "query_snapshot"
-            ? "unavailable"
-            : "outcome_unknown",
+          code: mutationOutcomeCanBeUnknown(record.method) ? "outcome_unknown" : "unavailable",
         });
       }
     });
@@ -342,8 +356,8 @@ export function createBrowserWorkspaceHostPagePortV1(
           "Workspace Host omitted its candidate anchor",
         );
       }
-      candidateBootstrapKeys.set(response.anchor.volumeId, expectedBootstrapKey);
-      return response.anchor;
+      candidateBootstrapKeys.set(response.candidate.anchor.volumeId, expectedBootstrapKey);
+      return response.candidate;
     },
 
     async discardCandidate(volumeId) {
@@ -653,15 +667,55 @@ export function createBrowserWorkspaceHostPagePortV1(
       return response.receipt;
     },
 
-    async querySnapshot(input) {
-      const response = await request({ method: "query_snapshot", ...input });
-      if (response.method !== "query_snapshot") {
+    async querySnapshotCandidate(workspaceSessionId) {
+      const response = await request({ method: "query_snapshot_candidate", workspaceSessionId });
+      if (response.method !== "query_snapshot_candidate") {
         throw new BrowserWorkspaceHostControlErrorV1(
           "invalid_response",
-          "Workspace Host omitted its immutable snapshot query result",
+          "Workspace Host omitted its immutable snapshot candidate query result",
         );
       }
       return response.receipt;
+    },
+
+    async queryRetainedSnapshot(input) {
+      const response = await request({ method: "query_retained_snapshot", ...input });
+      if (response.method !== "query_retained_snapshot") {
+        throw new BrowserWorkspaceHostControlErrorV1(
+          "invalid_response",
+          "Workspace Host omitted its retained immutable snapshot query result",
+        );
+      }
+      return response.receipt;
+    },
+
+    captureReviewHead(workspaceSessionId) {
+      return snapshotResponse({ method: "capture_review_head", workspaceSessionId });
+    },
+
+    async resumeSnapshotPublication(input) {
+      const response = await request({ method: "resume_snapshot_publication", ...input });
+      if (response.method !== "resume_snapshot_publication") {
+        throw new BrowserWorkspaceHostControlErrorV1(
+          "invalid_response",
+          "Workspace Host omitted its resumed immutable snapshot receipt",
+        );
+      }
+      return response.receipt;
+    },
+
+    async adoptSnapshot(input) {
+      const response = await request({ method: "adopt_snapshot", ...input });
+      if (
+        response.method !== "adopt_snapshot" ||
+        response.snapshotId !== input.expected.snapshotId
+      ) {
+        throw new BrowserWorkspaceHostControlErrorV1(
+          "invalid_response",
+          "Workspace Host omitted its immutable snapshot adoption result",
+        );
+      }
+      return response.result;
     },
 
     async discardSnapshot(input) {
@@ -675,6 +729,7 @@ export function createBrowserWorkspaceHostPagePortV1(
           "Workspace Host omitted its immutable snapshot discard receipt",
         );
       }
+      return response.result;
     },
 
     closeWorkspace(workspaceSessionId) {

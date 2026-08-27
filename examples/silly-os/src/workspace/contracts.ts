@@ -10,6 +10,50 @@ export const workspaceVolumeMaximumBytesV1 = 2 * 1024 * 1024;
 export const workspaceVolumeMaximumFilesV1 = 256;
 export const workspaceMutationReceiptMaximumV1 = 32;
 
+const workspaceIdentifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
+
+type ExactWorkspaceRecordV1 = Readonly<Record<string, unknown>>;
+
+function exactWorkspaceRecordV1(
+  value: unknown,
+  keys: readonly string[],
+): ExactWorkspaceRecordV1 | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  try {
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) return null;
+    if (Object.getOwnPropertySymbols(value).length !== 0) return null;
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const actualKeys = Object.keys(descriptors);
+    if (
+      actualKeys.length !== keys.length ||
+      !keys.every((key) => Object.hasOwn(descriptors, key))
+    ) return null;
+    for (const key of keys) {
+      const descriptor = descriptors[key];
+      if (
+        descriptor === undefined || !descriptor.enumerable ||
+        !Object.hasOwn(descriptor, "value")
+      ) return null;
+    }
+    return Object.fromEntries(keys.map((key) => [key, descriptors[key]?.value]));
+  } catch {
+    return null;
+  }
+}
+
+function workspaceIdentifierV1(value: unknown): value is string {
+  return typeof value === "string" && workspaceIdentifierPatternV1.test(value);
+}
+
+function positiveSafeIntegerV1(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
+function nonNegativeSafeIntegerV1(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
 export interface CreatorAgentExecutionBindingV1 {
   readonly revision: 1;
   readonly programId: string;
@@ -24,6 +68,83 @@ export interface WorkspaceExecutionDescriptorV1 {
   readonly workspaceId: string;
   readonly workspaceSessionId: string;
   readonly generation: number;
+}
+
+/** Target-neutral immutable Program workspace bytes selected for one exact proposal decision. */
+export interface ProgramWorkspaceSnapshotReceiptV1 {
+  readonly revision: 1;
+  readonly snapshotId: string;
+  readonly programId: string;
+  readonly workspaceId: string;
+  readonly volumeId: string;
+  readonly workspaceFormat: 1;
+  readonly proposalId: string;
+  readonly programRevision: number;
+  readonly baseRepositoryRevision: number;
+  readonly checkpointId: string;
+  readonly generation: number;
+  readonly fileCount: number;
+  readonly archiveBytes: number;
+}
+
+export function admitProgramWorkspaceSnapshotReceiptV1(
+  value: unknown,
+): ProgramWorkspaceSnapshotReceiptV1 | null {
+  const record = exactWorkspaceRecordV1(value, [
+    "revision",
+    "snapshotId",
+    "programId",
+    "workspaceId",
+    "volumeId",
+    "workspaceFormat",
+    "proposalId",
+    "programRevision",
+    "baseRepositoryRevision",
+    "checkpointId",
+    "generation",
+    "fileCount",
+    "archiveBytes",
+  ]);
+  if (
+    record === null || record.revision !== 1 || !workspaceIdentifierV1(record.snapshotId) ||
+    !workspaceIdentifierV1(record.programId) || !workspaceIdentifierV1(record.workspaceId) ||
+    !workspaceIdentifierV1(record.volumeId) || record.workspaceFormat !== 1 ||
+    !workspaceIdentifierV1(record.proposalId) ||
+    !positiveSafeIntegerV1(record.programRevision) ||
+    !positiveSafeIntegerV1(record.baseRepositoryRevision) ||
+    !workspaceIdentifierV1(record.checkpointId) ||
+    !positiveSafeIntegerV1(record.generation) ||
+    !nonNegativeSafeIntegerV1(record.fileCount) ||
+    !positiveSafeIntegerV1(record.archiveBytes)
+  ) return null;
+  return {
+    revision: 1,
+    snapshotId: record.snapshotId,
+    programId: record.programId,
+    workspaceId: record.workspaceId,
+    volumeId: record.volumeId,
+    workspaceFormat: 1,
+    proposalId: record.proposalId,
+    programRevision: record.programRevision,
+    baseRepositoryRevision: record.baseRepositoryRevision,
+    checkpointId: record.checkpointId,
+    generation: record.generation,
+    fileCount: record.fileCount,
+    archiveBytes: record.archiveBytes,
+  };
+}
+
+export function programWorkspaceSnapshotReceiptsEqualV1(
+  left: ProgramWorkspaceSnapshotReceiptV1,
+  right: ProgramWorkspaceSnapshotReceiptV1,
+): boolean {
+  return left.revision === right.revision && left.snapshotId === right.snapshotId &&
+    left.programId === right.programId && left.workspaceId === right.workspaceId &&
+    left.volumeId === right.volumeId && left.workspaceFormat === right.workspaceFormat &&
+    left.proposalId === right.proposalId && left.programRevision === right.programRevision &&
+    left.baseRepositoryRevision === right.baseRepositoryRevision &&
+    left.checkpointId === right.checkpointId && left.generation === right.generation &&
+    left.fileCount === right.fileCount && left.archiveBytes === right.archiveBytes;
 }
 
 export type WorkspaceMutationOutcomeV1 = "succeeded" | "failed" | "cancelled";

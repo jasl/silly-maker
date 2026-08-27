@@ -12,8 +12,12 @@ binding fixed Pi's native `edit` to the same OPFS authority. P3a-B1 checkpoint
 2 subsequently delivered native Pi `bash` through the bounded Browser Local
 just-bash profile and closed P3a that day. P3c-B1 checkpoint 1 then delivered a
 Host-owned immutable snapshot candidate plus cold-reopen contract on
-2026-08-27; publication into an accepted Program revision remains a later
-checkpoint and is not active. There is no active SillyOS implementation slice. Broad execution-provider
+2026-08-27. Checkpoint 2's bounded Host publication-lifecycle slice then
+delivered target-neutral receipts, exact retained-package ownership, review-head
+capture, explicit publication resume, and the transient Host fence that day.
+Repository replacement is now the active internal boundary; Controller
+composition and product evidence remain gated behind focused predecessor review.
+Broad execution-provider
 research, import, and later workspace slices remain inactive. The
 former "SillyOS 98" desktop
 experiment has been retired as a product direction. It remains useful only as
@@ -392,8 +396,9 @@ session and report actual volume effects even when a run is failed, cancelled,
 replaced, or produces no admissible Program candidate. Reload resets the volume
 and generation and must be shown as such. P3c-B0 now owns persistent workspace
 bytes and their portable download; durable tool receipts and admitted artifacts
-remain later independent work. Delivered P3c-B1 checkpoint 1 owns only the first
-immutable Host candidate, not accepted-revision publication.
+remain later independent work. Delivered P3c-B1 checkpoint 1 plus C2a own the
+immutable Host candidate and its publication lifecycle, not accepted-revision
+publication.
 
 The exact DTO, close/cancel ordering, query/ack backpressure, generation rules,
 path and capacity ceilings, and Browser acceptance are owned by the delivered
@@ -593,12 +598,86 @@ control/export/snapshot temporaries remain outside the VFS. Cold reopen admits t
 marker and archive, removes incomplete artifact debris, and never treats a
 complete unreferenced prepare as accepted.
 
-The Program repository still owns no snapshot reference in checkpoint 1. The
-next checkpoint will publish the exact Host receipt only after a repository CAS
-rechecks proposal, Program/repository revision, and continuation. That ordered
-composition is the durable cross-store receipt; it is not a fabricated OPFS +
+The Program repository still owns no snapshot reference in checkpoint 1.
+Checkpoint 2 first completes the Host lifecycle that publication needs: the
+sole unpublished candidate is discoverable without already knowing its ID; an
+exact retained package remains queryable after publication; and an idempotent
+adopt verifies the commit and archive before removing only the unpublished
+pointer. Prepare refuses to overwrite a retained identity. Discard deletes only
+an exact pointer-owned unpublished package and never deletes retained bytes.
+Bootstrap candidate creation returns the exact initial durable head alongside
+its anchor. A separate Host-linearized review-head capture rejects an active
+run, export, or publication and supplies the authoritative head for a later
+proposal-producing Repository mutation; an ordinary page projection is not a
+review receipt.
+
+Prepare-to-adopt/discard is one transient Host publication critical section. A
+newly materialized prepare acquires it, and an exact retry in that same already-
+fenced session retains it. A reopened existing candidate does not acquire it.
+While fenced, the session rejects a new Agent run, export, or different
+publication until the exact attempt settles or the session closes.
+Session close abandons only this in-memory fence; it does not adopt or discard
+the durable candidate. Checkpoint-1 same-envelope prepare intentionally remains
+readable after mutable-head drift, so it cannot reacquire a publication fence
+after reopen. Recovery instead exact-verifies the unpublished receipt, re-reads
+and matches the live head, and only then resumes the fence before any Repository
+CAS. It prevents an unseen tool write between the
+last head check and decision commit without turning an immutable candidate into
+a permanent lock on the mutable Workspace. Adopt returns only `adopted` or
+`already_retained` after complete receipt and archive-length verification;
+discard returns `discarded`, `absent`, or `retained` and never silently removes
+retained bytes.
+
+Repository V3 will own one proposal-scoped review binding separate from the
+Creator session snapshot. It names the exact pending proposal and Program, the
+base accepted Program revision, current Repository revision, workspace/volume/
+format, and the durable checkpoint/generation observed when that proposal
+became current. Initial Program creation stores its fresh volume anchor/head,
+aggregate, continuation, and review binding in one two-store Repository
+transaction. A proposal-producing follow-up or completed Agent terminal first
+captures a run-quiescent Host head and stores that head with the successor in
+the same transaction. A terminal that produces no successor retains the prior
+reviewed head; if tools changed the mutable volume, Accept therefore becomes
+stale instead of relabelling those bytes as reviewed.
+
+The review state machine is exact. A pending proposal has one review binding;
+an accepted or rejected proposal has none, because its decision is then the
+historical evidence. The first binding has
+`baseAcceptedProgramRevision: null`; later bindings name the latest accepted
+decision's Program revision, and Reject does not change that base. A terminal
+that creates no successor retains the same reviewed head while advancing its
+Repository currentness. Each V3 aggregate has exactly one matching continuation
+row, which remains the sole volume locator; create and every later mutation
+advance both rows in one transaction. Missing, orphaned, or mismatched pairs
+are invalid. The old detached continuation insertion operation is removed.
+
+An accepted decision contains the complete target-neutral Host receipt; a
+rejected decision has no snapshot field. Accepted CAS rechecks the proposal,
+Program/repository revision, continuation, durable review binding, and complete
+receipt. Unknown outcome is reconciled by loading and comparing that exact
+decision plus receipt, never by comparing only the visible Creator snapshot.
+Only durable exact acceptance permits adopt. Missing or corrupt bytes for that
+reference are recovery-required, not permission to use the mutable head.
+
+One application-owned Browser Program Workspace Authority owns Repository,
+Host, and product-operation serialization. The Controller does not create a
+second Repository. Pi is a borrower: Forget drains and detaches the Pi side but
+cannot close or dispose the shared Host while proposal capture or publication
+is active. Home/route close waits or returns busy through the same authority.
+Application shutdown admits no new operation, drains Pi, settles publication,
+closes the Host session, and disposes the shared authority/Repository last.
+
+The existing Accept control switches to this non-visual composition in
+checkpoint 2 because the clean replacement schema has no snapshot-less accepted
+shape. Checkpoint 3 adds identity/head/divergence presentation and real cross-
+page/dual-browser evidence; it does not introduce a second Accept path. This
+ordered composition is the durable cross-store receipt, not a fabricated OPFS +
 IndexedDB transaction. Import/restore, broader artifacts, Desktop parity, BYO
-Sandbox, capability composition, OpenUI, and engine APIs remain outside B1.
+Sandbox, capability composition, OpenUI, and engine APIs remain outside B1. The
+V3 Repository review boundary and shared-authority composition cut over as one
+product change; no C2b-only database reset is deployable. C2c is likewise not
+deployed or advertised separately before checkpoint 3 supplies the real Browser
+product evidence.
 
 ## Information architecture
 
@@ -791,21 +870,21 @@ passing a pixel threshold alone is not design approval.
 This table is the completion denominator for the rewrite. A working preview is
 evidence for the preview only.
 
-| Area               | Accepted product role                                     | Current preview evidence                                                      | Remaining before product-ready                              |
-| ------------------ | --------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| Creator home       | Express intent and create/open a Program                  | Local request + B0a/B0b setup + P2 recent reopen                              | Attachments and general Provider UI                         |
-| Creator supervisor | Chat supervises one Program without becoming Program data | Durable run receipts + fresh Pi session over a durable checkpoint             | Program-anchored artifacts and published snapshots          |
-| Program workspace  | One focused mutable workspace produces reviewed snapshots | OPFS checkpoint + native read/write/edit/bash + recovery/scale + portable ZIP | B1 candidate, then publication, then import                 |
-| Human review       | Accept/reject an exact proposed revision                  | Durable exact decision + cross-page stale rejection                           | Workspace-generation/snapshot publication                   |
-| Activity           | Explain what happened and what needs review               | Durable run events + session-local last-mutation receipt                      | Complete tool/action history and approvals                  |
-| Capabilities       | Required Agent and UI abilities are understandable        | Proposal tool + native read/write/edit/bash + closed Browser Local profile    | Broader capability composition                              |
-| Generated UI       | Agent-authored UI remains legible and controllable        | Not implemented                                                               | OpenUI mapped to closed SillyMaker components               |
-| Source             | Inspect and refine the Program where useful               | Presentation-only recipe preview                                              | Persistent draft checkpoint first; accepted snapshots later |
-| Translation        | A usable translation Program                              | Intent classification only                                                    | Complete workflow, data, QA, export                         |
-| Writing            | A usable writing Program                                  | Intent classification only                                                    | Complete workflow, data, revision tools                     |
-| Role-play          | A usable role-play Program                                | Intent classification only                                                    | Complete sessions, characters, VN behavior                  |
-| Browser            | Publishable local-first product with BYO Provider         | Fixed-profile Pi + exportable `20 MiB+` workspace                             | General Provider UI and later product closure               |
-| Deno Desktop       | Same product with admitted Host integrations              | Responsive preview target                                                     | Companion acceptance, storage, packaging qualification      |
+| Area               | Accepted product role                                     | Current preview evidence                                                                                      | Remaining before product-ready                              |
+| ------------------ | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Creator home       | Express intent and create/open a Program                  | Local request + B0a/B0b setup + P2 recent reopen                                                              | Attachments and general Provider UI                         |
+| Creator supervisor | Chat supervises one Program without becoming Program data | Durable run receipts + fresh Pi session over a durable checkpoint                                             | Program-anchored artifacts and published snapshots          |
+| Program workspace  | One focused mutable workspace produces reviewed snapshots | OPFS checkpoint + native read/write/edit/bash + recovery/scale + portable ZIP + B1 Host publication lifecycle | Publication, then import                                    |
+| Human review       | Accept/reject an exact proposed revision                  | Durable exact decision + cross-page stale rejection                                                           | Workspace-generation/snapshot publication                   |
+| Activity           | Explain what happened and what needs review               | Durable run events + session-local last-mutation receipt                                                      | Complete tool/action history and approvals                  |
+| Capabilities       | Required Agent and UI abilities are understandable        | Proposal tool + native read/write/edit/bash + closed Browser Local profile                                    | Broader capability composition                              |
+| Generated UI       | Agent-authored UI remains legible and controllable        | Not implemented                                                                                               | OpenUI mapped to closed SillyMaker components               |
+| Source             | Inspect and refine the Program where useful               | Presentation-only recipe preview                                                                              | Persistent draft checkpoint first; accepted snapshots later |
+| Translation        | A usable translation Program                              | Intent classification only                                                                                    | Complete workflow, data, QA, export                         |
+| Writing            | A usable writing Program                                  | Intent classification only                                                                                    | Complete workflow, data, revision tools                     |
+| Role-play          | A usable role-play Program                                | Intent classification only                                                                                    | Complete sessions, characters, VN behavior                  |
+| Browser            | Publishable local-first product with BYO Provider         | Fixed-profile Pi + exportable `20 MiB+` workspace                                                             | General Provider UI and later product closure               |
+| Deno Desktop       | Same product with admitted Host integrations              | Responsive preview target                                                                                     | Companion acceptance, storage, packaging qualification      |
 
 Before SillyOS is called a complete reference product, this table must be
 reconciled with implementation and tests, the current-low-end startup,
@@ -818,9 +897,12 @@ or one generated Program is not evidence that the complete product exists.
 The closed P3c-B0 slice in [PLAN.md](./PLAN.md) governs the delivered Browser
 OPFS checkpoint and portable download plus the delivered P3a-B1 native Pi
 `edit` and bounded Pi `bash`/just-bash checkpoints over that same volume. P3a
-is closed and P3c-B1 checkpoint 1 is delivered. There is no active SillyOS
-implementation slice. Broader execution-provider research,
-snapshot-publication checkpoints 2/3, and import remain inactive. The plan also
+is closed, P3c-B1 checkpoint 1 is delivered, and checkpoint 2's C2a Host
+publication-lifecycle sub-checkpoint is also delivered. C2b Repository
+replacement is the next internal boundary but cannot become a deployable
+selected schema without the atomic C2c Controller/shared-authority cutover;
+C2c and checkpoint 3 remain gated. Broader execution-
+provider research and import remain inactive. The plan also
 governs later real Pi integration, product persistence, Pi-native workspace
 tool binding, provider research, Pi capability composition,
 OpenUI-to-SillyMaker mapping, and the first complete product families. Runtime

@@ -17,6 +17,10 @@ import {
   browserWorkspaceShellOutputMaximumUtf8BytesV1,
   isBrowserWorkspaceHostNormalizedPathV1,
 } from "../workspace/browser-workspace-host-protocol.ts";
+import {
+  admitProgramWorkspaceSnapshotReceiptV1,
+  programWorkspaceSnapshotReceiptsEqualV1,
+} from "../workspace/contracts.ts";
 
 const anchorV1 = {
   revision: 1,
@@ -32,6 +36,13 @@ const descriptorV1 = {
   workspaceId: anchorV1.workspaceId,
   workspaceSessionId: "workspace-session.preview.1",
   generation: 7,
+} as const;
+
+const candidateV1 = {
+  revision: 1,
+  anchor: anchorV1,
+  checkpointId: "checkpoint.preview.1",
+  generation: 1,
 } as const;
 
 function controlRequestV1(record: unknown): Record<string, unknown> {
@@ -64,7 +75,7 @@ function receiptV1(overrides: Record<string, unknown> = {}): Record<string, unkn
   };
 }
 
-function immutableSnapshotReceiptV1(
+function snapshotReceiptV1(
   overrides: Record<string, unknown> = {},
 ): Record<string, unknown> {
   return {
@@ -424,7 +435,23 @@ describe("SillyOS Browser Workspace Host protocol", () => {
     });
   });
 
-  it("admits exact immutable snapshot prepare, query, and receipt-bound discard records", () => {
+  it("admits the exact target-neutral Program workspace snapshot receipt", () => {
+    const receipt = admitProgramWorkspaceSnapshotReceiptV1(snapshotReceiptV1());
+    const same = admitProgramWorkspaceSnapshotReceiptV1(snapshotReceiptV1());
+    const newer = admitProgramWorkspaceSnapshotReceiptV1(snapshotReceiptV1({ generation: 8 }));
+    if (receipt === null || same === null || newer === null) {
+      throw new Error("valid snapshot receipt fixture was rejected");
+    }
+
+    expect(receipt).toMatchObject({ snapshotId: "snapshot.preview.1", archiveBytes: 512 });
+    expect(programWorkspaceSnapshotReceiptsEqualV1(receipt, same)).toBe(true);
+    expect(programWorkspaceSnapshotReceiptsEqualV1(receipt, newer)).toBe(false);
+    expect(
+      admitProgramWorkspaceSnapshotReceiptV1(snapshotReceiptV1({ provider: "forbidden" })),
+    ).toBeNull();
+  });
+
+  it("admits exact review capture, snapshot discovery, and receipt-bound publication requests", () => {
     const prepare = {
       method: "prepare_snapshot",
       workspaceSessionId: descriptorV1.workspaceSessionId,
@@ -441,29 +468,45 @@ describe("SillyOS Browser Workspace Host protocol", () => {
     expect(
       admitBrowserWorkspaceHostControlRequestV1(
         controlRequestV1({
-          method: "query_snapshot",
+          method: "capture_review_head",
           workspaceSessionId: descriptorV1.workspaceSessionId,
-          snapshotId: "snapshot.preview.1",
         }),
       ),
-    ).toMatchObject({ record: { method: "query_snapshot", snapshotId: "snapshot.preview.1" } });
+    ).toMatchObject({ record: { method: "capture_review_head" } });
     expect(
       admitBrowserWorkspaceHostControlRequestV1(
         controlRequestV1({
-          method: "discard_snapshot",
+          method: "query_snapshot_candidate",
           workspaceSessionId: descriptorV1.workspaceSessionId,
-          expected: immutableSnapshotReceiptV1(),
         }),
       ),
-    ).toMatchObject({
-      record: {
-        method: "discard_snapshot",
-        expected: { snapshotId: "snapshot.preview.1", archiveBytes: 512 },
-      },
-    });
+    ).toMatchObject({ record: { method: "query_snapshot_candidate" } });
+    for (
+      const method of [
+        "query_retained_snapshot",
+        "resume_snapshot_publication",
+        "adopt_snapshot",
+        "discard_snapshot",
+      ] as const
+    ) {
+      expect(
+        admitBrowserWorkspaceHostControlRequestV1(
+          controlRequestV1({
+            method,
+            workspaceSessionId: descriptorV1.workspaceSessionId,
+            expected: snapshotReceiptV1(),
+          }),
+        ),
+      ).toMatchObject({
+        record: {
+          method,
+          expected: { snapshotId: "snapshot.preview.1", archiveBytes: 512 },
+        },
+      });
+    }
   });
 
-  it("admits exact immutable snapshot responses, including an absent queried candidate", () => {
+  it("admits exact review, candidate, publication, adoption, and discard responses", () => {
     const response = (method: string, value: Record<string, unknown>) => ({
       revision: 1,
       kind: "control_response",
@@ -473,26 +516,68 @@ describe("SillyOS Browser Workspace Host protocol", () => {
     });
     expect(
       admitBrowserWorkspaceHostControlOutboundMessageV1(
-        response("prepare_snapshot", { receipt: immutableSnapshotReceiptV1() }),
-      ),
-    ).toMatchObject({ response: { method: "prepare_snapshot", receipt: { archiveBytes: 512 } } });
-    expect(
-      admitBrowserWorkspaceHostControlOutboundMessageV1(
-        response("query_snapshot", { receipt: immutableSnapshotReceiptV1() }),
+        response("create_candidate", { candidate: candidateV1 }),
       ),
     ).toMatchObject({
-      response: { method: "query_snapshot", receipt: { snapshotId: "snapshot.preview.1" } },
+      response: {
+        method: "create_candidate",
+        candidate: { checkpointId: "checkpoint.preview.1", generation: 1, anchor: anchorV1 },
+      },
     });
     expect(
       admitBrowserWorkspaceHostControlOutboundMessageV1(
-        response("query_snapshot", { receipt: null }),
+        response("capture_review_head", {
+          snapshot: {
+            revision: 1,
+            phase: "open",
+            volumeId: anchorV1.volumeId,
+            checkpointId: "checkpoint.preview.3",
+            descriptor: descriptorV1,
+            anchor: anchorV1,
+          },
+        }),
       ),
-    ).toMatchObject({ response: { method: "query_snapshot", receipt: null } });
-    expect(
-      admitBrowserWorkspaceHostControlOutboundMessageV1(
-        response("discard_snapshot", { snapshotId: "snapshot.preview.1" }),
-      ),
-    ).toMatchObject({ response: { method: "discard_snapshot", snapshotId: "snapshot.preview.1" } });
+    ).toMatchObject({
+      response: {
+        method: "capture_review_head",
+        snapshot: { checkpointId: "checkpoint.preview.3" },
+      },
+    });
+    for (const method of ["prepare_snapshot", "resume_snapshot_publication"] as const) {
+      expect(
+        admitBrowserWorkspaceHostControlOutboundMessageV1(
+          response(method, { receipt: snapshotReceiptV1() }),
+        ),
+      ).toMatchObject({ response: { method, receipt: { archiveBytes: 512 } } });
+    }
+    for (const method of ["query_snapshot_candidate", "query_retained_snapshot"] as const) {
+      expect(
+        admitBrowserWorkspaceHostControlOutboundMessageV1(
+          response(method, { receipt: snapshotReceiptV1() }),
+        ),
+      ).toMatchObject({
+        response: { method, receipt: { snapshotId: "snapshot.preview.1" } },
+      });
+      expect(
+        admitBrowserWorkspaceHostControlOutboundMessageV1(
+          response(method, { receipt: null }),
+        ),
+      ).toMatchObject({ response: { method, receipt: null } });
+    }
+    for (const result of ["adopted", "already_retained"] as const) {
+      expect(
+        admitBrowserWorkspaceHostControlOutboundMessageV1(
+          response("adopt_snapshot", { result, snapshotId: "snapshot.preview.1" }),
+        ),
+      ).toMatchObject({ response: { method: "adopt_snapshot", result } });
+    }
+    for (const result of ["discarded", "absent", "retained"] as const) {
+      expect(
+        admitBrowserWorkspaceHostControlOutboundMessageV1(
+          response("discard_snapshot", { result, snapshotId: "snapshot.preview.1" }),
+        ),
+      ).toMatchObject({ response: { method: "discard_snapshot", result } });
+    }
   });
 
   it("rejects malformed or widened immutable snapshot records", () => {
@@ -511,20 +596,19 @@ describe("SillyOS Browser Workspace Host protocol", () => {
         { ...prepare, baseRepositoryRevision: 0 },
         { ...prepare, repositoryRevision: 4 },
         {
-          method: "query_snapshot",
+          method: "query_snapshot_candidate",
           workspaceSessionId: descriptorV1.workspaceSessionId,
           snapshotId: "snapshot.preview.1",
-          proposalId: "forbidden",
+        },
+        {
+          method: "adopt_snapshot",
+          workspaceSessionId: descriptorV1.workspaceSessionId,
+          expected: snapshotReceiptV1({ archiveBytes: 0 }),
         },
         {
           method: "discard_snapshot",
           workspaceSessionId: descriptorV1.workspaceSessionId,
-          expected: immutableSnapshotReceiptV1({ archiveBytes: 0 }),
-        },
-        {
-          method: "discard_snapshot",
-          workspaceSessionId: descriptorV1.workspaceSessionId,
-          expected: immutableSnapshotReceiptV1({ provider: "forbidden" }),
+          expected: snapshotReceiptV1({ provider: "forbidden" }),
         },
       ]
     ) {
@@ -540,7 +624,7 @@ describe("SillyOS Browser Workspace Host protocol", () => {
       ok: true,
       response: {
         method: "prepare_snapshot",
-        receipt: immutableSnapshotReceiptV1(),
+        receipt: snapshotReceiptV1(),
       },
     } as const;
     for (
@@ -550,12 +634,28 @@ describe("SillyOS Browser Workspace Host protocol", () => {
           ...exactResponse,
           response: {
             ...exactResponse.response,
-            receipt: immutableSnapshotReceiptV1({ fileCount: -1 }),
+            receipt: snapshotReceiptV1({ fileCount: -1 }),
           },
         },
         {
           ...exactResponse,
-          response: { method: "query_snapshot", receipt: false },
+          response: { method: "query_snapshot_candidate", receipt: false },
+        },
+        {
+          ...exactResponse,
+          response: {
+            method: "adopt_snapshot",
+            result: "discarded",
+            snapshotId: "snapshot.preview.1",
+          },
+        },
+        {
+          ...exactResponse,
+          response: { method: "discard_snapshot", snapshotId: "snapshot.preview.1" },
+        },
+        {
+          ...exactResponse,
+          response: { method: "create_candidate", anchor: anchorV1 },
         },
       ]
     ) {

@@ -24,10 +24,14 @@ import {
   type BrowserWorkspaceHostFileErrorWireV1,
   type BrowserWorkspaceHostMutationReceiptWireV1,
   type BrowserWorkspaceHostSnapshotWireV1,
-  type BrowserWorkspaceImmutableSnapshotReceiptWireV1,
   type BrowserWorkspaceVolumeAnchorWireV1,
+  type BrowserWorkspaceVolumeCandidateWireV1,
   isBrowserWorkspaceHostNormalizedPathV1,
 } from "./browser-workspace-host-protocol.ts";
+import {
+  programWorkspaceSnapshotReceiptsEqualV1,
+  type ProgramWorkspaceSnapshotReceiptV1,
+} from "./contracts.ts";
 import type {
   BrowserWorkspaceJustBashPathViewV1,
   BrowserWorkspaceJustBashVolumePortV1,
@@ -128,13 +132,20 @@ export interface BrowserWorkspaceHostVolumeLeasePortV1 {
   ): Promise<BrowserWorkspaceHostPortableArchiveV1>;
   prepareImmutableSnapshot(
     input: BrowserWorkspaceHostImmutableSnapshotInputV1,
-  ): Promise<BrowserWorkspaceImmutableSnapshotReceiptWireV1>;
-  queryImmutableSnapshot(
-    snapshotId: string,
-  ): Promise<BrowserWorkspaceImmutableSnapshotReceiptWireV1 | null>;
+  ): Promise<ProgramWorkspaceSnapshotReceiptV1>;
+  queryCurrentImmutableSnapshotCandidate(): Promise<ProgramWorkspaceSnapshotReceiptV1 | null>;
+  queryRetainedImmutableSnapshot(
+    expected: ProgramWorkspaceSnapshotReceiptV1,
+  ): Promise<ProgramWorkspaceSnapshotReceiptV1 | null>;
+  resumeImmutableSnapshotPublication(
+    expected: ProgramWorkspaceSnapshotReceiptV1,
+  ): Promise<ProgramWorkspaceSnapshotReceiptV1>;
+  adoptImmutableSnapshot(
+    expected: ProgramWorkspaceSnapshotReceiptV1,
+  ): Promise<"adopted" | "already_retained">;
   discardImmutableSnapshot(
-    expected: BrowserWorkspaceImmutableSnapshotReceiptWireV1,
-  ): Promise<void>;
+    expected: ProgramWorkspaceSnapshotReceiptV1,
+  ): Promise<"discarded" | "absent" | "retained">;
   close(): Promise<void>;
 }
 
@@ -143,7 +154,7 @@ export interface BrowserWorkspaceHostBootstrapPortV1 {
   createCandidate(input: {
     readonly programId: string;
     readonly workspaceId: string;
-  }): Promise<BrowserWorkspaceVolumeAnchorWireV1>;
+  }): Promise<BrowserWorkspaceVolumeCandidateWireV1>;
   discardCandidate(volumeId: string): Promise<void>;
   openVolume(
     anchor: BrowserWorkspaceVolumeAnchorWireV1,
@@ -271,7 +282,8 @@ interface SessionStateV1 {
   reservedReceiptSlots: number;
   environment: EnvironmentAttachmentV1 | null;
   exportOperation: ExportOperationV1 | null;
-  snapshotPreparing: boolean;
+  snapshotOperation: boolean;
+  publicationFence: ProgramWorkspaceSnapshotReceiptV1 | null;
   closeDrain: Promise<void> | null;
 }
 
@@ -365,6 +377,30 @@ function sameHeadV1(
 ): boolean {
   return left.volumeId === right.volumeId && left.workspaceFormat === right.workspaceFormat &&
     left.checkpointId === right.checkpointId && left.generation === right.generation;
+}
+
+function snapshotReceiptMatchesSessionV1(
+  receipt: ProgramWorkspaceSnapshotReceiptV1,
+  session: SessionStateV1,
+): boolean {
+  return receipt.programId === session.anchor.programId &&
+    receipt.workspaceId === session.anchor.workspaceId &&
+    receipt.volumeId === session.anchor.volumeId &&
+    receipt.workspaceFormat === session.anchor.workspaceFormat;
+}
+
+function snapshotPrepareMatchesReceiptV1(
+  record: Extract<
+    BrowserWorkspaceHostControlRequestRecordV1,
+    { readonly method: "prepare_snapshot" }
+  >,
+  receipt: ProgramWorkspaceSnapshotReceiptV1,
+): boolean {
+  return receipt.snapshotId === record.snapshotId && receipt.proposalId === record.proposalId &&
+    receipt.programRevision === record.programRevision &&
+    receipt.baseRepositoryRevision === record.baseRepositoryRevision &&
+    receipt.checkpointId === record.expectedCheckpointId &&
+    receipt.generation === record.expectedGeneration;
 }
 
 function normalizedPathV1(path: string): NormalizedPathV1 | BrowserWorkspaceHostFileErrorWireV1 {
@@ -1576,7 +1612,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
       }
       if (
         session.activeRun !== null || session.exportOperation !== null ||
-        session.snapshotPreparing
+        session.snapshotOperation || session.publicationFence !== null
       ) {
         environmentFailure(session, request.requestId, "run_busy");
         return;
@@ -1948,6 +1984,8 @@ export function createBrowserWorkspaceHostRuntimeV1(
         session.usedRunIds.clear();
         session.activeRun = null;
         session.reservedReceiptSlots = 0;
+        session.snapshotOperation = false;
+        session.publicationFence = null;
         sessions.delete(session.workspaceSessionId);
         if (currentOpenSession === session) currentOpenSession = null;
         if (session.receipts.length === 0) {
@@ -1983,11 +2021,13 @@ export function createBrowserWorkspaceHostRuntimeV1(
         return;
       }
       try {
-        const rawAnchor = await options.bootstrap.createCandidate(record);
-        const anchor = admitBrowserWorkspaceVolumeAnchorWireV1(rawAnchor);
+        const candidate = await options.bootstrap.createCandidate(record);
+        const anchor = admitBrowserWorkspaceVolumeAnchorWireV1(candidate.anchor);
         if (
-          anchor === null || anchor.programId !== record.programId ||
-          anchor.workspaceId !== record.workspaceId
+          candidate.revision !== 1 || anchor === null || anchor.programId !== record.programId ||
+          anchor.workspaceId !== record.workspaceId ||
+          !validIdentityV1(candidate.checkpointId) ||
+          !positiveSafeIntegerV1(candidate.generation)
         ) {
           throw new BrowserWorkspaceHostStorageErrorV1(
             "volume_corrupt",
@@ -2000,7 +2040,15 @@ export function createBrowserWorkspaceHostRuntimeV1(
           kind: "control_response",
           requestId,
           ok: true,
-          response: { method: "create_candidate", anchor },
+          response: {
+            method: "create_candidate",
+            candidate: {
+              revision: 1,
+              anchor,
+              checkpointId: candidate.checkpointId,
+              generation: candidate.generation,
+            },
+          },
         });
       } catch (error) {
         controlFailure(requestId, storageFailureCodeV1(error));
@@ -2076,7 +2124,8 @@ export function createBrowserWorkspaceHostRuntimeV1(
           reservedReceiptSlots: 0,
           environment: null,
           exportOperation: null,
-          snapshotPreparing: false,
+          snapshotOperation: false,
+          publicationFence: null,
           closeDrain: null,
         };
         candidateAnchors.delete(record.anchor.volumeId);
@@ -2110,17 +2159,48 @@ export function createBrowserWorkspaceHostRuntimeV1(
       });
       return;
     }
-    if (record.method === "prepare_snapshot") {
+    if (record.method === "capture_review_head") {
       if (
         session.phase !== "open" || !session.accepting || session.lease === null ||
         session.activeRun !== null || session.exportOperation !== null ||
-        session.snapshotPreparing
+        session.snapshotOperation || session.publicationFence !== null
       ) {
         controlFailure(requestId, "workspace_busy");
         return;
       }
-      session.snapshotPreparing = true;
+      postControl({
+        revision: 1,
+        kind: "control_response",
+        requestId,
+        ok: true,
+        response: { method: "capture_review_head", snapshot: snapshot(session) },
+      });
+      return;
+    }
+    if (record.method === "prepare_snapshot") {
+      if (
+        session.phase !== "open" || !session.accepting || session.lease === null ||
+        session.activeRun !== null || session.exportOperation !== null ||
+        session.snapshotOperation ||
+        (session.publicationFence !== null &&
+          !snapshotPrepareMatchesReceiptV1(record, session.publicationFence))
+      ) {
+        controlFailure(
+          requestId,
+          session.publicationFence !== null ? "snapshot_mismatch" : "workspace_busy",
+        );
+        return;
+      }
+      session.snapshotOperation = true;
       try {
+        const existing = session.publicationFence ??
+          await session.lease.queryCurrentImmutableSnapshotCandidate();
+        if (existing !== null && !snapshotPrepareMatchesReceiptV1(record, existing)) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "snapshot_mismatch",
+            "Workspace volume already retains a different immutable snapshot candidate",
+          );
+        }
         const receipt = await session.lease.prepareImmutableSnapshot({
           snapshotId: record.snapshotId,
           proposalId: record.proposalId,
@@ -2136,20 +2216,18 @@ export function createBrowserWorkspaceHostRuntimeV1(
           signal: new AbortController().signal,
         });
         if (
-          receipt.programId !== session.anchor.programId ||
-          receipt.workspaceId !== session.anchor.workspaceId ||
-          receipt.volumeId !== session.anchor.volumeId ||
-          receipt.workspaceFormat !== session.anchor.workspaceFormat ||
-          receipt.snapshotId !== record.snapshotId || receipt.proposalId !== record.proposalId ||
-          receipt.programRevision !== record.programRevision ||
-          receipt.baseRepositoryRevision !== record.baseRepositoryRevision ||
-          receipt.checkpointId !== record.expectedCheckpointId ||
-          receipt.generation !== record.expectedGeneration
+          !snapshotReceiptMatchesSessionV1(receipt, session) ||
+          !snapshotPrepareMatchesReceiptV1(record, receipt) ||
+          (session.publicationFence !== null &&
+            !programWorkspaceSnapshotReceiptsEqualV1(session.publicationFence, receipt))
         ) {
           throw new BrowserWorkspaceHostStorageErrorV1(
             "volume_corrupt",
             "Workspace immutable snapshot owner returned an invalid receipt",
           );
+        }
+        if (existing === null || session.publicationFence !== null) {
+          session.publicationFence = receipt;
         }
         postControl({
           revision: 1,
@@ -2161,22 +2239,127 @@ export function createBrowserWorkspaceHostRuntimeV1(
       } catch (error) {
         controlFailure(requestId, storageFailureCodeV1(error));
       } finally {
-        session.snapshotPreparing = false;
+        session.snapshotOperation = false;
       }
       return;
     }
-    if (record.method === "query_snapshot") {
+    if (record.method === "query_snapshot_candidate") {
       try {
-        const receipt = await session.lease?.queryImmutableSnapshot(record.snapshotId) ?? null;
+        const receipt = await session.lease?.queryCurrentImmutableSnapshotCandidate() ?? null;
         postControl({
           revision: 1,
           kind: "control_response",
           requestId,
           ok: true,
-          response: { method: "query_snapshot", receipt },
+          response: { method: "query_snapshot_candidate", receipt },
         });
       } catch (error) {
         controlFailure(requestId, storageFailureCodeV1(error));
+      }
+      return;
+    }
+    if (record.method === "query_retained_snapshot") {
+      if (!snapshotReceiptMatchesSessionV1(record.expected, session)) {
+        controlFailure(requestId, "snapshot_mismatch");
+        return;
+      }
+      try {
+        const receipt = await session.lease?.queryRetainedImmutableSnapshot(record.expected) ??
+          null;
+        postControl({
+          revision: 1,
+          kind: "control_response",
+          requestId,
+          ok: true,
+          response: { method: "query_retained_snapshot", receipt },
+        });
+      } catch (error) {
+        controlFailure(requestId, storageFailureCodeV1(error));
+      }
+      return;
+    }
+    if (record.method === "resume_snapshot_publication") {
+      if (
+        session.phase !== "open" || !session.accepting || session.lease === null ||
+        session.activeRun !== null || session.exportOperation !== null ||
+        session.snapshotOperation ||
+        (session.publicationFence !== null &&
+          !programWorkspaceSnapshotReceiptsEqualV1(session.publicationFence, record.expected))
+      ) {
+        controlFailure(
+          requestId,
+          session.publicationFence !== null ? "snapshot_mismatch" : "workspace_busy",
+        );
+        return;
+      }
+      if (!snapshotReceiptMatchesSessionV1(record.expected, session)) {
+        controlFailure(requestId, "snapshot_mismatch");
+        return;
+      }
+      session.snapshotOperation = true;
+      try {
+        const receipt = await session.lease.resumeImmutableSnapshotPublication(record.expected);
+        if (!programWorkspaceSnapshotReceiptsEqualV1(receipt, record.expected)) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "volume_corrupt",
+            "Workspace immutable snapshot resume returned a different receipt",
+          );
+        }
+        session.publicationFence = receipt;
+        postControl({
+          revision: 1,
+          kind: "control_response",
+          requestId,
+          ok: true,
+          response: { method: "resume_snapshot_publication", receipt },
+        });
+      } catch (error) {
+        controlFailure(requestId, storageFailureCodeV1(error));
+      } finally {
+        session.snapshotOperation = false;
+      }
+      return;
+    }
+    if (record.method === "adopt_snapshot") {
+      if (
+        session.phase !== "open" || !session.accepting || session.lease === null ||
+        session.activeRun !== null || session.exportOperation !== null ||
+        session.snapshotOperation ||
+        (session.publicationFence !== null &&
+          !programWorkspaceSnapshotReceiptsEqualV1(session.publicationFence, record.expected))
+      ) {
+        controlFailure(
+          requestId,
+          session.publicationFence !== null ? "snapshot_mismatch" : "workspace_busy",
+        );
+        return;
+      }
+      if (!snapshotReceiptMatchesSessionV1(record.expected, session)) {
+        controlFailure(requestId, "snapshot_mismatch");
+        return;
+      }
+      session.snapshotOperation = true;
+      try {
+        const kind = await session.lease.adoptImmutableSnapshot(record.expected);
+        if (
+          session.publicationFence !== null &&
+          programWorkspaceSnapshotReceiptsEqualV1(session.publicationFence, record.expected)
+        ) session.publicationFence = null;
+        postControl({
+          revision: 1,
+          kind: "control_response",
+          requestId,
+          ok: true,
+          response: {
+            method: "adopt_snapshot",
+            result: kind,
+            snapshotId: record.expected.snapshotId,
+          },
+        });
+      } catch (error) {
+        controlFailure(requestId, storageFailureCodeV1(error));
+      } finally {
+        session.snapshotOperation = false;
       }
       return;
     }
@@ -2184,22 +2367,27 @@ export function createBrowserWorkspaceHostRuntimeV1(
       if (
         session.phase !== "open" || !session.accepting || session.lease === null ||
         session.activeRun !== null || session.exportOperation !== null ||
-        session.snapshotPreparing
+        session.snapshotOperation ||
+        (session.publicationFence !== null &&
+          !programWorkspaceSnapshotReceiptsEqualV1(session.publicationFence, record.expected))
       ) {
-        controlFailure(requestId, "workspace_busy");
+        controlFailure(
+          requestId,
+          session.publicationFence !== null ? "snapshot_mismatch" : "workspace_busy",
+        );
         return;
       }
-      if (
-        record.expected.programId !== session.anchor.programId ||
-        record.expected.workspaceId !== session.anchor.workspaceId ||
-        record.expected.volumeId !== session.anchor.volumeId ||
-        record.expected.workspaceFormat !== session.anchor.workspaceFormat
-      ) {
+      if (!snapshotReceiptMatchesSessionV1(record.expected, session)) {
         controlFailure(requestId, "snapshot_mismatch");
         return;
       }
+      session.snapshotOperation = true;
       try {
-        await session.lease.discardImmutableSnapshot(record.expected);
+        const kind = await session.lease.discardImmutableSnapshot(record.expected);
+        if (
+          session.publicationFence !== null &&
+          programWorkspaceSnapshotReceiptsEqualV1(session.publicationFence, record.expected)
+        ) session.publicationFence = null;
         postControl({
           revision: 1,
           kind: "control_response",
@@ -2207,11 +2395,14 @@ export function createBrowserWorkspaceHostRuntimeV1(
           ok: true,
           response: {
             method: "discard_snapshot",
+            result: kind,
             snapshotId: record.expected.snapshotId,
           },
         });
       } catch (error) {
         controlFailure(requestId, storageFailureCodeV1(error));
+      } finally {
+        session.snapshotOperation = false;
       }
       return;
     }
@@ -2219,7 +2410,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
       if (
         session.phase !== "open" || !session.accepting || session.lease === null ||
         session.activeRun !== null || session.exportOperation !== null ||
-        session.snapshotPreparing
+        session.snapshotOperation || session.publicationFence !== null
       ) {
         closeTransferredPorts(transferredPorts);
         controlFailure(requestId, "workspace_busy");

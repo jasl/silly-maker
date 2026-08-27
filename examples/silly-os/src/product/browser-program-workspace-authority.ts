@@ -202,7 +202,7 @@ export function createBrowserProgramWorkspaceAuthorityV1(
         return existing;
       }
 
-      candidateAnchor = await host.createCandidate(input);
+      candidateAnchor = (await host.createCandidate(input)).anchor;
       candidateDiscardable = true;
       const candidate = candidateAnchor;
       for (let attempt = 0; attempt < 3; attempt += 1) {

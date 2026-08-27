@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: MIT
 
+import {
+  admitProgramWorkspaceSnapshotReceiptV1,
+  type ProgramWorkspaceSnapshotReceiptV1,
+} from "./contracts.ts";
+
 export const browserWorkspaceHostProtocolRevisionV1 = 1 as const;
 export const browserWorkspaceFormatRevisionV1 = 1 as const;
 /** Current Pi 0.84.3 whole-value read/write payload guard, never an OPFS file or volume limit. */
@@ -26,6 +31,13 @@ export interface BrowserWorkspaceVolumeAnchorWireV1 {
   readonly workspaceFormat: 1;
 }
 
+export interface BrowserWorkspaceVolumeCandidateWireV1 {
+  readonly revision: 1;
+  readonly anchor: BrowserWorkspaceVolumeAnchorWireV1;
+  readonly checkpointId: string;
+  readonly generation: number;
+}
+
 export interface BrowserWorkspaceExecutionDescriptorWireV1 {
   readonly revision: 1;
   readonly programId: string;
@@ -41,23 +53,6 @@ export interface BrowserWorkspaceHostSnapshotWireV1 {
   readonly checkpointId: string;
   readonly descriptor: BrowserWorkspaceExecutionDescriptorWireV1;
   readonly anchor: BrowserWorkspaceVolumeAnchorWireV1;
-}
-
-/** Exact Host-owned immutable candidate prepared from one selected mutable head. */
-export interface BrowserWorkspaceImmutableSnapshotReceiptWireV1 {
-  readonly revision: 1;
-  readonly snapshotId: string;
-  readonly programId: string;
-  readonly workspaceId: string;
-  readonly volumeId: string;
-  readonly workspaceFormat: 1;
-  readonly proposalId: string;
-  readonly programRevision: number;
-  readonly baseRepositoryRevision: number;
-  readonly checkpointId: string;
-  readonly generation: number;
-  readonly fileCount: number;
-  readonly archiveBytes: number;
 }
 
 export interface BrowserWorkspaceHostExportProgressWireV1 {
@@ -169,17 +164,24 @@ export type BrowserWorkspaceHostControlRequestRecordV1 =
     readonly baseRepositoryRevision: number;
   }
   | {
-    readonly method: "query_snapshot";
+    readonly method: "query_snapshot_candidate";
     readonly workspaceSessionId: string;
-    readonly snapshotId: string;
   }
   | {
-    readonly method: "discard_snapshot";
+    readonly method:
+      | "query_retained_snapshot"
+      | "resume_snapshot_publication"
+      | "adopt_snapshot"
+      | "discard_snapshot";
     readonly workspaceSessionId: string;
-    readonly expected: BrowserWorkspaceImmutableSnapshotReceiptWireV1;
+    readonly expected: ProgramWorkspaceSnapshotReceiptV1;
   }
   | {
-    readonly method: "close_workspace" | "query_workspace" | "attach_environment";
+    readonly method:
+      | "close_workspace"
+      | "query_workspace"
+      | "attach_environment"
+      | "capture_review_head";
     readonly workspaceSessionId: string;
   };
 
@@ -218,7 +220,8 @@ export interface BrowserWorkspaceHostControlSuccessResponseV1 {
         | "open_workspace"
         | "close_workspace"
         | "query_workspace"
-        | "attach_environment";
+        | "attach_environment"
+        | "capture_review_head";
       readonly snapshot: BrowserWorkspaceHostSnapshotWireV1;
     }
     | {
@@ -227,15 +230,27 @@ export interface BrowserWorkspaceHostControlSuccessResponseV1 {
       readonly snapshot: BrowserWorkspaceHostSnapshotWireV1;
     }
     | {
-      readonly method: "prepare_snapshot";
-      readonly receipt: BrowserWorkspaceImmutableSnapshotReceiptWireV1;
+      readonly method: "prepare_snapshot" | "resume_snapshot_publication";
+      readonly receipt: ProgramWorkspaceSnapshotReceiptV1;
     }
     | {
-      readonly method: "query_snapshot";
-      readonly receipt: BrowserWorkspaceImmutableSnapshotReceiptWireV1 | null;
+      readonly method: "query_snapshot_candidate" | "query_retained_snapshot";
+      readonly receipt: ProgramWorkspaceSnapshotReceiptV1 | null;
     }
-    | { readonly method: "discard_snapshot"; readonly snapshotId: string }
-    | { readonly method: "create_candidate"; readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 }
+    | {
+      readonly method: "adopt_snapshot";
+      readonly result: "adopted" | "already_retained";
+      readonly snapshotId: string;
+    }
+    | {
+      readonly method: "discard_snapshot";
+      readonly result: "discarded" | "absent" | "retained";
+      readonly snapshotId: string;
+    }
+    | {
+      readonly method: "create_candidate";
+      readonly candidate: BrowserWorkspaceVolumeCandidateWireV1;
+    }
     | { readonly method: "discard_candidate"; readonly volumeId: string };
 }
 
@@ -551,6 +566,29 @@ export function admitBrowserWorkspaceVolumeAnchorWireV1(
   };
 }
 
+export function admitBrowserWorkspaceVolumeCandidateWireV1(
+  value: unknown,
+): BrowserWorkspaceVolumeCandidateWireV1 | null {
+  const record = exactRecordV1(value, [
+    "revision",
+    "anchor",
+    "checkpointId",
+    "generation",
+  ]);
+  if (
+    record === null || record.revision !== 1 || !identifierV1(record.checkpointId) ||
+    !positiveSafeIntegerV1(record.generation)
+  ) return null;
+  const anchor = admitBrowserWorkspaceVolumeAnchorWireV1(record.anchor);
+  if (anchor === null) return null;
+  return {
+    revision: 1,
+    anchor,
+    checkpointId: record.checkpointId,
+    generation: record.generation,
+  };
+}
+
 function admitExecutionBindingV1(
   value: unknown,
 ): BrowserWorkspaceHostExecutionBindingWireV1 | null {
@@ -689,15 +727,11 @@ export function admitBrowserWorkspaceHostControlRequestV1(
       },
     };
   }
-  const scopedSnapshot = exactRecordV1(envelope.record, [
-    "method",
-    "workspaceSessionId",
-    "snapshotId",
-  ]);
+  const scopedSnapshot = exactRecordV1(envelope.record, ["method", "workspaceSessionId"]);
   if (
     scopedSnapshot !== null &&
-    scopedSnapshot.method === "query_snapshot" &&
-    identifierV1(scopedSnapshot.workspaceSessionId) && identifierV1(scopedSnapshot.snapshotId)
+    scopedSnapshot.method === "query_snapshot_candidate" &&
+    identifierV1(scopedSnapshot.workspaceSessionId)
   ) {
     return {
       revision: 1,
@@ -706,21 +740,24 @@ export function admitBrowserWorkspaceHostControlRequestV1(
       record: {
         method: scopedSnapshot.method,
         workspaceSessionId: scopedSnapshot.workspaceSessionId,
-        snapshotId: scopedSnapshot.snapshotId,
       },
     };
   }
-  const discardSnapshot = exactRecordV1(envelope.record, [
+  const receiptBoundSnapshot = exactRecordV1(envelope.record, [
     "method",
     "workspaceSessionId",
     "expected",
   ]);
   if (
-    discardSnapshot !== null && discardSnapshot.method === "discard_snapshot" &&
-    identifierV1(discardSnapshot.workspaceSessionId)
+    receiptBoundSnapshot !== null &&
+    (receiptBoundSnapshot.method === "query_retained_snapshot" ||
+      receiptBoundSnapshot.method === "resume_snapshot_publication" ||
+      receiptBoundSnapshot.method === "adopt_snapshot" ||
+      receiptBoundSnapshot.method === "discard_snapshot") &&
+    identifierV1(receiptBoundSnapshot.workspaceSessionId)
   ) {
-    const expected = admitBrowserWorkspaceImmutableSnapshotReceiptWireV1(
-      discardSnapshot.expected,
+    const expected = admitProgramWorkspaceSnapshotReceiptV1(
+      receiptBoundSnapshot.expected,
     );
     if (expected === null) return null;
     return {
@@ -728,8 +765,8 @@ export function admitBrowserWorkspaceHostControlRequestV1(
       kind: "control_request",
       requestId: envelope.requestId,
       record: {
-        method: "discard_snapshot",
-        workspaceSessionId: discardSnapshot.workspaceSessionId,
+        method: receiptBoundSnapshot.method,
+        workspaceSessionId: receiptBoundSnapshot.workspaceSessionId,
         expected,
       },
     };
@@ -738,7 +775,7 @@ export function admitBrowserWorkspaceHostControlRequestV1(
   if (
     scoped === null ||
     (scoped.method !== "close_workspace" && scoped.method !== "query_workspace" &&
-      scoped.method !== "attach_environment") ||
+      scoped.method !== "attach_environment" && scoped.method !== "capture_review_head") ||
     !identifierV1(scoped.workspaceSessionId)
   ) return null;
   return {
@@ -1045,38 +1082,6 @@ function admitSnapshotV1(value: unknown): BrowserWorkspaceHostSnapshotWireV1 | n
   };
 }
 
-export function admitBrowserWorkspaceImmutableSnapshotReceiptWireV1(
-  value: unknown,
-): BrowserWorkspaceImmutableSnapshotReceiptWireV1 | null {
-  const record = exactRecordV1(value, [
-    "revision",
-    "snapshotId",
-    "programId",
-    "workspaceId",
-    "volumeId",
-    "workspaceFormat",
-    "proposalId",
-    "programRevision",
-    "baseRepositoryRevision",
-    "checkpointId",
-    "generation",
-    "fileCount",
-    "archiveBytes",
-  ]);
-  if (
-    record === null || record.revision !== 1 || !identifierV1(record.snapshotId) ||
-    !identifierV1(record.programId) || !identifierV1(record.workspaceId) ||
-    !identifierV1(record.volumeId) || record.workspaceFormat !== 1 ||
-    !identifierV1(record.proposalId) || !positiveSafeIntegerV1(record.programRevision) ||
-    !positiveSafeIntegerV1(record.baseRepositoryRevision) ||
-    !identifierV1(record.checkpointId) ||
-    !positiveSafeIntegerV1(record.generation) ||
-    !nonNegativeSafeIntegerV1(record.fileCount) ||
-    !positiveSafeIntegerV1(record.archiveBytes)
-  ) return null;
-  return record as unknown as BrowserWorkspaceImmutableSnapshotReceiptWireV1;
-}
-
 export function admitBrowserWorkspaceHostControlOutboundMessageV1(
   value: unknown,
 ): BrowserWorkspaceHostControlOutboundMessageV1 | null {
@@ -1096,7 +1101,8 @@ export function admitBrowserWorkspaceHostControlOutboundMessageV1(
     if (
       response !== null && snapshot !== null &&
       (response.method === "open_workspace" || response.method === "close_workspace" ||
-        response.method === "query_workspace" || response.method === "attach_environment")
+        response.method === "query_workspace" || response.method === "attach_environment" ||
+        response.method === "capture_review_head")
     ) {
       return {
         revision: 1,
@@ -1129,34 +1135,69 @@ export function admitBrowserWorkspaceHostControlOutboundMessageV1(
       };
     }
     const preparedSnapshot = exactRecordV1(success.response, ["method", "receipt"]);
-    if (preparedSnapshot !== null && preparedSnapshot.method === "prepare_snapshot") {
-      const receipt = admitBrowserWorkspaceImmutableSnapshotReceiptWireV1(
-        preparedSnapshot.receipt,
-      );
+    if (
+      preparedSnapshot !== null &&
+      (preparedSnapshot.method === "prepare_snapshot" ||
+        preparedSnapshot.method === "resume_snapshot_publication")
+    ) {
+      const receipt = admitProgramWorkspaceSnapshotReceiptV1(preparedSnapshot.receipt);
       return receipt === null ? null : {
         revision: 1,
         kind: "control_response",
         requestId: success.requestId,
         ok: true,
-        response: { method: "prepare_snapshot", receipt },
+        response: { method: preparedSnapshot.method, receipt },
       };
     }
     const queriedSnapshot = exactRecordV1(success.response, ["method", "receipt"]);
-    if (queriedSnapshot !== null && queriedSnapshot.method === "query_snapshot") {
+    if (
+      queriedSnapshot !== null &&
+      (queriedSnapshot.method === "query_snapshot_candidate" ||
+        queriedSnapshot.method === "query_retained_snapshot")
+    ) {
       const receipt = queriedSnapshot.receipt === null
         ? null
-        : admitBrowserWorkspaceImmutableSnapshotReceiptWireV1(queriedSnapshot.receipt);
+        : admitProgramWorkspaceSnapshotReceiptV1(queriedSnapshot.receipt);
       return queriedSnapshot.receipt !== null && receipt === null ? null : {
         revision: 1,
         kind: "control_response",
         requestId: success.requestId,
         ok: true,
-        response: { method: "query_snapshot", receipt },
+        response: { method: queriedSnapshot.method, receipt },
       };
     }
-    const discardedSnapshot = exactRecordV1(success.response, ["method", "snapshotId"]);
+    const adoptedSnapshot = exactRecordV1(success.response, [
+      "method",
+      "result",
+      "snapshotId",
+    ]);
+    if (
+      adoptedSnapshot !== null && adoptedSnapshot.method === "adopt_snapshot" &&
+      (adoptedSnapshot.result === "adopted" ||
+        adoptedSnapshot.result === "already_retained") &&
+      identifierV1(adoptedSnapshot.snapshotId)
+    ) {
+      return {
+        revision: 1,
+        kind: "control_response",
+        requestId: success.requestId,
+        ok: true,
+        response: {
+          method: "adopt_snapshot",
+          result: adoptedSnapshot.result,
+          snapshotId: adoptedSnapshot.snapshotId,
+        },
+      };
+    }
+    const discardedSnapshot = exactRecordV1(success.response, [
+      "method",
+      "result",
+      "snapshotId",
+    ]);
     if (
       discardedSnapshot !== null && discardedSnapshot.method === "discard_snapshot" &&
+      (discardedSnapshot.result === "discarded" || discardedSnapshot.result === "absent" ||
+        discardedSnapshot.result === "retained") &&
       identifierV1(discardedSnapshot.snapshotId)
     ) {
       return {
@@ -1164,18 +1205,24 @@ export function admitBrowserWorkspaceHostControlOutboundMessageV1(
         kind: "control_response",
         requestId: success.requestId,
         ok: true,
-        response: { method: "discard_snapshot", snapshotId: discardedSnapshot.snapshotId },
+        response: {
+          method: "discard_snapshot",
+          result: discardedSnapshot.result,
+          snapshotId: discardedSnapshot.snapshotId,
+        },
       };
     }
-    const candidate = exactRecordV1(success.response, ["method", "anchor"]);
+    const candidate = exactRecordV1(success.response, ["method", "candidate"]);
     if (candidate !== null && candidate.method === "create_candidate") {
-      const anchor = admitBrowserWorkspaceVolumeAnchorWireV1(candidate.anchor);
-      return anchor === null ? null : {
+      const admittedCandidate = admitBrowserWorkspaceVolumeCandidateWireV1(
+        candidate.candidate,
+      );
+      return admittedCandidate === null ? null : {
         revision: 1,
         kind: "control_response",
         requestId: success.requestId,
         ok: true,
-        response: { method: "create_candidate", anchor },
+        response: { method: "create_candidate", candidate: admittedCandidate },
       };
     }
     const discarded = exactRecordV1(success.response, ["method", "volumeId"]);

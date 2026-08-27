@@ -29,9 +29,12 @@ import {
   type BrowserWorkspaceHostEnvironmentOutboundMessageV1,
   type BrowserWorkspaceHostExportOutboundMessageV1,
   type BrowserWorkspaceHostExportProgressWireV1,
-  type BrowserWorkspaceImmutableSnapshotReceiptWireV1,
   type BrowserWorkspaceVolumeAnchorWireV1,
 } from "../workspace/browser-workspace-host-protocol.ts";
+import {
+  programWorkspaceSnapshotReceiptsEqualV1,
+  type ProgramWorkspaceSnapshotReceiptV1,
+} from "../workspace/contracts.ts";
 
 interface FakeRangeRequestV1 {
   readonly path: string;
@@ -61,7 +64,8 @@ interface FakeVolumeV1 {
   archiveFailure: Error | null;
   holdArchiveUntilAbort: boolean;
   archiveStarted: (() => void) | null;
-  preparedSnapshot: BrowserWorkspaceImmutableSnapshotReceiptWireV1 | null;
+  preparedSnapshot: ProgramWorkspaceSnapshotReceiptV1 | null;
+  readonly retainedSnapshots: Map<string, ProgramWorkspaceSnapshotReceiptV1>;
   snapshotPrepareStarted: (() => void) | null;
   snapshotPrepareGate: Promise<void> | null;
 }
@@ -236,7 +240,13 @@ class FakeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
   ): ReturnType<BrowserWorkspaceHostVolumeLeasePortV1["prepareImmutableSnapshot"]> {
     this.volume.snapshotPrepareStarted?.();
     if (this.volume.snapshotPrepareGate !== null) await this.volume.snapshotPrepareGate;
-    const receipt: BrowserWorkspaceImmutableSnapshotReceiptWireV1 = {
+    if (this.volume.retainedSnapshots.has(input.snapshotId)) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "snapshot_mismatch",
+        "snapshot identity is already retained",
+      );
+    }
+    const receipt: ProgramWorkspaceSnapshotReceiptV1 = {
       revision: 1,
       snapshotId: input.snapshotId,
       programId: this.anchor.programId,
@@ -259,7 +269,7 @@ class FakeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
     };
     if (
       this.volume.preparedSnapshot !== null &&
-      JSON.stringify(this.volume.preparedSnapshot) !== JSON.stringify(receipt)
+      !programWorkspaceSnapshotReceiptsEqualV1(this.volume.preparedSnapshot, receipt)
     ) throw new BrowserWorkspaceHostStorageErrorV1("snapshot_mismatch", "snapshot mismatch");
     if (
       this.volume.preparedSnapshot === null &&
@@ -270,22 +280,71 @@ class FakeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
     return receipt;
   }
 
-  queryImmutableSnapshot(
-    snapshotId: string,
-  ): Promise<BrowserWorkspaceImmutableSnapshotReceiptWireV1 | null> {
-    return Promise.resolve(
-      this.volume.preparedSnapshot?.snapshotId === snapshotId ? this.volume.preparedSnapshot : null,
-    );
+  queryCurrentImmutableSnapshotCandidate(): Promise<ProgramWorkspaceSnapshotReceiptV1 | null> {
+    return Promise.resolve(this.volume.preparedSnapshot);
+  }
+
+  queryRetainedImmutableSnapshot(
+    expected: ProgramWorkspaceSnapshotReceiptV1,
+  ): Promise<ProgramWorkspaceSnapshotReceiptV1 | null> {
+    const retained = this.volume.retainedSnapshots.get(expected.snapshotId) ?? null;
+    if (retained !== null && !programWorkspaceSnapshotReceiptsEqualV1(retained, expected)) {
+      return Promise.reject(
+        new BrowserWorkspaceHostStorageErrorV1("snapshot_mismatch", "snapshot mismatch"),
+      );
+    }
+    return Promise.resolve(retained);
+  }
+
+  async resumeImmutableSnapshotPublication(
+    expected: ProgramWorkspaceSnapshotReceiptV1,
+  ): Promise<ProgramWorkspaceSnapshotReceiptV1> {
+    if (
+      this.volume.preparedSnapshot === null ||
+      !programWorkspaceSnapshotReceiptsEqualV1(this.volume.preparedSnapshot, expected)
+    ) throw new BrowserWorkspaceHostStorageErrorV1("snapshot_mismatch", "snapshot mismatch");
+    if (
+      this.volume.head.checkpointId !== expected.checkpointId ||
+      this.volume.head.generation !== expected.generation
+    ) throw new BrowserWorkspaceHostStorageErrorV1("snapshot_stale", "snapshot stale");
+    return expected;
+  }
+
+  async adoptImmutableSnapshot(
+    expected: ProgramWorkspaceSnapshotReceiptV1,
+  ): Promise<"adopted" | "already_retained"> {
+    const retained = this.volume.retainedSnapshots.get(expected.snapshotId);
+    if (retained !== undefined) {
+      if (!programWorkspaceSnapshotReceiptsEqualV1(retained, expected)) {
+        throw new BrowserWorkspaceHostStorageErrorV1("snapshot_mismatch", "snapshot mismatch");
+      }
+      return "already_retained";
+    }
+    if (
+      this.volume.preparedSnapshot === null ||
+      !programWorkspaceSnapshotReceiptsEqualV1(this.volume.preparedSnapshot, expected)
+    ) throw new BrowserWorkspaceHostStorageErrorV1("snapshot_mismatch", "snapshot mismatch");
+    this.volume.retainedSnapshots.set(expected.snapshotId, expected);
+    this.volume.preparedSnapshot = null;
+    return "adopted";
   }
 
   async discardImmutableSnapshot(
-    expected: BrowserWorkspaceImmutableSnapshotReceiptWireV1,
-  ): Promise<void> {
+    expected: ProgramWorkspaceSnapshotReceiptV1,
+  ): Promise<"discarded" | "absent" | "retained"> {
+    const retained = this.volume.retainedSnapshots.get(expected.snapshotId);
+    if (retained !== undefined) {
+      if (!programWorkspaceSnapshotReceiptsEqualV1(retained, expected)) {
+        throw new BrowserWorkspaceHostStorageErrorV1("snapshot_mismatch", "snapshot mismatch");
+      }
+      return "retained";
+    }
+    if (this.volume.preparedSnapshot === null) return "absent";
     if (
-      this.volume.preparedSnapshot !== null &&
-      JSON.stringify(this.volume.preparedSnapshot) !== JSON.stringify(expected)
+      !programWorkspaceSnapshotReceiptsEqualV1(this.volume.preparedSnapshot, expected)
     ) throw new BrowserWorkspaceHostStorageErrorV1("snapshot_mismatch", "snapshot mismatch");
     this.volume.preparedSnapshot = null;
+    return "discarded";
   }
 
   async close(): Promise<void> {
@@ -302,7 +361,7 @@ class FakeBootstrapV1 implements BrowserWorkspaceHostBootstrapPortV1 {
   async createCandidate(input: {
     readonly programId: string;
     readonly workspaceId: string;
-  }): Promise<BrowserWorkspaceVolumeAnchorWireV1> {
+  }) {
     const volumeId = `volume.preview.${String(this.nextVolumeId++)}`;
     const anchor = {
       revision: 1,
@@ -341,10 +400,16 @@ class FakeBootstrapV1 implements BrowserWorkspaceHostBootstrapPortV1 {
       holdArchiveUntilAbort: false,
       archiveStarted: null,
       preparedSnapshot: null,
+      retainedSnapshots: new Map(),
       snapshotPrepareStarted: null,
       snapshotPrepareGate: null,
     });
-    return anchor;
+    return {
+      revision: 1,
+      anchor,
+      checkpointId: "checkpoint.1",
+      generation: 1,
+    } as const;
   }
 
   async discardCandidate(volumeId: string): Promise<void> {
@@ -482,7 +547,7 @@ function lastV1<T>(values: readonly T[]): T {
 }
 
 describe("SillyOS Browser Workspace Host runtime", () => {
-  it("prepares, queries, and exactly discards one immutable snapshot without advancing the head", async () => {
+  it("prepares, discovers, adopts, and protects one immutable snapshot without advancing the head", async () => {
     const bootstrap = new FakeBootstrapV1();
     const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
     const workspaceSessionId = "workspace-session.snapshot";
@@ -497,8 +562,10 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceId: workspaceIdV1,
     }));
     const anchor = (lastV1(controls) as {
-      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
-    }).response.anchor;
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
     const volume = bootstrap.volumes.get(anchor.volumeId);
     if (volume === undefined) throw new Error("expected fake volume");
     volume.files.set("AGENTS.md", new TextEncoder().encode("snapshot instructions"));
@@ -509,7 +576,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     const receipt = (lastV1(controls) as {
       readonly response: {
         readonly method: "prepare_snapshot";
-        readonly receipt: BrowserWorkspaceImmutableSnapshotReceiptWireV1;
+        readonly receipt: ProgramWorkspaceSnapshotReceiptV1;
       };
     }).response.receipt;
     expect(receipt).toEqual({
@@ -530,16 +597,15 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     expect(volume.head).toMatchObject({ checkpointId: "checkpoint.1", generation: 1 });
 
     await runtime.receiveControl(controlRequestV1(4, {
-      method: "query_snapshot",
+      method: "query_snapshot_candidate",
       workspaceSessionId,
-      snapshotId: receipt.snapshotId,
     }));
     expect(lastV1(controls)).toEqual({
       revision: 1,
       kind: "control_response",
       requestId: 4,
       ok: true,
-      response: { method: "query_snapshot", receipt },
+      response: { method: "query_snapshot_candidate", receipt },
     });
 
     await runtime.receiveControl(prepareSnapshotRequestV1(5, workspaceSessionId));
@@ -571,7 +637,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     expect(volume.preparedSnapshot).toEqual(receipt);
 
     await runtime.receiveControl(controlRequestV1(8, {
-      method: "discard_snapshot",
+      method: "adopt_snapshot",
       workspaceSessionId,
       expected: receipt,
     }));
@@ -580,24 +646,57 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       kind: "control_response",
       requestId: 8,
       ok: true,
-      response: { method: "discard_snapshot", snapshotId: receipt.snapshotId },
+      response: {
+        method: "adopt_snapshot",
+        result: "adopted",
+        snapshotId: receipt.snapshotId,
+      },
     });
     await runtime.receiveControl(controlRequestV1(9, {
-      method: "query_snapshot",
+      method: "query_snapshot_candidate",
       workspaceSessionId,
-      snapshotId: receipt.snapshotId,
     }));
     expect(lastV1(controls)).toMatchObject({
       requestId: 9,
       ok: true,
-      response: { method: "query_snapshot", receipt: null },
+      response: { method: "query_snapshot_candidate", receipt: null },
     });
     await runtime.receiveControl(controlRequestV1(10, {
+      method: "query_retained_snapshot",
+      workspaceSessionId,
+      expected: receipt,
+    }));
+    expect(lastV1(controls)).toMatchObject({
+      requestId: 10,
+      ok: true,
+      response: { method: "query_retained_snapshot", receipt },
+    });
+    await runtime.receiveControl(controlRequestV1(11, {
+      method: "adopt_snapshot",
+      workspaceSessionId,
+      expected: receipt,
+    }));
+    expect(lastV1(controls)).toMatchObject({
+      requestId: 11,
+      ok: true,
+      response: { method: "adopt_snapshot", result: "already_retained" },
+    });
+    await runtime.receiveControl(controlRequestV1(12, {
+      method: "discard_snapshot",
+      workspaceSessionId,
+      expected: receipt,
+    }));
+    expect(lastV1(controls)).toMatchObject({
+      requestId: 12,
+      ok: true,
+      response: { method: "discard_snapshot", result: "retained" },
+    });
+    await runtime.receiveControl(controlRequestV1(13, {
       method: "query_workspace",
       workspaceSessionId,
     }));
     expect(lastV1(controls)).toMatchObject({
-      requestId: 10,
+      requestId: 13,
       ok: true,
       response: {
         method: "query_workspace",
@@ -625,8 +724,10 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceId: workspaceIdV1,
     }));
     const anchor = (lastV1(controls) as {
-      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
-    }).response.anchor;
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
     const volume = bootstrap.volumes.get(anchor.volumeId);
     if (volume === undefined) throw new Error("expected fake volume");
     await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
@@ -644,7 +745,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     await runtime.dispose();
   });
 
-  it("returns an exact existing candidate after the mutable head advances", async () => {
+  it("reopens an exact candidate without a fence and rejects stale publication resume", async () => {
     const bootstrap = new FakeBootstrapV1();
     const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
     const workspaceSessionId = "workspace-session.snapshot-idempotent";
@@ -659,22 +760,168 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceId: workspaceIdV1,
     }));
     const anchor = (lastV1(controls) as {
-      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
-    }).response.anchor;
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
     const volume = bootstrap.volumes.get(anchor.volumeId);
     if (volume === undefined) throw new Error("expected fake volume");
     await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
     await runtime.receiveControl(prepareSnapshotRequestV1(3, workspaceSessionId));
-    const prepared = lastV1(controls);
+    const prepared = lastV1(controls) as {
+      readonly response: { readonly receipt: ProgramWorkspaceSnapshotReceiptV1 };
+    };
     expect(prepared).toMatchObject({ requestId: 3, ok: true });
+
+    await runtime.receiveControl(controlRequestV1(4, {
+      method: "close_workspace",
+      workspaceSessionId,
+    }));
 
     volume.head = {
       ...volume.head,
       checkpointId: "checkpoint.after-snapshot.1",
       generation: 2,
     };
+    await runtime.receiveControl(controlRequestV1(5, { method: "open_workspace", anchor }));
+    await runtime.receiveControl(prepareSnapshotRequestV1(6, workspaceSessionId));
+    expect(lastV1(controls)).toEqual({ ...prepared, requestId: 6 });
+
+    const environmentPort = new FakeMessagePortV1();
+    await runtime.receiveControl(
+      controlRequestV1(7, { method: "attach_environment", workspaceSessionId }),
+      [environmentPort],
+    );
+    environmentPort.send(environmentRequestV1(8, {
+      method: "begin_run",
+      binding: {
+        revision: 1,
+        programId: programIdV1,
+        workspaceId: workspaceIdV1,
+        workspaceSessionId,
+        expectedGeneration: 2,
+      },
+      sessionId: "pi-session.snapshot-reopen.1",
+      runId: "pi-run.snapshot-reopen.1",
+    }));
+    expect(await waitForEnvironmentResponseV1(environmentPort, 8)).toMatchObject({ ok: true });
+    environmentPort.send(environmentRequestV1(9, { method: "end_run" }));
+    expect(await waitForEnvironmentResponseV1(environmentPort, 9)).toMatchObject({ ok: true });
+
+    await runtime.receiveControl(controlRequestV1(10, {
+      method: "resume_snapshot_publication",
+      workspaceSessionId,
+      expected: prepared.response.receipt,
+    }));
+    expect(lastV1(controls)).toMatchObject({
+      requestId: 10,
+      ok: false,
+      code: "snapshot_stale",
+    });
+    await runtime.dispose();
+  });
+
+  it("captures an exact review head and reacquires the publication fence after a head-equal reopen", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    const workspaceSessionId = "workspace-session.snapshot-resume";
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      postControlMessage: (message) => controls.push(message),
+      createWorkspaceSessionId: () => workspaceSessionId,
+    });
+    await runtime.receiveControl(controlRequestV1(1, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    const anchor = (lastV1(controls) as {
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
+    await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
+
+    await runtime.receiveControl(controlRequestV1(3, {
+      method: "capture_review_head",
+      workspaceSessionId,
+    }));
+    expect(lastV1(controls)).toMatchObject({
+      requestId: 3,
+      ok: true,
+      response: {
+        method: "capture_review_head",
+        snapshot: { checkpointId: "checkpoint.1", descriptor: { generation: 1 } },
+      },
+    });
+
     await runtime.receiveControl(prepareSnapshotRequestV1(4, workspaceSessionId));
-    expect(lastV1(controls)).toEqual({ ...prepared, requestId: 4 });
+    const receipt = (lastV1(controls) as {
+      readonly response: { readonly receipt: ProgramWorkspaceSnapshotReceiptV1 };
+    }).response.receipt;
+    await runtime.receiveControl(controlRequestV1(5, {
+      method: "capture_review_head",
+      workspaceSessionId,
+    }));
+    expect(lastV1(controls)).toMatchObject({
+      requestId: 5,
+      ok: false,
+      code: "workspace_busy",
+    });
+
+    await runtime.receiveControl(controlRequestV1(6, {
+      method: "close_workspace",
+      workspaceSessionId,
+    }));
+    await runtime.receiveControl(controlRequestV1(7, { method: "open_workspace", anchor }));
+    await runtime.receiveControl(prepareSnapshotRequestV1(8, workspaceSessionId));
+    expect(lastV1(controls)).toMatchObject({
+      requestId: 8,
+      ok: true,
+      response: { method: "prepare_snapshot", receipt },
+    });
+
+    await runtime.receiveControl(controlRequestV1(9, {
+      method: "resume_snapshot_publication",
+      workspaceSessionId,
+      expected: receipt,
+    }));
+    expect(lastV1(controls)).toEqual({
+      revision: 1,
+      kind: "control_response",
+      requestId: 9,
+      ok: true,
+      response: { method: "resume_snapshot_publication", receipt },
+    });
+    await runtime.receiveControl(controlRequestV1(10, {
+      method: "capture_review_head",
+      workspaceSessionId,
+    }));
+    expect(lastV1(controls)).toMatchObject({
+      requestId: 10,
+      ok: false,
+      code: "workspace_busy",
+    });
+
+    await runtime.receiveControl(controlRequestV1(11, {
+      method: "discard_snapshot",
+      workspaceSessionId,
+      expected: receipt,
+    }));
+    expect(lastV1(controls)).toMatchObject({
+      requestId: 11,
+      ok: true,
+      response: { method: "discard_snapshot", result: "discarded" },
+    });
+    await runtime.receiveControl(controlRequestV1(12, {
+      method: "capture_review_head",
+      workspaceSessionId,
+    }));
+    expect(lastV1(controls)).toMatchObject({
+      requestId: 12,
+      ok: true,
+      response: { method: "capture_review_head" },
+    });
     await runtime.dispose();
   });
 
@@ -694,8 +941,10 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceId: workspaceIdV1,
     }));
     const anchor = (lastV1(controls) as {
-      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
-    }).response.anchor;
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
     const volume = bootstrap.volumes.get(anchor.volumeId);
     if (volume === undefined) throw new Error("expected fake volume");
     await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
@@ -752,22 +1001,67 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     volume.snapshotPrepareGate = null;
     releaseSnapshot();
     await prepare;
-    expect(lastV1(controls)).toMatchObject({
+    const prepared = lastV1(controls) as {
+      readonly response: { readonly receipt: ProgramWorkspaceSnapshotReceiptV1 };
+    };
+    expect(prepared).toMatchObject({
       requestId: 7,
       ok: true,
       response: { method: "prepare_snapshot" },
     });
 
+    environmentPort.send(environmentRequestV1(9, {
+      method: "begin_run",
+      binding: {
+        revision: 1,
+        programId: programIdV1,
+        workspaceId: workspaceIdV1,
+        workspaceSessionId,
+        expectedGeneration: 1,
+      },
+      sessionId: "pi-session.snapshot-fence.3",
+      runId: "pi-run.snapshot-fence.3",
+    }));
+    expect(await waitForEnvironmentResponseV1(environmentPort, 9)).toMatchObject({
+      ok: false,
+      code: "run_busy",
+    });
+
+    const fencedExportPort = new FakeMessagePortV1();
+    await runtime.receiveControl(
+      startExportRequestV1(10, workspaceSessionId, "export.snapshot-fence.blocked"),
+      [fencedExportPort],
+    );
+    expect(lastV1(controls)).toMatchObject({
+      requestId: 10,
+      ok: false,
+      code: "workspace_busy",
+    });
+    expect(fencedExportPort.closeCalls).toBe(1);
+
+    await runtime.receiveControl(controlRequestV1(11, {
+      method: "adopt_snapshot",
+      workspaceSessionId,
+      expected: prepared.response.receipt,
+    }));
+    expect(lastV1(controls)).toMatchObject({
+      requestId: 11,
+      ok: true,
+      response: { method: "adopt_snapshot", result: "adopted" },
+    });
+
     const exportPort = new FakeMessagePortV1();
     await runtime.receiveControl(
-      startExportRequestV1(9, workspaceSessionId, "export.snapshot-fence.1"),
+      startExportRequestV1(12, workspaceSessionId, "export.snapshot-fence.1"),
       [exportPort],
     );
     await flushEnvironmentV1();
     expect(lastV1(exportPort.messages)).toMatchObject({ kind: "workspace_export_ready" });
-    await runtime.receiveControl(prepareSnapshotRequestV1(10, workspaceSessionId));
+    await runtime.receiveControl(prepareSnapshotRequestV1(13, workspaceSessionId, {
+      snapshotId: "snapshot.preview.2",
+    }));
     expect(lastV1(controls)).toMatchObject({
-      requestId: 10,
+      requestId: 13,
       ok: false,
       code: "workspace_busy",
     });
@@ -795,8 +1089,10 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceId: workspaceIdV1,
     }));
     const anchor = (lastV1(controls) as {
-      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
-    }).response.anchor;
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
     const volume = bootstrap.volumes.get(anchor.volumeId);
     if (volume === undefined) throw new Error("expected fake volume");
     volume.replaceError = new BrowserWorkspaceHostStorageErrorV1(
@@ -955,9 +1251,11 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     expect(sessionCalls).toBe(0);
     const candidate = lastV1(controls);
     expect(candidate).toMatchObject({ response: { method: "create_candidate" } });
-    const anchor =
-      (candidate as { readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 } })
-        .response.anchor;
+    const anchor = (candidate as {
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
 
     await runtime.receiveControl(
       controlRequestV1(2, { method: "open_workspace", anchor }),
@@ -1128,8 +1426,10 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceId: workspaceIdV1,
     }));
     const anchor = (lastV1(controls) as {
-      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
-    }).response.anchor;
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
     const volume = bootstrap.volumes.get(anchor.volumeId);
     if (volume === undefined) throw new Error("expected fake volume");
     const before = new TextEncoder().encode("before\n");
@@ -1247,8 +1547,10 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceId: workspaceIdV1,
     }));
     const anchor = (lastV1(controls) as {
-      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
-    }).response.anchor;
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
     await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
     const port = new FakeMessagePortV1();
     await runtime.receiveControl(
@@ -1362,8 +1664,10 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceId: workspaceIdV1,
     }));
     const anchor = (lastV1(controls) as {
-      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
-    }).response.anchor;
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
     const volume = bootstrap.volumes.get(anchor.volumeId);
     if (volume === undefined) throw new Error("expected fake volume");
     volume.holdNextListUntilAbort = true;
@@ -1460,8 +1764,10 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceId: workspaceIdV1,
     }));
     const anchor = (lastV1(controls) as {
-      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
-    }).response.anchor;
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
     await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
 
     const channel = new MessageChannel();
@@ -1551,8 +1857,10 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceId: workspaceIdV1,
     }));
     const anchor = (lastV1(controls) as {
-      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
-    }).response.anchor;
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
     await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
     const port = new FakeMessagePortV1();
     await runtime.receiveControl(
@@ -1658,8 +1966,10 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceId: workspaceIdV1,
     }));
     const anchor = (lastV1(controls) as {
-      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
-    }).response.anchor;
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
     await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
     const port = new FakeMessagePortV1();
     await runtime.receiveControl(
@@ -1755,8 +2065,10 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceId: workspaceIdV1,
     }));
     const anchor = (lastV1(controls) as {
-      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
-    }).response.anchor;
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
     await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
     const port = new FakeMessagePortV1();
     await runtime.receiveControl(
@@ -1846,8 +2158,10 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceId: workspaceIdV1,
     }));
     const anchor = (lastV1(firstControls) as {
-      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
-    }).response.anchor;
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
     await first.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
     const firstOpened = (lastV1(firstControls) as {
       readonly response: {
@@ -2000,9 +2314,11 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceId: workspaceIdV1,
     }));
     const anchor = (lastV1(controls) as {
-      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
     })
-      .response.anchor;
+      .response.candidate.anchor;
     bootstrap.volumes.get(anchor.volumeId)?.metadataSizes.set("large.bin", 16 * 1024 * 1024);
     await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
     const port = new FakeMessagePortV1();
@@ -2093,8 +2409,10 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceId: workspaceIdV1,
     }));
     const anchor = (lastV1(controls) as {
-      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
-    }).response.anchor;
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
     await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
     const firstSessionId = "workspace-session.empty.1";
     const port = new FakeMessagePortV1();
@@ -2151,9 +2469,11 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceId: workspaceIdV1,
     }));
     const discardable = (lastV1(controls) as {
-      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
     })
-      .response.anchor;
+      .response.candidate.anchor;
     await runtime.receiveControl(controlRequestV1(2, {
       method: "discard_candidate",
       volumeId: discardable.volumeId,
@@ -2166,9 +2486,11 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceId: workspaceIdV1,
     }));
     const anchor = (lastV1(controls) as {
-      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
     })
-      .response.anchor;
+      .response.candidate.anchor;
     await runtime.receiveControl(controlRequestV1(4, { method: "open_workspace", anchor }));
     const port = new FakeMessagePortV1();
     await runtime.receiveControl(
@@ -2296,8 +2618,10 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceId: workspaceIdV1,
     }));
     const anchor = (lastV1(controls) as {
-      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
-    }).response.anchor;
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
     const volume = bootstrap.volumes.get(anchor.volumeId);
     if (volume === undefined) throw new Error("expected fake volume");
     const bytesTotal = 2 * 1024 * 1024;
@@ -2373,8 +2697,10 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceId: workspaceIdV1,
     }));
     const anchor = (lastV1(controls) as {
-      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
-    }).response.anchor;
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
     const volume = bootstrap.volumes.get(anchor.volumeId);
     if (volume === undefined) throw new Error("expected fake volume");
     volume.holdArchiveUntilAbort = true;
@@ -2433,8 +2759,10 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceId: workspaceIdV1,
     }));
     const anchor = (lastV1(controls) as {
-      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
-    }).response.anchor;
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
     const volume = bootstrap.volumes.get(anchor.volumeId);
     if (volume === undefined) throw new Error("expected fake volume");
     await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
@@ -2483,8 +2811,10 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceId: workspaceIdV1,
     }));
     const anchor = (lastV1(controls) as {
-      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
-    }).response.anchor;
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
     const volume = bootstrap.volumes.get(anchor.volumeId);
     if (volume === undefined) throw new Error("expected fake volume");
     volume.archiveProgress = [
@@ -2530,8 +2860,10 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceId: workspaceIdV1,
     }));
     const anchor = (lastV1(controls) as {
-      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
-    }).response.anchor;
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
     const volume = bootstrap.volumes.get(anchor.volumeId);
     if (volume === undefined) throw new Error("expected fake volume");
     await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
@@ -2573,8 +2905,10 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceId: workspaceIdV1,
     }));
     const anchor = (lastV1(controls) as {
-      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
-    }).response.anchor;
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
     await runtime.receiveControl(controlRequestV1(3, { method: "open_workspace", anchor }));
 
     const staleExportPort = new FakeMessagePortV1();

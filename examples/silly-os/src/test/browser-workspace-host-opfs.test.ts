@@ -365,7 +365,7 @@ async function openedOpfsV1(volumeId: string): Promise<{
     createVolumeId: () => volumeId,
     createInitialCheckpointId: () => `checkpoint.${volumeId}`,
   });
-  const anchor = await bootstrap.createCandidate({
+  const { anchor } = await bootstrap.createCandidate({
     programId: "program.preview.1",
     workspaceId: "workspace.preview.1",
   });
@@ -420,7 +420,7 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       createVolumeId: () => "volume.preview.1",
       createInitialCheckpointId: () => "checkpoint.1",
     });
-    const anchor = await bootstrap.createCandidate({
+    const { anchor } = await bootstrap.createCandidate({
       programId: "program.preview.1",
       workspaceId: "workspace.preview.1",
     });
@@ -495,7 +495,7 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       createInitialCheckpointId: () => "checkpoint.bounded-ranges.1",
       observeIo: (observation) => observations.push(observation),
     });
-    const anchor = await bootstrap.createCandidate({
+    const { anchor } = await bootstrap.createCandidate({
       programId: "program.preview.1",
       workspaceId: "workspace.preview.1",
     });
@@ -654,7 +654,7 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     await opened.bootstrap.dispose();
   });
 
-  it("keeps one immutable snapshot exact across later workspace changes, cold reopen, export, and receipt-CAS discard", async () => {
+  it("cold-resumes and adopts one exact immutable snapshot while preserving its retained package", async () => {
     const opened = await openedOpfsV1("volume.snapshot-exact.1");
     const workspace = await fakeDirectoryV1(opened.root, [
       ".sillyos-workspace-host-v1",
@@ -690,7 +690,9 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     });
     expect(receipt.fileCount).toBe(1);
     expect(receipt.archiveBytes).toBeGreaterThan(originalBytes.byteLength);
-    await expect(opened.lease.queryImmutableSnapshot(prepareInput.snapshotId)).resolves.toEqual(
+    await expect(opened.lease.queryCurrentImmutableSnapshotCandidate()).resolves.toEqual(receipt);
+    await expect(opened.lease.queryRetainedImmutableSnapshot(receipt)).resolves.toBeNull();
+    await expect(opened.lease.resumeImmutableSnapshotPublication(receipt)).resolves.toEqual(
       receipt,
     );
     await expect(opened.lease.prepareImmutableSnapshot(prepareInput)).resolves.toEqual(receipt);
@@ -716,7 +718,31 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     ]);
     expect(snapshotEntries[1]?.bytes).toEqual(originalBytes);
 
-    const changed = await opened.lease.replaceFile(
+    const anchor = opened.lease.anchor;
+    await opened.lease.close();
+    await opened.bootstrap.dispose();
+    const cold = createBrowserWorkspaceHostOpfsBootstrapV1({
+      getRootDirectory: async () => opened.root.handle(),
+      lockPort: new FakeLockPortV1(),
+    });
+    const reopened = await cold.openVolume(anchor);
+    await expect(reopened.queryCurrentImmutableSnapshotCandidate()).resolves.toEqual(receipt);
+    await expect(reopened.resumeImmutableSnapshotPublication(receipt)).resolves.toEqual(receipt);
+    await expect(reopened.adoptImmutableSnapshot({
+      ...receipt,
+      archiveBytes: receipt.archiveBytes + 1,
+    })).rejects.toMatchObject({ code: "snapshot_mismatch" });
+    const adoptionRemovals: string[] = [];
+    opened.root.faults.afterRemove = (name) => adoptionRemovals.push(name);
+    await expect(reopened.adoptImmutableSnapshot(receipt)).resolves.toBe("adopted");
+    opened.root.faults.afterRemove = null;
+    expect(adoptionRemovals).toEqual(["snapshot-candidate.json"]);
+    await expect(reopened.queryCurrentImmutableSnapshotCandidate()).resolves.toBeNull();
+    await expect(reopened.queryRetainedImmutableSnapshot(receipt)).resolves.toEqual(receipt);
+    await expect(reopened.adoptImmutableSnapshot(receipt)).resolves.toBe("already_retained");
+    await expect(reopened.discardImmutableSnapshot(receipt)).resolves.toBe("retained");
+
+    const changed = await reopened.replaceFile(
       replaceInputV1(
         preparedHead,
         new TextEncoder().encode("# later workspace state\n"),
@@ -724,13 +750,10 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       ),
     );
     expect(changed.changed).toBe(true);
-    await expect(opened.lease.queryImmutableSnapshot(prepareInput.snapshotId)).resolves.toEqual(
-      receipt,
-    );
+    await expect(reopened.queryRetainedImmutableSnapshot(receipt)).resolves.toEqual(receipt);
     expect(snapshotArchive.bytes).toEqual(archiveBeforeMutation);
-    await expect(opened.lease.prepareImmutableSnapshot(prepareInput)).resolves.toEqual(receipt);
 
-    const portable = await opened.lease.createPortableArchive({
+    const portable = await reopened.createPortableArchive({
       programRevision: 9,
       repositoryRevision: 14,
       expectedHead: changed.head,
@@ -748,8 +771,127 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       portableEntries.some(({ name }) => name.includes("snapshot") || name.includes("commit.json")),
     ).toBe(false);
     await portable.release();
+    await reopened.close();
+    await cold.dispose();
 
+    const retainedCold = createBrowserWorkspaceHostOpfsBootstrapV1({
+      getRootDirectory: async () => opened.root.handle(),
+      lockPort: new FakeLockPortV1(),
+    });
+    const retained = await retainedCold.openVolume(anchor);
+    await expect(retained.queryCurrentImmutableSnapshotCandidate()).resolves.toBeNull();
+    await expect(retained.queryRetainedImmutableSnapshot(receipt)).resolves.toEqual(receipt);
+    expect(snapshotArchive.bytes).toEqual(archiveBeforeMutation);
+    await retained.close();
+    await retainedCold.dispose();
+  });
+
+  it("rejects a retained snapshot identity collision without overwriting its package", async () => {
+    const opened = await openedOpfsV1("volume.snapshot-collision.1");
+    const workspace = await fakeDirectoryV1(opened.root, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+      opened.lease.anchor.volumeId,
+      "workspace",
+    ]);
+    await putBytesV1(workspace, "program.md", new TextEncoder().encode("retained bytes\n"));
+    const head = await opened.lease.readHead();
+    const receipt = await opened.lease.prepareImmutableSnapshot({
+      snapshotId: "snapshot.collision.1",
+      proposalId: "proposal.collision.1",
+      programRevision: 2,
+      baseRepositoryRevision: 3,
+      expectedHead: head,
+      signal: new AbortController().signal,
+    });
+    await expect(opened.lease.adoptImmutableSnapshot(receipt)).resolves.toBe("adopted");
+    const snapshotDirectory = fakeDirectoryNodeV1(opened.root, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+      opened.lease.anchor.volumeId,
+      "control",
+      "snapshots",
+      receipt.snapshotId,
+    ]);
+    const archive = snapshotDirectory.entries.get("workspace.zip");
+    if (!(archive instanceof FakeFileV1)) throw new Error("missing retained archive");
+    const retainedBytes = archive.bytes.slice();
+
+    await expect(opened.lease.prepareImmutableSnapshot({
+      snapshotId: receipt.snapshotId,
+      proposalId: "proposal.collision.2",
+      programRevision: 3,
+      baseRepositoryRevision: 4,
+      expectedHead: head,
+      signal: new AbortController().signal,
+    })).rejects.toMatchObject({ code: "snapshot_mismatch" });
+    expect(archive.bytes).toEqual(retainedBytes);
+    await expect(opened.lease.queryCurrentImmutableSnapshotCandidate()).resolves.toBeNull();
+    await expect(opened.lease.queryRetainedImmutableSnapshot(receipt)).resolves.toEqual(receipt);
+    await opened.lease.close();
+    await opened.bootstrap.dispose();
+  });
+
+  it("rejects stale resume and discards only the exact current unpublished package", async () => {
+    const opened = await openedOpfsV1("volume.snapshot-discard.1");
+    const head = await opened.lease.readHead();
+    const receipt = await opened.lease.prepareImmutableSnapshot({
+      snapshotId: "snapshot.discard.1",
+      proposalId: "proposal.discard.1",
+      programRevision: 2,
+      baseRepositoryRevision: 3,
+      expectedHead: head,
+      signal: new AbortController().signal,
+    });
+    await expect(opened.lease.discardImmutableSnapshot({
+      ...receipt,
+      archiveBytes: receipt.archiveBytes + 1,
+    })).rejects.toMatchObject({ code: "snapshot_mismatch" });
+    await expect(opened.lease.queryCurrentImmutableSnapshotCandidate()).resolves.toEqual(receipt);
+
+    await opened.lease.replaceFile(
+      replaceInputV1(
+        head,
+        new TextEncoder().encode("new durable head\n"),
+        "checkpoint.snapshot-discard.2",
+      ),
+    );
+    await expect(opened.lease.resumeImmutableSnapshotPublication(receipt)).rejects.toMatchObject({
+      code: "snapshot_stale",
+    });
+    const discardRemovals: string[] = [];
+    opened.root.faults.afterRemove = (name) => discardRemovals.push(name);
+    await expect(opened.lease.discardImmutableSnapshot(receipt)).resolves.toBe("discarded");
+    opened.root.faults.afterRemove = null;
+    expect(discardRemovals).toEqual([receipt.snapshotId, "snapshot-candidate.json"]);
+    await expect(opened.lease.queryCurrentImmutableSnapshotCandidate()).resolves.toBeNull();
+    await expect(opened.lease.queryRetainedImmutableSnapshot(receipt)).resolves.toBeNull();
+    await expect(opened.lease.discardImmutableSnapshot(receipt)).resolves.toBe("absent");
+    await opened.lease.close();
+    await opened.bootstrap.dispose();
+  });
+
+  it("fails closed when discard removes the package but cannot remove its pointer, then cold-cleans the debris", async () => {
+    const opened = await openedOpfsV1("volume.snapshot-discard-recovery.1");
+    const head = await opened.lease.readHead();
     const anchor = opened.lease.anchor;
+    const receipt = await opened.lease.prepareImmutableSnapshot({
+      snapshotId: "snapshot.discard-recovery.1",
+      proposalId: "proposal.discard-recovery.1",
+      programRevision: 2,
+      baseRepositoryRevision: 3,
+      expectedHead: head,
+      signal: new AbortController().signal,
+    });
+    opened.root.faults.removeFailures.add("snapshot-candidate.json");
+
+    await expect(opened.lease.discardImmutableSnapshot(receipt)).rejects.toThrow(
+      "injected snapshot-candidate.json remove failure",
+    );
+    await expect(opened.lease.discardImmutableSnapshot(receipt)).rejects.toMatchObject({
+      code: "snapshot_mismatch",
+    });
+
     await opened.lease.close();
     await opened.bootstrap.dispose();
     const cold = createBrowserWorkspaceHostOpfsBootstrapV1({
@@ -757,21 +899,8 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       lockPort: new FakeLockPortV1(),
     });
     const reopened = await cold.openVolume(anchor);
-    await expect(reopened.queryImmutableSnapshot(prepareInput.snapshotId)).resolves.toEqual(
-      receipt,
-    );
-    expect(snapshotArchive.bytes).toEqual(archiveBeforeMutation);
-
-    await expect(reopened.discardImmutableSnapshot({
-      ...receipt,
-      archiveBytes: receipt.archiveBytes + 1,
-    })).rejects.toMatchObject({ code: "snapshot_mismatch" });
-    await expect(reopened.queryImmutableSnapshot(prepareInput.snapshotId)).resolves.toEqual(
-      receipt,
-    );
-    await expect(reopened.discardImmutableSnapshot(receipt)).resolves.toBeUndefined();
-    await expect(reopened.queryImmutableSnapshot(prepareInput.snapshotId)).resolves.toBeNull();
-    await expect(reopened.discardImmutableSnapshot(receipt)).resolves.toBeUndefined();
+    await expect(reopened.queryCurrentImmutableSnapshotCandidate()).resolves.toBeNull();
+    await expect(reopened.discardImmutableSnapshot(receipt)).resolves.toBe("absent");
     await reopened.close();
     await cold.dispose();
   });
@@ -786,11 +915,11 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       createVolumeId: () => `volume.snapshot-isolation.${String(++nextVolume)}`,
       createInitialCheckpointId: () => `checkpoint.snapshot-isolation.${String(++nextCheckpoint)}`,
     });
-    const firstAnchor = await bootstrap.createCandidate({
+    const { anchor: firstAnchor } = await bootstrap.createCandidate({
       programId: "program.snapshot-isolation.1",
       workspaceId: "workspace.snapshot-isolation.1",
     });
-    const secondAnchor = await bootstrap.createCandidate({
+    const { anchor: secondAnchor } = await bootstrap.createCandidate({
       programId: "program.snapshot-isolation.2",
       workspaceId: "workspace.snapshot-isolation.2",
     });
@@ -823,8 +952,8 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       programId: secondAnchor.programId,
       volumeId: secondAnchor.volumeId,
     });
-    await expect(first.queryImmutableSnapshot(snapshotId)).resolves.toEqual(firstReceipt);
-    await expect(second.queryImmutableSnapshot(snapshotId)).resolves.toEqual(secondReceipt);
+    await expect(first.queryCurrentImmutableSnapshotCandidate()).resolves.toEqual(firstReceipt);
+    await expect(second.queryCurrentImmutableSnapshotCandidate()).resolves.toEqual(secondReceipt);
     await Promise.all([first.close(), second.close()]);
     await bootstrap.dispose();
   });
@@ -871,7 +1000,7 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       lockPort: new FakeLockPortV1(),
     });
     const reopened = await cold.openVolume(anchor);
-    await expect(reopened.queryImmutableSnapshot(snapshotId)).resolves.toBeNull();
+    await expect(reopened.queryCurrentImmutableSnapshotCandidate()).resolves.toBeNull();
     await expect(control.getFileHandle("snapshot-candidate.json")).rejects.toMatchObject({
       name: "NotFoundError",
     });
@@ -896,7 +1025,7 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       signal: new AbortController().signal,
     })).rejects.toThrow("injected snapshot-candidate.json close failure");
     await expect(
-      opened.lease.queryImmutableSnapshot("snapshot.marker-failure.1"),
+      opened.lease.queryCurrentImmutableSnapshotCandidate(),
     ).resolves.toBeNull();
     await opened.lease.close();
     await opened.bootstrap.dispose();
@@ -936,7 +1065,7 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       createInitialCheckpointId: () => "checkpoint.portable-quota.1",
       estimateStorage: async () => ({ quota: 1, usage: 1 }),
     });
-    const anchor = await bootstrap.createCandidate({
+    const { anchor } = await bootstrap.createCandidate({
       programId: "program.preview.1",
       workspaceId: "workspace.preview.1",
     });
@@ -1302,7 +1431,7 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       estimateStorage: async () => ({ quota: 64 * 1024 * 1024, usage: 0 }),
       observeIo: (observation) => observations.push(observation),
     });
-    const anchor = await bootstrap.createCandidate({
+    const { anchor } = await bootstrap.createCandidate({
       programId: "program.preview.1",
       workspaceId: "workspace.preview.1",
     });
@@ -1404,8 +1533,15 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       programId: "program.preview.1",
       workspaceId: "workspace.preview.1",
     };
-    const firstAnchor = await first.createCandidate(input);
+    const firstCandidate = await first.createCandidate(input);
+    const firstAnchor = firstCandidate.anchor;
     expect(firstAnchor.volumeId).toMatch(/^sillyos\.volume\.[a-f0-9]{64}$/u);
+    expect(firstCandidate).toEqual({
+      revision: 1,
+      anchor: firstAnchor,
+      checkpointId: "checkpoint.stable.1",
+      generation: 1,
+    });
     await first.dispose();
 
     const second = createBrowserWorkspaceHostOpfsBootstrapV1({
@@ -1413,8 +1549,8 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       lockPort: new FakeLockPortV1(),
       createInitialCheckpointId: () => "checkpoint.must-not-replace.1",
     });
-    const resumedAnchor = await second.createCandidate(input);
-    expect(resumedAnchor).toEqual(firstAnchor);
+    const resumedCandidate = await second.createCandidate(input);
+    expect(resumedCandidate).toEqual(firstCandidate);
     const volumesNode = fakeDirectoryNodeV1(root, [
       ".sillyos-workspace-host-v1",
       "volumes",
@@ -1428,7 +1564,7 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     const marker = await (await volume.getFileHandle("candidate.json")).getFile();
     expect(JSON.parse(await marker.text())).toEqual(firstAnchor);
 
-    const lease = await second.openVolume(resumedAnchor);
+    const lease = await second.openVolume(resumedCandidate.anchor);
     await expect(lease.readHead()).resolves.toEqual({
       revision: 1,
       volumeId: firstAnchor.volumeId,
@@ -1445,9 +1581,9 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       ...input,
       workspaceId: "workspace.preview.2",
     });
-    expect(other.volumeId).not.toBe(firstAnchor.volumeId);
+    expect(other.anchor.volumeId).not.toBe(firstAnchor.volumeId);
     expect(volumesNode.entries.size).toBe(2);
-    await second.discardCandidate(other.volumeId);
+    await second.discardCandidate(other.anchor.volumeId);
     await second.dispose();
   });
 
@@ -1513,7 +1649,7 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       createVolumeId: () => "volume.known-missing.1",
       createInitialCheckpointId: () => "checkpoint.known-missing.1",
     });
-    const missingAnchor = await missingFirst.createCandidate({
+    const { anchor: missingAnchor } = await missingFirst.createCandidate({
       programId: "program.preview.1",
       workspaceId: "workspace.preview.1",
     });
@@ -1540,7 +1676,7 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       createVolumeId: () => "volume.known-corrupt.1",
       createInitialCheckpointId: () => "checkpoint.known-corrupt.1",
     });
-    const corruptAnchor = await corruptFirst.createCandidate({
+    const { anchor: corruptAnchor } = await corruptFirst.createCandidate({
       programId: "program.preview.1",
       workspaceId: "workspace.preview.1",
     });
@@ -1577,7 +1713,7 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       createVolumeId: () => "volume.unknown-cas.1",
       createInitialCheckpointId: () => "checkpoint.unknown-cas.1",
     });
-    const anchor = await first.createCandidate({
+    const { anchor } = await first.createCandidate({
       programId: "program.preview.1",
       workspaceId: "workspace.preview.1",
     });

@@ -62,7 +62,12 @@ function fakeHostV1(
       };
       backing.volumes.set(volumeId, anchor);
       created.push(volumeId);
-      return anchor;
+      return {
+        revision: 1,
+        anchor,
+        checkpointId: `sillyos.checkpoint.${volumeId}`,
+        generation: 1,
+      };
     },
     async discardCandidate(volumeId) {
       backing.volumes.delete(volumeId);
@@ -130,11 +135,25 @@ function fakeHostV1(
     prepareSnapshot() {
       return Promise.reject(new Error("snapshot preparation is not used by this authority test"));
     },
-    querySnapshot() {
+    querySnapshotCandidate() {
       return Promise.resolve(null);
     },
+    queryRetainedSnapshot() {
+      return Promise.resolve(null);
+    },
+    captureReviewHead(workspaceSessionId) {
+      const snapshot = sessions.get(workspaceSessionId);
+      if (snapshot === undefined) return Promise.reject(new Error("workspace mismatch"));
+      return Promise.resolve(snapshot);
+    },
+    resumeSnapshotPublication() {
+      return Promise.reject(new Error("snapshot publication is not used by this authority test"));
+    },
+    adoptSnapshot() {
+      return Promise.reject(new Error("snapshot adoption is not used by this authority test"));
+    },
     discardSnapshot() {
-      return Promise.resolve();
+      return Promise.resolve("absent");
     },
     async closeWorkspace(workspaceSessionId) {
       const current = sessions.get(workspaceSessionId);
