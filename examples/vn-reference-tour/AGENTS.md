@@ -2,7 +2,7 @@
 
 ## Status and authority
 
-This package is **M0–M2 delivered / WIP; M3 is in progress**. The product contract,
+This package is **M0–M3 delivered / WIP; M4 is next**. The product contract,
 independent package, supported-export application shell, starter-domain
 deletion, complete two-route script, two Authoring Scenes, author data, and
 named headless simulations are implemented. M2 selects
@@ -12,9 +12,12 @@ Later slices added the final Stage media and ending surface plus BGM, two ambien
 tracks, three SFX, two current voices, replay, and voice-aware Auto. A later
 slice added interaction-level Back/Forward through the engine Snapshot timeline,
 PageUp/PageDown and wheel input, plus ending Back. The responsive/input/accessibility/i18n product matrix
-closed M2. M3's first two slices opt into boot-time autosave resume and prove fresh-instance, Browser-reload,
-and return-to-title/Continue continuity. Product menu, the remaining Save/recovery matrix, settings, and later product evidence remain open, so this playable WIP is not a
-complete reference or evidence that M3–M5 have shipped.
+closed M2. M3 adds boot-time autosave resume, return-to-title/Continue, the
+engine-maintained system menu and Save surfaces, persistent Player settings
+with live locale, and layered exact-close/already-durable Browser recovery
+evidence. Browser `pagehide` does not guarantee a last-moment asynchronous
+IndexedDB flush. M4 product evidence remains open, so this playable WIP is not
+a complete reference or evidence that M4–M5 have shipped.
 
 Read, in order:
 

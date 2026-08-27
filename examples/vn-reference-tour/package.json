@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "Product WIP for One Last Sound Check; M0-M2 deliver the complete author data, VN Player, media, and product UI matrix.",
+  "description": "Product WIP for One Last Sound Check; M0-M3 deliver the complete author data, VN Player, media, product UI matrix, Save/recovery, and Settings.",
   "exports": {
     ".": "./src/story.ts"
   },

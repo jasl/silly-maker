@@ -2,14 +2,14 @@
 
 # 《最后一次试音》— VN Reference Tour
 
-状态：**M0–M2 已交付 / WIP；M3 进行中。独立 package、完整双路线作者数据与 simulation、
+状态：**M0–M3 已交付 / WIP；M4 待执行。独立 package、完整双路线作者数据与 simulation、
 引擎维护的 default VN Player、最终 Stage/ending 媒体、冻结的八项音频分母、interaction-level
-Back/Forward，以及 responsive/input/accessibility/i18n 产品矩阵均已完成。M3 已接通 boot-time autosave resume
-和 return-to-title/Continue 连续性；产品菜单、其余 Save/recovery/settings 与完整产品验收仍未完成。**
+Back/Forward、responsive/input/accessibility 产品矩阵、system menu/Save、持久设置/live locale 与分层恢复
+矩阵均已完成。Browser 强制关闭只恢复最后已经持久化的 autosave；作者接手、预算、发布与完整产品验收仍未完成。**
 
 M1 已用本产品的完整 Story/Scene author data 原子替换 tracked Template 的临时内容；M2 已交付 Player、
-Stage 媒体、结局、音频、Back/Forward 与完整响应式/无障碍矩阵，但不代表 Save/recovery 或产品验收。《最后一次试音》仍不是完整产品参考
-或旗舰。完整产品合同见 [DESIGN.md](DESIGN.md)。
+Stage 媒体、结局、音频、Back/Forward 与完整响应式/无障碍矩阵；M3 已关闭产品入口、Save/recovery 与设置。
+《最后一次试音》仍不是完整产品参考或旗舰。完整产品合同见 [DESIGN.md](DESIGN.md)。
 
 ## 产品目标
 
@@ -53,12 +53,13 @@ Forward 后缀，hold tick 不会成为额外的玩家停靠点。
 当前有语音的台词可用“语音”按钮或 `V` 重放；Auto 的文本等待到期后仍会等待当前语音自然结束。浏览器拒绝
 自动播放或媒体不可解码时只降级为静音，不阻塞剧情。
 
-这些命令的 green run 证明当前 author data、两条 deterministic headless routes 与 M2 Player 接线；M3–M4
-对应 evidence 关闭前，不得把它报告为 Save/recovery、完整产品或发布完成。
+这些命令的 green run 证明当前 author data、两条 deterministic headless routes 与 M2 Player 接线；M3 的
+Save/recovery 还由 focused reopen tests 与 Browser journeys 分层证明。M4 evidence 关闭前，不得把它报告为
+完整产品或发布完成。
 
 ## 作者地图
 
-以下是当前及后续里程碑的唯一 owner；尚未进入后续 M3/M4 切片的文件不是另找位置写入的许可。
+以下是当前及后续里程碑的唯一 owner；尚未进入后续 M4 切片的文件不是另找位置写入的许可。
 
 | 想修改什么                                 | 唯一 owner                                    |
 | ------------------------------------------ | --------------------------------------------- |

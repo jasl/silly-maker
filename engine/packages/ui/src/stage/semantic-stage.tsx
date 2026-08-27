@@ -612,6 +612,7 @@ export function SemanticStageV1(props: SemanticStagePropsV1): ReactElement {
       else compositionDriver.resumeInternalV1();
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
+    onVisibilityChange();
     return () => {
       effectActive = false;
       document.removeEventListener("visibilitychange", onVisibilityChange);

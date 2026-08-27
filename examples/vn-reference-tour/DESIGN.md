@@ -2,16 +2,16 @@
 
 # 《最后一次试音》产品合同
 
-状态：**M0–M2 已交付 / WIP；M3 进行中。2026-08-27 冻结产品分母并交付完整双路线作者数据；M2
+状态：**M0–M3 已交付 / WIP；M4 尚未关闭。2026-08-27 冻结产品分母并交付完整双路线作者数据；M2
 交付并选择引擎维护的 focused default VN Player：responsive 对话/选择 chrome、say-only 全画布点击推进、
 History/播放控制、贴底布局、Ctrl/Tab/H/V 与鼠标中键、最终 Stage/ending 媒体、冻结的八项音频分母、
-current-voice replay、voice-aware Auto、interaction-level Back/Forward 和产品矩阵。M3 的 boot-time autosave
-resume 与 return-to-title/Continue 连续性已接通并通过 fresh-instance/Browser 证据；完整 Save/recovery/settings
-与产品证据仍未关闭。**
+current-voice replay、voice-aware Auto、interaction-level Back/Forward 和产品矩阵。M3 已交付产品入口、
+默认 VN system menu、quick/manual/import/export、完整最小 Settings/live locale，以及分层的
+Save/recovery/hidden/close/reload/restart 证据。M4 的作者任务、发布矩阵、raw measurement 与独立产品审查仍未关闭。**
 
 M1 已用本产品完整 Story/Scene author data 原子替换 tracked Template 的临时内容，但只关闭 author data 与
-headless routes。M2 已有 Player、Stage 媒体、ending、音频、Back/Forward 与完整矩阵；Save/recovery 与产品验收仍未完成，
-当前 WIP 不是完整产品参考或旗舰。实施顺序由
+headless routes。M2 已有 Player、Stage 媒体、ending、音频、Back/Forward 与完整矩阵；M3 已关闭产品入口、
+Save/recovery 与 Settings。M4 产品验收仍未完成，当前 WIP 不是完整产品参考或旗舰。实施顺序由
 [VN Reference Tour plan](../../docs/engine/plans/2026-08-27-vn-reference-tour.md) 拥有。
 
 ## 1. 身份与产品命题
@@ -176,7 +176,11 @@ TypeScript symbols 使用 `vnReferenceTour` / `VnReferenceTour` camel/Pascal cas
 - mid-line、mid-choice、mid-hold reopen；
 - History、current-voice replay、normal/auto/skip-read 与 Player rollback；
 - rollback 到 choice 前时，`signalChoice`、Stage 和 audio intent 一起恢复；
-- hidden/close/reload/restart 后恢复同一可观察 route、Stage、History、hold remainder 与 continuous audio intent。
+- hidden 不把后台经过时间计入 authoritative hold；恢复后从同一已提交 remainder 继续；
+- explicit/normal application disposal、已完成 autosave 的 Browser reload，以及 return-to-title/restart 后恢复同一
+  可观察 route、Stage、History、hold remainder 与 continuous audio intent；
+- Browser `pagehide` 会同步 fence 并 best-effort flush，但浏览器不保证等待异步 IndexedDB 写入；强制关闭只能恢复
+  最近一次已经持久化的 autosave。具备 awaitable close receipt 的 Host 才能承诺最后一刻 exact flush。
 
 Save 只保存稳定语义，不保存 typewriter cursor、transition/frame progress、电缆摆动相位、focus/hover 或正在播放
 的 Web Audio object。本产品建立自己的首个 Save floor；不接收 Cat Cafe/Bookshop/Template Save，不建设跨产品
@@ -202,16 +206,16 @@ Ren'Py 会保留隐藏前的 AFM/Skip preference；本轮产品 UI 无权读取 
 
 Ren'Py 源码审计冻结以下通用 VN 检查表；它是产品行为清单，不是引入 Ren'Py runtime 或 DSL：
 
-| 通用约定                                                                                       | 本产品归属与当前状态                           |
-| ---------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| 左键 / Enter / Space 第一次完成逐字显示、第二次推进；Choice 只接受选项输入                     | M2 第一切片已实现                              |
-| Ctrl 按住临时 skip-read、松开停止；Tab 切换持续 Skip；未读和 Choice 默认中止                   | M2 第一切片已实现                              |
-| Auto 与 Skip 正交；延时随文本与揭示进度，有语音时等待当前语音；普通 Choice 不自动选择          | 文本与当前语音等待已实现                       |
-| H / 鼠标中键在已签发推进可见收敛、播放停止后模态隐藏；恢复不推进且不自动重启播放               | M2 已实现                                      |
-| 对话层全宽贴底、说话人位于框内、播放控制不挤占正文；窄屏增加高度和点击目标                     | M2 已实现并完成 zoom/touch 证据                |
-| History 保留说话人与台词；当前语音可重放                                                       | History 与当前语音重放已实现                   |
-| PageUp / 滚轮向上回到上一交互；回退后 PageDown / 滚轮向下沿已执行结果前进                      | M2 Back/Forward 切片已实现                     |
-| Escape / 右键打开菜单；快速栏提供 Back、History、Skip、Auto、Save、Q.Save、Q.Load、Preferences | Back/History/Skip/Auto 已有；菜单与存读档归 M3 |
+| 通用约定                                                                                       | 本产品归属与当前状态            |
+| ---------------------------------------------------------------------------------------------- | ------------------------------- |
+| 左键 / Enter / Space 第一次完成逐字显示、第二次推进；Choice 只接受选项输入                     | M2 第一切片已实现               |
+| Ctrl 按住临时 skip-read、松开停止；Tab 切换持续 Skip；未读和 Choice 默认中止                   | M2 第一切片已实现               |
+| Auto 与 Skip 正交；延时随文本与揭示进度，有语音时等待当前语音；普通 Choice 不自动选择          | 文本与当前语音等待已实现        |
+| H / 鼠标中键在已签发推进可见收敛、播放停止后模态隐藏；恢复不推进且不自动重启播放               | M2 已实现                       |
+| 对话层全宽贴底、说话人位于框内、播放控制不挤占正文；窄屏增加高度和点击目标                     | M2 已实现并完成 zoom/touch 证据 |
+| History 保留说话人与台词；当前语音可重放                                                       | History 与当前语音重放已实现    |
+| PageUp / 滚轮向上回到上一交互；回退后 PageDown / 滚轮向下沿已执行结果前进                      | M2 Back/Forward 切片已实现      |
+| Escape / 右键打开菜单；快速栏提供 Back、History、Skip、Auto、Save、Q.Save、Q.Load、Preferences | M3 已实现并完成产品旅程证据     |
 
 Back/Forward 使用 Core 的单一 bounded Snapshot timeline，而不是 VN 自建历史栈。普通 interaction resolution
 建立 checkpoint；hold 的 `time_tick` 与 scene repair 是 transparent，presentation-barrier acknowledgement 也不
@@ -240,27 +244,27 @@ M4 在记录设备类别、浏览器、构建和环境的前提下输出 raw mea
 
 ## 8. Semantic coverage table
 
-M0 冻结 baseline，M1 交付完整 author data/headless routes，M2 交付 Player/媒体/产品矩阵；下表明确区分已实现部分与仍需 M3–M4 关闭的产品
-evidence。
+M0 冻结 baseline，M1 交付完整 author data/headless routes，M2 交付 Player/媒体/产品矩阵，M3 交付入口、
+Save/recovery 与设置；下表明确区分已实现部分与仍需 M4 关闭的产品 evidence。
 
-| Area             | Frozen baseline                                         | Planned implementation/evidence             | Current status / remaining evidence                                                    |
-| ---------------- | ------------------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------- |
-| 完整短篇         | 59 unique / 44 per route                                | Story graph、pack count、两次完整游玩       | M2 Player 两条路线已实现                                                               |
-| 角色             | 2 named + narrator；每人 2 appearances                  | Scene/Stage/Inspector                       | M2 最终视觉与 Player 已实现                                                            |
-| 场景             | control room + rooftop                                  | 两个 Authoring Scene、真实 Player/Inspector | M2 真实 Player 已实现                                                                  |
-| Choice/branch    | 一次不可同时满足的发送选择                              | `signalChoice` + 两个 named simulations     | M1 direct state/headless routes 已实现                                                 |
-| Endings          | 旧声入档 / 此刻入档                                     | route-specific text、voice、ending          | M2 voice/Player 已实现                                                                 |
-| Motion           | entrance、crossfade、ambient、frame blink、appearance   | Scene/Motion checks + Browser               | M2 Browser 播放已实现                                                                  |
-| Hold             | carrier lock                                            | normal/skip/reopen 收敛                     | M2 Player skip 已实现；reopen 留给 M3                                                  |
-| Audio            | BGM、2 ambient、3 SFX、2 current voices                 | manifest、intent/effect、replay、mute       | 八项媒体、intent/effect、replay、voice-aware Auto 已实现；volume/mute settings 留给 M3 |
-| Player QoL       | reveal、auto、skip-read、History、rollback              | focused tests + Browser                     | reveal/auto/skip/History、Ctrl/Tab/H/鼠标中键、全画布推进与 Back/Forward 已完成        |
-| Save/recovery    | autosave、manual/quick、load、import/export、3 稳定点   | focused + reopen E2E                        | boot-time autosave resume 已实现；其余 M3 恢复矩阵开放                                 |
-| i18n             | 3 packs × zh-CN/en + fallback                           | pack admission、切换、overflow              | M2 UI/overflow 已实现；M3 提供产品设置入口                                             |
-| Responsive/Input | 360×640 至 1280×720、pointer/touch/keyboard             | Chromium/WebKit journeys                    | M2 完整矩阵已实现                                                                      |
-| Accessibility    | focus、labels、200% zoom、reduced motion、default muted | automated + human review                    | M2 完成 focus/labels/zoom/reduced motion；默认静音发布证据留 M4                        |
-| Authoring        | 两 Scene 的 object/appearance/Motion 调整               | human + Agent CAS/undo/save tasks           | M1 Scene/Inspector surface 已实现；接手任务留给 M4                                     |
-| Targets          | Browser publish + Desktop static preview                | build/prebuilt/preview evidence             | 未实现；M4，无 Desktop HMR claim                                                       |
-| Budgets          | §7 数值                                                 | generic raw benchmark + profiling           | 未测量；M4                                                                             |
+| Area             | Frozen baseline                                         | Planned implementation/evidence             | Current status / remaining evidence                                                  |
+| ---------------- | ------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------ |
+| 完整短篇         | 59 unique / 44 per route                                | Story graph、pack count、两次完整游玩       | M2 Player 两条路线已实现                                                             |
+| 角色             | 2 named + narrator；每人 2 appearances                  | Scene/Stage/Inspector                       | M2 最终视觉与 Player 已实现                                                          |
+| 场景             | control room + rooftop                                  | 两个 Authoring Scene、真实 Player/Inspector | M2 真实 Player 已实现                                                                |
+| Choice/branch    | 一次不可同时满足的发送选择                              | `signalChoice` + 两个 named simulations     | M1 direct state/headless routes 已实现                                               |
+| Endings          | 旧声入档 / 此刻入档                                     | route-specific text、voice、ending          | M2 voice/Player 已实现                                                               |
+| Motion           | entrance、crossfade、ambient、frame blink、appearance   | Scene/Motion checks + Browser               | M2 Browser 播放已实现                                                                |
+| Hold             | carrier lock                                            | normal/skip/reopen 收敛                     | M3 已用 200ms authoritative quantum、真实 Player partial commit 与 exact reopen 关闭 |
+| Audio            | BGM、2 ambient、3 SFX、2 current voices                 | manifest、intent/effect、replay、mute       | 八项媒体、intent/effect、replay、voice-aware Auto 与分声道 volume/mute 已实现        |
+| Player QoL       | reveal、auto、skip-read、History、rollback              | focused tests + Browser                     | reveal/auto/skip/History、Ctrl/Tab/H/鼠标中键、全画布推进与 Back/Forward 已完成      |
+| Save/recovery    | autosave、manual/quick、load、import/export、3 稳定点   | focused + reopen E2E                        | M3 已用 exact product tests 与 Browser journeys 分层关闭；Browser close 保持上述边界 |
+| i18n             | 3 packs × zh-CN/en + fallback                           | pack admission、切换、overflow              | M3 已实现 live locale 与 Profile 持久化设置入口                                      |
+| Responsive/Input | 360×640 至 1280×720、pointer/touch/keyboard             | Chromium/WebKit journeys                    | M2 完整矩阵已实现                                                                    |
+| Accessibility    | focus、labels、200% zoom、reduced motion、default muted | automated + human review                    | M2 完成 focus/labels/zoom/reduced motion；默认静音发布证据留 M4                      |
+| Authoring        | 两 Scene 的 object/appearance/Motion 调整               | human + Agent CAS/undo/save tasks           | M1 Scene/Inspector surface 已实现；接手任务留给 M4                                   |
+| Targets          | Browser publish + Desktop static preview                | build/prebuilt/preview evidence             | 未实现；M4，无 Desktop HMR claim                                                     |
+| Budgets          | §7 数值                                                 | generic raw benchmark + profiling           | 未测量；M4                                                                           |
 
 ## 9. 明确非目标与完成边界
 
@@ -272,8 +276,8 @@ package-owned Splash/Title、默认 Save/Settings/System hosts 和 dev-only Insp
 产品建立第二个 surface/authority。若剧情自然需要新增能力，先修改本 denominator 并说明用户价值；“引擎已经
 有”不是选择理由。
 
-M0–M2 已交付 package/identity、负能力删除、完整 author data/headless routes、VN Player/媒体与产品矩阵。M3 才交付
-入口、Save/recovery/settings；M4 才完成作者任务和产品证据；M5 才可将产品提升为旗舰。Bookshop 保持到 VN
+M0–M3 已交付 package/identity、负能力删除、完整 author data/headless routes、VN Player/媒体与产品矩阵，
+以及入口、Save/recovery/settings。M4 才完成作者任务和产品证据；M5 才可将产品提升为旗舰。Bookshop 保持到 VN
 完成，其后教学角色另行评审，本计划不预裁删除。
 
 ## 10. 许可与素材

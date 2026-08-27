@@ -59,7 +59,14 @@ describe("VN Reference Tour interaction-document kit", () => {
         }],
         next: "wait",
       },
-      { kind: "hold", name: "wait", durationMs: 250, skippable: true, next: "close" },
+      {
+        kind: "hold",
+        name: "wait",
+        durationMs: 250,
+        tickQuantumMs: 50,
+        skippable: true,
+        next: "close",
+      },
       { kind: "end", name: "close" },
     ]);
 
@@ -81,9 +88,11 @@ describe("VN Reference Tour interaction-document kit", () => {
 
     const branch = compiled.nodes.find((node) => node.kind === "branch");
     const choice = compiled.nodes.find((node) => node.kind === "choice");
+    const hold = compiled.nodes.find((node) => node.kind === "hold");
     expect(choice?.options[0]).toMatchObject({ setSignalChoice: "archive" });
     expect(branch?.choose({ signalChoice: "archive" })).toBe("node.vn-reference-tour.stage");
     expect(branch?.choose({ signalChoice: null })).toBe("node.vn-reference-tour.wait");
+    expect(hold).toMatchObject({ durationMs: 250, tickQuantumMs: 50 });
   });
 
   it("reports unresolved authoring targets at the document boundary", () => {

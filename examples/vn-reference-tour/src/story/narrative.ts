@@ -233,6 +233,7 @@ function routeBlocksV1(
       kind: "hold" as const,
       name: `${route}-carrier-lock`,
       durationMs: 1_200,
+      tickQuantumMs: 200,
       skippable: true,
       next: `${route}-open-rooftop`,
     },
@@ -376,6 +377,7 @@ function pendingForNodeV1(
         occurrenceId,
         totalMs: node.durationMs,
         remainingMs: node.durationMs,
+        ...(node.tickQuantumMs === undefined ? {} : { tickQuantumMs: node.tickQuantumMs }),
         skippable: node.skippable,
       });
     default:

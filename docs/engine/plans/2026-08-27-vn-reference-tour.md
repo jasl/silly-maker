@@ -1,9 +1,9 @@
 # VN Reference Tour 实施计划
 
-状态：**2026-08-27 经所有者接受，当前唯一活动 Reference Product；M0–M2 已交付，M3 进行中。
+状态：**2026-08-27 经所有者接受，当前唯一活动 Reference Product；M0–M3 已交付，M4 是下一里程碑。
 引擎维护的 focused default VN Player preset、say-only 全画布推进、贴底布局、Ctrl/Tab/H/V 与鼠标中键、
 最终 Stage/ending 媒体、冻结的八项音频、current-voice replay、voice-aware Auto、interaction-level
-Back/Forward 和完整产品 UI 矩阵均已交付。当前 WIP 仍不是产品完成证据或旗舰。**
+Back/Forward、产品入口、Save/recovery 与 Settings 均已交付。当前 WIP 仍不是产品完成证据或旗舰。**
 
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 是唯一跨计划排序入口。本计划同时拥有
 产品分母、实现顺序、证据门槛与旗舰提升条件；Bookshop 的后续教学角色不由本计划预裁。它不是 broad engine
@@ -145,7 +145,7 @@ example。focused tests、`app check`、临时 `scaffold` simulation、Browser p
 
 ### M1 — 完整剧本、场景与作者数据
 
-状态：**2026-08-27 已交付。M2 已于 2026-08-28 交付；M3 进行中。**
+状态：**2026-08-27 已交付。M2、M3 已于 2026-08-28 交付；M4 待执行。**
 
 - 写完并注册全部 59 条文案、二选一、两条 route 与两个 ending；先用 compatible placeholder media 也必须
   保持完整内容 breadth，不以单 route 关闭；
@@ -249,15 +249,16 @@ Splash/入口、Save/recovery 与 settings；M2 关闭不推导产品完成、�
 
 ### M3 — 产品入口、Save/recovery 与设置
 
-状态：**2026-08-28 已开启。前四个切片已接通 boot-time autosave resume、
-return-to-title/Continue 连续性、默认 VN system menu/Save 入口，以及完整最小设置与 live locale；其余恢复矩阵仍开放。**
+状态：**2026-08-28 已交付并关闭。五个切片完成 boot-time autosave resume、return-to-title/Continue、
+默认 VN system menu/Save、完整最小设置/live locale，以及 closing/hidden/reload/restart 的分层恢复矩阵。**
 
 - 完成 Splash/Title、New/Continue/Load/Settings、return-to-title/restart；默认 Continue 显式载入当前 autosave，
   `resumeFromAutosave` 独立控制 boot-time resume；
 - 完成 quick/manual Save/load、import/export、autosave flush、mid-line/mid-choice/mid-hold reopen 与 rollback；
 - 完成 locale、text speed、auto wait、music/ambient/SFX/voice volume、mute 与产品需要的最小设置；
-- closing/hidden/reload/restart 后 Stage、Narrative、continuous audio、History、hold remainder 与 current route 恢复
-  到同一可观察语义；
+- hidden、已持久化 autosave 的 Browser reload、return-to-title/restart 与 normal/awaitable close 后，Stage、
+  Narrative、continuous audio、History、hold remainder 与 current route 恢复到同一可观察语义；Browser
+  forced close 只要求恢复最后已持久化的 autosave；
 - 不增加存档截图、兼容框架或跨产品 Save migration，除非真实产品验收另行接受。
 
 进展记录：第一切片只让产品显式选择 Base 已有的 `resumeFromAutosave`，没有建立产品本地 Persistence、Save
@@ -300,6 +301,21 @@ mobile 23 项 E2E（另有 2 项按 project 条件明确跳过）、全仓 `deno
 复查无剩余 blocker。React Doctor 的既有 large-component 提示与对显式 pure copy projection 的 render-time
 调用提示均经源码复核，不构成行为问题，也没有为消除 advisory 引入第二套 store。closing/hidden/restart 的
 剩余恢复矩阵仍属于后续切片；不得把本记录报告为 M3 关闭。
+第五切片关闭恢复矩阵而没有增加 lifecycle harness。Web Host 在唯一共享 presentation clock 边界排除 document
+hidden 的经过时间，Stage 与 Audio 也在挂载时立即采用当前 visibility；hidden 恢复不会解除独立的 DevDock
+手动 freeze。产品 carrier-lock 使用既有 `tickQuantumMs: 200` 合同，让正常 Player 在到期前提交 bounded partial
+remainder，而不是由测试伪造一个只能手动构造的中间态。产品测试以 60 秒未触发 debounce 证明 normal dispose
+前 `auto.current` 仍为空、dispose 后 fresh instance 却精确恢复同一 partial hold、route、Narrative/History、
+Stage、continuous audio 与 digest；command log/rollback 仍从新实例局部基线开始。Chromium/WebKit 又证明真实
+Player 会产生 partial checkpoints，以及中途 quick-load 后经系统菜单 return-to-title 再 Continue 会恢复完整
+game/Narrative publication。已有 Browser reload 旅程继续只证明已经持久化的 autosave；`pagehide` 仍是同步 fence
+与 best-effort async flush，强制关闭只能恢复最近已完成的 autosave，不能冒充 awaitable exact-close 合同。这组
+证据与既有 quick/manual/import/export、mid-line/mid-choice/mid-hold、rollback、terminal supervisor 和 Desktop
+close receipt 合同共同关闭 M3；没有新增 `beforeunload`、隐藏标签页伪造、进程/lifecycle harness 或第二套
+persistence authority。最终稳定工作树通过 383 个测试文件、5,467 项 unit、6 项 Composition benchmark、
+VN Chromium/WebKit/mobile 25 项 E2E（另有 2 项按 project 条件明确跳过）、全仓 `deno task check`、VN
+production build 与独立实现审查。React Doctor 唯一新增 advisory 对应 `GameAudio` 已显式移除 visibility listener、
+退订 stores 并释放 presenter/host 的 effect cleanup，不构成泄漏，也没有为消除误报改写生命周期。
 
 ### M4 — 作者任务、产品证据与 Starter feedback
 

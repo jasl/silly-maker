@@ -575,6 +575,46 @@ describe("SemanticStageV1", () => {
     expect(clock.pendingTickCount()).toBe(0);
   });
 
+  it("starts suspended when mounted in a hidden document", async () => {
+    const visibilityState = vi.spyOn(document, "visibilityState", "get");
+    visibilityState.mockReturnValue("hidden");
+    const clock = createManualPresentationClockV1();
+    const stageProps = {
+      catalog: transitionCatalogV1,
+      renderers: { "renderer.test.box": rendererV1 },
+      accessibleName: "Hidden component stage",
+      clock,
+    };
+    try {
+      const { container, rerender } = render(
+        <SemanticStageV1
+          {...stageProps}
+          target={targetWithContentV1("content.test.a")}
+          revision={1}
+          epoch={0}
+        />,
+      );
+      rerender(
+        <SemanticStageV1
+          {...stageProps}
+          target={targetWithContentV1("content.test.b")}
+          revision={2}
+          epoch={0}
+        />,
+      );
+      await act(async () => {});
+      await act(async () => clock.advance(100));
+      expect(container.querySelector('[data-stage-settled="false"]')).not.toBeNull();
+
+      visibilityState.mockReturnValue("visible");
+      await act(async () => document.dispatchEvent(new Event("visibilitychange")));
+      await act(async () => clock.advance(100));
+      expect(container.querySelector('[data-stage-settled="true"]')).not.toBeNull();
+    } finally {
+      visibilityState.mockRestore();
+    }
+  });
+
   it("suppresses edges across epoch changes (load restores a stable target)", async () => {
     const clock = createManualPresentationClockV1();
     const stageProps = {

@@ -4,6 +4,7 @@ import {
   createCoreGameApplicationInstanceV1,
   resolveCoreGameApplicationV1,
 } from "@sillymaker/base/runtime";
+import type { CoreAutosavePolicyV1 } from "@sillymaker/base/runtime";
 import {
   createFixedBootstrapEntropyV1,
   createMemoryHostRecordStoreV1,
@@ -24,6 +25,8 @@ export interface CreateVnReferenceTourApplicationInstanceOptionsV1 {
   readonly seeds?: readonly number[];
   readonly records?: HostAtomicRecordStoreV1;
   readonly now?: () => IsoUtcInstant;
+  /** Test/simulation override; the shipped Browser host owns its policy. */
+  readonly autosave?: CoreAutosavePolicyV1;
 }
 
 /**
@@ -39,6 +42,7 @@ export async function createVnReferenceTourApplicationInstanceV1(
   }
   const seeds = options.seeds ?? [defaultSeedV1];
   return createCoreGameApplicationInstanceV1(resolved.application, {
+    ...(options.autosave === undefined ? {} : { autosave: options.autosave }),
     host: {
       entropy: createFixedBootstrapEntropyV1({
         uuids: seeds.map(() => fixedUuidV1),

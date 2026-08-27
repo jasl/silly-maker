@@ -107,6 +107,7 @@ import { createWebGameBootstrapEntropyInternalV1 } from "./create-web-game-boots
 import { installDesktopCloseFlushV1 } from "./install-desktop-close-flush.ts";
 import { createManagedSurfaceApplicationEpochAllocatorInternalV1 } from "./managed-surface-application-epoch.ts";
 import { installPresentationPacingInternalV1 } from "./presentation-pacing.ts";
+import { bindDocumentPresentationVisibilityInternalV1 } from "./presentation-visibility.ts";
 import { loadWebRuntimeBytesInternalV1 } from "./load-web-runtime-bytes.ts";
 import { loadWebTextContentPackBytesInternalV1 } from "./load-web-text-content-pack.ts";
 import {
@@ -1187,6 +1188,7 @@ export async function startWebGameApplicationV1<
   let removePageLifecycle: (() => void) | undefined;
   let removeDesktopCloseFlush: (() => void) | undefined;
   let removeDocumentLanguage: (() => void) | undefined;
+  let removePresentationVisibility: (() => void) | undefined;
   let instanceLease: WebInstanceLeasePortV1 | undefined;
   let unbindPresentationFreeze: (() => void) | undefined;
   let presentationPacing: { dispose(): void } | undefined;
@@ -1222,6 +1224,10 @@ export async function startWebGameApplicationV1<
       {
         name: "document_language",
         run: () => removeDocumentLanguage?.(),
+      },
+      {
+        name: "presentation_visibility",
+        run: () => removePresentationVisibility?.(),
       },
       { name: "root", run: () => mounted?.unmount() },
       {
@@ -1345,8 +1351,15 @@ export async function startWebGameApplicationV1<
     // consume the result directly; Stories pass `presentationFreeze.clock`
     // to their mounted stages so 冻结画面 and 倍速 hold every plane together.
     const presentationRate = createPresentationRatePortV1();
-    const presentationFreeze = createPresentationFreezePortV1({
+    const presentationVisibility = createPresentationFreezePortV1({
       inner: presentationRate.clock,
+    });
+    removePresentationVisibility = bindDocumentPresentationVisibilityInternalV1({
+      document,
+      presentation: presentationVisibility,
+    });
+    const presentationFreeze = createPresentationFreezePortV1({
+      inner: presentationVisibility.clock,
     });
     // Held-key (modifier) input: the port exists before `ui()` so Story
     // surfaces can subscribe; the adapter installs after mount when the

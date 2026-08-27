@@ -29,18 +29,24 @@ interface VnPublicationV1 {
   readonly revision: number;
   readonly game: {
     readonly audio: {
+      readonly bgm: unknown;
+      readonly ambient: unknown;
       readonly voice: { readonly assetId: string } | null;
     };
+    readonly stage: unknown;
   };
   readonly narrative: {
     readonly phase: "idle" | "active" | "completed";
+    readonly signalChoice: "archive" | "present" | null;
     readonly history: {
       readonly entries: readonly { readonly occurrenceId: string }[];
     };
     readonly pending: {
       readonly kind: string;
       readonly occurrenceId: string;
+      readonly totalMs?: number;
       readonly remainingMs?: number;
+      readonly tickQuantumMs?: number;
     } | null;
   };
 }
@@ -274,6 +280,42 @@ async function reachSignalChoiceV1(page: Page): Promise<VnPublicationV1> {
   throw new TypeError("signal choice was not reached");
 }
 
+async function reachRouteHoldV1(
+  page: Page,
+  route: "archive" | "present",
+): Promise<VnPublicationV1> {
+  const atChoice = await reachSignalChoiceV1(page);
+  const choiceId = route === "archive"
+    ? "choice.vn-reference-tour.archive-voice"
+    : "choice.vn-reference-tour.present-voice";
+  const choice = atChoice.narrative.pending;
+  if (choice?.kind !== "choice") throw new TypeError("signal Choice missing");
+  await dispatchV1(page, {
+    kind: "resolve",
+    expectedOccurrenceId: choice.occurrenceId,
+    resolution: { kind: "choose", choiceId },
+  });
+
+  for (let step = 0; step < 12; step += 1) {
+    const publication = await observeV1(page);
+    const pending = publication.narrative.pending;
+    if (pending?.kind === "hold") return publication;
+    if (pending?.kind === "say") {
+      await advanceCurrentSayV1(page, pending);
+      continue;
+    }
+    if (pending?.kind === "presentation_barrier") {
+      await expect.poll(
+        async () => (await observeV1(page)).narrative.pending?.occurrenceId,
+        { timeout: 4_000 },
+      ).not.toBe(pending.occurrenceId);
+      continue;
+    }
+    throw new TypeError(`unexpected VN boundary before route Hold: ${pending?.kind ?? "none"}`);
+  }
+  throw new TypeError("route Hold was not reached");
+}
+
 async function reachOldCallV1(page: Page): Promise<VnPublicationV1> {
   await page.goto(vnReferenceTourTargetUrlV1("?capability=automation_bridge"));
   await page.getByRole("button", { name: "新游戏" }).click();
@@ -399,6 +441,53 @@ test("the default VN quick controls restore a saved Choice through confirmation"
   const restored = await observeV1(page);
   expect(restored.narrative.history).toEqual(saved.narrative.history);
   expect(restored.game.audio).toEqual(saved.game.audio);
+
+  await page.getByRole("button", { name: "菜单" }).click();
+  await page.getByRole("dialog", { name: "菜单" }).getByRole("button", {
+    name: "返回标题",
+  }).click();
+  await expect(page.locator("[data-title-screen='true']")).toBeVisible();
+  const continueButton = page.getByRole("button", { name: "继续游戏" });
+  await expect(continueButton).toBeEnabled();
+  await continueButton.click();
+  await expect.poll(
+    async () => (await observeV1(page)).narrative.pending?.occurrenceId,
+  ).toBe(restored.narrative.pending?.occurrenceId);
+  const continued = await observeV1(page);
+  expect(continued.narrative).toEqual(restored.narrative);
+  expect(continued.game).toEqual(restored.game);
+});
+
+test("the real Player commits recoverable partial Hold checkpoints", async ({ page }) => {
+  await page.goto(vnReferenceTourTargetUrlV1("?capability=automation_bridge"));
+  await page.getByRole("button", { name: "新游戏" }).click();
+  await page.waitForFunction(
+    (key) => Reflect.get(globalThis, key) !== undefined,
+    automationKeyV1,
+  );
+  const enteredHold = await reachRouteHoldV1(page, "present");
+  let partialHold = enteredHold;
+  await expect.poll(
+    async () => {
+      partialHold = await observeV1(page);
+      const pending = partialHold.narrative.pending;
+      return pending?.kind === "hold" &&
+        (pending.remainingMs ?? 1_200) > 0 &&
+        (pending.remainingMs ?? 1_200) < 1_200;
+    },
+    { intervals: [20, 40, 60], timeout: 800 },
+  ).toBe(true);
+  if (partialHold.narrative.pending?.kind !== "hold") {
+    throw new TypeError("partial Hold missing");
+  }
+  expect(partialHold.narrative.pending).toMatchObject({
+    kind: "hold",
+    totalMs: 1_200,
+    tickQuantumMs: 200,
+  });
+  expect(partialHold.narrative.pending.remainingMs).toBeGreaterThan(0);
+  expect(partialHold.narrative.pending.remainingMs).toBeLessThan(1_200);
+  expect(partialHold.narrative.signalChoice).toBe("present");
 });
 
 test("VN Settings localize live and persist player preferences outside Save", async ({ page }) => {

@@ -98,7 +98,10 @@ export function GameAudioV1(props: GameAudioPropsV1): null {
       if (document.visibilityState === "hidden") presenter.suspend();
       else presenter.resume();
     };
-    if (hasDocument) document.addEventListener("visibilitychange", onVisibilityChange);
+    if (hasDocument) {
+      document.addEventListener("visibilitychange", onVisibilityChange);
+      onVisibilityChange();
+    }
     registerReplayVoice?.(() => presenter.replayVoice());
     registerCurrentVoicePlaying?.(() => presenter.isCurrentVoicePlaying());
     return () => {

@@ -316,8 +316,11 @@ supported-export/application shell、未选择 starter domain 的 clean deletion
 Authoring Scene、作者数据和两条 named headless simulation；M2 已交付并关闭，引擎维护的 focused default VN Player
 已经由 Template 与该产品共同选择，对话/选择 chrome、say-only 全画布推进、History/播放控制、贴底布局、
 Ctrl/Tab/H/V/鼠标中键、竖屏布局、最终媒体/音频、rollback/end controls 与完整产品矩阵均已完成。M3
-M3 Save/recovery/settings 已开启，前两个切片接通并证明 boot-time autosave resume 与
-return-to-title/Continue 连续性；产品菜单、其余恢复矩阵与 settings 仍开放。当前 WIP 仍不是完整产品或完成证据。Cat Cafe 已在
+Save/recovery/settings 也已关闭：产品入口与默认 VN system menu、quick/manual/import/export、完整最小
+Settings/live locale、normal-dispose exact flush、已持久化 autosave reload、return-to-title/Continue，以及
+Web hidden presentation-time exclusion均有分层证据。Browser `pagehide` 仍只是同步 fence + best-effort flush，
+不承诺最后一刻异步 IndexedDB durability。M4 作者任务、发布矩阵、raw measurements 与独立审查尚未完成，
+当前 WIP 仍不是完整产品或完成证据。Cat Cafe 已在
 本轮开始前独立终止，应用、revision-1 Save 支持、产品 E2E 与 live 发布责任同步结束，不做跨产品 Save 迁移
 或兼容 wrapper。VN 开发期间没有当前旗舰；Bookshop 只保持 maintained minimal Narrative example，不是旗舰
 或完整 VN 产品参考。完整产品及独立审查关闭后，才原子提升 VN 为旗舰。预期届时维护的产品例子是 SillyOS +

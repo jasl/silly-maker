@@ -93,6 +93,8 @@ export type VnReferenceTourNarrativeNodeV1 =
     readonly seenRevision: number;
     /** Authoritative dwell in milliseconds; never a wall-clock deadline. */
     readonly durationMs: number;
+    /** Optional authoritative partial-commit cadence for recoverable waits. */
+    readonly tickQuantumMs?: number;
     /** Player input may fold the remaining wait into one tick. */
     readonly skippable: boolean;
     readonly next: string;
@@ -186,6 +188,8 @@ export interface VnReferenceTourHoldBlockV1 {
   readonly name: string;
   /** Positive integer milliseconds. */
   readonly durationMs: number;
+  /** Optional positive partial-commit cadence; omitted means expiry-only. */
+  readonly tickQuantumMs?: number;
   /** Player input folds the remaining wait; original WAIT is never skippable. */
   readonly skippable?: boolean;
   /**
@@ -481,6 +485,12 @@ export function compileVnReferenceTourInteractionDocV1(
         if (!Number.isSafeInteger(block.durationMs) || block.durationMs < 1) {
           failV1(doc, block.name, "hold_duration_invalid");
         }
+        if (
+          block.tickQuantumMs !== undefined &&
+          (!Number.isSafeInteger(block.tickQuantumMs) || block.tickQuantumMs < 1)
+        ) {
+          failV1(doc, block.name, "hold_tick_quantum_invalid");
+        }
         if (holdOpsBlocks.has(block.name)) {
           const stageName = `${block.name}-stage`;
           const stageId = nodeId(stageName);
@@ -503,6 +513,7 @@ export function compileVnReferenceTourInteractionDocV1(
           definitionId: block.definitionId ?? `interaction.${doc.prefix}.${block.name}`,
           seenRevision: block.seenRevision ?? 1,
           durationMs: block.durationMs,
+          ...(block.tickQuantumMs === undefined ? {} : { tickQuantumMs: block.tickQuantumMs }),
           skippable: block.skippable ?? false,
           next: resolveNext(block.name, block.next),
         });

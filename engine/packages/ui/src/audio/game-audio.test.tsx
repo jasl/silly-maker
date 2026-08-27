@@ -5,7 +5,7 @@
 // player profile drives master volume/mute live.
 import { cleanup, render } from "@testing-library/react";
 import { act } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AudioIntentV1, TransientEffectV1 } from "@sillymaker/base";
 import { silentAudioIntentV1 } from "@sillymaker/base";
@@ -173,5 +173,29 @@ describe("GameAudioV1", () => {
     );
     view.unmount();
     expect(host.isDisposed()).toBe(true);
+  });
+
+  it("starts suspended when mounted in a hidden document and resumes when visible", async () => {
+    const visibilityState = vi.spyOn(document, "visibilityState", "get");
+    visibilityState.mockReturnValue("hidden");
+    const host = createFakeAudioHostV1();
+    const instance = createFakeInstanceV1();
+    try {
+      const view = render(
+        <GameAudioV1
+          ports={instance.ports}
+          createHost={() => host}
+          selectIntent={selectIntentV1}
+        />,
+      );
+      expect(host.isSuspended()).toBe(true);
+
+      visibilityState.mockReturnValue("visible");
+      await act(async () => document.dispatchEvent(new Event("visibilitychange")));
+      expect(host.isSuspended()).toBe(false);
+      view.unmount();
+    } finally {
+      visibilityState.mockRestore();
+    }
   });
 });

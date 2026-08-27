@@ -135,18 +135,53 @@ describe("VN Reference Tour M1 story shell", () => {
     }
   });
 
-  it("resumes the latest autosave into a fresh instance without serializing rollback history", async () => {
+  it("ordinary disposal flushes an exact partial-hold autosave for a fresh instance", async () => {
     const records = createMemoryHostRecordStoreV1();
-    const initial = await createVnReferenceTourApplicationInstanceV1({ records });
+    const initial = await createVnReferenceTourApplicationInstanceV1({
+      records,
+      autosave: { mode: "debounced", delayMs: 60_000 },
+    });
     let expected: ReturnType<typeof initial.semantic.observe>;
+    let expectedDigest: string;
     try {
       await initial.semantic.dispatch({
         kind: "invoke",
         actionId: "vn-reference-tour.begin_story",
       } as never);
-      await advanceCurrentV1(initial);
+      for (let index = 0; index < 26; index += 1) await advanceCurrentV1(initial);
+      const choice = initial.semantic.observe().narrative.pending;
+      if (choice === null || choice.kind !== "choice") {
+        throw new TypeError("vn-reference-tour.test_choice_missing");
+      }
+      await expect(initial.semantic.dispatch({
+        kind: "resolve",
+        expectedOccurrenceId: choice.occurrenceId,
+        resolution: {
+          kind: "choose",
+          choiceId: "choice.vn-reference-tour.present-voice",
+        },
+      } as never)).resolves.toMatchObject({ kind: "committed" });
+      for (let index = 0; index < 6; index += 1) await advanceCurrentV1(initial);
+      const hold = initial.semantic.observe().narrative.pending;
+      if (hold === null || hold.kind !== "hold") {
+        throw new TypeError("vn-reference-tour.test_hold_missing");
+      }
+      await expect(initial.semantic.dispatch({
+        kind: "time",
+        tick: { elapsedMs: 400, expectedHoldOccurrenceId: hold.occurrenceId },
+      } as never)).resolves.toMatchObject({ kind: "committed" });
       expected = initial.semantic.observe();
-      await initial.flushAutoSave();
+      expectedDigest = initial.admin.stateDigest();
+      expect(expected.narrative.pending).toMatchObject({
+        kind: "hold",
+        totalMs: 1_200,
+        remainingMs: 800,
+      });
+      expect(expected.narrative.signalChoice).toBe("present");
+      expect(
+        (await initial.persistence.listSlots()).find(({ slotId }) => slotId === "auto.current")
+          ?.health,
+      ).toBe("empty");
     } finally {
       await initial.dispose();
     }
@@ -154,8 +189,10 @@ describe("VN Reference Tour M1 story shell", () => {
     const resumed = await createVnReferenceTourApplicationInstanceV1({ records });
     try {
       const publication = resumed.semantic.observe();
+      expect(resumed.admin.stateDigest()).toBe(expectedDigest);
       expect(publication.narrative).toEqual(expected.narrative);
       expect(publication.game.stage).toEqual(expected.game.stage);
+      expect(publication.game.audio).toEqual(expected.game.audio);
       expect(resumed.presentationAnchor()).toEqual({ epoch: 0, origin: "bootstrap" });
       expect(resumed.admin.commandLog()).toEqual([]);
       expect(resumed.rollback.available()).toEqual({ steps: 0, forwardSteps: 0 });

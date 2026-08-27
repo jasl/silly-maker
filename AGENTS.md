@@ -55,13 +55,14 @@ Read only the documents relevant to the change:
   Chromium/WebKit/mobile evidence covers 360×640 through 1280×720, a 200%-zoom
   reflow proxy, pointer/touch/keyboard focus, reduced motion, accessibility, and
   Chinese/English overflow; a participant also characterized the product in
-  Chrome at literal 200% zoom. M3 is in progress: its first two slices opt the
-  VN into the existing boot-time autosave resume contract, make the default
-  Title Continue load the current autosave, and prove fresh-instance, Browser
-  reload, plus return-to-title continuity for Narrative, History, Stage, and a
-  completed ending while rollback history restarts instance-locally. Product
-  menu, the remaining Save/recovery matrix, and settings remain open, so this
-  playable WIP is still not product-completion evidence.
+  Chrome at literal 200% zoom. M3 delivered boot-time autosave resume,
+  return-to-title/Continue, the default VN system menu and Save surfaces,
+  persistent Player settings with live locale, and a layered recovery matrix
+  for exact awaitable close plus already-durable Browser reload/forced-close
+  state. Browser `pagehide` remains a synchronous fence with best-effort async
+  flush and does not promise last-moment IndexedDB durability. M4 author tasks,
+  product evidence, budgets, release proof, and Starter feedback remain open,
+  so this playable WIP is still not product-completion evidence.
   Cat Cafe terminated on 2026-08-27 before this lane began; its application,
   revision-1 Save support, product E2E, and live release responsibility ended
   together, without a cross-product migration. Bookshop remains the maintained
