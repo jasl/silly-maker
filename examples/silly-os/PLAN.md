@@ -45,6 +45,15 @@ and the real OpenAI stream/tool/cancel/currentness/Forget qualifier in both
 engines. B1b's named direct-Provider qualification is the accepted next
 checkpoint but is not activated by B1a closure; broader endpoint and credential
 behavior does not enter it by implication.
+The clean B1a implementation commit
+`66eb6755b04d3d625830dbbe915c465886ba13dc` was then deployed to the canonical
+origin as Cloudflare version `28022baa-1676-4c79-a194-85d95e5f326d`. The public
+HTML reported that exact commit, HTTP 200, and the B1a OpenAI-only
+`connect-src`; the application browser loaded all 40 Pi Providers with OpenAI
+qualified and Anthropic still a candidate and logged no errors. The same public
+origin then passed the real Chromium and persistent-WebKit qualifier with the
+same cancel/v2/HTTP-200/durable-key-absence/Forget receipts, so B1a's release
+operation is also closed.
 The raw launcher is not the typed product RPC; the live Browser route is a
 separate product path. This plan remains local to `examples/silly-os`; the
 neutral async GUI disposer was delivered separately by the engine task and is
@@ -666,9 +675,9 @@ credential lifetime, ordinary-route activation, and clean replacement with one
 already-qualified Provider before B1b adds five exact profiles. Its tests are
 mutation-sensitive to copied catalog data, secret persistence, disabled
 candidate selection, stale profile activation, Worker replacement, and
-responsive/keyboard regressions. Production build/chunk evidence and the local
-dual-engine gate are closed; the committed Cloudflare deployment and public
-origin qualifier remain the separate release receipt.
+responsive/keyboard regressions. Production build/chunk evidence, the local
+dual-engine gate, the committed Cloudflare deployment, and the public-origin
+qualifier are closed and reported independently.
 
 #### P1-D — Deno Desktop companion parity
 

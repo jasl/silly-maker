@@ -155,11 +155,12 @@ xAI 的指定 profile 当前作为待完整资格验证的候选显示，不能�
 
 当前已资格化的 Cloudflare 部署是
 [silly-os.jasl9187.workers.dev](https://silly-os.jasl9187.workers.dev/)。
-仅改 Worker 名称的提交 `60bbb4f559a001e59a4e470e30a7f4808d440ce3` 已于
-2026-08-28 将 P3c-B1 checkpoint 3 的同一产品构建发布为 Cloudflare 版本
-`919cb0a4-d510-452a-b73d-79070ec8e35e`；全新浏览器上下文从公网完成了 Creator Home
-到持久 Program workspace 的冒烟检查，HTTP、页面、console 和资源请求均无错误，固定
-OpenAI 资格检查也在 Chromium 与持久 profile WebKit 中通过。
+P1-B1a 实现提交 `66eb6755b04d3d625830dbbe915c465886ba13dc` 已于 2026-08-28
+发布为 Cloudflare 版本 `28022baa-1676-4c79-a194-85d95e5f326d`；公网 HTML 返回 HTTP 200、
+该精确 build identity 和仅包含 OpenAI 的 B1a `connect-src`。应用内浏览器从普通 URL 打开
+设置后读取了 40 个 Pi Provider，OpenAI 精确 profile 为 qualified、Anthropic 仍为 candidate，
+console 无错误。随后 Chromium 与持久 profile WebKit 都从公网通过了真实 OpenAI
+cancel/v2 tool proposal/两次 HTTP 200/持久化投影无 key/Forget 资格检查。
 它只托管静态产品；OpenAI key 和模型请求从 Agent Worker 直接发送给 OpenAI，不经过
 SillyOS 或 Cloudflare relay。
 

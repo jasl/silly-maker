@@ -31,7 +31,11 @@ SillyOS-owned Settings, and selection of the exact qualified OpenAI profile. Its
 local gate passed 265 product tests plus the Settings and real OpenAI journeys
 in Chromium and persistent-profile WebKit. B1b/B1c, broad execution-provider
 research, import, and later workspace slices remain inactive; no successor
-checkpoint is activated by this closure. The
+checkpoint is activated by this closure. The B1a implementation commit
+`66eb6755b04d3d625830dbbe915c465886ba13dc` is deployed at the canonical origin
+as Cloudflare version `28022baa-1676-4c79-a194-85d95e5f326d`; that origin also
+passed the same Chromium/persistent-WebKit Settings and real OpenAI qualifier.
+The
 former "SillyOS 98" desktop
 experiment has been retired as a product direction. It remains useful only as
 repository history; it is not a compatibility baseline for this rewrite.
@@ -948,9 +952,9 @@ shared Repository/Host Authority, accepted snapshot identity/head presentation,
 and dual-browser product evidence, closed on 2026-08-28. Deployment is a release
 operation from that committed baseline and completed that day. P1-B1a's clean
 replacement and local dual-browser gate are delivered and closed; its committed
-deployment and public-origin qualification remain release receipts rather than
-another product contract. B1b/B1c, broader execution-provider research, and
-import remain inactive. The plan also
+deployment and public-origin qualification are also closed release receipts,
+not another product contract. B1b/B1c, broader execution-provider research,
+and import remain inactive. The plan also
 governs later real Pi integration, product persistence, Pi-native workspace
 tool binding, provider research, Pi capability composition,
 OpenUI-to-SillyMaker mapping, and the first complete product families. Runtime
