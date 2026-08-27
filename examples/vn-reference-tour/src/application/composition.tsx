@@ -33,17 +33,18 @@ import type {
   VnReferenceTourSimulationTypesV1,
 } from "../game/simulation.ts";
 import {
+  vnReferenceTourStageAmbientCatalogV1,
   vnReferenceTourStageContentCatalogV1,
   vnReferenceTourStageTransitionCatalogV1,
   vnReferenceTourTextCatalogsV1,
   vnReferenceTourUiTextV1,
 } from "../content/presentation.ts";
 import {
-  vnReferenceTourEndingTextPackIdV1,
-  vnReferenceTourOpeningTextPackIdV1,
+  vnReferenceTourArchiveTextPackIdV1,
+  vnReferenceTourPresentTextPackIdV1,
+  vnReferenceTourSharedTextPackIdV1,
   vnReferenceTourTextContentManifestV1,
 } from "../content/text-content.ts";
-import { vnReferenceTourOpeningAmbientCatalogV1 } from "../scenes/opening/index.ts";
 import type { VnReferenceTourNarrativeStateV1 } from "../story/narrative.ts";
 import { vnReferenceTourStageRenderersV1 } from "../ui/stage-renderers.tsx";
 
@@ -58,28 +59,14 @@ type VnReferenceTourSemanticPublicationV1 = ReturnType<
 type VnReferenceTourSemanticPortV1 = VnReferenceTourApplicationInstanceV1["semantic"];
 
 const noNarrativeChoiceReasonsV1: readonly string[] = [];
-const vnReferenceTourEndingTextIdsV1: ReadonlySet<string> = new Set([
-  "text.vn-reference-tour.line.cat",
-  "text.vn-reference-tour.line.fetch-line",
-  "text.vn-reference-tour.line.inside",
-  "text.vn-reference-tour.line.ending-warm",
-  "text.vn-reference-tour.line.ending-plain",
-]);
-
-function vnReferenceTourNarrativeNeedsEndingTextV1(
+function vnReferenceTourRouteTextPackV1(
   narrative: DeepReadonly<VnReferenceTourNarrativeStateV1>,
-): boolean {
-  if (narrative.history.entries.some((entry) => vnReferenceTourEndingTextIdsV1.has(entry.textId))) {
-    return true;
-  }
-  const pending = narrative.pending;
-  if (pending === null) return false;
-  if (pending.kind === "say") return vnReferenceTourEndingTextIdsV1.has(pending.textId);
-  if (pending.kind === "choice") {
-    return vnReferenceTourEndingTextIdsV1.has(pending.promptTextId) ||
-      pending.options.some((option) => vnReferenceTourEndingTextIdsV1.has(option.textId));
-  }
-  return false;
+) {
+  return narrative.signalChoice === "archive"
+    ? vnReferenceTourArchiveTextPackIdV1
+    : narrative.signalChoice === "present"
+    ? vnReferenceTourPresentTextPackIdV1
+    : null;
 }
 
 /** Pure Story projection consumed by the public Narrative definition. */
@@ -168,7 +155,7 @@ function createVnReferenceTourUiSlotsV1(
           // stale, so per-cue bindings resolve by dispatching cue.
           dispatches={instance.stageCueDispatches()}
           catalog={vnReferenceTourStageTransitionCatalogV1}
-          ambient={vnReferenceTourOpeningAmbientCatalogV1}
+          ambient={vnReferenceTourStageAmbientCatalogV1}
           renderers={vnReferenceTourStageRenderersV1}
           accessibleName={vnReferenceTourUiTextV1("text.vn-reference-tour.stage.name")}
           clock={presentationFreeze.clock}
@@ -315,17 +302,23 @@ export const vnReferenceTourGameApplicationV1: WebGameApplicationV1<
   textContent: {
     manifest: vnReferenceTourTextContentManifestV1,
     bootstrapCatalogs: vnReferenceTourTextCatalogsV1.catalogs,
-    initialPackIds: [vnReferenceTourOpeningTextPackIdV1],
-    requiredPackIdsForInvocation: (invocation: DeepReadonly<VnReferenceTourInvocationV1>) =>
-      invocation.kind === "resolve" && invocation.resolution.kind === "choose"
-        ? [vnReferenceTourEndingTextPackIdV1]
-        : [],
+    initialPackIds: [vnReferenceTourSharedTextPackIdV1],
+    requiredPackIdsForInvocation: (invocation: DeepReadonly<VnReferenceTourInvocationV1>) => {
+      if (invocation.kind !== "resolve" || invocation.resolution.kind !== "choose") return [];
+      return invocation.resolution.choiceId === "choice.vn-reference-tour.archive-voice"
+        ? [vnReferenceTourArchiveTextPackIdV1]
+        : invocation.resolution.choiceId === "choice.vn-reference-tour.present-voice"
+        ? [vnReferenceTourPresentTextPackIdV1]
+        : [];
+    },
     requiredPackIdsForSnapshot: (
       snapshot: DeepReadonly<VnReferenceTourSimulationTypesV1["snapshot"]>,
-    ) =>
-      vnReferenceTourNarrativeNeedsEndingTextV1(snapshot.state.simulation.narrative)
-        ? [vnReferenceTourOpeningTextPackIdV1, vnReferenceTourEndingTextPackIdV1]
-        : [vnReferenceTourOpeningTextPackIdV1],
+    ) => {
+      const routePack = vnReferenceTourRouteTextPackV1(snapshot.state.simulation.narrative);
+      return routePack === null
+        ? [vnReferenceTourSharedTextPackIdV1]
+        : [vnReferenceTourSharedTextPackIdV1, routePack];
+    },
   },
   core: vnReferenceTourCoreApplicationDefinitionV1,
   ui: (

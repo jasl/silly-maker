@@ -1,0 +1,65 @@
+{
+  "format": "sillymaker.text-content-pack",
+  "version": 2,
+  "packId": "text-pack.vn-reference-tour.route.archive",
+  "locale": "zh-CN",
+  "entries": [
+    {
+      "textId": "text.vn-reference-tour.archive.prepare.reel",
+      "text": "林澄按下磁带机的选择键。话筒灯随即熄灭，只剩旧磁带的转轴缓慢旋转。"
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.prepare.pause",
+      "text": "谢谢。不是因为那是我的声音，而是因为它替这里多活了十三年。"
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.prepare.full",
+      "text": "别剪短。把开头那次吸气也一起送过去，档案里的人应该听见你当时有多紧张。"
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.prepare.ready",
+      "text": "好。电平就位，窗口已连接。等指针越过白线，我开始放带。"
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.prepare.deck",
+      "text": "磁带转快了一圈。旧日的沙沙声填满控制室，又被发送继电器轻轻截住。"
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.prepare.sent",
+      "text": "“这里是山岬社区电台。清晨好，愿今天有人听见你。”"
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.roof.stairs",
+      "text": "接收灯稳定后，两人沿着窄楼梯上到屋顶。东方的云边已经发白。"
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.roof.cold",
+      "text": "原来最后一次听见这句话，是在这里。风比监听音箱诚实多了。"
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.roof.breaker",
+      "text": "总闸还剩十秒。你看状态灯，我来断电。"
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.roof.cable",
+      "text": "天线拉索在风里轻轻摆动，像还在替已经结束的声音划着节拍。"
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.roof.receipt",
+      "text": "档案馆有回执吗？我想确认它不是只留在我们耳朵里。"
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.roof.confirmed",
+      "text": "收到了：旧台呼，完整六点八秒，标记为最后一次直播记录。"
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.roof.response",
+      "text": "那就够了。以后有人点开它，会先听见你年轻时那口气。"
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.roof.shutdown",
+      "text": "周遥压下总闸。状态灯熄灭，山脚的城市在安静里迎来清晨。"
+    },
+    { "textId": "text.vn-reference-tour.archive.ending.title", "text": "旧声入档" }
+  ]
+}

@@ -6,7 +6,7 @@ import {
   compileAuthoringSceneV1,
 } from "@sillymaker/base/authoring/scene";
 
-import sceneSourceV1 from "./opening.authoring-scene.json" with { type: "json" };
+import sceneSourceV1 from "./rooftop-antenna.authoring-scene.json" with { type: "json" };
 
 export const sceneRuntimePlanV1 = compileAuthoringSceneV1(
   admitAuthoringSceneDocumentV1(sceneSourceV1),

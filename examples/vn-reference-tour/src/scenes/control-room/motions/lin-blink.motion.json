@@ -1,0 +1,23 @@
+{
+  "format": "sillymaker.motion",
+  "version": 1,
+  "motionId": "motion.vn-reference-tour.control-room.lin-blink",
+  "label": "林澄眨眼",
+  "durationMs": 5200,
+  "delayMs": 0,
+  "tracks": [
+    {
+      "channel": "frame",
+      "keyframes": [
+        { "atPermille": 0, "value": 0 },
+        { "atPermille": 915, "value": 1 },
+        { "atPermille": 955, "value": 0 },
+        { "atPermille": 1000, "value": 0 }
+      ]
+    }
+  ],
+  "authoring": {
+    "status": "human_tuned",
+    "notes": "Presence-bound two-frame blink. The presentation catalog supplies frame 0 (open) and frame 1 (closed)."
+  }
+}

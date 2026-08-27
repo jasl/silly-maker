@@ -4,8 +4,8 @@ import { createInProcessAgentGamePortV1 } from "@sillymaker/base/runtime";
 import { createVnReferenceTourApplicationInstanceV1 } from "../application/core-application.ts";
 
 /**
- * M0 scaffold scenario for
- * `deno task app simulate example-vn-reference-tour --scenario scaffold`.
+ * Complete route scenarios for
+ * `deno task app simulate example-vn-reference-tour --scenario <name>`.
  * Steps are occurrence-free intents: a `resolve` without an
  * `expectedOccurrenceId` targets whatever interaction is currently pending
  * (read from the live publication at dispatch time, exactly like a real
@@ -27,15 +27,34 @@ function chooseV1(choiceId: string) {
   });
 }
 
-const scenariosV1 = {
-  /** Temporary structural smoke; M1 replaces it with both complete routes. */
-  scaffold: [
+function timeTickV1(elapsedMs: number) {
+  return ({
+    kind: "time" as const,
+    tick: { elapsedMs },
+  });
+}
+
+function advancesV1(count: number) {
+  return Array.from({ length: count }, () => advanceV1());
+}
+
+function routeScenarioV1(choiceId: string) {
+  return [
     { kind: "invoke" as const, actionId: "vn-reference-tour.begin_story" as const },
-    advanceV1(),
-    chooseV1("choice.vn-reference-tour.inside"),
-    advanceV1(),
-    advanceV1(),
-  ],
+    // 26 shared entries lead to the single material choice.
+    ...advancesV1(26),
+    chooseV1(choiceId),
+    // Six route-preparation entries lead to the authoritative carrier lock.
+    ...advancesV1(6),
+    timeTickV1(1_200),
+    // Eight rooftop entries plus the route-specific ending complete the run.
+    ...advancesV1(9),
+  ];
+}
+
+const scenariosV1 = {
+  "archive-voice": routeScenarioV1("choice.vn-reference-tour.archive-voice"),
+  "present-voice": routeScenarioV1("choice.vn-reference-tour.present-voice"),
 };
 
 /**
@@ -116,7 +135,7 @@ export async function createVnReferenceTourSimulationTargetV1(
     agent,
     stateDigest: () => application.admin.stateDigest(),
     dispose: () => application.dispose(),
-    defaultScript: scenariosV1.scaffold,
+    defaultScript: scenariosV1["archive-voice"],
     scenarios: scenariosV1,
   });
 }

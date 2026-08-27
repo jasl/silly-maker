@@ -16,7 +16,9 @@ import type {
   VnReferenceTourSimulationTypesV1,
 } from "../game/simulation.ts";
 import { vnReferenceTourStoryEntryV1 } from "../story.ts";
-import { vnReferenceTourOpeningSceneV1 } from "../scenes/opening/index.ts";
+import { vnReferenceTourControlRoomSceneV1 } from "../scenes/control-room/index.ts";
+import { vnReferenceTourRooftopAntennaSceneV1 } from "../scenes/rooftop-antenna/index.ts";
+import { vnReferenceTourContentIdsV1 } from "../story/narrative.ts";
 
 /**
  * The Host-neutral core application: the GamePackage entry plus the
@@ -39,9 +41,15 @@ export const vnReferenceTourCoreApplicationDefinitionV1 = defineCoreGameApplicat
   entry: vnReferenceTourStoryEntryV1,
   semantic: vnReferenceTourSemanticAdapterV1,
   projectRebootstrapCommand(snapshot) {
-    const mutations = vnReferenceTourOpeningSceneV1.reconcileOrderingMutations(
-      snapshot.state.simulation.stage,
-    );
+    const stage = snapshot.state.simulation.stage;
+    const scene = stage.layers.some((layer) =>
+        layer.entries.some((entry) =>
+          entry.contentId === vnReferenceTourContentIdsV1.backgroundRooftopAntenna
+        )
+      )
+      ? vnReferenceTourRooftopAntennaSceneV1
+      : vnReferenceTourControlRoomSceneV1;
+    const mutations = scene.reconcileOrderingMutations(stage);
     return mutations.length === 0
       ? null
       : ({ kind: "vn-reference-tour.scene_reconcile" as const, mutations });

@@ -14,10 +14,7 @@ import type {
   VnReferenceTourNarrativeNodeV1,
   VnReferenceTourStageOpV1,
 } from "../story/narrative-kit.ts";
-import {
-  vnReferenceTourCompiledOpeningV1,
-  vnReferenceTourOpeningDocV1,
-} from "../story/narrative.ts";
+import { vnReferenceTourCompiledStoryV1, vnReferenceTourStoryDocV1 } from "../story/narrative.ts";
 import { vnReferenceTourAuthoringTextForLocaleV1 } from "./text-content.ts";
 
 type VnReferenceTourNarrativeNodeOfKindV1<TKind extends VnReferenceTourNarrativeNodeV1["kind"]> =
@@ -63,13 +60,11 @@ export function projectVnReferenceTourNarrativeFlowV1(
   const graphNodes: NarrativeFlowGraphNodeV1[] = [];
   const graphEdges: NarrativeFlowGraphEdgeV1[] = [];
   const nodeId = (name: string): string => `node.${doc.prefix}.${name}`;
-  const nextEdge = (from: string, authoredNext: string, to: string): void => {
+  const nextEdge = (from: string, to: string): void => {
     graphEdges.push({
       from,
       to,
-      label: authoredNext.startsWith("@")
-        ? ({ kind: "call" as const, label: authoredNext.slice(1) })
-        : ({ kind: "next" as const }),
+      label: { kind: "next" as const },
     });
   };
 
@@ -87,7 +82,7 @@ export function projectVnReferenceTourNarrativeFlowV1(
           summary: block.text ?? resolveText(node.textId) ?? node.textId,
           source,
         });
-        nextEdge(id, block.next, node.next);
+        nextEdge(id, node.next);
         break;
       }
       case "choice": {
@@ -132,7 +127,7 @@ export function projectVnReferenceTourNarrativeFlowV1(
           summary: stageSummaryV1(node, block.ops),
           source,
         });
-        nextEdge(id, block.next, node.next);
+        nextEdge(id, node.next);
         break;
       }
       case "branch": {
@@ -144,7 +139,7 @@ export function projectVnReferenceTourNarrativeFlowV1(
           blockName: block.name,
           summary: block.cases
             .map((branchCase) =>
-              branchCase.when === undefined ? "else" : `flag ${branchCase.when.flag}`
+              branchCase.when === undefined ? "else" : `signal ${branchCase.when.signalChoice}`
             )
             .join(" | "),
           source,
@@ -156,7 +151,9 @@ export function projectVnReferenceTourNarrativeFlowV1(
             to,
             label: {
               kind: "branch" as const,
-              condition: branchCase.when === undefined ? "else" : `flag ${branchCase.when.flag}`,
+              condition: branchCase.when === undefined
+                ? "else"
+                : `signal ${branchCase.when.signalChoice}`,
             },
           });
         }
@@ -187,7 +184,7 @@ export function projectVnReferenceTourNarrativeFlowV1(
           }`,
           source,
         });
-        nextEdge(id, block.next, node.next);
+        nextEdge(id, node.next);
         break;
       }
       case "end": {
@@ -212,7 +209,7 @@ export function projectVnReferenceTourNarrativeFlowV1(
 }
 
 export const vnReferenceTourFlowGraphV1 = projectVnReferenceTourNarrativeFlowV1(
-  vnReferenceTourCompiledOpeningV1,
-  vnReferenceTourOpeningDocV1,
+  vnReferenceTourCompiledStoryV1,
+  vnReferenceTourStoryDocV1,
   (textId) => vnReferenceTourAuthoringTextForLocaleV1(null, textId),
 );

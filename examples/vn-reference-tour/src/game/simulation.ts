@@ -37,7 +37,7 @@ import {
   vnReferenceTourNarrativeAtBeginV1,
 } from "../story/narrative.ts";
 
-/** Narrative and Stage are the only authoritative modules in the M0 shell. */
+/** Narrative and Stage are the only authoritative modules in this product. */
 
 // ---- Public contract re-exports: consumers face this facade only.
 export type {
@@ -68,7 +68,7 @@ const debugCommandSchemaV1: RuntimeSchemaV1<never> = {
 
 const narrativeModuleV1 = kit.defineStatefulModule({
   id: "vn-reference-tour.narrative",
-  contractRevision: 1,
+  contractRevision: 2,
   state: {
     slot: "simulation.narrative",
     schema: vnReferenceTourNarrativeStateSchemaV1,
@@ -234,7 +234,7 @@ export function createVnReferenceTourGameSimulationV1(): VnReferenceTourGameSimu
 
       return transactionRunnerV1.execute(snapshot, rng, (transaction) => {
         // Preview and queue-front dispatch share the same occurrence and
-        // choice evaluator; every declared M0 option is available.
+        // choice evaluator; every declared material option is available.
         const pending = state.narrative.pending;
         const outcome = evaluateInteractionResolution(
           pending,

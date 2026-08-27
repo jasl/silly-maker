@@ -2,11 +2,12 @@
 
 ## Status and authority
 
-This package is **M0 delivered / WIP**. The product contract, independent
-package, supported-export application shell, and starter-domain deletion are
-complete. Temporary Story/Scene/media content remains only to prove wiring; it
-is not the product story, a playable slice, or evidence that any M1–M5
-denominator has shipped.
+This package is **M0–M1 delivered / WIP; M2 is next**. The product contract,
+independent package, supported-export application shell, starter-domain
+deletion, complete two-route script, two Authoring Scenes, author data, and
+named headless simulations are implemented. M1 closes author data and headless
+routes only; the package is not yet a playable product, a complete reference,
+or evidence that M2–M5 have shipped.
 
 Read, in order:
 
@@ -15,7 +16,7 @@ Read, in order:
 3. `../AGENTS.md` — repository example-product contract.
 
 Do not reduce the denominator to close a milestone. Do not infer completion
-from a runnable starter, one route, one ending, or green scaffold checks.
+from complete headless routes, one rendered slice, or green author-data checks.
 
 ## Frozen product denominator
 
@@ -38,10 +39,11 @@ Stable identities:
   `scene.vn-reference-tour.rooftop-antenna`
 
 Story/Scene/text/asset/action IDs are lower-case kebab-case. TypeScript symbols
-use `vnReferenceTour` / `VnReferenceTour`. M0 already removed the starter Story
-identity, coins/inventory, and starter HUD/action owners. M1 replaces the
-temporary opening Story/Scene/media content with the complete two-route author
-data; do not preserve aliases, disabled modules, or a second graph.
+use `vnReferenceTour` / `VnReferenceTour`. M0 removed the starter Story identity,
+coins/inventory, and starter HUD/action owners. M1 replaced the temporary
+opening Story/Scene author content with the complete two-route author data; do
+not restore aliases, disabled modules, or a second graph. Final media and the VN
+Player remain M2 work.
 
 ## Ownership and locality
 
@@ -94,16 +96,20 @@ DOM/source inventories or one-off evidence machinery.
 
 ## Verification
 
-From this package while it remains M0:
+From this package after M1:
 
 ```sh
 deno task format:check
 deno task app check .
 deno task test
+deno task app simulate . --scenario archive-voice
+deno task app simulate . --scenario present-voice
 deno task build:web
 ```
 
-Green M0 scaffold checks prove only the current scaffold/config. Run the two
-named simulations only after M1 implements them. If a public/wire/Save/CAS or
-license boundary must change, stop and request owner review; otherwise choose
-the smallest product-local, verifiable implementation.
+Green M1 checks prove only complete author data, deterministic headless routes,
+and current project wiring. They do not prove the M2 Player/final media, M3
+Save/recovery, or M4 product evidence. Record actual gate results rather than
+inferring them from milestone status. If a public/wire/Save/CAS or license
+boundary must change, stop and request owner review; otherwise choose the
+smallest product-local, verifiable implementation.

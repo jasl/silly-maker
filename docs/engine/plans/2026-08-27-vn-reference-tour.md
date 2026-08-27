@@ -1,7 +1,7 @@
 # VN Reference Tour 实施计划
 
-状态：**2026-08-27 经所有者接受，当前唯一活动 Reference Product；M0 已交付，M1 下一步且尚未开始。当前
-scaffold 不是可玩纵切或产品完成证据。**
+状态：**2026-08-27 经所有者接受，当前唯一活动 Reference Product；M0–M1 已交付，M2 下一步。M1 只关闭
+完整 author data 与 headless routes；当前 WIP 仍不是可玩产品、产品完成证据或旗舰。**
 
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 是唯一跨计划排序入口。本计划同时拥有
 产品分母、实现顺序、证据门槛与旗舰提升条件；Bookshop 的后续教学角色不由本计划预裁。它不是 broad engine
@@ -94,7 +94,7 @@ examples/vn-reference-tour/
     content/text-content.ts         # compact locale/pack manifest
     content/presentation.ts         # resident UI copy、Stage/transition catalog
     content/audio.ts                # audio manifest 与 intent/effect mapping
-    game/                           # 最小 narrative/flag/stage/audio authority
+    game/                           # 最小 narrative/signalChoice/stage/audio authority
     ui/stage-renderers.tsx          # 被 Stage catalog 选择的纯 renderer
     application/ui.tsx              # VN skin、播放控制、rollback/end controls
     application/composition.tsx     # 只接线，不保存剧情 copy 或 gameplay rule
@@ -107,7 +107,7 @@ examples/vn-reference-tour/
 - 剧情控制和稳定 text ID 在 `story/narrative.ts`；剧情 copy 只在 text packs；
 - scene hierarchy、placement、appearance 默认值、cue 与 Motion reference 只在 Authoring Scene/Motion data；
 - resident system/UI copy 与 catalog binding 在 `content/`；React/CSS 只拥有像素、布局与瞬时播放状态；
-- route flags、pending/history、Stage 和 audio intent 属于权威 State；player preference 属于 Host Profile；
+- `signalChoice`、pending/history、Stage 和 audio intent 属于权威 State；player preference 属于 Host Profile；
 - Inspector/Flow 是开发期 projection，不写 gameplay State，也不进入普通 Player final graph。
 
 README 必须保留“想改什么 → 唯一 owner 文件”的小型地图。Application wiring 标为 Advanced；普通台词、
@@ -141,6 +141,8 @@ example。focused tests、`app check`、临时 `scaffold` simulation、Browser p
 
 ### M1 — 完整剧本、场景与作者数据
 
+状态：**2026-08-27 已交付。M2 下一步。**
+
 - 写完并注册全部 59 条文案、二选一、两条 route 与两个 ending；先用 compatible placeholder media 也必须
   保持完整内容 breadth，不以单 route 关闭；
 - 建立两个 Authoring Scene、角色 appearance、scene cue、Motion/ambient/frame 与 transition bindings；
@@ -148,6 +150,17 @@ example。focused tests、`app check`、临时 `scaffold` simulation、Browser p
 - Inspector 能打开两个 Authoring Scene，选择真实对象，编辑 transform/content/appearance/order，并只读查看
   Motion/interaction/source facets；
 - M1 关闭只代表完整 author data/headless routes，不代表 Player、媒体或产品完成。
+
+关闭记录：M1 原子替换了 M0 的临时 Story/Scene 内容，交付 59 个唯一可见 text entries（shared 29、archive
+15、present 15；完整 `zh-CN` / `en` variants）、任一路线 44 个可见 entries、一个直接写入
+`signalChoice` 的 material choice、两条完整 headless route 与两个 ending。两个 Authoring Scene 现在拥有
+稳定 Layer/Object/cue authority，Story 消费 cue-bound entrance、frame blink、rooftop cable ambient、
+background transition、`setAppearance` 与 1.2 秒 skippable hold；`archive-voice` / `present-voice` named
+simulations、Narrative graph/source/reference diagnostics、Scene/Motion admission 与 Inspector Scene/CAS 路径
+构成本里程碑的证据类别。VN focused tests（7 files / 19 tests）、两条 44-step named simulation、`app check`、
+product build、asset/determinism checks 与 React Doctor 均通过；`PARALLEL_WORKERS=1 deno task check` 通过 379 个
+test files / 5,399 tests 与 6 个 composition benchmark tests。本记录不把这些 M1 author/headless 证据扩张为
+VN Player、最终视觉/音频、Save/recovery、Browser 产品旅程或旗舰完成声明。
 
 ### M2 — VN Player、视觉与音频
 

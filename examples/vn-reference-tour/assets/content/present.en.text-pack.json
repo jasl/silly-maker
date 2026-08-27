@@ -1,0 +1,65 @@
+{
+  "format": "sillymaker.text-content-pack",
+  "version": 2,
+  "packId": "text-pack.vn-reference-tour.route.present",
+  "locale": "en",
+  "entries": [
+    {
+      "textId": "text.vn-reference-tour.present.prepare.microphone",
+      "text": "Lin selected the microphone. The deck stopped, leaving the thirteen-year-old label beneath its clear cover."
+    },
+    {
+      "textId": "text.vn-reference-tour.present.prepare.hesitation",
+      "text": "I thought you'd choose the old call. Now that we're recording, all I have is ‘good morning.’"
+    },
+    {
+      "textId": "text.vn-reference-tour.present.prepare.words",
+      "text": "Start with good morning. Don't summarize the station. Say what you know is true right now."
+    },
+    {
+      "textId": "text.vn-reference-tour.present.prepare.ready",
+      "text": "All right. Signal me when the window connects. I won't read from a script."
+    },
+    {
+      "textId": "text.vn-reference-tour.present.prepare.recording",
+      "text": "Zhou raised a hand. Lin leaned toward the microphone, and the red level bars woke with her breath."
+    },
+    {
+      "textId": "text.vn-reference-tour.present.prepare.sent",
+      "text": "“This is Cape Hill Community Radio. Good morning. In our final minute, we can still hear one another.”"
+    },
+    {
+      "textId": "text.vn-reference-tour.present.roof.stairs",
+      "text": "When the receive lamp steadied, they climbed the narrow stairs. The first light cleared the antenna."
+    },
+    {
+      "textId": "text.vn-reference-tour.present.roof.cold",
+      "text": "I wasn't shaking in there, was I? Only now do my fingers feel cold."
+    },
+    {
+      "textId": "text.vn-reference-tour.present.roof.breaker",
+      "text": "Your voice was steady. Ten seconds to the master switch. Watch the lamp; I'll cut the power."
+    },
+    {
+      "textId": "text.vn-reference-tour.present.roof.cable",
+      "text": "An antenna cable swayed in the wind, carrying its last tremor into the roof beneath their feet."
+    },
+    {
+      "textId": "text.vn-reference-tour.present.roof.receipt",
+      "text": "Did the archive send a receipt? I want to know the words ‘one another’ arrived."
+    },
+    {
+      "textId": "text.vn-reference-tour.present.roof.confirmed",
+      "text": "Received: new station call, eight point one seconds complete, marked as the final live record."
+    },
+    {
+      "textId": "text.vn-reference-tour.present.roof.response",
+      "text": "Good. It didn't speak for the past. It only left proof that we were here."
+    },
+    {
+      "textId": "text.vn-reference-tour.present.roof.shutdown",
+      "text": "Zhou pressed the master switch. The lamp died, and Lin heard wind pass through an antenna no longer transmitting."
+    },
+    { "textId": "text.vn-reference-tour.present.ending.title", "text": "This Moment, Archived" }
+  ]
+}

@@ -26,11 +26,11 @@ export const vnReferenceTourStateContractManifestV1 = ({
   moduleStateSchemas: [
     {
       moduleId: parseModuleId("vn-reference-tour.narrative"),
-      moduleContractRevision: parsePositiveSafeInteger(1),
+      moduleContractRevision: parsePositiveSafeInteger(2),
       stateSlots: [parseStateSlotId("simulation.narrative")],
       stateSchema: {
         schemaId: "schema.vn-reference-tour.narrative-state",
-        revision: parsePositiveSafeInteger(1),
+        revision: parsePositiveSafeInteger(2),
       },
     },
     {

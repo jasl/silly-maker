@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: MIT
 import { defineTextContentManifestV1, parseTextContentPackIdV1 } from "@sillymaker/base";
 
-/** Build-known text packs kept outside the resident Player module graph. */
-export const vnReferenceTourOpeningTextPackIdV1 = parseTextContentPackIdV1(
-  "text-pack.vn-reference-tour.opening",
+export const vnReferenceTourSharedTextPackIdV1 = parseTextContentPackIdV1(
+  "text-pack.vn-reference-tour.shared",
 );
-export const vnReferenceTourEndingTextPackIdV1 = parseTextContentPackIdV1(
-  "text-pack.vn-reference-tour.ending",
+export const vnReferenceTourArchiveTextPackIdV1 = parseTextContentPackIdV1(
+  "text-pack.vn-reference-tour.route.archive",
+);
+export const vnReferenceTourPresentTextPackIdV1 = parseTextContentPackIdV1(
+  "text-pack.vn-reference-tour.route.present",
 );
 
 export const vnReferenceTourTextContentManifestV1 = defineTextContentManifestV1({
-  revision: 2,
+  revision: 3,
   defaultLocale: "zh-CN",
   locales: [
     { locale: "zh-CN", fallbackLocale: null },
@@ -18,29 +20,24 @@ export const vnReferenceTourTextContentManifestV1 = defineTextContentManifestV1(
   ],
   packs: [
     {
-      packId: vnReferenceTourOpeningTextPackIdV1,
+      packId: vnReferenceTourSharedTextPackIdV1,
       variants: [
-        {
-          locale: "zh-CN",
-          runtimePath: "assets/content/opening.zh-CN.text-pack.json",
-        },
-        {
-          locale: "en",
-          runtimePath: "assets/content/opening.en.text-pack.json",
-        },
+        { locale: "zh-CN", runtimePath: "assets/content/shared.zh-CN.text-pack.json" },
+        { locale: "en", runtimePath: "assets/content/shared.en.text-pack.json" },
       ],
     },
     {
-      packId: vnReferenceTourEndingTextPackIdV1,
+      packId: vnReferenceTourArchiveTextPackIdV1,
       variants: [
-        {
-          locale: "zh-CN",
-          runtimePath: "assets/content/ending.zh-CN.text-pack.json",
-        },
-        {
-          locale: "en",
-          runtimePath: "assets/content/ending.en.text-pack.json",
-        },
+        { locale: "zh-CN", runtimePath: "assets/content/archive.zh-CN.text-pack.json" },
+        { locale: "en", runtimePath: "assets/content/archive.en.text-pack.json" },
+      ],
+    },
+    {
+      packId: vnReferenceTourPresentTextPackIdV1,
+      variants: [
+        { locale: "zh-CN", runtimePath: "assets/content/present.zh-CN.text-pack.json" },
+        { locale: "en", runtimePath: "assets/content/present.en.text-pack.json" },
       ],
     },
   ],

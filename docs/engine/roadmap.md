@@ -311,10 +311,10 @@ promotion；后两者保持独立、条件性，只 gate 各自的 Desktop claim
 以原创、完整、紧凑的可发布短篇验证 SillyMaker 当前推荐的 Visual Novel authoring、Narrative/Stage、
 Player QoL、Save/rollback、audio、locale-addressable content、responsive Input 与 Inspector/human/Agent
 handoff。它只选择 VN 产品真正需要的能力，不是全引擎 API gallery，也不建立 Ren'Py DSL、Save 兼容、
-custom interpreter、公共 VN framework 或最终编辑器。M0 已交付独立 WIP package、冻结产品分母、
-supported-export/headless/application shell 与未选择 starter domain 的 clean deletion；M1 的完整剧本、两个
-Authoring Scene、作者数据和两条 named simulation 是下一步且尚未开始。当前 M0 scaffold 不是可玩纵切或产品
-完成证据。Cat Cafe 已在
+custom interpreter、公共 VN framework 或最终编辑器。M0–M1 已交付独立 WIP package、冻结产品分母、
+supported-export/application shell、未选择 starter domain 的 clean deletion，以及完整双路线剧本、两个
+Authoring Scene、作者数据和两条 named headless simulation；M2 的 VN Player、最终视觉/音频与产品交互是
+下一步。M1 只关闭 author data/headless routes，当前 WIP 仍不是可玩产品或完成证据。Cat Cafe 已在
 本轮开始前独立终止，应用、revision-1 Save 支持、产品 E2E 与 live 发布责任同步结束，不做跨产品 Save 迁移
 或兼容 wrapper。VN 开发期间没有当前旗舰；Bookshop 只保持 maintained minimal Narrative example，不是旗舰
 或完整 VN 产品参考。完整产品及独立审查关闭后，才原子提升 VN 为旗舰。预期届时维护的产品例子是 SillyOS +

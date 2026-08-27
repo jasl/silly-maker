@@ -16,7 +16,7 @@ import {
   createInitialVnReferenceTourNarrativeStateV1,
   vnReferenceTourNodeIdsV1,
 } from "../story/narrative.ts";
-import { vnReferenceTourOpeningSceneRuntimePlanV1 } from "../scenes/opening/index.ts";
+import { vnReferenceTourControlRoomSceneRuntimePlanV1 } from "../scenes/control-room/index.ts";
 
 export interface VnReferenceTourGameStateV1 {
   readonly simulation: {
@@ -44,7 +44,7 @@ export const vnReferenceTourNarrativeStateSchemaV1: RuntimeSchemaV1<
           cursor: z.string().nullable(),
           pending: z.unknown().nullable(),
           sequence: z.number().int().nonnegative(),
-          flags: z.array(z.string()),
+          signalChoice: z.enum(["archive", "present"]).nullable(),
           history: z.unknown(),
         })
         .parse(value);
@@ -63,16 +63,12 @@ export const vnReferenceTourNarrativeStateSchemaV1: RuntimeSchemaV1<
       if (pending !== null && record.phase !== "active") {
         throw new TypeError("vn-reference-tour narrative pending requires active phase");
       }
-      const flags = [...record.flags];
-      if (flags.some((flag, index) => index > 0 && flag <= (flags[index - 1] as string))) {
-        throw new TypeError("vn-reference-tour narrative flags must be sorted and unique");
-      }
       return ({
         phase: record.phase as VnReferenceTourNarrativeStateV1["phase"],
         cursor: record.cursor,
         pending,
         sequence: record.sequence,
-        flags: flags,
+        signalChoice: record.signalChoice,
         history: parseNarrativeHistory(record.history),
       });
     },
@@ -102,7 +98,7 @@ export const vnReferenceTourGameStateSchemaV1: RuntimeSchemaV1<VnReferenceTourGa
 export function createInitialVnReferenceTourStageStateV1(): SemanticStageState {
   return createSemanticStageState({
     stageId: "stage.vn-reference-tour.main",
-    layerIds: vnReferenceTourOpeningSceneRuntimePlanV1.orderedLayerIds,
+    layerIds: vnReferenceTourControlRoomSceneRuntimePlanV1.orderedLayerIds,
   });
 }
 

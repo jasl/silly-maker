@@ -1,0 +1,22 @@
+{
+  "format": "sillymaker.motion",
+  "version": 1,
+  "motionId": "motion.vn-reference-tour.rooftop-antenna.cable-sway",
+  "label": "屋顶电缆轻摆",
+  "durationMs": 4200,
+  "delayMs": 0,
+  "tracks": [
+    {
+      "channel": "offsetX",
+      "keyframes": [
+        { "atPermille": 0, "value": -10, "easing": "ease_in_out" },
+        { "atPermille": 500, "value": 10, "easing": "ease_in_out" },
+        { "atPermille": 1000, "value": -10 }
+      ]
+    }
+  ],
+  "authoring": {
+    "status": "human_tuned",
+    "notes": "Presence-bound ambient loop. The first and last offsets match so the loop has no jump."
+  }
+}

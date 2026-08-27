@@ -2,25 +2,29 @@
 import type { SillymakerAppConfigV1 } from "@sillymaker/tooling/project/config-types";
 
 /**
- * M0 product-owned application shell. Temporary Story/Scene/media scaffold
- * remains only to prove wiring; M1 replaces it with the complete product data
- * frozen in DESIGN.md.
+ * Product-owned application shell. M1 replaced the temporary Story/Scene
+ * scaffold with the complete author data frozen in DESIGN.md; M2 owns the
+ * playable VN presentation.
  */
 export const sillymakerAppConfigV1 = {
   applicationId: "example-vn-reference-tour",
-  label: "Example Story: 最后一次试音 (Product WIP · M0 complete)",
+  label: "Example Story: 最后一次试音 (Product WIP · M1 author data)",
   storyEntry: {
     module: "src/story.ts",
     exportName: "vnReferenceTourStoryEntryV1",
   },
-  // Temporary M0 scaffold source. It is not either of the two product Scenes
-  // frozen in DESIGN.md and must be replaced, not retained, in M1.
   sceneSources: [
     {
-      sceneId: "scene.vn-reference-tour.opening",
-      specifier: "#sillymaker/scene/opening",
+      sceneId: "scene.vn-reference-tour.control-room",
+      specifier: "#sillymaker/scene/control-room",
       sourceKind: "authoring_scene",
-      source: "src/scenes/opening/opening.authoring-scene.json",
+      source: "src/scenes/control-room/control-room.authoring-scene.json",
+    },
+    {
+      sceneId: "scene.vn-reference-tour.rooftop-antenna",
+      specifier: "#sillymaker/scene/rooftop-antenna",
+      sourceKind: "authoring_scene",
+      source: "src/scenes/rooftop-antenna/rooftop-antenna.authoring-scene.json",
     },
   ],
   assetVerification: true,
@@ -37,7 +41,7 @@ export const sillymakerAppConfigV1 = {
     applicationEntry: "src/application/entry.tsx",
     base: "./",
     sourcemap: false,
-    // No build-identity collector: M0 uses the default composer identity.
+    // No build-identity collector: this product uses the default composer identity.
     identity: null,
     desktop: {
       name: "OneLastSoundCheck",

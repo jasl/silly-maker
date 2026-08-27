@@ -2,12 +2,13 @@
 
 # 《最后一次试音》产品合同
 
-状态：**M0 已交付 / WIP。2026-08-27 冻结产品分母、作者 authority、预算与非目标，并交付独立 package、
-supported-export 应用外壳与 starter 负能力删除；产品剧本、两个场景、媒体、Player 和完整验收尚未实现。**
+状态：**M0–M1 已交付 / WIP。2026-08-27 冻结产品分母、作者 authority、预算与非目标，并交付独立 package、
+supported-export 应用外壳、starter 负能力删除、完整双路线剧本、两个 Authoring Scene、作者数据和 named
+headless simulations；M2 下一步。**
 
-当前产品外壳仍包含从 tracked Template 保留的临时 Story/Scene/media scaffold，只证明工程接线。它不是本产品的剧情、内容或
-可玩纵切，也不能作为本文件任何 M1–M5 条目的完成证据。实施顺序由
-[VN Reference Tour plan](../../docs/engine/plans/2026-08-27-vn-reference-tour.md) 拥有。
+M1 已用本产品完整 Story/Scene author data 原子替换 tracked Template 的临时内容，但只关闭 author data 与
+headless routes。VN Player、最终视觉/音频、Save/recovery 与产品验收仍未实现，当前 WIP 不是可玩产品参考或
+旗舰。实施顺序由 [VN Reference Tour plan](../../docs/engine/plans/2026-08-27-vn-reference-tour.md) 拥有。
 
 ## 1. 身份与产品命题
 
@@ -134,7 +135,7 @@ src/
   content/text-content.ts         # locale/pack manifest
   content/presentation.ts         # resident UI copy、Stage/transition catalog
   content/audio.ts                # audio manifest 与 intent/effect mapping
-  game/                            # 最小 narrative/flag/stage/audio authority
+  game/                            # 最小 narrative/signalChoice/stage/audio authority
   ui/stage-renderers.tsx          # Stage catalog 选择的纯 renderer
   application/ui.tsx              # VN skin 与 passive Narrative renderer
   application/composition.tsx     # composition root，只接线
@@ -199,26 +200,27 @@ M4 在记录设备类别、浏览器、构建和环境的前提下输出 raw mea
 
 ## 8. Semantic coverage table
 
-M0 只冻结 baseline；下表的 implementation/evidence 均仍开放。
+M0 冻结 baseline，M1 交付完整 author data/headless routes；下表明确区分已实现部分与仍需 M2–M4 关闭的产品
+evidence。
 
-| Area             | Frozen baseline                                         | Planned implementation/evidence             | M0 status / intentional difference |
-| ---------------- | ------------------------------------------------------- | ------------------------------------------- | ---------------------------------- |
-| 完整短篇         | 59 unique / 44 per route                                | Story graph、pack count、两次完整游玩       | 未实现；不以 starter script 代替   |
-| 角色             | 2 named + narrator；每人 2 appearances                  | Scene/Stage/Inspector                       | 未实现                             |
-| 场景             | control room + rooftop                                  | 两个 Authoring Scene、真实 Player/Inspector | 未实现                             |
-| Choice/branch    | 一次不可同时满足的发送选择                              | `signalChoice` + 两个 named simulations     | 未实现                             |
-| Endings          | 旧声入档 / 此刻入档                                     | route-specific text、voice、ending          | 未实现                             |
-| Motion           | entrance、crossfade、ambient、frame blink、appearance   | Scene/Motion checks + Browser               | 未实现                             |
-| Hold             | carrier lock                                            | normal/skip/reopen 收敛                     | 未实现                             |
-| Audio            | BGM、2 ambient、3 SFX、2 current voices                 | manifest、intent/effect、replay、mute       | 未实现                             |
-| Player QoL       | reveal、auto、skip-read、History、rollback              | focused tests + Browser                     | 未实现                             |
-| Save/recovery    | autosave、manual/quick、load、import/export、3 稳定点   | focused + reopen E2E                        | 未实现                             |
-| i18n             | 3 packs × zh-CN/en + fallback                           | pack admission、切换、overflow              | 未实现                             |
-| Responsive/Input | 360×640 至 1280×720、pointer/touch/keyboard             | Chromium/WebKit journeys                    | 未实现；gamepad 非目标             |
-| Accessibility    | focus、labels、200% zoom、reduced motion、default muted | automated + human review                    | 未实现                             |
-| Authoring        | 两 Scene 的 object/appearance/Motion 调整               | human + Agent CAS/undo/save tasks           | 未实现                             |
-| Targets          | Browser publish + Desktop static preview                | build/prebuilt/preview evidence             | 未实现；无 Desktop HMR claim       |
-| Budgets          | §7 数值                                                 | generic raw benchmark + profiling           | 未测量                             |
+| Area             | Frozen baseline                                         | Planned implementation/evidence             | Current status / remaining evidence                  |
+| ---------------- | ------------------------------------------------------- | ------------------------------------------- | ---------------------------------------------------- |
+| 完整短篇         | 59 unique / 44 per route                                | Story graph、pack count、两次完整游玩       | M1 author/headless 已实现；真实 Player 游玩留给 M2   |
+| 角色             | 2 named + narrator；每人 2 appearances                  | Scene/Stage/Inspector                       | M1 author data 已实现；最终视觉与 Player 留给 M2     |
+| 场景             | control room + rooftop                                  | 两个 Authoring Scene、真实 Player/Inspector | M1 两个 Authoring Scene 已实现；真实 Player 留给 M2  |
+| Choice/branch    | 一次不可同时满足的发送选择                              | `signalChoice` + 两个 named simulations     | M1 direct state/headless routes 已实现               |
+| Endings          | 旧声入档 / 此刻入档                                     | route-specific text、voice、ending          | M1 route text/ending 已实现；voice/Player 留给 M2    |
+| Motion           | entrance、crossfade、ambient、frame blink、appearance   | Scene/Motion checks + Browser               | M1 author sources/bindings 已实现；Browser 播放留 M2 |
+| Hold             | carrier lock                                            | normal/skip/reopen 收敛                     | M1 已 authored；Player skip 与 reopen 留给 M2/M3     |
+| Audio            | BGM、2 ambient、3 SFX、2 current voices                 | manifest、intent/effect、replay、mute       | 未实现；M2                                           |
+| Player QoL       | reveal、auto、skip-read、History、rollback              | focused tests + Browser                     | 未实现；M2                                           |
+| Save/recovery    | autosave、manual/quick、load、import/export、3 稳定点   | focused + reopen E2E                        | 未实现；M3                                           |
+| i18n             | 3 packs × zh-CN/en + fallback                           | pack admission、切换、overflow              | M1 pack/copy topology 已实现；UI/overflow 留 M2/M4   |
+| Responsive/Input | 360×640 至 1280×720、pointer/touch/keyboard             | Chromium/WebKit journeys                    | 未实现；M2/M4，gamepad 非目标                        |
+| Accessibility    | focus、labels、200% zoom、reduced motion、default muted | automated + human review                    | 未实现；M2/M4                                        |
+| Authoring        | 两 Scene 的 object/appearance/Motion 调整               | human + Agent CAS/undo/save tasks           | M1 Scene/Inspector surface 已实现；接手任务留给 M4   |
+| Targets          | Browser publish + Desktop static preview                | build/prebuilt/preview evidence             | 未实现；M4，无 Desktop HMR claim                     |
+| Budgets          | §7 数值                                                 | generic raw benchmark + profiling           | 未测量；M4                                           |
 
 ## 9. 明确非目标与完成边界
 
@@ -230,9 +232,10 @@ package-owned Splash/Title、默认 Save/Settings/System hosts 和 dev-only Insp
 产品建立第二个 surface/authority。若剧情自然需要新增能力，先修改本 denominator 并说明用户价值；“引擎已经
 有”不是选择理由。
 
-M0 只在本文、README、package/config identity 和明确 WIP 状态一致时关闭。M1 才交付完整 author data/headless
-routes；M2 才交付 VN Player/媒体；M3 才交付入口、Save/recovery/settings；M4 才完成作者任务和产品证据；M5
-才可将产品提升为旗舰。Bookshop 保持到 VN 完成，其后教学角色另行评审，本计划不预裁删除。
+M0–M1 已交付 package/identity、负能力删除和完整 author data/headless routes；M1 focused、simulation、project、
+build、asset/determinism、React Doctor 与串行 repository gates 已通过。M2 才交付 VN Player/媒体；M3 才交付
+入口、Save/recovery/settings；M4 才完成作者任务和产品证据；M5 才可将产品提升为旗舰。Bookshop 保持到 VN
+完成，其后教学角色另行评审，本计划不预裁删除。
 
 ## 10. 许可与素材
 

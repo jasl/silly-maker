@@ -1,0 +1,65 @@
+{
+  "format": "sillymaker.text-content-pack",
+  "version": 2,
+  "packId": "text-pack.vn-reference-tour.route.archive",
+  "locale": "en",
+  "entries": [
+    {
+      "textId": "text.vn-reference-tour.archive.prepare.reel",
+      "text": "Lin selected the tape deck. The microphone lamp went dark, leaving the old reel turning slowly."
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.prepare.pause",
+      "text": "Thank you. Not because it's my voice, but because it kept this place alive for thirteen more years."
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.prepare.full",
+      "text": "Don't trim it. Send the breath at the start too. Whoever hears the archive should know how nervous you were."
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.prepare.ready",
+      "text": "All right. Levels set, window connected. When the needle crosses the white line, I start the reel."
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.prepare.deck",
+      "text": "The reel quickened. Old tape hiss filled the room, then the transmission relay caught it softly."
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.prepare.sent",
+      "text": "“This is Cape Hill Community Radio. Good morning. May someone hear you today.”"
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.roof.stairs",
+      "text": "When the receive lamp steadied, they climbed the narrow stairs to the roof. The eastern clouds had begun to pale."
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.roof.cold",
+      "text": "So the last place we hear those words is up here. The wind is more honest than a monitor speaker."
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.roof.breaker",
+      "text": "Ten seconds to the master switch. Watch the status lamp; I'll cut the power."
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.roof.cable",
+      "text": "An antenna cable swayed in the wind, keeping time for a voice that had already ended."
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.roof.receipt",
+      "text": "Did the archive send a receipt? I want to know it didn't remain only in our ears."
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.roof.confirmed",
+      "text": "Received: old station call, six point eight seconds complete, marked as the final live record."
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.roof.response",
+      "text": "That's enough. When someone opens it, the first thing they hear will be your younger breath."
+    },
+    {
+      "textId": "text.vn-reference-tour.archive.roof.shutdown",
+      "text": "Zhou pressed the master switch. The status lamp died, and the city below entered morning in silence."
+    },
+    { "textId": "text.vn-reference-tour.archive.ending.title", "text": "The Old Voice, Archived" }
+  ]
+}

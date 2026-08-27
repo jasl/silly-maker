@@ -43,7 +43,7 @@ export const vnReferenceTourStoryEntryV1 = defineGamePackage({
   contractRevision: 1,
   identity: {
     id: "story.example.vn-reference-tour",
-    revision: parsePositiveSafeInteger(1),
+    revision: parsePositiveSafeInteger(2),
   },
   define: () => vnReferenceTourStoryDefinitionV1,
 });

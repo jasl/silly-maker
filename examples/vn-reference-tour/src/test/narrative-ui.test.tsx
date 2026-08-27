@@ -21,7 +21,7 @@ import { createVnReferenceTourApplicationInstanceV1 } from "../application/core-
 import { VnReferenceTourNarrativeRendererV1 } from "../application/ui.tsx";
 import { vnReferenceTourTextCatalogsV1 } from "../content/presentation.ts";
 import {
-  vnReferenceTourOpeningTextPackIdV1,
+  vnReferenceTourSharedTextPackIdV1,
   vnReferenceTourTextContentManifestV1,
 } from "../content/text-content.ts";
 
@@ -41,7 +41,7 @@ it("declares the opaque Narrative surface and mounts a bound passive renderer", 
     loadPackBytes: (_descriptor, variant) =>
       readFile(resolve(packageRootPathV1, variant.runtimePath)),
   });
-  const textContentLease = await textContent.acquire(vnReferenceTourOpeningTextPackIdV1);
+  const textContentLease = await textContent.acquire(vnReferenceTourSharedTextPackIdV1);
   try {
     const ui = vnReferenceTourGameApplicationV1.ui(
       { instance, playerProfile, textContent, reportFailure: vi.fn() } as unknown as Parameters<
@@ -56,12 +56,21 @@ it("declares the opaque Narrative surface and mounts a bound passive renderer", 
         { kind: "invoke", actionId: "vn-reference-tour.begin_story" } as never,
       ),
     ).resolves.toMatchObject({ kind: "committed" });
+    const firstPending = instance.semantic.observe().narrative.pending;
+    if (firstPending === null || firstPending.kind !== "say") {
+      throw new TypeError("expected vn-reference-tour opening narration");
+    }
+    await expect(instance.semantic.dispatch({
+      kind: "resolve",
+      expectedOccurrenceId: firstPending.occurrenceId,
+      resolution: { kind: "advance" },
+    } as never)).resolves.toMatchObject({ kind: "committed" });
     const selection = projectVnReferenceTourNarrativeSurfaceSelectionV1(
       instance.semantic.observe(),
     );
     expect(selection.pending).toMatchObject({
       kind: "say",
-      occurrenceId: "interaction-occurrence.1",
+      occurrenceId: "interaction-occurrence.2",
     });
 
     const onActivate = vi.fn();
@@ -101,7 +110,7 @@ it("declares the opaque Narrative surface and mounts a bound passive renderer", 
         kind: "say" as const,
         phase: "active" as const,
         playbackMode: "normal" as const,
-        resolvedSpeakerText: "帧内小梅",
+        resolvedSpeakerText: "帧内林澄",
         resolvedText: "FRAME-CAPTURED",
         revealedCharacters: 5,
         revealLength: 14,
@@ -114,10 +123,10 @@ it("declares the opaque Narrative surface and mounts a bound passive renderer", 
       "data-dialogue-reveal",
       "revealing",
     );
-    expect(screen.getByText("小梅")).toBeVisible();
+    expect(screen.getByText("林澄")).toBeVisible();
     view.rerender(<VnReferenceTourNarrativeRendererV1 {...activeProps} />);
     expect(screen.getByText("FRAME")).toBeVisible();
-    expect(screen.getByText("帧内小梅")).toBeVisible();
+    expect(screen.getByText("帧内林澄")).toBeVisible();
     await userEvent.setup().click(screen.getByRole("button", { name: "继续" }));
     expect(onActivate).toHaveBeenCalledTimes(1);
   } finally {

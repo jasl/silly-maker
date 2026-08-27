@@ -26,8 +26,9 @@ active authority；完成里程碑摘要在
 [VN Reference Tour](2026-08-27-vn-reference-tour.md) 作为当前唯一活动 Reference Product。它从实现开始时
 tracked Template 起步，交付一个原创、完整、紧凑、可发布的 VN，以两名角色、两个 Authoring Scene、一个
 真实选择、两条路线、两个结局和完整 Player/Save/audio/i18n/Inspector/author-task 分母验证当前推荐路径；
-它不是全引擎 API 展厅，也不建立 Ren'Py DSL、Save 兼容或自定义解释器。M0–M5 均未开始，仓库尚无该产品
-实现。Cat Cafe 已在本轮开始前独立终止：应用、revision-1 Save 支持、产品 E2E 与 live
+它不是全引擎 API 展厅，也不建立 Ren'Py DSL、Save 兼容或自定义解释器。M0–M1 已交付独立 package、冻结
+分母、完整双路线 author data、两个 Authoring Scene 与 named headless simulations；M2 的 VN Player、最终
+视觉/音频和产品交互是下一步。M1 仍不是可玩产品或旗舰完成证据。Cat Cafe 已在本轮开始前独立终止：应用、revision-1 Save 支持、产品 E2E 与 live
 发布责任同步结束，不迁移到 VN，也不保留 compatibility wrapper。VN 开发期间没有当前旗舰；Bookshop 只承担
 maintained minimal Narrative example，不是旗舰或完整 VN 产品参考。只有完整产品、human/Agent 作者任务和
 独立 product/engine review 全部关闭后，才把 VN 原子提升为旗舰；预期届时维护的产品例子是 SillyOS + VN，

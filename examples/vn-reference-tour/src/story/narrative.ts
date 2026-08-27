@@ -23,48 +23,33 @@ import type {
   VnReferenceTourInteractionDocV1,
   VnReferenceTourNarrativeNodeV1,
   VnReferenceTourSceneBindingV1,
+  VnReferenceTourSignalChoiceV1,
 } from "./narrative-kit.ts";
 import { compileVnReferenceTourInteractionDocV1 } from "./narrative-kit.ts";
 import {
-  vnReferenceTourOpeningCueIdsV1,
-  vnReferenceTourOpeningSceneV1,
-} from "../scenes/opening/index.ts";
+  vnReferenceTourControlRoomCueIdsV1,
+  vnReferenceTourControlRoomSceneV1,
+  vnReferenceTourLayersV1,
+  vnReferenceTourTagsV1,
+} from "../scenes/control-room/index.ts";
+import {
+  vnReferenceTourRooftopAntennaCueIdsV1,
+  vnReferenceTourRooftopAntennaSceneV1,
+} from "../scenes/rooftop-antenna/index.ts";
 
 export type {
   VnReferenceTourChoiceOptionV1,
   VnReferenceTourNarrativeNodeV1,
+  VnReferenceTourSignalChoiceV1,
 } from "./narrative-kit.ts";
-
-/**
- * The starter narrative: a pure-data interaction document compiled by the
- * kit in `narrative-kit.ts`, not a DSL. Authors edit control and stable text
- * references here; dialogue copy lives in the build-known content packs and
- * resident UI copy in `presentation.ts`. The runner below almost never changes.
- *
- * Block kinds:
- * - `say`     one line of dialogue; stops and waits for the player.
- * - `stage`   scene ops (open / cue by short key) or `setAppearance`.
- * - `choice`  a menu; each option may set flags and move to its own block.
- * - `branch`  declarative flag routing; the last case may be the else arm.
- * - `hold`    holds the screen for an authoritative duration; expiry (or a
- *             skippable hold's fold) advances. Optional `ops` open a stage
- *             batch before the wait. Remaining time is authoritative State.
- * - `end`     finishes the narrative run.
- *
- * The Engine Lab (`e2e`) additionally demonstrates `barrier`
- * (transition-acknowledged) and `custom` interaction surfaces.
- */
+export { vnReferenceTourLayersV1, vnReferenceTourTagsV1 };
 
 export interface VnReferenceTourNarrativeStateV1 {
   readonly phase: "idle" | "active" | "completed";
-  /** The node the runner executes next; null when idle/completed. */
   readonly cursor: string | null;
   readonly pending: PendingInteraction | null;
-  /** Monotonic occurrence sequence; never resets, so re-entry re-fences. */
   readonly sequence: number;
-  /** Sorted unique story flags set by choices; branches route on them. */
-  readonly flags: readonly string[];
-  /** The player-readable backlog; enters Saves and restores exactly. */
+  readonly signalChoice: VnReferenceTourSignalChoiceV1 | null;
   readonly history: NarrativeHistory;
 }
 
@@ -74,205 +59,249 @@ export function createInitialVnReferenceTourNarrativeStateV1(): VnReferenceTourN
     cursor: null,
     pending: null,
     sequence: 0,
-    flags: [],
+    signalChoice: null,
     history: emptyNarrativeHistory,
   });
 }
 
-/** Stage vocabulary shared by the script and the content catalog. */
-export const vnReferenceTourLayersV1 = {
-  background: "layer.vn-reference-tour.background",
-  characters: "layer.vn-reference-tour.characters",
-};
-
-export const vnReferenceTourTagsV1 = {
-  background: "tag.background",
-  mei: "tag.mei",
-};
+export const vnReferenceTourEntryNodeIdV1 = "node.vn-reference-tour.open-control-room";
 
 export const vnReferenceTourContentIdsV1 = {
-  backgroundCourtyard: "content.vn-reference-tour.background.courtyard",
-  backgroundStudy: "content.vn-reference-tour.background.study",
-  characterMei: "content.vn-reference-tour.character.mei",
-  effectMist: "content.vn-reference-tour.effect.mist",
+  backgroundControlRoom: "content.vn-reference-tour.background.control-room",
+  backgroundRooftopAntenna: "content.vn-reference-tour.background.rooftop-antenna",
+  characterLin: "content.vn-reference-tour.character.lin",
+  characterZhou: "content.vn-reference-tour.character.zhou",
 };
 
-export const vnReferenceTourEntryNodeIdV1 = "node.vn-reference-tour.opening";
-export const vnReferenceTourCatFlagV1 = "flag.vn-reference-tour.cat_found";
-
-/** Scene short names the document's stage ops resolve against. */
 const vnReferenceTourSceneRegistryV1: Readonly<Record<string, VnReferenceTourSceneBindingV1>> = {
-  opening: {
-    scene: vnReferenceTourOpeningSceneV1,
-    cues: {
-      courtyard: vnReferenceTourOpeningCueIdsV1.courtyard,
-      mist: vnReferenceTourOpeningCueIdsV1.mist,
-      meiEnters: vnReferenceTourOpeningCueIdsV1.meiEnters,
-      meiFetches: vnReferenceTourOpeningCueIdsV1.meiFetches,
-      meiReturns: vnReferenceTourOpeningCueIdsV1.meiReturns,
-    },
+  controlRoom: {
+    scene: vnReferenceTourControlRoomSceneV1,
+    cues: vnReferenceTourControlRoomCueIdsV1,
+  },
+  rooftopAntenna: {
+    scene: vnReferenceTourRooftopAntennaSceneV1,
+    cues: vnReferenceTourRooftopAntennaCueIdsV1,
   },
 };
 
-/**
- * The placeholder scene: a short "rain has just stopped" vignette proving
- * every block kind once. Replace it wholesale when starting a real game.
- * Visual composition (entries, placements, entrance motion) lives in
- * `src/scenes/opening/opening.authoring-scene.json`; stage blocks reference its cues
- * by short key (idempotent ensure semantics — re-entry never double-shows
- * content).
- *
- * The document is pure control data. Dialogue copy lives in build-known
- * content packs; explicit text IDs keep the runtime plan small and stable
- * while tooling can join the same IDs back to authoring copy. Admission
- * still rejects unknown speakers, duplicate names, unresolved jumps, and
- * bad stage ops at construction time.
- */
-export const vnReferenceTourOpeningDocV1: VnReferenceTourInteractionDocV1 = {
+const textIdV1 = (name: string): string => `text.vn-reference-tour.${name}`;
+
+type SpeakerKeyV1 = "lin" | "zhou" | null;
+
+const sharedSaySpecsV1 = [
+  ["shared-power-on-room", null, "shared.power-on.room"],
+  ["shared-power-on-lin-arrives", "lin", "shared.power-on.lin-arrives"],
+  ["shared-power-on-console", "zhou", "shared.power-on.console"],
+  ["shared-power-on-signal-light", null, "shared.power-on.signal-light"],
+  ["shared-power-on-last-shift", "lin", "shared.power-on.last-shift"],
+  ["shared-power-on-deadline", "zhou", "shared.power-on.deadline"],
+  ["shared-power-on-archive-window", "lin", "shared.power-on.archive-window"],
+  ["shared-power-on-single-send", "zhou", "shared.power-on.single-send"],
+  ["shared-power-on-reel-on-desk", null, "shared.power-on.reel-on-desk"],
+  ["shared-old-recording-label", "zhou", "shared.old-recording.label"],
+  ["shared-old-recording-younger-voice", "lin", "shared.old-recording.younger-voice"],
+  ["shared-old-recording-first-shift", "zhou", "shared.old-recording.first-shift"],
+  ["shared-old-recording-load-reel", null, "shared.old-recording.load-reel"],
+  ["shared-old-recording-old-call", "zhou", "shared.old-recording.old-call"],
+  ["shared-old-recording-clean-signal", "lin", "shared.old-recording.clean-signal"],
+  ["shared-old-recording-repair", "zhou", "shared.old-recording.repair"],
+  ["shared-old-recording-meter", null, "shared.old-recording.meter"],
+  ["shared-old-recording-what-to-save", "lin", "shared.old-recording.what-to-save"],
+  ["shared-one-window-opens", "zhou", "shared.one-window.opens"],
+  ["shared-one-window-not-both", "lin", "shared.one-window.not-both"],
+  ["shared-one-window-why-one", "zhou", "shared.one-window.why-one"],
+  ["shared-one-window-purpose", "lin", "shared.one-window.purpose"],
+  ["shared-one-window-clock", null, "shared.one-window.clock"],
+  ["shared-one-window-two-choices", "zhou", "shared.one-window.two-choices"],
+  ["shared-one-window-ready", "lin", "shared.one-window.ready"],
+  ["shared-one-window-switch", null, "shared.one-window.switch"],
+] as const satisfies readonly (readonly [string, SpeakerKeyV1, string])[];
+
+function sayV1(
+  spec: readonly [string, SpeakerKeyV1, string],
+  next: string,
+): VnReferenceTourInteractionDocV1["blocks"][number] {
+  return ({
+    kind: "say" as const,
+    name: spec[0],
+    speaker: spec[1],
+    textId: textIdV1(spec[2]),
+    next,
+  });
+}
+
+const sharedBlocksV1: VnReferenceTourInteractionDocV1["blocks"] = [
+  {
+    kind: "stage",
+    name: "open-control-room",
+    ops: [
+      { scene: "controlRoom", cue: "room" },
+      { scene: "controlRoom", cue: "windowFirstLight" },
+      { scene: "controlRoom", cue: "mixingConsole" },
+      { scene: "controlRoom", cue: "tapeMachine" },
+      { scene: "controlRoom", cue: "wallClock" },
+      { scene: "controlRoom", cue: "microphone" },
+      { scene: "controlRoom", cue: "signalLight" },
+      { scene: "controlRoom", cue: "zhouPresent" },
+    ],
+    next: "shared-power-on-room",
+  },
+  sayV1(sharedSaySpecsV1[0], "lin-enters"),
+  {
+    kind: "stage",
+    name: "lin-enters",
+    ops: [{ scene: "controlRoom", cue: "linEnters" }],
+    next: "shared-power-on-lin-arrives",
+  },
+  ...sharedSaySpecsV1.slice(1).map((spec, index) =>
+    sayV1(spec, sharedSaySpecsV1[index + 2]?.[0] ?? "signal-choice")
+  ),
+  {
+    kind: "choice",
+    name: "signal-choice",
+    promptTextId: textIdV1("choice.signal.prompt"),
+    options: [
+      {
+        name: "archive-voice",
+        textId: textIdV1("choice.signal.archive"),
+        setSignalChoice: "archive",
+        next: "route-gate",
+      },
+      {
+        name: "present-voice",
+        textId: textIdV1("choice.signal.present"),
+        setSignalChoice: "present",
+        next: "route-gate",
+      },
+    ],
+  },
+  {
+    kind: "branch",
+    name: "route-gate",
+    cases: [
+      { when: { signalChoice: "archive" }, next: "archive-prepare-reel" },
+      { when: { signalChoice: "present" }, next: "present-prepare-microphone" },
+    ],
+  },
+];
+
+function routeBlocksV1(
+  route: VnReferenceTourSignalChoiceV1,
+): VnReferenceTourInteractionDocV1["blocks"] {
+  const isArchive = route === "archive";
+  const prepareNames = isArchive
+    ? ["reel", "pause", "full", "ready", "deck", "sent"]
+    : ["microphone", "hesitation", "words", "ready", "recording", "sent"];
+  const prepareSpeakers = isArchive
+    ? ([null, "zhou", "lin", "zhou", null, "zhou"] as const)
+    : ([null, "lin", "zhou", "lin", null, "lin"] as const);
+  const roofNames = [
+    "stairs",
+    "cold",
+    "breaker",
+    "cable",
+    "receipt",
+    "confirmed",
+    "response",
+    "shutdown",
+  ];
+  const roofSpeakers = [null, "lin", "zhou", null, "lin", "zhou", "lin", null] as const;
+  const appearance = isArchive
+    ? { tag: vnReferenceTourTagsV1.zhou, expression: "soft" }
+    : { tag: vnReferenceTourTagsV1.lin, expression: "relieved" };
+  const prepare = prepareNames.map((name, index) =>
+    sayV1(
+      [`${route}-prepare-${name}`, prepareSpeakers[index] ?? null, `${route}.prepare.${name}`],
+      index === prepareNames.length - 1
+        ? `${route}-carrier-lock`
+        : `${route}-prepare-${prepareNames[index + 1] as string}`,
+    )
+  );
+  const roof = roofNames.map((name, index) =>
+    sayV1(
+      [`${route}-roof-${name}`, roofSpeakers[index] ?? null, `${route}.roof.${name}`],
+      index === roofNames.length - 1
+        ? `${route}-ending-title`
+        : index === roofNames.length - 2
+        ? `${route}-signal-off`
+        : `${route}-roof-${roofNames[index + 1] as string}`,
+    )
+  );
+  return [
+    ...prepare,
+    {
+      kind: "hold" as const,
+      name: `${route}-carrier-lock`,
+      durationMs: 1_200,
+      skippable: true,
+      next: `${route}-open-rooftop`,
+    },
+    {
+      kind: "stage" as const,
+      name: `${route}-appearance`,
+      ops: [{
+        setAppearance: {
+          layerId: vnReferenceTourLayersV1.characters,
+          tag: appearance.tag,
+          appearance: { expression: appearance.expression },
+        },
+      }],
+      next: `${route}-roof-stairs`,
+    },
+    {
+      kind: "stage" as const,
+      name: `${route}-open-rooftop`,
+      ops: [{ scene: "rooftopAntenna", open: true as const }],
+      next: `${route}-appearance`,
+    },
+    ...roof.slice(0, -1),
+    {
+      kind: "stage" as const,
+      name: `${route}-signal-off`,
+      ops: [{ scene: "rooftopAntenna", cue: "statusLightOff" }],
+      next: `${route}-roof-shutdown`,
+    },
+    sayV1(
+      [`${route}-roof-shutdown`, null, `${route}.roof.shutdown`],
+      `${route}-ending-title`,
+    ),
+    {
+      kind: "say" as const,
+      name: `${route}-ending-title`,
+      speaker: null,
+      textId: textIdV1(`${route}.ending.title`),
+      next: `${route}-close`,
+    },
+    { kind: "end" as const, name: `${route}-close` },
+  ];
+}
+
+/** 26 shared pages + one prompt/two options + 15 pages per route. */
+export const vnReferenceTourStoryDocV1: VnReferenceTourInteractionDocV1 = {
   prefix: "vn-reference-tour",
-  docId: "doc.vn-reference-tour.opening",
-  speakers: { mei: { textId: "text.vn-reference-tour.speaker.mei" } },
-  entry: "opening",
+  docId: "doc.vn-reference-tour.story",
+  speakers: {
+    lin: { textId: textIdV1("speaker.lin") },
+    zhou: { textId: textIdV1("speaker.zhou") },
+  },
+  entry: "open-control-room",
   blocks: [
-    {
-      kind: "stage",
-      name: "opening",
-      // The courtyard plus its drifting mist band (the mist entry declares
-      // an ambient loop in the scene document; the stage samples it while
-      // the entry stays settled).
-      ops: [{ scene: "opening", cue: "courtyard" }, { scene: "opening", cue: "mist" }],
-      next: "mei-enters",
-    },
-    {
-      kind: "stage",
-      name: "mei-enters",
-      ops: [{ scene: "opening", cue: "meiEnters" }],
-      next: "greeting",
-    },
-    {
-      kind: "say",
-      name: "greeting",
-      speaker: "mei",
-      textId: "text.vn-reference-tour.line.greeting",
-      next: "first-choice",
-    },
-    {
-      kind: "choice",
-      name: "first-choice",
-      // Explicit while this M0 scaffold is replaced atomically in M1.
-      promptTextId: "text.vn-reference-tour.choice.prompt",
-      options: [
-        {
-          name: "look",
-          textId: "text.vn-reference-tour.choice.look",
-          setFlags: [vnReferenceTourCatFlagV1],
-          next: "cat-line",
-        },
-        {
-          name: "inside",
-          textId: "text.vn-reference-tour.choice.inside",
-          next: "inside-line",
-        },
-      ],
-    },
-    {
-      kind: "say",
-      name: "cat-line",
-      speaker: "mei",
-      // Explicit while this M0 scaffold is replaced atomically in M1.
-      textId: "text.vn-reference-tour.line.cat",
-      next: "mei-smiles",
-    },
-    {
-      kind: "stage",
-      name: "mei-smiles",
-      // Mid-scene appearance beats stay script-owned: scene cues cover
-      // show/hide composition, not expression changes on standing content.
-      ops: [
-        {
-          setAppearance: {
-            layerId: vnReferenceTourLayersV1.characters,
-            tag: vnReferenceTourTagsV1.mei,
-            appearance: { expression: "smiling" },
-          },
-        },
-      ],
-      next: "mei-fetches",
-    },
-    {
-      kind: "hold",
-      name: "mei-fetches",
-      // Mid-beat exit: Mei darts to the eaves for the kitten. Both edges of
-      // this beat are explicit cuts in the scene document — her return
-      // shares the enter edge with the ceremonial entrance motion, and the
-      // dispatch context (cue identity) selects which presentation plays.
-      // The opening ops commit before the wait (never a silent flash), then
-      // the screen holds for an authoritative 600ms while she is off-frame;
-      // remaining time is saveable State, so a mid-hold load resumes the
-      // beat instead of replaying a wall clock.
-      ops: [{ scene: "opening", cue: "meiFetches" }],
-      durationMs: 600,
-      next: "fetch-line",
-    },
-    {
-      kind: "say",
-      name: "fetch-line",
-      speaker: null,
-      textId: "text.vn-reference-tour.line.fetch-line",
-      next: "mei-returns",
-    },
-    {
-      kind: "stage",
-      name: "mei-returns",
-      ops: [{ scene: "opening", cue: "meiReturns" }],
-      next: "ending-gate",
-    },
-    {
-      kind: "say",
-      name: "inside-line",
-      speaker: null,
-      // Explicit while this M0 scaffold is replaced atomically in M1.
-      textId: "text.vn-reference-tour.line.inside",
-      next: "ending-gate",
-    },
-    {
-      kind: "branch",
-      name: "ending-gate",
-      cases: [
-        { when: { flag: vnReferenceTourCatFlagV1 }, next: "ending-warm" },
-        { next: "ending-plain" },
-      ],
-    },
-    {
-      kind: "say",
-      name: "ending-warm",
-      speaker: "mei",
-      textId: "text.vn-reference-tour.line.ending-warm",
-      next: "close",
-    },
-    {
-      kind: "say",
-      name: "ending-plain",
-      speaker: null,
-      textId: "text.vn-reference-tour.line.ending-plain",
-      next: "close",
-    },
-    { kind: "end", name: "close" },
+    ...sharedBlocksV1,
+    ...routeBlocksV1("archive"),
+    ...routeBlocksV1("present"),
   ],
 };
 
-export const vnReferenceTourCompiledOpeningV1 = compileVnReferenceTourInteractionDocV1({
-  doc: vnReferenceTourOpeningDocV1,
+export const vnReferenceTourCompiledStoryV1 = compileVnReferenceTourInteractionDocV1({
+  doc: vnReferenceTourStoryDocV1,
   scenes: vnReferenceTourSceneRegistryV1,
 });
-
 export const vnReferenceTourScriptV1: readonly VnReferenceTourNarrativeNodeV1[] =
-  vnReferenceTourCompiledOpeningV1.nodes;
+  vnReferenceTourCompiledStoryV1.nodes;
 
 const nodesByIdV1: ReadonlyMap<string, VnReferenceTourNarrativeNodeV1> = new Map(
   vnReferenceTourScriptV1.map((node) => [node.nodeId, node]),
 );
-
 export const vnReferenceTourNodeIdsV1: readonly string[] = vnReferenceTourScriptV1.map((node) =>
   node.nodeId
 );
@@ -292,20 +321,15 @@ export function vnReferenceTourChoiceOptionsForV1(
   return [];
 }
 
-/**
- * The one resolution context shared by the action catalog, preview, and
- * queue-front dispatch, so all three surfaces agree on availability.
- */
 export function vnReferenceTourInteractionContextV1(
   pending: PendingInteraction | null,
 ): InteractionResolutionContext {
   return {
     isChoiceEnabled(choiceId: string): boolean {
       if (pending === null || pending.kind !== "choice") return false;
-      const option = vnReferenceTourChoiceOptionsForV1(pending.definitionId).find(
+      return vnReferenceTourChoiceOptionsForV1(pending.definitionId).some(
         (candidate) => candidate.choiceId === choiceId,
       );
-      return option !== undefined;
     },
     isCustomPayloadValid(): boolean {
       return false;
@@ -316,11 +340,6 @@ export function vnReferenceTourInteractionContextV1(
 export interface VnReferenceTourNarrativeRunResultV1 {
   readonly narrative: VnReferenceTourNarrativeStateV1;
   readonly stageMutations: readonly StageMutation[];
-  /**
-   * Presentation edge context for this run's stage mutations: the scene
-   * dispatches of every stage node that actually mutated the stage, in
-   * execution order. Idempotent re-entries (no mutations) contribute none.
-   */
   readonly stageDispatches: readonly StageCueDispatch[];
 }
 
@@ -364,30 +383,21 @@ function pendingForNodeV1(
   }
 }
 
-/**
- * Executes pure nodes from the cursor until the next interaction boundary
- * or the end of the script. Stage mutations are collected for the stage
- * owner and applied to a local view so later nodes observe them.
- * Deterministic: the same narrative state and stage produce the same result.
- */
 export function runVnReferenceTourNarrativeUntilInteractionV1(
   narrative: VnReferenceTourNarrativeStateV1,
   stage: SemanticStageState,
 ): VnReferenceTourNarrativeRunResultV1 {
-  if (narrative.cursor === null) {
-    throw new TypeError("vn-reference-tour.narrative_cursor_missing");
-  }
+  if (narrative.cursor === null) throw new TypeError("vn-reference-tour.narrative_cursor_missing");
   let cursor: string | null = narrative.cursor;
   let sequence = narrative.sequence;
   let localStage = stage;
   const collected: StageMutation[] = [];
   const collectedDispatches: StageCueDispatch[] = [];
-
   for (let steps = 0; steps < 64; steps += 1) {
     if (cursor === null) break;
     const node = requireNodeV1(cursor);
     if (node.kind === "branch") {
-      const next = node.choose({ flags: narrative.flags });
+      const next = node.choose({ signalChoice: narrative.signalChoice });
       if (!node.successors.includes(next)) {
         throw new TypeError(`vn-reference-tour.narrative_branch_invalid:${node.nodeId}`);
       }
@@ -415,7 +425,7 @@ export function runVnReferenceTourNarrativeUntilInteractionV1(
           cursor: null,
           pending: null,
           sequence,
-          flags: narrative.flags,
+          signalChoice: narrative.signalChoice,
           history: narrative.history,
         },
         stageMutations: collected,
@@ -429,7 +439,7 @@ export function runVnReferenceTourNarrativeUntilInteractionV1(
         cursor: node.nodeId,
         pending: pendingForNodeV1(node, sequence),
         sequence,
-        flags: narrative.flags,
+        signalChoice: narrative.signalChoice,
         history: narrative.history,
       },
       stageMutations: collected,
@@ -439,20 +449,6 @@ export function runVnReferenceTourNarrativeUntilInteractionV1(
   throw new TypeError("vn-reference-tour.narrative_runaway_script");
 }
 
-function withFlagsV1(flags: readonly string[], added: readonly string[]): readonly string[] {
-  if (added.length === 0) return flags;
-  return ([...new Set([...flags, ...added])].toSorted());
-}
-
-/**
- * Applies an accepted input resolution to the pending node: moves the
- * cursor to the continuation, records flags, and appends the history
- * entry. Always consumes the pending boundary — holds are pure
- * time-settlement boundaries and never reach here (the shared evaluator
- * rejects every input resolution against them). The caller runs the
- * script from the returned cursor; validation already happened in that
- * evaluator.
- */
 export function vnReferenceTourNarrativeAfterResolutionV1(
   narrative: VnReferenceTourNarrativeStateV1,
   resolution: InteractionResolution,
@@ -463,13 +459,13 @@ export function vnReferenceTourNarrativeAfterResolutionV1(
   }
   const node = requireNodeV1(narrative.cursor);
   let next: string;
-  let flags = narrative.flags;
+  let signalChoice = narrative.signalChoice;
   let history = narrative.history;
   if (node.kind === "choice" && resolution.kind === "choose") {
     const option = node.options.find((candidate) => candidate.choiceId === resolution.choiceId);
     if (option === undefined) throw new TypeError("vn-reference-tour.narrative_choice_missing");
     next = option.next;
-    flags = withFlagsV1(flags, option.setFlags);
+    signalChoice = option.setSignalChoice ?? signalChoice;
     history = appendNarrativeHistory(history, {
       kind: "choice",
       occurrenceId: pending.occurrenceId,
@@ -498,20 +494,11 @@ export function vnReferenceTourNarrativeAfterResolutionV1(
     cursor: next,
     pending: null,
     sequence: narrative.sequence,
-    flags,
+    signalChoice,
     history,
   });
 }
 
-/**
- * The continuation of an accepted hold-scoped time tick: `holding` is a
- * partial settlement — the same occurrence stays pending with its
- * authoritative `remainingMs` decremented and the caller commits that
- * state without running the script; `advanced` means the occurrence ended
- * — expiry continues from the node's `next` — and the caller runs the
- * script from there. Its hold fence was already checked by
- * `evaluateTimeTick`.
- */
 export type VnReferenceTourNarrativeTimeContinuationV1 =
   | { readonly kind: "advanced"; readonly narrative: VnReferenceTourNarrativeStateV1 }
   | { readonly kind: "holding"; readonly narrative: VnReferenceTourNarrativeStateV1 };
@@ -528,16 +515,9 @@ export function vnReferenceTourNarrativeAfterTimeTickV1(
   if (node.kind !== "hold") {
     throw new TypeError(`vn-reference-tour.narrative_resolution_mismatch:${node.nodeId}`);
   }
-  // This product declares no hold-owned tick effects or frame swaps.
-  const outcome = settleHoldTimeline({
-    pending,
-    elapsedMs: tick.elapsedMs,
-  });
+  const outcome = settleHoldTimeline({ pending, elapsedMs: tick.elapsedMs });
   if (outcome.kind === "holding") {
-    return ({
-      kind: "holding" as const,
-      narrative: { ...narrative, pending: outcome.pending },
-    });
+    return ({ kind: "holding" as const, narrative: { ...narrative, pending: outcome.pending } });
   }
   if (outcome.kind === "rerouted") {
     throw new TypeError("vn-reference-tour.unexpected_hold_reroute");
@@ -549,7 +529,7 @@ export function vnReferenceTourNarrativeAfterTimeTickV1(
       cursor: node.next,
       pending: null,
       sequence: narrative.sequence,
-      flags: narrative.flags,
+      signalChoice: narrative.signalChoice,
       history: narrative.history,
     },
   });
@@ -563,7 +543,7 @@ export function vnReferenceTourNarrativeAtBeginV1(
     cursor: vnReferenceTourEntryNodeIdV1,
     pending: null,
     sequence: narrative.sequence,
-    flags: narrative.flags,
+    signalChoice: null,
     history: narrative.history,
   });
 }

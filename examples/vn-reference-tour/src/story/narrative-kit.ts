@@ -26,7 +26,7 @@ import { parseStageMutation } from "@sillymaker/base/story";
  *
  * Behavior stays in TypeScript: stage composition is referenced through
  * scene documents (open/cue by short key) or a closed mutation vocabulary
- * (`setAppearance`), and branching is a declarative flag test. This is
+ * (`setAppearance`), and branching is a declarative product-route test. This is
  * ordinary data construction — no DSL, no runtime, no new engine API.
  */
 
@@ -35,10 +35,12 @@ import { parseStageMutation } from "@sillymaker/base/story";
 export interface VnReferenceTourChoiceOptionV1 {
   readonly choiceId: string;
   readonly textId: string;
-  /** Flags recorded into narrative state when this option is chosen. */
-  readonly setFlags: readonly string[];
+  /** Product route authority recorded when this option is chosen. */
+  readonly setSignalChoice: VnReferenceTourSignalChoiceV1 | null;
   readonly next: string;
 }
+
+export type VnReferenceTourSignalChoiceV1 = "archive" | "present";
 
 export type VnReferenceTourNarrativeNodeV1 =
   | {
@@ -78,8 +80,10 @@ export type VnReferenceTourNarrativeNodeV1 =
     readonly nodeId: string;
     /** Static successor annotation for the lint/prediction graph. */
     readonly successors: readonly string[];
-    /** Pure flag-conditioned routing; must pick a successor. */
-    readonly choose: (context: { readonly flags: readonly string[] }) => string;
+    /** Pure product-route routing; must pick a successor. */
+    readonly choose: (
+      context: { readonly signalChoice: VnReferenceTourSignalChoiceV1 | null },
+    ) => string;
   }
   | {
     /** Holds the screen for an authoritative duration; expiry advances. */
@@ -119,7 +123,7 @@ export interface VnReferenceTourChoiceOptionInputV1 {
   readonly text?: string;
   readonly textId?: string;
   readonly next: string;
-  readonly setFlags?: readonly string[];
+  readonly setSignalChoice?: VnReferenceTourSignalChoiceV1;
 }
 
 export interface VnReferenceTourChoiceBlockV1 {
@@ -158,8 +162,8 @@ export interface VnReferenceTourStageBlockV1 {
 }
 
 export interface VnReferenceTourBranchCaseV1 {
-  /** Route here when the flag is set; omit on the last case for else. */
-  readonly when?: { readonly flag: string };
+  /** Route here for the selected signal; omit on the last case for else. */
+  readonly when?: { readonly signalChoice: VnReferenceTourSignalChoiceV1 };
   readonly next: string;
 }
 
@@ -227,15 +231,13 @@ export interface VnReferenceTourInteractionDocV1 {
 /** Scene handle the compiler resolves stage ops against. */
 export interface VnReferenceTourSceneBindingV1 {
   readonly scene: Scene;
-  /** Short cue key → real cue id (`courtyard` → `cue.vn-reference-tour.opening.courtyard`). */
+  /** Short cue key → real cue id (`room` → `cue.vn-reference-tour.control-room.room`). */
   readonly cues?: Readonly<Record<string, string>>;
 }
 
 export interface VnReferenceTourCompileInputV1 {
   readonly doc: VnReferenceTourInteractionDocV1;
   readonly scenes?: Readonly<Record<string, VnReferenceTourSceneBindingV1>>;
-  /** `@label` cross-document targets → real nodeIds. */
-  readonly externalTargets?: Readonly<Record<string, string>>;
 }
 
 export interface VnReferenceTourCompiledInteractionV1 {
@@ -256,7 +258,6 @@ export function compileVnReferenceTourInteractionDocV1(
 ): VnReferenceTourCompiledInteractionV1 {
   const { doc } = input;
   const scenes = input.scenes ?? {};
-  const externalTargets = input.externalTargets ?? {};
   const nodeId = (name: string): string => `node.${doc.prefix}.${name}`;
 
   const blockNames = new Set<string>();
@@ -308,11 +309,6 @@ export function compileVnReferenceTourInteractionDocV1(
     }
   }
   const resolveNext = (at: string, next: string): string => {
-    if (next.startsWith("@")) {
-      const target = externalTargets[next.slice(1)];
-      if (target === undefined) failV1(doc, at, `external_target_unknown:${next}`);
-      return target;
-    }
     if (!blockNames.has(next)) failV1(doc, at, `next_unresolved:${next}`);
     // A hold block with an opening stage batch is entered through its
     // compiled stage node so the held picture commits before the wait.
@@ -410,7 +406,7 @@ export function compileVnReferenceTourInteractionDocV1(
               `text.${doc.prefix}.choice.${option.name}`,
               option.text,
             ),
-            setFlags: [...(option.setFlags ?? [])],
+            setSignalChoice: option.setSignalChoice ?? null,
             next: resolveNext(at, option.next),
           });
         });
@@ -427,15 +423,14 @@ export function compileVnReferenceTourInteractionDocV1(
       case "stage": {
         if (block.ops.length === 0) failV1(doc, block.name, "stage_ops_empty");
         const compiledOps = compileStageOps(block.name, block.ops);
-        const lastOp = compiledOps.at(-1);
-        if (lastOp === undefined) failV1(doc, block.name, "stage_ops_empty");
+        const mayShow = [...new Set(compiledOps.flatMap((op) => op.mayShow))];
         nodes.push({
           kind: "stage",
           nodeId: id,
           mutations: (
             stage: SemanticStageState,
           ) => (compiledOps.flatMap((op) => [...op.mutations(stage)])),
-          mayShow: lastOp.mayShow,
+          mayShow,
           dispatches: compiledOps.flatMap((op) => [...op.dispatches]),
           next: resolveNext(block.name, block.next),
         });
@@ -452,12 +447,13 @@ export function compileVnReferenceTourInteractionDocV1(
             seenElse = true;
           } else {
             if (seenElse) failV1(doc, at, "branch_case_after_else");
-            if (typeof branchCase.when.flag !== "string" || branchCase.when.flag.length === 0) {
-              failV1(doc, at, "branch_flag_invalid");
-            }
+            if (
+              branchCase.when.signalChoice !== "archive" &&
+              branchCase.when.signalChoice !== "present"
+            ) failV1(doc, at, "branch_signal_choice_invalid");
           }
           return ({
-            flag: branchCase.when?.flag,
+            signalChoice: branchCase.when?.signalChoice,
             next: resolveNext(at, branchCase.next),
           });
         });
@@ -465,9 +461,14 @@ export function compileVnReferenceTourInteractionDocV1(
           kind: "branch",
           nodeId: id,
           successors: compiledCases.map((branchCase) => branchCase.next),
-          choose: (context: { readonly flags: readonly string[] }): string => {
+          choose: (
+            context: { readonly signalChoice: VnReferenceTourSignalChoiceV1 | null },
+          ): string => {
             for (const branchCase of compiledCases) {
-              if (branchCase.flag === undefined || context.flags.includes(branchCase.flag)) {
+              if (
+                branchCase.signalChoice === undefined ||
+                context.signalChoice === branchCase.signalChoice
+              ) {
                 return branchCase.next;
               }
             }
@@ -484,15 +485,14 @@ export function compileVnReferenceTourInteractionDocV1(
           const stageName = `${block.name}-stage`;
           const stageId = nodeId(stageName);
           const compiledOps = compileStageOps(stageName, block.ops ?? []);
-          const lastOp = compiledOps.at(-1);
-          if (lastOp === undefined) failV1(doc, stageName, "stage_ops_empty");
+          const mayShow = [...new Set(compiledOps.flatMap((op) => op.mayShow))];
           nodes.push({
             kind: "stage",
             nodeId: stageId,
             mutations: (
               stage: SemanticStageState,
             ) => (compiledOps.flatMap((op) => [...op.mutations(stage)])),
-            mayShow: lastOp.mayShow,
+            mayShow,
             dispatches: compiledOps.flatMap((op) => [...op.dispatches]),
             next: id,
           });

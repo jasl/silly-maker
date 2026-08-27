@@ -123,7 +123,7 @@ export interface VnReferenceTourNarrativeViewV1 {
   readonly phase: VnReferenceTourNarrativeStateV1["phase"];
   readonly pending: PendingInteraction | null;
   readonly choiceOptions: readonly VnReferenceTourChoiceOptionViewV1[] | null;
-  readonly flags: readonly string[];
+  readonly signalChoice: VnReferenceTourNarrativeStateV1["signalChoice"];
   readonly history: NarrativeHistory;
 }
 

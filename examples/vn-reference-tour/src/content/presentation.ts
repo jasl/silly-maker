@@ -9,9 +9,16 @@ import type {
   StageTransitionDefinition,
 } from "@sillymaker/base/story";
 import { parseStageTransitionDefinition } from "@sillymaker/base/story";
+import type { StageAmbientCatalog } from "@sillymaker/base/story/scene";
 
-import { vnReferenceTourContentIdsV1 } from "../story/narrative.ts";
-import { vnReferenceTourOpeningTransitionBindingsV1 } from "../scenes/opening/index.ts";
+import {
+  vnReferenceTourControlRoomAmbientCatalogV1,
+  vnReferenceTourControlRoomTransitionBindingsV1,
+} from "../scenes/control-room/index.ts";
+import {
+  vnReferenceTourRooftopAntennaAmbientCatalogV1,
+  vnReferenceTourRooftopAntennaTransitionBindingsV1,
+} from "../scenes/rooftop-antenna/index.ts";
 import { vnReferenceTourTextContentManifestV1 } from "./text-content.ts";
 
 /**
@@ -26,7 +33,9 @@ export const vnReferenceTourTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogS
       fallbackLocale: null,
       entries: [
         { textId: "text.vn-reference-tour.app.name", text: "最后一次试音" },
-        { textId: "text.vn-reference-tour.stage.name", text: "庭院" },
+        { textId: "text.vn-reference-tour.stage.name", text: "山顶社区电台" },
+        { textId: "text.vn-reference-tour.speaker.lin", text: "林澄" },
+        { textId: "text.vn-reference-tour.speaker.zhou", text: "周遥" },
         { textId: "text.vn-reference-tour.narrative.advance", text: "继续" },
         { textId: "text.vn-reference-tour.playback.auto", text: "自动" },
         { textId: "text.vn-reference-tour.playback.skip", text: "快进" },
@@ -57,60 +66,113 @@ export function vnReferenceTourUiTextV1(textId: string): string {
 export const vnReferenceTourStageContentCatalogV1: StageContentCatalog = {
   resolveContent(contentId, appearance): StageContentResolution | null {
     switch (contentId as string) {
-      case vnReferenceTourContentIdsV1.backgroundCourtyard:
+      case "content.vn-reference-tour.background.control-room":
         return ({
           rendererId: "renderer.vn-reference-tour.background",
           assetIds: [],
-          accessibleName: "雨后的庭院",
-          props: { surface: "courtyard" },
-        });
-      case vnReferenceTourContentIdsV1.backgroundStudy:
-        return ({
-          rendererId: "renderer.vn-reference-tour.background",
-          assetIds: [],
-          accessibleName: "书房",
-          props: { surface: "study" },
-        });
-      case vnReferenceTourContentIdsV1.effectMist:
-        return ({
-          rendererId: "renderer.vn-reference-tour.mist",
-          assetIds: [],
-          accessibleName: "雨后的薄雾",
-          props: {},
-          // One texture period is 320px; the band is canvas width + two
-          // periods so the sawtooth drift never exposes an edge.
+          accessibleName: "夜间控制室",
+          props: { surface: "control-room" },
           geometry: {
-            width: 2240,
-            height: 200,
+            width: 1600,
+            height: 900,
             anchorXPermille: 0,
             anchorYPermille: 0,
           },
         });
-      case vnReferenceTourContentIdsV1.characterMei:
+      case "content.vn-reference-tour.background.rooftop-antenna":
         return ({
-          rendererId: "renderer.vn-reference-tour.character",
+          rendererId: "renderer.vn-reference-tour.background",
           assetIds: [],
-          accessibleName: "小梅",
-          props: {
-            expression: typeof appearance.expression === "string" ? appearance.expression : "calm",
-          },
-          // The engine stage host anchors the content box at bottom center;
-          // the renderer draws into it without its own translate.
+          accessibleName: "清晨屋顶",
+          props: { surface: "rooftop-antenna" },
           geometry: {
-            width: 220,
-            height: 420,
+            width: 1600,
+            height: 900,
+            anchorXPermille: 0,
+            anchorYPermille: 0,
+          },
+        });
+      case "content.vn-reference-tour.effect.window-first-light":
+        return ({
+          rendererId: "renderer.vn-reference-tour.light",
+          assetIds: [],
+          accessibleName: "窗外的清晨微光",
+          props: {},
+          geometry: {
+            width: 310,
+            height: 360,
+            anchorXPermille: 0,
+            anchorYPermille: 0,
+          },
+        });
+      case "content.vn-reference-tour.prop.mixing-console":
+      case "content.vn-reference-tour.prop.tape-machine":
+      case "content.vn-reference-tour.prop.wall-clock":
+      case "content.vn-reference-tour.prop.microphone":
+      case "content.vn-reference-tour.prop.signal-light":
+      case "content.vn-reference-tour.prop.antenna":
+      case "content.vn-reference-tour.prop.antenna-cable":
+      case "content.vn-reference-tour.prop.master-switch":
+      case "content.vn-reference-tour.prop.status-light": {
+        const kind = (contentId as string).split(".").at(-1) ?? "prop";
+        const names: Readonly<Record<string, string>> = {
+          "mixing-console": "调音台",
+          "tape-machine": "磁带机",
+          "wall-clock": "挂钟",
+          microphone: "话筒",
+          "signal-light": "信号灯",
+          antenna: "天线",
+          "antenna-cable": "天线电缆",
+          "master-switch": "总闸",
+          "status-light": "发射状态灯",
+        };
+        return ({
+          rendererId: "renderer.vn-reference-tour.prop",
+          assetIds: [],
+          accessibleName: names[kind] ?? kind,
+          props: {
+            kind,
+            state: typeof appearance.state === "string" ? appearance.state : "default",
+          },
+          geometry: {
+            width: kind === "antenna" ? 190 : kind === "antenna-cable" ? 300 : 220,
+            height: kind === "antenna" ? 440 : kind === "antenna-cable" ? 300 : 150,
             anchorXPermille: 500,
             anchorYPermille: 1000,
           },
-          // The ordered frame set the blink ambient's `frame` track indexes
-          // (0 = eyes open, the default pose; 1 = eyes closed). A real game
-          // points these at image assets; the placeholder renderer draws
-          // the swap procedurally.
-          frameAssetIds: [
-            "asset.vn-reference-tour.mei-eyes-open" as AssetId,
-            "asset.vn-reference-tour.mei-eyes-closed" as AssetId,
-          ],
         });
+      }
+      case "content.vn-reference-tour.character.lin":
+      case "content.vn-reference-tour.character.zhou": {
+        const lin = (contentId as string).endsWith(".lin");
+        return ({
+          rendererId: "renderer.vn-reference-tour.character",
+          assetIds: [],
+          accessibleName: lin ? "林澄" : "周遥",
+          props: {
+            character: lin ? "lin" : "zhou",
+            expression: typeof appearance.expression === "string"
+              ? appearance.expression
+              : lin
+              ? "focused"
+              : "neutral",
+          },
+          geometry: {
+            width: 260,
+            height: 560,
+            anchorXPermille: 500,
+            anchorYPermille: 1000,
+          },
+          ...(lin
+            ? {
+              frameAssetIds: [
+                "asset.vn-reference-tour.lin-eyes-open" as AssetId,
+                "asset.vn-reference-tour.lin-eyes-closed" as AssetId,
+              ],
+            }
+            : {}),
+        });
+      }
       default:
         return null;
     }
@@ -135,22 +197,29 @@ const transitionDefinitionsV1: readonly StageTransitionDefinition[] = [
 );
 
 /**
- * Cue-bound transitions come from the opening scene document: Mei's
- * entrance motion is bound to exactly her cue's enter edge (keyframes and
- * timing live in `scenes/opening/motions/mei-entrance.motion.json`). The
- * story-wide rule below only keeps content replaces on a crossfade; other
- * unbound edges cut instantly instead of inheriting a character motion.
+ * Cue-bound transitions remain owned by the two Scene documents. The
+ * story-wide rule only crossfades content replacements; other unbound edges
+ * cut instead of inheriting a character motion.
  */
+const sceneTransitionBindingsV1 = [
+  vnReferenceTourControlRoomTransitionBindingsV1,
+  vnReferenceTourRooftopAntennaTransitionBindingsV1,
+] as const;
 const transitionByIdV1: ReadonlyMap<string, StageTransitionDefinition> = new Map(
-  [...transitionDefinitionsV1, ...vnReferenceTourOpeningTransitionBindingsV1.definitions].map(
+  [
+    ...transitionDefinitionsV1,
+    ...sceneTransitionBindingsV1.flatMap((binding) => binding.definitions),
+  ].map(
     (definition) => [definition.transitionId, definition],
   ),
 );
 
 export const vnReferenceTourStageTransitionCatalogV1: StageTransitionCatalog = {
   resolveTransition(change: StageTargetChange): StageTransitionDefinition | null {
-    const cueBound = vnReferenceTourOpeningTransitionBindingsV1.resolveTransition(change);
-    if (cueBound !== null) return cueBound;
+    for (const binding of sceneTransitionBindingsV1) {
+      const cueBound = binding.resolveTransition(change);
+      if (cueBound !== null) return cueBound;
+    }
     if (change.kind === "replace") {
       return transitionByIdV1.get("transition.vn-reference-tour.crossfade") ?? null;
     }
@@ -158,6 +227,13 @@ export const vnReferenceTourStageTransitionCatalogV1: StageTransitionCatalog = {
   },
   resolveTransitionById(transitionId: string): StageTransitionDefinition | null {
     return transitionByIdV1.get(transitionId) ?? null;
+  },
+};
+
+export const vnReferenceTourStageAmbientCatalogV1: StageAmbientCatalog = {
+  resolveAmbient(layerId, entry) {
+    return vnReferenceTourControlRoomAmbientCatalogV1.resolveAmbient(layerId, entry) ??
+      vnReferenceTourRooftopAntennaAmbientCatalogV1.resolveAmbient(layerId, entry);
   },
 };
 

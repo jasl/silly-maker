@@ -3,16 +3,22 @@
 // and loads the same directly editable variant bytes through the Host.
 import { admitTextContentPackV1, type LocaleId, parseLocaleId } from "@sillymaker/base";
 
-import endingEnglishV1 from "../../assets/content/ending.en.text-pack.json" with {
+import archiveEnglishV1 from "../../assets/content/archive.en.text-pack.json" with {
   type: "json",
 };
-import endingChineseV1 from "../../assets/content/ending.zh-CN.text-pack.json" with {
+import archiveChineseV1 from "../../assets/content/archive.zh-CN.text-pack.json" with {
   type: "json",
 };
-import openingEnglishV1 from "../../assets/content/opening.en.text-pack.json" with {
+import presentEnglishV1 from "../../assets/content/present.en.text-pack.json" with {
   type: "json",
 };
-import openingChineseV1 from "../../assets/content/opening.zh-CN.text-pack.json" with {
+import presentChineseV1 from "../../assets/content/present.zh-CN.text-pack.json" with {
+  type: "json",
+};
+import sharedEnglishV1 from "../../assets/content/shared.en.text-pack.json" with {
+  type: "json",
+};
+import sharedChineseV1 from "../../assets/content/shared.zh-CN.text-pack.json" with {
   type: "json",
 };
 import { vnReferenceTourTextCatalogsV1 } from "../content/presentation.ts";
@@ -20,10 +26,12 @@ import { vnReferenceTourTextContentManifestV1 } from "../content/text-content.ts
 
 const encoderV1 = new TextEncoder();
 const documentByRuntimePathV1: ReadonlyMap<string, unknown> = new Map([
-  ["assets/content/opening.zh-CN.text-pack.json", openingChineseV1],
-  ["assets/content/opening.en.text-pack.json", openingEnglishV1],
-  ["assets/content/ending.zh-CN.text-pack.json", endingChineseV1],
-  ["assets/content/ending.en.text-pack.json", endingEnglishV1],
+  ["assets/content/shared.zh-CN.text-pack.json", sharedChineseV1],
+  ["assets/content/shared.en.text-pack.json", sharedEnglishV1],
+  ["assets/content/archive.zh-CN.text-pack.json", archiveChineseV1],
+  ["assets/content/archive.en.text-pack.json", archiveEnglishV1],
+  ["assets/content/present.zh-CN.text-pack.json", presentChineseV1],
+  ["assets/content/present.en.text-pack.json", presentEnglishV1],
 ]);
 const textByLocaleV1 = new Map<string, Map<string, string>>(
   vnReferenceTourTextCatalogsV1.catalogs.map((catalog) => [

@@ -2,12 +2,12 @@
 
 # 《最后一次试音》— VN Reference Tour
 
-状态：**M0 已交付 / WIP。独立 package、产品合同、supported-export 应用外壳和 starter 负能力删除已完成；M1 的
-完整剧本、两个 Authoring Scene、作者数据和两条 route simulation 尚未实现。**
+状态：**M0–M1 已交付 / WIP。独立 package、产品合同、supported-export 应用外壳、starter 负能力删除、完整
+双路线剧本、两个 Authoring Scene、作者数据和两条 named headless route simulation 已完成；M2 下一步。**
 
-M0 已把工程外壳改为本产品身份，但仍保留一套从 tracked Template 来的临时 Story/Scene/media scaffold。
-运行它只用于检查接线，不代表《最后一次试音》已经可玩、完成，或已经验证了本产品分母。完整产品合同见
-[DESIGN.md](DESIGN.md)。
+M1 已用本产品的完整 Story/Scene author data 原子替换 tracked Template 的临时内容；它关闭的是作者数据与
+headless routes，不是 VN Player、最终视觉/音频、Save/recovery 或产品验收。《最后一次试音》仍不是可玩产品
+参考或旗舰。完整产品合同见 [DESIGN.md](DESIGN.md)。
 
 ## 产品目标
 
@@ -24,9 +24,9 @@ M0 已把工程外壳改为本产品身份，但仍保留一套从 tracked Templ
 - BGM、ambient、SFX、current voice/replay；
 - zh-CN/en addressable text、完整 Player/Save/recovery、responsive Input、accessibility 与作者任务。
 
-一个开场、一次选择、单路线、单结局或当前 starter scaffold 都只是切片，不能称为产品完成。
+一个开场、一次选择、单路线、单结局或只有 headless author data 都只是切片，不能称为产品完成。
 
-## M0 工程命令
+## 当前工程命令
 
 从本目录运行：
 
@@ -34,16 +34,19 @@ M0 已把工程外壳改为本产品身份，但仍保留一套从 tracked Templ
 deno task format:check
 deno task app check .
 deno task test
+deno task app simulate . --scenario archive-voice
+deno task app simulate . --scenario present-voice
 deno task dev
 deno task build:web
 ```
 
-这些命令当前只检查 scaffold 与 M0 package/identity/boundary；在 M1–M4 对应 evidence 关闭前，不得把 green run 报告为
-产品剧情、路线、媒体、Save 或发布完成。
+这些命令的 M1 green run 只证明完整 author data、两条 deterministic headless routes 与当前项目接线；在 M2–M4
+对应 evidence 关闭前，不得把它报告为 VN Player、最终媒体、Save/recovery 或发布完成。M1 关闭时 focused tests、
+两条 simulation、`app check`、product build、asset/determinism checks、React Doctor 与串行 repository check 均通过。
 
 ## 作者地图
 
-以下是 M1 起的唯一 owner 目标；不存在的文件表示尚未实现，不是另找位置写入的许可。
+以下是当前及后续里程碑的唯一 owner；尚未进入 M2/M3 的文件不是另找位置写入的许可。
 
 | 想修改什么                                 | 唯一 owner                                    |
 | ------------------------------------------ | --------------------------------------------- |
@@ -72,18 +75,18 @@ deno task build:web
 - targets：Browser publish + 当前 Deno Desktop static preview
 
 产品从 Template 起步，但不 import Template、Bookshop 或其他 example。M0 已删除 coins/inventory/HUD action、
-reference-only outer UI 与临时 Story identity，不保留 compatibility alias 或零值模块。M1 将用冻结的完整产品
-剧情、场景与媒体替换当前 temporary scaffold 内容。
+reference-only outer UI 与临时 Story identity，不保留 compatibility alias 或零值模块。M1 已用冻结的完整产品
+剧情、两个场景与兼容 placeholder presentation 替换 temporary author scaffold；最终媒体和 VN Player 留给 M2。
 
 本产品不建立 Ren'Py DSL/Save compatibility、自定义解释器、公共 VN skin、Blueprint、最终编辑器、Mod/Agent、
 特殊 pending 或 Desktop HMR。`NarrativeAside` 不是 denominator；只有完整剧本自然需要时才可选择最多一处。
 
 ## Authoring 与验证
 
-M1 完成两个 Authoring Scene 后，dev-only Inspector 应使用真实 Scene/CAS owner 完成选择、有限属性编辑、
-Motion facet/scrub、undo/redo 和保存。普通 Player final graph 必须排除 Inspector 与 source writer。
+M1 的两个 Authoring Scene 已接入 dev-only Inspector 的真实 Scene/CAS owner，用于选择、有限属性编辑、Motion
+facet/scrub、undo/redo 和保存。普通 Player final graph 必须继续排除 Inspector 与 source writer。
 
-Named simulations 固定为：
+M1 named simulations 固定并实现为：
 
 ```text
 archive-voice

@@ -1,0 +1,124 @@
+{
+  "format": "sillymaker.text-content-pack",
+  "version": 2,
+  "packId": "text-pack.vn-reference-tour.shared",
+  "locale": "en",
+  "entries": [
+    {
+      "textId": "text.vn-reference-tour.shared.power-on.room",
+      "text": "At 5:22 a.m., only the mixing desk and wall clock lit the control room. Outside, black sky was turning deep blue."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.power-on.lin-arrives",
+      "text": "I'm not late, am I? The stairwell lights have already gone out on three floors."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.power-on.console",
+      "text": "We have eighteen minutes. Listen once first. I just cleared the last patch of noise."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.power-on.signal-light",
+      "text": "The transmitter lamp glowed quietly. Today it would go dark only once more."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.power-on.last-shift",
+      "text": "So this really is our last shift. Saying it aloud makes it sound less real."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.power-on.deadline",
+      "text": "Shutdown is at 5:40. Before then, the archive gives us one sixty-second receiving window."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.power-on.archive-window",
+      "text": "You said we should leave a station call in that window. We still haven't chosen one?"
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.power-on.single-send",
+      "text": "We can send only once. The archive won't open a second connection; this is the old station's final record number."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.power-on.reel-on-desk",
+      "text": "Zhou set a reel with a faded label beside the deck. Its date was thirteen years old."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.old-recording.label",
+      "text": "I found it at the back of storage. That was my first morning shift alone."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.old-recording.younger-voice",
+      "text": "No wonder I didn't recognize you. Your voice was much brighter then."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.old-recording.first-shift",
+      "text": "And much faster. I thought one slow second would keep the whole mountain from hearing us."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.old-recording.load-reel",
+      "text": "The reel began to turn. After a brief hiss, a younger voice woke in the monitor speaker."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.old-recording.old-call",
+      "text": "“This is Cape Hill Community Radio. Good morning. May someone hear you today.”"
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.old-recording.clean-signal",
+      "text": "The words are old, but they don't sound far away. You cleaned it up almost too well."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.old-recording.repair",
+      "text": "I only joined the breaks. I left the breaths in. Those should stay."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.old-recording.meter",
+      "text": "After the final word, the level needle eased back to zero."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.old-recording.what-to-save",
+      "text": "If the archive takes this, it remembers what the station used to be."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.one-window.opens",
+      "text": "Right. Or we record something now, so it remembers how we sounded before shutdown."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.one-window.not-both",
+      "text": "Can't we join them? Sixty seconds is enough."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.one-window.why-one",
+      "text": "One transmission becomes one archive record. A splice marks both parts as edited, not as our final live call."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.one-window.purpose",
+      "text": "Then we aren't choosing which sounds better. We're choosing what we want it to prove."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.one-window.clock",
+      "text": "The clock reached 5:27. On the roof, wind tapped a cable against the antenna."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.one-window.two-choices",
+      "text": "The old call proves how long this place endured. A new one proves we were here when it ended."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.one-window.ready",
+      "text": "Both are true. Let's not make someone in the future guess. We can choose for ourselves."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.one-window.switch",
+      "text": "Lin moved the send switch to standby. The deck and microphone lamps lit together, waiting for one to be chosen."
+    },
+    {
+      "textId": "text.vn-reference-tour.choice.signal.prompt",
+      "text": "The archive window permits one final transmission."
+    },
+    {
+      "textId": "text.vn-reference-tour.choice.signal.archive",
+      "text": "Send the restored station call"
+    },
+    {
+      "textId": "text.vn-reference-tour.choice.signal.present",
+      "text": "Record a new call for this moment"
+    }
+  ]
+}

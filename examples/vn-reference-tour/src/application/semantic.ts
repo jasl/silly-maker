@@ -112,7 +112,7 @@ export function projectVnReferenceTourNarrativeViewV1(
   return ({
     phase: queries.narrative.phase,
     pending,
-    flags: queries.narrative.flags,
+    signalChoice: queries.narrative.signalChoice,
     history: queries.narrative.history,
     choiceOptions: pending !== null && pending.kind === "choice"
       ? (vnReferenceTourChoiceOptionsForV1(pending.definitionId).map((option) => {

@@ -41,12 +41,13 @@ Read only the documents relevant to the change:
   `docs/engine/plans/2026-08-27-vn-reference-tour.md`: an original, complete,
   compact VN product that starts from the tracked Template and demonstrates the
   current recommended VN authoring and Player path without becoming an
-  all-engine API gallery or a Ren'Py DSL. M0 has delivered the independent WIP
-  package, frozen product denominator, supported-export boundary, minimal
-  headless/application shell, and clean deletion of unselected starter domains;
-  M1's complete script, two Authoring Scenes, author data, and named route
-  simulations are next and have not started. The temporary M0 scaffold is not a
-  playable slice or product-completion evidence.
+  all-engine API gallery or a Ren'Py DSL. M0–M1 have delivered the independent
+  WIP package, frozen product denominator, supported-export boundary, clean
+  deletion of unselected starter domains, complete two-route script, two
+  Authoring Scenes, author data, and named headless route simulations. M2's VN
+  Player, final visual/audio presentation, and product interaction are next.
+  M1 closes author data and headless routes only; the WIP is not yet a playable
+  product or product-completion evidence.
   Cat Cafe terminated on 2026-08-27 before this lane began; its application,
   revision-1 Save support, product E2E, and live release responsibility ended
   together, without a cross-product migration. Bookshop remains the maintained

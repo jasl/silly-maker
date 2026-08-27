@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from "vitest";
 
-import { lintNarrativeGraph } from "@sillymaker/base/story";
+import {
+  lintNarrativeGraph,
+  parseStageMutation,
+  reduceAdmittedStageMutations,
+} from "@sillymaker/base/story";
 import { createGameHarnessV1, resolveStoryForTestV1 } from "@sillymaker/base/testkit";
 
 import { createVnReferenceTourApplicationInstanceV1 } from "../application/core-application.ts";
+import { vnReferenceTourCoreApplicationDefinitionV1 } from "../application/core-definition.ts";
 import { vnReferenceTourSemanticAdapterV1 } from "../application/semantic.ts";
+import { vnReferenceTourRooftopAntennaSceneV1 } from "../scenes/rooftop-antenna/index.ts";
 import { projectVnReferenceTourNarrativeGraphV1 } from "../story/narrative-graph.ts";
 import { vnReferenceTourStoryEntryV1 } from "../story.ts";
 
@@ -20,15 +26,30 @@ function currentOccurrenceIdV1(
   return pending.occurrenceId;
 }
 
-describe("VN Reference Tour M0 shell", () => {
+describe("VN Reference Tour M1 story shell", () => {
   it("resolves only the selected narrative and Stage authorities", () => {
     const resolved = resolveStoryForTestV1(vnReferenceTourStoryEntryV1);
+    const narrativeGraph = projectVnReferenceTourNarrativeGraphV1();
     expect(resolved.provenance.story.id).toBe("story.example.vn-reference-tour");
     expect(resolved.gameSimulation.modules.map((module) => module.descriptor.id)).toEqual([
       "vn-reference-tour.narrative",
       "vn-reference-tour.stage",
     ]);
-    expect(lintNarrativeGraph(projectVnReferenceTourNarrativeGraphV1())).toEqual([]);
+    expect(lintNarrativeGraph(narrativeGraph)).toEqual([]);
+    expect(
+      narrativeGraph.nodes.find((node) =>
+        node.nodeId === "node.vn-reference-tour.open-control-room"
+      )?.dependencies.stageContentIds,
+    ).toEqual([
+      "content.vn-reference-tour.background.control-room",
+      "content.vn-reference-tour.effect.window-first-light",
+      "content.vn-reference-tour.prop.mixing-console",
+      "content.vn-reference-tour.prop.tape-machine",
+      "content.vn-reference-tour.prop.wall-clock",
+      "content.vn-reference-tour.prop.microphone",
+      "content.vn-reference-tour.prop.signal-light",
+      "content.vn-reference-tour.character.zhou",
+    ]);
   });
 
   it("begins headlessly and advances through the occurrence-fenced semantic port", async () => {
@@ -48,7 +69,10 @@ describe("VN Reference Tour M0 shell", () => {
         expectedOccurrenceId: currentOccurrenceIdV1(application),
         resolution: { kind: "advance" },
       } as never)).resolves.toMatchObject({ kind: "committed" });
-      expect(application.semantic.observe().narrative.pending).toMatchObject({ kind: "choice" });
+      expect(application.semantic.observe().narrative.pending).toMatchObject({
+        kind: "say",
+        occurrenceId: "interaction-occurrence.2",
+      });
     } finally {
       await application.dispose();
     }
@@ -76,7 +100,7 @@ describe("VN Reference Tour M0 shell", () => {
     }
   });
 
-  it("replays the structural scaffold authoritatively", async () => {
+  it("replays the admitted story authoritatively", async () => {
     const harness = await createGameHarnessV1({
       entry: vnReferenceTourStoryEntryV1,
       semantic: vnReferenceTourSemanticAdapterV1,
@@ -99,6 +123,72 @@ describe("VN Reference Tour M0 shell", () => {
       });
     } finally {
       await harness.dispose();
+    }
+  });
+
+  it("reconciles rooftop authoring order after exact rebootstrap", async () => {
+    const application = await createVnReferenceTourApplicationInstanceV1();
+    try {
+      const initialSnapshot = application.admin.inspectForTest().snapshot;
+      const initialStage = initialSnapshot.state.simulation.stage;
+      const opened = reduceAdmittedStageMutations(
+        initialStage,
+        vnReferenceTourRooftopAntennaSceneV1.openMutations(initialStage),
+      );
+      if (opened.kind !== "applied") {
+        throw new TypeError("vn-reference-tour.test_rooftop_open_failed");
+      }
+
+      const project = vnReferenceTourCoreApplicationDefinitionV1.projectRebootstrapCommand;
+      if (project === undefined) {
+        throw new TypeError("vn-reference-tour.test_rebootstrap_projector_missing");
+      }
+      const snapshotWithStage = (stage: typeof opened.state) => ({
+        ...initialSnapshot,
+        state: {
+          simulation: { ...initialSnapshot.state.simulation, stage },
+        },
+      });
+
+      expect(project(snapshotWithStage(opened.state), undefined, undefined)).toBeNull();
+
+      const drifted = reduceAdmittedStageMutations(opened.state, [
+        parseStageMutation({
+          kind: "setZOrder",
+          layerId: "layer.vn-reference-tour.props",
+          tag: "tag.vn-reference-tour.rooftop-antenna.antenna",
+          zOrder: 1,
+        }),
+        parseStageMutation({
+          kind: "setZOrder",
+          layerId: "layer.vn-reference-tour.props",
+          tag: "tag.vn-reference-tour.rooftop-antenna.cable",
+          zOrder: 0,
+        }),
+      ]);
+      if (drifted.kind !== "applied") {
+        throw new TypeError("vn-reference-tour.test_rooftop_drift_failed");
+      }
+
+      expect(project(snapshotWithStage(drifted.state), undefined, undefined)).toEqual({
+        kind: "vn-reference-tour.scene_reconcile",
+        mutations: [
+          {
+            kind: "setZOrder",
+            layerId: "layer.vn-reference-tour.props",
+            tag: "tag.vn-reference-tour.rooftop-antenna.antenna",
+            zOrder: 0,
+          },
+          {
+            kind: "setZOrder",
+            layerId: "layer.vn-reference-tour.props",
+            tag: "tag.vn-reference-tour.rooftop-antenna.cable",
+            zOrder: 1,
+          },
+        ],
+      });
+    } finally {
+      await application.dispose();
     }
   });
 });

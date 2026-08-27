@@ -1,0 +1,181 @@
+{
+  "format": "sillymaker.authoring-scene",
+  "version": 1,
+  "sceneId": "scene.vn-reference-tour.rooftop-antenna",
+  "label": "清晨屋顶",
+  "canvas": { "width": 1600, "height": 900 },
+  "layers": [
+    {
+      "layerId": "layer.vn-reference-tour.background",
+      "label": "背景",
+      "roots": [
+        {
+          "objectId": "tag.vn-reference-tour.background",
+          "label": "清晨屋顶",
+          "visual": { "contentId": "content.vn-reference-tour.background.rooftop-antenna" }
+        }
+      ]
+    },
+    {
+      "layerId": "layer.vn-reference-tour.props",
+      "label": "发射设备",
+      "roots": [
+        {
+          "objectId": "tag.vn-reference-tour.rooftop-antenna.antenna-rig",
+          "label": "天线设备组",
+          "children": [
+            {
+              "objectId": "tag.vn-reference-tour.rooftop-antenna.antenna",
+              "label": "天线",
+              "localTransform": {
+                "x": 1250,
+                "y": 245,
+                "scalePermille": 1000,
+                "opacityPermille": 1000,
+                "mirrored": false
+              },
+              "visual": { "contentId": "content.vn-reference-tour.prop.antenna" }
+            },
+            {
+              "objectId": "tag.vn-reference-tour.rooftop-antenna.cable",
+              "label": "摆动电缆",
+              "localTransform": {
+                "x": 1050,
+                "y": 280,
+                "scalePermille": 1000,
+                "opacityPermille": 1000,
+                "mirrored": false
+              },
+              "visual": {
+                "contentId": "content.vn-reference-tour.prop.antenna-cable",
+                "ambient": {
+                  "motionId": "motion.vn-reference-tour.rooftop-antenna.cable-sway"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "layerId": "layer.vn-reference-tour.characters",
+      "label": "角色",
+      "roots": [
+        {
+          "objectId": "tag.vn-reference-tour.character.zhou",
+          "label": "周遥",
+          "localTransform": {
+            "x": 430,
+            "y": 805,
+            "scalePermille": 1000,
+            "opacityPermille": 1000,
+            "mirrored": false
+          },
+          "visual": {
+            "contentId": "content.vn-reference-tour.character.zhou",
+            "appearance": { "expression": "neutral" }
+          }
+        },
+        {
+          "objectId": "tag.vn-reference-tour.character.lin",
+          "label": "林澄",
+          "localTransform": {
+            "x": 1070,
+            "y": 805,
+            "scalePermille": 1000,
+            "opacityPermille": 1000,
+            "mirrored": true
+          },
+          "visual": {
+            "contentId": "content.vn-reference-tour.character.lin",
+            "appearance": { "expression": "focused" },
+            "ambient": {
+              "motionId": "motion.vn-reference-tour.control-room.lin-blink"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "layerId": "layer.vn-reference-tour.foreground",
+      "label": "操作设备",
+      "roots": [
+        {
+          "objectId": "tag.vn-reference-tour.rooftop-antenna.master-switch",
+          "label": "总闸",
+          "localTransform": {
+            "x": 730,
+            "y": 655,
+            "scalePermille": 1000,
+            "opacityPermille": 1000,
+            "mirrored": false
+          },
+          "visual": {
+            "contentId": "content.vn-reference-tour.prop.master-switch",
+            "appearance": { "state": "on" }
+          }
+        },
+        {
+          "objectId": "tag.vn-reference-tour.rooftop-antenna.status-light",
+          "label": "发射状态灯",
+          "localTransform": {
+            "x": 890,
+            "y": 585,
+            "scalePermille": 1000,
+            "opacityPermille": 1000,
+            "mirrored": false
+          },
+          "visual": {
+            "contentId": "content.vn-reference-tour.prop.status-light",
+            "appearance": { "state": "on" }
+          }
+        }
+      ]
+    }
+  ],
+  "cues": [
+    {
+      "cueId": "cue.vn-reference-tour.rooftop-antenna.rooftop",
+      "kind": "show",
+      "objectId": "tag.vn-reference-tour.background"
+    },
+    {
+      "cueId": "cue.vn-reference-tour.rooftop-antenna.antenna",
+      "kind": "show",
+      "objectId": "tag.vn-reference-tour.rooftop-antenna.antenna"
+    },
+    {
+      "cueId": "cue.vn-reference-tour.rooftop-antenna.cable",
+      "kind": "show",
+      "objectId": "tag.vn-reference-tour.rooftop-antenna.cable"
+    },
+    {
+      "cueId": "cue.vn-reference-tour.rooftop-antenna.master-switch",
+      "kind": "show",
+      "objectId": "tag.vn-reference-tour.rooftop-antenna.master-switch"
+    },
+    {
+      "cueId": "cue.vn-reference-tour.rooftop-antenna.status-light",
+      "kind": "show",
+      "objectId": "tag.vn-reference-tour.rooftop-antenna.status-light"
+    },
+    {
+      "cueId": "cue.vn-reference-tour.rooftop-antenna.lin-present",
+      "kind": "show",
+      "objectId": "tag.vn-reference-tour.character.lin",
+      "cut": true
+    },
+    {
+      "cueId": "cue.vn-reference-tour.rooftop-antenna.zhou-present",
+      "kind": "show",
+      "objectId": "tag.vn-reference-tour.character.zhou",
+      "cut": true
+    },
+    {
+      "cueId": "cue.vn-reference-tour.rooftop-antenna.status-light-off",
+      "kind": "hide",
+      "objectId": "tag.vn-reference-tour.rooftop-antenna.status-light",
+      "cut": true
+    }
+  ]
+}

@@ -22,55 +22,64 @@ function projectV1(
 }
 
 describe("VnReferenceTour Narrative Flow projection", () => {
-  it("uses partial English authoring copy and follows its declared Chinese fallback", () => {
+  it("joins the editable English packs and their declared Chinese fallback", () => {
     expect(
-      vnReferenceTourAuthoringTextForLocaleV1("en", "text.vn-reference-tour.line.greeting"),
-    ).toBe("The rain has stopped, and the courtyard stones still shine with water.");
+      vnReferenceTourAuthoringTextForLocaleV1(
+        "en",
+        "text.vn-reference-tour.shared.power-on.room",
+      ),
+    ).toBe(
+      "At 5:22 a.m., only the mixing desk and wall clock lit the control room. Outside, black sky was turning deep blue.",
+    );
     expect(
-      vnReferenceTourAuthoringTextForLocaleV1("en", "text.vn-reference-tour.choice.inside"),
-    ).toBe("先回屋里");
+      vnReferenceTourAuthoringTextForLocaleV1(
+        "en",
+        "text.vn-reference-tour.present.ending.title",
+      ),
+    ).toBe("This Moment, Archived");
     expect(
-      vnReferenceTourAuthoringTextForLocaleV1("en", "text.vn-reference-tour.line.ending-plain"),
-    ).toBe("屋里茶还温着。院子里的雨声停了。");
+      vnReferenceTourAuthoringTextForLocaleV1("en", "text.vn-reference-tour.speaker.lin"),
+    ).toBe("林澄");
   });
 
-  it("keeps the shipped derived graph grouped, labeled, and source-addressable", () => {
+  it("keeps the shipped story source-addressable and labels its material route", () => {
     expect(
       vnReferenceTourFlowGraphV1.nodes.find((node) =>
-        node.nodeId === "node.vn-reference-tour.opening"
-      ),
-    )
-      .toMatchObject({
-        kind: "stage",
-        docId: "doc.vn-reference-tour.opening",
-        blockName: "opening",
-        summary:
-          "cue:scene.vn-reference-tour.opening/courtyard + cue:scene.vn-reference-tour.opening/mist",
-        source: "interaction-doc:doc.vn-reference-tour.opening#opening",
-      });
-    expect(
-      vnReferenceTourFlowGraphV1.edges.find((edge) =>
-        edge.from === "node.vn-reference-tour.first-choice" &&
-        edge.label.kind === "choice" &&
-        edge.label.choiceId === "choice.vn-reference-tour.look"
+        node.nodeId === "node.vn-reference-tour.open-control-room"
       ),
     ).toMatchObject({
-      to: "node.vn-reference-tour.cat-line",
+      kind: "stage",
+      docId: "doc.vn-reference-tour.story",
+      blockName: "open-control-room",
+      source: "interaction-doc:doc.vn-reference-tour.story#open-control-room",
+    });
+    expect(
+      vnReferenceTourFlowGraphV1.edges.find((edge) =>
+        edge.from === "node.vn-reference-tour.signal-choice" &&
+        edge.label.kind === "choice" &&
+        edge.label.choiceId === "choice.vn-reference-tour.archive-voice"
+      ),
+    ).toMatchObject({
+      to: "node.vn-reference-tour.route-gate",
       label: {
         kind: "choice",
-        textId: "text.vn-reference-tour.choice.look",
-        text: "去看看檐下的动静",
+        textId: "text.vn-reference-tour.choice.signal.archive",
+        text: "发送修复后的旧台呼",
         gates: [],
       },
     });
     expect(
       vnReferenceTourFlowGraphV1.edges.find((edge) =>
-        edge.from === "node.vn-reference-tour.ending-gate" &&
-        edge.to === "node.vn-reference-tour.ending-warm"
+        edge.from === "node.vn-reference-tour.route-gate" &&
+        edge.to === "node.vn-reference-tour.archive-prepare-reel"
       ),
-    ).toMatchObject({
-      label: { kind: "branch", condition: "flag flag.vn-reference-tour.cat_found" },
-    });
+    ).toMatchObject({ label: { kind: "branch", condition: "signal archive" } });
+    expect(
+      vnReferenceTourFlowGraphV1.edges.find((edge) =>
+        edge.from === "node.vn-reference-tour.route-gate" &&
+        edge.to === "node.vn-reference-tour.present-prepare-microphone"
+      ),
+    ).toMatchObject({ label: { kind: "branch", condition: "signal present" } });
   });
 
   it("joins shared copy without putting it back into the runtime control plan", () => {
@@ -121,7 +130,7 @@ describe("VnReferenceTour Narrative Flow projection", () => {
           ops: [{
             setAppearance: {
               layerId: "layer.vn-reference-tour.characters",
-              tag: "tag.vn-reference-tour.mei",
+              tag: "tag.vn-reference-tour.character.lin",
               appearance: { expression: "calm" },
             },
           }],

@@ -4,12 +4,13 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "Product WIP for One Last Sound Check; VN Reference Tour M0 is complete.",
+  "description": "Product WIP for One Last Sound Check; M0-M1 author data and headless routes are delivered, M2 is next.",
   "exports": {
     ".": "./src/story.ts"
   },
   "imports": {
-    "#sillymaker/scene/opening": "./src/scenes/opening/authoring-source.ts"
+    "#sillymaker/scene/control-room": "./src/scenes/control-room/authoring-source.ts",
+    "#sillymaker/scene/rooftop-antenna": "./src/scenes/rooftop-antenna/authoring-source.ts"
   },
   "scripts": {
     "dev": "deno run -A npm:vite",

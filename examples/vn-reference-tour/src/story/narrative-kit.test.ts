@@ -32,13 +32,18 @@ describe("VN Reference Tour interaction-document kit", () => {
         kind: "choice",
         name: "menu",
         prompt: "Where next?",
-        options: [{ name: "continue", text: "Continue", setFlags: ["flag.route"], next: "route" }],
+        options: [{
+          name: "continue",
+          text: "Continue",
+          setSignalChoice: "archive",
+          next: "route",
+        }],
       },
       {
         kind: "branch",
         name: "route",
         cases: [
-          { when: { flag: "flag.route" }, next: "stage" },
+          { when: { signalChoice: "archive" }, next: "stage" },
           { next: "wait" },
         ],
       },
@@ -75,8 +80,10 @@ describe("VN Reference Tour interaction-document kit", () => {
     ]);
 
     const branch = compiled.nodes.find((node) => node.kind === "branch");
-    expect(branch?.choose({ flags: ["flag.route"] })).toBe("node.vn-reference-tour.stage");
-    expect(branch?.choose({ flags: [] })).toBe("node.vn-reference-tour.wait");
+    const choice = compiled.nodes.find((node) => node.kind === "choice");
+    expect(choice?.options[0]).toMatchObject({ setSignalChoice: "archive" });
+    expect(branch?.choose({ signalChoice: "archive" })).toBe("node.vn-reference-tour.stage");
+    expect(branch?.choose({ signalChoice: null })).toBe("node.vn-reference-tour.wait");
   });
 
   it("reports unresolved authoring targets at the document boundary", () => {
