@@ -161,14 +161,14 @@ Creator Home 不会实例化 Pi Worker、Workspace Host 或 just-bash；首次�
 
 当前已资格化的 Cloudflare 部署是
 [silly-os.jasl9187.workers.dev](https://silly-os.jasl9187.workers.dev/)。
-P1-B1a 实现提交 `66eb6755b04d3d625830dbbe915c465886ba13dc` 已于 2026-08-28
-发布为 Cloudflare 版本 `28022baa-1676-4c79-a194-85d95e5f326d`；公网 HTML 返回 HTTP 200、
-该精确 build identity 和仅包含 OpenAI 的 B1a `connect-src`。应用内浏览器从普通 URL 打开
-设置后读取了 40 个 Pi Provider，OpenAI 精确 profile 为 qualified、Anthropic 仍为 candidate，
-console 无错误。随后 Chromium 与持久 profile WebKit 都从公网通过了真实 OpenAI
-cancel/v2 tool proposal/两次 HTTP 200/持久化投影无 key/Forget 资格检查。
-它只托管静态产品；OpenAI key 和模型请求从 Agent Worker 直接发送给 OpenAI，不经过
-SillyOS 或 Cloudflare relay。
+P1-B1b 实现提交 `d7377ad36f27b982c8d6f87662e8a8586687f721` 已于 2026-08-28 发布为
+Cloudflare 版本 `92c143f7-292f-474f-b7ad-ba98318a384a`；公网 HTML 返回 HTTP 200、该精确
+build identity，以及仅包含 self 和六个命名 Provider origin 的 `connect-src`。应用内浏览器
+读取到 OpenAI、Anthropic、Google、DeepSeek 与 xAI 为 qualified，OpenRouter 为 candidate；
+Anthropic 固定快照可选、可变 alias 禁用，OpenRouter profile 也保持禁用。随后公网 origin
+通过了上述五个 profile 在 Chromium 与持久 WebKit 中的全部十个真实资格旅程。它只托管
+静态产品；key 和模型请求从 Agent Worker 直接发送给所选 Provider，不经过 SillyOS 或
+Cloudflare relay。B1a 的独立部署历史保留在 [PLAN.md](./PLAN.md) 与 [DESIGN.md](./DESIGN.md)。
 
 开发资格检查会按精确 profile 从本目录的 `.env` 读取对应 Provider key，依次启动普通
 Chromium context 与运行后删除的一次性持久 WebKit profile，

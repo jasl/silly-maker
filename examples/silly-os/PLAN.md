@@ -71,11 +71,20 @@ literal was invalid for Anthropic. The Anthropic mutable alias remains a
 candidate. OpenRouter `google/gemini-2.5-flash` also remains disabled because
 both the Browser path and a direct minimal request with the current account/key
 returned HTTP 403 for Provider Terms of Service; that is not recorded as a CORS
-failure. B1b remains active until its public deployment gate is recorded and
-the OpenRouter disposition is owner-accepted or successfully requalified.
+failure. B1b remains active until the OpenRouter disposition is owner-accepted
+or successfully requalified.
 The current local release gate passes 27 files / 270 product tests, the Settings
 journey in both engines, and the complete 5-profile × 2-browser real-Provider
 matrix.
+The clean B1b implementation commit
+`d7377ad36f27b982c8d6f87662e8a8586687f721` is now deployed to the canonical
+origin as Cloudflare version `92c143f7-292f-474f-b7ad-ba98318a384a`. Public HTML
+returns HTTP 200, that exact build identity, and only the six named Provider
+origins under `connect-src`; the application browser shows five exact qualified
+profiles and the two intended candidates. All ten public-origin real-Provider
+journeys pass. The deployment gate is therefore recorded; B1b remains active
+only because OpenRouter's current account/Provider disposition has not been
+accepted or requalified.
 The raw launcher is not the typed product RPC; the live Browser route is a
 separate product path. This plan remains local to `examples/silly-os`; the
 neutral async GUI disposer was delivered separately by the engine task and is
@@ -692,7 +701,9 @@ The accepted checkpoint order is:
    candidates; OpenRouter's current 403 is an account/Provider outcome, not
    evidence that CSP or CORS failed. The generic qualifier reads the exact
    profile's environment key without printing keys, request headers, request
-   bodies, or URLs and defaults to the five qualified tuples.
+   bodies, or URLs and defaults to the five qualified tuples. The same ten
+   journeys pass from the committed canonical Cloudflare deployment, whose
+   response header carries only the exact six-origin CSP.
 3. **B1c — custom HTTPS profile and non-secret persistence (inactive).** Admit an explicit
    Pi protocol/API family, normalized HTTPS endpoint, model identity and bounded
    Provider-specific fields; never infer protocol from a URL. Add a small

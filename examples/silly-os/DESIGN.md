@@ -40,6 +40,13 @@ import, and later workspace slices stay inactive. The B1a implementation commit
 `66eb6755b04d3d625830dbbe915c465886ba13dc` is deployed at the canonical origin
 as Cloudflare version `28022baa-1676-4c79-a194-85d95e5f326d`; that origin also
 passed the same Chromium/persistent-WebKit Settings and real OpenAI qualifier.
+The B1b implementation commit `d7377ad36f27b982c8d6f87662e8a8586687f721`
+then deployed there as Cloudflare version
+`92c143f7-292f-474f-b7ad-ba98318a384a`. Its public HTML reports that exact build
+identity and the six-origin CSP; the application browser shows the exact five
+qualified profiles with Anthropic alias and OpenRouter still disabled, and all
+ten qualified-profile public-origin journeys pass. This records the deployment
+gate but does not resolve the OpenRouter candidate or close B1b.
 The
 former "SillyOS 98" desktop
 experiment has been retired as a product direction. It remains useful only as
