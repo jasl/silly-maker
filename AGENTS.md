@@ -431,6 +431,28 @@ Read only the documents relevant to the change:
   repository check, and one disposable Deno 2.9.5 compiled-VFS/direct-child/
   HTTP-proxy/normal-close smoke passed; the smoke was removed rather than retained
   as a new harness. No successor lane is automatically active.
+  The narrative-aside lane (opened 2026-08-27 by owner order with
+  generality and orthogonality as hard constraints, delivered and
+  closed the same day) completed M0–M3:
+  `docs/engine/proposals/narrative-aside.md` (with the closure record)
+  and `docs/engine/plans/2026-08-27-narrative-aside.md` — a typed,
+  zero-authority, commit-only aside-dialogue push channel
+  (transient-effect family: `asideSequence` + epoch stamps, consumer
+  watermark; pages admitted once, rejected commands push nothing,
+  load/restart replays nothing), the ui paging controller
+  (`createNarrativeAsideControllerV1` + `useNarrativeAsideV1`: local
+  paging, force-dismiss when an authoritative say/choice arrives,
+  drop-on-arrival while dialogue is pending, zero dispatch) with Story
+  renderers owning the pixels, Engine Lab conformance (tripwire-hold
+  fenced write projects a two-page aside; jsdom locks paging over the
+  running hold, untouched hold trajectory, and `when`-reroute forced
+  dismissal; real-pointer browser spec), and the experiment repo's
+  CE18 mid-bar zone SAY pages as the live consumer (knife #387: pages
+  collected against command-start state ride the fenced `zone_press`
+  commit and paint over the still-running bar; the E3 ledger gap is
+  closed). The pending slot, hold arithmetic, resolution legality, and
+  stage-input policy are untouched; asides never enter
+  State/Save/digest/replay/History.
   Desktop persistence remains an independent promotion gate while the
   adapter is preview.
 - `docs/engine/plans/2026-07-30-desktop-persistence-durability.md`,

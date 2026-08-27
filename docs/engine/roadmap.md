@@ -245,6 +245,12 @@ immutable-per-generation composition，复用 Direct lifecycle，并由 applicat
 只用小型原创/生成 conformance 和既有 raw benchmarks。public Mod resolver/ABI/SDK/distribution、
 untrusted sandbox 与 Desktop HMR 仍未激活。
 
+2026-08-27 插入并交付关闭 [Narrative Aside V1](plans/2026-08-27-narrative-aside.md)：Base
+提供 commit-only、zero-authority 的 typed aside page push channel，UI 提供本地分页与权威对话到达时的
+force-dismiss 控制器，Story 继续拥有像素；Engine Lab 的 jsdom 与真实指针 evidence 覆盖 hold 运行中插话、
+分页、`when` 改道退出和零语义 dispatch。Aside 不进入 State、Save、digest、replay 或 History，也不改变
+pending、hold 算术、resolution legality 或 stage-input policy。
+
 排序与交付记录以
 [Production-floor sequence](plans/2026-07-30-production-floor-sequence.md) §1
 为准；稳定 promoted capability 以 [features](features.md) 为准，AR4 private provisional seam
@@ -348,6 +354,12 @@ SQLite operational contract；除非出现 concrete blocker，不再把 journal/
   同日完成）
 - [Hold when](plans/2026-08-21-hold-when.md)（2026-08-21 接受，同日完成）
 - [Mid-hold input](plans/2026-08-22-mid-hold-input.md)（2026-08-22 接受，同日
+  完成）
+- [Authorable chrome layout](plans/2026-08-22-authorable-chrome-layout.md)
+  （2026-08-22 接受，同日完成）
+- [Shared stage input](plans/2026-08-26-shared-stage-input.md)（2026-08-26 接
+  受，同日完成）
+- [Narrative aside](plans/2026-08-27-narrative-aside.md)（2026-08-27 开启，同日
   完成）
 
 原则是**一次只迁移一个可独立验收的 authority**。不接受把 Surface、Save、

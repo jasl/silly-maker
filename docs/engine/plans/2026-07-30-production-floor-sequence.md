@@ -46,6 +46,13 @@ static Deno Desktop preview 与等待 verified stable 的 Desktop HMR revalidati
 不激活 public subprocess/companion/Agent/Mod ABI、registry、进程扫描、Pi/SillyOS fixture、Desktop
 production 或 maintained HMR。该 closure 没有自动激活后继；电子宠物是所有者在次日另行接受的产品车道。
 
+2026-08-27 另行交付关闭 [Narrative Aside V1](2026-08-27-narrative-aside.md)（提案
+[narrative-aside](../proposals/narrative-aside.md)）：Base 提供 typed、zero-authority、commit-only 的
+aside page push channel，UI 提供只负责本地翻页、权威对话到达时强制退出和 pending 时丢弃新页的控制器，
+Story 保持像素所有权；Engine Lab 的 jsdom 与真实指针 evidence 覆盖 hold 运行中插话、分页、`when`
+改道退出和零语义 dispatch。Aside 不进入 State、Save、digest、replay 或 History，也不改变 pending、hold
+算术、resolution legality 或 stage-input policy。
+
 2026-08-19 至 2026-08-22 的六条 engine-gap lane 全部交付关闭后，恢复并完成
 2026-08-18 所有者以新产品方向证据接受的
 [Application Runtime and Embedded Authoring V1](2026-08-18-application-runtime-embedded-authoring.md)

@@ -6,7 +6,7 @@ import type { ReactElement } from "react";
 
 import type { DeepReadonly } from "@sillymaker/base";
 import type { DefaultGameRootSlotsV1 } from "@sillymaker/ui";
-import { Button, SemanticStageV1 } from "@sillymaker/ui";
+import { Button, SemanticStageV1, useNarrativeAsideV1 } from "@sillymaker/ui";
 
 import { labStageInspectControllerV1 } from "./stage-inspect.ts";
 import { labStageAssetsV1, labStageRenderersV1 } from "./stage-rendering.tsx";
@@ -132,6 +132,43 @@ export function LabHudV1(props: {
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * The narrative aside window (narrative-aside conformance): a
+ * zero-authority dialogue box fed by the instance's commit-only aside push
+ * channel. Pages advance locally — no semantic dispatch, no stage-input
+ * isolation, no focus capture — and an authoritative say/choice pending
+ * taking the dialogue surface force-dismisses it. The Story owns these
+ * pixels; the engine only supplies the paging controller.
+ */
+export function LabAsideWindowV1(props: {
+  readonly instance: LabApplicationInstanceV1;
+  readonly publication: DeepReadonly<LabUiPublicationV1>;
+}): ReactElement | null {
+  const pending = props.publication.semantic.narrative.pending;
+  const aside = useNarrativeAsideV1({
+    subscribeNarrativeAsides: props.instance.subscribeNarrativeAsides,
+    epoch: props.publication.view.anchorEpoch,
+    dialoguePending: pending !== null && (pending.kind === "say" || pending.kind === "choice"),
+  });
+  if (aside.view === null) return null;
+  return (
+    <aside
+      data-lab-aside="true"
+      data-lab-aside-sequence={String(aside.view.asideSequence)}
+      data-lab-aside-page-index={String(aside.view.pageIndex)}
+      data-lab-aside-page-count={String(aside.view.pageCount)}
+    >
+      {aside.view.page.speakerTextId === null
+        ? null
+        : <p data-lab-aside-speaker="true">{labUiTextV1(aside.view.page.speakerTextId)}</p>}
+      <p data-lab-aside-text="true">{labUiTextV1(aside.view.page.textId)}</p>
+      <Button data-lab-aside-advance="true" onClick={aside.advance}>
+        {labUiTextV1("text.e2e.lab.narrative.cal.advance")}
+      </Button>
+    </aside>
   );
 }
 

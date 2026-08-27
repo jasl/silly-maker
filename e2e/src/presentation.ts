@@ -74,6 +74,11 @@ export const labTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogSetV1({
         { textId: "text.e2e.lab.narrative.drill.tripwire", text: "布设绊线" },
         { textId: "text.e2e.lab.narrative.drill.catch", text: "有动静——正好抓个正着。" },
         { textId: "text.e2e.lab.narrative.drill.quiet", text: "一夜无事，按计划收尾。" },
+        {
+          textId: "text.e2e.lab.narrative.drill.aside-latch",
+          text: "收集器咔哒咬合，绊线绷紧了。",
+        },
+        { textId: "text.e2e.lab.narrative.drill.aside-hum", text: "低鸣渐起——别出声，等它靠近。" },
         { textId: "text.e2e.lab.narrative.drill.result", text: "脉冲释放完毕。" },
         { textId: "text.e2e.lab.action.begin_drill", text: "开始演习" },
         { textId: "text.e2e.lab.action.toggle_collector", text: "切换收集器" },

@@ -107,6 +107,17 @@ export type {
   PresentationIntentRouterV1,
   PresentationOverlayWriterV1,
 } from "./interaction/index.ts";
+export { createNarrativeAsideControllerV1 } from "./narrative/narrative-aside-controller.ts";
+export type {
+  NarrativeAsideControllerV1,
+  NarrativeAsidePresentationContextV1,
+  NarrativeAsideViewV1,
+} from "./narrative/narrative-aside-controller.ts";
+export { useNarrativeAsideV1 } from "./narrative/use-narrative-aside.ts";
+export type {
+  UseNarrativeAsideInputV1,
+  UseNarrativeAsideResultV1,
+} from "./narrative/use-narrative-aside.ts";
 export { defineNarrativeSurfaceV1 } from "./narrative/narrative-surface-composition.tsx";
 export type {
   DefineNarrativeSurfaceInputV1,

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { InteractionResolutionV1, TimeTickV1 } from "@sillymaker/base";
+import type { InteractionResolutionV1, NarrativeAsidePageV1, TimeTickV1 } from "@sillymaker/base";
 import {
   evaluateInteractionResolutionV1,
   evaluateTimeTickV1,
@@ -241,6 +241,25 @@ export function parseLabInvocationV1(value: unknown): LabInvocationV1 {
   return ({ kind: "invoke", actionId: actionId as LabActionIdV1 });
 }
 
+/**
+ * The collector-latch flavor pages (narrative-aside conformance): two
+ * zero-authority dialogue pages presented while the tripwire hold keeps
+ * running. Projection keys off the committed domain event, so the fenced
+ * mid-hold write and the ordinary toggle share one presentation path; the
+ * consumer contract drops arrivals while an authoritative say/choice owns
+ * the dialogue surface.
+ */
+const labCollectorAsidePagesV1: readonly NarrativeAsidePageV1[] = Object.freeze([
+  Object.freeze({
+    speakerTextId: "text.e2e.lab.narrative.speaker.beta",
+    textId: "text.e2e.lab.narrative.drill.aside-latch",
+  }),
+  Object.freeze({
+    speakerTextId: null,
+    textId: "text.e2e.lab.narrative.drill.aside-hum",
+  }),
+]);
+
 export const labSemanticAdapterV1: CoreSemanticAdapterV1<
   LabSimulationTypesV1,
   LabQueriesV1,
@@ -309,4 +328,8 @@ export const labSemanticAdapterV1: CoreSemanticAdapterV1<
     code: "validation_failed" as const,
   }),
   projectTransientEffects: (events) => projectLabTransientEffectsV1(events),
+  projectNarrativeAside: (events) =>
+    events.some((event) => event.kind === "lab.collector_toggled" && event.engaged)
+      ? labCollectorAsidePagesV1
+      : [],
 };

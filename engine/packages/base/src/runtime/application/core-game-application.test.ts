@@ -72,6 +72,7 @@ import type {
   CoreSchedulerV1,
   CoreSemanticAdapterV1,
 } from "./core-game-application.ts";
+import type { NarrativeAsideV1 } from "../../contracts/narrative-aside.ts";
 import {
   bindCoreApplicationReadinessOptionsInternalV1,
   clearAllCoreApplicationSavesForMaintenanceInternalV1,
@@ -5562,6 +5563,99 @@ describe("stage cue dispatch batches", () => {
     for (const entry of commitNotifications) {
       expect(entry.batchRevision).toBe(committedRevision);
     }
+    await instance.dispose();
+  });
+});
+
+describe("narrative aside pushes", () => {
+  it("stamps committed asides with a monotonic sequence and the current epoch", async () => {
+    let projection: "pages" | "empty" | "invalid" | "throwing" = "pages";
+    const adapter = Object.freeze({
+      ...adapterV1,
+      projectNarrativeAside: (events: readonly { readonly count: number }[]) => {
+        if (projection === "throwing") throw new Error("synthetic aside projection failure");
+        if (projection === "invalid") {
+          return [{ speakerTextId: null, textId: "NOT-AN-ID" }];
+        }
+        if (projection === "empty") return [];
+        return events.map((event) => ({
+          speakerTextId: "text.test.counter.speaker",
+          textId: `text.test.counter.line-${String(event.count)}`,
+        }));
+      },
+    });
+    const definition = defineCoreGameApplicationV1({
+      entry: createSyntheticCounterGamePackageV1(),
+      semantic: adapter as unknown as CoreSemanticAdapterV1<
+        SyntheticSimulationTypesV1,
+        SyntheticQueriesV1,
+        SyntheticQueriesV1,
+        null,
+        { readonly actionId: string; readonly count: number },
+        SyntheticInvocationV1,
+        { readonly countBefore: number },
+        SyntheticResultV1
+      >,
+    });
+    const resolved = resolveCoreGameApplicationV1(definition, {
+      buildIdentityInput: deterministicBuildIdentityInputV1,
+    });
+    if (resolved.kind !== "resolved") throw new Error("aside fixture must resolve");
+    const instance = await createCoreGameApplicationInstanceV1(resolved.application, {
+      // Two entropy draws: bootstrap plus the restart at the end.
+      host: hostServicesV1(createMemoryHostRecordStoreV1(), [77, 83]),
+    });
+    const asides: NarrativeAsideV1[] = [];
+    const unsubscribe = instance.subscribeNarrativeAsides((aside) => asides.push(aside));
+
+    await instance.semantic.dispatch(incrementV1);
+    expect(asides).toHaveLength(1);
+    expect(asides[0]?.asideSequence).toBe(1);
+    expect(asides[0]?.epoch).toBe(instance.presentationAnchor().epoch);
+    expect(asides[0]?.pages).toHaveLength(1);
+    expect(asides[0]?.pages[0]?.speakerTextId).toBe("text.test.counter.speaker");
+    expect(asides[0]?.pages[0]?.textId).toMatch(/^text\.test\.counter\.line-[0-9]+$/u);
+    expect(Object.isFrozen(asides[0])).toBe(true);
+    expect(Object.isFrozen(asides[0]?.pages)).toBe(true);
+
+    // Rejected commands push nothing.
+    await instance.semantic.dispatch(rejectV1);
+    expect(asides).toHaveLength(1);
+
+    // An empty projection means "no aside this commit".
+    projection = "empty";
+    await instance.semantic.dispatch(incrementV1);
+    expect(asides).toHaveLength(1);
+
+    // Invalid and throwing projections fail open as observer faults; the
+    // commit presents without an aside and authority is unaffected.
+    const faultsBefore = instance.diagnostics.runtimeFailures().length;
+    projection = "invalid";
+    await instance.semantic.dispatch(incrementV1);
+    projection = "throwing";
+    await instance.semantic.dispatch(incrementV1);
+    expect(asides).toHaveLength(1);
+    expect(instance.diagnostics.runtimeFailures().length).toBe(faultsBefore + 2);
+
+    // The sequence is monotonic across commits.
+    projection = "pages";
+    await instance.semantic.dispatch(incrementV1);
+    expect(asides).toHaveLength(2);
+    expect(asides[1]?.asideSequence).toBe(2);
+
+    // Anchor replacement (restart) advances the epoch and replays nothing;
+    // the next committed aside carries the new epoch and keeps the
+    // per-instance sequence, so stale-epoch pushes can never alias.
+    const epochBefore = instance.presentationAnchor().epoch;
+    await expect(instance.lifecycle.restart()).resolves.toMatchObject({ kind: "anchored" });
+    expect(instance.presentationAnchor().epoch).toBe(epochBefore + 1);
+    expect(asides).toHaveLength(2);
+    await instance.semantic.dispatch(incrementV1);
+    expect(asides).toHaveLength(3);
+    expect(asides[2]?.asideSequence).toBe(3);
+    expect(asides[2]?.epoch).toBe(epochBefore + 1);
+
+    unsubscribe();
     await instance.dispose();
   });
 });
