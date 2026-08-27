@@ -61,6 +61,7 @@ export interface ProgramWorkspacePropsV1 {
   readonly workspaceReview: ProgramWorkspaceReviewProjectionV1 | null;
   readonly onHome: () => void;
   readonly onLocaleChange: (locale: SillyOsLocaleV1) => void;
+  readonly onOpenSettings?: () => void;
   readonly onAccept: () => void;
   readonly onReject: () => void;
   readonly onSend: ChatPanePropsV1["onSend"];
@@ -145,6 +146,7 @@ function ProgramWorkspaceReadyV1({
   program,
   onHome,
   onLocaleChange,
+  onOpenSettings,
   onAccept,
   onReject,
   onSend,
@@ -293,6 +295,7 @@ function ProgramWorkspaceReadyV1({
         homeDisabled={homeDisabled}
         onHome={onHome}
         onLocaleChange={onLocaleChange}
+        {...(onOpenSettings === undefined ? {} : { onOpenSettings })}
       />
 
       <div className="program-workspace__body" ref={splitRef}>

@@ -9,7 +9,11 @@ import {
   useSyncExternalStore,
 } from "react";
 
-import type { BrowserPiWorkerRuntimeV1 } from "../agent/browser-pi-worker-protocol.ts";
+import type {
+  BrowserPiModelSelectionV1,
+  BrowserPiProviderCatalogWireV1,
+  BrowserPiWorkerRuntimeV1,
+} from "../agent/browser-pi-worker-protocol.ts";
 import { getSillyOsCopyV1, resolveSillyOsCopyV1, type SillyOsLocaleV1 } from "../content/copy.ts";
 import type {
   CreatorControllerV1,
@@ -22,6 +26,13 @@ import {
 } from "./agent-terminal-acknowledgement.ts";
 import { CreatorHomeV1 } from "./creator-home.tsx";
 import { ProgramWorkspaceV1 } from "./program-workspace.tsx";
+import {
+  type ProviderSettingsAvailabilityV1,
+  type ProviderSettingsCatalogV1,
+  type ProviderSettingsProfileV1,
+  type ProviderSettingsSelectionV1,
+  ProviderSettingsV1,
+} from "./provider-settings.tsx";
 import type { WorkpieceBrowserStorageV1, WorkpieceWorkspaceExportV1 } from "./workpiece-pane.tsx";
 import {
   createBrowserWorkspaceWindowStoragePortV1,
@@ -54,12 +65,38 @@ type BrowserCreatorAgentExportReadyV1 = Parameters<
 >[0];
 type PiAgentSetupStatusV1 = "loading" | "available" | "initializing" | "ready" | "failed";
 
-function requestedBrowserPiRuntimeV1(): BrowserPiWorkerRuntimeV1 | null {
-  if (typeof location === "undefined") return null;
+function requestedBrowserPiRuntimeV1(): BrowserPiWorkerRuntimeV1 {
+  if (typeof location === "undefined") return "pi_provider";
   const requested = new URLSearchParams(location.search).get("agent");
   if (requested === "pi-test") return "deterministic_test";
-  if (requested === "pi-openai") return "openai_direct";
-  return null;
+  return "pi_provider";
+}
+
+function settingsAvailabilityV1(
+  status: "qualified" | "candidate" | "unavailable",
+): ProviderSettingsAvailabilityV1 {
+  if (status === "qualified") return { status };
+  if (status === "candidate") return { status, reason: "qualification_pending" };
+  return { status, reason: "not_qualified" };
+}
+
+function projectProviderSettingsCatalogV1(
+  catalog: BrowserPiProviderCatalogWireV1,
+): ProviderSettingsCatalogV1 {
+  return {
+    phase: "ready",
+    providers: catalog.providers.map((provider) => ({
+      providerId: provider.id,
+      name: provider.name,
+      availability: settingsAvailabilityV1(provider.availability),
+      models: provider.models.map((model) => ({
+        providerId: provider.id,
+        modelId: model.id,
+        name: model.name,
+        availability: settingsAvailabilityV1(model.availability),
+      })),
+    })),
+  };
 }
 
 function piAgentRunStatusV1(
@@ -163,8 +200,15 @@ export function SillyOsAppV1({
   const initialCopy = resolveSillyOsCopyV1();
   const [locale, setLocale] = useState<SillyOsLocaleV1>(initialCopy.locale);
   const [piRuntime] = useState(requestedBrowserPiRuntimeV1);
-  const piAgentRequested = piRuntime !== null;
+  const internalPiTest = piRuntime === "deterministic_test";
   const [piAgentSetupStatus, setPiAgentSetupStatus] = useState<PiAgentSetupStatusV1>("loading");
+  const [activeProviderSelection, setActiveProviderSelection] = useState<
+    BrowserPiModelSelectionV1 | null
+  >(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [providerCatalog, setProviderCatalog] = useState<ProviderSettingsCatalogV1>({
+    phase: "loading",
+  });
   const [agentPort, setAgentPort] = useState<BrowserCreatorAgentPortV1 | null>(null);
   const [agentSnapshot, setAgentSnapshot] = useState<BrowserCreatorAgentSnapshotV1 | null>(null);
   const [browserStoragePort] = useState(() =>
@@ -182,6 +226,8 @@ export function SillyOsAppV1({
   >(null);
   const agentPortRef = useRef<BrowserCreatorAgentPortV1 | null>(null);
   const agentSetupEpochRef = useRef(0);
+  const providerCatalogEpochRef = useRef(0);
+  const settingsReturnViewRef = useRef<"home" | "workspace">("home");
   const agentSetupSettlementRef = useRef<Promise<void>>(Promise.resolve());
   const agentTeardownRef = useRef<Promise<void>>(Promise.resolve());
   const agentWorkspaceLifecycleRef = useRef<Promise<void>>(Promise.resolve());
@@ -229,6 +275,7 @@ export function SillyOsAppV1({
 
   const drainAgentGraphV1 = useCallback(async (): Promise<void> => {
     agentSetupEpochRef.current += 1;
+    providerCatalogEpochRef.current += 1;
     browserStorageOperationEpochRef.current += 1;
     workspaceExportEpochRef.current += 1;
     workspaceExportAbortRef.current?.abort();
@@ -251,7 +298,7 @@ export function SillyOsAppV1({
   }, [controller]);
 
   useEffect(() => {
-    if (!piAgentRequested || !agentDrainRegistry.isAccepting()) return undefined;
+    if (!agentDrainRegistry.isAccepting()) return undefined;
     let current = true;
     void import("../agent/creator-agent-port.ts").then(
       (module) => {
@@ -269,7 +316,7 @@ export function SillyOsAppV1({
       current = false;
       agentFactoryRef.current = null;
     };
-  }, [agentDrainRegistry, piAgentRequested, reportFailure]);
+  }, [agentDrainRegistry, reportFailure]);
 
   useEffect(() => {
     if (agentPort === null) {
@@ -284,7 +331,7 @@ export function SillyOsAppV1({
   useEffect(() => {
     if (browserStorageRequestPendingRef.current) return undefined;
     const epoch = ++browserStorageOperationEpochRef.current;
-    if (!piAgentRequested || browserStoragePort === null) {
+    if (browserStoragePort === null) {
       setBrowserStorage({ phase: "unavailable", persistenceRequest: "idle" });
       return undefined;
     }
@@ -307,7 +354,6 @@ export function SillyOsAppV1({
     browserStoragePort,
     executionWorkspaceGeneration,
     executionWorkspaceSessionId,
-    piAgentRequested,
   ]);
 
   useEffect(() => {
@@ -435,11 +481,49 @@ export function SillyOsAppV1({
     history.replaceState(history.state, "", url);
   };
 
-  const initializePiAgentV1 = (suppliedCredential: string): void => {
+  const loadProviderCatalogV1 = (): void => {
+    const epoch = ++providerCatalogEpochRef.current;
+    setProviderCatalog({ phase: "loading" });
+    void import("../agent/browser-pi-catalog-port.ts").then(
+      ({ queryBrowserPiProviderCatalogV1 }) => queryBrowserPiProviderCatalogV1(),
+    ).then((result) => {
+      if (providerCatalogEpochRef.current !== epoch || !agentDrainRegistry.isAccepting()) return;
+      if (result.kind === "ready") {
+        setProviderCatalog(projectProviderSettingsCatalogV1(result.catalog));
+        return;
+      }
+      setProviderCatalog({ phase: "failed", diagnosticCode: result.code });
+      reportFailure("silly_os.browser_pi_catalog_unavailable", result.code);
+    }, (error: unknown) => {
+      if (providerCatalogEpochRef.current !== epoch || !agentDrainRegistry.isAccepting()) return;
+      setProviderCatalog({ phase: "failed", diagnosticCode: "worker_failed" });
+      reportFailure("silly_os.browser_pi_catalog_unavailable", error);
+    });
+  };
+
+  const openSettingsV1 = (): void => {
+    settingsReturnViewRef.current = snapshot.route;
+    setSettingsOpen(true);
+    if (providerCatalog.phase === "loading") loadProviderCatalogV1();
+  };
+
+  const closeSettingsV1 = (): void => {
+    setSettingsOpen(false);
+    const returnView = settingsReturnViewRef.current;
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(`[data-open-settings="${returnView}"]`)?.focus();
+    });
+  };
+
+  const initializePiAgentV1 = (
+    selection: BrowserPiModelSelectionV1 | null,
+    suppliedCredential: string,
+  ): void => {
     const factory = agentFactoryRef.current;
+    setActiveProviderSelection(piRuntime === "pi_provider" ? selection : null);
     if (
-      !agentDrainRegistry.isAccepting() || factory === null || piRuntime === null ||
-      suppliedCredential.length === 0
+      !agentDrainRegistry.isAccepting() || factory === null || suppliedCredential.length === 0 ||
+      (piRuntime === "pi_provider" && selection === null)
     ) {
       setPiAgentSetupStatus("failed");
       reportFailure("silly_os.browser_pi_adapter_unavailable", "factory_unavailable");
@@ -450,11 +534,18 @@ export function SillyOsAppV1({
     let credential = suppliedCredential;
     let port: BrowserCreatorAgentPortV1;
     try {
-      port = factory({
-        apiKey: credential,
-        runtime: piRuntime,
-        workspaceAuthority,
-      });
+      port = piRuntime === "deterministic_test"
+        ? factory({
+          apiKey: credential,
+          runtime: "deterministic_test",
+          workspaceAuthority,
+        })
+        : factory({
+          apiKey: credential,
+          runtime: "pi_provider",
+          selection: selection as BrowserPiModelSelectionV1,
+          workspaceAuthority,
+        });
     } catch (error) {
       credential = "";
       setPiAgentSetupStatus("failed");
@@ -503,6 +594,7 @@ export function SillyOsAppV1({
     agentPortRef.current = null;
     setAgentPort(null);
     setAgentSnapshot(null);
+    setActiveProviderSelection(null);
     claimedTerminalRunIdsRef.current.clear();
     setPiAgentSetupStatus(agentFactoryRef.current === null ? "loading" : "available");
     if (current !== null) {
@@ -522,12 +614,6 @@ export function SillyOsAppV1({
   };
 
   const sendFollowUpV1 = async (text: string): Promise<boolean> => {
-    if (!piAgentRequested) {
-      const result = await controller.sendFollowUp(text);
-      if (result.kind === "completed" && result.value.kind === "sent") return true;
-      reportFailure("silly_os.follow_up_rejected", result);
-      return false;
-    }
     const port = agentPortRef.current;
     if (port === null || piAgentSetupStatus !== "ready") {
       reportFailure("silly_os.browser_pi_unavailable", "initialize_required");
@@ -703,17 +789,30 @@ export function SillyOsAppV1({
     (agentSnapshot?.terminalRuns.length ?? 0) > 0;
   const agentWorkspaceLifecyclePending = agentSnapshot?.workspace.phase === "opening" ||
     agentSnapshot?.workspace.phase === "closing";
-  const executionWorkspaceReady = !piAgentRequested ||
-    (snapshot.route === "workspace" && snapshot.program !== null && snapshot.workspace !== null &&
-      agentSnapshot?.workspace.phase === "open" &&
-      agentSnapshot.workspace.descriptor?.programId === snapshot.program.programId &&
-      agentSnapshot.workspace.descriptor.workspaceId === snapshot.workspace.workspaceId);
+  const executionWorkspaceReady = snapshot.route === "workspace" && snapshot.program !== null &&
+    snapshot.workspace !== null && agentSnapshot?.workspace.phase === "open" &&
+    agentSnapshot.workspace.descriptor?.programId === snapshot.program.programId &&
+    agentSnapshot.workspace.descriptor.workspaceId === snapshot.workspace.workspaceId;
   const workspaceExportPending = workspaceExport.phase === "exporting" ||
     workspaceExport.phase === "cancelling" || workspaceExport.phase === "finalizing";
-  const workspaceExportAvailable = piAgentRequested && agentPort !== null &&
+  const workspaceExportAvailable = agentPort !== null &&
     executionWorkspaceReady && executionWorkspaceSessionId !== null;
   const workspaceExportDisabled = durability.phase !== "ready" || agentMutationPending ||
     agentWorkspaceLifecyclePending || !executionWorkspaceReady || workspaceExportPending;
+  const providerSettingsProfile: ProviderSettingsProfileV1 = activeProviderSelection === null ||
+      internalPiTest
+    ? { phase: "disconnected", active: null }
+    : piAgentSetupStatus === "initializing"
+    ? { phase: "initializing", active: activeProviderSelection }
+    : piAgentSetupStatus === "ready"
+    ? { phase: "ready", active: activeProviderSelection }
+    : piAgentSetupStatus === "failed"
+    ? {
+      phase: "failed",
+      active: activeProviderSelection,
+      diagnosticCode: agentSnapshot?.diagnostic?.code ?? "initialization_failed",
+    }
+    : { phase: "disconnected", active: null };
 
   return (
     <div
@@ -730,12 +829,26 @@ export function SillyOsAppV1({
       data-browser-storage-persistence-request={browserStorage.persistenceRequest}
       data-workspace-export-state={workspaceExport.phase}
     >
-      {snapshot.route === "home"
+      {settingsOpen && !internalPiTest
+        ? (
+          <ProviderSettingsV1
+            copy={copy}
+            catalog={providerCatalog}
+            profile={providerSettingsProfile}
+            onBack={closeSettingsV1}
+            onLocaleChange={changeLocaleV1}
+            onRetryCatalog={loadProviderCatalogV1}
+            onInitialize={(selection: ProviderSettingsSelectionV1, credential: string) => {
+              initializePiAgentV1(selection, credential);
+            }}
+            onForget={forgetPiAgentV1}
+          />
+        )
+        : snapshot.route === "home"
         ? (
           <CreatorHomeV1
             copy={copy}
-            createDisabled={durability.phase !== "ready" ||
-              (piAgentRequested && piAgentSetupStatus !== "ready")}
+            createDisabled={durability.phase !== "ready" || piAgentSetupStatus !== "ready"}
             programCatalog={{
               status: durability.phase === "loading" && durability.operation === "catalog"
                 ? "loading"
@@ -743,8 +856,7 @@ export function SillyOsAppV1({
                 ? "failed"
                 : "ready",
               programs: controllerSnapshot.recentPrograms,
-              openDisabled: durability.phase !== "ready" ||
-                (piAgentRequested && piAgentSetupStatus !== "ready"),
+              openDisabled: durability.phase !== "ready" || piAgentSetupStatus !== "ready",
               onOpen: (programId) => {
                 void controller.openProgram(programId).then((result) => {
                   if (result.kind !== "completed") {
@@ -754,15 +866,22 @@ export function SillyOsAppV1({
               },
             }}
             onLocaleChange={changeLocaleV1}
-            {...(piAgentRequested && piRuntime !== null
+            {...(internalPiTest
               ? {
                 piAgentSetup: {
-                  runtime: piRuntime,
+                  runtime: "deterministic_test" as const,
                   status: piAgentSetupStatus,
-                  onInitialize: initializePiAgentV1,
+                  onInitialize: (credential: string) => initializePiAgentV1(null, credential),
                 },
               }
               : {})}
+            {...(internalPiTest ? {} : {
+              onOpenSettings: openSettingsV1,
+              providerSetup: {
+                status: piAgentSetupStatus,
+                onOpenSettings: openSettingsV1,
+              },
+            })}
             onCreate={(intent, resourceNames) => {
               void controller.submitIntent(intent).then(async (result) => {
                 if (result.kind !== "completed" || result.value.kind !== "created") {
@@ -794,6 +913,7 @@ export function SillyOsAppV1({
               !executionWorkspaceReady || workspaceExportPending}
             onHome={() => void openHomeV1()}
             onLocaleChange={changeLocaleV1}
+            {...(internalPiTest ? {} : { onOpenSettings: openSettingsV1 })}
             onAccept={() => {
               const proposal = snapshot.proposal;
               if (proposal === null) {
@@ -839,7 +959,7 @@ export function SillyOsAppV1({
                 }
                 : {}),
               piAgentRun: {
-                runtime: piRuntime ?? "deterministic_test",
+                runtime: piRuntime,
                 status: piAgentRunStatusV1(agentSnapshot.phase),
                 draft: agentSnapshot.draft,
                 diagnosticPath: agentSnapshot.diagnostic?.path ?? null,

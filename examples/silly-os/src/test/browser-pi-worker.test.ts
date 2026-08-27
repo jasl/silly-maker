@@ -61,6 +61,12 @@ const workspaceSessionIdV1 = "sillyos.workspace.session.1";
 const roundTripArtifactRelativePathV1 = ".sillyos/p3a-round-trip.txt";
 const roundTripArtifactPathV1 = `${workspaceRootV1}/${roundTripArtifactRelativePathV1}`;
 const roundTripEditMarkerV1 = "SillyOS native edit checkpoint pending:\n";
+const qualifiedSelectionV1 = Object.freeze(
+  {
+    providerId: "openai",
+    modelId: "gpt-4.1-nano",
+  } as const,
+);
 const testWorkspaceAuthoritiesV1 = new Set<{ dispose(): Promise<void> }>();
 
 afterEach(async () => {
@@ -752,9 +758,21 @@ class RuntimeMismatchBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
   private readonly messageListeners = new Set<(event: { readonly data: unknown }) => void>();
   private readonly errorListeners = new Set<(event: unknown) => void>();
 
+  constructor(private readonly mismatch: "runtime" | "selection" = "runtime") {}
+
   postMessage(message: unknown): void {
     const runtime = (message as { readonly runtime?: unknown }).runtime;
-    const mismatchedRuntime = runtime === "openai_direct" ? "deterministic_test" : "openai_direct";
+    const requestedSelection = (message as { readonly selection?: unknown }).selection;
+    const mismatchedRuntime = this.mismatch === "runtime"
+      ? runtime === "pi_provider" ? "deterministic_test" : "pi_provider"
+      : runtime;
+    const selection = this.mismatch === "selection"
+      ? { providerId: "openai", modelId: "gpt-4.1-mini" }
+      : mismatchedRuntime === "pi_provider"
+      ? qualifiedSelectionV1
+      : requestedSelection === null
+      ? null
+      : qualifiedSelectionV1;
     queueMicrotask(() => {
       for (const listener of [...this.messageListeners]) {
         listener({
@@ -763,6 +781,7 @@ class RuntimeMismatchBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
             kind: "ready",
             requestId: 1,
             runtime: mismatchedRuntime,
+            selection,
             distribution: browserPiDistributionIdentityV1,
           },
         });
@@ -825,6 +844,7 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
         kind: "ready",
         requestId: envelope.requestId,
         runtime: envelope.runtime,
+        selection: envelope.selection,
         distribution: browserPiDistributionIdentityV1,
       });
       return;
@@ -1049,6 +1069,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       revision: 1,
       requestId: 1,
       runtime: "deterministic_test",
+      selection: null,
       credential: { kind: "api_key", value: "key" },
     } as Record<string, unknown>;
     Object.defineProperty(accessor, "kind", {
@@ -1064,6 +1085,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       kind: "initialize",
       requestId: 2,
       runtime: "deterministic_test",
+      selection: null,
       credential: { kind: "api_key", value: "key" },
       extra: true,
     });
@@ -1072,6 +1094,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       kind: "initialize",
       requestId: 3,
       runtime: "host_path_pi",
+      selection: null,
       credential: { kind: "api_key", value: "key" },
     });
 
@@ -1093,7 +1116,8 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       revision: 1,
       kind: "initialize",
       requestId: 1,
-      runtime: "openai_direct",
+      runtime: "pi_provider",
+      selection: qualifiedSelectionV1,
       credential: { kind: "api_key", value: "sentinel-live-key" },
     });
 
@@ -1101,10 +1125,95 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       revision: 1,
       kind: "ready",
       requestId: 1,
-      runtime: "openai_direct",
+      runtime: "pi_provider",
+      selection: qualifiedSelectionV1,
       distribution: browserPiDistributionIdentityV1,
     }]);
     expect(JSON.stringify(messages)).not.toContain("sentinel-live-key");
+    runtime.dispose();
+  });
+
+  it("projects the pinned Pi catalog before credentials and rejects candidate activation", () => {
+    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const runtime = createBrowserPiWorkerRuntimeV1({
+      postMessage: (message) => messages.push(structuredClone(message)),
+    });
+    runtime.receive({ revision: 1, kind: "catalog_request", requestId: 7 });
+
+    const response = messages[0];
+    expect(response).toMatchObject({
+      revision: 1,
+      kind: "catalog_response",
+      requestId: 7,
+      ok: true,
+      catalog: { revision: 1, distribution: browserPiDistributionIdentityV1 },
+    });
+    if (response?.kind !== "catalog_response" || !response.ok) {
+      throw new Error("expected the pinned Pi catalog");
+    }
+    expect(response.catalog.providers).toHaveLength(40);
+    expect(
+      response.catalog.providers.reduce((count, provider) => count + provider.models.length, 0),
+    )
+      .toBe(1_312);
+    const projected = response.catalog.providers.flatMap((provider) =>
+      provider.models.map((model) => ({
+        providerId: provider.id,
+        modelId: model.id,
+        availability: model.availability,
+      }))
+    );
+    expect(projected.filter(({ availability }) => availability === "qualified")).toEqual([{
+      ...qualifiedSelectionV1,
+      availability: "qualified",
+    }]);
+    expect(projected.filter(({ availability }) => availability === "candidate")).toEqual([
+      { providerId: "anthropic", modelId: "claude-sonnet-4-5", availability: "candidate" },
+      { providerId: "deepseek", modelId: "deepseek-v4-flash", availability: "candidate" },
+      { providerId: "google", modelId: "gemini-2.5-flash", availability: "candidate" },
+      { providerId: "openrouter", modelId: "openai/gpt-5.4", availability: "candidate" },
+      { providerId: "xai", modelId: "grok-4.3", availability: "candidate" },
+    ]);
+
+    runtime.receive({
+      revision: 1,
+      kind: "initialize",
+      requestId: 8,
+      runtime: "pi_provider",
+      selection: { providerId: "anthropic", modelId: "claude-sonnet-4-5" },
+      credential: { kind: "api_key", value: "candidate-sentinel-key" },
+    });
+    expect(messages.at(-1)).toEqual({
+      revision: 1,
+      kind: "initialization_failure",
+      requestId: 8,
+      code: "selection_unavailable",
+    });
+    expect(JSON.stringify(messages)).not.toContain("candidate-sentinel-key");
+
+    runtime.receive({
+      revision: 1,
+      kind: "initialize",
+      requestId: 9,
+      runtime: "pi_provider",
+      selection: qualifiedSelectionV1,
+      credential: { kind: "api_key", value: "qualified-sentinel-key" },
+    });
+    expect(messages.at(-1)).toEqual({
+      revision: 1,
+      kind: "ready",
+      requestId: 9,
+      runtime: "pi_provider",
+      selection: qualifiedSelectionV1,
+      distribution: browserPiDistributionIdentityV1,
+    });
+    expect(JSON.stringify(messages)).not.toContain("qualified-sentinel-key");
+    runtime.receive({ revision: 1, kind: "catalog_request", requestId: 10 });
+    expect(messages.at(-1)).toEqual({
+      revision: 1,
+      kind: "protocol_failure",
+      code: "invalid_message",
+    });
     runtime.dispose();
   });
 
@@ -1119,6 +1228,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       kind: "initialize",
       requestId: 1,
       runtime: "deterministic_test",
+      selection: null,
       credential: { kind: "api_key", value: "sentinel-browser-key" },
     });
     const execution = await attachRuntimeWorkspaceV1(runtime, messages, workspaceAuthority);
@@ -1150,6 +1260,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       kind: "ready",
       requestId: 1,
       runtime: "deterministic_test",
+      selection: null,
       distribution: browserPiDistributionIdentityV1,
     });
     const submitResponseIndex = messages.findIndex((message) =>
@@ -1329,6 +1440,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       kind: "initialize",
       requestId: 1,
       runtime: "deterministic_test",
+      selection: null,
       credential: { kind: "api_key", value: "key" },
     });
     const execution = await attachRuntimeWorkspaceV1(runtime, messages, workspaceAuthority);
@@ -1454,6 +1566,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       kind: "initialize",
       requestId: 1,
       runtime: "deterministic_test",
+      selection: null,
       credential: { kind: "api_key", value: "key" },
     });
     const execution = await attachRuntimeWorkspaceV1(runtime, messages, workspaceAuthority);
@@ -1843,7 +1956,26 @@ describe("SillyOS Browser Pi transport and product port", () => {
     const worker = new RuntimeMismatchBrowserPiWorkerV1();
     const port = createBrowserCreatorAgentPortV1({
       apiKey: "synthetic-key",
-      runtime: "openai_direct",
+      runtime: "pi_provider",
+      selection: qualifiedSelectionV1,
+      workspaceAuthority: testWorkspaceAuthorityV1(),
+      workerFactory: () => worker,
+    });
+
+    await expect(port.initialize()).resolves.toEqual({
+      kind: "unavailable",
+      diagnostic: { code: "connection_failed", path: "/connect" },
+    });
+    expect(worker.terminated).toBe(true);
+    await port.dispose();
+  });
+
+  it("rejects a Worker that reports a stale selected model", async () => {
+    const worker = new RuntimeMismatchBrowserPiWorkerV1("selection");
+    const port = createBrowserCreatorAgentPortV1({
+      apiKey: "synthetic-key",
+      runtime: "pi_provider",
+      selection: qualifiedSelectionV1,
       workspaceAuthority: testWorkspaceAuthorityV1(),
       workerFactory: () => worker,
     });
@@ -1901,6 +2033,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     expect(posted.filter((message) => JSON.stringify(message).includes("sentinel-browser-key")))
       .toHaveLength(1);
     expect((posted[0] as Readonly<Record<string, unknown>>).kind).toBe("initialize");
+    expect((posted[0] as Readonly<Record<string, unknown>>).selection).toBeNull();
 
     await client.dispose();
     expect((worker as unknown as InMemoryBrowserPiWorkerV1).terminated).toBe(true);

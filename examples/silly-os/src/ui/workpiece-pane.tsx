@@ -702,7 +702,7 @@ function ProgramCapabilitiesV1({
               ? copy.locale === "zh-CN"
                 ? "固定版本 Pi Agent 正在 Browser Worker 中通过原生 read/write/edit/bash 与受限 proposal 工具操作持久化 Program workspace；bash 使用 Browser Local 虚拟 shell 的终端聚合输出，并非 Linux 容器或 live LLM。"
                 : "The pinned Pi Agent uses native read/write/edit/bash and one bounded proposal tool over a persistent Program workspace in Browser Workers. Bash uses terminal-aggregate output from the Browser Local virtual shell; this is neither a Linux container nor a live LLM."
-              : agentMode === "openai_direct"
+              : agentMode === "pi_provider"
               ? copy.locale === "zh-CN"
                 ? "固定版本 Pi Agent 正在 Browser Worker 中通过 OpenAI gpt-4.1-nano 使用原生 read/write/edit/bash 与受限 proposal 工具；bash 是 Browser Local 虚拟 shell 的终端聚合输出，key 仅在 Agent Worker 内存中，Program workspace 持久化在当前浏览器。"
                 : "The pinned Pi Agent exposes native read/write/edit/bash and one bounded proposal tool through OpenAI gpt-4.1-nano in Browser Workers. Bash uses terminal-aggregate output from the Browser Local virtual shell; the key stays in Agent Worker memory and the Program workspace persists in this browser."
@@ -713,7 +713,7 @@ function ProgramCapabilitiesV1({
           <small>
             {agentMode === "deterministic_test"
               ? copy.locale === "zh-CN" ? "Pi 0.84.3 测试接线" : "Pi 0.84.3 test wiring"
-              : agentMode === "openai_direct"
+              : agentMode === "pi_provider"
               ? copy.locale === "zh-CN" ? "Pi 0.84.3 · OpenAI 实时连接" : "Pi 0.84.3 · live OpenAI"
               : copy.locale === "zh-CN"
               ? "尚未连接"

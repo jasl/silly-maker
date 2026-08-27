@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { ArrowLeft, CircleCheck, LayoutGrid, MessageCircle } from "lucide-react";
+import { ArrowLeft, CircleCheck, LayoutGrid, MessageCircle, Settings } from "lucide-react";
 import type { ReactNode } from "react";
 
 import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../content/copy.ts";
@@ -14,12 +14,14 @@ export function ProgramWorkspaceTopbarV1({
   homeDisabled = false,
   onHome,
   onLocaleChange,
+  onOpenSettings,
 }: {
   readonly copy: SillyOsCopyV1;
   readonly workspaceTitle: string;
   readonly homeDisabled?: boolean;
   readonly onHome: () => void;
   readonly onLocaleChange: (locale: SillyOsLocaleV1) => void;
+  readonly onOpenSettings?: () => void;
 }): ReactNode {
   return (
     <header className="silly-os-topbar program-workspace__topbar">
@@ -39,7 +41,17 @@ export function ProgramWorkspaceTopbarV1({
       </div>
       <div className="program-workspace__topbar-actions">
         <LocaleSwitchV1 copy={copy} onChange={onLocaleChange} />
-        <span className="program-workspace__profile" aria-label="Local profile">P</span>
+        {onOpenSettings !== undefined && (
+          <Button
+            variant="ghost"
+            shape="square"
+            size="sm"
+            icon={Settings}
+            aria-label={copy.settings}
+            data-open-settings="workspace"
+            onClick={onOpenSettings}
+          />
+        )}
       </div>
     </header>
   );

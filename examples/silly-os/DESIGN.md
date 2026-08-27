@@ -25,8 +25,13 @@ evidence in Chromium and persistent-profile WebKit. P3c-B1 therefore closed on
 `https://silly-os.jasl9187.workers.dev` as Cloudflare version
 `919cb0a4-d510-452a-b73d-79070ec8e35e`; a fresh public-origin Creator Home ->
 durable Program workspace smoke and the Chromium/persistent-WebKit fixed OpenAI
-qualification passed. Broad execution-provider
-research, import, and later workspace slices remain inactive. The
+qualification passed. P1-B1a has now delivered and closed the clean
+replacement: the ordinary route exposes Pi-owned Provider/model discovery,
+SillyOS-owned Settings, and selection of the exact qualified OpenAI profile. Its
+local gate passed 265 product tests plus the Settings and real OpenAI journeys
+in Chromium and persistent-profile WebKit. B1b/B1c, broad execution-provider
+research, import, and later workspace slices remain inactive; no successor
+checkpoint is activated by this closure. The
 former "SillyOS 98" desktop
 experiment has been retired as a product direction. It remains useful only as
 repository history; it is not a compatibility baseline for this rewrite.
@@ -172,19 +177,30 @@ and offer that tool's exact candidate to the same product revision authority.
 This is wiring evidence, not a live provider or a second Creator product mode.
 The ordinary route does not load that Worker graph.
 
-The explicit `?agent=pi-openai` B0b route may use the same fixed Pi Agent,
-AgentTool, typed RPC, and product currentness with direct OpenAI Responses model
-`gpt-4.1-nano`. Its key is transferred from an uncontrolled password input to
-Worker memory and initialization means only that the profile is configured;
-authentication is established by a run. The integrated follow-up/cancel/Forget
-journey has passed locally and from the deployed Cloudflare static origin in
-Chromium and WebKit. It remains one fixed profile, not a general provider
-surface.
+The ordinary Browser route exposes one application-level Settings surface.
+Opening it lazily asks the product-pinned Pi Worker for its complete public
+Provider/model catalog before any credential exists; React renders a bounded
+projection and never imports Pi or maintains another catalog. SillyOS overlays
+only exact target facts. In B1a, only Pi's
+`(openai, gpt-4.1-nano, openai-responses, https://api.openai.com/v1)` profile is
+qualified and selectable. Other Pi records remain inspectable but disabled;
+five named B1b profiles may be labelled candidates without becoming support
+claims. The removed `?agent=pi-openai` value has no user-facing compatibility
+behavior and resolves like any ordinary URL.
+
+The selected API key moves from an uncontrolled password input directly to a
+fresh Agent Worker, is cleared from the input immediately, and remains only in
+that Worker's memory. Initialization means only that the profile is configured;
+authentication is established by a run. Switching or Forget terminates the
+Worker and requires re-entry. The non-secret selection is current
+device/session supervisor configuration and is not yet Program-owned Pi
+composition; neither it nor the key is persisted in Program, Workspace,
+IndexedDB, OPFS, URL, logs, or exports.
 
 It does **not** claim:
 
-- that the ordinary/B0a route makes a real model request, or that B0b's one
-  fixed live follow-up profile proves general BYO Provider, workspace tool,
+- that B0a makes a real model request, or that B1a's one qualified live
+  follow-up profile proves general BYO Provider, workspace tool,
   Wasm, network-service, or workspace-runtime readiness;
 - Pi-session or workspace-file persistence, project import/export, background
   execution, generated-code execution, or arbitrary package installation;
@@ -192,11 +208,11 @@ It does **not** claim:
 - production translation, writing, role-play, or OpenUI behavior;
 - that an accepted fake proposal has created a distributable application.
 
-The ordinary preview must identify itself as deterministic/local in visible
-copy. The B0a route must separately identify its real Pi Agent plus
-deterministic provider and must not imply that the synthetic test value is a
-provider key. B0b must identify its live fixed OpenAI profile, model, memory-only
-key ownership, and still-limited qualification status.
+The B0a route must separately identify its real Pi Agent plus deterministic
+provider and must not imply that the synthetic test value is a provider key.
+The ordinary route must expose its Pi catalog, exact Browser qualification,
+current selection, and memory-only credential ownership without presenting
+disabled catalog records as usable.
 Fake events use the same product-owned session model as the UI. P2 persists
 that admitted product projection and bounded terminal run meaning through the
 real Program repository; it does not rename the projection Pi history or wrap
@@ -425,7 +441,13 @@ streaming, cancellation, and error tests in Chromium and WebKit. Pi's complete
 Desktop provider list is not automatically the Browser list. Public HTTP and a
 general Cloudflare proxy are outside the baseline; a user-deployed relay is a
 later explicit fallback for otherwise compatible endpoints without browser
-CORS support.
+CORS support. CSP and CORS are orthogonal: SillyOS may permit an HTTPS origin in
+`connect-src`, but only that Provider can return a response readable by the
+deployed origin. Neither `no-cors`, a Service Worker, nor a broader CSP repairs
+a failed CORS contract. B1a therefore retains the already-qualified OpenAI
+origin; B1b adds only the five exact official origins under test. Arbitrary
+custom origins require B1c's selected-origin Worker response policy rather than
+global document `connect-src https:`.
 
 ### First persistent Browser Program checkpoint
 
@@ -896,7 +918,7 @@ evidence for the preview only.
 
 | Area               | Accepted product role                                     | Current preview evidence                                                             | Remaining before product-ready                         |
 | ------------------ | --------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------ |
-| Creator home       | Express intent and create/open a Program                  | Local request + B0a/B0b setup + P2 recent reopen                                     | Attachments and general Provider UI                    |
+| Creator home       | Express intent and create/open a Program                  | Pi catalog Settings + exact OpenAI profile + P2 recent reopen                        | Attachments and broader qualified Provider set         |
 | Creator supervisor | Chat supervises one Program without becoming Program data | Durable run receipts + fresh Pi session over a durable checkpoint                    | Program-anchored artifacts                             |
 | Program workspace  | One focused mutable workspace produces reviewed snapshots | OPFS checkpoint + native tools + recovery/scale/export + immutable accepted snapshot | Import and admitted artifacts                          |
 | Human review       | Accept/reject an exact proposed revision                  | Exact accepted snapshot/head + truthful divergence + winner-held stale rejection     | Rich diff and approval history                         |
@@ -907,7 +929,7 @@ evidence for the preview only.
 | Translation        | A usable translation Program                              | Intent classification only                                                           | Complete workflow, data, QA, export                    |
 | Writing            | A usable writing Program                                  | Intent classification only                                                           | Complete workflow, data, revision tools                |
 | Role-play          | A usable role-play Program                                | Intent classification only                                                           | Complete sessions, characters, VN behavior             |
-| Browser            | Publishable local-first product with BYO Provider         | Fixed-profile Pi + exportable `20 MiB+` workspace                                    | General Provider UI and later product closure          |
+| Browser            | Publishable local-first product with BYO Provider         | Pi-owned catalog + one exact qualified profile + exportable `20 MiB+` workspace      | B1b direct profiles, B1c custom HTTPS, product closure |
 | Deno Desktop       | Same product with admitted Host integrations              | Responsive preview target                                                            | Companion acceptance, storage, packaging qualification |
 
 Before SillyOS is called a complete reference product, this table must be
@@ -924,8 +946,11 @@ OPFS checkpoint and portable download plus the delivered P3a-B1 native Pi
 is closed. P3c-B1 checkpoints 1–3, including Repository V3/physical V4, the
 shared Repository/Host Authority, accepted snapshot identity/head presentation,
 and dual-browser product evidence, closed on 2026-08-28. Deployment is a release
-operation from that committed baseline and completed that day; broader
-execution-provider research and import remain inactive. The plan also
+operation from that committed baseline and completed that day. P1-B1a's clean
+replacement and local dual-browser gate are delivered and closed; its committed
+deployment and public-origin qualification remain release receipts rather than
+another product contract. B1b/B1c, broader execution-provider research, and
+import remain inactive. The plan also
 governs later real Pi integration, product persistence, Pi-native workspace
 tool binding, provider research, Pi capability composition,
 OpenUI-to-SillyMaker mapping, and the first complete product families. Runtime

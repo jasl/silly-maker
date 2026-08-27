@@ -14,8 +14,10 @@ Creator 是唯一内置的用户程序；生成的 Program 是工程、Agent har
 
 ## 目前能体验什么
 
-默认入口仍是明确标注的 **deterministic local fake preview**，用于先验证产品模型和
-Cloudflare OS 风格的高质量 Agent 工作区：
+普通入口现在提供 Pi-owned Browser Provider 设置；用户需要先从设置中选择已经通过
+SillyOS Browser 资格验证的模型，并把自己的 API key 直接交给 Agent Worker。当前第一个
+可连接的精确 profile 是 `openai/gpt-4.1-nano`，其余 Pi catalog 记录仍可搜索和查看，但
+不会因为出现在目录中就被伪装成浏览器可用。连接后可以体验：
 
 - 从 Creator Home 提交翻译、写作、角色扮演或通用创作意图；
 - 查看确定性的本地 Creator 回复和带明确版本的 Program proposal；
@@ -31,11 +33,12 @@ Pi `Agent`、确定性本地 provider 和唯一的 `sillyos_propose_program_revi
 它不会请求 LLM，也不会把测试值写入 React state、URL、日志、网络请求、Program 数据或
 浏览器持久化存储，forget 会终止 Worker。
 
-`?agent=pi-openai` 是刻意受限的 B0b live 入口：它仍使用相同的固定 Pi `Agent`、唯一
-proposal tool、typed RPC 和 currentness，只把 provider stream 换成固定的 OpenAI
-Responses `gpt-4.1-nano`。真实 follow-up、工具候选、取消、v2 successor、内存 key 和
-Forget 已在本地及 Cloudflare 部署源的 Chromium/WebKit 完整通过。B0b 已关闭，但它仍
-不是通用 Provider 设置界面。
+P1-B1a 已把 B0b 的 `?agent=pi-openai` 用户入口清理掉。普通 URL 的设置页从固定版本 Pi
+Worker 无凭据读取完整 Provider/model catalog；React 不导入 Pi，也不维护第二份目录。
+SillyOS 只叠加精确到 `(providerId, modelId, API family, origin)` 的 Browser 资格状态。
+API key 从 uncontrolled password input 直接传入选定 Agent Worker，输入立即清空；切换或
+Forget 会终止 Worker，并要求重新输入 key。Provider/model 选择目前只属于当前设备会话，
+不会进入 Program、Workspace、IndexedDB、OPFS、URL、日志或导出文件。
 
 当前产品已经有由 Dedicated Worker 持有的 Browser IndexedDB Program repository；它只
 保存有界的产品 Program 投影，不保存 API key、Pi session、附件内容或 workspace 文件。
@@ -98,12 +101,15 @@ reopen、连续 generation、mutation receipt、取消、清理、恢复/争用�
 Pi 0.84.3 的原生 `edit` 与 `bash` 已接到同一 OPFS volume，确定性真实路径为
 `write -> edit -> read -> bash/rg -> proposal`，最终 bytes 与 generation `4` 可跨冷重开保留；
 超过 Pi 50 KiB 阈值的已完成输出会把完整 aggregate 持久化到同一卷的
-`.sillyos/tmp/bash-<opaque>.log`。P3a 因而关闭。当前没有激活中的 SillyOS 实现片；广泛
-P3c-B1 的三个 checkpoint 也已在 2026-08-28 关闭：Chromium 与持久 WebKit 都验证了
+`.sillyos/tmp/bash-<opaque>.log`。P3a 因而关闭。P3c-B1 的三个 checkpoint 也已在
+2026-08-28 关闭：Chromium 与持久 WebKit 都验证了
 generation-1002 的 accepted snapshot、generation-1005 的独立 later draft、胜出页持有 Host
 时的 stale Accept、cold reopen，以及 `1,001` 个文件逐字节一致的 `22,065,863`-byte retained
-ZIP。该物理 ZIP 读取是 test-only OPFS 证据，不是产品下载 API。广泛 Provider/BYO Sandbox
-研究、Wasm/更完整执行环境和 import 仍未激活。Desktop
+ZIP。该物理 ZIP 读取是 test-only OPFS 证据，不是产品下载 API。P1-B1a 已交付并通过本地
+release gate：25 个文件的 265 个产品测试、Chromium/持久 WebKit 的普通设置旅程，以及两种
+浏览器中的真实 OpenAI stream/tool/cancel/currentness/Forget 资格检查均通过。B1b 的五个
+direct Provider 与 B1c 的自定义 HTTPS endpoint 尚未激活。BYO Sandbox、Wasm/更完整
+执行环境和 import 仍未激活。Desktop
 底层仍计划由私有 companion 启动产品打包的 Pi coding-agent，但当前没有激活。
 
 详细的产品范围、Cloudflare OS 参考快照、语义映射、桌面/移动布局、键盘/IME、
@@ -136,13 +142,16 @@ React 产品面；Desktop 是产品目标，不会另外模拟操作系统桌面
 提交一次 follow-up。确定性 Pi 流程会用原生 `write`/`edit`/`read` 在持久 Program
 workspace 完成编辑往返，再由原生 `bash` 调用 Browser Local 的 `tee` 与 `rg` 验证另一个
 持久文件，最后形成 proposal；此时 workspace generation 为 `4`。返回 Home、等待 workspace
-close 完成并刷新页面后，重新初始化 Pi test 仍会打开同一 generation 和文件。普通 URL 不会
-加载 Pi Worker、Workspace Host 或 just-bash 的 lazy runtime 代码。
+close 完成并刷新页面后，重新初始化 Pi test 仍会打开同一 generation 和文件。普通 URL 的
+Creator Home 不会实例化 Pi Worker、Workspace Host 或 just-bash；首次打开设置时才会启动
+一个无凭据 catalog Worker，并在得到目录后立即终止它。
 
-要运行 B0b live 路线，在地址追加 `?locale=zh-CN&agent=pi-openai`，通过页面加载
-OpenAI key，再创建 Program 并提交 follow-up。加载完成只表示 Worker profile 已配置；
-真正的凭据/Provider 验证发生在首次运行。Key 输入会立即清空，Forget 会终止持有 key 的
-Worker。这个显式路线只支持当前固定模型，不读取开发机 `.env`。
+要运行 live 路线，直接打开普通 URL，进入“设置”，选择 OpenAI 和
+`gpt-4.1-nano`，再输入 OpenAI key 并连接 Agent Creator。连接完成只表示 Worker profile
+已配置；真正的凭据/Provider 验证发生在首次运行。Key 输入会立即清空，Forget 会终止持有
+key 的 Worker。网页不会读取开发机 `.env`。Anthropic、Gemini、OpenRouter、DeepSeek 和
+xAI 的指定 profile 当前作为待完整资格验证的候选显示，不能连接；Pi 的其他目录项也不会
+被自动视为 Browser 支持。
 
 当前已资格化的 Cloudflare 部署是
 [silly-os.jasl9187.workers.dev](https://silly-os.jasl9187.workers.dev/)。
@@ -167,13 +176,18 @@ deno task qualify:browser:openai
 
 验收部署源时可把 HTTPS 地址作为参数传入同一命令。
 
+共享 examples Playwright 套件也必须通过 `examples/silly-os/vite.config.ts` 启动本产品，
+这样 dev/E2E 使用与普通开发相同的 Worker alias 和固定 Pi 依赖预打包；这不改变生产 chunk、
+Provider 资格或 CSP。
+
 Browser 目标可作为 Cloudflare Workers Static Assets 发布的本地优先产品。部署方只
-提供静态应用；B0b 的模型请求从浏览器 Agent Worker 直接到 OpenAI，不经过 SillyOS
-官方代理。当前本地与部署源 B0b 均已验证 Worker 内存/forget 所有权。生产 UI key 仍须
-保持只在 Worker 内存中，不能
-写入 React state、URL、日志、Program 数据、IndexedDB、OPFS 或导出文件。自定义
-endpoint 仍必须满足 HTTPS、CORS、streaming 与取消合同，并非 Pi 在 Desktop 支持的
-全部 provider 都会自动出现在 Browser 能力列表中。
+提供静态应用；模型请求从浏览器 Agent Worker 直接到用户选择的已资格化 Provider，不经过
+SillyOS 官方代理。当前第一个 profile 已验证 Worker 内存/forget 所有权。生产 UI key 仍须
+保持只在 Worker 内存中，不能写入 React state、URL、日志、Program 数据、IndexedDB、
+OPFS 或导出文件。自定义 endpoint 仍必须满足 HTTPS、CSP、CORS、streaming 与取消合同，
+并非 Pi 在 Desktop 支持的全部 Provider 都会自动获得 Browser 资格。CSP 只决定页面可连接
+的目标；Provider 响应是否可读仍由对方的 CORS 响应决定，放宽 CSP 或使用 `no-cors`
+不能绕过它。
 
 ### Pi RPC 开发启动器
 
@@ -255,7 +269,9 @@ deno task build:desktop
 deno run -A npm:vitest run \
   src/test/creator-session.test.ts \
   src/test/creator-agent-admission.test.ts \
+  src/test/browser-pi-catalog-port.test.ts \
   src/test/browser-pi-worker.test.ts \
+  src/test/provider-settings-ui.test.tsx \
   src/test/pi-rpc-startup.test.ts
 ```
 
@@ -272,7 +288,7 @@ deno run -A npm:vitest run \
 | `src/product/creator-agent-admission.ts` | submit/candidate 的严格 product wire admission               |
 | `src/product/fake-creator.ts`            | 默认初始 proposal 的确定性 fake Creator                      |
 | `src/agent/creator-agent-port.ts`        | React 可见的 product facade；不暴露 raw Pi records           |
-| `src/agent/browser-pi-*`                 | 懒加载 Worker transport、固定 Pi identity 与 B0a/B0b Pi 适配 |
+| `src/agent/browser-pi-*`                 | 懒加载 Worker、固定 Pi identity、catalog 与 Browser 资格叠加 |
 | `src/companion/pi-rpc-startup.ts`        | dev-only 固定 Pi artifact、启动参数、隔离 flags 与脱敏摘要   |
 | `src/application/`                       | Browser/Deno 共用的 React 产品入口与工作区表现               |
 | `src/test/browser-pi-worker.test.ts`     | Pi tool、RPC 顺序/currentness、取消、替换与 Worker teardown  |

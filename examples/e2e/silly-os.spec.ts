@@ -13,7 +13,7 @@ async function expectProgramStorageReadyV1(page: Page): Promise<void> {
 }
 
 async function openCreatorHomeV1(page: Page): Promise<void> {
-  await page.goto(sillyOsTargetUrlV1("?locale=en"));
+  await page.goto(sillyOsTargetUrlV1("?locale=en&agent=pi-test"));
   await expectProgramStorageReadyV1(page);
   await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
   await expect(
@@ -693,6 +693,78 @@ async function expectNoPageOverflowV1(page: Page): Promise<void> {
   expect(overflow.document).toBeLessThanOrEqual(1);
   expect(overflow.body).toBeLessThanOrEqual(1);
 }
+
+test("ordinary Browser Settings preserves Home and Workspace navigation at the mobile boundary", async ({ durableProgramPage: page }) => {
+  const sentinel = "sillyos-provider-settings-session-key";
+  const observedNetwork: string[] = [];
+  const observedConsole: string[] = [];
+  page.on("request", (request) => {
+    observedNetwork.push(
+      `${request.url()}\n${request.postData() ?? ""}\n${JSON.stringify(request.headers())}`,
+    );
+  });
+  page.on("console", (message) => observedConsole.push(message.text()));
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(sillyOsTargetUrlV1("?locale=en"));
+  await expectProgramStorageReadyV1(page);
+  const homeSettings = page.locator('[data-open-settings="home"]');
+  await homeSettings.click();
+
+  const settings = page.locator('[data-silly-os-view="settings"]');
+  const globalBack = page.getByRole("button", { name: "Back to Agent Creator" });
+  await expect(settings).toBeVisible();
+  await expect(globalBack).toBeFocused();
+  await expect(page.locator('[data-provider-id="openai"]')).toHaveAttribute(
+    "data-availability",
+    "qualified",
+  );
+  await expect(page.locator('[data-provider-id="anthropic"]')).toHaveAttribute(
+    "data-availability",
+    "candidate",
+  );
+  const globalBackBox = await globalBack.boundingBox();
+  expect(globalBackBox?.width ?? 0).toBeGreaterThanOrEqual(44);
+  expect(globalBackBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+  const localeButtons = page.locator(".silly-os-settings__topbar .silly-os-locale button");
+  for (let index = 0; index < await localeButtons.count(); index += 1) {
+    const box = await localeButtons.nth(index).boundingBox();
+    expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+  }
+  await expectNoPageOverflowV1(page);
+
+  await page.locator('[data-provider-id="openai"]').click();
+  await expect(page.getByRole("button", { name: "Back to Providers" })).toBeFocused();
+  const qualifiedModel = page.locator('[data-model-id="gpt-4.1-nano"] input');
+  await qualifiedModel.check();
+  const keyInput = page.getByLabel("API key (memory only)");
+  await keyInput.fill(sentinel);
+  await page.getByRole("button", { name: "Connect Agent Creator" }).click();
+  await expect(keyInput).toHaveCount(0);
+  await expect(page.getByText("Agent Creator connected", { exact: true })).toBeVisible();
+  await globalBack.click();
+  await expect(homeSettings).toBeFocused();
+
+  const creatorIntent = page.getByRole("textbox", { name: "What would you like to make?" });
+  await creatorIntent.fill(translationIntentV1);
+  await page.getByRole("button", { name: "Create program" }).click();
+  const workspace = page.getByRole("main", { name: "SillyOS program workspace" });
+  await expect(workspace).toBeVisible();
+  const programId = await readProgramIdV1(workspace);
+  const workspaceSettings = page.locator('[data-open-settings="workspace"]');
+  await workspaceSettings.click();
+  await expect(settings).toBeVisible();
+  await expect(globalBack).toBeFocused();
+  await globalBack.click();
+  await expect(workspace).toHaveAttribute("data-program-id", programId);
+  await expect(workspaceSettings).toBeFocused();
+  await expectNoPageOverflowV1(page);
+
+  expect(observedNetwork.join("\n")).not.toContain(sentinel);
+  expect(observedConsole.join("\n")).not.toContain(sentinel);
+  expect(await page.content()).not.toContain(sentinel);
+});
 
 test("Creator Home persists and reopens an exact accepted Program", async ({ durableProgramPage: page }) => {
   const workspace = await openTranslationWorkspaceV1(page);

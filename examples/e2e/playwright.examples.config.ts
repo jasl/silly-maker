@@ -30,8 +30,10 @@ export default defineConfig({
       url: templateTargetUrlV1(),
     },
     {
+      // SillyOS owns Pi Worker aliases and fixed dependency prebundling, so its
+      // browser evidence must run through the application-local Vite config.
       command:
-        `deno run -A npm:vite --mode example-silly-os --host ${sillyOsTargetV1.host} --port ${
+        `deno run -A npm:vite --config examples/silly-os/vite.config.ts --host ${sillyOsTargetV1.host} --port ${
           String(sillyOsTargetV1.port)
         } --strictPort`,
       cwd: "../..",

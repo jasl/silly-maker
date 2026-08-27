@@ -13,6 +13,17 @@ export default defineConfig(async () => {
   return {
     ...config,
     publicDir: "public",
+    optimizeDeps: {
+      ...config.optimizeDeps,
+      // Stabilize the first lazy Agent Worker load in dev/E2E. Production
+      // chunking and Browser qualification remain independently verified.
+      include: [
+        ...(config.optimizeDeps?.include ?? []),
+        "@earendil-works/pi-agent-core",
+        "@earendil-works/pi-ai",
+        "@earendil-works/pi-ai/providers/all",
+      ],
+    },
     resolve: {
       ...config.resolve,
       alias: {

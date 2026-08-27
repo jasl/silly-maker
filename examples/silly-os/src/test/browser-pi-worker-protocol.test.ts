@@ -4,9 +4,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   admitBrowserPiEngineRequestV1,
+  admitBrowserPiProviderCatalogWireV1,
   admitBrowserPiWorkerInboundMessageV1,
+  admitBrowserPiWorkerOutboundMessageV1,
   admitBrowserPiWorkerWorkspaceOutboundMessageV1,
 } from "../agent/browser-pi-worker-protocol.ts";
+import { browserPiDistributionIdentityV1 } from "../agent/browser-pi-distribution.ts";
 import { serializeCreatorAgentSubmitV1 } from "../product/creator-agent-admission.ts";
 
 const programIdV1 = "program.workspace.preview.1";
@@ -84,7 +87,113 @@ function snapshotV1(
   };
 }
 
-describe("Browser Pi Worker P3a-B0 protocol", () => {
+function catalogV1(): Record<string, unknown> {
+  return {
+    revision: 1,
+    distribution: browserPiDistributionIdentityV1,
+    providers: [
+      {
+        id: "openai",
+        name: "OpenAI",
+        baseUrl: "https://api.openai.com/v1",
+        availability: "qualified",
+        models: [{
+          id: "gpt-4.1-nano",
+          name: "GPT-4.1 nano",
+          reasoning: false,
+          input: ["text", "image"],
+          contextWindow: 1_047_576,
+          maxTokens: 32_768,
+          availability: "qualified",
+        }],
+      },
+      {
+        id: "anthropic",
+        name: "Anthropic",
+        baseUrl: "https://api.anthropic.com",
+        availability: "candidate",
+        models: [{
+          id: "claude-sonnet-4-5",
+          name: "Claude Sonnet 4.5",
+          reasoning: true,
+          input: ["text", "image"],
+          contextWindow: 200_000,
+          maxTokens: 64_000,
+          availability: "candidate",
+        }],
+      },
+    ],
+  };
+}
+
+describe("Browser Pi Worker protocol", () => {
+  it("admits pre-credential catalog and exact selected-Provider initialization", () => {
+    expect(admitBrowserPiWorkerInboundMessageV1({
+      revision: 1,
+      kind: "catalog_request",
+      requestId: 1,
+    })).toEqual({ revision: 1, kind: "catalog_request", requestId: 1 });
+    expect(admitBrowserPiWorkerInboundMessageV1({
+      revision: 1,
+      kind: "catalog_request",
+      requestId: 1,
+      credential: "forbidden",
+    })).toBeNull();
+
+    const live = {
+      revision: 1,
+      kind: "initialize",
+      requestId: 2,
+      runtime: "pi_provider",
+      selection: { providerId: "openai", modelId: "gpt-4.1-nano" },
+      credential: { kind: "api_key", value: "sentinel" },
+    } as const;
+    expect(admitBrowserPiWorkerInboundMessageV1(live)).toEqual(live);
+    expect(admitBrowserPiWorkerInboundMessageV1({ ...live, selection: null })).toBeNull();
+    expect(admitBrowserPiWorkerInboundMessageV1({
+      ...live,
+      selection: { providerId: "openai", modelId: "gpt-4.1-nano", api: "forbidden" },
+    })).toBeNull();
+    expect(admitBrowserPiWorkerInboundMessageV1({
+      ...live,
+      runtime: "deterministic_test",
+      selection: null,
+    })).not.toBeNull();
+  });
+
+  it("admits only bounded catalog projections with derived Provider availability", () => {
+    const catalog = catalogV1();
+    expect(admitBrowserPiProviderCatalogWireV1(catalog)).toMatchObject({
+      providers: [
+        { id: "openai", availability: "qualified" },
+        { id: "anthropic", availability: "candidate" },
+      ],
+    });
+    expect(admitBrowserPiWorkerOutboundMessageV1({
+      revision: 1,
+      kind: "catalog_response",
+      requestId: 1,
+      ok: true,
+      catalog,
+    })).not.toBeNull();
+
+    const providers = catalog.providers as Record<string, unknown>[];
+    const openAi = providers[0] as Record<string, unknown>;
+    expect(admitBrowserPiProviderCatalogWireV1({
+      ...catalog,
+      providers: [{ ...openAi, availability: "candidate" }, providers[1]],
+    })).toBeNull();
+    const models = openAi.models as Record<string, unknown>[];
+    expect(admitBrowserPiProviderCatalogWireV1({
+      ...catalog,
+      providers: [{ ...openAi, models: [{ ...models[0], api: "openai-responses" }] }, providers[1]],
+    })).toBeNull();
+    expect(admitBrowserPiProviderCatalogWireV1({
+      ...catalog,
+      providers: [{ ...openAi, models: [models[0], models[0]] }, providers[1]],
+    })).toBeNull();
+  });
+
   it("keeps start/cancel inner admission and adds execution only beside valid submit", () => {
     const start = { revision: 1, requestId: 1, method: "start" };
     const cancel = {

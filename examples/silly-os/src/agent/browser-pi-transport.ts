@@ -14,7 +14,7 @@ import {
   admitBrowserPiEngineRequestV1,
   admitBrowserPiWorkerAnyOutboundMessageV1,
   type BrowserPiWorkerInitializeV1,
-  type BrowserPiWorkerRuntimeV1,
+  type BrowserPiModelSelectionV1,
   type BrowserPiWorkspaceMutationReceiptWireV1,
   type BrowserPiWorkspaceRequestRecordV1,
   type BrowserPiWorkspaceSnapshotWireV1,
@@ -102,7 +102,7 @@ const readyTimeoutMillisecondsV1 = 5_000;
 const bufferedRecordMaximumV1 = 2_048;
 const credentialMaximumCharactersV1 = 64 * 1024;
 
-function defaultBrowserPiWorkerFactoryV1(): BrowserPiWorkerLikeV1 {
+export function createDefaultBrowserPiWorkerV1(): BrowserPiWorkerLikeV1 {
   return new Worker(new URL("./browser-pi.worker.ts", import.meta.url), {
     type: "module",
     name: "sillyos-browser-pi",
@@ -144,14 +144,23 @@ function executionBindingFromHostV1(
 export function createBrowserPiWorkerRawTransportV1({
   apiKey: suppliedApiKey,
   runtime,
+  selection: suppliedSelection = null,
   workspaceAuthority,
-  workerFactory = defaultBrowserPiWorkerFactoryV1,
-}: {
-  readonly apiKey: string;
-  readonly runtime: BrowserPiWorkerRuntimeV1;
-  readonly workspaceAuthority: BrowserProgramWorkspaceAuthorityV1;
-  readonly workerFactory?: BrowserPiWorkerFactoryV1;
-}): BrowserPiWorkerRawTransportV1 {
+  workerFactory = createDefaultBrowserPiWorkerV1,
+}:
+  & {
+    readonly apiKey: string;
+    readonly workspaceAuthority: BrowserProgramWorkspaceAuthorityV1;
+    readonly workerFactory?: BrowserPiWorkerFactoryV1;
+  }
+  & (
+    | { readonly runtime: "deterministic_test"; readonly selection?: null }
+    | { readonly runtime: "pi_provider"; readonly selection: BrowserPiModelSelectionV1 }
+  )): BrowserPiWorkerRawTransportV1 {
+  const selection = suppliedSelection === null ? null : Object.freeze({
+    providerId: suppliedSelection.providerId,
+    modelId: suppliedSelection.modelId,
+  });
   let pendingApiKey = suppliedApiKey.length > 0 &&
       suppliedApiKey.length <= credentialMaximumCharactersV1
     ? suppliedApiKey
@@ -326,8 +335,17 @@ export function createBrowserPiWorkerRawTransportV1({
         }
         if (!state.ready) {
           if (
+            message.kind === "initialization_failure" && message.requestId === 1
+          ) {
+            closeState(state, `initialize_${message.code}`);
+            return;
+          }
+          if (
             message.kind !== "ready" || message.requestId !== 1 ||
-            message.runtime !== runtime
+            message.runtime !== runtime ||
+            message.selection?.providerId !== selection?.providerId ||
+            message.selection?.modelId !== selection?.modelId ||
+            (message.selection === null) !== (selection === null)
           ) {
             closeState(state, "ready_invalid");
             return;
@@ -399,6 +417,10 @@ export function createBrowserPiWorkerRawTransportV1({
             pending.resolve(message.response);
           } else pending.reject(transportErrorV1(`workspace_${message.code}`));
         } else {
+          if (message.kind !== "rpc_response") {
+            closeState(state, "rpc_response_mismatch");
+            return;
+          }
           if (isWorkspaceMethodV1(pending.method)) {
             closeState(state, "rpc_response_mismatch");
             return;
@@ -437,6 +459,7 @@ export function createBrowserPiWorkerRawTransportV1({
           kind: "initialize",
           requestId: 1,
           runtime,
+          selection,
           credential: { kind: "api_key", value: apiKey },
         };
         // Worker.postMessage has no targetOrigin parameter.

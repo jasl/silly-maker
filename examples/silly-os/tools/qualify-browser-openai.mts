@@ -34,7 +34,6 @@ function targetUrlV1(raw: string): string {
   target.hash = "";
   target.search = "";
   target.searchParams.set("locale", "en");
-  target.searchParams.set("agent", "pi-openai");
   return target.href;
 }
 
@@ -126,11 +125,17 @@ async function qualifyBrowserV1(
 
       await page.goto(target);
       phase = "configure";
-      const keyInput = page.getByLabel("OpenAI API key (memory only)");
+      await page.getByRole("button", { name: "Settings" }).first().click();
+      await page.locator('[data-silly-os-view="settings"]').waitFor();
+      await page.locator('[data-provider-id="openai"]').click();
+      await page.locator('[data-model-id="gpt-4.1-nano"] input').check();
+      const keyInput = page.getByLabel("API key (memory only)");
       await keyInput.fill(apiKey);
-      await page.getByRole("button", { name: "Load OpenAI key" }).click();
-      await page.getByText("OpenAI Agent configured", { exact: true }).waitFor();
+      await page.getByRole("button", { name: "Connect Agent Creator" }).click();
+      await page.getByText("Agent Creator connected", { exact: true }).waitFor();
       requireV1(await keyInput.count() === 0, "credential_input_not_cleared");
+      await page.getByRole("button", { name: "Back to Agent Creator" }).click();
+      await page.getByText("Provider Agent configured", { exact: true }).waitFor();
 
       phase = "create";
       await page.getByRole("textbox", { name: "What would you like to make?" }).fill(
@@ -184,7 +189,7 @@ async function qualifyBrowserV1(
       requireV1(!durableProjection.includes(apiKey), "credential_persisted");
 
       phase = "forget";
-      const forgetButton = page.getByRole("button", { name: "Forget OpenAI key" });
+      const forgetButton = page.getByRole("button", { name: "Forget Provider key" });
       await forgetButton.click();
       await forgetButton.waitFor({ state: "detached" });
       requireV1(

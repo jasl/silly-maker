@@ -8,11 +8,11 @@ import {
   Languages,
   Paperclip,
   PenTool,
+  Settings,
   Sparkles,
 } from "lucide-react";
 import { type FormEvent, type ReactNode, useRef, useState } from "react";
 
-import type { BrowserPiWorkerRuntimeV1 } from "../agent/browser-pi-worker-protocol.ts";
 import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../content/copy.ts";
 import type { PreviewProgramKindV1, ProgramProposalStatusV1 } from "../product/contracts.ts";
 import { SillyButtonV1 as Button } from "./controls.tsx";
@@ -24,6 +24,7 @@ export interface CreatorHomePropsV1 {
   readonly copy: SillyOsCopyV1;
   readonly onCreate: (intent: string, resourceNames: readonly string[]) => void;
   readonly onLocaleChange: (locale: SillyOsLocaleV1) => void;
+  readonly onOpenSettings?: () => void;
   readonly createDisabled?: boolean;
   readonly programCatalog?: {
     readonly status: "loading" | "ready" | "failed";
@@ -38,9 +39,13 @@ export interface CreatorHomePropsV1 {
     readonly onOpen: (programId: string) => void;
   };
   readonly piAgentSetup?: {
-    readonly runtime: BrowserPiWorkerRuntimeV1;
+    readonly runtime: "deterministic_test";
     readonly status: "loading" | "available" | "initializing" | "ready" | "failed";
     readonly onInitialize: (credential: string) => void;
+  };
+  readonly providerSetup?: {
+    readonly status: "loading" | "available" | "initializing" | "ready" | "failed";
+    readonly onOpenSettings: () => void;
   };
 }
 
@@ -48,22 +53,16 @@ export function CreatorHomeV1({
   copy,
   onCreate,
   onLocaleChange,
+  onOpenSettings,
   createDisabled = false,
   piAgentSetup,
+  providerSetup,
   programCatalog,
 }: CreatorHomePropsV1): ReactNode {
   const [intent, setIntent] = useState("");
   const [resourceNames, setResourceNames] = useState<readonly string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const piAgentKeyRef = useRef<HTMLInputElement>(null);
-  const liveAgent = piAgentSetup?.runtime === "openai_direct";
-  const agentTitle = liveAgent ? copy.piLiveTitle : copy.piTestTitle;
-  const agentDescription = liveAgent ? copy.piLiveDescription : copy.piTestDescription;
-  const agentKeyLabel = liveAgent ? copy.piLiveKeyLabel : copy.piTestKeyLabel;
-  const agentKeyPlaceholder = liveAgent ? copy.piLiveKeyPlaceholder : copy.piTestKeyPlaceholder;
-  const agentInitialize = liveAgent ? copy.piLiveInitialize : copy.piTestInitialize;
-  const agentReady = liveAgent ? copy.piLiveReady : copy.piTestReady;
-  const agentFailed = liveAgent ? copy.piLiveFailed : copy.piTestFailed;
 
   const programKindLabelV1 = (kind: PreviewProgramKindV1): string => {
     switch (kind) {
@@ -94,6 +93,17 @@ export function CreatorHomeV1({
         <SillyOsBrandV1 copy={copy} />
         <div className="creator-home__topbar-actions">
           <LocaleSwitchV1 copy={copy} onChange={onLocaleChange} />
+          {onOpenSettings !== undefined && (
+            <Button
+              variant="ghost"
+              shape="square"
+              size="sm"
+              icon={Settings}
+              aria-label={copy.settings}
+              data-open-settings="home"
+              onClick={onOpenSettings}
+            />
+          )}
         </div>
       </header>
 
@@ -123,12 +133,12 @@ export function CreatorHomeV1({
             >
               <div className="pi-agent-setup__heading">
                 <KeyRound size={16} aria-hidden="true" />
-                <strong>{agentTitle}</strong>
+                <strong>{copy.piTestTitle}</strong>
                 <span>
                   {piAgentSetup.status === "ready"
-                    ? agentReady
+                    ? copy.piTestReady
                     : piAgentSetup.status === "failed"
-                    ? agentFailed
+                    ? copy.piTestFailed
                     : piAgentSetup.status === "initializing"
                     ? copy.piTestInitializing
                     : piAgentSetup.status === "loading"
@@ -136,10 +146,10 @@ export function CreatorHomeV1({
                     : copy.preview}
                 </span>
               </div>
-              <p>{agentDescription}</p>
+              <p>{copy.piTestDescription}</p>
               {piAgentSetup.status !== "ready" && (
                 <div className="pi-agent-setup__controls">
-                  <label htmlFor="pi-agent-key">{agentKeyLabel}</label>
+                  <label htmlFor="pi-agent-key">{copy.piTestKeyLabel}</label>
                   <input
                     id="pi-agent-key"
                     ref={piAgentKeyRef}
@@ -147,7 +157,7 @@ export function CreatorHomeV1({
                     required
                     autoComplete="off"
                     spellCheck={false}
-                    placeholder={agentKeyPlaceholder}
+                    placeholder={copy.piTestKeyPlaceholder}
                     disabled={piAgentSetup.status === "loading" ||
                       piAgentSetup.status === "initializing"}
                   />
@@ -160,11 +170,45 @@ export function CreatorHomeV1({
                   >
                     {piAgentSetup.status === "initializing"
                       ? copy.piTestInitializing
-                      : agentInitialize}
+                      : copy.piTestInitialize}
                   </Button>
                 </div>
               )}
             </form>
+          )}
+
+          {providerSetup !== undefined && (
+            <aside
+              className="pi-agent-setup"
+              data-pi-agent-runtime="pi_provider"
+              data-pi-agent-status={providerSetup.status}
+            >
+              <div className="pi-agent-setup__heading">
+                <KeyRound size={16} aria-hidden="true" />
+                <strong>{copy.piLiveTitle}</strong>
+                <span>
+                  {providerSetup.status === "ready"
+                    ? copy.piLiveReady
+                    : providerSetup.status === "failed"
+                    ? copy.piLiveFailed
+                    : providerSetup.status === "initializing"
+                    ? copy.providerInitializing
+                    : copy.preview}
+                </span>
+              </div>
+              <p>{copy.piLiveDescription}</p>
+              <div className="pi-agent-setup__controls">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  icon={Settings}
+                  onClick={providerSetup.onOpenSettings}
+                >
+                  {copy.settings}
+                </Button>
+              </div>
+            </aside>
           )}
 
           <form className="creator-composer" onSubmit={submitV1}>

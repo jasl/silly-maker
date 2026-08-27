@@ -4,13 +4,51 @@ import { admitCreatorAgentSubmitTextV1 } from "../product/creator-agent-admissio
 import { isBrowserPiDistributionIdentityV1 } from "./browser-pi-distribution.ts";
 import type { BrowserPiDistributionIdentityV1 } from "./browser-pi-distribution.ts";
 
-export type BrowserPiWorkerRuntimeV1 = "deterministic_test" | "openai_direct";
+export type BrowserPiWorkerRuntimeV1 = "deterministic_test" | "pi_provider";
+
+export interface BrowserPiModelSelectionV1 {
+  readonly providerId: string;
+  readonly modelId: string;
+}
+
+export type BrowserPiCatalogAvailabilityV1 = "qualified" | "candidate" | "unavailable";
+
+export interface BrowserPiCatalogModelWireV1 {
+  readonly id: string;
+  readonly name: string;
+  readonly reasoning: boolean;
+  readonly input: readonly ("text" | "image")[];
+  readonly contextWindow: number;
+  readonly maxTokens: number;
+  readonly availability: BrowserPiCatalogAvailabilityV1;
+}
+
+export interface BrowserPiCatalogProviderWireV1 {
+  readonly id: string;
+  readonly name: string;
+  readonly baseUrl: string | null;
+  readonly availability: BrowserPiCatalogAvailabilityV1;
+  readonly models: readonly BrowserPiCatalogModelWireV1[];
+}
+
+export interface BrowserPiProviderCatalogWireV1 {
+  readonly revision: 1;
+  readonly distribution: BrowserPiDistributionIdentityV1;
+  readonly providers: readonly BrowserPiCatalogProviderWireV1[];
+}
+
+export interface BrowserPiWorkerCatalogRequestV1 {
+  readonly revision: 1;
+  readonly kind: "catalog_request";
+  readonly requestId: number;
+}
 
 export interface BrowserPiWorkerInitializeV1 {
   readonly revision: 1;
   readonly kind: "initialize";
   readonly requestId: number;
   readonly runtime: BrowserPiWorkerRuntimeV1;
+  readonly selection: BrowserPiModelSelectionV1 | null;
   readonly credential: {
     readonly kind: "api_key";
     readonly value: string;
@@ -67,6 +105,7 @@ export interface BrowserPiWorkerWorkspaceRequestV1 {
 }
 
 export type BrowserPiWorkerInboundMessageV1 =
+  | BrowserPiWorkerCatalogRequestV1
   | BrowserPiWorkerInitializeV1
   | BrowserPiWorkerRpcRequestV1
   | BrowserPiWorkerWorkspaceRequestV1;
@@ -76,7 +115,31 @@ export interface BrowserPiWorkerReadyV1 {
   readonly kind: "ready";
   readonly requestId: number;
   readonly runtime: BrowserPiWorkerRuntimeV1;
+  readonly selection: BrowserPiModelSelectionV1 | null;
   readonly distribution: BrowserPiDistributionIdentityV1;
+}
+
+export interface BrowserPiWorkerCatalogSuccessV1 {
+  readonly revision: 1;
+  readonly kind: "catalog_response";
+  readonly requestId: number;
+  readonly ok: true;
+  readonly catalog: BrowserPiProviderCatalogWireV1;
+}
+
+export interface BrowserPiWorkerCatalogFailureV1 {
+  readonly revision: 1;
+  readonly kind: "catalog_response";
+  readonly requestId: number;
+  readonly ok: false;
+  readonly code: "catalog_unavailable";
+}
+
+export interface BrowserPiWorkerInitializationFailureV1 {
+  readonly revision: 1;
+  readonly kind: "initialization_failure";
+  readonly requestId: number;
+  readonly code: "selection_unavailable";
 }
 
 export interface BrowserPiWorkerRpcResponseV1 {
@@ -189,6 +252,9 @@ export type BrowserPiWorkerWorkspaceOutboundMessageV1 =
 
 export type BrowserPiWorkerOutboundMessageV1 =
   | BrowserPiWorkerReadyV1
+  | BrowserPiWorkerCatalogSuccessV1
+  | BrowserPiWorkerCatalogFailureV1
+  | BrowserPiWorkerInitializationFailureV1
   | BrowserPiWorkerRpcResponseV1
   | BrowserPiWorkerRpcFailureV1
   | BrowserPiWorkerRpcRecordV1
@@ -227,6 +293,12 @@ type DataRecordV1 = Readonly<Record<string, unknown>>;
 
 const identifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
 const credentialMaximumCharactersV1 = 64 * 1024;
+const catalogProviderMaximumV1 = 64;
+const catalogModelsPerProviderMaximumV1 = 2_048;
+const catalogModelsTotalMaximumV1 = 4_096;
+const catalogNameMaximumUtf8BytesV1 = 2_048;
+const catalogModelIdMaximumUtf8BytesV1 = 2_048;
+const catalogBaseUrlMaximumUtf8BytesV1 = 8_192;
 const workspaceReceiptMaximumV1 = 32;
 const workspacePathMaximumUtf8BytesV1 = 512;
 const workspacePathMaximumComponentsV1 = 32;
@@ -321,6 +393,146 @@ function utf8ByteLengthV1(value: string): number | null {
     byteLength += 3;
   }
   return byteLength;
+}
+
+function hasAsciiControlCharacterV1(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const codeUnit = value.charCodeAt(index);
+    if (codeUnit <= 0x1f || codeUnit === 0x7f) return true;
+  }
+  return false;
+}
+
+function isBoundedTextV1(value: unknown, maximumUtf8Bytes: number): value is string {
+  if (
+    typeof value !== "string" || value.length === 0 || value !== value.trim() ||
+    hasAsciiControlCharacterV1(value)
+  ) return false;
+  const byteLength = utf8ByteLengthV1(value);
+  return byteLength !== null && byteLength <= maximumUtf8Bytes;
+}
+
+function isBoundedDisplayTextV1(value: unknown, maximumUtf8Bytes: number): value is string {
+  if (
+    typeof value !== "string" || value.trim().length === 0 ||
+    hasAsciiControlCharacterV1(value)
+  ) return false;
+  const byteLength = utf8ByteLengthV1(value);
+  return byteLength !== null && byteLength <= maximumUtf8Bytes;
+}
+
+function admitBrowserPiModelSelectionV1(value: unknown): BrowserPiModelSelectionV1 | null {
+  const selection = exactDataRecordV1(value, ["providerId", "modelId"]);
+  if (
+    selection === null || !isIdentifierV1(selection.providerId) ||
+    !isBoundedTextV1(selection.modelId, catalogModelIdMaximumUtf8BytesV1)
+  ) return null;
+  return { providerId: selection.providerId, modelId: selection.modelId };
+}
+
+function isCatalogAvailabilityV1(value: unknown): value is BrowserPiCatalogAvailabilityV1 {
+  return value === "qualified" || value === "candidate" || value === "unavailable";
+}
+
+function admitCatalogModelV1(value: unknown): BrowserPiCatalogModelWireV1 | null {
+  const model = exactDataRecordV1(value, [
+    "id",
+    "name",
+    "reasoning",
+    "input",
+    "contextWindow",
+    "maxTokens",
+    "availability",
+  ]);
+  if (
+    model === null || !isBoundedTextV1(model.id, catalogModelIdMaximumUtf8BytesV1) ||
+    !isBoundedDisplayTextV1(model.name, catalogNameMaximumUtf8BytesV1) ||
+    typeof model.reasoning !== "boolean" || !isPositiveSafeIntegerV1(model.contextWindow) ||
+    !isPositiveSafeIntegerV1(model.maxTokens) || !isCatalogAvailabilityV1(model.availability)
+  ) return null;
+  const input = exactArrayV1(model.input, 2);
+  if (
+    input === null || input.length === 0 ||
+    input.some((kind) => kind !== "text" && kind !== "image") ||
+    new Set(input).size !== input.length
+  ) return null;
+  return {
+    id: model.id,
+    name: model.name,
+    reasoning: model.reasoning,
+    input: input as readonly ("text" | "image")[],
+    contextWindow: model.contextWindow,
+    maxTokens: model.maxTokens,
+    availability: model.availability,
+  };
+}
+
+function admitCatalogProviderV1(value: unknown): BrowserPiCatalogProviderWireV1 | null {
+  const provider = exactDataRecordV1(value, [
+    "id",
+    "name",
+    "baseUrl",
+    "availability",
+    "models",
+  ]);
+  if (
+    provider === null || !isIdentifierV1(provider.id) ||
+    !isBoundedDisplayTextV1(provider.name, catalogNameMaximumUtf8BytesV1) ||
+    (provider.baseUrl !== null &&
+      !isBoundedTextV1(provider.baseUrl, catalogBaseUrlMaximumUtf8BytesV1)) ||
+    !isCatalogAvailabilityV1(provider.availability)
+  ) return null;
+  const rawModels = exactArrayV1(provider.models, catalogModelsPerProviderMaximumV1);
+  if (rawModels === null) return null;
+  const models: BrowserPiCatalogModelWireV1[] = [];
+  const modelIds = new Set<string>();
+  for (const rawModel of rawModels) {
+    const model = admitCatalogModelV1(rawModel);
+    if (model === null || modelIds.has(model.id)) return null;
+    modelIds.add(model.id);
+    models.push(model);
+  }
+  const expectedAvailability = models.some(({ availability }) => availability === "qualified")
+    ? "qualified"
+    : models.some(({ availability }) => availability === "candidate")
+    ? "candidate"
+    : "unavailable";
+  if (provider.availability !== expectedAvailability) return null;
+  return {
+    id: provider.id,
+    name: provider.name,
+    baseUrl: provider.baseUrl,
+    availability: provider.availability,
+    models,
+  };
+}
+
+export function admitBrowserPiProviderCatalogWireV1(
+  value: unknown,
+): BrowserPiProviderCatalogWireV1 | null {
+  const catalog = exactDataRecordV1(value, ["revision", "distribution", "providers"]);
+  if (
+    catalog === null || catalog.revision !== 1 ||
+    !isBrowserPiDistributionIdentityV1(catalog.distribution)
+  ) return null;
+  const rawProviders = exactArrayV1(catalog.providers, catalogProviderMaximumV1);
+  if (rawProviders === null) return null;
+  const providers: BrowserPiCatalogProviderWireV1[] = [];
+  const providerIds = new Set<string>();
+  let modelCount = 0;
+  for (const rawProvider of rawProviders) {
+    const provider = admitCatalogProviderV1(rawProvider);
+    if (provider === null || providerIds.has(provider.id)) return null;
+    providerIds.add(provider.id);
+    modelCount += provider.models.length;
+    if (modelCount > catalogModelsTotalMaximumV1) return null;
+    providers.push(provider);
+  }
+  return {
+    revision: 1,
+    distribution: catalog.distribution,
+    providers,
+  };
 }
 
 function isNormalizedWorkspacePathV1(value: unknown): value is string {
@@ -538,18 +750,29 @@ export function admitBrowserPiWorkspaceSnapshotWireV1(
 export function admitBrowserPiWorkerInboundMessageV1(
   value: unknown,
 ): BrowserPiWorkerInboundMessageV1 | null {
-  const discriminator = exactDataRecordV1(value, [
-    "revision",
-    "kind",
-    "requestId",
-    "record",
-    "execution",
-  ]) ?? exactDataRecordV1(value, ["revision", "kind", "requestId", "record"]) ??
-    exactDataRecordV1(value, ["revision", "kind", "requestId", "runtime", "credential"]);
+  const discriminator = exactDataRecordV1(value, ["revision", "kind", "requestId"]) ??
+    exactDataRecordV1(value, [
+      "revision",
+      "kind",
+      "requestId",
+      "record",
+      "execution",
+    ]) ?? exactDataRecordV1(value, ["revision", "kind", "requestId", "record"]) ??
+    exactDataRecordV1(value, [
+      "revision",
+      "kind",
+      "requestId",
+      "runtime",
+      "selection",
+      "credential",
+    ]);
   if (
     discriminator === null || discriminator.revision !== 1 ||
     !isRequestIdV1(discriminator.requestId)
   ) return null;
+  if (discriminator.kind === "catalog_request") {
+    return { revision: 1, kind: "catalog_request", requestId: discriminator.requestId };
+  }
   if (discriminator.kind === "workspace_request") {
     if (Object.hasOwn(discriminator, "execution")) return null;
     const record = admitWorkspaceRequestRecordV1(discriminator.record);
@@ -591,10 +814,17 @@ export function admitBrowserPiWorkerInboundMessageV1(
   if (
     discriminator.kind !== "initialize" ||
     (discriminator.runtime !== "deterministic_test" &&
-      discriminator.runtime !== "openai_direct")
+      discriminator.runtime !== "pi_provider")
   ) {
     return null;
   }
+  const selection = discriminator.selection === null
+    ? null
+    : admitBrowserPiModelSelectionV1(discriminator.selection);
+  if (
+    (discriminator.runtime === "deterministic_test" && discriminator.selection !== null) ||
+    (discriminator.runtime === "pi_provider" && selection === null)
+  ) return null;
   const credential = exactDataRecordV1(discriminator.credential, ["kind", "value"]);
   if (
     credential === null || credential.kind !== "api_key" ||
@@ -606,6 +836,7 @@ export function admitBrowserPiWorkerInboundMessageV1(
     kind: "initialize",
     requestId: discriminator.requestId,
     runtime: discriminator.runtime,
+    selection,
     credential: { kind: "api_key", value: credential.value },
   };
 }
@@ -615,7 +846,16 @@ export function admitBrowserPiWorkerOutboundMessageV1(
 ): BrowserPiWorkerOutboundMessageV1 | null {
   const base = exactDataRecordV1(value, ["revision", "kind", "code"]) ??
     exactDataRecordV1(value, ["revision", "kind", "record"]) ??
-    exactDataRecordV1(value, ["revision", "kind", "requestId", "runtime", "distribution"]) ??
+    exactDataRecordV1(value, ["revision", "kind", "requestId", "code"]) ??
+    exactDataRecordV1(value, [
+      "revision",
+      "kind",
+      "requestId",
+      "runtime",
+      "selection",
+      "distribution",
+    ]) ??
+    exactDataRecordV1(value, ["revision", "kind", "requestId", "ok", "catalog"]) ??
     exactDataRecordV1(value, ["revision", "kind", "requestId", "ok", "response"]) ??
     exactDataRecordV1(value, ["revision", "kind", "requestId", "ok", "code"]);
   if (base === null || base.revision !== 1) return null;
@@ -630,16 +870,56 @@ export function admitBrowserPiWorkerOutboundMessageV1(
     return { revision: 1, kind: "rpc_record", record: base.record };
   }
   if (!isRequestIdV1(base.requestId)) return null;
+  if (base.kind === "initialization_failure") {
+    if (base.code !== "selection_unavailable") return null;
+    return {
+      revision: 1,
+      kind: "initialization_failure",
+      requestId: base.requestId,
+      code: "selection_unavailable",
+    };
+  }
+  if (base.kind === "catalog_response") {
+    if (base.ok === true && Object.hasOwn(base, "catalog")) {
+      const catalog = admitBrowserPiProviderCatalogWireV1(base.catalog);
+      if (catalog === null) return null;
+      return {
+        revision: 1,
+        kind: "catalog_response",
+        requestId: base.requestId,
+        ok: true,
+        catalog,
+      };
+    }
+    if (base.ok === false && base.code === "catalog_unavailable") {
+      return {
+        revision: 1,
+        kind: "catalog_response",
+        requestId: base.requestId,
+        ok: false,
+        code: "catalog_unavailable",
+      };
+    }
+    return null;
+  }
   if (base.kind === "ready") {
     if (
-      (base.runtime !== "deterministic_test" && base.runtime !== "openai_direct") ||
+      (base.runtime !== "deterministic_test" && base.runtime !== "pi_provider") ||
       !isBrowserPiDistributionIdentityV1(base.distribution)
+    ) return null;
+    const selection = base.selection === null
+      ? null
+      : admitBrowserPiModelSelectionV1(base.selection);
+    if (
+      (base.runtime === "deterministic_test" && base.selection !== null) ||
+      (base.runtime === "pi_provider" && selection === null)
     ) return null;
     return {
       revision: 1,
       kind: "ready",
       requestId: base.requestId,
       runtime: base.runtime,
+      selection,
       distribution: base.distribution,
     };
   }

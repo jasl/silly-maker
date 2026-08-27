@@ -39,7 +39,7 @@ import {
   type BrowserPiWorkerFactoryV1,
 } from "./browser-pi-transport.ts";
 import type {
-  BrowserPiWorkerRuntimeV1,
+  BrowserPiModelSelectionV1,
   BrowserPiWorkspaceMutationReceiptWireV1,
   BrowserPiWorkspaceSnapshotWireV1,
 } from "./browser-pi-worker-protocol.ts";
@@ -393,12 +393,18 @@ function isFailedProjectionV1(
   return Object.hasOwn(value, "terminalRun");
 }
 
-export function createBrowserCreatorAgentPortV1(input: {
-  readonly apiKey: string;
-  readonly runtime: BrowserPiWorkerRuntimeV1;
-  readonly workerFactory?: BrowserPiWorkerFactoryV1;
-  readonly workspaceAuthority: BrowserProgramWorkspaceAuthorityV1;
-}): CreatorAgentPortV1 {
+export function createBrowserCreatorAgentPortV1(
+  input:
+    & {
+      readonly apiKey: string;
+      readonly workerFactory?: BrowserPiWorkerFactoryV1;
+      readonly workspaceAuthority: BrowserProgramWorkspaceAuthorityV1;
+    }
+    & (
+      | { readonly runtime: "deterministic_test"; readonly selection?: null }
+      | { readonly runtime: "pi_provider"; readonly selection: BrowserPiModelSelectionV1 }
+    ),
+): CreatorAgentPortV1 {
   const { workspaceAuthority } = input;
   const transport = createBrowserPiWorkerRawTransportV1({ ...input, workspaceAuthority });
   const client = createAgentRpcClientInternalV1({ transport });

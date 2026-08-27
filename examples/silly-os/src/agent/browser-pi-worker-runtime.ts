@@ -22,13 +22,18 @@ import {
   type WorkspaceMutationRecordV1,
 } from "../workspace/index.ts";
 import { browserPiDistributionIdentityV1 } from "./browser-pi-distribution.ts";
-import { createOpenAiPiAgentV1 } from "./browser-pi-openai-runtime-bridge.js";
+import {
+  createBrowserPiProviderAgentV1,
+  isBrowserPiSelectionQualifiedV1,
+  projectBrowserPiProviderCatalogV1,
+} from "./browser-pi-provider-runtime-bridge.js";
 import { createDeterministicPiAgentV1 } from "./browser-pi-runtime-bridge.js";
 import {
   admitBrowserPiEngineRequestV1,
   admitBrowserPiWorkerInboundMessageV1,
   type BrowserPiWorkerAnyOutboundMessageV1,
   type BrowserPiWorkerExecutionBindingV1,
+  type BrowserPiModelSelectionV1,
   type BrowserPiWorkerRuntimeV1,
   type BrowserPiWorkspaceFailureCodeV1,
   type BrowserPiWorkspaceMutationReceiptWireV1,
@@ -92,6 +97,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
 }): BrowserPiWorkerRuntimePortV1 {
   let credentialKey: string | null = null;
   let configuredRuntime: BrowserPiWorkerRuntimeV1 | null = null;
+  let configuredSelection: BrowserPiModelSelectionV1 | null = null;
   let initialized = false;
   let disposed = false;
   let nextSessionId = 1;
@@ -274,8 +280,12 @@ export function createBrowserPiWorkerRuntimeV1(input: {
   ): Promise<ActivePiRunV1 | null> => {
     const runtime = configuredRuntime;
     const apiKey = credentialKey;
+    const selection = configuredSelection;
     const client = workspaceClient;
-    if (runtime === null || apiKey === null || client === null || workspacePhase !== "open") {
+    if (
+      runtime === null || apiKey === null || client === null || workspacePhase !== "open" ||
+      (runtime === "pi_provider" && selection === null)
+    ) {
       return null;
     }
     const begun = await client.beginAgentRun({
@@ -339,7 +349,11 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       const runNumber = Number(runId.slice(runId.lastIndexOf(".") + 1));
       agent = (runtime === "deterministic_test"
         ? createDeterministicPiAgentV1({ ...agentInput, runNumber })
-        : createOpenAiPiAgentV1({ ...agentInput, apiKey })) as PiAgentPortV1;
+        : createBrowserPiProviderAgentV1({
+          ...agentInput,
+          apiKey,
+          selection: selection as BrowserPiModelSelectionV1,
+        })) as PiAgentPortV1;
     } catch {
       workspaceRun.finish();
       return null;
@@ -582,19 +596,57 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       postProtocolFailure("invalid_message");
       return;
     }
+    if (message.kind === "catalog_request") {
+      if (ports.length !== 0 || initialized || credentialKey !== null) {
+        postProtocolFailure("invalid_message");
+        return;
+      }
+      try {
+        post(Object.freeze({
+          revision: 1,
+          kind: "catalog_response",
+          requestId: message.requestId,
+          ok: true,
+          catalog: projectBrowserPiProviderCatalogV1(),
+        }));
+      } catch {
+        post(Object.freeze({
+          revision: 1,
+          kind: "catalog_response",
+          requestId: message.requestId,
+          ok: false,
+          code: "catalog_unavailable",
+        }));
+      }
+      return;
+    }
     if (message.kind === "initialize") {
       if (initialized) {
         postProtocolFailure("already_initialized");
         return;
       }
+      if (
+        message.runtime === "pi_provider" &&
+        (message.selection === null || !isBrowserPiSelectionQualifiedV1(message.selection))
+      ) {
+        post(Object.freeze({
+          revision: 1,
+          kind: "initialization_failure",
+          requestId: message.requestId,
+          code: "selection_unavailable",
+        }));
+        return;
+      }
       credentialKey = message.credential.value;
       configuredRuntime = message.runtime;
+      configuredSelection = message.selection;
       initialized = true;
       post(Object.freeze({
         revision: 1,
         kind: "ready",
         requestId: message.requestId,
         runtime: message.runtime,
+        selection: message.selection,
         distribution: browserPiDistributionIdentityV1,
       }));
       return;
@@ -664,6 +716,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       disposed = true;
       credentialKey = null;
       configuredRuntime = null;
+      configuredSelection = null;
       initialized = false;
       const run = activeRun;
       activeRun = null;

@@ -82,12 +82,54 @@ export interface SillyOsCopyV1 {
   readonly piTestForget: string;
   readonly piLiveTitle: string;
   readonly piLiveDescription: string;
-  readonly piLiveKeyLabel: string;
-  readonly piLiveKeyPlaceholder: string;
-  readonly piLiveInitialize: string;
   readonly piLiveReady: string;
   readonly piLiveFailed: string;
   readonly piLiveForget: string;
+  readonly settings: string;
+  readonly settingsBack: string;
+  readonly providerSettingsTitle: string;
+  readonly providerSettingsDescription: string;
+  readonly providersLabel: string;
+  readonly providerSearchLabel: string;
+  readonly providerSearchPlaceholder: string;
+  readonly providerSearchEmpty: string;
+  readonly providerCatalogLoading: string;
+  readonly providerCatalogLoadingDescription: string;
+  readonly providerCatalogFailed: string;
+  readonly providerCatalogFailedDescription: string;
+  readonly providerCatalogEmpty: string;
+  readonly providerDetailEmpty: string;
+  readonly backToProviders: string;
+  readonly providerStatusQualified: string;
+  readonly providerStatusCandidate: string;
+  readonly providerStatusUnavailable: string;
+  readonly providerQualifiedDescription: string;
+  readonly providerQualificationPending: string;
+  readonly providerBrowserUnavailable: string;
+  readonly providerCredentialUnavailable: string;
+  readonly providerPublicHttpUnavailable: string;
+  readonly providerNotQualified: string;
+  readonly modelsCountSuffix: string;
+  readonly providerModelsTitle: string;
+  readonly providerModelsDescription: string;
+  readonly providerModelsEmpty: string;
+  readonly modelSearchLabel: string;
+  readonly modelSearchPlaceholder: string;
+  readonly modelSearchEmpty: string;
+  readonly creatorModelSelection: string;
+  readonly creatorModelTitle: string;
+  readonly creatorModelDescription: string;
+  readonly chooseQualifiedModel: string;
+  readonly selectedModelUnavailable: string;
+  readonly providerKeyMemoryOnly: string;
+  readonly providerKeyLabel: string;
+  readonly providerKeyPlaceholder: string;
+  readonly providerInitialize: string;
+  readonly providerInitializing: string;
+  readonly providerConnected: string;
+  readonly providerConnectionFailed: string;
+  readonly providerForget: string;
+  readonly providerForgetting: string;
   readonly samplePrompts: readonly string[];
 }
 
@@ -176,15 +218,67 @@ const englishV1: SillyOsCopyV1 = {
   piTestDraft: "Agent Creator draft",
   piTestCancel: "Cancel run",
   piTestForget: "Forget test key",
-  piLiveTitle: "Browser Pi · OpenAI",
+  piLiveTitle: "Browser Pi Provider",
   piLiveDescription:
-    "Uses product-pinned Pi 0.84.3 with OpenAI gpt-4.1-nano for live follow-up revisions. Your key moves to Agent Worker memory and is not saved.",
-  piLiveKeyLabel: "OpenAI API key (memory only)",
-  piLiveKeyPlaceholder: "Paste an OpenAI API key",
-  piLiveInitialize: "Load OpenAI key",
-  piLiveReady: "OpenAI Agent configured",
-  piLiveFailed: "OpenAI Agent unavailable",
-  piLiveForget: "Forget OpenAI key",
+    "Choose a Pi-supplied Provider and Browser-qualified model in Settings. Your key moves to Agent Worker memory and is not saved.",
+  piLiveReady: "Provider Agent configured",
+  piLiveFailed: "Provider Agent unavailable",
+  piLiveForget: "Forget Provider key",
+  settings: "Settings",
+  settingsBack: "Back to Agent Creator",
+  providerSettingsTitle: "Providers",
+  providerSettingsDescription: "Inspect the Provider and model catalog supplied by Pi.",
+  providersLabel: "Pi Providers",
+  providerSearchLabel: "Search Providers",
+  providerSearchPlaceholder: "Search Providers…",
+  providerSearchEmpty: "No Providers match this search.",
+  providerCatalogLoading: "Loading the Pi catalog…",
+  providerCatalogLoadingDescription:
+    "Provider and model details are loaded lazily from the product-pinned Pi Worker.",
+  providerCatalogFailed: "The Pi catalog is unavailable",
+  providerCatalogFailedDescription:
+    "No Provider or model was inferred locally. Retry the pinned Pi catalog request.",
+  providerCatalogEmpty: "Pi returned no Providers.",
+  providerDetailEmpty: "Choose a Provider to inspect its Browser status and models.",
+  backToProviders: "Back to Providers",
+  providerStatusQualified: "Qualified",
+  providerStatusCandidate: "Candidate",
+  providerStatusUnavailable: "Unavailable",
+  providerQualifiedDescription:
+    "This exact Provider and model path has passed the SillyOS Browser contract.",
+  providerQualificationPending:
+    "This route is visible from Pi but has not passed SillyOS Browser qualification.",
+  providerBrowserUnavailable: "This Pi route is not available in the Browser target.",
+  providerCredentialUnavailable:
+    "This Provider's credential flow is not available in the Browser target.",
+  providerPublicHttpUnavailable:
+    "Public HTTP endpoints cannot be used from the deployed HTTPS application.",
+  providerNotQualified: "This exact Provider and model route is not qualified for Browser use.",
+  modelsCountSuffix: "models",
+  providerModelsTitle: "Models from Pi",
+  providerModelsDescription:
+    "Names and identities come from Pi; SillyOS adds only truthful Browser availability.",
+  providerModelsEmpty: "Pi returned no models for this Provider.",
+  modelSearchLabel: "Search models",
+  modelSearchPlaceholder: "Search model name or ID…",
+  modelSearchEmpty: "No models match this search.",
+  creatorModelSelection: "Agent Creator model",
+  creatorModelTitle: "Use with Agent Creator",
+  creatorModelDescription:
+    "This device-session choice configures the current supervisor. The key never becomes Program or Workspace data.",
+  chooseQualifiedModel: "Choose a qualified model to connect Agent Creator.",
+  selectedModelUnavailable:
+    "This model remains inspectable, but it cannot be connected in this Browser build.",
+  providerKeyMemoryOnly:
+    "The key is transferred directly to Agent Worker memory, cleared here immediately, and never saved.",
+  providerKeyLabel: "API key (memory only)",
+  providerKeyPlaceholder: "Paste the Provider API key",
+  providerInitialize: "Connect Agent Creator",
+  providerInitializing: "Connecting…",
+  providerConnected: "Agent Creator connected",
+  providerConnectionFailed: "Agent Creator could not connect. The key was not retained.",
+  providerForget: "Forget key",
+  providerForgetting: "Forgetting…",
   samplePrompts: [
     "Translate a visual novel and keep each character’s voice consistent",
     "Turn my research notes into a chapter-by-chapter writing room",
@@ -274,15 +368,59 @@ const chineseV1: SillyOsCopyV1 = {
   piTestDraft: "Agent Creator 草稿",
   piTestCancel: "取消运行",
   piTestForget: "忘记测试 key",
-  piLiveTitle: "浏览器 Pi · OpenAI",
+  piLiveTitle: "浏览器 Pi Provider",
   piLiveDescription:
-    "使用产品固定的 Pi 0.84.3 与 OpenAI gpt-4.1-nano 实时处理后续修订。Key 会直接进入 Agent Worker 内存，并且不会保存。",
-  piLiveKeyLabel: "OpenAI API key（仅内存）",
-  piLiveKeyPlaceholder: "粘贴 OpenAI API key",
-  piLiveInitialize: "加载 OpenAI key",
-  piLiveReady: "OpenAI Agent 已配置",
-  piLiveFailed: "OpenAI Agent 不可用",
-  piLiveForget: "忘记 OpenAI key",
+    "请在设置中选择由 Pi 提供的 Provider 和已通过浏览器验证的模型。Key 会直接进入 Agent Worker 内存，并且不会保存。",
+  piLiveReady: "Provider Agent 已配置",
+  piLiveFailed: "Provider Agent 不可用",
+  piLiveForget: "忘记 Provider key",
+  settings: "设置",
+  settingsBack: "返回 Agent Creator",
+  providerSettingsTitle: "Provider",
+  providerSettingsDescription: "查看由 Pi 提供的 Provider 与模型目录。",
+  providersLabel: "Pi Provider",
+  providerSearchLabel: "搜索 Provider",
+  providerSearchPlaceholder: "搜索 Provider……",
+  providerSearchEmpty: "没有符合搜索条件的 Provider。",
+  providerCatalogLoading: "正在加载 Pi 目录……",
+  providerCatalogLoadingDescription: "Provider 与模型详情从产品固定的 Pi Worker 中按需加载。",
+  providerCatalogFailed: "Pi 目录不可用",
+  providerCatalogFailedDescription:
+    "SillyOS 没有在本地猜测 Provider 或模型；请重试固定的 Pi 目录请求。",
+  providerCatalogEmpty: "Pi 没有返回 Provider。",
+  providerDetailEmpty: "请选择一个 Provider，查看其浏览器状态与模型。",
+  backToProviders: "返回 Provider 列表",
+  providerStatusQualified: "已验证",
+  providerStatusCandidate: "候选",
+  providerStatusUnavailable: "不可用",
+  providerQualifiedDescription: "这组 Provider 与模型路径已经通过 SillyOS 浏览器合同验证。",
+  providerQualificationPending: "Pi 中存在这条路径，但它尚未通过 SillyOS 浏览器资格验证。",
+  providerBrowserUnavailable: "这条 Pi 路径在浏览器目标中不可用。",
+  providerCredentialUnavailable: "这个 Provider 的凭据流程在浏览器目标中不可用。",
+  providerPublicHttpUnavailable: "部署后的 HTTPS 应用无法使用公开 HTTP endpoint。",
+  providerNotQualified: "这组 Provider 与模型路径尚未取得浏览器使用资格。",
+  modelsCountSuffix: "个模型",
+  providerModelsTitle: "Pi 模型",
+  providerModelsDescription: "名称与标识来自 Pi；SillyOS 只补充真实的浏览器可用状态。",
+  providerModelsEmpty: "Pi 没有为这个 Provider 返回模型。",
+  modelSearchLabel: "搜索模型",
+  modelSearchPlaceholder: "搜索模型名称或 ID……",
+  modelSearchEmpty: "没有符合搜索条件的模型。",
+  creatorModelSelection: "Agent Creator 模型",
+  creatorModelTitle: "用于 Agent Creator",
+  creatorModelDescription:
+    "这个设备会话中的选择用于配置当前 supervisor；Key 永远不会成为 Program 或 Workspace 数据。",
+  chooseQualifiedModel: "请选择一个已验证模型来连接 Agent Creator。",
+  selectedModelUnavailable: "这个模型仍可查看，但无法在当前浏览器版本中连接。",
+  providerKeyMemoryOnly: "Key 会直接传入 Agent Worker 内存，在这里立即清除，并且永不保存。",
+  providerKeyLabel: "API key（仅内存）",
+  providerKeyPlaceholder: "粘贴 Provider API key",
+  providerInitialize: "连接 Agent Creator",
+  providerInitializing: "正在连接……",
+  providerConnected: "Agent Creator 已连接",
+  providerConnectionFailed: "Agent Creator 连接失败；Key 未被保留。",
+  providerForget: "忘记 key",
+  providerForgetting: "正在忘记……",
   samplePrompts: [
     "翻译一部视觉小说，并保持每位角色的语言风格一致",
     "把我的调研笔记整理成可以逐章推进的写作工作室",

@@ -35,8 +35,16 @@ was rebuilt from the name-only deployment commit
 completed a fresh Creator Home -> durable Program workspace smoke without page,
 console, or request errors, and passed the fixed OpenAI qualification in both
 Chromium and persistent-profile WebKit. P1-D remains owner-paused, while P3b,
-import, and later slices remain inactive; no SillyOS implementation slice is
-automatically active after B1.
+import, and later slices remain inactive. On 2026-08-28 the owner activated
+P1-B1 as the next bounded Browser slice. B1a has now delivered the clean
+replacement of the fixed query-only OpenAI profile with a Pi-owned
+Provider/model catalog, SillyOS-owned Settings, and ordinary-route selection of
+the exact qualified OpenAI profile. Its local release gate passed 265 product
+tests, the ordinary Settings journey in Chromium and persistent-profile WebKit,
+and the real OpenAI stream/tool/cancel/currentness/Forget qualifier in both
+engines. B1b's named direct-Provider qualification is the accepted next
+checkpoint but is not activated by B1a closure; broader endpoint and credential
+behavior does not enter it by implication.
 The raw launcher is not the typed product RPC; the live Browser route is a
 separate product path. This plan remains local to `examples/silly-os`; the
 neutral async GUI disposer was delivered separately by the engine task and is
@@ -86,10 +94,11 @@ execution mechanism, especially in Browser, but it is not the product contract:
 the selected target adapters may combine TypeScript, Workers, Wasm payloads, or
 a native companion behind the same typed workspace boundary.
 
-At most one phase below is active at a time; none is active after P3c-B1
-closure. A later phase may be refined before it starts, but it may not silently
-weaken this product model or claim evidence that an earlier phase did not
-produce. Product code may not import the ignored `references/` checkouts.
+At most one phase below is active at a time. P1-B1a is closed after P3c-B1, and
+no later P1-B1 checkpoint becomes active merely because B1a closed. A later
+phase may be refined before it starts, but it may not silently weaken this
+product model or claim evidence that an earlier phase did not produce. Product
+code may not import the ignored `references/` checkouts.
 
 Until the first stable release, every phase also follows DESIGN's clean
 replacement rule: breaking product-private contracts may reset preview data,
@@ -100,14 +109,14 @@ fallback behavior merely to preserve an earlier preview.
 ## Current baseline and gaps
 
 The committed P0 Creator Preview is a real responsive product shell backed by
-one deterministic in-memory initial producer. B0a adds a query-gated,
+one deterministic in-memory initial producer. B0a added a query-gated,
 product-owned Browser Pi Worker behind a typed product facade: the real pinned
 Pi Agent runs a deterministic provider and one bounded AgentTool, then offers
-an exact P0 successor candidate for atomic publication. The ordinary initial
-graph still excludes Pi. B0b adds a second explicit query-gated route whose
-follow-ups use the same Pi Agent, tool, RPC, and product currentness with a fixed
-OpenAI Responses profile. That integrated route is qualified locally and from
-its deployed Cloudflare origin. P2-B0 now adds a bounded Browser-local Program
+an exact P0 successor candidate for atomic publication. B0b historically added
+a fixed query-gated OpenAI profile; B1a deleted that user-facing route and fixed
+binder. The ordinary route now opens Pi-owned catalog Settings and admits only
+the exact qualified OpenAI profile, while Creator Home still does not request
+the lazy Pi Worker chunks. P2-B0 now adds a bounded Browser-local Program
 database, durable exact Program revisions and decisions, and recent-Program
 reload/reopen. P3c-B0 now adds one durable OPFS workspace volume, an exact
 continuation anchor, a fresh Pi session over cold reopen, recovery/contender
@@ -117,7 +126,7 @@ manifest and VFS files. P3c-B1 now publishes one exact reviewed head as an
 immutable accepted snapshot, keeps later mutable drafts independent, and shows
 accepted/reviewed/current identity without making React a byte owner. The
 product still has no persistent Pi session, import/restore, user-facing
-accepted-snapshot download, WASM guest, provider selector, or generally active
+accepted-snapshot download, WASM guest, general Provider selector, or generally active
 capability. Its initial proposal, Source, translation rows,
 remaining capability labels, and separate preview manifest remain explicit
 preview material.
@@ -304,9 +313,13 @@ The accepted execution order is no longer the numeric subsection order:
    active merely because B0 closed.
 4. P3a-B1 (`edit`/`bash`) and P3c-B1 (exact accepted snapshot publication) are
    delivered and closed.
-5. P3b execution-provider characterization, later P3c import/artifact/Desktop
+5. **P1-B1a delivered and closed 2026-08-28:** Pi-owned Provider/model
+   discovery, one native Settings surface, and the exact qualified OpenAI
+   profile clean-replaced fixed B0b on the ordinary Browser route.
+6. P1-B1b/B1c, P3b execution-provider characterization, later P3c
+   import/artifact/Desktop
    work, P1-D, and P4+ require separate owner activation. None is automatically
-   active or retroactively part of P3c-B0/B1.
+   active or retroactively part of P3c-B0/B1 or P1-B1.
 
 This order replaces the earlier assumption that shell breadth or a shared
 Browser/Desktop provider winner must precede useful Browser persistence.
@@ -532,6 +545,130 @@ provider relay, OAuth flow, general endpoint proxy, or OpenUI. Cloudflare owns
 only static application delivery in this slice. A single static asset must stay
 below the platform's 25 MiB limit; large future Wasm/tool payloads are split or
 streamed rather than folded into the Creator bundle.
+
+#### P1-B1 — Pi-owned Browser Provider settings (B1a closed; B1b/B1c inactive)
+
+P1-B1 replaces B0b's fixed query-only profile; it does not preserve that
+pre-stable user-facing route as a compatibility mode. Agent Creator remains the
+only built-in user-facing program. Settings is an application control surface
+for the Creator supervisor, not another Program. B1 selects the current live
+supervisor's device/session execution profile; it does not yet publish that
+choice into the Program-owned Pi profile/capability composition. Credentials
+never become Program or Workspace content.
+
+Pi 0.84.3 is the single Provider/model authority. The Agent Worker reads the
+public Pi catalog and projects bounded display records over product RPC. React
+does not import Pi, reconstruct Provider factories, copy model metadata, or
+maintain a second Provider/model registry. SillyOS owns only facts that Pi does
+not claim: target availability and qualification evidence, current profile,
+credential lifetime, endpoint admission, and Settings presentation. A Browser
+qualification overlay may therefore say `qualified`, `candidate`, or
+`unavailable` for an exact `(providerId, modelId, api, endpoint origin)` profile
+without duplicating its name, models, base URL, stream implementation, or auth
+semantics. Provider-level badges are summaries only and never make every model
+under that Provider selectable.
+
+The current pinned catalog contains forty runtime Providers and 1,312 static
+model records. That is discovery input, not forty Browser support
+claims. Bedrock, Node-only OAuth, ambient cloud credentials, account-derived
+origins, dynamic catalogs, and local HTTP endpoints remain unavailable or
+unverified until their exact Browser route exists. Provider factories and
+protocol SDKs remain build-known Pi imports in the lazy Agent Worker; bundle
+and chunk evidence must show that opening Creator Home alone still does not
+load Pi.
+
+The first Settings information architecture deliberately borrows only the
+useful shape of the read-only CherryStudio reference: Provider discovery and
+Provider-specific models are one master/detail task, while selection of the
+Creator supervisor's active model is a distinct setting. SillyOS keeps its own
+chrome, spacing, colors, controls, focus treatment, and responsive contract.
+Wide layouts may show navigation, Provider list, and details together; at
+`767px` and below the same task becomes sequential full-width views with
+44-pixel targets, not a compressed Electron three-column layout. Loading,
+empty, failure, retry, candidate, connected, and forgotten states must be
+visible and keyboard reachable.
+
+Credential and profile ownership remain separate:
+
+- an API key is read from an uncontrolled password input, transferred directly
+  to the Agent Worker, cleared immediately, and held only in Worker memory;
+- Forget terminates that Worker and makes the profile visibly disconnected;
+  changing Provider or model also terminates it and requires the key to be
+  entered again, rather than returning a retained key to React for rebinding;
+- non-secret `(providerId, modelId)` and a later admitted endpoint profile may
+  be device-local Settings data, but are never Program data;
+- the first checkpoint may keep those non-secret choices session-local rather
+  than modifying the just-closed Program Repository schema;
+- keyless and multi-field Provider auth require their own admitted profile
+  shape and are not forced through a fake non-empty API-key field.
+
+CSP and CORS are independent gates. CSP can permit a destination; only the
+Provider can permit the SillyOS origin to read its response. Pi has no Browser
+CORS capability flag and no relay. A Provider is promoted only after the
+deployed Cloudflare origin passes Chromium and persistent-profile WebKit for
+preflight, authentication failure, first stream data, complete settlement,
+the exact Pi tool call, cancellation/currentness, and bounded error mapping.
+`mode: no-cors`, a Service Worker, or relaxing CSP cannot repair a failed CORS
+response.
+
+The accepted checkpoint order is:
+
+1. **B1a — catalog, Settings, and clean OpenAI replacement — delivered and
+   closed 2026-08-28.** Add a typed
+   pre-credential catalog request to the lazy Agent Worker; render the full Pi
+   Provider/model projection with truthful Browser status; add Settings entry
+   points from Home and Workspace; select the one already-qualified Pi
+   `openai/gpt-4.1-nano` profile while the rest of the Pi catalog remains
+   visible but unavailable; and
+   initialize the existing qualified OpenAI path from the ordinary product URL.
+   Delete the user-facing `?agent=pi-openai` setup and fixed model binder in the
+   same checkpoint. The deterministic `?agent=pi-test` route may remain solely
+   as bounded internal qualification evidence. No secret or raw Pi record may
+   enter React or durable storage.
+
+   The delivered Worker projects Pi 0.84.3's 40 Providers and 1,312 model
+   records before credentials exist, then terminates the catalog Worker. Only
+   the exact OpenAI tuple can initialize. Home and Workspace share one
+   responsive Settings surface with focus return, sequential mobile detail, and
+   44-pixel mobile controls. The product-local Vite config prebundles the fixed
+   Pi packages for a stable first lazy load while the production entry graph
+   still excludes the Pi Worker/catalog/transport chunks. The final local gate
+   passed 25 files / 265 Vitest cases, the fresh-dependency Chromium and
+   persistent-WebKit Settings E2E, and the real OpenAI qualifier in both engines:
+   cancellation retained v1, the next run used Pi's exact tool to publish v2,
+   both completion requests returned 200, the durable projection contained no
+   key, and Forget terminated the Worker.
+2. **B1b — direct-Provider qualification (inactive).** Use Pi's own Provider factories and
+   model stream for one named Anthropic, Google Gemini, OpenRouter, DeepSeek,
+   and xAI profile apiece. Qualification is attached to the exact
+   `(providerId, modelId, api, endpoint origin)` profile, not to every model
+   beneath a Provider.
+   Current CORS preflight from the canonical origin makes them candidates, not
+   claims. Add their exact official HTTPS origins to the static `connect-src`
+   allowlist and promote each independently only after the real-key dual-browser
+   gate above. A failing candidate remains visible with an honest status and
+   cannot silently fall back to OpenAI or the deterministic provider.
+3. **B1c — custom HTTPS profile and non-secret persistence (inactive).** Admit an explicit
+   Pi protocol/API family, normalized HTTPS endpoint, model identity and bounded
+   Provider-specific fields; never infer protocol from a URL. Add a small
+   Cloudflare static-asset response layer that validates the normalized origin
+   carried by the Agent Worker URL and replaces that Worker's CSP with the exact
+   selected `connect-src`; the default document policy is not widened to
+   `connect-src https:`. The origin is non-secret deployment metadata, while
+   Provider traffic and keys remain direct Browser-to-Provider. Reject
+   URL credentials and public HTTP, distinguish CSP/CORS/auth/protocol failures,
+   and persist only the non-secret profile through a product-owned Settings
+   repository. A relay, OAuth service, shared key, and HTTP/LAN bypass remain
+   separate explicit products.
+
+B1a deliberately proved catalog authority, navigation, model selection,
+credential lifetime, ordinary-route activation, and clean replacement with one
+already-qualified Provider before B1b adds five exact profiles. Its tests are
+mutation-sensitive to copied catalog data, secret persistence, disabled
+candidate selection, stale profile activation, Worker replacement, and
+responsive/keyboard regressions. Production build/chunk evidence and the local
+dual-engine gate are closed; the committed Cloudflare deployment and public
+origin qualifier remain the separate release receipt.
 
 #### P1-D — Deno Desktop companion parity
 

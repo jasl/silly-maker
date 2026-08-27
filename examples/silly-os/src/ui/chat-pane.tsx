@@ -200,7 +200,7 @@ export function ChatPaneV1({
   const [draft, setDraft] = useState("");
   const feedEndRef = useRef<HTMLDivElement>(null);
   const resourceInputRef = useRef<HTMLInputElement>(null);
-  const liveAgent = piAgentRun?.runtime === "openai_direct";
+  const liveAgent = piAgentRun?.runtime === "pi_provider";
   const agentTitle = liveAgent ? copy.piLiveTitle : copy.piTestTitle;
   const agentReady = liveAgent ? copy.piLiveReady : copy.piTestReady;
   const agentFailed = liveAgent ? copy.piLiveFailed : copy.piTestFailed;
