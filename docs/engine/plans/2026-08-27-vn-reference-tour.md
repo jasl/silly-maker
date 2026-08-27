@@ -2,7 +2,8 @@
 
 状态：**2026-08-27 经所有者接受，当前唯一活动 Reference Product；M0–M1 已交付，M2 进行中。第一版
 引擎维护的 focused default VN Player preset、say-only 全画布推进、贴底布局与 Ctrl/Tab/H 输入已由 Template
-和本产品共同选择并可试玩；最终媒体/音频、remaining Player work、rollback/end controls 与完整产品
+和本产品共同选择并可试玩；最终 Stage 视觉、结局 surface 与 Player/Inspector 共用媒体链已经接入，音频、
+remaining Player work、rollback controls 与完整产品
 矩阵仍未关闭，当前 WIP 不是产品完成证据或旗舰。**
 
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 是唯一跨计划排序入口。本计划同时拥有
@@ -196,8 +197,15 @@ renderer。产品只保留 theme、media、Story 与 special surfaces；Bookshop
 VN 完成后的独立教学角色评审。focused UI tests、真实
 Chromium 宽/窄屏行为和 React Doctor 覆盖该切片。完整 VN Back/Forward 仍开放：现有
 rollback 分类无法让 `time_tick` / scene repair 对交互级 checkpoint transparent，且 Core 尚无 roll-forward
-port；不得先接一条语义错误的 PageUp/滚轮路径。最终 Stage renderer/media、audio、
-voice replay、rollback/end controls、完整中英/200% zoom/accessibility/Chromium+WebKit 矩阵仍开放；本记录不
+port；不得先接一条语义错误的 PageUp/滚轮路径。
+
+第二切片交付产品自有的两个最终背景、两名角色五个 pose/frame 与九件透明道具；全部媒体进入 Story 的
+resolved Asset manifest，Player 只预载当前 Stage demand，Inspector 使用同一 renderer/registry 并由既有
+composition lifecycle 回收其 dev-only registry。九件道具仍是九个独立 Authoring Scene 对象，不因图集生成
+来源合并为一张不可编辑舞台图；真实宽屏、`expand-height` 竖屏、两条场景转换和内嵌 Inspector 已走查。
+完成态使用产品自有 ending surface，并调用既有 `returnToTitle` system dialog，不建立第二条 restart 路径。
+focused Studio/VN tests、typecheck、`app check` 与真实 Browser 资产加载覆盖该切片。audio、voice replay、
+rollback/forward controls、完整中英/200% zoom/accessibility/Chromium+WebKit 矩阵仍开放；本记录不
 关闭 M2。
 
 ### M3 — 产品入口、Save/recovery 与设置

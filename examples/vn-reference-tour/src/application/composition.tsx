@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Composition layer: assembles the script, rules, and UI into a bootable game
 // application (browser and desktop webview share one declaration); orchestration only, owns no gameplay.
-import type { AssetId, DeepReadonly, TextContentSessionV1, TextId } from "@sillymaker/base";
+import { useEffect } from "react";
+import type {
+  AssetId,
+  DeepReadonly,
+  ResolvedAssetManifestV1,
+  TextContentSessionV1,
+  TextId,
+} from "@sillymaker/base";
 import type { StageRenderTarget } from "@sillymaker/base/story";
 import { projectStageRenderTarget } from "@sillymaker/base/story";
 import type {
@@ -13,9 +20,10 @@ import type {
   NarrativeSurfaceSelectionV1,
   PresentationFreezePortV1,
   RuntimePresentationPublicationV1,
+  AssetRegistryV1,
   SaveOverlayLabelsV1,
 } from "@sillymaker/ui";
-import { defineNarrativeSurfaceV1, SemanticStageV1 } from "@sillymaker/ui";
+import { createAssetRegistryV1, defineNarrativeSurfaceV1, SemanticStageV1 } from "@sillymaker/ui";
 import { createDefaultVnPlayerV1 } from "@sillymaker/ui/narrative-player";
 import type { WebGameApplicationV1 } from "@sillymaker/web";
 
@@ -25,7 +33,10 @@ import type {
   VnReferenceTourInvocationV1,
   VnReferenceTourPreviewV1,
 } from "./semantic.ts";
-import type { VnReferenceTourApplicationInstanceV1 } from "./core-definition.ts";
+import type {
+  VnReferenceTourApplicationInstanceV1,
+  VnReferenceTourExtensionsV1,
+} from "./core-definition.ts";
 import { vnReferenceTourCoreApplicationDefinitionV1 } from "./core-definition.ts";
 import type {
   VnReferenceTourGameViewV1,
@@ -47,7 +58,8 @@ import {
   vnReferenceTourTextContentManifestV1,
 } from "../content/text-content.ts";
 import type { VnReferenceTourNarrativeStateV1 } from "../story/narrative.ts";
-import { vnReferenceTourStageRenderersV1 } from "../ui/stage-renderers.tsx";
+import { VnReferenceTourEndingSurfaceV1 } from "../ui/ending-surface.tsx";
+import { createVnReferenceTourStageRenderersV1 } from "../ui/stage-renderers.tsx";
 
 /** The logical canvas: a 16:9 design resolution the viewport letterboxes. */
 export const vnReferenceTourViewportCanvasV1 = { width: 1600, height: 900 };
@@ -56,6 +68,12 @@ type VnReferenceTourSemanticPublicationV1 = ReturnType<
   VnReferenceTourApplicationInstanceV1["semantic"]["observe"]
 >;
 type VnReferenceTourSemanticPortV1 = VnReferenceTourApplicationInstanceV1["semantic"];
+type VnReferenceTourAssetUsageV1 = ResolvedAssetManifestV1["assets"][number]["usage"];
+type VnReferenceTourAssetRegistryV1 = AssetRegistryV1<
+  AssetId,
+  VnReferenceTourAssetUsageV1,
+  string
+>;
 
 const noNarrativeChoiceReasonsV1: readonly string[] = [];
 function vnReferenceTourRouteTextPackV1(
@@ -131,9 +149,62 @@ const projectorDefinitionV1: GameUiProjectorV1<
 
 export const vnReferenceTourUiProjectorV1 = projectorDefinitionV1;
 
+type VnReferenceTourStageContextV1 = Parameters<
+  NonNullable<
+    DefaultGameRootSlotsV1<
+      VnReferenceTourUiPublicationV1,
+      VnReferenceTourSemanticPortV1,
+      VnReferenceTourUiOverlayIdV1
+    >["background"]
+  >
+>[0];
+
+function VnReferenceTourStageSurfaceV1(props: {
+  readonly context: VnReferenceTourStageContextV1;
+  readonly instance: VnReferenceTourApplicationInstanceV1;
+  readonly presentationFreeze: PresentationFreezePortV1;
+  readonly registry: VnReferenceTourAssetRegistryV1;
+  readonly renderers: ReturnType<typeof createVnReferenceTourStageRenderersV1>;
+  reportFailure(code: string, error: unknown): void;
+}) {
+  const { requiredAssetIds, revision } = props.context.publication;
+  const { registry, reportFailure } = props;
+  useEffect(() => {
+    const controller = new AbortController();
+    void registry
+      .preload(requiredAssetIds, controller.signal)
+      .catch((error: unknown) => reportFailure("vn-reference-tour.asset_preload_failed", error));
+    return () => controller.abort();
+  }, [registry, reportFailure, requiredAssetIds, revision]);
+
+  return (
+    <section
+      data-vn-reference-tour-stage="true"
+      aria-label={vnReferenceTourUiTextV1("text.vn-reference-tour.stage.name")}
+    >
+      <SemanticStageV1
+        target={props.context.publication.view.stageTarget}
+        revision={props.context.publication.semantic.revision}
+        epoch={props.context.publication.view.anchorEpoch}
+        dispatches={props.instance.stageCueDispatches()}
+        catalog={vnReferenceTourStageTransitionCatalogV1}
+        ambient={vnReferenceTourStageAmbientCatalogV1}
+        renderers={props.renderers}
+        assets={props.registry}
+        accessibleName={vnReferenceTourUiTextV1("text.vn-reference-tour.stage.name")}
+        clock={props.presentationFreeze.clock}
+      />
+    </section>
+  );
+}
+
 function createVnReferenceTourUiSlotsV1(
   instance: VnReferenceTourApplicationInstanceV1,
   presentationFreeze: PresentationFreezePortV1,
+  textContent: TextContentSessionV1,
+  registry: VnReferenceTourAssetRegistryV1,
+  renderers: ReturnType<typeof createVnReferenceTourStageRenderersV1>,
+  reportFailure: (code: string, error: unknown) => void,
 ): DefaultGameRootSlotsV1<
   VnReferenceTourUiPublicationV1,
   VnReferenceTourSemanticPortV1,
@@ -141,26 +212,31 @@ function createVnReferenceTourUiSlotsV1(
 > {
   return {
     background: (context) => (
-      <section
-        data-vn-reference-tour-stage="true"
-        aria-label={vnReferenceTourUiTextV1("text.vn-reference-tour.stage.name")}
-      >
-        <SemanticStageV1
-          target={context.publication.view.stageTarget}
-          revision={context.publication.semantic.revision}
-          epoch={context.publication.view.anchorEpoch}
-          // Presentation edge context: the stage pairs the batch against
-          // exactly this publication's revision/epoch and drops anything
-          // stale, so per-cue bindings resolve by dispatching cue.
-          dispatches={instance.stageCueDispatches()}
-          catalog={vnReferenceTourStageTransitionCatalogV1}
-          ambient={vnReferenceTourStageAmbientCatalogV1}
-          renderers={vnReferenceTourStageRenderersV1}
-          accessibleName={vnReferenceTourUiTextV1("text.vn-reference-tour.stage.name")}
-          clock={presentationFreeze.clock}
-        />
-      </section>
+      <VnReferenceTourStageSurfaceV1
+        context={context}
+        instance={instance}
+        presentationFreeze={presentationFreeze}
+        registry={registry}
+        renderers={renderers}
+        reportFailure={reportFailure}
+      />
     ),
+    hud: (context) => {
+      const narrative = context.publication.semantic.narrative;
+      if (narrative.phase !== "completed" || narrative.signalChoice === null) return null;
+      const endingTitleId = `text.vn-reference-tour.${narrative.signalChoice}.ending.title`;
+      return (
+        <VnReferenceTourEndingSurfaceV1
+          title={textContent.resolveText(endingTitleId as TextId)}
+          kicker={vnReferenceTourUiTextV1("text.vn-reference-tour.ending.kicker")}
+          summary={vnReferenceTourUiTextV1("text.vn-reference-tour.ending.summary")}
+          returnLabel={vnReferenceTourUiTextV1("text.vn-reference-tour.ending.return")}
+          returningLabel={vnReferenceTourUiTextV1("text.vn-reference-tour.ending.returning")}
+          returnFailure={vnReferenceTourUiTextV1("text.vn-reference-tour.ending.return-failed")}
+          onReturnToTitle={context.systemDialogs.returnToTitle}
+        />
+      );
+    },
   };
 }
 
@@ -335,19 +411,29 @@ export const vnReferenceTourGameApplicationV1: WebGameApplicationV1<
   },
   core: vnReferenceTourCoreApplicationDefinitionV1,
   ui: (
-    { heldInput, instance, presentationFreeze, textContent }: {
+    { assetLoader, heldInput, instance, presentationFreeze, reportFailure, textContent }: {
+      readonly assetLoader: Parameters<typeof createAssetRegistryV1>[1];
       readonly heldInput: HeldInputPortV1;
       readonly instance: VnReferenceTourApplicationInstanceV1;
       readonly presentationFreeze: PresentationFreezePortV1;
       readonly textContent: TextContentSessionV1 | null;
+      reportFailure(code: string, error: unknown): void;
     },
   ) => {
     if (textContent === null) throw new TypeError("vn-reference-tour.text_content_session_missing");
+    const manifest = (instance.extensions as VnReferenceTourExtensionsV1).assets;
+    const registry = createAssetRegistryV1(
+      manifest,
+      assetLoader,
+      (diagnostic) => reportFailure("vn-reference-tour.asset_fault", diagnostic),
+    ) as VnReferenceTourAssetRegistryV1;
+    const renderers = createVnReferenceTourStageRenderersV1(registry);
     const vnPlayer = createDefaultVnPlayerV1({
       heldInput,
       labelTextIds: vnReferenceTourVnPlayerLabelTextIdsV1,
     });
     return ({
+      dispose: () => registry.dispose(),
       titleScreen: {
         title: "最后一次试音",
         beginNewGame: () =>
@@ -380,7 +466,14 @@ export const vnReferenceTourGameApplicationV1: WebGameApplicationV1<
           replayCurrentVoice: null,
         } satisfies DefineNarrativeSurfaceInputV1<VnReferenceTourSemanticPublicationV1>,
       ),
-      slots: createVnReferenceTourUiSlotsV1(instance, presentationFreeze),
+      slots: createVnReferenceTourUiSlotsV1(
+        instance,
+        presentationFreeze,
+        textContent,
+        registry,
+        renderers,
+        reportFailure,
+      ),
       labels: vnReferenceTourRootLabelsV1,
       saveLabels: vnReferenceTourSaveOverlayLabelsV1,
       // M2 owns compact VN player chrome. The generic floating

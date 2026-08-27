@@ -63,4 +63,6 @@ export interface InspectorBindingV1 {
   readonly timelines?: TimelineCatalogV1;
   /** Optional application-owned runtime projection; the Inspector never loads a unit through it. */
   readonly runtime?: RuntimeInspectorSourceV1;
+  /** Releases application-owned, dev-only resources when this binding retires. */
+  dispose?(): void;
 }

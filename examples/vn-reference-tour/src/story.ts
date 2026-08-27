@@ -7,6 +7,7 @@ import {
   vnReferenceTourTextCatalogsV1,
   materializeVnReferenceTourPresentationV1,
 } from "./content/presentation.ts";
+import { vnReferenceTourAssetPacksV1, vnReferenceTourAssetSlotsV1 } from "./content/assets.ts";
 import { vnReferenceTourSimulationDefinitionV1 } from "./game/simulation-definition.ts";
 
 export type { VnReferenceTourSimulationProgramV1 } from "./game/simulation-definition.ts";
@@ -32,8 +33,8 @@ const vnReferenceTourStoryDefinitionV1 = {
   simulation: vnReferenceTourSimulationDefinitionV1,
   presentation: {
     textCatalogs: vnReferenceTourTextCatalogsV1,
-    assetSlots: [] as readonly [],
-    assetPacks: [] as readonly [],
+    assetSlots: vnReferenceTourAssetSlotsV1,
+    assetPacks: vnReferenceTourAssetPacksV1,
     patchSurface: vnReferenceTourPresentationPatchSurfaceV1,
     materializePresentation: materializeVnReferenceTourPresentationV1,
   },
@@ -43,7 +44,7 @@ export const vnReferenceTourStoryEntryV1 = defineGamePackage({
   contractRevision: 1,
   identity: {
     id: "story.example.vn-reference-tour",
-    revision: parsePositiveSafeInteger(2),
+    revision: parsePositiveSafeInteger(3),
   },
   define: () => vnReferenceTourStoryDefinitionV1,
 });

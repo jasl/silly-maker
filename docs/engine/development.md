@@ -155,7 +155,9 @@ the selected Authoring Scene document session, selection, dirty/undo/redo state,
 CAS/conflict handling, source IO and close participant. The shells must not create
 another document, save, history, Stage, or gameplay Session authority. The game
 page keeps only a lightweight launcher; embedded Inspector and real dev-source
-client load on first open.
+client load on first open. A binding that constructs application-owned dev-only
+resources may provide synchronous `dispose()`; the Inspector composition owns
+candidate rollback, predecessor retirement, and final cleanup exactly once.
 
 The current product surface is one Inspector, not a workspace rail. Project scene
 search and the current layer/object tree use fixed-row virtualization; mounted

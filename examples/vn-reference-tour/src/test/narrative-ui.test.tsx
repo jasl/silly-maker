@@ -11,6 +11,7 @@ import {
   playerInputActionIdsV1,
   systemInputActionIdsV1,
   type HeldInputPortV1,
+  type RuntimeAssetLoaderV1,
 } from "@sillymaker/ui";
 
 import {
@@ -31,6 +32,12 @@ const emptyHeldInputV1: HeldInputPortV1 = {
     getCurrent: () => ({ heldActionIds: new Set() }),
     subscribe: () => () => {},
   },
+};
+
+const loadedAssetLoaderV1: RuntimeAssetLoaderV1 = {
+  cacheKey: (request) => request.runtimePath,
+  load: (request) => Promise.resolve({ kind: "loaded", url: request.runtimePath }),
+  dispose: () => {},
 };
 
 it("selects the engine default VN Player and keeps the product Narrative binding", async () => {
@@ -59,13 +66,14 @@ it("selects the engine default VN Player and keeps the product Narrative binding
         heldInput: emptyHeldInputV1,
         instance,
         playerProfile,
+        assetLoader: loadedAssetLoaderV1,
         textContent,
         reportFailure: vi.fn(),
       } as unknown as Parameters<typeof vnReferenceTourGameApplicationV1.ui>[0],
     );
     expect(Object.hasOwn(ui, "narrative")).toBe(true);
     expect(Object.hasOwn(ui.slots ?? {}, "narrative")).toBe(false);
-    expect(Object.hasOwn(ui.slots ?? {}, "hud")).toBe(false);
+    expect(Object.hasOwn(ui.slots ?? {}, "hud")).toBe(true);
     expect(ui.hideSystemMenu).toBe(true);
     expect(ui.input?.keyboard).toMatchObject({
       Enter: systemInputActionIdsV1.narrativeAdvance,

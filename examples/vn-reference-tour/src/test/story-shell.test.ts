@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   lintNarrativeGraph,
   parseStageMutation,
+  projectStageRenderTarget,
   reduceAdmittedStageMutations,
 } from "@sillymaker/base/story";
 import { createGameHarnessV1, resolveStoryForTestV1 } from "@sillymaker/base/testkit";
@@ -11,6 +12,8 @@ import { createGameHarnessV1, resolveStoryForTestV1 } from "@sillymaker/base/tes
 import { createVnReferenceTourApplicationInstanceV1 } from "../application/core-application.ts";
 import { vnReferenceTourCoreApplicationDefinitionV1 } from "../application/core-definition.ts";
 import { vnReferenceTourSemanticAdapterV1 } from "../application/semantic.ts";
+import { vnReferenceTourAssetIdsV1 } from "../content/assets.ts";
+import { vnReferenceTourStageContentCatalogV1 } from "../content/presentation.ts";
 import { vnReferenceTourRooftopAntennaSceneV1 } from "../scenes/rooftop-antenna/index.ts";
 import { projectVnReferenceTourNarrativeGraphV1 } from "../story/narrative-graph.ts";
 import { vnReferenceTourStoryEntryV1 } from "../story.ts";
@@ -31,6 +34,30 @@ describe("VN Reference Tour M1 story shell", () => {
     const resolved = resolveStoryForTestV1(vnReferenceTourStoryEntryV1);
     const narrativeGraph = projectVnReferenceTourNarrativeGraphV1();
     expect(resolved.provenance.story.id).toBe("story.example.vn-reference-tour");
+    expect(resolved.assets.assets).toHaveLength(16);
+    expect(resolved.assets.assets.every((asset) => asset.delivery === "runtime_image")).toBe(true);
+    expect(
+      resolved.assets.assets.map((asset) =>
+        asset.delivery === "runtime_image" ? asset.runtimePath : null
+      ),
+    ).toEqual([
+      "assets/images/control-room.webp",
+      "assets/images/rooftop-antenna.webp",
+      "assets/images/lin-focused-open.webp",
+      "assets/images/lin-focused-closed.webp",
+      "assets/images/lin-relieved.webp",
+      "assets/images/zhou-neutral.webp",
+      "assets/images/zhou-soft.webp",
+      "assets/images/prop-mixing-console.webp",
+      "assets/images/prop-tape-machine.webp",
+      "assets/images/prop-wall-clock.webp",
+      "assets/images/prop-microphone.webp",
+      "assets/images/prop-signal-light.webp",
+      "assets/images/prop-antenna.webp",
+      "assets/images/prop-antenna-cable.webp",
+      "assets/images/prop-master-switch.webp",
+      "assets/images/prop-status-light.webp",
+    ]);
     expect(resolved.gameSimulation.modules.map((module) => module.descriptor.id)).toEqual([
       "vn-reference-tour.narrative",
       "vn-reference-tour.stage",
@@ -59,6 +86,18 @@ describe("VN Reference Tour M1 story shell", () => {
         kind: "invoke",
         actionId: "vn-reference-tour.begin_story",
       } as never)).resolves.toMatchObject({ kind: "committed" });
+
+      const initialStageAssets = projectStageRenderTarget(
+        application.semantic.observe().game.stage,
+        vnReferenceTourStageContentCatalogV1,
+      ).target.requiredAssetIds;
+      expect(initialStageAssets).toContain(vnReferenceTourAssetIdsV1.controlRoom);
+      expect(initialStageAssets).toContain(vnReferenceTourAssetIdsV1.zhouNeutral);
+      expect(initialStageAssets).toContain(vnReferenceTourAssetIdsV1.mixingConsole);
+      expect(initialStageAssets).toContain(vnReferenceTourAssetIdsV1.signalLight);
+      expect(initialStageAssets).not.toContain(vnReferenceTourAssetIdsV1.rooftopAntenna);
+      expect(initialStageAssets).not.toContain(vnReferenceTourAssetIdsV1.linRelieved);
+      expect(initialStageAssets).not.toContain(vnReferenceTourAssetIdsV1.zhouSoft);
 
       expect(application.semantic.observe().narrative.pending).toMatchObject({
         kind: "say",

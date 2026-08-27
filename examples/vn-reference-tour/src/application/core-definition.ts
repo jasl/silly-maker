@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+import type { ResolvedAssetManifestV1 } from "@sillymaker/base";
 import type { CoreGameApplicationInstanceV1 } from "@sillymaker/base/runtime";
 import { defineCoreGameApplication } from "@sillymaker/base/story";
 
@@ -54,8 +55,17 @@ export const vnReferenceTourCoreApplicationDefinitionV1 = defineCoreGameApplicat
       ? null
       : ({ kind: "vn-reference-tour.scene_reconcile" as const, mutations });
   },
+  createExtensions: (context) => ({
+    extensions: {
+      assets: (context.resolved as { readonly assets: ResolvedAssetManifestV1 }).assets,
+    } satisfies VnReferenceTourExtensionsV1,
+  }),
   exportFilename: "vn-reference-tour-save.json",
 });
+
+export interface VnReferenceTourExtensionsV1 {
+  readonly assets: ResolvedAssetManifestV1;
+}
 
 export type VnReferenceTourApplicationInstanceV1 = CoreGameApplicationInstanceV1<
   VnReferenceTourSimulationTypesV1,

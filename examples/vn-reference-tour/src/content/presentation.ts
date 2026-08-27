@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import type { AssetId, TextCatalogSetV1, TextContentManifestV1 } from "@sillymaker/base";
+import type { TextCatalogSetV1, TextContentManifestV1 } from "@sillymaker/base";
 import { definePresentationPatchSurface, parseTextCatalogSetV1 } from "@sillymaker/base";
 import type {
   StageContentCatalog,
@@ -19,6 +19,7 @@ import {
   vnReferenceTourRooftopAntennaAmbientCatalogV1,
   vnReferenceTourRooftopAntennaTransitionBindingsV1,
 } from "../scenes/rooftop-antenna/index.ts";
+import { vnReferenceTourAssetIdsV1, vnReferenceTourPropAssetIdsV1 } from "./assets.ts";
 import { vnReferenceTourTextContentManifestV1 } from "./text-content.ts";
 
 /**
@@ -45,6 +46,17 @@ export const vnReferenceTourTextCatalogsV1: TextCatalogSetV1 = parseTextCatalogS
         { textId: "text.vn-reference-tour.playback.history.title", text: "对话历史" },
         { textId: "text.vn-reference-tour.playback.history.empty", text: "还没有对话。" },
         { textId: "text.vn-reference-tour.playback.history.close", text: "关闭历史" },
+        { textId: "text.vn-reference-tour.ending.kicker", text: "播送完毕" },
+        {
+          textId: "text.vn-reference-tour.ending.summary",
+          text: "信号已经安全收束。山顶社区电台再次安静下来。",
+        },
+        { textId: "text.vn-reference-tour.ending.return", text: "返回标题" },
+        { textId: "text.vn-reference-tour.ending.returning", text: "正在返回…" },
+        {
+          textId: "text.vn-reference-tour.ending.return-failed",
+          text: "暂时无法返回标题，请重试。",
+        },
       ],
     },
   ],
@@ -71,9 +83,12 @@ export const vnReferenceTourStageContentCatalogV1: StageContentCatalog = {
       case "content.vn-reference-tour.background.control-room":
         return ({
           rendererId: "renderer.vn-reference-tour.background",
-          assetIds: [],
+          assetIds: [vnReferenceTourAssetIdsV1.controlRoom],
           accessibleName: "夜间控制室",
-          props: { surface: "control-room" },
+          props: {
+            surface: "control-room",
+            assetId: vnReferenceTourAssetIdsV1.controlRoom,
+          },
           geometry: {
             width: 1600,
             height: 900,
@@ -84,9 +99,12 @@ export const vnReferenceTourStageContentCatalogV1: StageContentCatalog = {
       case "content.vn-reference-tour.background.rooftop-antenna":
         return ({
           rendererId: "renderer.vn-reference-tour.background",
-          assetIds: [],
+          assetIds: [vnReferenceTourAssetIdsV1.rooftopAntenna],
           accessibleName: "清晨屋顶",
-          props: { surface: "rooftop-antenna" },
+          props: {
+            surface: "rooftop-antenna",
+            assetId: vnReferenceTourAssetIdsV1.rooftopAntenna,
+          },
           geometry: {
             width: 1600,
             height: 900,
@@ -128,17 +146,41 @@ export const vnReferenceTourStageContentCatalogV1: StageContentCatalog = {
           "master-switch": "总闸",
           "status-light": "发射状态灯",
         };
+        const assetId = vnReferenceTourPropAssetIdsV1[
+          kind as keyof typeof vnReferenceTourPropAssetIdsV1
+        ];
         return ({
           rendererId: "renderer.vn-reference-tour.prop",
-          assetIds: [],
+          assetIds: [assetId],
           accessibleName: names[kind] ?? kind,
           props: {
             kind,
             state: typeof appearance.state === "string" ? appearance.state : "default",
+            assetId,
           },
           geometry: {
-            width: kind === "antenna" ? 190 : kind === "antenna-cable" ? 300 : 220,
-            height: kind === "antenna" ? 440 : kind === "antenna-cable" ? 300 : 150,
+            width: kind === "antenna"
+              ? 150
+              : kind === "antenna-cable"
+              ? 180
+              : kind === "mixing-console" || kind === "tape-machine"
+              ? 185
+              : kind === "wall-clock"
+              ? 100
+              : kind === "microphone"
+              ? 90
+              : 100,
+            height: kind === "antenna"
+              ? 360
+              : kind === "antenna-cable"
+              ? 165
+              : kind === "mixing-console" || kind === "tape-machine"
+              ? 165
+              : kind === "wall-clock"
+              ? 100
+              : kind === "microphone"
+              ? 128
+              : 100,
             anchorXPermille: 500,
             anchorYPermille: 1000,
           },
@@ -147,29 +189,38 @@ export const vnReferenceTourStageContentCatalogV1: StageContentCatalog = {
       case "content.vn-reference-tour.character.lin":
       case "content.vn-reference-tour.character.zhou": {
         const lin = (contentId as string).endsWith(".lin");
+        const expression = typeof appearance.expression === "string"
+          ? appearance.expression
+          : lin
+          ? "focused"
+          : "neutral";
+        const assetId = lin
+          ? expression === "relieved"
+            ? vnReferenceTourAssetIdsV1.linRelieved
+            : vnReferenceTourAssetIdsV1.linFocusedOpen
+          : expression === "soft"
+          ? vnReferenceTourAssetIdsV1.zhouSoft
+          : vnReferenceTourAssetIdsV1.zhouNeutral;
         return ({
           rendererId: "renderer.vn-reference-tour.character",
-          assetIds: [],
+          assetIds: [assetId],
           accessibleName: lin ? "林澄" : "周遥",
           props: {
             character: lin ? "lin" : "zhou",
-            expression: typeof appearance.expression === "string"
-              ? appearance.expression
-              : lin
-              ? "focused"
-              : "neutral",
+            expression,
+            assetId,
           },
           geometry: {
-            width: 260,
-            height: 560,
+            width: 400,
+            height: 650,
             anchorXPermille: 500,
             anchorYPermille: 1000,
           },
-          ...(lin
+          ...(lin && expression === "focused"
             ? {
               frameAssetIds: [
-                "asset.vn-reference-tour.lin-eyes-open" as AssetId,
-                "asset.vn-reference-tour.lin-eyes-closed" as AssetId,
+                vnReferenceTourAssetIdsV1.linFocusedOpen,
+                vnReferenceTourAssetIdsV1.linFocusedClosed,
               ],
             }
             : {}),

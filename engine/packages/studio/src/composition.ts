@@ -81,8 +81,12 @@ function profileV1(
     id: inspectorToolingRootPluginIdV1,
     revision: input.revision,
     provides: [inspectorToolingRootTokenV1],
-    setup(scope) {
+    async setup(scope) {
       scope.provide(inspectorToolingRootTokenV1, plan);
+      const disposeBinding = input.binding.dispose;
+      if (disposeBinding !== undefined) {
+        await scope.effect(() => () => disposeBinding.call(input.binding));
+      }
     },
   });
   return defineCompositionProfileV1({
@@ -100,8 +104,9 @@ function compilePlanV1(snapshot: CompositionSnapshotV1): InspectorToolingPlanV1 
  * Creates the Inspector page's independent live composition root. Candidate
  * setup settles before publication. Reload keeps the previous snapshot live
  * until the consumer acknowledges the candidate plan, then retires the
- * previous providers and returns the published plan. Arbitrary lifecycle
- * effects are intentionally not accepted by this Inspector root.
+ * previous providers and returns the published plan. The only application
+ * lifecycle effect admitted here is the binding's optional synchronous
+ * cleanup; the composition kernel owns rollback, retirement, and final dispose.
  */
 export function createInspectorToolingLiveCompositionV1(
   options: CreateInspectorToolingLiveCompositionOptionsV1,

@@ -28,6 +28,13 @@ function bindingV1(label: string): InspectorBindingV1 {
   return { label } as unknown as InspectorBindingV1;
 }
 
+function disposableBindingV1(
+  label: string,
+  dispose: () => void,
+): InspectorBindingV1 {
+  return { label, dispose } as unknown as InspectorBindingV1;
+}
+
 function rootInputV1(
   revision: number,
   binding: InspectorBindingV1,
@@ -48,6 +55,38 @@ const unsupportedEffectsInputV1 = {
 void unsupportedEffectsInputV1;
 
 describe("Inspector tooling live composition", () => {
+  it("disposes a rolled-back candidate, retired predecessor, and final binding exactly once", async () => {
+    const oldDispose = vi.fn();
+    const rejectedDispose = vi.fn();
+    const currentDispose = vi.fn();
+    const oldBinding = disposableBindingV1("old", oldDispose);
+    const rejectedBinding = disposableBindingV1("rejected", rejectedDispose);
+    const currentBinding = disposableBindingV1("current", currentDispose);
+    const live = createInspectorToolingLiveCompositionV1({
+      profileId: "inspector.test.binding-lifecycle",
+    });
+
+    await live.mount(rootInputV1(1, oldBinding));
+    await expect(live.reload(rootInputV1(2, rejectedBinding), async () => {
+      throw new Error("reject candidate");
+    })).rejects.toThrow("reject candidate");
+
+    expect(rejectedDispose).toHaveBeenCalledOnce();
+    expect(oldDispose).not.toHaveBeenCalled();
+    expect(currentDispose).not.toHaveBeenCalled();
+
+    await live.reload(rootInputV1(3, currentBinding), async () => undefined);
+    expect(rejectedDispose).toHaveBeenCalledOnce();
+    expect(oldDispose).toHaveBeenCalledOnce();
+    expect(currentDispose).not.toHaveBeenCalled();
+
+    await live.dispose();
+    await live.dispose();
+    expect(rejectedDispose).toHaveBeenCalledOnce();
+    expect(oldDispose).toHaveBeenCalledOnce();
+    expect(currentDispose).toHaveBeenCalledOnce();
+  });
+
   it("reloads an isolated live root without changing an authoritative plan, Session, or digest", async () => {
     const authorityToken = createCompositionServiceTokenV1<{
       readonly session: object;

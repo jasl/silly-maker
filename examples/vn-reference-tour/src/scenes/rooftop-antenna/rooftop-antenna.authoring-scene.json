@@ -28,8 +28,8 @@
               "objectId": "tag.vn-reference-tour.rooftop-antenna.antenna",
               "label": "天线",
               "localTransform": {
-                "x": 1250,
-                "y": 245,
+                "x": 1400,
+                "y": 650,
                 "scalePermille": 1000,
                 "opacityPermille": 1000,
                 "mirrored": false
@@ -40,8 +40,8 @@
               "objectId": "tag.vn-reference-tour.rooftop-antenna.cable",
               "label": "摆动电缆",
               "localTransform": {
-                "x": 1050,
-                "y": 280,
+                "x": 1260,
+                "y": 665,
                 "scalePermille": 1000,
                 "opacityPermille": 1000,
                 "mirrored": false
@@ -104,8 +104,8 @@
           "objectId": "tag.vn-reference-tour.rooftop-antenna.master-switch",
           "label": "总闸",
           "localTransform": {
-            "x": 730,
-            "y": 655,
+            "x": 190,
+            "y": 555,
             "scalePermille": 1000,
             "opacityPermille": 1000,
             "mirrored": false
@@ -119,8 +119,8 @@
           "objectId": "tag.vn-reference-tour.rooftop-antenna.status-light",
           "label": "发射状态灯",
           "localTransform": {
-            "x": 890,
-            "y": 585,
+            "x": 105,
+            "y": 505,
             "scalePermille": 1000,
             "opacityPermille": 1000,
             "mirrored": false
