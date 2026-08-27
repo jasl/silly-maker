@@ -60,9 +60,12 @@ Read only the documents relevant to the change:
   persistent Player settings with live locale, and a layered recovery matrix
   for exact awaitable close plus already-durable Browser reload/forced-close
   state. Browser `pagehide` remains a synchronous fence with best-effort async
-  flush and does not promise last-moment IndexedDB durability. M4 author tasks,
-  product evidence, budgets, release proof, and Starter feedback remain open,
-  so this playable WIP is still not product-completion evidence.
+  flush and does not promise last-moment IndexedDB durability. M4 is now in
+  progress: a package-private Visual ambient-binding operation and one real
+  Agent Inspector/CAS handoff are delivered, while the human handoff, remaining
+  product evidence, profiling, release proof, independent reviews, and Starter
+  feedback remain open. This playable WIP is still not product-completion
+  evidence.
   Cat Cafe terminated on 2026-08-27 before this lane began; its application,
   revision-1 Save support, product E2E, and live release responsibility ended
   together, without a cross-product migration. Bookshop remains the maintained

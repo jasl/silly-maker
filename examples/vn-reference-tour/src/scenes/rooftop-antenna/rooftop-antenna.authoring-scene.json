@@ -3,7 +3,10 @@
   "version": 1,
   "sceneId": "scene.vn-reference-tour.rooftop-antenna",
   "label": "清晨屋顶",
-  "canvas": { "width": 1600, "height": 900 },
+  "canvas": {
+    "width": 1600,
+    "height": 900
+  },
   "layers": [
     {
       "layerId": "layer.vn-reference-tour.background",
@@ -12,7 +15,18 @@
         {
           "objectId": "tag.vn-reference-tour.background",
           "label": "清晨屋顶",
-          "visual": { "contentId": "content.vn-reference-tour.background.rooftop-antenna" }
+          "localTransform": {
+            "x": 0,
+            "y": 0,
+            "scalePermille": 1000,
+            "opacityPermille": 1000,
+            "mirrored": false
+          },
+          "children": [],
+          "visual": {
+            "contentId": "content.vn-reference-tour.background.rooftop-antenna",
+            "appearance": {}
+          }
         }
       ]
     },
@@ -23,6 +37,13 @@
         {
           "objectId": "tag.vn-reference-tour.rooftop-antenna.antenna-rig",
           "label": "天线设备组",
+          "localTransform": {
+            "x": 0,
+            "y": 0,
+            "scalePermille": 1000,
+            "opacityPermille": 1000,
+            "mirrored": false
+          },
           "children": [
             {
               "objectId": "tag.vn-reference-tour.rooftop-antenna.antenna",
@@ -34,7 +55,11 @@
                 "opacityPermille": 1000,
                 "mirrored": false
               },
-              "visual": { "contentId": "content.vn-reference-tour.prop.antenna" }
+              "children": [],
+              "visual": {
+                "contentId": "content.vn-reference-tour.prop.antenna",
+                "appearance": {}
+              }
             },
             {
               "objectId": "tag.vn-reference-tour.rooftop-antenna.cable",
@@ -46,10 +71,13 @@
                 "opacityPermille": 1000,
                 "mirrored": false
               },
+              "children": [],
               "visual": {
                 "contentId": "content.vn-reference-tour.prop.antenna-cable",
+                "appearance": {},
                 "ambient": {
-                  "motionId": "motion.vn-reference-tour.rooftop-antenna.cable-sway"
+                  "motionId": "motion.vn-reference-tour.rooftop-antenna.cable-sway",
+                  "phaseMs": 350
                 }
               }
             }
@@ -71,9 +99,12 @@
             "opacityPermille": 1000,
             "mirrored": false
           },
+          "children": [],
           "visual": {
             "contentId": "content.vn-reference-tour.character.zhou",
-            "appearance": { "expression": "neutral" }
+            "appearance": {
+              "expression": "neutral"
+            }
           }
         },
         {
@@ -86,9 +117,12 @@
             "opacityPermille": 1000,
             "mirrored": true
           },
+          "children": [],
           "visual": {
             "contentId": "content.vn-reference-tour.character.lin",
-            "appearance": { "expression": "focused" },
+            "appearance": {
+              "expression": "focused"
+            },
             "ambient": {
               "motionId": "motion.vn-reference-tour.control-room.lin-blink"
             }
@@ -110,9 +144,12 @@
             "opacityPermille": 1000,
             "mirrored": false
           },
+          "children": [],
           "visual": {
             "contentId": "content.vn-reference-tour.prop.master-switch",
-            "appearance": { "state": "on" }
+            "appearance": {
+              "state": "on"
+            }
           }
         },
         {
@@ -125,9 +162,12 @@
             "opacityPermille": 1000,
             "mirrored": false
           },
+          "children": [],
           "visual": {
             "contentId": "content.vn-reference-tour.prop.status-light",
-            "appearance": { "state": "on" }
+            "appearance": {
+              "state": "on"
+            }
           }
         }
       ]

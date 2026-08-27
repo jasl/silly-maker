@@ -33,7 +33,7 @@ import { loadInspectorMotionSourcesV1 } from "../core/motion-sources.ts";
 import { saveWithConflictRefreshInternalV1 } from "../core/save-conflict.ts";
 import { compileAuthoringSceneWithReceiptInternalV1 } from "../core/scene-compilation.ts";
 import type { SceneAuthoringOperationV1 } from "../core/scene-operations/contract.ts";
-import type { MotionSourceIoV1 } from "@sillymaker/ui/debug";
+import type { MotionIoListEntryV1, MotionSourceIoV1 } from "@sillymaker/ui/debug";
 import { InspectorObjectPanelV1 } from "./object-inspector.tsx";
 import { InspectorSceneListV1 } from "./scene-list.tsx";
 import { InspectorScenePreviewV1 } from "./scene-preview.tsx";
@@ -252,6 +252,7 @@ function InspectorWithHostInternalV1(props: InspectorHostSurfacePropsInternalV1)
   >(
     new Map(),
   );
+  const [motionOptions, setMotionOptions] = useState<readonly MotionIoListEntryV1[]>([]);
   const [motionWarnings, setMotionWarnings] = useState<readonly string[]>([]);
   const [scrubKey, setScrubKey] = useState("");
   const [scrubTimeMs, setScrubTimeMs] = useState(0);
@@ -313,6 +314,7 @@ function InspectorWithHostInternalV1(props: InspectorHostSurfacePropsInternalV1)
     void loadInspectorMotionSourcesV1(owner.motionIo, referencedMotionIds).then((loaded) => {
       if (!current) return;
       setMotionDefinitions(loaded.definitions);
+      setMotionOptions(loaded.options);
       setMotionWarnings(loaded.warnings);
     });
     return () => {
@@ -533,6 +535,7 @@ function InspectorWithHostInternalV1(props: InspectorHostSurfacePropsInternalV1)
               <InspectorObjectPanelV1
                 scene={sessionSnapshot.draft}
                 facets={projection.projection.facets}
+                motionOptions={motionOptions}
                 selectedObjectId={selectedObjectId}
                 draftRevision={sessionSnapshot.draftRevision}
                 disabled={busy}

@@ -2,9 +2,12 @@
 import { motionDefinitionFromDocumentV1 } from "@sillymaker/base";
 import type { MotionDefinitionV1 } from "@sillymaker/base";
 import type { MotionSourceIoV1 } from "@sillymaker/ui/debug";
+import type { MotionIoListEntryV1 } from "@sillymaker/ui/debug";
 
 export interface InspectorMotionSourcesV1 {
   readonly definitions: ReadonlyMap<string, MotionDefinitionV1>;
+  /** Metadata-only choices from the existing Project Authoring Index. */
+  readonly options: readonly MotionIoListEntryV1[];
   readonly warnings: readonly string[];
 }
 
@@ -18,11 +21,11 @@ export async function loadInspectorMotionSourcesV1(
   referencedMotionIds: readonly string[],
 ): Promise<InspectorMotionSourcesV1> {
   const requested = new Set(referencedMotionIds);
-  if (requested.size === 0) return { definitions: new Map(), warnings: [] };
   const listed = await io.list();
   if (listed.kind !== "ok") {
     return {
       definitions: new Map(),
+      options: [],
       warnings: [`motion 列表不可用：${listed.code}`],
     };
   }
@@ -50,5 +53,5 @@ export async function loadInspectorMotionSourcesV1(
       motionDefinitionFromDocumentV1(read.result.motionDocument),
     );
   }
-  return { definitions, warnings };
+  return { definitions, options: listed.motions, warnings };
 }

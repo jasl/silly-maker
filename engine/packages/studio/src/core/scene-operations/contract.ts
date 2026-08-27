@@ -5,7 +5,10 @@ import type {
   StagePlacementV1,
   StageTagV1,
 } from "@sillymaker/base";
-import type { AdmittedAuthoringSceneV1 } from "@sillymaker/base/authoring/scene";
+import type {
+  AdmittedAuthoringSceneV1,
+  AuthoringSceneAmbientV1,
+} from "@sillymaker/base/authoring/scene";
 
 /** Package-private schema revision for every admitted Authoring Scene operation. */
 export const sceneAuthoringOperationSchemaRevisionV1 = 2;
@@ -34,6 +37,13 @@ export interface SceneObjectSetAppearanceOperationV1 extends SceneAuthoringOpera
   readonly value: string | null;
 }
 
+export interface SceneObjectSetAmbientOperationV1 extends SceneAuthoringOperationBaseV1 {
+  readonly kind: "scene.object.set_ambient";
+  readonly objectId: StageTagV1;
+  /** Atomic Visual ambient binding; null removes it. */
+  readonly ambient: AuthoringSceneAmbientV1 | null;
+}
+
 export interface SceneObjectMoveBeforeOperationV1 extends SceneAuthoringOperationBaseV1 {
   readonly kind: "scene.object.move_before";
   readonly objectId: StageTagV1;
@@ -52,6 +62,7 @@ export type SceneAuthoringOperationV1 =
   | SceneObjectSetLocalTransformOperationV1
   | SceneObjectSetVisualContentOperationV1
   | SceneObjectSetAppearanceOperationV1
+  | SceneObjectSetAmbientOperationV1
   | SceneObjectMoveBeforeOperationV1
   | SceneLayerMoveBeforeOperationV1;
 

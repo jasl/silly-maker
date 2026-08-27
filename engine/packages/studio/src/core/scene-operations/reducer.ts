@@ -2,6 +2,7 @@
 import { reindexAuthoringSceneDocumentV1 } from "@sillymaker/base/authoring/scene";
 import type {
   AdmittedAuthoringSceneV1,
+  AuthoringSceneAmbientV1,
   AuthoringSceneDocumentV1,
   AuthoringSceneObjectV1,
 } from "@sillymaker/base/authoring/scene";
@@ -192,6 +193,14 @@ function transformUnchangedV1(
     before.opacityPermille === after.opacityPermille && before.mirrored === after.mirrored;
 }
 
+function ambientUnchangedV1(
+  before: AuthoringSceneAmbientV1 | undefined,
+  after: AuthoringSceneAmbientV1 | null,
+): boolean {
+  if (before === undefined || after === null) return before === undefined && after === null;
+  return before.motionId === after.motionId && before.phaseMs === after.phaseMs;
+}
+
 /**
  * Pure Authoring Scene reducer. It owns no Session, IO, save, HMR, clock,
  * runtime object, or alternate scene authority.
@@ -259,6 +268,26 @@ export function reduceSceneAuthoringOperationV1(
             ...object,
             visual: { ...object.visual!, appearance },
           };
+        }),
+      );
+    }
+    case "scene.object.set_ambient": {
+      const location = findObjectV1(document, operation.objectId as string);
+      if (location === null) {
+        return rejectedV1("scene_authoring.target_missing", "/operation/objectId");
+      }
+      if (location.object.visual === undefined) {
+        return rejectedV1("scene_authoring.target_conflict", "/operation/objectId");
+      }
+      if (ambientUnchangedV1(location.object.visual.ambient, operation.ambient)) {
+        return rejectedV1("scene_authoring.no_change", "/operation");
+      }
+      return finalizeV1(
+        replaceObjectV1(document, location, (object) => {
+          const visual = { ...object.visual! };
+          if (operation.ambient === null) delete visual.ambient;
+          else visual.ambient = operation.ambient;
+          return { ...object, visual };
         }),
       );
     }

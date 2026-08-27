@@ -16,6 +16,10 @@ import styles from "./inspector.module.css";
 export interface InspectorObjectPanelPropsV1 {
   readonly scene: AdmittedAuthoringSceneV1;
   readonly facets: AuthoringSceneFacetProjectionV1;
+  readonly motionOptions: readonly {
+    readonly motionId: string;
+    readonly label: string;
+  }[];
   readonly selectedObjectId: StageTagV1 | null;
   readonly draftRevision: number;
   readonly disabled: boolean;
@@ -108,6 +112,15 @@ export function InspectorObjectPanelV1(props: InspectorObjectPanelPropsV1): Reac
     );
   };
   const visual = inspection.visual;
+  const ambient = visual?.ambient ?? null;
+  const ambientOptions = ambient === null || props.motionOptions.some(
+      (option) => option.motionId === ambient.motionId,
+    )
+    ? props.motionOptions
+    : [
+      { motionId: ambient.motionId, label: `${ambient.motionId}（未索引）` },
+      ...props.motionOptions,
+    ];
 
   return (
     <section
@@ -222,6 +235,50 @@ export function InspectorObjectPanelV1(props: InspectorObjectPanelPropsV1): Reac
                       />
                     </label>
                   ))}
+                <label className={styles.field}>
+                  <span>ambient motionId</span>
+                  <select
+                    value={ambient?.motionId ?? ""}
+                    disabled={props.disabled}
+                    onChange={(event) => {
+                      const motionId = event.currentTarget.value;
+                      props.execute({
+                        schemaRevision: sceneAuthoringOperationSchemaRevisionV1,
+                        kind: "scene.object.set_ambient",
+                        objectId: inspection.objectId,
+                        ambient: motionId.length === 0 ? null : {
+                          motionId,
+                          ...(ambient?.phaseMs === undefined ? {} : { phaseMs: ambient.phaseMs }),
+                        },
+                      });
+                    }}
+                  >
+                    <option value="">无</option>
+                    {ambientOptions.map((option) => (
+                      <option value={option.motionId} key={option.motionId}>
+                        {option.label} · {option.motionId}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {ambient === null
+                  ? <p className={styles.muted}>选择一个已索引 Motion 以添加 ambient loop。</p>
+                  : (
+                    <NumberFieldV1
+                      label="ambient phase (ms)"
+                      value={ambient.phaseMs ?? 0}
+                      min={0}
+                      max={60_000}
+                      disabled={props.disabled}
+                      commit={(phaseMs) =>
+                        props.execute({
+                          schemaRevision: sceneAuthoringOperationSchemaRevisionV1,
+                          kind: "scene.object.set_ambient",
+                          objectId: inspection.objectId,
+                          ambient: { motionId: ambient.motionId, phaseMs },
+                        })}
+                    />
+                  )}
               </>
             )}
         </section>

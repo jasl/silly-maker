@@ -1,6 +1,6 @@
 # VN Reference Tour 实施计划
 
-状态：**2026-08-27 经所有者接受，当前唯一活动 Reference Product；M0–M3 已交付，M4 是下一里程碑。
+状态：**2026-08-27 经所有者接受，当前唯一活动 Reference Product；M0–M3 已交付，M4 正在执行。
 引擎维护的 focused default VN Player preset、say-only 全画布推进、贴底布局、Ctrl/Tab/H/V 与鼠标中键、
 最终 Stage/ending 媒体、冻结的八项音频、current-voice replay、voice-aware Auto、interaction-level
 Back/Forward、产品入口、Save/recovery 与 Settings 均已交付。当前 WIP 仍不是产品完成证据或旗舰。**
@@ -145,7 +145,7 @@ example。focused tests、`app check`、临时 `scaffold` simulation、Browser p
 
 ### M1 — 完整剧本、场景与作者数据
 
-状态：**2026-08-27 已交付。M2、M3 已于 2026-08-28 交付；M4 待执行。**
+状态：**2026-08-27 已交付。M2、M3 已于 2026-08-28 交付；M4 正在执行。**
 
 - 写完并注册全部 59 条文案、二选一、两条 route 与两个 ending；先用 compatible placeholder media 也必须
   保持完整内容 breadth，不以单 route 关闭；
@@ -319,6 +319,9 @@ production build 与独立实现审查。React Doctor 唯一新增 advisory 对�
 
 ### M4 — 作者任务、产品证据与 Starter feedback
 
+状态：**2026-08-28 进行中。第一 authoring slice 与 Agent 接手任务已完成；人类接手、完整产品证据、独立评审
+与 Starter feedback 仍开放。**
+
 - 一名人类从 Inspector 微调场景构图/appearance/Motion reference，一名 Agent 使用同一 source、diagnostics、
   structured operation/CAS 路径完成修改；人类随后继续审查、undo/redo 与保存；
 - focused tests、两条 simulate、`app check`、Chromium/WebKit 产品 E2E、build/prebuilt smoke、Deno Desktop static
@@ -329,6 +332,38 @@ production build 与独立实现审查。React Doctor 唯一新增 advisory 对�
   engine review 将发现分成产品 bug、文档/Starter 改进、可复现中立 engine gap 与明确非目标；
 - 只有被 Template 与本产品共同证明的通用 starter 改进才反馈到 Template；focused default VN Player preset
   由引擎维护，产品主题、故事、媒体和特殊规则留在本地。
+
+进展记录：真实 VN 接手任务暴露了一个窄的通用 Inspector 缺口：Authoring Scene 已把
+`visual.ambient` 作为场景唯一 Motion-reference authority，但 Inspector 只能读取和 scrub，无法通过已有
+structured operation/CAS/history 路径调整该绑定。第一切片因此只新增 package-private
+`scene.object.set_ambient`，原子编辑一个现有 Visual 的 `{ motionId, phaseMs? } | null`；Motion definitions、
+cue transition 与其他 bindings 仍只读，group 仍拒绝 Visual edit，operation schema revision 保持 2。可选项来自
+Project Authoring Index 的 metadata list；加载器只读取当前 Scene 已引用的 Motion 文档，不建立资产图、Motion
+editor、Agent runner 或公开 ABI。Inspector 同时修正窄栏中 label 被长 ID 挤成逐字换行的问题。
+真实 standalone 复核还发现 nested Inspector route 让 `document.baseURI` 指向自身目录，产品相对 runtime
+asset 因而全部降级为占位图；dev-only Inspector HTML 现在显式把文档 base 设为应用根。focused HTML contract
+test 与真实 Browser 共同证明当前 Scene 的 7 个图片资源成功加载，且没有 `asset.fetch_failed`。
+
+Agent 已在真实 standalone Inspector 中打开屋顶 Scene，把“摆动电缆”的 `cable-sway` ambient phase 调整为
+350ms，随后完成 undo、redo 与 CAS save；保存后的产品 source 是唯一 authority。focused admission/reducer/
+executor/source-loader/Inspector tests 与真实 Browser 操作共同覆盖该路径。人类仍必须使用同一 Inspector 审查
+构图和动画，完成至少一次可观察调整、undo/redo 与保存；自动化 Agent 任务不替代该参与证据。
+
+第一批 raw measurement 来自 2026-08-28 的本地 Apple M4 Max / 128 GiB / macOS 26.6.2 / Deno 2.9.5 /
+Chromium 151 workstation characterization，不是低端设备 qualification。7 次 GUI ready / first-interactive
+分别为 162.46/162.52、132.32/132.37、139.25/139.31、131.48/131.52、123.40/123.46、
+158.39/158.43、132.27/132.31 ms（同一次采样两者相差不超过 0.06ms）。release build 为 400.13ms；JS gzip
+344,214 B，CSS gzip 9,058 B，runtime assets raw/gzip 1,571,711/1,422,603 B，完整产物 raw/gzip
+2,937,099/1,775,875 B，均在 §7 冻结预算内；prebuilt smoke 通过。initial media transfer、Long Tasks、frame
+time、单路线 heap、Desktop static preview、默认静音发布证据与完整 Browser/产品评审仍待本里程碑后续证据，
+不得从这批 workstation raw data 推导低端设备达标。
+
+本 authoring slice 的提交前回归覆盖 6 个 focused test files / 32 tests、Inspector Chromium/WebKit 2 项
+真实编辑 E2E、两条 44-step named simulation、VN Chromium/WebKit 24 项产品 E2E（另有 2 项按 project
+条件跳过）、`app check`、release build/prebuilt smoke、49 页文档 build，以及全仓 `deno task check`
+的 383 个 test files / 5,470 tests 与 6 项 Composition benchmark。React Doctor changed-files audit
+只报告现有 coherent `object-inspector.tsx` 的 giant-component advisory；本切片没有为评分拆散同一个对象
+编辑面板。上述回归关闭第一 authoring slice，不关闭 M4；剩余证据仍按上一段执行。
 
 ### M5 — 旗舰提升与文档收口（Bookshop 保持）
 

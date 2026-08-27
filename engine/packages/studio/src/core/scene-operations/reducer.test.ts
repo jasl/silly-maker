@@ -57,7 +57,10 @@ function sceneV1(): AdmittedAuthoringSceneV1 {
                 objectId: "tag.test.beta",
                 label: "Beta",
                 localTransform: placementV1(200, 100),
-                visual: { contentId: "content.test.beta" },
+                visual: {
+                  contentId: "content.test.beta",
+                  ambient: { motionId: "motion.test.beta-idle" },
+                },
               },
             ],
           },
@@ -168,6 +171,66 @@ describe("reduceSceneAuthoringOperationV1", () => {
     expect(objectV1(cleared, "tag.test.beta").visual?.appearance).toEqual({});
   });
 
+  it("sets or removes one Visual ambient binding without changing its other fields", () => {
+    const current = sceneV1();
+    const changed = reducedV1(
+      current,
+      operationV1({
+        schemaRevision: 2,
+        kind: "scene.object.set_ambient",
+        objectId: "tag.test.beta",
+        ambient: { motionId: "motion.test.beta-breathe", phaseMs: 420 },
+      }),
+    );
+    expect(objectV1(changed, "tag.test.beta").visual).toEqual({
+      contentId: "content.test.beta",
+      appearance: {},
+      ambient: { motionId: "motion.test.beta-breathe", phaseMs: 420 },
+    });
+    expect(objectV1(current, "tag.test.beta").visual?.ambient).toEqual({
+      motionId: "motion.test.beta-idle",
+    });
+
+    const removed = reducedV1(
+      changed,
+      operationV1({
+        schemaRevision: 2,
+        kind: "scene.object.set_ambient",
+        objectId: "tag.test.beta",
+        ambient: null,
+      }),
+    );
+    expect(objectV1(removed, "tag.test.beta").visual).toEqual({
+      contentId: "content.test.beta",
+      appearance: {},
+    });
+
+    expect(reduceSceneAuthoringOperationV1(
+      current,
+      operationV1({
+        schemaRevision: 2,
+        kind: "scene.object.set_ambient",
+        objectId: "tag.test.beta",
+        ambient: { motionId: "motion.test.beta-idle" },
+      }),
+    )).toEqual({
+      kind: "rejected",
+      diagnostic: { code: "scene_authoring.no_change", path: "/operation" },
+    });
+    expect(reduceSceneAuthoringOperationV1(
+      current,
+      operationV1({
+        schemaRevision: 2,
+        kind: "scene.object.set_ambient",
+        objectId: "tag.test.alpha",
+        ambient: null,
+      }),
+    )).toEqual({
+      kind: "rejected",
+      diagnostic: { code: "scene_authoring.no_change", path: "/operation" },
+    });
+  });
+
   it("rejects Visual edits against a group without changing the source", () => {
     const current = sceneV1();
     const before = JSON.stringify(current);
@@ -184,6 +247,18 @@ describe("reduceSceneAuthoringOperationV1", () => {
       diagnostic: { code: "scene_authoring.target_conflict", path: "/operation/objectId" },
     });
     expect(JSON.stringify(current)).toBe(before);
+    expect(reduceSceneAuthoringOperationV1(
+      current,
+      operationV1({
+        schemaRevision: 2,
+        kind: "scene.object.set_ambient",
+        objectId: "tag.test.group-a",
+        ambient: { motionId: "motion.test.group-idle" },
+      }),
+    )).toEqual({
+      kind: "rejected",
+      diagnostic: { code: "scene_authoring.target_conflict", path: "/operation/objectId" },
+    });
   });
 
   it("moves objects only inside their existing sibling list", () => {

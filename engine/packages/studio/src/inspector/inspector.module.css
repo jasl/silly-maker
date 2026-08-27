@@ -162,6 +162,7 @@
   align-items: center;
   gap: 0.5rem;
   font-size: 0.75rem;
+  white-space: nowrap;
 }
 
 .scrub-bar select {
@@ -362,7 +363,7 @@
 .object-row,
 .scene-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(5rem, auto);
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
   gap: 0.5rem;
   inline-size: 100%;
@@ -384,7 +385,7 @@
 }
 
 .scene-row {
-  grid-template-columns: minmax(0, 1fr) minmax(7rem, auto);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   grid-template-rows: auto auto;
   padding-inline: 0.75rem;
   cursor: pointer;
@@ -411,6 +412,15 @@
   overflow: hidden;
   color: color-mix(in srgb, currentcolor 55%, transparent);
   font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layer-row strong,
+.object-row > span:nth-child(2),
+.scene-row strong {
+  min-inline-size: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

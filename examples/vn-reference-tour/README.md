@@ -2,7 +2,7 @@
 
 # 《最后一次试音》— VN Reference Tour
 
-状态：**M0–M3 已交付 / WIP；M4 待执行。独立 package、完整双路线作者数据与 simulation、
+状态：**M0–M3 已交付 / WIP；M4 进行中。独立 package、完整双路线作者数据与 simulation、
 引擎维护的 default VN Player、最终 Stage/ending 媒体、冻结的八项音频分母、interaction-level
 Back/Forward、responsive/input/accessibility 产品矩阵、system menu/Save、持久设置/live locale 与分层恢复
 矩阵均已完成。Browser 强制关闭只恢复最后已经持久化的 autosave；作者接手、预算、发布与完整产品验收仍未完成。**
@@ -53,7 +53,7 @@ Forward 后缀，hold tick 不会成为额外的玩家停靠点。
 当前有语音的台词可用“语音”按钮或 `V` 重放；Auto 的文本等待到期后仍会等待当前语音自然结束。浏览器拒绝
 自动播放或媒体不可解码时只降级为静音，不阻塞剧情。
 
-这些命令的 green run 证明当前 author data、两条 deterministic headless routes 与 M2 Player 接线；M3 的
+这些命令的 green run 证明当前 author data、两条 deterministic headless routes 与 Player 接线；M3 的
 Save/recovery 还由 focused reopen tests 与 Browser journeys 分层证明。M4 evidence 关闭前，不得把它报告为
 完整产品或发布完成。
 
@@ -90,16 +90,17 @@ Save/recovery 还由 focused reopen tests 与 Browser journeys 分层证明。M4
 
 产品从 Template 起步，但不 import Template、Bookshop 或其他 example。M0 已删除 coins/inventory/HUD action、
 reference-only outer UI 与临时 Story identity，不保留 compatibility alias 或零值模块。M1 已用冻结的完整产品
-剧情、两个场景与兼容 placeholder presentation 替换 temporary author scaffold；M2 已关闭 focused default VN Player、
-最终 Stage/ending 媒体、音频和产品矩阵，后续入口、Save/recovery/settings 留给 M3。
+剧情、两个场景与兼容 placeholder presentation 替换 temporary author scaffold；M2 已关闭 focused default VN
+Player、最终 Stage/ending 媒体、音频和产品矩阵；M3 已关闭产品入口、Save/recovery 与 settings。
 
 本产品不建立 Ren'Py DSL/Save compatibility、自定义解释器、broad VN framework、Blueprint、最终编辑器、Mod/Agent、
 特殊 pending 或 Desktop HMR。`NarrativeAside` 不是 denominator；只有完整剧本自然需要时才可选择最多一处。
 
 ## Authoring 与验证
 
-M1 的两个 Authoring Scene 已接入 dev-only Inspector 的真实 Scene/CAS owner，用于选择、有限属性编辑、Motion
-facet/scrub、undo/redo 和保存。普通 Player final graph 必须继续排除 Inspector 与 source writer。
+两个 Authoring Scene 已接入 dev-only Inspector 的真实 Scene/CAS owner，用于选择、有限属性编辑、
+`visual.ambient` Motion reference/phase 调整、Motion/Timeline scrub、undo/redo 和保存。Motion document、cue
+transition 与其他 binding 仍是只读 facet。普通 Player final graph 必须继续排除 Inspector 与 source writer。
 
 M1 named simulations 固定并实现为：
 
@@ -108,8 +109,8 @@ archive-voice
 present-voice
 ```
 
-完整产品关闭还需要 Save/reopen、默认静音、Browser publish、Desktop static preview、raw budgets，以及人类和
-Agent 使用同一 authoring/CAS 路径的接手任务。
+完整产品关闭还需要默认静音发布证据、Browser publish、Desktop static preview、剩余 raw profiling，以及人类
+使用同一 authoring/CAS 路径继续 Agent 已完成的 ambient Motion 接手任务。
 
 ## 许可
 

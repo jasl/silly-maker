@@ -32,7 +32,8 @@
           },
           "visual": {
             "contentId": "content.e2e.char.alpha",
-            "appearance": { "pose": "standing", "expression": "neutral" }
+            "appearance": { "pose": "standing", "expression": "neutral" },
+            "ambient": { "motionId": "motion.e2e.char-enter" }
           },
           "bindings": { "motionIds": ["motion.e2e.char-enter"] }
         }

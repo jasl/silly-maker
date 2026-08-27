@@ -7,7 +7,8 @@
 History/播放控制、贴底布局、Ctrl/Tab/H/V 与鼠标中键、最终 Stage/ending 媒体、冻结的八项音频分母、
 current-voice replay、voice-aware Auto、interaction-level Back/Forward 和产品矩阵。M3 已交付产品入口、
 默认 VN system menu、quick/manual/import/export、完整最小 Settings/live locale，以及分层的
-Save/recovery/hidden/close/reload/restart 证据。M4 的作者任务、发布矩阵、raw measurement 与独立产品审查仍未关闭。**
+Save/recovery/hidden/close/reload/restart 证据。M4 已完成 ambient binding/phase 的 Agent Inspector/CAS 接手；
+人类接手、发布矩阵、剩余 raw measurement 与独立产品审查仍未关闭。**
 
 M1 已用本产品完整 Story/Scene author data 原子替换 tracked Template 的临时内容，但只关闭 author data 与
 headless routes。M2 已有 Player、Stage 媒体、ending、音频、Back/Forward 与完整矩阵；M3 已关闭产品入口、
@@ -262,7 +263,7 @@ Save/recovery 与设置；下表明确区分已实现部分与仍需 M4 关闭�
 | i18n             | 3 packs × zh-CN/en + fallback                           | pack admission、切换、overflow              | M3 已实现 live locale 与 Profile 持久化设置入口                                      |
 | Responsive/Input | 360×640 至 1280×720、pointer/touch/keyboard             | Chromium/WebKit journeys                    | M2 完整矩阵已实现                                                                    |
 | Accessibility    | focus、labels、200% zoom、reduced motion、default muted | automated + human review                    | M2 完成 focus/labels/zoom/reduced motion；默认静音发布证据留 M4                      |
-| Authoring        | 两 Scene 的 object/appearance/Motion 调整               | human + Agent CAS/undo/save tasks           | M1 Scene/Inspector surface 已实现；接手任务留给 M4                                   |
+| Authoring        | 两 Scene 的 object/appearance/Motion 调整               | human + Agent CAS/undo/save tasks           | M4 已交付 ambient binding/phase 与 Agent CAS/undo/save；人类接手仍开放               |
 | Targets          | Browser publish + Desktop static preview                | build/prebuilt/preview evidence             | 未实现；M4，无 Desktop HMR claim                                                     |
 | Budgets          | §7 数值                                                 | generic raw benchmark + profiling           | 未测量；M4                                                                           |
 
@@ -277,7 +278,7 @@ package-owned Splash/Title、默认 Save/Settings/System hosts 和 dev-only Insp
 有”不是选择理由。
 
 M0–M3 已交付 package/identity、负能力删除、完整 author data/headless routes、VN Player/媒体与产品矩阵，
-以及入口、Save/recovery/settings。M4 才完成作者任务和产品证据；M5 才可将产品提升为旗舰。Bookshop 保持到 VN
+以及入口、Save/recovery/settings。M4 正在完成作者任务和产品证据；M5 才可将产品提升为旗舰。Bookshop 保持到 VN
 完成，其后教学角色另行评审，本计划不预裁删除。
 
 ## 10. 许可与素材

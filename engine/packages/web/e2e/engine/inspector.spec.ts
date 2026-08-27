@@ -60,6 +60,16 @@ test.describe("Inspector replacement surface", () => {
       );
       await expect(save).toBeDisabled();
 
+      const ambientPhase = inspector.getByLabel("ambient phase (ms)");
+      await expect(ambientPhase).toHaveValue("0");
+      await ambientPhase.fill("350");
+      await ambientPhase.blur();
+      await expect(save).toBeEnabled();
+      await inspector.getByRole("button", { name: "撤销", exact: true }).click();
+      await expect(ambientPhase).toHaveValue("0");
+      await inspector.getByRole("button", { name: "重做", exact: true }).click();
+      await expect(ambientPhase).toHaveValue("350");
+
       await objectSearch.fill("样本箱");
       await inspector.locator('[data-inspector-object="tag.e2e.inspector-crate"]').click();
       const xInput = objectPanel.getByLabel("X", { exact: true });

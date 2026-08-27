@@ -222,9 +222,10 @@ interaction facets 留在 authoring sidecar；显式 `authoring_scene`/`low_leve
 仍只保留 metadata 与 path-local invalidation；该交付没有提升 Desktop HMR。M5 于 2026-08-25
 交付 Inspector-first replacement：standalone 与 embedded shell 共用一个 Authoring Host，按需列出并
 virtualize Authoring Scene 与 layer/object 层级，以真实 Stage preview 呈现场外/透明对象的可选择 ghost，
-通过既有 structured operations、document session、history 与 CAS 完成有限的 transform、appearance 和
-顺序编辑，并提供只读 hit-region、Motion、Timeline、interaction/GUI intent、source provenance facet 与
-parallel-channel scrub。旧 Studio route、五 workspace shell、Story binding 与只保护旧 UI 的测试已退出
+通过既有 structured operations、document session、history 与 CAS 完成有限的 transform、appearance、
+Visual ambient binding/phase 和顺序编辑，并提供只读 hit-region、Motion definition/cue/其他 binding、
+Timeline、interaction/GUI intent、source provenance facet 与 parallel-channel scrub。旧 Studio route、五
+workspace shell、Story binding 与只保护旧 UI 的测试已退出
 维护面；Host、CAS、R1 publication 和 private Agent companion seam 保留，普通 Player 仍排除 Inspector/
 source writer。该交付没有提升 Desktop HMR。M0–M5 现已完成。
 
@@ -319,7 +320,8 @@ Ctrl/Tab/H/V/鼠标中键、竖屏布局、最终媒体/音频、rollback/end co
 Save/recovery/settings 也已关闭：产品入口与默认 VN system menu、quick/manual/import/export、完整最小
 Settings/live locale、normal-dispose exact flush、已持久化 autosave reload、return-to-title/Continue，以及
 Web hidden presentation-time exclusion均有分层证据。Browser `pagehide` 仍只是同步 fence + best-effort flush，
-不承诺最后一刻异步 IndexedDB durability。M4 作者任务、发布矩阵、raw measurements 与独立审查尚未完成，
+不承诺最后一刻异步 IndexedDB durability。M4 已交付 ambient binding/phase 的 Agent Inspector/CAS 接手；
+人类接手、发布矩阵、剩余 raw measurements 与独立审查尚未完成，
 当前 WIP 仍不是完整产品或完成证据。Cat Cafe 已在
 本轮开始前独立终止，应用、revision-1 Save 支持、产品 E2E 与 live 发布责任同步结束，不做跨产品 Save 迁移
 或兼容 wrapper。VN 开发期间没有当前旗舰；Bookshop 只保持 maintained minimal Narrative example，不是旗舰

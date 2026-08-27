@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 
 import { admitSceneAuthoringEnvelopeV1, admitSceneAuthoringOperationV1 } from "./admission.ts";
+import { sceneAuthoringOperationSchemaRevisionV1 } from "./contract.ts";
 
 const transformV1 = {
   x: 10,
@@ -12,7 +13,7 @@ const transformV1 = {
 };
 
 describe("Authoring Scene operation admission", () => {
-  it("admits the closed revision 2 object and layer operation set", () => {
+  it("admits the current object and layer operation set", () => {
     const operations = [
       {
         schemaRevision: 2,
@@ -32,6 +33,21 @@ describe("Authoring Scene operation admission", () => {
         objectId: "tag.test.hero",
         key: "expression",
         value: "happy",
+      },
+      {
+        schemaRevision: sceneAuthoringOperationSchemaRevisionV1,
+        kind: "scene.object.set_ambient",
+        objectId: "tag.test.hero",
+        ambient: {
+          motionId: "motion.test.hero-idle",
+          phaseMs: 120,
+        },
+      },
+      {
+        schemaRevision: sceneAuthoringOperationSchemaRevisionV1,
+        kind: "scene.object.set_ambient",
+        objectId: "tag.test.hero",
+        ambient: null,
       },
       {
         schemaRevision: 2,
@@ -115,6 +131,18 @@ describe("Authoring Scene operation admission", () => {
         objectId: "tag.test.hero",
         key: "Bad-Key",
         value: "happy",
+      },
+      {
+        schemaRevision: sceneAuthoringOperationSchemaRevisionV1,
+        kind: "scene.object.set_ambient",
+        objectId: "tag.test.hero",
+        ambient: { motionId: "hero-idle" },
+      },
+      {
+        schemaRevision: sceneAuthoringOperationSchemaRevisionV1,
+        kind: "scene.object.set_ambient",
+        objectId: "tag.test.hero",
+        ambient: { motionId: "motion.test.hero-idle", phaseMs: 60_001 },
       },
       {
         schemaRevision: 2,

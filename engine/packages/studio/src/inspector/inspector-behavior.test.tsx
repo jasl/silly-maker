@@ -57,7 +57,12 @@ function sceneV1(objectCount: number) {
           mirrored: false,
         },
         ...(index < 64
-          ? { visual: { contentId: `content.test.object-${String(index).padStart(4, "0")}` } }
+          ? {
+            visual: {
+              contentId: `content.test.object-${String(index).padStart(4, "0")}`,
+              ...(index === 0 ? { ambient: { motionId: "motion.test.object-idle" } } : {}),
+            },
+          }
           : {}),
       })),
     }],
@@ -203,6 +208,7 @@ describe("Inspector editing behavior", () => {
       <InspectorObjectPanelV1
         scene={scene}
         facets={facets}
+        motionOptions={[]}
         selectedObjectId={scene.document.layers[0]!.roots[0]!.objectId}
         draftRevision={0}
         disabled={false}
@@ -216,6 +222,49 @@ describe("Inspector editing behavior", () => {
     fireEvent.blur(contentId);
     expect(contentId).toHaveValue(original);
     expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("edits one Visual ambient binding through the structured operation port", () => {
+    const scene = sceneV1(1);
+    const facets = projectAuthoringSceneFacetsV1(
+      compileAuthoringSceneV1(scene),
+      emptyCatalogV1,
+    );
+    const execute = vi.fn();
+    render(
+      <InspectorObjectPanelV1
+        scene={scene}
+        facets={facets}
+        motionOptions={[{
+          motionId: "motion.test.object-breathe",
+          label: "Breathe",
+        }]}
+        selectedObjectId={scene.document.layers[0]!.roots[0]!.objectId}
+        draftRevision={0}
+        disabled={false}
+        execute={execute}
+      />,
+    );
+
+    const motionId = screen.getByRole("combobox", { name: "ambient motionId" });
+    expect(screen.getByRole("option", { name: /motion.test.object-idle（未索引）/ })).toBeVisible();
+    fireEvent.change(motionId, { target: { value: "motion.test.object-breathe" } });
+    expect(execute).toHaveBeenLastCalledWith({
+      schemaRevision: 2,
+      kind: "scene.object.set_ambient",
+      objectId: "tag.test.object-0000",
+      ambient: { motionId: "motion.test.object-breathe" },
+    });
+
+    const phase = screen.getByRole("spinbutton", { name: "ambient phase (ms)" });
+    fireEvent.change(phase, { target: { value: "1050" } });
+    fireEvent.blur(phase);
+    expect(execute).toHaveBeenLastCalledWith({
+      schemaRevision: 2,
+      kind: "scene.object.set_ambient",
+      objectId: "tag.test.object-0000",
+      ambient: { motionId: "motion.test.object-idle", phaseMs: 1050 },
+    });
   });
 
   it("keeps the direct Host current through StrictMode effect replay", async () => {

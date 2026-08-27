@@ -53,6 +53,10 @@ describe("Inspector motion source loading", () => {
     const loaded = await loadInspectorMotionSourcesV1(io, ["motion.test.b"]);
     expect(reads).toEqual(["b.motion.json"]);
     expect([...loaded.definitions]).toHaveLength(1);
+    expect(loaded.options.map((entry) => entry.motionId)).toEqual([
+      "motion.test.a",
+      "motion.test.b",
+    ]);
     expect(loaded.warnings).toEqual([]);
   });
 
@@ -79,6 +83,31 @@ describe("Inspector motion source loading", () => {
     };
     const loaded = await loadInspectorMotionSourcesV1(io, ["motion.test.missing"]);
     expect(readCount).toBe(0);
+    expect(loaded.options.map((entry) => entry.motionId)).toEqual(["motion.test.a"]);
     expect(loaded.warnings).toEqual(["motion 引用未找到：motion.test.missing"]);
+  });
+
+  it("lists metadata choices without loading unrelated Motion documents", async () => {
+    let readCount = 0;
+    const io: MotionSourceIoV1 = {
+      list: () =>
+        Promise.resolve({
+          kind: "ok",
+          motions: [{ path: "a.motion.json", motionId: "motion.test.a", label: "A" }],
+          skipped: [],
+        }),
+      read: () => {
+        readCount += 1;
+        return Promise.resolve({ kind: "error", code: "not_found" });
+      },
+      write: () => Promise.resolve({ kind: "error", code: "unavailable" }),
+      create: () => Promise.resolve({ kind: "error", code: "unavailable" }),
+    };
+
+    const loaded = await loadInspectorMotionSourcesV1(io, []);
+    expect(loaded.options).toEqual([
+      { path: "a.motion.json", motionId: "motion.test.a", label: "A" },
+    ]);
+    expect(readCount).toBe(0);
   });
 });

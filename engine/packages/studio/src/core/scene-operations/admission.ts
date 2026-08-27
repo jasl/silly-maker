@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { parseStageContentIdV1, parseStageLayerIdV1, parseStageTagV1 } from "@sillymaker/base";
 import type { StagePlacementV1 } from "@sillymaker/base";
+import type { AuthoringSceneAmbientV1 } from "@sillymaker/base/authoring/scene";
 
 import type {
   SceneAuthoringDiagnosticCodeV1,
@@ -16,6 +17,9 @@ const coalesceKeyMaxLengthV1 = 256;
 const documentIdentityMaxLengthV1 = 200;
 const appearanceKeyPatternV1 = /^[a-z][a-z0-9_]*$/u;
 const appearanceValuePatternV1 = /^[a-z0-9][a-z0-9_.-]*$/u;
+const motionIdPatternV1 = /^motion\.[a-z0-9_.-]+$/u;
+const motionIdMaxLengthV1 = 96;
+const ambientPhaseLimitMsV1 = 60_000;
 
 class SceneAuthoringAdmissionFailureV1 extends Error {
   readonly diagnostic: SceneAuthoringDiagnosticV1;
@@ -91,6 +95,39 @@ function parseAppearanceFieldV1(
     return rejectV1("scene_authoring.operation_payload_invalid", "/operation/value");
   }
   return { key: keyValue, value };
+}
+
+function parseAmbientV1(
+  value: unknown,
+): AuthoringSceneAmbientV1 | null {
+  if (value === null) return null;
+  const candidate = value as Readonly<Record<string, unknown>>;
+  const hasPhase = value !== null && typeof value === "object" && !Array.isArray(value) &&
+    Object.hasOwn(candidate, "phaseMs");
+  const input = recordV1(
+    value,
+    ["motionId", ...(hasPhase ? ["phaseMs"] : [])],
+    "/operation/ambient",
+    "scene_authoring.operation_payload_invalid",
+  );
+  if (
+    typeof input.motionId !== "string" || input.motionId.length > motionIdMaxLengthV1 ||
+    !motionIdPatternV1.test(input.motionId)
+  ) {
+    return rejectV1("scene_authoring.operation_payload_invalid", "/operation/ambient/motionId");
+  }
+  const phaseMs = hasPhase
+    ? boundedIntegerV1(
+      input.phaseMs,
+      0,
+      ambientPhaseLimitMsV1,
+      "/operation/ambient/phaseMs",
+    )
+    : undefined;
+  return {
+    motionId: input.motionId,
+    ...(phaseMs === undefined ? {} : { phaseMs }),
+  };
 }
 
 function boundedIntegerV1(
@@ -206,6 +243,20 @@ function admitKnownOperationV1(value: unknown, kind: string): SceneAuthoringOper
         objectId: parseAtV1(parseStageTagV1, input.objectId, "/operation/objectId"),
         key: appearance.key,
         value: appearance.value,
+      };
+    }
+    case "scene.object.set_ambient": {
+      const input = recordV1(
+        value,
+        ["schemaRevision", "kind", "objectId", "ambient"],
+        "/operation",
+        "scene_authoring.operation_payload_invalid",
+      );
+      return {
+        schemaRevision,
+        kind,
+        objectId: parseAtV1(parseStageTagV1, input.objectId, "/operation/objectId"),
+        ambient: parseAmbientV1(input.ambient),
       };
     }
     case "scene.object.move_before": {

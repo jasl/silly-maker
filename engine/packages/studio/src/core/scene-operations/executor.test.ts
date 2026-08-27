@@ -85,6 +85,12 @@ function alphaXv1(session: AuthoringDocumentSessionV1<AdmittedAuthoringSceneV1>)
   return session.getSnapshot().draft?.document.layers[0]?.roots[0]?.localTransform.x ?? -1;
 }
 
+function alphaAmbientV1(
+  session: AuthoringDocumentSessionV1<AdmittedAuthoringSceneV1>,
+): Readonly<{ readonly motionId: string; readonly phaseMs?: number }> | null {
+  return session.getSnapshot().draft?.document.layers[0]?.roots[0]?.visual?.ambient ?? null;
+}
+
 describe("Authoring Scene operation executor", () => {
   it("commits one admitted object edit through the existing session CAS", () => {
     const { session, adapter } = harnessV1();
@@ -210,7 +216,7 @@ describe("Authoring Scene operation executor", () => {
     });
   });
 
-  it("opens and CAS-saves the admitted document/source-map pair", async () => {
+  it("carries an ambient edit through undo, redo, and the existing CAS save", async () => {
     const source = sceneV1();
     const writes: {
       readonly expectedDigest: string;
@@ -233,9 +239,9 @@ describe("Authoring Scene operation executor", () => {
     const adapter = createSceneAuthoringLocalAdapterV1(session);
     expect(executeCurrentV1(adapter, {
       schemaRevision: 2,
-      kind: "scene.object.set_local_transform",
+      kind: "scene.object.set_ambient",
       objectId: "tag.test.alpha" as never,
-      localTransform: placementV1(260),
+      ambient: { motionId: "motion.test.alpha-idle", phaseMs: 350 },
     })).toMatchObject({ kind: "applied" });
     expect(session.getSnapshot()).toMatchObject({
       dirty: true,
@@ -250,16 +256,22 @@ describe("Authoring Scene operation executor", () => {
     });
     expect(writes).toHaveLength(1);
     expect(writes[0]?.expectedDigest).toBe("sha256:source");
-    expect(writes[0]?.admittedScene.document.layers[0]?.roots[0]?.localTransform.x).toBe(260);
+    expect(writes[0]?.admittedScene.document.layers[0]?.roots[0]?.visual?.ambient).toEqual({
+      motionId: "motion.test.alpha-idle",
+      phaseMs: 350,
+    });
     expect(writes[0]?.admittedScene.sourceMap.objects[0]?.jsonPointer).toBe(
       "/layers/0/roots/0",
     );
 
     session.undo();
-    expect(alphaXv1(session)).toBe(100);
+    expect(alphaAmbientV1(session)).toBeNull();
     expect(session.getSnapshot()).toMatchObject({ dirty: true, canRedo: true });
     session.redo();
-    expect(alphaXv1(session)).toBe(260);
+    expect(alphaAmbientV1(session)).toEqual({
+      motionId: "motion.test.alpha-idle",
+      phaseMs: 350,
+    });
     expect(session.getSnapshot()).toMatchObject({ dirty: false, canRedo: false });
   });
 });

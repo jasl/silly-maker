@@ -42,6 +42,7 @@ describe("inspectorPluginV1", () => {
     expect(html).toContain('id="sillymaker-inspector-root"');
     expect(html).toContain('data-sillymaker-bootstrap-config="v1"');
     expect(html).toContain('aria-label="SillyMaker Inspector 启动状态"');
+    expect(html).toContain('<base href="/" />');
     expect(html).toContain(`src="${inspectorEntryIdInternalV1}"`);
   });
 
