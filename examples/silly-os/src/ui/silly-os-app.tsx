@@ -21,6 +21,13 @@ import {
 } from "./agent-terminal-acknowledgement.ts";
 import { CreatorHomeV1 } from "./creator-home.tsx";
 import { ProgramWorkspaceV1 } from "./program-workspace.tsx";
+import type { WorkpieceBrowserStorageV1 } from "./workpiece-pane.tsx";
+import {
+  createBrowserWorkspaceWindowStoragePortV1,
+  inspectBrowserWorkspaceStorageV1,
+  requestBrowserWorkspaceStoragePersistenceV1,
+  type BrowserWorkspaceStorageInspectionV1,
+} from "../workspace/browser-workspace-storage-policy.ts";
 import "./silly-os.css";
 
 export interface SillyOsAppPropsV1 {
@@ -72,6 +79,33 @@ function storageOperationV1(
   return "operation" in durability ? durability.operation : undefined;
 }
 
+function projectBrowserStorageInspectionV1(
+  inspection: BrowserWorkspaceStorageInspectionV1,
+  current: WorkpieceBrowserStorageV1,
+): WorkpieceBrowserStorageV1 {
+  if (inspection.kind === "unavailable") {
+    return { phase: "unavailable", persistenceRequest: "idle" };
+  }
+  const persistenceRequest = inspection.persisted
+    ? current.phase === "available" && current.persistenceRequest === "granted"
+      ? "granted" as const
+      : "idle" as const
+    : current.phase === "available" &&
+        (current.persistenceRequest === "denied" || current.persistenceRequest === "unavailable")
+    ? current.persistenceRequest
+    : "idle" as const;
+  return {
+    phase: "available",
+    persisted: inspection.persisted,
+    persistenceRequest,
+    ...(inspection.usageBytes === undefined ? {} : { usageBytes: inspection.usageBytes }),
+    ...(inspection.quotaBytes === undefined ? {} : { quotaBytes: inspection.quotaBytes }),
+    ...(inspection.remainingBytes === undefined
+      ? {}
+      : { remainingBytes: inspection.remainingBytes }),
+  };
+}
+
 export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): ReactNode {
   const initialCopy = resolveSillyOsCopyV1();
   const [locale, setLocale] = useState<SillyOsLocaleV1>(initialCopy.locale);
@@ -80,6 +114,13 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
   const [piAgentSetupStatus, setPiAgentSetupStatus] = useState<PiAgentSetupStatusV1>("loading");
   const [agentPort, setAgentPort] = useState<BrowserCreatorAgentPortV1 | null>(null);
   const [agentSnapshot, setAgentSnapshot] = useState<BrowserCreatorAgentSnapshotV1 | null>(null);
+  const [browserStoragePort] = useState(() =>
+    typeof window === "undefined" ? null : createBrowserWorkspaceWindowStoragePortV1(window)
+  );
+  const [browserStorage, setBrowserStorage] = useState<WorkpieceBrowserStorageV1>({
+    phase: "checking",
+    persistenceRequest: "idle",
+  });
   const agentFactoryRef = useRef<
     BrowserCreatorAgentModuleV1["createBrowserCreatorAgentPortV1"] | null
   >(null);
@@ -87,6 +128,8 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
   const agentSetupEpochRef = useRef(0);
   const agentTeardownRef = useRef<Promise<void>>(Promise.resolve());
   const agentWorkspaceLifecycleRef = useRef<Promise<void>>(Promise.resolve());
+  const browserStorageOperationEpochRef = useRef(0);
+  const browserStorageRequestPendingRef = useRef(false);
   const claimedTerminalRunIdsRef = useRef(new Set<string>());
   const controllerSnapshot = useSyncExternalStore(
     controller.subscribe,
@@ -102,6 +145,9 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
   const routedWorkspaceId = snapshot.route === "workspace"
     ? snapshot.workspace?.workspaceId ?? null
     : null;
+  const executionWorkspaceSessionId = agentSnapshot?.workspace.descriptor?.workspaceSessionId ??
+    null;
+  const executionWorkspaceGeneration = agentSnapshot?.workspace.descriptor?.generation ?? null;
 
   useEffect(() => {
     void controller.initialize();
@@ -137,6 +183,35 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
     update();
     return agentPort.subscribe(update);
   }, [agentPort]);
+
+  useEffect(() => {
+    if (browserStorageRequestPendingRef.current) return undefined;
+    const epoch = ++browserStorageOperationEpochRef.current;
+    if (!piAgentRequested || browserStoragePort === null) {
+      setBrowserStorage({ phase: "unavailable", persistenceRequest: "idle" });
+      return undefined;
+    }
+    void inspectBrowserWorkspaceStorageV1(browserStoragePort).then((inspection) => {
+      if (browserStorageOperationEpochRef.current !== epoch) return;
+      setBrowserStorage((current) => {
+        const projected = projectBrowserStorageInspectionV1(inspection, current);
+        return projected.phase === "available" && !projected.persisted &&
+            browserStoragePort.persist === undefined
+          ? { ...projected, persistenceRequest: "unavailable" }
+          : projected;
+      });
+    });
+    return () => {
+      if (browserStorageOperationEpochRef.current === epoch) {
+        browserStorageOperationEpochRef.current += 1;
+      }
+    };
+  }, [
+    browserStoragePort,
+    executionWorkspaceGeneration,
+    executionWorkspaceSessionId,
+    piAgentRequested,
+  ]);
 
   useEffect(() => {
     const port = agentPortRef.current;
@@ -244,6 +319,7 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
   useEffect(() => {
     return () => {
       agentSetupEpochRef.current += 1;
+      browserStorageOperationEpochRef.current += 1;
       const current = agentPortRef.current;
       agentPortRef.current = null;
       if (current !== null) {
@@ -373,6 +449,32 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
     });
   };
 
+  const requestStoragePersistenceV1 = (): void => {
+    const workspace = agentPortRef.current?.getSnapshot().workspace;
+    if (
+      browserStoragePort === null || workspace?.phase !== "open" ||
+      (workspace.descriptor?.generation ?? 0) <= 1 || browserStorage.phase !== "available" ||
+      browserStorage.persisted || browserStorage.persistenceRequest !== "idle" ||
+      browserStorageRequestPendingRef.current
+    ) return;
+    const epoch = ++browserStorageOperationEpochRef.current;
+    browserStorageRequestPendingRef.current = true;
+    setBrowserStorage({ ...browserStorage, persistenceRequest: "requesting" });
+    void requestBrowserWorkspaceStoragePersistenceV1(browserStoragePort).then((result) => {
+      if (browserStorageOperationEpochRef.current !== epoch) return;
+      browserStorageRequestPendingRef.current = false;
+      setBrowserStorage((current) => {
+        if (current.phase !== "available") return current;
+        if (result.kind === "unavailable") {
+          return { ...current, persistenceRequest: "unavailable" };
+        }
+        return result.persisted
+          ? { ...current, persisted: true, persistenceRequest: "granted" }
+          : { ...current, persisted: false, persistenceRequest: "denied" };
+      });
+    });
+  };
+
   const agentMutationPending = agentSnapshot?.phase === "running" ||
     (agentSnapshot?.terminalRuns.length ?? 0) > 0;
   const agentWorkspaceLifecyclePending = agentSnapshot?.workspace.phase === "opening" ||
@@ -391,6 +493,11 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
       data-program-storage-state={durability.phase}
       data-program-storage-operation={storageOperationV1(durability)}
       data-agent-workspace-state={agentSnapshot?.workspace.phase}
+      data-browser-storage-state={browserStorage.phase}
+      data-browser-storage-persisted={browserStorage.phase === "available"
+        ? String(browserStorage.persisted)
+        : undefined}
+      data-browser-storage-persistence-request={browserStorage.persistenceRequest}
     >
       {snapshot.route === "home"
         ? (
@@ -490,7 +597,9 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
             onSend={sendFollowUpV1}
             {...(agentSnapshot === null ? {} : {
               executionWorkspace: agentSnapshot.workspace,
+              browserStorage,
               onRetryExecutionWorkspace: retryAgentWorkspaceV1,
+              onRequestStoragePersistence: requestStoragePersistenceV1,
               piAgentRun: {
                 runtime: piRuntime ?? "deterministic_test",
                 status: piAgentRunStatusV1(agentSnapshot.phase),

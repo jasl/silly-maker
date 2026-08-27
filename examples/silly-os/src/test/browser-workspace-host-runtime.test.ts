@@ -13,26 +13,38 @@ import {
   type BrowserWorkspaceHostReplaceFileResultV1,
   type BrowserWorkspaceHostVolumeLeasePortV1,
 } from "../workspace/browser-workspace-host-runtime.ts";
-import type {
-  BrowserWorkspaceHostControlOutboundMessageV1,
-  BrowserWorkspaceHostEnvironmentOutboundMessageV1,
-  BrowserWorkspaceVolumeAnchorWireV1,
+import {
+  browserWorkspaceNativePiToolPayloadMaximumBytesV1,
+  type BrowserWorkspaceHostControlOutboundMessageV1,
+  type BrowserWorkspaceHostEnvironmentOutboundMessageV1,
+  type BrowserWorkspaceVolumeAnchorWireV1,
 } from "../workspace/browser-workspace-host-protocol.ts";
 
-const programIdV1 = "program.preview.1";
-const workspaceIdV1 = "workspace.preview.1";
+interface FakeRangeRequestV1 {
+  readonly path: string;
+  readonly offset: number;
+  readonly length: number;
+}
+
+interface FakeSourceRequestV1 extends FakeRangeRequestV1 {
+  readonly byteLength: number;
+}
 
 interface FakeVolumeV1 {
   head: BrowserWorkspaceHostDurableHeadV1;
   readonly files: Map<string, Uint8Array>;
   readonly metadataSizes: Map<string, number>;
   statCalls: number;
-  readFileCalls: number;
+  readonly readFileRangeRequests: FakeRangeRequestV1[];
+  readonly sourceReadRequests: FakeSourceRequestV1[];
   leaseCloseCalls: number;
   holdNextChangedWrite: boolean;
   heldWriteEntered: (() => void) | null;
   replaceError: Error | null;
 }
+
+const programIdV1 = "program.preview.1";
+const workspaceIdV1 = "workspace.preview.1";
 
 function bytesEqualV1(left: Uint8Array, right: Uint8Array): boolean {
   return left.byteLength === right.byteLength && left.every((byte, index) => byte === right[index]);
@@ -58,9 +70,22 @@ class FakeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
     return size === undefined ? { kind: "missing", size: 0 } : { kind: "file", size };
   }
 
-  async readFile(path: string): Promise<Uint8Array> {
-    this.volume.readFileCalls += 1;
-    return this.volume.files.get(path)?.slice() ?? new Uint8Array();
+  async readFileRange(input: {
+    readonly path: string;
+    readonly offset: number;
+    readonly length: number;
+    readonly signal: AbortSignal;
+  }): Promise<Uint8Array> {
+    if (input.signal.aborted) throw new DOMException("Workspace read aborted", "AbortError");
+    this.volume.readFileRangeRequests.push({
+      path: input.path,
+      offset: input.offset,
+      length: input.length,
+    });
+    return this.volume.files.get(input.path)?.slice(
+      input.offset,
+      input.offset + input.length,
+    ) ?? new Uint8Array();
   }
 
   async replaceFile(
@@ -68,15 +93,29 @@ class FakeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
   ): Promise<BrowserWorkspaceHostReplaceFileResultV1> {
     if (this.closed) throw new Error("lease closed");
     if (this.volume.replaceError !== null) throw this.volume.replaceError;
+    this.volume.sourceReadRequests.push({
+      path: input.path,
+      offset: 0,
+      length: input.source.byteLength,
+      byteLength: input.source.byteLength,
+    });
+    const bytes = await input.source.readRange({
+      offset: 0,
+      length: input.source.byteLength,
+      signal: input.signal,
+    });
+    if (bytes.byteLength !== input.source.byteLength) {
+      throw new Error("fake source returned an inexact range");
+    }
     const existing = this.volume.files.get(input.path);
-    if (existing !== undefined && bytesEqualV1(existing, input.bytes)) {
+    if (existing !== undefined && bytesEqualV1(existing, bytes)) {
       return { changed: false, head: { ...this.volume.head } };
     }
     if (
       input.expectedHead.generation !== this.volume.head.generation ||
       input.expectedHead.checkpointId !== this.volume.head.checkpointId
     ) throw new Error("stale head");
-    this.volume.files.set(input.path, input.bytes.slice());
+    this.volume.files.set(input.path, bytes.slice());
     this.volume.head = {
       ...this.volume.head,
       checkpointId: input.nextCheckpointId,
@@ -126,7 +165,8 @@ class FakeBootstrapV1 implements BrowserWorkspaceHostBootstrapPortV1 {
       files: new Map(),
       metadataSizes: new Map(),
       statCalls: 0,
-      readFileCalls: 0,
+      readFileRangeRequests: [],
+      sourceReadRequests: [],
       leaseCloseCalls: 0,
       holdNextChangedWrite: false,
       heldWriteEntered: null,
@@ -326,6 +366,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       [port],
     );
     expect(port.startCalls).toBe(1);
+    const firstBytes = new TextEncoder().encode("first");
 
     port.send(environmentRequestV1(4, {
       method: "begin_run",
@@ -348,7 +389,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     port.send(environmentRequestV1(6, {
       method: "write_file",
       path: "program.md",
-      bytes: new TextEncoder().encode("first"),
+      bytes: firstBytes,
     }));
     await flushEnvironmentV1();
     port.send(environmentRequestV1(7, {
@@ -377,7 +418,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     port.send(environmentRequestV1(9, {
       method: "write_file",
       path: "program.md",
-      bytes: new TextEncoder().encode("first"),
+      bytes: firstBytes,
     }));
     await flushEnvironmentV1();
     port.send(environmentRequestV1(10, {
@@ -389,6 +430,55 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     expect(lastV1(port.messages)).toMatchObject({
       response: { method: "end_tool", generation: 2 },
     });
+
+    port.send(environmentRequestV1(101, {
+      method: "begin_tool",
+      toolCallId: "pi-tool.read.1",
+      tool: "read",
+    }));
+    await flushEnvironmentV1();
+    port.send(environmentRequestV1(102, {
+      method: "read_binary_file",
+      path: "program.md",
+    }));
+    await flushEnvironmentV1();
+    expect(lastV1(port.messages)).toMatchObject({
+      requestId: 102,
+      ok: true,
+      response: { method: "read_binary_file", value: firstBytes },
+    });
+    port.send(environmentRequestV1(103, {
+      method: "end_tool",
+      toolCallId: "pi-tool.read.1",
+      outcome: "succeeded",
+    }));
+    await flushEnvironmentV1();
+
+    const volume = bootstrap.volumes.get(anchor.volumeId);
+    expect(volume?.readFileRangeRequests).toEqual([{
+      path: "program.md",
+      offset: 0,
+      length: firstBytes.byteLength,
+    }]);
+    expect(volume?.sourceReadRequests).toEqual([
+      {
+        path: "program.md",
+        offset: 0,
+        length: firstBytes.byteLength,
+        byteLength: firstBytes.byteLength,
+      },
+      {
+        path: "program.md",
+        offset: 0,
+        length: firstBytes.byteLength,
+        byteLength: firstBytes.byteLength,
+      },
+    ]);
+    expect(
+      volume?.sourceReadRequests.every(({ length }) =>
+        length <= browserWorkspaceNativePiToolPayloadMaximumBytesV1
+      ),
+    ).toBe(true);
 
     await runtime.receiveControl(
       controlRequestV1(11, { method: "close_workspace", workspaceSessionId }),
@@ -409,7 +499,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       },
     });
     expect(bootstrap.volumes.get(anchor.volumeId)?.files.get("program.md")).toEqual(
-      new TextEncoder().encode("first"),
+      firstBytes,
     );
     await runtime.dispose();
   });
@@ -567,7 +657,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     await second.dispose();
   });
 
-  it("returns a FileError after metadata-only oversized reads without calling readFile", async () => {
+  it("returns a FileError after metadata-only oversized reads without requesting a range", async () => {
     const bootstrap = new FakeBootstrapV1();
     const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
     const runtime = createBrowserWorkspaceHostRuntimeV1({
@@ -654,7 +744,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     });
     expect(bootstrap.volumes.get(anchor.volumeId)).toMatchObject({
       statCalls: 1,
-      readFileCalls: 0,
+      readFileRangeRequests: [],
     });
     await runtime.dispose();
   });

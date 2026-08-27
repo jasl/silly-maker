@@ -14,6 +14,6 @@ claim.
   [Read the case study](./vn-last-sound-check/) or
   [play it in this site build](../play/vn-last-sound-check/).
 - **SillyOS** — a GUI-only Creator Home → Program Workspace product slice. Its
-  one built-in Agent Creator drives a deterministic local preview and review
-  flow; real Pi, database, RPC, Mod activation, and persistence are not connected.
-  [Open it](../play/silly-os/).
+  one built-in Agent Creator defaults to a deterministic local preview; explicit
+  query-gated Browser routes use product-pinned Pi, typed Worker RPC, a local
+  Program database, and an OPFS mutable checkpoint. [Open it](../play/silly-os/).

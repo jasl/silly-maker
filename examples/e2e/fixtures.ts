@@ -52,8 +52,8 @@ interface PageDiagnosticsV1 {
 
 interface DurableProgramPageFixturesV1 {
   /**
-   * Playwright WebKit's ordinary isolated context has ephemeral/private storage and rejects OPFS.
-   * Persistent-workspace acceptance therefore uses a fresh durable profile, deleted after use.
+   * Persistent-workspace acceptance uses a fresh durable profile in every supported engine,
+   * deleted after use. Every page in that context shares one diagnostics owner.
    */
   readonly durableProgramPage: Page;
 }
@@ -112,29 +112,42 @@ export const test = base.extend<
     },
     { auto: true },
   ],
-  durableProgramPage: async ({ browserName, page, playwright }, use, testInfo) => {
-    if (browserName !== "webkit") {
-      await use(page);
-      return;
+  durableProgramPage: async ({ browserName, playwright }, use, testInfo) => {
+    if (browserName !== "chromium" && browserName !== "webkit") {
+      throw new Error(`unsupported durable Program browser: ${browserName}`);
     }
-
-    const profileDirectory = await mkdtemp(join(tmpdir(), "sillyos-webkit-profile-"));
-    const context = await playwright.webkit.launchPersistentContext(profileDirectory, {
-      headless: true,
-      viewport: { width: 1280, height: 720 },
-    });
-    const durablePage = context.pages()[0] ?? await context.newPage();
+    const browserType = browserName === "chromium" ? playwright.chromium : playwright.webkit;
+    const profileDirectory = await mkdtemp(
+      join(tmpdir(), `sillyos-${browserName}-profile-`),
+    );
     const pageErrors: string[] = [];
     const consoleErrors: string[] = [];
-    durablePage.on("pageerror", (error) => pageErrors.push(error.message));
-    durablePage.on("console", (message) => {
-      if (message.type() === "error") consoleErrors.push(message.text());
-    });
 
     try {
-      await use(durablePage);
+      const context = await browserType.launchPersistentContext(profileDirectory, {
+        headless: true,
+        viewport: { width: 1280, height: 720 },
+      });
+      const observedPages = new Set<Page>();
+      const observePage = (observedPage: Page): void => {
+        if (observedPages.has(observedPage)) return;
+        observedPages.add(observedPage);
+        observedPage.on("pageerror", (error) => pageErrors.push(error.message));
+        observedPage.on("console", (message) => {
+          if (message.type() === "error") consoleErrors.push(message.text());
+        });
+      };
+      context.on("page", observePage);
+      for (const existingPage of context.pages()) observePage(existingPage);
+      const durablePage = context.pages()[0] ?? await context.newPage();
+      observePage(durablePage);
+
+      try {
+        await use(durablePage);
+      } finally {
+        await context.close();
+      }
     } finally {
-      await context.close();
       await rm(profileDirectory, { recursive: true, force: true });
     }
     if (pageErrors.length > 0 || consoleErrors.length > 0) {

@@ -14,8 +14,12 @@ Narrative/Stage、Player、Save、音频、本地化、响应式与 Inspector �
 
 **探索 GUI 产品方向**：[SillyOS](examples/silly-os/) 正在围绕唯一可见程序
 **Agent Creator** 重写。它把创作意图整理进可审查的 Program 工作区，让对话、方案、
-工作成果与活动记录保持在一起。当前版本明确是确定性的本地预览：用于验证响应式的
-人类审查流程，不声称已经接入真实 Pi、数据库、RPC、Mod 激活或持久化。
+工作成果与活动记录保持在一起。默认入口仍是确定性的本地预览；显式 query-gated 的
+Browser 路线则在 Agent Worker 中运行产品固定版本的 Pi，经 typed Worker RPC 接入，
+并使用浏览器本地 Program 数据库与 OPFS mutable workspace checkpoint。当前已交付恢复与
+单写者 ownership 合同、Chromium/WebKit 的 20 MiB 级存储门禁，以及来源存储估算/
+持久化请求 UI。这不代表已经提供 public Mod/Agent ABI、通用 Provider UI、Desktop
+持久化、immutable snapshot 或 ZIP 导出/导入。
 
 ## 为什么是 SillyMaker
 

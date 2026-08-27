@@ -2,10 +2,12 @@
 
 # SillyOS workspace harness and WASM research
 
-Status: Browser-first research record, reordered 2026-08-27. The active product
-slice is P3c-B0: persist the delivered Pi `read`/`write` control through a
-Workspace Host Worker and OPFS before adding a shell or running broad execution-
-provider research. just-bash remains only a later P3a-B1 Browser Local shell
+Status: Browser-first research record, reordered 2026-08-27. P3c-B0 checkpoints
+1 and 2 have persisted the delivered Pi `read`/`write` control through a
+Workspace Host Worker and OPFS, then proved recovery, contention, Browser
+storage policy, and the automated Chromium/persistent-WebKit `20 MiB+` scale
+gate. P3c-B0 remains open because checkpoint 3 portable ZIP export is not
+implemented. just-bash remains only a later P3a-B1 Browser Local shell
 candidate; no shell/process provider or BYO Sandbox is selected or implemented.
 The owning product sequence is [PLAN.md](./PLAN.md).
 
@@ -25,8 +27,8 @@ SillyOS needs three orthogonal contracts:
    native, or a later BYO Sandbox without becoming a second tool dispatcher.
    The delivered control implements only open/close, sequential call scope,
    generation preflight, disposable volume effects, and a terminal mutation
-   receipt. P3c-B0 adds only Browser OPFS continuity and export to that proven
-   surface.
+   receipt. P3c-B0 has added only Browser OPFS continuity to that proven
+   surface; its still-open checkpoint 3 may add the bounded export writer.
 
 The product invariant is a familiar coding-tool environment and one volume
 authority, not Wasm or Linux. Wasm is a strong candidate mechanism because it
@@ -110,13 +112,15 @@ In Browser, these owners map deliberately onto platform stores:
 - Cache API owns the application shell and immutable Wasm/tool assets.
 
 IndexedDB, Cache API, and OPFS share one origin's quota and eviction fate.
-`localStorage` is limited, synchronous string storage and is not a VFS. The
-product uses `navigator.storage.estimate()`, requests `persist()` only after the
-user creates important work, catches `QuotaExceededError`, and treats private
-browsing, user-cleared site data, and a rejected persistence request as explicit
-states. Persistence does not increase quota or turn local bytes into a backup;
-P3c-B0 supplies portable export first, while import/restore and optional sync
-remain later independent decisions.
+`localStorage` is limited, synchronous string storage and is not a VFS.
+`navigator.storage.estimate()` is an origin-wide advisory reading, not a
+SillyOS-volume allowance or one uniform fixed browser quota. The product asks
+for `persist()` only through an explicit action after the user creates important
+work, catches `QuotaExceededError`, and treats private browsing and user-cleared
+site data as explicit states. Persistence is best effort: `false` does not fail
+or disable the workspace, and `true` neither increases quota nor turns local
+bytes into a backup. Checkpoint 3 portable export, import/restore, and optional
+sync remain unimplemented independent decisions.
 
 OPFS and IndexedDB do not provide one cross-API transaction. Publication uses
 temporary files plus an atomic same-filesystem replacement where supported, a
@@ -139,8 +143,9 @@ IndexedDB/SQLite and the volume form one transaction. The volume owner will
 atomically create and flush an immutable snapshot, return an opaque identity
 that it guarantees can be reopened, and only then allow the product database to
 publish that reference after rechecking the review envelope. That snapshot path
-is not part of P3c-B0: the active slice persists and exports only the mutable
-head and reconciles its small continuation manifest.
+is not part of P3c-B0: the delivered path persists only the mutable head and
+reconciles its small continuation manifest. Checkpoint 3 may export that head
+without publishing it as an immutable snapshot.
 
 One logical runtime may use TypeScript, multiple Web Workers, WebAssembly
 modules, a native companion, or guest processes. The product contract is the
@@ -192,31 +197,32 @@ Forget reject new work, drain and flush the head, release handles, and then
 release that lease. Forget removes transient Pi/execution state only; it never
 deletes the durable volume or continuation manifest.
 
-The Chromium/WebKit baseline must persist 1,000 small files plus one `16 MiB`
-file with at least `20 MiB` total content. `100 MiB`, `256 MiB`, and larger runs
-are raw evidence points rather than mandatory supported capacities. Browser
-capacity is a dynamic origin property, `estimate()` is advisory, `persist()` is
-best effort, and quota/full-disk/site-clear/private-mode states remain visible.
-The delivered P3a-B0 `2 MiB` ceiling belongs only to its disposable in-memory
-control; carrying it into OPFS would be a false product limit. Conversely, a
-successful large local run does not promise the same quota on another device or
-origin.
+Checkpoint 2's automated Chromium and persistent-WebKit gate persists and cold-
+reopens exactly 1,000 `5 KiB` files plus one `16 MiB` file: `1,001` files,
+`21,897,216` bytes, and generation `1002`. `100 MiB`, `256 MiB`, and larger runs
+are optional raw evidence points rather than mandatory supported capacities or
+closure gates. Browser capacity remains a dynamic origin property; a successful
+large local run does not promise the same quota on another device, profile, or
+origin. The delivered P3a-B0 `2 MiB` ceiling belongs only to its retired
+disposable in-memory control and is not carried into OPFS.
 
-Range/stream access and bounded directory pages keep page, Agent Worker, and
-Workspace Host Worker memory proportional to the active operation. The B0
-implementation pins `1 MiB` maximum chunks and `4 MiB` aggregate filesystem
-bytes in flight independent of total volume size. Before a Pi `read`, the Host
-rejects any file above `256 KiB` from metadata with the exact existing Pi
-`FileError` fixed in [PLAN.md](./PLAN.md), before reading or cloning its bytes.
-The Host never materializes the whole volume or portable archive in a page or
-Worker heap. P3c-B0's cross-Chromium/WebKit export baseline writes a canonical
-revision-1 ZIP to an OPFS temporary with backpressure, progress, and
-`AbortSignal`; success exposes the completed OPFS-backed `File`, while every
-settlement revokes any object URL and removes the temporary. Both browsers must
-unpack and byte-check it with an independent reader. A direct user-selected
-writable file is only an optional enhancement. The inspectable archive invokes
-no Pi `bash`, Tar, Git, or Wasm. An import reader, immutable snapshot publication,
-sync, and restore semantics remain inactive.
+Range/stream access ensures the page receives no volume bytes and no owner needs
+the complete volume resident in memory. The B0 implementation pins `1 MiB`
+maximum chunks and `4 MiB` of aggregate **SillyOS-managed filesystem payload
+bytes** in flight independent of total volume size. That instrumentation does
+not measure or cap total page, Worker, WebCrypto, or browser heap. Before a Pi
+`read`, the Host rejects any file above `256 KiB` from metadata with the exact
+existing Pi `FileError` fixed in [PLAN.md](./PLAN.md), before reading or cloning
+its bytes. This native Pi wire limit is not a file or volume capacity ceiling.
+
+Checkpoint 3's canonical revision-1 ZIP is not implemented. Its future archive
+contains only VFS entries plus a bounded non-Chat manifest for checkpoint
+identity/generation and exact Program/repository anchors. It must exclude Chat,
+the Program database, credentials, provider data, Pi/provider sessions,
+terminal/mutation receipts, Host metadata, and export temporaries, and must
+stream through an OPFS temporary with backpressure rather than materialize the
+whole volume or archive through the page. No import reader, immutable snapshot
+publication, sync, or restore semantics are active.
 
 This storage-first slice therefore supplies direct evidence to later runtime
 research: candidates must mount or coherently reach the same volume rather than
@@ -736,13 +742,14 @@ sandbox claim; the mere use of WebAssembly does not.
 1. Treat delivered P1-B, P2-B1, and P3a-B0 as prerequisites: one Browser Pi
    Agent Worker, typed product RPC, bounded durable whole-run receipt, and one
    disposable native `write`/`read` workspace with exact mutation truth.
-2. **Execute P3c-B0 now.** Move only that byte authority behind the Browser
-   Workspace Host Worker and OPFS. Add the bounded product continuation
-   manifest, durable generation, cold reopen, dynamic-quota/recovery behavior,
-   raw streaming characterization at `20 MiB`, `100 MiB`, and `256 MiB` when
-   origin quota permits, and one portable export writer. Do not add a shell,
-   snapshot publication, import, Wasm, Git, provider selection, BYO Sandbox,
-   Desktop adapter, or engine API.
+2. **Finish only P3c-B0 checkpoint 3.** Checkpoints 1 and 2 already moved that
+   byte authority behind the Browser Workspace Host Worker/OPFS and delivered
+   the bounded continuation manifest, durable generation, cold reopen,
+   recovery/storage semantics, and mandatory automated `20 MiB+` gate. Optional
+   raw `100 MiB` and `256 MiB` runs are not closure requirements. Add only the
+   bounded portable ZIP writer; do not add a shell, snapshot publication,
+   import/restore, Wasm, Git, provider selection, BYO Sandbox, Desktop adapter,
+   or engine API.
 3. Stop for independent P3c-B0 review. Its closure does not automatically start
    another implementation or research lane.
 4. If separately activated, P3a-B1 may bind Pi `edit` and just-bash-backed

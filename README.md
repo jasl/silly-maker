@@ -19,9 +19,14 @@ not claim that a remote live deployment has been performed.
 **Explore the GUI product direction**: [SillyOS](examples/silly-os/) is being
 rebuilt around one visible program, **Agent Creator**. It turns a creative intent
 into a reviewable Program workspace where the conversation, proposal, workpiece,
-and activity stay together. The current build is an explicit deterministic local
-preview: it validates the responsive human-review flow, but does not claim real
-Pi, database, RPC, Mod activation, or persistence.
+and activity stay together. The default entry remains a deterministic local
+preview. Explicit query-gated Browser routes instead run the product-pinned Pi
+inside an Agent Worker over typed Worker RPC, with a browser-local Program
+database and an OPFS-backed mutable workspace checkpoint. The current recovery
+and single-writer ownership contract, Chromium/WebKit 20 MiB-class storage gate,
+and origin-storage estimate/persistence-request UI are implemented. This is not
+a public Mod or Agent ABI, general Provider UI, Desktop persistence, immutable
+snapshot, or ZIP export/import claim.
 
 ## Why SillyMaker
 

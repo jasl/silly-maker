@@ -37,9 +37,19 @@ export interface BrowserWorkspaceHostFileMetadataV1 {
   readonly size: number;
 }
 
+/** Replayable, bounded private source. It never crosses the Agent wire. */
+export interface BrowserWorkspaceHostFileRangeSourceV1 {
+  readonly byteLength: number;
+  readRange(input: {
+    readonly offset: number;
+    readonly length: number;
+    readonly signal: AbortSignal;
+  }): Promise<Uint8Array>;
+}
+
 export interface BrowserWorkspaceHostReplaceFileInputV1 {
   readonly path: string;
-  readonly bytes: Uint8Array;
+  readonly source: BrowserWorkspaceHostFileRangeSourceV1;
   readonly expectedHead: BrowserWorkspaceHostDurableHeadV1;
   readonly nextCheckpointId: string;
   readonly signal: AbortSignal;
@@ -55,7 +65,12 @@ export interface BrowserWorkspaceHostVolumeLeasePortV1 {
   readonly anchor: BrowserWorkspaceVolumeAnchorWireV1;
   readHead(): Promise<BrowserWorkspaceHostDurableHeadV1>;
   stat(path: string): Promise<BrowserWorkspaceHostFileMetadataV1>;
-  readFile(path: string): Promise<Uint8Array>;
+  readFileRange(input: {
+    readonly path: string;
+    readonly offset: number;
+    readonly length: number;
+    readonly signal: AbortSignal;
+  }): Promise<Uint8Array>;
   replaceFile(
     input: BrowserWorkspaceHostReplaceFileInputV1,
   ): Promise<BrowserWorkspaceHostReplaceFileResultV1>;
@@ -549,7 +564,13 @@ export function createBrowserWorkspaceHostRuntimeV1(
           );
           return;
         }
-        const bytes = await operate(scope, () => lease.readFile(path.relative));
+        const bytes = await operate(scope, () =>
+          lease.readFileRange({
+            path: path.relative,
+            offset: 0,
+            length: metadata.size,
+            signal: scope.abortController.signal,
+          }));
         if (bytes.byteLength !== metadata.size) {
           throw new BrowserWorkspaceHostStorageErrorV1(
             "volume_corrupt",
@@ -581,7 +602,23 @@ export function createBrowserWorkspaceHostRuntimeV1(
       await operate(scope, async () => {
         const result = await lease.replaceFile({
           path: path.relative,
-          bytes: record.bytes.slice(),
+          source: {
+            byteLength: record.bytes.byteLength,
+            async readRange({ offset, length, signal }) {
+              if (signal.aborted) {
+                throw new BrowserWorkspaceHostStorageErrorV1(
+                  "request_failed",
+                  "Workspace write was aborted",
+                  fileErrorV1(
+                    "aborted",
+                    "Workspace filesystem operation was aborted",
+                    path.absolute,
+                  ),
+                );
+              }
+              return record.bytes.slice(offset, offset + length);
+            },
+          },
           expectedHead: session.head,
           nextCheckpointId,
           signal: scope.abortController.signal,

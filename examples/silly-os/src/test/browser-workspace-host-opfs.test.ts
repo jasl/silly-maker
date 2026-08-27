@@ -3,6 +3,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  browserWorkspaceHostControlFileMaximumBytesV1,
+  browserWorkspaceHostIoBytesInFlightMaximumV1,
+  browserWorkspaceHostIoChunkMaximumBytesV1,
   createBrowserWorkspaceHostOpfsBootstrapV1,
   type BrowserWorkspaceHostExclusiveLeaseV1,
   type BrowserWorkspaceHostExclusiveLockPortV1,
@@ -18,7 +21,11 @@ type FakeCloseFailureV1 = "before_commit" | "after_commit" | "corrupt_then_fail"
 
 class FakeFaultsV1 {
   readonly closeFailures = new Map<string, FakeCloseFailureV1>();
+  readonly persistentQuotaCloseFailures = new Set<string>();
   readonly removeFailures = new Set<string>();
+  readonly writeChunkBytes: number[] = [];
+  dynamicCloseFailure: ((name: string) => FakeCloseFailureV1 | null) | null = null;
+  afterCloseFailure: ((name: string, failure: FakeCloseFailureV1) => void) | null = null;
   afterRemove: ((name: string) => void) | null = null;
 }
 
@@ -37,27 +44,48 @@ class FakeFileV1 {
         let next = new Uint8Array();
         return {
           write: async (value: FileSystemWriteChunkType) => {
-            if (typeof value === "string") next = new TextEncoder().encode(value);
-            else if (value instanceof ArrayBuffer) next = new Uint8Array(value.slice(0));
+            let chunk: Uint8Array;
+            if (typeof value === "string") chunk = new TextEncoder().encode(value);
+            else if (value instanceof ArrayBuffer) chunk = new Uint8Array(value.slice(0));
             else if (ArrayBuffer.isView(value)) {
-              next = new Uint8Array(
+              chunk = new Uint8Array(
                 value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength),
               );
             } else throw new Error("unsupported fake write chunk");
+            this.faults.writeChunkBytes.push(chunk.byteLength);
+            const appended = new Uint8Array(next.byteLength + chunk.byteLength);
+            appended.set(next);
+            appended.set(chunk, next.byteLength);
+            next = appended;
           },
           close: async () => {
-            const failure = this.faults.closeFailures.get(this.name);
+            if (this.faults.persistentQuotaCloseFailures.has(this.name)) {
+              throw new DOMException(
+                `injected persistent ${this.name} quota failure`,
+                "QuotaExceededError",
+              );
+            }
+            const failure = this.faults.closeFailures.get(this.name) ??
+              this.faults.dynamicCloseFailure?.(this.name) ?? null;
             this.faults.closeFailures.delete(this.name);
             if (failure === "quota") {
+              this.faults.afterCloseFailure?.(this.name, failure);
               throw new DOMException(`injected ${this.name} quota failure`, "QuotaExceededError");
             }
-            if (failure === "before_commit") throw new Error(`injected ${this.name} close failure`);
+            if (failure === "before_commit") {
+              this.faults.afterCloseFailure?.(this.name, failure);
+              throw new Error(`injected ${this.name} close failure`);
+            }
             if (failure === "corrupt_then_fail") {
               this.bytes = new TextEncoder().encode("{corrupt");
+              this.faults.afterCloseFailure?.(this.name, failure);
               throw new Error(`injected ${this.name} corrupt close failure`);
             }
             this.bytes = next;
-            if (failure === "after_commit") throw new Error(`injected ${this.name} close failure`);
+            if (failure === "after_commit") {
+              this.faults.afterCloseFailure?.(this.name, failure);
+              throw new Error(`injected ${this.name} close failure`);
+            }
           },
           abort: async () => {},
         } as unknown as FileSystemWritableFileStream;
@@ -195,11 +223,39 @@ function replaceInputV1(
 ): BrowserWorkspaceHostReplaceFileInputV1 {
   return {
     path: "program.md",
-    bytes,
+    source: {
+      byteLength: bytes.byteLength,
+      async readRange({ offset, length, signal }) {
+        if (signal.aborted) throw new DOMException("aborted", "AbortError");
+        return bytes.slice(offset, offset + length);
+      },
+    },
     expectedHead: head,
     nextCheckpointId,
     signal: new AbortController().signal,
   };
+}
+
+async function readWorkspaceFileV1(
+  lease: BrowserWorkspaceHostVolumeLeasePortV1,
+  path: string,
+): Promise<Uint8Array> {
+  const metadata = await lease.stat(path);
+  if (metadata.kind !== "file") throw new Error(`expected test file ${path}`);
+  const result = new Uint8Array(metadata.size);
+  const signal = new AbortController().signal;
+  for (
+    let offset = 0;
+    offset < metadata.size;
+    offset += browserWorkspaceHostIoChunkMaximumBytesV1
+  ) {
+    const length = Math.min(
+      browserWorkspaceHostIoChunkMaximumBytesV1,
+      metadata.size - offset,
+    );
+    result.set(await lease.readFileRange({ path, offset, length, signal }), offset);
+  }
+  return result;
 }
 
 async function openedOpfsV1(volumeId: string): Promise<{
@@ -262,13 +318,138 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
 
     const reopened = await bootstrap.openVolume(anchor) as BrowserWorkspaceHostVolumeLeasePortV1;
     expect(await reopened.readHead()).toEqual(changed.head);
-    expect(await reopened.readFile("program.md")).toEqual(new TextEncoder().encode("new"));
+    expect(await readWorkspaceFileV1(reopened, "program.md")).toEqual(
+      new TextEncoder().encode("new"),
+    );
     await expect(reopened.stat("large.bin")).resolves.toEqual({
       kind: "file",
       size: 16 * 1024 * 1024,
     });
     await reopened.close();
     await bootstrap.dispose();
+  });
+
+  it("streams multi-megabyte replacements through bounded ranges and keeps same bytes at the same head", async () => {
+    const root = new FakeDirectoryV1("root");
+    const observations: Array<{ readonly chunkBytes: number; readonly bytesInFlight: number }> = [];
+    const bootstrap = createBrowserWorkspaceHostOpfsBootstrapV1({
+      getRootDirectory: async () => root.handle(),
+      lockPort: new FakeLockPortV1(),
+      createVolumeId: () => "volume.bounded-ranges.1",
+      createInitialCheckpointId: () => "checkpoint.bounded-ranges.1",
+      observeIo: (observation) => observations.push(observation),
+    });
+    const anchor = await bootstrap.createCandidate({
+      programId: "program.preview.1",
+      workspaceId: "workspace.preview.1",
+    });
+    const lease = await bootstrap.openVolume(anchor);
+    const byteLength = 5 * browserWorkspaceHostIoChunkMaximumBytesV1 + 137;
+    const sourceRangeLengths: number[] = [];
+    const source = {
+      byteLength,
+      async readRange(input: {
+        readonly offset: number;
+        readonly length: number;
+        readonly signal: AbortSignal;
+      }): Promise<Uint8Array> {
+        if (input.signal.aborted) throw new DOMException("aborted", "AbortError");
+        sourceRangeLengths.push(input.length);
+        return Uint8Array.from(
+          { length: input.length },
+          (_, index) => (input.offset + index) % 251,
+        );
+      },
+    };
+    const head = await lease.readHead();
+    const changed = await lease.replaceFile({
+      path: "large.bin",
+      source,
+      expectedHead: head,
+      nextCheckpointId: "checkpoint.bounded-ranges.2",
+      signal: new AbortController().signal,
+    });
+    expect(changed).toMatchObject({ changed: true, head: { generation: 2 } });
+    expect(sourceRangeLengths).toEqual([
+      browserWorkspaceHostIoChunkMaximumBytesV1,
+      browserWorkspaceHostIoChunkMaximumBytesV1,
+      browserWorkspaceHostIoChunkMaximumBytesV1,
+      browserWorkspaceHostIoChunkMaximumBytesV1,
+      browserWorkspaceHostIoChunkMaximumBytesV1,
+      137,
+    ]);
+    await expect(lease.stat("large.bin")).resolves.toEqual({ kind: "file", size: byteLength });
+    await expect(lease.readFileRange({
+      path: "large.bin",
+      offset: browserWorkspaceHostIoChunkMaximumBytesV1 - 23,
+      length: 71,
+      signal: new AbortController().signal,
+    })).resolves.toEqual(
+      Uint8Array.from(
+        { length: 71 },
+        (_, index) => (browserWorkspaceHostIoChunkMaximumBytesV1 - 23 + index) % 251,
+      ),
+    );
+
+    sourceRangeLengths.length = 0;
+    await expect(lease.replaceFile({
+      path: "large.bin",
+      source,
+      expectedHead: changed.head,
+      nextCheckpointId: "checkpoint.bounded-ranges.3",
+      signal: new AbortController().signal,
+    })).resolves.toEqual({ changed: false, head: changed.head });
+    expect(
+      sourceRangeLengths.every((length) => length <= browserWorkspaceHostIoChunkMaximumBytesV1),
+    )
+      .toBe(true);
+    expect(Math.max(...root.faults.writeChunkBytes)).toBeLessThanOrEqual(
+      browserWorkspaceHostIoChunkMaximumBytesV1,
+    );
+    expect(Math.max(...observations.map(({ chunkBytes }) => chunkBytes))).toBeLessThanOrEqual(
+      browserWorkspaceHostIoChunkMaximumBytesV1,
+    );
+    expect(Math.max(...observations.map(({ bytesInFlight }) => bytesInFlight))).toBeLessThanOrEqual(
+      browserWorkspaceHostIoBytesInFlightMaximumV1,
+    );
+    await expect(lease.readHead()).resolves.toEqual(changed.head);
+    await lease.close();
+    await bootstrap.dispose();
+  });
+
+  it("rejects oversized or out-of-bounds ranges and oversized control files", async () => {
+    const opened = await openedOpfsV1("volume.range-admission.1");
+    const head = await opened.lease.readHead();
+    await opened.lease.replaceFile(
+      replaceInputV1(head, new Uint8Array([1, 2, 3]), "checkpoint.range-admission.2"),
+    );
+    await expect(opened.lease.readFileRange({
+      path: "program.md",
+      offset: 0,
+      length: browserWorkspaceHostIoChunkMaximumBytesV1 + 1,
+      signal: new AbortController().signal,
+    })).rejects.toMatchObject({ code: "request_failed" });
+    await expect(opened.lease.readFileRange({
+      path: "program.md",
+      offset: 2,
+      length: 2,
+      signal: new AbortController().signal,
+    })).rejects.toMatchObject({ code: "volume_corrupt" });
+
+    const control = await fakeDirectoryV1(opened.root, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+      opened.lease.anchor.volumeId,
+      "control",
+    ]);
+    await putBytesV1(
+      control,
+      "head.json",
+      new Uint8Array(browserWorkspaceHostControlFileMaximumBytesV1 + 1),
+    );
+    await expect(opened.lease.readHead()).rejects.toMatchObject({ code: "volume_corrupt" });
+    await opened.lease.close();
+    await opened.bootstrap.dispose();
   });
 
   it("reuses one stable opaque candidate after Worker loss and clears its durable marker only on open", async () => {
@@ -520,7 +701,7 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     });
     const recovered = await cold.openVolume(opened.lease.anchor);
     await expect(recovered.readHead()).resolves.toEqual(head);
-    await expect(recovered.readFile("program.md")).resolves.toEqual(
+    await expect(readWorkspaceFileV1(recovered, "program.md")).resolves.toEqual(
       new TextEncoder().encode("current"),
     );
     for (const name of ["next.bin", "previous.bin", "pending-stage.json"]) {
@@ -565,7 +746,7 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       });
       const recovered = await cold.openVolume(committed.lease.anchor);
       await expect(recovered.readHead()).resolves.toEqual(changed.head);
-      await expect(recovered.readFile("program.md")).resolves.toEqual(
+      await expect(readWorkspaceFileV1(recovered, "program.md")).resolves.toEqual(
         new TextEncoder().encode("new"),
       );
       await recovered.close();
@@ -603,7 +784,7 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       });
       const recovered = await cold.openVolume(rolledBack.lease.anchor);
       await expect(recovered.readHead()).resolves.toEqual(base);
-      await expect(recovered.readFile("program.md")).resolves.toEqual(
+      await expect(readWorkspaceFileV1(recovered, "program.md")).resolves.toEqual(
         new TextEncoder().encode("old"),
       );
       await recovered.close();
@@ -652,7 +833,7 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       ),
     ).rejects.toMatchObject({ code: "request_failed" });
     expect(await targetFault.lease.readHead()).toEqual(targetHead);
-    expect(await targetFault.lease.readFile("program.md")).toEqual(
+    expect(await readWorkspaceFileV1(targetFault.lease, "program.md")).toEqual(
       new TextEncoder().encode("old"),
     );
     await expect(
@@ -662,6 +843,106 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     ).resolves.toMatchObject({ changed: true, head: { generation: 2 } });
     await targetFault.lease.close();
     await targetFault.bootstrap.dispose();
+
+    const persistentQuota = await openedOpfsV1("volume.persistent-target-quota.1");
+    const persistentQuotaHead = await persistentQuota.lease.readHead();
+    const persistentQuotaWorkspace = await fakeDirectoryV1(persistentQuota.root, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+      "volume.persistent-target-quota.1",
+      "workspace",
+    ]);
+    await putBytesV1(
+      persistentQuotaWorkspace,
+      "program.md",
+      new TextEncoder().encode("old"),
+    );
+    persistentQuota.root.faults.persistentQuotaCloseFailures.add("program.md");
+    await expect(
+      persistentQuota.lease.replaceFile(
+        replaceInputV1(
+          persistentQuotaHead,
+          new TextEncoder().encode("new"),
+          "checkpoint.persistent-target-quota.2",
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "capacity_exceeded" });
+    await expect(persistentQuota.lease.readHead()).resolves.toEqual(persistentQuotaHead);
+    await expect(persistentQuota.lease.stat("program.md")).resolves.toEqual({
+      kind: "file",
+      size: 3,
+    });
+    await expect(readWorkspaceFileV1(persistentQuota.lease, "program.md")).resolves.toEqual(
+      new TextEncoder().encode("old"),
+    );
+    persistentQuota.root.faults.persistentQuotaCloseFailures.delete("program.md");
+    await expect(
+      persistentQuota.lease.replaceFile(
+        replaceInputV1(
+          persistentQuotaHead,
+          new TextEncoder().encode("retry"),
+          "checkpoint.persistent-target-quota.3",
+        ),
+      ),
+    ).resolves.toMatchObject({ changed: true, head: { generation: 2 } });
+    await persistentQuota.lease.close();
+    await persistentQuota.bootstrap.dispose();
+
+    const headQuotaRollback = await openedOpfsV1("volume.head-quota-rollback.1");
+    const headQuotaBase = await headQuotaRollback.lease.readHead();
+    const headQuotaWorkspace = await fakeDirectoryV1(headQuotaRollback.root, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+      "volume.head-quota-rollback.1",
+      "workspace",
+    ]);
+    await putBytesV1(headQuotaWorkspace, "program.md", new TextEncoder().encode("old"));
+    let rollbackCapacityGate = false;
+    let stagedSuccessorRemoved = false;
+    let unpublishedTargetRemoved = false;
+    headQuotaRollback.root.faults.afterCloseFailure = (name, failure) => {
+      if (name === "head.json" && failure === "quota") rollbackCapacityGate = true;
+    };
+    headQuotaRollback.root.faults.afterRemove = (name) => {
+      if (!rollbackCapacityGate) return;
+      if (name === "next.bin") stagedSuccessorRemoved = true;
+      if (name === "program.md") unpublishedTargetRemoved = true;
+    };
+    headQuotaRollback.root.faults.dynamicCloseFailure = (name) =>
+      rollbackCapacityGate && name === "program.md" &&
+        (!stagedSuccessorRemoved || !unpublishedTargetRemoved)
+        ? "quota"
+        : null;
+    headQuotaRollback.root.faults.closeFailures.set("head.json", "quota");
+    await expect(
+      headQuotaRollback.lease.replaceFile(
+        replaceInputV1(
+          headQuotaBase,
+          new TextEncoder().encode("a larger unpublished successor"),
+          "checkpoint.head-quota-rollback.2",
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "capacity_exceeded" });
+    expect(stagedSuccessorRemoved).toBe(true);
+    expect(unpublishedTargetRemoved).toBe(true);
+    await expect(headQuotaRollback.lease.readHead()).resolves.toEqual(headQuotaBase);
+    await expect(readWorkspaceFileV1(headQuotaRollback.lease, "program.md")).resolves.toEqual(
+      new TextEncoder().encode("old"),
+    );
+    headQuotaRollback.root.faults.afterCloseFailure = null;
+    headQuotaRollback.root.faults.afterRemove = null;
+    headQuotaRollback.root.faults.dynamicCloseFailure = null;
+    await expect(
+      headQuotaRollback.lease.replaceFile(
+        replaceInputV1(
+          headQuotaBase,
+          new TextEncoder().encode("retry"),
+          "checkpoint.head-quota-rollback.3",
+        ),
+      ),
+    ).resolves.toMatchObject({ changed: true, head: { generation: 2 } });
+    await headQuotaRollback.lease.close();
+    await headQuotaRollback.bootstrap.dispose();
 
     const headFault = await openedOpfsV1("volume.head-fault.1");
     const headBase = await headFault.lease.readHead();
@@ -673,7 +954,9 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       changed: true,
       head: { checkpointId: "checkpoint.head.2", generation: 2 },
     });
-    expect(await headFault.lease.readFile("program.md")).toEqual(new TextEncoder().encode("new"));
+    expect(await readWorkspaceFileV1(headFault.lease, "program.md")).toEqual(
+      new TextEncoder().encode("new"),
+    );
     await headFault.lease.close();
     await headFault.bootstrap.dispose();
 
@@ -692,7 +975,7 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       changed: true,
       head: { checkpointId: "checkpoint.cleanup.2", generation: 2 },
     });
-    expect(await cleanupFault.lease.readFile("program.md")).toEqual(
+    expect(await readWorkspaceFileV1(cleanupFault.lease, "program.md")).toEqual(
       new TextEncoder().encode("new"),
     );
     await cleanupFault.lease.close();

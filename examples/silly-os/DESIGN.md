@@ -3,11 +3,13 @@
 # SillyOS product and visual contract
 
 Status: active Browser-first dual-target rewrite with P2 Browser Program
-persistence, bounded terminal Agent-run receipts, and P3c-B0 checkpoint 1's
-OPFS Program workspace authority plus cold reopen delivered, 2026-08-27.
-P3c-B0 recovery/scale and portable export remain active checkpoints; P3a-B1,
-broad execution-provider research, snapshot publication, and later workspace
-slices remain inactive. The former "SillyOS 98" desktop
+persistence, bounded terminal Agent-run receipts, and P3c-B0 checkpoints 1 and
+2 delivered, 2026-08-27: OPFS Program workspace authority, cold reopen,
+recovery/contender semantics, explicit storage policy, and the automated
+Chromium/persistent-WebKit `20 MiB+` scale gate. P3c-B0 remains open because
+checkpoint 3 portable ZIP export is not implemented. P3a-B1, broad execution-
+provider research, snapshot publication, and later workspace slices remain
+inactive. The former "SillyOS 98" desktop
 experiment has been retired as a product direction. It remains useful only as
 repository history; it is not a compatibility baseline for this rewrite.
 
@@ -235,10 +237,11 @@ change a real product behavior.
   is deterministic game Save. P2 durably stores the bounded Program catalog,
   product-session projection, and terminal product receipt keyed by a
   product-owned `agentRunId`; Pi session/run identities, credentials, provider
-  data remain non-durable in the delivered baseline. P3c-B0 checkpoint 1 adds
-  only an OPFS-backed mutable Program checkpoint and a small product
-  continuation manifest; it still does not persist Pi private sessions,
-  credentials, Provider data, mutation receipts, or Creator Chat.
+  data remain non-durable in the delivered baseline. P3c-B0 checkpoints 1 and 2
+  add only an OPFS-backed mutable Program checkpoint, its small product
+  continuation manifest, and recovery/scale evidence; they still do not persist
+  Pi private sessions, credentials, Provider data, mutation receipts, or Creator
+  Chat.
 - Browser ultimately binds Pi's shipped `read`, `write`, `edit`, and `bash` tool factories
   to one stable Program-scoped Pi `ExecutionEnv`. The product-private workspace
   boundary eventually owns runtime lifecycle, capability truth, generation
@@ -446,20 +449,30 @@ Later P2 mutations advance the manifest's Program/repository anchors in the same
 IndexedDB transaction; workspace mutations do not touch those anchors.
 
 The Host reads and writes OPFS files by range or stream and keeps only bounded
-directory/index pages and active-operation buffers in memory. It never loads or
-copies the complete volume through the page, Agent Worker, structured clone, or
-one unconditional `ArrayBuffer`. P3a-B0's `2 MiB` ceiling remains solely the
+active-operation buffers. It never loads or copies the complete volume through
+the page, Agent Worker, structured clone, or one unconditional `ArrayBuffer`.
+The page receives no volume bytes, and no product component needs the complete
+volume resident in memory. P3a-B0's `2 MiB` ceiling remains solely the retired
 disposable in-memory control's guardrail; it is not the persistent Program
-capacity. P3c-B0's Chromium and WebKit baseline must successfully retain 1,000
-small files plus one `16 MiB` file with at least `20 MiB` total content.
-`100 MiB`, `256 MiB`, and larger several-hundred-MiB runs are raw
-characterizations when the current origin quota permits, while the product
-reports `navigator.storage.estimate()` and preserves working/export headroom.
-They are not universal support promises, and the UI never advertises a fixed
-browser quota. The Host declares fixed maximum I/O chunk and aggregate
-bytes-in-flight budgets that do not grow with volume size. The current Pi read
-path rejects a file over `256 KiB` from Host metadata before allocating or
-cloning its contents; that tool bound is not an OPFS capacity limit.
+capacity.
+
+Checkpoint 2's automated Chromium and persistent-WebKit gate retains and cold-
+reopens exactly 1,000 `5 KiB` files plus one `16 MiB` file: `1,001` files and
+`21,897,216` bytes at generation `1002`. `100 MiB`, `256 MiB`, and larger runs
+remain optional raw characterizations when that origin has room, not mandatory
+gates or universal support promises. `navigator.storage.estimate()` reports an
+origin-wide advisory reading; it does not establish one uniform fixed quota for
+all browsers, devices, profiles, or origins. An explicit
+`navigator.storage.persist()` request is best effort. A `false` result is shown
+truthfully but does not fail or disable the workspace.
+
+The implemented bounds are `1 MiB` per I/O chunk and `4 MiB` of aggregate
+**SillyOS-managed filesystem payload bytes** in flight, independent of volume
+size. This instrumentation neither measures nor caps total page, Worker,
+WebCrypto, or browser heap. The current Pi read wire rejects a selected file
+over `256 KiB` from Host metadata before allocating, reading, or cloning its
+contents; that per-call native Pi tool bound is not an OPFS file or volume
+capacity limit.
 
 Cold reopen combines the exact anchored P2 projection with the current durable
 OPFS head and its generation under a new execution lease. Missing or corrupt
@@ -469,18 +482,16 @@ explicit recovery states; none silently creates an empty replacement for a
 known Program. OPFS, IndexedDB, and Cache API share origin quota and eviction
 fate, so local persistence is not presented as backup.
 
-P3c-B0 also adds one user-triggered portable ZIP export of a quiescent
-checkpoint. The cross-browser baseline writes normalized `workspace/` paths in
-canonical lexical order and an exact revision-1 `sillyos-workspace.json` into a
-quota-checked OPFS temporary while honoring stream backpressure, progress, and
-`AbortSignal`. It exposes the completed OPFS-backed browser `File` through a
-short-lived object URL, then revokes the URL and removes the temporary on
-success, cancellation, or failure. A directly selected writable file is only an
-enhancement. No path builds a whole-volume `Blob`, routes the full archive
-through React, or holds it in memory. Export never changes the checkpoint head.
-The archive excludes the Program database, Chat, credentials, provider data, Pi
-sessions, and session-local receipts. This is an export writer only; SillyOS
-import/restore remains a later independently admitted slice.
+Checkpoint 3 portable ZIP export is not implemented. Its bounded contract is a
+future user-triggered export of a quiescent checkpoint containing only the VFS
+entries plus a small non-Chat manifest for export/workspace format, checkpoint
+identity/generation, and exact Program/repository anchors. It must exclude
+Creator Chat, the Program database, credentials, provider data, Pi/provider
+sessions, terminal Agent-run receipts, mutation receipts, Host metadata, and
+export temporaries. The planned writer streams to a quota-checked OPFS
+temporary with backpressure instead of building or routing a whole-volume
+`Blob`/`ArrayBuffer` through React. No ZIP writer, import reader, or restore
+semantics are currently present.
 
 This checkpoint does not publish immutable reviewed snapshots or connect
 workspace bytes to P2 accept/reject. It adds no `edit`, `bash`, shell, Wasm,
@@ -684,7 +695,7 @@ evidence for the preview only.
 | ------------------ | --------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------- |
 | Creator home       | Express intent and create/open a Program                  | Local request + B0a/B0b setup + P2 recent reopen                  | Attachments and general Provider UI                         |
 | Creator supervisor | Chat supervises one Program without becoming Program data | Durable run receipts + fresh Pi session over a durable checkpoint | Program-anchored artifacts/snapshots after complete P3c-B0  |
-| Program workspace  | One focused mutable workspace produces reviewed snapshots | OPFS checkpoint + exact continuation + cold reopen                | Recovery/scale/export; later edit/bash and snapshots        |
+| Program workspace  | One focused mutable workspace produces reviewed snapshots | OPFS checkpoint + continuation + recovery/scale evidence          | Checkpoint 3 ZIP; later edit/bash and snapshots             |
 | Human review       | Accept/reject an exact proposed revision                  | Durable exact decision + cross-page stale rejection               | Workspace-generation/snapshot publication                   |
 | Activity           | Explain what happened and what needs review               | Durable run events + session-local last-write receipt             | Complete tool/action history and approvals                  |
 | Capabilities       | Required Agent and UI abilities are understandable        | Proposal tool + native read/write + truthful workspace status     | Edit/bash and adapter-specific capability composition       |
@@ -693,7 +704,7 @@ evidence for the preview only.
 | Translation        | A usable translation Program                              | Intent classification only                                        | Complete workflow, data, QA, export                         |
 | Writing            | A usable writing Program                                  | Intent classification only                                        | Complete workflow, data, revision tools                     |
 | Role-play          | A usable role-play Program                                | Intent classification only                                        | Complete sessions, characters, VN behavior                  |
-| Browser            | Publishable local-first product with BYO Provider         | Fixed-profile Pi + durable Program/run/workspace checkpoint       | Recovery/scale/export first; Provider UI and closure later  |
+| Browser            | Publishable local-first product with BYO Provider         | Fixed-profile Pi + durable/recovered `20 MiB+` workspace          | Checkpoint 3 ZIP; Provider UI and closure later             |
 | Deno Desktop       | Same product with admitted Host integrations              | Responsive preview target                                         | Companion acceptance, storage, packaging qualification      |
 
 Before SillyOS is called a complete reference product, this table must be

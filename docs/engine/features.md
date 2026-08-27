@@ -85,8 +85,12 @@ publication，显式 snapshot read 仍立即看到当前状态；未选择 obser
 这仍是可信 same-realm React/npm 协作，不是 sandbox、DOM/listener/module inventory 或 profiler。1,000-unit focused case 最多
 挂载 16 rows；Chromium/WebKit 验证 selection inert、真实 drill 后 current 更新和一个真实 Code Surface node。
 普通 Player 不引入 Studio/Inspector implementation；第三方大型 React 组件与真实 Agent conversation
-留到后续独立产品验证。SillyOS 已开始 GUI-only 产品验证，但当前只使用 deterministic local fake，
-不声称接通真实 Agent/backend 能力。
+留到后续独立产品验证。SillyOS 的默认入口仍使用 deterministic local preview；显式
+query-gated Browser 产品路线已经在 Agent Worker 中加载产品固定版本的 Pi，经 typed Worker RPC
+连接页面与 Workspace Host，并由产品侧 IndexedDB Program database 和 OPFS mutable checkpoint
+持有本地状态。checkpoint recovery/单写者 ownership、Chromium/WebKit 的 20 MiB 级门禁，以及
+origin-wide estimate/显式 `persist()` UI 均已有产品证据。这些都是 SillyOS adapter/product 能力，
+没有因此新增 engine public Agent ABI 或后端服务。
 M4 已把 locale-addressable text 收进同一个 Base manifest/session：manifest 声明 default locale、
 显式无环 fallback 与 logical-pack variants；每个 physical pack 使用 V2
 `{ format, version, packId, locale, entries }`，default variant 定义完整 ID 集，其他 locale 可按 ID
@@ -114,8 +118,11 @@ Sound Check 另有显式 `build:web:mods`：从同源 selection file 按 exact p
 admit 发布后的 text/image Artifact，并通过完整 Web application successor 应用，不改变 State、Snapshot、History、
 Save 或 replay。普通 build、Template 和未选择产品结构排除 decoder/manager/Artifact 和 public Mod runtime。
 这不是 runtime npm resolver、目录扫描、任意 post-release code、marketplace、same-realm sandbox 或通用
-authoritative-gameplay R2 API。SillyOS 当前只以 deterministic local fake 验证 GUI 产品结构，不代表 Pi、数据库、
-RPC、Mod 激活或持久化已经接通。
+authoritative-gameplay R2 API。SillyOS 尚未选择这项 public Mod Runtime，也没有通用 Provider UI、Desktop
+persistence、immutable snapshot 或 ZIP export/import；其 query-gated Browser 路线已接入产品固定版本的 Pi、
+typed Worker RPC、本地 Program database 与 OPFS mutable checkpoint。Browser Program 数据只留在访问者当前
+origin；静态 Cloudflare Worker 不接收、同步或备份，换 origin 或清站点数据会失去本地 checkpoint。
+来源配额估算仅供参考，浏览器 `persist()` 仍是 best effort，ZIP 备份/恢复尚未实现。
 
 ## Public Agent Session/Run
 

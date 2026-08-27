@@ -468,14 +468,26 @@ Astro/Starlight documentation at the root, the maintained flagship VN
 at `/play/silly-os/`. The VN path packages the complete two-route _One Last
 Sound Check_ Browser product; its inclusion is static publish wiring, not
 evidence that a remote live deployment has occurred. SillyOS currently exposes the Creator Home → Program
-Workspace journey with one built-in Agent Creator and a deterministic local
-preview. It does not claim real Pi, database, RPC, Mod activation, or
-persistence. The application bundle builds with `base: "./"` and resolves
-runtime assets against `document.baseURI`, so it is location-independent; only
-the docs site needs the deployment base, supplied through `SITE_BASE` (defaults
-to `/`). The current SillyOS preview starts a new local session after reload;
-the VN keeps its application-owned Browser Save behavior. The static deployment
-requires no server component.
+Workspace journey with one built-in Agent Creator. Its default entry remains a
+deterministic local preview. Explicit query-gated Browser routes load the
+product-pinned Pi in an Agent Worker over typed Worker RPC, retain the Program
+catalog/continuation database in browser-local IndexedDB, and retain the mutable
+workspace checkpoint in OPFS. Checkpoint recovery and single-writer ownership,
+a 20 MiB-class Chromium/WebKit storage gate, and the origin-storage
+estimate/persistence-request UI are current product evidence. They do not
+activate a public Mod or Agent ABI, general Provider UI, Desktop persistence,
+immutable snapshot, or ZIP export/import.
+
+Application bundles build with `base: "./"` and resolve runtime assets against
+`document.baseURI`, so they are location-independent; only the docs site needs
+the deployment base, supplied through `SITE_BASE` (defaults to `/`). SillyOS
+Program data stays in the visitor's browser under the current origin.
+The Cloudflare Worker is assets-only: it does not receive, synchronize, or back
+up that Program database or OPFS volume. Storage estimates are advisory
+for the complete origin rather than a per-Program limit, and a browser
+`persist()` grant remains best effort. Changing the deployment origin or
+clearing site data loses the local SillyOS checkpoint; portable ZIP backup and
+restore are not implemented. Static deployment adds no SillyMaker data service.
 
 - **GitHub Pages** — `.github/workflows/deploy-pages.yml` uses `deno ci`, builds with `SITE_BASE=/<repo>/`, and deploys through `actions/deploy-pages`. One-time setup: repository Settings → Pages → Source: "GitHub Actions", then run the workflow from the Actions tab. Push deployment is intentionally disabled; enabling it requires the deployment build to wait for the same commit's required CI quality and Engine Lab prebuilt-smoke gates. The site lands at `https://<owner>.github.io/<repo>/`.
 - **Cloudflare Workers** — `wrangler.jsonc` declares an assets-only Worker serving `dist/site`. Deploy from a local machine with `deno task site:build && deno task site:deploy:cf` (authenticate once with `deno run -A npm:wrangler@4.123.0 login`). Root-based hosting, so the default `SITE_BASE=/` is correct; the site lands at `https://silly-maker.<account>.workers.dev/` or a custom domain.

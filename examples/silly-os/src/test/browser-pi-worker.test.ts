@@ -31,13 +31,14 @@ import type {
 import { serializeCreatorAgentSubmitV1 } from "../product/creator-agent-admission.ts";
 import type { CreatorAgentRunRequestV1, CreatorAgentSubmitV1 } from "../product/contracts.ts";
 import { workspaceRootV1 } from "../workspace/contracts.ts";
-import type {
-  BrowserWorkspaceHostControlFailureCodeV1,
-  BrowserWorkspaceHostControlOutboundMessageV1,
-  BrowserWorkspaceHostControlRequestRecordV1,
-  BrowserWorkspaceHostControlSuccessResponseV1,
-  BrowserWorkspaceHostSnapshotWireV1,
-  BrowserWorkspaceVolumeAnchorWireV1,
+import {
+  browserWorkspaceNativePiToolPayloadMaximumBytesV1,
+  type BrowserWorkspaceHostControlFailureCodeV1,
+  type BrowserWorkspaceHostControlOutboundMessageV1,
+  type BrowserWorkspaceHostControlRequestRecordV1,
+  type BrowserWorkspaceHostControlSuccessResponseV1,
+  type BrowserWorkspaceHostSnapshotWireV1,
+  type BrowserWorkspaceVolumeAnchorWireV1,
 } from "../workspace/browser-workspace-host-protocol.ts";
 import { BrowserWorkspaceHostControlErrorV1 } from "../workspace/browser-workspace-host-port.ts";
 import {
@@ -53,7 +54,8 @@ import {
 
 const workspaceIdV1 = "workspace.preview.1";
 const workspaceSessionIdV1 = "sillyos.workspace.session.1";
-const roundTripArtifactPathV1 = `${workspaceRootV1}/.sillyos/p3a-round-trip.txt`;
+const roundTripArtifactRelativePathV1 = ".sillyos/p3a-round-trip.txt";
+const roundTripArtifactPathV1 = `${workspaceRootV1}/${roundTripArtifactRelativePathV1}`;
 
 const submitV1: CreatorAgentSubmitV1 = {
   revision: 1,
@@ -115,6 +117,17 @@ function executionBindingV1(expectedGeneration = 1): BrowserPiWorkerExecutionBin
 interface TestBrowserWorkspaceVolumeStateV1 {
   head: BrowserWorkspaceHostDurableHeadV1;
   readonly files: Map<string, Uint8Array>;
+  readonly readFileRangeRequests: {
+    readonly path: string;
+    readonly offset: number;
+    readonly length: number;
+  }[];
+  readonly sourceReadRequests: {
+    readonly path: string;
+    readonly offset: number;
+    readonly length: number;
+    readonly byteLength: number;
+  }[];
 }
 
 function bytesEqualV1(left: Uint8Array, right: Uint8Array): boolean {
@@ -141,8 +154,22 @@ class TestBrowserWorkspaceVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLea
       : { kind: "file", size: bytes.length };
   }
 
-  async readFile(path: string): Promise<Uint8Array> {
-    return this.state.files.get(path)?.slice() ?? new Uint8Array();
+  async readFileRange(input: {
+    readonly path: string;
+    readonly offset: number;
+    readonly length: number;
+    readonly signal: AbortSignal;
+  }): Promise<Uint8Array> {
+    if (input.signal.aborted) throw new DOMException("Workspace read aborted", "AbortError");
+    this.state.readFileRangeRequests.push({
+      path: input.path,
+      offset: input.offset,
+      length: input.length,
+    });
+    return this.state.files.get(input.path)?.slice(
+      input.offset,
+      input.offset + input.length,
+    ) ?? new Uint8Array();
   }
 
   async replaceFile(
@@ -154,11 +181,25 @@ class TestBrowserWorkspaceVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLea
       input.expectedHead.checkpointId !== this.state.head.checkpointId ||
       input.expectedHead.generation !== this.state.head.generation
     ) throw new Error("test Workspace durable head is stale");
+    this.state.sourceReadRequests.push({
+      path: input.path,
+      offset: 0,
+      length: input.source.byteLength,
+      byteLength: input.source.byteLength,
+    });
+    const bytes = await input.source.readRange({
+      offset: 0,
+      length: input.source.byteLength,
+      signal: input.signal,
+    });
+    if (bytes.byteLength !== input.source.byteLength) {
+      throw new Error("test Workspace source returned an inexact range");
+    }
     const previous = this.state.files.get(input.path);
-    if (previous !== undefined && bytesEqualV1(previous, input.bytes)) {
+    if (previous !== undefined && bytesEqualV1(previous, bytes)) {
       return { changed: false, head: { ...this.state.head } };
     }
-    this.state.files.set(input.path, input.bytes.slice());
+    this.state.files.set(input.path, bytes.slice());
     this.state.head = {
       ...this.state.head,
       checkpointId: input.nextCheckpointId,
@@ -180,7 +221,7 @@ class TestBrowserWorkspaceBootstrapV1 implements BrowserWorkspaceHostBootstrapPo
     volumeId: "sillyos.workspace.volume.test.1",
     workspaceFormat: 1,
   });
-  private readonly state: TestBrowserWorkspaceVolumeStateV1 = {
+  readonly state: TestBrowserWorkspaceVolumeStateV1 = {
     head: {
       revision: 1,
       volumeId: this.anchor.volumeId,
@@ -189,6 +230,8 @@ class TestBrowserWorkspaceBootstrapV1 implements BrowserWorkspaceHostBootstrapPo
       generation: 1,
     },
     files: new Map(),
+    readFileRangeRequests: [],
+    sourceReadRequests: [],
   };
   private candidate = false;
 
@@ -225,6 +268,7 @@ class TestBrowserWorkspaceBootstrapV1 implements BrowserWorkspaceHostBootstrapPo
 
 /** Explicit Host-side test authority; no disposable Pi-side workspace fallback exists. */
 class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceAuthorityV1 {
+  private readonly bootstrap = new TestBrowserWorkspaceBootstrapV1();
   private readonly controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
   private readonly fatalListeners = new Set<
     (fatal: BrowserProgramWorkspaceFatalV1) => void
@@ -239,12 +283,20 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
 
   constructor() {
     this.runtime = createBrowserWorkspaceHostRuntimeV1({
-      bootstrap: new TestBrowserWorkspaceBootstrapV1(),
+      bootstrap: this.bootstrap,
       postControlMessage: (message) => this.controls.push(structuredClone(message)),
       createWorkspaceSessionId: () => workspaceSessionIdV1,
       createCheckpointId: () =>
         `sillyos.workspace.checkpoint.test.${String(this.nextCheckpointOrdinal++)}`,
     });
+  }
+
+  get readFileRangeRequests(): TestBrowserWorkspaceVolumeStateV1["readFileRangeRequests"] {
+    return this.bootstrap.state.readFileRangeRequests;
+  }
+
+  get sourceReadRequests(): TestBrowserWorkspaceVolumeStateV1["sourceReadRequests"] {
+    return this.bootstrap.state.sourceReadRequests;
   }
 
   private async control(
@@ -330,7 +382,7 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
   }
 }
 
-function testWorkspaceAuthorityV1(): BrowserProgramWorkspaceAuthorityV1 {
+function testWorkspaceAuthorityV1(): TestBrowserProgramWorkspaceAuthorityV1 {
   return new TestBrowserProgramWorkspaceAuthorityV1();
 }
 
@@ -916,6 +968,22 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       )
     );
     expect(messages.filter((message) => message.kind === "workspace_receipt")).toHaveLength(1);
+    const roundTripByteLength = new TextEncoder().encode(submitV1.text).byteLength;
+    expect(workspaceAuthority.sourceReadRequests).toEqual([{
+      path: roundTripArtifactRelativePathV1,
+      offset: 0,
+      length: roundTripByteLength,
+      byteLength: roundTripByteLength,
+    }]);
+    expect(
+      workspaceAuthority.sourceReadRequests.every(({ length }) =>
+        length <= browserWorkspaceNativePiToolPayloadMaximumBytesV1
+      ),
+    ).toBe(true);
+    expect(workspaceAuthority.readFileRangeRequests).toEqual([
+      { path: roundTripArtifactRelativePathV1, offset: 0, length: roundTripByteLength },
+      { path: roundTripArtifactRelativePathV1, offset: 0, length: roundTripByteLength },
+    ]);
     expect(JSON.stringify(messages)).not.toContain("sentinel-browser-key");
     runtime.dispose();
     await workspaceAuthority.dispose();

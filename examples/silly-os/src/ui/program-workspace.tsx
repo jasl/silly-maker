@@ -19,6 +19,7 @@ import type {
 import { ChatPaneV1, type ChatPanePropsV1 } from "./chat-pane.tsx";
 import { SillyButtonV1 as Button } from "./controls.tsx";
 import {
+  type WorkpieceBrowserStorageV1,
   type WorkpieceExecutionWorkspaceV1,
   type WorkpieceTabV1,
   WorkpiecePaneV1,
@@ -64,7 +65,9 @@ export interface ProgramWorkspacePropsV1 {
   readonly mutationPending?: boolean;
   readonly piAgentRun?: ChatPanePropsV1["piAgentRun"];
   readonly executionWorkspace?: WorkpieceExecutionWorkspaceV1;
+  readonly browserStorage?: WorkpieceBrowserStorageV1;
   readonly onRetryExecutionWorkspace?: () => void;
+  readonly onRequestStoragePersistence?: () => void;
 }
 
 export function ProgramWorkspaceV1({
@@ -96,7 +99,9 @@ function ProgramWorkspaceReadyV1({
   mutationPending = false,
   piAgentRun,
   executionWorkspace,
+  browserStorage,
   onRetryExecutionWorkspace,
+  onRequestStoragePersistence,
 }: ProgramWorkspaceReadyPropsV1): ReactNode {
   const narrow = useNarrowViewportV1();
   const splitRef = useRef<HTMLDivElement>(null);
@@ -266,7 +271,11 @@ function ProgramWorkspaceReadyV1({
                 fullscreen={fullscreen}
                 {...(piAgentRun === undefined ? {} : { agentMode: piAgentRun.runtime })}
                 {...(executionWorkspace === undefined ? {} : { executionWorkspace })}
+                {...(browserStorage === undefined ? {} : { browserStorage })}
                 {...(onRetryExecutionWorkspace === undefined ? {} : { onRetryExecutionWorkspace })}
+                {...(onRequestStoragePersistence === undefined
+                  ? {}
+                  : { onRequestStoragePersistence })}
                 outputRef={outputRef}
                 onTabChange={(tab) => {
                   setActiveTab(tab);

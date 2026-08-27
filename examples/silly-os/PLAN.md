@@ -3,17 +3,19 @@
 # SillyOS product-incubation plan
 
 Status: accepted Browser-first, dual-target product lane with validated P0,
-P1-B B0a/B0b, P2, P3a-B0, and P3c-B0 checkpoint 1 implementations plus a
-dev-only Pi launch helper, 2026-08-27. P2-B0 delivered the product-owned
+P1-B B0a/B0b, P2, P3a-B0, and P3c-B0 checkpoints 1 and 2 implementations plus
+a dev-only Pi launch helper, 2026-08-27. P2-B0 delivered the product-owned
 IndexedDB Worker and exact Program catalog; P2-B1 then delivered Repository V2
-plus bounded terminal Agent-run receipts. P2 is closed. P3c-B0 checkpoint 1 has
+plus bounded terminal Agent-run receipts. P2 is closed. P3c-B0 checkpoint 1
 replaced P3a's disposable byte owner with the exact OPFS authority/cold-reopen
-contract below. Recovery/scale is the next P3c-B0 checkpoint; P3c-B0 is not
-closed. P3a remains open, while P1-D remains owner-paused and P3a-B1, P3b,
-snapshot publication, import, and later slices remain inactive. The raw launcher is not the typed
-product RPC; the live Browser route is a separate product path. This plan is local to
-`examples/silly-os`; it does not activate an engine lane or change an engine
-API. The implementation baseline before P0 is commit
+contract; checkpoint 2 delivered recovery/contender semantics, storage policy,
+and the automated Chromium/persistent-WebKit `20 MiB+` scale gate. Checkpoint 3
+portable ZIP export is not implemented, so P3c-B0 remains open. P3a remains
+open, while P1-D remains owner-paused and P3a-B1, P3b, snapshot publication,
+import, and later slices remain inactive. The raw launcher is not the typed
+product RPC; the live Browser route is a separate product path. This plan is
+local to `examples/silly-os`; it does not activate an engine lane or change an
+engine API. The implementation baseline before P0 is commit
 `56ba8ef8ecf0a38243e92cba548f53c1c57c0b73`.
 
 ## Product invariant and execution rule
@@ -81,11 +83,12 @@ follow-ups use the same Pi Agent, tool, RPC, and product currentness with a fixe
 OpenAI Responses profile. That integrated route is qualified locally and from
 its deployed Cloudflare origin. P2-B0 now adds a bounded Browser-local Program
 database, durable exact Program revisions and decisions, and recent-Program
-reload/reopen. P3c-B0 checkpoint 1 now adds one durable OPFS workspace volume,
-an exact continuation anchor, and a fresh Pi session over cold reopen. The
-product still has no persistent Pi session, recovery/scale qualification,
-portable export, WASM guest, provider selector, or generally active capability.
-The remaining P3c-B0 checkpoints close only recovery/scale and portable export.
+reload/reopen. P3c-B0 checkpoints 1 and 2 now add one durable OPFS workspace
+volume, an exact continuation anchor, a fresh Pi session over cold reopen,
+recovery/contender semantics, explicit Browser storage state, and the automated
+dual-engine `21,897,216`-byte scale gate. The product still has no persistent Pi
+session, portable ZIP export, WASM guest, provider selector, or generally active
+capability. Checkpoint 3 is the only remaining P3c-B0 checkpoint.
 Its initial proposal, Source, translation rows, remaining capability labels,
 and downloaded manifest remain explicit preview material.
 
@@ -1249,16 +1252,17 @@ parity are not prerequisites and remain inactive.
 Implementation proceeds through three review checkpoints without creating more
 slice numbers:
 
-1. **Authority and cold reopen.** Add the exact continuation store, bootstrap
+1. **Authority and cold reopen (delivered 2026-08-27).** Add the exact continuation store, bootstrap
    and volume leases, Workspace Host Worker with its private head/journal, and
    the Agent environment proxy. The real Browser product path must complete
    native Pi `write -> close -> full reload -> reopen -> read` with a new
    `workspaceSessionId` and continued generation before this checkpoint lands.
    It adds no scale claim or export UI.
-2. **Recovery and scale.** Exercise every stated ownership/mutation crash point,
+2. **Recovery and scale (delivered 2026-08-27).** Exercise every stated ownership/mutation crash point,
    two-tab first/open contention, quota and persistence states, the mandatory
-   `20 MiB` corpus, fixed Worker memory budgets, and oversized Pi-read failure.
-3. **Portable export.** Add only the canonical cancellable ZIP writer, download
+   `20 MiB` corpus, fixed bounded filesystem I/O payload, and oversized Pi-read
+   failure. This does not measure or cap total Worker heap.
+3. **Portable export (open).** Add only the canonical cancellable ZIP writer, download
    lifecycle, independent Chromium/WebKit unpacking, and secret/exclusion scans.
 
 Each checkpoint receives focused review and may commit independently, but none
@@ -1275,10 +1279,23 @@ both prove `write -> close-settled -> full reload -> reopen -> exact read`, a
 fresh `workspaceSessionId`, continued generation, an empty reopened mutation
 queue, cancellation ordering, and Forget/reinitialize lock release. Playwright's
 ephemeral/private WebKit context rejects OPFS and is not used to manufacture a
-success claim; private-mode recovery remains checkpoint 2. The retired
+success claim; checkpoint 2 records that unavailable state explicitly. The retired
 disposable runtime and arbitrary continuation replacement path were deleted.
-This delivery makes no scale, recovery-completeness, export, shell, or sandbox
-claim and does not close P3c-B0.
+Checkpoint 1 alone makes no scale, recovery-completeness, export, shell, or
+sandbox claim and does not close P3c-B0.
+
+Checkpoint 2 delivered on 2026-08-27. Focused recovery tests cover interrupted
+replacement/head publication, quota and unavailable storage, exact candidate
+reuse, and bounded ranges. Real Chromium and persistent-profile WebKit prove
+first/open contention, bounded busy state, Worker-loss lease release, exact
+cold reopen, and an automated corpus of 1,000 `5 KiB` files plus one `16 MiB`
+file: `1,001` files, `21,897,216` bytes, and generation `1002`. The same route
+proves page isolation from volume bytes and rejects native Pi reads above
+`256 KiB` from metadata. Browser storage UI reports the origin-wide advisory
+estimate and exposes an explicit best-effort persistence request; a `false`
+result leaves the workspace usable. This checkpoint does not implement ZIP,
+import/restore, shell, or sandbox behavior and therefore does not close
+P3c-B0.
 
 One Program has one mutable Browser volume. Its identities stay distinct:
 
@@ -1311,7 +1328,7 @@ interface BrowserWorkspaceDurableHeadV1 {
 `checkpointId` is a fresh opaque identifier for the initial head and each
 byte-changing mutation; a same-byte write preserves both it and `generation`.
 The record lives in a reserved Host-only OPFS metadata namespace that Pi tools
-cannot name and portable export omits. It identifies only the current mutable
+cannot name and a future portable export must omit. It identifies only the current mutable
 head and is not an immutable or accepted Program snapshot; an older
 `checkpointId` is not promised to remain reopenable. A bounded volume-local
 pending-mutation record plus staged replacement lets reopen either discard an
@@ -1323,7 +1340,7 @@ The Browser topology is exact and product-private:
 
 ```text
 Program Repository Worker -> IndexedDB continuation manifest
-React/product controller  -> typed workspace lifecycle/export commands
+React/product controller  -> typed workspace lifecycle commands
 Agent Worker              -> direct typed environment MessagePort
                               -> Workspace Host Worker
                                    -> one Program OPFS volume
@@ -1433,27 +1450,33 @@ continuation manifest. Program deletion is not introduced by this slice.
 
 P3a-B0's fixed `2 MiB` volume and `256 KiB` file ceilings are guardrails for its
 disposable in-memory control only. They are not inherited as OPFS capacity.
-P3c-B0 makes the accepted `1,000 small files + one 16 MiB file + at least 20 MiB
-total` corpus its minimum Chromium/WebKit success gate. `100 MiB`, `256 MiB`,
-and larger several-hundred-MiB workloads remain raw characterizations when the
-current origin has room, not promised quotas. Browser capacity is dynamic
+Checkpoint 2 delivers the automated Chromium and persistent-WebKit gate as
+exactly `1,000 × 5 KiB + 16 MiB`: `1,001` files, `21,897,216` bytes, and final
+generation `1002`. `100 MiB`, `256 MiB`, and larger several-hundred-MiB
+workloads remain optional raw characterizations when the current origin has
+room, not mandatory gates or promised quotas. Browser capacity is dynamic
 across engine, device, free disk, engagement, private mode, and origin policy.
-The product records `navigator.storage.estimate()` before large growth, keeps
-explicit working/export headroom, requests
-`navigator.storage.persist()` only after the user has created important work,
-catches `QuotaExceededError`, and reports whether persistence was granted. A
-rejected request does not make the volume unusable, and a granted request does
-not turn local storage into backup.
+`navigator.storage.estimate()` reports advisory usage/quota for the whole
+origin, not a SillyOS volume allowance or one uniform fixed browser quota. The
+product requests `navigator.storage.persist()` only through an explicit action
+after the user has created important work, catches `QuotaExceededError`, and
+reports whether persistence was granted. A best-effort request returning
+`false` does not fail or disable the volume, and a granted request does not turn
+local storage into backup. Checkpoint 3 must define and prove any working/export
+headroom policy together with its real writer rather than predeclaring a
+reservation that the product does not enforce.
 
 The Host uses range/stream operations and bounded directory/index pages. It
 must not retain the complete volume, copy the whole tree across a Worker
-message, or allocate an unconditional whole-volume `ArrayBuffer`/string. Peak
-page, Agent Worker, and Workspace Host Worker memory therefore stays bounded by
-the active operation, not workspace size. The implementation publishes fixed
-`1 MiB` maximum I/O chunks and `4 MiB` aggregate filesystem bytes in flight;
-focused tests inspect those bounds while the volume grows. Pi 0.84.3 `read`
-still reads one complete selected file before truncating its model-visible
-result, so the delivered tool keeps an explicit `256 KiB` per-call file bound.
+message, or allocate an unconditional whole-volume `ArrayBuffer`/string. The
+page receives no volume bytes, and no owner needs the complete volume resident
+in memory. The implementation publishes fixed `1 MiB` maximum I/O chunks and
+`4 MiB` of aggregate **SillyOS-managed filesystem payload bytes** in flight;
+focused tests inspect those bounds while the volume grows. This observation
+does not measure or cap total page, Worker, WebCrypto, or browser heap. Pi 0.84.3
+`read` still reads one complete selected file before truncating its model-
+visible result, so the delivered wire keeps an explicit `256 KiB` per-call file
+bound.
 After obtaining only OPFS file metadata, the Workspace Host rejects a larger
 file through the existing Pi error type:
 
@@ -1470,74 +1493,66 @@ buffer, calling `arrayBuffer()`, or cloning bytes to the Agent Worker. This is
 an existing Pi environment failure, not a new SillyOS read schema, and it does
 not become the OPFS volume limit.
 
-P3c-B0 adds one user-triggered portable ZIP writer. Export first quiesces the
-workspace at an exact durable Host generation, then streams a standard ZIP
-archive into a quota-checked OPFS temporary. Archive format revision 1 uses
-normalized POSIX `workspace/<relative-path>` entries in Unicode code-point
-lexical order plus exact `sillyos-workspace.json`; duplicate, absolute, dot,
-parent, and backslash entry names are impossible. The manifest contains only
-export revision, Program/workspace identities, anchored Program/repository
-revisions, workspace format, current `checkpointId`, and checkpoint generation.
-It excludes the Program database, Creator Chat, credentials, provider data, Pi
-sessions, terminal/mutation receipts, OPFS metadata, and export temporaries.
+Checkpoint 3 portable ZIP is not implemented. Its planned writer first
+quiesces the workspace at an exact durable Host generation, then streams a
+standard ZIP into a quota-checked OPFS temporary. The archive contains only
+normalized VFS entries under `workspace/<relative-path>` plus an exact bounded
+non-Chat `sillyos-workspace.json` for export/workspace format,
+Program/workspace identity, anchored Program/repository revisions, current
+`checkpointId`, and checkpoint generation. It must exclude the Program
+database, Creator Chat, credentials, provider data, Pi/provider sessions,
+terminal Agent-run receipts, mutation receipts, OPFS Host metadata, and export
+temporaries.
 
-The writer awaits destination backpressure, emits bounded
-`filesCompleted/bytesWritten` progress, and accepts `AbortSignal`. Cancellation
-or failure aborts the writer and removes the OPFS temporary without producing a
-`File` or changing the durable head. After successful flush the Host returns an
-OPFS-backed browser `File`; the page creates the download object URL and always
-revokes it, while an explicit release/finally path removes the temporary after
-download handoff. Neither success nor failure constructs a whole-archive
-`Blob`/`ArrayBuffer`. This is the common Chromium/WebKit baseline. A directly
-selected `FileSystemWritableFileStream` may be a later feature-detected
-enhancement, never the only export path. Product export code does not invoke Pi
-`bash`, Tar, Git, or a Wasm payload. Import/restore is not implemented and no
-reader is admitted in B0.
+The future writer must await destination backpressure, emit bounded
+`filesCompleted/bytesWritten` progress, accept `AbortSignal`, and clean up its
+temporary and object URL on every settlement without constructing a whole-
+archive `Blob`/`ArrayBuffer` or changing the durable head. A directly selected
+`FileSystemWritableFileStream` may be a later feature-detected enhancement,
+never the only export path. It must not invoke Pi `bash`, Tar, Git, or a Wasm
+payload. No ZIP writer, import reader, or restore semantics exist today.
 
 P3c-B0 acceptance is deliberately bounded:
 
-- focused Host conformance proves new open, changed and same-byte writes,
-  exact durable head/checkpoint identity, close, fresh-lease cold reopen,
-  two-Program isolation, bounded listing/range behavior, and no ambient Host
-  fallback;
-- two-tab Chromium/WebKit evidence proves origin-wide mutual exclusion,
-  bounded busy admission, automatic lease release after Worker loss, and exact
-  head reopen by the successor rather than concurrent writers; a simultaneous
-  first-open case also proves one winning manifest, cleanup of any unattached
-  loser volume, and no Pi/public workspace before ownership settles;
-- first-ownership crash points cover volume creation, manifest insertion, and
-  response delivery; mutation crash points separately cover file replacement,
-  OPFS volume-head flush, and response delivery with no IndexedDB write. They
-  prove old-or-new complete recovery, no blind write retry, no missing-volume
-  fallback, and explicit corruption states;
-- repository conformance proves the manifest's Program/repository anchors move
-  only inside the existing P2 aggregate transaction, while repeated workspace
-  generation changes neither write IndexedDB nor copy Chat into the manifest;
-- quota tests cover advisory estimates, rejected persistence, quota exhaustion,
-  and cleanup of incomplete export temporaries. Chromium and WebKit must both
-  retain and cold-reopen 1,000 small files plus one `16 MiB` file with at least
-  `20 MiB` total content. Separate raw `100 MiB`, `256 MiB`, and larger
-  characterizations record actual origin quota and either complete or return the
-  exact capacity rejection; none becomes a universal promise;
-- memory evidence covers the page, Agent Worker, and byte-owning Workspace Host
-  Worker; it asserts the `1 MiB` chunk and `4 MiB` aggregate in-flight bounds
-  during listing, cold reopen, the `20 MiB` corpus, and export, with no
-  whole-value clone of the volume;
-- an oversized-read regression persists and exports the `16 MiB` file but
-  proves native Pi `read` returns the fixed existing `FileError` after metadata
-  inspection and before content read, allocation, `arrayBuffer()`, or Worker
-  transfer;
-- Chromium and WebKit run `write -> close -> full reload -> recent Program ->
-  reopen -> read` and export the same checkpoint bytes under a new
-  `workspaceSessionId`, while reload exposes no old mutation receipts or fake
-  Pi continuation; both browsers unpack the ZIP with an independent standard
-  reader and compare every canonical path, byte, and manifest field, while a
-  cancelled export leaves the checkpoint unchanged and no temporary/object URL;
-- credential/durable-store scans find no key, provider record, transcript, or
-  Pi private identity in OPFS, IndexedDB, the export, URL, or log; and
-- source/final-graph checks exclude just-bash, Wasm, Git implementations,
+Delivered checkpoints 1 and 2 provide:
+
+- focused Host/repository conformance for initial ownership, changed and same-
+  byte writes, exact durable head/checkpoint identity, interrupted mutation
+  recovery, quota/unavailable storage, fresh-lease cold reopen, two-Program
+  isolation, anchored continuation, and no per-write IndexedDB/Chat copy;
+- real Chromium and persistent-WebKit evidence for origin-wide contention,
+  bounded busy admission, automatic lease release after Worker loss, exact-head
+  cold reopen by the successor, and explicit non-persistent WebKit OPFS failure
+  without substituting a workspace;
+- the automated dual-engine corpus of exactly 1,000 `5 KiB` files plus one
+  `16 MiB` file (`1,001` files, `21,897,216` bytes, generation `1002`), with
+  range/hash verification after Worker termination and cold reopen. Optional
+  raw `100 MiB`, `256 MiB`, and larger runs are not closure gates or universal
+  quota claims;
+- observed `1 MiB` maximum chunks and `4 MiB` maximum SillyOS-managed
+  filesystem payload bytes in flight, with the page receiving no volume bytes
+  and no whole-volume resident allocation. This is not total heap evidence;
+- native Pi `read` rejecting the persisted `16 MiB` file through its fixed
+  `256 KiB` metadata preflight before any content read or transfer, without
+  treating that wire ceiling as the file or volume limit; and
+- an origin-wide advisory storage estimate plus explicit best-effort
+  persistence request whose `false` result leaves the workspace open and usable.
+
+The remaining checkpoint 3 acceptance must prove:
+
+- one canonical streaming ZIP writer whose VFS bytes and bounded non-Chat
+  checkpoint/anchor manifest are independently unpacked and byte-checked in
+  Chromium and WebKit;
+- cancellation/failure cleanup, bounded progress/backpressure, no whole-archive
+  page payload, unchanged durable head, and no leaked temporary or object URL;
+- exclusion scans for Chat, the Program database, credentials, provider data,
+  Pi/provider sessions, terminal/mutation receipts, and Host metadata; and
+- source/final-graph exclusion of just-bash, Wasm, Git implementations,
   shell/process adapters, Provider/BYO Sandbox code, snapshot publication,
-  import readers, and SillyMaker private engine modules.
+  import/restore readers, and SillyMaker private engine modules.
+
+Until those ZIP checks pass, P3c-B0 remains open and exposes no export,
+import, or restore claim.
 
 P3c-B0 does not change P2 accept/reject or make a mutable checkpoint an accepted
 Program revision. It does not add immutable snapshots, proposal-generation

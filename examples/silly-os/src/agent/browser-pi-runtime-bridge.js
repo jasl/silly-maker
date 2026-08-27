@@ -9,6 +9,8 @@ export const creatorProgramRevisionToolNameV1 = "sillyos_propose_program_revisio
 export const deterministicCancellationHoldPrefixV1 = "Hold this deterministic run until cancelled:";
 export const deterministicPersistenceReadPrefixV1 =
   "Verify the persisted workspace contains exactly: ";
+export const deterministicOversizedReadProbeV1 =
+  "Verify the qualification workspace rejects an oversized native Pi read.";
 
 const deterministicFinalReplyV1 = "Deterministic test proposal ready.";
 
@@ -98,12 +100,17 @@ export function createDeterministicPiAgentV1(input) {
   const verifyPersistentRead = input.submit.text.startsWith(
     deterministicPersistenceReadPrefixV1,
   );
+  const verifyOversizedRead = input.submit.text === deterministicOversizedReadProbeV1;
   const faux = fauxProvider({
     tokenSize: { min: 64, max: 64 },
     tokensPerSecond: 0,
   });
   const readResponse = fauxAssistantMessage(
-    fauxToolCall("read", { path: "/workspace/.sillyos/p3a-round-trip.txt" }, {
+    fauxToolCall("read", {
+      path: verifyOversizedRead
+        ? "/workspace/qualification/large.bin"
+        : "/workspace/.sillyos/p3a-round-trip.txt",
+    }, {
       id: `sillyos-read-${input.runNumber}`,
     }),
     { stopReason: "toolUse" },
@@ -114,7 +121,7 @@ export function createDeterministicPiAgentV1(input) {
     }),
     { stopReason: "toolUse" },
   );
-  if (verifyPersistentRead) {
+  if (verifyPersistentRead || verifyOversizedRead) {
     const expected = input.submit.text.slice(deterministicPersistenceReadPrefixV1.length);
     faux.setResponses([
       readResponse,
@@ -126,7 +133,14 @@ export function createDeterministicPiAgentV1(input) {
           ? result.content.filter((block) => block.type === "text").map((block) => block.text)
             .join("\n")
           : null;
-        if (result?.role !== "toolResult" || result.isError || actual !== expected) {
+        if (verifyOversizedRead) {
+          if (
+            result?.role !== "toolResult" || !result.isError || actual === null ||
+            !actual.includes("Workspace file exceeds the 256 KiB native Pi read ceiling")
+          ) {
+            throw new Error("Oversized workspace read did not return the fixed Pi FileError");
+          }
+        } else if (result?.role !== "toolResult" || result.isError || actual !== expected) {
           throw new Error("Persistent workspace read did not match the exact prior bytes");
         }
         return proposalResponse;

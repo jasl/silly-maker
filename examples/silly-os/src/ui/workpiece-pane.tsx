@@ -63,6 +63,31 @@ export interface WorkpieceExecutionWorkspaceV1 {
   } | null;
 }
 
+export type WorkpieceBrowserStoragePersistenceRequestV1 =
+  | "idle"
+  | "requesting"
+  | "granted"
+  | "denied"
+  | "unavailable";
+
+export type WorkpieceBrowserStorageV1 =
+  | {
+    readonly phase: "checking";
+    readonly persistenceRequest: "idle";
+  }
+  | {
+    readonly phase: "unavailable";
+    readonly persistenceRequest: "idle";
+  }
+  | {
+    readonly phase: "available";
+    readonly persisted: boolean;
+    readonly usageBytes?: number;
+    readonly quotaBytes?: number;
+    readonly remainingBytes?: number;
+    readonly persistenceRequest: WorkpieceBrowserStoragePersistenceRequestV1;
+  };
+
 export interface WorkpiecePanePropsV1 {
   readonly copy: SillyOsCopyV1;
   readonly program: PreviewProgramV1;
@@ -72,8 +97,10 @@ export interface WorkpiecePanePropsV1 {
   readonly fullscreen: boolean;
   readonly agentMode?: BrowserPiWorkerRuntimeV1;
   readonly executionWorkspace?: WorkpieceExecutionWorkspaceV1;
+  readonly browserStorage?: WorkpieceBrowserStorageV1;
   readonly outputRef: React.RefObject<HTMLElement | null>;
   readonly onRetryExecutionWorkspace?: () => void;
+  readonly onRequestStoragePersistence?: () => void;
   readonly onTabChange: (tab: WorkpieceTabV1) => void;
   readonly onToggleFullscreen: () => void;
   readonly onClose: () => void;
@@ -111,8 +138,10 @@ export function WorkpiecePaneV1({
   fullscreen,
   agentMode,
   executionWorkspace,
+  browserStorage,
   outputRef,
   onRetryExecutionWorkspace,
+  onRequestStoragePersistence,
   onTabChange,
   onToggleFullscreen,
   onClose,
@@ -193,6 +222,8 @@ export function WorkpiecePaneV1({
             {...(agentMode === undefined ? {} : { agentMode })}
             {...(executionWorkspace === undefined ? {} : { executionWorkspace })}
             {...(onRetryExecutionWorkspace === undefined ? {} : { onRetryExecutionWorkspace })}
+            {...(browserStorage === undefined ? {} : { browserStorage })}
+            {...(onRequestStoragePersistence === undefined ? {} : { onRequestStoragePersistence })}
           />
         )}
         {activeTab === "activity" && (
@@ -201,6 +232,8 @@ export function WorkpiecePaneV1({
             activity={activity}
             {...(executionWorkspace === undefined ? {} : { executionWorkspace })}
             {...(onRetryExecutionWorkspace === undefined ? {} : { onRetryExecutionWorkspace })}
+            {...(browserStorage === undefined ? {} : { browserStorage })}
+            {...(onRequestStoragePersistence === undefined ? {} : { onRequestStoragePersistence })}
           />
         )}
       </div>
@@ -417,12 +450,16 @@ function ProgramCapabilitiesV1({
   agentMode,
   executionWorkspace,
   onRetryExecutionWorkspace,
+  browserStorage,
+  onRequestStoragePersistence,
 }: {
   readonly copy: SillyOsCopyV1;
   readonly capabilities: readonly PreviewProgramCapabilityV1[];
   readonly agentMode?: BrowserPiWorkerRuntimeV1;
   readonly executionWorkspace?: WorkpieceExecutionWorkspaceV1;
   readonly onRetryExecutionWorkspace?: () => void;
+  readonly browserStorage?: WorkpieceBrowserStorageV1;
+  readonly onRequestStoragePersistence?: () => void;
 }): ReactNode {
   return (
     <div className="program-capabilities">
@@ -482,6 +519,17 @@ function ProgramCapabilitiesV1({
                 : { onRetry: onRetryExecutionWorkspace })}
             />
           )}
+          {agentMode !== undefined && executionWorkspace !== undefined &&
+            browserStorage !== undefined && (
+            <BrowserWorkspaceStorageStatusV1
+              copy={copy}
+              workspace={executionWorkspace}
+              storage={browserStorage}
+              {...(onRequestStoragePersistence === undefined
+                ? {}
+                : { onRequestPersistence: onRequestStoragePersistence })}
+            />
+          )}
         </article>
       </div>
     </div>
@@ -493,11 +541,15 @@ function ProgramActivityV1({
   activity,
   executionWorkspace,
   onRetryExecutionWorkspace,
+  browserStorage,
+  onRequestStoragePersistence,
 }: {
   readonly copy: SillyOsCopyV1;
   readonly activity: readonly CreatorActivityV1[];
   readonly executionWorkspace?: WorkpieceExecutionWorkspaceV1;
   readonly onRetryExecutionWorkspace?: () => void;
+  readonly browserStorage?: WorkpieceBrowserStorageV1;
+  readonly onRequestStoragePersistence?: () => void;
 }): ReactNode {
   return (
     <div className="program-activity">
@@ -508,13 +560,25 @@ function ProgramActivityV1({
         </div>
       </header>
       {executionWorkspace !== undefined && (
-        <ExecutionWorkspaceStatusV1
-          copy={copy}
-          workspace={executionWorkspace}
-          {...(onRetryExecutionWorkspace === undefined
-            ? {}
-            : { onRetry: onRetryExecutionWorkspace })}
-        />
+        <>
+          <ExecutionWorkspaceStatusV1
+            copy={copy}
+            workspace={executionWorkspace}
+            {...(onRetryExecutionWorkspace === undefined
+              ? {}
+              : { onRetry: onRetryExecutionWorkspace })}
+          />
+          {browserStorage !== undefined && (
+            <BrowserWorkspaceStorageStatusV1
+              copy={copy}
+              workspace={executionWorkspace}
+              storage={browserStorage}
+              {...(onRequestStoragePersistence === undefined
+                ? {}
+                : { onRequestPersistence: onRequestStoragePersistence })}
+            />
+          )}
+        </>
       )}
       <ol>
         {activity.map((item) => (
@@ -531,6 +595,178 @@ function ProgramActivityV1({
         ))}
       </ol>
     </div>
+  );
+}
+
+export function shouldOfferBrowserWorkspacePersistenceV1(input: {
+  readonly workspace: WorkpieceExecutionWorkspaceV1;
+  readonly storage: WorkpieceBrowserStorageV1;
+  readonly requestAvailable: boolean;
+}): boolean {
+  return input.requestAvailable && input.workspace.phase === "open" &&
+    (input.workspace.descriptor?.generation ?? 0) > 1 &&
+    input.storage.phase === "available" && !input.storage.persisted &&
+    input.storage.persistenceRequest === "idle";
+}
+
+function formatStorageBytesV1(bytes: number, locale: SillyOsCopyV1["locale"]): string {
+  const units = ["B", "KiB", "MiB", "GiB", "TiB"] as const;
+  let value = bytes;
+  let unitIndex = 0;
+  while (value >= 1_024 && unitIndex < units.length - 1) {
+    value /= 1_024;
+    unitIndex += 1;
+  }
+  const maximumFractionDigits = value >= 10 || unitIndex === 0 ? 0 : 1;
+  return `${new Intl.NumberFormat(locale, { maximumFractionDigits }).format(value)} ${
+    units[unitIndex]
+  }`;
+}
+
+function browserStorageEstimateCopyV1(
+  copy: SillyOsCopyV1,
+  storage: Extract<WorkpieceBrowserStorageV1, { readonly phase: "available" }>,
+): string {
+  const usage = storage.usageBytes === undefined
+    ? null
+    : formatStorageBytesV1(storage.usageBytes, copy.locale);
+  const quota = storage.quotaBytes === undefined
+    ? null
+    : formatStorageBytesV1(storage.quotaBytes, copy.locale);
+  const remaining = storage.remainingBytes === undefined
+    ? null
+    : formatStorageBytesV1(storage.remainingBytes, copy.locale);
+  const scope = copy.locale === "zh-CN"
+    ? "这些是此网站来源的浏览器估算，包含 OPFS 及其他来源存储，并非当前 Program 的独占用量或固定上限。"
+    : "These are advisory browser estimates for this site origin, including OPFS and other origin storage—not this Program's exclusive usage or a fixed limit.";
+  if (usage !== null && quota !== null) {
+    return copy.locale === "zh-CN"
+      ? `估算已使用 ${usage} / ${quota}${
+        remaining === null ? "" : `，约剩余 ${remaining}`
+      }。${scope}`
+      : `Estimated usage is ${usage} of ${quota}${
+        remaining === null ? "" : `, with about ${remaining} remaining`
+      }. ${scope}`;
+  }
+  if (usage !== null) {
+    return copy.locale === "zh-CN"
+      ? `估算已使用 ${usage}；浏览器未报告总配额。${scope}`
+      : `Estimated usage is ${usage}; the browser did not report a quota. ${scope}`;
+  }
+  if (quota !== null) {
+    return copy.locale === "zh-CN"
+      ? `浏览器报告的来源配额约为 ${quota}，但未报告已使用量。${scope}`
+      : `The browser reports an origin quota of about ${quota}, but no usage value. ${scope}`;
+  }
+  return copy.locale === "zh-CN"
+    ? `浏览器未报告可显示的容量数字。${scope}`
+    : `The browser did not report displayable capacity numbers. ${scope}`;
+}
+
+function browserStoragePersistenceCopyV1(
+  copy: SillyOsCopyV1,
+  storage: Extract<WorkpieceBrowserStorageV1, { readonly phase: "available" }>,
+  importantWork: boolean,
+): string {
+  if (storage.persisted) {
+    return storage.persistenceRequest === "granted"
+      ? copy.locale === "zh-CN"
+        ? "浏览器已接受本次请求，并报告此来源使用持久化存储。"
+        : "The browser accepted the request and reports persistent storage for this origin."
+      : copy.locale === "zh-CN"
+      ? "浏览器报告此来源已使用持久化存储。"
+      : "The browser reports persistent storage for this origin.";
+  }
+  switch (storage.persistenceRequest) {
+    case "requesting":
+      return copy.locale === "zh-CN"
+        ? "正在请求浏览器保留此来源的数据……"
+        : "Requesting persistent storage for this origin…";
+    case "denied":
+      return copy.locale === "zh-CN"
+        ? "浏览器未授予持久化存储；工作区仍可使用，但数据仍可能按浏览器策略被回收。"
+        : "The browser did not grant persistent storage. The workspace remains available, but its data may still be evicted under browser policy.";
+    case "unavailable":
+      return copy.locale === "zh-CN"
+        ? "持久化请求 API 不可用或请求失败；工作区仍可使用。"
+        : "The persistence request API is unavailable or failed. The workspace remains available.";
+    case "granted":
+      return copy.locale === "zh-CN"
+        ? "浏览器先前接受了请求，但当前检查仍未报告持久化；以当前检查结果为准。"
+        : "The browser previously accepted the request, but the current inspection does not report persistence; the current inspection is authoritative.";
+    case "idle":
+      return importantWork
+        ? copy.locale === "zh-CN"
+          ? "此来源尚未获持久化存储。你可以在已有重要工作后主动请求；拒绝不会停用工作区。"
+          : "This origin does not have persistent storage. You can request it after important work exists; denial will not disable the workspace."
+        : copy.locale === "zh-CN"
+        ? "此来源尚未获持久化存储。工作区仍以浏览器的普通持久化策略保存。"
+        : "This origin does not have persistent storage. The workspace remains under ordinary browser storage policy.";
+  }
+  const exhaustive: never = storage.persistenceRequest;
+  return exhaustive;
+}
+
+function BrowserWorkspaceStorageStatusV1({
+  copy,
+  workspace,
+  storage,
+  onRequestPersistence,
+}: {
+  readonly copy: SillyOsCopyV1;
+  readonly workspace: WorkpieceExecutionWorkspaceV1;
+  readonly storage: WorkpieceBrowserStorageV1;
+  readonly onRequestPersistence?: () => void;
+}): ReactNode {
+  const importantWork = workspace.phase === "open" &&
+    (workspace.descriptor?.generation ?? 0) > 1;
+  const offerPersistence = shouldOfferBrowserWorkspacePersistenceV1({
+    workspace,
+    storage,
+    requestAvailable: onRequestPersistence !== undefined,
+  });
+  return (
+    <aside
+      className="program-browser-storage"
+      role="status"
+      aria-live="polite"
+      data-browser-storage-status={storage.phase}
+      data-browser-storage-persisted={storage.phase === "available"
+        ? String(storage.persisted)
+        : undefined}
+      data-browser-storage-persistence-request={storage.persistenceRequest}
+    >
+      <strong>
+        {copy.locale === "zh-CN" ? "浏览器来源存储" : "Browser origin storage"}
+      </strong>
+      {storage.phase === "checking"
+        ? (
+          <small>
+            {copy.locale === "zh-CN"
+              ? "正在读取浏览器提供的来源级存储估算……"
+              : "Reading the browser's origin-level storage estimate…"}
+          </small>
+        )
+        : storage.phase === "unavailable"
+        ? (
+          <small>
+            {copy.locale === "zh-CN"
+              ? "浏览器未提供存储估算或查询失败；SillyOS 不会显示推测值。工作区可用性由上方检查点状态单独报告。"
+              : "The browser did not provide a storage estimate or the inspection failed. SillyOS does not show guessed values; workspace availability is reported separately above."}
+          </small>
+        )
+        : (
+          <>
+            <small>{browserStorageEstimateCopyV1(copy, storage)}</small>
+            <small>{browserStoragePersistenceCopyV1(copy, storage, importantWork)}</small>
+            {offerPersistence && onRequestPersistence !== undefined && (
+              <Button type="button" size="sm" onClick={onRequestPersistence}>
+                {copy.locale === "zh-CN" ? "请求持久化存储" : "Request persistent storage"}
+              </Button>
+            )}
+          </>
+        )}
+    </aside>
   );
 }
 
@@ -569,8 +805,8 @@ function executionWorkspaceFailureCopyV1(
         : "Browser storage capacity was exhausted. The previous complete checkpoint is retained.";
     case "recovery_required":
       return copy.locale === "zh-CN"
-        ? "Workspace Host 在操作期间停止。请重新加载并重新初始化 Agent；结果未知的写入不会被盲目重放。"
-        : "The Workspace Host stopped during an operation. Reload and initialize the Agent again; a write with an unknown outcome is not replayed blindly.";
+        ? "Workspace Host 已停止。请重新加载并重新初始化 Agent；若某次写入的结果未知，SillyOS 不会盲目重放。"
+        : "The Workspace Host stopped. Reload and initialize the Agent again; if a write has an unknown outcome, SillyOS does not replay it blindly.";
     case "disposed":
       return copy.locale === "zh-CN"
         ? "Agent 工作区连接已关闭。请重新初始化 Agent。"

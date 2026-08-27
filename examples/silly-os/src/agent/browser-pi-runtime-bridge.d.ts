@@ -8,6 +8,8 @@ export const creatorProgramRevisionToolNameV1: "sillyos_propose_program_revision
 export const deterministicCancellationHoldPrefixV1: "Hold this deterministic run until cancelled:";
 export const deterministicPersistenceReadPrefixV1:
   "Verify the persisted workspace contains exactly: ";
+export const deterministicOversizedReadProbeV1:
+  "Verify the qualification workspace rejects an oversized native Pi read.";
 
 export interface PiAgentPortV1 {
   prompt(text: string): Promise<{ readonly stopReason: "stop" | "error" | "aborted" }>;
