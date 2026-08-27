@@ -2,10 +2,11 @@
 
 # 《最后一次试音》产品合同
 
-状态：**M0–M2 已交付 / WIP；M3 是下一里程碑。2026-08-27 冻结产品分母并交付完整双路线作者数据；M2
+状态：**M0–M2 已交付 / WIP；M3 进行中。2026-08-27 冻结产品分母并交付完整双路线作者数据；M2
 交付并选择引擎维护的 focused default VN Player：responsive 对话/选择 chrome、say-only 全画布点击推进、
 History/播放控制、贴底布局、Ctrl/Tab/H/V 与鼠标中键、最终 Stage/ending 媒体、冻结的八项音频分母、
-current-voice replay、voice-aware Auto、interaction-level Back/Forward 和产品矩阵。完整产品证据仍未关闭。**
+current-voice replay、voice-aware Auto、interaction-level Back/Forward 和产品矩阵。M3 的 boot-time autosave
+resume 已接通并通过 fresh-instance/Browser reload 证据；完整 Save/recovery/settings 与产品证据仍未关闭。**
 
 M1 已用本产品完整 Story/Scene author data 原子替换 tracked Template 的临时内容，但只关闭 author data 与
 headless routes。M2 已有 Player、Stage 媒体、ending、音频、Back/Forward 与完整矩阵；Save/recovery 与产品验收仍未完成，
@@ -252,7 +253,7 @@ evidence。
 | Hold             | carrier lock                                            | normal/skip/reopen 收敛                     | M2 Player skip 已实现；reopen 留给 M3                                                  |
 | Audio            | BGM、2 ambient、3 SFX、2 current voices                 | manifest、intent/effect、replay、mute       | 八项媒体、intent/effect、replay、voice-aware Auto 已实现；volume/mute settings 留给 M3 |
 | Player QoL       | reveal、auto、skip-read、History、rollback              | focused tests + Browser                     | reveal/auto/skip/History、Ctrl/Tab/H/鼠标中键、全画布推进与 Back/Forward 已完成        |
-| Save/recovery    | autosave、manual/quick、load、import/export、3 稳定点   | focused + reopen E2E                        | 未实现；M3                                                                             |
+| Save/recovery    | autosave、manual/quick、load、import/export、3 稳定点   | focused + reopen E2E                        | boot-time autosave resume 已实现；其余 M3 恢复矩阵开放                                 |
 | i18n             | 3 packs × zh-CN/en + fallback                           | pack admission、切换、overflow              | M2 UI/overflow 已实现；M3 提供产品设置入口                                             |
 | Responsive/Input | 360×640 至 1280×720、pointer/touch/keyboard             | Chromium/WebKit journeys                    | M2 完整矩阵已实现                                                                      |
 | Accessibility    | focus、labels、200% zoom、reduced motion、default muted | automated + human review                    | M2 完成 focus/labels/zoom/reduced motion；默认静音发布证据留 M4                        |

@@ -34,6 +34,9 @@ interface VnPublicationV1 {
   };
   readonly narrative: {
     readonly phase: "idle" | "active" | "completed";
+    readonly history: {
+      readonly entries: readonly { readonly occurrenceId: string }[];
+    };
     readonly pending: {
       readonly kind: string;
       readonly occurrenceId: string;
@@ -364,6 +367,49 @@ test("the middle pointer button hides and restores VN chrome without advancing",
   await restore.click({ button: "middle" });
   await expect(advance).toBeVisible();
   expect((await observeV1(page)).narrative.pending?.occurrenceId).toBe(occurrenceId);
+});
+
+test("Continue reveals the latest autosave after a Browser reload", async ({ page }) => {
+  await page.goto(vnReferenceTourTargetUrlV1("?capability=automation_bridge"));
+  const continueButton = page.getByRole("button", { name: "继续游戏" });
+  await expect(continueButton).toBeDisabled();
+
+  await page.getByRole("button", { name: "新游戏" }).click();
+  await page.waitForFunction(
+    (key) => Reflect.get(globalThis, key) !== undefined,
+    automationKeyV1,
+  );
+  const opening = await observeV1(page);
+  if (opening.narrative.pending?.kind !== "say") {
+    throw new TypeError("opening Say missing");
+  }
+  await advanceCurrentSayV1(page, opening.narrative.pending);
+  const expected = await observeV1(page);
+  expect(expected.narrative.history.entries).toHaveLength(1);
+  // The Browser application deliberately batches autosaves; wait for the
+  // maintained 800 ms quiet-period policy before exercising a real reload.
+  await page.waitForTimeout(1_200);
+
+  await page.reload();
+  await page.waitForFunction(
+    (key) => Reflect.get(globalThis, key) !== undefined,
+    automationKeyV1,
+  );
+  await expect(continueButton).toBeEnabled();
+  const resumed = await observeV1(page);
+  expect(resumed.narrative.pending?.occurrenceId).toBe(
+    expected.narrative.pending?.occurrenceId,
+  );
+  expect(resumed.narrative.history.entries.map(({ occurrenceId }) => occurrenceId)).toEqual(
+    expected.narrative.history.entries.map(({ occurrenceId }) => occurrenceId),
+  );
+
+  await continueButton.click();
+  await expect(page.locator("[data-dialogue='say']")).toHaveAttribute(
+    "data-dialogue-occurrence",
+    expected.narrative.pending?.occurrenceId ?? "",
+  );
+  await expect(page.getByRole("img", { name: "夜间控制室" })).toBeVisible();
 });
 
 test(

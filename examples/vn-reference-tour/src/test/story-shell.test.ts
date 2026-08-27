@@ -7,7 +7,11 @@ import {
   projectStageRenderTarget,
   reduceAdmittedStageMutations,
 } from "@sillymaker/base/story";
-import { createGameHarnessV1, resolveStoryForTestV1 } from "@sillymaker/base/testkit";
+import {
+  createGameHarnessV1,
+  createMemoryHostRecordStoreV1,
+  resolveStoryForTestV1,
+} from "@sillymaker/base/testkit";
 
 import { createVnReferenceTourApplicationInstanceV1 } from "../application/core-application.ts";
 import { vnReferenceTourCoreApplicationDefinitionV1 } from "../application/core-definition.ts";
@@ -128,6 +132,35 @@ describe("VN Reference Tour M1 story shell", () => {
       });
     } finally {
       await application.dispose();
+    }
+  });
+
+  it("resumes the latest autosave into a fresh instance without serializing rollback history", async () => {
+    const records = createMemoryHostRecordStoreV1();
+    const initial = await createVnReferenceTourApplicationInstanceV1({ records });
+    let expected: ReturnType<typeof initial.semantic.observe>;
+    try {
+      await initial.semantic.dispatch({
+        kind: "invoke",
+        actionId: "vn-reference-tour.begin_story",
+      } as never);
+      await advanceCurrentV1(initial);
+      expected = initial.semantic.observe();
+      await initial.flushAutoSave();
+    } finally {
+      await initial.dispose();
+    }
+
+    const resumed = await createVnReferenceTourApplicationInstanceV1({ records });
+    try {
+      const publication = resumed.semantic.observe();
+      expect(publication.narrative).toEqual(expected.narrative);
+      expect(publication.game.stage).toEqual(expected.game.stage);
+      expect(resumed.presentationAnchor()).toEqual({ epoch: 0, origin: "bootstrap" });
+      expect(resumed.admin.commandLog()).toEqual([]);
+      expect(resumed.rollback.available()).toEqual({ steps: 0, forwardSteps: 0 });
+    } finally {
+      await resumed.dispose();
     }
   });
 

@@ -60,6 +60,7 @@ export const vnReferenceTourCoreApplicationDefinitionV1 = defineCoreGameApplicat
       assets: (context.resolved as { readonly assets: ResolvedAssetManifestV1 }).assets,
     } satisfies VnReferenceTourExtensionsV1,
   }),
+  resumeFromAutosave: true,
   rollback: {
     capacity: 64,
     classify(command) {

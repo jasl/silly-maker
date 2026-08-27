@@ -55,8 +55,12 @@ Read only the documents relevant to the change:
   Chromium/WebKit/mobile evidence covers 360×640 through 1280×720, a 200%-zoom
   reflow proxy, pointer/touch/keyboard focus, reduced motion, accessibility, and
   Chinese/English overflow; a participant also characterized the product in
-  Chrome at literal 200% zoom. M3 product entry, Save/recovery, and settings are
-  next, so this playable WIP is still not product-completion evidence.
+  Chrome at literal 200% zoom. M3 is in progress: its first slice opts the VN
+  into the existing boot-time autosave resume contract and proves a fresh
+  instance plus Browser reload retain the current narrative, History, and
+  Stage while rollback history restarts instance-locally. Product menu,
+  return-to-title continuity, Save/recovery, and settings remain open, so this
+  playable WIP is still not product-completion evidence.
   Cat Cafe terminated on 2026-08-27 before this lane began; its application,
   revision-1 Save support, product E2E, and live release responsibility ended
   together, without a cross-product migration. Bookshop remains the maintained

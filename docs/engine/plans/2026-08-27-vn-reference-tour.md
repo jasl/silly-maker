@@ -1,6 +1,6 @@
 # VN Reference Tour 实施计划
 
-状态：**2026-08-27 经所有者接受，当前唯一活动 Reference Product；M0–M2 已交付，M3 是下一里程碑。
+状态：**2026-08-27 经所有者接受，当前唯一活动 Reference Product；M0–M2 已交付，M3 进行中。
 引擎维护的 focused default VN Player preset、say-only 全画布推进、贴底布局、Ctrl/Tab/H/V 与鼠标中键、
 最终 Stage/ending 媒体、冻结的八项音频、current-voice replay、voice-aware Auto、interaction-level
 Back/Forward 和完整产品 UI 矩阵均已交付。当前 WIP 仍不是产品完成证据或旗舰。**
@@ -145,7 +145,7 @@ example。focused tests、`app check`、临时 `scaffold` simulation、Browser p
 
 ### M1 — 完整剧本、场景与作者数据
 
-状态：**2026-08-27 已交付。M2 已于 2026-08-28 交付；M3 是下一里程碑。**
+状态：**2026-08-27 已交付。M2 已于 2026-08-28 交付；M3 进行中。**
 
 - 写完并注册全部 59 条文案、二选一、两条 route 与两个 ending；先用 compatible placeholder media 也必须
   保持完整内容 breadth，不以单 route 关闭；
@@ -249,12 +249,23 @@ Splash/入口、Save/recovery 与 settings；M2 关闭不推导产品完成、�
 
 ### M3 — 产品入口、Save/recovery 与设置
 
+状态：**2026-08-28 已开启。第一切片已接通 boot-time autosave resume；其余 M3 工作仍开放。**
+
 - 完成 Splash/Title、New/Continue/Load/Settings、return-to-title/restart；`resumeFromAutosave` 使 Continue 语义真实；
 - 完成 quick/manual Save/load、import/export、autosave flush、mid-line/mid-choice/mid-hold reopen 与 rollback；
 - 完成 locale、text speed、auto wait、music/ambient/SFX/voice volume、mute 与产品需要的最小设置；
 - closing/hidden/reload/restart 后 Stage、Narrative、continuous audio、History、hold remainder 与 current route 恢复
   到同一可观察语义；
 - 不增加存档截图、兼容框架或跨产品 Save migration，除非真实产品验收另行接受。
+
+进展记录：第一切片只让产品显式选择 Base 已有的 `resumeFromAutosave`，没有建立产品本地 Persistence、Save
+schema 或第二套 Title authority。共享 Host record store 的产品测试证明新实例恢复同一 Narrative、History 与
+Stage，而 command log 与 rollback timeline 按合同从新的实例局部基线重新开始；Chromium/WebKit 的真实 reload
+旅程证明 fresh boot 的 Continue 禁用，写入 autosave 后重新加载会启用 Continue，并显露同一 pending occurrence。
+稳定工作树通过 382 个测试文件、5,450 项 unit、6 项 Composition benchmark、42 项 examples Browser E2E
+（另有 2 项按 project 条件明确跳过）、全仓 `deno task check` 与 VN production build。
+返回标题后再次 Continue 的语义、可见 Save/quick controls、mid-choice/mid-hold reopen、import/export 与 settings
+仍属于后续切片；不得把本记录报告为 M3 关闭。
 
 ### M4 — 作者任务、产品证据与 Starter feedback
 
