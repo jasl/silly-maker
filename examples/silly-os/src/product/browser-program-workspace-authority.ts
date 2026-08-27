@@ -2,16 +2,20 @@
 
 import {
   createBrowserWorkspaceHostPagePortV1,
+  type BrowserWorkspaceHostExportReadyV1,
+  type BrowserWorkspaceHostExportResultV1,
   type BrowserWorkspaceHostFatalV1,
   type BrowserWorkspaceHostPagePortV1,
 } from "../workspace/browser-workspace-host-port.ts";
 import type {
+  BrowserWorkspaceHostExportProgressWireV1,
   BrowserWorkspaceHostSnapshotWireV1,
   BrowserWorkspaceVolumeAnchorWireV1,
 } from "../workspace/browser-workspace-host-protocol.ts";
 import { createBrowserProgramRepositoryV2 } from "./browser-program-repository.ts";
 import {
   browserProgramContinuationManifestsEqualV1,
+  browserProgramContinuationMatchesAggregateV1,
   type BrowserProgramContinuationManifestV1,
   type ProgramRepositoryAggregateV2,
   type ProgramRepositoryWithWorkspaceContinuationV1,
@@ -39,12 +43,25 @@ export interface BrowserProgramWorkspaceOpenResultV1 {
 
 export type BrowserProgramWorkspaceFatalV1 = BrowserWorkspaceHostFatalV1;
 
+export type BrowserProgramWorkspaceExportProgressV1 = BrowserWorkspaceHostExportProgressWireV1;
+export type BrowserProgramWorkspaceExportReadyV1 = BrowserWorkspaceHostExportReadyV1;
+export type BrowserProgramWorkspaceExportResultV1 = BrowserWorkspaceHostExportResultV1;
+
 export interface BrowserProgramWorkspaceAuthorityV1 {
   openWorkspace(input: {
     readonly programId: string;
     readonly workspaceId: string;
   }): Promise<BrowserProgramWorkspaceOpenResultV1>;
   queryWorkspace(workspaceSessionId: string): Promise<BrowserWorkspaceHostSnapshotWireV1>;
+  exportWorkspace(input: {
+    readonly workspaceSessionId: string;
+    readonly signal: AbortSignal;
+    readonly onProgress?: (progress: BrowserProgramWorkspaceExportProgressV1) => void;
+    readonly onReady: (
+      ready: BrowserProgramWorkspaceExportReadyV1,
+      commitRelease: () => boolean,
+    ) => "release" | "cancel" | Promise<"release" | "cancel">;
+  }): Promise<BrowserProgramWorkspaceExportResultV1>;
   closeWorkspace(workspaceSessionId: string): Promise<BrowserWorkspaceHostSnapshotWireV1>;
   subscribeFatal(listener: (fatal: BrowserProgramWorkspaceFatalV1) => void): () => void;
   dispose(): Promise<void>;
@@ -66,6 +83,16 @@ function defaultHostWorkerV1(): BrowserWorkspaceHostWorkerLikeV1 {
 
 function authorityErrorV1(code: string): TypeError {
   return new TypeError(`sillyos.browser_program_workspace.${code}`);
+}
+
+function cancelledExportV1(): BrowserProgramWorkspaceExportResultV1 {
+  return {
+    kind: "cancelled",
+    filesCompleted: 0,
+    filesTotal: 0,
+    bytesWritten: 0,
+    bytesTotal: 0,
+  };
 }
 
 function failureCodeV1(error: unknown): string | null {
@@ -229,6 +256,26 @@ export function createBrowserProgramWorkspaceAuthorityV1(
     }
   };
 
+  const loadExportManifest = async (
+    snapshot: BrowserWorkspaceHostSnapshotWireV1,
+  ): Promise<BrowserProgramContinuationManifestV1> => {
+    const { programId, workspaceId } = snapshot.descriptor;
+    const continuation = await repository.loadWorkspaceContinuation(programId);
+    const aggregate = aggregateForWorkspaceV1(
+      await repository.load(programId),
+      programId,
+      workspaceId,
+    );
+    if (
+      continuation === null ||
+      continuation.workspaceId !== workspaceId ||
+      continuation.volumeId !== snapshot.volumeId ||
+      continuation.workspaceFormat !== snapshot.anchor.workspaceFormat ||
+      !browserProgramContinuationMatchesAggregateV1(continuation, aggregate)
+    ) throw authorityErrorV1("export_anchor_changed");
+    return continuation;
+  };
+
   return {
     async openWorkspace(input) {
       if (disposed) throw authorityErrorV1("disposed");
@@ -268,6 +315,47 @@ export function createBrowserProgramWorkspaceAuthorityV1(
         return Promise.reject(authorityErrorV1("workspace_mismatch"));
       }
       return host.queryWorkspace(workspaceSessionId);
+    },
+
+    async exportWorkspace(input) {
+      if (disposed) throw authorityErrorV1("disposed");
+      if (activeSessionId !== input.workspaceSessionId) {
+        throw authorityErrorV1("workspace_mismatch");
+      }
+      if (input.signal.aborted) return cancelledExportV1();
+      await initialize();
+      if (input.signal.aborted) return cancelledExportV1();
+      const initialSnapshot = await host.queryWorkspace(input.workspaceSessionId);
+      if (input.signal.aborted) return cancelledExportV1();
+      if (initialSnapshot.phase !== "open") throw authorityErrorV1("workspace_not_open");
+      const initialManifest = await loadExportManifest(initialSnapshot);
+      if (input.signal.aborted) return cancelledExportV1();
+      return await host.exportWorkspace({
+        workspaceSessionId: input.workspaceSessionId,
+        expectedCheckpointId: initialSnapshot.checkpointId,
+        expectedGeneration: initialSnapshot.descriptor.generation,
+        programRevision: initialManifest.programRevision,
+        repositoryRevision: initialManifest.repositoryRevision,
+        signal: input.signal,
+        ...(input.onProgress === undefined ? {} : { onProgress: input.onProgress }),
+        onReady: async (ready, commitRelease) => {
+          if (input.signal.aborted) return "cancel";
+          const currentSnapshot = await host.queryWorkspace(input.workspaceSessionId);
+          if (
+            currentSnapshot.phase !== "open" ||
+            currentSnapshot.checkpointId !== initialSnapshot.checkpointId ||
+            currentSnapshot.descriptor.generation !== initialSnapshot.descriptor.generation ||
+            currentSnapshot.volumeId !== initialSnapshot.volumeId
+          ) throw authorityErrorV1("export_anchor_changed");
+          const currentManifest = await loadExportManifest(currentSnapshot);
+          if (input.signal.aborted) return "cancel";
+          if (!browserProgramContinuationManifestsEqualV1(currentManifest, initialManifest)) {
+            throw authorityErrorV1("export_anchor_changed");
+          }
+          if (input.signal.aborted) return "cancel";
+          return await input.onReady(ready, commitRelease);
+        },
+      });
     },
 
     async closeWorkspace(workspaceSessionId) {

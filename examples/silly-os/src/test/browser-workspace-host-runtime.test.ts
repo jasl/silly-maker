@@ -3,12 +3,15 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BrowserWorkspaceHostCleanupErrorV1,
   BrowserWorkspaceHostStorageErrorV1,
   createBrowserWorkspaceHostRuntimeV1,
   type BrowserWorkspaceHostBootstrapPortV1,
   type BrowserWorkspaceHostDurableHeadV1,
   type BrowserWorkspaceHostFileMetadataV1,
   type BrowserWorkspaceHostMessagePortV1,
+  type BrowserWorkspaceHostPortableArchiveInputV1,
+  type BrowserWorkspaceHostPortableArchiveV1,
   type BrowserWorkspaceHostReplaceFileInputV1,
   type BrowserWorkspaceHostReplaceFileResultV1,
   type BrowserWorkspaceHostVolumeLeasePortV1,
@@ -17,6 +20,8 @@ import {
   browserWorkspaceNativePiToolPayloadMaximumBytesV1,
   type BrowserWorkspaceHostControlOutboundMessageV1,
   type BrowserWorkspaceHostEnvironmentOutboundMessageV1,
+  type BrowserWorkspaceHostExportOutboundMessageV1,
+  type BrowserWorkspaceHostExportProgressWireV1,
   type BrowserWorkspaceVolumeAnchorWireV1,
 } from "../workspace/browser-workspace-host-protocol.ts";
 
@@ -41,6 +46,11 @@ interface FakeVolumeV1 {
   holdNextChangedWrite: boolean;
   heldWriteEntered: (() => void) | null;
   replaceError: Error | null;
+  archiveProgress: BrowserWorkspaceHostExportProgressWireV1[];
+  archiveReleaseCalls: number;
+  archiveFailure: Error | null;
+  holdArchiveUntilAbort: boolean;
+  archiveStarted: (() => void) | null;
 }
 
 const programIdV1 = "program.preview.1";
@@ -131,6 +141,33 @@ class FakeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
     return { changed: true, head: { ...this.volume.head } };
   }
 
+  async createPortableArchive(
+    input: BrowserWorkspaceHostPortableArchiveInputV1,
+  ): Promise<BrowserWorkspaceHostPortableArchiveV1> {
+    this.volume.archiveStarted?.();
+    if (this.volume.holdArchiveUntilAbort) {
+      await new Promise<void>((resolve) => {
+        if (input.signal.aborted) resolve();
+        else input.signal.addEventListener("abort", () => resolve(), { once: true });
+      });
+    }
+    if (this.volume.archiveFailure !== null) throw this.volume.archiveFailure;
+    for (const progress of this.volume.archiveProgress) input.onProgress(progress);
+    const progress = this.volume.archiveProgress.at(-1) ?? {
+      filesCompleted: 0,
+      filesTotal: 0,
+      bytesWritten: 0,
+      bytesTotal: 0,
+    };
+    return {
+      file: new File([new Uint8Array(progress.bytesTotal)], "workspace.zip"),
+      progress,
+      release: async () => {
+        this.volume.archiveReleaseCalls += 1;
+      },
+    };
+  }
+
   async close(): Promise<void> {
     if (!this.closed) this.volume.leaseCloseCalls += 1;
     this.closed = true;
@@ -171,6 +208,16 @@ class FakeBootstrapV1 implements BrowserWorkspaceHostBootstrapPortV1 {
       holdNextChangedWrite: false,
       heldWriteEntered: null,
       replaceError: null,
+      archiveProgress: [{
+        filesCompleted: 0,
+        filesTotal: 0,
+        bytesWritten: 0,
+        bytesTotal: 0,
+      }],
+      archiveReleaseCalls: 0,
+      archiveFailure: null,
+      holdArchiveUntilAbort: false,
+      archiveStarted: null,
     });
     return anchor;
   }
@@ -230,6 +277,23 @@ function controlRequestV1(requestId: number, record: unknown): Record<string, un
 
 function environmentRequestV1(requestId: number, record: unknown): Record<string, unknown> {
   return { revision: 1, kind: "environment_request", requestId, record };
+}
+
+function startExportRequestV1(
+  requestId: number,
+  workspaceSessionId: string,
+  exportId: string,
+  expectedCheckpointId = "checkpoint.1",
+): Record<string, unknown> {
+  return controlRequestV1(requestId, {
+    method: "start_export",
+    exportId,
+    workspaceSessionId,
+    expectedCheckpointId,
+    expectedGeneration: 1,
+    programRevision: 1,
+    repositoryRevision: 1,
+  });
 }
 
 async function flushEnvironmentV1(): Promise<void> {
@@ -946,6 +1010,339 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       workspaceSessionId: "workspace-session.close",
     }));
     expect(lastV1(controls)).toMatchObject({ ok: false, code: "workspace_mismatch" });
+    await runtime.dispose();
+  });
+
+  it("coalesces export progress and fails closed when the release channel violates protocol", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    const revokedUrls: string[] = [];
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      postControlMessage: (message) => controls.push(message),
+      createWorkspaceSessionId: () => "workspace-session.export-protocol",
+      createObjectUrl: () => "blob:workspace.export-protocol",
+      revokeObjectUrl: (url) => revokedUrls.push(url),
+    });
+    await runtime.receiveControl(controlRequestV1(1, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    const anchor = (lastV1(controls) as {
+      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+    }).response.anchor;
+    const volume = bootstrap.volumes.get(anchor.volumeId);
+    if (volume === undefined) throw new Error("expected fake volume");
+    const bytesTotal = 2 * 1024 * 1024;
+    volume.archiveProgress = [
+      { filesCompleted: 0, filesTotal: 128, bytesWritten: 0, bytesTotal },
+      { filesCompleted: 1, filesTotal: 128, bytesWritten: 512 * 1024, bytesTotal },
+      { filesCompleted: 64, filesTotal: 128, bytesWritten: 1024 * 1024, bytesTotal },
+      { filesCompleted: 128, filesTotal: 128, bytesWritten: bytesTotal, bytesTotal },
+    ];
+    await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
+    const exportPort = new FakeMessagePortV1();
+    await runtime.receiveControl(
+      startExportRequestV1(
+        3,
+        "workspace-session.export-protocol",
+        "export.protocol.1",
+      ),
+      [exportPort],
+    );
+    await flushEnvironmentV1();
+    const beforeRelease = exportPort
+      .messages as unknown as BrowserWorkspaceHostExportOutboundMessageV1[];
+    expect(beforeRelease.filter((message) => message.kind === "workspace_export_progress")).toEqual(
+      [
+        expect.objectContaining({ sequence: 1, filesCompleted: 0, bytesWritten: 0 }),
+        expect.objectContaining({ sequence: 2, filesCompleted: 64, bytesWritten: 1024 * 1024 }),
+        expect.objectContaining({ sequence: 3, filesCompleted: 128, bytesWritten: bytesTotal }),
+      ],
+    );
+    expect(lastV1(beforeRelease)).toMatchObject({
+      kind: "workspace_export_ready",
+      sequence: 4,
+      filesCompleted: 128,
+      filesTotal: 128,
+      bytesWritten: bytesTotal,
+      bytesTotal,
+    });
+
+    exportPort.send({
+      revision: 1,
+      kind: "workspace_export_release",
+      exportId: "export.wrong",
+    });
+    await flushEnvironmentV1();
+    expect(lastV1(exportPort.messages as unknown as BrowserWorkspaceHostExportOutboundMessageV1[]))
+      .toMatchObject({
+        kind: "workspace_export_failed",
+        sequence: 5,
+        code: "request_failed",
+      });
+    expect(
+      (exportPort.messages as unknown as BrowserWorkspaceHostExportOutboundMessageV1[]).some(
+        (message) => message.kind === "workspace_export_released",
+      ),
+    ).toBe(false);
+    expect(volume.archiveReleaseCalls).toBe(1);
+    expect(revokedUrls).toEqual(["blob:workspace.export-protocol"]);
+    expect(exportPort).toMatchObject({ closeCalls: 1 });
+    await runtime.dispose();
+  });
+
+  it("does not hide portable archive cleanup failure behind cancellation", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      postControlMessage: (message) => controls.push(message),
+      createWorkspaceSessionId: () => "workspace-session.export-cleanup",
+    });
+    await runtime.receiveControl(controlRequestV1(1, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    const anchor = (lastV1(controls) as {
+      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+    }).response.anchor;
+    const volume = bootstrap.volumes.get(anchor.volumeId);
+    if (volume === undefined) throw new Error("expected fake volume");
+    volume.holdArchiveUntilAbort = true;
+    volume.archiveFailure = new BrowserWorkspaceHostCleanupErrorV1(
+      "synthetic portable archive cleanup failure",
+      new Error("synthetic remove failure"),
+    );
+    let archiveStarted = () => {};
+    const started = new Promise<void>((resolve) => {
+      archiveStarted = resolve;
+    });
+    volume.archiveStarted = archiveStarted;
+    await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
+    const exportPort = new FakeMessagePortV1();
+    await runtime.receiveControl(
+      startExportRequestV1(
+        3,
+        "workspace-session.export-cleanup",
+        "export.cleanup.1",
+      ),
+      [exportPort],
+    );
+    await started;
+    exportPort.send({
+      revision: 1,
+      kind: "workspace_export_cancel",
+      exportId: "export.cleanup.1",
+    });
+    await flushEnvironmentV1();
+    expect(lastV1(exportPort.messages)).toMatchObject({
+      kind: "workspace_export_failed",
+      code: "request_failed",
+    });
+    expect(
+      (exportPort.messages as unknown as BrowserWorkspaceHostExportOutboundMessageV1[]).some(
+        (message) => message.kind === "workspace_export_released",
+      ),
+    ).toBe(false);
+    await runtime.dispose();
+  });
+
+  it("treats release as the commit point and ignores a later cancel record", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    const revokedUrls: string[] = [];
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      postControlMessage: (message) => controls.push(message),
+      createWorkspaceSessionId: () => "workspace-session.export-committed",
+      createObjectUrl: () => "blob:workspace.export-committed",
+      revokeObjectUrl: (url) => revokedUrls.push(url),
+    });
+    await runtime.receiveControl(controlRequestV1(1, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    const anchor = (lastV1(controls) as {
+      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+    }).response.anchor;
+    const volume = bootstrap.volumes.get(anchor.volumeId);
+    if (volume === undefined) throw new Error("expected fake volume");
+    await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
+    const exportPort = new FakeMessagePortV1();
+    await runtime.receiveControl(
+      startExportRequestV1(
+        3,
+        "workspace-session.export-committed",
+        "export.committed.1",
+      ),
+      [exportPort],
+    );
+    await flushEnvironmentV1();
+    expect(lastV1(exportPort.messages)).toMatchObject({ kind: "workspace_export_ready" });
+    exportPort.send({
+      revision: 1,
+      kind: "workspace_export_release",
+      exportId: "export.committed.1",
+    });
+    exportPort.send({
+      revision: 1,
+      kind: "workspace_export_cancel",
+      exportId: "export.committed.1",
+    });
+    await flushEnvironmentV1();
+    expect(lastV1(exportPort.messages)).toMatchObject({
+      kind: "workspace_export_released",
+    });
+    expect(volume.archiveReleaseCalls).toBe(1);
+    expect(revokedUrls).toEqual(["blob:workspace.export-committed"]);
+    await runtime.dispose();
+  });
+
+  it("treats initially zero export totals as immutable", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      postControlMessage: (message) => controls.push(message),
+      createWorkspaceSessionId: () => "workspace-session.export-zero",
+      createObjectUrl: () => "blob:workspace.export-zero",
+    });
+    await runtime.receiveControl(controlRequestV1(1, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    const anchor = (lastV1(controls) as {
+      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+    }).response.anchor;
+    const volume = bootstrap.volumes.get(anchor.volumeId);
+    if (volume === undefined) throw new Error("expected fake volume");
+    volume.archiveProgress = [
+      { filesCompleted: 0, filesTotal: 0, bytesWritten: 0, bytesTotal: 0 },
+      { filesCompleted: 0, filesTotal: 1, bytesWritten: 0, bytesTotal: 1 },
+    ];
+    await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
+    const exportPort = new FakeMessagePortV1();
+    await runtime.receiveControl(
+      startExportRequestV1(3, "workspace-session.export-zero", "export.zero.1"),
+      [exportPort],
+    );
+    await flushEnvironmentV1();
+    expect(exportPort.messages).toHaveLength(2);
+    expect(exportPort.messages[0]).toMatchObject({
+      kind: "workspace_export_progress",
+      filesTotal: 0,
+      bytesTotal: 0,
+    });
+    expect(exportPort.messages[1]).toMatchObject({
+      kind: "workspace_export_failed",
+      code: "request_failed",
+    });
+    expect(volume.archiveReleaseCalls).toBe(1);
+    await runtime.dispose();
+  });
+
+  it("times out an unacknowledged ready export and still releases Host-owned resources", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    const revokedUrls: string[] = [];
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      postControlMessage: (message) => controls.push(message),
+      createWorkspaceSessionId: () => "workspace-session.export-timeout",
+      createObjectUrl: () => "blob:workspace.export-timeout",
+      revokeObjectUrl: (url) => revokedUrls.push(url),
+      exportReadyTimeoutMilliseconds: 1,
+    });
+    await runtime.receiveControl(controlRequestV1(1, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    const anchor = (lastV1(controls) as {
+      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+    }).response.anchor;
+    const volume = bootstrap.volumes.get(anchor.volumeId);
+    if (volume === undefined) throw new Error("expected fake volume");
+    await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
+    const exportPort = new FakeMessagePortV1();
+    await runtime.receiveControl(
+      startExportRequestV1(3, "workspace-session.export-timeout", "export.timeout.1"),
+      [exportPort],
+    );
+    await flushEnvironmentV1();
+    expect(lastV1(exportPort.messages)).toMatchObject({ kind: "workspace_export_ready" });
+
+    await new Promise<void>((resolve) => setTimeout(resolve, 10));
+    await flushEnvironmentV1();
+    expect(lastV1(exportPort.messages)).toMatchObject({
+      kind: "workspace_export_failed",
+      code: "request_failed",
+    });
+    expect(volume.archiveReleaseCalls).toBe(1);
+    expect(revokedUrls).toEqual(["blob:workspace.export-timeout"]);
+    expect(exportPort).toMatchObject({ closeCalls: 1 });
+    await runtime.dispose();
+  });
+
+  it("closes every transferred port rejected before protocol ownership", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      postControlMessage: (message) => controls.push(message),
+      createWorkspaceSessionId: () => "workspace-session.rejected-port",
+    });
+    const malformedPort = new FakeMessagePortV1();
+    await runtime.receiveControl({ requestId: 1 }, [malformedPort]);
+    expect(malformedPort.closeCalls).toBe(1);
+
+    await runtime.receiveControl(controlRequestV1(2, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    const anchor = (lastV1(controls) as {
+      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+    }).response.anchor;
+    await runtime.receiveControl(controlRequestV1(3, { method: "open_workspace", anchor }));
+
+    const staleExportPort = new FakeMessagePortV1();
+    await runtime.receiveControl(
+      startExportRequestV1(
+        4,
+        "workspace-session.rejected-port",
+        "export.stale.1",
+        "checkpoint.stale",
+      ),
+      [staleExportPort],
+    );
+    expect(lastV1(controls)).toMatchObject({ ok: false, code: "export_stale" });
+    expect(staleExportPort.closeCalls).toBe(1);
+
+    const environmentPort = new FakeMessagePortV1();
+    await runtime.receiveControl(
+      controlRequestV1(5, {
+        method: "attach_environment",
+        workspaceSessionId: "workspace-session.rejected-port",
+      }),
+      [environmentPort],
+    );
+    const duplicateEnvironmentPort = new FakeMessagePortV1();
+    await runtime.receiveControl(
+      controlRequestV1(6, {
+        method: "attach_environment",
+        workspaceSessionId: "workspace-session.rejected-port",
+      }),
+      [duplicateEnvironmentPort],
+    );
+    expect(lastV1(controls)).toMatchObject({ ok: false, code: "environment_attached" });
+    expect(duplicateEnvironmentPort.closeCalls).toBe(1);
+    expect(environmentPort.closeCalls).toBe(0);
     await runtime.dispose();
   });
 });

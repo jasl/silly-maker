@@ -22,6 +22,7 @@ import {
   type WorkpieceBrowserStorageV1,
   type WorkpieceExecutionWorkspaceV1,
   type WorkpieceTabV1,
+  type WorkpieceWorkspaceExportV1,
   WorkpiecePaneV1,
 } from "./workpiece-pane.tsx";
 import {
@@ -66,8 +67,12 @@ export interface ProgramWorkspacePropsV1 {
   readonly piAgentRun?: ChatPanePropsV1["piAgentRun"];
   readonly executionWorkspace?: WorkpieceExecutionWorkspaceV1;
   readonly browserStorage?: WorkpieceBrowserStorageV1;
+  readonly workspaceExport?: WorkpieceWorkspaceExportV1;
+  readonly workspaceExportDisabled?: boolean;
   readonly onRetryExecutionWorkspace?: () => void;
   readonly onRequestStoragePersistence?: () => void;
+  readonly onExportWorkspace?: () => void;
+  readonly onCancelWorkspaceExport?: () => void;
 }
 
 export function ProgramWorkspaceV1({
@@ -100,8 +105,12 @@ function ProgramWorkspaceReadyV1({
   piAgentRun,
   executionWorkspace,
   browserStorage,
+  workspaceExport,
+  workspaceExportDisabled = false,
   onRetryExecutionWorkspace,
   onRequestStoragePersistence,
+  onExportWorkspace,
+  onCancelWorkspaceExport,
 }: ProgramWorkspaceReadyPropsV1): ReactNode {
   const narrow = useNarrowViewportV1();
   const splitRef = useRef<HTMLDivElement>(null);
@@ -195,6 +204,7 @@ function ProgramWorkspaceReadyV1({
       data-execution-workspace-receipt={executionWorkspace?.lastReceipt?.sequence}
       data-execution-workspace-effect={executionWorkspace?.lastReceipt?.effect}
       data-execution-workspace-path={executionWorkspace?.lastReceipt?.changedPaths[0]}
+      data-workspace-export-state={workspaceExport?.phase}
       aria-label={copy.workspaceAria}
       style={workspaceStyle}
     >
@@ -272,10 +282,14 @@ function ProgramWorkspaceReadyV1({
                 {...(piAgentRun === undefined ? {} : { agentMode: piAgentRun.runtime })}
                 {...(executionWorkspace === undefined ? {} : { executionWorkspace })}
                 {...(browserStorage === undefined ? {} : { browserStorage })}
+                {...(workspaceExport === undefined ? {} : { workspaceExport })}
+                workspaceExportDisabled={workspaceExportDisabled}
                 {...(onRetryExecutionWorkspace === undefined ? {} : { onRetryExecutionWorkspace })}
                 {...(onRequestStoragePersistence === undefined
                   ? {}
                   : { onRequestStoragePersistence })}
+                {...(onExportWorkspace === undefined ? {} : { onExportWorkspace })}
+                {...(onCancelWorkspaceExport === undefined ? {} : { onCancelWorkspaceExport })}
                 outputRef={outputRef}
                 onTabChange={(tab) => {
                   setActiveTab(tab);

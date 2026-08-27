@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   BrowserWorkspaceHostControlErrorV1,
   createBrowserWorkspaceHostPagePortV1,
+  type BrowserWorkspaceHostExportReadyV1,
 } from "../workspace/browser-workspace-host-port.ts";
 import type {
   BrowserWorkspaceHostExclusiveLeaseV1,
@@ -23,9 +24,12 @@ class FakeWorkerV1 {
   readonly methods: string[] = [];
   readonly dropMethods = new Set<string>();
   readonly throwMethods = new Set<string>();
+  readonly exportPorts = new Map<string, MessagePort>();
+  readonly exportInbound: unknown[] = [];
+  startExportPhase: "open" | "closed" = "open";
   terminated = false;
 
-  postMessage(message: unknown): void {
+  postMessage(message: unknown, transfer: Transferable[] = []): void {
     const request = message as {
       readonly requestId: number;
       readonly record: Readonly<Record<string, unknown>>;
@@ -49,21 +53,42 @@ class FakeWorkerV1 {
     this.methods.push(method);
     if (this.throwMethods.has(method)) throw new Error("synthetic post failure");
     if (this.dropMethods.has(method)) return;
+    const snapshot = {
+      revision: 1,
+      phase: method === "start_export"
+        ? this.startExportPhase
+        : method === "close_workspace"
+        ? "closed"
+        : "open",
+      volumeId: anchor.volumeId,
+      checkpointId: "checkpoint.preview.1",
+      descriptor,
+      anchor,
+    } as const;
     const response = method === "create_candidate"
       ? { method, anchor }
       : method === "discard_candidate"
       ? { method, volumeId: anchor.volumeId }
+      : method === "start_export"
+      ? {
+        method,
+        exportId: request.record.exportId,
+        snapshot,
+      }
       : {
         method,
-        snapshot: {
-          revision: 1,
-          phase: method === "close_workspace" ? "closed" : "open",
-          volumeId: anchor.volumeId,
-          checkpointId: "checkpoint.preview.1",
-          descriptor,
-          anchor,
-        },
+        snapshot,
       };
+    if (method === "start_export") {
+      const exportId = request.record.exportId;
+      const port = transfer[0];
+      if (typeof exportId !== "string" || !(port instanceof MessagePort)) {
+        throw new Error("expected export transfer");
+      }
+      this.exportPorts.set(exportId, port);
+      port.addEventListener("message", (event) => this.exportInbound.push(event.data));
+      port.start();
+    }
     queueMicrotask(() => {
       for (const listener of this.listeners) {
         listener({
@@ -111,6 +136,12 @@ class FakeWorkerV1 {
   emit(data: unknown): void {
     for (const listener of this.listeners) listener({ data });
   }
+
+  emitExport(exportId: string, data: unknown): void {
+    const port = this.exportPorts.get(exportId);
+    if (port === undefined) throw new Error("expected active export port");
+    port.postMessage(data);
+  }
 }
 
 class FakeBootstrapLockPortV1 implements BrowserWorkspaceHostExclusiveLockPortV1 {
@@ -128,6 +159,29 @@ class FakeBootstrapLockPortV1 implements BrowserWorkspaceHostExclusiveLockPortV1
       },
     };
   }
+}
+
+async function flushPagePortV1(): Promise<void> {
+  await Promise.resolve();
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+}
+
+function exportInputV1(
+  signal: AbortSignal,
+  onReady: (
+    ready: BrowserWorkspaceHostExportReadyV1,
+    commitRelease: () => boolean,
+  ) => "release" | "cancel" | Promise<"release" | "cancel">,
+) {
+  return {
+    workspaceSessionId: "workspace-session.preview.1",
+    expectedCheckpointId: "checkpoint.preview.1",
+    expectedGeneration: 1,
+    programRevision: 1,
+    repositoryRevision: 1,
+    signal,
+    onReady,
+  } as const;
 }
 
 describe("SillyOS Browser Workspace Host page port", () => {
@@ -277,5 +331,314 @@ describe("SillyOS Browser Workspace Host page port", () => {
     });
     expect(fatals).toEqual([{ code: "unavailable" }]);
     expect(worker.terminated).toBe(true);
+  });
+
+  it.each(["poison", "dispose"] as const)(
+    "rejects and closes an active export when the page transport is %s-ed",
+    async (settlement) => {
+      const worker = new FakeWorkerV1();
+      const channel = new MessageChannel();
+      const closeWorkerPort = vi.spyOn(channel.port1, "close");
+      const closePagePort = vi.spyOn(channel.port2, "close");
+      const port = createBrowserWorkspaceHostPagePortV1({
+        worker,
+        bootstrapLockPort: new FakeBootstrapLockPortV1(),
+        createMessageChannel: () => channel,
+        createExportId: () => `export.${settlement}`,
+      });
+      const pendingExport = port.exportWorkspace(
+        exportInputV1(new AbortController().signal, () => "release"),
+      );
+      await flushPagePortV1();
+
+      if (settlement === "poison") worker.fail("error");
+      else port.dispose();
+
+      await expect(pendingExport).rejects.toMatchObject({
+        code: settlement === "poison" ? "unavailable" : "disposed",
+      });
+      expect(closeWorkerPort).toHaveBeenCalledOnce();
+      expect(closePagePort).toHaveBeenCalledOnce();
+      expect(worker.terminated).toBe(true);
+    },
+  );
+
+  it("does not let an unreturned ready callback authorize a released terminal", async () => {
+    const worker = new FakeWorkerV1();
+    const port = createBrowserWorkspaceHostPagePortV1({
+      worker,
+      bootstrapLockPort: new FakeBootstrapLockPortV1(),
+      createExportId: () => "export.pending-ready",
+    });
+    let readyCalls = 0;
+    const pendingExport = port.exportWorkspace(
+      exportInputV1(
+        new AbortController().signal,
+        () => {
+          readyCalls += 1;
+          return new Promise<"release" | "cancel">(() => {});
+        },
+      ),
+    );
+    await flushPagePortV1();
+    worker.emitExport("export.pending-ready", {
+      revision: 1,
+      kind: "workspace_export_ready",
+      exportId: "export.pending-ready",
+      sequence: 1,
+      downloadUrl: "blob:export.pending-ready",
+      checkpointId: "checkpoint.preview.1",
+      generation: 1,
+      filesCompleted: 0,
+      filesTotal: 0,
+      bytesWritten: 0,
+      bytesTotal: 0,
+    });
+    await flushPagePortV1();
+    expect(readyCalls).toBe(1);
+    worker.emitExport("export.pending-ready", {
+      revision: 1,
+      kind: "workspace_export_released",
+      exportId: "export.pending-ready",
+      sequence: 2,
+      checkpointId: "checkpoint.preview.1",
+      generation: 1,
+      filesCompleted: 0,
+      filesTotal: 0,
+      bytesWritten: 0,
+      bytesTotal: 0,
+    });
+
+    await expect(pendingExport).rejects.toMatchObject({ code: "invalid_response" });
+    expect(worker.terminated).toBe(true);
+  });
+
+  it("cancels instead of releasing when the consumer aborts during an async ready callback", async () => {
+    const worker = new FakeWorkerV1();
+    const controller = new AbortController();
+    let resolveReady = (_decision: "release" | "cancel") => {};
+    const readyDecision = new Promise<"release" | "cancel">((resolve) => {
+      resolveReady = resolve;
+    });
+    const port = createBrowserWorkspaceHostPagePortV1({
+      worker,
+      bootstrapLockPort: new FakeBootstrapLockPortV1(),
+      createExportId: () => "export.aborted-ready",
+    });
+    const pendingExport = port.exportWorkspace(
+      exportInputV1(controller.signal, () => readyDecision),
+    );
+    await flushPagePortV1();
+    worker.emitExport("export.aborted-ready", {
+      revision: 1,
+      kind: "workspace_export_ready",
+      exportId: "export.aborted-ready",
+      sequence: 1,
+      downloadUrl: "blob:export.aborted-ready",
+      checkpointId: "checkpoint.preview.1",
+      generation: 1,
+      filesCompleted: 1,
+      filesTotal: 1,
+      bytesWritten: 256,
+      bytesTotal: 256,
+    });
+    await flushPagePortV1();
+    controller.abort(new DOMException("cancelled by test", "AbortError"));
+    resolveReady("release");
+    await flushPagePortV1();
+    expect(worker.exportInbound).toContainEqual({
+      revision: 1,
+      kind: "workspace_export_cancel",
+      exportId: "export.aborted-ready",
+    });
+    expect(worker.exportInbound).not.toContainEqual({
+      revision: 1,
+      kind: "workspace_export_release",
+      exportId: "export.aborted-ready",
+    });
+    worker.emitExport("export.aborted-ready", {
+      revision: 1,
+      kind: "workspace_export_failed",
+      exportId: "export.aborted-ready",
+      sequence: 2,
+      code: "cancelled",
+      filesCompleted: 1,
+      filesTotal: 1,
+      bytesWritten: 256,
+      bytesTotal: 256,
+    });
+    await expect(pendingExport).resolves.toMatchObject({ kind: "cancelled" });
+    port.dispose();
+  });
+
+  it("keeps a committed browser handoff releasable when its signal aborts during the grace", async () => {
+    const worker = new FakeWorkerV1();
+    const controller = new AbortController();
+    let finishHandoff = () => {};
+    const handoff = new Promise<void>((resolve) => {
+      finishHandoff = resolve;
+    });
+    let committed = () => {};
+    const commitObserved = new Promise<void>((resolve) => {
+      committed = resolve;
+    });
+    const port = createBrowserWorkspaceHostPagePortV1({
+      worker,
+      bootstrapLockPort: new FakeBootstrapLockPortV1(),
+      createExportId: () => "export.committed-ready",
+    });
+    const pendingExport = port.exportWorkspace(
+      exportInputV1(controller.signal, async (_ready, commitRelease) => {
+        expect(commitRelease()).toBe(true);
+        committed();
+        await handoff;
+        return "release" as const;
+      }),
+    );
+    await flushPagePortV1();
+    worker.emitExport("export.committed-ready", {
+      revision: 1,
+      kind: "workspace_export_ready",
+      exportId: "export.committed-ready",
+      sequence: 1,
+      downloadUrl: "blob:export.committed-ready",
+      checkpointId: "checkpoint.preview.1",
+      generation: 1,
+      filesCompleted: 1,
+      filesTotal: 1,
+      bytesWritten: 256,
+      bytesTotal: 256,
+    });
+    await commitObserved;
+    controller.abort(new DOMException("route closed after download click", "AbortError"));
+    await flushPagePortV1();
+    expect(worker.exportInbound).not.toContainEqual({
+      revision: 1,
+      kind: "workspace_export_cancel",
+      exportId: "export.committed-ready",
+    });
+    finishHandoff();
+    await flushPagePortV1();
+    expect(worker.exportInbound).toContainEqual({
+      revision: 1,
+      kind: "workspace_export_release",
+      exportId: "export.committed-ready",
+    });
+    worker.emitExport("export.committed-ready", {
+      revision: 1,
+      kind: "workspace_export_released",
+      exportId: "export.committed-ready",
+      sequence: 2,
+      checkpointId: "checkpoint.preview.1",
+      generation: 1,
+      filesCompleted: 1,
+      filesTotal: 1,
+      bytesWritten: 256,
+      bytesTotal: 256,
+    });
+    await expect(pendingExport).resolves.toMatchObject({ kind: "released" });
+    port.dispose();
+  });
+
+  it("accepts a released terminal only after the ready callback explicitly releases it", async () => {
+    const worker = new FakeWorkerV1();
+    const port = createBrowserWorkspaceHostPagePortV1({
+      worker,
+      bootstrapLockPort: new FakeBootstrapLockPortV1(),
+      createExportId: () => "export.released",
+    });
+    const pendingExport = port.exportWorkspace(
+      exportInputV1(new AbortController().signal, () => "release"),
+    );
+    await flushPagePortV1();
+    worker.emitExport("export.released", {
+      revision: 1,
+      kind: "workspace_export_ready",
+      exportId: "export.released",
+      sequence: 1,
+      downloadUrl: "blob:export.released",
+      checkpointId: "checkpoint.preview.1",
+      generation: 1,
+      filesCompleted: 2,
+      filesTotal: 2,
+      bytesWritten: 512,
+      bytesTotal: 512,
+    });
+    await flushPagePortV1();
+    expect(worker.exportInbound).toContainEqual({
+      revision: 1,
+      kind: "workspace_export_release",
+      exportId: "export.released",
+    });
+    worker.emitExport("export.released", {
+      revision: 1,
+      kind: "workspace_export_released",
+      exportId: "export.released",
+      sequence: 2,
+      checkpointId: "checkpoint.preview.1",
+      generation: 1,
+      filesCompleted: 2,
+      filesTotal: 2,
+      bytesWritten: 512,
+      bytesTotal: 512,
+    });
+    await expect(pendingExport).resolves.toEqual({
+      kind: "released",
+      checkpointId: "checkpoint.preview.1",
+      generation: 1,
+      filesCompleted: 2,
+      filesTotal: 2,
+      bytesWritten: 512,
+      bytesTotal: 512,
+    });
+    port.dispose();
+  });
+
+  it("keeps zero export totals immutable and requires an open start snapshot", async () => {
+    const mutableWorker = new FakeWorkerV1();
+    const mutablePort = createBrowserWorkspaceHostPagePortV1({
+      worker: mutableWorker,
+      bootstrapLockPort: new FakeBootstrapLockPortV1(),
+      createExportId: () => "export.mutable-zero",
+    });
+    const mutableExport = mutablePort.exportWorkspace(
+      exportInputV1(new AbortController().signal, () => "release"),
+    );
+    await flushPagePortV1();
+    mutableWorker.emitExport("export.mutable-zero", {
+      revision: 1,
+      kind: "workspace_export_progress",
+      exportId: "export.mutable-zero",
+      sequence: 1,
+      filesCompleted: 0,
+      filesTotal: 0,
+      bytesWritten: 0,
+      bytesTotal: 0,
+    });
+    mutableWorker.emitExport("export.mutable-zero", {
+      revision: 1,
+      kind: "workspace_export_progress",
+      exportId: "export.mutable-zero",
+      sequence: 2,
+      filesCompleted: 0,
+      filesTotal: 1,
+      bytesWritten: 0,
+      bytesTotal: 1,
+    });
+    await expect(mutableExport).rejects.toMatchObject({ code: "invalid_response" });
+
+    const closedWorker = new FakeWorkerV1();
+    closedWorker.startExportPhase = "closed";
+    const closedPort = createBrowserWorkspaceHostPagePortV1({
+      worker: closedWorker,
+      bootstrapLockPort: new FakeBootstrapLockPortV1(),
+      createExportId: () => "export.closed",
+    });
+    await expect(
+      closedPort.exportWorkspace(
+        exportInputV1(new AbortController().signal, () => "release"),
+      ),
+    ).rejects.toMatchObject({ code: "invalid_response" });
+    expect(closedWorker.terminated).toBe(true);
   });
 });

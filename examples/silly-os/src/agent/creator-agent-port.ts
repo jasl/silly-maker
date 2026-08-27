@@ -22,6 +22,8 @@ import {
 } from "../product/contracts.ts";
 import {
   createBrowserProgramWorkspaceAuthorityV1,
+  type BrowserProgramWorkspaceExportProgressV1,
+  type BrowserProgramWorkspaceExportReadyV1,
   type BrowserProgramWorkspaceAuthorityV1,
 } from "../product/browser-program-workspace-authority.ts";
 import {
@@ -132,6 +134,15 @@ export type CreatorAgentAcknowledgeWorkspaceReceiptsResultV1 =
   | { readonly kind: "acknowledged"; readonly throughSequence: number }
   | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentWorkspaceDiagnosticV1 };
 
+export type CreatorAgentExportWorkspaceResultV1 =
+  | ({
+    readonly kind: "released";
+    readonly checkpointId: string;
+    readonly generation: number;
+  } & BrowserProgramWorkspaceExportProgressV1)
+  | ({ readonly kind: "cancelled" } & BrowserProgramWorkspaceExportProgressV1)
+  | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentWorkspaceDiagnosticV1 };
+
 export interface CreatorAgentPortV1 {
   getSnapshot(): CreatorAgentSnapshotV1;
   subscribe(listener: () => void): () => void;
@@ -144,6 +155,15 @@ export interface CreatorAgentPortV1 {
   acknowledgeWorkspaceReceipts(
     throughSequence: number,
   ): Promise<CreatorAgentAcknowledgeWorkspaceReceiptsResultV1>;
+  exportWorkspace(input: {
+    readonly workspaceSessionId: string;
+    readonly signal: AbortSignal;
+    readonly onProgress?: (progress: BrowserProgramWorkspaceExportProgressV1) => void;
+    readonly onReady: (
+      ready: BrowserProgramWorkspaceExportReadyV1,
+      commitRelease: () => boolean,
+    ) => "release" | "cancel" | Promise<"release" | "cancel">;
+  }): Promise<CreatorAgentExportWorkspaceResultV1>;
   submit(input: CreatorAgentRunRequestV1): Promise<CreatorAgentPortSubmitResultV1>;
   cancel(agentRunId?: string): Promise<CreatorAgentPortCancelResultV1>;
   acknowledgeTerminal(agentRunId: string): boolean;
@@ -415,6 +435,8 @@ export function createBrowserCreatorAgentPortV1(input: {
   let workspaceDiagnostic: CreatorAgentWorkspaceDiagnosticV1 | null = null;
   let workspaceLastObservedSequence = 0;
   let workspaceControlBusy = false;
+  let workspaceExportAbort: AbortController | null = null;
+  let workspaceExportSettlement: Promise<void> | null = null;
   let initializePromise: Promise<CreatorAgentInitializeResultV1> | null = null;
   let finishPromise: Promise<void> | null = null;
   let unsubscribeWorkspaceReceipts: (() => void) | null = null;
@@ -1002,6 +1024,16 @@ export function createBrowserCreatorAgentPortV1(input: {
         ),
       };
     }
+    if (workspaceControlBusy && workspaceExportSettlement !== null) {
+      workspaceExportAbort?.abort();
+      await workspaceExportSettlement.catch(() => undefined);
+    }
+    if (terminal || finishPromise !== null) {
+      return {
+        kind: "unavailable",
+        diagnostic: workspaceDiagnosticV1("disposed", "/"),
+      };
+    }
     if (workspaceControlBusy) {
       return {
         kind: "unavailable",
@@ -1090,6 +1122,65 @@ export function createBrowserCreatorAgentPortV1(input: {
     }
   };
 
+  const exportWorkspace = async (exportInput: {
+    readonly workspaceSessionId: string;
+    readonly signal: AbortSignal;
+    readonly onProgress?: (progress: BrowserProgramWorkspaceExportProgressV1) => void;
+    readonly onReady: (
+      ready: BrowserProgramWorkspaceExportReadyV1,
+      commitRelease: () => boolean,
+    ) => "release" | "cancel" | Promise<"release" | "cancel">;
+  }): Promise<CreatorAgentExportWorkspaceResultV1> => {
+    if (terminal || finishPromise !== null) {
+      return {
+        kind: "unavailable",
+        diagnostic: workspaceDiagnosticV1("disposed", "/workspace/export"),
+      };
+    }
+    const descriptor = workspaceDescriptor;
+    if (
+      descriptor === null || workspacePhase !== "open" ||
+      descriptor.workspaceSessionId !== exportInput.workspaceSessionId
+    ) {
+      return {
+        kind: "unavailable",
+        diagnostic: workspaceDiagnosticV1("protocol_invalid", "/workspace/export/session"),
+      };
+    }
+    if (workspaceControlBusy || trackedByProductRunId.size !== 0) {
+      return {
+        kind: "unavailable",
+        diagnostic: workspaceDiagnosticV1("workspace_busy", "/workspace/export/busy"),
+      };
+    }
+    workspaceControlBusy = true;
+    const abortController = new AbortController();
+    workspaceExportAbort = abortController;
+    const abort = () => abortController.abort(exportInput.signal.reason);
+    if (exportInput.signal.aborted) abort();
+    else exportInput.signal.addEventListener("abort", abort, { once: true });
+    const operation = workspaceAuthority.exportWorkspace({
+      workspaceSessionId: descriptor.workspaceSessionId,
+      signal: abortController.signal,
+      ...(exportInput.onProgress === undefined ? {} : { onProgress: exportInput.onProgress }),
+      onReady: exportInput.onReady,
+    });
+    workspaceExportSettlement = operation.then(() => undefined, () => undefined);
+    try {
+      return await operation;
+    } catch (error) {
+      return {
+        kind: "unavailable",
+        diagnostic: mapWorkspaceFailureV1(error, "/workspace/export"),
+      };
+    } finally {
+      exportInput.signal.removeEventListener("abort", abort);
+      if (workspaceExportAbort === abortController) workspaceExportAbort = null;
+      workspaceExportSettlement = null;
+      workspaceControlBusy = false;
+    }
+  };
+
   const finish = async (finalPhase: "forgotten" | "disposed"): Promise<void> => {
     if (terminal) return;
     if (finishPromise !== null) return finishPromise;
@@ -1098,6 +1189,8 @@ export function createBrowserCreatorAgentPortV1(input: {
     workspaceDiagnostic = null;
     publish();
     const attempt = (async (): Promise<void> => {
+      workspaceExportAbort?.abort();
+      await workspaceExportSettlement?.catch(() => undefined);
       // Keep subscriptions and Pi-to-product correlation alive until close has
       // drained its final receipt and Agent terminal records.
       await transport.forget().catch(() => undefined);
@@ -1144,6 +1237,7 @@ export function createBrowserCreatorAgentPortV1(input: {
     openWorkspace,
     closeWorkspace,
     acknowledgeWorkspaceReceipts,
+    exportWorkspace,
     async submit(rawRun: CreatorAgentRunRequestV1): Promise<CreatorAgentPortSubmitResultV1> {
       if (terminal || finishPromise !== null) {
         return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
@@ -1206,6 +1300,12 @@ export function createBrowserCreatorAgentPortV1(input: {
         return {
           kind: "unavailable",
           diagnostic: diagnosticV1("request_failed", "/workspace/submit"),
+        };
+      }
+      if (workspaceControlBusy) {
+        return {
+          kind: "unavailable",
+          diagnostic: diagnosticV1("request_failed", "/workspace/busy"),
         };
       }
       const expectedEpoch = lifecycleEpoch;

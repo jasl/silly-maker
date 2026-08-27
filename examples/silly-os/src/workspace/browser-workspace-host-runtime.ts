@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 import {
+  admitBrowserWorkspaceHostExportInboundMessageV1,
   admitBrowserWorkspaceHostControlRequestV1,
   admitBrowserWorkspaceHostEnvironmentRequestV1,
   admitBrowserWorkspaceVolumeAnchorWireV1,
@@ -10,6 +11,9 @@ import {
   type BrowserWorkspaceHostControlFailureCodeV1,
   type BrowserWorkspaceHostControlOutboundMessageV1,
   type BrowserWorkspaceHostControlRequestRecordV1,
+  type BrowserWorkspaceHostExportFailureCodeV1,
+  type BrowserWorkspaceHostExportOutboundMessageV1,
+  type BrowserWorkspaceHostExportProgressWireV1,
   type BrowserWorkspaceHostEnvironmentFailureCodeV1,
   type BrowserWorkspaceHostEnvironmentOutboundMessageV1,
   type BrowserWorkspaceHostEnvironmentRequestRecordV1,
@@ -60,6 +64,20 @@ export interface BrowserWorkspaceHostReplaceFileResultV1 {
   readonly head: BrowserWorkspaceHostDurableHeadV1;
 }
 
+export interface BrowserWorkspaceHostPortableArchiveInputV1 {
+  readonly programRevision: number;
+  readonly repositoryRevision: number;
+  readonly expectedHead: BrowserWorkspaceHostDurableHeadV1;
+  readonly signal: AbortSignal;
+  readonly onProgress: (progress: BrowserWorkspaceHostExportProgressWireV1) => void;
+}
+
+export interface BrowserWorkspaceHostPortableArchiveV1 {
+  readonly file: File;
+  readonly progress: BrowserWorkspaceHostExportProgressWireV1;
+  release(): Promise<void>;
+}
+
 /** One exclusive, already-acquired volume lease. Only the Host receives this port. */
 export interface BrowserWorkspaceHostVolumeLeasePortV1 {
   readonly anchor: BrowserWorkspaceVolumeAnchorWireV1;
@@ -74,6 +92,9 @@ export interface BrowserWorkspaceHostVolumeLeasePortV1 {
   replaceFile(
     input: BrowserWorkspaceHostReplaceFileInputV1,
   ): Promise<BrowserWorkspaceHostReplaceFileResultV1>;
+  createPortableArchive(
+    input: BrowserWorkspaceHostPortableArchiveInputV1,
+  ): Promise<BrowserWorkspaceHostPortableArchiveV1>;
   close(): Promise<void>;
 }
 
@@ -132,11 +153,24 @@ export class BrowserWorkspaceHostStorageErrorV1 extends Error {
   }
 }
 
+/** Cleanup failure is never hidden by a simultaneous user cancellation. */
+export class BrowserWorkspaceHostCleanupErrorV1 extends BrowserWorkspaceHostStorageErrorV1 {
+  constructor(message: string, cause: unknown) {
+    super("request_failed", message, null, {
+      cause: cause instanceof Error ? cause : new Error(String(cause)),
+    });
+    this.name = "BrowserWorkspaceHostCleanupErrorV1";
+  }
+}
+
 export interface BrowserWorkspaceHostRuntimeOptionsV1 {
   readonly bootstrap: BrowserWorkspaceHostBootstrapPortV1;
   readonly postControlMessage: (message: BrowserWorkspaceHostControlOutboundMessageV1) => void;
   readonly createWorkspaceSessionId?: () => string;
   readonly createCheckpointId?: () => string;
+  readonly createObjectUrl?: (file: File) => string;
+  readonly revokeObjectUrl?: (url: string) => void;
+  readonly exportReadyTimeoutMilliseconds?: number;
 }
 
 export interface BrowserWorkspaceHostRuntimeV1 {
@@ -191,12 +225,27 @@ interface SessionStateV1 {
   acknowledgedThrough: number;
   reservedReceiptSlots: number;
   environment: EnvironmentAttachmentV1 | null;
+  exportOperation: ExportOperationV1 | null;
   closeDrain: Promise<void> | null;
 }
 
 interface EnvironmentAttachmentV1 {
   readonly port: BrowserWorkspaceHostMessagePortV1;
   readonly listener: (event: Readonly<{ data: unknown }>) => void;
+}
+
+interface ExportOperationV1 {
+  readonly exportId: string;
+  readonly port: BrowserWorkspaceHostMessagePortV1;
+  readonly listener: (event: Readonly<{ data: unknown }>) => void;
+  readonly abortController: AbortController;
+  readonly release: Promise<void>;
+  readonly resolveRelease: () => void;
+  completion: Promise<void>;
+  releaseRequested: boolean;
+  cancelRequested: boolean;
+  protocolFailed: boolean;
+  ready: boolean;
 }
 
 function positiveSafeIntegerV1(value: unknown): value is number {
@@ -325,6 +374,12 @@ export function createBrowserWorkspaceHostRuntimeV1(
     (() => `sillyos.workspace.session.${crypto.randomUUID()}`);
   const createCheckpointId = options.createCheckpointId ??
     (() => `sillyos.workspace.checkpoint.${crypto.randomUUID()}`);
+  const createObjectUrl = options.createObjectUrl ?? ((file: File) => URL.createObjectURL(file));
+  const revokeObjectUrl = options.revokeObjectUrl ?? ((url: string) => URL.revokeObjectURL(url));
+  const exportReadyTimeoutMilliseconds = options.exportReadyTimeoutMilliseconds ?? 30_000;
+  if (!positiveSafeIntegerV1(exportReadyTimeoutMilliseconds)) {
+    throw new TypeError("Workspace export ready timeout must be a positive safe integer");
+  }
 
   const postControl = (message: BrowserWorkspaceHostControlOutboundMessageV1): void => {
     if (!disposed) options.postControlMessage(message);
@@ -344,6 +399,27 @@ export function createBrowserWorkspaceHostRuntimeV1(
     // MessagePort.postMessage has no targetOrigin.
     // oxlint-disable-next-line unicorn/require-post-message-target-origin
     if (!disposed && session.environment !== null) session.environment.port.postMessage(message);
+  };
+
+  const postExport = (
+    operation: ExportOperationV1,
+    message: BrowserWorkspaceHostExportOutboundMessageV1,
+  ): void => {
+    // MessagePort.postMessage has no targetOrigin.
+    // oxlint-disable-next-line unicorn/require-post-message-target-origin
+    operation.port.postMessage(message);
+  };
+
+  const closeTransferredPorts = (
+    transferredPorts: readonly BrowserWorkspaceHostMessagePortV1[],
+  ): void => {
+    for (const port of transferredPorts) {
+      try {
+        port.close?.();
+      } catch {
+        // A rejected transferred port has no remaining protocol authority.
+      }
+    }
   };
 
   const environmentFailure = (
@@ -738,7 +814,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
         environmentFailure(session, request.requestId, "workspace_closed");
         return;
       }
-      if (session.activeRun !== null) {
+      if (session.activeRun !== null || session.exportOperation !== null) {
         environmentFailure(session, request.requestId, "run_busy");
         return;
       }
@@ -879,10 +955,219 @@ export function createBrowserWorkspaceHostRuntimeV1(
     }
   };
 
+  const runExport = async (
+    session: SessionStateV1,
+    operation: ExportOperationV1,
+    input: {
+      readonly programRevision: number;
+      readonly repositoryRevision: number;
+      readonly expectedHead: BrowserWorkspaceHostDurableHeadV1;
+    },
+  ): Promise<void> => {
+    const lease = session.lease;
+    let archive: BrowserWorkspaceHostPortableArchiveV1 | null = null;
+    let downloadUrl: string | null = null;
+    let sequence = 0;
+    let progress: BrowserWorkspaceHostExportProgressWireV1 = {
+      filesCompleted: 0,
+      filesTotal: 0,
+      bytesWritten: 0,
+      bytesTotal: 0,
+    };
+    let totalsInitialized = false;
+    let publishedProgress: BrowserWorkspaceHostExportProgressWireV1 | null = null;
+    let terminalCode: BrowserWorkspaceHostExportFailureCodeV1 | null = null;
+
+    const validProgress = (next: BrowserWorkspaceHostExportProgressWireV1): boolean =>
+      Number.isSafeInteger(next.filesCompleted) && next.filesCompleted >= progress.filesCompleted &&
+      Number.isSafeInteger(next.filesTotal) && next.filesTotal >= next.filesCompleted &&
+      (!totalsInitialized || next.filesTotal === progress.filesTotal) &&
+      Number.isSafeInteger(next.bytesWritten) && next.bytesWritten >= progress.bytesWritten &&
+      Number.isSafeInteger(next.bytesTotal) && next.bytesTotal >= next.bytesWritten &&
+      (!totalsInitialized || next.bytesTotal === progress.bytesTotal);
+
+    const publishProgress = (next: BrowserWorkspaceHostExportProgressWireV1): void => {
+      if (!validProgress(next) || operation.protocolFailed) {
+        operation.protocolFailed = true;
+        operation.abortController.abort();
+        operation.resolveRelease();
+        return;
+      }
+      progress = { ...next };
+      totalsInitialized = true;
+      if (
+        publishedProgress !== null &&
+        progress.filesCompleted - publishedProgress.filesCompleted < 64 &&
+        progress.bytesWritten - publishedProgress.bytesWritten < 1024 * 1024
+      ) return;
+      try {
+        postExport(operation, {
+          revision: 1,
+          kind: "workspace_export_progress",
+          exportId: operation.exportId,
+          sequence: ++sequence,
+          ...progress,
+        });
+        publishedProgress = progress;
+      } catch {
+        operation.protocolFailed = true;
+        operation.abortController.abort();
+        operation.resolveRelease();
+      }
+    };
+
+    try {
+      if (lease === null) {
+        throw new BrowserWorkspaceHostStorageErrorV1(
+          "request_failed",
+          "Workspace export lost its volume lease",
+        );
+      }
+      archive = await lease.createPortableArchive({
+        programRevision: input.programRevision,
+        repositoryRevision: input.repositoryRevision,
+        expectedHead: input.expectedHead,
+        signal: operation.abortController.signal,
+        onProgress: publishProgress,
+      });
+      if (operation.abortController.signal.aborted || operation.protocolFailed) {
+        throw new DOMException("Workspace export was aborted", "AbortError");
+      }
+      const durableHead = durableHeadV1(await lease.readHead(), session.anchor);
+      if (durableHead === null || !sameHeadV1(durableHead, input.expectedHead)) {
+        throw new BrowserWorkspaceHostStorageErrorV1(
+          "volume_corrupt",
+          "Workspace export changed or lost its durable head",
+        );
+      }
+      if (
+        !validProgress(archive.progress) ||
+        archive.progress.filesCompleted !== archive.progress.filesTotal ||
+        archive.progress.bytesWritten !== archive.progress.bytesTotal ||
+        archive.file.size !== archive.progress.bytesTotal
+      ) {
+        operation.protocolFailed = true;
+        throw new BrowserWorkspaceHostStorageErrorV1(
+          "request_failed",
+          "Workspace archive returned invalid terminal progress",
+        );
+      }
+      progress = { ...archive.progress };
+      totalsInitialized = true;
+      downloadUrl = createObjectUrl(archive.file);
+      if (
+        typeof downloadUrl !== "string" || downloadUrl.length > 4_096 ||
+        !downloadUrl.startsWith("blob:")
+      ) {
+        operation.protocolFailed = true;
+        throw new BrowserWorkspaceHostStorageErrorV1(
+          "request_failed",
+          "Workspace archive object URL is invalid",
+        );
+      }
+      operation.ready = true;
+      postExport(operation, {
+        revision: 1,
+        kind: "workspace_export_ready",
+        exportId: operation.exportId,
+        sequence: ++sequence,
+        downloadUrl,
+        checkpointId: input.expectedHead.checkpointId,
+        generation: input.expectedHead.generation,
+        ...progress,
+      });
+      if (operation.releaseRequested || operation.cancelRequested) operation.resolveRelease();
+      let readyTimedOut = false;
+      const readyTimeout = setTimeout(() => {
+        readyTimedOut = true;
+        operation.abortController.abort();
+        operation.resolveRelease();
+      }, exportReadyTimeoutMilliseconds);
+      try {
+        await operation.release;
+      } finally {
+        clearTimeout(readyTimeout);
+      }
+      if (operation.protocolFailed || readyTimedOut) terminalCode = "request_failed";
+      else if (operation.cancelRequested) terminalCode = "cancelled";
+      else if (!operation.releaseRequested) terminalCode = "request_failed";
+    } catch (error) {
+      if (error instanceof BrowserWorkspaceHostCleanupErrorV1) {
+        terminalCode = "request_failed";
+      } else if (operation.cancelRequested || operation.abortController.signal.aborted) {
+        terminalCode = operation.protocolFailed ? "request_failed" : "cancelled";
+      } else if (error instanceof BrowserWorkspaceHostStorageErrorV1) {
+        terminalCode = error.code === "capacity_exceeded"
+          ? "capacity_exceeded"
+          : error.code === "storage_unavailable"
+          ? "storage_unavailable"
+          : "request_failed";
+      } else if (error instanceof DOMException && error.name === "QuotaExceededError") {
+        terminalCode = "capacity_exceeded";
+      } else {
+        terminalCode = "request_failed";
+      }
+    }
+
+    let cleanupFailed = false;
+    if (downloadUrl !== null) {
+      try {
+        revokeObjectUrl(downloadUrl);
+      } catch {
+        cleanupFailed = true;
+      }
+    }
+    if (archive !== null) {
+      try {
+        await archive.release();
+      } catch {
+        cleanupFailed = true;
+      }
+    }
+    if (cleanupFailed) terminalCode = "request_failed";
+    if (operation.protocolFailed) terminalCode = "request_failed";
+
+    try {
+      if (terminalCode === null) {
+        postExport(operation, {
+          revision: 1,
+          kind: "workspace_export_released",
+          exportId: operation.exportId,
+          sequence: ++sequence,
+          checkpointId: input.expectedHead.checkpointId,
+          generation: input.expectedHead.generation,
+          ...progress,
+        });
+      } else {
+        postExport(operation, {
+          revision: 1,
+          kind: "workspace_export_failed",
+          exportId: operation.exportId,
+          sequence: ++sequence,
+          code: terminalCode,
+          ...progress,
+        });
+      }
+    } catch {
+      // A lost page port cannot prevent Host-owned cleanup.
+    } finally {
+      operation.port.removeEventListener("message", operation.listener);
+      operation.port.close?.();
+      if (session.exportOperation === operation) session.exportOperation = null;
+    }
+  };
+
   const closeSession = (session: SessionStateV1): Promise<void> => {
     if (session.closeDrain !== null) return session.closeDrain;
     session.accepting = false;
     session.closeDrain = (async () => {
+      const exportOperation = session.exportOperation;
+      if (exportOperation !== null) {
+        exportOperation.cancelRequested = true;
+        exportOperation.abortController.abort();
+        exportOperation.resolveRelease();
+        await exportOperation.completion.catch(() => undefined);
+      }
       await abortRunAndDrain(session);
       const lease = session.lease;
       let closeError: unknown = null;
@@ -914,7 +1199,11 @@ export function createBrowserWorkspaceHostRuntimeV1(
     record: BrowserWorkspaceHostControlRequestRecordV1,
     transferredPorts: readonly BrowserWorkspaceHostMessagePortV1[],
   ): Promise<void> => {
-    if (record.method !== "attach_environment" && transferredPorts.length !== 0) {
+    if (
+      record.method !== "attach_environment" && record.method !== "start_export" &&
+      transferredPorts.length !== 0
+    ) {
+      closeTransferredPorts(transferredPorts);
       controlFailure(requestId, "invalid_request");
       return;
     }
@@ -1019,6 +1308,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
           acknowledgedThrough: 0,
           reservedReceiptSlots: 0,
           environment: null,
+          exportOperation: null,
           closeDrain: null,
         };
         candidateAnchors.delete(record.anchor.volumeId);
@@ -1038,6 +1328,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
     }
     const session = sessions.get(record.workspaceSessionId);
     if (session === undefined) {
+      closeTransferredPorts(transferredPorts);
       controlFailure(requestId, "workspace_mismatch");
       return;
     }
@@ -1051,16 +1342,110 @@ export function createBrowserWorkspaceHostRuntimeV1(
       });
       return;
     }
+    if (record.method === "start_export") {
+      if (
+        session.phase !== "open" || !session.accepting || session.lease === null ||
+        session.activeRun !== null || session.exportOperation !== null
+      ) {
+        closeTransferredPorts(transferredPorts);
+        controlFailure(requestId, "workspace_busy");
+        return;
+      }
+      if (
+        record.expectedCheckpointId !== session.head.checkpointId ||
+        record.expectedGeneration !== session.head.generation
+      ) {
+        closeTransferredPorts(transferredPorts);
+        controlFailure(requestId, "export_stale");
+        return;
+      }
+      if (transferredPorts.length !== 1) {
+        closeTransferredPorts(transferredPorts);
+        controlFailure(requestId, "invalid_request");
+        return;
+      }
+      const port = transferredPorts[0]!;
+      let resolveRelease!: () => void;
+      const release = new Promise<void>((resolve) => {
+        resolveRelease = resolve;
+      });
+      const abortController = new AbortController();
+      const operation = {} as ExportOperationV1;
+      const listener = (event: Readonly<{ data: unknown }>): void => {
+        const message = admitBrowserWorkspaceHostExportInboundMessageV1(event.data);
+        if (message === null || message.exportId !== operation.exportId) {
+          operation.protocolFailed = true;
+          operation.abortController.abort();
+          operation.resolveRelease();
+          return;
+        }
+        if (message.kind === "workspace_export_cancel") {
+          if (operation.releaseRequested) return;
+          operation.cancelRequested = true;
+          operation.abortController.abort();
+          operation.resolveRelease();
+          return;
+        }
+        if (!operation.ready) {
+          operation.protocolFailed = true;
+          operation.abortController.abort();
+        } else {
+          operation.releaseRequested = true;
+        }
+        operation.resolveRelease();
+      };
+      Object.assign(
+        operation,
+        {
+          exportId: record.exportId,
+          port,
+          listener,
+          abortController,
+          release,
+          resolveRelease,
+          completion: Promise.resolve(),
+          releaseRequested: false,
+          cancelRequested: false,
+          protocolFailed: false,
+          ready: false,
+        } satisfies ExportOperationV1,
+      );
+      session.exportOperation = operation;
+      port.addEventListener("message", listener);
+      port.start?.();
+      postControl({
+        revision: 1,
+        kind: "control_response",
+        requestId,
+        ok: true,
+        response: {
+          method: "start_export",
+          exportId: record.exportId,
+          snapshot: snapshot(session),
+        },
+      });
+      operation.completion = Promise.resolve().then(() =>
+        runExport(session, operation, {
+          programRevision: record.programRevision,
+          repositoryRevision: record.repositoryRevision,
+          expectedHead: session.head,
+        })
+      );
+      return;
+    }
     if (record.method === "attach_environment") {
       if (session.phase !== "open") {
+        closeTransferredPorts(transferredPorts);
         controlFailure(requestId, "workspace_mismatch");
         return;
       }
       if (session.environment !== null) {
+        closeTransferredPorts(transferredPorts);
         controlFailure(requestId, "environment_attached");
         return;
       }
       if (transferredPorts.length !== 1) {
+        closeTransferredPorts(transferredPorts);
         controlFailure(requestId, "invalid_request");
         return;
       }
@@ -1101,11 +1486,13 @@ export function createBrowserWorkspaceHostRuntimeV1(
     const operation = controlTail.then(async () => {
       const request = admitBrowserWorkspaceHostControlRequestV1(message);
       if (request === null) {
+        closeTransferredPorts(transferredPorts);
         const requestId = requestIdFromMalformedV1(message);
         if (requestId !== null) controlFailure(requestId, "invalid_request");
         return;
       }
       if (disposed) {
+        closeTransferredPorts(transferredPorts);
         controlFailure(request.requestId, "disposed");
         return;
       }

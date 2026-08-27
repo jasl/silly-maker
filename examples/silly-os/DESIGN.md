@@ -3,13 +3,13 @@
 # SillyOS product and visual contract
 
 Status: active Browser-first dual-target rewrite with P2 Browser Program
-persistence, bounded terminal Agent-run receipts, and P3c-B0 checkpoints 1 and
-2 delivered, 2026-08-27: OPFS Program workspace authority, cold reopen,
-recovery/contender semantics, explicit storage policy, and the automated
-Chromium/persistent-WebKit `20 MiB+` scale gate. P3c-B0 remains open because
-checkpoint 3 portable ZIP export is not implemented. P3a-B1, broad execution-
-provider research, snapshot publication, and later workspace slices remain
-inactive. The former "SillyOS 98" desktop
+persistence, bounded terminal Agent-run receipts, and all three P3c-B0
+checkpoints delivered and closed on 2026-08-27: OPFS Program workspace
+authority, cold reopen, recovery/contender semantics, explicit storage policy,
+the automated Chromium/persistent-WebKit `20 MiB+` scale gate, and canonical
+portable ZIP download. P3a-B1, broad execution-provider research, immutable
+snapshot publication, import, and later workspace slices remain inactive. The
+former "SillyOS 98" desktop
 experiment has been retired as a product direction. It remains useful only as
 repository history; it is not a compatibility baseline for this rewrite.
 
@@ -237,11 +237,11 @@ change a real product behavior.
   is deterministic game Save. P2 durably stores the bounded Program catalog,
   product-session projection, and terminal product receipt keyed by a
   product-owned `agentRunId`; Pi session/run identities, credentials, provider
-  data remain non-durable in the delivered baseline. P3c-B0 checkpoints 1 and 2
-  add only an OPFS-backed mutable Program checkpoint, its small product
-  continuation manifest, and recovery/scale evidence; they still do not persist
-  Pi private sessions, credentials, Provider data, mutation receipts, or Creator
-  Chat.
+  data remain non-durable in the delivered baseline. P3c-B0 adds only an
+  OPFS-backed mutable Program checkpoint, its small product continuation
+  manifest, recovery/scale evidence, and a portable ZIP of that checkpoint's
+  manifest plus VFS files; it still does not persist or export Pi private
+  sessions, credentials, Provider data, mutation receipts, or Creator Chat.
 - Browser ultimately binds Pi's shipped `read`, `write`, `edit`, and `bash` tool factories
   to one stable Program-scoped Pi `ExecutionEnv`. The product-private workspace
   boundary eventually owns runtime lifecycle, capability truth, generation
@@ -377,9 +377,9 @@ bounded Agent-run receipt survives reload and reports whole-run/Program commit
 meaning. The P3a-B0 mutation receipt and bytes live only for the open execution
 session and report actual volume effects even when a run is failed, cancelled,
 replaced, or produces no admissible Program candidate. Reload resets the volume
-and generation and must be shown as such. P3c-B0 now owns only persistent
-workspace bytes; durable tool receipts, artifacts, and snapshots remain later
-independent work.
+and generation and must be shown as such. P3c-B0 now owns persistent workspace
+bytes and their portable download; durable tool receipts, artifacts, and
+immutable snapshots remain later independent work.
 
 The exact DTO, close/cancel ordering, query/ack backpressure, generation rules,
 path and capacity ceilings, and Browser acceptance are owned by the delivered
@@ -482,23 +482,63 @@ explicit recovery states; none silently creates an empty replacement for a
 known Program. OPFS, IndexedDB, and Cache API share origin quota and eviction
 fate, so local persistence is not presented as backup.
 
-Checkpoint 3 portable ZIP export is not implemented. Its bounded contract is a
-future user-triggered export of a quiescent checkpoint containing only the VFS
-entries plus a small non-Chat manifest for export/workspace format, checkpoint
-identity/generation, and exact Program/repository anchors. It must exclude
-Creator Chat, the Program database, credentials, provider data, Pi/provider
-sessions, terminal Agent-run receipts, mutation receipts, Host metadata, and
-export temporaries. The planned writer streams to a quota-checked OPFS
-temporary with backpressure instead of building or routing a whole-volume
-`Blob`/`ArrayBuffer` through React. No ZIP writer, import reader, or restore
-semantics are currently present.
+Checkpoint 3 portable ZIP export delivered and closed P3c-B0 on 2026-08-27. Its
+exact contract starts one independently cancellable Host job only for the open,
+run-quiescent workspace and one exact durable `(checkpointId, generation)`.
+The product-lockfile-pinned writer is `client-zip` 2.5.0 in writer-only,
+STORE-only streaming mode: sorted VFS files are read in at most `1 MiB` chunks
+and written with backpressure to a quota-checked Host-only OPFS temporary. The
+source stream uses high-water mark 0, and source plus destination reservations
+share the existing abort-aware `4 MiB` filesystem I/O budget. Export admits at
+most `16,384` files, `16 MiB` of encoded
+path/central-directory metadata, `16,384` visited directories, `4,096` children
+per directory, the existing `32`-part / `512` UTF-8-byte normalized-path bound,
+and a safe-integer predicted archive length; empty directories are not portable
+V1 entries. Those are bounded writer-resource rules, not workspace capacity
+claims.
+
+The canonical archive contains exact UTF-8 `sillyos-workspace.json` first and
+then only normalized `workspace/<relative-path>` files in code-unit order, all
+with a fixed timestamp and file mode. The manifest records export/workspace
+format 1, Program/workspace identities, exact Program/repository revisions,
+and the durable checkpoint identity/generation. Its compact UTF-8 JSON plus LF
+has a `1 KiB` encoded ceiling. It omits `volumeId`, Creator
+Chat, the Program database, credentials, provider data, Pi/provider sessions,
+terminal Agent-run receipts, mutation receipts, Host metadata, and export
+temporaries. The Program authority rechecks its continuation before download;
+drift, reload failure, or download-trigger failure cancels the job and
+suppresses download. Only an exact recheck followed by a triggered native
+download can commit release.
+
+The Host Worker creates the completed OPFS `File`'s object URL and sends only
+that URL, ordered progress, and small metadata over an export-specific port.
+Every internal progress value is validated, while outward progress is merged at
+initial totals, each `1 MiB` or `64` files, and exact ready/terminal state. A
+ready job has a default `30`-second watchdog. After a successful
+`<a download>` click, the page calls `commitRelease()`, enters non-cancellable
+`finalizing`, and preserves the Host URL plus OPFS backing for the
+Chromium-evidenced `1,000 ms` browser handoff before returning `release`. The
+Host then revokes the URL, deletes the temporary, and only afterward emits
+terminal `released`; cancel/failure/close perform the same cleanup before
+release is committed, and the next volume open removes crash debris. The UI's
+“Download started” reports only browser-pipeline handoff, not a completed user
+save. React receives no VFS chunks, file-tree clone, whole-archive `Blob`, or
+`ArrayBuffer`.
+
+Real Chromium and persistent-profile WebKit both cancel before download and
+then download, independently unpack, and byte-check the canonical archive for
+the exact `1,001`-file, `21,897,216`-byte workspace corpus. The durable head is
+unchanged and exclusion checks find no Chat, Program database, credential,
+provider/Pi session, receipt, or Host metadata. This still adds no import reader,
+restore semantics, immutable snapshot, Pi shell/wire change, Wasm, Git,
+provider selection, or engine API.
 
 This checkpoint does not publish immutable reviewed snapshots or connect
 workspace bytes to P2 accept/reject. It adds no `edit`, `bash`, shell, Wasm,
 Git, provider selector, BYO Sandbox, Pi extension discovery, Desktop storage,
-or SillyMaker engine API. Those boundaries remain inactive until this smaller
-Browser persistence path has passed cold-reopen, quota/recovery, streaming-
-scale, and export evidence.
+or SillyMaker engine API. The smaller Browser persistence path has passed
+cold-reopen, quota/recovery, streaming-scale, and export evidence; those broader
+boundaries nevertheless remain inactive and require separate activation.
 
 ## Information architecture
 
@@ -694,8 +734,8 @@ evidence for the preview only.
 | Area               | Accepted product role                                     | Current preview evidence                                          | Remaining before product-ready                              |
 | ------------------ | --------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------- |
 | Creator home       | Express intent and create/open a Program                  | Local request + B0a/B0b setup + P2 recent reopen                  | Attachments and general Provider UI                         |
-| Creator supervisor | Chat supervises one Program without becoming Program data | Durable run receipts + fresh Pi session over a durable checkpoint | Program-anchored artifacts/snapshots after complete P3c-B0  |
-| Program workspace  | One focused mutable workspace produces reviewed snapshots | OPFS checkpoint + continuation + recovery/scale evidence          | Checkpoint 3 ZIP; later edit/bash and snapshots             |
+| Creator supervisor | Chat supervises one Program without becoming Program data | Durable run receipts + fresh Pi session over a durable checkpoint | Program-anchored artifacts and immutable snapshots          |
+| Program workspace  | One focused mutable workspace produces reviewed snapshots | OPFS checkpoint + recovery/scale + canonical portable ZIP         | Later edit/bash, import, and immutable snapshots            |
 | Human review       | Accept/reject an exact proposed revision                  | Durable exact decision + cross-page stale rejection               | Workspace-generation/snapshot publication                   |
 | Activity           | Explain what happened and what needs review               | Durable run events + session-local last-write receipt             | Complete tool/action history and approvals                  |
 | Capabilities       | Required Agent and UI abilities are understandable        | Proposal tool + native read/write + truthful workspace status     | Edit/bash and adapter-specific capability composition       |
@@ -704,7 +744,7 @@ evidence for the preview only.
 | Translation        | A usable translation Program                              | Intent classification only                                        | Complete workflow, data, QA, export                         |
 | Writing            | A usable writing Program                                  | Intent classification only                                        | Complete workflow, data, revision tools                     |
 | Role-play          | A usable role-play Program                                | Intent classification only                                        | Complete sessions, characters, VN behavior                  |
-| Browser            | Publishable local-first product with BYO Provider         | Fixed-profile Pi + durable/recovered `20 MiB+` workspace          | Checkpoint 3 ZIP; Provider UI and closure later             |
+| Browser            | Publishable local-first product with BYO Provider         | Fixed-profile Pi + exportable `20 MiB+` workspace                 | General Provider UI and later product closure               |
 | Deno Desktop       | Same product with admitted Host integrations              | Responsive preview target                                         | Companion acceptance, storage, packaging qualification      |
 
 Before SillyOS is called a complete reference product, this table must be
@@ -715,8 +755,9 @@ or one generated Program is not evidence that the complete product exists.
 
 ## Explicit defers
 
-The active P3c-B0 slice in [PLAN.md](./PLAN.md) governs the Browser OPFS
-checkpoint before Pi `edit`/`bash` or execution-provider research. The plan also
+The closed P3c-B0 slice in [PLAN.md](./PLAN.md) governs the delivered Browser
+OPFS checkpoint and portable download. Pi `edit`/`bash`, execution-provider
+research, immutable snapshots, and import remain inactive. The plan also
 governs later real Pi integration, product persistence, Pi-native workspace
 tool binding, provider research, Pi capability composition,
 OpenUI-to-SillyMaker mapping, and the first complete product families. Runtime

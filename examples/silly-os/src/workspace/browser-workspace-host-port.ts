@@ -2,10 +2,12 @@
 
 import {
   admitBrowserWorkspaceHostControlOutboundMessageV1,
+  admitBrowserWorkspaceHostExportOutboundMessageV1,
   type BrowserWorkspaceHostControlFailureCodeV1,
   type BrowserWorkspaceHostControlRequestRecordV1,
   type BrowserWorkspaceHostControlSuccessResponseV1,
   type BrowserWorkspaceHostSnapshotWireV1,
+  type BrowserWorkspaceHostExportProgressWireV1,
   type BrowserWorkspaceVolumeAnchorWireV1,
 } from "./browser-workspace-host-protocol.ts";
 import {
@@ -32,6 +34,11 @@ interface PendingControlRequestV1 {
   readonly method: BrowserWorkspaceHostControlRequestRecordV1["method"];
   readonly resolve: (response: BrowserWorkspaceHostControlSuccessResponseV1["response"]) => void;
   readonly reject: (error: Error) => void;
+}
+
+interface ActiveExportV1 {
+  reject(error: Error): void;
+  close(): void;
 }
 
 export class BrowserWorkspaceHostControlErrorV1 extends Error {
@@ -61,11 +68,27 @@ export interface BrowserWorkspaceHostPagePortOptionsV1 {
   readonly worker: BrowserWorkspaceHostWorkerPortV1;
   readonly bootstrapLockPort?: BrowserWorkspaceHostExclusiveLockPortV1;
   readonly createMessageChannel?: () => MessageChannel;
+  readonly createExportId?: () => string;
 }
 
 export interface BrowserWorkspaceHostFatalV1 {
   readonly code: "invalid_response" | "outcome_unknown" | "unavailable";
 }
+
+export interface BrowserWorkspaceHostExportReadyV1
+  extends BrowserWorkspaceHostExportProgressWireV1 {
+  readonly downloadUrl: string;
+  readonly checkpointId: string;
+  readonly generation: number;
+}
+
+export type BrowserWorkspaceHostExportResultV1 =
+  | ({
+    readonly kind: "released";
+    readonly checkpointId: string;
+    readonly generation: number;
+  } & BrowserWorkspaceHostExportProgressWireV1)
+  | ({ readonly kind: "cancelled" } & BrowserWorkspaceHostExportProgressWireV1);
 
 export interface BrowserWorkspaceHostPagePortV1 {
   withBootstrapLease<T>(input: {
@@ -89,6 +112,19 @@ export interface BrowserWorkspaceHostPagePortV1 {
     readonly environmentPort: MessagePort;
   }>;
   closeWorkspace(workspaceSessionId: string): Promise<BrowserWorkspaceHostSnapshotWireV1>;
+  exportWorkspace(input: {
+    readonly workspaceSessionId: string;
+    readonly expectedCheckpointId: string;
+    readonly expectedGeneration: number;
+    readonly programRevision: number;
+    readonly repositoryRevision: number;
+    readonly signal: AbortSignal;
+    readonly onProgress?: (progress: BrowserWorkspaceHostExportProgressWireV1) => void;
+    readonly onReady: (
+      ready: BrowserWorkspaceHostExportReadyV1,
+      commitRelease: () => boolean,
+    ) => "release" | "cancel" | Promise<"release" | "cancel">;
+  }): Promise<BrowserWorkspaceHostExportResultV1>;
   subscribeFatal(listener: (fatal: BrowserWorkspaceHostFatalV1) => void): () => void;
   dispose(): void;
 }
@@ -99,7 +135,10 @@ export function createBrowserWorkspaceHostPagePortV1(
   const bootstrapLockPort = options.bootstrapLockPort ??
     createBrowserWorkspaceHostWebLockPortV1(navigator.locks);
   const createMessageChannel = options.createMessageChannel ?? (() => new MessageChannel());
+  const createExportId = options.createExportId ??
+    (() => `sillyos.workspace.export.${crypto.randomUUID()}`);
   const pending = new Map<number, PendingControlRequestV1>();
+  const activeExports = new Set<ActiveExportV1>();
   const candidateBootstrapKeys = new Map<string, string>();
   const fatalListeners = new Set<(fatal: BrowserWorkspaceHostFatalV1) => void>();
   let nextRequestId = 1;
@@ -109,6 +148,15 @@ export function createBrowserWorkspaceHostPagePortV1(
   const failPending = (error: Error): void => {
     for (const request of pending.values()) request.reject(error);
     pending.clear();
+  };
+
+  const failActiveExports = (error: Error): void => {
+    const exports = [...activeExports];
+    activeExports.clear();
+    for (const activeExport of exports) {
+      activeExport.reject(error);
+      activeExport.close();
+    }
   };
 
   const lostResponseError = (request: PendingControlRequestV1): Error => {
@@ -129,6 +177,12 @@ export function createBrowserWorkspaceHostPagePortV1(
     options.worker.removeEventListener("messageerror", transportFailureListener);
     for (const request of pending.values()) request.reject(lostResponseError(request));
     pending.clear();
+    failActiveExports(
+      new BrowserWorkspaceHostControlErrorV1(
+        fatal.code,
+        "Workspace Host became unavailable during workspace export",
+      ),
+    );
     candidateBootstrapKeys.clear();
     options.worker.terminate();
     for (const fatalListener of [...fatalListeners]) {
@@ -315,6 +369,256 @@ export function createBrowserWorkspaceHostPagePortV1(
       }
     },
 
+    async exportWorkspace(input) {
+      const exportId = createExportId();
+      if (!/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u.test(exportId)) {
+        throw new BrowserWorkspaceHostControlErrorV1(
+          "invalid_response",
+          "Workspace export identity factory returned an invalid identity",
+        );
+      }
+      if (input.signal.aborted) {
+        return {
+          kind: "cancelled",
+          filesCompleted: 0,
+          filesTotal: 0,
+          bytesWritten: 0,
+          bytesTotal: 0,
+        };
+      }
+      const channel = createMessageChannel();
+      let expectedSequence = 1;
+      let started = false;
+      let ready: BrowserWorkspaceHostExportReadyV1 | null = null;
+      let readySeen = false;
+      let releaseCommitted = false;
+      let releaseSent = false;
+      let consumerError: unknown = null;
+      let terminalSettled = false;
+      let totalsInitialized = false;
+      let lastProgress: BrowserWorkspaceHostExportProgressWireV1 = {
+        filesCompleted: 0,
+        filesTotal: 0,
+        bytesWritten: 0,
+        bytesTotal: 0,
+      };
+      let resolveTerminal!: (result: BrowserWorkspaceHostExportResultV1) => void;
+      let rejectTerminal!: (error: Error) => void;
+      const terminal = new Promise<BrowserWorkspaceHostExportResultV1>((resolve, reject) => {
+        resolveTerminal = resolve;
+        rejectTerminal = reject;
+      });
+      void terminal.catch(() => undefined);
+
+      const send = (
+        kind: "workspace_export_cancel" | "workspace_export_release",
+      ): boolean => {
+        if (terminalSettled && kind === "workspace_export_release") return false;
+        try {
+          channel.port2.postMessage({ revision: 1, kind, exportId });
+          if (kind === "workspace_export_release") releaseSent = true;
+          return true;
+        } catch {
+          // The Worker transport failure path owns recovery when the port is already gone.
+          return false;
+        }
+      };
+      const failChannel = (message: string): void => {
+        if (terminalSettled) return;
+        terminalSettled = true;
+        send("workspace_export_cancel");
+        const error = new BrowserWorkspaceHostControlErrorV1("invalid_response", message);
+        rejectTerminal(error);
+        poisonTransport({ code: "invalid_response" });
+      };
+      const validNextProgress = (next: BrowserWorkspaceHostExportProgressWireV1): boolean =>
+        next.filesCompleted >= lastProgress.filesCompleted &&
+        (!totalsInitialized || lastProgress.filesTotal === next.filesTotal) &&
+        next.bytesWritten >= lastProgress.bytesWritten &&
+        (!totalsInitialized || lastProgress.bytesTotal === next.bytesTotal);
+
+      const consumeReady = async (): Promise<void> => {
+        const current = ready;
+        if (!started || current === null || terminalSettled) return;
+        ready = null;
+        if (input.signal.aborted) {
+          send("workspace_export_cancel");
+          return;
+        }
+        const commitRelease = (): boolean => {
+          if (terminalSettled || input.signal.aborted) return false;
+          releaseCommitted = true;
+          return true;
+        };
+        try {
+          const decision = await input.onReady(current, commitRelease);
+          if (terminalSettled) return;
+          if (releaseCommitted) {
+            send("workspace_export_release");
+            return;
+          }
+          if (input.signal.aborted) {
+            send("workspace_export_cancel");
+            return;
+          }
+          send(
+            decision === "release" ? "workspace_export_release" : "workspace_export_cancel",
+          );
+        } catch (error) {
+          if (terminalSettled) return;
+          consumerError = error;
+          send(
+            releaseCommitted ? "workspace_export_release" : "workspace_export_cancel",
+          );
+        }
+      };
+
+      const exportListener = (event: MessageEvent<unknown>): void => {
+        if (terminalSettled) return;
+        const message = admitBrowserWorkspaceHostExportOutboundMessageV1(event.data);
+        if (
+          message === null || message.exportId !== exportId ||
+          message.sequence !== expectedSequence
+        ) {
+          failChannel("Workspace Host emitted an invalid export record");
+          return;
+        }
+        expectedSequence += 1;
+        const nextProgress = {
+          filesCompleted: message.filesCompleted,
+          filesTotal: message.filesTotal,
+          bytesWritten: message.bytesWritten,
+          bytesTotal: message.bytesTotal,
+        };
+        if (!validNextProgress(nextProgress)) {
+          failChannel("Workspace Host export progress moved backwards or changed totals");
+          return;
+        }
+        lastProgress = nextProgress;
+        totalsInitialized = true;
+        if (message.kind === "workspace_export_progress") {
+          try {
+            input.onProgress?.(lastProgress);
+          } catch {
+            // UI progress observers cannot alter export ownership.
+          }
+          return;
+        }
+        if (message.kind === "workspace_export_ready") {
+          if (
+            readySeen || message.filesCompleted !== message.filesTotal ||
+            message.bytesWritten !== message.bytesTotal ||
+            message.checkpointId !== input.expectedCheckpointId ||
+            message.generation !== input.expectedGeneration
+          ) {
+            failChannel("Workspace Host emitted an invalid ready export");
+            return;
+          }
+          readySeen = true;
+          ready = {
+            downloadUrl: message.downloadUrl,
+            checkpointId: message.checkpointId,
+            generation: message.generation,
+            ...lastProgress,
+          };
+          void consumeReady();
+          return;
+        }
+        terminalSettled = true;
+        if (message.kind === "workspace_export_released") {
+          if (
+            !readySeen || !releaseSent || ready !== null ||
+            message.filesCompleted !== message.filesTotal ||
+            message.bytesWritten !== message.bytesTotal ||
+            message.checkpointId !== input.expectedCheckpointId ||
+            message.generation !== input.expectedGeneration
+          ) {
+            terminalSettled = false;
+            failChannel("Workspace Host emitted an invalid released export");
+            return;
+          }
+          resolveTerminal({
+            kind: "released",
+            checkpointId: message.checkpointId,
+            generation: message.generation,
+            ...lastProgress,
+          });
+          return;
+        }
+        if (message.code === "cancelled") {
+          resolveTerminal({ kind: "cancelled", ...lastProgress });
+          return;
+        }
+        rejectTerminal(
+          new BrowserWorkspaceHostControlErrorV1(
+            message.code,
+            `Workspace export failed: ${message.code}`,
+          ),
+        );
+      };
+      channel.port2.addEventListener("message", exportListener);
+      channel.port2.start();
+      const cancelListener = (): void => {
+        if (!releaseCommitted) send("workspace_export_cancel");
+      };
+      input.signal.addEventListener("abort", cancelListener, { once: true });
+      let channelClosed = false;
+      const closeChannel = (): void => {
+        if (channelClosed) return;
+        channelClosed = true;
+        channel.port1.close();
+        channel.port2.close();
+      };
+      const activeExport: ActiveExportV1 = {
+        reject(error) {
+          if (terminalSettled) return;
+          terminalSettled = true;
+          rejectTerminal(error);
+        },
+        close: closeChannel,
+      };
+      activeExports.add(activeExport);
+      try {
+        const response = await request({
+          method: "start_export",
+          exportId,
+          workspaceSessionId: input.workspaceSessionId,
+          expectedCheckpointId: input.expectedCheckpointId,
+          expectedGeneration: input.expectedGeneration,
+          programRevision: input.programRevision,
+          repositoryRevision: input.repositoryRevision,
+        }, [channel.port1]);
+        if (
+          response.method !== "start_export" || response.exportId !== exportId ||
+          response.snapshot.phase !== "open" ||
+          response.snapshot.descriptor.workspaceSessionId !== input.workspaceSessionId ||
+          response.snapshot.checkpointId !== input.expectedCheckpointId ||
+          response.snapshot.descriptor.generation !== input.expectedGeneration
+        ) {
+          failChannel("Workspace Host returned an invalid export start response");
+        } else {
+          started = true;
+          void consumeReady();
+        }
+        const result = await terminal;
+        if (consumerError !== null) {
+          throw consumerError instanceof Error
+            ? consumerError
+            : new Error("Workspace export consumer failed");
+        }
+        return result;
+      } catch (error) {
+        if (!releaseCommitted) send("workspace_export_cancel");
+        void terminal.catch(() => undefined);
+        throw error;
+      } finally {
+        activeExports.delete(activeExport);
+        input.signal.removeEventListener("abort", cancelListener);
+        channel.port2.removeEventListener("message", exportListener);
+        closeChannel();
+      }
+    },
+
     closeWorkspace(workspaceSessionId) {
       return snapshotResponse({ method: "close_workspace", workspaceSessionId });
     },
@@ -333,6 +637,12 @@ export function createBrowserWorkspaceHostPagePortV1(
       options.worker.removeEventListener("messageerror", transportFailureListener);
       failPending(
         new BrowserWorkspaceHostControlErrorV1("disposed", "Workspace Host port was disposed"),
+      );
+      failActiveExports(
+        new BrowserWorkspaceHostControlErrorV1(
+          "disposed",
+          "Workspace Host port was disposed during workspace export",
+        ),
       );
       candidateBootstrapKeys.clear();
       fatalListeners.clear();

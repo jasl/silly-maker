@@ -35,6 +35,63 @@ export interface BrowserWorkspaceHostSnapshotWireV1 {
   readonly anchor: BrowserWorkspaceVolumeAnchorWireV1;
 }
 
+export interface BrowserWorkspaceHostExportProgressWireV1 {
+  readonly filesCompleted: number;
+  readonly filesTotal: number;
+  readonly bytesWritten: number;
+  readonly bytesTotal: number;
+}
+
+export type BrowserWorkspaceHostExportInboundMessageV1 =
+  | {
+    readonly revision: 1;
+    readonly kind: "workspace_export_cancel";
+    readonly exportId: string;
+  }
+  | {
+    readonly revision: 1;
+    readonly kind: "workspace_export_release";
+    readonly exportId: string;
+  };
+
+export type BrowserWorkspaceHostExportFailureCodeV1 =
+  | "cancelled"
+  | "capacity_exceeded"
+  | "storage_unavailable"
+  | "request_failed";
+
+export type BrowserWorkspaceHostExportOutboundMessageV1 =
+  | ({
+    readonly revision: 1;
+    readonly kind: "workspace_export_progress";
+    readonly exportId: string;
+    readonly sequence: number;
+  } & BrowserWorkspaceHostExportProgressWireV1)
+  | ({
+    readonly revision: 1;
+    readonly kind: "workspace_export_ready";
+    readonly exportId: string;
+    readonly sequence: number;
+    readonly downloadUrl: string;
+    readonly checkpointId: string;
+    readonly generation: number;
+  } & BrowserWorkspaceHostExportProgressWireV1)
+  | ({
+    readonly revision: 1;
+    readonly kind: "workspace_export_released";
+    readonly exportId: string;
+    readonly sequence: number;
+    readonly checkpointId: string;
+    readonly generation: number;
+  } & BrowserWorkspaceHostExportProgressWireV1)
+  | ({
+    readonly revision: 1;
+    readonly kind: "workspace_export_failed";
+    readonly exportId: string;
+    readonly sequence: number;
+    readonly code: BrowserWorkspaceHostExportFailureCodeV1;
+  } & BrowserWorkspaceHostExportProgressWireV1);
+
 export interface BrowserWorkspaceHostMutationReceiptWireV1 {
   readonly revision: 1;
   readonly sequence: number;
@@ -68,6 +125,15 @@ export type BrowserWorkspaceHostControlRequestRecordV1 =
   | { readonly method: "open_workspace"; readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 }
   | { readonly method: "discard_candidate"; readonly volumeId: string }
   | {
+    readonly method: "start_export";
+    readonly exportId: string;
+    readonly workspaceSessionId: string;
+    readonly expectedCheckpointId: string;
+    readonly expectedGeneration: number;
+    readonly programRevision: number;
+    readonly repositoryRevision: number;
+  }
+  | {
     readonly method: "close_workspace" | "query_workspace" | "attach_environment";
     readonly workspaceSessionId: string;
   };
@@ -88,6 +154,7 @@ export type BrowserWorkspaceHostControlFailureCodeV1 =
   | "volume_corrupt"
   | "candidate_mismatch"
   | "environment_attached"
+  | "export_stale"
   | "storage_unavailable"
   | "capacity_exceeded"
   | "request_failed"
@@ -105,6 +172,11 @@ export interface BrowserWorkspaceHostControlSuccessResponseV1 {
         | "close_workspace"
         | "query_workspace"
         | "attach_environment";
+      readonly snapshot: BrowserWorkspaceHostSnapshotWireV1;
+    }
+    | {
+      readonly method: "start_export";
+      readonly exportId: string;
       readonly snapshot: BrowserWorkspaceHostSnapshotWireV1;
     }
     | { readonly method: "create_candidate"; readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 }
@@ -276,6 +348,10 @@ function positiveSafeIntegerV1(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
+function nonNegativeSafeIntegerV1(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
 function boundedMessageV1(value: unknown): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= 512;
 }
@@ -415,6 +491,38 @@ export function admitBrowserWorkspaceHostControlRequestV1(
       kind: "control_request",
       requestId: envelope.requestId,
       record: { method: "discard_candidate", volumeId: discard.volumeId },
+    };
+  }
+  const startExport = exactRecordV1(envelope.record, [
+    "method",
+    "exportId",
+    "workspaceSessionId",
+    "expectedCheckpointId",
+    "expectedGeneration",
+    "programRevision",
+    "repositoryRevision",
+  ]);
+  if (
+    startExport !== null && startExport.method === "start_export" &&
+    identifierV1(startExport.exportId) && identifierV1(startExport.workspaceSessionId) &&
+    identifierV1(startExport.expectedCheckpointId) &&
+    positiveSafeIntegerV1(startExport.expectedGeneration) &&
+    positiveSafeIntegerV1(startExport.programRevision) &&
+    positiveSafeIntegerV1(startExport.repositoryRevision)
+  ) {
+    return {
+      revision: 1,
+      kind: "control_request",
+      requestId: envelope.requestId,
+      record: {
+        method: "start_export",
+        exportId: startExport.exportId,
+        workspaceSessionId: startExport.workspaceSessionId,
+        expectedCheckpointId: startExport.expectedCheckpointId,
+        expectedGeneration: startExport.expectedGeneration,
+        programRevision: startExport.programRevision,
+        repositoryRevision: startExport.repositoryRevision,
+      },
     };
   }
   const scoped = exactRecordV1(envelope.record, ["method", "workspaceSessionId"]);
@@ -672,6 +780,28 @@ export function admitBrowserWorkspaceHostControlOutboundMessageV1(
         response: { method: response.method, snapshot },
       };
     }
+    const startedExport = exactRecordV1(success.response, [
+      "method",
+      "exportId",
+      "snapshot",
+    ]);
+    const exportSnapshot = startedExport === null ? null : admitSnapshotV1(startedExport.snapshot);
+    if (
+      startedExport !== null && startedExport.method === "start_export" &&
+      identifierV1(startedExport.exportId) && exportSnapshot !== null
+    ) {
+      return {
+        revision: 1,
+        kind: "control_response",
+        requestId: success.requestId,
+        ok: true,
+        response: {
+          method: "start_export",
+          exportId: startedExport.exportId,
+          snapshot: exportSnapshot,
+        },
+      };
+    }
     const candidate = exactRecordV1(success.response, ["method", "anchor"]);
     if (candidate !== null && candidate.method === "create_candidate") {
       const anchor = admitBrowserWorkspaceVolumeAnchorWireV1(candidate.anchor);
@@ -706,12 +836,159 @@ export function admitBrowserWorkspaceHostControlOutboundMessageV1(
       failure.code !== "workspace_mismatch" && failure.code !== "volume_busy" &&
       failure.code !== "volume_missing" && failure.code !== "volume_corrupt" &&
       failure.code !== "environment_attached" &&
+      failure.code !== "export_stale" &&
       failure.code !== "candidate_mismatch" &&
       failure.code !== "storage_unavailable" && failure.code !== "capacity_exceeded" &&
       failure.code !== "request_failed" &&
       failure.code !== "disposed")
   ) return null;
   return failure as unknown as BrowserWorkspaceHostControlFailureResponseV1;
+}
+
+function admitExportProgressV1(
+  value: Readonly<Record<string, unknown>>,
+): BrowserWorkspaceHostExportProgressWireV1 | null {
+  if (
+    !nonNegativeSafeIntegerV1(value.filesCompleted) ||
+    !nonNegativeSafeIntegerV1(value.filesTotal) ||
+    value.filesCompleted > value.filesTotal ||
+    !nonNegativeSafeIntegerV1(value.bytesWritten) ||
+    !nonNegativeSafeIntegerV1(value.bytesTotal) ||
+    value.bytesWritten > value.bytesTotal
+  ) return null;
+  return {
+    filesCompleted: value.filesCompleted,
+    filesTotal: value.filesTotal,
+    bytesWritten: value.bytesWritten,
+    bytesTotal: value.bytesTotal,
+  };
+}
+
+export function admitBrowserWorkspaceHostExportInboundMessageV1(
+  value: unknown,
+): BrowserWorkspaceHostExportInboundMessageV1 | null {
+  const record = exactRecordV1(value, ["revision", "kind", "exportId"]);
+  if (
+    record === null || record.revision !== 1 || !identifierV1(record.exportId) ||
+    (record.kind !== "workspace_export_cancel" && record.kind !== "workspace_export_release")
+  ) return null;
+  return record as unknown as BrowserWorkspaceHostExportInboundMessageV1;
+}
+
+export function admitBrowserWorkspaceHostExportOutboundMessageV1(
+  value: unknown,
+): BrowserWorkspaceHostExportOutboundMessageV1 | null {
+  const progress = exactRecordV1(value, [
+    "revision",
+    "kind",
+    "exportId",
+    "sequence",
+    "filesCompleted",
+    "filesTotal",
+    "bytesWritten",
+    "bytesTotal",
+  ]);
+  if (
+    progress !== null && progress.revision === 1 &&
+    progress.kind === "workspace_export_progress" && identifierV1(progress.exportId) &&
+    positiveSafeIntegerV1(progress.sequence)
+  ) {
+    const admittedProgress = admitExportProgressV1(progress);
+    return admittedProgress === null ? null : {
+      revision: 1,
+      kind: "workspace_export_progress",
+      exportId: progress.exportId,
+      sequence: progress.sequence,
+      ...admittedProgress,
+    };
+  }
+  const ready = exactRecordV1(value, [
+    "revision",
+    "kind",
+    "exportId",
+    "sequence",
+    "downloadUrl",
+    "checkpointId",
+    "generation",
+    "filesCompleted",
+    "filesTotal",
+    "bytesWritten",
+    "bytesTotal",
+  ]);
+  if (
+    ready !== null && ready.revision === 1 && ready.kind === "workspace_export_ready" &&
+    identifierV1(ready.exportId) && positiveSafeIntegerV1(ready.sequence) &&
+    identifierV1(ready.checkpointId) && positiveSafeIntegerV1(ready.generation) &&
+    typeof ready.downloadUrl === "string" && ready.downloadUrl.length <= 4_096 &&
+    ready.downloadUrl.startsWith("blob:")
+  ) {
+    const admittedProgress = admitExportProgressV1(ready);
+    return admittedProgress === null ? null : {
+      revision: 1,
+      kind: "workspace_export_ready",
+      exportId: ready.exportId,
+      sequence: ready.sequence,
+      downloadUrl: ready.downloadUrl,
+      checkpointId: ready.checkpointId,
+      generation: ready.generation,
+      ...admittedProgress,
+    };
+  }
+  const released = exactRecordV1(value, [
+    "revision",
+    "kind",
+    "exportId",
+    "sequence",
+    "checkpointId",
+    "generation",
+    "filesCompleted",
+    "filesTotal",
+    "bytesWritten",
+    "bytesTotal",
+  ]);
+  if (
+    released !== null && released.revision === 1 &&
+    released.kind === "workspace_export_released" && identifierV1(released.exportId) &&
+    positiveSafeIntegerV1(released.sequence) && identifierV1(released.checkpointId) &&
+    positiveSafeIntegerV1(released.generation)
+  ) {
+    const admittedProgress = admitExportProgressV1(released);
+    return admittedProgress === null ? null : {
+      revision: 1,
+      kind: "workspace_export_released",
+      exportId: released.exportId,
+      sequence: released.sequence,
+      checkpointId: released.checkpointId,
+      generation: released.generation,
+      ...admittedProgress,
+    };
+  }
+  const failed = exactRecordV1(value, [
+    "revision",
+    "kind",
+    "exportId",
+    "sequence",
+    "code",
+    "filesCompleted",
+    "filesTotal",
+    "bytesWritten",
+    "bytesTotal",
+  ]);
+  if (
+    failed === null || failed.revision !== 1 || failed.kind !== "workspace_export_failed" ||
+    !identifierV1(failed.exportId) || !positiveSafeIntegerV1(failed.sequence) ||
+    (failed.code !== "cancelled" && failed.code !== "capacity_exceeded" &&
+      failed.code !== "storage_unavailable" && failed.code !== "request_failed")
+  ) return null;
+  const admittedProgress = admitExportProgressV1(failed);
+  return admittedProgress === null ? null : {
+    revision: 1,
+    kind: "workspace_export_failed",
+    exportId: failed.exportId,
+    sequence: failed.sequence,
+    code: failed.code,
+    ...admittedProgress,
+  };
 }
 
 function admitFileErrorV1(value: unknown): BrowserWorkspaceHostFileErrorWireV1 | null {

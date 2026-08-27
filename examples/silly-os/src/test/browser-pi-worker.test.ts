@@ -208,6 +208,23 @@ class TestBrowserWorkspaceVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLea
     return { changed: true, head: { ...this.state.head } };
   }
 
+  async createPortableArchive(
+    input: Parameters<BrowserWorkspaceHostVolumeLeasePortV1["createPortableArchive"]>[0],
+  ): ReturnType<BrowserWorkspaceHostVolumeLeasePortV1["createPortableArchive"]> {
+    const progress = {
+      filesCompleted: 0,
+      filesTotal: 0,
+      bytesWritten: 22,
+      bytesTotal: 22,
+    };
+    input.onProgress(progress);
+    return {
+      file: new File(["test-workspace-archive"], "workspace.zip"),
+      progress,
+      release: () => Promise.resolve(),
+    };
+  }
+
   async close(): Promise<void> {
     this.closed = true;
   }
@@ -279,6 +296,9 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
   private nextCheckpointOrdinal = 2;
   private disposed = false;
   closeWorkspaceCalls = 0;
+  exportCalls = 0;
+  exportAborted = false;
+  holdExport = false;
   nextOpenFailureCode: BrowserWorkspaceHostControlFailureCodeV1 | null = null;
 
   constructor() {
@@ -356,6 +376,49 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
     const response = await this.control({ method: "query_workspace", workspaceSessionId });
     if (response.method !== "query_workspace") throw new Error("test query response mismatch");
     return response.snapshot;
+  }
+
+  exportWorkspace(
+    input: Parameters<BrowserProgramWorkspaceAuthorityV1["exportWorkspace"]>[0],
+  ): ReturnType<BrowserProgramWorkspaceAuthorityV1["exportWorkspace"]> {
+    this.exportCalls += 1;
+    const progress = {
+      filesCompleted: 1,
+      filesTotal: 1,
+      bytesWritten: 128,
+      bytesTotal: 128,
+    };
+    input.onProgress?.(progress);
+    return (async () => {
+      if (this.holdExport) {
+        await new Promise<void>((resolve) => {
+          if (input.signal.aborted) {
+            this.exportAborted = true;
+            resolve();
+            return;
+          }
+          input.signal.addEventListener("abort", () => {
+            this.exportAborted = true;
+            resolve();
+          }, { once: true });
+        });
+        return { kind: "cancelled", ...progress };
+      }
+      const decision = await input.onReady({
+        ...progress,
+        downloadUrl: "blob:sillyos-product-export-test",
+        checkpointId: this.bootstrap.state.head.checkpointId,
+        generation: this.bootstrap.state.head.generation,
+      }, () => true);
+      return decision === "release"
+        ? {
+          kind: "released",
+          checkpointId: this.bootstrap.state.head.checkpointId,
+          generation: this.bootstrap.state.head.generation,
+          ...progress,
+        }
+        : { kind: "cancelled", ...progress };
+    })();
   }
 
   async closeWorkspace(workspaceSessionId: string): Promise<BrowserWorkspaceHostSnapshotWireV1> {
@@ -1285,6 +1348,86 @@ describe("SillyOS Browser Pi Worker runtime", () => {
 });
 
 describe("SillyOS Browser Pi transport and product port", () => {
+  it("hands off exact workspace exports and aborts a held export before Forget", async () => {
+    const workspaceAuthority = new TestBrowserProgramWorkspaceAuthorityV1();
+    const port = createBrowserCreatorAgentPortV1({
+      apiKey: "sentinel-browser-key",
+      runtime: "deterministic_test",
+      workspaceAuthority,
+      workerFactory: () => new ControllableBrowserPiWorkerV1(),
+    });
+    await openProductWorkspaceV1(port);
+    const progress: unknown[] = [];
+    await expect(port.exportWorkspace({
+      workspaceSessionId: workspaceSessionIdV1,
+      signal: new AbortController().signal,
+      onProgress: (value) => progress.push(value),
+      onReady: (ready) => {
+        expect(ready.downloadUrl).toBe("blob:sillyos-product-export-test");
+        return "release";
+      },
+    })).resolves.toMatchObject({
+      kind: "released",
+      generation: 1,
+      filesCompleted: 1,
+      filesTotal: 1,
+    });
+    expect(progress).toHaveLength(1);
+
+    workspaceAuthority.holdExport = true;
+    const held = port.exportWorkspace({
+      workspaceSessionId: workspaceSessionIdV1,
+      signal: new AbortController().signal,
+      onReady: () => {
+        throw new Error("held export must not become ready");
+      },
+    });
+    await waitUntilV1(() => workspaceAuthority.exportCalls === 2);
+    await expect(port.submit(productRunV1({ agentRunId: "agent.run.export-busy" }))).resolves
+      .toEqual({
+        kind: "unavailable",
+        diagnostic: { code: "request_failed", path: "/workspace/busy" },
+      });
+
+    await port.forget();
+    await expect(held).resolves.toMatchObject({ kind: "cancelled" });
+    expect(workspaceAuthority.exportAborted).toBe(true);
+    expect(port.getSnapshot()).toMatchObject({
+      phase: "forgotten",
+      workspace: { phase: "forgotten", descriptor: null },
+    });
+  });
+
+  it("aborts and drains a held export before closing its workspace", async () => {
+    const workspaceAuthority = new TestBrowserProgramWorkspaceAuthorityV1();
+    const port = createBrowserCreatorAgentPortV1({
+      apiKey: "sentinel-browser-key",
+      runtime: "deterministic_test",
+      workspaceAuthority,
+      workerFactory: () => new ControllableBrowserPiWorkerV1(),
+    });
+    await openProductWorkspaceV1(port);
+    workspaceAuthority.holdExport = true;
+    const held = port.exportWorkspace({
+      workspaceSessionId: workspaceSessionIdV1,
+      signal: new AbortController().signal,
+      onReady: () => {
+        throw new Error("held export must not become ready");
+      },
+    });
+    await waitUntilV1(() => workspaceAuthority.exportCalls === 1);
+
+    const closed = port.closeWorkspace(workspaceSessionIdV1);
+    await expect(held).resolves.toMatchObject({ kind: "cancelled" });
+    await expect(closed).resolves.toMatchObject({ kind: "closed" });
+    expect(workspaceAuthority.exportAborted).toBe(true);
+    expect(port.getSnapshot().workspace).toMatchObject({
+      phase: "closed",
+      descriptor: { workspaceSessionId: workspaceSessionIdV1, generation: 1 },
+    });
+    await port.dispose();
+  });
+
   it("shows a retryable busy failure after a closed workspace and then reopens", async () => {
     const workspaceAuthority = new TestBrowserProgramWorkspaceAuthorityV1();
     const port = createBrowserCreatorAgentPortV1({
@@ -1340,6 +1483,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
             new BrowserWorkspaceHostControlErrorV1(hostCode, `synthetic ${hostCode}`),
           ),
         queryWorkspace: () => Promise.reject(new Error("not open")),
+        exportWorkspace: () => Promise.reject(new Error("not open")),
         closeWorkspace: () => Promise.reject(new Error("not open")),
         subscribeFatal: () => () => {},
         dispose: () => Promise.resolve(),

@@ -34,7 +34,11 @@ function fakeHostBackingV1(): FakeHostBackingV1 {
   return { volumes: new Map(), nextVolume: 1, nextSession: 1 };
 }
 
-function fakeHostV1(backing: FakeHostBackingV1): BrowserWorkspaceHostPagePortV1 & {
+function fakeHostV1(
+  backing: FakeHostBackingV1,
+  beforeExportReady?: () => void | Promise<void>,
+  beforeQuery?: () => void | Promise<void>,
+): BrowserWorkspaceHostPagePortV1 & {
   readonly created: string[];
   readonly discarded: string[];
   fail(fatal: BrowserWorkspaceHostFatalV1): void;
@@ -85,6 +89,7 @@ function fakeHostV1(backing: FakeHostBackingV1): BrowserWorkspaceHostPagePortV1 
       return snapshot;
     },
     async queryWorkspace(workspaceSessionId) {
+      await beforeQuery?.();
       const snapshot = sessions.get(workspaceSessionId);
       if (snapshot === undefined) throw new Error("workspace mismatch");
       return snapshot;
@@ -95,6 +100,32 @@ function fakeHostV1(backing: FakeHostBackingV1): BrowserWorkspaceHostPagePortV1 
       const channel = new MessageChannel();
       channels.set(workspaceSessionId, channel);
       return { snapshot, environmentPort: channel.port2 };
+    },
+    async exportWorkspace(input) {
+      const snapshot = sessions.get(input.workspaceSessionId);
+      if (snapshot === undefined) throw new Error("workspace mismatch");
+      const progress = {
+        filesCompleted: 1,
+        filesTotal: 1,
+        bytesWritten: 128,
+        bytesTotal: 128,
+      };
+      input.onProgress?.(progress);
+      await beforeExportReady?.();
+      const decision = await input.onReady({
+        ...progress,
+        downloadUrl: "blob:sillyos-authority-test",
+        checkpointId: snapshot.checkpointId,
+        generation: snapshot.descriptor.generation,
+      }, () => true);
+      return decision === "release"
+        ? {
+          kind: "released",
+          checkpointId: snapshot.checkpointId,
+          generation: snapshot.descriptor.generation,
+          ...progress,
+        }
+        : { kind: "cancelled", ...progress };
     },
     async closeWorkspace(workspaceSessionId) {
       const current = sessions.get(workspaceSessionId);
@@ -239,5 +270,163 @@ describe("Browser Program workspace authority", () => {
       .toThrow("sillyos.browser_program_workspace.workspace_mismatch");
     await authority.dispose();
     expect(fatals).toEqual([{ code: "outcome_unknown" }]);
+  });
+
+  it("exports only the exact durable head and matching Program continuation", async () => {
+    const repository = createMemoryProgramRepositoryV2();
+    const identity = await seedProgramV1(repository);
+    const authority = createBrowserProgramWorkspaceAuthorityV1({
+      repository,
+      host: fakeHostV1(fakeHostBackingV1()),
+    });
+    const opened = await authority.openWorkspace(identity);
+    const progress: unknown[] = [];
+
+    const result = await authority.exportWorkspace({
+      workspaceSessionId: opened.snapshot.descriptor.workspaceSessionId,
+      signal: new AbortController().signal,
+      onProgress: (value) => progress.push(value),
+      onReady: (ready) => {
+        expect(ready).toMatchObject({
+          checkpointId: opened.snapshot.checkpointId,
+          generation: opened.snapshot.descriptor.generation,
+        });
+        return "release";
+      },
+    });
+
+    expect(result).toMatchObject({
+      kind: "released",
+      checkpointId: opened.snapshot.checkpointId,
+      generation: opened.snapshot.descriptor.generation,
+    });
+    expect(progress).toHaveLength(1);
+    await authority.dispose();
+  });
+
+  it("suppresses ready consumption when the continuation drifts after archive creation", async () => {
+    const delegate = createMemoryProgramRepositoryV2();
+    const identity = await seedProgramV1(delegate);
+    let drift = false;
+    const repository: ProgramRepositoryWithWorkspaceContinuationV1 = {
+      ...delegate,
+      async loadWorkspaceContinuation(programId) {
+        const current = await delegate.loadWorkspaceContinuation(programId);
+        return drift && current !== null
+          ? { ...current, repositoryRevision: current.repositoryRevision + 1 }
+          : current;
+      },
+    };
+    const authority = createBrowserProgramWorkspaceAuthorityV1({
+      repository,
+      host: fakeHostV1(fakeHostBackingV1(), () => {
+        drift = true;
+      }),
+    });
+    const opened = await authority.openWorkspace(identity);
+    let downloadConsumed = false;
+
+    await expect(authority.exportWorkspace({
+      workspaceSessionId: opened.snapshot.descriptor.workspaceSessionId,
+      signal: new AbortController().signal,
+      onReady: () => {
+        downloadConsumed = true;
+        return "release";
+      },
+    })).rejects.toThrow("sillyos.browser_program_workspace.export_anchor_changed");
+    expect(downloadConsumed).toBe(false);
+    await authority.dispose();
+  });
+
+  it("suppresses ready consumption when export aborts during the final continuation recheck", async () => {
+    const delegate = createMemoryProgramRepositoryV2();
+    const identity = await seedProgramV1(delegate);
+    let deferContinuation = false;
+    let continuationReadStarted = () => {};
+    const readStarted = new Promise<void>((resolve) => {
+      continuationReadStarted = resolve;
+    });
+    let resumeContinuation = () => {};
+    const continuationGate = new Promise<void>((resolve) => {
+      resumeContinuation = resolve;
+    });
+    const repository: ProgramRepositoryWithWorkspaceContinuationV1 = {
+      ...delegate,
+      async loadWorkspaceContinuation(programId) {
+        if (deferContinuation) {
+          continuationReadStarted();
+          await continuationGate;
+        }
+        return await delegate.loadWorkspaceContinuation(programId);
+      },
+    };
+    const authority = createBrowserProgramWorkspaceAuthorityV1({
+      repository,
+      host: fakeHostV1(fakeHostBackingV1(), () => {
+        deferContinuation = true;
+      }),
+    });
+    const opened = await authority.openWorkspace(identity);
+    const controller = new AbortController();
+    let downloadConsumed = false;
+    const operation = authority.exportWorkspace({
+      workspaceSessionId: opened.snapshot.descriptor.workspaceSessionId,
+      signal: controller.signal,
+      onReady: () => {
+        downloadConsumed = true;
+        return "release";
+      },
+    });
+
+    await readStarted;
+    controller.abort(new DOMException("cancelled by test", "AbortError"));
+    resumeContinuation();
+    await expect(operation).resolves.toMatchObject({ kind: "cancelled" });
+    expect(downloadConsumed).toBe(false);
+    await authority.dispose();
+  });
+
+  it("returns a zero-progress cancellation when export aborts during initial Host preflight", async () => {
+    const repository = createMemoryProgramRepositoryV2();
+    const identity = await seedProgramV1(repository);
+    let queryStarted = () => {};
+    const started = new Promise<void>((resolve) => {
+      queryStarted = resolve;
+    });
+    let resumeQuery = () => {};
+    const queryGate = new Promise<void>((resolve) => {
+      resumeQuery = resolve;
+    });
+    const authority = createBrowserProgramWorkspaceAuthorityV1({
+      repository,
+      host: fakeHostV1(fakeHostBackingV1(), undefined, async () => {
+        queryStarted();
+        await queryGate;
+      }),
+    });
+    const opened = await authority.openWorkspace(identity);
+    const controller = new AbortController();
+    let downloadConsumed = false;
+    const operation = authority.exportWorkspace({
+      workspaceSessionId: opened.snapshot.descriptor.workspaceSessionId,
+      signal: controller.signal,
+      onReady: () => {
+        downloadConsumed = true;
+        return "release";
+      },
+    });
+
+    await started;
+    controller.abort(new DOMException("cancelled by test", "AbortError"));
+    resumeQuery();
+    await expect(operation).resolves.toEqual({
+      kind: "cancelled",
+      filesCompleted: 0,
+      filesTotal: 0,
+      bytesWritten: 0,
+      bytesTotal: 0,
+    });
+    expect(downloadConsumed).toBe(false);
+    await authority.dispose();
   });
 });

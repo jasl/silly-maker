@@ -42,8 +42,8 @@ Forget 已在本地及 Cloudflare 部署源的 Chromium/WebKit 完整通过。B0
 初始 proposal 仍由本地 deterministic preview 产生；接受 proposal 也不会生成或发布
 真实应用。这个边界会在界面中如实显示，不使用假网络层来伪装后端。
 
-P3c-B0 的前两个检查点已经把 P3a 验证过的字节路径迁入产品自有的 OPFS Workspace Host，
-并闭合恢复、争用和规模证据。
+P3c-B0 的三个检查点已经把 P3a 验证过的字节路径迁入产品自有的 OPFS Workspace Host，
+闭合恢复、争用、规模和可携下载证据。
 固定 Pi 0.84.3 的原生 `write`/`read` 通过 typed environment port 操作同一个 Program volume；
 小型 IndexedDB continuation manifest 只锚定 Program/repository 与 volume 身份，Host 私有
 durable head 则持有连续 generation。关闭后完整刷新页面会用新的 `workspaceSessionId` 重开
@@ -60,20 +60,30 @@ checkpoint 2 已在 Chromium 与持久 WebKit 中自动写入并冷重开 `1,000
 统一的固定 quota。只有用户已经创建重要工作后才会显式请求 `persist()`；它是 best effort，
 返回 `false` 不会让 workspace 失败或不可用。
 
-P3c-B0 仍未闭合：checkpoint 3 的流式可携 ZIP 尚未实现。未来 ZIP 只包含 VFS 文件和一个
-有界、非 Chat 的 checkpoint identity / Program-repository anchors manifest；它不包含 Chat、
-Program 数据库、凭据、Pi/provider sessions 或 terminal/mutation receipts。目前也没有
-import/restore reader。Agent Forget 会清理 Pi/执行态并释放 lease，但不会删除 durable volume。
+在已打开的持久 Agent workspace 右侧点击“下载工作区 ZIP”，可以下载当前 durable head 的
+VFS 文件与根目录 `sillyos-workspace.json`。生成阶段会显示文件/字节进度并可取消；进入
+“正在将 ZIP 交给浏览器下载”后，下载已提交给浏览器，finalizing 不再可取消。看到“下载已
+开始”只表示 SillyOS 已把文件交给浏览器下载管线，不表示用户已经选择最终位置或浏览器已
+保存完成。
+
+该 ZIP 使用固定 `client-zip` 2.5.0 生成 canonical STORE-only 文件，只包含 portable manifest
+与 `workspace/` 下的 VFS 文件；它不包含 Chat、Program 数据库、凭据、Pi/provider sessions、
+terminal/mutation receipts 或 Host metadata。Host Worker 独占 ZIP 临时文件和 object URL，页面
+不接收 volume bytes，整卷也不需要常驻内存。Host 为 ready 状态保留默认 30 秒 watchdog；
+页面点击下载并调用 `commitRelease()` 锁定不可取消的 finalizing 后，会保留 1,000ms 浏览器
+handoff，随后才返回 release；Host 再 revoke URL、删除临时文件并终结任务。目前仍没有
+import/restore reader 或 immutable snapshot。Agent Forget 会清理 Pi/执行态并释放 lease，但
+不会删除 durable volume。
 
 路线仍是 **Browser 优先、Desktop 保留**。P2 已闭合事务提交后发布、最近 Program
 重开、双页面 stale currentness、凭据不落盘和 bounded terminal receipt。B0a 已闭合无
 真实 key 的 Pi/Worker/typed-RPC 接线；B0b 已完成固定 OpenAI profile 的本地及部署源
-资格化；P3c-B0 检查点 1 和 2 已闭合原生 Pi `write`/`read` 到 OPFS checkpoint 的 authority、
-close/cold reopen、连续 generation、mutation receipt、取消、清理、恢复/争用、storage UI
-和自动双引擎 `20 MiB+` gate。P3c-B0 现在只继续 checkpoint 3 可携 ZIP；只有完整 B0
-独立验收并再次明确激活后，才会继续 P3a-B1 的 `edit`/just-bash、广泛 Provider/
-BYO Sandbox 研究、immutable snapshot publication 或 import。Desktop 底层仍计划由私有
-companion 启动产品打包的 Pi coding-agent，但当前没有激活。
+资格化；P3c-B0 已闭合原生 Pi `write`/`read` 到 OPFS checkpoint 的 authority、close/cold
+reopen、连续 generation、mutation receipt、取消、清理、恢复/争用、storage UI、自动双引擎
+`20 MiB+` gate，以及真实取消/下载/解包逐字节验证的 canonical portable ZIP。完整 B0 已在
+2026-08-27 独立验收并关闭，但不会自动激活下一条路线；P3a-B1 的 `edit`/just-bash、广泛
+Provider/BYO Sandbox 研究、immutable snapshot publication 和 import 仍未激活。Desktop
+底层仍计划由私有 companion 启动产品打包的 Pi coding-agent，但当前没有激活。
 
 详细的产品范围、Cloudflare OS 参考快照、语义映射、桌面/移动布局、键盘/IME、
 防截断和视觉验收矩阵见 [DESIGN.md](./DESIGN.md)。从真实 Pi typed RPC、产品数据库、

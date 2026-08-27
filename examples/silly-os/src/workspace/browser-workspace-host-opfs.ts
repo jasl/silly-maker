@@ -10,11 +10,21 @@ import {
   type BrowserWorkspaceHostBootstrapPortV1,
   type BrowserWorkspaceHostDurableHeadV1,
   type BrowserWorkspaceHostFileMetadataV1,
+  type BrowserWorkspaceHostPortableArchiveInputV1,
+  type BrowserWorkspaceHostPortableArchiveV1,
   type BrowserWorkspaceHostReplaceFileInputV1,
   type BrowserWorkspaceHostReplaceFileResultV1,
+  BrowserWorkspaceHostCleanupErrorV1,
   BrowserWorkspaceHostStorageErrorV1,
   type BrowserWorkspaceHostVolumeLeasePortV1,
 } from "./browser-workspace-host-runtime.ts";
+import {
+  BrowserWorkspacePortableArchiveErrorV1,
+  browserWorkspacePortableArchiveFileMaximumV1,
+  createBrowserWorkspacePortableArchiveV1,
+  type BrowserWorkspacePortableArchiveSourceEntryV1,
+  type SillyOsWorkspaceExportManifestV1,
+} from "./browser-workspace-portable-archive.ts";
 
 const privateRootNameV1 = ".sillyos-workspace-host-v1";
 const volumesDirectoryNameV1 = "volumes";
@@ -28,12 +38,15 @@ const pendingFileNameV1 = "pending.json";
 const nextStageFileNameV1 = "next.bin";
 const previousStageFileNameV1 = "previous.bin";
 const pendingStageFileNameV1 = "pending-stage.json";
+const portableExportStageFileNameV1 = "portable-export.zip";
 const identifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
 
 export const browserWorkspaceHostIoChunkMaximumBytesV1 = 1024 * 1024;
 export const browserWorkspaceHostIoBytesInFlightMaximumV1 = 4 *
   browserWorkspaceHostIoChunkMaximumBytesV1;
 export const browserWorkspaceHostControlFileMaximumBytesV1 = 64 * 1024;
+export const browserWorkspaceHostExportDirectoryMaximumV1 = 16_384;
+export const browserWorkspaceHostExportDirectoryChildMaximumV1 = 4_096;
 
 export interface BrowserWorkspaceHostIoObservationV1 {
   /** Largest individual payload buffer covered by this reservation. */
@@ -89,6 +102,10 @@ export interface BrowserWorkspaceHostOpfsOptionsV1 {
     readonly workspaceId: string;
   }) => string | Promise<string>;
   readonly createInitialCheckpointId?: () => string;
+  readonly estimateStorage?: () => Promise<{
+    readonly quota?: number;
+    readonly usage?: number;
+  }>;
   readonly observeIo?: (observation: BrowserWorkspaceHostIoObservationV1) => void;
 }
 
@@ -96,7 +113,8 @@ interface CandidateStateV1 {
   readonly anchor: BrowserWorkspaceVolumeAnchorWireV1;
 }
 
-class BrowserWorkspaceHostIoBudgetV1 {
+/** Product-private shared budget; exported only for exact contract tests. */
+export class BrowserWorkspaceHostIoBudgetV1 {
   private bytesInFlight = 0;
   private readonly waiters = new Set<() => void>();
 
@@ -108,7 +126,21 @@ class BrowserWorkspaceHostIoBudgetV1 {
     reservationBytes: number,
     chunkBytes: number,
     operation: () => Promise<T>,
+    signal?: AbortSignal,
   ): Promise<T> {
+    const reservation = await this.acquire(reservationBytes, chunkBytes, signal);
+    try {
+      return await operation();
+    } finally {
+      reservation.release();
+    }
+  }
+
+  async acquire(
+    reservationBytes: number,
+    chunkBytes: number,
+    signal?: AbortSignal,
+  ): Promise<{ readonly release: () => void }> {
     if (
       !Number.isSafeInteger(reservationBytes) || reservationBytes < 0 ||
       reservationBytes > browserWorkspaceHostIoBytesInFlightMaximumV1 ||
@@ -123,19 +155,53 @@ class BrowserWorkspaceHostIoBudgetV1 {
     while (
       this.bytesInFlight + reservationBytes > browserWorkspaceHostIoBytesInFlightMaximumV1
     ) {
-      await new Promise<void>((resolve) => this.waiters.add(resolve));
+      if (signal?.aborted) {
+        throw signal.reason ??
+          new DOMException("Workspace filesystem I/O was aborted", "AbortError");
+      }
+      await new Promise<void>((resolve, reject) => {
+        let settled = false;
+        const cleanup = () => {
+          this.waiters.delete(wake);
+          signal?.removeEventListener("abort", abort);
+        };
+        const wake = () => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          resolve();
+        };
+        const abort = () => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          reject(
+            signal?.reason ??
+              new DOMException("Workspace filesystem I/O was aborted", "AbortError"),
+          );
+        };
+        this.waiters.add(wake);
+        if (signal?.aborted) abort();
+        else signal?.addEventListener("abort", abort, { once: true });
+      });
+    }
+    if (signal?.aborted) {
+      throw signal.reason ?? new DOMException("Workspace filesystem I/O was aborted", "AbortError");
     }
     this.bytesInFlight += reservationBytes;
-    try {
-      this.report({ chunkBytes, bytesInFlight: this.bytesInFlight });
-      return await operation();
-    } finally {
-      this.bytesInFlight -= reservationBytes;
-      this.report({ chunkBytes: 0, bytesInFlight: this.bytesInFlight });
-      const waiters = [...this.waiters];
-      this.waiters.clear();
-      for (const wake of waiters) wake();
-    }
+    this.report({ chunkBytes, bytesInFlight: this.bytesInFlight });
+    let released = false;
+    return {
+      release: () => {
+        if (released) return;
+        released = true;
+        this.bytesInFlight -= reservationBytes;
+        this.report({ chunkBytes: 0, bytesInFlight: this.bytesInFlight });
+        const waiters = [...this.waiters];
+        this.waiters.clear();
+        for (const wake of waiters) wake();
+      },
+    };
   }
 
   private report(observation: BrowserWorkspaceHostIoObservationV1): void {
@@ -438,6 +504,157 @@ async function directoryHandleIfPresentV1(
       (error.name === "NotFoundError" || error.name === "TypeMismatchError")
     ) return null;
     throw error;
+  }
+}
+
+function compareCodeUnitsV1(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function exportLimitErrorV1(message: string): BrowserWorkspaceHostStorageErrorV1 {
+  return new BrowserWorkspaceHostStorageErrorV1("capacity_exceeded", message);
+}
+
+async function collectPortableArchiveEntriesV1(
+  workspace: FileSystemDirectoryHandle,
+  budget: BrowserWorkspaceHostIoBudgetV1,
+  signal: AbortSignal,
+): Promise<readonly BrowserWorkspacePortableArchiveSourceEntryV1[]> {
+  const sources: BrowserWorkspacePortableArchiveSourceEntryV1[] = [];
+  const pending: Array<{
+    readonly path: string;
+    readonly handle: FileSystemDirectoryHandle;
+  }> = [{ path: "", handle: workspace }];
+  let discoveredDirectories = 1;
+
+  while (pending.length > 0) {
+    if (signal.aborted) throw new DOMException("Workspace export was aborted", "AbortError");
+    const current = pending.pop()!;
+    const children: Array<
+      [string, FileSystemDirectoryHandle | FileSystemFileHandle]
+    > = [];
+    if (typeof current.handle.entries !== "function") {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "storage_unavailable",
+        "Workspace directory enumeration is unavailable",
+      );
+    }
+    for await (const child of current.handle.entries()) {
+      children.push(child);
+      if (children.length > browserWorkspaceHostExportDirectoryChildMaximumV1) {
+        throw exportLimitErrorV1("Workspace export directory exceeds its child-count limit");
+      }
+    }
+    children.sort(([left], [right]) => compareCodeUnitsV1(left, right));
+
+    const directories: Array<{
+      readonly path: string;
+      readonly handle: FileSystemDirectoryHandle;
+    }> = [];
+    for (const [name, handle] of children) {
+      const path = current.path.length === 0 ? name : `${current.path}/${name}`;
+      if (!isBrowserWorkspaceHostNormalizedPathV1(path)) {
+        throw new BrowserWorkspaceHostStorageErrorV1(
+          "volume_corrupt",
+          "Workspace export encountered an invalid stored path",
+        );
+      }
+      if (handle.kind === "directory") {
+        discoveredDirectories += 1;
+        if (discoveredDirectories > browserWorkspaceHostExportDirectoryMaximumV1) {
+          throw exportLimitErrorV1("Workspace export exceeds its directory-count limit");
+        }
+        directories.push({ path, handle });
+        continue;
+      }
+      if (handle.kind !== "file") {
+        throw new BrowserWorkspaceHostStorageErrorV1(
+          "volume_corrupt",
+          "Workspace export encountered an unsupported stored entry",
+        );
+      }
+      if (sources.length >= browserWorkspacePortableArchiveFileMaximumV1) {
+        throw exportLimitErrorV1("Workspace export exceeds its file-count limit");
+      }
+      const file = await handle.getFile();
+      if (!Number.isSafeInteger(file.size) || file.size < 0) {
+        throw new BrowserWorkspaceHostStorageErrorV1(
+          "volume_corrupt",
+          "Workspace export encountered an invalid file size",
+        );
+      }
+      sources.push({
+        path,
+        size: file.size,
+        async readRange({ offset, length, signal: rangeSignal }) {
+          if (rangeSignal.aborted) {
+            throw new DOMException("Workspace export was aborted", "AbortError");
+          }
+          if (
+            !Number.isSafeInteger(offset) || offset < 0 ||
+            !Number.isSafeInteger(length) || length < 0 ||
+            length > browserWorkspaceHostIoChunkMaximumBytesV1 ||
+            offset + length > file.size
+          ) {
+            throw new BrowserWorkspaceHostStorageErrorV1(
+              "volume_corrupt",
+              "Workspace export requested an invalid file range",
+            );
+          }
+          const reservation = await budget.acquire(length, length, rangeSignal);
+          try {
+            if (rangeSignal.aborted) {
+              throw new DOMException("Workspace export was aborted", "AbortError");
+            }
+            const bytes = new Uint8Array(
+              await file.slice(offset, offset + length).arrayBuffer(),
+            );
+            if (rangeSignal.aborted) {
+              throw new DOMException("Workspace export was aborted", "AbortError");
+            }
+            if (bytes.byteLength !== length) {
+              throw new BrowserWorkspaceHostStorageErrorV1(
+                "volume_corrupt",
+                "Workspace export file range changed during its exclusive read",
+              );
+            }
+            return { bytes, release: reservation.release };
+          } catch (error) {
+            reservation.release();
+            throw error;
+          }
+        },
+      });
+    }
+    for (let index = directories.length - 1; index >= 0; index -= 1) {
+      pending.push(directories[index]!);
+    }
+  }
+  return sources;
+}
+
+async function assertPortableArchiveQuotaV1(
+  estimateStorage: () => Promise<{ readonly quota?: number; readonly usage?: number }>,
+  bytesTotal: number,
+): Promise<void> {
+  let estimate: { readonly quota?: number; readonly usage?: number };
+  try {
+    estimate = await estimateStorage();
+  } catch {
+    // Storage estimates are advisory. The OPFS write remains authoritative.
+    return;
+  }
+  const { quota, usage } = estimate;
+  if (
+    typeof quota !== "number" || !Number.isFinite(quota) || quota < 0 ||
+    typeof usage !== "number" || !Number.isFinite(usage) || usage < 0
+  ) return;
+  if (Math.max(0, quota - usage) < bytesTotal) {
+    throw new BrowserWorkspaceHostStorageErrorV1(
+      "capacity_exceeded",
+      "Workspace storage does not have room for the portable archive",
+      fileErrorV1("unknown", "Workspace storage quota is insufficient for export", null),
+    );
   }
 }
 
@@ -753,6 +970,10 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
   private readonly workspace: FileSystemDirectoryHandle;
   private readonly volumeLease: BrowserWorkspaceHostExclusiveLeaseV1;
   private readonly ioBudget: BrowserWorkspaceHostIoBudgetV1;
+  private readonly estimateStorage: () => Promise<{
+    readonly quota?: number;
+    readonly usage?: number;
+  }>;
   private closed = false;
   private poisoned: BrowserWorkspaceHostStorageErrorV1 | null = null;
 
@@ -764,6 +985,10 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
     readonly workspace: FileSystemDirectoryHandle;
     readonly volumeLease: BrowserWorkspaceHostExclusiveLeaseV1;
     readonly ioBudget: BrowserWorkspaceHostIoBudgetV1;
+    readonly estimateStorage: () => Promise<{
+      readonly quota?: number;
+      readonly usage?: number;
+    }>;
   }) {
     this.anchor = input.anchor;
     this.volume = input.volume;
@@ -772,6 +997,7 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
     this.workspace = input.workspace;
     this.volumeLease = input.volumeLease;
     this.ioBudget = input.ioBudget;
+    this.estimateStorage = input.estimateStorage;
   }
 
   private assertOpen(): void {
@@ -888,6 +1114,159 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
       });
     } catch (error) {
       throw opfsErrorV1(error, "Workspace file read failed");
+    }
+  }
+
+  async createPortableArchive(
+    input: BrowserWorkspaceHostPortableArchiveInputV1,
+  ): Promise<BrowserWorkspaceHostPortableArchiveV1> {
+    this.assertOpen();
+    if (input.signal.aborted) {
+      throw new DOMException("Workspace export was aborted", "AbortError");
+    }
+    const currentHead = await this.readHead();
+    if (!sameHeadV1(currentHead, input.expectedHead)) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "volume_corrupt",
+        "Workspace durable head changed before export",
+      );
+    }
+
+    let entries: readonly BrowserWorkspacePortableArchiveSourceEntryV1[];
+    try {
+      await removeEntryIfPresentV1(this.staging, portableExportStageFileNameV1);
+      entries = await collectPortableArchiveEntriesV1(
+        this.workspace,
+        this.ioBudget,
+        input.signal,
+      );
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") throw error;
+      throw opfsErrorV1(error, "Workspace portable archive preparation failed");
+    }
+    const manifest: SillyOsWorkspaceExportManifestV1 = {
+      revision: 1,
+      kind: "sillyos-workspace",
+      exportFormat: 1,
+      workspaceFormat: 1,
+      programId: this.anchor.programId,
+      workspaceId: this.anchor.workspaceId,
+      programRevision: input.programRevision,
+      repositoryRevision: input.repositoryRevision,
+      checkpointId: input.expectedHead.checkpointId,
+      generation: input.expectedHead.generation,
+    };
+    const outputState: {
+      handle: FileSystemFileHandle | null;
+      writable: FileSystemWritableFileStream | null;
+      closed: boolean;
+    } = { handle: null, writable: null, closed: false };
+    const output = new WritableStream<Uint8Array>({
+      write: async (chunk) => {
+        if (input.signal.aborted) {
+          throw new DOMException("Workspace export was aborted", "AbortError");
+        }
+        if (chunk.byteLength > browserWorkspaceHostIoChunkMaximumBytesV1) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "request_failed",
+            "Workspace archive writer exceeded its output chunk limit",
+          );
+        }
+        outputState.handle ??= await this.staging.getFileHandle(
+          portableExportStageFileNameV1,
+          { create: true },
+        );
+        outputState.writable ??= await outputState.handle.createWritable();
+        await this.ioBudget.withReservation(
+          chunk.byteLength * 2,
+          chunk.byteLength,
+          () => outputState.writable!.write(ownedArrayBufferV1(chunk)),
+          input.signal,
+        );
+      },
+      close: async () => {
+        if (outputState.writable === null) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "request_failed",
+            "Workspace archive writer produced no output",
+          );
+        }
+        await outputState.writable.close();
+        outputState.closed = true;
+      },
+      abort: async (reason) => {
+        if (outputState.writable !== null && !outputState.closed) {
+          await outputState.writable.abort(reason).catch(() => undefined);
+        }
+      },
+    });
+
+    try {
+      const result = await createBrowserWorkspacePortableArchiveV1({
+        manifest,
+        entries,
+        sink: output,
+        signal: input.signal,
+        beforeWrite: ({ bytesTotal }) =>
+          assertPortableArchiveQuotaV1(this.estimateStorage, bytesTotal),
+        onProgress: (progress) =>
+          input.onProgress({
+            filesCompleted: progress.filesCompleted,
+            filesTotal: progress.filesTotal,
+            bytesWritten: progress.bytesWritten,
+            bytesTotal: progress.bytesTotal,
+          }),
+      });
+      if (outputState.handle === null || !outputState.closed) {
+        throw new BrowserWorkspaceHostStorageErrorV1(
+          "request_failed",
+          "Workspace archive output did not settle",
+        );
+      }
+      const file = await outputState.handle.getFile();
+      if (file.size !== result.bytesTotal || result.bytesWritten !== result.bytesTotal) {
+        throw new BrowserWorkspaceHostStorageErrorV1(
+          "request_failed",
+          "Workspace archive output length is invalid",
+        );
+      }
+      let released = false;
+      return {
+        file,
+        progress: {
+          filesCompleted: result.filesTotal,
+          filesTotal: result.filesTotal,
+          bytesWritten: result.bytesWritten,
+          bytesTotal: result.bytesTotal,
+        },
+        release: async () => {
+          if (released) return;
+          released = true;
+          await removeEntryIfPresentV1(this.staging, portableExportStageFileNameV1);
+        },
+      };
+    } catch (error) {
+      if (outputState.writable !== null && !outputState.closed) {
+        await outputState.writable.abort(error).catch(() => undefined);
+      }
+      try {
+        await removeEntryIfPresentV1(this.staging, portableExportStageFileNameV1);
+      } catch (cleanupError) {
+        throw new BrowserWorkspaceHostCleanupErrorV1(
+          "Workspace portable archive cleanup failed",
+          cleanupError,
+        );
+      }
+      if (error instanceof DOMException && error.name === "AbortError") throw error;
+      if (
+        error instanceof BrowserWorkspacePortableArchiveErrorV1 &&
+        [
+          "file_limit_exceeded",
+          "metadata_limit_exceeded",
+          "archive_length_exceeded",
+        ].includes(error.code)
+      ) throw exportLimitErrorV1(error.message);
+      throw opfsErrorV1(error, "Workspace portable archive failed");
     }
   }
 
@@ -1199,6 +1578,7 @@ export function createBrowserWorkspaceHostOpfsBootstrapV1(
   const createVolumeId = options.createVolumeId ?? stableVolumeIdentityV1;
   const createInitialCheckpointId = options.createInitialCheckpointId ??
     (() => randomIdentityV1("sillyos.checkpoint"));
+  const estimateStorage = options.estimateStorage ?? (() => navigator.storage.estimate());
   const ioBudget = new BrowserWorkspaceHostIoBudgetV1(options.observeIo);
   const candidates = new Map<string, CandidateStateV1>();
   const openLeases = new Set<OpfsVolumeLeaseV1>();
@@ -1229,6 +1609,7 @@ export function createBrowserWorkspaceHostOpfsBootstrapV1(
       const control = await volume.getDirectoryHandle(controlDirectoryNameV1);
       const workspace = await volume.getDirectoryHandle(workspaceDirectoryNameV1);
       const staging = await control.getDirectoryHandle(stagingDirectoryNameV1);
+      await removeEntryIfPresentV1(staging, portableExportStageFileNameV1);
       let rawAnchor: unknown;
       try {
         rawAnchor = await readControlJsonV1(control, anchorFileNameV1, ioBudget);
@@ -1250,6 +1631,7 @@ export function createBrowserWorkspaceHostOpfsBootstrapV1(
         workspace,
         volumeLease,
         ioBudget,
+        estimateStorage,
       });
       await lease.recoverPending();
       await lease.adoptCandidate();

@@ -7,6 +7,8 @@ import {
   admitBrowserWorkspaceHostControlRequestV1,
   admitBrowserWorkspaceHostEnvironmentOutboundMessageV1,
   admitBrowserWorkspaceHostEnvironmentRequestV1,
+  admitBrowserWorkspaceHostExportInboundMessageV1,
+  admitBrowserWorkspaceHostExportOutboundMessageV1,
   browserWorkspaceNativePiToolPayloadMaximumBytesV1,
   isBrowserWorkspaceHostNormalizedPathV1,
 } from "../workspace/browser-workspace-host-protocol.ts";
@@ -209,6 +211,82 @@ describe("SillyOS Browser Workspace Host protocol", () => {
         code: "capacity_exceeded",
       }),
     ).toMatchObject({ ok: false, code: "capacity_exceeded" });
+  });
+
+  it("admits only the exact export start and ordered job-port records", () => {
+    expect(
+      admitBrowserWorkspaceHostControlRequestV1(
+        controlRequestV1({
+          method: "start_export",
+          exportId: "sillyos.export.1",
+          workspaceSessionId: descriptorV1.workspaceSessionId,
+          expectedCheckpointId: "checkpoint.preview.3",
+          expectedGeneration: 7,
+          programRevision: 2,
+          repositoryRevision: 4,
+        }),
+      ),
+    ).toMatchObject({ record: { method: "start_export", expectedGeneration: 7 } });
+    expect(
+      admitBrowserWorkspaceHostControlRequestV1(
+        controlRequestV1({
+          method: "start_export",
+          exportId: "sillyos.export.1",
+          workspaceSessionId: descriptorV1.workspaceSessionId,
+          expectedCheckpointId: "checkpoint.preview.3",
+          expectedGeneration: 7,
+          programRevision: 2,
+          repositoryRevision: 4,
+          provider: "forbidden",
+        }),
+      ),
+    ).toBeNull();
+
+    expect(
+      admitBrowserWorkspaceHostExportInboundMessageV1({
+        revision: 1,
+        kind: "workspace_export_cancel",
+        exportId: "sillyos.export.1",
+      }),
+    ).not.toBeNull();
+    expect(
+      admitBrowserWorkspaceHostExportInboundMessageV1({
+        revision: 1,
+        kind: "workspace_export_release",
+        exportId: "sillyos.export.1",
+        reason: "forbidden",
+      }),
+    ).toBeNull();
+
+    const progress = {
+      filesCompleted: 3,
+      filesTotal: 3,
+      bytesWritten: 512,
+      bytesTotal: 512,
+    };
+    expect(
+      admitBrowserWorkspaceHostExportOutboundMessageV1({
+        revision: 1,
+        kind: "workspace_export_ready",
+        exportId: "sillyos.export.1",
+        sequence: 2,
+        downloadUrl: "blob:sillyos-export-test",
+        checkpointId: "checkpoint.preview.3",
+        generation: 7,
+        ...progress,
+      }),
+    ).toMatchObject({ kind: "workspace_export_ready", sequence: 2, ...progress });
+    expect(
+      admitBrowserWorkspaceHostExportOutboundMessageV1({
+        revision: 1,
+        kind: "workspace_export_failed",
+        exportId: "sillyos.export.1",
+        sequence: 3,
+        code: "capacity_exceeded",
+        ...progress,
+        bytesWritten: 513,
+      }),
+    ).toBeNull();
   });
 
   it("keeps raw receipts payload-free and enforces effect generation transitions", () => {

@@ -21,7 +21,7 @@ import {
 } from "./agent-terminal-acknowledgement.ts";
 import { CreatorHomeV1 } from "./creator-home.tsx";
 import { ProgramWorkspaceV1 } from "./program-workspace.tsx";
-import type { WorkpieceBrowserStorageV1 } from "./workpiece-pane.tsx";
+import type { WorkpieceBrowserStorageV1, WorkpieceWorkspaceExportV1 } from "./workpiece-pane.tsx";
 import {
   createBrowserWorkspaceWindowStoragePortV1,
   inspectBrowserWorkspaceStorageV1,
@@ -40,6 +40,10 @@ type BrowserCreatorAgentPortV1 = ReturnType<
   BrowserCreatorAgentModuleV1["createBrowserCreatorAgentPortV1"]
 >;
 type BrowserCreatorAgentSnapshotV1 = ReturnType<BrowserCreatorAgentPortV1["getSnapshot"]>;
+type BrowserCreatorAgentExportInputV1 = Parameters<BrowserCreatorAgentPortV1["exportWorkspace"]>[0];
+type BrowserCreatorAgentExportReadyV1 = Parameters<
+  BrowserCreatorAgentExportInputV1["onReady"]
+>[0];
 type PiAgentSetupStatusV1 = "loading" | "available" | "initializing" | "ready" | "failed";
 
 function requestedBrowserPiRuntimeV1(): BrowserPiWorkerRuntimeV1 | null {
@@ -106,6 +110,42 @@ function projectBrowserStorageInspectionV1(
   };
 }
 
+function workspaceArchiveFileNameV1(programName: string): string {
+  const slug = programName.replaceAll(/[^\p{Letter}\p{Number}]+/gu, "-").replaceAll(
+    /^-+|-+$/gu,
+    "",
+  ).toLowerCase();
+  return `${slug.length === 0 ? "sillyos-program" : slug}.sillyos.zip`;
+}
+
+const workspaceDownloadHandoffMillisecondsV1 = 1_000;
+
+/** Clicks a Host-owned blob URL and retains its OPFS backing through browser handoff. */
+async function startWorkspaceDownloadV1(
+  ready: BrowserCreatorAgentExportReadyV1,
+  programName: string,
+  commitRelease: () => boolean,
+  onCommitted: () => void,
+): Promise<"release" | "cancel"> {
+  const link = document.createElement("a");
+  link.href = ready.downloadUrl;
+  link.download = workspaceArchiveFileNameV1(programName);
+  link.rel = "noopener";
+  link.hidden = true;
+  document.body.append(link);
+  try {
+    link.click();
+  } finally {
+    link.remove();
+  }
+  if (!commitRelease()) return "cancel";
+  onCommitted();
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, workspaceDownloadHandoffMillisecondsV1);
+  });
+  return "release";
+}
+
 export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): ReactNode {
   const initialCopy = resolveSillyOsCopyV1();
   const [locale, setLocale] = useState<SillyOsLocaleV1>(initialCopy.locale);
@@ -121,6 +161,9 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
     phase: "checking",
     persistenceRequest: "idle",
   });
+  const [workspaceExport, setWorkspaceExport] = useState<WorkpieceWorkspaceExportV1>({
+    phase: "idle",
+  });
   const agentFactoryRef = useRef<
     BrowserCreatorAgentModuleV1["createBrowserCreatorAgentPortV1"] | null
   >(null);
@@ -130,6 +173,8 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
   const agentWorkspaceLifecycleRef = useRef<Promise<void>>(Promise.resolve());
   const browserStorageOperationEpochRef = useRef(0);
   const browserStorageRequestPendingRef = useRef(false);
+  const workspaceExportEpochRef = useRef(0);
+  const workspaceExportAbortRef = useRef<AbortController | null>(null);
   const claimedTerminalRunIdsRef = useRef(new Set<string>());
   const controllerSnapshot = useSyncExternalStore(
     controller.subscribe,
@@ -212,6 +257,13 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
     executionWorkspaceSessionId,
     piAgentRequested,
   ]);
+
+  useEffect(() => {
+    workspaceExportEpochRef.current += 1;
+    workspaceExportAbortRef.current?.abort();
+    workspaceExportAbortRef.current = null;
+    setWorkspaceExport({ phase: "idle" });
+  }, [executionWorkspaceSessionId, routedProgramId, routedWorkspaceId]);
 
   useEffect(() => {
     const port = agentPortRef.current;
@@ -320,6 +372,9 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
     return () => {
       agentSetupEpochRef.current += 1;
       browserStorageOperationEpochRef.current += 1;
+      workspaceExportEpochRef.current += 1;
+      workspaceExportAbortRef.current?.abort();
+      workspaceExportAbortRef.current = null;
       const current = agentPortRef.current;
       agentPortRef.current = null;
       if (current !== null) {
@@ -388,6 +443,10 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
 
   const forgetPiAgentV1 = (): void => {
     agentSetupEpochRef.current += 1;
+    workspaceExportEpochRef.current += 1;
+    workspaceExportAbortRef.current?.abort();
+    workspaceExportAbortRef.current = null;
+    setWorkspaceExport({ phase: "idle" });
     const current = agentPortRef.current;
     agentPortRef.current = null;
     setAgentPort(null);
@@ -475,6 +534,110 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
     });
   };
 
+  const exportWorkspaceV1 = (): void => {
+    const port = agentPortRef.current;
+    const currentSession = controller.getSnapshot().session;
+    const currentAgent = port?.getSnapshot();
+    const descriptor = currentAgent?.workspace.descriptor;
+    if (
+      port === null || workspaceExportAbortRef.current !== null ||
+      piAgentSetupStatus !== "ready" || durability.phase !== "ready" ||
+      currentSession.route !== "workspace" || currentSession.program === null ||
+      currentSession.workspace === null || currentAgent?.phase === "running" ||
+      (currentAgent?.terminalRuns.length ?? 0) !== 0 ||
+      currentAgent?.workspace.phase !== "open" || descriptor === null || descriptor === undefined ||
+      descriptor.programId !== currentSession.program.programId ||
+      descriptor.workspaceId !== currentSession.workspace.workspaceId
+    ) return;
+
+    const epoch = ++workspaceExportEpochRef.current;
+    const abortController = new AbortController();
+    workspaceExportAbortRef.current = abortController;
+    setWorkspaceExport({
+      phase: "exporting",
+      filesCompleted: 0,
+      filesTotal: 0,
+      bytesWritten: 0,
+      bytesTotal: 0,
+    });
+    const programName = currentSession.program.name;
+    void port.exportWorkspace({
+      workspaceSessionId: descriptor.workspaceSessionId,
+      signal: abortController.signal,
+      onProgress: (progress) => {
+        if (
+          workspaceExportEpochRef.current !== epoch || abortController.signal.aborted
+        ) return;
+        setWorkspaceExport({ phase: "exporting", ...progress });
+      },
+      onReady: (ready, commitRelease) => {
+        if (
+          workspaceExportEpochRef.current !== epoch || abortController.signal.aborted
+        ) return "cancel";
+        return startWorkspaceDownloadV1(
+          ready,
+          programName,
+          commitRelease,
+          () => {
+            if (workspaceExportEpochRef.current !== epoch) return;
+            setWorkspaceExport({
+              phase: "finalizing",
+              filesCompleted: ready.filesCompleted,
+              filesTotal: ready.filesTotal,
+              bytesWritten: ready.bytesWritten,
+              bytesTotal: ready.bytesTotal,
+            });
+          },
+        );
+      },
+    }).then((result) => {
+      if (workspaceExportEpochRef.current !== epoch) return;
+      if (result.kind === "released") {
+        setWorkspaceExport({
+          phase: "download-started",
+          filesCompleted: result.filesCompleted,
+          filesTotal: result.filesTotal,
+          bytesWritten: result.bytesWritten,
+          bytesTotal: result.bytesTotal,
+        });
+        return;
+      }
+      if (result.kind === "cancelled") {
+        setWorkspaceExport({
+          phase: "cancelled",
+          filesCompleted: result.filesCompleted,
+          filesTotal: result.filesTotal,
+          bytesWritten: result.bytesWritten,
+          bytesTotal: result.bytesTotal,
+        });
+        return;
+      }
+      setWorkspaceExport({
+        phase: "failed",
+        diagnosticCode: result.diagnostic.code,
+      });
+      reportFailure("silly_os.browser_workspace_export_failed", result.diagnostic);
+    }, (error: unknown) => {
+      if (workspaceExportEpochRef.current !== epoch) return;
+      setWorkspaceExport({ phase: "failed", diagnosticCode: "request_failed" });
+      reportFailure("silly_os.browser_workspace_export_failed", error);
+    }).finally(() => {
+      if (
+        workspaceExportEpochRef.current === epoch &&
+        workspaceExportAbortRef.current === abortController
+      ) workspaceExportAbortRef.current = null;
+    });
+  };
+
+  const cancelWorkspaceExportV1 = (): void => {
+    const abortController = workspaceExportAbortRef.current;
+    if (abortController === null) return;
+    setWorkspaceExport((current) =>
+      current.phase === "exporting" ? { ...current, phase: "cancelling" } : current
+    );
+    abortController.abort();
+  };
+
   const agentMutationPending = agentSnapshot?.phase === "running" ||
     (agentSnapshot?.terminalRuns.length ?? 0) > 0;
   const agentWorkspaceLifecyclePending = agentSnapshot?.workspace.phase === "opening" ||
@@ -484,6 +647,12 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
       agentSnapshot?.workspace.phase === "open" &&
       agentSnapshot.workspace.descriptor?.programId === snapshot.program.programId &&
       agentSnapshot.workspace.descriptor.workspaceId === snapshot.workspace.workspaceId);
+  const workspaceExportPending = workspaceExport.phase === "exporting" ||
+    workspaceExport.phase === "cancelling" || workspaceExport.phase === "finalizing";
+  const workspaceExportAvailable = piAgentRequested && agentPort !== null &&
+    executionWorkspaceReady && executionWorkspaceSessionId !== null;
+  const workspaceExportDisabled = durability.phase !== "ready" || agentMutationPending ||
+    agentWorkspaceLifecyclePending || !executionWorkspaceReady || workspaceExportPending;
 
   return (
     <div
@@ -498,6 +667,7 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
         ? String(browserStorage.persisted)
         : undefined}
       data-browser-storage-persistence-request={browserStorage.persistenceRequest}
+      data-workspace-export-state={workspaceExport.phase}
     >
       {snapshot.route === "home"
         ? (
@@ -558,10 +728,10 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
             snapshot={snapshot}
             homeDisabled={durability.phase === "saving" ||
               durability.phase === "reconciling" || agentMutationPending ||
-              agentWorkspaceLifecyclePending}
+              agentWorkspaceLifecyclePending || workspaceExportPending}
             mutationPending={durability.phase === "saving" ||
               durability.phase === "reconciling" || agentMutationPending ||
-              !executionWorkspaceReady}
+              !executionWorkspaceReady || workspaceExportPending}
             onHome={() => controller.openHome()}
             onLocaleChange={changeLocaleV1}
             onAccept={() => {
@@ -600,6 +770,14 @@ export function SillyOsAppV1({ controller, reportFailure }: SillyOsAppPropsV1): 
               browserStorage,
               onRetryExecutionWorkspace: retryAgentWorkspaceV1,
               onRequestStoragePersistence: requestStoragePersistenceV1,
+              ...(workspaceExportAvailable
+                ? {
+                  workspaceExport,
+                  workspaceExportDisabled,
+                  onExportWorkspace: exportWorkspaceV1,
+                  onCancelWorkspaceExport: cancelWorkspaceExportV1,
+                }
+                : {}),
               piAgentRun: {
                 runtime: piRuntime ?? "deterministic_test",
                 status: piAgentRunStatusV1(agentSnapshot.phase),

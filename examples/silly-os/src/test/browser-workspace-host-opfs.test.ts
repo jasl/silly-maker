@@ -3,17 +3,21 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BrowserWorkspaceHostIoBudgetV1,
   browserWorkspaceHostControlFileMaximumBytesV1,
+  browserWorkspaceHostExportDirectoryChildMaximumV1,
+  browserWorkspaceHostExportDirectoryMaximumV1,
   browserWorkspaceHostIoBytesInFlightMaximumV1,
   browserWorkspaceHostIoChunkMaximumBytesV1,
   createBrowserWorkspaceHostOpfsBootstrapV1,
   type BrowserWorkspaceHostExclusiveLeaseV1,
   type BrowserWorkspaceHostExclusiveLockPortV1,
 } from "../workspace/browser-workspace-host-opfs.ts";
-import type {
-  BrowserWorkspaceHostDurableHeadV1,
-  BrowserWorkspaceHostReplaceFileInputV1,
-  BrowserWorkspaceHostVolumeLeasePortV1,
+import {
+  BrowserWorkspaceHostCleanupErrorV1,
+  type BrowserWorkspaceHostDurableHeadV1,
+  type BrowserWorkspaceHostReplaceFileInputV1,
+  type BrowserWorkspaceHostVolumeLeasePortV1,
 } from "../workspace/browser-workspace-host-runtime.ts";
 
 type FakeEntryV1 = FakeDirectoryV1 | FakeFileV1;
@@ -23,9 +27,18 @@ class FakeFaultsV1 {
   readonly closeFailures = new Map<string, FakeCloseFailureV1>();
   readonly persistentQuotaCloseFailures = new Set<string>();
   readonly removeFailures = new Set<string>();
+  readonly fileSliceReads: Array<{
+    readonly name: string;
+    readonly start: number;
+    readonly end: number;
+  }> = [];
+  readonly writableCreates: string[] = [];
   readonly writeChunkBytes: number[] = [];
+  readonly directoryEnumerations: string[] = [];
+  readonly directoryIterationFailures = new Map<string, DOMException>();
   dynamicCloseFailure: ((name: string) => FakeCloseFailureV1 | null) | null = null;
   afterCloseFailure: ((name: string, failure: FakeCloseFailureV1) => void) | null = null;
+  afterFileSlice: ((name: string) => void) | null = null;
   afterRemove: ((name: string) => void) | null = null;
 }
 
@@ -39,8 +52,21 @@ class FakeFileV1 {
       kind: "file",
       name: this.name,
       isSameEntry: async () => false,
-      getFile: async () => new File([this.bytes], this.name),
+      getFile: async () => {
+        const file = new File([this.bytes], this.name);
+        const slice = file.slice.bind(file);
+        Object.defineProperty(file, "slice", {
+          configurable: true,
+          value: (start = 0, end = file.size, contentType = "") => {
+            this.faults.fileSliceReads.push({ name: this.name, start, end });
+            this.faults.afterFileSlice?.(this.name);
+            return slice(start, end, contentType);
+          },
+        });
+        return file;
+      },
       createWritable: async () => {
+        this.faults.writableCreates.push(this.name);
         let next = new Uint8Array();
         return {
           write: async (value: FileSystemWriteChunkType) => {
@@ -142,6 +168,13 @@ class FakeDirectoryV1 {
     this.faults.afterRemove?.(name);
   }
 
+  async *iterateEntries(): AsyncIterableIterator<[string, FileSystemHandle]> {
+    this.faults.directoryEnumerations.push(this.name);
+    const failure = this.faults.directoryIterationFailures.get(this.name);
+    if (failure !== undefined) throw failure;
+    for (const [name, entry] of this.entries) yield [name, entry.handle()];
+  }
+
   clone(faults = new FakeFaultsV1()): FakeDirectoryV1 {
     const clone = new FakeDirectoryV1(this.name, faults);
     for (const [name, entry] of this.entries) {
@@ -158,6 +191,7 @@ class FakeDirectoryV1 {
       getDirectoryHandle: this.getDirectoryHandle.bind(this),
       getFileHandle: this.getFileHandle.bind(this),
       removeEntry: this.removeEntry.bind(this),
+      entries: this.iterateEntries.bind(this),
     } as unknown as FileSystemDirectoryHandle;
   }
 }
@@ -258,6 +292,63 @@ async function readWorkspaceFileV1(
   return result;
 }
 
+interface ParsedStoredZipEntryV1 {
+  readonly name: string;
+  readonly bytes: Uint8Array;
+}
+
+function uint32V1(view: DataView, offset: number): number {
+  return view.getUint32(offset, true);
+}
+
+function parseStoredZipV1(bytes: Uint8Array): readonly ParsedStoredZipEntryV1[] {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const minimumEndOffset = Math.max(0, bytes.byteLength - 65_557);
+  let endOffset = -1;
+  for (let offset = bytes.byteLength - 22; offset >= minimumEndOffset; offset -= 1) {
+    if (uint32V1(view, offset) === 0x06054b50) {
+      endOffset = offset;
+      break;
+    }
+  }
+  if (endOffset < 0) throw new Error("missing test ZIP end record");
+
+  const entryCount = view.getUint16(endOffset + 10, true);
+  let centralOffset = uint32V1(view, endOffset + 16);
+  const decoder = new TextDecoder();
+  const entries: ParsedStoredZipEntryV1[] = [];
+  for (let index = 0; index < entryCount; index += 1) {
+    if (uint32V1(view, centralOffset) !== 0x02014b50) {
+      throw new Error("missing test ZIP central entry");
+    }
+    if (view.getUint16(centralOffset + 10, true) !== 0) {
+      throw new Error("test ZIP entry is not stored");
+    }
+    const compressedSize = uint32V1(view, centralOffset + 20);
+    const uncompressedSize = uint32V1(view, centralOffset + 24);
+    if (compressedSize !== uncompressedSize) throw new Error("test ZIP entry size mismatch");
+    const nameLength = view.getUint16(centralOffset + 28, true);
+    const extraLength = view.getUint16(centralOffset + 30, true);
+    const commentLength = view.getUint16(centralOffset + 32, true);
+    const localOffset = uint32V1(view, centralOffset + 42);
+    const name = decoder.decode(
+      bytes.subarray(centralOffset + 46, centralOffset + 46 + nameLength),
+    );
+    if (uint32V1(view, localOffset) !== 0x04034b50) {
+      throw new Error("missing test ZIP local entry");
+    }
+    const localNameLength = view.getUint16(localOffset + 26, true);
+    const localExtraLength = view.getUint16(localOffset + 28, true);
+    const dataOffset = localOffset + 30 + localNameLength + localExtraLength;
+    entries.push({
+      name,
+      bytes: bytes.slice(dataOffset, dataOffset + uncompressedSize),
+    });
+    centralOffset += 46 + nameLength + extraLength + commentLength;
+  }
+  return entries;
+}
+
 async function openedOpfsV1(volumeId: string): Promise<{
   readonly root: FakeDirectoryV1;
   readonly bootstrap: ReturnType<typeof createBrowserWorkspaceHostOpfsBootstrapV1>;
@@ -278,6 +369,45 @@ async function openedOpfsV1(volumeId: string): Promise<{
 }
 
 describe("SillyOS Browser Workspace OPFS bootstrap", () => {
+  it("aborts a blocked shared I/O reservation without leaking its waiter", async () => {
+    const observations: Array<{ readonly chunkBytes: number; readonly bytesInFlight: number }> = [];
+    const budget = new BrowserWorkspaceHostIoBudgetV1((observation) => {
+      observations.push(observation);
+    });
+    const holder = await budget.acquire(
+      browserWorkspaceHostIoBytesInFlightMaximumV1,
+      browserWorkspaceHostIoChunkMaximumBytesV1,
+    );
+    const controller = new AbortController();
+    const waiting = budget.acquire(
+      2 * browserWorkspaceHostIoChunkMaximumBytesV1,
+      browserWorkspaceHostIoChunkMaximumBytesV1,
+      controller.signal,
+    );
+    let settled = false;
+    waiting.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    controller.abort(new DOMException("cancelled by test", "AbortError"));
+    await expect(waiting).rejects.toMatchObject({ name: "AbortError" });
+    holder.release();
+
+    const fresh = await budget.acquire(
+      browserWorkspaceHostIoBytesInFlightMaximumV1,
+      browserWorkspaceHostIoChunkMaximumBytesV1,
+    );
+    fresh.release();
+    expect(observations.at(-1)).toEqual({ chunkBytes: 0, bytesInFlight: 0 });
+  });
+
   it("recognizes directory leaves, overwrites existing files, and retains the exact head on same-byte cold reopen", async () => {
     const root = new FakeDirectoryV1("root");
     const bootstrap = createBrowserWorkspaceHostOpfsBootstrapV1({
@@ -413,6 +543,430 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       browserWorkspaceHostIoBytesInFlightMaximumV1,
     );
     await expect(lease.readHead()).resolves.toEqual(changed.head);
+    await lease.close();
+    await bootstrap.dispose();
+  });
+
+  it("exports deterministic nested Unicode and empty VFS files with the exact bounded manifest", async () => {
+    const opened = await openedOpfsV1("volume.portable-exact.1");
+    const workspace = await fakeDirectoryV1(opened.root, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+      opened.lease.anchor.volumeId,
+      "workspace",
+    ]);
+    const unicode = await workspace.getDirectoryHandle("资料", { create: true });
+    const nested = await unicode.getDirectoryHandle("嵌套", { create: true });
+    await nested.getDirectoryHandle("空目录", { create: true });
+    const programBytes = new TextEncoder().encode("# Portable workspace\n");
+    const unicodeBytes = new TextEncoder().encode("猫和人一起创作。\n");
+    await putBytesV1(workspace, "program.md", programBytes);
+    await putBytesV1(workspace, "empty.bin", new Uint8Array());
+    await putBytesV1(unicode, "猫.txt", unicodeBytes);
+    await putBytesV1(nested, "零字节.txt", new Uint8Array());
+
+    const head = await opened.lease.readHead();
+    const progress: Array<{
+      readonly filesCompleted: number;
+      readonly filesTotal: number;
+      readonly bytesWritten: number;
+      readonly bytesTotal: number;
+    }> = [];
+    const exportOnce = async (): Promise<Uint8Array> => {
+      const archive = await opened.lease.createPortableArchive({
+        programRevision: 4,
+        repositoryRevision: 7,
+        expectedHead: head,
+        signal: new AbortController().signal,
+        onProgress: (next) => progress.push(next),
+      });
+      const bytes = new Uint8Array(await archive.file.arrayBuffer());
+      expect(archive.progress).toEqual(progress.at(-1));
+      await archive.release();
+      return bytes;
+    };
+
+    const first = await exportOnce();
+    progress.length = 0;
+    const second = await exportOnce();
+    expect(second).toEqual(first);
+    expect(await opened.lease.readHead()).toEqual(head);
+
+    const entries = parseStoredZipV1(first);
+    expect(entries.map(({ name }) => name)).toEqual([
+      "sillyos-workspace.json",
+      "workspace/empty.bin",
+      "workspace/program.md",
+      "workspace/资料/嵌套/零字节.txt",
+      "workspace/资料/猫.txt",
+    ]);
+    expect(new TextDecoder().decode(entries[0]?.bytes)).toBe(`${
+      JSON.stringify({
+        revision: 1,
+        kind: "sillyos-workspace",
+        exportFormat: 1,
+        workspaceFormat: 1,
+        programId: opened.lease.anchor.programId,
+        workspaceId: opened.lease.anchor.workspaceId,
+        programRevision: 4,
+        repositoryRevision: 7,
+        checkpointId: head.checkpointId,
+        generation: head.generation,
+      })
+    }\n`);
+    expect(entries[1]?.bytes).toEqual(new Uint8Array());
+    expect(entries[2]?.bytes).toEqual(programBytes);
+    expect(entries[3]?.bytes).toEqual(new Uint8Array());
+    expect(entries[4]?.bytes).toEqual(unicodeBytes);
+    expect(entries.some(({ name }) => name.includes("空目录"))).toBe(false);
+
+    await opened.lease.close();
+    await opened.bootstrap.dispose();
+  });
+
+  it("rejects a complete insufficient quota estimate before source reads or temp creation", async () => {
+    const root = new FakeDirectoryV1("root");
+    const bootstrap = createBrowserWorkspaceHostOpfsBootstrapV1({
+      getRootDirectory: async () => root.handle(),
+      lockPort: new FakeLockPortV1(),
+      createVolumeId: () => "volume.portable-quota.1",
+      createInitialCheckpointId: () => "checkpoint.portable-quota.1",
+      estimateStorage: async () => ({ quota: 1, usage: 1 }),
+    });
+    const anchor = await bootstrap.createCandidate({
+      programId: "program.preview.1",
+      workspaceId: "workspace.preview.1",
+    });
+    const workspace = await fakeDirectoryV1(root, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+      anchor.volumeId,
+      "workspace",
+    ]);
+    await putBytesV1(workspace, "payload.bin", new Uint8Array([1, 2, 3, 4]));
+    const lease = await bootstrap.openVolume(anchor);
+    const head = await lease.readHead();
+    root.faults.fileSliceReads.length = 0;
+    root.faults.writableCreates.length = 0;
+
+    await expect(lease.createPortableArchive({
+      programRevision: 2,
+      repositoryRevision: 3,
+      expectedHead: head,
+      signal: new AbortController().signal,
+      onProgress() {},
+    })).rejects.toMatchObject({ code: "capacity_exceeded" });
+    expect(root.faults.fileSliceReads.filter(({ name }) => name === "payload.bin")).toEqual([]);
+    expect(root.faults.writableCreates).not.toContain("portable-export.zip");
+    const staging = fakeDirectoryNodeV1(root, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+      anchor.volumeId,
+      "control",
+      "staging",
+    ]);
+    expect(staging.entries.has("portable-export.zip")).toBe(false);
+    expect(await lease.readHead()).toEqual(head);
+
+    await lease.close();
+    await bootstrap.dispose();
+  });
+
+  it("cancels a live export, removes its temp file, and preserves the durable head", async () => {
+    const opened = await openedOpfsV1("volume.portable-cancel.1");
+    const workspace = await fakeDirectoryV1(opened.root, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+      opened.lease.anchor.volumeId,
+      "workspace",
+    ]);
+    await putBytesV1(
+      workspace,
+      "payload.bin",
+      new Uint8Array(browserWorkspaceHostIoChunkMaximumBytesV1 + 17),
+    );
+    const head = await opened.lease.readHead();
+    const controller = new AbortController();
+    opened.root.faults.fileSliceReads.length = 0;
+    opened.root.faults.writableCreates.length = 0;
+    opened.root.faults.afterFileSlice = (name) => {
+      if (name === "payload.bin" && !controller.signal.aborted) {
+        controller.abort(new DOMException("cancelled by test", "AbortError"));
+      }
+    };
+
+    await expect(opened.lease.createPortableArchive({
+      programRevision: 2,
+      repositoryRevision: 3,
+      expectedHead: head,
+      signal: controller.signal,
+      onProgress() {},
+    })).rejects.toMatchObject({ name: "AbortError" });
+    opened.root.faults.afterFileSlice = null;
+    expect(opened.root.faults.writableCreates).toContain("portable-export.zip");
+    expect(
+      opened.root.faults.fileSliceReads.filter(({ name }) => name === "payload.bin"),
+    ).toHaveLength(1);
+    const staging = fakeDirectoryNodeV1(opened.root, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+      opened.lease.anchor.volumeId,
+      "control",
+      "staging",
+    ]);
+    expect(staging.entries.has("portable-export.zip")).toBe(false);
+    expect(await opened.lease.readHead()).toEqual(head);
+
+    await opened.lease.close();
+    await opened.bootstrap.dispose();
+  });
+
+  it("surfaces failed cancellation cleanup and removes the debris on the next export", async () => {
+    const opened = await openedOpfsV1("volume.portable-cleanup.1");
+    const workspace = await fakeDirectoryV1(opened.root, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+      opened.lease.anchor.volumeId,
+      "workspace",
+    ]);
+    await putBytesV1(
+      workspace,
+      "payload.bin",
+      new Uint8Array(browserWorkspaceHostIoChunkMaximumBytesV1 + 17),
+    );
+    const head = await opened.lease.readHead();
+    const controller = new AbortController();
+    opened.root.faults.afterFileSlice = (name) => {
+      if (name !== "payload.bin" || controller.signal.aborted) return;
+      opened.root.faults.removeFailures.add("portable-export.zip");
+      controller.abort(new DOMException("cancelled by test", "AbortError"));
+    };
+
+    await expect(opened.lease.createPortableArchive({
+      programRevision: 2,
+      repositoryRevision: 3,
+      expectedHead: head,
+      signal: controller.signal,
+      onProgress() {},
+    })).rejects.toBeInstanceOf(BrowserWorkspaceHostCleanupErrorV1);
+    opened.root.faults.afterFileSlice = null;
+    const staging = fakeDirectoryNodeV1(opened.root, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+      opened.lease.anchor.volumeId,
+      "control",
+      "staging",
+    ]);
+    expect(staging.entries.has("portable-export.zip")).toBe(true);
+    const retry = await opened.lease.createPortableArchive({
+      programRevision: 2,
+      repositoryRevision: 3,
+      expectedHead: head,
+      signal: new AbortController().signal,
+      onProgress() {},
+    });
+    expect(await opened.lease.readHead()).toEqual(head);
+    await retry.release();
+    expect(staging.entries.has("portable-export.zip")).toBe(false);
+
+    await opened.lease.close();
+    await opened.bootstrap.dispose();
+  });
+
+  it("rejects directory breadth before retaining an unbounded child list", async () => {
+    const opened = await openedOpfsV1("volume.portable-child-limit.1");
+    const workspace = fakeDirectoryNodeV1(opened.root, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+      opened.lease.anchor.volumeId,
+      "workspace",
+    ]);
+    for (
+      let index = 0;
+      index <= browserWorkspaceHostExportDirectoryChildMaximumV1;
+      index += 1
+    ) {
+      const name = `child-${String(index).padStart(5, "0")}`;
+      workspace.entries.set(name, new FakeDirectoryV1(name, opened.root.faults));
+    }
+    const head = await opened.lease.readHead();
+    await expect(opened.lease.createPortableArchive({
+      programRevision: 2,
+      repositoryRevision: 3,
+      expectedHead: head,
+      signal: new AbortController().signal,
+      onProgress() {},
+    })).rejects.toMatchObject({ code: "capacity_exceeded" });
+    expect(await opened.lease.readHead()).toEqual(head);
+    await opened.lease.close();
+    await opened.bootstrap.dispose();
+  });
+
+  it("rejects discovered directories before the pending traversal exceeds its bound", async () => {
+    const opened = await openedOpfsV1("volume.portable-directory-limit.1");
+    const workspace = fakeDirectoryNodeV1(opened.root, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+      opened.lease.anchor.volumeId,
+      "workspace",
+    ]);
+    const roots: FakeDirectoryV1[] = [];
+    for (let index = 0; index < browserWorkspaceHostExportDirectoryChildMaximumV1; index += 1) {
+      const name = `root-${String(index).padStart(4, "0")}`;
+      const directory = new FakeDirectoryV1(name, opened.root.faults);
+      roots.push(directory);
+      workspace.entries.set(name, directory);
+    }
+    const nestedParents = Math.ceil(
+      (browserWorkspaceHostExportDirectoryMaximumV1 - roots.length) /
+        browserWorkspaceHostExportDirectoryChildMaximumV1,
+    );
+    for (let parentIndex = 0; parentIndex < nestedParents; parentIndex += 1) {
+      const parent = roots[parentIndex]!;
+      for (
+        let index = 0;
+        index < browserWorkspaceHostExportDirectoryChildMaximumV1;
+        index += 1
+      ) {
+        const name = `nested-${String(index).padStart(4, "0")}`;
+        parent.entries.set(name, new FakeDirectoryV1(name, opened.root.faults));
+      }
+    }
+    const head = await opened.lease.readHead();
+    await expect(opened.lease.createPortableArchive({
+      programRevision: 2,
+      repositoryRevision: 3,
+      expectedHead: head,
+      signal: new AbortController().signal,
+      onProgress() {},
+    })).rejects.toMatchObject({ code: "capacity_exceeded" });
+    expect(opened.root.faults.directoryEnumerations).toContain("root-0002");
+    expect(opened.root.faults.directoryEnumerations).not.toContain("root-0003");
+    expect(await opened.lease.readHead()).toEqual(head);
+    await opened.lease.close();
+    await opened.bootstrap.dispose();
+  });
+
+  it("removes a stale portable export temp before reopening the durable volume", async () => {
+    const opened = await openedOpfsV1("volume.portable-reopen.1");
+    const head = await opened.lease.readHead();
+    const staging = await fakeDirectoryV1(opened.root, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+      opened.lease.anchor.volumeId,
+      "control",
+      "staging",
+    ]);
+    await putBytesV1(staging, "portable-export.zip", new Uint8Array([80, 75, 3, 4]));
+    await opened.lease.close();
+    await opened.bootstrap.dispose();
+
+    const cold = createBrowserWorkspaceHostOpfsBootstrapV1({
+      getRootDirectory: async () => opened.root.handle(),
+      lockPort: new FakeLockPortV1(),
+    });
+    const reopened = await cold.openVolume(opened.lease.anchor);
+    await expect(staging.getFileHandle("portable-export.zip")).rejects.toMatchObject({
+      name: "NotFoundError",
+    });
+    expect(await reopened.readHead()).toEqual(head);
+    await reopened.close();
+    await cold.dispose();
+  });
+
+  it("maps unavailable workspace enumeration during portable export without changing the head", async () => {
+    const opened = await openedOpfsV1("volume.portable-unavailable.1");
+    const head = await opened.lease.readHead();
+    opened.root.faults.directoryIterationFailures.set(
+      "workspace",
+      new DOMException("denied", "SecurityError"),
+    );
+
+    await expect(opened.lease.createPortableArchive({
+      programRevision: 2,
+      repositoryRevision: 3,
+      expectedHead: head,
+      signal: new AbortController().signal,
+      onProgress() {},
+    })).rejects.toMatchObject({ code: "storage_unavailable" });
+    expect(await opened.lease.readHead()).toEqual(head);
+    const staging = await fakeDirectoryV1(opened.root, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+      opened.lease.anchor.volumeId,
+      "control",
+      "staging",
+    ]);
+    await expect(staging.getFileHandle("portable-export.zip")).rejects.toMatchObject({
+      name: "NotFoundError",
+    });
+    await opened.lease.close();
+    await opened.bootstrap.dispose();
+  });
+
+  it("keeps portable export source and destination I/O inside the existing shared budget", async () => {
+    const root = new FakeDirectoryV1("root");
+    const observations: Array<{ readonly chunkBytes: number; readonly bytesInFlight: number }> = [];
+    const bootstrap = createBrowserWorkspaceHostOpfsBootstrapV1({
+      getRootDirectory: async () => root.handle(),
+      lockPort: new FakeLockPortV1(),
+      createVolumeId: () => "volume.portable-budget.1",
+      createInitialCheckpointId: () => "checkpoint.portable-budget.1",
+      estimateStorage: async () => ({ quota: 64 * 1024 * 1024, usage: 0 }),
+      observeIo: (observation) => observations.push(observation),
+    });
+    const anchor = await bootstrap.createCandidate({
+      programId: "program.preview.1",
+      workspaceId: "workspace.preview.1",
+    });
+    const workspace = await fakeDirectoryV1(root, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+      anchor.volumeId,
+      "workspace",
+    ]);
+    const payload = new Uint8Array(2 * browserWorkspaceHostIoChunkMaximumBytesV1 + 17);
+    payload.forEach((_byte, index) => {
+      payload[index] = index % 251;
+    });
+    await putBytesV1(workspace, "payload.bin", payload);
+    const lease = await bootstrap.openVolume(anchor);
+    const head = await lease.readHead();
+    observations.length = 0;
+    root.faults.fileSliceReads.length = 0;
+    root.faults.writeChunkBytes.length = 0;
+    const archive = await lease.createPortableArchive({
+      programRevision: 2,
+      repositoryRevision: 3,
+      expectedHead: head,
+      signal: new AbortController().signal,
+      onProgress() {},
+    });
+
+    expect(
+      Math.max(
+        ...root.faults.fileSliceReads
+          .filter(({ name }) => name === "payload.bin")
+          .map(({ start, end }) => end - start),
+      ),
+    ).toBeLessThanOrEqual(browserWorkspaceHostIoChunkMaximumBytesV1);
+    expect(Math.max(...root.faults.writeChunkBytes)).toBeLessThanOrEqual(
+      browserWorkspaceHostIoChunkMaximumBytesV1,
+    );
+    expect(Math.max(...observations.map(({ chunkBytes }) => chunkBytes))).toBeLessThanOrEqual(
+      browserWorkspaceHostIoChunkMaximumBytesV1,
+    );
+    expect(Math.max(...observations.map(({ bytesInFlight }) => bytesInFlight))).toBeLessThanOrEqual(
+      browserWorkspaceHostIoBytesInFlightMaximumV1,
+    );
+    expect(archive.progress).toMatchObject({
+      filesCompleted: 1,
+      filesTotal: 1,
+      bytesWritten: archive.file.size,
+      bytesTotal: archive.file.size,
+    });
+    expect(await lease.readHead()).toEqual(head);
+    await archive.release();
     await lease.close();
     await bootstrap.dispose();
   });

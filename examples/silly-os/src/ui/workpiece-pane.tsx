@@ -4,7 +4,9 @@ import {
   Code2,
   Download,
   FileText,
+  FolderArchive,
   History,
+  LoaderCircle,
   Maximize2,
   Minimize2,
   PlugZap,
@@ -88,6 +90,25 @@ export type WorkpieceBrowserStorageV1 =
     readonly persistenceRequest: WorkpieceBrowserStoragePersistenceRequestV1;
   };
 
+export interface WorkpieceWorkspaceExportProgressV1 {
+  readonly filesCompleted: number;
+  readonly filesTotal: number;
+  readonly bytesWritten: number;
+  readonly bytesTotal: number;
+}
+
+export type WorkpieceWorkspaceExportV1 =
+  | { readonly phase: "idle" }
+  | ({ readonly phase: "exporting" } & WorkpieceWorkspaceExportProgressV1)
+  | ({ readonly phase: "cancelling" } & WorkpieceWorkspaceExportProgressV1)
+  | ({ readonly phase: "finalizing" } & WorkpieceWorkspaceExportProgressV1)
+  | ({ readonly phase: "download-started" } & WorkpieceWorkspaceExportProgressV1)
+  | ({ readonly phase: "cancelled" } & WorkpieceWorkspaceExportProgressV1)
+  | {
+    readonly phase: "failed";
+    readonly diagnosticCode: WorkpieceExecutionWorkspaceDiagnosticCodeV1;
+  };
+
 export interface WorkpiecePanePropsV1 {
   readonly copy: SillyOsCopyV1;
   readonly program: PreviewProgramV1;
@@ -98,9 +119,13 @@ export interface WorkpiecePanePropsV1 {
   readonly agentMode?: BrowserPiWorkerRuntimeV1;
   readonly executionWorkspace?: WorkpieceExecutionWorkspaceV1;
   readonly browserStorage?: WorkpieceBrowserStorageV1;
+  readonly workspaceExport?: WorkpieceWorkspaceExportV1;
+  readonly workspaceExportDisabled?: boolean;
   readonly outputRef: React.RefObject<HTMLElement | null>;
   readonly onRetryExecutionWorkspace?: () => void;
   readonly onRequestStoragePersistence?: () => void;
+  readonly onExportWorkspace?: () => void;
+  readonly onCancelWorkspaceExport?: () => void;
   readonly onTabChange: (tab: WorkpieceTabV1) => void;
   readonly onToggleFullscreen: () => void;
   readonly onClose: () => void;
@@ -139,9 +164,13 @@ export function WorkpiecePaneV1({
   agentMode,
   executionWorkspace,
   browserStorage,
+  workspaceExport,
+  workspaceExportDisabled = false,
   outputRef,
   onRetryExecutionWorkspace,
   onRequestStoragePersistence,
+  onExportWorkspace,
+  onCancelWorkspaceExport,
   onTabChange,
   onToggleFullscreen,
   onClose,
@@ -152,13 +181,18 @@ export function WorkpiecePaneV1({
     { value: "capabilities", label: copy.capabilitiesTab },
     { value: "activity", label: copy.activityTab },
   ];
+  const showWorkspaceExport = executionWorkspace?.phase === "open" &&
+    workspaceExport !== undefined && onExportWorkspace !== undefined;
 
   return (
     <section
       ref={outputRef}
-      className={`workpiece-pane${fullscreen ? " is-fullscreen" : ""}`}
+      className={`workpiece-pane${fullscreen ? " is-fullscreen" : ""}${
+        showWorkspaceExport ? " has-workspace-export" : ""
+      }`}
       data-workspace-pane="workpiece"
       data-workpiece-tab={activeTab}
+      data-workspace-export-state={showWorkspaceExport ? workspaceExport.phase : undefined}
       aria-label={program.name}
       tabIndex={-1}
     >
@@ -188,7 +222,7 @@ export function WorkpiecePaneV1({
             shape="square"
             size="sm"
             icon={Download}
-            aria-label="Download preview manifest"
+            aria-label={copy.locale === "zh-CN" ? "下载预览清单" : "Download preview manifest"}
             onClick={() => savePreviewV1(program, agentMode)}
           />
           <Button
@@ -209,6 +243,16 @@ export function WorkpiecePaneV1({
           />
         </div>
       </div>
+
+      {showWorkspaceExport && (
+        <WorkspaceExportStatusV1
+          copy={copy}
+          state={workspaceExport}
+          disabled={workspaceExportDisabled}
+          onExport={onExportWorkspace}
+          {...(onCancelWorkspaceExport === undefined ? {} : { onCancel: onCancelWorkspaceExport })}
+        />
+      )}
 
       <div className="workpiece-pane__body">
         {activeTab === "view" && (
@@ -238,6 +282,170 @@ export function WorkpiecePaneV1({
         )}
       </div>
     </section>
+  );
+}
+
+function workspaceExportCopyV1(
+  copy: SillyOsCopyV1,
+  state: WorkpieceWorkspaceExportV1,
+): string {
+  switch (state.phase) {
+    case "idle":
+      return copy.locale === "zh-CN"
+        ? "下载当前持久化工作区的 VFS 文件与可移植 manifest。"
+        : "Download the current durable workspace VFS files and portable manifest.";
+    case "exporting": {
+      if (state.filesTotal === 0 && state.bytesTotal === 0) {
+        return copy.locale === "zh-CN" ? "正在准备工作区 ZIP……" : "Preparing the workspace ZIP…";
+      }
+      const files = copy.locale === "zh-CN"
+        ? `${String(state.filesCompleted)} / ${String(state.filesTotal)} 个文件`
+        : `${String(state.filesCompleted)} of ${String(state.filesTotal)} files`;
+      const bytes = state.bytesTotal === 0
+        ? ""
+        : ` · ${formatStorageBytesV1(state.bytesWritten, copy.locale)} / ${
+          formatStorageBytesV1(state.bytesTotal, copy.locale)
+        }`;
+      return copy.locale === "zh-CN"
+        ? `正在生成工作区 ZIP：${files}${bytes}`
+        : `Building workspace ZIP: ${files}${bytes}`;
+    }
+    case "cancelling":
+      return copy.locale === "zh-CN"
+        ? "正在取消工作区 ZIP 导出……"
+        : "Cancelling workspace ZIP export…";
+    case "finalizing":
+      return copy.locale === "zh-CN"
+        ? "正在将 ZIP 交给浏览器下载……"
+        : "Handing the ZIP to the browser download…";
+    case "download-started":
+      return copy.locale === "zh-CN"
+        ? `下载已开始 · ${String(state.filesTotal)} 个文件 · ${
+          formatStorageBytesV1(state.bytesWritten, copy.locale)
+        }`
+        : `Download started · ${String(state.filesTotal)} files · ${
+          formatStorageBytesV1(state.bytesWritten, copy.locale)
+        }`;
+    case "cancelled":
+      return copy.locale === "zh-CN"
+        ? "工作区 ZIP 导出已取消。"
+        : "Workspace ZIP export cancelled.";
+    case "failed": {
+      switch (state.diagnosticCode) {
+        case "capacity_exceeded":
+          return copy.locale === "zh-CN"
+            ? "浏览器空间不足，无法创建临时 ZIP；工作区文件未被修改。"
+            : "The browser lacks space for the temporary ZIP. Workspace files were not changed.";
+        case "workspace_busy":
+          return copy.locale === "zh-CN"
+            ? "工作区正在处理另一项操作，请稍后重试。"
+            : "The workspace is handling another operation. Try again shortly.";
+        case "storage_unavailable":
+        case "volume_missing":
+        case "volume_corrupt":
+        case "recovery_required":
+          return copy.locale === "zh-CN"
+            ? "当前持久化工作区不可用于导出。"
+            : "The durable workspace is not currently available for export.";
+        case "protocol_invalid":
+        case "request_failed":
+          return copy.locale === "zh-CN"
+            ? "工作区 ZIP 导出失败，请重试。"
+            : "Workspace ZIP export failed. Try again.";
+        case "disposed":
+          return copy.locale === "zh-CN"
+            ? "Agent 工作区连接已关闭，无法导出。"
+            : "The Agent workspace connection is closed and cannot export.";
+      }
+      const exhaustive: never = state.diagnosticCode;
+      return exhaustive;
+    }
+  }
+  const exhaustive: never = state;
+  return exhaustive;
+}
+
+function WorkspaceExportStatusV1({
+  copy,
+  state,
+  disabled,
+  onExport,
+  onCancel,
+}: {
+  readonly copy: SillyOsCopyV1;
+  readonly state: WorkpieceWorkspaceExportV1;
+  readonly disabled: boolean;
+  readonly onExport: () => void;
+  readonly onCancel?: () => void;
+}): ReactNode {
+  const cancellable = state.phase === "exporting" || state.phase === "cancelling";
+  const working = cancellable || state.phase === "finalizing";
+  const progress = state.phase === "failed" || state.phase === "idle" ? null : state;
+  return (
+    <aside
+      className={`workpiece-workspace-export is-${state.phase}`}
+      role={state.phase === "failed" ? "alert" : "status"}
+      aria-live="polite"
+      data-workspace-export-status={state.phase}
+      data-workspace-export-files-completed={progress?.filesCompleted}
+      data-workspace-export-files-total={progress?.filesTotal}
+      data-workspace-export-bytes-written={progress?.bytesWritten}
+      data-workspace-export-bytes-total={progress?.bytesTotal}
+    >
+      <div className="workpiece-workspace-export__summary">
+        {working
+          ? <LoaderCircle className="is-spinning" size={16} aria-hidden="true" />
+          : state.phase === "download-started"
+          ? <CircleCheck size={16} aria-hidden="true" />
+          : <FolderArchive size={16} aria-hidden="true" />}
+        <span>
+          <strong>{copy.locale === "zh-CN" ? "可移植工作区" : "Portable workspace"}</strong>
+          <small>{workspaceExportCopyV1(copy, state)}</small>
+        </span>
+      </div>
+      {working && progress !== null && progress.bytesTotal > 0 && (
+        <progress
+          max={progress.bytesTotal}
+          value={Math.min(progress.bytesWritten, progress.bytesTotal)}
+          aria-label={copy.locale === "zh-CN"
+            ? "工作区 ZIP 导出进度"
+            : "Workspace ZIP export progress"}
+        />
+      )}
+      <div className="workpiece-workspace-export__actions">
+        {cancellable
+          ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={onCancel === undefined || state.phase === "cancelling"}
+              data-workspace-export-action="cancel"
+              onClick={onCancel}
+            >
+              {state.phase === "cancelling"
+                ? copy.locale === "zh-CN" ? "正在取消" : "Cancelling"
+                : copy.locale === "zh-CN"
+                ? "取消"
+                : "Cancel"}
+            </Button>
+          )
+          : state.phase === "finalizing"
+          ? null
+          : (
+            <Button
+              type="button"
+              size="sm"
+              icon={Download}
+              disabled={disabled}
+              data-workspace-export-action="start"
+              onClick={onExport}
+            >
+              {copy.locale === "zh-CN" ? "下载工作区 ZIP" : "Download workspace ZIP"}
+            </Button>
+          )}
+      </div>
+    </aside>
   );
 }
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 /// <reference lib="dom" />
 import type { Locator, Page } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 
 import { expect, sillyOsTargetUrlV1, test } from "./fixtures.ts";
 
@@ -112,6 +113,188 @@ interface WorkspaceScaleQualificationReceiptV1 {
     readonly observedChunkBytes: number;
     readonly observedBytesInFlight: number;
   };
+}
+
+interface SillyOsWorkspaceExportManifestV1 {
+  readonly revision: 1;
+  readonly kind: "sillyos-workspace";
+  readonly exportFormat: 1;
+  readonly workspaceFormat: 1;
+  readonly programId: string;
+  readonly workspaceId: string;
+  readonly programRevision: number;
+  readonly repositoryRevision: number;
+  readonly checkpointId: string;
+  readonly generation: number;
+}
+
+interface QualificationArchiveFileV1 {
+  readonly path: string;
+  readonly byteLength: number;
+  readonly seed: number;
+}
+
+interface ZipCentralDirectoryEntryV1 {
+  readonly name: string;
+  readonly compressionMethod: number;
+  readonly modificationTime: number;
+  readonly modificationDate: number;
+  readonly bytes: Uint8Array;
+}
+
+const workspaceExportManifestNameV1 = "sillyos-workspace.json";
+const qualificationSmallFileCountV1 = 1_000;
+const qualificationSmallFileBytesV1 = 5 * 1_024;
+const qualificationLargeFileBytesV1 = 16 * 1_024 * 1_024;
+
+function compareCodeUnitsV1(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function qualificationArchiveFilesV1(): readonly QualificationArchiveFileV1[] {
+  const files: QualificationArchiveFileV1[] = Array.from(
+    { length: qualificationSmallFileCountV1 },
+    (_, index) => ({
+      path: `qualification/small/${index.toString().padStart(4, "0")}.bin`,
+      byteLength: qualificationSmallFileBytesV1,
+      seed: index + 1,
+    }),
+  );
+  files.push({
+    path: "qualification/large.bin",
+    byteLength: qualificationLargeFileBytesV1,
+    seed: qualificationSmallFileCountV1 + 1,
+  });
+  return files.sort((left, right) => compareCodeUnitsV1(left.path, right.path));
+}
+
+function qualificationByteV1(seed: number, offset: number): number {
+  return (seed * 131 + offset * 17 + Math.floor(offset / 256) * 29) & 0xff;
+}
+
+function readZipCentralDirectoryV1(bytes: Uint8Array): readonly ZipCentralDirectoryEntryV1[] {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const endOfCentralDirectorySignature = 0x06054b50;
+  const centralDirectoryEntrySignature = 0x02014b50;
+  const localEntrySignature = 0x04034b50;
+  const minimumEndRecordBytes = 22;
+  const maximumCommentBytes = 0xffff;
+  let endOffset = -1;
+  const earliest = Math.max(0, bytes.byteLength - minimumEndRecordBytes - maximumCommentBytes);
+  for (
+    let offset = bytes.byteLength - minimumEndRecordBytes;
+    offset >= earliest;
+    offset -= 1
+  ) {
+    if (
+      view.getUint32(offset, true) === endOfCentralDirectorySignature &&
+      offset + minimumEndRecordBytes + view.getUint16(offset + 20, true) === bytes.byteLength
+    ) {
+      endOffset = offset;
+      break;
+    }
+  }
+  if (endOffset < 0) throw new Error("Downloaded workspace ZIP has no exact end record");
+  if (
+    view.getUint16(endOffset + 4, true) !== 0 ||
+    view.getUint16(endOffset + 6, true) !== 0
+  ) throw new Error("Downloaded workspace ZIP unexpectedly spans multiple disks");
+  const entriesOnDisk = view.getUint16(endOffset + 8, true);
+  const entryCount = view.getUint16(endOffset + 10, true);
+  const directoryBytes = view.getUint32(endOffset + 12, true);
+  const directoryOffset = view.getUint32(endOffset + 16, true);
+  if (
+    entriesOnDisk !== entryCount || directoryOffset + directoryBytes !== endOffset
+  ) throw new Error("Downloaded workspace ZIP has an invalid central-directory extent");
+
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  const entries: ZipCentralDirectoryEntryV1[] = [];
+  let offset = directoryOffset;
+  let previousLocalOffset = -1;
+  for (let index = 0; index < entryCount; index += 1) {
+    if (
+      offset + 46 > endOffset ||
+      view.getUint32(offset, true) !== centralDirectoryEntrySignature
+    ) throw new Error("Downloaded workspace ZIP has an invalid central-directory entry");
+    const nameBytes = view.getUint16(offset + 28, true);
+    const extraBytes = view.getUint16(offset + 30, true);
+    const commentBytes = view.getUint16(offset + 32, true);
+    const compressionMethod = view.getUint16(offset + 10, true);
+    const compressedBytes = view.getUint32(offset + 20, true);
+    const uncompressedBytes = view.getUint32(offset + 24, true);
+    const localOffset = view.getUint32(offset + 42, true);
+    const nextOffset = offset + 46 + nameBytes + extraBytes + commentBytes;
+    if (
+      nameBytes === 0 || nextOffset > endOffset || compressionMethod !== 0 ||
+      compressedBytes !== uncompressedBytes || localOffset <= previousLocalOffset ||
+      localOffset + 30 > directoryOffset ||
+      view.getUint32(localOffset, true) !== localEntrySignature ||
+      view.getUint16(localOffset + 8, true) !== compressionMethod
+    ) {
+      throw new Error("Downloaded workspace ZIP has invalid entry metadata");
+    }
+    const name = decoder.decode(bytes.subarray(offset + 46, offset + 46 + nameBytes));
+    const localNameBytes = view.getUint16(localOffset + 26, true);
+    const localExtraBytes = view.getUint16(localOffset + 28, true);
+    const dataOffset = localOffset + 30 + localNameBytes + localExtraBytes;
+    const dataEnd = dataOffset + compressedBytes;
+    if (
+      dataEnd > directoryOffset ||
+      decoder.decode(bytes.subarray(localOffset + 30, localOffset + 30 + localNameBytes)) !== name
+    ) throw new Error("Downloaded workspace ZIP has an invalid local entry");
+    entries.push({
+      name,
+      compressionMethod,
+      modificationTime: view.getUint16(offset + 12, true),
+      modificationDate: view.getUint16(offset + 14, true),
+      bytes: bytes.subarray(dataOffset, dataEnd),
+    });
+    previousLocalOffset = localOffset;
+    offset = nextOffset;
+  }
+  if (offset !== endOffset) {
+    throw new Error("Downloaded workspace ZIP has trailing central-directory metadata");
+  }
+  return entries;
+}
+
+function assertQualificationArchiveV1(
+  archiveBytes: Uint8Array,
+  manifest: SillyOsWorkspaceExportManifestV1,
+): void {
+  const files = qualificationArchiveFilesV1();
+  const expectedNames = [
+    workspaceExportManifestNameV1,
+    ...files.map((file) => `workspace/${file.path}`),
+  ];
+  const centralEntries = readZipCentralDirectoryV1(archiveBytes);
+  expect(centralEntries.map((entry) => entry.name)).toEqual(expectedNames);
+  expect(centralEntries.every((entry) => entry.compressionMethod === 0)).toBe(true);
+  expect(centralEntries.every((entry) => entry.modificationTime === 0)).toBe(true);
+  expect(centralEntries.every((entry) => entry.modificationDate === 33)).toBe(true);
+
+  const extracted = new Map(centralEntries.map((entry) => [entry.name, entry.bytes]));
+  expect(extracted.size).toBe(expectedNames.length);
+  const manifestBytes = extracted.get(workspaceExportManifestNameV1);
+  if (manifestBytes === undefined) throw new Error("Workspace ZIP omitted its root manifest");
+  expect(new TextDecoder("utf-8", { fatal: true }).decode(manifestBytes)).toBe(
+    `${JSON.stringify(manifest)}\n`,
+  );
+
+  for (const file of files) {
+    const archiveName = `workspace/${file.path}`;
+    const actual = extracted.get(archiveName);
+    if (actual === undefined) throw new Error(`Workspace ZIP omitted ${archiveName}`);
+    expect(actual.byteLength, archiveName).toBe(file.byteLength);
+    for (let offset = 0; offset < actual.byteLength; offset += 1) {
+      const expected = qualificationByteV1(file.seed, offset);
+      if (actual[offset] !== expected) {
+        throw new Error(
+          `Workspace ZIP changed ${archiveName} at byte ${String(offset)}`,
+        );
+      }
+    }
+  }
 }
 
 async function initializePiTestV1(page: Page, key: string): Promise<void> {
@@ -951,87 +1134,178 @@ test("an explicit persistence request reports the browser outcome without disabl
   await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "2");
 });
 
-test("the Browser workspace cold-reopens a bounded 20 MiB corpus without sending volume bytes to the page", async ({ durableProgramPage: page }) => {
-  test.setTimeout(300_000);
-  await page.goto(sillyOsTargetUrlV1("?locale=en&agent=pi-test"));
-  await expectProgramStorageReadyV1(page);
-  await initializePiTestV1(page, "sillyos-scale-qualification");
-  await page.getByRole("textbox", { name: "What would you like to make?" }).fill(
-    translationIntentV1,
-  );
-  await page.getByRole("button", { name: "Create program" }).click();
-  const workspace = page.getByRole("main", { name: "SillyOS program workspace" });
-  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "open");
-  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "1");
-  const programId = await readProgramIdV1(workspace);
-  const continuation = await readWorkspaceContinuationV1(page, programId);
-  if (continuation === null) throw new Error("Scale qualification has no Program continuation");
-  const anchor: WorkspaceScaleQualificationReceiptV1["anchor"] = {
-    revision: 1,
-    programId: continuation.programId,
-    workspaceId: continuation.workspaceId,
-    volumeId: continuation.volumeId,
-    workspaceFormat: 1,
-  };
-  await page.getByRole("button", { name: "Creator home" }).click();
-  await expect(page.locator(".silly-os")).toHaveAttribute("data-agent-workspace-state", "closed");
+test(
+  "the Browser workspace cold-reopens and exports a bounded 20 MiB corpus without sending volume bytes to the page",
+  async ({ durableProgramPage: page }, testInfo) => {
+    test.setTimeout(420_000);
+    await page.goto(sillyOsTargetUrlV1("?locale=en&agent=pi-test"));
+    await expectProgramStorageReadyV1(page);
+    await initializePiTestV1(page, "sillyos-scale-qualification");
+    await page.getByRole("textbox", { name: "What would you like to make?" }).fill(
+      translationIntentV1,
+    );
+    await page.getByRole("button", { name: "Create program" }).click();
+    const workspace = page.getByRole("main", { name: "SillyOS program workspace" });
+    await expect(workspace).toHaveAttribute("data-execution-workspace-state", "open");
+    await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "1");
+    const programId = await readProgramIdV1(workspace);
+    const continuation = await readWorkspaceContinuationV1(page, programId);
+    if (continuation === null) throw new Error("Scale qualification has no Program continuation");
+    const anchor: WorkspaceScaleQualificationReceiptV1["anchor"] = {
+      revision: 1,
+      programId: continuation.programId,
+      workspaceId: continuation.workspaceId,
+      volumeId: continuation.volumeId,
+      workspaceFormat: 1,
+    };
+    await page.getByRole("button", { name: "Creator home" }).click();
+    await expect(page.locator(".silly-os")).toHaveAttribute("data-agent-workspace-state", "closed");
 
-  const created = await runWorkspaceScaleQualificationV1(page, { method: "create", anchor });
-  expect(created).toMatchObject({
-    method: "create",
-    anchor,
-    head: { generation: 1002 },
-    fileCount: 1001,
-    totalBytes: 21897216,
-    ioMaximums: {
-      sourceRangeBytes: 1_048_576,
-      readRangeBytes: 1_048_576,
-      observedChunkBytes: 1_048_576,
-    },
-  });
-  const firstWorker = await waitForScaleQualificationWorkerV1(page);
-  const firstClosed = firstWorker.waitForEvent("close");
-  await firstWorker.evaluate(() => close());
-  await firstClosed;
+    const created = await runWorkspaceScaleQualificationV1(page, { method: "create", anchor });
+    expect(created).toMatchObject({
+      method: "create",
+      anchor,
+      head: { generation: 1002 },
+      fileCount: 1001,
+      totalBytes: 21897216,
+      ioMaximums: {
+        sourceRangeBytes: 1_048_576,
+        readRangeBytes: 1_048_576,
+        observedChunkBytes: 1_048_576,
+      },
+    });
+    const firstWorker = await waitForScaleQualificationWorkerV1(page);
+    const firstClosed = firstWorker.waitForEvent("close");
+    await firstWorker.evaluate(() => close());
+    await firstClosed;
 
-  const verified = await runWorkspaceScaleQualificationV1(page, {
-    method: "verify",
-    anchor,
-    expectedHead: created.head,
-    expectedCorpusHash: created.corpusHash,
-  });
-  expect(verified).toEqual({
-    ...created,
-    method: "verify",
-    ioMaximums: {
-      sourceRangeBytes: 0,
-      readRangeBytes: 1_048_576,
-      observedChunkBytes: 1_048_576,
-      observedBytesInFlight: 1_048_576,
-    },
-  });
-  const verificationWorker = await waitForScaleQualificationWorkerV1(page);
-  const verificationClosed = verificationWorker.waitForEvent("close");
-  await verificationWorker.evaluate(() => close());
-  await verificationClosed;
+    const verified = await runWorkspaceScaleQualificationV1(page, {
+      method: "verify",
+      anchor,
+      expectedHead: created.head,
+      expectedCorpusHash: created.corpusHash,
+    });
+    expect(verified).toEqual({
+      ...created,
+      method: "verify",
+      ioMaximums: {
+        sourceRangeBytes: 0,
+        readRangeBytes: 1_048_576,
+        observedChunkBytes: 1_048_576,
+        observedBytesInFlight: 1_048_576,
+      },
+    });
+    const verificationWorker = await waitForScaleQualificationWorkerV1(page);
+    const verificationClosed = verificationWorker.waitForEvent("close");
+    await verificationWorker.evaluate(() => close());
+    await verificationClosed;
 
-  const reopened = await openRecentTranslationProgramV1(page, {
-    programId,
-    revision: 1,
-    status: "Preview",
-  });
-  await expect(reopened).toHaveAttribute("data-execution-workspace-state", "open");
-  await expect(reopened).toHaveAttribute("data-execution-workspace-generation", "1002");
-  await expect(reopened).not.toHaveAttribute("data-execution-workspace-receipt", /.+/u);
+    const reopened = await openRecentTranslationProgramV1(page, {
+      programId,
+      revision: 1,
+      status: "Preview",
+    });
+    await expect(reopened).toHaveAttribute("data-execution-workspace-state", "open");
+    await expect(reopened).toHaveAttribute("data-execution-workspace-generation", "1002");
+    await expect(reopened).not.toHaveAttribute("data-execution-workspace-receipt", /.+/u);
 
-  const oversizedProbe = "Verify the qualification workspace rejects an oversized native Pi read.";
-  await page.getByRole("textbox", { name: "Ask for a change…" }).fill(oversizedProbe);
-  await page.getByRole("button", { name: "Send" }).click();
-  await expect(page.getByText(oversizedProbe, { exact: true })).toBeVisible();
-  await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
-  await expect(reopened).toHaveAttribute("data-execution-workspace-generation", "1002");
-  await expect(reopened).not.toHaveAttribute("data-execution-workspace-receipt", /.+/u);
-});
+    const exportStatus = page.locator("[data-workspace-export-status]");
+    const exportStart = page.locator('[data-workspace-export-action="start"]');
+    await expect(exportStatus).toHaveAttribute("data-workspace-export-status", "idle");
+    await expect(exportStart).toBeEnabled();
+
+    const workspaceHost = await waitForWorkspaceHostWorkerV1(page);
+    await workspaceHost.evaluate(() => {
+      const owner = globalThis as typeof globalThis & {
+        sillyOsE2eRestoreExportReadV1?: () => void;
+      };
+      if (owner.sillyOsE2eRestoreExportReadV1 !== undefined) {
+        throw new Error("Workspace export read delay is already installed");
+      }
+      const original = Blob.prototype.arrayBuffer;
+      let delayed = false;
+      Blob.prototype.arrayBuffer = async function (this: Blob): Promise<ArrayBuffer> {
+        if (!delayed && this.size > 0) {
+          delayed = true;
+          await new Promise<void>((resolve) => setTimeout(resolve, 750));
+        }
+        return await original.call(this);
+      };
+      owner.sillyOsE2eRestoreExportReadV1 = () => {
+        Blob.prototype.arrayBuffer = original;
+        delete owner.sillyOsE2eRestoreExportReadV1;
+      };
+    });
+    let cancelledDownloadCount = 0;
+    const observeCancelledDownload = (): void => {
+      cancelledDownloadCount += 1;
+    };
+    page.on("download", observeCancelledDownload);
+    try {
+      await exportStart.click();
+      await expect(exportStatus).toHaveAttribute("data-workspace-export-status", "exporting");
+      await page.locator('[data-workspace-export-action="cancel"]').click();
+      await expect(exportStatus).toHaveAttribute("data-workspace-export-status", "cancelled");
+      expect(cancelledDownloadCount).toBe(0);
+    } finally {
+      page.off("download", observeCancelledDownload);
+      await workspaceHost.evaluate(() => {
+        const owner = globalThis as typeof globalThis & {
+          sillyOsE2eRestoreExportReadV1?: () => void;
+        };
+        owner.sillyOsE2eRestoreExportReadV1?.();
+      });
+    }
+    await expect(reopened).toHaveAttribute("data-execution-workspace-generation", "1002");
+    expect(await readWorkspaceContinuationV1(page, programId)).toEqual(continuation);
+
+    await expect(exportStart).toBeEnabled();
+    const downloadPromise = page.waitForEvent("download");
+    await exportStart.click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe("translation-workshop.sillyos.zip");
+    await expect(exportStatus).toHaveAttribute("data-workspace-export-status", "finalizing");
+    await expect(page.locator('[data-workspace-export-action="cancel"]')).toHaveCount(0);
+    const archivePath = testInfo.outputPath("translation-workshop.sillyos.zip");
+    await download.saveAs(archivePath);
+    expect(await download.failure()).toBeNull();
+    await expect(exportStatus).toHaveAttribute("data-workspace-export-status", "download-started");
+    await expect(exportStatus).toContainText("Download started");
+    await expect(exportStatus).toHaveAttribute("data-workspace-export-files-completed", "1001");
+    await expect(exportStatus).toHaveAttribute("data-workspace-export-files-total", "1001");
+    const bytesWritten = await exportStatus.getAttribute("data-workspace-export-bytes-written");
+    const bytesTotal = await exportStatus.getAttribute("data-workspace-export-bytes-total");
+    expect(bytesWritten).not.toBeNull();
+    expect(bytesWritten).toBe(bytesTotal);
+
+    const archiveBytes = new Uint8Array(await readFile(archivePath));
+    expect(archiveBytes.byteLength).toBeGreaterThan(created.totalBytes);
+    assertQualificationArchiveV1(archiveBytes, {
+      revision: 1,
+      kind: "sillyos-workspace",
+      exportFormat: 1,
+      workspaceFormat: 1,
+      programId,
+      workspaceId: continuation.workspaceId,
+      programRevision: continuation.programRevision,
+      repositoryRevision: continuation.repositoryRevision,
+      checkpointId: created.head.checkpointId,
+      generation: created.head.generation,
+    });
+    await expect(reopened).toHaveAttribute("data-execution-workspace-generation", "1002");
+    await expect(reopened).not.toHaveAttribute("data-execution-workspace-receipt", /.+/u);
+    expect(await readWorkspaceContinuationV1(page, programId)).toEqual(continuation);
+
+    const oversizedProbe =
+      "Verify the qualification workspace rejects an oversized native Pi read.";
+    await page.getByRole("textbox", { name: "Ask for a change…" }).fill(oversizedProbe);
+    await page.getByRole("button", { name: "Send" }).click();
+    await expect(page.getByText(oversizedProbe, { exact: true })).toBeVisible();
+    await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
+    await expect(reopened).toHaveAttribute("data-execution-workspace-generation", "1002");
+    await expect(reopened).not.toHaveAttribute("data-execution-workspace-receipt", /.+/u);
+  },
+);
 
 test("a cancelled Browser Pi run remains terminal across reload without advancing the Program", async ({ durableProgramPage: page }) => {
   await page.goto(sillyOsTargetUrlV1("?locale=en&agent=pi-test"));
