@@ -397,6 +397,7 @@ export function createBrowserCreatorAgentPortV1(
   input:
     & {
       readonly apiKey: string;
+      readonly onConnectionLost?: () => void;
       readonly workerFactory?: BrowserPiWorkerFactoryV1;
       readonly workspaceAuthority: BrowserProgramWorkspaceAuthorityV1;
     }
@@ -406,7 +407,21 @@ export function createBrowserCreatorAgentPortV1(
     ),
 ): CreatorAgentPortV1 {
   const { workspaceAuthority } = input;
-  const transport = createBrowserPiWorkerRawTransportV1({ ...input, workspaceAuthority });
+  const notifyConnectionLost = input.onConnectionLost;
+  let providerConnectionReady = false;
+  const transport = createBrowserPiWorkerRawTransportV1({
+    ...input,
+    workspaceAuthority,
+    onConnectionLost: () => {
+      if (!providerConnectionReady) return;
+      providerConnectionReady = false;
+      try {
+        notifyConnectionLost?.();
+      } catch {
+        // The product observer cannot alter Agent lifecycle cleanup.
+      }
+    },
+  });
   const client = createAgentRpcClientInternalV1({ transport });
   const listeners = new Set<() => void>();
   const trackedByProductRunId = new Map<string, TrackedCreatorAgentRunV1>();
@@ -913,6 +928,7 @@ export function createBrowserCreatorAgentPortV1(
         return { kind: "unavailable", diagnostic: mapped };
       }
       sessionId = started.sessionId;
+      providerConnectionReady = true;
       connectionFailureDiagnostic = null;
       phase = "ready";
       diagnostic = null;
@@ -1189,6 +1205,7 @@ export function createBrowserCreatorAgentPortV1(
     if (terminal) return;
     if (finishPromise !== null) return finishPromise;
     lifecycleEpoch += 1;
+    providerConnectionReady = false;
     workspacePhase = workspaceDescriptor === null ? "closed" : "closing";
     workspaceDiagnostic = null;
     publish();

@@ -8,9 +8,15 @@ import type {
 
 export function projectBrowserPiProviderCatalogV1(): BrowserPiProviderCatalogWireV1;
 
-export function isBrowserPiSelectionQualifiedV1(
+export function isBrowserPiSelectionAvailableV1(
   selection: BrowserPiModelSelectionV1,
 ): boolean;
+
+export function probeBrowserPiProviderSelectionV1(input: {
+  readonly apiKey: string;
+  readonly selection: BrowserPiModelSelectionV1;
+  readonly signal: AbortSignal;
+}): Promise<boolean>;
 
 export function browserPiCreatorToolChoiceV1(proposed: boolean): "auto" | "none";
 

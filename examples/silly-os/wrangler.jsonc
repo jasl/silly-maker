@@ -1,15 +1,19 @@
 // SPDX-License-Identifier: MIT
-// Standalone Cloudflare Workers deployment for this Player only. Build first,
-// then deploy from this directory:
+// Standalone Cloudflare Workers deployment for this Player. Ordinary files stay
+// on Static Assets; only the hashed Browser Pi Worker gets a selected-origin
+// response policy. Build first, then deploy from this directory:
 //
 //   deno task deploy:cf      # builds dist-web/ and deploys it
 //                            # (authenticate once:
 //                            #  deno run -A npm:wrangler@4.114.0 login)
 {
   "name": "silly-os",
+  "main": "./src/deployment/cloudflare-selected-origin-worker.ts",
   "compatibility_date": "2026-07-01",
   "assets": {
     "directory": "./dist-web",
+    "binding": "ASSETS",
     "not_found_handling": "single-page-application",
+    "run_worker_first": ["/assets/browser-pi.worker-*.js"],
   },
 }

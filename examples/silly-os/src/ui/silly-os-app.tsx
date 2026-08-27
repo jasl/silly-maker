@@ -21,6 +21,10 @@ import type {
 } from "../product/creator-controller.ts";
 import type { BrowserProgramWorkspaceAuthorityV1 } from "../product/browser-program-workspace-authority.ts";
 import {
+  createBrowserProviderSettingsRepositoryV1,
+  type BrowserProviderSettingsRepositoryV1,
+} from "../product/browser-provider-settings-repository.ts";
+import {
   acknowledgeAppliedAgentTerminalV1,
   canConsumeAgentTerminalV1,
 } from "./agent-terminal-acknowledgement.ts";
@@ -29,6 +33,8 @@ import { ProgramWorkspaceV1 } from "./program-workspace.tsx";
 import {
   type ProviderSettingsAvailabilityV1,
   type ProviderSettingsCatalogV1,
+  type ProviderSettingsCustomProfileDraftV1,
+  type ProviderSettingsCustomProfileV1,
   type ProviderSettingsProfileV1,
   type ProviderSettingsSelectionV1,
   ProviderSettingsV1,
@@ -88,15 +94,27 @@ function projectProviderSettingsCatalogV1(
     providers: catalog.providers.map((provider) => ({
       providerId: provider.id,
       name: provider.name,
+      baseUrl: provider.baseUrl,
       availability: settingsAvailabilityV1(provider.availability),
       models: provider.models.map((model) => ({
         providerId: provider.id,
         modelId: model.id,
         name: model.name,
+        api: model.api,
+        baseUrl: model.baseUrl,
         availability: settingsAvailabilityV1(model.availability),
       })),
     })),
   };
+}
+
+function createProviderSettingsRepositoryV1(): BrowserProviderSettingsRepositoryV1 | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return createBrowserProviderSettingsRepositoryV1({ storage: window.localStorage });
+  } catch {
+    return null;
+  }
 }
 
 function piAgentRunStatusV1(
@@ -208,6 +226,18 @@ export function SillyOsAppV1({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [providerCatalog, setProviderCatalog] = useState<ProviderSettingsCatalogV1>({
     phase: "loading",
+  });
+  const [providerSettingsRepository] = useState(createProviderSettingsRepositoryV1);
+  const [customProviderProfiles, setCustomProviderProfiles] = useState<
+    readonly ProviderSettingsCustomProfileV1[]
+  >(() => {
+    if (providerSettingsRepository === null) return [];
+    try {
+      return providerSettingsRepository.list();
+    } catch (error) {
+      reportFailure("silly_os.provider_settings_load_failed", error);
+      return [];
+    }
   });
   const [agentPort, setAgentPort] = useState<BrowserCreatorAgentPortV1 | null>(null);
   const [agentSnapshot, setAgentSnapshot] = useState<BrowserCreatorAgentSnapshotV1 | null>(null);
@@ -532,16 +562,38 @@ export function SillyOsAppV1({
     const epoch = ++agentSetupEpochRef.current;
     setPiAgentSetupStatus("initializing");
     let credential = suppliedCredential;
-    let port: BrowserCreatorAgentPortV1;
+    let port!: BrowserCreatorAgentPortV1;
+    const onConnectionLost = (): void => {
+      if (
+        agentSetupEpochRef.current !== epoch || agentPortRef.current !== port ||
+        !agentDrainRegistry.isAccepting()
+      ) return;
+      agentSetupEpochRef.current += 1;
+      workspaceExportEpochRef.current += 1;
+      workspaceExportAbortRef.current?.abort();
+      workspaceExportAbortRef.current = null;
+      setWorkspaceExport({ phase: "idle" });
+      agentPortRef.current = null;
+      setAgentPort(null);
+      setAgentSnapshot(null);
+      claimedTerminalRunIdsRef.current.clear();
+      setPiAgentSetupStatus("failed");
+      reportFailure("silly_os.browser_pi_connection_lost", {
+        code: "connection_failed",
+      });
+      void queueAgentPortTeardownV1(port, "disposed");
+    };
     try {
       port = piRuntime === "deterministic_test"
         ? factory({
           apiKey: credential,
+          onConnectionLost,
           runtime: "deterministic_test",
           workspaceAuthority,
         })
         : factory({
           apiKey: credential,
+          onConnectionLost,
           runtime: "pi_provider",
           selection: selection as BrowserPiModelSelectionV1,
           workspaceAuthority,
@@ -599,6 +651,45 @@ export function SillyOsAppV1({
     setPiAgentSetupStatus(agentFactoryRef.current === null ? "loading" : "available");
     if (current !== null) {
       void queueAgentPortTeardownV1(current, "forgotten");
+    }
+  };
+
+  const createCustomProviderProfileV1 = (
+    draft: ProviderSettingsCustomProfileDraftV1,
+  ): ProviderSettingsCustomProfileV1 | null => {
+    if (providerSettingsRepository === null) {
+      reportFailure("silly_os.provider_settings_save_failed", "storage_unavailable");
+      return null;
+    }
+    try {
+      const created = providerSettingsRepository.add({
+        profileId: `custom.${crypto.randomUUID()}`,
+        displayName: draft.displayName,
+        api: draft.api,
+        baseUrl: draft.baseUrl,
+        modelId: draft.modelId,
+        contextWindow: draft.contextWindow,
+        maxTokens: draft.maxTokens,
+      });
+      setCustomProviderProfiles(providerSettingsRepository.list());
+      return created;
+    } catch (error) {
+      reportFailure("silly_os.provider_settings_save_failed", error);
+      return null;
+    }
+  };
+
+  const removeCustomProviderProfileV1 = (profileId: string): void => {
+    if (providerSettingsRepository === null) return;
+    try {
+      if (
+        activeProviderSelection?.kind === "custom" &&
+        activeProviderSelection.profile.profileId === profileId
+      ) forgetPiAgentV1();
+      providerSettingsRepository.remove(profileId);
+      setCustomProviderProfiles(providerSettingsRepository.list());
+    } catch (error) {
+      reportFailure("silly_os.provider_settings_remove_failed", error);
     }
   };
 
@@ -834,6 +925,7 @@ export function SillyOsAppV1({
           <ProviderSettingsV1
             copy={copy}
             catalog={providerCatalog}
+            customProfiles={customProviderProfiles}
             profile={providerSettingsProfile}
             onBack={closeSettingsV1}
             onLocaleChange={changeLocaleV1}
@@ -841,6 +933,8 @@ export function SillyOsAppV1({
             onInitialize={(selection: ProviderSettingsSelectionV1, credential: string) => {
               initializePiAgentV1(selection, credential);
             }}
+            onCreateCustomProfile={createCustomProviderProfileV1}
+            onRemoveCustomProfile={removeCustomProviderProfileV1}
             onForget={forgetPiAgentV1}
           />
         )
@@ -877,10 +971,12 @@ export function SillyOsAppV1({
               : {})}
             {...(internalPiTest ? {} : {
               onOpenSettings: openSettingsV1,
-              providerSetup: {
-                status: piAgentSetupStatus,
-                onOpenSettings: openSettingsV1,
-              },
+              ...(piAgentSetupStatus === "ready" ? {} : {
+                providerSetup: {
+                  status: piAgentSetupStatus,
+                  onOpenSettings: openSettingsV1,
+                },
+              }),
             })}
             onCreate={(intent, resourceNames) => {
               void controller.submitIntent(intent).then(async (result) => {

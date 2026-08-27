@@ -3,10 +3,11 @@
 import { readFile } from "node:fs/promises";
 
 import { createAgentRpcClientInternalV1 } from "@sillymaker/agent/internal";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { browserPiDistributionIdentityV1 } from "../agent/browser-pi-distribution.ts";
 import {
+  createDefaultBrowserPiWorkerV1,
   createBrowserPiWorkerRawTransportV1,
   type BrowserPiWorkerLikeV1,
 } from "../agent/browser-pi-transport.ts";
@@ -63,6 +64,7 @@ const roundTripArtifactPathV1 = `${workspaceRootV1}/${roundTripArtifactRelativeP
 const roundTripEditMarkerV1 = "SillyOS native edit checkpoint pending:\n";
 const qualifiedSelectionV1 = Object.freeze(
   {
+    kind: "builtin",
     providerId: "openai",
     modelId: "gpt-4.1-nano",
   } as const,
@@ -70,16 +72,38 @@ const qualifiedSelectionV1 = Object.freeze(
 const qualifiedProviderSelectionsV1 = Object.freeze([
   qualifiedSelectionV1,
   Object.freeze({
+    kind: "builtin",
     providerId: "anthropic",
     modelId: "claude-sonnet-4-5-20250929",
   }),
-  Object.freeze({ providerId: "google", modelId: "gemini-2.5-flash" }),
-  Object.freeze({ providerId: "deepseek", modelId: "deepseek-v4-flash" }),
-  Object.freeze({ providerId: "xai", modelId: "grok-4.3" }),
+  Object.freeze({ kind: "builtin", providerId: "google", modelId: "gemini-2.5-flash" }),
+  Object.freeze({
+    kind: "builtin",
+    providerId: "deepseek",
+    modelId: "deepseek-v4-flash",
+  }),
+  Object.freeze({ kind: "builtin", providerId: "xai", modelId: "grok-4.3" }),
 ]);
+const customSelectionV1 = Object.freeze(
+  {
+    kind: "custom",
+    profile: Object.freeze({
+      profileId: "custom.private-gateway",
+      displayName: "Private gateway",
+      api: "openai-completions",
+      baseUrl: "https://llm.example.test/v1",
+      modelId: "private-model",
+      contextWindow: 32_768,
+      maxTokens: 4_096,
+    }),
+  } as const,
+);
 const testWorkspaceAuthoritiesV1 = new Set<{ dispose(): Promise<void> }>();
 
 afterEach(async () => {
+  vi.useRealTimers();
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
   const authorities = [...testWorkspaceAuthoritiesV1];
   testWorkspaceAuthoritiesV1.clear();
   await Promise.all(authorities.map((authority) => authority.dispose()));
@@ -777,7 +801,7 @@ class RuntimeMismatchBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
       ? runtime === "pi_provider" ? "deterministic_test" : "pi_provider"
       : runtime;
     const selection = this.mismatch === "selection"
-      ? { providerId: "openai", modelId: "gpt-4.1-mini" }
+      ? { kind: "builtin", providerId: "openai", modelId: "gpt-4.1-mini" }
       : mismatchedRuntime === "pi_provider"
       ? qualifiedSelectionV1
       : requestedSelection === null
@@ -832,6 +856,7 @@ class RuntimeMismatchBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
 class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
   terminated = false;
   dropSubmitResponses = false;
+  failInitialization = false;
   latestPiRunId: string | null = null;
   latestExecution: BrowserPiWorkerExecutionBindingV1 | null = null;
   private readonly messageListeners = new Set<(event: { readonly data: unknown }) => void>();
@@ -845,10 +870,22 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
     for (const listener of [...this.messageListeners]) listener({ data });
   }
 
+  emitProtocolFailure(): void {
+    this.emit({ revision: 1, kind: "protocol_failure", code: "invalid_message" });
+  }
+
+  emitWorkerError(): void {
+    for (const listener of [...this.errorListeners]) listener(new Event("error"));
+  }
+
   postMessage(message: unknown, transfer: Transferable[] = []): void {
     if (this.terminated) throw new Error("Worker is terminated");
     const envelope = structuredClone(message) as Readonly<Record<string, unknown>>;
     if (envelope.kind === "initialize") {
+      if (this.failInitialization) {
+        this.emitWorkerError();
+        return;
+      }
       this.emit({
         revision: 1,
         kind: "ready",
@@ -1117,11 +1154,20 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     runtime.dispose();
   });
 
-  it("initializes each exact qualified Provider profile before any run exists", () => {
+  it("initializes each exact qualified Provider profile only after its Pi probe succeeds", async () => {
     for (const [index, selection] of qualifiedProviderSelectionsV1.entries()) {
       const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+      const probeInputs: unknown[] = [];
       const runtime = createBrowserPiWorkerRuntimeV1({
         postMessage: (message) => messages.push(structuredClone(message)),
+        probeProviderSelection: async (input) => {
+          probeInputs.push(structuredClone({
+            apiKey: input.apiKey,
+            selection: input.selection,
+            aborted: input.signal.aborted,
+          }));
+          return true;
+        },
       });
       runtime.receive({
         revision: 1,
@@ -1132,6 +1178,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         credential: { kind: "api_key", value: `sentinel-live-key-${index}` },
       });
 
+      await waitUntilV1(() => messages.length === 1);
       expect(messages).toEqual([{
         revision: 1,
         kind: "ready",
@@ -1140,15 +1187,137 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         selection,
         distribution: browserPiDistributionIdentityV1,
       }]);
+      expect(probeInputs).toEqual([{
+        apiKey: `sentinel-live-key-${index}`,
+        selection,
+        aborted: false,
+      }]);
       expect(JSON.stringify(messages)).not.toContain(`sentinel-live-key-${index}`);
       runtime.dispose();
     }
   });
 
-  it("projects exact qualified profiles and rejects the mutable Anthropic candidate", () => {
+  it("admits one exact custom profile but reports only a bounded failure when its probe fails", async () => {
+    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const probeState: { signal: AbortSignal | null } = { signal: null };
+    const runtime = createBrowserPiWorkerRuntimeV1({
+      postMessage: (message) => messages.push(structuredClone(message)),
+      probeProviderSelection: (input) => {
+        probeState.signal = input.signal;
+        return Promise.reject(new Error(`HTTP 401 leaked ${input.apiKey}`));
+      },
+    });
+    runtime.receive({
+      revision: 1,
+      kind: "initialize",
+      requestId: 41,
+      runtime: "pi_provider",
+      selection: customSelectionV1,
+      credential: { kind: "api_key", value: "custom-sentinel-key" },
+    });
+    runtime.receive({
+      revision: 1,
+      kind: "initialize",
+      requestId: 42,
+      runtime: "pi_provider",
+      selection: customSelectionV1,
+      credential: { kind: "api_key", value: "second-key" },
+    });
+
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "initialization_failure" && message.requestId === 41
+      )
+    );
+    expect(messages).toEqual([
+      { revision: 1, kind: "protocol_failure", code: "already_initialized" },
+      {
+        revision: 1,
+        kind: "initialization_failure",
+        requestId: 41,
+        code: "connection_failed",
+      },
+    ]);
+    expect(JSON.stringify(messages)).not.toContain("custom-sentinel-key");
+    expect(JSON.stringify(messages)).not.toContain("HTTP 401");
+    expect(probeState.signal?.aborted).toBe(false);
+
+    runtime.receive(rpcRequestV1(43, { revision: 1, requestId: 1, method: "start" }));
+    expect(messages.at(-1)).toEqual({
+      revision: 1,
+      kind: "rpc_response",
+      requestId: 43,
+      ok: false,
+      code: "not_initialized",
+    });
+    runtime.dispose();
+  });
+
+  it("aborts a pending Pi connection probe without publishing a late outcome", async () => {
+    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const probeState: { signal: AbortSignal | null } = { signal: null };
+    const runtime = createBrowserPiWorkerRuntimeV1({
+      postMessage: (message) => messages.push(structuredClone(message)),
+      probeProviderSelection: (input) => {
+        probeState.signal = input.signal;
+        return new Promise<boolean>((resolve) =>
+          input.signal.addEventListener("abort", () => resolve(false), { once: true })
+        );
+      },
+    });
+    runtime.receive({
+      revision: 1,
+      kind: "initialize",
+      requestId: 44,
+      runtime: "pi_provider",
+      selection: customSelectionV1,
+      credential: { kind: "api_key", value: "pending-custom-key" },
+    });
+    await waitUntilV1(() => probeState.signal !== null);
+    runtime.dispose();
+    await waitUntilV1(() => probeState.signal?.aborted === true);
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(messages).toEqual([]);
+  });
+
+  it("times out an uncooperative Pi connection probe with one bounded failure", async () => {
+    vi.useFakeTimers();
+    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const probeState: { signal: AbortSignal | null } = { signal: null };
+    const runtime = createBrowserPiWorkerRuntimeV1({
+      postMessage: (message) => messages.push(structuredClone(message)),
+      probeProviderSelection: (input) => {
+        probeState.signal = input.signal;
+        return new Promise<boolean>(() => {});
+      },
+    });
+    runtime.receive({
+      revision: 1,
+      kind: "initialize",
+      requestId: 45,
+      runtime: "pi_provider",
+      selection: customSelectionV1,
+      credential: { kind: "api_key", value: "timed-out-custom-key" },
+    });
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(probeState.signal?.aborted).toBe(true);
+    expect(messages).toEqual([{
+      revision: 1,
+      kind: "initialization_failure",
+      requestId: 45,
+      code: "connection_failed",
+    }]);
+    expect(JSON.stringify(messages)).not.toContain("timed-out-custom-key");
+    runtime.dispose();
+  });
+
+  it("projects exact qualified profiles and rejects the mutable Anthropic candidate", async () => {
     const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
     const runtime = createBrowserPiWorkerRuntimeV1({
       postMessage: (message) => messages.push(structuredClone(message)),
+      probeProviderSelection: () => Promise.resolve(true),
     });
     runtime.receive({ revision: 1, kind: "catalog_request", requestId: 7 });
 
@@ -1183,7 +1352,11 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       },
       { providerId: "deepseek", modelId: "deepseek-v4-flash", availability: "qualified" },
       { providerId: "google", modelId: "gemini-2.5-flash", availability: "qualified" },
-      { ...qualifiedSelectionV1, availability: "qualified" },
+      {
+        providerId: qualifiedSelectionV1.providerId,
+        modelId: qualifiedSelectionV1.modelId,
+        availability: "qualified",
+      },
       { providerId: "xai", modelId: "grok-4.3", availability: "qualified" },
     ]);
     expect(projected.filter(({ availability }) => availability === "candidate")).toEqual([
@@ -1200,7 +1373,11 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       kind: "initialize",
       requestId: 8,
       runtime: "pi_provider",
-      selection: { providerId: "anthropic", modelId: "claude-sonnet-4-5" },
+      selection: {
+        kind: "builtin",
+        providerId: "anthropic",
+        modelId: "claude-sonnet-4-5",
+      },
       credential: { kind: "api_key", value: "candidate-sentinel-key" },
     });
     expect(messages.at(-1)).toEqual({
@@ -1216,15 +1393,26 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       kind: "initialize",
       requestId: 9,
       runtime: "pi_provider",
-      selection: { providerId: "anthropic", modelId: "claude-sonnet-4-5-20250929" },
+      selection: {
+        kind: "builtin",
+        providerId: "anthropic",
+        modelId: "claude-sonnet-4-5-20250929",
+      },
       credential: { kind: "api_key", value: "qualified-sentinel-key" },
     });
+    await waitUntilV1(() =>
+      messages.some((message) => message.kind === "ready" && message.requestId === 9)
+    );
     expect(messages.at(-1)).toEqual({
       revision: 1,
       kind: "ready",
       requestId: 9,
       runtime: "pi_provider",
-      selection: { providerId: "anthropic", modelId: "claude-sonnet-4-5-20250929" },
+      selection: {
+        kind: "builtin",
+        providerId: "anthropic",
+        modelId: "claude-sonnet-4-5-20250929",
+      },
       distribution: browserPiDistributionIdentityV1,
     });
     expect(JSON.stringify(messages)).not.toContain("qualified-sentinel-key");
@@ -1970,7 +2158,67 @@ describe("SillyOS Browser Pi transport and product port", () => {
       diagnostic: { code: "connection_failed", path: "/connect" },
     });
     await failed.dispose();
+
+    const initializationLoss = vi.fn();
+    const failingWorker = new ControllableBrowserPiWorkerV1();
+    failingWorker.failInitialization = true;
+    const failedDuringInitialization = createBrowserCreatorAgentPortV1({
+      apiKey: "synthetic-key",
+      onConnectionLost: initializationLoss,
+      runtime: "deterministic_test",
+      workspaceAuthority: testWorkspaceAuthorityV1(),
+      workerFactory: () => failingWorker,
+    });
+    await expect(failedDuringInitialization.initialize()).resolves.toEqual({
+      kind: "unavailable",
+      diagnostic: { code: "connection_failed", path: "/connect" },
+    });
+    expect(initializationLoss).not.toHaveBeenCalled();
+    await failedDuringInitialization.dispose();
   });
+
+  it.each([
+    ["Worker error", (worker: ControllableBrowserPiWorkerV1) => worker.emitWorkerError()],
+    ["protocol failure", (worker: ControllableBrowserPiWorkerV1) => worker.emitProtocolFailure()],
+  ])("reports one post-ready %s as a lost Provider connection", async (_label, fail) => {
+    const worker = new ControllableBrowserPiWorkerV1();
+    const onConnectionLost = vi.fn();
+    const port = createBrowserCreatorAgentPortV1({
+      apiKey: "synthetic-key",
+      onConnectionLost,
+      runtime: "deterministic_test",
+      workspaceAuthority: testWorkspaceAuthorityV1(),
+      workerFactory: () => worker,
+    });
+
+    await expect(port.initialize()).resolves.toEqual({ kind: "ready" });
+    fail(worker);
+
+    expect(onConnectionLost).toHaveBeenCalledOnce();
+    expect(worker.terminated).toBe(true);
+    await port.dispose();
+    expect(onConnectionLost).toHaveBeenCalledOnce();
+  });
+
+  it.each(["forget", "dispose"] as const)(
+    "does not report explicit %s as a lost Provider connection",
+    async (operation) => {
+      const worker = new ControllableBrowserPiWorkerV1();
+      const onConnectionLost = vi.fn();
+      const port = createBrowserCreatorAgentPortV1({
+        apiKey: "synthetic-key",
+        onConnectionLost,
+        runtime: "deterministic_test",
+        workspaceAuthority: testWorkspaceAuthorityV1(),
+        workerFactory: () => worker,
+      });
+
+      await expect(port.initialize()).resolves.toEqual({ kind: "ready" });
+      await port[operation]();
+      expect(onConnectionLost).not.toHaveBeenCalled();
+      expect(worker.terminated).toBe(true);
+    },
+  );
 
   it("rejects a Worker that reports a different configured runtime", async () => {
     const worker = new RuntimeMismatchBrowserPiWorkerV1();
@@ -2006,6 +2254,76 @@ describe("SillyOS Browser Pi transport and product port", () => {
     });
     expect(worker.terminated).toBe(true);
     await port.dispose();
+  });
+
+  it("passes only a custom endpoint origin to the Agent Worker factory", async () => {
+    const worker = new ControllableBrowserPiWorkerV1();
+    const factoryInputs: unknown[] = [];
+    const port = createBrowserCreatorAgentPortV1({
+      apiKey: "custom-key",
+      runtime: "pi_provider",
+      selection: customSelectionV1,
+      workspaceAuthority: testWorkspaceAuthorityV1(),
+      workerFactory: (input) => {
+        factoryInputs.push(structuredClone(input));
+        return worker;
+      },
+    });
+
+    await expect(port.initialize()).resolves.toEqual({ kind: "ready" });
+    expect(factoryInputs).toEqual([{ endpointOrigin: "https://llm.example.test" }]);
+    expect(JSON.stringify(factoryInputs)).not.toContain("private-model");
+    expect(JSON.stringify(factoryInputs)).not.toContain("custom-key");
+    await port.dispose();
+    expect(worker.terminated).toBe(true);
+  });
+
+  it("keeps the dev Worker URL intact and adds exactly the selected origin in production", () => {
+    const constructions: { readonly url: string; readonly options: unknown }[] = [];
+    class CapturingWorkerV1 {
+      constructor(url: URL, options: unknown) {
+        constructions.push({ url: url.href, options: structuredClone(options) });
+      }
+
+      terminate(): void {}
+    }
+    vi.stubGlobal("Worker", CapturingWorkerV1);
+
+    createDefaultBrowserPiWorkerV1({ endpointOrigin: null });
+    createDefaultBrowserPiWorkerV1({ endpointOrigin: "https://llm.example.test" });
+
+    expect(constructions[1]?.url).toBe(constructions[0]?.url);
+
+    vi.stubEnv("PROD", true);
+    createDefaultBrowserPiWorkerV1({ endpointOrigin: null });
+    createDefaultBrowserPiWorkerV1({ endpointOrigin: "https://llm.example.test" });
+
+    const ordinaryUrl = new URL(constructions[2]?.url ?? "about:blank");
+    const customUrl = new URL(constructions[3]?.url ?? "about:blank");
+    expect(customUrl.searchParams.getAll("endpoint-origin")).toEqual([
+      "https://llm.example.test",
+    ]);
+    expect(
+      [...customUrl.searchParams].filter(([name]) => name !== "endpoint-origin"),
+    ).toEqual([...ordinaryUrl.searchParams]);
+    expect(ordinaryUrl.searchParams.has("endpoint-origin")).toBe(false);
+    expect(customUrl.href).toBe(
+      `${ordinaryUrl.href}${ordinaryUrl.search.length === 0 ? "?" : "&"}` +
+        "endpoint-origin=https%3A%2F%2Fllm.example.test",
+    );
+    expect(customUrl.href).not.toContain(customSelectionV1.profile.modelId);
+    expect(customUrl.href).not.toContain(customSelectionV1.profile.baseUrl);
+    expect(constructions.map(({ options }) => options)).toEqual([
+      { type: "module", name: "sillyos-browser-pi" },
+      { type: "module", name: "sillyos-browser-pi" },
+      { type: "module", name: "sillyos-browser-pi" },
+      { type: "module", name: "sillyos-browser-pi" },
+    ]);
+    expect(() =>
+      createDefaultBrowserPiWorkerV1({
+        endpointOrigin: "https://llm.example.test/v1",
+      })
+    ).toThrow("sillyos.browser_pi_transport.endpoint_origin_invalid");
   });
 
   it("creates the Worker lazily, posts the key once, settles submit first, and terminates", async () => {

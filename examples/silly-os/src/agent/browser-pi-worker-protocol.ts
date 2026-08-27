@@ -6,16 +6,44 @@ import type { BrowserPiDistributionIdentityV1 } from "./browser-pi-distribution.
 
 export type BrowserPiWorkerRuntimeV1 = "deterministic_test" | "pi_provider";
 
-export interface BrowserPiModelSelectionV1 {
+export type BrowserPiCustomModelApiV1 =
+  | "openai-completions"
+  | "openai-responses"
+  | "anthropic-messages"
+  | "google-generative-ai";
+
+export interface BrowserPiBuiltinModelSelectionV1 {
+  readonly kind: "builtin";
   readonly providerId: string;
   readonly modelId: string;
 }
+
+export interface BrowserPiCustomModelProfileV1 {
+  readonly profileId: string;
+  readonly displayName: string;
+  readonly api: BrowserPiCustomModelApiV1;
+  readonly baseUrl: string;
+  readonly modelId: string;
+  readonly contextWindow: number;
+  readonly maxTokens: number;
+}
+
+export interface BrowserPiCustomModelSelectionV1 {
+  readonly kind: "custom";
+  readonly profile: BrowserPiCustomModelProfileV1;
+}
+
+export type BrowserPiModelSelectionV1 =
+  | BrowserPiBuiltinModelSelectionV1
+  | BrowserPiCustomModelSelectionV1;
 
 export type BrowserPiCatalogAvailabilityV1 = "qualified" | "candidate" | "unavailable";
 
 export interface BrowserPiCatalogModelWireV1 {
   readonly id: string;
   readonly name: string;
+  readonly api: string;
+  readonly baseUrl: string;
   readonly reasoning: boolean;
   readonly input: readonly ("text" | "image")[];
   readonly contextWindow: number;
@@ -139,7 +167,7 @@ export interface BrowserPiWorkerInitializationFailureV1 {
   readonly revision: 1;
   readonly kind: "initialization_failure";
   readonly requestId: number;
-  readonly code: "selection_unavailable";
+  readonly code: "selection_unavailable" | "connection_failed";
 }
 
 export interface BrowserPiWorkerRpcResponseV1 {
@@ -299,6 +327,12 @@ const catalogModelsTotalMaximumV1 = 4_096;
 const catalogNameMaximumUtf8BytesV1 = 2_048;
 const catalogModelIdMaximumUtf8BytesV1 = 2_048;
 const catalogBaseUrlMaximumUtf8BytesV1 = 8_192;
+const customProfileIdMaximumUtf8BytesV1 = 64;
+const customProfileDisplayNameMaximumUtf8BytesV1 = 128;
+const customProfileBaseUrlMaximumUtf8BytesV1 = 2_048;
+const customProfileModelIdMaximumUtf8BytesV1 = 256;
+const customProfileContextWindowMaximumV1 = 32_000_000;
+const customProfileMaxTokensMaximumV1 = 4_000_000;
 const workspaceReceiptMaximumV1 = 32;
 const workspacePathMaximumUtf8BytesV1 = 512;
 const workspacePathMaximumComponentsV1 = 32;
@@ -421,23 +455,102 @@ function isBoundedDisplayTextV1(value: unknown, maximumUtf8Bytes: number): value
   return byteLength !== null && byteLength <= maximumUtf8Bytes;
 }
 
+function isBrowserPiCustomModelApiV1(value: unknown): value is BrowserPiCustomModelApiV1 {
+  return value === "openai-completions" || value === "openai-responses" ||
+    value === "anthropic-messages" || value === "google-generative-ai";
+}
+
+function isCustomProfileIdV1(value: unknown): value is string {
+  return isBoundedTextV1(value, customProfileIdMaximumUtf8BytesV1) &&
+    /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/u.test(value);
+}
+
+function canonicalHttpsBaseUrlV1(value: unknown): string | null {
+  if (!isBoundedTextV1(value, customProfileBaseUrlMaximumUtf8BytesV1)) return null;
+  try {
+    const url = new URL(value);
+    if (
+      url.protocol !== "https:" || url.username.length !== 0 || url.password.length !== 0 ||
+      url.search.length !== 0 || url.hash.length !== 0 || url.origin === "null"
+    ) return null;
+    const path = url.pathname === "/" ? "" : url.pathname.replace(/\/+$/u, "");
+    const canonical = `${url.origin}${path}`;
+    return canonical === value ? canonical : null;
+  } catch {
+    return null;
+  }
+}
+
 function admitBrowserPiModelSelectionV1(value: unknown): BrowserPiModelSelectionV1 | null {
-  const selection = exactDataRecordV1(value, ["providerId", "modelId"]);
+  const builtin = exactDataRecordV1(value, ["kind", "providerId", "modelId"]);
   if (
-    selection === null || !isIdentifierV1(selection.providerId) ||
-    !isBoundedTextV1(selection.modelId, catalogModelIdMaximumUtf8BytesV1)
+    builtin !== null && builtin.kind === "builtin" && isIdentifierV1(builtin.providerId) &&
+    isBoundedTextV1(builtin.modelId, catalogModelIdMaximumUtf8BytesV1)
+  ) {
+    return { kind: "builtin", providerId: builtin.providerId, modelId: builtin.modelId };
+  }
+
+  const custom = exactDataRecordV1(value, ["kind", "profile"]);
+  if (custom === null || custom.kind !== "custom") return null;
+  const profile = exactDataRecordV1(custom.profile, [
+    "profileId",
+    "displayName",
+    "api",
+    "baseUrl",
+    "modelId",
+    "contextWindow",
+    "maxTokens",
+  ]);
+  if (profile === null) return null;
+  const baseUrl = canonicalHttpsBaseUrlV1(profile.baseUrl);
+  if (
+    !isCustomProfileIdV1(profile.profileId) ||
+    !isBoundedTextV1(profile.displayName, customProfileDisplayNameMaximumUtf8BytesV1) ||
+    !isBrowserPiCustomModelApiV1(profile.api) ||
+    baseUrl === null ||
+    !isBoundedTextV1(profile.modelId, customProfileModelIdMaximumUtf8BytesV1) ||
+    !isPositiveSafeIntegerV1(profile.contextWindow) ||
+    profile.contextWindow > customProfileContextWindowMaximumV1 ||
+    !isPositiveSafeIntegerV1(profile.maxTokens) ||
+    profile.maxTokens > customProfileMaxTokensMaximumV1 ||
+    profile.maxTokens > profile.contextWindow
   ) return null;
-  return { providerId: selection.providerId, modelId: selection.modelId };
+  return {
+    kind: "custom",
+    profile: {
+      profileId: profile.profileId,
+      displayName: profile.displayName,
+      api: profile.api,
+      baseUrl,
+      modelId: profile.modelId,
+      contextWindow: profile.contextWindow,
+      maxTokens: profile.maxTokens,
+    },
+  };
+}
+
+export function browserPiCustomEndpointOriginV1(
+  selection: BrowserPiModelSelectionV1,
+): string | null {
+  if (selection.kind !== "custom") return null;
+  const baseUrl = canonicalHttpsBaseUrlV1(selection.profile.baseUrl);
+  return baseUrl === null ? null : new URL(baseUrl).origin;
 }
 
 function isCatalogAvailabilityV1(value: unknown): value is BrowserPiCatalogAvailabilityV1 {
   return value === "qualified" || value === "candidate" || value === "unavailable";
 }
 
+function isCatalogBaseUrlV1(value: unknown): value is string {
+  return value === "" || isBoundedTextV1(value, catalogBaseUrlMaximumUtf8BytesV1);
+}
+
 function admitCatalogModelV1(value: unknown): BrowserPiCatalogModelWireV1 | null {
   const model = exactDataRecordV1(value, [
     "id",
     "name",
+    "api",
+    "baseUrl",
     "reasoning",
     "input",
     "contextWindow",
@@ -447,6 +560,8 @@ function admitCatalogModelV1(value: unknown): BrowserPiCatalogModelWireV1 | null
   if (
     model === null || !isBoundedTextV1(model.id, catalogModelIdMaximumUtf8BytesV1) ||
     !isBoundedDisplayTextV1(model.name, catalogNameMaximumUtf8BytesV1) ||
+    !isBoundedTextV1(model.api, catalogNameMaximumUtf8BytesV1) ||
+    !isCatalogBaseUrlV1(model.baseUrl) ||
     typeof model.reasoning !== "boolean" || !isPositiveSafeIntegerV1(model.contextWindow) ||
     !isPositiveSafeIntegerV1(model.maxTokens) || !isCatalogAvailabilityV1(model.availability)
   ) return null;
@@ -459,6 +574,8 @@ function admitCatalogModelV1(value: unknown): BrowserPiCatalogModelWireV1 | null
   return {
     id: model.id,
     name: model.name,
+    api: model.api,
+    baseUrl: model.baseUrl,
     reasoning: model.reasoning,
     input: input as readonly ("text" | "image")[],
     contextWindow: model.contextWindow,
@@ -871,12 +988,12 @@ export function admitBrowserPiWorkerOutboundMessageV1(
   }
   if (!isRequestIdV1(base.requestId)) return null;
   if (base.kind === "initialization_failure") {
-    if (base.code !== "selection_unavailable") return null;
+    if (base.code !== "selection_unavailable" && base.code !== "connection_failed") return null;
     return {
       revision: 1,
       kind: "initialization_failure",
       requestId: base.requestId,
-      code: "selection_unavailable",
+      code: base.code,
     };
   }
   if (base.kind === "catalog_response") {

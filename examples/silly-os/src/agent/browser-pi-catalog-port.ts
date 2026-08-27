@@ -26,7 +26,7 @@ export function queryBrowserPiProviderCatalogV1(input: {
   const workerFactory = input.workerFactory ?? createDefaultBrowserPiWorkerV1;
   let worker: BrowserPiWorkerLikeV1;
   try {
-    worker = workerFactory();
+    worker = workerFactory({ endpointOrigin: null });
   } catch {
     return Promise.resolve({ kind: "unavailable", code: "worker_failed" });
   }

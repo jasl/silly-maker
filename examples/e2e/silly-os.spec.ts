@@ -694,11 +694,119 @@ async function expectNoPageOverflowV1(page: Page): Promise<void> {
   expect(overflow.body).toBeLessThanOrEqual(1);
 }
 
-test("ordinary Browser Settings preserves Home and Workspace navigation at the mobile boundary", async ({ durableProgramPage: page }) => {
+const openAIResponsesProbeUrlV1 = "https://api.openai.com/v1/responses";
+const browserProviderSettingsStorageKeyV1 = "sillymaker.example-silly-os.provider-settings.v1";
+
+interface OpenAIResponsesProbeRequestV1 {
+  readonly method: string;
+  readonly headers: Readonly<Record<string, string>>;
+  readonly body: string;
+}
+
+function successfulOpenAIResponsesProbeSseV1(): string {
+  const completedMessage = {
+    id: "msg_sillyos_provider_probe",
+    type: "message",
+    status: "completed",
+    role: "assistant",
+    content: [{ type: "output_text", text: "OK", annotations: [], logprobs: [] }],
+  };
+  const events = [
+    {
+      type: "response.created",
+      sequence_number: 0,
+      response: { id: "resp_sillyos_provider_probe", status: "in_progress" },
+    },
+    {
+      type: "response.output_item.added",
+      sequence_number: 1,
+      output_index: 0,
+      item: { ...completedMessage, status: "in_progress", content: [] },
+    },
+    {
+      type: "response.output_text.delta",
+      sequence_number: 2,
+      item_id: completedMessage.id,
+      output_index: 0,
+      content_index: 0,
+      delta: "OK",
+      logprobs: [],
+    },
+    {
+      type: "response.output_item.done",
+      sequence_number: 3,
+      output_index: 0,
+      item: completedMessage,
+    },
+    {
+      type: "response.completed",
+      sequence_number: 4,
+      response: {
+        id: "resp_sillyos_provider_probe",
+        status: "completed",
+        output: [completedMessage],
+        usage: {
+          input_tokens: 4,
+          input_tokens_details: { cached_tokens: 0 },
+          output_tokens: 1,
+          output_tokens_details: { reasoning_tokens: 0 },
+          total_tokens: 5,
+        },
+      },
+    },
+  ];
+  return `${events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("")}data: [DONE]\n\n`;
+}
+
+async function routeSuccessfulOpenAIResponsesProbeV1(
+  page: Page,
+  probeUrl = openAIResponsesProbeUrlV1,
+): Promise<OpenAIResponsesProbeRequestV1[]> {
+  const observed: OpenAIResponsesProbeRequestV1[] = [];
+  const appOrigin = new URL(sillyOsTargetUrlV1()).origin;
+  await page.context().route(probeUrl, async (route) => {
+    const request = route.request();
+    if (request.method() === "OPTIONS") {
+      await route.fulfill({
+        status: 204,
+        headers: {
+          "access-control-allow-origin": appOrigin,
+          "access-control-allow-methods": "POST, OPTIONS",
+          "access-control-allow-headers": request.headers()["access-control-request-headers"] ??
+            "authorization, content-type",
+          vary: "Origin",
+        },
+      });
+      return;
+    }
+    observed.push({
+      method: request.method(),
+      headers: request.headers(),
+      body: request.postData() ?? "",
+    });
+    await route.fulfill({
+      status: 200,
+      headers: {
+        "access-control-allow-origin": appOrigin,
+        "access-control-expose-headers": "request-id",
+        "cache-control": "no-store",
+        "content-type": "text/event-stream; charset=utf-8",
+        "request-id": "req_sillyos_provider_probe",
+        vary: "Origin",
+      },
+      body: successfulOpenAIResponsesProbeSseV1(),
+    });
+  });
+  return observed;
+}
+
+test("ordinary Browser Settings verifies a built-in Pi connection and preserves mobile navigation", async ({ durableProgramPage: page }) => {
   const sentinel = "sillyos-provider-settings-session-key";
   const observedNetwork: string[] = [];
   const observedConsole: string[] = [];
+  const providerProbeRequests = await routeSuccessfulOpenAIResponsesProbeV1(page);
   page.on("request", (request) => {
+    if (request.url() === openAIResponsesProbeUrlV1) return;
     observedNetwork.push(
       `${request.url()}\n${request.postData() ?? ""}\n${JSON.stringify(request.headers())}`,
     );
@@ -708,8 +816,12 @@ test("ordinary Browser Settings preserves Home and Workspace navigation at the m
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(sillyOsTargetUrlV1("?locale=en"));
   await expectProgramStorageReadyV1(page);
+  const providerWarning = page.locator('[data-pi-agent-runtime="pi_provider"]');
+  await expect(providerWarning).toHaveAttribute("data-pi-agent-status", "available");
+  await expect(providerWarning).toContainText("API key required");
+  await expect(providerWarning).toContainText("Settings");
   const homeSettings = page.locator('[data-open-settings="home"]');
-  await homeSettings.click();
+  await providerWarning.click();
 
   const settings = page.locator('[data-silly-os-view="settings"]');
   const globalBack = page.getByRole("button", { name: "Back to Agent Creator" });
@@ -744,6 +856,8 @@ test("ordinary Browser Settings preserves Home and Workspace navigation at the m
   }
   await expectNoPageOverflowV1(page);
 
+  await expect(page.getByRole("heading", { name: "Built-in Providers" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Custom Endpoints" })).toBeVisible();
   await page.locator('[data-provider-id="anthropic"]').click();
   await expect(
     page.locator('[data-model-id="claude-sonnet-4-5-20250929"] input'),
@@ -765,14 +879,53 @@ test("ordinary Browser Settings preserves Home and Workspace navigation at the m
   await page.locator('[data-provider-id="openai"]').click();
   await expect(page.getByRole("button", { name: "Back to Providers" })).toBeFocused();
   const qualifiedModel = page.locator('[data-model-id="gpt-4.1-nano"] input');
-  await qualifiedModel.check();
+  await expect(qualifiedModel).toBeChecked();
+  const endpoint = page.locator(
+    '.provider-settings__endpoint input[aria-label="Endpoint"]',
+  );
+  await expect(endpoint).toHaveValue("https://api.openai.com/v1");
+  await expect(endpoint).toHaveAttribute("data-endpoint-editable", "false");
+  await expect(endpoint).not.toBeEditable();
+  expect(
+    await page.locator('[data-connection-target="builtin:openai:gpt-4.1-nano"]').evaluate(
+      (connection) => {
+        const models = document.querySelector("#models-title")?.closest("section");
+        return models !== null && models !== undefined &&
+          (connection.compareDocumentPosition(models) & 4) !== 0;
+      },
+    ),
+  ).toBe(true);
   const keyInput = page.getByLabel("API key (memory only)");
+  await expect(keyInput).toHaveAttribute("type", "password");
+  await page.getByRole("button", { name: "Show API key" }).click();
+  await expect(keyInput).toHaveAttribute("type", "text");
+  await page.getByRole("button", { name: "Hide API key" }).click();
   await keyInput.fill(sentinel);
-  await page.getByRole("button", { name: "Connect Agent Creator" }).click();
+  await page.getByRole("button", { name: "Test connection" }).click();
   await expect(keyInput).toHaveCount(0);
   await expect(page.getByText("Agent Creator connected", { exact: true })).toBeVisible();
+  expect(providerProbeRequests).toHaveLength(1);
+  expect(providerProbeRequests[0]?.method).toBe("POST");
+  expect(providerProbeRequests[0]?.headers.authorization).toBe(`Bearer ${sentinel}`);
+  const probeBody = JSON.parse(providerProbeRequests[0]?.body ?? "null") as {
+    readonly model?: unknown;
+    readonly stream?: unknown;
+    readonly store?: unknown;
+    readonly tool_choice?: unknown;
+    readonly max_output_tokens?: unknown;
+    readonly input?: unknown;
+  };
+  expect(probeBody).toMatchObject({
+    model: "gpt-4.1-nano",
+    stream: true,
+    store: false,
+    max_output_tokens: 16,
+  });
+  expect(probeBody.tool_choice).toBeUndefined();
+  expect(JSON.stringify(probeBody.input)).toContain("Reply with OK.");
   await globalBack.click();
   await expect(homeSettings).toBeFocused();
+  await expect(providerWarning).toHaveCount(0);
 
   const creatorIntent = page.getByRole("textbox", { name: "What would you like to make?" });
   await creatorIntent.fill(translationIntentV1);
@@ -787,11 +940,153 @@ test("ordinary Browser Settings preserves Home and Workspace navigation at the m
   await globalBack.click();
   await expect(workspace).toHaveAttribute("data-program-id", programId);
   await expect(workspaceSettings).toBeFocused();
+
+  await workspaceSettings.click();
+  await page.locator('[data-provider-id="openai"]').click();
+  await expect(page.getByText("Agent Creator connected", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Forget key" }).click();
+  await expect(page.getByLabel("API key (memory only)")).toBeVisible();
+  await globalBack.click();
+  await page.getByRole("button", { name: "Creator home" }).click();
+  await expect(providerWarning).toHaveAttribute("data-pi-agent-status", "available");
+  await expect(providerWarning).toContainText("API key required");
   await expectNoPageOverflowV1(page);
 
   expect(observedNetwork.join("\n")).not.toContain(sentinel);
   expect(observedConsole.join("\n")).not.toContain(sentinel);
   expect(await page.content()).not.toContain(sentinel);
+  const persistentBrowserState = await page.evaluate(() => {
+    const entries: [string, string | null][] = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (key !== null) entries.push([key, localStorage.getItem(key)]);
+    }
+    return entries;
+  });
+  expect(JSON.stringify(persistentBrowserState)).not.toContain(sentinel);
+});
+
+test("ordinary Browser Settings adds, reloads, and removes a non-secret custom endpoint profile", async ({ durableProgramPage: page }) => {
+  const customName = "Team inference gateway";
+  const customEndpoint = "https://inference.example.test/v1";
+  const customModel = "team-model-v2";
+  const customSentinel = "sillyos-custom-provider-session-key";
+  const customProbeRequests = await routeSuccessfulOpenAIResponsesProbeV1(
+    page,
+    `${customEndpoint}/responses`,
+  );
+
+  await page.goto(sillyOsTargetUrlV1("?locale=en"));
+  await expectProgramStorageReadyV1(page);
+  const providerWarning = page.locator('[data-pi-agent-runtime="pi_provider"]');
+  await expect(providerWarning).toHaveAttribute("data-pi-agent-status", "available");
+  await providerWarning.click();
+  await expect(page.locator('[data-silly-os-view="settings"]')).toBeVisible();
+  await page.locator('[data-add-custom-endpoint="true"]').click();
+
+  await page.getByLabel("Name").fill(customName);
+  await page.getByLabel("Pi API family").selectOption("openai-responses");
+  await page.locator('.provider-settings__custom-form input[name="baseUrl"]').fill(
+    `${customEndpoint}/`,
+  );
+  await page.getByLabel("Model ID").fill(customModel);
+  await page.getByLabel("Context window").fill("131072");
+  await page.getByLabel("Maximum output tokens").fill("8192");
+  await page.getByRole("button", { name: "Save endpoint" }).click();
+
+  const customProfile = page.locator("[data-custom-profile-id]");
+  await expect(customProfile).toHaveCount(1);
+  await expect(customProfile).toContainText(customName);
+  await expect(customProfile).toHaveAttribute("data-connection-status", "untested");
+  await expect(page.getByRole("heading", { name: customName })).toBeVisible();
+  const savedEndpoint = page.locator(
+    '.provider-settings__endpoint input[aria-label="Endpoint"]',
+  );
+  await expect(savedEndpoint).toHaveValue(customEndpoint);
+  await expect(savedEndpoint).toHaveAttribute(
+    "data-endpoint-editable",
+    "custom-profile",
+  );
+  await expect(savedEndpoint).not.toBeEditable();
+  await expect(page.getByText(customModel, { exact: true }).first()).toBeVisible();
+
+  const customKeyInput = page.getByLabel("API key (memory only)");
+  await customKeyInput.fill(customSentinel);
+  await page.getByRole("button", { name: "Test connection" }).click();
+  await expect(customKeyInput).toHaveCount(0);
+  const customConnection = page.locator(
+    `.provider-settings__connection[data-connection-phase="ready"]`,
+  );
+  await expect(customConnection).toContainText("Verified in this browser");
+  await expect(customConnection).toContainText(`${customName} · ${customModel}`);
+  await expect(customProfile).toHaveAttribute("data-connection-status", "verified");
+  expect(customProbeRequests).toHaveLength(1);
+  expect(customProbeRequests[0]?.method).toBe("POST");
+  expect(customProbeRequests[0]?.headers.authorization).toBe(`Bearer ${customSentinel}`);
+  const customProbeBody = JSON.parse(customProbeRequests[0]?.body ?? "null") as {
+    readonly tool_choice?: unknown;
+  };
+  expect(customProbeBody).toMatchObject({
+    model: customModel,
+    stream: true,
+    store: false,
+    max_output_tokens: 16,
+  });
+  expect(customProbeBody.tool_choice).toBeUndefined();
+
+  const savedProfile = await page.evaluate((storageKey) => {
+    const serialized = localStorage.getItem(storageKey);
+    return serialized === null ? null : JSON.parse(serialized) as unknown;
+  }, browserProviderSettingsStorageKeyV1);
+  expect(savedProfile).toMatchObject({
+    revision: 1,
+    customProfiles: [{
+      displayName: customName,
+      api: "openai-responses",
+      baseUrl: customEndpoint,
+      modelId: customModel,
+      contextWindow: 131_072,
+      maxTokens: 8_192,
+    }],
+  });
+  expect(JSON.stringify(savedProfile).toLocaleLowerCase()).not.toContain("api_key");
+  expect(JSON.stringify(savedProfile).toLocaleLowerCase()).not.toContain("apikey");
+  expect(JSON.stringify(savedProfile)).not.toContain(customSentinel);
+  expect(await page.content()).not.toContain(customSentinel);
+
+  await page.getByRole("button", { name: "Forget key" }).click();
+  await expect(page.getByLabel("API key (memory only)")).toBeVisible();
+  await expect(customProfile).toHaveAttribute("data-connection-status", "untested");
+
+  await page.reload();
+  await expectProgramStorageReadyV1(page);
+  await expect(providerWarning).toHaveAttribute("data-pi-agent-status", "available");
+  await providerWarning.click();
+  const reloadedProfile = page.locator("[data-custom-profile-id]");
+  await expect(reloadedProfile).toHaveCount(1);
+  await expect(reloadedProfile).toContainText(customName);
+  await reloadedProfile.click();
+  await expect(
+    page.locator('.provider-settings__endpoint input[aria-label="Endpoint"]'),
+  ).toHaveValue(customEndpoint);
+  await expect(page.getByText("131,072", { exact: true })).toBeVisible();
+  await expect(page.getByText("8,192", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Remove" }).click();
+  await expect(reloadedProfile).toHaveCount(0);
+  expect(
+    await page.evaluate(
+      (storageKey) => localStorage.getItem(storageKey),
+      browserProviderSettingsStorageKeyV1,
+    ),
+  ).toBeNull();
+
+  await page.reload();
+  await expectProgramStorageReadyV1(page);
+  await expect(providerWarning).toHaveAttribute("data-pi-agent-status", "available");
+  await providerWarning.click();
+  await expect(page.locator("[data-custom-profile-id]")).toHaveCount(0);
+  await expect(page.getByText("Add an HTTPS endpoint", { exact: true })).toBeVisible();
 });
 
 test("Creator Home persists and reopens an exact accepted Program", async ({ durableProgramPage: page }) => {

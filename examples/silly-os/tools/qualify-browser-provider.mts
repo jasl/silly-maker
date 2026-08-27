@@ -4,7 +4,6 @@ import { chromium, type BrowserType, type Page, type Request, webkit } from "npm
 
 const defaultTargetUrlV1 = "http://127.0.0.1:4175/";
 const initialIntentV1 = "Create a compact writing review program.";
-const authenticationFollowUpV1 = "Add a private draft review step.";
 const cancelledFollowUpV1 = "Cancel this qualification run before it can propose a revision.";
 const completedFollowUpV1 = "Add one explicit review checkpoint before publication.";
 
@@ -85,7 +84,11 @@ const qualifiedProfileIdsV1 = Object.freeze([
   "xai",
 ]);
 
-type ProviderRequestPhaseV1 = "authentication" | "cancel" | "complete";
+type ProviderRequestPhaseV1 =
+  | "connection_invalid"
+  | "connection_valid"
+  | "cancel"
+  | "complete";
 
 interface ObservedProviderRequestV1 {
   readonly request: Request;
@@ -94,6 +97,10 @@ interface ObservedProviderRequestV1 {
   errorType: string | null;
   errorCode: string | null;
   errorMessage: string | null;
+  responseBody: string | null;
+  responseBodyReadError: string | null;
+  responseBodySettlement: Promise<void> | null;
+  requestFailure: string | null;
 }
 
 class QualificationFailureV1 extends Error {
@@ -249,7 +256,18 @@ function boundedProviderTextV1(
   for (const credential of credentials) {
     if (credential.length > 0) bounded = bounded.replaceAll(credential, "[redacted]");
   }
+  bounded = bounded.replaceAll(/https?:\/\/[^\s"'<>]+/giu, "[url]");
   return bounded.slice(0, maximum);
+}
+
+function providerErrorRecordV1(body: unknown): Readonly<Record<string, unknown>> | null {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) return null;
+  const record = body as Readonly<Record<string, unknown>>;
+  if (!("error" in record)) return record;
+  const error = record.error;
+  return typeof error === "object" && error !== null && !Array.isArray(error)
+    ? error as Readonly<Record<string, unknown>>
+    : record;
 }
 
 function requireCompletedProviderJourneyV1(
@@ -267,10 +285,22 @@ async function providerFailureDetailsV1(
   page: Page,
   observations: readonly ObservedProviderRequestV1[],
 ): Promise<Readonly<Record<string, unknown>>> {
+  await Promise.all(
+    observations.map(({ responseBodySettlement }) => responseBodySettlement ?? Promise.resolve()),
+  );
   const run = page.locator("[data-pi-agent-run-status]");
+  const connection = page.locator("[data-connection-phase]").first();
+  const providerWarning = page.locator('[data-pi-agent-runtime="pi_provider"]');
   return Object.freeze({
     runStatus: await run.getAttribute("data-pi-agent-run-status").catch(() => null),
     diagnostic: await run.getAttribute("data-pi-agent-diagnostic").catch(() => null),
+    connectionPhase: await connection.getAttribute("data-connection-phase").catch(() => null),
+    connectionDiagnostic: await connection.getAttribute("data-diagnostic-code").catch(
+      () => null,
+    ),
+    providerWarningStatus: await providerWarning.getAttribute("data-pi-agent-status").catch(
+      () => null,
+    ),
     view: await page.locator("[data-silly-os-view]").first().getAttribute("data-silly-os-view")
       .catch(() => null),
     followUpCount: await page.getByRole("textbox", { name: "Ask for a change…" }).count().catch(
@@ -287,7 +317,28 @@ async function providerFailureDetailsV1(
       code: errorCode,
       message: errorMessage,
     })),
+    providerResponseBodies: observations.map(({ responseBody }) => responseBody),
+    providerResponseBodyReadErrors: observations.map(({ responseBodyReadError }) =>
+      responseBodyReadError
+    ),
+    providerRequestFailures: observations.map(({ requestFailure }) => requestFailure),
   });
+}
+
+async function openProviderSelectionV1(
+  page: Page,
+  profile: ProviderQualificationProfileV1,
+): Promise<void> {
+  await page.getByRole("button", { name: "Settings" }).first().click();
+  await page.locator('[data-silly-os-view="settings"]').waitFor();
+  await page.locator(`[data-provider-id="${profile.providerId}"]`).click();
+  await page.locator(`[data-model-id="${profile.modelId}"] input`).check();
+}
+
+async function submitProviderCredentialV1(page: Page, credential: string): Promise<void> {
+  const keyInput = page.getByLabel("API key (memory only)");
+  await keyInput.fill(credential);
+  await page.getByRole("button", { name: "Test connection" }).click();
 }
 
 async function configureProviderCredentialV1(
@@ -295,17 +346,21 @@ async function configureProviderCredentialV1(
   profile: ProviderQualificationProfileV1,
   credential: string,
 ): Promise<void> {
-  await page.getByRole("button", { name: "Settings" }).first().click();
-  await page.locator('[data-silly-os-view="settings"]').waitFor();
-  await page.locator(`[data-provider-id="${profile.providerId}"]`).click();
-  await page.locator(`[data-model-id="${profile.modelId}"] input`).check();
-  const keyInput = page.getByLabel("API key (memory only)");
-  await keyInput.fill(credential);
-  await page.getByRole("button", { name: "Connect Agent Creator" }).click();
-  await page.getByText("Agent Creator connected", { exact: true }).waitFor();
-  requireV1(await keyInput.count() === 0, "credential_input_not_cleared");
+  await openProviderSelectionV1(page, profile);
+  await submitProviderCredentialV1(page, credential);
+  const settledConnection = page.locator(
+    '[data-connection-phase="ready"], [data-connection-phase="failed"]',
+  ).first();
+  await settledConnection.waitFor();
+  const connectionOutcome = await settledConnection.getAttribute("data-connection-phase");
+  requireV1(connectionOutcome === "ready", "valid_connection_rejected");
+  requireV1(
+    await page.getByLabel("API key (memory only)").count() === 0,
+    "credential_input_not_cleared",
+  );
   await page.getByRole("button", { name: "Back to Agent Creator" }).click();
-  await page.getByText("Provider Agent configured", { exact: true }).waitFor();
+  await page.locator('[data-silly-os-view="home"]').waitFor();
+  await page.locator('[data-pi-agent-runtime="pi_provider"]').waitFor({ state: "detached" });
   await waitForPiWorkerCountV1(page, 1);
 }
 
@@ -350,17 +405,36 @@ async function qualifyBrowserV1(
           errorType: null,
           errorCode: null,
           errorMessage: null,
+          responseBody: null,
+          responseBodyReadError: null,
+          responseBodySettlement: null,
+          requestFailure: null,
         });
+      });
+      page.on("requestfailed", (request) => {
+        const observation = providerRequests.find(({ request: observed }) => observed === request);
+        if (observation === undefined) return;
+        observation.requestFailure = boundedProviderTextV1(
+          request.failure()?.errorText,
+          240,
+          credentials,
+        );
       });
       page.on("response", (response) => {
         const observation = providerRequests.find(({ request }) => request === response.request());
         if (observation === undefined) return;
         observation.status = response.status();
         if (response.status() < 400) return;
-        void response.json().then((body: unknown) => {
-          if (typeof body !== "object" || body === null || !("error" in body)) return;
-          const error = body.error;
-          if (typeof error !== "object" || error === null) return;
+        observation.responseBodySettlement = response.text().then((bodyText) => {
+          observation.responseBody = boundedProviderTextV1(bodyText, 512, credentials);
+          let body: unknown;
+          try {
+            body = JSON.parse(bodyText) as unknown;
+          } catch {
+            return;
+          }
+          const error = providerErrorRecordV1(body);
+          if (error === null) return;
           if ("type" in error) {
             observation.errorType = boundedProviderTextV1(error.type, 80, credentials);
           }
@@ -370,92 +444,84 @@ async function qualifyBrowserV1(
           if ("message" in error) {
             observation.errorMessage = boundedProviderTextV1(error.message, 240, credentials);
           }
-        }).catch(() => undefined);
+        }).catch((error: unknown) => {
+          observation.responseBodyReadError = boundedProviderTextV1(
+            error instanceof Error ? error.message : String(error),
+            240,
+            credentials,
+          );
+        });
       });
 
       await page.goto(target);
-      phase = "configure_invalid";
-      await configureProviderCredentialV1(page, profile, invalidCredential);
-
-      phase = "create";
-      await page.getByRole("textbox", { name: "What would you like to make?" }).fill(
-        initialIntentV1,
+      phase = "connection_invalid";
+      await openProviderSelectionV1(page, profile);
+      requestPhase = "connection_invalid";
+      const invalidConnectionResponse = page.waitForResponse((response) =>
+        matchesProviderRequestV1(response.request(), profile)
       );
-      await page.getByRole("button", { name: "Create program" }).click();
-      const authenticationProposal = page.locator('[data-proposal-status="pending"]');
-      await authenticationProposal.waitFor({ state: "visible" });
+      await submitProviderCredentialV1(page, invalidCredential);
+      await invalidConnectionResponse;
+      const failedConnection = page.locator(
+        '.provider-settings__credential-form[data-connection-phase="failed"]',
+      );
+      await failedConnection.waitFor({ state: "visible" });
       requireV1(
-        (await authenticationProposal.textContent())?.includes("v1") === true,
-        "initial_revision_missing",
+        await failedConnection.locator('[data-diagnostic-code="connection_failed"]').count() === 1,
+        "invalid_connection_error_mapping_invalid",
       );
-
-      const followUp = page.getByRole("textbox", { name: "Ask for a change…" });
-      phase = "authentication";
-      requestPhase = "authentication";
-      await followUp.fill(authenticationFollowUpV1);
-      const authenticationRequest = page.waitForRequest((request) =>
-        matchesProviderRequestV1(request, profile)
-      );
-      await page.getByRole("button", { name: "Send" }).click();
-      await authenticationRequest;
-      const authenticationObservations = observationsForPhaseV1(
+      const invalidConnectionObservations = observationsForPhaseV1(
         providerRequests,
-        "authentication",
-      );
-      try {
-        await page.waitForFunction(
-          () =>
-            document.querySelector('[data-pi-agent-run-status="ready"]') !== null &&
-            document.querySelector('[data-program-storage-state="ready"]') !== null,
-          undefined,
-          { timeout: 30_000 },
-        );
-      } catch {
-        throw new QualificationFailureV1(
-          "authentication_failure_timeout",
-          await providerFailureDetailsV1(page, authenticationObservations),
-        );
-      }
-      requireV1(
-        authenticationObservations.length === 1,
-        "authentication_provider_request_count_invalid",
+        "connection_invalid",
       );
       requireV1(
-        authenticationObservations.every(({ status }) =>
+        invalidConnectionObservations.length === 1,
+        "invalid_connection_provider_request_count_invalid",
+      );
+      requireV1(
+        invalidConnectionObservations.every(({ status }) =>
           status !== null && status >= 400 && status < 500
         ),
-        "authentication_provider_status_invalid",
+        "invalid_connection_provider_status_invalid",
       );
-      const authenticationProjection = await durableProjectionV1(page);
-      requireV1(
-        authenticationProjection.includes('"diagnosticCode":"run_failed"') &&
-          authenticationProjection.includes('"kind":"agent_run_failed"'),
-        "authentication_error_mapping_invalid",
-      );
-      requireV1(
-        !authenticationProjection.includes(apiKey) &&
-          !authenticationProjection.includes(invalidCredential),
-        "authentication_credential_persisted",
-      );
-      requireV1(
-        (await authenticationProposal.textContent())?.includes("v1") === true,
-        "authentication_published_revision",
-      );
-
-      phase = "forget_invalid";
-      requestPhase = null;
-      const invalidForgetButton = page.getByRole("button", { name: "Forget Provider key" });
-      await invalidForgetButton.click();
+      const invalidKeyInput = page.getByLabel("API key (memory only)");
+      requireV1(await invalidKeyInput.inputValue() === "", "invalid_credential_input_not_cleared");
       await waitForPiWorkerCountV1(page, 0);
-      await invalidForgetButton.waitFor({ state: "detached" });
-      requireV1(await invalidForgetButton.count() === 0, "invalid_credential_not_forgotten");
+      const invalidConnectionProjection = await durableProjectionV1(page);
+      requireV1(
+        invalidConnectionProjection.includes("connection_failed"),
+        "invalid_connection_error_mapping_invalid",
+      );
+      requireV1(
+        !invalidConnectionProjection.includes(apiKey) &&
+          !invalidConnectionProjection.includes(invalidCredential),
+        "invalid_connection_credential_persisted",
+      );
+      requestPhase = null;
+      await page.getByRole("button", { name: "Back to Agent Creator" }).click();
+      await page.locator('[data-silly-os-view="home"]').waitFor();
+      const failedProviderWarning = page.locator('[data-pi-agent-runtime="pi_provider"]');
+      requireV1(
+        await failedProviderWarning.getAttribute("data-pi-agent-status") === "failed",
+        "invalid_connection_warning_missing",
+      );
 
-      phase = "reload";
-      await page.goto(target);
-      await page.locator('[data-program-storage-state="ready"]').waitFor();
-
-      phase = "configure";
+      phase = "connection_valid";
+      requestPhase = "connection_valid";
       await configureProviderCredentialV1(page, profile, apiKey);
+      const validConnectionObservations = observationsForPhaseV1(
+        providerRequests,
+        "connection_valid",
+      );
+      requireV1(
+        validConnectionObservations.length === 1,
+        "valid_connection_provider_request_count_invalid",
+      );
+      requireV1(
+        validConnectionObservations.every(({ status }) => status === 200),
+        "valid_connection_provider_status_invalid",
+      );
+      requestPhase = null;
 
       phase = "create";
       await page.getByRole("textbox", { name: "What would you like to make?" }).fill(
@@ -479,6 +545,7 @@ async function qualifyBrowserV1(
         { timeout: 10_000 },
       );
 
+      const followUp = page.getByRole("textbox", { name: "Ask for a change…" });
       phase = "cancel";
       requestPhase = "cancel";
       await followUp.fill(cancelledFollowUpV1);
@@ -549,9 +616,15 @@ async function qualifyBrowserV1(
         modelId: profile.modelId,
         browser: browserType.name(),
         result: "passed",
-        authenticationFailureObserved: true,
-        authenticationProviderStatuses: authenticationObservations.map(({ status }) => status),
-        authenticationErrorMapping: "run_failed",
+        invalidConnectionFailureObserved: true,
+        invalidConnectionProviderStatuses: invalidConnectionObservations.map(({ status }) =>
+          status
+        ),
+        invalidConnectionErrorMapping: "connection_failed",
+        invalidCredentialAbsent: true,
+        invalidWorkerReleased: true,
+        validConnectionProviderStatuses: validConnectionObservations.map(({ status }) => status),
+        homeWarningCleared: true,
         cancellationObserved: true,
         cancellationProviderStatuses: cancellationObservations.map(({ status }) => status),
         proposalRevision: 2,
@@ -562,7 +635,16 @@ async function qualifyBrowserV1(
         workerForgotten: true,
       });
     } catch (error) {
-      if (error instanceof QualificationFailureV1) throw error;
+      if (error instanceof QualificationFailureV1) {
+        if (!pageCreated || Object.keys(error.details).length > 0) throw error;
+        throw new QualificationFailureV1(
+          error.code,
+          await providerFailureDetailsV1(
+            page,
+            providerRequests.filter(({ phase: requestPhase }) => requestPhase === phase),
+          ),
+        );
+      }
       if (!pageCreated) throw new QualificationFailureV1(`playwright_${phase}_failed`);
       throw new QualificationFailureV1(
         `playwright_${phase}_failed`,

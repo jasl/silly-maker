@@ -84,6 +84,7 @@ export interface SillyOsCopyV1 {
   readonly piLiveDescription: string;
   readonly piLiveReady: string;
   readonly piLiveFailed: string;
+  readonly piLiveSetupRequired: string;
   readonly piLiveForget: string;
   readonly settings: string;
   readonly settingsBack: string;
@@ -93,6 +94,27 @@ export interface SillyOsCopyV1 {
   readonly providerSearchLabel: string;
   readonly providerSearchPlaceholder: string;
   readonly providerSearchEmpty: string;
+  readonly providerBuiltInSection: string;
+  readonly providerCustomSection: string;
+  readonly providerAddCustom: string;
+  readonly providerAddCustomTitle: string;
+  readonly providerAddCustomDescription: string;
+  readonly providerCustomEmpty: string;
+  readonly providerCustomStatus: string;
+  readonly providerCustomVerified: string;
+  readonly providerCustomDescription: string;
+  readonly providerCustomSaveFailed: string;
+  readonly providerCustomNameLabel: string;
+  readonly providerCustomApiLabel: string;
+  readonly providerCustomEndpointHint: string;
+  readonly providerCustomModelLabel: string;
+  readonly providerContextWindowLabel: string;
+  readonly providerMaxTokensLabel: string;
+  readonly providerCustomPersistenceNotice: string;
+  readonly providerSaveCustom: string;
+  readonly providerRemoveCustom: string;
+  readonly providerCustomModelProfileTitle: string;
+  readonly providerCustomModelProfileDescription: string;
   readonly providerCatalogLoading: string;
   readonly providerCatalogLoadingDescription: string;
   readonly providerCatalogFailed: string;
@@ -121,6 +143,17 @@ export interface SillyOsCopyV1 {
   readonly creatorModelDescription: string;
   readonly chooseQualifiedModel: string;
   readonly selectedModelUnavailable: string;
+  readonly providerConnectionTitle: string;
+  readonly providerConnectionDescription: string;
+  readonly providerEndpointLabel: string;
+  readonly providerEndpointPresetDescription: string;
+  readonly providerEndpointCustomDescription: string;
+  readonly providerEndpointManaged: string;
+  readonly providerConnectionTestNotice: string;
+  readonly providerShowKey: string;
+  readonly providerHideKey: string;
+  readonly providerTestConnection: string;
+  readonly providerTesting: string;
   readonly providerKeyMemoryOnly: string;
   readonly providerKeyLabel: string;
   readonly providerKeyPlaceholder: string;
@@ -220,9 +253,10 @@ const englishV1: SillyOsCopyV1 = {
   piTestForget: "Forget test key",
   piLiveTitle: "Browser Pi Provider",
   piLiveDescription:
-    "Choose a Pi-supplied Provider and Browser-qualified model in Settings. Your key moves to Agent Worker memory and is not saved.",
+    "Set up and test a Provider before creating a Program. Your key moves to Agent Worker memory and is never saved.",
   piLiveReady: "Provider Agent configured",
   piLiveFailed: "Provider Agent unavailable",
+  piLiveSetupRequired: "API key required",
   piLiveForget: "Forget Provider key",
   settings: "Settings",
   settingsBack: "Back to Agent Creator",
@@ -232,6 +266,32 @@ const englishV1: SillyOsCopyV1 = {
   providerSearchLabel: "Search Providers",
   providerSearchPlaceholder: "Search Providers…",
   providerSearchEmpty: "No Providers match this search.",
+  providerBuiltInSection: "Built-in Providers",
+  providerCustomSection: "Custom Endpoints",
+  providerAddCustom: "Add",
+  providerAddCustomTitle: "Add a custom endpoint",
+  providerAddCustomDescription:
+    "Declare the protocol explicitly. SillyOS never guesses an API family from a URL.",
+  providerCustomEmpty: "Add an HTTPS endpoint",
+  providerCustomStatus: "Custom",
+  providerCustomVerified: "Verified in this browser",
+  providerCustomDescription:
+    "This profile is product-owned configuration. Pi still owns its protocol and model request.",
+  providerCustomSaveFailed: "This custom profile is invalid or could not be saved.",
+  providerCustomNameLabel: "Name",
+  providerCustomApiLabel: "Pi API family",
+  providerCustomEndpointHint:
+    "HTTPS only. URL credentials, query strings, and fragments are not admitted; there is no HTTP exception for localhost or LAN endpoints.",
+  providerCustomModelLabel: "Model ID",
+  providerContextWindowLabel: "Context window",
+  providerMaxTokensLabel: "Maximum output tokens",
+  providerCustomPersistenceNotice:
+    "The endpoint and model profile are stored on this device. The API key is never stored.",
+  providerSaveCustom: "Save endpoint",
+  providerRemoveCustom: "Remove",
+  providerCustomModelProfileTitle: "Declared model profile",
+  providerCustomModelProfileDescription:
+    "These limits are supplied by you; they are not discovered or qualified by SillyOS.",
   providerCatalogLoading: "Loading the Pi catalog…",
   providerCatalogLoadingDescription:
     "Provider and model details are loaded lazily from the product-pinned Pi Worker.",
@@ -269,6 +329,20 @@ const englishV1: SillyOsCopyV1 = {
   chooseQualifiedModel: "Choose a qualified model to connect Agent Creator.",
   selectedModelUnavailable:
     "This model remains inspectable, but it cannot be connected in this Browser build.",
+  providerConnectionTitle: "Connection",
+  providerConnectionDescription:
+    "Test the selected model before Agent Creator treats this Provider as usable.",
+  providerEndpointLabel: "Endpoint",
+  providerEndpointPresetDescription: "Fixed by the selected Pi model and cannot be edited.",
+  providerEndpointCustomDescription:
+    "Saved in this custom profile; add another profile to change it.",
+  providerEndpointManaged: "Pi resolves this endpoint from Provider-specific configuration.",
+  providerConnectionTestNotice:
+    "Testing sends one small, potentially billable request through Pi. The key stays only in Agent Worker memory.",
+  providerShowKey: "Show API key",
+  providerHideKey: "Hide API key",
+  providerTestConnection: "Test connection",
+  providerTesting: "Testing…",
   providerKeyMemoryOnly:
     "The key is transferred directly to Agent Worker memory, cleared here immediately, and never saved.",
   providerKeyLabel: "API key (memory only)",
@@ -276,7 +350,8 @@ const englishV1: SillyOsCopyV1 = {
   providerInitialize: "Connect Agent Creator",
   providerInitializing: "Connecting…",
   providerConnected: "Agent Creator connected",
-  providerConnectionFailed: "Agent Creator could not connect. The key was not retained.",
+  providerConnectionFailed:
+    "The connection test failed. Check the key, model, endpoint, and Browser access. The key was not retained.",
   providerForget: "Forget key",
   providerForgetting: "Forgetting…",
   samplePrompts: [
@@ -370,9 +445,10 @@ const chineseV1: SillyOsCopyV1 = {
   piTestForget: "忘记测试 key",
   piLiveTitle: "浏览器 Pi Provider",
   piLiveDescription:
-    "请在设置中选择由 Pi 提供的 Provider 和已通过浏览器验证的模型。Key 会直接进入 Agent Worker 内存，并且不会保存。",
+    "创建 Program 前请先设置并测试一个 Provider。Key 会直接进入 Agent Worker 内存，并且永远不会保存。",
   piLiveReady: "Provider Agent 已配置",
   piLiveFailed: "Provider Agent 不可用",
+  piLiveSetupRequired: "需要 API key",
   piLiveForget: "忘记 Provider key",
   settings: "设置",
   settingsBack: "返回 Agent Creator",
@@ -382,6 +458,30 @@ const chineseV1: SillyOsCopyV1 = {
   providerSearchLabel: "搜索 Provider",
   providerSearchPlaceholder: "搜索 Provider……",
   providerSearchEmpty: "没有符合搜索条件的 Provider。",
+  providerBuiltInSection: "预设 Provider",
+  providerCustomSection: "自定义 Endpoint",
+  providerAddCustom: "添加",
+  providerAddCustomTitle: "添加自定义 Endpoint",
+  providerAddCustomDescription: "请明确选择协议；SillyOS 不会根据 URL 猜测 API 类型。",
+  providerCustomEmpty: "添加 HTTPS Endpoint",
+  providerCustomStatus: "自定义",
+  providerCustomVerified: "已在当前浏览器验证",
+  providerCustomDescription: "这个 Profile 是 SillyOS 的产品配置，协议与模型请求仍由 Pi 负责。",
+  providerCustomSaveFailed: "这个自定义 Profile 无效或无法保存。",
+  providerCustomNameLabel: "名称",
+  providerCustomApiLabel: "Pi API 类型",
+  providerCustomEndpointHint:
+    "仅支持 HTTPS；不接受 URL 凭据、查询参数与片段，也不会为 localhost 或 LAN Endpoint 放宽 HTTP 限制。",
+  providerCustomModelLabel: "模型 ID",
+  providerContextWindowLabel: "上下文窗口",
+  providerMaxTokensLabel: "最大输出 token",
+  providerCustomPersistenceNotice:
+    "Endpoint 与模型 Profile 会保存在当前设备；API key 永远不会保存。",
+  providerSaveCustom: "保存 Endpoint",
+  providerRemoveCustom: "移除",
+  providerCustomModelProfileTitle: "声明的模型 Profile",
+  providerCustomModelProfileDescription:
+    "这些限制由你提供，并非 SillyOS 自动发现或完成跨浏览器资格验证。",
   providerCatalogLoading: "正在加载 Pi 目录……",
   providerCatalogLoadingDescription: "Provider 与模型详情从产品固定的 Pi Worker 中按需加载。",
   providerCatalogFailed: "Pi 目录不可用",
@@ -412,13 +512,26 @@ const chineseV1: SillyOsCopyV1 = {
     "这个设备会话中的选择用于配置当前 supervisor；Key 永远不会成为 Program 或 Workspace 数据。",
   chooseQualifiedModel: "请选择一个已验证模型来连接 Agent Creator。",
   selectedModelUnavailable: "这个模型仍可查看，但无法在当前浏览器版本中连接。",
+  providerConnectionTitle: "连接配置",
+  providerConnectionDescription: "先测试所选模型，Agent Creator 才会把它视为可用连接。",
+  providerEndpointLabel: "Endpoint",
+  providerEndpointPresetDescription: "来自所选 Pi 模型，固定展示且不可编辑。",
+  providerEndpointCustomDescription: "保存在此自定义 Profile 中；如需更改请新建 Profile。",
+  providerEndpointManaged: "Pi 会根据 Provider 专属配置解析 Endpoint。",
+  providerConnectionTestNotice:
+    "测试会通过 Pi 发送一次很小、可能计费的请求；Key 只保留在 Agent Worker 内存中。",
+  providerShowKey: "显示 API key",
+  providerHideKey: "隐藏 API key",
+  providerTestConnection: "测试连接",
+  providerTesting: "正在测试……",
   providerKeyMemoryOnly: "Key 会直接传入 Agent Worker 内存，在这里立即清除，并且永不保存。",
   providerKeyLabel: "API key（仅内存）",
   providerKeyPlaceholder: "粘贴 Provider API key",
   providerInitialize: "连接 Agent Creator",
   providerInitializing: "正在连接……",
   providerConnected: "Agent Creator 已连接",
-  providerConnectionFailed: "Agent Creator 连接失败；Key 未被保留。",
+  providerConnectionFailed:
+    "连接测试失败；请检查 Key、模型、Endpoint 与浏览器网络访问。Key 未被保留。",
   providerForget: "忘记 key",
   providerForgetting: "正在忘记……",
   samplePrompts: [

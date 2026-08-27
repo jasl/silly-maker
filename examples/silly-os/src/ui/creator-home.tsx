@@ -178,37 +178,30 @@ export function CreatorHomeV1({
           )}
 
           {providerSetup !== undefined && (
-            <aside
-              className="pi-agent-setup"
+            <button
+              type="button"
+              className="pi-agent-setup pi-agent-setup--warning"
               data-pi-agent-runtime="pi_provider"
               data-pi-agent-status={providerSetup.status}
+              onClick={providerSetup.onOpenSettings}
             >
               <div className="pi-agent-setup__heading">
                 <KeyRound size={16} aria-hidden="true" />
                 <strong>{copy.piLiveTitle}</strong>
                 <span>
-                  {providerSetup.status === "ready"
-                    ? copy.piLiveReady
-                    : providerSetup.status === "failed"
+                  {providerSetup.status === "failed"
                     ? copy.piLiveFailed
                     : providerSetup.status === "initializing"
                     ? copy.providerInitializing
-                    : copy.preview}
+                    : copy.piLiveSetupRequired}
                 </span>
               </div>
               <p>{copy.piLiveDescription}</p>
-              <div className="pi-agent-setup__controls">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  icon={Settings}
-                  onClick={providerSetup.onOpenSettings}
-                >
-                  {copy.settings}
-                </Button>
-              </div>
-            </aside>
+              <span className="pi-agent-setup__warning-action">
+                {copy.settings}
+                <ArrowRight size={15} aria-hidden="true" />
+              </span>
+            </button>
           )}
 
           <form className="creator-composer" onSubmit={submitV1}>

@@ -100,6 +100,8 @@ function catalogV1(): Record<string, unknown> {
         models: [{
           id: "gpt-4.1-nano",
           name: "GPT-4.1 nano",
+          api: "openai-responses",
+          baseUrl: "https://api.openai.com/v1",
           reasoning: false,
           input: ["text", "image"],
           contextWindow: 1_047_576,
@@ -115,6 +117,8 @@ function catalogV1(): Record<string, unknown> {
         models: [{
           id: "claude-sonnet-4-5",
           name: "Claude Sonnet 4.5",
+          api: "anthropic-messages",
+          baseUrl: "https://api.anthropic.com",
           reasoning: true,
           input: ["text", "image"],
           contextWindow: 200_000,
@@ -145,14 +149,75 @@ describe("Browser Pi Worker protocol", () => {
       kind: "initialize",
       requestId: 2,
       runtime: "pi_provider",
-      selection: { providerId: "openai", modelId: "gpt-4.1-nano" },
+      selection: { kind: "builtin", providerId: "openai", modelId: "gpt-4.1-nano" },
       credential: { kind: "api_key", value: "sentinel" },
     } as const;
     expect(admitBrowserPiWorkerInboundMessageV1(live)).toEqual(live);
     expect(admitBrowserPiWorkerInboundMessageV1({ ...live, selection: null })).toBeNull();
     expect(admitBrowserPiWorkerInboundMessageV1({
       ...live,
-      selection: { providerId: "openai", modelId: "gpt-4.1-nano", api: "forbidden" },
+      selection: {
+        kind: "builtin",
+        providerId: "openai",
+        modelId: "gpt-4.1-nano",
+        api: "forbidden",
+      },
+    })).toBeNull();
+
+    const custom = {
+      ...live,
+      selection: {
+        kind: "custom",
+        profile: {
+          profileId: "custom.openai-compatible",
+          displayName: "Private gateway",
+          api: "openai-completions",
+          baseUrl: "https://llm.example.test/v1",
+          modelId: "private-model",
+          contextWindow: 32_768,
+          maxTokens: 4_096,
+        },
+      },
+    } as const;
+    expect(admitBrowserPiWorkerInboundMessageV1(custom)).toEqual(custom);
+    expect(admitBrowserPiWorkerInboundMessageV1({
+      ...custom,
+      selection: {
+        ...custom.selection,
+        profile: { ...custom.selection.profile, baseUrl: "https://llm.example.test" },
+      },
+    })).not.toBeNull();
+    expect(admitBrowserPiWorkerInboundMessageV1({
+      ...custom,
+      selection: {
+        ...custom.selection,
+        profile: { ...custom.selection.profile, api: "url-inferred" },
+      },
+    })).toBeNull();
+    for (
+      const baseUrl of [
+        "http://llm.example.test/v1",
+        "https://user:secret@llm.example.test/v1",
+        "https://llm.example.test/v1?tenant=one",
+        "https://llm.example.test/v1#fragment",
+        "https://LLM.example.test/v1",
+        "https://llm.example.test/v1/",
+      ]
+    ) {
+      expect(admitBrowserPiWorkerInboundMessageV1({
+        ...custom,
+        selection: {
+          ...custom.selection,
+          profile: { ...custom.selection.profile, baseUrl },
+        },
+      })).toBeNull();
+    }
+    expect(admitBrowserPiWorkerInboundMessageV1({
+      ...custom,
+      selection: {
+        ...custom.selection,
+        profile: { ...custom.selection.profile, maxTokens: 32_769 },
+      },
     })).toBeNull();
     expect(admitBrowserPiWorkerInboundMessageV1({
       ...live,
@@ -186,7 +251,7 @@ describe("Browser Pi Worker protocol", () => {
     const models = openAi.models as Record<string, unknown>[];
     expect(admitBrowserPiProviderCatalogWireV1({
       ...catalog,
-      providers: [{ ...openAi, models: [{ ...models[0], api: "openai-responses" }] }, providers[1]],
+      providers: [{ ...openAi, models: [{ ...models[0], api: "" }] }, providers[1]],
     })).toBeNull();
     expect(admitBrowserPiProviderCatalogWireV1({
       ...catalog,

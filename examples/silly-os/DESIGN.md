@@ -33,10 +33,17 @@ in Chromium and persistent-profile WebKit. The owner then activated B1b. Its
 current local product gate has independently promoted exact Anthropic fixed-
 snapshot, Google, DeepSeek, and xAI profiles in both engines; OpenRouter remains
 a disabled candidate because the current account/key returns Provider
-Terms-of-Service 403. B1b therefore remains active rather than falsely closing;
-its local gate passes 270 product tests, two Settings journeys, and all ten
-qualified-profile Provider journeys. B1c, broad execution-provider research,
-import, and later workspace slices stay inactive. The B1a implementation commit
+Terms-of-Service 403. B1b closed with OpenRouter retained as a truthful disabled
+candidate; its closed gate passed 270 product tests, two Settings journeys, and
+all ten qualified-profile Provider journeys. B1c is now active only for the
+tested built-in connection surface, bounded custom HTTPS profiles, non-secret
+Settings persistence, and selected-origin Agent Worker policy described below.
+The current B1c slice is locally accepted: 6 focused files / 81 tests, the full
+404-file / 5,689-test unit suite, four Chromium/persistent-WebKit Settings
+journeys, and all ten qualified built-in Provider journeys pass together with
+the production/static-response gates. It still has no deployment or real
+custom-profile qualification claim. Broad execution-provider research, import,
+and later workspace slices stay inactive. The B1a implementation commit
 `66eb6755b04d3d625830dbbe915c465886ba13dc` is deployed at the canonical origin
 as Cloudflare version `28022baa-1676-4c79-a194-85d95e5f326d`; that origin also
 passed the same Chromium/persistent-WebKit Settings and real OpenAI qualifier.
@@ -45,8 +52,8 @@ then deployed there as Cloudflare version
 `92c143f7-292f-474f-b7ad-ba98318a384a`. Its public HTML reports that exact build
 identity and the six-origin CSP; the application browser shows the exact five
 qualified profiles with Anthropic alias and OpenRouter still disabled, and all
-ten qualified-profile public-origin journeys pass. This records the deployment
-gate but does not resolve the OpenRouter candidate or close B1b.
+ten qualified-profile public-origin journeys pass. This records the closed B1b
+deployment gate; it does not promote the OpenRouter candidate or publish B1c.
 The
 former "SillyOS 98" desktop
 experiment has been retired as a product direction. It remains useful only as
@@ -205,14 +212,35 @@ all other Pi records stay inspectable but disabled. The removed
 `?agent=pi-openai` value has no user-facing compatibility
 behavior and resolves like any ordinary URL.
 
-The selected API key moves from an uncontrolled password input directly to a
-fresh Agent Worker, is cleared from the input immediately, and remains only in
-that Worker's memory. Initialization means only that the profile is configured;
-authentication is established by a run. Switching or Forget terminates the
-Worker and requires re-entry. The non-secret selection is current
-device/session supervisor configuration and is not yet Program-owned Pi
-composition; neither it nor the key is persisted in Program, Workspace,
-IndexedDB, OPFS, URL, logs, or exports.
+For an admitted single-key profile, the selected API key moves from an
+uncontrolled password input directly to a fresh Agent Worker, is cleared from
+the input immediately, and remains only in that Worker's memory. That Worker
+must complete one small Pi-owned model stream before the product reports the
+profile ready; initialization alone is not a connection claim. Switching or
+Forget terminates the Worker and requires re-entry. Built-in endpoint text is
+the selected Pi model's read-only base URL. Unavailable ambient, OAuth,
+keyless, and multi-field credential shapes are never collapsed into a fake API
+key field.
+
+The Settings navigation separates the unchanged Pi built-in catalog from
+product-owned custom HTTPS profiles. A custom profile explicitly declares one
+of Pi's `openai-completions`, `openai-responses`, `anthropic-messages`, or
+`google-generative-ai` API families, its canonical base URL, model id, and
+bounded model ceilings; URL shape never selects a protocol. Its non-secret
+record may persist in the Browser Settings repository, but the key remains
+Worker-memory-only. A successful custom probe means verified for the current
+Browser session rather than promoted to the built-in dual-browser
+qualification overlay. Neither kind of profile or key is Program/Workspace
+content, OPFS data, a URL secret, a log, or an export.
+
+For a custom profile, the Agent Worker URL carries only the canonical
+non-secret endpoint origin. The Cloudflare response layer validates that value
+and gives only that Worker an exact `connect-src`; the document, catalog, and
+built-in routes retain the static six-origin policy, never `connect-src https:`.
+This admits a CSP destination but cannot make the Provider return a readable
+CORS response. The current slice therefore maps an opaque probe failure to the
+bounded `connection_failed` result and generic UI guidance rather than
+misreporting it as an invalid key.
 
 It does **not** claim:
 
@@ -275,9 +303,10 @@ change a real product behavior.
   configuration: no key, provider record, or environment snapshot enters React,
   bootstrap HTML, Program data, logs, or the product RPC wire.
 - The Browser route accepts a user-supplied key through UI for each exact
-  qualified OpenAI, Anthropic, Google, DeepSeek, or xAI profile. A later custom
-  profile may additionally accept a compatible HTTPS endpoint; that surface is
-  not implemented yet. The key necessarily enters the
+  qualified OpenAI, Anthropic, Google, DeepSeek, or xAI profile. B1c also admits
+  a bounded custom HTTPS profile with an explicit Pi API family, base URL,
+  model, and ceilings; one successful probe is only current-session
+  verification, not built-in qualification. The key necessarily enters the
   password input, then transfers immediately to the Agent Worker and remains
   memory-only by default. It never enters React state, URLs, logs, telemetry,
   Program data, IndexedDB, OPFS, Cache API, exports, or downloads. Terminating
@@ -464,9 +493,10 @@ CORS support. CSP and CORS are orthogonal: SillyOS may permit an HTTPS origin in
 deployed origin. Neither `no-cors`, a Service Worker, nor a broader CSP repairs
 a failed CORS contract. The static policy now retains OpenAI and adds only the
 five exact B1b origins; an admitted origin is not itself a Browser-support
-claim, so OpenRouter may remain permitted while its profile is disabled. Arbitrary
-custom origins require B1c's selected-origin Worker response policy rather than
-global document `connect-src https:`.
+claim, so OpenRouter may remain permitted while its profile is disabled. B1c
+uses its selected-origin Worker response policy for bounded custom origins
+rather than global document `connect-src https:`; that local implementation is
+not a deployment receipt.
 
 ### First persistent Browser Program checkpoint
 
@@ -935,21 +965,21 @@ passing a pixel threshold alone is not design approval.
 This table is the completion denominator for the rewrite. A working preview is
 evidence for the preview only.
 
-| Area               | Accepted product role                                     | Current preview evidence                                                             | Remaining before product-ready                         |
-| ------------------ | --------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------ |
-| Creator home       | Express intent and create/open a Program                  | Pi catalog Settings + five exact qualified profiles + P2 recent reopen               | Attachments and broader qualified Provider set         |
-| Creator supervisor | Chat supervises one Program without becoming Program data | Durable run receipts + fresh Pi session over a durable checkpoint                    | Program-anchored artifacts                             |
-| Program workspace  | One focused mutable workspace produces reviewed snapshots | OPFS checkpoint + native tools + recovery/scale/export + immutable accepted snapshot | Import and admitted artifacts                          |
-| Human review       | Accept/reject an exact proposed revision                  | Exact accepted snapshot/head + truthful divergence + winner-held stale rejection     | Rich diff and approval history                         |
-| Activity           | Explain what happened and what needs review               | Durable run events + session-local last-mutation receipt                             | Complete tool/action history and approvals             |
-| Capabilities       | Required Agent and UI abilities are understandable        | Proposal tool + native read/write/edit/bash + closed Browser Local profile           | Broader capability composition                         |
-| Generated UI       | Agent-authored UI remains legible and controllable        | Not implemented                                                                      | OpenUI mapped to closed SillyMaker components          |
-| Source             | Inspect and refine the Program where useful               | Presentation-only recipe preview                                                     | Persistent source/artifact views                       |
-| Translation        | A usable translation Program                              | Intent classification only                                                           | Complete workflow, data, QA, export                    |
-| Writing            | A usable writing Program                                  | Intent classification only                                                           | Complete workflow, data, revision tools                |
-| Role-play          | A usable role-play Program                                | Intent classification only                                                           | Complete sessions, characters, VN behavior             |
-| Browser            | Publishable local-first product with BYO Provider         | Pi-owned catalog + five exact qualified profiles + exportable `20 MiB+` workspace    | OpenRouter requalification, B1c custom HTTPS, closure  |
-| Deno Desktop       | Same product with admitted Host integrations              | Responsive preview target                                                            | Companion acceptance, storage, packaging qualification |
+| Area               | Accepted product role                                     | Current preview evidence                                                                                              | Remaining before product-ready                         |
+| ------------------ | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Creator home       | Express intent and create/open a Program                  | Pi catalog Settings + five exact qualified profiles + P2 recent reopen                                                | Attachments and broader qualified Provider set         |
+| Creator supervisor | Chat supervises one Program without becoming Program data | Durable run receipts + fresh Pi session over a durable checkpoint                                                     | Program-anchored artifacts                             |
+| Program workspace  | One focused mutable workspace produces reviewed snapshots | OPFS checkpoint + native tools + recovery/scale/export + immutable accepted snapshot                                  | Import and admitted artifacts                          |
+| Human review       | Accept/reject an exact proposed revision                  | Exact accepted snapshot/head + truthful divergence + winner-held stale rejection                                      | Rich diff and approval history                         |
+| Activity           | Explain what happened and what needs review               | Durable run events + session-local last-mutation receipt                                                              | Complete tool/action history and approvals             |
+| Capabilities       | Required Agent and UI abilities are understandable        | Proposal tool + native read/write/edit/bash + closed Browser Local profile                                            | Broader capability composition                         |
+| Generated UI       | Agent-authored UI remains legible and controllable        | Not implemented                                                                                                       | OpenUI mapped to closed SillyMaker components          |
+| Source             | Inspect and refine the Program where useful               | Presentation-only recipe preview                                                                                      | Persistent source/artifact views                       |
+| Translation        | A usable translation Program                              | Intent classification only                                                                                            | Complete workflow, data, QA, export                    |
+| Writing            | A usable writing Program                                  | Intent classification only                                                                                            | Complete workflow, data, revision tools                |
+| Role-play          | A usable role-play Program                                | Intent classification only                                                                                            | Complete sessions, characters, VN behavior             |
+| Browser            | Publishable local-first product with BYO Provider         | Five exact qualified built-ins + tested connection UI + bounded custom HTTPS profile + exportable `20 MiB+` workspace | B1c deployed-origin custom qualification and closure   |
+| Deno Desktop       | Same product with admitted Host integrations              | Responsive preview target                                                                                             | Companion acceptance, storage, packaging qualification |
 
 Before SillyOS is called a complete reference product, this table must be
 reconciled with implementation and tests, the current-low-end startup,
@@ -968,9 +998,11 @@ and dual-browser product evidence, closed on 2026-08-28. Deployment is a release
 operation from that committed baseline and completed that day. P1-B1a's clean
 replacement and local dual-browser gate are delivered and closed; its committed
 deployment and public-origin qualification are also closed release receipts,
-not another product contract. B1b is active with four of its five named
-profiles promoted locally and OpenRouter still candidate; B1c, broader
-execution-provider research, and import remain inactive. The plan also
+not another product contract. B1b is closed with four of its five named
+profiles promoted locally and OpenRouter still candidate. B1c is active only
+for tested single-key built-ins plus the bounded custom HTTPS profile and
+selected-origin Worker policy described above; broader execution-provider
+research and import remain inactive. The plan also
 governs later real Pi integration, product persistence, Pi-native workspace
 tool binding, provider research, Pi capability composition,
 OpenUI-to-SillyMaker mapping, and the first complete product families. Runtime

@@ -71,8 +71,10 @@ literal was invalid for Anthropic. The Anthropic mutable alias remains a
 candidate. OpenRouter `google/gemini-2.5-flash` also remains disabled because
 both the Browser path and a direct minimal request with the current account/key
 returned HTTP 403 for Provider Terms of Service; that is not recorded as a CORS
-failure. B1b remains active until the OpenRouter disposition is owner-accepted
-or successfully requalified.
+failure. B1b closed on 2026-08-28 with that OpenRouter tuple retained as a
+disabled candidate: the named profile was evaluated through the same gate, and
+an account/Provider rejection is not a reason to hold the product lane open or
+to mislabel the route as Browser-qualified.
 The current local release gate passes 27 files / 270 product tests, the Settings
 journey in both engines, and the complete 5-profile × 2-browser real-Provider
 matrix.
@@ -82,9 +84,19 @@ origin as Cloudflare version `92c143f7-292f-474f-b7ad-ba98318a384a`. Public HTML
 returns HTTP 200, that exact build identity, and only the six named Provider
 origins under `connect-src`; the application browser shows five exact qualified
 profiles and the two intended candidates. All ten public-origin real-Provider
-journeys pass. The deployment gate is therefore recorded; B1b remains active
-only because OpenRouter's current account/Provider disposition has not been
-accepted or requalified.
+journeys pass. The deployment gate and B1b are therefore closed. The owner then
+activated B1c as two bounded checkpoints: first make connection configuration
+truthful and testable for the exact built-in profiles; then add one persisted,
+single-key custom HTTPS profile shape with a selected-origin Agent Worker CSP.
+This activation does not add OAuth, multi-field cloud credentials, a Provider
+relay, public HTTP/LAN access, arbitrary headers, or a second Provider runtime.
+The local B1c implementation now passes 6 focused files / 81 tests, the full
+404-file / 5,689-test unit suite, all four built-in/custom Settings journeys in
+Chromium and persistent-profile WebKit, and the complete 5-profile × 2-browser
+real-Provider matrix. Production build, typecheck, lint, stylelint, format, and
+Cloudflare dry-run also pass. This is local acceptance only: B1c is not deployed,
+and the product does not claim real custom-endpoint qualification until an exact
+custom route passes the deployed-origin gate below.
 The raw launcher is not the typed product RPC; the live Browser route is a
 separate product path. This plan remains local to `examples/silly-os`; the
 neutral async GUI disposer was delivered separately by the engine task and is
@@ -356,11 +368,16 @@ The accepted execution order is no longer the numeric subsection order:
 5. **P1-B1a delivered and closed 2026-08-28:** Pi-owned Provider/model
    discovery, one native Settings surface, and the exact qualified OpenAI
    profile clean-replaced fixed B0b on the ordinary Browser route.
-6. **P1-B1b is active:** qualify the five exact named direct-Provider profiles
-   through Pi and the deployed dual-browser gate. B1c, P3b execution-provider
-   characterization, later P3c import/artifact/Desktop
-   work, P1-D, and P4+ require separate owner activation. None is automatically
-   active or retroactively part of P3c-B0/B1 or P1-B1.
+6. **P1-B1b delivered and closed 2026-08-28:** five exact named direct-Provider
+   profiles were evaluated through Pi and the deployed dual-browser gate; four
+   joined OpenAI as qualified and OpenRouter remains a truthful disabled
+   candidate.
+7. **P1-B1c is active:** deliver the tested built-in connection surface, then
+   the bounded persisted custom HTTPS profile and exact selected-origin Worker
+   CSP described below. P3b execution-provider characterization, later P3c
+   import/artifact/Desktop work, P1-D, and P4+ require separate owner
+   activation. None is automatically active or retroactively part of
+   P3c-B0/B1 or the closed B1a/B1b checkpoints.
 
 This order replaces the earlier assumption that shell breadth or a shared
 Browser/Desktop provider winner must precede useful Browser persistence.
@@ -452,14 +469,18 @@ candidate before publication, so prompt compliance never owns currentness.
 
 The accepted Browser setup target is Bring Your Own Provider: the user will
 supply either a product-qualified provider profile or an HTTPS compatible
-endpoint. B0b deliberately implements only fixed OpenAI Responses model
-`gpt-4.1-nano`; it does not yet expose this general surface. A later custom
-profile is explicit rather than guessed and minimally contains:
+endpoint. B0b deliberately implemented only fixed OpenAI Responses model
+`gpt-4.1-nano`; B1a/B1b replaced that user-facing route with Pi-owned built-in
+discovery and five exact qualified tuples. The active B1c custom profile is
+explicit rather than guessed and minimally contains:
 
-- protocol: `openai-responses`, `openai-chat`, or `anthropic-messages`;
+- Pi API family: `openai-completions`, `openai-responses`,
+  `anthropic-messages`, or `google-generative-ai`;
 - HTTPS `baseUrl`;
-- `modelId` and any admitted model limits not safely supplied by the profile;
-- an API key.
+- `modelId`, context window, and output-token ceiling.
+
+The API key is not part of that persisted profile. It is transferred from an
+uncontrolled input to the Agent Worker only for the current tested session.
 
 Pi still owns the actual provider stream. Browser support is a product-qualified
 subset of Pi providers, established per provider/protocol in Chromium and
@@ -475,18 +496,23 @@ the Program database, IndexedDB, OPFS, Cache API, exports, or downloads.
 Forgetting credentials terminates and rebuilds the Agent Worker. This Worker is
 an ownership boundary that reduces accidental propagation; it is not a defense
 against same-origin script compromise or a privileged browser extension.
-Endpoint/model profiles may persist later, but the key does not.
+The bounded non-secret custom endpoint/model profile may persist in the
+product-owned Browser Settings repository, but the key and verified state do
+not.
 
 The primary production route is a direct HTTPS request from the Agent Worker to
 a known qualified provider. A custom HTTPS endpoint is conditional on its CORS,
 preflight, streaming, cancellation, and protocol behavior. Public HTTP is
 rejected as mixed content. `localhost` and LAN endpoints are not a cross-browser
 baseline because mixed-content and local-network permission behavior differs.
-The first release uses a small `connect-src` allowlist. An arbitrary endpoint
-requires a later precise-origin CSP/reload design or a user-deployed relay; the
-default policy is not widened to `connect-src https:`. SillyOS does not operate
-a general Cloudflare relay, because that would make the product a key transit,
-SSRF, open-proxy, logging, and abuse boundary.
+Built-ins retain the small static `connect-src` allowlist. For one admitted
+custom profile, B1c's Cloudflare response layer validates the canonical origin
+on the Agent Worker URL and gives only that Worker an exact selected-origin CSP;
+the default document policy is not widened to `connect-src https:`. This code
+has no deployment claim until the committed public route passes its own header
+and Provider evidence. A user-deployed relay remains a later explicit product;
+SillyOS does not operate a general Cloudflare relay, because that would make the
+product a key transit, SSRF, open-proxy, logging, and abuse boundary.
 
 P1-B is deliberately split at the credential boundary:
 
@@ -587,7 +613,7 @@ only static application delivery in this slice. A single static asset must stay
 below the platform's 25 MiB limit; large future Wasm/tool payloads are split or
 streamed rather than folded into the Creator bundle.
 
-#### P1-B1 — Pi-owned Browser Provider settings (B1a closed; B1b active)
+#### P1-B1 — Pi-owned Browser Provider settings (B1a/B1b closed; B1c active)
 
 P1-B1 replaces B0b's fixed query-only profile; it does not preserve that
 pre-stable user-facing route as a compatibility mode. Agent Creator remains the
@@ -679,7 +705,7 @@ The accepted checkpoint order is:
    cancellation retained v1, the next run used Pi's exact tool to publish v2,
    both completion requests returned 200, the durable projection contained no
    key, and Forget terminated the Worker.
-2. **B1b — direct-Provider qualification (active).** Use Pi's own Provider factories and
+2. **B1b — direct-Provider qualification (delivered and closed 2026-08-28).** Use Pi's own Provider factories and
    model stream for one named Anthropic, Google Gemini, OpenRouter, DeepSeek,
    and xAI profile apiece. Qualification is attached to the exact
    `(providerId, modelId, api, endpoint origin)` profile, not to every model
@@ -704,18 +730,57 @@ The accepted checkpoint order is:
    bodies, or URLs and defaults to the five qualified tuples. The same ten
    journeys pass from the committed canonical Cloudflare deployment, whose
    response header carries only the exact six-origin CSP.
-3. **B1c — custom HTTPS profile and non-secret persistence (inactive).** Admit an explicit
-   Pi protocol/API family, normalized HTTPS endpoint, model identity and bounded
-   Provider-specific fields; never infer protocol from a URL. Add a small
-   Cloudflare static-asset response layer that validates the normalized origin
-   carried by the Agent Worker URL and replaces that Worker's CSP with the exact
-   selected `connect-src`; the default document policy is not widened to
-   `connect-src https:`. The origin is non-secret deployment metadata, while
-   Provider traffic and keys remain direct Browser-to-Provider. Reject
-   URL credentials and public HTTP, distinguish CSP/CORS/auth/protocol failures,
-   and persist only the non-secret profile through a product-owned Settings
-   repository. A relay, OAuth service, shared key, and HTTP/LAN bypass remain
-   separate explicit products.
+3. **B1c — tested connection configuration and custom HTTPS profiles
+   (locally delivered; deployment gate open).** Deliver it as two reviewable
+   checkpoints rather than treating a settings form as proof of arbitrary
+   Browser compatibility.
+
+   **B1c-A — truthful built-in connection surface.** Move Connection before the
+   long model catalog. For an exact admitted single-key profile, render the
+   selected Pi model's actual `baseUrl` as a read-only endpoint, an uncontrolled
+   memory-only API-key field, and one explicit **Test connection** action. The
+   action sends a tiny, potentially billable model request through Pi's own
+   `Provider.streamSimple`; the Worker emits `ready` only after Pi finishes a
+   successful stream. A failure says to check the key, model, endpoint, and
+   Browser access rather than falsely diagnosing every opaque fetch failure as
+   a bad key. Unavailable OAuth, ambient, keyless, and multi-field profiles such
+   as Bedrock remain inspectable but do not receive a fake API-key form. Creator
+   Home shows one keyboard-reachable setup warning only while no tested profile
+   is ready; the whole warning opens Providers and disappears after success.
+
+   **B1c-B — one bounded custom profile shape.** Separate **Built-in Providers**
+   from **Custom Endpoints** and admit a stable profile id, display name, one of
+   the explicit Pi API families `openai-completions`, `openai-responses`,
+   `anthropic-messages`, or `google-generative-ai`, a normalized HTTPS base URL,
+   one model id, and declared context/output ceilings. The first slice is
+   single-key, text-only, standard-protocol behavior; it does not expose Pi's
+   full compatibility/header matrix. Never infer protocol from a URL. Pi's
+   public custom-provider/API adapters own payload, auth-header, stream, error,
+   and later Agent behavior. A successful probe means **verified in this
+   browser session**, not SillyOS-qualified across browsers.
+
+   Persist only the bounded non-secret profile in a versioned product-owned
+   Browser Settings repository; never persist or return its key. Add a small
+   Cloudflare static-asset response layer that validates the canonical endpoint
+   origin carried only by the Agent Worker URL and replaces that Worker's CSP
+   with the exact selected `connect-src`; the default document policy is not
+   widened to `connect-src https:`. The origin is non-secret deployment
+   metadata, while Provider traffic and keys remain direct
+   Browser-to-Provider. Reject URL credentials, query/fragment-bearing base
+   URLs, and public HTTP. Browser failures may truthfully distinguish a readable
+   auth/status response from a protocol response, but an opaque network failure
+   stays the bounded generic `connection_failed` result in this slice; CSP
+   cannot repair Provider CORS. A relay, OAuth service, shared key, arbitrary
+   headers, and HTTP/LAN bypass remain separate explicit products.
+
+   Acceptance requires mutation-sensitive admission/repository/Worker tests;
+   Settings and Home component tests; Chromium and persistent-WebKit responsive,
+   keyboard, key-absence, tested-ready, custom-profile reload/removal, and
+   Worker-termination journeys; a production build whose ordinary entry still
+   excludes Pi; Cloudflare response-layer tests proving one exact selected
+   origin and no `https:` wildcard; and a deployed-origin header plus real
+   custom-profile qualification before claiming the deployment supports that
+   exact custom route.
 
 B1a deliberately proved catalog authority, navigation, model selection,
 credential lifetime, ordinary-route activation, and clean replacement with one

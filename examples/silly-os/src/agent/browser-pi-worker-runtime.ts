@@ -24,7 +24,8 @@ import {
 import { browserPiDistributionIdentityV1 } from "./browser-pi-distribution.ts";
 import {
   createBrowserPiProviderAgentV1,
-  isBrowserPiSelectionQualifiedV1,
+  isBrowserPiSelectionAvailableV1,
+  probeBrowserPiProviderSelectionV1,
   projectBrowserPiProviderCatalogV1,
 } from "./browser-pi-provider-runtime-bridge.js";
 import { createDeterministicPiAgentV1 } from "./browser-pi-runtime-bridge.js";
@@ -87,6 +88,8 @@ interface PiAgentPortV1 {
   dispose(): void;
 }
 
+const providerProbeTimeoutMillisecondsV1 = 30_000;
+
 export interface BrowserPiWorkerRuntimePortV1 {
   receive(message: unknown, ports?: readonly BrowserWorkspaceEnvironmentMessagePortV1[]): void;
   dispose(): void;
@@ -94,10 +97,15 @@ export interface BrowserPiWorkerRuntimePortV1 {
 
 export function createBrowserPiWorkerRuntimeV1(input: {
   readonly postMessage: (message: BrowserPiWorkerAnyOutboundMessageV1) => void;
+  readonly probeProviderSelection?: typeof probeBrowserPiProviderSelectionV1;
 }): BrowserPiWorkerRuntimePortV1 {
+  const probeProviderSelection = input.probeProviderSelection ??
+    probeBrowserPiProviderSelectionV1;
   let credentialKey: string | null = null;
   let configuredRuntime: BrowserPiWorkerRuntimeV1 | null = null;
   let configuredSelection: BrowserPiModelSelectionV1 | null = null;
+  let initializing = false;
+  let initializationAbort: AbortController | null = null;
   let initialized = false;
   let disposed = false;
   let nextSessionId = 1;
@@ -597,7 +605,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       return;
     }
     if (message.kind === "catalog_request") {
-      if (ports.length !== 0 || initialized || credentialKey !== null) {
+      if (ports.length !== 0 || initializing || initialized || credentialKey !== null) {
         postProtocolFailure("invalid_message");
         return;
       }
@@ -621,13 +629,13 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       return;
     }
     if (message.kind === "initialize") {
-      if (initialized) {
+      if (initializing || initialized) {
         postProtocolFailure("already_initialized");
         return;
       }
       if (
         message.runtime === "pi_provider" &&
-        (message.selection === null || !isBrowserPiSelectionQualifiedV1(message.selection))
+        (message.selection === null || !isBrowserPiSelectionAvailableV1(message.selection))
       ) {
         post(Object.freeze({
           revision: 1,
@@ -637,18 +645,90 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         }));
         return;
       }
-      credentialKey = message.credential.value;
-      configuredRuntime = message.runtime;
-      configuredSelection = message.selection;
-      initialized = true;
-      post(Object.freeze({
-        revision: 1,
-        kind: "ready",
-        requestId: message.requestId,
-        runtime: message.runtime,
-        selection: message.selection,
-        distribution: browserPiDistributionIdentityV1,
-      }));
+      if (message.runtime === "deterministic_test") {
+        credentialKey = message.credential.value;
+        configuredRuntime = message.runtime;
+        configuredSelection = null;
+        initialized = true;
+        post(Object.freeze({
+          revision: 1,
+          kind: "ready",
+          requestId: message.requestId,
+          runtime: message.runtime,
+          selection: null,
+          distribution: browserPiDistributionIdentityV1,
+        }));
+        return;
+      }
+
+      const selection = message.selection;
+      if (selection === null) {
+        post(Object.freeze({
+          revision: 1,
+          kind: "initialization_failure",
+          requestId: message.requestId,
+          code: "selection_unavailable",
+        }));
+        return;
+      }
+      let credential = message.credential.value;
+      const abort = new AbortController();
+      initializing = true;
+      initializationAbort = abort;
+      enqueue(async () => {
+        let verified = false;
+        let timeout: ReturnType<typeof setTimeout> | null = null;
+        try {
+          const timedOut = new Promise<boolean>((resolve) => {
+            timeout = setTimeout(() => {
+              abort.abort();
+              resolve(false);
+            }, providerProbeTimeoutMillisecondsV1);
+          });
+          verified = await Promise.race([
+            probeProviderSelection({
+              apiKey: credential,
+              selection,
+              signal: abort.signal,
+            }),
+            timedOut,
+          ]);
+        } catch {
+          verified = false;
+        } finally {
+          if (timeout !== null) clearTimeout(timeout);
+          try {
+            if (!disposed && verified && !abort.signal.aborted) {
+              credentialKey = credential;
+              configuredRuntime = message.runtime;
+              configuredSelection = selection;
+              initialized = true;
+              post(Object.freeze({
+                revision: 1,
+                kind: "ready",
+                requestId: message.requestId,
+                runtime: message.runtime,
+                selection,
+                distribution: browserPiDistributionIdentityV1,
+              }));
+            } else if (!disposed) {
+              credentialKey = null;
+              configuredRuntime = null;
+              configuredSelection = null;
+              post(Object.freeze({
+                revision: 1,
+                kind: "initialization_failure",
+                requestId: message.requestId,
+                code: "connection_failed",
+              }));
+            }
+          } finally {
+            credential = "";
+            if (initializationAbort === abort) initializationAbort = null;
+            initializing = false;
+          }
+        }
+      });
       return;
     }
     if (message.kind === "workspace_request") {
@@ -714,6 +794,9 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     dispose(): void {
       if (disposed) return;
       disposed = true;
+      initializationAbort?.abort();
+      initializationAbort = null;
+      initializing = false;
       credentialKey = null;
       configuredRuntime = null;
       configuredSelection = null;

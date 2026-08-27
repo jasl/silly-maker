@@ -5,6 +5,10 @@ import type {
   AgentRpcRawTransportInternalV1,
 } from "@sillymaker/agent/internal";
 
+// Vite supplies the default URL export for this query module at build time.
+// oxlint-disable-next-line import/default
+import browserPiWorkerUrlV1 from "./browser-pi.worker.ts?worker&url";
+
 import type {
   BrowserProgramWorkspaceAuthorityV1,
   BrowserProgramWorkspaceFatalV1,
@@ -13,6 +17,7 @@ import type { BrowserWorkspaceHostSnapshotWireV1 } from "../workspace/browser-wo
 import {
   admitBrowserPiEngineRequestV1,
   admitBrowserPiWorkerAnyOutboundMessageV1,
+  browserPiCustomEndpointOriginV1,
   type BrowserPiWorkerInitializeV1,
   type BrowserPiModelSelectionV1,
   type BrowserPiWorkspaceMutationReceiptWireV1,
@@ -32,7 +37,9 @@ export interface BrowserPiWorkerLikeV1 {
   terminate(): void;
 }
 
-export type BrowserPiWorkerFactoryV1 = () => BrowserPiWorkerLikeV1;
+export type BrowserPiWorkerFactoryV1 = (input: {
+  readonly endpointOrigin: string | null;
+}) => BrowserPiWorkerLikeV1;
 
 export interface BrowserPiWorkspaceFailureV1 {
   readonly revision: 1;
@@ -98,15 +105,67 @@ interface ConnectionStateV1 {
   closed: boolean;
 }
 
-const readyTimeoutMillisecondsV1 = 5_000;
+const readyTimeoutMillisecondsV1 = 35_000;
 const bufferedRecordMaximumV1 = 2_048;
 const credentialMaximumCharactersV1 = 64 * 1024;
 
-export function createDefaultBrowserPiWorkerV1(): BrowserPiWorkerLikeV1 {
-  return new Worker(new URL("./browser-pi.worker.ts", import.meta.url), {
+export function createDefaultBrowserPiWorkerV1(input: {
+  readonly endpointOrigin: string | null;
+}): BrowserPiWorkerLikeV1 {
+  let workerUrlReference = browserPiWorkerUrlV1;
+  if (input.endpointOrigin !== null) {
+    const endpoint = new URL(input.endpointOrigin);
+    if (
+      endpoint.protocol !== "https:" || endpoint.origin !== input.endpointOrigin ||
+      endpoint.pathname !== "/" || endpoint.search.length !== 0 || endpoint.hash.length !== 0 ||
+      endpoint.username.length !== 0 || endpoint.password.length !== 0
+    ) throw transportErrorV1("endpoint_origin_invalid");
+    if (import.meta.env.PROD) {
+      const separator = workerUrlReference.includes("?") ? "&" : "?";
+      workerUrlReference += `${separator}endpoint-origin=${
+        encodeURIComponent(input.endpointOrigin)
+      }`;
+    }
+  }
+  const workerUrl = new URL(workerUrlReference, import.meta.url);
+  return new Worker(workerUrl, {
     type: "module",
     name: "sillyos-browser-pi",
   }) as unknown as BrowserPiWorkerLikeV1;
+}
+
+function copySelectionV1(
+  selection: BrowserPiModelSelectionV1,
+): BrowserPiModelSelectionV1 {
+  return selection.kind === "builtin"
+    ? Object.freeze({
+      kind: "builtin",
+      providerId: selection.providerId,
+      modelId: selection.modelId,
+    })
+    : Object.freeze({
+      kind: "custom",
+      profile: Object.freeze({ ...selection.profile }),
+    });
+}
+
+function selectionsEqualV1(
+  left: BrowserPiModelSelectionV1 | null,
+  right: BrowserPiModelSelectionV1 | null,
+): boolean {
+  if (left === null || right === null) return left === right;
+  if (left.kind !== right.kind) return false;
+  if (left.kind === "builtin" && right.kind === "builtin") {
+    return left.providerId === right.providerId && left.modelId === right.modelId;
+  }
+  if (left.kind !== "custom" || right.kind !== "custom") return false;
+  const leftProfile = left.profile;
+  const rightProfile = right.profile;
+  return leftProfile.profileId === rightProfile.profileId &&
+    leftProfile.displayName === rightProfile.displayName && leftProfile.api === rightProfile.api &&
+    leftProfile.baseUrl === rightProfile.baseUrl && leftProfile.modelId === rightProfile.modelId &&
+    leftProfile.contextWindow === rightProfile.contextWindow &&
+    leftProfile.maxTokens === rightProfile.maxTokens;
 }
 
 function transportErrorV1(code: string): TypeError {
@@ -143,6 +202,7 @@ function executionBindingFromHostV1(
 
 export function createBrowserPiWorkerRawTransportV1({
   apiKey: suppliedApiKey,
+  onConnectionLost = () => undefined,
   runtime,
   selection: suppliedSelection = null,
   workspaceAuthority,
@@ -150,6 +210,7 @@ export function createBrowserPiWorkerRawTransportV1({
 }:
   & {
     readonly apiKey: string;
+    readonly onConnectionLost?: () => void;
     readonly workspaceAuthority: BrowserProgramWorkspaceAuthorityV1;
     readonly workerFactory?: BrowserPiWorkerFactoryV1;
   }
@@ -157,10 +218,9 @@ export function createBrowserPiWorkerRawTransportV1({
     | { readonly runtime: "deterministic_test"; readonly selection?: null }
     | { readonly runtime: "pi_provider"; readonly selection: BrowserPiModelSelectionV1 }
   )): BrowserPiWorkerRawTransportV1 {
-  const selection = suppliedSelection === null ? null : Object.freeze({
-    providerId: suppliedSelection.providerId,
-    modelId: suppliedSelection.modelId,
-  });
+  const selection = suppliedSelection === null ? null : copySelectionV1(suppliedSelection);
+  const endpointOrigin = selection === null ? null : browserPiCustomEndpointOriginV1(selection);
+  const selectionHasValidEndpoint = selection?.kind !== "custom" || endpointOrigin !== null;
   let pendingApiKey = suppliedApiKey.length > 0 &&
       suppliedApiKey.length <= credentialMaximumCharactersV1
     ? suppliedApiKey
@@ -184,9 +244,13 @@ export function createBrowserPiWorkerRawTransportV1({
   const closeState = (
     state: ConnectionStateV1,
     reason: string,
-    detachEnvironment = true,
+    options: {
+      readonly detachEnvironment?: boolean;
+      readonly expected?: boolean;
+    } = {},
   ): void => {
     if (state.closed) return;
+    const reportConnectionLoss = state.ready && options.expected !== true;
     state.closed = true;
     const workspaceSessionId = state.activeWorkspace?.phase === "open"
       ? state.activeWorkspace.workspaceSessionId
@@ -208,10 +272,17 @@ export function createBrowserPiWorkerRawTransportV1({
     } catch {
       // Termination is best-effort after the Worker has become unreachable.
     }
-    if (detachEnvironment && workspaceSessionId !== null) {
+    if (options.detachEnvironment !== false && workspaceSessionId !== null) {
       void detachWorkspaceEnvironment(workspaceSessionId).catch(() => undefined);
     }
     if (activeState === state) activeState = null;
+    if (reportConnectionLoss) {
+      try {
+        onConnectionLost();
+      } catch {
+        // Product observers cannot alter transport closure.
+      }
+    }
   };
 
   const unsubscribeWorkspaceAuthorityFatal = workspaceAuthority.subscribeFatal((fatal) => {
@@ -248,10 +319,14 @@ export function createBrowserPiWorkerRawTransportV1({
         return { kind: "unavailable", reason: "failed" };
       }
       if (pendingApiKey === null) return { kind: "unconfigured" };
+      if (!selectionHasValidEndpoint) {
+        pendingApiKey = null;
+        return { kind: "unavailable", reason: "failed" };
+      }
 
       let worker: BrowserPiWorkerLikeV1;
       try {
-        worker = workerFactory();
+        worker = workerFactory({ endpointOrigin });
       } catch {
         pendingApiKey = null;
         return { kind: "unavailable", reason: "failed" };
@@ -343,9 +418,7 @@ export function createBrowserPiWorkerRawTransportV1({
           if (
             message.kind !== "ready" || message.requestId !== 1 ||
             message.runtime !== runtime ||
-            message.selection?.providerId !== selection?.providerId ||
-            message.selection?.modelId !== selection?.modelId ||
-            (message.selection === null) !== (selection === null)
+            !selectionsEqualV1(message.selection, selection)
           ) {
             closeState(state, "ready_invalid");
             return;
@@ -525,7 +598,7 @@ export function createBrowserPiWorkerRawTransportV1({
           });
         },
         async close(): Promise<void> {
-          closeState(state, "connection_closed");
+          closeState(state, "connection_closed", { expected: true });
         },
       };
       return { kind: "connected", connection };
@@ -626,7 +699,7 @@ export function createBrowserPiWorkerRawTransportV1({
         if (workspaceSessionId !== null) {
           await detachWorkspaceEnvironment(workspaceSessionId).catch(() => undefined);
         }
-        closeState(state, "forgotten", false);
+        closeState(state, "forgotten", { detachEnvironment: false, expected: true });
       }
       await workspaceEnvironmentDetachSettlement;
     },

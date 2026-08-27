@@ -14,11 +14,21 @@ Creator 是唯一内置的用户程序；生成的 Program 是工程、Agent har
 
 ## 目前能体验什么
 
-普通入口现在提供 Pi-owned Browser Provider 设置；用户需要先从设置中选择已经通过
-SillyOS Browser 资格验证的模型，并把自己的 API key 直接交给 Agent Worker。当前可连接的
-精确 profile 是 OpenAI `gpt-4.1-nano`、Anthropic `claude-sonnet-4-5-20250929`、Google
-`gemini-2.5-flash`、DeepSeek `deepseek-v4-flash` 与 xAI `grok-4.3`。其余 Pi catalog
-记录仍可搜索和查看，但不会因为出现在目录中就被伪装成浏览器可用。连接后可以体验：
+普通入口现在提供 Pi-owned Browser Provider 设置。没有已经测试成功的 Provider 时，Creator
+Home 会显示一张可用键盘整体打开的警告卡片；用户需要先进入 Providers。当前已通过
+SillyOS Browser 资格验证的精确 built-in profile 是 OpenAI `gpt-4.1-nano`、Anthropic
+`claude-sonnet-4-5-20250929`、Google `gemini-2.5-flash`、DeepSeek `deepseek-v4-flash`
+与 xAI `grok-4.3`。其余 Pi catalog 记录仍可搜索和查看，但不会因为出现在目录中就被
+伪装成浏览器可用。
+
+可用 built-in 的详情把 Pi 模型提供的 preset endpoint 只读展示在 Connection 区域，API key
+从 uncontrolled password input 直接交给 Agent Worker。**Test connection** 会通过 Pi 的
+`Provider.streamSimple` 发送一次很小但可能计费的真实模型请求；只有成功完成流后才会显示
+ready。输入框会立即清空，key 和测试成功状态都只属于当前 Worker/浏览器会话；切换模型、
+Forget、关闭页面或刷新页面后都需要重新测试。连接成功后可以体验：
+
+Bedrock 这类 ambient、OAuth、keyless 或多字段凭据 profile 仍可查看，但不会被压成一个假的
+API-key 表单，也不会显示可用的 Test connection。
 
 - 从 Creator Home 提交翻译、写作、角色扮演或通用创作意图；
 - 查看确定性的本地 Creator 回复和带明确版本的 Program proposal；
@@ -37,9 +47,12 @@ Pi `Agent`、确定性本地 provider 和唯一的 `sillyos_propose_program_revi
 P1-B1a 已把 B0b 的 `?agent=pi-openai` 用户入口清理掉。普通 URL 的设置页从固定版本 Pi
 Worker 无凭据读取完整 Provider/model catalog；React 不导入 Pi，也不维护第二份目录。
 SillyOS 只叠加精确到 `(providerId, modelId, API family, origin)` 的 Browser 资格状态。
-API key 从 uncontrolled password input 直接传入选定 Agent Worker，输入立即清空；切换或
-Forget 会终止 Worker，并要求重新输入 key。Provider/model 选择目前只属于当前设备会话，
-不会进入 Program、Workspace、IndexedDB、OPFS、URL、日志或导出文件。
+B1c 另外把 **Built-in Providers** 和 **Custom Endpoints** 分区。自定义 profile 只允许
+HTTPS base URL、model id、显式 context/output 上限，以及 Pi 已提供的四种 API family：
+`openai-completions`、`openai-responses`、`anthropic-messages`、
+`google-generative-ai`；协议永远不从 URL 猜测。这个有界非秘密 profile 可以保存在产品自有
+Browser Settings repository 中，API key 与“已在当前浏览器验证”状态都不会持久化。它也不会
+因为一次会话测试成功就升级成 SillyOS 的 built-in 双浏览器资格结论。
 
 当前产品已经有由 Dedicated Worker 持有的 Browser IndexedDB Program repository；它只
 保存有界的产品 Program 投影，不保存 API key、Pi session、附件内容或 workspace 文件。
@@ -111,11 +124,14 @@ release gate：25 个文件的 265 个产品测试、Chromium/持久 WebKit 的�
 浏览器中的真实 OpenAI stream/tool/cancel/currentness/Forget 资格检查均通过。B1b 随后被
 激活；Anthropic 固定快照、Google、DeepSeek 与 xAI 的精确 profile 已在 Chromium 和持久
 WebKit 中通过同一真实 Pi gate。OpenRouter 当前测试 profile 因现有账号/key 返回 Provider
-Terms-of-Service 403 而仍是 candidate；这不是 CSP 或 CORS 成功/失败的替代结论。B1b 尚未
-关闭。当前 B1b 本地 gate 通过 27 个文件的 270 个产品测试、Chromium/持久 WebKit 的 2 个
-Settings 旅程，以及 5 个 qualified profile × 2 个浏览器的 10 个真实 Provider 旅程。
-B1c 的自定义 HTTPS endpoint 也未激活。BYO Sandbox、Wasm/更完整
-执行环境和 import 仍未激活。Desktop
+Terms-of-Service 403 而仍是 candidate；这不是 CSP 或 CORS 成功/失败的替代结论。B1b 已在
+2026-08-28 以这个 truthful disabled disposition 关闭。B1c 是当前本地产品切片：它增加上述
+真实连接测试、Home warning、有界 custom HTTPS profile，以及只给选定 Agent Worker 精确
+endpoint origin 的 Cloudflare CSP 响应层。B1c 尚未部署，也尚未把任何自定义 endpoint 宣称为
+跨浏览器 qualified。当前本地实现已通过 6 个 focused 文件 / 81 个测试、全量 404 个文件 /
+5,689 个单元测试、Chromium 与持久 WebKit 的 4 条 built-in/custom Settings 旅程，以及 5 个
+qualified built-in × 2 种浏览器的 10 条真实 Provider 旅程；生产构建与 Cloudflare dry-run
+也通过。BYO Sandbox、Wasm/更完整执行环境和 import 仍未激活。Desktop
 底层仍计划由私有 companion 启动产品打包的 Pi coding-agent，但当前没有激活。
 
 详细的产品范围、Cloudflare OS 参考快照、语义映射、桌面/移动布局、键盘/IME、
@@ -152,12 +168,19 @@ close 完成并刷新页面后，重新初始化 Pi test 仍会打开同一 gene
 Creator Home 不会实例化 Pi Worker、Workspace Host 或 just-bash；首次打开设置时才会启动
 一个无凭据 catalog Worker，并在得到目录后立即终止它。
 
-要运行 live 路线，直接打开普通 URL，进入“设置”，选择上述任一已资格化的精确模型，再
-输入该 Provider 的 key 并连接 Agent Creator。连接完成只表示 Worker profile 已配置；真正
-的凭据/Provider 验证发生在首次运行。Key 输入会立即清空，Forget 会终止持有 key 的 Worker。
-网页不会读取开发机 `.env`。Anthropic 的可变别名 `claude-sonnet-4-5` 与 OpenRouter
+要运行 live 路线，直接打开普通 URL。未配置时点击 Creator Home 的 Provider warning，进入
+Providers 后选择上述任一已资格化的精确模型；确认只读 endpoint，输入该 Provider 的 key，
+再点击 **Test connection**。该操作会立即发出一次很小但可能计费的 Pi 模型请求；只有它成功
+完成后 Agent Creator 才会 ready，Home warning 也才会消失。Key 输入会立即清空，Forget 会
+终止持有 key 的 Worker。网页不会读取开发机 `.env`。Anthropic 的可变别名
+`claude-sonnet-4-5` 与 OpenRouter
 `google/gemini-2.5-flash` 仍作为 candidate 显示且不能连接；Pi 的其他目录项也不会被自动
 视为 Browser 支持。
+
+需要兼容 endpoint 时，在 **Custom Endpoints** 中新增 HTTPS profile，显式选择四种 Pi API
+family 之一并填写 model/limits，再用同一个 Connection 流程测试。刷新后只会恢复这个非秘密
+profile；API key 和 verified 状态都不会恢复。成功只证明当前 endpoint/key/model/API family
+组合在本次浏览器会话中完成了 Pi probe，不等于 SillyOS 已把它列为 Browser-qualified。
 
 当前已资格化的 Cloudflare 部署是
 [silly-os.jasl9187.workers.dev](https://silly-os.jasl9187.workers.dev/)。
@@ -169,6 +192,8 @@ Anthropic 固定快照可选、可变 alias 禁用，OpenRouter profile 也保�
 通过了上述五个 profile 在 Chromium 与持久 WebKit 中的全部十个真实资格旅程。它只托管
 静态产品；key 和模型请求从 Agent Worker 直接发送给所选 Provider，不经过 SillyOS 或
 Cloudflare relay。B1a 的独立部署历史保留在 [PLAN.md](./PLAN.md) 与 [DESIGN.md](./DESIGN.md)。
+这个公网版本仍是已提交并验收的 B1b baseline；本 README 描述的 B1c Connection/custom
+endpoint 工作尚未部署，不能从该 URL 推断 B1c 已发布。
 
 开发资格检查会按精确 profile 从本目录的 `.env` 读取对应 Provider key，依次启动普通
 Chromium context 与运行后删除的一次性持久 WebKit profile，
@@ -197,10 +222,14 @@ Browser 目标可作为 Cloudflare Workers Static Assets 发布的本地优先�
 提供静态应用；模型请求从浏览器 Agent Worker 直接到用户选择的已资格化 Provider，不经过
 SillyOS 官方代理。当前五个精确 profile 已验证 Worker 内存/forget 所有权。生产 UI key 仍须
 保持只在 Worker 内存中，不能写入 React state、URL、日志、Program 数据、IndexedDB、
-OPFS 或导出文件。自定义 endpoint 仍必须满足 HTTPS、CSP、CORS、streaming 与取消合同，
-并非 Pi 在 Desktop 支持的全部 Provider 都会自动获得 Browser 资格。CSP 只决定页面可连接
-的目标；Provider 响应是否可读仍由对方的 CORS 响应决定，放宽 CSP 或使用 `no-cors`
-不能绕过它。
+OPFS 或导出文件；custom profile 的 API key 也不会进入保存非秘密 profile 的
+`localStorage`。当前 B1c Cloudflare Worker 只在自定义 Agent Worker URL 携带经过验证的
+`endpoint-origin` 时，把该 Worker 响应的 `connect-src` 换成 self 加这一个精确 origin；没有
+该参数的文档、catalog 与 built-in Worker 继续使用固定六 origin policy，且任何响应都不使用
+`connect-src https:`。这个选择只解决 CSP admission，不会让 Provider 返回允许 SillyOS origin
+读取的 CORS 响应。自定义 endpoint 仍必须满足 HTTPS、CORS、streaming 与取消合同，并非 Pi
+在 Desktop 支持的全部 Provider 都会自动获得 Browser 资格；`no-cors`、Service Worker 或放宽
+CSP 都不能绕过 Provider CORS。
 
 ### Pi RPC 开发启动器
 
@@ -286,6 +315,8 @@ deno run -A npm:vitest run \
   src/test/browser-pi-catalog-port.test.ts \
   src/test/browser-pi-provider-runtime-bridge.test.ts \
   src/test/browser-pi-worker.test.ts \
+  src/test/browser-provider-settings-repository.test.ts \
+  src/test/cloudflare-selected-origin-worker.test.ts \
   src/test/provider-settings-ui.test.tsx \
   src/test/pi-rpc-startup.test.ts
 ```
@@ -296,20 +327,22 @@ deno run -A npm:vitest run \
 
 ## 当前代码边界
 
-| 位置                                     | 所有权                                                       |
-| ---------------------------------------- | ------------------------------------------------------------ |
-| `src/product/contracts.ts`               | Program、proposal、activity 与 Creator session 合同          |
-| `src/product/creator-session.ts`         | 本地 session、proposal review 与 Agent candidate 原子发布    |
-| `src/product/creator-agent-admission.ts` | submit/candidate 的严格 product wire admission               |
-| `src/product/fake-creator.ts`            | 默认初始 proposal 的确定性 fake Creator                      |
-| `src/agent/creator-agent-port.ts`        | React 可见的 product facade；不暴露 raw Pi records           |
-| `src/agent/browser-pi-*`                 | 懒加载 Worker、固定 Pi identity、catalog 与 Browser 资格叠加 |
-| `src/companion/pi-rpc-startup.ts`        | dev-only 固定 Pi artifact、启动参数、隔离 flags 与脱敏摘要   |
-| `src/application/`                       | Browser/Deno 共用的 React 产品入口与工作区表现               |
-| `src/test/browser-pi-worker.test.ts`     | Pi tool、RPC 顺序/currentness、取消、替换与 Worker teardown  |
-| `tools/pi-rpc.mts`                       | raw Pi RPC 开发启动器；尚未连接 Creator                      |
-| `PLAN.md`                                | 独立产品孵化顺序、所有权、停止条件与明确 defer               |
-| `WASM-WORKSPACE-RESEARCH.md`             | workspace harness 候选、共同语料和选型证据门                 |
+| 位置                                                  | 所有权                                                       |
+| ----------------------------------------------------- | ------------------------------------------------------------ |
+| `src/product/contracts.ts`                            | Program、proposal、activity 与 Creator session 合同          |
+| `src/product/creator-session.ts`                      | 本地 session、proposal review 与 Agent candidate 原子发布    |
+| `src/product/creator-agent-admission.ts`              | submit/candidate 的严格 product wire admission               |
+| `src/product/browser-provider-settings-repository.ts` | 有界非秘密 custom HTTPS profile 持久化；不接收 key           |
+| `src/product/fake-creator.ts`                         | 默认初始 proposal 的确定性 fake Creator                      |
+| `src/agent/creator-agent-port.ts`                     | React 可见的 product facade；不暴露 raw Pi records           |
+| `src/agent/browser-pi-*`                              | 懒加载 Worker、固定 Pi identity、catalog 与 Browser 资格叠加 |
+| `src/deployment/cloudflare-selected-origin-worker.ts` | custom Agent Worker 的精确 selected-origin CSP 响应层        |
+| `src/companion/pi-rpc-startup.ts`                     | dev-only 固定 Pi artifact、启动参数、隔离 flags 与脱敏摘要   |
+| `src/application/`                                    | Browser/Deno 共用的 React 产品入口与工作区表现               |
+| `src/test/browser-pi-worker.test.ts`                  | Pi tool、RPC 顺序/currentness、取消、替换与 Worker teardown  |
+| `tools/pi-rpc.mts`                                    | raw Pi RPC 开发启动器；尚未连接 Creator                      |
+| `PLAN.md`                                             | 独立产品孵化顺序、所有权、停止条件与明确 defer               |
+| `WASM-WORKSPACE-RESEARCH.md`                          | workspace harness 候选、共同语料和选型证据门                 |
 
 后续 Agent loop、模型/provider、会话、tool dispatch 与 Agent 扩展统一由 Pi 负责。
 Browser Agent Worker 或 Desktop companion 只做目标适配、Program 数据所有权和 typed
