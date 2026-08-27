@@ -188,7 +188,7 @@ class RemoteWorkspaceExecutionEnvV1 implements ExecutionEnv {
   }
 
   private async pathCall<TValue>(
-    method: "absolute_path" | "exists" | "canonical_path" | "read_binary_file",
+    method: "absolute_path" | "exists" | "canonical_path" | "read_binary_file" | "file_info",
     path: string,
     abortSignal?: AbortSignal,
   ): Promise<Result<TValue, FileError>> {
@@ -221,8 +221,27 @@ class RemoteWorkspaceExecutionEnvV1 implements ExecutionEnv {
     return localFileFailureV1("Path joining is not available in P3c-B0", parts.join("/"));
   }
 
-  readTextFile(path: string): Promise<Result<string, FileError>> {
-    return localFileFailureV1("Text reads are not available in P3c-B0", path);
+  async readTextFile(
+    path: string,
+    abortSignal?: AbortSignal,
+  ): Promise<Result<string, FileError>> {
+    const read = await this.readBinaryFile(path, abortSignal);
+    if (!read.ok) return read;
+    if (abortSignal?.aborted) {
+      return err(new FileError("aborted", "Workspace filesystem operation was aborted", path));
+    }
+    try {
+      return ok(new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(read.value));
+    } catch (error) {
+      return err(
+        new FileError(
+          "invalid",
+          "Workspace file is not valid UTF-8",
+          path,
+          error instanceof Error ? error : undefined,
+        ),
+      );
+    }
   }
 
   readTextLines(path: string): Promise<Result<string[], FileError>> {
@@ -268,8 +287,8 @@ class RemoteWorkspaceExecutionEnvV1 implements ExecutionEnv {
     return localFileFailureV1("Rename is not available in P3c-B0", sourcePath);
   }
 
-  fileInfo(path: string): Promise<Result<FileInfo, FileError>> {
-    return localFileFailureV1("File metadata is not available to Pi in P3c-B0", path);
+  fileInfo(path: string, abortSignal?: AbortSignal): Promise<Result<FileInfo, FileError>> {
+    return this.pathCall("file_info", path, abortSignal);
   }
 
   listDir(path: string): Promise<Result<FileInfo[], FileError>> {
@@ -343,6 +362,10 @@ class RemoteWorkspaceAgentRunV1 implements WorkspaceAgentRunV1 {
 
   executeWriteCall<TValue>(input: WorkspaceToolCallInputV1<TValue>): Promise<TValue> {
     return this.owner.executeToolCall(this.state, "write", input);
+  }
+
+  executeEditCall<TValue>(input: WorkspaceToolCallInputV1<TValue>): Promise<TValue> {
+    return this.owner.executeToolCall(this.state, "edit", input);
   }
 
   abortAndDrain(): Promise<void> {
@@ -451,7 +474,7 @@ class BrowserWorkspaceEnvironmentClientOwnerV1 implements BrowserWorkspaceEnviro
       piSessionId: value.sessionId,
       piRunId: value.runId,
       toolCallId: value.toolCallId,
-      tool: "write",
+      tool: value.tool,
       expectedGeneration: value.expectedGeneration,
       baseGeneration: value.baseGeneration,
       resultingGeneration: value.resultingGeneration,
@@ -551,7 +574,7 @@ class BrowserWorkspaceEnvironmentClientOwnerV1 implements BrowserWorkspaceEnviro
 
   executeToolCall<TValue>(
     state: ActiveRunStateV1,
-    tool: "read" | "write",
+    tool: "read" | "write" | "edit",
     input: WorkspaceToolCallInputV1<TValue>,
   ): Promise<TValue> {
     if (this.activeRun !== state || state.finished) {
@@ -589,7 +612,7 @@ class BrowserWorkspaceEnvironmentClientOwnerV1 implements BrowserWorkspaceEnviro
 
   private async performToolCall<TValue>(
     state: ActiveRunStateV1,
-    tool: "read" | "write",
+    tool: "read" | "write" | "edit",
     input: WorkspaceToolCallInputV1<TValue>,
   ): Promise<TValue> {
     try {

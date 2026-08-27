@@ -81,8 +81,11 @@ import/restore reader 或 immutable snapshot。Agent Forget 会清理 Pi/执行�
 资格化；P3c-B0 已闭合原生 Pi `write`/`read` 到 OPFS checkpoint 的 authority、close/cold
 reopen、连续 generation、mutation receipt、取消、清理、恢复/争用、storage UI、自动双引擎
 `20 MiB+` gate，以及真实取消/下载/解包逐字节验证的 canonical portable ZIP。完整 B0 已在
-2026-08-27 独立验收并关闭，但不会自动激活下一条路线；P3a-B1 的 `edit`/just-bash、广泛
-Provider/BYO Sandbox 研究、immutable snapshot publication 和 import 仍未激活。Desktop
+2026-08-27 独立验收并关闭。随后 P3a-B1 checkpoint 1 也已交付并通过独立验收：固定 Pi
+0.84.3 的原生 `edit` 已接到同一 OPFS volume，真实路径为
+`write -> edit -> read -> proposal`，编辑后的 bytes 与 generation 可跨冷重开保留。
+当前没有激活中的 SillyOS 实现片；checkpoint 2 的 Pi `bash`/just-bash、广泛 Provider/BYO Sandbox 研究、immutable snapshot
+publication 和 import 仍未激活。Desktop
 底层仍计划由私有 companion 启动产品打包的 Pi coding-agent，但当前没有激活。
 
 详细的产品范围、Cloudflare OS 参考快照、语义映射、桌面/移动布局、键盘/IME、
@@ -112,8 +115,8 @@ React 产品面；Desktop 是产品目标，不会另外模拟操作系统桌面
 
 要运行不访问 LLM 的 Browser Pi B0a 接线检查，在该地址追加
 `?locale=zh-CN&agent=pi-test`，输入任意可丢弃的合成测试值并初始化，再创建 Program、
-提交一次 follow-up。确定性 Pi 流程会用原生 `write`/`read` 在持久 Program workspace
-完成一次文件往返，再形成 proposal；返回 Home、等待 workspace close 完成并刷新页面后，
+提交一次 follow-up。确定性 Pi 流程会用原生 `write`/`edit`/`read` 在持久 Program
+workspace 完成一次编辑往返，再形成 proposal；返回 Home、等待 workspace close 完成并刷新页面后，
 重新初始化 Pi test 仍会打开同一 generation 和文件。普通 URL 不会加载 Pi Worker 或它的
 provider/runtime 代码。
 

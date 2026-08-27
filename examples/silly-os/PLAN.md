@@ -12,7 +12,12 @@ contract; checkpoint 2 delivered recovery/contender semantics, storage policy,
 and the automated Chromium/persistent-WebKit `20 MiB+` scale gate. Checkpoint 3
 delivered canonical portable ZIP download, cancellation, bounded Host-resource
 ownership, and dual-engine byte evidence, so P3c-B0 closed on 2026-08-27. P3a
-remains open, while P1-D remains owner-paused and P3a-B1, P3b, immutable
+remains open. The owner activated the bounded P3a-B1 sequence on 2026-08-27;
+checkpoint 1 delivered and passed independent review that day, adding native
+Pi `edit` over the same persistent volume. Checkpoint 2, native Pi `bash`
+through an exact-pinned just-bash adapter, remains inactive until its shell and
+multi-effect contract is separately frozen and accepted. No SillyOS
+implementation slice is currently active. P1-D remains owner-paused, while P3b, immutable
 snapshot publication, import, and later slices remain inactive. The raw
 launcher is not the typed product RPC; the live Browser route is a separate
 product path. This plan is local to `examples/silly-os`; it does not activate
@@ -882,9 +887,11 @@ OPFS, just-bash, or Wasm asset. No SillyMaker engine gap was reproduced.
 
 P2-B1 closed the bounded product terminal Agent-run receipt needed by P3a's
 first real tool consumer. P3a-B0 delivered on 2026-08-27, and P3c-B0 persistence
-and portable download subsequently delivered without activating P3a-B1. There
-is currently no next active slice; `edit`, `bash`, a shell, and broad provider
-research still require separate owner activation.
+and portable download subsequently delivered before P3a-B1 began. The owner
+activated P3a-B1 on 2026-08-27 as two mandatory checkpoints. Checkpoint 1
+delivered and passed independent review that day, adding only native Pi
+`edit`; checkpoint 2 remains inactive until its own exact contract is frozen
+and accepted.
 
 Use the fixed Pi 0.84.3 workspace tools rather than adding a SillyOS equivalent.
 The Browser Agent Worker imports Pi's shipped `createReadTool`,
@@ -1156,17 +1163,89 @@ or extension-discovery asset in the Browser product; the P3a diff adds no Node
 filesystem/process adapter or Host `PATH` fallback. No SillyMaker engine gap was
 reproduced and no engine API changed.
 
-The inactive **P3a-B1** may later complete the default Browser execution-tool surface:
-bind Pi `edit`, then bind Pi `bash` with a just-bash-backed `Shell.exec` over a
-second thin filesystem adapter to the **same** persistent Program volume. It proves
-exact edit results, cwd/env mapping, pipelines/redirection, terminal
-stdout/stderr/exit status, timeout/abort mapping, bounded output, and truthful
-capability flags. just-bash's public call returns terminal aggregate output, so
-this slice does not claim live shell streaming, PTY, background jobs, process
-trees, Git, Tar, Python, or Linux. Non-cooperative future custom/Wasm commands
-must run in an owned terminable Worker before stronger cancellation can be
-claimed. P3a closes only after B0 and B1. P3c-B0 durable `read`/`write` bytes
-now precede B1 rather than waiting for P3a to close.
+#### P3a-B1 checkpoint contract and checkpoint-1 closure
+
+P3a-B1 completes the default Browser execution-tool surface in two mandatory,
+ordered checkpoints. It does not create a generic tool dispatcher or a second
+Agent capability system.
+
+**Checkpoint 1 — native Pi `edit` over the persistent volume — delivered and
+passed independent review on 2026-08-27.** The
+Browser Agent Worker imports the fixed Pi 0.84.3 `createEditTool()` factory and
+the existing binder supplies the same stable Program-scoped `ExecutionEnv` used
+by native `read` and `write`. SillyOS adds only the truthful environment
+primitives that factory consumes: addressed file metadata, bounded UTF-8 text
+read, and the existing replacement write. All three filesystem projections
+reach the exact P3c-B0 OPFS volume through typed environment RPC. Pi retains
+the schema, argument preparation, exact-match algorithm, line-ending/BOM
+behavior, diff/patch/first-changed-line details, cancellation checks, and
+model-visible result.
+
+The existing `256 KiB` native Pi whole-file ceiling applies before the edit's
+whole-file read and replacement write; metadata may report a larger file so the
+read can reject it without transferring bytes. It is not a volume limit. One
+admitted edit owns one sequential tool scope and reserves one mutation receipt.
+The receipt tool discriminator becomes the closed union `"write" | "edit"`.
+Only a durable byte change advances generation and names one changed path.
+Pi rejects a replacement that would produce identical content, so same-byte,
+missing, directory, invalid UTF-8, path, ambiguous-match, no-match, or capacity
+failure leaves the prior bytes and generation with `failed/none`. Outcome and
+effect remain orthogonal: cancellation before the
+durable write is `cancelled/none`, while cancellation observed after that write
+is `cancelled/changed` and never rolls the bytes back. Reload/cold reopen must
+retain the exact edited bytes and generation while receipts remain
+session-local.
+
+Checkpoint 1 acceptance required focused bridge/binder, protocol, environment,
+Host/OPFS, receipt and Worker coverage; a real fixed-Pi
+`write -> edit -> read -> proposal` journey; stale-generation, receipt
+backpressure, close/replacement and before/after-effect cancellation evidence;
+Chromium and persistent WebKit cold-reopen evidence; and production-graph proof
+that ordinary startup still excludes Pi while the lazy Agent graph still
+excludes just-bash, Wasm, Node process/filesystem adapters, and Host `PATH`
+fallback. The UI may truthfully name native `read`/`write`/`edit`; it must keep
+`bash` unavailable. Proposal `suggestedCapabilities` remains preview content,
+not runtime capability truth. This checkpoint does not close P3a-B1 or P3a.
+
+The delivered Browser Agent Worker now binds fixed Pi 0.84.3's unchanged
+`createEditTool()` beside native `read` and `write`. Its addressed metadata,
+strict bounded UTF-8 read, and one replacement write cross the existing typed
+environment RPC to the sole OPFS Host. The deterministic real-Pi journey is
+`write -> edit -> read -> proposal`; the proposed revision is admitted only
+after Pi's structured edit result and exact final bytes agree. Mutation
+receipts now discriminate `write | edit`, preserve outcome/effect
+orthogonality, apply the existing bounded queue to both mutators, and advance
+generation only for a durable byte change. The UI reports the actual last
+mutation tool while keeping `bash` unavailable. Focused and complete SillyOS
+unit suites pass, including all 171 cases across 20 SillyOS test files.
+Chromium and persistent-WebKit cold-reopen/cancellation journeys pass, as do
+the 395-file/5,549-case repository check, release build, and ordinary/lazy
+graph exclusion scans. No SillyMaker engine gap was reproduced and no engine
+API changed.
+
+**Checkpoint 2 — native Pi `bash` through just-bash — remains inactive.** Before
+implementation, freeze an exact just-bash version and final Browser graph,
+explicit command allowlist, cwd/env/input/output/temporary-file limits,
+aggregate stdout/stderr/exit mapping, cooperative timeout/abort behavior, and
+one bash call's bounded multi-write/multi-path generation and receipt semantics.
+This must cover both shell redirection and Pi's own overflow-output temporary
+log writes. A second thin just-bash `IFileSystem` adapter reaches the **same**
+OPFS authority; just-bash does not own storage, Agent schemas, plugins, or
+capability composition. The selected package must first pass a fail-closed
+Browser build characterization because the exact 3.4.2 Browser publication
+still contains a `node:zlib` edge. Network remains disabled.
+
+Checkpoint 2 proves explicit cwd/env mapping, allowed pipelines/redirection,
+terminal aggregate stdout/stderr/exit status, bounded output and temporary
+files, cooperative timeout/abort with any already-published effects retained,
+and a minimal closed execution-profile projection. It does not claim live
+shell streaming, PTY, background jobs, process trees, arbitrary binaries,
+transactional rollback, Git, Tar, compression, Python, QuickJS, SQLite, GNU
+compatibility, Linux, a container, or a sandbox. Non-cooperative future
+custom/Wasm commands must run in an owned terminable Worker before stronger
+cancellation can be claimed. P3a closes only after B0 and both B1 checkpoints.
+P3c-B0 durable `read`/`write` bytes precede B1 rather than waiting for P3a to
+close.
 
 `AGENTS.md`, skills, and prompts in the workspace volume remain inert data in
 P3. P3c-B0 persists their bytes without activating them; later P3b
@@ -1254,7 +1333,8 @@ generation fence, cancellation ordering, and session-local mutation receipt.
 It replaces only the disposable byte owner with a product-owned Workspace Host
 Worker whose OPFS volume can survive Agent Worker disposal and a full page
 reload. `edit`, `bash`, just-bash, Wasm, Git, provider research, and Desktop
-parity are not prerequisites and remain inactive.
+parity were not P3c-B0 prerequisites. Native `edit` subsequently delivered in
+P3a-B1 checkpoint 1; the other listed capabilities remain inactive.
 
 Implementation proceeds through three review checkpoints without creating more
 slice numbers:
@@ -1275,7 +1355,8 @@ slice numbers:
 
 Each checkpoint received focused review and could commit independently, but none
 alone closed or advertised P3c-B0. The complete B0 acceptance below has passed;
-P3a-B1 and P3b remain inactive until a next slice is explicitly selected.
+P3a-B1 checkpoint 1 was the separately selected next slice and has since
+delivered; checkpoint 2 and P3b remain inactive.
 
 Checkpoint 1 delivered on 2026-08-27. The Program repository now owns one exact
 insert-only continuation record and advances its Program/repository anchors in

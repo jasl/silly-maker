@@ -48,6 +48,7 @@ export interface WorkpieceExecutionWorkspaceV1 {
   readonly lastReceipt: {
     readonly sequence: number;
     readonly agentRunId: string;
+    readonly tool: "write" | "edit";
     readonly outcome: "succeeded" | "failed" | "cancelled";
     readonly effect: "none" | "changed";
     readonly resultingGeneration: number;
@@ -699,12 +700,12 @@ function ProgramCapabilitiesV1({
           <p>
             {agentMode === "deterministic_test"
               ? copy.locale === "zh-CN"
-                ? "固定版本 Pi Agent 正在 Browser Worker 中通过原生 read/write 与受限 proposal 工具操作持久化 Program workspace；这不是 live LLM。"
-                : "The pinned Pi Agent uses native read/write and one bounded proposal tool over a persistent Program workspace in Browser Workers. This is not a live LLM."
+                ? "固定版本 Pi Agent 正在 Browser Worker 中通过原生 read/write/edit 与受限 proposal 工具操作持久化 Program workspace；这不是 live LLM。"
+                : "The pinned Pi Agent uses native read/write/edit and one bounded proposal tool over a persistent Program workspace in Browser Workers. This is not a live LLM."
               : agentMode === "openai_direct"
               ? copy.locale === "zh-CN"
-                ? "固定版本 Pi Agent 正在 Browser Worker 中通过 OpenAI gpt-4.1-nano 使用原生 read/write 与受限 proposal 工具；key 仅在 Agent Worker 内存中，Program workspace 持久化在当前浏览器。"
-                : "The pinned Pi Agent exposes native read/write and one bounded proposal tool through OpenAI gpt-4.1-nano in Browser Workers. The key stays in Agent Worker memory; the Program workspace persists in this browser."
+                ? "固定版本 Pi Agent 正在 Browser Worker 中通过 OpenAI gpt-4.1-nano 使用原生 read/write/edit 与受限 proposal 工具；key 仅在 Agent Worker 内存中，Program workspace 持久化在当前浏览器。"
+                : "The pinned Pi Agent exposes native read/write/edit and one bounded proposal tool through OpenAI gpt-4.1-nano in Browser Workers. The key stays in Agent Worker memory; the Program workspace persists in this browser."
               : copy.locale === "zh-CN"
               ? "Pi、模型、工具执行与数据库属于未来的 typed RPC companion。"
               : "Pi, models, tool execution, and the database belong to a future typed RPC companion."}
@@ -1036,6 +1037,7 @@ function ExecutionWorkspaceStatusV1({
   const generation = workspace.descriptor?.generation;
   const receipt = workspace.lastReceipt;
   const changedPath = receipt?.changedPaths[0];
+  const mutationTool = receipt?.tool ?? "workspace mutation";
   const failureCopy = workspace.phase === "failed"
     ? workspace.diagnostic === null
       ? copy.locale === "zh-CN"
@@ -1082,17 +1084,17 @@ function ExecutionWorkspaceStatusV1({
           ? failureCopy
           : receipt?.diagnosticCode === "capacity_exceeded"
           ? copy.locale === "zh-CN"
-            ? "最近一次 write 因浏览器容量不足而失败；先前的完整检查点仍被保留。"
-            : "The last write exceeded browser capacity. The previous complete checkpoint is retained."
+            ? `最近一次 ${mutationTool} 因浏览器容量不足而失败；先前的完整检查点仍被保留。`
+            : `The last ${mutationTool} exceeded browser capacity. The previous complete checkpoint is retained.`
           : receipt === null
           ? copy.locale === "zh-CN"
             ? "当前检查点保存在此浏览器中；重新加载会恢复同一卷与代数，mutation receipt 仅属于本次会话。"
             : "The current checkpoint is stored in this browser. Reload reopens the same volume and generation; mutation receipts remain session-only."
           : copy.locale === "zh-CN"
-          ? `最近一次 write：${receipt.outcome} / ${receipt.effect}${
+          ? `最近一次 ${mutationTool}：${receipt.outcome} / ${receipt.effect}${
             changedPath === undefined ? "" : ` · ${changedPath}`
           }`
-          : `Last write: ${receipt.outcome} / ${receipt.effect}${
+          : `Last ${mutationTool}: ${receipt.outcome} / ${receipt.effect}${
             changedPath === undefined ? "" : ` · ${changedPath}`
           }`}
       </small>

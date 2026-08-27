@@ -116,7 +116,7 @@ export interface BrowserPiWorkspaceMutationReceiptWireV1 {
   readonly sessionId: string;
   readonly runId: string;
   readonly toolCallId: string;
-  readonly tool: "write";
+  readonly tool: "write" | "edit";
   readonly expectedGeneration: number;
   readonly baseGeneration: number;
   readonly resultingGeneration: number;
@@ -426,7 +426,8 @@ export function admitBrowserPiWorkspaceMutationReceiptWireV1(
     !isIdentifierV1(receipt.programId) || !isIdentifierV1(receipt.workspaceId) ||
     !isIdentifierV1(receipt.workspaceSessionId) || !isIdentifierV1(receipt.sessionId) ||
     !isIdentifierV1(receipt.runId) || !isIdentifierV1(receipt.toolCallId) ||
-    receipt.tool !== "write" || !isPositiveSafeIntegerV1(receipt.expectedGeneration) ||
+    (receipt.tool !== "write" && receipt.tool !== "edit") ||
+    !isPositiveSafeIntegerV1(receipt.expectedGeneration) ||
     !isPositiveSafeIntegerV1(receipt.baseGeneration) ||
     !isPositiveSafeIntegerV1(receipt.resultingGeneration) ||
     receipt.expectedGeneration > receipt.baseGeneration ||
@@ -465,7 +466,7 @@ export function admitBrowserPiWorkspaceMutationReceiptWireV1(
     sessionId: receipt.sessionId,
     runId: receipt.runId,
     toolCallId: receipt.toolCallId,
-    tool: "write",
+    tool: receipt.tool,
     expectedGeneration: receipt.expectedGeneration,
     baseGeneration: receipt.baseGeneration,
     resultingGeneration: receipt.resultingGeneration,

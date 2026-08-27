@@ -264,6 +264,19 @@ describe("Browser Pi Worker P3a-B0 protocol", () => {
     });
     expect(JSON.stringify(admitted)).not.toContain("agentRunId");
 
+    expect(
+      admitBrowserPiWorkerWorkspaceOutboundMessageV1({
+        ...event,
+        receipt: receiptV1({ tool: "edit", toolCallId: "pi.tool.edit.1" }),
+      }),
+    ).toMatchObject({ receipt: { tool: "edit", toolCallId: "pi.tool.edit.1" } });
+    expect(
+      admitBrowserPiWorkerWorkspaceOutboundMessageV1({
+        ...event,
+        receipt: receiptV1({ tool: "read", effect: "none", changedPaths: [] }),
+      }),
+    ).toBeNull();
+
     for (const forbidden of ["agentRunId", "content", "args", "provider"] as const) {
       expect(
         admitBrowserPiWorkerWorkspaceOutboundMessageV1({

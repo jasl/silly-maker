@@ -43,7 +43,7 @@ export interface WorkspaceMutationReceiptV1 {
   readonly workspaceSessionId: string;
   readonly agentRunId: string;
   readonly toolCallId: string;
-  readonly tool: "write";
+  readonly tool: "write" | "edit";
   readonly expectedGeneration: number;
   readonly baseGeneration: number;
   readonly resultingGeneration: number;
@@ -63,7 +63,7 @@ export interface WorkspaceMutationRecordV1 {
   readonly piSessionId: string;
   readonly piRunId: string;
   readonly toolCallId: string;
-  readonly tool: "write";
+  readonly tool: "write" | "edit";
   readonly expectedGeneration: number;
   readonly baseGeneration: number;
   readonly resultingGeneration: number;
@@ -120,6 +120,7 @@ export interface WorkspaceAgentRunV1 {
   getGenerationCursor(): number;
   executeReadCall<TValue>(input: WorkspaceToolCallInputV1<TValue>): Promise<TValue>;
   executeWriteCall<TValue>(input: WorkspaceToolCallInputV1<TValue>): Promise<TValue>;
+  executeEditCall<TValue>(input: WorkspaceToolCallInputV1<TValue>): Promise<TValue>;
   abortAndDrain(): Promise<void>;
   finish(): void;
 }

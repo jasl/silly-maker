@@ -39,6 +39,8 @@ export interface BrowserWorkspaceHostDurableHeadV1 {
 export interface BrowserWorkspaceHostFileMetadataV1 {
   readonly kind: "missing" | "file" | "directory";
   readonly size: number;
+  /** File.lastModified for files; 0 for OPFS directories, the virtual root, and missing paths. */
+  readonly mtimeMs: number;
 }
 
 /** Replayable, bounded private source. It never crosses the Agent wire. */
@@ -188,7 +190,7 @@ interface NormalizedPathV1 {
 
 interface ToolScopeV1 {
   readonly toolCallId: string;
-  readonly tool: "read" | "write";
+  readonly tool: "read" | "write" | "edit";
   readonly baseGeneration: number;
   readonly abortController: AbortController;
   activeOperation: Promise<unknown> | null;
@@ -477,7 +479,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
     outcome: "succeeded" | "failed" | "cancelled",
   ): void => {
     if (run.activeScope !== scope) return;
-    if (scope.tool === "write") {
+    if (scope.tool === "write" || scope.tool === "edit") {
       const effect = scope.changedPath === null ? "none" : "changed";
       const diagnosticCode = outcome === "cancelled"
         ? "cancelled"
@@ -491,7 +493,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
         sessionId: run.sessionId,
         runId: run.runId,
         toolCallId: scope.toolCallId,
-        tool: "write",
+        tool: scope.tool,
         expectedGeneration: run.expectedGeneration,
         baseGeneration: scope.baseGeneration,
         resultingGeneration: session.head.generation,
@@ -607,6 +609,37 @@ export function createBrowserWorkspaceHostRuntimeV1(
         });
         return;
       }
+      if (record.method === "file_info") {
+        const metadata = await operate(scope, () => lease.stat(path.relative));
+        if (metadata.kind === "missing") {
+          environmentFailure(
+            session,
+            requestId,
+            "request_failed",
+            fileErrorV1("not_found", "Workspace path was not found", path.absolute),
+          );
+          return;
+        }
+        postEnvironment(session, {
+          revision: 1,
+          kind: "environment_response",
+          requestId,
+          ok: true,
+          response: {
+            method: "file_info",
+            value: {
+              name: path.relative.length === 0
+                ? "workspace"
+                : path.relative.slice(path.relative.lastIndexOf("/") + 1),
+              path: path.absolute,
+              kind: metadata.kind,
+              size: metadata.size,
+              mtimeMs: metadata.mtimeMs,
+            },
+          },
+        });
+        return;
+      }
       if (record.method === "read_binary_file") {
         const metadata = await operate(scope, () => lease.stat(path.relative));
         if (metadata.kind === "missing") {
@@ -663,7 +696,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
         return;
       }
       if (record.method !== "write_file") return;
-      if (scope.tool !== "write" || scope.writeAttempted) {
+      if ((scope.tool !== "write" && scope.tool !== "edit") || scope.writeAttempted) {
         environmentFailure(session, requestId, "scope_busy");
         return;
       }
@@ -764,7 +797,8 @@ export function createBrowserWorkspaceHostRuntimeV1(
     }
     if (
       record.method === "absolute_path" || record.method === "canonical_path" ||
-      record.method === "exists" || record.method === "read_binary_file" ||
+      record.method === "exists" || record.method === "file_info" ||
+      record.method === "read_binary_file" ||
       record.method === "write_file"
     ) {
       await handleFileCall(session, request.requestId, record);
@@ -873,7 +907,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
         return;
       }
       if (
-        record.tool === "write" &&
+        (record.tool === "write" || record.tool === "edit") &&
         session.receipts.length + session.reservedReceiptSlots >=
           browserWorkspaceHostReceiptMaximumV1
       ) {
@@ -881,7 +915,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
         return;
       }
       run.toolCallIds.add(record.toolCallId);
-      if (record.tool === "write") session.reservedReceiptSlots += 1;
+      if (record.tool === "write" || record.tool === "edit") session.reservedReceiptSlots += 1;
       run.activeScope = {
         toolCallId: record.toolCallId,
         tool: record.tool,

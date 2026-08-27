@@ -7,8 +7,10 @@ persistence, bounded terminal Agent-run receipts, and all three P3c-B0
 checkpoints delivered and closed on 2026-08-27: OPFS Program workspace
 authority, cold reopen, recovery/contender semantics, explicit storage policy,
 the automated Chromium/persistent-WebKit `20 MiB+` scale gate, and canonical
-portable ZIP download. P3a-B1, broad execution-provider research, immutable
-snapshot publication, import, and later workspace slices remain inactive. The
+portable ZIP download. P3a-B1 checkpoint 1 also delivered on 2026-08-27,
+binding fixed Pi's native `edit` to the same OPFS authority. P3a-B1 checkpoint
+2, broad execution-provider research, immutable snapshot publication, import,
+and later workspace slices remain inactive. The
 former "SillyOS 98" desktop
 experiment has been retired as a product direction. It remains useful only as
 repository history; it is not a compatibility baseline for this rewrite.
@@ -249,8 +251,9 @@ change a real product behavior.
   redefine those four tool schemas or results. A sequential outer call scope
   binds product run/tool identity and generation around the native Pi
   `tool.execute(...)`, because Pi environment primitives do not receive that
-  identity themselves. `read`/`write` and the later `edit` use the environment's
-  filesystem projection directly. A later Browser Local slice may implement the
+  identity themselves. Delivered `read`/`write` and P3a-B1 checkpoint-1
+  `edit` use the environment's filesystem projection directly. The following
+  gated Browser Local checkpoint may implement the
   environment's shell half with just-bash over a second thin filesystem
   projection onto the same volume. Desktop may use the fixed coding-agent's public factory/SDK operation
   hooks through a programmatically constructed fixed tool set or another proved
@@ -272,8 +275,8 @@ runtime:
 
 ```text
 Browser: React -> typed MessagePort -> Agent Worker -> pi-agent-core/pi-ai
-                                      -> Pi core read/write
-                                      -> later edit/bash
+                                      -> Pi core read/write/edit
+                                      -> later bash
                                       -> Program-scoped ExecutionEnv
                                            -> typed environment RPC
                                            -> Workspace Host Worker
@@ -289,8 +292,10 @@ BYO:     React -> Agent owner -> admitted sandbox RPC -> remote environment
 
 P3a-B0 co-locates its disposable volume with the Agent Worker. P3c-B0 moves the
 already-proved `read`/`write` filesystem projection behind the Workspace Host
-Worker and OPFS before any shell is selected. P3a-B1 may later add just-bash;
-there is no dedicated just-bash Worker requirement. Only a later
+Worker and OPFS before any shell is selected. Delivered P3a-B1 checkpoint 1 adds
+only Pi's native `edit` over that same volume. Its gated checkpoint 2 may add
+just-bash after the shell contract and exact Browser graph are frozen; there is
+no dedicated just-bash Worker requirement. Only a later
 non-cooperative custom or Wasm command needs its own terminable Worker.
 
 The current raw Desktop/development launcher resolves only this product's exact
@@ -383,7 +388,8 @@ immutable snapshots remain later independent work.
 
 The exact DTO, close/cancel ordering, query/ack backpressure, generation rules,
 path and capacity ceilings, and Browser acceptance are owned by the delivered
-P3a-B0 contract in [PLAN.md](./PLAN.md). This slice does not activate OPFS,
+P3a-B0/P3c-B0 contracts and delivered P3a-B1 checkpoint-1 contract in
+[PLAN.md](./PLAN.md). Checkpoint 1 activates only Pi `edit`; it does not activate
 just-bash, Wasm, Git, Python, extension discovery, a Linux/sandbox claim,
 Desktop execution, or any SillyMaker engine API.
 
@@ -735,10 +741,10 @@ evidence for the preview only.
 | ------------------ | --------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------- |
 | Creator home       | Express intent and create/open a Program                  | Local request + B0a/B0b setup + P2 recent reopen                  | Attachments and general Provider UI                         |
 | Creator supervisor | Chat supervises one Program without becoming Program data | Durable run receipts + fresh Pi session over a durable checkpoint | Program-anchored artifacts and immutable snapshots          |
-| Program workspace  | One focused mutable workspace produces reviewed snapshots | OPFS checkpoint + recovery/scale + canonical portable ZIP         | Later edit/bash, import, and immutable snapshots            |
+| Program workspace  | One focused mutable workspace produces reviewed snapshots | OPFS checkpoint + native edit + recovery/scale + portable ZIP     | Bash, import, and immutable snapshots                       |
 | Human review       | Accept/reject an exact proposed revision                  | Durable exact decision + cross-page stale rejection               | Workspace-generation/snapshot publication                   |
-| Activity           | Explain what happened and what needs review               | Durable run events + session-local last-write receipt             | Complete tool/action history and approvals                  |
-| Capabilities       | Required Agent and UI abilities are understandable        | Proposal tool + native read/write + truthful workspace status     | Edit/bash and adapter-specific capability composition       |
+| Activity           | Explain what happened and what needs review               | Durable run events + session-local last-mutation receipt          | Complete tool/action history and approvals                  |
+| Capabilities       | Required Agent and UI abilities are understandable        | Proposal tool + native read/write/edit                            | Bash and capability composition                             |
 | Generated UI       | Agent-authored UI remains legible and controllable        | Not implemented                                                   | OpenUI mapped to closed SillyMaker components               |
 | Source             | Inspect and refine the Program where useful               | Presentation-only recipe preview                                  | Persistent draft checkpoint first; accepted snapshots later |
 | Translation        | A usable translation Program                              | Intent classification only                                        | Complete workflow, data, QA, export                         |
@@ -756,8 +762,10 @@ or one generated Program is not evidence that the complete product exists.
 ## Explicit defers
 
 The closed P3c-B0 slice in [PLAN.md](./PLAN.md) governs the delivered Browser
-OPFS checkpoint and portable download. Pi `edit`/`bash`, execution-provider
-research, immutable snapshots, and import remain inactive. The plan also
+OPFS checkpoint and portable download plus the delivered P3a-B1 checkpoint-1
+native Pi `edit` over that same volume. Pi `bash`/just-bash,
+execution-provider research, immutable snapshots, and import remain inactive;
+there is currently no active SillyOS implementation slice. The plan also
 governs later real Pi integration, product persistence, Pi-native workspace
 tool binding, provider research, Pi capability composition,
 OpenUI-to-SillyMaker mapping, and the first complete product families. Runtime

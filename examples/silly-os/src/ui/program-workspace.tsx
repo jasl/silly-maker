@@ -202,6 +202,7 @@ function ProgramWorkspaceReadyV1({
       data-execution-workspace-session={executionWorkspace?.descriptor?.workspaceSessionId}
       data-execution-workspace-generation={executionWorkspace?.descriptor?.generation}
       data-execution-workspace-receipt={executionWorkspace?.lastReceipt?.sequence}
+      data-execution-workspace-tool={executionWorkspace?.lastReceipt?.tool}
       data-execution-workspace-effect={executionWorkspace?.lastReceipt?.effect}
       data-execution-workspace-path={executionWorkspace?.lastReceipt?.changedPaths[0]}
       data-workspace-export-state={workspaceExport?.phase}

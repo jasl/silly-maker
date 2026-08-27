@@ -101,7 +101,7 @@ export interface BrowserWorkspaceHostMutationReceiptWireV1 {
   readonly sessionId: string;
   readonly runId: string;
   readonly toolCallId: string;
-  readonly tool: "write";
+  readonly tool: "write" | "edit";
   readonly expectedGeneration: number;
   readonly baseGeneration: number;
   readonly resultingGeneration: number;
@@ -203,6 +203,14 @@ export interface BrowserWorkspaceHostExecutionBindingWireV1 {
   readonly expectedGeneration: number;
 }
 
+export interface BrowserWorkspaceHostFileInfoWireV1 {
+  readonly name: string;
+  readonly path: string;
+  readonly kind: "file" | "directory";
+  readonly size: number;
+  readonly mtimeMs: number;
+}
+
 export type BrowserWorkspaceHostEnvironmentRequestRecordV1 =
   | {
     readonly method: "begin_run";
@@ -214,14 +222,17 @@ export type BrowserWorkspaceHostEnvironmentRequestRecordV1 =
   | {
     readonly method: "begin_tool";
     readonly toolCallId: string;
-    readonly tool: "read" | "write";
+    readonly tool: "read" | "write" | "edit";
   }
   | {
     readonly method: "end_tool";
     readonly toolCallId: string;
     readonly outcome: "succeeded" | "failed" | "cancelled";
   }
-  | { readonly method: "absolute_path" | "exists" | "canonical_path"; readonly path: string }
+  | {
+    readonly method: "absolute_path" | "exists" | "canonical_path" | "file_info";
+    readonly path: string;
+  }
   | { readonly method: "read_binary_file"; readonly path: string }
   | { readonly method: "write_file"; readonly path: string; readonly bytes: Uint8Array }
   | { readonly method: "query_receipts" }
@@ -240,6 +251,7 @@ export type BrowserWorkspaceHostEnvironmentSuccessV1 =
   | { readonly method: "end_tool"; readonly generation: number }
   | { readonly method: "absolute_path" | "canonical_path"; readonly value: string }
   | { readonly method: "exists"; readonly value: boolean }
+  | { readonly method: "file_info"; readonly value: BrowserWorkspaceHostFileInfoWireV1 }
   | { readonly method: "read_binary_file"; readonly value: Uint8Array }
   | { readonly method: "write_file"; readonly value: null }
   | {
@@ -584,7 +596,7 @@ export function admitBrowserWorkspaceHostEnvironmentRequestV1(
   if (
     beginTool !== null && beginTool.method === "begin_tool" &&
     identifierV1(beginTool.toolCallId) &&
-    (beginTool.tool === "read" || beginTool.tool === "write")
+    (beginTool.tool === "read" || beginTool.tool === "write" || beginTool.tool === "edit")
   ) {
     return {
       revision: 1,
@@ -618,7 +630,8 @@ export function admitBrowserWorkspaceHostEnvironmentRequestV1(
   if (
     pathCall !== null && typeof pathCall.path === "string" &&
     (pathCall.method === "absolute_path" || pathCall.method === "exists" ||
-      pathCall.method === "canonical_path" || pathCall.method === "read_binary_file")
+      pathCall.method === "canonical_path" || pathCall.method === "file_info" ||
+      pathCall.method === "read_binary_file")
   ) {
     return {
       revision: 1,
@@ -681,7 +694,8 @@ function admitReceiptV1(value: unknown): BrowserWorkspaceHostMutationReceiptWire
     record === null || record.revision !== 1 || !positiveSafeIntegerV1(record.sequence) ||
     !identifierV1(record.programId) || !identifierV1(record.workspaceId) ||
     !identifierV1(record.workspaceSessionId) || !identifierV1(record.sessionId) ||
-    !identifierV1(record.runId) || !identifierV1(record.toolCallId) || record.tool !== "write" ||
+    !identifierV1(record.runId) || !identifierV1(record.toolCallId) ||
+    (record.tool !== "write" && record.tool !== "edit") ||
     !positiveSafeIntegerV1(record.expectedGeneration) ||
     !positiveSafeIntegerV1(record.baseGeneration) ||
     !positiveSafeIntegerV1(record.resultingGeneration) ||
@@ -1073,6 +1087,36 @@ export function admitBrowserWorkspaceHostEnvironmentOutboundMessageV1(
         requestId: success.requestId,
         ok: true,
         response: { method: "exists", value: path.value },
+      };
+    }
+    if (path !== null && path.method === "file_info") {
+      const fileInfo = exactRecordV1(path.value, ["name", "path", "kind", "size", "mtimeMs"]);
+      const expectedName = typeof fileInfo?.path === "string"
+        ? fileInfo.path === "/workspace"
+          ? "workspace"
+          : fileInfo.path.slice(fileInfo.path.lastIndexOf("/") + 1)
+        : null;
+      if (
+        fileInfo === null || fileInfo.name !== expectedName ||
+        typeof fileInfo.path !== "string" ||
+        (fileInfo.path !== "/workspace" &&
+          (!fileInfo.path.startsWith("/workspace/") ||
+            !isBrowserWorkspaceHostNormalizedPathV1(
+              fileInfo.path.slice("/workspace/".length),
+            ))) ||
+        (fileInfo.kind !== "file" && fileInfo.kind !== "directory") ||
+        !nonNegativeSafeIntegerV1(fileInfo.size) ||
+        !nonNegativeSafeIntegerV1(fileInfo.mtimeMs)
+      ) return null;
+      return {
+        revision: 1,
+        kind: "environment_response",
+        requestId: success.requestId,
+        ok: true,
+        response: {
+          method: "file_info",
+          value: fileInfo as unknown as BrowserWorkspaceHostFileInfoWireV1,
+        },
       };
     }
     if (

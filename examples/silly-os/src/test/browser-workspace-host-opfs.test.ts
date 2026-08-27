@@ -44,6 +44,7 @@ class FakeFaultsV1 {
 
 class FakeFileV1 {
   bytes = new Uint8Array();
+  readonly lastModified = 1_700_000_000_000;
 
   constructor(readonly name: string, private readonly faults: FakeFaultsV1) {}
 
@@ -53,7 +54,7 @@ class FakeFileV1 {
       name: this.name,
       isSameEntry: async () => false,
       getFile: async () => {
-        const file = new File([this.bytes], this.name);
+        const file = new File([this.bytes], this.name, { lastModified: this.lastModified });
         const slice = file.slice.bind(file);
         Object.defineProperty(file, "slice", {
           configurable: true,
@@ -431,7 +432,16 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     await putBytesV1(workspace, "large.bin", new Uint8Array(16 * 1024 * 1024));
 
     const lease = await bootstrap.openVolume(anchor);
-    await expect(lease.stat("assets")).resolves.toEqual({ kind: "directory", size: 0 });
+    await expect(lease.stat("")).resolves.toEqual({
+      kind: "directory",
+      size: 0,
+      mtimeMs: 0,
+    });
+    await expect(lease.stat("assets")).resolves.toEqual({
+      kind: "directory",
+      size: 0,
+      mtimeMs: 0,
+    });
     const initialHead = await lease.readHead();
     const changed = await lease.replaceFile(
       replaceInputV1(initialHead, new TextEncoder().encode("new"), "checkpoint.2"),
@@ -454,6 +464,7 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     await expect(reopened.stat("large.bin")).resolves.toEqual({
       kind: "file",
       size: 16 * 1024 * 1024,
+      mtimeMs: 1_700_000_000_000,
     });
     await reopened.close();
     await bootstrap.dispose();
@@ -508,7 +519,11 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       browserWorkspaceHostIoChunkMaximumBytesV1,
       137,
     ]);
-    await expect(lease.stat("large.bin")).resolves.toEqual({ kind: "file", size: byteLength });
+    await expect(lease.stat("large.bin")).resolves.toEqual({
+      kind: "file",
+      size: byteLength,
+      mtimeMs: 1_700_000_000_000,
+    });
     await expect(lease.readFileRange({
       path: "large.bin",
       offset: browserWorkspaceHostIoChunkMaximumBytesV1 - 23,
@@ -1366,6 +1381,7 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       await expect(pendingFault.lease.stat("program.md")).resolves.toEqual({
         kind: "missing",
         size: 0,
+        mtimeMs: 0,
       });
       await pendingFault.lease.close();
       await pendingFault.bootstrap.dispose();
@@ -1425,6 +1441,7 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     await expect(persistentQuota.lease.stat("program.md")).resolves.toEqual({
       kind: "file",
       size: 3,
+      mtimeMs: 1_700_000_000_000,
     });
     await expect(readWorkspaceFileV1(persistentQuota.lease, "program.md")).resolves.toEqual(
       new TextEncoder().encode("old"),
@@ -1565,7 +1582,11 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
       }),
     ).rejects.toMatchObject({ code: "request_failed" });
     expect(await nested.lease.readHead()).toEqual(nestedBase);
-    await expect(nested.lease.stat("nested")).resolves.toEqual({ kind: "missing", size: 0 });
+    await expect(nested.lease.stat("nested")).resolves.toEqual({
+      kind: "missing",
+      size: 0,
+      mtimeMs: 0,
+    });
     await nested.lease.close();
     await nested.bootstrap.dispose();
   });

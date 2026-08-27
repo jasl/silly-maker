@@ -17,6 +17,7 @@ import {
   type BrowserWorkspaceHostVolumeLeasePortV1,
 } from "../workspace/browser-workspace-host-runtime.ts";
 import {
+  browserWorkspaceHostReceiptMaximumV1,
   browserWorkspaceNativePiToolPayloadMaximumBytesV1,
   type BrowserWorkspaceHostControlOutboundMessageV1,
   type BrowserWorkspaceHostEnvironmentOutboundMessageV1,
@@ -55,6 +56,7 @@ interface FakeVolumeV1 {
 
 const programIdV1 = "program.preview.1";
 const workspaceIdV1 = "workspace.preview.1";
+const fileMtimeMsV1 = 1_700_000_000_000;
 
 function bytesEqualV1(left: Uint8Array, right: Uint8Array): boolean {
   return left.byteLength === right.byteLength && left.every((byte, index) => byte === right[index]);
@@ -74,10 +76,13 @@ class FakeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
 
   async stat(path: string): Promise<BrowserWorkspaceHostFileMetadataV1> {
     this.volume.statCalls += 1;
+    if (path.length === 0) return { kind: "directory", size: 0, mtimeMs: 0 };
     const file = this.volume.files.get(path);
-    if (file !== undefined) return { kind: "file", size: file.byteLength };
+    if (file !== undefined) return { kind: "file", size: file.byteLength, mtimeMs: fileMtimeMsV1 };
     const size = this.volume.metadataSizes.get(path);
-    return size === undefined ? { kind: "missing", size: 0 } : { kind: "file", size };
+    return size === undefined
+      ? { kind: "missing", size: 0, mtimeMs: 0 }
+      : { kind: "file", size, mtimeMs: fileMtimeMsV1 };
   }
 
   async readFileRange(input: {
@@ -568,6 +573,215 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     await runtime.dispose();
   });
 
+  it("projects addressed file metadata and one edit replacement into an exact edit receipt", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      postControlMessage: (message) => controls.push(message),
+      createWorkspaceSessionId: () => "workspace-session.edit",
+      createCheckpointId: () => "checkpoint.edit.2",
+    });
+    await runtime.receiveControl(controlRequestV1(1, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    const anchor = (lastV1(controls) as {
+      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+    }).response.anchor;
+    const volume = bootstrap.volumes.get(anchor.volumeId);
+    if (volume === undefined) throw new Error("expected fake volume");
+    const before = new TextEncoder().encode("before\n");
+    const after = new TextEncoder().encode("after\n");
+    volume.files.set("program.md", before);
+
+    await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
+    const port = new FakeMessagePortV1();
+    await runtime.receiveControl(
+      controlRequestV1(3, {
+        method: "attach_environment",
+        workspaceSessionId: "workspace-session.edit",
+      }),
+      [port],
+    );
+    port.send(environmentRequestV1(4, {
+      method: "begin_run",
+      binding: {
+        revision: 1,
+        programId: programIdV1,
+        workspaceId: workspaceIdV1,
+        workspaceSessionId: "workspace-session.edit",
+        expectedGeneration: 1,
+      },
+      sessionId: "pi-session.edit",
+      runId: "pi-run.edit",
+    }));
+    port.send(environmentRequestV1(5, {
+      method: "begin_tool",
+      toolCallId: "pi-tool.edit.1",
+      tool: "edit",
+    }));
+    await flushEnvironmentV1();
+
+    port.send(environmentRequestV1(6, { method: "file_info", path: "program.md" }));
+    await flushEnvironmentV1();
+    expect(lastV1(port.messages)).toMatchObject({
+      requestId: 6,
+      ok: true,
+      response: {
+        method: "file_info",
+        value: {
+          name: "program.md",
+          path: "/workspace/program.md",
+          kind: "file",
+          size: before.byteLength,
+          mtimeMs: fileMtimeMsV1,
+        },
+      },
+    });
+    port.send(environmentRequestV1(7, { method: "read_binary_file", path: "program.md" }));
+    await flushEnvironmentV1();
+    expect(lastV1(port.messages)).toMatchObject({
+      requestId: 7,
+      ok: true,
+      response: { method: "read_binary_file", value: before },
+    });
+    port.send(environmentRequestV1(8, {
+      method: "write_file",
+      path: "program.md",
+      bytes: after,
+    }));
+    await flushEnvironmentV1();
+    expect(lastV1(port.messages)).toMatchObject({
+      requestId: 8,
+      ok: true,
+      response: { method: "write_file", value: null },
+    });
+    port.send(environmentRequestV1(9, {
+      method: "end_tool",
+      toolCallId: "pi-tool.edit.1",
+      outcome: "succeeded",
+    }));
+    await flushEnvironmentV1();
+
+    expect(port.messages.findLast((message) => message.kind === "workspace_receipt")).toMatchObject(
+      {
+        receipt: {
+          toolCallId: "pi-tool.edit.1",
+          tool: "edit",
+          baseGeneration: 1,
+          resultingGeneration: 2,
+          outcome: "succeeded",
+          effect: "changed",
+          changedPaths: ["program.md"],
+          diagnosticCode: null,
+        },
+      },
+    );
+    expect(volume.files.get("program.md")).toEqual(after);
+    expect(volume.sourceReadRequests).toEqual([{
+      path: "program.md",
+      offset: 0,
+      length: after.byteLength,
+      byteLength: after.byteLength,
+    }]);
+    expect(volume.head).toMatchObject({ checkpointId: "checkpoint.edit.2", generation: 2 });
+    await runtime.dispose();
+  });
+
+  it("holds edit admission behind the bounded receipt queue until an acknowledgement frees capacity", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      postControlMessage: (message) => controls.push(message),
+      createWorkspaceSessionId: () => "workspace-session.edit-backpressure",
+    });
+    await runtime.receiveControl(controlRequestV1(1, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    const anchor = (lastV1(controls) as {
+      readonly response: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+    }).response.anchor;
+    await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
+    const port = new FakeMessagePortV1();
+    await runtime.receiveControl(
+      controlRequestV1(3, {
+        method: "attach_environment",
+        workspaceSessionId: "workspace-session.edit-backpressure",
+      }),
+      [port],
+    );
+    port.send(environmentRequestV1(4, {
+      method: "begin_run",
+      binding: {
+        revision: 1,
+        programId: programIdV1,
+        workspaceId: workspaceIdV1,
+        workspaceSessionId: "workspace-session.edit-backpressure",
+        expectedGeneration: 1,
+      },
+      sessionId: "pi-session.edit-backpressure",
+      runId: "pi-run.edit-backpressure",
+    }));
+    await flushEnvironmentV1();
+
+    let requestId = 5;
+    for (let index = 0; index < browserWorkspaceHostReceiptMaximumV1; index += 1) {
+      const toolCallId = `pi-tool.edit.backpressure.${String(index + 1)}`;
+      port.send(environmentRequestV1(requestId++, {
+        method: "begin_tool",
+        toolCallId,
+        tool: "edit",
+      }));
+      await flushEnvironmentV1();
+      port.send(environmentRequestV1(requestId++, {
+        method: "end_tool",
+        toolCallId,
+        outcome: "failed",
+      }));
+      await flushEnvironmentV1();
+    }
+    expect(
+      port.messages.filter((message) => message.kind === "workspace_receipt"),
+    ).toHaveLength(browserWorkspaceHostReceiptMaximumV1);
+
+    port.send(environmentRequestV1(requestId++, {
+      method: "begin_tool",
+      toolCallId: "pi-tool.edit.queue-full",
+      tool: "edit",
+    }));
+    await flushEnvironmentV1();
+    expect(lastV1(port.messages)).toMatchObject({
+      ok: false,
+      code: "receipt_queue_full",
+    });
+
+    port.send(environmentRequestV1(requestId++, {
+      method: "acknowledge_receipts",
+      throughSequence: 1,
+    }));
+    await flushEnvironmentV1();
+    expect(lastV1(port.messages)).toMatchObject({
+      ok: true,
+      response: { method: "acknowledge_receipts", throughSequence: 1 },
+    });
+    port.send(environmentRequestV1(requestId, {
+      method: "begin_tool",
+      toolCallId: "pi-tool.edit.after-ack",
+      tool: "edit",
+    }));
+    await flushEnvironmentV1();
+    expect(lastV1(port.messages)).toMatchObject({
+      ok: true,
+      response: { method: "begin_tool", baseGeneration: 1 },
+    });
+    await runtime.dispose();
+  });
+
   it("uses fresh collision-resistant session and changed-checkpoint identities after a Host restart", async () => {
     const bootstrap = new FakeBootstrapV1();
     const firstControls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
@@ -866,7 +1080,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     await runtime.dispose();
   });
 
-  it("drains an aborted changed write and permits discard only before a candidate is opened", async () => {
+  it("drains an aborted changed edit and permits discard only before a candidate is opened", async () => {
     const bootstrap = new FakeBootstrapV1();
     const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
     const workspaceSessionIds = [
@@ -934,8 +1148,8 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     }));
     port.send(environmentRequestV1(8, {
       method: "begin_tool",
-      toolCallId: "pi-tool.write.close",
-      tool: "write",
+      toolCallId: "pi-tool.edit.close",
+      tool: "edit",
     }));
     await flushEnvironmentV1();
     let changedWriteEntered!: () => void;
@@ -958,6 +1172,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     }));
     expect(port.messages.find((message) => message.kind === "workspace_receipt")).toMatchObject({
       receipt: {
+        tool: "edit",
         outcome: "cancelled",
         effect: "changed",
         resultingGeneration: 2,

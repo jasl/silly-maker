@@ -56,6 +56,7 @@ const workspaceIdV1 = "workspace.preview.1";
 const workspaceSessionIdV1 = "sillyos.workspace.session.1";
 const roundTripArtifactRelativePathV1 = ".sillyos/p3a-round-trip.txt";
 const roundTripArtifactPathV1 = `${workspaceRootV1}/${roundTripArtifactRelativePathV1}`;
+const roundTripEditMarkerV1 = "SillyOS native edit checkpoint pending:\n";
 
 const submitV1: CreatorAgentSubmitV1 = {
   revision: 1,
@@ -147,11 +148,11 @@ class TestBrowserWorkspaceVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLea
   }
 
   async stat(path: string): Promise<BrowserWorkspaceHostFileMetadataV1> {
-    if (path.length === 0) return { kind: "directory", size: 0 };
+    if (path.length === 0) return { kind: "directory", size: 0, mtimeMs: 0 };
     const bytes = this.state.files.get(path);
     return bytes === undefined
-      ? { kind: "missing", size: 0 }
-      : { kind: "file", size: bytes.length };
+      ? { kind: "missing", size: 0, mtimeMs: 0 }
+      : { kind: "file", size: bytes.length, mtimeMs: 1_725_235_200_000 };
   }
 
   async readFileRange(input: {
@@ -995,6 +996,31 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     expect(`${workspaceRootV1}/${receiptMessage.receipt.changedPaths[0]}`).toBe(
       roundTripArtifactPathV1,
     );
+    const editReceiptMessage = messages.find((message) =>
+      message.kind === "workspace_receipt" && message.receipt.tool === "edit" &&
+      message.receipt.runId === "sillyos.run.1"
+    );
+    if (editReceiptMessage?.kind !== "workspace_receipt") {
+      throw new Error("expected the native Pi edit Workspace mutation receipt");
+    }
+    expect(editReceiptMessage.receipt).toMatchObject({
+      revision: 1,
+      sequence: 2,
+      programId: submitV1.programId,
+      workspaceId: workspaceIdV1,
+      workspaceSessionId: workspaceSessionIdV1,
+      sessionId: "sillyos.session.1",
+      runId: "sillyos.run.1",
+      toolCallId: "sillyos-edit-1",
+      tool: "edit",
+      expectedGeneration: 1,
+      baseGeneration: 2,
+      resultingGeneration: 3,
+      outcome: "succeeded",
+      effect: "changed",
+      changedPaths: [roundTripArtifactRelativePathV1],
+      diagnosticCode: null,
+    });
 
     const records = messages.flatMap((message) =>
       message.kind === "rpc_record" ? [message.record as Readonly<Record<string, unknown>>] : []
@@ -1022,7 +1048,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
           text: persistenceProbe,
         }),
       },
-    }, { ...execution, expectedGeneration: 2 }));
+    }, { ...execution, expectedGeneration: 3 }));
     await waitUntilV1(() =>
       messages.some((message) =>
         message.kind === "rpc_record" &&
@@ -1030,20 +1056,32 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
       )
     );
-    expect(messages.filter((message) => message.kind === "workspace_receipt")).toHaveLength(1);
+    expect(messages.filter((message) => message.kind === "workspace_receipt")).toHaveLength(2);
     const roundTripByteLength = new TextEncoder().encode(submitV1.text).byteLength;
-    expect(workspaceAuthority.sourceReadRequests).toEqual([{
-      path: roundTripArtifactRelativePathV1,
-      offset: 0,
-      length: roundTripByteLength,
-      byteLength: roundTripByteLength,
-    }]);
+    const markedRoundTripByteLength =
+      new TextEncoder().encode(roundTripEditMarkerV1 + submitV1.text)
+        .byteLength;
+    expect(workspaceAuthority.sourceReadRequests).toEqual([
+      {
+        path: roundTripArtifactRelativePathV1,
+        offset: 0,
+        length: markedRoundTripByteLength,
+        byteLength: markedRoundTripByteLength,
+      },
+      {
+        path: roundTripArtifactRelativePathV1,
+        offset: 0,
+        length: roundTripByteLength,
+        byteLength: roundTripByteLength,
+      },
+    ]);
     expect(
       workspaceAuthority.sourceReadRequests.every(({ length }) =>
         length <= browserWorkspaceNativePiToolPayloadMaximumBytesV1
       ),
     ).toBe(true);
     expect(workspaceAuthority.readFileRangeRequests).toEqual([
+      { path: roundTripArtifactRelativePathV1, offset: 0, length: markedRoundTripByteLength },
       { path: roundTripArtifactRelativePathV1, offset: 0, length: roundTripByteLength },
       { path: roundTripArtifactRelativePathV1, offset: 0, length: roundTripByteLength },
     ]);
@@ -1820,22 +1858,39 @@ describe("SillyOS Browser Pi transport and product port", () => {
     const workspace = port.getSnapshot().workspace;
     expect(workspace).toMatchObject({
       phase: "open",
-      descriptor: { generation: 2 },
-      receipts: [{
-        revision: 1,
-        sequence: 1,
-        programId: run.programId,
-        workspaceId: workspaceIdV1,
-        agentRunId: run.agentRunId,
-        tool: "write",
-        expectedGeneration: 1,
-        baseGeneration: 1,
-        resultingGeneration: 2,
-        outcome: "succeeded",
-        effect: "changed",
-        changedPaths: [".sillyos/p3a-round-trip.txt"],
-        diagnosticCode: null,
-      }],
+      descriptor: { generation: 3 },
+      receipts: [
+        {
+          revision: 1,
+          sequence: 1,
+          programId: run.programId,
+          workspaceId: workspaceIdV1,
+          agentRunId: run.agentRunId,
+          tool: "write",
+          expectedGeneration: 1,
+          baseGeneration: 1,
+          resultingGeneration: 2,
+          outcome: "succeeded",
+          effect: "changed",
+          changedPaths: [".sillyos/p3a-round-trip.txt"],
+          diagnosticCode: null,
+        },
+        {
+          revision: 1,
+          sequence: 2,
+          programId: run.programId,
+          workspaceId: workspaceIdV1,
+          agentRunId: run.agentRunId,
+          tool: "edit",
+          expectedGeneration: 1,
+          baseGeneration: 2,
+          resultingGeneration: 3,
+          outcome: "succeeded",
+          effect: "changed",
+          changedPaths: [".sillyos/p3a-round-trip.txt"],
+          diagnosticCode: null,
+        },
+      ],
     });
     expect(`${workspaceRootV1}/${workspace.receipts[0]?.changedPaths[0]}`).toBe(
       roundTripArtifactPathV1,
@@ -1845,9 +1900,9 @@ describe("SillyOS Browser Pi transport and product port", () => {
     expect(serializedWorkspace).not.toContain("sillyos.run.1");
     expect(serializedWorkspace).not.toContain('"sessionId"');
     expect(serializedWorkspace).not.toContain('"runId"');
-    await expect(port.acknowledgeWorkspaceReceipts(1)).resolves.toEqual({
+    await expect(port.acknowledgeWorkspaceReceipts(2)).resolves.toEqual({
       kind: "acknowledged",
-      throughSequence: 1,
+      throughSequence: 2,
     });
     expect(port.getSnapshot().workspace.receipts).toEqual([]);
 

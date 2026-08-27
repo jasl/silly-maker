@@ -170,6 +170,67 @@ describe("SillyOS Browser Workspace Host protocol", () => {
     expect(isBrowserWorkspaceHostNormalizedPathV1("artifacts\\program.md")).toBe(false);
   });
 
+  it("admits native Pi edit scopes and exact addressed file metadata", () => {
+    expect(
+      admitBrowserWorkspaceHostEnvironmentRequestV1(
+        environmentRequestV1({
+          method: "begin_tool",
+          toolCallId: "pi-tool.edit.1",
+          tool: "edit",
+        }),
+      ),
+    ).toMatchObject({ record: { method: "begin_tool", tool: "edit" } });
+    expect(
+      admitBrowserWorkspaceHostEnvironmentRequestV1(
+        environmentRequestV1({ method: "file_info", path: "artifacts/program.md" }),
+      ),
+    ).toMatchObject({ record: { method: "file_info", path: "artifacts/program.md" } });
+
+    const response = {
+      revision: 1,
+      kind: "environment_response",
+      requestId: 2,
+      ok: true,
+      response: {
+        method: "file_info",
+        value: {
+          name: "program.md",
+          path: "/workspace/artifacts/program.md",
+          kind: "file",
+          size: 71,
+          mtimeMs: 1_700_000_000_000,
+        },
+      },
+    } as const;
+    expect(admitBrowserWorkspaceHostEnvironmentOutboundMessageV1(response)).toEqual(response);
+    expect(
+      admitBrowserWorkspaceHostEnvironmentOutboundMessageV1({
+        ...response,
+        response: {
+          ...response.response,
+          value: { ...response.response.value, mtimeMs: -1 },
+        },
+      }),
+    ).toBeNull();
+    expect(
+      admitBrowserWorkspaceHostEnvironmentOutboundMessageV1({
+        ...response,
+        response: {
+          ...response.response,
+          value: { ...response.response.value, provider: "forbidden" },
+        },
+      }),
+    ).toBeNull();
+
+    expect(
+      admitBrowserWorkspaceHostEnvironmentOutboundMessageV1({
+        revision: 1,
+        kind: "workspace_receipt",
+        receipt: receiptV1({ tool: "edit", toolCallId: "pi-tool.edit.1" }),
+      }),
+    ).toMatchObject({ receipt: { tool: "edit" } });
+  });
+
   it("keeps checkpoint identity distinct from execution descriptor generation in snapshots", () => {
     const admitted = admitBrowserWorkspaceHostControlOutboundMessageV1({
       revision: 1,

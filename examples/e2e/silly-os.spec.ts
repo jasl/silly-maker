@@ -725,7 +725,8 @@ test("the query-gated Browser Pi Worker cold-reopens its Program workspace witho
     ),
   ).toBeVisible();
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
-  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "2");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "3");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-tool", "edit");
   await expect(workspace).toHaveAttribute("data-execution-workspace-effect", "changed");
   await expect(workspace).toHaveAttribute(
     "data-execution-workspace-path",
@@ -738,7 +739,8 @@ test("the query-gated Browser Pi Worker cold-reopens its Program workspace witho
   await page.getByRole("tab", { name: "Capabilities" }).click();
   await expect(page.getByText("Pi 0.84.3 test wiring", { exact: true })).toBeVisible();
   await expect(page.getByText("Program workspace checkpoint", { exact: true })).toBeVisible();
-  await expect(page.getByText("Open · generation 2", { exact: true })).toBeVisible();
+  await expect(page.getByText("Open · generation 3", { exact: true })).toBeVisible();
+  await expect(page.getByText("Last edit: succeeded / changed", { exact: false })).toBeVisible();
 
   await page.getByRole("button", { name: "Creator home" }).click();
   await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
@@ -769,7 +771,7 @@ test("the query-gated Browser Pi Worker cold-reopens its Program workspace witho
   });
   const reopenedWorkspace = page.getByRole("main", { name: "SillyOS program workspace" });
   await expect(reopenedWorkspace).toHaveAttribute("data-execution-workspace-state", "open");
-  await expect(reopenedWorkspace).toHaveAttribute("data-execution-workspace-generation", "2");
+  await expect(reopenedWorkspace).toHaveAttribute("data-execution-workspace-generation", "3");
   await expect(reopenedWorkspace).not.toHaveAttribute(
     "data-execution-workspace-session",
     firstWorkspaceSessionId,
@@ -789,7 +791,7 @@ test("the query-gated Browser Pi Worker cold-reopens its Program workspace witho
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByText(persistenceProbe, { exact: true })).toBeVisible();
   await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v3");
-  await expect(reopenedWorkspace).toHaveAttribute("data-execution-workspace-generation", "2");
+  await expect(reopenedWorkspace).toHaveAttribute("data-execution-workspace-generation", "3");
   await expect(reopenedWorkspace).not.toHaveAttribute("data-execution-workspace-receipt", /.+/u);
 
   await page.getByRole("tab", { name: "Source" }).click();
@@ -915,7 +917,7 @@ test("the query-gated Browser Pi Worker cold-reopens its Program workspace witho
     status: "Preview",
   });
   await expect(replacedWorkspace).toHaveAttribute("data-execution-workspace-state", "open");
-  await expect(replacedWorkspace).toHaveAttribute("data-execution-workspace-generation", "2");
+  await expect(replacedWorkspace).toHaveAttribute("data-execution-workspace-generation", "3");
   await expect(replacedWorkspace).not.toHaveAttribute(
     "data-execution-workspace-session",
     reopenedWorkspaceSessionId,
@@ -999,7 +1001,8 @@ test("two pages fence first ownership and cold-recover the exact checkpoint afte
   await owner.page.getByRole("button", { name: "Send" }).click();
   await expect(owner.page.locator('[data-pi-agent-run-status="running"]')).toHaveCount(0);
   await expect(owner.page.getByText(durableText, { exact: true })).toBeVisible();
-  await expect(owner.workspace).toHaveAttribute("data-execution-workspace-generation", "2");
+  await expect(owner.workspace).toHaveAttribute("data-execution-workspace-generation", "3");
+  await expect(owner.workspace).toHaveAttribute("data-execution-workspace-tool", "edit");
   await expect(owner.workspace).toHaveAttribute("data-execution-workspace-effect", "changed");
   const ownerSessionId = await readWorkspaceSessionIdV1(owner.workspace);
 
@@ -1028,7 +1031,7 @@ test("two pages fence first ownership and cold-recover the exact checkpoint afte
     status: "Preview",
   });
   await expect(recovered).toHaveAttribute("data-execution-workspace-state", "open");
-  await expect(recovered).toHaveAttribute("data-execution-workspace-generation", "2");
+  await expect(recovered).toHaveAttribute("data-execution-workspace-generation", "3");
   await expect(recovered).not.toHaveAttribute("data-execution-workspace-session", ownerSessionId);
   await expect(recovered).not.toHaveAttribute("data-execution-workspace-receipt", /.+/u);
 
@@ -1037,7 +1040,7 @@ test("two pages fence first ownership and cold-recover the exact checkpoint afte
   await contender.page.getByRole("button", { name: "Send" }).click();
   await expect(contender.page.getByText(verify, { exact: true })).toBeVisible();
   await expect(contender.page.locator('[data-proposal-status="pending"]')).toContainText("v3");
-  await expect(recovered).toHaveAttribute("data-execution-workspace-generation", "2");
+  await expect(recovered).toHaveAttribute("data-execution-workspace-generation", "3");
   await expect(recovered).not.toHaveAttribute("data-execution-workspace-receipt", /.+/u);
 });
 
@@ -1090,7 +1093,7 @@ test("an explicit persistence request reports the browser outcome without disabl
   const importantWork = "Create important workspace bytes before asking for persistence.";
   await page.getByRole("textbox", { name: "Ask for a change…" }).fill(importantWork);
   await page.getByRole("button", { name: "Send" }).click();
-  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "2");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "3");
 
   await page.getByRole("tab", { name: "Capabilities" }).click();
   const storage = page.locator("[data-browser-storage-status]");
@@ -1131,7 +1134,7 @@ test("an explicit persistence request reports the browser outcome without disabl
     await expect(page.getByRole("button", { name: "Request persistent storage" })).toHaveCount(0);
   }
   await expect(workspace).toHaveAttribute("data-execution-workspace-state", "open");
-  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "2");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "3");
 });
 
 test(
@@ -1333,6 +1336,7 @@ test("a cancelled Browser Pi run remains terminal across reload without advancin
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.locator('[data-pi-agent-run-status="running"]')).toBeVisible();
   await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "2");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-tool", "write");
   await expect(workspace).toHaveAttribute("data-execution-workspace-effect", "changed");
   await page.getByRole("button", { name: "Cancel run" }).click();
 

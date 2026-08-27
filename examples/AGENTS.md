@@ -6,7 +6,7 @@ denominator explicitly:
 
 | Package                | Showcases                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | License           |
 | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| `silly-os/`            | GUI-only Creator Preview: Creator Home opens a Program Workspace where the one built-in Agent Creator produces an exact proposal/review flow. The opt-in `?agent=pi-test` B0a route proves deterministic pinned-Pi Worker wiring; `?agent=pi-openai` B0b uses the same typed path with one fixed, qualified live OpenAI profile. P2 adds a Worker-owned Browser Program catalog, exact durable revisions/terminal receipts, and reload/reopen. P3c-B0 checkpoints 1–3 replace P3a's disposable byte owner with an OPFS Workspace Host and exact continuation manifest, prove recovery/contention/storage policy at a `21,897,216`-byte cold-reopened corpus in Chromium and persistent WebKit, and download that exact workspace as a canonical bounded ZIP without sending volume bytes to React. P3c-B0 is closed; no Mod activation, general Provider surface, import, snapshot publication, Wasm/shell, or Desktop companion is active. Design contract in `silly-os/DESIGN.md`. | Code and text MIT |
+| `silly-os/`            | GUI-only Creator Preview: Creator Home opens a Program Workspace where the one built-in Agent Creator produces an exact proposal/review flow. The opt-in `?agent=pi-test` B0a route proves deterministic pinned-Pi Worker wiring; `?agent=pi-openai` B0b uses the same typed path with one fixed, qualified live OpenAI profile. P2 adds a Worker-owned Browser Program catalog, exact durable revisions/terminal receipts, and reload/reopen. P3c-B0 checkpoints 1–3 replace P3a's disposable byte owner with an OPFS Workspace Host and exact continuation manifest, prove recovery/contention/storage policy at a `21,897,216`-byte cold-reopened corpus in Chromium and persistent WebKit, and download that exact workspace as a canonical bounded ZIP without sending volume bytes to React. P3a-B1 checkpoint 1 binds fixed Pi's native `edit` to that same volume. No Mod activation, general Provider surface, import, snapshot publication, Wasm/shell, or Desktop companion is active. Design contract in `silly-os/DESIGN.md`. | Code and text MIT |
 | `vn-last-sound-check/` | **One Last Sound Check**, the maintained flagship product. Its independent package, 110-unique / 82-per-route story, two Authoring Scenes, engine-maintained default VN Player, final media/audio, Back/Forward, responsive/accessibility matrix, system menu and Save surfaces, persistent settings/live locale, layered recovery, Agent/participant authoring handoff, and independent product/engine reviews are complete. Browser forced close restores the last durable autosave rather than promising a last-moment async flush. On 2026-08-29 the owner removed representative real current-low-end qualification from this product's completion gates because no suitable device was available; it was not run or passed, and the product makes no corresponding low-end claim. M4 closed on that reduced evidence scope and M5 completed the flagship cutover. | MIT               |
 
 SillyOS is a GUI-only Creator product lane. Preserve its current public
@@ -23,7 +23,15 @@ P2 persists product-owned Program facts plus the small continuation anchor
 through its own repository Worker; it never stores credentials, raw Pi/provider
 records, Pi session data, workspace bytes, or a fictional capability result.
 
-P3c-B0 is closed. Checkpoints 1 and 2 delivered the exact
+P3c-B0 is closed. P3a-B1 checkpoint 1 delivered fixed Pi 0.84.3's native
+`edit` over the same OPFS volume and passed independent review on 2026-08-27.
+It preserves Pi's schema/algorithm/result authority, the existing sequential
+tool scope, the `256 KiB` whole-file tool ceiling, durable byte/generation
+truth, and session-local mutation receipts. No SillyOS slice is currently
+active. Do not add just-bash or a shell; those remain gated checkpoint-2 work
+until a separate exact contract is accepted.
+
+P3c-B0 checkpoints 1 and 2 delivered the exact
 Host-internal durable head, origin-wide bootstrap/volume leases, bounded
 Program/repository continuation manifest, cold reopen, recovery/contender
 semantics, explicit Browser storage policy, and the automated dual-engine
@@ -51,10 +59,10 @@ OS save. The dual-engine gate cancels and downloads the exact `1,001`-file /
 No import/restore reader exists. The continuation manifest is not Chat or a
 Pi-session substitute; continuous file generations stay in OPFS rather than
 producing a per-write IndexedDB saga. Agent Forget releases transient
-Pi/execution state and the lease but preserves the durable volume. P3a-B1 and
-P3b remain inactive; do not activate `edit`, shell/bash, Wasm, Git,
-Provider/BYO Sandbox, immutable snapshot publication, import, Desktop
-persistence, or a new engine API without a later accepted slice.
+Pi/execution state and the lease but preserves the durable volume. P3b remains
+inactive; do not activate shell/bash, just-bash, Wasm, Git, Provider/BYO
+Sandbox, immutable snapshot publication, import, Desktop persistence, or a new
+engine API without a later accepted slice.
 
 ## Reference application product contract
 

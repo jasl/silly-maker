@@ -6,6 +6,8 @@ import {
   createBrowserWorkspaceEnvironmentClientV1,
   type BrowserWorkspaceEnvironmentMessagePortV1,
 } from "../agent/browser-workspace-environment-client.ts";
+import { createEditTool } from "../agent/pi-workspace-runtime-bridge.js";
+import { bindPiWorkspaceEditToolV1 } from "../agent/pi-workspace-tool-binder.ts";
 import type {
   BrowserWorkspaceHostEnvironmentRequestV1,
   BrowserWorkspaceHostEnvironmentSuccessV1,
@@ -20,8 +22,10 @@ class LoopbackWorkspaceEnvironmentPortV1 implements BrowserWorkspaceEnvironmentM
   private generation = 1;
   private sequence = 0;
   private activeRun: { readonly sessionId: string; readonly runId: string } | null = null;
-  private activeTool: { readonly toolCallId: string; readonly tool: "read" | "write" } | null =
-    null;
+  private activeTool: {
+    readonly toolCallId: string;
+    readonly tool: "read" | "write" | "edit";
+  } | null = null;
   private writeChanged = false;
 
   postMessage(message: unknown): void {
@@ -84,6 +88,20 @@ class LoopbackWorkspaceEnvironmentPortV1 implements BrowserWorkspaceEnvironmentM
       this.success(request, { method: "exists", value: this.files.has(record.path) });
       return;
     }
+    if (record.method === "file_info") {
+      const name = record.path.slice(record.path.lastIndexOf("/") + 1);
+      this.success(request, {
+        method: "file_info",
+        value: {
+          name,
+          path: record.path,
+          kind: "file",
+          size: this.files.get(record.path)?.byteLength ?? 0,
+          mtimeMs: 1_725_235_200_000,
+        },
+      });
+      return;
+    }
     if (record.method === "write_file") {
       const previous = this.files.get(record.path);
       this.writeChanged = previous === undefined ||
@@ -103,7 +121,7 @@ class LoopbackWorkspaceEnvironmentPortV1 implements BrowserWorkspaceEnvironmentM
     if (record.method === "end_tool") {
       const run = this.activeRun;
       const tool = this.activeTool;
-      if (run !== null && tool?.tool === "write") {
+      if (run !== null && (tool?.tool === "write" || tool?.tool === "edit")) {
         const baseGeneration = this.generation;
         if (this.writeChanged) this.generation += 1;
         this.sequence += 1;
@@ -119,14 +137,18 @@ class LoopbackWorkspaceEnvironmentPortV1 implements BrowserWorkspaceEnvironmentM
             sessionId: run.sessionId,
             runId: run.runId,
             toolCallId: tool.toolCallId,
-            tool: "write",
+            tool: tool.tool,
             expectedGeneration: 1,
             baseGeneration,
             resultingGeneration: this.generation,
             outcome: record.outcome,
             effect: this.writeChanged ? "changed" : "none",
             changedPaths: this.writeChanged ? ["artifact.txt"] : [],
-            diagnosticCode: null,
+            diagnosticCode: record.outcome === "succeeded"
+              ? null
+              : record.outcome === "cancelled"
+              ? "cancelled"
+              : "execution_failed",
           },
         });
       }
@@ -195,7 +217,11 @@ describe("SillyOS Browser Workspace environment client", () => {
     await begun.run.executeWriteCall({
       toolCallId: "pi.tool.write.2",
       invoke: async (signal) => {
-        const written = await begun.run.env.writeFile("/workspace/artifact.txt", "second", signal);
+        const written = await begun.run.env.writeFile(
+          "/workspace/artifact.txt",
+          "\ufefffirst\r\nsecond\r\n",
+          signal,
+        );
         if (!written.ok) throw written.error;
       },
     });
@@ -203,6 +229,76 @@ describe("SillyOS Browser Workspace environment client", () => {
     expect(records).toEqual([1, 2]);
     expect(client.getDescriptor().generation).toBe(3);
     expect(client.queryMutationRecords()).toMatchObject([{ sequence: 2, effect: "changed" }]);
+
+    const edit = bindPiWorkspaceEditToolV1(createEditTool(), begun.run);
+    const edited = await edit.execute("pi.tool.edit.1", {
+      path: "artifact.txt",
+      edits: [{ oldText: "second", newText: "third" }],
+    });
+    expect(edited).toMatchObject({
+      content: [{ type: "text", text: "Successfully replaced 1 block(s) in artifact.txt." }],
+      details: { firstChangedLine: 2 },
+    });
+    expect(records).toEqual([1, 2, 3]);
+    expect(client.getDescriptor().generation).toBe(4);
+    expect(client.queryMutationRecords()).toMatchObject([
+      { sequence: 2, tool: "write", effect: "changed" },
+      { sequence: 3, tool: "edit", effect: "changed" },
+    ]);
+
+    await begun.run.executeReadCall({
+      toolCallId: "pi.tool.read.after-edit.1",
+      invoke: async (signal) => {
+        await expect(begun.run.env.fileInfo("/workspace/artifact.txt", signal)).resolves.toEqual({
+          ok: true,
+          value: {
+            name: "artifact.txt",
+            path: "/workspace/artifact.txt",
+            kind: "file",
+            size: 17,
+            mtimeMs: 1_725_235_200_000,
+          },
+        });
+        await expect(begun.run.env.readTextFile("/workspace/artifact.txt", signal)).resolves
+          .toEqual(
+            { ok: true, value: "\ufefffirst\r\nthird\r\n" },
+          );
+      },
+    });
+
+    await expect(edit.execute("pi.tool.edit.no-change.1", {
+      path: "artifact.txt",
+      edits: [{ oldText: "third", newText: "third" }],
+    })).rejects.toThrow("No changes made to artifact.txt");
+    expect(client.getDescriptor().generation).toBe(4);
+    expect(client.queryMutationRecords().at(-1)).toMatchObject({
+      sequence: 4,
+      tool: "edit",
+      outcome: "failed",
+      effect: "none",
+      resultingGeneration: 4,
+      diagnosticCode: "execution_failed",
+    });
+
+    await begun.run.executeWriteCall({
+      toolCallId: "pi.tool.write.invalid-utf8.1",
+      invoke: async (signal) => {
+        const written = await begun.run.env.writeFile(
+          "/workspace/artifact.txt",
+          new Uint8Array([0xff]),
+          signal,
+        );
+        if (!written.ok) throw written.error;
+      },
+    });
+    await begun.run.executeReadCall({
+      toolCallId: "pi.tool.read.invalid-utf8.1",
+      invoke: async (signal) => {
+        const read = await begun.run.env.readTextFile("/workspace/artifact.txt", signal);
+        expect(read.ok).toBe(false);
+        if (!read.ok) expect(read.error.code).toBe("invalid");
+      },
+    });
     await begun.run.abortAndDrain();
     client.dispose();
   });

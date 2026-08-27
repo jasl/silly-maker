@@ -4,6 +4,7 @@
 // product typecheck from provider SDK declarations that are irrelevant to the
 // Browser workspace adapter.
 export {
+  createEditTool,
   createReadTool,
   createWriteTool,
   err,

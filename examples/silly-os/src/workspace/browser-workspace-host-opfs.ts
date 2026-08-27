@@ -1033,19 +1033,21 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
 
   async stat(path: string): Promise<BrowserWorkspaceHostFileMetadataV1> {
     this.assertOpen();
-    if (path.length === 0) return { kind: "directory", size: 0 };
+    if (path.length === 0) return { kind: "directory", size: 0, mtimeMs: 0 };
     try {
       const resolved = await resolveParentV1(this.workspace, path, false);
       const fileHandle = await fileHandleIfPresentV1(resolved.parent, resolved.name);
       if (fileHandle !== null) {
         const file = await fileHandle.getFile();
-        return { kind: "file", size: file.size };
+        return { kind: "file", size: file.size, mtimeMs: file.lastModified };
       }
       const directory = await directoryHandleIfPresentV1(resolved.parent, resolved.name);
-      return directory === null ? { kind: "missing", size: 0 } : { kind: "directory", size: 0 };
+      return directory === null
+        ? { kind: "missing", size: 0, mtimeMs: 0 }
+        : { kind: "directory", size: 0, mtimeMs: 0 };
     } catch (error) {
       if (error instanceof DOMException && error.name === "NotFoundError") {
-        return { kind: "missing", size: 0 };
+        return { kind: "missing", size: 0, mtimeMs: 0 };
       }
       throw opfsErrorV1(error, "Workspace metadata lookup failed");
     }
