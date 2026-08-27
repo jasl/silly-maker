@@ -94,11 +94,25 @@ async function qualifyBrowserV1(
   target: string,
   apiKey: string,
 ): Promise<Readonly<Record<string, unknown>>> {
-  const browser = await browserType.launch({ headless: true });
+  const profileDirectory = browserType === webkit
+    ? await Deno.makeTempDir({ prefix: "sillyos-webkit-qualification-" })
+    : null;
+  let closeRuntimeV1: (() => Promise<void>) | null = null;
   let phase = "open";
   try {
     try {
-      const page = await browser.newPage();
+      let page: Page;
+      if (profileDirectory === null) {
+        const browser = await browserType.launch({ headless: true });
+        closeRuntimeV1 = () => browser.close();
+        page = await browser.newPage();
+      } else {
+        const context = await browserType.launchPersistentContext(profileDirectory, {
+          headless: true,
+        });
+        closeRuntimeV1 = () => context.close();
+        page = context.pages()[0] ?? await context.newPage();
+      }
       let providerRequestCount = 0;
       const providerStatuses: number[] = [];
       page.on("request", (request) => {
@@ -193,7 +207,13 @@ async function qualifyBrowserV1(
       throw new QualificationFailureV1(`playwright_${phase}_failed`);
     }
   } finally {
-    await browser.close();
+    try {
+      if (closeRuntimeV1 !== null) await closeRuntimeV1();
+    } finally {
+      if (profileDirectory !== null) {
+        await Deno.remove(profileDirectory, { recursive: true });
+      }
+    }
   }
 }
 

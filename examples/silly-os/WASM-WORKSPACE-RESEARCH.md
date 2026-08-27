@@ -17,7 +17,7 @@ together as an independently reviewed internal cutover on 2026-08-28.
 Checkpoint 3 then closed P3c-B1 with exact accepted snapshot presentation and
 retained-package evidence in Chromium and persistent-profile WebKit. The
 committed baseline was deployed and smoke-verified from the public Cloudflare
-origin on 2026-08-28. No
+origin at `https://silly-os.jasl9187.workers.dev` on 2026-08-28. No
 broader shell/process provider or BYO Sandbox is selected or implemented. The
 owning product sequence is [PLAN.md](./PLAN.md).
 

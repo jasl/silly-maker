@@ -28,10 +28,13 @@ divergence, winner-held stale rejection, cold reopen, and exact retained-package
 evidence in Chromium and persistent-profile WebKit. Both engines verified the
 existing `1,001`-file / `21,897,216`-byte corpus inside a `22,065,863`-byte
 immutable ZIP, so P3c-B1 closed on 2026-08-28. The committed cutover
-`87de75cbfc990b5d2738b26c24a0864474a10c98` was deployed that day as Cloudflare
-version `a99ade98-e333-49a7-a92f-cd46e6e8e074`; the public origin returned
-HTTP 200 and completed a fresh Creator Home -> durable Program workspace smoke
-without page, console, or request errors. P1-D remains owner-paused, while P3b,
+was rebuilt from the name-only deployment commit
+`60bbb4f559a001e59a4e470e30a7f4808d440ce3` and deployed that day to
+`https://silly-os.jasl9187.workers.dev` as Cloudflare version
+`919cb0a4-d510-452a-b73d-79070ec8e35e`. The public origin returned HTTP 200,
+completed a fresh Creator Home -> durable Program workspace smoke without page,
+console, or request errors, and passed the fixed OpenAI qualification in both
+Chromium and persistent-profile WebKit. P1-D remains owner-paused, while P3b,
 import, and later slices remain inactive; no SillyOS implementation slice is
 automatically active after B1.
 The raw launcher is not the typed product RPC; the live Browser route is a
@@ -2201,9 +2204,10 @@ pins that recovery. C2a adds no Repository row, Controller call, UI, or Browser
 product claim by itself. C2b and C2c subsequently closed as one internal cutover
 on 2026-08-28 after focused and independent review. Checkpoint 3 then closed
 P3c-B1 with identity/head/divergence presentation and real cross-page/dual-browser
-product acceptance. The complete cutover was deployed only from commit
-`87de75cbfc990b5d2738b26c24a0864474a10c98` as Cloudflare version
-`a99ade98-e333-49a7-a92f-cd46e6e8e074`; no later feature is implied.
+product acceptance. The complete cutover was rebuilt from the name-only
+deployment commit `60bbb4f559a001e59a4e470e30a7f4808d440ce3` and deployed to
+`https://silly-os.jasl9187.workers.dev` as Cloudflare version
+`919cb0a4-d510-452a-b73d-79070ec8e35e`; no later feature is implied.
 P3c-B1 adds no archive import/restore reader, artifact admission, sync/share,
 background execution, provider selector, custom endpoint, broader shell or
 process provider, Wasm, Git implementation, Python, QuickJS, BYO Sandbox,

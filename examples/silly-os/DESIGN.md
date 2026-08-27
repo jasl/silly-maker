@@ -20,10 +20,12 @@ cut over together and passed independent review on 2026-08-28. Checkpoint 3
 then delivered the accepted/reviewed/mutable head presentation, truthful live
 divergence, winner-held stale rejection, cold reopen, and exact retained ZIP
 evidence in Chromium and persistent-profile WebKit. P3c-B1 therefore closed on
-2026-08-28. Commit `87de75cbfc990b5d2738b26c24a0864474a10c98` was deployed
-that day as Cloudflare version `a99ade98-e333-49a7-a92f-cd46e6e8e074`; a fresh
-public-origin Creator Home -> durable Program workspace smoke returned HTTP 200
-without page, console, or request errors. Broad execution-provider
+2026-08-28. The name-only deployment commit
+`60bbb4f559a001e59a4e470e30a7f4808d440ce3` rebuilt the same product at
+`https://silly-os.jasl9187.workers.dev` as Cloudflare version
+`919cb0a4-d510-452a-b73d-79070ec8e35e`; a fresh public-origin Creator Home ->
+durable Program workspace smoke and the Chromium/persistent-WebKit fixed OpenAI
+qualification passed. Broad execution-provider
 research, import, and later workspace slices remain inactive. The
 former "SillyOS 98" desktop
 experiment has been retired as a product direction. It remains useful only as

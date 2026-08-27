@@ -145,15 +145,17 @@ OpenAI key，再创建 Program 并提交 follow-up。加载完成只表示 Worke
 Worker。这个显式路线只支持当前固定模型，不读取开发机 `.env`。
 
 当前已资格化的 Cloudflare 部署是
-[silly-maker-silly-os.jasl9187.workers.dev](https://silly-maker-silly-os.jasl9187.workers.dev/)。
-P3c-B1 checkpoint 3 的提交
-`87de75cbfc990b5d2738b26c24a0864474a10c98` 已于 2026-08-28 发布为 Cloudflare
-版本 `a99ade98-e333-49a7-a92f-cd46e6e8e074`；全新浏览器上下文从公网完成了 Creator
-Home 到持久 Program workspace 的冒烟检查，HTTP、页面、console 和资源请求均无错误。
+[silly-os.jasl9187.workers.dev](https://silly-os.jasl9187.workers.dev/)。
+仅改 Worker 名称的提交 `60bbb4f559a001e59a4e470e30a7f4808d440ce3` 已于
+2026-08-28 将 P3c-B1 checkpoint 3 的同一产品构建发布为 Cloudflare 版本
+`919cb0a4-d510-452a-b73d-79070ec8e35e`；全新浏览器上下文从公网完成了 Creator Home
+到持久 Program workspace 的冒烟检查，HTTP、页面、console 和资源请求均无错误，固定
+OpenAI 资格检查也在 Chromium 与持久 profile WebKit 中通过。
 它只托管静态产品；OpenAI key 和模型请求从 Agent Worker 直接发送给 OpenAI，不经过
 SillyOS 或 Cloudflare relay。
 
-开发资格检查会从本目录的 `.env` 读取 `OPENAI_API_KEY`，依次启动 Chromium/WebKit，
+开发资格检查会从本目录的 `.env` 读取 `OPENAI_API_KEY`，依次启动普通 Chromium context
+与运行后删除的一次性持久 WebKit profile，
 证明真实请求后的取消不会推进 v1、下一次运行形成精确 v2、测试的持久化投影不含 key，
 然后执行 Forget。它不读取或打印 Provider 请求头、请求体或 key。先在另一个终端以
 `--port 4175 --strictPort` 启动 Vite，再运行：
