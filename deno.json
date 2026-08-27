@@ -12,6 +12,7 @@
     "./e2e",
     "./template",
     "./examples/bookshop",
+    "./examples/vn-reference-tour",
     "./examples/silly-os",
     "./website"
   ],

@@ -1,0 +1,15 @@
+{
+  "format": "sillymaker.text-content-pack",
+  "version": 2,
+  "packId": "text-pack.vn-reference-tour.opening",
+  "locale": "en",
+  "entries": [
+    { "textId": "text.vn-reference-tour.speaker.mei", "text": "Mei" },
+    {
+      "textId": "text.vn-reference-tour.line.greeting",
+      "text": "The rain has stopped, and the courtyard stones still shine with water."
+    },
+    { "textId": "text.vn-reference-tour.choice.prompt", "text": "What will you do next?" },
+    { "textId": "text.vn-reference-tour.choice.look", "text": "See what's moving under the eaves" }
+  ]
+}

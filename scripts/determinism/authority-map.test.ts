@@ -531,12 +531,16 @@ describe("authoritative determinism authority map", () => {
 
     expect(
       map.applications
-        .filter(({ directory }) => ["template", "examples/bookshop"].includes(directory))
+        .filter(({ directory }) =>
+          ["template", "examples/bookshop", "examples/vn-reference-tour"].includes(directory)
+        )
         .every(({ dependencySource }) => dependencySource === "explicit_dependency_seed"),
     ).toBe(true);
     expect(
       map.applications
-        .filter(({ directory }) => !["template", "examples/bookshop"].includes(directory))
+        .filter(({ directory }) =>
+          !["template", "examples/bookshop", "examples/vn-reference-tour"].includes(directory)
+        )
         .every(({ dependencySource }) => dependencySource === "managed_build_identity"),
     ).toBe(true);
     expect(map.saveProjectors).toEqual([]);

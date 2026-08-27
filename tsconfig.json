@@ -14,6 +14,9 @@
       "path": "./examples/bookshop"
     },
     {
+      "path": "./examples/vn-reference-tour"
+    },
+    {
       "path": "./examples/silly-os"
     }
   ]

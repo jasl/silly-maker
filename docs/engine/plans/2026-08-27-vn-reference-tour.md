@@ -1,7 +1,7 @@
 # VN Reference Tour 实施计划
 
-状态：**2026-08-27 经所有者接受，当前唯一活动 Reference Product；M0–M5 均未开始，
-仓库尚无该产品实现。**
+状态：**2026-08-27 经所有者接受，当前唯一活动 Reference Product；M0 已交付，M1 下一步且尚未开始。当前
+scaffold 不是可玩纵切或产品完成证据。**
 
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 是唯一跨计划排序入口。本计划同时拥有
 产品分母、实现顺序、证据门槛与旗舰提升条件；Bookshop 的后续教学角色不由本计划预裁。它不是 broad engine
@@ -26,7 +26,7 @@ VN Reference Tour 是一个原创、独立、内聚、可发布的小型 Visual 
 
 第一版完整分母固定为：
 
-- 一段约 12–15 分钟、40–60 条可见对白/旁白/选项文案的完整原创短篇；
+- 一段任一路线首次游玩约 10–14 分钟、共 59 条唯一可见对白/旁白/选项文案（任一路线 44 条）的完整原创短篇；
 - 两名有姓名的角色与一个 narrator；每名角色至少两种、至多三种有剧情意义的 appearance；
 - 两个 Authoring Scene、一个具有真实后果的二选一、两条均有专属内容的路线与两个完整结局；
 - 一个 cue-bound 角色入场 Motion、一个背景 crossfade、一个环境 ambient Motion、一个 frame-based blink、
@@ -36,8 +36,8 @@ VN Reference Tour 是一个原创、独立、内聚、可发布的小型 Visual 
 - typewriter/reveal-first、auto、skip-read、History、voice replay 与 Player rollback；
 - autosave、`resumeFromAutosave`、quick/manual Save、load、import/export，以及 mid-line、mid-choice、mid-hold
   的恢复证据；
-- locale-addressable `zh-CN` / `en` text packs 与显式 fallback；opening 与 ending 至少分成两个按剧情需求准备
-  的 pack，不把全部剧情 copy 留在 initial JavaScript；
+- locale-addressable `zh-CN` / `en` text packs 与显式 fallback；shared、archive route 与 present route 分成
+  三个按剧情需求准备的 pack，不把全部剧情 copy 留在 initial JavaScript；
 - wide/narrow 响应式构图、鼠标/触控/键盘、200% zoom/reflow、reduced motion、无障碍焦点与默认静音测试；
 - Browser 独立 build/publish 与当前 Deno Desktop static preview。Desktop HMR、durability 与 production
   packaging promotion 仍由各自条件车道决定。
@@ -84,13 +84,13 @@ examples/vn-reference-tour/
   README.md                         # 运行、发布、作者地图与证据入口
   DESIGN.md                         # 完整分母、路线/结局覆盖表、平台与预算
   assets/
-    content/                        # opening/ending 的 zh-CN/en text packs
+    content/                        # shared/archive/present 的 zh-CN/en text packs
     images/                         # 原创或兼容许可视觉素材
     audio/                          # BGM/ambient/SFX/voice
   src/
     story/narrative.ts              # 一个纯数据 interaction doc；按剧情段落分区
-    scenes/meeting/                 # Authoring Scene、motions 与 runtime accessor
-    scenes/aftermath/               # Authoring Scene、motions 与 runtime accessor
+    scenes/control-room/            # Authoring Scene、motions 与 runtime accessor
+    scenes/rooftop-antenna/         # Authoring Scene、motions 与 runtime accessor
     content/text-content.ts         # compact locale/pack manifest
     content/presentation.ts         # resident UI copy、Stage/transition catalog
     content/audio.ts                # audio manifest 与 intent/effect mapping
@@ -118,18 +118,30 @@ README 必须保留“想改什么 → 唯一 owner 文件”的小型地图。A
 
 ### M0 — 合同、独立项目与负能力删除
 
+状态：**2026-08-27 已交付。**
+
 - 在 `examples/vn-reference-tour` 从实现开始时 tracked Template 建立独立 package；拥有自己的 config、metadata、
   assets、tests、README/DESIGN、build 与 license notices；
 - 在 DESIGN 冻结 §1 数量、两条完整 route、两个 ending、semantic coverage table、支持的平台/Input/
   accessibility、当前低端预算和明确排除项；
-- 删除 starter coins/inventory/HUD action、reference-only outer UI 与其他不属于产品的 owner；不得留下零值模块
-  或 disabled placeholder；
+- 删除 starter coins/inventory/HUD action、reference-only outer UI 与其他未选择的 starter domain；只允许保留
+  证明 Narrative/Stage/Authoring/text 接线所需的临时 scaffold，且必须显式标为非产品内容并在 M1 原子替换；
+  不得留下零值模块或 disabled placeholder；
 - 建立最小 headless Story/application 空壳与 public-import-boundary，证明项目只使用 supported package exports；
 - 本阶段不声称 VN 可玩，不修改引擎，不删除 Bookshop，也不重新引入已经终止的 Cat Cafe。
 
+关闭记录：仓库从当时 tracked Template 建立了独立 `examples/vn-reference-tour` workspace package，冻结
+《最后一次试音》的 59-entry / 2-route / 2-ending 产品分母、作者 authority、预算、平台与非目标，并注册
+application/config/typecheck/project command/asset/determinism/public-import 检查。M0 保留 Narrative + Stage、
+Authoring Scene/Inspector/Flow 与 locale-addressable content 的推荐外壳，删除 inventory/coins、HUD action、
+reference-only outer UI、hold-when 和只保护这些未选择路径的测试；没有修改引擎、保留兼容 alias 或复制其他
+example。focused tests、`app check`、临时 `scaffold` simulation、Browser product build、asset/determinism checks
+与 repository check 通过。临时 Template 故事/Scene/media 仅证明接线，M1 必须用完整产品 author data 原子替换，
+不得把它计入 semantic coverage。
+
 ### M1 — 完整剧本、场景与作者数据
 
-- 写完并注册全部 40–60 条文案、二选一、两条 route 与两个 ending；先用 compatible placeholder media 也必须
+- 写完并注册全部 59 条文案、二选一、两条 route 与两个 ending；先用 compatible placeholder media 也必须
   保持完整内容 breadth，不以单 route 关闭；
 - 建立两个 Authoring Scene、角色 appearance、scene cue、Motion/ambient/frame 与 transition bindings；
 - 完成 narrative graph lint/prediction、两条 named simulation 与全部 source/reference diagnostics；

@@ -27,6 +27,7 @@ describe("project commands against the real repository config", () => {
       "e2e",
       "template",
       "example-bookshop",
+      "example-vn-reference-tour",
     ]);
 
     for (const applicationId of listStoryApplicationIdsV1(validatedProjectV1)) {

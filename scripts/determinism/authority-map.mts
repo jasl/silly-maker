@@ -111,6 +111,18 @@ const applicationPoliciesV1 = [
       "examples/bookshop/src/game/simulation-definition.ts",
     ],
   },
+  {
+    applicationId: "example-vn-reference-tour",
+    callbackOwnerEntry: "examples/vn-reference-tour/src/game/simulation-definition.ts",
+    presentationEntry: "examples/vn-reference-tour/src/content/presentation.ts",
+    coreDefinition: {
+      module: "examples/vn-reference-tour/src/application/core-definition.ts",
+      exportName: "vnReferenceTourCoreApplicationDefinitionV1",
+    },
+    dependencySeedEntries: [
+      "examples/vn-reference-tour/src/game/simulation-definition.ts",
+    ],
+  },
 ] satisfies readonly ApplicationAuthorityPolicyV1[];
 
 const baseAuthorityPoliciesV1 = [

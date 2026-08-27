@@ -1,0 +1,18 @@
+{
+  "format": "sillymaker.motion",
+  "version": 1,
+  "motionId": "motion.vn-reference-tour.mei-entrance",
+  "label": "小梅登场：从下方走入",
+  "durationMs": 300,
+  "delayMs": 0,
+  "tracks": [
+    {
+      "channel": "offsetY",
+      "keyframes": [
+        { "atPermille": 0, "value": 120, "easing": "ease_in_out" },
+        { "atPermille": 1000, "value": 0 }
+      ]
+    }
+  ],
+  "authoring": { "status": "generated" }
+}

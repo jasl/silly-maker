@@ -1,0 +1,44 @@
+{
+  "name": "@sillymaker/story-example-vn-reference-tour",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Product WIP for One Last Sound Check; VN Reference Tour M0 is complete.",
+  "exports": {
+    ".": "./src/story.ts"
+  },
+  "imports": {
+    "#sillymaker/scene/opening": "./src/scenes/opening/authoring-source.ts"
+  },
+  "scripts": {
+    "dev": "deno run -A npm:vite",
+    "build": "deno task build:web",
+    "build:web": "deno run -A npm:vite build",
+    "build:desktop": "deno run -A ./tools/app.mts desktop .",
+    "deploy:cf": "deno task build && deno run -A npm:wrangler@4.123.0 deploy",
+    "preview": "deno run -A npm:vite preview",
+    "clean": "rm -rf dist-web dist-desktop",
+    "app": "deno run -A ./tools/app.mts",
+    "format": "deno fmt",
+    "format:check": "deno fmt --check",
+    "test": "deno run -A npm:vitest run src"
+  },
+  "dependencies": {
+    "@sillymaker/base": "workspace:*",
+    "@sillymaker/ui": "workspace:*",
+    "@sillymaker/web": "workspace:*",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@sillymaker/studio": "workspace:*",
+    "@sillymaker/tooling": "workspace:*",
+    "@types/node": "26.2.0",
+    "@types/react": "19.2.18",
+    "vite": "8.2.1",
+    "vitest": "4.1.10",
+    "wrangler": "4.123.0"
+  }
+}

@@ -2,7 +2,7 @@
 
 状态：当前实现能力清单；随公开导出和实际用户流程维护。
 
-本页回答“引擎现在能做什么”。维护中的参考应用：Engine Lab（`e2e`，引擎一致性验证）、起点模板（`template`，scene-first 的最小可玩起点——开箱即玩，开场场景由 Authoring Scene 编译为 runtime plan；当前 Inspector 可直接打开并有限编辑该 Authoring Scene，TypeScript/低层 Scene 保留为 Advanced 路径），以及 `examples/bookshop` 和 GUI-only `examples/silly-os`。Electronic Pet 在未完成时停止，Cat Cafe 已退役；新的 VN Reference Tour 是已接受但尚未实现的下一个完整产品参考。首个 PoC 应用已随 V1 场景系统移除（备份分支 `archive/poc-v1-stage-2026-07`）。
+本页回答“引擎现在能做什么”。维护中的参考应用：Engine Lab（`e2e`，引擎一致性验证）、起点模板（`template`，scene-first 的最小可玩起点——开箱即玩，开场场景由 Authoring Scene 编译为 runtime plan；当前 Inspector 可直接打开并有限编辑该 Authoring Scene，TypeScript/低层 Scene 保留为 Advanced 路径），以及 `examples/bookshop` 和 GUI-only `examples/silly-os`。Electronic Pet 在未完成时停止，Cat Cafe 已退役；新的 VN Reference Tour 已交付 M0 独立 WIP package、冻结分母、supported-export 应用外壳与 starter 负能力删除，完整剧本、两个 Authoring Scene 与 named route simulations 仍从 M1 开始。它尚不是可玩产品参考或旗舰。首个 PoC 应用已随 V1 场景系统移除（备份分支 `archive/poc-v1-stage-2026-07`）。
 
 截至 2026-08-13，默认 web/core PF0–PF7 已完成 stabilization：maintained Save corpus、
 四 runtime determinism、Engine Lab prebuilt、两款 Story 的 recovery browser flow 与当前 Story

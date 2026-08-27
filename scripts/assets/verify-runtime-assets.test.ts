@@ -47,6 +47,7 @@ describe("closed runtime asset verification", () => {
       "story.e2e.engine-lab",
       "story.template.starter",
       "story.example.bookshop",
+      "story.example.vn-reference-tour",
     ]);
   });
 
@@ -90,29 +91,42 @@ describe("closed runtime asset verification", () => {
     expect(verified).toEqual(["story.test.1", "story.test.2"]);
   });
 
-  it("verifies live manifest-owned Template runtime assets", async () => {
-    // e2e/bookshop stay code-native.
+  it("verifies live manifest-owned application runtime assets", async () => {
+    const applicationDirectories: string[] = [];
     const reads: string[] = [];
     const root = resolve(import.meta.dirname, "../..");
     await expect(
       verifyRuntimeAssetsV1(root, {
-        environmentFor: (appDirectory: string) =>
-          Object.freeze({
+        environmentFor: (appDirectory: string) => {
+          applicationDirectories.push(appDirectory);
+          return Object.freeze({
             async readFile(path: string) {
               const absolute = resolve(root, appDirectory, path);
               reads.push(absolute);
               return await readFile(absolute);
             },
-          }),
+          });
+        },
       }),
     ).resolves.toEqual([
       "story.e2e.engine-lab",
       "story.template.starter",
       "story.example.bookshop",
+      "story.example.vn-reference-tour",
+    ]);
+    expect(applicationDirectories).toEqual([
+      "e2e",
+      "template",
+      "examples/bookshop",
+      "examples/vn-reference-tour",
     ]);
     expect(reads.length).toBeGreaterThan(0);
     expect(reads.some((path) => path.includes(`template${sep}assets${sep}content`))).toBe(true);
-    expect(reads.every((path) => path.includes(`template${sep}assets${sep}content`))).toBe(true);
+    expect(
+      reads.some((path) =>
+        path.includes(`examples${sep}vn-reference-tour${sep}assets${sep}content`)
+      ),
+    ).toBe(true);
   }, 30_000);
 
   it("admits optional and independently edited text packs through the application root", async () => {

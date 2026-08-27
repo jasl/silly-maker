@@ -1,12 +1,14 @@
 # examples/ agent handbook
 
-This directory collects the example applications; each subdirectory is an independent,
-cohesive, complete, and publishable application package:
+This directory collects independent application packages. A completed example
+must be cohesive and publishable; an active WIP must label its incomplete
+denominator explicitly:
 
-| Package     | Showcases                                                                                                                                                                                                                                                                                                      | License           |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| `bookshop/` | Minimal complete script-authoring example. Keep it until the accepted VN Reference Tour has delivered and an owner review decides whether this narrower teaching role remains useful.                                                                                                                          | MIT               |
-| `silly-os/` | GUI-only Creator Preview: Creator Home opens a Program Workspace where the one built-in Agent Creator produces a deterministic local proposal, preview, and review flow. The current slice does not connect real Pi, a database, RPC, Mod activation, or persistence; design contract in `silly-os/DESIGN.md`. | Code and text MIT |
+| Package              | Showcases                                                                                                                                                                                                                                                                                                      | License           |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| `bookshop/`          | Minimal complete script-authoring example. Keep it until the accepted VN Reference Tour has delivered and an owner review decides whether this narrower teaching role remains useful.                                                                                                                          | MIT               |
+| `silly-os/`          | GUI-only Creator Preview: Creator Home opens a Program Workspace where the one built-in Agent Creator produces a deterministic local proposal, preview, and review flow. The current slice does not connect real Pi, a database, RPC, Mod activation, or persistence; design contract in `silly-os/DESIGN.md`. | Code and text MIT |
+| `vn-reference-tour/` | WIP candidate for the next complete VN Reference Product. M0 owns the independent package, frozen denominator, supported-export shell, and starter-domain deletion; M1's complete script, two Authoring Scenes, and named route simulations are not implemented yet.                                           | MIT               |
 
 SillyOS is a GUI-only Creator product slice. Preserve its current public
 journey—Creator Home → Program Workspace—and label the deterministic local
@@ -148,8 +150,8 @@ Before calling a new or rewritten example complete, check every item:
       integrations stayed local. This does not require continuous synchronization,
       source migration, or a scaffold CLI.
 
-Existing examples are stable reference products: fix or evolve each only
-within its own product scope. A newly accepted GUI/game reference product gets
+Completed examples are stable products: fix or evolve each only within its own
+product scope. A newly accepted GUI/game reference product gets
 a new package copied from `template/`; do not pile unrelated experiments into
 an existing example. The active VN Reference Tour is such a new package: it
 must not import or grow out of Bookshop, and it is not complete until its

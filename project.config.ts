@@ -19,6 +19,7 @@ export const sillyMakerConfigV1 = {
     "e2e",
     "template",
     "examples/bookshop",
+    "examples/vn-reference-tour",
     "examples/silly-os",
   ],
 } as const satisfies SillymakerWorkspaceConfigV1;

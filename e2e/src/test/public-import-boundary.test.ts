@@ -10,7 +10,11 @@ import {
   findForbiddenImportSpecifiersV1,
 } from "../testing/import-guard.ts";
 
-const packageSourceRootV1 = fileURLToPath(new URL("../", import.meta.url));
+const repositoryRootV1 = fileURLToPath(new URL("../../..", import.meta.url));
+const guardedSourceRootsV1 = [
+  join(repositoryRootV1, "e2e", "src"),
+  join(repositoryRootV1, "examples", "vn-reference-tour", "src"),
+] as const;
 
 async function listSourceFilesV1(root: string): Promise<readonly string[]> {
   const entries = await readdir(root, { withFileTypes: true, recursive: true });
@@ -60,8 +64,10 @@ describe("public import boundary", () => {
     ]);
   });
 
-  it("keeps every source file of this package inside the public boundary", async () => {
-    const files = await listSourceFilesV1(packageSourceRootV1);
+  it("keeps Engine Lab and VN Reference Tour source inside the public boundary", async () => {
+    const files = (
+      await Promise.all(guardedSourceRootsV1.map((root) => listSourceFilesV1(root)))
+    ).flat().toSorted();
     expect(files.length).toBeGreaterThan(0);
 
     const violations: Record<string, readonly string[]> = {};
