@@ -90,9 +90,8 @@ export interface SaveMigrationReleaseCorpusParityCaseV1 {
     | "engine-lab-state-3"
     | "engine-lab-state-4"
     | "engine-lab-state-5"
-    | "engine-lab-state-6"
-    | "cat-cafe-state-1";
-  readonly productId: "engine-lab" | "cat-cafe";
+    | "engine-lab-state-6";
+  readonly productId: "engine-lab";
   readonly source: {
     readonly stateContractRevision: number;
     readonly stateContractDigest: Digest;
@@ -148,10 +147,6 @@ const releaseFixtureUrlsV1 = Object.freeze(
     ),
     "engine-lab-state-6": new URL(
       "../../fixtures/saves/engine-lab-state-6.save.json?no-inline",
-      import.meta.url,
-    ),
-    "cat-cafe-state-1": new URL(
-      "../../../examples/cat-cafe/fixtures/saves/cat-cafe-state-1.save.json?no-inline",
       import.meta.url,
     ),
   } as const,
@@ -1212,36 +1207,6 @@ export const saveStateMigrationVectorExpectedV1: SaveStateMigrationDeterminismVe
           stateContractDigest: expectedRevision6V1.stateContractDigest,
           stateDigest: parseDigest(
             "sha256:d6e5383e9fd7e024dcce4bc87570ffac0a661e5cf880f69fe2877192fe5b8ed9",
-          ),
-        }),
-        outcome: "exact",
-        diagnostic: null,
-        migrationSteps: Object.freeze([]),
-        callbackCount: 0,
-        sourceBytesPreserved: true,
-      }),
-      Object.freeze({
-        fixtureId: "cat-cafe-state-1",
-        productId: "cat-cafe",
-        source: Object.freeze({
-          stateContractRevision: 1,
-          stateContractDigest: parseDigest(
-            "sha256:a0f26c983c47fa89b599141ae3d2b8e7653a8cd32533152d17e440bcafc8dd26",
-          ),
-          bytesDigest: parseDigest(
-            "sha256:5c5eb77ae42a964cb4a8925450e174399d2d70db761e17b865e9c03bcaa3e479",
-          ),
-          stateDigest: parseDigest(
-            "sha256:d0a093896429c55e88c447ff90116af9d0362932d23710aace06c541faec41a3",
-          ),
-        }),
-        target: Object.freeze({
-          stateContractRevision: 1,
-          stateContractDigest: parseDigest(
-            "sha256:a0f26c983c47fa89b599141ae3d2b8e7653a8cd32533152d17e440bcafc8dd26",
-          ),
-          stateDigest: parseDigest(
-            "sha256:d0a093896429c55e88c447ff90116af9d0362932d23710aace06c541faec41a3",
           ),
         }),
         outcome: "exact",

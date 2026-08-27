@@ -2,8 +2,8 @@
 // Inventory feature slice: the empty-shell gameplay module plus the
 // capability other code uses to read it. A new feature = a new
 // directory like this one — module/rules/handlers/content per slice —
-// aggregated by src/game/simulation.ts (see examples/cat-cafe for the full
-// pattern at scale).
+// aggregated by src/game/simulation.ts. Scale this pattern with cohesive
+// feature slices rather than a product-wide handler file.
 import { templateInventoryStateSchemaV1 } from "../../state.ts";
 import { commandSchemaV1, kit } from "../../kernel.ts";
 

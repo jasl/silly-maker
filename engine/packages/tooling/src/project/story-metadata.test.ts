@@ -20,18 +20,18 @@ describe("story metadata", () => {
   it("parses a full record and rejects malformed ones", () => {
     const parsed = parseStoryMetadataV1(
       {
-        name: "雨巷猫舍",
-        description: "雨夜捡到一只奶猫。",
+        name: "示例应用",
+        description: "用于验证应用元数据。",
         lang: "zh-CN",
-        author: "Jun Jiang (jasl)",
+        author: "Example Author",
         themeColor: "#221a12",
-        shareImage: "assets/cc-bg-title.webp",
-        icon: "assets/cc-icon.webp",
+        shareImage: "assets/share.webp",
+        icon: "assets/icon.webp",
       },
-      "examples/cat-cafe/metadata.json",
+      "examples/reference/metadata.json",
     );
-    expect(parsed.name).toBe("雨巷猫舍");
-    expect(parsed.shareImage).toBe("assets/cc-bg-title.webp");
+    expect(parsed.name).toBe("示例应用");
+    expect(parsed.shareImage).toBe("assets/share.webp");
 
     expect(() => parseStoryMetadataV1({ description: "x" }, "s")).toThrow(/non-empty "name"/u);
     expect(() => parseStoryMetadataV1({ name: "x" }, "s")).toThrow(/non-empty "description"/u);
@@ -69,10 +69,10 @@ describe("story metadata", () => {
   it("replaces the existing title and lang when applied to a page", () => {
     const html = applyStoryMetadataToHtmlV1(
       pageV1,
-      parseStoryMetadataV1({ name: "雨巷猫舍", description: "d", lang: "zh-Hans" }, "s"),
+      parseStoryMetadataV1({ name: "示例应用", description: "d", lang: "zh-Hans" }, "s"),
     );
     expect(html).toContain('<html lang="zh-Hans"');
-    expect(html).toContain("<title>雨巷猫舍</title>");
+    expect(html).toContain("<title>示例应用</title>");
     expect(html.match(/<title>/gu)).toHaveLength(1);
     expect(html).toContain('property="og:title"');
   });

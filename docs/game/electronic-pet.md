@@ -1,6 +1,6 @@
 # Electronic Pet Reference Product
 
-状态：**2026-08-27 经所有者接受的活动产品合同；M1–M2 已实现，M3 已开始，完整产品仍为 WIP。**
+状态：**2026-08-27 已停止；产品未完成，本文件仅保留历史设计合同与已提交证据。**
 `electronic-pet` 是工作名与预期应用 ID，最终品牌名不属于本合同。实现计划见
 [Electronic Pet Reference Product 实施计划](../engine/plans/2026-08-27-electronic-pet-reference-product.md)。
 
@@ -8,8 +8,12 @@
 外观生成与 3D 表现研究输入；其代码、素材、身份、测试和工程结构不得进入产品。参考游戏只提供公开行为与
 设计经验，产品表达、代码、素材和规则均由 SillyMaker 自有实现。
 
-在本产品完成并通过独立验收前，《雨巷猫舍》仍是当前旗舰。新产品完成接替条件后，Cat Cafe 将连同其应用、
-发布路径和明确放弃的预发布 Save floor 一次性退役，不保留兼容 alias 或半个旧产品。
+所有者已停止本产品车道。《雨巷猫舍》没有被本产品接替或退役；它后来由独立裁决终止，其 revision 1 Save、
+产品 E2E 与 live 发布责任随产品同步结束。
+M0–M2 与停止前已提交的 M3 纵向切片仍是历史证据，但没有满足 §4 的完整产品分母；其余 M3 与 M4–M5 均未
+交付且不再由本车道推进。停止时尚未提交的额外 WIP 保存在
+`codex/archive-electronic-pet-m3-wip` 分支的 `a4a3ab9a`，不属于当前 HEAD 或已交付能力。当前活动产品计划见
+[VN Reference Tour](../engine/plans/2026-08-27-vn-reference-tour.md)。以下规则与完成定义按历史合同阅读。
 
 ## 1. 产品命题
 
@@ -60,14 +64,14 @@
 
 剧情节点由已经发生的行为事实和不同会话中的关系证据推动，不由重复执行同一个按钮得到的裸数值触发。
 
-当前实现覆盖前三个阶段的早期闭环，并在 M3 增加了第一条真实的建立信任旅程：准备水、猫砂、藏身处与食物
+停止时已提交的实现覆盖前三个阶段的早期闭环，并在 M3 增加了第一条真实的建立信任旅程：准备水、猫砂、藏身处与食物
 后，小猫先观察，再通过安静陪伴或低频时间结算主动靠近并发出闻手邀请；形成日常要求跨会话、多样证据。
 形成日常后，后续主动靠近会发出头部接触邀请；只有跨 visit 响应当前邀请、完成共同游戏并发现偏好，才会进入
-`trusting`。当前 M3 又补上一条真实但仍不代表完整内容宽度的后期路径：首次梳理后，玩家在两个不同 visit 的
+`trusting`。停止前 M3 又补上一条真实但仍不代表完整内容宽度的后期路径：首次梳理后，玩家在两个不同 visit 的
 露腹行为中于 warning 前主动停手，关系才单调进入 `bonded`；成为 bonded 的同一次露腹仍然没有触摸邀请，只有
 后续新的、心情合适的露腹 occurrence 才可能发出 `belly_offer`。bonded 且心情适合共同游戏时，猫也会叼来
 场景中的小球；玩家真实拖动、投掷并收到归还后，才记录首次叼球事实与本 visit 的共同游戏证据。成为家人阶段
-的其余行为和反馈仍属于 M3 及之后，不能由这些纵向旅程代替。
+的其余行为和反馈没有完成，也不再由本车道交付；这些纵向旅程不能代替它们。
 
 ## 3. 信赖与心情
 
@@ -235,12 +239,12 @@ renderer，不进入 State、Save 或 replay。指针进度直接投影同一个
 普通玩家界面不直接展示信赖数字、精确心情算法或“最优按钮”。Inspector 可以显示权威状态、当前求值路径、
 阻断原因、最近语义结果和资源/表现绑定，供开发和调试使用。
 
-截至当前 M3 切片，已实现的内容宽度是 10/16 个自主行为、脸/颈/背/腹部 4/8 类直接互动、背部梳理、逗猫棒与投球 2/3
+停止时已提交的 M3 切片实现了 10/16 个自主行为、脸/颈/背/腹部 4/8 类直接互动、背部梳理、逗猫棒与投球 2/3
 种玩具，以及
 `accept | tolerate | warn | refuse` 四类表现映射；Save/reopen、reset、有界离线结算与回归摘要也已接入。
 同页嵌入式 Inspector 通过产品私有只读 publisher 显示 activity/reason、pose、mood、needs 与关系摘要，
-没有 gameplay write port；独立 Inspector 没有同页 Player 时保持 detached。其余完整产品分母继续由 M3–M5
-承担。M3 的首个视觉切片已经用产品本地房间构图、环境补光、阴影和宽窄屏响应式相机替换了最早的空房验证
+没有 gameplay write port；独立 Inspector 没有同页 Player 时保持 detached。其余完整产品分母未完成且不再
+由本车道交付。M3 的首个视觉切片已经用产品本地房间构图、环境补光、阴影和宽窄屏响应式相机替换了最早的空房验证
 画面，并保持同一作者 camera/light/Object authority。第二个切片补齐了可达 `trusting`、作者数据中的梳子和
 猫背 grooming volume、mouse/touch 共用的局部轨迹与独立权威梳理命令；工具选择与原始轨迹不进入 State/Save，
 已接受结果、关系事实和有界记忆可以恢复。第三个切片增加独立的露腹姿态、腹部 authored volume、跨 visit
@@ -250,10 +254,9 @@ pointer-down 捕获 activity/invitation currentness，不在 pointer-up 借用�
 场景中的小球绑定到 `cat.mouth` socket，让 bonded 邀请通过现有 canvas/raycaster/Pointer Events owner 完成真实
 mouse/touch 拖动、投掷、追逐与归还；轨迹和动画留在 renderer，权威 State 只接收 currentness-fenced 的
 `returned | missed` 终态，并把首次归还与有界 play memory 纳入 Save。现有猫 GLB 和房间
-细节仍不是最终美术验收，音频也尚未加入。M3 将继续
-统一猫与居住空间的产品方向，并同步扩充姿态、动画和声音反馈；M4 再完成代表性
-设备上的视觉、可访问性和性能收口。交互是否可发现、目标是否可触达、反馈是否可读不属于“以后美化”，必须在
-对应玩法里即时修正。
+细节仍不是最终美术验收，音频也尚未加入。原计划由 M3 继续统一猫与居住空间的产品方向并扩充姿态、动画和
+声音反馈，再由 M4 完成代表性设备上的视觉、可访问性和性能收口；停止后这些工作均未执行。交互是否可发现、
+目标是否可触达、反馈是否可读不属于“以后美化”，这条历史产品原则仍然成立。
 
 ## 5. 工程与创作合同
 
@@ -315,7 +318,7 @@ workspace-private product companion，使内部 Three objects、bone/socket 和 
 共用原有 operation/CAS owner。M2 的同页只读 runtime publisher 补充 activity reason、mood、needs 与关系
 摘要；两条接缝都保持产品局部，不构成 public 3D/Inspector framework。
 
-当前实现继续直接使用成熟 Web 3D/React 库。不得因此建设通用 3D engine、ECS、物理抽象、万能 component
+已提交实现直接使用成熟 Web 3D/React 库。不得因此建设通用 3D engine、ECS、物理抽象、万能 component
 registry、Prefab、Blueprint VM 或最终编辑器。
 
 ## 6. 性能与产品质量
@@ -341,7 +344,10 @@ registry、Prefab、Blueprint VM 或最终编辑器。
 
 这些非目标不否定以后由真实产品证据激活的能力；它们只防止第一版在证明核心关系与作者工作流之前扩张。
 
-## 8. 完成定义
+## 8. 历史完成定义（未满足）
+
+本产品没有满足下列完成条件，因此不能称为完整、不能声称接替 Cat Cafe，也不能把未完成分母当作引擎能力
+已经得到产品验证。条件保留用于界定历史证据的上限。
 
 产品只有在以下条件全部满足后才能称为完整、接替 Cat Cafe 或作为引擎能力证据：
 

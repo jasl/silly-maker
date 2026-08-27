@@ -3,11 +3,10 @@
 This directory collects the example applications; each subdirectory is an independent,
 cohesive, complete, and publishable application package:
 
-| Package     | Showcases                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | License                             |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| `bookshop/` | Minimal complete script authoring example                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | MIT                                 |
-| `cat-cafe/` | The flagship complete game: content database, stage hit regions, turn structure, event pool, meta progression, i18n, tuning channel, runtime art pipeline (transparent character art + CSS idle/feedback animation), scene-driven audio layer (BGM/rain/SFX), Narrative runtime QoL (typewriter/auto/skip/history), player rollback (contest start and endings are barriers), save safepoints, package-owned splash + title screen, a publication-selected WholeCanvas ending + epilogue, host/cross-target desktop packaging preview (Darwin icon; file persistence not durability-promoted); design spec in `cat-cafe/DESIGN.md` | Code and text MIT; media assets CC0 |
-| `silly-os/` | GUI-only Creator Preview: Creator Home opens a Program Workspace where the one built-in Agent Creator produces a deterministic local proposal, preview, and review flow. The current slice does not connect real Pi, a database, RPC, Mod activation, or persistence; design contract in `silly-os/DESIGN.md`                                                                                                                                                                                                                                                                                                                      | Code and text MIT                   |
+| Package     | Showcases                                                                                                                                                                                                                                                                                                      | License           |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| `bookshop/` | Minimal complete script-authoring example. Keep it until the accepted VN Reference Tour has delivered and an owner review decides whether this narrower teaching role remains useful.                                                                                                                          | MIT               |
+| `silly-os/` | GUI-only Creator Preview: Creator Home opens a Program Workspace where the one built-in Agent Creator produces a deterministic local proposal, preview, and review flow. The current slice does not connect real Pi, a database, RPC, Mod activation, or persistence; design contract in `silly-os/DESIGN.md`. | Code and text MIT |
 
 SillyOS is a GUI-only Creator product slice. Preserve its current public
 journey—Creator Home → Program Workspace—and label the deterministic local
@@ -152,11 +151,13 @@ Before calling a new or rewritten example complete, check every item:
 Existing examples are stable reference products: fix or evolve each only
 within its own product scope. A newly accepted GUI/game reference product gets
 a new package copied from `template/`; do not pile unrelated experiments into
-an existing example.
+an existing example. The active VN Reference Tour is such a new package: it
+must not import or grow out of Bookshop, and it is not complete until its
+declared compact product denominator is fully delivered.
 
 ## Script/text tasks (most common)
 
-Which file to edit: dialogue and UI copy → the textId catalog in `src/content/presentation.ts`; story nodes/branches/stage directives → `src/story/narrative.ts` (`src/game/features/dialogue/script.ts` in cat-cafe); stage renderers → `*StageRenderersV1` in `src/application/composition.tsx` (or the renderers inside a feature slice); HUD/panel components and the passive Narrative renderer → `src/application/ui.tsx`; Cat Cafe's passive ending renderer → `cat-cafe/src/game/features/endings/ending-screen.tsx`; the sole public Narrative and optional WholeCanvas definitions → `application.ui().narrative` / `application.ui().wholeCanvas` in `composition.tsx` (keep PascalCase components out of that application-declaration file for Vite Fast Refresh). `core-application.ts` is the headless instance factory, not the browser binding.
+Which file to edit: dialogue control and text references → `src/story/narrative.ts`; localized narrative copy → the addressable text packs; resident UI copy → `src/content/presentation.ts`; stage renderers → `src/ui/stage-renderers.tsx`; HUD/panel components and the passive Narrative renderer → `src/application/ui.tsx`; the sole public Narrative and optional WholeCanvas definitions → `application.ui().narrative` / `application.ui().wholeCanvas` in `composition.tsx` (keep PascalCase components out of that application-declaration file for Vite Fast Refresh). `core-application.ts` is the headless instance factory, not the browser binding. Follow `template/` when a package uses a different local name for the same owner.
 
 Before editing, list the full node sequence (one occurrence number per say/choice boundary, starting at 1) so the scenario script (`src/tooling/simulation-target.ts`) and tests are written correctly on the first pass.
 
@@ -171,8 +172,7 @@ deno task app simulate <appId> --scenario <name>
 Rules in brief:
 
 - Every new say/choice needs a brand-new `definitionId` (`interaction.<story>.<name>`); never reuse one.
-- Bookshop and Cat Cafe use the composition-owned production Narrative surface; GUI-only applications do not declare that surface. Do not add a second Narrative writer or revive the retired panel/player helpers.
-- Cat Cafe is the first Story WholeCanvas consumer: semantic ending state selects its sole `catcafe.ending` primary, Continue enters the endless epilogue, and Restart installs fresh gameplay without returning to Title. Keep the renderer frame-only and dispatch those exact owner actions through the definition; never restore the retired HUD ending writer.
+- Bookshop uses the composition-owned production Narrative surface; GUI-only applications do not declare that surface. Do not add a second Narrative writer or revive the retired panel/player helpers.
 - Existing Splash/Title authoring remains the `titleScreen` declaration even though the package now renders both through its WholeCanvas authority. A GUI-only application with `storyEntry: null` allocates neither a WholeCanvas Host nor a Story definition.
 - A `stage` node's `mayShow` honestly lists every contentId it might show; a `branch`'s `choose` must land inside `successors` (tests enforce both).
 - New stage content is wired in three places: the contentId constant in narrative, the content catalog in presentation, the renderer in composition. For a scene-managed scene the narrative side is its Scene document (see the scene collaboration contract below).
@@ -181,7 +181,7 @@ Rules in brief:
 
 ## Module/state tasks
 
-cat-cafe is organized by **feature slices**: one gameplay feature per `src/game/features/<name>/` directory (`module.ts` module, `content.ts` content tables, `rules.ts` pure rules, `handlers.ts` command handlers, `index.tsx` UI), shared contracts in `src/game/kernel.ts`, and `src/game/simulation.ts`/`src/game/content.ts` doing aggregation and re-export only (outsiders still face just these two facades). A new feature = a new directory + one line at each aggregation point; a missed command kind fails to compile.
+The starter demonstrates the supported **feature-slice** shape: one gameplay feature per `src/game/features/<name>/` directory (`module.ts` module, `content.ts` content tables, `rules.ts` pure rules, `handlers.ts` command handlers, UI alongside its product owner), shared contracts in `src/game/kernel.ts`, and `src/game/simulation.ts`/`src/game/content.ts` doing aggregation and re-export only. A new feature = a new directory + one line at each aggregation point; a missed command kind fails to compile.
 
 Four wiring points: `game/state.ts` (interface + schema + initial value) → `game/features/<name>/module.ts` and `handlers.ts` (or `game/simulation.ts` in the simple packages) → `application/semantic.ts` (action catalog + blockedBy) → `game/simulation-definition.ts` (manifest entry; module ids in lexicographic order). Keep the package identity revision in `story.ts` synchronized. The revision-sync table and the diagnostics quick-reference are in `docs/engine/authoring-quickstart.md`; do not bump revisions from memory.
 
@@ -191,7 +191,15 @@ Narrative entrance/exit animations are `src/**/*.motion.json` assets bound throu
 
 ## Scene collaboration contract
 
-Cat Cafe's opening is scene-managed: `src/scenes/opening/opening.scene.json` is the single authoring authority for that scene's visual composition — entry placements/appearance/zOrder and cue→motion binding. Stage nodes reference cues (`cueMutations`/`cueMayShow`); do not re-add placement literals, `hasTag` guards, or global enter-edge motion inference for a scene-managed scene, and do not edit the same scene through both the document and low-level mutations. Keep sceneId/cueId stable across refactors (transition ids derive from cue ids); the filename stem must stay the sceneId's final segment (`app check` lints scene documents: admission, unique ids, filename↔id, cue motion references, and cross-document edge collisions — two scenes must not bind different motions to one stage edge). The cat-cafe Studio binding also declares the `contents` authoring manifest (Studio's Content browser: backgrounds and 小雨 with structured stage/expression fields); Studio can construct scenes — new documents, entries, cues, and created/cloned motions — without touching any TypeScript.
+An Authoring Scene source is the single authority for that scene's ordered
+layers/objects, transforms, appearance, cue bindings, and presence-bound
+ambient references. Narrative blocks refer to stable scene/cue ids; do not
+duplicate placement/order in gameplay code or edit the same composition through
+a parallel low-level Scene path. Keep scene/object/cue ids stable across
+refactors and let `app check` enforce admission, identity, and referenced Motion
+rules. Use the starter's opening scene and Inspector binding as the current
+recommended pattern; low-level `sillymaker.scene` documents remain an explicit
+advanced source kind, not a second synchronized representation.
 
 ## Forbidden
 

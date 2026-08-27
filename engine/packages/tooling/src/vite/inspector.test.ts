@@ -14,7 +14,7 @@ import {
 
 const inspectorBindingV1 = {
   module: "src/application/inspector.ts",
-  exportName: "catCafeInspectorBindingV1",
+  exportName: "exampleInspectorBindingV1",
 };
 
 function hookV1<T>(value: unknown, label: string): T {

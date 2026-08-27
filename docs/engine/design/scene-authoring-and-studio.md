@@ -34,7 +34,8 @@ dispatching cue 的 presentation edge context。以下清单保留为立项证�
 
 - **人物最终位置埋在剧情代码里**：template 的 Mei 写在 `template/src/narrative.ts`
   （`placement: { x: 1180, y: 880, … }`），cat-cafe 的小雨写在
-  `examples/cat-cafe/src/features/dialogue/script.ts`（`x: 920, y: 600`）。改一个
+  当时的 `examples/cat-cafe/src/features/dialogue/script.ts`（`x: 920, y: 600`；
+  产品已退役）。改一个
   站位要求人类在 TypeScript 剧情节点里手填逻辑坐标。
 - **锚点约定藏在 Story CSS 里**：engine wrapper 只做
   `translate3d(x,y) scale(s)`（origin 0 0），"placement 是底部中心"的约定由每个

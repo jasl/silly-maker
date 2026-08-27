@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
-# Publishes the composed static site (documentation + playable Cat Cafe and
-# SillyOS Creator Preview applications) to GitHub Pages. Push deployment intentionally remains
+# Publishes the composed static site (documentation + the SillyOS Creator
+# Preview application) to GitHub Pages. Push deployment intentionally remains
 # disabled; if enabled later, the same-commit CI quality and prebuilt-smoke
 # gates must succeed before this workflow may build or deploy.
 #
@@ -34,8 +34,6 @@ jobs:
         env:
           # Project sites live under https://<owner>.github.io/<repo>/.
           SITE_BASE: /${{ github.event.repository.name }}/
-          # Absolutizes og:image/og:url in the game page for crawlers.
-          SITE_ORIGIN: https://${{ github.repository_owner }}.github.io
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist/site

@@ -307,15 +307,21 @@ Reference Product 或 engine lane。该 lane 不定义产品 RPC protocol，不�
 promotion；后两者保持独立、条件性，只 gate 各自的 Desktop claim/workflow，不阻塞 core 或其他工作。
 
 2026-08-27 所有者另行接受
-[Electronic Pet Reference Product](plans/2026-08-27-electronic-pet-reference-product.md) 为当前唯一产品车道，
-其活动产品合同在 [docs/game/electronic-pet.md](../game/electronic-pet.md)。它以原创的新领养小猫产品验证长期
-State/Save、信赖 × 心情规则、3D/React integration、响应式输入，以及 Object ↔ code binding、Inspector 与
-human/Agent handoff；Cat Cafe 在完整接替前保持当前旗舰。M1 已用一只猫、一个玩具和一个挂点互动区完成
-最小 3D runtime 与作者闭环，M2 已完成首个可玩照料循环、持久化进程和鼠标/触控手势反馈；M3 已开始并完成
-首个产品视觉与宽窄屏构图切片，其余 M3 分母仍开放，M4–M5 未关闭。后续仍只有中立可复现的通用缺口才领取 focused
-engine correction，不预建通用 3D engine、Prefab、
-Blueprint 或最终编辑器。完成后显式处置 Cat Cafe revision 1 Save floor 并原子切换发布，不做跨产品 Save
-迁移或兼容 wrapper。
+[VN Reference Tour](plans/2026-08-27-vn-reference-tour.md) 为当前唯一产品车道。它从 tracked Template 起步，
+以原创、完整、紧凑的可发布短篇验证 SillyMaker 当前推荐的 Visual Novel authoring、Narrative/Stage、
+Player QoL、Save/rollback、audio、locale-addressable content、responsive Input 与 Inspector/human/Agent
+handoff。它只选择 VN 产品真正需要的能力，不是全引擎 API gallery，也不建立 Ren'Py DSL、Save 兼容、
+custom interpreter、公共 VN framework 或最终编辑器。M0–M5 均未开始，仓库尚无该产品实现。Cat Cafe 已在
+本轮开始前独立终止，应用、revision-1 Save 支持、产品 E2E 与 live 发布责任同步结束，不做跨产品 Save 迁移
+或兼容 wrapper。VN 开发期间没有当前旗舰；Bookshop 只保持 maintained minimal Narrative example，不是旗舰
+或完整 VN 产品参考。完整产品及独立审查关闭后，才原子提升 VN 为旗舰。预期届时维护的产品例子是 SillyOS +
+VN；Bookshop 的教学角色在 VN 完成后另行评审并显式裁决，不在 M5 自动删除。
+
+此前同日接受的
+[Electronic Pet Reference Product](plans/2026-08-27-electronic-pet-reference-product.md) 已由所有者停止且未
+完成。M0–M2 与当时已提交的 M3 切片继续作为真实历史证据；剩余 M3、M4、M5 不再交付，不能推导完整产品、
+Cat Cafe 接替或通用 3D engine promotion。额外 WIP 仅存于 `codex/archive-electronic-pet-m3-wip`，不属于
+当前路线或活动实现 authority。
 
 Desktop Host persistence 是独立、条件性的 promotion lane：目标平台是
 macOS、Windows 与 Linux，当前 live wrapper/file channel 已是可用 preview，真实

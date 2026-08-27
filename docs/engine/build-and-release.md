@@ -201,8 +201,7 @@ deno task test:e2e
 A release may claim Save compatibility only for identities backed by checked-in
 canonical byte fixtures. The maintained corpus currently contains Engine Lab
 State revisions 3, 4, 5, and current 6 (the supported adjacent chain is
-`3 -> 4 -> 5 -> 6`) plus Cat Cafe revision 1, its first supported Save floor. These
-fixtures are long-lived compatibility inputs, not a claim that every one was
+`3 -> 4 -> 5 -> 6`). These fixtures are long-lived compatibility inputs, not a claim that every one was
 captured from a historical public release; do not regenerate an older shape from
 the current encoder or infer support for an unlisted revision.
 
@@ -213,8 +212,8 @@ an existing floor:
 2. run the Story lifecycle corpus (inspection, applicable migration/adoption or
    re-anchor, current validation, load, backup/restore, and fresh-save round-trip);
 3. run the authoritative migration matrix in Deno, Chromium, Firefox, and WebKit;
-4. run the Engine Lab and Cat Cafe `@save` browser flows plus the relevant
-   prebuilt Player suite;
+4. run the Engine Lab `@save` browser flow plus the relevant prebuilt Player
+   suite;
 5. run `deno task check` and record any intentionally unsupported revision in the
    release note.
 
@@ -234,13 +233,14 @@ Save/current-load selection (57 tests), Deno plus Chromium/Firefox/WebKit
 determinism, both Story `@save` flows in all three browsers, file-level prebuilt
 smokes, and the Engine Lab Chromium prebuilt suite (44/44).
 
-The clean-HEAD bundle reports remain trend evidence. Engine Lab's largest entry
-is 922,550 raw / 214,643 gzip bytes; Cat Cafe's largest preload is 1,034,689 /
-242,838. Both exceed Vite's advisory 500 kB raw warning. This is an explicit
-code-splitting and download-size optimization lead, not a compatibility failure
-or a machine-bound release threshold. Cat Cafe also carries about 4.72 MB of
-runtime media assets (about 4.61 MB gzip); those product assets, browser cache,
-and lazy/preload policy should be reviewed separately from engine JavaScript.
+The clean-HEAD bundle reports remain historical trend evidence. Engine Lab's
+largest entry was 922,550 raw / 214,643 gzip bytes; the then-current Cat Cafe
+build's largest preload was 1,034,689 / 242,838. Both exceeded Vite's advisory
+500 kB raw warning. This was an explicit code-splitting and download-size
+optimization lead, not a compatibility failure or a machine-bound release
+threshold. That Cat Cafe build also carried about 4.72 MB of runtime media
+assets (about 4.61 MB gzip); the retired product's measurements remain dated
+evidence rather than a current release budget.
 
 No package public export was added during Complexity Reset, CR3, or CR4, so
 there is no newly promoted ABI awaiting a second consumer. Desktop JSON-file
@@ -419,17 +419,15 @@ independent of Deno Desktop APIs; the web Player is the stable fallback.
 ## Publish to static hosting (GitHub Pages / Cloudflare Workers)
 
 `deno task site:build` composes a publishable static site at `dist/site`: the
-Astro/Starlight documentation at the root, the Cat Cafe Player at
-`/play/cat-cafe/`, and the GUI-only SillyOS Creator Preview at
-`/play/silly-os/`. SillyOS currently exposes the Creator Home → Program
+Astro/Starlight documentation at the root and the GUI-only SillyOS Creator
+Preview at `/play/silly-os/`. SillyOS currently exposes the Creator Home → Program
 Workspace journey with one built-in Agent Creator and a deterministic local
 preview. It does not claim real Pi, database, RPC, Mod activation, or
-persistence. Player bundles build with `base: "./"` and resolve runtime assets
-against `document.baseURI`, so they are location-independent; only the docs site
-needs the deployment base, supplied through `SITE_BASE` (defaults to `/`). Cat
-Cafe saves stay in the visitor's browser (IndexedDB); the current SillyOS
-preview starts a new local session after reload. Neither static deployment
-requires a server component.
+persistence. The application bundle builds with `base: "./"` and resolves
+runtime assets against `document.baseURI`, so it is location-independent; only
+the docs site needs the deployment base, supplied through `SITE_BASE` (defaults
+to `/`). The current SillyOS preview starts a new local session after reload.
+The static deployment requires no server component.
 
 - **GitHub Pages** — `.github/workflows/deploy-pages.yml` uses `deno ci`, builds with `SITE_BASE=/<repo>/`, and deploys through `actions/deploy-pages`. One-time setup: repository Settings → Pages → Source: "GitHub Actions", then run the workflow from the Actions tab. Push deployment is intentionally disabled; enabling it requires the deployment build to wait for the same commit's required CI quality and Engine Lab prebuilt-smoke gates. The site lands at `https://<owner>.github.io/<repo>/`.
 - **Cloudflare Workers** — `wrangler.jsonc` declares an assets-only Worker serving `dist/site`. Deploy from a local machine with `deno task site:build && deno task site:deploy:cf` (authenticate once with `deno run -A npm:wrangler@4.123.0 login`). Root-based hosting, so the default `SITE_BASE=/` is correct; the site lands at `https://silly-maker.<account>.workers.dev/` or a custom domain.
@@ -443,7 +441,7 @@ independently can therefore deploy `dist-web/` directly. It does not need an
 additional handoff-preparation step.
 
 - **Cloudflare Workers** — the template and each example carry an app-local `wrangler.jsonc` (assets-only Worker serving `./dist-web`) and a `deploy:cf` script. From the application directory: `deno task deploy:cf` (builds, then deploys; authenticate once with `deno run -A npm:wrangler@4.123.0 login`). The Player lands at `https://<worker-name>.<account>.workers.dev/`. The `name` field in `wrangler.jsonc` is the Worker name — template copies rename it with the rest of the project; each application deploys as its own Worker, independent of the composed site. The wrangler version is pinned in each project's `package.json` and task; bump both together.
-- **GitHub Pages** — one repository owns one Pages site, and this repository's Pages slot serves the composed site (which already hosts the Player under `/play/<app>/`). For a truly standalone Pages deployment, publish the built `dist-web/` contents from a dedicated repository; the relative-base bundle works unchanged from any path.
+- **GitHub Pages** — one repository owns one Pages site, and this repository's Pages slot serves the composed documentation plus the SillyOS preview. For a standalone application deployment, publish the built `dist-web/` contents from a dedicated repository; the relative-base bundle works unchanged from any path.
 
 Remote distribution makes the SillyMaker MIT text available through the
 Player's project-license link or the files copied into an offline output
@@ -451,9 +449,9 @@ directory. A template copy may choose its own license for new project-owned
 Story code and content while retaining the SillyMaker MIT text for engine code
 it distributes.
 
-Each application's `<appRoot>/metadata.json` configures the deployed page's share presentation — document title, description, html lang, theme color, Open Graph / Twitter card, share image, and favicon (`parseStoryMetadataV1` validates the shape; the Vite config injects the tags at build time; Stories without the file keep their hand-written head). Share-image paths are story-relative; the site composer absolutizes `og:image`/`twitter:image` and pins `og:url` when `SITE_ORIGIN` is set (the GitHub Pages workflow provides it automatically).
+Each application's `<appRoot>/metadata.json` configures the deployed page's share presentation — document title, description, html lang, theme color, Open Graph / Twitter card, share image, and favicon (`parseStoryMetadataV1` validates the shape; the Vite config injects the tags at build time; Stories without the file keep their hand-written head).
 
-Both targets were validated against a sub-path static server and the local `wrangler dev` runtime (docs, game, runtime assets, and the `/zh/` locale all resolve).
+Sub-path static-server and local `wrangler dev` checks remain release validation for the composed site; run them before enabling push deployment.
 
 ## Distribution checklist
 

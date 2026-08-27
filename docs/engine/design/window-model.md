@@ -3,10 +3,11 @@
 状态：2026-07-28 接受；S4.3.1b 已让 Workspace Overlay、System 与
 Narrative/History 共用一个 composition-owned Managed Surface authority。S4b.1c
 WholeCanvas product layer 也已交付：同一 authority 下的 built-in Splash/Title、
-Cat Cafe ending 第一消费者、Engine Lab 中性第二消费者，以及 package-owned
+Engine Lab 中性消费者，以及 package-owned
 transient exact-parent detail 均已完成 cutover 与 promotion。PF5/M3 也已完成并转为
 historical；后续顺序只由
 [production-floor sequence](../plans/2026-07-30-production-floor-sequence.md) 拥有。
+已退役的 Cat Cafe ending 是首个产品消费者，只作为该次历史证据。
 本文回答引擎 UI 的分层结构与上提规则、窗体产品
 模型和通用 WindowManager 的取舍。
 

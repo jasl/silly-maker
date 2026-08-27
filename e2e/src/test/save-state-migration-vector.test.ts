@@ -54,7 +54,6 @@ describe("M2e Save State migration determinism vector", () => {
         migrationSteps: ["migration.engine-lab.revision-5-to-6"],
       },
       { fixtureId: "engine-lab-state-6", callbackCount: 0, migrationSteps: [] },
-      { fixtureId: "cat-cafe-state-1", callbackCount: 0, migrationSteps: [] },
     ]);
   });
 });

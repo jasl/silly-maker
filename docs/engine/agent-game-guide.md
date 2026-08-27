@@ -8,9 +8,10 @@ The repository prepares three tiers of material for the agent; feed them as need
 
 1. **Handbook** (required reading, cheap in tokens): `template/AGENTS.md` — the starter skeleton's change discipline, the engine baseline (what you get for free), and the optional-wiring checklist (audio/rollback/save guard etc., one entry point each).
 2. **Quickstart** (look up per task): `docs/engine/authoring-quickstart.md` — the difficulty-tiered operating guide and diagnostics quick-reference.
-3. **Reference implementations** (copy as needed): `examples/bookshop` (focused
-   narrative-authoring example) and `examples/cat-cafe` (full-capability
-   flagship; design spec in its `DESIGN.md`).
+3. **Reference implementations** (study, do not inherit): `examples/bookshop`
+   is the focused narrative-authoring example. The accepted VN Reference Tour
+   will become the complete current VN product reference only after its active
+   plan closes; start new products from `template/`, not from Bookshop.
 
 A curated repository example also follows the complete
 [reference-application product contract](../../examples/AGENTS.md#reference-application-product-contract).
@@ -84,10 +85,10 @@ product contract.
 
 ## Capability upgrade path
 
-Once the first WIP version plays through, have the agent add items from the
-"optional wiring" checklist in `template/AGENTS.md` one by one: web share
-metadata → audio layer (synthesized placeholder audio first) → dialogue playback
-QoL → player rollback → save safepoints → stage hit regions / content tables.
-Each has a complete reference in cat-cafe. This incremental path does not make a
-curated/reference-derived example complete before its full product contract
-closes.
+Once the first WIP version plays through, have the agent add only the items its
+product contract needs from the "optional wiring" checklist in
+`template/AGENTS.md`: for example web metadata, audio, dialogue playback QoL,
+rollback, save safepoints, hit regions, or content tables. Engine contracts and
+focused conformance tests are the authority until a current product reference
+demonstrates a complete use. Incremental wiring does not make a curated or
+reference-derived example complete before its full product contract closes.

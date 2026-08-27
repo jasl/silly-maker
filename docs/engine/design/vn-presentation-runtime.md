@@ -4,8 +4,9 @@
 `defineNarrativeSurfaceV1` 构造 composition-owned
 `NarrativeSurfaceDefinitionV1`；一个 shared kernel、Narrative Host 与 Semantic Stage
 authority 统一处理 Say/Choice/Hold/Barrier/History、player timing、输入、focus/inert、
-恢复与 stale fencing。Engine Lab、template、Bookshop、Cat Cafe 已迁移，SillyOS 显式
-省略，production browser promotion 已通过。旧 conformance entry、
+恢复与 stale fencing。Engine Lab、template 与 Bookshop 是当前维护中的消费者，
+Cat Cafe 的已迁移路线随产品退役，SillyOS 显式省略，production browser
+promotion 仍由中立合同保留。旧 conformance entry、
 `DialoguePanelV1`、`VnLayerV1`、advance surface 和 raw playback exports 已删除。
 S4b.1c WholeCanvas primary/detail 与 PF5/M3 Save migration product surface 均已完成并转为
 historical；后续顺序只由

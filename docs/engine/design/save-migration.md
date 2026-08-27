@@ -847,8 +847,9 @@ RED/implementation gate推进到 M3.6c Browser repeated-download no-clobber evid
   Playwright 选择两个不同临时路径并验证各自 payload bytes。此证据不宣称 Browser JS
   决定最终 suffix，也不宣称 Desktop preview 已 process-crash atomic；
 - fixture 代表用户可见的兼容承诺，符合项目测试原则；它不是计划执行凭据；
-- Cat Cafe 当前 State revision 1 是该产品首个受支持 Save floor；M3 不虚构 Cat revision
-  0/历史 fixture，也不对不存在的已发布 Cat Save 作兼容承诺；
+- Cat Cafe State revision 1 曾是该产品的首个受支持 Save floor。该产品退役时，
+  这一产品身份与 fixture 一同退出维护中的 release corpus；不向 VN 或其他产品迁移，
+  不保留 alias/wrapper，也不虚构 revision 0/历史 fixture；
 - Engine Lab 维护 revision 3、4、5 到 current revision 6 的 compatibility fixtures，并只通过
   既有相邻 chain `3 -> 4 -> 5 -> 6` 验收；这些 bytes 是长期维护的兼容合同，不伪称来自历史
   product release capture，也不能由 current encoder 反向生成来冒充旧 shape；

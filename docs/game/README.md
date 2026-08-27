@@ -1,13 +1,24 @@
 # Game design index
 
-状态：活动游戏设计索引。当前旗舰仍是《雨巷猫舍》（`examples/cat-cafe`，设计规格在其 `DESIGN.md`）；
-2026-08-27 已接受 [Electronic Pet Reference Product](electronic-pet.md) 作为独立 WIP successor，完成产品、
-作者工作流和证据接替后才会原子退役 Cat Cafe。Tavern 题材是引擎成熟后可能重启的方向之一，不约束当前开发。
+状态：活动游戏设计索引。当前没有旗舰 Reference Product。2026-08-27 已接受
+[VN Reference Tour](../engine/plans/2026-08-27-vn-reference-tour.md) 作为独立 WIP；它完成完整短篇、作者
+工作流和产品证据后才成为旗舰。Bookshop 在此期间只承担 maintained minimal Narrative example，不是旗舰或
+完整 VN 产品参考；它的教学角色在 VN 完成后再单独评审，不在当前计划预裁。预期届时维护的产品例子是
+SillyOS + VN。Cat Cafe 已独立终止，其 revision-1 Save、产品 E2E 与 live 发布责任同步结束。Tavern 题材是
+引擎成熟后可能重启的方向之一，不约束当前开发。
 
 ## Active design
 
-- [Electronic Pet Reference Product](electronic-pet.md)：新领养小猫的长期陪伴游戏；以信赖 × 心情、猫的自主
-  意愿和可读身体反馈为核心，同时验证 3D Object ↔ code binding、Inspector 与 human/Agent handoff。
+- [VN Reference Tour](../engine/plans/2026-08-27-vn-reference-tour.md)：从 tracked Template 起步的原创完整
+  Visual Novel；以紧凑小产品验证当前推荐 Narrative/Stage、Player/Save/audio/i18n 与 Inspector 作者路径，
+  不建立 Ren'Py DSL 或全引擎 API 展厅。
+
+## Stopped historical product direction
+
+- [Electronic Pet Reference Product](electronic-pet.md)：2026-08-27 停止且未完成。M0–M2 与已提交 M3 切片
+  保留为历史证据；剩余产品分母不再交付，额外 WIP 仅在 `codex/archive-electronic-pet-m3-wip`。
+- Cat Cafe（《雨巷猫舍》）：2026-08-27 产品终止；应用、revision-1 Save 支持、产品 E2E 与 live 发布责任同步
+  结束，不迁移到 VN。已证明的通用引擎能力和 dated historical evidence 继续保留。
 
 ## Historical direction: Project Tavern
 

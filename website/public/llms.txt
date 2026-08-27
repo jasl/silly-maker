@@ -48,7 +48,6 @@ not completion unless the brief says it is the whole product.
 ## Current examples
 
 - Example roles and status: ./examples/
-- Cat Cafe, current flagship game: ./examples/cat-cafe/
 - SillyOS Creator Preview, GUI-only Creator Home to Program Workspace with one built-in Agent Creator and a deterministic local preview; no real Pi, database, RPC, Mod activation, or persistence: ./examples/silly-os/ (live: ./play/silly-os/)
 - Bookshop, focused narrative-authoring example: ./examples/bookshop/
 

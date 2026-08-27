@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Cloudflare Workers static-assets deployment for the composed site
-// (documentation + playable Cat Cafe and SillyOS Creator Preview applications). Build first,
+// (documentation + the SillyOS Creator Preview application). Build first,
 // then deploy:
 //
 //   deno task site:build          # SITE_BASE defaults to "/"

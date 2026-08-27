@@ -146,7 +146,7 @@ describe("the HTTP host record store", () => {
       baseUrl: "/sillymaker/records",
       fetchImpl: fetchFakeV1(),
     });
-    const key = "player-profile/story.example.cat-cafe" as HostRecordKeyV1;
+    const key = "player-profile/story.test.fixture" as HostRecordKeyV1;
     const bytes = new Uint8Array([0, 1, 254, 255, 128]);
 
     expect(await store.read("settings", key)).toBeNull();

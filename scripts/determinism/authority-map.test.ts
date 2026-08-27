@@ -206,7 +206,7 @@ describe("authoritative determinism authority map", () => {
           index === 0
             ? Object.freeze({
               ...control,
-              entry: "examples/cat-cafe/src/game/simulation.ts",
+              entry: "examples/bookshop/src/game/simulation.ts",
             })
             : control,
       );
@@ -220,7 +220,7 @@ describe("authoritative determinism authority map", () => {
           }),
         }),
       ).rejects.toThrow(
-        /authoritative closure includes negative control .*cat-cafe\/src\/game\/simulation\.ts/u,
+        /authoritative closure includes negative control .*bookshop\/src\/game\/simulation\.ts/u,
       );
     },
     liveRepositoryIntegrationTimeoutV1,
@@ -234,7 +234,7 @@ describe("authoritative determinism authority map", () => {
           index === 0
             ? Object.freeze({
               ...control,
-              entry: "./examples/cat-cafe/src/game/simulation.ts",
+              entry: "./examples/bookshop/src/game/simulation.ts",
             })
             : control,
       );
@@ -531,24 +531,12 @@ describe("authoritative determinism authority map", () => {
 
     expect(
       map.applications
-        .filter(({ directory }) =>
-          [
-            "template",
-            "examples/bookshop",
-            "examples/electronic-pet",
-          ].includes(directory)
-        )
+        .filter(({ directory }) => ["template", "examples/bookshop"].includes(directory))
         .every(({ dependencySource }) => dependencySource === "explicit_dependency_seed"),
     ).toBe(true);
     expect(
       map.applications
-        .filter(({ directory }) =>
-          ![
-            "template",
-            "examples/bookshop",
-            "examples/electronic-pet",
-          ].includes(directory)
-        )
+        .filter(({ directory }) => !["template", "examples/bookshop"].includes(directory))
         .every(({ dependencySource }) => dependencySource === "managed_build_identity"),
     ).toBe(true);
     expect(map.saveProjectors).toEqual([]);
@@ -610,7 +598,6 @@ describe("authoritative determinism authority map", () => {
       "engine/packages/base/src/runtime/diagnostics/replay.ts",
       "engine/packages/base/src/runtime/session/game-session.ts",
       "engine/packages/base/src/runtime/session/run-integrity.ts",
-      "examples/cat-cafe/src/game/features/dev/debug-executor.ts",
     ]));
     const excludedBasePaths = [
       "engine/packages/base/src/index.ts",

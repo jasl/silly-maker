@@ -9,8 +9,6 @@ coding agents implement against the same ownership boundaries and runtime
 evidence. Browser and [Deno](https://deno.com/) Desktop preview are the current
 targets.
 
-**Play the flagship example**: the [Cat Cafe](examples/cat-cafe/) (《雨巷猫舍》) is a complete, publishable game built to drive the engine — title screen, scheduling gameplay, petting hit-regions, a turn-based contest, an album, multiple endings with a postgame, dialogue playback QoL (typewriter / auto / skip / history / rollback), scene-driven audio, save slots with safepoints, bilingual text, and a host/cross-target desktop-packaging preview.
-
 **Explore the GUI product direction**: [SillyOS](examples/silly-os/) is being
 rebuilt around one visible program, **Agent Creator**. It turns a creative intent
 into a reviewable Program workspace where the conversation, proposal, workpiece,
@@ -47,8 +45,8 @@ Common commands:
 - `deno task check` — the canonical local gate: format, lint, typecheck, and the product-level test suite;
 - `deno task test` / `deno task test:e2e` — engine/game behavior tests and browser user flows;
 - `deno task app <verb> <app>` — the explicit repository application CLI (dev / inspect / check / simulate / build / desktop, JSON reports where applicable);
-- `deno task site:build` — compose the publishable static site (docs + Cat Cafe
-  and the SillyOS Creator Preview) into `dist/site`, then deploy via the GitHub
+- `deno task site:build` — compose the publishable static site (docs + the
+  SillyOS Creator Preview) into `dist/site`, then deploy via the GitHub
   Pages workflow or `deno task site:deploy:cf` (Cloudflare Workers); see
   [build-and-release](docs/engine/build-and-release.md).
 
@@ -78,7 +76,7 @@ engine/packages/ui       Generic React GUI/game UI and presentation runtime
 engine/packages/web      Browser host, IndexedDB/HTTP persistence, mounting, automation
 e2e/                     The neutral engine-conformance Story (Engine Lab)
 template/                The starter skeleton for new games
-examples/                Products and focused examples (bookshop, cat-cafe, silly-os)
+examples/                Products and focused examples (bookshop, silly-os)
 project.config.ts        Repository directory list for aggregate commands
 scripts/                 Build identity, asset checks, desktop save server, site composer
 docs/                    Internal engineering docs (plans, research, proposals, policies)

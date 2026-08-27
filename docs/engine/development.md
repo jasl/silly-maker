@@ -55,7 +55,7 @@ engine/packages/ui       generic React presentation, Narrative/WholeCanvas surfa
 engine/packages/web      browser Host and application adapters
 e2e/                     neutral Engine Conformance Story (MIT test consumer)
 template    minimal starter Story (new-project skeleton)
-examples/                curated applications (Bookshop and Cat Cafe Stories; GUI-only SillyOS)
+examples/                curated applications (focused Bookshop Story; GUI-only SillyOS)
 project.config.ts        the workspace registry (application directory list)
 website/                 the public documentation site (Astro + Starlight, en + zh; deno task docs:dev)
 scripts                  maintained build, asset, and product tooling
@@ -252,7 +252,7 @@ Authoring Scene, that mapping points to a small local fallback which reads the
 source bytes, performs the same admission/compile, and exports `sceneRuntimePlanV1`
 for non-Vite Deno tooling and tests; `template/src/scenes/opening/authoring-source.ts`
 is the maintained pattern. A low-level binding maps the specifier directly to
-its ordinary JSON/module, as Cat Cafe does. Do not import either target by a
+its ordinary JSON/module. Do not import either target by a
 relative path from Story code—the exact package specifier is the declared
 authority boundary.
 
@@ -594,9 +594,10 @@ released lease fence. Core admits it through the existing Save migration/
 adoption pipeline, installs it as the Session/Persistence/CommandLog replay base,
 and publishes only after writable takeover; failed retries retain only a proven
 current Save/fence pair. Focused tests protect that authority contract. Engine
-Lab and Cat Cafe now add the completed forward/reverse Chromium and WebKit
-product evidence through real Player Save exports, one Game epoch change per
-source update, zero page reload, and a legal successor command. The
+Lab retains the maintained forward/reverse Chromium and WebKit contract. The
+retired Cat Cafe supplied product evidence through real Player Save exports,
+one Game epoch change per source update, zero page reload, and a legal successor
+command. The
 [Browser R2 handoff plan](plans/2026-08-23-browser-r2-authoritative-state-handoff.md)
 is closed. R2 does not preserve arbitrary React state; a product shell may show
 its ordinary title screen again while the adopted Session remains exact. Do not
@@ -1257,8 +1258,9 @@ invalid-output, and migration-plus-adoption cases in a separate short-lived
 Worker. `deno task test:determinism` compares its exact callback counts,
 attempt/receipt, whole-Snapshot digests, adoption, and source-byte preservation
 twice in Deno and twice in Chromium, Firefox, and WebKit. The same authoritative
-matrix now also consumes the checked-in five-record release corpus: Engine Lab
-State revisions 3/4/5/current 6 and Cat Cafe revision 1. Story-local lifecycle
+matrix now consumes the checked-in four-record release corpus: Engine Lab State
+revisions 3/4/5/current 6. Cat Cafe revision 1 left the corpus when that product
+retired; its identity is not a compatibility promise for a successor. Story-local lifecycle
 suites own inspection, applicable migration/adoption or re-anchor, current
 validation, load, backup/restore, and fresh-save round-trip.
 Registry inspection and callback counting use the repository-only
@@ -1562,7 +1564,7 @@ documentation together unless a concrete compatibility promise says otherwise.
 
 ## Testing policy
 
-Browser commands exercise the Engine Lab Story ([E2E engine validation design](design/e2e-engine-validation.md)); the retired PoC product suite left with its application. Production Narrative coverage also runs through the starter template, Bookshop, and Cat Cafe. WholeCanvas browser coverage uses Engine Lab's exact `whole_canvas_conformance=1` opt-in plus Cat Cafe's real ending. GUI-only applications such as the current SillyOS use the separate `startWebGuiApplicationV1` path and therefore make no Story, Narrative, or WholeCanvas claim. Focused composition tests protect omission inside Game applications. The promoted matrix exercises the same public definitions and default Hosts used by applications rather than conformance-only engine entries.
+Browser commands exercise the Engine Lab Story ([E2E engine validation design](design/e2e-engine-validation.md)); retired product suites leave with their applications. Production Narrative coverage also runs through the starter template and Bookshop. WholeCanvas browser coverage uses Engine Lab's exact `whole_canvas_conformance=1` opt-in. GUI-only applications such as the current SillyOS use the separate `startWebGuiApplicationV1` path and therefore make no Story, Narrative, or WholeCanvas claim. Focused composition tests protect omission inside Game applications. The promoted matrix exercises the same public definitions and default Hosts used by applications rather than conformance-only engine entries.
 
 Playwright tests and E2E runs are silent by default so local and CI execution do
 not play audible media. The real audio Host, playback, interruption, cleanup,
@@ -1608,8 +1610,8 @@ accessor, or captured-intrinsic defenses.
 
 A checked-in fixture is justified when its bytes are themselves a maintained external format or compatibility promise—for example, a Save migration sample. Document what compatibility it protects and provide an intentional update path.
 
-The Save compatibility release corpus keeps its five canonical records as
-physical, immutable files: Engine Lab revisions 3/4/5/6 and Cat Cafe revision 1.
+The Save compatibility release corpus keeps its four canonical records as
+physical, immutable files: Engine Lab revisions 3/4/5/6.
 Do not regenerate an older record from the current encoder, re-encode it inside
 a test, or infer an unlisted compatibility floor. A supported State change must
 update the deliberate fixture declaration and rerun the Story lifecycle corpus,
@@ -1639,7 +1641,8 @@ selection passed 4 files / 57 tests; the authoritative matrix passed its Deno
 suite and two repeats in each of Chromium, Firefox, and WebKit. Both Engine Lab
 and Cat Cafe passed their `@save` flows in all three browsers, and the Engine
 Lab prebuilt suite passed 44/44. Raw machine reports stayed in OS temporary
-directories.
+directories. This is dated historical evidence; Cat Cafe and its revision 1
+Save floor have since retired and are no longer part of the maintained gate.
 
 This record does not add a Deno patch pin, browser revision promise, Git-state
 test, or performance threshold. It also does not promote Desktop durability or

@@ -22,7 +22,7 @@ async function fixtureV1() {
 describe("the desktop record file store", () => {
   it("commits with optimistic revisions and survives keys with slashes", async () => {
     const { store } = await fixtureV1();
-    const key = "player-profile/story.example.cat-cafe";
+    const key = "player-profile/story.test.fixture";
 
     const first = await store.commit([
       { kind: "put", namespace: "settings", key, expectedRevision: null, bytesBase64: "YQ==" },

@@ -23,19 +23,22 @@ active authority；完成里程碑摘要在
 ## 1. Current and next
 
 2026-08-27 所有者接受
-[Electronic Pet Reference Product](2026-08-27-electronic-pet-reference-product.md) 作为当前唯一活动
-Reference Product；产品合同见
-[Electronic Pet Reference Product](../../game/electronic-pet.md)。M0 已冻结原创产品分母、信赖 × 心情
-规则、姿态/邀请/手势反馈、Object ↔ code ↔ source/operation 作者合同、Cat Cafe 接替矩阵与停止条件；M1
-已完成一间房、一只猫、一个玩具和一个 bone/socket interaction volume 的 3D runtime + Inspector 作者闭环；
-M2 已完成首个可玩照料循环、持久化进程和鼠标/触控手势反馈；M3 已开始并完成首个产品视觉与宽窄屏构图
-切片，其余关系、互动、内容、音频、i18n 与产品系统分母仍开放，M4–M5 未关闭。Cat Cafe 在新产品
-完成前继续作为当前旗舰与维护中的 Save/browser evidence；
-只有完整产品、human/Agent
-作者任务、独立 product/engine review 和接替矩阵都关闭后，才显式终止 Cat Cafe revision 1 Save 支持并原子
-删除旧应用。真实产品暴露的 Inspector/3D 缺口必须先最小复现，不得提前建设通用 3D engine、ECS、Prefab、
-Blueprint、public Mod ABI 或最终编辑器。条件性的 Desktop HMR stable revalidation 与 production promotion
-保持独立，不阻塞本产品。
+[VN Reference Tour](2026-08-27-vn-reference-tour.md) 作为当前唯一活动 Reference Product。它从实现开始时
+tracked Template 起步，交付一个原创、完整、紧凑、可发布的 VN，以两名角色、两个 Authoring Scene、一个
+真实选择、两条路线、两个结局和完整 Player/Save/audio/i18n/Inspector/author-task 分母验证当前推荐路径；
+它不是全引擎 API 展厅，也不建立 Ren'Py DSL、Save 兼容或自定义解释器。M0–M5 均未开始，仓库尚无该产品
+实现。Cat Cafe 已在本轮开始前独立终止：应用、revision-1 Save 支持、产品 E2E 与 live
+发布责任同步结束，不迁移到 VN，也不保留 compatibility wrapper。VN 开发期间没有当前旗舰；Bookshop 只承担
+maintained minimal Narrative example，不是旗舰或完整 VN 产品参考。只有完整产品、human/Agent 作者任务和
+独立 product/engine review 全部关闭后，才把 VN 原子提升为旗舰；预期届时维护的产品例子是 SillyOS + VN，
+但 Bookshop 的教学角色必须在 VN 完成后另行评审和显式裁决，M5 不自动删除。条件性的 Desktop HMR stable
+revalidation 与 production promotion 保持独立，不阻塞本产品。
+
+同日 Electronic Pet Reference Product 由所有者停止，未完成产品分母或接替 Cat Cafe。其
+[实施计划](2026-08-27-electronic-pet-reference-product.md) 与
+[产品合同](../../game/electronic-pet.md) 已转为历史：M0–M2 与已提交的 M3 产品切片仍是当时真实实现证据，
+但剩余 M3、M4、M5 不再交付，也不能把纵向切片称为完整产品。额外 WIP 只保存在
+`codex/archive-electronic-pet-m3-wip`（`a4a3ab9a`），不属于当前工作树、活动产品或后续实现 authority。
 
 2026-08-26 所有者接受并于同日交付关闭
 [Neutral GUI Host Readiness、Close 与 Optional Desktop Companion V1](2026-08-26-neutral-gui-host-readiness-close-companion.md)

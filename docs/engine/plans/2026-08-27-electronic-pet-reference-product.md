@@ -1,18 +1,30 @@
 # Electronic Pet Reference Product 实施计划
 
-状态：**2026-08-27 经所有者接受；M0–M2 已实现，M3 已开始，产品仍为 WIP，M4–M5 尚未开始。**
+状态：**2026-08-27 已停止；产品未完成，本计划仅保留历史合同与已提交证据。**
 
-[Production-floor sequence](2026-07-30-production-floor-sequence.md) 是唯一跨计划排序入口。本计划是
-Neutral GUI Host 关闭后所有者显式选择的唯一 Reference Product 车道，不是 broad engine lane。产品合同见
+[Production-floor sequence](2026-07-30-production-floor-sequence.md) 是唯一跨计划排序入口。本计划曾是
+Neutral GUI Host 关闭后所有者显式选择的 Reference Product 车道，不是 broad engine lane。产品合同见
 [Electronic Pet Reference Product](../../game/electronic-pet.md)。
 
-当前 Cat Cafe 继续作为旗舰和维护中的 Save/browser 产品证据，电子宠物以独立 WIP 应用并行实现。只有新产品
-完成完整分母、作者工作流、产品证据和独立审查后，才执行一次 Cat Cafe retirement cutover。不得在 Cat Cafe
-package 内原地改造成另一个产品，也不得以旧产品 Save 兼容层把两种完全不同的 State 身份粘在一起。
+停止前 Cat Cafe 继续作为旗舰和维护中的 Save/browser 产品证据，电子宠物以独立 WIP 应用并行实现；本计划
+从未关闭预定的 Cat Cafe retirement cutover。Cat Cafe 后来由独立的产品终止裁决删除，并同步终止其
+revision-1 Save 支持，不是由电子宠物接替，也没有把两种完全不同的 State 身份粘在一起。
 
 Deno Desktop adapter 继续 package-private、explicit、default-off；stable source/behavior revalidation、
 maintained Desktop HMR 与 production promotion 保持独立。本产品可以使用 Browser 和现有 static Desktop
 preview，不领取这些条件车道。
+
+## 0. 停止记录与证据边界
+
+所有者于 2026-08-27 停止本产品车道。M0–M2 的已提交实现与 M3 的视觉/构图、关系/梳理、腹部边界和叼球归还
+切片继续作为历史证据；这些切片没有满足 §1 的完整产品分母，M3 从未关闭，剩余 M3 与 M4–M5 均不再由本计划
+交付。Cat Cafe 因而没有由本车道接替或退役；它随后由独立裁决终止，revision 1 Save、产品 E2E 与 live
+发布责任随产品同步结束。
+
+停止时尚未提交的额外 WIP 单独保存在 `codex/archive-electronic-pet-m3-wip` 分支的 `a4a3ab9a`，不属于当前
+HEAD、活动产品合同或已交付能力。当前活动 Reference Product 车道是
+[VN Reference Tour](2026-08-27-vn-reference-tour.md)。以下正文保留原始目标、已提交切片和未完成验收，便于
+区分“已经证明”与“原计划交付”；其中面向后续里程碑的现在时或将来时要求均按历史计划阅读。
 
 ## 1. 产品分母、参考与许可边界
 
@@ -231,11 +243,11 @@ M2 post-closure usability correction（2026-08-27）：
   `deno task check` 为 `390` 个 Vitest 文件、`5,475` 项测试与 `6` 项 composition-state workload，并通过 assets、
   全部 application checks 与 E2E release build。
 
-M3 已由所有者另行启动，并完成视觉/构图、`trusting`/梳理、首个 `bonded`/腹部边界与叼球归还纵向切片；其余完整产品
-分母、后期关系内容、剩余互动/玩具/行为、
-音频/i18n 与作者接手仍保持开放，M4–M5 和 retirement gate 均未关闭。
+停止前 M3 完成了视觉/构图、`trusting`/梳理、首个 `bonded`/腹部边界与叼球归还纵向切片；其余完整产品
+分母、后期关系内容、剩余互动/玩具/行为、音频/i18n 与作者接手均未交付。M3、M4–M5 和 retirement gate
+均未关闭，停止后不再由本计划推进。
 
-### M3 — 关系深度、互动宽度与反馈质量
+### M3 — 关系深度、互动宽度与反馈质量（停止时未完成）
 
 - 用统一的产品美术方向替换 M1 的验证级猫/房间几何、材质和构图，并让相机、光照、环境层次与触摸目标在
   宽窄屏都清晰可读；这不是最终设备 polish，但不能继续以验证素材代表成品质量；
@@ -316,7 +328,9 @@ injection 不可用）；全仓 `deno task check` 为 `392` 个 Vitest 文件、
 workload，并通过全部 assets/application checks 和 E2E release build。文档站、Electronic Pet release build 与
 React Doctor changed-scope advisory（0 findings）也通过。
 
-### M4 — 产品完整性、作者接手与性能审查
+以上四项是停止前已经提交的 M3 历史切片，不构成 M3 closure。M3 中其余产品分母随本车道停止，不再交付。
+
+### M4 — 产品完整性、作者接手与性能审查（未开始，已取消）
 
 - 非实现作者逐项核对 semantic coverage table、数量、领养早/中/后期、所有 interaction families、离线回归、
   recovery、设置、i18n、audio 和 representative device/input classes；一个完整循环或腹部演示不能替代缺项；
@@ -333,7 +347,7 @@ React Doctor changed-scope advisory（0 findings）也通过。
 - 仅把确有通用价值的工程形状和 recipe 回馈 `template/`，不复制电子宠物的数据、视觉或产品规则，也不因此
   自动建设 scaffold CLI。
 
-### M5 — 发布接替与 Cat Cafe 原子退役
+### M5 — 发布接替与 Cat Cafe 原子退役（未开始，已取消）
 
 - 新产品通过 application-local tests、product Browser E2E、release/prebuilt smoke、runtime assets、final graph、
   accessibility、raw budgets、`deno task check` 与受影响 React Doctor advisory；
@@ -348,7 +362,11 @@ React Doctor changed-scope advisory（0 findings）也通过。
   site route/build/deploy wiring、当前 docs 和 lockfile 残留。不保留 archive 源码、alias、deprecated wrapper 或
   双轨发布；dated closed plans/proposals 保留其历史事实。
 
-## 4. Cat Cafe 接替矩阵
+## 4. 历史计划的 Cat Cafe 接替矩阵（未执行）
+
+下表是停止前的计划责任矩阵，不是已经完成的切换。电子宠物没有接替 Cat Cafe；Cat Cafe 后来独立终止，
+revision-1 Save/E2E/live 发布责任同步结束，不转移给活动
+[VN Reference Tour](2026-08-27-vn-reference-tour.md)。
 
 | Cat Cafe 当前责任                         | 电子宠物接替或退役条件                                                                        |
 | ----------------------------------------- | --------------------------------------------------------------------------------------------- |
@@ -367,7 +385,9 @@ React Doctor changed-scope advisory（0 findings）也通过。
 Scene 等已接受引擎能力；“仓库内没有当前消费者”不能单独推导删除。也不得为了保住第二消费者数量，污染电子
 宠物的产品语义。历史计划中已经发生的 Cat Cafe 证据继续成立，live 文档只更新现在时事实。
 
-## 5. 验收与停止条件
+## 5. 历史验收与停止条件
+
+以下验收要求随原计划保留，用于解释为什么该产品不能称为完成；本车道停止后不再执行这些后续 gate。
 
 每个里程碑先跑产品/engine focused tests，再跑受影响的 browser/build/check；只在切片关闭时运行必要 broader
 gate。自动测试保护可观察规则、Save/currentness、Object binding、authoring CAS 和真实用户旅程，不建立完整

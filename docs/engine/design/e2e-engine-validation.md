@@ -81,6 +81,10 @@ S4b.1c 已在不改变 Engine Lab 业务数字或 Save-visible route state 的�
   focus/opener restore 与 stale pointer/restart browser evidence；
 - Cat Cafe ending 第一消费者的 Continue 与 Restart 产品浏览器路线。
 
+> 2026-08-27 退役说明：上述 Cat Cafe 路线是已完成的历史 promotion
+> evidence，不再是维护中的 product E2E。Engine Lab 保留中立 WholeCanvas
+> 与 Browser 合同。
+
 这是一条 exact tracked-consumer cutover，不等于 generalized Contract Harness
 已经完成。S5 仍拥有 structural diagnostics、pure model、seeded exploration 与
 shrunk trace；S6 仍拥有 locked modal、完整 authoring/browser matrix、declared

@@ -11,12 +11,16 @@ Backend services, CLI products, and headless products are not engine targets.
 Desktop CLI arguments may provide admitted startup configuration, and headless
 code may support development, tests, conformance, and automation. Required
 external or companion services, including LLMs, connect through typed RPC
-boundaries; they are not in-process plugins. The current flagship is the Cat
-Cafe example (`examples/cat-cafe`); the accepted Electronic Pet Reference
-Product is its independent WIP successor and does not replace the flagship
-until its complete product, authoring, evidence-transfer, and retirement gates
-close. The retired Project Tavern PoC lives only in history. The active work may
-redesign gameplay, engine APIs, application hosting, state management,
+boundaries; they are not in-process plugins. There is currently no flagship
+Reference Product. The active VN Reference Tour is an independent WIP candidate
+and becomes the flagship only after its complete product, authoring, and
+evidence gates close. Bookshop remains a maintained minimal Narrative example
+through that completion, but is neither the flagship nor a complete VN product
+reference; its later teaching role requires a separate completion review and is
+not pre-decided. The expected maintained product examples after completion are
+SillyOS and the VN. Cat Cafe, the stopped Electronic Pet Reference Product, and
+the retired Project Tavern PoC live only as historical evidence. The active
+work may redesign gameplay, engine APIs, application hosting, state management,
 presentation, and authoring workflows.
 
 Prefer a coherent maintainable system over compatibility with the completed
@@ -34,17 +38,20 @@ Read only the documents relevant to the change:
 - `docs/engine/plans/2026-07-30-production-floor-sequence.md` — the only
   cross-plan execution order. PF0–PF7 and the Complexity Reset are complete;
   PF6 remains evidence-gated and inactive. The current lane is
-  `docs/engine/plans/2026-08-27-electronic-pet-reference-product.md`: M0 product
-  contract, M1's first 3D runtime plus Inspector authoring closure, and M2's
-  first playable care loop are complete. M3 is in progress: its first
-  product-local visual slice delivered responsive camera composition, a clearer
-  room/light/material direction, and wide/narrow overlay cleanup without adding
-  a generic 3D engine layer; the relationship, interaction, content, audio,
-  i18n, and product-system denominator remains open. Its
-  gameplay authority is `docs/game/electronic-pet.md`. Cat Cafe
-  remains the flagship and maintained Save/browser product until the successor's
-  complete denominator, human/Agent author tasks, evidence transfer, and atomic
-  retirement gate close. The preceding
+  `docs/engine/plans/2026-08-27-vn-reference-tour.md`: an original, complete,
+  compact VN product that starts from the tracked Template and demonstrates the
+  current recommended VN authoring and Player path without becoming an
+  all-engine API gallery or a Ren'Py DSL. No VN milestone is implemented yet.
+  Cat Cafe terminated on 2026-08-27 before this lane began; its application,
+  revision-1 Save support, product E2E, and live release responsibility ended
+  together, without a cross-product migration. Bookshop remains the maintained
+  minimal Narrative example through the VN completion gate, but is not the
+  flagship or a complete VN product reference; M5 does not automatically delete
+  it, and a post-completion review must explicitly decide its teaching role. The
+  preceding Electronic Pet lane stopped incomplete on 2026-08-27: M0–M2 and the
+  committed M3 slices remain historical evidence, the remaining denominator
+  will not be delivered, and its additional WIP is preserved only on
+  `codex/archive-electronic-pet-m3-wip`. The preceding
   `docs/engine/plans/2026-08-26-neutral-gui-host-readiness-close-companion.md`
   delivered and closed M0–M2 on 2026-08-26. The recap below runs oldest to
   newest.

@@ -8,8 +8,6 @@ standard is an understandable, publishable product, but each current entry keeps
 its actual role explicit instead of borrowing another example's completeness
 claim.
 
-- **Cat Cafe** — the current complete in-repository game and flagship pressure
-  source. [Play it](../play/cat-cafe/).
 - **SillyOS** — a GUI-only Creator Home → Program Workspace product slice. Its
   one built-in Agent Creator drives a deterministic local preview and review
   flow; real Pi, database, RPC, Mod activation, and persistence are not connected.

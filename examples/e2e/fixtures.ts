@@ -19,25 +19,11 @@ export function bookshopTargetUrlV1(query = ""): string {
   return `http://${bookshopTargetV1.host}:${String(bookshopTargetV1.port)}/${query}`;
 }
 
-/** Cat cafe: stage hit regions, dialogue playback, save safepoints, rollback. */
-export const catcafeTargetV1 = { host: hostV1, port: 41737 };
-
-export function catcafeTargetUrlV1(query = ""): string {
-  return `http://${catcafeTargetV1.host}:${String(catcafeTargetV1.port)}/${query}`;
-}
-
 /** SillyOS: GUI-only Creator product preview and Program workspace. */
 export const sillyOsTargetV1 = { host: hostV1, port: 41739 };
 
 export function sillyOsTargetUrlV1(query = ""): string {
   return `http://${sillyOsTargetV1.host}:${String(sillyOsTargetV1.port)}/${query}`;
-}
-
-/** Electronic Pet: product-local Three runtime and dev-only 3D authoring companion. */
-export const electronicPetTargetV1 = { host: hostV1, port: 41743 };
-
-export function electronicPetTargetUrlV1(query = ""): string {
-  return `http://${electronicPetTargetV1.host}:${String(electronicPetTargetV1.port)}/${query}`;
 }
 
 interface PageDiagnosticsV1 {

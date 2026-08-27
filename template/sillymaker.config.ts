@@ -46,7 +46,7 @@ export const sillymakerAppConfigV1 = {
       identifier: "dev.sillymaker.template",
       // Optional app icon for darwin desktop packages: an app-root-relative
       // `.png`/`.icns`, forwarded to `deno desktop --icon` (see
-      // docs/engine/build-and-release.md; cat-cafe ships a live example).
+      // docs/engine/build-and-release.md).
       // icon: "icon.png",
     },
   },

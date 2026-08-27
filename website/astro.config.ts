@@ -84,7 +84,6 @@ export default defineConfig({
           translations: { "zh-CN": "示例与产品" },
           items: [
             { slug: "examples" },
-            { slug: "examples/cat-cafe" },
             { slug: "examples/silly-os" },
             { slug: "examples/bookshop" },
           ],

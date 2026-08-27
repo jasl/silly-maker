@@ -247,7 +247,7 @@ Visual scene composition now has two explicit source authorities. Prefer an Auth
 
 The compiler keeps Player and authoring concerns separate. `runtimePlan` contains only the existing low-level `SceneDocumentV1` plus ordered layer IDs. Object targets, inspection (including transparent and off-canvas objects), JSON-pointer source locations, and catalog-backed hit-region/Motion/Timeline/GUI/intent facets stay on the authoring side and never enter State, Snapshot, Save, or replay. Story code constructs the ordinary Scene accessor with `sceneFromAuthoringRuntimePlan`, then continues to use `cueMutations`, `openMutations`, `cueMayShow`, `sceneStageTransitionBindings`, and `sceneAmbientCatalog`. Authoring paint order is layer order plus DFS preorder. The inspection projection exposes pointer picks explicitly topmost-first—within one object, later catalog regions precede earlier ones after reversal—while keyboard focus stays with the existing input/focus contract and is not derived from z-order.
 
-Each application declares one `sceneSources` row per scene in `sillymaker.config.ts`: `sourceKind: "authoring_scene"` provides the source path and exact package specifier; `sourceKind: "low_level_scene"` selects an ordinary `sillymaker.scene` module and provides no source path. Do not infer a source from which files happen to exist, and do not keep two synchronized representations. The low-level `SceneDocumentV1` route remains the Advanced hand-written path and retains the same cue/open/transition contracts. Cat Cafe currently uses that low-level path. The Template opening is the first release Authoring Scene consumer: Vite replaces its declared package import with a runtime-plan-only virtual module, so the final Player excludes the JSON source, compiler, and Deno tooling fallback.
+Each application declares one `sceneSources` row per scene in `sillymaker.config.ts`: `sourceKind: "authoring_scene"` provides the source path and exact package specifier; `sourceKind: "low_level_scene"` selects an ordinary `sillymaker.scene` module and provides no source path. Do not infer a source from which files happen to exist, and do not keep two synchronized representations. The low-level `SceneDocumentV1` route remains the Advanced hand-written path and retains the same cue/open/transition contracts. The Template opening is the maintained Authoring Scene consumer: Vite replaces its declared package import with a runtime-plan-only virtual module, so the final Player excludes the JSON source, compiler, and Deno tooling fallback.
 
 For a large Story, group those existing compiled Scene imports into a
 `SceneUnitManifestV1` with stable Scene IDs and literal loaders. Split the
@@ -302,7 +302,7 @@ does not own a player controller, clock, Host, Semantic Stage, Session, or
 writable lifecycle store. `DefaultGameRootV1` mounts the production Host from
 the composition definition, so do not add `slots.narrative`, a direct semantic
 writer, or a second stage claimant. Engine Lab, the starter template, Bookshop,
-and Cat Cafe are the maintained Game examples. A GUI-only application such as
+and Bookshop are the maintained Game examples. A GUI-only application such as
 the current SillyOS uses `startWebGuiApplicationV1` instead of omitting fields
 from a Game Story declaration.
 
@@ -490,8 +490,8 @@ commit remains complete, valid, and replayable.
 For a whole-canvas primary or exact-parent detail, pass one ordinary seven-key
 input to `defineWholeCanvasSurfaceV1`: `catalog`, `source`, `resolveTarget`,
 `dispatchAction`, `renderer`, `prepareTarget`, and `resolveText`. Use a
-publication source when semantic state selects the primary, as Cat Cafe does
-for `catcafe.ending`; use `createWholeCanvasApplicationSourceV1` when local
+publication source when semantic state selects the primary; use
+`createWholeCanvasApplicationSourceV1` when local
 navigation is the product contract, as in Engine Lab's opt-in conformance
 route. The renderer is passive: it receives immutable primary/detail data and
 frame-bound `onAction`/`onBack`, while the package owns readiness, routed input,
@@ -600,8 +600,9 @@ For a detached Narrative/Stage preview, keep the selection and replay logic in t
 slice. Purely replay the Story's script from an initial semantic Stage, project each selected point to
 a `StageRenderTarget`, and render it with `SemanticStageTargetHostV1`. The preview component should
 not receive the application instance, Session, semantic dispatch port, or `SemanticStageV1`; that
-keeps it read-only and avoids a second Stage reconciler. Cat Cafe's DevDock panel is the maintained
-reference, including explicit choice-route cases and a digest-stability test.
+keeps it read-only and avoids a second Stage reconciler. The generic contract
+remains available, but no current example should carry a detached preview only
+to preserve the shape of a retired product.
 
 Hotfixes are deterministic bootstrap-time replacements on named patch slots. They are appropriate when a deployed Story needs a controlled correction, not as a substitute for ordinary source changes or a general mod scripting API. A simulation-changing Hotfix must participate in compatibility/provenance decisions; a presentation-only patch must not claim authority to migrate State.
 

@@ -12,10 +12,9 @@ export type SaveMigrationReleaseFixtureIdV1 =
   | "engine-lab-state-3"
   | "engine-lab-state-4"
   | "engine-lab-state-5"
-  | "engine-lab-state-6"
-  | "cat-cafe-state-1";
+  | "engine-lab-state-6";
 
-export type SaveMigrationReleaseProductIdV1 = "engine-lab" | "cat-cafe";
+export type SaveMigrationReleaseProductIdV1 = "engine-lab";
 
 export interface SaveMigrationReleaseFixtureDescriptorV1 {
   readonly id: SaveMigrationReleaseFixtureIdV1;
@@ -90,15 +89,6 @@ export const saveMigrationReleaseCorpusV1: readonly SaveMigrationReleaseFixtureD
     stateContractDigest: "sha256:2919caedc31ba996a3c48091b70d78d7ae002e2049f2dd3ddd1ccb8b5f16628a",
     byteLength: 2_356,
     bytesDigest: "sha256:909b28a2c75197df7bad1358a1067baceee1361ba8d40355452b4ebeda745238",
-  }),
-  descriptorV1({
-    id: "cat-cafe-state-1",
-    productId: "cat-cafe",
-    storyId: "story.example.cat-cafe",
-    stateContractRevision: 1,
-    stateContractDigest: "sha256:a0f26c983c47fa89b599141ae3d2b8e7653a8cd32533152d17e440bcafc8dd26",
-    byteLength: 2_092,
-    bytesDigest: "sha256:5c5eb77ae42a964cb4a8925450e174399d2d70db761e17b865e9c03bcaa3e479",
   }),
 ];
 

@@ -76,7 +76,7 @@
             "summary": "Open examples with declared roles and scope. Their job is to reveal missing abstractions and feed reusable improvements back into the engine and starter.",
             "href": "./examples/",
             "accent": "violet",
-            "tags": ["Cat Cafe", "SillyOS", "Bookshop"]
+            "tags": ["SillyOS", "Bookshop"]
           },
           "slots": {}
         }

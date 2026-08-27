@@ -24,7 +24,7 @@ declare const Deno: {
  *
  * Usage:
  *   deno run -A scripts/desktop/save-server.mts \
- *     --dist examples/cat-cafe/dist-web --saves ./saves --port 41800
+ *     --dist template/dist-web --saves ./saves --port 41800
  */
 
 function argValueV1(name: string, fallback: string): string {
@@ -33,7 +33,7 @@ function argValueV1(name: string, fallback: string): string {
   return value === undefined ? fallback : value;
 }
 
-const distDir = normalize(argValueV1("dist", "examples/cat-cafe/dist-web"));
+const distDir = normalize(argValueV1("dist", "template/dist-web"));
 const savesDir = normalize(argValueV1("saves", "./saves"));
 const port = Number(argValueV1("port", "41800"));
 const store = createRecordFileStoreV1(savesDir);

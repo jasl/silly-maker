@@ -493,10 +493,11 @@ post-takeover retry 的 fence currentness 也没有成为 publication gate。所
 [Browser R2 Authoritative State Handoff V1](../plans/2026-08-23-browser-r2-authoritative-state-handoff.md)
 作为当前 engine lane。M0–M3 已实现 package-private exact encoded Save + released lease fence，复用
 既有 Save migration/adoption/replay-base，只在 writable takeover 后发布，并令 retry 只消费可证明
-current 的 Save/fence pair。Engine Lab/Cat Cafe forward/reverse Chromium/WebKit evidence 已用真实
+current 的 Save/fence pair。Engine Lab 保留中立合同；已退役的 Cat Cafe forward/reverse
+Chromium/WebKit evidence 曾用真实
 Player Save export、pending/RNG/sequence/integrity/digest、单次 Game epoch 换代、零 page reload 与
 successor command 完成普通产品 authoritative R2 promotion；Engine Lab 另保持 dirty Authoring sibling。
-该合同不搬运 Whole Canvas 标题页等 transient React state，Cat Cafe successor 通过普通“继续”关闭新建
+该合同不搬运 Whole Canvas 标题页等 transient React state；产品可以通过普通“继续”关闭新建
 标题页后回到已接管 Session。该补口不改变 post-retirement failure 的 terminal-recovery 边界，不建设
 gameplay predecessor rollback，也不等待或激活 Desktop HMR。
 
