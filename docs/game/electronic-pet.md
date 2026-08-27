@@ -65,8 +65,9 @@
 形成日常后，后续主动靠近会发出头部接触邀请；只有跨 visit 响应当前邀请、完成共同游戏并发现偏好，才会进入
 `trusting`。当前 M3 又补上一条真实但仍不代表完整内容宽度的后期路径：首次梳理后，玩家在两个不同 visit 的
 露腹行为中于 warning 前主动停手，关系才单调进入 `bonded`；成为 bonded 的同一次露腹仍然没有触摸邀请，只有
-后续新的、心情合适的露腹 occurrence 才可能发出 `belly_offer`。成为家人阶段的其余行为和反馈仍属于 M3 及
-之后，不能由这两条纵向旅程代替。
+后续新的、心情合适的露腹 occurrence 才可能发出 `belly_offer`。bonded 且心情适合共同游戏时，猫也会叼来
+场景中的小球；玩家真实拖动、投掷并收到归还后，才记录首次叼球事实与本 visit 的共同游戏证据。成为家人阶段
+的其余行为和反馈仍属于 M3 及之后，不能由这些纵向旅程代替。
 
 ## 3. 信赖与心情
 
@@ -234,7 +235,7 @@ renderer，不进入 State、Save 或 replay。指针进度直接投影同一个
 普通玩家界面不直接展示信赖数字、精确心情算法或“最优按钮”。Inspector 可以显示权威状态、当前求值路径、
 阻断原因、最近语义结果和资源/表现绑定，供开发和调试使用。
 
-截至当前 M3 切片，已实现的内容宽度是 9/16 个自主行为、脸/颈/背/腹部 4/8 类直接互动、背部梳理、逗猫棒 1/3
+截至当前 M3 切片，已实现的内容宽度是 10/16 个自主行为、脸/颈/背/腹部 4/8 类直接互动、背部梳理、逗猫棒与投球 2/3
 种玩具，以及
 `accept | tolerate | warn | refuse` 四类表现映射；Save/reopen、reset、有界离线结算与回归摘要也已接入。
 同页嵌入式 Inspector 通过产品私有只读 publisher 显示 activity/reason、pose、mood、needs 与关系摘要，
@@ -245,7 +246,10 @@ renderer，不进入 State、Save 或 replay。指针进度直接投影同一个
 已接受结果、关系事实和有界记忆可以恢复。第三个切片增加独立的露腹姿态、腹部 authored volume、跨 visit
 边界证据与真实可达的 `bonded`，并把 `belly_offer` 留给成为 bonded 之后的新 activity occurrence。warning
 只存在于当前 renderer gesture；权威 State/Save 保存一次终态与其可观察后果。所有 Scene gesture 都在
-pointer-down 捕获 activity/invitation currentness，不在 pointer-up 借用最新 publication。现有猫 GLB 和房间
+pointer-down 捕获 activity/invitation currentness，不在 pointer-up 借用最新 publication。第四个切片把作者
+场景中的小球绑定到 `cat.mouth` socket，让 bonded 邀请通过现有 canvas/raycaster/Pointer Events owner 完成真实
+mouse/touch 拖动、投掷、追逐与归还；轨迹和动画留在 renderer，权威 State 只接收 currentness-fenced 的
+`returned | missed` 终态，并把首次归还与有界 play memory 纳入 Save。现有猫 GLB 和房间
 细节仍不是最终美术验收，音频也尚未加入。M3 将继续
 统一猫与居住空间的产品方向，并同步扩充姿态、动画和声音反馈；M4 再完成代表性
 设备上的视觉、可访问性和性能收口。交互是否可发现、目标是否可触达、反馈是否可读不属于“以后美化”，必须在

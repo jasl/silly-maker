@@ -16,9 +16,10 @@ import type {
   ElectronicPetBellyTerminalV1,
   ElectronicPetGameStateV1,
   ElectronicPetInteractionOutcomeV1,
+  ElectronicPetPlayRoundResultV1,
   ElectronicPetStateV1,
 } from "./state.ts";
-import { electronicPetStateSchemaV1 } from "./state.ts";
+import { electronicPetPlayRoundResultsV1, electronicPetStateSchemaV1 } from "./state.ts";
 
 export const electronicPetGestureDirectionsV1 = ["with-fur", "cross-fur", "against-fur"] as const;
 export const electronicPetGestureSpeedsV1 = ["slow", "steady", "fast"] as const;
@@ -60,6 +61,11 @@ export type ElectronicPetSceneGestureResultV1 =
   }
   | ElectronicPetBellyResultV1 & ElectronicPetGestureCurrentnessV1 & {
     readonly interactionKind: "belly";
+  }
+  | ElectronicPetGestureCurrentnessV1 & {
+    readonly interactionKind: "play";
+    readonly toyId: "toy.ball";
+    readonly roundResult: "returned" | "missed";
   };
 
 export type ElectronicPetCommandV1 =
@@ -83,8 +89,9 @@ export type ElectronicPetCommandV1 =
   | {
     readonly kind: "pet.play_complete";
     readonly expectedActivityOccurrence: number;
+    readonly expectedInvitationOccurrence?: number | undefined;
     readonly toyId: (typeof electronicPetToyIdsV1)[number];
-    readonly roundResult: "caught" | "missed" | "ended_early";
+    readonly roundResult: ElectronicPetPlayRoundResultV1;
   }
   | {
     readonly kind: "pet.time_settle";
@@ -151,7 +158,7 @@ export interface ElectronicPetPlayerViewV1 {
     readonly stimulation: "comfortable" | "watch" | "needs-care";
   };
   readonly lastOutcome: ElectronicPetInteractionOutcomeV1 | null;
-  readonly lastInteractionKind: "contact" | "grooming" | "belly" | null;
+  readonly lastInteractionKind: "contact" | "grooming" | "belly" | "play" | null;
   readonly lastInteractionTargetId: string | null;
   readonly lastBellyTerminal: ElectronicPetBellyResultV1["terminal"] | null;
 }
@@ -228,8 +235,9 @@ const ordinaryCommandZodV1 = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("pet.play_complete"),
     expectedActivityOccurrence: occurrenceV1,
+    expectedInvitationOccurrence: occurrenceV1.optional(),
     toyId: z.enum(electronicPetToyIdsV1),
-    roundResult: z.enum(["caught", "missed", "ended_early"]),
+    roundResult: z.enum(electronicPetPlayRoundResultsV1),
   }),
   z.strictObject({
     kind: z.literal("pet.time_settle"),

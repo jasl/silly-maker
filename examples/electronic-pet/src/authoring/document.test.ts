@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { PetSceneDocumentV1, PetSceneRuntimeModelPlanV1 } from "./contract.ts";
 import { admitPetSceneDocumentV1, compilePetSceneDocumentV1 } from "./document.ts";
 import { electronicPetM1SceneDocumentV1 } from "./default-document.ts";
+import { electronicPetBallModelBindingV1 } from "../content/runtime-bindings.ts";
 
 function compiledDefaultV1() {
   const result = compilePetSceneDocumentV1(electronicPetM1SceneDocumentV1);
@@ -43,6 +44,10 @@ describe("PetSceneDocumentV1", () => {
       boneId: "cat.head",
       sourceName: "FaceSocket",
     });
+    expect(cat.model.socketById.get("cat.mouth")).toMatchObject({
+      boneId: "cat.head",
+      sourceName: "MouthSocket",
+    });
     expect(cat.model.socketById.get("cat.back")).toMatchObject({
       boneId: "cat.spine",
       sourceName: "BackSocket",
@@ -57,6 +62,18 @@ describe("PetSceneDocumentV1", () => {
     });
     expect(cat.model.animation).toMatchObject({
       idleClipId: "cat.idle",
+    });
+
+    expect(plan.objectById.get("pet.toy")).toMatchObject({
+      kind: "model",
+      model: { modelId: electronicPetBallModelBindingV1.modelId },
+    });
+    expect(electronicPetBallModelBindingV1).toMatchObject({
+      objectId: "pet.toy",
+      toyId: "toy.ball",
+      actionId: "pet.play_complete",
+      rendererOwner: "pet.presentation.three",
+      behaviorOwner: "pet.game.companion",
     });
 
     expect(plan.objectById.get("pet.interaction.neck")).toMatchObject({

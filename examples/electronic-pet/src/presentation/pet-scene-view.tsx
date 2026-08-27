@@ -55,14 +55,15 @@ export default function ElectronicPetSceneViewV1(
     {
       readonly occurrence: number;
       readonly outcome: ElectronicPetInteractionOutcomeV1;
-      readonly interactionKind: "contact" | "grooming" | "belly";
+      readonly interactionKind: "contact" | "grooming" | "belly" | "play";
       readonly targetInteractionId: string;
       readonly bellyTerminal: PetBellyTerminalV1 | null;
     } | null
   >(null);
   const groomingAvailable = props.context.view.trustStage === "trusting" ||
     props.context.view.trustStage === "bonded";
-  const interactionTool = groomingAvailable && props.context.view.poseId !== "supine_relaxed"
+  const interactionTool = groomingAvailable && props.context.view.poseId !== "supine_relaxed" &&
+      props.context.view.activityId !== "bring_ball"
     ? requestedTool
     : "hand";
   const toolRef = useRef<PetInteractionToolV1>(interactionTool);
@@ -147,7 +148,9 @@ export default function ElectronicPetSceneViewV1(
             occurrence: (current?.occurrence ?? 0) + 1,
             outcome,
             interactionKind: result.interactionKind,
-            targetInteractionId: result.targetInteractionId,
+            targetInteractionId: result.interactionKind === "play"
+              ? result.toyId
+              : result.targetInteractionId,
             bellyTerminal: result.interactionKind === "belly" ? result.terminal : null,
           }));
         }
@@ -232,12 +235,18 @@ export default function ElectronicPetSceneViewV1(
         <span>照料工具</span>
         <button
           type="button"
-          disabled={!groomingAvailable}
+          disabled={!groomingAvailable || props.context.view.activityId === "bring_ball"}
           aria-pressed={interactionTool === "brush"}
           onClick={() => setRequestedTool((current) => current === "hand" ? "brush" : "hand")}
         >
           <strong>{interactionTool === "brush" ? "放下梳子" : "拿起梳子"}</strong>
-          <small>{groomingAvailable ? "信赖后可梳理背部" : "建立信任后解锁"}</small>
+          <small>
+            {props.context.view.activityId === "bring_ball"
+              ? "先回应叼球邀请"
+              : groomingAvailable
+              ? "信赖后可梳理背部"
+              : "建立信任后解锁"}
+          </small>
         </button>
       </div>
       <div className="pet-scene__interaction-card">
@@ -269,6 +278,27 @@ function pointerFeedbackLabelV1(
 ): string {
   const phase = feedback.phase;
   const targetInteractionId = phase === "idle" ? null : feedback.targetInteractionId;
+  if (targetInteractionId === "toy.ball") {
+    switch (phase) {
+      case "idle":
+        return "移动到小猫身上开始互动";
+      case "hover":
+        return "抓住 Mochi 叼来的小球";
+      case "tracking":
+        return "拖向房间空处，拉开一点距离";
+      case "ready":
+        return "松手投球";
+      case "blocked":
+        return "这个方向超出房间了";
+      case "incomplete":
+        return "再拖远一点才算投球";
+      case "complete":
+        return "Mochi 把球叼回来了";
+      case "warning":
+      case "escalated":
+        return "先放开小球，重新开始";
+    }
+  }
   if (targetInteractionId === "interaction.pet.belly") {
     const invited = view.invitation?.kind === "belly_offer";
     switch (phase) {
@@ -346,6 +376,13 @@ function interactionCopyV1(
   readonly title: string;
   readonly detail: string;
 } {
+  if (view.activityId === "bring_ball") {
+    return {
+      eyebrow: "主动邀请",
+      title: "Mochi 把小球叼来，等你投出去",
+      detail: "直接抓住嘴边的小球，拖向房间的空处再松手。短拖不会开始一轮。",
+    };
+  }
   if (view.poseId === "supine_relaxed") {
     if (view.invitation?.kind === "belly_offer") {
       return {
@@ -414,6 +451,7 @@ function activityLabelV1(view: ElectronicPetSceneContextV1["view"]): string {
     self_groom: "正在认真梳理自己",
     solo_ball_play: "正在追逐小球",
     belly_expose: "它在你面前放松地露出肚皮",
+    bring_ball: "它叼着小球，正在邀请你一起玩",
   } as const)[view.activityId];
 }
 
@@ -430,7 +468,7 @@ function moodLabelV1(mood: ElectronicPetSceneContextV1["view"]["mood"]): string 
 function outcomeLabelV1(
   outcome: ElectronicPetSceneContextV1["view"]["lastOutcome"],
   trustStage: ElectronicPetSceneContextV1["view"]["trustStage"],
-  interactionKind: "contact" | "grooming" | "belly",
+  interactionKind: "contact" | "grooming" | "belly" | "play",
   targetInteractionId: string | null,
   bellyTerminal: PetBellyTerminalV1 | null,
 ): string {
@@ -446,6 +484,18 @@ function outcomeLabelV1(
       warn: "尾巴轻甩了一下，请放慢并顺着毛发",
       refuse: "它避开了梳子，现在需要一点空间",
     } as const)[outcome];
+  }
+  if (targetInteractionId === "toy.ball") {
+    return outcome === "accept"
+      ? "Mochi 追上小球，又把它叼回到你面前"
+      : "球滚到了够不着的地方，它停下来望着你";
+  }
+  if (interactionKind === "play" || targetInteractionId === "toy.wand") {
+    return outcome === "accept"
+      ? "它追到了逗猫棒，玩得很尽兴"
+      : outcome === "tolerate"
+      ? "它差一点抓到，仍然玩得很投入"
+      : "你们暂时放下了逗猫棒";
   }
   if (interactionKind === "belly" || targetInteractionId === "interaction.pet.belly") {
     if (bellyTerminal === "stopped_before_warning") {

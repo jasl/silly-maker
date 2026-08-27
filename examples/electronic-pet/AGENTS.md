@@ -8,9 +8,9 @@ remains the flagship until M5 retirement closes.
 
 ## Current boundaries
 
-- M0–M2 are complete. The current baseline is one room, one cat, one toy,
-  three bone/socket-attached contact volumes, and the first authoritative
-  adoption/care loop; it is still a WIP, not the complete game. M3 expands
+- M0–M2 are complete. The current baseline is one room, one cat, two toys,
+  authored contact/grooming volumes, and the first authoritative adoption/care
+  loop; it is still a WIP, not the complete game. M3 expands
   relationship depth, interactions, content, feedback, and product art without
   shrinking the accepted denominator.
 - Use project-owned or compatible assets and mature Three/React packages.

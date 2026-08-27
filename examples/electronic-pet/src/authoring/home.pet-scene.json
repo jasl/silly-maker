@@ -75,6 +75,16 @@
                 }
               },
               {
+                "socketId": "cat.mouth",
+                "sourceName": "MouthSocket",
+                "boneId": "cat.head",
+                "transform": {
+                  "position": { "x": 0, "y": -0.16, "z": 0.52 },
+                  "rotation": { "x": 0, "y": 0, "z": 0 },
+                  "scale": { "x": 1, "y": 1, "z": 1 }
+                }
+              },
+              {
                 "socketId": "cat.neck",
                 "sourceName": "NeckSocket",
                 "boneId": "cat.spine",

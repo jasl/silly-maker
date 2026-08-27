@@ -80,6 +80,7 @@ export function projectElectronicPetPlayerViewV1(state: ElectronicPetStateV1) {
   const lastInteraction = state.companion.recentMemory.findLast((memory) =>
     memory.kind === "contact" ||
     memory.kind === "belly" ||
+    memory.kind === "play" ||
     (memory.kind === "care" && memory.actionId === "care.groom.back")
   );
   const lastBelly = state.companion.recentMemory.findLast((memory) => memory.kind === "belly");
@@ -115,11 +116,15 @@ export function projectElectronicPetPlayerViewV1(state: ElectronicPetStateV1) {
       ? "contact"
       : lastInteraction.kind === "belly"
       ? "belly"
+      : lastInteraction.kind === "play"
+      ? "play"
       : "grooming",
     lastInteractionTargetId: lastInteraction === undefined
       ? null
       : lastInteraction.kind === "contact" || lastInteraction.kind === "belly"
       ? lastInteraction.targetInteractionId
+      : lastInteraction.kind === "play"
+      ? lastInteraction.toyId
       : electronicPetGroomingRuleV1.interactionId,
     lastBellyTerminal: lastBelly?.terminal ?? null,
   } as const;
@@ -212,7 +217,7 @@ function invitationKindForActivityV1(
       ? "belly_offer"
       : null;
   }
-  return activityId === "solo_ball_play" ? "shared_play" : null;
+  return activityId === "solo_ball_play" || activityId === "bring_ball" ? "shared_play" : null;
 }
 
 function hasExactBellyOfferV1(
@@ -366,13 +371,40 @@ export function evaluateElectronicPetCommandV1(
       if (command.expectedActivityOccurrence !== state.companion.activity.occurrence) {
         return { kind: "blocked", code: "pet.activity_stale" };
       }
+      if (command.toyId === "toy.ball") {
+        const currentInvitationOccurrence = state.companion.activity.activityId === "bring_ball" &&
+            state.companion.activity.poseId === "near_player" &&
+            state.companion.invitation?.kind === "shared_play" &&
+            state.companion.invitation.activityOccurrence === state.companion.activity.occurrence
+          ? state.companion.invitation.occurrence
+          : undefined;
+        if (command.expectedInvitationOccurrence !== currentInvitationOccurrence) {
+          return { kind: "blocked", code: "pet.invitation_stale" };
+        }
+        if (
+          currentInvitationOccurrence === undefined ||
+          (command.roundResult !== "returned" && command.roundResult !== "missed")
+        ) return { kind: "blocked", code: "pet.action_unavailable" };
+      } else {
+        if (command.expectedInvitationOccurrence !== undefined) {
+          const invitation = state.companion.invitation;
+          if (
+            invitation?.kind !== "shared_play" ||
+            invitation.occurrence !== command.expectedInvitationOccurrence ||
+            invitation.activityOccurrence !== state.companion.activity.occurrence
+          ) return { kind: "blocked", code: "pet.invitation_stale" };
+        }
+        if (command.roundResult === "returned") {
+          return { kind: "blocked", code: "pet.action_unavailable" };
+        }
+      }
       if (
         state.relationship.trustStage === "newcomer" ||
         state.companion.activity.poseId === "hidden"
       ) {
         return { kind: "blocked", code: "pet.action_unavailable" };
       }
-      const outcome = command.roundResult === "caught"
+      const outcome = command.roundResult === "caught" || command.roundResult === "returned"
         ? "accept"
         : command.roundResult === "missed"
         ? "tolerate"
@@ -507,6 +539,10 @@ function eligibleActivityV1(
     case "belly_expose":
       return state.companion.needs.safety <= 45 &&
         (state.companion.mood.kind === "calm" || state.companion.mood.kind === "social");
+    case "bring_ball":
+      return state.relationship.trustStage === "bonded" &&
+        state.companion.needs.stimulation >= 25 &&
+        (state.companion.mood.kind === "social" || state.companion.mood.kind === "playful");
   }
   const unreachable: never = activityId;
   return unreachable;
@@ -534,18 +570,23 @@ function activityWeightV1(
       }
       break;
     case "social":
-      if (definition.activityId === "approach_player") adjustment += 4;
+      if (definition.activityId === "approach_player" || definition.activityId === "bring_ball") {
+        adjustment += 4;
+      }
       break;
     case "playful":
-      if (definition.activityId === "solo_ball_play") adjustment += 5;
-      else if (definition.activityId === "explore_room") adjustment += 2;
+      if (definition.activityId === "solo_ball_play" || definition.activityId === "bring_ball") {
+        adjustment += 5;
+      } else if (definition.activityId === "explore_room") adjustment += 2;
       break;
     case "overstimulated":
       if (definition.activityId === "hide_in_den" || definition.activityId === "rest_nearby") {
         adjustment += 5;
       }
       if (
-        definition.activityId === "approach_player" || definition.activityId === "solo_ball_play"
+        definition.activityId === "approach_player" ||
+        definition.activityId === "solo_ball_play" ||
+        definition.activityId === "bring_ball"
       ) {
         adjustment -= 4;
       }
@@ -610,6 +651,7 @@ function settleCompletedActivityV1(state: ElectronicPetStateV1): ElectronicPetSt
     case "approach_player":
     case "self_groom":
     case "belly_expose":
+    case "bring_ball":
       return state;
   }
   return state;
@@ -622,11 +664,16 @@ function chooseActivityV1(
   readonly definition: (typeof electronicPetActivityDefinitionsV1)[number];
   readonly reason: ElectronicPetActivityReasonV1;
 } {
-  const forcedId = urgentActivityIdV1(state);
+  const recentActivityIds = new Set(state.companion.recentActivityIds);
+  const forcedId = urgentActivityIdV1(state) ??
+    (!state.relationship.facts.includes("relationship.first_ball_return") &&
+        !recentActivityIds.has("bring_ball") &&
+        eligibleActivityV1(state, "bring_ball")
+      ? "bring_ball"
+      : null);
   const eligible = electronicPetActivityDefinitionsV1.filter((entry) =>
     eligibleActivityV1(state, entry.activityId)
   );
-  const recentActivityIds = new Set(state.companion.recentActivityIds);
   const unrepeated = eligible.filter((entry) => !recentActivityIds.has(entry.activityId));
   const candidates = forcedId === null
     ? (unrepeated.length > 0 ? unrepeated : eligible)
@@ -654,7 +701,7 @@ function chooseActivityV1(
     ? "food_need"
     : forcedId === "rest_nearby"
     ? "rest_need"
-    : selected.activityId === "approach_player"
+    : selected.activityId === "approach_player" || selected.activityId === "bring_ball"
     ? "social_interest"
     : selected.activityId === "explore_room" || selected.activityId === "solo_ball_play"
     ? "curiosity"
@@ -990,13 +1037,23 @@ export function applyElectronicPetCommandV1(
     };
   } else if (command.kind === "pet.play_complete" && outcome !== null) {
     const accepted = outcome === "accept";
+    const completesBringBall = command.toyId === "toy.ball" &&
+      state.companion.activity.activityId === "bring_ball";
+    const successorOccurrence = state.companion.nextActivityOccurrence;
+    const observePlayer = findElectronicPetActivityDefinitionV1("observe_player")!;
+    const acceptedFacts = !accepted
+      ? state.relationship.facts
+      : command.roundResult === "returned"
+      ? addFactV1(
+        addFactV1(state.relationship.facts, "relationship.first_shared_play"),
+        "relationship.first_ball_return",
+      )
+      : addFactV1(state.relationship.facts, "relationship.first_shared_play");
     next = {
       ...state,
       relationship: {
         ...state.relationship,
-        facts: accepted
-          ? addFactV1(state.relationship.facts, "relationship.first_shared_play")
-          : state.relationship.facts,
+        facts: acceptedFacts,
         evidence: accepted
           ? {
             ...state.relationship.evidence,
@@ -1019,12 +1076,29 @@ export function applyElectronicPetCommandV1(
           stimulation: clampV1(state.companion.needs.stimulation - (accepted ? 25 : 5)),
           rest: clampV1(state.companion.needs.rest + 8),
         },
+        activity: completesBringBall
+          ? {
+            activityId: observePlayer.activityId,
+            poseId: observePlayer.poseId,
+            occurrence: successorOccurrence,
+            startedAtMinute: state.home.worldMinute,
+            minimumUntilMinute: state.home.worldMinute + observePlayer.minimumMinutes,
+            reason: "routine",
+          }
+          : state.companion.activity,
+        nextActivityOccurrence: completesBringBall
+          ? successorOccurrence + 1
+          : state.companion.nextActivityOccurrence,
         invitation: state.companion.invitation?.kind === "shared_play"
           ? null
           : state.companion.invitation,
+        recentActivityIds: completesBringBall
+          ? appendBoundedV1(state.companion.recentActivityIds, "observe_player", 4)
+          : state.companion.recentActivityIds,
         recentMemory: appendBoundedV1(state.companion.recentMemory, {
           kind: "play",
           toyId: command.toyId,
+          roundResult: command.roundResult,
           outcome,
           atMinute: state.home.worldMinute,
         }, 8),

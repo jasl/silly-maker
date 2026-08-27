@@ -335,6 +335,97 @@ async function completeInvitedBellyStrokeV1(
   await page.mouse.up();
 }
 
+async function reachBringBallInvitationV1(page: Page): Promise<{
+  readonly scene: Locator;
+  readonly care: Locator;
+  readonly game: ElectronicPetAutomationViewV1;
+}> {
+  const trusting = await reachTrustingV1(page);
+  let observedAtMs = trusting.observedAtMs;
+  let game = await observeAutomationGameV1(page) as ElectronicPetAutomationViewV1;
+  await dispatchAutomationV1(page, {
+    kind: "pet.groom_complete",
+    expectedActivityOccurrence: game.activityOccurrence,
+    targetInteractionId: "interaction.pet.groom.back",
+    gesture: "stroke",
+    direction: "with-fur",
+    speed: "slow",
+    duration: "brief",
+  });
+
+  let exposure = await settleToBellyExposureV1(page, observedAtMs);
+  observedAtMs = exposure.observedAtMs;
+  await dispatchAutomationV1(page, {
+    kind: "pet.belly_complete",
+    expectedActivityOccurrence: exposure.game.activityOccurrence,
+    targetInteractionId: "interaction.pet.belly",
+    terminal: "stopped_before_warning",
+  });
+  const firstExposureOccurrence = exposure.game.activityOccurrence;
+  observedAtMs += 16 * 60_000;
+  await dispatchAutomationV1(page, {
+    kind: "pet.time_settle",
+    mode: "session_open",
+    observedAtMs,
+    elapsedMs: 0,
+  });
+  game = await observeAutomationGameV1(page) as ElectronicPetAutomationViewV1;
+  if (game.home.returnSummary !== null) {
+    await dispatchAutomationV1(page, {
+      kind: "pet.return_summary_dismiss",
+      expectedVisitOrdinal: game.home.returnSummary.visitOrdinal,
+    });
+  }
+  exposure = await settleToBellyExposureV1(page, observedAtMs, firstExposureOccurrence);
+  observedAtMs = exposure.observedAtMs;
+  await dispatchAutomationV1(page, {
+    kind: "pet.belly_complete",
+    expectedActivityOccurrence: exposure.game.activityOccurrence,
+    targetInteractionId: "interaction.pet.belly",
+    terminal: "stopped_before_warning",
+  });
+
+  game = await observeAutomationGameV1(page) as ElectronicPetAutomationViewV1;
+  for (let step = 0; step < 32 && game.activityId !== "bring_ball"; step += 1) {
+    observedAtMs += 30 * 60_000;
+    await dispatchAutomationV1(page, {
+      kind: "pet.time_settle",
+      mode: "active",
+      observedAtMs,
+      elapsedMs: 30 * 60_000,
+    });
+    game = await observeAutomationGameV1(page) as ElectronicPetAutomationViewV1;
+  }
+  expect(game).toMatchObject({
+    trustStage: "bonded",
+    activityId: "bring_ball",
+    poseId: "near_player",
+    invitation: { kind: "shared_play" },
+  });
+  return { scene: trusting.scene, care: trusting.care, game };
+}
+
+async function findBallPointV1(page: Page, scene: Locator): Promise<{ x: number; y: number }> {
+  const canvas = scene.getByLabel("小猫与房间的三维互动场景");
+  const feedback = scene.getByLabel("互动反馈");
+  const box = await canvas.boundingBox();
+  if (box === null) throw new TypeError("player canvas geometry unavailable");
+  for (const yOffset of [-0.08, -0.04, 0, 0.04, 0.08, 0.12]) {
+    for (const xOffset of [-0.1, -0.06, -0.03, 0, 0.03, 0.06, 0.1]) {
+      const point = {
+        x: box.x + box.width * (0.5 + xOffset),
+        y: box.y + box.height * (0.56 + yOffset),
+      };
+      await page.mouse.move(point.x, point.y);
+      await page.waitForTimeout(24);
+      if (((await feedback.textContent()) ?? "").includes("抓住 Mochi 叼来的小球")) {
+        return point;
+      }
+    }
+  }
+  throw new TypeError("reachable ball point unavailable");
+}
+
 test.describe("Electronic Pet browser product", () => {
   test("loads the real GLB and exposes the care journey beside the ready 3D scene", async ({ page }) => {
     const scene = await openReadyPetSceneV1(page);
@@ -628,6 +719,51 @@ test.describe("Electronic Pet browser product", () => {
       .toBeVisible();
   });
 
+  test("throws the bonded invitation ball through the 3D room and receives it back", async ({ page }) => {
+    const { scene, care } = await reachBringBallInvitationV1(page);
+    await expect(scene.getByText("它叼着小球，正在邀请你一起玩", { exact: true })).toBeVisible();
+    await expect(care.getByText(/Mochi 把小球叼到你面前/u)).toBeVisible();
+    await expect(care.getByRole("button", { name: "一起玩逗猫棒" })).toHaveCount(0);
+
+    const canvas = scene.getByLabel("小猫与房间的三维互动场景");
+    const feedback = scene.getByLabel("互动反馈");
+    const ball = await findBallPointV1(page, scene);
+    const box = await canvas.boundingBox();
+    if (box === null) throw new TypeError("player canvas geometry unavailable");
+    await page.mouse.down();
+    await page.mouse.move(
+      Math.min(box.x + box.width - 28, ball.x + Math.min(180, box.width * 0.24)),
+      Math.min(box.y + box.height - 28, ball.y + Math.min(90, box.height * 0.14)),
+      { steps: 8 },
+    );
+    await expect(feedback).toContainText("松手投球");
+    await page.mouse.up();
+
+    await expect(feedback).not.toContainText("松手投球");
+    await expect(feedback).toContainText("Mochi 把球叼回来了", { timeout: 4_000 });
+    await expect(scene.getByText("Mochi 追上小球，又把它叼回到你面前", { exact: true }))
+      .toBeVisible();
+    expect(await observeAutomationGameV1(page)).toMatchObject({
+      trustStage: "bonded",
+      activityId: "observe_player",
+      invitation: null,
+      lastOutcome: "accept",
+      lastInteractionKind: "play",
+      lastInteractionTargetId: "toy.ball",
+    });
+
+    await page.waitForTimeout(1_500);
+    const modelResponse = page.waitForResponse((response) =>
+      new URL(response.url()).pathname.endsWith(catModelPathV1)
+    );
+    await page.reload();
+    expect((await modelResponse).ok()).toBe(true);
+    const reopened = page.getByRole("region", { name: "小猫的新家" });
+    await expect(reopened).toHaveAttribute("data-pet-scene-status", "ready");
+    await expect(reopened.getByText("Mochi 追上小球，又把它叼回到你面前", { exact: true }))
+      .toBeVisible();
+  });
+
   test("rejects stale pose and invitation commands without a partial browser-visible change", async ({ page }) => {
     const { scene, care } = await prepareNewHomeV1(
       page,
@@ -786,6 +922,7 @@ test.describe("Electronic Pet browser product", () => {
     await expect(hierarchy.getByRole("button", { name: /Back grooming interaction/u }))
       .toBeVisible();
     await expect(hierarchy.getByRole("button", { name: /Belly interaction/u })).toBeVisible();
+    await expect(hierarchy.getByRole("button", { name: /Ball toy/u })).toBeVisible();
     await expect(companion.getByLabel("3D authoring preview")).toBeVisible();
     await expect(companion.locator('[data-pet-authoring-message="true"]')).toHaveText(
       "3D preview ready",
@@ -819,6 +956,14 @@ test.describe("Electronic Pet browser product", () => {
     expect(await observeAutomationGameV1(page)).toEqual(gameBeforeAuthoring);
 
     const properties = companion.getByRole("complementary", { name: "Selected object properties" });
+    await hierarchy.getByRole("button", { name: /Ball toy/u }).click();
+    await expect(properties.locator("header code")).toHaveText("pet.toy");
+    await expect(properties).toContainText(
+      "Toy · toy.ball · Action · pet.play_complete · Behavior · pet.game.companion",
+    );
+    await hierarchy.getByRole("button", { name: /New kitten/u }).click();
+    await expect(properties.locator("header code")).toHaveText("pet.cat");
+    await expect(properties.getByText("Socket · cat.mouth", { exact: true })).toBeVisible();
     await hierarchy.locator('[data-pet-object-id="pet.camera.main"]').click();
     await expect(properties.locator("header code")).toHaveText("pet.camera.main");
     await expect(properties.getByText("Camera framing", { exact: true })).toBeVisible();
@@ -903,6 +1048,54 @@ test.describe("Electronic Pet browser product", () => {
 
 test.describe("Electronic Pet direct touch input", () => {
   test.use({ hasTouch: true });
+
+  test("throws the bonded ball with native touch at the narrow product layout", async ({ browserName, page }) => {
+    test.skip(
+      browserName !== "chromium",
+      "Playwright exposes native touch-drag injection through Chromium CDP only",
+    );
+    const { scene } = await reachBringBallInvitationV1(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expectViewportFitV1(page, scene);
+    const canvas = scene.getByLabel("小猫与房间的三维互动场景");
+    const feedback = scene.getByLabel("互动反馈");
+    const ball = await findBallPointV1(page, scene);
+    const box = await canvas.boundingBox();
+    if (box === null) throw new TypeError("player canvas geometry unavailable");
+    const target = {
+      x: Math.min(box.x + box.width - 24, ball.x + Math.min(140, box.width * 0.4)),
+      y: Math.min(box.y + box.height - 24, ball.y + Math.min(86, box.height * 0.18)),
+    };
+    const client = await page.context().newCDPSession(page);
+    let touchActive = false;
+    try {
+      await client.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [ball],
+      });
+      touchActive = true;
+      await expect(feedback).toContainText("拖向房间空处");
+      await client.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [target],
+      });
+      await expect(feedback).toContainText("松手投球");
+      await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      touchActive = false;
+      await expect(scene.getByText("Mochi 追上小球，又把它叼回到你面前", { exact: true }))
+        .toBeVisible({ timeout: 4_000 });
+      expect(await observeAutomationGameV1(page)).toMatchObject({
+        activityId: "observe_player",
+        lastOutcome: "accept",
+        lastInteractionKind: "play",
+      });
+    } finally {
+      if (touchActive) {
+        await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      }
+      await client.detach();
+    }
+  });
 
   test("ignores a tap and routes one real touch stroke through the same semantic action", async ({ browserName, page }) => {
     test.skip(

@@ -2,6 +2,7 @@
 import { useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent, ReactElement } from "react";
 
+import type { ElectronicPetGestureCurrentnessV1 } from "../game/kernel.ts";
 import {
   appendPetWandPointV1,
   beginPetWandRoundV1,
@@ -12,12 +13,17 @@ import "./pet-wand-play.css";
 
 export interface PetWandPlayPropsV1 {
   readonly disabled?: boolean;
+  readonly currentness: ElectronicPetGestureCurrentnessV1;
   readonly onDismiss: () => void;
-  readonly onComplete: (outcome: PetWandRoundOutcomeV1) => void;
+  readonly onComplete: (
+    outcome: PetWandRoundOutcomeV1,
+    currentness: ElectronicPetGestureCurrentnessV1,
+  ) => void;
 }
 
 interface ActivePetWandRoundV1 {
   readonly pointerId: number;
+  readonly currentness: ElectronicPetGestureCurrentnessV1;
   readonly round: PetWandRoundV1;
 }
 
@@ -53,7 +59,7 @@ export function PetWandPlayV1(props: PetWandPlayPropsV1): ReactElement {
     setActive(false);
     const surface = surfaceRef.current;
     if (surface?.hasPointerCapture(pointerId)) surface.releasePointerCapture(pointerId);
-    props.onComplete(finishPetWandRoundV1(round, finish));
+    props.onComplete(finishPetWandRoundV1(round, finish), activeRound.currentness);
   };
 
   const startV1 = (event: ReactPointerEvent<HTMLDivElement>): void => {
@@ -66,6 +72,7 @@ export function PetWandPlayV1(props: PetWandPlayPropsV1): ReactElement {
     placeWandV1(event.currentTarget, event.clientX, event.clientY);
     roundRef.current = {
       pointerId: event.pointerId,
+      currentness: props.currentness,
       round: beginPetWandRoundV1(pointForV1(event)),
     };
     setActive(true);

@@ -12,6 +12,7 @@ export const electronicPetCatProfileV1 = {
     self_groom: 1,
     solo_ball_play: 3,
     belly_expose: 1,
+    bring_ball: 4,
   },
   preferenceByInteractionId: {
     "interaction.pet.face": 2,

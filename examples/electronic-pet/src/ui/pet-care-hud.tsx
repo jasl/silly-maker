@@ -62,7 +62,9 @@ function resultMessageV1(
       case "pet.hand_offer":
         return "它闻过你的手，放松了一些";
       case "pet.play_complete":
-        return invocation.roundResult === "caught"
+        return invocation.roundResult === "returned"
+          ? "Mochi 追上小球，又把它叼回了你身边"
+          : invocation.roundResult === "caught"
           ? "它追到了逗猫棒，玩得很尽兴"
           : invocation.roundResult === "missed"
           ? "它差一点抓到，仍然玩得很投入"
@@ -201,7 +203,8 @@ export function ElectronicPetCareHudV1(
             把手停在原地
           </button>
         )}
-        {props.view.trustStage !== "newcomer" && !wandOpen && (
+        {props.view.trustStage !== "newcomer" && props.view.activityId !== "bring_ball" &&
+          !wandOpen && (
           <button
             disabled={busy}
             onClick={() => setWandOpen(true)}
@@ -214,12 +217,18 @@ export function ElectronicPetCareHudV1(
       {wandOpen && (
         <PetWandPlayV1
           disabled={busy}
+          currentness={{
+            expectedActivityOccurrence: occurrence,
+            ...(invitation?.kind === "shared_play"
+              ? { expectedInvitationOccurrence: invitation.occurrence }
+              : {}),
+          }}
           onDismiss={() => setWandOpen(false)}
-          onComplete={(roundResult) => {
+          onComplete={(roundResult, currentness) => {
             setWandOpen(false);
             void runV1({
               kind: "pet.play_complete",
-              expectedActivityOccurrence: occurrence,
+              ...currentness,
               toyId: "toy.wand",
               roundResult,
             });
@@ -232,7 +241,9 @@ export function ElectronicPetCareHudV1(
           {invitation.kind === "sniff_hand"
             ? "它正在靠近，先把手停在原地让它闻。"
             : invitation.kind === "shared_play"
-            ? "它盯着玩具，似乎想和你一起玩。"
+            ? props.view.activityId === "bring_ball"
+              ? "Mochi 把小球叼到你面前。直接在房间里抓住球，拖动后松手。"
+              : "它盯着玩具，似乎想和你一起玩。"
             : invitation.kind === "head_contact"
             ? "它主动把头靠近了你。"
             : "它放松前爪并持续看着你，愿意让你短暂碰一碰腹部。"}

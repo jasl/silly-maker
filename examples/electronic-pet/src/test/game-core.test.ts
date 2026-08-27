@@ -7,6 +7,7 @@ import { createElectronicPetApplicationInstanceV1 } from "../application/core-ap
 import { electronicPetInspectorSourceV1 } from "../application/inspector-source.ts";
 import { electronicPetSemanticAdapterV1 } from "../application/semantic.ts";
 import type { ElectronicPetCommandV1, ElectronicPetGameViewV1 } from "../game/kernel.ts";
+import { electronicPetCommandSchemaV1 } from "../game/kernel.ts";
 import {
   applyElectronicPetCommandV1,
   evaluateElectronicPetCommandV1,
@@ -176,7 +177,212 @@ function bellyStateV1(input: {
   };
 }
 
+function bringBallStateV1(): ElectronicPetStateV1 {
+  const state = activeStateV1({
+    activityId: "bring_ball",
+    poseId: "near_player",
+    worldMinute: 40,
+    minimumUntilMinute: 44,
+    needs: { food: 20, rest: 20, safety: 20, stimulation: 60 },
+  });
+  return {
+    ...state,
+    relationship: { ...state.relationship, trustStage: "bonded" },
+    companion: {
+      ...state.companion,
+      mood: { kind: "playful", cause: "play", sinceMinute: 40 },
+      invitation: {
+        kind: "shared_play",
+        occurrence: 11,
+        activityOccurrence: state.companion.activity.occurrence,
+        expiresAtMinute: 44,
+      },
+      nextInvitationOccurrence: 12,
+    },
+  };
+}
+
 describe("Electronic Pet authoritative domain", () => {
+  it("offers the first ball return promptly once bonded play is eligible", () => {
+    const state = activeStateV1({
+      activityId: "self_groom",
+      poseId: "grooming",
+      worldMinute: 40,
+      minimumUntilMinute: 44,
+      needs: { food: 20, rest: 20, safety: 20, stimulation: 25 },
+      servings: 1,
+    });
+    const after = applyElectronicPetCommandV1(
+      {
+        ...state,
+        relationship: { ...state.relationship, trustStage: "bonded" },
+        companion: {
+          ...state.companion,
+          mood: { kind: "social", cause: "contact", sinceMinute: 40 },
+        },
+      },
+      {
+        kind: "pet.time_settle",
+        mode: "active",
+        observedAtMs: 5 * 60_000,
+        elapsedMs: 5 * 60_000,
+      },
+      null,
+      createTransactionalRngV1(parseNonZeroUint32(97)),
+    );
+
+    expect(after.companion.activity).toMatchObject({
+      activityId: "bring_ball",
+      poseId: "near_player",
+      reason: "social_interest",
+    });
+    expect(after.companion.invitation).toMatchObject({
+      kind: "shared_play",
+      activityOccurrence: after.companion.activity.occurrence,
+    });
+  });
+
+  it("does not repeat a bring-ball invitation immediately when the player ignores it", () => {
+    const state = bringBallStateV1();
+    const after = applyElectronicPetCommandV1(
+      state,
+      {
+        kind: "pet.time_settle",
+        mode: "active",
+        observedAtMs: 5 * 60_000,
+        elapsedMs: 5 * 60_000,
+      },
+      null,
+      createTransactionalRngV1(parseNonZeroUint32(97)),
+    );
+
+    expect(after.companion.activity.activityId).not.toBe("bring_ball");
+    expect(after.companion.invitation).toBeNull();
+    expect(after.relationship.facts).not.toContain("relationship.first_ball_return");
+  });
+
+  it("requires the exact bring-ball activity and invitation captured at pointer-down", () => {
+    const state = bringBallStateV1();
+    const command = {
+      kind: "pet.play_complete",
+      expectedActivityOccurrence: 4,
+      expectedInvitationOccurrence: 11,
+      toyId: "toy.ball",
+      roundResult: "returned",
+    } as const satisfies ElectronicPetCommandV1;
+
+    expect(electronicPetCommandSchemaV1.parse(command)).toEqual(command);
+    expect(evaluateElectronicPetCommandV1(state, command)).toEqual({
+      kind: "allowed",
+      outcome: "accept",
+    });
+    expect(evaluateElectronicPetCommandV1(state, {
+      ...command,
+      expectedActivityOccurrence: 3,
+    })).toEqual({ kind: "blocked", code: "pet.activity_stale" });
+    expect(evaluateElectronicPetCommandV1(state, {
+      ...command,
+      expectedInvitationOccurrence: 10,
+    })).toEqual({ kind: "blocked", code: "pet.invitation_stale" });
+    expect(evaluateElectronicPetCommandV1({
+      ...state,
+      companion: {
+        ...state.companion,
+        invitation: { ...state.companion.invitation!, activityOccurrence: 3 },
+      },
+    }, command)).toEqual({ kind: "blocked", code: "pet.invitation_stale" });
+    const { expectedInvitationOccurrence: _, ...withoutInvitation } = command;
+    expect(evaluateElectronicPetCommandV1(state, withoutInvitation)).toEqual({
+      kind: "blocked",
+      code: "pet.invitation_stale",
+    });
+    expect(evaluateElectronicPetCommandV1(state, {
+      ...command,
+      roundResult: "caught",
+    })).toEqual({ kind: "blocked", code: "pet.action_unavailable" });
+  });
+
+  it.each(
+    [
+      ["returned", "accept"],
+      ["missed", "tolerate"],
+    ] as const,
+  )("closes a %s ball round into one new observe occurrence", (roundResult, outcome) => {
+    const state = bringBallStateV1();
+    const command = {
+      kind: "pet.play_complete",
+      expectedActivityOccurrence: 4,
+      expectedInvitationOccurrence: 11,
+      toyId: "toy.ball",
+      roundResult,
+    } as const satisfies ElectronicPetCommandV1;
+    const after = applyElectronicPetCommandV1(
+      state,
+      command,
+      outcome,
+      createTransactionalRngV1(parseNonZeroUint32(97)),
+    );
+
+    expect(after.companion.activity).toMatchObject({
+      activityId: "observe_player",
+      poseId: "watching",
+      occurrence: 5,
+      reason: "routine",
+    });
+    expect(after.companion.nextActivityOccurrence).toBe(6);
+    expect(after.companion.invitation).toBeNull();
+    expect(after.companion.recentMemory.at(-1)).toEqual({
+      kind: "play",
+      toyId: "toy.ball",
+      roundResult,
+      outcome,
+      atMinute: 40,
+    });
+    expect(after.relationship.facts.includes("relationship.first_ball_return")).toBe(
+      roundResult === "returned",
+    );
+    expect(after.relationship.evidence.sharedPlay.count).toBe(roundResult === "returned" ? 1 : 0);
+    expect(electronicPetStateSchemaV1.parse(after)).toEqual(after);
+    expect(projectElectronicPetPlayerViewV1(after)).toMatchObject({
+      lastOutcome: outcome,
+      lastInteractionKind: "play",
+      lastInteractionTargetId: "toy.ball",
+    });
+  });
+
+  it("keeps the existing wand command independent of a shared-play invitation", () => {
+    const state = activeStateV1({
+      activityId: "explore_room",
+      poseId: "walking",
+      worldMinute: 20,
+      minimumUntilMinute: 28,
+      needs: { food: 20, rest: 20, safety: 20, stimulation: 50 },
+    });
+    expect(evaluateElectronicPetCommandV1(state, {
+      kind: "pet.play_complete",
+      expectedActivityOccurrence: 4,
+      toyId: "toy.wand",
+      roundResult: "caught",
+    })).toEqual({ kind: "allowed", outcome: "accept" });
+
+    const invited = bringBallStateV1();
+    const captured = {
+      kind: "pet.play_complete",
+      expectedActivityOccurrence: 4,
+      expectedInvitationOccurrence: 11,
+      toyId: "toy.wand",
+      roundResult: "caught",
+    } as const satisfies ElectronicPetCommandV1;
+    expect(evaluateElectronicPetCommandV1(invited, captured)).toEqual({
+      kind: "allowed",
+      outcome: "accept",
+    });
+    expect(evaluateElectronicPetCommandV1(invited, {
+      ...captured,
+      expectedInvitationOccurrence: 10,
+    })).toEqual({ kind: "blocked", code: "pet.invitation_stale" });
+  });
+
   it("keeps belly exposure separate from an exact current offer", () => {
     const exposed = bellyStateV1({ trustStage: "bonded" });
     expect(evaluateElectronicPetCommandV1(exposed, bellyStrokeV1())).toEqual({
@@ -1585,7 +1791,7 @@ describe("Electronic Pet authoritative domain", () => {
     },
   );
 
-  it("bounds recent memory and keeps all nine autonomous activities product-local", () => {
+  it("bounds recent memory and keeps all ten autonomous activities product-local", () => {
     expect(electronicPetActivityDefinitionsV1.map((entry) => entry.activityId)).toEqual([
       "hide_in_den",
       "observe_player",
@@ -1596,6 +1802,7 @@ describe("Electronic Pet authoritative domain", () => {
       "self_groom",
       "solo_ball_play",
       "belly_expose",
+      "bring_ball",
     ]);
     let state = createInitialElectronicPetStateV1();
     const rng = createTransactionalRngV1(parseNonZeroUint32(47));

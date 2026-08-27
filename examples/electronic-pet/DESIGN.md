@@ -11,9 +11,9 @@
 | ------------------------ | --------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------ |
 | 新领养到成为家人         | 五段可观察进展                                                              | M3 已可跨 visit 到达 bonded                 | 成为家人的完整内容宽度仍开放                           |
 | 信赖 × 心情              | 正交规则与可解释恢复                                                        | M3 完成 trusting、bonded 与腹部边界纵向切片 | 其余后期反馈仍开放                                     |
-| 自主行为                 | 至少 16 个，含驻留、打断与重复抑制                                          | M3 完成 9/16 个及 9 个表现映射              | M3 完成 16 个与内容打磨                                |
+| 自主行为                 | 至少 16 个，含驻留、打断与重复抑制                                          | M3 完成 10/16 个及 10 个表现映射            | M3 完成 16 个与内容打磨                                |
 | 互动                     | 八类主要互动、腹部邀请与边界反馈                                            | M3 完成脸、颈、背、腹部 4/8 类              | 尾根明确 defer；M3 完成其余互动                        |
-| 玩具与照料               | 三种玩具、喂食、梳理、共同游戏                                              | M3 已完成首个背部梳理闭环                   | 另外两种玩具仍开放                                     |
+| 玩具与照料               | 三种玩具、喂食、梳理、共同游戏                                              | M3 完成梳理及逗猫棒、投球 2/3 种玩具        | 益智喂食器与更深反馈仍开放                             |
 | 3D 表现                  | 房间、rigged cat、动画与响应式质量档位                                      | M3 首个视觉/宽窄屏构图切片已完成            | 最终猫、房间细节与动画仍开放；不建设通用 3D engine     |
 | 作者工作流               | Object 到代码/资源/互动/source 可定位，人类与 Agent 共用 operation/CAS/undo | M1 作者闭环已完成                           | 不要求无代码开发                                       |
 | Save/recovery/offline    | 独立 Save floor、有限离线结算与回归摘要                                     | M2 完成 Save/reopen/reset 与摘要            | M5 完成完整 recovery/release 证据                      |
@@ -129,6 +129,27 @@ Worker、LRU/prefetch 或新 Host seam。
   390×844/1280×800、Save/reload 和 stale activity/invitation 零部分变更；
 - 本切片未增加 timer manager、gesture DSL、第二份 gameplay store 或 public engine API，也没有关闭另外两种
   玩具、其余行为/反应、音频、i18n、设置、相册或完整 M3。
+
+### M3 bonded ball-return slice（2026-08-27）
+
+- 第 10 个自主行为 `bring_ball` 只在已经 `bonded`、心情适合共同游戏且刺激需求允许时出现，并复用现有
+  `shared_play` invitation。首次归还前，它在更紧急的需求行为之后取得确定性的首次展示机会，避免被
+  `explore_room` 的刺激消耗永久遮蔽；
+- Scene 作者数据把第二个玩具 `toy.ball` 继续表达为普通 model，并为猫头增加 `cat.mouth` socket。产品私有
+  binding 连接 model、toy、`pet.play_complete` 与 behavior owner；Inspector 可定位和调整对象/socket，并沿同一
+  authoring authority 查看绑定，不增加 toy schema、Scene kind、interaction volume 或 public engine API；
+- 玩家直接抓住嘴边小球，使用 mouse/touch 在现有 Three canvas、raycaster、Pointer Events owner 与 demand-driven
+  RAF 中拖动和投掷。短拖/取消零提交；合法投球只在本地表现完 throw → chase → return 后提交一次 `returned`，
+  越界只提交一次 `missed`。轨迹、抛物线、追逐和回程均是 renderer-local，不进入 State/Save；
+- pointer-down 捕获 activity 与 invitation occurrence。权威命令原子校验这对 currentness；successor 会取消本地
+  手势/动画，stale result 不产生部分写入。首次真实归还只写一次 `relationship.first_ball_return`、本 visit 的
+  shared-play evidence 与既有有界 play memory；Save/reload 恢复语义结果，不恢复指针或动画；
+- 产品 Vitest、Chromium/WebKit 真实 mouse 旅程、390×844 Chromium native touch、Save/reload 与 Inspector
+  object/socket/binding 证据覆盖该切片。本切片没有建立 physics、toy runtime、gesture DSL、mastery 计数或新
+  engine seam，也没有关闭益智喂食器、其余行为/反应、音频、i18n、设置、相册或完整 M3。
+- 最终树的产品 Vitest 为 `13 files / 95 tests`，Electronic Pet Browser matrix 为 `27 passed / 3 skipped`；
+  skips 仍只对应 WebKit 不提供 native touch-drag injection。全仓 `deno task check`、文档站构建、产品 release
+  build 与 React Doctor changed-scope advisory（0 findings）通过。
 
 ## Asset and reference ledger
 

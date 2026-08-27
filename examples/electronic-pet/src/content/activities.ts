@@ -23,6 +23,7 @@ export const electronicPetActivityDefinitionsV1 = [
     minimumMinutes: 5,
     weight: 2,
   },
+  { activityId: "bring_ball", poseId: "near_player", minimumMinutes: 4, weight: 3 },
 ] as const satisfies readonly ElectronicPetActivityDefinitionV1[];
 
 export function findElectronicPetActivityDefinitionV1(

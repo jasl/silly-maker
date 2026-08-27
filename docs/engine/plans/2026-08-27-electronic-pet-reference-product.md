@@ -231,7 +231,7 @@ M2 post-closure usability correction（2026-08-27）：
   `deno task check` 为 `390` 个 Vitest 文件、`5,475` 项测试与 `6` 项 composition-state workload，并通过 assets、
   全部 application checks 与 E2E release build。
 
-M3 已由所有者另行启动，并完成视觉/构图、`trusting`/梳理和首个 `bonded`/腹部边界纵向切片；其余完整产品
+M3 已由所有者另行启动，并完成视觉/构图、`trusting`/梳理、首个 `bonded`/腹部边界与叼球归还纵向切片；其余完整产品
 分母、后期关系内容、剩余互动/玩具/行为、
 音频/i18n 与作者接手仍保持开放，M4–M5 和 retirement gate 均未关闭。
 
@@ -291,6 +291,30 @@ occurrence 及相关 invitation occurrence，pointer-up 不再借用最新 publi
 390×844/1280×800、Inspector belly object/volume、stale activity/invitation 零部分变更和 Save/reload。该切片把
 实现宽度推进到 9/16 个自主行为和脸/颈/背/腹部 4/8 类直接互动，但未关闭另外两种玩具、其余行为/反应、音频、
 i18n、设置、相册或完整 M3。
+
+2026-08-27 完成 M3 的第四个叼球归还切片：第 10 个自主行为 `bring_ball` 只在 `bonded`、social/playful
+且刺激需求允许时发出当前 `shared_play` invitation。首次归还前，选择规则在更紧急的需求行为之后优先展示
+一次叼球，修正了早期阈值会被 `explore_room` 先行消耗、使邀请可能长期不可达的问题。该行为复用
+`near_player` 姿态与已有 invitation/command family，没有增加 scheduler、behavior tree 或第二套 gameplay
+authority。
+
+Scene 作者数据继续把 `toy.ball` 表达为普通 model，并在猫头增加 `cat.mouth` socket；产品私有 binding 连接
+model、toy、`pet.play_complete` 与 behavior owner。Inspector 复用既有 hierarchy、socket 编辑、operation/CAS/
+undo 与只读 binding 面板，不增加 toy schema、Scene kind、伪 interaction volume 或 public engine API。
+renderer 在唯一 Three canvas、raycaster、Pointer Events owner 与 demand-driven RAF 中完成 mouse/touch 抓取、
+拖动和 throw → chase → return 表现。短拖/取消零提交；越界提交一次 `missed`，合法投球只在归还表现结束后
+提交一次 `returned`。轨迹、抛物线、追逐、回程和输入来源均不进入 State/Save。
+
+pointer-down 捕获 activity/invitation occurrence；successor 取消 renderer-local 手势/序列，权威命令继续原子
+拒绝 stale pair。首次 `returned` 只写一次 `relationship.first_ball_return`、当前 visit 的 shared-play evidence
+与既有有界 play memory；Save/reload 恢复语义结果而非瞬时动画。产品 Vitest、Chromium/WebKit 真实 mouse、
+390×844 Chromium native touch、Save/reload 和 Inspector ball/socket/binding 证据通过。该切片把实现宽度推进到
+10/16 个自主行为与 2/3 种玩具，但未增加 physics/toy runtime/gesture DSL/mastery framework，也未关闭益智
+喂食器、其余行为/反应、音频、i18n、设置、相册或完整 M3。最终树的产品 Vitest 为
+`13 files / 95 tests`，Electronic Pet Browser matrix 为 `27 passed / 3 skipped`（WebKit native touch-drag
+injection 不可用）；全仓 `deno task check` 为 `392` 个 Vitest 文件、`5,504` 项测试与 `6` 项 Composition
+workload，并通过全部 assets/application checks 和 E2E release build。文档站、Electronic Pet release build 与
+React Doctor changed-scope advisory（0 findings）也通过。
 
 ### M4 — 产品完整性、作者接手与性能审查
 

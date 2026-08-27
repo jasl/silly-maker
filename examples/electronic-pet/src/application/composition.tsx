@@ -83,6 +83,10 @@ function createSlotsV1(input: {
                   ...gesture,
                 });
               }
+              if (result.interactionKind === "play") {
+                const { interactionKind: _, ...play } = result;
+                return await input.dispatch({ kind: "pet.play_complete", ...play });
+              }
               const { interactionKind: _, ...gesture } = result;
               return await input.dispatch({
                 kind: "pet.contact_complete",

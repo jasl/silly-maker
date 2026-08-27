@@ -31,6 +31,7 @@ export const electronicPetActivityIdsV1 = [
   "self_groom",
   "solo_ball_play",
   "belly_expose",
+  "bring_ball",
 ] as const;
 export type ElectronicPetActivityIdV1 = (typeof electronicPetActivityIdsV1)[number];
 export const electronicPetPoseIdsV1 = [
@@ -69,6 +70,7 @@ export const electronicPetProgressionFactsV1 = [
   "relationship.routine_established",
   "relationship.first_grooming",
   "relationship.first_belly_contact",
+  "relationship.first_ball_return",
 ] as const;
 export type ElectronicPetProgressionFactIdV1 = (typeof electronicPetProgressionFactsV1)[number];
 export const electronicPetInteractionOutcomesV1 = ["accept", "tolerate", "warn", "refuse"] as const;
@@ -80,6 +82,13 @@ export const electronicPetBellyTerminalsV1 = [
   "continued_after_warning",
 ] as const;
 export type ElectronicPetBellyTerminalV1 = (typeof electronicPetBellyTerminalsV1)[number];
+export const electronicPetPlayRoundResultsV1 = [
+  "caught",
+  "returned",
+  "missed",
+  "ended_early",
+] as const;
+export type ElectronicPetPlayRoundResultV1 = (typeof electronicPetPlayRoundResultsV1)[number];
 
 export interface ElectronicPetEvidenceCounterV1 {
   readonly count: number;
@@ -129,6 +138,7 @@ export type ElectronicPetRecentMemoryV1 =
   | {
     readonly kind: "play";
     readonly toyId: string;
+    readonly roundResult: ElectronicPetPlayRoundResultV1;
     readonly outcome: ElectronicPetInteractionOutcomeV1;
     readonly atMinute: number;
   }
@@ -200,6 +210,7 @@ const memoryZodV1 = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("play"),
     toyId: z.string().min(1).max(128),
+    roundResult: z.enum(electronicPetPlayRoundResultsV1),
     outcome: z.enum(electronicPetInteractionOutcomesV1),
     atMinute: safeCounterV1,
   }),

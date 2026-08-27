@@ -25,6 +25,13 @@ export interface PetReactionPresentationV1 {
   readonly playAuthoredClip: boolean;
 }
 
+const nearPlayerPresentationV1 = {
+  positionOffset: { x: 0, y: 0.04, z: 0.72 },
+  rotationOffset: { x: -0.04, y: 0, z: 0 },
+  scaleMultiplier: { x: 1.06, y: 1.06, z: 1.06 },
+  interactionEnabled: true,
+} as const satisfies PetActivityPresentationV1;
+
 const activityPresentationByIdV1 = {
   hide_in_den: {
     positionOffset: { x: -0.95, y: -0.12, z: -0.62 },
@@ -44,12 +51,7 @@ const activityPresentationByIdV1 = {
     scaleMultiplier: { x: 0.98, y: 0.98, z: 0.98 },
     interactionEnabled: true,
   },
-  approach_player: {
-    positionOffset: { x: 0, y: 0.04, z: 0.72 },
-    rotationOffset: { x: -0.04, y: 0, z: 0 },
-    scaleMultiplier: { x: 1.06, y: 1.06, z: 1.06 },
-    interactionEnabled: true,
-  },
+  approach_player: nearPlayerPresentationV1,
   eat_at_bowl: {
     positionOffset: { x: 0.92, y: -0.08, z: 0.5 },
     rotationOffset: { x: 0.24, y: -0.34, z: 0 },
@@ -79,6 +81,11 @@ const activityPresentationByIdV1 = {
     rotationOffset: { x: -0.18, y: 0.12, z: 2.72 },
     scaleMultiplier: { x: 1.06, y: 0.92, z: 1.04 },
     interactionEnabled: true,
+  },
+  bring_ball: {
+    ...nearPlayerPresentationV1,
+    positionOffset: { x: 0.1, y: 0.07, z: 0.76 },
+    rotationOffset: { x: -0.08, y: -0.06, z: 0 },
   },
 } as const satisfies Record<ElectronicPetActivityIdV1, PetActivityPresentationV1>;
 

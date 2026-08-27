@@ -6,6 +6,17 @@
  * share these few accepted identities so a source declaration cannot become
  * an unhandled runtime object.
  */
+export const electronicPetBallModelBindingV1 = {
+  objectId: "pet.toy",
+  modelId: "electronic-pet.toy.ball",
+  runtimeKind: "procedural-toy",
+  runtimeAssetPath: null,
+  rendererOwner: "pet.presentation.three",
+  toyId: "toy.ball",
+  actionId: "pet.play_complete",
+  behaviorOwner: "pet.game.companion",
+} as const;
+
 export const electronicPetRuntimeModelBindingsV1 = [
   {
     objectId: "pet.room",
@@ -21,13 +32,7 @@ export const electronicPetRuntimeModelBindingsV1 = [
     runtimeAssetPath: "assets/models/electronic-pet-cat-m1.glb",
     rendererOwner: "pet.presentation.three",
   },
-  {
-    objectId: "pet.toy",
-    modelId: "electronic-pet.toy.ball",
-    runtimeKind: "procedural-toy",
-    runtimeAssetPath: null,
-    rendererOwner: "pet.presentation.three",
-  },
+  electronicPetBallModelBindingV1,
   {
     objectId: "pet.tool.brush",
     modelId: "electronic-pet.tool.brush",

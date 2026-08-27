@@ -13,6 +13,7 @@ import {
   Mesh,
   MeshStandardMaterial,
   Object3D,
+  Plane,
   PerspectiveCamera,
   PointLight,
   Raycaster,
@@ -56,6 +57,8 @@ import {
   petStrokeCompletionV1,
 } from "./pet-stroke-gesture.ts";
 import type { PetStrokeGestureAccumulatorV1 } from "./pet-stroke-gesture.ts";
+import { classifyPetBallThrowV1, samplePetBallRoundMotionV1 } from "./pet-ball-throw.ts";
+import type { PetBallPointV1, PetBallRoundMotionPlanV1 } from "./pet-ball-throw.ts";
 import {
   petActivityPresentationV1,
   petReactionPresentationV1,
@@ -144,6 +147,24 @@ interface PointerBellyGestureV1 extends PointerGestureBaseV1 {
 }
 
 type PointerGestureV1 = PointerContactGestureV1 | PointerBellyGestureV1;
+
+interface PointerBallGestureV1 {
+  readonly pointerId: number;
+  readonly expectedActivityOccurrence: number;
+  readonly expectedInvitationOccurrence: number;
+  readonly start: PetBallPointV1;
+  readonly dragPlane: Plane;
+  last: PetBallPointV1;
+}
+
+interface ActivePetBallSequenceV1 {
+  readonly startedAtMs: number;
+  readonly expectedActivityOccurrence: number;
+  readonly expectedInvitationOccurrence: number;
+  readonly motion: PetBallRoundMotionPlanV1;
+  readonly clientX: number;
+  readonly clientY: number;
+}
 
 interface InteractionHitV1 {
   readonly objectId: string;
@@ -297,6 +318,7 @@ export function createPetThreeRuntimeV1(
   const interactionObjects: Object3D[] = [];
   const interactionPlansById = new Map<string, PetSceneRuntimeInteractionVolumePlanV1>();
   const selectableObjects = new Map<string, Object3D>();
+  const ballHitObjects: Object3D[] = [];
   const geometries = new Set<BufferGeometry>();
   const materials = new Set<Material>();
   const textures = new Set<Texture>();
@@ -308,6 +330,8 @@ export function createPetThreeRuntimeV1(
   const timer = new Timer();
   timer.connect(document);
   let activeGesture: PointerGestureV1 | null = null;
+  let activeBallGesture: PointerBallGestureV1 | null = null;
+  let activeBallSequence: ActivePetBallSequenceV1 | null = null;
   let hoverFrame = 0;
   let pendingHoverPoint: { readonly clientX: number; readonly clientY: number } | null = null;
   let feedbackResetTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
@@ -396,6 +420,11 @@ export function createPetThreeRuntimeV1(
   if (catPlan?.kind !== "model" || catRoot === undefined) {
     throw new TypeError("pet.companion_model_unavailable");
   }
+  const ballPlan = input.plan.objectById.get("pet.toy");
+  const ballRoot = modelRootsById.get("pet.toy");
+  if (ballPlan?.kind !== "model" || ballRoot === undefined) {
+    throw new TypeError("pet.ball_model_unavailable");
+  }
   const brushRoot = modelRootsById.get("pet.tool.brush") ?? null;
   const cameraFraming = cameraPlan.camera.responsiveFraming;
   const cameraSubjectPlan = input.plan.objectById.get(cameraFraming.subjectObjectId)!;
@@ -455,6 +484,42 @@ export function createPetThreeRuntimeV1(
     catRoot.updateMatrixWorld(true);
   };
 
+  const ballThrowAreaV1 = {
+    minX: -3.7,
+    maxX: 3.7,
+    minZ: -2.7,
+    maxZ: 2.7,
+    minimumDistance: 0.48,
+  } as const;
+
+  const setBallPositionV1 = (point: PetBallPointV1): void => {
+    ballRoot.position.set(point.x, point.y, point.z);
+    ballRoot.updateMatrixWorld(true);
+  };
+
+  const ballMouthPositionV1 = (): PetBallPointV1 | null => {
+    const socket = socketsByKey.get("pet.cat\0cat.mouth");
+    const parent = ballRoot.parent;
+    if (socket === undefined || parent === null) return null;
+    socket.updateWorldMatrix(true, false);
+    parent.updateWorldMatrix(true, false);
+    const point = parent.worldToLocal(socket.getWorldPosition(new Vector3()));
+    return { x: point.x, y: point.y, z: point.z };
+  };
+
+  const placeBallForCurrentActivityV1 = (): void => {
+    if (activeBallGesture !== null || activeBallSequence !== null) return;
+    applyTransformV1(ballRoot, ballPlan.transform);
+    if (
+      currentActivityId === "bring_ball" &&
+      currentInvitation?.kind === "shared_play" &&
+      currentInvitation.activityOccurrence === currentActivityOccurrence
+    ) {
+      const mouth = ballMouthPositionV1();
+      if (mouth !== null) setBallPositionV1(mouth);
+    }
+  };
+
   const renderNowV1 = (): void => {
     if (disposed) return;
     const started = performance.now();
@@ -493,6 +558,42 @@ export function createPetThreeRuntimeV1(
         applyCompanionTransformV1(Math.sin(Math.PI * progress));
         continueAnimation = true;
       }
+      animated = true;
+    }
+    if (activeBallSequence !== null) {
+      const sequence = activeBallSequence;
+      const sample = samplePetBallRoundMotionV1(
+        sequence.motion,
+        timestamp - sequence.startedAtMs,
+      );
+      setBallPositionV1(sample.ball);
+      catRoot.position.set(sample.cat.x, sample.cat.y, sample.cat.z);
+      catRoot.updateMatrixWorld(true);
+      if (sample.phase === "complete") {
+        activeBallSequence = null;
+        applyCompanionTransformV1();
+        placeBallForCurrentActivityV1();
+        publishLocatedPointerFeedbackV1(
+          "complete",
+          sequence.clientX,
+          sequence.clientY,
+          1,
+          "toy.ball",
+        );
+        feedbackResetTimer = globalThis.setTimeout(() => {
+          feedbackResetTimer = null;
+          if (!disposed && activeGesture === null && activeBallGesture === null) {
+            resetPointerFeedbackV1();
+          }
+        }, 520);
+        reportGestureV1({
+          interactionKind: "play",
+          toyId: "toy.ball",
+          roundResult: "returned",
+          expectedActivityOccurrence: sequence.expectedActivityOccurrence,
+          expectedInvitationOccurrence: sequence.expectedInvitationOccurrence,
+        });
+      } else continueAnimation = true;
       animated = true;
     }
     if (animated) activeAnimationFrames += 1;
@@ -549,19 +650,49 @@ export function createPetThreeRuntimeV1(
     }
   };
 
-  const raycastV1 = (
-    clientX: number,
-    clientY: number,
-    objects: Object3D[],
-  ) => {
+  const setPointerRayV1 = (clientX: number, clientY: number): boolean => {
     const bounds = input.canvas.getBoundingClientRect();
-    if (bounds.width <= 0 || bounds.height <= 0) return null;
+    if (bounds.width <= 0 || bounds.height <= 0) return false;
     pointer.set(
       (clientX - bounds.left) / bounds.width * 2 - 1,
       -(clientY - bounds.top) / bounds.height * 2 + 1,
     );
     raycaster.setFromCamera(pointer, camera);
+    return true;
+  };
+
+  const raycastV1 = (
+    clientX: number,
+    clientY: number,
+    objects: Object3D[],
+  ) => {
+    if (!setPointerRayV1(clientX, clientY)) return null;
     return raycaster.intersectObjects(objects, false)[0] ?? null;
+  };
+
+  const ballAvailableV1 = (): boolean =>
+    !(input.authoring ?? false) &&
+    currentActivityId === "bring_ball" &&
+    currentActivityOccurrence !== null &&
+    currentInvitation?.kind === "shared_play" &&
+    currentInvitation.activityOccurrence === currentActivityOccurrence &&
+    activeBallSequence === null;
+
+  const pickBallV1 = (clientX: number, clientY: number): boolean =>
+    ballAvailableV1() && raycastV1(clientX, clientY, ballHitObjects) !== null;
+
+  const projectBallPointerV1 = (
+    clientX: number,
+    clientY: number,
+    plane: Plane,
+  ): PetBallPointV1 | null => {
+    const parent = ballRoot.parent;
+    if (parent === null || !setPointerRayV1(clientX, clientY)) return null;
+    const world = raycaster.ray.intersectPlane(plane, new Vector3());
+    if (world === null) return null;
+    parent.updateWorldMatrix(true, false);
+    const local = parent.worldToLocal(world);
+    return { x: local.x, y: local.y, z: local.z };
   };
 
   const pickV1 = (clientX: number, clientY: number): string | null => {
@@ -646,9 +777,15 @@ export function createPetThreeRuntimeV1(
     const clientY = event.clientY;
     feedbackResetTimer = globalThis.setTimeout(() => {
       feedbackResetTimer = null;
-      if (disposed || activeGesture !== null) return;
-      const hit = pointerType === "mouse" ? pickInteractionV1(clientX, clientY) : null;
-      if (hit !== null) {
+      if (
+        disposed || activeGesture !== null || activeBallGesture !== null ||
+        activeBallSequence !== null
+      ) return;
+      const ballHit = pointerType === "mouse" && pickBallV1(clientX, clientY);
+      const hit = pointerType === "mouse" && !ballHit ? pickInteractionV1(clientX, clientY) : null;
+      if (ballHit) {
+        publishLocatedPointerFeedbackV1("hover", clientX, clientY, 0, "toy.ball");
+      } else if (hit !== null) {
         publishLocatedPointerFeedbackV1("hover", clientX, clientY, 0, hit.interactionId);
       } else if (pointerType === "mouse" && hitsInteractionV1(clientX, clientY)) {
         publishLocatedPointerFeedbackV1("blocked", clientX, clientY, 0, null);
@@ -671,9 +808,21 @@ export function createPetThreeRuntimeV1(
       hoverFrame = 0;
       const point = pendingHoverPoint;
       pendingHoverPoint = null;
-      if (disposed || activeGesture !== null || point === null) return;
-      const hit = pickInteractionV1(point.clientX, point.clientY);
-      if (hit !== null) {
+      if (
+        disposed || activeGesture !== null || activeBallGesture !== null ||
+        activeBallSequence !== null || point === null
+      ) return;
+      const ballHit = pickBallV1(point.clientX, point.clientY);
+      const hit = ballHit ? null : pickInteractionV1(point.clientX, point.clientY);
+      if (ballHit) {
+        publishLocatedPointerFeedbackV1(
+          "hover",
+          point.clientX,
+          point.clientY,
+          0,
+          "toy.ball",
+        );
+      } else if (hit !== null) {
         publishLocatedPointerFeedbackV1(
           "hover",
           point.clientX,
@@ -706,6 +855,19 @@ export function createPetThreeRuntimeV1(
     const gesture = activeGesture;
     activeGesture = null;
     if (gesture.interactionKind === "belly") clearBellyGestureTimersV1(gesture);
+    if (releaseCapture && input.canvas.hasPointerCapture(pointerId)) {
+      input.canvas.releasePointerCapture(pointerId);
+    }
+    return gesture;
+  };
+
+  const releaseBallGestureV1 = (
+    pointerId: number,
+    releaseCapture: boolean,
+  ): PointerBallGestureV1 | null => {
+    if (activeBallGesture?.pointerId !== pointerId) return null;
+    const gesture = activeBallGesture;
+    activeBallGesture = null;
     if (releaseCapture && input.canvas.hasPointerCapture(pointerId)) {
       input.canvas.releasePointerCapture(pointerId);
     }
@@ -759,6 +921,25 @@ export function createPetThreeRuntimeV1(
     const gestureCurrent = activeGesture === null ||
       (activeGesture.expectedActivityOccurrence === view.activityOccurrence &&
         activeGesture.startedInvitationOccurrence === invitationOccurrence);
+    const ballCurrent = (
+      expectedActivityOccurrence: number,
+      expectedInvitationOccurrence: number,
+    ): boolean =>
+      view.activityId === "bring_ball" &&
+      view.activityOccurrence === expectedActivityOccurrence &&
+      view.invitation?.kind === "shared_play" &&
+      view.invitation.activityOccurrence === view.activityOccurrence &&
+      view.invitation.occurrence === expectedInvitationOccurrence;
+    const ballGestureCurrent = activeBallGesture === null ||
+      ballCurrent(
+        activeBallGesture.expectedActivityOccurrence,
+        activeBallGesture.expectedInvitationOccurrence,
+      );
+    const ballSequenceCurrent = activeBallSequence === null ||
+      ballCurrent(
+        activeBallSequence.expectedActivityOccurrence,
+        activeBallSequence.expectedInvitationOccurrence,
+      );
     currentActivityId = view.activityId;
     currentActivityOccurrence = view.activityOccurrence;
     currentInvitation = view.invitation;
@@ -785,12 +966,22 @@ export function createPetThreeRuntimeV1(
     } else if (pointerFeedbackPhase === "hover" || pointerFeedbackPhase === "blocked") {
       resetPointerFeedbackV1();
     }
+    if (!ballGestureCurrent && activeBallGesture !== null) {
+      releaseBallGestureV1(activeBallGesture.pointerId, true);
+      resetPointerFeedbackV1();
+    }
+    if (!ballSequenceCurrent && activeBallSequence !== null) {
+      activeBallSequence = null;
+      applyCompanionTransformV1();
+      resetPointerFeedbackV1();
+    }
     if (activityChanged || trustChanged) {
       activeReaction = null;
       animationRemainingSeconds = 0;
       for (const { action } of clipActions) action.stop();
       applyCompanionTransformV1();
     }
+    placeBallForCurrentActivityV1();
     if (activityChanged) applyCameraCompositionV1();
     requestRenderV1();
   };
@@ -850,6 +1041,89 @@ export function createPetThreeRuntimeV1(
     }, petBellyContinuationDelayMsV1);
   };
 
+  const finishBallGestureV1 = (
+    event: PointerEvent,
+    finish: "release" | "cancel",
+  ): boolean => {
+    const current = activeBallGesture;
+    if (current === null || current.pointerId !== event.pointerId) return false;
+    const projected = projectBallPointerV1(event.clientX, event.clientY, current.dragPlane) ??
+      current.last;
+    const landing = {
+      x: projected.x,
+      y: ballPlan.transform.position.y,
+      z: projected.z,
+    };
+    const classification = classifyPetBallThrowV1({
+      start: current.start,
+      release: landing,
+      finish,
+      area: ballThrowAreaV1,
+    });
+    const gesture = releaseBallGestureV1(
+      event.pointerId,
+      event.type !== "lostpointercapture",
+    )!;
+    if (classification.kind === "valid") {
+      const mouth = ballMouthPositionV1() ?? gesture.start;
+      const catStart = {
+        x: catRoot.position.x,
+        y: catRoot.position.y,
+        z: catRoot.position.z,
+      };
+      const ballStart = {
+        x: ballRoot.position.x,
+        y: ballRoot.position.y,
+        z: ballRoot.position.z,
+      };
+      activeBallSequence = {
+        startedAtMs: performance.now(),
+        expectedActivityOccurrence: gesture.expectedActivityOccurrence,
+        expectedInvitationOccurrence: gesture.expectedInvitationOccurrence,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        motion: {
+          ballStart,
+          ballLanding: classification.landing,
+          ballReturn: mouth,
+          catStart,
+          catCatch: {
+            x: classification.landing.x * 0.88,
+            y: catStart.y,
+            z: classification.landing.z - 0.16,
+          },
+          catReturn: catStart,
+          throwArcHeight: Math.min(0.9, 0.5 + classification.distance * 0.12),
+        },
+      };
+      resetPointerFeedbackV1();
+      timer.reset();
+      requestRenderV1();
+      return true;
+    }
+
+    placeBallForCurrentActivityV1();
+    const missed = classification.kind === "out_of_bounds";
+    publishLocatedPointerFeedbackV1(
+      missed ? "blocked" : "incomplete",
+      event.clientX,
+      event.clientY,
+      0,
+      "toy.ball",
+    );
+    scheduleTerminalFeedbackResetV1(event, 700);
+    if (missed) {
+      reportGestureV1({
+        interactionKind: "play",
+        toyId: "toy.ball",
+        roundResult: "missed",
+        expectedActivityOccurrence: gesture.expectedActivityOccurrence,
+        expectedInvitationOccurrence: gesture.expectedInvitationOccurrence,
+      });
+    }
+    return true;
+  };
+
   const onPointerDownV1 = (event: PointerEvent): void => {
     cancelHoverFrameV1();
     if (input.onPick !== undefined) {
@@ -858,11 +1132,47 @@ export function createPetThreeRuntimeV1(
     if (
       input.onGesture === undefined ||
       activeGesture !== null ||
+      activeBallGesture !== null ||
+      activeBallSequence !== null ||
       !event.isPrimary ||
       event.button !== 0 ||
       (event.pointerType !== "mouse" && event.pointerType !== "touch") ||
       currentActivityOccurrence === null
     ) return;
+    if (pickBallV1(event.clientX, event.clientY)) {
+      const invitationOccurrence = currentInvitation?.kind === "shared_play"
+        ? currentInvitation.occurrence
+        : null;
+      if (invitationOccurrence === null) return;
+      event.preventDefault();
+      ballRoot.updateWorldMatrix(true, false);
+      const ballWorld = ballRoot.getWorldPosition(new Vector3());
+      const start = {
+        x: ballRoot.position.x,
+        y: ballRoot.position.y,
+        z: ballRoot.position.z,
+      };
+      activeBallGesture = {
+        pointerId: event.pointerId,
+        expectedActivityOccurrence: currentActivityOccurrence,
+        expectedInvitationOccurrence: invitationOccurrence,
+        start,
+        dragPlane: new Plane().setFromNormalAndCoplanarPoint(
+          camera.getWorldDirection(new Vector3()),
+          ballWorld,
+        ),
+        last: start,
+      };
+      input.canvas.setPointerCapture(event.pointerId);
+      publishLocatedPointerFeedbackV1(
+        "tracking",
+        event.clientX,
+        event.clientY,
+        0,
+        "toy.ball",
+      );
+      return;
+    }
     const hit = pickInteractionV1(event.clientX, event.clientY);
     const plan = hit === null ? null : interactionPlansById.get(hit.objectId) ?? null;
     if (hit === null || plan === null) {
@@ -919,6 +1229,48 @@ export function createPetThreeRuntimeV1(
   };
 
   const onPointerMoveV1 = (event: PointerEvent): void => {
+    const ballGesture = activeBallGesture;
+    if (ballGesture !== null && ballGesture.pointerId === event.pointerId) {
+      event.preventDefault();
+      if (event.pointerType === "mouse" && (event.buttons & 1) === 0) {
+        finishBallGestureV1(event, "cancel");
+        return;
+      }
+      const point = projectBallPointerV1(event.clientX, event.clientY, ballGesture.dragPlane);
+      if (point === null) return;
+      ballGesture.last = point;
+      setBallPositionV1({
+        x: ballGesture.start.x + (point.x - ballGesture.start.x) * 0.38,
+        y: Math.max(
+          ballPlan.transform.position.y,
+          ballGesture.start.y + (point.y - ballGesture.start.y) * 0.38,
+        ),
+        z: ballGesture.start.z + (point.z - ballGesture.start.z) * 0.38,
+      });
+      const classification = classifyPetBallThrowV1({
+        start: ballGesture.start,
+        release: { x: point.x, y: ballPlan.transform.position.y, z: point.z },
+        finish: "release",
+        area: ballThrowAreaV1,
+      });
+      const distance = Math.hypot(
+        point.x - ballGesture.start.x,
+        point.z - ballGesture.start.z,
+      );
+      publishLocatedPointerFeedbackV1(
+        classification.kind === "out_of_bounds"
+          ? "blocked"
+          : classification.kind === "valid"
+          ? "ready"
+          : "tracking",
+        event.clientX,
+        event.clientY,
+        Math.min(1, distance / ballThrowAreaV1.minimumDistance),
+        "toy.ball",
+      );
+      requestRenderV1();
+      return;
+    }
     const gesture = activeGesture;
     if (gesture === null || gesture.pointerId !== event.pointerId) {
       scheduleMouseHoverV1(event);
@@ -989,6 +1341,7 @@ export function createPetThreeRuntimeV1(
   };
 
   const finishPointerV1 = (event: PointerEvent): void => {
+    if (finishBallGestureV1(event, "release")) return;
     const current = activeGesture;
     if (current === null || current.pointerId !== event.pointerId) return;
     const hit = pickInteractionV1(event.clientX, event.clientY);
@@ -1115,13 +1468,17 @@ export function createPetThreeRuntimeV1(
   };
 
   const cancelPointerV1 = (event: PointerEvent): void => {
+    if (finishBallGestureV1(event, "cancel")) return;
     if (releaseGestureV1(event.pointerId, event.type !== "lostpointercapture") !== null) {
       resetPointerFeedbackV1();
     }
   };
 
   const onPointerLeaveV1 = (event: PointerEvent): void => {
-    if (event.pointerType !== "mouse" || activeGesture !== null) return;
+    if (
+      event.pointerType !== "mouse" || activeGesture !== null || activeBallGesture !== null ||
+      activeBallSequence !== null
+    ) return;
     cancelHoverFrameV1();
     resetPointerFeedbackV1();
   };
@@ -1184,11 +1541,12 @@ export function createPetThreeRuntimeV1(
       })();
       modelRoot.add(model);
       collectDisposableResourcesV1(model, geometries, materials, textures, skinnedMeshes);
-      if (input.authoring ?? false) {
+      if ((input.authoring ?? false) || object.objectId === "pet.toy") {
         model.traverse((candidate) => {
           if (!(candidate instanceof Mesh)) return;
           candidate.userData.objectId = object.objectId;
-          interactiveObjects.push(candidate);
+          if (input.authoring ?? false) interactiveObjects.push(candidate);
+          if (object.objectId === "pet.toy") ballHitObjects.push(candidate);
         });
       }
       for (const sourceName of object.model.nodeSourceById.values()) {
@@ -1287,6 +1645,8 @@ export function createPetThreeRuntimeV1(
     input.canvas.removeEventListener("pointerleave", onPointerLeaveV1);
     cancelHoverFrameV1();
     if (activeGesture !== null) releaseGestureV1(activeGesture.pointerId, true);
+    if (activeBallGesture !== null) releaseBallGestureV1(activeBallGesture.pointerId, true);
+    activeBallSequence = null;
     if (feedbackResetTimer !== null) {
       clearTimeout(feedbackResetTimer);
       feedbackResetTimer = null;
@@ -1324,6 +1684,7 @@ export function createPetThreeRuntimeV1(
       if (disposed) return;
       if (object.kind === "interaction-volume") attachVolumeV1(object);
     }
+    placeBallForCurrentActivityV1();
     requestRenderV1();
     input.onReady?.();
   })().catch((error: unknown) => {

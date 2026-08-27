@@ -28,6 +28,7 @@ import { petSceneSourcePathV1 } from "../tooling/pet-scene-source-contract.ts";
 import { createPetSceneSourceIoV1 } from "../tooling/pet-scene-source-io.ts";
 import "./pet-scene-inspector.css";
 import {
+  electronicPetBallModelBindingV1,
   electronicPetNeckInteractionBindingV1,
   findElectronicPetInteractionBindingV1,
   findElectronicPetModelBindingV1,
@@ -226,6 +227,10 @@ export function ElectronicPetSceneInspectorV1(
     : null;
   const selectedInteractionBinding = selectedSource?.kind === "interaction-volume"
     ? findElectronicPetInteractionBindingV1(selectedSource.objectId)
+    : null;
+  const selectedBallBinding = selectedModelBinding?.objectId ===
+      electronicPetBallModelBindingV1.objectId
+    ? electronicPetBallModelBindingV1
     : null;
 
   useEffect(() => {
@@ -631,6 +636,13 @@ export function ElectronicPetSceneInspectorV1(
                       {selectedModelBinding?.runtimeKind ?? "Missing runtime binding"} ·{" "}
                       {selectedModelBinding?.rendererOwner ?? "unowned"}
                     </small>
+                    {selectedBallBinding === null ? null : (
+                      <small>
+                        Toy · {selectedBallBinding.toyId} · Action · {selectedBallBinding.actionId}
+                        {" "}
+                        · Behavior · {selectedBallBinding.behaviorOwner}
+                      </small>
+                    )}
                     <ColorFieldV1
                       label="Primary color"
                       value={selectedSource.model.appearance.primaryColor}
