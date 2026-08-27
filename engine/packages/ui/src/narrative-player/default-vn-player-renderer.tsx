@@ -3,6 +3,8 @@ import { useId } from "react";
 import type { KeyboardEvent, MouseEvent, ReactElement } from "react";
 
 import type { NarrativeSurfaceRendererPropsV1 } from "../narrative/narrative-surface-composition.tsx";
+import { systemInputActionIdsV1 } from "../input/contracts.ts";
+import type { DefaultVnPlayerSystemControlsInternalV1 } from "./default-vn-player-system.tsx";
 
 import styles from "./default-vn-player.module.css";
 
@@ -21,6 +23,19 @@ export interface DefaultVnPlayerLabelsInternalV1 {
   readonly historyTitle: string;
   readonly historyEmpty: string;
   readonly historyClose: string;
+  readonly menu: string;
+  readonly resume: string;
+  readonly save: string;
+  readonly quickSave: string;
+  readonly quickLoad: string;
+  readonly settings: string;
+  readonly returnToTitle: string;
+  readonly quickSaveComplete: string;
+  readonly quickLoadDescription: string;
+  readonly confirm: string;
+  readonly cancel: string;
+  readonly operationFailed: string;
+  readonly quickLoadUnavailable: string;
 }
 
 function focusChromeRestoreSurfaceV1(element: HTMLButtonElement | null): void {
@@ -76,6 +91,7 @@ function DefaultVnPlayerPlaybackButtonV1(props: {
   readonly dataPlayback?: "auto" | "skip";
   readonly dataHistory?: boolean;
   readonly dataVoice?: boolean;
+  readonly dataSystem?: "menu" | "saves" | "quick-save" | "quick-load" | "settings";
   readonly onActivate: () => void;
 }): ReactElement {
   return (
@@ -92,6 +108,10 @@ function DefaultVnPlayerPlaybackButtonV1(props: {
       })}
       {...(props.dataHistory === true ? { "data-dialogue-history-open": "true" } : {})}
       {...(props.dataVoice === true ? { "data-dialogue-voice-replay": "true" } : {})}
+      {...(props.dataSystem === undefined
+        ? {}
+        : { "data-dialogue-system-action": props.dataSystem })}
+      data-secondary-action={systemInputActionIdsV1.cancel}
       onClick={(event) => {
         event.stopPropagation();
         restoreNarrativeFocusAfterPointerActivationV1(event, props.onActivate);
@@ -121,6 +141,7 @@ function DefaultVnPlayerHistoryV1(
         type="button"
         className={styles["history-backdrop"]}
         aria-label={props.labels.historyClose}
+        data-secondary-action={systemInputActionIdsV1.cancel}
         tabIndex={-1}
         onClick={props.onCloseHistory}
       />
@@ -133,6 +154,7 @@ function DefaultVnPlayerHistoryV1(
             type="button"
             className={styles["history-close"]}
             data-dialogue-history-close="true"
+            data-secondary-action={systemInputActionIdsV1.cancel}
             onClick={props.onCloseHistory}
           >
             {props.labels.historyClose}
@@ -169,6 +191,7 @@ function DefaultVnPlayerSayV1(
   props: DefaultVnPlayerSayPropsV1 & {
     readonly labels: DefaultVnPlayerLabelsInternalV1;
     readonly rollback: DefaultVnPlayerRollbackInternalV1;
+    readonly system: DefaultVnPlayerSystemControlsInternalV1 | null;
   },
 ): ReactElement {
   const playerView = props.playerView.kind === "say" ? props.playerView : null;
@@ -186,6 +209,7 @@ function DefaultVnPlayerSayV1(
         className={styles["advance-surface"]}
         data-dialogue-advance="true"
         data-pointer-action-surface="true"
+        data-secondary-action={systemInputActionIdsV1.cancel}
         aria-label={props.labels.advance}
         aria-describedby={textId}
         tabIndex={-1}
@@ -251,7 +275,64 @@ function DefaultVnPlayerSayV1(
           >
             {props.labels.auto}
           </DefaultVnPlayerPlaybackButtonV1>
+          {props.system === null ? null : (
+            <>
+              <DefaultVnPlayerPlaybackButtonV1
+                dataSystem="menu"
+                disabled={props.system.busy}
+                onActivate={props.system.openMenu}
+              >
+                {props.labels.menu}
+              </DefaultVnPlayerPlaybackButtonV1>
+              {props.system.savesAvailable
+                ? (
+                  <DefaultVnPlayerPlaybackButtonV1
+                    dataSystem="saves"
+                    disabled={props.system.busy}
+                    onActivate={props.system.openSaves}
+                  >
+                    {props.labels.save}
+                  </DefaultVnPlayerPlaybackButtonV1>
+                )
+                : null}
+              {props.system.quickAvailable
+                ? (
+                  <>
+                    <DefaultVnPlayerPlaybackButtonV1
+                      dataSystem="quick-save"
+                      disabled={props.system.busy}
+                      onActivate={props.system.quickSave}
+                    >
+                      {props.labels.quickSave}
+                    </DefaultVnPlayerPlaybackButtonV1>
+                    <DefaultVnPlayerPlaybackButtonV1
+                      dataSystem="quick-load"
+                      disabled={props.system.busy}
+                      onActivate={props.system.quickLoad}
+                    >
+                      {props.labels.quickLoad}
+                    </DefaultVnPlayerPlaybackButtonV1>
+                  </>
+                )
+                : null}
+              <DefaultVnPlayerPlaybackButtonV1
+                dataSystem="settings"
+                disabled={props.system.busy}
+                onActivate={props.system.openSettings}
+              >
+                {props.labels.settings}
+              </DefaultVnPlayerPlaybackButtonV1>
+            </>
+          )}
         </nav>
+        {props.system?.panelOpen === true || props.system?.statusText === null ||
+            props.system?.statusText === undefined
+          ? null
+          : (
+            <p className={styles["system-operation-toast"]} role="status">
+              {props.system.statusText}
+            </p>
+          )}
         <span
           className={styles["continue-indicator"]}
           data-dialogue-continue-indicator={revealComplete ? "visible" : "hidden"}
@@ -268,6 +349,7 @@ function DefaultVnPlayerChoiceV1(
   props: DefaultVnPlayerChoicePropsV1 & {
     readonly labels: DefaultVnPlayerLabelsInternalV1;
     readonly rollback: DefaultVnPlayerRollbackInternalV1;
+    readonly system: DefaultVnPlayerSystemControlsInternalV1 | null;
   },
 ): ReactElement {
   const promptId = useId();
@@ -296,6 +378,7 @@ function DefaultVnPlayerChoiceV1(
                   type="button"
                   className={styles["choice-button"]}
                   data-dialogue-choice={option.choiceId}
+                  data-secondary-action={systemInputActionIdsV1.cancel}
                   disabled={!enabled}
                   aria-describedby={enabled ? undefined : reasonId}
                   onClick={() => {
@@ -338,7 +421,64 @@ function DefaultVnPlayerChoiceV1(
         >
           {props.labels.forward}
         </DefaultVnPlayerPlaybackButtonV1>
+        {props.system === null ? null : (
+          <>
+            <DefaultVnPlayerPlaybackButtonV1
+              dataSystem="menu"
+              disabled={props.system.busy}
+              onActivate={props.system.openMenu}
+            >
+              {props.labels.menu}
+            </DefaultVnPlayerPlaybackButtonV1>
+            {props.system.savesAvailable
+              ? (
+                <DefaultVnPlayerPlaybackButtonV1
+                  dataSystem="saves"
+                  disabled={props.system.busy}
+                  onActivate={props.system.openSaves}
+                >
+                  {props.labels.save}
+                </DefaultVnPlayerPlaybackButtonV1>
+              )
+              : null}
+            {props.system.quickAvailable
+              ? (
+                <>
+                  <DefaultVnPlayerPlaybackButtonV1
+                    dataSystem="quick-save"
+                    disabled={props.system.busy}
+                    onActivate={props.system.quickSave}
+                  >
+                    {props.labels.quickSave}
+                  </DefaultVnPlayerPlaybackButtonV1>
+                  <DefaultVnPlayerPlaybackButtonV1
+                    dataSystem="quick-load"
+                    disabled={props.system.busy}
+                    onActivate={props.system.quickLoad}
+                  >
+                    {props.labels.quickLoad}
+                  </DefaultVnPlayerPlaybackButtonV1>
+                </>
+              )
+              : null}
+            <DefaultVnPlayerPlaybackButtonV1
+              dataSystem="settings"
+              disabled={props.system.busy}
+              onActivate={props.system.openSettings}
+            >
+              {props.labels.settings}
+            </DefaultVnPlayerPlaybackButtonV1>
+          </>
+        )}
       </nav>
+      {props.system?.panelOpen === true || props.system?.statusText === null ||
+          props.system?.statusText === undefined
+        ? null
+        : (
+          <p className={styles["system-operation-toast"]} role="status">
+            {props.system.statusText}
+          </p>
+        )}
     </div>
   );
 }
@@ -366,6 +506,7 @@ export function DefaultVnPlayerChromeHiddenSurfaceInternalV1(props: {
       data-dialogue-chrome-hidden="true"
       data-dialogue-occurrence={props.occurrenceId}
       data-pointer-action-surface="true"
+      data-secondary-action={systemInputActionIdsV1.cancel}
       data-blocking-focus-scope="true"
       aria-label={props.label}
       ref={focusChromeRestoreSurfaceV1}
@@ -379,6 +520,7 @@ export function DefaultVnPlayerRendererInternalV1(props: {
   readonly labels: DefaultVnPlayerLabelsInternalV1;
   readonly renderer: NarrativeSurfaceRendererPropsV1;
   readonly rollback: DefaultVnPlayerRollbackInternalV1;
+  readonly system: DefaultVnPlayerSystemControlsInternalV1 | null;
 }): ReactElement | null {
   if (props.renderer.kind === "history") {
     return <DefaultVnPlayerHistoryV1 {...props.renderer} labels={props.labels} />;
@@ -390,6 +532,7 @@ export function DefaultVnPlayerRendererInternalV1(props: {
         pending={props.renderer.pending}
         labels={props.labels}
         rollback={props.rollback}
+        system={props.system}
       />
     );
   }
@@ -400,6 +543,7 @@ export function DefaultVnPlayerRendererInternalV1(props: {
         pending={props.renderer.pending}
         labels={props.labels}
         rollback={props.rollback}
+        system={props.system}
       />
     );
   }

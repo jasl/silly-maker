@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createTextContentSessionV1 } from "@sillymaker/base";
+import { createTextContentSessionV1, parseLocaleId } from "@sillymaker/base";
 import { createPlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import { createMemoryHostRecordStoreV1 } from "@sillymaker/base/testkit";
 import {
@@ -75,12 +75,19 @@ it("selects the engine default VN Player and keeps the product Narrative binding
     expect(Object.hasOwn(ui.slots ?? {}, "narrative")).toBe(false);
     expect(Object.hasOwn(ui.slots ?? {}, "hud")).toBe(true);
     expect(ui.hideSystemMenu).toBe(true);
+    expect(ui.saveLabels).toMatchObject({
+      title: "保存",
+      quickSave: "快速保存",
+      slotNames: { quick: "快速存档" },
+    });
     expect(ui.input?.keyboard).toMatchObject({
+      Escape: systemInputActionIdsV1.cancel,
       Enter: systemInputActionIdsV1.narrativeAdvance,
       KeyH: playerInputActionIdsV1.toggleUi,
       Space: systemInputActionIdsV1.narrativeAdvance,
       Tab: playerInputActionIdsV1.toggleSkip,
     });
+    expect(ui.input?.pointer).toMatchObject({ secondary: systemInputActionIdsV1.cancel });
     expect(ui.input?.held).toEqual({ Control: playerInputActionIdsV1.fastForward });
 
     await expect(
@@ -103,6 +110,33 @@ it("selects the engine default VN Player and keeps the product Narrative binding
       kind: "say",
       occurrenceId: "interaction-occurrence.2",
     });
+
+    await expect(textContent.activateLocale(parseLocaleId("en"))).resolves.toBe(true);
+    const englishUi = vnReferenceTourGameApplicationV1.ui(
+      {
+        heldInput: emptyHeldInputV1,
+        instance,
+        playerProfile,
+        assetLoader: loadedAssetLoaderV1,
+        textContent,
+        reportFailure: vi.fn(),
+      } as unknown as Parameters<typeof vnReferenceTourGameApplicationV1.ui>[0],
+    );
+    try {
+      expect(englishUi.saveLabels).toMatchObject({
+        title: "Save",
+        quickSave: "Quick save",
+        slotNames: { quick: "Quick save" },
+      });
+      expect(englishUi.saveLabels?.confirmation.loadDescription("Quick save")).toBe(
+        "Your current progress will be replaced by Quick save.",
+      );
+      expect(englishUi.saveLabels?.operation.rejected.in_flight).toBe(
+        "Cannot save during a transition",
+      );
+    } finally {
+      englishUi.dispose?.();
+    }
   } finally {
     textContentLease.release();
     textContent.dispose();

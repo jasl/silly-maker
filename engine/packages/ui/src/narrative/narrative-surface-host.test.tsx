@@ -2383,6 +2383,7 @@ describe("NarrativeSurfaceHostInternalV1", () => {
           <div data-testid="history-focus-content">
             <button type="button" data-testid="history-focus-first">First</button>
             <button type="button" data-testid="history-focus-last">Last</button>
+            <button type="button" style={{ display: "none" }}>Responsive hidden</button>
           </div>
         );
     const harness = hostHarnessV1(Renderer);
@@ -2670,6 +2671,21 @@ describe("NarrativeSurfaceHostInternalV1", () => {
     if (runtime === undefined || committedGestureCurrent === undefined) {
       throw new Error("expected current Host runtime");
     }
+    const dialogueFocusScope = narrativeFocusScopeV1(
+      portalContainer.querySelector<HTMLElement>('[data-testid="gesture-root"]'),
+    );
+    const dialogueEscape = new KeyboardEvent("keydown", {
+      key: "Escape",
+      bubbles: true,
+      cancelable: true,
+    });
+    const observeDialogueEscape = vi.fn();
+    portalContainer.addEventListener("keydown", observeDialogueEscape);
+    dialogueFocusScope.dispatchEvent(dialogueEscape);
+    expect(dialogueEscape.defaultPrevented).toBe(false);
+    expect(observeDialogueEscape).toHaveBeenCalledOnce();
+    portalContainer.removeEventListener("keydown", observeDialogueEscape);
+
     act(() => openHistoryV1(harness, "pointer-dismiss", committedGestureCurrent));
     await flushHostMicrotasksV1();
     let historyContent = portalContainer.querySelector<HTMLElement>(

@@ -475,9 +475,12 @@ function trapNarrativeSurfaceTabInternalV1(
   const shell = event.currentTarget;
   const candidates = [...shell.querySelectorAll<HTMLElement>(
     narrativeSurfaceTabbableSelectorInternalV1,
-  )].filter((candidate) =>
-    candidate.isConnected && candidate.tabIndex >= 0 && candidate.closest("[inert]") === null
-  );
+  )].filter((candidate) => {
+    const style = candidate.ownerDocument.defaultView?.getComputedStyle(candidate);
+    return candidate.isConnected && candidate.tabIndex >= 0 &&
+      candidate.closest("[inert]") === null && style?.display !== "none" &&
+      style?.visibility !== "hidden";
+  });
   event.preventDefault();
   if (candidates.length === 0) {
     focusNarrativeSurfaceElementInternalV1(shell);
@@ -855,12 +858,12 @@ function NarrativeSurfaceEntryShellInternalV1(
           return;
         }
         if (
-          event.key !== "Escape" ||
+          event.key !== "Escape" || entry.kind !== "history" ||
           isIndependentApplicationFocusOwnerTargetInternalV1(event.target)
         ) return;
         event.preventDefault();
         event.stopPropagation();
-        if (entry.kind === "history") entry.controller.dismissInternalV1("escape");
+        entry.controller.dismissInternalV1("escape");
       }}
       onPointerDown={(event) => {
         backdropPointer.current = null;

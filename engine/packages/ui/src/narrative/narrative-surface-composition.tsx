@@ -1602,7 +1602,8 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
               generation.physicalIngress !== context || !context.isCurrentInternalV1()
             ) return inputIgnoredV1;
             if (
-              event.actionId === playerInputActionIdsV1.toggleHistory &&
+              (event.actionId === playerInputActionIdsV1.toggleHistory ||
+                event.actionId === systemInputActionIdsV1.cancel) &&
               captureHistoryClose()()
             ) return inputHandledV1;
             return captureBoundHostAction({ actionId: event.actionId })()

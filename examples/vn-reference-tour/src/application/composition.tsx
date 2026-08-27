@@ -53,6 +53,7 @@ import type {
   VnReferenceTourSimulationTypesV1,
 } from "../game/simulation.ts";
 import {
+  createVnReferenceTourSaveOverlayCopyV1,
   createVnReferenceTourStageContentCatalogV1,
   vnReferenceTourStageAmbientCatalogV1,
   vnReferenceTourStageTransitionCatalogV1,
@@ -308,6 +309,19 @@ const vnReferenceTourVnPlayerLabelTextIdsV1 = {
   historyTitle: "text.vn-reference-tour.playback.history.title",
   historyEmpty: "text.vn-reference-tour.playback.history.empty",
   historyClose: "text.vn-reference-tour.playback.history.close",
+  menu: "text.vn-reference-tour.playback.menu",
+  resume: "text.vn-reference-tour.playback.resume",
+  save: "text.vn-reference-tour.playback.save",
+  quickSave: "text.vn-reference-tour.playback.quick-save",
+  quickLoad: "text.vn-reference-tour.playback.quick-load",
+  settings: "text.vn-reference-tour.playback.settings",
+  returnToTitle: "text.vn-reference-tour.playback.return-title",
+  quickSaveComplete: "text.vn-reference-tour.playback.quick-save-complete",
+  quickLoadDescription: "text.vn-reference-tour.playback.quick-load-description",
+  confirm: "text.vn-reference-tour.playback.confirm-load",
+  cancel: "text.vn-reference-tour.playback.cancel",
+  operationFailed: "text.vn-reference-tour.playback.operation-failed",
+  quickLoadUnavailable: "text.vn-reference-tour.playback.quick-load-unavailable",
 };
 
 function createVnReferenceTourRootLabelsV1(
@@ -329,92 +343,11 @@ function createVnReferenceTourRootLabelsV1(
   };
 }
 
-export const vnReferenceTourSaveOverlayLabelsV1: SaveOverlayLabelsV1 = {
-  accessibleName: "保存",
-  title: "保存",
-  storageLoading: "正在读取本地存档…",
-  storageReady: "本地存档可用",
-  storageBusy: "存档操作进行中",
-  storageUnavailable: "本地存储不可用",
-  slotsUnavailable: "无法读取存档槽",
-  safelySaved: (commandSequence: number) => `已安全保存至指令 ${String(commandSequence)}`,
-  lastFailure: (code: string) => `上次存档失败：${code}`,
-  slotNames: {
-    "auto.current": "当前自动存档",
-    "auto.previous": "上一自动存档",
-    quick: "快速存档",
-    manualSlot: (index: number) => `手动存档 ${index}`,
-  },
-  slotHealth: {
-    empty: "空",
-    valid: "可用",
-    invalid: "已损坏",
-    recovery_candidate: "可恢复",
-    unavailable: "不可用",
-  },
-  quickSave: "快速保存",
-  manualSave: "手动保存",
-  importSave: "导入存档",
-  exportCurrentSave: "导出当前进度",
-  loadSlot: (slotName: string) => `载入${slotName}`,
-  clearSlot: (slotName: string) => `清除${slotName}`,
-  exportSlot: (slotName: string) => `导出${slotName}`,
-  confirmation: {
-    loadTitle: (slotName: string) => `载入${slotName}`,
-    loadDescription: (slotName: string) => `当前进度将被${slotName}替换。`,
-    clearTitle: (slotName: string) => `清除${slotName}`,
-    clearDescription: (slotName: string) => `${slotName}将被永久清除。`,
-    importTitle: "导入存档",
-    importDescription: "当前进度将被所选存档替换。",
-    confirmLabel: "确认",
-    cancelLabel: "取消",
-    pendingText: "正在处理…",
-    completedText: "操作完成",
-    failedText: "操作失败",
-  },
-  operation: {
-    saving: (slotName: string) => `正在保存到${slotName}…`,
-    loading: (slotName: string) => `正在载入${slotName}…`,
-    clearing: (slotName: string) => `正在清除${slotName}…`,
-    importing: "正在导入存档…",
-    exporting: (slotName: string) => `正在导出${slotName}…`,
-    exportingCurrent: "正在导出当前进度…",
-    saved: (slotName: string) => `已保存到${slotName}`,
-    cleared: (slotName: string) => `已清除${slotName}`,
-    loadedExact: "已载入存档",
-    loadedAdopted: "已兼容载入存档",
-    importedExact: "已导入存档",
-    importedAdopted: "已兼容导入存档",
-    importCancelled: "已取消导入存档",
-    importFileRejected: {
-      too_large: "所选存档文件过大",
-      unsupported_type: "所选文件类型不受支持",
-    },
-    exported: (slotName: string) => `已导出${slotName}`,
-    exportedCurrent: "已导出当前进度",
-    rejected: {
-      busy: "会话正忙",
-      unavailable: "存储不可用",
-      empty_slot: "存档槽为空",
-      conflict: "存档发生冲突",
-      in_flight: "正在过场，暂不可保存",
-      invalid_record: "存档无效",
-      invalid_note: "备注不合法",
-      lineage_limit: "存档兼容链过长",
-      migration_unavailable: "当前版本尚未提供此存档所需的迁移",
-      migration_rejected: "存档迁移失败",
-      incompatible: "存档不兼容",
-    },
-    exportRejected: {
-      unavailable: "存储不可用",
-      empty_slot: "存档槽为空",
-      conflict: "存档发生冲突",
-      invalid_record: "存档无效",
-    },
-    faulted: (code: string) => `存档故障：${code}`,
-    unexpectedFailure: "存档操作意外失败",
-  },
-};
+function createVnReferenceTourSaveOverlayLabelsV1(
+  textContent: TextContentSessionV1,
+): SaveOverlayLabelsV1 {
+  return createVnReferenceTourSaveOverlayCopyV1(textContent.currentLocale());
+}
 
 /**
  * The complete browser application: one declaration consumed by
@@ -567,7 +500,7 @@ export const vnReferenceTourGameApplicationV1: WebGameApplicationV1<
         reportFailure,
       ),
       labels: createVnReferenceTourRootLabelsV1(textContent),
-      saveLabels: vnReferenceTourSaveOverlayLabelsV1,
+      saveLabels: createVnReferenceTourSaveOverlayLabelsV1(textContent),
       // M2 owns compact VN player chrome. The generic floating
       // Save/Settings/Mute cluster returns through product UI in M3.
       hideSystemMenu: true,

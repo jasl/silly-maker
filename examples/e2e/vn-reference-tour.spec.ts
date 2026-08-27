@@ -333,6 +333,28 @@ test("VN Player reflows across wide, portrait, and 200% equivalent viewports", a
     await page.keyboard.press("Escape");
     await expect(page.locator("[data-narrative-surface-focus-scope]")).toBeFocused();
 
+    const menu = page.getByRole("dialog", { name: "菜单" });
+    const occurrenceBeforeMenu = await page.locator("[data-dialogue='say']").getAttribute(
+      "data-dialogue-occurrence",
+    );
+    await page.keyboard.press("Escape");
+    await expect(menu).toBeVisible();
+    await expect(page.locator("[data-dialogue='say']")).toHaveAttribute(
+      "data-dialogue-occurrence",
+      occurrenceBeforeMenu ?? "",
+    );
+    await page.keyboard.press("Escape");
+    await expect(menu).toBeHidden();
+
+    await advance.click({ button: "right" });
+    await expect(menu).toBeVisible();
+    await expect(page.locator("[data-dialogue='say']")).toHaveAttribute(
+      "data-dialogue-occurrence",
+      occurrenceBeforeMenu ?? "",
+    );
+    await page.keyboard.press("Escape");
+    await expect(menu).toBeHidden();
+
     await advance.click();
     await expect(history).toBeEnabled();
     await history.click();
@@ -341,9 +363,42 @@ test("VN Player reflows across wide, portrait, and 200% equivalent viewports", a
       interactiveRoot: "[data-default-vn-player='history']",
       checkDialogue: false,
     });
-    await page.locator("[data-dialogue-history-close='true']").click();
+    await page.locator("[data-dialogue-history-close='true']").click({ button: "right" });
     await expect(page.getByRole("dialog", { name: "对话历史" })).toBeHidden();
+    await expect(menu).toBeHidden();
   }
+});
+
+test("the default VN quick controls restore a saved Choice through confirmation", async ({ page }) => {
+  await page.goto(vnReferenceTourTargetUrlV1("?capability=automation_bridge"));
+  await page.getByRole("button", { name: "新游戏" }).click();
+  await page.waitForFunction(
+    (key) => Reflect.get(globalThis, key) !== undefined,
+    automationKeyV1,
+  );
+  const saved = await reachSignalChoiceV1(page);
+  if (saved.narrative.pending?.kind !== "choice") {
+    throw new TypeError("signal Choice missing");
+  }
+
+  await page.getByRole("button", { name: "快速保存" }).click();
+  await expect(page.getByRole("status")).toHaveText("快速保存完成。");
+  await page.locator("[data-dialogue-choice='choice.vn-reference-tour.archive-voice']").click();
+  await expect.poll(
+    async () => (await observeV1(page)).narrative.pending?.occurrenceId,
+  ).not.toBe(saved.narrative.pending.occurrenceId);
+
+  await page.getByRole("button", { name: "快速读取" }).click();
+  const confirmation = page.getByRole("dialog", { name: "快速读取" });
+  await expect(confirmation).toBeVisible();
+  await confirmation.getByRole("button", { name: "读取" }).click();
+  await expect(confirmation).toBeHidden();
+  await expect.poll(
+    async () => (await observeV1(page)).narrative.pending?.occurrenceId,
+  ).toBe(saved.narrative.pending.occurrenceId);
+  const restored = await observeV1(page);
+  expect(restored.narrative.history).toEqual(saved.narrative.history);
+  expect(restored.game.audio).toEqual(saved.game.audio);
 });
 
 test("the middle pointer button hides and restores VN chrome without advancing", async ({ page }) => {
@@ -479,8 +534,22 @@ test("English and reduced-motion remain complete through title, choice, History,
   await expect(page.getByRole("img", { name: "Zhou Yao" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Playback controls" })).toBeVisible();
   await expect(page.getByRole("button", { name: "History" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Menu" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Q.Save" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Q.Load" })).toBeVisible();
   await expectInteractiveSurfaceFitsV1(page);
   await expectNoWcagViolationsV1(page, "English dialogue");
+
+  await page.getByRole("button", { name: "Menu" }).click();
+  const menu = page.getByRole("dialog", { name: "Menu" });
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole("button", { name: "Preferences" })).toBeVisible();
+  await expect(menu.getByRole("button", { name: "Save / Load" })).toBeVisible();
+  await menu.getByRole("button", { name: "Save / Load" }).click();
+  await expect(page.getByRole("dialog", { name: "Save" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /快速保存|手动保存|导入存档/ })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Save" })).toBeHidden();
 
   await reachSignalChoiceV1(page);
   await expect(page.getByText("The archive window permits one final transmission.")).toBeVisible();

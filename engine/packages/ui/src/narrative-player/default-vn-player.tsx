@@ -19,6 +19,7 @@ import {
   DefaultVnPlayerRendererInternalV1,
 } from "./default-vn-player-renderer.tsx";
 import type { DefaultVnPlayerLabelsInternalV1 } from "./default-vn-player-renderer.tsx";
+import { useDefaultVnPlayerSystemInternalV1 } from "./default-vn-player-system.tsx";
 
 export interface DefaultVnPlayerLabelsV1 {
   readonly advance: string;
@@ -33,6 +34,19 @@ export interface DefaultVnPlayerLabelsV1 {
   readonly historyTitle: string;
   readonly historyEmpty: string;
   readonly historyClose: string;
+  readonly menu: string;
+  readonly resume: string;
+  readonly save: string;
+  readonly quickSave: string;
+  readonly quickLoad: string;
+  readonly settings: string;
+  readonly returnToTitle: string;
+  readonly quickSaveComplete: string;
+  readonly quickLoadDescription: string;
+  readonly confirm: string;
+  readonly cancel: string;
+  readonly operationFailed: string;
+  readonly quickLoadUnavailable: string;
 }
 
 export type DefaultVnPlayerLabelKeyV1 = keyof DefaultVnPlayerLabelsV1;
@@ -50,6 +64,19 @@ export const defaultVnPlayerLabelsV1: DefaultVnPlayerLabelsV1 = {
   historyTitle: "Dialogue history",
   historyEmpty: "No dialogue yet.",
   historyClose: "Close history",
+  menu: "Menu",
+  resume: "Return",
+  save: "Save / Load",
+  quickSave: "Q.Save",
+  quickLoad: "Q.Load",
+  settings: "Preferences",
+  returnToTitle: "Main Menu",
+  quickSaveComplete: "Quick save complete.",
+  quickLoadDescription: "Load the quick save and replace current progress?",
+  confirm: "Load",
+  cancel: "Cancel",
+  operationFailed: "The operation could not be completed.",
+  quickLoadUnavailable: "No quick save exists.",
 };
 
 export interface CreateDefaultVnPlayerInputV1 {
@@ -299,10 +326,24 @@ function resolveLabelsInternalV1(
     historyTitle: resolve("historyTitle"),
     historyEmpty: resolve("historyEmpty"),
     historyClose: resolve("historyClose"),
+    menu: resolve("menu"),
+    resume: resolve("resume"),
+    save: resolve("save"),
+    quickSave: resolve("quickSave"),
+    quickLoad: resolve("quickLoad"),
+    settings: resolve("settings"),
+    returnToTitle: resolve("returnToTitle"),
+    quickSaveComplete: resolve("quickSaveComplete"),
+    quickLoadDescription: resolve("quickLoadDescription"),
+    confirm: resolve("confirm"),
+    cancel: resolve("cancel"),
+    operationFailed: resolve("operationFailed"),
+    quickLoadUnavailable: resolve("quickLoadUnavailable"),
   };
 }
 
 const defaultVnPlayerKeyboardMapInternalV1: KeyboardActionMapV1 = {
+  Escape: systemInputActionIdsV1.cancel,
   Enter: systemInputActionIdsV1.narrativeAdvance,
   KeyH: playerInputActionIdsV1.toggleUi,
   KeyV: playerInputActionIdsV1.replayVoice,
@@ -317,6 +358,7 @@ const defaultVnPlayerHeldKeyMapInternalV1: HeldKeyMapV1 = {
 };
 
 const defaultVnPlayerPointerMapInternalV1: PointerActionMapV1 = {
+  secondary: systemInputActionIdsV1.cancel,
   middle: playerInputActionIdsV1.toggleUi,
   wheelDown: playerInputActionIdsV1.rollForward,
   wheelUp: playerInputActionIdsV1.rollback,
@@ -341,16 +383,29 @@ export function createDefaultVnPlayerV1(input: CreateDefaultVnPlayerInputV1): De
     const activeSay = props.kind === "dialogue" && props.pending.kind === "say" &&
       props.playerView.kind === "say" && props.playerView.phase === "active";
     useDefaultVnPlayerHideInputInternalV1({ allowHide: activeSay, chrome });
-    useDefaultVnPlayerHeldSkipInternalV1(props, input.heldInput, chromePhase === "visible");
+    const labels = resolveLabelsInternalV1(props, input.labelTextIds);
+    const playbackMode = props.kind === "dialogue" ? props.playerView.playbackMode : "normal";
+    const onToggleAuto = props.kind === "dialogue" ? props.onToggleAuto : null;
+    const onToggleSkip = props.kind === "dialogue" ? props.onToggleSkip : null;
+    const activeDialogue = props.kind === "dialogue" && props.playerView.phase === "active";
+    const system = useDefaultVnPlayerSystemInternalV1({
+      enabled: activeDialogue,
+      labels,
+      playbackMode,
+      onToggleAuto,
+      onToggleSkip,
+    });
+    useDefaultVnPlayerHeldSkipInternalV1(
+      props,
+      input.heldInput,
+      chromePhase === "visible" && !system.panelOpen,
+    );
     const rollback = useDefaultVnPlayerRollbackInternalV1(
       input.rollback,
       props.kind === "dialogue" && chromePhase === "visible",
     );
 
     const occurrenceId = props.kind === "dialogue" ? props.pending.occurrenceId : null;
-    const playbackMode = props.kind === "dialogue" ? props.playerView.playbackMode : "normal";
-    const onToggleAuto = props.kind === "dialogue" ? props.onToggleAuto : null;
-    const onToggleSkip = props.kind === "dialogue" ? props.onToggleSkip : null;
     const playbackStopIssued = useRef<string | null>(null);
 
     useLayoutEffect(() => chrome.attach(occurrenceId), [occurrenceId]);
@@ -378,22 +433,40 @@ export function createDefaultVnPlayerV1(input: CreateDefaultVnPlayerInputV1): De
       else onToggleAuto?.();
     }, [activeSay, chromePhase, occurrenceId, onToggleAuto, onToggleSkip, playbackMode]);
 
-    const labels = resolveLabelsInternalV1(props, input.labelTextIds);
     if (chromePhase === "hidden" && activeSay) {
       return (
-        <DefaultVnPlayerChromeHiddenSurfaceInternalV1
-          label={labels.showUi}
-          occurrenceId={props.pending.occurrenceId}
-          onShow={chrome.show}
-        />
+        <>
+          <div
+            style={{ display: "contents" }}
+            inert={system.panelOpen || undefined}
+            aria-hidden={system.panelOpen ? "true" : undefined}
+          >
+            <DefaultVnPlayerChromeHiddenSurfaceInternalV1
+              label={labels.showUi}
+              occurrenceId={props.pending.occurrenceId}
+              onShow={chrome.show}
+            />
+          </div>
+          {system.surface}
+        </>
       );
     }
     return (
-      <DefaultVnPlayerRendererInternalV1
-        labels={labels}
-        renderer={props}
-        rollback={rollback}
-      />
+      <>
+        <div
+          style={{ display: "contents" }}
+          inert={system.panelOpen || undefined}
+          aria-hidden={system.panelOpen ? "true" : undefined}
+        >
+          <DefaultVnPlayerRendererInternalV1
+            labels={labels}
+            renderer={props}
+            rollback={rollback}
+            system={system.controls}
+          />
+        </div>
+        {system.surface}
+      </>
     );
   }
 

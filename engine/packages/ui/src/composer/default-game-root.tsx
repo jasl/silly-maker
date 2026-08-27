@@ -38,6 +38,7 @@ import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import { SystemDialogHostV1 } from "../system/system-dialog-host.tsx";
 import type { SystemDialogCustomSavesV1 } from "../system/system-dialog-host.tsx";
 import type { SystemDialogOpenResultV1 } from "../system/system-dialog-managed-contract.ts";
+import { PlayerSystemControllerProviderInternalV1 } from "../system/player-system-controller-internal.tsx";
 import type { InteractionSessionStoreV1 } from "../interaction/interaction-session-store.ts";
 import { NarrativeSurfaceHostInternalV1 } from "../narrative/narrative-surface-host.tsx";
 import { WholeCanvasSurfaceHostInternalV1 } from "../whole-canvas/whole-canvas-surface-host.tsx";
@@ -458,6 +459,35 @@ export function DefaultGameRootV1<
   const managedComposition = resolveGameUiManagedSurfaceCompositionInternalV1(
     props.composition,
   );
+  const playerSaveUi = props.saveUi;
+  const playerSystemController = useMemo(
+    () => ({
+      savesAvailable: systemSaves !== undefined,
+      quickSave: playerSaveUi === undefined ? null : async () => {
+        const guard = playerSaveUi.evaluateGuard?.(
+          props.composition.presentation.getSnapshot(),
+        );
+        if (guard?.allowed === false) {
+          return {
+            kind: "guarded" as const,
+            ...(guard.reasonText === undefined ? {} : { reasonText: guard.reasonText }),
+          };
+        }
+        return await playerSaveUi.port.save("quick");
+      },
+      quickLoad: playerSaveUi === undefined ? null : () => playerSaveUi.port.load("quick"),
+      openSettings: () => props.composition.systemDialogSession.openSettings(),
+      openSaves: () => props.composition.systemDialogSession.openSaves(),
+      returnToTitle: () => managedComposition.returnToTitleInternalV1(),
+    }),
+    [
+      managedComposition,
+      playerSaveUi,
+      props.composition.presentation,
+      props.composition.systemDialogSession,
+      systemSaves,
+    ],
+  );
   const slotContext: DefaultGameRootSlotContextV1<
     PublicationV1,
     TSemantic,
@@ -630,14 +660,16 @@ export function DefaultGameRootV1<
       {...(semanticStatus === undefined ? {} : { "data-semantic-status": semanticStatus })}
       className={styles["default-root"]}
     >
-      <GameShell
-        accessibleName={props.resolveStageAccessibleName?.(publication) ??
-          props.accessibleName}
-        layers={layers}
-        inputRouter={props.composition.input}
-        viewport={props.viewport}
-        auxiliarySurface={slots.auxiliarySurface?.(slotContext) ?? null}
-      />
+      <PlayerSystemControllerProviderInternalV1 controller={playerSystemController}>
+        <GameShell
+          accessibleName={props.resolveStageAccessibleName?.(publication) ??
+            props.accessibleName}
+          layers={layers}
+          inputRouter={props.composition.input}
+          viewport={props.viewport}
+          auxiliarySurface={slots.auxiliarySurface?.(slotContext) ?? null}
+        />
+      </PlayerSystemControllerProviderInternalV1>
     </div>
   );
 }

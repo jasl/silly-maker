@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
 // SPDX-License-Identifier: MIT
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import {
   emptyNarrativeHistoryV1,
   parseNonNegativeSafeInteger,
   parsePendingInteractionV1,
   type PendingInteractionV1,
+  type PersistenceOperationResultV1,
 } from "@sillymaker/base";
 import { defaultPlayerProfileV1 } from "@sillymaker/base/runtime";
 import type { CoreRollbackPortV1 } from "@sillymaker/base/runtime";
@@ -17,6 +18,10 @@ import { playerInputActionIdsV1, systemInputActionIdsV1 } from "../input/contrac
 import type { HeldInputPortV1, HeldInputStateV1 } from "../input/held-key-adapter.ts";
 import { InputContextProviderV1 } from "../input/input-context.tsx";
 import { createInputRouterV1 } from "../input/input-router.ts";
+import {
+  PlayerSystemControllerProviderInternalV1,
+  type PlayerSystemControllerInternalV1,
+} from "../system/player-system-controller-internal.tsx";
 import type {
   NarrativeSurfaceDialogueRendererPropsV1,
   NarrativeSurfaceHistoryRendererPropsV1,
@@ -83,6 +88,7 @@ const textV1 = (textId: string): string =>
 function dialoguePropsV1(input: {
   readonly pending?: PendingInteractionV1;
   readonly playbackMode?: "normal" | "auto" | "skip";
+  readonly phase?: "preparing" | "active" | "suspended";
   readonly callbacks?: DialogueCallbacksV1;
   readonly choiceAvailability?: NarrativeSurfaceDialogueRendererPropsV1["choiceAvailability"];
   readonly historyAvailable?: boolean;
@@ -100,7 +106,7 @@ function dialoguePropsV1(input: {
     playerView: pending.kind === "say"
       ? {
         kind: "say",
-        phase: "active",
+        phase: input.phase ?? "active",
         playbackMode: input.playbackMode ?? "normal",
         resolvedSpeakerText: "Mina",
         resolvedText: "The signal is clear.",
@@ -108,7 +114,7 @@ function dialoguePropsV1(input: {
         revealLength: 20,
         revealComplete: true,
       }
-      : { kind: "passive", phase: "active", playbackMode: "normal" },
+      : { kind: "passive", phase: input.phase ?? "active", playbackMode: "normal" },
     resolveText: textV1,
     ...callbacks,
   };
@@ -205,19 +211,82 @@ function createPlayerV1(input: Partial<CreateDefaultVnPlayerInputV1> = {}) {
   });
 }
 
+function createPlayerSystemControllerHarnessV1(input: {
+  readonly savesAvailable?: boolean;
+  readonly quickSaveResult?:
+    | { readonly kind: "saved"; readonly slotId: "quick" }
+    | { readonly kind: "guarded"; readonly reasonText?: string };
+  readonly quickLoadResult?: PersistenceOperationResultV1;
+  readonly quickAvailable?: boolean;
+} = {}) {
+  const quickAvailable = input.quickAvailable ?? true;
+  const quickSave = vi.fn(async () =>
+    input.quickSaveResult ?? ({ kind: "saved" as const, slotId: "quick" as const })
+  );
+  const quickLoad = vi.fn(async () =>
+    input.quickLoadResult ?? ({
+      kind: "loaded" as const,
+      compatibility: "exact" as const,
+      commandSequence: parseNonNegativeSafeInteger(0),
+    })
+  );
+  const openSettings = vi.fn(() => ({
+    kind: "preparing" as const,
+    code: "system_dialog.preparation_started" as const,
+  }));
+  const openSaves = vi.fn(() => ({
+    kind: "preparing" as const,
+    code: "system_dialog.preparation_started" as const,
+  }));
+  const returnToTitle = vi.fn(async () => {});
+  return {
+    controller: {
+      savesAvailable: input.savesAvailable ?? true,
+      quickSave: quickAvailable ? quickSave : null,
+      quickLoad: quickAvailable ? quickLoad : null,
+      openSettings,
+      openSaves,
+      returnToTitle,
+    } satisfies PlayerSystemControllerInternalV1,
+    quickSave,
+    quickLoad,
+    openSettings,
+    openSaves,
+    returnToTitle,
+  };
+}
+
 function renderPlayerV1(input: {
   readonly player: ReturnType<typeof createDefaultVnPlayerV1>;
   readonly props: NarrativeSurfaceRendererPropsV1;
   readonly router?: ReturnType<typeof createInputRouterV1>;
+  readonly systemController?: PlayerSystemControllerInternalV1;
 }) {
   const router = input.router ?? createInputRouterV1();
   const Renderer = input.player.renderer;
   const element = (props: NarrativeSurfaceRendererPropsV1) => (
-    <InputContextProviderV1 router={router}>
-      <main data-narrative-surface-focus-scope="dialogue" tabIndex={-1}>
-        <Renderer {...props} />
-      </main>
-    </InputContextProviderV1>
+    <PlayerSystemControllerProviderInternalV1
+      controller={input.systemController ?? {
+        savesAvailable: false,
+        quickSave: null,
+        quickLoad: null,
+        openSettings: () => ({
+          kind: "rejected",
+          code: "system_dialog.renderer_unavailable",
+        }),
+        openSaves: () => ({
+          kind: "rejected",
+          code: "system_dialog.renderer_unavailable",
+        }),
+        returnToTitle: async () => {},
+      }}
+    >
+      <InputContextProviderV1 router={router}>
+        <main data-narrative-surface-focus-scope="dialogue" tabIndex={-1}>
+          <Renderer {...props} />
+        </main>
+      </InputContextProviderV1>
+    </PlayerSystemControllerProviderInternalV1>
   );
   const view = render(element(input.props));
   return {
@@ -249,6 +318,7 @@ describe("createDefaultVnPlayerV1", () => {
     });
     expect(player.input).toEqual({
       keyboard: {
+        Escape: systemInputActionIdsV1.cancel,
         Enter: systemInputActionIdsV1.narrativeAdvance,
         KeyH: playerInputActionIdsV1.toggleUi,
         KeyV: playerInputActionIdsV1.replayVoice,
@@ -259,6 +329,7 @@ describe("createDefaultVnPlayerV1", () => {
       },
       held: { Control: playerInputActionIdsV1.fastForward },
       pointer: {
+        secondary: systemInputActionIdsV1.cancel,
         middle: playerInputActionIdsV1.toggleUi,
         wheelDown: playerInputActionIdsV1.rollForward,
         wheelUp: playerInputActionIdsV1.rollback,
@@ -303,6 +374,176 @@ describe("createDefaultVnPlayerV1", () => {
 
     expect(callbacks.onActivate).toHaveBeenCalledTimes(1);
     expect(view.scope).toHaveFocus();
+  });
+
+  it("owns a layered VN menu over the active dialogue and delegates root services", async () => {
+    const system = createPlayerSystemControllerHarnessV1();
+    const player = createPlayerV1();
+    const view = renderPlayerV1({
+      player,
+      props: dialoguePropsV1(),
+      systemController: system.controller,
+    });
+    const user = userEvent.setup();
+
+    expect(screen.getByRole("button", { name: "Continue" })).toHaveAttribute(
+      "data-secondary-action",
+      systemInputActionIdsV1.cancel,
+    );
+    view.scope.focus();
+    act(() => {
+      expect(view.router.route({ kind: "action", actionId: systemInputActionIdsV1.cancel }))
+        .toEqual({ kind: "handled", context: "narrative" });
+    });
+
+    const menu = screen.getByRole("dialog", { name: "Menu" });
+    expect(menu).toBeVisible();
+    expect(view.scope.querySelector("[inert]")).not.toBeNull();
+    const resume = screen.getByRole("button", { name: "Return" });
+    const mainMenu = screen.getByRole("button", { name: "Main Menu" });
+    expect(resume).toHaveFocus();
+    mainMenu.focus();
+    fireEvent.keyDown(mainMenu, { key: "Tab" });
+    expect(resume).toHaveFocus();
+    fireEvent.keyDown(resume, { key: "Tab", shiftKey: true });
+    expect(mainMenu).toHaveFocus();
+
+    fireEvent.keyDown(mainMenu, { key: "Escape" });
+    await waitFor(() => expect(view.scope).toHaveFocus());
+    expect(screen.queryByRole("dialog", { name: "Menu" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Save / Load" }));
+    expect(system.openSaves).toHaveBeenCalledExactlyOnceWith();
+    expect(screen.queryByRole("dialog", { name: "Menu" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Preferences" }));
+    expect(system.openSettings).toHaveBeenCalledExactlyOnceWith();
+
+    await user.click(screen.getByRole("button", { name: "Menu" }));
+    await user.click(screen.getByRole("button", { name: "Main Menu" }));
+    await waitFor(() => expect(system.returnToTitle).toHaveBeenCalledExactlyOnceWith());
+  });
+
+  it("quick-saves from Choice and confirms quick-load without duplicating the Save root", async () => {
+    const system = createPlayerSystemControllerHarnessV1();
+    const player = createPlayerV1();
+    const view = renderPlayerV1({
+      player,
+      props: dialoguePropsV1({ pending: choicePendingV1() }),
+      systemController: system.controller,
+    });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Q.Save" }));
+    await waitFor(() => expect(system.quickSave).toHaveBeenCalledExactlyOnceWith());
+    expect(screen.getByRole("status")).toHaveTextContent("Quick save complete.");
+
+    await user.click(screen.getByRole("button", { name: "Q.Load" }));
+    expect(system.quickLoad).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Q.Load" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Load" }));
+    await waitFor(() => expect(system.quickLoad).toHaveBeenCalledExactlyOnceWith());
+    expect(screen.queryByRole("dialog", { name: "Q.Load" })).toBeNull();
+
+    view.rerender(dialoguePropsV1({ pending: choicePendingV1(4) }));
+    expect(screen.getAllByRole("button", { name: "Save / Load" })).toHaveLength(1);
+  });
+
+  it("shows real quick-save guard and empty-slot feedback", async () => {
+    const guarded = createPlayerSystemControllerHarnessV1({
+      quickSaveResult: { kind: "guarded", reasonText: "Wait for the current transition." },
+      quickLoadResult: { kind: "rejected", code: "empty_slot" },
+    });
+    const player = createPlayerV1();
+    renderPlayerV1({
+      player,
+      props: dialoguePropsV1({ pending: choicePendingV1() }),
+      systemController: guarded.controller,
+    });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Q.Save" }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Wait for the current transition.",
+    );
+    await user.click(screen.getByRole("button", { name: "Q.Load" }));
+    await user.click(screen.getByRole("button", { name: "Load" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("No quick save exists.");
+    expect(screen.getByRole("dialog", { name: "Q.Load" })).toBeVisible();
+  });
+
+  it.each([
+    { kind: "rejected", code: "unavailable" } as const,
+    { kind: "faulted", code: "persistence.test" } as const,
+  ])("reports %s quick-load failures as operation failures", async (quickLoadResult) => {
+    const failed = createPlayerSystemControllerHarnessV1({ quickLoadResult });
+    const player = createPlayerV1();
+    renderPlayerV1({
+      player,
+      props: dialoguePropsV1({ pending: choicePendingV1() }),
+      systemController: failed.controller,
+    });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Q.Load" }));
+    await user.click(screen.getByRole("button", { name: "Load" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "The operation could not be completed.",
+    );
+    expect(screen.getByRole("dialog", { name: "Q.Load" })).toBeVisible();
+  });
+
+  it("keeps custom Saves available without inventing quick operations", () => {
+    const system = createPlayerSystemControllerHarnessV1({
+      quickAvailable: false,
+      savesAvailable: true,
+    });
+    const player = createPlayerV1();
+    renderPlayerV1({
+      player,
+      props: dialoguePropsV1(),
+      systemController: system.controller,
+    });
+
+    expect(screen.getByRole("button", { name: "Save / Load" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Q.Save" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Q.Load" })).toBeNull();
+  });
+
+  it("drains playback and lets only the active dialogue own cancel-to-menu", () => {
+    const callbacks = callbacksV1();
+    const system = createPlayerSystemControllerHarnessV1();
+    const router = createInputRouterV1();
+    const player = createPlayerV1();
+    const auto = dialoguePropsV1({ playbackMode: "auto", callbacks });
+    const view = renderPlayerV1({
+      player,
+      props: auto,
+      router,
+      systemController: system.controller,
+    });
+
+    act(() => {
+      expect(router.route({ kind: "action", actionId: systemInputActionIdsV1.cancel }))
+        .toEqual({ kind: "handled", context: "narrative" });
+    });
+    expect(callbacks.onToggleAuto).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog", { name: "Menu" })).toBeNull();
+    view.rerender(withPlaybackModeV1(auto, "normal"));
+    expect(screen.getByRole("dialog", { name: "Menu" })).toBeVisible();
+
+    act(() => {
+      router.route({ kind: "action", actionId: systemInputActionIdsV1.cancel });
+    });
+    view.rerender(dialoguePropsV1({ phase: "preparing" }));
+    expect(router.route({ kind: "action", actionId: systemInputActionIdsV1.cancel })).toEqual({
+      kind: "ignored",
+    });
+    view.rerender(historyPropsV1());
+    expect(router.route({ kind: "action", actionId: systemInputActionIdsV1.cancel })).toEqual({
+      kind: "ignored",
+    });
   });
 
   it("replays the current Say voice from the default playback bar and restores focus", async () => {

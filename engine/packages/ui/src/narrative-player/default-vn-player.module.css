@@ -93,6 +93,21 @@
   pointer-events: auto;
 }
 
+.system-operation-toast {
+  position: absolute;
+  z-index: 3;
+  inset-inline-end: clamp(1rem, 5%, 4rem);
+  inset-block-end: calc(3rem + env(safe-area-inset-bottom));
+  max-inline-size: min(24rem, 70%);
+  margin: 0;
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  color: var(--silly-vn-player-text, #fff);
+  background: var(--silly-vn-player-panel-background, rgb(10 16 27 / 94%));
+  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 28%);
+  font-size: 0.85rem;
+}
+
 .playback-button,
 .history-close {
   min-inline-size: 3.25rem;
@@ -317,6 +332,106 @@
   color: var(--silly-vn-player-muted-text, rgb(248 247 243 / 65%));
 }
 
+.system-menu-root {
+  position: absolute;
+  z-index: 10;
+  inset: 0;
+  display: grid;
+  inline-size: 100%;
+  max-inline-size: none;
+  block-size: 100%;
+  max-block-size: none;
+  margin: 0;
+  padding: clamp(1rem, 5%, 4rem);
+  overflow: hidden;
+  border: 0;
+  color: var(--silly-vn-player-text, #f8f7f3);
+  background: transparent;
+  place-items: center;
+}
+
+.system-menu-backdrop {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  padding: 0;
+  border: 0;
+  background: var(--silly-vn-player-scrim, rgb(3 7 15 / 58%));
+  backdrop-filter: blur(0.24rem);
+  cursor: default;
+}
+
+.system-menu-panel {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 1.15rem;
+  inline-size: min(30rem, 90%);
+  padding: clamp(1.5rem, 4%, 2.5rem);
+  border: 1px solid var(--silly-vn-player-border, rgb(255 255 255 / 22%));
+  border-radius: var(--silly-vn-player-panel-radius, 0.9rem);
+  outline: 0;
+  background: var(--silly-vn-player-panel-background, rgb(10 16 27 / 96%));
+  box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 48%);
+}
+
+.system-menu-panel h2,
+.system-menu-panel p {
+  margin: 0;
+}
+
+.system-menu-panel h2 {
+  font-size: clamp(1.4rem, 2.4cqi, 2rem);
+  text-align: center;
+}
+
+.system-menu-panel > p:not(.system-operation-status) {
+  color: var(--silly-vn-player-muted-text, rgb(248 247 243 / 78%));
+  line-height: 1.55;
+  text-align: center;
+}
+
+.system-menu-actions {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.system-menu-actions button {
+  min-block-size: var(--silly-target-min-size, 44px);
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--silly-vn-player-border, rgb(255 255 255 / 20%));
+  border-radius: var(--silly-vn-player-control-radius, 0.45rem);
+  color: var(--silly-vn-player-text, #f8f7f3);
+  background: var(--silly-vn-player-control, rgb(255 255 255 / 7%));
+  cursor: pointer;
+  font: inherit;
+  font-weight: 650;
+}
+
+.system-menu-actions button:focus-visible {
+  outline: 2px solid var(--silly-vn-player-focus, #f5d17e);
+  outline-offset: 2px;
+}
+
+.system-menu-actions button:disabled {
+  cursor: wait;
+  opacity: 0.52;
+}
+
+.system-menu-actions button:hover:not(:disabled) {
+  border-color: var(--silly-vn-player-accent, rgb(245 209 126 / 72%));
+  background: var(--silly-vn-player-control-hover, rgb(245 209 126 / 13%));
+}
+
+.system-operation-status {
+  min-block-size: 1.4em;
+  color: var(--silly-vn-player-accent, #f5d17e);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
 @container game-stage (max-width: 52rem) {
   .dialogue-window {
     block-size: var(--silly-vn-player-dialogue-height-narrow, clamp(12rem, 30%, 16rem));
@@ -335,8 +450,18 @@
   }
 
   .playback-button {
-    flex: 1 1 0;
+    flex: 1 1 4.5rem;
+    min-inline-size: 0;
     padding-inline: 0.4rem;
+  }
+
+  .playback-bar {
+    flex-wrap: wrap;
+  }
+
+  .playback-button[data-dialogue-system-action="saves"],
+  .playback-button[data-dialogue-system-action="settings"] {
+    display: none;
   }
 
   .choice-root,
@@ -348,6 +473,32 @@
   .history-panel {
     inline-size: 100%;
     max-block-size: 88%;
+  }
+}
+
+@container game-stage (max-width: 28rem) {
+  .dialogue-window {
+    block-size: var(--silly-vn-player-dialogue-height-narrow, clamp(15rem, 38%, 18rem));
+    max-block-size: 46%;
+    padding-block-end: calc(6.2rem + env(safe-area-inset-bottom));
+  }
+
+  .playback-bar {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .playback-button {
+    min-inline-size: 0;
+    padding-inline: 0.2rem;
+    font-size: clamp(0.72rem, 3.2cqi, 0.88rem);
+  }
+
+  .system-operation-toast {
+    inset-inline: 0.75rem;
+    inset-block-end: calc(6.4rem + env(safe-area-inset-bottom));
+    max-inline-size: none;
+    text-align: center;
   }
 }
 

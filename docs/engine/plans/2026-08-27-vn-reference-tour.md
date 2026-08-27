@@ -249,8 +249,8 @@ Splash/入口、Save/recovery 与 settings；M2 关闭不推导产品完成、�
 
 ### M3 — 产品入口、Save/recovery 与设置
 
-状态：**2026-08-28 已开启。前两个切片已接通 boot-time autosave resume 与
-return-to-title/Continue 连续性；其余 M3 工作仍开放。**
+状态：**2026-08-28 已开启。前三个切片已接通 boot-time autosave resume、
+return-to-title/Continue 连续性，以及默认 VN system menu/Save 入口；设置与其余恢复矩阵仍开放。**
 
 - 完成 Splash/Title、New/Continue/Load/Settings、return-to-title/restart；默认 Continue 显式载入当前 autosave，
   `resumeFromAutosave` 独立控制 boot-time resume；
@@ -275,6 +275,19 @@ VN ending 保持纯委托并沿用已有的 fail-closed/retry 交互。Chromium/
 Composition benchmark、42 项 examples Browser E2E（另有 2 项按 project 条件明确跳过）、全仓
 `deno task check`、VN production build，以及从 `2704ceef` 起算的 React Doctor changed-files audit（0 findings）；
 production build 仅保留既有 `advancedChunks` deprecated 与单一大 chunk advisory。
+第三切片让 focused default VN Player 通过 package-private controller 消费共享 Game Root 已有的 Saves、
+Settings、return-to-title 与 Persistence 权威；普通 Player graph 未选择该 preset 时不增加公开系统菜单合同。
+Say/Choice 的紧凑控制条提供 Menu、Save、Q.Save 与带确认的 Q.Load，完整 Save overlay 继续负责 manual slot、
+import/export 与冲突反馈；菜单会先停止 transient Auto/Skip，Escape 与鼠标右键复用 `ui.cancel`，History 优先在
+既有 managed physical admission 中关闭，未建立第二条 dismissal authority。产品补齐中英 Player/menu/Save copy。
+产品级 quick mid-choice 与 manual mid-hold 测试证明 load 后精确恢复 Narrative、History、Stage、continuous
+audio、hold remainder、route State 与 digest，并按合同从新的 load anchor/空 command log/rollback baseline 继续。
+响应式验收同时修正 Narrative Host 的真实焦点缺口：CSS 隐藏的窄屏 controls 不再进入自定义 Tab 环。
+本切片稳定工作树通过 382 个测试文件、5,461 项 unit、6 项 Composition benchmark、VN Chromium/WebKit
+20 项 E2E（另有 2 项 mobile 条件跳过）、全仓 `deno task check` 与 VN production build。React Doctor 的 3 个
+advisory 均经源码复核：两个对应 disabled/close 时清理瞬时菜单状态，一个对应 dialog 内层的 Tab/Escape
+focus scope；均为有意产品行为而非 blocker。locale、text speed、auto wait、分声道 volume/mute 与剩余
+closing/hidden/restart 恢复矩阵仍属于后续切片；不得把本记录报告为 M3 关闭。
 
 ### M4 — 作者任务、产品证据与 Starter feedback
 

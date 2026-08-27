@@ -164,6 +164,137 @@ describe("VN Reference Tour M1 story shell", () => {
     }
   });
 
+  it("restores the exact mid-choice product state from the quick slot", async () => {
+    const application = await createVnReferenceTourApplicationInstanceV1();
+    try {
+      await application.semantic.dispatch({
+        kind: "invoke",
+        actionId: "vn-reference-tour.begin_story",
+      } as never);
+      for (let index = 0; index < 26; index += 1) await advanceCurrentV1(application);
+
+      const atChoice = application.semantic.observe();
+      expect(atChoice.narrative.pending).toMatchObject({
+        kind: "choice",
+        occurrenceId: "interaction-occurrence.27",
+      });
+      expect(atChoice.narrative.signalChoice).toBeNull();
+      const atChoiceDigest = application.admin.stateDigest();
+      await expect(application.persistence.save("quick")).resolves.toEqual({
+        kind: "saved",
+        slotId: "quick",
+      });
+
+      const choice = atChoice.narrative.pending;
+      if (choice === null || choice.kind !== "choice") {
+        throw new TypeError("vn-reference-tour.test_choice_missing");
+      }
+      await expect(application.semantic.dispatch({
+        kind: "resolve",
+        expectedOccurrenceId: choice.occurrenceId,
+        resolution: {
+          kind: "choose",
+          choiceId: "choice.vn-reference-tour.archive-voice",
+        },
+      } as never)).resolves.toMatchObject({ kind: "committed" });
+      for (let index = 0; index < 6; index += 1) await advanceCurrentV1(application);
+      const hold = application.semantic.observe().narrative.pending;
+      if (hold === null || hold.kind !== "hold") {
+        throw new TypeError("vn-reference-tour.test_hold_missing");
+      }
+      await expect(application.semantic.dispatch({
+        kind: "time",
+        tick: { elapsedMs: 1_200, expectedHoldOccurrenceId: hold.occurrenceId },
+      } as never)).resolves.toMatchObject({ kind: "committed" });
+      expect(application.semantic.observe().narrative.signalChoice).toBe("archive");
+      expect(application.semantic.observe().game.stage).not.toEqual(atChoice.game.stage);
+      expect(application.semantic.observe().game.audio).not.toEqual(atChoice.game.audio);
+      expect(application.rollback.available().steps).toBeGreaterThan(0);
+
+      await expect(application.persistence.load("quick")).resolves.toMatchObject({
+        kind: "loaded",
+      });
+      expect(application.admin.stateDigest()).toBe(atChoiceDigest);
+      const restoredChoice = application.semantic.observe();
+      expect(restoredChoice.narrative).toEqual(atChoice.narrative);
+      expect(restoredChoice.game.stage).toEqual(atChoice.game.stage);
+      expect(restoredChoice.game.audio).toEqual(atChoice.game.audio);
+      expect(application.presentationAnchor()).toEqual({ epoch: 1, origin: "load" });
+      expect(application.admin.commandLog()).toEqual([]);
+      expect(application.rollback.available()).toEqual({ steps: 0, forwardSteps: 0 });
+    } finally {
+      await application.dispose();
+    }
+  });
+
+  it("restores the exact partial hold from a manual slot", async () => {
+    const application = await createVnReferenceTourApplicationInstanceV1();
+    try {
+      await application.semantic.dispatch({
+        kind: "invoke",
+        actionId: "vn-reference-tour.begin_story",
+      } as never);
+      for (let index = 0; index < 26; index += 1) await advanceCurrentV1(application);
+
+      const choice = application.semantic.observe().narrative.pending;
+      if (choice === null || choice.kind !== "choice") {
+        throw new TypeError("vn-reference-tour.test_choice_missing");
+      }
+      await expect(application.semantic.dispatch({
+        kind: "resolve",
+        expectedOccurrenceId: choice.occurrenceId,
+        resolution: {
+          kind: "choose",
+          choiceId: "choice.vn-reference-tour.present-voice",
+        },
+      } as never)).resolves.toMatchObject({ kind: "committed" });
+      for (let index = 0; index < 6; index += 1) await advanceCurrentV1(application);
+
+      const hold = application.semantic.observe().narrative.pending;
+      if (hold === null || hold.kind !== "hold") {
+        throw new TypeError("vn-reference-tour.test_hold_missing");
+      }
+      await expect(application.semantic.dispatch({
+        kind: "time",
+        tick: { elapsedMs: 400, expectedHoldOccurrenceId: hold.occurrenceId },
+      } as never)).resolves.toMatchObject({ kind: "committed" });
+
+      const partialHold = application.semantic.observe();
+      expect(partialHold.narrative.pending).toMatchObject({
+        kind: "hold",
+        totalMs: 1_200,
+        remainingMs: 800,
+      });
+      expect(partialHold.narrative.signalChoice).toBe("present");
+      const partialHoldDigest = application.admin.stateDigest();
+      await expect(application.persistence.save("manual.1")).resolves.toEqual({
+        kind: "saved",
+        slotId: "manual.1",
+      });
+
+      await expect(application.semantic.dispatch({
+        kind: "time",
+        tick: { elapsedMs: 800, expectedHoldOccurrenceId: hold.occurrenceId },
+      } as never)).resolves.toMatchObject({ kind: "committed" });
+      expect(application.semantic.observe()).not.toEqual(partialHold);
+      expect(application.rollback.available().steps).toBeGreaterThan(0);
+
+      await expect(application.persistence.load("manual.1")).resolves.toMatchObject({
+        kind: "loaded",
+      });
+      expect(application.admin.stateDigest()).toBe(partialHoldDigest);
+      const restoredHold = application.semantic.observe();
+      expect(restoredHold.narrative).toEqual(partialHold.narrative);
+      expect(restoredHold.game.stage).toEqual(partialHold.game.stage);
+      expect(restoredHold.game.audio).toEqual(partialHold.game.audio);
+      expect(application.presentationAnchor()).toEqual({ epoch: 1, origin: "load" });
+      expect(application.admin.commandLog()).toEqual([]);
+      expect(application.rollback.available()).toEqual({ steps: 0, forwardSteps: 0 });
+    } finally {
+      await application.dispose();
+    }
+  });
+
   it("rejects a stale occurrence without changing authoritative State", async () => {
     const application = await createVnReferenceTourApplicationInstanceV1();
     try {
