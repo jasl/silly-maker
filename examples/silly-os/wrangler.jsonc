@@ -6,7 +6,7 @@
 //                            # (authenticate once:
 //                            #  deno run -A npm:wrangler@4.114.0 login)
 {
-  "name": "silly-maker-silly-os",
+  "name": "silly-os",
   "compatibility_date": "2026-07-01",
   "assets": {
     "directory": "./dist-web",
