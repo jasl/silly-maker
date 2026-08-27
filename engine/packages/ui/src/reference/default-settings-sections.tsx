@@ -5,6 +5,7 @@ import type { ReactElement } from "react";
 import type { RuntimeCapabilityPortV1 } from "@sillymaker/base";
 import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
 import { Button } from "../primitives/button.tsx";
+import styles from "./default-settings-sections.module.css";
 
 /**
  * The optional reference Settings sections: per-bus
@@ -32,6 +33,12 @@ export interface DefaultSettingsLabelsV1 {
   readonly developerToolsLabel: string;
 }
 
+export interface DefaultSettingsLocaleOptionV1 {
+  /** `null` selects the application's declared default locale. */
+  readonly locale: string | null;
+  readonly label: string;
+}
+
 export const defaultSettingsLabelsV1: DefaultSettingsLabelsV1 = {
   bgmVolumeLabel: "Music volume",
   voiceVolumeLabel: "Voice volume",
@@ -50,9 +57,10 @@ function VolumeSliderV1(props: {
   onChange(next: number): void;
 }): ReactElement {
   return (
-    <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-      <span style={{ minInlineSize: "7em" }}>{props.label}</span>
+    <label className={styles["row"]}>
+      <span className={styles["label"]}>{props.label}</span>
       <input
+        className={styles["range"]}
         type="range"
         min={0}
         max={1000}
@@ -61,7 +69,7 @@ function VolumeSliderV1(props: {
         value={props.value}
         onChange={(event) => props.onChange(Number(event.target.value))}
       />
-      <span>{String(Math.round(props.value / 10))}%</span>
+      <span className={styles["value"]}>{String(Math.round(props.value / 10))}%</span>
     </label>
   );
 }
@@ -70,6 +78,10 @@ export function DefaultSettingsSectionsV1(props: {
   readonly playerProfile: PlayerProfileStoreV1;
   readonly capabilities: RuntimeCapabilityPortV1;
   readonly labels: DefaultSettingsLabelsV1;
+  readonly locale?: Readonly<{
+    readonly label: string;
+    readonly options: readonly DefaultSettingsLocaleOptionV1[];
+  }>;
   /** Defaults to true; false removes the developer-tools switch. */
   readonly showDeveloperTools?: boolean;
 }): ReactElement {
@@ -86,7 +98,7 @@ export function DefaultSettingsSectionsV1(props: {
   const preferences = profile.preferences;
 
   return (
-    <div data-default-settings="true" style={{ display: "grid", gap: "12px" }}>
+    <div data-default-settings="true" className={styles["root"]}>
       <VolumeSliderV1
         label={props.labels.bgmVolumeLabel}
         value={preferences.bgmGainPermille}
@@ -105,7 +117,7 @@ export function DefaultSettingsSectionsV1(props: {
         testId="sfx"
         onChange={(next) => void props.playerProfile.updatePreferences({ sfxGainPermille: next })}
       />
-      <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+      <label className={`${styles["row"]} ${styles["toggle-row"]}`}>
         <input
           type="checkbox"
           data-default-settings-muted="true"
@@ -119,7 +131,7 @@ export function DefaultSettingsSectionsV1(props: {
       {props.labels.skipCutscenesLabel === undefined
         ? null
         : (
-          <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <label className={`${styles["row"]} ${styles["toggle-row"]}`}>
             <input
               type="checkbox"
               data-default-settings-skip-cutscenes="true"
@@ -131,9 +143,10 @@ export function DefaultSettingsSectionsV1(props: {
             {props.labels.skipCutscenesLabel}
           </label>
         )}
-      <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-        <span style={{ minInlineSize: "7em" }}>{props.labels.textSpeedLabel}</span>
+      <label className={styles["row"]}>
+        <span className={styles["label"]}>{props.labels.textSpeedLabel}</span>
         <input
+          className={styles["range"]}
           type="range"
           min={10}
           max={160}
@@ -146,11 +159,12 @@ export function DefaultSettingsSectionsV1(props: {
             });
           }}
         />
-        <span>{String(preferences.textRevealCharsPerSecond)}</span>
+        <span className={styles["value"]}>{String(preferences.textRevealCharsPerSecond)}</span>
       </label>
-      <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-        <span style={{ minInlineSize: "7em" }}>{props.labels.autoWaitLabel}</span>
+      <label className={styles["row"]}>
+        <span className={styles["label"]}>{props.labels.autoWaitLabel}</span>
         <input
+          className={styles["range"]}
           type="range"
           min={200}
           max={4000}
@@ -161,11 +175,32 @@ export function DefaultSettingsSectionsV1(props: {
             void props.playerProfile.updatePreferences({ autoWaitMs: Number(event.target.value) });
           }}
         />
-        <span>{`${String(preferences.autoWaitMs)}ms`}</span>
+        <span className={styles["value"]}>{`${String(preferences.autoWaitMs)}ms`}</span>
       </label>
+      {props.locale === undefined ? null : (
+        <label className={styles["row"]}>
+          <span className={styles["label"]}>{props.locale.label}</span>
+          <select
+            className={styles["select"]}
+            data-default-settings-locale="true"
+            value={preferences.locale ?? ""}
+            onChange={(event) => {
+              void props.playerProfile.updatePreferences({
+                locale: event.target.value === "" ? null : event.target.value,
+              });
+            }}
+          >
+            {props.locale.options.map((option) => (
+              <option key={option.locale ?? "default"} value={option.locale ?? ""}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <Button
         data-default-settings-fullscreen="true"
-        style={{ justifySelf: "start" }}
+        className={styles["fullscreen"]}
         onClick={() => {
           if (typeof document === "undefined") return;
           if (document.fullscreenElement === null) {
@@ -180,7 +215,7 @@ export function DefaultSettingsSectionsV1(props: {
       {props.showDeveloperTools === false
         ? null
         : (
-          <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <label className={`${styles["row"]} ${styles["toggle-row"]}`}>
             <input
               type="checkbox"
               data-default-settings-devtools="true"

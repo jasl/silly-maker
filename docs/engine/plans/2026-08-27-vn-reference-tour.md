@@ -249,8 +249,8 @@ Splash/入口、Save/recovery 与 settings；M2 关闭不推导产品完成、�
 
 ### M3 — 产品入口、Save/recovery 与设置
 
-状态：**2026-08-28 已开启。前三个切片已接通 boot-time autosave resume、
-return-to-title/Continue 连续性，以及默认 VN system menu/Save 入口；设置与其余恢复矩阵仍开放。**
+状态：**2026-08-28 已开启。前四个切片已接通 boot-time autosave resume、
+return-to-title/Continue 连续性、默认 VN system menu/Save 入口，以及完整最小设置与 live locale；其余恢复矩阵仍开放。**
 
 - 完成 Splash/Title、New/Continue/Load/Settings、return-to-title/restart；默认 Continue 显式载入当前 autosave，
   `resumeFromAutosave` 独立控制 boot-time resume；
@@ -288,6 +288,18 @@ audio、hold remainder、route State 与 digest，并按合同从新的 load anc
 advisory 均经源码复核：两个对应 disabled/close 时清理瞬时菜单状态，一个对应 dialog 内层的 Tab/Escape
 focus scope；均为有意产品行为而非 blocker。locale、text speed、auto wait、分声道 volume/mute 与剩余
 closing/hidden/restart 恢复矩阵仍属于后续切片；不得把本记录报告为 M3 关闭。
+第四切片复用现有 Player Profile、默认 Settings sections 与 Web Text locale activation，没有建立产品本地设置或
+i18n store。产品现在提供 locale、text speed、auto wait、BGM/voice/SFX volume、mute 与 fullscreen；这些偏好
+独立于 Save 持久化，reload 后恢复。语言选择仍沿用 Web Host 的单一顺序：先原子激活 Text session，再发布
+Player Profile locale。一个窄的纯 copy projection 让 root/Stage accessible name、Title、菜单与之后打开的 Save
+使用当前语言；静态产品不新增 profile subscription，Title 只走现有 same-target refresh 并保留 managed surface
+instance，已经打开的 System dialog 则按合同保留 opening copy，关闭后重开才采用新 catalog，Save surface
+topology 不因语言切换改变。Settings 使用原生 label/range/select 语义和窄屏重排，独立视觉检查修正了最初的
+横向裁切。稳定工作树通过 382 个测试文件、5,463 项 unit、6 项 Composition benchmark、VN Chromium/WebKit/
+mobile 23 项 E2E（另有 2 项按 project 条件明确跳过）、全仓 `deno task check` 与 VN production build；独立
+复查无剩余 blocker。React Doctor 的既有 large-component 提示与对显式 pure copy projection 的 render-time
+调用提示均经源码复核，不构成行为问题，也没有为消除 advisory 引入第二套 store。closing/hidden/restart 的
+剩余恢复矩阵仍属于后续切片；不得把本记录报告为 M3 关闭。
 
 ### M4 — 作者任务、产品证据与 Starter feedback
 

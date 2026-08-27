@@ -2,6 +2,7 @@
 import type { ReactElement, ReactNode } from "react";
 
 import { Button } from "../primitives/button.tsx";
+import styles from "./settings-dialog.module.css";
 
 /** @internal Content-only renderer; the managed System Host owns Dialog lifecycle. */
 export interface SettingsDialogContentPropsInternalV1 {
@@ -17,12 +18,12 @@ export function SettingsDialogContentV1(
   props: SettingsDialogContentPropsInternalV1,
 ): ReactElement {
   return (
-    <div data-settings-dialog-content="true">
-      <h2>{props.title}</h2>
+    <div data-settings-dialog-content="true" className={styles["content"]}>
+      <h2 className={styles["title"]}>{props.title}</h2>
       {props.sections.length === 0
         ? <p data-settings-empty="true">{props.emptyText}</p>
         : (
-          <div data-settings-section-list="true">
+          <div data-settings-section-list="true" className={styles["sections"]}>
             {props.sections.map((section, index) => (
               <div key={index} data-testid="settings-section">
                 {section}
@@ -30,7 +31,7 @@ export function SettingsDialogContentV1(
             ))}
           </div>
         )}
-      <Button onClick={props.close}>{props.closeLabel}</Button>
+      <Button className={styles["close"]} onClick={props.close}>{props.closeLabel}</Button>
     </div>
   );
 }

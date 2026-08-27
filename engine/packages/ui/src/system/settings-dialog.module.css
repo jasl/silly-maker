@@ -1,0 +1,23 @@
+.content {
+  display: grid;
+  gap: var(--silly-space-4);
+  inline-size: 100%;
+  max-inline-size: 42rem;
+  max-block-size: min(78dvh, 42rem);
+  overflow: auto;
+}
+
+.title {
+  margin: 0;
+  padding-block-end: var(--silly-space-2);
+  border-block-end: 1px solid var(--silly-color-border);
+}
+
+.sections {
+  display: grid;
+  gap: var(--silly-space-3);
+}
+
+.close {
+  justify-self: end;
+}

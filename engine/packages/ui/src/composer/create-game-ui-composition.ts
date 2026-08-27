@@ -337,8 +337,14 @@ type NarrativeSurfaceCompositionEnvironmentInputInternalV1 = Readonly<{
   readonly prefersReducedMotion: () => boolean;
 }>;
 
+type HostedLocalizedValueInternalV1<T> = T | (() => T);
+
+function readHostedLocalizedValueInternalV1<T>(source: HostedLocalizedValueInternalV1<T>): T {
+  return typeof source === "function" ? (source as () => T)() : source;
+}
+
 type HostedWholeCanvasTitleScreenInternalV1 = Readonly<{
-  readonly title: string;
+  readonly title: HostedLocalizedValueInternalV1<string>;
   readonly backgroundUrl: string | null;
   readonly splash:
     | Readonly<{
@@ -358,13 +364,15 @@ type HostedWholeCanvasInputInternalV1<TSemanticPublication> = Readonly<{
   }>;
   readonly savePort: SaveOverlayPortV1 | null;
   readonly customSavesConfigured: boolean;
-  readonly labels: Readonly<{
-    readonly newGame: string;
-    readonly newGameFailed: string;
-    readonly continue: string;
-    readonly load: string;
-    readonly settings: string;
-  }>;
+  readonly labels: HostedLocalizedValueInternalV1<
+    Readonly<{
+      readonly newGame: string;
+      readonly newGameFailed: string;
+      readonly continue: string;
+      readonly load: string;
+      readonly settings: string;
+    }>
+  >;
 }>;
 
 type HostedSurfaceCompositionInputInternalV1<TSemanticPublication> = Readonly<{
@@ -538,6 +546,11 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
       loadAvailable: false,
       newGameFailure: false,
     };
+    const localizedBuiltinCopy = typeof input.labels === "function" ||
+      (input.titleScreen !== null && typeof input.titleScreen.title === "function");
+    let activeLocale = localizedBuiltinCopy
+      ? environment.playerProfile.current().preferences.locale
+      : null;
     let publication:
       | Readonly<{
         getSnapshot(): Readonly<{
@@ -548,6 +561,7 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
       | null = null;
     let systemDialogs: SystemDialogSessionV1 | null = null;
     let sourceUnsubscribe: (() => void) | null = null;
+    let profileUnsubscribe: (() => void) | null = null;
     let disposed = false;
     let claimCommitted = false;
     let mutationGeneration = 0;
@@ -633,6 +647,7 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
         accessibleNameTextId: wholeCanvasBuiltinTextIdsInternalV1.title,
         view: {
           kind: "title",
+          locale: activeLocale,
           continueAvailable: state.continueAvailable,
           loadAvailable: state.loadAvailable,
           newGameFailure: state.newGameFailure,
@@ -658,10 +673,12 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
         return input.titleScreen?.splash?.lines[0] ?? "";
       }
       if (textId === wholeCanvasBuiltinTextIdsInternalV1.title) {
-        return input.titleScreen?.title ?? "";
+        return input.titleScreen === null
+          ? ""
+          : readHostedLocalizedValueInternalV1(input.titleScreen.title);
       }
       if (textId === "text.whole-canvas.action-unavailable") {
-        return input.labels.continue;
+        return readHostedLocalizedValueInternalV1(input.labels).continue;
       }
       return storyAdapter?.resolveTextInternalV1(textId) ?? textId;
     };
@@ -681,6 +698,7 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
         });
       }
       if (entry.rootKind !== "title" || input.titleScreen === null) return null;
+      const labels = readHostedLocalizedValueInternalV1(input.labels);
       const view = entry.resolved.view as Readonly<{
         readonly continueAvailable: boolean;
         readonly loadAvailable: boolean;
@@ -690,15 +708,15 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
         "div",
         { "data-whole-canvas-title-frame": "true" },
         createElement(TitleScreenV1, {
-          title: input.titleScreen.title,
+          title: readHostedLocalizedValueInternalV1(input.titleScreen.title),
           ...(input.titleScreen.backgroundUrl === null
             ? {}
             : { backgroundUrl: input.titleScreen.backgroundUrl }),
           labels: {
-            newGameLabel: input.labels.newGame,
-            continueLabel: input.labels.continue,
-            loadGameLabel: input.labels.load,
-            settingsLabel: input.labels.settings,
+            newGameLabel: labels.newGame,
+            continueLabel: labels.continue,
+            loadGameLabel: labels.load,
+            settingsLabel: labels.settings,
           },
           onNewGame: () => props.onAction("whole-canvas.title.new-game"),
           middleAction: input.customSavesConfigured
@@ -723,7 +741,7 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
               role: "alert",
               "data-title-lifecycle-failure": "true",
             },
-            input.labels.newGameFailed,
+            labels.newGameFailed,
           )
           : null,
       );
@@ -854,6 +872,14 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
     } else {
       storyAdapter.bindCompositionDefinitionInternalV1(definition, resolveText);
     }
+    if (localizedBuiltinCopy) {
+      profileUnsubscribe = environment.playerProfile.subscribe(() => {
+        const nextLocale = environment.playerProfile.current().preferences.locale;
+        if (disposed || nextLocale === activeLocale) return;
+        activeLocale = nextLocale;
+        publishState({ ...state });
+      });
+    }
     return ({
       definition,
       bindPublicationInternalV1(
@@ -967,6 +993,8 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
         mutationGeneration += 1;
         sourceUnsubscribe?.();
         sourceUnsubscribe = null;
+        profileUnsubscribe?.();
+        profileUnsubscribe = null;
         listeners.clear();
         storyAdapter?.rollbackClaimInternalV1();
       },
@@ -976,6 +1004,8 @@ function createHostedWholeCanvasBridgeInternalV1<TSemanticPublication>(
         mutationGeneration += 1;
         sourceUnsubscribe?.();
         sourceUnsubscribe = null;
+        profileUnsubscribe?.();
+        profileUnsubscribe = null;
         listeners.clear();
         if (claimCommitted) storyAdapter?.terminalizeInternalV1();
         else storyAdapter?.rollbackClaimInternalV1();

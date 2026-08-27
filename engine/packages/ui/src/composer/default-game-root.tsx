@@ -87,6 +87,17 @@ export const defaultGameRootLabelsV1: DefaultGameRootLabelsV1 = {
   closeLabel: "Close",
 };
 
+/**
+ * Product copy that follows the active PlayerProfile locale. The Web Host
+ * activates Text content before publishing the locale preference, so this
+ * projection reads one already-current localization authority.
+ */
+export interface DefaultGameRootLocalizedCopyV1 {
+  readonly accessibleName?: string;
+  readonly labels?: Partial<DefaultGameRootLabelsV1>;
+  readonly saveLabels?: SaveOverlayLabelsV1;
+}
+
 export interface DefaultGameRootSlotContextV1<
   TPublication,
   TSemantic,
@@ -209,6 +220,8 @@ export interface DefaultGameRootPropsV1<
    */
   readonly customSaves?: SystemDialogCustomSavesV1;
   readonly labels?: Partial<DefaultGameRootLabelsV1>;
+  /** Pure copy projection re-read after the active PlayerProfile locale changes. */
+  resolveLocalizedCopy?(activeLocale: string | null): DefaultGameRootLocalizedCopyV1;
   readonly slots?: DefaultGameRootSlotsV1<
     RuntimePresentationPublicationV1<TSemanticPublication, TView, TAssetId>,
     TSemantic,
@@ -427,7 +440,38 @@ export function DefaultGameRootV1<
     TView,
     TAssetId
   >;
-  const labels = { ...defaultGameRootLabelsV1, ...props.labels };
+  const subscribeProfile = useCallback(
+    (listener: () => void) =>
+      props.resolveLocalizedCopy === undefined
+        ? () => undefined
+        : props.playerProfile?.subscribe(listener) ?? (() => undefined),
+    [props.playerProfile, props.resolveLocalizedCopy],
+  );
+  const readProfileLocale = useCallback(
+    () =>
+      props.resolveLocalizedCopy === undefined
+        ? null
+        : props.playerProfile?.current().preferences.locale ?? null,
+    [props.playerProfile, props.resolveLocalizedCopy],
+  );
+  const profileLocale = useSyncExternalStore(
+    subscribeProfile,
+    readProfileLocale,
+    readProfileLocale,
+  );
+  const resolveLocalizedCopy = props.resolveLocalizedCopy;
+  const localizedCopy = useMemo(
+    () => resolveLocalizedCopy?.(profileLocale) ?? null,
+    [profileLocale, resolveLocalizedCopy],
+  );
+  const labels = useMemo(
+    () => ({
+      ...defaultGameRootLabelsV1,
+      ...props.labels,
+      ...localizedCopy?.labels,
+    }),
+    [localizedCopy, props.labels],
+  );
   const publication = useSyncExternalStore(
     props.composition.presentation.subscribe,
     props.composition.presentation.getSnapshot,
@@ -440,7 +484,7 @@ export function DefaultGameRootV1<
     const { evaluateGuard } = props.saveUi;
     return {
       port: props.saveUi.port,
-      labels: props.saveUi.labels,
+      labels: localizedCopy?.saveLabels ?? props.saveUi.labels,
       ...(evaluateGuard === undefined ? {} : {
         guardProjection: {
           getSnapshot: props.composition.presentation.getSnapshot,
@@ -449,7 +493,7 @@ export function DefaultGameRootV1<
         },
       }),
     };
-  }, [props.composition.presentation, props.customSaves, props.saveUi]);
+  }, [localizedCopy?.saveLabels, props.composition.presentation, props.customSaves, props.saveUi]);
 
   // Composition-backed members stay referentially stable across renders so
   // Story lifecycle effects can depend on them without re-subscribing.
@@ -647,10 +691,11 @@ export function DefaultGameRootV1<
   ).semantic;
   const semanticRevision = semanticWitness?.revision;
   const semanticStatus = semanticWitness?.status;
+  const localizedApplicationName = localizedCopy?.accessibleName ?? props.accessibleName;
   return (
     <div
       role="application"
-      aria-label={props.accessibleName}
+      aria-label={localizedApplicationName}
       data-application-id={props.applicationId}
       data-presentation-epoch={anchor.epoch}
       data-presentation-origin={anchor.origin}
@@ -663,7 +708,7 @@ export function DefaultGameRootV1<
       <PlayerSystemControllerProviderInternalV1 controller={playerSystemController}>
         <GameShell
           accessibleName={props.resolveStageAccessibleName?.(publication) ??
-            props.accessibleName}
+            localizedApplicationName}
           layers={layers}
           inputRouter={props.composition.input}
           viewport={props.viewport}

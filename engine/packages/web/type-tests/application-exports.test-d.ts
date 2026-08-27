@@ -31,6 +31,7 @@ import type {
   WebGuiUiDefinitionV1,
   WebAddressableRuntimeDefinitionV1,
   WebGameApplicationV1,
+  WebGameLocalizedUiCopyV1,
   WebGameUiDefinitionV1,
 } from "@sillymaker/web";
 
@@ -69,6 +70,19 @@ type WebNarrativeDefinitionV1 = NonNullable<
 >;
 const webNarrativeDefinitionV1: WebNarrativeDefinitionV1 = narrativeSurfaceDefinitionV1;
 void webNarrativeDefinitionV1;
+
+const localizedUiCopyV1: WebGameLocalizedUiCopyV1 = {
+  accessibleName: "Localized application",
+  titleScreenTitle: "Localized title",
+  labels: { settingsLabel: "Localized settings" },
+};
+type WebLocalizedCopyResolverV1 = NonNullable<
+  WebGameUiDefinitionV1<unknown, unknown, unknown, unknown, unknown, string, unknown>[
+    "resolveLocalizedCopy"
+  ]
+>;
+const webLocalizedCopyResolverV1: WebLocalizedCopyResolverV1 = () => localizedUiCopyV1;
+void webLocalizedCopyResolverV1;
 
 interface WebWholeCanvasSemanticV1 {
   readonly kind: "web.whole-canvas.semantic";

@@ -7,6 +7,7 @@ import type {
   AssetId,
   DeepReadonly,
   ResolvedAssetManifestV1,
+  RuntimeCapabilityPortV1,
   TextContentSessionV1,
   TextId,
 } from "@sillymaker/base";
@@ -30,8 +31,10 @@ import {
   defineNarrativeSurfaceV1,
   GameAudioV1,
   SemanticStageV1,
+  useLocaleTextV1,
 } from "@sillymaker/ui";
 import { createDefaultVnPlayerV1 } from "@sillymaker/ui/narrative-player";
+import { DefaultSettingsSectionsV1 } from "@sillymaker/ui/reference/settings";
 import type { WebGameApplicationV1 } from "@sillymaker/web";
 import { createWebAudioHostV1 } from "@sillymaker/web";
 
@@ -228,6 +231,7 @@ function createVnReferenceTourUiSlotsV1(
   registry: VnReferenceTourAssetRegistryV1,
   renderers: ReturnType<typeof createVnReferenceTourStageRenderersV1>,
   playerProfile: PlayerProfileStoreV1,
+  capabilities: RuntimeCapabilityPortV1,
   registerReplayVoice: (replay: (() => boolean) | null) => void,
   registerCurrentVoicePlaying: (query: (() => boolean) | null) => void,
   reportFailure: (code: string, error: unknown) => void,
@@ -293,7 +297,50 @@ function createVnReferenceTourUiSlotsV1(
         </>
       );
     },
+    settingsSections: () => [
+      <VnReferenceTourSettingsSectionsV1
+        key="player"
+        playerProfile={playerProfile}
+        capabilities={capabilities}
+        textContent={textContent}
+      />,
+    ],
   };
+}
+
+function VnReferenceTourSettingsSectionsV1(props: {
+  readonly playerProfile: PlayerProfileStoreV1;
+  readonly capabilities: RuntimeCapabilityPortV1;
+  readonly textContent: TextContentSessionV1;
+}) {
+  const text = useLocaleTextV1(
+    props.playerProfile,
+    (_locale, textId) => props.textContent.resolveText(textId as TextId),
+  );
+  return (
+    <DefaultSettingsSectionsV1
+      playerProfile={props.playerProfile}
+      capabilities={props.capabilities}
+      showDeveloperTools={false}
+      labels={{
+        bgmVolumeLabel: text("text.vn-reference-tour.settings.bgm"),
+        voiceVolumeLabel: text("text.vn-reference-tour.settings.voice"),
+        sfxVolumeLabel: text("text.vn-reference-tour.settings.sfx"),
+        mutedLabel: text("text.vn-reference-tour.system.mute"),
+        textSpeedLabel: text("text.vn-reference-tour.settings.text-speed"),
+        autoWaitLabel: text("text.vn-reference-tour.settings.auto-wait"),
+        fullscreenLabel: text("text.vn-reference-tour.settings.fullscreen"),
+        developerToolsLabel: text("text.vn-reference-tour.settings.developer-tools"),
+      }}
+      locale={{
+        label: text("text.vn-reference-tour.settings.language"),
+        options: [
+          { locale: null, label: "简体中文" },
+          { locale: "en", label: "English" },
+        ],
+      }}
+    />
+  );
 }
 
 const vnReferenceTourVnPlayerLabelTextIdsV1 = {
@@ -411,6 +458,7 @@ export const vnReferenceTourGameApplicationV1: WebGameApplicationV1<
   ui: (
     {
       assetLoader,
+      capabilities,
       heldInput,
       instance,
       playerProfile,
@@ -419,6 +467,7 @@ export const vnReferenceTourGameApplicationV1: WebGameApplicationV1<
       textContent,
     }: {
       readonly assetLoader: Parameters<typeof createAssetRegistryV1>[1];
+      readonly capabilities: RuntimeCapabilityPortV1;
       readonly heldInput: HeldInputPortV1;
       readonly instance: VnReferenceTourApplicationInstanceV1;
       readonly playerProfile: PlayerProfileStoreV1;
@@ -463,6 +512,12 @@ export const vnReferenceTourGameApplicationV1: WebGameApplicationV1<
           }),
       },
       accessibleName: textContent.resolveText("text.vn-reference-tour.app.name" as TextId),
+      resolveLocalizedCopy: () => ({
+        accessibleName: textContent.resolveText("text.vn-reference-tour.app.name" as TextId),
+        titleScreenTitle: textContent.resolveText("text.vn-reference-tour.app.name" as TextId),
+        labels: createVnReferenceTourRootLabelsV1(textContent),
+        saveLabels: createVnReferenceTourSaveOverlayLabelsV1(textContent),
+      }),
       projector: createVnReferenceTourUiProjectorV1(textContent),
       narrative: defineNarrativeSurfaceV1<VnReferenceTourSemanticPublicationV1>(
         {
@@ -495,12 +550,11 @@ export const vnReferenceTourGameApplicationV1: WebGameApplicationV1<
         registry,
         renderers,
         playerProfile,
+        capabilities,
         registerReplayVoice,
         registerCurrentVoicePlaying,
         reportFailure,
       ),
-      labels: createVnReferenceTourRootLabelsV1(textContent),
-      saveLabels: createVnReferenceTourSaveOverlayLabelsV1(textContent),
       // M2 owns compact VN player chrome. The generic floating
       // Save/Settings/Mute cluster returns through product UI in M3.
       hideSystemMenu: true,

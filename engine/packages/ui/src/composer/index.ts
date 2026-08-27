@@ -15,6 +15,7 @@ export type {
 export { DefaultGameRootV1, defaultGameRootLabelsV1 } from "./default-game-root.tsx";
 export type {
   DefaultGameRootLabelsV1,
+  DefaultGameRootLocalizedCopyV1,
   DefaultGameRootPropsV1,
   DefaultGameRootSlotContextV1,
   DefaultGameRootSlotsV1,

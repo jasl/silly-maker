@@ -376,6 +376,7 @@ export {
 export type {
   CreateGameUiCompositionInputV1,
   DefaultGameRootLabelsV1,
+  DefaultGameRootLocalizedCopyV1,
   DefaultGameRootPropsV1,
   DefaultGameRootSlotContextV1,
   DefaultGameRootSlotsV1,

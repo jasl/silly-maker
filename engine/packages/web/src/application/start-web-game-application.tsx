@@ -44,6 +44,7 @@ import type {
 } from "@sillymaker/base/runtime/internal";
 import type {
   DefaultGameRootLabelsV1,
+  DefaultGameRootLocalizedCopyV1,
   DefaultGameRootSlotsV1,
   GamepadActionMapV1,
   GameShellViewportOptionsV1,
@@ -216,6 +217,11 @@ export interface WebGameUiDefinitionV1<
   readonly accessibleName?: string;
   readonly labels?: Partial<DefaultGameRootLabelsV1>;
   readonly saveLabels?: SaveOverlayLabelsV1;
+  /**
+   * Reads product-owned chrome copy from the already-active Text session.
+   * The Host re-reads it after PlayerProfile locale publication.
+   */
+  resolveLocalizedCopy?(activeLocale: string | null): WebGameLocalizedUiCopyV1;
   /** Hides the default floating system menu (custom shells own the entries). */
   readonly hideSystemMenu?: boolean;
   /** Optional, build-known outer GUI support selected by this product. */
@@ -311,6 +317,10 @@ export interface WebGameUiDefinitionV1<
   }) => () => unknown;
   /** Releases Story-owned UI resources (asset registries, caches). */
   dispose?(): void;
+}
+
+export interface WebGameLocalizedUiCopyV1 extends DefaultGameRootLocalizedCopyV1 {
+  readonly titleScreenTitle?: string;
 }
 
 interface WebGameApplicationFieldsV1<
@@ -1388,11 +1398,16 @@ export async function startWebGameApplicationV1<
       reportFailure,
     });
     uiDisposer = uiDefinition.dispose?.bind(uiDefinition);
+    const resolveLocalizedCopy = uiDefinition.resolveLocalizedCopy;
+    const readLocalizedCopy = () =>
+      resolveLocalizedCopy?.(playerProfile.current().preferences.locale ?? null);
+    const initialLocalizedCopy = readLocalizedCopy();
+    const initialSaveLabels = initialLocalizedCopy?.saveLabels ?? uiDefinition.saveLabels;
     const saveSurfaces = createPlayerSaveSurfacesV1({
       files: host.files,
       persistence: instance.persistence,
       clearAllSaves,
-      ...(uiDefinition.saveLabels === undefined ? {} : { saveLabels: uiDefinition.saveLabels }),
+      ...(initialSaveLabels === undefined ? {} : { saveLabels: initialSaveLabels }),
       ...(uiDefinition.saveGuard === undefined ? {} : { saveGuard: uiDefinition.saveGuard }),
       ...(uiDefinition.customSaves === undefined ? {} : { customSaves: uiDefinition.customSaves }),
     });
@@ -1403,7 +1418,9 @@ export async function startWebGameApplicationV1<
     const normalizedTitleScreen = titleScreenInput === null ? null : (() => {
       const beginNewGame = titleScreenInput.beginNewGame;
       return ({
-        title: titleScreenInput.title,
+        title: resolveLocalizedCopy === undefined
+          ? titleScreenInput.title
+          : () => readLocalizedCopy()?.titleScreenTitle ?? titleScreenInput.title,
         backgroundUrl: titleScreenInput.backgroundUrl ?? null,
         splash: titleScreenInput.splash === undefined ? null : ({
           lines: [...titleScreenInput.splash.lines],
@@ -1417,10 +1434,6 @@ export async function startWebGameApplicationV1<
     const wholeCanvas = wholeCanvasDefinition === null && normalizedTitleScreen === null
       ? null
       : (() => {
-        const labels = {
-          ...defaultGameRootLabelsV1,
-          ...uiDefinition.labels,
-        };
         return ({
           definition: wholeCanvasDefinition,
           titleScreen: normalizedTitleScreen,
@@ -1431,13 +1444,34 @@ export async function startWebGameApplicationV1<
           savePort: saveSurfaces.saveUi?.port ??
             (saveSurfaces.customSaves === undefined ? null : saveSurfaces.maintenance.savePort),
           customSavesConfigured: saveSurfaces.customSaves !== undefined,
-          labels: {
-            newGame: labels.titleNewGameLabel,
-            newGameFailed: labels.titleNewGameFailedText,
-            continue: labels.titleContinueLabel,
-            load: labels.titleLoadGameLabel,
-            settings: labels.titleSettingsLabel ?? labels.settingsLabel,
-          },
+          labels: resolveLocalizedCopy === undefined
+            ? (() => {
+              const labels = {
+                ...defaultGameRootLabelsV1,
+                ...uiDefinition.labels,
+              };
+              return ({
+                newGame: labels.titleNewGameLabel,
+                newGameFailed: labels.titleNewGameFailedText,
+                continue: labels.titleContinueLabel,
+                load: labels.titleLoadGameLabel,
+                settings: labels.titleSettingsLabel ?? labels.settingsLabel,
+              });
+            })()
+            : () => {
+              const labels = {
+                ...defaultGameRootLabelsV1,
+                ...uiDefinition.labels,
+                ...readLocalizedCopy()?.labels,
+              };
+              return ({
+                newGame: labels.titleNewGameLabel,
+                newGameFailed: labels.titleNewGameFailedText,
+                continue: labels.titleContinueLabel,
+                load: labels.titleLoadGameLabel,
+                settings: labels.titleSettingsLabel ?? labels.settingsLabel,
+              });
+            },
         });
       })();
     const hostedSurfaceDefinitions = narrativeDefinition === null && wholeCanvas === null
@@ -1627,6 +1661,7 @@ export async function startWebGameApplicationV1<
             ? {}
             : { hideSystemMenu: uiDefinition.hideSystemMenu })}
           {...(uiDefinition.labels === undefined ? {} : { labels: uiDefinition.labels })}
+          {...(resolveLocalizedCopy === undefined ? {} : { resolveLocalizedCopy })}
           {...(rootSlots === undefined ? {} : { slots: rootSlots })}
           {...(rootInputMaps === undefined ? {} : { inputMaps: rootInputMaps })}
         />

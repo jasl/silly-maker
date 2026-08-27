@@ -35,6 +35,7 @@ export type {
   StartWebGameApplicationOptionsV1,
   StartedWebGameApplicationV1,
   WebGameApplicationV1,
+  WebGameLocalizedUiCopyV1,
   WebGameOuterUiHostInputV1,
   WebGameOuterUiV1,
   WebGameUiDefinitionV1,

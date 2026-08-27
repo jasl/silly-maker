@@ -27,7 +27,7 @@ import type {
   TimelineCatalogV1,
 } from "@sillymaker/base";
 import { defaultPlayerProfileV1 } from "@sillymaker/base/runtime";
-import type { PlayerProfileStoreV1 } from "@sillymaker/base/runtime";
+import type { PlayerProfileStoreV1, PlayerProfileV1 } from "@sillymaker/base/runtime";
 
 import { systemInputActionIdsV1 } from "../input/contracts.ts";
 import {
@@ -754,6 +754,7 @@ function renderHostedLifecycleRootV1(
     readonly withFrontDoor?: boolean;
     readonly withSplash?: boolean;
     readonly hudProbe?: boolean;
+    readonly localizedCopy?: boolean;
     readonly auxiliarySurface?: ReactElement;
     readonly stageLifetime?: {
       readonly onMount: () => void;
@@ -862,12 +863,25 @@ function renderHostedLifecycleRootV1(
     }
     return anchoredV1;
   });
+  let playerProfileSnapshot: PlayerProfileV1 = defaultPlayerProfileV1;
+  const playerProfileListeners = new Set<() => void>();
   const playerProfile = Object.freeze({
-    current: () => defaultPlayerProfileV1,
-    subscribe: () => Object.freeze(() => undefined),
+    current: () => playerProfileSnapshot,
+    subscribe: (listener: () => void) => {
+      playerProfileListeners.add(listener);
+      return () => playerProfileListeners.delete(listener);
+    },
     markSeen: async () => undefined,
     markMeta: async () => undefined,
-    updatePreferences: async () => undefined,
+    updatePreferences: async (
+      update: Parameters<PlayerProfileStoreV1["updatePreferences"]>[0],
+    ) => {
+      playerProfileSnapshot = {
+        ...playerProfileSnapshot,
+        preferences: { ...playerProfileSnapshot.preferences, ...update },
+      };
+      for (const listener of playerProfileListeners) listener();
+    },
   }) satisfies PlayerProfileStoreV1;
   const semanticPublication = Object.freeze({ revision: 0 });
   const composition = createHostedGameUiCompositionInternalV1(
@@ -926,7 +940,12 @@ function renderHostedLifecycleRootV1(
         wholeCanvas: Object.freeze({
           definition: null,
           titleScreen: Object.freeze({
-            title: "Hosted lifecycle fixture",
+            title: options.localizedCopy === true
+              ? () =>
+                playerProfile.current().preferences.locale === "en"
+                  ? "Hosted lifecycle fixture EN"
+                  : "Hosted lifecycle fixture"
+              : "Hosted lifecycle fixture",
             backgroundUrl: null,
             splash: options.withSplash === true
               ? Object.freeze({
@@ -941,13 +960,26 @@ function renderHostedLifecycleRootV1(
             ? savePort
             : null,
           customSavesConfigured: options.withCustomSaves === true,
-          labels: Object.freeze({
-            newGame: "New game",
-            newGameFailed: "Unable to start a new game.",
-            continue: "Continue",
-            load: "Load game",
-            settings: "Settings",
-          }),
+          labels: options.localizedCopy === true
+            ? () => {
+              const english = playerProfile.current().preferences.locale === "en";
+              return Object.freeze({
+                newGame: english ? "New game EN" : "New game",
+                newGameFailed: english
+                  ? "Unable to start a new game EN."
+                  : "Unable to start a new game.",
+                continue: english ? "Continue EN" : "Continue",
+                load: english ? "Load game EN" : "Load game",
+                settings: english ? "Settings EN" : "Settings",
+              });
+            }
+            : Object.freeze({
+              newGame: "New game",
+              newGameFailed: "Unable to start a new game.",
+              continue: "Continue",
+              load: "Load game",
+              settings: "Settings",
+            }),
         }),
         environment: Object.freeze({
           playerProfile,
@@ -978,6 +1010,29 @@ function renderHostedLifecycleRootV1(
       accessibleName="Hosted lifecycle fixture"
       applicationId="hosted-lifecycle-fixture"
       viewport={undefined as never}
+      {...(options.localizedCopy === true
+        ? {
+          playerProfile,
+          resolveLocalizedCopy: (activeLocale: string | null) => {
+            const english = activeLocale === "en";
+            return ({
+              accessibleName: english ? "Hosted lifecycle fixture EN" : "Hosted lifecycle fixture",
+              labels: {
+                settingsLabel: english ? "Settings EN" : "Settings",
+                settingsTitle: english ? "Settings EN" : "Settings",
+                closeLabel: english ? "Close EN" : "Close",
+              },
+              saveLabels: english
+                ? {
+                  ...hostedSaveLabelsV1,
+                  accessibleName: "Hosted saves EN",
+                  title: "Hosted saves EN",
+                }
+                : hostedSaveLabelsV1,
+            });
+          },
+        }
+        : {})}
       {...(options.withSaveUi === true
         ? {
           saveUi: Object.freeze({
@@ -1044,6 +1099,7 @@ function renderHostedLifecycleRootV1(
     loadToken,
     restart,
     restartToken,
+    setLocale: (locale: string | null) => playerProfile.updatePreferences({ locale }),
     returnToTitle: () => {
       if (returnToTitle === undefined) {
         throw new TypeError("missing hosted returnToTitle fixture");
@@ -1054,6 +1110,50 @@ function renderHostedLifecycleRootV1(
 }
 
 describe("DefaultGameRootV1 lifecycle result handling", () => {
+  it("re-reads root, Title, and Save copy after the shared locale changes", async () => {
+    const fixture = renderHostedLifecycleRootV1({
+      withFrontDoor: true,
+      withSaveUi: true,
+      localizedCopy: true,
+    });
+
+    expect(screen.getByRole("application", { name: "Hosted lifecycle fixture" })).toBeVisible();
+    await waitFor(() => {
+      expect(document.querySelector<HTMLElement>("[data-title-screen='true']")).toBeVisible();
+    });
+    expect(screen.getByRole("heading", { name: "Hosted lifecycle fixture" })).toBeVisible();
+    const titleSurface = document.querySelector<HTMLElement>(
+      '[data-whole-canvas-phase="current"][data-whole-canvas-root-kind="title"]',
+    );
+    const titleInstance = titleSurface?.dataset.managedSurfaceInstance;
+    expect(titleInstance).toBeDefined();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Load game" }));
+    expect(await screen.findByRole("dialog", { name: "Hosted saves" })).toBeVisible();
+
+    await act(() => fixture.setLocale("en"));
+
+    expect(screen.getByRole("application", { name: "Hosted lifecycle fixture EN" })).toBeVisible();
+    expect(screen.getByRole("main", { name: "Hosted lifecycle fixture EN" })).toBeVisible();
+    expect(screen.getByRole("dialog", { name: "Hosted saves" })).toBeVisible();
+    expect(screen.queryByRole("dialog", { name: "Hosted saves EN" })).toBeNull();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Hosted saves" })).toBeNull();
+    });
+
+    expect(screen.getByRole("heading", { name: "Hosted lifecycle fixture EN" })).toBeVisible();
+    expect(
+      document.querySelector<HTMLElement>(
+        '[data-whole-canvas-phase="current"][data-whole-canvas-root-kind="title"]',
+      )?.dataset.managedSurfaceInstance,
+    ).toBe(titleInstance);
+    const load = screen.getByRole("button", { name: "Load game EN" });
+    await userEvent.setup().click(load);
+    expect(await screen.findByRole("dialog", { name: "Hosted saves EN" })).toBeVisible();
+
+    fixture.composition.dispose();
+  });
+
   it("forwards optional outer chrome through the neutral auxiliary surface slot", () => {
     const fixture = renderHostedLifecycleRootV1({
       auxiliarySurface: <button type="button">Reference outer chrome</button>,

@@ -74,8 +74,9 @@ it("selects the engine default VN Player and keeps the product Narrative binding
     expect(Object.hasOwn(ui, "narrative")).toBe(true);
     expect(Object.hasOwn(ui.slots ?? {}, "narrative")).toBe(false);
     expect(Object.hasOwn(ui.slots ?? {}, "hud")).toBe(true);
+    expect(Object.hasOwn(ui.slots ?? {}, "settingsSections")).toBe(true);
     expect(ui.hideSystemMenu).toBe(true);
-    expect(ui.saveLabels).toMatchObject({
+    expect(ui.resolveLocalizedCopy?.(null).saveLabels).toMatchObject({
       title: "保存",
       quickSave: "快速保存",
       slotNames: { quick: "快速存档" },
@@ -112,31 +113,20 @@ it("selects the engine default VN Player and keeps the product Narrative binding
     });
 
     await expect(textContent.activateLocale(parseLocaleId("en"))).resolves.toBe(true);
-    const englishUi = vnReferenceTourGameApplicationV1.ui(
-      {
-        heldInput: emptyHeldInputV1,
-        instance,
-        playerProfile,
-        assetLoader: loadedAssetLoaderV1,
-        textContent,
-        reportFailure: vi.fn(),
-      } as unknown as Parameters<typeof vnReferenceTourGameApplicationV1.ui>[0],
+    const englishCopy = ui.resolveLocalizedCopy?.("en");
+    expect(englishCopy?.accessibleName).toBe("One Last Sound Check");
+    expect(englishCopy?.titleScreenTitle).toBe("One Last Sound Check");
+    expect(englishCopy?.saveLabels).toMatchObject({
+      title: "Save",
+      quickSave: "Quick save",
+      slotNames: { quick: "Quick save" },
+    });
+    expect(englishCopy?.saveLabels?.confirmation.loadDescription("Quick save")).toBe(
+      "Your current progress will be replaced by Quick save.",
     );
-    try {
-      expect(englishUi.saveLabels).toMatchObject({
-        title: "Save",
-        quickSave: "Quick save",
-        slotNames: { quick: "Quick save" },
-      });
-      expect(englishUi.saveLabels?.confirmation.loadDescription("Quick save")).toBe(
-        "Your current progress will be replaced by Quick save.",
-      );
-      expect(englishUi.saveLabels?.operation.rejected.in_flight).toBe(
-        "Cannot save during a transition",
-      );
-    } finally {
-      englishUi.dispose?.();
-    }
+    expect(englishCopy?.saveLabels?.operation.rejected.in_flight).toBe(
+      "Cannot save during a transition",
+    );
   } finally {
     textContentLease.release();
     textContent.dispose();

@@ -119,4 +119,42 @@ describe("DefaultSettingsSectionsV1", () => {
     // The rest of the baseline sections stay.
     expect(screen.getByRole("button", { name: "Fullscreen" })).toBeVisible();
   });
+
+  it("updates the shared locale preference when the product supplies locale choices", async () => {
+    const playerProfile = await createPlayerProfileStoreV1({
+      records: createMemoryHostRecordStoreV1(),
+      storyId: "story.test.settings-locale",
+    });
+
+    render(
+      <DefaultSettingsSectionsV1
+        playerProfile={playerProfile}
+        capabilities={disabledCapabilitiesV1}
+        labels={Object.freeze({
+          bgmVolumeLabel: "Music",
+          voiceVolumeLabel: "Voice",
+          sfxVolumeLabel: "Effects",
+          mutedLabel: "Mute",
+          textSpeedLabel: "Text speed",
+          autoWaitLabel: "Auto wait",
+          fullscreenLabel: "Fullscreen",
+          developerToolsLabel: "Developer tools",
+        })}
+        locale={{
+          label: "Language",
+          options: [
+            { locale: null, label: "Default" },
+            { locale: "en", label: "English" },
+          ],
+        }}
+      />,
+    );
+
+    await userEvent.setup().selectOptions(
+      screen.getByRole("combobox", { name: "Language" }),
+      "en",
+    );
+
+    await waitFor(() => expect(playerProfile.current().preferences.locale).toBe("en"));
+  });
 });

@@ -401,6 +401,53 @@ test("the default VN quick controls restore a saved Choice through confirmation"
   expect(restored.game.audio).toEqual(saved.game.audio);
 });
 
+test("VN Settings localize live and persist player preferences outside Save", async ({ page }) => {
+  await page.goto(vnReferenceTourTargetUrlV1());
+  await page.getByRole("button", { name: "新游戏" }).click();
+  await page.getByRole("button", { name: "设置" }).click();
+
+  const settings = page.getByRole("dialog", { name: "设置" });
+  await expect(settings).toBeVisible();
+  const bgm = settings.locator('[data-default-settings-volume="bgm"]');
+  const voice = settings.locator('[data-default-settings-volume="voice"]');
+  const sfx = settings.locator('[data-default-settings-volume="sfx"]');
+  const textSpeed = settings.locator('[data-default-settings-text-speed="true"]');
+  const autoWait = settings.locator('[data-default-settings-auto-wait="true"]');
+  const muted = settings.locator('[data-default-settings-muted="true"]');
+
+  await bgm.fill("650");
+  await voice.fill("750");
+  await sfx.fill("500");
+  await textSpeed.fill("80");
+  await autoWait.fill("1200");
+  await muted.check();
+  await settings.getByRole("combobox", { name: "语言" }).selectOption("en");
+
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(settings.getByRole("combobox", { name: "Language" })).toHaveValue("en");
+  await expect(settings.getByText("Music volume", { exact: true })).toBeVisible();
+  // The active managed candidate keeps its opening copy; the next candidate
+  // reads the newly active locale.
+  await settings.getByRole("button", { name: "关闭" }).click();
+  await page.getByRole("button", { name: "Save / Load" }).click();
+  const saves = page.getByRole("dialog", { name: "Save" });
+  await expect(saves).toBeVisible();
+  await saves.getByRole("button", { name: "Close" }).click();
+
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.getByRole("heading", { name: "One Last Sound Check" })).toBeVisible();
+  await page.getByRole("button", { name: "Settings" }).click();
+  const restored = page.getByRole("dialog", { name: "Settings" });
+  await expect(restored.locator('[data-default-settings-volume="bgm"]')).toHaveValue("650");
+  await expect(restored.locator('[data-default-settings-volume="voice"]')).toHaveValue("750");
+  await expect(restored.locator('[data-default-settings-volume="sfx"]')).toHaveValue("500");
+  await expect(restored.locator('[data-default-settings-text-speed="true"]')).toHaveValue("80");
+  await expect(restored.locator('[data-default-settings-auto-wait="true"]')).toHaveValue("1200");
+  await expect(restored.locator('[data-default-settings-muted="true"]')).toBeChecked();
+  await expect(restored.getByRole("combobox", { name: "Language" })).toHaveValue("en");
+});
+
 test("the middle pointer button hides and restores VN chrome without advancing", async ({ page }) => {
   await page.goto(vnReferenceTourTargetUrlV1("?capability=automation_bridge"));
   await page.getByRole("button", { name: "新游戏" }).click();
