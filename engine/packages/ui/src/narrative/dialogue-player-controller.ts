@@ -88,7 +88,7 @@ export type NarrativeStableSaySkipDispatchResultInternalV1 =
   | Readonly<{ kind: "faulted"; completion: null }>;
 
 export type NarrativeStablePlaybackModeResetDispatchResultInternalV1 =
-  | Readonly<{ kind: "reset"; mode: "normal"; completion: null }>
+  | Readonly<{ kind: "reset"; mode: "normal" | "auto"; completion: null }>
   | Readonly<{ kind: "stale"; completion: null }>
   | Readonly<{ kind: "faulted"; completion: null }>;
 

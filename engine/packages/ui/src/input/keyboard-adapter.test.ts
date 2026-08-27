@@ -24,6 +24,65 @@ function pressV1(code: string, target?: EventTarget, init?: KeyboardEventInit): 
 }
 
 describe("installKeyboardAdapterV1", () => {
+  it("captures only mapped handled Tab while other keys stay in bubble", () => {
+    const phases: string[] = [];
+    const router = {
+      route: vi.fn(() => {
+        phases.push("route");
+        return { kind: "handled", context: "narrative" } as const;
+      }),
+    };
+    const target = document.createElement("div");
+    target.addEventListener("keydown", (event) => {
+      phases.push(`target:${String(event.defaultPrevented)}`);
+    });
+    document.body.append(target);
+    const uninstall = installKeyboardAdapterV1({
+      router,
+      map: { Tab: autoV1, Enter: advanceV1 },
+    });
+
+    const tab = pressV1("Tab", target);
+    expect(phases).toEqual(["route"]);
+    expect(tab.defaultPrevented).toBe(true);
+    expect(router.route).toHaveBeenCalledExactlyOnceWith({
+      kind: "action",
+      actionId: autoV1,
+    });
+
+    phases.length = 0;
+    const reverseTab = pressV1("Tab", target, { shiftKey: true });
+    expect(phases).toEqual(["target:false"]);
+    expect(reverseTab.defaultPrevented).toBe(false);
+    expect(router.route).toHaveBeenCalledOnce();
+
+    phases.length = 0;
+    const repeatedTab = pressV1("Tab", target, { repeat: true });
+    expect(phases).toEqual(["target:false"]);
+    expect(repeatedTab.defaultPrevented).toBe(false);
+    expect(router.route).toHaveBeenCalledOnce();
+
+    phases.length = 0;
+    const enter = pressV1("Enter", target);
+    expect(phases).toEqual(["target:false", "route"]);
+    expect(enter.defaultPrevented).toBe(true);
+    expect(router.route).toHaveBeenCalledTimes(2);
+
+    uninstall();
+    phases.length = 0;
+    const uninstallWithoutTab = installKeyboardAdapterV1({
+      router,
+      map: { Enter: advanceV1 },
+    });
+    const unmappedTab = pressV1("Tab", target);
+    expect(phases).toEqual(["target:false"]);
+    expect(unmappedTab.defaultPrevented).toBe(false);
+    expect(router.route).toHaveBeenCalledTimes(2);
+
+    uninstallWithoutTab();
+    target.remove();
+  });
+
   it("routes mapped codes, prevents default when handled, and uninstalls cleanly", () => {
     const router = routerSpyV1();
     const uninstall = installKeyboardAdapterV1({
@@ -57,7 +116,10 @@ describe("installKeyboardAdapterV1", () => {
 
   it("ignores keys while focus sits on editable or interactive elements", () => {
     const router = routerSpyV1();
-    const uninstall = installKeyboardAdapterV1({ router, map: { Enter: advanceV1 } });
+    const uninstall = installKeyboardAdapterV1({
+      router,
+      map: { Enter: advanceV1, Tab: autoV1 },
+    });
 
     for (
       const build of [
@@ -84,12 +146,16 @@ describe("installKeyboardAdapterV1", () => {
     document.body.append(button);
     const nested = pressV1("Enter", glyph);
     expect(nested.defaultPrevented).toBe(false);
+    const tab = pressV1("Tab", glyph);
+    expect(tab.defaultPrevented).toBe(false);
     button.remove();
 
     const composingHost = document.createElement("div");
     document.body.append(composingHost);
     const composing = pressV1("Enter", composingHost, { isComposing: true });
     expect(composing.defaultPrevented).toBe(false);
+    const composingTab = pressV1("Tab", composingHost, { isComposing: true });
+    expect(composingTab.defaultPrevented).toBe(false);
     composingHost.remove();
 
     const dock = document.createElement("div");
@@ -107,10 +173,13 @@ describe("installKeyboardAdapterV1", () => {
     uninstall();
     const uninstallIgnored = installKeyboardAdapterV1({
       router: ignoredRouter,
-      map: { Enter: advanceV1 },
+      map: { Enter: advanceV1, Tab: autoV1 },
     });
-    const event = pressV1("Enter");
-    expect(event.defaultPrevented).toBe(false);
+    const enter = pressV1("Enter");
+    const ignoredTab = pressV1("Tab");
+    expect(enter.defaultPrevented).toBe(false);
+    expect(ignoredTab.defaultPrevented).toBe(false);
+    expect(ignoredRouter.route).toHaveBeenCalledTimes(2);
     uninstallIgnored();
   });
 });

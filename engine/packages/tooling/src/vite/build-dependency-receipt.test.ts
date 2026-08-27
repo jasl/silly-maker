@@ -612,6 +612,7 @@ describe("build dependency receipt", () => {
       "engine/packages/ui/src/composer/",
       "engine/packages/ui/src/managed-surfaces/",
       "engine/packages/ui/src/narrative/",
+      "engine/packages/ui/src/narrative-player/",
       "engine/packages/ui/src/persistence/",
     ];
     expect(

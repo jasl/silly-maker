@@ -8,7 +8,7 @@ const automationKeyV1 = "__SILLYMAKER_AUTOMATION_V1__";
 async function advanceSayV1(page: Page): Promise<void> {
   const dialogue = page.locator("[data-dialogue='say']");
   await expect(dialogue).toHaveAttribute("data-dialogue-reveal", "complete");
-  await dialogue.locator("[data-dialogue-advance]").click();
+  await page.locator("[data-dialogue-advance]").click({ position: { x: 8, y: 8 } });
 }
 
 test("Template uses the production Narrative renderer through completion", async ({ page }) => {

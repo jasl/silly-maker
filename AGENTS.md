@@ -44,10 +44,13 @@ Read only the documents relevant to the change:
   all-engine API gallery or a Ren'Py DSL. M0–M1 have delivered the independent
   WIP package, frozen product denominator, supported-export boundary, clean
   deletion of unselected starter domains, complete two-route script, two
-  Authoring Scenes, author data, and named headless route simulations. M2's VN
-  Player, final visual/audio presentation, and product interaction are next.
-  M1 closes author data and headless routes only; the WIP is not yet a playable
-  product or product-completion evidence.
+  Authoring Scenes, author data, and named headless route simulations. M2 is in
+  progress: its first Player slice has migrated into the engine-maintained,
+  focused `@sillymaker/ui/narrative-player` preset with a flush-bottom responsive
+  dialogue/choice skin, say-only full-canvas pointer advance, History/playback
+  controls, Ctrl/Tab/H VN input, and a portrait layout variant. Final Stage media, audio,
+  rollback/end controls, the full responsive/accessibility matrix, and M2
+  closure remain open; this playable WIP is not product-completion evidence.
   Cat Cafe terminated on 2026-08-27 before this lane began; its application,
   revision-1 Save support, product E2E, and live release responsibility ended
   together, without a cross-product migration. Bookshop remains the maintained

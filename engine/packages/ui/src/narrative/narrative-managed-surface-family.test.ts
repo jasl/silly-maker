@@ -6321,7 +6321,7 @@ describe("Narrative stable Managed Surface family", () => {
       ["skip", "normal"],
       ["auto", "auto"],
       ["skip", "skip"],
-      ["auto", "auto"],
+      ["skip", "auto"],
     ] as const;
     const state = fixture.harness.kernel.getStateInternalV1();
     const notifications = fixture.harness.stateNotificationCount();
@@ -6369,6 +6369,78 @@ describe("Narrative stable Managed Surface family", () => {
     fixture.controller.disposeInternalV1();
     fixture.admission.disposeInternalV1();
   });
+
+  it("restores Auto when an explicit Skip toggle ends the temporary overlay", () => {
+    const fixture = physicalSayHarnessV1();
+    const enableAuto = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    expect(
+      routePlaybackModeToggleV1(
+        fixture.admission,
+        "auto",
+        enableAuto,
+        "skip-overlay-enable-auto",
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "auto", completion: null });
+    const enableSkip = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("skip");
+    expect(
+      routePlaybackModeToggleV1(
+        fixture.admission,
+        "skip",
+        enableSkip,
+        "skip-overlay-enable-skip",
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "skip", completion: null });
+    const disableSkip = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("skip");
+    expect(
+      routePlaybackModeToggleV1(
+        fixture.admission,
+        "skip",
+        disableSkip,
+        "skip-overlay-disable-skip",
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "auto", completion: null });
+    expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("auto");
+    fixture.controller.disposeInternalV1();
+    fixture.admission.disposeInternalV1();
+  });
+
+  it.each(["choice", "hold", "custom", "presentation_barrier"] as const)(
+    "restores Auto beneath Skip before a %s boundary notification",
+    (kind) => {
+      const fixture = physicalSayHarnessV1();
+      const enableAuto = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+      expect(
+        routePlaybackModeToggleV1(
+          fixture.admission,
+          "auto",
+          enableAuto,
+          `skip-${kind}-enable-auto`,
+        ).consumerResult,
+      ).toEqual({ kind: "toggled", mode: "auto", completion: null });
+      const enableSkip = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("skip");
+      expect(
+        routePlaybackModeToggleV1(
+          fixture.admission,
+          "skip",
+          enableSkip,
+          `skip-${kind}-enable-skip`,
+        ).consumerResult,
+      ).toEqual({ kind: "toggled", mode: "skip", completion: null });
+      const observedModes: NarrativeStablePlaybackModeInternalV1[] = [];
+      const unsubscribe = fixture.harness.kernel.subscribeStateInternalV1(() => {
+        observedModes.push(fixture.harness.bridge.readPlaybackModeInternalV1());
+      });
+
+      expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1(kind, 2)))
+        .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
+      expect(observedModes.length).toBeGreaterThan(0);
+      expect(observedModes.every((mode) => mode === "auto")).toBe(true);
+      expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("auto");
+      unsubscribe();
+      fixture.controller.disposeInternalV1();
+      fixture.admission.disposeInternalV1();
+    },
+  );
 
   it("consumes mode toggles as ignored on every ready-active non-Say kind", () => {
     for (
@@ -6475,7 +6547,7 @@ describe("Narrative stable Managed Surface family", () => {
     barrier.controller.disposeInternalV1();
   });
 
-  it("resets before non-Say and empty publication notifications but preserves rejected replacement", () => {
+  it("pauses Auto across non-Say, resets empty publication, and preserves rejected replacement", () => {
     const nonSay = physicalSayHarnessV1();
     const autoAttempt = nonSay.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
     expect(
@@ -6489,13 +6561,19 @@ describe("Narrative stable Managed Surface family", () => {
     expect(nonSay.harness.bridge.reconcilePendingInternalV1(pendingV1("choice", 2)))
       .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
     expect(observedModes.length).toBeGreaterThan(0);
-    expect(observedModes.every((mode) => mode === "normal")).toBe(true);
-    expect(nonSay.harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
+    expect(observedModes.every((mode) => mode === "auto")).toBe(true);
+    expect(nonSay.harness.bridge.readPlaybackModeInternalV1()).toBe("auto");
     unsubscribe();
     nonSay.admission.disposeInternalV1();
     expect(nonSay.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 3)))
       .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
     settleCurrentNarrativeReadyV1(nonSay.harness);
+    const successorController = createDialoguePlayerControllerV1(nonSay.harness);
+    expect(successorController.getSnapshotInternalV1()).toMatchObject({
+      kind: "say",
+      phase: "active",
+      playbackMode: "auto",
+    });
     const nonSaySuccessorAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
       bridge: nonSay.harness.bridge,
       inputRouter: createInputRouterV1(),
@@ -6510,11 +6588,21 @@ describe("Narrative stable Managed Surface family", () => {
         afterNonSayReset,
         "after-non-say-reset",
       ).consumerResult,
-    ).toEqual({ kind: "toggled", mode: "auto", completion: null });
+    ).toEqual({ kind: "toggled", mode: "normal", completion: null });
     nonSaySuccessorAdmission.disposeInternalV1();
+    successorController.disposeInternalV1();
     nonSay.controller.disposeInternalV1();
 
     const emptied = physicalSayHarnessV1();
+    const emptyAutoAttempt = emptied.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    expect(
+      routePlaybackModeToggleV1(
+        emptied.admission,
+        "auto",
+        emptyAutoAttempt,
+        "reset-empty-enable-auto",
+      ).consumerResult,
+    ).toMatchObject({ kind: "toggled", mode: "auto" });
     const skipAttempt = emptied.admission.issuePlaybackModeToggleAttemptInternalV1("skip");
     expect(
       routePlaybackModeToggleV1(emptied.admission, "skip", skipAttempt, "reset-empty")
@@ -6551,6 +6639,16 @@ describe("Narrative stable Managed Surface family", () => {
         "after-empty-reset",
       ).consumerResult,
     ).toEqual({ kind: "toggled", mode: "skip", completion: null });
+    const disableSkipAfterEmpty = emptySuccessorAdmission
+      .issuePlaybackModeToggleAttemptInternalV1("skip");
+    expect(
+      routePlaybackModeToggleV1(
+        emptySuccessorAdmission,
+        "skip",
+        disableSkipAfterEmpty,
+        "after-empty-disable-skip",
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "normal", completion: null });
     emptySuccessorAdmission.disposeInternalV1();
     emptied.controller.disposeInternalV1();
 
@@ -6590,12 +6688,12 @@ describe("Narrative stable Managed Surface family", () => {
     rejectedAdmission.disposeInternalV1();
   });
 
-  it("resets both active modes before every remaining non-Say boundary notification", () => {
+  it("pauses Auto and restores normal-origin Skip before non-Say boundary notifications", () => {
     for (
-      const [kind, mode] of [
-        ["hold", "auto"],
-        ["custom", "skip"],
-        ["presentation_barrier", "auto"],
+      const [kind, mode, expectedMode] of [
+        ["hold", "auto", "auto"],
+        ["custom", "skip", "normal"],
+        ["presentation_barrier", "auto", "auto"],
       ] as const
     ) {
       const fixture = physicalSayHarnessV1();
@@ -6615,15 +6713,15 @@ describe("Narrative stable Managed Surface family", () => {
       expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1(kind, 2)))
         .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
       expect(observedModes.length).toBeGreaterThan(0);
-      expect(observedModes.every((observed) => observed === "normal")).toBe(true);
-      expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
+      expect(observedModes.every((observed) => observed === expectedMode)).toBe(true);
+      expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe(expectedMode);
       unsubscribe();
       fixture.controller.disposeInternalV1();
       fixture.admission.disposeInternalV1();
     }
   });
 
-  it("does not clobber a listener-installed Say successor after the outer reset commits", () => {
+  it("does not clobber paused Auto when a listener installs a Say successor", () => {
     const fixture = physicalSayHarnessV1();
     const enableAuto = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
     expect(
@@ -6639,11 +6737,10 @@ describe("Narrative stable Managed Surface family", () => {
     const successorAdmission: {
       current: NarrativeStablePhysicalActionAdmissionInternalV1 | null;
     } = { current: null };
-    let nestedResult: NarrativeStablePhysicalActionDispatchResultInternalV1 | null = null;
     const unsubscribe = fixture.harness.kernel.subscribeStateInternalV1(() => {
       if (handledOuterNotification) return;
       handledOuterNotification = true;
-      expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
+      expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("auto");
       fixture.admission.disposeInternalV1();
       expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("say", 3)))
         .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
@@ -6654,18 +6751,22 @@ describe("Narrative stable Managed Surface family", () => {
         isGestureCurrent: () => true,
       });
       successorAdmission.current = installedAdmission;
-      const skipAttempt = installedAdmission.issuePlaybackModeToggleAttemptInternalV1("skip");
-      nestedResult = routePlaybackModeToggleV1(
-        installedAdmission,
-        "skip",
-        skipAttempt,
-        "listener-successor-toggle",
-      ).consumerResult;
     });
 
     expect(fixture.harness.bridge.reconcilePendingInternalV1(pendingV1("choice", 2)))
       .toMatchObject({ kind: "applied", code: "surface.stable_publication_applied" });
-    expect(nestedResult).toEqual({ kind: "toggled", mode: "skip", completion: null });
+    expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("auto");
+    const installedAdmission = successorAdmission.current;
+    if (installedAdmission === null) throw new Error("expected listener-installed admission");
+    const skipAttempt = installedAdmission.issuePlaybackModeToggleAttemptInternalV1("skip");
+    expect(
+      routePlaybackModeToggleV1(
+        installedAdmission,
+        "skip",
+        skipAttempt,
+        "listener-successor-toggle",
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "skip", completion: null });
     expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("skip");
     unsubscribe();
     successorAdmission.current?.disposeInternalV1();
@@ -10416,55 +10517,69 @@ describe("Narrative stable Managed Surface family", () => {
     fixture.admission.disposeInternalV1();
   });
 
-  it("resumes the exact current unread Say after skip_read resets to normal", () => {
-    const clock = controlledDialoguePlayerClockV1();
-    let controller!: NarrativeStableDialoguePlayerControllerInternalV1;
-    const fixture = physicalHistoryHarnessV1({
-      presentationClock: clock.port,
-      textResolver: {
-        resolveTextInternalV1: (textId: string) =>
-          textId === "text.test.speaker" ? "Speaker" : "AB",
-      },
-      beforeSettleReady: (harness) => {
-        controller = createDialoguePlayerControllerV1(harness);
-      },
-    });
-    const skipAttempt = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("skip");
-    expect(
-      routePlaybackModeToggleV1(
-        fixture.admission,
-        "skip",
-        skipAttempt,
-        "dialogue-player-unread-reset",
-      ).consumerResult,
-    ).toEqual({ kind: "toggled", mode: "skip", completion: null });
-    expect(clock.requestTick).toHaveBeenCalledOnce();
+  it.each(["normal", "auto"] as const)(
+    "resumes the exact current unread Say after skip_read restores %s",
+    (returnMode) => {
+      const clock = controlledDialoguePlayerClockV1();
+      let controller!: NarrativeStableDialoguePlayerControllerInternalV1;
+      const fixture = physicalHistoryHarnessV1({
+        presentationClock: clock.port,
+        textResolver: {
+          resolveTextInternalV1: (textId: string) =>
+            textId === "text.test.speaker" ? "Speaker" : "AB",
+        },
+        beforeSettleReady: (harness) => {
+          controller = createDialoguePlayerControllerV1(harness);
+        },
+      });
+      if (returnMode === "auto") {
+        const autoAttempt = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+        expect(
+          routePlaybackModeToggleV1(
+            fixture.admission,
+            "auto",
+            autoAttempt,
+            "dialogue-player-unread-enable-auto",
+          ).consumerResult,
+        ).toEqual({ kind: "toggled", mode: "auto", completion: null });
+      }
+      const skipAttempt = fixture.admission.issuePlaybackModeToggleAttemptInternalV1("skip");
+      expect(
+        routePlaybackModeToggleV1(
+          fixture.admission,
+          "skip",
+          skipAttempt,
+          "dialogue-player-unread-reset",
+        ).consumerResult,
+      ).toEqual({ kind: "toggled", mode: "skip", completion: null });
+      expect(clock.requestTick).toHaveBeenCalledOnce();
 
-    clock.latestTick()(1_040);
+      clock.latestTick()(1_040);
 
-    expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
-    expect(controller.getSnapshotInternalV1()).toMatchObject({
-      kind: "say",
-      phase: "active",
-      playbackMode: "normal",
-      revealedCharacters: 0,
-      revealComplete: false,
-    });
-    expect(clock.requestTick).toHaveBeenCalledTimes(2);
+      expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe(returnMode);
+      expect(controller.getSnapshotInternalV1()).toMatchObject({
+        kind: "say",
+        phase: "active",
+        playbackMode: returnMode,
+        revealedCharacters: 0,
+        revealComplete: false,
+      });
+      expect(clock.requestTick).toHaveBeenCalledTimes(2);
 
-    clock.latestTick()(1_065);
+      clock.latestTick()(1_065);
 
-    expect(controller.getSnapshotInternalV1()).toMatchObject({
-      kind: "say",
-      phase: "active",
-      playbackMode: "normal",
-      revealedCharacters: 1,
-      revealComplete: false,
-    });
-    expect(clock.requestTick).toHaveBeenCalledTimes(3);
-    controller.disposeInternalV1();
-    fixture.admission.disposeInternalV1();
-  });
+      expect(controller.getSnapshotInternalV1()).toMatchObject({
+        kind: "say",
+        phase: "active",
+        playbackMode: returnMode,
+        revealedCharacters: 1,
+        revealComplete: false,
+      });
+      expect(clock.requestTick).toHaveBeenCalledTimes(3);
+      controller.disposeInternalV1();
+      fixture.admission.disposeInternalV1();
+    },
+  );
 
   it("logically suspends the Dialogue player before a higher blocker and preserves mode", () => {
     const clock = controlledDialoguePlayerClockV1();
@@ -10683,6 +10798,17 @@ describe("Narrative stable Managed Surface family", () => {
         controller = createDialoguePlayerControllerV1(harness);
       },
     });
+    for (const mode of ["auto", "skip"] as const) {
+      const attempt = fixture.admission.issuePlaybackModeToggleAttemptInternalV1(mode);
+      expect(
+        routePlaybackModeToggleV1(
+          fixture.admission,
+          mode,
+          attempt,
+          `clock-regression-enable-${mode}`,
+        ).consumerResult,
+      ).toEqual({ kind: "toggled", mode, completion: null });
+    }
     const { current, next } = captureSuspendedNarrativeInstallV1(fixture.harness);
     const prepared = fixture.harness.kernel.prepareStateInstallInternalV1(current, next);
     nowMs = 999;
@@ -10696,6 +10822,7 @@ describe("Narrative stable Managed Surface family", () => {
       phase: "suspended",
       playbackMode: "normal",
     });
+    expect(fixture.harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
     expect(requestTick).toHaveBeenCalledOnce();
     expect(cancellation).toHaveBeenCalledOnce();
     expect(rawUnsubscribe).toHaveBeenCalledOnce();

@@ -9,13 +9,14 @@ import type {
   DefaultGameRootSlotsV1,
   DefineNarrativeSurfaceInputV1,
   GameUiProjectorV1,
-  KeyboardActionMapV1,
+  HeldInputPortV1,
   NarrativeSurfaceSelectionV1,
   PresentationFreezePortV1,
   RuntimePresentationPublicationV1,
   SaveOverlayLabelsV1,
 } from "@sillymaker/ui";
-import { defineNarrativeSurfaceV1, SemanticStageV1, systemInputActionIdsV1 } from "@sillymaker/ui";
+import { defineNarrativeSurfaceV1, SemanticStageV1 } from "@sillymaker/ui";
+import { createDefaultVnPlayerV1 } from "@sillymaker/ui/narrative-player";
 import type { WebGameApplicationV1 } from "@sillymaker/web";
 
 import type {
@@ -47,8 +48,6 @@ import {
 } from "../content/text-content.ts";
 import type { VnReferenceTourNarrativeStateV1 } from "../story/narrative.ts";
 import { vnReferenceTourStageRenderersV1 } from "../ui/stage-renderers.tsx";
-
-import { VnReferenceTourNarrativeRendererV1 } from "./ui.tsx";
 
 /** The logical canvas: a 16:9 design resolution the viewport letterboxes. */
 export const vnReferenceTourViewportCanvasV1 = { width: 1600, height: 900 };
@@ -165,9 +164,16 @@ function createVnReferenceTourUiSlotsV1(
   };
 }
 
-export const vnReferenceTourKeyboardMapV1: KeyboardActionMapV1 = {
-  Enter: systemInputActionIdsV1.narrativeAdvance,
-  Space: systemInputActionIdsV1.narrativeAdvance,
+const vnReferenceTourVnPlayerLabelTextIdsV1 = {
+  advance: "text.vn-reference-tour.narrative.advance",
+  playbackControls: "text.vn-reference-tour.playback.controls",
+  history: "text.vn-reference-tour.playback.history",
+  skip: "text.vn-reference-tour.playback.skip",
+  auto: "text.vn-reference-tour.playback.auto",
+  showUi: "text.vn-reference-tour.playback.show-ui",
+  historyTitle: "text.vn-reference-tour.playback.history.title",
+  historyEmpty: "text.vn-reference-tour.playback.history.empty",
+  historyClose: "text.vn-reference-tour.playback.history.close",
 };
 
 export const vnReferenceTourRootLabelsV1: Partial<DefaultGameRootLabelsV1> = {
@@ -296,6 +302,13 @@ export const vnReferenceTourGameApplicationV1: WebGameApplicationV1<
   viewport: {
     canvas: vnReferenceTourViewportCanvasV1,
     fallbackSize: { width: 1600, height: 900 },
+    layoutVariants: [
+      {
+        id: "vn-portrait",
+        when: { maxAspectRatio: 0.8 },
+        mode: "expand-height",
+      },
+    ],
     // Scale up proportionally to fill the window (fit scaling keeps the aspect ratio, letterboxing as needed).
     maxScale: 4,
   },
@@ -322,13 +335,18 @@ export const vnReferenceTourGameApplicationV1: WebGameApplicationV1<
   },
   core: vnReferenceTourCoreApplicationDefinitionV1,
   ui: (
-    { instance, presentationFreeze, textContent }: {
+    { heldInput, instance, presentationFreeze, textContent }: {
+      readonly heldInput: HeldInputPortV1;
       readonly instance: VnReferenceTourApplicationInstanceV1;
       readonly presentationFreeze: PresentationFreezePortV1;
       readonly textContent: TextContentSessionV1 | null;
     },
   ) => {
     if (textContent === null) throw new TypeError("vn-reference-tour.text_content_session_missing");
+    const vnPlayer = createDefaultVnPlayerV1({
+      heldInput,
+      labelTextIds: vnReferenceTourVnPlayerLabelTextIdsV1,
+    });
     return ({
       titleScreen: {
         title: "最后一次试音",
@@ -357,7 +375,7 @@ export const vnReferenceTourGameApplicationV1: WebGameApplicationV1<
             instance.semantic.dispatch(
               ({ kind: "time" as const, tick }) as never,
             ),
-          renderer: VnReferenceTourNarrativeRendererV1,
+          renderer: vnPlayer.renderer,
           resolveText: (_locale, textId) => textContent.resolveText(textId as TextId),
           replayCurrentVoice: null,
         } satisfies DefineNarrativeSurfaceInputV1<VnReferenceTourSemanticPublicationV1>,
@@ -365,7 +383,10 @@ export const vnReferenceTourGameApplicationV1: WebGameApplicationV1<
       slots: createVnReferenceTourUiSlotsV1(instance, presentationFreeze),
       labels: vnReferenceTourRootLabelsV1,
       saveLabels: vnReferenceTourSaveOverlayLabelsV1,
-      input: { keyboard: vnReferenceTourKeyboardMapV1 },
+      // M2 owns compact VN player chrome. The generic floating
+      // Save/Settings/Mute cluster returns through product UI in M3.
+      hideSystemMenu: true,
+      input: vnPlayer.input,
       // Game-shell feel is the engine default: no browser context menu, text
       // selection, or hover-cursor changes; editable controls and
       // data-native-menu / data-native-text subtrees stay native. Declare

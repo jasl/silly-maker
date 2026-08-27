@@ -169,12 +169,18 @@ PendingInteraction 属于 authoritative State，因为它决定当前允许的 g
 
 ## 6. Dialogue and player systems
 
-生产实现通过 `NarrativeSurfaceDefinitionV1` 分离 Story appearance 与运行时 authority。
-Story renderer 接收 immutable selection/player projection、text resolver 和 bounded actions；
-composition-owned player、Host、Semantic Stage binding 与 shared Managed Surface kernel 持有
-clock、reveal、输入、focus/inert、History、Barrier completion 与 successor fencing。
-`DefaultGameRootV1` 不接受任意 narrative slot，也不会与 Story renderer 并行安装第二个
-writer。
+生产实现通过 `NarrativeSurfaceDefinitionV1` 分离所选 renderer 与运行时 authority。renderer
+接收 immutable selection/player projection、text resolver 和 bounded actions；composition-owned
+player、Host、Semantic Stage binding 与 shared Managed Surface kernel 持有 clock、reveal、输入、
+focus/inert、History、Barrier completion 与 successor fencing。
+
+活动 VN M2 已在这条 seam 上交付第一版引擎维护的 focused default VN Player preset。VN application
+必须显式选择它；`DefaultGameRootV1` 不会隐式 import、安装或渲染 VN UI。preset 拥有一套
+Ren'Py-aligned 的默认对话/选项/History/playback chrome、say-only 全画布推进与 Ctrl/Tab/H
+交互/输入政策，但只消费上述 projection/actions，不新增 gameplay State、player state machine 或
+writable writer。产品继续拥有主题与品牌、Story、Stage/media renderer 和特殊 surface；可以覆盖
+preset 的表现，也可以 eject/替换整个 renderer。替换必须取代 preset，而不是与它并行安装第二个
+Narrative writer。
 
 S4b.1c 的 Title/WholeCanvas 共存浏览器路线暴露并关闭了一项 Narrative Host
 corrective：readiness/focus settlement 必须在入队与 microtask 执行时复验 portal shell
@@ -190,7 +196,9 @@ writable lifecycle authority。
 - **Seen registry**：跨 Save/周目的稳定 line/interaction identity，用作者控制的 `seenRevision` 处理文本改写；
 - **Auto**：S4 V1只在全文reveal后按Host profile `autoWaitMs`等待；voice与transition不进入本版auto gate；
 - **Skip-read / skip-all**：`skip_read`遇unread停止，二者遇任一choice、hold、barrier或custom都停止；
-- **Hide UI**：旧live path只作characterization；S4 V1从managed Narrative catalog移除`player.toggle_ui`，直到另有始终visible/focusable的show affordance；
+- **Hide UI**：generic managed Narrative catalog 不隐式增加隐藏动作；focused default VN preset
+  负责 `H` 的 transient modal hide/show、始终可恢复的输入路径，以及 Auto/Skip in-flight advance
+  收敛后的进入边界；
 - **Voice replay**：S4 V1只允许exact current ready-active Say通过captured optional voice callable重播；History voice replay延期；
 - **Playback policy**：normal、auto、skip 的一套显式状态机。
 
@@ -214,7 +222,8 @@ History、Seen、CommandLog、Debug replay 和未来 Player rollback 是五个�
 
 Input action 分为两类：advance/choice 等 gameplay intent 经 SemanticGamePort/Session；history、切换 auto/skip 等
 player/presentation control 由 composition-owned player 处理，除非它们最终 resolve PendingInteraction，否则不伪装成 GameCommand。
-旧hide UI action在S4 V1 managed catalog中defer，不属于该迁移的accepted control set。
+focused default VN preset 可以把 `H`、`Tab`、`Ctrl` 等物理输入映射到这些既有
+player/presentation controls；省略该 preset 的 application 不会因此获得隐式 VN shortcuts。
 
 ## 7. Audio intent and Web Audio Host
 
@@ -357,8 +366,9 @@ Rollback 是后续正式能力，不再被列为永久 non-goal。设计基于�
 S4.3.1b 进一步完成 UI 侧迁移：Engine Lab、template、Bookshop 与 Cat Cafe 只通过
 `NarrativeSurfaceDefinitionV1` 提供 renderer；SillyOS 不声明 Narrative。旧
 conformance module、`DialoguePanelV1`、`VnLayerV1`、advance surface、text reveal 与
-playback-controller package exports 已删除，因此没有 compatibility renderer、default
-slot writer 或第二套 player authority。
+playback-controller package exports 已删除，因此没有 compatibility renderer、隐式 default
+slot writer 或第二套 player authority。后续 focused default VN Player preset 被显式选择时，
+它本身就是该 application 的 `NarrativeSurfaceDefinitionV1` renderer，不恢复旧 slot 或双轨实现。
 
 ## 13. Vertical acceptance
 

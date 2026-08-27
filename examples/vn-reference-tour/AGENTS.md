@@ -2,12 +2,15 @@
 
 ## Status and authority
 
-This package is **M0–M1 delivered / WIP; M2 is next**. The product contract,
+This package is **M0–M1 delivered / WIP; M2 is in progress**. The product contract,
 independent package, supported-export application shell, starter-domain
 deletion, complete two-route script, two Authoring Scenes, author data, and
-named headless simulations are implemented. M1 closes author data and headless
-routes only; the package is not yet a playable product, a complete reference,
-or evidence that M2–M5 have shipped.
+named headless simulations are implemented. M2's first Player slice now selects
+the engine-maintained focused default VN Player, which adds flush-bottom responsive dialogue/choice chrome, say-only full-canvas
+pointer advance, History/playback controls, Ctrl/Tab/H VN input, and a portrait layout variant.
+Final Stage media/audio, rollback/end controls, the full product matrix, and
+M2 closure remain open; this playable WIP is not a complete reference or
+evidence that M2–M5 have shipped.
 
 Read, in order:
 
@@ -42,8 +45,8 @@ Story/Scene/text/asset/action IDs are lower-case kebab-case. TypeScript symbols
 use `vnReferenceTour` / `VnReferenceTour`. M0 removed the starter Story identity,
 coins/inventory, and starter HUD/action owners. M1 replaced the temporary
 opening Story/Scene author content with the complete two-route author data; do
-not restore aliases, disabled modules, or a second graph. Final media and the VN
-Player remain M2 work.
+not restore aliases, disabled modules, or a second graph. Final media and the
+remaining VN Player gates remain M2 work.
 
 ## Ownership and locality
 
@@ -55,8 +58,8 @@ Player remain M2 work.
 - `src/content/presentation.ts`: resident UI copy and Stage/transition catalog.
 - `src/content/audio.ts`: audio manifest and intent/effect mapping.
 - `src/game/**`: minimal authoritative route/narrative/stage/audio state.
-- `src/application/ui.tsx`: product pixels and passive Narrative renderer.
-- `src/application/composition.tsx`: wiring only; no story copy or rules.
+- `@sillymaker/ui/narrative-player`: default VN chrome, focus and Ctrl/Tab/H policy.
+- `src/application/composition.tsx`: product wiring, text-label mapping, and preset selection only; no story copy or rules.
 - `src/tooling/**`: dev-only Inspector/Flow/simulation projections.
 
 One value has one owner. Scene placement never reappears in Story or renderer
@@ -69,8 +72,9 @@ preferences. Inspector is read-only for gameplay and absent from Player graphs.
 - Start from supported Template exports and delete unselected starter domains.
 - Import no other example and no engine `src/**` path.
 - Keep the product a coherent VN, not an API gallery or interactive docs page.
-- Use ordinary TypeScript data and the product-local copied kit; do not create a
-  Ren'Py DSL, parser, interpreter, public VN framework, or compatibility layer.
+- Use ordinary TypeScript data and the product-local copied story kit; use the
+  focused default VN Player rather than creating a second skin/runtime. Do not create a
+  Ren'Py DSL, parser, interpreter, broad VN framework, or compatibility layer.
 - Do not add custom pending, monitor, hit region, shared/mid-hold input,
   Timeline, Mod/Agent, DevDock, Runtime Inspector, or Desktop HMR merely because
   the engine contains them.
@@ -107,9 +111,9 @@ deno task app simulate . --scenario present-voice
 deno task build:web
 ```
 
-Green M1 checks prove only complete author data, deterministic headless routes,
-and current project wiring. They do not prove the M2 Player/final media, M3
-Save/recovery, or M4 product evidence. Record actual gate results rather than
+Green focused checks prove the implemented author data and current Player
+slice only. They do not prove M2 final media/audio and closure, M3 Save/recovery,
+or M4 product evidence. Record actual gate results rather than
 inferring them from milestone status. If a public/wire/Save/CAS or license
 boundary must change, stop and request owner review; otherwise choose the
 smallest product-local, verifiable implementation.

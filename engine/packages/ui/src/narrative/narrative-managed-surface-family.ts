@@ -793,6 +793,7 @@ interface NarrativeStableCurrentTargetProjectionInternalV1 {
 
 interface NarrativeStablePlaybackModeStateInternalV1 {
   readonly mode: NarrativeStablePlaybackModeInternalV1;
+  readonly skipReturnMode: "normal" | "auto";
 }
 
 interface NarrativeStablePublisherBridgeRecordInternalV1 {
@@ -815,6 +816,7 @@ interface NarrativeStablePublisherBridgeRecordInternalV1 {
   sayRevealControllerClaim: object | null;
   sayCallbackClaim: object | null;
   saySemanticInFlightClaim: object | null;
+  deferredModePublicationClaim: object | null;
   readonly barrierStageClaimant: object;
   barrierAcknowledgmentControllerClaim: object | null;
   barrierTargetTerminalClaim: object | null;
@@ -1608,8 +1610,9 @@ const stableReconcileFaultedResultInternalV1 = {
 
 function createNarrativePlaybackModeStateInternalV1(
   mode: NarrativeStablePlaybackModeInternalV1,
+  skipReturnMode: "normal" | "auto" = mode === "auto" ? "auto" : "normal",
 ): NarrativeStablePlaybackModeStateInternalV1 {
-  return ({ mode });
+  return ({ mode, skipReturnMode });
 }
 
 const narrativePlaybackModeToggledNormalResultInternalV1 = {
@@ -1655,11 +1658,22 @@ function playbackModeToggledResultInternalV1(
     : narrativePlaybackModeToggledSkipResultInternalV1;
 }
 
-function toggledPlaybackModeInternalV1(
-  currentMode: NarrativeStablePlaybackModeInternalV1,
+function toggledPlaybackModeStateInternalV1(
+  currentState: NarrativeStablePlaybackModeStateInternalV1,
   requestedMode: "auto" | "skip",
-): NarrativeStablePlaybackModeInternalV1 {
-  return currentMode === requestedMode ? "normal" : requestedMode;
+): NarrativeStablePlaybackModeStateInternalV1 {
+  if (requestedMode === "auto") {
+    return createNarrativePlaybackModeStateInternalV1(
+      currentState.mode === "auto" ? "normal" : "auto",
+    );
+  }
+  if (currentState.mode === "skip") {
+    return createNarrativePlaybackModeStateInternalV1(currentState.skipReturnMode);
+  }
+  return createNarrativePlaybackModeStateInternalV1(
+    "skip",
+    currentState.mode === "auto" ? "auto" : "normal",
+  );
 }
 
 const narrativePhysicalActionStaleResultInternalV1 = {
@@ -2335,6 +2349,7 @@ export function createNarrativeStablePublisherBridgeInternalV1(
     sayRevealControllerClaim: null,
     sayCallbackClaim: null,
     saySemanticInFlightClaim: null,
+    deferredModePublicationClaim: null,
     barrierStageClaimant,
     barrierAcknowledgmentControllerClaim: null,
     barrierTargetTerminalClaim: null,
@@ -2489,12 +2504,18 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
           }
         }
       }
-      const resetsMode = expectedModeState !== null && expectedModeState.mode !== "normal" &&
-        nextNarrativeKind !== "say";
-      const successorModeState = resetsMode
-        ? createNarrativePlaybackModeStateInternalV1("normal")
-        : null;
-      if (plans.length === 0 && frameRetirements.length === 0 && !resetsMode) return null;
+      let successorModeState: NarrativeStablePlaybackModeStateInternalV1 | null = null;
+      if (expectedModeState !== null && nextNarrativeKind !== "say") {
+        if (nextNarrativeKind === null && expectedModeState.mode !== "normal") {
+          successorModeState = createNarrativePlaybackModeStateInternalV1("normal");
+        } else if (nextNarrativeKind !== null && expectedModeState.mode === "skip") {
+          successorModeState = createNarrativePlaybackModeStateInternalV1(
+            expectedModeState.skipReturnMode,
+          );
+        }
+      }
+      const transitionsMode = successorModeState !== null;
+      if (plans.length === 0 && frameRetirements.length === 0 && !transitionsMode) return null;
       let state: "prepared" | "committed" | "aborted" | "completed" = "prepared";
       const prepared = {
         validateInternalV1(
@@ -2525,7 +2546,7 @@ function createNarrativeStableDialoguePlayerStateInstallParticipantInternalV1(
           }
           state = "committed";
           if (
-            resetsMode && bridgeRecord !== null && expectedModeState !== null &&
+            transitionsMode && bridgeRecord !== null && expectedModeState !== null &&
             successorModeState !== null &&
             !compareAndSetNarrativePlaybackModeStateInternalV1(
               bridgeRecord,
@@ -5980,7 +6001,8 @@ function dispatchNarrativeStableDialoguePlayerModeResetInternalV1(
     record.currentAutomaticAttempt = null;
     return narrativePlaybackModeResetStaleResultInternalV1;
   }
-  const successorModeState = createNarrativePlaybackModeStateInternalV1("normal");
+  const returnMode = attemptRecord.expectedModeState.skipReturnMode;
+  const successorModeState = createNarrativePlaybackModeStateInternalV1(returnMode);
   if (
     !compareAndSetNarrativePlaybackModeStateInternalV1(
       bridgeRecord,
@@ -5995,10 +6017,10 @@ function dispatchNarrativeStableDialoguePlayerModeResetInternalV1(
   attemptRecord.spent = true;
   record.currentAutomaticAttempt = null;
   record.automaticRemainingMs = null;
-  publishNarrativeStableDialoguePlayerModeInternalV1(record, "normal");
+  publishNarrativeStableDialoguePlayerModeInternalV1(record, returnMode);
   return ({
     kind: "reset" as const,
-    mode: "normal" as const,
+    mode: returnMode,
     completion: null,
   });
 }
@@ -7097,6 +7119,33 @@ export function createNarrativeStableSayRevealControllerInternalV1(
     if (attemptRecord !== null) attemptRecord.spent = true;
     record.currentContentAutoAttempt = null;
   };
+  const releaseDeferredModePublication = (
+    boundaryClaim: object,
+    publishCurrent: boolean,
+  ): void => {
+    if (bridgeRecord.deferredModePublicationClaim !== boundaryClaim) return;
+    bridgeRecord.deferredModePublicationClaim = null;
+    if (!publishCurrent || !record.active || !readyActiveFrameStillCurrent()) return;
+    const dialoguePlayerRecord = narrativeStableDialoguePlayerControllersByTargetInternalV1.get(
+      record.directTarget,
+    );
+    if (
+      dialoguePlayerRecord?.active !== true || dialoguePlayerRecord.frame !== record.frame ||
+      dialoguePlayerRecord.legacySayRevealController !== controller ||
+      dialoguePlayerRecord.snapshot.kind !== "say"
+    ) return;
+    const mode = bridgeRecord.currentModeState.mode;
+    dialoguePlayerRecord.automaticRemainingMs = mode === "skip"
+      ? 40
+      : mode === "auto" && dialoguePlayerRecord.snapshot.revealComplete
+      ? dialoguePlayerRecord.policy.autoWaitMs
+      : null;
+    publishNarrativeStableDialoguePlayerModeInternalV1(dialoguePlayerRecord, mode);
+    requestNarrativeStableDialoguePlayerTickInternalV1(
+      dialoguePlayerRecord,
+      dialoguePlayerRecord.phaseGeneration,
+    );
+  };
   const revoke = (retireSemanticBoundary = false): void => {
     if (!record.active) return;
     const boundaryClaim = record.callbackClaim;
@@ -7108,6 +7157,7 @@ export function createNarrativeStableSayRevealControllerInternalV1(
       bridgeRecord.saySemanticInFlightClaim === boundaryClaim
     ) {
       bridgeRecord.saySemanticInFlightClaim = null;
+      releaseDeferredModePublication(boundaryClaim, false);
     }
     if (!preserveSemanticObserver) record.callbackClaim = null;
     retireCurrentActivationAttempt();
@@ -7128,6 +7178,7 @@ export function createNarrativeStableSayRevealControllerInternalV1(
     if (record.callbackClaim === boundaryClaim) {
       record.callbackClaim = null;
     }
+    releaseDeferredModePublication(boundaryClaim, true);
     if (!record.active) releaseLifecycleObserver();
   };
 
@@ -7415,6 +7466,7 @@ export function createNarrativeStableSayRevealControllerInternalV1(
         !semanticFrameStillCurrent()
       ) {
         bridgeRecord.saySemanticInFlightClaim = null;
+        releaseDeferredModePublication(boundaryClaim, false);
         record.callbackClaim = null;
         releaseLifecycleObserver();
       }
@@ -8106,7 +8158,8 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         if (
           !active || bridgeRecord.physicalActionAdmissionClaim !== admissionClaim ||
           !bridgeRecord.isActiveInternalV1() || bridgeRecord.sayCallbackClaim !== null ||
-          bridgeRecord.currentModeState !== record.issuanceModeState
+          bridgeRecord.currentModeState !== record.issuanceModeState ||
+          bridgeRecord.deferredModePublicationClaim !== null
         ) {
           return "stale";
         }
@@ -8186,12 +8239,11 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         { kind: "toggled" }
       >;
       try {
-        const successorMode = toggledPlaybackModeInternalV1(
-          record.issuanceModeState.mode,
+        successorModeState = toggledPlaybackModeStateInternalV1(
+          record.issuanceModeState,
           requestedPlaybackMode,
         );
-        successorModeState = createNarrativePlaybackModeStateInternalV1(successorMode);
-        toggledResult = playbackModeToggledResultInternalV1(successorMode);
+        toggledResult = playbackModeToggledResultInternalV1(successorModeState.mode);
       } catch {
         return narrativePlaybackModeFaultedResultInternalV1;
       }
@@ -8202,7 +8254,8 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
       if (
         !active || bridgeRecord.physicalActionAdmissionClaim !== admissionClaim ||
         !bridgeRecord.isActiveInternalV1() || bridgeRecord.sayCallbackClaim !== null ||
-        bridgeRecord.currentModeState !== record.issuanceModeState
+        bridgeRecord.currentModeState !== record.issuanceModeState ||
+        bridgeRecord.deferredModePublicationClaim !== null
       ) {
         return narrativePlaybackModeStaleResultInternalV1;
       }
@@ -8259,6 +8312,17 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         }
         modeBaselineNow = nowValue;
       }
+      const semanticBoundary = bridgeRecord.saySemanticInFlightClaim;
+      const currentSayRevealRecord = dialoguePlayerRecord?.legacySayRevealController === null ||
+          dialoguePlayerRecord?.legacySayRevealController === undefined
+        ? null
+        : narrativeStableSayRevealControllerRecordsInternalV1.get(
+          dialoguePlayerRecord.legacySayRevealController,
+        ) ?? null;
+      const deferModePublication = semanticBoundary !== null &&
+        successorModeState.mode === "normal" && currentSayRevealRecord?.active === true &&
+        currentSayRevealRecord.frame === record.frame &&
+        currentSayRevealRecord.callbackClaim === semanticBoundary;
       if (
         !compareAndSetNarrativePlaybackModeStateInternalV1(
           bridgeRecord,
@@ -8268,27 +8332,34 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
       ) {
         return narrativePlaybackModeStaleResultInternalV1;
       }
+      if (deferModePublication) {
+        bridgeRecord.deferredModePublicationClaim = semanticBoundary;
+      }
       if (
         dialoguePlayerRecord?.active && dialoguePlayerRecord.bridgeRecord === bridgeRecord &&
         dialoguePlayerRecord.frame === record.frame
       ) {
         retireNarrativeStableDialoguePlayerAutomaticAttemptInternalV1(dialoguePlayerRecord);
         if (modeBaselineNow !== null) dialoguePlayerRecord.lastTickMs = modeBaselineNow;
-        dialoguePlayerRecord.automaticRemainingMs = successorModeState.mode === "skip"
-          ? 40
-          : successorModeState.mode === "auto" &&
-              dialoguePlayerRecord.snapshot.kind === "say" &&
-              dialoguePlayerRecord.snapshot.revealComplete
-          ? dialoguePlayerRecord.policy.autoWaitMs
-          : null;
-        publishNarrativeStableDialoguePlayerModeInternalV1(
-          dialoguePlayerRecord,
-          successorModeState.mode,
-        );
-        requestNarrativeStableDialoguePlayerTickInternalV1(
-          dialoguePlayerRecord,
-          dialoguePlayerRecord.phaseGeneration,
-        );
+        if (deferModePublication) {
+          dialoguePlayerRecord.automaticRemainingMs = null;
+        } else {
+          dialoguePlayerRecord.automaticRemainingMs = successorModeState.mode === "skip"
+            ? 40
+            : successorModeState.mode === "auto" &&
+                dialoguePlayerRecord.snapshot.kind === "say" &&
+                dialoguePlayerRecord.snapshot.revealComplete
+            ? dialoguePlayerRecord.policy.autoWaitMs
+            : null;
+          publishNarrativeStableDialoguePlayerModeInternalV1(
+            dialoguePlayerRecord,
+            successorModeState.mode,
+          );
+          requestNarrativeStableDialoguePlayerTickInternalV1(
+            dialoguePlayerRecord,
+            dialoguePlayerRecord.phaseGeneration,
+          );
+        }
       }
       return toggledResult;
     }
@@ -9020,7 +9091,8 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
         !active ||
         (requestedMode !== "auto" && requestedMode !== "skip") ||
         bridgeRecord.physicalActionAdmissionClaim !== admissionClaim ||
-        !bridgeRecord.isActiveInternalV1() || bridgeRecord.sayCallbackClaim !== null
+        !bridgeRecord.isActiveInternalV1() || bridgeRecord.sayCallbackClaim !== null ||
+        bridgeRecord.deferredModePublicationClaim !== null
       ) {
         return null;
       }
@@ -9044,7 +9116,8 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           (frame.pending.kind !== "say" && issuanceModeState.mode !== "normal") ||
           !active || bridgeRecord.physicalActionAdmissionClaim !== admissionClaim ||
           !bridgeRecord.isActiveInternalV1() || bridgeRecord.sayCallbackClaim !== null ||
-          bridgeRecord.currentModeState !== issuanceModeState
+          bridgeRecord.currentModeState !== issuanceModeState ||
+          bridgeRecord.deferredModePublicationClaim !== null
         ) {
           return null;
         }

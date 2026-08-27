@@ -9,13 +9,14 @@ import type {
   DefaultGameRootSlotsV1,
   DefineNarrativeSurfaceInputV1,
   GameUiProjectorV1,
-  KeyboardActionMapV1,
+  HeldInputPortV1,
   NarrativeSurfaceSelectionV1,
   PresentationFreezePortV1,
   RuntimePresentationPublicationV1,
   SaveOverlayLabelsV1,
 } from "@sillymaker/ui";
-import { defineNarrativeSurfaceV1, SemanticStageV1, systemInputActionIdsV1 } from "@sillymaker/ui";
+import { defineNarrativeSurfaceV1, SemanticStageV1 } from "@sillymaker/ui";
+import { createDefaultVnPlayerV1 } from "@sillymaker/ui/narrative-player";
 import type { WebGameApplicationV1, WebGameOuterUiV1 } from "@sillymaker/web";
 
 import type {
@@ -48,7 +49,7 @@ import type { TemplateNarrativeStateV1 } from "../story/narrative.ts";
 import { templateCatFlagV1 } from "../story/narrative.ts";
 import { templateStageRenderersV1 } from "../ui/stage-renderers.tsx";
 
-import { TemplateHudV1, TemplateNarrativeRendererV1 } from "./ui.tsx";
+import { TemplateHudV1 } from "./ui.tsx";
 
 /** The logical canvas: a 16:9 design resolution the viewport letterboxes. */
 export const templateViewportCanvasV1 = { width: 1600, height: 900 };
@@ -187,11 +188,6 @@ function createTemplateUiSlotsV1(
     ),
   };
 }
-
-export const templateKeyboardMapV1: KeyboardActionMapV1 = {
-  Enter: systemInputActionIdsV1.narrativeAdvance,
-  Space: systemInputActionIdsV1.narrativeAdvance,
-};
 
 export const templateRootLabelsV1: Partial<DefaultGameRootLabelsV1> = {
   systemMenuLabel: "系统",
@@ -337,13 +333,28 @@ export const templateGameApplicationV1: WebGameApplicationV1<
   },
   core: templateCoreApplicationDefinitionV1,
   ui: (
-    { instance, presentationFreeze, textContent }: {
+    { heldInput, instance, presentationFreeze, textContent }: {
+      readonly heldInput: HeldInputPortV1;
       readonly instance: TemplateApplicationInstanceV1;
       readonly presentationFreeze: PresentationFreezePortV1;
       readonly textContent: TextContentSessionV1 | null;
     },
   ) => {
     if (textContent === null) throw new TypeError("template.text_content_session_missing");
+    const vnPlayer = createDefaultVnPlayerV1({
+      heldInput,
+      labelTextIds: {
+        advance: "text.template.narrative.advance",
+        playbackControls: "text.template.playback.controls",
+        history: "text.template.playback.history",
+        skip: "text.template.playback.skip",
+        auto: "text.template.playback.auto",
+        showUi: "text.template.playback.show-ui",
+        historyTitle: "text.template.playback.history.title",
+        historyEmpty: "text.template.playback.history.empty",
+        historyClose: "text.template.playback.history.close",
+      },
+    });
     return ({
       titleScreen: { title: "SillyMaker Starter" },
       projector: templateUiProjectorV1,
@@ -365,7 +376,7 @@ export const templateGameApplicationV1: WebGameApplicationV1<
             instance.semantic.dispatch(
               ({ kind: "time" as const, tick }) as never,
             ),
-          renderer: TemplateNarrativeRendererV1,
+          renderer: vnPlayer.renderer,
           resolveText: (_locale, textId) => textContent.resolveText(textId as TextId),
           replayCurrentVoice: null,
         } satisfies DefineNarrativeSurfaceInputV1<TemplateSemanticPublicationV1>,
@@ -373,7 +384,7 @@ export const templateGameApplicationV1: WebGameApplicationV1<
       slots: createTemplateUiSlotsV1(instance, presentationFreeze),
       labels: templateRootLabelsV1,
       saveLabels: templateSaveOverlayLabelsV1,
-      input: { keyboard: templateKeyboardMapV1 },
+      input: vnPlayer.input,
       // Game-shell feel is the engine default: no browser context menu, text
       // selection, or hover-cursor changes; editable controls and
       // data-native-menu / data-native-text subtrees stay native. Declare

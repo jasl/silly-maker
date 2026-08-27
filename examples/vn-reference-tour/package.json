@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "Product WIP for One Last Sound Check; M0-M1 author data and headless routes are delivered, M2 is next.",
+  "description": "Product WIP for One Last Sound Check; M0-M1 are delivered and the first M2 Player UI slice is playable.",
   "exports": {
     ".": "./src/story.ts"
   },

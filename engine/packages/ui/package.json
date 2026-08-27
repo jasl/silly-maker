@@ -18,6 +18,7 @@
     "./input": "./src/input/index.ts",
     "./internal": "./src/internal.ts",
     "./native-behavior": "./src/shell/native-behavior-reset.ts",
+    "./narrative-player": "./src/narrative-player/index.ts",
     "./reference": "./src/reference/index.ts",
     "./reference/dev-dock": "./src/reference/dev-dock-entry.ts",
     "./reference/internal": "./src/reference/internal.ts",

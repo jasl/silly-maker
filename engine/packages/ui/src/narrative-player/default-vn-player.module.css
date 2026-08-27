@@ -1,0 +1,354 @@
+.narrative-root,
+.choice-root,
+.history-root {
+  position: absolute;
+  inset: 0;
+  color: var(--silly-vn-player-text, #f8f7f3);
+  pointer-events: none;
+}
+
+.advance-surface,
+.restore-chrome-surface {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.advance-surface {
+  z-index: 0;
+  outline-offset: -0.4rem;
+}
+
+.restore-chrome-surface {
+  z-index: 2;
+}
+
+.dialogue-window {
+  position: absolute;
+  z-index: 1;
+  inset-inline: 0;
+  inset-block-end: 0;
+  block-size: var(--silly-vn-player-dialogue-height, clamp(11rem, 25.75%, 14.5rem));
+  padding: clamp(1.25rem, 2.5%, 1.75rem) clamp(2rem, 20%, 20rem)
+    calc(3rem + env(safe-area-inset-bottom));
+  overflow: visible;
+  border: 0;
+  border-block-start: 1px solid var(--silly-vn-player-border, rgb(255 255 255 / 24%));
+  background: var(
+    --silly-vn-player-dialogue-background,
+    linear-gradient(110deg, rgb(9 14 24 / 92%), rgb(16 22 34 / 85%))
+  );
+  box-shadow: 0 -1rem 3.5rem rgb(0 0 0 / 28%), inset 0 1px rgb(255 255 255 / 8%);
+  backdrop-filter: blur(0.65rem);
+  cursor: pointer;
+  pointer-events: none;
+}
+
+.speaker-name {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: clamp(0.8rem, 1.8%, 1.2rem);
+  inset-inline-start: clamp(2rem, 18%, 18rem);
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2rem;
+  color: var(--silly-vn-player-accent, #f7e4b3);
+  font-size: clamp(1rem, 1.55cqi, 1.25rem);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.dialogue-text {
+  position: relative;
+  z-index: 1;
+  min-block-size: 3.3em;
+  margin: 2.35rem 0 0;
+  color: var(--silly-vn-player-text, #f8f7f3);
+  font-size: clamp(1.08rem, 1.8cqi, 1.45rem);
+  font-weight: 450;
+  line-height: 1.58;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+  white-space: pre-wrap;
+}
+
+.playback-bar {
+  position: absolute;
+  z-index: 2;
+  inset-inline: 0;
+  inset-block-end: env(safe-area-inset-bottom);
+  display: flex;
+  gap: 0.15rem;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 2.6rem;
+  cursor: default;
+  pointer-events: auto;
+}
+
+.playback-button,
+.history-close {
+  min-inline-size: 3.25rem;
+  min-block-size: 2.75rem;
+  padding: 0.55rem 0.85rem;
+  border: 0;
+  border-radius: var(--silly-vn-player-control-radius, 0.35rem);
+  color: var(--silly-vn-player-muted-text, rgb(241 242 246 / 72%));
+  background: transparent;
+  cursor: pointer;
+  font-size: clamp(0.86rem, 1.2cqi, 1rem);
+  font-weight: 650;
+  letter-spacing: 0.03em;
+}
+
+.playback-button:hover,
+.history-close:hover,
+.playback-button[aria-pressed="true"] {
+  color: var(--silly-vn-player-text, #fff);
+  background: var(--silly-vn-player-control-hover, rgb(255 255 255 / 10%));
+}
+
+.playback-button[aria-pressed="true"]::before {
+  display: inline-block;
+  inline-size: 0.45rem;
+  block-size: 0.45rem;
+  margin-inline-end: 0.45rem;
+  border-radius: 50%;
+  background: var(--silly-vn-player-accent, #e7bc5f);
+  content: "";
+  vertical-align: 0.1em;
+}
+
+.playback-button:focus-visible,
+.history-close:focus-visible {
+  outline: 2px solid var(--silly-vn-player-focus, #f5d17e);
+  outline-offset: 2px;
+}
+
+.continue-indicator {
+  position: absolute;
+  z-index: 1;
+  inset-inline-end: clamp(2rem, 18%, 18rem);
+  inset-block-end: calc(2.8rem + env(safe-area-inset-bottom));
+  color: var(--silly-vn-player-accent, #f5d17e);
+  font-size: 1.2rem;
+  opacity: 0;
+  transform: translateY(-0.15rem);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.continue-indicator[data-dialogue-continue-indicator="visible"] {
+  opacity: 0.9;
+  transform: translateY(0);
+}
+
+.choice-root {
+  display: grid;
+  padding: clamp(1.25rem, 6%, 5rem);
+  place-items: center;
+}
+
+.choice-scrim,
+.history-backdrop {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  border: 0;
+  background: var(--silly-vn-player-scrim, rgb(3 7 15 / 46%));
+  backdrop-filter: blur(0.18rem);
+}
+
+.choice-panel {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 1.25rem;
+  inline-size: min(46rem, 78%);
+  padding: clamp(1.5rem, 4%, 2.75rem);
+  border: 1px solid var(--silly-vn-player-border, rgb(255 255 255 / 22%));
+  border-radius: var(--silly-vn-player-panel-radius, 0.9rem);
+  background: var(--silly-vn-player-panel-background, rgb(10 16 27 / 92%));
+  box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 42%);
+  pointer-events: auto;
+}
+
+.choice-prompt {
+  margin: 0;
+  color: var(--silly-vn-player-prompt-text, rgb(247 239 219 / 88%));
+  font-size: clamp(1.05rem, 1.65cqi, 1.35rem);
+  line-height: 1.55;
+  text-align: center;
+}
+
+.choice-options,
+.choice-option {
+  display: grid;
+}
+
+.choice-options {
+  gap: 0.8rem;
+}
+
+.choice-option {
+  gap: 0.35rem;
+}
+
+.choice-button {
+  min-block-size: 3.5rem;
+  padding: 0.8rem 1.25rem;
+  border: 1px solid var(--silly-vn-player-border, rgb(255 255 255 / 20%));
+  border-radius: var(--silly-vn-player-control-radius, 0.45rem);
+  color: var(--silly-vn-player-text, #f8f7f3);
+  background: var(--silly-vn-player-control, rgb(255 255 255 / 7%));
+  cursor: pointer;
+  font-size: clamp(1rem, 1.45cqi, 1.2rem);
+  line-height: 1.45;
+  text-align: start;
+  transition: border-color 130ms ease, background 130ms ease, transform 130ms ease;
+}
+
+.choice-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.choice-button:focus-visible {
+  outline: 2px solid var(--silly-vn-player-focus, #f5d17e);
+  outline-offset: 2px;
+}
+
+.choice-button:hover:not(:disabled) {
+  border-color: var(--silly-vn-player-accent, rgb(245 209 126 / 72%));
+  background: var(--silly-vn-player-control-hover, rgb(245 209 126 / 13%));
+  transform: translateX(0.25rem);
+}
+
+.choice-reason {
+  color: var(--silly-vn-player-muted-text, rgb(241 242 246 / 64%));
+  font-size: 0.85rem;
+}
+
+.history-root {
+  display: grid;
+  inline-size: 100%;
+  max-inline-size: none;
+  block-size: 100%;
+  max-block-size: none;
+  margin: 0;
+  padding: clamp(1rem, 5%, 4rem);
+  border: 0;
+  background: transparent;
+  place-items: center;
+  pointer-events: auto;
+}
+
+.history-backdrop {
+  pointer-events: auto;
+}
+
+.history-panel {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  inline-size: min(64rem, 88%);
+  max-block-size: 82%;
+  padding: clamp(1.25rem, 3%, 2rem);
+  overflow: hidden;
+  border: 1px solid var(--silly-vn-player-border, rgb(255 255 255 / 22%));
+  border-radius: var(--silly-vn-player-panel-radius, 0.9rem);
+  background: var(--silly-vn-player-panel-background, rgb(10 16 27 / 96%));
+  box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 48%);
+  pointer-events: auto;
+}
+
+.history-header {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding-block-end: 1rem;
+  border-block-end: 1px solid var(--silly-vn-player-border, rgb(255 255 255 / 12%));
+}
+
+.history-title {
+  margin: 0;
+  font-size: clamp(1.25rem, 2cqi, 1.75rem);
+}
+
+.history-list {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  padding: 1.25rem 0.25rem 0;
+  overflow: auto;
+  list-style: none;
+  overscroll-behavior: contain;
+}
+
+.history-entry {
+  display: grid;
+  gap: 0.2rem;
+  padding-block-end: 0.85rem;
+  border-block-end: 1px solid var(--silly-vn-player-border, rgb(255 255 255 / 8%));
+  color: var(--silly-vn-player-history-text, rgb(248 247 243 / 82%));
+  font-size: clamp(0.96rem, 1.3cqi, 1.08rem);
+  line-height: 1.55;
+}
+
+.history-speaker {
+  color: var(--silly-vn-player-accent, #f5d17e);
+}
+
+.history-empty {
+  margin: 1.25rem 0 0;
+  color: var(--silly-vn-player-muted-text, rgb(248 247 243 / 65%));
+}
+
+@container game-stage (max-width: 52rem) {
+  .dialogue-window {
+    block-size: var(--silly-vn-player-dialogue-height-narrow, clamp(12rem, 30%, 16rem));
+    max-block-size: 38%;
+    padding: 1.2rem 1.1rem calc(3.15rem + env(safe-area-inset-bottom));
+  }
+
+  .speaker-name {
+    inset-block-start: 0.75rem;
+    inset-inline-start: 1.1rem;
+  }
+
+  .dialogue-text {
+    margin-block-start: 2.2rem;
+    font-size: clamp(1rem, 4.2cqi, 1.2rem);
+  }
+
+  .playback-button {
+    flex: 1 1 0;
+    padding-inline: 0.4rem;
+  }
+
+  .choice-root,
+  .history-root {
+    padding: 1rem;
+  }
+
+  .choice-panel,
+  .history-panel {
+    inline-size: 100%;
+    max-block-size: 88%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .continue-indicator,
+  .choice-button {
+    transition: none;
+  }
+}

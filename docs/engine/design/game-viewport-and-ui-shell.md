@@ -23,7 +23,7 @@ Debug 与玩家界面的边界当时也被侵蚀。DevDock 按约定由 `debug_t
 - 本文定义 **GameViewport**（逻辑画布与缩放）、**shell 层锚定**、**主题 token 与默认 surface 视觉基线**、**player/debug 边界** 四项标准；
 - [VN presentation runtime](vn-presentation-runtime.md) 拥有 Stage 语义、Transition、PendingInteraction 与 Audio；本文只规定它们的绘制落点；
 - [AI authoring](ai-authoring.md) 的 UI/Web Composer 是这些标准的实现载体：default GameRoot 必须满足本文基线；
-- Story 拥有主题值、素材与具体画面设计（见 `docs/game/` 下对应产品文档）；引擎拥有坐标、缩放、锚定、token 合同和默认组件结构。
+- Story 拥有主题值、素材与具体画面设计（见 `docs/game/` 下对应产品文档）；引擎拥有坐标、缩放、锚定、token 合同和默认组件结构。focused default VN Player preset 是显式选择的 VN 组件结构，不是 generic GameRoot 的隐式 HUD。
 
 ## 3. GameViewport and coordinate spaces
 
@@ -72,9 +72,10 @@ pixels。平台原生凹口/圆角继续使用 CSS `env(safe-area-inset-*)`，�
 ### 3.4 Layer anchoring
 
 现有层保留 DOM 顺序与输入语义，并按 space 归类：background/character/sceneInteraction 属于 stage
-space；hud/narrative/workspaceOverlay/system 属于 shell space。默认 HUD/Narrative 使用 CSS grid 对齐，
-WholeCanvas 与 blocking surfaces 覆盖 live canvas；产品可用同一 `layoutVariantId` / geometry 声明顶部
-HUD 带、底部 VN 带或其他 responsive 分区。当前没有通用 partition schema 或冲突诊断器，不应把
+space；hud/narrative/workspaceOverlay/system 属于 shell space。显式选择的 default VN Player preset
+使用 CSS grid 对齐，WholeCanvas 与 blocking surfaces 覆盖 live canvas；产品可用同一
+`layoutVariantId` / geometry 声明顶部 HUD 带、底部 VN 带或其他 responsive 分区。当前没有通用
+partition schema 或冲突诊断器，不应把
 应用 CSS/React 布局描述成已交付的 engine DSL。
 
 ## 4. Theme tokens and default surface baseline
@@ -90,6 +91,12 @@ HUD 带、底部 VN 带或其他 responsive 分区。当前没有通用 partitio
 ### 4.3 Default surfaces must have a designed baseline
 
 Composer 提供的每个默认 surface——Save、Settings、系统对话框、诊断导出、错误恢复、加载指示——必须满足：正确的容器语义（modal 对话框有遮罩、焦点陷阱、关闭途径）、消费主题 token、在默认主题下有可交付的视觉呈现。"语义正确但视觉裸奔"的组件不再算完成；对应 C3 任务的验收随本文收紧。
+
+focused default VN Player preset 同样必须提供可直接使用的 Ren'Py-aligned baseline：贴底对话/选项、
+History/playback chrome、say-only 全画布推进、键盘政策、窄屏/缩放/reflow 与可访问 focus。它由 VN
+application 显式选择并保持在 focused entry；未选择它的 GUI/game final graph 不应包含其实现。产品可用
+token/CSS/媒体建立自己的主题，也可 eject/替换 renderer；Story、Stage/media 与特殊 surface 从不成为
+preset 的所有权。
 
 ### 4.4 Symbols and text
 
@@ -120,4 +127,5 @@ Composer 提供的每个默认 surface——Save、Settings、系统对话框、
 - Viewport 换算出现第二套权威（组件私自读窗口尺寸推位置）时停止并修正；
 - 任何默认 surface 以"后续再美化"为由跳过 §4.3 基线时，该任务不得标记完成；
 - 需要把 renderer 对象、缩放因子或 DOM 尺寸写入 gameplay State/Save 时停止——viewport 是纯 presentation 事实；
-- 主题化要求 Story fork 引擎组件源码时停止并修正 token/contribution 合同。
+- 普通主题化要求 Story fork 引擎组件源码时停止并修正 token/CSS 合同；产品明确 eject/替换 focused
+  preset 时，由产品接管该 renderer，不保留并行兼容层。

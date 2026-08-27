@@ -2,12 +2,13 @@
 
 # 《最后一次试音》— VN Reference Tour
 
-状态：**M0–M1 已交付 / WIP。独立 package、产品合同、supported-export 应用外壳、starter 负能力删除、完整
-双路线剧本、两个 Authoring Scene、作者数据和两条 named headless route simulation 已完成；M2 下一步。**
+状态：**M0–M1 已交付 / WIP；M2 进行中。独立 package、完整双路线作者数据与 simulation 已完成；当前已可试玩
+第一版引擎维护的 default VN Player 已提供对话/选择界面、全画布点击推进、History/播放控制、贴底响应式布局和 VN 键盘习惯。最终 Stage 媒体、音频、
+rollback/end controls 与完整产品验收仍未完成。**
 
-M1 已用本产品的完整 Story/Scene author data 原子替换 tracked Template 的临时内容；它关闭的是作者数据与
-headless routes，不是 VN Player、最终视觉/音频、Save/recovery 或产品验收。《最后一次试音》仍不是可玩产品
-参考或旗舰。完整产品合同见 [DESIGN.md](DESIGN.md)。
+M1 已用本产品的完整 Story/Scene author data 原子替换 tracked Template 的临时内容；当前 M2 只交付了第一版
+Player 交互与 chrome，不代表最终视觉/音频、Save/recovery 或产品验收。《最后一次试音》仍不是完整产品参考
+或旗舰。完整产品合同见 [DESIGN.md](DESIGN.md)。
 
 ## 产品目标
 
@@ -40,13 +41,21 @@ deno task dev
 deno task build:web
 ```
 
+当前 Player 操作：鼠标/触控点按画面或按 `Enter` / `Space` 先完成逐字显示、再推进；`Tab` 切换持续
+skip-read，按住 `Ctrl` 临时 skip-read。`H` 会先停止正在生效的 Auto/Skip，再进入模态隐藏；若自动推进已经
+签发，它会在界面仍可见时完成，隐藏只从稳定的新台词开始。隐藏后按 `H`、`Enter`、`Space` 或点按画面只
+恢复界面、不推进，且不会自动重启播放模式。快进默认遇未读台词或 Choice
+停止，Auto 与 Skip 保持为两个独立模式。`Shift+Tab` 从 gameplay scope 进入播放控件，控件内 `Tab` / `Shift+Tab`
+保留原生焦点次序，`Escape` 返回 gameplay scope。PageUp/滚轮回退与 PageDown/滚轮前进尚未宣称完成：现有
+command-level rollback 缺少 VN 所需的 transparent checkpoint 分类，且还没有 roll-forward port。
+
 这些命令的 M1 green run 只证明完整 author data、两条 deterministic headless routes 与当前项目接线；在 M2–M4
 对应 evidence 关闭前，不得把它报告为 VN Player、最终媒体、Save/recovery 或发布完成。M1 关闭时 focused tests、
 两条 simulation、`app check`、product build、asset/determinism checks、React Doctor 与串行 repository check 均通过。
 
 ## 作者地图
 
-以下是当前及后续里程碑的唯一 owner；尚未进入 M2/M3 的文件不是另找位置写入的许可。
+以下是当前及后续里程碑的唯一 owner；尚未进入后续 M2/M3 切片的文件不是另找位置写入的许可。
 
 | 想修改什么                                 | 唯一 owner                                    |
 | ------------------------------------------ | --------------------------------------------- |
@@ -57,7 +66,8 @@ deno task build:web
 | 屋顶构图、对象、cue、Motion refs           | `src/scenes/rooftop-antenna/`                 |
 | resident UI copy、Stage/transition catalog | `src/content/presentation.ts`                 |
 | audio manifest 与 intent/effect mapping    | `src/content/audio.ts`                        |
-| VN skin 与 passive Narrative renderer      | `src/application/ui.tsx`                      |
+| default VN Player、输入与 focus            | `@sillymaker/ui/narrative-player`             |
+| Player 文案映射与产品接线                  | `src/application/composition.tsx`（Advanced） |
 | product composition wiring                 | `src/application/composition.tsx`（Advanced） |
 | Inspector、Flow、named simulations         | `src/tooling/`                                |
 | 页面标题、说明与主题色                     | `metadata.json`                               |
@@ -76,9 +86,10 @@ deno task build:web
 
 产品从 Template 起步，但不 import Template、Bookshop 或其他 example。M0 已删除 coins/inventory/HUD action、
 reference-only outer UI 与临时 Story identity，不保留 compatibility alias 或零值模块。M1 已用冻结的完整产品
-剧情、两个场景与兼容 placeholder presentation 替换 temporary author scaffold；最终媒体和 VN Player 留给 M2。
+剧情、两个场景与兼容 placeholder presentation 替换 temporary author scaffold；第一版 focused default VN Player
+已由引擎提供，最终媒体与剩余 Player 验收留给 M2。
 
-本产品不建立 Ren'Py DSL/Save compatibility、自定义解释器、公共 VN skin、Blueprint、最终编辑器、Mod/Agent、
+本产品不建立 Ren'Py DSL/Save compatibility、自定义解释器、broad VN framework、Blueprint、最终编辑器、Mod/Agent、
 特殊 pending 或 Desktop HMR。`NarrativeAside` 不是 denominator；只有完整剧本自然需要时才可选择最多一处。
 
 ## Authoring 与验证

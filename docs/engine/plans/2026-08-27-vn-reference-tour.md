@@ -1,7 +1,9 @@
 # VN Reference Tour 实施计划
 
-状态：**2026-08-27 经所有者接受，当前唯一活动 Reference Product；M0–M1 已交付，M2 下一步。M1 只关闭
-完整 author data 与 headless routes；当前 WIP 仍不是可玩产品、产品完成证据或旗舰。**
+状态：**2026-08-27 经所有者接受，当前唯一活动 Reference Product；M0–M1 已交付，M2 进行中。第一版
+引擎维护的 focused default VN Player preset、say-only 全画布推进、贴底布局与 Ctrl/Tab/H 输入已由 Template
+和本产品共同选择并可试玩；最终媒体/音频、remaining Player work、rollback/end controls 与完整产品
+矩阵仍未关闭，当前 WIP 不是产品完成证据或旗舰。**
 
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 是唯一跨计划排序入口。本计划同时拥有
 产品分母、实现顺序、证据门槛与旗舰提升条件；Bookshop 的后续教学角色不由本计划预裁。它不是 broad engine
@@ -53,8 +55,9 @@ VN Reference Tour 是一个原创、独立、内聚、可发布的小型 Visual 
   preview/dispatch、Snapshot、Save/replay 与 transaction rules；
 - pure-data interaction document：`say`、`choice`、`branch`、`stage`、`hold`、`end`，由产品本地复制的
   Template kit 编译；这仍是普通 TypeScript 数据，不是新语言或 runtime；
-- 一个 `defineNarrativeSurfaceV1` writer、一个 Semantic Stage owner 与一个 `WebGameApplicationV1`；renderer
-  只消费 read-only pending/history/player view 并调用 occurrence-fenced actions；
+- 显式选择引擎维护的 focused default VN Player preset 作为唯一 `defineNarrativeSurfaceV1` writer；一个
+  Semantic Stage owner 与一个 `WebGameApplicationV1`；renderer 只消费 read-only pending/history/player
+  view 并调用 occurrence-fenced actions，generic GameRoot 不隐式安装 preset；
 - `sillymaker.authoring-scene` 作为每个场景唯一作者权威，剧本只引用 scene/cue/appearance，不重复 placement；
 - Motion/ambient/frame、Stage transition、typed audio intent/transient SFX、text content manifest/session、
   Player Profile、rollback 与默认 Saves/Settings/System hosts；
@@ -72,8 +75,9 @@ Database、meta gallery、Narrative/Scene units、Code Surface、Mod Runtime、A
 Inspector 或 Desktop HMR。package-owned Splash/Title 使用 WholeCanvas 基础设施，不等于产品定义了第二个
 WholeCanvas surface。
 
-若剧情自然需要上述某项，必须先修改本分母并说明产品价值；“引擎已经有”不是增加功能的理由。不得为一个
-consumer 提取公共 VN skin、公共 script kit、scaffold CLI、通用 character registry、Blueprint 或编辑器。
+若剧情自然需要上述某项，必须先修改本分母并说明产品价值；“引擎已经有”不是增加功能的理由。focused
+default VN Player preset 只收编成熟 VN 的默认 UI/交互/输入政策，不扩张为公共 script kit、scaffold CLI、
+通用 character registry、Blueprint 或编辑器。
 
 ## 3. 作者文件与唯一权威
 
@@ -96,7 +100,7 @@ examples/vn-reference-tour/
     content/audio.ts                # audio manifest 与 intent/effect mapping
     game/                           # 最小 narrative/signalChoice/stage/audio authority
     ui/stage-renderers.tsx          # 被 Stage catalog 选择的纯 renderer
-    application/ui.tsx              # VN skin、播放控制、rollback/end controls
+    application/ui.tsx              # 仅在需要产品 HUD/panel/special surface 时存在；当前未创建
     application/composition.tsx     # 只接线，不保存剧情 copy 或 gameplay rule
     tooling/                        # Inspector binding、Flow、named simulation
     test/                           # Story、presentation、persistence、authoring tests
@@ -141,7 +145,7 @@ example。focused tests、`app check`、临时 `scaffold` simulation、Browser p
 
 ### M1 — 完整剧本、场景与作者数据
 
-状态：**2026-08-27 已交付。M2 下一步。**
+状态：**2026-08-27 已交付。M2 进行中。**
 
 - 写完并注册全部 59 条文案、二选一、两条 route 与两个 ending；先用 compatible placeholder media 也必须
   保持完整内容 breadth，不以单 route 关闭；
@@ -164,13 +168,37 @@ VN Player、最终视觉/音频、Save/recovery、Browser 产品旅程或旗舰�
 
 ### M2 — VN Player、视觉与音频
 
-- 交付产品自有的 responsive Narrative renderer、History、playback toolbar、rollback/end controls 与完整 Stage
-  renderers；不复制 Template 的占位视觉；
+状态：**进行中。**
+
+- 交付引擎维护、focused entry、显式选择的 default VN Player preset：responsive 对话/选项、History、
+  playback toolbar、say-only 全画布推进与 Ctrl/Tab/H 默认政策；generic GameRoot 和非 VN final graph 不包含它；
+- 产品保留 theme/media/Story/special surfaces，可 override 或 eject preset；交付 rollback/end controls 与完整
+  Stage renderers，不复制 Template 的占位视觉；
 - 接入 typewriter、auto、skip-read、voice replay、BGM/ambient/SFX/voice、cue Motion、crossfade、ambient/frame
   animation 与 hold；若 M1 已因剧情需要选择 bounded Narrative Aside，则同时接入，未选择不阻塞 M2；
 - 用原创或兼容许可的最终视觉/音频替换 placeholder，验证 missing media fallback 与 audio autoplay unlock；
 - wide/narrow、鼠标/触控/键盘、focus、200% zoom/reflow、reduced motion 与中英 overflow 在真实产品 UI 通过；
 - 不为表现状态增加第二个 gameplay store，不为每帧动画创建 Game command。
+
+进展记录：第一切片以产品本地 React/CSS 原型替换通用浮动系统 HUD，交付传统底部对话窗、说话人名牌、垂直
+choice、History 与轻量 auto/skip 控件；`say` 阶段一个透明全画布按钮负责 reveal-first/再推进，choice/History/
+播放控件不触发空白推进。后续 Ren'Py gameplay 审计把对话层改为 1280×720 下约 185px 的全宽贴底布局，并
+接入 `Tab` 持续 skip-read、按住 `Ctrl` 的单次临时 skip-read 与 `H` 模态隐藏/恢复；隐藏层停止有效 Auto/Skip、
+截获 gameplay shortcut，且 `H` / `Enter` / `Space` / 点按恢复不推进也不自动重启播放。H 请求先在界面仍
+可见时收敛已经签发的自动推进并停止 mode，只有 stable normal Say 才进入隐藏；package-private Player
+会先停止新自动尝试，并把 normal 的观察发布延后到既有 semantic advance 提交或退出之后。Choice/未读 stop 不会
+因按键仍按住而重新越界启动；pending 离开 active Say 也会清除 transient hidden。未修饰 `Tab` 只拥有
+Skip 路由，`Shift+Tab` 进入播放控件且 `Escape` 返回 gameplay scope。竖屏选择 `expand-height` layout variant，
+宽屏与窄屏继续复用同一 authored Stage。
+这些已验证的通用 chrome/interaction/input 行为已迁入 `@sillymaker/ui/narrative-player` focused default VN
+Player preset；Template 与本产品显式选择同一 renderer/input 默认，产品本地原型已经删除，没有双轨
+renderer。产品只保留 theme、media、Story 与 special surfaces；Bookshop 暂时保留低层自定义 renderer，等待
+VN 完成后的独立教学角色评审。focused UI tests、真实
+Chromium 宽/窄屏行为和 React Doctor 覆盖该切片。完整 VN Back/Forward 仍开放：现有
+rollback 分类无法让 `time_tick` / scene repair 对交互级 checkpoint transparent，且 Core 尚无 roll-forward
+port；不得先接一条语义错误的 PageUp/滚轮路径。最终 Stage renderer/media、audio、
+voice replay、rollback/end controls、完整中英/200% zoom/accessibility/Chromium+WebKit 矩阵仍开放；本记录不
+关闭 M2。
 
 ### M3 — 产品入口、Save/recovery 与设置
 
@@ -191,7 +219,8 @@ VN Player、最终视觉/音频、Save/recovery、Browser 产品旅程或旗舰�
   measurement；阈值只来自本产品预算，不做跨项目 promotion 排名；
 - 独立 product review 对照 semantic coverage table 逐项确认早期、中段、分支、结局、恢复和作者任务；独立
   engine review 将发现分成产品 bug、文档/Starter 改进、可复现中立 engine gap 与明确非目标；
-- 只有被 Template 与本产品共同证明的通用改进才反馈到 Template；VN skin、故事、媒体和产品规则留在本地。
+- 只有被 Template 与本产品共同证明的通用 starter 改进才反馈到 Template；focused default VN Player preset
+  由引擎维护，产品主题、故事、媒体和特殊规则留在本地。
 
 ### M5 — 旗舰提升与文档收口（Bookshop 保持）
 
@@ -220,10 +249,11 @@ correction：
 - Save/currentness/rollback/audio/i18n 在可达产品路径上违反既有合同；
 - measured hot path 或 initial graph 无法达到冻结的产品预算，且问题可在中立 fixture 重现。
 
-以下不是引擎缺口：产品视觉与文案质量、VN skin、角色表、剧情拆分、私有 helper shape、一个产品想要的存档
-缩略图、未选择的特殊互动，或作者希望把普通 TypeScript 全部变成表单。
+以下不是引擎缺口：产品品牌主题与媒体/文案质量、角色表、剧情拆分、私有 helper shape、一个产品想要的存档
+缩略图、未选择的特殊互动，或作者希望把普通 TypeScript 全部变成表单。显式选择的 focused default VN
+Player preset 若缺少其已声明的默认 UI/交互/输入政策，则是引擎缺口；这不使产品特殊 surface 成为引擎责任。
 
 只有 public/wire/Save/digest/replay compatibility、唯一 writable authority、CAS/atomicity 或许可边界变化时
 暂停请求所有者裁决。Cat Cafe revision-1 Save 责任已经随产品终止，不是本计划的开放问题。其他内部选择采用
 最简单可验证方案继续。任何 focused correction 都不授权 Ren'Py DSL/Save compatibility、custom interpreter、
-公共 VN framework、Blueprint、最终编辑器、public Mod ABI 或 Desktop HMR activation。
+broad VN framework、Blueprint、最终编辑器、public Mod ABI 或 Desktop HMR activation。

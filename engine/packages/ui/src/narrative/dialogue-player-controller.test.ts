@@ -2204,7 +2204,6 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     const manualLoser = admission.issueSayActivationAttemptInternalV1(controller);
     expect(manualLoser).not.toBeNull();
     togglePlaybackModeV1(admission, "auto", "promise-rejection-winner");
-
     harness.clock.fire(1_100);
     expect(dispatchResolution).toHaveBeenCalledOnce();
     expect(
@@ -2220,9 +2219,34 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
     ).toEqual({ kind: "stale", completion: null });
     expect(admission.issueSayActivationAttemptInternalV1(controller)).toBeNull();
 
+    const stopAttempt = admission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    expect(stopAttempt).not.toBeNull();
+    expect(
+      admission.routeInternalV1(
+        admission.createEnvelopeInternalV1({
+          actionId: narrativeToggleAutoActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1(
+            "gesture.narrative.dialogue-player-pending-stop",
+          ),
+        }),
+        stopAttempt,
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "normal", completion: null });
+    expect(harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
+    expect(controller.getSnapshotInternalV1()).toMatchObject({
+      kind: "say",
+      playbackMode: "auto",
+    });
+    expect(admission.issuePlaybackModeToggleAttemptInternalV1("auto")).toBeNull();
+
     rejectSemantic(sentinel);
     await expect(semanticCompletion).rejects.toBe(sentinel);
-    await Promise.resolve();
+    await flushDialogueMicrotasksV1();
+    expect(controller.getSnapshotInternalV1()).toMatchObject({
+      kind: "say",
+      playbackMode: "normal",
+    });
+    expect(admission.issuePlaybackModeToggleAttemptInternalV1("auto")).not.toBeNull();
     expect(
       admission.routeInternalV1(
         admission.createEnvelopeInternalV1({
@@ -2238,6 +2262,108 @@ describe("S4.2.4.2 DOM-free Dialogue player controller", () => {
 
     admission.disposeInternalV1();
     controller.disposeInternalV1();
+  });
+
+  it("does not defer an Auto and Skip stop behind a predecessor semantic boundary", async () => {
+    let resolveSemantic!: (value: unknown) => void;
+    const semanticCompletion = new Promise<unknown>((resolve) => {
+      resolveSemantic = resolve;
+    });
+    const dispatchResolution = vi.fn(() => semanticCompletion);
+    const harness = dialoguePlayerHarnessV1({
+      profile: mutableDialogueProfileV1(
+        playerProfileWithPreferencesV1({ skipPolicy: "skip_all" }),
+      ),
+      semanticDispatchPort: {
+        dispatchResolutionInternalV1: dispatchResolution,
+      },
+    });
+    const current = installSayCandidateV1(harness);
+    const controller = createControllerV1(harness, current.target, current.frame);
+    settleCurrentNarrativeReadyV1(harness);
+    const admission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: harness.bridge,
+      inputRouter: createInputRouterV1(),
+      isGestureCurrent: () => true,
+    });
+
+    togglePlaybackModeV1(admission, "auto", "in-flight-overlay-enable-auto");
+    togglePlaybackModeV1(admission, "skip", "in-flight-overlay-enable-skip");
+    harness.clock.fire(1_040);
+    expect(dispatchResolution).toHaveBeenCalledOnce();
+
+    expect(harness.bridge.reconcilePendingInternalV1(sayPendingV1(2))).toMatchObject({
+      kind: "applied",
+      code: "surface.stable_publication_applied",
+    });
+    settleCurrentNarrativeReadyV1(harness);
+    const successor = currentTargetAndFrameV1(harness);
+    const successorController = createControllerV1(
+      harness,
+      successor.target,
+      successor.frame,
+    );
+    admission.disposeInternalV1();
+    const successorAdmission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge: harness.bridge,
+      inputRouter: createInputRouterV1(),
+      isGestureCurrent: () => true,
+    });
+    expect(successorController.getSnapshotInternalV1()).toMatchObject({
+      kind: "say",
+      playbackMode: "skip",
+    });
+
+    const stopSkip = successorAdmission.issuePlaybackModeToggleAttemptInternalV1("skip");
+    expect(stopSkip).not.toBeNull();
+    expect(
+      successorAdmission.routeInternalV1(
+        successorAdmission.createEnvelopeInternalV1({
+          actionId: narrativeToggleSkipActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1(
+            "gesture.narrative.dialogue-player-in-flight-overlay-stop-skip",
+          ),
+        }),
+        stopSkip,
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "auto", completion: null });
+    expect(harness.bridge.readPlaybackModeInternalV1()).toBe("auto");
+    expect(successorController.getSnapshotInternalV1()).toMatchObject({
+      kind: "say",
+      playbackMode: "auto",
+    });
+
+    const stopAuto = successorAdmission.issuePlaybackModeToggleAttemptInternalV1("auto");
+    expect(stopAuto).not.toBeNull();
+    expect(
+      successorAdmission.routeInternalV1(
+        successorAdmission.createEnvelopeInternalV1({
+          actionId: narrativeToggleAutoActionIdV1,
+          gestureId: parseManagedSurfaceGestureIdV1(
+            "gesture.narrative.dialogue-player-in-flight-overlay-stop-auto",
+          ),
+        }),
+        stopAuto,
+      ).consumerResult,
+    ).toEqual({ kind: "toggled", mode: "normal", completion: null });
+    expect(harness.bridge.readPlaybackModeInternalV1()).toBe("normal");
+    expect(successorController.getSnapshotInternalV1()).toMatchObject({
+      kind: "say",
+      playbackMode: "normal",
+    });
+    expect(successorAdmission.issuePlaybackModeToggleAttemptInternalV1("auto")).not.toBeNull();
+
+    resolveSemantic("advanced");
+    await expect(semanticCompletion).resolves.toBe("advanced");
+    await flushDialogueMicrotasksV1();
+    expect(successorController.getSnapshotInternalV1()).toMatchObject({
+      kind: "say",
+      playbackMode: "normal",
+    });
+
+    successorAdmission.disposeInternalV1();
+    controller.disposeInternalV1();
+    successorController.disposeInternalV1();
   });
 
   it("resets mode before publishing a fresh non-Say boundary", () => {

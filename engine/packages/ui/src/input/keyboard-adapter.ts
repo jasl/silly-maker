@@ -11,6 +11,10 @@ import { pointerInteractiveSelectorV1 } from "./pointer-button-adapter.ts";
  * Keys are ignored while focus sits on an editable or interactive element,
  * while IME composition is active, and while focus is inside debug/system
  * chrome, so typing in a form never doubles as a stage shortcut.
+ * Ordinary mappings route in the bubble phase. An explicitly mapped,
+ * unmodified `Tab` routes during capture and stops propagation only when
+ * handled, so a focus owner cannot also interpret that same press. Shift+Tab
+ * and native/ignored Tab remain free for focus traversal.
  */
 
 export type KeyboardActionMapV1 = Readonly<Record<string, InputActionIdV1>>;
@@ -47,17 +51,36 @@ export function installKeyboardAdapterV1(options: InstallKeyboardAdapterOptionsV
   const target = options.target ?? (typeof document === "undefined" ? null : document);
   if (target === null) return () => {};
 
-  const onKeyDown = (event: Event): void => {
-    const keyboardEvent = event as KeyboardEvent;
+  const routeMappedKey = (
+    keyboardEvent: KeyboardEvent,
+    stopPropagationWhenHandled: boolean,
+  ): void => {
     if (keyboardEvent.defaultPrevented || keyboardEvent.repeat) return;
     if (keyboardEvent.metaKey || keyboardEvent.ctrlKey || keyboardEvent.altKey) return;
     const actionId = options.map[keyboardEvent.code];
     if (actionId === undefined) return;
     if (shouldIgnoreKeyboardShortcutV1(keyboardEvent)) return;
     const result = options.router.route({ kind: "action", actionId });
-    if (result.kind === "handled") keyboardEvent.preventDefault();
+    if (result.kind !== "handled") return;
+    keyboardEvent.preventDefault();
+    if (stopPropagationWhenHandled) keyboardEvent.stopPropagation();
+  };
+  const capturesTab = options.map.Tab !== undefined;
+  const onMappedTabKeyDown = (event: Event): void => {
+    const keyboardEvent = event as KeyboardEvent;
+    if (keyboardEvent.code !== "Tab" || keyboardEvent.shiftKey) return;
+    routeMappedKey(keyboardEvent, true);
+  };
+  const onKeyDown = (event: Event): void => {
+    const keyboardEvent = event as KeyboardEvent;
+    if (capturesTab && keyboardEvent.code === "Tab") return;
+    routeMappedKey(keyboardEvent, false);
   };
 
+  if (capturesTab) target.addEventListener("keydown", onMappedTabKeyDown, true);
   target.addEventListener("keydown", onKeyDown);
-  return () => target.removeEventListener("keydown", onKeyDown);
+  return () => {
+    if (capturesTab) target.removeEventListener("keydown", onMappedTabKeyDown, true);
+    target.removeEventListener("keydown", onKeyDown);
+  };
 }
