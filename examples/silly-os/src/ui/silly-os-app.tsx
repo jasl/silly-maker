@@ -10,8 +10,8 @@ import {
 } from "react";
 
 import type {
+  BrowserPiCustomModelApiV1,
   BrowserPiModelSelectionV1,
-  BrowserPiProviderCatalogWireV1,
   BrowserPiWorkerRuntimeV1,
 } from "../agent/browser-pi-worker-protocol.ts";
 import { getSillyOsCopyV1, resolveSillyOsCopyV1, type SillyOsLocaleV1 } from "../content/copy.ts";
@@ -21,8 +21,12 @@ import type {
 } from "../product/creator-controller.ts";
 import type { BrowserProgramWorkspaceAuthorityV1 } from "../product/browser-program-workspace-authority.ts";
 import {
+  browserProviderSettingsRevisionV2,
   createBrowserProviderSettingsRepositoryV1,
+  type BrowserProviderBuiltinModelRefV1,
+  type BrowserProviderPreferredModelRefV1,
   type BrowserProviderSettingsRepositoryV1,
+  type BrowserProviderSettingsSnapshotV1,
 } from "../product/browser-provider-settings-repository.ts";
 import {
   acknowledgeAppliedAgentTerminalV1,
@@ -31,7 +35,6 @@ import {
 import { CreatorHomeV1 } from "./creator-home.tsx";
 import { ProgramWorkspaceV1 } from "./program-workspace.tsx";
 import {
-  type ProviderSettingsAvailabilityV1,
   type ProviderSettingsCatalogV1,
   type ProviderSettingsCustomProfileDraftV1,
   type ProviderSettingsCustomProfileV1,
@@ -39,6 +42,7 @@ import {
   type ProviderSettingsSelectionV1,
   ProviderSettingsV1,
 } from "./provider-settings.tsx";
+import { projectProviderSettingsCatalogV1 } from "./provider-settings-catalog.ts";
 import type { WorkpieceBrowserStorageV1, WorkpieceWorkspaceExportV1 } from "./workpiece-pane.tsx";
 import {
   createBrowserWorkspaceWindowStoragePortV1,
@@ -69,43 +73,52 @@ type BrowserCreatorAgentExportInputV1 = Parameters<BrowserCreatorAgentPortV1["ex
 type BrowserCreatorAgentExportReadyV1 = Parameters<
   BrowserCreatorAgentExportInputV1["onReady"]
 >[0];
-type PiAgentSetupStatusV1 = "loading" | "available" | "initializing" | "ready" | "failed";
+type PiAgentSetupStatusV1 =
+  | "loading"
+  | "available"
+  | "saving"
+  | "credential_saved"
+  | "testing"
+  | "ready"
+  | "test_failed"
+  | "failed";
+type SettingsReturnTargetV1 = "home" | "home-models" | "workspace" | "workspace-models";
+
+function agentWorkerHoldsCredentialV1(status: PiAgentSetupStatusV1): boolean {
+  switch (status) {
+    case "credential_saved":
+    case "testing":
+    case "ready":
+    case "test_failed":
+      return true;
+    case "loading":
+    case "available":
+    case "saving":
+    case "failed":
+      return false;
+  }
+  const exhaustive: never = status;
+  return exhaustive;
+}
+
+export function providerApiKeyWarningRequiredV1(status: PiAgentSetupStatusV1): boolean {
+  return !agentWorkerHoldsCredentialV1(status);
+}
+
+function agentRuntimeUsableV1(
+  runtime: BrowserPiWorkerRuntimeV1,
+  status: PiAgentSetupStatusV1,
+): boolean {
+  return runtime === "deterministic_test"
+    ? status === "ready"
+    : agentWorkerHoldsCredentialV1(status);
+}
 
 function requestedBrowserPiRuntimeV1(): BrowserPiWorkerRuntimeV1 {
   if (typeof location === "undefined") return "pi_provider";
   const requested = new URLSearchParams(location.search).get("agent");
   if (requested === "pi-test") return "deterministic_test";
   return "pi_provider";
-}
-
-function settingsAvailabilityV1(
-  status: "qualified" | "candidate" | "unavailable",
-): ProviderSettingsAvailabilityV1 {
-  if (status === "qualified") return { status };
-  if (status === "candidate") return { status, reason: "qualification_pending" };
-  return { status, reason: "not_qualified" };
-}
-
-function projectProviderSettingsCatalogV1(
-  catalog: BrowserPiProviderCatalogWireV1,
-): ProviderSettingsCatalogV1 {
-  return {
-    phase: "ready",
-    providers: catalog.providers.map((provider) => ({
-      providerId: provider.id,
-      name: provider.name,
-      baseUrl: provider.baseUrl,
-      availability: settingsAvailabilityV1(provider.availability),
-      models: provider.models.map((model) => ({
-        providerId: provider.id,
-        modelId: model.id,
-        name: model.name,
-        api: model.api,
-        baseUrl: model.baseUrl,
-        availability: settingsAvailabilityV1(model.availability),
-      })),
-    })),
-  };
 }
 
 function createProviderSettingsRepositoryV1(): BrowserProviderSettingsRepositoryV1 | null {
@@ -117,12 +130,144 @@ function createProviderSettingsRepositoryV1(): BrowserProviderSettingsRepository
   }
 }
 
+interface CreatorProviderModelChoiceV1 {
+  readonly value: string;
+  readonly modelName: string;
+  readonly providerName: string;
+  readonly selection: BrowserPiModelSelectionV1;
+  readonly preference: BrowserProviderPreferredModelRefV1;
+}
+
+function browserPiCustomModelApiV1(value: string): BrowserPiCustomModelApiV1 | null {
+  switch (value) {
+    case "openai-completions":
+    case "openai-responses":
+    case "anthropic-messages":
+    case "google-generative-ai":
+      return value;
+    default:
+      return null;
+  }
+}
+
+function builtinModelRefKeyV1(value: BrowserProviderBuiltinModelRefV1): string {
+  return JSON.stringify(["builtin", value.providerId, value.modelId]);
+}
+
+function customModelRefKeyV1(profileId: string): string {
+  return JSON.stringify(["custom", profileId]);
+}
+
+function sameProviderSelectionV1(
+  left: BrowserPiModelSelectionV1 | null,
+  right: BrowserPiModelSelectionV1 | null,
+): boolean {
+  if (left === null || right === null || left.kind !== right.kind) return left === right;
+  return left.kind === "builtin" && right.kind === "builtin"
+    ? left.providerId === right.providerId && left.modelId === right.modelId &&
+      left.api === right.api && left.baseUrl === right.baseUrl
+    : left.kind === "custom" && right.kind === "custom" &&
+      left.profile.profileId === right.profile.profileId &&
+      left.profile.api === right.profile.api && left.profile.baseUrl === right.profile.baseUrl &&
+      left.profile.modelId === right.profile.modelId;
+}
+
+/** Built-ins share one credential scope only on the same Provider endpoint. */
+export function selectionsShareCredentialScopeV1(
+  active: BrowserPiModelSelectionV1,
+  candidate: BrowserPiModelSelectionV1,
+): boolean {
+  if (active.kind === "builtin" && candidate.kind === "builtin") {
+    return active.providerId === candidate.providerId && active.baseUrl === candidate.baseUrl;
+  }
+  return sameProviderSelectionV1(active, candidate);
+}
+
+function providerPreferenceFromSelectionV1(
+  selection: BrowserPiModelSelectionV1,
+): BrowserProviderPreferredModelRefV1 {
+  return selection.kind === "builtin"
+    ? {
+      kind: "builtin",
+      providerId: selection.providerId,
+      modelId: selection.modelId,
+    }
+    : { kind: "custom", profileId: selection.profile.profileId };
+}
+
+function creatorProviderModelChoicesV1(
+  catalog: ProviderSettingsCatalogV1,
+  customProfiles: readonly ProviderSettingsCustomProfileV1[],
+  enabledBuiltinModels: readonly BrowserProviderBuiltinModelRefV1[],
+): readonly CreatorProviderModelChoiceV1[] {
+  const enabled = new Set(enabledBuiltinModels.map(builtinModelRefKeyV1));
+  const builtinChoices = catalog.phase === "ready"
+    ? catalog.providers.flatMap((provider) =>
+      provider.models.flatMap((model): readonly CreatorProviderModelChoiceV1[] => {
+        const api = browserPiCustomModelApiV1(model.api);
+        const preference: BrowserProviderPreferredModelRefV1 = {
+          kind: "builtin",
+          providerId: provider.providerId,
+          modelId: model.modelId,
+        };
+        if (
+          model.availability.status !== "available" || api === null ||
+          !enabled.has(builtinModelRefKeyV1(preference))
+        ) return [];
+        return [{
+          value: builtinModelRefKeyV1(preference),
+          modelName: model.name,
+          providerName: provider.name,
+          selection: {
+            kind: "builtin",
+            providerId: provider.providerId,
+            modelId: model.modelId,
+            api,
+            baseUrl: model.baseUrl,
+          },
+          preference,
+        }];
+      })
+    )
+    : [];
+  const customChoices = customProfiles.map((profile): CreatorProviderModelChoiceV1 => ({
+    value: customModelRefKeyV1(profile.profileId),
+    modelName: profile.modelId,
+    providerName: profile.displayName,
+    selection: { kind: "custom", profile },
+    preference: { kind: "custom", profileId: profile.profileId },
+  }));
+  return [...builtinChoices, ...customChoices];
+}
+
+function preferredModelValueV1(
+  preferred: BrowserProviderPreferredModelRefV1 | null,
+  choices: readonly CreatorProviderModelChoiceV1[],
+): string | null {
+  if (preferred === null) return null;
+  const key = preferred.kind === "builtin"
+    ? builtinModelRefKeyV1(preferred)
+    : customModelRefKeyV1(preferred.profileId);
+  return choices.some((choice) => choice.value === key) ? key : null;
+}
+
+function emptyProviderSettingsSnapshotV1(): BrowserProviderSettingsSnapshotV1 {
+  return Object.freeze({
+    revision: browserProviderSettingsRevisionV2,
+    customProfiles: Object.freeze([]),
+    enabledBuiltinModels: Object.freeze([]),
+    preferredModel: null,
+  });
+}
+
 function piAgentRunStatusV1(
   phase: BrowserCreatorAgentSnapshotV1["phase"],
 ): "connecting" | "ready" | "running" | "completed" | "failed" | "disposed" {
   switch (phase) {
     case "uninitialized":
-    case "initializing":
+    case "configuring":
+    case "configured":
+    case "testing":
       return "connecting";
     case "ready":
       return "ready";
@@ -223,22 +368,24 @@ export function SillyOsAppV1({
   const [activeProviderSelection, setActiveProviderSelection] = useState<
     BrowserPiModelSelectionV1 | null
   >(null);
+  const [providerModelSelectionPending, setProviderModelSelectionPending] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [providerCatalog, setProviderCatalog] = useState<ProviderSettingsCatalogV1>({
     phase: "loading",
   });
   const [providerSettingsRepository] = useState(createProviderSettingsRepositoryV1);
-  const [customProviderProfiles, setCustomProviderProfiles] = useState<
-    readonly ProviderSettingsCustomProfileV1[]
+  const [providerSettingsSnapshot, setProviderSettingsSnapshot] = useState<
+    BrowserProviderSettingsSnapshotV1
   >(() => {
-    if (providerSettingsRepository === null) return [];
+    if (providerSettingsRepository === null) return emptyProviderSettingsSnapshotV1();
     try {
-      return providerSettingsRepository.list();
+      return providerSettingsRepository.read();
     } catch (error) {
       reportFailure("silly_os.provider_settings_load_failed", error);
-      return [];
+      return emptyProviderSettingsSnapshotV1();
     }
   });
+  const customProviderProfiles = providerSettingsSnapshot.customProfiles;
   const [agentPort, setAgentPort] = useState<BrowserCreatorAgentPortV1 | null>(null);
   const [agentSnapshot, setAgentSnapshot] = useState<BrowserCreatorAgentSnapshotV1 | null>(null);
   const [browserStoragePort] = useState(() =>
@@ -256,8 +403,11 @@ export function SillyOsAppV1({
   >(null);
   const agentPortRef = useRef<BrowserCreatorAgentPortV1 | null>(null);
   const agentSetupEpochRef = useRef(0);
+  const providerModelSelectionEpochRef = useRef(0);
+  const providerModelSelectionPendingRef = useRef(false);
+  const providerModelSelectionSettlementRef = useRef<Promise<void>>(Promise.resolve());
   const providerCatalogEpochRef = useRef(0);
-  const settingsReturnViewRef = useRef<"home" | "workspace">("home");
+  const settingsReturnTargetRef = useRef<SettingsReturnTargetV1>("home");
   const agentSetupSettlementRef = useRef<Promise<void>>(Promise.resolve());
   const agentTeardownRef = useRef<Promise<void>>(Promise.resolve());
   const agentWorkspaceLifecycleRef = useRef<Promise<void>>(Promise.resolve());
@@ -290,10 +440,12 @@ export function SillyOsAppV1({
     finalPhase: "forgotten" | "disposed",
   ): Promise<void> => {
     const precedingTeardown = agentTeardownRef.current;
+    const modelSelectionSettlement = providerModelSelectionSettlementRef.current;
     const workspaceSettlement = agentWorkspaceLifecycleRef.current;
     const terminalSettlement = agentTerminalSettlementRef.current;
     const teardown = Promise.all([
       precedingTeardown.catch(() => undefined),
+      modelSelectionSettlement.catch(() => undefined),
       workspaceSettlement.catch(() => undefined),
       terminalSettlement.catch(() => undefined),
     ]).then(() => finalPhase === "forgotten" ? port.forget() : port.dispose()).catch(
@@ -305,6 +457,8 @@ export function SillyOsAppV1({
 
   const drainAgentGraphV1 = useCallback(async (): Promise<void> => {
     agentSetupEpochRef.current += 1;
+    providerModelSelectionEpochRef.current += 1;
+    providerModelSelectionPendingRef.current = false;
     providerCatalogEpochRef.current += 1;
     browserStorageOperationEpochRef.current += 1;
     workspaceExportEpochRef.current += 1;
@@ -316,6 +470,7 @@ export function SillyOsAppV1({
     if (current !== null) void queueAgentPortTeardownV1(current, "disposed");
     await Promise.all([
       agentSetupSettlementRef.current.catch(() => undefined),
+      providerModelSelectionSettlementRef.current.catch(() => undefined),
       agentWorkspaceLifecycleRef.current.catch(() => undefined),
       agentTerminalSettlementRef.current.catch(() => undefined),
       agentTeardownRef.current.catch(() => undefined),
@@ -485,7 +640,8 @@ export function SillyOsAppV1({
   useEffect(() => {
     const port = agentPortRef.current;
     if (
-      port === null || piAgentSetupStatus !== "ready" || !agentDrainRegistry.isAccepting()
+      port === null || !agentRuntimeUsableV1(piRuntime, piAgentSetupStatus) ||
+      !agentDrainRegistry.isAccepting()
     ) return;
     const desired = routedProgramId !== null && routedWorkspaceId !== null
       ? { programId: routedProgramId, workspaceId: routedWorkspaceId }
@@ -495,6 +651,7 @@ export function SillyOsAppV1({
     agentPort,
     agentDrainRegistry,
     piAgentSetupStatus,
+    piRuntime,
     queueAgentWorkspaceV1,
     routedProgramId,
     routedWorkspaceId,
@@ -511,7 +668,7 @@ export function SillyOsAppV1({
     history.replaceState(history.state, "", url);
   };
 
-  const loadProviderCatalogV1 = (): void => {
+  const loadProviderCatalogV1 = useCallback((): void => {
     const epoch = ++providerCatalogEpochRef.current;
     setProviderCatalog({ phase: "loading" });
     void import("../agent/browser-pi-catalog-port.ts").then(
@@ -529,27 +686,137 @@ export function SillyOsAppV1({
       setProviderCatalog({ phase: "failed", diagnosticCode: "worker_failed" });
       reportFailure("silly_os.browser_pi_catalog_unavailable", error);
     });
-  };
+  }, [agentDrainRegistry, reportFailure]);
+
+  useEffect(() => {
+    if (!internalPiTest) loadProviderCatalogV1();
+  }, [internalPiTest, loadProviderCatalogV1]);
+
+  useEffect(() => {
+    if (providerCatalog.phase !== "ready" || providerSettingsRepository === null) return;
+    const availableBuiltinModelKeys = new Set(
+      providerCatalog.providers.flatMap((provider) =>
+        provider.models
+          .filter((model) => model.availability.status === "available")
+          .map((model) =>
+            builtinModelRefKeyV1({ providerId: provider.providerId, modelId: model.modelId })
+          )
+      ),
+    );
+    const missing = providerSettingsSnapshot.enabledBuiltinModels.filter((model) =>
+      !availableBuiltinModelKeys.has(builtinModelRefKeyV1(model))
+    );
+    const preferred = providerSettingsSnapshot.preferredModel;
+    const preferredMissing = preferred?.kind === "builtin" &&
+      !availableBuiltinModelKeys.has(builtinModelRefKeyV1(preferred));
+    if (missing.length === 0 && !preferredMissing) return;
+    try {
+      for (const model of missing) {
+        providerSettingsRepository.setBuiltinModelEnabled(model, false);
+      }
+      if (preferredMissing) providerSettingsRepository.setPreferredModel(null);
+      setProviderSettingsSnapshot(providerSettingsRepository.read());
+    } catch (error) {
+      reportFailure("silly_os.provider_settings_save_failed", error);
+    }
+  }, [
+    providerCatalog,
+    providerSettingsRepository,
+    providerSettingsSnapshot.enabledBuiltinModels,
+    providerSettingsSnapshot.preferredModel,
+    reportFailure,
+  ]);
 
   const openSettingsV1 = (): void => {
-    settingsReturnViewRef.current = snapshot.route;
+    settingsReturnTargetRef.current = snapshot.route;
+    setSettingsOpen(true);
+    if (providerCatalog.phase === "loading") loadProviderCatalogV1();
+  };
+
+  const openModelSettingsV1 = (surface: "home" | "workspace"): void => {
+    settingsReturnTargetRef.current = `${surface}-models`;
     setSettingsOpen(true);
     if (providerCatalog.phase === "loading") loadProviderCatalogV1();
   };
 
   const closeSettingsV1 = (): void => {
     setSettingsOpen(false);
-    const returnView = settingsReturnViewRef.current;
+    const returnTarget = settingsReturnTargetRef.current;
+    const returnSelector = returnTarget === "home-models" || returnTarget === "workspace-models"
+      ? `[data-model-picker-surface="${
+        returnTarget === "home-models" ? "home" : "workspace"
+      }"] [role="combobox"]`
+      : `[data-open-settings="${returnTarget}"]`;
     requestAnimationFrame(() => {
-      document.querySelector<HTMLElement>(`[data-open-settings="${returnView}"]`)?.focus();
+      document.querySelector<HTMLElement>(returnSelector)?.focus();
     });
   };
 
-  const initializePiAgentV1 = (
+  const persistProviderPreferenceV1 = (selection: BrowserPiModelSelectionV1): void => {
+    if (providerSettingsRepository === null) return;
+    try {
+      providerSettingsRepository.setPreferredModel(providerPreferenceFromSelectionV1(selection));
+      setProviderSettingsSnapshot(providerSettingsRepository.read());
+    } catch (error) {
+      reportFailure("silly_os.provider_settings_save_failed", error);
+    }
+  };
+
+  const selectProviderModelChoiceV1 = (choice: CreatorProviderModelChoiceV1): void => {
+    const port = agentPortRef.current;
+    if (
+      port === null || activeProviderSelection === null ||
+      providerModelSelectionPendingRef.current || !agentDrainRegistry.isAccepting()
+    ) return;
+    if (sameProviderSelectionV1(activeProviderSelection, choice.selection)) {
+      persistProviderPreferenceV1(choice.selection);
+      return;
+    }
+
+    const setupEpoch = agentSetupEpochRef.current;
+    const selectionEpoch = ++providerModelSelectionEpochRef.current;
+    providerModelSelectionPendingRef.current = true;
+    setProviderModelSelectionPending(true);
+    const selection = (async (): Promise<void> => {
+      try {
+        const result = await port.selectModel(choice.selection);
+        if (
+          providerModelSelectionEpochRef.current !== selectionEpoch ||
+          agentSetupEpochRef.current !== setupEpoch || agentPortRef.current !== port ||
+          !agentDrainRegistry.isAccepting()
+        ) return;
+        if (result.kind !== "selected") {
+          reportFailure("silly_os.browser_pi_model_select_failed", result.diagnostic);
+          return;
+        }
+        persistProviderPreferenceV1(choice.selection);
+        setActiveProviderSelection(choice.selection);
+      } catch (error) {
+        if (
+          providerModelSelectionEpochRef.current === selectionEpoch &&
+          agentSetupEpochRef.current === setupEpoch && agentPortRef.current === port &&
+          agentDrainRegistry.isAccepting()
+        ) reportFailure("silly_os.browser_pi_model_select_failed", error);
+      } finally {
+        if (providerModelSelectionEpochRef.current === selectionEpoch) {
+          providerModelSelectionPendingRef.current = false;
+          setProviderModelSelectionPending(false);
+        }
+      }
+    })();
+    providerModelSelectionSettlementRef.current = selection;
+  };
+
+  const savePiAgentCredentialV1 = (
     selection: BrowserPiModelSelectionV1 | null,
     suppliedCredential: string,
+    testAfterSave = false,
   ): void => {
+    providerModelSelectionEpochRef.current += 1;
+    providerModelSelectionPendingRef.current = false;
+    setProviderModelSelectionPending(false);
     const factory = agentFactoryRef.current;
+    if (selection !== null) persistProviderPreferenceV1(selection);
     setActiveProviderSelection(piRuntime === "pi_provider" ? selection : null);
     if (
       !agentDrainRegistry.isAccepting() || factory === null || suppliedCredential.length === 0 ||
@@ -560,7 +827,7 @@ export function SillyOsAppV1({
       return;
     }
     const epoch = ++agentSetupEpochRef.current;
-    setPiAgentSetupStatus("initializing");
+    setPiAgentSetupStatus("saving");
     let credential = suppliedCredential;
     let port!: BrowserCreatorAgentPortV1;
     const onConnectionLost = (): void => {
@@ -569,6 +836,9 @@ export function SillyOsAppV1({
         !agentDrainRegistry.isAccepting()
       ) return;
       agentSetupEpochRef.current += 1;
+      providerModelSelectionEpochRef.current += 1;
+      providerModelSelectionPendingRef.current = false;
+      setProviderModelSelectionPending(false);
       workspaceExportEpochRef.current += 1;
       workspaceExportAbortRef.current?.abort();
       workspaceExportAbortRef.current = null;
@@ -586,13 +856,11 @@ export function SillyOsAppV1({
     try {
       port = piRuntime === "deterministic_test"
         ? factory({
-          apiKey: credential,
           onConnectionLost,
           runtime: "deterministic_test",
           workspaceAuthority,
         })
         : factory({
-          apiKey: credential,
           onConnectionLost,
           runtime: "pi_provider",
           selection: selection as BrowserPiModelSelectionV1,
@@ -601,10 +869,9 @@ export function SillyOsAppV1({
     } catch (error) {
       credential = "";
       setPiAgentSetupStatus("failed");
-      reportFailure("silly_os.browser_pi_initialize_failed", error);
+      reportFailure("silly_os.browser_pi_configure_failed", error);
       return;
     }
-    credential = "";
     const predecessor = agentPortRef.current;
     agentPortRef.current = null;
     setAgentPort(null);
@@ -621,7 +888,50 @@ export function SillyOsAppV1({
       }
       agentPortRef.current = port;
       setAgentPort(port);
-      const result = await port.initialize();
+      const configuration = port.configureCredential(credential);
+      credential = "";
+      const configured = await configuration;
+      if (
+        agentSetupEpochRef.current !== epoch || agentPortRef.current !== port ||
+        !agentDrainRegistry.isAccepting()
+      ) return;
+      if (configured.kind !== "configured") {
+        setPiAgentSetupStatus("failed");
+        reportFailure("silly_os.browser_pi_configure_failed", configured.diagnostic);
+        return;
+      }
+      setPiAgentSetupStatus("credential_saved");
+      if (!testAfterSave) return;
+      setPiAgentSetupStatus("testing");
+      const tested = await port.testConnection();
+      if (
+        agentSetupEpochRef.current !== epoch || agentPortRef.current !== port ||
+        !agentDrainRegistry.isAccepting()
+      ) return;
+      if (tested.kind === "ready") {
+        setPiAgentSetupStatus("ready");
+        return;
+      }
+      setPiAgentSetupStatus("test_failed");
+      reportFailure("silly_os.browser_pi_connection_test_failed", tested.diagnostic);
+    })();
+    agentSetupSettlementRef.current = setup;
+  };
+
+  const testPiAgentConnectionV1 = (): void => {
+    const port = agentPortRef.current;
+    if (
+      port === null || !agentDrainRegistry.isAccepting() ||
+      (piAgentSetupStatus !== "credential_saved" && piAgentSetupStatus !== "ready" &&
+        piAgentSetupStatus !== "test_failed")
+    ) {
+      reportFailure("silly_os.browser_pi_connection_test_failed", "credential_not_saved");
+      return;
+    }
+    const epoch = agentSetupEpochRef.current;
+    setPiAgentSetupStatus("testing");
+    const test = (async (): Promise<void> => {
+      const result = await port.testConnection();
       if (
         agentSetupEpochRef.current !== epoch || agentPortRef.current !== port ||
         !agentDrainRegistry.isAccepting()
@@ -630,14 +940,17 @@ export function SillyOsAppV1({
         setPiAgentSetupStatus("ready");
         return;
       }
-      setPiAgentSetupStatus("failed");
-      reportFailure("silly_os.browser_pi_initialize_failed", result.diagnostic);
+      setPiAgentSetupStatus("test_failed");
+      reportFailure("silly_os.browser_pi_connection_test_failed", result.diagnostic);
     })();
-    agentSetupSettlementRef.current = setup;
+    agentSetupSettlementRef.current = test;
   };
 
   const forgetPiAgentV1 = (): void => {
     agentSetupEpochRef.current += 1;
+    providerModelSelectionEpochRef.current += 1;
+    providerModelSelectionPendingRef.current = false;
+    setProviderModelSelectionPending(false);
     workspaceExportEpochRef.current += 1;
     workspaceExportAbortRef.current?.abort();
     workspaceExportAbortRef.current = null;
@@ -651,6 +964,37 @@ export function SillyOsAppV1({
     setPiAgentSetupStatus(agentFactoryRef.current === null ? "loading" : "available");
     if (current !== null) {
       void queueAgentPortTeardownV1(current, "forgotten");
+    }
+  };
+
+  const setBuiltinModelEnabledV1 = (
+    model: BrowserProviderBuiltinModelRefV1,
+    enabled: boolean,
+  ): void => {
+    if (providerSettingsRepository === null) {
+      reportFailure("silly_os.provider_settings_save_failed", "storage_unavailable");
+      return;
+    }
+    try {
+      providerSettingsRepository.setBuiltinModelEnabled(model, enabled);
+      const nextSnapshot = providerSettingsRepository.read();
+      setProviderSettingsSnapshot(nextSnapshot);
+      if (
+        !enabled && activeProviderSelection?.kind === "builtin" &&
+        activeProviderSelection.providerId === model.providerId &&
+        activeProviderSelection.modelId === model.modelId
+      ) {
+        const nextChoice = creatorProviderModelChoicesV1(
+          providerCatalog,
+          nextSnapshot.customProfiles,
+          nextSnapshot.enabledBuiltinModels,
+        ).find((choice) =>
+          selectionsShareCredentialScopeV1(activeProviderSelection, choice.selection)
+        );
+        if (nextChoice !== undefined) selectProviderModelChoiceV1(nextChoice);
+      }
+    } catch (error) {
+      reportFailure("silly_os.provider_settings_save_failed", error);
     }
   };
 
@@ -671,7 +1015,7 @@ export function SillyOsAppV1({
         contextWindow: draft.contextWindow,
         maxTokens: draft.maxTokens,
       });
-      setCustomProviderProfiles(providerSettingsRepository.list());
+      setProviderSettingsSnapshot(providerSettingsRepository.read());
       return created;
     } catch (error) {
       reportFailure("silly_os.provider_settings_save_failed", error);
@@ -687,7 +1031,7 @@ export function SillyOsAppV1({
         activeProviderSelection.profile.profileId === profileId
       ) forgetPiAgentV1();
       providerSettingsRepository.remove(profileId);
-      setCustomProviderProfiles(providerSettingsRepository.list());
+      setProviderSettingsSnapshot(providerSettingsRepository.read());
     } catch (error) {
       reportFailure("silly_os.provider_settings_remove_failed", error);
     }
@@ -706,8 +1050,8 @@ export function SillyOsAppV1({
 
   const sendFollowUpV1 = async (text: string): Promise<boolean> => {
     const port = agentPortRef.current;
-    if (port === null || piAgentSetupStatus !== "ready") {
-      reportFailure("silly_os.browser_pi_unavailable", "initialize_required");
+    if (port === null || !agentRuntimeUsableV1(piRuntime, piAgentSetupStatus)) {
+      reportFailure("silly_os.browser_pi_unavailable", "credential_required");
       return false;
     }
     const currentSession = controller.getSnapshot().session;
@@ -779,7 +1123,7 @@ export function SillyOsAppV1({
     const descriptor = currentAgent?.workspace.descriptor;
     if (
       port === null || workspaceExportAbortRef.current !== null ||
-      piAgentSetupStatus !== "ready" || durability.phase !== "ready" ||
+      !agentRuntimeUsableV1(piRuntime, piAgentSetupStatus) || durability.phase !== "ready" ||
       currentSession.route !== "workspace" || currentSession.program === null ||
       currentSession.workspace === null || currentAgent?.phase === "running" ||
       (currentAgent?.terminalRuns.length ?? 0) !== 0 ||
@@ -893,17 +1237,66 @@ export function SillyOsAppV1({
   const providerSettingsProfile: ProviderSettingsProfileV1 = activeProviderSelection === null ||
       internalPiTest
     ? { phase: "disconnected", active: null }
-    : piAgentSetupStatus === "initializing"
-    ? { phase: "initializing", active: activeProviderSelection }
+    : piAgentSetupStatus === "saving"
+    ? { phase: "saving", active: activeProviderSelection }
+    : piAgentSetupStatus === "credential_saved"
+    ? { phase: "credential_saved", active: activeProviderSelection }
+    : piAgentSetupStatus === "testing"
+    ? { phase: "testing", active: activeProviderSelection }
     : piAgentSetupStatus === "ready"
     ? { phase: "ready", active: activeProviderSelection }
+    : piAgentSetupStatus === "test_failed"
+    ? { phase: "test_failed", active: activeProviderSelection }
     : piAgentSetupStatus === "failed"
     ? {
       phase: "failed",
       active: activeProviderSelection,
-      diagnosticCode: agentSnapshot?.diagnostic?.code ?? "initialization_failed",
+      diagnosticCode: agentSnapshot?.diagnostic?.code ?? "worker_unavailable",
     }
     : { phase: "disconnected", active: null };
+  const creatorProviderModelChoices = creatorProviderModelChoicesV1(
+    providerCatalog,
+    customProviderProfiles,
+    providerSettingsSnapshot.enabledBuiltinModels,
+  );
+  const credentialBoundProviderModelChoices = activeProviderSelection !== null &&
+      agentWorkerHoldsCredentialV1(piAgentSetupStatus)
+    ? creatorProviderModelChoices.filter((choice) =>
+      selectionsShareCredentialScopeV1(activeProviderSelection, choice.selection)
+    )
+    : [];
+  const creatorProviderModelValue = preferredModelValueV1(
+    providerSettingsSnapshot.preferredModel,
+    credentialBoundProviderModelChoices,
+  );
+  const preferredProviderChoice = credentialBoundProviderModelChoices.find(
+    ({ value }) => value === creatorProviderModelValue,
+  ) ?? null;
+  const preferredProviderIsActive = preferredProviderChoice !== null &&
+    sameProviderSelectionV1(activeProviderSelection, preferredProviderChoice.selection);
+  const creatorProviderModelStatus = providerModelSelectionPending
+    ? "initializing" as const
+    : preferredProviderIsActive && agentWorkerHoldsCredentialV1(piAgentSetupStatus)
+    ? "ready" as const
+    : "required" as const;
+
+  const selectCreatorProviderModelV1 = (value: string): void => {
+    const choice = credentialBoundProviderModelChoices.find((candidate) =>
+      candidate.value === value
+    );
+    if (choice !== undefined) selectProviderModelChoiceV1(choice);
+  };
+  const creatorProviderModelV1 = (surface: "home" | "workspace") => ({
+    status: creatorProviderModelStatus,
+    selectedValue: creatorProviderModelValue,
+    options: credentialBoundProviderModelChoices.map((choice) => ({
+      value: choice.value,
+      modelName: choice.modelName,
+      providerName: choice.providerName,
+    })),
+    onSelect: selectCreatorProviderModelV1,
+    onOpenSettings: () => openModelSettingsV1(surface),
+  } as const);
 
   return (
     <div
@@ -927,12 +1320,18 @@ export function SillyOsAppV1({
             catalog={providerCatalog}
             customProfiles={customProviderProfiles}
             profile={providerSettingsProfile}
+            preferredBuiltinModel={providerSettingsSnapshot.preferredModel?.kind === "builtin"
+              ? providerSettingsSnapshot.preferredModel
+              : null}
             onBack={closeSettingsV1}
             onLocaleChange={changeLocaleV1}
             onRetryCatalog={loadProviderCatalogV1}
-            onInitialize={(selection: ProviderSettingsSelectionV1, credential: string) => {
-              initializePiAgentV1(selection, credential);
+            enabledBuiltinModels={providerSettingsSnapshot.enabledBuiltinModels}
+            onSetBuiltinModelEnabled={setBuiltinModelEnabledV1}
+            onSaveCredential={(selection: ProviderSettingsSelectionV1, credential: string) => {
+              savePiAgentCredentialV1(selection, credential);
             }}
+            onTestConnection={testPiAgentConnectionV1}
             onCreateCustomProfile={createCustomProviderProfileV1}
             onRemoveCustomProfile={removeCustomProviderProfileV1}
             onForget={forgetPiAgentV1}
@@ -942,7 +1341,9 @@ export function SillyOsAppV1({
         ? (
           <CreatorHomeV1
             copy={copy}
-            createDisabled={durability.phase !== "ready" || piAgentSetupStatus !== "ready"}
+            createDisabled={durability.phase !== "ready" ||
+              !agentRuntimeUsableV1(piRuntime, piAgentSetupStatus) ||
+              (!internalPiTest && creatorProviderModelStatus !== "ready")}
             programCatalog={{
               status: durability.phase === "loading" && durability.operation === "catalog"
                 ? "loading"
@@ -950,7 +1351,8 @@ export function SillyOsAppV1({
                 ? "failed"
                 : "ready",
               programs: controllerSnapshot.recentPrograms,
-              openDisabled: durability.phase !== "ready" || piAgentSetupStatus !== "ready",
+              openDisabled: durability.phase !== "ready" ||
+                !agentRuntimeUsableV1(piRuntime, piAgentSetupStatus),
               onOpen: (programId) => {
                 void controller.openProgram(programId).then((result) => {
                   if (result.kind !== "completed") {
@@ -964,19 +1366,29 @@ export function SillyOsAppV1({
               ? {
                 piAgentSetup: {
                   runtime: "deterministic_test" as const,
-                  status: piAgentSetupStatus,
-                  onInitialize: (credential: string) => initializePiAgentV1(null, credential),
+                  status: piAgentSetupStatus === "saving" ||
+                      piAgentSetupStatus === "credential_saved" ||
+                      piAgentSetupStatus === "testing"
+                    ? "initializing" as const
+                    : piAgentSetupStatus === "test_failed"
+                    ? "failed" as const
+                    : piAgentSetupStatus,
+                  onInitialize: (credential: string) =>
+                    savePiAgentCredentialV1(null, credential, true),
                 },
               }
               : {})}
             {...(internalPiTest ? {} : {
               onOpenSettings: openSettingsV1,
-              ...(piAgentSetupStatus === "ready" ? {} : {
-                providerSetup: {
-                  status: piAgentSetupStatus,
-                  onOpenSettings: openSettingsV1,
-                },
-              }),
+              providerModel: creatorProviderModelV1("home"),
+              ...(providerApiKeyWarningRequiredV1(piAgentSetupStatus)
+                ? {
+                  providerSetup: {
+                    status: piAgentSetupStatus,
+                    onOpenSettings: openSettingsV1,
+                  },
+                }
+                : {}),
             })}
             onCreate={(intent, resourceNames) => {
               void controller.submitIntent(intent).then(async (result) => {
@@ -1041,6 +1453,7 @@ export function SillyOsAppV1({
               });
             }}
             onSend={sendFollowUpV1}
+            {...(internalPiTest ? {} : { providerModel: creatorProviderModelV1("workspace") })}
             {...(agentSnapshot === null ? {} : {
               executionWorkspace: agentSnapshot.workspace,
               browserStorage,

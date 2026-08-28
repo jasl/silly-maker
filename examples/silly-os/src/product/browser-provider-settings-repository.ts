@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 /// <reference lib="dom" />
 
-export const browserProviderSettingsStorageKeyV1 =
-  "sillymaker.example-silly-os.provider-settings.v1";
-export const browserProviderSettingsRevisionV1 = 1 as const;
+export const browserProviderSettingsStorageKeyV2 =
+  "sillymaker.example-silly-os.provider-settings.v2";
+export const browserProviderSettingsRevisionV2 = 2 as const;
 export const browserProviderSettingsMaximumProfilesV1 = 16;
+export const browserProviderSettingsMaximumBuiltinModelsV1 = 128;
 export const browserProviderSettingsMaximumSerializedUtf8BytesV1 = 65_536;
 export const browserProviderProfileIdMaximumUtf8BytesV1 = 64;
+export const browserProviderIdMaximumUtf8BytesV1 = 128;
 export const browserProviderDisplayNameMaximumUtf8BytesV1 = 128;
 export const browserProviderBaseUrlMaximumUtf8BytesV1 = 2_048;
 export const browserProviderModelIdMaximumUtf8BytesV1 = 256;
@@ -35,21 +37,48 @@ export interface BrowserProviderCustomProfileV1 {
   readonly maxTokens: number;
 }
 
+export interface BrowserProviderBuiltinModelRefV1 {
+  readonly providerId: string;
+  readonly modelId: string;
+}
+
+export type BrowserProviderPreferredModelRefV1 =
+  | {
+    readonly kind: "builtin";
+    readonly providerId: string;
+    readonly modelId: string;
+  }
+  | {
+    readonly kind: "custom";
+    readonly profileId: string;
+  };
+
 export interface BrowserProviderSettingsSnapshotV1 {
-  readonly revision: 1;
+  readonly revision: 2;
   readonly customProfiles: readonly BrowserProviderCustomProfileV1[];
+  readonly enabledBuiltinModels: readonly BrowserProviderBuiltinModelRefV1[];
+  readonly preferredModel: BrowserProviderPreferredModelRefV1 | null;
 }
 
 export type BrowserProviderCustomProfileAdmissionV1 =
   | { readonly kind: "admitted"; readonly value: BrowserProviderCustomProfileV1 }
   | { readonly kind: "rejected"; readonly path: string };
 
-export type BrowserProviderSettingsRepositoryOperationV1 = "list" | "add" | "remove";
+export type BrowserProviderSettingsRepositoryOperationV1 =
+  | "read"
+  | "list"
+  | "add"
+  | "remove"
+  | "set_builtin_model_enabled"
+  | "set_preferred_model";
 
 export type BrowserProviderSettingsRepositoryFailureCodeV1 =
   | "invalid_profile"
+  | "invalid_model_ref"
+  | "invalid_preferred_model"
   | "profile_exists"
   | "profile_limit"
+  | "model_limit"
   | "schema_invalid"
   | "storage_unavailable";
 
@@ -69,9 +98,12 @@ export class BrowserProviderSettingsRepositoryErrorV1 extends Error {
 }
 
 export interface BrowserProviderSettingsRepositoryV1 {
+  read(): BrowserProviderSettingsSnapshotV1;
   list(): readonly BrowserProviderCustomProfileV1[];
   add(value: unknown): BrowserProviderCustomProfileV1;
   remove(profileId: string): boolean;
+  setBuiltinModelEnabled(value: unknown, enabled: boolean): boolean;
+  setPreferredModel(value: unknown): BrowserProviderPreferredModelRefV1 | null;
 }
 
 interface ExactRecordV1 {
@@ -179,6 +211,63 @@ function isProfileIdV1(value: unknown): value is string {
     /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/.test(value);
 }
 
+function isProviderIdV1(value: unknown): value is string {
+  return isBoundedTextV1(value, browserProviderIdMaximumUtf8BytesV1, false);
+}
+
+function isModelIdV1(value: unknown): value is string {
+  return isBoundedTextV1(value, browserProviderModelIdMaximumUtf8BytesV1, false);
+}
+
+function compareBuiltinModelRefsV1(
+  left: BrowserProviderBuiltinModelRefV1,
+  right: BrowserProviderBuiltinModelRefV1,
+): number {
+  if (left.providerId !== right.providerId) return left.providerId < right.providerId ? -1 : 1;
+  return left.modelId < right.modelId ? -1 : left.modelId > right.modelId ? 1 : 0;
+}
+
+function builtinModelRefsEqualV1(
+  left: BrowserProviderBuiltinModelRefV1,
+  right: BrowserProviderBuiltinModelRefV1,
+): boolean {
+  return left.providerId === right.providerId && left.modelId === right.modelId;
+}
+
+function preferredModelRefsEqualV1(
+  left: BrowserProviderPreferredModelRefV1 | null,
+  right: BrowserProviderPreferredModelRefV1 | null,
+): boolean {
+  if (left === null || right === null) return left === right;
+  if (left.kind !== right.kind) return false;
+  return left.kind === "builtin" && right.kind === "builtin"
+    ? left.providerId === right.providerId && left.modelId === right.modelId
+    : left.kind === "custom" && right.kind === "custom" && left.profileId === right.profileId;
+}
+
+function normalizeBuiltinModelRefV1(value: unknown): BrowserProviderBuiltinModelRefV1 | null {
+  const ref = exactRecordV1(value, ["providerId", "modelId"]);
+  if (ref === null || !isProviderIdV1(ref.providerId) || !isModelIdV1(ref.modelId)) return null;
+  return Object.freeze({ providerId: ref.providerId, modelId: ref.modelId });
+}
+
+function normalizePreferredModelRefV1(value: unknown): BrowserProviderPreferredModelRefV1 | null {
+  const discriminator = exactRecordV1(value, ["kind", "providerId", "modelId"]) ??
+    exactRecordV1(value, ["kind", "profileId"]);
+  if (discriminator === null) return null;
+  if (discriminator.kind === "builtin") {
+    const builtin = normalizeBuiltinModelRefV1({
+      providerId: discriminator.providerId,
+      modelId: discriminator.modelId,
+    });
+    return builtin === null ? null : Object.freeze({ kind: "builtin", ...builtin });
+  }
+  if (discriminator.kind === "custom" && isProfileIdV1(discriminator.profileId)) {
+    return Object.freeze({ kind: "custom", profileId: discriminator.profileId });
+  }
+  return null;
+}
+
 function isCustomApiFamilyV1(value: unknown): value is BrowserProviderCustomApiFamilyV1 {
   return typeof value === "string" &&
     browserProviderCustomApiFamiliesV1.includes(value as BrowserProviderCustomApiFamilyV1);
@@ -229,6 +318,31 @@ function freezeProfileV1(
   profile: BrowserProviderCustomProfileV1,
 ): BrowserProviderCustomProfileV1 {
   return Object.freeze({ ...profile });
+}
+
+function freezeBuiltinModelRefV1(
+  ref: BrowserProviderBuiltinModelRefV1,
+): BrowserProviderBuiltinModelRefV1 {
+  return Object.freeze({ ...ref });
+}
+
+function freezePreferredModelRefV1(
+  ref: BrowserProviderPreferredModelRefV1 | null,
+): BrowserProviderPreferredModelRefV1 | null {
+  return ref === null ? null : Object.freeze({ ...ref });
+}
+
+function freezeSettingsV1(
+  settings: BrowserProviderSettingsSnapshotV1,
+): BrowserProviderSettingsSnapshotV1 {
+  return Object.freeze({
+    revision: browserProviderSettingsRevisionV2,
+    customProfiles: Object.freeze(settings.customProfiles.map(freezeProfileV1)),
+    enabledBuiltinModels: Object.freeze(
+      settings.enabledBuiltinModels.map(freezeBuiltinModelRefV1),
+    ),
+    preferredModel: freezePreferredModelRefV1(settings.preferredModel),
+  });
 }
 
 function normalizeCustomProfileV1(
@@ -298,31 +412,71 @@ export function admitBrowserProviderCustomProfileV1(
 }
 
 function admitStoredSettingsV1(value: unknown): BrowserProviderSettingsSnapshotV1 | null {
-  const settings = exactRecordV1(value, ["revision", "customProfiles"]);
-  if (settings === null || settings.revision !== browserProviderSettingsRevisionV1) return null;
+  const settings = exactRecordV1(value, [
+    "revision",
+    "customProfiles",
+    "enabledBuiltinModels",
+    "preferredModel",
+  ]);
+  if (settings === null || settings.revision !== browserProviderSettingsRevisionV2) return null;
   const rawProfiles = exactArrayV1(
     settings.customProfiles,
     browserProviderSettingsMaximumProfilesV1,
   );
-  if (rawProfiles === null) return null;
+  const rawBuiltinModels = exactArrayV1(
+    settings.enabledBuiltinModels,
+    browserProviderSettingsMaximumBuiltinModelsV1,
+  );
+  if (rawProfiles === null || rawBuiltinModels === null) return null;
 
   const customProfiles: BrowserProviderCustomProfileV1[] = [];
-  const ids = new Set<string>();
+  const profileIds = new Set<string>();
   let previousProfileId: string | null = null;
   for (const rawProfile of rawProfiles) {
     const admitted = normalizeCustomProfileV1(rawProfile, true);
     if (admitted.kind !== "admitted") return null;
     if (
-      ids.has(admitted.value.profileId) ||
-      (previousProfileId !== null && previousProfileId.localeCompare(admitted.value.profileId) >= 0)
+      profileIds.has(admitted.value.profileId) ||
+      (previousProfileId !== null && previousProfileId >= admitted.value.profileId)
     ) return null;
-    ids.add(admitted.value.profileId);
+    profileIds.add(admitted.value.profileId);
     previousProfileId = admitted.value.profileId;
     customProfiles.push(admitted.value);
   }
-  return Object.freeze({
-    revision: browserProviderSettingsRevisionV1,
-    customProfiles: Object.freeze(customProfiles),
+
+  const enabledBuiltinModels: BrowserProviderBuiltinModelRefV1[] = [];
+  let previousBuiltinModel: BrowserProviderBuiltinModelRefV1 | null = null;
+  for (const rawBuiltinModel of rawBuiltinModels) {
+    const admitted = normalizeBuiltinModelRefV1(rawBuiltinModel);
+    if (
+      admitted === null ||
+      (previousBuiltinModel !== null &&
+        compareBuiltinModelRefsV1(previousBuiltinModel, admitted) >= 0)
+    ) return null;
+    previousBuiltinModel = admitted;
+    enabledBuiltinModels.push(admitted);
+  }
+
+  let preferredModel: BrowserProviderPreferredModelRefV1 | null = null;
+  if (settings.preferredModel !== null) {
+    const admittedPreferredModel = normalizePreferredModelRefV1(settings.preferredModel);
+    if (admittedPreferredModel === null) return null;
+    preferredModel = admittedPreferredModel;
+    if (
+      admittedPreferredModel.kind === "builtin" &&
+      !enabledBuiltinModels.some((model) => builtinModelRefsEqualV1(model, admittedPreferredModel))
+    ) return null;
+    if (
+      admittedPreferredModel.kind === "custom" &&
+      !profileIds.has(admittedPreferredModel.profileId)
+    ) return null;
+  }
+
+  return freezeSettingsV1({
+    revision: browserProviderSettingsRevisionV2,
+    customProfiles,
+    enabledBuiltinModels,
+    preferredModel,
   });
 }
 
@@ -333,9 +487,11 @@ function cloneProfilesV1(
 }
 
 function emptySettingsV1(): BrowserProviderSettingsSnapshotV1 {
-  return Object.freeze({
-    revision: browserProviderSettingsRevisionV1,
-    customProfiles: Object.freeze([]),
+  return freezeSettingsV1({
+    revision: browserProviderSettingsRevisionV2,
+    customProfiles: [],
+    enabledBuiltinModels: [],
+    preferredModel: null,
   });
 }
 
@@ -349,7 +505,7 @@ export function createBrowserProviderSettingsRepositoryV1(input: {
   readonly storage: Storage;
   readonly storageKey?: string;
 }): BrowserProviderSettingsRepositoryV1 {
-  const storageKey = input.storageKey ?? browserProviderSettingsStorageKeyV1;
+  const storageKey = input.storageKey ?? browserProviderSettingsStorageKeyV2;
 
   const loadV1 = (
     operation: BrowserProviderSettingsRepositoryOperationV1,
@@ -394,7 +550,10 @@ export function createBrowserProviderSettingsRepositoryV1(input: {
       throw new BrowserProviderSettingsRepositoryErrorV1("schema_invalid", operation);
     }
     try {
-      if (settings.customProfiles.length === 0) input.storage.removeItem(storageKey);
+      if (
+        settings.customProfiles.length === 0 && settings.enabledBuiltinModels.length === 0 &&
+        settings.preferredModel === null
+      ) input.storage.removeItem(storageKey);
       else input.storage.setItem(storageKey, serialized);
     } catch {
       throw storageFailureV1(operation);
@@ -402,6 +561,10 @@ export function createBrowserProviderSettingsRepositoryV1(input: {
   };
 
   return Object.freeze({
+    read(): BrowserProviderSettingsSnapshotV1 {
+      return freezeSettingsV1(loadV1("read"));
+    },
+
     list(): readonly BrowserProviderCustomProfileV1[] {
       return cloneProfilesV1(loadV1("list").customProfiles);
     },
@@ -423,8 +586,10 @@ export function createBrowserProviderSettingsRepositoryV1(input: {
       );
       persistV1(
         {
-          revision: browserProviderSettingsRevisionV1,
+          revision: browserProviderSettingsRevisionV2,
           customProfiles,
+          enabledBuiltinModels: current.enabledBuiltinModels,
+          preferredModel: current.preferredModel,
         },
         "add",
       );
@@ -440,14 +605,105 @@ export function createBrowserProviderSettingsRepositoryV1(input: {
         profile.profileId !== profileId
       );
       if (customProfiles.length === current.customProfiles.length) return false;
+      const preferredModel = current.preferredModel?.kind === "custom" &&
+          current.preferredModel.profileId === profileId
+        ? null
+        : current.preferredModel;
       persistV1(
         {
-          revision: browserProviderSettingsRevisionV1,
+          revision: browserProviderSettingsRevisionV2,
           customProfiles,
+          enabledBuiltinModels: current.enabledBuiltinModels,
+          preferredModel,
         },
         "remove",
       );
       return true;
+    },
+
+    setBuiltinModelEnabled(value: unknown, enabled: boolean): boolean {
+      const ref = normalizeBuiltinModelRefV1(value);
+      if (ref === null || typeof enabled !== "boolean") {
+        throw new BrowserProviderSettingsRepositoryErrorV1(
+          "invalid_model_ref",
+          "set_builtin_model_enabled",
+        );
+      }
+      const current = loadV1("set_builtin_model_enabled");
+      const existing = current.enabledBuiltinModels.some((model) =>
+        builtinModelRefsEqualV1(model, ref)
+      );
+      if (existing === enabled) return false;
+      if (
+        enabled &&
+        current.enabledBuiltinModels.length >= browserProviderSettingsMaximumBuiltinModelsV1
+      ) {
+        throw new BrowserProviderSettingsRepositoryErrorV1(
+          "model_limit",
+          "set_builtin_model_enabled",
+        );
+      }
+      const enabledBuiltinModels = enabled
+        ? [...current.enabledBuiltinModels, ref].sort(compareBuiltinModelRefsV1)
+        : current.enabledBuiltinModels.filter((model) => !builtinModelRefsEqualV1(model, ref));
+      const preferredModel = !enabled && current.preferredModel?.kind === "builtin" &&
+          builtinModelRefsEqualV1(current.preferredModel, ref)
+        ? null
+        : current.preferredModel;
+      persistV1(
+        {
+          revision: browserProviderSettingsRevisionV2,
+          customProfiles: current.customProfiles,
+          enabledBuiltinModels,
+          preferredModel,
+        },
+        "set_builtin_model_enabled",
+      );
+      return true;
+    },
+
+    setPreferredModel(value: unknown): BrowserProviderPreferredModelRefV1 | null {
+      const preferredModel = value === null ? null : normalizePreferredModelRefV1(value);
+      if (value !== null && preferredModel === null) {
+        throw new BrowserProviderSettingsRepositoryErrorV1(
+          "invalid_preferred_model",
+          "set_preferred_model",
+        );
+      }
+      const current = loadV1("set_preferred_model");
+      if (
+        preferredModel?.kind === "builtin" &&
+        !current.enabledBuiltinModels.some((model) =>
+          builtinModelRefsEqualV1(model, preferredModel)
+        )
+      ) {
+        throw new BrowserProviderSettingsRepositoryErrorV1(
+          "invalid_preferred_model",
+          "set_preferred_model",
+        );
+      }
+      if (
+        preferredModel?.kind === "custom" &&
+        !current.customProfiles.some(({ profileId }) => profileId === preferredModel.profileId)
+      ) {
+        throw new BrowserProviderSettingsRepositoryErrorV1(
+          "invalid_preferred_model",
+          "set_preferred_model",
+        );
+      }
+      if (preferredModelRefsEqualV1(current.preferredModel, preferredModel)) {
+        return freezePreferredModelRefV1(preferredModel);
+      }
+      persistV1(
+        {
+          revision: browserProviderSettingsRevisionV2,
+          customProfiles: current.customProfiles,
+          enabledBuiltinModels: current.enabledBuiltinModels,
+          preferredModel,
+        },
+        "set_preferred_model",
+      );
+      return freezePreferredModelRefV1(preferredModel);
     },
   });
 }

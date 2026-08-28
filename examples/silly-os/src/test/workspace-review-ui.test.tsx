@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { getSillyOsCopyV1 } from "../content/copy.ts";
@@ -12,7 +12,7 @@ import type {
   ProgramProposalV1,
 } from "../product/contracts.ts";
 import type { ProgramWorkspaceReviewProjectionV1 } from "../workspace/contracts.ts";
-import { ChatPaneV1, ProgramWorkspaceReviewV1 } from "../ui/chat-pane.tsx";
+import { ChatPaneV1, type ChatPanePropsV1, ProgramWorkspaceReviewV1 } from "../ui/chat-pane.tsx";
 import { ProgramWorkspaceV1 } from "../ui/program-workspace.tsx";
 
 afterEach(cleanup);
@@ -118,6 +118,212 @@ function renderChatV1(
     />,
   );
 }
+
+function renderAgentChatV1(
+  props: Partial<
+    Pick<ChatPanePropsV1, "mutationPending" | "onSend" | "piAgentRun" | "providerModel">
+  >,
+) {
+  const { onSend = vi.fn(), ...optionalProps } = props;
+  return render(
+    <ChatPaneV1
+      copy={getSillyOsCopyV1("en")}
+      messages={[]}
+      proposal={proposalV1}
+      program={programV1}
+      workspaceReview={null}
+      workpieceOpen
+      onAccept={vi.fn()}
+      onReject={vi.fn()}
+      onOpenWorkpiece={vi.fn()}
+      onSend={onSend}
+      {...optionalProps}
+    />,
+  );
+}
+
+describe("SillyOS Workspace composer model selection", () => {
+  it("uses the shared picker and hides the persistent live Provider card when ready or completed", () => {
+    const onOpenSettings = vi.fn();
+    const onSelect = vi.fn();
+    const onCancel = vi.fn();
+    const onForget = vi.fn();
+    const providerModel = {
+      status: "ready" as const,
+      selectedValue: "builtin:anthropic:claude-sonnet-5",
+      options: [
+        {
+          value: "builtin:anthropic:claude-sonnet-5",
+          modelName: "Claude Sonnet 5",
+          providerName: "Anthropic",
+        },
+        {
+          value: "builtin:anthropic:claude-opus-5",
+          modelName: "Claude Opus 5",
+          providerName: "Anthropic",
+        },
+      ],
+      onSelect,
+      onOpenSettings,
+    };
+    const readyRun = {
+      runtime: "pi_provider" as const,
+      status: "ready" as const,
+      draft: "",
+      diagnosticPath: null,
+      onCancel,
+      onForget,
+    };
+    const view = renderAgentChatV1({ providerModel, piAgentRun: readyRun });
+
+    expect(screen.queryByText("Model Provider")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Forget Provider key" })).toBeNull();
+    const picker = screen.getByRole("combobox", { name: "Agent Creator model" });
+    expect(picker).toHaveAttribute(
+      "data-selected-value",
+      "builtin:anthropic:claude-sonnet-5",
+    );
+    expect(picker).toBeEnabled();
+
+    fireEvent.click(picker);
+    const option = screen.getByRole("option", { name: /Claude Sonnet 5/u });
+    expect(option).toHaveAttribute("aria-selected", "true");
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Model settings" }));
+    expect(onOpenSettings).toHaveBeenCalledOnce();
+    expect(picker).toHaveAttribute("aria-expanded", "false");
+
+    view.rerender(
+      <ChatPaneV1
+        copy={getSillyOsCopyV1("en")}
+        messages={[]}
+        proposal={proposalV1}
+        program={programV1}
+        workspaceReview={null}
+        workpieceOpen
+        onAccept={vi.fn()}
+        onReject={vi.fn()}
+        onOpenWorkpiece={vi.fn()}
+        onSend={vi.fn()}
+        providerModel={providerModel}
+        piAgentRun={{ ...readyRun, status: "completed" }}
+      />,
+    );
+    expect(screen.queryByText("Model Provider")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Forget Provider key" })).toBeNull();
+    expect(screen.getByRole("combobox", { name: "Agent Creator model" })).toBeEnabled();
+  });
+
+  it("disables the shared picker while a model switch settles without restoring a live card", () => {
+    const onSend = vi.fn();
+    renderAgentChatV1({
+      onSend,
+      providerModel: {
+        status: "initializing",
+        selectedValue: "builtin:anthropic:claude-sonnet-5",
+        options: [
+          {
+            value: "builtin:anthropic:claude-sonnet-5",
+            modelName: "Claude Sonnet 5",
+            providerName: "Anthropic",
+          },
+          {
+            value: "builtin:anthropic:claude-opus-5",
+            modelName: "Claude Opus 5",
+            providerName: "Anthropic",
+          },
+        ],
+        onSelect: vi.fn(),
+        onOpenSettings: vi.fn(),
+      },
+      piAgentRun: {
+        runtime: "pi_provider",
+        status: "ready",
+        draft: "",
+        diagnosticPath: null,
+        onCancel: vi.fn(),
+        onForget: vi.fn(),
+      },
+    });
+
+    const picker = screen.getByRole("combobox", { name: "Agent Creator model" });
+    expect(picker).toBeDisabled();
+    expect(picker.closest("[data-model-state]"))
+      .toHaveAttribute("data-model-state", "initializing");
+    expect(screen.getByText("Switching model…")).toBeVisible();
+    expect(screen.queryByText("Model Provider")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Forget Provider key" })).toBeNull();
+    const followUp = screen.getByRole("textbox", { name: "Ask for a change…" });
+    fireEvent.change(followUp, { target: { value: "Do not use the previous model." } });
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+    fireEvent.keyDown(followUp, { key: "Enter", shiftKey: false });
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it("disables the model picker during a live run while retaining its Cancel control", () => {
+    const onCancel = vi.fn();
+    const view = renderAgentChatV1({
+      mutationPending: true,
+      providerModel: {
+        status: "ready",
+        selectedValue: "builtin:openai:gpt-latest",
+        options: [
+          {
+            value: "builtin:openai:gpt-latest",
+            modelName: "GPT latest",
+            providerName: "OpenAI",
+          },
+        ],
+        onSelect: vi.fn(),
+        onOpenSettings: vi.fn(),
+      },
+      piAgentRun: {
+        runtime: "pi_provider",
+        status: "running",
+        draft: "Preparing the revised Program.",
+        diagnosticPath: null,
+        onCancel,
+        onForget: vi.fn(),
+      },
+    });
+
+    expect(screen.getByRole("combobox", { name: "Agent Creator model" })).toBeDisabled();
+    expect(screen.queryByText("Model Provider")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Forget Provider key" })).toBeNull();
+    expect(view.container.querySelector('[data-pi-agent-runtime="pi_provider"]')).toHaveAttribute(
+      "data-pi-agent-run-status",
+      "running",
+    );
+    expect(screen.getByText("Preparing the revised Program.")).toBeVisible();
+    const cancel = screen.getByRole("button", { name: "Cancel run" });
+    expect(cancel).toBeEnabled();
+    fireEvent.click(cancel);
+    expect(onCancel).toHaveBeenCalledOnce();
+  });
+
+  it("preserves the deterministic Pi test status and Forget-key card contract", () => {
+    const onForget = vi.fn();
+    const view = renderAgentChatV1({
+      piAgentRun: {
+        runtime: "deterministic_test",
+        status: "ready",
+        draft: "",
+        diagnosticPath: null,
+        onCancel: vi.fn(),
+        onForget,
+      },
+    });
+
+    expect(view.container.querySelector('[data-pi-agent-runtime="deterministic_test"]'))
+      .toHaveAttribute("data-pi-agent-run-status", "ready");
+    expect(screen.getByText("Browser Pi wiring check")).toBeVisible();
+    expect(screen.getByText("Pi test ready")).toBeVisible();
+    const forget = screen.getByRole("button", { name: "Forget test key" });
+    expect(forget).toBeEnabled();
+    fireEvent.click(forget);
+    expect(onForget).toHaveBeenCalledOnce();
+  });
+});
 
 describe("SillyOS Workspace review presentation", () => {
   it("shows exact accepted, reviewed, and mutable heads and gates only stale Accept", () => {

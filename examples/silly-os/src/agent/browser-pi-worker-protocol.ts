@@ -16,6 +16,8 @@ export interface BrowserPiBuiltinModelSelectionV1 {
   readonly kind: "builtin";
   readonly providerId: string;
   readonly modelId: string;
+  readonly api: BrowserPiCustomModelApiV1;
+  readonly baseUrl: string;
 }
 
 export interface BrowserPiCustomModelProfileV1 {
@@ -37,7 +39,7 @@ export type BrowserPiModelSelectionV1 =
   | BrowserPiBuiltinModelSelectionV1
   | BrowserPiCustomModelSelectionV1;
 
-export type BrowserPiCatalogAvailabilityV1 = "qualified" | "candidate" | "unavailable";
+export type BrowserPiCatalogAvailabilityV1 = "available" | "unavailable";
 
 export interface BrowserPiCatalogModelWireV1 {
   readonly id: string;
@@ -71,9 +73,9 @@ export interface BrowserPiWorkerCatalogRequestV1 {
   readonly requestId: number;
 }
 
-export interface BrowserPiWorkerInitializeV1 {
+export interface BrowserPiWorkerConfigureV1 {
   readonly revision: 1;
-  readonly kind: "initialize";
+  readonly kind: "configure";
   readonly requestId: number;
   readonly runtime: BrowserPiWorkerRuntimeV1;
   readonly selection: BrowserPiModelSelectionV1 | null;
@@ -81,6 +83,19 @@ export interface BrowserPiWorkerInitializeV1 {
     readonly kind: "api_key";
     readonly value: string;
   };
+}
+
+export interface BrowserPiWorkerTestConnectionV1 {
+  readonly revision: 1;
+  readonly kind: "test_connection";
+  readonly requestId: number;
+}
+
+export interface BrowserPiWorkerSelectModelV1 {
+  readonly revision: 1;
+  readonly kind: "select_model";
+  readonly requestId: number;
+  readonly selection: BrowserPiModelSelectionV1;
 }
 
 export interface BrowserPiWorkerExecutionBindingV1 {
@@ -134,9 +149,20 @@ export interface BrowserPiWorkerWorkspaceRequestV1 {
 
 export type BrowserPiWorkerInboundMessageV1 =
   | BrowserPiWorkerCatalogRequestV1
-  | BrowserPiWorkerInitializeV1
+  | BrowserPiWorkerConfigureV1
+  | BrowserPiWorkerTestConnectionV1
+  | BrowserPiWorkerSelectModelV1
   | BrowserPiWorkerRpcRequestV1
   | BrowserPiWorkerWorkspaceRequestV1;
+
+export interface BrowserPiWorkerConfiguredV1 {
+  readonly revision: 1;
+  readonly kind: "configured";
+  readonly requestId: number;
+  readonly runtime: BrowserPiWorkerRuntimeV1;
+  readonly selection: BrowserPiModelSelectionV1 | null;
+  readonly distribution: BrowserPiDistributionIdentityV1;
+}
 
 export interface BrowserPiWorkerReadyV1 {
   readonly revision: 1;
@@ -163,11 +189,38 @@ export interface BrowserPiWorkerCatalogFailureV1 {
   readonly code: "catalog_unavailable";
 }
 
-export interface BrowserPiWorkerInitializationFailureV1 {
+export interface BrowserPiWorkerConfigurationFailureV1 {
   readonly revision: 1;
-  readonly kind: "initialization_failure";
+  readonly kind: "configuration_failure";
   readonly requestId: number;
-  readonly code: "selection_unavailable" | "connection_failed";
+  readonly code: "selection_unavailable";
+}
+
+export interface BrowserPiWorkerConnectionTestFailureV1 {
+  readonly revision: 1;
+  readonly kind: "connection_test_failure";
+  readonly requestId: number;
+  readonly code: "not_configured" | "connection_failed";
+}
+
+export interface BrowserPiWorkerModelSelectedV1 {
+  readonly revision: 1;
+  readonly kind: "model_selected";
+  readonly requestId: number;
+  readonly selection: BrowserPiModelSelectionV1;
+}
+
+export type BrowserPiModelSelectionFailureCodeV1 =
+  | "not_configured"
+  | "selection_unavailable"
+  | "credential_scope_mismatch"
+  | "busy";
+
+export interface BrowserPiWorkerModelSelectionFailureV1 {
+  readonly revision: 1;
+  readonly kind: "model_selection_failure";
+  readonly requestId: number;
+  readonly code: BrowserPiModelSelectionFailureCodeV1;
 }
 
 export interface BrowserPiWorkerRpcResponseV1 {
@@ -195,7 +248,11 @@ export interface BrowserPiWorkerRpcRecordV1 {
 export interface BrowserPiWorkerProtocolFailureV1 {
   readonly revision: 1;
   readonly kind: "protocol_failure";
-  readonly code: "invalid_message" | "already_initialized" | "distribution_mismatch";
+  readonly code:
+    | "invalid_message"
+    | "already_configured"
+    | "test_in_progress"
+    | "distribution_mismatch";
 }
 
 export interface BrowserPiWorkspaceMutationReceiptWireV1 {
@@ -279,10 +336,14 @@ export type BrowserPiWorkerWorkspaceOutboundMessageV1 =
   | BrowserPiWorkerWorkspaceReceiptEventV1;
 
 export type BrowserPiWorkerOutboundMessageV1 =
+  | BrowserPiWorkerConfiguredV1
   | BrowserPiWorkerReadyV1
   | BrowserPiWorkerCatalogSuccessV1
   | BrowserPiWorkerCatalogFailureV1
-  | BrowserPiWorkerInitializationFailureV1
+  | BrowserPiWorkerConfigurationFailureV1
+  | BrowserPiWorkerConnectionTestFailureV1
+  | BrowserPiWorkerModelSelectedV1
+  | BrowserPiWorkerModelSelectionFailureV1
   | BrowserPiWorkerRpcResponseV1
   | BrowserPiWorkerRpcFailureV1
   | BrowserPiWorkerRpcRecordV1
@@ -482,12 +543,26 @@ function canonicalHttpsBaseUrlV1(value: unknown): string | null {
 }
 
 function admitBrowserPiModelSelectionV1(value: unknown): BrowserPiModelSelectionV1 | null {
-  const builtin = exactDataRecordV1(value, ["kind", "providerId", "modelId"]);
+  const builtin = exactDataRecordV1(value, [
+    "kind",
+    "providerId",
+    "modelId",
+    "api",
+    "baseUrl",
+  ]);
+  const builtinBaseUrl = builtin === null ? null : canonicalHttpsBaseUrlV1(builtin.baseUrl);
   if (
     builtin !== null && builtin.kind === "builtin" && isIdentifierV1(builtin.providerId) &&
-    isBoundedTextV1(builtin.modelId, catalogModelIdMaximumUtf8BytesV1)
+    isBoundedTextV1(builtin.modelId, catalogModelIdMaximumUtf8BytesV1) &&
+    isBrowserPiCustomModelApiV1(builtin.api) && builtinBaseUrl !== null
   ) {
-    return { kind: "builtin", providerId: builtin.providerId, modelId: builtin.modelId };
+    return {
+      kind: "builtin",
+      providerId: builtin.providerId,
+      modelId: builtin.modelId,
+      api: builtin.api,
+      baseUrl: builtinBaseUrl,
+    };
   }
 
   const custom = exactDataRecordV1(value, ["kind", "profile"]);
@@ -529,16 +604,17 @@ function admitBrowserPiModelSelectionV1(value: unknown): BrowserPiModelSelection
   };
 }
 
-export function browserPiCustomEndpointOriginV1(
+export function browserPiSelectionEndpointOriginV1(
   selection: BrowserPiModelSelectionV1,
 ): string | null {
-  if (selection.kind !== "custom") return null;
-  const baseUrl = canonicalHttpsBaseUrlV1(selection.profile.baseUrl);
+  const baseUrl = canonicalHttpsBaseUrlV1(
+    selection.kind === "builtin" ? selection.baseUrl : selection.profile.baseUrl,
+  );
   return baseUrl === null ? null : new URL(baseUrl).origin;
 }
 
 function isCatalogAvailabilityV1(value: unknown): value is BrowserPiCatalogAvailabilityV1 {
-  return value === "qualified" || value === "candidate" || value === "unavailable";
+  return value === "available" || value === "unavailable";
 }
 
 function isCatalogBaseUrlV1(value: unknown): value is string {
@@ -609,10 +685,8 @@ function admitCatalogProviderV1(value: unknown): BrowserPiCatalogProviderWireV1 
     modelIds.add(model.id);
     models.push(model);
   }
-  const expectedAvailability = models.some(({ availability }) => availability === "qualified")
-    ? "qualified"
-    : models.some(({ availability }) => availability === "candidate")
-    ? "candidate"
+  const expectedAvailability = models.some(({ availability }) => availability === "available")
+    ? "available"
     : "unavailable";
   if (provider.availability !== expectedAvailability) return null;
   return {
@@ -875,6 +949,7 @@ export function admitBrowserPiWorkerInboundMessageV1(
       "record",
       "execution",
     ]) ?? exactDataRecordV1(value, ["revision", "kind", "requestId", "record"]) ??
+    exactDataRecordV1(value, ["revision", "kind", "requestId", "selection"]) ??
     exactDataRecordV1(value, [
       "revision",
       "kind",
@@ -889,6 +964,19 @@ export function admitBrowserPiWorkerInboundMessageV1(
   ) return null;
   if (discriminator.kind === "catalog_request") {
     return { revision: 1, kind: "catalog_request", requestId: discriminator.requestId };
+  }
+  if (discriminator.kind === "test_connection") {
+    return { revision: 1, kind: "test_connection", requestId: discriminator.requestId };
+  }
+  if (discriminator.kind === "select_model") {
+    const selection = admitBrowserPiModelSelectionV1(discriminator.selection);
+    if (selection === null) return null;
+    return {
+      revision: 1,
+      kind: "select_model",
+      requestId: discriminator.requestId,
+      selection,
+    };
   }
   if (discriminator.kind === "workspace_request") {
     if (Object.hasOwn(discriminator, "execution")) return null;
@@ -929,7 +1017,7 @@ export function admitBrowserPiWorkerInboundMessageV1(
     };
   }
   if (
-    discriminator.kind !== "initialize" ||
+    discriminator.kind !== "configure" ||
     (discriminator.runtime !== "deterministic_test" &&
       discriminator.runtime !== "pi_provider")
   ) {
@@ -950,7 +1038,7 @@ export function admitBrowserPiWorkerInboundMessageV1(
   ) return null;
   return {
     revision: 1,
-    kind: "initialize",
+    kind: "configure",
     requestId: discriminator.requestId,
     runtime: discriminator.runtime,
     selection,
@@ -972,13 +1060,15 @@ export function admitBrowserPiWorkerOutboundMessageV1(
       "selection",
       "distribution",
     ]) ??
+    exactDataRecordV1(value, ["revision", "kind", "requestId", "selection"]) ??
     exactDataRecordV1(value, ["revision", "kind", "requestId", "ok", "catalog"]) ??
     exactDataRecordV1(value, ["revision", "kind", "requestId", "ok", "response"]) ??
     exactDataRecordV1(value, ["revision", "kind", "requestId", "ok", "code"]);
   if (base === null || base.revision !== 1) return null;
   if (base.kind === "protocol_failure") {
     if (
-      base.code !== "invalid_message" && base.code !== "already_initialized" &&
+      base.code !== "invalid_message" && base.code !== "already_configured" &&
+      base.code !== "test_in_progress" &&
       base.code !== "distribution_mismatch"
     ) return null;
     return { revision: 1, kind: "protocol_failure", code: base.code };
@@ -987,13 +1077,44 @@ export function admitBrowserPiWorkerOutboundMessageV1(
     return { revision: 1, kind: "rpc_record", record: base.record };
   }
   if (!isRequestIdV1(base.requestId)) return null;
-  if (base.kind === "initialization_failure") {
-    if (base.code !== "selection_unavailable" && base.code !== "connection_failed") return null;
+  if (base.kind === "configuration_failure") {
+    if (base.code !== "selection_unavailable") return null;
     return {
       revision: 1,
-      kind: "initialization_failure",
+      kind: "configuration_failure",
       requestId: base.requestId,
       code: base.code,
+    };
+  }
+  if (base.kind === "connection_test_failure") {
+    if (base.code !== "not_configured" && base.code !== "connection_failed") return null;
+    return {
+      revision: 1,
+      kind: "connection_test_failure",
+      requestId: base.requestId,
+      code: base.code,
+    };
+  }
+  if (base.kind === "model_selection_failure") {
+    if (
+      base.code !== "not_configured" && base.code !== "selection_unavailable" &&
+      base.code !== "credential_scope_mismatch" && base.code !== "busy"
+    ) return null;
+    return {
+      revision: 1,
+      kind: "model_selection_failure",
+      requestId: base.requestId,
+      code: base.code,
+    };
+  }
+  if (base.kind === "model_selected") {
+    const selection = admitBrowserPiModelSelectionV1(base.selection);
+    if (selection === null) return null;
+    return {
+      revision: 1,
+      kind: "model_selected",
+      requestId: base.requestId,
+      selection,
     };
   }
   if (base.kind === "catalog_response") {
@@ -1019,7 +1140,7 @@ export function admitBrowserPiWorkerOutboundMessageV1(
     }
     return null;
   }
-  if (base.kind === "ready") {
+  if (base.kind === "configured" || base.kind === "ready") {
     if (
       (base.runtime !== "deterministic_test" && base.runtime !== "pi_provider") ||
       !isBrowserPiDistributionIdentityV1(base.distribution)
@@ -1033,7 +1154,7 @@ export function admitBrowserPiWorkerOutboundMessageV1(
     ) return null;
     return {
       revision: 1,
-      kind: "ready",
+      kind: base.kind,
       requestId: base.requestId,
       runtime: base.runtime,
       selection,

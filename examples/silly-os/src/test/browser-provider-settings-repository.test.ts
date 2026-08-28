@@ -8,10 +8,13 @@ import {
   browserProviderContextWindowMaximumV1,
   browserProviderCustomApiFamiliesV1,
   browserProviderMaxTokensMaximumV1,
+  browserProviderSettingsMaximumBuiltinModelsV1,
   browserProviderSettingsMaximumProfilesV1,
-  browserProviderSettingsStorageKeyV1,
+  browserProviderSettingsRevisionV2,
+  browserProviderSettingsStorageKeyV2,
   canonicalizeBrowserProviderBaseUrlV1,
   createBrowserProviderSettingsRepositoryV1,
+  type BrowserProviderBuiltinModelRefV1,
   type BrowserProviderCustomProfileV1,
 } from "../product/browser-provider-settings-repository.ts";
 
@@ -56,6 +59,13 @@ function profileV1(
     maxTokens: 8_192,
     ...overrides,
   };
+}
+
+function builtinModelRefV1(
+  providerId = "openai",
+  modelId = "gpt-5.4",
+): BrowserProviderBuiltinModelRefV1 {
+  return { providerId, modelId };
 }
 
 describe("Browser Provider Settings profile admission", () => {
@@ -140,48 +150,103 @@ describe("Browser Provider Settings profile admission", () => {
 });
 
 describe("Browser Provider Settings repository", () => {
-  it("persists only a versioned, sorted, non-secret profile projection", () => {
+  it("starts from the new V2 envelope without migrating the retired pre-stable key", () => {
+    const storage = new MemoryStorageV1();
+    storage.setItem(
+      "sillymaker.example-silly-os.provider-settings.v1",
+      JSON.stringify({ revision: 1, customProfiles: [profileV1()] }),
+    );
+    const repository = createBrowserProviderSettingsRepositoryV1({ storage });
+
+    expect(repository.read()).toEqual({
+      revision: browserProviderSettingsRevisionV2,
+      customProfiles: [],
+      enabledBuiltinModels: [],
+      preferredModel: null,
+    });
+    expect(storage.getItem(browserProviderSettingsStorageKeyV2)).toBeNull();
+  });
+
+  it("persists and reopens one sorted, immutable, non-secret settings projection", () => {
     const storage = new MemoryStorageV1();
     const repository = createBrowserProviderSettingsRepositoryV1({ storage });
-    const mutable = {
+    const mutableProfile = {
       ...profileV1({
         profileId: "z.endpoint",
         displayName: "  Z endpoint  ",
         baseUrl: "https://z.example.test/v1/",
       }),
     };
-    expect(repository.add(mutable)).toEqual({
-      ...mutable,
+    expect(repository.add(mutableProfile)).toEqual({
+      ...mutableProfile,
       displayName: "Z endpoint",
       baseUrl: "https://z.example.test/v1",
     });
     repository.add(profileV1({ profileId: "a.endpoint", displayName: "A endpoint" }));
+    const mutableBuiltin = { providerId: "z-provider", modelId: "z-model" };
+    expect(repository.setBuiltinModelEnabled(mutableBuiltin, true)).toBe(true);
+    expect(repository.setBuiltinModelEnabled(builtinModelRefV1("a-provider", "z-model"), true))
+      .toBe(true);
+    expect(repository.setBuiltinModelEnabled(builtinModelRefV1("a-provider", "a-model"), true))
+      .toBe(true);
+    const preferred = {
+      kind: "builtin" as const,
+      providerId: "a-provider",
+      modelId: "a-model",
+    };
+    expect(repository.setPreferredModel(preferred)).toEqual(preferred);
 
-    const serialized = storage.getItem(browserProviderSettingsStorageKeyV1);
+    const serialized = storage.getItem(browserProviderSettingsStorageKeyV2);
     expect(serialized).not.toBeNull();
     expect(serialized).not.toContain("secret");
     expect(JSON.parse(serialized ?? "null")).toEqual({
-      revision: 1,
+      revision: browserProviderSettingsRevisionV2,
       customProfiles: [
         profileV1({ profileId: "a.endpoint", displayName: "A endpoint" }),
         {
-          ...mutable,
+          ...mutableProfile,
           displayName: "Z endpoint",
           baseUrl: "https://z.example.test/v1",
         },
       ],
+      enabledBuiltinModels: [
+        builtinModelRefV1("a-provider", "a-model"),
+        builtinModelRefV1("a-provider", "z-model"),
+        builtinModelRefV1("z-provider", "z-model"),
+      ],
+      preferredModel: preferred,
     });
 
-    mutable.displayName = "mutated after add";
+    mutableProfile.displayName = "mutated after add";
+    mutableBuiltin.providerId = "mutated-provider";
+    preferred.modelId = "mutated-model";
     const reopened = createBrowserProviderSettingsRepositoryV1({ storage });
-    const listed = reopened.list();
-    expect(listed.map(({ profileId }) => profileId)).toEqual(["a.endpoint", "z.endpoint"]);
-    expect(listed[1]?.displayName).toBe("Z endpoint");
-    expect(Object.isFrozen(listed)).toBe(true);
-    expect(Object.isFrozen(listed[0])).toBe(true);
+    const snapshot = reopened.read();
+    expect(snapshot.customProfiles.map(({ profileId }) => profileId)).toEqual([
+      "a.endpoint",
+      "z.endpoint",
+    ]);
+    expect(snapshot.customProfiles[1]?.displayName).toBe("Z endpoint");
+    expect(snapshot.enabledBuiltinModels).toEqual([
+      builtinModelRefV1("a-provider", "a-model"),
+      builtinModelRefV1("a-provider", "z-model"),
+      builtinModelRefV1("z-provider", "z-model"),
+    ]);
+    expect(snapshot.preferredModel).toEqual({
+      kind: "builtin",
+      providerId: "a-provider",
+      modelId: "a-model",
+    });
+    expect(reopened.list()).toEqual(snapshot.customProfiles);
+    expect(Object.isFrozen(snapshot)).toBe(true);
+    expect(Object.isFrozen(snapshot.customProfiles)).toBe(true);
+    expect(Object.isFrozen(snapshot.customProfiles[0])).toBe(true);
+    expect(Object.isFrozen(snapshot.enabledBuiltinModels)).toBe(true);
+    expect(Object.isFrozen(snapshot.enabledBuiltinModels[0])).toBe(true);
+    expect(Object.isFrozen(snapshot.preferredModel)).toBe(true);
   });
 
-  it("rejects duplicate ids and applies the small profile count limit atomically", () => {
+  it("rejects duplicate profile ids and applies the profile count limit atomically", () => {
     const storage = new MemoryStorageV1();
     const repository = createBrowserProviderSettingsRepositoryV1({ storage });
     repository.add(profileV1());
@@ -192,60 +257,193 @@ describe("Browser Provider Settings repository", () => {
     for (let index = 1; index < browserProviderSettingsMaximumProfilesV1; index += 1) {
       repository.add(profileV1({ profileId: `custom.endpoint-${String(index)}` }));
     }
-    const before = storage.getItem(browserProviderSettingsStorageKeyV1);
+    const before = storage.getItem(browserProviderSettingsStorageKeyV2);
     expect(() => repository.add(profileV1({ profileId: "custom.too-many" }))).toThrowError(
       expect.objectContaining({ code: "profile_limit", operation: "add" }),
     );
-    expect(storage.getItem(browserProviderSettingsStorageKeyV1)).toBe(before);
+    expect(storage.getItem(browserProviderSettingsStorageKeyV2)).toBe(before);
   });
 
-  it("removes one exact id and deletes the empty persisted envelope", () => {
+  it("applies the enabled-model bound atomically and treats repeated toggles as no-ops", () => {
     const storage = new MemoryStorageV1();
     const repository = createBrowserProviderSettingsRepositoryV1({ storage });
+    for (let index = 0; index < browserProviderSettingsMaximumBuiltinModelsV1; index += 1) {
+      expect(
+        repository.setBuiltinModelEnabled(
+          builtinModelRefV1("provider", `model-${String(index).padStart(3, "0")}`),
+          true,
+        ),
+      ).toBe(true);
+    }
+    expect(repository.setBuiltinModelEnabled(builtinModelRefV1("provider", "model-000"), true))
+      .toBe(false);
+    const before = storage.getItem(browserProviderSettingsStorageKeyV2);
+    expect(() =>
+      repository.setBuiltinModelEnabled(builtinModelRefV1("provider", "model-over-limit"), true)
+    ).toThrowError(
+      expect.objectContaining({
+        code: "model_limit",
+        operation: "set_builtin_model_enabled",
+      }),
+    );
+    expect(storage.getItem(browserProviderSettingsStorageKeyV2)).toBe(before);
+  });
+
+  it("clears a preferred builtin when disabled and a preferred custom target when removed", () => {
+    const storage = new MemoryStorageV1();
+    const repository = createBrowserProviderSettingsRepositoryV1({ storage });
+    const builtin = builtinModelRefV1();
+    repository.setBuiltinModelEnabled(builtin, true);
+    repository.setPreferredModel({ kind: "builtin", ...builtin });
+    expect(repository.setBuiltinModelEnabled(builtin, false)).toBe(true);
+    expect(repository.read().preferredModel).toBeNull();
+
     repository.add(profileV1());
+    repository.setPreferredModel({ kind: "custom", profileId: "custom.openai" });
     expect(repository.remove("custom.missing")).toBe(false);
     expect(repository.remove("custom.openai")).toBe(true);
-    expect(repository.list()).toEqual([]);
-    expect(storage.getItem(browserProviderSettingsStorageKeyV1)).toBeNull();
+    expect(repository.read()).toEqual({
+      revision: browserProviderSettingsRevisionV2,
+      customProfiles: [],
+      enabledBuiltinModels: [],
+      preferredModel: null,
+    });
+    expect(storage.getItem(browserProviderSettingsStorageKeyV2)).toBeNull();
   });
 
-  it("rejects corrupt or secret-bearing stored records instead of repairing them", () => {
+  it("requires preferred targets to exist and clears an explicit preferred target", () => {
     const storage = new MemoryStorageV1();
     const repository = createBrowserProviderSettingsRepositoryV1({ storage });
+    const builtin = builtinModelRefV1();
+    expect(() => repository.setPreferredModel({ kind: "builtin", ...builtin })).toThrowError(
+      expect.objectContaining({
+        code: "invalid_preferred_model",
+        operation: "set_preferred_model",
+      }),
+    );
+    expect(() => repository.setPreferredModel({ kind: "custom", profileId: "custom.missing" }))
+      .toThrowError(
+        expect.objectContaining({
+          code: "invalid_preferred_model",
+          operation: "set_preferred_model",
+        }),
+      );
+    expect(storage.length).toBe(0);
+
+    repository.setBuiltinModelEnabled(builtin, true);
+    repository.setPreferredModel({ kind: "builtin", ...builtin });
+    expect(repository.setPreferredModel(null)).toBeNull();
+    expect(repository.read().preferredModel).toBeNull();
+  });
+
+  it("keeps the envelope until every non-secret setting is empty", () => {
+    const storage = new MemoryStorageV1();
+    const repository = createBrowserProviderSettingsRepositoryV1({ storage });
+    const builtin = builtinModelRefV1();
+    repository.setBuiltinModelEnabled(builtin, true);
+    repository.add(profileV1());
+    expect(repository.remove("custom.openai")).toBe(true);
+    expect(storage.getItem(browserProviderSettingsStorageKeyV2)).not.toBeNull();
+    expect(repository.setBuiltinModelEnabled(builtin, false)).toBe(true);
+    expect(storage.getItem(browserProviderSettingsStorageKeyV2)).toBeNull();
+  });
+
+  it("rejects malformed, dangling, unsorted, duplicate, and secret-bearing stored records", () => {
+    const storage = new MemoryStorageV1();
+    const repository = createBrowserProviderSettingsRepositoryV1({ storage });
+    const emptyEnvelope = {
+      revision: browserProviderSettingsRevisionV2,
+      customProfiles: [],
+      enabledBuiltinModels: [],
+      preferredModel: null,
+    };
     const invalidSnapshots = [
       "not-json",
-      JSON.stringify({ revision: 2, customProfiles: [] }),
-      JSON.stringify({ revision: 1, customProfiles: [{ ...profileV1(), apiKey: "secret" }] }),
+      "x".repeat(65_537),
+      JSON.stringify({ revision: 1, customProfiles: [] }),
+      JSON.stringify({ ...emptyEnvelope, apiKey: "secret" }),
+      JSON.stringify({ ...emptyEnvelope, testPassed: true }),
       JSON.stringify({
-        revision: 1,
+        ...emptyEnvelope,
+        customProfiles: [{ ...profileV1(), apiKey: "secret" }],
+      }),
+      JSON.stringify({
+        ...emptyEnvelope,
         customProfiles: [profileV1({ baseUrl: "https://example.test/v1/" })],
       }),
       JSON.stringify({
-        revision: 1,
+        ...emptyEnvelope,
         customProfiles: [profileV1({ displayName: "  Stored with spaces  " })],
       }),
       JSON.stringify({
-        revision: 1,
+        ...emptyEnvelope,
         customProfiles: [
           profileV1({ profileId: "z.endpoint" }),
           profileV1({ profileId: "a.endpoint" }),
         ],
       }),
+      JSON.stringify({
+        ...emptyEnvelope,
+        enabledBuiltinModels: [{ ...builtinModelRefV1(), credential: "secret" }],
+      }),
+      JSON.stringify({
+        ...emptyEnvelope,
+        enabledBuiltinModels: [
+          builtinModelRefV1("z-provider", "model"),
+          builtinModelRefV1("a-provider", "model"),
+        ],
+      }),
+      JSON.stringify({
+        ...emptyEnvelope,
+        enabledBuiltinModels: [builtinModelRefV1(), builtinModelRefV1()],
+      }),
+      JSON.stringify({
+        ...emptyEnvelope,
+        preferredModel: { kind: "builtin", ...builtinModelRefV1(), verified: true },
+      }),
+      JSON.stringify({
+        ...emptyEnvelope,
+        preferredModel: { kind: "builtin", ...builtinModelRefV1() },
+      }),
+      JSON.stringify({
+        ...emptyEnvelope,
+        preferredModel: { kind: "custom", profileId: "custom.missing" },
+      }),
     ];
     for (const serialized of invalidSnapshots) {
-      storage.setItem(browserProviderSettingsStorageKeyV1, serialized);
-      expect(() => repository.list()).toThrowError(
-        expect.objectContaining({ code: "schema_invalid", operation: "list" }),
+      storage.setItem(browserProviderSettingsStorageKeyV2, serialized);
+      expect(() => repository.read()).toThrowError(
+        expect.objectContaining({ code: "schema_invalid", operation: "read" }),
       );
-      expect(storage.getItem(browserProviderSettingsStorageKeyV1)).toBe(serialized);
+      expect(storage.getItem(browserProviderSettingsStorageKeyV2)).toBe(serialized);
     }
   });
 
-  it("does not write when add input contains an API key", () => {
+  it("rejects credential and test-result fields from every public mutation without writing", () => {
     const storage = new MemoryStorageV1();
     const repository = createBrowserProviderSettingsRepositoryV1({ storage });
     expect(() => repository.add({ ...profileV1(), apiKey: "must-never-persist" })).toThrowError(
       expect.objectContaining({ code: "invalid_profile", operation: "add" }),
+    );
+    expect(() =>
+      repository.setBuiltinModelEnabled({ ...builtinModelRefV1(), credential: "secret" }, true)
+    ).toThrowError(
+      expect.objectContaining({
+        code: "invalid_model_ref",
+        operation: "set_builtin_model_enabled",
+      }),
+    );
+    expect(() =>
+      repository.setPreferredModel({
+        kind: "builtin",
+        ...builtinModelRefV1(),
+        lastTestPassed: true,
+      })
+    ).toThrowError(
+      expect.objectContaining({
+        code: "invalid_preferred_model",
+        operation: "set_preferred_model",
+      }),
     );
     expect(storage.length).toBe(0);
   });

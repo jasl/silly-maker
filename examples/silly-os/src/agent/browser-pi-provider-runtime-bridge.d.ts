@@ -8,6 +8,7 @@ import type {
 
 export function projectBrowserPiProviderCatalogV1(): BrowserPiProviderCatalogWireV1;
 
+/** Returns whether the exact pinned Provider route may be configured in Browser. */
 export function isBrowserPiSelectionAvailableV1(
   selection: BrowserPiModelSelectionV1,
 ): boolean;

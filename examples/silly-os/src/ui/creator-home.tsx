@@ -15,6 +15,7 @@ import { type FormEvent, type ReactNode, useRef, useState } from "react";
 
 import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../content/copy.ts";
 import type { PreviewProgramKindV1, ProgramProposalStatusV1 } from "../product/contracts.ts";
+import { type ComposerModelControlV1, ComposerModelPickerV1 } from "./composer-model-picker.tsx";
 import { SillyButtonV1 as Button } from "./controls.tsx";
 import { LocaleSwitchV1, SillyOsBrandV1 } from "./product-chrome.tsx";
 
@@ -44,9 +45,18 @@ export interface CreatorHomePropsV1 {
     readonly onInitialize: (credential: string) => void;
   };
   readonly providerSetup?: {
-    readonly status: "loading" | "available" | "initializing" | "ready" | "failed";
+    readonly status:
+      | "loading"
+      | "available"
+      | "saving"
+      | "credential_saved"
+      | "testing"
+      | "ready"
+      | "test_failed"
+      | "failed";
     readonly onOpenSettings: () => void;
   };
+  readonly providerModel?: ComposerModelControlV1;
 }
 
 export function CreatorHomeV1({
@@ -56,6 +66,7 @@ export function CreatorHomeV1({
   onOpenSettings,
   createDisabled = false,
   piAgentSetup,
+  providerModel,
   providerSetup,
   programCatalog,
 }: CreatorHomePropsV1): ReactNode {
@@ -191,8 +202,8 @@ export function CreatorHomeV1({
                 <span>
                   {providerSetup.status === "failed"
                     ? copy.piLiveFailed
-                    : providerSetup.status === "initializing"
-                    ? copy.providerInitializing
+                    : providerSetup.status === "saving"
+                    ? copy.providerSaving
                     : copy.piLiveSetupRequired}
                 </span>
               </div>
@@ -248,18 +259,25 @@ export function CreatorHomeV1({
                 type="button"
                 variant="ghost"
                 icon={Paperclip}
+                className="creator-composer__resource-button"
+                aria-label={copy.addResource}
                 onClick={() => fileInputRef.current?.click()}
               >
-                {copy.addResource}
+                <span>{copy.addResource}</span>
               </Button>
-              <Button
-                type="submit"
-                variant="primary"
-                icon={ArrowRight}
-                disabled={createDisabled || intent.trim().length === 0}
-              >
-                {copy.create}
-              </Button>
+              <div className="creator-composer__primary-actions">
+                {providerModel !== undefined
+                  ? <ComposerModelPickerV1 copy={copy} surface="home" {...providerModel} />
+                  : null}
+                <Button
+                  type="submit"
+                  variant="primary"
+                  icon={ArrowRight}
+                  disabled={createDisabled || intent.trim().length === 0}
+                >
+                  {copy.create}
+                </Button>
+              </div>
             </div>
           </form>
         </section>

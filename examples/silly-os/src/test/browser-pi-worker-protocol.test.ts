@@ -96,7 +96,7 @@ function catalogV1(): Record<string, unknown> {
         id: "openai",
         name: "OpenAI",
         baseUrl: "https://api.openai.com/v1",
-        availability: "qualified",
+        availability: "available",
         models: [{
           id: "gpt-4.1-nano",
           name: "GPT-4.1 nano",
@@ -106,14 +106,14 @@ function catalogV1(): Record<string, unknown> {
           input: ["text", "image"],
           contextWindow: 1_047_576,
           maxTokens: 32_768,
-          availability: "qualified",
+          availability: "available",
         }],
       },
       {
         id: "anthropic",
         name: "Anthropic",
         baseUrl: "https://api.anthropic.com",
-        availability: "candidate",
+        availability: "available",
         models: [{
           id: "claude-sonnet-4-5",
           name: "Claude Sonnet 4.5",
@@ -123,7 +123,7 @@ function catalogV1(): Record<string, unknown> {
           input: ["text", "image"],
           contextWindow: 200_000,
           maxTokens: 64_000,
-          availability: "candidate",
+          availability: "available",
         }],
       },
     ],
@@ -131,7 +131,7 @@ function catalogV1(): Record<string, unknown> {
 }
 
 describe("Browser Pi Worker protocol", () => {
-  it("admits pre-credential catalog and exact selected-Provider initialization", () => {
+  it("admits pre-credential catalog and exact configure/test split", () => {
     expect(admitBrowserPiWorkerInboundMessageV1({
       revision: 1,
       kind: "catalog_request",
@@ -146,10 +146,16 @@ describe("Browser Pi Worker protocol", () => {
 
     const live = {
       revision: 1,
-      kind: "initialize",
+      kind: "configure",
       requestId: 2,
       runtime: "pi_provider",
-      selection: { kind: "builtin", providerId: "openai", modelId: "gpt-4.1-nano" },
+      selection: {
+        kind: "builtin",
+        providerId: "openai",
+        modelId: "gpt-4.1-nano",
+        api: "openai-responses",
+        baseUrl: "https://api.openai.com/v1",
+      },
       credential: { kind: "api_key", value: "sentinel" },
     } as const;
     expect(admitBrowserPiWorkerInboundMessageV1(live)).toEqual(live);
@@ -157,9 +163,7 @@ describe("Browser Pi Worker protocol", () => {
     expect(admitBrowserPiWorkerInboundMessageV1({
       ...live,
       selection: {
-        kind: "builtin",
-        providerId: "openai",
-        modelId: "gpt-4.1-nano",
+        ...live.selection,
         api: "forbidden",
       },
     })).toBeNull();
@@ -224,14 +228,91 @@ describe("Browser Pi Worker protocol", () => {
       runtime: "deterministic_test",
       selection: null,
     })).not.toBeNull();
+    expect(admitBrowserPiWorkerInboundMessageV1({
+      revision: 1,
+      kind: "test_connection",
+      requestId: 3,
+    })).toEqual({ revision: 1, kind: "test_connection", requestId: 3 });
+    expect(admitBrowserPiWorkerInboundMessageV1({
+      revision: 1,
+      kind: "test_connection",
+      requestId: 3,
+      credential: "forbidden",
+    })).toBeNull();
+    const selectModel = {
+      revision: 1,
+      kind: "select_model",
+      requestId: 4,
+      selection: {
+        ...live.selection,
+        modelId: "gpt-4.1-mini",
+      },
+    } as const;
+    expect(admitBrowserPiWorkerInboundMessageV1(selectModel)).toEqual(selectModel);
+    expect(admitBrowserPiWorkerInboundMessageV1({
+      ...selectModel,
+      credential: "forbidden",
+    })).toBeNull();
+    expect(admitBrowserPiWorkerOutboundMessageV1({
+      revision: 1,
+      kind: "configured",
+      requestId: 2,
+      runtime: live.runtime,
+      selection: live.selection,
+      distribution: browserPiDistributionIdentityV1,
+    })).not.toBeNull();
+    expect(admitBrowserPiWorkerOutboundMessageV1({
+      revision: 1,
+      kind: "connection_test_failure",
+      requestId: 3,
+      code: "connection_failed",
+    })).not.toBeNull();
+    expect(admitBrowserPiWorkerOutboundMessageV1({
+      revision: 1,
+      kind: "connection_test_failure",
+      requestId: 3,
+      code: "credential_invalid",
+    })).toBeNull();
+    expect(admitBrowserPiWorkerOutboundMessageV1({
+      revision: 1,
+      kind: "model_selected",
+      requestId: 4,
+      selection: selectModel.selection,
+    })).toEqual({
+      revision: 1,
+      kind: "model_selected",
+      requestId: 4,
+      selection: selectModel.selection,
+    });
+    for (
+      const code of [
+        "not_configured",
+        "selection_unavailable",
+        "credential_scope_mismatch",
+        "busy",
+      ] as const
+    ) {
+      expect(admitBrowserPiWorkerOutboundMessageV1({
+        revision: 1,
+        kind: "model_selection_failure",
+        requestId: 4,
+        code,
+      })).toEqual({ revision: 1, kind: "model_selection_failure", requestId: 4, code });
+    }
+    expect(admitBrowserPiWorkerOutboundMessageV1({
+      revision: 1,
+      kind: "model_selection_failure",
+      requestId: 4,
+      code: "credential_invalid",
+    })).toBeNull();
   });
 
   it("admits only bounded catalog projections with derived Provider availability", () => {
     const catalog = catalogV1();
     expect(admitBrowserPiProviderCatalogWireV1(catalog)).toMatchObject({
       providers: [
-        { id: "openai", availability: "qualified" },
-        { id: "anthropic", availability: "candidate" },
+        { id: "openai", availability: "available" },
+        { id: "anthropic", availability: "available" },
       ],
     });
     expect(admitBrowserPiWorkerOutboundMessageV1({
@@ -246,7 +327,7 @@ describe("Browser Pi Worker protocol", () => {
     const openAi = providers[0] as Record<string, unknown>;
     expect(admitBrowserPiProviderCatalogWireV1({
       ...catalog,
-      providers: [{ ...openAi, availability: "candidate" }, providers[1]],
+      providers: [{ ...openAi, availability: "unavailable" }, providers[1]],
     })).toBeNull();
     const models = openAi.models as Record<string, unknown>[];
     expect(admitBrowserPiProviderCatalogWireV1({

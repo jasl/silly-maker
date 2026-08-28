@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: MIT
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getSillyOsCopyV1 } from "../content/copy.ts";
@@ -15,6 +16,10 @@ import {
   ProviderSettingsV1,
 } from "../ui/provider-settings.tsx";
 import { CreatorHomeV1 } from "../ui/creator-home.tsx";
+import {
+  providerApiKeyWarningRequiredV1,
+  selectionsShareCredentialScopeV1,
+} from "../ui/silly-os-app.tsx";
 
 afterEach(cleanup);
 
@@ -49,7 +54,7 @@ const providersV1: readonly ProviderSettingsProviderV1[] = [
     providerId: "openai",
     name: "OpenAI",
     baseUrl: "https://api.openai.com/v1",
-    availability: { status: "qualified" },
+    availability: { status: "available" },
     models: [
       {
         providerId: "openai",
@@ -57,15 +62,15 @@ const providersV1: readonly ProviderSettingsProviderV1[] = [
         name: "GPT-4.1 nano",
         api: "openai-responses",
         baseUrl: "https://api.openai.com/v1",
-        availability: { status: "qualified" },
+        availability: { status: "available" },
       },
       {
         providerId: "openai",
-        modelId: "gpt-future-candidate",
-        name: "Future candidate",
+        modelId: "gpt-latest",
+        name: "GPT latest",
         api: "openai-responses",
         baseUrl: "https://api.openai.com/v1",
-        availability: { status: "candidate", reason: "qualification_pending" },
+        availability: { status: "available" },
       },
     ],
   },
@@ -73,15 +78,15 @@ const providersV1: readonly ProviderSettingsProviderV1[] = [
     providerId: "anthropic",
     name: "Anthropic",
     baseUrl: "https://api.anthropic.com",
-    availability: { status: "candidate", reason: "qualification_pending" },
+    availability: { status: "available" },
     models: [
       {
         providerId: "anthropic",
-        modelId: "claude-candidate",
-        name: "Claude candidate",
+        modelId: "claude-latest",
+        name: "Claude latest",
         api: "anthropic-messages",
         baseUrl: "https://api.anthropic.com",
-        availability: { status: "candidate", reason: "qualification_pending" },
+        availability: { status: "available" },
       },
     ],
   },
@@ -123,69 +128,152 @@ const customProfileV1: ProviderSettingsCustomProfileV1 = {
   maxTokens: 16_384,
 };
 
+const openAiNanoSelectionV1 = {
+  kind: "builtin",
+  providerId: "openai",
+  modelId: "gpt-4.1-nano",
+  api: "openai-responses",
+  baseUrl: "https://api.openai.com/v1",
+} as const;
+
+const defaultEnabledModelsV1 = [{ providerId: "openai", modelId: "gpt-4.1-nano" }] as const;
+
+describe("SillyOS Provider credential scope", () => {
+  const openAiNanoV1 = openAiNanoSelectionV1;
+  const openAiLatestV1 = { ...openAiNanoV1, modelId: "gpt-latest" } as const;
+
+  it("shares a built-in key only within one Provider and canonical endpoint", () => {
+    expect(selectionsShareCredentialScopeV1(openAiNanoV1, openAiLatestV1)).toBe(true);
+    expect(selectionsShareCredentialScopeV1(openAiNanoV1, {
+      ...openAiLatestV1,
+      baseUrl: "https://gateway.example.com/v1",
+    })).toBe(false);
+    expect(selectionsShareCredentialScopeV1(openAiNanoV1, {
+      ...openAiLatestV1,
+      providerId: "other-openai",
+    })).toBe(false);
+  });
+
+  it("keeps custom credential scope exact", () => {
+    const custom = { kind: "custom", profile: customProfileV1 } as const;
+    expect(selectionsShareCredentialScopeV1(custom, custom)).toBe(true);
+    expect(selectionsShareCredentialScopeV1(custom, {
+      kind: "custom",
+      profile: { ...customProfileV1, modelId: "other-model" },
+    })).toBe(false);
+  });
+
+  it("keys the Provider warning to Worker credential presence instead of model options", () => {
+    expect(providerApiKeyWarningRequiredV1("available")).toBe(true);
+    expect(providerApiKeyWarningRequiredV1("failed")).toBe(true);
+    for (const status of ["credential_saved", "testing", "ready", "test_failed"] as const) {
+      expect(providerApiKeyWarningRequiredV1(status)).toBe(false);
+    }
+  });
+});
+
 function renderSettingsV1(input?: {
   readonly catalog?: ProviderSettingsCatalogV1;
   readonly customProfiles?: readonly ProviderSettingsCustomProfileV1[];
+  readonly enabledBuiltinModels?: ProviderSettingsPropsV1["enabledBuiltinModels"];
+  readonly preferredBuiltinModel?: ProviderSettingsPropsV1["preferredBuiltinModel"];
   readonly profile?: ProviderSettingsProfileV1;
-  readonly onInitialize?: ProviderSettingsPropsV1["onInitialize"];
+  readonly onSaveCredential?: ProviderSettingsPropsV1["onSaveCredential"];
+  readonly onTestConnection?: ProviderSettingsPropsV1["onTestConnection"];
+  readonly onSetBuiltinModelEnabled?: ProviderSettingsPropsV1["onSetBuiltinModelEnabled"];
   readonly onCreateCustomProfile?: ProviderSettingsPropsV1["onCreateCustomProfile"];
   readonly onRemoveCustomProfile?: ProviderSettingsPropsV1["onRemoveCustomProfile"];
   readonly onForget?: ProviderSettingsPropsV1["onForget"];
   readonly onRetryCatalog?: ProviderSettingsPropsV1["onRetryCatalog"];
 }) {
-  const onInitialize = input?.onInitialize ?? vi.fn();
+  const onSaveCredential = input?.onSaveCredential ?? vi.fn();
+  const onTestConnection = input?.onTestConnection ?? vi.fn();
+  const onSetBuiltinModelEnabled = input?.onSetBuiltinModelEnabled ?? vi.fn();
   const onCreateCustomProfile = input?.onCreateCustomProfile ?? vi.fn(() => null);
   const onRemoveCustomProfile = input?.onRemoveCustomProfile ?? vi.fn();
   const onForget = input?.onForget ?? vi.fn();
   const onRetryCatalog = input?.onRetryCatalog ?? vi.fn();
-  const view = render(
-    <ProviderSettingsV1
-      copy={getSillyOsCopyV1("en")}
-      catalog={input?.catalog ?? readyCatalogV1}
-      customProfiles={input?.customProfiles ?? []}
-      profile={input?.profile ?? disconnectedProfileV1}
-      onBack={vi.fn()}
-      onLocaleChange={vi.fn()}
-      onRetryCatalog={onRetryCatalog}
-      onInitialize={onInitialize}
-      onCreateCustomProfile={onCreateCustomProfile}
-      onRemoveCustomProfile={onRemoveCustomProfile}
-      onForget={onForget}
-    />,
-  );
-  return view;
+
+  function SettingsHarnessV1() {
+    const [enabledBuiltinModels, setEnabledBuiltinModels] = useState(
+      input?.enabledBuiltinModels ?? defaultEnabledModelsV1,
+    );
+    return (
+      <ProviderSettingsV1
+        copy={getSillyOsCopyV1("en")}
+        catalog={input?.catalog ?? readyCatalogV1}
+        customProfiles={input?.customProfiles ?? []}
+        enabledBuiltinModels={enabledBuiltinModels}
+        preferredBuiltinModel={input?.preferredBuiltinModel ?? null}
+        profile={input?.profile ?? disconnectedProfileV1}
+        onBack={vi.fn()}
+        onLocaleChange={vi.fn()}
+        onRetryCatalog={onRetryCatalog}
+        onSaveCredential={onSaveCredential}
+        onTestConnection={onTestConnection}
+        onSetBuiltinModelEnabled={(model, enabled) => {
+          onSetBuiltinModelEnabled(model, enabled);
+          setEnabledBuiltinModels((current) =>
+            enabled
+              ? [...current, model]
+              : current.filter((candidate) =>
+                candidate.providerId !== model.providerId || candidate.modelId !== model.modelId
+              )
+          );
+        }}
+        onCreateCustomProfile={onCreateCustomProfile}
+        onRemoveCustomProfile={onRemoveCustomProfile}
+        onForget={onForget}
+      />
+    );
+  }
+
+  return render(<SettingsHarnessV1 />);
+}
+
+function disconnectedSettingsPropsV1(): ProviderSettingsPropsV1 {
+  return {
+    copy: getSillyOsCopyV1("en"),
+    catalog: readyCatalogV1,
+    customProfiles: [],
+    enabledBuiltinModels: defaultEnabledModelsV1,
+    preferredBuiltinModel: null,
+    profile: disconnectedProfileV1,
+    onBack: vi.fn(),
+    onLocaleChange: vi.fn(),
+    onRetryCatalog: vi.fn(),
+    onSaveCredential: vi.fn(),
+    onTestConnection: vi.fn(),
+    onSetBuiltinModelEnabled: vi.fn(),
+    onCreateCustomProfile: vi.fn(() => null),
+    onRemoveCustomProfile: vi.fn(),
+    onForget: vi.fn(),
+  };
 }
 
 describe("SillyOS Provider settings", () => {
-  it("focuses the return action and opens the first qualified Provider", () => {
+  it("focuses the return action and opens the first available Provider", () => {
     renderSettingsV1({
       catalog: { phase: "ready", providers: providersV1.toReversed() },
     });
 
     expect(screen.getByRole("button", { name: "Back to Agent Creator" })).toHaveFocus();
-    expect(screen.getByRole("heading", { name: "OpenAI" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Anthropic" })).toBeVisible();
   });
 
-  it("renders honest loading and failure states without inventing a catalog", () => {
+  it("renders loading and failure states without branding or inventing a catalog", () => {
     const onRetryCatalog = vi.fn();
     const view = renderSettingsV1({ catalog: { phase: "loading" }, onRetryCatalog });
 
-    expect(screen.getByRole("status")).toHaveTextContent("Loading the Pi catalog");
-    expect(screen.queryByRole("navigation", { name: "Pi Providers" })).toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading the model catalog");
+    expect(screen.queryByRole("navigation", { name: "Model Providers" })).toBeNull();
+    expect(view.container).not.toHaveTextContent(/\bPi\b/u);
 
     view.rerender(
       <ProviderSettingsV1
-        copy={getSillyOsCopyV1("en")}
+        {...disconnectedSettingsPropsV1()}
         catalog={{ phase: "failed", diagnosticCode: "worker_unavailable" }}
-        customProfiles={[]}
-        profile={disconnectedProfileV1}
-        onBack={vi.fn()}
-        onLocaleChange={vi.fn()}
         onRetryCatalog={onRetryCatalog}
-        onInitialize={vi.fn()}
-        onCreateCustomProfile={vi.fn(() => null)}
-        onRemoveCustomProfile={vi.fn()}
-        onForget={vi.fn()}
       />,
     );
 
@@ -197,72 +285,110 @@ describe("SillyOS Provider settings", () => {
     expect(onRetryCatalog).toHaveBeenCalledOnce();
   });
 
-  it("keeps the full Pi projection inspectable while exposing Browser truth", () => {
-    renderSettingsV1();
+  it("shows only Browser route availability and keeps unavailable Providers inspectable", () => {
+    const view = renderSettingsV1();
 
-    expect(screen.getByRole("navigation", { name: "Pi Providers" })).toBeVisible();
+    expect(screen.getByRole("navigation", { name: "Model Providers" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Built-in Providers" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Custom Endpoints" })).toBeVisible();
-    expect(screen.getByRole("button", { name: /OpenAI/ })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: /OpenAI/u })).toHaveAttribute(
       "data-availability",
-      "qualified",
+      "available",
     );
-    expect(screen.getByRole("button", { name: /Anthropic/ })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: /Anthropic/u })).toHaveAttribute(
       "data-availability",
-      "candidate",
+      "available",
     );
-    expect(screen.getByRole("button", { name: /Amazon Bedrock/ })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: /Amazon Bedrock/u })).toHaveAttribute(
       "data-availability",
       "unavailable",
     );
-    expect(screen.getByText("GPT-4.1 nano")).toBeVisible();
-    expect(screen.getByText("Future candidate")).toBeVisible();
-    expect(screen.getByRole("radio", { name: /Future candidate/ })).toBeDisabled();
-    expect(
-      screen.getByText(/exact Provider and model path has passed the SillyOS Browser contract/),
-    ).toBeVisible();
-    const endpoint = screen.getByLabelText("Endpoint");
-    expect(endpoint).toHaveValue("https://api.openai.com/v1");
-    expect(endpoint).toHaveAttribute("readonly");
-    expect(endpoint).toHaveAttribute("data-endpoint-editable", "false");
-    const connectionSection = screen.getByRole("heading", { name: "Connection" })
-      .closest("section");
-    const modelsSection = screen.getByRole("heading", { name: "Models from Pi" })
-      .closest("section");
-    expect(connectionSection).not.toBeNull();
-    expect(modelsSection).not.toBeNull();
-    expect(
-      (connectionSection!.compareDocumentPosition(modelsSection!) &
-        Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
-    ).toBe(true);
+    expect(screen.getByRole("heading", { name: "Available models" })).toBeVisible();
+    expect(screen.getByText(/Choose models that may appear/u)).toBeVisible();
+    expect(view.container).not.toHaveTextContent(/qualified|candidate|\bPi\b/iu);
 
-    fireEvent.click(screen.getByRole("button", { name: /Anthropic/ }));
-    expect(screen.getByRole("heading", { name: "Anthropic" })).toBeVisible();
-    expect(screen.getByText("Claude candidate")).toBeVisible();
-    expect(
-      screen.getAllByText(/has not passed SillyOS Browser qualification/).length,
-    ).toBeGreaterThan(0);
-    expect(screen.queryByLabelText("API key (memory only)")).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: /Amazon Bedrock/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Amazon Bedrock/u }));
     expect(screen.getByRole("heading", { name: "Amazon Bedrock" })).toBeVisible();
-    expect(screen.getByText("Bedrock model")).toBeVisible();
-    expect(screen.getAllByText(/credential flow is not available/).length).toBeGreaterThan(0);
-    expect(screen.queryByRole("button", { name: "Test connection" })).toBeNull();
+    expect(screen.getByRole("checkbox", { name: /Bedrock model/u })).toBeDisabled();
+    expect(screen.getAllByText(/credential flow is not available/u).length).toBeGreaterThan(0);
+    expect(screen.getByRole("combobox", { name: /Connection model/u })).toBeDisabled();
+    expect(screen.queryByLabelText("API key (memory only)")).toBeNull();
   });
 
-  it("tests only an exact qualified model and clears the uncontrolled key before callback", () => {
+  it("uses independent checkboxes for model visibility and a separate connection target", () => {
+    const onSetBuiltinModelEnabled = vi.fn();
+    renderSettingsV1({ onSetBuiltinModelEnabled });
+
+    const nano = screen.getByRole("checkbox", { name: /GPT-4.1 nano/u });
+    const latest = screen.getByRole("checkbox", { name: /GPT latest/u });
+    const connectionModel = screen.getByRole("combobox", {
+      name: /Connection model/u,
+    });
+
+    expect(screen.queryAllByRole("radio")).toHaveLength(0);
+    expect(nano).toBeChecked();
+    expect(latest).not.toBeChecked();
+    expect(connectionModel).toHaveValue("gpt-4.1-nano");
+
+    fireEvent.click(latest);
+    expect(nano).toBeChecked();
+    expect(latest).toBeChecked();
+    expect(onSetBuiltinModelEnabled).toHaveBeenLastCalledWith(
+      { providerId: "openai", modelId: "gpt-latest" },
+      true,
+    );
+
+    fireEvent.change(connectionModel, { target: { value: "gpt-latest" } });
+    expect(connectionModel).toHaveValue("gpt-latest");
+
+    fireEvent.click(nano);
+    expect(nano).not.toBeChecked();
+    expect(latest).toBeChecked();
+    expect(connectionModel).toHaveValue("gpt-latest");
+    expect(onSetBuiltinModelEnabled).toHaveBeenLastCalledWith(
+      { providerId: "openai", modelId: "gpt-4.1-nano" },
+      false,
+    );
+  });
+
+  it("initializes the connection target from the stored preferred model", () => {
+    renderSettingsV1({
+      enabledBuiltinModels: [
+        { providerId: "openai", modelId: "gpt-4.1-nano" },
+        { providerId: "openai", modelId: "gpt-latest" },
+      ],
+      preferredBuiltinModel: { providerId: "openai", modelId: "gpt-latest" },
+    });
+
+    expect(screen.getByRole("combobox", { name: /Connection model/u })).toHaveValue(
+      "gpt-latest",
+    );
+  });
+
+  it("requires one enabled model before exposing the key form", () => {
+    renderSettingsV1({ enabledBuiltinModels: [] });
+
+    const connectionModel = screen.getByRole("combobox", {
+      name: /Connection model/u,
+    });
+    expect(connectionModel).toBeDisabled();
+    expect(connectionModel).toHaveTextContent("Choose a model in Available models first");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Choose at least one available model below",
+    );
+    expect(screen.queryByLabelText("API key (memory only)")).toBeNull();
+  });
+
+  it("saves the exact selected model without testing and clears the uncontrolled key", () => {
     let inputValueDuringCallback = "not-called";
-    const onInitialize = vi.fn(() => {
+    const onSaveCredential = vi.fn(() => {
       inputValueDuringCallback = (screen.getByLabelText(
         "API key (memory only)",
       ) as HTMLInputElement).value;
     });
-    renderSettingsV1({ onInitialize });
+    const onTestConnection = vi.fn();
+    renderSettingsV1({ onSaveCredential, onTestConnection });
 
-    const candidate = screen.getByRole("radio", { name: /Future candidate/ });
-    expect(candidate).toBeDisabled();
-    expect(screen.getByRole("radio", { name: /GPT-4.1 nano/ })).toBeChecked();
     const keyInput = screen.getByLabelText("API key (memory only)") as HTMLInputElement;
     expect(keyInput).not.toHaveAttribute("value");
     expect(keyInput).toHaveAttribute("type", "password");
@@ -271,142 +397,85 @@ describe("SillyOS Provider settings", () => {
     fireEvent.click(screen.getByRole("button", { name: "Hide API key" }));
     expect(keyInput).toHaveAttribute("type", "password");
     fireEvent.change(keyInput, { target: { value: "sk-test-secret" } });
-    fireEvent.click(screen.getByRole("button", { name: "Test connection" }));
+    expect(screen.getByRole("button", { name: "Test connection" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Save key" }));
 
-    expect(onInitialize).toHaveBeenCalledWith(
-      { kind: "builtin", providerId: "openai", modelId: "gpt-4.1-nano" },
-      "sk-test-secret",
-    );
+    expect(onSaveCredential).toHaveBeenCalledWith(openAiNanoSelectionV1, "sk-test-secret");
+    expect(onTestConnection).not.toHaveBeenCalled();
     expect(inputValueDuringCallback).toBe("");
     expect(keyInput).toHaveValue("");
     expect(keyInput).not.toHaveAttribute("value");
     expect(document.body.textContent).not.toContain("sk-test-secret");
   });
 
-  it("rejects a stale draft instead of silently selecting a replacement model", async () => {
-    const onInitialize = vi.fn();
-    const view = renderSettingsV1({ onInitialize });
-
-    fireEvent.click(screen.getByRole("radio", { name: /GPT-4.1 nano/ }));
-    expect(screen.getByLabelText("API key (memory only)")).toBeVisible();
-
-    view.rerender(
-      <ProviderSettingsV1
-        copy={getSillyOsCopyV1("en")}
-        catalog={{
-          phase: "ready",
-          providers: [{ ...providersV1[0]!, models: [providersV1[0]!.models[1]!] }],
-        }}
-        customProfiles={[]}
-        profile={disconnectedProfileV1}
-        onBack={vi.fn()}
-        onLocaleChange={vi.fn()}
-        onRetryCatalog={vi.fn()}
-        onInitialize={onInitialize}
-        onCreateCustomProfile={vi.fn(() => null)}
-        onRemoveCustomProfile={vi.fn()}
-        onForget={vi.fn()}
-      />,
-    );
-
-    await waitFor(() => {
-      expect(screen.queryByLabelText("API key (memory only)")).toBeNull();
-    });
-    expect(screen.getByRole("radio", { name: /Future candidate/ })).not.toBeChecked();
-    expect(screen.getByRole("status")).toHaveTextContent("Choose a qualified model");
-    expect(onInitialize).not.toHaveBeenCalled();
-  });
-
-  it("shows the exact connected profile and forget action", () => {
+  it("makes a saved key usable before any connection test and keeps testing optional", () => {
     const onForget = vi.fn();
+    const onTestConnection = vi.fn();
     renderSettingsV1({
-      profile: {
-        phase: "ready",
-        active: { kind: "builtin", providerId: "openai", modelId: "gpt-4.1-nano" },
-      },
+      profile: { phase: "credential_saved", active: openAiNanoSelectionV1 },
       onForget,
+      onTestConnection,
     });
 
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Agent Creator connectedOpenAI · GPT-4.1 nano",
+      "API key saved in Agent Worker memoryOpenAI · GPT-4.1 nano",
     );
+    expect(
+      screen.getByText(/Save a key in the current Agent Worker session to use it immediately/u),
+    )
+      .toBeVisible();
+    expect(
+      screen.getByText(
+        /Saving makes enabled models on this Provider endpoint available without a request/u,
+      ),
+    )
+      .toBeVisible();
+    expect(screen.getByText(/never controls availability/u)).toBeVisible();
+    expect(screen.queryByText(/connection test required/u)).toBeNull();
+    expect(screen.getByLabelText("API key (memory only)")).toHaveAttribute(
+      "placeholder",
+      "Paste a new key to replace the saved key",
+    );
+    const testConnection = screen.getByRole("button", { name: "Test connection" });
+    expect(testConnection).toBeEnabled();
+    fireEvent.click(testConnection);
+    expect(onTestConnection).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole("button", { name: "Forget key" }));
     expect(onForget).toHaveBeenCalledOnce();
   });
 
-  it("keeps a failed exact profile visible without retaining its key", () => {
-    renderSettingsV1({
-      profile: {
-        phase: "failed",
-        active: { kind: "builtin", providerId: "openai", modelId: "gpt-4.1-nano" },
-        diagnosticCode: "adapter_unavailable",
-      },
-    });
-
-    expect(screen.getByRole("alert")).toHaveAttribute(
-      "data-diagnostic-code",
-      "adapter_unavailable",
-    );
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "The connection test failed. Check the key, model, endpoint, and Browser access. " +
-        "The key was not retained.",
-    );
-    expect(screen.getByLabelText("API key (memory only)")).toHaveValue("");
-  });
-
-  it("uses sequential mobile navigation and restores focus to the inspected Provider", () => {
-    narrowViewportV1 = true;
-    const view = renderSettingsV1();
-    const anthropic = screen.getByRole("button", { name: /Anthropic/ });
-
-    fireEvent.click(anthropic);
-    expect(view.container.querySelector(".provider-settings")).toHaveAttribute(
-      "data-mobile-view",
-      "detail",
-    );
-    const back = screen.getByRole("button", { name: "Back to Providers" });
-    expect(back).toHaveFocus();
-
-    fireEvent.click(back);
-    expect(view.container.querySelector(".provider-settings")).toHaveAttribute(
-      "data-mobile-view",
-      "providers",
-    );
-    expect(anthropic).toHaveFocus();
-  });
-
-  it("filters Provider and model identities without changing their Pi-owned text", () => {
+  it("filters Provider and model identities without changing catalog text", () => {
     renderSettingsV1();
 
     fireEvent.change(screen.getByLabelText("Search Providers"), {
       target: { value: "anthropic" },
     });
-    expect(screen.getByRole("button", { name: /Anthropic/ })).toBeVisible();
-    expect(screen.queryByRole("button", { name: /OpenAI/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /Anthropic/u })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /OpenAI/u })).toBeNull();
 
     fireEvent.change(screen.getByLabelText("Search Providers"), { target: { value: "" } });
-    fireEvent.click(screen.getByRole("button", { name: /OpenAI/ }));
+    fireEvent.click(screen.getByRole("button", { name: /OpenAI/u }));
     fireEvent.change(screen.getByLabelText("Search models"), {
-      target: { value: "gpt-future-candidate" },
+      target: { value: "gpt-latest" },
     });
-    expect(screen.getByText("Future candidate")).toBeVisible();
+    expect(screen.getByText("GPT latest")).toBeVisible();
     expect(screen.queryByText("GPT-4.1 nano")).toBeNull();
   });
 
-  it("creates a custom endpoint from the separate section", () => {
+  it("creates a custom endpoint from its separate section", () => {
     const onCreateCustomProfile = vi.fn(() => customProfileV1);
     renderSettingsV1({ onCreateCustomProfile });
 
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     expect(screen.getByRole("heading", { name: "Add a custom endpoint" })).toBeVisible();
-    expect(screen.getByText(/API key is never stored/)).toBeVisible();
+    expect(screen.getByText(/API key is never stored/u)).toBeVisible();
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: customProfileV1.displayName },
     });
-    fireEvent.change(screen.getByLabelText("Pi API family"), {
+    fireEvent.change(screen.getByLabelText("API format"), {
       target: { value: customProfileV1.api },
     });
-    fireEvent.change(screen.getByLabelText(/^Endpoint/), {
+    fireEvent.change(screen.getByLabelText(/^Endpoint/u), {
       target: { value: customProfileV1.baseUrl },
     });
     fireEvent.change(screen.getByLabelText("Model ID"), {
@@ -430,19 +499,21 @@ describe("SillyOS Provider settings", () => {
     });
   });
 
-  it("tests and removes a custom profile without retaining its key in the DOM", () => {
+  it("saves and removes a custom profile without retaining its key in the DOM", () => {
     let inputValueDuringCallback = "not-called";
-    const onInitialize = vi.fn(() => {
+    const onSaveCredential = vi.fn(() => {
       inputValueDuringCallback = (screen.getByLabelText(
         "API key (memory only)",
       ) as HTMLInputElement).value;
     });
     const onRemoveCustomProfile = vi.fn();
-    renderSettingsV1({ customProfiles: [customProfileV1], onInitialize, onRemoveCustomProfile });
+    renderSettingsV1({
+      customProfiles: [customProfileV1],
+      onSaveCredential,
+      onRemoveCustomProfile,
+    });
 
-    const custom = screen.getByRole("button", { name: /My gateway/ });
-    expect(custom).toHaveAttribute("data-connection-status", "untested");
-    fireEvent.click(custom);
+    fireEvent.click(screen.getByRole("button", { name: /My gateway/u }));
     const endpoint = screen.getByLabelText("Endpoint");
     expect(endpoint).toHaveValue(customProfileV1.baseUrl);
     expect(endpoint).toHaveAttribute("readonly");
@@ -450,8 +521,8 @@ describe("SillyOS Provider settings", () => {
 
     const keyInput = screen.getByLabelText("API key (memory only)") as HTMLInputElement;
     fireEvent.change(keyInput, { target: { value: "custom-test-secret" } });
-    fireEvent.click(screen.getByRole("button", { name: "Test connection" }));
-    expect(onInitialize).toHaveBeenCalledWith(
+    fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+    expect(onSaveCredential).toHaveBeenCalledWith(
       { kind: "custom", profile: customProfileV1 },
       "custom-test-secret",
     );
@@ -463,53 +534,162 @@ describe("SillyOS Provider settings", () => {
     expect(onRemoveCustomProfile).toHaveBeenCalledWith(customProfileV1.profileId);
   });
 
-  it("marks the active custom profile as verified in this browser", () => {
-    renderSettingsV1({
-      customProfiles: [customProfileV1],
-      profile: {
-        phase: "ready",
-        active: { kind: "custom", profile: customProfileV1 },
-      },
-    });
+  it("uses sequential mobile navigation and restores focus to the inspected Provider", () => {
+    narrowViewportV1 = true;
+    const view = renderSettingsV1();
+    const anthropic = screen.getByRole("button", { name: /Anthropic/u });
 
-    const custom = screen.getByRole("button", { name: /My gateway/ });
-    expect(custom).toHaveAttribute("data-connection-status", "verified");
-    fireEvent.click(custom);
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Verified in this browserMy gateway · custom-model",
+    fireEvent.click(anthropic);
+    expect(view.container.querySelector(".provider-settings")).toHaveAttribute(
+      "data-mobile-view",
+      "detail",
     );
+    const back = screen.getByRole("button", { name: "Back to Providers" });
+    expect(back).toHaveFocus();
+
+    fireEvent.click(back);
+    expect(view.container.querySelector(".provider-settings")).toHaveAttribute(
+      "data-mobile-view",
+      "providers",
+    );
+    expect(anthropic).toHaveFocus();
   });
 });
 
 describe("SillyOS Creator Home Provider warning", () => {
   const copy = getSillyOsCopyV1("en");
 
-  it("renders only when Provider setup is required and opens the Providers view from the card", () => {
+  it("renders either a setup warning or a non-empty saved-key picker, never both", () => {
     const onOpenSettings = vi.fn();
+    const onOpenModelSettings = vi.fn();
+    const onSelect = vi.fn();
     const view = render(
       <CreatorHomeV1
         copy={copy}
         onCreate={vi.fn()}
         onLocaleChange={vi.fn()}
+        onOpenSettings={onOpenSettings}
+        providerModel={{
+          status: "required",
+          selectedValue: null,
+          options: [],
+          onSelect,
+          onOpenSettings: onOpenModelSettings,
+        }}
+        providerSetup={{ status: "available", onOpenSettings }}
       />,
     );
 
-    expect(screen.queryByRole("button", { name: /Browser Pi Provider/ })).toBeNull();
+    const warning = screen.getByRole("button", { name: /Model Provider/u });
+    expect(warning).toHaveTextContent("API key required");
+    expect(warning).not.toHaveTextContent(/\bPi\b/u);
+    const emptyPicker = screen.getByRole("combobox", { name: "Agent Creator model" });
+    expect(emptyPicker).toBeEnabled();
+    fireEvent.click(emptyPicker);
+    expect(screen.queryAllByRole("option")).toHaveLength(0);
+    expect(
+      screen.getByText("No enabled model is available to the current key in this browser session."),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Model settings" }));
+    expect(onOpenModelSettings).toHaveBeenCalledOnce();
+    fireEvent.click(warning);
+    expect(onOpenSettings).toHaveBeenCalledOnce();
 
     view.rerender(
       <CreatorHomeV1
         copy={copy}
         onCreate={vi.fn()}
         onLocaleChange={vi.fn()}
-        providerSetup={{ status: "available", onOpenSettings }}
+        onOpenSettings={onOpenSettings}
+        providerModel={{
+          status: "ready",
+          selectedValue: "builtin:openai:gpt-latest",
+          options: [
+            {
+              value: "builtin:openai:gpt-latest",
+              modelName: "GPT latest",
+              providerName: "OpenAI",
+            },
+            {
+              value: "builtin:openai:gpt-mini",
+              modelName: "GPT mini",
+              providerName: "OpenAI",
+            },
+          ],
+          onSelect,
+          onOpenSettings: onOpenModelSettings,
+        }}
       />,
     );
 
-    const warning = screen.getByRole("button", { name: /Browser Pi Provider/ });
-    expect(warning).toHaveAttribute("data-pi-agent-runtime", "pi_provider");
-    expect(warning).toHaveAttribute("data-pi-agent-status", "available");
-    expect(warning).toHaveTextContent("API key required");
-    fireEvent.click(screen.getByText(copy.piLiveDescription));
-    expect(onOpenSettings).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: /Model Provider/u })).toBeNull();
+    const picker = screen.getByRole("combobox", { name: "Agent Creator model" });
+    expect(picker).toHaveAttribute("data-selected-value", "builtin:openai:gpt-latest");
+    expect(picker).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(picker);
+    expect(picker).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("listbox", { name: "Agent Creator model" })).toBeVisible();
+    const options = screen.getAllByRole("option");
+    expect(options).toHaveLength(2);
+    expect(
+      screen.queryByText(
+        "No enabled model is available to the current key in this browser session.",
+      ),
+    ).toBeNull();
+    expect(options[0]).toHaveAttribute("aria-selected", "true");
+    expect(options[1]).toHaveAttribute("aria-selected", "false");
+
+    fireEvent.keyDown(picker, { key: "ArrowDown" });
+    expect(options[1]).toHaveAttribute("data-active", "true");
+    fireEvent.keyDown(picker, { key: "Enter" });
+    expect(onSelect).toHaveBeenCalledWith("builtin:openai:gpt-mini");
+    expect(picker).toHaveAttribute("aria-expanded", "false");
+    expect(picker).toHaveFocus();
+
+    fireEvent.keyDown(picker, { key: " " });
+    expect(picker).toHaveAttribute("aria-expanded", "true");
+    const modelSettings = screen.getByRole("button", { name: "Model settings" });
+    expect(modelSettings).not.toHaveAttribute("role", "option");
+    modelSettings.focus();
+    fireEvent.keyDown(modelSettings, { key: "Escape" });
+    expect(picker).toHaveAttribute("aria-expanded", "false");
+    expect(picker).toHaveFocus();
+
+    fireEvent.click(picker);
+    const keyboardModelSettings = screen.getByRole("button", { name: "Model settings" });
+    keyboardModelSettings.focus();
+    fireEvent.keyDown(keyboardModelSettings, { key: "Enter" });
+    expect(onOpenModelSettings).toHaveBeenCalledTimes(2);
+    expect(picker).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("keeps the warning absent and disables the picker while a model switch settles", () => {
+    render(
+      <CreatorHomeV1
+        copy={copy}
+        onCreate={vi.fn()}
+        onLocaleChange={vi.fn()}
+        onOpenSettings={vi.fn()}
+        providerModel={{
+          status: "initializing",
+          selectedValue: "builtin:openai:gpt-latest",
+          options: [{
+            value: "builtin:openai:gpt-latest",
+            modelName: "GPT latest",
+            providerName: "OpenAI",
+          }],
+          onSelect: vi.fn(),
+          onOpenSettings: vi.fn(),
+        }}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: /Model Provider/u })).toBeNull();
+    const picker = screen.getByRole("combobox", { name: "Agent Creator model" });
+    expect(picker).toBeDisabled();
+    expect(picker.closest("[data-model-state]"))
+      .toHaveAttribute("data-model-state", "initializing");
+    expect(screen.getByText("Switching model…")).toBeVisible();
   });
 });

@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import { queryBrowserPiProviderCatalogV1 } from "../agent/browser-pi-catalog-port.ts";
+import { browserPiSingleSecretProviderIdsV1 } from "../agent/browser-pi-browser-compatibility.ts";
 import type { BrowserPiWorkerLikeV1 } from "../agent/browser-pi-transport.ts";
 import { createBrowserPiWorkerRuntimeV1 } from "../agent/browser-pi-worker-runtime.ts";
 
@@ -94,29 +95,34 @@ describe("SillyOS Browser Pi catalog port", () => {
     if (result.kind !== "ready") throw new Error("expected catalog");
     expect(result.catalog.providers).toHaveLength(40);
     expect(result.catalog.providers.flatMap(({ models }) => models)).toHaveLength(1_312);
-    expect(
-      result.catalog.providers.flatMap((provider) =>
-        provider.models.filter(({ availability }) => availability === "qualified").map((model) =>
-          `${provider.id}/${model.id}`
-        )
-      ).sort(),
-    ).toEqual([
-      "anthropic/claude-sonnet-4-5-20250929",
-      "deepseek/deepseek-v4-flash",
-      "google/gemini-2.5-flash",
-      "openai/gpt-4.1-nano",
-      "xai/grok-4.3",
-    ]);
-    expect(
-      result.catalog.providers.flatMap((provider) =>
-        provider.models.filter(({ availability }) => availability === "candidate").map((model) =>
-          `${provider.id}/${model.id}`
-        )
-      ),
-    ).toEqual([
+    const availableProviders = result.catalog.providers.filter(({ availability }) =>
+      availability === "available"
+    );
+    expect(availableProviders.map(({ id }) => id).sort()).toEqual(
+      [...browserPiSingleSecretProviderIdsV1].sort(),
+    );
+    const availableModels = result.catalog.providers.flatMap((provider) =>
+      provider.models.filter(({ availability }) => availability === "available").map((model) =>
+        `${provider.id}/${model.id}`
+      )
+    );
+    expect(availableModels).toHaveLength(1_032);
+    expect(availableModels).toEqual(expect.arrayContaining([
       "anthropic/claude-sonnet-4-5",
+      "deepseek/deepseek-v4-pro",
+      "google/gemini-2.5-pro",
+      "openai/gpt-4.1-mini",
       "openrouter/google/gemini-2.5-flash",
-    ]);
+      "xai/grok-4.5",
+    ]));
+    expect(
+      result.catalog.providers.flatMap((provider) => provider.models).filter(({ availability }) =>
+        availability === "unavailable"
+      ),
+    ).toHaveLength(280);
+    expect(result.catalog.providers.find(({ id }) => id === "mistral")?.availability).toBe(
+      "unavailable",
+    );
     expect(worker.posted).toEqual([{ revision: 1, kind: "catalog_request", requestId: 1 }]);
     expect(JSON.stringify(worker.posted)).not.toContain("credential");
     expect(worker.terminated).toBe(true);

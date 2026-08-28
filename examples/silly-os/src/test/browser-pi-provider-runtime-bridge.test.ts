@@ -14,6 +14,17 @@ const harnessV1 = vi.hoisted(() => {
     contextWindow: 1_000,
     maxTokens: 4_096,
   });
+  const sameRouteModel = Object.freeze({
+    ...model,
+    id: "gpt-4.1-mini",
+    name: "GPT-4.1 mini",
+  });
+  const unavailableModel = Object.freeze({
+    ...model,
+    id: "gpt-4o-mini",
+    name: "GPT-4o mini",
+    api: "mistral-conversations",
+  });
   const state = { builtinStopReason: "stop", customStopReason: "stop" };
   const streamSimple = vi.fn(() =>
     Object.freeze({
@@ -38,6 +49,8 @@ const harnessV1 = vi.hoisted(() => {
   const createdInputs: unknown[] = [];
   return {
     model,
+    sameRouteModel,
+    unavailableModel,
     state,
     streamSimple,
     customStreamSimple,
@@ -47,7 +60,7 @@ const harnessV1 = vi.hoisted(() => {
       id: "openai",
       name: "OpenAI",
       baseUrl: "https://api.openai.com/v1",
-      getModels: () => [model],
+      getModels: () => [model, sameRouteModel, unavailableModel],
       streamSimple,
     }),
   };
@@ -89,7 +102,9 @@ import {
   createBrowserPiProviderAgentV1,
   isBrowserPiSelectionAvailableV1,
   probeBrowserPiProviderSelectionV1,
+  projectBrowserPiProviderCatalogV1,
 } from "../agent/browser-pi-provider-runtime-bridge.js";
+import type { BrowserPiProviderCatalogWireV1 } from "../agent/browser-pi-worker-protocol.ts";
 
 interface CapturedAgentInputV1 {
   readonly model: unknown;
@@ -101,6 +116,13 @@ interface CapturedAgentInputV1 {
 }
 
 describe("SillyOS Browser Pi Provider runtime bridge", () => {
+  const openAISelectionRouteV1 = Object.freeze(
+    {
+      api: "openai-responses",
+      baseUrl: "https://api.openai.com/v1",
+    } as const,
+  );
+
   beforeEach(() => {
     harnessV1.state.builtinStopReason = "stop";
     harnessV1.state.customStopReason = "stop";
@@ -118,7 +140,12 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
   it("passes the neutral choice through the actual Pi streamSimple call", () => {
     createBrowserPiProviderAgentV1({
       apiKey: "test-only-key",
-      selection: { kind: "builtin", providerId: "openai", modelId: "gpt-4.1-nano" },
+      selection: {
+        kind: "builtin",
+        providerId: "openai",
+        modelId: "gpt-4.1-nano",
+        ...openAISelectionRouteV1,
+      },
       submit: Object.freeze({
         revision: 1,
         proposalId: "proposal.test.1",
@@ -155,7 +182,12 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
   it("accepts a built-in probe only after Pi reports stop or length", async () => {
     const input = {
       apiKey: "probe-only-key",
-      selection: { kind: "builtin", providerId: "openai", modelId: "gpt-4.1-nano" },
+      selection: {
+        kind: "builtin",
+        providerId: "openai",
+        modelId: "gpt-4.1-nano",
+        ...openAISelectionRouteV1,
+      },
       signal: new AbortController().signal,
     } as const;
     await expect(probeBrowserPiProviderSelectionV1(input)).resolves.toBe(true);
@@ -180,6 +212,93 @@ describe("SillyOS Browser Pi Provider runtime bridge", () => {
     await expect(probeBrowserPiProviderSelectionV1(input)).resolves.toBe(false);
     harnessV1.state.builtinStopReason = "error";
     await expect(probeBrowserPiProviderSelectionV1(input)).resolves.toBe(false);
+  });
+
+  it("makes every model on a configurable route available without model-ID gating", async () => {
+    const catalog = projectBrowserPiProviderCatalogV1() as BrowserPiProviderCatalogWireV1;
+    expect(catalog.providers[0]?.models.map(({ id, availability }) => ({ id, availability })))
+      .toEqual([
+        { id: "gpt-4.1-nano", availability: "available" },
+        { id: "gpt-4.1-mini", availability: "available" },
+        { id: "gpt-4o-mini", availability: "unavailable" },
+      ]);
+
+    const sameRouteSelection = {
+      kind: "builtin",
+      providerId: "openai",
+      modelId: "gpt-4.1-mini",
+      ...openAISelectionRouteV1,
+    } as const;
+    expect(isBrowserPiSelectionAvailableV1(sameRouteSelection)).toBe(true);
+    await expect(probeBrowserPiProviderSelectionV1({
+      apiKey: "same-route-probe-key",
+      selection: sameRouteSelection,
+      signal: new AbortController().signal,
+    })).resolves.toBe(true);
+    expect(harnessV1.streamSimple).toHaveBeenLastCalledWith(
+      harnessV1.sameRouteModel,
+      expect.anything(),
+      expect.objectContaining({ apiKey: "same-route-probe-key", maxTokens: 1 }),
+    );
+
+    createBrowserPiProviderAgentV1({
+      apiKey: "same-route-agent-key",
+      selection: sameRouteSelection,
+      submit: Object.freeze({
+        revision: 1,
+        proposalId: "proposal.same-route.1",
+        programId: "program.same-route.1",
+        baseProgramRevision: 1,
+        text: "Use another model on the same route.",
+      }),
+      workspaceTools: Object.freeze([]),
+      onCandidate: vi.fn(),
+      onTextDelta: vi.fn(),
+    });
+    const captured = harnessV1.createdInputs.at(-1) as CapturedAgentInputV1 | undefined;
+    expect(captured?.model).toMatchObject({
+      id: "gpt-4.1-mini",
+      provider: "openai",
+      api: "openai-responses",
+    });
+
+    const unavailableSelection = {
+      kind: "builtin",
+      providerId: "openai",
+      modelId: "gpt-4o-mini",
+      ...openAISelectionRouteV1,
+    } as const;
+    expect(isBrowserPiSelectionAvailableV1(unavailableSelection)).toBe(false);
+    await expect(probeBrowserPiProviderSelectionV1({
+      apiKey: "unavailable-probe-key",
+      selection: unavailableSelection,
+      signal: new AbortController().signal,
+    })).resolves.toBe(false);
+    expect(() =>
+      createBrowserPiProviderAgentV1({
+        apiKey: "unavailable-agent-key",
+        selection: unavailableSelection,
+        submit: Object.freeze({
+          revision: 1,
+          proposalId: "proposal.unavailable.1",
+          programId: "program.unavailable.1",
+          baseProgramRevision: 1,
+          text: "Reject an unsupported route family.",
+        }),
+        workspaceTools: Object.freeze([]),
+        onCandidate: vi.fn(),
+        onTextDelta: vi.fn(),
+      })
+    ).toThrow("Selected Pi Provider/model is unavailable in SillyOS Browser");
+
+    const routeMismatch = {
+      kind: "builtin",
+      providerId: "openai",
+      modelId: "gpt-4.1-mini",
+      api: "openai-completions",
+      baseUrl: "https://api.openai.com/v1",
+    } as const;
+    expect(isBrowserPiSelectionAvailableV1(routeMismatch)).toBe(false);
   });
 
   it("constructs every admitted custom API family through Pi's public lazy adapters", async () => {

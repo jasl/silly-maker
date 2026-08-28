@@ -37,6 +37,7 @@ import { workspaceMutationReceiptMaximumV1 } from "../workspace/contracts.ts";
 import {
   createBrowserPiWorkerRawTransportV1,
   type BrowserPiWorkerFactoryV1,
+  type BrowserPiWorkerRawTransportV1,
 } from "./browser-pi-transport.ts";
 import type {
   BrowserPiModelSelectionV1,
@@ -46,7 +47,9 @@ import type {
 
 export type CreatorAgentPhaseV1 =
   | "uninitialized"
-  | "initializing"
+  | "configuring"
+  | "configured"
+  | "testing"
   | "ready"
   | "running"
   | "completed"
@@ -107,8 +110,16 @@ export interface CreatorAgentSnapshotV1 {
   readonly workspace: CreatorAgentWorkspaceSnapshotV1;
 }
 
-export type CreatorAgentInitializeResultV1 =
+export type CreatorAgentConfigureCredentialResultV1 =
+  | { readonly kind: "configured" }
+  | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentDiagnosticV1 };
+
+export type CreatorAgentTestConnectionResultV1 =
   | { readonly kind: "ready" }
+  | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentDiagnosticV1 };
+
+export type CreatorAgentSelectModelResultV1 =
+  | { readonly kind: "selected"; readonly selection: BrowserPiModelSelectionV1 }
   | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentDiagnosticV1 };
 
 export type CreatorAgentPortSubmitResultV1 =
@@ -145,7 +156,9 @@ export type CreatorAgentExportWorkspaceResultV1 =
 export interface CreatorAgentPortV1 {
   getSnapshot(): CreatorAgentSnapshotV1;
   subscribe(listener: () => void): () => void;
-  initialize(): Promise<CreatorAgentInitializeResultV1>;
+  configureCredential(apiKey: string): Promise<CreatorAgentConfigureCredentialResultV1>;
+  testConnection(): Promise<CreatorAgentTestConnectionResultV1>;
+  selectModel(selection: BrowserPiModelSelectionV1): Promise<CreatorAgentSelectModelResultV1>;
   openWorkspace(input: {
     readonly programId: string;
     readonly workspaceId: string;
@@ -396,7 +409,6 @@ function isFailedProjectionV1(
 export function createBrowserCreatorAgentPortV1(
   input:
     & {
-      readonly apiKey: string;
       readonly onConnectionLost?: () => void;
       readonly workerFactory?: BrowserPiWorkerFactoryV1;
       readonly workspaceAuthority: BrowserProgramWorkspaceAuthorityV1;
@@ -408,13 +420,17 @@ export function createBrowserCreatorAgentPortV1(
 ): CreatorAgentPortV1 {
   const { workspaceAuthority } = input;
   const notifyConnectionLost = input.onConnectionLost;
-  let providerConnectionReady = false;
+  let providerCredentialConfigured = false;
   const transport = createBrowserPiWorkerRawTransportV1({
     ...input,
     workspaceAuthority,
     onConnectionLost: () => {
-      if (!providerConnectionReady) return;
-      providerConnectionReady = false;
+      if (!providerCredentialConfigured) return;
+      providerCredentialConfigured = false;
+      if (!terminal) {
+        connectionFailureDiagnostic = diagnosticV1("connection_failed", "/connection");
+        failFacadeV1(connectionFailureDiagnostic);
+      }
       try {
         notifyConnectionLost?.();
       } catch {
@@ -456,7 +472,8 @@ export function createBrowserCreatorAgentPortV1(
   let workspaceControlBusy = false;
   let workspaceExportAbort: AbortController | null = null;
   let workspaceExportSettlement: Promise<void> | null = null;
-  let initializePromise: Promise<CreatorAgentInitializeResultV1> | null = null;
+  let configurePromise: Promise<CreatorAgentConfigureCredentialResultV1> | null = null;
+  let testConnectionPromise: Promise<CreatorAgentTestConnectionResultV1> | null = null;
   let finishPromise: Promise<void> | null = null;
   let unsubscribeWorkspaceReceipts: (() => void) | null = null;
   let unsubscribeWorkspaceFailures: (() => void) | null = null;
@@ -898,23 +915,39 @@ export function createBrowserCreatorAgentPortV1(
     publish();
   });
 
-  const initialize = (): Promise<CreatorAgentInitializeResultV1> => {
+  const configureCredential = (
+    apiKey: string,
+  ): Promise<CreatorAgentConfigureCredentialResultV1> => {
     if (terminal || finishPromise !== null) {
       return Promise.resolve({ kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") });
     }
-    if (sessionId !== null) return Promise.resolve({ kind: "ready" });
-    if (initializePromise !== null) return initializePromise;
+    if (providerCredentialConfigured) return Promise.resolve({ kind: "configured" });
+    if (configurePromise !== null) return configurePromise;
     const expectedEpoch = lifecycleEpoch;
-    phase = "initializing";
+    phase = "configuring";
     diagnostic = null;
     publish();
-    const attempt = (async (): Promise<CreatorAgentInitializeResultV1> => {
+    const attempt = (async (): Promise<CreatorAgentConfigureCredentialResultV1> => {
+      let credential = apiKey;
+      const configuration = transport.configureCredential(credential);
+      credential = "";
+      const configured = await configuration;
+      if (terminal || lifecycleEpoch !== expectedEpoch) {
+        return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
+      }
+      if (configured.kind !== "configured") {
+        const mapped = diagnosticV1("connection_failed", "/configure");
+        failFacadeV1(mapped);
+        return { kind: "unavailable", diagnostic: mapped };
+      }
+      providerCredentialConfigured = true;
       const connected = await client.connect();
       if (terminal || lifecycleEpoch !== expectedEpoch) {
         return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
       }
       if (connected.kind !== "ready") {
         const mapped = mapCallFailureV1(connected);
+        connectionFailureDiagnostic = mapped;
         failFacadeV1(mapped);
         return { kind: "unavailable", diagnostic: mapped };
       }
@@ -924,22 +957,115 @@ export function createBrowserCreatorAgentPortV1(
       }
       if (started.kind !== "started") {
         const mapped = mapCallFailureV1(started);
+        connectionFailureDiagnostic = mapped;
         failFacadeV1(mapped);
         return { kind: "unavailable", diagnostic: mapped };
       }
       sessionId = started.sessionId;
-      providerConnectionReady = true;
       connectionFailureDiagnostic = null;
       phase = "ready";
       diagnostic = null;
       publish();
-      return { kind: "ready" };
+      return { kind: "configured" };
     })();
-    initializePromise = attempt;
+    configurePromise = attempt;
     void attempt.finally(() => {
-      if (initializePromise === attempt) initializePromise = null;
+      if (configurePromise === attempt) configurePromise = null;
     });
     return attempt;
+  };
+
+  const testConnection = (): Promise<CreatorAgentTestConnectionResultV1> => {
+    if (terminal || finishPromise !== null) {
+      return Promise.resolve({ kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") });
+    }
+    if (!providerCredentialConfigured) {
+      return Promise.resolve({
+        kind: "unavailable",
+        diagnostic: diagnosticV1("unconfigured", "/credential"),
+      });
+    }
+    if (testConnectionPromise !== null) return testConnectionPromise;
+    const expectedEpoch = lifecycleEpoch;
+    if (sessionId === null) {
+      return Promise.resolve({
+        kind: "unavailable",
+        diagnostic: diagnosticV1("unconfigured", "/connection"),
+      });
+    }
+    if (phase === "configured" || phase === "ready") {
+      phase = "testing";
+      diagnostic = null;
+      publish();
+    }
+    const attempt = (async (): Promise<CreatorAgentTestConnectionResultV1> => {
+      const tested = await transport.testConnection();
+      if (terminal || lifecycleEpoch !== expectedEpoch) {
+        return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/") };
+      }
+      if (tested.kind !== "ready") {
+        const mapped = diagnosticV1("connection_failed", "/test_connection");
+        if (phase === "testing") phase = "ready";
+        diagnostic = null;
+        publish();
+        return { kind: "unavailable", diagnostic: mapped };
+      }
+      connectionFailureDiagnostic = null;
+      if (phase === "testing") phase = "ready";
+      diagnostic = null;
+      publish();
+      return { kind: "ready" };
+    })();
+    testConnectionPromise = attempt;
+    void attempt.finally(() => {
+      if (testConnectionPromise === attempt) testConnectionPromise = null;
+    });
+    return attempt;
+  };
+
+  const selectModel = async (
+    selection: BrowserPiModelSelectionV1,
+  ): Promise<CreatorAgentSelectModelResultV1> => {
+    if (terminal || finishPromise !== null) {
+      return {
+        kind: "unavailable",
+        diagnostic: diagnosticV1("disposed", "/selection"),
+      };
+    }
+    if (!providerCredentialConfigured) {
+      return {
+        kind: "unavailable",
+        diagnostic: diagnosticV1("unconfigured", "/selection"),
+      };
+    }
+    const expectedEpoch = lifecycleEpoch;
+    let result: Awaited<ReturnType<BrowserPiWorkerRawTransportV1["selectModel"]>>;
+    try {
+      result = await transport.selectModel(selection);
+    } catch {
+      return {
+        kind: "unavailable",
+        diagnostic: diagnosticV1("request_failed", "/selection"),
+      };
+    }
+    if (terminal || lifecycleEpoch !== expectedEpoch) {
+      return {
+        kind: "unavailable",
+        diagnostic: diagnosticV1("disposed", "/selection"),
+      };
+    }
+    if (result.kind === "selected") {
+      return { kind: "selected", selection: result.selection };
+    }
+    const code = result.reason === "not_configured"
+      ? "unconfigured"
+      : result.reason === "busy"
+      ? "request_failed"
+      : "protocol_invalid";
+    return {
+      kind: "unavailable",
+      diagnostic: diagnosticV1(code, "/selection"),
+    };
   };
 
   const adoptWorkspaceSnapshotV1 = (value: BrowserPiWorkspaceSnapshotWireV1): void => {
@@ -972,6 +1098,12 @@ export function createBrowserCreatorAgentPortV1(
         diagnostic: workspaceDiagnosticV1("protocol_invalid", "/workspace/open"),
       };
     }
+    if (sessionId === null) {
+      const unavailable = mapAgentFailureToWorkspaceV1(
+        connectionFailureDiagnostic ?? diagnosticV1("unconfigured", "/connection"),
+      );
+      return { kind: "unavailable", diagnostic: unavailable };
+    }
     if (workspaceControlBusy) {
       return {
         kind: "unavailable",
@@ -990,14 +1122,6 @@ export function createBrowserCreatorAgentPortV1(
     workspaceDiagnostic = null;
     publish();
     try {
-      const initialized = await initialize();
-      if (initialized.kind !== "ready") {
-        const mapped = mapAgentFailureToWorkspaceV1(initialized.diagnostic);
-        workspacePhase = "failed";
-        workspaceDiagnostic = mapped;
-        publish();
-        return { kind: "unavailable", diagnostic: mapped };
-      }
       if (terminal || finishPromise !== null) {
         return {
           kind: "unavailable",
@@ -1205,7 +1329,7 @@ export function createBrowserCreatorAgentPortV1(
     if (terminal) return;
     if (finishPromise !== null) return finishPromise;
     lifecycleEpoch += 1;
-    providerConnectionReady = false;
+    providerCredentialConfigured = false;
     workspacePhase = workspaceDescriptor === null ? "closed" : "closing";
     workspaceDiagnostic = null;
     publish();
@@ -1254,7 +1378,9 @@ export function createBrowserCreatorAgentPortV1(
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    initialize,
+    configureCredential,
+    testConnection,
+    selectModel,
     openWorkspace,
     closeWorkspace,
     acknowledgeWorkspaceReceipts,
@@ -1287,15 +1413,13 @@ export function createBrowserCreatorAgentPortV1(
           diagnostic: diagnosticV1("protocol_invalid", "/terminalRuns"),
         };
       }
-      const initialized = await initialize();
-      if (initialized.kind !== "ready") return initialized;
       if (sessionId === null) {
         return {
           kind: "unavailable",
-          diagnostic: diagnosticV1("protocol_invalid", "/sessionId"),
+          diagnostic: connectionFailureDiagnostic ?? diagnosticV1("unconfigured", "/connection"),
         };
       }
-      // Concurrent callers can pass the pre-initialize checks together. Repeat
+      // Concurrent callers can pass the pre-connection checks together. Repeat
       // identity and capacity admission immediately before reserving the run.
       if (
         trackedByProductRunId.has(normalized.run.agentRunId) ||

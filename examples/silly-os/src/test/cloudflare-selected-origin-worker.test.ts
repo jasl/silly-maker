@@ -5,6 +5,12 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 import {
+  browserControlPlaneContentSecurityPolicyV1,
+  browserPermissionsPolicyV1,
+  browserTrustedTypesReportOnlyPolicyV1,
+  createBrowserControlPlaneContentSecurityPolicyV1,
+} from "../deployment/browser-control-plane-security.ts";
+import {
   type SillyOsStaticAssetsBindingV1,
   default as cloudflareSelectedOriginWorkerV1,
 } from "../deployment/cloudflare-selected-origin-worker.ts";
@@ -12,6 +18,17 @@ import {
 const deploymentOriginV1 = "https://silly-os.example";
 const agentWorkerPathV1 = "/assets/browser-pi.worker-Ab12_cdE.js";
 const endpointOriginQueryParameterV1 = "endpoint-origin";
+
+function directivesV1(policy: string): Map<string, string> {
+  return new Map(
+    policy.split("; ").map((directive) => {
+      const separator = directive.indexOf(" ");
+      return separator < 0
+        ? [directive, ""]
+        : [directive.slice(0, separator), directive.slice(separator + 1)];
+    }),
+  );
+}
 
 function selectedAgentWorkerRequestV1(endpointOrigin: string): Request {
   const url = new URL(agentWorkerPathV1, deploymentOriginV1);
@@ -41,6 +58,34 @@ class RecordingAssetsV1 implements SillyOsStaticAssetsBindingV1 {
 }
 
 describe("SillyOS Cloudflare selected-origin Agent Worker", () => {
+  it("keeps every required control-plane directive explicit and closed", () => {
+    const ordinary = directivesV1(browserControlPlaneContentSecurityPolicyV1);
+    expect(Object.fromEntries(ordinary)).toEqual({
+      "default-src": "'none'",
+      "script-src": "'self'",
+      "style-src": "'self'",
+      "style-src-elem": "'self'",
+      "style-src-attr": "'none'",
+      "img-src": "'self' data: blob:",
+      "font-src": "'self'",
+      "connect-src": "'self'",
+      "worker-src": "'self'",
+      "frame-src": "'none'",
+      "media-src": "'self' blob:",
+      "manifest-src": "'self'",
+      "object-src": "'none'",
+      "base-uri": "'none'",
+      "frame-ancestors": "'none'",
+      "form-action": "'self'",
+    });
+
+    const selected = directivesV1(
+      createBrowserControlPlaneContentSecurityPolicyV1("https://api.example.com"),
+    );
+    expect(selected.get("connect-src")).toBe("'self' https://api.example.com");
+    expect(selected.size).toBe(ordinary.size);
+  });
+
   it("strips the selection query and returns the static Worker with one exact origin policy", async () => {
     const assets = new RecordingAssetsV1();
     const response = await cloudflareSelectedOriginWorkerV1.fetch(
@@ -53,10 +98,19 @@ describe("SillyOS Cloudflare selected-origin Agent Worker", () => {
     expect(assets.requests[0]?.headers.get("X-SillyOS-Test")).toBe("preserved");
     expect(await response.text()).toBe("agent worker");
     expect(response.headers.get("Content-Security-Policy")).toBe(
-      "connect-src 'self' https://api.example.com:8443",
+      createBrowserControlPlaneContentSecurityPolicyV1("https://api.example.com:8443"),
     );
     expect(response.headers.get("Content-Security-Policy")?.split(/\s+/u)).not.toContain("https:");
     expect(response.headers.get("Content-Security-Policy")).not.toContain("*");
+    expect(response.headers.get("Content-Security-Policy")).not.toContain("'unsafe-inline'");
+    expect(response.headers.get("Content-Security-Policy")).not.toContain("'unsafe-eval'");
+    expect(response.headers.get("Content-Security-Policy-Report-Only")).toBe(
+      browserTrustedTypesReportOnlyPolicyV1,
+    );
+    expect(response.headers.get("Permissions-Policy")).toBe(browserPermissionsPolicyV1);
+    expect(response.headers.get("Referrer-Policy")).toBe("no-referrer");
+    expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(response.headers.get("X-Frame-Options")).toBe("DENY");
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(response.headers.get("Content-Type")).toBe("text/javascript; charset=utf-8");
     expect(response.headers.get("X-Static-Asset")).toBe("preserved");
@@ -108,7 +162,9 @@ describe("SillyOS Cloudflare selected-origin Agent Worker", () => {
 
     expect(response.status).toBe(400);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
-    expect(response.headers.get("Content-Security-Policy")).toBe("connect-src 'self'");
+    expect(response.headers.get("Content-Security-Policy")).toBe(
+      browserControlPlaneContentSecurityPolicyV1,
+    );
     expect(await response.text()).not.toContain("api.example.com");
     expect(assets.requests).toEqual([]);
   });
@@ -147,6 +203,18 @@ describe("SillyOS Cloudflare selected-origin Agent Worker", () => {
       "unhashed worker",
       "source map",
     ]);
+    expect(received[0]?.headers.get("Content-Security-Policy")).toBe(
+      browserControlPlaneContentSecurityPolicyV1,
+    );
+    expect(received[0]?.headers.get("Content-Security-Policy-Report-Only")).toBe(
+      browserTrustedTypesReportOnlyPolicyV1,
+    );
+    expect(received[0]?.headers.get("Cache-Control")).toBeNull();
+    expect(
+      received.slice(1).every((response) =>
+        response.headers.get("Content-Security-Policy") === null
+      ),
+    ).toBe(true);
     expect(assets.requests.map(({ url }) => url)).toEqual(requests.map(({ url }) => url));
   });
 
@@ -162,7 +230,7 @@ describe("SillyOS Cloudflare selected-origin Agent Worker", () => {
     expect(response.status).toBe(502);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(response.headers.get("Content-Security-Policy")).toBe(
-      "connect-src 'self' https://api.example.com",
+      createBrowserControlPlaneContentSecurityPolicyV1("https://api.example.com"),
     );
     expect(await response.text()).toBe("Agent Worker asset unavailable.");
   });
@@ -174,5 +242,23 @@ describe("SillyOS Cloudflare selected-origin Agent Worker", () => {
     expect(config).toContain('"binding": "ASSETS"');
     expect(config).toContain('"run_worker_first": ["/assets/browser-pi.worker-*.js"]');
     expect(config).not.toContain('"run_worker_first": true');
+  });
+
+  it("keeps the static control plane on the same complete security policy", async () => {
+    const headers = await readFile(new URL("../../public/_headers", import.meta.url), "utf8");
+
+    expect(headers).toContain(
+      `Content-Security-Policy: ${browserControlPlaneContentSecurityPolicyV1}`,
+    );
+    expect(headers).toContain(
+      `Content-Security-Policy-Report-Only: ${browserTrustedTypesReportOnlyPolicyV1}`,
+    );
+    expect(headers).toContain(`Permissions-Policy: ${browserPermissionsPolicyV1}`);
+    expect(headers).toContain("Referrer-Policy: no-referrer");
+    expect(headers).toContain("X-Content-Type-Options: nosniff");
+    expect(headers).toContain("X-Frame-Options: DENY");
+    expect(headers).not.toContain("'unsafe-inline'");
+    expect(headers).not.toContain("'unsafe-eval'");
+    expect(headers).not.toContain("connect-src https:");
   });
 });

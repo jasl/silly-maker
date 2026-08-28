@@ -95,18 +95,55 @@ export interface BrowserPiWorkerRuntimePortV1 {
   dispose(): void;
 }
 
+function selectionsShareCredentialScopeV1(
+  configured: BrowserPiModelSelectionV1,
+  requested: BrowserPiModelSelectionV1,
+): boolean {
+  if (configured.kind !== requested.kind) return false;
+  if (configured.kind === "builtin" && requested.kind === "builtin") {
+    return configured.providerId === requested.providerId &&
+      configured.baseUrl === requested.baseUrl;
+  }
+  if (configured.kind !== "custom" || requested.kind !== "custom") return false;
+  const configuredProfile = configured.profile;
+  const requestedProfile = requested.profile;
+  return configuredProfile.profileId === requestedProfile.profileId &&
+    configuredProfile.displayName === requestedProfile.displayName &&
+    configuredProfile.api === requestedProfile.api &&
+    configuredProfile.baseUrl === requestedProfile.baseUrl &&
+    configuredProfile.modelId === requestedProfile.modelId &&
+    configuredProfile.contextWindow === requestedProfile.contextWindow &&
+    configuredProfile.maxTokens === requestedProfile.maxTokens;
+}
+
+/**
+ * Only the product-owned deterministic fixture may exercise the legacy
+ * same-origin workspace tools. Live Provider runs remain tool-less until the
+ * independent-origin Workspace Execution Sandbox is connected.
+ */
+export function createBrowserPiWorkspaceToolsForRuntimeV1<T>(
+  runtime: BrowserPiWorkerRuntimeV1,
+  factories: readonly (() => T)[],
+): readonly T[] {
+  return runtime === "deterministic_test"
+    ? Object.freeze(factories.map((factory) => factory()))
+    : Object.freeze([]);
+}
+
 export function createBrowserPiWorkerRuntimeV1(input: {
   readonly postMessage: (message: BrowserPiWorkerAnyOutboundMessageV1) => void;
   readonly probeProviderSelection?: typeof probeBrowserPiProviderSelectionV1;
+  readonly createProviderAgent?: typeof createBrowserPiProviderAgentV1;
 }): BrowserPiWorkerRuntimePortV1 {
   const probeProviderSelection = input.probeProviderSelection ??
     probeBrowserPiProviderSelectionV1;
+  const createProviderAgent = input.createProviderAgent ?? createBrowserPiProviderAgentV1;
   let credentialKey: string | null = null;
   let configuredRuntime: BrowserPiWorkerRuntimeV1 | null = null;
   let configuredSelection: BrowserPiModelSelectionV1 | null = null;
-  let initializing = false;
-  let initializationAbort: AbortController | null = null;
-  let initialized = false;
+  let connectionTestInProgress = false;
+  let connectionTestAbort: AbortController | null = null;
+  let connectionReady = false;
   let disposed = false;
   let nextSessionId = 1;
   let nextRunId = 1;
@@ -128,7 +165,11 @@ export function createBrowserPiWorkerRuntimeV1(input: {
   };
 
   const postProtocolFailure = (
-    code: "invalid_message" | "already_initialized" | "distribution_mismatch",
+    code:
+      | "invalid_message"
+      | "already_configured"
+      | "test_in_progress"
+      | "distribution_mismatch",
   ): void => {
     post(Object.freeze({ revision: 1, kind: "protocol_failure", code }));
   };
@@ -303,12 +344,12 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     });
     if (begun.kind !== "started") return null;
     const workspaceRun = begun.run;
-    const workspaceTools = [
-      bindPiWorkspaceReadToolV1(createReadTool(), workspaceRun),
-      bindPiWorkspaceWriteToolV1(createWriteTool(), workspaceRun),
-      bindPiWorkspaceEditToolV1(createEditTool(), workspaceRun),
-      bindPiWorkspaceBashToolV1(createBashTool(), workspaceRun),
-    ];
+    const workspaceTools = createBrowserPiWorkspaceToolsForRuntimeV1(runtime, [
+      () => bindPiWorkspaceReadToolV1(createReadTool(), workspaceRun),
+      () => bindPiWorkspaceWriteToolV1(createWriteTool(), workspaceRun),
+      () => bindPiWorkspaceEditToolV1(createEditTool(), workspaceRun),
+      () => bindPiWorkspaceBashToolV1(createBashTool(), workspaceRun),
+    ]);
     let run!: ActivePiRunV1;
     const agentInput = {
       submit,
@@ -357,7 +398,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       const runNumber = Number(runId.slice(runId.lastIndexOf(".") + 1));
       agent = (runtime === "deterministic_test"
         ? createDeterministicPiAgentV1({ ...agentInput, runNumber })
-        : createBrowserPiProviderAgentV1({
+        : createProviderAgent({
           ...agentInput,
           apiKey,
           selection: selection as BrowserPiModelSelectionV1,
@@ -474,7 +515,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     message: WorkspaceRequestV1,
     ports: readonly BrowserWorkspaceEnvironmentMessagePortV1[],
   ): Promise<void> => {
-    if (!initialized || credentialKey === null) {
+    if (!connectionReady || credentialKey === null) {
       respondWorkspaceFailure(message.requestId, "not_initialized");
       return;
     }
@@ -605,7 +646,10 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       return;
     }
     if (message.kind === "catalog_request") {
-      if (ports.length !== 0 || initializing || initialized || credentialKey !== null) {
+      if (
+        ports.length !== 0 || connectionTestInProgress || configuredRuntime !== null ||
+        credentialKey !== null
+      ) {
         postProtocolFailure("invalid_message");
         return;
       }
@@ -628,9 +672,12 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       }
       return;
     }
-    if (message.kind === "initialize") {
-      if (initializing || initialized) {
-        postProtocolFailure("already_initialized");
+    if (message.kind === "configure") {
+      if (
+        ports.length !== 0 || connectionTestInProgress || configuredRuntime !== null ||
+        credentialKey !== null
+      ) {
+        postProtocolFailure("already_configured");
         return;
       }
       if (
@@ -639,42 +686,73 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       ) {
         post(Object.freeze({
           revision: 1,
-          kind: "initialization_failure",
+          kind: "configuration_failure",
           requestId: message.requestId,
           code: "selection_unavailable",
         }));
         return;
       }
-      if (message.runtime === "deterministic_test") {
-        credentialKey = message.credential.value;
-        configuredRuntime = message.runtime;
-        configuredSelection = null;
-        initialized = true;
+      const selection = message.selection;
+      credentialKey = message.credential.value;
+      configuredRuntime = message.runtime;
+      configuredSelection = selection;
+      connectionReady = true;
+      post(Object.freeze({
+        revision: 1,
+        kind: "configured",
+        requestId: message.requestId,
+        runtime: message.runtime,
+        selection,
+        distribution: browserPiDistributionIdentityV1,
+      }));
+      return;
+    }
+    if (message.kind === "test_connection") {
+      if (ports.length !== 0) {
+        postProtocolFailure("invalid_message");
+        return;
+      }
+      const runtime = configuredRuntime;
+      const selection = configuredSelection;
+      const credential = credentialKey;
+      if (runtime === null || credential === null) {
+        post(Object.freeze({
+          revision: 1,
+          kind: "connection_test_failure",
+          requestId: message.requestId,
+          code: "not_configured",
+        }));
+        return;
+      }
+      if (connectionTestInProgress) {
+        postProtocolFailure("test_in_progress");
+        return;
+      }
+      if (runtime === "deterministic_test") {
+        connectionReady = true;
         post(Object.freeze({
           revision: 1,
           kind: "ready",
           requestId: message.requestId,
-          runtime: message.runtime,
+          runtime,
           selection: null,
           distribution: browserPiDistributionIdentityV1,
         }));
         return;
       }
-
-      const selection = message.selection;
       if (selection === null) {
         post(Object.freeze({
           revision: 1,
-          kind: "initialization_failure",
+          kind: "connection_test_failure",
           requestId: message.requestId,
-          code: "selection_unavailable",
+          code: "connection_failed",
         }));
         return;
       }
-      let credential = message.credential.value;
+      const previouslyReady = connectionReady;
       const abort = new AbortController();
-      initializing = true;
-      initializationAbort = abort;
+      connectionTestInProgress = true;
+      connectionTestAbort = abort;
       enqueue(async () => {
         let verified = false;
         let timeout: ReturnType<typeof setTimeout> | null = null;
@@ -699,35 +777,90 @@ export function createBrowserPiWorkerRuntimeV1(input: {
           if (timeout !== null) clearTimeout(timeout);
           try {
             if (!disposed && verified && !abort.signal.aborted) {
-              credentialKey = credential;
-              configuredRuntime = message.runtime;
-              configuredSelection = selection;
-              initialized = true;
+              connectionReady = true;
               post(Object.freeze({
                 revision: 1,
                 kind: "ready",
                 requestId: message.requestId,
-                runtime: message.runtime,
+                runtime,
                 selection,
                 distribution: browserPiDistributionIdentityV1,
               }));
             } else if (!disposed) {
-              credentialKey = null;
-              configuredRuntime = null;
-              configuredSelection = null;
+              connectionReady = previouslyReady;
               post(Object.freeze({
                 revision: 1,
-                kind: "initialization_failure",
+                kind: "connection_test_failure",
                 requestId: message.requestId,
                 code: "connection_failed",
               }));
             }
           } finally {
-            credential = "";
-            if (initializationAbort === abort) initializationAbort = null;
-            initializing = false;
+            if (connectionTestAbort === abort) connectionTestAbort = null;
+            connectionTestInProgress = false;
           }
         }
+      });
+      return;
+    }
+    if (message.kind === "select_model") {
+      if (ports.length !== 0) {
+        postProtocolFailure("invalid_message");
+        return;
+      }
+      const respondUnavailable = (
+        code:
+          | "not_configured"
+          | "selection_unavailable"
+          | "credential_scope_mismatch"
+          | "busy",
+      ): void => {
+        post(Object.freeze({
+          revision: 1,
+          kind: "model_selection_failure",
+          requestId: message.requestId,
+          code,
+        }));
+      };
+      if (
+        configuredRuntime !== "pi_provider" || credentialKey === null ||
+        configuredSelection === null
+      ) {
+        respondUnavailable("not_configured");
+        return;
+      }
+      if (connectionTestInProgress) {
+        respondUnavailable("busy");
+        return;
+      }
+      enqueue(() => {
+        const currentSelection = configuredSelection;
+        if (
+          configuredRuntime !== "pi_provider" || credentialKey === null ||
+          currentSelection === null
+        ) {
+          respondUnavailable("not_configured");
+          return;
+        }
+        if (connectionTestInProgress || (activeRun !== null && !activeRun.terminal)) {
+          respondUnavailable("busy");
+          return;
+        }
+        if (!selectionsShareCredentialScopeV1(currentSelection, message.selection)) {
+          respondUnavailable("credential_scope_mismatch");
+          return;
+        }
+        if (!isBrowserPiSelectionAvailableV1(message.selection)) {
+          respondUnavailable("selection_unavailable");
+          return;
+        }
+        configuredSelection = message.selection;
+        post(Object.freeze({
+          revision: 1,
+          kind: "model_selected",
+          requestId: message.requestId,
+          selection: message.selection,
+        }));
       });
       return;
     }
@@ -735,7 +868,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       enqueue(() => handleWorkspaceRequest(message, ports));
       return;
     }
-    if (!initialized || credentialKey === null) {
+    if (!connectionReady || credentialKey === null) {
       respondRpcFailure(message.requestId, "not_initialized");
       return;
     }
@@ -794,13 +927,13 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     dispose(): void {
       if (disposed) return;
       disposed = true;
-      initializationAbort?.abort();
-      initializationAbort = null;
-      initializing = false;
+      connectionTestAbort?.abort();
+      connectionTestAbort = null;
+      connectionTestInProgress = false;
       credentialKey = null;
       configuredRuntime = null;
       configuredSelection = null;
-      initialized = false;
+      connectionReady = false;
       const run = activeRun;
       activeRun = null;
       activeSessionId = null;

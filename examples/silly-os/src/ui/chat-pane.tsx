@@ -20,6 +20,7 @@ import type {
   ProgramProposalV1,
 } from "../product/contracts.ts";
 import type { ProgramWorkspaceReviewProjectionV1 } from "../workspace/contracts.ts";
+import { type ComposerModelControlV1, ComposerModelPickerV1 } from "./composer-model-picker.tsx";
 import { SillyButtonV1 as Button } from "./controls.tsx";
 
 const pendingReviewStatusDescriptionIdV1 = "workspace-review-pending-status";
@@ -166,6 +167,7 @@ export interface ChatPanePropsV1 {
   readonly onReject: () => void;
   readonly onOpenWorkpiece: () => void;
   readonly onSend: (text: string) => boolean | void | Promise<boolean | void>;
+  readonly providerModel?: ComposerModelControlV1;
   readonly mutationPending?: boolean;
   readonly piAgentRun?: {
     readonly runtime: BrowserPiWorkerRuntimeV1;
@@ -194,6 +196,7 @@ export function ChatPaneV1({
   onReject,
   onOpenWorkpiece,
   onSend,
+  providerModel,
   mutationPending = false,
   piAgentRun,
 }: ChatPanePropsV1): ReactNode {
@@ -201,11 +204,12 @@ export function ChatPaneV1({
   const feedEndRef = useRef<HTMLDivElement>(null);
   const resourceInputRef = useRef<HTMLInputElement>(null);
   const liveAgent = piAgentRun?.runtime === "pi_provider";
-  const agentTitle = liveAgent ? copy.piLiveTitle : copy.piTestTitle;
-  const agentReady = liveAgent ? copy.piLiveReady : copy.piTestReady;
+  const showAgentRun = piAgentRun !== undefined &&
+    (!liveAgent || piAgentRun.status === "running" || piAgentRun.status === "failed");
+  const agentTitle = liveAgent ? copy.creatorName : copy.piTestTitle;
   const agentFailed = liveAgent ? copy.piLiveFailed : copy.piTestFailed;
-  const agentForget = liveAgent ? copy.piLiveForget : copy.piTestForget;
   const pendingReviewChanged = workspaceReview?.pendingStatus === "changed";
+  const providerModelUnavailable = providerModel !== undefined && providerModel.status !== "ready";
 
   useEffect(() => {
     feedEndRef.current?.scrollIntoView({ block: "end" });
@@ -214,7 +218,7 @@ export function ChatPaneV1({
   const submitV1 = (event?: FormEvent): void => {
     event?.preventDefault();
     const text = draft.trim();
-    if (text.length === 0) return;
+    if (text.length === 0 || providerModelUnavailable) return;
     void Promise.resolve(onSend(text)).then((accepted) => {
       if (accepted === false) return;
       setDraft((current) => current.trim() === text ? "" : current);
@@ -259,7 +263,7 @@ export function ChatPaneV1({
           </article>
         ))}
 
-        {piAgentRun !== undefined && (
+        {showAgentRun && piAgentRun !== undefined && (
           <aside
             className="pi-agent-run"
             data-pi-agent-runtime={piAgentRun.runtime}
@@ -269,6 +273,8 @@ export function ChatPaneV1({
             <div className="pi-agent-run__heading">
               {piAgentRun.status === "running"
                 ? <LoaderCircle className="is-spinning" size={15} aria-hidden="true" />
+                : liveAgent
+                ? <Sparkles size={15} aria-hidden="true" />
                 : <KeyRound size={15} aria-hidden="true" />}
               <strong>{agentTitle}</strong>
               <span role="status">
@@ -276,7 +282,7 @@ export function ChatPaneV1({
                   ? copy.piTestDraft
                   : piAgentRun.status === "failed" || piAgentRun.status === "disposed"
                   ? agentFailed
-                  : agentReady}
+                  : copy.piTestReady}
               </span>
             </div>
             {piAgentRun.status === "running" && piAgentRun.draft.length > 0 && (
@@ -284,29 +290,33 @@ export function ChatPaneV1({
                 {piAgentRun.draft}
               </p>
             )}
-            <div className="pi-agent-run__actions">
-              {piAgentRun.status === "running" && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  icon={StopCircle}
-                  onClick={piAgentRun.onCancel}
-                >
-                  {copy.piTestCancel}
-                </Button>
-              )}
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                icon={KeyRound}
-                disabled={mutationPending || piAgentRun.status === "running"}
-                onClick={piAgentRun.onForget}
-              >
-                {agentForget}
-              </Button>
-            </div>
+            {(piAgentRun.status === "running" || !liveAgent) && (
+              <div className="pi-agent-run__actions">
+                {piAgentRun.status === "running" && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    icon={StopCircle}
+                    onClick={piAgentRun.onCancel}
+                  >
+                    {copy.piTestCancel}
+                  </Button>
+                )}
+                {!liveAgent && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    icon={KeyRound}
+                    disabled={mutationPending || piAgentRun.status === "running"}
+                    onClick={piAgentRun.onForget}
+                  >
+                    {copy.piTestForget}
+                  </Button>
+                )}
+              </div>
+            )}
           </aside>
         )}
 
@@ -430,6 +440,7 @@ export function ChatPaneV1({
             type="file"
             multiple
             onChange={(event) => {
+              if (providerModelUnavailable) return;
               const names = Array.from(event.currentTarget.files ?? [], (file) => file.name);
               if (names.length === 0) return;
               void Promise.resolve(onSend(
@@ -451,18 +462,28 @@ export function ChatPaneV1({
             size="sm"
             icon={Paperclip}
             aria-label={copy.addResource}
-            disabled={mutationPending}
+            disabled={mutationPending || providerModelUnavailable}
             onClick={() => resourceInputRef.current?.click()}
           />
-          <Button
-            type="submit"
-            variant="primary"
-            shape="square"
-            size="sm"
-            icon={ArrowUp}
-            aria-label={copy.send}
-            disabled={mutationPending || draft.trim().length === 0}
-          />
+          <div className="chat-composer__primary-actions">
+            {providerModel !== undefined && (
+              <ComposerModelPickerV1
+                copy={copy}
+                surface="workspace"
+                disabled={piAgentRun?.status === "running"}
+                {...providerModel}
+              />
+            )}
+            <Button
+              type="submit"
+              variant="primary"
+              shape="square"
+              size="sm"
+              icon={ArrowUp}
+              aria-label={copy.send}
+              disabled={mutationPending || providerModelUnavailable || draft.trim().length === 0}
+            />
+          </div>
         </div>
       </form>
     </section>

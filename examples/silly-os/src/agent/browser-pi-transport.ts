@@ -17,8 +17,9 @@ import type { BrowserWorkspaceHostSnapshotWireV1 } from "../workspace/browser-wo
 import {
   admitBrowserPiEngineRequestV1,
   admitBrowserPiWorkerAnyOutboundMessageV1,
-  browserPiCustomEndpointOriginV1,
-  type BrowserPiWorkerInitializeV1,
+  browserPiSelectionEndpointOriginV1,
+  type BrowserPiModelSelectionFailureCodeV1,
+  type BrowserPiWorkerConfigureV1,
   type BrowserPiModelSelectionV1,
   type BrowserPiWorkspaceMutationReceiptWireV1,
   type BrowserPiWorkspaceRequestRecordV1,
@@ -50,7 +51,21 @@ export interface BrowserPiWorkspaceFailureV1 {
   readonly generation: number;
 }
 
+export type BrowserPiWorkerSelectModelResultV1 =
+  | { readonly kind: "selected"; readonly selection: BrowserPiModelSelectionV1 }
+  | {
+    readonly kind: "unavailable";
+    readonly reason: BrowserPiModelSelectionFailureCodeV1;
+  };
+
 export interface BrowserPiWorkerRawTransportV1 extends AgentRpcRawTransportInternalV1 {
+  configureCredential(apiKey: string): Promise<
+    { readonly kind: "configured" } | { readonly kind: "unavailable"; readonly reason: "failed" }
+  >;
+  testConnection(): Promise<
+    { readonly kind: "ready" } | { readonly kind: "unavailable"; readonly reason: "failed" }
+  >;
+  selectModel(selection: BrowserPiModelSelectionV1): Promise<BrowserPiWorkerSelectModelResultV1>;
   openWorkspace(input: {
     readonly programId: string;
     readonly workspaceId: string;
@@ -67,7 +82,7 @@ export interface BrowserPiWorkerRawTransportV1 extends AgentRpcRawTransportInter
   subscribeWorkspaceFailures(
     listener: (failure: BrowserPiWorkspaceFailureV1) => void,
   ): () => void;
-  /** Terminates an initializing or connected Worker and drops any unposted credential. */
+  /** Terminates the configured or connected Worker and clears its in-memory credential. */
   forget(): Promise<void>;
 }
 
@@ -90,17 +105,32 @@ type BufferedWorkerEventV1 =
 
 interface ConnectionStateV1 {
   readonly worker: BrowserPiWorkerLikeV1;
-  readonly onRecord: (record: unknown) => void;
   readonly pending: Map<number, PendingCallV1>;
   readonly bufferedEvents: BufferedWorkerEventV1[];
-  readonly resolveReady: (ready: boolean) => void;
+  onRecord: ((record: unknown) => void) | null;
+  setup:
+    | {
+      readonly kind: "configure" | "test_connection";
+      readonly requestId: number;
+      readonly resolve: (accepted: boolean) => void;
+    }
+    | {
+      readonly kind: "select_model";
+      readonly requestId: number;
+      readonly selection: BrowserPiModelSelectionV1;
+      readonly resolve: (result: BrowserPiWorkerSelectModelResultV1) => void;
+    }
+    | null;
   messageListener: BrowserPiWorkerMessageListenerV1;
   errorListener: BrowserPiWorkerErrorListenerV1;
-  cancelReadyTimer: (() => void) | null;
+  cancelSetupTimer: (() => void) | null;
   nextCallId: number;
   pendingSubmitGates: number;
   activeWorkspace: BrowserPiWorkspaceSnapshotWireV1 | null;
   workspaceReceiptSequence: number;
+  activeSelection: BrowserPiModelSelectionV1 | null;
+  credentialAccepted: boolean;
+  connectionIssued: boolean;
   ready: boolean;
   closed: boolean;
 }
@@ -142,6 +172,8 @@ function copySelectionV1(
       kind: "builtin",
       providerId: selection.providerId,
       modelId: selection.modelId,
+      api: selection.api,
+      baseUrl: selection.baseUrl,
     })
     : Object.freeze({
       kind: "custom",
@@ -156,7 +188,8 @@ function selectionsEqualV1(
   if (left === null || right === null) return left === right;
   if (left.kind !== right.kind) return false;
   if (left.kind === "builtin" && right.kind === "builtin") {
-    return left.providerId === right.providerId && left.modelId === right.modelId;
+    return left.providerId === right.providerId && left.modelId === right.modelId &&
+      left.api === right.api && left.baseUrl === right.baseUrl;
   }
   if (left.kind !== "custom" || right.kind !== "custom") return false;
   const leftProfile = left.profile;
@@ -201,7 +234,6 @@ function executionBindingFromHostV1(
 }
 
 export function createBrowserPiWorkerRawTransportV1({
-  apiKey: suppliedApiKey,
   onConnectionLost = () => undefined,
   runtime,
   selection: suppliedSelection = null,
@@ -209,7 +241,6 @@ export function createBrowserPiWorkerRawTransportV1({
   workerFactory = createDefaultBrowserPiWorkerV1,
 }:
   & {
-    readonly apiKey: string;
     readonly onConnectionLost?: () => void;
     readonly workspaceAuthority: BrowserProgramWorkspaceAuthorityV1;
     readonly workerFactory?: BrowserPiWorkerFactoryV1;
@@ -219,13 +250,8 @@ export function createBrowserPiWorkerRawTransportV1({
     | { readonly runtime: "pi_provider"; readonly selection: BrowserPiModelSelectionV1 }
   )): BrowserPiWorkerRawTransportV1 {
   const selection = suppliedSelection === null ? null : copySelectionV1(suppliedSelection);
-  const endpointOrigin = selection === null ? null : browserPiCustomEndpointOriginV1(selection);
-  const selectionHasValidEndpoint = selection?.kind !== "custom" || endpointOrigin !== null;
-  let pendingApiKey = suppliedApiKey.length > 0 &&
-      suppliedApiKey.length <= credentialMaximumCharactersV1
-    ? suppliedApiKey
-    : null;
-  suppliedApiKey = "";
+  const endpointOrigin = selection === null ? null : browserPiSelectionEndpointOriginV1(selection);
+  const selectionHasValidEndpoint = selection === null || endpointOrigin !== null;
   let activeState: ConnectionStateV1 | null = null;
   let workspaceEnvironmentDetachSettlement = Promise.resolve();
   const workspaceReceiptListeners = new Set<
@@ -250,14 +276,14 @@ export function createBrowserPiWorkerRawTransportV1({
     } = {},
   ): void => {
     if (state.closed) return;
-    const reportConnectionLoss = state.ready && options.expected !== true;
+    const reportConnectionLoss = state.credentialAccepted && options.expected !== true;
     state.closed = true;
     const workspaceSessionId = state.activeWorkspace?.phase === "open"
       ? state.activeWorkspace.workspaceSessionId
       : null;
-    if (state.cancelReadyTimer !== null) {
-      state.cancelReadyTimer();
-      state.cancelReadyTimer = null;
+    if (state.cancelSetupTimer !== null) {
+      state.cancelSetupTimer();
+      state.cancelSetupTimer = null;
     }
     state.worker.removeEventListener("message", state.messageListener);
     state.worker.removeEventListener("error", state.errorListener);
@@ -266,7 +292,10 @@ export function createBrowserPiWorkerRawTransportV1({
     }
     state.pending.clear();
     state.bufferedEvents.length = 0;
-    state.resolveReady(false);
+    if (state.setup?.kind === "select_model") {
+      state.setup.resolve({ kind: "unavailable", reason: "not_configured" });
+    } else state.setup?.resolve(false);
+    state.setup = null;
     try {
       state.worker.terminate();
     } catch {
@@ -310,298 +339,460 @@ export function createBrowserPiWorkerRawTransportV1({
     }
   });
 
+  const settleSetupV1 = (state: ConnectionStateV1, accepted: boolean): void => {
+    const setup = state.setup;
+    if (setup === null || setup.kind === "select_model") return;
+    state.setup = null;
+    if (state.cancelSetupTimer !== null) {
+      state.cancelSetupTimer();
+      state.cancelSetupTimer = null;
+    }
+    setup.resolve(accepted);
+  };
+
+  const settleModelSelectionV1 = (
+    state: ConnectionStateV1,
+    result: BrowserPiWorkerSelectModelResultV1,
+  ): void => {
+    const setup = state.setup;
+    if (setup === null || setup.kind !== "select_model") return;
+    state.setup = null;
+    if (state.cancelSetupTimer !== null) {
+      state.cancelSetupTimer();
+      state.cancelSetupTimer = null;
+    }
+    setup.resolve(result);
+  };
+
+  const beginSetupV1 = (
+    state: ConnectionStateV1,
+    kind: "configure" | "test_connection",
+    postRequest: (requestId: number) => void,
+  ): Promise<boolean> => {
+    if (state.closed || state.setup !== null) return Promise.resolve(false);
+    const requestId = state.nextCallId++;
+    let resolveSetup!: (accepted: boolean) => void;
+    const result = new Promise<boolean>((resolve) => {
+      resolveSetup = resolve;
+    });
+    state.setup = { kind, requestId, resolve: resolveSetup };
+    const timer = setTimeout(
+      () => closeState(state, `${kind}_timeout`),
+      readyTimeoutMillisecondsV1,
+    );
+    state.cancelSetupTimer = () => clearTimeout(timer);
+    try {
+      postRequest(requestId);
+    } catch {
+      closeState(state, `${kind}_post_failed`);
+    }
+    return result;
+  };
+
+  const createStateV1 = (worker: BrowserPiWorkerLikeV1): ConnectionStateV1 => {
+    const state: ConnectionStateV1 = {
+      worker,
+      pending: new Map<number, PendingCallV1>(),
+      bufferedEvents: [],
+      onRecord: null,
+      setup: null,
+      messageListener: undefined as unknown as BrowserPiWorkerMessageListenerV1,
+      errorListener: undefined as unknown as BrowserPiWorkerErrorListenerV1,
+      cancelSetupTimer: null,
+      nextCallId: 1,
+      pendingSubmitGates: 0,
+      activeWorkspace: null,
+      workspaceReceiptSequence: 0,
+      activeSelection: selection,
+      credentialAccepted: false,
+      connectionIssued: false,
+      ready: false,
+      closed: false,
+    };
+
+    const deliverWorkspaceReceipt = (
+      receipt: BrowserPiWorkspaceMutationReceiptWireV1,
+    ): void => {
+      const current = state.activeWorkspace;
+      if (
+        current === null || current.phase !== "open" ||
+        receipt.programId !== current.programId ||
+        receipt.workspaceId !== current.workspaceId ||
+        receipt.workspaceSessionId !== current.workspaceSessionId ||
+        receipt.baseGeneration !== current.generation ||
+        receipt.sequence !== state.workspaceReceiptSequence + 1 ||
+        current.receipts.length >= 32
+      ) {
+        closeState(state, "workspace_receipt_invalid");
+        return;
+      }
+      state.activeWorkspace = Object.freeze({
+        ...current,
+        generation: receipt.resultingGeneration,
+        receipts: Object.freeze([...current.receipts, receipt]),
+      });
+      state.workspaceReceiptSequence = receipt.sequence;
+      for (const listener of [...workspaceReceiptListeners]) {
+        try {
+          listener(receipt);
+        } catch {
+          // Workspace receipt observers cannot change transport lifecycle.
+        }
+      }
+    };
+
+    const flushEvents = (): void => {
+      if (state.closed || state.pendingSubmitGates !== 0) return;
+      const events = state.bufferedEvents.splice(0);
+      for (const event of events) {
+        if (event.kind === "workspace_receipt") {
+          deliverWorkspaceReceipt(event.receipt);
+        } else if (state.onRecord !== null) {
+          try {
+            state.onRecord(event.record);
+          } catch {
+            // The raw record consumer is observational at this transport boundary.
+          }
+        } else {
+          closeState(state, "record_without_connection");
+        }
+        if (state.closed) return;
+      }
+    };
+
+    state.messageListener = (event: { readonly data: unknown }): void => {
+      if (state.closed) return;
+      const message = admitBrowserPiWorkerAnyOutboundMessageV1(event.data);
+      if (message === null || message.kind === "protocol_failure") {
+        closeState(state, "protocol_failure");
+        return;
+      }
+      if (message.kind === "model_selected" || message.kind === "model_selection_failure") {
+        const setup = state.setup;
+        if (
+          setup === null || setup.kind !== "select_model" ||
+          message.requestId !== setup.requestId
+        ) {
+          closeState(state, "model_selection_response_unexpected");
+          return;
+        }
+        if (message.kind === "model_selection_failure") {
+          settleModelSelectionV1(state, { kind: "unavailable", reason: message.code });
+          return;
+        }
+        if (!selectionsEqualV1(message.selection, setup.selection)) {
+          closeState(state, "model_selection_response_invalid");
+          return;
+        }
+        state.activeSelection = copySelectionV1(message.selection);
+        settleModelSelectionV1(state, {
+          kind: "selected",
+          selection: copySelectionV1(message.selection),
+        });
+        return;
+      }
+      if (
+        message.kind === "configured" || message.kind === "configuration_failure" ||
+        message.kind === "connection_test_failure" || message.kind === "ready"
+      ) {
+        const setup = state.setup;
+        if (setup === null || message.requestId !== setup.requestId) {
+          closeState(state, "setup_response_unexpected");
+          return;
+        }
+        if (message.kind === "configured") {
+          if (
+            setup.kind !== "configure" || message.runtime !== runtime ||
+            !selectionsEqualV1(message.selection, state.activeSelection)
+          ) {
+            closeState(state, "configuration_response_invalid");
+            return;
+          }
+          state.credentialAccepted = true;
+          state.ready = true;
+          settleSetupV1(state, true);
+          return;
+        }
+        if (message.kind === "configuration_failure") {
+          if (setup.kind !== "configure") {
+            closeState(state, "configuration_failure_unexpected");
+            return;
+          }
+          settleSetupV1(state, false);
+          closeState(state, `configure_${message.code}`, { expected: true });
+          return;
+        }
+        if (message.kind === "connection_test_failure") {
+          if (setup.kind !== "test_connection") {
+            closeState(state, "connection_test_failure_unexpected");
+            return;
+          }
+          settleSetupV1(state, false);
+          if (message.code === "not_configured") {
+            closeState(state, "worker_credential_missing");
+          }
+          return;
+        }
+        if (
+          setup.kind !== "test_connection" || message.runtime !== runtime ||
+          !selectionsEqualV1(message.selection, state.activeSelection)
+        ) {
+          closeState(state, "ready_invalid");
+          return;
+        }
+        state.ready = true;
+        settleSetupV1(state, true);
+        return;
+      }
+      if (!state.ready) {
+        closeState(state, "message_before_ready");
+        return;
+      }
+      if (message.kind === "rpc_record" || message.kind === "workspace_receipt") {
+        const buffered: BufferedWorkerEventV1 = message.kind === "rpc_record"
+          ? { kind: "rpc_record", record: message.record }
+          : { kind: "workspace_receipt", receipt: message.receipt };
+        if (state.pendingSubmitGates !== 0) {
+          if (state.bufferedEvents.length >= bufferedRecordMaximumV1) {
+            closeState(state, "record_buffer_limit");
+            return;
+          }
+          state.bufferedEvents.push(buffered);
+        } else if (buffered.kind === "workspace_receipt") {
+          deliverWorkspaceReceipt(buffered.receipt);
+        } else if (state.onRecord !== null) {
+          try {
+            state.onRecord(buffered.record);
+          } catch {
+            // The raw record consumer is observational at this transport boundary.
+          }
+        } else {
+          closeState(state, "record_without_connection");
+        }
+        return;
+      }
+      const pending = state.pending.get(message.requestId);
+      if (pending === undefined) {
+        closeState(state, "unknown_response");
+        return;
+      }
+      state.pending.delete(message.requestId);
+      if (message.kind === "workspace_response") {
+        if (!isWorkspaceMethodV1(pending.method)) {
+          closeState(state, "workspace_response_mismatch");
+          return;
+        }
+        if (message.ok) {
+          const previousWorkspaceSessionId = state.activeWorkspace?.workspaceSessionId;
+          state.activeWorkspace = message.response.snapshot;
+          const lastReceipt = message.response.snapshot.receipts.at(-1);
+          if (message.response.method === "acknowledge_workspace_receipts") {
+            state.workspaceReceiptSequence = Math.max(
+              state.workspaceReceiptSequence,
+              message.response.throughSequence,
+              lastReceipt?.sequence ?? 0,
+            );
+          } else if (
+            previousWorkspaceSessionId !== message.response.snapshot.workspaceSessionId
+          ) {
+            state.workspaceReceiptSequence = lastReceipt?.sequence ?? 0;
+          } else if (lastReceipt !== undefined) {
+            state.workspaceReceiptSequence = Math.max(
+              state.workspaceReceiptSequence,
+              lastReceipt.sequence,
+            );
+          }
+          pending.resolve(message.response);
+        } else pending.reject(transportErrorV1(`workspace_${message.code}`));
+      } else {
+        if (message.kind !== "rpc_response") {
+          closeState(state, "rpc_response_mismatch");
+          return;
+        }
+        if (isWorkspaceMethodV1(pending.method)) {
+          closeState(state, "rpc_response_mismatch");
+          return;
+        }
+        if (message.ok) pending.resolve(message.response);
+        else pending.reject(transportErrorV1(`rpc_${message.code}`));
+      }
+      if (pending.method === "submit") {
+        // Engine request settlement/tracking and the product facade continuation
+        // both run before a synchronously delivered Worker record is released.
+        queueMicrotask(() =>
+          queueMicrotask(() => {
+            if (state.closed) return;
+            state.pendingSubmitGates -= 1;
+            flushEvents();
+          })
+        );
+      }
+    };
+    state.errorListener = (): void => closeState(state, "worker_error");
+    worker.addEventListener("message", state.messageListener);
+    worker.addEventListener("error", state.errorListener);
+    return state;
+  };
+
+  const createConnectionV1 = (state: ConnectionStateV1): AgentRpcRawConnectionInternalV1 => ({
+    request(record: unknown): Promise<unknown> {
+      if (state.closed || activeState !== state || !state.ready) {
+        return Promise.reject(transportErrorV1("connection_closed"));
+      }
+      const request = admitBrowserPiEngineRequestV1(record);
+      if (request === null) return Promise.reject(transportErrorV1("request_invalid"));
+      const callId = state.nextCallId++;
+      if (request.method === "submit") state.pendingSubmitGates += 1;
+      return new Promise<unknown>((resolve, reject) => {
+        state.pending.set(callId, { method: request.method, resolve, reject });
+        try {
+          const envelope = request.method === "submit"
+            ? (() => {
+              const workspace = state.activeWorkspace;
+              if (workspace === null || workspace.phase !== "open") {
+                throw transportErrorV1("workspace_unavailable");
+              }
+              return Object.freeze({
+                revision: 1,
+                kind: "rpc_request",
+                requestId: callId,
+                record: request,
+                execution: Object.freeze({
+                  revision: 1,
+                  programId: workspace.programId,
+                  workspaceId: workspace.workspaceId,
+                  workspaceSessionId: workspace.workspaceSessionId,
+                  expectedGeneration: workspace.generation,
+                }),
+              });
+            })()
+            : Object.freeze({
+              revision: 1,
+              kind: "rpc_request",
+              requestId: callId,
+              record: request,
+            });
+          // Worker.postMessage has no targetOrigin parameter.
+          // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker has no targetOrigin
+          state.worker.postMessage(envelope);
+        } catch {
+          state.pending.delete(callId);
+          if (request.method === "submit") state.pendingSubmitGates -= 1;
+          reject(transportErrorV1("post_failed"));
+        }
+      });
+    },
+    async close(): Promise<void> {
+      closeState(state, "connection_closed", { expected: true });
+    },
+  });
+
   const transport: BrowserPiWorkerRawTransportV1 = {
     isConfigured(): boolean {
-      return pendingApiKey !== null || (activeState !== null && !activeState.closed);
+      return activeState?.credentialAccepted === true && !activeState.closed;
     },
-    async connect({ onRecord }) {
-      if (activeState !== null && !activeState.closed) {
-        return { kind: "unavailable", reason: "failed" };
-      }
-      if (pendingApiKey === null) return { kind: "unconfigured" };
-      if (!selectionHasValidEndpoint) {
-        pendingApiKey = null;
-        return { kind: "unavailable", reason: "failed" };
-      }
-
+    async configureCredential(apiKey) {
+      if (
+        activeState !== null || apiKey.length === 0 ||
+        apiKey.length > credentialMaximumCharactersV1 || !selectionHasValidEndpoint
+      ) return { kind: "unavailable", reason: "failed" };
       let worker: BrowserPiWorkerLikeV1;
       try {
         worker = workerFactory({ endpointOrigin });
       } catch {
-        pendingApiKey = null;
         return { kind: "unavailable", reason: "failed" };
       }
-
-      let resolveReady!: (ready: boolean) => void;
-      const readyPromise = new Promise<boolean>((resolve) => {
-        resolveReady = resolve;
-      });
-      const state: ConnectionStateV1 = {
-        worker,
-        onRecord,
-        pending: new Map<number, PendingCallV1>(),
-        bufferedEvents: [],
-        resolveReady,
-        messageListener: undefined as unknown as BrowserPiWorkerMessageListenerV1,
-        errorListener: undefined as unknown as BrowserPiWorkerErrorListenerV1,
-        cancelReadyTimer: null,
-        nextCallId: 2,
-        pendingSubmitGates: 0,
-        activeWorkspace: null,
-        workspaceReceiptSequence: 0,
-        ready: false,
-        closed: false,
-      };
-
-      const deliverWorkspaceReceipt = (
-        receipt: BrowserPiWorkspaceMutationReceiptWireV1,
-      ): void => {
-        const current = state.activeWorkspace;
-        if (
-          current === null || current.phase !== "open" ||
-          receipt.programId !== current.programId ||
-          receipt.workspaceId !== current.workspaceId ||
-          receipt.workspaceSessionId !== current.workspaceSessionId ||
-          receipt.baseGeneration !== current.generation ||
-          receipt.sequence !== state.workspaceReceiptSequence + 1 ||
-          current.receipts.length >= 32
-        ) {
-          closeState(state, "workspace_receipt_invalid");
-          return;
-        }
-        state.activeWorkspace = Object.freeze({
-          ...current,
-          generation: receipt.resultingGeneration,
-          receipts: Object.freeze([...current.receipts, receipt]),
-        });
-        state.workspaceReceiptSequence = receipt.sequence;
-        for (const listener of [...workspaceReceiptListeners]) {
-          try {
-            listener(receipt);
-          } catch {
-            // Workspace receipt observers cannot change transport lifecycle.
-          }
-        }
-      };
-
-      const flushEvents = (): void => {
-        if (state.closed || state.pendingSubmitGates !== 0) return;
-        const events = state.bufferedEvents.splice(0);
-        for (const event of events) {
-          if (event.kind === "workspace_receipt") {
-            deliverWorkspaceReceipt(event.receipt);
-          } else {
-            try {
-              state.onRecord(event.record);
-            } catch {
-              // The raw record consumer is observational at this transport boundary.
-            }
-          }
-          if (state.closed) return;
-        }
-      };
-
-      state.messageListener = (event: { readonly data: unknown }): void => {
-        if (state.closed) return;
-        const message = admitBrowserPiWorkerAnyOutboundMessageV1(event.data);
-        if (message === null || message.kind === "protocol_failure") {
-          closeState(state, "protocol_failure");
-          return;
-        }
-        if (!state.ready) {
-          if (
-            message.kind === "initialization_failure" && message.requestId === 1
-          ) {
-            closeState(state, `initialize_${message.code}`);
-            return;
-          }
-          if (
-            message.kind !== "ready" || message.requestId !== 1 ||
-            message.runtime !== runtime ||
-            !selectionsEqualV1(message.selection, selection)
-          ) {
-            closeState(state, "ready_invalid");
-            return;
-          }
-          state.ready = true;
-          if (state.cancelReadyTimer !== null) {
-            state.cancelReadyTimer();
-            state.cancelReadyTimer = null;
-          }
-          state.resolveReady(true);
-          return;
-        }
-        if (message.kind === "ready") {
-          closeState(state, "duplicate_ready");
-          return;
-        }
-        if (message.kind === "rpc_record" || message.kind === "workspace_receipt") {
-          const buffered: BufferedWorkerEventV1 = message.kind === "rpc_record"
-            ? { kind: "rpc_record", record: message.record }
-            : { kind: "workspace_receipt", receipt: message.receipt };
-          if (state.pendingSubmitGates !== 0) {
-            if (state.bufferedEvents.length >= bufferedRecordMaximumV1) {
-              closeState(state, "record_buffer_limit");
-              return;
-            }
-            state.bufferedEvents.push(buffered);
-          } else if (buffered.kind === "workspace_receipt") {
-            deliverWorkspaceReceipt(buffered.receipt);
-          } else {
-            try {
-              state.onRecord(buffered.record);
-            } catch {
-              // The raw record consumer is observational at this transport boundary.
-            }
-          }
-          return;
-        }
-        const pending = state.pending.get(message.requestId);
-        if (pending === undefined) {
-          closeState(state, "unknown_response");
-          return;
-        }
-        state.pending.delete(message.requestId);
-        if (message.kind === "workspace_response") {
-          if (!isWorkspaceMethodV1(pending.method)) {
-            closeState(state, "workspace_response_mismatch");
-            return;
-          }
-          if (message.ok) {
-            const previousWorkspaceSessionId = state.activeWorkspace?.workspaceSessionId;
-            state.activeWorkspace = message.response.snapshot;
-            const lastReceipt = message.response.snapshot.receipts.at(-1);
-            if (message.response.method === "acknowledge_workspace_receipts") {
-              state.workspaceReceiptSequence = Math.max(
-                state.workspaceReceiptSequence,
-                message.response.throughSequence,
-                lastReceipt?.sequence ?? 0,
-              );
-            } else if (
-              previousWorkspaceSessionId !== message.response.snapshot.workspaceSessionId
-            ) {
-              state.workspaceReceiptSequence = lastReceipt?.sequence ?? 0;
-            } else if (lastReceipt !== undefined) {
-              state.workspaceReceiptSequence = Math.max(
-                state.workspaceReceiptSequence,
-                lastReceipt.sequence,
-              );
-            }
-            pending.resolve(message.response);
-          } else pending.reject(transportErrorV1(`workspace_${message.code}`));
-        } else {
-          if (message.kind !== "rpc_response") {
-            closeState(state, "rpc_response_mismatch");
-            return;
-          }
-          if (isWorkspaceMethodV1(pending.method)) {
-            closeState(state, "rpc_response_mismatch");
-            return;
-          }
-          if (message.ok) pending.resolve(message.response);
-          else pending.reject(transportErrorV1(`rpc_${message.code}`));
-        }
-        if (pending.method === "submit") {
-          // Engine request settlement/tracking and the product facade continuation
-          // both run before a synchronously delivered Worker record is released.
-          queueMicrotask(() =>
-            queueMicrotask(() => {
-              if (state.closed) return;
-              state.pendingSubmitGates -= 1;
-              flushEvents();
-            })
-          );
-        }
-      };
-      state.errorListener = (): void => closeState(state, "worker_error");
+      const state = createStateV1(worker);
       activeState = state;
-      worker.addEventListener("message", state.messageListener);
-      worker.addEventListener("error", state.errorListener);
-      const readyTimer = setTimeout(
-        () => closeState(state, "ready_timeout"),
-        readyTimeoutMillisecondsV1,
-      );
-      state.cancelReadyTimer = () => clearTimeout(readyTimer);
-
-      const postCredentialOnce = (): void => {
-        const apiKey = pendingApiKey;
-        pendingApiKey = null;
-        if (apiKey === null) throw transportErrorV1("credential_missing");
-        const initialize: BrowserPiWorkerInitializeV1 = {
+      let credential = apiKey;
+      const accepted = beginSetupV1(state, "configure", (requestId) => {
+        const configure: BrowserPiWorkerConfigureV1 = {
           revision: 1,
-          kind: "initialize",
-          requestId: 1,
+          kind: "configure",
+          requestId,
           runtime,
           selection,
-          credential: { kind: "api_key", value: apiKey },
+          credential: { kind: "api_key", value: credential },
         };
         // Worker.postMessage has no targetOrigin parameter.
         // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker has no targetOrigin
-        worker.postMessage(initialize);
-      };
-      try {
-        postCredentialOnce();
-      } catch {
-        closeState(state, "initialize_failed");
+        worker.postMessage(configure);
+      });
+      credential = "";
+      if (!await accepted || state.closed || !state.credentialAccepted) {
+        if (!state.closed) closeState(state, "configuration_failed", { expected: true });
         return { kind: "unavailable", reason: "failed" };
       }
-
-      const ready = await readyPromise;
-      if (!ready || state.closed) return { kind: "unavailable", reason: "failed" };
-
-      const connection: AgentRpcRawConnectionInternalV1 = {
-        request(record: unknown): Promise<unknown> {
-          if (state.closed || activeState !== state) {
-            return Promise.reject(transportErrorV1("connection_closed"));
-          }
-          const request = admitBrowserPiEngineRequestV1(record);
-          if (request === null) return Promise.reject(transportErrorV1("request_invalid"));
-          const callId = state.nextCallId++;
-          if (request.method === "submit") state.pendingSubmitGates += 1;
-          return new Promise<unknown>((resolve, reject) => {
-            state.pending.set(callId, { method: request.method, resolve, reject });
-            try {
-              const envelope = request.method === "submit"
-                ? (() => {
-                  const workspace = state.activeWorkspace;
-                  if (workspace === null || workspace.phase !== "open") {
-                    throw transportErrorV1("workspace_unavailable");
-                  }
-                  return Object.freeze({
-                    revision: 1,
-                    kind: "rpc_request",
-                    requestId: callId,
-                    record: request,
-                    execution: Object.freeze({
-                      revision: 1,
-                      programId: workspace.programId,
-                      workspaceId: workspace.workspaceId,
-                      workspaceSessionId: workspace.workspaceSessionId,
-                      expectedGeneration: workspace.generation,
-                    }),
-                  });
-                })()
-                : Object.freeze({
-                  revision: 1,
-                  kind: "rpc_request",
-                  requestId: callId,
-                  record: request,
-                });
-              // Worker.postMessage has no targetOrigin parameter.
-              // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker has no targetOrigin
-              state.worker.postMessage(envelope);
-            } catch {
-              state.pending.delete(callId);
-              if (request.method === "submit") state.pendingSubmitGates -= 1;
-              reject(transportErrorV1("post_failed"));
-            }
-          });
-        },
-        async close(): Promise<void> {
-          closeState(state, "connection_closed", { expected: true });
-        },
+      return { kind: "configured" };
+    },
+    async testConnection() {
+      const state = activeState;
+      if (
+        state === null || state.closed || !state.credentialAccepted || state.setup !== null
+      ) return { kind: "unavailable", reason: "failed" };
+      const ready = await beginSetupV1(state, "test_connection", (requestId) => {
+        const request = Object.freeze({
+          revision: 1,
+          kind: "test_connection",
+          requestId,
+        });
+        // Worker.postMessage has no targetOrigin parameter.
+        // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker has no targetOrigin
+        state.worker.postMessage(request);
+      });
+      return ready && !state.closed ? { kind: "ready" } : { kind: "unavailable", reason: "failed" };
+    },
+    selectModel(requestedSelection) {
+      const state = activeState;
+      if (state === null || state.closed || !state.credentialAccepted) {
+        return Promise.resolve({ kind: "unavailable", reason: "not_configured" });
+      }
+      if (state.setup !== null) {
+        return Promise.resolve({ kind: "unavailable", reason: "busy" });
+      }
+      const nextSelection = copySelectionV1(requestedSelection);
+      const requestId = state.nextCallId++;
+      let resolveSelection!: (result: BrowserPiWorkerSelectModelResultV1) => void;
+      const result = new Promise<BrowserPiWorkerSelectModelResultV1>((resolve) => {
+        resolveSelection = resolve;
+      });
+      state.setup = {
+        kind: "select_model",
+        requestId,
+        selection: nextSelection,
+        resolve: resolveSelection,
       };
-      return { kind: "connected", connection };
+      const timer = setTimeout(
+        () => closeState(state, "select_model_timeout"),
+        readyTimeoutMillisecondsV1,
+      );
+      state.cancelSetupTimer = () => clearTimeout(timer);
+      try {
+        const request = Object.freeze({
+          revision: 1,
+          kind: "select_model",
+          requestId,
+          selection: nextSelection,
+        });
+        // Worker.postMessage has no targetOrigin parameter.
+        // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker has no targetOrigin
+        state.worker.postMessage(request);
+      } catch {
+        closeState(state, "select_model_post_failed");
+      }
+      return result;
+    },
+    async connect({ onRecord }) {
+      const state = activeState;
+      if (state === null || state.closed || !state.credentialAccepted) {
+        return { kind: "unconfigured" };
+      }
+      if (state.connectionIssued || state.setup !== null || !state.ready) {
+        return { kind: "unavailable", reason: "failed" };
+      }
+      state.onRecord = onRecord;
+      state.connectionIssued = true;
+      return { kind: "connected", connection: createConnectionV1(state) };
     },
     async openWorkspace(input): Promise<BrowserPiWorkspaceSnapshotWireV1> {
       const opened = await workspaceAuthority.openWorkspace(input);
@@ -681,7 +872,6 @@ export function createBrowserPiWorkerRawTransportV1({
       return () => workspaceFailureListeners.delete(listener);
     },
     async forget(): Promise<void> {
-      pendingApiKey = null;
       unsubscribeWorkspaceAuthorityFatal();
       workspaceFailureListeners.clear();
       const state = activeState;

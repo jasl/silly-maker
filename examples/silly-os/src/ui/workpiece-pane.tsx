@@ -700,21 +700,23 @@ function ProgramCapabilitiesV1({
           <p>
             {agentMode === "deterministic_test"
               ? copy.locale === "zh-CN"
-                ? "固定版本 Pi Agent 正在 Browser Worker 中通过原生 read/write/edit/bash 与受限 proposal 工具操作持久化 Program workspace；bash 使用 Browser Local 虚拟 shell 的终端聚合输出，并非 Linux 容器或 live LLM。"
-                : "The pinned Pi Agent uses native read/write/edit/bash and one bounded proposal tool over a persistent Program workspace in Browser Workers. Bash uses terminal-aggregate output from the Browser Local virtual shell; this is neither a Linux container nor a live LLM."
+                ? "固定版本 Agent runtime 正在 Browser Worker 中通过 read/write/edit/bash 与受限 proposal 工具操作持久化 Program workspace；bash 使用 Browser Local 虚拟 shell 的终端聚合输出，并非 Linux 容器或 live LLM。"
+                : "The pinned Agent runtime uses read/write/edit/bash and one bounded proposal tool over a persistent Program workspace in Browser Workers. Bash uses terminal-aggregate output from the Browser Local virtual shell; this is neither a Linux container nor a live LLM."
               : agentMode === "pi_provider"
               ? copy.locale === "zh-CN"
-                ? "固定版本 Pi Agent 正在 Browser Worker 中通过 OpenAI gpt-4.1-nano 使用原生 read/write/edit/bash 与受限 proposal 工具；bash 是 Browser Local 虚拟 shell 的终端聚合输出，key 仅在 Agent Worker 内存中，Program workspace 持久化在当前浏览器。"
-                : "The pinned Pi Agent exposes native read/write/edit/bash and one bounded proposal tool through OpenAI gpt-4.1-nano in Browser Workers. Bash uses terminal-aggregate output from the Browser Local virtual shell; the key stays in Agent Worker memory and the Program workspace persists in this browser."
+                ? "固定版本 Agent runtime 正在 Browser Worker 中通过你选择的模型使用受限 proposal 工具。Key 仅在 Agent Worker 内存中；read/write/edit/bash 要等独立来源的 Workspace Sandbox 接通后才会开放。"
+                : "The pinned Agent runtime uses one bounded proposal tool with your selected model in a Browser Worker. The key stays in Agent Worker memory; read/write/edit/bash remain unavailable until the independent-origin Workspace Sandbox is connected."
               : copy.locale === "zh-CN"
-              ? "Pi、模型、工具执行与数据库属于未来的 typed RPC companion。"
-              : "Pi, models, tool execution, and the database belong to a future typed RPC companion."}
+              ? "模型、工具执行与数据库属于未来的 typed RPC companion。"
+              : "Models, tool execution, and the database belong to a future typed RPC companion."}
           </p>
           <small>
             {agentMode === "deterministic_test"
-              ? copy.locale === "zh-CN" ? "Pi 0.84.3 测试接线" : "Pi 0.84.3 test wiring"
+              ? copy.locale === "zh-CN" ? "确定性测试接线" : "Deterministic test wiring"
               : agentMode === "pi_provider"
-              ? copy.locale === "zh-CN" ? "Pi 0.84.3 · OpenAI 实时连接" : "Pi 0.84.3 · live OpenAI"
+              ? copy.locale === "zh-CN"
+                ? "浏览器 Agent · 实时连接"
+                : "Browser Agent · live connection"
               : copy.locale === "zh-CN"
               ? "尚未连接"
               : "Not connected"}

@@ -695,7 +695,7 @@ async function expectNoPageOverflowV1(page: Page): Promise<void> {
 }
 
 const openAIResponsesProbeUrlV1 = "https://api.openai.com/v1/responses";
-const browserProviderSettingsStorageKeyV1 = "sillymaker.example-silly-os.provider-settings.v1";
+const browserProviderSettingsStorageKeyV2 = "sillymaker.example-silly-os.provider-settings.v2";
 
 interface OpenAIResponsesProbeRequestV1 {
   readonly method: string;
@@ -820,8 +820,33 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await expect(providerWarning).toHaveAttribute("data-pi-agent-status", "available");
   await expect(providerWarning).toContainText("API key required");
   await expect(providerWarning).toContainText("Settings");
-  const homeSettings = page.locator('[data-open-settings="home"]');
-  await providerWarning.click();
+  const homeModelControl = page.locator('[data-creator-model-selector="true"]');
+  const homeModelSelector = homeModelControl.getByRole("combobox", {
+    name: "Agent Creator model",
+  });
+  await expect(homeModelControl).toHaveAttribute("data-model-state", "required");
+  await expect(homeModelSelector).toBeEnabled();
+  await expect(homeModelSelector).toHaveAttribute("data-selected-value", "");
+  const providerWarningBox = await providerWarning.boundingBox();
+  const creatorComposerBox = await page.locator(".creator-composer").boundingBox();
+  expect(
+    (creatorComposerBox?.y ?? 0) -
+      ((providerWarningBox?.y ?? 0) + (providerWarningBox?.height ?? 0)),
+  ).toBeGreaterThanOrEqual(13);
+  const composerControlRadii = await page.locator(
+    ".creator-composer textarea, .creator-composer__actions .silly-button",
+  ).evaluateAll((elements) => elements.map((element) => getComputedStyle(element).borderRadius));
+  expect(new Set(composerControlRadii)).toEqual(new Set(["12px"]));
+  await homeModelSelector.click();
+  const emptyModelListbox = page.getByRole("listbox", { name: "Agent Creator model" });
+  await expect(emptyModelListbox.getByRole("option")).toHaveCount(0);
+  await expect(
+    page.getByText("No enabled model is available to the current key in this browser session."),
+  ).toBeVisible();
+  const modelSettingsAction = page.getByRole("button", { name: "Model settings" });
+  await homeModelSelector.press("Tab");
+  await expect(modelSettingsAction).toBeFocused();
+  await modelSettingsAction.press("Enter");
 
   const settings = page.locator('[data-silly-os-view="settings"]');
   const globalBack = page.getByRole("button", { name: "Back to Agent Creator" });
@@ -829,21 +854,21 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await expect(globalBack).toBeFocused();
   await expect(page.locator('[data-provider-id="openai"]')).toHaveAttribute(
     "data-availability",
-    "qualified",
+    "available",
   );
   await expect(page.locator('[data-provider-id="anthropic"]')).toHaveAttribute(
     "data-availability",
-    "qualified",
+    "available",
   );
   for (const providerId of ["google", "deepseek", "xai"]) {
     await expect(page.locator(`[data-provider-id="${providerId}"]`)).toHaveAttribute(
       "data-availability",
-      "qualified",
+      "available",
     );
   }
   await expect(page.locator('[data-provider-id="openrouter"]')).toHaveAttribute(
     "data-availability",
-    "candidate",
+    "available",
   );
   const globalBackBox = await globalBack.boundingBox();
   expect(globalBackBox?.width ?? 0).toBeGreaterThanOrEqual(44);
@@ -859,27 +884,37 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await expect(page.getByRole("heading", { name: "Built-in Providers" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Custom Endpoints" })).toBeVisible();
   await page.locator('[data-provider-id="anthropic"]').click();
-  await expect(
-    page.locator('[data-model-id="claude-sonnet-4-5-20250929"] input'),
-  ).toBeEnabled();
-  await expect(page.locator('[data-model-id="claude-sonnet-4-5"]')).toHaveAttribute(
-    "data-availability",
-    "candidate",
-  );
-  await expect(page.locator('[data-model-id="claude-sonnet-4-5"] input')).toBeDisabled();
+  const anthropicAliasRow = page.locator('[data-model-id="claude-sonnet-4-5"]');
+  const anthropicAlias = anthropicAliasRow.locator("input");
+  await expect(anthropicAlias).toBeEnabled();
+  await expect(anthropicAlias).not.toBeChecked();
+  await anthropicAliasRow.click();
+  await expect(anthropicAlias).toBeChecked();
   await page.getByRole("button", { name: "Back to Providers" }).click();
 
   await page.locator('[data-provider-id="openrouter"]').click();
   await expect(
     page.locator('[data-model-id="google/gemini-2.5-flash"] input'),
-  ).toBeDisabled();
-  await expect(page.getByLabel("API key (memory only)")).toHaveCount(0);
+  ).toBeEnabled();
+  const connectionModelSelect = page.locator(".provider-settings__connection-model select");
+  await expect(connectionModelSelect).toBeDisabled();
+  await expect(connectionModelSelect).toContainText("Choose a model in Available models first");
   await page.getByRole("button", { name: "Back to Providers" }).click();
 
   await page.locator('[data-provider-id="openai"]').click();
   await expect(page.getByRole("button", { name: "Back to Providers" })).toBeFocused();
-  const qualifiedModel = page.locator('[data-model-id="gpt-4.1-nano"] input');
-  await expect(qualifiedModel).toBeChecked();
+  const selectedModel = page.locator('[data-model-id="gpt-5.3-chat-latest"] input');
+  const fallbackModel = page.locator('[data-model-id="gpt-4.1-mini"] input');
+  const siblingModel = page.locator('[data-model-id="gpt-4.1-nano"] input');
+  await expect(selectedModel).not.toBeChecked();
+  await expect(fallbackModel).not.toBeChecked();
+  await expect(siblingModel).not.toBeChecked();
+  await selectedModel.check();
+  await fallbackModel.check();
+  await siblingModel.check();
+  await expect(selectedModel).toBeChecked();
+  await expect(fallbackModel).toBeChecked();
+  await expect(siblingModel).toBeChecked();
   const endpoint = page.locator(
     '.provider-settings__endpoint input[aria-label="Endpoint"]',
   );
@@ -887,7 +922,7 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await expect(endpoint).toHaveAttribute("data-endpoint-editable", "false");
   await expect(endpoint).not.toBeEditable();
   expect(
-    await page.locator('[data-connection-target="builtin:openai:gpt-4.1-nano"]').evaluate(
+    await page.locator('[data-connection-target="builtin:openai:gpt-5.3-chat-latest"]').evaluate(
       (connection) => {
         const models = document.querySelector("#models-title")?.closest("section");
         return models !== null && models !== undefined &&
@@ -901,9 +936,87 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await expect(keyInput).toHaveAttribute("type", "text");
   await page.getByRole("button", { name: "Hide API key" }).click();
   await keyInput.fill(sentinel);
-  await page.getByRole("button", { name: "Test connection" }).click();
-  await expect(keyInput).toHaveCount(0);
-  await expect(page.getByText("Agent Creator connected", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Test connection" })).toBeDisabled();
+  await page.getByRole("button", { name: "Save key" }).click();
+  await expect(keyInput).toHaveValue("");
+  await expect(page.getByText("API key saved in Agent Worker memory", { exact: true }))
+    .toBeVisible();
+  expect(providerProbeRequests).toHaveLength(0);
+  await globalBack.click();
+  await expect(homeModelSelector).toBeFocused();
+  await expect(providerWarning).toHaveCount(0);
+  await expect(homeModelControl).toHaveAttribute("data-model-state", "ready");
+  await expect(homeModelSelector).toHaveAttribute(
+    "data-selected-value",
+    JSON.stringify(["builtin", "openai", "gpt-5.3-chat-latest"]),
+  );
+  await homeModelSelector.click();
+  await expect(homeModelSelector).toHaveAttribute("aria-expanded", "true");
+  const readyModelListbox = page.getByRole("listbox", { name: "Agent Creator model" });
+  await expect(readyModelListbox).toBeVisible();
+  await expect(readyModelListbox.getByRole("option")).toHaveCount(3);
+  await expect(readyModelListbox.getByRole("option", { name: /GPT-5\.3 Chat/u })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  const fallbackModelOption = readyModelListbox.getByRole("option", { name: /GPT-4\.1 mini/u });
+  const siblingModelOption = readyModelListbox.getByRole("option", { name: /GPT-4\.1 nano/u });
+  await expect(fallbackModelOption).toHaveAttribute("aria-selected", "false");
+  await expect(siblingModelOption).toHaveAttribute("aria-selected", "false");
+  await expect(readyModelListbox.getByRole("option", { name: /Anthropic/u })).toHaveCount(0);
+  await expect(modelSettingsAction).toBeVisible();
+
+  await modelSettingsAction.dispatchEvent("click");
+  await expect(settings).toBeVisible();
+  await page.locator('[data-provider-id="openai"]').click();
+  await expect(page.getByText("API key saved in Agent Worker memory", { exact: true }))
+    .toBeVisible();
+  await selectedModel.uncheck();
+  await expect(selectedModel).not.toBeChecked();
+  await expect(page.getByText("API key saved in Agent Worker memory", { exact: true }))
+    .toBeVisible();
+  await globalBack.click();
+  await expect(providerWarning).toHaveCount(0);
+  await expect(homeModelControl).toHaveAttribute("data-model-state", "ready");
+  await expect(homeModelSelector).toHaveAttribute(
+    "data-selected-value",
+    JSON.stringify(["builtin", "openai", "gpt-4.1-mini"]),
+  );
+  await homeModelSelector.click();
+  await expect(readyModelListbox.getByRole("option")).toHaveCount(2);
+  await expect(readyModelListbox.getByRole("option", { name: /GPT-5\.3 Chat/u })).toHaveCount(0);
+  await expect(fallbackModelOption).toHaveAttribute("aria-selected", "true");
+  await expect(siblingModelOption).toHaveAttribute("aria-selected", "false");
+  await expect(readyModelListbox.getByRole("option", { name: /Anthropic/u })).toHaveCount(0);
+  await siblingModelOption.dispatchEvent("click");
+  await expect(homeModelControl).toHaveAttribute("data-model-state", "ready");
+  await expect(homeModelSelector).toHaveAttribute(
+    "data-selected-value",
+    JSON.stringify(["builtin", "openai", "gpt-4.1-nano"]),
+  );
+
+  const creatorIntent = page.getByRole("textbox", { name: "What would you like to make?" });
+  const createProgramButton = page.getByRole("button", { name: "Create program" });
+  await expect(createProgramButton).toBeDisabled();
+  await creatorIntent.fill(translationIntentV1);
+  await expect(createProgramButton).toBeEnabled();
+  expect(providerProbeRequests).toHaveLength(0);
+
+  await expect(homeModelSelector).toHaveAttribute("aria-expanded", "false");
+  await homeModelSelector.click();
+  await expect(homeModelSelector).toHaveAttribute("aria-expanded", "true");
+  await homeModelSelector.press("Tab");
+  await expect(modelSettingsAction).toBeFocused();
+  await modelSettingsAction.press("Enter");
+  await expect(settings).toBeVisible();
+  await expect(globalBack).toBeFocused();
+  await page.locator('[data-provider-id="openai"]').click();
+  await expect(page.getByText("API key saved in Agent Worker memory", { exact: true }))
+    .toBeVisible();
+  const testConnectionButton = page.getByRole("button", { name: "Test connection" });
+  await expect(testConnectionButton).toBeEnabled();
+  await testConnectionButton.click();
+  await expect(page.getByText("Last connection test passed", { exact: true })).toBeVisible();
   expect(providerProbeRequests).toHaveLength(1);
   expect(providerProbeRequests[0]?.method).toBe("POST");
   expect(providerProbeRequests[0]?.headers.authorization).toBe(`Bearer ${sentinel}`);
@@ -924,15 +1037,183 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   expect(probeBody.tool_choice).toBeUndefined();
   expect(JSON.stringify(probeBody.input)).toContain("Reply with OK.");
   await globalBack.click();
-  await expect(homeSettings).toBeFocused();
+  await expect(homeModelSelector).toBeFocused();
   await expect(providerWarning).toHaveCount(0);
-
-  const creatorIntent = page.getByRole("textbox", { name: "What would you like to make?" });
+  await expect(homeModelControl).toHaveAttribute("data-model-state", "ready");
+  await expect(homeModelSelector).toHaveAttribute(
+    "data-selected-value",
+    JSON.stringify(["builtin", "openai", "gpt-4.1-nano"]),
+  );
   await creatorIntent.fill(translationIntentV1);
-  await page.getByRole("button", { name: "Create program" }).click();
+  await expect(createProgramButton).toBeEnabled();
+
+  const modelSelectorBox = await homeModelSelector.boundingBox();
+  const createProgramBox = await createProgramButton.boundingBox();
+  const composerActionsBox = await page.locator(".creator-composer__actions").boundingBox();
+  expect(modelSelectorBox).not.toBeNull();
+  expect(createProgramBox).not.toBeNull();
+  expect(composerActionsBox).not.toBeNull();
+  expect((modelSelectorBox?.x ?? 0) + (modelSelectorBox?.width ?? 0)).toBeLessThanOrEqual(
+    createProgramBox?.x ?? 0,
+  );
+  expect(createProgramBox?.x ?? 0).toBeGreaterThanOrEqual(composerActionsBox?.x ?? 0);
+  expect((createProgramBox?.x ?? 0) + (createProgramBox?.width ?? 0)).toBeLessThanOrEqual(
+    (composerActionsBox?.x ?? 0) + (composerActionsBox?.width ?? 0),
+  );
+
+  await createProgramButton.click();
   const workspace = page.getByRole("main", { name: "SillyOS program workspace" });
   await expect(workspace).toBeVisible();
   const programId = await readProgramIdV1(workspace);
+  const workspaceModelControl = page.locator('[data-model-picker-surface="workspace"]');
+  const workspaceModelSelector = workspaceModelControl.getByRole("combobox", {
+    name: "Agent Creator model",
+  });
+  await expect(workspaceModelControl).toHaveAttribute("data-model-state", "ready");
+  await expect(workspaceModelSelector).toBeEnabled();
+  await expect(workspaceModelSelector).toHaveAttribute(
+    "data-selected-value",
+    JSON.stringify(["builtin", "openai", "gpt-4.1-nano"]),
+  );
+  await expect(page.getByText("Model Provider", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Forget Provider key" })).toHaveCount(0);
+  await expect(
+    page.locator(
+      '[data-pi-agent-runtime="pi_provider"][data-pi-agent-run-status="ready"]',
+    ),
+  ).toHaveCount(0);
+
+  const chatFeed = page.locator(".chat-pane__feed");
+  const chatComposer = page.locator(".chat-composer");
+  const proposalCard = page.locator(".program-proposal");
+  const workspaceReviewCard = page.locator(".program-workspace-review");
+  const workpieceLink = page.locator(".workpiece-link");
+  const [chatFeedBox, chatComposerBox, proposalCardBox, workspaceReviewCardBox, workpieceLinkBox] =
+    await Promise.all([
+      chatFeed.boundingBox(),
+      chatComposer.boundingBox(),
+      proposalCard.boundingBox(),
+      workspaceReviewCard.boundingBox(),
+      workpieceLink.boundingBox(),
+    ]);
+  expect(chatFeedBox).not.toBeNull();
+  expect(chatComposerBox).not.toBeNull();
+  expect(proposalCardBox).not.toBeNull();
+  expect(workspaceReviewCardBox).not.toBeNull();
+  expect(workpieceLinkBox).not.toBeNull();
+  expect(
+    Math.abs(
+      (chatComposerBox?.x ?? 0) - ((chatFeedBox?.x ?? 0) + 14),
+    ),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs(
+      ((chatComposerBox?.x ?? 0) + (chatComposerBox?.width ?? 0)) -
+        ((chatFeedBox?.x ?? 0) + (chatFeedBox?.width ?? 0) - 14),
+    ),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    (workspaceReviewCardBox?.y ?? 0) -
+      ((proposalCardBox?.y ?? 0) + (proposalCardBox?.height ?? 0)),
+    "proposal-to-review gap",
+  ).toBeGreaterThanOrEqual(15);
+  expect(
+    (workpieceLinkBox?.y ?? 0) -
+      ((workspaceReviewCardBox?.y ?? 0) + (workspaceReviewCardBox?.height ?? 0)),
+    "review-to-workpiece gap",
+  ).toBeGreaterThanOrEqual(15);
+  expect(
+    (chatComposerBox?.y ?? 0) -
+      ((chatFeedBox?.y ?? 0) + (chatFeedBox?.height ?? 0)),
+    "feed-to-composer gap",
+  ).toBeGreaterThanOrEqual(9);
+
+  const workspaceResourceButton = chatComposer.getByRole("button", { name: "Add resource" });
+  const workspaceSendButton = chatComposer.getByRole("button", { name: "Send" });
+  const [workspaceResourceBox, workspaceModelSelectorBox, workspaceSendBox] = await Promise.all([
+    workspaceResourceButton.boundingBox(),
+    workspaceModelSelector.boundingBox(),
+    workspaceSendButton.boundingBox(),
+  ]);
+  expect(workspaceResourceBox).not.toBeNull();
+  expect(workspaceModelSelectorBox).not.toBeNull();
+  expect(workspaceSendBox).not.toBeNull();
+  for (
+    const controlBox of [workspaceResourceBox, workspaceModelSelectorBox, workspaceSendBox]
+  ) {
+    expect(controlBox?.height ?? 0).toBeGreaterThanOrEqual(42);
+  }
+  expect(
+    (workspaceResourceBox?.x ?? 0) + (workspaceResourceBox?.width ?? 0),
+  ).toBeLessThanOrEqual(workspaceModelSelectorBox?.x ?? 0);
+  expect(
+    (workspaceModelSelectorBox?.x ?? 0) + (workspaceModelSelectorBox?.width ?? 0),
+  ).toBeLessThanOrEqual(workspaceSendBox?.x ?? 0);
+
+  await workspaceModelSelector.click();
+  const workspaceModelListbox = page.getByRole("listbox", { name: "Agent Creator model" });
+  await expect(workspaceModelListbox).toBeVisible();
+  await expect(workspaceModelListbox.getByRole("option")).toHaveCount(2);
+  const workspaceModelSettingsAction = workspaceModelControl.getByRole("button", {
+    name: "Model settings",
+  });
+  await workspaceModelSelector.press("Tab");
+  await expect(workspaceModelSettingsAction).toBeFocused();
+  await workspaceModelSettingsAction.press("Enter");
+  await expect(settings).toBeVisible();
+  await expect(globalBack).toBeFocused();
+  await globalBack.click();
+  await expect(workspace).toHaveAttribute("data-program-id", programId);
+  await expect(workspaceModelSelector).toBeFocused();
+
+  await page.setViewportSize({ width: 1024, height: 844 });
+  await expect(workspace).toHaveAttribute("data-workspace-layout", "dual-pane");
+  const desktopChatShell = page.locator(".program-workspace__chat-shell");
+  const desktopSeparator = page.getByRole("separator", {
+    name: "Resize conversation and workpiece panes",
+  });
+  await desktopSeparator.focus();
+  await desktopSeparator.press("Home");
+  await expect(desktopSeparator).toHaveAttribute("aria-valuenow", "280");
+  const desktopChatShellBox = await desktopChatShell.boundingBox();
+  expect(desktopChatShellBox).not.toBeNull();
+  expect(Math.round(desktopChatShellBox?.width ?? 0)).toBe(280);
+
+  await workspaceModelSelector.click();
+  await expect(workspaceModelListbox).toBeVisible();
+  const workspaceModelPopover = workspaceModelControl.locator(
+    ".creator-composer__model-popover",
+  );
+  const desktopComposerActions = chatComposer.locator(".chat-composer__actions");
+  await expect(workspaceModelPopover).toBeVisible();
+  const [workspaceModelPopoverBox, desktopComposerActionsBox] = await Promise.all([
+    workspaceModelPopover.boundingBox(),
+    desktopComposerActions.boundingBox(),
+  ]);
+  expect(workspaceModelPopoverBox).not.toBeNull();
+  expect(desktopComposerActionsBox).not.toBeNull();
+  expect(
+    (workspaceModelPopoverBox?.x ?? Number.NEGATIVE_INFINITY) + 1,
+  ).toBeGreaterThanOrEqual(desktopChatShellBox?.x ?? Number.POSITIVE_INFINITY);
+  expect(
+    (workspaceModelPopoverBox?.x ?? 0) + (workspaceModelPopoverBox?.width ?? 0),
+  ).toBeLessThanOrEqual(
+    (desktopChatShellBox?.x ?? 0) + (desktopChatShellBox?.width ?? 0) + 1,
+  );
+  expect(
+    (workspaceModelPopoverBox?.x ?? Number.NEGATIVE_INFINITY) + 1,
+  ).toBeGreaterThanOrEqual(desktopComposerActionsBox?.x ?? Number.POSITIVE_INFINITY);
+  expect(
+    (workspaceModelPopoverBox?.x ?? 0) + (workspaceModelPopoverBox?.width ?? 0),
+  ).toBeLessThanOrEqual(
+    (desktopComposerActionsBox?.x ?? 0) + (desktopComposerActionsBox?.width ?? 0) + 1,
+  );
+  await workspaceModelSelector.press("Escape");
+  await expect(workspaceModelPopover).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(workspace).toHaveAttribute("data-workspace-layout", "single-pane");
+  await expectNoPageOverflowV1(page);
+
   const workspaceSettings = page.locator('[data-open-settings="workspace"]');
   await workspaceSettings.click();
   await expect(settings).toBeVisible();
@@ -943,13 +1224,26 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
 
   await workspaceSettings.click();
   await page.locator('[data-provider-id="openai"]').click();
-  await expect(page.getByText("Agent Creator connected", { exact: true })).toBeVisible();
+  await expect(page.getByText("Last connection test passed", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Forget key" }).click();
   await expect(page.getByLabel("API key (memory only)")).toBeVisible();
   await globalBack.click();
+  await expect(workspaceSettings).toBeFocused();
   await page.getByRole("button", { name: "Creator home" }).click();
   await expect(providerWarning).toHaveAttribute("data-pi-agent-status", "available");
   await expect(providerWarning).toContainText("API key required");
+  await expect(homeModelControl).toHaveAttribute("data-model-state", "required");
+  await expect(homeModelSelector).toHaveAttribute(
+    "data-selected-value",
+    "",
+  );
+  await homeModelSelector.click();
+  await expect(page.getByRole("listbox", { name: "Agent Creator model" }).getByRole("option"))
+    .toHaveCount(0);
+  await expect(
+    page.getByText("No enabled model is available to the current key in this browser session."),
+  ).toBeVisible();
+  await homeModelSelector.press("Escape");
   await expectNoPageOverflowV1(page);
 
   expect(observedNetwork.join("\n")).not.toContain(sentinel);
@@ -1012,12 +1306,15 @@ test("ordinary Browser Settings adds, reloads, and removes a non-secret custom e
 
   const customKeyInput = page.getByLabel("API key (memory only)");
   await customKeyInput.fill(customSentinel);
+  await page.getByRole("button", { name: "Save key" }).click();
+  await expect(customKeyInput).toHaveValue("");
+  expect(customProbeRequests).toHaveLength(0);
   await page.getByRole("button", { name: "Test connection" }).click();
-  await expect(customKeyInput).toHaveCount(0);
+  await expect(customKeyInput).toHaveValue("");
   const customConnection = page.locator(
-    `.provider-settings__connection[data-connection-phase="ready"]`,
+    `.provider-settings__credential-form[data-connection-phase="ready"]`,
   );
-  await expect(customConnection).toContainText("Verified in this browser");
+  await expect(customConnection).toContainText("Last connection test passed");
   await expect(customConnection).toContainText(`${customName} · ${customModel}`);
   await expect(customProfile).toHaveAttribute("data-connection-status", "verified");
   expect(customProbeRequests).toHaveLength(1);
@@ -1037,9 +1334,9 @@ test("ordinary Browser Settings adds, reloads, and removes a non-secret custom e
   const savedProfile = await page.evaluate((storageKey) => {
     const serialized = localStorage.getItem(storageKey);
     return serialized === null ? null : JSON.parse(serialized) as unknown;
-  }, browserProviderSettingsStorageKeyV1);
+  }, browserProviderSettingsStorageKeyV2);
   expect(savedProfile).toMatchObject({
-    revision: 1,
+    revision: 2,
     customProfiles: [{
       displayName: customName,
       api: "openai-responses",
@@ -1048,6 +1345,10 @@ test("ordinary Browser Settings adds, reloads, and removes a non-secret custom e
       contextWindow: 131_072,
       maxTokens: 8_192,
     }],
+    enabledBuiltinModels: [],
+    preferredModel: {
+      kind: "custom",
+    },
   });
   expect(JSON.stringify(savedProfile).toLocaleLowerCase()).not.toContain("api_key");
   expect(JSON.stringify(savedProfile).toLocaleLowerCase()).not.toContain("apikey");
@@ -1077,7 +1378,7 @@ test("ordinary Browser Settings adds, reloads, and removes a non-secret custom e
   expect(
     await page.evaluate(
       (storageKey) => localStorage.getItem(storageKey),
-      browserProviderSettingsStorageKeyV1,
+      browserProviderSettingsStorageKeyV2,
     ),
   ).toBeNull();
 

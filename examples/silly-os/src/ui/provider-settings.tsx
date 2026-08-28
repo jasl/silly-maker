@@ -21,16 +21,26 @@ import { SillyButtonV1 as Button } from "./controls.tsx";
 import { LocaleSwitchV1, SillyOsBrandV1 } from "./product-chrome.tsx";
 
 export type ProviderSettingsAvailabilityV1 =
-  | { readonly status: "qualified" }
-  | { readonly status: "candidate"; readonly reason: "qualification_pending" }
+  | { readonly status: "available" }
   | {
     readonly status: "unavailable";
     readonly reason:
       | "browser_runtime_unavailable"
       | "credential_flow_unavailable"
       | "public_http_unavailable"
-      | "not_qualified";
+      | "route_configuration_unavailable";
   };
+
+export interface ProviderSettingsBuiltinModelRefV1 {
+  readonly providerId: string;
+  readonly modelId: string;
+}
+
+export type ProviderSettingsCustomApiV1 =
+  | "openai-completions"
+  | "openai-responses"
+  | "anthropic-messages"
+  | "google-generative-ai";
 
 export interface ProviderSettingsModelV1 {
   readonly providerId: string;
@@ -48,12 +58,6 @@ export interface ProviderSettingsProviderV1 {
   readonly availability: ProviderSettingsAvailabilityV1;
   readonly models: readonly ProviderSettingsModelV1[];
 }
-
-export type ProviderSettingsCustomApiV1 =
-  | "openai-completions"
-  | "openai-responses"
-  | "anthropic-messages"
-  | "google-generative-ai";
 
 export interface ProviderSettingsCustomProfileV1 {
   readonly profileId: string;
@@ -87,6 +91,8 @@ export type ProviderSettingsSelectionV1 =
     readonly kind: "builtin";
     readonly providerId: string;
     readonly modelId: string;
+    readonly api: ProviderSettingsCustomApiV1;
+    readonly baseUrl: string;
   }
   | {
     readonly kind: "custom";
@@ -96,7 +102,13 @@ export type ProviderSettingsSelectionV1 =
 export type ProviderSettingsProfileV1 =
   | { readonly phase: "disconnected"; readonly active: null }
   | {
-    readonly phase: "initializing" | "ready" | "forgetting";
+    readonly phase:
+      | "saving"
+      | "credential_saved"
+      | "testing"
+      | "ready"
+      | "test_failed"
+      | "forgetting";
     readonly active: ProviderSettingsSelectionV1;
   }
   | {
@@ -109,13 +121,20 @@ export interface ProviderSettingsPropsV1 {
   readonly copy: SillyOsCopyV1;
   readonly catalog: ProviderSettingsCatalogV1;
   readonly customProfiles: readonly ProviderSettingsCustomProfileV1[];
+  readonly enabledBuiltinModels: readonly ProviderSettingsBuiltinModelRefV1[];
+  readonly preferredBuiltinModel: ProviderSettingsBuiltinModelRefV1 | null;
   readonly profile: ProviderSettingsProfileV1;
   readonly onBack: () => void;
   readonly onLocaleChange: (locale: SillyOsLocaleV1) => void;
   readonly onRetryCatalog: () => void;
-  readonly onInitialize: (
+  readonly onSaveCredential: (
     selection: ProviderSettingsSelectionV1,
     credential: string,
+  ) => void;
+  readonly onTestConnection: () => void;
+  readonly onSetBuiltinModelEnabled: (
+    model: ProviderSettingsBuiltinModelRefV1,
+    enabled: boolean,
   ) => void;
   readonly onCreateCustomProfile: (
     draft: ProviderSettingsCustomProfileDraftV1,
@@ -136,7 +155,8 @@ function sameSelectionV1(
 ): boolean {
   if (left === null || right === null || left.kind !== right.kind) return false;
   if (left.kind === "builtin" && right.kind === "builtin") {
-    return left.providerId === right.providerId && left.modelId === right.modelId;
+    return left.providerId === right.providerId && left.modelId === right.modelId &&
+      left.api === right.api && left.baseUrl === right.baseUrl;
   }
   if (left.kind === "custom" && right.kind === "custom") {
     return left.profile.profileId === right.profile.profileId &&
@@ -150,9 +170,20 @@ function inspectedKeyV1(kind: "builtin" | "custom", id: string): string {
   return `${kind}:${id}`;
 }
 
-function firstQualifiedModelIdV1(provider: ProviderSettingsProviderV1): string | null {
-  return provider.models.find((model) => model.availability.status === "qualified")?.modelId ??
-    null;
+function builtinModelKeyV1(model: ProviderSettingsBuiltinModelRefV1): string {
+  return `${model.providerId}\u0000${model.modelId}`;
+}
+
+function isProviderSettingsCustomApiV1(value: string): value is ProviderSettingsCustomApiV1 {
+  switch (value) {
+    case "openai-completions":
+    case "openai-responses":
+    case "anthropic-messages":
+    case "google-generative-ai":
+      return true;
+    default:
+      return false;
+  }
 }
 
 function preferredProviderIdV1(
@@ -163,8 +194,7 @@ function preferredProviderIdV1(
     activeProviderId !== undefined &&
     providers.some((provider) => provider.providerId === activeProviderId)
   ) return activeProviderId;
-  return providers.find((provider) => provider.availability.status === "qualified")?.providerId ??
-    providers.find((provider) => provider.availability.status === "candidate")?.providerId ??
+  return providers.find((provider) => provider.availability.status === "available")?.providerId ??
     providers[0]?.providerId ?? null;
 }
 
@@ -173,34 +203,50 @@ function availabilityLabelV1(
   availability: ProviderSettingsAvailabilityV1,
 ): string {
   switch (availability.status) {
-    case "qualified":
-      return copy.providerStatusQualified;
-    case "candidate":
-      return copy.providerStatusCandidate;
+    case "available":
+      return copy.providerStatusAvailable;
     case "unavailable":
       return copy.providerStatusUnavailable;
   }
   return assertNeverV1(availability);
 }
 
-function availabilityDescriptionV1(
+function providerAvailabilityDescriptionV1(
   copy: SillyOsCopyV1,
   availability: ProviderSettingsAvailabilityV1,
 ): string {
-  if (availability.status === "qualified") return copy.providerQualifiedDescription;
-  switch (availability.reason) {
-    case "qualification_pending":
-      return copy.providerQualificationPending;
+  if (availability.status === "available") return copy.providerAvailableDescription;
+  const reason = availability.reason;
+  switch (reason) {
     case "browser_runtime_unavailable":
       return copy.providerBrowserUnavailable;
     case "credential_flow_unavailable":
       return copy.providerCredentialUnavailable;
     case "public_http_unavailable":
       return copy.providerPublicHttpUnavailable;
-    case "not_qualified":
-      return copy.providerNotQualified;
+    case "route_configuration_unavailable":
+      return copy.providerRouteConfigurationUnavailable;
   }
-  return assertNeverV1(availability);
+  return assertNeverV1(reason);
+}
+
+function modelAvailabilityDescriptionV1(
+  copy: SillyOsCopyV1,
+  availability: ProviderSettingsAvailabilityV1,
+): string {
+  if (availability.status === "available") return copy.providerStatusAvailable;
+  const reason = availability.reason;
+  switch (reason) {
+    case "browser_runtime_unavailable":
+      return copy.providerBrowserUnavailable;
+    case "credential_flow_unavailable":
+      return copy.providerCredentialUnavailable;
+    case "public_http_unavailable":
+      return copy.providerPublicHttpUnavailable;
+    case "route_configuration_unavailable":
+      return copy.providerRouteConfigurationUnavailable;
+  }
+  return assertNeverV1(reason);
 }
 
 function AvailabilityChipV1({
@@ -215,7 +261,7 @@ function AvailabilityChipV1({
       className="provider-settings__availability"
       data-availability={availability.status}
     >
-      {availability.status === "qualified" ? <Check size={11} aria-hidden="true" /> : null}
+      {availability.status === "available" ? <Check size={11} aria-hidden="true" /> : null}
       {availabilityLabelV1(copy, availability)}
     </span>
   );
@@ -291,6 +337,7 @@ interface ProviderConnectionTargetV1 {
   readonly providerName: string;
   readonly modelName: string | null;
   readonly endpoint: string | null;
+  readonly builtinModels: readonly ProviderSettingsModelV1[];
   readonly activatable: boolean;
   readonly unavailableMessage: string;
   readonly custom: boolean;
@@ -307,22 +354,31 @@ function ProviderConnectionSectionV1({
   copy,
   target,
   profile,
-  onInitialize,
+  onSelectBuiltinModel,
+  onSaveCredential,
+  onTestConnection,
   onForget,
 }: {
   readonly copy: SillyOsCopyV1;
   readonly target: ProviderConnectionTargetV1;
   readonly profile: ProviderSettingsProfileV1;
-  readonly onInitialize: ProviderSettingsPropsV1["onInitialize"];
+  readonly onSelectBuiltinModel: (modelId: string) => void;
+  readonly onSaveCredential: ProviderSettingsPropsV1["onSaveCredential"];
+  readonly onTestConnection: ProviderSettingsPropsV1["onTestConnection"];
   readonly onForget: ProviderSettingsPropsV1["onForget"];
 }): ReactNode {
   const [keyVisible, setKeyVisible] = useState(false);
   const keyInputRef = useRef<HTMLInputElement>(null);
   const matches = sameSelectionV1(profile.active, target.selection);
-  const initializing = profile.phase === "initializing" && matches;
+  const saving = profile.phase === "saving" && matches;
+  const credentialSaved = profile.phase === "credential_saved" && matches;
+  const testing = profile.phase === "testing" && matches;
   const forgetting = profile.phase === "forgetting" && matches;
-  const connected = profile.phase === "ready" && matches;
+  const ready = profile.phase === "ready" && matches;
+  const testFailed = profile.phase === "test_failed" && matches;
   const failed = profile.phase === "failed" && matches;
+  const keySaved = credentialSaved || testing || ready || testFailed || forgetting;
+  const mutationPending = saving || testing || forgetting;
 
   const submitV1 = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
@@ -330,9 +386,26 @@ function ProviderConnectionSectionV1({
     if (!target.activatable || target.selection === null || input?.value.length === 0) return;
     let credential = input?.value ?? "";
     if (input !== null) input.value = "";
-    onInitialize(target.selection, credential);
+    onSaveCredential(target.selection, credential);
     credential = "";
   };
+
+  const connectionPhase = matches ? profile.phase : "disconnected";
+  const statusCopy = saving
+    ? copy.providerSaving
+    : credentialSaved
+    ? copy.providerCredentialSaved
+    : testing
+    ? copy.providerTesting
+    : ready
+    ? copy.providerConnectionPassed
+    : testFailed
+    ? copy.providerConnectionFailed
+    : forgetting
+    ? copy.providerForgetting
+    : failed
+    ? copy.providerWorkerUnavailable
+    : null;
 
   return (
     <section
@@ -347,6 +420,29 @@ function ProviderConnectionSectionV1({
         </div>
         <KeyRound size={18} aria-hidden="true" />
       </div>
+      {!target.custom
+        ? (
+          <label className="provider-settings__connection-model">
+            <span>
+              <strong>{copy.providerConnectionModelLabel}</strong>
+              <small>{copy.providerConnectionModelDescription}</small>
+            </span>
+            <select
+              value={target.selection?.kind === "builtin" ? target.selection.modelId : ""}
+              disabled={target.builtinModels.length === 0}
+              onChange={(event) => onSelectBuiltinModel(event.currentTarget.value)}
+            >
+              {target.builtinModels.length === 0
+                ? <option value="">{copy.providerConnectionModelEmpty}</option>
+                : target.builtinModels.map((model) => (
+                  <option key={model.modelId} value={model.modelId}>
+                    {model.name} · {model.modelId}
+                  </option>
+                ))}
+            </select>
+          </label>
+        )
+        : null}
       <div className="provider-settings__endpoint">
         <div>
           <Globe2 size={16} aria-hidden="true" />
@@ -375,47 +471,34 @@ function ProviderConnectionSectionV1({
             {target.unavailableMessage}
           </p>
         )
-        : connected || forgetting
-        ? (
-          <div
-            className="provider-settings__connection is-connected"
-            data-connection-phase={profile.phase}
-            role="status"
-          >
-            <Check size={18} aria-hidden="true" />
-            <span>
-              <strong>
-                {target.custom ? copy.providerCustomVerified : copy.providerConnected}
-              </strong>
-              <small>{target.providerName} · {target.modelName}</small>
-            </span>
-            <Button variant="secondary" disabled={forgetting} onClick={onForget}>
-              {forgetting ? copy.providerForgetting : copy.providerForget}
-            </Button>
-          </div>
-        )
         : (
           <form
             className="provider-settings__credential-form"
-            data-connection-phase={failed
-              ? "failed"
-              : initializing
-              ? "initializing"
-              : "disconnected"}
+            data-connection-phase={connectionPhase}
+            data-key-saved={String(keySaved)}
             onSubmit={submitV1}
           >
-            {failed
+            {statusCopy !== null
               ? (
-                <p
-                  className="provider-settings__connection-error"
+                <div
+                  className={`provider-settings__connection-status${
+                    ready ? " is-ready" : testFailed || failed ? " is-failed" : ""
+                  }`}
                   data-diagnostic-code={profile.phase === "failed"
                     ? profile.diagnosticCode
                     : undefined}
-                  role="alert"
+                  role={testFailed || failed ? "alert" : "status"}
                 >
-                  <TriangleAlert size={16} aria-hidden="true" />
-                  {copy.providerConnectionFailed}
-                </p>
+                  {saving || testing || forgetting
+                    ? <LoaderCircle className="is-spinning" size={17} aria-hidden="true" />
+                    : testFailed || failed
+                    ? <TriangleAlert size={17} aria-hidden="true" />
+                    : <Check size={17} aria-hidden="true" />}
+                  <span>
+                    <strong>{statusCopy}</strong>
+                    <small>{target.providerName} · {target.modelName}</small>
+                  </span>
+                </div>
               )
               : null}
             <p>{copy.providerConnectionTestNotice}</p>
@@ -429,8 +512,10 @@ function ProviderConnectionSectionV1({
                   required
                   autoComplete="off"
                   spellCheck={false}
-                  placeholder={copy.providerKeyPlaceholder}
-                  disabled={initializing}
+                  placeholder={keySaved
+                    ? copy.providerReplacementKeyPlaceholder
+                    : copy.providerKeyPlaceholder}
+                  disabled={mutationPending}
                 />
                 <button
                   type="button"
@@ -442,9 +527,34 @@ function ProviderConnectionSectionV1({
                     : <Eye size={16} aria-hidden="true" />}
                 </button>
               </span>
-              <Button type="submit" variant="primary" disabled={initializing}>
-                {initializing ? copy.providerTesting : copy.providerTestConnection}
+              <Button type="submit" variant="primary" disabled={mutationPending}>
+                {saving ? copy.providerSaving : copy.providerSaveCredential}
               </Button>
+            </div>
+            <div className="provider-settings__connection-actions">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={!keySaved || mutationPending}
+                onClick={onTestConnection}
+              >
+                {testing ? copy.providerTesting : copy.providerTestConnection}
+              </Button>
+              {keySaved
+                ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={mutationPending}
+                    onClick={onForget}
+                  >
+                    {forgetting ? copy.providerForgetting : copy.providerForget}
+                  </Button>
+                )
+                : null}
+              <small>
+                {keySaved ? copy.providerTestResultPointInTime : copy.providerTestRequiresSavedKey}
+              </small>
             </div>
           </form>
         )}
@@ -563,11 +673,15 @@ export function ProviderSettingsV1({
   copy,
   catalog,
   customProfiles,
+  enabledBuiltinModels,
+  preferredBuiltinModel,
   profile,
   onBack,
   onLocaleChange,
   onRetryCatalog,
-  onInitialize,
+  onSaveCredential,
+  onTestConnection,
+  onSetBuiltinModelEnabled,
   onCreateCustomProfile,
   onRemoveCustomProfile,
   onForget,
@@ -580,11 +694,7 @@ export function ProviderSettingsV1({
   const [inspectedKey, setInspectedKey] = useState<string | null>(
     initialProviderId === null ? null : inspectedKeyV1("builtin", initialProviderId),
   );
-  const [draftModelId, setDraftModelId] = useState<string | null>(
-    profile.active?.kind === "builtin" && profile.active.providerId === initialProviderId
-      ? profile.active.modelId
-      : null,
-  );
+  const [connectionModelId, setConnectionModelId] = useState<string | null>(null);
   const [providerQuery, setProviderQuery] = useState("");
   const [modelQuery, setModelQuery] = useState("");
   const [mobileView, setMobileView] = useState<"providers" | "detail">("providers");
@@ -607,6 +717,10 @@ export function ProviderSettingsV1({
     [customProfiles, inspectedCustomProfileId],
   );
   const creatingCustomProfile = inspectedKey === "custom:new";
+  const enabledModelKeys = useMemo(
+    () => new Set(enabledBuiltinModels.map(builtinModelKeyV1)),
+    [enabledBuiltinModels],
+  );
 
   useEffect(() => {
     setInspectedKey((current) => {
@@ -629,22 +743,31 @@ export function ProviderSettingsV1({
 
   useEffect(() => {
     if (inspectedProvider === null) {
-      setDraftModelId(null);
+      setConnectionModelId(null);
       return;
     }
+    const enabledModels = inspectedProvider.models.filter((model) =>
+      model.availability.status === "available" &&
+      isProviderSettingsCustomApiV1(model.api) &&
+      enabledModelKeys.has(builtinModelKeyV1(model))
+    );
     const activeSelection = profile.active;
-    setDraftModelId((current) => {
-      if (current !== null && inspectedProvider.models.some((model) => model.modelId === current)) {
+    setConnectionModelId((current) => {
+      if (current !== null && enabledModels.some((model) => model.modelId === current)) {
         return current;
       }
       if (
         activeSelection?.kind === "builtin" &&
         activeSelection.providerId === inspectedProvider.providerId &&
-        inspectedProvider.models.some((model) => model.modelId === activeSelection.modelId)
+        enabledModels.some((model) => model.modelId === activeSelection.modelId)
       ) return activeSelection.modelId;
-      return firstQualifiedModelIdV1(inspectedProvider);
+      if (
+        preferredBuiltinModel?.providerId === inspectedProvider.providerId &&
+        enabledModels.some((model) => model.modelId === preferredBuiltinModel.modelId)
+      ) return preferredBuiltinModel.modelId;
+      return enabledModels[0]?.modelId ?? null;
     });
-  }, [inspectedProvider, profile.active]);
+  }, [enabledModelKeys, inspectedProvider, preferredBuiltinModel, profile.active]);
 
   useEffect(() => {
     setModelQuery("");
@@ -679,27 +802,43 @@ export function ProviderSettingsV1({
     );
   }, [copy.locale, inspectedProvider, modelQuery]);
 
-  const draftModel = inspectedProvider?.models.find((model) => model.modelId === draftModelId) ??
+  const connectionModels = useMemo(
+    () =>
+      inspectedProvider?.models.filter((model): model is ProviderSettingsModelV1 & {
+        readonly api: ProviderSettingsCustomApiV1;
+      } =>
+        model.availability.status === "available" &&
+        isProviderSettingsCustomApiV1(model.api) &&
+        enabledModelKeys.has(builtinModelKeyV1(model))
+      ) ?? [],
+    [enabledModelKeys, inspectedProvider],
+  );
+  const connectionModel = connectionModels.find((model) => model.modelId === connectionModelId) ??
     null;
-  const draftSelection: ProviderSettingsSelectionV1 | null = inspectedCustomProfile !== null
+  const connectionSelection: ProviderSettingsSelectionV1 | null = inspectedCustomProfile !== null
     ? { kind: "custom", profile: inspectedCustomProfile }
-    : inspectedProvider !== null && draftModel !== null
-    ? { kind: "builtin", providerId: inspectedProvider.providerId, modelId: draftModel.modelId }
+    : inspectedProvider !== null && connectionModel !== null
+    ? {
+      kind: "builtin",
+      providerId: inspectedProvider.providerId,
+      modelId: connectionModel.modelId,
+      api: connectionModel.api,
+      baseUrl: connectionModel.baseUrl,
+    }
     : null;
-  const activatable = inspectedCustomProfile !== null ||
-    (inspectedProvider?.availability.status === "qualified" &&
-      draftModel?.availability.status === "qualified");
+  const activatable = inspectedCustomProfile !== null || connectionModel !== null;
   const connectionTarget: ProviderConnectionTargetV1 = {
-    selection: draftSelection,
+    selection: connectionSelection,
     providerName: inspectedCustomProfile?.displayName ?? inspectedProvider?.name ?? "",
-    modelName: inspectedCustomProfile?.modelId ?? draftModel?.name ?? null,
-    endpoint: inspectedCustomProfile?.baseUrl ?? draftModel?.baseUrl ??
+    modelName: inspectedCustomProfile?.modelId ?? connectionModel?.name ?? null,
+    endpoint: inspectedCustomProfile?.baseUrl ?? connectionModel?.baseUrl ??
       inspectedProvider?.baseUrl ?? null,
+    builtinModels: inspectedCustomProfile === null ? connectionModels : [],
     activatable,
     unavailableMessage: inspectedProvider === null
       ? copy.selectedModelUnavailable
-      : draftModelId === null
-      ? copy.chooseQualifiedModel
+      : connectionModels.length === 0
+      ? copy.providerConnectionModelRequired
       : copy.selectedModelUnavailable,
     custom: inspectedCustomProfile !== null,
   };
@@ -830,9 +969,15 @@ export function ProviderSettingsV1({
                       <ul>
                         {filteredCustomProfiles.map((custom) => {
                           const key = inspectedKeyV1("custom", custom.profileId);
-                          const isConnected = profile.phase === "ready" &&
-                            profile.active?.kind === "custom" &&
+                          const isActive = profile.active?.kind === "custom" &&
                             profile.active.profile.profileId === custom.profileId;
+                          const isConnected = profile.phase === "ready" && isActive;
+                          const isTestFailed = profile.phase === "test_failed" && isActive;
+                          const isConfigured = isActive &&
+                            (profile.phase === "saving" ||
+                              profile.phase === "credential_saved" ||
+                              profile.phase === "testing" ||
+                              profile.phase === "forgetting");
                           return (
                             <li key={custom.profileId}>
                               <button
@@ -843,7 +988,13 @@ export function ProviderSettingsV1({
                                 type="button"
                                 className={key === inspectedKey ? "is-active" : undefined}
                                 data-custom-profile-id={custom.profileId}
-                                data-connection-status={isConnected ? "verified" : "untested"}
+                                data-connection-status={isConnected
+                                  ? "verified"
+                                  : isTestFailed
+                                  ? "test_failed"
+                                  : isConfigured
+                                  ? "configured"
+                                  : "untested"}
                                 aria-current={key === inspectedKey ? "page" : undefined}
                                 onClick={() => inspectTargetV1(key)}
                               >
@@ -861,6 +1012,10 @@ export function ProviderSettingsV1({
                                   <span className="provider-settings__custom-status">
                                     {isConnected
                                       ? copy.providerCustomVerified
+                                      : isTestFailed
+                                      ? copy.providerCustomTestFailed
+                                      : isConfigured
+                                      ? copy.providerCustomConfigured
                                       : copy.providerCustomStatus}
                                   </span>
                                   <small>{custom.api}</small>
@@ -942,7 +1097,7 @@ export function ProviderSettingsV1({
                                 availability={inspectedProvider.availability}
                               />
                               <p>
-                                {availabilityDescriptionV1(
+                                {providerAvailabilityDescriptionV1(
                                   copy,
                                   inspectedProvider.availability,
                                 )}
@@ -954,7 +1109,9 @@ export function ProviderSettingsV1({
                               copy={copy}
                               target={connectionTarget}
                               profile={profile}
-                              onInitialize={onInitialize}
+                              onSelectBuiltinModel={setConnectionModelId}
+                              onSaveCredential={onSaveCredential}
+                              onTestConnection={onTestConnection}
                               onForget={onForget}
                             />
 
@@ -967,7 +1124,11 @@ export function ProviderSettingsV1({
                                   <h3 id="models-title">{copy.providerModelsTitle}</h3>
                                   <p>{copy.providerModelsDescription}</p>
                                 </div>
-                                <span>{String(inspectedProvider.models.length)}</span>
+                                <span>
+                                  {String(connectionModels.length)} / {String(
+                                    inspectedProvider.models.length,
+                                  )}
+                                </span>
                               </div>
                               {inspectedProvider.models.length === 0
                                 ? (
@@ -1002,44 +1163,53 @@ export function ProviderSettingsV1({
                                             {copy.creatorModelSelection}
                                           </legend>
                                           {filteredModels.map((model) => {
-                                            const selectable = inspectedProvider.availability
-                                                  .status === "qualified" &&
-                                              model.availability.status === "qualified";
+                                            const available = model.availability.status ===
+                                              "available";
+                                            const enabled = available &&
+                                              enabledModelKeys.has(builtinModelKeyV1(model));
                                             return (
                                               <label
                                                 key={model.modelId}
-                                                className={model.modelId === draftModelId
+                                                className={enabled
                                                   ? "provider-settings__model is-active"
                                                   : "provider-settings__model"}
                                                 data-model-id={model.modelId}
                                                 data-availability={model.availability.status}
                                               >
                                                 <input
-                                                  type="radio"
-                                                  name="creator-model"
+                                                  type="checkbox"
                                                   value={model.modelId}
-                                                  checked={model.modelId === draftModelId}
-                                                  disabled={!selectable}
-                                                  onChange={() => setDraftModelId(model.modelId)}
+                                                  checked={enabled}
+                                                  disabled={!available}
+                                                  onChange={(event) =>
+                                                    onSetBuiltinModelEnabled(
+                                                      {
+                                                        providerId: model.providerId,
+                                                        modelId: model.modelId,
+                                                      },
+                                                      event.currentTarget.checked,
+                                                    )}
                                                 />
                                                 <span className="provider-settings__model-copy">
                                                   <strong>{model.name}</strong>
                                                   <code>{model.modelId}</code>
                                                 </span>
-                                                <span className="provider-settings__model-status">
-                                                  <AvailabilityChipV1
-                                                    copy={copy}
-                                                    availability={model.availability}
-                                                  />
-                                                  {selectable ? null : (
-                                                    <small>
-                                                      {availabilityDescriptionV1(
-                                                        copy,
-                                                        model.availability,
-                                                      )}
-                                                    </small>
-                                                  )}
-                                                </span>
+                                                {!available
+                                                  ? (
+                                                    <span className="provider-settings__model-status">
+                                                      <AvailabilityChipV1
+                                                        copy={copy}
+                                                        availability={model.availability}
+                                                      />
+                                                      <small>
+                                                        {modelAvailabilityDescriptionV1(
+                                                          copy,
+                                                          model.availability,
+                                                        )}
+                                                      </small>
+                                                    </span>
+                                                  )
+                                                  : null}
                                               </label>
                                             );
                                           })}
@@ -1085,7 +1255,9 @@ export function ProviderSettingsV1({
                               copy={copy}
                               target={connectionTarget}
                               profile={profile}
-                              onInitialize={onInitialize}
+                              onSelectBuiltinModel={setConnectionModelId}
+                              onSaveCredential={onSaveCredential}
+                              onTestConnection={onTestConnection}
                               onForget={onForget}
                             />
 

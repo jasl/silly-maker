@@ -97,6 +97,39 @@ function snapshotReceiptV1(
 }
 
 describe("SillyOS Browser Workspace Host protocol", () => {
+  it("rejects extra credential-bearing fields on the begin-run Workspace request", () => {
+    const binding = {
+      revision: 1,
+      programId: descriptorV1.programId,
+      workspaceId: descriptorV1.workspaceId,
+      workspaceSessionId: descriptorV1.workspaceSessionId,
+      expectedGeneration: descriptorV1.generation,
+    } as const;
+    const beginRunRecord = {
+      method: "begin_run",
+      binding,
+      sessionId: "pi-session.1",
+      runId: "pi-run.1",
+    } as const;
+    const beginRun = environmentRequestV1(beginRunRecord);
+
+    expect(admitBrowserWorkspaceHostEnvironmentRequestV1({
+      ...beginRun,
+      credential: { kind: "api_key", value: "must-not-cross" },
+    })).toBeNull();
+    expect(admitBrowserWorkspaceHostEnvironmentRequestV1({
+      ...beginRun,
+      record: { ...beginRunRecord, apiKey: "must-not-cross" },
+    })).toBeNull();
+    expect(admitBrowserWorkspaceHostEnvironmentRequestV1({
+      ...beginRun,
+      record: {
+        ...beginRunRecord,
+        binding: { ...binding, authorization: "must-not-cross" },
+      },
+    })).toBeNull();
+  });
+
   it("admits exact candidate, generation-free anchor open, discard, and attach requests", () => {
     expect(
       admitBrowserWorkspaceHostControlRequestV1(

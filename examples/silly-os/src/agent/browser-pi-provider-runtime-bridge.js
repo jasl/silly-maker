@@ -9,15 +9,15 @@ import { builtinProviders } from "@earendil-works/pi-ai/providers/all";
 
 import { browserPiDistributionIdentityV1 } from "./browser-pi-distribution.ts";
 import {
-  getBrowserPiModelAvailabilityV1,
-  isBrowserPiModelQualifiedV1,
-} from "./browser-pi-browser-qualification.ts";
+  getBrowserPiProviderRouteAvailabilityV1,
+  isBrowserPiProviderRouteConfigurableV1,
+} from "./browser-pi-browser-compatibility.ts";
 import { createPiAgentV1 } from "./browser-pi-runtime-bridge.js";
 
 const creatorSystemPromptV1 = `You are the SillyOS Agent Creator.
 Each user message is the exact follow-up requirement text for one proposed Program revision.
 For every message, call sillyos_propose_program_revision exactly once.
-Use the provided native read/write/edit tools when a workspace artifact is needed; they operate only on the open persistent Program workspace.
+Use only the tools provided for this run. Browser workspace execution tools remain unavailable until the independent-origin sandbox is connected.
 Pass one concise requirement that preserves the full intent of the user message.
 SillyOS itself binds that requirement to the current proposal identity and original text.
 After the tool succeeds, reply with one short sentence explaining that the revision is ready for human review.`;
@@ -43,7 +43,6 @@ function providersV1() {
 function modelFactsV1(provider, model) {
   return {
     providerId: provider.id,
-    modelId: model.id,
     api: model.api,
     baseUrl: model.baseUrl,
   };
@@ -111,7 +110,10 @@ function resolveSelectionV1(selection) {
   }
   const provider = providersV1().find(({ id }) => id === selection.providerId);
   const model = provider?.getModels().find(({ id }) => id === selection.modelId);
-  if (provider === undefined || model === undefined || model.provider !== provider.id) return null;
+  if (
+    provider === undefined || model === undefined || model.provider !== provider.id ||
+    model.api !== selection.api || model.baseUrl !== selection.baseUrl
+  ) return null;
   return { provider, model, custom: false };
 }
 
@@ -132,13 +134,11 @@ export function projectBrowserPiProviderCatalogV1() {
         input: Object.freeze([...model.input]),
         contextWindow: model.contextWindow,
         maxTokens: model.maxTokens,
-        availability: getBrowserPiModelAvailabilityV1(modelFactsV1(provider, model)),
+        availability: getBrowserPiProviderRouteAvailabilityV1(modelFactsV1(provider, model)),
       });
     });
-    const availability = models.some((model) => model.availability === "qualified")
-      ? "qualified"
-      : models.some((model) => model.availability === "candidate")
-      ? "candidate"
+    const availability = models.some((model) => model.availability === "available")
+      ? "available"
       : "unavailable";
     return Object.freeze({
       id: provider.id,
@@ -158,14 +158,14 @@ export function projectBrowserPiProviderCatalogV1() {
 export function isBrowserPiSelectionAvailableV1(selection) {
   const resolved = resolveSelectionV1(selection);
   return resolved !== null && (resolved.custom ||
-    isBrowserPiModelQualifiedV1(modelFactsV1(resolved.provider, resolved.model)));
+    isBrowserPiProviderRouteConfigurableV1(modelFactsV1(resolved.provider, resolved.model)));
 }
 
 export async function probeBrowserPiProviderSelectionV1(input) {
   const resolved = resolveSelectionV1(input.selection);
   if (
     resolved === null || (!resolved.custom &&
-      !isBrowserPiModelQualifiedV1(modelFactsV1(resolved.provider, resolved.model)))
+      !isBrowserPiProviderRouteConfigurableV1(modelFactsV1(resolved.provider, resolved.model)))
   ) return false;
   try {
     const stream = resolved.provider.streamSimple(
@@ -195,7 +195,7 @@ export function createBrowserPiProviderAgentV1(input) {
   if (
     resolved === null ||
     (!resolved.custom &&
-      !isBrowserPiModelQualifiedV1(modelFactsV1(resolved.provider, resolved.model)))
+      !isBrowserPiProviderRouteConfigurableV1(modelFactsV1(resolved.provider, resolved.model)))
   ) {
     throw new Error("Selected Pi Provider/model is unavailable in SillyOS Browser");
   }

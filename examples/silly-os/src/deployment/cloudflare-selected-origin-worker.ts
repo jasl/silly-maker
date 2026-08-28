@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 
+import { applyBrowserControlPlaneSecurityHeadersV1 } from "./browser-control-plane-security.ts";
+
 const browserPiEndpointOriginQueryParameterV1 = "endpoint-origin";
 
 const browserPiWorkerAssetPathV1 = /^\/assets\/browser-pi\.worker-[A-Za-z0-9_-]{8,64}\.js$/u;
@@ -14,24 +16,26 @@ export interface SillyOsCloudflareEnvironmentV1 {
 }
 
 function rejectedAgentWorkerRequestV1(): Response {
+  const headers = new Headers({
+    "Cache-Control": noStoreV1,
+    "Content-Type": "text/plain; charset=utf-8",
+  });
+  applyBrowserControlPlaneSecurityHeadersV1(headers, null);
   return new Response("Invalid Agent Worker endpoint origin.", {
     status: 400,
-    headers: {
-      "Cache-Control": noStoreV1,
-      "Content-Security-Policy": "connect-src 'self'",
-      "Content-Type": "text/plain; charset=utf-8",
-    },
+    headers,
   });
 }
 
-function unavailableAgentWorkerAssetV1(endpointOrigin: string): Response {
+function unavailableAgentWorkerAssetV1(endpointOrigin: string | null): Response {
+  const headers = new Headers({
+    "Cache-Control": noStoreV1,
+    "Content-Type": "text/plain; charset=utf-8",
+  });
+  applyBrowserControlPlaneSecurityHeadersV1(headers, endpointOrigin);
   return new Response("Agent Worker asset unavailable.", {
     status: 502,
-    headers: {
-      "Cache-Control": noStoreV1,
-      "Content-Security-Policy": `connect-src 'self' ${endpointOrigin}`,
-      "Content-Type": "text/plain; charset=utf-8",
-    },
+    headers,
   });
 }
 
@@ -62,10 +66,13 @@ function readCanonicalEndpointOriginV1(requestUrl: URL): string | null {
   return requestUrl.search === `?${canonicalQuery}` ? endpoint.origin : null;
 }
 
-function responseWithSelectedOriginV1(response: Response, endpointOrigin: string): Response {
+function responseWithAgentWorkerPolicyV1(
+  response: Response,
+  endpointOrigin: string | null,
+): Response {
   const headers = new Headers(response.headers);
-  headers.set("Cache-Control", noStoreV1);
-  headers.set("Content-Security-Policy", `connect-src 'self' ${endpointOrigin}`);
+  if (endpointOrigin !== null) headers.set("Cache-Control", noStoreV1);
+  applyBrowserControlPlaneSecurityHeadersV1(headers, endpointOrigin);
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -82,7 +89,11 @@ async function handleSillyOsCloudflareRequestV1(
     return await environment.ASSETS.fetch(request);
   }
   if (!requestUrl.searchParams.has(browserPiEndpointOriginQueryParameterV1)) {
-    return await environment.ASSETS.fetch(request);
+    try {
+      return responseWithAgentWorkerPolicyV1(await environment.ASSETS.fetch(request), null);
+    } catch {
+      return unavailableAgentWorkerAssetV1(null);
+    }
   }
 
   const endpointOrigin = readCanonicalEndpointOriginV1(requestUrl);
@@ -94,7 +105,7 @@ async function handleSillyOsCloudflareRequestV1(
 
   try {
     const response = await environment.ASSETS.fetch(assetRequest);
-    return responseWithSelectedOriginV1(response, endpointOrigin);
+    return responseWithAgentWorkerPolicyV1(response, endpointOrigin);
   } catch {
     return unavailableAgentWorkerAssetV1(endpointOrigin);
   }

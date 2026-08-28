@@ -65,6 +65,7 @@ export interface ProgramWorkspacePropsV1 {
   readonly onAccept: () => void;
   readonly onReject: () => void;
   readonly onSend: ChatPanePropsV1["onSend"];
+  readonly providerModel?: ChatPanePropsV1["providerModel"];
   readonly homeDisabled?: boolean;
   readonly mutationPending?: boolean;
   readonly piAgentRun?: ChatPanePropsV1["piAgentRun"];
@@ -150,6 +151,7 @@ function ProgramWorkspaceReadyV1({
   onAccept,
   onReject,
   onSend,
+  providerModel,
   homeDisabled = false,
   mutationPending = false,
   piAgentRun,
@@ -325,6 +327,7 @@ function ProgramWorkspaceReadyV1({
             }}
             onSend={onSend}
             mutationPending={mutationPending}
+            {...(providerModel === undefined ? {} : { providerModel })}
             {...(piAgentRun === undefined ? {} : { piAgentRun })}
           />
         </div>
