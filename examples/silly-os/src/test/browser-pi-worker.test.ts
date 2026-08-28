@@ -533,6 +533,7 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
     testWorkspaceAuthoritiesV1.add(this);
     this.runtime = createBrowserWorkspaceHostRuntimeV1({
       bootstrap: this.bootstrap,
+      loadShellRuntime: () => import("../workspace/browser-workspace-just-bash-runtime.ts"),
       postControlMessage: (message) => this.controls.push(structuredClone(message)),
       createWorkspaceSessionId: () => workspaceSessionIdV1,
       createCheckpointId: () =>

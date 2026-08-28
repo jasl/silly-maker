@@ -6,23 +6,25 @@ import { expect, test } from "./fixtures.ts";
 
 const sandboxOriginV1 = "http://127.0.0.1:41750";
 const sandboxUrlV1 = `${sandboxOriginV1}/workspace-sandbox.html`;
-const lockedSandboxUrlV1 = "http://127.0.0.1:41751/workspace-sandbox.html";
-const workerPathV1 = "/src/test/browser-workspace-quickjs-feasibility.worker.ts";
+const workerPathV1 = "/src/workspace-sandbox/browser-workspace-quickjs.worker.ts";
+const buildIdentityV1 = "sillyos.workspace-sandbox.development";
 
-interface FeasibilityRequestV1 {
+interface QuickJsRequestV1 {
   readonly revision: 1;
-  readonly kind: "quickjs_feasibility_execute";
+  readonly kind: "quickjs_execute";
   readonly requestId: number;
+  readonly buildIdentity: string;
   readonly source: string;
   readonly argv: readonly string[];
   readonly stdin: string;
   readonly files: readonly Readonly<{ path: string; text: string }>[];
 }
 
-interface FeasibilityResponseV1 {
+interface QuickJsResponseV1 {
   readonly revision: 1;
-  readonly kind: "quickjs_feasibility_result";
+  readonly kind: "quickjs_result";
   readonly requestId: number | null;
+  readonly buildIdentity: string;
   readonly ok: boolean;
   readonly code?: string;
   readonly wasmLinearMemoryBytes?: number | null;
@@ -45,12 +47,13 @@ interface FeasibilityResponseV1 {
 function requestV1(
   requestId: number,
   source: string,
-  overrides: Partial<Pick<FeasibilityRequestV1, "argv" | "stdin" | "files">> = {},
-): FeasibilityRequestV1 {
+  overrides: Partial<Pick<QuickJsRequestV1, "argv" | "stdin" | "files">> = {},
+): QuickJsRequestV1 {
   return {
     revision: 1,
-    kind: "quickjs_feasibility_execute",
+    kind: "quickjs_execute",
     requestId,
+    buildIdentity: buildIdentityV1,
     source,
     argv: overrides.argv ?? [],
     stdin: overrides.stdin ?? "",
@@ -67,21 +70,21 @@ async function openSandboxOriginV1(page: Page, url = sandboxUrlV1): Promise<Fram
 
 async function executeInFreshWorkerV1(
   frame: Frame,
-  request: FeasibilityRequestV1,
+  request: QuickJsRequestV1,
   timeoutMilliseconds = 10_000,
-): Promise<FeasibilityResponseV1> {
+): Promise<QuickJsResponseV1> {
   return await frame.evaluate(
     ({ payload, deadlineMs, workerPath }) =>
-      new Promise<FeasibilityResponseV1>((resolve, reject) => {
+      new Promise<QuickJsResponseV1>((resolve, reject) => {
         const worker = new Worker(new URL(workerPath, location.href), {
           type: "module",
-          name: `sillyos-quickjs-q0-${String(payload.requestId)}`,
+          name: `sillyos-workspace-qjs-${String(payload.requestId)}`,
         });
         const timer = setTimeout(() => {
           worker.terminate();
-          reject(new Error("QuickJS feasibility Worker timed out"));
+          reject(new Error("Workspace qjs Worker timed out"));
         }, deadlineMs);
-        worker.addEventListener("message", (event: MessageEvent<FeasibilityResponseV1>) => {
+        worker.addEventListener("message", (event: MessageEvent<QuickJsResponseV1>) => {
           clearTimeout(timer);
           worker.terminate();
           resolve(event.data);
@@ -89,7 +92,7 @@ async function executeInFreshWorkerV1(
         worker.addEventListener("error", (event) => {
           clearTimeout(timer);
           worker.terminate();
-          reject(new Error(`QuickJS feasibility Worker error: ${event.message}`));
+          reject(new Error(`Workspace qjs Worker error: ${event.message}`));
         }, { once: true });
         // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker has no targetOrigin
         worker.postMessage(payload);
@@ -100,13 +103,13 @@ async function executeInFreshWorkerV1(
 
 async function hardTerminateWorkerV1(
   frame: Frame,
-  request: FeasibilityRequestV1,
+  request: QuickJsRequestV1,
 ): Promise<Readonly<{ messagesBeforeTermination: number; messagesAfterTermination: number }>> {
   return await frame.evaluate(
     async ({ payload, workerPath }) => {
       const worker = new Worker(new URL(workerPath, location.href), {
         type: "module",
-        name: "sillyos-quickjs-q0-hard-terminate",
+        name: "sillyos-workspace-qjs-hard-terminate",
       });
       let messages = 0;
       worker.addEventListener("message", () => messages += 1);
@@ -207,38 +210,33 @@ async function stopPageLoopObservationV1(frame: Frame): Promise<PageLoopObservat
 }
 
 test(
-  "@quickjs-q0 the ordinary Sandbox CSP rejects the fixed Wasm runtime",
-  async ({ page, pageDiagnostics }) => {
+  "@quickjs-q1 the independent Sandbox CSP admits only the fixed product Wasm runtime",
+  async ({ page }) => {
     let contentSecurityPolicy = "";
     page.on("response", async (response) => {
-      if (response.url() === lockedSandboxUrlV1) {
+      if (response.url() === sandboxUrlV1) {
         contentSecurityPolicy = (await response.allHeaders())["content-security-policy"] ?? "";
       }
     });
-    const frame = await openSandboxOriginV1(page, lockedSandboxUrlV1);
-    expect(contentSecurityPolicy).toContain("script-src 'self'");
-    expect(contentSecurityPolicy).not.toContain("wasm-unsafe-eval");
-    expect(contentSecurityPolicy).not.toContain("'unsafe-eval'");
+    const frame = await openSandboxOriginV1(page);
+    expect(contentSecurityPolicy).toContain("script-src 'self' 'wasm-unsafe-eval'");
+    expect(contentSecurityPolicy).not.toMatch(/(?:^|[ ;])'unsafe-eval'(?=[ ;]|$)/u);
+    expect(contentSecurityPolicy).toContain("connect-src 'none'");
 
-    await expect(executeInFreshWorkerV1(frame, requestV1(90, "1 + 1"))).resolves.toEqual({
-      revision: 1,
-      kind: "quickjs_feasibility_result",
-      requestId: 90,
-      ok: false,
-      code: "execution_failed",
-      wasmLinearMemoryBytes: null,
-    });
-    const expectedConsoleErrors = [...pageDiagnostics.consoleErrors];
-    expect(expectedConsoleErrors).toHaveLength(2);
-    for (const expectedConsoleError of expectedConsoleErrors) {
-      expect(expectedConsoleError).toMatch(/WebAssembly.*Content Security Policy|CSP/iu);
-      pageDiagnostics.consumeExpectedConsoleError(expectedConsoleError);
-    }
+    await expect(executeInFreshWorkerV1(frame, requestV1(90, "1 + 1"))).resolves
+      .toMatchObject({
+        revision: 1,
+        kind: "quickjs_result",
+        requestId: 90,
+        buildIdentity: buildIdentityV1,
+        ok: true,
+        response: { changes: [], stdout: "" },
+      });
   },
 );
 
 test(
-  "@quickjs-q0 an independent Sandbox Worker executes a bounded guest and recovers after limits and termination",
+  "@quickjs-q1 the fixed Sandbox Worker executes a bounded guest and recovers after limits and termination",
   async ({ page }, testInfo) => {
     const sandboxResponses: string[] = [];
     let forbiddenOutboundRequests = 0;
@@ -248,7 +246,7 @@ test(
       }
     });
     page.on("request", (request) => {
-      if (request.url().startsWith("https://quickjs-q0.invalid/")) {
+      if (request.url().startsWith("https://quickjs-q1.invalid/")) {
         forbiddenOutboundRequests += 1;
       }
     });
@@ -272,8 +270,11 @@ const forbidden = [
 for (const name of forbidden) {
   if (typeof globalThis[name] !== "undefined") throw new Error("ambient host global: " + name);
 }
+const reconstructedGlobal = globalThis.constructor.constructor("return globalThis")();
+if (typeof reconstructedGlobal.indexedDB !== "undefined" || typeof reconstructedGlobal.fetch !== "undefined") {
+  throw new Error("Function constructor escaped the QuickJS realm");
+}
 workspace.writeFile("source.txt", workspace.readFile("source.txt").toUpperCase() + ":" + argv[0]);
-workspace.deleteFile("delete.txt");
 workspace.writeFile("created.txt", stdin);
 print(workspace.listFiles().join(","));
 `,
@@ -282,7 +283,6 @@ print(workspace.listFiles().join(","));
           stdin: "from stdin",
           files: [
             { path: "/workspace/source.txt", text: "hello" },
-            { path: "/workspace/delete.txt", text: "remove" },
             { path: "/workspace/unchanged.txt", text: "same" },
           ],
         },
@@ -290,8 +290,9 @@ print(workspace.listFiles().join(","));
     );
     expect(success, JSON.stringify(success)).toMatchObject({
       revision: 1,
-      kind: "quickjs_feasibility_result",
+      kind: "quickjs_result",
       requestId: 1,
+      buildIdentity: buildIdentityV1,
       ok: true,
       response: {
         changes: [
@@ -300,12 +301,6 @@ print(workspace.listFiles().join(","));
             kind: "created",
             before: null,
             after: "from stdin",
-          },
-          {
-            path: "/workspace/delete.txt",
-            kind: "deleted",
-            before: "remove",
-            after: null,
           },
           {
             path: "/workspace/source.txt",
@@ -325,12 +320,13 @@ print(workspace.listFiles().join(","));
 
     const staticImport = await executeInFreshWorkerV1(
       frame,
-      requestV1(6, 'import value from "https://quickjs-q0.invalid/module.js";'),
+      requestV1(6, 'import value from "https://quickjs-q1.invalid/module.js";'),
     );
     expect(staticImport).toEqual({
       revision: 1,
-      kind: "quickjs_feasibility_result",
+      kind: "quickjs_result",
       requestId: 6,
+      buildIdentity: buildIdentityV1,
       ok: false,
       code: "execution_failed",
       wasmLinearMemoryBytes: 16 * 1_024 * 1_024,
@@ -338,12 +334,13 @@ print(workspace.listFiles().join(","));
 
     const networkAttempt = await executeInFreshWorkerV1(
       frame,
-      requestV1(7, 'fetch("https://quickjs-q0.invalid/network-marker");'),
+      requestV1(7, 'fetch("https://quickjs-q1.invalid/network-marker");'),
     );
     expect(networkAttempt).toEqual({
       revision: 1,
-      kind: "quickjs_feasibility_result",
+      kind: "quickjs_result",
       requestId: 7,
+      buildIdentity: buildIdentityV1,
       ok: false,
       code: "execution_failed",
       wasmLinearMemoryBytes: 16 * 1_024 * 1_024,
@@ -359,8 +356,9 @@ print(workspace.listFiles().join(","));
     );
     expect(asynchronous).toEqual({
       revision: 1,
-      kind: "quickjs_feasibility_result",
+      kind: "quickjs_result",
       requestId: 8,
+      buildIdentity: buildIdentityV1,
       ok: false,
       code: "async_unsupported",
       wasmLinearMemoryBytes: 16 * 1_024 * 1_024,
@@ -381,8 +379,9 @@ Array.from = (...values) => {
     );
     expect(asynchronousSnapshot).toEqual({
       revision: 1,
-      kind: "quickjs_feasibility_result",
+      kind: "quickjs_result",
       requestId: 9,
+      buildIdentity: buildIdentityV1,
       ok: false,
       code: "async_unsupported",
       wasmLinearMemoryBytes: 16 * 1_024 * 1_024,
@@ -395,8 +394,9 @@ Array.from = (...values) => {
     );
     expect(deadline).toEqual({
       revision: 1,
-      kind: "quickjs_feasibility_result",
+      kind: "quickjs_result",
       requestId: 2,
+      buildIdentity: buildIdentityV1,
       ok: false,
       code: "deadline_exceeded",
       wasmLinearMemoryBytes: 16 * 1_024 * 1_024,
@@ -418,8 +418,9 @@ print(blocks.length);
     );
     expect(memory).toEqual({
       revision: 1,
-      kind: "quickjs_feasibility_result",
+      kind: "quickjs_result",
       requestId: 3,
+      buildIdentity: buildIdentityV1,
       ok: false,
       code: "memory_limit",
       wasmLinearMemoryBytes: 16 * 1_024 * 1_024,
@@ -455,10 +456,10 @@ print(blocks.length);
       executionMilliseconds: success.response?.executionMilliseconds ?? null,
       pageLoop,
     };
-    await testInfo.attach("quickjs-q0-raw-observation", {
+    await testInfo.attach("quickjs-q1-raw-observation", {
       body: JSON.stringify(rawObservation, null, 2),
       contentType: "application/json",
     });
-    console.log(`SILLYOS_QUICKJS_Q0_V1 ${JSON.stringify(rawObservation)}`);
+    console.log(`SILLYOS_QUICKJS_Q1_V1 ${JSON.stringify(rawObservation)}`);
   },
 );

@@ -11,7 +11,7 @@ import { createBashTool } from "../agent/pi-workspace-runtime-bridge.js";
 import {
   BrowserWorkspaceHostCleanupErrorV1,
   BrowserWorkspaceHostStorageErrorV1,
-  createBrowserWorkspaceHostRuntimeV1,
+  createBrowserWorkspaceHostRuntimeV1 as createBrowserWorkspaceHostRuntimeWithoutShellV1,
   type BrowserWorkspaceHostBootstrapPortV1,
   type BrowserWorkspaceHostDurableHeadV1,
   type BrowserWorkspaceHostFileMetadataV1,
@@ -20,6 +20,7 @@ import {
   type BrowserWorkspaceHostPortableArchiveV1,
   type BrowserWorkspaceHostReplaceFileInputV1,
   type BrowserWorkspaceHostReplaceFileResultV1,
+  type BrowserWorkspaceHostRuntimeOptionsV1,
   type BrowserWorkspaceHostVolumeLeasePortV1,
 } from "../workspace/browser-workspace-host-runtime.ts";
 import {
@@ -74,6 +75,13 @@ interface FakeVolumeV1 {
 const programIdV1 = "program.preview.1";
 const workspaceIdV1 = "workspace.preview.1";
 const fileMtimeMsV1 = 1_700_000_000_000;
+
+function createBrowserWorkspaceHostRuntimeV1(options: BrowserWorkspaceHostRuntimeOptionsV1) {
+  return createBrowserWorkspaceHostRuntimeWithoutShellV1({
+    ...options,
+    loadShellRuntime: () => import("../workspace/browser-workspace-just-bash-runtime.ts"),
+  });
+}
 
 function bytesEqualV1(left: Uint8Array, right: Uint8Array): boolean {
   return left.byteLength === right.byteLength && left.every((byte, index) => byte === right[index]);

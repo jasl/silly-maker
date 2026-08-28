@@ -10,6 +10,7 @@ import {
   type FileContent,
   type FsStat,
   type IFileSystem,
+  type LazyCommand,
   type MkdirOptions,
   type RmOptions,
 } from "just-bash/browser";
@@ -95,9 +96,17 @@ export const browserWorkspaceJustBashExecutionProfileV1 = Object.freeze(
     provider: "browser_local_just_bash",
     outputMode: "terminal_aggregate",
     commandAllowlist: browserWorkspaceJustBashCommandAllowlistV1,
+    customCommandAllowlist: Object.freeze(["qjs"] as const),
     limits: browserWorkspaceJustBashLimitsV1,
   } as const,
 );
+
+const browserWorkspaceQuickJsLazyCommandV1: LazyCommand = Object.freeze({
+  name: "qjs",
+  trusted: true,
+  load: async () =>
+    (await import("./browser-workspace-quickjs-command.ts")).browserWorkspaceQuickJsCommandV1,
+});
 
 export type BrowserWorkspaceJustBashEntryKindV1 = "file" | "directory";
 
@@ -737,6 +746,7 @@ function executionEnvironmentV1(
 
 async function initializeEphemeralFileSystemV1(
   commands: readonly CommandName[] = browserWorkspaceJustBashCommandAllowlistV1,
+  customCommands: readonly string[] = [],
 ): Promise<InMemoryFs> {
   const filesystem = new InMemoryFs(undefined, {
     maxTotalBytes: ephemeralFileSystemMaximumBytesV1,
@@ -746,6 +756,11 @@ async function initializeEphemeralFileSystemV1(
   }
   for (const command of commands) {
     const stub = `#!/bin/bash\n# SillyOS built-in command: ${command}\n`;
+    await filesystem.writeFile(`/bin/${command}`, stub);
+    await filesystem.writeFile(`/usr/bin/${command}`, stub);
+  }
+  for (const command of customCommands) {
+    const stub = `#!/bin/bash\n# SillyOS fixed custom command: ${command}\n`;
     await filesystem.writeFile(`/bin/${command}`, stub);
     await filesystem.writeFile(`/usr/bin/${command}`, stub);
   }
@@ -901,7 +916,10 @@ export async function executeBrowserWorkspaceJustBashV1(
     if (!persistentFileSystem.hasDirectory(mountedCwd)) {
       throw new BrowserWorkspaceJustBashRequestErrorV1("Shell cwd is not an existing directory");
     }
-    const ephemeral = await initializeEphemeralFileSystemV1();
+    const ephemeral = await initializeEphemeralFileSystemV1(
+      browserWorkspaceJustBashExecutionProfileV1.commandAllowlist,
+      browserWorkspaceJustBashExecutionProfileV1.customCommandAllowlist,
+    );
     const filesystem = new MountableFs({
       base: ephemeral,
       mounts: [{ mountPoint: workspaceMountV1, filesystem: persistentFileSystem }],
@@ -911,6 +929,7 @@ export async function executeBrowserWorkspaceJustBashV1(
       env: productEnvironmentV1,
       fs: filesystem,
       commands: [...browserWorkspaceJustBashExecutionProfileV1.commandAllowlist],
+      customCommands: [browserWorkspaceQuickJsLazyCommandV1],
       python: false,
       javascript: false,
       executionLimitProfile: "normal",

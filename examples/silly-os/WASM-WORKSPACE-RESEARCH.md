@@ -2,7 +2,8 @@
 
 # SillyOS workspace harness and WASM research
 
-Status: Browser-first research record, reordered 2026-08-29 after the security
+Status: Browser-first execution record, updated 2026-08-29 for delivered Q1
+implementation after the security
 cutover. All three P3c-B0 checkpoints are delivered and closed: the Workspace
 Host Worker and OPFS own the native Pi `read`/`write` bytes,
 recovery/contention/storage policy and the automated
@@ -14,7 +15,7 @@ re-qualified fixed Pi's native `edit` there, and S1b-2 then qualified fixed
 Pi's native `bash` through the bounded just-bash facade for the deterministic
 fixture only. Their exact generation-3 bytes and cold reopen pass in Chromium
 and persistent-profile WebKit. Both checkpoints are closed locally. S1b-3 is
-the current bounded overlay: deterministic and live Pi runs receive the same
+also closed locally: deterministic and live Pi runs receive the same
 four native tools plus one fixed structured `grep` AgentTool. A real Chromium
 Anthropic receipt proves an exact `write` mutation and resulting Sandbox bytes,
 not real-model `read`, `edit`, `bash`, or `grep`. P3c-B1 checkpoint 1 then
@@ -26,10 +27,16 @@ Checkpoint 3 then closed P3c-B1 with exact accepted snapshot presentation and
 retained-package evidence in Chromium and persistent-profile WebKit. The
 committed baseline was deployed and smoke-verified from the public Cloudflare
 origin at `https://silly-os.jasl9187.workers.dev` on 2026-08-28. No
-broader shell/process provider or BYO Sandbox is selected or implemented. The
+broader shell/process provider or BYO Sandbox is selected or implemented. S2-Q1
+is closed locally: one fixed synchronous `qjs` command under
+Pi native `bash` uses a fresh child Worker and explicit bounded text staging.
+Its focused and Chromium/WebKit nested-worker evidence passes. The exact
+10-file Sandbox graph, lazy load after `bash true`, fresh Host/dedicated
+Pi-harness Worker cold reopen,
+and control-build QuickJS/Wasm exclusion gate also pass. The
 owning product sequence is [PLAN.md](./PLAN.md).
 
-## Current S1b-3 and runtime disposition
+## Delivered S2-Q1 and runtime disposition
 
 The structured `grep` capability applies the narrow Oh My Pi composition lesson
 without copying its Browser-incompatible runtime. It is one fixed Pi
@@ -43,33 +50,57 @@ generation and emits no mutation receipt. Workspace continuity is separately
 proved at `1,001` files / `21,897,216` bytes, but the current per-candidate-file
 grep implementation has not been remeasured on that corpus.
 
-The disposable QuickJS Q0 falsification is complete in dev/test, not in the
-product. It fixes `quickjs-emscripten-core@0.32.0` plus
-`@jitl/quickjs-singlefile-browser-release-sync@0.32.0`, uses a fresh child
-Worker/runtime and copied bounded text-file set, and returns only an exact
-terminal diff. Pending Promise jobs fail closed because Q0 intentionally
-supports synchronous scripts only. Chromium and WebKit prove failed import/fetch, absent ambient
-Browser/Node globals, deadline, hard termination, OOM and fresh recovery. The
-Wasm memory is injected with equal `initial`/`maximum` at `16 MiB`; QuickJS's
-allocator is separately capped at `12 MiB`. This corrects the upstream default
-variant's observed ability to grow its Wasm memory despite an allocator limit,
-but it does not bound staged host objects, module JavaScript, structured clones,
-Worker overhead or browser-process memory.
+The disposable QuickJS Q0 falsification established the runtime limits and is
+superseded by production-owned Q1 code. Q1 fixes
+`quickjs-emscripten-core@0.32.0` plus
+`@jitl/quickjs-singlefile-browser-release-sync@0.32.0` and registers one lazy
+`qjs` custom command in the just-bash facade. It is not an AgentTool: Pi native
+`bash` remains the only model-visible schema, call owner, aggregate-result
+algorithm, and receipt path. just-bash's built-in Python and JavaScript switches
+stay disabled.
 
-Only an explicit Q0 development mode adds Sandbox-origin
-`wasm-unsafe-eval`; ordinary development, preview and control responses remain
-strict, Sandbox `connect-src` remains `none`, and the production Sandbox build
-still excludes QuickJS/Wasm. Q0 does not bind a Program volume, use OPFS, commit
-a diff, emit a receipt or connect Pi. Q1 must prove those product contracts
-and an outer wall-clock terminate watchdog before a synchronous fixed `qjs`
-command can appear under Pi native `bash`.
+Each call creates a fresh static child Worker/runtime. The command stages only
+its script and text files explicitly named with `--file`; it does not copy the
+whole volume. The guest receives bounded `workspace.readFile`,
+`workspace.writeFile`, `workspace.listFiles`, `argv`, `stdin`, and `print`, with
+no delete, OPFS, IndexedDB, DOM, cookies, credentials, ambient host JavaScript,
+or network. Pending Promise jobs fail closed because Q1 remains synchronous.
+
+Source and stdin are capped at `64 KiB` each. Argv is capped at `32` entries,
+`4 KiB` each, and `16 KiB` aggregate. Staging is capped at `32` files,
+`256 KiB` each, and `1 MiB` aggregate. Results are capped at `16` changed paths,
+`256 KiB` diff, and `64 KiB` stdout. Wasm memory is injected with equal
+`initial`/`maximum` at `16 MiB`; QuickJS's allocator is separately capped at
+`12 MiB`, with a `512 KiB` stack and `2 s` internal deadline. A separate `3 s`
+parent watchdog hard-terminates the Worker, as do abort and protocol failure.
+Those memory limits do not bound staged host objects, module JavaScript,
+structured clones, Worker overhead, OPFS, or browser-process memory.
+
+The Host admits the exact terminal diff and preflights every path and before-
+image against the current bound Program volume before writing. Delete,
+unstaged overwrite, stale before-bytes, invalid paths, missing parents, and
+over-limit output fail before the first write. Successful changes then flow
+through the existing filesystem/currentness/native-`bash` receipt path. The
+write phase is sequential, not atomic: quota, cancellation, or a later storage
+failure can preserve an earlier admitted write. There is no rollback claim.
+
+The Sandbox response now uses
+`script-src 'self' 'wasm-unsafe-eval'` in development, preview, and production;
+it never gains ordinary `unsafe-eval`, and `connect-src` remains `none`. Control
+responses are unchanged. A local production build emits the fixed lazy
+command/Worker/support graph rather than an external runtime script.
 
 Python is deferred. The Pyodide control is about `12.9 MiB` raw / `6.03 MiB`
 gzip with `0.85–0.91 s` cold startup and a broader JavaScript bridge. The
 private CPython files installed below just-bash are not its public Browser API;
-enabling just-bash's Browser Python or JavaScript switches does not provide a
-qualified runtime. QuickJS exists only as the disposable Q0 dev/test spike;
-neither QuickJS nor Python is implemented or deployed as a Program capability.
+enabling just-bash's Browser Python option does not provide a qualified runtime.
+QuickJS is implemented only as the bounded Q1 Browser capability; it is closed
+locally but not deployed. Python is neither implemented nor deployed as a
+Program capability.
+
+The current command reports only a coarse bounded failure code. Sanitized guest
+exception kind, line/column, and a short capped message remain a separate
+usability slice; host exceptions and stacks stay outside the guest result.
 
 The current harness performance receipt is raw local-development data, not a
 release gate or budget. Three runs reuse warm HTTP/Vite server and dependency
@@ -104,6 +135,24 @@ run's before/after bucket unchanged; it excludes harness/Sandbox Workers, OPFS,
 Wasm, and browser-process memory. WebKit exposed no memory value. Total and peak
 harness memory remain unproved.
 
+The later Q1 nested-runtime run uses the same real Pi binder and typed
+Workspace path, then invokes fixed `qjs` through native `bash`. It observed:
+
+| Q1 raw local observation         |   Chromium |   WebKit |
+| -------------------------------- | ---------: | -------: |
+| first `qjs`                      | `100.8 ms` |  `70 ms` |
+| hard cancel                      | `111.2 ms` | `104 ms` |
+| fresh-worker recovery            |  `21.4 ms` |  `43 ms` |
+| maximum rAF delta                |  `10.1 ms` |  `22 ms` |
+| maximum 16-ms timer delay        |  `13.7 ms` |   `6 ms` |
+| observed control-page Long Tasks |        `0` |      `0` |
+
+Both engines returned the native `bash` changed-path receipt for the exact Q1
+output, observed no effect for the cancelled invocation, and then committed the
+fresh-worker recovery file. This is one run on the development machine, not a
+distribution percentile, low-end-device budget, or proof that every concurrent
+workspace avoids main-loop interference.
+
 ## Decision to make
 
 SillyOS needs three orthogonal contracts:
@@ -133,8 +182,10 @@ the result a container.
 
 The Pi tool binding and product call scope can be implemented and tested without
 claiming that the physical execution provider is already Linux or a container.
-The runtime remains replaceable behind the same port until one target pair
-passes the Chromium, WebKit, and Deno Desktop corpus.
+Browser and Desktop must pass the applicable shared contract corpus, but they do
+not wait for one physically identical runtime or capability set. A Browser
+capability closes on Chromium/WebKit evidence; a Desktop capability closes on
+its native-sandbox/Deno evidence. Each remains replaceable behind the same port.
 
 ```text
 Browser target
@@ -144,12 +195,13 @@ Browser target
                               -> typed environment RPC -> separate-origin Sandbox Host Worker
                                                            FileSystem -> Sandbox volume/OPFS
                                                            Shell.exec -> bounded just-bash facade
+                                                             qjs -> fresh fixed QuickJS child Worker
 
 Deno Desktop target
   React UI <- admitted Agent events/actions -> private companion route
   fixed Pi companion -> proved tool-factory/SDK operation hooks
                      -> local WorkspaceRuntimePort provider
-                     -> admitted native/runtime volume
+                     -> admitted native process sandbox + volume
 
 BYO Sandbox target
   Agent owner -> admitted environment RPC -> remote filesystem/shell provider
@@ -163,6 +215,16 @@ transferred filesystem primitives for native `edit`; S1b-2 proved that the
 bounded just-bash facade can remain as one lazy build-known module in that Host
 graph. Any non-cooperative custom, Python, QuickJS, or Wasm command requires a
 separately terminable execution owner before a hard-stop claim.
+
+The target asymmetry is deliberate. Browser uses narrow staging and
+Worker/interpreter isolation to protect the control and credential origins
+within Browser constraints. Desktop may later use a fuller native process
+sandbox, real shell, Git, Tar, Python, QuickJS, process trees, or PTYs without
+routing them through just-bash. It still must not inherit Pi credentials,
+product database handles, arbitrary companion environment, network, or host
+paths unless an explicit capability grants them. Capabilities are reported per
+target; Desktop breadth is not Browser evidence, and Browser Q1 is not a gate
+for the richer Desktop adapter.
 
 SillyMaker owns only the React GUI and interaction behavior. Pi owns the Agent
 loop, providers, session semantics, model-visible tool definitions/calls,
@@ -434,7 +496,7 @@ route. Neither creates a SillyOS skill loader. Executable Pi extensions remain
 trusted, build-known dependencies outside the Agent-writable volume; loading
 guest-authored extension code into Host Pi would escape the workspace boundary.
 
-## Current just-bash S1b-2 feasibility
+## Current just-bash and Q1 composition
 
 The repository already contains a useful bounded facade; S1b-2 is not a request
 to design another shell. Exact `just-bash@3.4.2` exposes a Browser entry with
@@ -450,23 +512,26 @@ the persistent `/workspace` projection under an ephemeral support filesystem
 and maps resulting byte changes back to the product volume. It does not own the
 volume or redefine Pi's `bash` schema.
 
-The Sandbox production build now emits that module as one build-known lazy
-shell chunk, leaving filesystem-only startup in the small Host Worker. Its
-exact five-file artifact checker rejects extra chunks/assets, Node externals,
-nested Workers, executable WebAssembly, or emitted Python/QuickJS/CPython
-runtimes. The install/lock graph still includes optional/vendor dependencies,
-and the single just-bash Browser bundle still contains unregistered curl code.
+The S1b-2 production build emitted that module as one build-known lazy shell
+chunk, leaving filesystem-only startup in the small Host Worker. Q1 preserves
+that lazy boundary, then adds a separately lazy command broker, fixed child
+Worker, and fixed QuickJS support modules. The exact 10-file Sandbox graph
+checker and lazy-load ordering pass. The ordinary control build and Browser
+security checker also pass with no QuickJS, Emscripten, `ffi`, or Wasm file or
+marker. The install/lock graph still includes optional/vendor dependencies,
+and the just-bash Browser bundle still contains unregistered curl code.
 Network denial therefore relies on the exact 25-command registry, no
 `fetch`/network injection, and Sandbox `connect-src 'none'`, not on a claim
 that unused code or dependencies are absent. Cooperative cancellation at shell
 statement boundaries is also not descendant/process-tree termination; the
 product reports only the behavior it observes.
 
-The first shell proof is limited to Pi native `bash` using the existing closed
+The first S1b shell proof was limited to Pi native `bash` using the existing closed
 commands, exact cwd/env, network-off, timeout/abort, terminal aggregate and
 overflow behavior, bounded multi-path mutation receipts, and cold reopen on the
-same Sandbox volume. It does not add Python, QuickJS, Git, tar, package fetch,
-PTYs, jobs, process trees, Linux, or a container claim.
+same Sandbox volume. Q1 now adds only fixed synchronous QuickJS below that same
+native tool. It still does not add Python, Git, tar, package fetch, PTYs, jobs,
+process trees, Linux, or a container claim.
 
 ## Python one-shot follow-on (researched, inactive)
 
@@ -535,17 +600,17 @@ product cases; see
 
 ## Candidate evidence, not a selection
 
-| Candidate or pressure source    | Evidence relevant to this product                                                                                                                                | Unproved or mismatched boundary                                                                                                                                                                                                             |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Emscripten/WASI modular toolbox | Strong Browser-JS interop; compile individual search/archive/QuickJS controls; explicit host calls and filesystem adapters                                       | No general Linux `fork`/`exec`, process tree, PTY, or job control; Ripgrep still requires an actual port proof; shell orchestration would be product/runtime code                                                                           |
-| just-bash                       | Apache-2.0 TypeScript virtual shell with bounded execution, `AbortSignal`, an asynchronous filesystem interface, and build-known custom commands                 | Exact 3.4.2 Browser publication still has a static `node:zlib` build edge; no persistent Browser backend or Git; Browser excludes Tar, Python, SQLite, YQ, Xan, and QuickJS; hard cancellation of custom commands requires a Worker/process |
-| Oh My Pi                        | MIT Pi fork demonstrating a curated essential/discoverable Agent-tool registry, structured search/LSP/eval/subagent tools, and an in-process shell/CLI strategy  | Bun/Node/Rust/N-API coding product rather than Browser core; its schemas, Brush shell/utilities, internal URLs, extension loader, and Host-filesystem fallback are product-specific and are not a portable execution provider               |
-| agent-sandbox                   | MIT Rust/Wasmtime control with a WASIp1 toolbox, host-directory volume, native Node binding, separate stdout/stderr and exit code, fuel and memory limits        | Native Wasmtime/N-API host, not a Browser runtime; custom partial Git/Ripgrep/Node and sequential shell rather than actual Linux tools/processes; no public abort and the current wall timeout cannot stop a running blocking task          |
-| Wasmer JS + WASIX               | Public Browser SDK exposes WASIX processes, pipes, TTY, subprocess-oriented extensions, and mounted directories                                                  | WASIX is non-standard; Browser cross-origin isolation is required; the JS SDK is not current Deno-native evidence; persistent OPFS, cold reopen, costs, and cancellation need direct proof                                                  |
-| BrowserPod                      | Existing Browser product closest to the desired model: Bash, Git, BusyBox tools, preview Python, worker-backed processes, Ext2-style disk, and local persistence | Version 3.0.1 is proprietary; ordinary plans require a metered API key and do not include self-hosting; Deno Desktop, redistribution/offline operation, Ripgrep/QuickJS, and process-tree cancellation require separate qualification       |
-| CoWasm                          | Open-source Emscripten/WASI Unix and Python experiment with Dash, Tar, some core utilities, and CPython                                                          | Incomplete ports and no Deno qualification; process, persistent-volume, maintenance, and product-distribution costs require direct measurement                                                                                              |
-| Full Linux/emulation control    | `container2wasm`, CheerpX/WebVM, and similar systems demonstrate that an actual Linux ABI and unmodified binaries can run in a browser                           | Image size, startup, CPU/memory, networking, licensing, and Deno integration may be incompatible with an everyday product                                                                                                                   |
-| WebContainers control           | Mature Browser process/filesystem/terminal experience and useful UX behavior                                                                                     | Node-focused, cross-origin-isolation dependent, and currently limited to one booted container per page; not evidence for Linux, CPython, or the Deno target                                                                                 |
+| Candidate or pressure source    | Evidence relevant to this product                                                                                                                                | Unproved or mismatched boundary                                                                                                                                                                                                                   |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Emscripten/WASI modular toolbox | Strong Browser-JS interop; compile individual search/archive/QuickJS controls; explicit host calls and filesystem adapters                                       | No general Linux `fork`/`exec`, process tree, PTY, or job control; Ripgrep still requires an actual port proof; shell orchestration would be product/runtime code                                                                                 |
+| just-bash                       | Apache-2.0 TypeScript virtual shell with bounded execution, `AbortSignal`, an asynchronous filesystem interface, and build-known custom commands                 | Exact 3.4.2 Browser publication still has a static `node:zlib` build edge; no persistent Browser backend or Git; Browser excludes Tar, Python, SQLite, YQ, and Xan. Q1 supplies QuickJS only through a separately terminable fixed custom command |
+| Oh My Pi                        | MIT Pi fork demonstrating a curated essential/discoverable Agent-tool registry, structured search/LSP/eval/subagent tools, and an in-process shell/CLI strategy  | Bun/Node/Rust/N-API coding product rather than Browser core; its schemas, Brush shell/utilities, internal URLs, extension loader, and Host-filesystem fallback are product-specific and are not a portable execution provider                     |
+| agent-sandbox                   | MIT Rust/Wasmtime control with a WASIp1 toolbox, host-directory volume, native Node binding, separate stdout/stderr and exit code, fuel and memory limits        | Native Wasmtime/N-API host, not a Browser runtime; custom partial Git/Ripgrep/Node and sequential shell rather than actual Linux tools/processes; no public abort and the current wall timeout cannot stop a running blocking task                |
+| Wasmer JS + WASIX               | Public Browser SDK exposes WASIX processes, pipes, TTY, subprocess-oriented extensions, and mounted directories                                                  | WASIX is non-standard; Browser cross-origin isolation is required; the JS SDK is not current Deno-native evidence; persistent OPFS, cold reopen, costs, and cancellation need direct proof                                                        |
+| BrowserPod                      | Existing Browser product closest to the desired model: Bash, Git, BusyBox tools, preview Python, worker-backed processes, Ext2-style disk, and local persistence | Version 3.0.1 is proprietary; ordinary plans require a metered API key and do not include self-hosting; Deno Desktop, redistribution/offline operation, Ripgrep/QuickJS, and process-tree cancellation require separate qualification             |
+| CoWasm                          | Open-source Emscripten/WASI Unix and Python experiment with Dash, Tar, some core utilities, and CPython                                                          | Incomplete ports and no Deno qualification; process, persistent-volume, maintenance, and product-distribution costs require direct measurement                                                                                                    |
+| Full Linux/emulation control    | `container2wasm`, CheerpX/WebVM, and similar systems demonstrate that an actual Linux ABI and unmodified binaries can run in a browser                           | Image size, startup, CPU/memory, networking, licensing, and Deno integration may be incompatible with an everyday product                                                                                                                         |
+| WebContainers control           | Mature Browser process/filesystem/terminal experience and useful UX behavior                                                                                     | Node-focused, cross-origin-isolation dependent, and currently limited to one booted container per page; not evidence for Linux, CPython, or the Deno target                                                                                       |
 
 Primary sources:
 
@@ -902,8 +967,7 @@ decision evidence.
 
 ## Executable trust boundary
 
-Once a later P3a-B1/P3b or subsequent P3c slice executes Agent-generated shell
-commands or scripts, guest code is
+Q1 now executes Agent-generated synchronous JavaScript, so guest code is
 untrusted relative to companion credentials, the product database, Host APIs,
 and every other workspace. The initial guest capability is its own volume,
 bounded compute/memory/output, admitted time/cancellation, and no network.
@@ -933,28 +997,32 @@ sandbox claim; the mere use of WebAssembly does not.
    bytes and generation-3 cold reopen pass their focused and Chromium/WebKit
    gates. No Python, QuickJS, Git, tar, PTY, process-tree, Linux, or container
    claim enters this checkpoint.
-4. **S1b-3 is the current bounded overlay.** `pi_provider` receives the same
+4. **S1b-3 closed locally on 2026-08-29.** `pi_provider` receives the same
    qualified native list plus fixed structured grep and a corrected prompt.
    Focused evidence owns exact tool names/schemas/currentness; the real Chromium
    Anthropic route additionally proves only `write` plus exact Sandbox bytes,
    not real-model use of the other tools.
-5. **QuickJS Q0 closed as dev/test feasibility on 2026-08-29.** The fixed
-   Browser dependency runs in a fresh terminable child Worker against only a
-   copied bounded text-file set, with network off, a non-growing `16 MiB` Wasm
-   memory, a `12 MiB` allocator, explicit source/file/diff/stdout/deadline
-   limits, sync-only pending-job rejection, exact diff,
-   OOM/deadline/hard-termination recovery and Chromium/
-   WebKit evidence. It is not yet a Program capability. Q1 must bind staging
-   and current-only commit to the existing Pi `bash` mutation path before
-   synchronous `qjs` appears. Python follows only after that product boundary is proved;
-   neither runtime is implied by just-bash package availability.
+5. **S2-Q1 closed locally on 2026-08-29.** The fixed runtime
+   is one synchronous `qjs` implementation below Pi native `bash`. It stages
+   only explicit text files, runs in a fresh terminable child Worker, uses the
+   fixed `12 MiB` allocator / `16 MiB` non-growing Wasm memory / `2 s` internal
+   deadline / `3 s` outer watchdog, admits an exact bounded diff, and reuses the
+   Program filesystem/currentness/receipt path. Focused tests and the real
+   Chromium/WebKit nested-worker harness pass. The exact 10-file Sandbox graph,
+   lazy load after `bash true`, fresh Host/dedicated Pi-harness Worker cold
+   reopen, and control-build
+   QuickJS/Wasm exclusion gate also pass. Sequential
+   writes are not misrepresented as an atomic multi-file transaction. Python
+   follows only after its own boundary is proved; neither runtime is implied by
+   just-bash package availability.
 6. Only after those smaller profiles may the Wasm, agent-sandbox,
    Wasmer/WASIX, BrowserPod, CoWasm, full-Linux, or WebContainers corpus choose
    a broader command/process adapter. BYO Sandbox, import/restore, Desktop
-   parity, and editor staging remain separate admitted capabilities.
+   native Desktop, and editor staging remain separate admitted capabilities.
 
 This order does not start a public tool ABI, package manager, Linux distribution,
 container orchestrator, untrusted-code sandbox, remote build service, or Pi
-replacement. If no target pair passes the complete matrix, SillyOS retains the
-Pi `ExecutionEnv` binding and ships a smaller admitted coding-tool environment
-rather than claiming Linux or a container.
+replacement. If a target adapter does not pass its applicable matrix, SillyOS
+retains the Pi `ExecutionEnv` binding and ships the smaller admitted capability
+set for that target rather than claiming Linux or a container. Browser and
+Desktop do not block each other on physical runtime parity.

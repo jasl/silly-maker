@@ -130,15 +130,21 @@ Sandbox 内的 just-bash 3.4.2 仅注册 25 个命令，不注入 `fetch`/networ
 冷重开。S1b-3 随后把同一四工具列表接到 live Provider，并增加结构化 `grep`。真实
 Chromium Anthropic `claude-sonnet-4-5` 路线只证明了精确 `write` mutation、对应 Sandbox OPFS
 bytes、generation、取消/currentness、key 不落盘和 Forget；没有证明真实模型实际调用
-`read`、`edit`、`bash` 或 `grep`。它也不代表 Linux、容器、Git、Python/QuickJS/Wasm、网络或
-包管理器。
+`read`、`edit`、`bash`、`grep` 或 `qjs`。它也不代表 Linux、容器、Git、Python、通用 Wasm、
+网络或包管理器。
 
-当前 Sandbox production artifact 精确为 5 个文件：`_headers`、HTML、bootstrap、Host Worker
-和一个 build-known lazy shell chunk。观测到的 raw/gzip 大小分别为 bootstrap
-`5,850 / 2,204`、Host `103,398 / 23,751`、shell `1,291,658 / 353,606` bytes；没有额外输出
-Wasm、QuickJS、CPython 或 Node external runtime asset。但 install/lock graph 仍含 optional/vendor
-依赖，shell bundle 也包含未注册的 `curl` 实现，因此安全依据是命令白名单、无网络注入和 CSP，
-不是“依赖或未使用代码不存在”。
+S2-Q1 已在 2026-08-29 本地关闭：一个产品固定的同步 `qjs` custom command 放到 Pi 原生 `bash` 下；没有
+新增 AgentTool、通用 runtime RPC 或第二套工具框架。它固定 QuickJS 0.32.0，并为每次调用
+创建新的 build-known child Worker。Sandbox production build 因此在 lazy shell 之外增加 lazy
+`qjs` broker、Worker 和固定 support modules；普通 VFS 启动不加载 just-bash/QuickJS。该构建
+的 exact 10-file graph checker、`bash true` 之后才请求 qjs assets 的 lazy 顺序，以及 fresh
+Host/dedicated Pi-harness Worker cold reopen 都已通过。普通 control build 与 Browser security
+checker 也通过，
+`dist-web` 不含 QuickJS、Emscripten、`ffi` 或 Wasm file/marker；这仍不是部署回执。
+
+Install/lock graph 仍含 optional/vendor 依赖，shell bundle 也包含未注册的 `curl` 实现，因此
+安全依据是 closed command registry、无网络注入、Sandbox `connect-src 'none'`、fresh Worker
+和窄协议，不是“依赖或未使用代码不存在”。
 
 checkpoint 2 已在 Chromium 与持久 WebKit 中自动写入并冷重开 `1,000 × 5 KiB` 文件和一个
 `16 MiB` 文件，共 `1,001` 个文件、`21,897,216` 字节，最终 generation 为 `1002`；
@@ -181,7 +187,26 @@ snapshot、pending proposal 的 reviewed head 与当前 mutable head。Pi 工具
 后续 pending/rejected revision 也不会抹掉已接受 snapshot 的身份。当前“下载工作区 ZIP”仍只
 导出 mutable head；产品尚未提供 accepted snapshot 的用户下载按钮或 import/restore。
 
-路线仍是 **Browser 优先、Desktop 保留**。P2 已闭合事务提交后发布、最近 Program
+路线仍是 **Browser 优先、Desktop 保留**，但不是要求两个目标使用同一个物理 runtime。
+两边共享 Program/volume identity、逻辑 `/workspace`、Pi native tool 语义、lifecycle、
+generation/currentness、cancel、receipt、snapshot/export 与 capability truth。Browser 当前使用
+独立 origin + OPFS + bounded just-bash + fresh interpreter Worker；未来 Desktop 可以在同一
+typed `WorkspaceExecutionPort` 后使用更完整的 native process sandbox 和本地 volume，分别
+准入真实 shell、Git、Tar、Python、QuickJS、process-tree cancellation 或 PTY，不必经过
+just-bash，也不需要复制 Browser 的紧缩限制。
+
+Desktop 更完整不等于降低边界：native Workspace sandbox 默认仍不能继承 Provider key、Pi
+auth store、Product Repository handles 或 companion ambient environment；network 与 host path
+mount 都必须是显式 capability。某能力只在一个目标通过时就只在该目标如实显示。Browser
+Q1 不阻塞 Desktop 选择更强的 sandbox，Desktop 证据也不能替代 Browser 资格。
+
+未来 SillyMaker 编辑器可以成为同一个 fixed Pi + `WorkspaceExecutionPort` seam 的另一个
+产品消费者：把一个 exact Authoring receipt 投影到隔离 staging workspace，由 Host 计算并
+复核 candidate，再映射到已有 structured Authoring operation 与显式 Save/CAS。它不会复用
+SillyOS UI，也不会把 Pi、workspace sandbox、source writer 或 Agent API 放进 SillyMaker
+engine。该 editor inheritance 仍是后续 proof，不是当前实现。
+
+P2 已闭合事务提交后发布、最近 Program
 重开、双页面 stale currentness、凭据不落盘和 bounded terminal receipt。B0a 已闭合无
 真实 key 的 Pi/Worker/typed-RPC 接线；B0b 已完成固定 OpenAI profile 的本地及部署源
 资格化；P3c-B0 已闭合原生 Pi `write`/`read` 到 OPFS checkpoint 的 authority、close/cold
@@ -241,10 +266,13 @@ reload。单独的 Chromium/WebKit qualification 各 3/3
 Pi 工具到 workspace runtime 的转发、Pi 能力组合、OpenUI 到 SillyMaker 组件映射，
 再到翻译/写作/角色扮演产品的分阶段路径见 [PLAN.md](./PLAN.md)。为每个 workspace
 Agent 提供熟悉的受限工具环境和单一工作卷仍是研究门；WASM 是可选执行机制，不是产品契约。
-S1b-2 与 S1b-3 已在 2026-08-29 本地关闭。QuickJS Q0 也已作为可删除的 dev/test
-feasibility spike 通过 Chromium/WebKit，但没有接入 Pi、Program VFS、receipt 或 production
-CSP；Python、更广的 Wasm、BYO Sandbox 和 editor proof 均未激活。当前 Sandbox/live-tools
-overlay 没有 production deployment receipt。
+S1b-2、S1b-3 与 S2-Q1 已在 2026-08-29 本地关闭。固定同步
+`qjs` 已通过 Pi native `bash` 接到 Program VFS/currentness/receipt 路线，并通过 focused tests、
+Chromium/WebKit 实际 nested-Worker harness、exact 10-file Sandbox graph、lazy request ordering 和
+fresh Host/dedicated Pi-harness Worker cold reopen；control-build QuickJS/Wasm exclusion gate
+也已通过。Python、
+更广的 Wasm、BYO Sandbox 和 editor proof 均未
+激活。当前 Sandbox/live-tools/Q1 overlay 没有 production deployment receipt。
 候选路线与统一的 Browser/Deno 验收语料见
 [WASM-WORKSPACE-RESEARCH.md](./WASM-WORKSPACE-RESEARCH.md)。
 
@@ -259,9 +287,20 @@ points、5 秒，成功不推进 generation，也不产生 mutation receipt。�
 阻止。这不代表浏览器能抵抗所有 XSS、扩展或设备攻击，也不允许未来 guest runtime 直接
 获得 Sandbox origin 的 ambient OPFS/IndexedDB。Disposable QuickJS Q0 已使用 fresh child
 Worker、copied bounded text files、fixed `16 MiB` Wasm memory、`12 MiB` allocator 和 hard
-terminate 通过；它只执行同步脚本，检测到 pending Promise job 会失败。普通 dev/preview CSP 仍拒绝 Wasm，只有显式 Q0 mode 加
-`wasm-unsafe-eval`。它只返回 diff，不提交 VFS。Python 因资产、启动和 JS bridge 成本后置。
-两者都尚未成为产品能力，也不能通过打开 just-bash 的 Browser flags 获得。
+terminate 证明了可行性；Q1 已用 production-owned protocol 清理替换它。当前命令形状是
+`qjs [--file PATH]... SCRIPT [ARG...]`，只 stage script 与显式指定的 UTF-8 text files，不
+复制整卷，也不向 guest 暴露 OPFS、IndexedDB、DOM、Key、ambient Host JavaScript 或 network。
+它只执行同步脚本，检测到 pending Promise job 会失败；delete 不支持。source/stdin 各
+`64 KiB`，argv 最多 `32` 项 / 单项 `4 KiB` / 合计 `16 KiB`，staging 最多 `32` files /
+单文件 `256 KiB` / 合计 `1 MiB`，result 最多 `16` changed paths / `256 KiB` diff /
+`64 KiB` stdout；内部 deadline `2 s`，外层 `3 s` watchdog 会 terminate Worker。
+
+Sandbox dev/preview/production response 仅为固定 runtime 增加
+`script-src 'self' 'wasm-unsafe-eval'`，不增加普通 `unsafe-eval`，并继续保持
+`connect-src 'none'`；control plane policy 不变。Host 会在首个 write 前完整 preflight exact
+diff，但通过后仍逐个写入，因此后续 quota/cancel/storage failure 可能留下已经写入的 earlier
+change；Q1 不声明 multi-file atomicity 或 rollback。Python 因资产、启动和 JS bridge 成本
+后置，也不能通过打开 just-bash 的 Browser flag 获得。
 
 三轮 fresh-profile / warm-server 的 raw dev harness 数据中，Chromium 的 warm `true`、raw
 bash `rg`、structured grep 每轮 median 分别为 `0.8 ms`、`5.4–5.9 ms`、`7.6–7.9 ms`；
@@ -271,6 +310,17 @@ WebKit 为 `2–6 ms`、`9–26 ms`、`11–13 ms`。对应 Host create/open 为
 Agent Worker；没有观测到 control-page Long Task 也不是所有设备/并发 workspace 的保证。
 Chromium 只有 `27.6–29.4 MB` 的 bucketed control-page JS heap，WebKit 没有可读数值；两者
 都没有证明 Agent/Sandbox Worker、OPFS、Wasm 或浏览器进程的 total/peak memory。
+
+Q1 的当前单轮 raw local harness 另外观测到 first qjs / hard cancel / fresh recovery：Chromium
+约为 `100.8 / 111.2 / 21.4 ms`，WebKit 约为 `70 / 104 / 43 ms`。两边都通过同一个 Pi
+native `bash` path 得到 exact changed-path receipt，取消后新 Worker 可以恢复；该轮 control
+page Long Task 为 0。Chromium 的最大 rAF delta / timer delay 约为 `10.1 / 13.7 ms`，WebKit
+约为 `22 / 6 ms`。这仍只是开发机原始观测，不是低端设备预算、主循环保证或 total-memory
+结论；`12 MiB` allocator 与 `16 MiB` linear memory 也不包含 host objects、module JS、
+structured clone、Worker、OPFS 或 browser process。
+
+当前 `qjs` 失败只返回粗粒度且有界的错误码。后续可以独立增加清理后的 guest exception 类型、
+行列号和短消息上限，但不能透传 Host exception 或 stack。
 
 ## 运行
 
@@ -515,30 +565,32 @@ deno run -A npm:vitest run \
 
 ## 当前代码边界
 
-| 位置                                                           | 所有权                                                                         |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `src/product/contracts.ts`                                     | Program、proposal、activity 与 Creator session 合同                            |
-| `src/product/creator-session.ts`                               | 本地 session、proposal review 与 Agent candidate 原子发布                      |
-| `src/product/creator-agent-admission.ts`                       | submit/candidate 的严格 product wire admission                                 |
-| `src/product/browser-provider-settings-repository.ts`          | 有界非秘密 custom HTTPS profile 持久化；不接收 key                             |
-| `src/product/fake-creator.ts`                                  | 默认初始 proposal 的确定性 fake Creator                                        |
-| `src/agent/creator-agent-port.ts`                              | React 可见的 product facade；不暴露 raw Pi records                             |
-| `src/agent/browser-pi-*`                                       | 懒加载 Worker、固定 Pi identity、catalog、Provider 与 admitted workspace tools |
-| `src/agent/pi-workspace-tool-binder.ts`                        | Pi 原生四工具绑定与固定 structured `grep` AgentTool                            |
-| `src/workspace/browser-workspace-just-bash-runtime.ts`         | bounded just-bash facade 与只读 fixed-`rg` structured grep                     |
-| `src/deployment/cloudflare-selected-origin-worker.ts`          | built-in/custom Agent Worker 的完整 strict-CSP 与精确 selected-origin 响应层   |
-| `src/deployment/cloudflare-workspace-sandbox-worker.ts`        | 独立 Sandbox artifact 的固定响应头与 Cloudflare 静态边界                       |
-| `src/workspace/browser-workspace-sandbox-frame-transport.ts`   | 控制 origin 到固定 Sandbox origin 的 fail-closed bootstrap/typed channel       |
-| `src/workspace/browser-workspace-sandbox-build-identity.ts`    | control/bootstrap/Host 共用的 product-derived build identity admission         |
-| `src/workspace/browser-workspace-sandbox-download-protocol.ts` | Sandbox Host 到 bootstrap frame 的私有 download request/receipt                |
-| `src/workspace-sandbox/`                                       | Sandbox 文档 bootstrap 与同 origin 固定 Host Worker                            |
-| `src/product/indexeddb-program-repository.ts`                  | physical Product Repository V5 与 exact preview-V4 clean reset                 |
-| `src/companion/pi-rpc-startup.ts`                              | dev-only 固定 Pi artifact、启动参数、隔离 flags 与脱敏摘要                     |
-| `src/application/`                                             | Browser/Deno 共用的 React 产品入口与工作区表现                                 |
-| `src/test/browser-pi-worker.test.ts`                           | Pi tool、RPC 顺序/currentness、取消、替换与 Worker teardown                    |
-| `tools/pi-rpc.mts`                                             | raw Pi RPC 开发启动器；尚未连接 Creator                                        |
-| `PLAN.md`                                                      | 独立产品孵化顺序、所有权、停止条件与明确 defer                                 |
-| `WASM-WORKSPACE-RESEARCH.md`                                   | workspace harness 候选、共同语料和选型证据门                                   |
+| 位置                                                            | 所有权                                                                         |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `src/product/contracts.ts`                                      | Program、proposal、activity 与 Creator session 合同                            |
+| `src/product/creator-session.ts`                                | 本地 session、proposal review 与 Agent candidate 原子发布                      |
+| `src/product/creator-agent-admission.ts`                        | submit/candidate 的严格 product wire admission                                 |
+| `src/product/browser-provider-settings-repository.ts`           | 有界非秘密 custom HTTPS profile 持久化；不接收 key                             |
+| `src/product/fake-creator.ts`                                   | 默认初始 proposal 的确定性 fake Creator                                        |
+| `src/agent/creator-agent-port.ts`                               | React 可见的 product facade；不暴露 raw Pi records                             |
+| `src/agent/browser-pi-*`                                        | 懒加载 Worker、固定 Pi identity、catalog、Provider 与 admitted workspace tools |
+| `src/agent/pi-workspace-tool-binder.ts`                         | Pi 原生四工具绑定与固定 structured `grep` AgentTool                            |
+| `src/workspace/browser-workspace-just-bash-runtime.ts`          | bounded just-bash facade、fixed-`rg` grep 与 lazy fixed-`qjs` registry         |
+| `src/workspace/browser-workspace-quickjs-{protocol,command}.ts` | Q1 exact DTO、limits、explicit text staging、diff preflight 与 child broker    |
+| `src/workspace-sandbox/browser-workspace-quickjs.worker.ts`     | fixed QuickJS 0.32.0 fresh child runtime；无 ambient storage/network           |
+| `src/deployment/cloudflare-selected-origin-worker.ts`           | built-in/custom Agent Worker 的完整 strict-CSP 与精确 selected-origin 响应层   |
+| `src/deployment/cloudflare-workspace-sandbox-worker.ts`         | 独立 Sandbox artifact 的固定响应头与 Cloudflare 静态边界                       |
+| `src/workspace/browser-workspace-sandbox-frame-transport.ts`    | 控制 origin 到固定 Sandbox origin 的 fail-closed bootstrap/typed channel       |
+| `src/workspace/browser-workspace-sandbox-build-identity.ts`     | control/bootstrap/Host 共用的 product-derived build identity admission         |
+| `src/workspace/browser-workspace-sandbox-download-protocol.ts`  | Sandbox Host 到 bootstrap frame 的私有 download request/receipt                |
+| `src/workspace-sandbox/`                                        | Sandbox 文档 bootstrap 与同 origin 固定 Host Worker                            |
+| `src/product/indexeddb-program-repository.ts`                   | physical Product Repository V5 与 exact preview-V4 clean reset                 |
+| `src/companion/pi-rpc-startup.ts`                               | dev-only 固定 Pi artifact、启动参数、隔离 flags 与脱敏摘要                     |
+| `src/application/`                                              | Browser/Deno 共用的 React 产品入口与工作区表现                                 |
+| `src/test/browser-pi-worker.test.ts`                            | Pi tool、RPC 顺序/currentness、取消、替换与 Worker teardown                    |
+| `tools/pi-rpc.mts`                                              | raw Pi RPC 开发启动器；尚未连接 Creator                                        |
+| `PLAN.md`                                                       | 独立产品孵化顺序、所有权、停止条件与明确 defer                                 |
+| `WASM-WORKSPACE-RESEARCH.md`                                    | workspace harness 候选、共同语料和选型证据门                                   |
 
 后续 Agent loop、模型/provider、会话、tool dispatch 与 Agent 扩展统一由 Pi 负责。
 Browser Agent Worker 或 Desktop companion 只做目标适配、Program 数据所有权和 typed
@@ -548,8 +600,9 @@ Agent 侧独特能力只实现一次 schema/prompt/handler 核心，Browser 薄�
 的闭集 UI 组件与交互 intent；SillyMaker 不另建 Agent runtime，这些数据也不进入其
 确定性 game Save。每个 workspace Agent 对应一个逻辑 workspace runtime 与持久工作卷，
 保存源码、`.git`、产物、文件型持久数据、`AGENTS.md` 和 skills。S1 完成后，Pi 工具才可
-通过独立 origin Sandbox 修改草稿工作卷；当前只有固定 deterministic fixture 保留旧的同源
-工具证明。只有通过精确人类复核的 workspace snapshot 才会成为新的 accepted Program revision。
+通过独立 origin Sandbox 修改草稿工作卷；当前 deterministic 与 live Pi 都使用这条 authority，
+而 Q1 的 `qjs` 仍只是 native `bash` 下的一项 Browser execution implementation。只有通过
+精确人类复核的 workspace snapshot 才会成为新的 accepted Program revision。
 
 ## 参考与授权
 

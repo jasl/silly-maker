@@ -34,10 +34,23 @@ const retiredSameOriginHostWorkerPatternV1 =
 if (filesV1.some((file) => retiredSameOriginHostWorkerPatternV1.test(file))) {
   failV1("artifact contains the retired same-origin Workspace Host Worker");
 }
+const sandboxExecutionAssetPatternsV1 = [
+  /(?:^|\/)[^/]*quickjs[^/]*\.js$/iu,
+  /(?:^|\/)[^/]*emscripten[^/]*\.js$/iu,
+  /(?:^|\/)ffi-[A-Za-z0-9_-]+\.js$/u,
+  /\.wasm$/iu,
+] as const;
+for (const file of filesV1) {
+  if (sandboxExecutionAssetPatternsV1.some((pattern) => pattern.test(file))) {
+    failV1(`artifact contains Workspace Sandbox execution asset ${file}`);
+  }
+}
 const productionBuildIdentityPatternV1 =
   /sillyos\.workspace-sandbox\.(?:[0-9a-f]{40}|[0-9a-f]{64})(?:-dirty)?/gu;
 const buildIdentitiesV1 = new Set<string>();
 const identityBearingFilesV1: string[] = [];
+const sandboxExecutionMarkerPatternV1 =
+  /(?:quickjs_(?:execute|result)|quickjs-emscripten|QTS_NewRuntime|WebAssembly\.Memory|wasm(?:Binary|Memory)|emscriptenModule)/u;
 for (const file of filesV1.filter((candidate) => candidate.endsWith(".js"))) {
   const source = await Deno.readTextFile(new URL(file, buildDirectoryV1));
   const identities = source.match(productionBuildIdentityPatternV1) ?? [];
@@ -50,6 +63,9 @@ for (const file of filesV1.filter((candidate) => candidate.endsWith(".js"))) {
   }
   if (source.includes("browser-workspace-host.worker")) {
     failV1(`${file} references the retired same-origin Workspace Host Worker`);
+  }
+  if (sandboxExecutionMarkerPatternV1.test(source)) {
+    failV1(`${file} contains Workspace Sandbox QuickJS/Wasm execution code`);
   }
 }
 if (identityBearingFilesV1.length === 0 || buildIdentitiesV1.size !== 1) {

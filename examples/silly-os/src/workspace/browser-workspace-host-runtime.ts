@@ -42,17 +42,12 @@ const identityPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
 const workspaceRootV1 = "/workspace";
 const workspaceReadRangeChunkMaximumBytesV1 = 1024 * 1024;
 
-type BrowserWorkspaceJustBashRuntimeModuleV1 =
-  typeof import("./browser-workspace-just-bash-runtime.ts");
-
-let browserWorkspaceJustBashRuntimePromiseV1:
-  | Promise<BrowserWorkspaceJustBashRuntimeModuleV1>
-  | null = null;
-
-function loadBrowserWorkspaceJustBashRuntimeV1(): Promise<BrowserWorkspaceJustBashRuntimeModuleV1> {
-  browserWorkspaceJustBashRuntimePromiseV1 ??= import("./browser-workspace-just-bash-runtime.ts");
-  return browserWorkspaceJustBashRuntimePromiseV1;
-}
+type BrowserWorkspaceJustBashRuntimeModuleV1 = Pick<
+  typeof import("./browser-workspace-just-bash-runtime.ts"),
+  | "browserWorkspaceJustBashExecutionProfileV1"
+  | "executeBrowserWorkspaceJustBashV1"
+  | "executeBrowserWorkspaceStructuredGrepV1"
+>;
 
 export interface BrowserWorkspaceHostDurableHeadV1 {
   readonly revision: 1;
@@ -232,6 +227,11 @@ export class BrowserWorkspaceHostCleanupErrorV1 extends BrowserWorkspaceHostStor
 export interface BrowserWorkspaceHostRuntimeOptionsV1 {
   readonly bootstrap: BrowserWorkspaceHostBootstrapPortV1;
   readonly postControlMessage: (message: BrowserWorkspaceHostControlOutboundMessageV1) => void;
+  /**
+   * Sandbox-owned executable shell adapter. The neutral Host runtime never
+   * imports an execution implementation into a control-plane graph.
+   */
+  readonly loadShellRuntime?: () => Promise<BrowserWorkspaceJustBashRuntimeModuleV1>;
   readonly createWorkspaceSessionId?: () => string;
   readonly createCheckpointId?: () => string;
   readonly createShellTempFileId?: () => string;
@@ -534,6 +534,8 @@ export function createBrowserWorkspaceHostRuntimeV1(
   const createCheckpointId = options.createCheckpointId ??
     (() => `sillyos.workspace.checkpoint.${crypto.randomUUID()}`);
   const createShellTempFileId = options.createShellTempFileId ?? (() => crypto.randomUUID());
+  const loadShellRuntime = options.loadShellRuntime ??
+    (() => Promise.reject(new TypeError("sillyos.workspace_sandbox.shell_runtime_unavailable")));
   const createObjectUrl = options.createObjectUrl ?? ((file: File) => URL.createObjectURL(file));
   const revokeObjectUrl = options.revokeObjectUrl ?? ((url: string) => URL.revokeObjectURL(url));
   const startDownload = options.startDownload ?? (() =>
@@ -1296,7 +1298,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
     try {
       const response = await operate(scope, async () => {
         try {
-          const runtime = await loadBrowserWorkspaceJustBashRuntimeV1();
+          const runtime = await loadShellRuntime();
           const cancelledAfterImport = cancellationResponse();
           if (cancelledAfterImport !== null) return cancelledAfterImport;
           const observeVolumeOperation = async <T>(operation: () => Promise<T>): Promise<T> => {
@@ -1584,7 +1586,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
     );
     try {
       const response = await operate(scope, async () => {
-        const runtime = await loadBrowserWorkspaceJustBashRuntimeV1();
+        const runtime = await loadShellRuntime();
         const causeAfterImport = cancellation.cause();
         if (causeAfterImport !== null) {
           return {

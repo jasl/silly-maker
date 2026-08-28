@@ -51,7 +51,7 @@ describe("SillyOS independent Workspace Sandbox response boundary", () => {
   it("closes every ambient browser capability and admits one exact parent origin", () => {
     expect(directivesV1(browserWorkspaceSandboxContentSecurityPolicyV1)).toEqual({
       "default-src": "'none'",
-      "script-src": "'self'",
+      "script-src": "'self' 'wasm-unsafe-eval'",
       "worker-src": "'self'",
       "frame-src": "blob:",
       "connect-src": "'none'",
@@ -63,6 +63,7 @@ describe("SillyOS independent Workspace Sandbox response boundary", () => {
     expect(browserWorkspaceSandboxContentSecurityPolicyV1).not.toContain("*");
     expect(browserWorkspaceSandboxContentSecurityPolicyV1).not.toContain("'unsafe-inline'");
     expect(browserWorkspaceSandboxContentSecurityPolicyV1).not.toContain("'unsafe-eval'");
+    expect(browserWorkspaceSandboxContentSecurityPolicyV1).toContain("'wasm-unsafe-eval'");
     expect(directivesV1(browserWorkspaceSandboxContentSecurityPolicyV1)["frame-ancestors"])
       .toBe(sillyOsProductionControlOriginV1);
     expect(browserWorkspaceSandboxContentSecurityPolicyV1).not.toContain(

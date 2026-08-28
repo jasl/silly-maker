@@ -36,10 +36,14 @@ interface HarnessWorkerReceiptV1 {
   };
   readonly samples: {
     readonly coldBashTrueMilliseconds: number;
+    readonly coldBashCompletedEpochMilliseconds: number;
+    readonly quickJsMilliseconds: number;
     readonly warmBashTrueMilliseconds: readonly number[];
     readonly rgMilliseconds: readonly number[];
     readonly structuredGrepMilliseconds: readonly number[];
     readonly cancellationMilliseconds: number;
+    readonly quickJsCancellationMilliseconds: number;
+    readonly quickJsRecoveryMilliseconds: number;
     readonly recoveryBashTrueMilliseconds: number;
   };
   readonly currentGeneration: number;
@@ -47,6 +51,7 @@ interface HarnessWorkerReceiptV1 {
     readonly tool: string;
     readonly outcome: string;
     readonly effect: string;
+    readonly changedPaths: readonly string[];
   }[];
   readonly resources: readonly ResourceTimingV1[];
 }
@@ -70,6 +75,10 @@ interface HarnessPageReceiptV1 {
     readonly userAgentSpecificMemoryApiAvailable: boolean;
     readonly pageJsHeapBytesBefore: number | null;
     readonly pageJsHeapBytesAfter: number | null;
+  };
+  readonly persistence: {
+    readonly coldReopenedGeneration: number;
+    readonly verifiedPaths: readonly string[];
   };
 }
 
@@ -195,13 +204,15 @@ async function characterizeHarnessV1(page: Page): Promise<HarnessPageReceiptV1> 
       priorTimer = now;
     }, 16);
     let longTaskObserver: PerformanceObserver | null = null;
-    try {
-      longTaskObserver = new PerformanceObserver((entries) => {
-        for (const entry of entries.getEntries()) longTasks.push(entry.duration);
-      });
-      longTaskObserver.observe({ entryTypes: ["longtask"] });
-    } catch {
-      longTaskObserver = null;
+    if (PerformanceObserver.supportedEntryTypes?.includes("longtask") ?? false) {
+      try {
+        longTaskObserver = new PerformanceObserver((entries) => {
+          for (const entry of entries.getEntries()) longTasks.push(entry.duration);
+        });
+        longTaskObserver.observe({ entryTypes: ["longtask"] });
+      } catch {
+        longTaskObserver = null;
+      }
     }
 
     const importStartedAt = performance.now();
@@ -220,12 +231,14 @@ async function characterizeHarnessV1(page: Page): Promise<HarnessPageReceiptV1> 
     if (typeof createTransport !== "function" || typeof createHost !== "function") {
       throw new TypeError("sillyos.harness_perf.host_module_unavailable");
     }
-    const host = createHost({
-      transport: createTransport({
-        createNonce: () => `sandbox.bootstrap.${crypto.randomUUID()}`,
-        bootstrapTimeoutMilliseconds: 20_000,
-      }),
-    }) as HostPortV1;
+    const createHostPortV1 = (): HostPortV1 =>
+      createHost({
+        transport: createTransport({
+          createNonce: () => `sandbox.bootstrap.${crypto.randomUUID()}`,
+          bootstrapTimeoutMilliseconds: 20_000,
+        }),
+      }) as HostPortV1;
+    let host = createHostPortV1();
     const programId = `program.harness-perf.${crypto.randomUUID()}`;
     const workspaceId = `workspace.harness-perf.${crypto.randomUUID()}`;
     let workspaceSessionId: string | null = null;
@@ -239,11 +252,12 @@ async function characterizeHarnessV1(page: Page): Promise<HarnessPageReceiptV1> 
           const candidate = await host.createCandidate({ programId, workspaceId });
           return {
             opened: await host.openWorkspace(candidate.anchor),
-            volumeId: candidate.anchor.volumeId,
+            anchor: candidate.anchor,
           };
         },
       });
-      const { opened, volumeId: sandboxVolumeId } = created;
+      const { opened, anchor } = created;
+      const sandboxVolumeId = anchor.volumeId;
       const createAndOpenMilliseconds = performance.now() - createStartedAt;
       workspaceSessionId = opened.descriptor.workspaceSessionId;
 
@@ -253,37 +267,36 @@ async function characterizeHarnessV1(page: Page): Promise<HarnessPageReceiptV1> 
 
       const workerUrl = new URL(`/@fs/${workerPath}`, location.href);
       const workerStartedAt = performance.now();
-      const worker = new Worker(workerUrl, {
+      let activeWorker = new Worker(workerUrl, {
         type: "module",
         name: "sillyos-harness-performance-v1",
       });
       let workerReceipt: HarnessWorkerReceiptV1;
       try {
-        const ready = await new Promise<void>((resolve, reject) => {
+        await new Promise<void>((resolve, reject) => {
           const timeout = setTimeout(
             () => reject(new Error("Harness Agent Worker timed out")),
             30_000,
           );
-          worker.addEventListener("message", (event) => {
+          activeWorker.addEventListener("message", (event) => {
             const value = event.data as { readonly revision?: unknown; readonly kind?: unknown };
             if (value.revision !== 1 || value.kind !== "ready") return;
             clearTimeout(timeout);
             resolve();
           }, { once: true });
-          worker.addEventListener("error", (event) => {
+          activeWorker.addEventListener("error", (event) => {
             clearTimeout(timeout);
             event.preventDefault();
             reject(new Error("Harness Agent Worker failed during startup"));
           }, { once: true });
         });
-        void ready;
         const harnessWorkerStartupMilliseconds = performance.now() - workerStartedAt;
         workerReceipt = await new Promise<HarnessWorkerReceiptV1>((resolve, reject) => {
           const timeout = setTimeout(
             () => reject(new Error("Harness execution timed out")),
             120_000,
           );
-          worker.addEventListener("message", (event) => {
+          activeWorker.addEventListener("message", (event) => {
             const value = event.data as {
               readonly revision?: unknown;
               readonly kind?: unknown;
@@ -301,12 +314,12 @@ async function characterizeHarnessV1(page: Page): Promise<HarnessPageReceiptV1> 
               );
             }
           });
-          worker.addEventListener("error", (event) => {
+          activeWorker.addEventListener("error", (event) => {
             clearTimeout(timeout);
             event.preventDefault();
             reject(new Error("Harness Agent Worker failed during execution"));
           }, { once: true });
-          worker.postMessage({
+          activeWorker.postMessage({
             revision: 1,
             kind: "run",
             descriptor: attached.snapshot.descriptor,
@@ -317,6 +330,91 @@ async function characterizeHarnessV1(page: Page): Promise<HarnessPageReceiptV1> 
         cancelAnimationFrame(rafId);
         clearInterval(timerId);
         longTaskObserver?.disconnect();
+
+        activeWorker.terminate();
+        await host.closeWorkspace(workspaceSessionId);
+        workspaceSessionId = null;
+        host.dispose();
+        host = createHostPortV1();
+        const coldReopened = await host.openWorkspace(anchor);
+        workspaceSessionId = coldReopened.descriptor.workspaceSessionId;
+        const coldAttached = await host.attachEnvironment({ workspaceSessionId });
+        activeWorker = new Worker(workerUrl, {
+          type: "module",
+          name: "sillyos-harness-persistence-verification-v1",
+        });
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(
+            () => reject(new Error("Cold verification Agent Worker timed out")),
+            30_000,
+          );
+          activeWorker.addEventListener("message", (event) => {
+            const value = event.data as { readonly revision?: unknown; readonly kind?: unknown };
+            if (value.revision !== 1 || value.kind !== "ready") return;
+            clearTimeout(timeout);
+            resolve();
+          }, { once: true });
+          activeWorker.addEventListener("error", (event) => {
+            clearTimeout(timeout);
+            event.preventDefault();
+            reject(new Error("Cold verification Agent Worker failed during startup"));
+          }, { once: true });
+        });
+        const persistence = await new Promise<{
+          readonly generation: number;
+          readonly paths: readonly string[];
+        }>((resolve, reject) => {
+          const timeout = setTimeout(
+            () => reject(new Error("Cold workspace verification timed out")),
+            30_000,
+          );
+          activeWorker.addEventListener("message", (event) => {
+            const value = event.data as {
+              readonly revision?: unknown;
+              readonly kind?: unknown;
+              readonly receipt?: {
+                readonly generation?: unknown;
+                readonly paths?: unknown;
+              };
+              readonly message?: unknown;
+            };
+            if (value.revision !== 1) return;
+            if (
+              value.kind === "verified" && Number.isSafeInteger(value.receipt?.generation) &&
+              Array.isArray(value.receipt?.paths) &&
+              value.receipt.paths.every((path) => typeof path === "string")
+            ) {
+              clearTimeout(timeout);
+              resolve({
+                generation: value.receipt.generation as number,
+                paths: value.receipt.paths as readonly string[],
+              });
+            } else if (value.kind === "failed") {
+              clearTimeout(timeout);
+              reject(
+                new Error(
+                  typeof value.message === "string"
+                    ? value.message
+                    : "Cold workspace verification failed",
+                ),
+              );
+            }
+          });
+          activeWorker.addEventListener("error", (event) => {
+            clearTimeout(timeout);
+            event.preventDefault();
+            reject(new Error("Cold verification Agent Worker failed during execution"));
+          }, { once: true });
+          activeWorker.postMessage({
+            revision: 1,
+            kind: "verify_persistence",
+            descriptor: coldAttached.snapshot.descriptor,
+            expectedFiles: [
+              { path: "harness-qjs-output.txt", text: "BROWSER HARNESS:QUICKJS_Q1" },
+              { path: "harness-qjs-recovered.txt", text: "recovered" },
+            ],
+          }, [coldAttached.environmentPort]);
+        });
         const owner = globalThis as typeof globalThis & {
           sillyOsHarnessPerfOwnerV1?: {
             readonly host: HostPortV1;
@@ -327,7 +425,7 @@ async function characterizeHarnessV1(page: Page): Promise<HarnessPageReceiptV1> 
         if (owner.sillyOsHarnessPerfOwnerV1 !== undefined) {
           throw new Error("Harness performance owner already exists");
         }
-        owner.sillyOsHarnessPerfOwnerV1 = { host, workspaceSessionId, worker };
+        owner.sillyOsHarnessPerfOwnerV1 = { host, workspaceSessionId, worker: activeWorker };
         retained = true;
         return {
           sandboxVolumeId,
@@ -350,9 +448,13 @@ async function characterizeHarnessV1(page: Page): Promise<HarnessPageReceiptV1> 
             pageJsHeapBytesBefore: memoryBefore,
             pageJsHeapBytesAfter: readPageHeapV1(),
           },
+          persistence: {
+            coldReopenedGeneration: persistence.generation,
+            verifiedPaths: persistence.paths,
+          },
         };
       } catch (error) {
-        worker.terminate();
+        activeWorker.terminate();
         throw error;
       }
     } finally {
@@ -423,7 +525,7 @@ test(
       const url = request.url();
       if (
         (url.startsWith(sillyOsTargetUrlV1()) || url.startsWith(sandboxOriginV1())) &&
-        /workspace-sandbox\.html|workspace-sandbox-host\.worker|just-bash|pi-agent-core|harness-performance/iu
+        /workspace-sandbox\.html|workspace-sandbox-host\.worker|just-bash|quickjs|emscripten|pi-agent-core|harness-performance/iu
           .test(url)
       ) observedRequests.push(request);
     };
@@ -437,7 +539,8 @@ test(
       sandboxResources = await sandboxFrame.evaluate(() =>
         performance.getEntriesByType("resource")
           .filter((entry) =>
-            /workspace-sandbox\.html|workspace-sandbox-host\.worker|just-bash/iu.test(entry.name)
+            /workspace-sandbox\.html|workspace-sandbox-host\.worker|just-bash|quickjs|emscripten/iu
+              .test(entry.name)
           )
           .slice(0, 64)
           .map((entry) => {
@@ -464,15 +567,29 @@ test(
     expect(receipt.worker.samples.warmBashTrueMilliseconds).toHaveLength(sampleCountV1);
     expect(receipt.worker.samples.rgMilliseconds).toHaveLength(sampleCountV1);
     expect(receipt.worker.samples.structuredGrepMilliseconds).toHaveLength(sampleCountV1);
-    expect(receipt.worker.mutations.at(-2)).toMatchObject({
+    expect(receipt.worker.mutations).toContainEqual(expect.objectContaining({
       tool: "bash",
       outcome: "cancelled",
       effect: "none",
-    });
+      changedPaths: [],
+    }));
     expect(receipt.worker.mutations.at(-1)).toMatchObject({
       tool: "bash",
       outcome: "succeeded",
       effect: "none",
+    });
+    expect(receipt.worker.mutations).toContainEqual(expect.objectContaining({
+      tool: "bash",
+      outcome: "succeeded",
+      effect: "changed",
+      changedPaths: ["harness-qjs-output.txt"],
+    }));
+    expect(receipt.worker.samples.quickJsMilliseconds).toBeGreaterThanOrEqual(0);
+    expect(receipt.worker.samples.quickJsCancellationMilliseconds).toBeGreaterThanOrEqual(0);
+    expect(receipt.worker.samples.quickJsRecoveryMilliseconds).toBeGreaterThanOrEqual(0);
+    expect(receipt.persistence).toEqual({
+      coldReopenedGeneration: receipt.worker.currentGeneration,
+      verifiedPaths: ["harness-qjs-output.txt", "harness-qjs-recovered.txt"],
     });
     for (
       const values of [
@@ -484,6 +601,23 @@ test(
       ]
     ) expectFiniteSamplesV1(values);
 
+    const quickJsAssetRequests = observedRequests.filter((request) =>
+      /browser-workspace-quickjs-(?:command|protocol)|browser-workspace-quickjs\.worker/iu.test(
+        request.url(),
+      )
+    );
+    expect(quickJsAssetRequests.some((request) => request.url().includes("quickjs-command"))).toBe(
+      true,
+    );
+    expect(quickJsAssetRequests.some((request) => request.url().includes("quickjs.worker"))).toBe(
+      true,
+    );
+    expect(
+      quickJsAssetRequests.every((request) =>
+        request.timing().startTime >= receipt.worker.samples.coldBashCompletedEpochMilliseconds
+      ),
+    ).toBe(true);
+
     const report = {
       revision: 1,
       browser: testInfo.project.name,
@@ -493,11 +627,18 @@ test(
           "first execute_shell in a fresh Sandbox Host Worker; HTTP and Vite dependency caches are not reset",
         memory:
           "optional page-JS-heap observation only; excludes Agent Worker, Sandbox Worker, OPFS, Wasm, and browser process memory",
+        quickJsLoading:
+          "the fixed qjs command, protocol, and child Worker requests started only after the first native Pi bash true receipt completed",
       },
       fixture: receipt.worker.fixture,
       host: receipt.host,
       shell: {
         raw: receipt.worker.samples,
+        qjs: {
+          firstRunMilliseconds: receipt.worker.samples.quickJsMilliseconds,
+          hardCancellationMilliseconds: receipt.worker.samples.quickJsCancellationMilliseconds,
+          freshRecoveryMilliseconds: receipt.worker.samples.quickJsRecoveryMilliseconds,
+        },
         warmBashTrueSummary: summaryV1(receipt.worker.samples.warmBashTrueMilliseconds),
         rgSummary: summaryV1(receipt.worker.samples.rgMilliseconds),
         structuredGrepSummary: summaryV1(
@@ -518,6 +659,7 @@ test(
       },
       mutationOutcomes: receipt.worker.mutations,
       currentGeneration: receipt.worker.currentGeneration,
+      persistence: receipt.persistence,
     };
     await attachReportV1(testInfo, report);
   },

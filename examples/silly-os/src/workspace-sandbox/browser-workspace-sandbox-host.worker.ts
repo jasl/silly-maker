@@ -24,6 +24,17 @@ interface WorkspaceSandboxHostWorkerScopeV1 {
 const workerScope = self as unknown as WorkspaceSandboxHostWorkerScopeV1;
 let bound = false;
 
+let shellRuntimePromiseV1:
+  | Promise<typeof import("../workspace/browser-workspace-just-bash-runtime.ts")>
+  | null = null;
+
+function loadWorkspaceSandboxShellRuntimeV1(): Promise<
+  typeof import("../workspace/browser-workspace-just-bash-runtime.ts")
+> {
+  shellRuntimePromiseV1 ??= import("../workspace/browser-workspace-just-bash-runtime.ts");
+  return shellRuntimePromiseV1;
+}
+
 function createWorkspaceSandboxDownloadBrokerV1(port: MessagePort): (input: {
   readonly exportId: string;
   readonly downloadUrl: string;
@@ -111,6 +122,7 @@ workerScope.addEventListener("message", (event) => {
   bound = true;
   const runtime = createBrowserWorkspaceHostRuntimeV1({
     bootstrap: createBrowserWorkspaceHostOpfsBootstrapV1(),
+    loadShellRuntime: loadWorkspaceSandboxShellRuntimeV1,
     startDownload: createWorkspaceSandboxDownloadBrokerV1(downloadPort),
     postControlMessage(message) {
       // MessagePort.postMessage has no targetOrigin parameter.

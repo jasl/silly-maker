@@ -187,6 +187,7 @@ describe("SillyOS Browser workspace just-bash runtime", () => {
   it("publishes one exact terminal-aggregate Browser Local execution profile", () => {
     expect(Object.keys(browserWorkspaceJustBashExecutionProfileV1).sort()).toEqual([
       "commandAllowlist",
+      "customCommandAllowlist",
       "limits",
       "outputMode",
       "provider",
@@ -197,6 +198,7 @@ describe("SillyOS Browser workspace just-bash runtime", () => {
       provider: "browser_local_just_bash",
       outputMode: "terminal_aggregate",
       commandAllowlist: browserWorkspaceJustBashCommandAllowlistV1,
+      customCommandAllowlist: ["qjs"],
       limits: browserWorkspaceJustBashLimitsV1,
     });
     expect(browserWorkspaceJustBashCommandAllowlistV1).toEqual([

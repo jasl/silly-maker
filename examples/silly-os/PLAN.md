@@ -105,12 +105,19 @@ is now closed locally:** the deterministic fixture drives fixed Pi's native
 `write -> edit -> read -> proposal` through the independent-origin Sandbox,
 and the exact edit bytes, generation 3, receipt, and cold reopen pass in both
 Chromium and persistent-profile WebKit. S1b-2 then closed native `bash` for the
-deterministic fixture only. The current bounded S1b-3 overlay gives live and
-deterministic Pi runs the same four native tools and adds one fixed structured
-`grep` Pi `AgentTool`. A real Chromium Anthropic journey proves an exact
-`write` mutation, resulting Sandbox bytes, and currentness; it does not prove
-real-model `read`/`edit`/`bash`/`grep`. QuickJS, Python, broader Wasm and editor integration remain
-separate inactive checkpoints. Earlier B1c Provider counts
+deterministic fixture only. S1b-3 is also closed locally: live and deterministic
+Pi runs receive the same four native tools plus one fixed structured `grep` Pi
+`AgentTool`. A real Chromium Anthropic journey proves an exact `write`
+mutation, resulting Sandbox bytes, and currentness; it does not prove
+real-model `read`/`edit`/`bash`/`grep`. **S2-Q1 is delivered and closed locally
+on 2026-08-29:** one product-shipped synchronous `qjs` command sits below Pi native
+`bash`, uses a fresh fixed child Worker and explicit text staging, and has
+passing focused plus Chromium/WebKit harness evidence. The exact 10-file
+Sandbox graph, lazy load after `bash true`, fresh Host/dedicated Pi-harness
+Worker cold reopen, and
+control-build QuickJS/Wasm exclusion gate all pass. Python, broader Wasm and
+editor integration remain separate inactive
+checkpoints. Earlier B1c Provider counts
 are dated evidence for their pre-security snapshot
 and do not by themselves accept the current overlay. This lane
 still does not add OAuth, multi-field cloud credentials, a Provider relay,
@@ -167,9 +174,9 @@ the selected target adapters may combine TypeScript, Workers, Wasm payloads, or
 a native companion behind the same typed workspace boundary.
 
 At most one phase below is active at a time. P1-B1a, P1-B1b, B1c-S0, S1a-0,
-S1a-1, S1b-1, and S1b-2 are closed locally. **S1b-3 live Provider
-workspace-tools** is the current bounded local overlay. A later phase may be
-refined before it starts, but it may not
+S1a-1, S1b-1, S1b-2, S1b-3, and S2-Q1 are closed locally. No later S2 execution
+profile is activated automatically. A later phase may be refined before it
+starts, but it may not
 silently weaken this product model or claim evidence that an earlier phase did
 not produce. Product code may not import the ignored `references/` checkouts.
 
@@ -234,7 +241,7 @@ Workspace storage isolation, an encrypted Credential Vault, redirect handling,
 complete XSS resistance, Linux, Wasm, Python, QuickJS, import/restore, or live
 workspace tool behavior.
 
-### S1 — independent-origin Workspace authority (S1b-3 current locally)
+### S1 — independent-origin Workspace authority (closed locally)
 
 Choose and prove the smallest Browser topology that gives the Workspace runtime
 its own origin and storage partition. The likely shape is an exact-origin
@@ -286,7 +293,7 @@ closed locally:
    persistent-profile WebKit `@s1b-bash` each pass 1/1, including generation-3
    cold reopen. This is a bounded shell receipt, not live Provider access,
    Linux, a container, Python, QuickJS, Wasm, or a general code sandbox.
-5. **S1b-3 — live Provider tools and structured grep (current locally):** give
+5. **S1b-3 — live Provider tools and structured grep (closed locally 2026-08-29):** give
    `pi_provider` the same qualified native `read`/`write`/`edit`/`bash` list,
    correct its capability prompt, and add one fixed read-only `grep` Pi
    `AgentTool` over an explicit Workspace RPC. A faux/unit route owns the exact
@@ -453,60 +460,125 @@ handoff.
 
 ### S2 — execution profiles and explicit capabilities
 
-The first bounded `just-bash` profile now runs inside the Sandbox and is
-reachable from fixed Pi `bash`. It receives only the passed VFS and closed
-command implementations. Use the completed Q0 evidence to admit QuickJS only
-through the bounded Q1 command path, and only then reconsider Python as a
-separate terminable one-shot runtime; do not advertise Linux or a container.
-Download, `git clone`, package retrieval, or any other network action remains
-off until an explicit capability admits exact targets, byte/time/output limits,
-cancellation, and receipts. Wasm may implement a runtime but never becomes the
+The first bounded `just-bash` profile runs inside the Browser Sandbox and is
+reachable only from fixed Pi native `bash`. It receives the passed VFS and a
+closed command registry. S2 extends that registry one capability at a time;
+Pi remains the only Agent/tool/plugin authority, so an execution runtime never
+becomes another AgentTool framework or generic runtime RPC. Download,
+`git clone`, package retrieval, and every other network action remain off until
+an explicit capability admits exact targets, byte/time/output limits,
+cancellation, and receipts. Wasm may implement one runtime but never becomes the
 Program or Sandbox contract.
 
-The explicitly disposable QuickJS Browser Q0 falsification is complete as a
-dev/test spike, not a product feature. It fixes
-`quickjs-emscripten-core@0.32.0` with
-`@jitl/quickjs-singlefile-browser-release-sync@0.32.0`, runs each bounded source
-in a fresh child Worker/runtime, rejects pending Promise jobs, and exposes only
-a copied in-memory text-file set plus argv, stdin and stdout. Q0 is explicitly
-synchronous. It caps source at `64 KiB`, staged input at
-`32` files / `1 MiB`, output at `16` changed paths / `256 KiB` diff and
-`64 KiB` stdout, QuickJS allocation at `12 MiB`, non-growing Wasm linear memory
-at `16 MiB`, stack at `512 KiB`, and execution at `2 s`.
+Browser and Desktop share the following semantic denominator:
 
-Chromium and WebKit prove exact diff, failed import/fetch with no outbound marker
-request, absent Browser/Node globals, deadline, hard termination, fixed-memory
-OOM and fresh recovery. Local dev reruns observed initialization/execution at
-roughly `39–51/6.5–8.4 ms` in Chromium and `20–29/9–11 ms` in WebKit,
-while Chromium's supported Long Task observer reported zero and WebKit exposed
-no such observer. These are raw observations, not shipping or memory budgets: staged host
-objects, module JavaScript, structured clones, Worker overhead and browser-
-process memory remain outside the two memory limits. Only the explicit Q0 Vite
-mode adds `wasm-unsafe-eval` to Sandbox-origin development responses; ordinary
-development, preview and control CSP remain unchanged, and Sandbox
-`connect-src` remains `none`. The production Sandbox build still excludes
-QuickJS and Wasm.
+- one logical `/workspace` bound to exact Program/volume/session/generation;
+- Pi-native `read`/`write`/`edit`/`bash` meaning and product capability names;
+- lifecycle, currentness, cancellation, bounded output, mutation receipts,
+  snapshots, export, and truthful availability;
+- no workspace access to credentials, Pi auth storage, Product Repository,
+  ambient companion environment, or another Program's volume.
 
-Q0 returns a terminal diff but does not bind a Program volume, touch OPFS,
-commit current bytes, emit a receipt, connect Pi, or change production CSP.
-The deliberately bounded Q1 product slice is one fixed `qjs` command under Pi
-native `bash`: the Sandbox Host stages only admitted files from the bound
-Program, launches a fresh child Worker, and applies a successful diff only
-while the request/generation is current through the existing bash mutation
-path. Q1 stays synchronous and rejects pending jobs; an outer wall-clock
-watchdog terminates the Worker rather than relying only on QuickJS's cooperative
-interrupt. It adds neither a second Agent tool nor a generic runtime RPC. Requiring
-Node builtins, general fetch/CDN, an OPFS handle, ambient Host JavaScript,
-unbounded whole-volume copying, or cooperative-only cancellation stops the
-candidate.
+They do not share one physical runtime. Browser stays deliberately small:
+separate origin, OPFS authority, bounded just-bash, staged files, and fresh
+terminable interpreter Workers. Desktop may later select a fuller native
+process sandbox and local volume, then qualify real shell, Git, Tar, Python,
+QuickJS, process-tree cancellation, or PTY support independently. Desktop need
+not place just-bash in front of native commands or reproduce Browser limits;
+Browser is not blocked on Desktop parity, and Desktop capability evidence never
+promotes the corresponding Browser capability. Network, host-path mounts, and
+credential/environment inheritance remain explicit Desktop capabilities rather
+than ambient defaults.
+
+#### S2-Q1 — fixed synchronous QuickJS under Pi native bash (closed locally 2026-08-29)
+
+Q0 was a disposable feasibility spike. Q1 cleanly replaces its test-only
+protocol with production-owned code and exposes one fixed `qjs` custom command
+under Pi native `bash`. It pins `quickjs-emscripten-core@0.32.0` and
+`@jitl/quickjs-singlefile-browser-release-sync@0.32.0`; just-bash's built-in
+`javascript` and `python` switches remain false. Pi still owns the `bash`
+schema, updates, timeout argument, aggregate result, and terminal tool receipt.
+The Q1 command is merely one implementation available to that shell.
+
+Each invocation creates a fresh static child Worker/runtime. The exact command
+shape is `qjs [--file PATH]... SCRIPT [ARG...]`. Only the script and explicitly
+named UTF-8 text files are staged; the whole volume, OPFS handles, IndexedDB,
+DOM, cookies, API keys, ambient host JavaScript, and network are absent. Guest
+code receives bounded `workspace.readFile`, `workspace.writeFile`,
+`workspace.listFiles`, `argv`, `stdin`, and `print`. Delete is unsupported, and
+pending Promise jobs fail closed because Q1 is synchronous.
+
+The fixed limits are:
+
+- source and stdin: `64 KiB` each;
+- argv: `32` entries, `4 KiB` each, `16 KiB` aggregate;
+- staged text: `32` files, `256 KiB` each, `1 MiB` aggregate;
+- result: `16` changed paths, `256 KiB` diff, `64 KiB` stdout;
+- runtime: `12 MiB` QuickJS allocator, fixed non-growing `16 MiB` Wasm linear
+  memory, `512 KiB` stack, `2 s` internal deadline, and `3 s` outer watchdog.
+
+Message, error, malformed-response, abort, and watchdog paths terminate the
+child Worker before settlement and ignore late data. After an exact success,
+the Host preflights the complete diff against staged/current bytes and rejects
+delete, unstaged overwrite, stale before-bytes, missing parents, invalid paths,
+or any limit violation before the first write. Accepted changes use the
+existing Program-bound filesystem calls, generation/currentness fencing, and
+native Pi `bash` receipt. Writes are then sequential, not transactional: quota,
+cancellation, or a later storage failure may leave an earlier admitted write
+committed. Q1 makes no atomic multi-file or rollback claim.
+
+Only the Sandbox response gains
+`script-src 'self' 'wasm-unsafe-eval'`; it never gains ordinary `unsafe-eval`,
+and `connect-src` remains `none`. The control plane and Agent Worker policies do
+not gain Wasm evaluation. No runtime script is fetched from a third party.
+
+Closure evidence is deliberately separated:
+
+- focused protocol/command/runtime tests pass 22/22;
+- the real Host Worker -> QuickJS child Worker path passes in Chromium and
+  WebKit through Pi native `bash`, including exact changed-path receipt, hard
+  cancel, ignored late work, and fresh-worker recovery;
+- raw local first/cancel/recovery observations are approximately
+  `100.8 / 111.2 / 21.4 ms` in Chromium and `70 / 104 / 43 ms` in WebKit. Both
+  runs observed zero control-page Long Tasks, with maximum rAF/timer delay of
+  approximately `10.1 / 13.7 ms` and `22 / 6 ms` respectively; and
+- the exact 10-file local production Sandbox graph passes its checker, and
+  requests prove QuickJS remains lazy until after an earlier `bash true`; and
+- a fresh Host and dedicated Pi-harness Worker cold-reopen the committed Q1
+  bytes; and
+- `build:web` plus `check:browser-security-build` pass with no QuickJS,
+  Emscripten, `ffi`, or Wasm file or marker in `dist-web`, while
+  `build:workspace-sandbox` plus `check:workspace-sandbox-build` retain and
+  admit only the expected lazy execution assets.
+
+The exact Sandbox graph is `_headers`, HTML, bootstrap, Host Worker, lazy shell,
+lazy `qjs` broker, QuickJS child Worker, and fixed `ffi`, Emscripten-module, and
+module-bridge chunks. The Wasm payload is embedded; no separate `.wasm` or
+third-party runtime URL is admitted.
+
+These are not release budgets, a low-end-device result, a total-memory result,
+or a deployment receipt. The `12 MiB` and `16 MiB` values bound only the
+QuickJS allocator and Wasm linear memory; staged host objects, JavaScript
+modules, structured clones, Worker overhead, OPFS, and browser-process memory
+remain unmeasured. The ordinary control build and Browser security checker pass
+with no QuickJS, Emscripten, `ffi`, or Wasm file or marker, while the Sandbox
+retains only its expected lazy execution assets. Q1 is closed locally, but it is
+not a deployed capability.
 
 Python is deferred. The Pyodide control is roughly `12.9 MiB` raw / `6.03 MiB`
 gzip with `0.85–0.91 s` observed cold startup and a broader JavaScript bridge.
 The private CPython assets present under just-bash are not its public Browser
-API, and enabling just-bash's Browser `python` or `javascript` option does not
-provide either runtime. If Python is later accepted, it appears as a
-build-known `python3` command under Pi native `bash` and reuses the existing
-bash receipt; it does not create another Agent tool or engine API.
+API, and enabling just-bash's Browser `python` option does not provide a
+qualified runtime. If Python is later accepted, it appears as a build-known
+`python3` command under Pi native `bash` and reuses the existing bash receipt;
+it does not create another Agent tool or engine API. Linux, a container, Git,
+package installation, and a general process substrate remain separate
+capabilities rather than implications of Q1.
+
+The current Q1 error surface intentionally returns only coarse bounded failure
+codes. A later narrow usability slice may add sanitized guest exception kind,
+line/column, and a short capped message without returning host exceptions or
+stacks.
 
 ### S3 — optional Credential Vault
 
@@ -587,10 +659,11 @@ manifest and VFS files. P3c-B1 now publishes one exact reviewed head as an
 immutable accepted snapshot, keeps later mutable drafts independent, and shows
 accepted/reviewed/current identity without making React a byte owner. The
 product still has no persistent Pi session, import/restore, user-facing
-accepted-snapshot download, QuickJS/Python guest, Credential Vault, or broader
+accepted-snapshot download, Python guest, Credential Vault, or broader
 execution profile. S1a-1 clean-replaces the ordinary same-origin Workspace
 owner with the independent-origin transport and physical Product Repository V5;
-S1b-3 is the later live-tools consumer.
+S1b-3 is the live-tools consumer, and closed S2-Q1 adds only fixed
+synchronous QuickJS beneath Pi native `bash`.
 Its initial proposal, Source, translation rows,
 remaining capability labels, and separate preview manifest remain explicit
 preview material.
@@ -618,21 +691,22 @@ promotion gate, not a prerequisite for the 2.9.5 companion preview path.
 
 ## Ownership decisions
 
-| Authority                                                                                                     | Owner                                      | Boundary                                                                                                                                               |
-| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Program identity, accepted revisions, proposals, decisions, and publication receipts                          | SillyOS product database                   | Product repository and typed product services                                                                                                          |
-| Creator Chat, live Pi-session binding, and review coordination                                                | SillyOS Creator supervisor                 | Session-local control plane plus bounded durable references/receipts; conversation is not Program content                                              |
-| Draft sources, `.git`, generated files, artifacts, file-resident product data, `AGENTS.md`, and skills        | One workspace volume per Program           | A product-selected `WorkspaceRuntime`; accepted Program state names an exact immutable snapshot                                                        |
-| Agent loop, session semantics, compaction, model/provider calls, tool dispatch, and Agent extension lifecycle | Pi                                         | Fixed `pi-agent-core`/`pi-ai` in Browser; complete fixed `pi-coding-agent` companion in Desktop; public Pi tool/extension contracts                    |
-| `read`/`write`/`edit`/`bash` Agent schemas, validation, execution algorithms, updates, and results            | Pi                                         | Deterministic and live runs use all four shipped Pi tools through the independent-origin Sandbox                                                       |
-| Structured `grep` schema, bounded result, and fixed Workspace adapter                                         | Pi plus pinned SillyOS capability adapter  | One fixed Browser `AgentTool` and explicit read-only `grep_workspace` operation; raw `rg` remains inside Pi `bash`, and no generic dispatcher is added |
-| Presentation-facing Agent transport                                                                           | SillyOS target adapter                     | Browser Worker or Desktop companion projects only admitted commands/events; raw Pi/provider records never enter React state                            |
-| Agent-side product functions                                                                                  | Pi plus pinned SillyOS capability adapters | One shared schema/prompt/handler core, registered as a Browser `AgentTool` or Desktop `ExtensionAPI` tool; no parallel Agent/plugin runtime            |
-| Workspace lifecycle, capabilities, generation, change journal, and terminal mutation receipts                 | SillyOS `WorkspaceRuntimePort`             | Product-private owner that supplies a stable Program-scoped Pi `ExecutionEnv`; it is not a second tool API                                             |
-| Workspace filesystem and shell effects                                                                        | Product-selected execution provider        | Browser VFS and bounded shell are independent-origin Sandbox capabilities; no control-origin or Host-filesystem fallback remains                       |
-| Pi session and provider credentials                                                                           | Target-local Pi owners                     | Browser Agent Worker owns an ephemeral key/session initially; Desktop owns isolated Pi session/auth storage; Program data holds no secret              |
-| Responsive presentation and application mounting                                                              | SillyMaker GUI contracts                   | React/UI components, input, focus, accessibility, responsive layout, and admitted UI interaction                                                       |
-| Human approval and publication                                                                                | SillyOS Program authority                  | Exact proposal, base accepted revision, and reviewed workspace generation are rechecked before snapshot publication                                    |
+| Authority                                                                                                     | Owner                                      | Boundary                                                                                                                                                    |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Program identity, accepted revisions, proposals, decisions, and publication receipts                          | SillyOS product database                   | Product repository and typed product services                                                                                                               |
+| Creator Chat, live Pi-session binding, and review coordination                                                | SillyOS Creator supervisor                 | Session-local control plane plus bounded durable references/receipts; conversation is not Program content                                                   |
+| Draft sources, `.git`, generated files, artifacts, file-resident product data, `AGENTS.md`, and skills        | One workspace volume per Program           | A product-selected `WorkspaceRuntime`; accepted Program state names an exact immutable snapshot                                                             |
+| Agent loop, session semantics, compaction, model/provider calls, tool dispatch, and Agent extension lifecycle | Pi                                         | Fixed `pi-agent-core`/`pi-ai` in Browser; complete fixed `pi-coding-agent` companion in Desktop; public Pi tool/extension contracts                         |
+| `read`/`write`/`edit`/`bash` Agent schemas, validation, execution algorithms, updates, and results            | Pi                                         | Deterministic and live runs use all four shipped Pi tools through the independent-origin Sandbox                                                            |
+| Structured `grep` schema, bounded result, and fixed Workspace adapter                                         | Pi plus pinned SillyOS capability adapter  | One fixed Browser `AgentTool` and explicit read-only `grep_workspace` operation; raw `rg` remains inside Pi `bash`, and no generic dispatcher is added      |
+| Fixed Browser `qjs` command and child-runtime admission                                                       | SillyOS Browser execution adapter          | One product-shipped implementation below Pi native `bash`; fresh Worker, explicit text staging, no extra AgentTool/runtime RPC, and no Desktop parity claim |
+| Presentation-facing Agent transport                                                                           | SillyOS target adapter                     | Browser Worker or Desktop companion projects only admitted commands/events; raw Pi/provider records never enter React state                                 |
+| Agent-side product functions                                                                                  | Pi plus pinned SillyOS capability adapters | One shared schema/prompt/handler core, registered as a Browser `AgentTool` or Desktop `ExtensionAPI` tool; no parallel Agent/plugin runtime                 |
+| Workspace lifecycle, capabilities, generation, change journal, and terminal mutation receipts                 | SillyOS `WorkspaceRuntimePort`             | Product-private owner that supplies a stable Program-scoped Pi `ExecutionEnv`; it is not a second tool API                                                  |
+| Workspace filesystem and shell effects                                                                        | Product-selected execution provider        | Browser VFS and bounded shell are independent-origin Sandbox capabilities; no control-origin or Host-filesystem fallback remains                            |
+| Pi session and provider credentials                                                                           | Target-local Pi owners                     | Browser Agent Worker owns an ephemeral key/session initially; Desktop owns isolated Pi session/auth storage; Program data holds no secret                   |
+| Responsive presentation and application mounting                                                              | SillyMaker GUI contracts                   | React/UI components, input, focus, accessibility, responsive layout, and admitted UI interaction                                                            |
+| Human approval and publication                                                                                | SillyOS Program authority                  | Exact proposal, base accepted revision, and reviewed workspace generation are rechecked before snapshot publication                                         |
 
 Pi, product storage, workspace runtimes, and tool implementations are
 infrastructure for Programs that need them. They are not optional desktop
@@ -650,8 +724,10 @@ Agent/tool framework. S1a-1 uses one thin Pi filesystem adapter for native
 `write`/`read` over the Sandbox byte authority, S1b-1 reuses that exact adapter
 for native `edit`, and S1b-2 binds just-bash's separate `IFileSystem` adapter to
 native Pi `bash`. S1b-3 selects those same four adapters for live runs and adds
-one separate read-only grep operation. The control-origin adapter is deleted rather than
-retained as a synchronized or fallback VFS tree.
+one separate read-only grep operation. S2-Q1 registers `qjs` only inside that
+Browser shell adapter; it remains one Pi `bash` call and receipt. The control-
+origin adapter is deleted rather than retained as a synchronized or fallback
+VFS tree.
 
 SillyOS does not fork or browser-port `pi-coding-agent`. The fixed Pi 0.84.3
 distribution already separates the useful shared runtime from the Node-oriented
@@ -814,12 +890,16 @@ The accepted execution order is no longer the numeric subsection order:
     persistent WebKit. The bounded-shell probe then selects native Pi `bash`
     through the independent-origin, network-off 25-command facade; its own
     generation-3 cold reopen passes in both engines.
-11. **S1b-3 is the current local overlay:** live Pi receives the same four
-    native tools plus fixed structured grep. Focused contracts cover the exact
-    list, grep bounds, cancellation/currentness and read-only result. One real
-    Chromium Anthropic route proves only `write` plus exact Sandbox bytes. No current S1b-3
-    production deployment is claimed.
-    S2 execution profiles,
+11. **S1b-3 and S2-Q1 are closed locally:** live Pi receives the same
+    four native tools plus fixed structured grep. Focused contracts cover the
+    exact list, grep bounds, cancellation/currentness and read-only result. One
+    real Chromium Anthropic route proves only `write` plus exact Sandbox bytes.
+    Q1 adds fixed synchronous `qjs` beneath native `bash`; focused and dual-
+    engine harness evidence, the exact 10-file Sandbox graph, lazy-load order,
+    fresh Host/dedicated Pi-harness Worker cold reopen, and control-build
+    QuickJS/Wasm exclusion gate
+    pass. No S1b-3/Q1 production deployment is claimed.
+    Later S2 execution profiles,
     S3 Credential Vault, S4 Agent/OpenUI state,
     S5 BYO Sandbox/products, P1-D, and broader import/artifact work require their
     named predecessor and separate acceptance; none is retroactively part of the
@@ -2243,11 +2323,13 @@ accepted implementation order is now S1 independent-origin Workspace authority,
 then S2 execution profiles. The target still requires one logical environment
 per open Program Workspace, a persistent
 volume as the working tree and unified owner of inputs, outputs, temporary
-files, and file-resident data, familiar shell behavior, pipes/redirection,
-declared process/cancellation semantics, `grep`/`rg`, Git, Tar, optional CPython
-and QuickJS, and the same P3a product lifecycle/receipt contract in Browser and
-Deno Desktop. This is a workspace execution capability profile, not a blanket
-Linux promise; putting every part inside Wasm is neither required nor assumed.
+files, and file-resident data, plus the same P3a product lifecycle/currentness/
+receipt semantics in Browser and Deno Desktop. Familiar shell behavior,
+pipes/redirection, `grep`/`rg`, Git, Tar, CPython, QuickJS, process semantics,
+and cancellation are individually reported target capabilities rather than a
+mandatory physically identical set. This is a workspace execution profile, not
+a blanket Linux promise; putting every part inside Wasm is neither required nor
+assumed.
 
 Emscripten remains a preferred toolchain/control for individual programs and
 JavaScript/filesystem interoperability, not an assumed Linux container. It
@@ -2287,13 +2369,14 @@ and the public process API does not yet prove dependable cancellation or
 process-tree termination. The exact licensing, target, persistence, and semantic
 gates live in [WASM-WORKSPACE-RESEARCH.md](./WASM-WORKSPACE-RESEARCH.md).
 
-No broader shell/process provider denominator is selected until the independent-
-origin Browser Sandbox and Desktop have evidence for startup, command semantics,
-cancellation, output bounds, filesystem isolation, representative repository
-operations, bundle/memory cost, and license/distribution fit. P3c-B0's current
-same-origin OPFS byte owner is storage evidence, not the selected security
-boundary. BYO Sandbox is later qualified against the same applicable
-conformance. Network is initially absent; remote
+Each broader shell/process provider is selected per target only after that
+adapter has evidence for its declared startup, command semantics, cancellation,
+output bounds, filesystem isolation, representative repository operations,
+bundle/memory cost, and license/distribution fit. Browser and Desktop share the
+applicable conformance semantics, but neither waits for the other's physical
+runtime or capability breadth. P3c-B0's historical same-origin OPFS byte owner
+is storage evidence, not the selected security boundary. BYO Sandbox is later
+qualified against the same applicable conformance. Network is initially absent; remote
 Git, package installation, credentials, and arbitrary outbound access require a
 later explicit broker/capability decision. No implementation substrate is
 advertised as a security sandbox without a stated threat model and executable

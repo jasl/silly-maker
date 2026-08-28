@@ -4,10 +4,10 @@ import { defineConfig } from "vite";
 import { collectWorkspaceSandboxBuildIdentityV1 } from "./tools/workspace-sandbox-build-identity.mts";
 
 const localControlOriginsV1 = ["http://127.0.0.1:41739", "http://127.0.0.1:4173"] as const;
-function localSandboxContentSecurityPolicyV1(allowQuickJsFeasibility: boolean): string {
+function localSandboxContentSecurityPolicyV1(): string {
   return [
     "default-src 'none'",
-    allowQuickJsFeasibility ? "script-src 'self' 'wasm-unsafe-eval'" : "script-src 'self'",
+    "script-src 'self' 'wasm-unsafe-eval'",
     "worker-src 'self'",
     "frame-src blob:",
     "connect-src 'none'",
@@ -18,9 +18,9 @@ function localSandboxContentSecurityPolicyV1(allowQuickJsFeasibility: boolean): 
   ].join("; ");
 }
 
-function localSandboxResponseHeadersV1(allowQuickJsFeasibility: boolean) {
+function localSandboxResponseHeadersV1() {
   return {
-    "Content-Security-Policy": localSandboxContentSecurityPolicyV1(allowQuickJsFeasibility),
+    "Content-Security-Policy": localSandboxContentSecurityPolicyV1(),
     "Permissions-Policy": "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
     "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",
@@ -47,15 +47,13 @@ function createNetworkOffDevelopmentHtmlPluginV1() {
   };
 }
 
-export default defineConfig(({ command, isPreview, mode }) => {
+export default defineConfig(({ command }) => {
   const workspaceSandboxBuildIdentity = collectWorkspaceSandboxBuildIdentityV1({
     appRoot: import.meta.dirname,
     command,
   });
-  const developmentHeaders = localSandboxResponseHeadersV1(
-    command === "serve" && isPreview !== true && mode === "quickjs-q0",
-  );
-  const previewHeaders = localSandboxResponseHeadersV1(false);
+  const developmentHeaders = localSandboxResponseHeadersV1();
+  const previewHeaders = localSandboxResponseHeadersV1();
   return {
     base: "/",
     root: import.meta.dirname,
@@ -81,7 +79,8 @@ export default defineConfig(({ command, isPreview, mode }) => {
     worker: {
       // The Sandbox Worker is already a module Worker. Keep the bounded shell
       // in one build-known lazy chunk so filesystem-only startup does not pay
-      // its parse/compile cost. Optional Python and QuickJS remain disabled.
+      // its parse/compile cost. The fixed qjs command and child Worker remain
+      // behind a second lazy boundary; optional Python remains disabled.
       format: "es",
     },
     server: {

@@ -31,21 +31,21 @@
     "@earendil-works/pi-agent-core": "0.84.3",
     "@earendil-works/pi-ai": "0.84.3",
     "@earendil-works/pi-coding-agent": "0.84.3",
+    "@jitl/quickjs-singlefile-browser-release-sync": "0.32.0",
     "@sillymaker/agent": "workspace:*",
     "@sillymaker/web": "workspace:*",
     "client-zip": "2.5.0",
     "just-bash": "3.4.2",
     "lucide-react": "^1.34.0",
+    "quickjs-emscripten-core": "0.32.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
   "devDependencies": {
-    "@jitl/quickjs-singlefile-browser-release-sync": "0.32.0",
     "@sillymaker/tooling": "workspace:*",
     "@types/node": "26.2.0",
     "@types/react": "19.2.18",
     "fake-indexeddb": "6.2.5",
-    "quickjs-emscripten-core": "0.32.0",
     "vite": "8.2.1",
     "vitest": "4.1.10",
     "wrangler": "4.123.0"

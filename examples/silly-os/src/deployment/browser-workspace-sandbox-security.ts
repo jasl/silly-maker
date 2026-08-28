@@ -4,7 +4,10 @@ export const sillyOsProductionControlOriginV1 = "https://silly-os.jasl9187.worke
 
 export const browserWorkspaceSandboxContentSecurityPolicyV1 = [
   "default-src 'none'",
-  "script-src 'self'",
+  // Only the independent, credential-free Sandbox origin may compile the
+  // product-pinned QuickJS Wasm payload. Guest source still runs inside the
+  // QuickJS realm and receives no browser or network capability.
+  "script-src 'self' 'wasm-unsafe-eval'",
   "worker-src 'self'",
   // WebKit treats an anchor-triggered same-origin Blob download as a framed
   // navigation. Only the trusted Sandbox bootstrap receives the Blob URL.
