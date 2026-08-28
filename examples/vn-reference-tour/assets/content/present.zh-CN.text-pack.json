@@ -6,23 +6,43 @@
   "entries": [
     {
       "textId": "text.vn-reference-tour.present.prepare.microphone",
-      "text": "林澄按下话筒的选择键。磁带机停住，十三年前的标签留在透明仓盖下面。"
+      "text": "林澄按下话筒的选择键，又小心地替磁带机扣上透明仓盖。十三年前的标签仍停在原处。"
+    },
+    {
+      "textId": "text.vn-reference-tour.present.prepare.microphone.continued",
+      "text": "它没有被否定，也不会替他们完成今天的告别。林澄把椅子拉到话筒前，红色指示灯亮了起来。"
     },
     {
       "textId": "text.vn-reference-tour.present.prepare.hesitation",
-      "text": "我以为你会选旧台呼。现在真要录，脑子里反而只剩下“清晨好”。"
+      "text": "我以为你会选旧台呼，那样只要按一个键就好。现在真要录，脑子里反而只剩下“清晨好”。"
+    },
+    {
+      "textId": "text.vn-reference-tour.present.prepare.hesitation.continued",
+      "text": "连自己的名字都像借来的。可如果最后一条记录里没有现在的我们，我以后大概会后悔。"
     },
     {
       "textId": "text.vn-reference-tour.present.prepare.words",
-      "text": "那就从清晨好开始。别替电台总结，只说此刻你确定的事。"
+      "text": "那就从清晨好开始。别替十三年下结论，也别替没来得及告别的人说话；只说此刻你确定的事。"
+    },
+    {
+      "textId": "text.vn-reference-tour.present.prepare.words.continued",
+      "text": "你知道控制室里还有两个人。你也知道在最后一分钟，我们仍愿意听完对方。"
     },
     {
       "textId": "text.vn-reference-tour.present.prepare.ready",
-      "text": "好。窗口连接以后给我一个手势，我不看稿。"
+      "text": "好；窗口连接以后给我一个手势，我不看稿。说错了也不要替我重来。"
+    },
+    {
+      "textId": "text.vn-reference-tour.present.prepare.ready.continued",
+      "text": "这不是留下最漂亮的一遍，而是留下我们真的站在这里。林澄把写了三行字的便签折起，压在磁带盒下面。"
     },
     {
       "textId": "text.vn-reference-tour.present.prepare.recording",
-      "text": "周遥抬起手。林澄靠近话筒，红色电平条随着她的呼吸亮了起来。"
+      "text": "周遥检查发送灯，随后抬起手，没有像往常那样替她倒数。林澄靠近话筒，先听见自己的心跳。"
+    },
+    {
+      "textId": "text.vn-reference-tour.present.prepare.recording.continued",
+      "text": "周遥放下耳机，红色电平条随着她的呼吸亮起。她看着他的手落下，开口时没有再寻找便签。"
     },
     {
       "textId": "text.vn-reference-tour.present.prepare.sent",
@@ -30,35 +50,67 @@
     },
     {
       "textId": "text.vn-reference-tour.present.roof.stairs",
-      "text": "接收灯稳定后，两人沿着窄楼梯上到屋顶。东方第一束光越过了天线。"
+      "text": "接收灯稳定后，林澄亲手在日志上写下发送时间，并在记录人一栏签了自己的名字。"
+    },
+    {
+      "textId": "text.vn-reference-tour.present.roof.stairs.continued",
+      "text": "两人沿窄楼梯上到屋顶。她把耳机挂在扶手上，没有带走那张折起的稿纸；东方第一束光正越过天线。"
     },
     {
       "textId": "text.vn-reference-tour.present.roof.cold",
-      "text": "我刚才没有发抖吧？现在才觉得手指有点冷。"
+      "text": "我刚才没有发抖吧？话说完的时候还不觉得，现在手指才开始冷；以前我总等你告诉我下一步做什么。"
+    },
+    {
+      "textId": "text.vn-reference-tour.present.roof.cold.continued",
+      "text": "可刚才那几秒里，声音出去以后就没有人能替我收回来。原来做决定，是这种感觉。"
     },
     {
       "textId": "text.vn-reference-tour.present.roof.breaker",
-      "text": "声音很稳。总闸还剩十秒，你看状态灯，我来断电。"
+      "text": "声音很稳，最后那句比练习时慢，正好让人听清。总闸还剩十秒，这次你来断电，我看状态灯。"
+    },
+    {
+      "textId": "text.vn-reference-tour.present.roof.breaker.continued",
+      "text": "既然最后的台呼是你送出的，最后一个动作也应该由你完成。林澄点点头，把手放上总闸。"
     },
     {
       "textId": "text.vn-reference-tour.present.roof.cable",
-      "text": "天线拉索在风里轻轻摆动，把最后一点震颤传到他们脚下。"
+      "text": "天线拉索在风里轻轻摆动，把最后一点震颤传到他们脚下。新台呼没有旧磁带的底噪。"
+    },
+    {
+      "textId": "text.vn-reference-tour.present.roof.cable.continued",
+      "text": "它也没有十三年的重量，只带着刚才那次未经修补的呼吸，越过清晨的屋顶，抵达一条从今天开始计算的记录。"
     },
     {
       "textId": "text.vn-reference-tour.present.roof.receipt",
-      "text": "档案馆有回执吗？我想知道那句“彼此”真的送到了。"
+      "text": "档案馆有回执吗？我想知道那句“彼此”真的送到了，也没有只留在监听音箱里。"
+    },
+    {
+      "textId": "text.vn-reference-tour.present.roof.receipt.continued",
+      "text": "再看一下记录人一栏吧。我想确认那不是线路补全的一条、没有人的自动关机通知。"
     },
     {
       "textId": "text.vn-reference-tour.present.roof.confirmed",
-      "text": "收到了：新台呼，完整八点一秒，标记为最后一次直播记录。"
+      "text": "收到了：新台呼，完整八点一秒，未经剪辑，标记为山岬社区电台最后一次直播记录。"
+    },
+    {
+      "textId": "text.vn-reference-tour.present.roof.confirmed.continued",
+      "text": "发送人与记录人是林澄，值班确认是周遥；“彼此”两个字完整通过。你不再只是来替最后一班收拾东西的人了。"
     },
     {
       "textId": "text.vn-reference-tour.present.roof.response",
-      "text": "那就好。它没有替过去说话，只留下了我们确实在这里。"
+      "text": "那就好；它没有替过去说话，只留下了我们确实在这里。等档案馆开放查询，我会给这条记录补一份说明。"
+    },
+    {
+      "textId": "text.vn-reference-tour.present.roof.response.continued",
+      "text": "我会把没念进台呼的名字也写进去，然后去采访山下那些还记得电台的人。今天不会成为唯一的新声音。"
     },
     {
       "textId": "text.vn-reference-tour.present.roof.shutdown",
-      "text": "周遥压下总闸。状态灯熄灭，林澄听见风穿过不再发射的天线。"
+      "text": "周遥报出“十秒”，林澄握住总闸，在状态灯熄灭的瞬间将它压到底。风穿过不再发射的天线。"
+    },
+    {
+      "textId": "text.vn-reference-tour.present.roof.shutdown.continued",
+      "text": "城市已经接住她刚才留下的八点一秒。下楼时她走在前面，手里拿着一张写有今天日期的空白磁带标签。"
     },
     { "textId": "text.vn-reference-tour.present.ending.title", "text": "此刻入档" }
   ]

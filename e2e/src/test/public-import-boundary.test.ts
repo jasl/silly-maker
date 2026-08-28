@@ -13,6 +13,7 @@ import {
 const repositoryRootV1 = fileURLToPath(new URL("../../..", import.meta.url));
 const guardedSourceRootsV1 = [
   join(repositoryRootV1, "e2e", "src"),
+  join(repositoryRootV1, "examples", "e2e"),
   join(repositoryRootV1, "examples", "vn-reference-tour", "src"),
 ] as const;
 
@@ -64,7 +65,7 @@ describe("public import boundary", () => {
     ]);
   });
 
-  it("keeps Engine Lab and VN Reference Tour source inside the public boundary", async () => {
+  it("keeps Engine Lab and product example sources inside the public boundary", async () => {
     const files = (
       await Promise.all(guardedSourceRootsV1.map((root) => listSourceFilesV1(root)))
     ).flat().toSorted();

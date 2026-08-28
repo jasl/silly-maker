@@ -6,23 +6,43 @@
   "entries": [
     {
       "textId": "text.vn-reference-tour.present.prepare.microphone",
-      "text": "Lin selected the microphone. The deck stopped, leaving the thirteen-year-old label beneath its clear cover."
+      "text": "Lin selected the microphone, then carefully closed the clear cover over the tape deck. The thirteen-year-old label stayed where it was."
+    },
+    {
+      "textId": "text.vn-reference-tour.present.prepare.microphone.continued",
+      "text": "It was neither rejected nor allowed to finish today's farewell for them. She pulled a chair toward the microphone, and its red lamp came on."
     },
     {
       "textId": "text.vn-reference-tour.present.prepare.hesitation",
-      "text": "I thought you'd choose the old call. Now that we're recording, all I have is ‘good morning.’"
+      "text": "I thought you'd choose the old call, so all I would have to do was press a button. Now that we're recording, all I have is “good morning.”"
+    },
+    {
+      "textId": "text.vn-reference-tour.present.prepare.hesitation.continued",
+      "text": "Even my own name feels borrowed. But if the final record has none of us as we are now, I think I'll regret it."
     },
     {
       "textId": "text.vn-reference-tour.present.prepare.words",
-      "text": "Start with good morning. Don't summarize the station. Say what you know is true right now."
+      "text": "Start with good morning; don't sum up thirteen years or speak for people who never had time to say goodbye. Say only what you know now."
+    },
+    {
+      "textId": "text.vn-reference-tour.present.prepare.words.continued",
+      "text": "There are two people in this room. In the final minute, they are still willing to hear each other out."
     },
     {
       "textId": "text.vn-reference-tour.present.prepare.ready",
-      "text": "All right. Signal me when the window connects. I won't read from a script."
+      "text": "All right; signal me when the window connects, and I won't read from a script. If I stumble, don't ask for another take."
+    },
+    {
+      "textId": "text.vn-reference-tour.present.prepare.ready.continued",
+      "text": "We aren't leaving the prettiest version—we're leaving proof that we actually stood here. Lin folded her three-line note beneath the tape box."
     },
     {
       "textId": "text.vn-reference-tour.present.prepare.recording",
-      "text": "Zhou raised a hand. Lin leaned toward the microphone, and the red level bars woke with her breath."
+      "text": "Zhou checked the send lamp and raised a hand without giving his usual countdown. Lin leaned toward the microphone and heard her own heartbeat."
+    },
+    {
+      "textId": "text.vn-reference-tour.present.prepare.recording.continued",
+      "text": "His headphones touched the desk, and red level bars woke with her breath. When his hand fell, she did not look for the note."
     },
     {
       "textId": "text.vn-reference-tour.present.prepare.sent",
@@ -30,35 +50,67 @@
     },
     {
       "textId": "text.vn-reference-tour.present.roof.stairs",
-      "text": "When the receive lamp steadied, they climbed the narrow stairs. The first light cleared the antenna."
+      "text": "When the receive lamp steadied, Lin wrote the transmission time in the log and signed her own name under Recorder."
+    },
+    {
+      "textId": "text.vn-reference-tour.present.roof.stairs.continued",
+      "text": "They climbed the narrow stairs. She hung the headphones on the rail and left the folded script behind as the first light cleared the antenna."
     },
     {
       "textId": "text.vn-reference-tour.present.roof.cold",
-      "text": "I wasn't shaking in there, was I? Only now do my fingers feel cold."
+      "text": "I wasn't shaking in there, was I? I felt nothing when I finished, but now my fingers are cold; the feeling arrived late."
+    },
+    {
+      "textId": "text.vn-reference-tour.present.roof.cold.continued",
+      "text": "I always waited for you to tell me the next step; for those few seconds, nobody could call my voice back. So that is what deciding feels like."
     },
     {
       "textId": "text.vn-reference-tour.present.roof.breaker",
-      "text": "Your voice was steady. Ten seconds to the master switch. Watch the lamp; I'll cut the power."
+      "text": "Your voice was steady, and you slowed down on the last sentence just enough to make it clear. Ten seconds to the master switch."
+    },
+    {
+      "textId": "text.vn-reference-tour.present.roof.breaker.continued",
+      "text": "This time you cut the power and I'll watch the lamp. If you sent the final call, the final action should be yours too."
     },
     {
       "textId": "text.vn-reference-tour.present.roof.cable",
-      "text": "An antenna cable swayed in the wind, carrying its last tremor into the roof beneath their feet."
+      "text": "An antenna cable swayed in the wind, carrying its last tremor into the roof beneath their feet. The new call had no old tape hiss."
+    },
+    {
+      "textId": "text.vn-reference-tour.present.roof.cable.continued",
+      "text": "It had none of thirteen years' weight, only one uncorrected breath crossing the morning roof into a record whose time began today."
     },
     {
       "textId": "text.vn-reference-tour.present.roof.receipt",
-      "text": "Did the archive send a receipt? I want to know the words ‘one another’ arrived."
+      "text": "Did the archive send a receipt? I want to know the words “one another” really arrived and weren't left inside our monitor speaker."
+    },
+    {
+      "textId": "text.vn-reference-tour.present.roof.receipt.continued",
+      "text": "Check the recorder field too. I need to know this isn't an automatic shutdown notice completed by the line, with nobody inside it."
     },
     {
       "textId": "text.vn-reference-tour.present.roof.confirmed",
-      "text": "Received: new station call, eight point one seconds complete, marked as the final live record."
+      "text": "Received: new station call, eight point one seconds complete and unedited, marked as Cape Hill Community Radio's final live record. Sender and recorder: Lin Cheng."
+    },
+    {
+      "textId": "text.vn-reference-tour.present.roof.confirmed.continued",
+      "text": "Duty confirmation: Zhou Yao; “one another” arrived intact. You aren't only the person who came to clear the last shift anymore."
     },
     {
       "textId": "text.vn-reference-tour.present.roof.response",
-      "text": "Good. It didn't speak for the past. It only left proof that we were here."
+      "text": "Good; it didn't speak for the past, only left proof that we were here. When the archive opens for searches, I'll add a note."
+    },
+    {
+      "textId": "text.vn-reference-tour.present.roof.response.continued",
+      "text": "I'll include the names we couldn't fit into the call, then interview the people below who remember this station. Today won't be its only new voice."
     },
     {
       "textId": "text.vn-reference-tour.present.roof.shutdown",
-      "text": "Zhou pressed the master switch. The lamp died, and Lin heard wind pass through an antenna no longer transmitting."
+      "text": "Zhou called “ten seconds,” and Lin held the master switch until the status lamp went dark. Wind passed through an antenna no longer transmitting."
+    },
+    {
+      "textId": "text.vn-reference-tour.present.roof.shutdown.continued",
+      "text": "The city had already received the eight-point-one seconds she left behind. She led the way downstairs, carrying a blank tape label dated today."
     },
     { "textId": "text.vn-reference-tour.present.ending.title", "text": "This Moment, Archived" }
   ]

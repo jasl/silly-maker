@@ -28,7 +28,7 @@ VN Reference Tour 是一个原创、独立、内聚、可发布的小型 Visual 
 
 第一版完整分母固定为：
 
-- 一段任一路线首次游玩约 10–14 分钟、共 59 条唯一可见对白/旁白/选项文案（任一路线 44 条）的完整原创短篇；
+- 一段任一路线首次游玩约 10–14 分钟、共 110 条唯一可见对白/旁白/选项文案（任一路线 82 条）的完整原创短篇；
 - 两名有姓名的角色与一个 narrator；每名角色至少两种、至多三种有剧情意义的 appearance；
 - 两个 Authoring Scene、一个具有真实后果的二选一、两条均有专属内容的路线与两个完整结局；
 - 一个 cue-bound 角色入场 Motion、一个背景 crossfade、一个环境 ambient Motion、一个 frame-based blink、
@@ -41,7 +41,7 @@ VN Reference Tour 是一个原创、独立、内聚、可发布的小型 Visual 
 - locale-addressable `zh-CN` / `en` text packs 与显式 fallback；shared、archive route 与 present route 分成
   三个按剧情需求准备的 pack，不把全部剧情 copy 留在 initial JavaScript；
 - wide/narrow 响应式构图、鼠标/触控/键盘、200% zoom/reflow、reduced motion、无障碍焦点与自动化无声测试；
-- Browser 独立 build/publish 与当前 Deno Desktop static preview。独立稳定版复验后来已提供维护中的
+- Browser 独立可发布 release build 与当前 Deno Desktop static preview。独立稳定版复验后来已提供维护中的
   `app desktop-dev`，但本产品的 Desktop evidence 仍只领取 static preview；durability 与 production
   packaging promotion 继续由各自条件车道决定。
 
@@ -140,7 +140,7 @@ README 必须保留“想改什么 → 唯一 owner 文件”的小型地图。A
 - 本阶段不声称 VN 可玩，不修改引擎，不删除 Bookshop，也不重新引入已经终止的 Cat Cafe。
 
 关闭记录：仓库从当时 tracked Template 建立了独立 `examples/vn-reference-tour` workspace package，冻结
-《最后一次试音》的 59-entry / 2-route / 2-ending 产品分母、作者 authority、预算、平台与非目标，并注册
+《最后一次试音》当时的 59-entry / 2-route / 2-ending 起始产品分母、作者 authority、预算、平台与非目标，并注册
 application/config/typecheck/project command/asset/determinism/public-import 检查。M0 保留 Narrative + Stage、
 Authoring Scene/Inspector/Flow 与 locale-addressable content 的推荐外壳，删除 inventory/coins、HUD action、
 reference-only outer UI、hold-when 和只保护这些未选择路径的测试；没有修改引擎、保留兼容 alias 或复制其他
@@ -152,7 +152,7 @@ example。focused tests、`app check`、临时 `scaffold` simulation、Browser p
 
 状态：**2026-08-27 已交付。M2、M3 已于 2026-08-28 交付；M4 正在执行。**
 
-- 写完并注册全部 59 条文案、二选一、两条 route 与两个 ending；先用 compatible placeholder media 也必须
+- 写完并注册当时冻结的 59 条文案、二选一、两条 route 与两个 ending；先用 compatible placeholder media 也必须
   保持完整内容 breadth，不以单 route 关闭；
 - 建立两个 Authoring Scene、角色 appearance、scene cue、Motion/ambient/frame 与 transition bindings；
 - 完成 narrative graph lint/prediction、两条 named simulation 与全部 source/reference diagnostics；
@@ -160,7 +160,7 @@ example。focused tests、`app check`、临时 `scaffold` simulation、Browser p
   Motion/interaction/source facets；
 - M1 关闭只代表完整 author data/headless routes，不代表 Player、媒体或产品完成。
 
-关闭记录：M1 原子替换了 M0 的临时 Story/Scene 内容，交付 59 个唯一可见 text entries（shared 29、archive
+关闭记录：M1 原子替换了 M0 的临时 Story/Scene 内容，交付当时冻结的 59 个唯一可见 text entries（shared 29、archive
 15、present 15；完整 `zh-CN` / `en` variants）、任一路线 44 个可见 entries、一个直接写入
 `signalChoice` 的 material choice、两条完整 headless route 与两个 ending。两个 Authoring Scene 现在拥有
 稳定 Layer/Object/cue authority，Story 消费 cue-bound entrance、frame blink、rooftop cable ambient、
@@ -325,8 +325,8 @@ production build 与独立实现审查。React Doctor 唯一新增 advisory 对�
 ### M4 — 作者任务、产品证据与 Starter feedback
 
 状态：**2026-08-29 进行中。第一 authoring slice、Agent 与所有者授权 Computer Use-assisted participant
-接手任务、workstation 自动化产品证据已完成；代表性 current-low-end qualification、独立评审与
-Starter feedback 仍开放。**
+接手任务、workstation 自动化产品证据、独立 product/engine review 与 Starter feedback 已完成；代表性
+current-low-end qualification 是唯一开放门槛。**
 
 - 一名人类从 Inspector 微调场景构图/appearance/Motion reference，一名 Agent 使用同一 source、diagnostics、
   structured operation/CAS 路径完成修改；人类随后继续审查、undo/redo 与保存；
@@ -359,10 +359,10 @@ Motion facet，经语义浏览器操作把 phase 从 350ms 调到 400ms，完成
 CAS save，并在刷新后重新打开同一 Scene/Object 确认 source 与控件均为 400ms。Computer Use 负责真实桌面
 视觉复核；因 macOS/Safari 的辅助操作通道无法稳定命中虚拟列表，精确字段操作使用同一页面的 Browser
 语义自动化完成，没有修改系统辅助功能设置。该所有者授权的 participant pass 关闭本计划的人类接手项，
-但不替代 current-low-end qualification 或独立 product/engine review。
+但不替代 current-low-end qualification 或随后已经完成的独立 product/engine review。
 
-最终 raw measurement 来自 2026-08-28 的本地 Apple M4 Max / 128 GiB / macOS 26.6.2 / Deno 2.9.5 /
-Chromium 151 workstation characterization，不是低端设备 qualification。音频修正后的 7 次 GUI ready /
+扩写前的 workstation characterization 来自 2026-08-28 的本地 Apple M4 Max / 128 GiB / macOS 26.6.2 /
+Deno 2.9.5 / Chromium 151，不是低端设备 qualification。音频修正后的 7 次 GUI ready /
 first-interactive 分别为 199.20/199.26、130.70/130.76、131.83/131.89、124.35/124.40、
 134.12/134.17、133.06/133.15、100.97/100.99 ms。release build 为 418.59ms；JS gzip 344,235 B，
 CSS gzip 9,058 B，runtime assets raw/gzip 1,571,801/1,422,632 B，完整产物 raw/gzip
@@ -375,17 +375,36 @@ CSS gzip 9,058 B，runtime assets raw/gzip 1,571,801/1,422,632 B，完整产物 
 64.54、68.61、72.93、81.94、70.80ms，New Game 与随后完整 route 均记录 0 个 Long Task。最终 Stage/ambient
 挂载时的 180 个 frame intervals 为 median 8.3ms、p95 9.4ms、max 17.3ms，0 个超过 33.34/50ms；强制 GC 后
 heap 从 Title 4.77 MiB 到单路线结束 8.76 MiB，回到 Title 后每隔 2 秒三次均为 8.59 MiB，没有持续单调增长。
-上述 raw facts 全部在 §7 冻结预算内，但不得据此声称 current-low-end 设备 qualification。
+上述 bespoke raw facts 全部在 §7 冻结预算内，但对应扩写前候选，只保留为修复冷 AudioContext 与观察
+Long Task/frame/heap 的历史证据，不能冒充最终内容候选或 current-low-end 设备 qualification。
 
-Browser 产品矩阵在 Chromium/WebKit/mobile 为 25 passed、2 个 project-conditional skipped，覆盖 Axe、
-200% 等效 reflow、reduced motion、中英文 overflow、真实音频解码与 Profile 持久化；测试基座把真实音频图
-接到 0-gain terminal，产品默认值则由测试锁定为非静音。release Browser build、8 项 Engine Lab prebuilt
-`@smoke`、当前 Deno Desktop static package 的真实 Title 启动与正常关闭均通过；Desktop 证据仍只是 static
-preview，不提升 HMR、durability 或 production packaging。两条 44-step named simulation 完整覆盖两个结局；
+M4 独立产品审查随后用实际字数与逐页行为证明 M1 当时冻结的 59 unique / 44 per route 只能承载约 3–5 分钟，
+与已经冻结的 10–14 分钟产品合同和最小视口分页要求自相矛盾。因此本轮进行 evidence-driven correction，
+不是任意扩 scope：作者数据补足为 110 unique / 82 per route，除两段必须保持 exact voice transcript 的
+station call 外，每个 Say page 不超过两句。分页改变 Narrative occurrence topology，故 Narrative module
+contract revision 从 2 提升到 3、Story identity revision 从 3 提升到 4；State schema revision 2 与
+state-contract revision 1 保持不变，也不保留 development-only compatibility wrapper。
+
+最终内容候选在 Deno 2.9.6 / Chromium 151 workstation 上的 7 次通用 GUI ready / first-interactive 为
+252.29/252.36、130.59/130.65、130.14/130.23、131.72/131.75、129.35/129.39、128.65/128.70、
+131.74/131.78ms。release build 的完整产物 raw/gzip 为 2,968,937/1,783,590 B；Browser 产品矩阵在
+Chromium/WebKit/mobile 为 38 passed、2 个 project-conditional skipped，覆盖 Axe、200% 等效 reflow、
+640×360 最小视口、reduced motion、中英文 overflow、真实音频解码、通过真实 Settings UI 的 locale/Profile
+持久化，以及 Embedded Authoring/Save/Back/Forward/Auto。测试基座把真实音频图接到 0-gain terminal，产品
+默认值则由测试锁定为非静音。release Browser build、8 项 Engine Lab prebuilt `@smoke`、当前 Deno Desktop
+static package 的真实 Title 启动与正常关闭均通过；Desktop 证据仍只是 static preview，不提升 HMR、
+durability 或 production packaging。两条 82-step named simulation 完整覆盖两个结局；
 真实 Browser 完整走通 archive route，并在 present route 覆盖到权威 partial-hold/reopen 边界。这是按权威
 状态机与 Host 接缝分层的产品证据，不冒充两次逐点击的 Browser 人工游玩。
 
-本 authoring slice 的提交前回归覆盖 6 个 focused test files / 32 tests、Inspector Chromium/WebKit 2 项
+独立 product re-review 已确认当前 110/82 候选不再是纵向小切片：archive/present 分别约有 3,290/3,309
+个中文非空白字符与 1,976/1,990 个英文词，两条路线各含 28 条互不混入的专属内容并进入不同结局；按正常
+阅读速度并计入 Choice、voice、hold 和操作停顿，10–14 分钟合同合理可达。默认 Auto 的真实 Chromium
+完整运行也分别在约 141/142 秒抵达两个结局；该加速播放数据只证明 Auto 收敛，不能替代首次阅读时长。
+因此独立 product/engine review 与 Starter feedback 均已关闭且没有提交阻塞，M4 只剩代表性真实
+current-low-end qualification。
+
+本 authoring slice 的提交时回归覆盖 6 个 focused test files / 32 tests、Inspector Chromium/WebKit 2 项
 真实编辑 E2E、两条 44-step named simulation、VN Chromium/WebKit 24 项产品 E2E（另有 2 项按 project
 条件跳过）、`app check`、release build/prebuilt smoke、49 页文档 build，以及全仓 `deno task check`
 的 383 个 test files / 5,470 tests 与 6 项 Composition benchmark。React Doctor changed-files audit
@@ -433,7 +452,8 @@ DevDock 菜单/window host，选择具体工具后自动收起菜单，保留前
 
 2026-08-29 所有者进一步裁决：Mod 是组合/生命周期机制而不是碎片化目标；核心玩法模块保持内聚，
 围绕核心且可被真实产品省略、替换或单独换代的能力才作为 optional Mod。M4 因而增加一个 bounded
-engine-correction/product-consumer 子切片，不改变 59-entry / 2-route / 2-ending 玩家分母：
+engine-correction/product-consumer 子切片；它本身没有改变当时的 59-entry / 2-route / 2-ending 玩家分母。
+后来独立产品审查发现的是另一项产品合同缺口，并单独触发上述 110/82 correction：
 
 - private Mod Runtime 增加 selection successor controller；每个 generation 的 active set 仍不可变，
   install/uninstall 通过候选 generation、原子 publication 和 predecessor retirement 完成；

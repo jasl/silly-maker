@@ -333,8 +333,11 @@ Settings/live locale、normal-dispose exact flush、已持久化 autosave reload
 Web hidden presentation-time exclusion均有分层证据。Browser `pagehide` 仍只是同步 fence + best-effort flush，
 不承诺最后一刻异步 IndexedDB durability。M4 已交付 ambient binding/phase 的 Agent 与所有者授权
 Computer Use-assisted participant Inspector/CAS 接手，以及 workstation Browser/build/static-Desktop/
-accessibility/silent-run/raw-performance 证据；代表性 current-low-end qualification、独立 product/engine review 与 Starter feedback 尚未完成，
-当前 WIP 仍不是完整产品或完成证据。Cat Cafe 已在
+accessibility/silent-run/raw-performance 证据。独立审查发现历史 59 unique / 44 per route 虽满足计数却不能
+支撑冻结的 10–14 分钟阅读分母，当前候选已修正为 110 unique / 82 per route，并按最小视口分页。独立
+engine review 与 Starter feedback classification 已完成：产品 E2E 的 private import 泄漏已删除，没有新的
+中立 engine gap，也不需要追加 Template 改动。独立 product re-review 也已通过且没有 product-integrity
+blocker；代表性真实 current-low-end qualification 是唯一开放门槛。M4 尚未关闭，M5 尚未开始，当前 WIP 仍不是完整产品或完成证据。Cat Cafe 已在
 本轮开始前独立终止，应用、revision-1 Save 支持、产品 E2E 与 live 发布责任同步结束，不做跨产品 Save 迁移
 或兼容 wrapper。VN 开发期间没有当前旗舰；Bookshop 只保持 maintained minimal Narrative example，不是旗舰
 或完整 VN 产品参考。完整产品及独立审查关闭后，才原子提升 VN 为旗舰。预期届时维护的产品例子是 SillyOS +

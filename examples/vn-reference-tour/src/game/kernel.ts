@@ -45,7 +45,7 @@ export type VnReferenceTourCommandV1 =
   }
   | {
     /**
-     * The starter's carrier for the session-level time verb: one commit
+     * The product's carrier for the session-level time verb: one commit
      * settles every authoritative time consumer. A hold-fenced tick folds
      * the pending hold's remainder (stale fences reject the whole
      * command); an unfenced tick settles only session-global consumers —
@@ -61,7 +61,7 @@ export type VnReferenceTourCommandV1 =
   };
 
 /**
- * The starter's domain-event union: the only internal authoritative update
+ * The product's domain-event union: the only internal authoritative update
  * channel. The command handler decides and emits; module reducers fold the
  * admitted events into their slices atomically; the committed sequence is
  * the read-side journal. `vn-reference-tour.interaction_resolved` is journal-only

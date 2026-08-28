@@ -87,8 +87,9 @@ const vnReferenceTourSceneRegistryV1: Readonly<Record<string, VnReferenceTourSce
 const textIdV1 = (name: string): string => `text.vn-reference-tour.${name}`;
 
 type SpeakerKeyV1 = "lin" | "zhou" | null;
+type SaySpecV1 = readonly [name: string, speaker: SpeakerKeyV1, textPath: string];
 
-const sharedSaySpecsV1 = [
+const sharedBaseSaySpecsV1 = [
   ["shared-power-on-room", null, "shared.power-on.room"],
   ["shared-power-on-lin-arrives", "lin", "shared.power-on.lin-arrives"],
   ["shared-power-on-console", "zhou", "shared.power-on.console"],
@@ -115,10 +116,25 @@ const sharedSaySpecsV1 = [
   ["shared-one-window-two-choices", "zhou", "shared.one-window.two-choices"],
   ["shared-one-window-ready", "lin", "shared.one-window.ready"],
   ["shared-one-window-switch", null, "shared.one-window.switch"],
-] as const satisfies readonly (readonly [string, SpeakerKeyV1, string])[];
+] as const satisfies readonly SaySpecV1[];
+
+function withContinuedPagesV1(
+  specs: readonly SaySpecV1[],
+  unsplitTextPaths: readonly string[] = [],
+): readonly SaySpecV1[] {
+  return specs.flatMap((spec) =>
+    unsplitTextPaths.includes(spec[2])
+      ? [spec]
+      : [spec, [`${spec[0]}-continued`, spec[1], `${spec[2]}.continued`] as const]
+  );
+}
+
+const sharedSaySpecsV1 = withContinuedPagesV1(sharedBaseSaySpecsV1, [
+  "shared.old-recording.old-call",
+]);
 
 function sayV1(
-  spec: readonly [string, SpeakerKeyV1, string],
+  spec: SaySpecV1,
   next: string,
 ): VnReferenceTourInteractionDocV1["blocks"][number] {
   return ({
@@ -146,15 +162,16 @@ const sharedBlocksV1: VnReferenceTourInteractionDocV1["blocks"] = [
     ],
     next: "shared-power-on-room",
   },
-  sayV1(sharedSaySpecsV1[0], "lin-enters"),
+  sayV1(sharedSaySpecsV1[0]!, sharedSaySpecsV1[1]![0]),
+  sayV1(sharedSaySpecsV1[1]!, "lin-enters"),
   {
     kind: "stage",
     name: "lin-enters",
     ops: [{ scene: "controlRoom", cue: "linEnters" }],
-    next: "shared-power-on-lin-arrives",
+    next: sharedSaySpecsV1[2]![0],
   },
-  ...sharedSaySpecsV1.slice(1).map((spec, index) =>
-    sayV1(spec, sharedSaySpecsV1[index + 2]?.[0] ?? "signal-choice")
+  ...sharedSaySpecsV1.slice(2).map((spec, index) =>
+    sayV1(spec, sharedSaySpecsV1[index + 3]?.[0] ?? "signal-choice")
   ),
   {
     kind: "choice",
@@ -209,23 +226,33 @@ function routeBlocksV1(
   const appearance = isArchive
     ? { tag: vnReferenceTourTagsV1.zhou, expression: "soft" }
     : { tag: vnReferenceTourTagsV1.lin, expression: "relieved" };
-  const prepare = prepareNames.map((name, index) =>
-    sayV1(
-      [`${route}-prepare-${name}`, prepareSpeakers[index] ?? null, `${route}.prepare.${name}`],
-      index === prepareNames.length - 1
-        ? `${route}-carrier-lock`
-        : `${route}-prepare-${prepareNames[index + 1] as string}`,
-    )
+  const prepareSpecs = withContinuedPagesV1(
+    prepareNames.map((name, index) =>
+      [
+        `${route}-prepare-${name}`,
+        prepareSpeakers[index] ?? null,
+        `${route}.prepare.${name}`,
+      ] as const
+    ),
+    [`${route}.prepare.sent`],
   );
-  const roof = roofNames.map((name, index) =>
-    sayV1(
-      [`${route}-roof-${name}`, roofSpeakers[index] ?? null, `${route}.roof.${name}`],
-      index === roofNames.length - 1
-        ? `${route}-ending-title`
-        : index === roofNames.length - 2
-        ? `${route}-signal-off`
-        : `${route}-roof-${roofNames[index + 1] as string}`,
-    )
+  const prepare = prepareSpecs.map((spec, index) =>
+    sayV1(spec, prepareSpecs[index + 1]?.[0] ?? `${route}-carrier-lock`)
+  );
+  const roofSpecs = withContinuedPagesV1(
+    roofNames.map((name, index) =>
+      [`${route}-roof-${name}`, roofSpeakers[index] ?? null, `${route}.roof.${name}`] as const
+    ),
+  );
+  const shutdownIndex = roofSpecs.findIndex((spec) => spec[2] === `${route}.roof.shutdown`);
+  if (shutdownIndex < 0) throw new TypeError(`vn-reference-tour.route_shutdown_missing:${route}`);
+  const roofBeforeShutdownSpecs = roofSpecs.slice(0, shutdownIndex);
+  const shutdownSpecs = roofSpecs.slice(shutdownIndex);
+  const roofBeforeShutdown = roofBeforeShutdownSpecs.map((spec, index) =>
+    sayV1(spec, roofBeforeShutdownSpecs[index + 1]?.[0] ?? `${route}-signal-off`)
+  );
+  const shutdown = shutdownSpecs.map((spec, index) =>
+    sayV1(spec, shutdownSpecs[index + 1]?.[0] ?? `${route}-ending-title`)
   );
   return [
     ...prepare,
@@ -255,17 +282,14 @@ function routeBlocksV1(
       ops: [{ scene: "rooftopAntenna", open: true as const }],
       next: `${route}-appearance`,
     },
-    ...roof.slice(0, -1),
+    ...roofBeforeShutdown,
     {
       kind: "stage" as const,
       name: `${route}-signal-off`,
       ops: [{ scene: "rooftopAntenna", cue: "statusLightOff" }],
       next: `${route}-roof-shutdown`,
     },
-    sayV1(
-      [`${route}-roof-shutdown`, null, `${route}.roof.shutdown`],
-      `${route}-ending-title`,
-    ),
+    ...shutdown,
     {
       kind: "say" as const,
       name: `${route}-ending-title`,
@@ -277,7 +301,7 @@ function routeBlocksV1(
   ];
 }
 
-/** 26 shared pages + one prompt/two options + 15 pages per route. */
+/** 51 shared Say pages + one prompt/two options + 28 visible pages per route. */
 export const vnReferenceTourStoryDocV1: VnReferenceTourInteractionDocV1 = {
   prefix: "vn-reference-tour",
   docId: "doc.vn-reference-tour.story",

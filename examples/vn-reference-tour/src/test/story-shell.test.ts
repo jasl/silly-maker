@@ -23,6 +23,8 @@ import { vnReferenceTourRooftopAntennaSceneV1 } from "../scenes/rooftop-antenna/
 import { projectVnReferenceTourNarrativeGraphV1 } from "../story/narrative-graph.ts";
 import { vnReferenceTourStoryEntryV1 } from "../story.ts";
 
+const maxNarrativeAdvancesV1 = 128;
+
 function currentOccurrenceIdV1(
   application: { readonly semantic: { observe(): unknown } },
 ): string {
@@ -42,6 +44,21 @@ async function advanceCurrentV1(
     expectedOccurrenceId: currentOccurrenceIdV1(application),
     resolution: { kind: "advance" },
   } as never)).resolves.toMatchObject({ kind: "committed" });
+}
+
+async function advanceUntilPendingKindV1(
+  application: Awaited<ReturnType<typeof createVnReferenceTourApplicationInstanceV1>>,
+  kind: "choice" | "hold",
+): Promise<void> {
+  for (let step = 0; step < maxNarrativeAdvancesV1; step += 1) {
+    const pending = application.semantic.observe().narrative.pending;
+    if (pending?.kind === kind) return;
+    if (pending === null || pending.kind !== "say") {
+      throw new TypeError(`vn-reference-tour.test_unexpected_pending_before_${kind}`);
+    }
+    await advanceCurrentV1(application);
+  }
+  throw new TypeError(`vn-reference-tour.test_${kind}_advance_limit`);
 }
 
 describe("VN Reference Tour M1 story shell", () => {
@@ -148,7 +165,7 @@ describe("VN Reference Tour M1 story shell", () => {
         kind: "invoke",
         actionId: "vn-reference-tour.begin_story",
       } as never);
-      for (let index = 0; index < 26; index += 1) await advanceCurrentV1(initial);
+      await advanceUntilPendingKindV1(initial, "choice");
       const choice = initial.semantic.observe().narrative.pending;
       if (choice === null || choice.kind !== "choice") {
         throw new TypeError("vn-reference-tour.test_choice_missing");
@@ -161,7 +178,7 @@ describe("VN Reference Tour M1 story shell", () => {
           choiceId: "choice.vn-reference-tour.present-voice",
         },
       } as never)).resolves.toMatchObject({ kind: "committed" });
-      for (let index = 0; index < 6; index += 1) await advanceCurrentV1(initial);
+      await advanceUntilPendingKindV1(initial, "hold");
       const hold = initial.semantic.observe().narrative.pending;
       if (hold === null || hold.kind !== "hold") {
         throw new TypeError("vn-reference-tour.test_hold_missing");
@@ -208,13 +225,10 @@ describe("VN Reference Tour M1 story shell", () => {
         kind: "invoke",
         actionId: "vn-reference-tour.begin_story",
       } as never);
-      for (let index = 0; index < 26; index += 1) await advanceCurrentV1(application);
+      await advanceUntilPendingKindV1(application, "choice");
 
       const atChoice = application.semantic.observe();
-      expect(atChoice.narrative.pending).toMatchObject({
-        kind: "choice",
-        occurrenceId: "interaction-occurrence.27",
-      });
+      expect(atChoice.narrative.pending).toMatchObject({ kind: "choice" });
       expect(atChoice.narrative.signalChoice).toBeNull();
       const atChoiceDigest = application.admin.stateDigest();
       await expect(application.persistence.save("quick")).resolves.toEqual({
@@ -234,7 +248,7 @@ describe("VN Reference Tour M1 story shell", () => {
           choiceId: "choice.vn-reference-tour.archive-voice",
         },
       } as never)).resolves.toMatchObject({ kind: "committed" });
-      for (let index = 0; index < 6; index += 1) await advanceCurrentV1(application);
+      await advanceUntilPendingKindV1(application, "hold");
       const hold = application.semantic.observe().narrative.pending;
       if (hold === null || hold.kind !== "hold") {
         throw new TypeError("vn-reference-tour.test_hold_missing");
@@ -271,7 +285,7 @@ describe("VN Reference Tour M1 story shell", () => {
         kind: "invoke",
         actionId: "vn-reference-tour.begin_story",
       } as never);
-      for (let index = 0; index < 26; index += 1) await advanceCurrentV1(application);
+      await advanceUntilPendingKindV1(application, "choice");
 
       const choice = application.semantic.observe().narrative.pending;
       if (choice === null || choice.kind !== "choice") {
@@ -285,7 +299,7 @@ describe("VN Reference Tour M1 story shell", () => {
           choiceId: "choice.vn-reference-tour.present-voice",
         },
       } as never)).resolves.toMatchObject({ kind: "committed" });
-      for (let index = 0; index < 6; index += 1) await advanceCurrentV1(application);
+      await advanceUntilPendingKindV1(application, "hold");
 
       const hold = application.semantic.observe().narrative.pending;
       if (hold === null || hold.kind !== "hold") {
@@ -362,7 +376,7 @@ describe("VN Reference Tour M1 story shell", () => {
         actionId: "vn-reference-tour.begin_story",
       } as never);
 
-      for (let index = 0; index < 26; index += 1) await advanceCurrentV1(application);
+      await advanceUntilPendingKindV1(application, "choice");
       const choice = application.semantic.observe().narrative.pending;
       if (choice === null || choice.kind !== "choice") {
         throw new TypeError("vn-reference-tour.test_choice_missing");
@@ -376,14 +390,23 @@ describe("VN Reference Tour M1 story shell", () => {
         },
       } as never)).resolves.toMatchObject({ kind: "committed" });
 
-      for (let index = 0; index < 5; index += 1) await advanceCurrentV1(application);
-      const beforeHold = application.semantic.observe().narrative.pending;
-      if (beforeHold === null || beforeHold.kind !== "say") {
+      let beforeHold: ReturnType<typeof application.semantic.observe>["narrative"]["pending"] =
+        null;
+      let beforeHoldDigest: string | null = null;
+      for (let step = 0; step < maxNarrativeAdvancesV1; step += 1) {
+        const publication = application.semantic.observe();
+        const pending = publication.narrative.pending;
+        if (pending?.kind === "hold") break;
+        if (pending === null || pending.kind !== "say") {
+          throw new TypeError("vn-reference-tour.test_unexpected_pending_before_hold");
+        }
+        beforeHold = pending;
+        beforeHoldDigest = application.admin.stateDigest();
+        await advanceCurrentV1(application);
+      }
+      if (beforeHold === null || beforeHold.kind !== "say" || beforeHoldDigest === null) {
         throw new TypeError("vn-reference-tour.test_pre_hold_say_missing");
       }
-      const beforeHoldDigest = application.admin.stateDigest();
-
-      await advanceCurrentV1(application);
       const hold = application.semantic.observe().narrative.pending;
       if (hold === null || hold.kind !== "hold") {
         throw new TypeError("vn-reference-tour.test_hold_missing");

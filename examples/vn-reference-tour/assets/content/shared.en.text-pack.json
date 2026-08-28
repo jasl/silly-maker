@@ -6,55 +6,107 @@
   "entries": [
     {
       "textId": "text.vn-reference-tour.shared.power-on.room",
-      "text": "At 5:22 a.m., only the mixing desk and wall clock lit the control room. Outside, black sky was turning deep blue."
+      "text": "At 5:22 a.m., only the mixing desk, wall clock, and green-shaded duty lamp lit the control room. It was the station's last morning."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.power-on.room.continued",
+      "text": "The bay was dark beyond the old windows, though the first ferry sounded offshore. Cape Hill Community Radio had awakened here for thirty-seven years before the final dawn."
     },
     {
       "textId": "text.vn-reference-tour.shared.power-on.lin-arrives",
-      "text": "I'm not late, am I? The stairwell lights have already gone out on three floors."
+      "text": "I'm not late, am I? Three floors of stairwell lights went out, so I followed the handrail up; the schedule is still on last night's programs."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.power-on.lin-arrives.continued",
+      "text": "Somebody penciled ‘good morning’ underneath. I bet it was the woman from the convenience store; she always leaves us careful weekly weather notes about the coldest hour ahead."
     },
     {
       "textId": "text.vn-reference-tour.shared.power-on.console",
-      "text": "We have eighteen minutes. Listen once first. I just cleared the last patch of noise."
+      "text": "We have eighteen minutes, enough to do this without rushing. Listen once before we decide; I cleaned up the last damaged section beside the silent tape deck."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.power-on.console.continued",
+      "text": "I left every breath and pause where it was; sit here if you want. On your first morning shift, you claimed standing made you less nervous."
     },
     {
       "textId": "text.vn-reference-tour.shared.power-on.signal-light",
-      "text": "The transmitter lamp glowed quietly. Today it would go dark only once more."
+      "text": "The transmitter lamp glowed without a flicker, tinting both their shadows red. During flooded roads and missing boats, the cape had watched that same light."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.power-on.signal-light.continued",
+      "text": "The summer wildfire was no different. There was no emergency today, yet the lamp would go dark one final time before sunrise was over the familiar rooftops."
     },
     {
       "textId": "text.vn-reference-tour.shared.power-on.last-shift",
-      "text": "So this really is our last shift. Saying it aloud makes it sound less real."
+      "text": "So this really is our last shift. Packing the records last night felt like moving storage, but hearing the board alive makes this different."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.power-on.last-shift.continued",
+      "text": "Five years ago, when you moved me from student volunteer to the overnight desk, I thought this room would outlast both of us and all of its equipment."
     },
     {
       "textId": "text.vn-reference-tour.shared.power-on.deadline",
-      "text": "Shutdown is at 5:40. Before then, the archive gives us one sixty-second receiving window."
+      "text": "Shutdown is at 5:40; the maintenance crew downstairs will disconnect the old transmitter then. Before that, the archive opens one sixty-second receiving window."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.power-on.deadline.continued",
+      "text": "It is reserved for the station's final live broadcast. When it closes, finished or not, our frequency passes permanently to the coastal network after decades of local use."
     },
     {
       "textId": "text.vn-reference-tour.shared.power-on.archive-window",
-      "text": "You said we should leave a station call in that window. We still haven't chosen one?"
+      "text": "You said we'd leave a station call in that window. I assumed you wrote it weeks ago, despite how often you revise even a power-cut notice."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.power-on.archive-window.continued",
+      "text": "Yet you postponed our final sentence until today. Do you have two versions and simply haven't told me which one you really want?"
     },
     {
       "textId": "text.vn-reference-tour.shared.power-on.single-send",
-      "text": "We can send only once. The archive won't open a second connection; this is the old station's final record number."
+      "text": "Not two versions—two answers. The archive accepts one uninterrupted transmission, and once it begins, it will not open a second take for us this final morning."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.power-on.single-send.continued",
+      "text": "This is the archive's last record number for the old station. I meant to choose for everyone, but near shutdown it no longer feels like my decision alone."
     },
     {
       "textId": "text.vn-reference-tour.shared.power-on.reel-on-desk",
-      "text": "Zhou set a reel with a faded label beside the deck. Its date was thirteen years old."
+      "text": "Zhou took a reel from his canvas bag and placed it beside the deck. Damp had faded its paper label to a pale tea brown."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.power-on.reel-on-desk.continued",
+      "text": "The thirteen-year-old date remained clearly legible, beside the hurried words ‘morning station call.’ A tiny surviving scrap of blue candy wrapper clung to one corner."
     },
     {
       "textId": "text.vn-reference-tour.shared.old-recording.label",
-      "text": "I found it at the back of storage. That was my first morning shift alone."
+      "text": "I found it at the back of storage, wedged between ferry cancellations and old request lists on the lowest shelf. That was my first morning shift alone."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.old-recording.label.continued",
+      "text": "I was too nervous to sleep, ate a mint before going on air, and stuck the wrapper there without thinking. Somehow it outlasted the schedule."
     },
     {
       "textId": "text.vn-reference-tour.shared.old-recording.younger-voice",
-      "text": "No wonder I didn't recognize you. Your voice was much brighter then."
+      "text": "No wonder I didn't recognize you. Your voice was much brighter then, and every sentence tried to climb at the end through the small monitor speaker."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.old-recording.younger-voice.continued",
+      "text": "You spent years telling me to slow down and leave room around the words. I like knowing you also tried to fill every silence that morning."
     },
     {
       "textId": "text.vn-reference-tour.shared.old-recording.first-shift",
-      "text": "And much faster. I thought one slow second would keep the whole mountain from hearing us."
+      "text": "Much faster, too. I thought one slow second would make someone miss the ferry, or keep a night worker from hearing that the road home had reopened."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.old-recording.first-shift.continued",
+      "text": "The station manager held up a card behind the glass; it said, ‘Think of one person.’ So I read the whole call to a listener I had never met."
     },
     {
       "textId": "text.vn-reference-tour.shared.old-recording.load-reel",
-      "text": "The reel began to turn. After a brief hiss, a younger voice woke in the monitor speaker."
+      "text": "The reel began to turn, thirteen years of dim light passing around the clear housing. After a short hiss, a younger voice woke in the monitor."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.old-recording.load-reel.continued",
+      "text": "A cart squeaked beyond the studio door; somewhere in the recording, a cup touched a desk. The whole vanished morning seemed to enter the room with it."
     },
     {
       "textId": "text.vn-reference-tour.shared.old-recording.old-call",
@@ -62,51 +114,99 @@
     },
     {
       "textId": "text.vn-reference-tour.shared.old-recording.clean-signal",
-      "text": "The words are old, but they don't sound far away. You cleaned it up almost too well."
+      "text": "The words are old, but they don't sound far away. During a typhoon blackout, my mother waited beside a candle for this station to name a warm shelter."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.old-recording.clean-signal.continued",
+      "text": "Years later, as an intern, I learned that ‘may someone hear you’ was never just a slogan. You restored the tape without erasing the room around it."
     },
     {
       "textId": "text.vn-reference-tour.shared.old-recording.repair",
-      "text": "I only joined the breaks. I left the breaths in. Those should stay."
+      "text": "I only joined the broken sections; I left the breaths, the turning paper, and the chair creaking. We carried things that looked too small for history."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.old-recording.repair.continued",
+      "text": "A lost dog, ice on the hill road, an old man dedicating a song to his wife in hospital—what made them matter was another person beside the microphone."
     },
     {
       "textId": "text.vn-reference-tour.shared.old-recording.meter",
-      "text": "After the final word, the level needle eased back to zero."
+      "text": "After the final word, the level needle eased back to zero, though the reel turned another half-circle. Only the soft bed of tape noise remained."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.old-recording.meter.continued",
+      "text": "It did not fall silent the instant the tide retreated; Lin did not ask Zhou to stop the deck. Zhou did not reach for it."
     },
     {
       "textId": "text.vn-reference-tour.shared.old-recording.what-to-save",
-      "text": "If the archive takes this, it remembers what the station used to be."
+      "text": "If the archive takes this recording, it remembers what the station used to be: your younger voice, the ferry still running, the neighbors phoning in road conditions."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.old-recording.what-to-save.continued",
+      "text": "It is complete, but I didn't even know you then. Do all the years we worked together remain on reels with no official record number?"
     },
     {
       "textId": "text.vn-reference-tour.shared.one-window.opens",
-      "text": "Right. Or we record something now, so it remembers how we sounded before shutdown."
+      "text": "Right—the other answer is to record something now, so the archive remembers us before shutdown. We would not summarize thirty-seven years or speak for everyone who left."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.one-window.opens.continued",
+      "text": "We would only say who is still in this room, and who they can hear. That would be honest, but the old call would return quietly to its box."
     },
     {
       "textId": "text.vn-reference-tour.shared.one-window.not-both",
-      "text": "Can't we join them? Sixty seconds is enough."
+      "text": "Can't we join them? Play the old call first, then let us answer it; sixty seconds is more than enough, and the past and present were never separate here."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.one-window.not-both.continued",
+      "text": "Half the things you taught me came from somebody who once taught you. Why should the archive make us cut either side away now?"
     },
     {
       "textId": "text.vn-reference-tour.shared.one-window.why-one",
-      "text": "One transmission becomes one archive record. A splice marks both parts as edited, not as our final live call."
+      "text": "Because they preserve more than sound, including how it happened. One piece comes from thirteen years ago, and one comes from this final morning."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.one-window.why-one.continued",
+      "text": "Splicing them makes a commemorative edit, not the station's last live transmission. We can pair them later, but this window will not let us avoid choosing."
     },
     {
       "textId": "text.vn-reference-tour.shared.one-window.purpose",
-      "text": "Then we aren't choosing which sounds better. We're choosing what we want it to prove."
+      "text": "Then we aren't choosing which one sounds better; we're choosing what we want the record to prove. The old voice shows that this room connected people again and again."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.one-window.purpose.continued",
+      "text": "A new voice shows that, even at the end, someone remained to answer. Both are true; only the first sentence a future listener hears will change."
     },
     {
       "textId": "text.vn-reference-tour.shared.one-window.clock",
-      "text": "The clock reached 5:27. On the roof, wind tapped a cable against the antenna."
+      "text": "The clock reached 5:27, its second hand crossing a sun-bleached mark on the dial. Wind began tapping the rooftop antenna cable."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.one-window.clock.continued",
+      "text": "It sounded as if someone far away were knocking; downstairs, the maintenance crew moved a ladder across the floor below them. Thirteen minutes remained."
     },
     {
       "textId": "text.vn-reference-tour.shared.one-window.two-choices",
-      "text": "The old call proves how long this place endured. A new one proves we were here when it ended."
+      "text": "The old call carries what this place believed at the beginning: if you speak, someone may hear you. That was the station's earliest promise."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.one-window.two-choices.continued",
+      "text": "A new call carries our final lesson: listening is not one-way, and a reply keeps a station alive. One returns the promise; the other leaves an answer."
     },
     {
       "textId": "text.vn-reference-tour.shared.one-window.ready",
-      "text": "Both are true. Let's not make someone in the future guess. We can choose for ourselves."
+      "text": "Both are true, and each is missing the other half, but our last shift cannot leave nothing behind simply because we cannot bear to lose either."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.one-window.ready.continued",
+      "text": "Don't make a future listener guess or decide only for who you were thirteen years ago. We are here today, and we can carry the choice together."
     },
     {
       "textId": "text.vn-reference-tour.shared.one-window.switch",
-      "text": "Lin moved the send switch to standby. The deck and microphone lamps lit together, waiting for one to be chosen."
+      "text": "Lin pushed the send switch to standby. A relay answered beneath the console, and the deck and microphone lamps came on together under Lin's steady hand."
+    },
+    {
+      "textId": "text.vn-reference-tour.shared.one-window.switch.continued",
+      "text": "One lit the faded label; the other lit an empty sheet of paper. Beyond the window, dawn had reached the tip of the antenna."
     },
     {
       "textId": "text.vn-reference-tour.choice.signal.prompt",

@@ -26,7 +26,7 @@ export const vnReferenceTourStateContractManifestV1 = ({
   moduleStateSchemas: [
     {
       moduleId: parseModuleId("vn-reference-tour.narrative"),
-      moduleContractRevision: parsePositiveSafeInteger(2),
+      moduleContractRevision: parsePositiveSafeInteger(3),
       stateSlots: [parseStateSlotId("simulation.narrative")],
       stateSchema: {
         schemaId: "schema.vn-reference-tour.narrative-state",

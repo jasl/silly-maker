@@ -41,14 +41,14 @@ function advancesV1(count: number) {
 function routeScenarioV1(choiceId: string) {
   return [
     { kind: "invoke" as const, actionId: "vn-reference-tour.begin_story" as const },
-    // 26 shared entries lead to the single material choice.
-    ...advancesV1(26),
+    // 51 shared Say pages lead to the single material choice.
+    ...advancesV1(51),
     chooseV1(choiceId),
-    // Six route-preparation entries lead to the authoritative carrier lock.
-    ...advancesV1(6),
+    // Eleven route-preparation pages lead to the authoritative carrier lock.
+    ...advancesV1(11),
     timeTickV1(1_200),
-    // Eight rooftop entries plus the route-specific ending complete the run.
-    ...advancesV1(9),
+    // Sixteen rooftop pages plus the route-specific ending complete the run.
+    ...advancesV1(17),
   ];
 }
 

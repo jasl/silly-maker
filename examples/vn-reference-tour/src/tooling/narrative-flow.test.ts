@@ -28,9 +28,13 @@ describe("VnReferenceTour Narrative Flow projection", () => {
         "en",
         "text.vn-reference-tour.shared.power-on.room",
       ),
-    ).toBe(
-      "At 5:22 a.m., only the mixing desk and wall clock lit the control room. Outside, black sky was turning deep blue.",
-    );
+    ).toMatch(/^At 5:22 a\.m\.,/);
+    expect(
+      vnReferenceTourAuthoringTextForLocaleV1(
+        "en",
+        "text.vn-reference-tour.shared.power-on.room.continued",
+      ),
+    ).toContain("Community Radio");
     expect(
       vnReferenceTourAuthoringTextForLocaleV1(
         "en",

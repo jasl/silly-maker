@@ -6,10 +6,12 @@
 引擎维护的 default VN Player、最终 Stage/ending 媒体、冻结的八项音频分母、interaction-level
 Back/Forward、responsive/input/accessibility 产品矩阵、system menu/Save、持久设置/live locale 与分层恢复
 矩阵均已完成。Browser 强制关闭只恢复最后已经持久化的 autosave；M4 workstation 自动化产品证据与
-所有者授权的 Computer Use-assisted author handoff 已完成，代表性 current-low-end qualification、独立审查与
-Starter feedback 仍未完成。**
+所有者授权的 Computer Use-assisted author handoff、独立 product/engine review 与 Starter feedback 已完成；
+代表性 current-low-end qualification 是唯一开放门槛。**
 
-M1 已用本产品的完整 Story/Scene author data 原子替换 tracked Template 的临时内容；M2 已交付 Player、
+M1 已用当时冻结的 59 unique / 44 per route Story/Scene author data 原子替换 tracked Template 的临时内容；
+M4 独立审查证明该体量与已冻结的 10–14 分钟合同矛盾，因而以 evidence-driven correction 补足为当前
+110 unique / 82 per route，而不是任意扩大产品 scope。M2 已交付 Player、
 Stage 媒体、结局、音频、Back/Forward 与完整响应式/无障碍矩阵；M3 已关闭产品入口、Save/recovery 与设置。
 《最后一次试音》仍不是完整产品参考或旗舰。完整产品合同见 [DESIGN.md](DESIGN.md)。
 
@@ -20,7 +22,7 @@ Stage 媒体、结局、音频、Back/Forward 与完整响应式/无障碍矩阵
 
 冻结 denominator：
 
-- 59 个唯一可见 text entries，任一路线 44 个；
+- 110 个唯一可见 text entries，任一路线 82 个；
 - 2 名有姓名的角色 + narrator；每名角色 2 种 appearance；
 - 2 个 Authoring Scene；
 - 1 个具有真实后果的 choice、2 条专属 route、2 个 ending；
@@ -61,7 +63,7 @@ Save/recovery 还由 focused reopen tests 与 Browser journeys 分层证明。M4
 
 ## 作者地图
 
-以下是当前及后续里程碑的唯一 owner；尚未进入后续 M4 切片的文件不是另找位置写入的许可。
+以下是当前产品的唯一 owner；未列出的能力不能以另建第二 authority 的方式绕过这些边界。
 
 | 想修改什么                                 | 唯一 owner                                    |
 | ------------------------------------------ | --------------------------------------------- |
@@ -88,7 +90,7 @@ Save/recovery 还由 focused reopen tests 与 Browser journeys 分层证明。M4
 - Story ID：`story.example.vn-reference-tour`
 - stable ID prefix：`vn-reference-tour`；Story/Scene/text/asset/action ID 一律 lower-case kebab-case
 - 默认 locale：`zh-CN`，完整 `en` variant
-- targets：Browser publish + 当前 Deno Desktop static preview
+- targets：Browser 可发布 release build + 当前 Deno Desktop static preview
 
 产品从 Template 起步，但不 import Template、Bookshop 或其他 example。M0 已删除 coins/inventory/HUD action、
 reference-only outer UI 与临时 Story identity，不保留 compatibility alias 或零值模块。M1 已用冻结的完整产品
@@ -119,11 +121,12 @@ archive-voice
 present-voice
 ```
 
-M4 自动化证据已覆盖 Browser build/publish、Deno Desktop static preview、raw profiling，以及默认把真实音频图
+M4 自动化证据已覆盖 Browser release build/publishability、Deno Desktop static preview、raw profiling，以及默认把真实音频图
 接到 0-gain terminal 的无声测试运行；产品本身默认非静音，mute 仍是持久化用户偏好。所有者授权的
 Computer Use-assisted participant 已沿同一 authoring/CAS 路径把 ambient phase 从 350ms 调整到 400ms，完成
-undo、redo、保存和刷新后复核。完整产品关闭仍需要 current-low-end qualification、独立 product/engine review
-与 Starter feedback 裁决。
+undo、redo、保存和刷新后复核。独立 engine review 没有发现中立引擎缺口；Starter feedback 结论为零
+Template 修改；独立 product review 也确认 110/82 最终候选没有 product-integrity blocker。代表性
+current-low-end qualification 是完整产品关闭前唯一剩余的硬门槛。
 
 ## 许可
 

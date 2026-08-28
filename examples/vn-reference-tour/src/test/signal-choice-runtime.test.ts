@@ -71,17 +71,25 @@ function expectCompleteRouteV1(
   route: VnReferenceTourSignalChoiceV1,
   run: VnReferenceTourRouteRunV1,
 ): void {
-  expect(run.publications).toHaveLength(44);
+  expect(run.publications).toHaveLength(82);
   expect(
     run.results.every((result) => (result as { readonly kind?: unknown }).kind === "committed"),
   ).toBe(true);
 
   const afterBegin = run.publications[0]!;
-  const atChoice = run.publications[26]!;
-  const afterChoice = run.publications[27]!;
-  const atHold = run.publications[33]!;
-  const afterHold = run.publications[34]!;
-  const completed = run.publications[43]!;
+  const choiceIndex = run.publications.findIndex(({ narrative }) =>
+    narrative.pending?.kind === "choice"
+  );
+  const holdIndex = run.publications.findIndex(({ narrative }) =>
+    narrative.pending?.kind === "hold"
+  );
+  expect(choiceIndex).toBeGreaterThan(0);
+  expect(holdIndex).toBeGreaterThan(choiceIndex);
+  const atChoice = run.publications[choiceIndex]!;
+  const afterChoice = run.publications[choiceIndex + 1]!;
+  const atHold = run.publications[holdIndex]!;
+  const afterHold = run.publications[holdIndex + 1]!;
+  const completed = run.publications.at(-1)!;
 
   expect(afterBegin.narrative).toMatchObject({
     phase: "active",
@@ -114,12 +122,12 @@ function expectCompleteRouteV1(
     signalChoice: route,
     pending: null,
   });
-  expect(completed.narrative.history.entries).toHaveLength(42);
+  expect(completed.narrative.history.entries).toHaveLength(80);
   expect(
     completed.narrative.history.entries.filter((entry) =>
       entry.textId.startsWith(`text.vn-reference-tour.${route}.`)
     ),
-  ).toHaveLength(15);
+  ).toHaveLength(28);
   const otherRoute = route === "archive" ? "present" : "archive";
   expect(
     completed.narrative.history.entries.some((entry) =>
@@ -147,8 +155,12 @@ describe("VN Reference Tour signal choice authority", () => {
     const target = await createVnReferenceTourSimulationTargetV1({ seed: 4_242 });
     try {
       const scenario = target.scenarios["archive-voice"];
-      expect(scenario).toHaveLength(44);
-      for (const invocation of scenario.slice(0, 27)) {
+      expect(scenario).toHaveLength(82);
+      const choiceIndex = scenario.findIndex((invocation) =>
+        invocation.kind === "resolve" && invocation.resolution.kind === "choose"
+      );
+      expect(choiceIndex).toBeGreaterThan(0);
+      for (const invocation of scenario.slice(0, choiceIndex)) {
         await expect(dispatchV1(target, invocation)).resolves.toMatchObject({
           kind: "committed",
         });
@@ -160,7 +172,7 @@ describe("VN Reference Tour signal choice authority", () => {
         pending: { kind: "choice" },
       });
 
-      const choice = scenario[27] as Record<string, unknown>;
+      const choice = scenario[choiceIndex] as Record<string, unknown>;
       await expect(dispatchV1(target, {
         ...choice,
         expectedOccurrenceId: "interaction-occurrence.999",

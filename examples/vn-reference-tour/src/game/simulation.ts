@@ -69,7 +69,7 @@ const debugCommandSchemaV1: RuntimeSchemaV1<never> = {
 
 const narrativeModuleV1 = kit.defineStatefulModule({
   id: "vn-reference-tour.narrative",
-  contractRevision: 2,
+  contractRevision: 3,
   state: {
     slot: "simulation.narrative",
     schema: vnReferenceTourNarrativeStateSchemaV1,

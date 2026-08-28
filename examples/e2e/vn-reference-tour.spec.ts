@@ -1,18 +1,11 @@
 // SPDX-License-Identifier: MIT
 import { AxeBuilder } from "@axe-core/playwright";
-import { defaultPlayerProfileV1 } from "@sillymaker/base/runtime";
 import type { Page } from "@playwright/test";
-
-import {
-  SILLYMAKER_DATABASE_VERSION_V1,
-  SILLYMAKER_RECORD_STORE_NAME_V1,
-} from "../../engine/packages/web/src/host/indexeddb-record-store.ts";
 
 import { expect, test, vnReferenceTourTargetUrlV1 } from "./fixtures.ts";
 
 const automationKeyV1 = "__SILLYMAKER_AUTOMATION_V1__";
-const databaseNameV1 = "sillymaker.example-vn-reference-tour";
-const profileKeyV1 = "player-profile/story.example.vn-reference-tour";
+const productInteractionBudgetV1 = 82;
 const oldCallAssetIdV1 = "voice.vn-reference-tour.zhou-old-call";
 const authoredAudioPathsV1 = [
   "/assets/audio/bgm-last-shift.mp3",
@@ -56,55 +49,6 @@ async function expectNoWcagViolationsV1(page: Page, surface: string): Promise<vo
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22a", "wcag22aa"])
     .analyze();
   expect(results.violations, `axe violations on ${surface}`).toEqual([]);
-}
-
-async function seedPlayerLocaleV1(page: Page, locale: string): Promise<void> {
-  await page.evaluate(
-    async ({ databaseName, databaseVersion, profile, profileKey, storeName }) => {
-      const database = await new Promise<IDBDatabase>((resolve, reject) => {
-        const request = indexedDB.open(databaseName, databaseVersion);
-        request.addEventListener("success", () => resolve(request.result));
-        request.addEventListener(
-          "error",
-          () =>
-            reject(request.error ?? new Error("player profile fixture could not open IndexedDB")),
-        );
-      });
-      try {
-        const encoded = new TextEncoder().encode(JSON.stringify(profile));
-        await new Promise<void>((resolve, reject) => {
-          const transaction = database.transaction(storeName, "readwrite");
-          transaction.objectStore(storeName).put({
-            namespace: "settings",
-            key: profileKey,
-            revision: 1,
-            bytes: encoded.buffer,
-          });
-          transaction.addEventListener("complete", () => resolve());
-          transaction.addEventListener(
-            "error",
-            () => reject(transaction.error ?? new Error("player profile fixture write failed")),
-          );
-          transaction.addEventListener(
-            "abort",
-            () => reject(transaction.error ?? new Error("player profile fixture write aborted")),
-          );
-        });
-      } finally {
-        database.close();
-      }
-    },
-    {
-      databaseName: databaseNameV1,
-      databaseVersion: SILLYMAKER_DATABASE_VERSION_V1,
-      profile: {
-        ...defaultPlayerProfileV1,
-        preferences: { ...defaultPlayerProfileV1.preferences, locale },
-      },
-      profileKey: profileKeyV1,
-      storeName: SILLYMAKER_RECORD_STORE_NAME_V1,
-    },
-  );
 }
 
 async function expectInteractiveSurfaceFitsV1(
@@ -221,7 +165,7 @@ async function dispatchV1(page: Page, invocation: unknown): Promise<void> {
 }
 
 async function finishArchiveRouteV1(page: Page): Promise<void> {
-  for (let step = 0; step < 64; step += 1) {
+  for (let step = 0; step < productInteractionBudgetV1; step += 1) {
     const publication = await observeV1(page);
     if (publication.narrative.phase === "completed") return;
     const pending = publication.narrative.pending;
@@ -265,7 +209,7 @@ async function finishArchiveRouteV1(page: Page): Promise<void> {
 }
 
 async function reachSignalChoiceV1(page: Page): Promise<VnPublicationV1> {
-  for (let step = 0; step < 40; step += 1) {
+  for (let step = 0; step < productInteractionBudgetV1; step += 1) {
     const publication = await observeV1(page);
     const pending = publication.narrative.pending;
     if (pending?.kind === "choice") return publication;
@@ -339,7 +283,7 @@ async function reachOldCallV1(page: Page): Promise<VnPublicationV1> {
     automationKeyV1,
   );
 
-  for (let step = 0; step < 24; step += 1) {
+  for (let step = 0; step < productInteractionBudgetV1; step += 1) {
     const publication = await observeV1(page);
     if (publication.game.audio.voice?.assetId === oldCallAssetIdV1) return publication;
     const pending = publication.narrative.pending;
@@ -1376,7 +1320,11 @@ test("English and reduced-motion remain complete through title, choice, History,
     "data-sillymaker-startup-state",
     "ready",
   );
-  await seedPlayerLocaleV1(page, "en");
+  await page.getByRole("button", { name: "设置" }).click();
+  const localeSettings = page.getByRole("dialog", { name: "设置" });
+  await localeSettings.getByRole("combobox", { name: "语言" }).selectOption("en");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await localeSettings.getByRole("button", { name: "关闭" }).click();
   await page.reload();
 
   await expect(page.locator("html")).toHaveAttribute("lang", "en");

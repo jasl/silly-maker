@@ -23,8 +23,10 @@ product experience, while its dedicated History presentation is structurally
 absent from the focused core graph. Development keeps only a small shared
 launcher resident; the complete Debug menu/window host, selected tool body,
 and Embedded Authoring surface are interaction-lazy rather than a synthetic tooling Mod.
-The owner-authorized Computer Use-assisted author handoff is complete; the remaining product evidence stays open, so this playable WIP is not
-a complete reference or evidence that M4–M5 have shipped.
+The owner-authorized Computer Use-assisted author handoff and independent
+product/engine reviews are complete. Representative real current-low-end
+qualification is the only remaining gate, so this playable WIP is not a
+complete reference or evidence that M4–M5 have shipped.
 
 Read, in order:
 
@@ -38,7 +40,7 @@ from complete headless routes, one rendered slice, or green author-data checks.
 ## Frozen product denominator
 
 - Original product: 《最后一次试音》 / _One Last Sound Check_.
-- 59 unique visible text entries; either route exposes 44.
+- 110 unique visible text entries; either route exposes 82.
 - Two named characters plus narrator; two appearances per character.
 - Two Authoring Scenes: control room and rooftop antenna.
 - One material choice, two routes with route-specific content/audio, two endings.
@@ -58,9 +60,12 @@ Stable identities:
 Story/Scene/text/asset/action IDs are lower-case kebab-case. TypeScript symbols
 use `vnReferenceTour` / `VnReferenceTour`. M0 removed the starter Story identity,
 coins/inventory, and starter HUD/action owners. M1 replaced the temporary
-opening Story/Scene author content with the complete two-route author data; do
-not restore aliases, disabled modules, or a second graph. M3 closed product
-entry, Save/recovery, and settings. M4 owns only author handoff and final
+opening Story/Scene author content with the then-frozen 59-unique / 44-per-route
+two-route author data. M4 product review proved that volume contradicted the
+already-frozen 10–14 minute contract, so the accepted evidence-driven correction
+now owns 110 unique / 82 per route plus bounded engine/tooling corrections;
+do not restore aliases, disabled modules, or a second graph. M3 closed product
+entry, Save/recovery, and settings. M4 also owns author handoff and final
 product evidence.
 
 ## Ownership and locality
@@ -117,7 +122,7 @@ rollback to the choice, mid-line/mid-choice/mid-hold recovery, current-voice
 replay, zh/en packs, and deterministic headless convergence.
 
 Product closure requires the viewport/Input/accessibility matrix and numeric
-budgets in `DESIGN.md`, Chromium/WebKit journeys, Browser build/publish, current
+budgets in `DESIGN.md`, Chromium/WebKit journeys, a publishable Browser release build, current
 Desktop static preview, human and Agent author tasks through the same CAS path,
 and separate product/engine reviews. Do not replace behavior tests with exact
 DOM/source inventories or one-off evidence machinery.

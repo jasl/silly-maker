@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// The starter's dev-only Inspector binding contributes only presentation
+// The product's dev-only Inspector binding contributes only presentation
 // seams that source discovery cannot infer. It never enters the Player graph.
 import { resolveAssetManifestV1 } from "@sillymaker/base/authoring";
 import { createAssetRegistryV1 } from "@sillymaker/ui/assets";

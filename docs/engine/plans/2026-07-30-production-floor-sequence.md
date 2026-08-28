@@ -26,15 +26,21 @@ active authority；完成里程碑摘要在
 [VN Reference Tour](2026-08-27-vn-reference-tour.md) 作为当前唯一活动 Reference Product。它从实现开始时
 tracked Template 起步，交付一个原创、完整、紧凑、可发布的 VN，以两名角色、两个 Authoring Scene、一个
 真实选择、两条路线、两个结局和完整 Player/Save/audio/i18n/Inspector/author-task 分母验证当前推荐路径；
-它不是全引擎 API 展厅，也不建立 Ren'Py DSL、Save 兼容或自定义解释器。M0–M1 已交付独立 package、冻结
-分母、完整双路线 author data、两个 Authoring Scene 与 named headless simulations；M2 正在交付，引擎维护的
-focused default VN Player 已接管对话/选择 chrome、say-only 全画布推进、History/播放控制、贴底布局、Ctrl/Tab/H 输入，产品竖屏布局已可试玩，最终媒体/音频、
-rollback/end controls 和完整产品矩阵仍开放。当前 WIP 仍不是旗舰完成证据。Cat Cafe 已在本轮开始前独立终止：应用、revision-1 Save 支持、产品 E2E 与 live
-发布责任同步结束，不迁移到 VN，也不保留 compatibility wrapper。VN 开发期间没有当前旗舰；Bookshop 只承担
-maintained minimal Narrative example，不是旗舰或完整 VN 产品参考。只有完整产品、human/Agent 作者任务和
-独立 product/engine review 全部关闭后，才把 VN 原子提升为旗舰；预期届时维护的产品例子是 SillyOS + VN，
-但 Bookshop 的教学角色必须在 VN 完成后另行评审和显式裁决，M5 不自动删除。条件性的 Desktop HMR stable
-revalidation 与 production promotion 保持独立，不阻塞本产品。
+它不是全引擎 API 展厅，也不建立 Ren'Py DSL、Save 兼容或自定义解释器。M0–M3 已交付并关闭：独立 package、
+当时冻结的双路线 author/headless breadth、两个 Authoring Scene、named simulations、引擎维护的 focused
+default VN Player、最终媒体/音频与产品矩阵，以及产品入口、Save/recovery、Settings/live locale 和分层恢复
+证据均已落地。M4 正在执行；Agent 与所有者授权 participant 已通过同一 Inspector/CAS 路径完成接手，
+workstation 自动化证据也已交付。独立审查发现历史 59 unique / 44 per route 虽满足计数却不能支撑冻结的
+10–14 分钟阅读分母，当前候选已修正为 110 unique / 82 per route，并按最小视口分页。独立 engine review 与
+Starter feedback classification 已完成：没有新的中立 engine gap，也不需要追加 Template 改动。独立 product
+re-review 也已通过且没有 product-integrity blocker；代表性真实 current-low-end qualification 是唯一开放门槛。
+M4 尚未关闭，M5 尚未开始，当前 WIP 仍不是旗舰完成证据。Cat Cafe 已在本轮开始前独立终止：应用、
+revision-1 Save 支持、产品 E2E 与 live 发布责任
+同步结束，不迁移到 VN，也不保留 compatibility wrapper。VN 开发期间没有当前旗舰；Bookshop 只承担
+maintained minimal Narrative example，不是旗舰或完整 VN 产品参考。只有 M4 的完整产品与证据门全部关闭后，
+才把 VN 原子提升为旗舰；预期届时维护的产品例子是 SillyOS + VN，但 Bookshop 的教学角色必须在 VN 完成后
+另行评审和显式裁决，M5 不自动删除。Desktop production promotion 保持独立，只 gate 对应 production claim，
+不阻塞本产品。
 
 同日 Electronic Pet Reference Product 由所有者停止，未完成产品分母或接替 Cat Cafe。其
 [实施计划](2026-08-27-electronic-pet-reference-product.md) 与

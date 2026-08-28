@@ -76,8 +76,16 @@ Read only the documents relevant to the change:
   end-to-end product hot-plug system; History is only statically optional today.
   A real authoritative Mod remains an R2 consumer for a later product rather
   than a fabricated VN route. The owner-authorized Computer Use-assisted
-  participant handoff is complete; representative current-low-end qualification, independent product
-  and engine reviews, and Starter feedback remain open. This playable WIP is
+  participant handoff is complete. M4's independent review found that the
+  historical 59-unique / 44-per-route script met its count but not the frozen
+  10–14 minute reading denominator; the current candidate therefore carries
+  110 unique visible entries / 82 per route with minimum-viewport pagination.
+  The independent engine review and Starter-feedback classification are
+  complete: the private-import leak in product E2E was removed, no neutral
+  engine gap remains, and no additional Template change is justified. The
+  independent product re-review has also passed without a product-integrity
+  blocker. Representative real current-low-end qualification remains the only
+  open gate. M4 is not closed, M5 has not started, and this playable WIP is
   still not product-completion evidence.
   Cat Cafe terminated on 2026-08-27 before this lane began; its application,
   revision-1 Save support, product E2E, and live release responsibility ended

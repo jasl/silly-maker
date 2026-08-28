@@ -39,12 +39,33 @@ function narrativeTextIdsV1(): readonly string[] {
   });
 }
 
-describe("VN Reference Tour M1 content denominator", () => {
-  it("keeps exact 29/15/15 locale-complete packs and a 59-entry union", () => {
+const chineseGraphemeSegmenterV1 = new Intl.Segmenter("zh-CN", {
+  granularity: "grapheme",
+});
+
+function nonWhitespaceGraphemesV1(entries: readonly { readonly text: string }[]): number {
+  let total = 0;
+  for (const entry of entries) {
+    for (const { segment } of chineseGraphemeSegmenterV1.segment(entry.text)) {
+      if (!/\s/u.test(segment)) total += 1;
+    }
+  }
+  return total;
+}
+
+function wordCountV1(entries: readonly { readonly text: string }[]): number {
+  return entries.reduce(
+    (total, entry) => total + (entry.text.match(/\p{L}+(?:['’]\p{L}+)*/gu)?.length ?? 0),
+    0,
+  );
+}
+
+describe("VN Reference Tour current M4 content denominator", () => {
+  it("keeps exact 54/28/28 locale-complete packs and a 110-entry union", () => {
     const pairs = [
-      [sharedChineseV1, sharedEnglishV1, 29],
-      [archiveChineseV1, archiveEnglishV1, 15],
-      [presentChineseV1, presentEnglishV1, 15],
+      [sharedChineseV1, sharedEnglishV1, 54],
+      [archiveChineseV1, archiveEnglishV1, 28],
+      [presentChineseV1, presentEnglishV1, 28],
     ] as const;
     for (const [chinese, english, expected] of pairs) {
       expect(chinese.entries).toHaveLength(expected);
@@ -55,9 +76,26 @@ describe("VN Reference Tour M1 content denominator", () => {
     }
 
     const packedIds = pairs.flatMap(([chinese]) => idsV1(chinese));
-    expect(new Set(packedIds).size).toBe(59);
+    expect(new Set(packedIds).size).toBe(110);
     expect([...new Set(narrativeTextIdsV1())].toSorted()).toEqual(
       [...new Set(packedIds)].toSorted(),
     );
+  });
+
+  it("keeps each route within the frozen first-play reading-volume budget", () => {
+    for (
+      const [chineseRoute, englishRoute] of [
+        [archiveChineseV1, archiveEnglishV1],
+        [presentChineseV1, presentEnglishV1],
+      ] as const
+    ) {
+      const chineseEntries = [...sharedChineseV1.entries, ...chineseRoute.entries];
+      const englishEntries = [...sharedEnglishV1.entries, ...englishRoute.entries];
+
+      expect(nonWhitespaceGraphemesV1(chineseEntries)).toBeGreaterThanOrEqual(3_000);
+      expect(nonWhitespaceGraphemesV1(chineseEntries)).toBeLessThanOrEqual(4_500);
+      expect(wordCountV1(englishEntries)).toBeGreaterThanOrEqual(1_800);
+      expect(wordCountV1(englishEntries)).toBeLessThanOrEqual(2_600);
+    }
   });
 });

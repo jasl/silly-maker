@@ -19,13 +19,17 @@ async function runtimePackBytesV1(runtimePath: string): Promise<Uint8Array> {
   return await readFile(new URL(runtimePath, new URL("../../", import.meta.url)));
 }
 
-async function instanceAfterChoiceV1(route: VnReferenceTourSignalChoiceV1) {
-  const instance = await createVnReferenceTourApplicationInstanceV1();
+const maxNarrativeAdvancesV1 = 128;
+
+async function reachChoiceV1(
+  instance: Awaited<ReturnType<typeof createVnReferenceTourApplicationInstanceV1>>,
+) {
   await instance.semantic.dispatch(
     { kind: "invoke", actionId: "vn-reference-tour.begin_story" } as never,
   );
-  for (let index = 0; index < 26; index += 1) {
+  for (let step = 0; step < maxNarrativeAdvancesV1; step += 1) {
     const pending = instance.semantic.observe().narrative.pending;
+    if (pending?.kind === "choice") return pending;
     if (pending === null || pending.kind !== "say") {
       throw new TypeError("vn-reference-tour.test_shared_say_missing");
     }
@@ -35,10 +39,12 @@ async function instanceAfterChoiceV1(route: VnReferenceTourSignalChoiceV1) {
       resolution: { kind: "advance" },
     } as never);
   }
-  const choice = instance.semantic.observe().narrative.pending;
-  if (choice === null || choice.kind !== "choice") {
-    throw new TypeError("vn-reference-tour.test_choice_missing");
-  }
+  throw new TypeError("vn-reference-tour.test_choice_advance_limit");
+}
+
+async function instanceAfterChoiceV1(route: VnReferenceTourSignalChoiceV1) {
+  const instance = await createVnReferenceTourApplicationInstanceV1();
+  const choice = await reachChoiceV1(instance);
   await instance.semantic.dispatch({
     kind: "resolve",
     expectedOccurrenceId: choice.occurrenceId,
@@ -53,36 +59,42 @@ async function instanceAfterChoiceV1(route: VnReferenceTourSignalChoiceV1) {
 }
 
 describe("VN Reference Tour runtime text-content gate", () => {
-  it("loads only the route pack selected by the material choice", () => {
+  it("loads only the route pack selected by the material choice", async () => {
     const requiredForInvocation = vnReferenceTourGameApplicationV1.textContent
       ?.requiredPackIdsForInvocation;
-    expect(
-      requiredForInvocation?.({
-        kind: "resolve",
-        expectedOccurrenceId: "interaction-occurrence.27",
-        resolution: {
-          kind: "choose",
-          choiceId: "choice.vn-reference-tour.archive-voice",
-        },
-      }),
-    ).toEqual([vnReferenceTourArchiveTextPackIdV1]);
-    expect(
-      requiredForInvocation?.({
-        kind: "resolve",
-        expectedOccurrenceId: "interaction-occurrence.27",
-        resolution: {
-          kind: "choose",
-          choiceId: "choice.vn-reference-tour.present-voice",
-        },
-      }),
-    ).toEqual([vnReferenceTourPresentTextPackIdV1]);
-    expect(
-      requiredForInvocation?.({
-        kind: "resolve",
-        expectedOccurrenceId: "interaction-occurrence.1",
-        resolution: { kind: "advance" },
-      }),
-    ).toEqual([]);
+    const instance = await createVnReferenceTourApplicationInstanceV1();
+    try {
+      const choice = await reachChoiceV1(instance);
+      expect(
+        requiredForInvocation?.({
+          kind: "resolve",
+          expectedOccurrenceId: choice.occurrenceId,
+          resolution: {
+            kind: "choose",
+            choiceId: "choice.vn-reference-tour.archive-voice",
+          },
+        }),
+      ).toEqual([vnReferenceTourArchiveTextPackIdV1]);
+      expect(
+        requiredForInvocation?.({
+          kind: "resolve",
+          expectedOccurrenceId: choice.occurrenceId,
+          resolution: {
+            kind: "choose",
+            choiceId: "choice.vn-reference-tour.present-voice",
+          },
+        }),
+      ).toEqual([vnReferenceTourPresentTextPackIdV1]);
+      expect(
+        requiredForInvocation?.({
+          kind: "resolve",
+          expectedOccurrenceId: choice.occurrenceId,
+          resolution: { kind: "advance" },
+        }),
+      ).toEqual([]);
+    } finally {
+      await instance.dispose();
+    }
   });
 
   it("selects shared copy plus only the route required by a replacement Snapshot", async () => {
