@@ -18,6 +18,7 @@ import {
   browserWorkspaceQuickJsStackLimitBytesV1,
   browserWorkspaceQuickJsWasmLinearMemoryBytesV1,
   BrowserWorkspaceQuickJsFailureV1,
+  createBrowserWorkspaceQuickJsGuestDiagnosticV1,
   exactBrowserWorkspaceQuickJsDiffV1,
   type BrowserWorkspaceQuickJsFailureCodeV1,
   type BrowserWorkspaceQuickJsFailureResponseV1,
@@ -88,9 +89,13 @@ export async function executeBrowserWorkspaceQuickJsV1(
       if (sourceResult.error !== undefined) {
         const error = context.dump(sourceResult.error);
         sourceResult.error.dispose();
+        const code = executionFailureCodeV1(error, deadlineTriggered);
         throw new BrowserWorkspaceQuickJsFailureV1(
-          executionFailureCodeV1(error, deadlineTriggered),
+          code,
           "QuickJS source failed",
+          code === "execution_failed"
+            ? createBrowserWorkspaceQuickJsGuestDiagnosticV1(error)
+            : null,
         );
       }
       sourceResult.value.dispose();
@@ -172,6 +177,7 @@ export function browserWorkspaceQuickJsFailureResponseV1(
     buildIdentity: browserWorkspaceSandboxArtifactBuildIdentityV1,
     ok: false,
     code: error instanceof BrowserWorkspaceQuickJsFailureV1 ? error.code : "execution_failed",
+    diagnostic: error instanceof BrowserWorkspaceQuickJsFailureV1 ? error.diagnostic : null,
     wasmLinearMemoryBytes: error instanceof BrowserWorkspaceQuickJsFailureV1
       ? error.wasmLinearMemoryBytes
       : null,
@@ -246,6 +252,7 @@ function installBrowserWorkspaceQuickJsWorkerV1(
         buildIdentity: browserWorkspaceSandboxArtifactBuildIdentityV1,
         ok: false,
         code: "invalid_request",
+        diagnostic: null,
         wasmLinearMemoryBytes: null,
       });
       return;

@@ -16,6 +16,7 @@ import {
   browserWorkspaceQuickJsOuterWatchdogMillisecondsV1,
   canonicalBrowserWorkspaceQuickJsPathV1,
   type BrowserWorkspaceQuickJsFileV1,
+  type BrowserWorkspaceQuickJsFailureResponseV1,
   type BrowserWorkspaceQuickJsRequestV1,
   type BrowserWorkspaceQuickJsResponseV1,
   type BrowserWorkspaceQuickJsSuccessResponseV1,
@@ -294,6 +295,21 @@ function commandFailureV1(message: string, exitCode = 1): ExecResult {
   return { stdout: "", stderr: `qjs: ${message}\n`, exitCode };
 }
 
+function workerFailureMessageV1(response: BrowserWorkspaceQuickJsFailureResponseV1): string {
+  const diagnostic = response.diagnostic;
+  if (diagnostic !== null) {
+    const location = diagnostic.line === null
+      ? ""
+      : ` at ${String(diagnostic.line)}${
+        diagnostic.column === null ? "" : `:${String(diagnostic.column)}`
+      }`;
+    return `${diagnostic.kind}${location}: ${diagnostic.message}`;
+  }
+  return response.code === "deadline_exceeded"
+    ? "guest deadline exceeded"
+    : response.code.replaceAll("_", " ");
+}
+
 async function executeQuickJsCommandV1(
   args: string[],
   context: ResolvedCommandContext,
@@ -319,9 +335,7 @@ async function executeQuickJsCommandV1(
     if (result.kind !== "completed") return commandFailureV1("Worker execution failed");
     if (!result.response.ok) {
       return commandFailureV1(
-        result.response.code === "deadline_exceeded"
-          ? "guest deadline exceeded"
-          : result.response.code.replaceAll("_", " "),
+        workerFailureMessageV1(result.response),
         result.response.code === "deadline_exceeded" ? 124 : 1,
       );
     }

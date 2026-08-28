@@ -277,7 +277,7 @@ describe("SillyOS Browser Workspace qjs command", () => {
     }
   });
 
-  it("keeps its CLI bounded and reports runtime failures without exposing details", async () => {
+  it("keeps its CLI bounded and reports only admitted guest diagnostics", async () => {
     const filesystem = new InMemoryFs({ "/workspace/script.js": "1 + 1;" });
     const command = createBrowserWorkspaceQuickJsCommandV1(async () => ({
       kind: "worker_failed",
@@ -296,6 +296,30 @@ describe("SillyOS Browser Workspace qjs command", () => {
     await expect(command.execute(["script.js"], context)).resolves.toEqual({
       stdout: "",
       stderr: "qjs: Worker execution failed\n",
+      exitCode: 1,
+    });
+
+    const diagnosed = createBrowserWorkspaceQuickJsCommandV1(async (request) => ({
+      kind: "completed",
+      response: {
+        revision: 1,
+        kind: "quickjs_result",
+        requestId: request.requestId,
+        buildIdentity: request.buildIdentity,
+        ok: false,
+        code: "execution_failed",
+        diagnostic: {
+          kind: "SyntaxError",
+          message: "expecting expression",
+          line: 4,
+          column: 9,
+        },
+        wasmLinearMemoryBytes: browserWorkspaceQuickJsWasmLinearMemoryBytesV1,
+      },
+    }));
+    await expect(diagnosed.execute(["script.js"], context)).resolves.toEqual({
+      stdout: "",
+      stderr: "qjs: SyntaxError at 4:9: expecting expression\n",
       exitCode: 1,
     });
   });

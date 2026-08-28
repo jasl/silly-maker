@@ -534,10 +534,11 @@ not gain Wasm evaluation. No runtime script is fetched from a third party.
 
 Closure evidence is deliberately separated:
 
-- focused protocol/command/runtime tests pass 22/22;
+- focused protocol/command/runtime tests pass 24/24;
 - the real Host Worker -> QuickJS child Worker path passes in Chromium and
   WebKit through Pi native `bash`, including exact changed-path receipt, hard
-  cancel, ignored late work, and fresh-worker recovery;
+  cancel, ignored late work, fresh-worker recovery, and a bounded failed-script
+  diagnostic whose receipt has no mutation;
 - raw local first/cancel/recovery observations are approximately
   `100.8 / 111.2 / 21.4 ms` in Chromium and `70 / 104 / 43 ms` in WebKit. Both
   runs observed zero control-page Long Tasks, with maximum rAF/timer delay of
@@ -575,10 +576,16 @@ it does not create another Agent tool or engine API. Linux, a container, Git,
 package installation, and a general process substrate remain separate
 capabilities rather than implications of Q1.
 
-The current Q1 error surface intentionally returns only coarse bounded failure
-codes. A later narrow usability slice may add sanitized guest exception kind,
-line/column, and a short capped message without returning host exceptions or
-stacks.
+The Q1 usability closeout keeps diagnostics inside its existing private Worker
+response and Pi native `bash` stderr; it adds no AgentTool, runtime RPC, or
+new persistent diagnostic log. Only guest-script `execution_failed` may carry one exact-
+admitted common JavaScript error kind, a non-empty single-line message capped at
+`512` UTF-8 bytes, and optional positive line/column coordinates. Primitive or
+unknown errors and bootstrap/snapshot/deadline/memory/output/async/Worker/
+protocol failures retain only a fixed product code. The response has no
+filename or source-excerpt field, and the product does not forward a raw stack
+or Host exception. Guest-controlled messages may repeat already staged text.
+Direct Worker and real Pi `bash` paths pass in Chromium and WebKit.
 
 ### S3 — optional Credential Vault
 
@@ -898,7 +905,10 @@ The accepted execution order is no longer the numeric subsection order:
     engine harness evidence, the exact 10-file Sandbox graph, lazy-load order,
     fresh Host/dedicated Pi-harness Worker cold reopen, and control-build
     QuickJS/Wasm exclusion gate
-    pass. No S1b-3/Q1 production deployment is claimed.
+    pass. Bounded admitted guest source diagnostics also reach the same native
+    `bash` result in both engines with no mutation on failure; the product does
+    not forward a dedicated filename/stack field or Host exception. No
+    S1b-3/Q1 production deployment is claimed.
     Later S2 execution profiles,
     S3 Credential Vault, S4 Agent/OpenUI state,
     S5 BYO Sandbox/products, P1-D, and broader import/artifact work require their

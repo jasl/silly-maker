@@ -27,6 +27,14 @@ interface QuickJsResponseV1 {
   readonly buildIdentity: string;
   readonly ok: boolean;
   readonly code?: string;
+  readonly diagnostic?:
+    | Readonly<{
+      readonly kind: string;
+      readonly message: string;
+      readonly line: number | null;
+      readonly column: number | null;
+    }>
+    | null;
   readonly wasmLinearMemoryBytes?: number | null;
   readonly response?: {
     readonly changes: readonly Readonly<{
@@ -329,6 +337,12 @@ print(workspace.listFiles().join(","));
       buildIdentity: buildIdentityV1,
       ok: false,
       code: "execution_failed",
+      diagnostic: {
+        kind: "SyntaxError",
+        message: "expecting '('",
+        line: 1,
+        column: 8,
+      },
       wasmLinearMemoryBytes: 16 * 1_024 * 1_024,
     });
 
@@ -343,6 +357,12 @@ print(workspace.listFiles().join(","));
       buildIdentity: buildIdentityV1,
       ok: false,
       code: "execution_failed",
+      diagnostic: {
+        kind: "ReferenceError",
+        message: "'fetch' is not defined",
+        line: 1,
+        column: 1,
+      },
       wasmLinearMemoryBytes: 16 * 1_024 * 1_024,
     });
     expect(forbiddenOutboundRequests).toBe(0);
@@ -361,6 +381,7 @@ print(workspace.listFiles().join(","));
       buildIdentity: buildIdentityV1,
       ok: false,
       code: "async_unsupported",
+      diagnostic: null,
       wasmLinearMemoryBytes: 16 * 1_024 * 1_024,
     });
 
@@ -384,6 +405,7 @@ Array.from = (...values) => {
       buildIdentity: buildIdentityV1,
       ok: false,
       code: "async_unsupported",
+      diagnostic: null,
       wasmLinearMemoryBytes: 16 * 1_024 * 1_024,
     });
 
@@ -399,6 +421,7 @@ Array.from = (...values) => {
       buildIdentity: buildIdentityV1,
       ok: false,
       code: "deadline_exceeded",
+      diagnostic: null,
       wasmLinearMemoryBytes: 16 * 1_024 * 1_024,
     });
 
@@ -423,6 +446,7 @@ print(blocks.length);
       buildIdentity: buildIdentityV1,
       ok: false,
       code: "memory_limit",
+      diagnostic: null,
       wasmLinearMemoryBytes: 16 * 1_024 * 1_024,
     });
 

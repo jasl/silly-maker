@@ -5,8 +5,10 @@ import { describe, expect, it } from "vitest";
 import {
   admitBrowserWorkspaceQuickJsRequestV1,
   admitBrowserWorkspaceQuickJsResponseV1,
+  browserWorkspaceQuickJsByteLengthV1,
   browserWorkspaceQuickJsChangedPathMaximumV1,
   browserWorkspaceQuickJsDeadlineMillisecondsV1,
+  browserWorkspaceQuickJsDiagnosticMessageMaximumBytesV1,
   browserWorkspaceQuickJsDiffMaximumBytesV1,
   browserWorkspaceQuickJsFileMaximumBytesV1,
   browserWorkspaceQuickJsOuterWatchdogMillisecondsV1,
@@ -15,6 +17,7 @@ import {
   browserWorkspaceQuickJsStackLimitBytesV1,
   browserWorkspaceQuickJsWasmLinearMemoryBytesV1,
   canonicalBrowserWorkspaceQuickJsPathV1,
+  createBrowserWorkspaceQuickJsGuestDiagnosticV1,
   exactBrowserWorkspaceQuickJsDiffV1,
 } from "../workspace/browser-workspace-quickjs-protocol.ts";
 
@@ -76,6 +79,36 @@ describe("SillyOS Browser Workspace QuickJS protocol", () => {
     expect(canonicalBrowserWorkspaceQuickJsPathV1("/workspace//file.txt")).toBeNull();
     expect(canonicalBrowserWorkspaceQuickJsPathV1("/tmp/file.txt")).toBeNull();
     expect(canonicalBrowserWorkspaceQuickJsPathV1("/workspace\\file.txt")).toBeNull();
+  });
+
+  it("reduces guest failures to a bounded single-line diagnostic", () => {
+    const diagnostic = createBrowserWorkspaceQuickJsGuestDiagnosticV1({
+      name: "TypeError",
+      message: `bad\n${"界".repeat(300)}`,
+      stack: "    at <eval> (workspace-script.js:12:34)\n    at hidden-host-frame:1:1",
+    });
+    expect(diagnostic).toMatchObject({
+      kind: "TypeError",
+      line: 12,
+      column: 34,
+    });
+    if (diagnostic === null) throw new Error("Expected an admitted guest diagnostic");
+    expect(diagnostic.message).not.toMatch(/[\n\r\0]/u);
+    expect(browserWorkspaceQuickJsByteLengthV1(diagnostic.message)).toBeLessThanOrEqual(
+      browserWorkspaceQuickJsDiagnosticMessageMaximumBytesV1,
+    );
+    expect(JSON.stringify(diagnostic)).not.toContain("hidden-host-frame");
+    expect(createBrowserWorkspaceQuickJsGuestDiagnosticV1("plain thrown value")).toBeNull();
+    expect(createBrowserWorkspaceQuickJsGuestDiagnosticV1({
+      name: "InternalError",
+      message: "host-like runtime detail",
+    })).toBeNull();
+    expect(
+      createBrowserWorkspaceQuickJsGuestDiagnosticV1({
+        name: "Error",
+        message: `${"a".repeat(511)} X`,
+      })?.message,
+    ).toBe("a".repeat(511));
   });
 
   it("returns an exact sorted terminal diff and enforces its output bounds", () => {
@@ -171,6 +204,75 @@ describe("SillyOS Browser Workspace QuickJS protocol", () => {
       requestId: 1,
       buildIdentity: buildIdentityV1,
     })).toBeNull();
+  });
+
+  it("exact-admits only bounded guest diagnostics for execution failures", () => {
+    const response = {
+      revision: 1,
+      kind: "quickjs_result",
+      requestId: 1,
+      buildIdentity: buildIdentityV1,
+      ok: false,
+      code: "execution_failed",
+      diagnostic: {
+        kind: "SyntaxError",
+        message: "expecting expression",
+        line: 3,
+        column: 7,
+      },
+      wasmLinearMemoryBytes: browserWorkspaceQuickJsWasmLinearMemoryBytesV1,
+    } as const;
+    expect(admitBrowserWorkspaceQuickJsResponseV1(response, {
+      requestId: 1,
+      buildIdentity: buildIdentityV1,
+    })).toEqual(response);
+    expect(admitBrowserWorkspaceQuickJsResponseV1({
+      ...response,
+      diagnostic: { ...response.diagnostic, message: "secret\nstack" },
+    }, {
+      requestId: 1,
+      buildIdentity: buildIdentityV1,
+    })).toBeNull();
+    expect(admitBrowserWorkspaceQuickJsResponseV1({
+      ...response,
+      code: "memory_limit",
+    }, {
+      requestId: 1,
+      buildIdentity: buildIdentityV1,
+    })).toBeNull();
+    expect(admitBrowserWorkspaceQuickJsResponseV1({
+      ...response,
+      diagnostic: { ...response.diagnostic, stack: "host stack" },
+    }, {
+      requestId: 1,
+      buildIdentity: buildIdentityV1,
+    })).toBeNull();
+    expect(admitBrowserWorkspaceQuickJsResponseV1({
+      ...response,
+      diagnostic: { ...response.diagnostic, line: null, column: 7 },
+    }, {
+      requestId: 1,
+      buildIdentity: buildIdentityV1,
+    })).toBeNull();
+    expect(admitBrowserWorkspaceQuickJsResponseV1({
+      ...response,
+      diagnostic: { ...response.diagnostic, message: "界".repeat(171) },
+    }, {
+      requestId: 1,
+      buildIdentity: buildIdentityV1,
+    })).toBeNull();
+    const boundaryDiagnostic = createBrowserWorkspaceQuickJsGuestDiagnosticV1({
+      name: "Error",
+      message: `${"a".repeat(511)} X`,
+    });
+    if (boundaryDiagnostic === null) throw new Error("Expected a boundary diagnostic");
+    expect(admitBrowserWorkspaceQuickJsResponseV1({
+      ...response,
+      diagnostic: boundaryDiagnostic,
+    }, {
+      requestId: 1,
+      buildIdentity: buildIdentityV1,
+    })).toMatchObject({ diagnostic: boundaryDiagnostic });
   });
 
   it("pins finite runtime and parent hard-watchdog limits", () => {

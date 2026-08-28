@@ -11,6 +11,7 @@ export const browserWorkspaceQuickJsWorkspaceMaximumBytesV1 = 1 * 1_024 * 1_024;
 export const browserWorkspaceQuickJsChangedPathMaximumV1 = 16;
 export const browserWorkspaceQuickJsDiffMaximumBytesV1 = 256 * 1_024;
 export const browserWorkspaceQuickJsStdoutMaximumBytesV1 = 64 * 1_024;
+export const browserWorkspaceQuickJsDiagnosticMessageMaximumBytesV1 = 512;
 // These two limits cover only the guest allocator and Wasm linear memory. They
 // do not include the staged host objects, module JavaScript, structured clones,
 // Worker overhead, or browser-process memory.
@@ -23,6 +24,10 @@ export const browserWorkspaceQuickJsOuterWatchdogMillisecondsV1 = 3_000;
 const pathMaximumBytesV1 = 1_024;
 const requestIdMaximumV1 = 0x7fff_ffff;
 const encoderV1 = new TextEncoder();
+// oxlint-disable-next-line eslint/no-control-regex -- Diagnostics intentionally collapse C0/C1 controls.
+const diagnosticControlCharactersV1 = /[\u0000-\u001f\u007f-\u009f]+/gu;
+// oxlint-disable-next-line eslint/no-control-regex -- Exact admission intentionally rejects C0/C1 controls.
+const diagnosticControlCharacterV1 = /[\u0000-\u001f\u007f-\u009f]/u;
 
 export interface BrowserWorkspaceQuickJsFileV1 {
   readonly path: string;
@@ -72,6 +77,22 @@ export type BrowserWorkspaceQuickJsFailureCodeV1 =
   | "output_limit"
   | "execution_failed";
 
+export type BrowserWorkspaceQuickJsGuestErrorKindV1 =
+  | "Error"
+  | "EvalError"
+  | "RangeError"
+  | "ReferenceError"
+  | "SyntaxError"
+  | "TypeError"
+  | "URIError";
+
+export interface BrowserWorkspaceQuickJsGuestDiagnosticV1 {
+  readonly kind: BrowserWorkspaceQuickJsGuestErrorKindV1;
+  readonly message: string;
+  readonly line: number | null;
+  readonly column: number | null;
+}
+
 export interface BrowserWorkspaceQuickJsFailureResponseV1 {
   readonly revision: 1;
   readonly kind: "quickjs_result";
@@ -79,6 +100,7 @@ export interface BrowserWorkspaceQuickJsFailureResponseV1 {
   readonly buildIdentity: string;
   readonly ok: false;
   readonly code: BrowserWorkspaceQuickJsFailureCodeV1;
+  readonly diagnostic: BrowserWorkspaceQuickJsGuestDiagnosticV1 | null;
   readonly wasmLinearMemoryBytes: number | null;
 }
 
@@ -93,15 +115,18 @@ export interface BrowserWorkspaceQuickJsSnapshotV1 {
 
 export class BrowserWorkspaceQuickJsFailureV1 extends Error {
   readonly code: Exclude<BrowserWorkspaceQuickJsFailureCodeV1, "invalid_request">;
+  readonly diagnostic: BrowserWorkspaceQuickJsGuestDiagnosticV1 | null;
   wasmLinearMemoryBytes: number | null = null;
 
   constructor(
     code: Exclude<BrowserWorkspaceQuickJsFailureCodeV1, "invalid_request">,
     message: string,
+    diagnostic: BrowserWorkspaceQuickJsGuestDiagnosticV1 | null = null,
   ) {
     super(message);
     this.name = "BrowserWorkspaceQuickJsFailureV1";
     this.code = code;
+    this.diagnostic = diagnostic;
   }
 }
 
@@ -136,6 +161,108 @@ function positiveRequestIdV1(value: unknown): value is number {
 
 function finiteNonNegativeNumberV1(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+const guestErrorKindsV1: readonly BrowserWorkspaceQuickJsGuestErrorKindV1[] = [
+  "Error",
+  "EvalError",
+  "RangeError",
+  "ReferenceError",
+  "SyntaxError",
+  "TypeError",
+  "URIError",
+];
+const diagnosticCoordinateMaximumV1 = browserWorkspaceQuickJsSourceMaximumBytesV1 + 1;
+
+function ownDataPropertyV1(value: unknown, key: string): unknown {
+  if (typeof value !== "object" || value === null) return undefined;
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  return descriptor !== undefined && "value" in descriptor ? descriptor.value : undefined;
+}
+
+function diagnosticCoordinateV1(value: unknown): number | null {
+  return Number.isSafeInteger(value) && (value as number) >= 1 &&
+      (value as number) <= diagnosticCoordinateMaximumV1
+    ? value as number
+    : null;
+}
+
+function truncateUtf8V1(value: string, maximumBytes: number): string {
+  let result = "";
+  let bytes = 0;
+  for (const character of value) {
+    const characterBytes = encoderV1.encode(character).byteLength;
+    if (bytes + characterBytes > maximumBytes) break;
+    result += character;
+    bytes += characterBytes;
+  }
+  return result;
+}
+
+function singleLineDiagnosticMessageV1(value: string): string | null {
+  const normalized = value
+    .replace(diagnosticControlCharactersV1, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+  return normalized.length === 0
+    ? null
+    : truncateUtf8V1(normalized, browserWorkspaceQuickJsDiagnosticMessageMaximumBytesV1).trimEnd();
+}
+
+/**
+ * Reduce one dumped QuickJS guest error to a single-line, bounded diagnostic.
+ * Host exceptions and stacks never cross the child-Worker response boundary.
+ */
+export function createBrowserWorkspaceQuickJsGuestDiagnosticV1(
+  errorValue: unknown,
+): BrowserWorkspaceQuickJsGuestDiagnosticV1 | null {
+  const rawName = ownDataPropertyV1(errorValue, "name");
+  if (
+    typeof rawName !== "string" ||
+    !guestErrorKindsV1.includes(rawName as BrowserWorkspaceQuickJsGuestErrorKindV1)
+  ) return null;
+  const rawMessage = ownDataPropertyV1(errorValue, "message");
+  if (typeof rawMessage !== "string") return null;
+  const message = singleLineDiagnosticMessageV1(rawMessage);
+  if (message === null) return null;
+  const stack = ownDataPropertyV1(errorValue, "stack");
+  const stackLocation = typeof stack === "string"
+    ? /workspace-script\.js:(\d+):(\d+)/u.exec(stack)
+    : null;
+  const line = diagnosticCoordinateV1(ownDataPropertyV1(errorValue, "lineNumber")) ??
+    diagnosticCoordinateV1(stackLocation?.[1] === undefined ? null : Number(stackLocation[1]));
+  const column = line === null
+    ? null
+    : diagnosticCoordinateV1(ownDataPropertyV1(errorValue, "columnNumber")) ??
+      diagnosticCoordinateV1(stackLocation?.[2] === undefined ? null : Number(stackLocation[2]));
+  return Object.freeze({
+    kind: rawName as BrowserWorkspaceQuickJsGuestErrorKindV1,
+    message,
+    line,
+    column,
+  });
+}
+
+function admitGuestDiagnosticV1(value: unknown): BrowserWorkspaceQuickJsGuestDiagnosticV1 | null {
+  const record = exactRecordV1(value, ["kind", "message", "line", "column"]);
+  if (
+    record === null ||
+    !guestErrorKindsV1.includes(record.kind as BrowserWorkspaceQuickJsGuestErrorKindV1) ||
+    typeof record.message !== "string" || record.message.length === 0 ||
+    browserWorkspaceQuickJsByteLengthV1(record.message) >
+      browserWorkspaceQuickJsDiagnosticMessageMaximumBytesV1 ||
+    diagnosticControlCharacterV1.test(record.message) ||
+    singleLineDiagnosticMessageV1(record.message) !== record.message ||
+    (record.line !== null && diagnosticCoordinateV1(record.line) === null) ||
+    (record.column !== null && diagnosticCoordinateV1(record.column) === null) ||
+    (record.line === null && record.column !== null)
+  ) return null;
+  return Object.freeze({
+    kind: record.kind as BrowserWorkspaceQuickJsGuestErrorKindV1,
+    message: record.message,
+    line: record.line as number | null,
+    column: record.column as number | null,
+  });
 }
 
 function admittedBuildIdentityV1(value: unknown): string | null {
@@ -404,6 +531,7 @@ export function admitBrowserWorkspaceQuickJsResponseV1(
     "buildIdentity",
     "ok",
     "code",
+    "diagnostic",
     "wasmLinearMemoryBytes",
   ]);
   const codes: readonly BrowserWorkspaceQuickJsFailureCodeV1[] = [
@@ -414,10 +542,15 @@ export function admitBrowserWorkspaceQuickJsResponseV1(
     "output_limit",
     "execution_failed",
   ];
+  const diagnostic = record?.diagnostic === null
+    ? null
+    : admitGuestDiagnosticV1(record?.diagnostic);
   if (
     record === null || record.revision !== 1 || record.kind !== "quickjs_result" ||
     record.requestId !== expected.requestId || record.buildIdentity !== expected.buildIdentity ||
     record.ok !== false || !codes.includes(record.code as BrowserWorkspaceQuickJsFailureCodeV1) ||
+    (record.diagnostic !== null && diagnostic === null) ||
+    (record.code !== "execution_failed" && diagnostic !== null) ||
     (record.wasmLinearMemoryBytes !== null &&
       record.wasmLinearMemoryBytes !== browserWorkspaceQuickJsWasmLinearMemoryBytesV1)
   ) return null;
@@ -428,6 +561,7 @@ export function admitBrowserWorkspaceQuickJsResponseV1(
     buildIdentity: expected.buildIdentity,
     ok: false,
     code: record.code as BrowserWorkspaceQuickJsFailureCodeV1,
+    diagnostic,
     wasmLinearMemoryBytes: record.wasmLinearMemoryBytes as number | null,
   });
 }

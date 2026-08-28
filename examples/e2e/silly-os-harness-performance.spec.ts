@@ -584,6 +584,12 @@ test(
       effect: "changed",
       changedPaths: ["harness-qjs-output.txt"],
     }));
+    expect(receipt.worker.mutations).toContainEqual(expect.objectContaining({
+      tool: "bash",
+      outcome: "failed",
+      effect: "none",
+      changedPaths: [],
+    }));
     expect(receipt.worker.samples.quickJsMilliseconds).toBeGreaterThanOrEqual(0);
     expect(receipt.worker.samples.quickJsCancellationMilliseconds).toBeGreaterThanOrEqual(0);
     expect(receipt.worker.samples.quickJsRecoveryMilliseconds).toBeGreaterThanOrEqual(0);

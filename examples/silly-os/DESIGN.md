@@ -64,7 +64,9 @@ staging. Focused and Chromium/WebKit harness evidence passes; the exact 10-file
 Sandbox graph, lazy load after an earlier `bash true`, and fresh Host/dedicated
 Pi-harness Worker cold
 reopen also pass. The control build's QuickJS/Wasm exclusion gate now passes as
-well. The Sandbox,
+well. Admitted common guest source errors may return a bounded diagnostic
+through the same Pi `bash` result; no dedicated filename/stack field or Host
+exception is forwarded. The Sandbox,
 live-tools, and Q1 overlay have no production deployment receipt. No persistent
 Credential Vault or real custom-
 profile qualification is claimed. The earlier
@@ -626,9 +628,10 @@ does not claim an atomic multi-file transaction or rollback.
 The Sandbox response alone adds `script-src 'self' 'wasm-unsafe-eval'`; it still
 has no ordinary `unsafe-eval`, and `connect-src` remains `none`. Control-plane
 responses do not gain either token. Focused protocol/command/runtime tests pass
-22/22. The real nested Host Worker -> QuickJS child Worker path passes in
+24/24. The real nested Host Worker -> QuickJS child Worker path passes in
 Chromium and WebKit through Pi native `bash`, including exact file mutation,
-native `bash` receipt, hard cancellation, and fresh-worker recovery. Raw local
+native `bash` receipt, a bounded failed-script diagnostic with no mutation,
+hard cancellation, and fresh-worker recovery. Raw local
 observations were approximately `100.8 / 111.2 / 21.4 ms` in Chromium and
 `70 / 104 / 43 ms` in WebKit for first Q1 execution / hard cancel / recovery;
 neither engine reported a control-page Long Task in that run. These values are
@@ -645,9 +648,18 @@ deployment receipt. The
 allocator, not staged host objects, module JavaScript, structured clones,
 Worker overhead, OPFS, or browser-process memory.
 
-The current command deliberately returns only a coarse bounded failure code.
-Sanitized guest exception kind, line/column, and a short capped message are a
-separate usability slice; Q1 does not expose host exceptions or stacks.
+For `execution_failed` during evaluation of the named guest script, the child
+may return one exact-admitted common JavaScript error kind, a non-empty
+single-line message capped at `512` UTF-8 bytes, and optional positive
+line/column coordinates. The parent renders only those admitted fields in
+`qjs` stderr. Primitive throws, unknown/runtime-internal error kinds,
+bootstrap/snapshot failures, deadlines, memory/output limits, asynchronous-job
+rejection, Worker failure, and protocol failure keep only their fixed product
+code. The response has no filename or source-excerpt field, and the product
+does not forward a raw stack or Host exception. Guest code can deliberately
+repeat text, including filename-like text, from data already staged for that
+invocation in its own error message; credentials and ambient product storage
+are never staged.
 
 Python remains deferred: the current Pyodide control is roughly `12.9 MiB` raw /
 `6.03 MiB` gzip with `0.85–0.91 s` cold startup and a broader JavaScript bridge.

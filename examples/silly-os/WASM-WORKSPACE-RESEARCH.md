@@ -33,7 +33,8 @@ Pi native `bash` uses a fresh child Worker and explicit bounded text staging.
 Its focused and Chromium/WebKit nested-worker evidence passes. The exact
 10-file Sandbox graph, lazy load after `bash true`, fresh Host/dedicated
 Pi-harness Worker cold reopen,
-and control-build QuickJS/Wasm exclusion gate also pass. The
+control-build QuickJS/Wasm exclusion gate, and bounded guest source diagnostics
+through real Pi `bash` also pass. The
 owning product sequence is [PLAN.md](./PLAN.md).
 
 ## Delivered S2-Q1 and runtime disposition
@@ -98,9 +99,16 @@ QuickJS is implemented only as the bounded Q1 Browser capability; it is closed
 locally but not deployed. Python is neither implemented nor deployed as a
 Program capability.
 
-The current command reports only a coarse bounded failure code. Sanitized guest
-exception kind, line/column, and a short capped message remain a separate
-usability slice; host exceptions and stacks stay outside the guest result.
+Only guest-script `execution_failed` may return one exact-admitted common
+JavaScript error kind, a non-empty single-line message capped at `512` UTF-8
+bytes, and optional positive line/column coordinates. Primitive or unknown
+errors and bootstrap/snapshot/deadline/memory/output/async/Worker/protocol
+failures retain only a fixed product code. The response has no filename or
+source-excerpt field, and the product does not forward a raw stack or Host
+exception. Chromium and WebKit pass both the direct Worker cases and the same
+diagnostic through Pi native `bash`; the failed tool receipt has no mutation.
+Guest code can deliberately repeat staged text, including filename-like text,
+in its own message, but credentials and ambient product storage are not staged.
 
 The current harness performance receipt is raw local-development data, not a
 release gate or budget. Three runs reuse warm HTTP/Vite server and dependency
@@ -1011,7 +1019,9 @@ sandbox claim; the mere use of WebAssembly does not.
    Chromium/WebKit nested-worker harness pass. The exact 10-file Sandbox graph,
    lazy load after `bash true`, fresh Host/dedicated Pi-harness Worker cold
    reopen, and control-build
-   QuickJS/Wasm exclusion gate also pass. Sequential
+   QuickJS/Wasm exclusion gate also pass. Admitted common guest source failures
+   may return a capped diagnostic through Pi `bash` with no mutation; the
+   product does not forward a dedicated filename/stack field or Host exception. Sequential
    writes are not misrepresented as an atomic multi-file transaction. Python
    follows only after its own boundary is proved; neither runtime is implied by
    just-bash package availability.

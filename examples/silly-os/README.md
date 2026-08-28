@@ -141,6 +141,8 @@ S2-Q1 已在 2026-08-29 本地关闭：一个产品固定的同步 `qjs` custom 
 Host/dedicated Pi-harness Worker cold reopen 都已通过。普通 control build 与 Browser security
 checker 也通过，
 `dist-web` 不含 QuickJS、Emscripten、`ffi` 或 Wasm file/marker；这仍不是部署回执。
+准入的常见 guest source error 现在可以沿同一 Pi `bash` 路径返回有界诊断；失败 receipt 为
+`effect: none` 且没有 changed path，产品不转发独立 filename/stack 字段或 Host exception。
 
 Install/lock graph 仍含 optional/vendor 依赖，shell bundle 也包含未注册的 `curl` 实现，因此
 安全依据是 closed command registry、无网络注入、Sandbox `connect-src 'none'`、fresh Worker
@@ -311,7 +313,7 @@ Agent Worker；没有观测到 control-page Long Task 也不是所有设备/并�
 Chromium 只有 `27.6–29.4 MB` 的 bucketed control-page JS heap，WebKit 没有可读数值；两者
 都没有证明 Agent/Sandbox Worker、OPFS、Wasm 或浏览器进程的 total/peak memory。
 
-Q1 的当前单轮 raw local harness 另外观测到 first qjs / hard cancel / fresh recovery：Chromium
+Q1 此前记录的一轮 raw local harness 另外观测到 first qjs / hard cancel / fresh recovery：Chromium
 约为 `100.8 / 111.2 / 21.4 ms`，WebKit 约为 `70 / 104 / 43 ms`。两边都通过同一个 Pi
 native `bash` path 得到 exact changed-path receipt，取消后新 Worker 可以恢复；该轮 control
 page Long Task 为 0。Chromium 的最大 rAF delta / timer delay 约为 `10.1 / 13.7 ms`，WebKit
@@ -319,8 +321,13 @@ page Long Task 为 0。Chromium 的最大 rAF delta / timer delay 约为 `10.1 /
 结论；`12 MiB` allocator 与 `16 MiB` linear memory 也不包含 host objects、module JS、
 structured clone、Worker、OPFS 或 browser process。
 
-当前 `qjs` 失败只返回粗粒度且有界的错误码。后续可以独立增加清理后的 guest exception 类型、
-行列号和短消息上限，但不能透传 Host exception 或 stack。
+仅 guest script 求值阶段的 `execution_failed` 可以返回一个 exact-admitted 的常见 JavaScript
+error kind、非空单行消息（最多 `512` UTF-8 bytes）以及可选的正数行列号。primitive throw、
+未知/运行时内部 error、bootstrap/snapshot、deadline、memory/output、async、Worker 和 protocol
+失败仍只返回固定产品错误码。响应没有 filename/source-excerpt 字段，产品不转发 raw stack 或
+Host exception。该诊断已在 Chromium/WebKit 的直接 Worker 和真实 Pi native `bash` 路径通过；
+guest 可以主动把本次已经显式 stage 的数据（包括形似 filename 的文本）写入自己的错误消息，但
+它拿不到 credential 或 ambient product storage。
 
 ## 运行
 

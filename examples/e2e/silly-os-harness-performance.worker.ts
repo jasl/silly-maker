@@ -24,6 +24,7 @@ const fixturePathV1 = "harness-perf-fixture.txt";
 const quickJsScriptPathV1 = "harness-qjs.js";
 const quickJsInputPathV1 = "harness-qjs-input.txt";
 const quickJsOutputPathV1 = "harness-qjs-output.txt";
+const quickJsErrorPathV1 = "harness-qjs-error.js";
 const quickJsInfinitePathV1 = "harness-qjs-infinite.js";
 const quickJsRecoveryPathV1 = "harness-qjs-recovery.js";
 const quickJsRecoveryOutputPathV1 = "harness-qjs-recovered.txt";
@@ -219,6 +220,26 @@ workerScopeV1.addEventListener("message", (event: MessageEvent<unknown>) => {
       );
       if (!quickJsOutput.includes("BROWSER HARNESS:QUICKJS_Q1")) {
         throw new Error("Native Pi bash qjs did not commit the exact guest output bytes");
+      }
+
+      await write.execute(
+        "pi.tool.harness-perf.write.qjs-error",
+        { path: quickJsErrorPathV1, content: "missingAgentSymbol();" },
+      );
+      let quickJsError = "";
+      try {
+        await bash.execute("pi.tool.harness-perf.bash.qjs-error", {
+          command: `qjs ${quickJsErrorPathV1}`,
+        });
+      } catch (error) {
+        quickJsError = error instanceof Error ? error.message : "";
+      }
+      if (
+        !quickJsError.includes(
+          "qjs: ReferenceError at 1:1: 'missingAgentSymbol' is not defined",
+        ) || quickJsError.includes("workspace-script.js") || quickJsError.includes("<eval>")
+      ) {
+        throw new Error("Native Pi bash qjs did not return the bounded guest diagnostic");
       }
 
       const warmBashTrueMilliseconds: number[] = [];
