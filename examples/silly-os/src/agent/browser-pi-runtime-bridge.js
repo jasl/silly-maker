@@ -13,6 +13,8 @@ export const deterministicEditProbePrefixV1 =
   "Exercise the pinned native Pi edit tool with exact text: ";
 export const deterministicBashProbePrefixV1 =
   "Exercise the pinned native Pi bash tool with exact text: ";
+export const deterministicFileOpsProbePrefixV1 =
+  "Exercise the pinned native Pi workspace file operations lifecycle: ";
 export const deterministicGrepProbePrefixV1 =
   "Exercise the product-fixed Pi grep tool with exact text: ";
 export const deterministicOversizedReadProbeV1 =
@@ -121,6 +123,7 @@ export function createDeterministicPiAgentV1(input) {
   );
   const exerciseEdit = input.submit.text.startsWith(deterministicEditProbePrefixV1);
   const exerciseBash = input.submit.text.startsWith(deterministicBashProbePrefixV1);
+  const exerciseFileOps = input.submit.text.startsWith(deterministicFileOpsProbePrefixV1);
   const exerciseGrep = input.submit.text.startsWith(deterministicGrepProbePrefixV1);
   const verifyOversizedRead = input.submit.text === deterministicOversizedReadProbeV1;
   const faux = fauxProvider({
@@ -131,6 +134,8 @@ export function createDeterministicPiAgentV1(input) {
   const bashRoundTripPath = "/workspace/.sillyos/p3a-bash-round-trip.txt";
   const bashRoundTripText = "SillyOS native bash checkpoint\n";
   const bashRoundTripSearchResult = `1:${bashRoundTripText}`;
+  const fileOpsRoot = "/workspace/.sillyos/file-ops";
+  const fileOpsText = "SillyOS workspace file operations";
   const editMarker = "SillyOS native edit checkpoint pending:\n";
   const readResponse = fauxAssistantMessage(
     fauxToolCall("read", {
@@ -173,6 +178,31 @@ export function createDeterministicPiAgentV1(input) {
     }),
     { stopReason: "toolUse" },
   );
+  const fileOpsResponse = fauxAssistantMessage(
+    fauxToolCall("bash", {
+      command: [
+        `mkdir -p ${fileOpsRoot}/source/nested`,
+        `touch ${fileOpsRoot}/source/nested/empty.txt`,
+        `printf '${fileOpsText}\\n' > ${fileOpsRoot}/source/nested/source.txt`,
+        `cp ${fileOpsRoot}/source/nested/source.txt ${fileOpsRoot}/source/nested/copied.txt`,
+        `mv ${fileOpsRoot}/source/nested/copied.txt ${fileOpsRoot}/moved.txt`,
+        `cp -R ${fileOpsRoot}/source ${fileOpsRoot}/copied-tree`,
+        `rm ${fileOpsRoot}/source/nested/empty.txt`,
+        `find ${fileOpsRoot}/copied-tree -type f -name source.txt -delete`,
+        `rm ${fileOpsRoot}/copied-tree/nested/empty.txt`,
+        `touch ${fileOpsRoot}/kept-empty.txt`,
+        `rm -r ${fileOpsRoot}/source`,
+        `[ "$(cat ${fileOpsRoot}/moved.txt)" = "${fileOpsText}" ]`,
+        `[ -d ${fileOpsRoot}/copied-tree/nested ]`,
+        `[ -f ${fileOpsRoot}/kept-empty.txt ]`,
+        `[ ! -s ${fileOpsRoot}/kept-empty.txt ]`,
+        "printf 'SILLYOS_FILE_OPS_OK\\n'",
+      ].join(" && "),
+    }, {
+      id: `sillyos-file-ops-${input.runNumber}`,
+    }),
+    { stopReason: "toolUse" },
+  );
   const bashReadResponse = fauxAssistantMessage(
     fauxToolCall("read", { path: bashRoundTripPath }, {
       id: `sillyos-bash-read-${input.runNumber}`,
@@ -199,7 +229,25 @@ export function createDeterministicPiAgentV1(input) {
     }),
     { stopReason: "toolUse" },
   );
-  if (exerciseGrep) {
+  if (exerciseFileOps) {
+    faux.setResponses([
+      fileOpsResponse,
+      (context) => {
+        const result = context.messages.toReversed().find((message) =>
+          message.role === "toolResult" && message.toolName === "bash"
+        );
+        const actual = toolResultTextV1(result);
+        if (
+          result?.role !== "toolResult" || result.isError ||
+          actual !== "SILLYOS_FILE_OPS_OK\n"
+        ) {
+          throw new Error("Native Pi bash did not complete the exact file-operations lifecycle");
+        }
+        return proposalResponse;
+      },
+      fauxAssistantMessage(deterministicFinalReplyV1),
+    ]);
+  } else if (exerciseGrep) {
     faux.setResponses([
       grepSetupResponse,
       grepResponse,

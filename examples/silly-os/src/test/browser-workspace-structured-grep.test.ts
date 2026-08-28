@@ -80,6 +80,11 @@ class FakeGrepVolumeV1 implements BrowserWorkspaceJustBashVolumePortV1 {
     this.mutationAttempts.push("append");
     return Promise.reject(new Error("structured grep must not append"));
   }
+
+  mutateEntry(): Promise<never> {
+    this.mutationAttempts.push("mutateEntry");
+    return Promise.reject(new Error("structured grep must not mutate entries"));
+  }
 }
 
 function pathViewV1(files: Readonly<Record<string, string>>) {

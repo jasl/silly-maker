@@ -266,8 +266,11 @@ reload。单独的 Chromium/WebKit qualification 各 3/3
 详细的产品范围、Cloudflare OS 参考快照、语义映射、桌面/移动布局、键盘/IME、
 防截断和视觉验收矩阵见 [DESIGN.md](./DESIGN.md)。从真实 Pi typed RPC、产品数据库、
 Pi 工具到 workspace runtime 的转发、Pi 能力组合、OpenUI 到 SillyMaker 组件映射，
-再到翻译/写作/角色扮演产品的分阶段路径见 [PLAN.md](./PLAN.md)。为每个 workspace
-Agent 提供熟悉的受限工具环境和单一工作卷仍是研究门；WASM 是可选执行机制，不是产品契约。
+再到翻译/写作/角色扮演产品的分阶段路径见 [PLAN.md](./PLAN.md)。当前 Browser
+workspace 已交付独立 origin 的单一工作卷、受限 shell/QJS，以及
+`mkdir`/`touch`/`cp`/`mv`/`rm` 文件操作；更广的执行 profile 仍是研究门。每个变更 entry
+独立推进 generation，复合命令是保留已完成前缀的 best-effort 操作而非原子事务；空目录可冷重开，
+但 portable ZIP 与 immutable snapshot V1 仍只保存文件。WASM 是可选执行机制，不是产品契约。
 S1b-2、S1b-3 与 S2-Q1 已在 2026-08-29 本地关闭。固定同步
 `qjs` 已通过 Pi native `bash` 接到 Program VFS/currentness/receipt 路线，并通过 focused tests、
 Chromium/WebKit 实际 nested-Worker harness、exact 10-file Sandbox graph、lazy request ordering 和
@@ -359,7 +362,8 @@ React 产品面；Desktop 是产品目标，不会另外模拟操作系统桌面
 workspace 完成字节往返，再形成 proposal。以
 `Exercise the pinned native Pi edit tool with exact text:` 开头的显式 S1b-1 probe 会另外执行
 Pi 原生 `write -> edit -> read`。显式 S1b-2 bash probe 则只在 deterministic fixture 中调用
-Pi 原生 `createBashTool` 和 25-command just-bash facade。普通 live Provider 现在复用同一
+Pi 原生 `createBashTool` 和当前 29-command just-bash built-in facade；产品另外固定提供
+`qjs` 与窄化的 `touch`。普通 live Provider 现在复用同一
 四工具列表，并有额外的固定结构化 `grep`；返回 Home、
 等待 workspace close 完成并刷新页面后，重新初始化 Pi test 会通过新的 Sandbox frame/Host
 session 重开同一 generation 和文件。普通 URL 首次打开设置时才会启动一个无凭据 catalog
@@ -395,11 +399,12 @@ Chromium/WebKit 响应与行为 smoke。它只托管静态产品；key 和模型
 Chromium context 与运行后删除的一次性持久 WebKit profile，
 先用明确无效的凭据证明 Provider 4xx 可读且产品只持久化有界 `run_failed`，再证明真实请求
 后的取消不会推进 v1、下一次运行形成精确 v2、测试的持久化投影不含 key，最后等待 Forget
-实际终止 Agent Worker。它不读取或打印 Provider 请求头、请求体或 key。先在另一个终端以
-`--port 4175 --strictPort` 启动 Vite，再运行：
+实际终止 Agent Worker。它不读取或打印 Provider 请求头、请求体或 key。资格检查沿用普通产品的
+双 origin：先在两个终端分别启动固定 `41740` Sandbox 和 `4173` control，再在第三个终端运行：
 
 ```sh
-deno task dev --host 127.0.0.1 --port 4175 --strictPort
+deno task dev:workspace-sandbox
+deno task dev --host 127.0.0.1 --port 4173 --strictPort
 deno task qualify:browser:qualified
 ```
 
@@ -409,6 +414,23 @@ HTTPS 地址作为下一个参数传入同一命令。OpenRouter candidate 不�
 重新资格化它需要先在受控候选 build 中开放该精确 tuple，而不能绕过正式 UI 的 disabled
 状态。`qualify:browser:b1b` 表示五个命名 B1b 目标的完整 checkpoint，因此 OpenRouter 未
 通过期间预期为红；日常 release matrix 使用 `qualified`。
+
+默认 `qualify:browser:provider` 仍运行上述 Provider 旅程，不会隐式触发 QJS。要人工资格化
+真实模型的完整 Agent loop，可在同一双-origin dev server 上明确运行 Chromium-first 的
+`deno task qualify:browser:qjs-loop`。该 opt-in 选择配置的 Anthropic
+`claude-sonnet-4-5` route，给完成轮
+至少 `120 s`：提示要求模型依次用两次 native `write` 写入精确 input/script，再用 native
+`bash` 执行产品固定的 `qjs --file …`，最后才形成 v2 proposal。Harness 会复核 receipt sequence `3`、
+完整 `write`/`write`/`bash` receipt 顺序与 changed paths、generation `4`、pending/mutable
+currentness、Sandbox 中 bounded input、引用
+固定 input/output 路径及 `workspace.readFile/writeFile` 的 bounded script、output 与实际 input 的精确
+uppercase 关系、只在该轮出现且来自 Sandbox origin 的 QJS command/Worker 请求，以及 Forget 终止
+Agent Worker 后同一 volume 的输出仍可读取。该入口可能产生少量 Provider 费用，不属于默认
+release matrix。Script 必须与固定 qualifier script 一致；模型是否逐字复述提示中的 input
+另作结果字段记录，不与 QJS harness 的能力结论混为一谈。2026-08-29 配置 Anthropic
+`claude-sonnet-4-5` route 的 Chromium 运行已通过：两次 native
+`write`、一次 native `bash/qjs`、proposal v2、generation/currentness、Sandbox-only QJS assets、
+Forget 后 Worker 终止与 volume output 保留均得到真实 Provider 证据；这仍只资格化该有界同步循环。
 
 共享 examples Playwright 套件也必须通过 `examples/silly-os/vite.config.ts` 启动本产品，
 这样 dev/E2E 使用与普通开发相同的 Worker alias 和固定 Pi 依赖预打包；这不改变生产 chunk、

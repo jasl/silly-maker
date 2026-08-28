@@ -30,6 +30,7 @@ import {
   deterministicBashProbePrefixV1,
   deterministicCancellationHoldPrefixV1,
   deterministicEditProbePrefixV1,
+  deterministicFileOpsProbePrefixV1,
   deterministicGrepProbePrefixV1,
   deterministicPersistenceReadPrefixV1,
 } from "../agent/browser-pi-runtime-bridge.js";
@@ -213,6 +214,7 @@ interface TestBrowserWorkspaceVolumeStateV1 {
   head: BrowserWorkspaceHostDurableHeadV1;
   preparedSnapshot: ProgramWorkspaceSnapshotReceiptV1 | null;
   readonly retainedSnapshots: Map<string, ProgramWorkspaceSnapshotReceiptV1>;
+  readonly directories: Set<string>;
   readonly files: Map<string, Uint8Array>;
   readonly readFileRangeRequests: {
     readonly path: string;
@@ -244,11 +246,8 @@ class TestBrowserWorkspaceVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLea
   }
 
   async stat(path: string): Promise<BrowserWorkspaceHostFileMetadataV1> {
-    if (path.length === 0) return { kind: "directory", size: 0, mtimeMs: 0 };
+    if (this.state.directories.has(path)) return { kind: "directory", size: 0, mtimeMs: 0 };
     const bytes = this.state.files.get(path);
-    if ([...this.state.files.keys()].some((candidate) => candidate.startsWith(`${path}/`))) {
-      return { kind: "directory", size: 0, mtimeMs: 0 };
-    }
     return bytes === undefined
       ? { kind: "missing", size: 0, mtimeMs: 0 }
       : { kind: "file", size: bytes.length, mtimeMs: 1_725_235_200_000 };
@@ -258,14 +257,21 @@ class TestBrowserWorkspaceVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLea
     if (input.signal.aborted) throw new DOMException("Workspace listing aborted", "AbortError");
     const prefix = input.path.length === 0 ? "" : `${input.path}/`;
     const entries = new Map<string, "file" | "directory">();
-    for (const path of this.state.files.keys()) {
-      if (!path.startsWith(prefix)) continue;
-      const remainder = path.slice(prefix.length);
+    for (
+      const [entryPath, leafKind] of [
+        ...[...this.state.directories].map((directoryPath) =>
+          [directoryPath, "directory"] as const
+        ),
+        ...[...this.state.files.keys()].map((filePath) => [filePath, "file"] as const),
+      ]
+    ) {
+      if (!entryPath.startsWith(prefix)) continue;
+      const remainder = entryPath.slice(prefix.length);
       if (remainder.length === 0) continue;
       const separator = remainder.indexOf("/");
       entries.set(
         separator < 0 ? remainder : remainder.slice(0, separator),
-        separator < 0 ? "file" : "directory",
+        separator < 0 ? leafKind : "directory",
       );
     }
     return [...entries].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0).map(
@@ -323,6 +329,11 @@ class TestBrowserWorkspaceVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLea
     if (previous !== undefined && bytesEqualV1(previous, bytes)) {
       return { changed: false, head: { ...this.state.head } };
     }
+    const parts = input.path.split("/");
+    parts.pop();
+    for (let index = 0; index < parts.length; index += 1) {
+      this.state.directories.add(parts.slice(0, index + 1).join("/"));
+    }
     this.state.files.set(input.path, bytes.slice());
     this.state.head = {
       ...this.state.head,
@@ -330,6 +341,44 @@ class TestBrowserWorkspaceVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLea
       generation: this.state.head.generation + 1,
     };
     return { changed: true, head: { ...this.state.head } };
+  }
+
+  async mutateEntry(
+    input: Parameters<BrowserWorkspaceHostVolumeLeasePortV1["mutateEntry"]>[0],
+  ): ReturnType<BrowserWorkspaceHostVolumeLeasePortV1["mutateEntry"]> {
+    if (this.closed) throw new Error("test Workspace volume lease is closed");
+    if (input.signal.aborted) throw new DOMException("Workspace mutation aborted", "AbortError");
+    if (
+      input.expectedHead.checkpointId !== this.state.head.checkpointId ||
+      input.expectedHead.generation !== this.state.head.generation
+    ) throw new Error("test Workspace durable head is stale");
+    const separator = input.path.lastIndexOf("/");
+    const parent = separator < 0 ? "" : input.path.slice(0, separator);
+    if (!this.state.directories.has(parent)) throw new Error("test Workspace parent is missing");
+    if (input.operation === "create_directory") {
+      if (this.state.directories.has(input.path) || this.state.files.has(input.path)) {
+        throw new Error("test Workspace entry already exists");
+      }
+      this.state.directories.add(input.path);
+    } else if (input.operation === "remove_file") {
+      if (!this.state.files.delete(input.path)) throw new Error("test Workspace file is missing");
+    } else {
+      if (!this.state.directories.has(input.path)) {
+        throw new Error("test Workspace directory is missing");
+      }
+      if (
+        [...this.state.directories, ...this.state.files.keys()].some((candidate) =>
+          candidate.startsWith(`${input.path}/`)
+        )
+      ) throw new Error("test Workspace directory is not empty");
+      this.state.directories.delete(input.path);
+    }
+    this.state.head = {
+      ...this.state.head,
+      checkpointId: input.nextCheckpointId,
+      generation: this.state.head.generation + 1,
+    };
+    return Promise.resolve({ changed: true, head: { ...this.state.head } });
   }
 
   async createPortableArchive(
@@ -458,6 +507,7 @@ class TestBrowserWorkspaceBootstrapV1 implements BrowserWorkspaceHostBootstrapPo
     },
     preparedSnapshot: null,
     retainedSnapshots: new Map(),
+    directories: new Set([""]),
     files: new Map(),
     readFileRangeRequests: [],
     sourceReadRequests: [],
@@ -591,6 +641,16 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
 
   get sourceReadRequests(): TestBrowserWorkspaceVolumeStateV1["sourceReadRequests"] {
     return this.bootstrap.state.sourceReadRequests;
+  }
+
+  workspaceEntryKind(path: string): "missing" | "file" | "directory" {
+    if (this.bootstrap.state.directories.has(path)) return "directory";
+    return this.bootstrap.state.files.has(path) ? "file" : "missing";
+  }
+
+  workspaceText(path: string): string | null {
+    const bytes = this.bootstrap.state.files.get(path);
+    return bytes === undefined ? null : new TextDecoder().decode(bytes);
   }
 
   private async control(
@@ -2290,6 +2350,119 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       },
     ]);
     expect(JSON.stringify(messages)).not.toContain("sentinel-bash-key");
+    runtime.dispose();
+    await workspaceAuthority.dispose();
+  });
+
+  it("keeps the native Pi bash file-operations lifecycle in one exact multi-generation receipt", async () => {
+    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const workspaceAuthority = testWorkspaceAuthorityV1();
+    const runtime = createBrowserPiWorkerRuntimeV1({
+      postMessage: (message) => messages.push(structuredClone(message)),
+    });
+    runtime.receive({
+      revision: 1,
+      kind: "configure",
+      requestId: 1,
+      runtime: "deterministic_test",
+      selection: null,
+      credential: { kind: "api_key", value: "sentinel-file-ops-key" },
+    });
+    runtime.receive({ revision: 1, kind: "test_connection", requestId: 99 });
+    const execution = await attachRuntimeWorkspaceV1(runtime, messages, workspaceAuthority);
+    runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "rpc_response" && message.requestId === 3 && message.ok
+      )
+    );
+
+    const fileOpsText = `${deterministicFileOpsProbePrefixV1}prove the exact durable tree.`;
+    runtime.receive(rpcRequestV1(4, {
+      revision: 1,
+      requestId: 2,
+      method: "submit",
+      params: {
+        sessionId: "sillyos.session.1",
+        text: serializeCreatorAgentSubmitV1({
+          ...submitV1,
+          proposalId: "workspace.preview.1.proposal.file-ops",
+          text: fileOpsText,
+        }),
+      },
+    }, execution));
+
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "rpc_record" &&
+        ["run_completed", "run_failed"].includes(
+          String((message.record as Readonly<Record<string, unknown>>).kind),
+        )
+      )
+    );
+    const terminal = messages.findLast((message) =>
+      message.kind === "rpc_record" &&
+      ["run_completed", "run_failed"].includes(
+        String((message.record as Readonly<Record<string, unknown>>).kind),
+      )
+    );
+    if (
+      terminal?.kind !== "rpc_record" ||
+      (terminal.record as Readonly<Record<string, unknown>>).kind !== "run_completed"
+    ) {
+      throw new Error(JSON.stringify({
+        terminal,
+        receipts: messages.flatMap((message) =>
+          message.kind === "workspace_receipt" ? [message.receipt] : []
+        ),
+      }));
+    }
+
+    const changedPaths = [
+      ".sillyos",
+      ".sillyos/file-ops",
+      ".sillyos/file-ops/source",
+      ".sillyos/file-ops/source/nested",
+      ".sillyos/file-ops/source/nested/empty.txt",
+      ".sillyos/file-ops/source/nested/source.txt",
+      ".sillyos/file-ops/source/nested/copied.txt",
+      ".sillyos/file-ops/moved.txt",
+      ".sillyos/file-ops/copied-tree",
+      ".sillyos/file-ops/copied-tree/nested",
+      ".sillyos/file-ops/copied-tree/nested/empty.txt",
+      ".sillyos/file-ops/copied-tree/nested/source.txt",
+      ".sillyos/file-ops/kept-empty.txt",
+    ];
+    const receipts = messages.flatMap((message) =>
+      message.kind === "workspace_receipt" ? [message.receipt] : []
+    );
+    expect(receipts).toHaveLength(1);
+    expect(receipts[0]).toMatchObject({
+      sequence: 1,
+      runId: "sillyos.run.1",
+      toolCallId: "sillyos-file-ops-1",
+      tool: "bash",
+      expectedGeneration: 1,
+      baseGeneration: 1,
+      // Shell redirection publishes its empty truncate and final bytes as two
+      // sequential effects, so the lifecycle advances 21 times from head 1.
+      resultingGeneration: 22,
+      outcome: "succeeded",
+      effect: "changed",
+      changedPaths,
+    });
+    expect(messages.findLastIndex((message) => message.kind === "workspace_receipt"))
+      .toBeLessThan(messages.indexOf(terminal));
+    expect(workspaceAuthority.workspaceText(".sillyos/file-ops/moved.txt"))
+      .toBe("SillyOS workspace file operations\n");
+    expect(workspaceAuthority.workspaceText(".sillyos/file-ops/kept-empty.txt")).toBe("");
+    expect(workspaceAuthority.workspaceEntryKind(".sillyos/file-ops/copied-tree/nested"))
+      .toBe("directory");
+    expect(workspaceAuthority.workspaceEntryKind(".sillyos/file-ops/source")).toBe("missing");
+    expect(workspaceAuthority.workspaceEntryKind(
+      ".sillyos/file-ops/copied-tree/nested/source.txt",
+    )).toBe("missing");
+    expect(JSON.stringify(messages)).not.toContain("sentinel-file-ops-key");
     runtime.dispose();
     await workspaceAuthority.dispose();
   });

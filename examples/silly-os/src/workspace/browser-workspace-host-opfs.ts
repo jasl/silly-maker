@@ -15,6 +15,7 @@ import {
   type BrowserWorkspaceHostBootstrapPortV1,
   type BrowserWorkspaceHostDirectoryEntryV1,
   type BrowserWorkspaceHostDurableHeadV1,
+  type BrowserWorkspaceHostEntryMutationInputV1,
   type BrowserWorkspaceHostFileMetadataV1,
   type BrowserWorkspaceHostImmutableSnapshotInputV1,
   type BrowserWorkspaceHostPortableArchiveInputV1,
@@ -80,6 +81,22 @@ interface PendingMutationV1 {
   readonly previous: "missing" | "file";
   readonly createdDirectories: readonly string[];
 }
+
+interface PendingNamespaceMutationV2 {
+  readonly revision: 2;
+  readonly volumeId: string;
+  readonly workspaceFormat: 1;
+  readonly path: string;
+  readonly baseCheckpointId: string;
+  readonly baseGeneration: number;
+  readonly nextCheckpointId: string;
+  readonly nextGeneration: number;
+  readonly operation: "create_directory" | "remove_file" | "remove_directory";
+  readonly previousKind: "missing" | "file" | "directory";
+  readonly nextKind: "missing" | "directory";
+}
+
+type PendingWorkspaceMutationV1 = PendingMutationV1 | PendingNamespaceMutationV2;
 
 interface ImmutableSnapshotPrepareMarkerV1 {
   readonly revision: 1;
@@ -343,9 +360,56 @@ function admitImmutableSnapshotPrepareMarkerV1(
   return record as unknown as ImmutableSnapshotPrepareMarkerV1;
 }
 
-function admitPendingV1(value: unknown): PendingMutationV1 | null {
+function admitPendingV1(value: unknown): PendingWorkspaceMutationV1 | null {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Readonly<Record<string, unknown>>;
+  if (record.revision === 2) {
+    if (
+      !exactKeysV1(record, [
+        "revision",
+        "volumeId",
+        "workspaceFormat",
+        "path",
+        "baseCheckpointId",
+        "baseGeneration",
+        "nextCheckpointId",
+        "nextGeneration",
+        "operation",
+        "previousKind",
+        "nextKind",
+      ]) || typeof record.volumeId !== "string" || record.workspaceFormat !== 1 ||
+      typeof record.path !== "string" || typeof record.baseCheckpointId !== "string" ||
+      typeof record.nextCheckpointId !== "string" ||
+      typeof record.baseGeneration !== "number" || !Number.isSafeInteger(record.baseGeneration) ||
+      record.baseGeneration <= 0 || typeof record.nextGeneration !== "number" ||
+      record.nextGeneration !== record.baseGeneration + 1 ||
+      !isBrowserWorkspaceHostNormalizedPathV1(record.path) ||
+      !identifierPatternV1.test(record.volumeId) ||
+      !identifierPatternV1.test(record.baseCheckpointId) ||
+      !identifierPatternV1.test(record.nextCheckpointId)
+    ) return null;
+    const validTransition =
+      record.operation === "create_directory" && record.previousKind === "missing" &&
+        record.nextKind === "directory" ||
+      record.operation === "remove_file" && record.previousKind === "file" &&
+        record.nextKind === "missing" ||
+      record.operation === "remove_directory" && record.previousKind === "directory" &&
+        record.nextKind === "missing";
+    if (!validTransition) return null;
+    return {
+      revision: 2,
+      volumeId: record.volumeId,
+      workspaceFormat: 1,
+      path: record.path,
+      baseCheckpointId: record.baseCheckpointId,
+      baseGeneration: record.baseGeneration,
+      nextCheckpointId: record.nextCheckpointId,
+      nextGeneration: record.nextGeneration,
+      operation: record.operation as PendingNamespaceMutationV2["operation"],
+      previousKind: record.previousKind as PendingNamespaceMutationV2["previousKind"],
+      nextKind: record.nextKind as PendingNamespaceMutationV2["nextKind"],
+    };
+  }
   if (
     !exactKeysV1(record, [
       "revision",
@@ -568,6 +632,24 @@ async function directoryHandleIfPresentV1(
     ) return null;
     throw error;
   }
+}
+
+async function storedEntryKindV1(
+  directory: FileSystemDirectoryHandle,
+  name: string,
+): Promise<"missing" | "file" | "directory"> {
+  if (await fileHandleIfPresentV1(directory, name) !== null) return "file";
+  return await directoryHandleIfPresentV1(directory, name) === null ? "missing" : "directory";
+}
+
+async function directoryIsEmptyV1(directory: FileSystemDirectoryHandle): Promise<boolean> {
+  if (typeof directory.entries !== "function") {
+    throw new BrowserWorkspaceHostStorageErrorV1(
+      "storage_unavailable",
+      "Workspace directory enumeration is unavailable",
+    );
+  }
+  return (await directory.entries().next()).done === true;
 }
 
 function compareCodeUnitsV1(left: string, right: string): number {
@@ -2110,6 +2192,158 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
     }
   }
 
+  async mutateEntry(
+    input: BrowserWorkspaceHostEntryMutationInputV1,
+  ): Promise<BrowserWorkspaceHostReplaceFileResultV1> {
+    this.assertOpen();
+    if (input.signal.aborted) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "request_failed",
+        "Workspace namespace mutation was aborted",
+        fileErrorV1(
+          "aborted",
+          "Workspace filesystem operation was aborted",
+          `/workspace/${input.path}`,
+        ),
+      );
+    }
+    const currentHead = await this.readHead();
+    if (!sameHeadV1(currentHead, input.expectedHead)) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "volume_corrupt",
+        "Workspace durable head changed outside its sole Host authority",
+      );
+    }
+
+    let parent: FileSystemDirectoryHandle;
+    let name: string;
+    try {
+      ({ parent, name } = await resolveParentV1(this.workspace, input.path, false));
+      const file = await fileHandleIfPresentV1(parent, name);
+      const directory = file === null ? await directoryHandleIfPresentV1(parent, name) : null;
+      if (input.operation === "create_directory") {
+        if (file !== null || directory !== null) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "request_failed",
+            "Workspace directory already exists",
+            fileErrorV1("invalid", "Workspace path already exists", `/workspace/${input.path}`),
+          );
+        }
+        await removeEntryIfPresentV1(this.staging, previousStageFileNameV1);
+      } else if (input.operation === "remove_file") {
+        if (file === null) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "request_failed",
+            "Workspace removal target is not a file",
+            fileErrorV1("not_found", "Workspace file was not found", `/workspace/${input.path}`),
+          );
+        }
+        await copyFileV1(
+          await file.getFile(),
+          this.staging,
+          previousStageFileNameV1,
+          this.ioBudget,
+          input.signal,
+        );
+      } else {
+        if (directory === null) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "request_failed",
+            "Workspace removal target is not a directory",
+            fileErrorV1(
+              "not_found",
+              "Workspace directory was not found",
+              `/workspace/${input.path}`,
+            ),
+          );
+        }
+        if (!await directoryIsEmptyV1(directory)) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "request_failed",
+            "Workspace directory is not empty",
+            fileErrorV1("invalid", "Workspace directory is not empty", `/workspace/${input.path}`),
+          );
+        }
+        await removeEntryIfPresentV1(this.staging, previousStageFileNameV1);
+      }
+      await removeEntryIfPresentV1(this.staging, nextStageFileNameV1);
+      if (input.signal.aborted) {
+        await this.clearStaging();
+        throw new BrowserWorkspaceHostStorageErrorV1(
+          "request_failed",
+          "Workspace namespace mutation was aborted",
+          fileErrorV1(
+            "aborted",
+            "Workspace filesystem operation was aborted",
+            `/workspace/${input.path}`,
+          ),
+        );
+      }
+    } catch (error) {
+      await this.clearStaging().catch(() => undefined);
+      throw workspaceWriteErrorV1(error, input.path);
+    }
+
+    const pending: PendingNamespaceMutationV2 = {
+      revision: 2,
+      volumeId: this.anchor.volumeId,
+      workspaceFormat: 1,
+      path: input.path,
+      baseCheckpointId: currentHead.checkpointId,
+      baseGeneration: currentHead.generation,
+      nextCheckpointId: input.nextCheckpointId,
+      nextGeneration: currentHead.generation + 1,
+      operation: input.operation,
+      previousKind: input.operation === "create_directory"
+        ? "missing"
+        : input.operation === "remove_file"
+        ? "file"
+        : "directory",
+      nextKind: input.operation === "create_directory" ? "directory" : "missing",
+    };
+    const nextHead: BrowserWorkspaceHostDurableHeadV1 = {
+      revision: 1,
+      volumeId: this.anchor.volumeId,
+      workspaceFormat: 1,
+      checkpointId: input.nextCheckpointId,
+      generation: currentHead.generation + 1,
+    };
+    try {
+      const pendingBytes = encodedJsonV1(pending);
+      await writeControlFileV1(
+        this.staging,
+        pendingStageFileNameV1,
+        pendingBytes,
+        this.ioBudget,
+      );
+      await writeControlFileV1(
+        this.control,
+        pendingFileNameV1,
+        pendingBytes,
+        this.ioBudget,
+      );
+      if (input.operation === "create_directory") {
+        await parent.getDirectoryHandle(name, { create: true });
+      } else {
+        await parent.removeEntry(name);
+      }
+      await writeControlFileV1(
+        this.control,
+        headFileNameV1,
+        encodedJsonV1(nextHead),
+        this.ioBudget,
+      );
+      await this.clearPendingAndStaging();
+      return { changed: true, head: nextHead };
+    } catch (error) {
+      return await this.reconcilePublishedFailure(
+        workspaceWriteErrorV1(error, input.path),
+        currentHead,
+        nextHead,
+      );
+    }
+  }
+
   async recoverPending(): Promise<void> {
     this.assertOpen();
     const pendingHandle = await fileHandleIfPresentV1(this.control, pendingFileNameV1);
@@ -2152,29 +2386,100 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
       // so a capacity failure on head publication cannot prevent restoration.
       await removeEntryIfPresentV1(this.staging, nextStageFileNameV1);
       await removeEntryIfPresentV1(this.staging, pendingStageFileNameV1);
-      const resolved = await resolveParentV1(this.workspace, pending.path, true);
-      if (pending.previous === "missing") {
-        await removeEntryIfPresentV1(resolved.parent, resolved.name);
-      } else {
-        const previous = await (await this.staging.getFileHandle(previousStageFileNameV1))
-          .getFile();
-        const currentHandle = await fileHandleIfPresentV1(resolved.parent, resolved.name);
-        const current = currentHandle === null ? null : await currentHandle.getFile();
-        if (current === null || !await sameFileBytesV1(current, previous, this.ioBudget)) {
-          // `previous.bin` remains the recovery authority across this
-          // non-atomic remove/copy window. Removing an unpublished successor
-          // first also releases the space needed by the atomic writable.
+      if (pending.revision === 1) {
+        const resolved = await resolveParentV1(this.workspace, pending.path, true);
+        if (pending.previous === "missing") {
           await removeEntryIfPresentV1(resolved.parent, resolved.name);
-          await copyFileV1(previous, resolved.parent, resolved.name, this.ioBudget);
+        } else {
+          const previous = await (await this.staging.getFileHandle(previousStageFileNameV1))
+            .getFile();
+          const currentHandle = await fileHandleIfPresentV1(resolved.parent, resolved.name);
+          const current = currentHandle === null ? null : await currentHandle.getFile();
+          if (current === null || !await sameFileBytesV1(current, previous, this.ioBudget)) {
+            // `previous.bin` remains the recovery authority across this
+            // non-atomic remove/copy window. Removing an unpublished successor
+            // first also releases the space needed by the atomic writable.
+            await removeEntryIfPresentV1(resolved.parent, resolved.name);
+            await copyFileV1(previous, resolved.parent, resolved.name, this.ioBudget);
+          }
+        }
+        await pruneCreatedDirectoriesV1(this.workspace, pending.createdDirectories);
+      } else {
+        const resolved = await resolveParentV1(this.workspace, pending.path, false);
+        if (pending.operation === "create_directory") {
+          const currentKind = await storedEntryKindV1(resolved.parent, resolved.name);
+          if (currentKind === "file") {
+            throw new BrowserWorkspaceHostStorageErrorV1(
+              "volume_corrupt",
+              "Workspace directory creation rollback found an unexpected entry kind",
+            );
+          }
+          if (currentKind === "directory") {
+            const directory = await resolved.parent.getDirectoryHandle(resolved.name);
+            if (!await directoryIsEmptyV1(directory)) {
+              throw new BrowserWorkspaceHostStorageErrorV1(
+                "volume_corrupt",
+                "Workspace directory creation rollback found an unexpected child",
+              );
+            }
+            await resolved.parent.removeEntry(resolved.name);
+          }
+        } else if (pending.operation === "remove_file") {
+          const previous = await (await this.staging.getFileHandle(previousStageFileNameV1))
+            .getFile();
+          const currentKind = await storedEntryKindV1(resolved.parent, resolved.name);
+          if (currentKind === "directory") {
+            throw new BrowserWorkspaceHostStorageErrorV1(
+              "volume_corrupt",
+              "Workspace file removal rollback found a directory",
+            );
+          }
+          if (currentKind === "file") {
+            const current = await (await resolved.parent.getFileHandle(resolved.name)).getFile();
+            if (!await sameFileBytesV1(current, previous, this.ioBudget)) {
+              await resolved.parent.removeEntry(resolved.name);
+              await copyFileV1(previous, resolved.parent, resolved.name, this.ioBudget);
+            }
+          } else {
+            await copyFileV1(previous, resolved.parent, resolved.name, this.ioBudget);
+          }
+        } else {
+          const currentKind = await storedEntryKindV1(resolved.parent, resolved.name);
+          if (currentKind === "file") {
+            throw new BrowserWorkspaceHostStorageErrorV1(
+              "volume_corrupt",
+              "Workspace directory removal rollback found an unexpected entry",
+            );
+          }
+          if (currentKind === "missing") {
+            await resolved.parent.getDirectoryHandle(resolved.name, { create: true });
+          } else {
+            const directory = await resolved.parent.getDirectoryHandle(resolved.name);
+            if (!await directoryIsEmptyV1(directory)) {
+              throw new BrowserWorkspaceHostStorageErrorV1(
+                "volume_corrupt",
+                "Workspace directory removal rollback found an unexpected child",
+              );
+            }
+          }
         }
       }
-      await pruneCreatedDirectoriesV1(this.workspace, pending.createdDirectories);
     } else if (
       head.checkpointId === pending.nextCheckpointId &&
       head.generation === pending.nextGeneration
     ) {
       // Target bytes close before the durable head is published. Once the head
       // names the successor, staged copies are cleanup debris, not replay input.
+      if (pending.revision === 2) {
+        const resolved = await resolveParentV1(this.workspace, pending.path, false);
+        const currentKind = await storedEntryKindV1(resolved.parent, resolved.name);
+        if (currentKind !== pending.nextKind) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "volume_corrupt",
+            "Workspace namespace mutation does not match its successor head",
+          );
+        }
+      }
     } else {
       throw new BrowserWorkspaceHostStorageErrorV1(
         "volume_corrupt",
@@ -2258,7 +2563,9 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
     throw poisoned;
   }
 
-  private async readPendingFile(handle: FileSystemFileHandle): Promise<PendingMutationV1 | null> {
+  private async readPendingFile(
+    handle: FileSystemFileHandle,
+  ): Promise<PendingWorkspaceMutationV1 | null> {
     try {
       const file = await handle.getFile();
       if (file.size > browserWorkspaceHostControlFileMaximumBytesV1) return null;

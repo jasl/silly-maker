@@ -12,6 +12,8 @@ export const deterministicEditProbePrefixV1:
   "Exercise the pinned native Pi edit tool with exact text: ";
 export const deterministicBashProbePrefixV1:
   "Exercise the pinned native Pi bash tool with exact text: ";
+export const deterministicFileOpsProbePrefixV1:
+  "Exercise the pinned native Pi workspace file operations lifecycle: ";
 export const deterministicGrepProbePrefixV1:
   "Exercise the product-fixed Pi grep tool with exact text: ";
 export const deterministicOversizedReadProbeV1:

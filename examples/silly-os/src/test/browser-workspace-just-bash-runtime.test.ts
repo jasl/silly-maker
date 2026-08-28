@@ -8,6 +8,7 @@ import {
   browserWorkspaceJustBashLimitsV1,
   executeBrowserWorkspaceJustBashV1,
   type BrowserWorkspaceJustBashDirectoryEntryV1,
+  type BrowserWorkspaceJustBashEntryMutationInputV1,
   type BrowserWorkspaceJustBashExecuteInputV1,
   type BrowserWorkspaceJustBashFileMetadataV1,
   type BrowserWorkspaceJustBashMutationInputV1,
@@ -39,6 +40,13 @@ class FakePersistentVolumeV1 implements BrowserWorkspaceJustBashVolumePortV1 {
   readonly files = new Map<string, Uint8Array>();
   readonly directories = new Set<string>([""]);
   readonly mutations: FakeMutationV1[] = [];
+  readonly entryMutations: BrowserWorkspaceJustBashEntryMutationInputV1["operation"][] = [];
+  failNextEntryMutation = false;
+  failNextStat = false;
+  readonly statKindOverrides = new Map<
+    string,
+    BrowserWorkspaceJustBashFileMetadataV1
+  >();
   generation = 1;
 
   constructor(input: {
@@ -90,6 +98,12 @@ class FakePersistentVolumeV1 implements BrowserWorkspaceJustBashVolumePortV1 {
     signal: AbortSignal,
   ): Promise<BrowserWorkspaceJustBashFileMetadataV1 | null> {
     this.throwIfAborted(signal);
+    if (this.failNextStat) {
+      this.failNextStat = false;
+      throw new Error("injected persistent stat failure");
+    }
+    const override = this.statKindOverrides.get(path);
+    if (override !== undefined) return override;
     if (this.directories.has(path)) return { kind: "directory", size: 0, mtimeMs: 0 };
     const bytes = this.files.get(path);
     return bytes === undefined
@@ -137,6 +151,37 @@ class FakePersistentVolumeV1 implements BrowserWorkspaceJustBashVolumePortV1 {
     input: BrowserWorkspaceJustBashMutationInputV1,
   ): Promise<BrowserWorkspaceJustBashMutationResultV1> {
     return await this.mutate("append", input);
+  }
+
+  async mutateEntry(
+    input: BrowserWorkspaceJustBashEntryMutationInputV1,
+  ): Promise<BrowserWorkspaceJustBashMutationResultV1> {
+    this.throwIfAborted(input.signal);
+    if (input.expectedGeneration !== this.generation) throw new Error("ESTALE: generation");
+    if (this.failNextEntryMutation) {
+      this.failNextEntryMutation = false;
+      throw new Error("injected persistent namespace failure");
+    }
+    const parent = parentPathV1(input.path);
+    if (!this.directories.has(parent)) throw new Error(`ENOENT: ${input.path}`);
+    if (input.operation === "create_directory") {
+      if (this.directories.has(input.path) || this.files.has(input.path)) {
+        throw new Error(`EEXIST: ${input.path}`);
+      }
+      this.directories.add(input.path);
+    } else if (input.operation === "remove_file") {
+      if (!this.files.delete(input.path)) throw new Error(`ENOENT: ${input.path}`);
+    } else {
+      if (!this.directories.has(input.path)) throw new Error(`ENOENT: ${input.path}`);
+      if (
+        [...this.files.keys(), ...this.directories]
+          .some((candidate) => candidate.startsWith(`${input.path}/`))
+      ) throw new Error(`ENOTEMPTY: ${input.path}`);
+      this.directories.delete(input.path);
+    }
+    this.entryMutations.push(input.operation);
+    this.generation += 1;
+    return { changed: true, generation: this.generation };
   }
 
   private async mutate(
@@ -198,12 +243,13 @@ describe("SillyOS Browser workspace just-bash runtime", () => {
       provider: "browser_local_just_bash",
       outputMode: "terminal_aggregate",
       commandAllowlist: browserWorkspaceJustBashCommandAllowlistV1,
-      customCommandAllowlist: ["qjs"],
+      customCommandAllowlist: ["qjs", "touch"],
       limits: browserWorkspaceJustBashLimitsV1,
     });
     expect(browserWorkspaceJustBashCommandAllowlistV1).toEqual([
       "basename",
       "cat",
+      "cp",
       "cut",
       "dirname",
       "echo",
@@ -213,10 +259,13 @@ describe("SillyOS Browser workspace just-bash runtime", () => {
       "grep",
       "head",
       "ls",
+      "mkdir",
+      "mv",
       "printenv",
       "printf",
       "pwd",
       "rg",
+      "rm",
       "sed",
       "sleep",
       "sort",
@@ -338,7 +387,7 @@ describe("SillyOS Browser workspace just-bash runtime", () => {
     expect(volume.mutations).toEqual([]);
   });
 
-  it("rejects unsupported persistent mutation and a missing parent without effects", async () => {
+  it("supports find deletion while rejecting a missing parent without an extra effect", async () => {
     const volume = new FakePersistentVolumeV1({
       files: { "artifacts/keep.txt": "keep\n" },
     });
@@ -347,11 +396,159 @@ describe("SillyOS Browser workspace just-bash runtime", () => {
     const removeResult = await executeV1(volume, "find artifacts -type f -delete");
     const missingParentResult = await executeV1(volume, "printf no > missing/file.txt");
 
-    expect(removeResult.ok && removeResult.exitCode).not.toBe(0);
+    expect(removeResult).toMatchObject({ ok: true, exitCode: 0 });
     expect(missingParentResult.ok && missingParentResult.exitCode).not.toBe(0);
-    expect(volume.text("artifacts/keep.txt")).toBe("keep\n");
+    expect(volume.text("artifacts/keep.txt")).toBeNull();
     expect(volume.text("missing/file.txt")).toBeNull();
+    expect(volume.generation).toBe(generation + 1);
+    expect(removeResult.changedPaths).toEqual(["artifacts/keep.txt"]);
+  });
+
+  it("composes the admitted directory and file operations in one current path view", async () => {
+    const volume = new FakePersistentVolumeV1();
+
+    const result = await executeV1(
+      volume,
+      [
+        "mkdir -p project/src project/out",
+        "touch project/src/input.txt",
+        "printf 'alpha\\n' > project/src/input.txt",
+        "cp project/src/input.txt project/out/copy.txt",
+        "mv project/out/copy.txt project/out/final.txt",
+        "rm project/src/input.txt",
+        "rm -r project/src",
+        "find project | sort",
+      ].join("; "),
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      exitCode: 0,
+      generation: 11,
+      mutationAttempts: 11,
+      changedPaths: [
+        "project",
+        "project/src",
+        "project/out",
+        "project/src/input.txt",
+        "project/out/copy.txt",
+        "project/out/final.txt",
+      ],
+    });
+    expect(result.stdout.trim().split("\n")).toEqual([
+      "project",
+      "project/out",
+      "project/out/final.txt",
+    ]);
+    expect(volume.text("project/out/final.txt")).toBe("alpha\n");
+    expect(volume.text("project/out/copy.txt")).toBeNull();
+    expect(volume.directories).toEqual(new Set(["", "project", "project/out"]));
+  });
+
+  it("keeps touch narrow and does not fabricate timestamp mutation", async () => {
+    const volume = new FakePersistentVolumeV1({ files: { "existing.txt": "kept" } });
+    const generation = volume.generation;
+
+    const result = await executeV1(
+      volume,
+      "touch existing.txt; touch -c missing.txt; touch created.txt",
+    );
+    const unsupported = await executeV1(volume, "touch -d yesterday existing.txt");
+
+    expect(result).toMatchObject({
+      ok: true,
+      exitCode: 0,
+      generation: generation + 1,
+      changedPaths: ["created.txt"],
+    });
+    expect(volume.text("existing.txt")).toBe("kept");
+    expect(volume.text("missing.txt")).toBeNull();
+    expect(volume.text("created.txt")).toBe("");
+    expect(unsupported.ok && unsupported.exitCode).not.toBe(0);
+    expect(unsupported.stderr).toContain("unsupported option");
+    expect(volume.generation).toBe(generation + 1);
+  });
+
+  it("applies recursive copy, move, and removal as a durable best-effort sequence", async () => {
+    const volume = new FakePersistentVolumeV1({
+      files: {
+        "tree/source/a.txt": "a",
+        "tree/source/nested/b.txt": "b",
+      },
+    });
+
+    const result = await executeV1(
+      volume,
+      [
+        "cp -R tree/source tree/copied",
+        "mv tree/copied tree/moved",
+        "rm -rf tree/source",
+        "find tree -type f | sort",
+      ].join("; "),
+    );
+
+    expect(result).toMatchObject({ ok: true, exitCode: 0, generation: 17 });
+    expect(result.stdout.trim().split("\n")).toEqual([
+      "tree/moved/a.txt",
+      "tree/moved/nested/b.txt",
+    ]);
+    expect(volume.text("tree/moved/a.txt")).toBe("a");
+    expect(volume.text("tree/moved/nested/b.txt")).toBe("b");
+    expect([...volume.files.keys()].some((path) => path.startsWith("tree/source/"))).toBe(false);
+    expect([...volume.files.keys()].some((path) => path.startsWith("tree/copied/"))).toBe(false);
+  });
+
+  it("does not let rm force hide a persistent namespace failure", async () => {
+    const volume = new FakePersistentVolumeV1({ files: { "keep.txt": "kept" } });
+    volume.failNextEntryMutation = true;
+
+    const result = await executeV1(volume, "rm -f keep.txt");
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: "unknown",
+      generation: 1,
+      mutationAttempts: 1,
+      changedPaths: [],
+    });
+    expect(volume.text("keep.txt")).toBe("kept");
+  });
+
+  it("does not let rm force hide persistent stat failures or stale metadata", async () => {
+    const unavailable = new FakePersistentVolumeV1({ files: { "keep.txt": "kept" } });
+    unavailable.failNextStat = true;
+    const failedStat = await executeV1(unavailable, "rm -f keep.txt");
+
+    const stale = new FakePersistentVolumeV1({ files: { "keep.txt": "kept" } });
+    stale.statKindOverrides.set("keep.txt", { kind: "directory", size: 0, mtimeMs: 0 });
+    const staleStat = await executeV1(stale, "rm -f keep.txt");
+
+    for (const result of [failedStat, staleStat]) {
+      expect(result).toMatchObject({
+        ok: false,
+        code: "unknown",
+        generation: 1,
+        mutationAttempts: 0,
+        changedPaths: [],
+      });
+    }
+    expect(unavailable.text("keep.txt")).toBe("kept");
+    expect(stale.text("keep.txt")).toBe("kept");
+  });
+
+  it("keeps a self move inert and rejects recursive copies into their own descendants", async () => {
+    const volume = new FakePersistentVolumeV1({ files: { "tree/a.txt": "a" } });
+    const generation = volume.generation;
+
+    const move = await executeV1(volume, "mv tree/a.txt tree/a.txt");
+    const copy = await executeV1(volume, "cp -R tree tree/descendant");
+
+    expect(move).toMatchObject({ ok: true, exitCode: 0 });
+    expect(copy.ok && copy.exitCode).not.toBe(0);
     expect(volume.generation).toBe(generation);
+    expect(volume.text("tree/a.txt")).toBe("a");
+    expect(volume.entryMutations).toEqual([]);
+    expect(volume.mutations).toEqual([]);
   });
 
   it("distinguishes external abort, requested timeout, and an ordinary exit 124", async () => {

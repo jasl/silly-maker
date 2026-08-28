@@ -10,6 +10,8 @@ const translationIntentV1 =
   "Translate this visual novel and keep every character's voice consistent.";
 const deterministicEditProbePrefixV1 = "Exercise the pinned native Pi edit tool with exact text: ";
 const deterministicBashProbePrefixV1 = "Exercise the pinned native Pi bash tool with exact text: ";
+const deterministicFileOpsProbePrefixV1 =
+  "Exercise the pinned native Pi workspace file operations lifecycle: ";
 
 async function expectProgramStorageReadyV1(page: Page): Promise<void> {
   await expect(page.locator('[data-program-storage-state="ready"]')).toBeVisible();
@@ -254,6 +256,75 @@ async function readSandboxWorkspaceTextV1(
     }
     return await (await (await directory.getFileHandle(fileName)).getFile()).text();
   }, { requestedVolumeId: volumeId, requestedRelativePath: relativePath });
+}
+
+interface SandboxWorkspaceEntryInspectionV1 {
+  readonly kind: "missing" | "file" | "directory";
+  readonly size: number;
+  readonly text: string | null;
+}
+
+async function inspectSandboxWorkspaceEntriesV1(
+  page: Page,
+  continuation: DurableWorkspaceContinuationV1,
+  relativePaths: readonly string[],
+): Promise<Readonly<Record<string, SandboxWorkspaceEntryInspectionV1>>> {
+  const frame = await currentOrdinaryWorkspaceSandboxFrameV1(page);
+  return await frame.evaluate(async ({ volumeId, paths }) => {
+    let workspace = await navigator.storage.getDirectory();
+    for (
+      const name of [
+        ".sillyos-workspace-host-v1",
+        "volumes",
+        volumeId,
+        "workspace",
+      ]
+    ) {
+      workspace = await workspace.getDirectoryHandle(name);
+    }
+    const absentV1 = (error: unknown): boolean =>
+      error instanceof DOMException &&
+      (error.name === "NotFoundError" || error.name === "TypeMismatchError");
+    const inspected: Record<string, SandboxWorkspaceEntryInspectionV1> = {};
+    for (const path of paths) {
+      const parts = path.split("/");
+      const name = parts.pop();
+      if (
+        name === undefined || name.length === 0 ||
+        parts.some((part) => part.length === 0 || part === "." || part === "..")
+      ) throw new Error("Invalid E2E workspace inspection path");
+      let parent = workspace;
+      let missingParent = false;
+      for (const part of parts) {
+        try {
+          parent = await parent.getDirectoryHandle(part);
+        } catch (error) {
+          if (!absentV1(error)) throw error;
+          missingParent = true;
+          break;
+        }
+      }
+      if (missingParent) {
+        inspected[path] = { kind: "missing", size: 0, text: null };
+        continue;
+      }
+      try {
+        const file = await (await parent.getFileHandle(name)).getFile();
+        inspected[path] = { kind: "file", size: file.size, text: await file.text() };
+        continue;
+      } catch (error) {
+        if (!absentV1(error)) throw error;
+      }
+      try {
+        await parent.getDirectoryHandle(name);
+        inspected[path] = { kind: "directory", size: 0, text: null };
+      } catch (error) {
+        if (!absentV1(error)) throw error;
+        inspected[path] = { kind: "missing", size: 0, text: null };
+      }
+    }
+    return inspected;
+  }, { volumeId: continuation.volumeId, paths: [...relativePaths] });
 }
 
 async function expectOrdinaryWorkspaceSandboxV1(
@@ -1595,6 +1666,94 @@ test("@s1b-bash the pinned native Pi bash tool changes and cold-reopens exact Sa
     bashText,
     ordinaryWorkspaceBashRoundTripPathV1,
   );
+});
+
+test("@s2-file-ops Pi native bash preserves the exact workspace file lifecycle across cold reopen", async ({ durableProgramPage: page }) => {
+  test.setTimeout(120_000);
+  await openCreatorHomeV1(page);
+  await initializePiTestV1(page, "sillyos-browser-pi-file-ops-sentinel-key");
+
+  const creatorIntent = page.getByRole("textbox", { name: "What would you like to make?" });
+  await creatorIntent.fill(translationIntentV1);
+  await page.getByRole("button", { name: "Create program" }).click();
+  const workspace = page.getByRole("main", { name: "SillyOS program workspace" });
+  await expect(workspace).toBeVisible();
+  await expectProgramStorageReadyV1(page);
+  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "open");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "1");
+  const programId = await readProgramIdV1(workspace);
+
+  const fileOpsPrompt =
+    `${deterministicFileOpsProbePrefixV1}prove mkdir, touch, cp, mv, rm, and find-delete.`;
+  await page.getByRole("textbox", { name: "Ask for a change…" }).fill(fileOpsPrompt);
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByText(fileOpsPrompt, { exact: true })).toBeVisible();
+  await expect(
+    page.locator('[data-chat-role="creator"]').getByText(
+      "Deterministic test proposal ready.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "22");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-receipt", "1");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-tool", "bash");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-effect", "changed");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-path", ".sillyos");
+  await expect(workspace).toHaveAttribute("data-workspace-review-pending-generation", "22");
+
+  const continuation = await readWorkspaceContinuationV1(page, programId);
+  if (continuation === null) {
+    throw new Error("File-operations proof lost its Workspace continuation");
+  }
+  const inspectedPaths = [
+    ".sillyos/file-ops/moved.txt",
+    ".sillyos/file-ops/kept-empty.txt",
+    ".sillyos/file-ops/copied-tree/nested",
+    ".sillyos/file-ops/source",
+    ".sillyos/file-ops/copied-tree/nested/source.txt",
+    ".sillyos/file-ops/copied-tree/nested/empty.txt",
+  ] as const;
+  const expectedEntries = {
+    ".sillyos/file-ops/moved.txt": {
+      kind: "file",
+      size: new TextEncoder().encode("SillyOS workspace file operations\n").byteLength,
+      text: "SillyOS workspace file operations\n",
+    },
+    ".sillyos/file-ops/kept-empty.txt": { kind: "file", size: 0, text: "" },
+    ".sillyos/file-ops/copied-tree/nested": { kind: "directory", size: 0, text: null },
+    ".sillyos/file-ops/source": { kind: "missing", size: 0, text: null },
+    ".sillyos/file-ops/copied-tree/nested/source.txt": {
+      kind: "missing",
+      size: 0,
+      text: null,
+    },
+    ".sillyos/file-ops/copied-tree/nested/empty.txt": {
+      kind: "missing",
+      size: 0,
+      text: null,
+    },
+  } satisfies Readonly<Record<string, SandboxWorkspaceEntryInspectionV1>>;
+  await expect.poll(() => inspectSandboxWorkspaceEntriesV1(page, continuation, inspectedPaths))
+    .toEqual(expectedEntries);
+
+  await page.getByRole("button", { name: "Creator home" }).click();
+  await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
+  await page.reload();
+  await expectProgramStorageReadyV1(page);
+  await initializePiTestV1(page, "sillyos-browser-pi-file-ops-sentinel-key");
+  await openRecentTranslationProgramV1(page, {
+    programId,
+    revision: 2,
+    status: "Preview",
+  });
+  const reopened = page.getByRole("main", { name: "SillyOS program workspace" });
+  await expect(reopened).toHaveAttribute("data-execution-workspace-state", "open");
+  await expect(reopened).toHaveAttribute("data-execution-workspace-generation", "22");
+  await expect(reopened).toHaveAttribute("data-workspace-review-pending-generation", "22");
+  expect(await readWorkspaceContinuationV1(page, programId)).toEqual(continuation);
+  await expect.poll(() => inspectSandboxWorkspaceEntriesV1(page, continuation, inspectedPaths))
+    .toEqual(expectedEntries);
 });
 
 test("@s1a-ordinary two pages fence Sandbox ownership and the successor cold-opens the exact released checkpoint", async ({ durableProgramPage: page }) => {

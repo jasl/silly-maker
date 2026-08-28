@@ -94,6 +94,19 @@ export interface BrowserWorkspaceHostReplaceFileResultV1 {
   readonly head: BrowserWorkspaceHostDurableHeadV1;
 }
 
+export type BrowserWorkspaceHostEntryMutationOperationV1 =
+  | "create_directory"
+  | "remove_file"
+  | "remove_directory";
+
+export interface BrowserWorkspaceHostEntryMutationInputV1 {
+  readonly operation: BrowserWorkspaceHostEntryMutationOperationV1;
+  readonly path: string;
+  readonly expectedHead: BrowserWorkspaceHostDurableHeadV1;
+  readonly nextCheckpointId: string;
+  readonly signal: AbortSignal;
+}
+
 export interface BrowserWorkspaceHostPortableArchiveInputV1 {
   readonly programRevision: number;
   readonly repositoryRevision: number;
@@ -134,6 +147,9 @@ export interface BrowserWorkspaceHostVolumeLeasePortV1 {
   }): Promise<Uint8Array>;
   replaceFile(
     input: BrowserWorkspaceHostReplaceFileInputV1,
+  ): Promise<BrowserWorkspaceHostReplaceFileResultV1>;
+  mutateEntry(
+    input: BrowserWorkspaceHostEntryMutationInputV1,
   ): Promise<BrowserWorkspaceHostReplaceFileResultV1>;
   createPortableArchive(
     input: BrowserWorkspaceHostPortableArchiveInputV1,
@@ -808,6 +824,84 @@ export function createBrowserWorkspaceHostRuntimeV1(
     }
   };
 
+  const mutatePersistentEntry = async (
+    session: SessionStateV1,
+    run: RunStateV1,
+    scope: ToolScopeV1,
+    path: NormalizedPathV1,
+    operation: BrowserWorkspaceHostEntryMutationOperationV1,
+    signal: AbortSignal = scope.abortController.signal,
+  ): Promise<void> => {
+    const lease = session.lease;
+    if (lease === null || signal.aborted) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "request_failed",
+        "Workspace namespace mutation was aborted",
+        fileErrorV1("aborted", "Workspace filesystem operation was aborted", path.absolute),
+      );
+    }
+    if (scope.tool !== "bash") {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "request_failed",
+        "Only the shell scope may mutate workspace namespace entries",
+        fileErrorV1(
+          "permission_denied",
+          "Workspace namespace operation is unavailable",
+          path.absolute,
+        ),
+      );
+    }
+    if (scope.mutationAttempts >= browserWorkspaceBashMutationAttemptMaximumV1) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "capacity_exceeded",
+        "Workspace mutation-attempt limit was reached",
+        fileErrorV1("invalid", "Workspace mutation-attempt limit was reached", path.absolute),
+      );
+    }
+    if (
+      !scope.changedPathSet.has(path.relative) &&
+      scope.changedPathSet.size >= browserWorkspaceBashChangedPathMaximumV1
+    ) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "capacity_exceeded",
+        "Workspace changed-path limit was reached",
+        fileErrorV1("invalid", "Workspace changed-path limit was reached", path.absolute),
+      );
+    }
+    scope.mutationAttempts += 1;
+    const nextCheckpointId = createCheckpointId();
+    if (!validIdentityV1(nextCheckpointId)) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "request_failed",
+        "Checkpoint identity factory returned an invalid identity",
+      );
+    }
+    const result = await lease.mutateEntry({
+      operation,
+      path: path.relative,
+      expectedHead: session.head,
+      nextCheckpointId,
+      signal,
+    });
+    const admittedHead = durableHeadV1(result.head, session.anchor);
+    if (
+      !result.changed || admittedHead === null ||
+      admittedHead.generation !== session.head.generation + 1 ||
+      admittedHead.checkpointId !== nextCheckpointId
+    ) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "volume_corrupt",
+        "Workspace namespace mutation did not publish the exact successor head",
+      );
+    }
+    session.head = admittedHead;
+    run.cursor = admittedHead.generation;
+    if (!scope.changedPathSet.has(path.relative)) {
+      scope.changedPathSet.add(path.relative);
+      scope.changedPaths.push(path.relative);
+    }
+  };
+
   const sourceFromBytes = (
     bytes: Uint8Array,
     absolutePath: string,
@@ -1450,6 +1544,30 @@ export function createBrowserWorkspaceHostRuntimeV1(
                 };
               });
             },
+            async mutateEntry(input) {
+              return await observeVolumeOperation(async () => {
+                const path = admittedPath(input.path);
+                if (input.expectedGeneration !== session.head.generation) {
+                  throw new BrowserWorkspaceHostStorageErrorV1(
+                    "request_failed",
+                    "Workspace shell namespace mutation used a stale generation",
+                  );
+                }
+                const baseGeneration = session.head.generation;
+                await mutatePersistentEntry(
+                  session,
+                  run,
+                  scope,
+                  path,
+                  input.operation,
+                  input.signal,
+                );
+                return {
+                  changed: session.head.generation !== baseGeneration,
+                  generation: session.head.generation,
+                };
+              });
+            },
           };
           const result = await runtime.executeBrowserWorkspaceJustBashV1({
             command: record.command,
@@ -1681,6 +1799,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
           },
           replace: readOnlyMutation,
           append: readOnlyMutation,
+          mutateEntry: readOnlyMutation,
         };
         const result = await runtime.executeBrowserWorkspaceStructuredGrepV1({
           query: record.query,

@@ -174,8 +174,11 @@ the selected target adapters may combine TypeScript, Workers, Wasm payloads, or
 a native companion behind the same typed workspace boundary.
 
 At most one phase below is active at a time. P1-B1a, P1-B1b, B1c-S0, S1a-0,
-S1a-1, S1b-1, S1b-2, S1b-3, and S2-Q1 are closed locally. No later S2 execution
-profile is activated automatically. A later phase may be refined before it
+S1a-1, S1b-1, S1b-2, S1b-3, and S2-Q1 are closed locally. The post-Q1 Browser
+Workspace namespace/file slice is implemented and locally verified. No later
+S2 execution profile is activated automatically. The opt-in real QJS Agent-loop
+qualifier has passed once with Anthropic `claude-sonnet-4-5` in Chromium. A
+later phase may be refined before it
 starts, but it may not
 silently weaken this product model or claim evidence that an earlier phase did
 not produce. Product code may not import the ignored `references/` checkouts.
@@ -587,6 +590,49 @@ filename or source-excerpt field, and the product does not forward a raw stack
 or Host exception. Guest-controlled messages may repeat already staged text.
 Direct Worker and real Pi `bash` paths pass in Chromium and WebKit.
 
+#### Post-Q1 — Browser Workspace namespace and file operations (implemented and locally verified 2026-08-29)
+
+This slice broadens only the filesystem implementation beneath Pi's unchanged
+native `bash` tool. It creates no AgentTool, command-dispatch framework,
+general runtime RPC, or SillyMaker engine contract. The fixed just-bash facade
+now exposes `mkdir`, `rm`, `cp`, and `mv`; SillyOS adds one deliberately narrow
+`touch` command that creates a missing regular file and admits
+`-c`/`--no-create`, but rejects timestamp-setting flags rather than pretending
+that OPFS metadata is portable POSIX state. `find -delete` now reaches the same
+admitted remove operations.
+
+Each changed namespace entry or file publishes its own exact durable successor
+generation. Compound commands such as `mkdir -p`, recursive `cp`/`rm`, and
+`mv` are command-level best effort, with no multi-entry transaction or rollback.
+Quota/capacity failure or cancellation may therefore retain the exact completed
+prefix. The existing per-native-`bash` ceilings remain `128` persistent mutation
+attempts and `64` distinct changed paths; crossing either ceiling rejects the
+next entry before its effect but does not undo earlier entries.
+
+Empty directories are durable Workspace state and survive cold reopen. Portable
+ZIP and immutable snapshot V1 remain file-only and omit empty-directory entries;
+this slice does not silently revise either format. Focused just-bash, Host,
+OPFS recovery, and cold-reopen evidence covers the admitted operations and
+`find -delete`. It is not a production deployment receipt.
+
+The separate opt-in real-model qualifier passed once in Chromium using the
+configured Anthropic `claude-sonnet-4-5` route. Pi issued two native `write`
+calls followed by native `bash`; the QJS invocation produced output matching
+the fixed script's uppercase transform of the actual Program-volume input;
+proposal v2, pending/mutable generation 4, Sandbox-only QJS assets, absence of
+the key from the inspected control-origin durable projection, Agent Worker
+Forget, and same-volume output retention after Forget all passed. The model did
+not reproduce the requested input bytes
+exactly, so instruction fidelity is reported separately from the relational
+execution proof. This qualifies one bounded synchronous loop, not packages,
+async scripts, large projects, or Python. No Python runtime is implemented,
+exposed, or qualified.
+
+This product-side adapter work remains in `examples/silly-os`. Pi owns the
+native `bash` schema/result; just-bash owns the admitted command algorithms;
+the Sandbox Host owns Program volume generations and recovery. None of these
+semantics moves into the use-case-neutral SillyMaker engine.
+
 ### S3 — optional Credential Vault
 
 Session-only remains the default. Persistent credentials activate only after
@@ -909,6 +955,14 @@ The accepted execution order is no longer the numeric subsection order:
     `bash` result in both engines with no mutation on failure; the product does
     not forward a dedicated filename/stack field or Host exception. No
     S1b-3/Q1 production deployment is claimed.
+12. **The post-Q1 namespace/file slice is implemented and locally verified:**
+    fixed just-bash `mkdir`/`rm`/`cp`/`mv` and narrow product `touch` remain
+    beneath Pi native `bash`; every changed entry publishes its own durable
+    generation, compounds are best-effort, and `find -delete` works. Empty
+    directories cold-reopen but portable ZIP/immutable snapshot V1 omit them.
+    One opt-in configured-Anthropic/Chromium write/write/bash-qjs loop passes
+    with exact relational output and same-volume post-Forget bytes; Python
+    remains absent.
     Later S2 execution profiles,
     S3 Credential Vault, S4 Agent/OpenUI state,
     S5 BYO Sandbox/products, P1-D, and broader import/artifact work require their
@@ -1265,7 +1319,8 @@ The accepted checkpoint order is:
    candidates; OpenRouter's current 403 is an account/Provider outcome, not
    evidence that CSP or CORS failed. The generic qualifier reads the exact
    profile's environment key without printing keys, request headers, request
-   bodies, or URLs and defaults to the five qualified tuples. The same ten
+   bodies, URL queries, or fragments; its bounded diagnostics may name the
+   public method/origin/path route. It defaults to the five qualified tuples. The same ten
    journeys pass from the committed canonical Cloudflare deployment, whose
    response header carries only the exact six-origin CSP.
 3. **B1c — request-free credential configuration, optional connection
@@ -2162,21 +2217,20 @@ runtime allowlist excludes `gzip`, `gunzip`, and `zcat`, and SillyOS does not
 claim compressed-file `rg`. The alias is not a zlib implementation or a
 general Node-compatibility layer. The characterized upstream Browser artifact
 is about 1.24 MB raw / 348 kB gzip before the product build; only the final
-release graph is acceptance evidence. Network, Python, JavaScript execution,
-custom commands, and optional Wasm runtimes remain disabled.
+release graph is acceptance evidence. At this historical checkpoint, network,
+Python, JavaScript execution, custom commands, and optional Wasm runtimes
+remained disabled; Q1 later added only the fixed `qjs` command.
 
-The exact bundled-command allowlist is `basename`, `cat`, `cut`, `dirname`,
+At checkpoint closure, the bundled-command allowlist was `basename`, `cat`, `cut`, `dirname`,
 `echo`, `env`, `false`, `find`, `grep`, `head`, `ls`, `printenv`, `printf`,
 `pwd`, `rg`, `sed`, `sleep`, `sort`, `stat`, `tail`, `tee`, `tr`, `true`,
 `uniq`, and `wc`. just-bash's shell grammar and builtins remain available where
 their required primitive exists; this list is a product capability profile,
 not a security boundary and not a claim that every GNU flag is compatible.
-`mkdir`, `touch`, `rm`, `cp`, `mv`, links, permissions, Git, Tar, compression,
-`awk`, `jq`, Python, QuickJS/Node, SQLite, package managers, fetch, and sockets
-are absent. Pipes plus `>`, `>>`, and the admitted `tee` command may create or
-replace files only under an already-existing persistent directory. Native Pi
-`write` remains the first way to create a missing parent directory in this
-checkpoint.
+The post-Q1 current profile additionally exposes fixed just-bash `cp`, `mkdir`,
+`mv`, and `rm`, plus the product's narrow `touch`; `find -delete` is now
+functional. Links, mutable permissions/timestamps, Git, Tar, compression,
+`awk`, `jq`, Python, SQLite, package managers, fetch, and sockets remain absent.
 
 The physical runtime is co-located with the sole Workspace Host/OPFS owner and
 is reached by one coherent typed shell-exec request from the Agent Worker.
@@ -2188,12 +2242,13 @@ small `/bin`, `/usr/bin`, `/dev/fd`, `/proc/self/fd`, `/tmp`, device-file, and
 virtual-process support set. It then mounts the persistent OPFS projection at
 `/workspace` with `MountableFs`. `/bin`, `/usr/bin`, `/dev`, `/proc`, and `/tmp` are
 execution-local shell support and never enter OPFS, generation, receipts, or
-portable exports. The persistent adapter implements only read, stat, directory
+portable exports. The persistent adapter implements read, stat, directory
 listing, replacement, append, existence, path resolution, `lstat = stat`,
-realpath-without-links, and the synchronous current path view. It still
-implements the complete required `IFileSystem` shape; `mkdir`, remove,
-copy/move, chmod/utimes, and symbolic/hard-link methods fail with stable
-unsupported errors. `find` uses `readdir` plus `lstat`, while `rg` uses the
+realpath-without-links, and the synchronous current path view. The post-Q1
+adapter also maps directory creation, file/empty-directory removal, and the
+file operations composed by just-bash `cp`/`mv` to independently durable Host
+mutations. Mutable timestamps and symbolic/hard links still fail closed.
+`find` uses `readdir` plus `lstat`, while `rg` uses the
 available async directory listing. There is no second persistent MEMFS and no
 copy-back phase. just-bash's `maxFileSystemBytes` is not misrepresented as a
 limit on either this explicit ephemeral base or the OPFS mount.

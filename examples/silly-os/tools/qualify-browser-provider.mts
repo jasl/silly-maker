@@ -10,13 +10,31 @@ import {
   webkit,
 } from "npm:playwright";
 
-const defaultTargetUrlV1 = "http://127.0.0.1:4175/";
+const defaultTargetUrlV1 = "http://127.0.0.1:4173/";
 const initialIntentV1 = "Create a compact writing review program.";
 const cancelledFollowUpV1 = "Cancel this qualification run before it can propose a revision.";
 const liveWorkspaceToolPathV1 = ".sillyos/live-provider-tools.txt";
 const liveWorkspaceToolTextV1 = "SillyOS live Provider workspace tools qualified.";
 const completedFollowUpV1 =
   `Call the write tool to create /workspace/${liveWorkspaceToolPathV1} with exactly this text and no trailing newline: ${liveWorkspaceToolTextV1} Then call the read tool to verify the exact bytes. Finally propose one revision that adds an explicit review checkpoint before publication.`;
+const liveQuickJsInputPathV1 = ".sillyos/live-qjs-input.txt";
+const liveQuickJsInputTextV1 = "SillyOS live QJS agent loop.";
+const liveQuickJsOutputPathV1 = ".sillyos/live-qjs-output.txt";
+const liveQuickJsScriptPathV1 = ".sillyos/live-qjs-transform.js";
+const liveQuickJsScriptTextV1 =
+  `const input = workspace.readFile("/workspace/${liveQuickJsInputPathV1}"); workspace.writeFile("/workspace/${liveQuickJsOutputPathV1}", input.toUpperCase()); print("qjs-ok");`;
+const liveQuickJsCommandV1 =
+  `qjs --file /workspace/${liveQuickJsInputPathV1} /workspace/${liveQuickJsScriptPathV1}`;
+const completedQuickJsLoopFollowUpV1 =
+  `Complete these steps in order, using only the named native workspace tools before the proposal. ` +
+  `First call write to create /workspace/${liveQuickJsInputPathV1} with exactly this text and no trailing newline: ${liveQuickJsInputTextV1} ` +
+  `Second call write to create /workspace/${liveQuickJsScriptPathV1} with exactly this one-line script and no trailing newline: ${liveQuickJsScriptTextV1} ` +
+  `Third call bash with exactly this command: ${liveQuickJsCommandV1} ` +
+  `Do not call read or edit. Only after bash succeeds, propose exactly one revision that adds an explicit review checkpoint before publication.`;
+const providerCompletionTimeoutMillisecondsV1 = 45_000;
+const quickJsLoopCompletionTimeoutMillisecondsV1 = 120_000;
+
+type ProviderQualificationJourneyV1 = "provider" | "qjs-loop";
 
 interface ProviderQualificationWorkspaceContinuationV1 {
   readonly volumeId: string;
@@ -125,6 +143,19 @@ interface ObservedRequestRouteV1 {
   readonly pathname: string;
 }
 
+interface ObservedQuickJsAssetRequestV1 {
+  readonly kind: "command" | "worker";
+  readonly origin: string;
+  readonly pathname: string;
+}
+
+interface ObservedWorkspaceReceiptV1 {
+  readonly sequence: number;
+  readonly tool: string;
+  readonly effect: string;
+  readonly path: string;
+}
+
 class QualificationFailureV1 extends Error {
   constructor(
     readonly code: string,
@@ -137,6 +168,85 @@ class QualificationFailureV1 extends Error {
 
 function requireV1(condition: boolean, code: string): asserts condition {
   if (!condition) throw new QualificationFailureV1(code);
+}
+
+function utf8LengthV1(value: string): number {
+  return new TextEncoder().encode(value).byteLength;
+}
+
+function matchesPromptTextFileV1(actual: string, expected: string): boolean {
+  return actual === expected || actual === `${expected}\n`;
+}
+
+async function startWorkspaceReceiptObservationV1(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    interface BrowserReceiptObserverV1 {
+      readonly observer: MutationObserver;
+      readonly receipts: Array<{
+        readonly sequence: number;
+        readonly tool: string;
+        readonly effect: string;
+        readonly path: string;
+      }>;
+    }
+    const browserGlobal = globalThis as typeof globalThis & {
+      sillyOsQjsQualificationReceiptObserverV1?: BrowserReceiptObserverV1;
+    };
+    browserGlobal.sillyOsQjsQualificationReceiptObserverV1?.observer.disconnect();
+    const receipts: BrowserReceiptObserverV1["receipts"] = [];
+    const sample = (): void => {
+      const workspace = document.querySelector<HTMLElement>(
+        '[data-silly-os-view="workspace"]',
+      );
+      if (workspace === null) return;
+      const sequence = Number(workspace.dataset.executionWorkspaceReceipt);
+      const tool = workspace.dataset.executionWorkspaceTool;
+      const effect = workspace.dataset.executionWorkspaceEffect;
+      const path = workspace.dataset.executionWorkspacePath;
+      if (
+        !Number.isSafeInteger(sequence) || sequence <= 0 || tool === undefined ||
+        effect === undefined || path === undefined ||
+        receipts.some((receipt) => receipt.sequence === sequence)
+      ) return;
+      receipts.push({ sequence, tool, effect, path });
+    };
+    const observer = new MutationObserver(() => queueMicrotask(sample));
+    observer.observe(document.documentElement, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: [
+        "data-execution-workspace-receipt",
+        "data-execution-workspace-tool",
+        "data-execution-workspace-effect",
+        "data-execution-workspace-path",
+      ],
+    });
+    sample();
+    browserGlobal.sillyOsQjsQualificationReceiptObserverV1 = { observer, receipts };
+  });
+}
+
+async function stopWorkspaceReceiptObservationV1(
+  page: Page,
+): Promise<readonly ObservedWorkspaceReceiptV1[]> {
+  return await page.evaluate(() => {
+    interface BrowserReceiptObserverV1 {
+      readonly observer: MutationObserver;
+      readonly receipts: readonly {
+        readonly sequence: number;
+        readonly tool: string;
+        readonly effect: string;
+        readonly path: string;
+      }[];
+    }
+    const browserGlobal = globalThis as typeof globalThis & {
+      sillyOsQjsQualificationReceiptObserverV1?: BrowserReceiptObserverV1;
+    };
+    const state = browserGlobal.sillyOsQjsQualificationReceiptObserverV1;
+    state?.observer.disconnect();
+    delete browserGlobal.sillyOsQjsQualificationReceiptObserverV1;
+    return state?.receipts.map((receipt) => ({ ...receipt })) ?? [];
+  });
 }
 
 async function readWorkspaceContinuationV1(
@@ -257,6 +367,17 @@ function selectedBrowsersV1(raw: string): readonly BrowserType[] {
   if (raw === "chromium") return Object.freeze([chromium]);
   if (raw === "webkit") return Object.freeze([webkit]);
   throw new QualificationFailureV1("browser_invalid");
+}
+
+function selectedJourneyV1(raw: string): ProviderQualificationJourneyV1 {
+  if (raw === "provider" || raw === "qjs-loop") return raw;
+  throw new QualificationFailureV1("journey_invalid");
+}
+
+function quickJsAssetKindV1(pathname: string): ObservedQuickJsAssetRequestV1["kind"] | null {
+  if (pathname.includes("browser-workspace-quickjs-command")) return "command";
+  if (pathname.includes("browser-workspace-quickjs.worker")) return "worker";
+  return null;
 }
 
 async function durableProjectionV1(page: Page): Promise<string> {
@@ -383,6 +504,7 @@ async function providerFailureDetailsV1(
   page: Page,
   observations: readonly ObservedProviderRequestV1[],
   requestRoutes: readonly ObservedRequestRouteV1[] = [],
+  quickJsAssetRequests: readonly ObservedQuickJsAssetRequestV1[] = [],
 ): Promise<Readonly<Record<string, unknown>>> {
   await Promise.all(
     observations.map(({ responseBodySettlement }) => responseBodySettlement ?? Promise.resolve()),
@@ -422,6 +544,7 @@ async function providerFailureDetailsV1(
     ),
     providerRequestFailures: observations.map(({ requestFailure }) => requestFailure),
     observedRequestRoutes: requestRoutes,
+    quickJsAssetRequests,
   });
 }
 
@@ -480,6 +603,7 @@ async function qualifyBrowserV1(
   target: string,
   profile: ProviderQualificationProfileV1,
   apiKey: string,
+  journey: ProviderQualificationJourneyV1,
 ): Promise<Readonly<Record<string, unknown>>> {
   const invalidCredential = `sillyos-invalid-${profile.id}-qualification`;
   const credentials = Object.freeze([apiKey, invalidCredential]);
@@ -491,6 +615,12 @@ async function qualifyBrowserV1(
   let pageCreated = false;
   const providerRequests: ObservedProviderRequestV1[] = [];
   const observedRequestRoutes: ObservedRequestRouteV1[] = [];
+  const quickJsAssetRequests: ObservedQuickJsAssetRequestV1[] = [];
+  let observedWorkspaceReceipts: readonly ObservedWorkspaceReceiptV1[] = [];
+  let quickJsInputMatchesPrompt: boolean | null = null;
+  let quickJsScriptMatchesPrompt: boolean | null = null;
+  let quickJsInputUtf8Bytes: number | null = null;
+  let quickJsVerifiedOutputText: string | null = null;
   let phase = "open";
   try {
     try {
@@ -510,26 +640,39 @@ async function qualifyBrowserV1(
       let requestPhase: ProviderRequestPhaseV1 | null = null;
       const browserContext = page.context();
       browserContext.on("request", (request) => {
-        if (requestPhase === null) return;
+        let requestUrl: URL | null = null;
+        try {
+          requestUrl = new URL(request.url());
+          const quickJsKind = quickJsAssetKindV1(requestUrl.pathname);
+          if (quickJsKind !== null && quickJsAssetRequests.length < 20) {
+            quickJsAssetRequests.push(Object.freeze({
+              kind: quickJsKind,
+              origin: requestUrl.origin,
+              pathname: requestUrl.pathname,
+            }));
+          }
+        } catch {
+          // A malformed request URL cannot be a qualified Provider or QuickJS route.
+        }
+        const phaseForRequest = requestPhase;
+        if (phaseForRequest === null) return;
         if (observedRequestRoutes.length < 20) {
-          try {
-            const url = new URL(request.url());
-            if (url.protocol === "https:" || url.protocol === "http:") {
-              observedRequestRoutes.push(Object.freeze({
-                phase: requestPhase,
-                method: request.method(),
-                origin: url.origin,
-                pathname: url.pathname,
-              }));
-            }
-          } catch {
-            // A malformed request URL cannot be a qualified Provider route.
+          if (
+            requestUrl !== null &&
+            (requestUrl.protocol === "https:" || requestUrl.protocol === "http:")
+          ) {
+            observedRequestRoutes.push(Object.freeze({
+              phase: phaseForRequest,
+              method: request.method(),
+              origin: requestUrl.origin,
+              pathname: requestUrl.pathname,
+            }));
           }
         }
         if (!matchesProviderRequestV1(request, profile)) return;
         providerRequests.push({
           request,
-          phase: requestPhase,
+          phase: phaseForRequest,
           status: null,
           errorType: null,
           errorCode: null,
@@ -693,7 +836,13 @@ async function qualifyBrowserV1(
 
       phase = "complete";
       requestPhase = "complete";
-      await followUp.fill(completedFollowUpV1);
+      if (journey === "qjs-loop") {
+        requireV1(quickJsAssetRequests.length === 0, "quickjs_assets_loaded_before_loop");
+        await startWorkspaceReceiptObservationV1(page);
+      }
+      await followUp.fill(
+        journey === "qjs-loop" ? completedQuickJsLoopFollowUpV1 : completedFollowUpV1,
+      );
       await page.getByRole("button", { name: "Send" }).click();
       try {
         await page.waitForFunction(
@@ -702,7 +851,11 @@ async function qualifyBrowserV1(
               "v2",
             ) === true,
           undefined,
-          { timeout: 45_000 },
+          {
+            timeout: journey === "qjs-loop"
+              ? quickJsLoopCompletionTimeoutMillisecondsV1
+              : providerCompletionTimeoutMillisecondsV1,
+          },
         );
       } catch {
         throw new QualificationFailureV1(
@@ -710,6 +863,8 @@ async function qualifyBrowserV1(
           await providerFailureDetailsV1(
             page,
             observationsForPhaseV1(providerRequests, "complete"),
+            observedRequestRoutes,
+            quickJsAssetRequests,
           ),
         );
       }
@@ -726,25 +881,76 @@ async function qualifyBrowserV1(
       const workspace = page.locator('[data-silly-os-view="workspace"]');
       const programId = await workspace.getAttribute("data-program-id");
       requireV1(programId !== null && programId.length > 0, "workspace_program_id_missing");
-      requireV1(
-        await workspace.getAttribute("data-execution-workspace-tool") === "write",
-        "workspace_write_receipt_missing",
-      );
-      requireV1(
-        await workspace.getAttribute("data-execution-workspace-effect") === "changed",
-        "workspace_write_effect_invalid",
-      );
-      requireV1(
-        await workspace.getAttribute("data-execution-workspace-path") === liveWorkspaceToolPathV1,
-        "workspace_write_path_invalid",
-      );
+      if (journey === "qjs-loop") {
+        observedWorkspaceReceipts = await stopWorkspaceReceiptObservationV1(page);
+        const expectedReceipts = [
+          { sequence: 1, tool: "write", effect: "changed", path: liveQuickJsInputPathV1 },
+          { sequence: 2, tool: "write", effect: "changed", path: liveQuickJsScriptPathV1 },
+          { sequence: 3, tool: "bash", effect: "changed", path: liveQuickJsOutputPathV1 },
+        ] as const;
+        requireV1(
+          observedWorkspaceReceipts.length === expectedReceipts.length &&
+            expectedReceipts.every((expected, index) => {
+              const observed = observedWorkspaceReceipts[index];
+              return observed?.sequence === expected.sequence && observed.tool === expected.tool &&
+                observed.effect === expected.effect && observed.path === expected.path;
+            }),
+          "quickjs_workspace_receipt_history_invalid",
+        );
+      }
       const workspaceGeneration = Number(
         await workspace.getAttribute("data-execution-workspace-generation"),
       );
-      requireV1(
-        Number.isSafeInteger(workspaceGeneration) && workspaceGeneration >= 2,
-        "workspace_generation_invalid",
-      );
+      if (journey === "provider") {
+        requireV1(
+          await workspace.getAttribute("data-execution-workspace-tool") === "write",
+          "workspace_write_receipt_missing",
+        );
+        requireV1(
+          await workspace.getAttribute("data-execution-workspace-effect") === "changed",
+          "workspace_write_effect_invalid",
+        );
+        requireV1(
+          await workspace.getAttribute("data-execution-workspace-path") ===
+            liveWorkspaceToolPathV1,
+          "workspace_write_path_invalid",
+        );
+        requireV1(
+          Number.isSafeInteger(workspaceGeneration) && workspaceGeneration >= 2,
+          "workspace_generation_invalid",
+        );
+      } else {
+        requireV1(
+          await workspace.getAttribute("data-execution-workspace-receipt") === "3",
+          "quickjs_workspace_receipt_sequence_invalid",
+        );
+        requireV1(
+          await workspace.getAttribute("data-execution-workspace-tool") === "bash",
+          "quickjs_workspace_bash_receipt_missing",
+        );
+        requireV1(
+          await workspace.getAttribute("data-execution-workspace-effect") === "changed",
+          "quickjs_workspace_bash_effect_invalid",
+        );
+        requireV1(
+          await workspace.getAttribute("data-execution-workspace-path") ===
+            liveQuickJsOutputPathV1,
+          "quickjs_workspace_output_path_invalid",
+        );
+        requireV1(workspaceGeneration === 4, "quickjs_workspace_generation_invalid");
+        requireV1(
+          await workspace.getAttribute("data-workspace-review-pending-status") === "matches",
+          "quickjs_pending_review_currentness_invalid",
+        );
+        requireV1(
+          await workspace.getAttribute("data-workspace-review-pending-generation") === "4",
+          "quickjs_pending_review_generation_invalid",
+        );
+        requireV1(
+          await workspace.getAttribute("data-workspace-review-mutable-generation") === "4",
+          "quickjs_mutable_generation_invalid",
+        );
+      }
       const continuation = await readWorkspaceContinuationV1(page, programId);
       requireV1(
         continuation !== null && typeof continuation.volumeId === "string" &&
@@ -752,12 +958,85 @@ async function qualifyBrowserV1(
         "workspace_continuation_missing",
       );
       const sandboxFrame = await currentWorkspaceSandboxFrameV1(page);
-      const workspaceToolText = await readSandboxWorkspaceTextV1(
-        sandboxFrame,
-        continuation.volumeId,
-        liveWorkspaceToolPathV1,
-      );
-      requireV1(workspaceToolText === liveWorkspaceToolTextV1, "workspace_file_bytes_invalid");
+      if (journey === "provider") {
+        const workspaceToolText = await readSandboxWorkspaceTextV1(
+          sandboxFrame,
+          continuation.volumeId,
+          liveWorkspaceToolPathV1,
+        );
+        requireV1(workspaceToolText === liveWorkspaceToolTextV1, "workspace_file_bytes_invalid");
+      } else {
+        const [quickJsInputText, quickJsScriptText, quickJsOutputText] = await Promise.all([
+          readSandboxWorkspaceTextV1(
+            sandboxFrame,
+            continuation.volumeId,
+            liveQuickJsInputPathV1,
+          ),
+          readSandboxWorkspaceTextV1(
+            sandboxFrame,
+            continuation.volumeId,
+            liveQuickJsScriptPathV1,
+          ),
+          readSandboxWorkspaceTextV1(
+            sandboxFrame,
+            continuation.volumeId,
+            liveQuickJsOutputPathV1,
+          ),
+        ]);
+        const inputUtf8Bytes = utf8LengthV1(quickJsInputText);
+        const scriptUtf8Bytes = utf8LengthV1(quickJsScriptText);
+        requireV1(
+          inputUtf8Bytes > 0 && inputUtf8Bytes <= 1_024,
+          "quickjs_input_bytes_invalid",
+        );
+        requireV1(
+          scriptUtf8Bytes > 0 && scriptUtf8Bytes <= 4_096 &&
+            quickJsScriptText.includes("workspace.readFile") &&
+            quickJsScriptText.includes("workspace.writeFile") &&
+            quickJsScriptText.includes("toUpperCase") &&
+            quickJsScriptText.includes(`/workspace/${liveQuickJsInputPathV1}`) &&
+            quickJsScriptText.includes(`/workspace/${liveQuickJsOutputPathV1}`),
+          "quickjs_script_bytes_invalid",
+        );
+        requireV1(
+          quickJsOutputText === quickJsInputText.toUpperCase(),
+          "quickjs_output_bytes_invalid",
+        );
+        quickJsInputMatchesPrompt = matchesPromptTextFileV1(
+          quickJsInputText,
+          liveQuickJsInputTextV1,
+        );
+        quickJsScriptMatchesPrompt = matchesPromptTextFileV1(
+          quickJsScriptText,
+          liveQuickJsScriptTextV1,
+        );
+        requireV1(
+          quickJsScriptMatchesPrompt,
+          "quickjs_script_does_not_match_fixed_qualifier",
+        );
+        quickJsInputUtf8Bytes = inputUtf8Bytes;
+        quickJsVerifiedOutputText = quickJsOutputText;
+        const sandboxOrigin = new URL(sandboxFrame.url()).origin;
+        requireV1(
+          quickJsAssetRequests.some(({ kind }) => kind === "command"),
+          "quickjs_command_asset_request_missing",
+        );
+        requireV1(
+          quickJsAssetRequests.some(({ kind }) => kind === "worker"),
+          "quickjs_worker_asset_request_missing",
+        );
+        requireV1(
+          quickJsAssetRequests.every(({ origin }) => origin === sandboxOrigin),
+          "quickjs_asset_origin_invalid",
+        );
+        requireV1((await proposal.textContent())?.includes("v2") === true, "currentness_lost");
+        requireV1(
+          await workspace.getAttribute("data-workspace-review-pending-status") === "matches" &&
+            await workspace.getAttribute("data-workspace-review-pending-generation") === "4" &&
+            await workspace.getAttribute("data-workspace-review-mutable-generation") === "4",
+          "quickjs_currentness_lost",
+        );
+      }
 
       phase = "durable_projection";
       const durableProjection = await durableProjectionV1(page);
@@ -770,6 +1049,64 @@ async function qualifyBrowserV1(
       await waitForPiWorkerCountV1(page, 0);
       await forgetButton.waitFor({ state: "detached" });
       requireV1(await forgetButton.count() === 0, "credential_not_forgotten");
+
+      if (journey === "qjs-loop") {
+        const sandboxFrameAfterForget = await currentWorkspaceSandboxFrameV1(page);
+        const quickJsOutputAfterForget = await readSandboxWorkspaceTextV1(
+          sandboxFrameAfterForget,
+          continuation.volumeId,
+          liveQuickJsOutputPathV1,
+        );
+        requireV1(
+          quickJsVerifiedOutputText !== null &&
+            quickJsOutputAfterForget === quickJsVerifiedOutputText,
+          "quickjs_output_not_durable_after_forget",
+        );
+        return Object.freeze({
+          profile: profile.id,
+          providerId: profile.providerId,
+          modelId: profile.modelId,
+          browser: browserType.name(),
+          journey,
+          result: "passed",
+          invalidConnectionFailureObserved: true,
+          invalidConnectionProviderStatuses: invalidConnectionObservations.map(({ status }) =>
+            status
+          ),
+          invalidConnectionErrorMapping: "test_failed",
+          invalidCredentialAbsent: true,
+          invalidWorkerReleased: true,
+          validConnectionProviderStatuses: validConnectionObservations.map(({ status }) => status),
+          homeWarningCleared: true,
+          cancellationObserved: true,
+          cancellationProviderStatuses: cancellationObservations.map(({ status }) => status),
+          proposalRevision: 2,
+          completionProviderRequests: completionObservations.length,
+          completionProviderStatuses: completionObservations.map(({ status }) => status),
+          currentnessPreserved: true,
+          pendingReviewStatus: "matches",
+          pendingReviewGeneration: 4,
+          mutableWorkspaceGeneration: 4,
+          workspaceReceiptSequence: 3,
+          workspaceReceiptHistory: observedWorkspaceReceipts,
+          workspaceTool: "bash",
+          workspaceGeneration,
+          workspaceBytesVerified: true,
+          workspacePathsVerified: [
+            liveQuickJsInputPathV1,
+            liveQuickJsScriptPathV1,
+            liveQuickJsOutputPathV1,
+          ],
+          workspaceInputMatchesPrompt: quickJsInputMatchesPrompt,
+          workspaceScriptMatchesPrompt: quickJsScriptMatchesPrompt,
+          workspaceInputUtf8Bytes: quickJsInputUtf8Bytes,
+          quickJsAssetsVerified: true,
+          quickJsAssetRequests,
+          controlOriginDurableProjectionCredentialAbsent: true,
+          workerForgotten: true,
+          workspaceOutputRetainedAfterForget: true,
+        });
+      }
 
       return Object.freeze({
         profile: profile.id,
@@ -807,6 +1144,7 @@ async function qualifyBrowserV1(
             page,
             providerRequests.filter(({ phase: requestPhase }) => requestPhase === phase),
             observedRequestRoutes,
+            quickJsAssetRequests,
           ),
         );
       }
@@ -817,6 +1155,7 @@ async function qualifyBrowserV1(
           page,
           providerRequests.filter(({ phase: requestPhase }) => requestPhase === phase),
           observedRequestRoutes,
+          quickJsAssetRequests,
         ),
       );
     }
@@ -834,11 +1173,13 @@ export async function runBrowserProviderQualificationCliV1(args: readonly string
   let profiles: readonly ProviderQualificationProfileV1[];
   let browserTypes: readonly BrowserType[];
   let target: string;
+  let journey: ProviderQualificationJourneyV1;
   try {
+    requireV1(args.length <= 4, "arguments_invalid");
     profiles = selectedProfilesV1(args[0] ?? "qualified");
     target = targetUrlV1(args[1] ?? defaultTargetUrlV1);
     browserTypes = selectedBrowsersV1(args[2] ?? "both");
-    requireV1(args.length <= 3, "arguments_invalid");
+    journey = selectedJourneyV1(args[3] ?? "provider");
   } catch (error) {
     const code = error instanceof QualificationFailureV1 ? error.code : "unexpected_failure";
     console.error(JSON.stringify({ result: "failed", code }));
@@ -851,13 +1192,20 @@ export async function runBrowserProviderQualificationCliV1(args: readonly string
     if (apiKey.length === 0) {
       failed = true;
       console.error(
-        JSON.stringify({ profile: profile.id, result: "failed", code: "api_key_missing" }),
+        JSON.stringify({
+          profile: profile.id,
+          journey,
+          result: "failed",
+          code: "api_key_missing",
+        }),
       );
       continue;
     }
     for (const browserType of browserTypes) {
       try {
-        console.log(JSON.stringify(await qualifyBrowserV1(browserType, target, profile, apiKey)));
+        console.log(
+          JSON.stringify(await qualifyBrowserV1(browserType, target, profile, apiKey, journey)),
+        );
       } catch (error) {
         failed = true;
         const code = error instanceof QualificationFailureV1 ? error.code : "unexpected_failure";
@@ -865,6 +1213,7 @@ export async function runBrowserProviderQualificationCliV1(args: readonly string
         console.error(JSON.stringify({
           profile: profile.id,
           browser: browserType.name(),
+          journey,
           result: "failed",
           code,
           ...details,

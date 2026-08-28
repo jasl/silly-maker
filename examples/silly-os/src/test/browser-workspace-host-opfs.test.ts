@@ -259,8 +259,17 @@ function replaceInputV1(
   bytes: Uint8Array,
   nextCheckpointId: string,
 ): BrowserWorkspaceHostReplaceFileInputV1 {
+  return replacePathInputV1("program.md", head, bytes, nextCheckpointId);
+}
+
+function replacePathInputV1(
+  path: string,
+  head: BrowserWorkspaceHostDurableHeadV1,
+  bytes: Uint8Array,
+  nextCheckpointId: string,
+): BrowserWorkspaceHostReplaceFileInputV1 {
   return {
-    path: "program.md",
+    path,
     source: {
       byteLength: bytes.byteLength,
       async readRange({ offset, length, signal }) {
@@ -483,6 +492,226 @@ describe("SillyOS Browser Workspace OPFS bootstrap", () => {
     });
     await reopened.close();
     await bootstrap.dispose();
+  });
+
+  it("publishes exact single-entry namespace successors and retains them across cold reopen", async () => {
+    const opened = await openedOpfsV1("volume.namespace.1");
+    const signal = new AbortController().signal;
+    let head = await opened.lease.readHead();
+
+    for (
+      const [operation, path, checkpointId] of [
+        ["create_directory", "assets", "checkpoint.namespace.2"],
+        ["create_directory", "assets/empty", "checkpoint.namespace.3"],
+      ] as const
+    ) {
+      const changed = await opened.lease.mutateEntry({
+        operation,
+        path,
+        expectedHead: head,
+        nextCheckpointId: checkpointId,
+        signal,
+      });
+      expect(changed).toEqual({
+        changed: true,
+        head: { ...head, checkpointId, generation: head.generation + 1 },
+      });
+      head = changed.head;
+    }
+    const removedEmpty = await opened.lease.mutateEntry({
+      operation: "remove_directory",
+      path: "assets/empty",
+      expectedHead: head,
+      nextCheckpointId: "checkpoint.namespace.4",
+      signal,
+    });
+    head = removedEmpty.head;
+    const file = await opened.lease.replaceFile(
+      replacePathInputV1(
+        "assets/note.txt",
+        head,
+        new TextEncoder().encode("durable"),
+        "checkpoint.namespace.5",
+      ),
+    );
+    head = file.head;
+    const removedFile = await opened.lease.mutateEntry({
+      operation: "remove_file",
+      path: "assets/note.txt",
+      expectedHead: head,
+      nextCheckpointId: "checkpoint.namespace.6",
+      signal,
+    });
+    head = removedFile.head;
+    expect(head).toMatchObject({ checkpointId: "checkpoint.namespace.6", generation: 6 });
+    await expect(opened.lease.listDirectory({ path: "assets", signal })).resolves.toEqual([]);
+    await opened.lease.close();
+
+    const cold = await opened.bootstrap.openVolume(opened.lease.anchor);
+    await expect(cold.readHead()).resolves.toEqual(head);
+    await expect(cold.stat("assets")).resolves.toMatchObject({ kind: "directory" });
+    await expect(cold.stat("assets/empty")).resolves.toMatchObject({ kind: "missing" });
+    await expect(cold.stat("assets/note.txt")).resolves.toMatchObject({ kind: "missing" });
+    await cold.close();
+    await opened.bootstrap.dispose();
+  });
+
+  it("keeps namespace targets unchanged when the primary pending record never publishes", async () => {
+    for (
+      const [operation, path, expectedKind] of [
+        ["create_directory", "created", "missing"],
+        ["remove_file", "kept.txt", "file"],
+        ["remove_directory", "kept", "directory"],
+      ] as const
+    ) {
+      const opened = await openedOpfsV1(`volume.namespace-pending-${operation}.1`);
+      const workspace = await fakeDirectoryV1(opened.root, [
+        ".sillyos-workspace-host-v1",
+        "volumes",
+        opened.lease.anchor.volumeId,
+        "workspace",
+      ]);
+      if (operation === "remove_file") {
+        await putBytesV1(workspace, path, new TextEncoder().encode("kept"));
+      } else if (operation === "remove_directory") {
+        await workspace.getDirectoryHandle(path, { create: true });
+      }
+      const base = await opened.lease.readHead();
+      opened.root.faults.closeFailures.set("pending.json", "before_commit");
+
+      await expect(opened.lease.mutateEntry({
+        operation,
+        path,
+        expectedHead: base,
+        nextCheckpointId: `checkpoint.namespace-pending-${operation}.2`,
+        signal: new AbortController().signal,
+      })).rejects.toMatchObject({ code: "request_failed" });
+
+      await expect(opened.lease.readHead()).resolves.toEqual(base);
+      await expect(opened.lease.stat(path)).resolves.toMatchObject({ kind: expectedKind });
+      if (operation === "remove_file") {
+        await expect(readWorkspaceFileV1(opened.lease, path)).resolves.toEqual(
+          new TextEncoder().encode("kept"),
+        );
+      }
+      await opened.lease.close();
+      await opened.bootstrap.dispose();
+    }
+  });
+
+  it("cold-recovers namespace effects on both sides of exact head publication", async () => {
+    for (
+      const [operation, path] of [
+        ["create_directory", "created"],
+        ["remove_file", "kept.txt"],
+        ["remove_directory", "kept"],
+      ] as const
+    ) {
+      for (const headFailure of ["before_commit", "after_commit"] as const) {
+        const opened = await openedOpfsV1(
+          `volume.namespace-cold-${operation}-${headFailure}.1`,
+        );
+        const workspace = await fakeDirectoryV1(opened.root, [
+          ".sillyos-workspace-host-v1",
+          "volumes",
+          opened.lease.anchor.volumeId,
+          "workspace",
+        ]);
+        if (operation === "remove_file") {
+          await putBytesV1(workspace, path, new TextEncoder().encode("kept"));
+        } else if (operation === "remove_directory") {
+          await workspace.getDirectoryHandle(path, { create: true });
+        }
+        const base = await opened.lease.readHead();
+        const nextCheckpointId = `checkpoint.namespace-cold-${operation}-${headFailure}.2`;
+        let snapshot: FakeDirectoryV1 | null = null;
+        opened.root.faults.afterCloseFailure = (name) => {
+          if (name === "head.json" && snapshot === null) snapshot = opened.root.clone();
+        };
+        opened.root.faults.closeFailures.set("head.json", headFailure);
+        const mutation = opened.lease.mutateEntry({
+          operation,
+          path,
+          expectedHead: base,
+          nextCheckpointId,
+          signal: new AbortController().signal,
+        });
+        if (headFailure === "before_commit") {
+          await expect(mutation).rejects.toMatchObject({ code: "request_failed" });
+        } else {
+          await expect(mutation).resolves.toEqual({
+            changed: true,
+            head: {
+              ...base,
+              checkpointId: nextCheckpointId,
+              generation: base.generation + 1,
+            },
+          });
+        }
+        opened.root.faults.afterCloseFailure = null;
+        if (snapshot === null) throw new Error("namespace head boundary was not captured");
+
+        const cold = createBrowserWorkspaceHostOpfsBootstrapV1({
+          getRootDirectory: async () => snapshot!.handle(),
+          lockPort: new FakeLockPortV1(),
+        });
+        const recovered = await cold.openVolume(opened.lease.anchor);
+        const committed = headFailure === "after_commit";
+        await expect(recovered.readHead()).resolves.toEqual(
+          committed
+            ? {
+              ...base,
+              checkpointId: nextCheckpointId,
+              generation: base.generation + 1,
+            }
+            : base,
+        );
+        const expectedKind = operation === "create_directory"
+          ? committed ? "directory" : "missing"
+          : committed
+          ? "missing"
+          : operation === "remove_file"
+          ? "file"
+          : "directory";
+        await expect(recovered.stat(path)).resolves.toMatchObject({ kind: expectedKind });
+        if (operation === "remove_file" && !committed) {
+          await expect(readWorkspaceFileV1(recovered, path)).resolves.toEqual(
+            new TextEncoder().encode("kept"),
+          );
+        }
+        await recovered.close();
+        await cold.dispose();
+        await opened.lease.close();
+        await opened.bootstrap.dispose();
+      }
+    }
+  });
+
+  it("refuses to remove a non-empty directory before publishing a successor", async () => {
+    const opened = await openedOpfsV1("volume.namespace-nonempty.1");
+    const workspace = await fakeDirectoryV1(opened.root, [
+      ".sillyos-workspace-host-v1",
+      "volumes",
+      opened.lease.anchor.volumeId,
+      "workspace",
+    ]);
+    const directory = await workspace.getDirectoryHandle("tree", { create: true });
+    await putBytesV1(directory, "child.txt", new TextEncoder().encode("child"));
+    const base = await opened.lease.readHead();
+
+    await expect(opened.lease.mutateEntry({
+      operation: "remove_directory",
+      path: "tree",
+      expectedHead: base,
+      nextCheckpointId: "checkpoint.namespace-nonempty.2",
+      signal: new AbortController().signal,
+    })).rejects.toMatchObject({ code: "request_failed" });
+    await expect(opened.lease.readHead()).resolves.toEqual(base);
+    await expect(readWorkspaceFileV1(opened.lease, "tree/child.txt")).resolves.toEqual(
+      new TextEncoder().encode("child"),
+    );
+    await opened.lease.close();
+    await opened.bootstrap.dispose();
   });
 
   it("streams multi-megabyte replacements through bounded ranges and keeps same bytes at the same head", async () => {

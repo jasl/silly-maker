@@ -23,6 +23,7 @@
     "qualify:browser:b1b": "deno task qualify:browser:provider b1b",
     "qualify:browser:qualified": "deno task qualify:browser:provider qualified",
     "qualify:browser:openai": "deno task qualify:browser:provider openai",
+    "qualify:browser:qjs-loop": "deno task qualify:browser:provider anthropic http://127.0.0.1:4173 chromium qjs-loop",
     "clean": "rm -rf dist-web dist-workspace-sandbox dist-desktop",
     "app": "deno run -A ./tools/app.mts",
     "test": "deno run -A npm:vitest run src"

@@ -14,6 +14,7 @@ import {
   createBrowserWorkspaceHostRuntimeV1 as createBrowserWorkspaceHostRuntimeWithoutShellV1,
   type BrowserWorkspaceHostBootstrapPortV1,
   type BrowserWorkspaceHostDurableHeadV1,
+  type BrowserWorkspaceHostEntryMutationInputV1,
   type BrowserWorkspaceHostFileMetadataV1,
   type BrowserWorkspaceHostMessagePortV1,
   type BrowserWorkspaceHostPortableArchiveInputV1,
@@ -51,6 +52,7 @@ interface FakeSourceRequestV1 extends FakeRangeRequestV1 {
 interface FakeVolumeV1 {
   head: BrowserWorkspaceHostDurableHeadV1;
   readonly files: Map<string, Uint8Array>;
+  readonly directories: Set<string>;
   readonly metadataSizes: Map<string, number>;
   statCalls: number;
   readonly readFileRangeRequests: FakeRangeRequestV1[];
@@ -102,6 +104,7 @@ class FakeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
   async stat(path: string): Promise<BrowserWorkspaceHostFileMetadataV1> {
     this.volume.statCalls += 1;
     if (path.length === 0) return { kind: "directory", size: 0, mtimeMs: 0 };
+    if (this.volume.directories.has(path)) return { kind: "directory", size: 0, mtimeMs: 0 };
     const file = this.volume.files.get(path);
     if (file !== undefined) return { kind: "file", size: file.byteLength, mtimeMs: fileMtimeMsV1 };
     const size = this.volume.metadataSizes.get(path);
@@ -132,6 +135,7 @@ class FakeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
       const path of new Set([
         ...this.volume.files.keys(),
         ...this.volume.metadataSizes.keys(),
+        ...this.volume.directories,
       ])
     ) {
       if (!path.startsWith(prefix)) continue;
@@ -202,6 +206,11 @@ class FakeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
       input.expectedHead.checkpointId !== this.volume.head.checkpointId
     ) throw new Error("stale head");
     this.volume.files.set(input.path, bytes.slice());
+    for (let parent = input.path.slice(0, input.path.lastIndexOf("/")); parent.length > 0;) {
+      this.volume.directories.add(parent);
+      const separator = parent.lastIndexOf("/");
+      parent = separator < 0 ? "" : parent.slice(0, separator);
+    }
     this.volume.head = {
       ...this.volume.head,
       checkpointId: input.nextCheckpointId,
@@ -214,6 +223,40 @@ class FakeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
         input.signal.addEventListener("abort", () => resolve(), { once: true });
       });
     }
+    return { changed: true, head: { ...this.volume.head } };
+  }
+
+  async mutateEntry(
+    input: BrowserWorkspaceHostEntryMutationInputV1,
+  ): Promise<BrowserWorkspaceHostReplaceFileResultV1> {
+    if (this.closed) throw new Error("lease closed");
+    if (
+      input.expectedHead.generation !== this.volume.head.generation ||
+      input.expectedHead.checkpointId !== this.volume.head.checkpointId
+    ) throw new Error("stale head");
+    const separator = input.path.lastIndexOf("/");
+    const parent = separator < 0 ? "" : input.path.slice(0, separator);
+    if (!this.volume.directories.has(parent)) throw new Error("missing parent");
+    if (input.operation === "create_directory") {
+      if (this.volume.directories.has(input.path) || this.volume.files.has(input.path)) {
+        throw new Error("entry exists");
+      }
+      this.volume.directories.add(input.path);
+    } else if (input.operation === "remove_file") {
+      if (!this.volume.files.delete(input.path)) throw new Error("missing file");
+    } else {
+      if (!this.volume.directories.has(input.path)) throw new Error("missing directory");
+      if (
+        [...this.volume.files.keys(), ...this.volume.directories]
+          .some((candidate) => candidate.startsWith(`${input.path}/`))
+      ) throw new Error("directory not empty");
+      this.volume.directories.delete(input.path);
+    }
+    this.volume.head = {
+      ...this.volume.head,
+      checkpointId: input.nextCheckpointId,
+      generation: this.volume.head.generation + 1,
+    };
     return { changed: true, head: { ...this.volume.head } };
   }
 
@@ -388,6 +431,7 @@ class FakeBootstrapV1 implements BrowserWorkspaceHostBootstrapPortV1 {
         generation: 1,
       },
       files: new Map(),
+      directories: new Set([""]),
       metadataSizes: new Map(),
       statCalls: 0,
       readFileRangeRequests: [],

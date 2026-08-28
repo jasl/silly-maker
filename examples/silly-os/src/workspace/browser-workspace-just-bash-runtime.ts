@@ -2,9 +2,11 @@
 
 import {
   Bash,
+  defineCommand,
   InMemoryFs,
   MountableFs,
   type BufferEncoding,
+  type Command,
   type CommandName,
   type CpOptions,
   type FileContent,
@@ -39,6 +41,7 @@ export const browserWorkspaceJustBashCommandAllowlistV1 = Object.freeze(
   [
     "basename",
     "cat",
+    "cp",
     "cut",
     "dirname",
     "echo",
@@ -48,10 +51,13 @@ export const browserWorkspaceJustBashCommandAllowlistV1 = Object.freeze(
     "grep",
     "head",
     "ls",
+    "mkdir",
+    "mv",
     "printenv",
     "printf",
     "pwd",
     "rg",
+    "rm",
     "sed",
     "sleep",
     "sort",
@@ -96,7 +102,7 @@ export const browserWorkspaceJustBashExecutionProfileV1 = Object.freeze(
     provider: "browser_local_just_bash",
     outputMode: "terminal_aggregate",
     commandAllowlist: browserWorkspaceJustBashCommandAllowlistV1,
-    customCommandAllowlist: Object.freeze(["qjs"] as const),
+    customCommandAllowlist: Object.freeze(["qjs", "touch"] as const),
     limits: browserWorkspaceJustBashLimitsV1,
   } as const,
 );
@@ -144,6 +150,18 @@ export interface BrowserWorkspaceJustBashMutationResultV1 {
   readonly generation: number;
 }
 
+export type BrowserWorkspaceJustBashEntryMutationV1 =
+  | "create_directory"
+  | "remove_file"
+  | "remove_directory";
+
+export interface BrowserWorkspaceJustBashEntryMutationInputV1 {
+  readonly operation: BrowserWorkspaceJustBashEntryMutationV1;
+  readonly path: string;
+  readonly expectedGeneration: number;
+  readonly signal: AbortSignal;
+}
+
 /**
  * The sole persistent byte authority injected by the Workspace Host. Paths are
  * normalized and relative to `/workspace`; the empty string denotes its root.
@@ -163,6 +181,9 @@ export interface BrowserWorkspaceJustBashVolumePortV1 {
   ): Promise<BrowserWorkspaceJustBashMutationResultV1>;
   append(
     input: BrowserWorkspaceJustBashMutationInputV1,
+  ): Promise<BrowserWorkspaceJustBashMutationResultV1>;
+  mutateEntry(
+    input: BrowserWorkspaceJustBashEntryMutationInputV1,
   ): Promise<BrowserWorkspaceJustBashMutationResultV1>;
 }
 
@@ -230,6 +251,72 @@ function fileSystemErrorV1(code: string, message: string, path?: string): Error 
 function errorMessageV1(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
+
+function compareCodeUnitsV1(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+/**
+ * Product-fixed narrow touch: ensure a regular file exists. OPFS modification
+ * times are observable metadata, not portable workspace authority, so date and
+ * timestamp mutation flags are deliberately rejected instead of silently
+ * claiming POSIX mtime behavior.
+ */
+const browserWorkspaceTouchCommandV1: Command = defineCommand(
+  "touch",
+  async (args, context) => {
+    let noCreate = false;
+    const paths: string[] = [];
+    for (let index = 0; index < args.length; index += 1) {
+      const argument = args[index]!;
+      if (argument === "--") {
+        paths.push(...args.slice(index + 1));
+        break;
+      }
+      if (argument === "-c" || argument === "--no-create") {
+        noCreate = true;
+        continue;
+      }
+      if (argument === "--help") {
+        return {
+          stdout: "Usage: touch [-c|--no-create] FILE...\n",
+          stderr: "",
+          exitCode: 0,
+        };
+      }
+      if (argument.startsWith("-")) {
+        return {
+          stdout: "",
+          stderr: `touch: unsupported option '${argument}'\n`,
+          exitCode: 2,
+        };
+      }
+      paths.push(argument);
+    }
+    if (paths.length === 0) {
+      return { stdout: "", stderr: "touch: missing file operand\n", exitCode: 1 };
+    }
+    let stderr = "";
+    let exitCode = 0;
+    for (const inputPath of paths) {
+      try {
+        const path = context.fs.resolvePath(context.cwd, inputPath);
+        if (await context.fs.exists(path)) {
+          if (!(await context.fs.stat(path)).isFile) {
+            throw fileSystemErrorV1("EISDIR", "path is a directory", path);
+          }
+          continue;
+        }
+        if (!noCreate) await context.fs.writeFile(path, "");
+      } catch (error) {
+        stderr += `touch: cannot touch '${inputPath}': ${errorMessageV1(error)}\n`;
+        exitCode = 1;
+      }
+    }
+    return { stdout: "", stderr, exitCode };
+  },
+  { trusted: true },
+);
 
 function positiveSafeIntegerV1(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
@@ -391,6 +478,7 @@ class PersistentWorkspaceFileSystemV1 implements IFileSystem {
   private generation: number;
   private mutationAttempts = 0;
   private capacityExceeded = false;
+  private persistentAuthorityFailed = false;
 
   constructor(
     private readonly volume: BrowserWorkspaceJustBashVolumePortV1,
@@ -440,6 +528,10 @@ class PersistentWorkspaceFileSystemV1 implements IFileSystem {
     return this.capacityExceeded;
   }
 
+  authorityFailureWasObserved(): boolean {
+    return this.persistentAuthorityFailed;
+  }
+
   hasDirectory(path: string): boolean {
     const relative = volumePathV1(path);
     return relative.length === 0 || this.entryKinds.get(relative) === "directory";
@@ -452,20 +544,25 @@ class PersistentWorkspaceFileSystemV1 implements IFileSystem {
   private async metadata(path: string): Promise<BrowserWorkspaceJustBashFileMetadataV1 | null> {
     this.throwIfAborted();
     const relative = volumePathV1(path);
-    const metadata = await this.volume.stat(relative, this.signal);
-    this.throwIfAborted();
-    const expectedKind = relative.length === 0 ? "directory" : this.entryKinds.get(relative);
-    if (metadata === null) {
-      if (expectedKind !== undefined) {
-        throw fileSystemErrorV1("ESTALE", "path view names a missing volume entry", path);
+    try {
+      const metadata = await this.volume.stat(relative, this.signal);
+      this.throwIfAborted();
+      const expectedKind = relative.length === 0 ? "directory" : this.entryKinds.get(relative);
+      if (metadata === null) {
+        if (expectedKind !== undefined) {
+          throw fileSystemErrorV1("ESTALE", "path view names a missing volume entry", path);
+        }
+        return null;
       }
-      return null;
+      validateMetadataV1(metadata, path);
+      if (expectedKind === undefined || metadata.kind !== expectedKind) {
+        throw fileSystemErrorV1("ESTALE", "path view and volume metadata disagree", path);
+      }
+      return metadata;
+    } catch (error) {
+      this.persistentAuthorityFailed = true;
+      throw error;
     }
-    validateMetadataV1(metadata, path);
-    if (expectedKind === undefined || metadata.kind !== expectedKind) {
-      throw fileSystemErrorV1("ESTALE", "path view and volume metadata disagree", path);
-    }
-    return metadata;
   }
 
   private validateParent(path: string): string {
@@ -482,12 +579,7 @@ class PersistentWorkspaceFileSystemV1 implements IFileSystem {
     return relative;
   }
 
-  private async mutate(
-    operation: "replace" | "append",
-    path: string,
-    bytes: Uint8Array,
-  ): Promise<void> {
-    this.throwIfAborted();
+  private beginPersistentMutationAttempt(path: string): void {
     if (this.mutationAttempts >= maximumPersistentMutationAttemptsV1) {
       this.capacityExceeded = true;
       throw fileSystemErrorV1(
@@ -497,7 +589,9 @@ class PersistentWorkspaceFileSystemV1 implements IFileSystem {
       );
     }
     this.mutationAttempts += 1;
-    const relative = this.validateParent(path);
+  }
+
+  private admitPersistentChangedPath(path: string, relative: string): void {
     if (
       !this.changedPathSet.has(relative) &&
       this.changedPathSet.size >= maximumChangedPathsV1
@@ -509,12 +603,13 @@ class PersistentWorkspaceFileSystemV1 implements IFileSystem {
         path,
       );
     }
-    const result = await this.volume[operation]({
-      path: relative,
-      bytes: bytes.slice(),
-      expectedGeneration: this.generation,
-      signal: this.signal,
-    });
+  }
+
+  private publishMutationResult(
+    path: string,
+    relative: string,
+    result: BrowserWorkspaceJustBashMutationResultV1,
+  ): void {
     if (typeof result.changed !== "boolean") {
       throw fileSystemErrorV1("ESTALE", "persistent mutation returned an invalid result", path);
     }
@@ -524,7 +619,6 @@ class PersistentWorkspaceFileSystemV1 implements IFileSystem {
     }
     this.generation = result.generation;
     if (!result.changed) return;
-    this.entryKinds.set(relative, "file");
     if (!this.changedPathSet.has(relative)) {
       this.changedPathSet.add(relative);
       this.changedPathOrder.push(relative);
@@ -532,6 +626,62 @@ class PersistentWorkspaceFileSystemV1 implements IFileSystem {
     // A completed volume mutation remains authoritative even if cancellation
     // raced with its reply. Publish its returned head before reporting abort.
     this.throwIfAborted();
+  }
+
+  private async mutate(
+    operation: "replace" | "append",
+    path: string,
+    bytes: Uint8Array,
+  ): Promise<void> {
+    this.throwIfAborted();
+    // An admitted persistent write request consumes an attempt even when its
+    // parent path is absent. This preserves the existing per-bash abuse bound.
+    this.beginPersistentMutationAttempt(path);
+    const relative = this.validateParent(path);
+    this.admitPersistentChangedPath(path, relative);
+    try {
+      const result = await this.volume[operation]({
+        path: relative,
+        bytes: bytes.slice(),
+        expectedGeneration: this.generation,
+        signal: this.signal,
+      });
+      this.publishMutationResult(path, relative, result);
+      if (result.changed) this.entryKinds.set(relative, "file");
+    } catch (error) {
+      this.persistentAuthorityFailed = true;
+      throw error;
+    }
+  }
+
+  private async mutateEntry(
+    operation: BrowserWorkspaceJustBashEntryMutationV1,
+    path: string,
+  ): Promise<void> {
+    this.throwIfAborted();
+    const relative = volumePathV1(path);
+    if (relative.length === 0) {
+      throw fileSystemErrorV1("EBUSY", "cannot mutate the workspace root", path);
+    }
+    this.beginPersistentMutationAttempt(path);
+    this.admitPersistentChangedPath(path, relative);
+    try {
+      const result = await this.volume.mutateEntry({
+        operation,
+        path: relative,
+        expectedGeneration: this.generation,
+        signal: this.signal,
+      });
+      if (!result.changed) {
+        throw fileSystemErrorV1("ESTALE", "entry mutation reported no effect", path);
+      }
+      this.publishMutationResult(path, relative, result);
+      if (operation === "create_directory") this.entryKinds.set(relative, "directory");
+      else this.entryKinds.delete(relative);
+    } catch (error) {
+      this.persistentAuthorityFailed = true;
+      throw error;
+    }
   }
 
   async readFile(
@@ -555,13 +705,18 @@ class PersistentWorkspaceFileSystemV1 implements IFileSystem {
         path,
       );
     }
-    this.throwIfAborted();
-    const bytes = await this.volume.read(volumePathV1(path), this.signal);
-    this.throwIfAborted();
-    if (bytes.byteLength !== metadata.size || bytes.byteLength > maximumShellReadBytesV1) {
-      throw fileSystemErrorV1("ESTALE", "persistent read disagrees with metadata", path);
+    try {
+      this.throwIfAborted();
+      const bytes = await this.volume.read(volumePathV1(path), this.signal);
+      this.throwIfAborted();
+      if (bytes.byteLength !== metadata.size || bytes.byteLength > maximumShellReadBytesV1) {
+        throw fileSystemErrorV1("ESTALE", "persistent read disagrees with metadata", path);
+      }
+      return bytes.slice();
+    } catch (error) {
+      this.persistentAuthorityFailed = true;
+      throw error;
     }
-    return bytes.slice();
   }
 
   async writeFile(
@@ -609,34 +764,39 @@ class PersistentWorkspaceFileSystemV1 implements IFileSystem {
       throw fileSystemErrorV1("ENOTDIR", "path is not a directory", path);
     }
     const relative = volumePathV1(path);
-    this.throwIfAborted();
-    const entries = await this.volume.list(relative, this.signal);
-    this.throwIfAborted();
-    const actual = new Map<string, BrowserWorkspaceJustBashEntryKindV1>();
-    for (const entry of entries) {
-      if (
-        entry.name.length === 0 || entry.name === "." || entry.name === ".." ||
-        entry.name.includes("/") || entry.name.includes("\0") ||
-        (entry.kind !== "file" && entry.kind !== "directory") || actual.has(entry.name)
-      ) {
-        throw fileSystemErrorV1(
-          "EIO",
-          "persistent volume returned an invalid directory entry",
-          path,
-        );
+    try {
+      this.throwIfAborted();
+      const entries = await this.volume.list(relative, this.signal);
+      this.throwIfAborted();
+      const actual = new Map<string, BrowserWorkspaceJustBashEntryKindV1>();
+      for (const entry of entries) {
+        if (
+          entry.name.length === 0 || entry.name === "." || entry.name === ".." ||
+          entry.name.includes("/") || entry.name.includes("\0") ||
+          (entry.kind !== "file" && entry.kind !== "directory") || actual.has(entry.name)
+        ) {
+          throw fileSystemErrorV1(
+            "EIO",
+            "persistent volume returned an invalid directory entry",
+            path,
+          );
+        }
+        actual.set(entry.name, entry.kind);
       }
-      actual.set(entry.name, entry.kind);
+      const expected = new Map<string, BrowserWorkspaceJustBashEntryKindV1>();
+      for (const [candidate, kind] of this.entryKinds) {
+        const name = immediateChildNameV1(relative, candidate);
+        if (name !== null) expected.set(name, kind);
+      }
+      if (
+        actual.size !== expected.size ||
+        [...expected].some(([name, kind]) => actual.get(name) !== kind)
+      ) throw fileSystemErrorV1("ESTALE", "path view and directory listing disagree", path);
+      return [...actual.keys()].sort();
+    } catch (error) {
+      this.persistentAuthorityFailed = true;
+      throw error;
     }
-    const expected = new Map<string, BrowserWorkspaceJustBashEntryKindV1>();
-    for (const [candidate, kind] of this.entryKinds) {
-      const name = immediateChildNameV1(relative, candidate);
-      if (name !== null) expected.set(name, kind);
-    }
-    if (
-      actual.size !== expected.size ||
-      [...expected].some(([name, kind]) => actual.get(name) !== kind)
-    ) throw fileSystemErrorV1("ESTALE", "path view and directory listing disagree", path);
-    return [...actual.keys()].sort();
   }
 
   resolvePath(base: string, path: string): string {
@@ -652,24 +812,122 @@ class PersistentWorkspaceFileSystemV1 implements IFileSystem {
     return normalizedMountedPathV1(path);
   }
 
-  async mkdir(path: string, _options?: MkdirOptions): Promise<void> {
-    throw fileSystemErrorV1("ENOTSUP", "mkdir is not supported by Browser Local C2", path);
+  async mkdir(path: string, options?: MkdirOptions): Promise<void> {
+    const relative = volumePathV1(path);
+    if (relative.length === 0) {
+      if (options?.recursive) return;
+      throw fileSystemErrorV1("EEXIST", "directory already exists", path);
+    }
+    const existing = this.entryKinds.get(relative);
+    if (existing !== undefined) {
+      if (options?.recursive && existing === "directory") return;
+      throw fileSystemErrorV1("EEXIST", "path already exists", path);
+    }
+    if (!options?.recursive) {
+      const parent = parentVolumePathV1(relative);
+      if (parent.length > 0 && this.entryKinds.get(parent) !== "directory") {
+        throw fileSystemErrorV1("ENOENT", "parent directory does not exist", path);
+      }
+      await this.mutateEntry("create_directory", path);
+      return;
+    }
+    let current = "";
+    for (const part of relative.split("/")) {
+      current = current.length === 0 ? part : `${current}/${part}`;
+      const kind = this.entryKinds.get(current);
+      if (kind === "file") {
+        throw fileSystemErrorV1(
+          "ENOTDIR",
+          "path component is not a directory",
+          mountedPathV1(current),
+        );
+      }
+      if (kind === undefined) await this.mutateEntry("create_directory", mountedPathV1(current));
+    }
   }
 
-  async rm(path: string, _options?: RmOptions): Promise<void> {
-    throw fileSystemErrorV1("ENOTSUP", "remove is not supported by Browser Local C2", path);
+  async rm(path: string, options?: RmOptions): Promise<void> {
+    const relative = volumePathV1(path);
+    if (relative.length === 0) {
+      throw fileSystemErrorV1("EBUSY", "cannot remove the workspace root", path);
+    }
+    const kind = this.entryKinds.get(relative);
+    if (kind === undefined) {
+      if (options?.force) return;
+      throw fileSystemErrorV1("ENOENT", "path does not exist", path);
+    }
+    if (kind === "file") {
+      await this.mutateEntry("remove_file", path);
+      return;
+    }
+    const descendants = [...this.entryKinds.keys()]
+      .filter((candidate) => candidate.startsWith(`${relative}/`))
+      .sort((left, right) => {
+        const depth = right.split("/").length - left.split("/").length;
+        return depth !== 0 ? depth : compareCodeUnitsV1(left, right);
+      });
+    if (descendants.length > 0 && !options?.recursive) {
+      throw fileSystemErrorV1("ENOTEMPTY", "directory is not empty", path);
+    }
+    for (const descendant of descendants) {
+      await this.mutateEntry(
+        this.entryKinds.get(descendant) === "directory" ? "remove_directory" : "remove_file",
+        mountedPathV1(descendant),
+      );
+    }
+    await this.mutateEntry("remove_directory", path);
   }
 
-  async cp(source: string, _destination: string, _options?: CpOptions): Promise<void> {
-    throw fileSystemErrorV1("ENOTSUP", "copy is not supported by Browser Local C2", source);
+  async cp(source: string, destination: string, options?: CpOptions): Promise<void> {
+    const sourceRelative = volumePathV1(source);
+    const destinationRelative = volumePathV1(destination);
+    if (sourceRelative.length === 0 || destinationRelative.length === 0) {
+      throw fileSystemErrorV1("EBUSY", "workspace root copy is not supported", source);
+    }
+    const sourceKind = this.entryKinds.get(sourceRelative);
+    if (sourceKind === undefined) {
+      throw fileSystemErrorV1("ENOENT", "source does not exist", source);
+    }
+    if (sourceKind === "file") {
+      if (this.entryKinds.get(destinationRelative) === "directory") {
+        throw fileSystemErrorV1("EISDIR", "copy target is a directory", destination);
+      }
+      await this.writeFile(destination, await this.readFileBuffer(source));
+      return;
+    }
+    if (!options?.recursive) {
+      throw fileSystemErrorV1("EISDIR", "source is a directory", source);
+    }
+    if (this.entryKinds.get(destinationRelative) === "file") {
+      throw fileSystemErrorV1("ENOTDIR", "copy target is not a directory", destination);
+    }
+    if (!this.entryKinds.has(destinationRelative)) await this.mkdir(destination);
+    for (const name of await this.readdir(source)) {
+      await this.cp(`${source}/${name}`, `${destination}/${name}`, { recursive: true });
+    }
   }
 
-  async mv(source: string, _destination: string): Promise<void> {
-    throw fileSystemErrorV1("ENOTSUP", "move is not supported by Browser Local C2", source);
+  async mv(source: string, destination: string): Promise<void> {
+    const sourceRelative = volumePathV1(source);
+    const sourceKind = this.entryKinds.get(sourceRelative);
+    if (sourceRelative.length === 0 || sourceKind === undefined) {
+      throw fileSystemErrorV1(
+        sourceRelative.length === 0 ? "EBUSY" : "ENOENT",
+        sourceRelative.length === 0
+          ? "workspace root move is not supported"
+          : "source does not exist",
+        source,
+      );
+    }
+    await this.cp(source, destination, { recursive: sourceKind === "directory" });
+    await this.rm(source, { recursive: sourceKind === "directory" });
   }
 
   async chmod(path: string, _mode: number): Promise<void> {
-    throw fileSystemErrorV1("ENOTSUP", "chmod is not supported by Browser Local C2", path);
+    // MountableFs uses chmod while copying between /tmp and /workspace. The
+    // VFS has fixed file/directory modes, so this validates existence without
+    // pretending mutable permissions are workspace state.
+    await this.stat(path);
   }
 
   async symlink(_target: string, linkPath: string): Promise<void> {
@@ -929,7 +1187,7 @@ export async function executeBrowserWorkspaceJustBashV1(
       env: productEnvironmentV1,
       fs: filesystem,
       commands: [...browserWorkspaceJustBashExecutionProfileV1.commandAllowlist],
-      customCommands: [browserWorkspaceQuickJsLazyCommandV1],
+      customCommands: [browserWorkspaceQuickJsLazyCommandV1, browserWorkspaceTouchCommandV1],
       python: false,
       javascript: false,
       executionLimitProfile: "normal",
@@ -976,6 +1234,14 @@ export async function executeBrowserWorkspaceJustBashV1(
       return failedExecutionV1(
         "capacity_exceeded",
         "Workspace shell persistent capacity limit was reached",
+        state,
+        result,
+      );
+    }
+    if (persistentFileSystem.authorityFailureWasObserved()) {
+      return failedExecutionV1(
+        "unknown",
+        "Workspace shell persistent authority failed",
         state,
         result,
       );
