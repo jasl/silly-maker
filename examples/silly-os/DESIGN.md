@@ -570,18 +570,39 @@ but is not the production Agent Worker. Chromium exposes only a bucketed
 control-page JS-heap observation (`27.6–29.4 MB`, unchanged within each run),
 WebKit exposes none, and total Worker/OPFS/Wasm/browser memory remains unproved.
 
-QuickJS Q0 is the next disposable runtime falsification, not an implemented
-Program capability. The fixed candidate is
-`quickjs-emscripten-core@0.32.0` plus
-`@jitl/quickjs-singlefile-browser-release-sync@0.32.0`; current research
-observes roughly `711 KiB` raw / `264 KiB` gzip, `20–32 ms` initialization,
-`34–47 ms` complete fresh Worker startup, and `16 MiB` Wasm linear memory.
-The guest receives no ambient Browser globals. Any product spike must use a
-fresh terminable child Worker, staged narrow VFS, current-only admitted diff,
-Sandbox-only `wasm-unsafe-eval`, and `connect-src 'none'`. Python is deferred:
-the current Pyodide control is roughly `12.9 MiB` raw / `6.03 MiB` gzip with
-`0.85–0.91 s` cold startup and a broader JavaScript bridge. Neither is shipped,
-and just-bash's Browser Python/JavaScript options do not qualify either runtime.
+QuickJS Q0 is now a disposable dev/test falsification, not an implemented
+Program capability. It fixes `quickjs-emscripten-core@0.32.0` plus
+`@jitl/quickjs-singlefile-browser-release-sync@0.32.0`, creates a fresh child
+Worker and runtime per execution, and passes only bounded source, argv, stdin,
+and a copied text-file set. Q0 accepts synchronous scripts only and rejects a
+pending Promise job instead of silently omitting it. The current limits are `64 KiB` source, `32` files /
+`1 MiB` staged text, `16` changed paths / `256 KiB` diff, `64 KiB` stdout, a
+`12 MiB` QuickJS allocator, fixed non-growing `16 MiB` Wasm linear memory,
+`512 KiB` stack, and `2 s` deadline.
+
+Chromium and WebKit prove exact staged-file diff, absent Browser/Node globals,
+failed static import and fetch with zero marker request, cooperative deadline,
+hard Worker termination, fixed-memory OOM, and fresh-Worker recovery. The
+ordinary development and preview CSP still reject Wasm; only the explicit Q0
+development mode adds Sandbox-origin `wasm-unsafe-eval`, while `connect-src`
+remains `none` and neither Sandbox nor control origin gains `unsafe-eval`.
+Local dev reruns observed QuickJS initialization/execution at roughly
+`39–51/6.5–8.4 ms` in Chromium and `20–29/9–11 ms` in WebKit. Chromium's
+supported Long Task observer reported zero; WebKit did not expose that observer,
+so no WebKit Long Task claim is made. These are raw observations, not budgets.
+The `16 MiB` and `12 MiB` limits cover
+only Wasm linear memory and the QuickJS allocator, not staged host objects,
+module JavaScript, structured clones, Worker overhead, or browser-process
+memory. The production Sandbox artifact still excludes QuickJS and Wasm.
+
+Q1 must separately prove Program-bound staging, current-only diff commit,
+receipts, an outer wall-clock terminate watchdog and production packaging
+before a synchronous fixed `qjs` command can appear under Pi native `bash`.
+Python remains deferred: the current Pyodide
+control is roughly `12.9 MiB` raw / `6.03 MiB` gzip with `0.85–0.91 s` cold
+startup and a broader JavaScript bridge. Neither runtime is shipped as a
+Program capability, and just-bash's Browser Python/JavaScript options do not
+qualify either runtime.
 
 ## Product and engine ownership
 

@@ -43,22 +43,33 @@ generation and emits no mutation receipt. Workspace continuity is separately
 proved at `1,001` files / `21,897,216` bytes, but the current per-candidate-file
 grep implementation has not been remeasured on that corpus.
 
-The next disposable runtime falsification is QuickJS, not Python. The fixed Q0
-candidate is `quickjs-emscripten-core@0.32.0` plus
-`@jitl/quickjs-singlefile-browser-release-sync@0.32.0`. The current raw control
-is about `711 KiB` / `264 KiB` gzip, initializes in `20–32 ms`, starts a complete
-fresh Worker in `34–47 ms`, and observes `16 MiB` Wasm linear memory. Chromium
-and WebKit controls prove hard Worker termination and fresh recovery; the guest
-has no `fetch`, `navigator`, IndexedDB, OPFS, DOM, or `WebAssembly` unless the
-trusted wrapper supplies it. A product spike still requires a fresh child
-Worker, staged narrow VFS, current-only diff commit, Sandbox-only
-`wasm-unsafe-eval`, and `connect-src 'none'`.
+The disposable QuickJS Q0 falsification is complete in dev/test, not in the
+product. It fixes `quickjs-emscripten-core@0.32.0` plus
+`@jitl/quickjs-singlefile-browser-release-sync@0.32.0`, uses a fresh child
+Worker/runtime and copied bounded text-file set, and returns only an exact
+terminal diff. Pending Promise jobs fail closed because Q0 intentionally
+supports synchronous scripts only. Chromium and WebKit prove failed import/fetch, absent ambient
+Browser/Node globals, deadline, hard termination, OOM and fresh recovery. The
+Wasm memory is injected with equal `initial`/`maximum` at `16 MiB`; QuickJS's
+allocator is separately capped at `12 MiB`. This corrects the upstream default
+variant's observed ability to grow its Wasm memory despite an allocator limit,
+but it does not bound staged host objects, module JavaScript, structured clones,
+Worker overhead or browser-process memory.
+
+Only an explicit Q0 development mode adds Sandbox-origin
+`wasm-unsafe-eval`; ordinary development, preview and control responses remain
+strict, Sandbox `connect-src` remains `none`, and the production Sandbox build
+still excludes QuickJS/Wasm. Q0 does not bind a Program volume, use OPFS, commit
+a diff, emit a receipt or connect Pi. Q1 must prove those product contracts
+and an outer wall-clock terminate watchdog before a synchronous fixed `qjs`
+command can appear under Pi native `bash`.
 
 Python is deferred. The Pyodide control is about `12.9 MiB` raw / `6.03 MiB`
 gzip with `0.85–0.91 s` cold startup and a broader JavaScript bridge. The
 private CPython files installed below just-bash are not its public Browser API;
 enabling just-bash's Browser Python or JavaScript switches does not provide a
-qualified runtime. Neither QuickJS nor Python is implemented or deployed.
+qualified runtime. QuickJS exists only as the disposable Q0 dev/test spike;
+neither QuickJS nor Python is implemented or deployed as a Program capability.
 
 The current harness performance receipt is raw local-development data, not a
 release gate or budget. Three runs reuse warm HTTP/Vite server and dependency
@@ -927,12 +938,16 @@ sandbox claim; the mere use of WebAssembly does not.
    Focused evidence owns exact tool names/schemas/currentness; the real Chromium
    Anthropic route additionally proves only `write` plus exact Sandbox bytes,
    not real-model use of the other tools.
-5. QuickJS Q0 is the first broader runtime candidate because its fixed
-   single-file Browser control is materially smaller and faster while keeping
-   guest globals closed by default. It must run in a separately terminable
-   child Worker against only a staged bound VFS, with network off and explicit
-   CPU/memory/time/output limits. Python follows only after that boundary is
-   proved. Neither is implied by just-bash package availability.
+5. **QuickJS Q0 closed as dev/test feasibility on 2026-08-29.** The fixed
+   Browser dependency runs in a fresh terminable child Worker against only a
+   copied bounded text-file set, with network off, a non-growing `16 MiB` Wasm
+   memory, a `12 MiB` allocator, explicit source/file/diff/stdout/deadline
+   limits, sync-only pending-job rejection, exact diff,
+   OOM/deadline/hard-termination recovery and Chromium/
+   WebKit evidence. It is not yet a Program capability. Q1 must bind staging
+   and current-only commit to the existing Pi `bash` mutation path before
+   synchronous `qjs` appears. Python follows only after that product boundary is proved;
+   neither runtime is implied by just-bash package availability.
 6. Only after those smaller profiles may the Wasm, agent-sandbox,
    Wasmer/WASIX, BrowserPod, CoWasm, full-Linux, or WebContainers corpus choose
    a broader command/process adapter. BYO Sandbox, import/restore, Desktop

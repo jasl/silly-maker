@@ -4,23 +4,28 @@ import { defineConfig } from "vite";
 import { collectWorkspaceSandboxBuildIdentityV1 } from "./tools/workspace-sandbox-build-identity.mts";
 
 const localControlOriginsV1 = ["http://127.0.0.1:41739", "http://127.0.0.1:4173"] as const;
-const localSandboxContentSecurityPolicyV1 = [
-  "default-src 'none'",
-  "script-src 'self'",
-  "worker-src 'self'",
-  "frame-src blob:",
-  "connect-src 'none'",
-  "object-src 'none'",
-  "base-uri 'none'",
-  `frame-ancestors ${localControlOriginsV1.join(" ")}`,
-  "form-action 'none'",
-].join("; ");
-const localSandboxResponseHeadersV1 = {
-  "Content-Security-Policy": localSandboxContentSecurityPolicyV1,
-  "Permissions-Policy": "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
-  "Referrer-Policy": "no-referrer",
-  "X-Content-Type-Options": "nosniff",
-};
+function localSandboxContentSecurityPolicyV1(allowQuickJsFeasibility: boolean): string {
+  return [
+    "default-src 'none'",
+    allowQuickJsFeasibility ? "script-src 'self' 'wasm-unsafe-eval'" : "script-src 'self'",
+    "worker-src 'self'",
+    "frame-src blob:",
+    "connect-src 'none'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    `frame-ancestors ${localControlOriginsV1.join(" ")}`,
+    "form-action 'none'",
+  ].join("; ");
+}
+
+function localSandboxResponseHeadersV1(allowQuickJsFeasibility: boolean) {
+  return {
+    "Content-Security-Policy": localSandboxContentSecurityPolicyV1(allowQuickJsFeasibility),
+    "Permissions-Policy": "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff",
+  };
+}
 function createNetworkOffDevelopmentHtmlPluginV1() {
   return {
     name: "sillyos-workspace-sandbox-network-off-development-html",
@@ -42,11 +47,15 @@ function createNetworkOffDevelopmentHtmlPluginV1() {
   };
 }
 
-export default defineConfig(({ command }) => {
+export default defineConfig(({ command, isPreview, mode }) => {
   const workspaceSandboxBuildIdentity = collectWorkspaceSandboxBuildIdentityV1({
     appRoot: import.meta.dirname,
     command,
   });
+  const developmentHeaders = localSandboxResponseHeadersV1(
+    command === "serve" && isPreview !== true && mode === "quickjs-q0",
+  );
+  const previewHeaders = localSandboxResponseHeadersV1(false);
   return {
     base: "/",
     root: import.meta.dirname,
@@ -76,7 +85,7 @@ export default defineConfig(({ command }) => {
       format: "es",
     },
     server: {
-      headers: localSandboxResponseHeadersV1,
+      headers: developmentHeaders,
       // Network is a denied Sandbox capability. Qualification must not open
       // Vite's development WebSocket behind the product's back.
       hmr: false,
@@ -85,7 +94,7 @@ export default defineConfig(({ command }) => {
       strictPort: true,
     },
     preview: {
-      headers: localSandboxResponseHeadersV1,
+      headers: previewHeaders,
       host: "127.0.0.1",
       port: 41740,
       strictPort: true,

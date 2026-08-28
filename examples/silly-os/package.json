@@ -40,10 +40,12 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@jitl/quickjs-singlefile-browser-release-sync": "0.32.0",
     "@sillymaker/tooling": "workspace:*",
     "@types/node": "26.2.0",
     "@types/react": "19.2.18",
     "fake-indexeddb": "6.2.5",
+    "quickjs-emscripten-core": "0.32.0",
     "vite": "8.2.1",
     "vitest": "4.1.10",
     "wrangler": "4.123.0"

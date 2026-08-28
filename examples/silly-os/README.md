@@ -241,9 +241,10 @@ reload。单独的 Chromium/WebKit qualification 各 3/3
 Pi 工具到 workspace runtime 的转发、Pi 能力组合、OpenUI 到 SillyMaker 组件映射，
 再到翻译/写作/角色扮演产品的分阶段路径见 [PLAN.md](./PLAN.md)。为每个 workspace
 Agent 提供熟悉的受限工具环境和单一工作卷仍是研究门；WASM 是可选执行机制，不是产品契约。
-S1b-2 已在 2026-08-29 本地关闭；S1b-3 是当前本地 live-tools overlay。QuickJS、Python、
-更广的 Wasm、BYO Sandbox 和 editor proof 均未激活。当前 Sandbox/live-tools overlay 没有
-production deployment receipt。
+S1b-2 与 S1b-3 已在 2026-08-29 本地关闭。QuickJS Q0 也已作为可删除的 dev/test
+feasibility spike 通过 Chromium/WebKit，但没有接入 Pi、Program VFS、receipt 或 production
+CSP；Python、更广的 Wasm、BYO Sandbox 和 editor proof 均未激活。当前 Sandbox/live-tools
+overlay 没有 production deployment receipt。
 候选路线与统一的 Browser/Deno 验收语料见
 [WASM-WORKSPACE-RESEARCH.md](./WASM-WORKSPACE-RESEARCH.md)。
 
@@ -256,9 +257,11 @@ points、5 秒，成功不推进 generation，也不产生 mutation receipt。�
 反向隔离 regression 已在 Chromium/WebKit 证明 Sandbox 无法读取 control document 或
 同名的 control IndexedDB/OPFS sentinel，向 control origin 的网络请求也在发出前被 CSP
 阻止。这不代表浏览器能抵抗所有 XSS、扩展或设备攻击，也不允许未来 guest runtime 直接
-获得 Sandbox origin 的 ambient OPFS/IndexedDB。下一项 runtime 研究先做 disposable
-QuickJS child Worker，使用 staged narrow VFS 和 hard terminate；Python 因资产、启动和 JS
-bridge 成本后置。两者都尚未进入产品，也不能通过打开 just-bash 的 Browser flags 获得。
+获得 Sandbox origin 的 ambient OPFS/IndexedDB。Disposable QuickJS Q0 已使用 fresh child
+Worker、copied bounded text files、fixed `16 MiB` Wasm memory、`12 MiB` allocator 和 hard
+terminate 通过；它只执行同步脚本，检测到 pending Promise job 会失败。普通 dev/preview CSP 仍拒绝 Wasm，只有显式 Q0 mode 加
+`wasm-unsafe-eval`。它只返回 diff，不提交 VFS。Python 因资产、启动和 JS bridge 成本后置。
+两者都尚未成为产品能力，也不能通过打开 just-bash 的 Browser flags 获得。
 
 三轮 fresh-profile / warm-server 的 raw dev harness 数据中，Chromium 的 warm `true`、raw
 bash `rg`、structured grep 每轮 median 分别为 `0.8 ms`、`5.4–5.9 ms`、`7.6–7.9 ms`；

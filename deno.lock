@@ -8,6 +8,7 @@
     "npm:@earendil-works/pi-agent-core@0.84.3": "0.84.3_@modelcontextprotocol+sdk@1.25.2__zod@4.4.3__hono@4.13.4_hono@4.13.4_zod@4.4.3",
     "npm:@earendil-works/pi-ai@0.84.3": "0.84.3_@modelcontextprotocol+sdk@1.25.2__zod@4.4.3__hono@4.13.4_hono@4.13.4_zod@4.4.3",
     "npm:@earendil-works/pi-coding-agent@0.84.3": "0.84.3_@modelcontextprotocol+sdk@1.25.2__zod@4.4.3__hono@4.13.4_hono@4.13.4_zod@4.4.3",
+    "npm:@jitl/quickjs-singlefile-browser-release-sync@0.32.0": "0.32.0",
     "npm:@playwright/test@*": "1.62.1",
     "npm:@playwright/test@1.62.1": "1.62.1",
     "npm:@radix-ui/react-dialog@1.1.23": "1.1.23_@types+react@19.2.18_@types+react-dom@19.2.4__@types+react@19.2.18_react@19.2.8_react-dom@19.2.8__react@19.2.8",
@@ -34,6 +35,7 @@
     "npm:oxlint-tsgolint@7.0.2001": "7.0.2001",
     "npm:oxlint@*": "1.78.0_oxlint-tsgolint@7.0.2001",
     "npm:oxlint@1.78.0": "1.78.0_oxlint-tsgolint@7.0.2001",
+    "npm:quickjs-emscripten-core@0.32.0": "0.32.0",
     "npm:react-dom@19.2.8": "19.2.8_react@19.2.8",
     "npm:react-dom@^19.2.8": "19.2.8_react@19.2.8",
     "npm:react@19.2.8": "19.2.8",
@@ -1430,6 +1432,12 @@
     },
     "@jitl/quickjs-ffi-types@0.32.0": {
       "integrity": "sha512-v9T+GQpmk43VDJ7d72sf0Nexhk+ArvtUihW27dy7lqAl0zBObFKtSBBIm5RBjwIhE8VwsPPm9PNuvPvNqLWUEg=="
+    },
+    "@jitl/quickjs-singlefile-browser-release-sync@0.32.0": {
+      "integrity": "sha512-Hfdl7rh8dzxNWFRiYAYNbhn0RMF1/tO6SMH2mUW0aTibqwaAtqPRbi4WkwaIDlhNz8Z4dksJi1Zjl1R54Jsc/Q==",
+      "dependencies": [
+        "@jitl/quickjs-ffi-types"
+      ]
     },
     "@jitl/quickjs-wasmfile-debug-asyncify@0.32.0": {
       "integrity": "sha512-EX8zbXwGqCgAE764M+qvkHtyXDi/FUoMBea0JnES7vCM3P7a2+EOZOjGv85wtZ2sJhI1oJ+nekmqpOODFDY+hw==",
@@ -7141,12 +7149,14 @@
             "npm:@earendil-works/pi-agent-core@0.84.3",
             "npm:@earendil-works/pi-ai@0.84.3",
             "npm:@earendil-works/pi-coding-agent@0.84.3",
+            "npm:@jitl/quickjs-singlefile-browser-release-sync@0.32.0",
             "npm:@types/node@26.2.0",
             "npm:@types/react@19.2.18",
             "npm:client-zip@2.5.0",
             "npm:fake-indexeddb@6.2.5",
             "npm:just-bash@3.4.2",
             "npm:lucide-react@^1.34.0",
+            "npm:quickjs-emscripten-core@0.32.0",
             "npm:react-dom@19.2.8",
             "npm:react@19.2.8",
             "npm:vite@8.2.1",

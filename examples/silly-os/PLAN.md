@@ -455,32 +455,50 @@ handoff.
 
 The first bounded `just-bash` profile now runs inside the Sandbox and is
 reachable from fixed Pi `bash`. It receives only the passed VFS and closed
-command implementations. Add QuickJS and only then reconsider Python as
-separately bounded, terminable one-shot runtimes; do not advertise Linux or a
-container.
+command implementations. Use the completed Q0 evidence to admit QuickJS only
+through the bounded Q1 command path, and only then reconsider Python as a
+separate terminable one-shot runtime; do not advertise Linux or a container.
 Download, `git clone`, package retrieval, or any other network action remains
 off until an explicit capability admits exact targets, byte/time/output limits,
 cancellation, and receipts. Wasm may implement a runtime but never becomes the
 Program or Sandbox contract.
 
-The first runtime work is an explicitly disposable QuickJS Browser
-falsification spike, not a product feature. The current research control selects
+The explicitly disposable QuickJS Browser Q0 falsification is complete as a
+dev/test spike, not a product feature. It fixes
 `quickjs-emscripten-core@0.32.0` with
-`@jitl/quickjs-singlefile-browser-release-sync@0.32.0`: roughly `711 KiB` raw /
-`264 KiB` gzip, `20–32 ms` engine initialization, `34–47 ms` complete fresh
-Worker startup, and `16 MiB` observed Wasm linear memory. Its guest has no
-`fetch`, `navigator`, IndexedDB, OPFS, DOM, or `WebAssembly` unless the trusted
-wrapper explicitly supplies them, and hard Worker termination plus fresh
-recovery pass in Chromium and WebKit research controls. Those numbers are raw
-controls, not a shipping or memory budget.
+`@jitl/quickjs-singlefile-browser-release-sync@0.32.0`, runs each bounded source
+in a fresh child Worker/runtime, rejects pending Promise jobs, and exposes only
+a copied in-memory text-file set plus argv, stdin and stdout. Q0 is explicitly
+synchronous. It caps source at `64 KiB`, staged input at
+`32` files / `1 MiB`, output at `16` changed paths / `256 KiB` diff and
+`64 KiB` stdout, QuickJS allocation at `12 MiB`, non-growing Wasm linear memory
+at `16 MiB`, stack at `512 KiB`, and execution at `2 s`.
 
-The spike runs one fixed Workspace script in a fresh child Worker with bounded
-argv/stdin/cwd/environment, network off, hard termination, a small staged VFS,
-and Host-committed current diffs. Only the Sandbox response may gain the narrow
-`wasm-unsafe-eval` needed by the fixed payload; control-plane CSP remains
-unchanged and Sandbox `connect-src` remains `none`. Requiring Node builtins,
-general fetch/CDN, an OPFS handle, ambient Host JavaScript, unbounded whole-
-volume copying, or an unterminable runtime stops the candidate.
+Chromium and WebKit prove exact diff, failed import/fetch with no outbound marker
+request, absent Browser/Node globals, deadline, hard termination, fixed-memory
+OOM and fresh recovery. Local dev reruns observed initialization/execution at
+roughly `39–51/6.5–8.4 ms` in Chromium and `20–29/9–11 ms` in WebKit,
+while Chromium's supported Long Task observer reported zero and WebKit exposed
+no such observer. These are raw observations, not shipping or memory budgets: staged host
+objects, module JavaScript, structured clones, Worker overhead and browser-
+process memory remain outside the two memory limits. Only the explicit Q0 Vite
+mode adds `wasm-unsafe-eval` to Sandbox-origin development responses; ordinary
+development, preview and control CSP remain unchanged, and Sandbox
+`connect-src` remains `none`. The production Sandbox build still excludes
+QuickJS and Wasm.
+
+Q0 returns a terminal diff but does not bind a Program volume, touch OPFS,
+commit current bytes, emit a receipt, connect Pi, or change production CSP.
+The deliberately bounded Q1 product slice is one fixed `qjs` command under Pi
+native `bash`: the Sandbox Host stages only admitted files from the bound
+Program, launches a fresh child Worker, and applies a successful diff only
+while the request/generation is current through the existing bash mutation
+path. Q1 stays synchronous and rejects pending jobs; an outer wall-clock
+watchdog terminates the Worker rather than relying only on QuickJS's cooperative
+interrupt. It adds neither a second Agent tool nor a generic runtime RPC. Requiring
+Node builtins, general fetch/CDN, an OPFS handle, ambient Host JavaScript,
+unbounded whole-volume copying, or cooperative-only cancellation stops the
+candidate.
 
 Python is deferred. The Pyodide control is roughly `12.9 MiB` raw / `6.03 MiB`
 gzip with `0.85–0.91 s` observed cold startup and a broader JavaScript bridge.
