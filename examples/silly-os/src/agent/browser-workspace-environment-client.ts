@@ -14,10 +14,17 @@ import type {
   WorkspaceAgentRunV1,
   WorkspaceBeginRunRejectionCodeV1,
   WorkspaceExecutionDescriptorV1,
+  WorkspaceGrepCallInputV1,
+  WorkspaceGrepQueryV1,
+  WorkspaceGrepResultV1,
   WorkspaceMutationRecordV1,
   WorkspaceToolCallInputV1,
 } from "../workspace/contracts.ts";
-import { WorkspaceToolCallAdmissionErrorV1 } from "../workspace/contracts.ts";
+import {
+  admitWorkspaceGrepQueryV1,
+  WorkspaceGrepErrorV1,
+  WorkspaceToolCallAdmissionErrorV1,
+} from "../workspace/contracts.ts";
 import {
   admitBrowserWorkspaceHostEnvironmentOutboundMessageV1,
   browserWorkspaceShellRequestedTimeoutMaximumMillisecondsV1,
@@ -568,6 +575,22 @@ class RemoteWorkspaceAgentRunV1 implements WorkspaceAgentRunV1 {
     return this.owner.executeToolCall(this.state, "bash", input);
   }
 
+  executeGrepCall(input: WorkspaceGrepCallInputV1): Promise<WorkspaceGrepResultV1> {
+    const invoke = (signal: AbortSignal) =>
+      this.owner.grepWorkspace(this.state, input.query, input.toolCallId, signal);
+    const callInput: WorkspaceToolCallInputV1<WorkspaceGrepResultV1> = input.signal === undefined
+      ? {
+        toolCallId: input.toolCallId,
+        invoke,
+      }
+      : {
+        toolCallId: input.toolCallId,
+        signal: input.signal,
+        invoke,
+      };
+    return this.owner.executeToolCall(this.state, "grep", callInput);
+  }
+
   abortAndDrain(): Promise<void> {
     return this.owner.abortAndDrain(this.state);
   }
@@ -772,9 +795,82 @@ class BrowserWorkspaceEnvironmentClientOwnerV1 implements BrowserWorkspaceEnviro
     }
   }
 
+  async grepWorkspace(
+    state: ActiveRunStateV1,
+    queryValue: WorkspaceGrepQueryV1,
+    toolCallId: string,
+    signal: AbortSignal,
+  ): Promise<WorkspaceGrepResultV1> {
+    const query = admitWorkspaceGrepQueryV1(queryValue);
+    if (query === null) {
+      throw new WorkspaceGrepErrorV1("invalid_query", "Workspace grep query is invalid");
+    }
+    if (state.activeToolCallId !== toolCallId) {
+      throw new WorkspaceGrepErrorV1(
+        "execution_failed",
+        "Workspace grep requires its active tool scope",
+      );
+    }
+    let completed = false;
+    const cancellation: {
+      promise: Promise<BrowserWorkspaceHostEnvironmentSuccessV1> | null;
+    } = { promise: null };
+    const requestCancellation = (): void => {
+      if (completed) return;
+      cancellation.promise ??= this.call({ method: "cancel_tool", toolCallId });
+      void cancellation.promise.catch(() => undefined);
+    };
+    signal.addEventListener("abort", requestCancellation, { once: true });
+    if (signal.aborted) requestCancellation();
+    let response: BrowserWorkspaceHostEnvironmentSuccessV1;
+    try {
+      response = await this.call({ method: "grep_workspace", query });
+      completed = true;
+      signal.removeEventListener("abort", requestCancellation);
+      if (cancellation.promise !== null) await cancellation.promise.catch(() => undefined);
+    } catch (error) {
+      completed = true;
+      signal.removeEventListener("abort", requestCancellation);
+      if (cancellation.promise !== null) await cancellation.promise.catch(() => undefined);
+      if (signal.aborted) {
+        throw new WorkspaceGrepErrorV1("cancelled", "Workspace grep request was cancelled");
+      }
+      throw new WorkspaceGrepErrorV1(
+        "execution_failed",
+        error instanceof Error ? error.message : String(error),
+        { cause: error instanceof Error ? error : undefined },
+      );
+    }
+    if (signal.aborted || response.method !== "grep_workspace") {
+      throw new WorkspaceGrepErrorV1(
+        signal.aborted ? "cancelled" : "execution_failed",
+        signal.aborted
+          ? "Workspace grep request was cancelled"
+          : "Workspace grep response did not match its request",
+      );
+    }
+    if (response.termination !== "completed") {
+      throw new WorkspaceGrepErrorV1(
+        response.termination === "aborted"
+          ? "cancelled"
+          : response.termination === "timeout"
+          ? "timeout"
+          : "execution_failed",
+        response.message,
+      );
+    }
+    if (response.result.generation !== state.cursor) {
+      throw new WorkspaceGrepErrorV1(
+        "execution_failed",
+        "Workspace grep result generation is not current",
+      );
+    }
+    return response.result;
+  }
+
   executeToolCall<TValue>(
     state: ActiveRunStateV1,
-    tool: "read" | "write" | "edit" | "bash",
+    tool: "read" | "write" | "edit" | "bash" | "grep",
     input: WorkspaceToolCallInputV1<TValue>,
   ): Promise<TValue> {
     if (this.activeRun !== state || state.finished) {
@@ -812,7 +908,7 @@ class BrowserWorkspaceEnvironmentClientOwnerV1 implements BrowserWorkspaceEnviro
 
   private async performToolCall<TValue>(
     state: ActiveRunStateV1,
-    tool: "read" | "write" | "edit" | "bash",
+    tool: "read" | "write" | "edit" | "bash" | "grep",
     input: WorkspaceToolCallInputV1<TValue>,
   ): Promise<TValue> {
     try {

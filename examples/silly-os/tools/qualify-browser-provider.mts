@@ -1,11 +1,26 @@
 // SPDX-License-Identifier: MIT
+/// <reference lib="dom" />
 
-import { chromium, type BrowserType, type Page, type Request, webkit } from "npm:playwright";
+import {
+  chromium,
+  type BrowserType,
+  type Frame,
+  type Page,
+  type Request,
+  webkit,
+} from "npm:playwright";
 
 const defaultTargetUrlV1 = "http://127.0.0.1:4175/";
 const initialIntentV1 = "Create a compact writing review program.";
 const cancelledFollowUpV1 = "Cancel this qualification run before it can propose a revision.";
-const completedFollowUpV1 = "Add one explicit review checkpoint before publication.";
+const liveWorkspaceToolPathV1 = ".sillyos/live-provider-tools.txt";
+const liveWorkspaceToolTextV1 = "SillyOS live Provider workspace tools qualified.";
+const completedFollowUpV1 =
+  `Call the write tool to create /workspace/${liveWorkspaceToolPathV1} with exactly this text and no trailing newline: ${liveWorkspaceToolTextV1} Then call the read tool to verify the exact bytes. Finally propose one revision that adds an explicit review checkpoint before publication.`;
+
+interface ProviderQualificationWorkspaceContinuationV1 {
+  readonly volumeId: string;
+}
 
 interface ProviderQualificationProfileV1 {
   readonly id: string;
@@ -29,7 +44,7 @@ const providerProfilesV1 = Object.freeze(
     Object.freeze({
       id: "anthropic",
       providerId: "anthropic",
-      modelId: "claude-sonnet-4-5-20250929",
+      modelId: "claude-sonnet-4-5",
       apiKeyEnvironmentVariable: "ANTHROPIC_API_KEY",
       requestOrigin: "https://api.anthropic.com",
       requestPathname: "/v1/messages",
@@ -103,6 +118,13 @@ interface ObservedProviderRequestV1 {
   requestFailure: string | null;
 }
 
+interface ObservedRequestRouteV1 {
+  readonly phase: ProviderRequestPhaseV1;
+  readonly method: string;
+  readonly origin: string;
+  readonly pathname: string;
+}
+
 class QualificationFailureV1 extends Error {
   constructor(
     readonly code: string,
@@ -115,6 +137,75 @@ class QualificationFailureV1 extends Error {
 
 function requireV1(condition: boolean, code: string): asserts condition {
   if (!condition) throw new QualificationFailureV1(code);
+}
+
+async function readWorkspaceContinuationV1(
+  page: Page,
+  programId: string,
+): Promise<ProviderQualificationWorkspaceContinuationV1 | null> {
+  return await page.evaluate(async (requestedProgramId) => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("sillymaker.example-silly-os.programs");
+      request.addEventListener("error", () => reject(request.error));
+      request.addEventListener("success", () => resolve(request.result));
+    });
+    try {
+      return await new Promise<ProviderQualificationWorkspaceContinuationV1 | null>(
+        (resolve, reject) => {
+          const transaction = database.transaction("workspace_continuations", "readonly");
+          const request = transaction.objectStore("workspace_continuations").get(
+            requestedProgramId,
+          );
+          request.addEventListener("error", () => reject(request.error));
+          request.addEventListener("success", () => resolve(request.result ?? null));
+        },
+      );
+    } finally {
+      database.close();
+    }
+  }, programId);
+}
+
+async function currentWorkspaceSandboxFrameV1(page: Page): Promise<Frame> {
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    const frames = page.frames().filter((frame) => {
+      const url = frame.url();
+      return URL.canParse(url) && new URL(url).pathname === "/workspace-sandbox.html";
+    });
+    if (frames.length === 1 && frames[0] !== undefined) return frames[0];
+    await page.waitForTimeout(50);
+  }
+  throw new QualificationFailureV1("workspace_sandbox_frame_missing");
+}
+
+async function readSandboxWorkspaceTextV1(
+  frame: Frame,
+  volumeId: string,
+  relativePath: string,
+): Promise<string> {
+  return await frame.evaluate(async ({ requestedVolumeId, requestedRelativePath }) => {
+    const parts = requestedRelativePath.split("/");
+    const fileName = parts.pop();
+    if (
+      fileName === undefined || fileName.length === 0 || parts.some((part) => part.length === 0)
+    ) {
+      throw new TypeError("Invalid qualification Workspace path");
+    }
+    let directory = await navigator.storage.getDirectory();
+    for (
+      const name of [
+        ".sillyos-workspace-host-v1",
+        "volumes",
+        requestedVolumeId,
+        "workspace",
+        ...parts,
+      ]
+    ) {
+      directory = await directory.getDirectoryHandle(name);
+    }
+    return await (await (await directory.getFileHandle(fileName)).getFile()).text();
+  }, { requestedVolumeId: volumeId, requestedRelativePath: relativePath });
 }
 
 function targetUrlV1(raw: string): string {
@@ -178,8 +269,9 @@ async function durableProjectionV1(page: Page): Promise<string> {
     if (typeof indexedDB.databases === "function") {
       for (const database of await indexedDB.databases()) {
         if (database.name === undefined) continue;
+        const databaseName = database.name;
         const opened = await new Promise<IDBDatabase>((resolve, reject) => {
-          const request = indexedDB.open(database.name);
+          const request = indexedDB.open(databaseName);
           request.addEventListener("error", () => reject(request.error));
           request.addEventListener("success", () => resolve(request.result));
         });
@@ -274,7 +366,13 @@ function requireCompletedProviderJourneyV1(
   observations: readonly ObservedProviderRequestV1[],
   codePrefix: string,
 ): void {
-  requireV1(observations.length === 2, `${codePrefix}_provider_request_count_invalid`);
+  // Providers may serialize dependent tool calls into separate turns or return
+  // multiple calls in one turn. The product result and Sandbox receipts are
+  // authoritative; this bound catches a missing turn and a runaway loop.
+  requireV1(
+    observations.length >= 2 && observations.length <= 8,
+    `${codePrefix}_provider_request_count_invalid`,
+  );
   requireV1(
     observations.every(({ status }) => status === 200),
     `${codePrefix}_provider_status_invalid`,
@@ -284,6 +382,7 @@ function requireCompletedProviderJourneyV1(
 async function providerFailureDetailsV1(
   page: Page,
   observations: readonly ObservedProviderRequestV1[],
+  requestRoutes: readonly ObservedRequestRouteV1[] = [],
 ): Promise<Readonly<Record<string, unknown>>> {
   await Promise.all(
     observations.map(({ responseBodySettlement }) => responseBodySettlement ?? Promise.resolve()),
@@ -322,6 +421,7 @@ async function providerFailureDetailsV1(
       responseBodyReadError
     ),
     providerRequestFailures: observations.map(({ requestFailure }) => requestFailure),
+    observedRequestRoutes: requestRoutes,
   });
 }
 
@@ -335,9 +435,17 @@ async function openProviderSelectionV1(
   await page.locator(`[data-model-id="${profile.modelId}"] input`).check();
 }
 
-async function submitProviderCredentialV1(page: Page, credential: string): Promise<void> {
+async function saveProviderCredentialV1(page: Page, credential: string): Promise<void> {
   const keyInput = page.getByLabel("API key (memory only)");
   await keyInput.fill(credential);
+  await page.getByRole("button", { name: "Save key" }).click();
+  await page.locator(
+    '.provider-settings__credential-form[data-connection-phase="credential_saved"]',
+  ).waitFor();
+  requireV1(await keyInput.inputValue() === "", "credential_input_not_cleared");
+}
+
+async function testProviderConnectionV1(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Test connection" }).click();
 }
 
@@ -347,17 +455,20 @@ async function configureProviderCredentialV1(
   credential: string,
 ): Promise<void> {
   await openProviderSelectionV1(page, profile);
-  await submitProviderCredentialV1(page, credential);
+  await saveProviderCredentialV1(page, credential);
+  await page.getByRole("button", { name: "Back to Agent Creator" }).click();
+  await page.locator('[data-silly-os-view="home"]').waitFor();
+  await page.locator('[data-pi-agent-runtime="pi_provider"]').waitFor({ state: "detached" });
+  await waitForPiWorkerCountV1(page, 1);
+
+  await openProviderSelectionV1(page, profile);
+  await testProviderConnectionV1(page);
   const settledConnection = page.locator(
     '[data-connection-phase="ready"], [data-connection-phase="failed"]',
   ).first();
   await settledConnection.waitFor();
   const connectionOutcome = await settledConnection.getAttribute("data-connection-phase");
   requireV1(connectionOutcome === "ready", "valid_connection_rejected");
-  requireV1(
-    await page.getByLabel("API key (memory only)").count() === 0,
-    "credential_input_not_cleared",
-  );
   await page.getByRole("button", { name: "Back to Agent Creator" }).click();
   await page.locator('[data-silly-os-view="home"]').waitFor();
   await page.locator('[data-pi-agent-runtime="pi_provider"]').waitFor({ state: "detached" });
@@ -379,6 +490,7 @@ async function qualifyBrowserV1(
   let page!: Page;
   let pageCreated = false;
   const providerRequests: ObservedProviderRequestV1[] = [];
+  const observedRequestRoutes: ObservedRequestRouteV1[] = [];
   let phase = "open";
   try {
     try {
@@ -396,8 +508,25 @@ async function qualifyBrowserV1(
       pageCreated = true;
 
       let requestPhase: ProviderRequestPhaseV1 | null = null;
-      page.on("request", (request) => {
-        if (requestPhase === null || !matchesProviderRequestV1(request, profile)) return;
+      const browserContext = page.context();
+      browserContext.on("request", (request) => {
+        if (requestPhase === null) return;
+        if (observedRequestRoutes.length < 20) {
+          try {
+            const url = new URL(request.url());
+            if (url.protocol === "https:" || url.protocol === "http:") {
+              observedRequestRoutes.push(Object.freeze({
+                phase: requestPhase,
+                method: request.method(),
+                origin: url.origin,
+                pathname: url.pathname,
+              }));
+            }
+          } catch {
+            // A malformed request URL cannot be a qualified Provider route.
+          }
+        }
+        if (!matchesProviderRequestV1(request, profile)) return;
         providerRequests.push({
           request,
           phase: requestPhase,
@@ -411,7 +540,7 @@ async function qualifyBrowserV1(
           requestFailure: null,
         });
       });
-      page.on("requestfailed", (request) => {
+      browserContext.on("requestfailed", (request) => {
         const observation = providerRequests.find(({ request: observed }) => observed === request);
         if (observation === undefined) return;
         observation.requestFailure = boundedProviderTextV1(
@@ -420,7 +549,7 @@ async function qualifyBrowserV1(
           credentials,
         );
       });
-      page.on("response", (response) => {
+      browserContext.on("response", (response) => {
         const observation = providerRequests.find(({ request }) => request === response.request());
         if (observation === undefined) return;
         observation.status = response.status();
@@ -456,20 +585,14 @@ async function qualifyBrowserV1(
       await page.goto(target);
       phase = "connection_invalid";
       await openProviderSelectionV1(page, profile);
+      await saveProviderCredentialV1(page, invalidCredential);
+      await waitForPiWorkerCountV1(page, 1);
       requestPhase = "connection_invalid";
-      const invalidConnectionResponse = page.waitForResponse((response) =>
-        matchesProviderRequestV1(response.request(), profile)
-      );
-      await submitProviderCredentialV1(page, invalidCredential);
-      await invalidConnectionResponse;
+      await testProviderConnectionV1(page);
       const failedConnection = page.locator(
-        '.provider-settings__credential-form[data-connection-phase="failed"]',
+        '.provider-settings__credential-form[data-connection-phase="test_failed"]',
       );
       await failedConnection.waitFor({ state: "visible" });
-      requireV1(
-        await failedConnection.locator('[data-diagnostic-code="connection_failed"]').count() === 1,
-        "invalid_connection_error_mapping_invalid",
-      );
       const invalidConnectionObservations = observationsForPhaseV1(
         providerRequests,
         "connection_invalid",
@@ -486,10 +609,9 @@ async function qualifyBrowserV1(
       );
       const invalidKeyInput = page.getByLabel("API key (memory only)");
       requireV1(await invalidKeyInput.inputValue() === "", "invalid_credential_input_not_cleared");
-      await waitForPiWorkerCountV1(page, 0);
       const invalidConnectionProjection = await durableProjectionV1(page);
       requireV1(
-        invalidConnectionProjection.includes("connection_failed"),
+        invalidConnectionProjection.includes("test_failed"),
         "invalid_connection_error_mapping_invalid",
       );
       requireV1(
@@ -498,13 +620,11 @@ async function qualifyBrowserV1(
         "invalid_connection_credential_persisted",
       );
       requestPhase = null;
+      await page.getByRole("button", { name: "Forget key" }).click();
+      await waitForPiWorkerCountV1(page, 0);
       await page.getByRole("button", { name: "Back to Agent Creator" }).click();
       await page.locator('[data-silly-os-view="home"]').waitFor();
-      const failedProviderWarning = page.locator('[data-pi-agent-runtime="pi_provider"]');
-      requireV1(
-        await failedProviderWarning.getAttribute("data-pi-agent-status") === "failed",
-        "invalid_connection_warning_missing",
-      );
+      await page.locator('[data-pi-agent-runtime="pi_provider"]').waitFor({ state: "visible" });
 
       phase = "connection_valid";
       requestPhase = "connection_valid";
@@ -549,13 +669,16 @@ async function qualifyBrowserV1(
       phase = "cancel";
       requestPhase = "cancel";
       await followUp.fill(cancelledFollowUpV1);
-      const cancellationRequest = page.waitForRequest((request) =>
-        matchesProviderRequestV1(request, profile)
-      );
-      await page.getByRole("button", { name: "Send" }).click();
-      await cancellationRequest;
-      await page.getByRole("button", { name: "Cancel run" }).click();
-      await page.locator('[data-pi-agent-run-status="ready"]').waitFor();
+      const cancellationRequest = page.context().waitForEvent("request", {
+        predicate: (request) => matchesProviderRequestV1(request, profile),
+      });
+      await Promise.all([
+        cancellationRequest,
+        page.getByRole("button", { name: "Send" }).click(),
+      ]);
+      const cancelRun = page.getByRole("button", { name: "Cancel run" });
+      await cancelRun.click();
+      await cancelRun.waitFor({ state: "detached" });
       await page.waitForTimeout(250);
       const cancellationObservations = observationsForPhaseV1(providerRequests, "cancel");
       requireV1(cancellationObservations.length === 1, "cancel_provider_request_count_invalid");
@@ -590,7 +713,7 @@ async function qualifyBrowserV1(
           ),
         );
       }
-      await page.locator('[data-pi-agent-run-status="ready"]').waitFor();
+      await page.getByRole("button", { name: "Cancel run" }).waitFor({ state: "detached" });
       await page.locator('[data-program-storage-state="ready"]').waitFor();
       requireV1((await proposal.textContent())?.includes("v2") === true, "successor_missing");
       const completionObservations = observationsForPhaseV1(providerRequests, "complete");
@@ -598,13 +721,51 @@ async function qualifyBrowserV1(
       await page.waitForTimeout(250);
       requireV1((await proposal.textContent())?.includes("v2") === true, "currentness_lost");
 
-      phase = "durable_projection";
+      phase = "workspace_tool";
       requestPhase = null;
+      const workspace = page.locator('[data-silly-os-view="workspace"]');
+      const programId = await workspace.getAttribute("data-program-id");
+      requireV1(programId !== null && programId.length > 0, "workspace_program_id_missing");
+      requireV1(
+        await workspace.getAttribute("data-execution-workspace-tool") === "write",
+        "workspace_write_receipt_missing",
+      );
+      requireV1(
+        await workspace.getAttribute("data-execution-workspace-effect") === "changed",
+        "workspace_write_effect_invalid",
+      );
+      requireV1(
+        await workspace.getAttribute("data-execution-workspace-path") === liveWorkspaceToolPathV1,
+        "workspace_write_path_invalid",
+      );
+      const workspaceGeneration = Number(
+        await workspace.getAttribute("data-execution-workspace-generation"),
+      );
+      requireV1(
+        Number.isSafeInteger(workspaceGeneration) && workspaceGeneration >= 2,
+        "workspace_generation_invalid",
+      );
+      const continuation = await readWorkspaceContinuationV1(page, programId);
+      requireV1(
+        continuation !== null && typeof continuation.volumeId === "string" &&
+          continuation.volumeId.length > 0,
+        "workspace_continuation_missing",
+      );
+      const sandboxFrame = await currentWorkspaceSandboxFrameV1(page);
+      const workspaceToolText = await readSandboxWorkspaceTextV1(
+        sandboxFrame,
+        continuation.volumeId,
+        liveWorkspaceToolPathV1,
+      );
+      requireV1(workspaceToolText === liveWorkspaceToolTextV1, "workspace_file_bytes_invalid");
+
+      phase = "durable_projection";
       const durableProjection = await durableProjectionV1(page);
       requireV1(!durableProjection.includes(apiKey), "credential_persisted");
 
       phase = "forget";
-      const forgetButton = page.getByRole("button", { name: "Forget Provider key" });
+      await openProviderSelectionV1(page, profile);
+      const forgetButton = page.getByRole("button", { name: "Forget key" });
       await forgetButton.click();
       await waitForPiWorkerCountV1(page, 0);
       await forgetButton.waitFor({ state: "detached" });
@@ -620,7 +781,7 @@ async function qualifyBrowserV1(
         invalidConnectionProviderStatuses: invalidConnectionObservations.map(({ status }) =>
           status
         ),
-        invalidConnectionErrorMapping: "connection_failed",
+        invalidConnectionErrorMapping: "test_failed",
         invalidCredentialAbsent: true,
         invalidWorkerReleased: true,
         validConnectionProviderStatuses: validConnectionObservations.map(({ status }) => status),
@@ -631,6 +792,9 @@ async function qualifyBrowserV1(
         completionProviderRequests: completionObservations.length,
         completionProviderStatuses: completionObservations.map(({ status }) => status),
         currentnessPreserved: true,
+        workspaceTool: "write",
+        workspaceGeneration,
+        workspaceBytesVerified: true,
         durableCredentialAbsent: true,
         workerForgotten: true,
       });
@@ -642,6 +806,7 @@ async function qualifyBrowserV1(
           await providerFailureDetailsV1(
             page,
             providerRequests.filter(({ phase: requestPhase }) => requestPhase === phase),
+            observedRequestRoutes,
           ),
         );
       }
@@ -651,6 +816,7 @@ async function qualifyBrowserV1(
         await providerFailureDetailsV1(
           page,
           providerRequests.filter(({ phase: requestPhase }) => requestPhase === phase),
+          observedRequestRoutes,
         ),
       );
     }

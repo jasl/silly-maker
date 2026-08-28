@@ -30,6 +30,7 @@ import {
 } from "./browser-workspace-host-protocol.ts";
 import {
   programWorkspaceSnapshotReceiptsEqualV1,
+  workspaceGrepDeadlineMillisecondsV1,
   type ProgramWorkspaceSnapshotReceiptV1,
 } from "./contracts.ts";
 import type {
@@ -40,6 +41,18 @@ import type {
 const identityPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
 const workspaceRootV1 = "/workspace";
 const workspaceReadRangeChunkMaximumBytesV1 = 1024 * 1024;
+
+type BrowserWorkspaceJustBashRuntimeModuleV1 =
+  typeof import("./browser-workspace-just-bash-runtime.ts");
+
+let browserWorkspaceJustBashRuntimePromiseV1:
+  | Promise<BrowserWorkspaceJustBashRuntimeModuleV1>
+  | null = null;
+
+function loadBrowserWorkspaceJustBashRuntimeV1(): Promise<BrowserWorkspaceJustBashRuntimeModuleV1> {
+  browserWorkspaceJustBashRuntimePromiseV1 ??= import("./browser-workspace-just-bash-runtime.ts");
+  return browserWorkspaceJustBashRuntimePromiseV1;
+}
 
 export interface BrowserWorkspaceHostDurableHeadV1 {
   readonly revision: 1;
@@ -248,7 +261,7 @@ interface NormalizedPathV1 {
 
 interface ToolScopeV1 {
   readonly toolCallId: string;
-  readonly tool: "read" | "write" | "edit" | "bash";
+  readonly tool: "read" | "write" | "edit" | "bash" | "grep";
   readonly baseGeneration: number;
   readonly abortController: AbortController;
   activeOperation: Promise<unknown> | null;
@@ -355,6 +368,23 @@ function shellExecutionCancellationV1(
 
 function positiveSafeIntegerV1(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
+function boundedUtf8MessageV1(value: string, maximumBytes: number): string {
+  const encoder = new TextEncoder();
+  if (encoder.encode(value).byteLength <= maximumBytes) return value;
+  const characters = Array.from(value);
+  let low = 0;
+  let high = characters.length;
+  while (low < high) {
+    const midpoint = Math.ceil((low + high) / 2);
+    if (encoder.encode(characters.slice(0, midpoint).join("")).byteLength <= maximumBytes) {
+      low = midpoint;
+    } else {
+      high = midpoint - 1;
+    }
+  }
+  return characters.slice(0, low).join("") || "Workspace grep execution failed";
 }
 
 function validIdentityV1(value: unknown): value is string {
@@ -702,7 +732,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
         fileErrorV1("aborted", "Workspace filesystem operation was aborted", path.absolute),
       );
     }
-    if (scope.tool === "read") {
+    if (scope.tool === "read" || scope.tool === "grep") {
       throw new BrowserWorkspaceHostStorageErrorV1(
         "request_failed",
         "Read scope cannot mutate workspace bytes",
@@ -912,6 +942,10 @@ export function createBrowserWorkspaceHostRuntimeV1(
       return;
     }
     const { run, scope } = current;
+    if (scope.tool === "grep") {
+      environmentFailure(session, requestId, "scope_busy");
+      return;
+    }
     if (!session.accepting) {
       scope.failureDiagnostic = "cancelled";
       environmentFailure(
@@ -1262,7 +1296,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
     try {
       const response = await operate(scope, async () => {
         try {
-          const runtime = await import("./browser-workspace-just-bash-runtime.ts");
+          const runtime = await loadBrowserWorkspaceJustBashRuntimeV1();
           const cancelledAfterImport = cancellationResponse();
           if (cancelledAfterImport !== null) return cancelledAfterImport;
           const observeVolumeOperation = async <T>(operation: () => Promise<T>): Promise<T> => {
@@ -1519,6 +1553,206 @@ export function createBrowserWorkspaceHostRuntimeV1(
     }
   };
 
+  const handleGrepWorkspace = async (
+    session: SessionStateV1,
+    requestId: number,
+    record: Extract<
+      BrowserWorkspaceHostEnvironmentRequestRecordV1,
+      { readonly method: "grep_workspace" }
+    >,
+  ): Promise<void> => {
+    const current = activeScope(session);
+    if (current === null) {
+      environmentFailure(session, requestId, "scope_missing");
+      return;
+    }
+    const { scope } = current;
+    if (scope.tool !== "grep") {
+      environmentFailure(session, requestId, "scope_busy");
+      return;
+    }
+    const lease = session.lease;
+    if (!session.accepting || lease === null || scope.abortController.signal.aborted) {
+      scope.failureDiagnostic = "cancelled";
+      environmentFailure(session, requestId, "workspace_closed");
+      return;
+    }
+    const baseGeneration = session.head.generation;
+    const cancellation = shellExecutionCancellationV1(
+      scope.abortController.signal,
+      workspaceGrepDeadlineMillisecondsV1,
+    );
+    try {
+      const response = await operate(scope, async () => {
+        const runtime = await loadBrowserWorkspaceJustBashRuntimeV1();
+        const causeAfterImport = cancellation.cause();
+        if (causeAfterImport !== null) {
+          return {
+            method: "grep_workspace" as const,
+            termination: causeAfterImport,
+            message: causeAfterImport === "aborted"
+              ? "Workspace grep request was aborted"
+              : "Workspace grep request timed out",
+          };
+        }
+        const pathView = await buildShellPathView(
+          lease,
+          baseGeneration,
+          cancellation.signal,
+          runtime.browserWorkspaceJustBashExecutionProfileV1.limits.traversalEntries,
+          runtime.browserWorkspaceJustBashExecutionProfileV1.limits.traversalDepth,
+        );
+        const causeAfterPathView = cancellation.cause();
+        if (causeAfterPathView !== null) {
+          return {
+            method: "grep_workspace" as const,
+            termination: causeAfterPathView,
+            message: causeAfterPathView === "aborted"
+              ? "Workspace grep request was aborted"
+              : "Workspace grep request timed out",
+          };
+        }
+        const admittedPath = (value: string): NormalizedPathV1 => {
+          const path = normalizedPathV1(value);
+          if (isFileErrorV1(path) || path.relative !== value) {
+            throw new BrowserWorkspaceHostStorageErrorV1(
+              "request_failed",
+              "Structured grep supplied a non-normalized persistent path",
+            );
+          }
+          return path;
+        };
+        const readOnlyMutation = (): Promise<never> =>
+          Promise.reject(
+            new BrowserWorkspaceHostStorageErrorV1(
+              "request_failed",
+              "Structured grep attempted to mutate its read-only volume",
+            ),
+          );
+        const volume: BrowserWorkspaceJustBashVolumePortV1 = {
+          async stat(relative, signal) {
+            const path = admittedPath(relative);
+            if (signal.aborted) throw new DOMException("Workspace grep stat aborted", "AbortError");
+            const metadata = await lease.stat(path.relative);
+            return metadata.kind === "missing"
+              ? null
+              : { kind: metadata.kind, size: metadata.size, mtimeMs: metadata.mtimeMs };
+          },
+          async list(relative, signal) {
+            const path = admittedPath(relative);
+            return (await lease.listDirectory({ path: path.relative, signal })).map((entry) => ({
+              name: entry.name,
+              kind: entry.kind,
+            }));
+          },
+          async read(relative, signal) {
+            const path = admittedPath(relative);
+            const metadata = await lease.stat(path.relative);
+            if (metadata.kind !== "file") {
+              throw new BrowserWorkspaceHostStorageErrorV1(
+                "request_failed",
+                "Structured grep file is unavailable",
+              );
+            }
+            if (
+              metadata.size >
+                runtime.browserWorkspaceJustBashExecutionProfileV1.limits.shellReadBytes
+            ) {
+              throw new BrowserWorkspaceHostStorageErrorV1(
+                "capacity_exceeded",
+                "Structured grep file exceeds its read limit",
+              );
+            }
+            const bytes = new Uint8Array(metadata.size);
+            for (let offset = 0; offset < metadata.size;) {
+              const length = Math.min(
+                workspaceReadRangeChunkMaximumBytesV1,
+                metadata.size - offset,
+              );
+              bytes.set(
+                await lease.readFileRange({ path: path.relative, offset, length, signal }),
+                offset,
+              );
+              offset += length;
+            }
+            return bytes;
+          },
+          replace: readOnlyMutation,
+          append: readOnlyMutation,
+        };
+        const result = await runtime.executeBrowserWorkspaceStructuredGrepV1({
+          query: record.query,
+          pathView,
+          volume,
+          cancellation: {
+            signal: cancellation.signal,
+            cause: cancellation.cause,
+          },
+        });
+        const lateCause = cancellation.cause();
+        if (lateCause !== null) {
+          return {
+            method: "grep_workspace" as const,
+            termination: lateCause,
+            message: lateCause === "aborted"
+              ? "Workspace grep request was aborted"
+              : "Workspace grep request timed out",
+          };
+        }
+        if (session.head.generation !== baseGeneration) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "volume_corrupt",
+            "Structured grep changed the Workspace generation",
+          );
+        }
+        return result.ok
+          ? {
+            method: "grep_workspace" as const,
+            termination: "completed" as const,
+            result: result.result,
+          }
+          : {
+            method: "grep_workspace" as const,
+            termination: result.code === "aborted"
+              ? "aborted" as const
+              : result.code === "timeout"
+              ? "timeout" as const
+              : "failed" as const,
+            message: boundedUtf8MessageV1(result.message, 512),
+          };
+      });
+      postEnvironment(session, {
+        revision: 1,
+        kind: "environment_response",
+        requestId,
+        ok: true,
+        response,
+      });
+    } catch (error) {
+      const cause = cancellation.cause();
+      if (cause !== null) {
+        postEnvironment(session, {
+          revision: 1,
+          kind: "environment_response",
+          requestId,
+          ok: true,
+          response: {
+            method: "grep_workspace",
+            termination: cause,
+            message: cause === "aborted"
+              ? "Workspace grep request was aborted"
+              : "Workspace grep request timed out",
+          },
+        });
+      } else {
+        scope.failureDiagnostic = "execution_failed";
+        environmentFailure(session, requestId, "request_failed", storageFileErrorV1(error));
+      }
+    } finally {
+      cancellation.settle();
+    }
+  };
+
   const handleCancelTool = (
     session: SessionStateV1,
     requestId: number,
@@ -1577,6 +1811,10 @@ export function createBrowserWorkspaceHostRuntimeV1(
     }
     if (record.method === "execute_shell") {
       await handleExecuteShell(session, request.requestId, record);
+      return;
+    }
+    if (record.method === "grep_workspace") {
+      await handleGrepWorkspace(session, request.requestId, record);
       return;
     }
     if (record.method === "cancel_tool") {

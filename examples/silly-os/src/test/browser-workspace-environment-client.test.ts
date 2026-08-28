@@ -34,7 +34,7 @@ class LoopbackWorkspaceEnvironmentPortV1 implements BrowserWorkspaceEnvironmentM
   private activeRun: { readonly sessionId: string; readonly runId: string } | null = null;
   private activeTool: {
     readonly toolCallId: string;
-    readonly tool: "read" | "write" | "edit" | "bash";
+    readonly tool: "read" | "write" | "edit" | "bash" | "grep";
   } | null = null;
   private writeChanged = false;
   private changedPaths: string[] = [];

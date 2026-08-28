@@ -13,8 +13,11 @@ independent Sandbox origin the only ordinary byte authority. S1b-1 separately
 re-qualified fixed Pi's native `edit` there, and S1b-2 then qualified fixed
 Pi's native `bash` through the bounded just-bash facade for the deterministic
 fixture only. Their exact generation-3 bytes and cold reopen pass in Chromium
-and persistent-profile WebKit. Both checkpoints are closed locally; no
-successor is active. P3c-B1 checkpoint 1 then
+and persistent-profile WebKit. Both checkpoints are closed locally. S1b-3 is
+the current bounded overlay: deterministic and live Pi runs receive the same
+four native tools plus one fixed structured `grep` AgentTool. A real Chromium
+Anthropic receipt proves an exact `write` mutation and resulting Sandbox bytes,
+not real-model `read`, `edit`, `bash`, or `grep`. P3c-B1 checkpoint 1 then
 delivered the Host-owned immutable snapshot candidate and cold-reopen contract,
 and checkpoint 2's C2a Host publication lifecycle has also delivered. C2b
 Repository V3/physical V4 and C2c's shared Repository/Host Authority then closed
@@ -25,6 +28,70 @@ committed baseline was deployed and smoke-verified from the public Cloudflare
 origin at `https://silly-os.jasl9187.workers.dev` on 2026-08-28. No
 broader shell/process provider or BYO Sandbox is selected or implemented. The
 owning product sequence is [PLAN.md](./PLAN.md).
+
+## Current S1b-3 and runtime disposition
+
+The structured `grep` capability applies the narrow Oh My Pi composition lesson
+without copying its Browser-incompatible runtime. It is one fixed Pi
+`AgentTool` with structured pattern/path/glob inputs and bounded path/line/text
+results. It sends an explicit read-only `grep_workspace` request; the Sandbox
+invokes only fixed `rg` with an argument array. Raw `rg` remains under Pi native
+`bash` when pipelines are useful. The request caps pattern/path/glob at
+`4 KiB` / `1 KiB` / `512` bytes, results at `100` matches / `50 KiB` /
+`500` code points per line, and time at `5` seconds. Success preserves
+generation and emits no mutation receipt. Workspace continuity is separately
+proved at `1,001` files / `21,897,216` bytes, but the current per-candidate-file
+grep implementation has not been remeasured on that corpus.
+
+The next disposable runtime falsification is QuickJS, not Python. The fixed Q0
+candidate is `quickjs-emscripten-core@0.32.0` plus
+`@jitl/quickjs-singlefile-browser-release-sync@0.32.0`. The current raw control
+is about `711 KiB` / `264 KiB` gzip, initializes in `20–32 ms`, starts a complete
+fresh Worker in `34–47 ms`, and observes `16 MiB` Wasm linear memory. Chromium
+and WebKit controls prove hard Worker termination and fresh recovery; the guest
+has no `fetch`, `navigator`, IndexedDB, OPFS, DOM, or `WebAssembly` unless the
+trusted wrapper supplies it. A product spike still requires a fresh child
+Worker, staged narrow VFS, current-only diff commit, Sandbox-only
+`wasm-unsafe-eval`, and `connect-src 'none'`.
+
+Python is deferred. The Pyodide control is about `12.9 MiB` raw / `6.03 MiB`
+gzip with `0.85–0.91 s` cold startup and a broader JavaScript bridge. The
+private CPython files installed below just-bash are not its public Browser API;
+enabling just-bash's Browser Python or JavaScript switches does not provide a
+qualified runtime. Neither QuickJS nor Python is implemented or deployed.
+
+The current harness performance receipt is raw local-development data, not a
+release gate or budget. Three runs reuse warm HTTP/Vite server and dependency
+caches, but each creates a fresh Browser profile, Program volume, Sandbox Host
+Worker, and dedicated harness Worker. That harness Worker reuses the real Pi
+tool binder and typed Workspace path; it is not the production Browser Pi Agent
+Worker. The fixture is `100,096` bytes / `2,048` lines / `128` matches; warm
+`true`, raw bash `rg`, and structured grep each use seven samples per run.
+
+| Three-run observed range          |        Chromium |       WebKit |
+| --------------------------------- | --------------: | -----------: |
+| Host create + open                | `85.8–108.1 ms` | `129–276 ms` |
+| harness Worker startup            |  `30.8–86.5 ms` |  `43–113 ms` |
+| first `execute_shell` / `true`    | `89.8–130.0 ms` | `103–136 ms` |
+| per-run warm `true` median        |        `0.8 ms` |     `2–6 ms` |
+| per-run raw bash `rg` median      |    `5.4–5.9 ms` |    `9–26 ms` |
+| per-run structured grep median    |    `7.6–7.9 ms` |   `11–13 ms` |
+| cancel                            |  `28.8–31.2 ms` |   `29–36 ms` |
+| recovery `true`                   |    `0.7–0.9 ms` |     `2–5 ms` |
+| per-run maximum rAF delta         |    `9.0–9.3 ms` |   `21–22 ms` |
+| per-run maximum 16-ms timer delay |    `1.1–6.5 ms` |    `6–10 ms` |
+| observed Long Tasks               |             `0` |          `0` |
+
+“First” above means only the first shell execution in a fresh Sandbox Host
+Worker; it is not Browser, process, server, or dependency-cache cold start. A
+separate repeated WebKit run observed roughly `1.31 s` Host create/open, so the
+table is raw variance, not an upper bound. These runs observed no control-page
+Long Task, but cannot prove that all devices or concurrent workspaces avoid
+interference. `measureUserAgentSpecificMemory` was unavailable. Chromium exposed
+only a non-standard bucketed control-page JS heap of `27.6–29.4 MB`, with each
+run's before/after bucket unchanged; it excludes harness/Sandbox Workers, OPFS,
+Wasm, and browser-process memory. WebKit exposed no memory value. Total and peak
+harness memory remain unproved.
 
 ## Decision to make
 
@@ -644,8 +711,9 @@ system.
 
 Oh My Pi is a distinct Agent-product reference, not an execution-provider
 candidate. At inspected MIT commit
-`d17c270090562d730e4d42d1aa3fdd93b45cf41a` (18.0.7), it exposes 31 built-in
-tools, keeps a small essential set model-visible, leaves many core utilities
+`d17c270090562d730e4d42d1aa3fdd93b45cf41a` (18.0.7), its audit finds 29 fixed
+built-in names, two settings-gated custom built-ins, and three hidden tools. It
+keeps a small essential set model-visible, leaves many core utilities
 inside its in-process shell, and promotes structured capabilities such as
 `grep`, `glob`, LSP, eval, subagents, browser control, and memory to Agent tools.
 That reinforces two SillyOS rules: a shell command remains under Pi `bash` when
@@ -846,7 +914,7 @@ sandbox claim; the mere use of WebAssembly does not.
    Agent executes `write -> edit -> read -> proposal`; focused tests plus
    Chromium and persistent-profile WebKit prove generation 3, exact final
    bytes, secret absence, and cold reopen. Keep the `256 KiB` native Pi
-   whole-file ceiling. Live Provider still receives no workspace tools.
+   whole-file ceiling. S1b-3 later reuses this adapter for live runs.
 3. **S1b-2 bounded shell closed locally on 2026-08-29.** Fixed Pi 0.84.3's
    native `bash` reaches the existing network-off 25-command facade only from
    the deterministic fixture. The lazy build graph, deadline/abort, terminal
@@ -854,15 +922,17 @@ sandbox claim; the mere use of WebAssembly does not.
    bytes and generation-3 cold reopen pass their focused and Chromium/WebKit
    gates. No Python, QuickJS, Git, tar, PTY, process-tree, Linux, or container
    claim enters this checkpoint.
-4. A separately accepted checkpoint may now give `pi_provider` the
-   same qualified tool list and correct its prompt. One deterministic/faux
-   Provider proof owns exact tool names/schemas and currentness; a real model is
-   additional qualification, not an authorization boundary.
-5. Python is the first broader runtime candidate because it supplies the most
-   useful one-shot scripting denominator. It must run in a separately
-   terminable owner against only the bound VFS, with network off and explicit
-   CPU/memory/time/output limits. QuickJS follows independently. Neither is
-   implied by just-bash package availability.
+4. **S1b-3 is the current bounded overlay.** `pi_provider` receives the same
+   qualified native list plus fixed structured grep and a corrected prompt.
+   Focused evidence owns exact tool names/schemas/currentness; the real Chromium
+   Anthropic route additionally proves only `write` plus exact Sandbox bytes,
+   not real-model use of the other tools.
+5. QuickJS Q0 is the first broader runtime candidate because its fixed
+   single-file Browser control is materially smaller and faster while keeping
+   guest globals closed by default. It must run in a separately terminable
+   child Worker against only a staged bound VFS, with network off and explicit
+   CPU/memory/time/output limits. Python follows only after that boundary is
+   proved. Neither is implied by just-bash package availability.
 6. Only after those smaller profiles may the Wasm, agent-sandbox,
    Wasmer/WASIX, BrowserPod, CoWasm, full-Linux, or WebContainers corpus choose
    a broader command/process adapter. BYO Sandbox, import/restore, Desktop

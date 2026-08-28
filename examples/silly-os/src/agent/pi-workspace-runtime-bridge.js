@@ -13,3 +13,4 @@ export {
   FileError,
   ok,
 } from "@earendil-works/pi-agent-core";
+export { Type } from "@earendil-works/pi-ai";

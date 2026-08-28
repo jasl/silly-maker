@@ -45,6 +45,7 @@ import {
   bindPiWorkspaceEditToolV1,
   bindPiWorkspaceReadToolV1,
   bindPiWorkspaceWriteToolV1,
+  createPiWorkspaceGrepToolV1,
 } from "./pi-workspace-tool-binder.ts";
 import {
   createBrowserWorkspaceEnvironmentClientV1,
@@ -117,17 +118,14 @@ function selectionsShareCredentialScopeV1(
 }
 
 /**
- * The product-owned deterministic fixture exercises only the admitted Pi-native
- * read/write/edit/bash slice through the independent Workspace Sandbox. Live
- * Provider runs remain tool-less until their separate enablement gate.
+ * Both Browser Pi runtimes receive the same product-qualified native tools.
+ * Pi retains their schemas and algorithms; this binder supplies only the exact
+ * current Workspace execution authority for one run.
  */
-export function createBrowserPiWorkspaceToolsForRuntimeV1<T>(
-  runtime: BrowserPiWorkerRuntimeV1,
+export function createBrowserPiWorkspaceToolsV1<T>(
   factories: readonly (() => T)[],
 ): readonly T[] {
-  return runtime === "deterministic_test"
-    ? Object.freeze(factories.map((factory) => factory()))
-    : Object.freeze([]);
+  return Object.freeze(factories.map((factory) => factory()));
 }
 
 export function createBrowserPiWorkerRuntimeV1(input: {
@@ -344,11 +342,12 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     });
     if (begun.kind !== "started") return null;
     const workspaceRun = begun.run;
-    const workspaceTools = createBrowserPiWorkspaceToolsForRuntimeV1(runtime, [
+    const workspaceTools = createBrowserPiWorkspaceToolsV1([
       () => bindPiWorkspaceReadToolV1(createReadTool(), workspaceRun),
       () => bindPiWorkspaceWriteToolV1(createWriteTool(), workspaceRun),
       () => bindPiWorkspaceEditToolV1(createEditTool(), workspaceRun),
       () => bindPiWorkspaceBashToolV1(createBashTool(), workspaceRun),
+      () => createPiWorkspaceGrepToolV1(workspaceRun),
     ]);
     let run!: ActivePiRunV1;
     const agentInput = {

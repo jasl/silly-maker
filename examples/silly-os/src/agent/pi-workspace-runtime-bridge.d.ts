@@ -153,6 +153,17 @@ export type AgentHarnessTool<
   ): Promise<AgentToolResult<TDetails>>;
 };
 
+export const Type: {
+  Object(
+    properties: Readonly<Record<string, unknown>>,
+    options?: Readonly<Record<string, unknown>>,
+  ): unknown;
+  String(options?: Readonly<Record<string, unknown>>): unknown;
+  Boolean(options?: Readonly<Record<string, unknown>>): unknown;
+  Integer(options?: Readonly<Record<string, unknown>>): unknown;
+  Optional(schema: unknown): unknown;
+};
+
 export function ok<TValue, TError = never>(value: TValue): Result<TValue, TError>;
 export function err<TValue = never, TError = Error>(error: TError): Result<TValue, TError>;
 export function createBashTool(): AgentHarnessTool<ExecutionToolContext>;

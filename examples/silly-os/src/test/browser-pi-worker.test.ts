@@ -13,7 +13,7 @@ import {
 } from "../agent/browser-pi-transport.ts";
 import {
   createBrowserPiWorkerRuntimeV1,
-  createBrowserPiWorkspaceToolsForRuntimeV1,
+  createBrowserPiWorkspaceToolsV1,
 } from "../agent/browser-pi-worker-runtime.ts";
 import type {
   BrowserPiModelSelectionFailureCodeV1,
@@ -30,6 +30,7 @@ import {
   deterministicBashProbePrefixV1,
   deterministicCancellationHoldPrefixV1,
   deterministicEditProbePrefixV1,
+  deterministicGrepProbePrefixV1,
   deterministicPersistenceReadPrefixV1,
 } from "../agent/browser-pi-runtime-bridge.js";
 import type {
@@ -1220,22 +1221,21 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
 }
 
 describe("SillyOS Browser Pi Worker runtime", () => {
-  it("admits only the qualified native file tools for the deterministic Sandbox fixture", () => {
+  it("admits the qualified native Workspace tools for deterministic and live Pi runtimes", () => {
     const calls: string[] = [];
-    const factories = ["read", "write", "edit", "bash"].map((tool) => () => {
+    const factories = ["read", "write", "edit", "bash", "grep"].map((tool) => () => {
       calls.push(tool);
       return tool;
     });
 
-    expect(createBrowserPiWorkspaceToolsForRuntimeV1("pi_provider", factories)).toEqual([]);
-    expect(calls).toEqual([]);
-    expect(createBrowserPiWorkspaceToolsForRuntimeV1("deterministic_test", factories)).toEqual([
+    expect(createBrowserPiWorkspaceToolsV1(factories)).toEqual([
       "read",
       "write",
       "edit",
       "bash",
+      "grep",
     ]);
-    expect(calls).toEqual(["read", "write", "edit", "bash"]);
+    expect(calls).toEqual(["read", "write", "edit", "bash", "grep"]);
   });
 
   it("keeps the admitted Browser Pi identity equal to exact product dependencies", async () => {
@@ -1359,6 +1359,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     const agentInputs: {
       readonly apiKey: string;
       readonly selection: BrowserPiModelSelectionV1;
+      readonly workspaceTools: readonly string[];
     }[] = [];
     let settlePrompt: ((value: { readonly stopReason: "aborted" }) => void) | null = null;
     const workspaceAuthority = testWorkspaceAuthorityV1();
@@ -1369,7 +1370,11 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         return true;
       },
       createProviderAgent: (input) => {
-        agentInputs.push({ apiKey: input.apiKey, selection: structuredClone(input.selection) });
+        agentInputs.push({
+          apiKey: input.apiKey,
+          selection: structuredClone(input.selection),
+          workspaceTools: input.workspaceTools.map((tool) => tool.name),
+        });
         return {
           prompt: () =>
             new Promise<{ readonly stopReason: "aborted" }>((resolve) => {
@@ -1449,6 +1454,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     expect(agentInputs).toEqual([{
       apiKey: "route-sentinel-key",
       selection: copilotCompletionsSelectionV1,
+      workspaceTools: ["read", "write", "edit", "bash", "grep"],
     }]);
 
     runtime.receive({
@@ -2287,6 +2293,87 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     await workspaceAuthority.dispose();
   });
 
+  it("routes the product-fixed Pi grep tool through the explicit read-only Workspace operation", async () => {
+    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const workspaceAuthority = testWorkspaceAuthorityV1();
+    const runtime = createBrowserPiWorkerRuntimeV1({
+      postMessage: (message) => messages.push(structuredClone(message)),
+    });
+    runtime.receive({
+      revision: 1,
+      kind: "configure",
+      requestId: 1,
+      runtime: "deterministic_test",
+      selection: null,
+      credential: { kind: "api_key", value: "sentinel-grep-key" },
+    });
+    runtime.receive({ revision: 1, kind: "test_connection", requestId: 99 });
+    const execution = await attachRuntimeWorkspaceV1(runtime, messages, workspaceAuthority);
+    runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "rpc_response" && message.requestId === 3 && message.ok
+      )
+    );
+
+    const grepText = `${deterministicGrepProbePrefixV1}find this exact line.`;
+    runtime.receive(rpcRequestV1(4, {
+      revision: 1,
+      requestId: 2,
+      method: "submit",
+      params: {
+        sessionId: "sillyos.session.1",
+        text: serializeCreatorAgentSubmitV1({
+          ...submitV1,
+          proposalId: "workspace.preview.1.proposal.grep",
+          text: grepText,
+        }),
+      },
+    }, execution));
+
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "rpc_record" &&
+        ["run_completed", "run_failed"].includes(
+          String((message.record as Readonly<Record<string, unknown>>).kind),
+        )
+      )
+    );
+    expect(messages.findLast((message) =>
+      message.kind === "rpc_record" &&
+      ["run_completed", "run_failed"].includes(
+        String((message.record as Readonly<Record<string, unknown>>).kind),
+      )
+    )).toMatchObject({
+      kind: "rpc_record",
+      record: { kind: "run_completed" },
+    });
+
+    expect(
+      messages.flatMap((message) => message.kind === "workspace_receipt" ? [message.receipt] : []),
+    ).toEqual([
+      expect.objectContaining({
+        sequence: 1,
+        runId: "sillyos.run.1",
+        toolCallId: "sillyos-grep-setup-1",
+        tool: "write",
+        baseGeneration: 1,
+        resultingGeneration: 2,
+        outcome: "succeeded",
+        effect: "changed",
+        changedPaths: [roundTripArtifactRelativePathV1],
+      }),
+    ]);
+    expect(workspaceAuthority.readFileRangeRequests).toContainEqual({
+      path: roundTripArtifactRelativePathV1,
+      offset: 0,
+      length: new TextEncoder().encode(grepText).byteLength,
+    });
+    expect(JSON.stringify(messages)).not.toContain("sentinel-grep-key");
+    runtime.dispose();
+    await workspaceAuthority.dispose();
+  });
+
   it("rejects a stale execution binding without disturbing the active run and retries from query", async () => {
     const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
     const workspaceAuthority = testWorkspaceAuthorityV1();
@@ -3119,7 +3206,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     expect(customWorker.terminated).toBe(true);
   });
 
-  it("keeps the dev Worker URL intact and adds exactly the selected origin in production", () => {
+  it("adds exactly the selected endpoint origin to development and production Worker URLs", () => {
     const constructions: { readonly url: string; readonly options: unknown }[] = [];
     class CapturingWorkerV1 {
       constructor(url: URL, options: unknown) {
@@ -3133,27 +3220,37 @@ describe("SillyOS Browser Pi transport and product port", () => {
     createDefaultBrowserPiWorkerV1({ endpointOrigin: null });
     createDefaultBrowserPiWorkerV1({ endpointOrigin: "https://llm.example.test" });
 
-    expect(constructions[1]?.url).toBe(constructions[0]?.url);
+    const ordinaryDevelopmentUrl = new URL(constructions[0]?.url ?? "about:blank");
+    const selectedDevelopmentUrl = new URL(constructions[1]?.url ?? "about:blank");
+    expect(selectedDevelopmentUrl.searchParams.getAll("endpoint-origin")).toEqual([
+      "https://llm.example.test",
+    ]);
+    expect(
+      [...selectedDevelopmentUrl.searchParams].filter(([name]) => name !== "endpoint-origin"),
+    ).toEqual([...ordinaryDevelopmentUrl.searchParams]);
 
     vi.stubEnv("PROD", true);
     createDefaultBrowserPiWorkerV1({ endpointOrigin: null });
     createDefaultBrowserPiWorkerV1({ endpointOrigin: "https://llm.example.test" });
 
-    const ordinaryUrl = new URL(constructions[2]?.url ?? "about:blank");
-    const customUrl = new URL(constructions[3]?.url ?? "about:blank");
-    expect(customUrl.searchParams.getAll("endpoint-origin")).toEqual([
+    const ordinaryProductionUrl = new URL(constructions[2]?.url ?? "about:blank");
+    const selectedProductionUrl = new URL(constructions[3]?.url ?? "about:blank");
+    expect(selectedProductionUrl.searchParams.getAll("endpoint-origin")).toEqual([
       "https://llm.example.test",
     ]);
     expect(
-      [...customUrl.searchParams].filter(([name]) => name !== "endpoint-origin"),
-    ).toEqual([...ordinaryUrl.searchParams]);
-    expect(ordinaryUrl.searchParams.has("endpoint-origin")).toBe(false);
-    expect(customUrl.href).toBe(
-      `${ordinaryUrl.href}${ordinaryUrl.search.length === 0 ? "?" : "&"}` +
+      [...selectedProductionUrl.searchParams].filter(([name]) => name !== "endpoint-origin"),
+    ).toEqual([...ordinaryProductionUrl.searchParams]);
+    expect(ordinaryDevelopmentUrl.searchParams.has("endpoint-origin")).toBe(false);
+    expect(ordinaryProductionUrl.searchParams.has("endpoint-origin")).toBe(false);
+    expect(selectedProductionUrl.href).toBe(
+      `${ordinaryProductionUrl.href}${ordinaryProductionUrl.search.length === 0 ? "?" : "&"}` +
         "endpoint-origin=https%3A%2F%2Fllm.example.test",
     );
-    expect(customUrl.href).not.toContain(customSelectionV1.profile.modelId);
-    expect(customUrl.href).not.toContain(customSelectionV1.profile.baseUrl);
+    expect(selectedDevelopmentUrl.href).not.toContain(customSelectionV1.profile.modelId);
+    expect(selectedDevelopmentUrl.href).not.toContain(customSelectionV1.profile.baseUrl);
+    expect(selectedProductionUrl.href).not.toContain(customSelectionV1.profile.modelId);
+    expect(selectedProductionUrl.href).not.toContain(customSelectionV1.profile.baseUrl);
     expect(constructions.map(({ options }) => options)).toEqual([
       { type: "module", name: "sillyos-browser-pi" },
       { type: "module", name: "sillyos-browser-pi" },

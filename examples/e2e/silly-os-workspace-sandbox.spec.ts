@@ -4,6 +4,8 @@
 import type { Frame, Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 
+import { createBrowserControlPlaneContentSecurityPolicyV1 } from "../silly-os/src/deployment/browser-control-plane-security.ts";
+import { browserWorkspaceSandboxDevelopmentOriginV1 } from "../silly-os/src/workspace/browser-workspace-sandbox-origins.ts";
 import { expect, sillyOsTargetUrlV1, sillyOsWorkspaceSandboxTargetV1, test } from "./fixtures.ts";
 import { readZipCentralDirectoryV1 } from "./silly-os-workspace-zip.ts";
 
@@ -74,6 +76,40 @@ const sandboxQualificationCorpusFileCountV1 = 80;
 const sandboxQualificationCorpusFileBytesV1 = 256 * 1_024;
 const sandboxQualificationTextPathV1 = "qualification/native-pi-round-trip.txt";
 const sandboxQualificationTextV1 = "SillyOS independent-origin native Pi round trip.\n";
+
+test(
+  "@s1b-live-tools the development Agent Worker response admits only its selected HTTPS origin",
+  async ({ page }) => {
+    const selectedOrigin = "https://llm.example.test:8443";
+    const workerUrl = new URL("/src/agent/browser-pi.worker.ts", sillyOsTargetUrlV1());
+    workerUrl.search = `?worker_file&type=module&endpoint-origin=${
+      encodeURIComponent(selectedOrigin)
+    }`;
+    const response = await page.request.get(workerUrl.href);
+    expect(response.status()).toBe(200);
+    expect(response.headers()).toMatchObject({
+      "cache-control": "no-store",
+      "content-security-policy": createBrowserControlPlaneContentSecurityPolicyV1(
+        selectedOrigin,
+        browserWorkspaceSandboxDevelopmentOriginV1,
+      ),
+    });
+
+    for (
+      const invalidQuery of [
+        "worker_file&type=module&endpoint-origin=http%3A%2F%2Fllm.example.test",
+        "worker_file&type=module&endpoint-origin=https%3A%2F%2Fone.example.test&endpoint-origin=https%3A%2F%2Ftwo.example.test",
+        "worker_file&type=module&endpoint-origin=https%3A%2F%2Fllm.example.test&extra=1",
+      ]
+    ) {
+      const invalidUrl = new URL(workerUrl);
+      invalidUrl.search = `?${invalidQuery}`;
+      const invalidResponse = await page.request.get(invalidUrl.href);
+      expect(invalidResponse.status()).toBe(400);
+      expect(invalidResponse.headers()["cache-control"]).toBe("no-store");
+    }
+  },
+);
 
 function sandboxQualificationCorpusPathV1(index: number): string {
   return `qualification/corpus/${index.toString().padStart(3, "0")}.bin`;
@@ -719,7 +755,229 @@ test(
 );
 
 test(
-  "@s1a-workspace-sandbox the Sandbox CSP blocks network before a request leaves the frame",
+  "@s1a-workspace-sandbox the Sandbox principal cannot reach control storage or DOM",
+  async ({ durableProgramPage: page }) => {
+    test.setTimeout(120_000);
+    await page.goto(sillyOsTargetUrlV1("?locale=en"));
+    await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
+    const ordinaryFrameCount = await page.locator(
+      "iframe[data-silly-os-workspace-sandbox='active']",
+    ).count();
+
+    const isolationId = crypto.randomUUID();
+    const sentinel = {
+      databaseName: `sillyos-control-isolation-${isolationId}`,
+      storeName: "sentinels",
+      key: "credential-plane-marker",
+      value: `control-only-${isolationId}`,
+      directoryName: `.sillyos-control-isolation-${isolationId}`,
+      fileName: "credential-plane-marker.txt",
+    };
+    await page.evaluate(async (input) => {
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open(input.databaseName, 1);
+        request.addEventListener(
+          "upgradeneeded",
+          () => request.result.createObjectStore(input.storeName),
+        );
+        request.addEventListener("success", () => resolve(request.result));
+        request.addEventListener("error", () => reject(request.error));
+      });
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const transaction = database.transaction(input.storeName, "readwrite");
+          transaction.objectStore(input.storeName).put(input.value, input.key);
+          transaction.addEventListener("complete", () => resolve());
+          transaction.addEventListener("error", () => reject(transaction.error));
+          transaction.addEventListener("abort", () => reject(transaction.error));
+        });
+      } finally {
+        database.close();
+      }
+
+      const root = await navigator.storage.getDirectory();
+      const directory = await root.getDirectoryHandle(input.directoryName, { create: true });
+      const file = await directory.getFileHandle(input.fileName, { create: true });
+      const writer = await file.createWritable();
+      await writer.write(input.value);
+      await writer.close();
+    }, sentinel);
+
+    await page.evaluate(async () => {
+      const transportModule = await import(
+        /* @vite-ignore */
+        new URL(
+          "/src/workspace/browser-workspace-sandbox-frame-transport.ts",
+          location.href,
+        ).href
+      ) as Record<string, unknown>;
+      const createTransport = Reflect.get(
+        transportModule,
+        "createBrowserWorkspaceSandboxFrameTransportV1",
+      );
+      if (typeof createTransport !== "function") {
+        throw new TypeError("sillyos.e2e.workspace_sandbox.transport_unavailable");
+      }
+      const owner = globalThis as typeof globalThis & {
+        sillyOsS1aReverseOriginSandboxOwnerV1?: { terminate(): void };
+      };
+      if (owner.sillyOsS1aReverseOriginSandboxOwnerV1 !== undefined) {
+        throw new TypeError("Workspace Sandbox network owner already exists");
+      }
+      owner.sillyOsS1aReverseOriginSandboxOwnerV1 = createTransport({
+        createNonce: () => `sandbox.bootstrap.${crypto.randomUUID()}`,
+        bootstrapTimeoutMilliseconds: 20_000,
+      }) as { terminate(): void };
+    });
+
+    try {
+      const frame = await currentWorkspaceSandboxFrameV1(page);
+      const result = await frame.evaluate(async (input) => {
+        let parentDocumentResult:
+          | { readonly outcome: "accessible" }
+          | {
+            readonly outcome: "rejected";
+            readonly isDomException: boolean;
+            readonly name: string;
+          };
+        try {
+          void parent.document;
+          parentDocumentResult = { outcome: "accessible" };
+        } catch (error) {
+          parentDocumentResult = {
+            outcome: "rejected",
+            isDomException: error instanceof DOMException,
+            name: error instanceof Error ? error.name : "unknown",
+          };
+        }
+
+        const database = await new Promise<IDBDatabase>((resolve, reject) => {
+          const request = indexedDB.open(input.databaseName, 1);
+          request.addEventListener(
+            "upgradeneeded",
+            () => request.result.createObjectStore(input.storeName),
+          );
+          request.addEventListener("success", () => resolve(request.result));
+          request.addEventListener("error", () => reject(request.error));
+        });
+        let indexedDbValue: unknown;
+        try {
+          indexedDbValue = await new Promise<unknown>((resolve, reject) => {
+            const request = database.transaction(input.storeName).objectStore(input.storeName).get(
+              input.key,
+            );
+            request.addEventListener("success", () => resolve(request.result));
+            request.addEventListener("error", () => reject(request.error));
+          });
+        } finally {
+          database.close();
+        }
+
+        let opfsResult:
+          | { readonly outcome: "present" }
+          | {
+            readonly outcome: "rejected";
+            readonly isDomException: boolean;
+            readonly name: string;
+          };
+        try {
+          const root = await navigator.storage.getDirectory();
+          const directory = await root.getDirectoryHandle(input.directoryName);
+          await directory.getFileHandle(input.fileName);
+          opfsResult = { outcome: "present" };
+        } catch (error) {
+          opfsResult = {
+            outcome: "rejected",
+            isDomException: error instanceof DOMException,
+            name: error instanceof Error ? error.name : "unknown",
+          };
+        }
+
+        await new Promise<void>((resolve, reject) => {
+          const request = indexedDB.deleteDatabase(input.databaseName);
+          request.addEventListener("success", () => resolve());
+          request.addEventListener("error", () => reject(request.error));
+          request.addEventListener(
+            "blocked",
+            () => reject(new Error("Sandbox IndexedDB cleanup was blocked")),
+          );
+        });
+        return {
+          parentDocumentResult,
+          indexedDbValue,
+          opfsResult,
+        };
+      }, sentinel);
+      expect(result).toEqual({
+        parentDocumentResult: {
+          outcome: "rejected",
+          isDomException: true,
+          name: "SecurityError",
+        },
+        indexedDbValue: undefined,
+        opfsResult: {
+          outcome: "rejected",
+          isDomException: true,
+          name: "NotFoundError",
+        },
+      });
+
+      const controlSentinels = await page.evaluate(async (input) => {
+        const database = await new Promise<IDBDatabase>((resolve, reject) => {
+          const request = indexedDB.open(input.databaseName, 1);
+          request.addEventListener("success", () => resolve(request.result));
+          request.addEventListener("error", () => reject(request.error));
+        });
+        let indexedDbValue: unknown;
+        try {
+          indexedDbValue = await new Promise<unknown>((resolve, reject) => {
+            const request = database.transaction(input.storeName).objectStore(input.storeName).get(
+              input.key,
+            );
+            request.addEventListener("success", () => resolve(request.result));
+            request.addEventListener("error", () => reject(request.error));
+          });
+        } finally {
+          database.close();
+        }
+        const root = await navigator.storage.getDirectory();
+        const directory = await root.getDirectoryHandle(input.directoryName);
+        const file = await (await directory.getFileHandle(input.fileName)).getFile();
+        return { indexedDbValue, opfsValue: await file.text() };
+      }, sentinel);
+      expect(controlSentinels).toEqual({
+        indexedDbValue: sentinel.value,
+        opfsValue: sentinel.value,
+      });
+    } finally {
+      await page.evaluate(async (input) => {
+        const owner = globalThis as typeof globalThis & {
+          sillyOsS1aReverseOriginSandboxOwnerV1?: { terminate(): void };
+        };
+        owner.sillyOsS1aReverseOriginSandboxOwnerV1?.terminate();
+        delete owner.sillyOsS1aReverseOriginSandboxOwnerV1;
+        await new Promise<void>((resolve, reject) => {
+          const request = indexedDB.deleteDatabase(input.databaseName);
+          request.addEventListener("success", () => resolve());
+          request.addEventListener("error", () => reject(request.error));
+          request.addEventListener(
+            "blocked",
+            () => reject(new Error("Control IndexedDB cleanup was blocked")),
+          );
+        });
+        const root = await navigator.storage.getDirectory();
+        await root.removeEntry(input.directoryName, { recursive: true });
+      }, sentinel);
+    }
+
+    await expect(
+      page.locator("iframe[data-silly-os-workspace-sandbox='active']"),
+    ).toHaveCount(ordinaryFrameCount);
+  },
+);
+
+test(
+  "@s1a-workspace-sandbox the Sandbox CSP blocks control-origin network before a request leaves the frame",
   async ({ page, pageDiagnostics }) => {
     test.setTimeout(120_000);
     await page.goto(sillyOsTargetUrlV1("?locale=en"));
@@ -755,7 +1013,10 @@ test(
       }) as { terminate(): void };
     });
 
-    const marker = `https://sillyos-sandbox-network-denied.invalid/${crypto.randomUUID()}`;
+    const marker = new URL(
+      `/__sillyos_control_origin_marker__/${crypto.randomUUID()}`,
+      sillyOsTargetUrlV1(),
+    ).href;
     const observedMarkerRequests: string[] = [];
     const observeRequest = (request: { url(): string }): void => {
       if (request.url() === marker) observedMarkerRequests.push(request.url());

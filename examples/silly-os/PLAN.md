@@ -105,8 +105,12 @@ is now closed locally:** the deterministic fixture drives fixed Pi's native
 `write -> edit -> read -> proposal` through the independent-origin Sandbox,
 and the exact edit bytes, generation 3, receipt, and cold reopen pass in both
 Chromium and persistent-profile WebKit. S1b-2 then closed native `bash` for the
-deterministic fixture only. Live-Provider workspace tools, Python, QuickJS,
-Wasm and editor integration remain separate inactive checkpoints. Earlier B1c Provider counts
+deterministic fixture only. The current bounded S1b-3 overlay gives live and
+deterministic Pi runs the same four native tools and adds one fixed structured
+`grep` Pi `AgentTool`. A real Chromium Anthropic journey proves an exact
+`write` mutation, resulting Sandbox bytes, and currentness; it does not prove
+real-model `read`/`edit`/`bash`/`grep`. QuickJS, Python, broader Wasm and editor integration remain
+separate inactive checkpoints. Earlier B1c Provider counts
 are dated evidence for their pre-security snapshot
 and do not by themselves accept the current overlay. This lane
 still does not add OAuth, multi-field cloud credentials, a Provider relay,
@@ -163,10 +167,9 @@ the selected target adapters may combine TypeScript, Workers, Wasm payloads, or
 a native companion behind the same typed workspace boundary.
 
 At most one phase below is active at a time. P1-B1a, P1-B1b, B1c-S0, S1a-0,
-S1a-1, S1b-1, and S1b-2 are closed locally. No successor is active. The next
-work can only be a separately accepted **S1b-3 live Provider workspace-tools**
-checkpoint or the separately accepted editor headless proof; closing S1b-2
-activates neither. A later phase may be refined before it starts, but it may not
+S1a-1, S1b-1, and S1b-2 are closed locally. **S1b-3 live Provider
+workspace-tools** is the current bounded local overlay. A later phase may be
+refined before it starts, but it may not
 silently weaken this product model or claim evidence that an earlier phase did
 not produce. Product code may not import the ignored `references/` checkouts.
 
@@ -231,7 +234,7 @@ Workspace storage isolation, an encrypted Credential Vault, redirect handling,
 complete XSS resistance, Linux, Wasm, Python, QuickJS, import/restore, or live
 workspace tool behavior.
 
-### S1 — independent-origin Workspace authority (S1a and S1b closed locally)
+### S1 — independent-origin Workspace authority (S1b-3 current locally)
 
 Choose and prove the smallest Browser topology that gives the Workspace runtime
 its own origin and storage partition. The likely shape is an exact-origin
@@ -246,9 +249,9 @@ Move the Workspace VFS, `/tmp`, snapshot/export owner, and tool-effect side of
 `WorkspaceExecutionPort` to that origin. Then switch the ordinary product
 Authority and fixed deterministic Pi fixture to the new adapter and delete the
 superseded same-origin execution path; pre-stable preview data may reset rather
-than introducing a migration framework. Live Provider remains proposal-only.
-S1a admits only Pi's unchanged `write`/`read` schemas; `edit`, `bash`, and any
-live-model workspace tools remain behind separately accepted evidence.
+than introducing a migration framework. S1a admitted only Pi's unchanged
+`write`/`read` schemas; S1b separately admits `edit`, `bash`, and the current
+live-model tool list behind their own evidence.
 
 S1 is split into bounded checkpoints. S1a and both native-tool checkpoints are
 closed locally:
@@ -283,12 +286,18 @@ closed locally:
    persistent-profile WebKit `@s1b-bash` each pass 1/1, including generation-3
    cold reopen. This is a bounded shell receipt, not live Provider access,
    Linux, a container, Python, QuickJS, Wasm, or a general code sandbox.
-5. **S1b-3 — live Provider tool enablement (inactive):** only after edit and
-   bash have both closed, give `pi_provider` the same qualified bound tool list,
-   correct its capability prompt, and run separate live-model qualification.
+5. **S1b-3 — live Provider tools and structured grep (current locally):** give
+   `pi_provider` the same qualified native `read`/`write`/`edit`/`bash` list,
+   correct its capability prompt, and add one fixed read-only `grep` Pi
+   `AgentTool` over an explicit Workspace RPC. A faux/unit route owns the exact
+   tool list, schema, currentness, cancellation, and mutation-free grep result.
+   One real Chromium Anthropic `claude-sonnet-4-5` route additionally proves an
+   exact `write` mutation, resulting Sandbox bytes, generation,
+   cancellation/currentness, no durable key, and Forget. It does not claim
+   real-model `read`, `edit`, `bash`, or `grep` use.
    Prompt text and model compliance never replace call-scope authorization.
 
-Python, QuickJS, Wasm, network, import, and BYO Sandbox do not enter S1.
+QuickJS, Python, broader Wasm, network, import, and BYO Sandbox do not enter S1.
 
 S1a-0 closed without changing the ordinary product authority. One separately
 built and separately deployable `silly-os-sandbox` artifact contains only the
@@ -338,9 +347,10 @@ S1a-1 now clean-replaces that qualification-only wiring in source:
    1,000 ms handoff, then sends `release`; the Host revokes/deletes before
    terminal settlement. The control plane receives no URL, Blob, archive, or
    VFS bytes; and
-5. the deterministic fixture registers only Pi's native `write` and `read`.
-   Live Provider remains bounded to the proposal tool. Historical P3a
-   `edit`/`bash` results do not admit those tools into S1a.
+5. at S1a-1 closure the deterministic fixture registered only Pi's native
+   `write` and `read`, and live Provider remained bounded to proposal. Historical
+   P3a `edit`/`bash` results did not admit those tools into S1a; the later S1b
+   checkpoints own their current admission.
 
 The control-origin storage estimate/persistence UI is removed because it would
 describe Product Repository quota rather than the Sandbox-origin volume. A
@@ -357,19 +367,63 @@ manifest and bytes; a real cancel before download authorization with zero
 download; and cancel-after-write terminal receipt followed by reload.
 A separate WebKit download rerun also passes 1/1.
 
+The reverse-principal regression now separately passes 2/2 in Chromium and 2/2
+in persistent-profile WebKit. It creates random non-secret IndexedDB and OPFS
+sentinels at the control origin, then proves that the Sandbox receives
+`SecurityError` for `parent.document`, sees no same-named IndexedDB value,
+receives `NotFoundError` for the same OPFS path, and cannot emit a unique fetch
+to the control origin under `connect-src 'none'`. The control sentinels remain
+intact. This proves the named control/Sandbox origin boundary only. Future guest
+code must still run in a fresh terminable child Worker against a staged narrow
+VFS or explicit imports, never ambient Sandbox-origin storage that could inspect
+another volume.
+
 This ordinary gate does not repeat the scale qualification. The separate S1a-0
 Chromium and WebKit qualifications each pass 3/3 for build identity, network
 denial, and the 20 MiB corpus; the earlier dual-browser S1a-0 receipt remains the 81-file cold-
 reopen/download feasibility evidence. No S1a-1 production deployment is
 claimed, and live Pi file tools remain disabled after local S1a-1 closure.
 
-S1b-1 and S1b-2 change only the deterministic evidence route. Ordinary
-`pi_provider` continues to receive the proposal tool and an empty
-workspace-tool list. The native-edit physical case passes 1/1 in Chromium and
-1/1 in persistent-profile WebKit. The separate `@s1b-bash` case also passes
-1/1 in each engine, ends at generation 3, and cold-reopens the exact
-shell-mutated bytes. It does not repeat the S1a scale, contention, export, or
-cancellation matrix and does not constitute a production deployment receipt.
+S1b-1 and S1b-2 change only the deterministic evidence route. The native-edit
+physical case passes 1/1 in Chromium and 1/1 in persistent-profile WebKit. The
+separate `@s1b-bash` case also passes 1/1 in each engine, ends at generation 3,
+and cold-reopens the exact shell-mutated bytes. S1b-3 then reuses those same
+four native adapters for ordinary `pi_provider` and adds fixed structured
+`grep`; it does not change the earlier physical receipts.
+
+Structured grep bypasses shell parsing and sends only a normalized read-only
+`grep_workspace` request. The Host executes fixed `rg` with an argument array,
+caps pattern/path/glob at `4 KiB` / `1 KiB` / `512` bytes, caps results at
+`100` matches / `50 KiB` / `500` code points per line, and uses one `5`-second
+deadline. No-match succeeds; traversal, malformed output, timeout,
+cancellation, late data, or any mutation fails. A successful result preserves
+generation and emits no mutation receipt. The current implementation invokes
+fixed `rg` once per admitted candidate file. Workspace continuity is already
+verified separately at `1,001` files / `21,897,216` bytes, but structured grep
+has not been remeasured on that large corpus. That measurement, rather than
+speculative caching or a generic search framework, gates a larger search claim.
+
+The selected-origin Worker policy now applies to local Vite development as well
+as the Cloudflare response. Only one canonical HTTPS origin is accepted; the
+query contains no key, model, or endpoint path. Invalid or duplicate request
+shapes fail `400`/no-store, the origin is stripped before Vite transforms the
+fixed Worker, and only that Worker receives `connect-src 'self' <origin>`.
+Ordinary and catalog Workers remain self-only. The real Chromium Anthropic
+route passes through this exact development response and proves one `write`
+mutation plus exact Sandbox bytes; neither the response nor that journey is a production
+deployment receipt.
+
+The raw performance gate uses a dedicated harness Worker over the real Pi
+binder and typed Workspace path, not the production Browser Pi Agent Worker.
+Across three fresh-profile / warm-server runs, Chromium per-run medians are
+`0.8 ms` for warm `true`, `5.4–5.9 ms` for raw bash `rg`, and `7.6–7.9 ms`
+for structured grep; WebKit observes `2–6 ms`, `9–26 ms`, and `11–13 ms`.
+Host create/open varies `85.8–108.1 ms` in Chromium and `129–276 ms` in the
+selected WebKit runs, with an additional approximately `1.31 s` WebKit outlier.
+No control-page Long Task is observed in those runs. This is raw dev data, not
+a release budget, main-loop guarantee, or total-memory result; detailed startup,
+cancel/recovery, timer, and memory limits live in
+[WASM-WORKSPACE-RESEARCH.md](./WASM-WORKSPACE-RESEARCH.md).
 
 The S1b-2 production artifact is exactly five files: `_headers`,
 `workspace-sandbox.html`, one bootstrap module, one Host Worker module, and one
@@ -385,9 +439,10 @@ allowlist, absence of `fetch`/network injection, and Sandbox
 
 Focused unit and Host evidence covers cwd/environment projection, non-zero
 exit, timeout and abort, aggregate-output overflow, the `128` mutation-attempt
-and `64` changed-path ceilings, and receipt-before-terminal ordering. It does
-not prove live `pi_provider` tool use, Python/QuickJS/Wasm, BYO Sandbox, editor
-integration, or production deployment.
+and `64` changed-path ceilings, and receipt-before-terminal ordering. S1b-3
+adds live `write` plus exact Sandbox-byte evidence only; it does not prove
+real-model `read`/`edit`/`bash`/`grep`, QuickJS/Python execution, broader Wasm, BYO Sandbox,
+editor integration, or production deployment.
 
 Focused protocol/runtime gates additionally establish the phase boundary:
 before `start_download`, abort, cancel, ready-consumer return/throw, timeout, or
@@ -398,26 +453,42 @@ handoff.
 
 ### S2 — execution profiles and explicit capabilities
 
-The first bounded `just-bash` profile now runs inside the Sandbox for the
-deterministic fixture. It receives only the passed VFS and closed command
-implementations. Add
-Python and then QuickJS as separately bounded, terminable one-shot runtimes only
-after the four Pi tools are coherent; do not advertise Linux or a container.
+The first bounded `just-bash` profile now runs inside the Sandbox and is
+reachable from fixed Pi `bash`. It receives only the passed VFS and closed
+command implementations. Add QuickJS and only then reconsider Python as
+separately bounded, terminable one-shot runtimes; do not advertise Linux or a
+container.
 Download, `git clone`, package retrieval, or any other network action remains
 off until an explicit capability admits exact targets, byte/time/output limits,
 cancellation, and receipts. Wasm may implement a runtime but never becomes the
 Program or Sandbox contract.
 
-The first Python work is an explicitly disposable Browser falsification spike,
-not a product feature. It runs one fixed Workspace script in a fresh
-Sandbox-origin Worker with bounded argv/stdin/cwd/environment, network off,
-hard termination, a small staged VFS, and Host-committed current diffs. It must
-prove Chromium and WebKit startup, exact fixed assets, no ambient host-JS/OPFS
-authority, and no late writes after abort/timeout. Requiring Node builtins,
-general fetch/CDN, an OPFS handle, unbounded whole-volume copying, or an
-unterminable runtime stops the candidate. Product Python, if later accepted,
-appears as a build-known `python3` command under Pi native `bash` and reuses the
-existing bash receipt; it does not create another Agent tool or engine API.
+The first runtime work is an explicitly disposable QuickJS Browser
+falsification spike, not a product feature. The current research control selects
+`quickjs-emscripten-core@0.32.0` with
+`@jitl/quickjs-singlefile-browser-release-sync@0.32.0`: roughly `711 KiB` raw /
+`264 KiB` gzip, `20–32 ms` engine initialization, `34–47 ms` complete fresh
+Worker startup, and `16 MiB` observed Wasm linear memory. Its guest has no
+`fetch`, `navigator`, IndexedDB, OPFS, DOM, or `WebAssembly` unless the trusted
+wrapper explicitly supplies them, and hard Worker termination plus fresh
+recovery pass in Chromium and WebKit research controls. Those numbers are raw
+controls, not a shipping or memory budget.
+
+The spike runs one fixed Workspace script in a fresh child Worker with bounded
+argv/stdin/cwd/environment, network off, hard termination, a small staged VFS,
+and Host-committed current diffs. Only the Sandbox response may gain the narrow
+`wasm-unsafe-eval` needed by the fixed payload; control-plane CSP remains
+unchanged and Sandbox `connect-src` remains `none`. Requiring Node builtins,
+general fetch/CDN, an OPFS handle, ambient Host JavaScript, unbounded whole-
+volume copying, or an unterminable runtime stops the candidate.
+
+Python is deferred. The Pyodide control is roughly `12.9 MiB` raw / `6.03 MiB`
+gzip with `0.85–0.91 s` observed cold startup and a broader JavaScript bridge.
+The private CPython assets present under just-bash are not its public Browser
+API, and enabling just-bash's Browser `python` or `javascript` option does not
+provide either runtime. If Python is later accepted, it appears as a
+build-known `python3` command under Pi native `bash` and reuses the existing
+bash receipt; it does not create another Agent tool or engine API.
 
 ### S3 — optional Credential Vault
 
@@ -487,8 +558,8 @@ binder. The ordinary route now opens the product-owned Settings surface over
 Pi's pinned catalog, persists compatible model checkboxes plus one preferred
 model, and supports session-only Save/Test/Forget for built-in or bounded custom
 HTTPS profiles. Creator Home still does not request the lazy Pi Worker chunks.
-Live Provider runs can use only the bounded proposal tool; S1a-1 does not change
-that rule. P2-B0 now adds a bounded Browser-local Program
+The current live Provider route receives the bounded proposal tool, Pi-native
+`read`/`write`/`edit`/`bash`, and fixed structured `grep`. P2-B0 adds a bounded Browser-local Program
 database, durable exact Program revisions and decisions, and recent-Program
 reload/reopen. P3c-B0 now adds one durable OPFS workspace volume, an exact
 continuation anchor, a fresh Pi session over cold reopen, recovery/contender
@@ -498,10 +569,10 @@ manifest and VFS files. P3c-B1 now publishes one exact reviewed head as an
 immutable accepted snapshot, keeps later mutable drafts independent, and shows
 accepted/reviewed/current identity without making React a byte owner. The
 product still has no persistent Pi session, import/restore, user-facing
-accepted-snapshot download, WASM guest, Credential Vault, or generally active
-live workspace capability. S1a-1 clean-replaces the ordinary same-origin
-Workspace owner with the independent-origin transport and physical Product
-Repository V5, but it does not make the live Provider a workspace-tool consumer.
+accepted-snapshot download, QuickJS/Python guest, Credential Vault, or broader
+execution profile. S1a-1 clean-replaces the ordinary same-origin Workspace
+owner with the independent-origin transport and physical Product Repository V5;
+S1b-3 is the later live-tools consumer.
 Its initial proposal, Source, translation rows,
 remaining capability labels, and separate preview manifest remain explicit
 preview material.
@@ -535,11 +606,12 @@ promotion gate, not a prerequisite for the 2.9.5 companion preview path.
 | Creator Chat, live Pi-session binding, and review coordination                                                | SillyOS Creator supervisor                 | Session-local control plane plus bounded durable references/receipts; conversation is not Program content                                              |
 | Draft sources, `.git`, generated files, artifacts, file-resident product data, `AGENTS.md`, and skills        | One workspace volume per Program           | A product-selected `WorkspaceRuntime`; accepted Program state names an exact immutable snapshot                                                        |
 | Agent loop, session semantics, compaction, model/provider calls, tool dispatch, and Agent extension lifecycle | Pi                                         | Fixed `pi-agent-core`/`pi-ai` in Browser; complete fixed `pi-coding-agent` companion in Desktop; public Pi tool/extension contracts                    |
-| `read`/`write`/`edit`/`bash` Agent schemas, validation, execution algorithms, updates, and results            | Pi                                         | The deterministic fixture uses all four shipped Pi tools through the Sandbox; live Provider tools remain inactive                                      |
+| `read`/`write`/`edit`/`bash` Agent schemas, validation, execution algorithms, updates, and results            | Pi                                         | Deterministic and live runs use all four shipped Pi tools through the independent-origin Sandbox                                                       |
+| Structured `grep` schema, bounded result, and fixed Workspace adapter                                         | Pi plus pinned SillyOS capability adapter  | One fixed Browser `AgentTool` and explicit read-only `grep_workspace` operation; raw `rg` remains inside Pi `bash`, and no generic dispatcher is added |
 | Presentation-facing Agent transport                                                                           | SillyOS target adapter                     | Browser Worker or Desktop companion projects only admitted commands/events; raw Pi/provider records never enter React state                            |
 | Agent-side product functions                                                                                  | Pi plus pinned SillyOS capability adapters | One shared schema/prompt/handler core, registered as a Browser `AgentTool` or Desktop `ExtensionAPI` tool; no parallel Agent/plugin runtime            |
 | Workspace lifecycle, capabilities, generation, change journal, and terminal mutation receipts                 | SillyOS `WorkspaceRuntimePort`             | Product-private owner that supplies a stable Program-scoped Pi `ExecutionEnv`; it is not a second tool API                                             |
-| Workspace filesystem and shell effects                                                                        | Product-selected execution provider        | Browser VFS and deterministic-fixture bounded shell are independent-origin Sandbox capabilities; no control-origin or Host-filesystem fallback remains |
+| Workspace filesystem and shell effects                                                                        | Product-selected execution provider        | Browser VFS and bounded shell are independent-origin Sandbox capabilities; no control-origin or Host-filesystem fallback remains                       |
 | Pi session and provider credentials                                                                           | Target-local Pi owners                     | Browser Agent Worker owns an ephemeral key/session initially; Desktop owns isolated Pi session/auth storage; Program data holds no secret              |
 | Responsive presentation and application mounting                                                              | SillyMaker GUI contracts                   | React/UI components, input, focus, accessibility, responsive layout, and admitted UI interaction                                                       |
 | Human approval and publication                                                                                | SillyOS Program authority                  | Exact proposal, base accepted revision, and reviewed workspace generation are rechecked before snapshot publication                                    |
@@ -559,8 +631,8 @@ environment primitives and product call scope; it does not create a second
 Agent/tool framework. S1a-1 uses one thin Pi filesystem adapter for native
 `write`/`read` over the Sandbox byte authority, S1b-1 reuses that exact adapter
 for native `edit`, and S1b-2 binds just-bash's separate `IFileSystem` adapter to
-native Pi `bash` for the deterministic fixture only. It does not exist on the
-live Provider route. The control-origin adapter is deleted rather than
+native Pi `bash`. S1b-3 selects those same four adapters for live runs and adds
+one separate read-only grep operation. The control-origin adapter is deleted rather than
 retained as a synchronized or fallback VFS tree.
 
 SillyOS does not fork or browser-port `pi-coding-agent`. The fixed Pi 0.84.3
@@ -572,7 +644,8 @@ coding product:
   `createWriteTool`/`createReadTool` factories and host-abstract `ExecutionEnv`;
   S1b-1 adds the shipped `createEditTool`. A tiny product-private binder
   supplies the stable `{ env }` context without copying the tools' schemas or
-  algorithms. S1b-2 adds `createBashTool` only to the deterministic fixture.
+  algorithms. S1b-2 adds `createBashTool`; S1b-3 selects the same fixed list for
+  live runs and registers the product-specific structured `grep` AgentTool.
 - Desktop packages the complete fixed `pi-coding-agent` artifact because its
   native session files, resource discovery, coding tools, JSONL RPC, and public
   Extension API are real Desktop capabilities.
@@ -652,7 +725,11 @@ The local reference checkouts were inspected at these clean revisions:
   integrations, so removing a few tools would not create the shared Browser core
   SillyOS needs. Its
   host-filesystem fallback and product-specific schemas also do not replace the
-  stricter Program Workspace authority.
+  stricter Program Workspace authority. The fixed audit counts 29 ordinary
+  built-in names, two settings-gated custom built-ins, and three hidden tools;
+  SillyOS does not copy that catalog. It applies only the narrower lesson that
+  structured grep merits one fixed AgentTool while compositional `rg` stays in
+  the shell.
 - OpenUI `cda504b5e1a8ab8fb945316bdaad09dbb28c2a3f` informs closed renderer
   catalogs, explicit partial/final state, and structured admission failures.
   A future adapter will map admitted OpenUI names and props to SillyMaker UI
@@ -677,11 +754,10 @@ The local reference checkouts were inspected at these clean revisions:
 The product references do not supply a ready Browser-and-Deno workspace harness
 for a Pi tool. Current shell, volume, portable-payload, native, and full-
 environment candidates and their evidence are tracked separately in
-[WASM-WORKSPACE-RESEARCH.md](./WASM-WORKSPACE-RESEARCH.md). The first
-workspace implementation binds Pi's shipped `write` and `read` to one stable
-Browser `ExecutionEnv` and must prove one real Program artifact action before
-it grows to `edit`, `bash`, persistence, or another provider. It does not create
-another Agent tool ABI.
+[WASM-WORKSPACE-RESEARCH.md](./WASM-WORKSPACE-RESEARCH.md). The current
+workspace implementation binds all four shipped Pi tools to one stable Browser
+`ExecutionEnv` and adds only fixed structured grep. It does not create another
+Agent tool ABI.
 
 ## Phased product lane
 
@@ -719,9 +795,12 @@ The accepted execution order is no longer the numeric subsection order:
     `write`/`read`, and exact generation-3 cold reopen passes in Chromium and
     persistent WebKit. The bounded-shell probe then selects native Pi `bash`
     through the independent-origin, network-off 25-command facade; its own
-    generation-3 cold reopen passes in both engines. Live Provider tools remain
-    off. Only a separately accepted S1b-3 live-tools checkpoint or editor
-    headless proof may follow; neither is active.
+    generation-3 cold reopen passes in both engines.
+11. **S1b-3 is the current local overlay:** live Pi receives the same four
+    native tools plus fixed structured grep. Focused contracts cover the exact
+    list, grep bounds, cancellation/currentness and read-only result. One real
+    Chromium Anthropic route proves only `write` plus exact Sandbox bytes. No current S1b-3
+    production deployment is claimed.
     S2 execution profiles,
     S3 Credential Vault, S4 Agent/OpenUI state,
     S5 BYO Sandbox/products, P1-D, and broader import/artifact work require their

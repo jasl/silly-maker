@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { randomBytes } from "node:crypto";
 
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 
 import { createSillymakerAppViteConfigV1 } from "@sillymaker/tooling/vite";
 
@@ -11,8 +11,60 @@ import {
   browserTrustedTypesReportOnlyPolicyV1,
   createBrowserControlPlaneContentSecurityPolicyV1,
 } from "./src/deployment/browser-control-plane-security.ts";
+import { parseCanonicalEndpointOriginV1 } from "./src/deployment/cloudflare-selected-origin-worker.ts";
 import { browserWorkspaceSandboxDevelopmentOriginV1 } from "./src/workspace/browser-workspace-sandbox-origins.ts";
 import { collectWorkspaceSandboxBuildIdentityV1 } from "./tools/workspace-sandbox-build-identity.mts";
+
+const browserPiDevelopmentWorkerPathV1 = "/src/agent/browser-pi.worker.ts";
+
+function createSelectedOriginAgentWorkerDevelopmentPluginV1(): Plugin {
+  return {
+    name: "sillyos-selected-origin-agent-worker-development-policy",
+    apply: "serve",
+    configureServer(server) {
+      server.middlewares.use((request, response, next) => {
+        const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
+        if (
+          requestUrl.pathname !== browserPiDevelopmentWorkerPathV1 ||
+          !requestUrl.searchParams.has("endpoint-origin")
+        ) {
+          next();
+          return;
+        }
+        const workerFileValues = requestUrl.searchParams.getAll("worker_file");
+        const typeValues = requestUrl.searchParams.getAll("type");
+        const endpointValues = requestUrl.searchParams.getAll("endpoint-origin");
+        const endpointOrigin = endpointValues.length === 1
+          ? parseCanonicalEndpointOriginV1(endpointValues[0] ?? null)
+          : null;
+        if (
+          requestUrl.searchParams.size !== 3 || workerFileValues.length !== 1 ||
+          workerFileValues[0] !== "" || typeValues.length !== 1 || typeValues[0] !== "module" ||
+          endpointOrigin === null
+        ) {
+          response.statusCode = 400;
+          response.setHeader("Cache-Control", "no-store");
+          response.setHeader("Content-Type", "text/plain; charset=utf-8");
+          response.end("Invalid Agent Worker endpoint origin.");
+          return;
+        }
+        const selectedPolicy = createBrowserControlPlaneContentSecurityPolicyV1(
+          endpointOrigin,
+          browserWorkspaceSandboxDevelopmentOriginV1,
+        );
+        const writeHead = response.writeHead.bind(response);
+        response.writeHead = ((...args: Parameters<typeof response.writeHead>) => {
+          response.setHeader("Cache-Control", "no-store");
+          response.setHeader("Content-Security-Policy", selectedPolicy);
+          return writeHead(...args);
+        }) as typeof response.writeHead;
+        requestUrl.searchParams.delete("endpoint-origin");
+        request.url = `${requestUrl.pathname}${requestUrl.search}`;
+        next();
+      });
+    },
+  };
+}
 
 export default defineConfig(async ({ command, isPreview }) => {
   const config = await createSillymakerAppViteConfigV1({
@@ -50,6 +102,10 @@ export default defineConfig(async ({ command, isPreview }) => {
   };
   return {
     ...config,
+    plugins: [
+      ...(config.plugins ?? []),
+      createSelectedOriginAgentWorkerDevelopmentPluginV1(),
+    ],
     publicDir: "public",
     define: {
       ...config.define,

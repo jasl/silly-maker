@@ -32,6 +32,7 @@ import {
   type BrowserWorkspaceVolumeAnchorWireV1,
 } from "../workspace/browser-workspace-host-protocol.ts";
 import {
+  createWorkspaceGrepQueryV1,
   programWorkspaceSnapshotReceiptsEqualV1,
   type ProgramWorkspaceSnapshotReceiptV1,
 } from "../workspace/contracts.ts";
@@ -3192,6 +3193,126 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     expect(lastV1(controls)).toMatchObject({ ok: false, code: "environment_attached" });
     expect(duplicateEnvironmentPort.closeCalls).toBe(1);
     expect(environmentPort.closeCalls).toBe(0);
+    await runtime.dispose();
+  });
+
+  it("runs structured grep read-only and discards an aborted Host result without advancing generation", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    const workspaceSessionId = "workspace-session.structured-grep";
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      postControlMessage: (message) => controls.push(message),
+      createWorkspaceSessionId: () => workspaceSessionId,
+    });
+    await runtime.receiveControl(controlRequestV1(1, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    const anchor = (lastV1(controls) as {
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
+    const volume = bootstrap.volumes.get(anchor.volumeId);
+    if (volume === undefined) throw new Error("expected fake volume");
+    volume.files.set("src/a.ts", new TextEncoder().encode("const TODO = true;\n"));
+    volume.files.set("src/b.js", new TextEncoder().encode("// TODO js\n"));
+    await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
+    const port = new FakeMessagePortV1();
+    await runtime.receiveControl(
+      controlRequestV1(3, { method: "attach_environment", workspaceSessionId }),
+      [port],
+    );
+    port.send(environmentRequestV1(4, {
+      method: "begin_run",
+      binding: {
+        revision: 1,
+        programId: programIdV1,
+        workspaceId: workspaceIdV1,
+        workspaceSessionId,
+        expectedGeneration: 1,
+      },
+      sessionId: "pi-session.structured-grep",
+      runId: "pi-run.structured-grep",
+    }));
+    await waitForEnvironmentResponseV1(port, 4);
+    port.send(environmentRequestV1(5, {
+      method: "begin_tool",
+      toolCallId: "pi-tool.structured-grep.1",
+      tool: "grep",
+    }));
+    await waitForEnvironmentResponseV1(port, 5);
+    port.send(environmentRequestV1(6, {
+      method: "grep_workspace",
+      query: createWorkspaceGrepQueryV1({
+        pattern: "todo",
+        path: "/workspace/src",
+        glob: "*.ts",
+        ignoreCase: true,
+        literal: true,
+      }),
+    }));
+    expect(await waitForEnvironmentResponseV1(port, 6)).toMatchObject({
+      ok: true,
+      response: {
+        method: "grep_workspace",
+        termination: "completed",
+        result: {
+          generation: 1,
+          matches: [{ path: "/workspace/src/a.ts", line: 1, text: "const TODO = true;" }],
+          truncated: false,
+        },
+      },
+    });
+    port.send(environmentRequestV1(7, {
+      method: "end_tool",
+      toolCallId: "pi-tool.structured-grep.1",
+      outcome: "succeeded",
+    }));
+    expect(await waitForEnvironmentResponseV1(port, 7)).toMatchObject({
+      ok: true,
+      response: { method: "end_tool", generation: 1 },
+    });
+    expect(volume.head).toMatchObject({ checkpointId: "checkpoint.1", generation: 1 });
+    expect(port.messages.some((message) => message.kind === "workspace_receipt")).toBe(false);
+
+    port.send(environmentRequestV1(8, {
+      method: "begin_tool",
+      toolCallId: "pi-tool.structured-grep.cancel.1",
+      tool: "grep",
+    }));
+    await waitForEnvironmentResponseV1(port, 8);
+    let signalListEntered!: () => void;
+    const listEntered = new Promise<void>((resolve) => (signalListEntered = resolve));
+    volume.holdNextListUntilAbort = true;
+    volume.heldListEntered = signalListEntered;
+    port.send(environmentRequestV1(9, {
+      method: "grep_workspace",
+      query: createWorkspaceGrepQueryV1({ pattern: "TODO" }),
+    }));
+    await listEntered;
+    port.send(environmentRequestV1(10, {
+      method: "cancel_tool",
+      toolCallId: "pi-tool.structured-grep.cancel.1",
+    }));
+    await waitForEnvironmentResponseV1(port, 10);
+    expect(await waitForEnvironmentResponseV1(port, 9)).toMatchObject({
+      ok: true,
+      response: { method: "grep_workspace", termination: "aborted" },
+    });
+    port.send(environmentRequestV1(11, {
+      method: "end_tool",
+      toolCallId: "pi-tool.structured-grep.cancel.1",
+      outcome: "cancelled",
+    }));
+    expect(await waitForEnvironmentResponseV1(port, 11)).toMatchObject({
+      ok: true,
+      response: { method: "end_tool", generation: 1 },
+    });
+    expect(volume.head).toMatchObject({ checkpointId: "checkpoint.1", generation: 1 });
+    expect(port.messages.some((message) => message.kind === "workspace_receipt")).toBe(false);
     await runtime.dispose();
   });
 });

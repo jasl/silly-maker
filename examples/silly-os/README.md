@@ -98,11 +98,10 @@ SillyOS UI / Product Core
 
 SillyOS 控制面只执行产品随附、由 lockfile/build identity 固定的可信代码。用户、Agent、
 项目、导入内容或模型生成的 JavaScript、HTML、Python、shell 与其他代码不得在 SillyOS
-origin 中执行；生成 HTML 也不得注入控制面 DOM。Pi 仍是唯一 Agent、Provider、模型、工具
-schema 和插件来源，但 live Provider 目前只获得受限 proposal tool，不获得
-`read`/`write`/`edit`/`bash` 实现。S1a-1 没有放宽这一点：只有产品固定的 deterministic
-fixture 通过独立 origin Sandbox 使用 Pi 原生 `write`/`read`；S1b-1 的显式测试路径现已
-另外准入 Pi 原生 `edit`。live Provider 仍没有 workspace tool。
+origin 中执行；生成 HTML 也不得注入控制面 DOM。Pi 仍是唯一 Agent、Provider、模型和
+Agent loop 来源。当前 deterministic 与 live Pi 路线都通过独立 origin Sandbox 获得 Pi
+原生 `read`/`write`/`edit`/`bash`；SillyOS 另外以 Pi `AgentTool` 注册一个固定、只读、
+结构化的 `grep` capability。它使用显式 typed Workspace RPC，不是第二套 tool dispatcher。
 
 产品数据、凭据与 workspace bytes 分属 Product Repository、未来的 Credential Vault 和
 Workspace Volume Repository。S1a-1 已在 source 中把普通 Program 的唯一 Authority 切到独立
@@ -128,8 +127,11 @@ P3a 的历史证据曾把固定 Pi 的四个原生 workspace 工具接到旧 aut
 通过。S1b-2 又只为 deterministic fixture 准入 Pi 0.84.3 原生 `createBashTool`：独立-origin
 Sandbox 内的 just-bash 3.4.2 仅注册 25 个命令，不注入 `fetch`/network，并受
 `connect-src 'none'` 约束；`@s1b-bash` 在 Chromium/WebKit 各 1/1，通过 generation 3
-冷重开。live Provider 仍不获得任何 workspace tool。它不代表 Linux、容器、Git、
-Python/QuickJS/Wasm、网络或包管理器。
+冷重开。S1b-3 随后把同一四工具列表接到 live Provider，并增加结构化 `grep`。真实
+Chromium Anthropic `claude-sonnet-4-5` 路线只证明了精确 `write` mutation、对应 Sandbox OPFS
+bytes、generation、取消/currentness、key 不落盘和 Forget；没有证明真实模型实际调用
+`read`、`edit`、`bash` 或 `grep`。它也不代表 Linux、容器、Git、Python/QuickJS/Wasm、网络或
+包管理器。
 
 当前 Sandbox production artifact 精确为 5 个文件：`_headers`、HTML、bootstrap、Host Worker
 和一个 build-known lazy shell chunk。观测到的 raw/gzip 大小分别为 bootstrap
@@ -218,8 +220,9 @@ Product Repository V5 clean-reset preview V4，Sandbox bootstrap/Host/control ar
 build identity fail-closed 组合，下载 URL 也不离开 Sandbox。local dev 的 control/sandbox 文档都
 启用严格 CSP 并关闭 HMR。普通 `@s1a-ordinary` Creator/Program journey 已在 Chromium 4/4、
 持久 WebKit 4/4 通过，S1a-1 因而在本地关闭。S1b-1 的独立 native edit case 与 S1b-2 的
-bounded bash case 又分别在 Chromium 1/1、持久 WebKit 1/1 通过并在本地关闭；ordinary live
-Provider 保持 proposal-only，绝不回退同源 Worker。cwd/env、非零退出、timeout/abort、
+bounded bash case 又分别在 Chromium 1/1、持久 WebKit 1/1 通过并在本地关闭。S1b-3
+随后只通过同一 independent-origin Authority 为 ordinary live Provider 准入这些工具，绝不
+回退同源 Worker。cwd/env、非零退出、timeout/abort、
 aggregate overflow、128 次 mutation attempt、64 个 changed path 以及
 receipt-before-terminal 已有 focused unit/Host 证据。
 BYO Sandbox、Wasm/更完整执行环境和 import 仍未激活。Desktop
@@ -238,10 +241,33 @@ reload。单独的 Chromium/WebKit qualification 各 3/3
 Pi 工具到 workspace runtime 的转发、Pi 能力组合、OpenUI 到 SillyMaker 组件映射，
 再到翻译/写作/角色扮演产品的分阶段路径见 [PLAN.md](./PLAN.md)。为每个 workspace
 Agent 提供熟悉的受限工具环境和单一工作卷仍是研究门；WASM 是可选执行机制，不是产品契约。
-S1b-2 已在 2026-08-29 本地关闭，但 live Provider tools、Python/QuickJS/Wasm、BYO Sandbox 和
-editor proof 均未激活；后续只能从另行接受的 S1b-3 或 editor headless proof 中选择一个开始。
+S1b-2 已在 2026-08-29 本地关闭；S1b-3 是当前本地 live-tools overlay。QuickJS、Python、
+更广的 Wasm、BYO Sandbox 和 editor proof 均未激活。当前 Sandbox/live-tools overlay 没有
+production deployment receipt。
 候选路线与统一的 Browser/Deno 验收语料见
 [WASM-WORKSPACE-RESEARCH.md](./WASM-WORKSPACE-RESEARCH.md)。
+
+结构化 `grep` 适合让模型直接传 pattern/path/glob 并获得有界的 path/line/text 结果；raw
+`rg` 仍保留在 Pi `bash` 中用于 pipeline。当前 grep 是 read-only fixed capability：最多
+4 KiB pattern、1 KiB path、512-byte glob、100 matches、50 KiB result、每行 500 code
+points、5 秒，成功不推进 generation，也不产生 mutation receipt。它不是“把所有 CLI 都
+暴露成工具”。
+
+反向隔离 regression 已在 Chromium/WebKit 证明 Sandbox 无法读取 control document 或
+同名的 control IndexedDB/OPFS sentinel，向 control origin 的网络请求也在发出前被 CSP
+阻止。这不代表浏览器能抵抗所有 XSS、扩展或设备攻击，也不允许未来 guest runtime 直接
+获得 Sandbox origin 的 ambient OPFS/IndexedDB。下一项 runtime 研究先做 disposable
+QuickJS child Worker，使用 staged narrow VFS 和 hard terminate；Python 因资产、启动和 JS
+bridge 成本后置。两者都尚未进入产品，也不能通过打开 just-bash 的 Browser flags 获得。
+
+三轮 fresh-profile / warm-server 的 raw dev harness 数据中，Chromium 的 warm `true`、raw
+bash `rg`、structured grep 每轮 median 分别为 `0.8 ms`、`5.4–5.9 ms`、`7.6–7.9 ms`；
+WebKit 为 `2–6 ms`、`9–26 ms`、`11–13 ms`。对应 Host create/open 为 Chromium
+`85.8–108.1 ms`、WebKit `129–276 ms`，另一次 WebKit 重跑出现约 `1.31 s` 离群。
+这些测试使用专用 harness Worker 复用真实 Pi binder/typed Workspace path，不是 production
+Agent Worker；没有观测到 control-page Long Task 也不是所有设备/并发 workspace 的保证。
+Chromium 只有 `27.6–29.4 MB` 的 bucketed control-page JS heap，WebKit 没有可读数值；两者
+都没有证明 Agent/Sandbox Worker、OPFS、Wasm 或浏览器进程的 total/peak memory。
 
 ## 运行
 
@@ -273,7 +299,8 @@ React 产品面；Desktop 是产品目标，不会另外模拟操作系统桌面
 workspace 完成字节往返，再形成 proposal。以
 `Exercise the pinned native Pi edit tool with exact text:` 开头的显式 S1b-1 probe 会另外执行
 Pi 原生 `write -> edit -> read`。显式 S1b-2 bash probe 则只在 deterministic fixture 中调用
-Pi 原生 `createBashTool` 和 25-command just-bash facade；普通 live Provider 不会获得这些工具。返回 Home、
+Pi 原生 `createBashTool` 和 25-command just-bash facade。普通 live Provider 现在复用同一
+四工具列表，并有额外的固定结构化 `grep`；返回 Home、
 等待 workspace close 完成并刷新页面后，重新初始化 Pi test 会通过新的 Sandbox frame/Host
 session 重开同一 generation 和文件。普通 URL 首次打开设置时才会启动一个无凭据 catalog
 Worker，并在得到目录后立即终止它。
@@ -282,8 +309,8 @@ Worker，并在得到目录后立即终止它。
 Providers 后在 **Available models** 勾选希望出现在 Creator 选择器中的一个或多个兼容模型。
 在 Connection 中选择当前模型，确认只读 endpoint，输入该 Provider 的 key，再点击
 **Save key**。保存不会请求 Provider；Worker 接受 key 后 Agent Creator 的 Provider/proposal
-路线立即可用，Home warning 消失，并且主页显示这个 credential-bound 模型。这不表示
-workspace 编辑工具已经可用。**Test connection** 是可选、可重复的时间点诊断；只有点击它才会
+路线和当前 Program-bound workspace 工具立即可用，Home warning 消失，并且主页显示这个
+credential-bound 模型。**Test connection** 是可选、可重复的时间点诊断；只有点击它才会
 发出一次很小但可能计费的模型请求，成功或失败都不会改变当前模型的可用性。失败后 key 仍在
 Worker 内存中，可继续实际调用、重新测试或输入新 key 替换；实际调用若遇到无效 key、模型、
 Endpoint 或网络错误，会通过正常 Agent 失败路径报告。Key 输入会立即清空，Forget 会终止持有
@@ -342,7 +369,9 @@ Permissions Policy、`no-referrer`、`nosniff` 和嵌入 denial。control 文档
 Sandbox-private download navigation；该 Blob URL 从不跨 control RPC。Sandbox 文档的
 `frame-ancestors` 也只允许精确 control origin。普通文档与 catalog Worker 的
 `connect-src` 只有 self；built-in 或 custom Agent Worker URL 携带经过验证的
-`endpoint-origin` 时，只有该 Worker 增加这一个精确 HTTPS origin。任何响应都不使用
+`endpoint-origin` 时，只有该 Worker 增加这一个精确 HTTPS origin。Cloudflare 和 local
+Vite dev 使用同一 canonical rule；dev 对重复、HTTP 或畸形 origin 返回 400/no-store，并在
+Vite transform 前移除 query。query 不包含 key、model 或 endpoint path。任何响应都不使用
 `connect-src https:`、`unsafe-inline` 或 `unsafe-eval`。
 
 该选择只解决 CSP admission，不会让 Provider 返回允许 SillyOS origin 读取的 CORS 响应。
@@ -483,28 +512,30 @@ deno run -A npm:vitest run \
 
 ## 当前代码边界
 
-| 位置                                                           | 所有权                                                                          |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `src/product/contracts.ts`                                     | Program、proposal、activity 与 Creator session 合同                             |
-| `src/product/creator-session.ts`                               | 本地 session、proposal review 与 Agent candidate 原子发布                       |
-| `src/product/creator-agent-admission.ts`                       | submit/candidate 的严格 product wire admission                                  |
-| `src/product/browser-provider-settings-repository.ts`          | 有界非秘密 custom HTTPS profile 持久化；不接收 key                              |
-| `src/product/fake-creator.ts`                                  | 默认初始 proposal 的确定性 fake Creator                                         |
-| `src/agent/creator-agent-port.ts`                              | React 可见的 product facade；不暴露 raw Pi records                              |
-| `src/agent/browser-pi-*`                                       | 懒加载 Worker、固定 Pi identity、catalog、兼容性投影与 proposal-only live route |
-| `src/deployment/cloudflare-selected-origin-worker.ts`          | built-in/custom Agent Worker 的完整 strict-CSP 与精确 selected-origin 响应层    |
-| `src/deployment/cloudflare-workspace-sandbox-worker.ts`        | 独立 Sandbox artifact 的固定响应头与 Cloudflare 静态边界                        |
-| `src/workspace/browser-workspace-sandbox-frame-transport.ts`   | 控制 origin 到固定 Sandbox origin 的 fail-closed bootstrap/typed channel        |
-| `src/workspace/browser-workspace-sandbox-build-identity.ts`    | control/bootstrap/Host 共用的 product-derived build identity admission          |
-| `src/workspace/browser-workspace-sandbox-download-protocol.ts` | Sandbox Host 到 bootstrap frame 的私有 download request/receipt                 |
-| `src/workspace-sandbox/`                                       | Sandbox 文档 bootstrap 与同 origin 固定 Host Worker                             |
-| `src/product/indexeddb-program-repository.ts`                  | physical Product Repository V5 与 exact preview-V4 clean reset                  |
-| `src/companion/pi-rpc-startup.ts`                              | dev-only 固定 Pi artifact、启动参数、隔离 flags 与脱敏摘要                      |
-| `src/application/`                                             | Browser/Deno 共用的 React 产品入口与工作区表现                                  |
-| `src/test/browser-pi-worker.test.ts`                           | Pi tool、RPC 顺序/currentness、取消、替换与 Worker teardown                     |
-| `tools/pi-rpc.mts`                                             | raw Pi RPC 开发启动器；尚未连接 Creator                                         |
-| `PLAN.md`                                                      | 独立产品孵化顺序、所有权、停止条件与明确 defer                                  |
-| `WASM-WORKSPACE-RESEARCH.md`                                   | workspace harness 候选、共同语料和选型证据门                                    |
+| 位置                                                           | 所有权                                                                         |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `src/product/contracts.ts`                                     | Program、proposal、activity 与 Creator session 合同                            |
+| `src/product/creator-session.ts`                               | 本地 session、proposal review 与 Agent candidate 原子发布                      |
+| `src/product/creator-agent-admission.ts`                       | submit/candidate 的严格 product wire admission                                 |
+| `src/product/browser-provider-settings-repository.ts`          | 有界非秘密 custom HTTPS profile 持久化；不接收 key                             |
+| `src/product/fake-creator.ts`                                  | 默认初始 proposal 的确定性 fake Creator                                        |
+| `src/agent/creator-agent-port.ts`                              | React 可见的 product facade；不暴露 raw Pi records                             |
+| `src/agent/browser-pi-*`                                       | 懒加载 Worker、固定 Pi identity、catalog、Provider 与 admitted workspace tools |
+| `src/agent/pi-workspace-tool-binder.ts`                        | Pi 原生四工具绑定与固定 structured `grep` AgentTool                            |
+| `src/workspace/browser-workspace-just-bash-runtime.ts`         | bounded just-bash facade 与只读 fixed-`rg` structured grep                     |
+| `src/deployment/cloudflare-selected-origin-worker.ts`          | built-in/custom Agent Worker 的完整 strict-CSP 与精确 selected-origin 响应层   |
+| `src/deployment/cloudflare-workspace-sandbox-worker.ts`        | 独立 Sandbox artifact 的固定响应头与 Cloudflare 静态边界                       |
+| `src/workspace/browser-workspace-sandbox-frame-transport.ts`   | 控制 origin 到固定 Sandbox origin 的 fail-closed bootstrap/typed channel       |
+| `src/workspace/browser-workspace-sandbox-build-identity.ts`    | control/bootstrap/Host 共用的 product-derived build identity admission         |
+| `src/workspace/browser-workspace-sandbox-download-protocol.ts` | Sandbox Host 到 bootstrap frame 的私有 download request/receipt                |
+| `src/workspace-sandbox/`                                       | Sandbox 文档 bootstrap 与同 origin 固定 Host Worker                            |
+| `src/product/indexeddb-program-repository.ts`                  | physical Product Repository V5 与 exact preview-V4 clean reset                 |
+| `src/companion/pi-rpc-startup.ts`                              | dev-only 固定 Pi artifact、启动参数、隔离 flags 与脱敏摘要                     |
+| `src/application/`                                             | Browser/Deno 共用的 React 产品入口与工作区表现                                 |
+| `src/test/browser-pi-worker.test.ts`                           | Pi tool、RPC 顺序/currentness、取消、替换与 Worker teardown                    |
+| `tools/pi-rpc.mts`                                             | raw Pi RPC 开发启动器；尚未连接 Creator                                        |
+| `PLAN.md`                                                      | 独立产品孵化顺序、所有权、停止条件与明确 defer                                 |
+| `WASM-WORKSPACE-RESEARCH.md`                                   | workspace harness 候选、共同语料和选型证据门                                   |
 
 后续 Agent loop、模型/provider、会话、tool dispatch 与 Agent 扩展统一由 Pi 负责。
 Browser Agent Worker 或 Desktop companion 只做目标适配、Program 数据所有权和 typed

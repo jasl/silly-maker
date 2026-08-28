@@ -150,12 +150,8 @@ export function createDefaultBrowserPiWorkerV1(input: {
       endpoint.pathname !== "/" || endpoint.search.length !== 0 || endpoint.hash.length !== 0 ||
       endpoint.username.length !== 0 || endpoint.password.length !== 0
     ) throw transportErrorV1("endpoint_origin_invalid");
-    if (import.meta.env.PROD) {
-      const separator = workerUrlReference.includes("?") ? "&" : "?";
-      workerUrlReference += `${separator}endpoint-origin=${
-        encodeURIComponent(input.endpointOrigin)
-      }`;
-    }
+    const separator = workerUrlReference.includes("?") ? "&" : "?";
+    workerUrlReference += `${separator}endpoint-origin=${encodeURIComponent(input.endpointOrigin)}`;
   }
   const workerUrl = new URL(workerUrlReference, import.meta.url);
   return new Worker(workerUrl, {

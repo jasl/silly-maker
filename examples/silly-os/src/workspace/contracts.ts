@@ -9,6 +9,13 @@ export const workspaceFileMaximumBytesV1 = 256 * 1024;
 export const workspaceVolumeMaximumBytesV1 = 2 * 1024 * 1024;
 export const workspaceVolumeMaximumFilesV1 = 256;
 export const workspaceMutationReceiptMaximumV1 = 32;
+export const workspaceGrepPatternMaximumUtf8BytesV1 = 4 * 1024;
+export const workspaceGrepPathMaximumUtf8BytesV1 = 1024;
+export const workspaceGrepGlobMaximumUtf8BytesV1 = 512;
+export const workspaceGrepMatchMaximumV1 = 100;
+export const workspaceGrepMatchTextMaximumCharactersV1 = 500;
+export const workspaceGrepResultMaximumUtf8BytesV1 = 50 * 1024;
+export const workspaceGrepDeadlineMillisecondsV1 = 5_000;
 
 const workspaceIdentifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
 
@@ -52,6 +59,123 @@ function positiveSafeIntegerV1(value: unknown): value is number {
 
 function nonNegativeSafeIntegerV1(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function utf8LengthV1(value: string): number | null {
+  try {
+    return new TextEncoder().encode(value).byteLength;
+  } catch {
+    return null;
+  }
+}
+
+function normalizedWorkspaceGrepPathV1(value: unknown): value is string {
+  if (value === "/workspace") return true;
+  if (
+    typeof value !== "string" || !value.startsWith("/workspace/") || value.endsWith("/") ||
+    value.includes("\0") || value.includes("\\")
+  ) return false;
+  const relative = value.slice("/workspace/".length);
+  const bytes = utf8LengthV1(value);
+  return relative.length > 0 && bytes !== null &&
+    bytes <= workspaceGrepPathMaximumUtf8BytesV1 &&
+    relative.split("/").every((part) => part.length > 0 && part !== "." && part !== "..");
+}
+
+export interface WorkspaceGrepInputV1 {
+  readonly pattern: string;
+  readonly path?: string;
+  readonly glob?: string;
+  readonly ignoreCase?: boolean;
+  readonly literal?: boolean;
+  readonly limit?: number;
+}
+
+/** Fully-defaulted read-only grep request carried across the Workspace boundary. */
+export interface WorkspaceGrepQueryV1 {
+  readonly pattern: string;
+  readonly path: string;
+  readonly glob: string | null;
+  readonly ignoreCase: boolean;
+  readonly literal: boolean;
+  readonly limit: number;
+}
+
+export interface WorkspaceGrepMatchV1 {
+  readonly path: string;
+  readonly line: number;
+  readonly text: string;
+}
+
+export interface WorkspaceGrepResultV1 {
+  readonly revision: 1;
+  readonly generation: number;
+  readonly matches: readonly WorkspaceGrepMatchV1[];
+  readonly truncated: boolean;
+}
+
+export type WorkspaceGrepFailureCodeV1 =
+  | "invalid_query"
+  | "cancelled"
+  | "timeout"
+  | "execution_failed";
+
+export class WorkspaceGrepErrorV1 extends Error {
+  readonly code: WorkspaceGrepFailureCodeV1;
+
+  constructor(code: WorkspaceGrepFailureCodeV1, message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "WorkspaceGrepErrorV1";
+    this.code = code;
+  }
+}
+
+export function admitWorkspaceGrepQueryV1(value: unknown): WorkspaceGrepQueryV1 | null {
+  const record = exactWorkspaceRecordV1(value, [
+    "pattern",
+    "path",
+    "glob",
+    "ignoreCase",
+    "literal",
+    "limit",
+  ]);
+  if (
+    record === null || typeof record.pattern !== "string" || record.pattern.length === 0 ||
+    record.pattern.includes("\0") ||
+    (utf8LengthV1(record.pattern) ?? Number.POSITIVE_INFINITY) >
+      workspaceGrepPatternMaximumUtf8BytesV1 ||
+    !normalizedWorkspaceGrepPathV1(record.path) ||
+    (record.glob !== null &&
+      (typeof record.glob !== "string" || record.glob.length === 0 ||
+        record.glob.includes("\0") ||
+        (utf8LengthV1(record.glob) ?? Number.POSITIVE_INFINITY) >
+          workspaceGrepGlobMaximumUtf8BytesV1)) ||
+    typeof record.ignoreCase !== "boolean" || typeof record.literal !== "boolean" ||
+    !positiveSafeIntegerV1(record.limit) || record.limit > workspaceGrepMatchMaximumV1
+  ) return null;
+  return {
+    pattern: record.pattern,
+    path: record.path,
+    glob: record.glob,
+    ignoreCase: record.ignoreCase,
+    literal: record.literal,
+    limit: record.limit,
+  };
+}
+
+export function createWorkspaceGrepQueryV1(input: WorkspaceGrepInputV1): WorkspaceGrepQueryV1 {
+  const query = admitWorkspaceGrepQueryV1({
+    pattern: input.pattern,
+    path: input.path ?? "/workspace",
+    glob: input.glob ?? null,
+    ignoreCase: input.ignoreCase ?? false,
+    literal: input.literal ?? false,
+    limit: input.limit ?? workspaceGrepMatchMaximumV1,
+  });
+  if (query === null) {
+    throw new WorkspaceGrepErrorV1("invalid_query", "Workspace grep query is invalid");
+  }
+  return query;
 }
 
 export interface CreatorAgentExecutionBindingV1 {
@@ -263,6 +387,12 @@ export interface WorkspaceToolCallInputV1<TValue> {
   readonly invoke: (signal: AbortSignal) => Promise<TValue>;
 }
 
+export interface WorkspaceGrepCallInputV1 {
+  readonly toolCallId: string;
+  readonly query: WorkspaceGrepQueryV1;
+  readonly signal?: AbortSignal;
+}
+
 export interface WorkspaceAgentRunV1 {
   readonly env: ExecutionEnv;
   getGenerationCursor(): number;
@@ -270,6 +400,7 @@ export interface WorkspaceAgentRunV1 {
   executeWriteCall<TValue>(input: WorkspaceToolCallInputV1<TValue>): Promise<TValue>;
   executeEditCall<TValue>(input: WorkspaceToolCallInputV1<TValue>): Promise<TValue>;
   executeBashCall<TValue>(input: WorkspaceToolCallInputV1<TValue>): Promise<TValue>;
+  executeGrepCall(input: WorkspaceGrepCallInputV1): Promise<WorkspaceGrepResultV1>;
   abortAndDrain(): Promise<void>;
   finish(): void;
 }

@@ -13,6 +13,13 @@ import {
   type MkdirOptions,
   type RmOptions,
 } from "just-bash/browser";
+import {
+  workspaceGrepMatchTextMaximumCharactersV1,
+  workspaceGrepResultMaximumUtf8BytesV1,
+  type WorkspaceGrepMatchV1,
+  type WorkspaceGrepQueryV1,
+  type WorkspaceGrepResultV1,
+} from "./contracts.ts";
 
 const kibibyteV1 = 1024;
 const mebibyteV1 = 1024 * kibibyteV1;
@@ -728,14 +735,16 @@ function executionEnvironmentV1(
   return environment;
 }
 
-async function initializeEphemeralFileSystemV1(): Promise<InMemoryFs> {
+async function initializeEphemeralFileSystemV1(
+  commands: readonly CommandName[] = browserWorkspaceJustBashCommandAllowlistV1,
+): Promise<InMemoryFs> {
   const filesystem = new InMemoryFs(undefined, {
     maxTotalBytes: ephemeralFileSystemMaximumBytesV1,
   });
   for (const path of ["/bin", "/usr/bin", "/dev/fd", "/proc/self/fd", "/tmp"]) {
     await filesystem.mkdir(path, { recursive: true });
   }
-  for (const command of browserWorkspaceJustBashCommandAllowlistV1) {
+  for (const command of commands) {
     const stub = `#!/bin/bash\n# SillyOS built-in command: ${command}\n`;
     await filesystem.writeFile(`/bin/${command}`, stub);
     await filesystem.writeFile(`/usr/bin/${command}`, stub);
@@ -980,5 +989,271 @@ export async function executeBrowserWorkspaceJustBashV1(
     );
   } finally {
     cancellation?.settle();
+  }
+}
+
+export interface BrowserWorkspaceStructuredGrepExecuteInputV1 {
+  readonly query: WorkspaceGrepQueryV1;
+  readonly pathView: BrowserWorkspaceJustBashPathViewV1;
+  readonly volume: BrowserWorkspaceJustBashVolumePortV1;
+  readonly cancellation: {
+    readonly signal: AbortSignal;
+    readonly cause: () => "aborted" | "timeout" | null;
+  };
+}
+
+export type BrowserWorkspaceStructuredGrepExecuteResultV1 =
+  | { readonly ok: true; readonly result: WorkspaceGrepResultV1 }
+  | {
+    readonly ok: false;
+    readonly code: "aborted" | "timeout" | "execution_failed";
+    readonly message: string;
+  };
+
+function structuredGrepFailureV1(
+  input: BrowserWorkspaceStructuredGrepExecuteInputV1,
+  message: string,
+): BrowserWorkspaceStructuredGrepExecuteResultV1 {
+  const cause = input.cancellation.cause();
+  return {
+    ok: false,
+    code: cause ?? "execution_failed",
+    message: cause === "aborted"
+      ? "Workspace grep request was aborted"
+      : cause === "timeout"
+      ? "Workspace grep request timed out"
+      : message,
+  };
+}
+
+function structuredGrepCandidatesV1(
+  query: WorkspaceGrepQueryV1,
+  pathView: BrowserWorkspaceJustBashPathViewV1,
+): readonly string[] {
+  const relative = query.path === workspaceMountV1
+    ? ""
+    : query.path.slice(`${workspaceMountV1}/`.length);
+  return pathView.entries
+    .filter((entry) =>
+      entry.kind === "file" &&
+      (relative.length === 0 || entry.path === relative || entry.path.startsWith(`${relative}/`))
+    )
+    .map((entry) => entry.path)
+    .sort();
+}
+
+const structuredGrepMatchSentinelV1 = "__SILLYOS_GREP_MATCH__";
+const structuredGrepMatchLinePatternV1 = /^([1-9]\d*):__SILLYOS_GREP_MATCH__$/u;
+
+function escapedStructuredGrepLiteralV1(value: string): string {
+  return value.replace(/[\\^$.*+?()[\]{}|]/gu, "\\$&");
+}
+
+function structuredGrepLineProbePatternV1(query: WorkspaceGrepQueryV1): string {
+  const pattern = query.literal ? escapedStructuredGrepLiteralV1(query.pattern) : query.pattern;
+  // Consuming the remainder of the matching line makes `--only-matching`
+  // produce exactly one bounded sentinel even when the original expression
+  // occurs thousands of times on that line.
+  return `(?:${pattern})[^\n]*`;
+}
+
+function structuredGrepMatchLineNumberV1(value: string): number | null {
+  const match = structuredGrepMatchLinePatternV1.exec(value);
+  if (match === null) return null;
+  const line = Number(match[1]);
+  return Number.isSafeInteger(line) && line > 0 ? line : null;
+}
+
+function boundedMatchTextV1(
+  source: string,
+  start: number,
+  end: number,
+): { readonly text: string; readonly truncated: boolean } {
+  const characters: string[] = [];
+  for (let index = start; index < end;) {
+    const codePoint = source.codePointAt(index);
+    if (codePoint === undefined) break;
+    if (characters.length === workspaceGrepMatchTextMaximumCharactersV1) {
+      return { text: characters.join(""), truncated: true };
+    }
+    characters.push(String.fromCodePoint(codePoint));
+    index += codePoint > 0xffff ? 2 : 1;
+  }
+  return { text: characters.join(""), truncated: false };
+}
+
+function structuredGrepLineTextsV1(
+  source: string,
+  lineNumbers: ReadonlySet<number>,
+): ReadonlyMap<number, { readonly text: string; readonly truncated: boolean }> {
+  const remaining = new Set(lineNumbers);
+  const result = new Map<number, { readonly text: string; readonly truncated: boolean }>();
+  let line = 1;
+  let start = 0;
+  while (start <= source.length && remaining.size > 0) {
+    const newline = source.indexOf("\n", start);
+    const rawEnd = newline < 0 ? source.length : newline;
+    const end = rawEnd > start && source.charCodeAt(rawEnd - 1) === 13 ? rawEnd - 1 : rawEnd;
+    if (remaining.delete(line)) result.set(line, boundedMatchTextV1(source, start, end));
+    if (newline < 0) break;
+    start = newline + 1;
+    line += 1;
+  }
+  return result;
+}
+
+function grepResultBytesV1(result: WorkspaceGrepResultV1): number {
+  return new TextEncoder().encode(JSON.stringify(result)).byteLength;
+}
+
+/**
+ * Run the one structured grep primitive. `args` bypasses shell parsing; fixed
+ * `rg` remains the only command and receives a read-only persistent mount.
+ */
+export async function executeBrowserWorkspaceStructuredGrepV1(
+  input: BrowserWorkspaceStructuredGrepExecuteInputV1,
+): Promise<BrowserWorkspaceStructuredGrepExecuteResultV1> {
+  let persistentFileSystem: PersistentWorkspaceFileSystemV1 | null = null;
+  try {
+    const initialCause = input.cancellation.cause();
+    if (initialCause !== null || input.cancellation.signal.aborted) {
+      return structuredGrepFailureV1(input, "Workspace grep request was aborted");
+    }
+    persistentFileSystem = new PersistentWorkspaceFileSystemV1(
+      input.volume,
+      input.pathView,
+      input.cancellation.signal,
+    );
+    const ephemeral = await initializeEphemeralFileSystemV1(["rg"]);
+    const filesystem = new MountableFs({
+      base: ephemeral,
+      mounts: [{ mountPoint: workspaceMountV1, filesystem: persistentFileSystem }],
+    });
+    const bash = new Bash({
+      cwd: workspaceMountV1,
+      env: productEnvironmentV1,
+      fs: filesystem,
+      commands: ["rg"],
+      python: false,
+      javascript: false,
+      executionLimitProfile: "normal",
+      executionLimits: {
+        maxSourceBytes: 64,
+        maxCommandCount: 1,
+        maxLoopIterations: 10_000,
+        maxWorkUnits: 100_000,
+        maxTraversalEntries: maximumPathViewEntriesV1,
+        maxTraversalDepth: 32,
+        maxTraversalWork: 100_000,
+        maxLiveBytes: 64 * mebibyteV1,
+        maxInputBytes: 32 * mebibyteV1,
+        maxExecutionTimeMs: 5_000,
+        maxGlobOperations: 100_000,
+        maxStringLength: 64 * mebibyteV1,
+        maxOutputSize: 256 * kibibyteV1,
+        maxArrayElements: maximumPathViewEntriesV1,
+        maxFileDescriptors: 32,
+      },
+    });
+    const matches: WorkspaceGrepMatchV1[] = [];
+    let truncated = false;
+    search: for (const path of structuredGrepCandidatesV1(input.query, input.pathView)) {
+      const cause = input.cancellation.cause();
+      if (cause !== null || input.cancellation.signal.aborted) {
+        return structuredGrepFailureV1(input, "Workspace grep request was aborted");
+      }
+      const remaining = input.query.limit + 1 - matches.length;
+      const args = [
+        "--hidden",
+        "--no-ignore",
+        "--sort=path",
+        "--only-matching",
+        "--replace",
+        structuredGrepMatchSentinelV1,
+        "--line-number",
+        "--no-filename",
+        "--max-count",
+        String(Math.max(1, remaining)),
+      ];
+      args.push(input.query.ignoreCase ? "--ignore-case" : "--case-sensitive");
+      if (input.query.glob !== null) args.push("--glob", input.query.glob);
+      // Prefix the single admitted file operand so an option-like workspace
+      // name can never be reinterpreted as an rg flag.
+      args.push("--regexp", structuredGrepLineProbePatternV1(input.query), `./${path}`);
+      const execution = await bash.exec("rg", {
+        cwd: workspaceMountV1,
+        env: productEnvironmentV1,
+        replaceEnv: true,
+        args,
+        signal: input.cancellation.signal,
+      });
+      if (input.cancellation.cause() !== null || input.cancellation.signal.aborted) {
+        return structuredGrepFailureV1(input, "Workspace grep request was aborted");
+      }
+      if (execution.exitCode !== 0 && execution.exitCode !== 1) {
+        return structuredGrepFailureV1(
+          input,
+          execution.stderr.trim() || "Workspace grep execution failed",
+        );
+      }
+      const matchedLines = new Set<number>();
+      for (const line of execution.stdout.split("\n")) {
+        if (line.length === 0) continue;
+        const lineNumber = structuredGrepMatchLineNumberV1(line);
+        if (lineNumber === null) {
+          return structuredGrepFailureV1(input, "Workspace grep returned malformed output");
+        }
+        matchedLines.add(lineNumber);
+      }
+      if (matchedLines.size === 0) continue;
+      const fileText = new TextDecoder().decode(
+        await persistentFileSystem.readFileBuffer(`./${path}`),
+      );
+      const lineTexts = structuredGrepLineTextsV1(fileText, matchedLines);
+      for (const lineNumber of [...matchedLines].sort((left, right) => left - right)) {
+        const bounded = lineTexts.get(lineNumber);
+        if (bounded === undefined) {
+          return structuredGrepFailureV1(input, "Workspace grep returned an invalid line number");
+        }
+        if (matches.length >= input.query.limit) {
+          truncated = true;
+          break search;
+        }
+        const match: WorkspaceGrepMatchV1 = {
+          path: `${workspaceMountV1}/${path}`,
+          line: lineNumber,
+          text: bounded.text,
+        };
+        const next: WorkspaceGrepResultV1 = {
+          revision: 1,
+          generation: input.pathView.generation,
+          matches: [...matches, match],
+          truncated: false,
+        };
+        if (grepResultBytesV1(next) > workspaceGrepResultMaximumUtf8BytesV1) {
+          truncated = true;
+          break search;
+        }
+        matches.push(match);
+        truncated ||= bounded.truncated;
+      }
+    }
+    const state = persistentFileSystem.state();
+    if (
+      state.generation !== input.pathView.generation || state.mutationAttempts !== 0 ||
+      state.changedPaths.length !== 0
+    ) return structuredGrepFailureV1(input, "Workspace grep changed its read-only volume");
+    const result: WorkspaceGrepResultV1 = {
+      revision: 1,
+      generation: input.pathView.generation,
+      matches,
+      truncated,
+    };
+    if (grepResultBytesV1(result) > workspaceGrepResultMaximumUtf8BytesV1) {
+      return structuredGrepFailureV1(input, "Workspace grep result exceeded its output limit");
+    }
+    return { ok: true, result };
+  } catch (error) {
+    return structuredGrepFailureV1(input, errorMessageV1(error));
   }
 }

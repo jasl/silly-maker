@@ -13,6 +13,7 @@ import {
 import {
   type SillyOsStaticAssetsBindingV1,
   default as cloudflareSelectedOriginWorkerV1,
+  parseCanonicalEndpointOriginV1,
 } from "../deployment/cloudflare-selected-origin-worker.ts";
 import { browserWorkspaceSandboxProductionOriginV1 } from "../workspace/browser-workspace-sandbox-origins.ts";
 
@@ -59,6 +60,26 @@ class RecordingAssetsV1 implements SillyOsStaticAssetsBindingV1 {
 }
 
 describe("SillyOS Cloudflare selected-origin Agent Worker", () => {
+  it("admits only one canonical HTTPS endpoint origin", () => {
+    expect(parseCanonicalEndpointOriginV1("https://api.example.com:8443")).toBe(
+      "https://api.example.com:8443",
+    );
+    for (
+      const value of [
+        null,
+        "",
+        "http://api.example.com",
+        "https://api.example.com/v1",
+        "https://user@example.com",
+        "https://api.example.com?route=v1",
+        "https://api.example.com#fragment",
+        "https://api.example.com\nhttps://redirect.example",
+      ]
+    ) {
+      expect(parseCanonicalEndpointOriginV1(value)).toBeNull();
+    }
+  });
+
   it("keeps every required control-plane directive explicit and closed", () => {
     const ordinary = directivesV1(browserControlPlaneContentSecurityPolicyV1);
     expect(Object.fromEntries(ordinary)).toEqual({

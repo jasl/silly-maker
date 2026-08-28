@@ -13,6 +13,8 @@ export const deterministicEditProbePrefixV1 =
   "Exercise the pinned native Pi edit tool with exact text: ";
 export const deterministicBashProbePrefixV1 =
   "Exercise the pinned native Pi bash tool with exact text: ";
+export const deterministicGrepProbePrefixV1 =
+  "Exercise the product-fixed Pi grep tool with exact text: ";
 export const deterministicOversizedReadProbeV1 =
   "Verify the qualification workspace rejects an oversized native Pi read.";
 
@@ -119,6 +121,7 @@ export function createDeterministicPiAgentV1(input) {
   );
   const exerciseEdit = input.submit.text.startsWith(deterministicEditProbePrefixV1);
   const exerciseBash = input.submit.text.startsWith(deterministicBashProbePrefixV1);
+  const exerciseGrep = input.submit.text.startsWith(deterministicGrepProbePrefixV1);
   const verifyOversizedRead = input.submit.text === deterministicOversizedReadProbeV1;
   const faux = fauxProvider({
     tokenSize: { min: 64, max: 64 },
@@ -176,7 +179,50 @@ export function createDeterministicPiAgentV1(input) {
     }),
     { stopReason: "toolUse" },
   );
-  if (exerciseBash) {
+  const grepSetupResponse = fauxAssistantMessage(
+    fauxToolCall("write", {
+      path: roundTripPath,
+      content: input.submit.text,
+    }, {
+      id: `sillyos-grep-setup-${input.runNumber}`,
+    }),
+    { stopReason: "toolUse" },
+  );
+  const grepResponse = fauxAssistantMessage(
+    fauxToolCall("grep", {
+      pattern: "product-fixed Pi grep tool",
+      path: roundTripPath,
+      literal: true,
+      limit: 10,
+    }, {
+      id: `sillyos-grep-${input.runNumber}`,
+    }),
+    { stopReason: "toolUse" },
+  );
+  if (exerciseGrep) {
+    faux.setResponses([
+      grepSetupResponse,
+      grepResponse,
+      (context) => {
+        const result = context.messages.toReversed().find((message) =>
+          message.role === "toolResult" && message.toolName === "grep"
+        );
+        const actual = toolResultTextV1(result);
+        const expected = `${roundTripPath}:1:${input.submit.text}`;
+        const details = result?.role === "toolResult" ? result.details : null;
+        if (
+          result?.role !== "toolResult" || result.isError || actual !== expected ||
+          details === null || typeof details !== "object" || details.revision !== 1 ||
+          details.generation !== 2 || !Array.isArray(details.matches) ||
+          details.matches.length !== 1 || details.truncated !== false
+        ) {
+          throw new Error("Product-fixed Pi grep did not return the exact structured result");
+        }
+        return proposalResponse;
+      },
+      fauxAssistantMessage(deterministicFinalReplyV1),
+    ]);
+  } else if (exerciseBash) {
     faux.setResponses([
       bashSetupResponse,
       bashResponse,

@@ -2,7 +2,15 @@
 
 import {
   admitProgramWorkspaceSnapshotReceiptV1,
+  admitWorkspaceGrepQueryV1,
   type ProgramWorkspaceSnapshotReceiptV1,
+  type WorkspaceGrepQueryV1,
+  type WorkspaceGrepResultV1,
+} from "./contracts.ts";
+import {
+  workspaceGrepMatchMaximumV1,
+  workspaceGrepMatchTextMaximumCharactersV1,
+  workspaceGrepResultMaximumUtf8BytesV1,
 } from "./contracts.ts";
 
 export const browserWorkspaceHostProtocolRevisionV1 = 1 as const;
@@ -322,7 +330,7 @@ export type BrowserWorkspaceHostEnvironmentRequestRecordV1 =
   | {
     readonly method: "begin_tool";
     readonly toolCallId: string;
-    readonly tool: "read" | "write" | "edit" | "bash";
+    readonly tool: "read" | "write" | "edit" | "bash" | "grep";
   }
   | {
     readonly method: "end_tool";
@@ -349,6 +357,7 @@ export type BrowserWorkspaceHostEnvironmentRequestRecordV1 =
     readonly inheritEnv: boolean;
     readonly timeoutMilliseconds: number | null;
   }
+  | { readonly method: "grep_workspace"; readonly query: WorkspaceGrepQueryV1 }
   | { readonly method: "cancel_tool"; readonly toolCallId: string }
   | { readonly method: "query_receipts" }
   | { readonly method: "acknowledge_receipts"; readonly throughSequence: number };
@@ -376,6 +385,16 @@ export type BrowserWorkspaceHostEnvironmentSuccessV1 =
     readonly stdout: string;
     readonly stderr: string;
     readonly exitCode: number | null;
+  }
+  | {
+    readonly method: "grep_workspace";
+    readonly termination: "completed";
+    readonly result: WorkspaceGrepResultV1;
+  }
+  | {
+    readonly method: "grep_workspace";
+    readonly termination: "aborted" | "timeout" | "failed";
+    readonly message: string;
   }
   | {
     readonly method: "query_receipts";
@@ -519,6 +538,19 @@ function utf8LengthV1(value: string): number | null {
   } catch {
     return null;
   }
+}
+
+function withinCodePointMaximumV1(value: string, maximum: number): boolean {
+  if (value.length > maximum * 2) return false;
+  let count = 0;
+  for (let index = 0; index < value.length;) {
+    const codePoint = value.codePointAt(index);
+    if (codePoint === undefined) return false;
+    index += codePoint > 0xffff ? 2 : 1;
+    count += 1;
+    if (count > maximum) return false;
+  }
+  return true;
 }
 
 function admittedShellEnvironmentV1(value: unknown): Readonly<Record<string, string>> | null {
@@ -863,7 +895,7 @@ export function admitBrowserWorkspaceHostEnvironmentRequestV1(
     beginTool !== null && beginTool.method === "begin_tool" &&
     identifierV1(beginTool.toolCallId) &&
     (beginTool.tool === "read" || beginTool.tool === "write" || beginTool.tool === "edit" ||
-      beginTool.tool === "bash")
+      beginTool.tool === "bash" || beginTool.tool === "grep")
   ) {
     return {
       revision: 1,
@@ -969,6 +1001,17 @@ export function admitBrowserWorkspaceHostEnvironmentRequestV1(
         inheritEnv: executeShell.inheritEnv,
         timeoutMilliseconds: executeShell.timeoutMilliseconds,
       },
+    };
+  }
+  const grepWorkspace = exactRecordV1(envelope.record, ["method", "query"]);
+  if (grepWorkspace !== null && grepWorkspace.method === "grep_workspace") {
+    const query = admitWorkspaceGrepQueryV1(grepWorkspace.query);
+    if (query === null) return null;
+    return {
+      revision: 1,
+      kind: "environment_request",
+      requestId: envelope.requestId,
+      record: { method: "grep_workspace", query },
     };
   }
   const cancelTool = exactRecordV1(envelope.record, ["method", "toolCallId"]);
@@ -1651,6 +1694,90 @@ export function admitBrowserWorkspaceHostEnvironmentOutboundMessageV1(
           stdout: executeShell.stdout,
           stderr: executeShell.stderr,
           exitCode: executeShell.exitCode,
+        },
+      };
+    }
+    const grepCompleted = exactRecordV1(success.response, [
+      "method",
+      "termination",
+      "result",
+    ]);
+    if (
+      grepCompleted !== null && grepCompleted.method === "grep_workspace" &&
+      grepCompleted.termination === "completed"
+    ) {
+      const result = exactRecordV1(grepCompleted.result, [
+        "revision",
+        "generation",
+        "matches",
+        "truncated",
+      ]);
+      const values = result === null
+        ? null
+        : exactArrayV1(result.matches, workspaceGrepMatchMaximumV1);
+      if (
+        result === null || result.revision !== 1 ||
+        !positiveSafeIntegerV1(result.generation) || typeof result.truncated !== "boolean" ||
+        values === null
+      ) return null;
+      const matches = values.map((entryValue) => {
+        const match = exactRecordV1(entryValue, ["path", "line", "text"]);
+        if (
+          match === null || !isWorkspaceAbsolutePathV1(match.path) ||
+          !positiveSafeIntegerV1(match.line) || typeof match.text !== "string" ||
+          match.text.includes("\0") ||
+          !withinCodePointMaximumV1(match.text, workspaceGrepMatchTextMaximumCharactersV1)
+        ) return null;
+        return { path: match.path, line: match.line, text: match.text };
+      });
+      if (matches.some((match) => match === null)) return null;
+      const admittedResult: WorkspaceGrepResultV1 = {
+        revision: 1,
+        generation: result.generation,
+        matches: matches as readonly {
+          readonly path: string;
+          readonly line: number;
+          readonly text: string;
+        }[],
+        truncated: result.truncated,
+      };
+      if (
+        (utf8LengthV1(JSON.stringify(admittedResult)) ?? Number.POSITIVE_INFINITY) >
+          workspaceGrepResultMaximumUtf8BytesV1
+      ) return null;
+      return {
+        revision: 1,
+        kind: "environment_response",
+        requestId: success.requestId,
+        ok: true,
+        response: {
+          method: "grep_workspace",
+          termination: "completed",
+          result: admittedResult,
+        },
+      };
+    }
+    const grepFailed = exactRecordV1(success.response, [
+      "method",
+      "termination",
+      "message",
+    ]);
+    if (
+      grepFailed !== null && grepFailed.method === "grep_workspace" &&
+      (grepFailed.termination === "aborted" || grepFailed.termination === "timeout" ||
+        grepFailed.termination === "failed") &&
+      typeof grepFailed.message === "string" && grepFailed.message.length > 0 &&
+      (utf8LengthV1(grepFailed.message) ?? Number.POSITIVE_INFINITY) <= 512
+    ) {
+      return {
+        revision: 1,
+        kind: "environment_response",
+        requestId: success.requestId,
+        ok: true,
+        response: {
+          method: "grep_workspace",
+          termination: grepFailed.termination,
+          message: grepFailed.message,
         },
       };
     }

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   bindPiWorkspaceBashToolV1,
   bindPiWorkspaceEditToolV1,
+  createPiWorkspaceGrepToolV1,
 } from "../agent/pi-workspace-tool-binder.ts";
 import type {
   AgentHarnessTool,
@@ -12,9 +13,75 @@ import type {
   ExecutionToolContext,
 } from "../agent/pi-workspace-runtime-bridge.js";
 import { createBashTool, err, ExecutionError, ok } from "../agent/pi-workspace-runtime-bridge.js";
-import type { WorkspaceAgentRunV1, WorkspaceToolCallInputV1 } from "../workspace/contracts.ts";
+import type {
+  WorkspaceAgentRunV1,
+  WorkspaceGrepCallInputV1,
+  WorkspaceToolCallInputV1,
+} from "../workspace/contracts.ts";
 
 describe("SillyOS Pi Workspace tool binder", () => {
+  it("adds one fixed structured grep AgentTool without routing through bash", async () => {
+    const signal = new AbortController().signal;
+    const calls: WorkspaceGrepCallInputV1[] = [];
+    const env = Object.freeze({}) as ExecutionEnv;
+    const run: WorkspaceAgentRunV1 = {
+      env,
+      getGenerationCursor: () => 3,
+      executeReadCall: <TValue>(_input: WorkspaceToolCallInputV1<TValue>) =>
+        Promise.reject(new Error("unexpected read scope")),
+      executeWriteCall: <TValue>(_input: WorkspaceToolCallInputV1<TValue>) =>
+        Promise.reject(new Error("unexpected write scope")),
+      executeEditCall: <TValue>(_input: WorkspaceToolCallInputV1<TValue>) =>
+        Promise.reject(new Error("unexpected edit scope")),
+      executeBashCall: <TValue>(_input: WorkspaceToolCallInputV1<TValue>) =>
+        Promise.reject(new Error("unexpected bash scope")),
+      async executeGrepCall(input) {
+        calls.push(input);
+        return {
+          revision: 1,
+          generation: 3,
+          matches: [{ path: "/workspace/src/app.ts", line: 7, text: "const alpha = true;" }],
+          truncated: false,
+        };
+      },
+      abortAndDrain: () => Promise.resolve(),
+      finish: () => undefined,
+    };
+    const tool = createPiWorkspaceGrepToolV1(run);
+
+    await expect(tool.execute(
+      "pi.tool.grep.1",
+      { pattern: "alpha", path: "./src", glob: "*.ts", literal: true, limit: 4 },
+      signal,
+    )).resolves.toEqual({
+      content: [{ type: "text", text: "/workspace/src/app.ts:7:const alpha = true;" }],
+      details: {
+        revision: 1,
+        generation: 3,
+        matches: [{ path: "/workspace/src/app.ts", line: 7, text: "const alpha = true;" }],
+        truncated: false,
+      },
+    });
+    expect(tool.name).toBe("grep");
+    expect(calls).toEqual([{
+      toolCallId: "pi.tool.grep.1",
+      signal,
+      query: {
+        pattern: "alpha",
+        path: "/workspace/src",
+        glob: "*.ts",
+        ignoreCase: false,
+        literal: true,
+        limit: 4,
+      },
+    }]);
+    await expect(tool.execute("pi.tool.grep.traversal", {
+      pattern: "secret",
+      path: "../credential-vault",
+    })).rejects.toMatchObject({ code: "invalid_query" });
+    expect(calls).toHaveLength(1);
+  });
+
   it("binds edit to the run-owned edit scope while preserving Pi execution", async () => {
     const env = Object.freeze({}) as ExecutionEnv;
     const effectiveSignal = new AbortController().signal;
@@ -32,6 +99,7 @@ describe("SillyOS Pi Workspace tool binder", () => {
       },
       executeBashCall: <TValue>(_input: WorkspaceToolCallInputV1<TValue>) =>
         Promise.reject(new Error("unexpected bash scope")),
+      executeGrepCall: () => Promise.reject(new Error("unexpected grep scope")),
       abortAndDrain: () => Promise.resolve(),
       finish: () => undefined,
     };
@@ -100,6 +168,7 @@ describe("SillyOS Pi Workspace tool binder", () => {
         routedToolCalls.push(input.toolCallId);
         return input.invoke(effectiveSignal);
       },
+      executeGrepCall: () => Promise.reject(new Error("unexpected grep scope")),
       abortAndDrain: () => Promise.resolve(),
       finish: () => undefined,
     };
@@ -162,6 +231,7 @@ describe("SillyOS Pi Workspace tool binder", () => {
         Promise.reject(new Error("unexpected edit scope")),
       executeBashCall: <TValue>(input: WorkspaceToolCallInputV1<TValue>) =>
         input.invoke(effectiveSignal.signal),
+      executeGrepCall: () => Promise.reject(new Error("unexpected grep scope")),
       abortAndDrain: () => Promise.resolve(),
       finish: () => undefined,
     };

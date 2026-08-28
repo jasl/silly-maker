@@ -39,13 +39,8 @@ function unavailableAgentWorkerAssetV1(endpointOrigin: string | null): Response 
   });
 }
 
-function readCanonicalEndpointOriginV1(requestUrl: URL): string | null {
-  const values = requestUrl.searchParams.getAll(browserPiEndpointOriginQueryParameterV1);
-  if (requestUrl.searchParams.size !== 1 || values.length !== 1) return null;
-
-  const value = values[0];
-  if (value === undefined || value.length === 0 || /[\r\n]/u.test(value)) return null;
-
+export function parseCanonicalEndpointOriginV1(value: string | null): string | null {
+  if (value === null || value.length === 0 || /[\r\n]/u.test(value)) return null;
   let endpoint: URL;
   try {
     endpoint = new URL(value);
@@ -59,11 +54,20 @@ function readCanonicalEndpointOriginV1(requestUrl: URL): string | null {
   ) {
     return null;
   }
+  return endpoint.origin;
+}
+
+function readCanonicalEndpointOriginV1(requestUrl: URL): string | null {
+  const values = requestUrl.searchParams.getAll(browserPiEndpointOriginQueryParameterV1);
+  if (requestUrl.searchParams.size !== 1 || values.length !== 1) return null;
+
+  const endpointOrigin = parseCanonicalEndpointOriginV1(values[0] ?? null);
+  if (endpointOrigin === null) return null;
 
   const canonicalQuery = new URLSearchParams([
-    [browserPiEndpointOriginQueryParameterV1, endpoint.origin],
+    [browserPiEndpointOriginQueryParameterV1, endpointOrigin],
   ]).toString();
-  return requestUrl.search === `?${canonicalQuery}` ? endpoint.origin : null;
+  return requestUrl.search === `?${canonicalQuery}` ? endpointOrigin : null;
 }
 
 function responseWithAgentWorkerPolicyV1(
