@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import process from "node:process";
 
+import type { Plugin } from "vite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -11,7 +12,6 @@ import {
   parseVersionStampReceiptInternalV1,
   serializeVersionStampReceiptInternalV1,
   versionStampPluginV1,
-  versionStampScriptV1,
   versionStampReceiptEnvironmentKeyInternalV1,
 } from "./version-stamp.ts";
 import { createSillymakerAppViteConfigV1 } from "./app-vite-config.ts";
@@ -237,20 +237,40 @@ describe("version stamp build receipt", () => {
           "name" in candidate &&
           candidate.name === "sillymaker:version-stamp",
       );
-      if (
-        plugin === undefined ||
-        plugin === null ||
-        typeof plugin !== "object" ||
-        !("transformIndexHtml" in plugin) ||
-        typeof plugin.transformIndexHtml !== "function"
-      ) {
-        throw new TypeError("missing version-stamp transform");
+      if (plugin === undefined || plugin === null || typeof plugin !== "object") {
+        throw new TypeError("missing version-stamp plugin");
       }
-      const transform = plugin.transformIndexHtml as unknown as (html: string) => {
-        readonly tags: readonly { readonly children: string }[];
+      const vitePlugin = plugin as Plugin;
+      const transform = vitePlugin.transformIndexHtml;
+      if (
+        typeof transform !== "object" ||
+        transform === null ||
+        typeof transform.handler !== "function"
+      ) {
+        throw new TypeError("missing version-stamp post transform");
+      }
+      const transformed = await transform.handler.call(
+        {} as never,
+        "<html><head></head><body></body></html>",
+        {} as never,
+      ) as {
+        readonly tags: readonly {
+          readonly attrs?: Readonly<Record<string, string>>;
+        }[];
       };
-      const transformed = transform("<html></html>");
-      expect(transformed.tags[0]?.children).toContain(`${"a".repeat(40)}-dirty`);
+      const moduleUrl = transformed.tags[0]?.attrs?.src;
+      if (moduleUrl === undefined) throw new TypeError("missing version-stamp module URL");
+      const resolveId = vitePlugin.resolveId;
+      const load = vitePlugin.load;
+      if (typeof resolveId !== "function" || typeof load !== "function") {
+        throw new TypeError("missing version-stamp virtual module hooks");
+      }
+      const resolvedId = await resolveId.call({} as never, moduleUrl, undefined, {} as never);
+      if (typeof resolvedId !== "string") {
+        throw new TypeError("version-stamp virtual module did not resolve");
+      }
+      const moduleSource = await load.call({} as never, resolvedId, {} as never);
+      expect(moduleSource).toContain(`${"a".repeat(40)}-dirty`);
     } finally {
       if (previous === undefined) {
         delete process.env[versionStampReceiptEnvironmentKeyInternalV1];
@@ -261,47 +281,85 @@ describe("version stamp build receipt", () => {
   });
 });
 
-describe("versionStampScriptV1", () => {
-  it("serializes the stamp for the page global", () => {
-    const script = versionStampScriptV1({
+describe("versionStampPluginV1", () => {
+  it("injects one parser-blocking external script before the application module", async () => {
+    const plugin = versionStampPluginV1({
       applicationVersion: "1.0.0",
       applicationCommit: null,
       engineVersion: null,
       engineCommit: "def5678",
     });
-    expect(script).toContain("globalThis.__SILLYMAKER_VERSIONS__ = ");
-    expect(script).toContain('"applicationVersion":"1.0.0"');
-    expect(script).toContain('"applicationCommit":null');
+    const transform = plugin.transformIndexHtml;
+    if (
+      typeof transform !== "object" ||
+      transform === null ||
+      typeof transform.handler !== "function"
+    ) {
+      throw new TypeError("expected a post HTML transform");
+    }
+    const transformed = await transform.handler.call(
+      {} as never,
+      "<html><head></head><body></body></html>",
+      {} as never,
+    ) as {
+      readonly tags: readonly {
+        readonly tag: string;
+        readonly attrs?: Readonly<Record<string, string>>;
+        readonly children?: string;
+        readonly injectTo?: string;
+      }[];
+    };
+
+    expect(transform.order).toBe("post");
+    expect(transformed.tags).toEqual([
+      {
+        tag: "script",
+        attrs: { src: expect.any(String) },
+        injectTo: "head-prepend",
+      },
+    ]);
   });
 
-  it("escapes HTML/script delimiters and JavaScript line separators", () => {
+  it("loads the supplied receipt only through its exact virtual module", async () => {
     const stamp = {
       applicationVersion: "</script>&\u2028\u2029",
       applicationCommit: null,
       engineVersion: null,
       engineCommit: null,
     };
-    const script = versionStampScriptV1(stamp);
-    expect(script.match(/<\/script>/gu)).toHaveLength(1);
-    expect(script).not.toContain('"</script>&');
-    expect(script).not.toContain("&");
-    expect(script).not.toContain("\u2028");
-    expect(script).not.toContain("\u2029");
-    expect(script).toContain("\\u003c/script>");
-    expect(script).toContain("\\u0026");
-    expect(script).toContain("\\u2028");
-    expect(script).toContain("\\u2029");
-
-    const transform = versionStampPluginV1(stamp).transformIndexHtml;
-    if (typeof transform !== "function") throw new TypeError("expected an HTML transform");
-    const transformed = (
-      transform as unknown as (html: string) => {
-        readonly tags: readonly { readonly children: string }[];
-      }
-    )("<html></html>") as {
-      readonly tags: readonly { readonly children: string }[];
+    const plugin = versionStampPluginV1(stamp);
+    const transform = plugin.transformIndexHtml;
+    if (
+      typeof transform !== "object" ||
+      transform === null ||
+      typeof transform.handler !== "function"
+    ) {
+      throw new TypeError("expected a post HTML transform");
+    }
+    const transformed = await transform.handler.call(
+      {} as never,
+      "<html><head></head><body></body></html>",
+      {} as never,
+    ) as {
+      readonly tags: readonly { readonly attrs?: Readonly<Record<string, string>> }[];
     };
-    expect(transformed.tags[0]?.children).toContain("\\u003c/script>");
-    expect(transformed.tags[0]?.children).not.toContain('"</script>&');
+    const moduleUrl = transformed.tags[0]?.attrs?.src;
+    if (moduleUrl === undefined) throw new TypeError("missing version-stamp module URL");
+    const resolveId = plugin.resolveId;
+    const load = plugin.load;
+    if (typeof resolveId !== "function" || typeof load !== "function") {
+      throw new TypeError("missing virtual module hooks");
+    }
+
+    expect(await resolveId.call({} as never, "/other.js", undefined, {} as never)).toBeNull();
+    expect(await load.call({} as never, "\0other", {} as never)).toBeNull();
+    const resolvedId = await resolveId.call({} as never, moduleUrl, undefined, {} as never);
+    if (typeof resolvedId !== "string") throw new TypeError("virtual module did not resolve");
+    const moduleSource = await load.call({} as never, resolvedId, {} as never);
+    expect(moduleSource).toContain("globalThis.__SILLYMAKER_VERSIONS__ = ");
+    expect(moduleSource).toContain("\\u003c/script>");
+    expect(moduleSource).toContain("\\u0026");
+    expect(moduleSource).toContain("\\u2028");
+    expect(moduleSource).toContain("\\u2029");
   });
 });

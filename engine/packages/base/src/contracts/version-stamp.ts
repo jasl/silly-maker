@@ -3,10 +3,10 @@
 /**
  * Human-facing build version stamp: the application's and the engine's
  * `package.json` versions plus their git commits, captured at build time and
- * injected into the page as `globalThis.__SILLYMAKER_VERSIONS__` (see the
- * tooling Vite assembly). Every field is independently optional — a missing
- * package version, a non-git checkout, or a published engine package without
- * git metadata must degrade to `null`, never to an error.
+ * published by the tooling Vite assembly's external build-owned script as
+ * `globalThis.__SILLYMAKER_VERSIONS__`. Every field is independently optional —
+ * a missing package version, a non-git checkout, or a published engine package
+ * without git metadata must degrade to `null`, never to an error.
  *
  * This is presentation-grade identity for humans comparing builds (debug
  * dock, about screens, bug reports). Simulation integrity uses the separate
@@ -86,9 +86,9 @@ function injectedVersionStampV1(): unknown {
 }
 
 /**
- * Reads the injected stamp. Tolerates a missing global and any malformed
+ * Reads the published stamp. Tolerates a missing global and any malformed
  * shape (each field falls back to `null` on its own) so a page built without
- * the injection — or with a hand-edited one — can never throw here.
+ * the script — or with a hand-edited global — can never throw here.
  */
 export function readVersionStampV1(): VersionStampV1 {
   return normalizeVersionStampInternalV1(injectedVersionStampV1()) ?? emptyVersionStampV1;

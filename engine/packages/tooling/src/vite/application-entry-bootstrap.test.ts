@@ -217,6 +217,38 @@ describe("runtime application entry bootstrap HTML", () => {
       expect(browserHtml).toContain('"entry":"runtime","target":"browser"');
       expect(browserHtml).toContain('<script type="module"');
       const browserDocument = new DOMParser().parseFromString(browserHtml, "text/html");
+      const executableInlineScripts = Array.from(browserDocument.scripts).filter((script) => {
+        if (script.hasAttribute("src")) return false;
+        const type = (script.getAttribute("type") ?? "").trim().toLowerCase();
+        return type === "" ||
+          type === "module" ||
+          type === "text/javascript" ||
+          type === "application/javascript";
+      });
+      expect(executableInlineScripts).toHaveLength(0);
+      const versionStampAsset = generated.find((file) =>
+        file.type === "asset" &&
+        typeof file.source === "string" &&
+        file.source.includes("__SILLYMAKER_VERSIONS__")
+      );
+      if (versionStampAsset === undefined) {
+        throw new TypeError("Template build did not emit the external version-stamp asset");
+      }
+      const scripts = Array.from(browserDocument.scripts);
+      const versionStampScript = scripts.find((script) =>
+        script.getAttribute("src")?.endsWith(versionStampAsset.fileName) === true
+      );
+      const applicationModuleScript = scripts.find((script) => script.type === "module");
+      expect(versionStampScript).toBeDefined();
+      expect(versionStampScript?.hasAttribute("type")).toBe(false);
+      expect(versionStampScript?.hasAttribute("async")).toBe(false);
+      expect(versionStampScript?.hasAttribute("defer")).toBe(false);
+      if (versionStampScript === undefined || applicationModuleScript === undefined) {
+        throw new TypeError("Template build did not order the version stamp before its module");
+      }
+      expect(scripts.indexOf(versionStampScript)).toBeLessThan(
+        scripts.indexOf(applicationModuleScript),
+      );
       const browserConfig = readApplicationBootstrapConfigFromDocumentInternalV1(
         browserDocument,
         "runtime",

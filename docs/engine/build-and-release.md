@@ -384,9 +384,15 @@ and gives each incoming body a 30-second deadline; overload/closed admission is
 removes its temporary file before the server drain completes.
 
 Before the web build starts, Desktop packaging collects one immutable,
-human-facing version receipt. Vite injects that exact receipt into the page and
-the packager derives the artifact stem from it, so the page/Save stamp cannot
-drift from the filename during one build. Known application versions are
+human-facing version receipt. Vite publishes that exact receipt through a
+build-owned, parser-blocking external script which runs before the application
+graph and becomes a normal hashed same-origin JavaScript asset; the default HTML no
+longer needs an executable inline version-stamp script. A Browser product can
+therefore use `script-src 'self'` without adding a hash, nonce, or
+`'unsafe-inline'` for this tooling-owned stamp. Product code and third-party
+dependencies remain responsible for their own CSP behavior. The packager derives
+the artifact stem from the same receipt, so the page/Save stamp cannot drift
+from the filename during one build. Known application versions are
 portable-normalized and known full Git commits are shortened only in the
 filename; an observed uncommitted checkout keeps the `-dirty` suffix (for
 example `SillyGame-0_1_0-abc1234-dirty`). Invalid, overlong, unavailable, or

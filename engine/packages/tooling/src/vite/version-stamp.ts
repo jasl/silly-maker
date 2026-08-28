@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: MIT
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, sep } from "node:path";
+import { dirname, isAbsolute, join, posix, relative, sep } from "node:path";
 
 import type { Plugin } from "vite";
 
 /**
  * Build-time collection of the human-facing version stamp: the application's
  * and the engine's `package.json` versions plus their git commits (suffixed
- * `-dirty` when the checkout has uncommitted changes). Injected into the
- * page as `globalThis.__SILLYMAKER_VERSIONS__` and read at runtime through
- * `readVersionStampV1` (`@sillymaker/base`).
+ * `-dirty` when the checkout has uncommitted changes). A build-owned external
+ * script publishes it as `globalThis.__SILLYMAKER_VERSIONS__` before the
+ * application graph, and `readVersionStampV1` (`@sillymaker/base`) reads it
+ * synchronously.
  *
  * Every field degrades independently to `null` — no package version, no git
  * binary, a non-git checkout (e.g. a published engine package), or a detached
@@ -202,26 +203,79 @@ function versionStampAssignmentV1(stamp: CollectedVersionStampV1): string {
   return `globalThis.__SILLYMAKER_VERSIONS__ = ${inlineJsonV1(stamp)};`;
 }
 
-/** Head script carrying the stamp; consumed by `readVersionStampV1`. */
-export function versionStampScriptV1(stamp: CollectedVersionStampV1): string {
-  return `<script>${versionStampAssignmentV1(stamp)}</script>`;
+const versionStampDevUrlV1 = "/sillymaker-version-stamp.js";
+const versionStampResolvedVirtualModuleIdV1 = "\0sillymaker:version-stamp";
+const versionStampAssetNameV1 = "sillymaker-version-stamp.js";
+
+function builtVersionStampUrlV1(base: string, htmlPath: string, fileName: string): string {
+  if (base !== "./" && base !== "") return `${base}${fileName}`;
+  const absoluteHtmlPath = htmlPath.startsWith("/") ? htmlPath : `/${htmlPath}`;
+  const relativeFileName = posix.relative(
+    posix.dirname(absoluteHtmlPath),
+    `/${fileName}`,
+  );
+  return relativeFileName.startsWith(".") ? relativeFileName : `./${relativeFileName}`;
 }
 
-/** Injects the stamp into the page at dev and build time. */
+/**
+ * Loads the stamp through a parser-blocking same-origin script before any
+ * application module can evaluate. Dev uses one exact virtual route; builds
+ * emit a hashed asset. Vite continues to own base paths and asset naming.
+ */
 export function versionStampPluginV1(stamp: CollectedVersionStampV1): Plugin {
+  const source = versionStampAssignmentV1(stamp);
+  let command: "build" | "serve" = "serve";
+  let base = "/";
+
   return {
     name: "sillymaker:version-stamp",
-    transformIndexHtml(html) {
-      return {
-        html,
-        tags: [
-          {
-            tag: "script",
-            children: versionStampAssignmentV1(stamp),
-            injectTo: "head-prepend",
-          },
-        ],
-      };
+    configResolved(config) {
+      command = config.command;
+      base = config.base;
+    },
+    buildStart() {
+      if (command !== "build") return;
+      this.emitFile({
+        type: "asset",
+        name: versionStampAssetNameV1,
+        source,
+      });
+    },
+    resolveId(id) {
+      return id === versionStampDevUrlV1 ? versionStampResolvedVirtualModuleIdV1 : null;
+    },
+    load(id) {
+      return id === versionStampResolvedVirtualModuleIdV1 ? source : null;
+    },
+    transformIndexHtml: {
+      order: "post",
+      handler(html, context) {
+        const emittedAsset = command === "build"
+          ? Object.values(context.bundle ?? {}).find((output) =>
+            output.type === "asset" &&
+            output.names.includes(versionStampAssetNameV1) &&
+            output.source === source
+          )
+          : undefined;
+        if (command === "build" && emittedAsset === undefined) {
+          throw new Error("version stamp asset was not emitted before HTML generation");
+        }
+        const src = command === "build" && emittedAsset !== undefined
+          ? builtVersionStampUrlV1(base, context.path, emittedAsset.fileName)
+          : base === "./" || base === ""
+          ? versionStampDevUrlV1
+          : `${base}${versionStampDevUrlV1.slice(1)}`;
+        return {
+          html,
+          tags: [
+            {
+              tag: "script",
+              attrs: { src },
+              injectTo: "head-prepend",
+            },
+          ],
+        };
+      },
     },
   };
 }
