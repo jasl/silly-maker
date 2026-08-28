@@ -90,8 +90,12 @@ part is implemented in the current dirty overlay, but the owner subsequently
 accepted the Browser security and execution boundary below. B1c-S0 is now
 closed locally: the matching WebKit production-response smoke completed on
 2026-08-28 after the already-passing source, build, Wrangler-response, and
-Chromium gates. **S1a-0 is the only active checkpoint.** B1c remains undeployed;
-earlier B1c Provider counts are dated evidence for their pre-security snapshot
+Chromium gates. The resulting commit
+`a4cc8754b4c5f3050ff270a7c5a426b6c0d18176` is deployed to the canonical origin
+as Cloudflare version `e1808054-af9f-446f-a913-22a39bf98e37`; its exact build
+identity, response policy, Home, and Settings catalog pass in public Chromium
+and WebKit. **S1a-0 is the only active checkpoint.** Earlier B1c Provider counts
+are dated evidence for their pre-security snapshot
 and do not by themselves accept the current overlay. This lane
 still does not add OAuth, multi-field cloud credentials, a Provider relay,
 public HTTP/LAN access, arbitrary headers, or a second Provider runtime, and it
@@ -203,7 +207,10 @@ the exact HTTP-200 policy, Creator Home, and Pi-owned Settings catalog with no
 page error, failed request, or unexpected console error. WebKit emitted seven
 expected Report-Only diagnostics for the deliberately non-enforced Trusted
 Types policy; this keeps enforcement unpromoted rather than falsifying the
-rendering/response result. S0 is therefore closed locally, not deployed.
+rendering/response result. The same exact policy and behavior then passed at
+the canonical Cloudflare origin for commit `a4cc8754` in Chromium and WebKit;
+WebKit again produced only those seven expected diagnostics. S0 and its release
+operation are therefore closed.
 
 S0 proves only the named response, rendering, protocol, secret-absence, and
 fail-closed properties. It does **not** prove an independent Sandbox, physical
@@ -510,10 +517,11 @@ The accepted execution order is no longer the numeric subsection order:
    candidate.
 7. B1c's Provider/model preference UI is implemented locally but has no current
    deployment claim.
-8. **B1c-S0 closed locally 2026-08-28:** the trusted control-plane source,
+8. **B1c-S0 and its release operation closed 2026-08-28:** the trusted control-plane source,
    actual-build gate, local Wrangler headers, and Chromium/WebKit product smoke
-   pass with Trusted Types deliberately retained as Report-Only. B1c remains
-   undeployed.
+   pass with Trusted Types deliberately retained as Report-Only. Commit
+   `a4cc8754` and Cloudflare version
+   `e1808054-af9f-446f-a913-22a39bf98e37` pass the same public-origin gate.
 9. **S1a-0 is active:** qualify the exact independent-origin Workspace topology
    and Sandbox-owned download before changing the ordinary product default.
    S2 execution profiles,
@@ -949,8 +957,8 @@ The accepted checkpoint order is:
    qualification before claiming the deployment supports that exact custom
    route.
 
-   **B1c-C — Provider compatibility and model preferences (implemented locally;
-   B1c-S0 closed locally, deployment still pending S1a-0 separation).** Keep Pi
+   **B1c-C — Provider compatibility and model preferences (implemented and
+   deployed; S1a-0 is a separate later authority gate).** Keep Pi
    as the only Provider/model catalog and request authority, but remove model
    quality admission from SillyOS. The Browser adapter may classify only the
    technical shape it owns: a Pi Provider whose API-key setup is the admitted

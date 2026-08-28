@@ -180,8 +180,9 @@ Terms-of-Service 403 而仍是 candidate；这不是 CSP 或 CORS 成功/失败�
 Provider 技术兼容与持久化模型偏好取代产品中的模型质量准入，并保留真实连接测试、
 Home warning、有界 custom HTTPS profile，以及只给选定 Agent Worker 精确 endpoint origin 的
 Cloudflare CSP 响应层；同时先补齐控制面 CSP/渲染约束、存储分权合同，并从 live Provider
-撤下同源 workspace tools。B1c-S0 尚未部署；当前本地生产构建已通过严格 CSP 产物检查，
-Wrangler 响应与 Chromium/WebKit 产品烟测也已通过。WebKit 产生了预期的 Trusted Types
+撤下同源 workspace tools。B1c-S0 已从提交 `a4cc8754` 部署为 Cloudflare 版本
+`e1808054-af9f-446f-a913-22a39bf98e37`；本地与公开域名的严格 CSP 响应、Home、Settings
+目录均在 Chromium/WebKit 通过。WebKit 产生了预期的 Trusted Types
 Report-Only 诊断，因此 enforcement 没有被提升；没有页面错误、失败请求或其他意外 console
 错误。当前活动检查点是 S1a-0：先资格验证独立 origin Workspace topology、OPFS
 持久化和 Sandbox 自有下载，不改变 ordinary live Provider，也绝不回退同源 Worker。
