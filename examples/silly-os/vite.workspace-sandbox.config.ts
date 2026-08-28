@@ -21,30 +21,6 @@ const localSandboxResponseHeadersV1 = {
   "Referrer-Policy": "no-referrer",
   "X-Content-Type-Options": "nosniff",
 };
-const unavailableShellModuleIdV1 = "\0sillyos-workspace-sandbox-shell-unavailable";
-
-function createUnavailableShellPluginV1() {
-  return {
-    name: "sillyos-workspace-sandbox-shell-unavailable",
-    enforce: "pre" as const,
-    resolveId(source: string) {
-      return source === "./browser-workspace-just-bash-runtime.ts"
-        ? unavailableShellModuleIdV1
-        : null;
-    },
-    load(id: string) {
-      if (id !== unavailableShellModuleIdV1) return null;
-      return [
-        "const unavailable = () => { throw new Error('sillyos.workspace_sandbox.shell_unavailable'); };",
-        "export const browserWorkspaceJustBashExecutionProfileV1 = Object.freeze({",
-        "  limits: Object.freeze({ traversalEntries: 0, traversalDepth: 0, shellReadBytes: 0 }),",
-        "});",
-        "export async function executeBrowserWorkspaceJustBashV1() { unavailable(); }",
-      ].join("\n");
-    },
-  };
-}
-
 function createNetworkOffDevelopmentHtmlPluginV1() {
   return {
     name: "sillyos-workspace-sandbox-network-off-development-html",
@@ -94,10 +70,10 @@ export default defineConfig(({ command }) => {
       },
     },
     worker: {
-      // The dedicated config replaces optional shell code with a fail-closed
-      // module, so the artifact loads one fixed self-contained Host Worker.
-      format: "iife",
-      plugins: () => [createUnavailableShellPluginV1()],
+      // The Sandbox Worker is already a module Worker. Keep the bounded shell
+      // in one build-known lazy chunk so filesystem-only startup does not pay
+      // its parse/compile cost. Optional Python and QuickJS remain disabled.
+      format: "es",
     },
     server: {
       headers: localSandboxResponseHeadersV1,

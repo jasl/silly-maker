@@ -199,6 +199,46 @@ describe("SillyOS Browser workspace just-bash runtime", () => {
       commandAllowlist: browserWorkspaceJustBashCommandAllowlistV1,
       limits: browserWorkspaceJustBashLimitsV1,
     });
+    expect(browserWorkspaceJustBashCommandAllowlistV1).toEqual([
+      "basename",
+      "cat",
+      "cut",
+      "dirname",
+      "echo",
+      "env",
+      "false",
+      "find",
+      "grep",
+      "head",
+      "ls",
+      "printenv",
+      "printf",
+      "pwd",
+      "rg",
+      "sed",
+      "sleep",
+      "sort",
+      "stat",
+      "tail",
+      "tee",
+      "tr",
+      "true",
+      "uniq",
+      "wc",
+    ]);
+  });
+
+  it("keeps network and optional script runtimes outside the shell command surface", async () => {
+    const volume = new FakePersistentVolumeV1();
+
+    for (const command of ["curl", "python", "python3", "js-exec", "gzip"]) {
+      const result = await executeV1(volume, command);
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error(`${command} returned a Host failure instead of shell exit`);
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stderr).toContain(command);
+    }
+    expect(volume.mutations).toEqual([]);
   });
 
   it("composes a pipeline and publishes persistent redirection effects", async () => {

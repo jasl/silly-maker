@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-import { createReadTool, createWriteTool } from "./pi-workspace-runtime-bridge.js";
+import {
+  createBashTool,
+  createEditTool,
+  createReadTool,
+  createWriteTool,
+} from "./pi-workspace-runtime-bridge.js";
 
 import {
   admitCreatorAgentSubmitTextV1,
@@ -36,6 +41,8 @@ import {
   type BrowserPiWorkspaceSnapshotWireV1,
 } from "./browser-pi-worker-protocol.ts";
 import {
+  bindPiWorkspaceBashToolV1,
+  bindPiWorkspaceEditToolV1,
   bindPiWorkspaceReadToolV1,
   bindPiWorkspaceWriteToolV1,
 } from "./pi-workspace-tool-binder.ts";
@@ -110,9 +117,9 @@ function selectionsShareCredentialScopeV1(
 }
 
 /**
- * The product-owned deterministic fixture exercises only S1a's Pi-native
- * read/write slice through the independent Workspace Sandbox. Live Provider
- * runs remain tool-less until their separate enablement gate.
+ * The product-owned deterministic fixture exercises only the admitted Pi-native
+ * read/write/edit/bash slice through the independent Workspace Sandbox. Live
+ * Provider runs remain tool-less until their separate enablement gate.
  */
 export function createBrowserPiWorkspaceToolsForRuntimeV1<T>(
   runtime: BrowserPiWorkerRuntimeV1,
@@ -340,6 +347,8 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     const workspaceTools = createBrowserPiWorkspaceToolsForRuntimeV1(runtime, [
       () => bindPiWorkspaceReadToolV1(createReadTool(), workspaceRun),
       () => bindPiWorkspaceWriteToolV1(createWriteTool(), workspaceRun),
+      () => bindPiWorkspaceEditToolV1(createEditTool(), workspaceRun),
+      () => bindPiWorkspaceBashToolV1(createBashTool(), workspaceRun),
     ]);
     let run!: ActivePiRunV1;
     const agentInput = {

@@ -8,6 +8,8 @@ import { readZipCentralDirectoryV1 } from "./silly-os-workspace-zip.ts";
 
 const translationIntentV1 =
   "Translate this visual novel and keep every character's voice consistent.";
+const deterministicEditProbePrefixV1 = "Exercise the pinned native Pi edit tool with exact text: ";
+const deterministicBashProbePrefixV1 = "Exercise the pinned native Pi bash tool with exact text: ";
 
 async function expectProgramStorageReadyV1(page: Page): Promise<void> {
   await expect(page.locator('[data-program-storage-state="ready"]')).toBeVisible();
@@ -184,6 +186,7 @@ async function readWorkspaceContinuationV1(
 }
 
 const ordinaryWorkspaceRoundTripPathV1 = ".sillyos/p3a-round-trip.txt";
+const ordinaryWorkspaceBashRoundTripPathV1 = ".sillyos/p3a-bash-round-trip.txt";
 
 function workspaceSandboxDevelopmentOriginV1(): string {
   return `http://${sillyOsWorkspaceSandboxTargetV1.host}:${
@@ -257,6 +260,7 @@ async function expectOrdinaryWorkspaceSandboxV1(
   page: Page,
   continuation: DurableWorkspaceContinuationV1,
   expectedText: string,
+  relativePath = ordinaryWorkspaceRoundTripPathV1,
 ): Promise<void> {
   const expectedSandboxOrigin = workspaceSandboxDevelopmentOriginV1();
   expect(await page.evaluate(() => location.origin)).toBe("http://127.0.0.1:41739");
@@ -276,7 +280,7 @@ async function expectOrdinaryWorkspaceSandboxV1(
     await readSandboxWorkspaceTextV1(
       frame,
       continuation.volumeId,
-      ordinaryWorkspaceRoundTripPathV1,
+      relativePath,
     ),
   ).toBe(expectedText);
 }
@@ -1474,6 +1478,123 @@ test("@s1a-ordinary the query-gated Browser Pi Worker uses and cold-reopens the 
   );
   await page.getByRole("button", { name: "Creator home" }).click();
   await expect(page.locator(".silly-os")).toHaveAttribute("data-agent-workspace-state", "closed");
+});
+
+test("@s1b-edit the pinned native Pi edit tool changes and cold-reopens exact Sandbox bytes", async ({ durableProgramPage: page }) => {
+  await openCreatorHomeV1(page);
+  await initializePiTestV1(page, "sillyos-browser-pi-edit-sentinel-key");
+
+  const creatorIntent = page.getByRole("textbox", { name: "What would you like to make?" });
+  await creatorIntent.fill(translationIntentV1);
+  await page.getByRole("button", { name: "Create program" }).click();
+  const workspace = page.getByRole("main", { name: "SillyOS program workspace" });
+  await expect(workspace).toBeVisible();
+  await expectProgramStorageReadyV1(page);
+  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "open");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "1");
+  const programId = await readProgramIdV1(workspace);
+
+  const editText = `${deterministicEditProbePrefixV1}keep this exact edited file.`;
+  await page.getByRole("textbox", { name: "Ask for a change…" }).fill(editText);
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByText(editText, { exact: true })).toBeVisible();
+  await expect(
+    page.locator('[data-chat-role="creator"]').getByText(
+      "Deterministic test proposal ready.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "3");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-tool", "edit");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-effect", "changed");
+  await expect(workspace).toHaveAttribute(
+    "data-execution-workspace-path",
+    ordinaryWorkspaceRoundTripPathV1,
+  );
+  const continuation = await readWorkspaceContinuationV1(page, programId);
+  if (continuation === null) throw new Error("Edit proof lost its Workspace continuation");
+  await expectOrdinaryWorkspaceSandboxV1(page, continuation, editText);
+
+  await page.getByRole("button", { name: "Creator home" }).click();
+  await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
+  await page.reload();
+  await expectProgramStorageReadyV1(page);
+  await initializePiTestV1(page, "sillyos-browser-pi-edit-sentinel-key");
+  await openRecentTranslationProgramV1(page, {
+    programId,
+    revision: 2,
+    status: "Preview",
+  });
+  const reopened = page.getByRole("main", { name: "SillyOS program workspace" });
+  await expect(reopened).toHaveAttribute("data-execution-workspace-state", "open");
+  await expect(reopened).toHaveAttribute("data-execution-workspace-generation", "3");
+  expect(await readWorkspaceContinuationV1(page, programId)).toEqual(continuation);
+  await expectOrdinaryWorkspaceSandboxV1(page, continuation, editText);
+});
+
+test("@s1b-bash the pinned native Pi bash tool changes and cold-reopens exact Sandbox bytes", async ({ durableProgramPage: page }) => {
+  await openCreatorHomeV1(page);
+  await initializePiTestV1(page, "sillyos-browser-pi-bash-sentinel-key");
+
+  const creatorIntent = page.getByRole("textbox", { name: "What would you like to make?" });
+  await creatorIntent.fill(translationIntentV1);
+  await page.getByRole("button", { name: "Create program" }).click();
+  const workspace = page.getByRole("main", { name: "SillyOS program workspace" });
+  await expect(workspace).toBeVisible();
+  await expectProgramStorageReadyV1(page);
+  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "open");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "1");
+  const programId = await readProgramIdV1(workspace);
+
+  const bashPrompt = `${deterministicBashProbePrefixV1}write and search one exact file.`;
+  const bashText = "SillyOS native bash checkpoint\n";
+  await page.getByRole("textbox", { name: "Ask for a change…" }).fill(bashPrompt);
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByText(bashPrompt, { exact: true })).toBeVisible();
+  await expect(
+    page.locator('[data-chat-role="creator"]').getByText(
+      "Deterministic test proposal ready.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "3");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-tool", "bash");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-effect", "changed");
+  await expect(workspace).toHaveAttribute(
+    "data-execution-workspace-path",
+    ordinaryWorkspaceBashRoundTripPathV1,
+  );
+  const continuation = await readWorkspaceContinuationV1(page, programId);
+  if (continuation === null) throw new Error("Bash proof lost its Workspace continuation");
+  await expectOrdinaryWorkspaceSandboxV1(
+    page,
+    continuation,
+    bashText,
+    ordinaryWorkspaceBashRoundTripPathV1,
+  );
+
+  await page.getByRole("button", { name: "Creator home" }).click();
+  await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
+  await page.reload();
+  await expectProgramStorageReadyV1(page);
+  await initializePiTestV1(page, "sillyos-browser-pi-bash-sentinel-key");
+  await openRecentTranslationProgramV1(page, {
+    programId,
+    revision: 2,
+    status: "Preview",
+  });
+  const reopened = page.getByRole("main", { name: "SillyOS program workspace" });
+  await expect(reopened).toHaveAttribute("data-execution-workspace-state", "open");
+  await expect(reopened).toHaveAttribute("data-execution-workspace-generation", "3");
+  expect(await readWorkspaceContinuationV1(page, programId)).toEqual(continuation);
+  await expectOrdinaryWorkspaceSandboxV1(
+    page,
+    continuation,
+    bashText,
+    ordinaryWorkspaceBashRoundTripPathV1,
+  );
 });
 
 test("@s1a-ordinary two pages fence Sandbox ownership and the successor cold-opens the exact released checkpoint", async ({ durableProgramPage: page }) => {

@@ -43,18 +43,24 @@ if (filesV1.some((file) => file.endsWith(".map"))) {
 
 const bootstrapPatternV1 = /^assets\/workspace-sandbox-[A-Za-z0-9_-]+\.js$/u;
 const hostWorkerPatternV1 = /^assets\/browser-workspace-sandbox-host\.worker-[A-Za-z0-9_-]+\.js$/u;
+const shellPatternV1 = /^assets\/browser-workspace-just-bash-runtime-[A-Za-z0-9_-]+\.js$/u;
 const bootstrapFilesV1 = filesV1.filter((file) => bootstrapPatternV1.test(file));
 const hostWorkerFilesV1 = filesV1.filter((file) => hostWorkerPatternV1.test(file));
+const shellFilesV1 = filesV1.filter((file) => shellPatternV1.test(file));
 if (bootstrapFilesV1.length !== 1) {
   failV1(`expected one bootstrap JavaScript file, found ${bootstrapFilesV1.length}`);
 }
 if (hostWorkerFilesV1.length !== 1) {
   failV1(`expected one Host Worker JavaScript file, found ${hostWorkerFilesV1.length}`);
 }
+if (shellFilesV1.length !== 1) {
+  failV1(`expected one bounded shell JavaScript file, found ${shellFilesV1.length}`);
+}
 
 const bootstrapFileV1 = bootstrapFilesV1[0];
 const hostWorkerFileV1 = hostWorkerFilesV1[0];
-if (bootstrapFileV1 === undefined || hostWorkerFileV1 === undefined) {
+const shellFileV1 = shellFilesV1[0];
+if (bootstrapFileV1 === undefined || hostWorkerFileV1 === undefined || shellFileV1 === undefined) {
   failV1("fixed JavaScript artifacts are unavailable");
 }
 const expectedFilesV1 = [
@@ -62,6 +68,7 @@ const expectedFilesV1 = [
   "workspace-sandbox.html",
   bootstrapFileV1,
   hostWorkerFileV1,
+  shellFileV1,
 ].sort();
 if (
   filesV1.length !== expectedFilesV1.length ||
@@ -77,6 +84,9 @@ const bootstrapJavaScriptV1 = await Deno.readTextFile(
 );
 const hostWorkerJavaScriptV1 = await Deno.readTextFile(
   new URL(hostWorkerFileV1, buildDirectoryV1),
+);
+const shellJavaScriptV1 = await Deno.readTextFile(
+  new URL(shellFileV1, buildDirectoryV1),
 );
 const productionBuildIdentityPatternV1 =
   /sillyos\.workspace-sandbox\.(?:[0-9a-f]{40}|[0-9a-f]{64})(?:-dirty)?/gu;
@@ -138,6 +148,41 @@ if (scriptSourceV1 !== `/${bootstrapFileV1}`) {
 if (!bootstrapJavaScriptV1.includes(`/${hostWorkerFileV1}`)) {
   failV1("bootstrap artifact does not bind the one fixed Host Worker artifact");
 }
+const shellFileNameV1 = shellFileV1.slice(shellFileV1.lastIndexOf("/") + 1);
+const exactShellImportV1 = `import(\`./${shellFileNameV1}\`)`;
+if (
+  (hostWorkerJavaScriptV1.match(/\bimport\s*\(/gu)?.length ?? 0) !== 1 ||
+  !hostWorkerJavaScriptV1.includes(exactShellImportV1)
+) {
+  failV1("Host Worker does not bind exactly one build-known lazy shell artifact");
+}
+if (/\bimport\s*\(/u.test(bootstrapJavaScriptV1)) {
+  failV1("bootstrap artifact contains dynamic script loading");
+}
+if (bootstrapJavaScriptV1.includes(shellFileNameV1)) {
+  failV1("bootstrap artifact reaches the shell without the Host Worker");
+}
+for (
+  const [file, source] of [
+    [bootstrapFileV1, bootstrapJavaScriptV1],
+    [hostWorkerFileV1, hostWorkerJavaScriptV1],
+    [shellFileV1, shellJavaScriptV1],
+  ] as const
+) {
+  if (/\bimportScripts\s*\(/u.test(source)) {
+    failV1(`${file} contains classic Worker script loading`);
+  }
+}
+
+if (bootstrapJavaScriptV1.length > 16 * 1_024) {
+  failV1("bootstrap JavaScript exceeds its 16 KiB raw ceiling");
+}
+if (hostWorkerJavaScriptV1.length > 160 * 1_024) {
+  failV1("Host Worker JavaScript exceeds its 160 KiB raw ceiling");
+}
+if (shellJavaScriptV1.length > 1_500 * 1_024) {
+  failV1("bounded shell JavaScript exceeds its 1,500 KiB raw ceiling");
+}
 
 const expectedHeadersV1 = [
   "/*",
@@ -156,7 +201,6 @@ const JavaScriptArtifactsV1 = [
 ] as const;
 const forbiddenRuntimeMarkersV1 = [
   ["source map", /sourceMappingURL|sourceURL/iu],
-  ["dynamic script loading", /\bimportScripts\s*\(|\bimport\s*\(/iu],
   ["dynamic evaluation", /\beval\s*\(|\bnew\s+Function\s*\(/iu],
   [
     "test or qualification code",
@@ -165,10 +209,6 @@ const forbiddenRuntimeMarkersV1 = [
   ["Pi code", /@earendil-works\/pi|\bpi-(?:agent|ai|coding)\b|browser-pi|pi_provider/iu],
   ["Provider code", /\bprovider\b/iu],
   ["React code", /\breact(?:-dom)?\b|jsx-runtime/iu],
-  [
-    "just-bash code",
-    /\bjust-bash\b|bash: .*command not found|alias expansion depth limit exceeded|stdin size limit exceeded|BashTransformPipeline|__just_bash_/iu,
-  ],
 ] as const;
 for (const [file, source] of JavaScriptArtifactsV1) {
   for (const [label, pattern] of forbiddenRuntimeMarkersV1) {
@@ -176,6 +216,44 @@ for (const [file, source] of JavaScriptArtifactsV1) {
   }
 }
 
+const requiredShellMarkersV1 = [
+  "browser_local_just_bash",
+  "alias expansion depth limit exceeded",
+  "stdin size limit exceeded",
+] as const;
+for (const marker of requiredShellMarkersV1) {
+  if (!shellJavaScriptV1.includes(marker)) {
+    failV1(`${shellFileV1} omits required bounded shell marker ${marker}`);
+  }
+}
+const forbiddenShellMarkersV1 = [
+  ["source map", /sourceMappingURL|sourceURL/iu],
+  [
+    "test or qualification code",
+    /\bvitest\b|@testing-library|\bplaywright\b|__tests__|\.test\.[mc]?[jt]s|qualification/iu,
+  ],
+  ["Pi code", /@earendil-works\/pi|\bpi-(?:agent|ai|coding)\b|browser-pi|pi_provider/iu],
+  ["React code", /\breact(?:-dom)?\b|jsx-runtime/iu],
+  ["Wasm asset reference", /\.wasm\b/iu],
+  [
+    "optional Python or QuickJS runtime",
+    /quickjs-emscripten|loadQuickJS|vendor\/cpython|pythonWasm|sql-wasm/iu,
+  ],
+  [
+    "Browser-externalized Node module",
+    /__vite-browser-external|browser-external:|\b(?:require|import)\s*\(\s*["'`]node:|\bfrom\s*["'`]node:|\bimport\s*["'`]node:/iu,
+  ],
+  ["nested Worker runtime", /\bnew\s+Worker\s*\(/u],
+  [
+    "executable WebAssembly runtime",
+    /\bWebAssembly\s*\.\s*(?:compile(?:Streaming)?|instantiate(?:Streaming)?|Module|Instance)\b/u,
+  ],
+  ["dynamic Function construction", /\bnew\s+Function\s*\(/iu],
+] as const;
+for (const [label, pattern] of forbiddenShellMarkersV1) {
+  if (pattern.test(shellJavaScriptV1)) failV1(`${shellFileV1} contains ${label}`);
+}
+
 console.log(
-  `SillyOS Browser Workspace Sandbox build boundary passed (${bootstrapBuildIdentityV1}).`,
+  `SillyOS Browser Workspace Sandbox build boundary passed (${bootstrapBuildIdentityV1}; shell ${shellFileV1}).`,
 );

@@ -2,14 +2,19 @@
 
 # SillyOS workspace harness and WASM research
 
-Status: Browser-first research record, reordered 2026-08-27. All three P3c-B0
-checkpoints are delivered and closed: the Workspace Host Worker and OPFS own
-the native Pi `read`/`write` bytes, recovery/contention/storage policy and the
-automated Chromium/persistent-WebKit `20 MiB+` scale gate pass, and the exact
-head downloads as a bounded canonical ZIP. P3a-B1 checkpoint 1 subsequently
-delivered Pi's native `edit` over that same volume and passed independent
-review. P3a-B1 checkpoint 2 subsequently delivered exact just-bash 3.4.2 as
-the bounded Browser Local shell facade and closed P3a. P3c-B1 checkpoint 1 then
+Status: Browser-first research record, reordered 2026-08-29 after the security
+cutover. All three P3c-B0 checkpoints are delivered and closed: the Workspace
+Host Worker and OPFS own the native Pi `read`/`write` bytes,
+recovery/contention/storage policy and the automated
+Chromium/persistent-WebKit `20 MiB+` scale gate pass, and the exact head
+downloads as a bounded canonical ZIP. The old P3a-B1 `edit` and just-bash
+results remain same-origin historical evidence only. S1a has since made the
+independent Sandbox origin the only ordinary byte authority. S1b-1 separately
+re-qualified fixed Pi's native `edit` there, and S1b-2 then qualified fixed
+Pi's native `bash` through the bounded just-bash facade for the deterministic
+fixture only. Their exact generation-3 bytes and cold reopen pass in Chromium
+and persistent-profile WebKit. Both checkpoints are closed locally; no
+successor is active. P3c-B1 checkpoint 1 then
 delivered the Host-owned immutable snapshot candidate and cold-reopen contract,
 and checkpoint 2's C2a Host publication lifecycle has also delivered. C2b
 Repository V3/physical V4 and C2c's shared Repository/Host Authority then closed
@@ -56,13 +61,11 @@ passes the Chromium, WebKit, and Deno Desktop corpus.
 ```text
 Browser target
   React UI <- admitted Agent events/actions -> Agent DedicatedWorker
-     pi-agent-core/pi-ai -> Pi native read/write/edit
-                         -> delivered bounded bash checkpoint
+     pi-agent-core/pi-ai -> qualified Pi native read/write/edit/bash
                          -> stable Program-scoped ExecutionEnv
-                              -> typed environment RPC -> Workspace Host Worker
-                                                           FileSystem -> volume/OPFS
-                                                           Shell.exec -> just-bash 3.4.2
-                                                             -> same volume
+                              -> typed environment RPC -> separate-origin Sandbox Host Worker
+                                                           FileSystem -> Sandbox volume/OPFS
+                                                           Shell.exec -> bounded just-bash facade
 
 Deno Desktop target
   React UI <- admitted Agent events/actions -> private companion route
@@ -74,12 +77,14 @@ BYO Sandbox target
   Agent owner -> admitted environment RPC -> remote filesystem/shell provider
 ```
 
-P3a-B0 co-locates its disposable volume with the Agent Worker. P3c-B0 moves the
-proved `read`/`write` byte authority into the Workspace Host Worker and OPFS
-before just-bash is introduced. Delivered P3a-B1 checkpoint 2 co-locates it
-with that owner. A dedicated just-bash Worker is not required;
-only a later non-cooperative custom or Wasm command needs a separately
-terminable Worker.
+P3a-B0 co-located its disposable volume with the Agent Worker. P3c-B0 later
+moved the proved `read`/`write` byte authority into the legacy Workspace Host
+Worker and OPFS. S1a has now clean-replaced that owner with the separate-origin
+Sandbox Host and deleted the same-origin product path. S1b-1 reuses the
+transferred filesystem primitives for native `edit`; S1b-2 proved that the
+bounded just-bash facade can remain as one lazy build-known module in that Host
+graph. Any non-cooperative custom, Python, QuickJS, or Wasm command requires a
+separately terminable execution owner before a hard-stop claim.
 
 SillyMaker owns only the React GUI and interaction behavior. Pi owns the Agent
 loop, providers, session semantics, model-visible tool definitions/calls,
@@ -350,6 +355,70 @@ exact workspace generation for Desktop or a supported public prompt/context
 route. Neither creates a SillyOS skill loader. Executable Pi extensions remain
 trusted, build-known dependencies outside the Agent-writable volume; loading
 guest-authored extension code into Host Pi would escape the workspace boundary.
+
+## Current just-bash S1b-2 feasibility
+
+The repository already contains a useful bounded facade; S1b-2 is not a request
+to design another shell. Exact `just-bash@3.4.2` exposes a Browser entry with
+`Bash`, `InMemoryFs`, and `MountableFs`, accepts an explicit filesystem,
+closed command list, execution limits, `AbortSignal`, optional custom commands,
+and network configuration. Network is off when not configured. Its Python and
+JavaScript runtimes are separately opt-in, so S1b-2 keeps both false.
+
+`browser-workspace-just-bash-runtime.ts` already pins a small command set and
+bounds filesystem support bytes, command text, reads, aggregate output, command
+count, loop iterations, time, mutation attempts, and changed paths. It mounts
+the persistent `/workspace` projection under an ephemeral support filesystem
+and maps resulting byte changes back to the product volume. It does not own the
+volume or redefine Pi's `bash` schema.
+
+The Sandbox production build now emits that module as one build-known lazy
+shell chunk, leaving filesystem-only startup in the small Host Worker. Its
+exact five-file artifact checker rejects extra chunks/assets, Node externals,
+nested Workers, executable WebAssembly, or emitted Python/QuickJS/CPython
+runtimes. The install/lock graph still includes optional/vendor dependencies,
+and the single just-bash Browser bundle still contains unregistered curl code.
+Network denial therefore relies on the exact 25-command registry, no
+`fetch`/network injection, and Sandbox `connect-src 'none'`, not on a claim
+that unused code or dependencies are absent. Cooperative cancellation at shell
+statement boundaries is also not descendant/process-tree termination; the
+product reports only the behavior it observes.
+
+The first shell proof is limited to Pi native `bash` using the existing closed
+commands, exact cwd/env, network-off, timeout/abort, terminal aggregate and
+overflow behavior, bounded multi-path mutation receipts, and cold reopen on the
+same Sandbox volume. It does not add Python, QuickJS, Git, tar, package fetch,
+PTYs, jobs, process trees, Linux, or a container claim.
+
+## Python one-shot follow-on (researched, inactive)
+
+Python should eventually appear as one build-known `python3` command under
+Pi's native `bash`, not as a second SillyOS Agent tool. A private runtime request
+would bind one exact Workspace generation, a `/workspace` script path, bounded
+argv/stdin/cwd/environment, `inheritEnv: false`, one Host deadline, network off,
+and bounded aggregate output. Its durable effects would still settle through
+the existing `tool: "bash"` receipt. A fresh per-invocation Worker should stage
+or journal changes and let the Host commit only an admitted current diff after
+successful completion; termination must leave no late OPFS write.
+
+The exact just-bash installation already contains private CPython 3.13.2
+Emscripten artifacts: approximately `108,476` bytes of glue, `5,974,624` bytes
+of Wasm, and a `4,303,799`-byte standard-library archive. They are not a public
+just-bash Browser API. Its Browser entry reports Python unavailable, while the
+Node implementation depends on Node Worker/SAB filesystem machinery. The
+current Sandbox build correctly emits none of these assets. Presence in the
+install/lock graph therefore supports only a disposable boot experiment, not a
+shipping dependency or Browser capability claim.
+
+The first falsification spike must remain outside Pi, UI, and production
+protocols. It may try one fixed small script and bounded staged VFS in a fresh
+Sandbox-origin Worker, then prove cwd/argv/stdin/env, UTF-8 and binary changes,
+hard termination of an infinite loop, no late mutation, network/host-JS/OPFS
+denial, exact asset bytes, and Chromium/WebKit startup. Stop if either engine
+needs Node builtins, general fetch/CDN, ambient host JavaScript, an OPFS handle,
+unbounded whole-volume copying, or cannot terminate without late effects. A
+successful private-artifact boot would only justify comparing a reproducibly
+owned fixed CPython build with an independently bounded Pyodide control.
 
 ## Why Emscripten is a payload choice, not the harness contract
 
@@ -766,32 +835,38 @@ sandbox claim; the mere use of WebAssembly does not.
 
 ## Research and implementation order
 
-1. Treat delivered P1-B, P2-B1, P3a-B0, and P3c-B0 as prerequisites: one Browser Pi
-   Agent Worker, typed product RPC, bounded durable whole-run receipt, and one
-   native `write`/`read` workspace with exact mutation truth, followed by the
-   persistent Host/OPFS authority, cold reopen, scale gate, and bounded ZIP.
-2. **P3a-B1 checkpoint 1 delivered on 2026-08-27.** Pi 0.84.3's native
-   `edit` was bound to the same persistent volume by adding only addressed file
-   metadata, bounded UTF-8 text read, edit call scope, and exact mutation receipts. Keep
-   the existing `256 KiB` native Pi whole-file ceiling. Do not add a shell,
-   just-bash dependency, snapshot publication, import/restore, Wasm, Git,
-   provider selection, BYO Sandbox, Desktop adapter, or engine API.
-3. Focused and independent checkpoint-1 review passed. Its acceptance does not
-   close P3a-B1 or automatically start a shell.
-4. **P3a-B1 checkpoint 2 delivered and closed P3a on 2026-08-27.** Its
-   corrected contract fixes the exact just-bash Browser build, command and
-   resource bounds, one Host-owned timeout across path-view construction and
-   execution, Pi overflow-log writes, terminal-aggregate output, and multi-path
-   mutation semantics while binding native Pi `bash` to the same persistent
-   volume. just-bash remains a shell implementation, not the storage owner,
-   Agent/tool/plugin authority, Linux, or a sandbox.
-5. If separately activated, P3b may run the Wasm, agent-sandbox, Wasmer/WASIX,
-   BrowserPod, CoWasm, full-Linux, and WebContainers characterization corpus.
-   Those results choose only broader command/process adapters; they do not
-   reopen the already-settled Browser OPFS ownership.
-6. P3c-B1 accepted snapshot publication is delivered. Later P3c slices may add
-   import/restore, admitted artifacts, Desktop parity, or a qualified BYO
-   Sandbox one at a time. None is folded into B0 retroactively.
+1. Treat delivered P1-B, P2-B1, P3c, S0, and S1a as prerequisites: one Browser
+   Pi Agent Worker, typed product RPC, bounded durable whole-run receipt,
+   independent-origin Sandbox/OPFS authority, exact native `write`/`read`, cold
+   reopen, scale, cancellation, contention, and bounded ZIP evidence. Old P3a
+   edit/bash results are characterization inputs, not current authority.
+2. **S1b-1 native edit closed locally on 2026-08-29.** Fixed Pi 0.84.3's native
+   `edit` reuses the same stable `ExecutionEnv`, transferred filesystem
+   primitives, bounded UTF-8 read and exact mutation receipt. The deterministic
+   Agent executes `write -> edit -> read -> proposal`; focused tests plus
+   Chromium and persistent-profile WebKit prove generation 3, exact final
+   bytes, secret absence, and cold reopen. Keep the `256 KiB` native Pi
+   whole-file ceiling. Live Provider still receives no workspace tools.
+3. **S1b-2 bounded shell closed locally on 2026-08-29.** Fixed Pi 0.84.3's
+   native `bash` reaches the existing network-off 25-command facade only from
+   the deterministic fixture. The lazy build graph, deadline/abort, terminal
+   aggregate/overflow, multi-path mutation ceilings, receipt ordering, exact
+   bytes and generation-3 cold reopen pass their focused and Chromium/WebKit
+   gates. No Python, QuickJS, Git, tar, PTY, process-tree, Linux, or container
+   claim enters this checkpoint.
+4. A separately accepted checkpoint may now give `pi_provider` the
+   same qualified tool list and correct its prompt. One deterministic/faux
+   Provider proof owns exact tool names/schemas and currentness; a real model is
+   additional qualification, not an authorization boundary.
+5. Python is the first broader runtime candidate because it supplies the most
+   useful one-shot scripting denominator. It must run in a separately
+   terminable owner against only the bound VFS, with network off and explicit
+   CPU/memory/time/output limits. QuickJS follows independently. Neither is
+   implied by just-bash package availability.
+6. Only after those smaller profiles may the Wasm, agent-sandbox,
+   Wasmer/WASIX, BrowserPod, CoWasm, full-Linux, or WebContainers corpus choose
+   a broader command/process adapter. BYO Sandbox, import/restore, Desktop
+   parity, and editor staging remain separate admitted capabilities.
 
 This order does not start a public tool ABI, package manager, Linux distribution,
 container orchestrator, untrusted-code sandbox, remote build service, or Pi

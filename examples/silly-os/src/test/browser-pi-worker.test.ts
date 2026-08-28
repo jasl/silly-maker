@@ -27,7 +27,9 @@ import {
   type CreatorAgentPortV1,
 } from "../agent/creator-agent-port.ts";
 import {
+  deterministicBashProbePrefixV1,
   deterministicCancellationHoldPrefixV1,
+  deterministicEditProbePrefixV1,
   deterministicPersistenceReadPrefixV1,
 } from "../agent/browser-pi-runtime-bridge.js";
 import type {
@@ -1218,9 +1220,9 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
 }
 
 describe("SillyOS Browser Pi Worker runtime", () => {
-  it("admits only S1a read/write for the deterministic Sandbox fixture", () => {
+  it("admits only the qualified native file tools for the deterministic Sandbox fixture", () => {
     const calls: string[] = [];
-    const factories = ["read", "write"].map((tool) => () => {
+    const factories = ["read", "write", "edit", "bash"].map((tool) => () => {
       calls.push(tool);
       return tool;
     });
@@ -1230,8 +1232,10 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     expect(createBrowserPiWorkspaceToolsForRuntimeV1("deterministic_test", factories)).toEqual([
       "read",
       "write",
+      "edit",
+      "bash",
     ]);
-    expect(calls).toEqual(["read", "write"]);
+    expect(calls).toEqual(["read", "write", "edit", "bash"]);
   });
 
   it("keeps the admitted Browser Pi identity equal to exact product dependencies", async () => {
@@ -2048,6 +2052,237 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       { path: roundTripArtifactRelativePathV1, offset: 0, length: roundTripByteLength },
     ]);
     expect(JSON.stringify(messages)).not.toContain("sentinel-browser-key");
+    runtime.dispose();
+    await workspaceAuthority.dispose();
+  });
+
+  it("routes the pinned native Pi edit tool through the independent Workspace environment", async () => {
+    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const workspaceAuthority = testWorkspaceAuthorityV1();
+    const runtime = createBrowserPiWorkerRuntimeV1({
+      postMessage: (message) => messages.push(structuredClone(message)),
+    });
+    runtime.receive({
+      revision: 1,
+      kind: "configure",
+      requestId: 1,
+      runtime: "deterministic_test",
+      selection: null,
+      credential: { kind: "api_key", value: "sentinel-edit-key" },
+    });
+    runtime.receive({ revision: 1, kind: "test_connection", requestId: 99 });
+    const execution = await attachRuntimeWorkspaceV1(runtime, messages, workspaceAuthority);
+    runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "rpc_response" && message.requestId === 3 && message.ok
+      )
+    );
+
+    const editText = `${deterministicEditProbePrefixV1}preserve this exact final text.`;
+    runtime.receive(rpcRequestV1(4, {
+      revision: 1,
+      requestId: 2,
+      method: "submit",
+      params: {
+        sessionId: "sillyos.session.1",
+        text: serializeCreatorAgentSubmitV1({
+          ...submitV1,
+          proposalId: "workspace.preview.1.proposal.edit",
+          text: editText,
+        }),
+      },
+    }, execution));
+
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "rpc_record" &&
+        ["run_completed", "run_failed"].includes(
+          String((message.record as Readonly<Record<string, unknown>>).kind),
+        )
+      )
+    );
+    const editTerminal = messages.findLast((message) =>
+      message.kind === "rpc_record" &&
+      ["run_completed", "run_failed"].includes(
+        String((message.record as Readonly<Record<string, unknown>>).kind),
+      )
+    );
+    expect(editTerminal).toMatchObject({
+      kind: "rpc_record",
+      record: { kind: "run_completed" },
+    });
+
+    const receipts = messages.flatMap((message) =>
+      message.kind === "workspace_receipt" ? [message.receipt] : []
+    );
+    expect(receipts).toHaveLength(2);
+    expect(receipts[0]).toMatchObject({
+      sequence: 1,
+      runId: "sillyos.run.1",
+      tool: "write",
+      expectedGeneration: 1,
+      baseGeneration: 1,
+      resultingGeneration: 2,
+      outcome: "succeeded",
+      effect: "changed",
+      changedPaths: [roundTripArtifactRelativePathV1],
+    });
+    expect(receipts[1]).toMatchObject({
+      sequence: 2,
+      runId: "sillyos.run.1",
+      toolCallId: "sillyos-edit-1",
+      tool: "edit",
+      expectedGeneration: 1,
+      baseGeneration: 2,
+      resultingGeneration: 3,
+      outcome: "succeeded",
+      effect: "changed",
+      changedPaths: [roundTripArtifactRelativePathV1],
+    });
+    const marker = "SillyOS native edit checkpoint pending:\n";
+    const markedBytes = new TextEncoder().encode(marker + editText).byteLength;
+    const finalBytes = new TextEncoder().encode(editText).byteLength;
+    expect(workspaceAuthority.sourceReadRequests).toEqual([
+      {
+        path: roundTripArtifactRelativePathV1,
+        offset: 0,
+        length: markedBytes,
+        byteLength: markedBytes,
+      },
+      {
+        path: roundTripArtifactRelativePathV1,
+        offset: 0,
+        length: finalBytes,
+        byteLength: finalBytes,
+      },
+    ]);
+    expect(JSON.stringify(messages)).not.toContain("sentinel-edit-key");
+    runtime.dispose();
+    await workspaceAuthority.dispose();
+  });
+
+  it("routes the pinned native Pi bash tool through the bounded Workspace shell environment", async () => {
+    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const workspaceAuthority = testWorkspaceAuthorityV1();
+    const runtime = createBrowserPiWorkerRuntimeV1({
+      postMessage: (message) => messages.push(structuredClone(message)),
+    });
+    runtime.receive({
+      revision: 1,
+      kind: "configure",
+      requestId: 1,
+      runtime: "deterministic_test",
+      selection: null,
+      credential: { kind: "api_key", value: "sentinel-bash-key" },
+    });
+    runtime.receive({ revision: 1, kind: "test_connection", requestId: 99 });
+    const execution = await attachRuntimeWorkspaceV1(runtime, messages, workspaceAuthority);
+    runtime.receive(rpcRequestV1(3, { revision: 1, requestId: 1, method: "start" }));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "rpc_response" && message.requestId === 3 && message.ok
+      )
+    );
+
+    const bashText = `${deterministicBashProbePrefixV1}write and search one exact file.`;
+    runtime.receive(rpcRequestV1(4, {
+      revision: 1,
+      requestId: 2,
+      method: "submit",
+      params: {
+        sessionId: "sillyos.session.1",
+        text: serializeCreatorAgentSubmitV1({
+          ...submitV1,
+          proposalId: "workspace.preview.1.proposal.bash",
+          text: bashText,
+        }),
+      },
+    }, execution));
+
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "rpc_record" &&
+        ["run_completed", "run_failed"].includes(
+          String((message.record as Readonly<Record<string, unknown>>).kind),
+        )
+      )
+    );
+    const terminal = messages.findLast((message) =>
+      message.kind === "rpc_record" &&
+      ["run_completed", "run_failed"].includes(
+        String((message.record as Readonly<Record<string, unknown>>).kind),
+      )
+    );
+    if (
+      terminal?.kind !== "rpc_record" ||
+      (terminal.record as Readonly<Record<string, unknown>>).kind !== "run_completed"
+    ) {
+      throw new Error(JSON.stringify({
+        terminal,
+        receipts: messages.flatMap((message) =>
+          message.kind === "workspace_receipt" ? [message.receipt] : []
+        ),
+        sourceReadRequests: workspaceAuthority.sourceReadRequests,
+      }));
+    }
+    expect(terminal).toMatchObject({
+      kind: "rpc_record",
+      record: { kind: "run_completed" },
+    });
+
+    const receipts = messages.flatMap((message) =>
+      message.kind === "workspace_receipt" ? [message.receipt] : []
+    );
+    expect(receipts).toHaveLength(2);
+    expect(receipts[0]).toMatchObject({
+      sequence: 1,
+      runId: "sillyos.run.1",
+      toolCallId: "sillyos-bash-setup-1",
+      tool: "write",
+      expectedGeneration: 1,
+      baseGeneration: 1,
+      resultingGeneration: 2,
+      outcome: "succeeded",
+      effect: "changed",
+      changedPaths: [roundTripArtifactRelativePathV1],
+    });
+    expect(receipts[1]).toMatchObject({
+      sequence: 2,
+      runId: "sillyos.run.1",
+      toolCallId: "sillyos-bash-1",
+      tool: "bash",
+      expectedGeneration: 1,
+      baseGeneration: 2,
+      resultingGeneration: 3,
+      outcome: "succeeded",
+      effect: "changed",
+      changedPaths: [".sillyos/p3a-bash-round-trip.txt"],
+    });
+    const terminalIndex = messages.indexOf(terminal);
+    const finalReceiptIndex = messages.findLastIndex((message) =>
+      message.kind === "workspace_receipt"
+    );
+    expect(finalReceiptIndex).toBeGreaterThanOrEqual(0);
+    expect(finalReceiptIndex).toBeLessThan(terminalIndex);
+    const bashRoundTripBytes = new TextEncoder().encode("SillyOS native bash checkpoint\n")
+      .byteLength;
+    const bashSetupBytes = new TextEncoder().encode(bashText).byteLength;
+    expect(workspaceAuthority.sourceReadRequests).toEqual([
+      {
+        path: roundTripArtifactRelativePathV1,
+        offset: 0,
+        length: bashSetupBytes,
+        byteLength: bashSetupBytes,
+      },
+      {
+        path: ".sillyos/p3a-bash-round-trip.txt",
+        offset: 0,
+        length: bashRoundTripBytes,
+        byteLength: bashRoundTripBytes,
+      },
+    ]);
+    expect(JSON.stringify(messages)).not.toContain("sentinel-bash-key");
     runtime.dispose();
     await workspaceAuthority.dispose();
   });

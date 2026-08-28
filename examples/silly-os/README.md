@@ -101,7 +101,8 @@ SillyOS 控制面只执行产品随附、由 lockfile/build identity 固定的�
 origin 中执行；生成 HTML 也不得注入控制面 DOM。Pi 仍是唯一 Agent、Provider、模型、工具
 schema 和插件来源，但 live Provider 目前只获得受限 proposal tool，不获得
 `read`/`write`/`edit`/`bash` 实现。S1a-1 没有放宽这一点：只有产品固定的 deterministic
-fixture 通过独立 origin Sandbox 使用 Pi 原生 `write`/`read`。
+fixture 通过独立 origin Sandbox 使用 Pi 原生 `write`/`read`；S1b-1 的显式测试路径现已
+另外准入 Pi 原生 `edit`。live Provider 仍没有 workspace tool。
 
 产品数据、凭据与 workspace bytes 分属 Product Repository、未来的 Credential Vault 和
 Workspace Volume Repository。S1a-1 已在 source 中把普通 Program 的唯一 Authority 切到独立
@@ -121,10 +122,21 @@ durable head 则持有连续 generation。关闭后完整刷新页面会用新�
 同一字节与 generation；mutation receipt 仍是 session-local，不会伪装成 Pi 或 Chat 持久化。
 
 P3a 的历史证据曾把固定 Pi 的四个原生 workspace 工具接到旧 authority：`read`、`write`、
-`edit` 与 `bash`。它不自动准入新 Sandbox。S1a-1 的 `?agent=pi-test` 只注册 native
-`write -> read -> proposal`；`edit` 与 `bash` 要分别等待 S1b，live Provider 仍不获得任何
-workspace tool。旧 just-bash 结果只是历史证据，不代表当前产品已有 Linux、容器、安全 shell、
-Git、Python/QuickJS、网络或包管理器。
+`edit` 与 `bash`。它不自动准入新 Sandbox。S1a-1 的 `?agent=pi-test` 保留普通 native
+`write -> read -> proposal`；S1b-1 已用显式 probe 重新证明 native
+`write -> edit -> read -> proposal`，精确最终字节、generation 3 和冷重开在 Chromium/WebKit
+通过。S1b-2 又只为 deterministic fixture 准入 Pi 0.84.3 原生 `createBashTool`：独立-origin
+Sandbox 内的 just-bash 3.4.2 仅注册 25 个命令，不注入 `fetch`/network，并受
+`connect-src 'none'` 约束；`@s1b-bash` 在 Chromium/WebKit 各 1/1，通过 generation 3
+冷重开。live Provider 仍不获得任何 workspace tool。它不代表 Linux、容器、Git、
+Python/QuickJS/Wasm、网络或包管理器。
+
+当前 Sandbox production artifact 精确为 5 个文件：`_headers`、HTML、bootstrap、Host Worker
+和一个 build-known lazy shell chunk。观测到的 raw/gzip 大小分别为 bootstrap
+`5,850 / 2,204`、Host `103,398 / 23,751`、shell `1,291,658 / 353,606` bytes；没有额外输出
+Wasm、QuickJS、CPython 或 Node external runtime asset。但 install/lock graph 仍含 optional/vendor
+依赖，shell bundle 也包含未注册的 `curl` 实现，因此安全依据是命令白名单、无网络注入和 CSP，
+不是“依赖或未使用代码不存在”。
 
 checkpoint 2 已在 Chromium 与持久 WebKit 中自动写入并冷重开 `1,000 × 5 KiB` 文件和一个
 `16 MiB` 文件，共 `1,001` 个文件、`21,897,216` 字节，最终 generation 为 `1002`；
@@ -200,13 +212,16 @@ Report-Only 诊断，因此 enforcement 没有被提升；没有页面错误、�
 typed control/environment port、20 MiB OPFS generation-82 冷重开与同 hash 复核、81 文件
 snapshot、Sandbox 内触发的逐字节 ZIP 下载、控制-origin OPFS 不可见，以及
 `connect-src 'none'` 在请求发出前拒绝网络。该单独构建的 artifact 不包含测试 Worker、Pi、
-Provider、React 或 just-bash，也没有 production deployment receipt。S1a-1 当前已完成 source
+Provider、React 或 just-bash，也没有 production deployment receipt。S1a-1 已完成 source
 cutover：资格 transport 是普通产品唯一 read/write Authority，旧同源执行 owner 已删除，physical
 Product Repository V5 clean-reset preview V4，Sandbox bootstrap/Host/control artifact 通过同一
 build identity fail-closed 组合，下载 URL 也不离开 Sandbox。local dev 的 control/sandbox 文档都
 启用严格 CSP 并关闭 HMR。普通 `@s1a-ordinary` Creator/Program journey 已在 Chromium 4/4、
-持久 WebKit 4/4 通过，S1a-1 因而在本地关闭；ordinary live Provider 保持 proposal-only，绝不
-回退同源 Worker。
+持久 WebKit 4/4 通过，S1a-1 因而在本地关闭。S1b-1 的独立 native edit case 与 S1b-2 的
+bounded bash case 又分别在 Chromium 1/1、持久 WebKit 1/1 通过并在本地关闭；ordinary live
+Provider 保持 proposal-only，绝不回退同源 Worker。cwd/env、非零退出、timeout/abort、
+aggregate overflow、128 次 mutation attempt、64 个 changed path 以及
+receipt-before-terminal 已有 focused unit/Host 证据。
 BYO Sandbox、Wasm/更完整执行环境和 import 仍未激活。Desktop
 底层仍计划由私有 companion 启动产品打包的 Pi coding-agent，但当前没有激活。
 
@@ -222,8 +237,10 @@ reload。单独的 Chromium/WebKit qualification 各 3/3
 防截断和视觉验收矩阵见 [DESIGN.md](./DESIGN.md)。从真实 Pi typed RPC、产品数据库、
 Pi 工具到 workspace runtime 的转发、Pi 能力组合、OpenUI 到 SillyMaker 组件映射，
 再到翻译/写作/角色扮演产品的分阶段路径见 [PLAN.md](./PLAN.md)。为每个 workspace
-Agent 提供熟悉的 Linux-tools harness 和单一工作卷仍是研究门；WASM 是可选执行机制，
-不是产品契约。候选路线与统一的 Browser/Deno 验收语料见
+Agent 提供熟悉的受限工具环境和单一工作卷仍是研究门；WASM 是可选执行机制，不是产品契约。
+S1b-2 已在 2026-08-29 本地关闭，但 live Provider tools、Python/QuickJS/Wasm、BYO Sandbox 和
+editor proof 均未激活；后续只能从另行接受的 S1b-3 或 editor headless proof 中选择一个开始。
+候选路线与统一的 Browser/Deno 验收语料见
 [WASM-WORKSPACE-RESEARCH.md](./WASM-WORKSPACE-RESEARCH.md)。
 
 ## 运行
@@ -252,8 +269,11 @@ React 产品面；Desktop 是产品目标，不会另外模拟操作系统桌面
 
 要运行不访问 LLM 的 Browser Pi B0a 接线检查，在该地址追加
 `?locale=zh-CN&agent=pi-test`，输入任意可丢弃的合成测试值并初始化，再创建 Program、
-提交一次 follow-up。确定性 Pi 流程只会用原生 `write`/`read` 在独立-origin 持久 Program
-workspace 完成字节往返，再形成 proposal；它不会加载 `edit`、`bash` 或 just-bash。返回 Home、
+提交一次 follow-up。普通确定性 Pi 流程用原生 `write`/`read` 在独立-origin 持久 Program
+workspace 完成字节往返，再形成 proposal。以
+`Exercise the pinned native Pi edit tool with exact text:` 开头的显式 S1b-1 probe 会另外执行
+Pi 原生 `write -> edit -> read`。显式 S1b-2 bash probe 则只在 deterministic fixture 中调用
+Pi 原生 `createBashTool` 和 25-command just-bash facade；普通 live Provider 不会获得这些工具。返回 Home、
 等待 workspace close 完成并刷新页面后，重新初始化 Pi test 会通过新的 Sandbox frame/Host
 session 重开同一 generation 和文件。普通 URL 首次打开设置时才会启动一个无凭据 catalog
 Worker，并在得到目录后立即终止它。
