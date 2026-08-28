@@ -19,9 +19,25 @@ export const browserWorkspaceShellEnvironmentMaximumEntriesV1 = 32;
 export const browserWorkspaceShellEnvironmentMaximumUtf8BytesV1 = 8 * 1024;
 export const browserWorkspaceShellOutputMaximumUtf8BytesV1 = 256 * 1024;
 export const browserWorkspaceShellRequestedTimeoutMaximumMillisecondsV1 = 30_000;
+export const browserWorkspaceDownloadFileNameMaximumUtf8BytesV1 = 255;
 
 const identifierPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
 const shellEnvironmentKeyPatternV1 = /^[a-zA-Z_][a-zA-Z0-9_]*$/u;
+
+export function validBrowserWorkspaceDownloadFileNameV1(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0 || value === "." || value === "..") {
+    return false;
+  }
+  for (const character of value) {
+    const codePoint = character.codePointAt(0);
+    if (
+      codePoint === undefined || codePoint <= 0x1f || codePoint === 0x7f || character === "/" ||
+      character === "\\"
+    ) return false;
+  }
+  return new TextEncoder().encode(value).byteLength <=
+    browserWorkspaceDownloadFileNameMaximumUtf8BytesV1;
+}
 
 export interface BrowserWorkspaceVolumeAnchorWireV1 {
   readonly revision: 1;
@@ -70,6 +86,11 @@ export type BrowserWorkspaceHostExportInboundMessageV1 =
   }
   | {
     readonly revision: 1;
+    readonly kind: "workspace_export_start_download";
+    readonly exportId: string;
+  }
+  | {
+    readonly revision: 1;
     readonly kind: "workspace_export_release";
     readonly exportId: string;
   };
@@ -92,7 +113,14 @@ export type BrowserWorkspaceHostExportOutboundMessageV1 =
     readonly kind: "workspace_export_ready";
     readonly exportId: string;
     readonly sequence: number;
-    readonly downloadUrl: string;
+    readonly checkpointId: string;
+    readonly generation: number;
+  } & BrowserWorkspaceHostExportProgressWireV1)
+  | ({
+    readonly revision: 1;
+    readonly kind: "workspace_export_download_started";
+    readonly exportId: string;
+    readonly sequence: number;
     readonly checkpointId: string;
     readonly generation: number;
   } & BrowserWorkspaceHostExportProgressWireV1)
@@ -152,6 +180,7 @@ export type BrowserWorkspaceHostControlRequestRecordV1 =
     readonly expectedGeneration: number;
     readonly programRevision: number;
     readonly repositoryRevision: number;
+    readonly fileName: string;
   }
   | {
     readonly method: "prepare_snapshot";
@@ -668,6 +697,7 @@ export function admitBrowserWorkspaceHostControlRequestV1(
     "expectedGeneration",
     "programRevision",
     "repositoryRevision",
+    "fileName",
   ]);
   if (
     startExport !== null && startExport.method === "start_export" &&
@@ -675,7 +705,8 @@ export function admitBrowserWorkspaceHostControlRequestV1(
     identifierV1(startExport.expectedCheckpointId) &&
     positiveSafeIntegerV1(startExport.expectedGeneration) &&
     positiveSafeIntegerV1(startExport.programRevision) &&
-    positiveSafeIntegerV1(startExport.repositoryRevision)
+    positiveSafeIntegerV1(startExport.repositoryRevision) &&
+    validBrowserWorkspaceDownloadFileNameV1(startExport.fileName)
   ) {
     return {
       revision: 1,
@@ -689,6 +720,7 @@ export function admitBrowserWorkspaceHostControlRequestV1(
         expectedGeneration: startExport.expectedGeneration,
         programRevision: startExport.programRevision,
         repositoryRevision: startExport.repositoryRevision,
+        fileName: startExport.fileName,
       },
     };
   }
@@ -1284,7 +1316,9 @@ export function admitBrowserWorkspaceHostExportInboundMessageV1(
   const record = exactRecordV1(value, ["revision", "kind", "exportId"]);
   if (
     record === null || record.revision !== 1 || !identifierV1(record.exportId) ||
-    (record.kind !== "workspace_export_cancel" && record.kind !== "workspace_export_release")
+    (record.kind !== "workspace_export_cancel" &&
+      record.kind !== "workspace_export_start_download" &&
+      record.kind !== "workspace_export_release")
   ) return null;
   return record as unknown as BrowserWorkspaceHostExportInboundMessageV1;
 }
@@ -1321,7 +1355,6 @@ export function admitBrowserWorkspaceHostExportOutboundMessageV1(
     "kind",
     "exportId",
     "sequence",
-    "downloadUrl",
     "checkpointId",
     "generation",
     "filesCompleted",
@@ -1332,9 +1365,7 @@ export function admitBrowserWorkspaceHostExportOutboundMessageV1(
   if (
     ready !== null && ready.revision === 1 && ready.kind === "workspace_export_ready" &&
     identifierV1(ready.exportId) && positiveSafeIntegerV1(ready.sequence) &&
-    identifierV1(ready.checkpointId) && positiveSafeIntegerV1(ready.generation) &&
-    typeof ready.downloadUrl === "string" && ready.downloadUrl.length <= 4_096 &&
-    ready.downloadUrl.startsWith("blob:")
+    identifierV1(ready.checkpointId) && positiveSafeIntegerV1(ready.generation)
   ) {
     const admittedProgress = admitExportProgressV1(ready);
     return admittedProgress === null ? null : {
@@ -1342,9 +1373,38 @@ export function admitBrowserWorkspaceHostExportOutboundMessageV1(
       kind: "workspace_export_ready",
       exportId: ready.exportId,
       sequence: ready.sequence,
-      downloadUrl: ready.downloadUrl,
       checkpointId: ready.checkpointId,
       generation: ready.generation,
+      ...admittedProgress,
+    };
+  }
+  const downloadStarted = exactRecordV1(value, [
+    "revision",
+    "kind",
+    "exportId",
+    "sequence",
+    "checkpointId",
+    "generation",
+    "filesCompleted",
+    "filesTotal",
+    "bytesWritten",
+    "bytesTotal",
+  ]);
+  if (
+    downloadStarted !== null && downloadStarted.revision === 1 &&
+    downloadStarted.kind === "workspace_export_download_started" &&
+    identifierV1(downloadStarted.exportId) && positiveSafeIntegerV1(downloadStarted.sequence) &&
+    identifierV1(downloadStarted.checkpointId) &&
+    positiveSafeIntegerV1(downloadStarted.generation)
+  ) {
+    const admittedProgress = admitExportProgressV1(downloadStarted);
+    return admittedProgress === null ? null : {
+      revision: 1,
+      kind: "workspace_export_download_started",
+      exportId: downloadStarted.exportId,
+      sequence: downloadStarted.sequence,
+      checkpointId: downloadStarted.checkpointId,
+      generation: downloadStarted.generation,
       ...admittedProgress,
     };
   }

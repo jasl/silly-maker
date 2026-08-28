@@ -14,6 +14,7 @@ import {
   type SillyOsStaticAssetsBindingV1,
   default as cloudflareSelectedOriginWorkerV1,
 } from "../deployment/cloudflare-selected-origin-worker.ts";
+import { browserWorkspaceSandboxProductionOriginV1 } from "../workspace/browser-workspace-sandbox-origins.ts";
 
 const deploymentOriginV1 = "https://silly-os.example";
 const agentWorkerPathV1 = "/assets/browser-pi.worker-Ab12_cdE.js";
@@ -70,7 +71,7 @@ describe("SillyOS Cloudflare selected-origin Agent Worker", () => {
       "font-src": "'self'",
       "connect-src": "'self'",
       "worker-src": "'self'",
-      "frame-src": "'none'",
+      "frame-src": `${browserWorkspaceSandboxProductionOriginV1} blob:`,
       "media-src": "'self' blob:",
       "manifest-src": "'self'",
       "object-src": "'none'",
@@ -83,7 +84,20 @@ describe("SillyOS Cloudflare selected-origin Agent Worker", () => {
       createBrowserControlPlaneContentSecurityPolicyV1("https://api.example.com"),
     );
     expect(selected.get("connect-src")).toBe("'self' https://api.example.com");
+    expect(selected.get("frame-src")).toBe(
+      `${browserWorkspaceSandboxProductionOriginV1} blob:`,
+    );
     expect(selected.size).toBe(ordinary.size);
+  });
+
+  it.each([
+    ["an arbitrary HTTPS origin", "https://sandbox.example.com"],
+    ["the production origin with a path", `${browserWorkspaceSandboxProductionOriginV1}/frame`],
+    ["a wildcard", "*"],
+    ["a same-origin frame", deploymentOriginV1],
+  ])("rejects %s as Workspace Sandbox frame authority", (_label, sandboxOrigin) => {
+    expect(() => createBrowserControlPlaneContentSecurityPolicyV1(null, sandboxOrigin))
+      .toThrowError("sillyos.control_plane.workspace_sandbox_origin_invalid");
   });
 
   it("strips the selection query and returns the static Worker with one exact origin policy", async () => {

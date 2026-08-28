@@ -8,6 +8,54 @@ function failV1(message: string): never {
   throw new Error(`SillyOS Browser control-plane build rejected: ${message}`);
 }
 
+async function collectBuildFilesV1(directory: URL, relativeDirectory = ""): Promise<string[]> {
+  const files: string[] = [];
+  for await (const entry of Deno.readDir(directory)) {
+    const relativePath = `${relativeDirectory}${entry.name}`;
+    if (entry.isSymlink) failV1(`artifact contains symlink ${relativePath}`);
+    if (entry.isFile) {
+      files.push(relativePath);
+      continue;
+    }
+    if (!entry.isDirectory) failV1(`artifact contains unsupported entry ${relativePath}`);
+    files.push(
+      ...await collectBuildFilesV1(
+        new URL(`${encodeURIComponent(entry.name)}/`, directory),
+        `${relativePath}/`,
+      ),
+    );
+  }
+  return files;
+}
+
+const filesV1 = await collectBuildFilesV1(buildDirectoryV1);
+const retiredSameOriginHostWorkerPatternV1 =
+  /(?:^|\/)browser-workspace-host\.worker-[A-Za-z0-9_-]+\.js$/u;
+if (filesV1.some((file) => retiredSameOriginHostWorkerPatternV1.test(file))) {
+  failV1("artifact contains the retired same-origin Workspace Host Worker");
+}
+const productionBuildIdentityPatternV1 =
+  /sillyos\.workspace-sandbox\.(?:[0-9a-f]{40}|[0-9a-f]{64})(?:-dirty)?/gu;
+const buildIdentitiesV1 = new Set<string>();
+const identityBearingFilesV1: string[] = [];
+for (const file of filesV1.filter((candidate) => candidate.endsWith(".js"))) {
+  const source = await Deno.readTextFile(new URL(file, buildDirectoryV1));
+  const identities = source.match(productionBuildIdentityPatternV1) ?? [];
+  if (identities.length > 0) identityBearingFilesV1.push(file);
+  for (const identity of identities) {
+    buildIdentitiesV1.add(identity);
+  }
+  if (source.includes("sillyos.workspace-sandbox.development")) {
+    failV1(`${file} contains the development Workspace Sandbox build identity`);
+  }
+  if (source.includes("browser-workspace-host.worker")) {
+    failV1(`${file} references the retired same-origin Workspace Host Worker`);
+  }
+}
+if (identityBearingFilesV1.length === 0 || buildIdentitiesV1.size !== 1) {
+  failV1("artifact does not embed exactly one production Workspace Sandbox build identity");
+}
+
 if (/<style\b/iu.test(htmlV1)) failV1("built HTML contains an inline style element");
 if (/\sstyle\s*=/iu.test(htmlV1)) failV1("built HTML contains an inline style attribute");
 if (/\son[a-z]+\s*=/iu.test(htmlV1)) {
@@ -36,29 +84,37 @@ for (const [, attributes = "", body = ""] of scriptTagsV1) {
   }
 }
 
-const requiredHeaderFragmentsV1 = [
-  "Content-Security-Policy: default-src 'none'",
+const expectedContentSecurityPolicyV1 = [
+  "default-src 'none'",
   "script-src 'self'",
   "style-src 'self'",
   "style-src-elem 'self'",
   "style-src-attr 'none'",
+  "img-src 'self' data: blob:",
+  "font-src 'self'",
   "connect-src 'self'",
   "worker-src 'self'",
+  "frame-src https://silly-os-sandbox.jasl9187.workers.dev blob:",
+  "media-src 'self' blob:",
+  "manifest-src 'self'",
   "object-src 'none'",
   "base-uri 'none'",
   "frame-ancestors 'none'",
   "form-action 'self'",
-  "Content-Security-Policy-Report-Only: require-trusted-types-for 'script'",
-  "Permissions-Policy:",
-  "Referrer-Policy: no-referrer",
-  "X-Content-Type-Options: nosniff",
-  "X-Frame-Options: DENY",
-] as const;
-for (const fragment of requiredHeaderFragmentsV1) {
-  if (!headersV1.includes(fragment)) failV1(`built _headers is missing ${fragment}`);
-}
-for (const forbidden of ["'unsafe-inline'", "'unsafe-eval'", "connect-src https:"] as const) {
-  if (headersV1.includes(forbidden)) failV1(`built _headers contains ${forbidden}`);
+].join("; ");
+const expectedHeadersV1 = [
+  "/*",
+  `  Content-Security-Policy: ${expectedContentSecurityPolicyV1}`,
+  "  Content-Security-Policy-Report-Only: require-trusted-types-for 'script'; trusted-types 'none'",
+  "  Permissions-Policy: camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+  "  Referrer-Policy: no-referrer",
+  "  X-Content-Type-Options: nosniff",
+  "  X-Frame-Options: DENY",
+].join("\n");
+if (headersV1.replaceAll("\r\n", "\n").trimEnd() !== expectedHeadersV1) {
+  failV1("built _headers differs from the fixed control-plane policy");
 }
 
-console.log("SillyOS Browser control-plane build boundary passed.");
+console.log(
+  `SillyOS Browser control-plane build boundary passed (${[...buildIdentitiesV1][0]}).`,
+);

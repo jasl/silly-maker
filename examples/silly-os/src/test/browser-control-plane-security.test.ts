@@ -86,4 +86,13 @@ describe("SillyOS Browser control-plane source boundary", () => {
     expect(html).not.toMatch(/<script\b(?![^>]*\bsrc\s*=)[^>]*>/iu);
     expect(html).not.toMatch(/<script\b[^>]*\bsrc\s*=\s*["']https?:/iu);
   });
+
+  it("does not present control-origin storage as the independent Workspace volume", async () => {
+    const app = await readFile(new URL("../ui/silly-os-app.tsx", import.meta.url), "utf8");
+
+    expect(app).not.toContain("browser-workspace-storage-policy");
+    expect(app).not.toMatch(/\bbrowserStorage\b/u);
+    expect(app).not.toContain("onRequestStoragePersistence");
+    expect(app).not.toContain("data-browser-storage");
+  });
 });

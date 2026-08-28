@@ -100,30 +100,31 @@ SillyOS 控制面只执行产品随附、由 lockfile/build identity 固定的�
 项目、导入内容或模型生成的 JavaScript、HTML、Python、shell 与其他代码不得在 SillyOS
 origin 中执行；生成 HTML 也不得注入控制面 DOM。Pi 仍是唯一 Agent、Provider、模型、工具
 schema 和插件来源，但 live Provider 目前只获得受限 proposal tool，不获得
-`read`/`write`/`edit`/`bash` 实现。真实 workspace 工具要等独立 origin Sandbox 完成后才会
-重新开放。
+`read`/`write`/`edit`/`bash` 实现。S1a-1 没有放宽这一点：只有产品固定的 deterministic
+fixture 通过独立 origin Sandbox 使用 Pi 原生 `write`/`read`。
 
 产品数据、凭据与 workspace bytes 分属 Product Repository、未来的 Credential Vault 和
-Workspace Volume Repository。S1a-0 已让资格验证卷由独立 Sandbox origin 的 OPFS 物理持有，
-控制 origin 无法通过自己的 OPFS 打开该卷；但普通产品和 deterministic fixture 仍使用旧的
-控制-origin Workspace Host，必须等 S1a-1 clean cutover 后才能声称普通 Program 的 bytes 已
-物理隔离。当前唯一实现的 credential 模式仍是 session-only；“记住在此设备”、加密 Vault、
+Workspace Volume Repository。S1a-1 已在 source 中把普通 Program 的唯一 Authority 切到独立
+Sandbox origin：控制面创建精确 origin frame transport，Sandbox 内固定 Host Worker 独占 OPFS、
+snapshot/export 与 volume 生命周期，旧控制-origin Host Worker 和 fallback 已删除。物理 Product
+Repository V5 会直接清空并重建精确 preview V4 stores，不读取或迁移旧记录；旧控制-origin OPFS
+bytes 可能仍由浏览器保留，但产品不再可达，也不会把它们作为迁移输入。当前唯一实现的
+credential 模式仍是 session-only；“记住在此设备”、加密 Vault、
 WebAuthn PRF/密码解锁、Lock、Forget、Replace、endpoint 重绑定与重定向拒绝都属于后续独立
 阶段，不能从现在的 Save key 推断出来。
 
-P3c-B0 的三个检查点已经把 P3a 验证过的字节路径迁入产品自有的 OPFS Workspace Host，
-闭合恢复、争用、规模和可携下载证据。
-固定 Pi 0.84.3 的原生 `write`/`read` 曾通过 typed environment port 操作同一个 Program volume；
+P3c-B0 的三个历史检查点已经为 OPFS Workspace Host 闭合恢复、争用、规模和可携下载证据；
+S1a-1 再把 ordinary byte authority 移到独立 origin。
+固定 Pi 0.84.3 的原生 `write`/`read` 通过 typed environment port 操作当前 Program volume；
 小型 IndexedDB continuation manifest 只锚定 Program/repository 与 volume 身份，Host 私有
 durable head 则持有连续 generation。关闭后完整刷新页面会用新的 `workspaceSessionId` 重开
 同一字节与 generation；mutation receipt 仍是 session-local，不会伪装成 Pi 或 Chat 持久化。
 
-P3a 的历史证据把固定 Pi 的四个原生 workspace 工具接到这一个 authority：`read`、`write`、
-`edit` 与 `bash`。B1c-S0 之后，该路径只供产品固定的 `?agent=pi-test` 确定性 fixture 验证，
-live Provider 不再获得这些工具。Browser Local 的 `bash` 由 Workspace Host Worker 内固定的
-`just-bash@3.4.2` 执行，闭合 profile 明确标为 `terminal_aggregate`；Pi 仍拥有工具 schema、
-截断/溢出文件算法与模型可见结果。它是带有限命令和资源边界的浏览器虚拟 shell，不是
-Linux、容器、安全 sandbox 或 live-streaming 终端，也没有 Git、Python/QuickJS、网络或包管理器。
+P3a 的历史证据曾把固定 Pi 的四个原生 workspace 工具接到旧 authority：`read`、`write`、
+`edit` 与 `bash`。它不自动准入新 Sandbox。S1a-1 的 `?agent=pi-test` 只注册 native
+`write -> read -> proposal`；`edit` 与 `bash` 要分别等待 S1b，live Provider 仍不获得任何
+workspace tool。旧 just-bash 结果只是历史证据，不代表当前产品已有 Linux、容器、安全 shell、
+Git、Python/QuickJS、网络或包管理器。
 
 checkpoint 2 已在 Chromium 与持久 WebKit 中自动写入并冷重开 `1,000 × 5 KiB` 文件和一个
 `16 MiB` 文件，共 `1,001` 个文件、`21,897,216` 字节，最终 generation 为 `1002`；
@@ -132,9 +133,10 @@ checkpoint 2 已在 Chromium 与持久 WebKit 中自动写入并冷重开 `1,000
 限制浏览器总 heap。页面从不接收 volume bytes，任何组件也不需要让整卷常驻内存。Pi 原生
 `read` 的 `256 KiB` wire 上限只限制一次工具调用，并不是 OPFS 卷上限。
 
-界面显示的 `navigator.storage.estimate()` 是整个 origin 的建议性读数，不存在跨浏览器、设备
-统一的固定 quota。只有用户已经创建重要工作后才会显式请求 `persist()`；它是 best effort，
-返回 `false` 不会让 workspace 失败或不可用。
+`navigator.storage.estimate()` 只描述调用方 origin，不存在跨浏览器、设备统一的固定 quota。
+S1a-1 后 Workspace bytes 属于 Sandbox origin，因此控制面暂时移除了原有 estimate/persist UI，
+避免把 Product Repository 所在 control origin 的读数冒充成 volume 状态。未来若恢复这项 UI，
+必须先由 Sandbox 通过 typed status 提供自己的建议性读数；当前不声称已申请持久化 storage。
 
 在已打开的持久 Agent workspace 右侧点击“下载工作区 ZIP”，可以下载当前 durable head 的
 VFS 文件与根目录 `sillyos-workspace.json`。生成阶段会显示文件/字节进度并可取消；进入
@@ -144,10 +146,18 @@ VFS 文件与根目录 `sillyos-workspace.json`。生成阶段会显示文件/�
 
 该 ZIP 使用固定 `client-zip` 2.5.0 生成 canonical STORE-only 文件，只包含 portable manifest
 与 `workspace/` 下的 VFS 文件；它不包含 Chat、Program 数据库、凭据、Pi/provider sessions、
-terminal/mutation receipts 或 Host metadata。Host Worker 独占 ZIP 临时文件和 object URL，页面
-不接收 volume bytes，整卷也不需要常驻内存。Host 为 ready 状态保留默认 30 秒 watchdog；
-页面点击下载并调用 `commitRelease()` 锁定不可取消的 finalizing 后，会保留 1,000ms 浏览器
-handoff，随后才返回 release；Host 再 revoke URL、删除临时文件并终结任务。目前仍没有
+terminal/mutation receipts 或 Host metadata。Sandbox Host Worker 独占 ZIP 临时文件和 object
+URL。Host seal archive 并发出 `ready` 后不会自动下载：Authority 先复核 Host snapshot + Product
+continuation，再在 UI 明确请求时复核第二次，全部 current 才发送 `start_download`。Sandbox
+Host 随后通过只与 bootstrap frame 相连的私有 broker port 触发下载；broker 的 started 回执成为
+control port 上的 `download_started`。控制面不接收 URL、Blob、archive 或 volume bytes，整卷也
+不需要常驻内存。
+
+`download_started` 后 UI 进入不可取消的 finalizing，保留 1,000ms browser handoff，再发送
+`release`；Host 随后 revoke URL、删除临时文件并发出 terminal `released`。在
+`start_download` 之前，cancel、abort、consumer return/throw、30 秒 ready timeout 或任一次
+currentness drift 都不会调用 broker，也不会产生浏览器 download；授权后 Close/Forget 会等待
+download-started、handoff、release 与 cleanup 全部 drain。目前仍没有
 import/restore reader。Agent Forget 会清理 Pi/执行态并释放 lease，但
 不会删除 durable volume。
 
@@ -161,10 +171,10 @@ snapshot、pending proposal 的 reviewed head 与当前 mutable head。Pi 工具
 重开、双页面 stale currentness、凭据不落盘和 bounded terminal receipt。B0a 已闭合无
 真实 key 的 Pi/Worker/typed-RPC 接线；B0b 已完成固定 OpenAI profile 的本地及部署源
 资格化；P3c-B0 已闭合原生 Pi `write`/`read` 到 OPFS checkpoint 的 authority、close/cold
-reopen、连续 generation、mutation receipt、取消、清理、恢复/争用、storage UI、自动双引擎
+reopen、连续 generation、mutation receipt、取消、清理、恢复/争用、当时的同源 storage UI、自动双引擎
 `20 MiB+` gate，以及真实取消/下载/解包逐字节验证的 canonical portable ZIP。完整 B0 已在
 2026-08-27 独立验收并关闭。随后 P3a-B1 的两个 checkpoint 也已交付并通过独立验收：固定
-Pi 0.84.3 的原生 `edit` 与 `bash` 已接到同一 OPFS volume，确定性真实路径为
+Pi 0.84.3 的原生 `edit` 与 `bash` 曾接到当时的同源 OPFS volume，历史确定性路径为
 `write -> edit -> read -> bash/rg -> proposal`，最终 bytes 与 generation `4` 可跨冷重开保留；
 超过 Pi 50 KiB 阈值的已完成输出会把完整 aggregate 持久化到同一卷的
 `.sillyos/tmp/bash-<opaque>.log`。P3a 因而关闭。P3c-B1 的三个 checkpoint 也已在
@@ -186,15 +196,27 @@ Cloudflare CSP 响应层；同时先补齐控制面 CSP/渲染约束、存储分
 `e1808054-af9f-446f-a913-22a39bf98e37`；本地与公开域名的严格 CSP 响应、Home、Settings
 目录均在 Chromium/WebKit 通过。WebKit 产生了预期的 Trusted Types
 Report-Only 诊断，因此 enforcement 没有被提升；没有页面错误、失败请求或其他意外 console
-错误。S1a-0 现已在 Chromium 与持久 WebKit 中通过：独立 origin frame + 固定 Host Worker、
+错误。S1a-0 已在 Chromium 与持久 WebKit 中通过：独立 origin frame + 固定 Host Worker、
 typed control/environment port、20 MiB OPFS generation-82 冷重开与同 hash 复核、81 文件
 snapshot、Sandbox 内触发的逐字节 ZIP 下载、控制-origin OPFS 不可见，以及
 `connect-src 'none'` 在请求发出前拒绝网络。该单独构建的 artifact 不包含测试 Worker、Pi、
-Provider、React 或 just-bash，也没有 production deployment receipt。当前活动检查点是
-S1a-1：把已资格验证的 transport 变成普通产品唯一的 read/write authority，并删除旧同源
-执行 owner；ordinary live Provider 仍保持 proposal-only，绝不回退同源 Worker。
+Provider、React 或 just-bash，也没有 production deployment receipt。S1a-1 当前已完成 source
+cutover：资格 transport 是普通产品唯一 read/write Authority，旧同源执行 owner 已删除，physical
+Product Repository V5 clean-reset preview V4，Sandbox bootstrap/Host/control artifact 通过同一
+build identity fail-closed 组合，下载 URL 也不离开 Sandbox。local dev 的 control/sandbox 文档都
+启用严格 CSP 并关闭 HMR。普通 `@s1a-ordinary` Creator/Program journey 已在 Chromium 4/4、
+持久 WebKit 4/4 通过，S1a-1 因而在本地关闭；ordinary live Provider 保持 proposal-only，绝不
+回退同源 Worker。
 BYO Sandbox、Wasm/更完整执行环境和 import 仍未激活。Desktop
 底层仍计划由私有 companion 启动产品打包的 Pi coding-agent，但当前没有激活。
+
+这 4 条 ordinary case 证明 active frame 精确来自 `41740`、`41739` control origin 没有新
+volume、Pi `write`/`read` 的 exact bytes 与 generation-2 cold reopen、双页面 ownership
+contention/release/successor reopen、accepted one-file snapshot 与跨 origin ZIP manifest/bytes，
+真实 cancel-before-download-authorization 的零下载，以及 cancel-after-write terminal receipt +
+reload。单独的 Chromium/WebKit qualification 各 3/3
+负责 build identity、network denial 和 20 MiB corpus；ordinary 4 条没有重复 20 MiB/81-file scale，
+也不构成 production deployment evidence。
 
 详细的产品范围、Cloudflare OS 参考快照、语义映射、桌面/移动布局、键盘/IME、
 防截断和视觉验收矩阵见 [DESIGN.md](./DESIGN.md)。从真实 Pi typed RPC、产品数据库、
@@ -206,29 +228,35 @@ Agent 提供熟悉的 Linux-tools harness 和单一工作卷仍是研究门；WA
 
 ## 运行
 
-在仓库根目录：
+S1a-1 的普通产品需要 control 与 Sandbox 两个严格分离的 origin。先在本目录的两个终端分别启动：
 
 ```sh
-deno task app dev example-silly-os
-```
-
-或者进入本目录：
-
-```sh
+deno task dev:workspace-sandbox
 deno task dev
 ```
 
-然后打开终端中 Vite 输出的地址。当前 Browser 和 Deno Desktop 共享同一个响应式
+然后打开 control server 输出的 `http://127.0.0.1:4173`。Sandbox 固定为
+`http://127.0.0.1:41740`；两个 dev server 都发出严格 CSP 并关闭 HMR，代码变化后要完整刷新，
+不能用 Fast Refresh 把两份可信 artifact 更新到不同版本。每次启动 control Vite dev server
+都会生成一个新的随机 style nonce，并由 Vite 加到它注入的 style 上；这不是 production nonce
+策略。dev 不发送 Vite 自身无法满足的 Trusted Types Report-Only 观察头；preview/production
+继续使用 self-hosted external style 并保留 TT Report-Only。也可以从仓库根目录分别运行：
+
+```sh
+deno task --cwd examples/silly-os dev:workspace-sandbox
+deno task app dev example-silly-os
+```
+
+当前 Browser 和 Deno Desktop 共享同一个响应式
 React 产品面；Desktop 是产品目标，不会另外模拟操作系统桌面。
 
 要运行不访问 LLM 的 Browser Pi B0a 接线检查，在该地址追加
 `?locale=zh-CN&agent=pi-test`，输入任意可丢弃的合成测试值并初始化，再创建 Program、
-提交一次 follow-up。确定性 Pi 流程会用原生 `write`/`edit`/`read` 在持久 Program
-workspace 完成编辑往返，再由原生 `bash` 调用 Browser Local 的 `tee` 与 `rg` 验证另一个
-持久文件，最后形成 proposal；此时 workspace generation 为 `4`。返回 Home、等待 workspace
-close 完成并刷新页面后，重新初始化 Pi test 仍会打开同一 generation 和文件。普通 URL 的
-Creator Home 不会实例化 Pi Worker、Workspace Host 或 just-bash；首次打开设置时才会启动
-一个无凭据 catalog Worker，并在得到目录后立即终止它。
+提交一次 follow-up。确定性 Pi 流程只会用原生 `write`/`read` 在独立-origin 持久 Program
+workspace 完成字节往返，再形成 proposal；它不会加载 `edit`、`bash` 或 just-bash。返回 Home、
+等待 workspace close 完成并刷新页面后，重新初始化 Pi test 会通过新的 Sandbox frame/Host
+session 重开同一 generation 和文件。普通 URL 首次打开设置时才会启动一个无凭据 catalog
+Worker，并在得到目录后立即终止它。
 
 要运行 live 路线，直接打开普通 URL。未配置时点击 Creator Home 的 Provider warning，进入
 Providers 后在 **Available models** 勾选希望出现在 Creator 选择器中的一个或多个兼容模型。
@@ -247,18 +275,14 @@ family 之一并填写 model/limits，再用同一个 Connection 流程保存 ke
 只会恢复这个非秘密 profile；API key 和测试状态都不会恢复。一次测试成功只描述当前
 endpoint/key/model/API family 组合在本次浏览器会话中的那一次请求，不是使用前提。
 
-当前已资格化的 Cloudflare 部署是
+当前已资格化的 control-plane Cloudflare 部署是
 [silly-os.jasl9187.workers.dev](https://silly-os.jasl9187.workers.dev/)。
-P1-B1b 实现提交 `d7377ad36f27b982c8d6f87662e8a8586687f721` 已于 2026-08-28 发布为
-Cloudflare 版本 `92c143f7-292f-474f-b7ad-ba98318a384a`；公网 HTML 返回 HTTP 200、该精确
-build identity，以及仅包含 self 和六个命名 Provider origin 的 `connect-src`。应用内浏览器
-读取到 OpenAI、Anthropic、Google、DeepSeek 与 xAI 为 qualified，OpenRouter 为 candidate；
-Anthropic 固定快照可选、可变 alias 禁用，OpenRouter profile 也保持禁用。随后公网 origin
-通过了上述五个 profile 在 Chromium 与持久 WebKit 中的全部十个真实资格旅程。它只托管
-静态产品；key 和模型请求从 Agent Worker 直接发送给所选 Provider，不经过 SillyOS 或
-Cloudflare relay。B1a 的独立部署历史保留在 [PLAN.md](./PLAN.md) 与 [DESIGN.md](./DESIGN.md)。
-这个公网版本仍是已提交并验收的 B1b baseline；本 README 描述的 B1c Connection/custom
-endpoint 工作尚未部署，不能从该 URL 推断 B1c 已发布。
+B1c-S0 提交 `a4cc8754b4c5f3050ff270a7c5a426b6c0d18176` 已于 2026-08-28 发布为
+Cloudflare 版本 `e1808054-af9f-446f-a913-22a39bf98e37`，并通过当时 control-plane 的
+Chromium/WebKit 响应与行为 smoke。它只托管静态产品；key 和模型请求从 Agent Worker 直接
+发送给所选 Provider，不经过 SillyOS 或 Cloudflare relay。B1a/B1b 的独立部署历史保留在
+[PLAN.md](./PLAN.md) 与 [DESIGN.md](./DESIGN.md)。S1a-1 尚无 production deployment receipt；
+不能从这个 URL 推断 ordinary independent-origin Authority 或 Sandbox 域名已经发布。
 
 开发资格检查会按精确 profile 从本目录的 `.env` 读取对应 Provider key，依次启动普通
 Chromium context 与运行后删除的一次性持久 WebKit profile，
@@ -292,8 +316,11 @@ SillyOS 官方代理。生产 UI key 仍须保持只在 Worker 内存中，不�
 B1c-S0 为文档、静态资源和 selected Agent Worker 定义完整的无 wildcard CSP：显式设置
 `default-src`、`script-src`、`style-src`、`style-src-elem`、`style-src-attr`、
 `worker-src`、`connect-src`、`object-src`、
-`base-uri`、`frame-ancestors` 与 `form-action`，并附加 Trusted Types Report-Only、
-Permissions Policy、`no-referrer`、`nosniff` 和 frame denial。普通文档与 catalog Worker 的
+`base-uri`、`frame-src`、`frame-ancestors` 与 `form-action`，并附加 Trusted Types Report-Only、
+Permissions Policy、`no-referrer`、`nosniff` 和嵌入 denial。control 文档的 `frame-src` 只允许
+精确 Sandbox origin 与 `blob:`，Sandbox 文档的 `frame-src` 只允许 `blob:`，用于 WebKit 的
+Sandbox-private download navigation；该 Blob URL 从不跨 control RPC。Sandbox 文档的
+`frame-ancestors` 也只允许精确 control origin。普通文档与 catalog Worker 的
 `connect-src` 只有 self；built-in 或 custom Agent Worker URL 携带经过验证的
 `endpoint-origin` 时，只有该 Worker 增加这一个精确 HTTPS origin。任何响应都不使用
 `connect-src https:`、`unsafe-inline` 或 `unsafe-eval`。
@@ -303,9 +330,11 @@ Permissions Policy、`no-referrer`、`nosniff` 和 frame denial。普通文档�
 Provider 不会自动成为 Browser 能力，`no-cors`、Service Worker 或放宽 CSP 都不能绕过
 Provider CORS。先前的 actual-build blocker 已由通用 SillyMaker tooling 修复并被本产品消费：
 版本戳现在是应用模块之前加载的同源外部脚本，生产 HTML 不再含可执行 inline script。
-`deno task check:browser-security-build` 已对实际 `dist-web` 与 `_headers` 通过；这不把 Vite
-开发服务器的 Fast Refresh 路线声明为 strict-CSP 产品证据，也不替代尚待补跑的 WebKit
-生产响应烟测。
+S1a-1 进一步让 local dev 使用精确双 origin 的 strict CSP 并关闭 HMR；生产 artifact checker
+会拒绝 `development` identity、混合 control/bootstrap/Host identity、宽泛 `frame-src` 和退休的
+同源 Host Worker。control dev server 的随机 style nonce 只允许 Vite 当次注入的 style；preview/
+production 仍是 self-hosted external style，不把 nonce 变成发布策略。通过这些 build checks 仍不替代 ordinary Chromium/WebKit product evidence
+或 production deployment receipt。
 
 ### Pi RPC 开发启动器
 
@@ -397,6 +426,20 @@ deno run -A npm:@playwright/test test \
   --project=webkit --workers=1
 ```
 
+S1a-1 的 ordinary Creator/Program evidence 来自同一双-server 配置；只重跑上面的
+qualification spec 不能证明 ordinary Authority 已切换：
+
+```sh
+deno run -A npm:@playwright/test test \
+  examples/e2e/silly-os.spec.ts \
+  --config examples/e2e/playwright.examples.config.ts \
+  --project=chromium --workers=1
+deno run -A npm:@playwright/test test \
+  examples/e2e/silly-os.spec.ts \
+  --config examples/e2e/playwright.examples.config.ts \
+  --project=webkit --workers=1
+```
+
 产品模型、Browser Pi Worker 和固定 Desktop 启动合同的 focused tests：
 
 ```sh
@@ -420,25 +463,28 @@ deno run -A npm:vitest run \
 
 ## 当前代码边界
 
-| 位置                                                         | 所有权                                                                          |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------- |
-| `src/product/contracts.ts`                                   | Program、proposal、activity 与 Creator session 合同                             |
-| `src/product/creator-session.ts`                             | 本地 session、proposal review 与 Agent candidate 原子发布                       |
-| `src/product/creator-agent-admission.ts`                     | submit/candidate 的严格 product wire admission                                  |
-| `src/product/browser-provider-settings-repository.ts`        | 有界非秘密 custom HTTPS profile 持久化；不接收 key                              |
-| `src/product/fake-creator.ts`                                | 默认初始 proposal 的确定性 fake Creator                                         |
-| `src/agent/creator-agent-port.ts`                            | React 可见的 product facade；不暴露 raw Pi records                              |
-| `src/agent/browser-pi-*`                                     | 懒加载 Worker、固定 Pi identity、catalog、兼容性投影与 proposal-only live route |
-| `src/deployment/cloudflare-selected-origin-worker.ts`        | built-in/custom Agent Worker 的完整 strict-CSP 与精确 selected-origin 响应层    |
-| `src/deployment/cloudflare-workspace-sandbox-worker.ts`      | 独立 Sandbox artifact 的固定响应头与 Cloudflare 静态边界                        |
-| `src/workspace/browser-workspace-sandbox-frame-transport.ts` | 控制 origin 到固定 Sandbox origin 的 fail-closed bootstrap/typed channel        |
-| `src/workspace-sandbox/`                                     | Sandbox 文档 bootstrap 与同 origin 固定 Host Worker                             |
-| `src/companion/pi-rpc-startup.ts`                            | dev-only 固定 Pi artifact、启动参数、隔离 flags 与脱敏摘要                      |
-| `src/application/`                                           | Browser/Deno 共用的 React 产品入口与工作区表现                                  |
-| `src/test/browser-pi-worker.test.ts`                         | Pi tool、RPC 顺序/currentness、取消、替换与 Worker teardown                     |
-| `tools/pi-rpc.mts`                                           | raw Pi RPC 开发启动器；尚未连接 Creator                                         |
-| `PLAN.md`                                                    | 独立产品孵化顺序、所有权、停止条件与明确 defer                                  |
-| `WASM-WORKSPACE-RESEARCH.md`                                 | workspace harness 候选、共同语料和选型证据门                                    |
+| 位置                                                           | 所有权                                                                          |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `src/product/contracts.ts`                                     | Program、proposal、activity 与 Creator session 合同                             |
+| `src/product/creator-session.ts`                               | 本地 session、proposal review 与 Agent candidate 原子发布                       |
+| `src/product/creator-agent-admission.ts`                       | submit/candidate 的严格 product wire admission                                  |
+| `src/product/browser-provider-settings-repository.ts`          | 有界非秘密 custom HTTPS profile 持久化；不接收 key                              |
+| `src/product/fake-creator.ts`                                  | 默认初始 proposal 的确定性 fake Creator                                         |
+| `src/agent/creator-agent-port.ts`                              | React 可见的 product facade；不暴露 raw Pi records                              |
+| `src/agent/browser-pi-*`                                       | 懒加载 Worker、固定 Pi identity、catalog、兼容性投影与 proposal-only live route |
+| `src/deployment/cloudflare-selected-origin-worker.ts`          | built-in/custom Agent Worker 的完整 strict-CSP 与精确 selected-origin 响应层    |
+| `src/deployment/cloudflare-workspace-sandbox-worker.ts`        | 独立 Sandbox artifact 的固定响应头与 Cloudflare 静态边界                        |
+| `src/workspace/browser-workspace-sandbox-frame-transport.ts`   | 控制 origin 到固定 Sandbox origin 的 fail-closed bootstrap/typed channel        |
+| `src/workspace/browser-workspace-sandbox-build-identity.ts`    | control/bootstrap/Host 共用的 product-derived build identity admission          |
+| `src/workspace/browser-workspace-sandbox-download-protocol.ts` | Sandbox Host 到 bootstrap frame 的私有 download request/receipt                 |
+| `src/workspace-sandbox/`                                       | Sandbox 文档 bootstrap 与同 origin 固定 Host Worker                             |
+| `src/product/indexeddb-program-repository.ts`                  | physical Product Repository V5 与 exact preview-V4 clean reset                  |
+| `src/companion/pi-rpc-startup.ts`                              | dev-only 固定 Pi artifact、启动参数、隔离 flags 与脱敏摘要                      |
+| `src/application/`                                             | Browser/Deno 共用的 React 产品入口与工作区表现                                  |
+| `src/test/browser-pi-worker.test.ts`                           | Pi tool、RPC 顺序/currentness、取消、替换与 Worker teardown                     |
+| `tools/pi-rpc.mts`                                             | raw Pi RPC 开发启动器；尚未连接 Creator                                         |
+| `PLAN.md`                                                      | 独立产品孵化顺序、所有权、停止条件与明确 defer                                  |
+| `WASM-WORKSPACE-RESEARCH.md`                                   | workspace harness 候选、共同语料和选型证据门                                    |
 
 后续 Agent loop、模型/provider、会话、tool dispatch 与 Agent 扩展统一由 Pi 负责。
 Browser Agent Worker 或 Desktop companion 只做目标适配、Program 数据所有权和 typed

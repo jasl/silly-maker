@@ -78,6 +78,34 @@ const bootstrapJavaScriptV1 = await Deno.readTextFile(
 const hostWorkerJavaScriptV1 = await Deno.readTextFile(
   new URL(hostWorkerFileV1, buildDirectoryV1),
 );
+const productionBuildIdentityPatternV1 =
+  /sillyos\.workspace-sandbox\.(?:[0-9a-f]{40}|[0-9a-f]{64})(?:-dirty)?/gu;
+
+function exactProductionBuildIdentityV1(file: string, source: string): string {
+  const identities = new Set(source.match(productionBuildIdentityPatternV1) ?? []);
+  if (identities.size !== 1) {
+    failV1(`${file} does not embed exactly one production build identity`);
+  }
+  const identity = [...identities][0];
+  if (identity === undefined) failV1(`${file} build identity is unavailable`);
+  return identity;
+}
+
+const bootstrapBuildIdentityV1 = exactProductionBuildIdentityV1(
+  bootstrapFileV1,
+  bootstrapJavaScriptV1,
+);
+const hostWorkerBuildIdentityV1 = exactProductionBuildIdentityV1(
+  hostWorkerFileV1,
+  hostWorkerJavaScriptV1,
+);
+if (bootstrapBuildIdentityV1 !== hostWorkerBuildIdentityV1) {
+  failV1("bootstrap and Host Worker build identities differ");
+}
+if (
+  bootstrapJavaScriptV1.includes("sillyos.workspace-sandbox.development") ||
+  hostWorkerJavaScriptV1.includes("sillyos.workspace-sandbox.development")
+) failV1("production artifact contains the development build identity");
 
 if (/<style\b/iu.test(htmlV1) || /\sstyle\s*=/iu.test(htmlV1)) {
   failV1("built HTML contains inline style authority");
@@ -113,7 +141,7 @@ if (!bootstrapJavaScriptV1.includes(`/${hostWorkerFileV1}`)) {
 
 const expectedHeadersV1 = [
   "/*",
-  "  Content-Security-Policy: default-src 'none'; script-src 'self'; worker-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors https://silly-os.jasl9187.workers.dev; form-action 'none'",
+  "  Content-Security-Policy: default-src 'none'; script-src 'self'; worker-src 'self'; frame-src blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors https://silly-os.jasl9187.workers.dev; form-action 'none'",
   "  Permissions-Policy: camera=(), geolocation=(), microphone=(), payment=(), usb=()",
   "  Referrer-Policy: no-referrer",
   "  X-Content-Type-Options: nosniff",
@@ -148,4 +176,6 @@ for (const [file, source] of JavaScriptArtifactsV1) {
   }
 }
 
-console.log("SillyOS Browser Workspace Sandbox build boundary passed.");
+console.log(
+  `SillyOS Browser Workspace Sandbox build boundary passed (${bootstrapBuildIdentityV1}).`,
+);

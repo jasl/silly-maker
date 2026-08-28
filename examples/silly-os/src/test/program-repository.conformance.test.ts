@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   createIndexedDbProgramRepositoryV4,
-  programRepositoryDatabaseVersionV4,
+  programRepositoryDatabaseVersionV5,
   programRepositoryProgramObjectStoreNameV4,
   programRepositoryWorkspaceContinuationObjectStoreNameV4,
 } from "../product/indexeddb-program-repository.ts";
@@ -1200,7 +1200,7 @@ function completeTransactionV1(transaction: IDBTransaction): Promise<void> {
   });
 }
 
-function createExactPhysicalV3StoresV1(database: IDBDatabase): void {
+function createExactPhysicalV4StoresV1(database: IDBDatabase): void {
   database.createObjectStore(programRepositoryProgramObjectStoreNameV4, {
     keyPath: "programId",
   });
@@ -1209,8 +1209,8 @@ function createExactPhysicalV3StoresV1(database: IDBDatabase): void {
   });
 }
 
-describe("IndexedDB ProgramRepository physical V4 contract", () => {
-  it("creates a fresh exact V4 two-store catalog", async () => {
+describe("IndexedDB ProgramRepository physical V5 contract", () => {
+  it("creates a fresh exact V5 two-store catalog", async () => {
     const indexedDB = new FakeIDBFactory();
     const databaseName = "sillyos-program-repository-v4-fresh";
     const repository = createIndexedDbProgramRepositoryV4({ indexedDB, databaseName });
@@ -1218,7 +1218,7 @@ describe("IndexedDB ProgramRepository physical V4 contract", () => {
     const database = await openRawDatabaseV1(
       indexedDB,
       databaseName,
-      programRepositoryDatabaseVersionV4,
+      programRepositoryDatabaseVersionV5,
     );
     expect([...database.objectStoreNames]).toEqual([
       programRepositoryProgramObjectStoreNameV4,
@@ -1239,11 +1239,11 @@ describe("IndexedDB ProgramRepository physical V4 contract", () => {
     await repository.dispose();
   });
 
-  it("clean-resets only exact physical V3 without reading or converting its rows", async () => {
+  it("clean-resets only exact physical V4 without reading or converting its rows", async () => {
     const indexedDB = new FakeIDBFactory();
-    const databaseName = "sillyos-program-repository-v3-reset";
-    const legacy = await openRawDatabaseV1(indexedDB, databaseName, 3, (database) => {
-      createExactPhysicalV3StoresV1(database);
+    const databaseName = "sillyos-program-repository-v4-reset";
+    const legacy = await openRawDatabaseV1(indexedDB, databaseName, 4, (database) => {
+      createExactPhysicalV4StoresV1(database);
     });
     const transaction = legacy.transaction(
       [
@@ -1270,7 +1270,7 @@ describe("IndexedDB ProgramRepository physical V4 contract", () => {
     const current = await openRawDatabaseV1(
       indexedDB,
       databaseName,
-      programRepositoryDatabaseVersionV4,
+      programRepositoryDatabaseVersionV5,
     );
     for (
       const storeName of [
@@ -1307,9 +1307,9 @@ describe("IndexedDB ProgramRepository physical V4 contract", () => {
     ).rejects.toMatchObject({ code: "schema_invalid", operation: "initialize" });
 
     const malformedFactory = new FakeIDBFactory();
-    const malformedName = "sillyos-program-repository-v3-malformed";
-    (await openRawDatabaseV1(malformedFactory, malformedName, 3, (database) => {
-      createExactPhysicalV3StoresV1(database);
+    const malformedName = "sillyos-program-repository-v4-malformed";
+    (await openRawDatabaseV1(malformedFactory, malformedName, 4, (database) => {
+      createExactPhysicalV4StoresV1(database);
       database.createObjectStore("unexpected");
     })).close();
     await expect(
@@ -1320,8 +1320,8 @@ describe("IndexedDB ProgramRepository physical V4 contract", () => {
     ).rejects.toMatchObject({ code: "schema_invalid", operation: "initialize" });
 
     const futureFactory = new FakeIDBFactory();
-    const futureName = "sillyos-program-repository-v5-future";
-    (await openRawDatabaseV1(futureFactory, futureName, 5, (database) => {
+    const futureName = "sillyos-program-repository-v6-future";
+    (await openRawDatabaseV1(futureFactory, futureName, 6, (database) => {
       database.createObjectStore("future");
     })).close();
     await expect(
@@ -1332,9 +1332,9 @@ describe("IndexedDB ProgramRepository physical V4 contract", () => {
     ).rejects.toMatchObject({ code: "database_newer", operation: "initialize" });
 
     const blockedFactory = new FakeIDBFactory();
-    const blockedName = "sillyos-program-repository-v3-blocked";
-    const blocker = await openRawDatabaseV1(blockedFactory, blockedName, 3, (database) => {
-      createExactPhysicalV3StoresV1(database);
+    const blockedName = "sillyos-program-repository-v4-blocked";
+    const blocker = await openRawDatabaseV1(blockedFactory, blockedName, 4, (database) => {
+      createExactPhysicalV4StoresV1(database);
     });
     const blocked = createIndexedDbProgramRepositoryV4({
       indexedDB: blockedFactory,
@@ -1357,7 +1357,7 @@ describe("IndexedDB ProgramRepository physical V4 contract", () => {
     const database = await openRawDatabaseV1(
       indexedDB,
       databaseName,
-      programRepositoryDatabaseVersionV4,
+      programRepositoryDatabaseVersionV5,
     );
     const transaction = database.transaction(
       programRepositoryWorkspaceContinuationObjectStoreNameV4,

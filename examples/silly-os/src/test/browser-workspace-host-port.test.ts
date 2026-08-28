@@ -231,7 +231,7 @@ function exportInputV1(
   signal: AbortSignal,
   onReady: (
     ready: BrowserWorkspaceHostExportReadyV1,
-    commitRelease: () => boolean,
+    startDownload: () => Promise<void>,
   ) => "release" | "cancel" | Promise<"release" | "cancel">,
 ) {
   return {
@@ -240,6 +240,7 @@ function exportInputV1(
     expectedGeneration: 1,
     programRevision: 1,
     repositoryRevision: 1,
+    fileName: "workspace-test.sillyos.zip",
     signal,
     onReady,
   } as const;
@@ -249,7 +250,10 @@ describe("SillyOS Browser Workspace Host page port", () => {
   it("holds the exact page bootstrap lease across candidate creation, external CAS work, and open", async () => {
     const worker = new FakeWorkerV1();
     const lockPort = new FakeBootstrapLockPortV1();
-    const port = createBrowserWorkspaceHostPagePortV1({ worker, bootstrapLockPort: lockPort });
+    const port = createBrowserWorkspaceHostPagePortV1({
+      transport: worker,
+      bootstrapLockPort: lockPort,
+    });
 
     await expect(
       port.createCandidate({
@@ -294,7 +298,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
     const candidateWorker = new FakeWorkerV1();
     candidateWorker.dropMethods.add("create_candidate");
     const candidatePort = createBrowserWorkspaceHostPagePortV1({
-      worker: candidateWorker,
+      transport: candidateWorker,
       bootstrapLockPort: new FakeBootstrapLockPortV1(),
     });
     const candidateFatals: unknown[] = [];
@@ -326,7 +330,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
       const worker = new FakeWorkerV1();
       worker.dropMethods.add(method);
       const port = createBrowserWorkspaceHostPagePortV1({
-        worker,
+        transport: worker,
         bootstrapLockPort: new FakeBootstrapLockPortV1(),
       });
       const fatals: unknown[] = [];
@@ -353,7 +357,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
   it("roundtrips the exact immutable snapshot publication lifecycle", async () => {
     const worker = new FakeWorkerV1();
     const port = createBrowserWorkspaceHostPagePortV1({
-      worker,
+      transport: worker,
       bootstrapLockPort: new FakeBootstrapLockPortV1(),
     });
     const receipt = await port.prepareSnapshot({
@@ -447,7 +451,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
   it("returns typed unpublished discard settlements", async () => {
     const worker = new FakeWorkerV1();
     const port = createBrowserWorkspaceHostPagePortV1({
-      worker,
+      transport: worker,
       bootstrapLockPort: new FakeBootstrapLockPortV1(),
     });
     const receipt = await port.prepareSnapshot({
@@ -510,7 +514,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
       const worker = new FakeWorkerV1();
       worker.dropMethods.add(method);
       const port = createBrowserWorkspaceHostPagePortV1({
-        worker,
+        transport: worker,
         bootstrapLockPort: new FakeBootstrapLockPortV1(),
       });
       const fatals: unknown[] = [];
@@ -542,7 +546,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
     const throwingWorker = new FakeWorkerV1();
     throwingWorker.throwMethods.add("capture_review_head");
     const throwingPort = createBrowserWorkspaceHostPagePortV1({
-      worker: throwingWorker,
+      transport: throwingWorker,
       bootstrapLockPort: new FakeBootstrapLockPortV1(),
     });
     const fatals: unknown[] = [];
@@ -557,7 +561,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
   it("publishes one invalid-response fatal while normal disposal stays silent", () => {
     const failedWorker = new FakeWorkerV1();
     const failedPort = createBrowserWorkspaceHostPagePortV1({
-      worker: failedWorker,
+      transport: failedWorker,
       bootstrapLockPort: new FakeBootstrapLockPortV1(),
     });
     const fatals: unknown[] = [];
@@ -574,7 +578,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
 
     const disposedWorker = new FakeWorkerV1();
     const disposedPort = createBrowserWorkspaceHostPagePortV1({
-      worker: disposedWorker,
+      transport: disposedWorker,
       bootstrapLockPort: new FakeBootstrapLockPortV1(),
     });
     const disposedFatals: unknown[] = [];
@@ -589,7 +593,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
     const worker = new FakeWorkerV1();
     worker.throwMethods.add("query_workspace");
     const port = createBrowserWorkspaceHostPagePortV1({
-      worker,
+      transport: worker,
       bootstrapLockPort: new FakeBootstrapLockPortV1(),
     });
     const fatals: unknown[] = [];
@@ -610,7 +614,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
       const closeWorkerPort = vi.spyOn(channel.port1, "close");
       const closePagePort = vi.spyOn(channel.port2, "close");
       const port = createBrowserWorkspaceHostPagePortV1({
-        worker,
+        transport: worker,
         bootstrapLockPort: new FakeBootstrapLockPortV1(),
         createMessageChannel: () => channel,
         createExportId: () => `export.${settlement}`,
@@ -635,7 +639,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
   it("does not let an unreturned ready callback authorize a released terminal", async () => {
     const worker = new FakeWorkerV1();
     const port = createBrowserWorkspaceHostPagePortV1({
-      worker,
+      transport: worker,
       bootstrapLockPort: new FakeBootstrapLockPortV1(),
       createExportId: () => "export.pending-ready",
     });
@@ -655,7 +659,6 @@ describe("SillyOS Browser Workspace Host page port", () => {
       kind: "workspace_export_ready",
       exportId: "export.pending-ready",
       sequence: 1,
-      downloadUrl: "blob:export.pending-ready",
       checkpointId: "checkpoint.preview.1",
       generation: 1,
       filesCompleted: 0,
@@ -690,7 +693,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
       resolveReady = resolve;
     });
     const port = createBrowserWorkspaceHostPagePortV1({
-      worker,
+      transport: worker,
       bootstrapLockPort: new FakeBootstrapLockPortV1(),
       createExportId: () => "export.aborted-ready",
     });
@@ -703,7 +706,6 @@ describe("SillyOS Browser Workspace Host page port", () => {
       kind: "workspace_export_ready",
       exportId: "export.aborted-ready",
       sequence: 1,
-      downloadUrl: "blob:export.aborted-ready",
       checkpointId: "checkpoint.preview.1",
       generation: 1,
       filesCompleted: 1,
@@ -718,6 +720,11 @@ describe("SillyOS Browser Workspace Host page port", () => {
     expect(worker.exportInbound).toContainEqual({
       revision: 1,
       kind: "workspace_export_cancel",
+      exportId: "export.aborted-ready",
+    });
+    expect(worker.exportInbound).not.toContainEqual({
+      revision: 1,
+      kind: "workspace_export_start_download",
       exportId: "export.aborted-ready",
     });
     expect(worker.exportInbound).not.toContainEqual({
@@ -740,7 +747,107 @@ describe("SillyOS Browser Workspace Host page port", () => {
     port.dispose();
   });
 
-  it("keeps a committed browser handoff releasable when its signal aborts during the grace", async () => {
+  it("does not authorize a download when the ready consumer returns release without starting it", async () => {
+    const worker = new FakeWorkerV1();
+    const port = createBrowserWorkspaceHostPagePortV1({
+      transport: worker,
+      bootstrapLockPort: new FakeBootstrapLockPortV1(),
+      createExportId: () => "export.unstarted-release",
+    });
+    const pendingExport = port.exportWorkspace(
+      exportInputV1(new AbortController().signal, () => "release"),
+    );
+    await flushPagePortV1();
+    worker.emitExport("export.unstarted-release", {
+      revision: 1,
+      kind: "workspace_export_ready",
+      exportId: "export.unstarted-release",
+      sequence: 1,
+      checkpointId: "checkpoint.preview.1",
+      generation: 1,
+      filesCompleted: 1,
+      filesTotal: 1,
+      bytesWritten: 64,
+      bytesTotal: 64,
+    });
+    await flushPagePortV1();
+    expect(worker.exportInbound).toContainEqual({
+      revision: 1,
+      kind: "workspace_export_cancel",
+      exportId: "export.unstarted-release",
+    });
+    expect(worker.exportInbound).not.toContainEqual({
+      revision: 1,
+      kind: "workspace_export_start_download",
+      exportId: "export.unstarted-release",
+    });
+    worker.emitExport("export.unstarted-release", {
+      revision: 1,
+      kind: "workspace_export_failed",
+      exportId: "export.unstarted-release",
+      sequence: 2,
+      code: "cancelled",
+      filesCompleted: 1,
+      filesTotal: 1,
+      bytesWritten: 64,
+      bytesTotal: 64,
+    });
+    await expect(pendingExport).resolves.toMatchObject({ kind: "cancelled" });
+    port.dispose();
+  });
+
+  it("cancels without authorization when the ready consumer throws", async () => {
+    const worker = new FakeWorkerV1();
+    const port = createBrowserWorkspaceHostPagePortV1({
+      transport: worker,
+      bootstrapLockPort: new FakeBootstrapLockPortV1(),
+      createExportId: () => "export.consumer-throw",
+    });
+    const pendingExport = port.exportWorkspace(
+      exportInputV1(new AbortController().signal, () => {
+        throw new Error("synthetic ready consumer failure");
+      }),
+    );
+    await flushPagePortV1();
+    worker.emitExport("export.consumer-throw", {
+      revision: 1,
+      kind: "workspace_export_ready",
+      exportId: "export.consumer-throw",
+      sequence: 1,
+      checkpointId: "checkpoint.preview.1",
+      generation: 1,
+      filesCompleted: 1,
+      filesTotal: 1,
+      bytesWritten: 64,
+      bytesTotal: 64,
+    });
+    await flushPagePortV1();
+    expect(worker.exportInbound).toContainEqual({
+      revision: 1,
+      kind: "workspace_export_cancel",
+      exportId: "export.consumer-throw",
+    });
+    expect(worker.exportInbound).not.toContainEqual({
+      revision: 1,
+      kind: "workspace_export_start_download",
+      exportId: "export.consumer-throw",
+    });
+    worker.emitExport("export.consumer-throw", {
+      revision: 1,
+      kind: "workspace_export_failed",
+      exportId: "export.consumer-throw",
+      sequence: 2,
+      code: "cancelled",
+      filesCompleted: 1,
+      filesTotal: 1,
+      bytesWritten: 64,
+      bytesTotal: 64,
+    });
+    await expect(pendingExport).rejects.toThrow("synthetic ready consumer failure");
+    port.dispose();
+  });
+
+  it("keeps a started browser handoff releasable when its signal aborts during the grace", async () => {
     const worker = new FakeWorkerV1();
     const controller = new AbortController();
     let finishHandoff = () => {};
@@ -752,13 +859,13 @@ describe("SillyOS Browser Workspace Host page port", () => {
       committed = resolve;
     });
     const port = createBrowserWorkspaceHostPagePortV1({
-      worker,
+      transport: worker,
       bootstrapLockPort: new FakeBootstrapLockPortV1(),
       createExportId: () => "export.committed-ready",
     });
     const pendingExport = port.exportWorkspace(
-      exportInputV1(controller.signal, async (_ready, commitRelease) => {
-        expect(commitRelease()).toBe(true);
+      exportInputV1(controller.signal, async (_ready, startDownload) => {
+        await startDownload();
         committed();
         await handoff;
         return "release" as const;
@@ -770,7 +877,24 @@ describe("SillyOS Browser Workspace Host page port", () => {
       kind: "workspace_export_ready",
       exportId: "export.committed-ready",
       sequence: 1,
-      downloadUrl: "blob:export.committed-ready",
+      checkpointId: "checkpoint.preview.1",
+      generation: 1,
+      filesCompleted: 1,
+      filesTotal: 1,
+      bytesWritten: 256,
+      bytesTotal: 256,
+    });
+    await flushPagePortV1();
+    expect(worker.exportInbound).toContainEqual({
+      revision: 1,
+      kind: "workspace_export_start_download",
+      exportId: "export.committed-ready",
+    });
+    worker.emitExport("export.committed-ready", {
+      revision: 1,
+      kind: "workspace_export_download_started",
+      exportId: "export.committed-ready",
+      sequence: 2,
       checkpointId: "checkpoint.preview.1",
       generation: 1,
       filesCompleted: 1,
@@ -797,7 +921,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
       revision: 1,
       kind: "workspace_export_released",
       exportId: "export.committed-ready",
-      sequence: 2,
+      sequence: 3,
       checkpointId: "checkpoint.preview.1",
       generation: 1,
       filesCompleted: 1,
@@ -812,12 +936,15 @@ describe("SillyOS Browser Workspace Host page port", () => {
   it("accepts a released terminal only after the ready callback explicitly releases it", async () => {
     const worker = new FakeWorkerV1();
     const port = createBrowserWorkspaceHostPagePortV1({
-      worker,
+      transport: worker,
       bootstrapLockPort: new FakeBootstrapLockPortV1(),
       createExportId: () => "export.released",
     });
     const pendingExport = port.exportWorkspace(
-      exportInputV1(new AbortController().signal, () => "release"),
+      exportInputV1(new AbortController().signal, async (_ready, startDownload) => {
+        await startDownload();
+        return "release" as const;
+      }),
     );
     await flushPagePortV1();
     worker.emitExport("export.released", {
@@ -825,7 +952,29 @@ describe("SillyOS Browser Workspace Host page port", () => {
       kind: "workspace_export_ready",
       exportId: "export.released",
       sequence: 1,
-      downloadUrl: "blob:export.released",
+      checkpointId: "checkpoint.preview.1",
+      generation: 1,
+      filesCompleted: 2,
+      filesTotal: 2,
+      bytesWritten: 512,
+      bytesTotal: 512,
+    });
+    await flushPagePortV1();
+    expect(worker.exportInbound).toContainEqual({
+      revision: 1,
+      kind: "workspace_export_start_download",
+      exportId: "export.released",
+    });
+    expect(worker.exportInbound).not.toContainEqual({
+      revision: 1,
+      kind: "workspace_export_release",
+      exportId: "export.released",
+    });
+    worker.emitExport("export.released", {
+      revision: 1,
+      kind: "workspace_export_download_started",
+      exportId: "export.released",
+      sequence: 2,
       checkpointId: "checkpoint.preview.1",
       generation: 1,
       filesCompleted: 2,
@@ -843,7 +992,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
       revision: 1,
       kind: "workspace_export_released",
       exportId: "export.released",
-      sequence: 2,
+      sequence: 3,
       checkpointId: "checkpoint.preview.1",
       generation: 1,
       filesCompleted: 2,
@@ -866,7 +1015,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
   it("keeps zero export totals immutable and requires an open start snapshot", async () => {
     const mutableWorker = new FakeWorkerV1();
     const mutablePort = createBrowserWorkspaceHostPagePortV1({
-      worker: mutableWorker,
+      transport: mutableWorker,
       bootstrapLockPort: new FakeBootstrapLockPortV1(),
       createExportId: () => "export.mutable-zero",
     });
@@ -899,7 +1048,7 @@ describe("SillyOS Browser Workspace Host page port", () => {
     const closedWorker = new FakeWorkerV1();
     closedWorker.startExportPhase = "closed";
     const closedPort = createBrowserWorkspaceHostPagePortV1({
-      worker: closedWorker,
+      transport: closedWorker,
       bootstrapLockPort: new FakeBootstrapLockPortV1(),
       createExportId: () => "export.closed",
     });

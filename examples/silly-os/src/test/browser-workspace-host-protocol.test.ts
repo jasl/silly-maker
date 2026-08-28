@@ -714,6 +714,7 @@ describe("SillyOS Browser Workspace Host protocol", () => {
         controlRequestV1({
           method: "start_export",
           exportId: "sillyos.export.1",
+          fileName: "sillyos-workspace.zip",
           workspaceSessionId: descriptorV1.workspaceSessionId,
           expectedCheckpointId: "checkpoint.preview.3",
           expectedGeneration: 7,
@@ -727,6 +728,7 @@ describe("SillyOS Browser Workspace Host protocol", () => {
         controlRequestV1({
           method: "start_export",
           exportId: "sillyos.export.1",
+          fileName: "sillyos-workspace.zip",
           workspaceSessionId: descriptorV1.workspaceSessionId,
           expectedCheckpointId: "checkpoint.preview.3",
           expectedGeneration: 7,
@@ -744,6 +746,21 @@ describe("SillyOS Browser Workspace Host protocol", () => {
         exportId: "sillyos.export.1",
       }),
     ).not.toBeNull();
+    expect(
+      admitBrowserWorkspaceHostExportInboundMessageV1({
+        revision: 1,
+        kind: "workspace_export_start_download",
+        exportId: "sillyos.export.1",
+      }),
+    ).not.toBeNull();
+    expect(
+      admitBrowserWorkspaceHostExportInboundMessageV1({
+        revision: 1,
+        kind: "workspace_export_start_download",
+        exportId: "sillyos.export.1",
+        downloadUrl: "blob:forbidden-control-plane-url",
+      }),
+    ).toBeNull();
     expect(
       admitBrowserWorkspaceHostExportInboundMessageV1({
         revision: 1,
@@ -765,12 +782,41 @@ describe("SillyOS Browser Workspace Host protocol", () => {
         kind: "workspace_export_ready",
         exportId: "sillyos.export.1",
         sequence: 2,
-        downloadUrl: "blob:sillyos-export-test",
         checkpointId: "checkpoint.preview.3",
         generation: 7,
         ...progress,
       }),
     ).toMatchObject({ kind: "workspace_export_ready", sequence: 2, ...progress });
+    expect(
+      admitBrowserWorkspaceHostExportOutboundMessageV1({
+        revision: 1,
+        kind: "workspace_export_download_started",
+        exportId: "sillyos.export.1",
+        sequence: 3,
+        checkpointId: "checkpoint.preview.3",
+        generation: 7,
+        ...progress,
+      }),
+    ).toMatchObject({ kind: "workspace_export_download_started", sequence: 3, ...progress });
+    for (
+      const forbidden of [
+        { downloadUrl: "blob:forbidden-control-plane-url" },
+        { archiveBytes: new Uint8Array([1, 2, 3]) },
+      ]
+    ) {
+      expect(
+        admitBrowserWorkspaceHostExportOutboundMessageV1({
+          revision: 1,
+          kind: "workspace_export_download_started",
+          exportId: "sillyos.export.1",
+          sequence: 3,
+          checkpointId: "checkpoint.preview.3",
+          generation: 7,
+          ...progress,
+          ...forbidden,
+        }),
+      ).toBeNull();
+    }
     expect(
       admitBrowserWorkspaceHostExportOutboundMessageV1({
         revision: 1,

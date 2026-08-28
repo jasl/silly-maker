@@ -66,7 +66,6 @@ const workspaceIdV1 = "workspace.preview.1";
 const workspaceSessionIdV1 = "sillyos.workspace.session.1";
 const roundTripArtifactRelativePathV1 = ".sillyos/p3a-round-trip.txt";
 const roundTripArtifactPathV1 = `${workspaceRootV1}/${roundTripArtifactRelativePathV1}`;
-const roundTripEditMarkerV1 = "SillyOS native edit checkpoint pending:\n";
 const availableSelectionV1 = Object.freeze(
   {
     kind: "builtin",
@@ -517,7 +516,15 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
   exportCalls = 0;
   exportAborted = false;
   holdExport = false;
+  holdAuthorizedExport = false;
+  authorizedExportStarted = false;
+  private finishAuthorizedExport: (() => void) | null = null;
   nextOpenFailureCode: BrowserWorkspaceHostControlFailureCodeV1 | null = null;
+
+  releaseAuthorizedExport(): void {
+    this.finishAuthorizedExport?.();
+    this.finishAuthorizedExport = null;
+  }
 
   constructor() {
     testWorkspaceAuthoritiesV1.add(this);
@@ -673,10 +680,15 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
       }
       const decision = await input.onReady({
         ...progress,
-        downloadUrl: "blob:sillyos-product-export-test",
         checkpointId: this.bootstrap.state.head.checkpointId,
         generation: this.bootstrap.state.head.generation,
-      }, () => true);
+      }, async () => {
+        this.authorizedExportStarted = true;
+        if (!this.holdAuthorizedExport) return;
+        await new Promise<void>((resolve) => {
+          this.finishAuthorizedExport = resolve;
+        });
+      });
       return decision === "release"
         ? {
           kind: "released",
@@ -1206,9 +1218,9 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
 }
 
 describe("SillyOS Browser Pi Worker runtime", () => {
-  it("withholds legacy same-origin workspace tools from live Provider runs", () => {
+  it("admits only S1a read/write for the deterministic Sandbox fixture", () => {
     const calls: string[] = [];
-    const factories = ["read", "write", "edit", "bash"].map((tool) => () => {
+    const factories = ["read", "write"].map((tool) => () => {
       calls.push(tool);
       return tool;
     });
@@ -1218,10 +1230,8 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     expect(createBrowserPiWorkspaceToolsForRuntimeV1("deterministic_test", factories)).toEqual([
       "read",
       "write",
-      "edit",
-      "bash",
     ]);
-    expect(calls).toEqual(["read", "write", "edit", "bash"]);
+    expect(calls).toEqual(["read", "write"]);
   });
 
   it("keeps the admitted Browser Pi identity equal to exact product dependencies", async () => {
@@ -1984,57 +1994,6 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     expect(`${workspaceRootV1}/${receiptMessage.receipt.changedPaths[0]}`).toBe(
       roundTripArtifactPathV1,
     );
-    const editReceiptMessage = messages.find((message) =>
-      message.kind === "workspace_receipt" && message.receipt.tool === "edit" &&
-      message.receipt.runId === "sillyos.run.1"
-    );
-    if (editReceiptMessage?.kind !== "workspace_receipt") {
-      throw new Error("expected the native Pi edit Workspace mutation receipt");
-    }
-    expect(editReceiptMessage.receipt).toMatchObject({
-      revision: 1,
-      sequence: 2,
-      programId: submitV1.programId,
-      workspaceId: workspaceIdV1,
-      workspaceSessionId: workspaceSessionIdV1,
-      sessionId: "sillyos.session.1",
-      runId: "sillyos.run.1",
-      toolCallId: "sillyos-edit-1",
-      tool: "edit",
-      expectedGeneration: 1,
-      baseGeneration: 2,
-      resultingGeneration: 3,
-      outcome: "succeeded",
-      effect: "changed",
-      changedPaths: [roundTripArtifactRelativePathV1],
-      diagnosticCode: null,
-    });
-    const bashReceiptMessage = messages.find((message) =>
-      message.kind === "workspace_receipt" && message.receipt.tool === "bash" &&
-      message.receipt.runId === "sillyos.run.1"
-    );
-    if (bashReceiptMessage?.kind !== "workspace_receipt") {
-      throw new Error("expected the native Pi bash Workspace mutation receipt");
-    }
-    expect(bashReceiptMessage.receipt).toMatchObject({
-      revision: 1,
-      sequence: 3,
-      programId: submitV1.programId,
-      workspaceId: workspaceIdV1,
-      workspaceSessionId: workspaceSessionIdV1,
-      sessionId: "sillyos.session.1",
-      runId: "sillyos.run.1",
-      toolCallId: "sillyos-bash-1",
-      tool: "bash",
-      expectedGeneration: 1,
-      baseGeneration: 3,
-      resultingGeneration: 4,
-      outcome: "succeeded",
-      effect: "changed",
-      changedPaths: [".sillyos/p3a-bash-round-trip.txt"],
-      diagnosticCode: null,
-    });
-
     const records = messages.flatMap((message) =>
       message.kind === "rpc_record" ? [message.record as Readonly<Record<string, unknown>>] : []
     );
@@ -2061,7 +2020,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
           text: persistenceProbe,
         }),
       },
-    }, { ...execution, expectedGeneration: 4 }));
+    }, { ...execution, expectedGeneration: 2 }));
     await waitUntilV1(() =>
       messages.some((message) =>
         message.kind === "rpc_record" &&
@@ -2069,31 +2028,14 @@ describe("SillyOS Browser Pi Worker runtime", () => {
         (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
       )
     );
-    expect(messages.filter((message) => message.kind === "workspace_receipt")).toHaveLength(3);
+    expect(messages.filter((message) => message.kind === "workspace_receipt")).toHaveLength(1);
     const roundTripByteLength = new TextEncoder().encode(submitV1.text).byteLength;
-    const markedRoundTripByteLength =
-      new TextEncoder().encode(roundTripEditMarkerV1 + submitV1.text)
-        .byteLength;
-    const bashRoundTripByteLength = new TextEncoder().encode("SillyOS native bash checkpoint\n")
-      .byteLength;
     expect(workspaceAuthority.sourceReadRequests).toEqual([
-      {
-        path: roundTripArtifactRelativePathV1,
-        offset: 0,
-        length: markedRoundTripByteLength,
-        byteLength: markedRoundTripByteLength,
-      },
       {
         path: roundTripArtifactRelativePathV1,
         offset: 0,
         length: roundTripByteLength,
         byteLength: roundTripByteLength,
-      },
-      {
-        path: ".sillyos/p3a-bash-round-trip.txt",
-        offset: 0,
-        length: bashRoundTripByteLength,
-        byteLength: bashRoundTripByteLength,
       },
     ]);
     expect(
@@ -2102,9 +2044,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
       ),
     ).toBe(true);
     expect(workspaceAuthority.readFileRangeRequests).toEqual([
-      { path: roundTripArtifactRelativePathV1, offset: 0, length: markedRoundTripByteLength },
       { path: roundTripArtifactRelativePathV1, offset: 0, length: roundTripByteLength },
-      { path: ".sillyos/p3a-bash-round-trip.txt", offset: 0, length: bashRoundTripByteLength },
       { path: roundTripArtifactRelativePathV1, offset: 0, length: roundTripByteLength },
     ]);
     expect(JSON.stringify(messages)).not.toContain("sentinel-browser-key");
@@ -2423,11 +2363,13 @@ describe("SillyOS Browser Pi transport and product port", () => {
     const progress: unknown[] = [];
     await expect(port.exportWorkspace({
       workspaceSessionId: workspaceSessionIdV1,
+      fileName: "workspace-test.sillyos.zip",
       signal: new AbortController().signal,
       onProgress: (value) => progress.push(value),
-      onReady: (ready) => {
-        expect(ready.downloadUrl).toBe("blob:sillyos-product-export-test");
-        return "release";
+      onReady: async (ready, startDownload) => {
+        expect(ready.generation).toBe(1);
+        await startDownload();
+        return "release" as const;
       },
     })).resolves.toMatchObject({
       kind: "released",
@@ -2440,6 +2382,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     workspaceAuthority.holdExport = true;
     const held = port.exportWorkspace({
       workspaceSessionId: workspaceSessionIdV1,
+      fileName: "workspace-held.sillyos.zip",
       signal: new AbortController().signal,
       onReady: () => {
         throw new Error("held export must not become ready");
@@ -2468,6 +2411,41 @@ describe("SillyOS Browser Pi transport and product port", () => {
     });
   });
 
+  it("drains an authorized workspace export before Forget", async () => {
+    const workspaceAuthority = new TestBrowserProgramWorkspaceAuthorityV1();
+    workspaceAuthority.holdAuthorizedExport = true;
+    const port = createBrowserCreatorAgentPortV1({
+      runtime: "deterministic_test",
+      workspaceAuthority,
+      workerFactory: () => new ControllableBrowserPiWorkerV1(),
+    });
+    await openProductWorkspaceV1(port);
+    const exported = port.exportWorkspace({
+      workspaceSessionId: workspaceSessionIdV1,
+      fileName: "workspace-authorized.sillyos.zip",
+      signal: new AbortController().signal,
+      onReady: async (_ready, startDownload) => {
+        await startDownload();
+        return "release" as const;
+      },
+    });
+    await waitUntilV1(() => workspaceAuthority.authorizedExportStarted);
+
+    let forgetSettled = false;
+    const forgetting = port.forget().then(() => {
+      forgetSettled = true;
+    });
+    await Promise.resolve();
+    expect(forgetSettled).toBe(false);
+    expect(workspaceAuthority.exportAborted).toBe(false);
+
+    workspaceAuthority.releaseAuthorizedExport();
+    await expect(exported).resolves.toMatchObject({ kind: "released" });
+    await forgetting;
+    expect(port.getSnapshot()).toMatchObject({ phase: "forgotten" });
+    expect(workspaceAuthority.detachWorkspaceEnvironmentCalls).toEqual([workspaceSessionIdV1]);
+  });
+
   it("aborts and drains a held export before closing its workspace", async () => {
     const workspaceAuthority = new TestBrowserProgramWorkspaceAuthorityV1();
     const port = createBrowserCreatorAgentPortV1({
@@ -2479,6 +2457,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     workspaceAuthority.holdExport = true;
     const held = port.exportWorkspace({
       workspaceSessionId: workspaceSessionIdV1,
+      fileName: "workspace-close-held.sillyos.zip",
       signal: new AbortController().signal,
       onReady: () => {
         throw new Error("held export must not become ready");
@@ -3251,7 +3230,7 @@ describe("SillyOS Browser Pi transport and product port", () => {
     const workspace = port.getSnapshot().workspace;
     expect(workspace).toMatchObject({
       phase: "open",
-      descriptor: { generation: 4 },
+      descriptor: { generation: 2 },
       receipts: [
         {
           revision: 1,
@@ -3268,36 +3247,6 @@ describe("SillyOS Browser Pi transport and product port", () => {
           changedPaths: [".sillyos/p3a-round-trip.txt"],
           diagnosticCode: null,
         },
-        {
-          revision: 1,
-          sequence: 2,
-          programId: run.programId,
-          workspaceId: workspaceIdV1,
-          agentRunId: run.agentRunId,
-          tool: "edit",
-          expectedGeneration: 1,
-          baseGeneration: 2,
-          resultingGeneration: 3,
-          outcome: "succeeded",
-          effect: "changed",
-          changedPaths: [".sillyos/p3a-round-trip.txt"],
-          diagnosticCode: null,
-        },
-        {
-          revision: 1,
-          sequence: 3,
-          programId: run.programId,
-          workspaceId: workspaceIdV1,
-          agentRunId: run.agentRunId,
-          tool: "bash",
-          expectedGeneration: 1,
-          baseGeneration: 3,
-          resultingGeneration: 4,
-          outcome: "succeeded",
-          effect: "changed",
-          changedPaths: [".sillyos/p3a-bash-round-trip.txt"],
-          diagnosticCode: null,
-        },
       ],
     });
     expect(`${workspaceRootV1}/${workspace.receipts[0]?.changedPaths[0]}`).toBe(
@@ -3308,9 +3257,9 @@ describe("SillyOS Browser Pi transport and product port", () => {
     expect(serializedWorkspace).not.toContain("sillyos.run.1");
     expect(serializedWorkspace).not.toContain('"sessionId"');
     expect(serializedWorkspace).not.toContain('"runId"');
-    await expect(port.acknowledgeWorkspaceReceipts(3)).resolves.toEqual({
+    await expect(port.acknowledgeWorkspaceReceipts(1)).resolves.toEqual({
       kind: "acknowledged",
-      throughSequence: 3,
+      throughSequence: 1,
     });
     expect(port.getSnapshot().workspace.receipts).toEqual([]);
 

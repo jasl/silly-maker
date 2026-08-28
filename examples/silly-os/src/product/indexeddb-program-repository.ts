@@ -32,7 +32,7 @@ import {
 } from "./program-repository.ts";
 
 export const programRepositoryDatabaseNameV4 = "sillymaker.example-silly-os.programs";
-export const programRepositoryDatabaseVersionV4 = 4;
+export const programRepositoryDatabaseVersionV5 = 5;
 export const programRepositoryProgramObjectStoreNameV4 = "programs";
 export const programRepositoryWorkspaceContinuationObjectStoreNameV4 = "workspace_continuations";
 
@@ -144,7 +144,7 @@ function hasExactStoreNamesV1(database: IDBDatabase): boolean {
 function hasExactSchemaV1(database: IDBDatabase): boolean {
   try {
     if (
-      database.version !== programRepositoryDatabaseVersionV4 || !hasExactStoreNamesV1(database)
+      database.version !== programRepositoryDatabaseVersionV5 || !hasExactStoreNamesV1(database)
     ) return false;
     const transaction = database.transaction(programRepositoryObjectStoreNamesV4, "readonly");
     return programRepositoryObjectStoreNamesV4.every((storeName) =>
@@ -164,7 +164,7 @@ function createCurrentStoresV1(database: IDBDatabase): void {
   }
 }
 
-function resetExactPhysicalV3V1(
+function resetExactPhysicalV4V1(
   request: IDBOpenDBRequest,
   operation: ProgramRepositoryOperationV3,
 ): void {
@@ -179,7 +179,7 @@ function resetExactPhysicalV3V1(
     }
   }
   // The preview schema has no migration obligation. Delete both exact stores without
-  // opening a cursor or reading a row, then create the V4 catalog directly.
+  // opening a cursor or reading a row, then create the Product Repository V5 catalog directly.
   for (const storeName of programRepositoryObjectStoreNamesV4) {
     database.deleteObjectStore(storeName);
   }
@@ -195,7 +195,7 @@ function openDatabaseV1(input: {
   return new Promise((resolve, reject) => {
     let request: IDBOpenDBRequest;
     try {
-      request = input.indexedDB.open(input.databaseName, programRepositoryDatabaseVersionV4);
+      request = input.indexedDB.open(input.databaseName, programRepositoryDatabaseVersionV5);
     } catch (error) {
       reject(mapFailureV1(error, input.operation));
       return;
@@ -218,8 +218,8 @@ function openDatabaseV1(input: {
       }
       try {
         if (
-          (event.oldVersion !== 0 && event.oldVersion !== 3) ||
-          event.newVersion !== programRepositoryDatabaseVersionV4
+          (event.oldVersion !== 0 && event.oldVersion !== 4) ||
+          event.newVersion !== programRepositoryDatabaseVersionV5
         ) {
           throw createProgramRepositoryFailureV3("schema_invalid", input.operation);
         }
@@ -229,7 +229,7 @@ function openDatabaseV1(input: {
           }
           createCurrentStoresV1(request.result);
         } else {
-          resetExactPhysicalV3V1(request, input.operation);
+          resetExactPhysicalV4V1(request, input.operation);
         }
       } catch (error) {
         upgradeFailure = error;

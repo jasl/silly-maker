@@ -6,6 +6,9 @@ export const browserWorkspaceSandboxContentSecurityPolicyV1 = [
   "default-src 'none'",
   "script-src 'self'",
   "worker-src 'self'",
+  // WebKit treats an anchor-triggered same-origin Blob download as a framed
+  // navigation. Only the trusted Sandbox bootstrap receives the Blob URL.
+  "frame-src blob:",
   "connect-src 'none'",
   "object-src 'none'",
   "base-uri 'none'",

@@ -20,6 +20,7 @@ import type {
   CreatorDurabilityStateV1,
 } from "../product/creator-controller.ts";
 import type { BrowserProgramWorkspaceAuthorityV1 } from "../product/browser-program-workspace-authority.ts";
+import { browserWorkspaceDownloadFileNameMaximumUtf8BytesV1 } from "../workspace/browser-workspace-host-protocol.ts";
 import {
   browserProviderSettingsRevisionV2,
   createBrowserProviderSettingsRepositoryV1,
@@ -43,13 +44,7 @@ import {
   ProviderSettingsV1,
 } from "./provider-settings.tsx";
 import { projectProviderSettingsCatalogV1 } from "./provider-settings-catalog.ts";
-import type { WorkpieceBrowserStorageV1, WorkpieceWorkspaceExportV1 } from "./workpiece-pane.tsx";
-import {
-  createBrowserWorkspaceWindowStoragePortV1,
-  inspectBrowserWorkspaceStorageV1,
-  requestBrowserWorkspaceStoragePersistenceV1,
-  type BrowserWorkspaceStorageInspectionV1,
-} from "../workspace/browser-workspace-storage-policy.ts";
+import type { WorkpieceWorkspaceExportV1 } from "./workpiece-pane.tsx";
 import "./silly-os.css";
 
 export interface SillyOsAppPropsV1 {
@@ -291,62 +286,47 @@ function storageOperationV1(
   return "operation" in durability ? durability.operation : undefined;
 }
 
-function projectBrowserStorageInspectionV1(
-  inspection: BrowserWorkspaceStorageInspectionV1,
-  current: WorkpieceBrowserStorageV1,
-): WorkpieceBrowserStorageV1 {
-  if (inspection.kind === "unavailable") {
-    return { phase: "unavailable", persistenceRequest: "idle" };
+const workspaceArchiveFileNameSuffixV1 = ".sillyos.zip";
+const workspaceArchiveFileNameSlugMaximumUtf8BytesV1 =
+  browserWorkspaceDownloadFileNameMaximumUtf8BytesV1 -
+  new TextEncoder().encode(workspaceArchiveFileNameSuffixV1).byteLength;
+
+function utf8PrefixV1(value: string, maximumBytes: number): string {
+  const encoder = new TextEncoder();
+  let byteLength = 0;
+  let result = "";
+  for (const character of value) {
+    const characterBytes = encoder.encode(character).byteLength;
+    if (byteLength + characterBytes > maximumBytes) break;
+    result += character;
+    byteLength += characterBytes;
   }
-  const persistenceRequest = inspection.persisted
-    ? current.phase === "available" && current.persistenceRequest === "granted"
-      ? "granted" as const
-      : "idle" as const
-    : current.phase === "available" &&
-        (current.persistenceRequest === "denied" || current.persistenceRequest === "unavailable")
-    ? current.persistenceRequest
-    : "idle" as const;
-  return {
-    phase: "available",
-    persisted: inspection.persisted,
-    persistenceRequest,
-    ...(inspection.usageBytes === undefined ? {} : { usageBytes: inspection.usageBytes }),
-    ...(inspection.quotaBytes === undefined ? {} : { quotaBytes: inspection.quotaBytes }),
-    ...(inspection.remainingBytes === undefined
-      ? {}
-      : { remainingBytes: inspection.remainingBytes }),
-  };
+  return result;
 }
 
-function workspaceArchiveFileNameV1(programName: string): string {
-  const slug = programName.replaceAll(/[^\p{Letter}\p{Number}]+/gu, "-").replaceAll(
+export function workspaceArchiveFileNameV1(programName: string): string {
+  const slug = programName.toLowerCase().replaceAll(/[^\p{Letter}\p{Number}]+/gu, "-").replaceAll(
     /^-+|-+$/gu,
     "",
-  ).toLowerCase();
-  return `${slug.length === 0 ? "sillyos-program" : slug}.sillyos.zip`;
+  );
+  const boundedSlug = utf8PrefixV1(
+    slug.length === 0 ? "sillyos-program" : slug,
+    workspaceArchiveFileNameSlugMaximumUtf8BytesV1,
+  ).replaceAll(/-+$/gu, "");
+  return `${
+    boundedSlug.length === 0 ? "sillyos-program" : boundedSlug
+  }${workspaceArchiveFileNameSuffixV1}`;
 }
 
 const workspaceDownloadHandoffMillisecondsV1 = 1_000;
 
-/** Clicks a Host-owned blob URL and retains its OPFS backing through browser handoff. */
-async function startWorkspaceDownloadV1(
+/** Retains the Sandbox-owned archive through the browser download handoff. */
+async function commitWorkspaceDownloadV1(
   ready: BrowserCreatorAgentExportReadyV1,
-  programName: string,
-  commitRelease: () => boolean,
+  startDownload: () => Promise<void>,
   onCommitted: () => void,
 ): Promise<"release" | "cancel"> {
-  const link = document.createElement("a");
-  link.href = ready.downloadUrl;
-  link.download = workspaceArchiveFileNameV1(programName);
-  link.rel = "noopener";
-  link.hidden = true;
-  document.body.append(link);
-  try {
-    link.click();
-  } finally {
-    link.remove();
-  }
-  if (!commitRelease()) return "cancel";
+  await startDownload();
   onCommitted();
   await new Promise<void>((resolve) => {
     setTimeout(resolve, workspaceDownloadHandoffMillisecondsV1);
@@ -388,13 +368,6 @@ export function SillyOsAppV1({
   const customProviderProfiles = providerSettingsSnapshot.customProfiles;
   const [agentPort, setAgentPort] = useState<BrowserCreatorAgentPortV1 | null>(null);
   const [agentSnapshot, setAgentSnapshot] = useState<BrowserCreatorAgentSnapshotV1 | null>(null);
-  const [browserStoragePort] = useState(() =>
-    typeof window === "undefined" ? null : createBrowserWorkspaceWindowStoragePortV1(window)
-  );
-  const [browserStorage, setBrowserStorage] = useState<WorkpieceBrowserStorageV1>({
-    phase: "checking",
-    persistenceRequest: "idle",
-  });
   const [workspaceExport, setWorkspaceExport] = useState<WorkpieceWorkspaceExportV1>({
     phase: "idle",
   });
@@ -412,8 +385,6 @@ export function SillyOsAppV1({
   const agentTeardownRef = useRef<Promise<void>>(Promise.resolve());
   const agentWorkspaceLifecycleRef = useRef<Promise<void>>(Promise.resolve());
   const agentTerminalSettlementRef = useRef<Promise<void>>(Promise.resolve());
-  const browserStorageOperationEpochRef = useRef(0);
-  const browserStorageRequestPendingRef = useRef(false);
   const workspaceExportEpochRef = useRef(0);
   const workspaceExportAbortRef = useRef<AbortController | null>(null);
   const claimedTerminalRunIdsRef = useRef(new Set<string>());
@@ -433,7 +404,6 @@ export function SillyOsAppV1({
     : null;
   const executionWorkspaceSessionId = agentSnapshot?.workspace.descriptor?.workspaceSessionId ??
     null;
-  const executionWorkspaceGeneration = agentSnapshot?.workspace.descriptor?.generation ?? null;
 
   const queueAgentPortTeardownV1 = useCallback((
     port: BrowserCreatorAgentPortV1,
@@ -460,7 +430,6 @@ export function SillyOsAppV1({
     providerModelSelectionEpochRef.current += 1;
     providerModelSelectionPendingRef.current = false;
     providerCatalogEpochRef.current += 1;
-    browserStorageOperationEpochRef.current += 1;
     workspaceExportEpochRef.current += 1;
     workspaceExportAbortRef.current?.abort();
     workspaceExportAbortRef.current = null;
@@ -512,34 +481,6 @@ export function SillyOsAppV1({
     update();
     return agentPort.subscribe(update);
   }, [agentPort]);
-
-  useEffect(() => {
-    if (browserStorageRequestPendingRef.current) return undefined;
-    const epoch = ++browserStorageOperationEpochRef.current;
-    if (browserStoragePort === null) {
-      setBrowserStorage({ phase: "unavailable", persistenceRequest: "idle" });
-      return undefined;
-    }
-    void inspectBrowserWorkspaceStorageV1(browserStoragePort).then((inspection) => {
-      if (browserStorageOperationEpochRef.current !== epoch) return;
-      setBrowserStorage((current) => {
-        const projected = projectBrowserStorageInspectionV1(inspection, current);
-        return projected.phase === "available" && !projected.persisted &&
-            browserStoragePort.persist === undefined
-          ? { ...projected, persistenceRequest: "unavailable" }
-          : projected;
-      });
-    });
-    return () => {
-      if (browserStorageOperationEpochRef.current === epoch) {
-        browserStorageOperationEpochRef.current += 1;
-      }
-    };
-  }, [
-    browserStoragePort,
-    executionWorkspaceGeneration,
-    executionWorkspaceSessionId,
-  ]);
 
   useEffect(() => {
     workspaceExportEpochRef.current += 1;
@@ -1090,32 +1031,6 @@ export function SillyOsAppV1({
     });
   };
 
-  const requestStoragePersistenceV1 = (): void => {
-    const workspace = agentPortRef.current?.getSnapshot().workspace;
-    if (
-      browserStoragePort === null || workspace?.phase !== "open" ||
-      (workspace.descriptor?.generation ?? 0) <= 1 || browserStorage.phase !== "available" ||
-      browserStorage.persisted || browserStorage.persistenceRequest !== "idle" ||
-      browserStorageRequestPendingRef.current
-    ) return;
-    const epoch = ++browserStorageOperationEpochRef.current;
-    browserStorageRequestPendingRef.current = true;
-    setBrowserStorage({ ...browserStorage, persistenceRequest: "requesting" });
-    void requestBrowserWorkspaceStoragePersistenceV1(browserStoragePort).then((result) => {
-      if (browserStorageOperationEpochRef.current !== epoch) return;
-      browserStorageRequestPendingRef.current = false;
-      setBrowserStorage((current) => {
-        if (current.phase !== "available") return current;
-        if (result.kind === "unavailable") {
-          return { ...current, persistenceRequest: "unavailable" };
-        }
-        return result.persisted
-          ? { ...current, persisted: true, persistenceRequest: "granted" }
-          : { ...current, persisted: false, persistenceRequest: "denied" };
-      });
-    });
-  };
-
   const exportWorkspaceV1 = (): void => {
     const port = agentPortRef.current;
     const currentSession = controller.getSnapshot().session;
@@ -1145,6 +1060,7 @@ export function SillyOsAppV1({
     const programName = currentSession.program.name;
     void port.exportWorkspace({
       workspaceSessionId: descriptor.workspaceSessionId,
+      fileName: workspaceArchiveFileNameV1(programName),
       signal: abortController.signal,
       onProgress: (progress) => {
         if (
@@ -1152,14 +1068,13 @@ export function SillyOsAppV1({
         ) return;
         setWorkspaceExport({ phase: "exporting", ...progress });
       },
-      onReady: (ready, commitRelease) => {
+      onReady: (ready, startDownload) => {
         if (
           workspaceExportEpochRef.current !== epoch || abortController.signal.aborted
         ) return "cancel";
-        return startWorkspaceDownloadV1(
+        return commitWorkspaceDownloadV1(
           ready,
-          programName,
-          commitRelease,
+          startDownload,
           () => {
             if (workspaceExportEpochRef.current !== epoch) return;
             setWorkspaceExport({
@@ -1306,11 +1221,6 @@ export function SillyOsAppV1({
       data-program-storage-state={durability.phase}
       data-program-storage-operation={storageOperationV1(durability)}
       data-agent-workspace-state={agentSnapshot?.workspace.phase}
-      data-browser-storage-state={browserStorage.phase}
-      data-browser-storage-persisted={browserStorage.phase === "available"
-        ? String(browserStorage.persisted)
-        : undefined}
-      data-browser-storage-persistence-request={browserStorage.persistenceRequest}
       data-workspace-export-state={workspaceExport.phase}
     >
       {settingsOpen && !internalPiTest
@@ -1456,9 +1366,7 @@ export function SillyOsAppV1({
             {...(internalPiTest ? {} : { providerModel: creatorProviderModelV1("workspace") })}
             {...(agentSnapshot === null ? {} : {
               executionWorkspace: agentSnapshot.workspace,
-              browserStorage,
               onRetryExecutionWorkspace: retryAgentWorkspaceV1,
-              onRequestStoragePersistence: requestStoragePersistenceV1,
               ...(workspaceExportAvailable
                 ? {
                   workspaceExport,

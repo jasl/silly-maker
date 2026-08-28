@@ -7,13 +7,13 @@ import {
   createBrowserWorkspaceSandboxFrameReadyV1,
   createBrowserWorkspaceSandboxWorkerBoundV1,
 } from "../workspace/browser-workspace-sandbox-bootstrap-protocol.ts";
+import type { BrowserWorkspaceHostControlTransportV1 } from "../workspace/browser-workspace-host-port.ts";
 import {
   browserWorkspaceSandboxDevelopmentControlOriginV1,
   browserWorkspaceSandboxDevelopmentOriginV1,
   browserWorkspaceSandboxOriginForControlV1,
   browserWorkspaceSandboxProductionControlOriginV1,
   browserWorkspaceSandboxProductionOriginV1,
-  type BrowserWorkspaceSandboxControlTransportV1,
   createBrowserWorkspaceSandboxFrameTransportV1,
 } from "../workspace/browser-workspace-sandbox-frame-transport.ts";
 
@@ -49,7 +49,7 @@ class FakeMessagePortV1 {
 }
 
 interface TransportHarnessV1 {
-  readonly transport: BrowserWorkspaceSandboxControlTransportV1;
+  readonly transport: BrowserWorkspaceHostControlTransportV1;
   readonly iframe: HTMLIFrameElement;
   readonly frameWindow: Window;
   readonly framePostMessage: ReturnType<typeof vi.spyOn>;
@@ -57,7 +57,7 @@ interface TransportHarnessV1 {
   readonly framePort: FakeMessagePortV1;
 }
 
-const activeTransportsV1: BrowserWorkspaceSandboxControlTransportV1[] = [];
+const activeTransportsV1: BrowserWorkspaceHostControlTransportV1[] = [];
 const sandboxTokensByFrameV1 = new WeakMap<HTMLIFrameElement, Set<string>>();
 let originalSandboxDescriptorV1: PropertyDescriptor | undefined;
 
@@ -128,7 +128,7 @@ function createHarnessV1(input?: {
   });
   activeTransportsV1.push(transport);
   const iframe = document.querySelector<HTMLIFrameElement>(
-    "iframe[data-silly-os-workspace-sandbox='qualification']",
+    "iframe[data-silly-os-workspace-sandbox='active']",
   );
   if (iframe?.contentWindow === null || iframe?.contentWindow === undefined) {
     throw new TypeError("test.workspace_sandbox.frame_unavailable");
@@ -220,7 +220,7 @@ describe("Browser Workspace Sandbox frame transport", () => {
     const harness = createHarnessV1();
     const received = vi.fn();
     harness.transport.addEventListener("message", received);
-    // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker-like typed transport has no targetOrigin parameter.
+    // oxlint-disable-next-line unicorn/require-post-message-target-origin -- The typed control transport has no targetOrigin parameter.
     harness.transport.postMessage({ command: "queued" });
 
     readyFrameV1(harness);
@@ -235,7 +235,7 @@ describe("Browser Workspace Sandbox frame transport", () => {
     ]);
     expect(received).not.toHaveBeenCalled();
 
-    // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker-like typed transport has no targetOrigin parameter.
+    // oxlint-disable-next-line unicorn/require-post-message-target-origin -- The typed control transport has no targetOrigin parameter.
     harness.transport.postMessage({ command: "live" });
     harness.controlPort.dispatch("message", { result: "ok" });
     expect(harness.controlPort.posts.at(-1)).toEqual({
@@ -267,7 +267,7 @@ describe("Browser Workspace Sandbox frame transport", () => {
 
     expect(failure).toHaveBeenCalledTimes(1);
     expect(harness.iframe.isConnected).toBe(false);
-    // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker-like typed transport has no targetOrigin parameter.
+    // oxlint-disable-next-line unicorn/require-post-message-target-origin -- The typed control transport has no targetOrigin parameter.
     expect(() => harness.transport.postMessage({ after: "failure" })).toThrowError(
       "sillyos.workspace_sandbox.transport_disposed",
     );

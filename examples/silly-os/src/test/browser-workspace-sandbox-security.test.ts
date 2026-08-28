@@ -53,6 +53,7 @@ describe("SillyOS independent Workspace Sandbox response boundary", () => {
       "default-src": "'none'",
       "script-src": "'self'",
       "worker-src": "'self'",
+      "frame-src": "blob:",
       "connect-src": "'none'",
       "object-src": "'none'",
       "base-uri": "'none'",
@@ -62,6 +63,11 @@ describe("SillyOS independent Workspace Sandbox response boundary", () => {
     expect(browserWorkspaceSandboxContentSecurityPolicyV1).not.toContain("*");
     expect(browserWorkspaceSandboxContentSecurityPolicyV1).not.toContain("'unsafe-inline'");
     expect(browserWorkspaceSandboxContentSecurityPolicyV1).not.toContain("'unsafe-eval'");
+    expect(directivesV1(browserWorkspaceSandboxContentSecurityPolicyV1)["frame-ancestors"])
+      .toBe(sillyOsProductionControlOriginV1);
+    expect(browserWorkspaceSandboxContentSecurityPolicyV1).not.toContain(
+      "https://silly-os.example",
+    );
   });
 
   it("replaces stale asset policy and stays frameable only through CSP", async () => {

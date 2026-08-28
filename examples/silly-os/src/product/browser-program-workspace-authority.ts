@@ -7,6 +7,7 @@ import {
   type BrowserWorkspaceHostFatalV1,
   type BrowserWorkspaceHostPagePortV1,
 } from "../workspace/browser-workspace-host-port.ts";
+import { createBrowserWorkspaceSandboxFrameTransportV1 } from "../workspace/browser-workspace-sandbox-frame-transport.ts";
 import type {
   BrowserWorkspaceHostExportProgressWireV1,
   BrowserWorkspaceHostSnapshotWireV1,
@@ -39,21 +40,6 @@ import {
   type ProgramRepositorySummaryV3,
   type ProgramRepositoryWithWorkspaceContinuationV1,
 } from "./program-repository.ts";
-
-interface BrowserWorkspaceHostWorkerLikeV1 {
-  postMessage(message: unknown, transfer?: Transferable[]): void;
-  addEventListener(
-    type: "message",
-    listener: (event: Readonly<{ data: unknown }>) => void,
-  ): void;
-  addEventListener(type: "error" | "messageerror", listener: (event: Event) => void): void;
-  removeEventListener(
-    type: "message",
-    listener: (event: Readonly<{ data: unknown }>) => void,
-  ): void;
-  removeEventListener(type: "error" | "messageerror", listener: (event: Event) => void): void;
-  terminate(): void;
-}
 
 interface DurableProgramPairV1 {
   readonly aggregate: ProgramRepositoryAggregateV3;
@@ -142,11 +128,12 @@ export interface BrowserProgramWorkspaceAuthorityV1 {
   queryWorkspace(workspaceSessionId: string): Promise<BrowserWorkspaceHostSnapshotWireV1>;
   exportWorkspace(input: {
     readonly workspaceSessionId: string;
+    readonly fileName: string;
     readonly signal: AbortSignal;
     readonly onProgress?: (progress: BrowserProgramWorkspaceExportProgressV1) => void;
     readonly onReady: (
       ready: BrowserProgramWorkspaceExportReadyV1,
-      commitRelease: () => boolean,
+      startDownload: () => Promise<void>,
     ) => "release" | "cancel" | Promise<"release" | "cancel">;
   }): Promise<BrowserProgramWorkspaceExportResultV1>;
   detachWorkspaceEnvironment(workspaceSessionId: string): Promise<void>;
@@ -160,15 +147,7 @@ export interface BrowserProgramWorkspaceAuthorityOptionsV1 {
   readonly repository?: ProgramRepositoryWithWorkspaceContinuationV1;
   readonly createRepository?: () => ProgramRepositoryWithWorkspaceContinuationV1;
   readonly host?: BrowserWorkspaceHostPagePortV1;
-  readonly createHostWorker?: () => BrowserWorkspaceHostWorkerLikeV1;
   readonly createSnapshotId?: () => string;
-}
-
-function defaultHostWorkerV1(): BrowserWorkspaceHostWorkerLikeV1 {
-  return new Worker(new URL("../workspace/browser-workspace-host.worker.ts", import.meta.url), {
-    type: "module",
-    name: "sillyos-browser-workspace-host",
-  }) as unknown as BrowserWorkspaceHostWorkerLikeV1;
 }
 
 function defaultSnapshotIdV1(): string {
@@ -402,7 +381,7 @@ export function createBrowserProgramWorkspaceAuthorityV1(
   const createSnapshotId = options.createSnapshotId ?? defaultSnapshotIdV1;
   let repository = options.repository ?? createRepository();
   const host = options.host ?? createBrowserWorkspaceHostPagePortV1({
-    worker: (options.createHostWorker ?? defaultHostWorkerV1)(),
+    transport: createBrowserWorkspaceSandboxFrameTransportV1(),
   });
   let initialized: Promise<void> | null = null;
   let activeWorkspace: ActiveWorkspaceV1 | null = null;
@@ -1165,26 +1144,42 @@ export function createBrowserProgramWorkspaceAuthorityV1(
           expectedGeneration: initialSnapshot.descriptor.generation,
           programRevision: initialContinuation.programRevision,
           repositoryRevision: initialContinuation.repositoryRevision,
+          fileName: input.fileName,
           signal: input.signal,
           ...(input.onProgress === undefined ? {} : { onProgress: input.onProgress }),
-          onReady: async (ready, commitRelease) => {
-            if (input.signal.aborted) return "cancel";
-            const currentSnapshot = await host.queryWorkspace(input.workspaceSessionId);
-            if (
-              currentSnapshot.phase !== "open" ||
-              currentSnapshot.checkpointId !== initialSnapshot.checkpointId ||
-              currentSnapshot.descriptor.generation !== initialSnapshot.descriptor.generation ||
-              currentSnapshot.volumeId !== initialSnapshot.volumeId
-            ) throw authorityErrorV1("export_anchor_changed");
-            const currentContinuation = await loadExportContinuationV1(currentSnapshot);
-            if (input.signal.aborted) return "cancel";
-            if (
-              !browserProgramContinuationManifestsEqualV1(
-                currentContinuation,
-                initialContinuation,
-              )
-            ) throw authorityErrorV1("export_anchor_changed");
-            return await input.onReady(ready, commitRelease);
+          onReady: async (ready, startDownload) => {
+            const assertCurrentExportV1 = async (): Promise<boolean> => {
+              if (input.signal.aborted) return false;
+              const currentSnapshot = await host.queryWorkspace(input.workspaceSessionId);
+              if (
+                currentSnapshot.phase !== "open" ||
+                currentSnapshot.checkpointId !== initialSnapshot.checkpointId ||
+                currentSnapshot.descriptor.generation !== initialSnapshot.descriptor.generation ||
+                currentSnapshot.volumeId !== initialSnapshot.volumeId
+              ) throw authorityErrorV1("export_anchor_changed");
+              const currentContinuation = await loadExportContinuationV1(currentSnapshot);
+              if (input.signal.aborted) return false;
+              if (
+                !browserProgramContinuationManifestsEqualV1(
+                  currentContinuation,
+                  initialContinuation,
+                )
+              ) throw authorityErrorV1("export_anchor_changed");
+              return true;
+            };
+            if (!(await assertCurrentExportV1())) return "cancel";
+            let startPromise: Promise<void> | null = null;
+            const startCurrentDownloadV1 = (): Promise<void> => {
+              if (startPromise !== null) return startPromise;
+              startPromise = (async () => {
+                if (!(await assertCurrentExportV1())) {
+                  throw new DOMException("Workspace export was aborted", "AbortError");
+                }
+                await startDownload();
+              })();
+              return startPromise;
+            };
+            return await input.onReady(ready, startCurrentDownloadV1);
           },
         });
       });

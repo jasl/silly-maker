@@ -93,8 +93,14 @@ Chromium gates. The resulting commit
 `a4cc8754b4c5f3050ff270a7c5a426b6c0d18176` is deployed to the canonical origin
 as Cloudflare version `e1808054-af9f-446f-a913-22a39bf98e37`; its exact build
 identity, response policy, Home, and Settings catalog pass in public Chromium
-and WebKit. S1a-0's independent-origin topology qualification has now closed
-locally; **S1a-1 is the only active checkpoint.** Earlier B1c Provider counts
+and WebKit. S1a-0's independent-origin topology qualification has closed
+locally. S1a-1's source cutover is now assembled: the independent-origin
+transport is the ordinary Authority, physical Product Repository V5
+clean-resets preview V4, production composition is build-identity-locked and
+fail-closed, download stays inside the Sandbox origin, and the same-origin Host
+Worker is deleted. The ordinary Chromium and persistent-WebKit acceptance now
+passes, so **S1a-1 is closed locally. No later checkpoint is active without a
+new owner order.** Earlier B1c Provider counts
 are dated evidence for their pre-security snapshot
 and do not by themselves accept the current overlay. This lane
 still does not add OAuth, multi-field cloud credentials, a Provider relay,
@@ -150,8 +156,9 @@ execution mechanism, especially in Browser, but it is not the product contract:
 the selected target adapters may combine TypeScript, Workers, Wasm payloads, or
 a native companion behind the same typed workspace boundary.
 
-At most one phase below is active at a time. P1-B1a, P1-B1b, B1c-S0, and
-S1a-0 are closed. **S1a-1 is the active product checkpoint.** A later phase
+At most one phase below is active at a time. P1-B1a, P1-B1b, B1c-S0, S1a-0,
+and S1a-1 are closed. **No later product checkpoint is active without a new
+owner order.** A later phase
 may be refined before it starts, but it may not
 silently weaken this product model or claim evidence that an earlier phase did
 not produce. Product code may not import the ignored `references/` checkouts.
@@ -190,9 +197,9 @@ implementation slice is:
    retain the existing Program/volume/currentness and cross-volume tests;
 4. fail closed for live execution: `pi_provider` receives the fixed Pi Agent and
    bounded Program-proposal tool but no `read/write/edit/bash` implementations.
-   The product-owned deterministic fixture may temporarily retain the fixed
-   legacy tool conformance; no live model, user plugin, project code, or imported
-   code may use the same-origin Host; and
+   S0 temporarily allowed the product-owned deterministic fixture to retain the
+   fixed legacy tool conformance; no live model, user plugin, project code, or
+   imported code could use that same-origin Host. S1a-1 has since deleted it; and
 5. build the actual production artifact, inspect its HTML and response metadata,
    then run focused Chromium and WebKit behavior without calling a paid Provider.
 
@@ -217,7 +224,7 @@ Workspace storage isolation, an encrypted Credential Vault, redirect handling,
 complete XSS resistance, Linux, Wasm, Python, QuickJS, import/restore, or live
 workspace tool behavior.
 
-### S1 — independent-origin Workspace authority (active)
+### S1 — independent-origin Workspace authority (S1a closed locally)
 
 Choose and prove the smallest Browser topology that gives the Workspace runtime
 its own origin and storage partition. The likely shape is an exact-origin
@@ -229,14 +236,14 @@ generation)` and exposes no Product Repository, Credential Vault, DOM, cookies,
 general host JavaScript, or ambient network.
 
 Move the Workspace VFS, `/tmp`, snapshot/export owner, and tool-effect side of
-`WorkspaceExecutionPort` to that origin. Then switch both deterministic and
-live Pi runs to the new adapter and delete the superseded same-origin execution
-path; pre-stable preview data may reset rather than introducing a migration
-framework. Re-enable Pi's unchanged `read/write/edit/bash` schemas only after
-the sandbox origin, cross-volume rejection, resource ceilings, cancellation,
-crash recovery, and network-off policy pass in both browsers.
+`WorkspaceExecutionPort` to that origin. Then switch the ordinary product
+Authority and fixed deterministic Pi fixture to the new adapter and delete the
+superseded same-origin execution path; pre-stable preview data may reset rather
+than introducing a migration framework. Live Provider remains proposal-only.
+S1a admits only Pi's unchanged `write`/`read` schemas; `edit`, `bash`, and any
+live-model workspace tools remain behind separately accepted evidence.
 
-S1 is split into bounded checkpoints; only one is active:
+S1 is split into bounded checkpoints. S1a is closed; S1b remains inactive:
 
 1. **S1a-0 — topology qualification (closed locally 2026-08-28):** prove an exact-origin Sandbox
    document plus same-origin Host Worker, transferred typed control/environment
@@ -245,11 +252,12 @@ S1 is split into bounded checkpoints; only one is active:
    product and live Provider remain fail-closed during this qualification; no
    same-origin fallback is added. A cross-origin OPFS, lifecycle, locking, or
    download failure is a stop condition, not permission to weaken the boundary.
-2. **S1a-1 — read/write authority cutover (active):** make the qualified transport the
-   only product default, reset incompatible preview data, retain Pi's native
-   `read`/`write` schema and binder, and delete the same-origin Host path. Prove
-   exact cold reopen, snapshot/export, volume/currentness, limits,
-   cancellation, and crash recovery again through the ordinary product.
+2. **S1a-1 — read/write authority cutover (closed locally 2026-08-28):** make
+   the qualified transport the only product default,
+   reset incompatible preview data, retain Pi's native `write`/`read` schema and
+   binder, and delete the same-origin Host path. Prove exact cold reopen,
+   snapshot/export, volume/currentness, limits, cancellation, and crash recovery
+   again through the ordinary product.
 3. **S1b — remaining native tools:** admit Pi `edit`, then bounded `bash`, only
    after separate evidence. `just-bash`, Python, QuickJS, Wasm, network, import,
    and BYO Sandbox do not enter S1a.
@@ -272,13 +280,67 @@ only archive length; after the shared ZIP parser added exact entry, manifest,
 corpus-byte, and rolling-hash checks and both browsers reran, the re-review found
 no remaining S1a-0 closure blocker.
 
-This is topology and browser-feasibility evidence only. The separate artifact
-has no production deployment receipt yet; the ordinary Authority, deterministic
-fixture, Download UI, and live Provider remain unchanged and fail closed as
-specified by S0. S1a-1 must cut over those real product consumers, delete the
-same-origin execution owner, and repeat the behavior gates before the product
-may call its ordinary workspace physically isolated or enable live Pi file
-tools.
+S1a-1 now clean-replaces that qualification-only wiring in source:
+
+1. the default Program Workspace Authority creates only the exact-origin frame
+   transport; the retired control-origin Host Worker, factory, fallback, and
+   live-Provider access are absent;
+2. physical Product Repository V5 accepts a fresh database or exact preview V4,
+   drops and recreates the V4 stores without reading or migrating rows, and
+   rejects other historical/future versions. Old control-origin OPFS bytes may
+   remain browser-managed but are unreachable and are not migration input;
+3. one product-derived build identity is embedded independently in the control
+   artifact, Sandbox bootstrap, and Host Worker. Production rejects
+   `development`, absent identity, or any expected/actual mismatch. Local dev
+   uses the exact 4173/41740 origin pair, strict CSP on both documents, and HMR
+   disabled so the two trusted artifacts cannot hot-update out of lockstep.
+   Each control dev-server start generates a fresh random nonce that Vite
+   attaches to its injected styles. Dev also omits the observational Trusted
+   Types header that Vite cannot satisfy; preview/production retain self-hosted
+   external styles and Trusted Types Report-Only, with no nonce production
+   policy. The final frame policy admits only the
+   exact Sandbox origin plus `blob:` at control and only `blob:` inside the
+   Sandbox, which WebKit requires for the private download navigation; the Blob
+   URL never crosses the control RPC;
+4. export is a two-stage authorization. The Host seals the archive and reports
+   `ready`; the Authority rechecks exact Host snapshot plus Product continuation
+   before exposing readiness and again when the consumer explicitly asks for
+   `start_download`. Only then may the Sandbox-private broker trigger download
+   and return `download_started`. The UI retains the sealed archive for the
+   1,000 ms handoff, then sends `release`; the Host revokes/deletes before
+   terminal settlement. The control plane receives no URL, Blob, archive, or
+   VFS bytes; and
+5. the deterministic fixture registers only Pi's native `write` and `read`.
+   Live Provider remains bounded to the proposal tool. Historical P3a
+   `edit`/`bash` results do not admit those tools into S1a.
+
+The control-origin storage estimate/persistence UI is removed because it would
+describe Product Repository quota rather than the Sandbox-origin volume. A
+future Workspace storage display must come from a typed Sandbox-owned status;
+S1a-1 does not add that contract.
+
+The ordinary `@s1a-ordinary` gate passes 4/4 in Chromium and 4/4 in a fresh
+persistent-profile WebKit. It proves the exact active Sandbox frame at `41740`
+while the `41739` control origin cannot open the new volume; native Pi
+`write`/`read` with exact bytes; generation-2 checkpoint and cold reopen; two-
+page ownership contention, graceful release, and exact successor reopen; one
+accepted snapshot and one-file ZIP whose cross-origin download has the exact
+manifest and bytes; a real cancel before download authorization with zero
+download; and cancel-after-write terminal receipt followed by reload.
+A separate WebKit download rerun also passes 1/1.
+
+This ordinary gate does not repeat the scale qualification. The separate S1a-0
+Chromium and WebKit qualifications each pass 3/3 for build identity, network
+denial, and the 20 MiB corpus; the earlier dual-browser S1a-0 receipt remains the 81-file cold-
+reopen/download feasibility evidence. No S1a-1 production deployment is
+claimed, and live Pi file tools remain disabled after local S1a-1 closure.
+
+Focused protocol/runtime gates additionally establish the phase boundary:
+before `start_download`, abort, cancel, ready-consumer return/throw, timeout, or
+snapshot/continuation drift reaches neither broker nor browser download. After
+`start_download`, Close and Forget drain `download_started`, the 1,000 ms
+handoff, release, and cleanup rather than aborting an already-authorized native
+handoff.
 
 ### S2 — execution profiles and explicit capabilities
 
@@ -332,8 +394,8 @@ binder. The ordinary route now opens the product-owned Settings surface over
 Pi's pinned catalog, persists compatible model checkboxes plus one preferred
 model, and supports session-only Save/Test/Forget for built-in or bounded custom
 HTTPS profiles. Creator Home still does not request the lazy Pi Worker chunks.
-Live Provider runs can use only the bounded proposal tool; same-origin workspace
-tools are withheld until S1. P2-B0 now adds a bounded Browser-local Program
+Live Provider runs can use only the bounded proposal tool; S1a-1 does not change
+that rule. P2-B0 now adds a bounded Browser-local Program
 database, durable exact Program revisions and decisions, and recent-Program
 reload/reopen. P3c-B0 now adds one durable OPFS workspace volume, an exact
 continuation anchor, a fresh Pi session over cold reopen, recovery/contender
@@ -343,8 +405,11 @@ manifest and VFS files. P3c-B1 now publishes one exact reviewed head as an
 immutable accepted snapshot, keeps later mutable drafts independent, and shows
 accepted/reviewed/current identity without making React a byte owner. The
 product still has no persistent Pi session, import/restore, user-facing
-accepted-snapshot download, WASM guest, independent-origin Sandbox, Credential
-Vault, or generally active workspace capability. Its initial proposal, Source, translation rows,
+accepted-snapshot download, WASM guest, Credential Vault, or generally active
+live workspace capability. S1a-1 clean-replaces the ordinary same-origin
+Workspace owner with the independent-origin transport and physical Product
+Repository V5, but it does not make the live Provider a workspace-tool consumer.
+Its initial proposal, Source, translation rows,
 remaining capability labels, and separate preview manifest remain explicit
 preview material.
 
@@ -371,20 +436,20 @@ promotion gate, not a prerequisite for the 2.9.5 companion preview path.
 
 ## Ownership decisions
 
-| Authority                                                                                                     | Owner                                      | Boundary                                                                                                                                                        |
-| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Program identity, accepted revisions, proposals, decisions, and publication receipts                          | SillyOS product database                   | Product repository and typed product services                                                                                                                   |
-| Creator Chat, live Pi-session binding, and review coordination                                                | SillyOS Creator supervisor                 | Session-local control plane plus bounded durable references/receipts; conversation is not Program content                                                       |
-| Draft sources, `.git`, generated files, artifacts, file-resident product data, `AGENTS.md`, and skills        | One workspace volume per Program           | A product-selected `WorkspaceRuntime`; accepted Program state names an exact immutable snapshot                                                                 |
-| Agent loop, session semantics, compaction, model/provider calls, tool dispatch, and Agent extension lifecycle | Pi                                         | Fixed `pi-agent-core`/`pi-ai` in Browser; complete fixed `pi-coding-agent` companion in Desktop; public Pi tool/extension contracts                             |
-| `read`/`write`/`edit`/`bash` Agent schemas, validation, execution algorithms, updates, and results            | Pi                                         | Browser reuses the shipped agent-core factories after S1; only the fixed deterministic fixture retains legacy same-origin conformance today                     |
-| Presentation-facing Agent transport                                                                           | SillyOS target adapter                     | Browser Worker or Desktop companion projects only admitted commands/events; raw Pi/provider records never enter React state                                     |
-| Agent-side product functions                                                                                  | Pi plus pinned SillyOS capability adapters | One shared schema/prompt/handler core, registered as a Browser `AgentTool` or Desktop `ExtensionAPI` tool; no parallel Agent/plugin runtime                     |
-| Workspace lifecycle, capabilities, generation, change journal, and terminal mutation receipts                 | SillyOS `WorkspaceRuntimePort`             | Product-private owner that supplies a stable Program-scoped Pi `ExecutionEnv`; it is not a second tool API                                                      |
-| Workspace filesystem and shell effects                                                                        | Product-selected execution provider        | Browser target is an independent-origin Sandbox with VFS/just-bash; current same-origin Host is deterministic legacy evidence only; no Host-filesystem fallback |
-| Pi session and provider credentials                                                                           | Target-local Pi owners                     | Browser Agent Worker owns an ephemeral key/session initially; Desktop owns isolated Pi session/auth storage; Program data holds no secret                       |
-| Responsive presentation and application mounting                                                              | SillyMaker GUI contracts                   | React/UI components, input, focus, accessibility, responsive layout, and admitted UI interaction                                                                |
-| Human approval and publication                                                                                | SillyOS Program authority                  | Exact proposal, base accepted revision, and reviewed workspace generation are rechecked before snapshot publication                                             |
+| Authority                                                                                                     | Owner                                      | Boundary                                                                                                                                                    |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Program identity, accepted revisions, proposals, decisions, and publication receipts                          | SillyOS product database                   | Product repository and typed product services                                                                                                               |
+| Creator Chat, live Pi-session binding, and review coordination                                                | SillyOS Creator supervisor                 | Session-local control plane plus bounded durable references/receipts; conversation is not Program content                                                   |
+| Draft sources, `.git`, generated files, artifacts, file-resident product data, `AGENTS.md`, and skills        | One workspace volume per Program           | A product-selected `WorkspaceRuntime`; accepted Program state names an exact immutable snapshot                                                             |
+| Agent loop, session semantics, compaction, model/provider calls, tool dispatch, and Agent extension lifecycle | Pi                                         | Fixed `pi-agent-core`/`pi-ai` in Browser; complete fixed `pi-coding-agent` companion in Desktop; public Pi tool/extension contracts                         |
+| `read`/`write`/`edit`/`bash` Agent schemas, validation, execution algorithms, updates, and results            | Pi                                         | S1a-1 uses shipped `write`/`read` only for the fixed deterministic fixture through the Sandbox; `edit`/`bash` and live tools remain deferred                |
+| Presentation-facing Agent transport                                                                           | SillyOS target adapter                     | Browser Worker or Desktop companion projects only admitted commands/events; raw Pi/provider records never enter React state                                 |
+| Agent-side product functions                                                                                  | Pi plus pinned SillyOS capability adapters | One shared schema/prompt/handler core, registered as a Browser `AgentTool` or Desktop `ExtensionAPI` tool; no parallel Agent/plugin runtime                 |
+| Workspace lifecycle, capabilities, generation, change journal, and terminal mutation receipts                 | SillyOS `WorkspaceRuntimePort`             | Product-private owner that supplies a stable Program-scoped Pi `ExecutionEnv`; it is not a second tool API                                                  |
+| Workspace filesystem and shell effects                                                                        | Product-selected execution provider        | Browser ordinary VFS is the independent-origin Sandbox; shell/just-bash is not admitted in S1a-1, and no control-origin or Host-filesystem fallback remains |
+| Pi session and provider credentials                                                                           | Target-local Pi owners                     | Browser Agent Worker owns an ephemeral key/session initially; Desktop owns isolated Pi session/auth storage; Program data holds no secret                   |
+| Responsive presentation and application mounting                                                              | SillyMaker GUI contracts                   | React/UI components, input, focus, accessibility, responsive layout, and admitted UI interaction                                                            |
+| Human approval and publication                                                                                | SillyOS Program authority                  | Exact proposal, base accepted revision, and reviewed workspace generation are rechecked before snapshot publication                                         |
 
 Pi, product storage, workspace runtimes, and tool implementations are
 infrastructure for Programs that need them. They are not optional desktop
@@ -398,21 +463,21 @@ capability truth, and receipts; each phase implements only the fields with a
 real consumer. Its Pi-facing execution projection satisfies the latter's
 `FileSystem + Shell` contract. Cross-origin or remote typed RPC carries those
 environment primitives and product call scope; it does not create a second
-Agent/tool framework. After S1, Browser uses two thin adapters over one Sandbox
-byte authority: Pi's filesystem adapter for `read`/`write`/`edit`, and
-just-bash's `IFileSystem` adapter for commands invoked by Pi `bash`. The current
-same-origin adapters are retained only by the deterministic fixture and must not
-be mistaken for that target authority or create a second synchronized VFS tree.
+Agent/tool framework. S1a-1 uses one thin Pi filesystem adapter for native
+`write`/`read` over the Sandbox byte authority. S1b may later admit `edit` and
+then just-bash's `IFileSystem` adapter for Pi `bash`; neither exists on the
+ordinary route today. The control-origin adapter is deleted rather than
+retained as a synchronized or fallback VFS tree.
 
 SillyOS does not fork or browser-port `pi-coding-agent`. The fixed Pi 0.84.3
 distribution already separates the useful shared runtime from the Node-oriented
 coding product:
 
 - Browser uses the public `pi-agent-core` `Agent` and `AgentTool` together with
-  selectively imported `pi-ai` providers. After S1, it also reuses the shipped
-  `createReadTool`/`createWriteTool`/`createEditTool`/`createBashTool` factories
-  and host-abstract `ExecutionEnv`; a tiny product-private binder supplies the
-  stable `{ env }` context without copying the tools' schemas or algorithms.
+  selectively imported `pi-ai` providers. S1a-1 reuses the shipped
+  `createWriteTool`/`createReadTool` factories and host-abstract `ExecutionEnv`;
+  a tiny product-private binder supplies the stable `{ env }` context without
+  copying the tools' schemas or algorithms. The other two factories remain S1b.
 - Desktop packages the complete fixed `pi-coding-agent` artifact because its
   native session files, resource discovery, coding tools, JSONL RPC, and public
   Extension API are real Desktop capabilities.
@@ -450,8 +515,10 @@ The one neutral engine gap reproduced by S0 is now closed and consumed:
 SillyMaker's generic Vite tooling previously injected an executable inline
 version-stamp script; the engine lane replaced it with a build-owned,
 same-origin external asset that runs before the application module. SillyOS
-keeps the general correction and adds no product-specific nonce/hash, copied
-build pipeline, or Pi/SillyOS semantics to the engine.
+keeps the general correction and adds no product-specific production nonce/hash,
+copied build pipeline, or Pi/SillyOS semantics to the engine. The later random
+style nonce is confined to each local control Vite dev-server process so Vite
+can label its injected styles; it is not an engine or shipped-artifact policy.
 
 All Program/Workspace semantics, Creator supervision, Pi tools and extensions,
 provider keys, OPFS/VFS, just-bash, Wasm payloads, Desktop or BYO sandbox
@@ -546,10 +613,12 @@ The accepted execution order is no longer the numeric subsection order:
    pass with Trusted Types deliberately retained as Report-Only. Commit
    `a4cc8754` and Cloudflare version
    `e1808054-af9f-446f-a913-22a39bf98e37` pass the same public-origin gate.
-9. **S1a-0 closed locally and S1a-1 is active:** the exact independent-origin
-   topology and Sandbox-owned download passed their dual-browser qualification;
-   now make that transport the ordinary read/write authority and delete the
-   superseded same-origin execution path.
+9. **S1a-0 and S1a-1 closed locally:** the exact independent-origin topology and Sandbox-owned
+   download passed their qualification. The ordinary Authority now selects that
+   transport, preview Product Repository V4 clean-resets to physical V5, the
+   same-origin execution owner is deleted, and deterministic Pi selects only
+   `write`/`read`. Chromium and persistent-WebKit ordinary product evidence
+   passes. S1b is not activated by this closure.
    S2 execution profiles,
    S3 Credential Vault, S4 Agent/OpenUI state,
    S5 BYO Sandbox/products, P1-D, and broader import/artifact work require their
@@ -2093,15 +2162,18 @@ first/open contention, bounded busy state, Worker-loss lease release, exact
 cold reopen, and an automated corpus of 1,000 `5 KiB` files plus one `16 MiB`
 file: `1,001` files, `21,897,216` bytes, and generation `1002`. The same route
 proves page isolation from volume bytes and rejects native Pi reads above
-`256 KiB` from metadata. Browser storage UI reports the origin-wide advisory
-estimate and exposes an explicit best-effort persistence request; a `false`
-result leaves the workspace usable. Checkpoint 2 alone did not implement ZIP,
+`256 KiB` from metadata. That historical same-origin checkpoint displayed its
+origin-wide advisory estimate and exposed an explicit best-effort persistence
+request; S1a-1 removes the UI because it would describe the control origin, not
+the Sandbox volume. Checkpoint 2 alone did not implement ZIP,
 import/restore, shell, or sandbox behavior and therefore did not close P3c-B0.
 
-Checkpoint 3 delivered and closed P3c-B0 on 2026-08-27. The product now streams
-one canonical STORE-only ZIP into a Host-owned OPFS temporary, transfers only a
-Host-owned object URL and bounded metadata to the page, and exposes explicit
-progress, cancellation, finalization, and download-started states. Real
+Checkpoint 3 delivered and closed P3c-B0 on 2026-08-27. At that historical
+same-origin checkpoint the product streamed one canonical STORE-only ZIP into a
+Host-owned OPFS temporary, transferred only a Host-owned object URL and bounded
+metadata to the page, and exposed explicit progress, cancellation,
+finalization, and download-started states. S1a-1 replaces the URL transfer with
+the private Sandbox-frame broker described above. Real
 Chromium and persistent-profile WebKit both cancel before download and then
 download, independently unpack, and byte-check the exact `1,001`-file,
 `21,897,216`-byte workspace corpus without changing its durable head. The
@@ -2270,11 +2342,11 @@ room, not mandatory gates or promised quotas. Browser capacity is dynamic
 across engine, device, free disk, engagement, private mode, and origin policy.
 `navigator.storage.estimate()` reports advisory usage/quota for the whole
 origin, not a SillyOS volume allowance or one uniform fixed browser quota. The
-product requests `navigator.storage.persist()` only through an explicit action
-after the user has created important work, catches `QuotaExceededError`, and
-reports whether persistence was granted. A best-effort request returning
-`false` does not fail or disable the volume, and a granted request does not turn
-local storage into backup. Checkpoint 3 therefore admits a complete origin
+historical same-origin product requested `navigator.storage.persist()` only
+through an explicit action after the user created important work, caught
+`QuotaExceededError`, and reported whether persistence was granted. S1a-1
+removes that control-origin UI; a replacement requires Sandbox-owned status.
+Checkpoint 3 therefore admitted a complete origin
 storage estimate only as a known-insufficient temporary-headroom preflight;
 unknown or advisory estimates remain non-promissory, and the real OPFS write is
 the quota authority.
@@ -2311,12 +2383,12 @@ independent Host export job only after the
 current workspace session has no active Pi run and its requested
 `(checkpointId, generation)` still equals the durable head. The control request
 returns `started` immediately; a transferred, export-specific MessagePort owns
-ordered progress, cancellation, ready/release, and terminal settlement. A
-new Pi run is rejected while that job exists. Before release is committed,
-Close and Forget abort and drain it instead of waiting behind a long-running
-lifecycle command. After release is committed, they await the non-cancellable
-finalizing and cleanup settlement before closing the workspace; transport
-disposal is terminal failure, not release success.
+ordered progress, sealed `ready`, explicit `start_download`,
+`download_started`, `release`, and terminal settlement. A new Pi run is rejected
+while that job exists. Before download authorization, Close and Forget cancel
+and drain it. After `start_download`, they await the broker receipt, 1,000 ms
+handoff, explicit release, and Host cleanup before closing the Workspace;
+transport disposal is terminal failure, not release success.
 
 The job uses the product-lockfile-pinned `client-zip` 2.5.0 writer-only module.
 It feeds sorted normalized VFS files through fixed `1 MiB` maximum source
@@ -2364,24 +2436,24 @@ interface SillyOsWorkspaceExportManifestV1 {
 metadata, not portable identity. The archive likewise excludes the Program
 database, Creator Chat, credentials, provider data, Pi/provider sessions,
 terminal Agent-run receipts, mutation receipts, all OPFS Host metadata, and
-export temporaries. The Program authority reloads the continuation immediately
-before making the completed archive downloadable; anchor drift, reload failure,
-or download-trigger failure cancels the job and suppresses download. Only an
-exact recheck followed by a successfully triggered native download can commit
-release. This is an exact export anchor, not an IndexedDB +
+export temporaries. After sealed `ready`, the Program Authority rechecks exact
+Host snapshot and Product continuation before exposing readiness, then repeats
+both checks when the consumer explicitly requests `start_download`. Anchor
+drift, reload failure, abort, timeout, or consumer return/throw before that
+authorization cancels/fails the job with no broker call or download. This is an exact export anchor, not an IndexedDB +
 OPFS transaction, immutable snapshot, or accepted Program revision.
 
-The Host Worker creates the object URL from the completed OPFS `File` and sends
-only that URL plus bounded metadata to the page. The page never receives a file
-tree, VFS byte chunk, whole-archive `Blob`, or `ArrayBuffer`. A ready job has a
-default `30`-second Host watchdog; an absent page decision aborts and cleans the
-temporary instead of leaving a live URL. After a successful `<a download>`
-click, the page calls `commitRelease()`, enters non-cancellable `finalizing`,
-and keeps the Host URL plus OPFS backing alive for the Chromium-evidenced
-`1,000 ms` browser handoff before returning `release`. The Host then revokes the
-URL, removes the temporary, and only afterward emits terminal `released`.
-Before release is committed, cancellation and failure perform the same cleanup
-before terminal settlement. A Worker lost before release can leave only that
+S1a-1 keeps the object URL inside the Sandbox. Only after authorization does the
+Host call the private bootstrap-frame broker; its bounded started receipt becomes
+`download_started` on the control port. The control page receives neither URL,
+Blob, file tree, VFS byte chunk, whole archive, nor `ArrayBuffer`. A sealed ready
+job has a default `30`-second Host watchdog; an absent authorization aborts and
+cleans the temporary without calling the broker. After `download_started`, the
+UI enters non-cancellable `finalizing`, keeps the Host URL plus OPFS backing
+alive for the Chromium-evidenced `1,000 ms` handoff, then returns `release`.
+The control port sends release; the Host revokes the URL, removes the temporary,
+and only afterward emits terminal `released`. Close and Forget drain this
+post-authorization sequence. A Worker lost before cleanup can leave only the
 reserved temporary, which the next volume open removes before admitting another
 export. `released` and the UI's “Download started” mean only that SillyOS handed
 the file to the browser download pipeline; neither claims that the user selected
@@ -2414,7 +2486,9 @@ Delivered checkpoints 1 and 2 provide:
   `256 KiB` metadata preflight before any content read or transfer, without
   treating that wire ceiling as the file or volume limit; and
 - an origin-wide advisory storage estimate plus explicit best-effort
-  persistence request whose `false` result leaves the workspace open and usable.
+  persistence request whose `false` result left the historical same-origin
+  workspace open and usable. S1a-1 removes this UI until Sandbox-owned status
+  exists.
 
 Delivered checkpoint 3 additionally proves:
 
@@ -2428,9 +2502,11 @@ Delivered checkpoint 3 additionally proves:
   mark 0, and the shared `4 MiB` filesystem I/O budget; bounded progress; no
   whole-archive page payload; and no leaked temporary or object URL after
   cancellation, failure, release, close, or cold reopen;
-- the `30`-second ready watchdog plus the non-cancellable, `1,000 ms`
-  Chromium-evidenced post-click handoff before Host revoke/delete and terminal
-  `released`, without presenting that handoff as a completed user save;
+- sealed ready plus the `30`-second authorization watchdog, double Host-
+  snapshot/Product-continuation currentness, explicit `start_download`, private
+  broker `download_started`, and the non-cancellable `1,000 ms` handoff before
+  explicit release, Host revoke/delete, and terminal `released`, without
+  presenting that handoff as a completed user save;
 - exclusion scans for Chat, the Program database, credentials, provider data,
   Pi/provider sessions, terminal/mutation receipts, and Host metadata; and
 - source/final-graph exclusion of just-bash, Wasm, Git implementations,

@@ -17,7 +17,7 @@ import {
 } from "./browser-workspace-host-opfs.ts";
 import type { ProgramWorkspaceSnapshotReceiptV1 } from "./contracts.ts";
 
-interface BrowserWorkspaceHostWorkerPortV1 {
+export interface BrowserWorkspaceHostControlTransportV1 {
   postMessage(message: unknown, transfer?: Transferable[]): void;
   addEventListener(
     type: "message",
@@ -67,7 +67,7 @@ export class BrowserWorkspaceHostControlErrorV1 extends Error {
 }
 
 export interface BrowserWorkspaceHostPagePortOptionsV1 {
-  readonly worker: BrowserWorkspaceHostWorkerPortV1;
+  readonly transport: BrowserWorkspaceHostControlTransportV1;
   readonly bootstrapLockPort?: BrowserWorkspaceHostExclusiveLockPortV1;
   readonly createMessageChannel?: () => MessageChannel;
   readonly createExportId?: () => string;
@@ -79,7 +79,6 @@ export interface BrowserWorkspaceHostFatalV1 {
 
 export interface BrowserWorkspaceHostExportReadyV1
   extends BrowserWorkspaceHostExportProgressWireV1 {
-  readonly downloadUrl: string;
   readonly checkpointId: string;
   readonly generation: number;
 }
@@ -120,11 +119,12 @@ export interface BrowserWorkspaceHostPagePortV1 {
     readonly expectedGeneration: number;
     readonly programRevision: number;
     readonly repositoryRevision: number;
+    readonly fileName: string;
     readonly signal: AbortSignal;
     readonly onProgress?: (progress: BrowserWorkspaceHostExportProgressWireV1) => void;
     readonly onReady: (
       ready: BrowserWorkspaceHostExportReadyV1,
-      commitRelease: () => boolean,
+      startDownload: () => Promise<void>,
     ) => "release" | "cancel" | Promise<"release" | "cancel">;
   }): Promise<BrowserWorkspaceHostExportResultV1>;
   prepareSnapshot(input: {
@@ -209,9 +209,9 @@ export function createBrowserWorkspaceHostPagePortV1(
   const poisonTransport = (fatal: BrowserWorkspaceHostFatalV1): void => {
     if (disposed) return;
     disposed = true;
-    options.worker.removeEventListener("message", listener);
-    options.worker.removeEventListener("error", transportFailureListener);
-    options.worker.removeEventListener("messageerror", transportFailureListener);
+    options.transport.removeEventListener("message", listener);
+    options.transport.removeEventListener("error", transportFailureListener);
+    options.transport.removeEventListener("messageerror", transportFailureListener);
     for (const request of pending.values()) request.reject(lostResponseError(request));
     pending.clear();
     failActiveExports(
@@ -221,7 +221,7 @@ export function createBrowserWorkspaceHostPagePortV1(
       ),
     );
     candidateBootstrapKeys.clear();
-    options.worker.terminate();
+    options.transport.terminate();
     for (const fatalListener of [...fatalListeners]) {
       try {
         fatalListener(fatal);
@@ -265,9 +265,9 @@ export function createBrowserWorkspaceHostPagePortV1(
         : "unavailable",
     });
   };
-  options.worker.addEventListener("message", listener);
-  options.worker.addEventListener("error", transportFailureListener);
-  options.worker.addEventListener("messageerror", transportFailureListener);
+  options.transport.addEventListener("message", listener);
+  options.transport.addEventListener("error", transportFailureListener);
+  options.transport.addEventListener("messageerror", transportFailureListener);
 
   const request = (
     record: BrowserWorkspaceHostControlRequestRecordV1,
@@ -282,7 +282,7 @@ export function createBrowserWorkspaceHostPagePortV1(
     return new Promise((resolve, reject) => {
       pending.set(requestId, { method: record.method, resolve, reject });
       try {
-        options.worker.postMessage(
+        options.transport.postMessage(
           { revision: 1, kind: "control_request", requestId, record },
           transfer,
         );
@@ -428,7 +428,10 @@ export function createBrowserWorkspaceHostPagePortV1(
       let started = false;
       let ready: BrowserWorkspaceHostExportReadyV1 | null = null;
       let readySeen = false;
-      let releaseCommitted = false;
+      let readyConsumerActive = false;
+      let downloadStartSent = false;
+      let downloadStarted = false;
+      let downloadStartSettled = false;
       let releaseSent = false;
       let consumerError: unknown = null;
       let terminalSettled = false;
@@ -446,17 +449,34 @@ export function createBrowserWorkspaceHostPagePortV1(
         rejectTerminal = reject;
       });
       void terminal.catch(() => undefined);
+      let resolveDownloadStarted!: () => void;
+      let rejectDownloadStarted!: (error: Error) => void;
+      const downloadStartedReceipt = new Promise<void>((resolve, reject) => {
+        resolveDownloadStarted = resolve;
+        rejectDownloadStarted = reject;
+      });
+      void downloadStartedReceipt.catch(() => undefined);
+      const settleDownloadStarted = (error: Error | null): void => {
+        if (downloadStartSettled) return;
+        downloadStartSettled = true;
+        if (error === null) resolveDownloadStarted();
+        else rejectDownloadStarted(error);
+      };
 
       const send = (
-        kind: "workspace_export_cancel" | "workspace_export_release",
+        kind:
+          | "workspace_export_cancel"
+          | "workspace_export_start_download"
+          | "workspace_export_release",
       ): boolean => {
-        if (terminalSettled && kind === "workspace_export_release") return false;
+        if (terminalSettled && kind !== "workspace_export_cancel") return false;
         try {
           channel.port2.postMessage({ revision: 1, kind, exportId });
+          if (kind === "workspace_export_start_download") downloadStartSent = true;
           if (kind === "workspace_export_release") releaseSent = true;
           return true;
         } catch {
-          // The Worker transport failure path owns recovery when the port is already gone.
+          // The control transport failure path owns recovery when the port is already gone.
           return false;
         }
       };
@@ -465,6 +485,7 @@ export function createBrowserWorkspaceHostPagePortV1(
         terminalSettled = true;
         send("workspace_export_cancel");
         const error = new BrowserWorkspaceHostControlErrorV1("invalid_response", message);
+        settleDownloadStarted(error);
         rejectTerminal(error);
         poisonTransport({ code: "invalid_response" });
       };
@@ -482,31 +503,51 @@ export function createBrowserWorkspaceHostPagePortV1(
           send("workspace_export_cancel");
           return;
         }
-        const commitRelease = (): boolean => {
-          if (terminalSettled || input.signal.aborted) return false;
-          releaseCommitted = true;
-          return true;
-        };
-        try {
-          const decision = await input.onReady(current, commitRelease);
-          if (terminalSettled) return;
-          if (releaseCommitted) {
-            send("workspace_export_release");
-            return;
+        const startDownload = (): Promise<void> => {
+          if (downloadStartSent) return downloadStartedReceipt;
+          if (!readyConsumerActive || terminalSettled || input.signal.aborted) {
+            return Promise.reject(
+              new BrowserWorkspaceHostControlErrorV1(
+                "unavailable",
+                "Workspace export download authorization is no longer current",
+              ),
+            );
           }
-          if (input.signal.aborted) {
+          if (!send("workspace_export_start_download")) {
+            return Promise.reject(
+              new BrowserWorkspaceHostControlErrorV1(
+                "unavailable",
+                "Workspace export download authorization could not be sent",
+              ),
+            );
+          }
+          return downloadStartedReceipt;
+        };
+        readyConsumerActive = true;
+        try {
+          await input.onReady(current, startDownload);
+          readyConsumerActive = false;
+          if (terminalSettled) return;
+          if (!downloadStartSent) {
             send("workspace_export_cancel");
             return;
           }
-          send(
-            decision === "release" ? "workspace_export_release" : "workspace_export_cancel",
-          );
+          await downloadStartedReceipt;
+          if (!terminalSettled) send("workspace_export_release");
         } catch (error) {
+          readyConsumerActive = false;
           if (terminalSettled) return;
-          consumerError = error;
-          send(
-            releaseCommitted ? "workspace_export_release" : "workspace_export_cancel",
-          );
+          if (!input.signal.aborted || downloadStartSent) consumerError = error;
+          if (!downloadStartSent) {
+            send("workspace_export_cancel");
+            return;
+          }
+          try {
+            await downloadStartedReceipt;
+          } catch {
+            return;
+          }
+          if (!terminalSettled) send("workspace_export_release");
         }
       };
 
@@ -553,7 +594,6 @@ export function createBrowserWorkspaceHostPagePortV1(
           }
           readySeen = true;
           ready = {
-            downloadUrl: message.downloadUrl,
             checkpointId: message.checkpointId,
             generation: message.generation,
             ...lastProgress,
@@ -561,10 +601,25 @@ export function createBrowserWorkspaceHostPagePortV1(
           void consumeReady();
           return;
         }
+        if (message.kind === "workspace_export_download_started") {
+          if (
+            !readySeen || !downloadStartSent || downloadStarted || ready !== null ||
+            message.filesCompleted !== message.filesTotal ||
+            message.bytesWritten !== message.bytesTotal ||
+            message.checkpointId !== input.expectedCheckpointId ||
+            message.generation !== input.expectedGeneration
+          ) {
+            failChannel("Workspace Host emitted an invalid download-started export");
+            return;
+          }
+          downloadStarted = true;
+          settleDownloadStarted(null);
+          return;
+        }
         terminalSettled = true;
         if (message.kind === "workspace_export_released") {
           if (
-            !readySeen || !releaseSent || ready !== null ||
+            !readySeen || !downloadStarted || !releaseSent || ready !== null ||
             message.filesCompleted !== message.filesTotal ||
             message.bytesWritten !== message.bytesTotal ||
             message.checkpointId !== input.expectedCheckpointId ||
@@ -583,20 +638,26 @@ export function createBrowserWorkspaceHostPagePortV1(
           return;
         }
         if (message.code === "cancelled") {
+          settleDownloadStarted(
+            new BrowserWorkspaceHostControlErrorV1(
+              "unavailable",
+              "Workspace export was cancelled before the download started",
+            ),
+          );
           resolveTerminal({ kind: "cancelled", ...lastProgress });
           return;
         }
-        rejectTerminal(
-          new BrowserWorkspaceHostControlErrorV1(
-            message.code,
-            `Workspace export failed: ${message.code}`,
-          ),
+        const failure = new BrowserWorkspaceHostControlErrorV1(
+          message.code,
+          `Workspace export failed: ${message.code}`,
         );
+        settleDownloadStarted(failure);
+        rejectTerminal(failure);
       };
       channel.port2.addEventListener("message", exportListener);
       channel.port2.start();
       const cancelListener = (): void => {
-        if (!releaseCommitted) send("workspace_export_cancel");
+        if (!downloadStartSent) send("workspace_export_cancel");
       };
       input.signal.addEventListener("abort", cancelListener, { once: true });
       let channelClosed = false;
@@ -610,6 +671,7 @@ export function createBrowserWorkspaceHostPagePortV1(
         reject(error) {
           if (terminalSettled) return;
           terminalSettled = true;
+          settleDownloadStarted(error);
           rejectTerminal(error);
         },
         close: closeChannel,
@@ -624,6 +686,7 @@ export function createBrowserWorkspaceHostPagePortV1(
           expectedGeneration: input.expectedGeneration,
           programRevision: input.programRevision,
           repositoryRevision: input.repositoryRevision,
+          fileName: input.fileName,
         }, [channel.port1]);
         if (
           response.method !== "start_export" || response.exportId !== exportId ||
@@ -645,7 +708,7 @@ export function createBrowserWorkspaceHostPagePortV1(
         }
         return result;
       } catch (error) {
-        if (!releaseCommitted) send("workspace_export_cancel");
+        if (!downloadStartSent) send("workspace_export_cancel");
         void terminal.catch(() => undefined);
         throw error;
       } finally {
@@ -745,9 +808,9 @@ export function createBrowserWorkspaceHostPagePortV1(
     dispose() {
       if (disposed) return;
       disposed = true;
-      options.worker.removeEventListener("message", listener);
-      options.worker.removeEventListener("error", transportFailureListener);
-      options.worker.removeEventListener("messageerror", transportFailureListener);
+      options.transport.removeEventListener("message", listener);
+      options.transport.removeEventListener("error", transportFailureListener);
+      options.transport.removeEventListener("messageerror", transportFailureListener);
       failPending(
         new BrowserWorkspaceHostControlErrorV1("disposed", "Workspace Host port was disposed"),
       );
@@ -759,7 +822,7 @@ export function createBrowserWorkspaceHostPagePortV1(
       );
       candidateBootstrapKeys.clear();
       fatalListeners.clear();
-      options.worker.terminate();
+      options.transport.terminate();
     },
   };
 }

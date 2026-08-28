@@ -193,8 +193,7 @@ async function qualifySandboxColdReopenV1(page: Page): Promise<SandboxColdReopen
     }
     const newHostV1 = () =>
       createHost({
-        worker: createTransport({
-          buildIdentity: "s1a.qualification.v1",
+        transport: createTransport({
           createNonce: () => `sandbox.bootstrap.${crypto.randomUUID()}`,
           bootstrapTimeoutMilliseconds: 20_000,
         }),
@@ -335,8 +334,7 @@ async function qualifySandboxWorkspaceV1(
     }
     const newHostV1 = (): HostPortV1 =>
       createHost({
-        worker: createTransport({
-          buildIdentity: "s1a.qualification.v1",
+        transport: createTransport({
           createNonce: () => `sandbox.bootstrap.${crypto.randomUUID()}`,
           bootstrapTimeoutMilliseconds: 20_000,
         }),
@@ -488,7 +486,10 @@ async function qualifySandboxWorkspaceV1(
   });
 }
 
-async function currentWorkspaceSandboxFrameV1(page: Page): Promise<Frame> {
+async function currentWorkspaceSandboxFrameV1(
+  page: Page,
+  volumeId: string | null = null,
+): Promise<Frame> {
   await expect.poll(() =>
     page.frames().filter((frame) => {
       const frameUrl = frame.url();
@@ -499,8 +500,8 @@ async function currentWorkspaceSandboxFrameV1(page: Page): Promise<Frame> {
             String(sillyOsWorkspaceSandboxTargetV1.port)
           }` && url.pathname === "/workspace-sandbox.html";
     }).length
-  ).toBe(1);
-  const frame = page.frames().find((candidate) => {
+  ).toBeGreaterThan(0);
+  const frames = page.frames().filter((candidate) => {
     const candidateUrl = candidate.url();
     if (!URL.canParse(candidateUrl)) return false;
     const url = new URL(candidateUrl);
@@ -509,8 +510,27 @@ async function currentWorkspaceSandboxFrameV1(page: Page): Promise<Frame> {
           String(sillyOsWorkspaceSandboxTargetV1.port)
         }` && url.pathname === "/workspace-sandbox.html";
   });
-  if (frame === undefined) throw new TypeError("Workspace Sandbox frame is unavailable");
-  return frame;
+  if (volumeId === null) {
+    const frame = frames.at(-1);
+    if (frame === undefined) throw new TypeError("Workspace Sandbox frame is unavailable");
+    return frame;
+  }
+  for (const frame of frames) {
+    const ownsVolume = await frame.evaluate(async (candidateVolumeId) => {
+      try {
+        let directory = await navigator.storage.getDirectory();
+        for (const name of [".sillyos-workspace-host-v1", "volumes", candidateVolumeId]) {
+          directory = await directory.getDirectoryHandle(name);
+        }
+        return true;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "NotFoundError") return false;
+        throw error;
+      }
+    }, volumeId);
+    if (ownsVolume) return frame;
+  }
+  throw new TypeError("Workspace Sandbox volume frame is unavailable");
 }
 
 async function disposeRetainedSandboxWorkspaceV1(page: Page): Promise<void> {
@@ -541,6 +561,9 @@ test(
     test.setTimeout(120_000);
     await page.goto(sillyOsTargetUrlV1("?locale=en"));
     await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
+    const ordinaryFrameCount = await page.locator(
+      "iframe[data-silly-os-workspace-sandbox='active']",
+    ).count();
 
     const receipt = await qualifySandboxColdReopenV1(page);
 
@@ -558,8 +581,8 @@ test(
     });
     expect(receipt.reopened).toEqual(receipt.first);
     await expect(
-      page.locator("iframe[data-silly-os-workspace-sandbox='qualification']"),
-    ).toHaveCount(0);
+      page.locator("iframe[data-silly-os-workspace-sandbox='active']"),
+    ).toHaveCount(ordinaryFrameCount);
   },
 );
 
@@ -569,6 +592,9 @@ test(
     test.setTimeout(600_000);
     await page.goto(sillyOsTargetUrlV1("?locale=en"));
     await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
+    const ordinaryFrameCount = await page.locator(
+      "iframe[data-silly-os-workspace-sandbox='active']",
+    ).count();
 
     const receipt = await qualifySandboxWorkspaceV1(page);
     try {
@@ -631,7 +657,7 @@ test(
       }, receipt.anchor.volumeId);
       expect(controlCanSeeSandboxVolume).toBe(false);
 
-      const frame = await currentWorkspaceSandboxFrameV1(page);
+      const frame = await currentWorkspaceSandboxFrameV1(page, receipt.anchor.volumeId);
       const filename = "s1a-workspace-sandbox.sillyos.zip";
       const downloadPromise = page.waitForEvent("download");
       const frameReceiptPromise = frame.evaluate(
@@ -687,8 +713,8 @@ test(
     }
 
     await expect(
-      page.locator("iframe[data-silly-os-workspace-sandbox='qualification']"),
-    ).toHaveCount(0);
+      page.locator("iframe[data-silly-os-workspace-sandbox='active']"),
+    ).toHaveCount(ordinaryFrameCount);
   },
 );
 
@@ -698,6 +724,9 @@ test(
     test.setTimeout(120_000);
     await page.goto(sillyOsTargetUrlV1("?locale=en"));
     await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
+    const ordinaryFrameCount = await page.locator(
+      "iframe[data-silly-os-workspace-sandbox='active']",
+    ).count();
 
     await page.evaluate(async () => {
       const transportModule = await import(
@@ -721,7 +750,6 @@ test(
         throw new TypeError("Workspace Sandbox network owner already exists");
       }
       owner.sillyOsS1aNetworkSandboxOwnerV1 = createTransport({
-        buildIdentity: "s1a.network-denial.v1",
         createNonce: () => `sandbox.bootstrap.${crypto.randomUUID()}`,
         bootstrapTimeoutMilliseconds: 20_000,
       }) as { terminate(): void };
@@ -769,7 +797,7 @@ test(
     }
 
     await expect(
-      page.locator("iframe[data-silly-os-workspace-sandbox='qualification']"),
-    ).toHaveCount(0);
+      page.locator("iframe[data-silly-os-workspace-sandbox='active']"),
+    ).toHaveCount(ordinaryFrameCount);
   },
 );

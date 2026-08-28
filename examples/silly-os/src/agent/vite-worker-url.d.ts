@@ -6,6 +6,7 @@ declare module "*?worker&url" {
 }
 
 interface ImportMetaEnv {
+  readonly DEV: boolean;
   readonly PROD: boolean;
 }
 

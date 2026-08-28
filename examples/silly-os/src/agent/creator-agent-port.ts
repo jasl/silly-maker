@@ -169,11 +169,12 @@ export interface CreatorAgentPortV1 {
   ): Promise<CreatorAgentAcknowledgeWorkspaceReceiptsResultV1>;
   exportWorkspace(input: {
     readonly workspaceSessionId: string;
+    readonly fileName: string;
     readonly signal: AbortSignal;
     readonly onProgress?: (progress: BrowserProgramWorkspaceExportProgressV1) => void;
     readonly onReady: (
       ready: BrowserProgramWorkspaceExportReadyV1,
-      commitRelease: () => boolean,
+      startDownload: () => Promise<void>,
     ) => "release" | "cancel" | Promise<"release" | "cancel">;
   }): Promise<CreatorAgentExportWorkspaceResultV1>;
   submit(input: CreatorAgentRunRequestV1): Promise<CreatorAgentPortSubmitResultV1>;
@@ -1268,11 +1269,12 @@ export function createBrowserCreatorAgentPortV1(
 
   const exportWorkspace = async (exportInput: {
     readonly workspaceSessionId: string;
+    readonly fileName: string;
     readonly signal: AbortSignal;
     readonly onProgress?: (progress: BrowserProgramWorkspaceExportProgressV1) => void;
     readonly onReady: (
       ready: BrowserProgramWorkspaceExportReadyV1,
-      commitRelease: () => boolean,
+      startDownload: () => Promise<void>,
     ) => "release" | "cancel" | Promise<"release" | "cancel">;
   }): Promise<CreatorAgentExportWorkspaceResultV1> => {
     if (terminal || finishPromise !== null) {
@@ -1305,6 +1307,7 @@ export function createBrowserCreatorAgentPortV1(
     else exportInput.signal.addEventListener("abort", abort, { once: true });
     const operation = workspaceAuthority.exportWorkspace({
       workspaceSessionId: descriptor.workspaceSessionId,
+      fileName: exportInput.fileName,
       signal: abortController.signal,
       ...(exportInput.onProgress === undefined ? {} : { onProgress: exportInput.onProgress }),
       onReady: exportInput.onReady,

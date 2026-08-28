@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: MIT
 
+import {
+  browserWorkspaceSandboxDevelopmentOriginV1,
+  browserWorkspaceSandboxProductionOriginV1,
+} from "../workspace/browser-workspace-sandbox-origins.ts";
+
 const contentSecurityPolicyDirectivesBeforeConnectV1 = Object.freeze([
   "default-src 'none'",
   "script-src 'self'",
@@ -11,8 +16,6 @@ const contentSecurityPolicyDirectivesBeforeConnectV1 = Object.freeze([
 ]);
 
 const contentSecurityPolicyDirectivesAfterConnectV1 = Object.freeze([
-  "worker-src 'self'",
-  "frame-src 'none'",
   "media-src 'self' blob:",
   "manifest-src 'self'",
   "object-src 'none'",
@@ -28,13 +31,23 @@ export const browserPermissionsPolicyV1 =
 
 export function createBrowserControlPlaneContentSecurityPolicyV1(
   endpointOrigin: string | null = null,
+  workspaceSandboxOrigin: string = browserWorkspaceSandboxProductionOriginV1,
 ): string {
+  if (
+    workspaceSandboxOrigin !== browserWorkspaceSandboxProductionOriginV1 &&
+    workspaceSandboxOrigin !== browserWorkspaceSandboxDevelopmentOriginV1
+  ) throw new TypeError("sillyos.control_plane.workspace_sandbox_origin_invalid");
   const connect = endpointOrigin === null
     ? "connect-src 'self'"
     : `connect-src 'self' ${endpointOrigin}`;
   return [
     ...contentSecurityPolicyDirectivesBeforeConnectV1,
     connect,
+    "worker-src 'self'",
+    // WebKit applies the embedding page's frame-src policy when the admitted
+    // Sandbox iframe hands its same-origin Blob archive to the download UI.
+    // The Blob URL itself never crosses into the control-plane process.
+    `frame-src ${workspaceSandboxOrigin} blob:`,
     ...contentSecurityPolicyDirectivesAfterConnectV1,
   ].join("; ");
 }

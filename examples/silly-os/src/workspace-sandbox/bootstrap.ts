@@ -7,13 +7,12 @@ import {
   createBrowserWorkspaceSandboxFrameReadyV1,
   createBrowserWorkspaceSandboxWorkerBindV1,
 } from "../workspace/browser-workspace-sandbox-bootstrap-protocol.ts";
-
-const productionControlOriginV1 = "https://silly-os.jasl9187.workers.dev";
-const productionSandboxOriginV1 = "https://silly-os-sandbox.jasl9187.workers.dev";
-const localControlOriginV1 = "http://127.0.0.1:41739";
-const localSandboxOriginV1 = "http://127.0.0.1:41740";
+import { browserWorkspaceSandboxArtifactBuildIdentityV1 } from "../workspace/browser-workspace-sandbox-build-identity.ts";
+import { admitBrowserWorkspaceSandboxDownloadRequestV1 } from "../workspace/browser-workspace-sandbox-download-protocol.ts";
+import { browserWorkspaceSandboxOriginForControlV1 } from "../workspace/browser-workspace-sandbox-origins.ts";
 
 interface WorkspaceSandboxBootstrapParametersV1 {
+  readonly controlOrigin: string;
   readonly nonce: string;
   readonly buildIdentity: string;
 }
@@ -22,28 +21,90 @@ function readBootstrapParametersV1(): WorkspaceSandboxBootstrapParametersV1 | nu
   const locationUrl = new URL(window.location.href);
   if (
     locationUrl.pathname !== "/workspace-sandbox.html" || locationUrl.hash !== "" ||
-    locationUrl.searchParams.size !== 2
+    locationUrl.searchParams.size !== 3
   ) return null;
 
+  const controlOriginValues = locationUrl.searchParams.getAll("control-origin");
   const nonceValues = locationUrl.searchParams.getAll("nonce");
-  const buildIdentityValues = locationUrl.searchParams.getAll("build-identity");
-  if (nonceValues.length !== 1 || buildIdentityValues.length !== 1) return null;
+  const buildIdentityValues = locationUrl.searchParams.getAll("expected-sandbox-identity");
+  if (
+    controlOriginValues.length !== 1 || nonceValues.length !== 1 ||
+    buildIdentityValues.length !== 1
+  ) return null;
+  const controlOrigin = controlOriginValues[0];
   const nonce = nonceValues[0];
   const buildIdentity = buildIdentityValues[0];
-  if (nonce === undefined || buildIdentity === undefined) return null;
+  if (controlOrigin === undefined || nonce === undefined || buildIdentity === undefined) {
+    return null;
+  }
 
   const canonicalSearch = new URLSearchParams([
+    ["control-origin", controlOrigin],
     ["nonce", nonce],
-    ["build-identity", buildIdentity],
+    ["expected-sandbox-identity", buildIdentity],
   ]).toString();
   if (locationUrl.search !== `?${canonicalSearch}`) return null;
+  if (
+    browserWorkspaceSandboxOriginForControlV1(controlOrigin) !== window.location.origin ||
+    buildIdentity !== browserWorkspaceSandboxArtifactBuildIdentityV1
+  ) return null;
 
   const ready = createBrowserWorkspaceSandboxFrameReadyV1(nonce, buildIdentity);
-  return admitBrowserWorkspaceSandboxFrameReadyV1(ready) === null ? null : { nonce, buildIdentity };
+  return admitBrowserWorkspaceSandboxFrameReadyV1(ready) === null
+    ? null
+    : { controlOrigin, nonce, buildIdentity };
 }
 
 function closePortsV1(ports: readonly MessagePort[]): void {
   for (const port of ports) port.close();
+}
+
+function startWorkspaceSandboxDownloadBridgeV1(port: MessagePort): void {
+  port.addEventListener("message", (event) => {
+    const request = admitBrowserWorkspaceSandboxDownloadRequestV1(event.data);
+    if (request === null) {
+      port.close();
+      return;
+    }
+    let code: "invalid_request" | "download_unavailable" | null = null;
+    try {
+      const url = new URL(request.downloadUrl);
+      if (url.protocol !== "blob:" || url.origin !== window.location.origin) {
+        code = "invalid_request";
+      } else {
+        const anchor = document.createElement("a");
+        anchor.href = request.downloadUrl;
+        anchor.download = request.fileName;
+        anchor.rel = "noopener";
+        anchor.hidden = true;
+        document.body.append(anchor);
+        try {
+          anchor.click();
+        } finally {
+          anchor.remove();
+        }
+      }
+    } catch {
+      code = "download_unavailable";
+    }
+    port.postMessage(
+      code === null
+        ? {
+          revision: 1,
+          kind: "workspace_sandbox_download_started",
+          requestId: request.requestId,
+          exportId: request.exportId,
+        }
+        : {
+          revision: 1,
+          kind: "workspace_sandbox_download_failed",
+          requestId: request.requestId,
+          exportId: request.exportId,
+          code,
+        },
+    );
+  });
+  port.start();
 }
 
 function startWorkspaceSandboxBootstrapV1(): void {
@@ -51,12 +112,7 @@ function startWorkspaceSandboxBootstrapV1(): void {
   const parameters = readBootstrapParametersV1();
   if (parameters === null) return;
 
-  const controlOrigin = window.location.origin === localSandboxOriginV1
-    ? localControlOriginV1
-    : window.location.origin === productionSandboxOriginV1
-    ? productionControlOriginV1
-    : null;
-  if (controlOrigin === null) return;
+  const controlOrigin = parameters.controlOrigin;
   let settled = false;
   let worker: Worker | null = null;
 
@@ -100,6 +156,8 @@ function startWorkspaceSandboxBootstrapV1(): void {
       return;
     }
 
+    const downloadChannel = new MessageChannel();
+    startWorkspaceSandboxDownloadBridgeV1(downloadChannel.port1);
     try {
       worker = new Worker(
         new URL("./browser-workspace-sandbox-host.worker.ts", import.meta.url),
@@ -120,10 +178,12 @@ function startWorkspaceSandboxBootstrapV1(): void {
           parameters.nonce,
           parameters.buildIdentity,
         ),
-        [controlPort],
+        [controlPort, downloadChannel.port2],
       );
     } catch {
       controlPort.close();
+      downloadChannel.port1.close();
+      downloadChannel.port2.close();
       window.parent.postMessage(
         createBrowserWorkspaceSandboxFrameFailedV1(
           parameters.nonce,

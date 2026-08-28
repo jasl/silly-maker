@@ -224,6 +224,12 @@ export interface BrowserWorkspaceHostRuntimeOptionsV1 {
   readonly createShellTempFileId?: () => string;
   readonly createObjectUrl?: (file: File) => string;
   readonly revokeObjectUrl?: (url: string) => void;
+  readonly startDownload?: (input: {
+    readonly exportId: string;
+    readonly downloadUrl: string;
+    readonly fileName: string;
+    readonly signal: AbortSignal;
+  }) => Promise<void>;
   readonly exportReadyTimeoutMilliseconds?: number;
 }
 
@@ -297,9 +303,13 @@ interface ExportOperationV1 {
   readonly port: BrowserWorkspaceHostMessagePortV1;
   readonly listener: (event: Readonly<{ data: unknown }>) => void;
   readonly abortController: AbortController;
+  readonly downloadStart: Promise<void>;
+  readonly resolveDownloadStart: () => void;
   readonly release: Promise<void>;
   readonly resolveRelease: () => void;
   completion: Promise<void>;
+  startDownloadRequested: boolean;
+  downloadStarted: boolean;
   releaseRequested: boolean;
   cancelRequested: boolean;
   protocolFailed: boolean;
@@ -496,6 +506,13 @@ export function createBrowserWorkspaceHostRuntimeV1(
   const createShellTempFileId = options.createShellTempFileId ?? (() => crypto.randomUUID());
   const createObjectUrl = options.createObjectUrl ?? ((file: File) => URL.createObjectURL(file));
   const revokeObjectUrl = options.revokeObjectUrl ?? ((url: string) => URL.revokeObjectURL(url));
+  const startDownload = options.startDownload ?? (() =>
+    Promise.reject(
+      new BrowserWorkspaceHostStorageErrorV1(
+        "request_failed",
+        "Workspace download broker is unavailable",
+      ),
+    ));
   const exportReadyTimeoutMilliseconds = options.exportReadyTimeoutMilliseconds ?? 30_000;
   if (!positiveSafeIntegerV1(exportReadyTimeoutMilliseconds)) {
     throw new TypeError("Workspace export ready timeout must be a positive safe integer");
@@ -1765,6 +1782,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
       readonly programRevision: number;
       readonly repositoryRevision: number;
       readonly expectedHead: BrowserWorkspaceHostDurableHeadV1;
+      readonly fileName: string;
     },
   ): Promise<void> => {
     const lease = session.lease;
@@ -1793,6 +1811,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
       if (!validProgress(next) || operation.protocolFailed) {
         operation.protocolFailed = true;
         operation.abortController.abort();
+        operation.resolveDownloadStart();
         operation.resolveRelease();
         return;
       }
@@ -1815,6 +1834,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
       } catch {
         operation.protocolFailed = true;
         operation.abortController.abort();
+        operation.resolveDownloadStart();
         operation.resolveRelease();
       }
     };
@@ -1874,26 +1894,71 @@ export function createBrowserWorkspaceHostRuntimeV1(
         kind: "workspace_export_ready",
         exportId: operation.exportId,
         sequence: ++sequence,
-        downloadUrl,
         checkpointId: input.expectedHead.checkpointId,
         generation: input.expectedHead.generation,
         ...progress,
       });
-      if (operation.releaseRequested || operation.cancelRequested) operation.resolveRelease();
-      let readyTimedOut = false;
-      const readyTimeout = setTimeout(() => {
-        readyTimedOut = true;
-        operation.abortController.abort();
+      if (
+        operation.startDownloadRequested || operation.cancelRequested || operation.protocolFailed
+      ) operation.resolveDownloadStart();
+      let downloadStartTimedOut = false;
+      const downloadStartTimeout = setTimeout(() => {
+        downloadStartTimedOut = true;
+        operation.resolveDownloadStart();
+      }, exportReadyTimeoutMilliseconds);
+      try {
+        await operation.downloadStart;
+      } finally {
+        clearTimeout(downloadStartTimeout);
+      }
+      if (operation.protocolFailed || downloadStartTimedOut) {
+        throw new BrowserWorkspaceHostStorageErrorV1(
+          "request_failed",
+          "Workspace export download authorization failed",
+        );
+      }
+      if (operation.cancelRequested || operation.abortController.signal.aborted) {
+        throw new DOMException("Workspace export was aborted", "AbortError");
+      }
+      if (!operation.startDownloadRequested) {
+        throw new BrowserWorkspaceHostStorageErrorV1(
+          "request_failed",
+          "Workspace export download was not authorized",
+        );
+      }
+      await startDownload({
+        exportId: operation.exportId,
+        downloadUrl,
+        fileName: input.fileName,
+        signal: operation.abortController.signal,
+      });
+      if (operation.abortController.signal.aborted || operation.protocolFailed) {
+        throw new DOMException("Workspace export was aborted", "AbortError");
+      }
+      operation.downloadStarted = true;
+      postExport(operation, {
+        revision: 1,
+        kind: "workspace_export_download_started",
+        exportId: operation.exportId,
+        sequence: ++sequence,
+        checkpointId: input.expectedHead.checkpointId,
+        generation: input.expectedHead.generation,
+        ...progress,
+      });
+      if (operation.releaseRequested || operation.protocolFailed) operation.resolveRelease();
+      let releaseTimedOut = false;
+      const releaseTimeout = setTimeout(() => {
+        releaseTimedOut = true;
         operation.resolveRelease();
       }, exportReadyTimeoutMilliseconds);
       try {
         await operation.release;
       } finally {
-        clearTimeout(readyTimeout);
+        clearTimeout(releaseTimeout);
       }
-      if (operation.protocolFailed || readyTimedOut) terminalCode = "request_failed";
-      else if (operation.cancelRequested) terminalCode = "cancelled";
-      else if (!operation.releaseRequested) terminalCode = "request_failed";
+      if (operation.protocolFailed || releaseTimedOut || !operation.releaseRequested) {
+        terminalCode = "request_failed";
+      }
     } catch (error) {
       if (error instanceof BrowserWorkspaceHostCleanupErrorV1) {
         terminalCode = "request_failed";
@@ -1966,9 +2031,12 @@ export function createBrowserWorkspaceHostRuntimeV1(
     session.closeDrain = (async () => {
       const exportOperation = session.exportOperation;
       if (exportOperation !== null) {
-        exportOperation.cancelRequested = true;
-        exportOperation.abortController.abort();
-        exportOperation.resolveRelease();
+        if (!exportOperation.startDownloadRequested) {
+          exportOperation.cancelRequested = true;
+          exportOperation.abortController.abort();
+          exportOperation.resolveDownloadStart();
+          exportOperation.resolveRelease();
+        }
         await exportOperation.completion.catch(() => undefined);
       }
       await abortRunAndDrain(session);
@@ -2430,6 +2498,10 @@ export function createBrowserWorkspaceHostRuntimeV1(
         return;
       }
       const port = transferredPorts[0]!;
+      let resolveDownloadStart!: () => void;
+      const downloadStart = new Promise<void>((resolve) => {
+        resolveDownloadStart = resolve;
+      });
       let resolveRelease!: () => void;
       const release = new Promise<void>((resolve) => {
         resolveRelease = resolve;
@@ -2441,19 +2513,42 @@ export function createBrowserWorkspaceHostRuntimeV1(
         if (message === null || message.exportId !== operation.exportId) {
           operation.protocolFailed = true;
           operation.abortController.abort();
+          operation.resolveDownloadStart();
           operation.resolveRelease();
           return;
         }
         if (message.kind === "workspace_export_cancel") {
-          if (operation.releaseRequested) return;
+          if (
+            operation.startDownloadRequested || operation.downloadStarted ||
+            operation.releaseRequested
+          ) return;
           operation.cancelRequested = true;
           operation.abortController.abort();
+          operation.resolveDownloadStart();
           operation.resolveRelease();
           return;
         }
-        if (!operation.ready) {
+        if (message.kind === "workspace_export_start_download") {
+          if (
+            !operation.ready || operation.startDownloadRequested || operation.downloadStarted ||
+            operation.releaseRequested || operation.cancelRequested
+          ) {
+            operation.protocolFailed = true;
+            operation.abortController.abort();
+            operation.resolveDownloadStart();
+            operation.resolveRelease();
+            return;
+          }
+          operation.startDownloadRequested = true;
+          operation.resolveDownloadStart();
+          return;
+        }
+        if (
+          !operation.downloadStarted || operation.releaseRequested || operation.cancelRequested
+        ) {
           operation.protocolFailed = true;
           operation.abortController.abort();
+          operation.resolveDownloadStart();
         } else {
           operation.releaseRequested = true;
         }
@@ -2466,9 +2561,13 @@ export function createBrowserWorkspaceHostRuntimeV1(
           port,
           listener,
           abortController,
+          downloadStart,
+          resolveDownloadStart,
           release,
           resolveRelease,
           completion: Promise.resolve(),
+          startDownloadRequested: false,
+          downloadStarted: false,
           releaseRequested: false,
           cancelRequested: false,
           protocolFailed: false,
@@ -2494,6 +2593,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
           programRevision: record.programRevision,
           repositoryRevision: record.repositoryRevision,
           expectedHead: session.head,
+          fileName: record.fileName,
         })
       );
       return;

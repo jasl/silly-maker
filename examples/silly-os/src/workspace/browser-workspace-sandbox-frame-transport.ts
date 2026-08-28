@@ -6,40 +6,23 @@ import {
   admitBrowserWorkspaceSandboxWorkerBoundV1,
   createBrowserWorkspaceSandboxFrameBindV1,
 } from "./browser-workspace-sandbox-bootstrap-protocol.ts";
-
-export const browserWorkspaceSandboxProductionOriginV1 =
-  "https://silly-os-sandbox.jasl9187.workers.dev";
-export const browserWorkspaceSandboxProductionControlOriginV1 =
-  "https://silly-os.jasl9187.workers.dev";
-export const browserWorkspaceSandboxDevelopmentOriginV1 = "http://127.0.0.1:41740";
-export const browserWorkspaceSandboxDevelopmentControlOriginV1 = "http://127.0.0.1:41739";
+import { browserWorkspaceSandboxArtifactBuildIdentityV1 } from "./browser-workspace-sandbox-build-identity.ts";
+import type { BrowserWorkspaceHostControlTransportV1 } from "./browser-workspace-host-port.ts";
+export {
+  browserWorkspaceSandboxDevelopmentControlOriginV1,
+  browserWorkspaceSandboxDevelopmentOriginV1,
+  browserWorkspaceSandboxInteractiveDevelopmentControlOriginV1,
+  browserWorkspaceSandboxOriginForControlV1,
+  browserWorkspaceSandboxProductionControlOriginV1,
+  browserWorkspaceSandboxProductionOriginV1,
+} from "./browser-workspace-sandbox-origins.ts";
+import { browserWorkspaceSandboxOriginForControlV1 } from "./browser-workspace-sandbox-origins.ts";
 
 const browserWorkspaceSandboxBootstrapTimeoutMillisecondsV1 = 10_000;
 const browserWorkspaceSandboxQueuedMessageMaximumV1 = 64;
 
 type BrowserWorkspaceSandboxMessageListenerV1 = (event: Readonly<{ data: unknown }>) => void;
 type BrowserWorkspaceSandboxFailureListenerV1 = (event: Event) => void;
-
-export interface BrowserWorkspaceSandboxControlTransportV1 {
-  postMessage(message: unknown, transfer?: Transferable[]): void;
-  addEventListener(
-    type: "message",
-    listener: BrowserWorkspaceSandboxMessageListenerV1,
-  ): void;
-  addEventListener(
-    type: "error" | "messageerror",
-    listener: BrowserWorkspaceSandboxFailureListenerV1,
-  ): void;
-  removeEventListener(
-    type: "message",
-    listener: BrowserWorkspaceSandboxMessageListenerV1,
-  ): void;
-  removeEventListener(
-    type: "error" | "messageerror",
-    listener: BrowserWorkspaceSandboxFailureListenerV1,
-  ): void;
-  terminate(): void;
-}
 
 export interface BrowserWorkspaceSandboxFrameTransportOptionsV1 {
   readonly window?: Window;
@@ -71,28 +54,6 @@ function strictOriginV1(value: string): string | null {
     : null;
 }
 
-export function browserWorkspaceSandboxOriginForControlV1(controlOrigin: string): string | null {
-  if (controlOrigin === browserWorkspaceSandboxProductionControlOriginV1) {
-    return browserWorkspaceSandboxProductionOriginV1;
-  }
-  if (controlOrigin === browserWorkspaceSandboxDevelopmentControlOriginV1) {
-    return browserWorkspaceSandboxDevelopmentOriginV1;
-  }
-  return null;
-}
-
-function currentBuildIdentityV1(): string {
-  const versions = Reflect.get(globalThis, "__SILLYMAKER_VERSIONS__");
-  if (versions === null || typeof versions !== "object" || Array.isArray(versions)) {
-    return "development";
-  }
-  const descriptor = Object.getOwnPropertyDescriptor(versions, "applicationCommit");
-  return descriptor !== undefined && Object.hasOwn(descriptor, "value") &&
-      typeof descriptor.value === "string"
-    ? descriptor.value
-    : "development";
-}
-
 function closeTransferablesV1(transfer: readonly Transferable[]): void {
   for (const value of transfer) {
     if (typeof MessagePort !== "undefined" && value instanceof MessagePort) value.close();
@@ -104,12 +65,12 @@ function validBootstrapIdentityV1(value: string): boolean {
 }
 
 /**
- * Creates the qualification transport to the fixed independent Workspace origin.
+ * Creates the ordinary transport to the fixed independent Workspace origin.
  * It never falls back to a same-origin Worker.
  */
 export function createBrowserWorkspaceSandboxFrameTransportV1(
   options: BrowserWorkspaceSandboxFrameTransportOptionsV1 = {},
-): BrowserWorkspaceSandboxControlTransportV1 {
+): BrowserWorkspaceHostControlTransportV1 {
   const ownerWindow = options.window ?? window;
   const ownerDocument = options.document ?? document;
   const controlOrigin = options.controlOrigin ?? ownerWindow.location.origin;
@@ -124,7 +85,7 @@ export function createBrowserWorkspaceSandboxFrameTransportV1(
   ) {
     throw new TypeError("sillyos.workspace_sandbox.origin_unavailable");
   }
-  const buildIdentity = options.buildIdentity ?? currentBuildIdentityV1();
+  const buildIdentity = options.buildIdentity ?? browserWorkspaceSandboxArtifactBuildIdentityV1;
   const nonce = options.createNonce?.() ?? `sandbox.bootstrap.${crypto.randomUUID()}`;
   if (!validBootstrapIdentityV1(buildIdentity) || !validBootstrapIdentityV1(nonce)) {
     throw new TypeError("sillyos.workspace_sandbox.identity_invalid");
@@ -155,12 +116,13 @@ export function createBrowserWorkspaceSandboxFrameTransportV1(
   iframe.tabIndex = -1;
   iframe.referrerPolicy = "no-referrer";
   iframe.setAttribute("aria-hidden", "true");
-  iframe.setAttribute("data-silly-os-workspace-sandbox", "qualification");
+  iframe.setAttribute("data-silly-os-workspace-sandbox", "active");
   iframe.sandbox.add("allow-scripts", "allow-same-origin", "allow-downloads");
   const frameUrl = new URL("/workspace-sandbox.html", sandboxOrigin);
   frameUrl.search = new URLSearchParams([
+    ["control-origin", admittedControlOrigin],
     ["nonce", nonce],
-    ["build-identity", buildIdentity],
+    ["expected-sandbox-identity", buildIdentity],
   ]).toString();
   iframe.src = frameUrl.href;
 
@@ -313,5 +275,5 @@ export function createBrowserWorkspaceSandboxFrameTransportV1(
     terminate() {
       disposeV1(null);
     },
-  } as BrowserWorkspaceSandboxControlTransportV1;
+  } satisfies BrowserWorkspaceHostControlTransportV1;
 }

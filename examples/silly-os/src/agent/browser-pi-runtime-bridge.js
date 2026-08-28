@@ -119,10 +119,6 @@ export function createDeterministicPiAgentV1(input) {
     tokensPerSecond: 0,
   });
   const roundTripPath = "/workspace/.sillyos/p3a-round-trip.txt";
-  const bashRoundTripPath = "/workspace/.sillyos/p3a-bash-round-trip.txt";
-  const bashRoundTripText = "SillyOS native bash checkpoint\n";
-  const bashRoundTripSearchResult = `1:${bashRoundTripText}`;
-  const editMarker = "SillyOS native edit checkpoint pending:\n";
   const readResponse = fauxAssistantMessage(
     fauxToolCall("read", {
       path: verifyOversizedRead ? "/workspace/qualification/large.bin" : roundTripPath,
@@ -131,27 +127,9 @@ export function createDeterministicPiAgentV1(input) {
     }),
     { stopReason: "toolUse" },
   );
-  const editResponse = fauxAssistantMessage(
-    fauxToolCall("edit", {
-      path: roundTripPath,
-      edits: [{ oldText: editMarker, newText: "" }],
-    }, {
-      id: `sillyos-edit-${input.runNumber}`,
-    }),
-    { stopReason: "toolUse" },
-  );
   const proposalResponse = fauxAssistantMessage(
     fauxToolCall(creatorProgramRevisionToolNameV1, { requirement: input.submit.text }, {
       id: `sillyos-tool-${input.runNumber}`,
-    }),
-    { stopReason: "toolUse" },
-  );
-  const bashResponse = fauxAssistantMessage(
-    fauxToolCall("bash", {
-      command:
-        `printf 'SillyOS native bash checkpoint\\n' | tee ${bashRoundTripPath} > /dev/null; rg -n 'SillyOS native bash checkpoint' ${bashRoundTripPath}`,
-    }, {
-      id: `sillyos-bash-${input.runNumber}`,
     }),
     { stopReason: "toolUse" },
   );
@@ -179,39 +157,13 @@ export function createDeterministicPiAgentV1(input) {
       fauxAssistantMessage(deterministicFinalReplyV1),
     ]);
   } else {
-    const readAfterEditResponse = (context) => {
-      const result = context.messages.toReversed().find((message) =>
-        message.role === "toolResult" && message.toolName === "edit"
-      );
-      const details = result?.role === "toolResult" ? result.details : null;
-      if (
-        result?.role !== "toolResult" || result.isError || details === null ||
-        typeof details !== "object" || typeof details.diff !== "string" ||
-        typeof details.patch !== "string" || details.firstChangedLine !== 1
-      ) {
-        throw new Error("Native Pi edit did not return its exact structured result");
-      }
-      return readResponse;
-    };
     const proposalAfterReadResponse = (context) => {
       const result = context.messages.toReversed().find((message) =>
         message.role === "toolResult" && message.toolName === "read"
       );
       const actual = toolResultTextV1(result);
       if (result?.role !== "toolResult" || result.isError || actual !== input.submit.text) {
-        throw new Error("Edited workspace read did not match the exact submitted bytes");
-      }
-      return bashResponse;
-    };
-    const proposalAfterBashResponse = (context) => {
-      const result = context.messages.toReversed().find((message) =>
-        message.role === "toolResult" && message.toolName === "bash"
-      );
-      const actual = toolResultTextV1(result);
-      if (
-        result?.role !== "toolResult" || result.isError || actual !== bashRoundTripSearchResult
-      ) {
-        throw new Error("Native Pi bash did not return the exact terminal aggregate");
+        throw new Error("Workspace read did not match the exact submitted bytes");
       }
       return proposalResponse;
     };
@@ -219,7 +171,7 @@ export function createDeterministicPiAgentV1(input) {
       fauxAssistantMessage(
         fauxToolCall("write", {
           path: roundTripPath,
-          content: editMarker + input.submit.text,
+          content: input.submit.text,
         }, {
           id: `sillyos-write-${input.runNumber}`,
         }),
@@ -236,12 +188,10 @@ export function createDeterministicPiAgentV1(input) {
               }, { once: true });
             });
           }
-          return editResponse;
+          return readResponse;
         }
-        : editResponse,
-      readAfterEditResponse,
+        : readResponse,
       proposalAfterReadResponse,
-      proposalAfterBashResponse,
       fauxAssistantMessage(deterministicFinalReplyV1),
     ]);
   }
@@ -251,7 +201,7 @@ export function createDeterministicPiAgentV1(input) {
     streamFn: faux.provider.streamSimple,
     model: faux.getModel(),
     systemPrompt:
-      "You are the deterministic SillyOS Creator Agent test runtime. Exercise the pinned native Pi write/edit/read/bash tools against the current Program workspace, then propose one Program revision.",
+      "You are the deterministic SillyOS Creator Agent test runtime. Exercise the pinned native Pi write/read tools against the current Program workspace, then propose one Program revision.",
   });
 }
 

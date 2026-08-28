@@ -101,6 +101,7 @@ interface FakeHostControlV1 {
     readonly programRevision: number;
     readonly repositoryRevision: number;
   }>;
+  readonly downloadStarts: string[];
   readonly activeSessionId: string | null;
   advanceHead(workspaceSessionId: string): BrowserWorkspaceHostSnapshotWireV1;
   currentVolume(volumeId: string): FakeVolumeV1;
@@ -121,6 +122,7 @@ function fakeHostV1(
     readonly programRevision: number;
     readonly repositoryRevision: number;
   }> = [];
+  const downloadStarts: string[] = [];
   const sessions = new Map<string, BrowserWorkspaceHostSnapshotWireV1>();
   const channels = new Map<string, MessageChannel>();
   const fatalListeners = new Set<(fatal: BrowserWorkspaceHostFatalV1) => void>();
@@ -243,13 +245,16 @@ function fakeHostV1(
       };
       input.onProgress?.(progress);
       await hooks.beforeExportReady?.();
+      let downloadStarted = false;
       const decision = await input.onReady({
         ...progress,
-        downloadUrl: "blob:authority-test",
         checkpointId: snapshot.checkpointId,
         generation: snapshot.descriptor.generation,
-      }, () => true);
-      return decision === "release"
+      }, async () => {
+        downloadStarted = true;
+        downloadStarts.push(input.fileName);
+      });
+      return decision === "release" && downloadStarted
         ? {
           kind: "released",
           checkpointId: snapshot.checkpointId,
@@ -377,6 +382,7 @@ function fakeHostV1(
     adopted,
     discardedSnapshots,
     exportInputs,
+    downloadStarts,
     get activeSessionId() {
       return [...sessions.keys()][0] ?? null;
     },
@@ -1634,6 +1640,103 @@ describe("Browser Program workspace authority V1", () => {
     await harness.authority.dispose();
   });
 
+  it("suppresses download authorization when the Host snapshot drifts before ready", async () => {
+    let harness!: AuthorityHarnessV1;
+    let workspaceSessionId = "";
+    harness = authorityHarnessV1({
+      hooks: {
+        beforeExportReady() {
+          harness.host.advanceHead(workspaceSessionId);
+        },
+      },
+    });
+    const { fixture } = await createProgramV1(harness, "workspace.authority.export-head-drift");
+    const opened = await harness.authority.openWorkspace(fixture);
+    workspaceSessionId = opened.snapshot.descriptor.workspaceSessionId;
+    let consumerCalls = 0;
+
+    await expect(harness.authority.exportWorkspace({
+      workspaceSessionId,
+      fileName: "head-drift.sillyos.zip",
+      signal: new AbortController().signal,
+      onReady: async (_ready, startDownload) => {
+        consumerCalls += 1;
+        await startDownload();
+        return "release" as const;
+      },
+    })).rejects.toThrow("sillyos.browser_program_workspace.export_anchor_changed");
+    expect(consumerCalls).toBe(0);
+    expect(harness.host.downloadStarts).toEqual([]);
+
+    opened.environmentPort.close();
+    await harness.authority.detachWorkspaceEnvironment(workspaceSessionId);
+    await harness.authority.dispose();
+  });
+
+  it("rechecks continuation currentness when the consumer authorizes a download", async () => {
+    const harness = authorityHarnessV1();
+    const { fixture } = await createProgramV1(
+      harness,
+      "workspace.authority.export-continuation-drift",
+    );
+    const programId = fixture.programId;
+    const opened = await harness.authority.openWorkspace(fixture);
+    const originalContinuation = harness.repositoryBacking.workspaceContinuations.get(programId);
+    if (originalContinuation === undefined) throw new Error("expected continuation");
+    let consumerCalls = 0;
+
+    await expect(harness.authority.exportWorkspace({
+      workspaceSessionId: opened.snapshot.descriptor.workspaceSessionId,
+      fileName: "continuation-drift.sillyos.zip",
+      signal: new AbortController().signal,
+      onReady: async (_ready, startDownload) => {
+        consumerCalls += 1;
+        harness.repositoryBacking.workspaceContinuations.set(programId, {
+          ...originalContinuation,
+          repositoryRevision: originalContinuation.repositoryRevision + 1,
+        });
+        await startDownload();
+        return "release" as const;
+      },
+    })).rejects.toThrow("sillyos.program_repository.schema_invalid");
+    expect(consumerCalls).toBe(1);
+    expect(harness.host.downloadStarts).toEqual([]);
+
+    harness.repositoryBacking.workspaceContinuations.set(programId, originalContinuation);
+    opened.environmentPort.close();
+    await harness.authority.detachWorkspaceEnvironment(
+      opened.snapshot.descriptor.workspaceSessionId,
+    );
+    await harness.authority.dispose();
+  });
+
+  it("does not authorize a download when the ready consumer cancels or throws", async () => {
+    const harness = authorityHarnessV1();
+    const { fixture } = await createProgramV1(harness, "workspace.authority.export-consumer");
+    const opened = await harness.authority.openWorkspace(fixture);
+    const workspaceSessionId = opened.snapshot.descriptor.workspaceSessionId;
+
+    await expect(harness.authority.exportWorkspace({
+      workspaceSessionId,
+      fileName: "consumer-cancel.sillyos.zip",
+      signal: new AbortController().signal,
+      onReady: () => "cancel",
+    })).resolves.toMatchObject({ kind: "cancelled" });
+    await expect(harness.authority.exportWorkspace({
+      workspaceSessionId,
+      fileName: "consumer-throw.sillyos.zip",
+      signal: new AbortController().signal,
+      onReady: () => {
+        throw new Error("synthetic export consumer failure");
+      },
+    })).rejects.toThrow("synthetic export consumer failure");
+    expect(harness.host.downloadStarts).toEqual([]);
+
+    opened.environmentPort.close();
+    await harness.authority.detachWorkspaceEnvironment(workspaceSessionId);
+    await harness.authority.dispose();
+  });
+
   it("exports only the exact durable continuation owned by the shared authority", async () => {
     const harness = authorityHarnessV1();
     const { fixture } = await createProgramV1(harness, "workspace.authority.export");
@@ -1641,13 +1744,18 @@ describe("Browser Program workspace authority V1", () => {
     const progress: number[] = [];
     const result = await harness.authority.exportWorkspace({
       workspaceSessionId: opened.snapshot.descriptor.workspaceSessionId,
+      fileName: "authority-test.sillyos.zip",
       signal: new AbortController().signal,
       onProgress: (value) => progress.push(value.bytesWritten),
-      onReady: (_ready, commitRelease) => commitRelease() ? "release" : "cancel",
+      onReady: async (_ready, startDownload) => {
+        await startDownload();
+        return "release" as const;
+      },
     });
     expect(result).toMatchObject({ kind: "released", bytesWritten: 64 });
     expect(progress).toEqual([64]);
     expect(harness.host.exportInputs).toEqual([{ programRevision: 1, repositoryRevision: 1 }]);
+    expect(harness.host.downloadStarts).toEqual(["authority-test.sillyos.zip"]);
     opened.environmentPort.close();
     await harness.authority.detachWorkspaceEnvironment(
       opened.snapshot.descriptor.workspaceSessionId,

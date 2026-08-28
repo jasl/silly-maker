@@ -478,6 +478,7 @@ function startExportRequestV1(
   return controlRequestV1(requestId, {
     method: "start_export",
     exportId,
+    fileName: "sillyos-workspace.zip",
     workspaceSessionId,
     expectedCheckpointId,
     expectedGeneration: 1,
@@ -934,6 +935,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       postControlMessage: (message) => controls.push(message),
       createWorkspaceSessionId: () => workspaceSessionId,
       createObjectUrl: () => "blob:workspace.snapshot-fence",
+      startDownload: async () => {},
     });
     await runtime.receiveControl(controlRequestV1(1, {
       method: "create_candidate",
@@ -1064,6 +1066,15 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       requestId: 13,
       ok: false,
       code: "workspace_busy",
+    });
+    exportPort.send({
+      revision: 1,
+      kind: "workspace_export_start_download",
+      exportId: "export.snapshot-fence.1",
+    });
+    await flushEnvironmentV1();
+    expect(lastV1(exportPort.messages)).toMatchObject({
+      kind: "workspace_export_download_started",
     });
     exportPort.send({
       revision: 1,
@@ -2605,12 +2616,22 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     const bootstrap = new FakeBootstrapV1();
     const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
     const revokedUrls: string[] = [];
+    const downloadStarts: Array<
+      Readonly<{
+        exportId: string;
+        downloadUrl: string;
+        fileName: string;
+      }>
+    > = [];
     const runtime = createBrowserWorkspaceHostRuntimeV1({
       bootstrap,
       postControlMessage: (message) => controls.push(message),
       createWorkspaceSessionId: () => "workspace-session.export-protocol",
       createObjectUrl: () => "blob:workspace.export-protocol",
       revokeObjectUrl: (url) => revokedUrls.push(url),
+      startDownload: async ({ exportId, downloadUrl, fileName }) => {
+        downloadStarts.push({ exportId, downloadUrl, fileName });
+      },
     });
     await runtime.receiveControl(controlRequestV1(1, {
       method: "create_candidate",
@@ -2659,6 +2680,26 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       bytesWritten: bytesTotal,
       bytesTotal,
     });
+    expect(downloadStarts).toEqual([]);
+    expect(lastV1(beforeRelease)).not.toHaveProperty("downloadUrl");
+
+    exportPort.send({
+      revision: 1,
+      kind: "workspace_export_start_download",
+      exportId: "export.protocol.1",
+    });
+    await flushEnvironmentV1();
+    expect(downloadStarts).toEqual([{
+      exportId: "export.protocol.1",
+      downloadUrl: "blob:workspace.export-protocol",
+      fileName: "sillyos-workspace.zip",
+    }]);
+    expect(lastV1(exportPort.messages as unknown as BrowserWorkspaceHostExportOutboundMessageV1[]))
+      .toMatchObject({
+        kind: "workspace_export_download_started",
+        sequence: 5,
+      });
+    expect(lastV1(exportPort.messages)).not.toHaveProperty("downloadUrl");
 
     exportPort.send({
       revision: 1,
@@ -2669,7 +2710,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     expect(lastV1(exportPort.messages as unknown as BrowserWorkspaceHostExportOutboundMessageV1[]))
       .toMatchObject({
         kind: "workspace_export_failed",
-        sequence: 5,
+        sequence: 6,
         code: "request_failed",
       });
     expect(
@@ -2690,6 +2731,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       bootstrap,
       postControlMessage: (message) => controls.push(message),
       createWorkspaceSessionId: () => "workspace-session.export-cleanup",
+      startDownload: async () => {},
     });
     await runtime.receiveControl(controlRequestV1(1, {
       method: "create_candidate",
@@ -2742,7 +2784,113 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     await runtime.dispose();
   });
 
-  it("treats release as the commit point and ignores a later cancel record", async () => {
+  it("cancels a sealed archive before authorization without invoking the download broker", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    const revokedUrls: string[] = [];
+    let downloadStarts = 0;
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      postControlMessage: (message) => controls.push(message),
+      createWorkspaceSessionId: () => "workspace-session.export-preauth-cancel",
+      createObjectUrl: () => "blob:workspace.export-preauth-cancel",
+      revokeObjectUrl: (url) => revokedUrls.push(url),
+      startDownload: async () => {
+        downloadStarts += 1;
+      },
+    });
+    await runtime.receiveControl(controlRequestV1(1, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    const anchor = (lastV1(controls) as {
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
+    const volume = bootstrap.volumes.get(anchor.volumeId);
+    if (volume === undefined) throw new Error("expected fake volume");
+    await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
+    const exportPort = new FakeMessagePortV1();
+    await runtime.receiveControl(
+      startExportRequestV1(
+        3,
+        "workspace-session.export-preauth-cancel",
+        "export.preauth-cancel.1",
+      ),
+      [exportPort],
+    );
+    await flushEnvironmentV1();
+    expect(lastV1(exportPort.messages)).toMatchObject({ kind: "workspace_export_ready" });
+    expect(downloadStarts).toBe(0);
+
+    exportPort.send({
+      revision: 1,
+      kind: "workspace_export_cancel",
+      exportId: "export.preauth-cancel.1",
+    });
+    await flushEnvironmentV1();
+    expect(lastV1(exportPort.messages)).toMatchObject({
+      kind: "workspace_export_failed",
+      code: "cancelled",
+    });
+    expect(downloadStarts).toBe(0);
+    expect(volume.archiveReleaseCalls).toBe(1);
+    expect(revokedUrls).toEqual(["blob:workspace.export-preauth-cancel"]);
+    await runtime.dispose();
+  });
+
+  it("rejects release before authorization without invoking the download broker", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    let downloadStarts = 0;
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      postControlMessage: (message) => controls.push(message),
+      createWorkspaceSessionId: () => "workspace-session.export-early-release",
+      createObjectUrl: () => "blob:workspace.export-early-release",
+      startDownload: async () => {
+        downloadStarts += 1;
+      },
+    });
+    await runtime.receiveControl(controlRequestV1(1, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    const anchor = (lastV1(controls) as {
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
+    await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
+    const exportPort = new FakeMessagePortV1();
+    await runtime.receiveControl(
+      startExportRequestV1(
+        3,
+        "workspace-session.export-early-release",
+        "export.early-release.1",
+      ),
+      [exportPort],
+    );
+    await flushEnvironmentV1();
+    expect(lastV1(exportPort.messages)).toMatchObject({ kind: "workspace_export_ready" });
+    exportPort.send({
+      revision: 1,
+      kind: "workspace_export_release",
+      exportId: "export.early-release.1",
+    });
+    await flushEnvironmentV1();
+    expect(lastV1(exportPort.messages)).toMatchObject({
+      kind: "workspace_export_failed",
+      code: "request_failed",
+    });
+    expect(downloadStarts).toBe(0);
+    await runtime.dispose();
+  });
+
+  it("treats download start as the commit point and ignores a later cancel record", async () => {
     const bootstrap = new FakeBootstrapV1();
     const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
     const revokedUrls: string[] = [];
@@ -2752,6 +2900,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       createWorkspaceSessionId: () => "workspace-session.export-committed",
       createObjectUrl: () => "blob:workspace.export-committed",
       revokeObjectUrl: (url) => revokedUrls.push(url),
+      startDownload: async () => {},
     });
     await runtime.receiveControl(controlRequestV1(1, {
       method: "create_candidate",
@@ -2779,12 +2928,21 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     expect(lastV1(exportPort.messages)).toMatchObject({ kind: "workspace_export_ready" });
     exportPort.send({
       revision: 1,
-      kind: "workspace_export_release",
+      kind: "workspace_export_start_download",
       exportId: "export.committed.1",
+    });
+    await flushEnvironmentV1();
+    expect(lastV1(exportPort.messages)).toMatchObject({
+      kind: "workspace_export_download_started",
     });
     exportPort.send({
       revision: 1,
       kind: "workspace_export_cancel",
+      exportId: "export.committed.1",
+    });
+    exportPort.send({
+      revision: 1,
+      kind: "workspace_export_release",
       exportId: "export.committed.1",
     });
     await flushEnvironmentV1();
@@ -2796,6 +2954,90 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     await runtime.dispose();
   });
 
+  it("drains an authorized download before closing its workspace", async () => {
+    const bootstrap = new FakeBootstrapV1();
+    const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+    let brokerEntered = () => {};
+    const brokerStarted = new Promise<void>((resolve) => {
+      brokerEntered = resolve;
+    });
+    let finishBroker = () => {};
+    const brokerGate = new Promise<void>((resolve) => {
+      finishBroker = resolve;
+    });
+    const brokerState: { signal?: AbortSignal } = {};
+    const runtime = createBrowserWorkspaceHostRuntimeV1({
+      bootstrap,
+      postControlMessage: (message) => controls.push(message),
+      createWorkspaceSessionId: () => "workspace-session.export-close-drain",
+      createObjectUrl: () => "blob:workspace.export-close-drain",
+      startDownload: async ({ signal }) => {
+        brokerState.signal = signal;
+        brokerEntered();
+        await brokerGate;
+      },
+    });
+    await runtime.receiveControl(controlRequestV1(1, {
+      method: "create_candidate",
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+    }));
+    const anchor = (lastV1(controls) as {
+      readonly response: {
+        readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+      };
+    }).response.candidate.anchor;
+    await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
+    const exportPort = new FakeMessagePortV1();
+    await runtime.receiveControl(
+      startExportRequestV1(
+        3,
+        "workspace-session.export-close-drain",
+        "export.close-drain.1",
+      ),
+      [exportPort],
+    );
+    await flushEnvironmentV1();
+    expect(lastV1(exportPort.messages)).toMatchObject({ kind: "workspace_export_ready" });
+    exportPort.send({
+      revision: 1,
+      kind: "workspace_export_start_download",
+      exportId: "export.close-drain.1",
+    });
+    await brokerStarted;
+
+    const close = runtime.receiveControl(controlRequestV1(4, {
+      method: "close_workspace",
+      workspaceSessionId: "workspace-session.export-close-drain",
+    }));
+    await flushEnvironmentV1();
+    expect(brokerState.signal?.aborted).toBe(false);
+    expect(controls.some((message) => message.requestId === 4)).toBe(false);
+
+    finishBroker();
+    await flushEnvironmentV1();
+    expect(lastV1(exportPort.messages)).toMatchObject({
+      kind: "workspace_export_download_started",
+    });
+    exportPort.send({
+      revision: 1,
+      kind: "workspace_export_release",
+      exportId: "export.close-drain.1",
+    });
+    await close;
+    expect(
+      (exportPort.messages as unknown as BrowserWorkspaceHostExportOutboundMessageV1[]).map(
+        (message) => message.kind,
+      ).slice(-2),
+    ).toEqual(["workspace_export_download_started", "workspace_export_released"]);
+    expect(lastV1(controls)).toMatchObject({
+      requestId: 4,
+      ok: true,
+      response: { method: "close_workspace", snapshot: { phase: "closed" } },
+    });
+    await runtime.dispose();
+  });
+
   it("treats initially zero export totals as immutable", async () => {
     const bootstrap = new FakeBootstrapV1();
     const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
@@ -2804,6 +3046,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       postControlMessage: (message) => controls.push(message),
       createWorkspaceSessionId: () => "workspace-session.export-zero",
       createObjectUrl: () => "blob:workspace.export-zero",
+      startDownload: async () => {},
     });
     await runtime.receiveControl(controlRequestV1(1, {
       method: "create_candidate",
@@ -2846,12 +3089,16 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     const bootstrap = new FakeBootstrapV1();
     const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
     const revokedUrls: string[] = [];
+    let downloadStarts = 0;
     const runtime = createBrowserWorkspaceHostRuntimeV1({
       bootstrap,
       postControlMessage: (message) => controls.push(message),
       createWorkspaceSessionId: () => "workspace-session.export-timeout",
       createObjectUrl: () => "blob:workspace.export-timeout",
       revokeObjectUrl: (url) => revokedUrls.push(url),
+      startDownload: async () => {
+        downloadStarts += 1;
+      },
       exportReadyTimeoutMilliseconds: 1,
     });
     await runtime.receiveControl(controlRequestV1(1, {
@@ -2883,6 +3130,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
     });
     expect(volume.archiveReleaseCalls).toBe(1);
     expect(revokedUrls).toEqual(["blob:workspace.export-timeout"]);
+    expect(downloadStarts).toBe(0);
     expect(exportPort).toMatchObject({ closeCalls: 1 });
     await runtime.dispose();
   });
@@ -2894,6 +3142,7 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       bootstrap,
       postControlMessage: (message) => controls.push(message),
       createWorkspaceSessionId: () => "workspace-session.rejected-port",
+      startDownload: async () => {},
     });
     const malformedPort = new FakeMessagePortV1();
     await runtime.receiveControl({ requestId: 1 }, [malformedPort]);

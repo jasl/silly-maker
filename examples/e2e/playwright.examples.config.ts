@@ -45,7 +45,7 @@ export default defineConfig({
     },
     {
       command:
-        `deno task --cwd examples/silly-os build:workspace-sandbox && deno run -A npm:vite preview --config examples/silly-os/vite.workspace-sandbox.config.ts --host ${sillyOsWorkspaceSandboxTargetV1.host} --port ${
+        `deno run -A npm:vite --config examples/silly-os/vite.workspace-sandbox.config.ts --host ${sillyOsWorkspaceSandboxTargetV1.host} --port ${
           String(sillyOsWorkspaceSandboxTargetV1.port)
         } --strictPort`,
       cwd: "../..",
