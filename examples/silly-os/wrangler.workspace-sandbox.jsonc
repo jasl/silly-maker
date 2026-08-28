@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: MIT
+// Independent-origin Workspace Sandbox deployment. This is deliberately a
+// separate artifact and Worker from the SillyOS control plane.
+{
+  "name": "silly-os-sandbox",
+  "main": "./src/deployment/cloudflare-workspace-sandbox-worker.ts",
+  "compatibility_date": "2026-07-01",
+  "assets": {
+    "directory": "./dist-workspace-sandbox",
+    "binding": "ASSETS",
+    "run_worker_first": ["/*"],
+  },
+}

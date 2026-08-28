@@ -75,7 +75,7 @@ failure. B1b closed on 2026-08-28 with that OpenRouter tuple retained as a
 disabled candidate: the named profile was evaluated through the same gate, and
 an account/Provider rejection is not a reason to hold the product lane open or
 to mislabel the route as Browser-qualified.
-The current local release gate passes 27 files / 270 product tests, the Settings
+The B1b release gate passed 27 files / 270 product tests, the Settings
 journey in both engines, and the complete 5-profile × 2-browser real-Provider
 matrix.
 The clean B1b implementation commit
@@ -85,16 +85,16 @@ returns HTTP 200, that exact build identity, and only the six named Provider
 origins under `connect-src`; the application browser shows five exact qualified
 profiles and the two intended candidates. All ten public-origin real-Provider
 journeys pass. The deployment gate and B1b are therefore closed. The owner then
-activated B1c as bounded Provider/settings checkpoints. The model-preference
-part is implemented in the current dirty overlay, but the owner subsequently
-accepted the Browser security and execution boundary below. B1c-S0 is now
-closed locally: the matching WebKit production-response smoke completed on
+activated B1c as bounded Provider/settings checkpoints. Its model-preference
+surface and Browser security floor are delivered. B1c-S0 closed locally after
+the matching WebKit production-response smoke completed on
 2026-08-28 after the already-passing source, build, Wrangler-response, and
 Chromium gates. The resulting commit
 `a4cc8754b4c5f3050ff270a7c5a426b6c0d18176` is deployed to the canonical origin
 as Cloudflare version `e1808054-af9f-446f-a913-22a39bf98e37`; its exact build
 identity, response policy, Home, and Settings catalog pass in public Chromium
-and WebKit. **S1a-0 is the only active checkpoint.** Earlier B1c Provider counts
+and WebKit. S1a-0's independent-origin topology qualification has now closed
+locally; **S1a-1 is the only active checkpoint.** Earlier B1c Provider counts
 are dated evidence for their pre-security snapshot
 and do not by themselves accept the current overlay. This lane
 still does not add OAuth, multi-field cloud credentials, a Provider relay,
@@ -150,9 +150,8 @@ execution mechanism, especially in Browser, but it is not the product contract:
 the selected target adapters may combine TypeScript, Workers, Wasm payloads, or
 a native companion behind the same typed workspace boundary.
 
-At most one phase below is active at a time. P1-B1a, P1-B1b, and B1c-S0 are
-closed locally. B1c's Provider/model UI remains an undeployed local
-implementation, while **S1a-0 is the active product checkpoint**. A later phase
+At most one phase below is active at a time. P1-B1a, P1-B1b, B1c-S0, and
+S1a-0 are closed. **S1a-1 is the active product checkpoint.** A later phase
 may be refined before it starts, but it may not
 silently weaken this product model or claim evidence that an earlier phase did
 not produce. Product code may not import the ignored `references/` checkouts.
@@ -239,14 +238,14 @@ crash recovery, and network-off policy pass in both browsers.
 
 S1 is split into bounded checkpoints; only one is active:
 
-1. **S1a-0 — topology qualification (active):** prove an exact-origin Sandbox
+1. **S1a-0 — topology qualification (closed locally 2026-08-28):** prove an exact-origin Sandbox
    document plus same-origin Host Worker, transferred typed control/environment
    channels, Sandbox-owned OPFS/snapshot/export/storage facts, network-off CSP,
    and Sandbox-owned download in Chromium and persistent WebKit. The ordinary
    product and live Provider remain fail-closed during this qualification; no
    same-origin fallback is added. A cross-origin OPFS, lifecycle, locking, or
    download failure is a stop condition, not permission to weaken the boundary.
-2. **S1a-1 — read/write authority cutover:** make the qualified transport the
+2. **S1a-1 — read/write authority cutover (active):** make the qualified transport the
    only product default, reset incompatible preview data, retain Pi's native
    `read`/`write` schema and binder, and delete the same-origin Host path. Prove
    exact cold reopen, snapshot/export, volume/currentness, limits,
@@ -254,6 +253,32 @@ S1 is split into bounded checkpoints; only one is active:
 3. **S1b — remaining native tools:** admit Pi `edit`, then bounded `bash`, only
    after separate evidence. `just-bash`, Python, QuickJS, Wasm, network, import,
    and BYO Sandbox do not enter S1a.
+
+S1a-0 closed without changing the ordinary product authority. One separately
+built and separately deployable `silly-os-sandbox` artifact contains only the
+exact-origin bootstrap and its fixed Host Worker; the production build excludes
+the qualification Worker, Vitest, Pi, Provider, React, and `just-bash` graphs.
+The control-origin qualification path transfers typed control and environment
+ports to that Host. In both Chromium and a fresh persistent-profile WebKit it
+created a Sandbox-origin OPFS volume, ran fixed Pi's native `write`/`read`
+through the transferred environment, wrote and re-read an exact 20 MiB corpus,
+destroyed the frame and Worker, cold-reopened generation 82, re-read the same
+hash, prepared a Sandbox-owned 81-file snapshot, and initiated the byte-exact
+ZIP download inside the Sandbox frame. The control origin could not open the
+volume path in its own OPFS. A unique cross-origin `fetch` was rejected by
+`connect-src 'none'`, and Playwright observed no outgoing marker request.
+An independent read-only review found that the first download assertion checked
+only archive length; after the shared ZIP parser added exact entry, manifest,
+corpus-byte, and rolling-hash checks and both browsers reran, the re-review found
+no remaining S1a-0 closure blocker.
+
+This is topology and browser-feasibility evidence only. The separate artifact
+has no production deployment receipt yet; the ordinary Authority, deterministic
+fixture, Download UI, and live Provider remain unchanged and fail closed as
+specified by S0. S1a-1 must cut over those real product consumers, delete the
+same-origin execution owner, and repeat the behavior gates before the product
+may call its ordinary workspace physically isolated or enable live Pi file
+tools.
 
 ### S2 — execution profiles and explicit capabilities
 
@@ -515,15 +540,16 @@ The accepted execution order is no longer the numeric subsection order:
    profiles were evaluated through Pi and the deployed dual-browser gate; four
    joined OpenAI as qualified and OpenRouter remains a truthful disabled
    candidate.
-7. B1c's Provider/model preference UI is implemented locally but has no current
-   deployment claim.
+7. B1c's Provider/model preference UI is delivered with the S0 release.
 8. **B1c-S0 and its release operation closed 2026-08-28:** the trusted control-plane source,
    actual-build gate, local Wrangler headers, and Chromium/WebKit product smoke
    pass with Trusted Types deliberately retained as Report-Only. Commit
    `a4cc8754` and Cloudflare version
    `e1808054-af9f-446f-a913-22a39bf98e37` pass the same public-origin gate.
-9. **S1a-0 is active:** qualify the exact independent-origin Workspace topology
-   and Sandbox-owned download before changing the ordinary product default.
+9. **S1a-0 closed locally and S1a-1 is active:** the exact independent-origin
+   topology and Sandbox-owned download passed their dual-browser qualification;
+   now make that transport the ordinary read/write authority and delete the
+   superseded same-origin execution path.
    S2 execution profiles,
    S3 Credential Vault, S4 Agent/OpenUI state,
    S5 BYO Sandbox/products, P1-D, and broader import/artifact work require their

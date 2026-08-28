@@ -23,6 +23,15 @@ export function sillyOsTargetUrlV1(query = ""): string {
   return `http://${sillyOsTargetV1.host}:${String(sillyOsTargetV1.port)}/${query}`;
 }
 
+/** SillyOS: independent-origin Workspace Execution Sandbox qualification target. */
+export const sillyOsWorkspaceSandboxTargetV1 = { host: hostV1, port: 41740 };
+
+export function sillyOsWorkspaceSandboxTargetUrlV1(query = ""): string {
+  return `http://${sillyOsWorkspaceSandboxTargetV1.host}:${
+    String(sillyOsWorkspaceSandboxTargetV1.port)
+  }/${query}`;
+}
+
 /** One Last Sound Check: current product-owned Player, Stage, and audio path. */
 export const vnLastSoundCheckTargetV1 = { host: hostV1, port: 41741 };
 

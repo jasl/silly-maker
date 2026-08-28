@@ -27,6 +27,7 @@ node_modules/
 dist/
 dist-web/
 dist-web-mods/
+dist-workspace-sandbox/
 dist-desktop/
 *.app/
 website/.astro/

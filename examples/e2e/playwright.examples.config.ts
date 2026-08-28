@@ -4,6 +4,8 @@ import { defineConfig, devices } from "@playwright/test";
 import {
   sillyOsTargetUrlV1,
   sillyOsTargetV1,
+  sillyOsWorkspaceSandboxTargetUrlV1,
+  sillyOsWorkspaceSandboxTargetV1,
   templateTargetUrlV1,
   templateTargetV1,
   vnLastSoundCheckTargetUrlV1,
@@ -40,6 +42,16 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 120_000,
       url: sillyOsTargetUrlV1(),
+    },
+    {
+      command:
+        `deno task --cwd examples/silly-os build:workspace-sandbox && deno run -A npm:vite preview --config examples/silly-os/vite.workspace-sandbox.config.ts --host ${sillyOsWorkspaceSandboxTargetV1.host} --port ${
+          String(sillyOsWorkspaceSandboxTargetV1.port)
+        } --strictPort`,
+      cwd: "../..",
+      reuseExistingServer: false,
+      timeout: 120_000,
+      url: sillyOsWorkspaceSandboxTargetUrlV1("workspace-sandbox.html"),
     },
     {
       command:

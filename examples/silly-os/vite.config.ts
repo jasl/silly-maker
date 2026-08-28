@@ -24,6 +24,13 @@ export default defineConfig(async () => {
         "@earendil-works/pi-ai/providers/all",
       ],
     },
+    server: {
+      watch: {
+        // The independent Sandbox is built before its preview server during
+        // browser qualification. Its output must not reload the control page.
+        ignored: ["**/dist-workspace-sandbox/**"],
+      },
+    },
     resolve: {
       ...config.resolve,
       alias: {
