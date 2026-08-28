@@ -125,6 +125,7 @@ export type {
   NarrativeSurfaceDefinitionV1,
   NarrativeSurfaceDialogueRendererPropsV1,
   NarrativeSurfaceHistoryRendererPropsV1,
+  NarrativeSurfaceHistoryFeatureV1,
   NarrativeSurfacePlayerViewV1,
   NarrativeSurfaceRendererPropsV1,
   NarrativeSurfaceResolutionRequestV1,

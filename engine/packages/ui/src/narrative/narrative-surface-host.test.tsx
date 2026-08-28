@@ -220,7 +220,7 @@ function hostHarnessV1(
   rendererComponent: (props: NarrativeStableRendererPropsInternalV1) => unknown,
   historyObservation = mutableHistoryObservationV1(),
 ) {
-  const contract = createNarrativeManagedSurfaceFamilyContractInternalV1();
+  const contract = createNarrativeManagedSurfaceFamilyContractInternalV1({ history: true });
   const kernelBundle = createManagedSurfaceCompositeKernelBundleInternalV1({
     applicationEpoch: applicationEpochV1,
     recipe: {
@@ -267,9 +267,12 @@ function hostHarnessV1(
         rendererComponent,
         visualConfig: { skin: "host-test" },
         semanticDispatchPort,
-        historyObservationPort: historyObservation.port,
-        historyAvailabilityPort: {
-          readHistoryAvailabilityInternalV1: () => true,
+        history: {
+          rendererComponent,
+          observationPort: historyObservation.port,
+          availabilityPort: {
+            readHistoryAvailabilityInternalV1: () => true,
+          },
         },
         playerProfile,
         presentationClock,
@@ -281,6 +284,7 @@ function hostHarnessV1(
   }) satisfies NarrativeStableCandidatePreflightInternalV1;
   const bridge = createNarrativeStablePublisherBridgeInternalV1({
     kernelBundle,
+    family: contract,
     candidatePreflight,
   });
   const session = createNarrativeStableSessionInternalV1({ bridge });
@@ -339,8 +343,9 @@ function openHistoryV1(
   if (result.consumerResult?.kind !== "requested") {
     throw new Error("expected a requested History-open intent");
   }
-  const redeemed = harness.session.getHistoryChildLifecycleInternalV1()
-    .redeemHistoryOpenIntentInternalV1(result.consumerResult.intent);
+  const lifecycle = harness.session.getHistoryChildLifecycleInternalV1();
+  if (lifecycle === null) throw new Error("expected enabled History lifecycle");
+  const redeemed = lifecycle.redeemHistoryOpenIntentInternalV1(result.consumerResult.intent);
   admission.disposeInternalV1();
   if (redeemed.kind !== "preparing") throw new Error("expected History preparation");
 }

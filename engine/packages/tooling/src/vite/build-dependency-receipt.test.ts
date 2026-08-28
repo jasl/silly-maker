@@ -59,6 +59,25 @@ function receiptModuleIdsV1(receipt: BuildDependencyReceiptInternalV1): readonly
   ]);
 }
 
+function initialEntryModuleIdsV1(
+  receipt: BuildDependencyReceiptInternalV1,
+): readonly string[] {
+  const chunksByFile = new Map(receipt.chunks.map((chunk) => [chunk.fileName, chunk]));
+  const pending = receipt.chunks.filter(({ isEntry }) => isEntry).map(({ fileName }) => fileName);
+  const visited = new Set<string>();
+  const moduleIds = new Set<string>();
+  while (pending.length > 0) {
+    const fileName = pending.pop();
+    if (fileName === undefined || visited.has(fileName)) continue;
+    visited.add(fileName);
+    const chunk = chunksByFile.get(fileName);
+    if (chunk === undefined) continue;
+    for (const moduleId of chunk.moduleIds) moduleIds.add(moduleId);
+    for (const imported of chunk.imports) pending.push(imported);
+  }
+  return [...moduleIds];
+}
+
 function expectAuthoringEntryGraphV1(receipt: BuildDependencyReceiptInternalV1): void {
   expect(
     receipt.chunks.find(({ facadeModuleId }) =>
@@ -143,7 +162,11 @@ async function measureAuthoringBuildGraphV1(input: {
 }
 
 async function measurePlayerEntryBuildGraphV1(input: {
-  readonly appDirectory: "template" | "engine/packages/tooling/test-fixtures/gui-only-application";
+  readonly appDirectory:
+    | "template"
+    | "examples/vn-reference-tour"
+    | "engine/packages/tooling/test-fixtures/gui-only-application"
+    | "engine/packages/tooling/test-fixtures/narrative-player-core-application";
   readonly entry: string;
 }): Promise<BuildDependencyReceiptInternalV1> {
   const applicationSlug = input.appDirectory.replaceAll("/", "-");
@@ -581,6 +604,31 @@ describe("build dependency receipt", () => {
     ).toBe(false);
     expect(facets.agentImplementation).toEqual([]);
     expect(facets.rpcImplementation).toEqual([]);
+
+    const runtimeFacade = receipt.chunks.find(({ facadeModuleId }) =>
+      facadeModuleId ===
+        "engine/packages/web/src/reference/reference-player-dev-dock-runtime.tsx"
+    );
+    expect(runtimeFacade).toMatchObject({
+      isEntry: false,
+      isDynamicEntry: true,
+    });
+    const initialModuleIds = initialEntryModuleIdsV1(receipt);
+    expect(initialModuleIds).toContain(
+      "engine/packages/ui/src/internal/development-tool-launcher.tsx",
+    );
+    expect(initialModuleIds).not.toContain(
+      "engine/packages/web/src/reference/reference-player-dev-dock-runtime.tsx",
+    );
+    expect(initialModuleIds).not.toContain(
+      "engine/packages/ui/src/reference/reference-dev-dock.tsx",
+    );
+    expect(initialModuleIds).not.toContain(
+      "engine/packages/ui/src/debug/story-debug-dock.tsx",
+    );
+    expect(initialModuleIds).not.toContain(
+      "engine/packages/ui/src/debug/dev-dock.tsx",
+    );
   });
 
   it("keeps a GUI-only release graph on focused neutral entries", async () => {
@@ -626,6 +674,57 @@ describe("build dependency receipt", () => {
     expect(moduleIds).not.toContain(
       "engine/packages/web/src/host/desktop-companion-port.ts",
     );
+  });
+
+  it("keeps the focused Narrative Player core free of optional History UI", async () => {
+    const receipt = await measurePlayerEntryBuildGraphV1({
+      appDirectory: "engine/packages/tooling/test-fixtures/narrative-player-core-application",
+      entry: "index.html",
+    });
+    expect(receipt.applicationId).toBe("conformance-narrative-player-core");
+    const moduleIds = receiptModuleIdsV1(receipt);
+
+    expect(moduleIds).toContain(
+      "engine/packages/ui/src/narrative-player/core.ts",
+    );
+    expect(moduleIds).toContain(
+      "engine/packages/ui/src/narrative-player/default-vn-player-core.tsx",
+    );
+    expect(moduleIds).toContain(
+      "engine/packages/ui/src/narrative-player/default-vn-player-core.module.css",
+    );
+    expect(moduleIds).not.toContain(
+      "engine/packages/ui/src/narrative-player/default-vn-player-history.tsx",
+    );
+    expect(moduleIds).not.toContain(
+      "engine/packages/ui/src/narrative-player/default-vn-player-history.module.css",
+    );
+  });
+
+  it("keeps the VN production graph free of development authoring and debug surfaces", async () => {
+    const receipt = await measurePlayerEntryBuildGraphV1({
+      appDirectory: "examples/vn-reference-tour",
+      entry: "index.html",
+    });
+    expect(receipt.applicationId).toBe("example-vn-reference-tour");
+    const moduleIds = receiptModuleIdsV1(receipt);
+    const facets = classifyStaticGameDependencyFacetsInternalV1(moduleIds);
+
+    expect(facets.authoringImplementation).toEqual([]);
+    expect(facets.inspectorAuthoringImplementation).toEqual([]);
+    expect(facets.devSourceImplementation).toEqual([]);
+    expect(facets.devDockImplementation).toEqual([]);
+    expect(facets.dynamicExtensionImplementation).toEqual([]);
+    expect(
+      moduleIds.filter((moduleId) =>
+        moduleId.startsWith("examples/vn-reference-tour/src/tooling/")
+      ),
+    ).toEqual([]);
+    expect(
+      moduleIds.some((moduleId) =>
+        moduleId.startsWith("engine/packages/composition/src/mod-runtime/")
+      ),
+    ).toBe(false);
   });
 
   it("keeps the complete Template Author graph free of unselected Agent implementation", async () => {

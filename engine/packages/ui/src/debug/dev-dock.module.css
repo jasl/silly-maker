@@ -1,6 +1,6 @@
 .dev-dock {
   position: absolute;
-  z-index: calc(var(--silly-stage-z-system) + 10);
+  z-index: var(--silly-surface-z-front-door);
   inset: 0;
 
   /* No global shield: the game stays interactive around floating tool
@@ -12,6 +12,7 @@
   /* Debug chrome keeps the devtools font: rebinding the token makes every
      nested consumer (panel chrome, tool forms) ignore the game font. */
   --silly-font-family: var(--silly-debug-font-family);
+  --devdock-launcher-block-size: var(--silly-control-min-size);
 
   font-family: var(--silly-font-family);
 }
@@ -41,6 +42,10 @@
   pointer-events: auto;
 }
 
+.dev-dock__window[data-devdock-window-front="true"] {
+  z-index: var(--silly-surface-z-active);
+}
+
 .dev-dock__window > * {
   min-inline-size: 0;
   min-block-size: 0;
@@ -50,15 +55,23 @@
 .dev-dock[data-devdock-position="top_right"] .dev-dock__window,
 .dev-dock[data-devdock-position="top_left"] .dev-dock__window {
   inset-block-start: calc(
-    var(--silly-control-min-size) + 2 * var(--silly-space-2) + var(--devdock-cascade, 0) * 1.75rem
+    var(--devdock-launcher-block-size) + 2 * var(--silly-space-2) + var(--devdock-cascade, 0) *
+    1.75rem
   );
 }
 
 .dev-dock[data-devdock-position="bottom_right"] .dev-dock__window,
 .dev-dock[data-devdock-position="bottom_left"] .dev-dock__window {
   inset-block-end: calc(
-    var(--silly-control-min-size) + 2 * var(--silly-space-2) + var(--devdock-cascade, 0) * 1.75rem
+    var(--devdock-launcher-block-size) + 2 * var(--silly-space-2) + var(--devdock-cascade, 0) *
+    1.75rem
   );
+}
+
+@media (pointer: coarse) {
+  .dev-dock {
+    --devdock-launcher-block-size: var(--silly-target-min-size, 44px);
+  }
 }
 
 .dev-dock[data-devdock-position="top_right"] .dev-dock__window,

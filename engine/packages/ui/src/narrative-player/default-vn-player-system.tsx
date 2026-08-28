@@ -7,7 +7,7 @@ import { useInputRouterV1 } from "../input/input-context.tsx";
 import { useStageInputIsolationV1, useStagePointerGestureFenceV1 } from "../shell/game-stage.tsx";
 import { usePlayerSystemControllerInternalV1 } from "../system/player-system-controller-internal.tsx";
 
-import styles from "./default-vn-player.module.css";
+import styles from "./default-vn-player-core.module.css";
 
 export interface DefaultVnPlayerSystemLabelsInternalV1 {
   readonly menu: string;

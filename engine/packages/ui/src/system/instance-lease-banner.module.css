@@ -19,7 +19,7 @@
   background: var(--silly-color-surface);
   color: var(--silly-color-text);
   font-family: var(--silly-font-family);
-  font-size: 13px;
-  gap: 10px;
+  font-size: 0.8125rem;
+  gap: var(--silly-space-2);
   pointer-events: auto;
 }

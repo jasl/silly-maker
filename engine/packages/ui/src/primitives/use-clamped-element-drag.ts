@@ -38,8 +38,8 @@ interface ClampedElementDragStateV1 {
   readonly grabY: number;
 }
 
-export interface ClampedElementDragV1 {
-  readonly containerRef: RefObject<HTMLElement | null>;
+export interface ClampedElementDragV1<TElement extends HTMLElement = HTMLElement> {
+  readonly containerRef: RefObject<TElement | null>;
   readonly position: ClampedElementDragPositionV1 | null;
   readonly headerProps: {
     onPointerDown(event: ReactPointerEvent<HTMLElement>): void;
@@ -55,8 +55,10 @@ export interface ClampedElementDragV1 {
  * `headerProps` onto the drag handle. Interactive header controls are
  * ignored so close/buttons still click.
  */
-export function useClampedElementDragV1(): ClampedElementDragV1 {
-  const containerRef = useRef<HTMLElement | null>(null);
+export function useClampedElementDragV1<
+  TElement extends HTMLElement = HTMLElement,
+>(): ClampedElementDragV1<TElement> {
+  const containerRef = useRef<TElement | null>(null);
   const dragRef = useRef<ClampedElementDragStateV1 | null>(null);
   const [position, setPosition] = useState<ClampedElementDragPositionV1 | null>(null);
 

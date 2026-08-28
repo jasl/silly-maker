@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: MIT
-export { createApplicationModRuntimeInternalV1 } from "./runtime.ts";
+export {
+  createApplicationModRuntimeInternalV1,
+  createApplicationModSelectionControllerInternalV1,
+} from "./runtime.ts";
 export { ApplicationModRuntimeErrorInternalV1 } from "./contracts.ts";
 export type {
   ActiveApplicationModContributionInternalV1,
@@ -14,7 +17,13 @@ export type {
   ApplicationModExtensionPointInternalV1,
   ApplicationModRuntimeErrorCodeInternalV1,
   ApplicationModRuntimeInternalV1,
+  ApplicationModSelectionCandidateInternalV1,
+  ApplicationModSelectionControllerInternalV1,
+  ApplicationModSelectionInternalV1,
+  ApplicationModSelectionPublisherInternalV1,
+  ApplicationModSelectionStateInternalV1,
   ApplicationModSourceInternalV1,
   CompiledApplicationModPointInternalV1,
+  CreateApplicationModSelectionControllerInputInternalV1,
   CreateApplicationModRuntimeInputInternalV1,
 } from "./contracts.ts";

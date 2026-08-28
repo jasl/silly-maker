@@ -40,7 +40,8 @@ Viewport 把逻辑画布映射到实际窗口：
 - **expand-height**：使用保证 authored canvas 完整可见的 fit scale，保持 authored width，并以同一
   scale 在 block 轴对称扩展 live logical canvas；
 - **expand-width**：与上项正交，保持 authored height，并在 inline 轴对称扩展 live logical canvas；
-- 超过声明的最大逻辑尺寸时居中，不再放大；
+- 未声明 `maxScale` 时按容器继续等比放大；只有应用显式声明上限时才在超过该 scale 后居中，
+  `maxScale: 1` 因而是 pixel-art/1:1 ceiling，而不是普通大屏默认；
 - 缩放因子连续，不要求整数倍；渲染按 `devicePixelRatio` 保持位图与文本清晰。
 
 `authoredRect` 是 selected authored canvas 在 live logical canvas 内的矩形；该名刻意区别于平台 notch
@@ -63,11 +64,20 @@ pixels。平台原生凹口/圆角继续使用 CSS `env(safe-area-inset-*)`，�
 
 - **Stage space**：background、character、prop、scene interaction 等 playfield 内容位于逻辑画布坐标中，随缩放因子整体缩放；placement 使用逻辑坐标/锚点，禁止直接依赖 CSS 视口单位；
 - **Shell space**：HUD、对话框、Overlay 面板、系统菜单等文本性 UI 在 live logical canvas 上选择分区，
-  但内部排版以 CSS pixel 渲染（DOM/矢量），保证任意 Stage scale 下文本清晰、focus ring 完整、命中区
-  ≥ 44×44 CSS px。扩展 mode 不把 shell 强制压回缩小后的 `authoredRect`；应用使用同一个
+  但内部排版以 CSS pixel 渲染（DOM/矢量），保证任意 Stage scale 下文本清晰、focus ring 完整；直接游戏
+  触控和 coarse-pointer 操作保留 ≥ 44×44 CSS px，fine-pointer 常驻 chrome 可以采用正常的 32px 控件，
+  不以无条件 touch floor 挤占舞台。扩展 mode 不把 shell 强制压回缩小后的 `authoredRect`；应用使用同一个
   `layoutVariantId` / geometry 把额外区域用于 responsive chrome。
 
 这样素材构图获得 Ren'Py 式的确定性，文本 UI 保留 Web 的清晰度与可访问性。两个 space 的换算由 viewport 提供只读查询；renderer 不得自行探测窗口尺寸建立第二套换算。
+
+本文所称的“统一 UI 缩放”是所有引擎维护的 DOM UI 共享同一套 document typography、`rem`
+基线与主题/尺寸 token，而不是让 Shell space 跟随 Stage transform。Stage 的逻辑坐标映射只作用于
+Stage space；HUD、Narrative、System、DevDock、Inspector 与 Embedded Authoring 不得再乘该 scale，
+也不得用 `transform`、`zoom` 或第二套 JavaScript viewport 测量模拟统一缩放。共享的是 token 权威、
+基础 recipe 与 override 机制，并不要求不同任务 surface 得到相同的 computed font/control size：编辑器是
+紧凑工作区，常驻 HUD 必须为舞台让路，标题和暂停菜单则可以建立更强的局部层级。每个 surface 仍通过自身
+容器的 CSS reflow 保持文字清晰、focus 完整和适合输入方式的命中区下限。
 
 ### 3.4 Layer anchoring
 
@@ -78,11 +88,60 @@ space；hud/narrative/workspaceOverlay/system 属于 shell space。显式选择�
 partition schema 或冲突诊断器，不应把
 应用 CSS/React 布局描述成已交付的 engine DSL。
 
+### 3.5 响应式轴、内容变体与默认体验
+
+响应式决策分成两个正交轴，不使用“手机/平板/桌面”设备注册表：
+
+- **几何与布局拓扑**只读取当前 Host/container 的 CSS width 与 aspect ratio。应用用有限、稳定的
+  `layoutVariants` 选择 `portrait`、`compact`、`wide`、`ultrawide` 等自己的呈现名称；组件通过
+  `useGameViewportV1().layoutVariantId` 或 canvas 上同源的 `data-viewport-layout-variant` 重排；
+- **操作密度**只读取 primary pointer capability。fine pointer 默认使用 32px 控件，Inspector/开发工具可用
+  28px compact 控件；`pointer: coarse` 时 gameplay 与表单操作提升到 44px touch floor，文本输入至少 16px。
+  字号不会因为物理 4K/5K 或 DPR 增长；浏览器缩放仍按 Web accessibility 语义工作。
+
+“不同布局可以显示不同内容”只适用于 application-owned、可选的 presentation chrome，例如宽屏状态栏、
+辅助信息栏、Inspector properties 或编辑器工具面板。它们可以按同一个 `layoutVariantId` 条件渲染，而不要求
+把所有 DOM 先渲染再隐藏。Gameplay/GUI 的权威内容、命令合法性和 Save 不得因 viewport 选择而改变；若同一
+任务在窄屏被折叠为 drawer/tab，它仍是同一个功能和 authority。应用不得在每个组件重新读取 `window` 或维护
+第二个 responsive store。
+
+默认策略按 surface 任务区分：
+
+- fixed-canvas game 默认 `fit`、不拉伸 authored art，且未声明 `maxScale` 时可以填满 4K/5K 的同宽高比容器；
+  portrait 可用 `expand-height`，只有产品拥有可延展背景/侧翼构图时才选择 `expand-width`。超宽 live canvas
+  可把新增空间交给 HUD/辅助栏，但不能用拉伸 16:9 素材伪装“支持带鱼屏”；
+- document/desktop/GUI shell 默认选 `fluid`，工作区占满 Host；文字正文可以限制 readable measure，工作区本身
+  不设置 page-level max-width；
+- Inspector/作者工具默认使用 container-driven 三栏/两栏/Stage-first 单栏，侧栏有合理上限，新增宽度优先给
+  Stage/工作区；Scene preview 默认适应当前工作区，显式百分比 zoom 是用户 override。手机/平板以正常游戏
+  体验为主，Inspector 尽量保持可调试，完整编辑器可以明确声明窄屏 tradeoff。
+
+这些是引擎维护的基线和 recipe，不是不可覆盖的产品主题。Application 可以覆盖公开 token、声明自己的有限
+variants，或在局部组件 eject renderer；它不需要 fork viewport、Inspector 或默认 VN Player。
+
 ## 4. Theme tokens and default surface baseline
 
-### 4.1 Token contract
+### 4.1 单一全局基线与 token 合同
 
-引擎定义主题 token 的名称合同（surface、text、accent、positive、warning、danger、border、focus、遮罩、圆角、间距、字号阶），并附一套中性可用的默认主题。Story 通过普通 TS/CSS 变量提供自己的主题值；替换主题不 fork 组件。
+Browser 与 Deno Desktop 的 Game/GUI 文档，以及独立 Inspector 文档，都必须在 bootstrap 时加载一次
+`@sillymaker/ui/styles.css`。Embedded Authoring 继承所在应用文档的同一基线，不加载或维护第二套
+全局样式。该 stylesheet 统一拥有 box sizing、document 字体与行高、CJK-friendly font stack、
+canvas/body 默认颜色、原生表单与基础按钮样式、focus ring 和 reduced-motion。package 或组件样式
+不得另建平行 reset、root font scale、默认 palette 或表单 recipe。
+
+`--silly-text-size-base` 是 15–16px 的正常 document `rem` 基线，不因大显示器继续增长；
+`--silly-text-size-compact` 与 `--silly-control-min-size-compact` 是 Inspector、DevDock 等高信息密度工具的
+共享派生档，而不是第二套 viewport scale。全局 UI 使用紧凑行高；正文、对白和说明在自身作用域显式使用
+readable line height。常驻 HUD 使用正常基线但约束自身占比，Title/暂停菜单通过局部 heading/menu 样式建立
+层级。引擎维护的 DOM UI 使用 `rem` 和已有的 `--silly-space-*`、控制尺寸、颜色、圆角与 focus token 表达
+排版节奏；容器相对布局仍可使用 `%`、`cqi`、`minmax()` 与 container query。分辨率、窗口变化与浏览器缩放
+只在共享 token 和各组件的响应式重排中体现。`px` 继续允许用于 1px 边线、明确的 accessibility minimum、
+图标/raster 尺寸及 authored Stage 几何。
+
+引擎附一套中性可用的默认主题。Application 可以在自己的根作用域覆盖公开的 `--silly-*` token；
+某个 surface 或组件也可以在更窄作用域覆盖相同 token，或使用其已有的 component-specific token。
+普通主题化与局部定制都通过 CSS cascade 完成，不要求 Theme Provider、JavaScript scale service、
+组件 fork 或新的 UI runtime。
 
 ### 4.2 UI chrome assets
 
@@ -121,6 +180,17 @@ preset 的所有权。
 - **E2（VN player systems，已交付）**：对话框、history、choice 界面按 shell space 锚定并消费 token；
 - **F1（vertical slice，已交付）**：验收路线在 1600×1000、1024×768、平板横屏与 DPR=2 下核心画面可用、letterbox 正确、文本清晰；
 - **F3（PoC migration，已关闭）**：首个 PoC 与其 V1 scene glue 已退役，不再保留待迁移的玩家 UI；当前应用持续遵守 §5。
+- **统一 UI authority**：Game/GUI、独立 Inspector 与 Embedded Authoring 使用同一 stylesheet、token 与
+  override 机制；Inspector/Embedded Authoring 使用共享 compact 档，Player 常驻 HUD 使用受约束的正常档，
+  Title/暂停菜单保留语义层级，不以相同 computed size 冒充一致性；
+  默认 Player、System、开发工具和创作 surface 在代表性的普通桌面、大桌面、缩放/reflow 与窄屏容器中
+  无 document 级溢出，且 application-root 与 component-scope token override 均能生效。组件内部的
+  合法滚动区（例如 Inspector Stage preview）不计为 document 溢出。
+- **大屏、触控与拓扑**：未声明 scale cap 的 1600×900 canvas 在 3840×2160 等比填满；显式 cap 仍生效；
+  `expand-width` 在 5120×2160 保持 authored rect 居中并把 extra inline space 暴露给 shell。代表性
+  fine-pointer desktop、coarse-pointer phone/tablet 与 2560px CSS-width ultrawide 下，默认控件密度、
+  Inspector 工作区占用和 layout variant 切换符合 §3.5；不以物理屏幕型号、DPR 或完整 DOM inventory
+  作为证据。
 
 ## 7. Stop rules
 

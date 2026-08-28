@@ -13,7 +13,11 @@ import type { ReactElement, ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CapabilityPanelV1 } from "./capability-panel.tsx";
 import { DebugCommandPanelV1 } from "./debug-command-panel.tsx";
-import { DevDockV1, createDevDockContributionSetV1 } from "./dev-dock.tsx";
+import {
+  combineDevDockContributionSetsInternalV1,
+  createDevDockContributionSetV1,
+  DevDockV1,
+} from "./dev-dock.tsx";
 import type { DevDockPanelV1 } from "./dev-dock.tsx";
 import { createDevDockControlV1 } from "./dev-dock-control.ts";
 import type { DevDockControlV1 } from "./dev-dock-control.ts";
@@ -627,6 +631,49 @@ describe("DevDockV1", () => {
     expect(screen.getByRole("button", { name: "调试" })).toHaveFocus();
   });
 
+  it("raises the activated window without changing opening order or cascade position", async () => {
+    const capabilities = createCapabilityFixtureV1({ debugTools: true, cheats: true });
+    const control = createDevDockControlV1();
+    const contributions = createDevDockContributionSetV1({
+      panels: ["first", "second", "third"].map((id) => ({
+        id: `panel.${id}`,
+        side: "left" as const,
+        title: id,
+        authority: "read_only" as const,
+        render: () => <button type="button">{`${id} field`}</button>,
+      })),
+    });
+    for (const id of ["first", "second", "third"]) control.open(`panel.${id}`);
+    render(
+      <DevDockHarnessV1
+        capabilities={capabilities.port}
+        contributions={contributions}
+        control={control}
+      />,
+    );
+
+    const first = await screen.findByRole("dialog", { name: "first" });
+    const second = screen.getByRole("dialog", { name: "second" });
+    const third = screen.getByRole("dialog", { name: "third" });
+    await waitFor(() => expect(third).toHaveAttribute("data-devdock-window-front", "true"));
+    const cascade = [first, second, third].map((window) =>
+      window.style.getPropertyValue("--devdock-cascade")
+    );
+
+    fireEvent.pointerDown(first, { button: 0, pointerId: 1 });
+    await waitFor(() => expect(first).toHaveAttribute("data-devdock-window-front", "true"));
+    expect(third).not.toHaveAttribute("data-devdock-window-front");
+    expect(
+      [first, second, third].map((window) => window.style.getPropertyValue("--devdock-cascade")),
+    ).toEqual(cascade);
+
+    within(second).getByRole("button", { name: "second field" }).focus();
+    await waitFor(() => expect(second).toHaveAttribute("data-devdock-window-front", "true"));
+    act(() => control.close("panel.second"));
+    await waitFor(() => expect(third).toHaveAttribute("data-devdock-window-front", "true"));
+    expect(control.openPanelIds.getCurrent()).toEqual(["panel.first", "panel.third"]);
+  });
+
   it("owns Escape before an injected Story field can stop propagation", async () => {
     const capabilities = createCapabilityFixtureV1({ debugTools: true, cheats: false });
     const panels = createDevDockContributionSetV1({
@@ -1099,17 +1146,72 @@ describe("DevDockV1", () => {
       resolve(
         process.cwd(),
         packageRelativePath
-          ? "src/debug/story-debug-dock.module.css"
-          : "engine/packages/ui/src/debug/story-debug-dock.module.css",
+          ? "src/internal/development-tool-launcher.module.css"
+          : "engine/packages/ui/src/internal/development-tool-launcher.module.css",
       ),
       "utf8",
     );
     expect(launcherCss).toMatch(
-      /\.story-debug-dock\[data-devdock-position="bottom_right"\]\s*\{[^}]*flex-direction:\s*column-reverse/u,
+      /\.development-tool-launcher\[data-devdock-position="bottom_right"\]\s*\{[^}]*flex-direction:\s*column-reverse/u,
     );
     expect(windowCss).toMatch(
       /data-devdock-position="bottom_right"\]\s+\.dev-dock__window,[\s\S]*?\{\s*inset-block-end:/u,
     );
+  });
+
+  it("collapses after each selection and reopens above sibling windows", async () => {
+    const capabilities = createCapabilityFixtureV1({ debugTools: true, cheats: false });
+    const control = createDevDockControlV1();
+    const contributions = createDevDockContributionSetV1({
+      panels: [
+        {
+          id: "panel.first",
+          side: "left",
+          title: "第一工具",
+          authority: "read_only",
+          render: () => <p>第一内容</p>,
+        },
+        {
+          id: "panel.second",
+          side: "right",
+          title: "第二工具",
+          authority: "read_only",
+          render: () => <p>第二内容</p>,
+        },
+      ],
+    });
+    function Harness(): ReactElement {
+      const inputRouterRef = useRef(createInputRouterV1());
+      return (
+        <GameShell
+          accessibleName="多工具测试舞台"
+          layers={emptyLayersV1()}
+          inputRouter={inputRouterRef.current}
+          auxiliarySurface={
+            <DebugLauncherAndWindowsV1
+              capabilities={capabilities.port}
+              contributions={contributions}
+              control={control}
+              inputRouter={inputRouterRef.current}
+            />
+          }
+        />
+      );
+    }
+    render(<Harness />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "调试" }));
+    await user.click(screen.getByRole("button", { name: "第一工具" }));
+    expect(await screen.findByRole("dialog", { name: "第一工具" })).toBeVisible();
+
+    // The menu gives the work area back to the new window. Its small launcher
+    // remains in the foreground and can explicitly reopen over that window.
+    expect(screen.queryByRole("group", { name: "调试" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "调试" }));
+    await user.click(screen.getByRole("button", { name: "第二工具" }));
+    expect(await screen.findByRole("dialog", { name: "第二工具" })).toBeVisible();
+    expect(screen.queryByRole("group", { name: "调试" })).not.toBeInTheDocument();
+    expect(control.openPanelIds.getCurrent()).toEqual(["panel.first", "panel.second"]);
   });
 
   it("renders windows without the chip for a Story-driven dock and honors early opens", async () => {
@@ -1270,7 +1372,7 @@ describe("DevDock contribution validation", () => {
     };
   }
 
-  it("rejects duplicate IDs, unknown policies, per-side overflow, and 129-byte titles", () => {
+  it("rejects duplicate IDs, unknown policies, and 129-byte titles", () => {
     expect(() =>
       createDevDockContributionSetV1({
         panels: [panelV1(), panelV1({ side: "right" })],
@@ -1286,20 +1388,12 @@ describe("DevDock contribution validation", () => {
         panels: [panelV1({ authority: "owner" as "read_only" })],
       })
     ).toThrowError("ui.devdock_invalid_authority");
-    expect(() =>
-      createDevDockContributionSetV1({
-        panels: Array.from(
-          { length: 17 },
-          (_, index) => panelV1({ id: `panel.synthetic.${index}` }),
-        ),
-      })
-    ).toThrowError("ui.devdock_panels_limit");
     expect(() => createDevDockContributionSetV1({ panels: [panelV1({ title: "a".repeat(129) })] }))
       .toThrowError("ui.devdock_title_limit");
   });
 
-  it("accepts exact limits and preserves authored order in a copied registry", () => {
-    const input = Array.from({ length: 16 }, (_, index) =>
+  it("accepts large registries and preserves authored order across admission and merge", () => {
+    const input = Array.from({ length: 40 }, (_, index) =>
       panelV1({
         id: `panel.synthetic.${index}`,
         title: index === 0 ? "界".repeat(42) + "aa" : `${index}`,
@@ -1307,6 +1401,31 @@ describe("DevDock contribution validation", () => {
     const contributions = createDevDockContributionSetV1({ panels: input });
     expect(contributions.panels.map(({ id }) => id)).toEqual(input.map(({ id }) => id));
     expect(contributions.panels[0]).not.toBe(input[0]);
+
+    const more = createDevDockContributionSetV1({
+      panels: Array.from(
+        { length: 40 },
+        (_, index) => panelV1({ id: `panel.more.${index}`, side: "right" }),
+      ),
+    });
+    const combined = combineDevDockContributionSetsInternalV1([contributions, more]);
+    expect(combined.panels).toHaveLength(80);
+    expect(combined.panels.map(({ id }) => id)).toEqual([
+      ...contributions.panels,
+      ...more.panels,
+    ].map(({ id }) => id));
+
+    const control = createDevDockControlV1();
+    for (const panel of contributions.panels) control.open(panel.id);
+    expect(control.openPanelIds.getCurrent()).toHaveLength(40);
+    expect(() =>
+      combineDevDockContributionSetsInternalV1([
+        contributions,
+        createDevDockContributionSetV1({
+          panels: [panelV1({ id: "panel.synthetic.0" })],
+        }),
+      ])
+    ).toThrowError("ui.devdock_duplicate_panel_id");
   });
 });
 

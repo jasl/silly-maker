@@ -6,11 +6,11 @@
 .row {
   display: grid;
   grid-template-columns: minmax(8rem, 0.85fr) minmax(10rem, 1.4fr) minmax(3.5rem, auto);
-  gap: var(--silly-space-3);
+  gap: var(--silly-space-2);
   align-items: center;
   min-block-size: var(--silly-control-min-size);
-  padding-block: var(--silly-space-2);
-  padding-inline: var(--silly-space-3);
+  padding-block: var(--silly-space-1);
+  padding-inline: var(--silly-space-2);
   border: 1px solid transparent;
   border-radius: var(--silly-radius-control);
 }
@@ -46,6 +46,12 @@
 .fullscreen {
   justify-self: start;
   margin-block-start: var(--silly-space-2);
+}
+
+@media (pointer: coarse) {
+  .row {
+    min-block-size: var(--silly-touch-target-min-size, 44px);
+  }
 }
 
 @media (width <= 36rem) {

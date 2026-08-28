@@ -317,7 +317,7 @@ export interface WebGameUiDefinitionV1<
     };
   }) => () => unknown;
   /** Releases Story-owned UI resources (asset registries, caches). */
-  dispose?(): void;
+  dispose?(): void | PromiseLike<void>;
 }
 
 export interface WebGameLocalizedUiCopyV1 extends DefaultGameRootLocalizedCopyV1 {
@@ -753,8 +753,9 @@ export async function startWebGameApplicationV1<
     throw error;
   }
 
-  // The default composer owns the engine theme baseline. Loading it here
-  // (not at module scope) keeps custom Roots on their own style composition.
+  // Load the Browser/Deno Desktop UI baseline once after the synchronous
+  // startup shell admission and before any React surface can mount. CSS
+  // custom properties and ordinary cascade remain available for app overrides.
   try {
     await import("@sillymaker/ui/styles.css");
   } catch (error) {
@@ -1167,7 +1168,7 @@ export async function startWebGameApplicationV1<
   let nativeBehaviorReset: { dispose(): void } | undefined;
   let heldKeyUninstall: (() => void) | undefined;
   let unbindUiContext: (() => void) | undefined;
-  let uiDisposer: (() => void) | undefined;
+  let uiDisposer: (() => void | PromiseLike<void>) | undefined;
   let successorAcknowledgments: PresentationSuccessorAcknowledgmentBrokerInternalV1 | undefined;
   let composition:
     | ReturnType<

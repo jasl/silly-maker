@@ -100,6 +100,15 @@
   overscroll-behavior: contain;
 }
 
+/* Settings are a frequent, compact system surface; Save/Load keeps the
+   wider generic dialog for its slot grid. */
+.blocking-dialog__content[data-system-dialog-root="settings"] {
+  inline-size: min(32rem, calc(100% - 2 * var(--silly-space-3)));
+  padding: var(--silly-space-3);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+
 /* Nested confirmations (load/clear/import inside the Save dialog) sit one
    stratum above the dialog that opened them. */
 .blocking-dialog__backdrop--confirm {
@@ -124,6 +133,16 @@
   color: var(--silly-color-text-muted);
 }
 
+/* Save/Load is the one large-screen dialog whose content topology changes:
+   its three-column slot grid needs width, not a separate typography scale. */
+@media (height >= 48rem) {
+  @container game-stage (min-width: 90rem) {
+    .blocking-dialog__content[data-system-dialog-root="saves"] {
+      inline-size: min(66rem, calc(100% - 2 * var(--silly-space-3)));
+    }
+  }
+}
+
 @container game-stage (max-width: 44rem) {
   .overlay-host__layer {
     place-items: end stretch;
@@ -143,6 +162,45 @@
     border-end-start-radius: 0;
     border-end-end-radius: 0;
     transform: translateX(-50%);
+  }
+
+  .blocking-dialog__content[data-system-dialog-root="settings"] {
+    inline-size: 100%;
+  }
+}
+
+/* A narrow fine-pointer canvas is commonly a resized desktop window or
+   literal browser zoom. Keep dialogs centered and bounded there; only a
+   coarse-pointer device adopts the bottom-sheet treatment above. */
+@media (any-pointer: fine) {
+  @container game-stage (max-width: 44rem) {
+    .overlay-host__layer {
+      place-items: center;
+    }
+
+    .overlay-host__content {
+      inline-size: min(42rem, calc(100% - 2 * var(--silly-space-3)));
+      max-block-size: min(80%, 42rem);
+      border-radius: var(--silly-radius-card);
+    }
+
+    .blocking-dialog__content {
+      inset-block: 50% auto;
+      inline-size: min(42rem, calc(100% - 2 * var(--silly-space-3)));
+      max-block-size: min(80%, 42rem);
+      border-radius: var(--silly-radius-card);
+      transform: translate(-50%, -50%);
+    }
+
+    .blocking-dialog__content[data-system-dialog-root="settings"] {
+      inline-size: min(32rem, calc(100% - 2 * var(--silly-space-3)));
+    }
+  }
+}
+
+@media (pointer: coarse) {
+  .blocking-dialog__content :where(.silly-button, .silly-icon-button, select) {
+    min-block-size: var(--silly-target-min-size, 44px);
   }
 }
 

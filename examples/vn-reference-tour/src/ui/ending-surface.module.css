@@ -21,9 +21,9 @@
 .panel {
   position: relative;
   display: grid;
-  gap: 1rem;
-  inline-size: min(31rem, 92%);
-  padding: clamp(1.5rem, 4vmin, 2.75rem);
+  gap: 0.8rem;
+  inline-size: min(29rem, 92%);
+  padding: clamp(1.25rem, 3vmin, 2rem);
   overflow: hidden;
   border: 1px solid rgb(255 255 255 / 19%);
   border-radius: 0.45rem;
@@ -53,7 +53,7 @@
 .title {
   margin: 0;
   color: var(--vn-ending-ink);
-  font-size: clamp(2rem, 5cqi, 4rem);
+  font-size: clamp(1.75rem, 3.5cqi, 2.75rem);
   font-weight: 720;
   letter-spacing: -0.035em;
   line-height: 1.05;
@@ -64,7 +64,7 @@
   max-inline-size: 34em;
   margin: 0;
   color: var(--vn-ending-muted);
-  font-size: clamp(0.98rem, 1.45cqi, 1.16rem);
+  font-size: clamp(0.95rem, 1.2cqi, 1.05rem);
   line-height: 1.65;
   text-wrap: pretty;
 }
@@ -141,7 +141,7 @@
   }
 
   .title {
-    font-size: clamp(1.75rem, 8cqi, 2.6rem);
+    font-size: clamp(1.65rem, 7cqi, 2.35rem);
   }
 
   .actions,

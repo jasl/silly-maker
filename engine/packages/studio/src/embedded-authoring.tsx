@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
+
+import { createEmbeddedAuthoringLauncherPortInternalV1 } from "@sillymaker/ui/internal/embedded-authoring-launcher";
 
 import type { InspectorBindingV1 } from "./core/binding.ts";
 import type { AuthoringHostInternalV1 } from "./core/authoring-host.ts";
@@ -34,6 +36,15 @@ export function EmbeddedAuthoringSurfaceInternalV1(
     props.host.getSnapshot,
     props.host.getSnapshot,
   );
+  const authoringLauncher = useMemo(
+    () => createEmbeddedAuthoringLauncherPortInternalV1(),
+    [],
+  );
+  const authoringLauncherState = useSyncExternalStore(
+    authoringLauncher.state.subscribe,
+    authoringLauncher.state.getCurrent,
+    authoringLauncher.state.getCurrent,
+  );
   const [open, setOpen] = useState(true);
   const [confirmClose, setConfirmClose] = useState(false);
   const closeDialogRef = useRef<HTMLDialogElement>(null);
@@ -45,6 +56,15 @@ export function EmbeddedAuthoringSurfaceInternalV1(
     : snapshot.dirty
     ? "关闭内嵌创作（有未保存修改）"
     : "关闭内嵌创作";
+
+  useEffect(() => {
+    if (authoringLauncherState.requestRevision > 0) setOpen(true);
+  }, [authoringLauncherState.requestRevision]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    return authoringLauncher.claimSurface();
+  }, [authoringLauncher, open]);
 
   useEffect(() => {
     if (!confirmClose) return undefined;
@@ -89,14 +109,14 @@ export function EmbeddedAuthoringSurfaceInternalV1(
       onContextMenu={(event) => event.stopPropagation()}
       onWheel={(event) => event.stopPropagation()}
     >
-      {open ? null : (
+      {open || authoringLauncherState.available ? null : (
         <button
           type="button"
           className={styles["embedded-launcher"]}
           data-embedded-authoring-open="true"
           onClick={() => setOpen(true)}
         >
-          {companionReplacesInspector ? "展开产品创作视图" : "打开内嵌创作"}
+          {companionReplacesInspector ? "展开产品创作视图" : "打开内嵌制作"}
         </button>
       )}
       <section
@@ -117,22 +137,27 @@ export function EmbeddedAuthoringSurfaceInternalV1(
             {companionReplacesInspector ? "收起" : "关闭"}
           </button>
         </header>
-        {companionReplacesInspector ? null : (
-          <InspectorHostSurfaceInternalV1
-            host={props.host}
-            binding={props.binding}
-            mode="embedded"
-            publicationRole={props.publicationRole}
-            viewId={props.viewId}
-          />
-        )}
-        {props.companion === undefined ? null : (
-          <AuthoringCompanionSurfaceInternalV1
-            host={props.host}
-            publicationRole={props.publicationRole}
-            companion={props.companion}
-          />
-        )}
+        <div
+          className={styles["embedded-content"]}
+          data-embedded-authoring-content="true"
+        >
+          {companionReplacesInspector ? null : (
+            <InspectorHostSurfaceInternalV1
+              host={props.host}
+              binding={props.binding}
+              mode="embedded"
+              publicationRole={props.publicationRole}
+              viewId={props.viewId}
+            />
+          )}
+          {props.companion === undefined ? null : (
+            <AuthoringCompanionSurfaceInternalV1
+              host={props.host}
+              publicationRole={props.publicationRole}
+              companion={props.companion}
+            />
+          )}
+        </div>
       </section>
       {!confirmClose ? null : (
         <dialog

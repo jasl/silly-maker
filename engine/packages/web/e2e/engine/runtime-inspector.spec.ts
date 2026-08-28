@@ -22,7 +22,7 @@ test.describe("@dev-authoring Runtime Inspector facets", () => {
 
   test("embedded Inspector follows committed current units without loading on selection", async ({ page }) => {
     await gotoLabV1(page);
-    await page.getByRole("button", { name: "打开内嵌创作", exact: true }).click();
+    await page.getByRole("button", { name: "打开内嵌制作", exact: true }).click();
     const authoring = page.getByRole("region", { name: "内嵌创作" });
     const runtime = authoring.getByRole("region", { name: "Runtime Inspector" });
     const opening = runtime.locator(
@@ -39,7 +39,7 @@ test.describe("@dev-authoring Runtime Inspector facets", () => {
 
     await authoring.getByRole("button", { name: "关闭内嵌创作", exact: true }).click();
     await page.getByRole("button", { name: "开始演习", exact: true }).click();
-    await page.getByRole("button", { name: "打开内嵌创作", exact: true }).click();
+    await page.getByRole("button", { name: "打开内嵌制作", exact: true }).click();
     const currentDrill = page.getByRole("region", { name: "内嵌创作" })
       .getByRole("region", { name: "Runtime Inspector" })
       .locator('[data-runtime-inspector-row="narrative.e2e.drill"]');
@@ -49,7 +49,7 @@ test.describe("@dev-authoring Runtime Inspector facets", () => {
 
   test("Code Surface exposes one real node lifecycle and cooperation policy", async ({ page }) => {
     await gotoLabV1(page, "?code_surface_conformance=1");
-    await page.getByRole("button", { name: "打开内嵌创作", exact: true }).click();
+    await page.getByRole("button", { name: "打开内嵌制作", exact: true }).click();
     const runtime = page.getByRole("region", { name: "内嵌创作" })
       .getByRole("region", { name: "Runtime Inspector" });
     const shell = runtime.locator(

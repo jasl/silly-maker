@@ -17,8 +17,27 @@ export interface InspectorSceneTreePropsV1 {
 }
 
 const treeRowHeightV1 = 38;
-const treeViewportHeightV1 = 420;
+const treeTouchRowHeightV1 = 44;
+const treeViewportHeightCapV1 = 420;
 const treeOverscanRowsV1 = 4;
+
+function primaryPointerIsCoarseV1(): boolean {
+  return typeof globalThis.matchMedia === "function" &&
+    globalThis.matchMedia("(pointer: coarse)").matches;
+}
+
+function usePrimaryPointerCoarseV1(): boolean {
+  const [coarse, setCoarse] = useState(primaryPointerIsCoarseV1);
+  useEffect(() => {
+    if (typeof globalThis.matchMedia !== "function") return undefined;
+    const query = globalThis.matchMedia("(pointer: coarse)");
+    const update = (): void => setCoarse(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  return coarse;
+}
 
 function filteredRowsV1(
   rows: readonly InspectorTreeRowV1[],
@@ -44,6 +63,8 @@ function filteredRowsV1(
 }
 
 export function InspectorSceneTreeV1(props: InspectorSceneTreePropsV1): ReactElement {
+  const coarsePointer = usePrimaryPointerCoarseV1();
+  const rowHeight = coarsePointer ? treeTouchRowHeightV1 : treeRowHeightV1;
   const [query, setQuery] = useState("");
   const [scrollTop, setScrollTop] = useState(0);
   const scrollTopRef = useRef(0);
@@ -51,6 +72,10 @@ export function InspectorSceneTreeV1(props: InspectorSceneTreePropsV1): ReactEle
   const rows = useMemo(
     () => filteredRowsV1(flattenInspectorTreeV1(props.document), query),
     [props.document, query],
+  );
+  const viewportHeight = Math.min(
+    treeViewportHeightCapV1,
+    Math.max(rowHeight, rows.length * rowHeight),
   );
   useEffect(() => {
     const rowIndex = rows.findIndex((row) =>
@@ -60,19 +85,19 @@ export function InspectorSceneTreeV1(props: InspectorSceneTreePropsV1): ReactEle
     const next = fixedRowRevealScrollTopV1({
       totalRows: rows.length,
       rowIndex,
-      rowHeight: treeRowHeightV1,
-      viewportHeight: treeViewportHeightV1,
+      rowHeight,
+      viewportHeight,
       scrollTop: scrollTopRef.current,
     });
     if (next === scrollTopRef.current) return;
     scrollTopRef.current = next;
     if (listRef.current !== null) listRef.current.scrollTop = next;
     setScrollTop(next);
-  }, [props.selectedObjectId, rows]);
+  }, [props.selectedObjectId, rowHeight, rows, viewportHeight]);
   const window = calculateFixedRowWindowV1({
     totalRows: rows.length,
-    rowHeight: treeRowHeightV1,
-    viewportHeight: treeViewportHeightV1,
+    rowHeight,
+    viewportHeight,
     scrollTop,
     overscanRows: treeOverscanRowsV1,
   });
@@ -103,8 +128,9 @@ export function InspectorSceneTreeV1(props: InspectorSceneTreePropsV1): ReactEle
       <div
         ref={listRef}
         className={styles["virtual-list"]}
-        style={{ height: treeViewportHeightV1 }}
+        style={{ height: viewportHeight }}
         data-inspector-object-list="true"
+        data-inspector-object-row-height={String(rowHeight)}
         data-inspector-mounted-rows={String(visible.length)}
         onScroll={(event) => {
           scrollTopRef.current = event.currentTarget.scrollTop;
@@ -119,7 +145,7 @@ export function InspectorSceneTreeV1(props: InspectorSceneTreePropsV1): ReactEle
                   <div
                     key={row.key}
                     className={styles["layer-row"]}
-                    style={{ height: treeRowHeightV1 }}
+                    style={{ height: rowHeight }}
                     data-inspector-layer={row.layerId}
                   >
                     <span aria-hidden="true">▱</span>
@@ -133,7 +159,7 @@ export function InspectorSceneTreeV1(props: InspectorSceneTreePropsV1): ReactEle
                     key={row.key}
                     className={styles["object-row"]}
                     style={{
-                      height: treeRowHeightV1,
+                      height: rowHeight,
                       paddingInlineStart: `${String(12 + row.depth * 16)}px`,
                     }}
                     aria-current={props.selectedObjectId === row.objectId ? "true" : undefined}

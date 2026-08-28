@@ -37,6 +37,9 @@ describe("stacking token contract", () => {
     expect(values).toEqual(sorted);
     expect(new Set(values).size).toBe(values.length);
     expect(tokens.get("silly-stage-z-whole-canvas")).toBe(45);
+    expect(tokens.get("silly-shell-z-development")).toBeGreaterThan(
+      tokens.get("silly-stage-z-system") as number,
+    );
   });
 
   it("the within-layer surface scale is strictly increasing", async () => {
@@ -44,6 +47,7 @@ describe("stacking token contract", () => {
     const scale = [
       "silly-surface-z-base",
       "silly-surface-z-raised",
+      "silly-surface-z-active",
       "silly-surface-z-front-door",
       "silly-surface-z-splash",
       "silly-surface-z-dialog-backdrop",
@@ -74,6 +78,8 @@ describe("stacking token contract", () => {
       "../overlays/overlay-host.module.css",
       "../debug/dev-dock.module.css",
       "../debug/story-debug-dock.module.css",
+      "../internal/development-tool-launcher.module.css",
+      "../../../studio/src/embedded-authoring.module.css",
       "../system/instance-lease-banner.module.css",
       "../shell/game-stage.module.css",
     ];

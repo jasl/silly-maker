@@ -41,7 +41,7 @@ export function BootSplashV1(props: {
         inset: 0,
         display: "grid",
         placeContent: "center",
-        gap: "10px",
+        gap: "var(--silly-space-2)",
         textAlign: "center",
         backgroundColor: "var(--silly-color-canvas)",
         color: "var(--silly-color-text)",
@@ -55,7 +55,7 @@ export function BootSplashV1(props: {
           key={line}
           style={{
             margin: 0,
-            fontSize: index === 0 ? "clamp(18px, 3vw, 28px)" : "clamp(12px, 1.8vw, 16px)",
+            fontSize: index === 0 ? "clamp(1.125rem, 3vw, 1.75rem)" : "clamp(0.75rem, 1.8vw, 1rem)",
             opacity: index === 0 ? 1 : 0.72,
           }}
         >

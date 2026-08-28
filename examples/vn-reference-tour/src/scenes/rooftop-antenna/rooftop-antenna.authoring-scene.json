@@ -77,7 +77,7 @@
                 "appearance": {},
                 "ambient": {
                   "motionId": "motion.vn-reference-tour.rooftop-antenna.cable-sway",
-                  "phaseMs": 350
+                  "phaseMs": 400
                 }
               }
             }

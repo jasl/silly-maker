@@ -155,7 +155,7 @@ async function observedStageLayerOrderV1(page: Page): Promise<readonly string[]>
 }
 
 async function openDirtyAuthoringV1(page: Page): Promise<DirtyAuthoringViewV1> {
-  await page.getByRole("button", { name: "打开内嵌创作", exact: true }).click();
+  await page.getByRole("button", { name: "打开内嵌制作", exact: true }).click();
   const panel = page.getByRole("region", { name: "内嵌创作" });
   await expect(panel).toBeVisible();
 

@@ -106,7 +106,7 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "choiceAvailability"
       | "playerProfile"
       | "playerView"
-      | "historyAvailable"
+      | "history"
       | "voiceReplayAvailable"
       | "resolveText"
       | "onActivate"
@@ -115,7 +115,6 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "onSubmitCustom"
       | "onToggleAuto"
       | "onToggleSkip"
-      | "onOpenHistory"
       | "onReplayVoice"
     >();
     expectTypeOf<NarrativeSurfacePlayerViewV1>().not.toBeNever();
@@ -124,6 +123,7 @@ describe("@sillymaker/ui public managed System surface", () => {
       | "dispatchResolution"
       | "dispatchTime"
       | "renderer"
+      | "history"
       | "resolveText"
       | "replayCurrentVoice"
       | "isCurrentVoicePlaying"

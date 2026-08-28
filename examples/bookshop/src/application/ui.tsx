@@ -4,7 +4,10 @@
 import type { ReactElement } from "react";
 
 import type { DeepReadonly } from "@sillymaker/base";
-import type { NarrativeSurfaceRendererPropsV1 } from "@sillymaker/ui";
+import type {
+  NarrativeSurfaceDialogueRendererPropsV1,
+  NarrativeSurfaceHistoryRendererPropsV1,
+} from "@sillymaker/ui";
 import { Button } from "@sillymaker/ui";
 
 import type { BookshopActionIdV1 } from "./semantic.ts";
@@ -32,40 +35,9 @@ const bookshopNarrativePanelStyleV1 = {
 };
 
 /** Passive product skin for the composition-owned Narrative runtime. */
-export function BookshopNarrativeRendererV1(
-  props: NarrativeSurfaceRendererPropsV1,
+export function BookshopNarrativeDialogueRendererV1(
+  props: NarrativeSurfaceDialogueRendererPropsV1,
 ): ReactElement | null {
-  if (props.kind === "history") {
-    return (
-      <section
-        data-bookshop-narrative="history"
-        data-dialogue-history="true"
-        style={bookshopNarrativePanelStyleV1}
-      >
-        <header style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
-          <strong>{props.resolveText("text.bookshop.playback.history.title")}</strong>
-          <Button data-dialogue-history-close="true" onClick={props.onCloseHistory}>
-            {props.resolveText("text.bookshop.playback.history.close")}
-          </Button>
-        </header>
-        {props.history.entries.length === 0
-          ? <p>{props.resolveText("text.bookshop.playback.history.empty")}</p>
-          : (
-            <ol style={{ display: "grid", gap: "10px", paddingInlineStart: "24px" }}>
-              {props.history.entries.map((entry) => (
-                <li key={entry.occurrenceId} data-dialogue-history-entry={entry.kind}>
-                  {entry.speakerTextId === null
-                    ? null
-                    : <strong>{props.resolveText(entry.speakerTextId)}：</strong>}
-                  {props.resolveText(entry.textId)}
-                </li>
-              ))}
-            </ol>
-          )}
-      </section>
-    );
-  }
-
   const pending = props.pending;
   if (pending.kind === "say") {
     const playerView = props.playerView.kind === "say" ? props.playerView : null;
@@ -110,9 +82,15 @@ export function BookshopNarrativeRendererV1(
           >
             {props.resolveText("text.bookshop.playback.skip")}
           </Button>
-          <Button data-dialogue-history-open="true" onClick={props.onOpenHistory}>
-            {props.resolveText("text.bookshop.playback.history")}
-          </Button>
+          {props.history === null ? null : (
+            <Button
+              data-dialogue-history-open="true"
+              disabled={!props.history.available}
+              onClick={props.history.onOpen}
+            >
+              {props.resolveText("text.bookshop.playback.history")}
+            </Button>
+          )}
         </div>
       </div>
     );
@@ -163,6 +141,40 @@ export function BookshopNarrativeRendererV1(
   }
 
   return null;
+}
+
+/** Optional History presentation selected explicitly by the Bookshop application. */
+export function BookshopNarrativeHistoryRendererV1(
+  props: NarrativeSurfaceHistoryRendererPropsV1,
+): ReactElement {
+  return (
+    <section
+      data-bookshop-narrative="history"
+      data-dialogue-history="true"
+      style={bookshopNarrativePanelStyleV1}
+    >
+      <header style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
+        <strong>{props.resolveText("text.bookshop.playback.history.title")}</strong>
+        <Button data-dialogue-history-close="true" onClick={props.onCloseHistory}>
+          {props.resolveText("text.bookshop.playback.history.close")}
+        </Button>
+      </header>
+      {props.history.entries.length === 0
+        ? <p>{props.resolveText("text.bookshop.playback.history.empty")}</p>
+        : (
+          <ol style={{ display: "grid", gap: "10px", paddingInlineStart: "24px" }}>
+            {props.history.entries.map((entry) => (
+              <li key={entry.occurrenceId} data-dialogue-history-entry={entry.kind}>
+                {entry.speakerTextId === null
+                  ? null
+                  : <strong>{props.resolveText(entry.speakerTextId)}：</strong>}
+                {props.resolveText(entry.textId)}
+              </li>
+            ))}
+          </ol>
+        )}
+    </section>
+  );
 }
 
 export function BookshopHudV1(props: {

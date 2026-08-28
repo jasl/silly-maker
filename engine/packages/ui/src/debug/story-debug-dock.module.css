@@ -1,63 +1,7 @@
-.story-debug-dock {
-  position: absolute;
-
-  /* Privileged debug chrome: above every stage layer including system. */
-  z-index: calc(var(--silly-stage-z-system) + 10);
-
-  /* Debug chrome keeps the devtools font: rebinding the token makes every
-     nested consumer (panels, buttons) ignore the Story's game font. */
-  --silly-font-family: var(--silly-debug-font-family);
-
-  display: flex;
-  max-inline-size: min(25rem, calc(100% - 2 * var(--silly-space-2)));
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--silly-space-1);
-  pointer-events: auto;
-  color: var(--silly-color-text);
-  font-family: var(--silly-font-family);
-  font-size: 12px;
-}
-
-.story-debug-dock[data-devdock-position="top_right"] {
-  inset-block-start: var(--silly-space-2);
-  inset-inline-end: var(--silly-space-2);
-}
-
-.story-debug-dock[data-devdock-position="top_left"] {
-  inset-block-start: var(--silly-space-2);
-  inset-inline-start: var(--silly-space-2);
-  align-items: flex-start;
-}
-
-.story-debug-dock[data-devdock-position="bottom_right"] {
-  inset-block-end: var(--silly-space-2);
-  inset-inline-end: var(--silly-space-2);
-  flex-direction: column-reverse;
-}
-
-.story-debug-dock[data-devdock-position="bottom_left"] {
-  inset-block-end: var(--silly-space-2);
-  inset-inline-start: var(--silly-space-2);
-  flex-direction: column-reverse;
-  align-items: flex-start;
-}
-
-.story-debug-dock__chip {
-  cursor: pointer;
-  user-select: none;
-  list-style: none;
-  padding-block: var(--silly-space-1);
-  padding-inline: var(--silly-space-2);
-  border: 1px solid var(--silly-color-border);
-  border-radius: var(--silly-radius-control);
-  background: var(--silly-color-surface-translucent);
-  color: inherit;
-  font: inherit;
-}
-
-.story-debug-dock__chip::-webkit-details-marker {
-  display: none;
+@media (pointer: coarse) {
+  .story-debug-dock__panel :where(button, a, input, select, textarea) {
+    min-block-size: var(--silly-touch-target-min-size, 44px);
+  }
 }
 
 .story-debug-dock__panel {
@@ -72,7 +16,7 @@
 
 .story-debug-dock__info {
   display: grid;
-  gap: 2px;
+  gap: 0.125rem;
   justify-items: start;
   padding-block-end: var(--silly-space-2);
   border-block-end: 1px solid var(--silly-color-border);
@@ -99,7 +43,7 @@
 .story-debug-dock__section-title {
   margin: 0;
   color: var(--silly-color-text-muted);
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.04em;
 }
@@ -130,12 +74,12 @@
 .story-debug-dock__rate-pinned {
   grid-column: 1 / -1;
   justify-self: start;
-  padding-block: 1px;
+  padding-block: 0.0625rem;
   padding-inline: var(--silly-space-1);
   border: 1px solid var(--silly-color-accent);
-  border-radius: var(--silly-radius-small, 4px);
+  border-radius: var(--silly-radius-control);
   color: var(--silly-color-accent);
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
 }
 
@@ -173,24 +117,24 @@
 }
 
 .story-debug-dock__versions {
-  font-size: 11px;
+  font-size: 0.6875rem;
   opacity: 0.65;
 }
 
 .story-debug-dock__fault {
   display: grid;
-  gap: 4px;
+  gap: var(--silly-space-1);
   overflow-wrap: anywhere;
   text-align: start;
-  font-size: 11px;
-  color: var(--silly-color-danger, #e5484d);
+  font-size: 0.6875rem;
+  color: var(--silly-color-danger);
 }
 
 .story-debug-dock__fault-stack {
   margin: 0;
   max-block-size: 8rem;
   overflow: auto;
-  font-size: 10px;
+  font-size: 0.625rem;
   opacity: 0.8;
   white-space: pre-wrap;
 }
@@ -199,14 +143,14 @@
   grid-column: 1 / -1;
   margin: 0;
   color: var(--silly-color-text-muted);
-  font-size: 11px;
+  font-size: 0.6875rem;
   text-align: start;
 }
 
 .story-debug-dock__wipe {
   position: absolute;
   inset: 0;
-  z-index: calc(var(--silly-stage-z-system) + var(--silly-surface-z-confirm));
+  z-index: var(--silly-surface-z-confirm);
   pointer-events: auto;
 
   /* The confirm layer is a portal sibling of the dock root: rebind the
@@ -239,12 +183,12 @@
   max-inline-size: min(22.5rem, calc(100% - 1.5rem));
   padding: var(--silly-space-3);
   transform: translate(-50%, -50%);
-  gap: 10px;
+  gap: var(--silly-space-2);
   border: 1px solid var(--silly-color-border);
   border-radius: var(--silly-radius-card);
   background: var(--silly-color-surface);
   color: var(--silly-color-text);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .story-debug-dock__wipe-description {
@@ -257,52 +201,15 @@
   gap: var(--silly-space-2);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .story-debug-dock,
-  .story-debug-dock * {
-    scroll-behavior: auto;
-    transition: none !important;
-    animation: none !important;
-  }
-}
-
 /* stylelint-disable selector-pseudo-class-no-unknown -- CSS Modules global scope */
-:global([data-blocking-focus-scope]):has(> .story-debug-dock[data-devdock-position="top_right"]),
-:global([data-blocking-focus-scope]):has(> .story-debug-dock[data-devdock-position="top_left"]) {
-  padding-block-start: calc(
-    var(--silly-safe-area-block-start) + var(--silly-control-min-size) + 3 * var(--silly-space-2)
-  );
-}
-
-:global([data-blocking-focus-scope]):has(> .story-debug-dock[data-devdock-position="bottom_right"]),
-:global([data-blocking-focus-scope]):has(> .story-debug-dock[data-devdock-position="bottom_left"]) {
-  padding-block-end: calc(
-    var(--silly-safe-area-block-end) + var(--silly-control-min-size) + 3 * var(--silly-space-2)
-  );
-}
-
-/* The engine's default system menu owns the stage's top-right corner; a
-   top-right chip on the game canvas yields by sliding below the menu row
-   (control height + menu padding + border, plus one gap). Direct-child
-   selectors keep docks portaled into blocking scopes on their own
-   reserved-strip position. */
-:global([data-game-viewport-canvas]:has([data-default-system-menu])) > .story-debug-dock[data-devdock-position="top_right"] {
-  inset-block-start: calc(
-    var(--silly-safe-area-block-start) + var(--silly-space-2) + var(--silly-control-min-size) +
-    2 * var(--silly-space-1) + 2px + var(--silly-space-1)
-  );
-}
 
 /* Inside a blocking focus scope the expanded launcher floats over the
    dialog's own content, so it must stay bounded and readable: never taller
    than the scope, scrolling internally, on an opaque surface. */
-:global([data-blocking-focus-scope]) > .story-debug-dock {
-  max-block-size: calc(100% - 2 * var(--silly-space-2));
-}
-
-:global([data-blocking-focus-scope]) > .story-debug-dock .story-debug-dock__panel {
+:global([data-blocking-focus-scope]) > :global([data-development-tool-launcher]) .story-debug-dock__panel {
   min-block-size: 0;
   overflow: auto;
   background: var(--silly-color-surface);
 }
+
 /* stylelint-enable selector-pseudo-class-no-unknown */

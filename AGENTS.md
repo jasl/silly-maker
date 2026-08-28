@@ -63,8 +63,20 @@ Read only the documents relevant to the change:
   flush and does not promise last-moment IndexedDB durability. M4 is now in
   progress: a package-private Visual ambient-binding operation, one real Agent
   Inspector/CAS handoff, and the workstation Browser/build/static-Desktop/
-  accessibility/silent-run/raw-performance evidence are delivered. The human
-  handoff, representative current-low-end qualification, independent product
+  accessibility/silent-run/raw-performance evidence are delivered. The
+  2026-08-29 core/optional correction also split the focused Narrative Player
+  core from its explicitly selected History renderer/CSS, added a neutral
+  private Mod selection-successor contract, and kept the compact VN free of a
+  synthetic tooling-Mod consumer. Development now keeps only one small movable
+  launcher resident; the complete DevDock menu/window host, each selected
+  state-tool body, and Embedded Authoring load only after their own explicit
+  interaction, while the production graph excludes DevDock, Inspector/source
+  writers, tooling, and the private Mod runtime. The private controller and
+  DevDock publication remain separately proved substrate rather than an
+  end-to-end product hot-plug system; History is only statically optional today.
+  A real authoritative Mod remains an R2 consumer for a later product rather
+  than a fabricated VN route. The owner-authorized Computer Use-assisted
+  participant handoff is complete; representative current-low-end qualification, independent product
   and engine reviews, and Starter feedback remain open. This playable WIP is
   still not product-completion evidence.
   Cat Cafe terminated on 2026-08-27 before this lane began; its application,
@@ -559,8 +571,11 @@ and another active plan is accepted.
   sources, loads and cold-compiles only the selected generation-immutable set
   through application-owned extension points, and then mounts the resulting
   contributions through Direct. It owns no resolver, SDK, digest, State, Save,
-  hot-install API, or same-realm sandbox. A domain or local binding may still be required by a product;
-  lifecycle composition does not imply product optionality.
+  public or in-place hot-install API, or same-realm sandbox. Its private
+  controller only replaces one complete generation-immutable selection through
+  successor replacement; it never mutates a mounted set in place. A domain or
+  local binding may still be required by a product; lifecycle composition does
+  not imply product optionality.
 - `@sillymaker/state` is an experimental neutral façade for authoritative
   transactional State, not a generic React/UI store. It must reuse exactly one
   Base Session and transaction runner; it never owns a second State, digest,

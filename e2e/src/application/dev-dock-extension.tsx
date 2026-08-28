@@ -3,8 +3,7 @@ import {
   defineExtensionFactoryInternalV1,
   mountExtensionFactoryInternalV1,
 } from "@sillymaker/composition/internal/extension-runtime";
-import type { DevDockContributionSetV1 } from "@sillymaker/ui/debug";
-import { bindDevDockContributionLifecycleInternalV1 } from "@sillymaker/ui/reference/internal";
+import type { DevDockContributionLoadHandleV1 } from "@sillymaker/ui/reference/dev-dock";
 
 import type { LabApplicationInstanceV1 } from "./core-definition.ts";
 import { createLabDevDockContributionsV1 } from "./dev-dock.tsx";
@@ -19,7 +18,7 @@ const labDevDockExtensionGenerationV1 = "engine-lab.devdock.v1";
  */
 export async function loadLabDevDockExtensionV1(input: {
   readonly instance: LabApplicationInstanceV1;
-}): Promise<DevDockContributionSetV1> {
+}): Promise<DevDockContributionLoadHandleV1> {
   const handle = await mountExtensionFactoryInternalV1(
     defineExtensionFactoryInternalV1({
       id: labDevDockExtensionIdV1,
@@ -27,8 +26,8 @@ export async function loadLabDevDockExtensionV1(input: {
       setup: () => createLabDevDockContributionsV1(input),
     }),
   );
-  return bindDevDockContributionLifecycleInternalV1(
-    handle.consumer,
-    () => handle.dispose(),
-  );
+  return {
+    contributions: handle.consumer,
+    dispose: () => handle.dispose(),
+  };
 }

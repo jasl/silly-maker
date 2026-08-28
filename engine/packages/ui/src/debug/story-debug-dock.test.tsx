@@ -478,26 +478,30 @@ describe("StoryDebugDockV1", () => {
       resolve(import.meta.dirname, "story-debug-dock.module.css"),
       "utf8",
     );
+    const launcherCss = await readFile(
+      resolve(import.meta.dirname, "../internal/development-tool-launcher.module.css"),
+      "utf8",
+    );
 
     // A top-right chip on the game canvas slides below the engine's own
     // default system menu instead of overlapping it.
-    expect(css).toMatch(
-      /\[data-game-viewport-canvas\]:has\(\[data-default-system-menu\]\)[^{]*>\s*\.story-debug-dock\[data-devdock-position="top_right"\]\s*\{[^}]*inset-block-start:/su,
+    expect(launcherCss).toMatch(
+      /\[data-game-viewport-canvas\]:has\(\[data-default-system-menu\]\)[^{]*>\s*\.development-tool-launcher\[data-devdock-position="top_right"\]\s*\{[^}]*inset-block-start:/su,
     );
     // Inside a blocking scope the expanded panel stays bounded, scrollable,
     // and opaque over the dialog's content.
-    expect(css).toMatch(
-      /\[data-blocking-focus-scope\]\)?\s*>\s*\.story-debug-dock\s*\{[^}]*max-block-size:/su,
+    expect(launcherCss).toMatch(
+      /\[data-blocking-focus-scope\]\)?\s*>\s*\.development-tool-launcher\s*\{[^}]*max-block-size:/su,
     );
     expect(css).toMatch(
-      /\[data-blocking-focus-scope\]\)?\s*>\s*\.story-debug-dock\s+\.story-debug-dock__panel\s*\{[^}]*overflow:\s*auto;[^}]*background:\s*var\(--silly-color-surface\);/su,
+      /\[data-blocking-focus-scope\]\)\s*>\s*:global\(\[data-development-tool-launcher\]\)\s+\.story-debug-dock__panel\s*\{[^}]*overflow:\s*auto;[^}]*background:\s*var\(--silly-color-surface\);/su,
     );
 
     // Debug chrome keeps the devtools font: the rail and the sibling
     // confirm layer rebind --silly-font-family to the debug token so a
     // Story's game font never restyles them.
-    expect(css).toMatch(
-      /\.story-debug-dock\s*\{[^}]*--silly-font-family:\s*var\(--silly-debug-font-family\);/su,
+    expect(launcherCss).toMatch(
+      /\.development-tool-launcher\s*\{[^}]*--silly-font-family:\s*var\(--silly-debug-font-family\);/su,
     );
     expect(css).toMatch(
       /\.story-debug-dock__wipe\s*\{[^}]*--silly-font-family:\s*var\(--silly-debug-font-family\);/su,
@@ -505,6 +509,17 @@ describe("StoryDebugDockV1", () => {
     const windowsCss = await readFile(
       resolve(import.meta.dirname, "dev-dock.module.css"),
       "utf8",
+    );
+    // The shared launcher is the foreground control plane. A window opened
+    // from the same corner cannot intercept the still-expanded action menu.
+    expect(launcherCss).toMatch(
+      /\.development-tool-launcher\s*\{[^}]*z-index:\s*var\(--silly-surface-z-splash\);/su,
+    );
+    expect(windowsCss).toMatch(
+      /\.dev-dock\s*\{[^}]*z-index:\s*var\(--silly-surface-z-front-door\);/su,
+    );
+    expect(windowsCss).toMatch(
+      /data-devdock-window-front="true"[^}]*z-index:\s*var\(--silly-surface-z-active\);/su,
     );
     expect(windowsCss).toMatch(
       /\.dev-dock\s*\{[^}]*--silly-font-family:\s*var\(--silly-debug-font-family\);/su,

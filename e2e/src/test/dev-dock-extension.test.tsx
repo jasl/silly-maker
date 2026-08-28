@@ -3,8 +3,6 @@
 import { cleanup } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { disposeDevDockContributionLifecycleInternalV1 } from "@sillymaker/ui/reference/internal";
-
 import { createLabApplicationInstanceV1 } from "../application/core-application.ts";
 import { loadLabDevDockExtensionV1 } from "../application/dev-dock-extension.tsx";
 
@@ -14,8 +12,8 @@ describe("Lab DevDock extension entry", () => {
   it("returns the direct contribution consumer and exposes idempotent lifecycle disposal", async () => {
     const instance = await createLabApplicationInstanceV1();
     try {
-      const contributions = await loadLabDevDockExtensionV1({ instance });
-      expect(contributions.panels.map(({ id }) => id)).toEqual([
+      const handle = await loadLabDevDockExtensionV1({ instance });
+      expect(handle.contributions.panels.map(({ id }) => id)).toEqual([
         "panel.e2e.stage",
         "panel.e2e.interaction",
         "panel.e2e.audio",
@@ -23,11 +21,11 @@ describe("Lab DevDock extension entry", () => {
         "panel.e2e.provenance",
       ]);
 
-      const firstDispose = disposeDevDockContributionLifecycleInternalV1(contributions);
-      const secondDispose = disposeDevDockContributionLifecycleInternalV1(contributions);
+      const firstDispose = handle.dispose?.();
+      const secondDispose = handle.dispose?.();
       expect(secondDispose).toBe(firstDispose);
       await firstDispose;
-      await disposeDevDockContributionLifecycleInternalV1(contributions);
+      await handle.dispose?.();
     } finally {
       await instance.dispose();
     }

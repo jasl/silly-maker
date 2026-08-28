@@ -43,7 +43,7 @@ export interface NarrativeStableHostLeaseInternalV1 {
 export interface NarrativeStableSessionInternalV1 {
   getReadinessSnapshotInternalV1(): NarrativeStableReadinessSnapshotInternalV1;
   subscribeInternalV1(listener: () => void): () => void;
-  getHistoryChildLifecycleInternalV1(): NarrativeStableHistoryChildLifecycleInternalV1;
+  getHistoryChildLifecycleInternalV1(): NarrativeStableHistoryChildLifecycleInternalV1 | null;
   attachHostInternalV1(
     input: Readonly<{ readonly hostIdentity: object }>,
   ): NarrativeStableHostLeaseInternalV1;

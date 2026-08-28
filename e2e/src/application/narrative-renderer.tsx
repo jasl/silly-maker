@@ -6,7 +6,6 @@ import type {
   NarrativeSurfaceDefinitionV1,
   NarrativeSurfaceDialogueRendererPropsV1,
   NarrativeSurfaceHistoryRendererPropsV1,
-  NarrativeSurfaceRendererPropsV1,
   NarrativeSurfaceResolutionRequestV1,
   NarrativeSurfaceSelectionV1,
 } from "@sillymaker/ui";
@@ -69,22 +68,15 @@ export function createLabNarrativeSurfaceDefinitionV1(
         tick,
       });
     },
-    renderer: LabNarrativeRendererV1,
+    renderer: LabNarrativeDialogueRendererV1,
+    history: { renderer: LabNarrativeHistoryRendererV1 },
     resolveText: (_locale: string | null, textId: string) => labUiTextV1(textId),
     replayCurrentVoice: input.replayCurrentVoice,
   });
 }
 
-/** Passive Story skin over composition-owned player state and fenced callbacks. */
-export function LabNarrativeRendererV1(
-  props: NarrativeSurfaceRendererPropsV1,
-): ReactElement {
-  return props.kind === "history"
-    ? <LabNarrativeHistoryRendererV1 {...props} />
-    : <LabNarrativeDialogueRendererV1 {...props} />;
-}
-
-function LabNarrativeHistoryRendererV1(
+/** Passive History skin selected explicitly beside the Engine Lab dialogue renderer. */
+export function LabNarrativeHistoryRendererV1(
   props: NarrativeSurfaceHistoryRendererPropsV1,
 ): ReactElement {
   return (
@@ -110,7 +102,8 @@ function LabNarrativeHistoryRendererV1(
   );
 }
 
-function LabNarrativeDialogueRendererV1(
+/** Passive dialogue skin over composition-owned player state and fenced callbacks. */
+export function LabNarrativeDialogueRendererV1(
   props: NarrativeSurfaceDialogueRendererPropsV1,
 ): ReactElement {
   const mode = props.playerView.playbackMode;
@@ -131,13 +124,16 @@ function LabNarrativeDialogueRendererV1(
         >
           {labUiTextV1("text.e2e.lab.player.skip")}
         </Button>
-        <Button
-          data-dialogue-history-open="true"
-          data-lab-player="history"
-          onClick={props.onOpenHistory}
-        >
-          {labUiTextV1("text.e2e.lab.player.history")}
-        </Button>
+        {props.history === null ? null : (
+          <Button
+            data-dialogue-history-open="true"
+            data-lab-player="history"
+            disabled={!props.history.available}
+            onClick={props.history.onOpen}
+          >
+            {labUiTextV1("text.e2e.lab.player.history")}
+          </Button>
+        )}
         {props.pending.kind === "say"
           ? (
             <Button data-lab-player="replay-voice" onClick={props.onReplayVoice}>

@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-export interface WebApplicationDisposalStepInternalV1 {
+export interface WebApplicationFenceStepInternalV1 {
   readonly name: string;
   run(): void;
+}
+
+export interface WebApplicationCleanupStepInternalV1 {
+  readonly name: string;
+  run(): void | PromiseLike<void>;
 }
 
 export type WebApplicationPersistenceReleaseModeInternalV1 =
@@ -28,8 +33,8 @@ export interface WebApplicationTerminalSupervisorInternalV1<TDisposition> {
  * disposal can synchronously re-enter the supervisor.
  */
 export function createWebApplicationTerminalSupervisorInternalV1<TDisposition>(input: {
-  readonly fenceSteps: readonly WebApplicationDisposalStepInternalV1[];
-  readonly cleanupSteps: readonly WebApplicationDisposalStepInternalV1[];
+  readonly fenceSteps: readonly WebApplicationFenceStepInternalV1[];
+  readonly cleanupSteps: readonly WebApplicationCleanupStepInternalV1[];
   releaseCorePersistence(
     mode: WebApplicationPersistenceReleaseModeInternalV1,
   ): Promise<TDisposition> | TDisposition;
@@ -65,18 +70,18 @@ export function createWebApplicationTerminalSupervisorInternalV1<TDisposition>(i
       // Host diagnostics are best-effort and never participate in teardown precedence.
     }
   };
-  const runStep = (phase: "fence" | "cleanup", step: WebApplicationDisposalStepInternalV1) => {
+  const runFenceStep = (step: WebApplicationFenceStepInternalV1): void => {
     try {
       step.run();
     } catch (error) {
-      reportFailure(`${phase}:${step.name}`, error);
+      reportFailure(`fence:${step.name}`, error);
     }
   };
   const runFences = (): void => {
     if (fencesCompleted || fencesRunning) return;
     fencesRunning = true;
     try {
-      for (const step of input.fenceSteps) runStep("fence", step);
+      for (const step of input.fenceSteps) runFenceStep(step);
     } finally {
       fencesRunning = false;
       fencesCompleted = true;
@@ -108,12 +113,36 @@ export function createWebApplicationTerminalSupervisorInternalV1<TDisposition>(i
     releaseWaitStarted = true;
     void pageHideBarrier.then(startRelease);
   };
+  const runCleanupSteps = (startIndex: number): void => {
+    for (let index = startIndex; index < input.cleanupSteps.length; index += 1) {
+      const step = input.cleanupSteps[index]!;
+      let result: void | PromiseLike<void>;
+      try {
+        result = step.run();
+      } catch (error) {
+        reportFailure(`cleanup:${step.name}`, error);
+        continue;
+      }
+      // A contextually-void callback may still return an incidental value
+      // (for example Array#push). Only an actual PromiseLike makes cleanup
+      // asynchronous.
+      if (typeof (result as PromiseLike<void> | undefined)?.then !== "function") continue;
+      void Promise.resolve(result).then(
+        () => runCleanupSteps(index + 1),
+        (error: unknown) => {
+          reportFailure(`cleanup:${step.name}`, error);
+          runCleanupSteps(index + 1);
+        },
+      );
+      return;
+    }
+    startReleaseAfterBarrier();
+  };
   const drainCleanup = (): void => {
     if (!cleanupRequested || !fencesCompleted || cleanupStarted) return;
     cleanupRequested = false;
     cleanupStarted = true;
-    for (const step of input.cleanupSteps) runStep("cleanup", step);
-    startReleaseAfterBarrier();
+    runCleanupSteps(0);
   };
   const requestCleanup = (): void => {
     cleanupRequested = true;

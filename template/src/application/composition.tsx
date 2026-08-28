@@ -315,8 +315,13 @@ export const templateGameApplicationV1: WebGameApplicationV1<
   viewport: {
     canvas: templateViewportCanvasV1,
     fallbackSize: { width: 1600, height: 900 },
-    // Scale up proportionally to fill the window (fit scaling keeps the aspect ratio, letterboxing as needed).
-    maxScale: 4,
+    layoutVariants: [
+      {
+        id: "template-portrait",
+        when: { maxAspectRatio: 0.8 },
+        mode: "expand-height",
+      },
+    ],
   },
   textContent: {
     manifest: templateTextContentManifestV1,
@@ -380,6 +385,7 @@ export const templateGameApplicationV1: WebGameApplicationV1<
               ({ kind: "time" as const, tick }) as never,
             ),
           renderer: vnPlayer.renderer,
+          history: vnPlayer.history,
           resolveText: (_locale, textId) => textContent.resolveText(textId as TextId),
           replayCurrentVoice: null,
         } satisfies DefineNarrativeSurfaceInputV1<TemplateSemanticPublicationV1>,

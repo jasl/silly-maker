@@ -33,8 +33,6 @@ export interface DevDockControlV1 {
   publishPanelsInternalV1(panels: readonly DevDockPanelDescriptorV1[]): void;
 }
 
-const maximumOpenDevDockWindowsV1 = 32;
-
 export function createDevDockControlV1(): DevDockControlV1 {
   let panels: readonly DevDockPanelDescriptorV1[] = [];
   let openIds: readonly string[] = [];
@@ -62,7 +60,7 @@ export function createDevDockControlV1(): DevDockControlV1 {
       if (typeof panelId !== "string" || panelId.length === 0) {
         throw new TypeError("ui.devdock_invalid_panel_id");
       }
-      if (openIds.includes(panelId) || openIds.length >= maximumOpenDevDockWindowsV1) return;
+      if (openIds.includes(panelId)) return;
       openIds = [...openIds, panelId];
       notify(openListeners);
     },

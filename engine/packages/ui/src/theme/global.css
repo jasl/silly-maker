@@ -8,7 +8,7 @@
   color: var(--silly-color-text);
   font-family: var(--silly-font-family);
   font-size: var(--silly-text-size-base);
-  line-height: var(--silly-line-height-readable);
+  line-height: var(--silly-line-height-ui);
   background: var(--silly-color-canvas);
   color-scheme: dark;
   font-synthesis: none;
@@ -32,9 +32,21 @@ body {
   font: inherit;
 }
 
-:where(button) {
+:where(button, .silly-button, .silly-icon-button) {
+  min-block-size: var(--silly-control-min-size);
+  min-inline-size: var(--silly-control-min-size);
+  border: 1px solid var(--silly-color-border);
+  border-radius: var(--silly-radius-control);
+  color: var(--silly-color-text);
+  background: var(--silly-color-control);
+  cursor: pointer;
   overflow-wrap: anywhere;
   white-space: normal;
+}
+
+:where(button, .silly-button) {
+  padding-block: var(--silly-space-1);
+  padding-inline: var(--silly-space-3);
 }
 
 /* Themed form controls: text fields, selects, and textareas read as part
@@ -66,43 +78,38 @@ body {
   min-block-size: 1.25rem;
 }
 
-.silly-button,
-.silly-icon-button {
-  min-block-size: var(--silly-control-min-size);
-  min-inline-size: var(--silly-control-min-size);
-  max-inline-size: 100%;
-  border: 1px solid var(--silly-color-border);
-  border-radius: var(--silly-radius-control);
-  color: var(--silly-color-text);
-  background: var(--silly-color-control);
-  cursor: pointer;
-}
-
-.silly-button {
-  padding-block: var(--silly-space-1);
-  padding-inline: var(--silly-space-3);
-}
-
-.silly-icon-button {
+:where(.silly-icon-button) {
   display: inline-grid;
   padding: var(--silly-space-1);
   place-items: center;
 }
 
-/* Gameplay-reachable stage layers keep the 44px touch floor; the compact
-   control size stays for system dialogs and developer chrome. */
-[data-stage-layer="hud"] :where(.silly-button, .silly-icon-button),
-[data-stage-layer="scene_interaction"] :where(.silly-button, .silly-icon-button),
-[data-stage-layer="narrative"] :where(.silly-button, .silly-icon-button) {
+/* Development-only launchers share one compact, engine-owned visual recipe.
+   Browser zoom may enlarge it for accessibility; coarse pointers retain the
+   gameplay touch floor without making ordinary desktop chrome oversized. */
+.silly-dev-launcher {
+  min-block-size: var(--silly-control-min-size);
+  padding-block: var(--silly-space-1);
+  padding-inline: var(--silly-space-2);
+  font-family: var(--silly-debug-font-family);
+  font-size: 0.75rem;
+  line-height: 1.25;
+}
+
+/* Gameplay-reachable controls consume the responsive target token. Exact
+   authored hit regions retain their declared geometry. */
+[data-stage-layer="hud"] :where(button:not([data-stage-hit-region]), .silly-button, .silly-icon-button),
+[data-stage-layer="scene_interaction"] :where(button:not([data-stage-hit-region]), .silly-button, .silly-icon-button),
+[data-stage-layer="narrative"] :where(button:not([data-stage-hit-region]), .silly-button, .silly-icon-button) {
   min-block-size: var(--silly-target-min-size, 44px);
   min-inline-size: var(--silly-target-min-size, 44px);
 }
 
-:where(.silly-button, .silly-icon-button):hover:not(:disabled) {
+:where(button:hover:not(:disabled), .silly-button:hover:not(:disabled), .silly-icon-button:hover:not(:disabled)) {
   background: var(--silly-color-control-hover);
 }
 
-:where(.silly-button, .silly-icon-button):disabled {
+:where(button:disabled, .silly-button:disabled, .silly-icon-button:disabled) {
   cursor: not-allowed;
   opacity: 0.55;
 }
@@ -125,5 +132,19 @@ body {
     scroll-behavior: auto !important;
     transition: none !important;
     animation: none !important;
+  }
+}
+
+@media (pointer: coarse) {
+  :root {
+    --silly-target-min-size: var(--silly-touch-target-min-size);
+  }
+
+  :where(input:not([type="checkbox"], [type="radio"], [type="range"]), select, textarea) {
+    font-size: max(1rem, 16px);
+  }
+
+  .silly-dev-launcher {
+    min-block-size: var(--silly-target-min-size, 44px);
   }
 }

@@ -4,12 +4,20 @@ import {
   ReferenceDevDockV1,
   defaultSettingsLabelsV1,
   type DefaultSettingsLabelsV1,
+  type DevDockContributionLoadHandleV1,
   type ReferenceDevDockPropsV1,
 } from "@sillymaker/ui/reference";
 
 type EqualV1<TLeft, TRight> = (<T>() => T extends TLeft ? 1 : 2) extends
   <T>() => T extends TRight ? 1 : 2 ? true : false;
 type ExpectV1<TValue extends true> = TValue;
+
+type ReferenceDevDockLoadHandleKeysV1 = ExpectV1<
+  EqualV1<
+    keyof DevDockContributionLoadHandleV1,
+    "contributions" | "acknowledgeCommitted" | "dispose"
+  >
+>;
 
 type ReferenceRuntimeKeysV1 = ExpectV1<
   EqualV1<
@@ -33,24 +41,16 @@ type ReferenceDevDockRuntimeKeysV1 = ExpectV1<
     "ReferenceDevDockV1" | "createDevDockContributionSetV1" | "createDevDockControlV1"
   >
 >;
-type ReferenceInternalRuntimeKeysV1 = ExpectV1<
-  EqualV1<
-    keyof typeof import("@sillymaker/ui/reference/internal"),
-    | "bindDevDockContributionAcceptanceInternalV1"
-    | "bindDevDockContributionLifecycleInternalV1"
-    | "disposeDevDockContributionLifecycleInternalV1"
-  >
->;
-
 DefaultSettingsSectionsV1;
 ReferenceDevDockV1;
 defaultSettingsLabelsV1;
 
 export type {
   DefaultSettingsLabelsV1,
+  DevDockContributionLoadHandleV1,
+  ReferenceDevDockLoadHandleKeysV1,
   ReferenceDevDockPropsV1,
   ReferenceDevDockRuntimeKeysV1,
-  ReferenceInternalRuntimeKeysV1,
   ReferenceRuntimeKeysV1,
   ReferenceSettingsRuntimeKeysV1,
 };

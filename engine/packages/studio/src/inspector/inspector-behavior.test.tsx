@@ -25,7 +25,10 @@ import { InspectorObjectPanelV1 } from "./object-inspector.tsx";
 import { InspectorSceneListV1 } from "./scene-list.tsx";
 import { InspectorSceneTreeV1 } from "./scene-tree.tsx";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 const emptyCatalogV1: StageContentCatalogV1 = { resolveContent: () => null };
 const emptyMotionIoV1: MotionSourceIoV1 = {
@@ -71,6 +74,58 @@ function sceneV1(objectCount: number) {
 }
 
 describe("Inspector large-list behavior", () => {
+  it("keeps coarse-pointer virtual rows aligned to the touch target floor", () => {
+    vi.stubGlobal("matchMedia", () => ({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    const tree = render(
+      <InspectorSceneTreeV1
+        document={sceneV1(1).document}
+        selectedObjectId={null}
+        onSelectObject={vi.fn()}
+      />,
+    );
+    const list = tree.container.querySelector<HTMLElement>("[data-inspector-object-list]");
+    expect(list).toHaveAttribute("data-inspector-object-row-height", "44");
+    expect(list?.style.height).toBe("88px");
+    expect(tree.container.querySelector<HTMLElement>("[data-inspector-layer]")?.style.height)
+      .toBe("44px");
+    expect(tree.container.querySelector<HTMLElement>("[data-inspector-object]")?.style.height)
+      .toBe("44px");
+  });
+
+  it("uses only the height required by short Scene and object lists", () => {
+    const tree = render(
+      <InspectorSceneTreeV1
+        document={sceneV1(1).document}
+        selectedObjectId={null}
+        onSelectObject={vi.fn()}
+      />,
+    );
+    expect(tree.container.querySelector<HTMLElement>("[data-inspector-object-list]")?.style.height)
+      .toBe("76px");
+    tree.unmount();
+
+    const scenes: AuthoringSceneIoListEntryV1[] = [0, 1].map((index) => ({
+      path: `src/scenes/scene-${String(index)}.authoring-scene.json`,
+      sceneId: `scene.test.scene-${String(index)}`,
+      label: `Scene ${String(index)}`,
+    }));
+    const sceneList = render(
+      <InspectorSceneListV1
+        scenes={scenes}
+        currentPath={scenes[0]!.path}
+        disabled={false}
+        onOpen={vi.fn()}
+      />,
+    );
+    expect(
+      sceneList.container.querySelector<HTMLElement>("[data-inspector-scene-list]")?.style.height,
+    ).toBe("100px");
+  });
+
   it("bounds mounted object rows, reveals selection, and keeps navigation read-only", async () => {
     const scene = sceneV1(1_000);
     const documentReference = scene.document;

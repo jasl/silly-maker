@@ -39,7 +39,11 @@ import {
   bookshopTextCatalogsV1,
 } from "../content/presentation.ts";
 
-import { BookshopHudV1, BookshopNarrativeRendererV1 } from "./ui.tsx";
+import {
+  BookshopHudV1,
+  BookshopNarrativeDialogueRendererV1,
+  BookshopNarrativeHistoryRendererV1,
+} from "./ui.tsx";
 
 /** The logical canvas: a 16:9 design resolution the viewport letterboxes. */
 export const bookshopViewportCanvasV1 = { width: 1600, height: 900 };
@@ -328,8 +332,6 @@ export const bookshopGameApplicationV1: WebGameApplicationV1<
   viewport: {
     canvas: bookshopViewportCanvasV1,
     fallbackSize: { width: 1600, height: 900 },
-    // Scale up proportionally to fill the window (fit scaling keeps the aspect ratio, letterboxing as needed).
-    maxScale: 4,
   },
   core: bookshopCoreApplicationDefinitionV1,
   ui: ({ instance }: { readonly instance: BookshopApplicationInstanceV1 }) => ({
@@ -354,7 +356,8 @@ export const bookshopGameApplicationV1: WebGameApplicationV1<
               resolution: request.resolution,
             }) as never,
           ),
-        renderer: BookshopNarrativeRendererV1,
+        renderer: BookshopNarrativeDialogueRendererV1,
+        history: { renderer: BookshopNarrativeHistoryRendererV1 },
         resolveText: bookshopTextForLocaleV1,
         replayCurrentVoice: null,
         // The bookshop narrative declares no hold, so it binds no time

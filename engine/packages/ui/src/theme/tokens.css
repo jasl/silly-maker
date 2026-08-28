@@ -4,15 +4,26 @@
   --silly-stage-max-width: 1600px;
   --silly-stage-aspect-ratio: 8 / 5;
 
-  /* Touch-target floor for stage hit areas (WCAG 2.5.5). Control chrome
-     uses the compact --silly-control-min-size below instead. */
-  --silly-target-min-size: 44px;
-
   /* Minimum height (and icon-button width) of engine control chrome:
      compact desktop-first controls that never balloon a layout. */
-  --silly-control-min-size: 2rem;
-  --silly-text-size-base: clamp(0.875rem, 0.85rem + 0.2vw, 1rem);
+  --silly-control-min-size: 32px;
+  --silly-control-min-size-compact: 28px;
+
+  /* The effective gameplay target follows ordinary desktop density until
+     the primary pointer is coarse. Apps may override either value within
+     their own root without replacing the responsive layout authority. */
+  --silly-touch-target-min-size: 44px;
+  --silly-target-min-size: var(--silly-control-min-size);
+
+  /* One document-wide baseline that reaches the normal browser UI size on
+     ordinary canvases and never grows merely because the display is large.
+     Task-specific hierarchy (for example a title) and compact authoring
+     chrome derive from this baseline instead of redefining viewport scales. */
+  --silly-text-size-base: clamp(0.9375rem, 0.875rem + 0.25vw, 1rem);
+  --silly-text-size-compact: 0.875rem;
+  --silly-line-height-ui: 1.4;
   --silly-line-height-readable: 1.6;
+  --silly-line-height-compact: 1.35;
 
   /* Host CJK-friendly stack: no bundled webfont; prefer platform UI fonts. */
   --silly-font-family:
@@ -50,6 +61,7 @@
   --silly-color-control-hover: rgb(148 158 175 / 18%);
   --silly-color-accent: #dfe3ea;
   --silly-color-accent-text: #16181d;
+  --silly-color-danger: #e5484d;
   --silly-focus-ring-inner: #fff;
   --silly-focus-ring-outer: #1769e0;
   --silly-safe-area-block-start: env(safe-area-inset-top, 0px);
@@ -65,12 +77,17 @@
   --silly-stage-z-workspace-overlay: 50;
   --silly-stage-z-system: 60;
 
+  /* Shell-owned development chrome is outside the GameStage and always
+     paints above the game's own HUD, menus, dialogs, and confirmations. */
+  --silly-shell-z-development: 100;
+
   /* Within-layer surface strata. Every surface that stacks inside one
      stage layer takes its z-index from this scale; raw z-index numbers
      are forbidden in engine and Story code (the ordering is a published
      contract guarded by tests). */
   --silly-surface-z-base: 0;
   --silly-surface-z-raised: 1;
+  --silly-surface-z-active: 2;
   --silly-surface-z-front-door: 10;
   --silly-surface-z-splash: 11;
   --silly-surface-z-dialog-backdrop: 20;

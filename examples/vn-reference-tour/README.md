@@ -5,8 +5,9 @@
 状态：**M0–M3 已交付 / WIP；M4 进行中。独立 package、完整双路线作者数据与 simulation、
 引擎维护的 default VN Player、最终 Stage/ending 媒体、冻结的八项音频分母、interaction-level
 Back/Forward、responsive/input/accessibility 产品矩阵、system menu/Save、持久设置/live locale 与分层恢复
-矩阵均已完成。Browser 强制关闭只恢复最后已经持久化的 autosave；M4 workstation 自动化产品证据已完成，
-人类作者接手、代表性 current-low-end qualification、独立审查与 Starter feedback 仍未完成。**
+矩阵均已完成。Browser 强制关闭只恢复最后已经持久化的 autosave；M4 workstation 自动化产品证据与
+所有者授权的 Computer Use-assisted author handoff 已完成，代表性 current-low-end qualification、独立审查与
+Starter feedback 仍未完成。**
 
 M1 已用本产品的完整 Story/Scene author data 原子替换 tracked Template 的临时内容；M2 已交付 Player、
 Stage 媒体、结局、音频、Back/Forward 与完整响应式/无障碍矩阵；M3 已关闭产品入口、Save/recovery 与设置。
@@ -94,14 +95,22 @@ reference-only outer UI 与临时 Story identity，不保留 compatibility alias
 剧情、两个场景与兼容 placeholder presentation 替换 temporary author scaffold；M2 已关闭 focused default VN
 Player、最终 Stage/ending 媒体、音频和产品矩阵；M3 已关闭产品入口、Save/recovery 与 settings。
 
-本产品不建立 Ren'Py DSL/Save compatibility、自定义解释器、broad VN framework、Blueprint、最终编辑器、Mod/Agent、
-特殊 pending 或 Desktop HMR。`NarrativeAside` 不是 denominator；只有完整剧本自然需要时才可选择最多一处。
+本产品不建立 Ren'Py DSL/Save compatibility、自定义解释器、broad VN framework、Blueprint、最终编辑器、
+production gameplay Mod/public Mod ecosystem、Agent/RPC、特殊 pending 或产品自有 Desktop HMR。
+`NarrativeAside` 不是 denominator；只有完整剧本自然需要时才可选择最多一处。
 
 ## Authoring 与验证
 
 两个 Authoring Scene 已接入 dev-only Inspector 的真实 Scene/CAS owner，用于选择、有限属性编辑、
 `visual.ambient` Motion reference/phase 调整、Motion/Timeline scrub、undo/redo 和保存。Motion document、cue
 transition 与其他 binding 仍是只读 facet。普通 Player final graph 必须继续排除 Inspector 与 source writer。
+Vite development 会自动显示一个可拖动、四角吸附的半透明开发工具面板；“打开内嵌制作”和“调试”共享位置，
+常驻代码只负责这个轻量入口。首次点击“调试”才加载并展开完整 DevDock 菜单/window host；选择具体工具后
+菜单自动收起且不再遮挡工具窗口，接管后拖动入口也会更新窗口级联角落，工具 body 仍在首次打开时加载。
+Debug chunk 加载失败只显示局部提示，游戏继续运行并可显式重新加载恢复。制作动作沿独立入口在首次点击时加载并挂载同一
+Authoring Host。这个 development-only composition 不重复产品 Settings，并与 Inspector/source writer 一起从
+production build 排除；若制作与调试都不可用，整个面板不渲染。VN 不再为证明生命周期而伪造游戏专用工具
+Mod；private build-known Mod successor 由中立引擎合同验证，等待真实可选产品模块消费。
 
 M1 named simulations 固定并实现为：
 
@@ -111,9 +120,10 @@ present-voice
 ```
 
 M4 自动化证据已覆盖 Browser build/publish、Deno Desktop static preview、raw profiling，以及默认把真实音频图
-接到 0-gain terminal 的无声测试运行；产品本身默认非静音，mute 仍是持久化用户偏好。完整产品关闭还需要人类
-使用同一 authoring/CAS 路径继续 Agent 已完成的 ambient Motion 接手任务，以及独立 product/engine review 与
-Starter feedback 裁决。
+接到 0-gain terminal 的无声测试运行；产品本身默认非静音，mute 仍是持久化用户偏好。所有者授权的
+Computer Use-assisted participant 已沿同一 authoring/CAS 路径把 ambient phase 从 350ms 调整到 400ms，完成
+undo、redo、保存和刷新后复核。完整产品关闭仍需要 current-low-end qualification、独立 product/engine review
+与 Starter feedback 裁决。
 
 ## 许可
 

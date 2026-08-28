@@ -14,7 +14,7 @@ export interface InspectorSceneListPropsV1 {
 }
 
 const sceneRowHeightV1 = 50;
-const sceneViewportHeightV1 = 250;
+const sceneViewportHeightCapV1 = 250;
 
 export function InspectorSceneListV1(props: InspectorSceneListPropsV1): ReactElement {
   const [query, setQuery] = useState("");
@@ -30,6 +30,10 @@ export function InspectorSceneListV1(props: InspectorSceneListPropsV1): ReactEle
       scene.path.toLocaleLowerCase().includes(normalized)
     );
   }, [props.scenes, query]);
+  const viewportHeight = Math.min(
+    sceneViewportHeightCapV1,
+    Math.max(sceneRowHeightV1, scenes.length * sceneRowHeightV1),
+  );
   useEffect(() => {
     const rowIndex = scenes.findIndex((scene) => scene.path === props.currentPath);
     if (rowIndex === -1) return;
@@ -37,18 +41,18 @@ export function InspectorSceneListV1(props: InspectorSceneListPropsV1): ReactEle
       totalRows: scenes.length,
       rowIndex,
       rowHeight: sceneRowHeightV1,
-      viewportHeight: sceneViewportHeightV1,
+      viewportHeight,
       scrollTop: scrollTopRef.current,
     });
     if (next === scrollTopRef.current) return;
     scrollTopRef.current = next;
     if (listRef.current !== null) listRef.current.scrollTop = next;
     setScrollTop(next);
-  }, [props.currentPath, scenes]);
+  }, [props.currentPath, scenes, viewportHeight]);
   const window = calculateFixedRowWindowV1({
     totalRows: scenes.length,
     rowHeight: sceneRowHeightV1,
-    viewportHeight: sceneViewportHeightV1,
+    viewportHeight,
     scrollTop,
     overscanRows: 3,
   });
@@ -79,7 +83,7 @@ export function InspectorSceneListV1(props: InspectorSceneListPropsV1): ReactEle
       <div
         ref={listRef}
         className={styles["virtual-list"]}
-        style={{ height: sceneViewportHeightV1 }}
+        style={{ height: viewportHeight }}
         data-inspector-scene-list="true"
         data-inspector-mounted-scenes={String(visible.length)}
         onScroll={(event) => {

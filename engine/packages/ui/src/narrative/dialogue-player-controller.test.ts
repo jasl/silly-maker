@@ -276,7 +276,7 @@ function dialoguePlayerHarnessV1(input: {
   readonly semanticDispatchPort?: NarrativeStableSemanticResolutionPortInternalV1;
   readonly isCurrentVoicePlaying?: () => boolean;
 } = {}): DialoguePlayerHarnessV1 {
-  const contract = createNarrativeManagedSurfaceFamilyContractInternalV1();
+  const contract = createNarrativeManagedSurfaceFamilyContractInternalV1({ history: true });
   const kernelBundle = createManagedSurfaceCompositeKernelBundleInternalV1({
     applicationEpoch: applicationEpochV1,
     recipe: {
@@ -298,8 +298,11 @@ function dialoguePlayerHarnessV1(input: {
         rendererComponent: { kind: "dialogue-player-test-renderer" },
         visualConfig: { skin: "dialogue-player-test" },
         semanticDispatchPort: input.semanticDispatchPort ?? semanticDispatchPortV1,
-        historyObservationPort: historyObservationPortV1,
-        historyAvailabilityPort: historyAvailabilityPortV1,
+        history: {
+          rendererComponent: { kind: "dialogue-player-test-history-renderer" },
+          observationPort: historyObservationPortV1,
+          availabilityPort: historyAvailabilityPortV1,
+        },
         playerProfile: input.rawProfilePort ?? profile.port,
         presentationClock: input.rawClockPort ?? clock.port,
         textResolver: input.rawTextResolverPort ?? text.port,
@@ -313,6 +316,7 @@ function dialoguePlayerHarnessV1(input: {
   }) satisfies NarrativeStableCandidatePreflightInternalV1;
   const bridge = createNarrativeStablePublisherBridgeInternalV1({
     kernelBundle,
+    family: contract,
     candidatePreflight,
   });
   return { contract, registry, authority, kernel, bridge, clock, profile, text };

@@ -2,12 +2,14 @@
 import {
   defineExtensionFactoryInternalV1,
   ExtensionRuntimeErrorInternalV1,
+  type ExtensionSetupScopeInternalV1,
 } from "../extension-runtime/internal.ts";
 import { describe, expect, it, vi } from "vitest";
 
 import {
   ApplicationModRuntimeErrorInternalV1,
   createApplicationModRuntimeInternalV1,
+  createApplicationModSelectionControllerInternalV1,
   type ApplicationCodeModDefinitionInternalV1,
   type ApplicationModExtensionPointInternalV1,
   type ApplicationModSourceInternalV1,
@@ -87,6 +89,36 @@ function createRuntimeV1(input: {
     activeModIds: input.activeModIds ?? ["mod.data", "mod.code"],
     extensionPoints: input.extensionPoints ?? [pointV1],
   });
+}
+
+function lifecycleCodeSourceV1(input: {
+  readonly modId: string;
+  readonly generation: string;
+  readonly payload: string;
+  readonly setup: (scope: ExtensionSetupScopeInternalV1) => unknown;
+}): ApplicationModSourceInternalV1<string> {
+  const lifecycle = defineExtensionFactoryInternalV1({
+    id: input.modId,
+    generation: input.generation,
+    setup: input.setup,
+  });
+  return {
+    kind: "code",
+    modId: input.modId,
+    generation: input.generation,
+    load: () => ({
+      modId: input.modId,
+      generation: input.generation,
+      dependencies: [],
+      contributions: [{
+        contributionId: `${input.modId}.decoration`,
+        pointId: pointV1.pointId,
+        contributionKind: pointV1.contributionKind,
+        payload: input.payload,
+      }],
+      lifecycle,
+    }),
+  };
 }
 
 async function expectModFailureV1(
@@ -349,5 +381,244 @@ describe("private application Mod Runtime", () => {
       "extension_runtime.setup_failed",
     );
     expect(events).toEqual(["install", "rollback"]);
+  });
+
+  it("replaces a complete immutable selection through candidate publication", async () => {
+    const events: string[] = [];
+    const base = lifecycleCodeSourceV1({
+      modId: "mod.base",
+      generation: "base.1",
+      payload: "base",
+      async setup(scope) {
+        await scope.effect(() => {
+          events.push("base:install");
+          return () => {
+            events.push("base:cleanup");
+          };
+        });
+      },
+    });
+    const optional = lifecycleCodeSourceV1({
+      modId: "mod.optional",
+      generation: "optional.1",
+      payload: "optional",
+      async setup(scope) {
+        await scope.effect(() => {
+          events.push("optional:install");
+          return () => {
+            events.push("optional:cleanup");
+          };
+        });
+      },
+    });
+    const controller = createApplicationModSelectionControllerInternalV1({
+      applicationGeneration: "application.1",
+      extensionPoints: [{ ...pointV1, collisionPolicy: "allow" }],
+    });
+
+    const first = await controller.activate({
+      selectionGeneration: 1,
+      catalog: [base, optional],
+      activeModIds: ["mod.base"],
+    });
+    expect(first).toMatchObject({
+      applicationGeneration: "application.1",
+      selectionGeneration: 1,
+      activeIdentity: [{ modId: "mod.base", generation: "base.1" }],
+      compiledPoints: [{ pointId: pointV1.pointId, value: ["base"] }],
+    });
+    expect(events).toEqual(["base:install"]);
+
+    const second = await controller.restart({
+      selectionGeneration: 2,
+      catalog: [base, optional],
+      activeModIds: ["mod.base", "mod.optional"],
+    }, (candidate, previous) => {
+      expect(controller.getCurrent()).toBe(previous);
+      expect(candidate.compiledPoints[0]?.value).toEqual(["base", "optional"]);
+      expect(events).toEqual(["base:install", "base:install", "optional:install"]);
+      events.push("selection:publish");
+    });
+
+    expect(second.selectionGeneration).toBe(2);
+    expect(controller.getCurrent()).toBe(second);
+    expect(events).toEqual([
+      "base:install",
+      "base:install",
+      "optional:install",
+      "selection:publish",
+      "base:cleanup",
+    ]);
+    expect(controller).not.toHaveProperty("install");
+    expect(controller).not.toHaveProperty("uninstall");
+    expect(publicComposition).not.toHaveProperty(
+      "createApplicationModSelectionControllerInternalV1",
+    );
+
+    await controller.dispose();
+    await controller.dispose();
+    expect(events).toEqual([
+      "base:install",
+      "base:install",
+      "optional:install",
+      "selection:publish",
+      "base:cleanup",
+      "optional:cleanup",
+      "base:cleanup",
+    ]);
+  });
+
+  it("retains the predecessor and cleans each failed successor exactly once", async () => {
+    const events: string[] = [];
+    const predecessor = lifecycleCodeSourceV1({
+      modId: "mod.predecessor",
+      generation: "predecessor.1",
+      payload: "predecessor",
+      async setup(scope) {
+        await scope.effect(() => {
+          events.push("predecessor:install");
+          return () => {
+            events.push("predecessor:cleanup");
+          };
+        });
+      },
+    });
+    const compileFailure = dataSourceV1({
+      modId: "mod.compile-failure",
+      generation: "compile-failure.1",
+      payload: "compile-failure",
+    });
+    const setupFailure = lifecycleCodeSourceV1({
+      modId: "mod.setup-failure",
+      generation: "setup-failure.1",
+      payload: "setup-failure",
+      async setup(scope) {
+        await scope.effect(() => {
+          events.push("setup-failure:install");
+          return () => {
+            events.push("setup-failure:cleanup");
+          };
+        });
+        throw new Error("setup rejected candidate");
+      },
+    });
+    const publicationFailure = lifecycleCodeSourceV1({
+      modId: "mod.publication-failure",
+      generation: "publication-failure.1",
+      payload: "publication-failure",
+      async setup(scope) {
+        await scope.effect(() => {
+          events.push("publication-failure:install");
+          return () => {
+            events.push("publication-failure:cleanup");
+          };
+        });
+      },
+    });
+    const controller = createApplicationModSelectionControllerInternalV1({
+      applicationGeneration: "application.1",
+      extensionPoints: [{
+        ...pointV1,
+        compile(input) {
+          const values = input.contributions.map((entry) => entry.payload);
+          if (values.includes("compile-failure")) {
+            throw new Error("compile rejected candidate");
+          }
+          return values;
+        },
+      }],
+    });
+    const first = await controller.activate({
+      selectionGeneration: 1,
+      catalog: [predecessor],
+      activeModIds: ["mod.predecessor"],
+    });
+
+    const compileError = await controller.restart({
+      selectionGeneration: 2,
+      catalog: [compileFailure],
+      activeModIds: ["mod.compile-failure"],
+    }, () => undefined).catch((error: unknown) => error);
+    expect(compileError).toBeInstanceOf(ExtensionRuntimeErrorInternalV1);
+    expect((compileError as ExtensionRuntimeErrorInternalV1).code).toBe(
+      "extension_runtime.load_failed",
+    );
+    expect((compileError as Error).cause).toBeInstanceOf(
+      ApplicationModRuntimeErrorInternalV1,
+    );
+    expect(controller.getCurrent()).toBe(first);
+    expect(events).toEqual(["predecessor:install"]);
+
+    const setupError = await controller.restart({
+      selectionGeneration: 3,
+      catalog: [setupFailure],
+      activeModIds: ["mod.setup-failure"],
+    }, () => undefined).catch((error: unknown) => error);
+    expect(setupError).toBeInstanceOf(ExtensionRuntimeErrorInternalV1);
+    expect((setupError as ExtensionRuntimeErrorInternalV1).code).toBe(
+      "extension_runtime.setup_failed",
+    );
+    expect(controller.getCurrent()).toBe(first);
+    expect(events).toEqual([
+      "predecessor:install",
+      "setup-failure:install",
+      "setup-failure:cleanup",
+    ]);
+
+    const publicationError = await controller.restart({
+      selectionGeneration: 4,
+      catalog: [publicationFailure],
+      activeModIds: ["mod.publication-failure"],
+    }, () => {
+      events.push("publication-failure:publish");
+      throw new Error("publication rejected candidate");
+    }).catch((error: unknown) => error);
+    expect(publicationError).toBeInstanceOf(ExtensionRuntimeErrorInternalV1);
+    expect((publicationError as ExtensionRuntimeErrorInternalV1).code).toBe(
+      "extension_runtime.publication_failed",
+    );
+    expect(controller.getCurrent()).toBe(first);
+    expect(events).toEqual([
+      "predecessor:install",
+      "setup-failure:install",
+      "setup-failure:cleanup",
+      "publication-failure:install",
+      "publication-failure:publish",
+      "publication-failure:cleanup",
+    ]);
+
+    await controller.dispose();
+    expect(events.at(-1)).toBe("predecessor:cleanup");
+    expect(events.filter((event) => event === "setup-failure:cleanup")).toHaveLength(1);
+    expect(events.filter((event) => event === "publication-failure:cleanup")).toHaveLength(1);
+    expect(events.filter((event) => event === "predecessor:cleanup")).toHaveLength(1);
+  });
+
+  it("fences invalid and non-monotonic selection generations", async () => {
+    const controller = createApplicationModSelectionControllerInternalV1({
+      applicationGeneration: "application.1",
+      extensionPoints: [pointV1],
+    });
+    const candidate = (selectionGeneration: number) => ({
+      selectionGeneration,
+      catalog: [dataSourceV1()],
+      activeModIds: ["mod.data"],
+    });
+
+    await expectModFailureV1(
+      controller.activate(candidate(0)),
+      "mod_runtime.selection_generation_invalid",
+    );
+    await controller.activate(candidate(2));
+    await expectModFailureV1(
+      controller.restart(candidate(2), () => undefined),
+      "mod_runtime.selection_generation_stale",
+    );
+    await expectModFailureV1(
+      controller.restart(candidate(1), () => undefined),
+      "mod_runtime.selection_generation_stale",
+    );
+
+    await controller.dispose();
   });
 });

@@ -239,8 +239,11 @@ const defaultCandidateSnapshotV1 = ({
   rendererComponent: () => null,
   visualConfig: { skin: "test" },
   semanticDispatchPort: defaultSemanticDispatchPortV1,
-  historyObservationPort: defaultHistoryObservationPortV1,
-  historyAvailabilityPort: defaultHistoryAvailabilityPortV1,
+  history: {
+    rendererComponent: () => null,
+    observationPort: defaultHistoryObservationPortV1,
+    availabilityPort: defaultHistoryAvailabilityPortV1,
+  },
   playerProfile: defaultDialoguePlayerProfilePortV1,
   presentationClock: defaultDialoguePlayerClockPortV1,
   textResolver: defaultDialoguePlayerTextResolverPortV1,
@@ -290,10 +293,11 @@ function harnessV1(input: {
   readonly candidatePreflight?: NarrativeStableCandidatePreflightInternalV1;
   readonly barrierStageClaimant?: object;
 } = {}): NarrativeHarnessV1 {
-  const contract = createNarrativeManagedSurfaceFamilyContractInternalV1();
+  const contract = createNarrativeManagedSurfaceFamilyContractInternalV1({ history: true });
   const { kernelBundle, registry, authority, kernel } = createCompositionPartsV1(contract);
   const bridge = createNarrativeStablePublisherBridgeInternalV1({
     kernelBundle,
+    family: contract,
     candidatePreflight: input.candidatePreflight ?? defaultCandidatePreflightV1,
     ...(input.barrierStageClaimant === undefined
       ? {}
@@ -780,8 +784,11 @@ function physicalSayHarnessV1(input: {
         capturedCandidatePreflightResultV1({
           ...defaultCandidateSnapshotV1,
           semanticDispatchPort,
-          historyAvailabilityPort: input.historyAvailabilityPort ??
-            defaultCandidateSnapshotV1.historyAvailabilityPort,
+          history: {
+            ...defaultCandidateSnapshotV1.history!,
+            availabilityPort: input.historyAvailabilityPort ??
+              defaultCandidateSnapshotV1.history!.availabilityPort,
+          },
           playerProfile: input.playerProfile ?? defaultCandidateSnapshotV1.playerProfile,
           presentationClock: input.presentationClock ??
             defaultCandidateSnapshotV1.presentationClock,
@@ -867,17 +874,20 @@ function physicalHistoryHarnessV1(input: {
   const kind = input.kind ?? "say";
   const semanticDispatchPort = input.semanticDispatchPort ?? defaultSemanticDispatchPortV1;
   const historyObservationPort = input.historyObservationPort ??
-    defaultCandidateSnapshotV1.historyObservationPort;
+    defaultCandidateSnapshotV1.history!.observationPort;
   const historyAvailabilityPort = input.historyAvailabilityPort ??
-    defaultCandidateSnapshotV1.historyAvailabilityPort;
+    defaultCandidateSnapshotV1.history!.availabilityPort;
   const harness = harnessV1({
     candidatePreflight: {
       preflightCandidateInternalV1: () =>
         capturedCandidatePreflightResultV1({
           ...defaultCandidateSnapshotV1,
           semanticDispatchPort,
-          historyObservationPort,
-          historyAvailabilityPort,
+          history: {
+            ...defaultCandidateSnapshotV1.history!,
+            observationPort: historyObservationPort,
+            availabilityPort: historyAvailabilityPort,
+          },
           playerProfile: input.playerProfile ?? defaultCandidateSnapshotV1.playerProfile,
           presentationClock: input.presentationClock ??
             defaultCandidateSnapshotV1.presentationClock,
@@ -962,6 +972,7 @@ function createNarrativeBridgeSuccessorV1(
 ): NarrativeStablePublisherBridgeInternalV1 {
   return createNarrativeStablePublisherBridgeInternalV1({
     kernelBundle: harness.kernelBundle,
+    family: harness.contract,
     candidatePreflight: defaultCandidatePreflightV1,
   });
 }
@@ -1020,8 +1031,11 @@ function narrativeBarrierHarnessV1(input: {
         capturedCandidatePreflightResultV1({
           ...defaultCandidateSnapshotV1,
           semanticDispatchPort,
-          historyAvailabilityPort: input.historyAvailabilityPort ??
-            defaultCandidateSnapshotV1.historyAvailabilityPort,
+          history: {
+            ...defaultCandidateSnapshotV1.history!,
+            availabilityPort: input.historyAvailabilityPort ??
+              defaultCandidateSnapshotV1.history!.availabilityPort,
+          },
         }),
     },
   });
@@ -1065,7 +1079,7 @@ function nonBlockingNarrativeHarnessV1(
     readonly textResolver?: NarrativeStableDialoguePlayerTextResolverPortInternalV1;
   }> = ({}),
 ) {
-  const contract = createNarrativeManagedSurfaceFamilyContractInternalV1();
+  const contract = createNarrativeManagedSurfaceFamilyContractInternalV1({ history: true });
   const nonBlockingDefinition = parseManagedSurfaceResolvedDefinitionV1({
     definitionId: "surface.test.nonblocking-input",
     contractRevision: 1,
@@ -1112,6 +1126,7 @@ function nonBlockingNarrativeHarnessV1(
   const kernel = kernelBundle.compositeRuntimeKernel;
   const bridge = createNarrativeStablePublisherBridgeInternalV1({
     kernelBundle,
+    family: contract,
     candidatePreflight: {
       preflightCandidateInternalV1: () =>
         capturedCandidatePreflightResultV1({
@@ -1261,7 +1276,7 @@ describe("Narrative stable Managed Surface family", () => {
   });
 
   it("defines the root/History catalog without making History a stable target", () => {
-    const contract = createNarrativeManagedSurfaceFamilyContractInternalV1();
+    const contract = createNarrativeManagedSurfaceFamilyContractInternalV1({ history: true });
 
     expect(contract.ownerId).toBe("surface-owner.narrative");
     expect(contract.resolvedOwnerIds).toEqual(["surface-owner.narrative"]);
@@ -1331,7 +1346,7 @@ describe("Narrative stable Managed Surface family", () => {
       },
       navigationPolicy: { kind: "close" },
     });
-    expect(contract.definitions.history.actionIds).toEqual([
+    expect(contract.definitions.history!.actionIds).toEqual([
       "ui.cancel",
       "player.toggle_history",
     ]);
@@ -1347,12 +1362,31 @@ describe("Narrative stable Managed Surface family", () => {
     ).toBe(false);
   });
 
+  it("builds the core family without the optional History slot, action, or lifecycle definition", () => {
+    const contract = createNarrativeManagedSurfaceFamilyContractInternalV1({ history: false });
+
+    expect(contract.historyEnabled).toBe(false);
+    expect(contract.resolvedSlotDescriptors).toEqual([{
+      kind: "root",
+      slotId: "surface-slot.narrative.root",
+      cardinality: "single",
+    }]);
+    expect(contract.definitions.history).toBeNull();
+    expect(contract.definitions.dialogue.definitionId).toBe("surface.narrative.dialogue.core");
+    expect(contract.definitions.dialogue.actionIds).not.toContain("player.toggle_history");
+    expect(contract.stableDefinitionSidecars).toHaveLength(1);
+    expect(contract.stableDefinitionSidecars[0]?.definition).toBe(
+      contract.definitions.dialogue,
+    );
+  });
+
   it("consumes one composition bundle and rejects duplicate owner construction", () => {
-    const contract = createNarrativeManagedSurfaceFamilyContractInternalV1();
+    const contract = createNarrativeManagedSurfaceFamilyContractInternalV1({ history: true });
     const exact = createCompositionPartsV1(contract);
 
     createNarrativeStablePublisherBridgeInternalV1({
       kernelBundle: exact.kernelBundle,
+      family: contract,
       candidatePreflight: defaultCandidatePreflightV1,
     });
 
@@ -1362,6 +1396,7 @@ describe("Narrative stable Managed Surface family", () => {
     expect(() =>
       createNarrativeStablePublisherBridgeInternalV1({
         kernelBundle: exact.kernelBundle,
+        family: contract,
         candidatePreflight: defaultCandidatePreflightV1,
       })
     ).toThrowError("ui.managed_surface_stable_publisher_owner_current");
@@ -1369,11 +1404,12 @@ describe("Narrative stable Managed Surface family", () => {
   });
 
   it("cleans an issued publisher when registration throws inside the shared transition fence", () => {
-    const contract = createNarrativeManagedSurfaceFamilyContractInternalV1();
+    const contract = createNarrativeManagedSurfaceFamilyContractInternalV1({ history: true });
     const parts = createCompositionPartsV1(contract);
     const createBridge = (): NarrativeStablePublisherBridgeInternalV1 =>
       createNarrativeStablePublisherBridgeInternalV1({
         kernelBundle: parts.kernelBundle,
+        family: contract,
         candidatePreflight: defaultCandidatePreflightV1,
       });
     const state = parts.kernel.getStateInternalV1();
@@ -1398,11 +1434,12 @@ describe("Narrative stable Managed Surface family", () => {
   });
 
   it("rejects a synchronously retired registration without deleting its listener-installed successor", () => {
-    const contract = createNarrativeManagedSurfaceFamilyContractInternalV1();
+    const contract = createNarrativeManagedSurfaceFamilyContractInternalV1({ history: true });
     const parts = createCompositionPartsV1(contract);
     const createBridge = (): NarrativeStablePublisherBridgeInternalV1 =>
       createNarrativeStablePublisherBridgeInternalV1({
         kernelBundle: parts.kernelBundle,
+        family: contract,
         candidatePreflight: defaultCandidatePreflightV1,
       });
     let handled = false;
@@ -1481,12 +1518,12 @@ describe("Narrative stable Managed Surface family", () => {
     expect(captured).toBe(defaultCandidateSnapshotV1);
     expect(captured?.rendererComponent).toBe(defaultCandidateSnapshotV1.rendererComponent);
     expect(captured?.semanticDispatchPort).toBe(defaultSemanticDispatchPortV1);
-    expect(captured?.historyAvailabilityPort).toBe(defaultHistoryAvailabilityPortV1);
-    expectTypeOf(captured?.historyAvailabilityPort).toEqualTypeOf<
+    expect(captured?.history?.availabilityPort).toBe(defaultHistoryAvailabilityPortV1);
+    expectTypeOf(captured?.history?.availabilityPort).toEqualTypeOf<
       NarrativeStableHistoryAvailabilityPortInternalV1 | undefined
     >();
-    expect(captured?.historyObservationPort).toBe(defaultHistoryObservationPortV1);
-    expectTypeOf(captured?.historyObservationPort).toEqualTypeOf<
+    expect(captured?.history?.observationPort).toBe(defaultHistoryObservationPortV1);
+    expectTypeOf(captured?.history?.observationPort).toEqualTypeOf<
       NarrativeStableHistoryObservationPortInternalV1 | undefined
     >();
 
@@ -1614,14 +1651,17 @@ describe("Narrative stable Managed Surface family", () => {
         replayCurrentVoiceInternalV1: () => true,
         diagnosticLabel: "voice",
       },
-      historyAvailabilityPort: {
-        readHistoryAvailabilityInternalV1: () => true,
-        diagnosticLabel: "history-availability",
-      },
-      historyObservationPort: {
-        getSnapshotInternalV1: () => emptyNarrativeHistoryV1,
-        subscribeInternalV1: () => () => {},
-        diagnosticLabel: "history-observation",
+      history: {
+        rendererComponent: defaultCandidateSnapshotV1.history!.rendererComponent,
+        availabilityPort: {
+          readHistoryAvailabilityInternalV1: () => true,
+          diagnosticLabel: "history-availability",
+        },
+        observationPort: {
+          getSnapshotInternalV1: () => emptyNarrativeHistoryV1,
+          subscribeInternalV1: () => () => {},
+          diagnosticLabel: "history-observation",
+        },
       },
       playerProfile: {
         ...defaultDialoguePlayerProfilePortV1,
@@ -1790,7 +1830,10 @@ describe("Narrative stable Managed Surface family", () => {
         preflightCandidateInternalV1: () =>
           capturedCandidatePreflightResultV1({
             ...defaultCandidateSnapshotV1,
-            historyObservationPort: rawPort,
+            history: {
+              ...defaultCandidateSnapshotV1.history!,
+              observationPort: rawPort,
+            },
           }),
       },
     });
@@ -1802,7 +1845,7 @@ describe("Narrative stable Managed Surface family", () => {
     if (baseline.kind !== "accepted") throw new Error("expected accepted baseline");
     const captured = accepted.bridge.inspectAdmittedTargetFrameInternalV1(
       baseline.targets[0]!,
-    )?.candidateSnapshot.historyObservationPort;
+    )?.candidateSnapshot.history?.observationPort;
     expect(captured).toBe(rawPort);
     expect(getSnapshot).not.toHaveBeenCalled();
     expect(subscribe).not.toHaveBeenCalled();
@@ -1832,7 +1875,7 @@ describe("Narrative stable Managed Surface family", () => {
     if (baseline.kind !== "accepted") throw new Error("expected History baseline");
     const captured = fixture.harness.bridge.inspectAdmittedTargetFrameInternalV1(
       baseline.targets[0]!,
-    )?.candidateSnapshot.historyAvailabilityPort;
+    )?.candidateSnapshot.history?.availabilityPort;
     expectTypeOf(captured).toEqualTypeOf<
       NarrativeStableHistoryAvailabilityPortInternalV1 | undefined
     >();
@@ -2025,8 +2068,7 @@ describe("Narrative stable Managed Surface family", () => {
       candidateSnapshot: {
         ...defaultCandidateSnapshotV1,
         semanticDispatchPort: frame?.candidateSnapshot.semanticDispatchPort,
-        historyAvailabilityPort: frame?.candidateSnapshot.historyAvailabilityPort,
-        historyObservationPort: frame?.candidateSnapshot.historyObservationPort,
+        history: frame?.candidateSnapshot.history,
         playerProfile: frame?.candidateSnapshot.playerProfile,
         presentationClock: frame?.candidateSnapshot.presentationClock,
         textResolver: frame?.candidateSnapshot.textResolver,
@@ -2036,7 +2078,7 @@ describe("Narrative stable Managed Surface family", () => {
     expect(frame?.candidateSnapshot.semanticDispatchPort).toBe(
       defaultSemanticDispatchPortV1,
     );
-    expect(frame?.candidateSnapshot.historyAvailabilityPort).toBe(
+    expect(frame?.candidateSnapshot.history?.availabilityPort).toBe(
       defaultHistoryAvailabilityPortV1,
     );
     expect(publisherSnapshotV1(harness)).toMatchObject({
@@ -2429,6 +2471,7 @@ describe("Narrative stable Managed Surface family", () => {
 
     const successor = createNarrativeStablePublisherBridgeInternalV1({
       kernelBundle: harness.kernelBundle,
+      family: harness.contract,
       candidatePreflight: defaultCandidatePreflightV1,
     });
     expect(successor.reconcilePendingInternalV1(pendingV1("choice", 2))).toMatchObject({

@@ -22,7 +22,42 @@ test.describe("Inspector replacement surface", () => {
 
       await inspector.getByLabel("搜索当前应用的 Scene").fill("Inspector conformance");
       await inspector.getByRole("button", { name: /Inspector conformance/ }).click();
-      await expect(inspector.locator('[data-inspector-ready="true"]')).toBeVisible();
+      const inspectorSurface = inspector.locator('[data-inspector-ready="true"]');
+      await expect(inspectorSurface).toBeVisible();
+      await expect(inspector.getByLabel("预览缩放")).toHaveValue("fit");
+      const preview = inspector.locator('[data-inspector-preview="true"]');
+      await expect(preview).toHaveAttribute("data-inspector-preview-zoom", "fit");
+      await expect.poll(async () =>
+        Number(await preview.getAttribute("data-inspector-preview-effective-zoom"))
+      ).toBeGreaterThan(0);
+      const sharedBaseline = await inspectorSurface.evaluate((root) => {
+        const documentStyle = getComputedStyle(document.documentElement);
+        const rootStyle = getComputedStyle(root);
+        const button = root.querySelector("button");
+        if (button === null) throw new TypeError("Inspector control missing");
+        const buttonStyle = getComputedStyle(button);
+        return {
+          controlMinimum: documentStyle.getPropertyValue("--silly-control-min-size").trim(),
+          compactControlMinimum: documentStyle.getPropertyValue(
+            "--silly-control-min-size-compact",
+          ).trim(),
+          documentColor: documentStyle.color,
+          rootColor: rootStyle.color,
+          documentFontSize: Number.parseFloat(documentStyle.fontSize),
+          rootFontSize: Number.parseFloat(rootStyle.fontSize),
+          buttonBackground: buttonStyle.backgroundColor,
+          buttonMinimum: Number.parseFloat(buttonStyle.minHeight),
+        };
+      });
+      expect(sharedBaseline.controlMinimum).not.toBe("");
+      expect(sharedBaseline.compactControlMinimum).not.toBe("");
+      expect(sharedBaseline.rootColor).toBe(sharedBaseline.documentColor);
+      expect(sharedBaseline.rootFontSize).toBeLessThan(sharedBaseline.documentFontSize);
+      expect(sharedBaseline.rootFontSize).toBeGreaterThanOrEqual(13);
+      expect(sharedBaseline.buttonBackground).not.toBe("rgba(0, 0, 0, 0)");
+      expect(sharedBaseline.buttonMinimum).toBeGreaterThanOrEqual(
+        sharedBaseline.rootFontSize * 2,
+      );
 
       const objectSearch = inspector.getByLabel("搜索当前场景对象");
       await objectSearch.fill("样本箱");

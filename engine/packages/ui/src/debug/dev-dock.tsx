@@ -2,13 +2,13 @@
 import { createPortal } from "react-dom";
 import {
   useCallback,
-  useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
 } from "react";
-import type { ReactElement, ReactNode } from "react";
+import type { ReactElement } from "react";
 import type { RuntimeCapabilityPortV1 } from "@sillymaker/base";
 import { inputHandledV1, inputIgnoredV1 } from "../input/contracts.ts";
 import type { InputRouterV1 } from "../input/contracts.ts";
@@ -19,56 +19,26 @@ import type { DevDockControlV1 } from "./dev-dock-control.ts";
 import type { PresentationFreezePortV1 } from "../presentation-run/presentation-freeze.ts";
 import { useAuxiliarySurfacePortalTargetV1 } from "../shell/auxiliary-surface-portal.tsx";
 import styles from "./dev-dock.module.css";
-import {
-  acknowledgeDevDockContributionAcceptanceInternalV1,
-} from "../composer/dev-dock-contribution-acceptance.ts";
+import { isDevDockPositionV1 } from "./dev-dock-contracts.ts";
+import type {
+  DevDockContributionSetV1,
+  DevDockPanelV1,
+  DevDockPositionV1,
+} from "./dev-dock-contracts.ts";
 
-/**
- * Panel grouping metadata kept for contribution compatibility; panels list
- * in declaration order regardless of side.
- */
-export type DevDockSideV1 = "left" | "right";
-
-/** True when the debug launcher is expanded or any tool window is open. */
-export interface DevDockOpenStateV1 {
-  readonly open: boolean;
-}
-
-/**
- * Launcher chip corner and the cascade origin for freshly opened windows.
- * The launcher always opens toward the free vertical space — bottom
- * corners expand upward — so it never leaves the canvas. Applications
- * reposition the dock when the default corner occludes their own chrome.
- */
-export type DevDockPositionV1 =
-  | "top_right"
-  | "top_left"
-  | "bottom_right"
-  | "bottom_left";
-
-export type DevDockPanelAuthorityV1 = "read_only" | "cheat";
-
-/**
- * Different diagnostic operations declare different stage behavior:
- * `live` (default) keeps the game fully interactive beside the window —
- * right for click-to-inspect tools; `frozen` engages the presentation
- * freeze while the window is open — right for examining transient frames.
- * Editing tools that work on detached captures simply stay `live`.
- */
-export type DevDockPanelStageModeV1 = "live" | "frozen";
-
-export interface DevDockPanelV1 {
-  readonly id: string;
-  readonly side: DevDockSideV1;
-  readonly title: string;
-  readonly authority: DevDockPanelAuthorityV1;
-  readonly stage?: DevDockPanelStageModeV1;
-  readonly render: () => ReactNode;
-}
-
-export interface DevDockContributionSetV1 {
-  readonly panels: readonly DevDockPanelV1[];
-}
+export {
+  combineDevDockContributionSetsInternalV1,
+  createDevDockContributionSetV1,
+} from "./dev-dock-contracts.ts";
+export type {
+  DevDockContributionSetV1,
+  DevDockOpenStateV1,
+  DevDockPanelAuthorityV1,
+  DevDockPanelStageModeV1,
+  DevDockPanelV1,
+  DevDockPositionV1,
+  DevDockSideV1,
+} from "./dev-dock-contracts.ts";
 
 export interface DevDockPropsV1 {
   readonly capabilities: RuntimeCapabilityPortV1;
@@ -86,85 +56,8 @@ export interface DevDockPropsV1 {
    * window is open. The launcher owns the manual 冻结画面 toggle.
    */
   readonly freeze?: PresentationFreezePortV1;
-}
-
-const devDockPositionsV1: readonly DevDockPositionV1[] = [
-  "top_right",
-  "top_left",
-  "bottom_right",
-  "bottom_left",
-];
-
-function validatePanelV1(panel: DevDockPanelV1): DevDockPanelV1 {
-  if (panel === null || typeof panel !== "object" || Array.isArray(panel)) {
-    throw new TypeError("ui.devdock_invalid_panel");
-  }
-  if (typeof panel.id !== "string" || panel.id.length === 0 || typeof panel.render !== "function") {
-    throw new TypeError("ui.devdock_invalid_panel");
-  }
-  if (panel.side !== "left" && panel.side !== "right") {
-    throw new TypeError("ui.devdock_invalid_side");
-  }
-  if (panel.authority !== "read_only" && panel.authority !== "cheat") {
-    throw new TypeError("ui.devdock_invalid_authority");
-  }
-  if (panel.stage !== undefined && panel.stage !== "live" && panel.stage !== "frozen") {
-    throw new TypeError("ui.devdock_invalid_stage_mode");
-  }
-  if (
-    typeof panel.title !== "string" ||
-    panel.title.length === 0 ||
-    new TextEncoder().encode(panel.title).byteLength > 128
-  ) {
-    throw new TypeError("ui.devdock_title_limit");
-  }
-  return {
-    id: panel.id,
-    side: panel.side,
-    title: panel.title,
-    authority: panel.authority,
-    stage: panel.stage ?? "live",
-    render: panel.render,
-  };
-}
-
-/** Validates and copies the bounded Story-supplied panel registry. */
-export function createDevDockContributionSetV1(
-  input: DevDockContributionSetV1,
-): DevDockContributionSetV1 {
-  if (input === null || typeof input !== "object" || !Array.isArray(input.panels)) {
-    throw new TypeError("ui.devdock_invalid_contributions");
-  }
-  const ids = new Set<string>();
-  const counts: Record<DevDockSideV1, number> = { left: 0, right: 0 };
-  const panels = input.panels.map((candidate) => {
-    const panel = validatePanelV1(candidate);
-    if (ids.has(panel.id)) throw new TypeError("ui.devdock_duplicate_panel_id");
-    ids.add(panel.id);
-    counts[panel.side] += 1;
-    if (counts[panel.side] > 16) throw new TypeError("ui.devdock_panels_limit");
-    return panel;
-  });
-  return { panels };
-}
-
-/** @internal Combines already-admitted contribution sets without re-admitting each panel. */
-export function combineDevDockContributionSetsInternalV1(
-  sets: readonly DevDockContributionSetV1[],
-): DevDockContributionSetV1 {
-  const ids = new Set<string>();
-  const counts: Record<DevDockSideV1, number> = { left: 0, right: 0 };
-  const panels: DevDockPanelV1[] = [];
-  for (const set of sets) {
-    for (const panel of set.panels) {
-      if (ids.has(panel.id)) throw new TypeError("ui.devdock_duplicate_panel_id");
-      ids.add(panel.id);
-      counts[panel.side] += 1;
-      if (counts[panel.side] > 16) throw new TypeError("ui.devdock_panels_limit");
-      panels.push(panel);
-    }
-  }
-  return { panels };
+  /** @internal Consumer-commit acknowledgment for private successor publication. */
+  readonly onRegistryCommittedInternalV1?: () => void;
 }
 
 function focusableElementsV1(scope: HTMLElement): readonly HTMLElement[] {
@@ -204,12 +97,14 @@ function DevDockWindowV1(props: {
   readonly panel: DevDockPanelV1;
   readonly cascadeIndex: number;
   readonly cheatsEnabled: boolean;
+  readonly front: boolean;
   readonly portalTarget: Element;
+  onActivate(panelId: string): void;
   onClose(): void;
   onFocusWithin(panelId: string, focused: boolean): void;
 }): ReactElement {
   const drag = useClampedElementDragV1();
-  const { panel, onClose, onFocusWithin, portalTarget } = props;
+  const { panel, onActivate, onClose, onFocusWithin, portalTarget } = props;
   const authorized = panel.authority === "read_only" || props.cheatsEnabled;
   const titleId = `sillymaker-dev-dock-title-${panel.id}`;
 
@@ -227,6 +122,7 @@ function DevDockWindowV1(props: {
       aria-label={panel.title}
       aria-live="polite"
       data-devdock-window={panel.id}
+      data-devdock-window-front={props.front ? "true" : undefined}
       data-devdock-escape-owner="true"
       data-native-text="true"
       tabIndex={-1}
@@ -238,9 +134,13 @@ function DevDockWindowV1(props: {
           insetInlineEnd: "auto",
           insetBlockEnd: "auto",
         }}
+      onPointerDownCapture={() => onActivate(panel.id)}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
-      onFocus={() => onFocusWithin(panel.id, true)}
+      onFocus={() => {
+        onActivate(panel.id);
+        onFocusWithin(panel.id, true);
+      }}
       onBlur={(event) => {
         if (
           event.relatedTarget === null ||
@@ -283,8 +183,9 @@ function DevDockWindowV1(props: {
  * receives Snapshot or Story state.
  */
 export function DevDockV1(props: DevDockPropsV1): ReactElement | null {
+  const { onRegistryCommittedInternalV1 } = props;
   const position = props.position ?? "top_right";
-  if (!devDockPositionsV1.includes(position)) {
+  if (!isDevDockPositionV1(position)) {
     throw new TypeError(`ui.devdock_invalid_position:${position as string}`);
   }
   const capabilities = useSyncExternalStore(
@@ -305,7 +206,10 @@ export function DevDockV1(props: DevDockPropsV1): ReactElement | null {
     control.openPanelIds.getCurrent,
     control.openPanelIds.getCurrent,
   );
+  const openPanelIdSet = useMemo(() => new Set(openPanelIds), [openPanelIds]);
   const [focusedWindows, setFocusedWindows] = useState<readonly string[]>([]);
+  const [frontPanelId, setFrontPanelId] = useState<string | null>(null);
+  const previousOpenPanelIdsRef = useRef<readonly string[]>([]);
   const { target, surface } = useAuxiliarySurfacePortalTargetV1();
   const debugTools = capabilities.debugTools;
   const cheatsEnabled = debugTools && capabilities.cheats;
@@ -324,15 +228,38 @@ export function DevDockV1(props: DevDockPropsV1): ReactElement | null {
       return current.includes(panelId) ? current.filter((id) => id !== panelId) : current;
     });
   }, []);
+  const onWindowActivate = useCallback((panelId: string): void => {
+    setFrontPanelId(panelId);
+  }, []);
 
+  const publishedPanelsRef = useRef<
+    {
+      readonly control: DevDockControlV1;
+      readonly panelIds: ReadonlySet<string>;
+    } | null
+  >(null);
   // Publish the validated registry so the launcher can list the same tools.
-  useEffect(() => {
+  // A panel that existed in the previous committed registry and disappears
+  // is closed in this layout commit. Never-yet-published ids remain pending,
+  // preserving the existing open-before-lazy-load behavior.
+  useLayoutEffect(() => {
+    const panelIds = new Set(panels.map(({ id }) => id));
+    const previous = publishedPanelsRef.current;
+    if (previous?.control === control) {
+      for (const panelId of previous.panelIds) {
+        if (!panelIds.has(panelId)) control.close(panelId);
+      }
+    }
     control.publishPanelsInternalV1(
       panels.map(({ id, title, authority }) => ({ id, title, authority })),
     );
-    acknowledgeDevDockContributionAcceptanceInternalV1(contributions);
-    return () => control.publishPanelsInternalV1([]);
-  }, [control, contributions, panels]);
+    onRegistryCommittedInternalV1?.();
+    publishedPanelsRef.current = { control, panelIds };
+  }, [control, contributions, onRegistryCommittedInternalV1, panels]);
+  useLayoutEffect(
+    () => () => control.publishPanelsInternalV1([]),
+    [control],
+  );
 
   useLayoutEffect(() => {
     if (debugTools) return;
@@ -341,16 +268,29 @@ export function DevDockV1(props: DevDockPropsV1): ReactElement | null {
 
   useLayoutEffect(() => {
     setFocusedWindows((current) => {
-      const next = current.filter((id) => openPanelIds.includes(id));
+      const next = current.filter((id) => openPanelIdSet.has(id));
       return next.length === current.length ? current : next;
     });
-  }, [openPanelIds]);
+  }, [openPanelIdSet]);
+  useLayoutEffect(() => {
+    const previousOpenPanelIds = previousOpenPanelIdsRef.current;
+    previousOpenPanelIdsRef.current = openPanelIds;
+    const previousOpenPanelIdSet = new Set(previousOpenPanelIds);
+    const newlyOpenedPanelId = openPanelIds.findLast((panelId) =>
+      !previousOpenPanelIdSet.has(panelId)
+    );
+    setFrontPanelId((current) => {
+      if (newlyOpenedPanelId !== undefined) return newlyOpenedPanelId;
+      if (current !== null && openPanelIdSet.has(current)) return current;
+      return openPanelIds.at(-1) ?? null;
+    });
+  }, [openPanelIds, openPanelIdSet]);
 
   // The game stays interactive while windows float; debug input isolation
   // applies only while focus is inside a window (typing in tool forms never
   // doubles as a stage shortcut). Closing a window must drop isolation even
   // if React never delivers blur for the unmounted node.
-  const inputIsolated = focusedWindows.some((id) => openPanelIds.includes(id));
+  const inputIsolated = focusedWindows.some((id) => openPanelIdSet.has(id));
   useLayoutEffect(() => {
     if (!inputIsolated) return undefined;
     return props.inputRouter.register({
@@ -404,7 +344,9 @@ export function DevDockV1(props: DevDockPropsV1): ReactElement | null {
           panel={panel}
           cascadeIndex={index}
           cheatsEnabled={cheatsEnabled}
+          front={panel.id === frontPanelId}
           portalTarget={target}
+          onActivate={onWindowActivate}
           onClose={() => {
             control.close(panel.id);
             restoreChipFocus();

@@ -201,10 +201,15 @@ the application generation, and project its ordered `(modId, generation)` identi
 into the application's existing BuildIdentity whenever it changes authoritative
 behavior. The private `@sillymaker/composition/internal/mod-runtime` loads only
 selected literal code sources, dependency-orders the set, and reuses Direct
-lifecycle/rollback. It does not discover packages, own a second State/Save/digest,
-or provide live install/restart. Data/code inside the application realm remains
-trusted JavaScript; use resource-free loaders/compilers and put reversible effects
-under the lifecycle rather than expecting an engine sandbox.
+lifecycle/rollback. When a development product has a real optional surface, the
+private selection controller may stage and publish a complete successor set before
+retiring its predecessor; presentation/tooling uses R1, while authoritative
+gameplay changes still require the existing R2 Save/lease handoff. It does not
+discover packages, own a second State/Save/digest, or provide a public resolver,
+SDK, distribution mechanism, or arbitrary post-release code loader. Data/code
+inside the application realm remains trusted JavaScript; use resource-free
+loaders/compilers and put reversible effects under the lifecycle rather than
+expecting an engine sandbox.
 
 Declare responsive presentation at the application viewport boundary, not in gameplay State and not by letting
 individual components measure `window`. A fixed-canvas product may combine the authored fallback with ordered
@@ -213,12 +218,16 @@ container variants:
 ```ts
 viewport: {
   canvas: { width: 1600, height: 1000 },
-  maxScale: 4,
   layoutVariants: [
     {
       id: "phone_portrait",
       when: { maxWidth: 500, maxAspectRatio: 0.8 },
       mode: "expand-height",
+    },
+    {
+      id: "ultrawide",
+      when: { minAspectRatio: 2 },
+      mode: "expand-width",
     },
   ],
 }
@@ -234,6 +243,14 @@ to author camera/layer/entry/hit coordinates relative to `authoredRect`; shell R
 does not inherit Stage scaling. Resize and variant selection are presentation-only and never enter State, Save,
 digest, replay, BuildIdentity, or application generation. DPR affects raster backing stores, not variant selection or
 logical geometry; raster/Canvas/WebGL consumers own their own backing-store density.
+
+Only select `expand-width` when the product can render the added side area (for example an extendable backdrop or
+wide composition); fixed 16:9 art may deliberately keep `fit`. Inside a Stage/HUD React component,
+`useGameViewportV1().layoutVariantId` is the single read-only presentation choice for conditionally rendering an
+optional side rail, compacting chrome, or moving a panel into a drawer. The canvas exposes the same choice as
+`data-viewport-layout-variant` for CSS. Do not put the choice in State/Save, branch gameplay on it, or let nested
+components establish their own `window`-measurement authority. Omitting `maxScale` means no engine-imposed scale cap;
+declare `maxScale: 1` only when a product intentionally forbids upscaling.
 
 Narrative entrance/exit animation is authored as Motion assets: `sillymaker.motion` JSON documents (strictly admitted integer keyframes with per-segment easing), bound to stage edges through `motionStageTransition` in the transition catalog — or, for a scene-managed scene, through its Scene document's cue bindings. Motions compose over the settled placement (layout stays authoritative) and never enter authoritative State, Saves, digests, or replay. They are the human tuning surface: the reusable focused `MotionWorkbenchV1` can edit/save one document through the shared session/CAS path, while the current Inspector can select/remove one Visual ambient Motion reference and tune its phase through the Authoring Scene operation/CAS path. Motion documents, cue transitions, other binding references, and Timeline references remain read-only facets with detached scrub. Neither surface is a Studio workspace. `app check` lints every motion file: admission, unique ids, and filename↔id agreement.
 
@@ -289,20 +306,22 @@ Reuse the engine pattern, not the Tavern-specific ten-module partition, names, n
 
 A Story ships one `WebGameApplicationV1` declaration (core definition with the semantic adapter, validators, and optional Story extensions; projector; optional Narrative and WholeCanvas definitions; UI slots; Workspace Overlay definitions; labels; input maps) and boots it with `startWebGameApplicationV1`. The composers own the Session, persistence, capability session, startup/runtime diagnostics, input adapters, automation, and disposal — an entry never assembles engine services by hand. Eligible component-only presentation modules may receive Vite React Fast Refresh; application declaration, core/domain, config, ineligible, and unclassified changes fall back to full-page reload unless the product owns an admitted R2 boundary. `installWebGameApplicationHmrV1` is the opt-in successor/persistence-handoff helper. Engine Lab is its first maintained dev-only consumer: a Story-owned Vite identity plugin injects real `BuildIdentity` into a literal-self-accepting composition candidate, then the Web composer replaces Game/Session on the same Host/root. This is conformance evidence, not the default for every Story; ordinary product entries still contain no HMR construction.
 
-When a Story has Narrative, create one six-field input with
-`selectNarrative`, `dispatchResolution`, nullable `dispatchTime`, `renderer`,
-`resolveText`, and nullable `replayCurrentVoice`, pass it to
+When a Story has Narrative, create one input with `selectNarrative`,
+`dispatchResolution`, nullable `dispatchTime`, a dialogue `renderer`, nullable
+`history`, `resolveText`, nullable `replayCurrentVoice`, and the optional
+current-voice playback query, then pass it to
 `defineNarrativeSurfaceV1`, and return the admitted typed
 `NarrativeSurfaceDefinitionV1` as `ui.narrative`. The public factory validates
 the definition once; internal composition trusts that typed value without
-brand/origin re-admission. The renderer receives read-only typed
-pending/history/choice availability plus the current player profile
-and player view. It can invoke only the supplied occurrence-fenced actions; it
-does not own a player controller, clock, Host, Semantic Stage, Session, or
-writable lifecycle store. `DefaultGameRootV1` mounts the production Host from
+brand/origin re-admission. The dialogue renderer receives read-only typed
+pending/choice availability, a nullable History-open port, the current player
+profile, and player view. When selected, the separate History renderer receives
+only the authoritative read-only backlog and close action. Neither owns a player
+controller, clock, Host, Semantic Stage, Session, History writer, or writable
+lifecycle store. `DefaultGameRootV1` mounts the production Host from
 the composition definition, so do not add `slots.narrative`, a direct semantic
 writer, or a second stage claimant. Engine Lab, the starter template, Bookshop,
-and Bookshop are the maintained Game examples. A GUI-only application such as
+and the VN Reference Tour are the maintained Game examples. A GUI-only application such as
 the current SillyOS uses `startWebGuiApplicationV1` instead of omitting fields
 from a Game Story declaration.
 

@@ -1,9 +1,15 @@
 // SPDX-License-Identifier: MIT
 import {
   assertExtensionIdentifierInternalV1,
+  type ExtensionCandidateSourceInternalV1,
   type ExtensionFactoryInternalV1,
+  type ExtensionSetupScopeInternalV1,
 } from "../extension-runtime/contracts.ts";
-import { mountExtensionFactoryInternalV1 } from "../extension-runtime/selected-backend.ts";
+import { createExtensionActivationControllerInternalV1 } from "../extension-runtime/controller.ts";
+import {
+  createExtensionLifecycleBackendInternalV1,
+  mountExtensionFactoryInternalV1,
+} from "../extension-runtime/selected-backend.ts";
 import {
   ApplicationModRuntimeErrorInternalV1,
   type ActiveApplicationModContributionInternalV1,
@@ -11,8 +17,12 @@ import {
   type ApplicationModExtensionPointInternalV1,
   type ApplicationModRuntimeErrorCodeInternalV1,
   type ApplicationModRuntimeInternalV1,
+  type ApplicationModSelectionCandidateInternalV1,
+  type ApplicationModSelectionControllerInternalV1,
+  type ApplicationModSelectionInternalV1,
   type ApplicationModSourceInternalV1,
   type CompiledApplicationModPointInternalV1,
+  type CreateApplicationModSelectionControllerInputInternalV1,
   type CreateApplicationModRuntimeInputInternalV1,
 } from "./contracts.ts";
 
@@ -24,6 +34,12 @@ interface LoadedApplicationModInternalV1<TPayload> {
   readonly dependencies: readonly string[];
   readonly contributions: readonly ActiveApplicationModContributionInternalV1<TPayload>[];
   readonly lifecycle: ExtensionFactoryInternalV1<unknown> | null;
+}
+
+interface PreparedApplicationModSelectionInternalV1<TPayload, TCompiled> {
+  readonly definitions: readonly LoadedApplicationModInternalV1<TPayload>[];
+  readonly activeIdentity: ApplicationModSelectionInternalV1<TCompiled>["activeIdentity"];
+  readonly compiledPoints: ApplicationModSelectionInternalV1<TCompiled>["compiledPoints"];
 }
 
 type AdmittedApplicationModSourceInternalV1<TPayload> =
@@ -320,6 +336,80 @@ async function compilePointsInternalV1<TPayload, TCompiled>(
   return compiled;
 }
 
+async function prepareSelectionInternalV1<TPayload, TCompiled>(
+  catalog: readonly ApplicationModSourceInternalV1<TPayload>[],
+  activeModIds: readonly string[],
+  extensionPoints: readonly ApplicationModExtensionPointInternalV1<TPayload, TCompiled>[],
+): Promise<PreparedApplicationModSelectionInternalV1<TPayload, TCompiled>> {
+  const definitions = await loadActiveDefinitionsInternalV1(catalog, activeModIds);
+  const compiledPoints = await compilePointsInternalV1(definitions, extensionPoints);
+  return {
+    definitions,
+    activeIdentity: definitions.map((definition) => ({
+      modId: definition.modId,
+      generation: definition.generation,
+    })),
+    compiledPoints,
+  };
+}
+
+async function mountSelectionLifecyclesInternalV1<TPayload>(
+  scope: ExtensionSetupScopeInternalV1,
+  definitions: readonly LoadedApplicationModInternalV1<TPayload>[],
+): Promise<void> {
+  for (const definition of definitions) {
+    if (definition.lifecycle !== null) await scope.mountChild(definition.lifecycle);
+  }
+}
+
+function admitSelectionGenerationInternalV1(selectionGeneration: number): number {
+  if (!Number.isSafeInteger(selectionGeneration) || selectionGeneration < 1) {
+    return failInternalV1(
+      "mod_runtime.selection_generation_invalid",
+      String(selectionGeneration),
+    );
+  }
+  return selectionGeneration;
+}
+
+function selectionSourceInternalV1<TPayload, TCompiled>(
+  applicationGeneration: string,
+  extensionPoints: readonly ApplicationModExtensionPointInternalV1<TPayload, TCompiled>[],
+  input: ApplicationModSelectionCandidateInternalV1<TPayload>,
+): ExtensionCandidateSourceInternalV1<ApplicationModSelectionInternalV1<TCompiled>> {
+  const selectionGeneration = admitSelectionGenerationInternalV1(
+    input.selectionGeneration,
+  );
+  const catalog = [...input.catalog];
+  const activeModIds = [...input.activeModIds];
+  const generation = String(selectionGeneration);
+  return {
+    id: modRuntimeOwnerIdInternalV1,
+    generation,
+    async load() {
+      const prepared = await prepareSelectionInternalV1(
+        catalog,
+        activeModIds,
+        extensionPoints,
+      );
+      const selection: ApplicationModSelectionInternalV1<TCompiled> = {
+        applicationGeneration,
+        selectionGeneration,
+        activeIdentity: prepared.activeIdentity,
+        compiledPoints: prepared.compiledPoints,
+      };
+      return {
+        id: modRuntimeOwnerIdInternalV1,
+        generation,
+        async setup(scope) {
+          await mountSelectionLifecyclesInternalV1(scope, prepared.definitions);
+          return selection;
+        },
+      };
+    },
+  };
+}
+
 /**
  * Loads and cold-compiles one immutable application-generation Mod selection.
  * It owns no resolver, State, Save, digest, or live installation surface.
@@ -331,27 +421,19 @@ export async function createApplicationModRuntimeInternalV1<
   input: CreateApplicationModRuntimeInputInternalV1<TPayload, TCompiled>,
 ): Promise<ApplicationModRuntimeInternalV1<TCompiled>> {
   const extensionPoints = admitExtensionPointsInternalV1(input.extensionPoints);
-  const definitions = await loadActiveDefinitionsInternalV1(
+  const prepared = await prepareSelectionInternalV1(
     input.catalog,
     [...input.activeModIds],
+    extensionPoints,
   );
-  const compiledPoints = await compilePointsInternalV1(definitions, extensionPoints);
-  const activeIdentity = definitions.map((definition) => ({
-    modId: definition.modId,
-    generation: definition.generation,
-  }));
 
   const mounted = await mountExtensionFactoryInternalV1(
     {
       id: modRuntimeOwnerIdInternalV1,
       generation: input.applicationGeneration,
       async setup(scope) {
-        for (const definition of definitions) {
-          if (definition.lifecycle !== null) {
-            await scope.mountChild(definition.lifecycle);
-          }
-        }
-        return compiledPoints;
+        await mountSelectionLifecyclesInternalV1(scope, prepared.definitions);
+        return prepared.compiledPoints;
       },
     },
     input.onLifecycleDiagnostic === undefined ? {} : {
@@ -360,8 +442,109 @@ export async function createApplicationModRuntimeInternalV1<
   );
 
   return {
-    activeIdentity,
+    activeIdentity: prepared.activeIdentity,
     compiledPoints: mounted.consumer,
     dispose: () => mounted.dispose(),
+  };
+}
+
+/**
+ * Owns successor-based replacement of complete immutable Mod selections within
+ * one application generation. It does not mutate a live selection in place.
+ */
+export function createApplicationModSelectionControllerInternalV1<
+  TPayload = unknown,
+  TCompiled = unknown,
+>(
+  input: CreateApplicationModSelectionControllerInputInternalV1<TPayload, TCompiled>,
+): ApplicationModSelectionControllerInternalV1<TPayload, TCompiled> {
+  const applicationGeneration = admitIdentifierInternalV1(
+    input.applicationGeneration,
+    "application generation",
+  );
+  const extensionPoints = admitExtensionPointsInternalV1(input.extensionPoints);
+  const controller = createExtensionActivationControllerInternalV1<
+    ApplicationModSelectionInternalV1<TCompiled>
+  >({
+    id: modRuntimeOwnerIdInternalV1,
+    backend: createExtensionLifecycleBackendInternalV1(),
+    ...(input.onLifecycleDiagnostic === undefined ? {} : {
+      onDiagnostic: input.onLifecycleDiagnostic,
+    }),
+  });
+  let highestStartedSelectionGeneration = 0;
+
+  const source = (
+    candidate: ApplicationModSelectionCandidateInternalV1<TPayload>,
+    operation: "activate" | "restart",
+  ): ExtensionCandidateSourceInternalV1<ApplicationModSelectionInternalV1<TCompiled>> => {
+    const selectionGeneration = admitSelectionGenerationInternalV1(
+      candidate.selectionGeneration,
+    );
+    const state = controller.getState();
+    const joining = state.kind === "loading" &&
+      state.generation === String(selectionGeneration);
+    const operationReady = operation === "activate"
+      ? state.kind === "idle" ||
+        (state.kind === "error" && state.generation !== String(selectionGeneration))
+      : state.kind === "ready";
+    if (
+      !joining && operationReady &&
+      selectionGeneration <= highestStartedSelectionGeneration
+    ) {
+      return failInternalV1(
+        "mod_runtime.selection_generation_stale",
+        String(selectionGeneration),
+      );
+    }
+    if (!joining && operationReady) {
+      highestStartedSelectionGeneration = selectionGeneration;
+    }
+    return selectionSourceInternalV1(applicationGeneration, extensionPoints, {
+      selectionGeneration,
+      catalog: candidate.catalog,
+      activeModIds: candidate.activeModIds,
+    });
+  };
+
+  return {
+    activate(candidate) {
+      let candidateSource: ExtensionCandidateSourceInternalV1<
+        ApplicationModSelectionInternalV1<TCompiled>
+      >;
+      try {
+        candidateSource = source(candidate, "activate");
+      } catch (error) {
+        return Promise.reject(error);
+      }
+      return controller.activate(candidateSource);
+    },
+    retry: () => controller.retry(),
+    restart(candidate, publish) {
+      if (typeof publish !== "function") {
+        return Promise.reject(
+          new ApplicationModRuntimeErrorInternalV1(
+            "mod_runtime.invalid_definition",
+            "selection publisher",
+          ),
+        );
+      }
+      let candidateSource: ExtensionCandidateSourceInternalV1<
+        ApplicationModSelectionInternalV1<TCompiled>
+      >;
+      try {
+        candidateSource = source(candidate, "restart");
+      } catch (error) {
+        return Promise.reject(error);
+      }
+      return controller.restart(
+        candidateSource,
+        (candidateValue, previousValue) => publish(candidateValue.consumer, previousValue.consumer),
+      );
+    },
+    getState: () => controller.getState(),
+    getCurrent: () => controller.getCurrent()?.consumer ?? null,
+    subscribe: (listener) => controller.subscribe(listener),
+    dispose: () => controller.dispose(),
   };
 }

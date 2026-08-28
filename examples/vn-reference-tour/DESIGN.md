@@ -7,9 +7,9 @@
 History/播放控制、贴底布局、Ctrl/Tab/H/V 与鼠标中键、最终 Stage/ending 媒体、冻结的八项音频分母、
 current-voice replay、voice-aware Auto、interaction-level Back/Forward 和产品矩阵。M3 已交付产品入口、
 默认 VN system menu、quick/manual/import/export、完整最小 Settings/live locale，以及分层的
-Save/recovery/hidden/close/reload/restart 证据。M4 已完成 ambient binding/phase 的 Agent Inspector/CAS 接手，
-以及 workstation Browser/build、Desktop static preview、无障碍、自动化无声和 raw performance 证据；
-人类接手、代表性 current-low-end qualification、独立审查与 Starter feedback 仍未关闭。**
+Save/recovery/hidden/close/reload/restart 证据。M4 已完成 ambient binding/phase 的 Agent 与所有者授权
+Computer Use-assisted participant Inspector/CAS 接手，以及 workstation Browser/build、Desktop static preview、
+无障碍、自动化无声和 raw performance 证据；代表性 current-low-end qualification、独立审查与 Starter feedback 仍未关闭。**
 
 M1 已用本产品完整 Story/Scene author data 原子替换 tracked Template 的临时内容，但只关闭 author data 与
 headless routes。M2 已有 Player、Stage 媒体、ending、音频、Back/Forward 与完整矩阵；M3 已关闭产品入口、
@@ -191,8 +191,14 @@ migration 或通用兼容框架。
 ## 7. Target uplift、Input、Accessibility 与预算
 
 支持 wide/narrow Browser、鼠标、触控和键盘；普通 DOM 控件保持原生语义。最低自动验收包括 360×640、
-1280×720、200% zoom/reflow、reduced motion、键盘焦点、screen-reader labels 和自动化运行默认无声。产品
-Player 默认非静音，mute 是可持久化的用户偏好；游戏手柄不是本产品输入分母。
+1280×720、1920×1080、1920×1200 的 16:10 letterbox、200% zoom/reflow、reduced motion、键盘焦点、
+screen-reader labels 和自动化运行默认无声。这里的 1920 档按 CSS viewport 验收，覆盖 4K/5K 显示器常见的
+系统缩放结果；产品 Player 默认非静音，mute 是可持久化的用户偏好；游戏手柄不是本产品输入分母。
+
+UI 密度按任务语义分层：Title/暂停菜单可建立更强层级；常驻 Dialogue/playback 必须克制并优先保留 Stage；
+dev-only Inspector/Embedded Authoring 使用引擎共享的 compact 工具档与 IDE 式 Stage-first 布局。它们共享
+stylesheet、token 与应用/组件 override，不要求相同的 computed font/control size。fine-pointer 常驻 chrome
+采用正常桌面控件密度，coarse-pointer 继续保留 44px touch floor。
 
 Player 采用通用 VN 行为：`Enter` / `Space` 与 say-only 全画布点按均为 reveal-first/再推进；`Tab` 切换持续
 skip-read，按住左右 `Ctrl` 只在本次按键周期临时 skip-read。`H` 先停止有效 Auto/Skip，再进入模态隐藏；
@@ -262,9 +268,9 @@ Save/recovery 与设置；下表明确区分已实现部分与仍需 M4 关闭�
 | Player QoL       | reveal、auto、skip-read、History、rollback             | focused tests + Browser                     | reveal/auto/skip/History、Ctrl/Tab/H/鼠标中键、全画布推进与 Back/Forward 已完成      |
 | Save/recovery    | autosave、manual/quick、load、import/export、3 稳定点  | focused + reopen E2E                        | M3 已用 exact product tests 与 Browser journeys 分层关闭；Browser close 保持上述边界 |
 | i18n             | 3 packs × zh-CN/en + fallback                          | pack admission、切换、overflow              | M3 已实现 live locale 与 Profile 持久化设置入口                                      |
-| Responsive/Input | 360×640 至 1280×720、pointer/touch/keyboard            | Chromium/WebKit journeys                    | M2 完整矩阵已实现                                                                    |
+| Responsive/Input | 360×640 至 1920×1200、pointer/touch/keyboard           | Chromium/WebKit journeys                    | M2 基础矩阵与 M4 的 1920 档/16:10 letterbox 已实现                                   |
 | Accessibility    | focus、labels、200% zoom、reduced motion、silent tests | automated + human review                    | 自动化测试以 0-gain terminal 默认无声；产品默认非静音且 mute 可持久化                |
-| Authoring        | 两 Scene 的 object/appearance/Motion 调整              | human + Agent CAS/undo/save tasks           | M4 已交付 ambient binding/phase 与 Agent CAS/undo/save；人类接手仍开放               |
+| Authoring        | 两 Scene 的 object/appearance/Motion 调整              | participant + Agent CAS/undo/save tasks     | M4 已交付 Agent 350ms 与所有者授权 participant 400ms 的 CAS/undo/save 接手           |
 | Targets          | Browser publish + Desktop static preview               | build/prebuilt/preview evidence             | M4 automated evidence 已完成；无 Desktop HMR claim                                   |
 | Budgets          | §7 数值                                                | generic raw benchmark + profiling           | M4 workstation raw evidence 全部在预算内；不构成低端设备 qualification               |
 
@@ -272,11 +278,17 @@ Save/recovery 与设置；下表明确区分已实现部分与仍需 M4 关闭�
 
 本产品不引入 Ren'Py DSL/Save compatibility、自定义解释器、公共 VN framework、Blueprint、最终编辑器、custom
 pending、presentation barrier、hold-when、mid-hold/shared input、monitor、hit region、Timeline、产品自定义
-WholeCanvas、Content Database、Mod、Agent/RPC、DevDock、Runtime Inspector 或 Desktop HMR。
+WholeCanvas、Content Database、production gameplay Mod、Agent/RPC、production DevDock/Runtime Inspector 或
+产品自有 Desktop HMR。
 
-package-owned Splash/Title、默认 Save/Settings/System hosts 和 dev-only Inspector 属于选择的现有路径，不代表
-产品建立第二个 surface/authority。若剧情自然需要新增能力，先修改本 denominator 并说明用户价值；“引擎已经
-有”不是选择理由。
+package-owned Splash/Title、默认 Save/Settings/System hosts，以及 development-only 可拖动、四角吸附的 DevDock/Inspector
+属于选择的现有路径，不代表产品建立第二个 surface/authority。开发组合自动请求 session-only debug capability，
+常驻部分只保留共享轻量 launcher；完整 DevDock 菜单/window host、具体调试工具 body 与内嵌制作分别在各自
+首次明确交互时加载，不重复产品 Settings，并从 production build 结构性排除。选择工具后菜单收起，launcher
+与工具窗口不得重叠；制作入口不应顺带加载 DevDock。
+本产品不为证明 private Mod successor 而伪造可选运行状态工具；中立 controller 合同保留给后续真实产品模块，
+不增加公共 resolver/ABI/SDK。若剧情自然需要新增能力，先修改本 denominator 并说明用户价值；“引擎已经有”
+不是选择理由。
 
 M0–M3 已交付 package/identity、负能力删除、完整 author data/headless routes、VN Player/媒体与产品矩阵，
 以及入口、Save/recovery/settings。M4 正在完成作者任务和产品证据；M5 才可将产品提升为旗舰。Bookshop 保持到 VN

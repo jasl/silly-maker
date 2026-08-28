@@ -1532,6 +1532,7 @@ function createNarrativeComposerFixtureV1(input: {
   let epoch = 0;
   const definition = input.definition === undefined
     ? createNarrativeSurfaceCompositionDefinitionInternalV1({
+      historyEnabledInternalV1: true,
       selectNarrativeInternalV1: () => ({
         pending: null,
         history: { entries: [] },
@@ -1659,6 +1660,7 @@ function createNarrativeChurnComposerFixtureV1() {
     for (const listener of [...semanticListeners]) listener();
   };
   const definition = createNarrativeSurfaceCompositionDefinitionInternalV1({
+    historyEnabledInternalV1: true,
     selectNarrativeInternalV1: (
       current: DeepReadonly<NarrativeChurnPublicationV1>,
     ) => current.selection,
@@ -1673,12 +1675,15 @@ function createNarrativeChurnComposerFixtureV1() {
           semanticDispatchPort: {
             dispatchResolutionInternalV1: () => Promise.resolve(undefined),
           },
-          historyObservationPort: {
-            getSnapshotInternalV1: () => publication.selection.history,
-            subscribeInternalV1: () => (() => undefined),
-          },
-          historyAvailabilityPort: {
-            readHistoryAvailabilityInternalV1: () => false,
+          history: {
+            rendererComponent: () => null,
+            observationPort: {
+              getSnapshotInternalV1: () => publication.selection.history,
+              subscribeInternalV1: () => (() => undefined),
+            },
+            availabilityPort: {
+              readHistoryAvailabilityInternalV1: () => false,
+            },
           },
           playerProfile: {
             getSnapshotInternalV1: () => defaultPlayerProfileV1,
@@ -1922,6 +1927,7 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
     presentationClock.advance(42);
     const pending = narrativeChurnChoicePendingV1(99);
     const definition = createNarrativeSurfaceCompositionDefinitionInternalV1({
+      historyEnabledInternalV1: true,
       selectNarrativeInternalV1: () => ({
         pending,
         history: emptyNarrativeHistoryV1,
@@ -1942,12 +1948,15 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
             semanticDispatchPort: {
               dispatchResolutionInternalV1: () => Promise.resolve(undefined),
             },
-            historyObservationPort: {
-              getSnapshotInternalV1: () => emptyNarrativeHistoryV1,
-              subscribeInternalV1: () => (() => undefined),
-            },
-            historyAvailabilityPort: {
-              readHistoryAvailabilityInternalV1: () => false,
+            history: {
+              rendererComponent: () => null,
+              observationPort: {
+                getSnapshotInternalV1: () => emptyNarrativeHistoryV1,
+                subscribeInternalV1: () => (() => undefined),
+              },
+              availabilityPort: {
+                readHistoryAvailabilityInternalV1: () => false,
+              },
             },
             playerProfile: {
               getSnapshotInternalV1: () => environment.playerProfile.current(),
@@ -2153,6 +2162,7 @@ describe("Game UI production Narrative shared-kernel substrate", () => {
     const fixture = createNarrativeComposerFixtureV1({
       reportFailure,
       definition: createNarrativeSurfaceCompositionDefinitionInternalV1({
+        historyEnabledInternalV1: true,
         selectNarrativeInternalV1: () => {
           selections += 1;
           if (selections > 2) throw new Error("fixture.narrative_selector_failed");

@@ -158,17 +158,24 @@ describe("ProgressMeter", () => {
 });
 
 describe("theme tokens", () => {
-  it("freezes the Stage basis, minimum target, readable typography, and safe areas", async () => {
+  it("freezes Stage geometry, input floors, task density, and safe areas", async () => {
     const tokensCssV1 = await readFile(resolve(import.meta.dirname, "../theme/tokens.css"), "utf8");
 
     expect(tokensCssV1).toMatch(/--silly-stage-basis-width:\s*1600px;/u);
     expect(tokensCssV1).toMatch(/--silly-stage-basis-height:\s*1000px;/u);
     expect(tokensCssV1).toMatch(/--silly-stage-max-width:\s*1600px;/u);
     expect(tokensCssV1).toMatch(/--silly-stage-aspect-ratio:\s*8\s*\/\s*5;/u);
-    expect(tokensCssV1).toMatch(/--silly-target-min-size:\s*44px;/u);
-    expect(tokensCssV1).toMatch(/--silly-control-min-size:\s*2rem;/u);
+    expect(tokensCssV1).toMatch(/--silly-control-min-size:\s*32px;/u);
+    expect(tokensCssV1).toMatch(/--silly-control-min-size-compact:\s*28px;/u);
+    expect(tokensCssV1).toMatch(/--silly-touch-target-min-size:\s*44px;/u);
+    expect(tokensCssV1).toMatch(
+      /--silly-target-min-size:\s*var\(--silly-control-min-size\);/u,
+    );
     expect(tokensCssV1).toMatch(/--silly-text-size-base:\s*clamp\(/u);
+    expect(tokensCssV1).toMatch(/--silly-text-size-compact:\s*0\.875rem;/u);
+    expect(tokensCssV1).toMatch(/--silly-line-height-ui:\s*1\.4;/u);
     expect(tokensCssV1).toMatch(/--silly-line-height-readable:\s*1\.6;/u);
+    expect(tokensCssV1).toMatch(/--silly-line-height-compact:\s*1\.35;/u);
 
     for (const logicalEdge of ["block-start", "block-end", "inline-start", "inline-end"]) {
       expect(tokensCssV1).toContain(`--silly-safe-area-${logicalEdge}:`);
@@ -201,6 +208,10 @@ describe("theme tokens", () => {
     expect(globalCssV1).toMatch(/min-inline-size:\s*var\(--silly-control-min-size\);/u);
     expect(globalCssV1).toContain("var(--silly-focus-ring-inner)");
     expect(globalCssV1).toContain("var(--silly-focus-ring-outer)");
+    expect(globalCssV1).toMatch(/@media\s*\(pointer:\s*coarse\)/u);
+    expect(globalCssV1).toMatch(
+      /--silly-target-min-size:\s*var\(--silly-touch-target-min-size\);/u,
+    );
     expect(globalCssV1).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)/u);
     expect(globalCssV1).toMatch(/transition:\s*none\s*!important;/u);
   });

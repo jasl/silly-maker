@@ -139,7 +139,7 @@ custom-shell local state 改变全局 input/focus/modality，并被登记为未�
 | L0 令牌       | 主题（色/距/圆角/触控尺寸）、层叠双刻度（stage-z / surface-z，测试盯守）、表单元素主题化                                                                                             | ✅ 已交付                             |
 | L1 原语       | `Button` / `IconButton` / `ProgressMeter` / `PanelV1`（窗体外壳；`closeControl: "label" \| "icon"`）/ `useClampedElementDragV1`（CSS 像素钳制拖拽）/ `BootSplashV1` / `MuteToggleV1` | ✅ 已交付                             |
 | L2 窗体与槽位 | 系统对话框单槽、工作区主窗+详情栈、嵌套确认层、标题屏前门、关闭惯例与锁定（`dismissible`）                                                                                           | ✅ 共享 lifecycle；WholeCanvas 已交付 |
-| L3 组装件     | `NarrativeSurfaceDefinitionV1` selected renderer + composition-owned player/Host/Stage authority；focused default VN Player preset 显式选择                                          | ✅ seam 与 preset 首切片已交付        |
+| L3 组装件     | `NarrativeSurfaceDefinitionV1` dialogue renderer + optional History renderer + composition-owned player/Host/Stage authority；focused default VN Player preset 显式选择              | ✅ seam 与 preset 首切片已交付        |
 | 横切 hooks    | `useAssetUrlV1` / `resolveAssetUrlV1` / `useReducedMotionV1` / `useLocaleTextV1`                                                                                                     | ✅ 已交付                             |
 
 通用上提规则不变：**两个以上真实 Story 重复且形状稳定**才进引擎，带契约测试；上述 focused VN
@@ -151,9 +151,9 @@ preset 是已接受的窄例外，不授权 generic HUD 或 WindowManager 预先
 
 三个 Story 的对话面板曾是同一台机器的多份手抄，随后短暂上提为
 `DialoguePanelV1`。S4.3.1b 已用更窄的生产合同替换并删除该组件：application 通过
-`defineNarrativeSurfaceV1` 提供一个 `NarrativeSurfaceDefinitionV1`，其 selected renderer 只接收
-immutable pending/history/choice availability、player profile/view、文本解析与 bounded
-actions。打字机、normal/auto/skip、History、voice、物理输入、focus/inert、Stage
+`defineNarrativeSurfaceV1` 提供一个 `NarrativeSurfaceDefinitionV1`：dialogue renderer 只接收
+immutable pending/choice availability、nullable History-open port、player profile/view、文本解析与 bounded
+actions；可选的独立 History renderer 只接收只读 backlog 与关闭动作。打字机、normal/auto/skip、History authority、voice、物理输入、focus/inert、Stage
 barrier 与 stale fencing 都由 composition-owned player/Host/Stage authority 持有。
 
 活动 VN M2 已在这条 seam 上提供第一版引擎维护的 focused default VN Player preset，拥有默认的

@@ -158,6 +158,9 @@ export async function startWebGuiApplicationV1(
       throw new TypeError("web.application_root_missing");
     }
     rootElement = candidate;
+    // Load the Browser/Deno Desktop UI baseline once after the synchronous
+    // startup shell admission and before any React surface can mount. CSS
+    // custom properties and ordinary cascade remain available for app overrides.
     await import("@sillymaker/ui/styles.css");
   } catch (error) {
     signalStartupFailure("unavailable");

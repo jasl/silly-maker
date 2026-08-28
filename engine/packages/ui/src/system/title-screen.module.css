@@ -3,7 +3,9 @@
   inset: 0;
   display: grid;
   place-content: center;
-  gap: 16px;
+  justify-items: center;
+  gap: clamp(0.75rem, 2cqi, 1rem);
+  padding: clamp(1rem, 3cqi, 2rem);
   text-align: center;
   color: var(--silly-color-text);
   pointer-events: auto;
@@ -12,16 +14,39 @@
 
 .title {
   margin: 0;
-  font-size: clamp(28px, 6vw, 56px);
+  max-inline-size: 100%;
+  font-size: clamp(1.75rem, 3.5cqi, 2.75rem);
+  line-height: 1.1;
   text-shadow: 0 2px 12px rgb(0 0 0 / 80%);
+  text-wrap: balance;
 }
 
 .menu {
   display: grid;
-  gap: 10px;
-  min-inline-size: min(70vw, 280px);
+  gap: var(--silly-space-2);
+  inline-size: min(18rem, calc(100cqi - 2rem));
+  min-inline-size: 0;
+  justify-self: center;
 }
 
 .menu > button {
   min-block-size: var(--silly-target-min-size, 44px);
+}
+
+/* Short landscape canvases include literal browser-zoom reflow. Keep the
+   front door compact without shrinking any gameplay touch target. */
+@media (height <= 32rem) {
+  .root {
+    gap: var(--silly-space-2);
+    padding: var(--silly-space-3);
+  }
+
+  .title {
+    font-size: clamp(1.5rem, 5cqi, 2rem);
+  }
+
+  .menu {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    inline-size: min(30rem, calc(100cqi - 1.5rem));
+  }
 }

@@ -37,7 +37,7 @@ import {
 import {
   defineNarrativeSurfaceV1,
   type NarrativeSurfaceChoiceAvailabilityInternalV1,
-  type NarrativeSurfaceRendererPropsV1,
+  type NarrativeSurfaceDialogueRendererPropsV1,
   type NarrativeSurfaceSelectionInternalV1,
 } from "../narrative/narrative-surface-composition.tsx";
 import {
@@ -486,13 +486,12 @@ function renderCompositionOwnedNarrativeRootInternalV1(
   };
   const ChoiceRendererInternalV1 = Object.freeze(
     function ChoiceRendererInternalV1(
-      props: NarrativeSurfaceRendererPropsV1,
-    ): ReactElement {
-      const pending = props.kind === "dialogue" ? props.pending : null;
-      const occurrenceId = pending?.occurrenceId ?? "history";
+      props: NarrativeSurfaceDialogueRendererPropsV1,
+    ): ReactElement | null {
+      const pending = props.pending;
+      const occurrenceId = pending.occurrenceId;
       const choiceId = pending?.kind === "choice" ? pending.options[0]?.choiceId : undefined;
       useEffect(() => {
-        if (props.kind !== "dialogue") return;
         if (pending?.kind === "say") {
           callbacks.push(
             Object.freeze({ occurrenceId, callback: props.onActivate }),
@@ -508,7 +507,7 @@ function renderCompositionOwnedNarrativeRootInternalV1(
           );
         }
       }, [choiceId, occurrenceId, pending?.kind, props]);
-      if (pending?.kind === "say" && props.kind === "dialogue") {
+      if (pending.kind === "say") {
         return (
           <output
             data-testid="default-root-narrative-say"
@@ -523,18 +522,16 @@ function renderCompositionOwnedNarrativeRootInternalV1(
           />
         );
       }
-      return choiceId === undefined
-        ? <output data-testid="default-root-narrative-history" />
-        : (
-          <button
-            type="button"
-            data-testid="default-root-narrative-choice"
-            data-occurrence-id={occurrenceId}
-            onClick={() => props.kind === "dialogue" && props.onChoose(choiceId)}
-          >
-            Choose first
-          </button>
-        );
+      return choiceId === undefined ? null : (
+        <button
+          type="button"
+          data-testid="default-root-narrative-choice"
+          data-occurrence-id={occurrenceId}
+          onClick={() => props.onChoose(choiceId)}
+        >
+          Choose first
+        </button>
+      );
     },
   );
   const definition = defineNarrativeSurfaceV1(
@@ -578,6 +575,7 @@ function renderCompositionOwnedNarrativeRootInternalV1(
       },
       dispatchTime: null,
       renderer: ChoiceRendererInternalV1,
+      history: null,
       resolveText: (_locale: string | null, textId: string) => textId,
       replayCurrentVoice: null,
     }),

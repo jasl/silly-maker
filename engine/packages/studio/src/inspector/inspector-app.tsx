@@ -446,7 +446,7 @@ function InspectorWithHostInternalV1(props: InspectorHostSurfacePropsInternalV1)
         : <RuntimeInspectorPanelV1 source={props.binding.runtime} />}
 
       <div className={styles.layout}>
-        <aside className={styles.navigator}>
+        <aside className={styles.navigator} data-inspector-navigator="true">
           <InspectorSceneListV1
             scenes={scenes ?? []}
             currentPath={sessionSnapshot.path}
@@ -529,7 +529,7 @@ function InspectorWithHostInternalV1(props: InspectorHostSurfacePropsInternalV1)
             )}
         </section>
 
-        <aside className={styles.properties}>
+        <aside className={styles.properties} data-inspector-properties="true">
           {projection.kind === "ok" && sessionSnapshot.draft !== null
             ? (
               <InspectorObjectPanelV1

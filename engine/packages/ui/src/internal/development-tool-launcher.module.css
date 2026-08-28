@@ -1,0 +1,141 @@
+.development-tool-launcher {
+  position: absolute;
+
+  /* The small resident launcher stays actionable above lazy tool windows. */
+  z-index: var(--silly-surface-z-splash);
+
+  --silly-font-family: var(--silly-debug-font-family);
+
+  display: flex;
+  max-inline-size: min(25rem, calc(100% - 2 * var(--silly-space-2)));
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--silly-space-1);
+  pointer-events: auto;
+  color: var(--silly-color-text);
+  font-family: var(--silly-font-family);
+  font-size: 0.75rem;
+}
+
+.development-tool-launcher[data-devdock-position="top_right"] {
+  inset-block-start: var(--silly-space-2);
+  inset-inline-end: var(--silly-space-2);
+}
+
+.development-tool-launcher[data-devdock-position="top_left"] {
+  inset-block-start: var(--silly-space-2);
+  inset-inline-start: var(--silly-space-2);
+  align-items: flex-start;
+}
+
+.development-tool-launcher[data-devdock-position="bottom_right"] {
+  inset-block-end: var(--silly-space-2);
+  inset-inline-end: var(--silly-space-2);
+  flex-direction: column-reverse;
+}
+
+.development-tool-launcher[data-devdock-position="bottom_left"] {
+  inset-block-end: var(--silly-space-2);
+  inset-inline-start: var(--silly-space-2);
+  flex-direction: column-reverse;
+  align-items: flex-start;
+}
+
+.development-tool-launcher__bar {
+  display: inline-flex;
+  align-items: center;
+  user-select: none;
+  border: 1px solid var(--silly-color-border);
+  border-radius: var(--silly-radius-control);
+  background: var(--silly-color-surface-translucent);
+  color: inherit;
+  font: inherit;
+  overflow: hidden;
+}
+
+.development-tool-launcher__action {
+  min-block-size: 1.75rem;
+  padding: 0 var(--silly-space-2);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+}
+
+.development-tool-launcher__action + .development-tool-launcher__action {
+  border-inline-start: 1px solid var(--silly-color-border);
+}
+
+.development-tool-launcher__drag {
+  display: inline-grid;
+  min-inline-size: 1.25rem;
+  min-block-size: 1.25rem;
+  border-inline-start: 1px solid var(--silly-color-border);
+  cursor: move;
+  place-items: center;
+  touch-action: none;
+  opacity: 0.68;
+}
+
+.development-tool-launcher > [data-development-tool-runtime-failure] {
+  display: flex;
+  align-items: center;
+  gap: var(--silly-space-2);
+  padding: var(--silly-space-2);
+  border: 1px solid var(--silly-color-danger);
+  border-radius: var(--silly-radius-control);
+  background: var(--silly-color-surface-translucent);
+}
+
+.development-tool-launcher > [data-development-tool-runtime-failure] button {
+  min-block-size: var(--silly-control-min-size);
+  padding-inline: var(--silly-space-2);
+  white-space: nowrap;
+}
+
+@media (pointer: coarse) {
+  .development-tool-launcher__action,
+  .development-tool-launcher__drag {
+    min-inline-size: var(--silly-target-min-size, 44px);
+    min-block-size: var(--silly-target-min-size, 44px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .development-tool-launcher,
+  .development-tool-launcher * {
+    scroll-behavior: auto;
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* stylelint-disable selector-pseudo-class-no-unknown -- CSS Modules global scope */
+:global([data-blocking-focus-scope]):has(> .development-tool-launcher[data-devdock-position="top_right"]),
+:global([data-blocking-focus-scope]):has(> .development-tool-launcher[data-devdock-position="top_left"]) {
+  padding-block-start: calc(
+    var(--silly-safe-area-block-start) + var(--silly-control-min-size) + 3 * var(--silly-space-2)
+  );
+}
+
+:global([data-blocking-focus-scope]):has(> .development-tool-launcher[data-devdock-position="bottom_right"]),
+:global([data-blocking-focus-scope]):has(> .development-tool-launcher[data-devdock-position="bottom_left"]) {
+  padding-block-end: calc(
+    var(--silly-safe-area-block-end) + var(--silly-control-min-size) + 3 * var(--silly-space-2)
+  );
+}
+
+/* The default system menu owns the canvas's top-right corner. */
+:global([data-game-viewport-canvas]:has([data-default-system-menu])) > .development-tool-launcher[data-devdock-position="top_right"] {
+  inset-block-start: calc(
+    var(--silly-safe-area-block-start) + var(--silly-space-2) + var(--silly-control-min-size) +
+    2 * var(--silly-space-1) + 2px + var(--silly-space-1)
+  );
+}
+
+:global([data-blocking-focus-scope]) > .development-tool-launcher {
+  max-block-size: calc(100% - 2 * var(--silly-space-2));
+}
+/* stylelint-enable selector-pseudo-class-no-unknown */

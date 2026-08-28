@@ -81,10 +81,23 @@ describe("GameViewportV1", () => {
     expect(geometry.letterboxBlock).toBeCloseTo(50);
   });
 
-  it("centers instead of scaling past maxScale", () => {
+  it("uses the available scale when no cap is declared", () => {
+    const geometry = renderViewportV1({
+      canvas: { width: 1600, height: 900 },
+      fallbackSize: { width: 3840, height: 2160 },
+    });
+    expect(geometry.scale).toBeCloseTo(2.4);
+    expect(geometry.cssWidth).toBeCloseTo(3840);
+    expect(geometry.cssHeight).toBeCloseTo(2160);
+    expect(geometry.letterboxInline).toBeCloseTo(0);
+    expect(geometry.letterboxBlock).toBeCloseTo(0);
+  });
+
+  it("centers instead of scaling past an explicit maxScale", () => {
     const geometry = renderViewportV1({
       canvas: { width: 1600, height: 1000 },
       fallbackSize: { width: 3200, height: 2000 },
+      maxScale: 1,
     });
     expect(geometry.scale).toBe(1);
     expect(geometry.cssWidth).toBe(1600);
@@ -159,6 +172,7 @@ describe("GameViewportV1", () => {
       canvas: { width: 1600, height: 1000 },
       fallbackSize: { width: 3200, height: 2400 },
       mode: "expand-height",
+      maxScale: 1,
     });
 
     expect(geometry.scale).toBe(1);

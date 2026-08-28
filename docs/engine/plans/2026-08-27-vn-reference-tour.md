@@ -56,9 +56,10 @@ VN Reference Tour 是一个原创、独立、内聚、可发布的小型 Visual 
   preview/dispatch、Snapshot、Save/replay 与 transaction rules；
 - pure-data interaction document：`say`、`choice`、`branch`、`stage`、`hold`、`end`，由产品本地复制的
   Template kit 编译；这仍是普通 TypeScript 数据，不是新语言或 runtime；
-- 显式选择引擎维护的 focused default VN Player preset 作为唯一 `defineNarrativeSurfaceV1` writer；一个
-  Semantic Stage owner 与一个 `WebGameApplicationV1`；renderer 只消费 read-only pending/history/player
-  view 并调用 occurrence-fenced actions，generic GameRoot 不隐式安装 preset；
+- 显式选择引擎维护的 traditional VN preset 作为唯一 `defineNarrativeSurfaceV1` writer；该 preset 是
+  内聚 VN core 加本产品明确需要的 optional History presentation，不建立第二套 runtime；
+  一个 Semantic Stage owner 与一个 `WebGameApplicationV1`；renderer 只消费 read-only
+  pending/history/player view 并调用 occurrence-fenced actions，generic GameRoot 不隐式安装 preset；
 - `sillymaker.authoring-scene` 作为每个场景唯一作者权威，剧本只引用 scene/cue/appearance，不重复 placement；
 - Motion/ambient/frame、Stage transition、typed audio intent/transient SFX、text content manifest/session、
   Player Profile、rollback 与默认 Saves/Settings/System hosts；
@@ -72,9 +73,12 @@ VN Reference Tour 是一个原创、独立、内聚、可发布的小型 Visual 
 
 本产品不为“全能力”名义引入 custom pending、presentation barrier、hold-when、mid-hold input、shared stage
 input、authoritative monitors、hit regions、Timeline、产品自定义 WholeCanvas、Workspace Overlay、Content
-Database、meta gallery、Narrative/Scene units、Code Surface、Mod Runtime、Agent/RPC、DevDock、Runtime
-Inspector 或 Desktop HMR。package-owned Splash/Title 使用 WholeCanvas 基础设施，不等于产品定义了第二个
-WholeCanvas surface。
+Database、meta gallery、Narrative/Scene units、Code Surface、Agent/RPC、Runtime Inspector 或产品自有
+Desktop HMR。ordinary production Player 静态选择传统 VN preset，不携带 application-local dynamic Mod
+controller、DevDock、Inspector/source writer 或 Authoring Host。M4 development composition 显式选择
+Reference DevDock 与 Embedded Authoring；其具体工具只在首次明确交互时加载，并从 production final graph
+结构排除。这些开发面不改变产品分母或 gameplay State/Save。package-owned
+Splash/Title 使用 WholeCanvas 基础设施，不等于产品定义了第二个 WholeCanvas surface。
 
 若剧情自然需要上述某项，必须先修改本分母并说明产品价值；“引擎已经有”不是增加功能的理由。focused
 default VN Player preset 只收编成熟 VN 的默认 UI/交互/输入政策，不扩张为公共 script kit、scaffold CLI、
@@ -320,8 +324,9 @@ production build 与独立实现审查。React Doctor 唯一新增 advisory 对�
 
 ### M4 — 作者任务、产品证据与 Starter feedback
 
-状态：**2026-08-28 进行中。第一 authoring slice、Agent 接手任务与 workstation 自动化产品证据已完成；
-人类接手、代表性 current-low-end qualification、独立评审与 Starter feedback 仍开放。**
+状态：**2026-08-29 进行中。第一 authoring slice、Agent 与所有者授权 Computer Use-assisted participant
+接手任务、workstation 自动化产品证据已完成；代表性 current-low-end qualification、独立评审与
+Starter feedback 仍开放。**
 
 - 一名人类从 Inspector 微调场景构图/appearance/Motion reference，一名 Agent 使用同一 source、diagnostics、
   structured operation/CAS 路径完成修改；人类随后继续审查、undo/redo 与保存；
@@ -348,8 +353,13 @@ test 与真实 Browser 共同证明当前 Scene 的 7 个图片资源成功加�
 
 Agent 已在真实 standalone Inspector 中打开屋顶 Scene，把“摆动电缆”的 `cable-sway` ambient phase 调整为
 350ms，随后完成 undo、redo 与 CAS save；保存后的产品 source 是唯一 authority。focused admission/reducer/
-executor/source-loader/Inspector tests 与真实 Browser 操作共同覆盖该路径。人类仍必须使用同一 Inspector 审查
-构图和动画，完成至少一次可观察调整、undo/redo 与保存；自动化 Agent 任务不替代该参与证据。
+executor/source-loader/Inspector tests 与真实 Browser 操作共同覆盖该路径。2026-08-29 所有者明确允许以
+Computer Use 模拟原定的人类接手验收；participant 在真实 standalone Inspector 中视觉审查屋顶构图与
+Motion facet，经语义浏览器操作把 phase 从 350ms 调到 400ms，完成 undo（恢复 350）、redo（恢复 400）、
+CAS save，并在刷新后重新打开同一 Scene/Object 确认 source 与控件均为 400ms。Computer Use 负责真实桌面
+视觉复核；因 macOS/Safari 的辅助操作通道无法稳定命中虚拟列表，精确字段操作使用同一页面的 Browser
+语义自动化完成，没有修改系统辅助功能设置。该所有者授权的 participant pass 关闭本计划的人类接手项，
+但不替代 current-low-end qualification 或独立 product/engine review。
 
 最终 raw measurement 来自 2026-08-28 的本地 Apple M4 Max / 128 GiB / macOS 26.6.2 / Deno 2.9.5 /
 Chromium 151 workstation characterization，不是低端设备 qualification。音频修正后的 7 次 GUI ready /
@@ -381,6 +391,69 @@ preview，不提升 HMR、durability 或 production packaging。两条 44-step n
 的 383 个 test files / 5,470 tests 与 6 项 Composition benchmark。React Doctor changed-files audit
 只报告现有 coherent `object-inspector.tsx` 的 giant-component advisory；本切片没有为评分拆散同一个对象
 编辑面板。上述回归关闭第一 authoring slice，不关闭 M4；剩余证据仍按上一段执行。
+
+M4 的真实视觉复核随后把默认 VN chrome 作为一个响应式系统纠正，而非只缩放正文。Title、Say、Choice、
+History、System Menu、Settings、ending 与开发入口共享 document-wide stylesheet、`rem`/theme token 和
+override 机制，但不再把“统一”解释成所有 surface 同倍率放大。默认 document 基线固定在正常浏览器 UI
+大小且不随大屏继续增长；Inspector/Embedded Authoring 使用共享 compact 档和 IDE 式 Stage-first 布局，
+常驻 VN 对话/playback chrome 约束舞台占比，Title 与暂停菜单才保留更强的局部层级。短宽屏的
+Title/System Menu 改为双列，竖屏继续单列；Settings 删除内容组件自有的第二层滚动，由既有 managed
+blocking dialog 独占 stage-bounded overflow；fine-pointer 常驻控件允许正常 32px 密度，coarse-pointer
+设备保留 bottom sheet 与 44px touch floor。
+1920×1080 填满 16:9 canvas，1920×1200 在同一 1920×1080 canvas 上保持对称纵向 letterbox；Save/Load
+是唯一在该宽度改变内容拓扑的系统面板，使用更宽的三列 slot grid，而不建立第二套 typography scale。
+大屏复核随后明确区分 physical resolution、CSS viewport 与 DPR：未声明 `maxScale` 的 fixed canvas 不再由
+引擎默认锁在 1×，同宽高比 4K/5K 可以填满；当前 VN 的 16:9 美术在 ultrawide 仍诚实保留 `fit`，不把固定
+1600×900 背景拉伸或在空白侧翼冒充完整构图。通用 `expand-width`、公开 `layoutVariantId`/CSS attribute 与
+shell-space HUD 已足以让具备可延展背景的后续产品使用超宽空间，本产品不为缺少真实素材预建 backdrop DSL。
+
+共享 baseline 也收进启动与作者工具边界：Game/GUI entry 在 Host failure UI 可发布前加载一次
+`@sillymaker/ui/styles.css`，独立 Inspector entry 显式加载同一 stylesheet，Embedded Authoring 继承产品
+document；GameShell/DevDock 不再重复 import。原生按钮得到低特异性的中性默认样式，Stage authored hit
+region 与 Inspector object overlay 显式保留精确几何；Inspector/Embedded Authoring 删除自有默认 palette，
+直接消费共享 compact token，并用 container reflow 防止窄栏溢出。Application-root token
+override 与单组件 scoped override 均由真实 Browser 行为验证，不需要 Theme Provider、JavaScript scale
+service 或第二套 viewport。
+
+1280×720、640×360、360×640、1920×1080、1920×1200 与 2560×1080 的 Chromium/WebKit 合同 E2E 证明可见操作留在
+画布内、无 document 级横向溢出，窄屏 Stage 在导航/属性区之前出现，普通与大桌面 Stage 至少获得主要工作宽度，
+短 Scene 列表不再保留固定空白高度。Vite development 现在通过独立 development composition 自动选择一个
+轻量入口与既有 Reference DevDock（session-only `debug_tools` / `cheats`），产品自有 Settings 不被重复注入；“打开内嵌制作”和
+“调试”共享一个半透明开发工具面板，可在 Host canvas 内拖动并吸附到最近角落。制作缺席时只显示调试，
+调试被禁用时只显示制作，两者都不可用时整个面板不渲染。未选择 Reference UI 的应用仍得到一个制作专用的
+固定回退入口。production build 结构性排除该 development composition、DevDock implementation/launcher 与
+Inspector/source writer；共享 input-exclusion selector 仍可留在 Player bundle。上述修正不把
+DevDock、Inspector 或 Authoring Host 变成产品能力或 production surface。
+
+development 的常驻部分只包含组合入口、能力观察与共享可移动 launcher；首次点击“调试”才动态加载完整
+DevDock 菜单/window host，选择具体工具后自动收起菜单，保留前景 launcher 供再次打开，并确保 launcher 与
+所选窗口不重叠。各工具 body 继续按首次打开加载；“打开内嵌制作”沿独立动态入口加载 Authoring Host，点击
+制作不会顺带加载 DevDock。Debug chunk 失败只替换这枚入口的局部状态，Player 继续运行并提供显式页面
+重载恢复；这里没有新增通用 loader framework、预取器或测试专用协议。
+
+2026-08-29 所有者进一步裁决：Mod 是组合/生命周期机制而不是碎片化目标；核心玩法模块保持内聚，
+围绕核心且可被真实产品省略、替换或单独换代的能力才作为 optional Mod。M4 因而增加一个 bounded
+engine-correction/product-consumer 子切片，不改变 59-entry / 2-route / 2-ending 玩家分母：
+
+- private Mod Runtime 增加 selection successor controller；每个 generation 的 active set 仍不可变，
+  install/uninstall 通过候选 generation、原子 publication 和 predecessor retirement 完成；
+- VN Player cleanly 分出内聚 core 与 optional History presentation；traditional preset 显式组合两者，
+  本产品继续选择完整体验，focused core-only build 则结构排除专用 History renderer、入口控制与 CSS；
+  shared generic Narrative family 暂不为此拆分，两种选择运行同一 Story 时 Snapshot/Save/digest 不变；
+- core/full 构建图证明 optional History presentation 的静态选择和结构排除；private successor controller
+  以中立合同证明候选 generation、失败保留 predecessor、提交确认后退休旧 owner；VN 不为此伪造
+  装卸消费者，development 只验证真实 DevDock menu/window host、工具 body 与 Embedded Authoring 的分层交互懒加载，production Player
+  排除 controller、DevDock/Inspector/Tooling implementation；
+- private controller 与 DevDock publication seam 尚未被真实产品端到端连接；本切片只交付 private
+  hot-swap substrate，不宣称 History 已能动态装卸，也不宣称 public、完整的热插拔 Mod 系统；
+- 影响 GameplayModule/Simulation 的 Mod 不在存活 Session 原地改 graph，而是复用 Browser R2 exact
+  Save + lease handoff建立 successor。这个子切片至少固定中立 controller 合同；若 VN 没有一个真实
+  authoritative Mod 变化，就不为演示伪造第二条玩法路线，完整 R2 产品消费者留给后续真实游戏重写。
+
+该子切片不激活 public resolver/manifest/ABI/SDK/distribution、目录扫描、远端 executable install、
+marketplace、per-Mod watcher/HMR protocol、任意 State patch、service locator 或通用 build-profile DSL。
+代码模块已被浏览器求值后也不宣称从 ESM/CSS cache 物理删除；卸载只保证 publication、listener、
+resource handle 与 lifecycle owner 退出。
 
 ### M5 — 旗舰提升与文档收口（Bookshop 保持）
 

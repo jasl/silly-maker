@@ -81,6 +81,14 @@
   box-shadow: 0 0 0 4px var(--silly-focus-ring-outer);
 }
 
+@media (height >= 48rem) {
+  @container game-stage (min-width: 90rem) {
+    .save-overlay__slots {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+}
+
 @container game-stage (max-width: 44rem) {
   .save-overlay__slots {
     grid-template-columns: minmax(0, 1fr);

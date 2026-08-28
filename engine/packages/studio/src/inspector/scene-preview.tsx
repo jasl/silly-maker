@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactElement } from "react";
 
 import type {
@@ -26,6 +26,22 @@ export interface InspectorScenePreviewPropsV1 {
 }
 
 const previewOverscanV1 = 80;
+const previewFitGutterV1 = 16;
+
+interface InspectorPreviewSizeV1 {
+  readonly width: number;
+  readonly height: number;
+}
+
+function previewFitZoomV1(
+  bounds: { readonly width: number; readonly height: number },
+  available: InspectorPreviewSizeV1 | null,
+): number {
+  if (available === null) return 0.5;
+  const width = Math.max(1, available.width - previewFitGutterV1 * 2);
+  const height = Math.max(1, available.height - previewFitGutterV1 * 2);
+  return Math.max(0.01, Math.min(width / bounds.width, height / bounds.height));
+}
 
 function hitRegionStyleV1(
   facets: AuthoringSceneObjectFacetsV1,
@@ -59,8 +75,9 @@ function hitRegionStyleV1(
 export function InspectorScenePreviewV1(
   props: InspectorScenePreviewPropsV1,
 ): ReactElement {
-  const [zoomPermille, setZoomPermille] = useState(500);
-  const zoom = zoomPermille / 1_000;
+  const [zoomSelection, setZoomSelection] = useState<"fit" | number>("fit");
+  const [previewElement, setPreviewElement] = useState<HTMLDivElement | null>(null);
+  const [available, setAvailable] = useState<InspectorPreviewSizeV1 | null>(null);
   const document = props.document;
   const bounds = useMemo(
     () =>
@@ -71,6 +88,29 @@ export function InspectorScenePreviewV1(
       ),
     [document, props.facets.objects],
   );
+  useLayoutEffect(() => {
+    if (previewElement === null) return undefined;
+    const measure = (): void => {
+      const width = previewElement.clientWidth;
+      const height = previewElement.clientHeight;
+      if (width <= 0 || height <= 0) return;
+      setAvailable((current) =>
+        current?.width === width && current.height === height ? current : { width, height }
+      );
+    };
+    measure();
+    if (typeof ResizeObserver !== "function") {
+      globalThis.addEventListener("resize", measure);
+      return () => globalThis.removeEventListener("resize", measure);
+    }
+    const observer = new ResizeObserver(measure);
+    observer.observe(previewElement);
+    return () => observer.disconnect();
+  }, [previewElement]);
+  const zoom = zoomSelection === "fit"
+    ? previewFitZoomV1(bounds, available)
+    : zoomSelection / 1_000;
+  const effectiveZoomPermille = Math.round(zoom * 1_000);
   const frame = useMemo(
     () => settledStageFrameV1(props.facets.previewTarget),
     [props.facets.previewTarget],
@@ -94,9 +134,13 @@ export function InspectorScenePreviewV1(
           缩放
           <select
             aria-label="预览缩放"
-            value={zoomPermille}
-            onChange={(event) => setZoomPermille(Number(event.currentTarget.value))}
+            value={zoomSelection}
+            onChange={(event) =>
+              setZoomSelection(
+                event.currentTarget.value === "fit" ? "fit" : Number(event.currentTarget.value),
+              )}
           >
+            <option value="fit">适应工作区</option>
             <option value={250}>25%</option>
             <option value={500}>50%</option>
             <option value={750}>75%</option>
@@ -107,9 +151,11 @@ export function InspectorScenePreviewV1(
         </label>
       </header>
       <div
+        ref={setPreviewElement}
         className={styles["preview-viewport"]}
         data-inspector-preview="true"
-        data-inspector-preview-zoom={String(zoomPermille)}
+        data-inspector-preview-zoom={String(zoomSelection)}
+        data-inspector-preview-effective-zoom={String(effectiveZoomPermille)}
         aria-label="可滚动场景画布"
       >
         <div

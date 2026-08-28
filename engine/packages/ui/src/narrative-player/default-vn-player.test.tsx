@@ -31,6 +31,7 @@ import {
   createDefaultVnPlayerV1,
   type CreateDefaultVnPlayerInputV1,
 } from "./default-vn-player.tsx";
+import { createDefaultVnPlayerCoreV1 } from "./core.ts";
 
 afterEach(cleanup);
 
@@ -96,11 +97,15 @@ function dialoguePropsV1(input: {
 } = {}): NarrativeSurfaceDialogueRendererPropsV1 {
   const pending = input.pending ?? sayPendingV1();
   const callbacks = input.callbacks ?? callbacksV1();
+  const { onOpenHistory, ...dialogueCallbacks } = callbacks;
   return {
     kind: "dialogue",
     pending,
     choiceAvailability: input.choiceAvailability ?? null,
-    historyAvailable: input.historyAvailable ?? true,
+    history: {
+      available: input.historyAvailable ?? true,
+      onOpen: onOpenHistory,
+    },
     voiceReplayAvailable: input.voiceReplayAvailable ?? false,
     playerProfile: defaultPlayerProfileV1,
     playerView: pending.kind === "say"
@@ -116,7 +121,7 @@ function dialoguePropsV1(input: {
       }
       : { kind: "passive", phase: input.phase ?? "active", playbackMode: "normal" },
     resolveText: textV1,
-    ...callbacks,
+    ...dialogueCallbacks,
   };
 }
 
@@ -263,7 +268,8 @@ function renderPlayerV1(input: {
   readonly systemController?: PlayerSystemControllerInternalV1;
 }) {
   const router = input.router ?? createInputRouterV1();
-  const Renderer = input.player.renderer;
+  const DialogueRenderer = input.player.renderer;
+  const HistoryRenderer = input.player.history.renderer;
   const element = (props: NarrativeSurfaceRendererPropsV1) => (
     <PlayerSystemControllerProviderInternalV1
       controller={input.systemController ?? {
@@ -283,7 +289,9 @@ function renderPlayerV1(input: {
     >
       <InputContextProviderV1 router={router}>
         <main data-narrative-surface-focus-scope="dialogue" tabIndex={-1}>
-          <Renderer {...props} />
+          {props.kind === "history"
+            ? <HistoryRenderer {...props} />
+            : <DialogueRenderer {...props} />}
         </main>
       </InputContextProviderV1>
     </PlayerSystemControllerProviderInternalV1>
@@ -296,6 +304,32 @@ function renderPlayerV1(input: {
     unmount: view.unmount,
   };
 }
+
+describe("createDefaultVnPlayerCoreV1", () => {
+  it("renders the cohesive Player without importing or exposing a History control", () => {
+    const router = createInputRouterV1();
+    const player = createDefaultVnPlayerCoreV1({
+      heldInput: createHeldInputHarnessV1().port,
+      rollback: createRollbackHarnessV1().port,
+    });
+    const Renderer = player.renderer;
+    render(
+      <PlayerSystemControllerProviderInternalV1
+        controller={createPlayerSystemControllerHarnessV1().controller}
+      >
+        <InputContextProviderV1 router={router}>
+          <main data-narrative-surface-focus-scope="dialogue" tabIndex={-1}>
+            <Renderer {...dialoguePropsV1()} history={null} />
+          </main>
+        </InputContextProviderV1>
+      </PlayerSystemControllerProviderInternalV1>,
+    );
+
+    expect(screen.getByRole("button", { name: "Auto" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "History" })).toBeNull();
+    expect(document.querySelector("[data-dialogue-history-open='true']")).toBeNull();
+  });
+});
 
 describe("createDefaultVnPlayerV1", () => {
   it("returns conventional VN input defaults and resolves product-owned label text IDs", () => {
@@ -571,17 +605,22 @@ describe("createDefaultVnPlayerV1", () => {
     expect(screen.queryByRole("button", { name: "Voice" })).toBeNull();
   });
 
-  it("disables History until the Host reports a committed entry", () => {
+  it("disables History until the Host reports a committed entry and routes the full preset", async () => {
+    const callbacks = callbacksV1();
     const player = createPlayerV1();
     const view = renderPlayerV1({
       player,
-      props: dialoguePropsV1({ historyAvailable: false }),
+      props: dialoguePropsV1({ historyAvailable: false, callbacks }),
     });
 
     expect(screen.getByRole("button", { name: "History" })).toBeDisabled();
 
-    view.rerender(dialoguePropsV1({ historyAvailable: true }));
-    expect(screen.getByRole("button", { name: "History" })).toBeEnabled();
+    view.rerender(dialoguePropsV1({ historyAvailable: true, callbacks }));
+    const history = screen.getByRole("button", { name: "History" });
+    expect(history).toBeEnabled();
+    await userEvent.setup().click(history);
+    expect(callbacks.onOpenHistory).toHaveBeenCalledExactlyOnceWith();
+    expect(callbacks.onActivate).not.toHaveBeenCalled();
   });
 
   it("renders Choice availability without a full-canvas advance surface", async () => {
@@ -805,15 +844,20 @@ describe("createDefaultVnPlayerV1", () => {
 
   it("keeps aria targets local when parallel renderer instances overlap", () => {
     const player = createPlayerV1();
-    const Renderer = player.renderer;
+    const DialogueRenderer = player.renderer;
+    const HistoryRenderer = player.history.renderer;
     const router = createInputRouterV1();
     const pair = (props: NarrativeSurfaceRendererPropsV1) => (
       <InputContextProviderV1 router={router}>
         <div data-instance="a">
-          <Renderer {...props} />
+          {props.kind === "history"
+            ? <HistoryRenderer {...props} />
+            : <DialogueRenderer {...props} />}
         </div>
         <div data-instance="b">
-          <Renderer {...props} />
+          {props.kind === "history"
+            ? <HistoryRenderer {...props} />
+            : <DialogueRenderer {...props} />}
         </div>
       </InputContextProviderV1>
     );

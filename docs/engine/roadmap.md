@@ -31,6 +31,13 @@ stable deterministic core
   + optional agent/genui workspace
 ```
 
+Mod 是这组能力的组合与生命周期机制，不是把系统拆成微小 plugin 的目标。引擎按 State、
+Session、Save、presentation 与 Host authority 保持内聚；一个产品的核心玩法领域也可以作为
+required Mod 被显式选择，但继续由一个内聚模块拥有。围绕核心、可被真实产品省略、替换、单独
+换代或从最终构建图排除的 genre UI、History、renderer、DevDock、Inspector/editor 与 Agent
+workspace 等能力，优先作为 optional Mod 组合。`required` / `optional` 是产品语义，不能从能力
+是否叫作 Mod 推导；一个按钮、reducer 或 State slot 也不会因此各自成为 Mod。
+
 作者或 Agent 只通过受支持的 package exports，用普通 TypeScript 与稳定数据编写 Story、
 GameplayModule、Narrative、内容表和 React UI。产品在 Browser 或 Deno Desktop GUI 中运行，
 可被语义自动化操作、独立构建、诊断和长期迁移，不复制示例胶水，不修改 engine core。
@@ -70,7 +77,10 @@ Story、GameplayModule、Narrative、UI contribution 与可信 Hotfix 使用 Typ
 build-known candidate；平台中立 Extension Runtime 只管 trusted in-process domain/contribution
 lifecycle；SillyMaker publication/authority 继续拥有 admission、consumer ack、atomic cutover、
 Session migration 与 predecessor retirement。外部 RPC 是并列 Host boundary，不属于 plugin/HMR。
-普通静态游戏可以直接 mount 内聚 Game domain 并完全排除 dynamic extension backend。
+普通静态游戏可以直接 mount 内聚 Game domain 并完全排除 dynamic extension backend。被选择的
+presentation/tooling Mod 可以通过 R1 successor 在保留 GameSession 的情况下热装卸；改变
+Simulation/权威领域的 Mod 通过 R2 exact Save + lease handoff 建立同窗 successor，不能原地改写
+存活 Session graph。两者都允许零 page reload，候选失败都保留 predecessor。
 
 直接访问 `window`、DOM、IndexedDB、内部 `src/**` 或未公开 store 不受兼容承诺保护。Story 可使用明确的 Host/renderer escape hatch，但它们必须在 package ownership、Save 边界和测试中可见。
 
@@ -321,9 +331,9 @@ Ctrl/Tab/H/V/鼠标中键、竖屏布局、最终媒体/音频、rollback/end co
 Save/recovery/settings 也已关闭：产品入口与默认 VN system menu、quick/manual/import/export、完整最小
 Settings/live locale、normal-dispose exact flush、已持久化 autosave reload、return-to-title/Continue，以及
 Web hidden presentation-time exclusion均有分层证据。Browser `pagehide` 仍只是同步 fence + best-effort flush，
-不承诺最后一刻异步 IndexedDB durability。M4 已交付 ambient binding/phase 的 Agent Inspector/CAS 接手，
-以及 workstation Browser/build/static-Desktop/accessibility/silent-run/raw-performance 证据；人类接手、
-代表性 current-low-end qualification、独立 product/engine review 与 Starter feedback 尚未完成，
+不承诺最后一刻异步 IndexedDB durability。M4 已交付 ambient binding/phase 的 Agent 与所有者授权
+Computer Use-assisted participant Inspector/CAS 接手，以及 workstation Browser/build/static-Desktop/
+accessibility/silent-run/raw-performance 证据；代表性 current-low-end qualification、独立 product/engine review 与 Starter feedback 尚未完成，
 当前 WIP 仍不是完整产品或完成证据。Cat Cafe 已在
 本轮开始前独立终止，应用、revision-1 Save 支持、产品 E2E 与 live 发布责任同步结束，不做跨产品 Save 迁移
 或兼容 wrapper。VN 开发期间没有当前旗舰；Bookshop 只保持 maintained minimal Narrative example，不是旗舰

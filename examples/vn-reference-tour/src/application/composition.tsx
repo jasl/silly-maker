@@ -430,8 +430,6 @@ export const vnReferenceTourGameApplicationV1: WebGameApplicationV1<
         mode: "expand-height",
       },
     ],
-    // Scale up proportionally to fill the window (fit scaling keeps the aspect ratio, letterboxing as needed).
-    maxScale: 4,
   },
   textContent: {
     manifest: vnReferenceTourTextContentManifestV1,
@@ -538,6 +536,7 @@ export const vnReferenceTourGameApplicationV1: WebGameApplicationV1<
               ({ kind: "time" as const, tick }) as never,
             ),
           renderer: vnPlayer.renderer,
+          history: vnPlayer.history,
           resolveText: (_locale, textId) => textContent.resolveText(textId as TextId),
           replayCurrentVoice: () => replayVoiceRef.current?.() ?? false,
           isCurrentVoicePlaying: () => currentVoicePlayingRef.current?.() ?? false,

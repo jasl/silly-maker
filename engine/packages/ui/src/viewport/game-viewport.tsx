@@ -83,7 +83,11 @@ export interface GameViewportPropsV1 {
   readonly mode?: GameViewportModeV1;
   /** Finite ordered variants selected only from the measured container size. */
   readonly layoutVariants?: readonly GameViewportLayoutVariantV1[];
-  /** Upper scale bound; the canvas centers instead of growing past it. */
+  /**
+   * Optional upper scale bound. When omitted, the canvas follows the measured
+   * container without an engine-imposed cap; use `1` for a deliberate 1:1
+   * ceiling such as pixel art.
+   */
   readonly maxScale?: number;
   /** Size used when live measurement is unavailable (tests, headless DOM). */
   readonly fallbackSize?: GameViewportSizeV1;
@@ -229,8 +233,8 @@ export function GameViewportV1(props: GameViewportPropsV1): ReactElement {
       throw new TypeError("ui.game_viewport_invalid_fallback_size");
     }
   }
-  const maxScale = props.maxScale ?? 1;
-  if (!Number.isFinite(maxScale) || maxScale <= 0) {
+  const maxScale = props.maxScale ?? Number.POSITIVE_INFINITY;
+  if (props.maxScale !== undefined && (!Number.isFinite(maxScale) || maxScale <= 0)) {
     throw new TypeError("ui.game_viewport_invalid_max_scale");
   }
   const mode = props.mode ?? "fit";

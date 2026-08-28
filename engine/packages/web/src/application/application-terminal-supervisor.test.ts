@@ -113,7 +113,12 @@ describe("Web application terminal supervisor", () => {
         },
         { name: "second", run: () => events.push("fence:second") },
       ],
-      cleanupSteps: [{ name: "root", run: () => events.push("cleanup") }],
+      cleanupSteps: [{
+        name: "root",
+        run: () => {
+          events.push("cleanup");
+        },
+      }],
       releaseCorePersistence: async () => {
         events.push("release");
         return "released" as const;
@@ -202,7 +207,12 @@ describe("Web application terminal supervisor", () => {
             throw new Error("cleanup failed");
           },
         },
-        { name: "later-cleanup", run: () => events.push("cleanup:later") },
+        {
+          name: "later-cleanup",
+          run: () => {
+            events.push("cleanup:later");
+          },
+        },
       ],
       releaseCorePersistence: async () => {
         events.push("release");
@@ -224,12 +234,83 @@ describe("Web application terminal supervisor", () => {
     expect(reportFailure).toHaveBeenCalledTimes(2);
   });
 
+  it("awaits asynchronous cleanup sequentially, reports each failure, and releases last", async () => {
+    const first = deferredV1<void>();
+    const second = deferredV1<void>();
+    const firstFailure = new Error("first cleanup failed");
+    const secondFailure = new Error("second cleanup failed");
+    const events: string[] = [];
+    const reportFailure = vi.fn((step: string) => events.push(`report:${step}`));
+    const supervisor = createWebApplicationTerminalSupervisorInternalV1({
+      fenceSteps: [{ name: "core", run: () => events.push("fence") }],
+      cleanupSteps: [
+        {
+          name: "first",
+          run() {
+            events.push("cleanup:first");
+            return first.promise;
+          },
+        },
+        {
+          name: "second",
+          run() {
+            events.push("cleanup:second");
+            return second.promise;
+          },
+        },
+        {
+          name: "last",
+          run: () => {
+            events.push("cleanup:last");
+          },
+        },
+      ],
+      releaseCorePersistence: async () => {
+        events.push("release");
+        return "released" as const;
+      },
+      reportFailure,
+    });
+
+    const disposal = supervisor.disposeForRebootstrap();
+    expect(events).toEqual(["fence", "cleanup:first"]);
+
+    first.reject(firstFailure);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(events).toEqual([
+      "fence",
+      "cleanup:first",
+      "report:cleanup:first",
+      "cleanup:second",
+    ]);
+    expect(reportFailure).toHaveBeenNthCalledWith(1, "cleanup:first", firstFailure);
+
+    second.reject(secondFailure);
+    await expect(disposal).resolves.toBe("released");
+    expect(events).toEqual([
+      "fence",
+      "cleanup:first",
+      "report:cleanup:first",
+      "cleanup:second",
+      "report:cleanup:second",
+      "cleanup:last",
+      "release",
+    ]);
+    expect(reportFailure).toHaveBeenNthCalledWith(2, "cleanup:second", secondFailure);
+  });
+
   it("latches the first terminal error synchronously and rejects only after teardown", async () => {
     const release = deferredV1<"released">();
     const events: string[] = [];
     const supervisor = createWebApplicationTerminalSupervisorInternalV1({
       fenceSteps: [{ name: "core", run: () => events.push("fence") }],
-      cleanupSteps: [{ name: "root", run: () => events.push("unmount") }],
+      cleanupSteps: [{
+        name: "root",
+        run: () => {
+          events.push("unmount");
+        },
+      }],
       releaseCorePersistence: () => {
         events.push("release");
         return release.promise;
@@ -301,7 +382,12 @@ describe("Web application terminal supervisor", () => {
       const events: string[] = [];
       const supervisor = createWebApplicationTerminalSupervisorInternalV1({
         fenceSteps: [{ name: "core", run: () => events.push("fence") }],
-        cleanupSteps: [{ name: "root", run: () => events.push("unmount") }],
+        cleanupSteps: [{
+          name: "root",
+          run: () => {
+            events.push("unmount");
+          },
+        }],
         releaseCorePersistence: async () => {
           events.push("release");
           return "released" as const;
@@ -328,7 +414,12 @@ describe("Web application terminal supervisor", () => {
     const events: string[] = [];
     const supervisor = createWebApplicationTerminalSupervisorInternalV1({
       fenceSteps: [{ name: "core", run: () => events.push("fence") }],
-      cleanupSteps: [{ name: "root", run: () => events.push("unmount") }],
+      cleanupSteps: [{
+        name: "root",
+        run: () => {
+          events.push("unmount");
+        },
+      }],
       releaseCorePersistence: async () => {
         events.push("release");
         return "released" as const;

@@ -274,6 +274,22 @@ published。
 Module Update Source 只报告 candidate；publication owner 决定 R0–R3。无法明确分类或迁移时拒绝
 candidate，不做“尽量热替换”。
 
+Mod 的“热插拔”复用同一分类，不建立第五种换代协议：
+
+| Mod 影响面                                                                      | 换代 | 保留的 owner                                          | 可观察结果                                                                 |
+| ------------------------------------------------------------------------------- | ---- | ----------------------------------------------------- | -------------------------------------------------------------------------- |
+| content/document bytes                                                          | R0   | Application Domain 与 Session                         | admitted refresh；需要 CAS 的 source 继续走 CAS                            |
+| presentation、History UI、DevDock、Inspector/editor 或其他 tooling contribution | R1   | Game/Session 与未受影响 sibling                       | 同窗原子换代；失败保留旧 contribution                                      |
+| GameplayModule、Simulation rules、State contract 或其他 authoritative domain    | R2   | Host、Authoring/Agent sibling；Game 由 successor 接管 | exact Save + lease handoff；零 page reload；失败保留或只消费可重试 handoff |
+| Host/runtime/bootstrap implementation                                           | R3   | 只保留已明确支持的 durable/recovery data              | 受控 Host restart                                                          |
+
+因此每个 application generation 内的 resolved Mod set 仍不可变。R1 由新的 contribution generation
+替换目标 owner；R2 由新的 Application/Game generation 接管，而不是给存活 Session 暴露
+`setActiveMods()`、改写 reducer registry 或让新旧 Simulation contribution 并存。卸载与安装使用同一
+successor 路径：候选先 load/compile/mount，通过 consumer acknowledgement 后才发布并退休 predecessor。
+浏览器 module cache 中已经求值的 ESM/CSS 不保证物理擦除；“卸载”保证的是 publication、listener、
+resource handle 与 lifecycle owner 退出，不冒充 JavaScript realm sandbox。
+
 ### 4.4 First-party progressive activation
 
 首轮只支持构建期已知、first-party、同一产品显式选择的 contribution：
@@ -356,9 +372,10 @@ Host/session/selection/兼容的 local Inspector state，不承诺任意 visible
 connected staging 当作真实 paint/geometry evidence。standalone/embedded teardown 先 unmount React
 descendants，再 dispose optional companion 和 Host。
 
-embedded mode 仍可选择正好一个 package-private neutral companion。core publication 只看
-compatibility identity、content signature、owner/renderer/disposer；Agent types 只从
-`@sillymaker/studio/internal/agent` 进入。Engine Lab 显式选择 deterministic fake companion，
+embedded mode 可以在 typed Inspector binding 上选择正好一个 package-private neutral companion。
+它只提交 compatibility identity、content signature、owner/renderer/disposer；Host 不提供任意 lookup、
+command bus、workspace DSL、surface set 或 service locator。现有 Agent 类型仍只从
+`@sillymaker/studio/internal/agent` 进入。Engine Lab 显式选择 deterministic fake Agent companion，
 Template 的完整 Author graph 则排除 Agent/RPC。Artifact action 必须与 current Authoring Scene
 document identity/draft revision receipt 配对后才可用，并通过同一 structured-operation executor；
 它不能保存文件、改 Game State 或调用 external effect。这是 private Agent seam，不是 public

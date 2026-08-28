@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 import { useId } from "react";
-import type { KeyboardEvent, MouseEvent, ReactElement } from "react";
+import type { KeyboardEvent, MouseEvent, ReactElement, ReactNode } from "react";
 
-import type { NarrativeSurfaceRendererPropsV1 } from "../narrative/narrative-surface-composition.tsx";
+import type { NarrativeSurfaceDialogueRendererPropsV1 } from "../narrative/narrative-surface-composition.tsx";
 import { systemInputActionIdsV1 } from "../input/contracts.ts";
 import type { DefaultVnPlayerSystemControlsInternalV1 } from "./default-vn-player-system.tsx";
 
-import styles from "./default-vn-player.module.css";
+import styles from "./default-vn-player-core.module.css";
 
 const narrativeFocusScopeSelectorV1 = "[data-narrative-surface-focus-scope]";
 
@@ -15,14 +15,10 @@ export interface DefaultVnPlayerLabelsInternalV1 {
   readonly playbackControls: string;
   readonly back: string;
   readonly forward: string;
-  readonly history: string;
   readonly voice: string;
   readonly skip: string;
   readonly auto: string;
   readonly showUi: string;
-  readonly historyTitle: string;
-  readonly historyEmpty: string;
-  readonly historyClose: string;
   readonly menu: string;
   readonly resume: string;
   readonly save: string;
@@ -63,7 +59,7 @@ function restoreNarrativeFocusAfterPointerActivationV1(
 }
 
 type DefaultVnPlayerDialoguePropsV1 = Extract<
-  NarrativeSurfaceRendererPropsV1,
+  NarrativeSurfaceDialogueRendererPropsV1,
   { readonly kind: "dialogue" }
 >;
 type DefaultVnPlayerSayPropsV1 = Omit<DefaultVnPlayerDialoguePropsV1, "pending"> & {
@@ -83,15 +79,15 @@ interface DefaultVnPlayerRollbackInternalV1 {
   readonly onForward: () => void;
 }
 
-function DefaultVnPlayerPlaybackButtonV1(props: {
+export function DefaultVnPlayerPlaybackButtonInternalV1(props: {
   readonly children: string;
   readonly disabled?: boolean;
   readonly dataNavigation?: "back" | "forward";
   readonly pressed?: boolean;
   readonly dataPlayback?: "auto" | "skip";
-  readonly dataHistory?: boolean;
   readonly dataVoice?: boolean;
   readonly dataSystem?: "menu" | "saves" | "quick-save" | "quick-load" | "settings";
+  readonly dataAttributes?: Readonly<Record<`data-${string}`, string>>;
   readonly onActivate: () => void;
 }): ReactElement {
   return (
@@ -106,11 +102,11 @@ function DefaultVnPlayerPlaybackButtonV1(props: {
         "data-dialogue-playback": props.dataPlayback,
         "aria-pressed": props.pressed ?? false,
       })}
-      {...(props.dataHistory === true ? { "data-dialogue-history-open": "true" } : {})}
       {...(props.dataVoice === true ? { "data-dialogue-voice-replay": "true" } : {})}
       {...(props.dataSystem === undefined
         ? {}
         : { "data-dialogue-system-action": props.dataSystem })}
+      {...props.dataAttributes}
       data-secondary-action={systemInputActionIdsV1.cancel}
       onClick={(event) => {
         event.stopPropagation();
@@ -122,76 +118,12 @@ function DefaultVnPlayerPlaybackButtonV1(props: {
   );
 }
 
-function DefaultVnPlayerHistoryV1(
-  props: Extract<NarrativeSurfaceRendererPropsV1, { readonly kind: "history" }> & {
-    readonly labels: DefaultVnPlayerLabelsInternalV1;
-  },
-): ReactElement {
-  const titleId = useId();
-  return (
-    <dialog
-      open
-      className={styles["history-root"]}
-      data-default-vn-player="history"
-      data-dialogue-history="true"
-      aria-modal="true"
-      aria-labelledby={titleId}
-    >
-      <button
-        type="button"
-        className={styles["history-backdrop"]}
-        aria-label={props.labels.historyClose}
-        data-secondary-action={systemInputActionIdsV1.cancel}
-        tabIndex={-1}
-        onClick={props.onCloseHistory}
-      />
-      <div className={styles["history-panel"]}>
-        <header className={styles["history-header"]}>
-          <h2 id={titleId} className={styles["history-title"]}>
-            {props.labels.historyTitle}
-          </h2>
-          <button
-            type="button"
-            className={styles["history-close"]}
-            data-dialogue-history-close="true"
-            data-secondary-action={systemInputActionIdsV1.cancel}
-            onClick={props.onCloseHistory}
-          >
-            {props.labels.historyClose}
-          </button>
-        </header>
-        {props.history.entries.length === 0
-          ? <p className={styles["history-empty"]}>{props.labels.historyEmpty}</p>
-          : (
-            <ol className={styles["history-list"]} tabIndex={0}>
-              {props.history.entries.map((entry) => (
-                <li
-                  key={entry.occurrenceId}
-                  className={styles["history-entry"]}
-                  data-dialogue-history-entry={entry.kind}
-                >
-                  {entry.speakerTextId === null
-                    ? null
-                    : (
-                      <strong className={styles["history-speaker"]}>
-                        {props.resolveText(entry.speakerTextId)}
-                      </strong>
-                    )}
-                  <span>{props.resolveText(entry.textId)}</span>
-                </li>
-              ))}
-            </ol>
-          )}
-      </div>
-    </dialog>
-  );
-}
-
 function DefaultVnPlayerSayV1(
   props: DefaultVnPlayerSayPropsV1 & {
     readonly labels: DefaultVnPlayerLabelsInternalV1;
     readonly rollback: DefaultVnPlayerRollbackInternalV1;
     readonly system: DefaultVnPlayerSystemControlsInternalV1 | null;
+    readonly auxiliaryPlaybackControl: ReactNode;
   },
 ): ReactElement {
   const playerView = props.playerView.kind === "say" ? props.playerView : null;
@@ -233,95 +165,89 @@ function DefaultVnPlayerSayV1(
           onClick={(event) => event.stopPropagation()}
           onKeyDown={returnNarrativeFocusOnEscapeV1}
         >
-          <DefaultVnPlayerPlaybackButtonV1
+          <DefaultVnPlayerPlaybackButtonInternalV1
             dataNavigation="back"
             disabled={!props.rollback.backAvailable}
             onActivate={props.rollback.onBack}
           >
             {props.labels.back}
-          </DefaultVnPlayerPlaybackButtonV1>
-          <DefaultVnPlayerPlaybackButtonV1
+          </DefaultVnPlayerPlaybackButtonInternalV1>
+          <DefaultVnPlayerPlaybackButtonInternalV1
             dataNavigation="forward"
             disabled={!props.rollback.forwardAvailable}
             onActivate={props.rollback.onForward}
           >
             {props.labels.forward}
-          </DefaultVnPlayerPlaybackButtonV1>
-          <DefaultVnPlayerPlaybackButtonV1
-            dataHistory
-            disabled={!props.historyAvailable}
-            onActivate={props.onOpenHistory}
-          >
-            {props.labels.history}
-          </DefaultVnPlayerPlaybackButtonV1>
+          </DefaultVnPlayerPlaybackButtonInternalV1>
+          {props.auxiliaryPlaybackControl}
           {props.voiceReplayAvailable
             ? (
-              <DefaultVnPlayerPlaybackButtonV1 dataVoice onActivate={props.onReplayVoice}>
+              <DefaultVnPlayerPlaybackButtonInternalV1 dataVoice onActivate={props.onReplayVoice}>
                 {props.labels.voice}
-              </DefaultVnPlayerPlaybackButtonV1>
+              </DefaultVnPlayerPlaybackButtonInternalV1>
             )
             : null}
-          <DefaultVnPlayerPlaybackButtonV1
+          <DefaultVnPlayerPlaybackButtonInternalV1
             dataPlayback="skip"
             pressed={props.playerView.playbackMode === "skip"}
             onActivate={props.onToggleSkip}
           >
             {props.labels.skip}
-          </DefaultVnPlayerPlaybackButtonV1>
-          <DefaultVnPlayerPlaybackButtonV1
+          </DefaultVnPlayerPlaybackButtonInternalV1>
+          <DefaultVnPlayerPlaybackButtonInternalV1
             dataPlayback="auto"
             pressed={props.playerView.playbackMode === "auto"}
             onActivate={props.onToggleAuto}
           >
             {props.labels.auto}
-          </DefaultVnPlayerPlaybackButtonV1>
+          </DefaultVnPlayerPlaybackButtonInternalV1>
           {props.system === null ? null : (
             <>
-              <DefaultVnPlayerPlaybackButtonV1
+              <DefaultVnPlayerPlaybackButtonInternalV1
                 dataSystem="menu"
                 disabled={props.system.busy}
                 onActivate={props.system.openMenu}
               >
                 {props.labels.menu}
-              </DefaultVnPlayerPlaybackButtonV1>
+              </DefaultVnPlayerPlaybackButtonInternalV1>
               {props.system.savesAvailable
                 ? (
-                  <DefaultVnPlayerPlaybackButtonV1
+                  <DefaultVnPlayerPlaybackButtonInternalV1
                     dataSystem="saves"
                     disabled={props.system.busy}
                     onActivate={props.system.openSaves}
                   >
                     {props.labels.save}
-                  </DefaultVnPlayerPlaybackButtonV1>
+                  </DefaultVnPlayerPlaybackButtonInternalV1>
                 )
                 : null}
               {props.system.quickAvailable
                 ? (
                   <>
-                    <DefaultVnPlayerPlaybackButtonV1
+                    <DefaultVnPlayerPlaybackButtonInternalV1
                       dataSystem="quick-save"
                       disabled={props.system.busy}
                       onActivate={props.system.quickSave}
                     >
                       {props.labels.quickSave}
-                    </DefaultVnPlayerPlaybackButtonV1>
-                    <DefaultVnPlayerPlaybackButtonV1
+                    </DefaultVnPlayerPlaybackButtonInternalV1>
+                    <DefaultVnPlayerPlaybackButtonInternalV1
                       dataSystem="quick-load"
                       disabled={props.system.busy}
                       onActivate={props.system.quickLoad}
                     >
                       {props.labels.quickLoad}
-                    </DefaultVnPlayerPlaybackButtonV1>
+                    </DefaultVnPlayerPlaybackButtonInternalV1>
                   </>
                 )
                 : null}
-              <DefaultVnPlayerPlaybackButtonV1
+              <DefaultVnPlayerPlaybackButtonInternalV1
                 dataSystem="settings"
                 disabled={props.system.busy}
                 onActivate={props.system.openSettings}
               >
                 {props.labels.settings}
-              </DefaultVnPlayerPlaybackButtonV1>
+              </DefaultVnPlayerPlaybackButtonInternalV1>
             </>
           )}
         </nav>
@@ -407,67 +333,67 @@ function DefaultVnPlayerChoiceV1(
         aria-label={props.labels.playbackControls}
         onKeyDown={returnNarrativeFocusOnEscapeV1}
       >
-        <DefaultVnPlayerPlaybackButtonV1
+        <DefaultVnPlayerPlaybackButtonInternalV1
           dataNavigation="back"
           disabled={!props.rollback.backAvailable}
           onActivate={props.rollback.onBack}
         >
           {props.labels.back}
-        </DefaultVnPlayerPlaybackButtonV1>
-        <DefaultVnPlayerPlaybackButtonV1
+        </DefaultVnPlayerPlaybackButtonInternalV1>
+        <DefaultVnPlayerPlaybackButtonInternalV1
           dataNavigation="forward"
           disabled={!props.rollback.forwardAvailable}
           onActivate={props.rollback.onForward}
         >
           {props.labels.forward}
-        </DefaultVnPlayerPlaybackButtonV1>
+        </DefaultVnPlayerPlaybackButtonInternalV1>
         {props.system === null ? null : (
           <>
-            <DefaultVnPlayerPlaybackButtonV1
+            <DefaultVnPlayerPlaybackButtonInternalV1
               dataSystem="menu"
               disabled={props.system.busy}
               onActivate={props.system.openMenu}
             >
               {props.labels.menu}
-            </DefaultVnPlayerPlaybackButtonV1>
+            </DefaultVnPlayerPlaybackButtonInternalV1>
             {props.system.savesAvailable
               ? (
-                <DefaultVnPlayerPlaybackButtonV1
+                <DefaultVnPlayerPlaybackButtonInternalV1
                   dataSystem="saves"
                   disabled={props.system.busy}
                   onActivate={props.system.openSaves}
                 >
                   {props.labels.save}
-                </DefaultVnPlayerPlaybackButtonV1>
+                </DefaultVnPlayerPlaybackButtonInternalV1>
               )
               : null}
             {props.system.quickAvailable
               ? (
                 <>
-                  <DefaultVnPlayerPlaybackButtonV1
+                  <DefaultVnPlayerPlaybackButtonInternalV1
                     dataSystem="quick-save"
                     disabled={props.system.busy}
                     onActivate={props.system.quickSave}
                   >
                     {props.labels.quickSave}
-                  </DefaultVnPlayerPlaybackButtonV1>
-                  <DefaultVnPlayerPlaybackButtonV1
+                  </DefaultVnPlayerPlaybackButtonInternalV1>
+                  <DefaultVnPlayerPlaybackButtonInternalV1
                     dataSystem="quick-load"
                     disabled={props.system.busy}
                     onActivate={props.system.quickLoad}
                   >
                     {props.labels.quickLoad}
-                  </DefaultVnPlayerPlaybackButtonV1>
+                  </DefaultVnPlayerPlaybackButtonInternalV1>
                 </>
               )
               : null}
-            <DefaultVnPlayerPlaybackButtonV1
+            <DefaultVnPlayerPlaybackButtonInternalV1
               dataSystem="settings"
               disabled={props.system.busy}
               onActivate={props.system.openSettings}
             >
               {props.labels.settings}
-            </DefaultVnPlayerPlaybackButtonV1>
+            </DefaultVnPlayerPlaybackButtonInternalV1>
           </>
         )}
       </nav>
@@ -518,13 +444,11 @@ export function DefaultVnPlayerChromeHiddenSurfaceInternalV1(props: {
 
 export function DefaultVnPlayerRendererInternalV1(props: {
   readonly labels: DefaultVnPlayerLabelsInternalV1;
-  readonly renderer: NarrativeSurfaceRendererPropsV1;
+  readonly renderer: NarrativeSurfaceDialogueRendererPropsV1;
   readonly rollback: DefaultVnPlayerRollbackInternalV1;
   readonly system: DefaultVnPlayerSystemControlsInternalV1 | null;
+  readonly auxiliaryPlaybackControl: ReactNode;
 }): ReactElement | null {
-  if (props.renderer.kind === "history") {
-    return <DefaultVnPlayerHistoryV1 {...props.renderer} labels={props.labels} />;
-  }
   if (props.renderer.pending.kind === "say") {
     return (
       <DefaultVnPlayerSayV1
@@ -533,6 +457,7 @@ export function DefaultVnPlayerRendererInternalV1(props: {
         labels={props.labels}
         rollback={props.rollback}
         system={props.system}
+        auxiliaryPlaybackControl={props.auxiliaryPlaybackControl}
       />
     );
   }

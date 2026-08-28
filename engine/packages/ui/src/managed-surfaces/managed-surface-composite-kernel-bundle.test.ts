@@ -11,7 +11,7 @@ import {
 import type { ManagedSurfaceCoordinatorRecipeV1 } from "./managed-surface-coordinator-lifetime.ts";
 
 function aggregateFixtureV1() {
-  const narrative = createNarrativeManagedSurfaceFamilyContractInternalV1();
+  const narrative = createNarrativeManagedSurfaceFamilyContractInternalV1({ history: true });
   const wholeCanvas = createWholeCanvasManagedSurfaceFamilyContractInternalV1(Object.freeze([]));
   const recipe: ManagedSurfaceCoordinatorRecipeV1 = Object.freeze({
     resolvedOwnerIds: Object.freeze([

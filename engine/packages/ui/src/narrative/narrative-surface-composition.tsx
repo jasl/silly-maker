@@ -115,8 +115,13 @@ export interface NarrativeSurfaceDialogueRendererPropsV1 {
   readonly choiceAvailability: readonly NarrativeChoiceAvailabilityV1[] | null;
   readonly playerProfile: DeepReadonly<PlayerProfileV1>;
   readonly playerView: DeepReadonly<NarrativeSurfacePlayerViewV1>;
-  /** Whether the Host currently has at least one committed History entry. */
-  readonly historyAvailable: boolean;
+  readonly history:
+    | Readonly<{
+      /** Whether the Host currently has at least one committed History entry. */
+      readonly available: boolean;
+      readonly onOpen: () => void;
+    }>
+    | null;
   readonly voiceReplayAvailable: boolean;
   readonly resolveText: (textId: string) => string;
   readonly onActivate: () => void;
@@ -125,7 +130,6 @@ export interface NarrativeSurfaceDialogueRendererPropsV1 {
   readonly onSubmitCustom: (payload: DeepReadonly<StrictJsonObjectV1>) => void;
   readonly onToggleAuto: () => void;
   readonly onToggleSkip: () => void;
-  readonly onOpenHistory: () => void;
   readonly onReplayVoice: () => void;
 }
 
@@ -140,6 +144,10 @@ export interface NarrativeSurfaceHistoryRendererPropsV1 {
 export type NarrativeSurfaceRendererPropsV1 =
   | NarrativeSurfaceDialogueRendererPropsV1
   | NarrativeSurfaceHistoryRendererPropsV1;
+
+export interface NarrativeSurfaceHistoryFeatureV1 {
+  readonly renderer: ComponentType<NarrativeSurfaceHistoryRendererPropsV1>;
+}
 
 export interface DefineNarrativeSurfaceInputV1<TSemanticPublication> {
   readonly selectNarrative: (
@@ -166,7 +174,8 @@ export interface DefineNarrativeSurfaceInputV1<TSemanticPublication> {
    * frame instead of silently never expiring.
    */
   readonly dispatchTime: ((tick: DeepReadonly<TimeTickV1>) => Promise<unknown>) | null;
-  readonly renderer: ComponentType<NarrativeSurfaceRendererPropsV1>;
+  readonly renderer: ComponentType<NarrativeSurfaceDialogueRendererPropsV1>;
+  readonly history: NarrativeSurfaceHistoryFeatureV1 | null;
   readonly resolveText: (locale: string | null, textId: string) => string;
   readonly replayCurrentVoice: (() => boolean) | null;
   /** Optional playback-lifecycle query used only to hold Player Auto at its deadline. */
@@ -241,6 +250,7 @@ export function useNarrativeSurfaceCompositionBoundActionInternalV1(
 export interface CreateNarrativeSurfaceCompositionDefinitionInputInternalV1<
   TSemanticPublication,
 > {
+  readonly historyEnabledInternalV1: boolean;
   readonly selectNarrativeInternalV1: (
     publication: DeepReadonly<TSemanticPublication>,
   ) => NarrativeSurfaceSelectionInternalV1;
@@ -272,6 +282,7 @@ export function createNarrativeSurfaceCompositionDefinitionInternalV1<
   input: CreateNarrativeSurfaceCompositionDefinitionInputInternalV1<TSemanticPublication>,
 ): NarrativeSurfaceCompositionDefinitionInternalV1<TSemanticPublication> {
   return {
+    historyEnabledInternalV1: input.historyEnabledInternalV1,
     selectNarrativeInternalV1: input.selectNarrativeInternalV1,
     preflightCandidateInternalV1: input.preflightCandidateInternalV1,
   } as NarrativeSurfaceCompositionDefinitionInternalV1<TSemanticPublication>;
@@ -281,14 +292,15 @@ interface NarrativeSurfacePublicDefinitionBindingInternalV1 {
   readonly selectNarrative: (publication: unknown) => NarrativeSurfaceSelectionV1;
   readonly dispatchResolution: (request: NarrativeSurfaceResolutionRequestV1) => Promise<unknown>;
   readonly dispatchTime: ((tick: DeepReadonly<TimeTickV1>) => Promise<unknown>) | null;
-  readonly renderer: ComponentType<NarrativeSurfaceRendererPropsV1>;
+  readonly renderer: ComponentType<NarrativeSurfaceDialogueRendererPropsV1>;
+  readonly history: NarrativeSurfaceHistoryFeatureV1 | null;
   readonly resolveText: (locale: string | null, textId: string) => string;
   readonly replayCurrentVoice: (() => boolean) | null;
   readonly isCurrentVoicePlaying: (() => boolean) | null;
-  readonly rendererComponent: ComponentType<
-    | NarrativeStableDialogueRendererPropsInternalV1
-    | NarrativeStableHistoryRendererPropsInternalV1
-  >;
+  readonly rendererComponent: ComponentType<NarrativeStableDialogueRendererPropsInternalV1>;
+  readonly historyRendererComponent:
+    | ComponentType<NarrativeStableHistoryRendererPropsInternalV1>
+    | null;
 }
 
 interface NarrativeSurfacePublicObservationInternalV1 {
@@ -311,12 +323,10 @@ function useCapturedNarrativeSurfaceActionInternalV1(
   );
 }
 
-function NarrativeSurfacePublicRendererAdapterInternalV1(
+function NarrativeSurfacePublicDialogueRendererAdapterInternalV1(
   props: Readonly<{
     readonly binding: NarrativeSurfacePublicDefinitionBindingInternalV1;
-    readonly rendererProps:
-      | NarrativeStableDialogueRendererPropsInternalV1
-      | NarrativeStableHistoryRendererPropsInternalV1;
+    readonly rendererProps: NarrativeStableDialogueRendererPropsInternalV1;
   }>,
 ): ReactElement {
   const context = useContext(narrativeSurfaceCompositionBoundActionContextInternalV1);
@@ -352,17 +362,18 @@ function NarrativeSurfacePublicRendererAdapterInternalV1(
     context,
     playerInputActionIdsV1.toggleSkip,
   );
-  const openHistory = useCapturedNarrativeSurfaceActionInternalV1(
-    context,
-    playerInputActionIdsV1.toggleHistory,
+  const openHistory = useMemo(
+    () =>
+      props.binding.history === null
+        ? inactiveNarrativeSurfaceCompositionBoundActionInternalV1
+        : context.captureActionInternalV1({
+          actionId: playerInputActionIdsV1.toggleHistory,
+        }),
+    [context, props.binding],
   );
   const replayVoice = useCapturedNarrativeSurfaceActionInternalV1(
     context,
     playerInputActionIdsV1.replayVoice,
-  );
-  const closeHistory = useMemo(
-    () => context.captureHistoryCloseInternalV1(),
-    [context],
   );
   const locale = props.rendererProps.playerProfile.preferences.locale;
   const resolveText = useCallback(
@@ -383,21 +394,6 @@ function NarrativeSurfacePublicRendererAdapterInternalV1(
   const onToggleSkip = useCallback((): void => void toggleSkip(), [toggleSkip]);
   const onOpenHistory = useCallback((): void => void openHistory(), [openHistory]);
   const onReplayVoice = useCallback((): void => void replayVoice(), [replayVoice]);
-  const onCloseHistory = useCallback((): void => void closeHistory(), [closeHistory]);
-
-  if (props.rendererProps.kind === "history") {
-    return createElement(
-      props.binding.renderer,
-      {
-        kind: "history" as const,
-        history: props.rendererProps.history,
-        playerProfile: props.rendererProps.playerProfile,
-        resolveText,
-        onCloseHistory,
-      },
-    );
-  }
-
   const internalView = props.rendererProps.playerView;
   const playerView: NarrativeSurfacePlayerViewV1 = internalView.kind === "say"
     ? {
@@ -427,7 +423,10 @@ function NarrativeSurfacePublicRendererAdapterInternalV1(
       choiceAvailability: currentAvailability,
       playerProfile: props.rendererProps.playerProfile,
       playerView,
-      historyAvailable: (selection?.history.entries.length ?? 0) > 0,
+      history: props.binding.history === null ? null : {
+        available: (selection?.history.entries.length ?? 0) > 0,
+        onOpen: onOpenHistory,
+      },
       voiceReplayAvailable: selection?.pending?.kind === "say" &&
         selection.pending.occurrenceId === props.rendererProps.pending.occurrenceId &&
         selection.voiceReplayAvailable === true,
@@ -438,10 +437,38 @@ function NarrativeSurfacePublicRendererAdapterInternalV1(
       onSubmitCustom,
       onToggleAuto,
       onToggleSkip,
-      onOpenHistory,
       onReplayVoice,
     },
   );
+}
+
+function NarrativeSurfacePublicHistoryRendererAdapterInternalV1(
+  props: Readonly<{
+    readonly binding: NarrativeSurfacePublicDefinitionBindingInternalV1;
+    readonly rendererProps: NarrativeStableHistoryRendererPropsInternalV1;
+  }>,
+): ReactElement {
+  const context = useContext(narrativeSurfaceCompositionBoundActionContextInternalV1);
+  if (context === null || props.binding.history === null) {
+    throw new TypeError("ui.narrative_surface_renderer_context_invalid");
+  }
+  const closeHistory = useMemo(
+    () => context.captureHistoryCloseInternalV1(),
+    [context],
+  );
+  const locale = props.rendererProps.playerProfile.preferences.locale;
+  const resolveText = useCallback(
+    (textId: string): string => props.binding.resolveText(locale, textId),
+    [locale, props.binding],
+  );
+  const onCloseHistory = useCallback((): void => void closeHistory(), [closeHistory]);
+  return createElement(props.binding.history.renderer, {
+    kind: "history" as const,
+    history: props.rendererProps.history,
+    playerProfile: props.rendererProps.playerProfile,
+    resolveText,
+    onCloseHistory,
+  });
 }
 
 function normalizeNarrativeSurfaceClockTimestampInternalV1(value: unknown): number {
@@ -495,15 +522,19 @@ function createNarrativeSurfacePublicCandidateInternalV1(
       rendererComponent: binding.rendererComponent,
       visualConfig: {},
       semanticDispatchPort,
-      historyObservationPort: {
-        getSnapshotInternalV1: () =>
-          observation?.getSelectionInternalV1()?.history ?? selection.history,
-        subscribeInternalV1: (listener: () => void) =>
-          observation?.subscribeInternalV1(listener) ?? (() => undefined),
-      },
-      historyAvailabilityPort: {
-        readHistoryAvailabilityInternalV1: () =>
-          (observation?.getSelectionInternalV1()?.history ?? selection.history).entries.length > 0,
+      history: binding.historyRendererComponent === null ? null : {
+        rendererComponent: binding.historyRendererComponent,
+        observationPort: {
+          getSnapshotInternalV1: () =>
+            observation?.getSelectionInternalV1()?.history ?? selection.history,
+          subscribeInternalV1: (listener: () => void) =>
+            observation?.subscribeInternalV1(listener) ?? (() => undefined),
+        },
+        availabilityPort: {
+          readHistoryAvailabilityInternalV1: () =>
+            (observation?.getSelectionInternalV1()?.history ?? selection.history).entries.length >
+              0,
+        },
       },
       playerProfile: {
         getSnapshotInternalV1: () => environment.playerProfile.current(),
@@ -568,6 +599,7 @@ export function defineNarrativeSurfaceV1<TSemanticPublication>(
       const dispatchResolution = input.dispatchResolution;
       const dispatchTime = input.dispatchTime;
       const renderer = input.renderer;
+      const history = input.history;
       const resolveText = input.resolveText;
       const replayCurrentVoice = input.replayCurrentVoice;
       const isCurrentVoicePlaying = input.isCurrentVoicePlaying;
@@ -576,6 +608,9 @@ export function defineNarrativeSurfaceV1<TSemanticPublication>(
         typeof dispatchResolution === "function" &&
         (dispatchTime === null || typeof dispatchTime === "function") &&
         typeof renderer === "function" &&
+        (history === null ||
+          (isNarrativeSurfaceRecordInternalV1(history) &&
+            typeof history.renderer === "function")) &&
         typeof resolveText === "function" &&
         (replayCurrentVoice === null || typeof replayCurrentVoice === "function") &&
         (isCurrentVoicePlaying === undefined || typeof isCurrentVoicePlaying === "function")
@@ -585,6 +620,7 @@ export function defineNarrativeSurfaceV1<TSemanticPublication>(
           dispatchResolution,
           dispatchTime,
           renderer,
+          history,
           resolveText,
           replayCurrentVoice,
           isCurrentVoicePlaying: isCurrentVoicePlaying ?? null,
@@ -598,19 +634,26 @@ export function defineNarrativeSurfaceV1<TSemanticPublication>(
     throw new TypeError("ui.narrative_surface_definition_invalid");
   }
   const rendererComponent = (
-    rendererProps:
-      | NarrativeStableDialogueRendererPropsInternalV1
-      | NarrativeStableHistoryRendererPropsInternalV1,
+    rendererProps: NarrativeStableDialogueRendererPropsInternalV1,
   ): ReactElement =>
-    createElement(NarrativeSurfacePublicRendererAdapterInternalV1, {
+    createElement(NarrativeSurfacePublicDialogueRendererAdapterInternalV1, {
       binding,
       rendererProps,
     });
+  const historyRendererComponent = admitted.history === null
+    ? null
+    : (rendererProps: NarrativeStableHistoryRendererPropsInternalV1): ReactElement =>
+      createElement(NarrativeSurfacePublicHistoryRendererAdapterInternalV1, {
+        binding,
+        rendererProps,
+      });
   const binding: NarrativeSurfacePublicDefinitionBindingInternalV1 = {
     ...admitted,
     rendererComponent,
+    historyRendererComponent,
   };
   const definition = createNarrativeSurfaceCompositionDefinitionInternalV1({
+    historyEnabledInternalV1: binding.history !== null,
     selectNarrativeInternalV1: (publication: DeepReadonly<TSemanticPublication>) =>
       binding.selectNarrative(publication),
     preflightCandidateInternalV1: (
@@ -633,8 +676,8 @@ export function defineNarrativeSurfaceV1<TSemanticPublication>(
 
 export function appendNarrativeManagedSurfaceRecipeInternalV1(
   recipe: ManagedSurfaceCoordinatorRecipeV1,
+  narrative: ReturnType<typeof createNarrativeManagedSurfaceFamilyContractInternalV1>,
 ): ManagedSurfaceCoordinatorRecipeV1 {
-  const narrative = createNarrativeManagedSurfaceFamilyContractInternalV1();
   return {
     resolvedOwnerIds: [
       ...recipe.resolvedOwnerIds,
@@ -808,6 +851,7 @@ interface NarrativeSurfaceCompletionFenceInternalV1 {
 
 export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPublication>(input: {
   readonly definition: NarrativeSurfaceCompositionDefinitionInternalV1<TSemanticPublication> | null;
+  readonly family: ReturnType<typeof createNarrativeManagedSurfaceFamilyContractInternalV1>;
   readonly environment: NarrativeSurfaceCompositionEnvironmentInternalV1 | null;
   readonly presentation: NarrativeSurfaceSemanticPresentationSourceInternalV1<
     TSemanticPublication
@@ -1492,8 +1536,10 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
           actionId === playerInputActionIdsV1.toggleHistory &&
           consumerResult.kind === "requested"
         ) {
-          return generation.session.getHistoryChildLifecycleInternalV1()
-            .redeemHistoryOpenIntentInternalV1(consumerResult.intent).kind === "preparing";
+          const historyLifecycle = generation.session.getHistoryChildLifecycleInternalV1();
+          return historyLifecycle?.redeemHistoryOpenIntentInternalV1(
+            consumerResult.intent,
+          ).kind === "preparing";
         }
         return consumerResult.kind !== "stale" && consumerResult.kind !== "faulted" &&
           consumerResult.kind !== "unmapped";
@@ -1729,6 +1775,7 @@ export function createNarrativeSurfaceCompositionRuntimeInternalV1<TSemanticPubl
       };
       const bridge = createNarrativeStablePublisherBridgeInternalV1({
         kernelBundle: bundle,
+        family: input.family,
         candidatePreflight,
         barrierStageClaimant: input.stageClaimant,
       });

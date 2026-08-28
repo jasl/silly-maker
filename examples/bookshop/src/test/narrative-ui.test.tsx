@@ -14,7 +14,10 @@ import {
   projectBookshopNarrativeSurfaceSelectionV1,
 } from "../application/composition.tsx";
 import { createBookshopApplicationInstanceV1 } from "../application/core-application.ts";
-import { BookshopNarrativeRendererV1 } from "../application/ui.tsx";
+import {
+  BookshopNarrativeDialogueRendererV1,
+  BookshopNarrativeHistoryRendererV1,
+} from "../application/ui.tsx";
 import { bookshopTextForLocaleV1 } from "../content/presentation.ts";
 
 afterEach(cleanup);
@@ -73,7 +76,10 @@ it("keeps a current Choice disabled until coins enable the same occurrence", asy
       kind: "dialogue" as const,
       pending,
       choiceAvailability,
-      historyAvailable: before.history.entries.length > 0,
+      history: {
+        available: before.history.entries.length > 0,
+        onOpen: vi.fn(),
+      },
       voiceReplayAvailable: false,
       playerProfile: playerProfile.current(),
       playerView: {
@@ -88,12 +94,11 @@ it("keeps a current Choice disabled until coins enable the same occurrence", asy
       onSubmitCustom: vi.fn(),
       onToggleAuto: vi.fn(),
       onToggleSkip: vi.fn(),
-      onOpenHistory: vi.fn(),
       onReplayVoice: vi.fn(),
     });
 
     const view = render(
-      <BookshopNarrativeRendererV1 {...rendererProps(before.choiceAvailability)} />,
+      <BookshopNarrativeDialogueRendererV1 {...rendererProps(before.choiceAvailability)} />,
     );
     const buy = screen.getByRole("button", { name: "花一枚硬币买下它" });
     expect(buy).toBeDisabled();
@@ -110,7 +115,7 @@ it("keeps a current Choice disabled until coins enable the same occurrence", asy
       reasonTextIds: [],
     });
     view.rerender(
-      <BookshopNarrativeRendererV1 {...rendererProps(after.choiceAvailability)} />,
+      <BookshopNarrativeDialogueRendererV1 {...rendererProps(after.choiceAvailability)} />,
     );
     const enabledBuy = screen.getByRole("button", { name: "花一枚硬币买下它" });
     expect(enabledBuy).toBeEnabled();
@@ -118,6 +123,45 @@ it("keeps a current Choice disabled until coins enable the same occurrence", asy
     await userEvent.setup().click(enabledBuy);
     expect(onChoose).toHaveBeenCalledTimes(1);
     expect(onChoose).toHaveBeenCalledWith("choice.bookshop.buy");
+  } finally {
+    await instance.dispose();
+  }
+});
+
+it("renders the optional History feature independently from dialogue", async () => {
+  const instance = await createBookshopApplicationInstanceV1();
+  const playerProfile = await createPlayerProfileStoreV1({
+    records: createMemoryHostRecordStoreV1(),
+    storyId: "story.example.bookshop",
+  });
+  try {
+    await expect(
+      instance.semantic.dispatch({
+        kind: "invoke" as const,
+        actionId: "bookshop.begin_story",
+      } as never),
+    ).resolves.toMatchObject({ kind: "committed" });
+    await expect(instance.semantic.dispatch(advanceV1(1) as never)).resolves.toMatchObject({
+      kind: "committed",
+    });
+    const history = projectBookshopNarrativeSurfaceSelectionV1(
+      instance.semantic.observe(),
+    ).history;
+    const onCloseHistory = vi.fn();
+
+    render(
+      <BookshopNarrativeHistoryRendererV1
+        kind="history"
+        history={history}
+        playerProfile={playerProfile.current()}
+        resolveText={(textId) => bookshopTextForLocaleV1(null, textId)}
+        onCloseHistory={onCloseHistory}
+      />,
+    );
+
+    expect(screen.getByRole("list")).toHaveTextContent("雨还在下");
+    await userEvent.setup().click(screen.getByRole("button", { name: "关闭历史" }));
+    expect(onCloseHistory).toHaveBeenCalledOnce();
   } finally {
     await instance.dispose();
   }

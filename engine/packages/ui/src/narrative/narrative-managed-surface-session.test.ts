@@ -100,9 +100,12 @@ const defaultCandidateSnapshotV1 = {
   rendererComponent: { kind: "session-test-renderer" },
   visualConfig: { skin: "session-test" },
   semanticDispatchPort: defaultSemanticDispatchPortV1,
-  historyObservationPort: defaultHistoryObservationPortV1,
-  historyAvailabilityPort: {
-    readHistoryAvailabilityInternalV1: () => true,
+  history: {
+    rendererComponent: { kind: "session-test-history-renderer" },
+    observationPort: defaultHistoryObservationPortV1,
+    availabilityPort: {
+      readHistoryAvailabilityInternalV1: () => true,
+    },
   },
   playerProfile: defaultDialoguePlayerProfilePortV1,
   presentationClock: defaultDialoguePlayerClockPortV1,
@@ -167,7 +170,7 @@ function pendingV1(
 function createSessionHarnessV1(
   candidatePreflight: NarrativeStableCandidatePreflightInternalV1 = defaultCandidatePreflightV1,
 ): NarrativeSessionHarnessV1 {
-  const contract = createNarrativeManagedSurfaceFamilyContractInternalV1();
+  const contract = createNarrativeManagedSurfaceFamilyContractInternalV1({ history: true });
   const kernelBundle = createManagedSurfaceCompositeKernelBundleInternalV1({
     applicationEpoch: applicationEpochV1,
     recipe: {
@@ -181,6 +184,7 @@ function createSessionHarnessV1(
   const kernel = kernelBundle.compositeRuntimeKernel;
   const bridge = createNarrativeStablePublisherBridgeInternalV1({
     kernelBundle,
+    family: contract,
     candidatePreflight,
   });
   let stateNotifications = 0;
@@ -203,6 +207,7 @@ function createBridgeSuccessorV1(
 ): NarrativeStablePublisherBridgeInternalV1 {
   return createNarrativeStablePublisherBridgeInternalV1({
     kernelBundle: harness.kernelBundle,
+    family: harness.contract,
     candidatePreflight: defaultCandidatePreflightV1,
   });
 }
@@ -342,6 +347,14 @@ function expectTypeErrorV1(run: () => unknown, code: string): void {
   expect(run).toThrowError(code);
 }
 
+function historyLifecycleV1(
+  session: NarrativeStableSessionInternalV1,
+): NarrativeStableHistoryChildLifecycleInternalV1 {
+  const lifecycle = session.getHistoryChildLifecycleInternalV1();
+  if (lifecycle === null) throw new Error("expected enabled History lifecycle");
+  return lifecycle;
+}
+
 interface NarrativeHostFixtureV1 {
   readonly harness: NarrativeSessionHarnessV1;
   readonly session: NarrativeStableSessionInternalV1;
@@ -365,7 +378,10 @@ function createNarrativeHostFixtureV1(input: {
       kind: "captured" as const,
       candidateSnapshot: {
         ...defaultCandidateSnapshotV1,
-        historyObservationPort,
+        history: {
+          ...defaultCandidateSnapshotV1.history,
+          observationPort: historyObservationPort,
+        },
         playerProfile: input.playerProfile ?? defaultCandidateSnapshotV1.playerProfile,
         presentationClock: input.presentationClock ??
           defaultCandidateSnapshotV1.presentationClock,
@@ -519,7 +535,7 @@ function createPreparingHistoryHostFixtureV1(
     fixture.inputRouter,
     fixture.isGestureCurrent,
   );
-  const history = fixture.session.getHistoryChildLifecycleInternalV1()
+  const history = historyLifecycleV1(fixture.session)
     .redeemHistoryOpenIntentInternalV1(minted.intent);
   minted.dispose();
   if (history.kind !== "preparing") throw new Error("expected History preparation");
@@ -580,7 +596,7 @@ function createReadyHistoryHostFixtureV1(
     fixture.inputRouter,
     fixture.isGestureCurrent,
   );
-  const history = fixture.session.getHistoryChildLifecycleInternalV1()
+  const history = historyLifecycleV1(fixture.session)
     .redeemHistoryOpenIntentInternalV1(minted.intent);
   minted.dispose();
   if (history.kind !== "preparing") throw new Error("expected History preparation");
@@ -624,7 +640,7 @@ function createConcurrentPendingHostFixtureV1(
     fixture.inputRouter,
     fixture.isGestureCurrent,
   );
-  const history = fixture.session.getHistoryChildLifecycleInternalV1()
+  const history = historyLifecycleV1(fixture.session)
     .redeemHistoryOpenIntentInternalV1(minted.intent);
   minted.dispose();
   if (history.kind !== "preparing") throw new Error("expected History preparation");
@@ -653,6 +669,59 @@ function createConcurrentPendingHostFixtureV1(
 }
 
 describe("Narrative stable session", () => {
+  it("keeps the core family free of History lifecycle and action reachability", () => {
+    const contract = createNarrativeManagedSurfaceFamilyContractInternalV1({ history: false });
+    const kernelBundle = createManagedSurfaceCompositeKernelBundleInternalV1({
+      applicationEpoch: applicationEpochV1,
+      recipe: {
+        resolvedOwnerIds: contract.resolvedOwnerIds,
+        resolvedSlotDescriptors: contract.resolvedSlotDescriptors,
+      },
+      definitionSidecars: contract.stableDefinitionSidecars,
+    });
+    const bridge = createNarrativeStablePublisherBridgeInternalV1({
+      kernelBundle,
+      family: contract,
+      candidatePreflight: {
+        preflightCandidateInternalV1: () => ({
+          kind: "captured",
+          candidateSnapshot: {
+            ...defaultCandidateSnapshotV1,
+            history: null,
+          },
+        }),
+      },
+    });
+    const session = createNarrativeStableSessionInternalV1({ bridge });
+
+    expect(session.getHistoryChildLifecycleInternalV1()).toBeNull();
+    expect(() => createNarrativeStableHistoryChildLifecycleInternalV1({ bridge })).toThrowError(
+      "ui.narrative_stable_history_child_lifecycle_invalid",
+    );
+    expect(bridge.reconcilePendingInternalV1(pendingV1("say"))).toMatchObject({
+      kind: "applied",
+    });
+    const entry = kernelBundle.compositeRuntimeKernel.getStateInternalV1()
+      .stableRuntimeBindings.find((candidate) => candidate.binding.kind === "preparing");
+    if (entry?.binding.kind !== "preparing") throw new Error("expected core preparation");
+    expect(kernelBundle.compositeRuntimeKernel.settleStableReadinessReadyInternalV1({
+      readinessEvidence: {
+        applicationEpoch: applicationEpochV1,
+        surfaceInstanceId: entry.binding.attempt.identity.surfaceInstanceId,
+      },
+      publisherLease: entry.desiredTarget.publisherLease,
+      sourceRevision: entry.desiredTarget.sourceRevision,
+    })).toMatchObject({ kind: "applied" });
+    const admission = createNarrativeStablePhysicalActionAdmissionInternalV1({
+      bridge,
+      inputRouter: createInputRouterV1(),
+      isGestureCurrent: () => true,
+    });
+    expect(admission.issueHistoryOpenAttemptInternalV1()).toBeNull();
+    admission.disposeInternalV1();
+    bridge.disposeInternalV1();
+  });
+
   it("creates the exact Host runtime and atomically commits a laid-out root preparation", () => {
     const fixture = createNarrativeHostFixtureV1();
     const { runtime } = fixture;
@@ -926,7 +995,7 @@ describe("Narrative stable session", () => {
       fixture.inputRouter,
       fixture.isGestureCurrent,
     );
-    const prepared = fixture.session.getHistoryChildLifecycleInternalV1()
+    const prepared = historyLifecycleV1(fixture.session)
       .redeemHistoryOpenIntentInternalV1(minted.intent);
     minted.dispose();
     if (prepared.kind !== "preparing") throw new Error("expected History preparation");
@@ -1371,7 +1440,7 @@ describe("Narrative stable session", () => {
         fixture.inputRouter,
         fixture.isGestureCurrent,
       );
-      const history = fixture.session.getHistoryChildLifecycleInternalV1()
+      const history = historyLifecycleV1(fixture.session)
         .redeemHistoryOpenIntentInternalV1(minted.intent);
       minted.dispose();
       if (history.kind !== "preparing") throw new Error("expected History preparation");
@@ -1802,7 +1871,7 @@ describe("Narrative stable session", () => {
         fixture.inputRouter,
         fixture.isGestureCurrent,
       );
-      const nested = fixture.session.getHistoryChildLifecycleInternalV1()
+      const nested = historyLifecycleV1(fixture.session)
         .redeemHistoryOpenIntentInternalV1(minted.intent);
       minted.dispose();
       if (nested.kind !== "preparing") {
@@ -1978,7 +2047,7 @@ describe("Narrative stable session", () => {
         fixture.inputRouter,
         fixture.isGestureCurrent,
       );
-      const prepared = fixture.session.getHistoryChildLifecycleInternalV1()
+      const prepared = historyLifecycleV1(fixture.session)
         .redeemHistoryOpenIntentInternalV1(minted.intent);
       minted.dispose();
       if (prepared.kind !== "preparing") {
@@ -2319,7 +2388,7 @@ describe("Narrative stable session", () => {
     expect(rootActive).toMatchObject({ kind: "dialogue", phase: "active" });
     if (rootActive?.kind !== "dialogue") throw new Error("expected active dialogue");
 
-    const lifecycle = fixture.session.getHistoryChildLifecycleInternalV1();
+    const lifecycle = historyLifecycleV1(fixture.session);
     const minted = mintHistoryIntentV1(
       fixture.harness,
       "canonical-history",
@@ -2579,7 +2648,7 @@ describe("Narrative stable session", () => {
       history.inputRouter,
       history.isGestureCurrent,
     );
-    const preparation = history.session.getHistoryChildLifecycleInternalV1()
+    const preparation = historyLifecycleV1(history.session)
       .redeemHistoryOpenIntentInternalV1(minted.intent);
     if (preparation.kind !== "preparing") throw new Error("expected History preparation");
     expect(history.runtime.attachment.settleHistoryReadinessFailedInternalV1(
@@ -2999,7 +3068,7 @@ describe("Narrative stable session", () => {
     session = createNarrativeStableSessionInternalV1({ bridge: harness.bridge });
     const preparation = prepareHistoryV1(
       harness,
-      session.getHistoryChildLifecycleInternalV1(),
+      historyLifecycleV1(session),
       "raw-listener-first-read",
     );
 
@@ -3039,7 +3108,7 @@ describe("Narrative stable session", () => {
     expect(session.getReadinessSnapshotInternalV1()).toBe(readyEmpty);
     expect(observed).toHaveLength(observedBeforeSameVector);
 
-    const lifecycle = session.getHistoryChildLifecycleInternalV1();
+    const lifecycle = historyLifecycleV1(session);
     const historyPreparation = prepareHistoryV1(harness, lifecycle, "history-only");
     const historyOnly = session.getReadinessSnapshotInternalV1();
     expect(historyOnly.entries).toEqual([{

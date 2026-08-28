@@ -1,14 +1,12 @@
-@import url("../theme/global.css");
-
 .reference-dev-dock__load-failure {
   position: absolute;
-  z-index: calc(var(--silly-stage-z-system) + 20);
+  z-index: var(--silly-surface-z-dialog);
   display: flex;
   gap: var(--silly-space-2);
   align-items: center;
   max-inline-size: min(90%, 32rem);
   padding: var(--silly-space-2) var(--silly-space-3);
-  border: 1px solid var(--silly-color-danger, #e5484d);
+  border: 1px solid var(--silly-color-danger);
   border-radius: var(--silly-radius-card);
   color: var(--silly-color-text);
   background: var(--silly-color-surface);

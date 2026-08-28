@@ -46,7 +46,7 @@ import {
   createNarrativeSurfaceCompositionDefinitionInternalV1,
   createNarrativeSurfaceCompositionRuntimeInternalV1,
   defineNarrativeSurfaceV1,
-  type NarrativeSurfaceRendererPropsV1,
+  type NarrativeSurfaceDialogueRendererPropsV1,
   type NarrativeSurfaceCompositionDefinitionInternalV1,
   type NarrativeSurfaceChoiceAvailabilityInternalV1,
   type NarrativeSurfaceSelectionInternalV1,
@@ -164,12 +164,15 @@ function candidatePreflightV1(
       rendererComponent,
       visualConfig: Object.freeze({}),
       semanticDispatchPort,
-      historyObservationPort: Object.freeze({
-        getSnapshotInternalV1: () => selection.history,
-        subscribeInternalV1: () => Object.freeze(() => undefined),
-      }),
-      historyAvailabilityPort: Object.freeze({
-        readHistoryAvailabilityInternalV1: () => selection.history.entries.length > 0,
+      history: Object.freeze({
+        rendererComponent,
+        observationPort: Object.freeze({
+          getSnapshotInternalV1: () => selection.history,
+          subscribeInternalV1: () => Object.freeze(() => undefined),
+        }),
+        availabilityPort: Object.freeze({
+          readHistoryAvailabilityInternalV1: () => selection.history.entries.length > 0,
+        }),
       }),
       playerProfile: Object.freeze({
         getSnapshotInternalV1: () => defaultPlayerProfileV1,
@@ -194,6 +197,7 @@ function definitionV1(): NarrativeSurfaceCompositionDefinitionInternalV1<
   SemanticFixturePublicationV1
 > {
   return createNarrativeSurfaceCompositionDefinitionInternalV1(Object.freeze({
+    historyEnabledInternalV1: true,
     selectNarrativeInternalV1: (
       publication: DeepReadonly<SemanticFixturePublicationV1>,
     ) => publication.selection,
@@ -211,6 +215,7 @@ function definitionWithDispatchV1(
   }>,
 ): NarrativeSurfaceCompositionDefinitionInternalV1<SemanticFixturePublicationV1> {
   return createNarrativeSurfaceCompositionDefinitionInternalV1(Object.freeze({
+    historyEnabledInternalV1: true,
     selectNarrativeInternalV1: (
       publication: DeepReadonly<SemanticFixturePublicationV1>,
     ) => publication.selection,
@@ -236,11 +241,14 @@ function runtimeHarnessV1(input: {
   readonly reportObservation?: (code: "narrative.barrier_replay_unsupported") => void;
   readonly sealCompositionOnFailure?: (error: unknown) => void;
 } = {}) {
-  const recipe = appendNarrativeManagedSurfaceRecipeInternalV1(Object.freeze({
-    resolvedOwnerIds: Object.freeze([]),
-    resolvedSlotDescriptors: Object.freeze([]),
-  }));
-  const narrativeFamily = createNarrativeManagedSurfaceFamilyContractInternalV1();
+  const narrativeFamily = createNarrativeManagedSurfaceFamilyContractInternalV1({ history: true });
+  const recipe = appendNarrativeManagedSurfaceRecipeInternalV1(
+    Object.freeze({
+      resolvedOwnerIds: Object.freeze([]),
+      resolvedSlotDescriptors: Object.freeze([]),
+    }),
+    narrativeFamily,
+  );
   const bundle = createManagedSurfaceCompositeKernelBundleInternalV1(Object.freeze({
     applicationEpoch: parseNonNegativeSafeInteger(7),
     recipe,
@@ -272,6 +280,7 @@ function runtimeHarnessV1(input: {
   const runtime = createRuntime(bundle, "initial");
   const stageClaimant = Object.freeze({});
   const composition = createNarrativeSurfaceCompositionRuntimeInternalV1({
+    family: narrativeFamily,
     definition: input.createDefinition?.(semantic) ??
       (input.definition === undefined ? definitionV1() : input.definition),
     environment: null,
@@ -450,11 +459,24 @@ describe("Narrative Surface composition definition", () => {
       selectNarrative: (publication: SemanticFixturePublicationV1) => publication.selection,
       dispatchResolution: async () => undefined,
       dispatchTime: null,
-      renderer: (_props: NarrativeSurfaceRendererPropsV1) => null,
+      renderer: (_props: NarrativeSurfaceDialogueRendererPropsV1) => null,
+      history: null,
       resolveText: (locale: string | null, textId: string) => `${locale ?? "default"}:${textId}`,
       replayCurrentVoice: null,
     };
-    defineNarrativeSurfaceV1(valid);
+    const core = defineNarrativeSurfaceV1(valid);
+    expect(
+      (core as NarrativeSurfaceCompositionDefinitionInternalV1<SemanticFixturePublicationV1>)
+        .historyEnabledInternalV1,
+    ).toBe(false);
+    const full = defineNarrativeSurfaceV1({
+      ...valid,
+      history: { renderer: (_props: unknown) => null },
+    });
+    expect(
+      (full as NarrativeSurfaceCompositionDefinitionInternalV1<SemanticFixturePublicationV1>)
+        .historyEnabledInternalV1,
+    ).toBe(true);
 
     expect(() =>
       defineNarrativeSurfaceV1({
@@ -479,17 +501,20 @@ describe("Narrative Surface stable composite runtime", () => {
     const overlay = createWorkspaceOverlaySessionConfigurationInternalV1({
       definitions: Object.freeze([]),
     });
-    const recipe = appendNarrativeManagedSurfaceRecipeInternalV1(Object.freeze({
-      resolvedOwnerIds: Object.freeze([
-        ...overlay.recipeContribution.resolvedOwnerIds,
-        ...systemDialogManagedContractInternalV1.resolvedOwnerIds,
-      ]),
-      resolvedSlotDescriptors: Object.freeze([
-        ...overlay.recipeContribution.resolvedSlotDescriptors,
-        ...systemDialogManagedContractInternalV1.resolvedSlotDescriptors,
-      ]),
-    }));
-    const family = createNarrativeManagedSurfaceFamilyContractInternalV1();
+    const family = createNarrativeManagedSurfaceFamilyContractInternalV1({ history: true });
+    const recipe = appendNarrativeManagedSurfaceRecipeInternalV1(
+      Object.freeze({
+        resolvedOwnerIds: Object.freeze([
+          ...overlay.recipeContribution.resolvedOwnerIds,
+          ...systemDialogManagedContractInternalV1.resolvedOwnerIds,
+        ]),
+        resolvedSlotDescriptors: Object.freeze([
+          ...overlay.recipeContribution.resolvedSlotDescriptors,
+          ...systemDialogManagedContractInternalV1.resolvedSlotDescriptors,
+        ]),
+      }),
+      family,
+    );
     const bundle = createManagedSurfaceCompositeKernelBundleInternalV1(Object.freeze({
       applicationEpoch: parseNonNegativeSafeInteger(7),
       recipe,
@@ -592,6 +617,7 @@ describe("Narrative Surface stable composite runtime", () => {
       selection: selectionV1({ pending: first }),
       createDefinition: (semantic) =>
         createNarrativeSurfaceCompositionDefinitionInternalV1(Object.freeze({
+          historyEnabledInternalV1: true,
           selectNarrativeInternalV1: (
             publication: DeepReadonly<SemanticFixturePublicationV1>,
           ) => publication.selection,
@@ -628,6 +654,7 @@ describe("Narrative Surface stable composite runtime", () => {
       sealCompositionOnFailure,
       createDefinition: (semantic) =>
         createNarrativeSurfaceCompositionDefinitionInternalV1(Object.freeze({
+          historyEnabledInternalV1: true,
           selectNarrativeInternalV1: (
             publication: DeepReadonly<SemanticFixturePublicationV1>,
           ) => publication.selection,
@@ -658,6 +685,7 @@ describe("Narrative Surface stable composite runtime", () => {
       sealCompositionOnFailure,
       createDefinition: (semantic) =>
         createNarrativeSurfaceCompositionDefinitionInternalV1(Object.freeze({
+          historyEnabledInternalV1: true,
           selectNarrativeInternalV1: (
             publication: DeepReadonly<SemanticFixturePublicationV1>,
           ) => publication.selection,

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 import type {
+  ExtensionActivationStateInternalV1,
   ExtensionCleanupDiagnosticInternalV1,
   ExtensionFactoryInternalV1,
 } from "../extension-runtime/contracts.ts";
@@ -15,7 +16,9 @@ export type ApplicationModRuntimeErrorCodeInternalV1 =
   | "mod_runtime.target_unknown"
   | "mod_runtime.kind_mismatch"
   | "mod_runtime.collision"
-  | "mod_runtime.compile_failed";
+  | "mod_runtime.compile_failed"
+  | "mod_runtime.selection_generation_invalid"
+  | "mod_runtime.selection_generation_stale";
 
 export class ApplicationModRuntimeErrorInternalV1 extends Error {
   override readonly name = "ApplicationModRuntimeErrorInternalV1";
@@ -135,5 +138,63 @@ export interface ApplicationModRuntimeInternalV1<TCompiled = unknown> {
   readonly activeIdentity: readonly ActiveApplicationModIdentityInternalV1[];
   /** Cold-compiled direct values; consumers bind them before hot execution. */
   readonly compiledPoints: readonly CompiledApplicationModPointInternalV1<TCompiled>[];
+  dispose(): Promise<void>;
+}
+
+export interface ApplicationModSelectionCandidateInternalV1<TPayload = unknown> {
+  /** Monotonic within one application-generation-local controller. */
+  readonly selectionGeneration: number;
+  readonly catalog: readonly ApplicationModSourceInternalV1<TPayload>[];
+  /** Immutable for this candidate generation. */
+  readonly activeModIds: readonly string[];
+}
+
+export interface ApplicationModSelectionInternalV1<TCompiled = unknown> {
+  readonly applicationGeneration: string;
+  readonly selectionGeneration: number;
+  readonly activeIdentity: readonly ActiveApplicationModIdentityInternalV1[];
+  readonly compiledPoints: readonly CompiledApplicationModPointInternalV1<TCompiled>[];
+}
+
+export type ApplicationModSelectionStateInternalV1<TCompiled = unknown> =
+  ExtensionActivationStateInternalV1<ApplicationModSelectionInternalV1<TCompiled>>;
+
+export type ApplicationModSelectionPublisherInternalV1<TCompiled = unknown> = (
+  candidate: ApplicationModSelectionInternalV1<TCompiled>,
+  previous: ApplicationModSelectionInternalV1<TCompiled>,
+) => void | PromiseLike<void>;
+
+export interface CreateApplicationModSelectionControllerInputInternalV1<
+  TPayload = unknown,
+  TCompiled = unknown,
+> {
+  /** The controller cannot outlive or cross this application generation. */
+  readonly applicationGeneration: string;
+  readonly extensionPoints: readonly ApplicationModExtensionPointInternalV1<
+    TPayload,
+    TCompiled
+  >[];
+  readonly onLifecycleDiagnostic?: (
+    diagnostic: ExtensionCleanupDiagnosticInternalV1,
+  ) => void;
+}
+
+export interface ApplicationModSelectionControllerInternalV1<
+  TPayload = unknown,
+  TCompiled = unknown,
+> {
+  activate(
+    candidate: ApplicationModSelectionCandidateInternalV1<TPayload>,
+  ): Promise<ApplicationModSelectionInternalV1<TCompiled>>;
+  /** Retries only a failed initial candidate. */
+  retry(): Promise<ApplicationModSelectionInternalV1<TCompiled>>;
+  /** Stages and publishes a complete successor selection before retiring its predecessor. */
+  restart(
+    candidate: ApplicationModSelectionCandidateInternalV1<TPayload>,
+    publish: ApplicationModSelectionPublisherInternalV1<TCompiled>,
+  ): Promise<ApplicationModSelectionInternalV1<TCompiled>>;
+  getState(): ApplicationModSelectionStateInternalV1<TCompiled>;
+  getCurrent(): ApplicationModSelectionInternalV1<TCompiled> | null;
+  subscribe(listener: () => void): () => void;
   dispose(): Promise<void>;
 }

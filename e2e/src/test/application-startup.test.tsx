@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 import "@testing-library/jest-dom/vitest";
 import { act, cleanup, screen, waitFor } from "@testing-library/react";
+import { userEvent } from "@testing-library/user-event";
 import { useLayoutEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -18,7 +19,7 @@ import {
   createDevDockContributionSetV1,
   type DevDockContributionSetV1,
 } from "@sillymaker/ui/debug";
-import { bindDevDockContributionLifecycleInternalV1 } from "@sillymaker/ui/reference/internal";
+import type { DevDockContributionLoadHandleV1 } from "@sillymaker/ui/reference/dev-dock";
 import {
   applicationStartupSignalEventNameInternalV1,
   type ApplicationStartupSignalDetailInternalV1,
@@ -184,9 +185,11 @@ describe("AR0 Web document-entry startup", () => {
     try {
       await waitFor(() => {
         expect(screen.getByRole("application", { name: "引擎实验室" })).toBeInTheDocument();
-        expect(loadOptional).toHaveBeenCalledTimes(1);
         expect(entry.shell.hidden).toBe(true);
       });
+      expect(loadOptional).not.toHaveBeenCalled();
+      await userEvent.setup().click(screen.getByRole("button", { name: "调试" }));
+      await waitFor(() => expect(loadOptional).toHaveBeenCalledTimes(1));
 
       expect(entry.shell).toHaveAttribute("data-sillymaker-startup-state", "ready");
       expect(entry.shell).toHaveAttribute("data-sillymaker-startup-optional-ready", "[]");
@@ -200,7 +203,7 @@ describe("AR0 Web document-entry startup", () => {
 
   it("publishes optional readiness only after the active DevDock accepts the contribution", async () => {
     const entry = installDocumentEntryV1();
-    const optional = deferredValueV1<DevDockContributionSetV1>();
+    const optional = deferredValueV1<DevDockContributionLoadHandleV1>();
     const loadOptional = vi.fn(() => optional.promise);
     let capabilities: RuntimeCapabilityPortV1 | null = null;
     const devDockControl = createDevDockControlV1();
@@ -240,11 +243,12 @@ describe("AR0 Web document-entry startup", () => {
       await act(async () => {
         await capabilities?.setEnabled("debug_tools", true);
       });
-      await waitFor(() => expect(loadOptional).toHaveBeenCalledTimes(1));
+      expect(loadOptional).not.toHaveBeenCalled();
       act(() => devDockControl.open("startup.optional"));
+      await waitFor(() => expect(loadOptional).toHaveBeenCalledTimes(1));
       expect(signalCountV1(entry.signals, "optional_capability_ready")).toBe(0);
 
-      await act(async () => optional.resolve(optionalDevDockContributionsV1()));
+      await act(async () => optional.resolve({ contributions: optionalDevDockContributionsV1() }));
 
       await waitFor(() => {
         expect(screen.getByText("Accepted optional panel")).toBeInTheDocument();
@@ -258,7 +262,7 @@ describe("AR0 Web document-entry startup", () => {
 
   it("does not publish optional readiness for a late result discarded after capability revoke", async () => {
     const entry = installDocumentEntryV1();
-    const optional = deferredValueV1<DevDockContributionSetV1>();
+    const optional = deferredValueV1<DevDockContributionLoadHandleV1>();
     const loadOptional = vi.fn(() => optional.promise);
     const disposeOptional = vi.fn(async () => undefined);
     let capabilities: RuntimeCapabilityPortV1 | null = null;
@@ -290,16 +294,18 @@ describe("AR0 Web document-entry startup", () => {
       await act(async () => {
         await capabilities?.setEnabled("debug_tools", true);
       });
+      expect(loadOptional).not.toHaveBeenCalled();
+      act(() => devDockControl.open("startup.optional"));
       await waitFor(() => expect(loadOptional).toHaveBeenCalledTimes(1));
       await act(async () => {
         await capabilities?.setEnabled("debug_tools", false);
       });
       await act(async () =>
         optional.resolve(
-          bindDevDockContributionLifecycleInternalV1(
-            optionalDevDockContributionsV1(),
-            disposeOptional,
-          ),
+          {
+            contributions: optionalDevDockContributionsV1(),
+            dispose: disposeOptional,
+          },
         )
       );
 

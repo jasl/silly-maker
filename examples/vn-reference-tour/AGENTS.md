@@ -17,8 +17,13 @@ engine-maintained system menu and Save surfaces, persistent Player settings
 with live locale, and layered exact-close/already-durable Browser recovery
 evidence. Browser `pagehide` does not guarantee a last-moment asynchronous
 IndexedDB flush. M4's package-private ambient-binding operation and Agent
-Inspector/CAS handoff are delivered; the human handoff and remaining product
-evidence remain open, so this playable WIP is not
+Inspector/CAS handoff are delivered. M4 is also proving the accepted
+core/optional-Mod boundary: the traditional VN preset keeps the complete
+product experience, while its dedicated History presentation is structurally
+absent from the focused core graph. Development keeps only a small shared
+launcher resident; the complete Debug menu/window host, selected tool body,
+and Embedded Authoring surface are interaction-lazy rather than a synthetic tooling Mod.
+The owner-authorized Computer Use-assisted author handoff is complete; the remaining product evidence stays open, so this playable WIP is not
 a complete reference or evidence that M4–M5 have shipped.
 
 Read, in order:
@@ -71,9 +76,13 @@ product evidence.
 - `src/content/presentation.ts`: resident UI copy and Stage/transition catalog.
 - `src/content/audio.ts`: audio manifest and intent/effect mapping.
 - `src/game/**`: minimal authoritative route/narrative/stage/audio state.
-- `@sillymaker/ui/narrative-player`: default VN chrome, focus, Ctrl/Tab/H, middle-button, and Back/Forward policy.
+- `@sillymaker/ui/narrative-player`: traditional VN preset; its focused core
+  entry owns dialogue/choice/advance while optional History presentation is
+  selected explicitly. History State remains Story/Save authority in either graph.
 - `src/application/composition.tsx`: product wiring, text-label mapping, and preset selection only; no story copy or rules.
-- `src/tooling/**`: dev-only Inspector/Flow/simulation projections.
+- `src/tooling/**`: dev-only Inspector/Flow/simulation projections and the
+  lightweight development composition whose complete tooling surfaces are
+  interaction-lazy.
 
 One value has one owner. Scene placement never reappears in Story or renderer
 constants; text never reappears in TSX; transient reveal/transition/hover/audio
@@ -89,8 +98,10 @@ preferences. Inspector is read-only for gameplay and absent from Player graphs.
   focused default VN Player rather than creating a second skin/runtime. Do not create a
   Ren'Py DSL, parser, interpreter, broad VN framework, or compatibility layer.
 - Do not add custom pending, monitor, hit region, shared/mid-hold input,
-  Timeline, Mod/Agent, DevDock, Runtime Inspector, or Desktop HMR merely because
-  the engine contains them.
+  Timeline, Agent/RPC, gameplay Mod, production DevDock/Runtime Inspector, or
+  product-owned Desktop HMR merely because the engine contains them. Do not invent a
+  synthetic tool consumer only to demonstrate lifecycle machinery or fragment
+  this compact VN into an artificial public Mod ecosystem.
 - Story references stable Scene/cue IDs. Authoring Scene/Motion data remains the
   human and Agent tuning surface; application code does not mirror it.
 - All assets and text are original or compatibly licensed. Reference research

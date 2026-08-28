@@ -66,7 +66,7 @@ deno task app dev <application-id> --smoke # boot, verify, then stop
 deno task app desktop-dev <application-id> # maintained Deno Desktop + Vite HMR
 ```
 
-The Browser development server uses the application root and supports normal Vite development behavior. `desktop-dev` uses the same application Vite config inside Deno Desktop and explicitly selects only the private Host adapter described later in this guide. An application that declares `inspector: { module, exportName }` receives the dev-only standalone `/__sillymaker/inspector/` page and lazy embedded launcher; its Authoring Host/source-write graph is never part of the static Player. Development capability switches and HMR are not separate production build flavors; capability checks remain runtime behavior. Runtime Story assets live at `<appRoot>/assets/**` and are addressed app-root-relative (`assets/x.webp`): the dev server serves them at `/assets/**`, builds copy them into `dist-web/assets/**`.
+The Browser development server uses the application root and supports normal Vite development behavior. `desktop-dev` uses the same application Vite config inside Deno Desktop and explicitly selects only the private Host adapter described later in this guide. An application that declares `inspector: { module, exportName }` receives the dev-only standalone `/__sillymaker/inspector/` page and lazy embedded-authoring action. When the application selects the reference DevDock, authoring and debug share one movable development panel; otherwise authoring retains a small fallback launcher. The panel is omitted when neither action is available, and its Authoring Host/source-write graph is never part of the static Player. Development capability switches and HMR are not separate production build flavors; capability checks remain runtime behavior. Runtime Story assets live at `<appRoot>/assets/**` and are addressed app-root-relative (`assets/x.webp`): the dev server serves them at `/assets/**`, builds copy them into `dist-web/assets/**`.
 
 ## Build a Player
 
@@ -107,10 +107,11 @@ reference outer UI. The
 implementation only under the `development` export condition; default/release
 resolution receives a fail-closed unavailable stub. Engine Lab is both a
 development positive control and a release negative control: Vite dev may inject
-the lightweight embedded-author launcher and lazy Host runtime, while its final
+the lightweight embedded-authoring action and lazy Host runtime, while its final
 production graph contains neither the Inspector binding/Host/source-write implementation nor
 embedded-author/dev-source virtual entries. Engine Lab explicitly selects the
-reference outer UI; its selected Direct backend still appears only in lazy
+reference outer UI, so the action joins the movable development panel instead of
+rendering a second launcher. Its selected Direct backend still appears only in lazy
 DevDock contribution outputs and never in entry. These
 receipts prove placement and exclusion, not a fixed bundle or startup number. The first CR3
 sample measured the largest Engine Lab entry at 922,550 raw / 214,643 gzip

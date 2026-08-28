@@ -133,16 +133,12 @@ import {
   narrativeChooseActionIdInternalV1,
   narrativeConfirmActionIdInternalV1,
   narrativeCustomActionIdInternalV1,
-  narrativeDialogueDefinitionInternalV1 as dialogueDefinitionInternalV1,
-  narrativeDialogueDefinitionIdInternalV1 as dialogueDefinitionIdInternalV1,
-  narrativeHistoryDefinitionInternalV1 as historyDefinitionInternalV1,
-  narrativeHistoryDefinitionIdInternalV1 as historyDefinitionIdInternalV1,
-  narrativeOwnerIdInternalV1 as ownerIdInternalV1,
   narrativeReplayVoiceActionIdInternalV1,
   narrativeResumeActionIdInternalV1,
   narrativeToggleAutoActionIdInternalV1,
   narrativeToggleHistoryActionIdInternalV1,
   narrativeToggleSkipActionIdInternalV1,
+  type NarrativeManagedSurfaceFamilyContractInternalV1,
 } from "./narrative-managed-surface-definition.ts";
 import {
   createNarrativeStableHistoryRenderObservationInternalV1,
@@ -306,8 +302,13 @@ export interface NarrativeStableCandidateSnapshotInternalV1 {
   readonly rendererComponent: NarrativeStableRendererComponentInternalV1;
   readonly visualConfig: Readonly<object>;
   readonly semanticDispatchPort: NarrativeStableSemanticResolutionPortInternalV1;
-  readonly historyObservationPort: NarrativeStableHistoryObservationPortInternalV1;
-  readonly historyAvailabilityPort: NarrativeStableHistoryAvailabilityPortInternalV1;
+  readonly history:
+    | Readonly<{
+      readonly rendererComponent: NarrativeStableRendererComponentInternalV1;
+      readonly observationPort: NarrativeStableHistoryObservationPortInternalV1;
+      readonly availabilityPort: NarrativeStableHistoryAvailabilityPortInternalV1;
+    }>
+    | null;
   readonly playerProfile: NarrativeStableDialoguePlayerProfilePortInternalV1;
   readonly presentationClock: NarrativeStableDialoguePlayerClockPortInternalV1;
   readonly textResolver: NarrativeStableDialoguePlayerTextResolverPortInternalV1;
@@ -395,6 +396,7 @@ export interface NarrativeStablePublisherBridgeInternalV1 {
 
 export interface CreateNarrativeStablePublisherBridgeInputInternalV1 {
   readonly kernelBundle: ManagedSurfaceCompositeKernelBundleInternalV1;
+  readonly family: NarrativeManagedSurfaceFamilyContractInternalV1;
   readonly candidatePreflight: NarrativeStableCandidatePreflightInternalV1;
   /**
    * Composition-scoped Stage claim identity. Production successors reuse one
@@ -802,6 +804,7 @@ interface NarrativeStablePlaybackModeStateInternalV1 {
 }
 
 interface NarrativeStablePublisherBridgeRecordInternalV1 {
+  readonly family: NarrativeManagedSurfaceFamilyContractInternalV1;
   readonly bridgeIdentity: object;
   readonly compositeRuntimeKernel: ManagedSurfaceStableCompositeRuntimeKernelInternalV1;
   readonly isActiveInternalV1: () => boolean;
@@ -1235,7 +1238,7 @@ interface NarrativeStableHostReadyCommitRecordInternalV1 {
 interface NarrativeStableSessionRecordInternalV1 {
   readonly bridge: NarrativeStablePublisherBridgeInternalV1;
   readonly bridgeRecord: NarrativeStablePublisherBridgeRecordInternalV1;
-  readonly historyChildLifecycle: NarrativeStableHistoryChildLifecycleInternalV1;
+  readonly historyChildLifecycle: NarrativeStableHistoryChildLifecycleInternalV1 | null;
   readonly listeners: Set<() => void>;
   readonly renderListeners: Set<() => void>;
   actionBindingRecords: NarrativeStableHostCandidateActionBindingRecordInternalV1[];
@@ -1875,6 +1878,8 @@ export function createNarrativeStablePublisherBridgeInternalV1(
   input: CreateNarrativeStablePublisherBridgeInputInternalV1,
 ): NarrativeStablePublisherBridgeInternalV1 {
   const bundle = input.kernelBundle;
+  const family = input.family;
+  const dialogueDefinition = family.definitions.dialogue;
   const publisherLeaseRegistry = bundle.publisherLeaseRegistry;
   const admissionAuthority = bundle.admissionAuthority;
   const compositeRuntimeKernel = bundle.compositeRuntimeKernel;
@@ -1907,7 +1912,7 @@ export function createNarrativeStablePublisherBridgeInternalV1(
   let issuedPublisherLease: ManagedSurfaceStablePublisherLeaseInternalV1 | null = null;
   let registered = false;
   try {
-    issuedPublisher = publisherLeaseRegistry.issuePublisher(ownerIdInternalV1);
+    issuedPublisher = publisherLeaseRegistry.issuePublisher(family.ownerId);
     issuedPublisherLease = issuedPublisher.lease;
     const registration = compositeRuntimeKernel.registerStablePublisherLeaseInternalV1(
       issuedPublisherLease,
@@ -1925,7 +1930,8 @@ export function createNarrativeStablePublisherBridgeInternalV1(
     if (
       captured.kind !== "captured" || captured.acceptedBaseline.kind !== "unpublished" ||
       captured.acceptedBaseline.publisherLease !== issuedPublisherLease ||
-      leaseSnapshot?.ownerId !== ownerIdInternalV1 || leaseSnapshot.disposed
+      leaseSnapshot === null || leaseSnapshot.ownerId !== family.ownerId ||
+      leaseSnapshot.disposed
     ) {
       throw new TypeError("ui.narrative_stable_composition_invalid");
     }
@@ -1985,15 +1991,15 @@ export function createNarrativeStablePublisherBridgeInternalV1(
     const baseline = captured.acceptedBaseline;
     if (baseline.publisherLease !== publisherLease) return stableReconcileFaultedResultInternalV1;
     if (baseline.kind === "unpublished") return ({ kind: "empty", context });
-    if (baseline.ownerId !== ownerIdInternalV1) return stableReconcileFaultedResultInternalV1;
+    if (baseline.ownerId !== family.ownerId) return stableReconcileFaultedResultInternalV1;
     if (baseline.targets.length === 0) return ({ kind: "empty", context });
     if (baseline.targets.length !== 1) return stableReconcileFaultedResultInternalV1;
     const target = baseline.targets[0]!;
     const record = narrativeTargetFrameRecordsInternalV1.get(target);
     if (
       target.publisherLease !== publisherLease ||
-      target.ownerId !== ownerIdInternalV1 ||
-      target.definitionId !== dialogueDefinitionIdInternalV1 ||
+      target.ownerId !== family.ownerId ||
+      target.definitionId !== dialogueDefinition.definitionId ||
       target.parentOccurrenceId !== null ||
       record === undefined ||
       record.bridgeIdentity !== bridgeIdentity ||
@@ -2213,7 +2219,7 @@ export function createNarrativeStablePublisherBridgeInternalV1(
       };
       const target: ManagedSurfaceStableTargetInternalV1 = {
         occurrenceId,
-        definitionId: dialogueDefinitionIdInternalV1,
+        definitionId: dialogueDefinition.definitionId,
         parentOccurrenceId: null,
         parameters,
       };
@@ -2327,6 +2333,7 @@ export function createNarrativeStablePublisherBridgeInternalV1(
     },
   };
   narrativeStablePublisherBridgeRecordsInternalV1.set(bridge, {
+    family,
     bridgeIdentity,
     compositeRuntimeKernel,
     isActiveInternalV1: () => bridgeActive,
@@ -3262,11 +3269,16 @@ function redeemNarrativeStableHistoryChildIntentInternalV1(
         return true;
       },
     };
+    const historyDefinition = lifecycleRecord.bridgeRecord.family.definitions.history;
+    if (historyDefinition === null) {
+      controllerRecord.preparationRecord = null;
+      return narrativeHistoryChildFaultedResultInternalV1;
+    }
     authorityInput = {
       parentProof: intentRecord.targetProof,
       expectedParent: intentRecord.directParent,
       expectedSourceRevision: intentRecord.sourceRevision,
-      definition: historyDefinitionInternalV1,
+      definition: historyDefinition,
       semanticOccurrenceId: null,
       commitGuard,
     };
@@ -3305,7 +3317,10 @@ export function createNarrativeStableHistoryChildLifecycleInternalV1(
 ): NarrativeStableHistoryChildLifecycleInternalV1 {
   const exactBridge = input.bridge;
   const bridgeRecord = narrativeStablePublisherBridgeRecordsInternalV1.get(exactBridge);
-  if (bridgeRecord === undefined || !bridgeRecord.active) {
+  if (
+    bridgeRecord === undefined || !bridgeRecord.active ||
+    !bridgeRecord.family.historyEnabled
+  ) {
     throw new TypeError("ui.narrative_stable_history_child_lifecycle_invalid");
   }
   if (bridgeRecord.historyChildLifecycle !== null) {
@@ -3478,7 +3493,7 @@ function deriveNarrativeStableDialogueRenderEntryInternalV1(
       textResolver: materialization.textResolver,
       quickMenuContribution: frame.candidateSnapshot.quickMenuContribution,
     });
-  const focusPolicy = dialogueDefinitionInternalV1.focusPolicy;
+  const focusPolicy = record.bridgeRecord.family.definitions.dialogue.focusPolicy;
   if (focusPolicy.kind !== "owns_focus") return null;
   const entry: NarrativeStableHostRenderEntryInternalV1 = {
     kind: "dialogue" as const,
@@ -3527,8 +3542,10 @@ function deriveNarrativeStableHistoryRenderEntryInternalV1(
       parentIds.add(stableEntry.binding.retainedSubtree.root.attempt.identity.surfaceInstanceId);
     }
   }
+  const historyDefinition = record.bridgeRecord.family.definitions.history;
+  if (historyDefinition === null) return null;
   const children = state.transientState.publication.orderedInstances.filter((instance) =>
-    instance.definition.definitionId === historyDefinitionIdInternalV1 &&
+    instance.definition.definitionId === historyDefinition.definitionId &&
     instance.parentInstanceId !== null && parentIds.has(instance.parentInstanceId)
   );
   if (children.length !== 1) {
@@ -3557,6 +3574,8 @@ function deriveNarrativeStableHistoryRenderEntryInternalV1(
     : null;
   if (phase === "preparing" && preparation === null) return null;
   const frame = preparationRecord.intentRecord.frame;
+  const historyFeature = frame.candidateSnapshot.history;
+  if (historyFeature === null) return null;
   const previous = findPreviousNarrativeStableHostRenderEntryInternalV1(
     record,
     preparationRecord.candidate,
@@ -3594,9 +3613,9 @@ function deriveNarrativeStableHistoryRenderEntryInternalV1(
   const historyObservation = previous?.kind === "history"
     ? previous.historyObservation
     : createNarrativeStableHistoryRenderObservationInternalV1(
-      frame.candidateSnapshot.historyObservationPort,
+      historyFeature.observationPort,
     );
-  const focusPolicy = historyDefinitionInternalV1.focusPolicy;
+  const focusPolicy = historyDefinition.focusPolicy;
   if (focusPolicy.kind !== "owns_focus") return null;
   const entry: NarrativeStableHostRenderEntryInternalV1 = {
     kind: "history" as const,
@@ -3605,7 +3624,7 @@ function deriveNarrativeStableHistoryRenderEntryInternalV1(
     parentRenderKey: parent.renderKey,
     preparation,
     initialFocusTargetId: focusPolicy.initialTargetId,
-    rendererComponent: frame.candidateSnapshot.rendererComponent,
+    rendererComponent: historyFeature.rendererComponent,
     rendererProps,
     historyObservation,
     controller: preparationRecord.controller,
@@ -4189,6 +4208,8 @@ function captureNarrativeStableRootPreparationInternalV1(
 function captureNarrativeStableHistoryPreparationInternalV1(
   record: NarrativeStableSessionRecordInternalV1,
 ): NarrativeStableHistoryChildPreparationInternalV1 | null {
+  const historyDefinition = record.bridgeRecord.family.definitions.history;
+  if (historyDefinition === null || record.historyChildLifecycle === null) return null;
   const preparation = record.bridgeRecord.currentHistoryPreparation;
   if (preparation === null) return null;
   const preparationRecord = narrativeStableHistoryChildPreparationRecordsInternalV1.get(
@@ -4232,7 +4253,7 @@ function captureNarrativeStableHistoryPreparationInternalV1(
     }
   }
   const matchingChildren = state.transientState.publication.orderedInstances.filter((instance) =>
-    instance.definition.definitionId === historyDefinitionIdInternalV1 &&
+    instance.definition.definitionId === historyDefinition.definitionId &&
     instance.parentInstanceId !== null &&
     parentInstanceIds.has(instance.parentInstanceId) &&
     instance.readiness.kind === "preparing" &&
@@ -4463,13 +4484,15 @@ export function createNarrativeStableSessionInternalV1(
   }
   if (bridgeRecord.session !== null) return bridgeRecord.session;
 
-  let historyChildLifecycle: NarrativeStableHistoryChildLifecycleInternalV1;
-  try {
-    historyChildLifecycle = createNarrativeStableHistoryChildLifecycleInternalV1({
-      bridge: exactBridge,
-    });
-  } catch {
-    throw new TypeError("ui.narrative_stable_session_invalid");
+  let historyChildLifecycle: NarrativeStableHistoryChildLifecycleInternalV1 | null = null;
+  if (bridgeRecord.family.historyEnabled) {
+    try {
+      historyChildLifecycle = createNarrativeStableHistoryChildLifecycleInternalV1({
+        bridge: exactBridge,
+      });
+    } catch {
+      throw new TypeError("ui.narrative_stable_session_invalid");
+    }
   }
 
   let session!: NarrativeStableSessionInternalV1;
@@ -4514,7 +4537,7 @@ export function createNarrativeStableSessionInternalV1(
 
     getHistoryChildLifecycleInternalV1(
       this: NarrativeStableSessionInternalV1,
-    ): NarrativeStableHistoryChildLifecycleInternalV1 {
+    ): NarrativeStableHistoryChildLifecycleInternalV1 | null {
       if (narrativeStableSessionRecordsInternalV1.get(session) !== sessionRecord) {
         throw new TypeError("ui.narrative_stable_session_invalid");
       }
@@ -8036,7 +8059,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           const frame = bridge.inspectAdmittedTargetFrameInternalV1(current.directTarget);
           if (
             frame !== record.frame ||
-            frame?.candidateSnapshot.historyAvailabilityPort !==
+            frame?.candidateSnapshot.history?.availabilityPort !==
               record.historyAvailabilityPort
           ) {
             return "stale";
@@ -9196,6 +9219,8 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           return null;
         }
 
+        const historyFeature = frame.candidateSnapshot.history;
+        if (historyFeature === null) return null;
         const attemptRecord: NarrativeStableHistoryOpenActionAttemptRecordInternalV1 = {
           kind: "history_open",
           authority,
@@ -9204,7 +9229,7 @@ export function createNarrativeStablePhysicalActionAdmissionInternalV1(
           directParent: current.directTarget,
           sourceRevision: current.sourceRevision,
           frame,
-          historyAvailabilityPort: frame.candidateSnapshot.historyAvailabilityPort,
+          historyAvailabilityPort: historyFeature.availabilityPort,
           spent: false,
         };
         return createNarrativeAttemptInternalV1<

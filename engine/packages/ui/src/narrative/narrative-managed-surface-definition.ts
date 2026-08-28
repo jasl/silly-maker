@@ -22,12 +22,13 @@ import { parseManagedSurfaceResolvedDefinitionV1 } from "../managed-surfaces/man
 import type { ManagedSurfaceStableDefinitionSidecarInternalV1 } from "../managed-surfaces/managed-surface-stable-admission.ts";
 
 export interface NarrativeManagedSurfaceFamilyContractInternalV1 {
+  readonly historyEnabled: boolean;
   readonly ownerId: ManagedSurfaceOwnerIdV1;
   readonly resolvedOwnerIds: readonly ManagedSurfaceOwnerIdV1[];
   readonly resolvedSlotDescriptors: readonly ManagedSurfaceResolvedSlotDescriptorV1[];
   readonly definitions: Readonly<{
     readonly dialogue: ManagedSurfaceResolvedDefinitionV1;
-    readonly history: ManagedSurfaceResolvedDefinitionV1;
+    readonly history: ManagedSurfaceResolvedDefinitionV1 | null;
   }>;
   readonly stableDefinitionSidecars: readonly ManagedSurfaceStableDefinitionSidecarInternalV1[];
 }
@@ -91,6 +92,9 @@ export const narrativeHistorySlotIdInternalV1 = parseManagedSurfaceSlotIdV1(
 );
 export const narrativeDialogueDefinitionIdInternalV1 = parseManagedSurfaceDefinitionIdV1(
   "surface.narrative.dialogue",
+);
+const narrativeCoreDialogueDefinitionIdInternalV1 = parseManagedSurfaceDefinitionIdV1(
+  "surface.narrative.dialogue.core",
 );
 export const narrativeHistoryDefinitionIdInternalV1 = parseManagedSurfaceDefinitionIdV1(
   "surface.narrative.history",
@@ -170,6 +174,15 @@ export const narrativeDialogueDefinitionInternalV1 = parseManagedSurfaceResolved
   readiness: readinessPolicyInternalV1,
 });
 
+const narrativeCoreDialogueDefinitionInternalV1 = parseManagedSurfaceResolvedDefinitionV1({
+  ...narrativeDialogueDefinitionInternalV1,
+  definitionId: narrativeCoreDialogueDefinitionIdInternalV1,
+  contractRevision: parsePositiveSafeInteger(1),
+  actionIds: narrativeDialogueDefinitionInternalV1.actionIds.filter(
+    (actionId) => actionId !== narrativeToggleHistoryActionIdInternalV1,
+  ),
+});
+
 export const narrativeHistoryDefinitionInternalV1 = parseManagedSurfaceResolvedDefinitionV1({
   definitionId: narrativeHistoryDefinitionIdInternalV1,
   contractRevision: parsePositiveSafeInteger(1),
@@ -214,9 +227,14 @@ const dialogueSidecarInternalV1: ManagedSurfaceStableDefinitionSidecarInternalV1
   definition: narrativeDialogueDefinitionInternalV1,
   parameterSchema: narrativeParametersSchemaInternalV1(),
 };
+const coreDialogueSidecarInternalV1: ManagedSurfaceStableDefinitionSidecarInternalV1 = {
+  definition: narrativeCoreDialogueDefinitionInternalV1,
+  parameterSchema: narrativeParametersSchemaInternalV1(),
+};
 
 export const narrativeManagedSurfaceFamilyContractInternalV1:
   NarrativeManagedSurfaceFamilyContractInternalV1 = {
+    historyEnabled: true,
     ownerId: narrativeOwnerIdInternalV1,
     resolvedOwnerIds: [narrativeOwnerIdInternalV1],
     resolvedSlotDescriptors: [
@@ -230,6 +248,23 @@ export const narrativeManagedSurfaceFamilyContractInternalV1:
     stableDefinitionSidecars: [dialogueSidecarInternalV1],
   };
 
-export function createNarrativeManagedSurfaceFamilyContractInternalV1(): NarrativeManagedSurfaceFamilyContractInternalV1 {
-  return narrativeManagedSurfaceFamilyContractInternalV1;
+const narrativeCoreManagedSurfaceFamilyContractInternalV1:
+  NarrativeManagedSurfaceFamilyContractInternalV1 = {
+    historyEnabled: false,
+    ownerId: narrativeOwnerIdInternalV1,
+    resolvedOwnerIds: [narrativeOwnerIdInternalV1],
+    resolvedSlotDescriptors: [rootSlotDescriptorInternalV1],
+    definitions: {
+      dialogue: narrativeCoreDialogueDefinitionInternalV1,
+      history: null,
+    },
+    stableDefinitionSidecars: [coreDialogueSidecarInternalV1],
+  };
+
+export function createNarrativeManagedSurfaceFamilyContractInternalV1(
+  input: Readonly<{ readonly history: boolean }>,
+): NarrativeManagedSurfaceFamilyContractInternalV1 {
+  return input.history
+    ? narrativeManagedSurfaceFamilyContractInternalV1
+    : narrativeCoreManagedSurfaceFamilyContractInternalV1;
 }

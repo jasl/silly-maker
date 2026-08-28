@@ -1,10 +1,11 @@
 # Mod composition and distribution
 
-状态：2026-07-29 接受的目标设计；**incubation，尚未进入当前实现队列**。本文固定
-Mod V1 的分层、组合、身份、存档和分发边界；概念类型名可在 focused type
-prototype 中调整。当前 Story 仍按 [architecture](../architecture.md) 与
-[story authoring](../story-authoring.md) 显式组合，本文不把现状描述成已有 Mod
-loader。执行优先级由 [roadmap](../roadmap.md) 与
+状态：2026-07-29 接受的目标设计，2026-08-29 按内核内聚与 successor-based hot swap 修订。
+2026-08-25 已交付 **private Stage 0**：build-known、application-local、每 generation immutable 的
+Mod Runtime；public resolver/ABI/SDK/distribution 仍是 **incubation**。本文固定 Mod V1 的分层、
+组合、身份、存档和分发边界；概念类型名可在 focused type prototype 中调整。当前 Story 仍按
+[architecture](../architecture.md) 与 [story authoring](../story-authoring.md) 显式组合，不能把
+private workspace entry 描述成已经发布的 Mod SDK、安装器或市场。执行优先级由 [roadmap](../roadmap.md) 与
 [production-floor sequence](../plans/2026-07-30-production-floor-sequence.md)
 控制；设计存在不构成 M0 激活。
 
@@ -17,6 +18,12 @@ facet。当前 Application Runtime AR1 对 private Extension Runtime 的 direct/
 
 SillyMaker 需要让一个最终游戏或应用通过组合受支持的能力包来完成，而不是把
 VN、经营、养成、卡牌、Agent 工作台或某个具体游戏继续堆进引擎核心。
+
+Mod 是组合和生命周期机制，不是碎片化指标。所有产品能力原则上都可以落在 Mod 边界上，
+但只有需要独立选择、换代、诊断、分发或结构排除的能力才应真的拆开。Engine kernel 按
+authority 保持内聚；产品核心玩法也应由一个内聚 required Mod/领域拥有，围绕核心、可被省略或
+替换的能力再作为 optional Mod 组合。一个按钮、reducer、State slot 或相互强耦合的小段逻辑不会
+仅为“全插件化”各自成为 Mod。
 
 目标形态：
 
@@ -41,14 +48,16 @@ Mod 系统需要同时回答：
 - 不为 Mod 发明另一套 gameplay State、事件总线、service locator 或依赖注入容器；
 - 不扫描 `node_modules`、不靠 import side effect 自动注册；
 - 不以“最后加载者覆盖前者”解决命令、State、路由或 renderer 冲突；
-- 不在运行中的 Session 热插拔 Simulation Mod；
+- 不在同一个运行中的 Session/command queue 原地改写 Simulation Mod graph；影响权威领域的
+  install/uninstall/upgrade 必须走 R2 successor + exact identity/Save migration 或 adoption；
 - 不把任意同 realm JavaScript 描述成安全沙箱；
 - 不把 Agent 生成的一份 UI、一个窗口或一次报表误称为 Mod。
 - 不把外部后台、companion service 或 LLM 连接误称为 Mod；它们经 typed RPC boundary 接入。
 
-### 1.1 Activation gate
+### 1.1 Public ecosystem activation gate
 
-M0–M2 只有在以下条件同时满足后才进入 active plan：
+以下 gate 约束 public resolver/ABI/SDK/distribution，不撤回已交付的 private Stage 0。public M0–M2
+只有在以下条件同时满足后才进入 active plan：
 
 1. Managed Surface 的全部 live families——Overlay、System、Narrative/History
    与 whole-canvas primary/detail——已迁移到统一 lifecycle authority，surface
@@ -133,17 +142,20 @@ package ownership。
 capability；依赖边也不自动等于 lifecycle 顺序。Core → UI → Web 的 composer
 层级是固定边界，不受 Mod 排序改写。
 
-增加、删除或替换代码 Mod 的生命周期是：
+增加、删除或替换代码 Mod 的生命周期是 candidate-first：
 
 ```text
-dispose current instance
-  -> resolve a new Mod set
-  -> validate or migrate persisted data
-  -> create a successor instance
+resolve/load/compile candidate Mod set
+  -> mount candidate in staging-safe lifecycle
+  -> validate identity and migrate/adopt persisted data when authoritative
+  -> consumer acknowledgement + atomic publication
+  -> retire predecessor
 ```
 
-开发期 HMR 可以复用现有 rebootstrap/persistence handoff 机制，但不能在旧 Session
-内改写已经解析的 Module graph。
+R1 presentation/tooling Mod 可以在保留 GameSession 的情况下换代；Simulation/权威 Mod 通过现有
+R2 rebootstrap/persistence handoff 创建 successor instance。两者都可以做到同一窗口、零 page reload，
+但都不能在旧 Session 内改写已经解析的 Module graph。候选在 publication 前失败时 predecessor 保持
+可用；已经释放 predecessor lease 的 R2 失败只允许使用可证明 current 的 handoff 重试。
 
 ## 4. Author definition and facet factories
 
@@ -494,19 +506,24 @@ composer 生命周期：
 - resolved Mod set immutable，可供一次或多次新 instance 使用；
 - instance 独占 Session、lease、listener、Host handle 和 disposable extension。
 
-开发 HMR 或用户切换 Mod 集合时创建 successor instance。不得在 command queue
-中途替换 definition，也不得让旧 contribution registry 与新 Simulation 共存。
+开发 HMR 或用户切换 Mod 集合时按 authority 创建 successor：纯 presentation/tooling contribution
+走 R1 owner successor并保留 GameSession；Simulation/State/Save identity 受影响时创建 R2
+Application/Game successor。不得在 command queue 中途替换 definition，也不得让旧 contribution
+registry 与新 Simulation 共存。
 
 若 facet 创建 instance resource，初始化失败必须回滚已经创建的资源；dispose
 按初始化逆序、exactly once 执行。任何 live handle 都不能进入
 definition、resolved manifest 或 Save。
 
 同 facet resource 按其已验证 DAG 初始化并逆序 dispose；不同 facet 永远服从固定
-Core → UI → Web 创建顺序和 Web → UI → Core 释放顺序。Tooling
-是独立进程/命令生命周期，不进入 Player instance resource graph。
+Core → UI → Web 创建顺序和 Web → UI → Core 释放顺序。offline build tooling 是独立命令
+生命周期；in-app DevDock、Inspector/editor 与 Agent workspace 等 tooling 是 Application sibling
+或 R1 contribution，由 build-known Tooling Mod 显式选择，不进入 gameplay State，也不取得
+GameSession writer。
 
-Presentation-only data revision 是否可在开发期更细粒度热替换，可沿现有
-Hotfix/presentation identity 另行设计；它不改变代码 Mod 集合冻结规则。
+resolved Mod set 在每个 generation 内仍冻结。动态装卸产生新 generation，而不是改变冻结对象；
+代码实现已经被浏览器求值后不承诺从 ESM/CSS cache 物理擦除，卸载承诺的是 publication、listener、
+resource handle 和 lifecycle owner 退出。
 
 ## 10. Distribution stages and trust
 
@@ -595,6 +612,24 @@ VN 是 SillyMaker 的基础能力，应该以一等 first-party capability 交�
 “first-party Mod”不表示把所有现有 VN primitive 从 `@sillymaker/ui` 或 Base
 搬走。Engine 保留可复用机制；VN Mod/pack 组合 narrative、stage、player
 policy、窗口和默认 presentation，具体 ownership 由实现前的 package audit 决定。
+
+VN 本身是一组内聚能力，不是一个不可裁剪的大包：
+
+- `VN core` 负责 dialogue/choice/advance、Stage/Input 协作和基础呈现合同；
+- History presentation、Auto/Skip playback、System/Save UI 等只有在具有独立产品取舍、生命周期或
+  构建价值时成为少数 focused optional Mods；不按每个按钮拆分；
+- traditional VN preset 只是显式选择 core 与常用 optional Mods 的薄组合，不建立第二套 runtime；
+- RPG 可以选择同一 VN core 和自有 UI 而省略 History；完整 VN 产品可以选择 full preset；
+- History 是否进入权威 State 是 Story/Save 合同，History UI 是否被选择是 presentation Mod 合同。
+  省略 UI 不能静默改变 Snapshot bytes、Save lineage 或 replay 语义。
+
+可选能力必须从未选择的 final module/source graph 结构排除，不能只以运行时 `enabled: false` 冒充
+减包。当前只证明 History 专用 renderer、入口控制与 CSS 的 focused core/full 静态排除，以及中立 private
+successor controller 的 R1 候选/提交/失败保留/退休合同；没有为证明动态装卸而保留伪造的 VN Tooling Mod。
+controller 与 DevDock publication seam 也仍是各自的合同证据，当前没有产品将两者端到端连接；因此这里交付的
+是 private hot-swap substrate，不是 public、完整的热插拔 Mod 系统。
+shared generic Narrative family 仍包含通用 History 协作机制。若未来真实产品需要运行期切换 History UI，
+目标路由是 R1；若同时改变 History 的 State schema/retention policy，则按 R2 compatibility/migration 处理。
 
 ### SLG should be capability slices
 

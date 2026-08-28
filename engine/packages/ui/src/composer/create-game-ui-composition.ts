@@ -1079,7 +1079,12 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
   TAssetId,
   TOverlayId
 > {
-  const narrativeFamily = createNarrativeManagedSurfaceFamilyContractInternalV1();
+  const resolvedNarrativeDefinition = resolveNarrativeSurfaceDefinitionInternalV1(
+    narrativeDefinitionInternalV1,
+  );
+  const narrativeFamily = createNarrativeManagedSurfaceFamilyContractInternalV1({
+    history: resolvedNarrativeDefinition?.historyEnabledInternalV1 ?? false,
+  });
   const wholeCanvasFamily = resolveWholeCanvasSurfaceCompositionFamilyContractInternalV1(
     wholeCanvasDefinitionInternalV1,
   );
@@ -1107,6 +1112,7 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
       combineManagedSurfaceRecipeInternalV1(
         overlayConfiguration.recipeContribution,
       ),
+      narrativeFamily,
     ),
     wholeCanvasFamily,
   );
@@ -1224,7 +1230,8 @@ export function createGameUiCompositionWithEpochAllocatorInternalV1<
     noThrowV1(() => managedSurfaceRuntime.dispose());
   };
   const narrativeInternal = createNarrativeSurfaceCompositionRuntimeInternalV1({
-    definition: resolveNarrativeSurfaceDefinitionInternalV1(narrativeDefinitionInternalV1),
+    definition: resolvedNarrativeDefinition,
+    family: narrativeFamily,
     environment: narrativeEnvironmentInternalV1,
     presentation: {
       getSnapshotInternalV1: () =>

@@ -43,6 +43,8 @@
 
 .hit-region {
   position: absolute;
+  min-inline-size: 0;
+  min-block-size: 0;
   padding: 0;
   border: none;
   background: transparent;
@@ -117,7 +119,7 @@
   background: rgb(13 148 136 / 85%);
   color: rgb(240 253 250);
   font-family: var(--silly-debug-font-family, monospace);
-  font-size: 10px;
+  font-size: 0.625rem;
   line-height: 1.6;
   white-space: nowrap;
   text-overflow: ellipsis;
