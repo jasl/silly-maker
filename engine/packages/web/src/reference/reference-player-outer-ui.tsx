@@ -174,6 +174,72 @@ type ReferencePlayerDevDockRuntimeLoadInternalV1 =
   }
   | { readonly kind: "error" };
 
+interface OwnedReferenceDevDockContributionHandleInternalV1 {
+  readonly source: DevDockContributionLoadHandleV1;
+  disposal: Promise<void> | null;
+}
+
+interface ReferenceDevDockContributionLoadOwnerInternalV1 {
+  load(): Promise<DevDockContributionLoadHandleV1>;
+  dispose(): Promise<void>;
+}
+
+function createReferenceDevDockContributionLoadOwnerInternalV1(input: {
+  readonly load: () => Promise<DevDockContributionLoadHandleV1>;
+  acknowledgeCommitted(): void;
+}): ReferenceDevDockContributionLoadOwnerInternalV1 {
+  const ownedHandles = new Set<OwnedReferenceDevDockContributionHandleInternalV1>();
+  let disposalStarted = false;
+  let disposal: Promise<void> | null = null;
+
+  const disposeHandle = (
+    owned: OwnedReferenceDevDockContributionHandleInternalV1,
+  ): Promise<void> => {
+    owned.disposal ??= Promise.resolve()
+      .then(() => owned.source.dispose?.())
+      .then(() => undefined)
+      .finally(() => ownedHandles.delete(owned));
+    return owned.disposal;
+  };
+  const disposeHandles = async (): Promise<void> => {
+    const results = await Promise.allSettled([...ownedHandles].map(disposeHandle));
+    const failure = results.find(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+    if (failure !== undefined) throw failure.reason;
+  };
+
+  return {
+    async load(): Promise<DevDockContributionLoadHandleV1> {
+      const source = await input.load();
+      const owned: OwnedReferenceDevDockContributionHandleInternalV1 = {
+        source,
+        disposal: null,
+      };
+      ownedHandles.add(owned);
+      const handle: DevDockContributionLoadHandleV1 = {
+        contributions: source.contributions,
+        acknowledgeCommitted() {
+          source.acknowledgeCommitted?.();
+          input.acknowledgeCommitted();
+        },
+        dispose: () => disposeHandle(owned),
+      };
+      if (disposalStarted) {
+        // A loader that outlives application teardown must not hold the close
+        // barrier open, but any handle it eventually returns still retires.
+        void disposeHandle(owned).catch(() => undefined);
+      }
+      return handle;
+    },
+    dispose(): Promise<void> {
+      disposalStarted = true;
+      disposal ??= disposeHandles();
+      return disposal;
+    },
+  };
+}
+
 /** Keeps only the combined launcher resident until debug is explicitly used. */
 function InteractionLazyReferenceDevDockInternalV1(
   props: InteractionLazyReferenceDevDockPropsInternalV1,
@@ -354,19 +420,12 @@ export function createReferencePlayerOuterUiV1(input: {
         capabilities: input.capabilities,
         prepareMutation: host.prepareStateMutation,
       });
-      const load = loadContributions === undefined
+      const loadOwner = loadContributions === undefined
         ? undefined
-        : async (): Promise<DevDockContributionLoadHandleV1> => {
-          const loaded = await loadContributions();
-          return {
-            contributions: loaded.contributions,
-            acknowledgeCommitted() {
-              loaded.acknowledgeCommitted?.();
-              host.signalOptionalCapabilityReady();
-            },
-            ...(loaded.dispose === undefined ? {} : { dispose: () => loaded.dispose?.() }),
-          };
-        };
+        : createReferenceDevDockContributionLoadOwnerInternalV1({
+          load: loadContributions,
+          acknowledgeCommitted: host.signalOptionalCapabilityReady,
+        });
       return ({
         settingsSections: input.includeSettingsSections === false ? [] : [
           <DefaultSettingsSectionsV1
@@ -410,7 +469,7 @@ export function createReferencePlayerOuterUiV1(input: {
               onReinitialize={returnToTitle}
               faultCause={host.faultCause}
               stateTuner={stateTuner}
-              {...(load === undefined ? {} : { load })}
+              {...(loadOwner === undefined ? {} : { load: loadOwner.load })}
               {...(input.position === undefined ? {} : { position: input.position })}
               {...(input.chip === undefined ? {} : { chip: input.chip })}
               {...(input.movableChip === undefined ? {} : { movableChip: input.movableChip })}
@@ -418,6 +477,7 @@ export function createReferencePlayerOuterUiV1(input: {
             />
           );
         },
+        ...(loadOwner === undefined ? {} : { dispose: loadOwner.dispose }),
       });
     },
   });

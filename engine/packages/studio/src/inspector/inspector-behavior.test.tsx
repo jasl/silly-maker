@@ -18,8 +18,17 @@ import type {
   AuthoringSceneSourceIoV1,
 } from "../core/authoring-scene-io.ts";
 import type { InspectorBindingV1 } from "../core/binding.ts";
-import { createAuthoringHostInternalV1 } from "../core/authoring-host.ts";
+import {
+  createAuthoringHostInternalV1,
+  resolveAuthoringHostOwnerInternalV1,
+} from "../core/authoring-host.ts";
 import type { RuntimeInspectorSourceV1 } from "../core/runtime-inspection.ts";
+import {
+  admitSceneInspectorContributionSetInternalV1,
+  emptySceneInspectorContributionSetInternalV1,
+} from "../core/scene-inspector-contributions.ts";
+import type { SceneInspectorRenderInputV1 } from "../core/scene-inspector-contributions.ts";
+import { sceneAuthoringOperationSchemaRevisionV1 } from "../core/scene-operations/contract.ts";
 import { InspectorAppV1, InspectorHostSurfaceInternalV1 } from "./inspector-app.tsx";
 import { InspectorObjectPanelV1 } from "./object-inspector.tsx";
 import { InspectorSceneListV1 } from "./scene-list.tsx";
@@ -195,6 +204,285 @@ describe("Inspector large-list behavior", () => {
 });
 
 describe("Inspector editing behavior", () => {
+  it("renders a game-selected property tool and routes its operation through the current Scene", async () => {
+    const scene = sceneV1(1);
+    const path = "src/scenes/contributed.authoring-scene.json";
+    const io: AuthoringSceneSourceIoV1 = {
+      list: () =>
+        Promise.resolve({
+          kind: "ok",
+          scenes: [{ path, sceneId: scene.document.sceneId, label: scene.document.label }],
+          skipped: [],
+        }),
+      read: () =>
+        Promise.resolve({ kind: "ok", digest: "sha256:contributed", admittedScene: scene }),
+      write: () => Promise.resolve({ kind: "error", code: "unavailable" }),
+    };
+    let retainedExecute: SceneInspectorRenderInputV1["execute"] | null = null;
+    const binding: InspectorBindingV1 = {
+      ...bindingV1,
+      sceneInspector: {
+        properties: [{
+          id: "tool.test.nudge",
+          title: "游戏专属构图工具",
+          render(input) {
+            retainedExecute ??= input.execute;
+            const object = input.scene.document.layers[0]!.roots[0]!;
+            return (
+              <div>
+                <output aria-label="专属工具 X 坐标">{object.localTransform.x}</output>
+                <button
+                  type="button"
+                  disabled={input.busy}
+                  onClick={() =>
+                    input.execute({
+                      schemaRevision: sceneAuthoringOperationSchemaRevisionV1,
+                      kind: "scene.object.set_local_transform",
+                      objectId: object.objectId,
+                      localTransform: { ...object.localTransform, x: object.localTransform.x + 8 },
+                    })}
+                >
+                  右移 8
+                </button>
+              </div>
+            );
+          },
+        }],
+      },
+    };
+
+    const { container } = render(
+      <InspectorAppV1 binding={binding} io={io} motionIo={emptyMotionIoV1} />,
+    );
+    await waitFor(() =>
+      expect(container.querySelector("[data-inspector-ready=true]")).not.toBeNull()
+    );
+    expect(screen.getByRole("region", { name: "游戏专属构图工具" })).toBeVisible();
+    expect(screen.getByRole("status", { name: "专属工具 X 坐标" })).toHaveTextContent("0");
+
+    fireEvent.click(screen.getByRole("button", { name: "右移 8" }));
+    await waitFor(() =>
+      expect(screen.getByRole("status", { name: "专属工具 X 坐标" })).toHaveTextContent("8")
+    );
+
+    expect(retainedExecute).not.toBeNull();
+    expect(retainedExecute!({
+      schemaRevision: sceneAuthoringOperationSchemaRevisionV1,
+      kind: "scene.object.set_local_transform",
+      objectId: scene.document.layers[0]!.roots[0]!.objectId,
+      localTransform: {
+        ...scene.document.layers[0]!.roots[0]!.localTransform,
+        x: 99,
+      },
+    })).toMatchObject({
+      kind: "rejected",
+      diagnostic: { code: "scene_authoring.revision_stale" },
+    });
+    expect(screen.getByRole("status", { name: "专属工具 X 坐标" })).toHaveTextContent("8");
+  });
+
+  it("keeps contribution callbacks inert in a probe view", async () => {
+    const scene = sceneV1(1);
+    const path = "src/scenes/probe.authoring-scene.json";
+    const sceneIo: AuthoringSceneSourceIoV1 = {
+      list: () => Promise.resolve({ kind: "ok", scenes: [], skipped: [] }),
+      read: () => Promise.resolve({ kind: "ok", digest: "sha256:probe", admittedScene: scene }),
+      write: () => Promise.resolve({ kind: "error", code: "unavailable" }),
+    };
+    const host = createAuthoringHostInternalV1({ sceneIo, motionIo: emptyMotionIoV1 });
+    const owner = resolveAuthoringHostOwnerInternalV1(host);
+    expect(await owner.sceneSession.open(path)).toMatchObject({ kind: "ok" });
+    const openedRevision = owner.sceneSession.getSnapshot().draftRevision;
+    let probeInput: SceneInspectorRenderInputV1 | null = null;
+    const binding: InspectorBindingV1 = {
+      ...bindingV1,
+      sceneInspector: {
+        properties: [{
+          id: "tool.test.probe",
+          title: "Probe tool",
+          render(input) {
+            probeInput = input;
+            return null;
+          },
+        }],
+      },
+    };
+
+    render(
+      <InspectorHostSurfaceInternalV1
+        host={host}
+        binding={binding}
+        sceneInspectorContributions={admitSceneInspectorContributionSetInternalV1(
+          binding.sceneInspector,
+        )}
+        mode="embedded"
+        publicationRole="probe"
+        viewId={9_000}
+      />,
+    );
+    await waitFor(() => expect(probeInput).not.toBeNull());
+    const object = scene.document.layers[0]!.roots[0]!;
+    expect(probeInput!.execute({
+      schemaRevision: sceneAuthoringOperationSchemaRevisionV1,
+      kind: "scene.object.set_local_transform",
+      objectId: object.objectId,
+      localTransform: { ...object.localTransform, x: 8 },
+    })).toMatchObject({
+      kind: "rejected",
+      diagnostic: { code: "scene_authoring.view_inactive" },
+    });
+    expect(probeInput!.selectObject(object.objectId)).toBe(false);
+    expect(owner.sceneSession.getSnapshot().draftRevision).toBe(openedRevision);
+    await host.dispose();
+  });
+
+  it("retires retained callbacks when a game tool binding successor commits", async () => {
+    const scene = sceneV1(1);
+    const path = "src/scenes/successor.authoring-scene.json";
+    const sceneIo: AuthoringSceneSourceIoV1 = {
+      list: () => Promise.resolve({ kind: "ok", scenes: [], skipped: [] }),
+      read: () => Promise.resolve({ kind: "ok", digest: "sha256:successor", admittedScene: scene }),
+      write: () => Promise.resolve({ kind: "error", code: "unavailable" }),
+    };
+    const host = createAuthoringHostInternalV1({ sceneIo, motionIo: emptyMotionIoV1 });
+    const owner = resolveAuthoringHostOwnerInternalV1(host);
+    expect(await owner.sceneSession.open(path)).toMatchObject({ kind: "ok" });
+    let predecessorInput: SceneInspectorRenderInputV1 | null = null;
+    let successorInput: SceneInspectorRenderInputV1 | null = null;
+    const bindingFor = (
+      id: string,
+      capture: (input: SceneInspectorRenderInputV1) => void,
+    ): InspectorBindingV1 => ({
+      ...bindingV1,
+      sceneInspector: {
+        properties: [{
+          id,
+          title: id,
+          render(input) {
+            capture(input);
+            return null;
+          },
+        }],
+      },
+    });
+    const predecessor = bindingFor("tool.test.predecessor", (input) => {
+      predecessorInput = input;
+    });
+    const successor = bindingFor("tool.test.successor", (input) => {
+      successorInput = input;
+    });
+    const rendered = render(
+      <InspectorHostSurfaceInternalV1
+        host={host}
+        binding={predecessor}
+        sceneInspectorContributions={admitSceneInspectorContributionSetInternalV1(
+          predecessor.sceneInspector,
+        )}
+        mode="embedded"
+        publicationRole="visible"
+        viewId={9_002}
+      />,
+    );
+    await waitFor(() => expect(predecessorInput).not.toBeNull());
+    const before = owner.sceneSession.getSnapshot();
+
+    rendered.rerender(
+      <InspectorHostSurfaceInternalV1
+        host={host}
+        binding={successor}
+        sceneInspectorContributions={admitSceneInspectorContributionSetInternalV1(
+          successor.sceneInspector,
+        )}
+        mode="embedded"
+        publicationRole="visible"
+        viewId={9_002}
+      />,
+    );
+    await waitFor(() => expect(successorInput).not.toBeNull());
+    expect(owner.sceneSession.getSnapshot()).toMatchObject({
+      documentIdentity: before.documentIdentity,
+      draftRevision: before.draftRevision,
+    });
+
+    const object = scene.document.layers[0]!.roots[0]!;
+    expect(predecessorInput!.execute({
+      schemaRevision: sceneAuthoringOperationSchemaRevisionV1,
+      kind: "scene.object.set_local_transform",
+      objectId: object.objectId,
+      localTransform: { ...object.localTransform, x: 8 },
+    })).toMatchObject({
+      kind: "rejected",
+      diagnostic: { code: "scene_authoring.view_inactive" },
+    });
+    expect(predecessorInput!.selectObject(object.objectId)).toBe(false);
+    expect(owner.sceneSession.getSnapshot().draftRevision).toBe(before.draftRevision);
+    expect(successorInput!.publicationRole).toBe("visible");
+    await host.dispose();
+  });
+
+  it("rejects a retained selection callback after a document successor", async () => {
+    const firstScene = sceneV1(2);
+    const secondScene = sceneV1(2);
+    const firstPath = "src/scenes/selection-first.authoring-scene.json";
+    const secondPath = "src/scenes/selection-second.authoring-scene.json";
+    const sceneIo: AuthoringSceneSourceIoV1 = {
+      list: () => Promise.resolve({ kind: "ok", scenes: [], skipped: [] }),
+      read: (path) =>
+        Promise.resolve({
+          kind: "ok",
+          digest: path === firstPath ? "sha256:selection-first" : "sha256:selection-second",
+          admittedScene: path === firstPath ? firstScene : secondScene,
+        }),
+      write: () => Promise.resolve({ kind: "error", code: "unavailable" }),
+    };
+    const host = createAuthoringHostInternalV1({ sceneIo, motionIo: emptyMotionIoV1 });
+    const owner = resolveAuthoringHostOwnerInternalV1(host);
+    expect(await owner.sceneSession.open(firstPath)).toMatchObject({ kind: "ok" });
+    let retainedInput: SceneInspectorRenderInputV1 | null = null;
+    let currentInput: SceneInspectorRenderInputV1 | null = null;
+    const binding: InspectorBindingV1 = {
+      ...bindingV1,
+      sceneInspector: {
+        properties: [{
+          id: "tool.test.selection-currentness",
+          title: "Selection currentness",
+          render(input) {
+            retainedInput ??= input;
+            currentInput = input;
+            return null;
+          },
+        }],
+      },
+    };
+    render(
+      <InspectorHostSurfaceInternalV1
+        host={host}
+        binding={binding}
+        sceneInspectorContributions={admitSceneInspectorContributionSetInternalV1(
+          binding.sceneInspector,
+        )}
+        mode="embedded"
+        publicationRole="visible"
+        viewId={9_003}
+      />,
+    );
+    await waitFor(() => expect(retainedInput).not.toBeNull());
+    const firstDocumentIdentity = retainedInput!.documentIdentity;
+
+    expect(await owner.sceneSession.open(secondPath)).toMatchObject({ kind: "ok" });
+    await waitFor(() => {
+      expect(currentInput?.documentIdentity).not.toBe(firstDocumentIdentity);
+    });
+    const secondObjectId = secondScene.document.layers[0]!.roots[1]!.objectId;
+    expect(currentInput!.selectObject(secondObjectId)).toBe(true);
+    expect(host.getSnapshot().selectedObjectId).toBe(secondObjectId);
+
+    const firstObjectId = firstScene.document.layers[0]!.roots[0]!.objectId;
+    expect(retainedInput!.selectObject(firstObjectId)).toBe(false);
+    expect(host.getSnapshot().selectedObjectId).toBe(secondObjectId);
+    await host.dispose();
+  });
+
   it("does not attach the runtime observer to an inert publication probe", async () => {
     const subscribe = vi.fn<RuntimeInspectorSourceV1["subscribe"]>(() => () => undefined);
     const runtimeSnapshot = {
@@ -229,6 +517,7 @@ describe("Inspector editing behavior", () => {
       <InspectorHostSurfaceInternalV1
         host={host}
         binding={binding}
+        sceneInspectorContributions={emptySceneInspectorContributionSetInternalV1}
         mode="embedded"
         publicationRole="probe"
         viewId={9_001}
@@ -242,6 +531,7 @@ describe("Inspector editing behavior", () => {
       <InspectorHostSurfaceInternalV1
         host={host}
         binding={binding}
+        sceneInspectorContributions={emptySceneInspectorContributionSetInternalV1}
         mode="embedded"
         publicationRole="visible"
         viewId={9_001}

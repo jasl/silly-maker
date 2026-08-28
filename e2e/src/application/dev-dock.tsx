@@ -11,7 +11,6 @@ import {
   DebugNarrativeGraphViewV1,
   DebugValueInspectorV1,
   StageProvenancePanelV1,
-  createDevDockContributionSetV1,
 } from "@sillymaker/ui/debug";
 import { openStorySourceInDevServerV1 } from "@sillymaker/ui/debug/dev-source-client";
 
@@ -71,7 +70,7 @@ export function createLabDevDockContributionsV1(input: {
     }),
   );
 
-  return createDevDockContributionSetV1({
+  return {
     panels: [
       {
         id: "panel.e2e.stage",
@@ -153,5 +152,5 @@ export function createLabDevDockContributionsV1(input: {
         ),
       },
     ],
-  });
+  };
 }

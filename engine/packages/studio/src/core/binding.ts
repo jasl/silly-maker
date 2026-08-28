@@ -2,6 +2,7 @@
 import type { StageContentCatalogV1, TimelineCatalogV1 } from "@sillymaker/base";
 import type { AssetUrlRegistryV1, SemanticStageEntryRendererV1 } from "@sillymaker/ui";
 import type { RuntimeInspectorSourceV1 } from "./runtime-inspection.ts";
+import type { SceneInspectorContributionSetV1 } from "./scene-inspector-contributions.ts";
 
 /**
  * Story-owned, read-only narrative projection. It remains a data contract even
@@ -63,6 +64,8 @@ export interface InspectorBindingV1 {
   readonly timelines?: TimelineCatalogV1;
   /** Optional application-owned runtime projection; the Inspector never loads a unit through it. */
   readonly runtime?: RuntimeInspectorSourceV1;
+  /** Build-known game/editor Mod tools admitted once by the Scene Inspector Host. */
+  readonly sceneInspector?: SceneInspectorContributionSetV1;
   /** Releases application-owned, dev-only resources when this binding retires. */
-  dispose?(): void;
+  dispose?(): void | PromiseLike<void>;
 }

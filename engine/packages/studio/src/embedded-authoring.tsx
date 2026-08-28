@@ -5,6 +5,7 @@ import type { ReactElement } from "react";
 import { createEmbeddedAuthoringLauncherPortInternalV1 } from "@sillymaker/ui/internal/embedded-authoring-launcher";
 
 import type { InspectorBindingV1 } from "./core/binding.ts";
+import type { SceneInspectorContributionSetV1 } from "./core/scene-inspector-contributions.ts";
 import type { AuthoringHostInternalV1 } from "./core/authoring-host.ts";
 import { resolveAuthoringHostOwnerInternalV1 } from "./core/authoring-host.ts";
 import { AuthoringCompanionSurfaceInternalV1 } from "./core/authoring-companion-surface.tsx";
@@ -18,6 +19,7 @@ import styles from "./embedded-authoring.module.css";
 export interface EmbeddedAuthoringSurfacePropsInternalV1 {
   readonly host: AuthoringHostInternalV1;
   readonly binding: InspectorBindingV1;
+  readonly sceneInspectorContributions: SceneInspectorContributionSetV1;
   readonly publicationRole: "visible" | "probe";
   readonly viewId: number;
   readonly companion?: {
@@ -145,6 +147,7 @@ export function EmbeddedAuthoringSurfaceInternalV1(
             <InspectorHostSurfaceInternalV1
               host={props.host}
               binding={props.binding}
+              sceneInspectorContributions={props.sceneInspectorContributions}
               mode="embedded"
               publicationRole={props.publicationRole}
               viewId={props.viewId}

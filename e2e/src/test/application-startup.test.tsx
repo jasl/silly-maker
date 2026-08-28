@@ -158,10 +158,10 @@ describe("AR0 Web document-entry startup", () => {
     const loadOptional = vi.fn(
       () => new Promise<never>(() => undefined),
     );
-    const application = Object.freeze({
+    const application = {
       ...labGameApplicationV1,
       ui(input: Parameters<typeof labGameApplicationV1.ui>[0]) {
-        return Object.freeze({
+        return {
           ...labGameApplicationV1.ui(input),
           outerUi: createReferencePlayerOuterUiV1({
             instance: input.instance,
@@ -171,9 +171,9 @@ describe("AR0 Web document-entry startup", () => {
             presentationRate: input.presentationRate,
             loadContributions: loadOptional,
           }),
-        });
+        };
       },
-    });
+    };
 
     const started = await startWebGameApplicationV1(
       application,
@@ -216,11 +216,11 @@ describe("AR0 Web document-entry startup", () => {
         ) ?? false;
       }
     });
-    const application = Object.freeze({
+    const application = {
       ...labGameApplicationV1,
       ui(input: Parameters<typeof labGameApplicationV1.ui>[0]) {
         capabilities = input.capabilities;
-        return Object.freeze({
+        return {
           ...labGameApplicationV1.ui(input),
           outerUi: createReferencePlayerOuterUiV1({
             instance: input.instance,
@@ -231,9 +231,9 @@ describe("AR0 Web document-entry startup", () => {
             control: devDockControl,
             loadContributions: loadOptional,
           }),
-        });
+        };
       },
-    });
+    };
 
     const started = await startWebGameApplicationV1(
       application,
@@ -315,6 +315,77 @@ describe("AR0 Web document-entry startup", () => {
       await waitFor(() => expect(disposeOptional).toHaveBeenCalledOnce());
     } finally {
       await started.dispose();
+    }
+  });
+
+  it("waits for the active DevDock handle exactly once during application disposal", async () => {
+    installDocumentEntryV1();
+    const optional = deferredValueV1<DevDockContributionLoadHandleV1>();
+    const released = deferredValueV1<void>();
+    const disposeOptional = vi.fn(() => released.promise);
+    const loadOptional = vi.fn(() => optional.promise);
+    let capabilities: RuntimeCapabilityPortV1 | null = null;
+    const devDockControl = createDevDockControlV1();
+    const application = Object.freeze({
+      ...labGameApplicationV1,
+      ui(input: Parameters<typeof labGameApplicationV1.ui>[0]) {
+        capabilities = input.capabilities;
+        return Object.freeze({
+          ...labGameApplicationV1.ui(input),
+          outerUi: createReferencePlayerOuterUiV1({
+            instance: input.instance,
+            capabilities: input.capabilities,
+            playerProfile: input.playerProfile,
+            presentationFreeze: input.presentationFreeze,
+            presentationRate: input.presentationRate,
+            control: devDockControl,
+            loadContributions: loadOptional,
+          }),
+        });
+      },
+    });
+
+    const started = await startWebGameApplicationV1(
+      application,
+      runtimeOptionsV1(createMemoryHostRecordStoreV1()),
+    );
+    let firstDisposal = Promise.resolve();
+    try {
+      await act(async () => {
+        await capabilities?.setEnabled("debug_tools", true);
+      });
+      act(() => devDockControl.open("startup.optional"));
+      await waitFor(() => expect(loadOptional).toHaveBeenCalledOnce());
+      await act(async () =>
+        optional.resolve({
+          contributions: optionalDevDockContributionsV1(),
+          dispose: disposeOptional,
+        })
+      );
+      await waitFor(() => expect(screen.getByText("Accepted optional panel")).toBeInTheDocument());
+
+      let disposalSettled = false;
+      act(() => {
+        firstDisposal = started.dispose().then(() => {
+          disposalSettled = true;
+        });
+      });
+      const secondDisposal = started.dispose();
+      await waitFor(() => expect(disposeOptional).toHaveBeenCalledOnce());
+      await Promise.resolve();
+      expect(disposalSettled).toBe(false);
+      expect(disposeOptional).toHaveBeenCalledOnce();
+
+      released.resolve();
+      await expect(Promise.all([firstDisposal, secondDisposal])).resolves.toEqual([
+        undefined,
+        undefined,
+      ]);
+      expect(disposeOptional).toHaveBeenCalledOnce();
+    } finally {
+      released.resolve();
+      await firstDisposal.catch(() => undefined);
+      await started.dispose().catch(() => undefined);
     }
   });
 

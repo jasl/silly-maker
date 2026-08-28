@@ -521,6 +521,15 @@ Core → UI → Web 创建顺序和 Web → UI → Core 释放顺序。offline b
 或 R1 contribution，由 build-known Tooling Mod 显式选择，不进入 gameplay State，也不取得
 GameSession writer。
 
+当前公开 tooling contribution contract 保持窄而正交：DevDock 接收可动态加载的 panel set/handle，
+Scene Inspector 接收 build-known `properties` tools。应用或私有 Mod Runtime 可以聚合这些普通 typed
+contributions，但 Host 只在公开边界 admission 一次；内部不再认证其 descriptor/来源。DevDock handle
+和 Inspector binding 的同步或异步 `dispose` 都接入各自 owning lifecycle，application close、candidate
+rollback、successor retirement 与 final disposal 会等待已取得的资源退出。Scene tool 只得到当前
+Authoring Scene/facets/selection 和 revision-fenced operation port，不得到 Authoring Host、Session、source
+IO、Save、Context 或 service locator。新的文档族工具另建 focused contract，不把 Scene slot 变成通用
+editor/plugin framework。
+
 resolved Mod set 在每个 generation 内仍冻结。动态装卸产生新 generation，而不是改变冻结对象；
 代码实现已经被浏览器求值后不承诺从 ESM/CSS cache 物理擦除，卸载承诺的是 publication、listener、
 resource handle 和 lifecycle owner 退出。
@@ -626,8 +635,9 @@ VN 本身是一组内聚能力，不是一个不可裁剪的大包：
 可选能力必须从未选择的 final module/source graph 结构排除，不能只以运行时 `enabled: false` 冒充
 减包。当前只证明 History 专用 renderer、入口控制与 CSS 的 focused core/full 静态排除，以及中立 private
 successor controller 的 R1 候选/提交/失败保留/退休合同；没有为证明动态装卸而保留伪造的 VN Tooling Mod。
-controller 与 DevDock publication seam 也仍是各自的合同证据，当前没有产品将两者端到端连接；因此这里交付的
-是 private hot-swap substrate，不是 public、完整的热插拔 Mod 系统。
+DevDock load handle 与 Scene Inspector properties contribution 已是公开的 build-known tooling output
+contracts；private controller 与 DevDock publication seam 仍未由真实产品端到端连接。因此这里交付的仍是
+private hot-swap substrate 加 focused public contribution surfaces，不是 public、完整的热插拔 Mod 系统。
 shared generic Narrative family 仍包含通用 History 协作机制。若未来真实产品需要运行期切换 History UI，
 目标路由是 R1；若同时改变 History 的 State schema/retention policy，则按 R2 compatibility/migration 处理。
 

@@ -8,6 +8,8 @@ import type { InspectorToolingPlanV1 } from "./composition.ts";
 import { AuthoringCompanionSurfaceInternalV1 } from "./core/authoring-companion-surface.tsx";
 import { createAuthoringHostInternalV1 } from "./core/authoring-host.ts";
 import type { AuthoringHostInternalV1 } from "./core/authoring-host.ts";
+import { admitSceneInspectorContributionSetInternalV1 } from "./core/scene-inspector-contributions.ts";
+import type { SceneInspectorContributionSetV1 } from "./core/scene-inspector-contributions.ts";
 import { EmbeddedAuthoringSurfaceInternalV1 } from "./embedded-authoring.tsx";
 import { resolveEmbeddedAuthoringCompanionInternalV1 } from "./core/embedded-authoring-companion.ts";
 import type { EmbeddedAuthoringCompanionOwnerInternalV1 } from "./core/embedded-authoring-companion.ts";
@@ -341,6 +343,21 @@ export interface InspectorToolingReactPublicationV1 {
   dispose(): void;
 }
 
+interface AdmittedInspectorToolingPlanInternalV1 extends InspectorToolingPlanV1 {
+  readonly sceneInspectorContributions: SceneInspectorContributionSetV1;
+}
+
+function admitInspectorToolingPlanInternalV1(
+  plan: InspectorToolingPlanV1,
+): AdmittedInspectorToolingPlanInternalV1 {
+  return {
+    ...plan,
+    sceneInspectorContributions: admitSceneInspectorContributionSetInternalV1(
+      plan.binding.sceneInspector,
+    ),
+  };
+}
+
 export interface CreateInspectorToolingReactPublicationInputV1 {
   readonly container: Element | DocumentFragment;
   /** Standalone route by default; the dev game entry selects the embedded shell. */
@@ -391,7 +408,9 @@ export function createInspectorToolingReactPublicationInternalV1(
       }
     });
   };
-  const publication = createPersistentReactLayoutPublicationInternalV1<InspectorToolingPlanV1>({
+  const publication = createPersistentReactLayoutPublicationInternalV1<
+    AdmittedInspectorToolingPlanInternalV1
+  >({
     container: input.container,
     ...(input.reportFailure === undefined ? {} : { reportFailure: input.reportFailure }),
     onTerminalFailure: disposeOwners,
@@ -436,6 +455,7 @@ export function createInspectorToolingReactPublicationInternalV1(
           <EmbeddedAuthoringSurfaceInternalV1
             host={host}
             binding={plan.binding}
+            sceneInspectorContributions={plan.sceneInspectorContributions}
             publicationRole={target}
             viewId={viewId}
             {...(companionDefinition === null || companionOwner === null ? {} : {
@@ -459,6 +479,7 @@ export function createInspectorToolingReactPublicationInternalV1(
           <InspectorHostSurfaceInternalV1
             host={host}
             binding={plan.binding}
+            sceneInspectorContributions={plan.sceneInspectorContributions}
             mode="standalone"
             publicationRole={target}
             viewId={viewId}
@@ -467,9 +488,10 @@ export function createInspectorToolingReactPublicationInternalV1(
     },
   });
   return {
-    mount: (plan: InspectorToolingPlanV1) => publication.mount(plan),
+    mount: (plan: InspectorToolingPlanV1) =>
+      publication.mount(admitInspectorToolingPlanInternalV1(plan)),
     publish: (plan: InspectorToolingPlanV1, signal: AbortSignal) =>
-      publication.publish(plan, signal),
+      publication.publish(admitInspectorToolingPlanInternalV1(plan), signal),
     dispose(): void {
       publication.dispose();
       disposeOwners();

@@ -1372,7 +1372,7 @@ describe("DevDock contribution validation", () => {
     };
   }
 
-  it("rejects duplicate IDs, unknown policies, and 129-byte titles", () => {
+  it("rejects duplicate IDs, unknown policies, and empty titles", () => {
     expect(() =>
       createDevDockContributionSetV1({
         panels: [panelV1(), panelV1({ side: "right" })],
@@ -1388,19 +1388,20 @@ describe("DevDock contribution validation", () => {
         panels: [panelV1({ authority: "owner" as "read_only" })],
       })
     ).toThrowError("ui.devdock_invalid_authority");
-    expect(() => createDevDockContributionSetV1({ panels: [panelV1({ title: "a".repeat(129) })] }))
-      .toThrowError("ui.devdock_title_limit");
+    expect(() => createDevDockContributionSetV1({ panels: [panelV1({ title: "" })] }))
+      .toThrowError("ui.devdock_invalid_panel");
   });
 
-  it("accepts large registries and preserves authored order across admission and merge", () => {
+  it("accepts long Unicode titles and preserves authored order across admission and merge", () => {
+    const longUnicodeTitle = "游戏专属调试工具".repeat(20);
     const input = Array.from({ length: 40 }, (_, index) =>
       panelV1({
         id: `panel.synthetic.${index}`,
-        title: index === 0 ? "界".repeat(42) + "aa" : `${index}`,
+        title: index === 0 ? longUnicodeTitle : `${index}`,
       }));
     const contributions = createDevDockContributionSetV1({ panels: input });
     expect(contributions.panels.map(({ id }) => id)).toEqual(input.map(({ id }) => id));
-    expect(contributions.panels[0]).not.toBe(input[0]);
+    expect(contributions.panels[0]?.title).toBe(longUnicodeTitle);
 
     const more = createDevDockContributionSetV1({
       panels: Array.from(

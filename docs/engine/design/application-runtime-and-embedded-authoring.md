@@ -325,7 +325,7 @@ wrapper 或 feature-parity 双轨。
 Authoring Host
   Authoring Scene source IO / document session / CAS
   dirty gate / undo-redo / selection / diagnostics
-  package-private structured operations
+  public Scene operation vocabulary / private executor
   persistent publication + optional private companion
         |                         |
         v                         v
@@ -335,8 +335,11 @@ standalone Inspector       embedded Inspector
 两种 placement 消费同一 Host contract、同一 `InspectorAppV1` implementation 和同一类 source
 IO；每个 mount 拥有自己的 in-memory lifetime，独立 tab 不声称共享 draft。应用以
 `inspector: { module, exportName }` 显式选择，并导出小型 `InspectorBindingV1`：content
-catalog、真实 Stage renderers，以及可选 assets、Motion 和 Timeline catalogs。binding 不携带
-source paths、FilePort、GameSession writer、workspace registry 或任意插件输入。
+catalog、真实 Stage renderers，以及可选 assets、Motion、Timeline catalogs 和 build-known
+`sceneInspector.properties` contributions。每个直接 mount 或 R1 candidate 在 publication 边界对
+contribution set 做一次普通 shape/value admission；probe 与 visible 使用同一 typed copy，之后内部信任该
+结果。binding 不携带 source paths、FilePort、GameSession writer、workspace registry、
+Context/service locator 或任意插件 registry。
 
 当前 Inspector 只交付有持续价值的 bounded workflow：
 
@@ -345,7 +348,8 @@ source paths、FilePort、GameSession writer、workspace registry 或任意插�
 - tree 与真实 `SemanticStageHostV1` preview 的共享选择；
 - 对 off-canvas、transparent 和 non-visual group object 的 selectable ghost/inspection bounds；
 - local transform、visual content、既有 appearance value、sibling object order 和 layer order 的
-  package-private revision-fenced edits；
+  revision-fenced edits；游戏可在 core Object Inspector 旁增加少量专属 properties tools，并通过同一
+  current document identity/draft revision operation port 完成这些已支持编辑；
 - hit-region（含 polygon overlay）、Motion、Timeline、interaction/GUI intent、compiled layer、
   diagnostics 和 JSON-pointer source provenance 的只读 facets；
 - Motion/Timeline 的 detached scrub，包括 parallel disjoint channels；
@@ -355,8 +359,9 @@ source paths、FilePort、GameSession writer、workspace registry 或任意插�
 Inspector 不创建 component，不把 group 转换为 visual，不写 standalone Regions/Chrome 文档，不
 编辑 Blueprint/任意 TypeScript，也不取得活动 gameplay Session writer。low-level Scene source IO、
 Regions/Chrome document families、Motion Workbench 与 Narrative Flow projection 继续作为底层或
-专门工具能力保留，但它们不是 Inspector workspace。未来专门 editor、code editor、search/index
-worker 或 UGC surface 需要自己的真实 consumer 与合同，不恢复旧 rail。
+专门工具能力保留，但它们不是 Inspector workspace。其他文档族的专门 editor、code editor、search/index
+worker 或 UGC surface 需要自己的真实 consumer 与 focused contract，不把 Scene contribution 扩张为
+通用 workspace/layout DSL，也不恢复旧 rail。
 
 Authoring Host 与 Application Host 下其他 Application Domain 是 sibling。Game/Session R2
 successor、Player R3 recovery 或 Agent absence 不能重建 Authoring Host 或丢失其 admitted document
@@ -370,7 +375,8 @@ visibility-hidden、offscreen 但 document-connected 的 staging root 完成 lay
 acknowledgement；失败在触碰 visible predecessor 前拒绝，成功才进入同一 visible root。该合同保留
 Host/session/selection/兼容的 local Inspector state，不承诺任意 visible side effect 可逆，也不把
 connected staging 当作真实 paint/geometry evidence。standalone/embedded teardown 先 unmount React
-descendants，再 dispose optional companion 和 Host。
+descendants，再 dispose optional companion、同步或异步 binding resources 和 Host；successor retirement
+与最终 close 都等待 binding cleanup settle。
 
 embedded mode 可以在 typed Inspector binding 上选择正好一个 package-private neutral companion。
 它只提交 compatibility identity、content signature、owner/renderer/disposer；Host 不提供任意 lookup、
@@ -420,10 +426,13 @@ operation 得到相同结果。unknown kind/schema revision、stale draft revisi
 路径或 `FilePort`。operation 不持有 IO，不保存文件，不执行 HMR，也不是 gameplay command。
 V1 不承诺跨文档事务、任意 TypeScript AST 修改、operation log 持久化或通用命令总线。
 
-实现状态（2026-08-22）：AR2 已按本节交付 package-private Scene operation revision 1、严格
-admission、pure reducer、共用 local executor，以及既有 authoring session 上的 opaque
-document-successor identity、monotonic draft revision 和 conditional replace。Scene UI 与 non-UI
-caller 已共用该路径；它仍未导出为 public ABI、RPC schema 或持久化 operation log。
+实现状态（2026-08-29）：AR2 已交付 Scene operation revision 1、严格 admission、pure reducer、共用
+local executor，以及既有 authoring session 上的 opaque document-successor identity、monotonic draft
+revision 和 conditional replace。Scene UI 与 non-UI caller 共用该路径。`@sillymaker/studio` 现在公开
+operation vocabulary、schema revision 和 execution result，供 build-known game/editor tools 编译；工具只从
+`SceneInspectorRenderInputV1.execute` 获得已绑定 current document/revision 的执行端口。execution envelope、
+admission owner、executor、Authoring Host、Session 和 source IO 仍为内部实现。这不是 public Mod resolver/
+ABI/SDK、RPC schema、任意 operation handler registry 或持久化 operation log。
 
 ## 7. Agent GUI, RPC client, and UiArtifact seam
 

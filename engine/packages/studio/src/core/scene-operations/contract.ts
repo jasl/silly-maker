@@ -10,7 +10,7 @@ import type {
   AuthoringSceneAmbientV1,
 } from "@sillymaker/base/authoring/scene";
 
-/** Package-private schema revision for every admitted Authoring Scene operation. */
+/** Public schema revision for the Scene operation vocabulary. */
 export const sceneAuthoringOperationSchemaRevisionV1 = 2;
 
 interface SceneAuthoringOperationBaseV1 {
@@ -71,6 +71,7 @@ export type SceneAuthoringDiagnosticCodeV1 =
   | "scene_authoring.operation_schema_unsupported"
   | "scene_authoring.operation_kind_unknown"
   | "scene_authoring.operation_payload_invalid"
+  | "scene_authoring.view_inactive"
   | "scene_authoring.document_unavailable"
   | "scene_authoring.document_stale"
   | "scene_authoring.revision_stale"

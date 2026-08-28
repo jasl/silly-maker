@@ -55,12 +55,8 @@ function validatePanelV1(panel: DevDockPanelV1): DevDockPanelV1 {
   if (panel.stage !== undefined && panel.stage !== "live" && panel.stage !== "frozen") {
     throw new TypeError("ui.devdock_invalid_stage_mode");
   }
-  if (
-    typeof panel.title !== "string" ||
-    panel.title.length === 0 ||
-    new TextEncoder().encode(panel.title).byteLength > 128
-  ) {
-    throw new TypeError("ui.devdock_title_limit");
+  if (typeof panel.title !== "string" || panel.title.length === 0) {
+    throw new TypeError("ui.devdock_invalid_panel");
   }
   return {
     id: panel.id,

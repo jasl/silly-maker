@@ -30,7 +30,7 @@ function bindingV1(label: string): InspectorBindingV1 {
 
 function disposableBindingV1(
   label: string,
-  dispose: () => void,
+  dispose: () => void | PromiseLike<void>,
 ): InspectorBindingV1 {
   return { label, dispose } as unknown as InspectorBindingV1;
 }
@@ -83,6 +83,37 @@ describe("Inspector tooling live composition", () => {
     await live.dispose();
     await live.dispose();
     expect(rejectedDispose).toHaveBeenCalledOnce();
+    expect(oldDispose).toHaveBeenCalledOnce();
+    expect(currentDispose).toHaveBeenCalledOnce();
+  });
+
+  it("awaits asynchronous binding retirement before completing a successor reload", async () => {
+    let releaseOld!: () => void;
+    const oldReleased = new Promise<void>((resolve) => releaseOld = resolve);
+    const oldDispose = vi.fn(() => oldReleased);
+    const currentDispose = vi.fn();
+    const live = createInspectorToolingLiveCompositionV1({
+      profileId: "inspector.test.async-binding-lifecycle",
+    });
+
+    await live.mount(rootInputV1(1, disposableBindingV1("old", oldDispose)));
+    let reloadSettled = false;
+    const reload = live.reload(
+      rootInputV1(2, disposableBindingV1("current", currentDispose)),
+      async () => undefined,
+    ).then((plan) => {
+      reloadSettled = true;
+      return plan;
+    });
+
+    await vi.waitFor(() => expect(oldDispose).toHaveBeenCalledOnce());
+    await Promise.resolve();
+    expect(reloadSettled).toBe(false);
+    expect(currentDispose).not.toHaveBeenCalled();
+
+    releaseOld();
+    await expect(reload).resolves.toMatchObject({ binding: { label: "current" } });
+    await live.dispose();
     expect(oldDispose).toHaveBeenCalledOnce();
     expect(currentDispose).toHaveBeenCalledOnce();
   });

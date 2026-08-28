@@ -67,6 +67,7 @@ test.describe("engine player/debug boundary", () => {
     ).toHaveAttribute("data-graph-node", "node.e2e.cal.intro");
 
     // A second window opens beside the first from the same menu.
+    await page.getByRole("button", { name: "调试" }).click();
     await menu.getByRole("button", { name: "交互与历史" }).click();
     const inspectorWindow = page.getByRole("dialog", { name: "交互与历史" });
     const inspector = inspectorWindow.locator("[data-debug-inspector='lab-interaction']");

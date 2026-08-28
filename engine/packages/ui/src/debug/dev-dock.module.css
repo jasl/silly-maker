@@ -84,6 +84,17 @@
   inset-inline-start: calc(var(--silly-space-2) + var(--devdock-cascade, 0) * 1.75rem);
 }
 
+/* The default system menu moves the top-right development launcher down.
+   Keep its tool windows below that same occupied corner. */
+/* stylelint-disable selector-pseudo-class-no-unknown -- CSS Modules global scope */
+:global([data-game-viewport-canvas]:has([data-default-system-menu])) > .dev-dock[data-devdock-position="top_right"] .dev-dock__window {
+  inset-block-start: calc(
+    var(--silly-safe-area-block-start) + 2 * var(--silly-control-min-size) +
+    3 * var(--silly-space-2) + var(--devdock-cascade, 0) * 1.75rem
+  );
+}
+/* stylelint-enable selector-pseudo-class-no-unknown */
+
 @media (prefers-reduced-motion: reduce) {
   .dev-dock,
   .dev-dock * {

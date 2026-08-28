@@ -455,6 +455,21 @@ marketplace、per-Mod watcher/HMR protocol、任意 State patch、service locato
 代码模块已被浏览器求值后也不宣称从 ESM/CSS cache 物理删除；卸载只保证 publication、listener、
 resource handle 与 lifecycle owner 退出。
 
+2026-08-29 follow-up 根据真实商业克隆的专属调试/编辑工具需求收口 tooling public boundary，但不为本
+compact VN 伪造新的工具 Mod：
+
+- DevDock 的 lazy result 使用公开 `DevDockContributionLoadHandleV1`；动态加载边界对 producer 的普通
+  typed panel set admission 一次，删除 producer 重复 admission、每侧 16 panel 硬上限和中文不自然的 title
+  byte cap。已取得 handle 的异步 `dispose` 接入 Web application terminal close barrier，exactly-once/joinable；
+- `@sillymaker/studio` 新增一个 focused `sceneInspector.properties` contribution contract。game/editor Mod
+  可在 core Object Inspector 旁增加专属工具，只得到当前 admitted Scene、read-only facets、selection 与
+  current document/revision-fenced Scene operation port；Host/Session/source IO/Save/Context 不公开；
+- Scene operation vocabulary/schema/result 随 Studio contract 公开给这些 build-known tools，envelope admission、
+  executor 和 source owner 仍为内部实现。binding 的同步或异步 cleanup 由既有 Inspector composition 在
+  rollback、successor retirement 与 final close 等待；
+- VN Reference Tour 与 Template 当前都不需要专属 Scene tool，因此保持空选择。其他 document family、完整
+  workspace/editor replacement、public resolver/manifest/SDK 仍需独立真实 consumer 和 focused contract。
+
 ### M5 — 旗舰提升与文档收口（Bookshop 保持）
 
 M5 只有在 M0–M4 全部关闭、完整产品独立审查通过后才开始，并在一个原子 cutover 中：

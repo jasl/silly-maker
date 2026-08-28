@@ -10,7 +10,7 @@ import {
 } from "react";
 import type { ReactElement } from "react";
 
-import type { MotionDefinitionV1 } from "@sillymaker/base";
+import type { MotionDefinitionV1, StageTagV1 } from "@sillymaker/base";
 import { projectAuthoringSceneFacetsV1 } from "@sillymaker/base/authoring/scene";
 import type {
   AdmittedAuthoringSceneV1,
@@ -32,7 +32,13 @@ import type { InspectorBindingV1 } from "../core/binding.ts";
 import { loadInspectorMotionSourcesV1 } from "../core/motion-sources.ts";
 import { saveWithConflictRefreshInternalV1 } from "../core/save-conflict.ts";
 import { compileAuthoringSceneWithReceiptInternalV1 } from "../core/scene-compilation.ts";
-import type { SceneAuthoringOperationV1 } from "../core/scene-operations/contract.ts";
+import { admitSceneInspectorContributionSetInternalV1 } from "../core/scene-inspector-contributions.ts";
+import type { SceneInspectorContributionSetV1 } from "../core/scene-inspector-contributions.ts";
+import { admitSceneAuthoringEnvelopeV1 } from "../core/scene-operations/admission.ts";
+import type {
+  SceneAuthoringExecutionResultV1,
+  SceneAuthoringOperationV1,
+} from "../core/scene-operations/contract.ts";
 import type { MotionIoListEntryV1, MotionSourceIoV1 } from "@sillymaker/ui/debug";
 import { InspectorObjectPanelV1 } from "./object-inspector.tsx";
 import { InspectorSceneListV1 } from "./scene-list.tsx";
@@ -51,6 +57,7 @@ export interface InspectorAppPropsV1 {
 export interface InspectorHostSurfacePropsInternalV1 {
   readonly host: AuthoringHostInternalV1;
   readonly binding: InspectorBindingV1;
+  readonly sceneInspectorContributions: SceneInspectorContributionSetV1;
   readonly mode: "standalone" | "embedded";
   readonly publicationRole: "visible" | "probe";
   readonly viewId: number;
@@ -179,11 +186,16 @@ export function InspectorAppV1(props: InspectorAppPropsV1): ReactElement {
     [props.io, props.motionIo],
   );
   const viewId = useMemo(() => nextInspectorViewIdInternalV1++, []);
+  const sceneInspectorContributions = useMemo(
+    () => admitSceneInspectorContributionSetInternalV1(props.binding.sceneInspector),
+    [props.binding.sceneInspector],
+  );
   useDisposeHostOnUnmountInternalV1(host);
   return (
     <InspectorHostSurfaceInternalV1
       host={host}
       binding={props.binding}
+      sceneInspectorContributions={sceneInspectorContributions}
       mode="standalone"
       publicationRole="visible"
       viewId={viewId}
@@ -257,6 +269,18 @@ function InspectorWithHostInternalV1(props: InspectorHostSurfacePropsInternalV1)
   const [scrubKey, setScrubKey] = useState("");
   const [scrubTimeMs, setScrubTimeMs] = useState(0);
   const visible = props.publicationRole === "visible";
+  const sceneInspectorContributions = props.sceneInspectorContributions;
+  const activeSceneInspectorContributions = useRef<SceneInspectorContributionSetV1 | null>(null);
+
+  useLayoutEffect(() => {
+    if (!visible) return undefined;
+    activeSceneInspectorContributions.current = sceneInspectorContributions;
+    return () => {
+      if (activeSceneInspectorContributions.current === sceneInspectorContributions) {
+        activeSceneInspectorContributions.current = null;
+      }
+    };
+  }, [sceneInspectorContributions, visible]);
 
   useEffect(() => {
     if (!visible) return undefined;
@@ -383,6 +407,50 @@ function InspectorWithHostInternalV1(props: InspectorHostSurfacePropsInternalV1)
 
   const busy = sessionSnapshot.loading || sessionSnapshot.saving;
   const selectedObjectId = hostSnapshot.selectedObjectId;
+  const executeSceneInspectorContribution = (
+    operation: SceneAuthoringOperationV1,
+    coalesceKey?: string,
+  ): SceneAuthoringExecutionResultV1 => {
+    if (activeSceneInspectorContributions.current !== sceneInspectorContributions) {
+      return {
+        kind: "rejected",
+        diagnostic: {
+          code: "scene_authoring.view_inactive",
+          path: "/publicationRole",
+        },
+      };
+    }
+    if (
+      sessionSnapshot.documentIdentity === null || sessionSnapshot.draft === null ||
+      projection.kind !== "ok"
+    ) {
+      return {
+        kind: "rejected",
+        diagnostic: {
+          code: "scene_authoring.document_unavailable",
+          path: "/envelope/documentIdentity",
+        },
+      };
+    }
+    const admitted = admitSceneAuthoringEnvelopeV1({
+      documentIdentity: sessionSnapshot.documentIdentity,
+      expectedDraftRevision: sessionSnapshot.draftRevision,
+      operation,
+      ...(coalesceKey === undefined ? {} : { coalesceKey }),
+    });
+    return admitted.kind === "rejected"
+      ? admitted
+      : owner.sceneOperations.execute(admitted.envelope);
+  };
+  const selectSceneInspectorObject = (objectId: StageTagV1 | null): boolean => {
+    if (activeSceneInspectorContributions.current !== sceneInspectorContributions) return false;
+    const current = owner.sceneOperations.current();
+    if (
+      sessionSnapshot.documentIdentity === null ||
+      current?.documentIdentity !== sessionSnapshot.documentIdentity
+    ) return false;
+    return owner.selectObject(objectId);
+  };
   return (
     <main
       className={styles.app}
@@ -532,15 +600,38 @@ function InspectorWithHostInternalV1(props: InspectorHostSurfacePropsInternalV1)
         <aside className={styles.properties} data-inspector-properties="true">
           {projection.kind === "ok" && sessionSnapshot.draft !== null
             ? (
-              <InspectorObjectPanelV1
-                scene={sessionSnapshot.draft}
-                facets={projection.projection.facets}
-                motionOptions={motionOptions}
-                selectedObjectId={selectedObjectId}
-                draftRevision={sessionSnapshot.draftRevision}
-                disabled={busy}
-                execute={execute}
-              />
+              <>
+                <InspectorObjectPanelV1
+                  scene={sessionSnapshot.draft}
+                  facets={projection.projection.facets}
+                  motionOptions={motionOptions}
+                  selectedObjectId={selectedObjectId}
+                  draftRevision={sessionSnapshot.draftRevision}
+                  disabled={busy}
+                  execute={execute}
+                />
+                {sceneInspectorContributions.properties.map((contribution) => (
+                  <section
+                    className={styles["contribution-panel"]}
+                    data-scene-inspector-contribution={contribution.id}
+                    aria-label={contribution.title}
+                    key={contribution.id}
+                  >
+                    <h2>{contribution.title}</h2>
+                    {contribution.render({
+                      scene: sessionSnapshot.draft!,
+                      facets: projection.projection.facets,
+                      selectedObjectId,
+                      documentIdentity: sessionSnapshot.documentIdentity!,
+                      draftRevision: sessionSnapshot.draftRevision,
+                      busy: busy || !visible,
+                      publicationRole: props.publicationRole,
+                      selectObject: selectSceneInspectorObject,
+                      execute: executeSceneInspectorContribution,
+                    })}
+                  </section>
+                ))}
+              </>
             )
             : null}
         </aside>

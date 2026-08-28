@@ -105,8 +105,9 @@ function compilePlanV1(snapshot: CompositionSnapshotV1): InspectorToolingPlanV1 
  * setup settles before publication. Reload keeps the previous snapshot live
  * until the consumer acknowledges the candidate plan, then retires the
  * previous providers and returns the published plan. The only application
- * lifecycle effect admitted here is the binding's optional synchronous
- * cleanup; the composition kernel owns rollback, retirement, and final dispose.
+ * lifecycle effect admitted here is the binding's optional cleanup; the
+ * composition kernel awaits synchronous or asynchronous rollback, retirement,
+ * and final disposal.
  */
 export function createInspectorToolingLiveCompositionV1(
   options: CreateInspectorToolingLiveCompositionOptionsV1,

@@ -153,7 +153,8 @@ export interface SillymakerAppConfigV1 {
   readonly web?: SillymakerAppWebTargetV1 | null;
   /**
    * Module exporting an `InspectorBindingV1` (catalog + renderers + optional
-   * asset/timeline registries) for the dev-only SillyMaker Inspector page
+   * asset/timeline registries and build-known Scene property tools) for the
+   * dev-only SillyMaker Inspector page
    * (`/__sillymaker/inspector/`). Inspector code never enters the player
    * bundle; omit to opt out.
    */

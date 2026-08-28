@@ -709,6 +709,15 @@ documented migration path.
   Motion Workbench, Regions/Chrome document families, structured operations,
   CAS/R1 publication, or the private Agent companion seam merely because the
   current Inspector does not surface them.
+- Game-specific authoring UI may enter through the focused public
+  `sceneInspector.properties` contribution on `InspectorBindingV1`. The Host
+  admits that build-known set once and supplies only the current admitted Scene,
+  read-only facets/selection, and the existing revision-fenced Scene operation
+  port. Do not expose Authoring Host, Session, source IO, Save, Context, or a
+  service locator to contributions, and do not expand this Scene slot into a
+  workspace/layout/plugin DSL. A new document family needs its own focused
+  consumer contract. Public DevDock/Inspector contribution outputs do not make
+  the private Direct/Mod Runtime a public resolver, manifest, ABI, or SDK.
 - Apply defensive validation in proportion to the trust boundary:
   - bytes, files, URLs, HTTP payloads, Save data, cross-process records, and
     other untrusted input keep strict bounds, canonical validation, atomic

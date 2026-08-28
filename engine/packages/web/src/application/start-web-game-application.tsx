@@ -172,6 +172,8 @@ export interface BoundWebGameOuterUiV1 {
   renderAuxiliarySurface(input: {
     readonly returnToTitle: () => Promise<void>;
   }): ReactNode;
+  /** Release resources owned by this bound outer composition after Root unmount. */
+  dispose?(): void | PromiseLike<void>;
 }
 
 /** Build-known outer GUI selection; reference implementations live on focused subpaths. */
@@ -1193,6 +1195,7 @@ export async function startWebGameApplicationV1<
   let instanceLease: WebInstanceLeasePortV1 | undefined;
   let unbindPresentationFreeze: (() => void) | undefined;
   let presentationPacing: { dispose(): void } | undefined;
+  let boundOuterUi: BoundWebGameOuterUiV1 | undefined;
 
   const terminalSupervisor = createWebApplicationTerminalSupervisorInternalV1({
     fenceSteps: [
@@ -1231,6 +1234,7 @@ export async function startWebGameApplicationV1<
         run: () => removePresentationVisibility?.(),
       },
       { name: "root", run: () => mounted?.unmount() },
+      { name: "outer_ui", run: () => boundOuterUi?.dispose?.() },
       {
         name: "debug_ui_context",
         run: () => unbindUiContext?.(),
@@ -1594,7 +1598,7 @@ export async function startWebGameApplicationV1<
     // An explicitly selected outer composition can report its observable open
     // state to DebugBundle without adding implementation vocabulary to core.
     let auxiliarySurfaceOpen = false;
-    const boundOuterUi = uiDefinition.outerUi?.bindHost({
+    const selectedOuterUi = uiDefinition.outerUi?.bindHost({
       inputRouter: composition.input,
       savePort: saveSurfaces.maintenance.savePort,
       clearAllSaves: saveSurfaces.maintenance.clearAllSaves,
@@ -1613,19 +1617,20 @@ export async function startWebGameApplicationV1<
         auxiliarySurfaceOpen = open;
       },
     });
+    boundOuterUi = selectedOuterUi;
     const storySlots = uiDefinition.slots;
     type RootSlotContextV1 = Parameters<
       NonNullable<NonNullable<typeof storySlots>["background"]>
     >[0];
-    const rootSlots: typeof uiDefinition.slots = boundOuterUi === undefined ? storySlots : ({
+    const rootSlots: typeof uiDefinition.slots = selectedOuterUi === undefined ? storySlots : ({
       ...storySlots,
       settingsSections: (context: RootSlotContextV1) => [
-        ...(boundOuterUi.settingsSections ?? []),
+        ...(selectedOuterUi.settingsSections ?? []),
         ...(storySlots?.settingsSections?.(context) ?? []),
       ],
       auxiliarySurface: (context: RootSlotContextV1) => (
         <>
-          {boundOuterUi.renderAuxiliarySurface({
+          {selectedOuterUi.renderAuxiliarySurface({
             returnToTitle: context.systemDialogs.returnToTitle,
           })}
           {storySlots?.auxiliarySurface?.(context) ?? null}

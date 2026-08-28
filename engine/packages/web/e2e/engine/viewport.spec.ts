@@ -18,15 +18,13 @@ async function expectSampleIncreaseV1(probe: Locator, previous: number): Promise
 }
 
 /** 16:10 design canvas, 4:3 letterbox, portrait tablet, ultrawide, small. */
-const declaredViewportsV1 = Object.freeze(
-  [
-    Object.freeze({ width: 1600, height: 1000 }),
-    Object.freeze({ width: 1024, height: 768 }),
-    Object.freeze({ width: 768, height: 1024 }),
-    Object.freeze({ width: 2560, height: 1080 }),
-    Object.freeze({ width: 800, height: 500 }),
-  ] as const satisfies readonly ViewportSizeV1[],
-);
+const declaredViewportsV1 = [
+  { width: 1600, height: 1000 },
+  { width: 1024, height: 768 },
+  { width: 768, height: 1024 },
+  { width: 2560, height: 1080 },
+  { width: 800, height: 500 },
+] as const satisfies readonly ViewportSizeV1[];
 
 async function expectCanvasGeometryV1(canvas: Locator, viewport: ViewportSizeV1): Promise<void> {
   const portrait = viewport.width / viewport.height <= 0.8;
@@ -42,7 +40,7 @@ async function expectCanvasGeometryV1(canvas: Locator, viewport: ViewportSizeV1)
   expect(bounds, "the viewport canvas must have bounds").not.toBeNull();
   if (bounds === null) return;
 
-  const expectedScale = Math.min(1, viewport.width / 1600, viewport.height / 1000);
+  const expectedScale = Math.min(viewport.width / 1600, viewport.height / 1000);
   expect(bounds.width).toBeCloseTo(portrait ? viewport.width : 1600 * expectedScale, 0);
   expect(bounds.height).toBeCloseTo(portrait ? viewport.height : 1000 * expectedScale, 0);
 
@@ -76,14 +74,16 @@ test.describe("engine GameViewport", () => {
         await expect(canvas).toBeVisible();
         await expectCanvasGeometryV1(canvas, viewport);
 
-        // Interactive controls keep the minimum hit target and stay reachable.
+        // Interactive controls use normal desktop density and retain the touch
+        // floor only for the coarse-pointer project.
         const collect = page.getByRole("button", { name: "采集样本" });
         await collect.scrollIntoViewIfNeeded();
         const buttonBounds = await collect.boundingBox();
         expect(buttonBounds).not.toBeNull();
         if (buttonBounds !== null) {
-          expect(buttonBounds.width).toBeGreaterThanOrEqual(44);
-          expect(buttonBounds.height).toBeGreaterThanOrEqual(44);
+          const targetFloor = testInfo.project.name === "chromium-touch" ? 44 : 32;
+          expect(buttonBounds.width).toBeGreaterThanOrEqual(targetFloor);
+          expect(buttonBounds.height).toBeGreaterThanOrEqual(targetFloor);
         }
         if (testInfo.project.name === "chromium-touch") await collect.tap();
         else await collect.click();

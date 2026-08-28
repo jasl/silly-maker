@@ -9,6 +9,24 @@ export type {
   NarrativeFlowGraphV1,
 } from "./core/binding.ts";
 export type {
+  SceneInspectorContributionSetV1,
+  SceneInspectorContributionV1,
+  SceneInspectorRenderInputV1,
+} from "./core/scene-inspector-contributions.ts";
+export { sceneAuthoringOperationSchemaRevisionV1 } from "./core/scene-operations/contract.ts";
+export type {
+  SceneAuthoringDiagnosticCodeV1,
+  SceneAuthoringDiagnosticV1,
+  SceneAuthoringExecutionResultV1,
+  SceneAuthoringOperationV1,
+  SceneLayerMoveBeforeOperationV1,
+  SceneObjectMoveBeforeOperationV1,
+  SceneObjectSetAmbientOperationV1,
+  SceneObjectSetAppearanceOperationV1,
+  SceneObjectSetLocalTransformOperationV1,
+  SceneObjectSetVisualContentOperationV1,
+} from "./core/scene-operations/contract.ts";
+export type {
   RuntimeInspectorAcquireTimingV1,
   RuntimeInspectorCodeSurfaceLifecycleV1,
   RuntimeInspectorCodeSurfaceNodeFacetV1,
