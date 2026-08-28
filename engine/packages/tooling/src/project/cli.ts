@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, resolve as resolvePath } from "node:path";
 import process from "node:process";
 import { setTimeout as sleep } from "node:timers/promises";
 
@@ -27,6 +28,10 @@ import {
 } from "./commands.ts";
 import type { SillymakerProjectConfigV1 } from "./config.ts";
 import { listStoryApplicationIdsV1, resolveStoryApplicationV1 } from "./config.ts";
+import {
+  desktopDevIntentEnvironmentKeyInternalV1,
+  type DesktopDevIntentInternalV1,
+} from "../vite/desktop-dev.ts";
 
 export interface ProjectCliInputV1 {
   readonly project: SillymakerProjectConfigV1;
@@ -41,7 +46,8 @@ export interface ProjectCliInputV1 {
 }
 
 const usageV1 =
-  "usage: app <inspect|check|simulate|dev|build|prebuilt-smoke|desktop> <application-id> " +
+  "usage: app <inspect|check|simulate|dev|desktop-dev|build|prebuilt-smoke|desktop> " +
+  "<application-id> " +
   "[--scenario <name>] [--seed <uint>] [--trace <dot.paths,comma-separated>] [--smoke] " +
   "[--profile <release|debug>] [--sourcemap] [--no-minify] " +
   "[--target <os-arch-triple>]... [--compress[=xz|lzma|zstd]] " +
@@ -193,6 +199,10 @@ function storyBuildOptionsV1(parsed: ParsedArgsV1): {
     ...(sourcemap === undefined ? {} : { sourcemap }),
     ...(minify === undefined ? {} : { minify }),
   };
+}
+
+function webApplicationRootV1(repositoryRoot: string, storyRoot: string): string {
+  return storyRoot === "." ? repositoryRoot : resolvePath(repositoryRoot, storyRoot);
 }
 
 function createNodeRunnerV1(): ProjectCommandRunnerV1 {
@@ -562,8 +572,61 @@ export async function runProjectCliV1(input: ProjectCliInputV1): Promise<number>
         }
         const storyRoot = application.web.storyRoot;
         return await deps.runner.run("deno", ["run", "-A", "npm:vite"], {
-          cwd: storyRoot === "." ? deps.repositoryRoot : `${deps.repositoryRoot}/${storyRoot}`,
+          cwd: webApplicationRootV1(deps.repositoryRoot, storyRoot),
         });
+      }
+      case "desktop-dev": {
+        const deps = processDeps();
+        if (deps === null) return 2;
+        const application = resolveStoryApplicationV1(input.project, selector);
+        if (application.web === null) {
+          input.writeErr(`application "${selector}" has no web target`);
+          return 1;
+        }
+        const applicationRoot = webApplicationRootV1(
+          deps.repositoryRoot,
+          application.web.storyRoot,
+        );
+        const desktopDevRoot = resolvePath(
+          applicationRoot,
+          "tmp",
+          "sillymaker-desktop-dev",
+          application.applicationId,
+        );
+        const intent = {
+          revision: 1,
+          runId: `desktop-${randomUUID()}`,
+          recordsDir: resolvePath(desktopDevRoot, "records"),
+          downloadsDir: resolvePath(desktopDevRoot, "downloads"),
+          bootstrap: {
+            revision: 1,
+            entry: "runtime",
+            target: "deno_desktop",
+          },
+        } satisfies DesktopDevIntentInternalV1;
+        return await deps.runner.run(
+          "deno",
+          [
+            "desktop",
+            "-A",
+            "--backend",
+            "webview",
+            "--config",
+            resolvePath(deps.repositoryRoot, "deno.json"),
+            "--lock",
+            resolvePath(deps.repositoryRoot, "deno.lock"),
+            "--frozen-lockfile",
+            "--node-modules-dir=manual",
+            "--hmr",
+            ".",
+          ],
+          {
+            cwd: applicationRoot,
+            environment: {
+              [desktopDevIntentEnvironmentKeyInternalV1]: JSON.stringify(intent),
+            },
+          },
+        );
       }
       case "build": {
         const deps = processDeps();

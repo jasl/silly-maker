@@ -153,8 +153,8 @@ native close 的顺序固定为：renderer product `fence()` / `prepare()` → s
 drain 已接收的 Host requests → companion stdin EOF → shell 等待自己直接持有的 child exit 0 → native
 exit。失败不得伪造成正常退出；Host 不扫描或终止孙进程，也不建立 PID/currentness、SIGKILL、进程树
 清理、多 companion registry 或 supervisor。该 preview 不承诺 persistence durability、signing、安装器、
-跨平台资格或产品 RPC protocol，并且与 Desktop HMR update-source defer 正交：它不启动 Vite、不产生
-candidate/generation，也不改变 stable revalidation gate。
+跨平台资格或产品 RPC protocol，并且与 Desktop HMR update source 正交：它不启动 Vite、不产生
+candidate/generation，也没有随 2026-08-28 的 stable HMR activation 获得额外权限或 production claim。
 
 ## 4. Module update, extension lifecycle, and publication
 
@@ -199,13 +199,13 @@ tests、一个约数百行内且只记录参与者选择的完整 upstream commi
 revision、使用隔离目录、调用真实 workspace command、接受 direct-child exit 0 的 launch preflight，
 以及一次人工参与的 native ready/bootstrap/private-route/真实 HMR 无 reload/正常关闭 characterization
 组成；preflight 不建立 renderer receipt、probe module、report endpoint 或 durable evidence sink。三层在
-canary 上全部通过后 candidate 才可提交/保留。它不进入 ordinary
+canary 上全部通过后 candidate 才可提交/保留。它当时不进入 ordinary
 task/config/generated command/release，也不作为 maintained workflow 写入 user-facing
-development/features/build docs；首个经 release source 与实际行为确认包含同一 upstream 语义的
-stable 上重跑同一分层验收后，才成为 maintained Desktop dev workflow。2.9.6 是预期候选而不是合同；
-canary 证据不提升 public Deno `>=2.9.0` floor、latest-stable
-required CI 或任何 Desktop production claim。stable revalidation 是独立、条件性 defer，只 gate 该
-maintained Desktop workflow，不阻塞 AR5 closure、AR6 或其他工作。
+development/features/build docs。Deno 2.9.6 后来成为首个经 release source 与实际行为确认包含同一
+upstream 语义的 stable，并于 2026-08-28 重跑分层验收通过；维护中的
+`app desktop-dev <application-id>` 因而显式选择该 package-private adapter。普通入口继续
+default-off；该结果不提升 public Deno `>=2.9.0` floor、latest-stable required CI 或任何 Desktop
+production claim。
 
 ### 4.2 Platform-neutral Extension Runtime
 
@@ -371,10 +371,10 @@ presentation change 形成 Player R2 + Authoring R1，Application identity chang
 unit/headless suites继续保护 operation stale fencing、CAS conflict、Agent generation/sequence/cancel；
 Browser 不逐项认证完整 DOM/object identity inventory。
 
-Deno Desktop 的静态 Player/common-runtime 与 selected-canary characterization 仍不等于 live
-Desktop authoring。Inspector/source CAS、Desktop R0–R2、maintained `deno desktop --hmr` workflow、
-packaging/persistence/signing promotion 均未激活；private adapter 继续 package-private、explicit、
-default-off，并等待符合既定条件的 stable revalidation。
+Deno Desktop 的静态 Player/common-runtime、selected-canary characterization 与现已维护的
+`app desktop-dev` HMR workflow 仍不等于 live Desktop authoring。Inspector/source CAS、Desktop
+R0–R2、packaging/persistence/signing promotion 均未激活；private adapter 继续 package-private，
+只有显式 Desktop development command 选择它。
 
 ## 6. Structured authoring operations
 
@@ -518,10 +518,11 @@ flush/drain 与 direct-child exit 0。首次修改 `shell-ui.tsx` 暴露该 Stor
 registry 与 React 组件混合导出，React Fast Refresh 因而正确降级 R3；registry 拆到独立
 `stage-rendering.tsx` 后，Chromium、WebKit 与 native canary 都证明 component-only `LabHudV1`
 更新保留 exact HUD state 与已打开的日志 overlay，且 page reload 为零。该修复没有改变 Desktop
-adapter、BuildIdentity、equal-R2→R3 fallback 或 native harness。candidate 仍 package-private、explicit、
-default-off；只有首个经 source/行为确认包含目标路径的 stable 上重跑同一分层验收后才可激活
-maintained Desktop workflow。这项 stable revalidation 是独立、条件性 defer，只 gate 该 Desktop
-workflow，没有阻塞已关闭的 AR5/AR6，也不阻塞其他工作。
+adapter、BuildIdentity、equal-R2→R3 fallback 或 native harness。Deno 2.9.6 stable 于 2026-08-28
+完成后续 source/行为 revalidation：官方 in-runtime Vite、同窗同 origin Desktop bootstrap/private
+route、component-only HMR/restore 零 reload、状态/overlay 保留、正常 native close、flush/drain 与
+direct-child exit 0 再次成立。维护中的 `app desktop-dev` 因而正式打开；canary-only preflight/test
+随裁决删除。adapter 仍 package-private，普通路径仍 default-off，Desktop production claims 不变。
 
 ## 8. Promotion and deferred evidence
 
@@ -537,7 +538,6 @@ workflow，没有阻塞已关闭的 AR5/AR6，也不阻塞其他工作。
 - Cordis Loader/Include/Node HMR、Node product Host、Electron adapter 与不可信代码 sandbox；
 - 真实 Agent/LLM/backend 服务、具体 RPC protocol、完整 Agent persistence、OpenUI/A2UI adapter
   和 Effect Broker；
-- Desktop HMR 在首个包含目标路径的 stable 上的 revalidation 与 maintained workflow activation；
 - Desktop source-write/persistence/package/signing production promotion；
 - State Format V2、production Story State migration、通用 WindowManager/IDE、browser TS compiler、
   全局 typed event bus、generic content compiler 和 data/UI/timing/save editors；

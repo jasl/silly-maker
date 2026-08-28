@@ -157,11 +157,10 @@ characterization 也已完成：binary 报告 `98dc759`，参与者将其对应�
 component-only `shell-ui.tsx` 正反向 HMR 零 reload、状态/overlay 保留、正常关闭 flush/drain 与
 direct-child exit 0 均成立。首次 mixed component/registry export 导致的 R3 已拆分修复，并由
 Chromium/WebKit 回归固定；adapter、BuildIdentity、equal-R2 fallback 与 native harness 没有扩张。
-candidate 保持 package-private、explicit、default-off。首个经 release source/
-行为确认包含该路径的 stable（2.9.6 只是预期候选）再重跑相同 bounded acceptance 后，才正式打开
-maintained Desktop dev workflow。这是独立、条件性的 Desktop HMR revalidation defer，只 gate 该
-maintained workflow，没有阻塞 AR5/AR6 closure，也不阻塞其他工作。不为
-2.9.5 建临时 proxy/shim/fork，static R3、Deno `>=2.9.0` floor 与 latest-stable CI 均不变。
+adapter 保持 package-private、explicit，并对普通路径 default-off。Deno 2.9.6 于 2026-08-28
+通过相同 bounded stable acceptance 后，维护中的 `app desktop-dev` workflow 正式打开；一次性
+canary launcher/test 已删除。该激活不改变 static R3、Deno `>=2.9.0` public floor、latest-stable CI，
+也不提升 Desktop production claim。
 AR6 closure 与 owner checkpoint 也已完成。2026-08-23 所有者随后指示继续下一项引擎工作；live
 Host/consumer 复查选择并于同日交付关闭
 [Authoring Workspace Focus & Navigation V1](plans/2026-08-23-authoring-workspace-focus-navigation.md)
@@ -243,8 +242,9 @@ lifecycle facets、detached standalone summaries 与 embedded live observation�
 是同一 Text session 上的 locale variants/fallback/atomic profile activation；M5 只增加 private、
 immutable-per-generation composition，复用 Direct lifecycle，并由 application 将 ordered active identity
 接入既有 BuildIdentity。作品重写与 SillyOS 现在可在本轮关闭后评价，但尚未自动开启；本轮验收
-只用小型原创/生成 conformance 和既有 raw benchmarks。public Mod resolver/ABI/SDK/distribution、
-untrusted sandbox 与 Desktop HMR 仍未激活。
+只用小型原创/生成 conformance 和既有 raw benchmarks。public Mod resolver/ABI/SDK/distribution 与
+untrusted sandbox 仍未激活；Desktop HMR 未由该 lane 激活，后来于 2026-08-28 通过独立 stable
+revalidation 后开放显式维护入口。
 
 2026-08-27 插入并交付关闭 [Narrative Aside V1](plans/2026-08-27-narrative-aside.md)：Base
 提供 commit-only、zero-authority 的 typed aside page push channel，UI 提供本地分页与权威对话到达时的
@@ -304,8 +304,9 @@ example。随后对下一 Reference Product 的只读 Host audit 暴露三个跨
 participant，以及一个 build-known/exact-target/package-private Desktop direct-child transport。三项实现已
 通过 focused、Browser、native preview 与 repository validation 并关闭；该 closure 本身没有自动激活后继
 Reference Product 或 engine lane。该 lane 不定义产品 RPC protocol，不让 Browser 依赖
-本地 companion，并且不改变已接受但未完成的 Desktop HMR stable revalidation 与 Desktop production
-promotion；后两者保持独立、条件性，只 gate 各自的 Desktop claim/workflow，不阻塞 core 或其他工作。
+本地 companion。该 lane 当时不改变尚未完成的 Desktop HMR stable revalidation 与 Desktop production
+promotion；前者后来于 2026-08-28 独立关闭并开放显式开发入口，后者仍保持独立、条件性，只 gate
+Desktop production claim，不阻塞 core 或其他工作。
 
 2026-08-27 所有者另行接受
 [VN Reference Tour](plans/2026-08-27-vn-reference-tour.md) 为当前唯一产品车道。它从 tracked Template 起步，
@@ -706,14 +707,12 @@ final module/source graph 的 structural exclusion，并取得 Browser physical 
 performance evidence；该里程碑 runner 已删除，长期 benchmark 只输出原始测量。Engine Lab 的
 Inspector binding 通过 private single-companion entry 显式选择 Agent，普通 Inspector/Author graph
 不因此包含 Agent/RPC，
-Deno Desktop private inactive adapter、bounded preflight 与 selected-canary characterization 也已完成。verified-stable
-revalidation/activation 保持独立、条件性 defer：首个经
-release source/行为确认包含目标路径的 stable 必须重跑中立合同 tests + 约数百行内的 explicit-binary/
-隔离目录/真实 workspace command/direct-child exit-0 launch preflight + 一次人工 native ready/
-bootstrap/private-route/HMR 无 reload/正常关闭 characterization。preflight 不建立 renderer receipt/
-probe/report/durable evidence；native 不重复 R1/R2、Agent、CAS 或 failure/retry matrix；canary PASS
-仍不构成 live capability、maintained workflow 或 Desktop production promotion。该 defer 只 gate maintained
-Desktop workflow，不阻塞 AR6 或其他工作。
+Deno Desktop private adapter、bounded preflight 与 selected-canary characterization 也已完成；
+Deno 2.9.6 随后在 2026-08-28 通过 release-source、中立合同、真实 workspace launch、同窗
+native HMR 与正常关闭的 stable revalidation。维护中的 `app desktop-dev` 现在显式选择该
+package-private adapter，普通入口仍 default-off；preflight、canary SHA 检查和一次性测试已删除。
+这只激活 Desktop development workflow，不构成 Desktop authoring、persistence、packaging、signing
+或 multi-platform production promotion。
 
 2026-08-26 的 neutral GUI Host lane 已交付关闭，把缺失的平台接缝收敛成三条正交能力：
 
@@ -732,7 +731,8 @@ Deno 2.9.5 无法用启动时解析的 scoped `--allow-run=<name/path>` 授权�
 不构成 production security、signing 或跨平台资格。关闭顺序保持 renderer product fence/prepare →
 Host ingress drain → child stdin EOF/exit 0；只管理直接 child，不增加通用 subprocess API、process-tree
 supervisor 或 public companion/RPC ABI。Browser 外部服务仍直接通过 admitted endpoint 的 typed client
-接入。该 transport 与 Desktop HMR 无关，stable revalidation/activation defer 原样保留。
+接入。该 transport 与 Desktop HMR 无关；后来关闭的 stable HMR activation 没有改变 companion
+transport 或 production qualification。
 
 Agent workspace 需要 tab/split/task/approval/artifact/history 等独立领域模型；不要把现有游戏 Overlay 膨胀成桌面 WindowManager。流式半成品是 transient presentation；只有完整验证的 document 可持久化，replay 渲染保存 document 而不是重新调用模型。
 

@@ -39,8 +39,8 @@ deno task app simulate e2e                 # explicit Engine Lab conformance sim
 A GUI-only project declares `storyEntry: null` explicitly and normally disables
 Story runtime-asset verification. `inspect`, `check`, and `simulate` then answer
 with `project.story_unconfigured` for that selected application; aggregate Story,
-asset, and determinism checks skip it. `dev`, `build`, `prebuilt-smoke`, and a
-declared Desktop preview remain ordinary application lifecycle commands. The
+asset, and determinism checks skip it. `dev`, `desktop-dev`, `build`,
+`prebuilt-smoke`, and a declared Desktop preview remain ordinary application lifecycle commands. The
 product starts through `@sillymaker/web/gui-application`; focused Base/UI package
 entries keep Game Session, Save, Story, Inspector, Agent, Mod, and reference UI
 out of its final graph. A small tooling-owned GUI-only application fixture owns
@@ -63,9 +63,10 @@ engine suite and the example browser suite.
 deno run dev                               # inside an application directory
 deno task app dev <application-id>         # explicit repository-root dispatch
 deno task app dev <application-id> --smoke # boot, verify, then stop
+deno task app desktop-dev <application-id> # maintained Deno Desktop + Vite HMR
 ```
 
-The development server uses the application root and supports normal Vite development behavior. An application that declares `inspector: { module, exportName }` receives the dev-only standalone `/__sillymaker/inspector/` page and lazy embedded launcher; its Authoring Host/source-write graph is never part of the static Player. Development capability switches and HMR are not separate production build flavors; capability checks remain runtime behavior. Runtime Story assets live at `<appRoot>/assets/**` and are addressed app-root-relative (`assets/x.webp`): the dev server serves them at `/assets/**`, builds copy them into `dist-web/assets/**`.
+The Browser development server uses the application root and supports normal Vite development behavior. `desktop-dev` uses the same application Vite config inside Deno Desktop and explicitly selects only the private Host adapter described later in this guide. An application that declares `inspector: { module, exportName }` receives the dev-only standalone `/__sillymaker/inspector/` page and lazy embedded launcher; its Authoring Host/source-write graph is never part of the static Player. Development capability switches and HMR are not separate production build flavors; capability checks remain runtime behavior. Runtime Story assets live at `<appRoot>/assets/**` and are addressed app-root-relative (`assets/x.webp`): the dev server serves them at `/assets/**`, builds copy them into `dist-web/assets/**`.
 
 ## Build a Player
 
@@ -327,15 +328,21 @@ launch, or crash durability. Those remain separately accepted Desktop Module
 Update Source/persistence lanes; this preview still does not make a
 persistence, packaging, signing, or multi-platform production claim.
 
-A package-private, explicit, default-off Desktop HMR candidate has separately
-passed its selected-canary characterization, but the ordinary packaging command
-above never activates it. Only the bounded characterization preflight may select
-that candidate; it becomes a maintained development workflow only after the
-first stable containing the target upstream semantics passes the same source-and-
-behavior revalidation. This independent activation defer does not block other
-engine or product work. Do not turn the private intent into a packaging flag or
-use the product companion as an HMR/Vite proxy, shim, Deno fork, undocumented
-marker, or presumed 2.9.6 version gate.
+The package-private Desktop HMR adapter separately passed selected-canary
+characterization and Deno 2.9.6 stable source-and-behavior revalidation. The
+maintained development entry is explicit and remains separate from packaging:
+
+```sh
+deno task app desktop-dev <application-id>
+```
+
+Ordinary `app dev`, `app build`, and the static `app desktop` command above do
+not activate the adapter. The development command uses Deno's official
+in-runtime Vite path and one private launch intent; it does not turn that intent
+into a packaging flag, use the product companion as an HMR/Vite proxy, depend on
+an undocumented marker, or version-gate by a hard-coded patch. Its macOS arm64
+development evidence does not promote persistence, packaging, signing, crash
+durability, or multi-platform release support.
 
 The shell adopts Deno Desktop's startup window instead of creating a second
 window. Closing that window first asks the renderer to execute the selected

@@ -281,8 +281,9 @@ source-reading fallback module may support non-Vite Deno Story tooling/tests, bu
 the release Player graph must use the virtual module and exclude that fallback,
 the source JSON, and the authoring admission/compiler. The Template opening is
 the maintained release example. This build path does not activate Deno Desktop
-HMR or Desktop production promotion; the private Desktop adapter remains
-explicit, default-off, and separately evidence-gated.
+HMR or Desktop production promotion. The private adapter remains default-off on
+ordinary paths; only the separately qualified, explicit `app desktop-dev`
+workflow selects it.
 
 Focused M4 source/compiler checks are:
 
@@ -620,16 +621,26 @@ activate/dispose cycles with one close per connection and no accepted late
 publication. Keep these failure/resource claims separate from the physical
 Chromium/WebKit success/restore and incompatible-candidate rejection evidence.
 
-[Deno Desktop supports a platform `--hmr` development flag](https://docs.deno.com/runtime/reference/cli/desktop/),
-but SillyMaker's current static staging/packaging command does not pass or
-integrate it. A package-private, explicit, default-off candidate exists and has
-passed its selected-canary characterization, but only the bounded characterization
-preflight reaches it; it is not a maintained command and does not change the live
-matrix above. Stable source-and-behavior revalidation gates only activation of that
-Desktop HMR workflow, not other engine or product work. Do not replace it with an
-external proxy/companion, shim, Deno fork, undocumented marker, or presumed 2.9.6
-version gate, and do not report the platform flag or canary evidence as a live
-SillyMaker R1/R2 path.
+[Deno 2.9.6](https://github.com/denoland/deno/releases/tag/v2.9.6) is the first
+stable release whose source and behavior closed SillyMaker's accepted
+`deno desktop --hmr` revalidation gate. Launch a configured Web application in
+the maintained native development workflow from the repository root:
+
+```sh
+deno task app desktop-dev <application-id>
+```
+
+The command runs the official in-runtime Vite server from that application's
+root, explicitly selects the package-private Desktop adapter, and keeps preview
+records/downloads under the application's ignored
+`tmp/sillymaker-desktop-dev/<application-id>/` directory. Ordinary `app dev`,
+`app build`, and static `app desktop` remain separate and do not select or
+activate this adapter. The launcher does not inspect a version string, use Deno's undocumented
+framework marker, or create an external Vite proxy/companion. Current native
+qualification is macOS arm64; this command does not promote Desktop persistence,
+packaging, signing, crash durability, or multi-platform release support.
+The exact bounded evidence and non-goals are recorded in the
+[stable activation plan](plans/2026-08-28-deno-desktop-hmr-stable-activation.md).
 
 Focused startup checks are:
 
@@ -754,6 +765,7 @@ deno task app simulate . [--scenario s] [--seed n]  # scripted Agent-port run
 # Repository aggregation and explicit application selection:
 deno task app dev <app>                               # Vite dev server for the selected application
 deno task app dev <app> --smoke                       # boot, prove the page, then stop
+deno task app desktop-dev <app>                       # Deno Desktop + official Vite HMR
 deno task app check --all                             # check every Story-capable application
 deno task app prebuilt-smoke <app>                    # verify the built Player's referenced files
 ```
@@ -761,6 +773,8 @@ deno task app prebuilt-smoke <app>                    # verify the built Player'
 The `app build`/`app desktop` verbs are the plumbing behind application build
 tasks and repository-level aggregation (CI builds a registered application from
 the root); ordinary development should use the application's `build:*` tasks.
+`app desktop-dev` is the explicit maintained native HMR workflow described above
+and remains separate from static packaging.
 `simulate` plays a named scenario from the application's simulation target (for
 example `deno task app simulate e2e --scenario opening --seed 23049`) through
 the same player-safe Agent port real agents use. Story-capable applications
@@ -1537,9 +1551,10 @@ The retired one-off AR5 runner's 2026-08-23 five-pair result remains only as his
 first-actionable paired median delta `-4.23ms / -3.54%` and stable-command paired median delta
 `-0.72ms / -1.40%`. Its baseline/candidate checkout orchestration, fixed ordering and rounds,
 thresholds, decision enum, and report protocol were deleted after that milestone decision. These
-local numbers do not promote Desktop behavior. The AR5 mainline is delivered; only activation of
-the independent Desktop HMR candidate remains deferred to accepted stable Deno source-and-behavior
-revalidation, without blocking unrelated lanes.
+local numbers do not promote Desktop behavior. The AR5 mainline is delivered. The independent
+Desktop HMR candidate subsequently passed stable Deno 2.9.6 source-and-behavior revalidation and
+now has the explicit `app desktop-dev` workflow above; this did not reopen AR5 or promote Desktop
+production behavior.
 
 ## Change workflow
 

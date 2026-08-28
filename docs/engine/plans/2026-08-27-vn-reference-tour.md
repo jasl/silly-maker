@@ -41,8 +41,9 @@ VN Reference Tour 是一个原创、独立、内聚、可发布的小型 Visual 
 - locale-addressable `zh-CN` / `en` text packs 与显式 fallback；shared、archive route 与 present route 分成
   三个按剧情需求准备的 pack，不把全部剧情 copy 留在 initial JavaScript；
 - wide/narrow 响应式构图、鼠标/触控/键盘、200% zoom/reflow、reduced motion、无障碍焦点与自动化无声测试；
-- Browser 独立 build/publish 与当前 Deno Desktop static preview。Desktop HMR、durability 与 production
-  packaging promotion 仍由各自条件车道决定。
+- Browser 独立 build/publish 与当前 Deno Desktop static preview。独立稳定版复验后来已提供维护中的
+  `app desktop-dev`，但本产品的 Desktop evidence 仍只领取 static preview；durability 与 production
+  packaging promotion 继续由各自条件车道决定。
 
 完整意味着两条路线、两个结局、全部素材、系统界面和恢复路径都可达且经过验证。一个开场、一个 route、
 一次 choice 或一个漂亮 vertical slice 都不能代表完成。
@@ -415,4 +416,5 @@ Player preset 若缺少其已声明的默认 UI/交互/输入政策，则是引�
 只有 public/wire/Save/digest/replay compatibility、唯一 writable authority、CAS/atomicity 或许可边界变化时
 暂停请求所有者裁决。Cat Cafe revision-1 Save 责任已经随产品终止，不是本计划的开放问题。其他内部选择采用
 最简单可验证方案继续。任何 focused correction 都不授权 Ren'Py DSL/Save compatibility、custom interpreter、
-broad VN framework、Blueprint、最终编辑器、public Mod ABI 或 Desktop HMR activation。
+broad VN framework、Blueprint、最终编辑器、public Mod ABI、Desktop HMR 合同改造或 Desktop
+production promotion。

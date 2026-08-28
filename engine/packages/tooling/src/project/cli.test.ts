@@ -9,6 +9,7 @@ import {
   parseVersionStampReceiptInternalV1,
   versionStampReceiptEnvironmentKeyInternalV1,
 } from "../vite/version-stamp.ts";
+import { desktopDevIntentEnvironmentKeyInternalV1 } from "../vite/desktop-dev.ts";
 import { runProjectCliV1 } from "./cli.ts";
 import type {
   ProjectCommandRunnerV1,
@@ -71,6 +72,17 @@ const guiOnlyApplicationV1 = Object.freeze({
 const mixedProjectV1 = defineSillymakerProjectV1({
   projectId: "project-test",
   applications: [...projectV1.applications, guiOnlyApplicationV1],
+});
+
+const webOnlyProjectV1 = defineSillymakerProjectV1({
+  projectId: "project-test",
+  applications: [{
+    ...projectV1.applications[0]!,
+    web: {
+      ...projectV1.applications[0]!.web!,
+      desktop: null,
+    },
+  }],
 });
 
 const companionProjectV1 = defineSillymakerProjectV1({
@@ -382,6 +394,10 @@ describe("runProjectCliV1", () => {
     });
     expect((await runV1(["desktop", "gui-only"], desktop.runner, mixedProjectV1)).code)
       .toBe(0);
+
+    const desktopDev = createFakeRunnerV1({ exitCode: 0 });
+    expect((await runV1(["desktop-dev", "gui-only"], desktopDev.runner, mixedProjectV1)).code)
+      .toBe(0);
   });
 
   it("prints structured diagnostics with exit code 1 for unknown applications", async () => {
@@ -527,6 +543,49 @@ describe("runProjectCliV1", () => {
       args: ["run", "-A", "npm:vite"],
       cwd: "/repo/test",
     });
+  });
+
+  it("desktop-dev launches official in-runtime Vite HMR with one private intent", async () => {
+    const fake = createFakeRunnerV1({ exitCode: 0 });
+    const result = await runV1(
+      ["desktop-dev", "synthetic"],
+      fake.runner,
+      webOnlyProjectV1,
+    );
+
+    expect(result).toEqual({ code: 0, out: [], err: [] });
+    expect(fake.log.runs).toHaveLength(1);
+    expect(fake.log.runs[0]).toMatchObject({
+      command: "deno",
+      args: [
+        "desktop",
+        "-A",
+        "--backend",
+        "webview",
+        "--config",
+        "/repo/deno.json",
+        "--lock",
+        "/repo/deno.lock",
+        "--frozen-lockfile",
+        "--node-modules-dir=manual",
+        "--hmr",
+        ".",
+      ],
+      cwd: "/repo/test",
+    });
+    expect(Object.keys(fake.log.runs[0]?.environment ?? {})).toEqual([
+      desktopDevIntentEnvironmentKeyInternalV1,
+    ]);
+    const intent = JSON.parse(
+      fake.log.runs[0]?.environment?.[desktopDevIntentEnvironmentKeyInternalV1] ?? "null",
+    );
+    expect(intent).toMatchObject({
+      revision: 1,
+      recordsDir: "/repo/test/tmp/sillymaker-desktop-dev/synthetic/records",
+      downloadsDir: "/repo/test/tmp/sillymaker-desktop-dev/synthetic/downloads",
+      bootstrap: { revision: 1, entry: "runtime", target: "deno_desktop" },
+    });
+    expect(intent.runId).toMatch(/^desktop-[0-9a-f-]{36}$/u);
   });
 
   it("prebuilt-smoke verifies the built artifact's referenced files", async () => {

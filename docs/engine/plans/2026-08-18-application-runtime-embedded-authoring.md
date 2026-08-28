@@ -635,6 +635,22 @@ PASS 本身都不能升格为 SillyMaker R1/R2 合同。
   inactive candidate 升为 maintained Desktop workflow 的唯一 activation gate，但不是 AR5、AR6 或
   其他工作的全局 gate。
 
+**Deno 2.9.6 stable activation record（2026-08-28，closed；不含 Desktop production）：**
+
+- Deno v2.9.6 release source 明确收录上游 PR #36488 的 in-runtime Vite 路径；本机 stable 报告
+  `deno 2.9.6 (stable, release, aarch64-apple-darwin)`，不以版本字符串代替 capability admission；
+- 既有中立 HMR/Host/close tests 保持 current。一次干净、人工参与的 native stable characterization
+  再次证明官方 Vite server、startup window adoption、`deno_desktop` bootstrap、同源 capability-gated
+  records route、component-only `LabHudV1` edit/restore 零 page reload、HUD state/overlay 保留，以及
+  正常关闭后的 flush/drain 与 direct-child exit 0；native 没有重复整套 R1/R2/Agent/CAS matrix；
+- 维护入口收敛为 `deno task app desktop-dev <application-id>`：从真实 application root 启动官方
+  `deno desktop --hmr .`，只传一个既有 private intent，并把 preview records/downloads 放入被忽略的
+  application-local `tmp`。adapter 没有 public export，普通 `app dev`、build 与 static Desktop
+  packaging 继续不选择它；
+- canary-only 255 行 launcher/test 随裁决删除，不改造为长期 harness。历史 canary commit 证据保留
+  在本记录；public Deno `>=2.9.0` floor、Desktop authoring/source-write/persistence/package/signing、
+  crash durability 与 multi-platform production qualification 均未提升。
+
 **AR0–AR5 Complexity Reset（2026-08-23，完成；纳入 AR5 closure evidence）：**
 
 - AR3 persistent-visible React publication 已完整取代 AR0 detached path；旧

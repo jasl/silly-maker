@@ -47,9 +47,10 @@ revalidation 与 production promotion 保持独立，不阻塞本产品。
 。M0 交付中性 GUI required-readiness latch + product-selected close
 participant，M1 package-private/explicit/最多一个的 Desktop product companion preview，M2
 交付 tooling-owned neutral conformance/final-graph evidence/live-doc handoff。Browser external-service interop、
-static Deno Desktop preview 与等待 verified stable 的 Desktop HMR revalidation 是三条正交路径；本车道
-不激活 public subprocess/companion/Agent/Mod ABI、registry、进程扫描、Pi/SillyOS fixture、Desktop
-production 或 maintained HMR。该 closure 没有自动激活后继；电子宠物是所有者在次日另行接受的产品车道。
+static Deno Desktop preview 与当时等待 verified stable 的 Desktop HMR revalidation 是三条正交路径；
+本车道不激活 public subprocess/companion/Agent/Mod ABI、registry、进程扫描、Pi/SillyOS fixture、
+Desktop production 或 maintained HMR。HMR stable activation 后来于 2026-08-28 独立关闭，没有回写
+本车道 scope。该 closure 没有自动激活后继；电子宠物是所有者在次日另行接受的产品车道。
 
 2026-08-27 另行交付关闭 [Narrative Aside V1](2026-08-27-narrative-aside.md)（提案
 [narrative-aside](../proposals/narrative-aside.md)）：Base 提供 typed、zero-authority、commit-only 的
@@ -176,12 +177,13 @@ occurrence-fenced command 路径路由区域激活。声明值随普通 pending 
 决议、时间算术或 `when`；`game-stage.tsx`、Scene/Region 权威和 Input Router 均未新增分支。Shared
 Stage Input 关闭后完成的 Neutral GUI Host slice 见本节开头；其关闭当时没有活动车道，Desktop 持久化仍是
 独立晋级门。当前产品车道由本节第一段拥有。
-首个经 release
-source/行为确认包含目标路径的 stable（2.9.6 只是预期候选）仍须重跑同一分层验收，全部通过后才
-正式打开 maintained Desktop development workflow。此前 adapter 保持 package-private、explicit、
-default-off；这条独立、条件性的 Desktop activation follow-up 没有阻塞 AR5/AR6 closure，也不阻塞
-其他 owner-accepted work。不得为 2.9.5 建 external Vite/proxy、手工 shim 或 runtime fork；
-现有 static R3/packaging、public Deno `>=2.9.0` floor 与 latest-stable required CI 不变。目标合同见
+独立 [Desktop HMR stable activation](2026-08-28-deno-desktop-hmr-stable-activation.md) follow-up
+已于 2026-08-28 关闭：Deno 2.9.6 release source 收录目标
+in-runtime Vite 路径，同一分层的中立 tests、真实 workspace launch、人工同窗 HMR/private-route/
+normal-close characterization 全部通过，维护入口为显式 `app desktop-dev <application-id>`。
+adapter 保持 package-private，普通入口 default-off；canary-only launcher/test 已删除。该关闭没有重开
+AR5/AR6，也不改变 static R3/packaging、public Deno `>=2.9.0` floor、latest-stable required CI 或
+Desktop production qualification。目标合同见
 [Application Runtime and Embedded Authoring](../design/application-runtime-and-embedded-authoring.md)。
 Browser 与 Deno Desktop 是当前 GUI product targets；CLI 只提供 Desktop startup config，
 headless 只作开发/测试辅助，外部后台与 LLM 统一经 RPC。AR1 没有激活 public Cordis API、Mod
@@ -189,9 +191,8 @@ ABI、runtime code installation、State Format V2、Effect Broker、具体 OpenU
 production Story State migration；Cordis adapter/vendor/dependency 已删除。ordinary no-extension
 静态游戏 release 仍不得包含 author/source-write、selected Direct extension runtime 或 RPC
 implementation。Workspace Focus 与 Browser R2 authoritative handoff 都已关闭；作品/examples/产品
-验证不会自动激活 engine backlog。stable Deno Desktop revalidation
-只在满足 release source/行为进入条件后作为独立
-activation follow-up 领取，不占用或阻塞其他 owner-accepted work。
+验证不会自动激活 engine backlog。Deno Desktop stable activation 已关闭，不占用或阻塞当前 VN
+产品车道；Desktop persistence/package/signing 与 authoring R0–R2 仍须单独领取。
 
 更早一条已关闭的能力车道（不形成 active/next）：
 [Authorable Chrome Layout V1](2026-08-22-authorable-chrome-layout.md)

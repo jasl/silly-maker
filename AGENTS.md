@@ -183,12 +183,13 @@ Read only the documents relevant to the change:
   forward/reverse Chromium/WebKit product evidence on 2026-08-23. Browser R2
   state continuity is therefore promoted for those private opt-in boundaries.
   This is a Save/Session contract, not transient React state preservation or
-  Desktop HMR activation. The first
-  stable whose source and behavior contain that path must re-run the same
-  acceptance before the maintained Desktop development workflow activates. Until
-  then the adapter remains package-private, explicit, and default-off. This
-  independent Desktop activation follow-up did not block AR5/AR6, Workspace
-  Focus, or Browser R2 closure and does not block other owner-accepted work.
+  Desktop HMR activation. That independent follow-up closed on 2026-08-28 after
+  Deno 2.9.6 stable passed release-source, neutral-contract, native same-window
+  HMR/private-route, and normal-close revalidation. The maintained entry is
+  `deno task app desktop-dev <application-id>`; the adapter remains
+  package-private and ordinary-path default-off. This activates only the Desktop
+  development workflow, not Desktop authoring R0–R2, persistence, packaging,
+  signing, crash durability, or multi-platform production qualification.
   Browser R2 authoritative handoff is closed. On 2026-08-24 the owner accepted
   the Scale/Scene Object/Modular GUI plan listed below as the then-current engine lane.
   Its orthogonal M0 scale baselines and M1 static content plane/initial-bundle

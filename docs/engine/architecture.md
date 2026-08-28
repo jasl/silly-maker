@@ -18,11 +18,11 @@ Save/wire 与 authoritative semantics 未改变；PF6 broad harness 经 Cat Cafe
 本节的 single-authority 和 direct-plan 边界，但没有把 State 接入 production Story flow，也没有
 激活 State Format V2、Effect Broker/OpenUI、i18n 或 production migration。
 Application Runtime AR0–AR5 主线已交付当前 Host/activation/authoring/Agent fake、Browser
-lifetime、Author graph structural exclusion 与 local performance evidence。Deno Desktop 已保留
-package-private、explicit、default-off 的 HMR candidate 并通过指定 canary characterization，但
-maintained Desktop HMR workflow 仍独立 defer 到首个包含目标语义的 stable 上重新验收；Desktop
-Authoring/Agent Host 的 R1/R2 也仍未接线。该条件性 Desktop activation defer 不排序或阻塞其他
-engine/product lane。
+lifetime、Author graph structural exclusion 与 local performance evidence。Deno Desktop 的
+package-private HMR adapter 已通过指定 canary characterization 与 Deno 2.9.6 stable
+source/behavior revalidation；维护中的 `app desktop-dev` 显式选择它，普通入口仍 default-off。
+Desktop Authoring/Agent Host 的 R1/R2、persistence、packaging、signing 与 multi-platform
+production qualification 仍未接线。
 Authoring Workspace Focus & Navigation 曾交付 closed manifest、Host-owned focus 与单一可见
 workspace；Scale/Scene Object/Modular GUI M5 已以 clean break 取代该产品外形。当前维护面是
 standalone/embedded Inspector：它复用 Authoring Host、document session、structured operations、
@@ -163,10 +163,11 @@ framework behavior. For module updates, SillyMaker owns only the admitted
 application response: R1 binding continuity, R2 Game/Session replacement and
 authoritative handoff, or R3 full-page recovery.
 
-The Deno Desktop development candidate remains package-private, explicit, and
-default-off. It is deferred until a stable Deno containing the required behavior
-passes the maintained revalidation; that defer neither promotes Desktop HMR nor
-blocks Browser or engine work.
+The Deno Desktop development adapter remains package-private and ordinary-path
+default-off. Deno 2.9.6 passed the maintained stable revalidation; only the
+explicit `app desktop-dev` command selects it. The workflow does not move Vite,
+React Fast Refresh, or the module graph into the engine and does not promote
+Desktop production behavior.
 
 ### Maintained internal composition kernel
 
@@ -432,10 +433,10 @@ retires the companion owner, and ten repeated Agent activate/dispose cycles retu
 subscriptions, and late publications to zero. These layers do not claim that every failure or
 rollback has a physical Browser proof. Template and Engine Lab ordinary Player measurements assert
 Agent/RPC absence, while the complete Template Author-entry measurement supplies the stronger
-authoring-product negative control described above. The Deno Desktop adapter remains package-private,
-explicit, default-off, and unpromoted after its selected-canary characterization. Only its activation
-as a maintained Desktop HMR workflow remains deferred to stable source-and-behavior revalidation;
-the AR5 mainline is delivered, and this independent defer does not order unrelated work.
+authoring-product negative control described above. The Deno Desktop adapter remains package-private
+and ordinary-path default-off. After selected-canary characterization, Deno 2.9.6 stable passed the
+same source-and-behavior revalidation and the explicit `app desktop-dev` workflow became maintained.
+The AR5 mainline remains delivered; this activation did not promote Desktop production behavior.
 
 The one-off AR5 paired runner produced dated same-machine evidence, then was
 removed by the AR0–AR5 Complexity Reset together with its fixed ordering,
@@ -1104,20 +1105,19 @@ the Browser R2 State/Save continuity described by the matrix. It does not
 preserve arbitrary React state: a product shell may reopen its title screen
 while the adopted Session remains exact. The
 [Browser R2 authoritative handoff plan](plans/2026-08-23-browser-r2-authoritative-state-handoff.md)
-is closed. Desktop HMR remains independently inactive.
+is closed. Desktop HMR was activated later as the independent, explicit
+development workflow described below.
 
 [Deno documents `deno desktop --hmr` as a platform development option](https://docs.deno.com/runtime/desktop/hmr/),
-but the current SillyMaker Desktop staging/packaging command does not pass or
-integrate that mode. Platform availability therefore does not promote an R1/R2
-SillyMaker contract. The package-private candidate is reachable only through its
-explicit bounded characterization preflight and remains default-off; its canary
-evidence does not change the live matrix above. Do not replace stable revalidation
-with an external proxy/companion, shim, Deno fork, undocumented marker, or a presumed
-2.9.6 version gate. A macOS arm64 / Deno 2.9.5 native common-runtime smoke does
-now prove the latest Engine Lab static Player's GUI readiness, authoritative
-operation, same-window Game/Session restart, close acknowledgement, autosave
-flush, and normal process exit; it does not extend the Desktop cells above or
-promote packaging, multi-platform launch, or persistence durability.
+and Deno 2.9.6 passed SillyMaker's separate stable source-and-behavior
+revalidation. `app desktop-dev <application-id>` now explicitly selects the
+package-private adapter and official in-runtime Vite path; ordinary Browser
+development, build, and static Desktop packaging remain default-off. This does
+not derive an R1/R2 contract merely from platform availability, use an external
+proxy/companion, shim, Deno fork, undocumented marker, or hard-coded patch gate.
+The maintained macOS arm64 development evidence and the earlier Deno 2.9.5
+static common-runtime smoke do not extend the Desktop cells above or promote
+packaging, multi-platform launch, signing, or persistence durability.
 
 Renderer-local hover, animation, focus, overlay, and asset-loading state is
 non-authoritative. It may produce semantic or presentation intents, but it
