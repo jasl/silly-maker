@@ -10,7 +10,7 @@ export default defineConfig({
   retries: 0,
   reporter: "line",
   webServer: {
-    command: `deno task docs:preview --host ${websiteTargetV1.host} --port ${
+    command: `deno task site:preview --host ${websiteTargetV1.host} --port ${
       String(websiteTargetV1.port)
     } --strictPort`,
     cwd: "../..",

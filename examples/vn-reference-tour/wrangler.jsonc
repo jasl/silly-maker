@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-// Standalone Cloudflare Workers preview for this Product WIP. A successful
-// deploy proves only this build's static Browser artifact. It does not close
-// the remaining author-handoff, Desktop-preview, profiling, or product-review
-// gates in DESIGN.md.
+// Standalone Cloudflare Workers deployment for the maintained flagship VN
+// Reference Product. A successful deploy proves only this build's static
+// Browser artifact; it does not promote Desktop production support or prove a
+// live deployment until that remote operation is actually performed.
 //
 //   deno task deploy:cf      # builds dist-web/ and deploys it
 //                            # (authenticate once:

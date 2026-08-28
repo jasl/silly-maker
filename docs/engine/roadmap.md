@@ -319,7 +319,8 @@ promotion；前者后来于 2026-08-28 独立关闭并开放显式开发入口�
 Desktop production claim，不阻塞 core 或其他工作。
 
 2026-08-27 所有者另行接受
-[VN Reference Tour](plans/2026-08-27-vn-reference-tour.md) 为当前唯一产品车道。它从 tracked Template 起步，
+[VN Reference Tour](plans/2026-08-27-vn-reference-tour.md) 已完成当前产品车道的 M0–M5，并成为维护中的旗舰
+Reference Product。它从 tracked Template 起步，
 以原创、完整、紧凑的可发布短篇验证 SillyMaker 当前推荐的 Visual Novel authoring、Narrative/Stage、
 Player QoL、Save/rollback、audio、locale-addressable content、responsive Input 与 Inspector/human/Agent
 handoff。它只选择 VN 产品真正需要的能力，不是全引擎 API gallery，也不建立 Ren'Py DSL、Save 兼容、
@@ -337,11 +338,12 @@ accessibility/silent-run/raw-performance 证据。独立审查发现历史 59 un
 支撑冻结的 10–14 分钟阅读分母，当前候选已修正为 110 unique / 82 per route，并按最小视口分页。独立
 engine review 与 Starter feedback classification 已完成：产品 E2E 的 private import 泄漏已删除，没有新的
 中立 engine gap，也不需要追加 Template 改动。独立 product re-review 也已通过且没有 product-integrity
-blocker；代表性真实 current-low-end qualification 是唯一开放门槛。M4 尚未关闭，M5 尚未开始，当前 WIP 仍不是完整产品或完成证据。Cat Cafe 已在
+blocker。2026-08-29 所有者因没有合适设备，取消代表性真实 current-low-end qualification 作为本产品完成门槛；
+该资格未执行、未通过，也不形成低端设备支持声明。M4 按缩减后的证据范围关闭，M5 已完成旗舰、current docs、
+产品 metadata 与 workspace/build/deploy/site 接线切换，但不声称远程 live deployment。Cat Cafe 已在
 本轮开始前独立终止，应用、revision-1 Save 支持、产品 E2E 与 live 发布责任同步结束，不做跨产品 Save 迁移
-或兼容 wrapper。VN 开发期间没有当前旗舰；Bookshop 只保持 maintained minimal Narrative example，不是旗舰
-或完整 VN 产品参考。完整产品及独立审查关闭后，才原子提升 VN 为旗舰。预期届时维护的产品例子是 SillyOS +
-VN；Bookshop 的教学角色在 VN 完成后另行评审并显式裁决，不在 M5 自动删除。
+或兼容 wrapper。Bookshop 继续保持 maintained minimal Narrative example，不是旗舰或完整 VN 产品参考；
+教学角色在 VN 完成后另行评审并显式裁决，M5 没有自动删除。维护的产品例子是 SillyOS + VN。
 
 此前同日接受的
 [Electronic Pet Reference Product](plans/2026-08-27-electronic-pet-reference-product.md) 已由所有者停止且未

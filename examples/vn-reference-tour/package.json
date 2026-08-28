@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "Product WIP for One Last Sound Check; M0-M3 deliver the complete author data, VN Player, media, product UI matrix, Save/recovery, and Settings.",
+  "description": "SillyMaker's maintained flagship VN Reference Product: the complete two-route One Last Sound Check.",
   "exports": {
     ".": "./src/story.ts"
   },

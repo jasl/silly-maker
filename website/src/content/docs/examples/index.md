@@ -8,6 +8,11 @@ standard is an understandable, publishable product, but each current entry keeps
 its actual role explicit instead of borrowing another example's completeness
 claim.
 
+- **One Last Sound Check** — the maintained flagship Reference Product: an
+  original, complete two-route VN with the default Player, Save/recovery,
+  audio, localization, responsive UI, and Inspector-assisted authoring.
+  [Read the case study](./vn-reference-tour/) or
+  [play it in this site build](../play/vn-reference-tour/).
 - **SillyOS** — a GUI-only Creator Home → Program Workspace product slice. Its
   one built-in Agent Creator drives a deterministic local preview and review
   flow; real Pi, database, RPC, Mod activation, and persistence are not connected.
@@ -15,4 +20,5 @@ claim.
 - **Bookshop** — a focused narrative-authoring example maintained in the
   repository.
 
-> **TODO:** Add product screenshots, scope denominators, and case-study links as each example is redesigned.
+Bookshop remains maintained while its long-term teaching role is reviewed
+separately; flagship completion does not retire it implicitly.

@@ -11,14 +11,12 @@ Backend services, CLI products, and headless products are not engine targets.
 Desktop CLI arguments may provide admitted startup configuration, and headless
 code may support development, tests, conformance, and automation. Required
 external or companion services, including LLMs, connect through typed RPC
-boundaries; they are not in-process plugins. There is currently no flagship
-Reference Product. The active VN Reference Tour is an independent WIP candidate
-and becomes the flagship only after its complete product, authoring, and
-evidence gates close. Bookshop remains a maintained minimal Narrative example
-through that completion, but is neither the flagship nor a complete VN product
-reference; its later teaching role requires a separate completion review and is
-not pre-decided. The expected maintained product examples after completion are
-SillyOS and the VN. Cat Cafe, the stopped Electronic Pet Reference Product, and
+boundaries; they are not in-process plugins. The maintained flagship Reference
+Product is the VN Reference Tour. Bookshop remains a maintained minimal
+Narrative example, but is neither the flagship nor a complete VN product
+reference; its later teaching role requires a separate post-completion review
+and is not pre-decided. The maintained product examples are SillyOS and the VN.
+Cat Cafe, the stopped Electronic Pet Reference Product, and
 the retired Project Tavern PoC live only as historical evidence. The active
 work may redesign gameplay, engine APIs, application hosting, state management,
 presentation, and authoring workflows.
@@ -38,9 +36,10 @@ Read only the documents relevant to the change:
 - `docs/engine/plans/2026-07-30-production-floor-sequence.md` — the only
   cross-plan execution order. PF0–PF7 and the Complexity Reset are complete;
   PF6 remains evidence-gated and inactive. The current lane is
-  `docs/engine/plans/2026-08-27-vn-reference-tour.md`: an original, complete,
-  compact VN product that starts from the tracked Template and demonstrates the
-  current recommended VN authoring and Player path without becoming an
+  `docs/engine/plans/2026-08-27-vn-reference-tour.md`: the completed flagship
+  product lane for an original, compact VN that starts from the tracked
+  Template and demonstrates the current recommended VN authoring and Player
+  path without becoming an
   all-engine API gallery or a Ren'Py DSL. M0–M1 have delivered the independent
   WIP package, frozen product denominator, supported-export boundary, clean
   deletion of unselected starter domains, complete two-route script, two
@@ -60,10 +59,10 @@ Read only the documents relevant to the change:
   persistent Player settings with live locale, and a layered recovery matrix
   for exact awaitable close plus already-durable Browser reload/forced-close
   state. Browser `pagehide` remains a synchronous fence with best-effort async
-  flush and does not promise last-moment IndexedDB durability. M4 is now in
-  progress: a package-private Visual ambient-binding operation, one real Agent
-  Inspector/CAS handoff, and the workstation Browser/build/static-Desktop/
-  accessibility/silent-run/raw-performance evidence are delivered. The
+  flush and does not promise last-moment IndexedDB durability. M4 delivered a
+  package-private Visual ambient-binding operation, one real Agent
+  Inspector/CAS handoff, and workstation Browser/build/static-Desktop/
+  accessibility/silent-run/raw-performance evidence. The
   2026-08-29 core/optional correction also split the focused Narrative Player
   core from its explicitly selected History renderer/CSS, added a neutral
   private Mod selection-successor contract, and kept the compact VN free of a
@@ -84,15 +83,19 @@ Read only the documents relevant to the change:
   complete: the private-import leak in product E2E was removed, no neutral
   engine gap remains, and no additional Template change is justified. The
   independent product re-review has also passed without a product-integrity
-  blocker. Representative real current-low-end qualification remains the only
-  open gate. M4 is not closed, M5 has not started, and this playable WIP is
-  still not product-completion evidence.
+  blocker. On 2026-08-29 the owner removed representative real current-low-end
+  qualification from this product's completion gates because no suitable device
+  was available. That qualification was not run or passed and the flagship makes
+  no corresponding low-end support claim. M4 therefore closed on the accepted
+  reduced evidence scope. M5 then completed the atomic current-doc,
+  workspace/build/deploy and product-metadata cutover, making the VN Reference
+  Tour the maintained flagship without claiming a live remote deployment.
   Cat Cafe terminated on 2026-08-27 before this lane began; its application,
   revision-1 Save support, product E2E, and live release responsibility ended
   together, without a cross-product migration. Bookshop remains the maintained
-  minimal Narrative example through the VN completion gate, but is not the
-  flagship or a complete VN product reference; M5 does not automatically delete
-  it, and a post-completion review must explicitly decide its teaching role. The
+  minimal Narrative example, but is not the flagship or a complete VN product
+  reference; M5 did not delete it, and a post-completion review must explicitly
+  decide its teaching role. The
   preceding Electronic Pet lane stopped incomplete on 2026-08-27: M0–M2 and the
   committed M3 slices remain historical evidence, the remaining denominator
   will not be delivered, and its additional WIP is preserved only on

@@ -68,7 +68,7 @@
     "test:e2e:engine": "deno run -A npm:@playwright/test/playwright test --config engine/packages/web/playwright.engine.config.ts",
     "test:e2e:gui-application": "deno run -A npm:@playwright/test/playwright test --config engine/packages/web/playwright.gui-application.config.ts",
     "test:e2e:examples": "deno run -A npm:@playwright/test/playwright test --config examples/e2e/playwright.examples.config.ts",
-    "test:e2e:website": "deno task docs:build && deno run -A npm:@playwright/test/playwright test --config website/e2e/playwright.website.config.ts",
+    "test:e2e:website": "deno task site:build && deno run -A npm:@playwright/test/playwright test --config website/e2e/playwright.website.config.ts",
     "test:conformance:headless": "deno run -A npm:vitest run e2e",
     "test:e2e:engine:prebuilt": "deno task app build e2e && deno run -A npm:@playwright/test/playwright test --config engine/packages/web/playwright.engine-prebuilt.config.ts",
     "check": "deno task format:check && deno task lint && deno task lint:styles && deno task typecheck && deno task check:determinism && deno task test && deno task check:assets && deno task app check --all && deno task app build e2e",
@@ -78,6 +78,7 @@
     "docs:build": "deno task docs:check && deno run -A npm:astro@^7.2.6 build --root website",
     "docs:preview": "deno run -A npm:vite@^8.2.1 preview website",
     "site:build": "deno run -A scripts/build-site.mts",
+    "site:preview": "deno run -A npm:vite@^8.2.1 preview dist --outDir site",
     "site:deploy:cf": "deno run -A npm:wrangler@4.123.0 deploy"
   }
 }

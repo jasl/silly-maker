@@ -60,7 +60,7 @@ function wordCountV1(entries: readonly { readonly text: string }[]): number {
   );
 }
 
-describe("VN Reference Tour current M4 content denominator", () => {
+describe("VN Reference Tour maintained product denominator", () => {
   it("keeps exact 54/28/28 locale-complete packs and a 110-entry union", () => {
     const pairs = [
       [sharedChineseV1, sharedEnglishV1, 54],

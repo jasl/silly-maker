@@ -7,6 +7,11 @@ SillyMaker 把产品意图落实为共享、可检查的工件与可执行验收
 coding agent 在同一组所有权边界与运行证据内实现。浏览器与
 [Deno](https://deno.com/) Desktop preview 是当前目标。
 
+**查看维护中的旗舰 VN Reference Product**：
+[《最后一次试音》](examples/vn-reference-tour/) 是原创、完整的双路线 Visual Novel，验证当前推荐的
+Narrative/Stage、Player、Save、音频、本地化、响应式与 Inspector 作者路径。它的可发布 Browser artifact
+已接入静态站构建；本仓库不声称已经执行远程 live deployment。
+
 **探索 GUI 产品方向**：[SillyOS](examples/silly-os/) 正在围绕唯一可见程序
 **Agent Creator** 重写。它把创作意图整理进可审查的 Program 工作区，让对话、方案、
 工作成果与活动记录保持在一起。当前版本明确是确定性的本地预览：用于验证响应式的
@@ -39,7 +44,7 @@ deno run dev             # 启动这个应用自己的 Vite 服务
 - `deno task check`——本地主门禁：格式、静态检查、类型检查与产品级测试套件；
 - `deno task test` / `deno task test:e2e`——引擎/游戏行为测试与浏览器用户流程；
 - `deno task app <verb> <app>`——显式选择目标的仓库应用 CLI（dev / inspect / check / simulate / build / desktop，适用时输出 JSON 报告）；
-- `deno task site:build`——组装可发布静态站（文档 + SillyOS Creator Preview）
+- `deno task site:build`——组装可发布静态站（文档 + 旗舰 VN + SillyOS Creator Preview）
   到 `dist/site`，经 GitHub Pages workflow 或
   `deno task site:deploy:cf`（Cloudflare Workers）发布；见
   [构建与发布](docs/engine/build-and-release.md)。
@@ -68,7 +73,7 @@ engine/packages/ui       通用 React GUI/游戏 UI 与 presentation 运行时
 engine/packages/web      浏览器 Host、IndexedDB/HTTP 持久化、挂载与自动化
 e2e/                     中立引擎一致性 Story（Engine Lab）
 template/                新游戏起点骨架
-examples/                产品与聚焦示例（bookshop、silly-os）
+examples/                产品与聚焦示例（旗舰 VN、bookshop、silly-os）
 project.config.ts        仓库级聚合命令使用的应用目录清单
 scripts/                 构建身份、资产校验、桌面存档服务器、发布站组装
 docs/                    内部工程文档（计划、研究、提案、政策）

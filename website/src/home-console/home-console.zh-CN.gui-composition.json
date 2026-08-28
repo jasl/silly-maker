@@ -76,7 +76,7 @@
             "summary": "打开职责和范围都明确的示例；它们负责暴露缺失抽象，并把可复用改进反馈给引擎与 Starter。",
             "href": "./examples/",
             "accent": "violet",
-            "tags": ["SillyOS", "Bookshop"]
+            "tags": ["旗舰 VN", "SillyOS", "Bookshop"]
           },
           "slots": {}
         }

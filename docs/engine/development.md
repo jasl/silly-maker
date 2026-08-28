@@ -55,7 +55,7 @@ engine/packages/ui       generic React presentation, Narrative/WholeCanvas surfa
 engine/packages/web      browser Host and application adapters
 e2e/                     neutral Engine Conformance Story (MIT test consumer)
 template    minimal starter Story (new-project skeleton)
-examples/                curated applications (focused Bookshop Story; GUI-only SillyOS)
+examples/                curated applications (flagship VN; focused Bookshop; GUI-only SillyOS)
 project.config.ts        the workspace registry (application directory list)
 website/                 the public documentation site (Astro + Starlight, en + zh; deno task docs:dev)
 scripts                  maintained build, asset, and product tooling

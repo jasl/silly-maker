@@ -2,18 +2,20 @@
 
 # 《最后一次试音》— VN Reference Tour
 
-状态：**M0–M3 已交付 / WIP；M4 进行中。独立 package、完整双路线作者数据与 simulation、
+状态：**维护中的旗舰 Reference Product；M0–M5 已关闭。独立 package、完整双路线作者数据与 simulation、
 引擎维护的 default VN Player、最终 Stage/ending 媒体、冻结的八项音频分母、interaction-level
 Back/Forward、responsive/input/accessibility 产品矩阵、system menu/Save、持久设置/live locale 与分层恢复
-矩阵均已完成。Browser 强制关闭只恢复最后已经持久化的 autosave；M4 workstation 自动化产品证据与
-所有者授权的 Computer Use-assisted author handoff、独立 product/engine review 与 Starter feedback 已完成；
-代表性 current-low-end qualification 是唯一开放门槛。**
+矩阵均已完成。Browser 强制关闭只恢复最后已经持久化的 autosave；workstation 自动化产品证据、
+所有者授权的 Computer Use-assisted author handoff、独立 product/engine review 与 Starter feedback 已完成。
+2026-08-29 所有者因没有合适设备，取消代表性真实 current-low-end qualification 作为本产品完成门槛；
+该资格未执行、未通过，本产品也不声明相应低端设备支持。M4 按缩减后的证据范围关闭，M5 完成旗舰切换与
+文档/构建接线，但不声称已经执行远程 live deployment。**
 
 M1 已用当时冻结的 59 unique / 44 per route Story/Scene author data 原子替换 tracked Template 的临时内容；
 M4 独立审查证明该体量与已冻结的 10–14 分钟合同矛盾，因而以 evidence-driven correction 补足为当前
 110 unique / 82 per route，而不是任意扩大产品 scope。M2 已交付 Player、
 Stage 媒体、结局、音频、Back/Forward 与完整响应式/无障碍矩阵；M3 已关闭产品入口、Save/recovery 与设置。
-《最后一次试音》仍不是完整产品参考或旗舰。完整产品合同见 [DESIGN.md](DESIGN.md)。
+《最后一次试音》现为 SillyMaker 维护中的完整产品参考与旗舰。完整产品合同见 [DESIGN.md](DESIGN.md)。
 
 ## 产品目标
 
@@ -57,9 +59,8 @@ Forward 后缀，hold tick 不会成为额外的玩家停靠点。
 当前有语音的台词可用“语音”按钮或 `V` 重放；Auto 的文本等待到期后仍会等待当前语音自然结束。浏览器拒绝
 自动播放或媒体不可解码时只降级为静音，不阻塞剧情。
 
-这些命令的 green run 证明当前 author data、两条 deterministic headless routes 与 Player 接线；M3 的
-Save/recovery 还由 focused reopen tests 与 Browser journeys 分层证明。M4 evidence 关闭前，不得把它报告为
-完整产品或发布完成。
+这些命令的 green run 只证明当前 author data、两条 deterministic headless routes 与 Player 接线；M3 的
+Save/recovery、M4 产品证据与 M5 发布接线另由各自的 focused/Browser/build 证据关闭，不能从这一组命令单独推导。
 
 ## 作者地图
 
@@ -125,8 +126,9 @@ M4 自动化证据已覆盖 Browser release build/publishability、Deno Desktop 
 接到 0-gain terminal 的无声测试运行；产品本身默认非静音，mute 仍是持久化用户偏好。所有者授权的
 Computer Use-assisted participant 已沿同一 authoring/CAS 路径把 ambient phase 从 350ms 调整到 400ms，完成
 undo、redo、保存和刷新后复核。独立 engine review 没有发现中立引擎缺口；Starter feedback 结论为零
-Template 修改；独立 product review 也确认 110/82 最终候选没有 product-integrity blocker。代表性
-current-low-end qualification 是完整产品关闭前唯一剩余的硬门槛。
+Template 修改；独立 product review 也确认 110/82 最终候选没有 product-integrity blocker。
+2026-08-29 所有者随后取消代表性真实 current-low-end qualification 作为本产品完成门槛，因为没有合适设备；
+该项未执行、未通过，也不形成低端设备支持声明。其余 M4 门槛已经关闭，M5 已完成旗舰切换。
 
 ## 许可
 

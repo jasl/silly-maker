@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
-# Publishes the composed static site (documentation + the SillyOS Creator
-# Preview application) to GitHub Pages. Push deployment intentionally remains
+# Publishes the composed static site (documentation + the flagship VN + the
+# SillyOS Creator Preview) to GitHub Pages. Push deployment intentionally remains
 # disabled; if enabled later, the same-commit CI quality and prebuilt-smoke
 # gates must succeed before this workflow may build or deploy.
 #

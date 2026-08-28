@@ -9,7 +9,7 @@
     "check": "astro sync && tsc -p tsconfig.check.json --noEmit --pretty false",
     "build": "deno task check && astro build",
     "preview": "vite preview",
-    "test:e2e": "deno task build && deno run -A npm:@playwright/test/playwright test --config e2e/playwright.website.config.ts"
+    "test:e2e": "deno task --cwd .. test:e2e:website"
   },
   "dependencies": {
     "@sillymaker/base": "workspace:*",

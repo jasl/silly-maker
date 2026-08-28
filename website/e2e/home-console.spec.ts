@@ -75,6 +75,10 @@ test("reduced motion preserves route changes without animated movement", async (
   await page.goto(websiteUrlV1);
 
   const homeConsole = page.locator("[data-home-console-ready='true']");
+  await expect(homeConsole).toHaveAttribute(
+    "data-home-console-selected",
+    "start",
+  );
   await homeConsole.getByRole("button", { name: "Next route" }).click();
   await expect(homeConsole).toHaveAttribute(
     "data-home-console-selected",
@@ -98,4 +102,23 @@ test("reduced motion preserves route changes without animated movement", async (
       slideAnimationName: "none",
       streakAnimationName: "none",
     });
+});
+
+test("the composed site exposes the flagship player and keeps maintained examples", async ({ page }) => {
+  await page.goto(websiteUrlV1);
+
+  const flagshipCard = page.locator("a.sm-example-card--vn");
+  await expect(flagshipCard).toContainText("One Last Sound Check");
+  await expect(page.locator("a.sm-example-card--bookshop")).toContainText("Bookshop");
+  await expect(page.locator("a.sm-example-card--os")).toContainText("SillyOS");
+
+  await flagshipCard.click();
+  await expect(page).toHaveURL(/\/examples\/vn-reference-tour\/$/u);
+  await page.getByRole("link", { name: "Play the VN in this site build" }).click();
+  await expect(page).toHaveURL(/\/play\/vn-reference-tour\/$/u);
+  await expect(page.locator("[data-title-screen='true']")).toBeVisible();
+  await expect(page.getByRole("button", { name: "新游戏" })).toBeVisible();
+
+  await page.goto(`${websiteUrlV1}play/silly-os/`);
+  await expect(page.locator('[data-silly-os-view="home"]')).toBeVisible();
 });

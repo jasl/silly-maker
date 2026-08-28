@@ -433,15 +433,19 @@ independent of Deno Desktop APIs; the web Player is the stable fallback.
 ## Publish to static hosting (GitHub Pages / Cloudflare Workers)
 
 `deno task site:build` composes a publishable static site at `dist/site`: the
-Astro/Starlight documentation at the root and the GUI-only SillyOS Creator
-Preview at `/play/silly-os/`. SillyOS currently exposes the Creator Home → Program
+Astro/Starlight documentation at the root, the maintained flagship VN Reference
+Product at `/play/vn-reference-tour/`, and the GUI-only SillyOS Creator Preview
+at `/play/silly-os/`. The VN path packages the complete two-route _One Last
+Sound Check_ Browser product; its inclusion is static publish wiring, not
+evidence that a remote live deployment has occurred. SillyOS currently exposes the Creator Home → Program
 Workspace journey with one built-in Agent Creator and a deterministic local
 preview. It does not claim real Pi, database, RPC, Mod activation, or
 persistence. The application bundle builds with `base: "./"` and resolves
 runtime assets against `document.baseURI`, so it is location-independent; only
 the docs site needs the deployment base, supplied through `SITE_BASE` (defaults
-to `/`). The current SillyOS preview starts a new local session after reload.
-The static deployment requires no server component.
+to `/`). The current SillyOS preview starts a new local session after reload;
+the VN keeps its application-owned Browser Save behavior. The static deployment
+requires no server component.
 
 - **GitHub Pages** — `.github/workflows/deploy-pages.yml` uses `deno ci`, builds with `SITE_BASE=/<repo>/`, and deploys through `actions/deploy-pages`. One-time setup: repository Settings → Pages → Source: "GitHub Actions", then run the workflow from the Actions tab. Push deployment is intentionally disabled; enabling it requires the deployment build to wait for the same commit's required CI quality and Engine Lab prebuilt-smoke gates. The site lands at `https://<owner>.github.io/<repo>/`.
 - **Cloudflare Workers** — `wrangler.jsonc` declares an assets-only Worker serving `dist/site`. Deploy from a local machine with `deno task site:build && deno task site:deploy:cf` (authenticate once with `deno run -A npm:wrangler@4.123.0 login`). Root-based hosting, so the default `SITE_BASE=/` is correct; the site lands at `https://silly-maker.<account>.workers.dev/` or a custom domain.
@@ -455,7 +459,7 @@ independently can therefore deploy `dist-web/` directly. It does not need an
 additional handoff-preparation step.
 
 - **Cloudflare Workers** — the template and each example carry an app-local `wrangler.jsonc` (assets-only Worker serving `./dist-web`) and a `deploy:cf` script. From the application directory: `deno task deploy:cf` (builds, then deploys; authenticate once with `deno run -A npm:wrangler@4.123.0 login`). The Player lands at `https://<worker-name>.<account>.workers.dev/`. The `name` field in `wrangler.jsonc` is the Worker name — template copies rename it with the rest of the project; each application deploys as its own Worker, independent of the composed site. The wrangler version is pinned in each project's `package.json` and task; bump both together.
-- **GitHub Pages** — one repository owns one Pages site, and this repository's Pages slot serves the composed documentation plus the SillyOS preview. For a standalone application deployment, publish the built `dist-web/` contents from a dedicated repository; the relative-base bundle works unchanged from any path.
+- **GitHub Pages** — one repository owns one Pages site, and this repository's Pages slot serves the composed documentation plus the VN and SillyOS applications when the manual deployment workflow is actually run. For a standalone application deployment, publish the built `dist-web/` contents from a dedicated repository; the relative-base bundle works unchanged from any path.
 
 Remote distribution makes the SillyMaker MIT text available through the
 Player's project-license link or the files copied into an offline output

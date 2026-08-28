@@ -9,6 +9,13 @@ coding agents implement against the same ownership boundaries and runtime
 evidence. Browser and [Deno](https://deno.com/) Desktop preview are the current
 targets.
 
+**Explore the maintained flagship VN Reference Product**:
+[One Last Sound Check](examples/vn-reference-tour/) is an original, complete,
+two-route Visual Novel that exercises the recommended Narrative/Stage, Player,
+Save, audio, localization, responsive, and Inspector authoring paths. Its
+publishable Browser artifact is wired into the static site; this repository does
+not claim that a remote live deployment has been performed.
+
 **Explore the GUI product direction**: [SillyOS](examples/silly-os/) is being
 rebuilt around one visible program, **Agent Creator**. It turns a creative intent
 into a reviewable Program workspace where the conversation, proposal, workpiece,
@@ -46,7 +53,7 @@ Common commands:
 - `deno task test` / `deno task test:e2e` — engine/game behavior tests and browser user flows;
 - `deno task app <verb> <app>` — the explicit repository application CLI (dev / inspect / check / simulate / build / desktop, JSON reports where applicable);
 - `deno task site:build` — compose the publishable static site (docs + the
-  SillyOS Creator Preview) into `dist/site`, then deploy via the GitHub
+  flagship VN + SillyOS Creator Preview) into `dist/site`, then deploy via the GitHub
   Pages workflow or `deno task site:deploy:cf` (Cloudflare Workers); see
   [build-and-release](docs/engine/build-and-release.md).
 
@@ -76,7 +83,7 @@ engine/packages/ui       Generic React GUI/game UI and presentation runtime
 engine/packages/web      Browser host, IndexedDB/HTTP persistence, mounting, automation
 e2e/                     The neutral engine-conformance Story (Engine Lab)
 template/                The starter skeleton for new games
-examples/                Products and focused examples (bookshop, silly-os)
+examples/                Products and focused examples (flagship VN, bookshop, silly-os)
 project.config.ts        Repository directory list for aggregate commands
 scripts/                 Build identity, asset checks, desktop save server, site composer
 docs/                    Internal engineering docs (plans, research, proposals, policies)

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Composes the publishable static site under dist/site:
-//   /                Astro/Starlight documentation (website/)
-//   /play/silly-os/  the GUI-only SillyOS Creator Home to Program Workspace
-//                    deterministic preview
+//   /                          Astro/Starlight documentation (website/)
+//   /play/vn-reference-tour/  the flagship VN Reference Product
+//   /play/silly-os/            the GUI-only SillyOS deterministic preview
 //
 // SITE_BASE selects the deployment base path. Root deployments (Cloudflare
 // Workers, custom domains) omit it; GitHub Pages project sites set
@@ -46,7 +46,8 @@ async function runV1(command: string[], env?: Record<string, string>): Promise<v
 
 console.log(`[site] base: ${siteBase}`);
 
-// 1. Application bundle (app build runs Vite with the target's own config).
+// 1. Application bundles (app build runs Vite with each target's own config).
+await runV1(["deno", "task", "app", "build", "example-vn-reference-tour"]);
 await runV1(["deno", "task", "app", "build", "example-silly-os"]);
 
 // 2. Documentation site with the deployment base.
@@ -56,6 +57,11 @@ await runV1(["deno", "task", "docs:build"], { SITE_BASE: siteBase });
 await rm(siteDir, { recursive: true, force: true });
 await mkdir(join(siteDir, "play"), { recursive: true });
 await cp(join(repoRoot, "website", "dist"), siteDir, { recursive: true });
+await cp(
+  join(repoRoot, "examples", "vn-reference-tour", "dist-web"),
+  join(siteDir, "play", "vn-reference-tour"),
+  { recursive: true },
+);
 await cp(join(repoRoot, "examples", "silly-os", "dist-web"), join(siteDir, "play", "silly-os"), {
   recursive: true,
 });

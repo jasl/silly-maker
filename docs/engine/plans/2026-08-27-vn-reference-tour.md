@@ -1,18 +1,19 @@
 # VN Reference Tour 实施计划
 
-状态：**2026-08-27 经所有者接受，当前唯一活动 Reference Product；M0–M3 已交付，M4 正在执行。
+状态：**2026-08-27 经所有者接受，2026-08-29 M0–M5 全部关闭并完成旗舰切换。
 引擎维护的 focused default VN Player preset、say-only 全画布推进、贴底布局、Ctrl/Tab/H/V 与鼠标中键、
 最终 Stage/ending 媒体、冻结的八项音频、current-voice replay、voice-aware Auto、interaction-level
-Back/Forward、产品入口、Save/recovery 与 Settings 均已交付。当前 WIP 仍不是产品完成证据或旗舰。**
+Back/Forward、产品入口、Save/recovery、Settings、作者接手与产品证据均已交付。VN Reference Tour 现为
+维护中的旗舰 Reference Product；M5 完成的是仓库与发布接线，不声称已经执行远程 live deployment。**
 
 [Production-floor sequence](2026-07-30-production-floor-sequence.md) 是唯一跨计划排序入口。本计划同时拥有
 产品分母、实现顺序、证据门槛与旗舰提升条件；Bookshop 的后续教学角色不由本计划预裁。它不是 broad engine
 lane，也不激活 Ren'Py DSL、Ren'Py Save 兼容、自定义剧本解释器或最终编辑器。
 
 Cat Cafe 已在本计划开始前独立终止；它的应用、revision-1 Save 支持、产品 E2E 与 live 发布责任同步结束，
-不转移或迁移到本产品。VN 开发期间没有当前旗舰。Bookshop 继续作为 maintained minimal Narrative example，
-但不是旗舰或完整 VN 产品参考；它的教学角色只在本产品完成后另行评审并显式裁决，不在本计划自动删除。
-预期完成后的 maintained product examples 是 SillyOS + VN。此前 Electronic Pet Reference Product 已停止且
+不转移或迁移到本产品。VN 开发期间曾没有当前旗舰；M5 已把本产品原子提升为旗舰。Bookshop 继续作为
+maintained minimal Narrative example，但不是旗舰或完整 VN 产品参考；它的教学角色在本产品完成后另行评审并
+显式裁决，不在本计划自动删除。maintained product examples 是 SillyOS + VN。此前 Electronic Pet Reference Product 已停止且
 未完成；它的 M0–M2 与已提交 M3 切片只保留历史证据，不成为本产品的源码、素材、fixture、产品分母或实现模板。
 
 ## 1. 产品定位与完整分母
@@ -150,7 +151,7 @@ example。focused tests、`app check`、临时 `scaffold` simulation、Browser p
 
 ### M1 — 完整剧本、场景与作者数据
 
-状态：**2026-08-27 已交付。M2、M3 已于 2026-08-28 交付；M4 正在执行。**
+状态：**2026-08-27 已交付；后续 M2–M5 也已关闭。**
 
 - 写完并注册当时冻结的 59 条文案、二选一、两条 route 与两个 ending；先用 compatible placeholder media 也必须
   保持完整内容 breadth，不以单 route 关闭；
@@ -324,9 +325,10 @@ production build 与独立实现审查。React Doctor 唯一新增 advisory 对�
 
 ### M4 — 作者任务、产品证据与 Starter feedback
 
-状态：**2026-08-29 进行中。第一 authoring slice、Agent 与所有者授权 Computer Use-assisted participant
-接手任务、workstation 自动化产品证据、独立 product/engine review 与 Starter feedback 已完成；代表性
-current-low-end qualification 是唯一开放门槛。**
+状态：**2026-08-29 已关闭。第一 authoring slice、Agent 与所有者授权 Computer Use-assisted participant
+接手任务、workstation 自动化产品证据、独立 product/engine review 与 Starter feedback 已完成。所有者因没有
+合适设备，取消代表性真实 current-low-end qualification 作为本产品完成门槛；该资格未执行、未通过，也不形成
+低端设备支持声明。M4 按这一明确缩减后的证据范围关闭。**
 
 - 一名人类从 Inspector 微调场景构图/appearance/Motion reference，一名 Agent 使用同一 source、diagnostics、
   structured operation/CAS 路径完成修改；人类随后继续审查、undo/redo 与保存；
@@ -401,8 +403,9 @@ durability 或 production packaging。两条 82-step named simulation 完整覆�
 个中文非空白字符与 1,976/1,990 个英文词，两条路线各含 28 条互不混入的专属内容并进入不同结局；按正常
 阅读速度并计入 Choice、voice、hold 和操作停顿，10–14 分钟合同合理可达。默认 Auto 的真实 Chromium
 完整运行也分别在约 141/142 秒抵达两个结局；该加速播放数据只证明 Auto 收敛，不能替代首次阅读时长。
-因此独立 product/engine review 与 Starter feedback 均已关闭且没有提交阻塞，M4 只剩代表性真实
-current-low-end qualification。
+因此独立 product/engine review 与 Starter feedback 均已关闭且没有提交阻塞；在当时，M4 只剩代表性真实
+current-low-end qualification。2026-08-29 所有者随后明确取消该项作为完成门槛，因为没有合适设备；该项未
+执行、未通过，也不能用于声明低端设备支持。
 
 本 authoring slice 的提交时回归覆盖 6 个 focused test files / 32 tests、Inspector Chromium/WebKit 2 项
 真实编辑 E2E、两条 44-step named simulation、VN Chromium/WebKit 24 项产品 E2E（另有 2 项按 project
@@ -490,9 +493,15 @@ compact VN 伪造新的工具 Mod：
 - VN Reference Tour 与 Template 当前都不需要专属 Scene tool，因此保持空选择。其他 document family、完整
   workspace/editor replacement、public resolver/manifest/SDK 仍需独立真实 consumer 和 focused contract。
 
+**M4 关闭记录（2026-08-29）：** 上述作者任务、自动化证据、独立 product/engine review、Starter
+classification 与最终 110/82 产品分母均已关闭。所有者因没有合适设备，明确取消代表性真实
+current-low-end qualification 作为本产品完成门槛；这是一项证据范围裁决，不是 qualification PASS。本产品
+没有执行该资格，也不据此声明当前低端设备支持。M4 因而按缩减后的接受范围关闭，允许进入 M5。
+
 ### M5 — 旗舰提升与文档收口（Bookshop 保持）
 
-M5 只有在 M0–M4 全部关闭、完整产品独立审查通过后才开始，并在一个原子 cutover 中：
+状态：**2026-08-29 已完成。** M5 在 M0–M4 按接受范围关闭、完整产品独立审查通过后开始，并在一个原子
+cutover 中：
 
 - 把 VN Reference Tour 设为维护中的旗舰和网站/示例入口，更新 current docs、workspace、build/deploy 与 lockfile；
 - Bookshop 保持到 VN 完成。M5 只记录两者教学覆盖差异并安排完成后的独立评审；是否退役必须由该评审显式
@@ -506,6 +515,12 @@ M5 只有在 M0–M4 全部关闭、完整产品独立审查通过后才开始�
 
 M5 可以在 Bookshop 仍维护时关闭；后续评审若决定退役，必须在独立原子清理中处理 package、tests、workspace/
 site wiring 与 live docs，不留下“已退休但仍维护 route”的半个示例。
+
+**M5 关闭记录（2026-08-29）：** VN Reference Tour 已成为维护中的旗舰 Reference Product。当前状态文档、
+产品 metadata、workspace/build/deploy 接线与网站/示例入口同步切换；既有 `project.config.ts`、Deno workspace、
+TypeScript references 与 lockfile 在 M5 前已经包含该包，经核实无需制造无意义 churn。Bookshop 保持 maintained
+minimal Narrative example，后续教学角色由独立 owner review 裁决。Cat Cafe 的历史终止保持不变。M5 只建立
+并验证静态发布接线，不声称已经执行 GitHub Pages、Cloudflare Workers 或其他远程 live deployment。
 
 ## 5. 验收、引擎缺口与停止条件
 

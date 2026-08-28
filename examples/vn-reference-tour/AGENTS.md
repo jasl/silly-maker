@@ -2,7 +2,7 @@
 
 ## Status and authority
 
-This package is **M0–M3 delivered / WIP; M4 is in progress**. The product contract,
+This package is the **completed, maintained flagship Reference Product; M0–M5 are closed**. The product contract,
 independent package, supported-export application shell, starter-domain
 deletion, complete two-route script, two Authoring Scenes, author data, and
 named headless simulations are implemented. M2 selects
@@ -17,16 +17,19 @@ engine-maintained system menu and Save surfaces, persistent Player settings
 with live locale, and layered exact-close/already-durable Browser recovery
 evidence. Browser `pagehide` does not guarantee a last-moment asynchronous
 IndexedDB flush. M4's package-private ambient-binding operation and Agent
-Inspector/CAS handoff are delivered. M4 is also proving the accepted
+Inspector/CAS handoff are delivered. M4 also proved the accepted
 core/optional-Mod boundary: the traditional VN preset keeps the complete
 product experience, while its dedicated History presentation is structurally
 absent from the focused core graph. Development keeps only a small shared
 launcher resident; the complete Debug menu/window host, selected tool body,
 and Embedded Authoring surface are interaction-lazy rather than a synthetic tooling Mod.
 The owner-authorized Computer Use-assisted author handoff and independent
-product/engine reviews are complete. Representative real current-low-end
-qualification is the only remaining gate, so this playable WIP is not a
-complete reference or evidence that M4–M5 have shipped.
+product/engine reviews are complete. On 2026-08-29 the owner removed
+representative real current-low-end qualification from this product's
+completion gates because no suitable device was available. It was not run or
+passed, and this product makes no corresponding low-end support claim. M4
+closed on that reduced evidence scope; M5 completed the atomic flagship and
+documentation/build wiring cutover without claiming a live remote deployment.
 
 Read, in order:
 
@@ -65,8 +68,8 @@ two-route author data. M4 product review proved that volume contradicted the
 already-frozen 10–14 minute contract, so the accepted evidence-driven correction
 now owns 110 unique / 82 per route plus bounded engine/tooling corrections;
 do not restore aliases, disabled modules, or a second graph. M3 closed product
-entry, Save/recovery, and settings. M4 also owns author handoff and final
-product evidence.
+entry, Save/recovery, and settings. M4 closed the author handoff and accepted
+final product evidence; M5 completed the flagship cutover.
 
 ## Ownership and locality
 

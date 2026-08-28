@@ -8,7 +8,7 @@ import type { SillymakerAppConfigV1 } from "@sillymaker/tooling/project/config-t
  */
 export const sillymakerAppConfigV1 = {
   applicationId: "example-vn-reference-tour",
-  label: "Example Story: 最后一次试音 (Product WIP · M3 complete)",
+  label: "Flagship VN Reference Product: 最后一次试音",
   storyEntry: {
     module: "src/story.ts",
     exportName: "vnReferenceTourStoryEntryV1",
