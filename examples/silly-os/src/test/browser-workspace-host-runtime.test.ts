@@ -14,6 +14,7 @@ import {
   createBrowserWorkspaceHostRuntimeV1 as createBrowserWorkspaceHostRuntimeWithoutShellV1,
   type BrowserWorkspaceHostBootstrapPortV1,
   type BrowserWorkspaceHostDurableHeadV1,
+  type BrowserWorkspaceHostDownloadStageV1,
   type BrowserWorkspaceHostEntryMutationInputV1,
   type BrowserWorkspaceHostFileMetadataV1,
   type BrowserWorkspaceHostMessagePortV1,
@@ -224,6 +225,48 @@ class FakeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
       });
     }
     return { changed: true, head: { ...this.volume.head } };
+  }
+
+  createDownloadStage(input: {
+    readonly maximumBytes: number;
+    readonly signal: AbortSignal;
+  }): Promise<BrowserWorkspaceHostDownloadStageV1> {
+    let bytes = new Uint8Array();
+    let sealed = false;
+    let released = false;
+    return Promise.resolve({
+      get byteLength() {
+        return bytes.byteLength;
+      },
+      append: ({ offset, bytes: chunk, signal }) => {
+        if (
+          released || sealed || signal.aborted || input.signal.aborted ||
+          offset !== bytes.byteLength || bytes.byteLength + chunk.byteLength > input.maximumBytes
+        ) return Promise.reject(new Error("invalid fake download stage append"));
+        const next = new Uint8Array(bytes.byteLength + chunk.byteLength);
+        next.set(bytes);
+        next.set(chunk, bytes.byteLength);
+        bytes = next;
+        return Promise.resolve();
+      },
+      seal: (signal) => {
+        if (released || signal.aborted || input.signal.aborted) {
+          return Promise.reject(new Error("invalid fake download stage seal"));
+        }
+        sealed = true;
+        return Promise.resolve();
+      },
+      readRange: ({ offset, length, signal }) => {
+        if (released || !sealed || signal.aborted || offset + length > bytes.byteLength) {
+          return Promise.reject(new Error("invalid fake download stage read"));
+        }
+        return Promise.resolve(bytes.slice(offset, offset + length));
+      },
+      release: () => {
+        released = true;
+        return Promise.resolve();
+      },
+    });
   }
 
   async mutateEntry(
@@ -481,7 +524,12 @@ class FakeBootstrapV1 implements BrowserWorkspaceHostBootstrapPortV1 {
   async dispose(): Promise<void> {}
 }
 
-type MessageListenerV1 = (event: Readonly<{ data: unknown }>) => void;
+type MessageListenerV1 = (
+  event: Readonly<{
+    data: unknown;
+    ports?: readonly BrowserWorkspaceHostMessagePortV1[];
+  }>,
+) => void;
 
 class FakeMessagePortV1 implements BrowserWorkspaceHostMessagePortV1 {
   readonly messages: BrowserWorkspaceHostEnvironmentOutboundMessageV1[] = [];
@@ -509,8 +557,8 @@ class FakeMessagePortV1 implements BrowserWorkspaceHostMessagePortV1 {
     this.closeCalls += 1;
   }
 
-  send(message: unknown): void {
-    for (const listener of this.listeners) listener({ data: message });
+  send(message: unknown, ports: readonly BrowserWorkspaceHostMessagePortV1[] = []): void {
+    for (const listener of this.listeners) listener({ data: message, ports });
   }
 }
 
@@ -600,7 +648,283 @@ function lastV1<T>(values: readonly T[]): T {
   return value;
 }
 
+async function openDownloadWorkspaceV1(workspaceSessionId: string) {
+  const bootstrap = new FakeBootstrapV1();
+  const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];
+  const runtime = createBrowserWorkspaceHostRuntimeV1({
+    bootstrap,
+    postControlMessage: (message) => controls.push(message),
+    createWorkspaceSessionId: () => workspaceSessionId,
+    createCheckpointId: () => "checkpoint.download.2",
+  });
+  await runtime.receiveControl(controlRequestV1(1, {
+    method: "create_candidate",
+    programId: programIdV1,
+    workspaceId: workspaceIdV1,
+  }));
+  const anchor = (lastV1(controls) as {
+    readonly response: {
+      readonly candidate: { readonly anchor: BrowserWorkspaceVolumeAnchorWireV1 };
+    };
+  }).response.candidate.anchor;
+  await runtime.receiveControl(controlRequestV1(2, { method: "open_workspace", anchor }));
+  const port = new FakeMessagePortV1();
+  await runtime.receiveControl(
+    controlRequestV1(3, {
+      method: "attach_environment",
+      workspaceSessionId,
+    }),
+    [port],
+  );
+  port.send(environmentRequestV1(4, {
+    method: "begin_run",
+    binding: {
+      revision: 1,
+      programId: programIdV1,
+      workspaceId: workspaceIdV1,
+      workspaceSessionId,
+      expectedGeneration: 1,
+    },
+    sessionId: "pi-session.download",
+    runId: "pi-run.download",
+  }));
+  port.send(environmentRequestV1(5, {
+    method: "begin_tool",
+    toolCallId: "pi-tool.download.1",
+    tool: "download",
+  }));
+  await waitForEnvironmentResponseV1(port, 5);
+  const volume = bootstrap.volumes.get(anchor.volumeId);
+  if (volume === undefined) throw new Error("expected fake download volume");
+  return { bootstrap, runtime, port, volume };
+}
+
 describe("SillyOS Browser Workspace Host runtime", () => {
+  it("stages Broker chunks before publishing one current download mutation", async () => {
+    const opened = await openDownloadWorkspaceV1("workspace-session.download");
+    const sink = new FakeMessagePortV1();
+    opened.port.send(
+      environmentRequestV1(6, {
+        method: "open_download_sink",
+        brokerRequestId: "network-download.1",
+        destination: "/workspace/assets/item.bin",
+        overwrite: false,
+      }),
+      [sink],
+    );
+    for (let attempt = 0; attempt < 50 && sink.messages.length === 0; attempt += 1) {
+      await Promise.resolve();
+    }
+    expect(sink.messages).toEqual([{
+      revision: 1,
+      kind: "network_broker_download_sink_ready",
+      requestId: "network-download.1",
+    }]);
+    expect(opened.volume.files.has("assets/item.bin")).toBe(false);
+
+    const bytes = new Uint8Array([1, 2, 3, 4]);
+    sink.send({
+      revision: 1,
+      kind: "network_broker_download_response",
+      requestId: "network-download.1",
+      status: 200,
+      contentType: "application/octet-stream",
+      declaredBytes: bytes.byteLength,
+    });
+    await Promise.resolve();
+    sink.send({
+      revision: 1,
+      kind: "network_broker_download_chunk",
+      requestId: "network-download.1",
+      sequence: 1,
+      offset: 0,
+      bytes: bytes.byteLength,
+      chunk: bytes.buffer,
+    });
+    for (let attempt = 0; attempt < 50 && sink.messages.length < 2; attempt += 1) {
+      await Promise.resolve();
+    }
+    expect(sink.messages.at(-1)).toEqual({
+      revision: 1,
+      kind: "network_broker_download_chunk_ack",
+      requestId: "network-download.1",
+      sequence: 1,
+    });
+    expect(opened.volume.files.has("assets/item.bin")).toBe(false);
+    await Promise.resolve();
+
+    sink.send({
+      revision: 1,
+      kind: "network_broker_download_complete",
+      requestId: "network-download.1",
+      bytes: bytes.byteLength,
+      chunks: 1,
+    });
+    expect(await waitForEnvironmentResponseV1(opened.port, 6)).toMatchObject({
+      ok: true,
+      response: {
+        method: "open_download_sink",
+        result: {
+          status: 200,
+          bytes: bytes.byteLength,
+          destination: "/workspace/assets/item.bin",
+          generation: 2,
+          effect: "changed",
+        },
+      },
+    });
+    expect(opened.volume.files.get("assets/item.bin")).toEqual(bytes);
+
+    opened.port.send(environmentRequestV1(7, {
+      method: "end_tool",
+      toolCallId: "pi-tool.download.1",
+      outcome: "succeeded",
+    }));
+    await waitForEnvironmentResponseV1(opened.port, 7);
+    expect(opened.port.messages.find((message) => message.kind === "workspace_receipt"))
+      .toMatchObject({
+        receipt: {
+          tool: "download",
+          effect: "changed",
+          resultingGeneration: 2,
+          changedPaths: ["assets/item.bin"],
+        },
+      });
+    await opened.runtime.dispose();
+  });
+
+  it("does not publish a destination when the Broker reports a non-success response", async () => {
+    const opened = await openDownloadWorkspaceV1("workspace-session.download-http");
+    const sink = new FakeMessagePortV1();
+    opened.port.send(
+      environmentRequestV1(6, {
+        method: "open_download_sink",
+        brokerRequestId: "network-download.http",
+        destination: "/workspace/assets/missing.bin",
+        overwrite: false,
+      }),
+      [sink],
+    );
+    for (let attempt = 0; attempt < 50 && sink.messages.length === 0; attempt += 1) {
+      await Promise.resolve();
+    }
+    sink.send({
+      revision: 1,
+      kind: "network_broker_download_http_error",
+      requestId: "network-download.http",
+      status: 404,
+      contentType: "text/plain",
+      declaredBytes: null,
+    });
+    expect(await waitForEnvironmentResponseV1(opened.port, 6)).toMatchObject({
+      ok: false,
+      code: "request_failed",
+    });
+    expect(opened.volume.files.has("assets/missing.bin")).toBe(false);
+    await opened.runtime.dispose();
+  });
+
+  it("rejects a Broker burst before the prior chunk is staged and acknowledged", async () => {
+    const opened = await openDownloadWorkspaceV1("workspace-session.download-backpressure");
+    const sink = new FakeMessagePortV1();
+    opened.port.send(
+      environmentRequestV1(6, {
+        method: "open_download_sink",
+        brokerRequestId: "network-download.backpressure",
+        destination: "/workspace/assets/burst.bin",
+        overwrite: false,
+      }),
+      [sink],
+    );
+    for (let attempt = 0; attempt < 50 && sink.messages.length === 0; attempt += 1) {
+      await Promise.resolve();
+    }
+    sink.send({
+      revision: 1,
+      kind: "network_broker_download_response",
+      requestId: "network-download.backpressure",
+      status: 200,
+      contentType: "application/octet-stream",
+      declaredBytes: 2,
+    });
+    await Promise.resolve();
+    sink.send({
+      revision: 1,
+      kind: "network_broker_download_chunk",
+      requestId: "network-download.backpressure",
+      sequence: 1,
+      offset: 0,
+      bytes: 1,
+      chunk: new Uint8Array([1]).buffer,
+    });
+    sink.send({
+      revision: 1,
+      kind: "network_broker_download_chunk",
+      requestId: "network-download.backpressure",
+      sequence: 2,
+      offset: 1,
+      bytes: 1,
+      chunk: new Uint8Array([2]).buffer,
+    });
+
+    expect(await waitForEnvironmentResponseV1(opened.port, 6)).toMatchObject({
+      ok: false,
+      code: "request_failed",
+    });
+    expect(sink.messages).toContainEqual({
+      revision: 1,
+      kind: "network_broker_download_sink_abort",
+      requestId: "network-download.backpressure",
+      code: "sink_failed",
+    });
+    expect(sink.messages.some((message) =>
+      (message as Readonly<Record<string, unknown>>).kind ===
+        "network_broker_download_chunk_ack"
+    )).toBe(false);
+    expect(opened.volume.files.has("assets/burst.bin")).toBe(false);
+    await opened.runtime.dispose();
+  });
+
+  it("rejects and closes unexpected authority transferred with a Broker record", async () => {
+    const opened = await openDownloadWorkspaceV1("workspace-session.download-extra-port");
+    const sink = new FakeMessagePortV1();
+    const unexpectedPort = new FakeMessagePortV1();
+    opened.port.send(
+      environmentRequestV1(6, {
+        method: "open_download_sink",
+        brokerRequestId: "network-download.extra-port",
+        destination: "/workspace/assets/extra-port.bin",
+        overwrite: false,
+      }),
+      [sink],
+    );
+    for (let attempt = 0; attempt < 50 && sink.messages.length === 0; attempt += 1) {
+      await Promise.resolve();
+    }
+    sink.send({
+      revision: 1,
+      kind: "network_broker_download_response",
+      requestId: "network-download.extra-port",
+      status: 200,
+      contentType: "application/octet-stream",
+      declaredBytes: 1,
+    }, [unexpectedPort]);
+
+    expect(await waitForEnvironmentResponseV1(opened.port, 6)).toMatchObject({
+      ok: false,
+      code: "request_failed",
+    });
+    expect(unexpectedPort.closeCalls).toBe(1);
+    expect(sink.messages).toContainEqual({
+      revision: 1,
+      kind: "network_broker_download_sink_abort",
+      requestId: "network-download.extra-port",
+      code: "sink_failed",
+    });
+    expect(opened.volume.files.has("assets/extra-port.bin")).toBe(false);
+    await opened.runtime.dispose();
+  });
+
   it("prepares, discovers, adopts, and protects one immutable snapshot without advancing the head", async () => {
     const bootstrap = new FakeBootstrapV1();
     const controls: BrowserWorkspaceHostControlOutboundMessageV1[] = [];

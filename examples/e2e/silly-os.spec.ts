@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 /// <reference lib="dom" />
 import type { Frame, Locator, Page } from "@playwright/test";
+import { Buffer } from "node:buffer";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
 import {
@@ -20,6 +22,9 @@ const deterministicFileOpsProbePrefixV1 =
   "Exercise the pinned native Pi workspace file operations lifecycle: ";
 const deterministicFetchUrlProbePrefixV1 =
   "Exercise the product-fixed Pi fetch_url tool for exact URL: ";
+const deterministicDownloadProbePrefixV1 =
+  "Exercise the product-fixed Pi download tool for exact URL: ";
+const deterministicDownloadRelativePathV1 = ".sillyos/n2-download.bin";
 
 async function expectProgramStorageReadyV1(page: Page): Promise<void> {
   await expect(page.locator('[data-program-storage-state="ready"]')).toBeVisible();
@@ -334,6 +339,42 @@ async function inspectSandboxWorkspaceEntriesV1(
     }
     return inspected;
   }, { volumeId: continuation.volumeId, paths: [...relativePaths] });
+}
+
+async function inspectSandboxWorkspaceFileDigestV1(
+  page: Page,
+  continuation: DurableWorkspaceContinuationV1,
+  relativePath: string,
+): Promise<{ readonly size: number; readonly sha256: string }> {
+  const frame = await currentOrdinaryWorkspaceSandboxFrameV1(page);
+  return await frame.evaluate(async ({ volumeId, path }) => {
+    const parts = path.split("/");
+    const fileName = parts.pop();
+    if (
+      fileName === undefined || fileName.length === 0 ||
+      parts.some((part) => part.length === 0 || part === "." || part === "..")
+    ) throw new Error("Invalid E2E workspace digest path");
+    let directory = await navigator.storage.getDirectory();
+    for (
+      const name of [
+        ".sillyos-workspace-host-v1",
+        "volumes",
+        volumeId,
+        "workspace",
+        ...parts,
+      ]
+    ) {
+      directory = await directory.getDirectoryHandle(name);
+    }
+    const file = await (await directory.getFileHandle(fileName)).getFile();
+    const digest = new Uint8Array(
+      await crypto.subtle.digest("SHA-256", await file.arrayBuffer()),
+    );
+    return {
+      size: file.size,
+      sha256: [...digest].map((byte) => byte.toString(16).padStart(2, "0")).join(""),
+    };
+  }, { volumeId: continuation.volumeId, path: relativePath });
 }
 
 async function expectOrdinaryWorkspaceSandboxV1(
@@ -2428,4 +2469,145 @@ test("the fixed Pi fetch_url tool keeps one-shot and durable Program grants sepa
       expect(JSON.stringify(capturedRequest)).not.toContain(identity);
     }
   }
+});
+
+test("@s2-n2 the fixed Pi download streams a 32 MiB response into the durable Program volume", async ({ durableProgramPage: page }) => {
+  test.setTimeout(180_000);
+  const sentinelKey = "sillyos-download-key-must-not-cross-broker";
+  const targetUrl = "https://network-target.test/assets/archive.bin?source=silly-os";
+  const targetBytes = Buffer.alloc(32 * 1024 * 1024);
+  for (let offset = 0; offset < targetBytes.length; offset += 1) {
+    targetBytes[offset] = (offset * 31 + Math.floor(offset / 65_536) * 17 + 7) & 0xff;
+  }
+  const targetSha256 = createHash("sha256").update(targetBytes).digest("hex");
+  const brokerOrigin = "http://" + sillyOsNetworkBrokerTargetV1.host + ":" +
+    String(sillyOsNetworkBrokerTargetV1.port);
+  const capturedRequests: Array<{
+    readonly method: string;
+    readonly url: string;
+    readonly headers: Record<string, string>;
+    readonly postData: string | null;
+  }> = [];
+
+  await page.route("https://network-target.test/**", async (route) => {
+    const request = route.request();
+    capturedRequests.push({
+      method: request.method(),
+      url: request.url(),
+      headers: await request.allHeaders(),
+      postData: request.postData(),
+    });
+    await route.fulfill({
+      status: 200,
+      contentType: "application/octet-stream",
+      headers: {
+        "access-control-allow-origin": brokerOrigin,
+        "cache-control": "no-store",
+      },
+      body: targetBytes,
+    });
+  });
+
+  await openCreatorHomeV1(page);
+  await initializePiTestV1(page, sentinelKey);
+  await page.getByRole("textbox", { name: "What would you like to make?" }).fill(
+    translationIntentV1,
+  );
+  await page.getByRole("button", { name: "Create program" }).click();
+  const workspace = page.getByRole("main", { name: "SillyOS program workspace" });
+  await expect(workspace).toBeVisible();
+  await expect(workspace).toHaveAttribute("data-execution-workspace-state", "open");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "1");
+  const programId = await readProgramIdV1(workspace);
+  const workspaceSessionId = await readWorkspaceSessionIdV1(workspace);
+
+  const requirement = `${deterministicDownloadProbePrefixV1}${targetUrl}`;
+  const composer = page.getByRole("textbox", { name: "Ask for a change…" });
+  await composer.fill(requirement);
+  await page.getByRole("button", { name: "Send" }).click();
+  const approval = page.getByRole("alert").filter({ hasText: "Network access requested" });
+  await expect(approval).toBeVisible();
+  await expect(approval).toContainText(targetUrl);
+  expect(capturedRequests).toHaveLength(0);
+  await approval.getByRole("checkbox", {
+    name: "Allow this destination for this Program",
+  }).check();
+  await approval.getByRole("button", { name: "Allow for this Program" }).click();
+
+  await expect.poll(() => capturedRequests.length).toBe(1);
+  await expect(approval).toHaveCount(0);
+  await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v2");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-generation", "2");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-receipt", "1");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-tool", "download");
+  await expect(workspace).toHaveAttribute("data-execution-workspace-effect", "changed");
+  await expect(workspace).toHaveAttribute(
+    "data-execution-workspace-path",
+    deterministicDownloadRelativePathV1,
+  );
+
+  const continuation = await readWorkspaceContinuationV1(page, programId);
+  if (continuation === null) throw new Error("Downloaded Program lost its Workspace continuation");
+  await expect.poll(() =>
+    inspectSandboxWorkspaceFileDigestV1(
+      page,
+      continuation,
+      deterministicDownloadRelativePathV1,
+    )
+  ).toEqual({ size: targetBytes.length, sha256: targetSha256 });
+
+  const [request] = capturedRequests;
+  expect(request).toMatchObject({ method: "GET", url: targetUrl, postData: null });
+  expect(request?.headers.origin).toBe(brokerOrigin);
+  expect(request?.headers.authorization).toBeUndefined();
+  expect(request?.headers.cookie).toBeUndefined();
+  expect(request?.headers.referer).toBeUndefined();
+  expect(JSON.stringify(request)).not.toContain(sentinelKey);
+  expect(JSON.stringify(request)).not.toContain(programId);
+  expect(JSON.stringify(request)).not.toContain(workspaceSessionId);
+
+  const rawGrant = await page.evaluate(async (requestedProgramId) => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("sillymaker.example-silly-os.programs");
+      request.addEventListener("error", () => reject(request.error));
+      request.addEventListener("success", () => resolve(request.result));
+    });
+    try {
+      return await new Promise<unknown>((resolve, reject) => {
+        const transaction = database.transaction("program_network_grants", "readonly");
+        const request = transaction.objectStore("program_network_grants").get(requestedProgramId);
+        request.addEventListener("error", () => reject(request.error));
+        request.addEventListener("success", () => resolve(request.result));
+      });
+    } finally {
+      database.close();
+    }
+  }, programId);
+  expect(rawGrant).toEqual({
+    revision: 1,
+    programId,
+    grants: [{ operation: "download", origin: "https://network-target.test" }],
+  });
+  expect(JSON.stringify(rawGrant)).not.toContain(targetUrl);
+  expect(JSON.stringify(rawGrant)).not.toContain(sentinelKey);
+
+  await page.getByRole("button", { name: "Creator home" }).click();
+  await expectProgramStorageReadyV1(page);
+  await page.reload();
+  await expectProgramStorageReadyV1(page);
+  await initializePiTestV1(page, sentinelKey);
+  const reopened = await openRecentTranslationProgramV1(page, {
+    programId,
+    revision: 2,
+    status: "Preview",
+  });
+  await expect(reopened).toHaveAttribute("data-execution-workspace-generation", "2");
+  expect(await readWorkspaceContinuationV1(page, programId)).toEqual(continuation);
+  await expect.poll(() =>
+    inspectSandboxWorkspaceFileDigestV1(
+      page,
+      continuation,
+      deterministicDownloadRelativePathV1,
+    )
+  ).toEqual({ size: targetBytes.length, sha256: targetSha256 });
 });

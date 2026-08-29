@@ -5,7 +5,9 @@ import {
   createBrowserNetworkBrokerWorkerBoundV1,
 } from "../network/browser-network-broker-bootstrap-protocol.ts";
 import { browserNetworkBrokerArtifactBuildIdentityV1 } from "../network/browser-network-broker-build-identity.ts";
+import { executeBrowserNetworkDownloadV1 } from "../network/browser-network-broker-download.ts";
 import { executeBrowserNetworkBrokerFetchUrlV1 } from "../network/browser-network-broker-fetch.ts";
+import { admitBrowserNetworkDownloadRequestV1 } from "../network/browser-network-download-stream-protocol.ts";
 import {
   admitBrowserNetworkBrokerCancelV1,
   admitBrowserNetworkBrokerFetchUrlRequestV1,
@@ -55,13 +57,17 @@ workerScopeV1.addEventListener("message", (event) => {
 
   brokerPortV1.addEventListener("messageerror", closeV1);
   brokerPortV1.addEventListener("message", (brokerEvent) => {
-    if (closedV1 || brokerEvent.ports.length !== 0) {
+    if (closedV1) {
       for (const port of brokerEvent.ports) port.close();
-      closeV1();
       return;
     }
     const cancel = admitBrowserNetworkBrokerCancelV1(brokerEvent.data);
     if (cancel !== null) {
+      if (brokerEvent.ports.length !== 0) {
+        for (const port of brokerEvent.ports) port.close();
+        closeV1();
+        return;
+      }
       const controller = activeV1.get(cancel.requestId);
       if (controller !== undefined) {
         activeV1.delete(cancel.requestId);
@@ -69,11 +75,36 @@ workerScopeV1.addEventListener("message", (event) => {
       }
       return;
     }
+    const download = admitBrowserNetworkDownloadRequestV1(brokerEvent.data);
+    if (download !== null) {
+      const sinkPort = brokerEvent.ports.length === 1 ? brokerEvent.ports[0] : undefined;
+      if (
+        sinkPort === undefined || activeV1.has(download.requestId) ||
+        activeV1.size >= activeRequestMaximumV1
+      ) {
+        for (const port of brokerEvent.ports) port.close();
+        closeV1();
+        return;
+      }
+      const controller = new AbortController();
+      activeV1.set(download.requestId, controller);
+      const completeDownloadV1 = (): void => {
+        if (activeV1.get(download.requestId) === controller) {
+          activeV1.delete(download.requestId);
+        }
+      };
+      void executeBrowserNetworkDownloadV1(download, sinkPort, controller.signal).then(
+        completeDownloadV1,
+        completeDownloadV1,
+      );
+      return;
+    }
     const request = admitBrowserNetworkBrokerFetchUrlRequestV1(brokerEvent.data);
     if (
-      request === null || activeV1.has(request.requestId) ||
+      brokerEvent.ports.length !== 0 || request === null || activeV1.has(request.requestId) ||
       activeV1.size >= activeRequestMaximumV1
     ) {
+      for (const port of brokerEvent.ports) port.close();
       closeV1();
       return;
     }

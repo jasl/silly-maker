@@ -31,6 +31,7 @@ import {
   type BrowserWorkspaceHostEnvironmentFailureCodeV1,
   type BrowserWorkspaceHostEnvironmentRequestRecordV1,
   type BrowserWorkspaceHostEnvironmentSuccessV1,
+  type BrowserWorkspaceHostDownloadResultWireV1,
   type BrowserWorkspaceHostFileErrorWireV1,
   type BrowserWorkspaceHostMutationReceiptWireV1,
 } from "../workspace/browser-workspace-host-protocol.ts";
@@ -62,7 +63,7 @@ export interface BrowserWorkspaceEnvironmentClientV1 {
     readonly piSessionId: string;
     readonly piRunId: string;
   }): Promise<
-    | { readonly kind: "started"; readonly run: WorkspaceAgentRunV1 }
+    | { readonly kind: "started"; readonly run: BrowserWorkspaceAgentRunV1 }
     | {
       readonly kind: "rejected";
       readonly code: WorkspaceBeginRunRejectionCodeV1;
@@ -72,6 +73,21 @@ export interface BrowserWorkspaceEnvironmentClientV1 {
   queryMutationRecords(): readonly WorkspaceMutationRecordV1[];
   acknowledgeMutationRecords(throughSequence: number): Promise<void>;
   dispose(): void;
+}
+
+export interface BrowserWorkspaceDownloadCallInputV1 {
+  readonly toolCallId: string;
+  readonly brokerRequestId: string;
+  readonly destination: string;
+  readonly overwrite?: boolean;
+  readonly sinkPort: MessagePort;
+  readonly signal?: AbortSignal;
+}
+
+export interface BrowserWorkspaceAgentRunV1 extends WorkspaceAgentRunV1 {
+  executeDownloadCall(
+    input: BrowserWorkspaceDownloadCallInputV1,
+  ): Promise<BrowserWorkspaceHostDownloadResultWireV1>;
 }
 
 interface PendingCallV1 {
@@ -540,7 +556,7 @@ class RemoteWorkspaceExecutionEnvV1 implements ExecutionEnv {
   }
 }
 
-class RemoteWorkspaceAgentRunV1 implements WorkspaceAgentRunV1 {
+class RemoteWorkspaceAgentRunV1 implements BrowserWorkspaceAgentRunV1 {
   readonly env: ExecutionEnv;
   private readonly owner: BrowserWorkspaceEnvironmentClientOwnerV1;
   private readonly state: ActiveRunStateV1;
@@ -589,6 +605,17 @@ class RemoteWorkspaceAgentRunV1 implements WorkspaceAgentRunV1 {
         invoke,
       };
     return this.owner.executeToolCall(this.state, "grep", callInput);
+  }
+
+  executeDownloadCall(
+    input: BrowserWorkspaceDownloadCallInputV1,
+  ): Promise<BrowserWorkspaceHostDownloadResultWireV1> {
+    const invoke = (signal: AbortSignal) => this.owner.openDownloadSink(this.state, input, signal);
+    const callInput: WorkspaceToolCallInputV1<BrowserWorkspaceHostDownloadResultWireV1> =
+      input.signal === undefined
+        ? { toolCallId: input.toolCallId, invoke }
+        : { toolCallId: input.toolCallId, signal: input.signal, invoke };
+    return this.owner.executeToolCall(this.state, "download", callInput);
   }
 
   abortAndDrain(): Promise<void> {
@@ -723,6 +750,7 @@ class BrowserWorkspaceEnvironmentClientOwnerV1 implements BrowserWorkspaceEnviro
 
   call(
     record: BrowserWorkspaceHostEnvironmentRequestRecordV1,
+    transfer: readonly Transferable[] = [],
   ): Promise<BrowserWorkspaceHostEnvironmentSuccessV1> {
     if (this.disposed) {
       return Promise.reject(new BrowserWorkspaceEnvironmentCallErrorV1("disposed", null));
@@ -736,7 +764,7 @@ class BrowserWorkspaceEnvironmentClientOwnerV1 implements BrowserWorkspaceEnviro
           kind: "environment_request",
           requestId,
           record,
-        }, []);
+        }, transfer);
       } catch {
         this.pending.delete(requestId);
         reject(new BrowserWorkspaceEnvironmentCallErrorV1("request_failed", null));
@@ -749,7 +777,7 @@ class BrowserWorkspaceEnvironmentClientOwnerV1 implements BrowserWorkspaceEnviro
     readonly piSessionId: string;
     readonly piRunId: string;
   }): Promise<
-    | { readonly kind: "started"; readonly run: WorkspaceAgentRunV1 }
+    | { readonly kind: "started"; readonly run: BrowserWorkspaceAgentRunV1 }
     | {
       readonly kind: "rejected";
       readonly code: WorkspaceBeginRunRejectionCodeV1;
@@ -868,9 +896,50 @@ class BrowserWorkspaceEnvironmentClientOwnerV1 implements BrowserWorkspaceEnviro
     return response.result;
   }
 
+  async openDownloadSink(
+    state: ActiveRunStateV1,
+    input: BrowserWorkspaceDownloadCallInputV1,
+    signal: AbortSignal,
+  ): Promise<BrowserWorkspaceHostDownloadResultWireV1> {
+    if (state.activeToolCallId !== input.toolCallId) {
+      throw new BrowserWorkspaceEnvironmentCallErrorV1("run_not_current", null);
+    }
+    let completed = false;
+    const cancellation: {
+      promise: Promise<BrowserWorkspaceHostEnvironmentSuccessV1> | null;
+    } = { promise: null };
+    const requestCancellation = (): void => {
+      if (completed) return;
+      cancellation.promise ??= this.call({ method: "cancel_tool", toolCallId: input.toolCallId });
+      void cancellation.promise.catch(() => undefined);
+    };
+    signal.addEventListener("abort", requestCancellation, { once: true });
+    if (signal.aborted) requestCancellation();
+    try {
+      const response = await this.call({
+        method: "open_download_sink",
+        brokerRequestId: input.brokerRequestId,
+        destination: input.destination,
+        overwrite: input.overwrite ?? false,
+      }, [input.sinkPort]);
+      completed = true;
+      signal.removeEventListener("abort", requestCancellation);
+      if (cancellation.promise !== null) await cancellation.promise.catch(() => undefined);
+      if (response.method !== "open_download_sink") {
+        throw new TypeError("workspace download response mismatch");
+      }
+      return response.result;
+    } catch (error) {
+      completed = true;
+      signal.removeEventListener("abort", requestCancellation);
+      if (cancellation.promise !== null) await cancellation.promise.catch(() => undefined);
+      throw error;
+    }
+  }
+
   executeToolCall<TValue>(
     state: ActiveRunStateV1,
-    tool: "read" | "write" | "edit" | "bash" | "grep",
+    tool: "read" | "write" | "edit" | "bash" | "grep" | "download",
     input: WorkspaceToolCallInputV1<TValue>,
   ): Promise<TValue> {
     if (this.activeRun !== state || state.finished) {
@@ -908,7 +977,7 @@ class BrowserWorkspaceEnvironmentClientOwnerV1 implements BrowserWorkspaceEnviro
 
   private async performToolCall<TValue>(
     state: ActiveRunStateV1,
-    tool: "read" | "write" | "edit" | "bash" | "grep",
+    tool: "read" | "write" | "edit" | "bash" | "grep" | "download",
     input: WorkspaceToolCallInputV1<TValue>,
   ): Promise<TValue> {
     try {

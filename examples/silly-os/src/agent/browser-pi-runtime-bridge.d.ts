@@ -18,6 +18,9 @@ export const deterministicGrepProbePrefixV1:
   "Exercise the product-fixed Pi grep tool with exact text: ";
 export const deterministicFetchUrlProbePrefixV1:
   "Exercise the product-fixed Pi fetch_url tool for exact URL: ";
+export const deterministicDownloadProbePrefixV1:
+  "Exercise the product-fixed Pi download tool for exact URL: ";
+export const deterministicDownloadDestinationV1: "/workspace/.sillyos/n2-download.bin";
 export const deterministicOversizedReadProbeV1:
   "Verify the qualification workspace rejects an oversized native Pi read.";
 

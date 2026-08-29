@@ -7,6 +7,7 @@ import {
   type WorkspaceGrepQueryV1,
   type WorkspaceGrepResultV1,
 } from "./contracts.ts";
+import { browserNetworkDownloadTotalMaximumBytesV1 } from "../network/browser-network-download-stream-protocol.ts";
 import {
   workspaceGrepMatchMaximumV1,
   workspaceGrepMatchTextMaximumCharactersV1,
@@ -157,7 +158,7 @@ export interface BrowserWorkspaceHostMutationReceiptWireV1 {
   readonly sessionId: string;
   readonly runId: string;
   readonly toolCallId: string;
-  readonly tool: "write" | "edit" | "bash";
+  readonly tool: "write" | "edit" | "bash" | "download";
   readonly expectedGeneration: number;
   readonly baseGeneration: number;
   readonly resultingGeneration: number;
@@ -319,6 +320,15 @@ export interface BrowserWorkspaceHostFileInfoWireV1 {
   readonly mtimeMs: number;
 }
 
+export interface BrowserWorkspaceHostDownloadResultWireV1 {
+  readonly status: number;
+  readonly contentType: string | null;
+  readonly bytes: number;
+  readonly destination: string;
+  readonly generation: number;
+  readonly effect: "none" | "changed";
+}
+
 export type BrowserWorkspaceHostEnvironmentRequestRecordV1 =
   | {
     readonly method: "begin_run";
@@ -330,7 +340,7 @@ export type BrowserWorkspaceHostEnvironmentRequestRecordV1 =
   | {
     readonly method: "begin_tool";
     readonly toolCallId: string;
-    readonly tool: "read" | "write" | "edit" | "bash" | "grep";
+    readonly tool: "read" | "write" | "edit" | "bash" | "grep" | "download";
   }
   | {
     readonly method: "end_tool";
@@ -358,6 +368,12 @@ export type BrowserWorkspaceHostEnvironmentRequestRecordV1 =
     readonly timeoutMilliseconds: number | null;
   }
   | { readonly method: "grep_workspace"; readonly query: WorkspaceGrepQueryV1 }
+  | {
+    readonly method: "open_download_sink";
+    readonly brokerRequestId: string;
+    readonly destination: string;
+    readonly overwrite: boolean;
+  }
   | { readonly method: "cancel_tool"; readonly toolCallId: string }
   | { readonly method: "query_receipts" }
   | { readonly method: "acknowledge_receipts"; readonly throughSequence: number };
@@ -395,6 +411,10 @@ export type BrowserWorkspaceHostEnvironmentSuccessV1 =
     readonly method: "grep_workspace";
     readonly termination: "aborted" | "timeout" | "failed";
     readonly message: string;
+  }
+  | {
+    readonly method: "open_download_sink";
+    readonly result: BrowserWorkspaceHostDownloadResultWireV1;
   }
   | {
     readonly method: "query_receipts";
@@ -895,7 +915,7 @@ export function admitBrowserWorkspaceHostEnvironmentRequestV1(
     beginTool !== null && beginTool.method === "begin_tool" &&
     identifierV1(beginTool.toolCallId) &&
     (beginTool.tool === "read" || beginTool.tool === "write" || beginTool.tool === "edit" ||
-      beginTool.tool === "bash" || beginTool.tool === "grep")
+      beginTool.tool === "bash" || beginTool.tool === "grep" || beginTool.tool === "download")
   ) {
     return {
       revision: 1,
@@ -1014,6 +1034,30 @@ export function admitBrowserWorkspaceHostEnvironmentRequestV1(
       record: { method: "grep_workspace", query },
     };
   }
+  const download = exactRecordV1(envelope.record, [
+    "method",
+    "brokerRequestId",
+    "destination",
+    "overwrite",
+  ]);
+  if (
+    download !== null && download.method === "open_download_sink" &&
+    identifierV1(download.brokerRequestId) &&
+    typeof download.destination === "string" && download.destination !== "/workspace" &&
+    isWorkspaceAbsolutePathV1(download.destination) && typeof download.overwrite === "boolean"
+  ) {
+    return {
+      revision: 1,
+      kind: "environment_request",
+      requestId: envelope.requestId,
+      record: {
+        method: "open_download_sink",
+        brokerRequestId: download.brokerRequestId,
+        destination: download.destination,
+        overwrite: download.overwrite,
+      },
+    };
+  }
   const cancelTool = exactRecordV1(envelope.record, ["method", "toolCallId"]);
   if (
     cancelTool !== null && cancelTool.method === "cancel_tool" &&
@@ -1068,7 +1112,8 @@ function admitReceiptV1(value: unknown): BrowserWorkspaceHostMutationReceiptWire
     !identifierV1(record.programId) || !identifierV1(record.workspaceId) ||
     !identifierV1(record.workspaceSessionId) || !identifierV1(record.sessionId) ||
     !identifierV1(record.runId) || !identifierV1(record.toolCallId) ||
-    (record.tool !== "write" && record.tool !== "edit" && record.tool !== "bash") ||
+    (record.tool !== "write" && record.tool !== "edit" && record.tool !== "bash" &&
+      record.tool !== "download") ||
     !positiveSafeIntegerV1(record.expectedGeneration) ||
     !positiveSafeIntegerV1(record.baseGeneration) ||
     !positiveSafeIntegerV1(record.resultingGeneration) ||
@@ -1660,6 +1705,42 @@ export function admitBrowserWorkspaceHostEnvironmentOutboundMessageV1(
         requestId: success.requestId,
         ok: true,
         response: { method: "create_temp_file", value: path.value },
+      };
+    }
+    const download = exactRecordV1(success.response, ["method", "result"]);
+    const downloadResult = download === null ? null : exactRecordV1(download.result, [
+      "status",
+      "contentType",
+      "bytes",
+      "destination",
+      "generation",
+      "effect",
+    ]);
+    if (
+      download !== null && download.method === "open_download_sink" &&
+      downloadResult !== null && Number.isInteger(downloadResult.status) &&
+      (downloadResult.status as number) >= 200 && (downloadResult.status as number) <= 299 &&
+      (downloadResult.contentType === null ||
+        (typeof downloadResult.contentType === "string" &&
+          !/[\r\n]/u.test(downloadResult.contentType) &&
+          (utf8LengthV1(downloadResult.contentType) ?? Number.POSITIVE_INFINITY) <= 512)) &&
+      nonNegativeSafeIntegerV1(downloadResult.bytes) &&
+      downloadResult.bytes <= browserNetworkDownloadTotalMaximumBytesV1 &&
+      typeof downloadResult.destination === "string" &&
+      downloadResult.destination !== "/workspace" &&
+      isWorkspaceAbsolutePathV1(downloadResult.destination) &&
+      positiveSafeIntegerV1(downloadResult.generation) &&
+      (downloadResult.effect === "none" || downloadResult.effect === "changed")
+    ) {
+      return {
+        revision: 1,
+        kind: "environment_response",
+        requestId: success.requestId,
+        ok: true,
+        response: {
+          method: "open_download_sink",
+          result: downloadResult as unknown as BrowserWorkspaceHostDownloadResultWireV1,
+        },
       };
     }
     const executeShell = exactRecordV1(success.response, [

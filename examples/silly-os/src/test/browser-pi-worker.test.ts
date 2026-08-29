@@ -33,8 +33,17 @@ import {
   createBrowserNetworkBrokerFetchUrlResultV1,
 } from "../network/browser-network-broker-protocol.ts";
 import {
+  admitBrowserNetworkDownloadChunkAckV1,
+  admitBrowserNetworkDownloadRequestV1,
+  admitBrowserNetworkDownloadSinkReadyV1,
+  createBrowserNetworkDownloadChunkV1,
+  createBrowserNetworkDownloadCompleteV1,
+  createBrowserNetworkDownloadResponseV1,
+} from "../network/browser-network-download-stream-protocol.ts";
+import {
   deterministicBashProbePrefixV1,
   deterministicCancellationHoldPrefixV1,
+  deterministicDownloadProbePrefixV1,
   deterministicEditProbePrefixV1,
   deterministicFetchUrlProbePrefixV1,
   deterministicFileOpsProbePrefixV1,
@@ -71,6 +80,7 @@ import { BrowserWorkspaceHostControlErrorV1 } from "../workspace/browser-workspa
 import {
   createBrowserWorkspaceHostRuntimeV1,
   type BrowserWorkspaceHostBootstrapPortV1,
+  type BrowserWorkspaceHostDownloadStageV1,
   type BrowserWorkspaceHostDurableHeadV1,
   type BrowserWorkspaceHostFileMetadataV1,
   type BrowserWorkspaceHostMessagePortV1,
@@ -159,6 +169,9 @@ const testWorkspaceAuthoritiesV1 = new Set<{ dispose(): Promise<void> }>();
 
 function createTestNetworkBrokerLeaseV1(input: {
   readonly text?: string;
+  readonly downloadBytes?: Uint8Array;
+  readonly closeDownloadSinkSilently?: boolean;
+  readonly onDownloadRequest?: (url: string) => void;
   readonly onRequest?: (url: string, respond: () => void) => void;
   readonly onCancel?: (requestId: string) => void;
   readonly onMessage?: (message: unknown) => void;
@@ -168,6 +181,76 @@ function createTestNetworkBrokerLeaseV1(input: {
   let terminated = false;
   channel.port1.addEventListener("message", (event: MessageEvent<unknown>) => {
     input.onMessage?.(structuredClone(event.data));
+    const download = admitBrowserNetworkDownloadRequestV1(event.data);
+    if (download !== null) {
+      const sinkPort = event.ports.length === 1 ? event.ports[0] : undefined;
+      if (sinkPort === undefined) {
+        channel.port1.close();
+        return;
+      }
+      input.onDownloadRequest?.(download.url);
+      if (input.closeDownloadSinkSilently === true) {
+        sinkPort.close();
+        return;
+      }
+      const source = input.downloadBytes ?? new TextEncoder().encode(
+        "SillyOS deterministic remote download.\n",
+      );
+      const bytes = source.slice();
+      const totalBytes = bytes.byteLength;
+      let responseSent = false;
+      // oxlint-disable unicorn/require-post-message-target-origin -- MessagePort has no targetOrigin.
+      sinkPort.addEventListener("message", (sinkEvent: MessageEvent<unknown>) => {
+        if (!responseSent) {
+          const ready = admitBrowserNetworkDownloadSinkReadyV1(sinkEvent.data);
+          if (ready === null || ready.requestId !== download.requestId) {
+            sinkPort.close();
+            return;
+          }
+          responseSent = true;
+          sinkPort.postMessage(createBrowserNetworkDownloadResponseV1({
+            requestId: download.requestId,
+            status: 200,
+            contentType: "application/octet-stream",
+            declaredBytes: totalBytes,
+          }));
+          if (totalBytes === 0) {
+            sinkPort.postMessage(createBrowserNetworkDownloadCompleteV1({
+              requestId: download.requestId,
+              bytes: 0,
+              chunks: 0,
+            }));
+            return;
+          }
+          const chunk = bytes.buffer;
+          sinkPort.postMessage(
+            createBrowserNetworkDownloadChunkV1({
+              requestId: download.requestId,
+              sequence: 1,
+              offset: 0,
+              chunk,
+            }),
+            [chunk],
+          );
+          return;
+        }
+        const ack = admitBrowserNetworkDownloadChunkAckV1(sinkEvent.data);
+        if (
+          ack === null || ack.requestId !== download.requestId || ack.sequence !== 1
+        ) {
+          sinkPort.close();
+          return;
+        }
+        sinkPort.postMessage(createBrowserNetworkDownloadCompleteV1({
+          requestId: download.requestId,
+          bytes: totalBytes,
+          chunks: 1,
+        }));
+      });
+      sinkPort.start();
+      // oxlint-enable unicorn/require-post-message-target-origin
+      return;
+    }
     const request = admitBrowserNetworkBrokerFetchUrlRequestV1(event.data);
     if (request !== null) {
       const respond = (): void =>
@@ -437,6 +520,48 @@ class TestBrowserWorkspaceVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLea
       generation: this.state.head.generation + 1,
     };
     return { changed: true, head: { ...this.state.head } };
+  }
+
+  createDownloadStage(input: {
+    readonly maximumBytes: number;
+    readonly signal: AbortSignal;
+  }): Promise<BrowserWorkspaceHostDownloadStageV1> {
+    let bytes = new Uint8Array();
+    let sealed = false;
+    let released = false;
+    return Promise.resolve({
+      get byteLength() {
+        return bytes.byteLength;
+      },
+      append: ({ offset, bytes: chunk, signal }) => {
+        if (
+          released || sealed || signal.aborted || input.signal.aborted ||
+          offset !== bytes.byteLength || bytes.byteLength + chunk.byteLength > input.maximumBytes
+        ) return Promise.reject(new Error("invalid test download stage append"));
+        const next = new Uint8Array(bytes.byteLength + chunk.byteLength);
+        next.set(bytes);
+        next.set(chunk, bytes.byteLength);
+        bytes = next;
+        return Promise.resolve();
+      },
+      seal: (signal) => {
+        if (released || signal.aborted || input.signal.aborted) {
+          return Promise.reject(new Error("invalid test download stage seal"));
+        }
+        sealed = true;
+        return Promise.resolve();
+      },
+      readRange: ({ offset, length, signal }) => {
+        if (released || !sealed || signal.aborted || offset + length > bytes.byteLength) {
+          return Promise.reject(new Error("invalid test download stage read"));
+        }
+        return Promise.resolve(bytes.slice(offset, offset + length));
+      },
+      release: () => {
+        released = true;
+        return Promise.resolve();
+      },
+    });
   }
 
   async mutateEntry(
@@ -1390,6 +1515,7 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
   emitNetworkApproval(
     approvalId: string,
     piRunId: string = this.latestPiRunId ?? "",
+    operation: "fetch_url" | "download" = "fetch_url",
   ): void {
     const execution = this.latestExecution;
     if (execution === null) throw new Error("expected an execution binding");
@@ -1405,10 +1531,12 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
         workspaceSessionId: execution.workspaceSessionId,
         sessionId: "controlled.session.1",
         runId: piRunId,
-        toolCallId: "tool.fetch-url.1",
-        operation: "fetch_url",
+        toolCallId: operation === "download" ? "tool.download.1" : "tool.fetch-url.1",
+        operation,
         origin: "https://assets.example.test",
-        url: "https://assets.example.test/file.txt?from=program",
+        url: operation === "download"
+          ? "https://assets.example.test/archive.zip?from=program"
+          : "https://assets.example.test/file.txt?from=program",
       },
     });
   }
@@ -1765,7 +1893,7 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     expect(agentInputs).toEqual([{
       apiKey: "route-sentinel-key",
       selection: copilotCompletionsSelectionV1,
-      workspaceTools: ["read", "write", "edit", "bash", "grep", "fetch_url"],
+      workspaceTools: ["read", "write", "edit", "bash", "grep", "fetch_url", "download"],
     }]);
 
     runtime.receive({
@@ -3250,6 +3378,248 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     await workspaceAuthority.dispose();
   });
 
+  it("keeps fetch and download grants orthogonal and streams a download directly into Workspace", async () => {
+    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const brokerMessages: unknown[] = [];
+    const downloadRequests: string[] = [];
+    const downloadBytes = new TextEncoder().encode("SillyOS streamed download checkpoint.\n");
+    const brokerLease = createTestNetworkBrokerLeaseV1({
+      downloadBytes,
+      onDownloadRequest: (url) => downloadRequests.push(url),
+      onMessage: (message) => brokerMessages.push(message),
+    });
+    const workspaceAuthority = testWorkspaceAuthorityV1();
+    const runtime = createBrowserPiWorkerRuntimeCoreV1({
+      postMessage: (message) => messages.push(structuredClone(message)),
+    });
+    runtime.receive({
+      revision: 1,
+      kind: "configure",
+      requestId: 1,
+      runtime: "deterministic_test",
+      selection: null,
+      credential: { kind: "api_key", value: "sentinel-download-key" },
+    }, [brokerLease.agentPort]);
+    const execution = await attachRuntimeWorkspaceV1(
+      runtime,
+      messages,
+      workspaceAuthority,
+      2,
+    );
+    const origin = "https://downloads.example.test";
+    const url = `${origin}/assets/archive.zip?revision=1`;
+    runtime.receive(workspaceRequestV1(3, {
+      method: "replace_network_grants",
+      programId: execution.programId,
+      workspaceSessionId: execution.workspaceSessionId,
+      grants: [{ origin, operation: "fetch_url" }],
+    }));
+    runtime.receive(rpcRequestV1(4, { revision: 1, requestId: 1, method: "start" }));
+    await waitUntilV1(() =>
+      [3, 4].every((requestId) =>
+        messages.some((message) =>
+          (message.kind === "workspace_response" || message.kind === "rpc_response") &&
+          message.requestId === requestId && message.ok
+        )
+      )
+    );
+    const downloadText = `${deterministicDownloadProbePrefixV1}${url}`;
+    runtime.receive(rpcRequestV1(5, {
+      revision: 1,
+      requestId: 2,
+      method: "submit",
+      params: {
+        sessionId: "sillyos.session.1",
+        text: serializeCreatorAgentSubmitV1({
+          ...submitV1,
+          proposalId: "workspace.preview.1.proposal.download.denied",
+          text: downloadText,
+        }),
+      },
+    }, execution));
+    await waitUntilV1(() =>
+      messages.some((message) => message.kind === "network_approval_required") &&
+      messages.some((message) =>
+        message.kind === "rpc_record" &&
+        (message.record as Readonly<Record<string, unknown>>).kind === "run_failed" &&
+        (message.record as Readonly<Record<string, unknown>>).code === "approval_required"
+      )
+    );
+    const approval = messages.find((message) => message.kind === "network_approval_required");
+    if (approval?.kind !== "network_approval_required") {
+      throw new Error("expected a download network approval");
+    }
+    expect(approval.approval).toMatchObject({
+      operation: "download",
+      origin,
+      url,
+      toolCallId: "sillyos-download-1",
+    });
+    expect(downloadRequests).toEqual([]);
+    runtime.receive({
+      revision: 1,
+      kind: "resolve_network_approval",
+      requestId: 6,
+      approvalId: approval.approval.approvalId,
+      decision: "deny",
+    });
+    runtime.receive(workspaceRequestV1(7, {
+      method: "replace_network_grants",
+      programId: execution.programId,
+      workspaceSessionId: execution.workspaceSessionId,
+      grants: [{ origin, operation: "download" }],
+    }));
+    await waitUntilV1(() =>
+      [6, 7].every((requestId) =>
+        messages.some((message) =>
+          (message.kind === "network_approval_response" ||
+            message.kind === "workspace_response") &&
+          message.requestId === requestId && message.ok
+        )
+      )
+    );
+    runtime.receive(rpcRequestV1(8, {
+      revision: 1,
+      requestId: 3,
+      method: "submit",
+      params: {
+        sessionId: "sillyos.session.1",
+        text: serializeCreatorAgentSubmitV1({
+          ...submitV1,
+          proposalId: "workspace.preview.1.proposal.download.allowed",
+          text: downloadText,
+        }),
+      },
+    }, execution));
+    await waitUntilV1(() =>
+      downloadRequests.length === 1 && messages.some((message) =>
+        message.kind === "rpc_record" &&
+        (message.record as Readonly<Record<string, unknown>>).runId === "sillyos.run.2" &&
+        (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
+      )
+    );
+
+    expect(downloadRequests).toEqual([url]);
+    expect(workspaceAuthority.workspaceText(".sillyos/n2-download.bin"))
+      .toBe(new TextDecoder().decode(downloadBytes));
+    expect(messages).toContainEqual(expect.objectContaining({
+      revision: 1,
+      kind: "workspace_receipt",
+      receipt: expect.objectContaining({
+        programId: execution.programId,
+        workspaceId: execution.workspaceId,
+        workspaceSessionId: execution.workspaceSessionId,
+        sessionId: "sillyos.session.1",
+        runId: "sillyos.run.2",
+        toolCallId: "sillyos-download-2",
+        tool: "download",
+        expectedGeneration: 1,
+        baseGeneration: 1,
+        resultingGeneration: 2,
+        outcome: "succeeded",
+        effect: "changed",
+        changedPaths: [".sillyos/n2-download.bin"],
+      }),
+    }));
+    expect(JSON.stringify(brokerMessages)).not.toContain("sentinel-download-key");
+    expect(
+      messages.filter((message) => message.kind === "network_approval_required"),
+    ).toHaveLength(1);
+
+    runtime.dispose();
+    brokerLease.terminate();
+    await workspaceAuthority.dispose();
+  });
+
+  it("bounds a silently closed download peer and cancels both Broker and Workspace", async () => {
+    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const brokerCancels: string[] = [];
+    const downloadRequests: string[] = [];
+    const brokerLease = createTestNetworkBrokerLeaseV1({
+      closeDownloadSinkSilently: true,
+      onDownloadRequest: (url) => downloadRequests.push(url),
+      onCancel: (requestId) => brokerCancels.push(requestId),
+    });
+    const workspaceAuthority = testWorkspaceAuthorityV1();
+    const runtime = createBrowserPiWorkerRuntimeCoreV1({
+      postMessage: (message) => messages.push(structuredClone(message)),
+      downloadOuterDeadlineMilliseconds: 20,
+    });
+    runtime.receive({
+      revision: 1,
+      kind: "configure",
+      requestId: 1,
+      runtime: "deterministic_test",
+      selection: null,
+      credential: { kind: "api_key", value: "sentinel-download-timeout-key" },
+    }, [brokerLease.agentPort]);
+    const execution = await attachRuntimeWorkspaceV1(
+      runtime,
+      messages,
+      workspaceAuthority,
+      2,
+    );
+    const origin = "https://downloads.example.test";
+    const url = `${origin}/assets/silent.zip`;
+    runtime.receive(workspaceRequestV1(3, {
+      method: "replace_network_grants",
+      programId: execution.programId,
+      workspaceSessionId: execution.workspaceSessionId,
+      grants: [{ origin, operation: "download" }],
+    }));
+    runtime.receive(rpcRequestV1(4, { revision: 1, requestId: 1, method: "start" }));
+    await waitUntilV1(() =>
+      [3, 4].every((requestId) =>
+        messages.some((message) =>
+          (message.kind === "workspace_response" || message.kind === "rpc_response") &&
+          message.requestId === requestId && message.ok
+        )
+      )
+    );
+    runtime.receive(rpcRequestV1(5, {
+      revision: 1,
+      requestId: 2,
+      method: "submit",
+      params: {
+        sessionId: "sillyos.session.1",
+        text: serializeCreatorAgentSubmitV1({
+          ...submitV1,
+          proposalId: "workspace.preview.1.proposal.download.timeout",
+          text: `${deterministicDownloadProbePrefixV1}${url}`,
+        }),
+      },
+    }, execution));
+
+    await waitUntilV1(() =>
+      brokerCancels.length === 1 && messages.some((message) =>
+        message.kind === "rpc_record" &&
+        (message.record as Readonly<Record<string, unknown>>).kind === "run_failed"
+      )
+    );
+    expect(downloadRequests).toEqual([url]);
+    expect(brokerCancels).toHaveLength(1);
+    expect(workspaceAuthority.workspaceText(".sillyos/n2-download.bin")).toBeNull();
+    expect(messages).toContainEqual(expect.objectContaining({
+      revision: 1,
+      kind: "workspace_receipt",
+      receipt: expect.objectContaining({
+        runId: "sillyos.run.1",
+        toolCallId: "sillyos-download-1",
+        tool: "download",
+        baseGeneration: 1,
+        resultingGeneration: 1,
+        outcome: "cancelled",
+        effect: "none",
+        changedPaths: [],
+        diagnosticCode: "cancelled",
+      }),
+    }));
+
+    runtime.dispose();
+    brokerLease.terminate();
+    await workspaceAuthority.dispose();
+  });
+
   it("requires exact fetch_url approval, then consumes one permit without sending the key", async () => {
     const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
     const brokerMessages: unknown[] = [];
@@ -4627,6 +4997,44 @@ describe("SillyOS Browser Pi transport and product port", () => {
       });
       await port.dispose();
     }
+  });
+
+  it("projects a download approval without exposing transient Pi identities", async () => {
+    const worker = new ControllableBrowserPiWorkerV1();
+    const port = createBrowserCreatorAgentPortV1({
+      runtime: "deterministic_test",
+      workspaceAuthority: testWorkspaceAuthorityV1(),
+      workerFactory: () => worker,
+    });
+    await openProductWorkspaceV1(port);
+    const run = productRunV1({
+      agentRunId: "agent.run.network.download",
+      text: "Download the exact requested archive.",
+    });
+    await expect(port.submit(run)).resolves.toMatchObject({ kind: "submitted" });
+    const piRunId = worker.latestPiRunId;
+    if (piRunId === null) throw new Error("expected a transient Pi run id");
+    worker.emitNetworkApproval("approval.download.1", piRunId, "download");
+    await waitUntilV1(() => port.getSnapshot().networkApproval !== null);
+
+    expect(port.getSnapshot().networkApproval).toEqual({
+      revision: 1,
+      approvalId: "approval.download.1",
+      agentRunId: run.agentRunId,
+      programId: run.programId,
+      workspaceSessionId: workspaceSessionIdV1,
+      operation: "download",
+      origin: "https://assets.example.test",
+      url: "https://assets.example.test/archive.zip?from=program",
+      retryText: run.text,
+    });
+    expect(JSON.stringify(port.getSnapshot().networkApproval)).not.toContain(piRunId);
+
+    worker.emitRunFailure("approval_required", piRunId);
+    await expect(
+      port.resolveNetworkApproval({ approvalId: "approval.download.1", decision: "deny" }),
+    ).resolves.toMatchObject({ kind: "resolved", decision: "deny" });
+    await port.dispose();
   });
 
   it("clears a denied approval without inventing terminal product state", async () => {

@@ -315,7 +315,7 @@ export interface WorkspaceMutationReceiptV1 {
   readonly workspaceSessionId: string;
   readonly agentRunId: string;
   readonly toolCallId: string;
-  readonly tool: "write" | "edit" | "bash";
+  readonly tool: "write" | "edit" | "bash" | "download";
   readonly expectedGeneration: number;
   readonly baseGeneration: number;
   readonly resultingGeneration: number;
@@ -335,7 +335,7 @@ export interface WorkspaceMutationRecordV1 {
   readonly piSessionId: string;
   readonly piRunId: string;
   readonly toolCallId: string;
-  readonly tool: "write" | "edit" | "bash";
+  readonly tool: "write" | "edit" | "bash" | "download";
   readonly expectedGeneration: number;
   readonly baseGeneration: number;
   readonly resultingGeneration: number;

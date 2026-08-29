@@ -48,7 +48,7 @@ export interface WorkpieceExecutionWorkspaceV1 {
   readonly lastReceipt: {
     readonly sequence: number;
     readonly agentRunId: string;
-    readonly tool: "write" | "edit" | "bash";
+    readonly tool: "write" | "edit" | "bash" | "download";
     readonly outcome: "succeeded" | "failed" | "cancelled";
     readonly effect: "none" | "changed";
     readonly resultingGeneration: number;

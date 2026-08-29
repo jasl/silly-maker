@@ -382,6 +382,36 @@ async function openedOpfsV1(volumeId: string): Promise<{
 }
 
 describe("SillyOS Browser Workspace OPFS bootstrap", () => {
+  it("stages bounded download chunks privately and replays them through replaceFile", async () => {
+    const opened = await openedOpfsV1("volume.download-stage.1");
+    const signal = new AbortController().signal;
+    const createStage = opened.lease.createDownloadStage;
+    if (createStage === undefined) throw new Error("expected OPFS download staging capability");
+    const stage = await createStage.call(opened.lease, { maximumBytes: 8, signal });
+    await stage.append({ offset: 0, bytes: new Uint8Array([1, 2]), signal });
+    await stage.append({ offset: 2, bytes: new Uint8Array([3, 4]), signal });
+    await stage.seal(signal);
+    expect(stage.byteLength).toBe(4);
+    expect(await stage.readRange({ offset: 1, length: 2, signal })).toEqual(
+      new Uint8Array([2, 3]),
+    );
+
+    const head = await opened.lease.readHead();
+    await expect(opened.lease.replaceFile({
+      path: "assets/download.bin",
+      source: stage,
+      expectedHead: head,
+      nextCheckpointId: "checkpoint.download-stage.2",
+      signal,
+    })).resolves.toMatchObject({ changed: true, head: { generation: 2 } });
+    await stage.release();
+    expect(await readWorkspaceFileV1(opened.lease, "assets/download.bin")).toEqual(
+      new Uint8Array([1, 2, 3, 4]),
+    );
+    await opened.lease.close();
+    await opened.bootstrap.dispose();
+  });
+
   it("aborts a blocked shared I/O reservation without leaking its waiter", async () => {
     const observations: Array<{ readonly chunkBytes: number; readonly bytesInFlight: number }> = [];
     const budget = new BrowserWorkspaceHostIoBudgetV1((observation) => {

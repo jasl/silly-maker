@@ -344,6 +344,26 @@ describe("Browser Pi Worker protocol", () => {
       kind: "network_approval_required",
       approval,
     })).toEqual({ revision: 1, kind: "network_approval_required", approval });
+    const downloadApproval = {
+      ...approval,
+      toolCallId: "pi.tool.download.1",
+      operation: "download" as const,
+      url: "https://example.test/archive.zip",
+    };
+    expect(admitBrowserPiWorkerOutboundMessageV1({
+      revision: 1,
+      kind: "network_approval_required",
+      approval: downloadApproval,
+    })).toEqual({
+      revision: 1,
+      kind: "network_approval_required",
+      approval: downloadApproval,
+    });
+    expect(admitBrowserPiWorkerOutboundMessageV1({
+      revision: 1,
+      kind: "network_approval_required",
+      approval: { ...approval, operation: "curl" },
+    })).toBeNull();
     expect(admitBrowserPiWorkerOutboundMessageV1({
       revision: 1,
       kind: "network_approval_required",
@@ -677,6 +697,22 @@ describe("Browser Pi Worker protocol", () => {
     expect(
       admitBrowserPiWorkerWorkspaceOutboundMessageV1({
         ...event,
+        receipt: receiptV1({
+          tool: "download",
+          toolCallId: "pi.tool.download.1",
+          changedPaths: ["assets/archive.zip"],
+        }),
+      }),
+    ).toMatchObject({
+      receipt: {
+        tool: "download",
+        toolCallId: "pi.tool.download.1",
+        changedPaths: ["assets/archive.zip"],
+      },
+    });
+    expect(
+      admitBrowserPiWorkerWorkspaceOutboundMessageV1({
+        ...event,
         receipt: receiptV1({ tool: "read", effect: "none", changedPaths: [] }),
       }),
     ).toBeNull();
@@ -709,6 +745,18 @@ describe("Browser Pi Worker protocol", () => {
       admitBrowserPiWorkerWorkspaceOutboundMessageV1({
         ...event,
         receipt: receiptV1({ effect: "none", changedPaths: [], resultingGeneration: 1 }),
+      }),
+    ).not.toBeNull();
+    expect(
+      admitBrowserPiWorkerWorkspaceOutboundMessageV1({
+        ...event,
+        receipt: receiptV1({
+          tool: "download",
+          toolCallId: "pi.tool.download.same-bytes",
+          effect: "none",
+          changedPaths: [],
+          resultingGeneration: 1,
+        }),
       }),
     ).not.toBeNull();
     for (

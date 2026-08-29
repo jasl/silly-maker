@@ -645,7 +645,7 @@ native `bash` schema/result; just-bash owns the admitted command algorithms;
 the Sandbox Host owns Program volume generations and recovery. None of these
 semantics moves into the use-case-neutral SillyMaker engine.
 
-#### S2-N — explicit Browser network tools through a keyless Broker (active; N0 closed and deployed 2026-08-29)
+#### S2-N — explicit Browser network tools through a keyless Broker (N0–N2 closed; N0 deployed 2026-08-29)
 
 Network access is an explicit Program capability, not an ambient Workspace or
 guest-runtime property. SillyOS will ship fixed Pi `AgentTool` values named
@@ -893,6 +893,34 @@ activates none of them and does not automatically activate Python, S3, S4, or
 S5. General web search is also absent until its separately named Pi tool and
 bounded result/provider contract are accepted; N0 does not pretend that
 `fetch_url` supplies it.
+
+N2 delivered locally on 2026-08-29. One product-fixed Pi
+`download({ url, destination, overwrite? })` tool now reuses the N1 operation-
+scoped grant boundary. The Agent Worker transfers one endpoint of a private
+stream channel to the keyless Broker and the other to the current Workspace
+Host; it never reads response bytes. The Broker waits for exact Host
+`sink_ready`, performs the credential-free GET, sends at most one unacknowledged
+`1 MiB` chunk, and emits scalar-only non-2xx metadata. The Host admits the
+destination and overwrite rule before readiness, writes each acknowledged
+chunk to private OPFS staging, and publishes only a complete current response
+through the existing `replaceFile` journal. Success produces one
+`tool: "download"` mutation receipt; failure, cancellation, deadline, stale
+authority, protocol error, or a non-2xx response does not publish staging.
+
+The focused integrated suite passes `186/186`, the complete SillyOS suite
+passes `482/482`, and the three production artifact builds and boundary checks
+pass. Ordinary persistent Chromium and WebKit each stream an exact `32 MiB`
+binary response, verify its SHA-256 only from the Sandbox volume, advance one
+generation/receipt, and cold-reopen the same bytes. The captured Broker request
+contains no Provider key or Program/Workspace identity, and the durable grant
+contains only the normalized `(programId, origin, "download")` tuple. This
+qualifies the `32 MiB` V1 ceiling for the tested local Browser path; it does not
+prove arbitrary-site CORS, public-origin ingress, browser memory telemetry,
+quota exhaustion on a real device, redirect behavior, background transfer,
+archive extraction, or authenticated download. Playwright fulfillment supplies
+the exact bytes but bypasses Browser CORS/redirect enforcement, so those claims
+remain absent. Deployment is intentionally deferred until S3 is integrated so
+the three origins move once from one committed build identity.
 
 ### S3 — optional Credential Vault
 

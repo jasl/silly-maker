@@ -14,6 +14,7 @@ import {
 import {
   type BrowserWorkspaceHostBootstrapPortV1,
   type BrowserWorkspaceHostDirectoryEntryV1,
+  type BrowserWorkspaceHostDownloadStageV1,
   type BrowserWorkspaceHostDurableHeadV1,
   type BrowserWorkspaceHostEntryMutationInputV1,
   type BrowserWorkspaceHostFileMetadataV1,
@@ -48,6 +49,7 @@ const nextStageFileNameV1 = "next.bin";
 const previousStageFileNameV1 = "previous.bin";
 const pendingStageFileNameV1 = "pending-stage.json";
 const portableExportStageFileNameV1 = "portable-export.zip";
+const downloadStageFileNameV1 = "download.bin";
 const immutableSnapshotArchiveFileNameV1 = "workspace.zip";
 const immutableSnapshotPrepareMarkerFileNameV1 = "snapshot-candidate.json";
 const immutableSnapshotCommitFileNameV1 = "commit.json";
@@ -2192,6 +2194,118 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
     }
   }
 
+  async createDownloadStage(input: {
+    readonly maximumBytes: number;
+    readonly signal: AbortSignal;
+  }): Promise<BrowserWorkspaceHostDownloadStageV1> {
+    this.assertOpen();
+    if (
+      !Number.isSafeInteger(input.maximumBytes) || input.maximumBytes < 0 ||
+      input.signal.aborted
+    ) {
+      throw new BrowserWorkspaceHostStorageErrorV1(
+        "request_failed",
+        input.signal.aborted
+          ? "Workspace download staging was aborted"
+          : "Workspace download staging limit is invalid",
+      );
+    }
+    await removeEntryIfPresentV1(this.staging, downloadStageFileNameV1);
+    const handle = await this.staging.getFileHandle(downloadStageFileNameV1, { create: true });
+    const writable = await handle.createWritable();
+    let byteLength = 0;
+    let sealedFile: File | null = null;
+    let released = false;
+    const requireLive = (signal: AbortSignal): void => {
+      this.assertOpen();
+      if (released || signal.aborted) {
+        throw new BrowserWorkspaceHostStorageErrorV1(
+          "request_failed",
+          "Workspace download staging is no longer writable",
+          fileErrorV1("aborted", "Workspace download staging was aborted", null),
+        );
+      }
+    };
+    return {
+      get byteLength() {
+        return byteLength;
+      },
+      append: async ({ offset, bytes, signal }) => {
+        requireLive(signal);
+        if (
+          sealedFile !== null || !Number.isSafeInteger(offset) || offset !== byteLength ||
+          bytes.byteLength === 0 || bytes.byteLength > browserWorkspaceHostIoChunkMaximumBytesV1 ||
+          !Number.isSafeInteger(byteLength + bytes.byteLength) ||
+          byteLength + bytes.byteLength > input.maximumBytes
+        ) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            byteLength + bytes.byteLength > input.maximumBytes
+              ? "capacity_exceeded"
+              : "request_failed",
+            "Workspace download staging chunk is invalid",
+          );
+        }
+        const owned = ownedArrayBufferV1(bytes);
+        await this.ioBudget.withReservation(
+          bytes.byteLength * 2,
+          bytes.byteLength,
+          () => writable.write(owned),
+          signal,
+        );
+        byteLength += bytes.byteLength;
+      },
+      seal: async (signal) => {
+        requireLive(signal);
+        if (sealedFile !== null) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "request_failed",
+            "Workspace download staging was already sealed",
+          );
+        }
+        await writable.close();
+        sealedFile = await handle.getFile();
+        if (sealedFile.size !== byteLength) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "volume_corrupt",
+            "Workspace download staging size does not match its accepted chunks",
+          );
+        }
+      },
+      readRange: async ({ offset, length, signal }) => {
+        requireLive(signal);
+        const file = sealedFile;
+        if (
+          file === null || !Number.isSafeInteger(offset) || offset < 0 ||
+          !Number.isSafeInteger(length) || length < 0 ||
+          length > browserWorkspaceHostIoChunkMaximumBytesV1 ||
+          !Number.isSafeInteger(offset + length) || offset + length > byteLength
+        ) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "request_failed",
+            "Workspace download staging range is invalid",
+          );
+        }
+        return await this.ioBudget.withReservation(length, length, async () => {
+          const bytes = new Uint8Array(await file.slice(offset, offset + length).arrayBuffer());
+          requireLive(signal);
+          if (bytes.byteLength !== length) {
+            throw new BrowserWorkspaceHostStorageErrorV1(
+              "volume_corrupt",
+              "Workspace download staging range returned an unexpected length",
+            );
+          }
+          return bytes;
+        }, signal);
+      },
+      release: async () => {
+        if (released) return;
+        released = true;
+        if (sealedFile === null) await writable.abort().catch(() => undefined);
+        await removeEntryIfPresentV1(this.staging, downloadStageFileNameV1);
+      },
+    };
+  }
+
   async mutateEntry(
     input: BrowserWorkspaceHostEntryMutationInputV1,
   ): Promise<BrowserWorkspaceHostReplaceFileResultV1> {
@@ -2518,6 +2632,7 @@ class OpfsVolumeLeaseV1 implements BrowserWorkspaceHostVolumeLeasePortV1 {
     await removeEntryIfPresentV1(this.staging, nextStageFileNameV1);
     await removeEntryIfPresentV1(this.staging, previousStageFileNameV1);
     await removeEntryIfPresentV1(this.staging, pendingStageFileNameV1);
+    await removeEntryIfPresentV1(this.staging, downloadStageFileNameV1);
   }
 
   private async clearPendingAndStaging(): Promise<void> {

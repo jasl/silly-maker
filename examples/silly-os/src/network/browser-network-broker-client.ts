@@ -9,6 +9,10 @@ import {
   type BrowserNetworkBrokerFailureCodeV1,
   type BrowserNetworkBrokerFetchUrlResultV1,
 } from "./browser-network-broker-protocol.ts";
+import {
+  admitBrowserNetworkDownloadRequestV1,
+  createBrowserNetworkDownloadRequestV1,
+} from "./browser-network-download-stream-protocol.ts";
 import { normalizeBrowserNetworkUrlV1 } from "./browser-network-url.ts";
 
 export class BrowserNetworkBrokerClientErrorV1 extends Error {
@@ -23,7 +27,18 @@ export interface BrowserNetworkBrokerClientV1 {
     url: string,
     signal?: AbortSignal,
   ): Promise<BrowserNetworkBrokerFetchUrlResultV1>;
+  download(
+    url: string,
+    sinkPort: MessagePort,
+    signal?: AbortSignal,
+  ): BrowserNetworkBrokerDownloadLeaseV1;
   close(): void;
+}
+
+export interface BrowserNetworkBrokerDownloadLeaseV1 {
+  readonly requestId: string;
+  cancel(): void;
+  release(): void;
 }
 
 export interface BrowserNetworkBrokerClientOptionsV1 {
@@ -41,6 +56,11 @@ interface PendingRequestV1 {
   readonly deadline: ReturnType<typeof setTimeout>;
 }
 
+interface ActiveDownloadV1 {
+  readonly signal: AbortSignal | null;
+  readonly onAbort: (() => void) | null;
+}
+
 export function createBrowserNetworkBrokerClientV1(
   port: MessagePort,
   options: BrowserNetworkBrokerClientOptionsV1 = {},
@@ -52,6 +72,7 @@ export function createBrowserNetworkBrokerClientV1(
     responseDeadlineMilliseconds > 60_000
   ) throw new TypeError("sillyos.network_broker.client_deadline_invalid");
   const pendingV1 = new Map<string, PendingRequestV1>();
+  const activeDownloadsV1 = new Map<string, ActiveDownloadV1>();
   let closedV1 = false;
 
   const detachV1 = (request: PendingRequestV1): void => {
@@ -63,6 +84,13 @@ export function createBrowserNetworkBrokerClientV1(
   const closeV1 = (): void => {
     if (closedV1) return;
     closedV1 = true;
+    for (const requestId of activeDownloadsV1.keys()) {
+      try {
+        port.postMessage(createBrowserNetworkBrokerCancelV1(requestId));
+      } catch {
+        break;
+      }
+    }
     port.removeEventListener("message", onMessageV1);
     port.removeEventListener("messageerror", onMessageErrorV1);
     port.close();
@@ -71,6 +99,12 @@ export function createBrowserNetworkBrokerClientV1(
       request.reject(new BrowserNetworkBrokerClientErrorV1("network_failed"));
     }
     pendingV1.clear();
+    for (const download of activeDownloadsV1.values()) {
+      if (download.signal !== null && download.onAbort !== null) {
+        download.signal.removeEventListener("abort", download.onAbort);
+      }
+    }
+    activeDownloadsV1.clear();
   };
   function onMessageErrorV1(): void {
     closeV1();
@@ -153,6 +187,69 @@ export function createBrowserNetworkBrokerClientV1(
           detachV1(request);
           reject(new BrowserNetworkBrokerClientErrorV1("network_failed"));
         }
+      });
+    },
+    download(inputUrl, sinkPort, signal): BrowserNetworkBrokerDownloadLeaseV1 {
+      if (closedV1) {
+        sinkPort.close();
+        throw new BrowserNetworkBrokerClientErrorV1("network_failed");
+      }
+      const url = normalizeBrowserNetworkUrlV1(inputUrl);
+      if (url === null) {
+        sinkPort.close();
+        throw new BrowserNetworkBrokerClientErrorV1("invalid_url");
+      }
+      if (signal?.aborted === true) {
+        sinkPort.close();
+        throw new BrowserNetworkBrokerClientErrorV1("cancelled");
+      }
+      const requestId = options.createRequestId?.() ?? `network.request.${crypto.randomUUID()}`;
+      const message = createBrowserNetworkDownloadRequestV1(requestId, url);
+      if (
+        admitBrowserNetworkDownloadRequestV1(message) === null || pendingV1.has(requestId) ||
+        activeDownloadsV1.has(requestId)
+      ) {
+        sinkPort.close();
+        closeV1();
+        throw new BrowserNetworkBrokerClientErrorV1("network_failed");
+      }
+
+      const detachDownloadV1 = (): ActiveDownloadV1 | null => {
+        const active = activeDownloadsV1.get(requestId);
+        if (active === undefined) return null;
+        activeDownloadsV1.delete(requestId);
+        if (active.signal !== null && active.onAbort !== null) {
+          active.signal.removeEventListener("abort", active.onAbort);
+        }
+        return active;
+      };
+      const cancelV1 = (): void => {
+        if (detachDownloadV1() === null) return;
+        try {
+          port.postMessage(createBrowserNetworkBrokerCancelV1(requestId));
+        } catch {
+          closeV1();
+        }
+      };
+      const onAbort = signal === undefined ? null : cancelV1;
+      activeDownloadsV1.set(requestId, {
+        signal: signal ?? null,
+        onAbort,
+      });
+      signal?.addEventListener("abort", onAbort as () => void, { once: true });
+      try {
+        port.postMessage(message, [sinkPort]);
+      } catch {
+        detachDownloadV1();
+        sinkPort.close();
+        throw new BrowserNetworkBrokerClientErrorV1("network_failed");
+      }
+      return Object.freeze({
+        requestId,
+        cancel: cancelV1,
+        release(): void {
+          detachDownloadV1();
+        },
       });
     },
     close: closeV1,

@@ -19,6 +19,9 @@ export const deterministicGrepProbePrefixV1 =
   "Exercise the product-fixed Pi grep tool with exact text: ";
 export const deterministicFetchUrlProbePrefixV1 =
   "Exercise the product-fixed Pi fetch_url tool for exact URL: ";
+export const deterministicDownloadProbePrefixV1 =
+  "Exercise the product-fixed Pi download tool for exact URL: ";
+export const deterministicDownloadDestinationV1 = "/workspace/.sillyos/n2-download.bin";
 export const deterministicOversizedReadProbeV1 =
   "Verify the qualification workspace rejects an oversized native Pi read.";
 
@@ -128,6 +131,7 @@ export function createDeterministicPiAgentV1(input) {
   const exerciseFileOps = input.submit.text.startsWith(deterministicFileOpsProbePrefixV1);
   const exerciseGrep = input.submit.text.startsWith(deterministicGrepProbePrefixV1);
   const exerciseFetchUrl = input.submit.text.startsWith(deterministicFetchUrlProbePrefixV1);
+  const exerciseDownload = input.submit.text.startsWith(deterministicDownloadProbePrefixV1);
   const verifyOversizedRead = input.submit.text === deterministicOversizedReadProbeV1;
   const faux = fauxProvider({
     tokenSize: { min: 64, max: 64 },
@@ -240,7 +244,42 @@ export function createDeterministicPiAgentV1(input) {
     }),
     { stopReason: "toolUse" },
   );
-  if (exerciseFetchUrl) {
+  const downloadResponse = fauxAssistantMessage(
+    fauxToolCall("download", {
+      url: input.submit.text.slice(deterministicDownloadProbePrefixV1.length),
+      destination: deterministicDownloadDestinationV1,
+    }, {
+      id: `sillyos-download-${input.runNumber}`,
+    }),
+    { stopReason: "toolUse" },
+  );
+  if (exerciseDownload) {
+    faux.setResponses([
+      downloadResponse,
+      (context) => {
+        const result = context.messages.toReversed().find((message) =>
+          message.role === "toolResult" && message.toolName === "download"
+        );
+        const actual = toolResultTextV1(result);
+        const details = result?.role === "toolResult" ? result.details : null;
+        if (
+          result?.role !== "toolResult" || result.isError || actual === null ||
+          details === null || typeof details !== "object" ||
+          !Number.isInteger(details.status) || details.status < 200 || details.status > 299 ||
+          (details.contentType !== null && typeof details.contentType !== "string") ||
+          !Number.isSafeInteger(details.bytes) || details.bytes < 0 ||
+          details.bytes > 32 * 1024 * 1024 ||
+          details.destination !== deterministicDownloadDestinationV1 ||
+          !Number.isSafeInteger(details.generation) || details.generation < 1 ||
+          actual !== `Downloaded ${String(details.bytes)} bytes to ${details.destination}.`
+        ) {
+          throw new Error("Product-fixed Pi download did not return the exact Workspace result");
+        }
+        return proposalResponse;
+      },
+      fauxAssistantMessage(deterministicFinalReplyV1),
+    ]);
+  } else if (exerciseFetchUrl) {
     faux.setResponses([
       fetchUrlResponse,
       (context) => {

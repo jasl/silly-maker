@@ -3,6 +3,7 @@
 import { admitCreatorAgentSubmitTextV1 } from "../product/creator-agent-admission.ts";
 import {
   admitProgramNetworkGrantSetV1,
+  type ProgramNetworkOperationV1,
   type ProgramNetworkGrantV1,
 } from "../product/program-network-grants.ts";
 import { normalizeBrowserNetworkUrlV1 } from "../network/browser-network-url.ts";
@@ -276,7 +277,7 @@ export interface BrowserPiNetworkApprovalRequestV1 {
   readonly sessionId: string;
   readonly runId: string;
   readonly toolCallId: string;
-  readonly operation: "fetch_url";
+  readonly operation: ProgramNetworkOperationV1;
   readonly origin: string;
   readonly url: string;
 }
@@ -323,7 +324,7 @@ export interface BrowserPiWorkspaceMutationReceiptWireV1 {
   readonly sessionId: string;
   readonly runId: string;
   readonly toolCallId: string;
-  readonly tool: "write" | "edit" | "bash";
+  readonly tool: "write" | "edit" | "bash" | "download";
   readonly expectedGeneration: number;
   readonly baseGeneration: number;
   readonly resultingGeneration: number;
@@ -849,7 +850,7 @@ export function admitBrowserPiNetworkApprovalRequestV1(
     !isIdentifierV1(approval.programId) || !isIdentifierV1(approval.workspaceId) ||
     !isIdentifierV1(approval.workspaceSessionId) || !isIdentifierV1(approval.sessionId) ||
     !isIdentifierV1(approval.runId) || !isIdentifierV1(approval.toolCallId) ||
-    approval.operation !== "fetch_url"
+    approval.operation !== "fetch_url" && approval.operation !== "download"
   ) return null;
   const url = normalizeBrowserNetworkUrlV1(approval.url);
   if (url === null || url !== approval.url || approval.origin !== new URL(url).origin) return null;
@@ -862,7 +863,7 @@ export function admitBrowserPiNetworkApprovalRequestV1(
     sessionId: approval.sessionId,
     runId: approval.runId,
     toolCallId: approval.toolCallId,
-    operation: "fetch_url",
+    operation: approval.operation,
     origin: new URL(url).origin,
     url,
   };
@@ -962,7 +963,8 @@ export function admitBrowserPiWorkspaceMutationReceiptWireV1(
     !isIdentifierV1(receipt.programId) || !isIdentifierV1(receipt.workspaceId) ||
     !isIdentifierV1(receipt.workspaceSessionId) || !isIdentifierV1(receipt.sessionId) ||
     !isIdentifierV1(receipt.runId) || !isIdentifierV1(receipt.toolCallId) ||
-    (receipt.tool !== "write" && receipt.tool !== "edit" && receipt.tool !== "bash") ||
+    (receipt.tool !== "write" && receipt.tool !== "edit" && receipt.tool !== "bash" &&
+      receipt.tool !== "download") ||
     !isPositiveSafeIntegerV1(receipt.expectedGeneration) ||
     !isPositiveSafeIntegerV1(receipt.baseGeneration) ||
     !isPositiveSafeIntegerV1(receipt.resultingGeneration) ||

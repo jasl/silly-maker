@@ -27,6 +27,7 @@ import {
 } from "../product/browser-program-workspace-authority.ts";
 import {
   admitProgramNetworkGrantSetV1,
+  type ProgramNetworkOperationV1,
   type ProgramNetworkGrantSetV1,
 } from "../product/program-network-grants.ts";
 import {
@@ -108,7 +109,7 @@ export interface CreatorAgentNetworkApprovalV1 {
   readonly agentRunId: string;
   readonly programId: string;
   readonly workspaceSessionId: string;
-  readonly operation: "fetch_url";
+  readonly operation: ProgramNetworkOperationV1;
   readonly origin: string;
   readonly url: string;
   readonly retryText: string;

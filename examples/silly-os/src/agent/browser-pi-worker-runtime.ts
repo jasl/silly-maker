@@ -16,9 +16,11 @@ import {
   type CreatorAgentSubmitV1,
   type CreatorProgramRevisionCandidateV1,
 } from "../product/contracts.ts";
-import type { ProgramNetworkGrantV1 } from "../product/program-network-grants.ts";
+import type {
+  ProgramNetworkGrantV1,
+  ProgramNetworkOperationV1,
+} from "../product/program-network-grants.ts";
 import {
-  type WorkspaceAgentRunV1,
   type WorkspaceExecutionDescriptorV1,
   type WorkspaceMutationRecordV1,
 } from "../workspace/index.ts";
@@ -49,7 +51,7 @@ import {
   bindPiWorkspaceWriteToolV1,
   createPiWorkspaceGrepToolV1,
 } from "./pi-workspace-tool-binder.ts";
-import { createPiFetchUrlToolV1 } from "./pi-network-tool-binder.ts";
+import { createPiDownloadToolV1, createPiFetchUrlToolV1 } from "./pi-network-tool-binder.ts";
 import {
   createBrowserNetworkBrokerClientV1,
   type BrowserNetworkBrokerClientV1,
@@ -57,6 +59,7 @@ import {
 import { normalizeBrowserNetworkUrlV1 } from "../network/browser-network-url.ts";
 import {
   createBrowserWorkspaceEnvironmentClientV1,
+  type BrowserWorkspaceAgentRunV1,
   type BrowserWorkspaceEnvironmentClientV1,
   type BrowserWorkspaceEnvironmentMessagePortV1,
 } from "./browser-workspace-environment-client.ts";
@@ -76,7 +79,7 @@ interface ActivePiRunV1 {
   readonly sessionId: string;
   readonly runId: string;
   readonly agent: PiAgentPortV1;
-  readonly workspaceRun: WorkspaceAgentRunV1;
+  readonly workspaceRun: BrowserWorkspaceAgentRunV1;
   readonly workspaceSessionId: string;
   readonly admittedWorkspaceGeneration: number;
   readonly programId: string;
@@ -102,6 +105,7 @@ interface PiAgentPortV1 {
 }
 
 const providerProbeTimeoutMillisecondsV1 = 30_000;
+export const browserPiDownloadOuterDeadlineMillisecondsV1 = 60_000;
 
 export interface BrowserPiWorkerRuntimePortV1 {
   receive(message: unknown, ports?: readonly MessagePort[]): void;
@@ -111,7 +115,7 @@ export interface BrowserPiWorkerRuntimePortV1 {
 interface BrowserPiOneShotNetworkPermitV1 {
   readonly programId: string;
   readonly workspaceSessionId: string;
-  readonly operation: "fetch_url";
+  readonly operation: ProgramNetworkOperationV1;
   readonly url: string;
 }
 
@@ -157,10 +161,18 @@ export function createBrowserPiWorkerRuntimeV1(input: {
   readonly postMessage: (message: BrowserPiWorkerAnyOutboundMessageV1) => void;
   readonly probeProviderSelection?: typeof probeBrowserPiProviderSelectionV1;
   readonly createProviderAgent?: typeof createBrowserPiProviderAgentV1;
+  readonly downloadOuterDeadlineMilliseconds?: number;
 }): BrowserPiWorkerRuntimePortV1 {
   const probeProviderSelection = input.probeProviderSelection ??
     probeBrowserPiProviderSelectionV1;
   const createProviderAgent = input.createProviderAgent ?? createBrowserPiProviderAgentV1;
+  const downloadOuterDeadlineMilliseconds = input.downloadOuterDeadlineMilliseconds ??
+    browserPiDownloadOuterDeadlineMillisecondsV1;
+  if (
+    !Number.isSafeInteger(downloadOuterDeadlineMilliseconds) ||
+    downloadOuterDeadlineMilliseconds <= 0 ||
+    downloadOuterDeadlineMilliseconds > browserPiDownloadOuterDeadlineMillisecondsV1
+  ) throw new TypeError("sillyos.network_broker.download_deadline_invalid");
   let credentialKey: string | null = null;
   let configuredRuntime: BrowserPiWorkerRuntimeV1 | null = null;
   let configuredSelection: BrowserPiModelSelectionV1 | null = null;
@@ -381,28 +393,28 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     }
   };
 
-  const executeFetchUrlV1 = async (
+  const requireNetworkPermitV1 = (
     run: ActivePiRunV1,
     toolCallId: string,
+    operation: ProgramNetworkOperationV1,
     rawUrl: string,
-    signal?: AbortSignal,
-  ) => {
+  ): string => {
     if (
       activeRun !== run || run.terminal || run.requestedFailure !== null ||
       run.networkAbort.signal.aborted
     ) throw new Error("Creator run was cancelled");
     const url = normalizeBrowserNetworkUrlV1(rawUrl);
-    if (url === null) throw new TypeError("fetch_url requires one absolute HTTPS URL");
+    if (url === null) throw new TypeError(`${operation} requires one absolute HTTPS URL`);
     const permit = oneShotNetworkPermit;
     const oneShotPermitted = permit !== null && permit.programId === run.programId &&
       permit.workspaceSessionId === run.workspaceSessionId &&
-      permit.operation === "fetch_url" && permit.url === url;
+      permit.operation === operation && permit.url === url;
     const requestOrigin = new URL(url).origin;
     const durable = durableNetworkGrantCache;
     const durablyPermitted = durable !== null && durable.programId === run.programId &&
       durable.workspaceSessionId === run.workspaceSessionId &&
       durable.grants.some((grant) =>
-        grant.operation === "fetch_url" && grant.origin === requestOrigin
+        grant.operation === operation && grant.origin === requestOrigin
       );
     if (!oneShotPermitted && !durablyPermitted) {
       if (pendingNetworkApproval === null) {
@@ -416,7 +428,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
             sessionId: run.sessionId,
             runId: run.runId,
             toolCallId,
-            operation: "fetch_url",
+            operation,
             origin: requestOrigin,
             url,
           } satisfies BrowserPiNetworkApprovalRequestV1,
@@ -432,6 +444,16 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     // Only the matching one-shot permit is consumed before the Broker request.
     // A durable Program-origin grant remains cached for this Workspace session.
     if (oneShotPermitted) oneShotNetworkPermit = null;
+    return url;
+  };
+
+  const executeFetchUrlV1 = async (
+    run: ActivePiRunV1,
+    toolCallId: string,
+    rawUrl: string,
+    signal?: AbortSignal,
+  ) => {
+    const url = requireNetworkPermitV1(run, toolCallId, "fetch_url", rawUrl);
     const client = networkClient;
     if (client === null) throw new Error("Browser Network Broker is unavailable");
     const result = await withRunNetworkSignalV1(
@@ -448,6 +470,73 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       contentType: result.contentType,
       bytes: result.bytes,
       text: result.text,
+    });
+  };
+
+  const executeDownloadV1 = async (
+    run: ActivePiRunV1,
+    toolCallId: string,
+    downloadInput: {
+      readonly url: string;
+      readonly destination: string;
+      readonly overwrite: boolean;
+    },
+    signal?: AbortSignal,
+  ) => {
+    const url = requireNetworkPermitV1(run, toolCallId, "download", downloadInput.url);
+    const client = networkClient;
+    if (client === null) throw new Error("Browser Network Broker is unavailable");
+    const result = await withRunNetworkSignalV1(
+      run,
+      signal,
+      async (effectiveSignal) => {
+        const downloadAbort = new AbortController();
+        let deadlineReached = false;
+        const forwardAbort = (): void => downloadAbort.abort();
+        if (effectiveSignal.aborted) downloadAbort.abort();
+        else effectiveSignal.addEventListener("abort", forwardAbort, { once: true });
+        const deadline = setTimeout(() => {
+          deadlineReached = true;
+          downloadAbort.abort();
+        }, downloadOuterDeadlineMilliseconds);
+        const channel = new MessageChannel();
+        let lease: ReturnType<BrowserNetworkBrokerClientV1["download"]> | null = null;
+        try {
+          lease = client.download(url, channel.port1, downloadAbort.signal);
+          const download = await run.workspaceRun.executeDownloadCall({
+            toolCallId,
+            brokerRequestId: lease.requestId,
+            destination: downloadInput.destination,
+            overwrite: downloadInput.overwrite,
+            sinkPort: channel.port2,
+            signal: downloadAbort.signal,
+          });
+          if (deadlineReached) throw new Error("sillyos.network_broker.download_deadline");
+          lease.release();
+          return download;
+        } catch (error) {
+          lease?.cancel();
+          channel.port2.close();
+          if (deadlineReached) {
+            throw new Error("sillyos.network_broker.download_deadline", { cause: error });
+          }
+          throw error;
+        } finally {
+          clearTimeout(deadline);
+          effectiveSignal.removeEventListener("abort", forwardAbort);
+        }
+      },
+    );
+    if (
+      activeRun !== run || run.terminal || run.requestedFailure !== null ||
+      run.networkAbort.signal.aborted
+    ) throw new Error("Creator run was cancelled");
+    return Object.freeze({
+      status: result.status,
+      contentType: result.contentType,
+      bytes: result.bytes,
+      destination: result.destination,
+      generation: result.generation,
     });
   };
 
@@ -484,6 +573,11 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       () =>
         createPiFetchUrlToolV1({
           execute: (toolCallId, url, signal) => executeFetchUrlV1(run, toolCallId, url, signal),
+        }),
+      () =>
+        createPiDownloadToolV1({
+          execute: (toolCallId, downloadInput, signal) =>
+            executeDownloadV1(run, toolCallId, downloadInput, signal),
         }),
     ]);
     const agentInput = {

@@ -114,6 +114,11 @@ for (const [label, source] of [[bootstrapFileV1, bootstrapV1], [workerFileV1, wo
       "sessionStorage",
       "Authorization",
       "document.cookie",
+      "programId",
+      "workspaceSessionId",
+      "volumeId",
+      "destination",
+      "apiKey",
       "eval(",
       "new Function",
     ]
@@ -130,6 +135,13 @@ for (
     "no-referrer",
     "no-store",
     "network_broker_fetch_url",
+    "network_broker_download",
+    "network_broker_download_sink_ready",
+    "network_broker_download_chunk_ack",
+    "network_broker_download_chunk",
+    "network_broker_download_http_error",
+    "network_broker_download_complete",
+    "response_too_large",
   ]
 ) {
   if (!workerV1.includes(required)) failV1(`Broker Worker omits fixed request marker ${required}`);

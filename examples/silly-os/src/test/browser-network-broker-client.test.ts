@@ -104,6 +104,49 @@ describe("Browser Network Broker client", () => {
     client.close();
   });
 
+  it("transfers one direct download sink and tracks cancellation without receiving body bytes", async () => {
+    const brokerChannel = new MessageChannel();
+    const directChannel = new MessageChannel();
+    channelsV1.push(brokerChannel, directChannel);
+    const client = createBrowserNetworkBrokerClientV1(brokerChannel.port1, {
+      createRequestId: () => "network.request.download.1",
+    });
+    const brokerMessages: { readonly data: unknown; readonly ports: readonly MessagePort[] }[] = [];
+    brokerChannel.port2.addEventListener("message", (event: MessageEvent<unknown>) => {
+      brokerMessages.push({ data: event.data, ports: [...event.ports] });
+    });
+    brokerChannel.port2.start();
+    const controller = new AbortController();
+    const lease = client.download(
+      "https://example.com/archive.zip",
+      directChannel.port1,
+      controller.signal,
+    );
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(lease.requestId).toBe("network.request.download.1");
+    expect(brokerMessages).toHaveLength(1);
+    expect(brokerMessages[0]?.data).toEqual({
+      revision: 1,
+      kind: "network_broker_download",
+      requestId: "network.request.download.1",
+      url: "https://example.com/archive.zip",
+    });
+    expect(brokerMessages[0]?.ports).toHaveLength(1);
+    expect(JSON.stringify(brokerMessages[0]?.data)).not.toContain("destination");
+
+    controller.abort();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(brokerMessages[1]?.data).toEqual({
+      revision: 1,
+      kind: "network_broker_cancel",
+      requestId: "network.request.download.1",
+    });
+    lease.cancel();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(brokerMessages).toHaveLength(2);
+    client.close();
+  });
+
   it("fails within the outer deadline when the Broker peer closes silently", async () => {
     const channel = new MessageChannel();
     channelsV1.push(channel);

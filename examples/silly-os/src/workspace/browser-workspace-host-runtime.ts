@@ -37,6 +37,14 @@ import type {
   BrowserWorkspaceJustBashPathViewV1,
   BrowserWorkspaceJustBashVolumePortV1,
 } from "./browser-workspace-just-bash-runtime.ts";
+import {
+  admitBrowserNetworkDownloadBrokerMessageV1,
+  browserNetworkDownloadTotalMaximumBytesV1,
+  createBrowserNetworkDownloadChunkAckV1,
+  createBrowserNetworkDownloadSinkAbortV1,
+  createBrowserNetworkDownloadSinkReadyV1,
+  type BrowserNetworkDownloadResponseV1,
+} from "../network/browser-network-download-stream-protocol.ts";
 
 const identityPatternV1 = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
 const workspaceRootV1 = "/workspace";
@@ -94,6 +102,17 @@ export interface BrowserWorkspaceHostReplaceFileResultV1 {
   readonly head: BrowserWorkspaceHostDurableHeadV1;
 }
 
+/** Host-private staging file. It is never addressable from the workspace namespace. */
+export interface BrowserWorkspaceHostDownloadStageV1 extends BrowserWorkspaceHostFileRangeSourceV1 {
+  append(input: {
+    readonly offset: number;
+    readonly bytes: Uint8Array;
+    readonly signal: AbortSignal;
+  }): Promise<void>;
+  seal(signal: AbortSignal): Promise<void>;
+  release(): Promise<void>;
+}
+
 export type BrowserWorkspaceHostEntryMutationOperationV1 =
   | "create_directory"
   | "remove_file"
@@ -148,6 +167,10 @@ export interface BrowserWorkspaceHostVolumeLeasePortV1 {
   replaceFile(
     input: BrowserWorkspaceHostReplaceFileInputV1,
   ): Promise<BrowserWorkspaceHostReplaceFileResultV1>;
+  createDownloadStage?(input: {
+    readonly maximumBytes: number;
+    readonly signal: AbortSignal;
+  }): Promise<BrowserWorkspaceHostDownloadStageV1>;
   mutateEntry(
     input: BrowserWorkspaceHostEntryMutationInputV1,
   ): Promise<BrowserWorkspaceHostReplaceFileResultV1>;
@@ -190,11 +213,21 @@ export interface BrowserWorkspaceHostMessagePortV1 {
   postMessage(message: unknown): void;
   addEventListener(
     type: "message",
-    listener: (event: Readonly<{ data: unknown }>) => void,
+    listener: (
+      event: Readonly<{
+        data: unknown;
+        ports?: readonly BrowserWorkspaceHostMessagePortV1[];
+      }>,
+    ) => void,
   ): void;
   removeEventListener(
     type: "message",
-    listener: (event: Readonly<{ data: unknown }>) => void,
+    listener: (
+      event: Readonly<{
+        data: unknown;
+        ports?: readonly BrowserWorkspaceHostMessagePortV1[];
+      }>,
+    ) => void,
   ): void;
   start?(): void;
   close?(): void;
@@ -277,7 +310,7 @@ interface NormalizedPathV1 {
 
 interface ToolScopeV1 {
   readonly toolCallId: string;
-  readonly tool: "read" | "write" | "edit" | "bash" | "grep";
+  readonly tool: "read" | "write" | "edit" | "bash" | "grep" | "download";
   readonly baseGeneration: number;
   readonly abortController: AbortController;
   activeOperation: Promise<unknown> | null;
@@ -324,7 +357,12 @@ interface SessionStateV1 {
 
 interface EnvironmentAttachmentV1 {
   readonly port: BrowserWorkspaceHostMessagePortV1;
-  readonly listener: (event: Readonly<{ data: unknown }>) => void;
+  readonly listener: (
+    event: Readonly<{
+      data: unknown;
+      ports?: readonly BrowserWorkspaceHostMessagePortV1[];
+    }>,
+  ) => void;
 }
 
 interface ExportOperationV1 {
@@ -662,7 +700,10 @@ export function createBrowserWorkspaceHostRuntimeV1(
     outcome: "succeeded" | "failed" | "cancelled",
   ): void => {
     if (run.activeScope !== scope) return;
-    if (scope.tool === "write" || scope.tool === "edit" || scope.tool === "bash") {
+    if (
+      scope.tool === "write" || scope.tool === "edit" || scope.tool === "bash" ||
+      scope.tool === "download"
+    ) {
       const effect = scope.changedPaths.length === 0 ? "none" : "changed";
       const diagnosticCode = outcome === "cancelled"
         ? "cancelled"
@@ -741,7 +782,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
     path: NormalizedPathV1,
     source: BrowserWorkspaceHostFileRangeSourceV1,
     signal: AbortSignal = scope.abortController.signal,
-  ): Promise<void> => {
+  ): Promise<boolean> => {
     const lease = session.lease;
     if (lease === null || signal.aborted) {
       throw new BrowserWorkspaceHostStorageErrorV1(
@@ -814,7 +855,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
         scope.changedPathSet.add(path.relative);
         scope.changedPaths.push(path.relative);
       }
-      return;
+      return true;
     }
     if (!sameHeadV1(admittedHead, session.head)) {
       throw new BrowserWorkspaceHostStorageErrorV1(
@@ -822,6 +863,7 @@ export function createBrowserWorkspaceHostRuntimeV1(
         "Same-byte workspace write changed its durable head",
       );
     }
+    return false;
   };
 
   const mutatePersistentEntry = async (
@@ -1874,6 +1916,341 @@ export function createBrowserWorkspaceHostRuntimeV1(
     }
   };
 
+  const handleOpenDownloadSink = async (
+    session: SessionStateV1,
+    requestId: number,
+    record: Extract<
+      BrowserWorkspaceHostEnvironmentRequestRecordV1,
+      { readonly method: "open_download_sink" }
+    >,
+    transferredPorts: readonly BrowserWorkspaceHostMessagePortV1[],
+  ): Promise<void> => {
+    const current = activeScope(session);
+    if (current === null) {
+      closeTransferredPorts(transferredPorts);
+      environmentFailure(session, requestId, "scope_missing");
+      return;
+    }
+    const { run, scope } = current;
+    if (scope.tool !== "download") {
+      closeTransferredPorts(transferredPorts);
+      environmentFailure(session, requestId, "scope_busy");
+      return;
+    }
+    if (transferredPorts.length !== 1) {
+      closeTransferredPorts(transferredPorts);
+      scope.failureDiagnostic = "execution_failed";
+      environmentFailure(session, requestId, "invalid_request");
+      return;
+    }
+    const port = transferredPorts[0]!;
+    const path = normalizedPathV1(record.destination);
+    if (
+      isFileErrorV1(path) || path.relative.length === 0 ||
+      path.absolute !== record.destination
+    ) {
+      port.close?.();
+      scope.failureDiagnostic = "path_rejected";
+      environmentFailure(
+        session,
+        requestId,
+        "request_failed",
+        isFileErrorV1(path)
+          ? path
+          : fileErrorV1("invalid", "Download destination is not normalized", record.destination),
+      );
+      return;
+    }
+    const lease = session.lease;
+    if (
+      !session.accepting || lease === null || scope.abortController.signal.aborted ||
+      run.cursor !== session.head.generation
+    ) {
+      port.close?.();
+      scope.failureDiagnostic = "cancelled";
+      environmentFailure(session, requestId, "run_not_current");
+      return;
+    }
+    try {
+      const result = await operate(scope, async () => {
+        const metadata = await lease.stat(path.relative);
+        if (metadata.kind === "directory") {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "request_failed",
+            "Download destination is a directory",
+            fileErrorV1("is_directory", "Download destination is a directory", path.absolute),
+          );
+        }
+        if (metadata.kind === "file" && !record.overwrite) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "request_failed",
+            "Download destination already exists",
+            fileErrorV1(
+              "invalid",
+              "Download destination already exists and overwrite is false",
+              path.absolute,
+            ),
+          );
+        }
+        const expectedHead = { ...session.head };
+        if (lease.createDownloadStage === undefined) {
+          throw new BrowserWorkspaceHostStorageErrorV1(
+            "request_failed",
+            "Workspace volume does not provide a download staging capability",
+          );
+        }
+        const stage = await lease.createDownloadStage({
+          maximumBytes: browserNetworkDownloadTotalMaximumBytesV1,
+          signal: scope.abortController.signal,
+        });
+        const streamAbort = new AbortController();
+        const forwardScopeAbort = (): void => streamAbort.abort();
+        if (scope.abortController.signal.aborted) streamAbort.abort();
+        else {
+          scope.abortController.signal.addEventListener("abort", forwardScopeAbort, { once: true });
+        }
+        let response: BrowserNetworkDownloadResponseV1 | null = null;
+        let expectedSequence = 1;
+        let receivedBytes = 0;
+        let settled = false;
+        let consuming = false;
+        let tail = Promise.resolve();
+        let resolveTerminal!: (value: {
+          readonly status: number;
+          readonly contentType: string | null;
+          readonly bytes: number;
+          readonly destination: string;
+          readonly generation: number;
+          readonly effect: "none" | "changed";
+        }) => void;
+        let rejectTerminal!: (error: unknown) => void;
+        const terminal = new Promise<{
+          readonly status: number;
+          readonly contentType: string | null;
+          readonly bytes: number;
+          readonly destination: string;
+          readonly generation: number;
+          readonly effect: "none" | "changed";
+        }>((resolve, reject) => {
+          resolveTerminal = resolve;
+          rejectTerminal = reject;
+        });
+        void terminal.catch(() => undefined);
+        const fail = (error: unknown, notifyBroker: boolean): void => {
+          if (settled) return;
+          settled = true;
+          if (notifyBroker) {
+            try {
+              port.postMessage(createBrowserNetworkDownloadSinkAbortV1(
+                record.brokerRequestId,
+                scope.abortController.signal.aborted ? "cancelled" : "sink_failed",
+              ));
+            } catch {
+              // The originating failure remains authoritative.
+            }
+          }
+          streamAbort.abort();
+          rejectTerminal(error);
+        };
+        const consume = async (value: unknown): Promise<void> => {
+          if (settled) return;
+          const message = admitBrowserNetworkDownloadBrokerMessageV1(value);
+          if (message === null || message.requestId !== record.brokerRequestId) {
+            throw new BrowserWorkspaceHostStorageErrorV1(
+              "request_failed",
+              "Download Broker emitted an invalid stream record",
+            );
+          }
+          if (message.kind === "network_broker_download_response") {
+            if (response !== null || receivedBytes !== 0 || expectedSequence !== 1) {
+              throw new BrowserWorkspaceHostStorageErrorV1(
+                "request_failed",
+                "Download Broker emitted a duplicate response",
+              );
+            }
+            response = message;
+            return;
+          }
+          if (message.kind === "network_broker_download_chunk") {
+            if (
+              response === null || message.sequence !== expectedSequence ||
+              message.offset !== receivedBytes ||
+              (response.declaredBytes !== null &&
+                message.offset + message.bytes > response.declaredBytes)
+            ) {
+              throw new BrowserWorkspaceHostStorageErrorV1(
+                "request_failed",
+                "Download Broker chunk sequence is invalid",
+              );
+            }
+            await stage.append({
+              offset: message.offset,
+              bytes: new Uint8Array(message.chunk),
+              signal: streamAbort.signal,
+            });
+            if (settled) return;
+            receivedBytes += message.bytes;
+            expectedSequence += 1;
+            port.postMessage(
+              createBrowserNetworkDownloadChunkAckV1(
+                record.brokerRequestId,
+                message.sequence,
+              ),
+            );
+            return;
+          }
+          if (message.kind === "network_broker_download_complete") {
+            if (
+              response === null || message.bytes !== receivedBytes ||
+              message.chunks !== expectedSequence - 1 ||
+              (response.declaredBytes !== null && response.declaredBytes !== receivedBytes)
+            ) {
+              throw new BrowserWorkspaceHostStorageErrorV1(
+                "request_failed",
+                "Download Broker completion does not match staged bytes",
+              );
+            }
+            await stage.seal(streamAbort.signal);
+            if (settled) return;
+            const active = activeScope(session);
+            const durableHead = durableHeadV1(await lease.readHead(), session.anchor);
+            if (
+              settled || active?.run !== run || active.scope !== scope || !session.accepting ||
+              streamAbort.signal.aborted || run.cursor !== session.head.generation ||
+              !sameHeadV1(session.head, expectedHead) || durableHead === null ||
+              !sameHeadV1(durableHead, expectedHead)
+            ) {
+              throw new BrowserWorkspaceHostStorageErrorV1(
+                "request_failed",
+                "Download Workspace binding is no longer current",
+              );
+            }
+            const changed = await replacePersistentFile(
+              session,
+              run,
+              scope,
+              path,
+              stage,
+              streamAbort.signal,
+            );
+            if (settled) return;
+            settled = true;
+            resolveTerminal({
+              status: response.status,
+              contentType: response.contentType,
+              bytes: receivedBytes,
+              destination: path.absolute,
+              generation: session.head.generation,
+              effect: changed ? "changed" : "none",
+            });
+            return;
+          }
+          if (message.kind === "network_broker_download_http_error") {
+            fail(
+              new BrowserWorkspaceHostStorageErrorV1(
+                "request_failed",
+                `Download failed with HTTP status ${String(message.status)}`,
+              ),
+              false,
+            );
+            return;
+          }
+          fail(
+            new BrowserWorkspaceHostStorageErrorV1(
+              "request_failed",
+              `Download Broker failed: ${message.code}`,
+            ),
+            false,
+          );
+        };
+        const listener = (
+          event: Readonly<{
+            data: unknown;
+            ports?: readonly BrowserWorkspaceHostMessagePortV1[];
+          }>,
+        ): void => {
+          const ports = event.ports ?? [];
+          if (ports.length !== 0) {
+            closeTransferredPorts(ports);
+            fail(
+              new BrowserWorkspaceHostStorageErrorV1(
+                "request_failed",
+                "Download Broker transferred unexpected authority",
+              ),
+              true,
+            );
+            return;
+          }
+          if (settled) return;
+          if (consuming) {
+            fail(
+              new BrowserWorkspaceHostStorageErrorV1(
+                "request_failed",
+                "Download Broker emitted a record before the prior record was consumed",
+              ),
+              true,
+            );
+            return;
+          }
+          consuming = true;
+          const operation = consume(event.data);
+          tail = operation;
+          void operation.then(
+            () => {
+              if (tail === operation) consuming = false;
+            },
+            (error: unknown) => {
+              if (tail === operation) consuming = false;
+              fail(error, true);
+            },
+          );
+        };
+        const cancel = (): void => {
+          fail(
+            new BrowserWorkspaceHostStorageErrorV1(
+              "request_failed",
+              "Download Workspace sink was cancelled",
+              fileErrorV1("aborted", "Workspace download was cancelled", path.absolute),
+            ),
+            true,
+          );
+        };
+        port.addEventListener("message", listener);
+        scope.abortController.signal.addEventListener("abort", cancel, { once: true });
+        port.start?.();
+        try {
+          port.postMessage(createBrowserNetworkDownloadSinkReadyV1(record.brokerRequestId));
+          return await terminal;
+        } finally {
+          scope.abortController.signal.removeEventListener("abort", cancel);
+          scope.abortController.signal.removeEventListener("abort", forwardScopeAbort);
+          port.removeEventListener("message", listener);
+          port.close?.();
+          await tail.catch(() => undefined);
+          await stage.release();
+        }
+      });
+      postEnvironment(session, {
+        revision: 1,
+        kind: "environment_response",
+        requestId,
+        ok: true,
+        response: { method: "open_download_sink", result },
+      });
+    } catch (error) {
+      port.close?.();
+      const capacityExceeded = error instanceof BrowserWorkspaceHostStorageErrorV1 &&
+          error.code === "capacity_exceeded" ||
+        error instanceof DOMException && error.name === "QuotaExceededError";
+      scope.failureDiagnostic = scope.abortController.signal.aborted
+        ? "cancelled"
+        : capacityExceeded
+        ? "capacity_exceeded"
+        : scope.failureDiagnostic ?? "execution_failed";
+      environmentFailure(session, requestId, "request_failed", storageFileErrorV1(error));
+    }
+  };
+
   const handleCancelTool = (
     session: SessionStateV1,
     requestId: number,
@@ -1898,22 +2275,34 @@ export function createBrowserWorkspaceHostRuntimeV1(
     });
   };
 
-  const handleEnvironment = async (session: SessionStateV1, message: unknown): Promise<void> => {
+  const handleEnvironment = async (
+    session: SessionStateV1,
+    message: unknown,
+    transferredPorts: readonly BrowserWorkspaceHostMessagePortV1[] = [],
+  ): Promise<void> => {
     const request = admitBrowserWorkspaceHostEnvironmentRequestV1(message);
     if (request === null) {
+      closeTransferredPorts(transferredPorts);
       const requestId = requestIdFromMalformedV1(message);
       if (requestId !== null) environmentFailure(session, requestId, "invalid_request");
       return;
     }
     if (disposed) {
+      closeTransferredPorts(transferredPorts);
       environmentFailure(session, request.requestId, "disposed");
       return;
     }
     const record = request.record;
+    if (record.method !== "open_download_sink" && transferredPorts.length !== 0) {
+      closeTransferredPorts(transferredPorts);
+      environmentFailure(session, request.requestId, "invalid_request");
+      return;
+    }
     if (
       session.phase === "closed" && record.method !== "query_receipts" &&
       record.method !== "acknowledge_receipts"
     ) {
+      closeTransferredPorts(transferredPorts);
       environmentFailure(session, request.requestId, "workspace_closed");
       return;
     }
@@ -1936,6 +2325,15 @@ export function createBrowserWorkspaceHostRuntimeV1(
     }
     if (record.method === "grep_workspace") {
       await handleGrepWorkspace(session, request.requestId, record);
+      return;
+    }
+    if (record.method === "open_download_sink") {
+      await handleOpenDownloadSink(
+        session,
+        request.requestId,
+        record,
+        transferredPorts,
+      );
       return;
     }
     if (record.method === "cancel_tool") {
@@ -2048,7 +2446,8 @@ export function createBrowserWorkspaceHostRuntimeV1(
         return;
       }
       if (
-        (record.tool === "write" || record.tool === "edit" || record.tool === "bash") &&
+        (record.tool === "write" || record.tool === "edit" || record.tool === "bash" ||
+          record.tool === "download") &&
         session.receipts.length + session.reservedReceiptSlots >=
           browserWorkspaceHostReceiptMaximumV1
       ) {
@@ -2056,7 +2455,10 @@ export function createBrowserWorkspaceHostRuntimeV1(
         return;
       }
       run.toolCallIds.add(record.toolCallId);
-      if (record.tool === "write" || record.tool === "edit" || record.tool === "bash") {
+      if (
+        record.tool === "write" || record.tool === "edit" || record.tool === "bash" ||
+        record.tool === "download"
+      ) {
         session.reservedReceiptSlots += 1;
       }
       run.activeScope = {
@@ -2974,8 +3376,13 @@ export function createBrowserWorkspaceHostRuntimeV1(
         return;
       }
       const port = transferredPorts[0]!;
-      const listener = (event: Readonly<{ data: unknown }>): void => {
-        void handleEnvironment(session, event.data);
+      const listener = (
+        event: Readonly<{
+          data: unknown;
+          ports?: readonly BrowserWorkspaceHostMessagePortV1[];
+        }>,
+      ): void => {
+        void handleEnvironment(session, event.data, event.ports ?? []);
       };
       session.environment = { port, listener };
       port.addEventListener("message", listener);

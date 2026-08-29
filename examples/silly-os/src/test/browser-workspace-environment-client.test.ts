@@ -24,6 +24,7 @@ type ShellSuccessV1 = Extract<
 
 class LoopbackWorkspaceEnvironmentPortV1 implements BrowserWorkspaceEnvironmentMessagePortV1 {
   readonly requests: BrowserWorkspaceHostEnvironmentRequestV1[] = [];
+  readonly transfers: Transferable[][] = [];
   private readonly messageListeners = new Set<MessageListenerV1>();
   private readonly errorListeners = new Set<() => void>();
   private readonly files = new Map<string, Uint8Array>();
@@ -34,7 +35,7 @@ class LoopbackWorkspaceEnvironmentPortV1 implements BrowserWorkspaceEnvironmentM
   private activeRun: { readonly sessionId: string; readonly runId: string } | null = null;
   private activeTool: {
     readonly toolCallId: string;
-    readonly tool: "read" | "write" | "edit" | "bash" | "grep";
+    readonly tool: "read" | "write" | "edit" | "bash" | "grep" | "download";
   } | null = null;
   private writeChanged = false;
   private changedPaths: string[] = [];
@@ -54,9 +55,10 @@ class LoopbackWorkspaceEnvironmentPortV1 implements BrowserWorkspaceEnvironmentM
     this.holdShellUntilCancel = options?.holdShellUntilCancel ?? false;
   }
 
-  postMessage(message: unknown): void {
+  postMessage(message: unknown, transfer: readonly Transferable[] = []): void {
     const request = message as BrowserWorkspaceHostEnvironmentRequestV1;
     this.requests.push(request);
+    this.transfers.push([...transfer]);
     queueMicrotask(() => this.respond(request));
   }
 
@@ -182,6 +184,22 @@ class LoopbackWorkspaceEnvironmentPortV1 implements BrowserWorkspaceEnvironmentM
       }
       return;
     }
+    if (record.method === "open_download_sink") {
+      this.writeChanged = true;
+      this.changedPaths = [record.destination.replace(/^\/workspace\/?/u, "")];
+      this.success(request, {
+        method: "open_download_sink",
+        result: {
+          status: 200,
+          contentType: "application/octet-stream",
+          bytes: 4,
+          destination: record.destination,
+          generation: this.generation + 1,
+          effect: "changed",
+        },
+      });
+      return;
+    }
     if (record.method === "cancel_tool") {
       this.success(request, { method: "cancel_tool", value: null });
       const held = this.heldShellRequest;
@@ -201,7 +219,8 @@ class LoopbackWorkspaceEnvironmentPortV1 implements BrowserWorkspaceEnvironmentM
       const tool = this.activeTool;
       if (
         run !== null &&
-        (tool?.tool === "write" || tool?.tool === "edit" || tool?.tool === "bash")
+        (tool?.tool === "write" || tool?.tool === "edit" || tool?.tool === "bash" ||
+          tool?.tool === "download")
       ) {
         const baseGeneration = this.generation;
         if (this.writeChanged) this.generation += 1;
@@ -280,6 +299,43 @@ async function startLoopbackRun(
 }
 
 describe("SillyOS Browser Workspace environment client", () => {
+  it("transfers one Broker sink port inside a bounded download tool scope", async () => {
+    const port = new LoopbackWorkspaceEnvironmentPortV1();
+    const { client, run } = await startLoopbackRun(port, "download.1");
+    const channel = new MessageChannel();
+    await expect(run.executeDownloadCall({
+      toolCallId: "pi.tool.download.1",
+      brokerRequestId: "network.download.1",
+      destination: "/workspace/assets/item.bin",
+      sinkPort: channel.port1,
+    })).resolves.toMatchObject({
+      status: 200,
+      bytes: 4,
+      destination: "/workspace/assets/item.bin",
+      generation: 2,
+      effect: "changed",
+    });
+    const requestIndex = port.requests.findIndex((request) =>
+      request.record.method === "open_download_sink"
+    );
+    expect(port.requests[requestIndex]?.record).toEqual({
+      method: "open_download_sink",
+      brokerRequestId: "network.download.1",
+      destination: "/workspace/assets/item.bin",
+      overwrite: false,
+    });
+    expect(port.transfers[requestIndex]).toEqual([channel.port1]);
+    expect(client.queryMutationRecords()).toMatchObject([{
+      toolCallId: "pi.tool.download.1",
+      tool: "download",
+      effect: "changed",
+      changedPaths: ["assets/item.bin"],
+    }]);
+    channel.port2.close();
+    await run.abortAndDrain();
+    client.dispose();
+  });
+
   it("keeps Pi's run/tool scope remote and preserves receipt sequence after acknowledgement", async () => {
     const records: number[] = [];
     const client = createBrowserWorkspaceEnvironmentClientV1({
