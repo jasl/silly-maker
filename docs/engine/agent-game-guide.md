@@ -94,6 +94,7 @@ focused conformance tests are the authority until a current product reference
 demonstrates a complete use. Incremental wiring does not make a curated or
 reference-derived example complete before its full product contract closes.
 History presentation is an optional VN Mod: the development product may
-load/unload it through the supported selection surface, while a core-only
-production graph omits its renderer, CSS, loader, and private controller. Do not
-change Story-owned History State or Save bytes to make the UI optional.
+load/unload it through the public trusted build-time selection surface, while a
+core-only production graph omits its renderer, CSS, loader, public controller
+and private Direct transitive backend. Do not change Story-owned History State
+or Save bytes to make the UI optional.

@@ -1,0 +1,224 @@
+{
+  "format": "sillymaker.text-content-pack",
+  "version": 2,
+  "packId": "text-pack.vn-last-sound-check.shared",
+  "locale": "zh-CN",
+  "entries": [
+    {
+      "textId": "text.vn-last-sound-check.shared.power-on.room",
+      "text": "【Showcase Mod】凌晨五点二十二分，控制室里的信号灯换成了薄荷绿。窗外的海湾还沉在黑暗里。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.power-on.room.continued",
+      "text": "远处渡船的汽笛穿过旧窗，木柜里留着纸张和灰尘的气味。山岬社区电台在这里醒过三十七年，今天是最后一次。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.power-on.lin-arrives",
+      "text": "我没迟到吧？楼梯间的灯已经灭了三层，我是摸着扶手上来的；门口的节目表还停在昨晚。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.power-on.lin-arrives.continued",
+      "text": "下面有人用铅笔写了“早安”。我猜是便利店夜班的阿姨，她每周都来留天气纸条，还会圈出凌晨最冷的时刻。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.power-on.console",
+      "text": "还差十八分钟，足够我们把该做的事做稳。先听一遍，我刚把最后一处杂音收拾好，没动原来的呼吸和停顿。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.power-on.console.continued",
+      "text": "你先坐我这边吧。第一次来值早班时，你也总说站着会比较不紧张。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.power-on.signal-light",
+      "text": "发射指示灯安静地亮着，把两个人的影子染上一层很淡的红。过去暴雨封路时，街坊会守着同一盏灯等消息。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.power-on.signal-light.continued",
+      "text": "渔船失联或山火逼近时也是如此。今天没有灾情，灯却会在清晨里最后熄灭一次。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.power-on.last-shift",
+      "text": "所以这真是我们最后一班。昨晚收走唱片时，我还觉得只是换个库房；现在听见机器在响，反而不敢相信了。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.power-on.last-shift.continued",
+      "text": "五年前你把我从学生志愿者排到凌晨档。我一直以为这里会比我们更晚离开，至少等到我不再需要你替我看电平。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.power-on.deadline",
+      "text": "五点四十分关机，维护队会在楼下切断旧发射机的线路。此前，档案馆会给我们六十秒接收窗口。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.power-on.deadline.continued",
+      "text": "这段窗口专门保存最后一次直播。时间一到，无论我们有没有说完，这个频率都会交给沿海联合台。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.power-on.archive-window",
+      "text": "你说过要在窗口里留下一段台呼，我以为你早就写好了。平时连停电通知你都要改三遍。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.power-on.archive-window.continued",
+      "text": "可你居然把最后一句拖到今天？还是说，你其实有两个版本，一直不肯告诉我？"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.power-on.single-send",
+      "text": "不是两个版本，是两种答案。窗口只认一次完整发送，这是档案馆留给旧台的最后一个编号。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.power-on.single-send.continued",
+      "text": "接通以后就不能重来。我本来想替大家决定，可越接近关机，越觉得这不该只是我的声音。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.power-on.reel-on-desk",
+      "text": "周遥从帆布包里取出一盘磁带，放在机器旁。纸标签被潮气晕成浅褐色。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.power-on.reel-on-desk.continued",
+      "text": "上面仍看得清十三年前的日期，以及一行匆忙写下的“早班台呼”。右下角还粘着一小片蓝色糖纸。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.old-recording.label",
+      "text": "我从库房最里面找到的，夹在停航通知和旧点歌单之间。那天是我第一次独立值早班。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.old-recording.label.continued",
+      "text": "前一晚我紧张得没睡，把薄荷糖的包装随手贴在标签上。没想到它比节目单保存得还久。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.old-recording.younger-voice",
+      "text": "难怪我没听出来。那时候你的声音比现在亮很多，尾音还会偷偷往上跑。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.old-recording.younger-voice.continued",
+      "text": "你后来总让我慢一点、给句子留空。可原来你第一次坐在这里，也会急着把沉默全部填满。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.old-recording.first-shift",
+      "text": "也快很多。我以为只要慢一秒，山那边的人就会错过渡船，夜班工人会错过接他们回家的车。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.old-recording.first-shift.continued",
+      "text": "老台长在玻璃后面举着纸，上面只写了四个字：想一个人。于是我把整段话说给一个还没见过的听众。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.old-recording.load-reel",
+      "text": "磁带轮开始转动，透明带仓里积了十三年的光一圈圈掠过。短促的沙沙声后，一个年轻的声音从监听音箱里醒来。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.old-recording.load-reel.continued",
+      "text": "门外有人推车经过，远处传来杯子落在桌面的轻响。整个旧清晨也跟着回来。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.old-recording.old-call",
+      "text": "“这里是山岬社区电台。清晨好，愿今天有人听见你。”"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.old-recording.clean-signal",
+      "text": "句子很旧，可听起来一点也不远。小时候台风停电，我妈把收音机放在蜡烛旁，等你们念出还有热水的避难所。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.old-recording.clean-signal.continued",
+      "text": "后来我来实习，才知道那句“有人听见你”不是口号。你把磁带修得很清楚，却没有把那间屋子擦掉。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.old-recording.repair",
+      "text": "我只补了断开的地方，没擦掉吸气、翻纸和椅子响。我们播过太多看似微不足道的事。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.old-recording.repair.continued",
+      "text": "谁家的狗跑了，哪条山路结冰，哪位老人想给住院的伴侣点首歌。真正让它们留下来的，正是话筒前还有一个人。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.old-recording.meter",
+      "text": "最后一个字落下，电平表的指针缓缓回到零位，磁带仍多转了半圈。监听音箱里只剩均匀的底噪。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.old-recording.meter.continued",
+      "text": "它像退潮后没有立刻安静的海滩，窗框也随清晨的风轻轻颤了一下。林澄没有催周遥停机，周遥也没有伸手。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.old-recording.what-to-save",
+      "text": "如果档案只收这段，它记住的是电台以前的样子：年轻的你、还在运行的渡船，还有会打电话来报路况的街坊。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.old-recording.what-to-save.continued",
+      "text": "它很完整，可那时我甚至不认识你。我们一起守过的这些年，就只留在没有编号的磁带里吗？"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.one-window.opens",
+      "text": "没错；所以另一种做法，是现在重新录一段，让档案记住关机前的我们。这不是在总结三十七年。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.one-window.opens.continued",
+      "text": "我们不替离开的人发言，只留下此刻控制室里还有谁、听见了谁。这样真实，却会让那段旧台呼继续躺回盒子里。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.one-window.not-both",
+      "text": "不能把两段接在一起吗？先放旧台呼，再由我们回答它，六十秒明明够；过去和现在本来就没有分得那么开。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.one-window.not-both.continued",
+      "text": "你教我的那些话，也都是从别人那里听来的。为什么档案一定要我们割掉一边？"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.one-window.why-one",
+      "text": "因为他们保存的不只是声音，还要保存它发生的方式。一条来自十三年前，一条来自现在。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.one-window.why-one.continued",
+      "text": "拼接会被登记为纪念剪辑，不再算最后一次直播。两段日后可以并列，但这个窗口不能替我们逃避选择。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.one-window.purpose",
+      "text": "也就是说，我们不是在选哪段更好听，而是在选希望它证明什么。旧声证明这间屋子曾一次次把人连起来。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.one-window.purpose.continued",
+      "text": "新声证明到了结束的时候，还有人愿意回应。两者都是真的，只是留给未来的第一句话不同。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.one-window.clock",
+      "text": "墙钟跳到五点二十七分，秒针越过一块被晒淡的刻度。屋顶的风把天线拉索轻轻碰响。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.one-window.clock.continued",
+      "text": "那声仿佛有人在很远的地方敲门，海面上一艘渡船亮起舱灯。楼下传来维护队搬梯子的声音，他们还剩十三分钟。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.one-window.two-choices",
+      "text": "旧台呼里有这个地方最初相信的事：只要肯开口，某个人就可能被听见。那是电台最初的承诺。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.one-window.two-choices.continued",
+      "text": "新台呼要由你说出我们最后学会的事：彼此回应才让电台活着。一个把承诺交还过去，一个把答案留在现在。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.one-window.ready",
+      "text": "两种都是真的，也都缺少另一半。可最后一班不能因为舍不得就什么都不留下。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.one-window.ready.continued",
+      "text": "别替未来的人猜，也别只替十三年前的你决定。今天守在这里的是我们两个人，这一次就由我们一起承担。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.one-window.switch",
+      "text": "林澄把发送开关推到待命位置。继电器在台面下轻响，磁带机与话筒的指示灯同时亮起。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.shared.one-window.switch.continued",
+      "text": "一边照着褪色的标签，一边照着空白的稿纸。窗外，第一道晨光碰到天线顶端，照亮了玻璃上两个人并肩的倒影。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.choice.signal.prompt",
+      "text": "档案窗口只剩一次发送机会。"
+    },
+    {
+      "textId": "text.vn-last-sound-check.choice.signal.archive",
+      "text": "发送修复后的旧台呼"
+    },
+    {
+      "textId": "text.vn-last-sound-check.choice.signal.present",
+      "text": "录下此刻的新台呼"
+    }
+  ]
+}

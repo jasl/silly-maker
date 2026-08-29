@@ -8,6 +8,8 @@ import {
   templateTargetV1,
   vnLastSoundCheckTargetUrlV1,
   vnLastSoundCheckTargetV1,
+  vnLastSoundCheckModsTargetUrlV1,
+  vnLastSoundCheckModsTargetV1,
 } from "./fixtures.ts";
 
 /** Examples browser suite: one dev server per example application; desktop dual-engine acceptance. */
@@ -46,6 +48,16 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 120_000,
       url: vnLastSoundCheckTargetUrlV1(),
+    },
+    {
+      command:
+        `deno task build:web:mods && deno run -A npm:vite preview --config vite.mods.config.ts --host ${vnLastSoundCheckModsTargetV1.host} --port ${
+          String(vnLastSoundCheckModsTargetV1.port)
+        } --strictPort`,
+      cwd: "../vn-last-sound-check",
+      reuseExistingServer: false,
+      timeout: 120_000,
+      url: vnLastSoundCheckModsTargetUrlV1(),
     },
   ],
   projects: [

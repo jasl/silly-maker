@@ -3,11 +3,12 @@ import { useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 
 import {
-  createApplicationModSelectionControllerInternalV1,
-  type ApplicationModSelectionControllerInternalV1,
-  type ApplicationModSelectionInternalV1,
-  type ApplicationModSourceInternalV1,
-} from "@sillymaker/composition/internal/mod-runtime";
+  createSillyModSelectionControllerV1,
+  defineSillyModMetadataV1,
+  type SillyModSelectionControllerV1,
+  type SillyModSelectionV1,
+  type SillyModSourceV1,
+} from "@sillymaker/composition/mod";
 import type {
   DevDockContributionLoadHandleV1,
   DevDockContributionSetV1,
@@ -55,7 +56,7 @@ function defaultLoadHistoryModuleV1(): Promise<VnHistoryModuleV1> {
 }
 
 function selectedHistoryPresentationV1(
-  selection: ApplicationModSelectionInternalV1<VnHistoryModCompiledPointV1>,
+  selection: SillyModSelectionV1<VnHistoryModCompiledPointV1>,
 ): VnHistoryPresentationV1 | null {
   const point = selection.compiledPoints.find((candidate) =>
     candidate.pointId === historyPointIdV1
@@ -67,7 +68,7 @@ function selectedHistoryPresentationV1(
 }
 
 function isHistorySelectedV1(
-  controller: ApplicationModSelectionControllerInternalV1<
+  controller: SillyModSelectionControllerV1<
     VnHistoryModContributionV1,
     VnHistoryModCompiledPointV1
   >,
@@ -78,7 +79,7 @@ function isHistorySelectedV1(
 
 function HistoryModDevelopmentPanelV1(props: {
   readonly owner: VnLastSoundCheckHistoryModDevelopmentOwnerV1;
-  readonly controller: ApplicationModSelectionControllerInternalV1<
+  readonly controller: SillyModSelectionControllerV1<
     VnHistoryModContributionV1,
     VnHistoryModCompiledPointV1
   >;
@@ -133,16 +134,20 @@ function createVnLastSoundCheckHistoryModDevelopmentOwnerV1(
 ): VnLastSoundCheckHistoryModDevelopmentOwnerV1 {
   const bridge = input.bridge;
   const loadHistoryModule = input.loadHistoryModule ?? defaultLoadHistoryModuleV1;
-  const historySource: ApplicationModSourceInternalV1<VnHistoryModContributionV1> = {
-    kind: "code",
+  const historyMetadata = defineSillyModMetadataV1({
+    contractRevision: 1,
     modId: historyModIdV1,
-    generation: "1",
+    version: "1.0.0",
+    engineApi: { composition: "^1.0.0" },
+    dependencies: { requires: [], optional: [], conflicts: [] },
+    facets: ["ui"],
+  });
+  const historySource: SillyModSourceV1<VnHistoryModContributionV1> = {
+    kind: "code",
+    metadata: historyMetadata,
     async load() {
       const historyModule = await loadHistoryModule();
       return {
-        modId: historyModIdV1,
-        generation: "1",
-        dependencies: [],
         contributions: [
           {
             contributionId: "default",
@@ -159,11 +164,12 @@ function createVnLastSoundCheckHistoryModDevelopmentOwnerV1(
     },
   };
   const catalog = [historySource] as const;
-  const controller = createApplicationModSelectionControllerInternalV1<
+  const controller = createSillyModSelectionControllerV1<
     VnHistoryModContributionV1,
     VnHistoryModCompiledPointV1
   >({
     applicationGeneration: input.applicationGeneration,
+    engineApi: { composition: "1.0.0" },
     extensionPoints: [
       {
         pointId: historyPointIdV1,
@@ -261,7 +267,7 @@ function createVnLastSoundCheckHistoryModDevelopmentOwnerV1(
 /**
  * Interaction-lazy DevDock entry for the optional History presentation Mod.
  * The resident application owns only the stable bridge; this loaded handle
- * owns the private selection controller and its panel until the Host retires it.
+ * owns the selection controller and its panel until the Host retires it.
  */
 export async function loadVnLastSoundCheckHistoryModDevelopmentV1(
   input: CreateVnLastSoundCheckHistoryModDevelopmentInputV1,

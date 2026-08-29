@@ -1,0 +1,9 @@
+{
+  "format": "sillymaker.declarative-mod-selection",
+  "version": 1,
+  "mods": [
+    {
+      "manifestPath": "showcase/manifest.json"
+    }
+  ]
+}

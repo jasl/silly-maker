@@ -23,6 +23,14 @@ active authority；完成里程碑摘要在
 ## 1. Current and next
 
 2026-08-29 所有者接受并完成
+[Production Mod V1](2026-08-29-production-mod-v1.md) M0–M4。它把上一轮已经证明的 private、
+build-known selection substrate 晋级为受支持的 public Stage A Mod 合同与仓外 package smoke，并以 One Last
+Sound Check 的 text/asset override 交付首个发布后 declarative Stage B 产品纵切。该 lane 不伪造
+authoritative gameplay Mod consumer；真实 Simulation/State Mod 的 R2 产品晋级继续等待 SillyOS、经营系统或
+商业作品证据。它也不激活 marketplace、目录扫描、npm runtime resolver、任意远端 executable 或不可信代码
+sandbox。Template 保持无需修改的 structural negative control；该 closure 没有自动激活后继 lane。
+
+2026-08-29 所有者接受并完成
 [VN Genre Mod、History Mod 与作者工作流](2026-08-29-vn-genre-mod-authoring.md) M0–M4。它以 Template 与
 `examples/vn-last-sound-check` 两个真实消费者提取 first-party VN 共用层，把 History 做成第一个真实 optional
 presentation Mod，并通过完整 generation successor 交付开发期延迟加载、卸载与重新加载；core-only production
@@ -32,8 +40,8 @@ operation/result、revision 和 CAS authority 拥有。Chromium、WebKit、mobil
 Deno 2.9.6 Desktop package/启动/正常关闭与独立复审均通过。该关闭没有激活 public
 resolver/ABI/SDK/distribution、post-release arbitrary-code install 或 Ren'Py DSL/runtime clone。
 
-当前没有自动激活的后继 lane。更广的 Ren'Py 能力覆盖、生产产品开放 Mod 安装或新的 reference application，均须
-由所有者依据真实产品证据另行接受；§1 后续段落只保存历史，不构成待领取队列。
+更广的 Ren'Py 能力覆盖、authoritative gameplay Mod、可信 post-release code Artifact 或新的 reference
+application，仍须由所有者依据真实产品证据另行接受；§1 后续段落只保存历史，不构成待领取队列。
 
 2026-08-27 所有者接受的
 [《最后一次试音》历史实施计划](2026-08-27-vn-reference-tour.md) 已完成 M0–M5；产品现在以

@@ -745,6 +745,178 @@ for (const backendCase of backendCasesInternalV1) {
       expect(controller.dispose()).toBe(firstDispose);
     });
 
+    it("awaits restart candidate and predecessor cleanup when disposed during mount", async () => {
+      const controller = controllerInternalV1("restart-mount-dispose.extension");
+      const events: string[] = [];
+      const predecessorCleanupEntered = deferredInternalV1<void>();
+      const predecessorCleanupGate = deferredInternalV1<void>();
+      const predecessor = consumerFactoryInternalV1(
+        "restart-mount-dispose.extension",
+        "generation.one",
+        async (scope) => {
+          await scope.effect(() => async () => {
+            events.push("predecessor:cleanup:start");
+            predecessorCleanupEntered.resolve();
+            await predecessorCleanupGate.promise;
+            events.push("predecessor:cleanup:end");
+          });
+          return Object.freeze({ label: "one" });
+        },
+      );
+      await controller.activate(sourceInternalV1(predecessor));
+
+      const candidateSetupEntered = deferredInternalV1<void>();
+      const candidateSetupGate = deferredInternalV1<void>();
+      const candidateCleanupEntered = deferredInternalV1<void>();
+      const candidateCleanupGate = deferredInternalV1<void>();
+      const candidate = consumerFactoryInternalV1(
+        "restart-mount-dispose.extension",
+        "generation.two",
+        async (scope) => {
+          await scope.effect(() => async () => {
+            events.push("candidate:cleanup:start");
+            candidateCleanupEntered.resolve();
+            await candidateCleanupGate.promise;
+            events.push("candidate:cleanup:end");
+          });
+          candidateSetupEntered.resolve();
+          await candidateSetupGate.promise;
+          return Object.freeze({ label: "two" });
+        },
+      );
+      let publishCalls = 0;
+      const restart = controller.restart(sourceInternalV1(candidate), () => {
+        publishCalls += 1;
+      });
+      const restartOutcome = expectRuntimeErrorInternalV1(
+        restart,
+        "extension_runtime.disposed",
+      );
+      await candidateSetupEntered.promise;
+
+      let disposalSettled = false;
+      const disposal = controller.dispose().then(() => {
+        disposalSettled = true;
+      });
+      expect(controller.getState()).toEqual({ kind: "disposed" });
+      expect(controller.getCurrent()).toBeNull();
+      candidateSetupGate.resolve();
+      await candidateCleanupEntered.promise;
+      expect(events).toEqual(["candidate:cleanup:start"]);
+      expect(disposalSettled).toBe(false);
+
+      candidateCleanupGate.resolve();
+      await predecessorCleanupEntered.promise;
+      expect(events).toEqual([
+        "candidate:cleanup:start",
+        "candidate:cleanup:end",
+        "predecessor:cleanup:start",
+      ]);
+      expect(disposalSettled).toBe(false);
+      predecessorCleanupGate.resolve();
+
+      await restartOutcome;
+      await disposal;
+      expect(events).toEqual([
+        "candidate:cleanup:start",
+        "candidate:cleanup:end",
+        "predecessor:cleanup:start",
+        "predecessor:cleanup:end",
+      ]);
+      expect(publishCalls).toBe(0);
+      expect(controller.getState()).toEqual({ kind: "disposed" });
+      expect(controller.getCurrent()).toBeNull();
+    });
+
+    it("awaits restart candidate and predecessor cleanup when disposed during publication", async () => {
+      const controller = controllerInternalV1("restart-publication-dispose.extension");
+      const events: string[] = [];
+      const predecessorCleanupEntered = deferredInternalV1<void>();
+      const predecessorCleanupGate = deferredInternalV1<void>();
+      const predecessor = consumerFactoryInternalV1(
+        "restart-publication-dispose.extension",
+        "generation.one",
+        async (scope) => {
+          await scope.effect(() => async () => {
+            events.push("predecessor:cleanup:start");
+            predecessorCleanupEntered.resolve();
+            await predecessorCleanupGate.promise;
+            events.push("predecessor:cleanup:end");
+          });
+          return Object.freeze({ label: "one" });
+        },
+      );
+      await controller.activate(sourceInternalV1(predecessor));
+
+      const candidateCleanupEntered = deferredInternalV1<void>();
+      const candidateCleanupGate = deferredInternalV1<void>();
+      const candidate = consumerFactoryInternalV1(
+        "restart-publication-dispose.extension",
+        "generation.two",
+        async (scope) => {
+          await scope.effect(() => async () => {
+            events.push("candidate:cleanup:start");
+            candidateCleanupEntered.resolve();
+            await candidateCleanupGate.promise;
+            events.push("candidate:cleanup:end");
+          });
+          return Object.freeze({ label: "two" });
+        },
+      );
+      const publicationEntered = deferredInternalV1<void>();
+      const publicationGate = deferredInternalV1<void>();
+      const readyGenerations: string[] = [];
+      controller.subscribe(() => {
+        const state = controller.getState();
+        if (state.kind === "ready") readyGenerations.push(state.current.generation);
+      });
+      const restart = controller.restart(sourceInternalV1(candidate), async () => {
+        events.push("publication:start");
+        publicationEntered.resolve();
+        await publicationGate.promise;
+        events.push("publication:end");
+      });
+      const restartOutcome = expectRuntimeErrorInternalV1(
+        restart,
+        "extension_runtime.disposed",
+      );
+      await publicationEntered.promise;
+
+      let disposalSettled = false;
+      const disposal = controller.dispose().then(() => {
+        disposalSettled = true;
+      });
+      expect(controller.getState()).toEqual({ kind: "disposed" });
+      expect(controller.getCurrent()).toBeNull();
+      publicationGate.resolve();
+      await candidateCleanupEntered.promise;
+      expect(events).toEqual([
+        "publication:start",
+        "publication:end",
+        "candidate:cleanup:start",
+      ]);
+      expect(disposalSettled).toBe(false);
+
+      candidateCleanupGate.resolve();
+      await predecessorCleanupEntered.promise;
+      expect(events).toEqual([
+        "publication:start",
+        "publication:end",
+        "candidate:cleanup:start",
+        "candidate:cleanup:end",
+        "predecessor:cleanup:start",
+      ]);
+      expect(disposalSettled).toBe(false);
+      predecessorCleanupGate.resolve();
+
+      await restartOutcome;
+      await disposal;
+      expect(events.at(-1)).toBe("predecessor:cleanup:end");
+      expect(readyGenerations).not.toContain("generation.two");
+      expect(controller.getState()).toEqual({ kind: "disposed" });
+      expect(controller.getCurrent()).toBeNull();
+    });
+
     it("keeps handles and controllers idempotent after asynchronous cleanup enters", async () => {
       const handleCleanupEntered = deferredInternalV1<void>();
       const handleCleanupGate = deferredInternalV1<void>();

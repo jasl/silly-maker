@@ -1,0 +1,25 @@
+{
+  "format": "sillymaker.declarative-mod",
+  "version": 1,
+  "modId": "mod.vn-last-sound-check.showcase",
+  "modVersion": "1.0.0",
+  "target": {
+    "applicationId": "example-vn-last-sound-check",
+    "applicationVersion": "0.0.0",
+    "storyId": "story.example.vn-last-sound-check",
+    "storyRevision": 4,
+    "overrideContractRevision": 1
+  },
+  "textOverrides": [
+    {
+      "slotId": "text-pack.vn-last-sound-check.shared:zh-CN",
+      "path": "content/shared.zh-CN.text-pack.json"
+    }
+  ],
+  "assetOverrides": [
+    {
+      "slotId": "asset.vn-last-sound-check.prop.signal-light",
+      "path": "images/signal-light.webp"
+    }
+  ]
+}

@@ -164,18 +164,19 @@ deno task app dev <app> --smoke
 deno task app prebuilt-smoke <app>
 ```
 
-If this application deliberately enables first-party, build-known Mods, keep
-that wiring in an advanced application module and import only the private
-`@sillymaker/composition/internal/mod-runtime` entry. Define the product's typed
-extension points and base behavior first, then list small data definitions or
-literal code loaders plus one startup-time active ID set. Loaders and compilers
-must stay cold and resource-free; reversible effects use the existing Direct
-lifecycle. Feed the returned ordered active identity into the application's
-existing BuildIdentity when it changes authoritative behavior. Changing the set
-requires an ordinary application successor/rebootstrap—there is no live
-install/restart API, package resolver, public Mod SDK, or sandbox. A product that
-does not select this private entry remains complete and excludes it from the
-final graph.
+If this application deliberately enables trusted build-time Mods, keep that
+wiring in an advanced application module and import the focused public
+`@sillymaker/composition/mod` entry. Admit metadata once, define the product's
+typed extension points and base behavior, then list small data definitions or
+literal code loaders plus one complete selected ID set. Compilers stay cold and
+resource-free; a code Mod acquires reversible effects only in `setup()` and
+returns the async-disposable handle owned by the existing Direct lifecycle.
+Feed the returned ordered active identity into the application's existing
+BuildIdentity when it changes authoritative behavior. Changing the set uses an
+acknowledged selection successor—never an in-place registry mutation. This is
+not filesystem discovery, runtime npm resolution, downloading, a marketplace,
+an arbitrary post-release code installer, or a sandbox. A product that does not
+import this focused entry remains complete and excludes it from the final graph.
 
 `dist-web/` can be deployed directly to static hosting. A distributed Player
 must make the SillyMaker MIT text and any notices required by its bundled

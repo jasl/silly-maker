@@ -28,6 +28,15 @@ export function vnLastSoundCheckTargetUrlV1(query = ""): string {
   }/${query}`;
 }
 
+/** One Last Sound Check: prebuilt production surface with explicit declarative Mods. */
+export const vnLastSoundCheckModsTargetV1 = { host: hostV1, port: 41742 };
+
+export function vnLastSoundCheckModsTargetUrlV1(query = ""): string {
+  return `http://${vnLastSoundCheckModsTargetV1.host}:${
+    String(vnLastSoundCheckModsTargetV1.port)
+  }/${query}`;
+}
+
 interface PageDiagnosticsV1 {
   readonly pageErrors: readonly string[];
   readonly consoleErrors: readonly string[];

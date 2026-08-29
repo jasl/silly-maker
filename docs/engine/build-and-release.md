@@ -137,6 +137,36 @@ disabled. CLI flags override the application setting for one build
 
 Build identity is generated from the application and resolved Story inputs used by the build. The collector is an optional per-application declaration (`web.identity` pointing at `<app>/tools/build-identity.mjs` over `@sillymaker/tooling/identity/*`); it doubles as a structural facet gate (no React/DOM in simulation closures, no cross-facet imports). It resolves engine sources against the repository root, so it is an in-repo gate — external application projects (and the copy-me starter) omit it and run on the default composer identity. Runtime digests and manifests are technical identity for compatibility, caching, diagnostics, and inspection; they are not proof of copyright ownership or asset approval.
 
+### Public Mod package and declarative product builds
+
+`deno task test:package:mod` creates OS-temporary publish candidates for
+`@sillymaker/base`, `@sillymaker/state`, and `@sillymaker/composition`, emits
+JavaScript/`.d.ts`/source maps, removes private exports and workspace source
+paths, packs tarballs, and installs them into a temporary repository-external
+consumer. That consumer runs the public `@sillymaker/composition/mod` resolver
+under Deno, builds with Vite, and executes in Chromium. The command always
+removes its temporary staging area. It does not publish packages, modify a
+registry, or prove Deno Desktop package qualification.
+
+One Last Sound Check keeps its ordinary production build unchanged and
+structurally Mod-free:
+
+```sh
+cd examples/vn-last-sound-check
+deno task build:web       # dist-web; no declarative Mod decoder/manager/artifacts
+deno task build:web:mods  # dist-web-mods; explicit product-specific Mod surface
+deno task dev:mods        # development server for that explicit surface
+```
+
+The Mod-enabled build alone copies `mod-artifacts/` and reads
+`assets/mods/selection.json`. Its entries point to same-origin, bounded
+product-specific manifests and resources; there is no directory scan or
+automatic discovery. Text/image overrides must target the exact application,
+version, Story revision and named replaceable slots. Enable, reload, and disable
+replace a complete immutable selection and reboot the Web application through
+the existing exact Save + lease handoff. This is a declarative product example,
+not a general executable Mod package format.
+
 ### Selective payload materialization
 
 An application may own a large source payload while only a selected subset is

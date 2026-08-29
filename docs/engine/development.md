@@ -153,8 +153,8 @@ Applications opt in with `inspector: { module, exportName }`; the exported
 assets/Motion/Timeline catalogs that a source scan cannot provide. A real game may
 also select focused `sceneInspector.properties` contributions; each gets only the
 current admitted Scene/facets/selection and the existing revision-fenced Scene
-operation port. Keep Host, document Session, source IO, Save, Context and private
-Mod Runtime types out of those contributions. The Host owns
+operation port. Keep Host, document Session, source IO, Save, Context, public
+Mod runtime objects, and private Direct/backend types out of those contributions. The Host owns
 the selected Authoring Scene document session, selection, dirty/undo/redo state,
 CAS/conflict handling, source IO and close participant. The shells must not create
 another document, save, history, Stage, or gameplay Session authority. The game
@@ -481,26 +481,35 @@ deno task bench:content:bundle --profile bundle-scale
 Both benchmark pairs report raw machine-dependent measurements. They neither
 carry a promotion verdict nor establish a universal threshold.
 
-### Private application-local Mod workflow
+### Public trusted build-time Mod workflow
 
-Use `@sillymaker/composition/internal/mod-runtime` only for a build-known Mod
-selection owned by one application generation. Keep catalog rows small: a data
-row carries its admitted first-party definition; a code row carries only exact
-`modId`/`generation` identity plus a literal/generated loader. Supply the active
-IDs once at application construction. The runtime loads only that set, orders
-declared dependencies before dependents, validates contributions against the
-application's typed extension points, cold-compiles direct values, and then
-mounts optional code lifecycles through the existing Direct parent/child owner.
-The active set never mutates in place. The private selection controller replaces
+Use `@sillymaker/composition/mod` for a trusted Mod selection owned by one
+application generation. Define metadata with `defineSillyModMetadataV1`; that is
+the single public metadata admission boundary. An application catalog then
+contains either ordinary typed data contributions or an explicit literal code
+loader. Package installation does not activate a Mod, and the runtime never
+scans `node_modules` or the filesystem.
+
+Supply the complete selected IDs and application-owned typed extension points
+at construction. The runtime loads only that set, orders declared dependencies
+before dependents, validates each loaded contribution once, cold-compiles direct
+consumer values, and mounts optional code resources through the existing private
+Direct lifecycle. A code Mod acquires listeners, workers, files, or other live
+resources only from `setup()` and returns one explicit async-disposable handle;
+rollback, replacement, and close await that handle. It receives no ambient
+Context, Host, Session, State writer, source IO, or service locator.
+
+The active set never mutates in place. The public selection controller replaces
 one complete generation-immutable selection with a candidate successor. A
 presentation/tooling selection may publish through an R1 owner successor while
 retaining the current `GameSession`; any selection that changes Simulation,
-State, Save identity, or authoritative behavior requires the existing R2 exact
-Save + lease handoff. Candidate failure leaves the predecessor current, and the
-controller retires it only after the application-owned consumer acknowledges
-the candidate publication. Development UI may expose repeated load/unload over
-this successor operation; do not add a lookup against the selected set to a
-command, reducer, or render hot path.
+State, Save identity, or authoritative behavior requires an R2 Application/Game
+successor and the existing exact Save + lease handoff. The controller retires a
+predecessor only after application-owned publication acknowledges the candidate;
+resolution, load, compile, setup, or publication failure before that point keeps
+the predecessor current. Development UI may expose repeated load/unload over
+this successor operation; do not add a selected-set lookup to a command,
+reducer, or render hot path.
 
 The application owns each extension point's payload type, contribution kind,
 collision rule, and compiled consumer plan. It also owns projecting ordered
@@ -511,16 +520,28 @@ second digest, State, Save, Session, or publication authority. Keep `load()` and
 or other resources only in the existing Direct lifecycle. This is a trusted
 same-realm composition contract, not a sandbox or side-effect interception layer.
 
-Do not add filesystem/package discovery, a public resolver/ABI/SDK, download or
-signature policy, post-release arbitrary-code loading, or install/restart APIs to
-this entry. A product decides whether the supported extension surface is part of
-its development graph, its production graph, or neither; an omitted surface must
-remain complete and exclude the private runtime and literal loaders from its
-final module/source graph. Explicit production inclusion is product policy, not
-evidence of a public Mod ecosystem. The first real selection consumer is the
-first-party VN History presentation: its renderer, open control, CSS and
-lifecycle resources load on selection and unload through R1 without changing
-the Story-owned History State or Snapshot/Save bytes.
+Do not add filesystem/package discovery, runtime npm resolution, download or
+signature policy, post-release arbitrary-code loading, or a same-realm sandbox
+to this entry. A product decides whether the supported extension surface is part
+of its development graph, its production graph, or neither; an omitted surface
+must remain complete and exclude `@sillymaker/composition/mod`, the private
+Direct implementation, and literal loaders from its final module/source graph.
+The first real selection consumer is the first-party VN History presentation:
+its renderer, open control, CSS and lifecycle resources load on selection and
+unload through R1 without changing Story-owned History State or Snapshot/Save
+bytes.
+
+One Last Sound Check also has an explicitly separate `build:web:mods` product
+flavor for post-release declarative text and image overrides. It reads one
+explicit same-origin selection file, validates bounded Artifact bytes against
+the exact product/version/story and named replaceable slots, then creates a
+complete Web application successor using the existing Save + lease handoff.
+Admission/resource/compile failures happen before application retirement and
+keep the live predecessor. If Web successor startup fails after the old lease
+has been released, the old selection remains controller-current and the exact
+handoff remains retryable, but the old application is no longer live; do not
+describe that later phase as candidate-first live rollback. This product-local
+format is not a general `.sillymod` container or an executable-code installer.
 
 ### First-party VN authoring workflow
 
@@ -543,10 +564,12 @@ A product-specific Inspector contribution may project VN node/route/cue/text/
 voice provenance and offer source navigation, but it must not recompile the
 Story or write source files through a second path.
 
-Focused M5 checks are:
+Focused Production Mod V1 checks are:
 
 ```sh
-deno run -A npm:vitest run engine/packages/composition/src/mod-runtime/runtime.test.ts e2e/src/test/mod-conformance.test.ts engine/packages/tooling/src/vite/build-dependency-receipt.test.ts
+deno run -A npm:vitest run engine/packages/composition/src/mod-runtime/runtime.test.ts engine/packages/composition/src/extension-runtime/extension-runtime.conformance.test.ts e2e/src/test/mod-conformance.test.ts examples/vn-last-sound-check/src/mods
+deno task test:package:mod
+cd examples/vn-last-sound-check && deno task build:web && deno task build:web:mods
 ```
 
 ### GUI startup and module-update baseline
@@ -960,12 +983,16 @@ application.
 
 No engine/root umbrella entry re-exports all integrations. An unselected
 integration must be absent from the final application module/source graph;
-installation or lockfile presence alone is not activation. A product may
-locally adapt a contrib factory into its private, build-known Mod extension
-point, but the product continues to own that point's payload, collision policy,
-identity, and activation. Contrib packages never import or publish the private
-Extension/Mod Runtime contract and do not activate a public Mod ABI, resolver,
-SDK, installation protocol, or distribution system.
+installation or lockfile presence alone is not activation. A product may keep
+an ordinary integration as a direct dependency. When the same integration
+genuinely needs independent selection, lifecycle, collision handling and
+structural exclusion, the application may adapt its focused factory into an
+application-owned public `@sillymaker/composition/mod` extension point. The
+product still owns that point's payload, collision policy, identity, activation
+and typed adapters. Contrib packages never import or publish the private Direct
+Extension Runtime, Context, Host, Session, or source IO. Consuming the public
+Mod API does not provide package discovery, an install protocol, runtime npm
+resolution, a registry, or distribution system.
 
 Use a focused package or test-file command while iterating when that is faster. Run `deno task check` before handing off a change, and add `deno task test:e2e` or prebuilt testing when the affected behavior crosses the browser/build boundary.
 

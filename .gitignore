@@ -26,6 +26,7 @@ node_modules/
 # Frontend build, test, and tooling output.
 dist/
 dist-web/
+dist-web-mods/
 dist-desktop/
 *.app/
 website/.astro/

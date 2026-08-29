@@ -548,10 +548,12 @@ class ExtensionActivationControllerImplInternalV1<TConsumer>
     this.#setState(disposedStateInternalV1);
     this.#listeners.clear();
     const runner = Promise.resolve().then(async () => {
-      await Promise.all([
-        current?.dispose() ?? Promise.resolve(),
-        pendingSettlement,
-      ]);
+      // A mounted successor and its predecessor share this controller's
+      // lifecycle owner id. Let a resourceful in-flight candidate settle and
+      // retire itself before starting predecessor cleanup, otherwise Direct's
+      // same-owner callback fence can reject the stale candidate disposal.
+      await pendingSettlement;
+      await current?.dispose();
     });
     void runner.then(resolveDisposal, rejectDisposal);
     return disposal;

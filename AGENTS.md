@@ -36,6 +36,19 @@ Read only the documents relevant to the change:
 - `docs/engine/plans/2026-07-30-production-floor-sequence.md` — the only
   cross-plan execution order. PF0–PF7 and the Complexity Reset are complete;
   PF6 remains evidence-gated and inactive. The most recently completed lane is
+  `docs/engine/plans/2026-08-29-production-mod-v1.md`: it promoted the selected
+  build-time trusted Mod contract to public `@sillymaker/composition/mod`, kept
+  the private Direct lifecycle behind that boundary, added real staged package
+  Artifacts plus a repository-external Deno/Vite/Chromium consumer, and made One
+  Last Sound Check the first product-specific post-release declarative text/image
+  Mod consumer through an explicitly separate build. It does not provide package
+  discovery, runtime npm resolution, a marketplace, arbitrary post-release code,
+  a same-realm sandbox, or a public authoritative-gameplay R2 adapter. Failures
+  before R2 retirement begins retain the live predecessor. Once R2 disposal
+  begins, a release failure is terminal; after a successful release, a Web
+  successor failure retains an exact retryable handoff and controller selection,
+  not a still-live old application. No Template change was justified because the starter remains a
+  complete structural negative control. The preceding completed lane is
   `docs/engine/plans/2026-08-29-vn-genre-mod-authoring.md`: it extracted a
   focused first-party VN interaction/compiler/runtime layer shared by Template
   and One Last Sound Check; made History the first real optional presentation
@@ -44,7 +57,7 @@ Read only the documents relevant to the change:
   contribution beside the structured Scene operation/CAS authority shared by
   humans and Agents without adding a Narrative/Text writer. A product may
   explicitly include the supported extension surface in
-  production, but this closure does not activate a public resolver/ABI/SDK,
+  production, but that closure did not activate a public resolver/ABI/SDK,
   distribution system, post-release arbitrary-code install path, or Ren'Py
   DSL/runtime clone. No successor lane is automatically active. The preceding
   completed historical product lane is
@@ -345,9 +358,11 @@ Read only the documents relevant to the change:
   It uses small original/generated
   conformance and existing raw benchmarks. Large third-party components, fake
   Agent conversation, commercial content, and SillyOS are post-lane product
-  validation rather than fixtures. Public Mod resolver/ABI/SDK/distribution,
-  post-release arbitrary code, an untrusted-code sandbox, and Desktop HMR remain
-  inactive.
+  validation rather than fixtures. At that 2026-08-25 checkpoint public Mod
+  resolver/ABI/SDK/distribution, post-release arbitrary code, an untrusted-code
+  sandbox, and Desktop HMR remained inactive; Production Mod V1 later promoted
+  only the focused trusted build-time runtime and product-specific declarative
+  text/image subset described above.
 - `docs/engine/design/game-viewport-and-ui-shell.md` and
   `docs/engine/plans/2026-08-25-adaptive-viewport-layout-variants.md` — the
   accepted target contract and completed execution plan. M0–M2 delivered on
@@ -565,12 +580,15 @@ and must be updated as each planned capability lands. Design owns the intended
 contract, while the active plan owns task order and acceptance; a task must not
 silently override a design decision.
 
-The public Mod design remains incubation. The completed 2026-08-25 plan delivered
-only a private, build-known, application-local runtime after its addressable
-content and Code Surface prerequisites. Do not start a public resolver/ABI, external
-SDK, distribution system, post-release arbitrary-code path, or untrusted-code
-sandbox until the roadmap's separate activation gates are explicitly satisfied
-and another active plan is accepted.
+The focused trusted build-time Mod contract is public at
+`@sillymaker/composition/mod`. It accepts only application-explicit metadata,
+catalog sources and typed extension points, and replaces complete immutable
+selections through acknowledged successors. Keep package discovery, runtime npm
+resolution, download/update services, a marketplace, post-release arbitrary
+code, a universal authoritative R2 adapter, and untrusted-code isolation outside
+this contract until a real product satisfies their separate gates and another
+plan is accepted. One Last Sound Check's declarative text/image Artifact is a
+product-specific Stage B consumer, not a universal `.sillymod` format.
 
 ## Architecture baseline
 
@@ -591,15 +609,15 @@ and another active plan is accepted.
   Direct remains. It must stay structurally excludable from products that
   direct-mount their domains, keep backend/Context types out of domain and public
   contracts, exclude Node HMR, and leave SillyMaker publication/State authority
-  unchanged. Its private Mod runtime admits identity for build-known data/code
-  sources, loads and cold-compiles only the selected generation-immutable set
-  through application-owned extension points, and then mounts the resulting
-  contributions through Direct. It owns no resolver, SDK, digest, State, Save,
-  public or in-place hot-install API, or same-realm sandbox. Its private
-  controller only replaces one complete generation-immutable selection through
-  successor replacement; it never mutates a mounted set in place. A domain or
-  local binding may still be required by a product; lifecycle composition does
-  not imply product optionality.
+  unchanged. Focused public `./mod` admits trusted metadata once, resolves and
+  cold-compiles only the application-selected generation-immutable data/code set
+  through application-owned typed extension points, and mounts explicit setup
+  resources through Direct. It owns no package discovery, runtime npm resolver,
+  download service, digest, State, Save, Context, service locator, in-place
+  hot-install API, or same-realm sandbox. Its public controller only replaces one
+  complete immutable selection through successor replacement; it never mutates a
+  mounted set in place. A domain or local binding may still be required by a
+  product; lifecycle composition does not imply product optionality.
 - `@sillymaker/state` is an experimental neutral façade for authoritative
   transactional State, not a generic React/UI store. It must reuse exactly one
   Base Session and transaction runner; it never owns a second State, digest,
@@ -748,8 +766,9 @@ documented migration path.
   port. Do not expose Authoring Host, Session, source IO, Save, Context, or a
   service locator to contributions, and do not expand this Scene slot into a
   workspace/layout/plugin DSL. A new document family needs its own focused
-  consumer contract. Public DevDock/Inspector contribution outputs do not make
-  the private Direct/Mod Runtime a public resolver, manifest, ABI, or SDK.
+  consumer contract. DevDock/Inspector contribution outputs and public Mod
+  extension points remain separate focused contracts; neither exposes the
+  private Direct backend, Authoring Host, Context, or service locator.
 - Apply defensive validation in proportion to the trust boundary:
   - bytes, files, URLs, HTTP payloads, Save data, cross-process records, and
     other untrusted input keep strict bounds, canonical validation, atomic

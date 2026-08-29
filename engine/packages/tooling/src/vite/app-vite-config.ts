@@ -246,7 +246,7 @@ export async function createSillymakerAppViteConfigV1(
           // rest of node_modules. Application and engine code stay in the entry
           // chunk; release baselines measure the resulting raw/gzip sizes
           // instead of assuming a fixed warning threshold.
-          advancedChunks: {
+          codeSplitting: {
             groups: [
               { name: "vendor-react", test: /node_modules[/\\](react|react-dom|scheduler)[/\\]/ },
               { name: "vendor", test: /node_modules/ },

@@ -158,11 +158,11 @@ type SnapshotTransactionEventV1 =
     readonly value: number;
   };
 
-interface SnapshotTransactionRejectionV1 {
+export interface SnapshotTransactionRejectionV1 {
   readonly code: "snapshot_workload.rejected";
 }
 
-interface SnapshotTransactionFaultV1 {
+export interface SnapshotTransactionFaultV1 {
   readonly code: "snapshot_workload.faulted";
 }
 

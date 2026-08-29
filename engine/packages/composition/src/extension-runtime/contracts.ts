@@ -224,12 +224,10 @@ export function assertExtensionIdentifierInternalV1(value: string, subject: stri
       break;
     }
   }
-  if (
-    value.length === 0 || value.length > 128 || value.trim() !== value || hasControlCharacter
-  ) {
+  if (value.length === 0 || value.trim() !== value || hasControlCharacter) {
     throw new ExtensionRuntimeErrorInternalV1(
       "extension_runtime.invalid_definition",
-      `${subject} must be 1-128 trimmed characters without control characters`,
+      `${subject} must be non-empty and trimmed without control characters`,
     );
   }
 }

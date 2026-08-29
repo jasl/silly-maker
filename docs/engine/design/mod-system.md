@@ -1,15 +1,19 @@
 # Mod composition and distribution
 
-状态：2026-07-29 接受的目标设计，2026-08-29 按内核内聚与 successor-based hot swap 修订。
-2026-08-25 已交付 **private Stage 0**：build-known、application-local、每 generation immutable 的
-Mod Runtime；public resolver/ABI/SDK/distribution 仍是 **incubation**。本文固定 Mod V1 的分层、
-组合、身份、存档和分发边界；概念类型名可在 focused type prototype 中调整。当前 Story 仍按
+状态：2026-07-29 接受的目标设计，2026-08-29 按内核内聚与 successor-based hot swap 修订；
+[Production Mod V1](../plans/2026-08-29-production-mod-v1.md) 已交付其中有真实消费者支撑的 public
+Stage A 与产品特定 Stage B。`@sillymaker/composition/mod` 是受支持的 trusted build-time metadata/
+resolver/runtime subpath；One Last Sound Check 的 Mod-enabled build 是第一个发布后 declarative text/image
+override 纵切。通用 distribution/install protocol、post-release trusted code、authoritative gameplay R2
+adapter 与 untrusted isolation 仍是 **incubation**。本文固定 Mod V1 的分层、组合、身份、存档和分发边界；
+完整 facet/Save 目标不因 focused Stage A 已发布而自动实现。当前 Story 仍按
 [architecture](../architecture.md) 与 [story authoring](../story-authoring.md) 显式组合，不能把
-private workspace entry 描述成已经发布的 Mod SDK、安装器或市场。执行优先级由 [roadmap](../roadmap.md) 与
+public runtime 描述成 package discovery、安装器或市场。执行优先级由 [roadmap](../roadmap.md) 与
 [production-floor sequence](../plans/2026-07-30-production-floor-sequence.md)
 控制；设计存在不构成 public M0 激活。当前
-[VN Genre Mod、History Mod 与作者工作流](../plans/2026-08-29-vn-genre-mod-authoring.md) 只激活
-first-party Stage A 与 focused History R1 consumer，不激活 §11 的公共生态。
+[VN Genre Mod、History Mod 与作者工作流](../plans/2026-08-29-vn-genre-mod-authoring.md) 先交付
+focused History R1 consumer；Production Mod V1 随后把其 substrate 提升到 public Stage A，并补上 §11 的
+仓外 package smoke，但没有宣称完整公共生态。
 
 当前产品 Host target 是 Browser 与 Deno Desktop；Electron 仅为未来 adapter，Node.js server、
 通用 CLI 和 headless runtime 不是产品 target。辅助 headless conformance 仍可验证无 UI 的 Base
@@ -56,10 +60,13 @@ Mod 系统需要同时回答：
 - 不把 Agent 生成的一份 UI、一个窗口或一次报表误称为 Mod。
 - 不把外部后台、companion service 或 LLM 连接误称为 Mod；它们经 typed RPC boundary 接入。
 
-### 1.1 Public ecosystem activation gate
+### 1.1 Public activation gate and 2026-08-29 ruling
 
-以下 gate 约束 public resolver/ABI/SDK/distribution，不撤回已交付的 private Stage 0。public M0–M2
-只有在以下条件同时满足后才进入 active plan：
+以下 gate 最初约束 public resolver/ABI/SDK/distribution。2026-08-29 的 owner ruling 将它拆开评估：统一
+Surface lifecycle、Save migration、Snapshot 规模合同、无万能 `install(context)` 的 resolver 形状与仓外
+package smoke 已足以激活 focused trusted build-time Stage A；History 与产品特定 declarative overrides 提供
+两个正交消费者。真实经营/时间经济预算、第二个 authoritative gameplay consumer 和通用发布后 trusted-code
+分发仍未满足，因此不随 Stage A 晋级。
 
 1. Managed Surface 的全部 live families——Overlay、System、Narrative/History
    与 whole-canvas primary/detail——已迁移到统一 lifecycle authority，surface
@@ -73,8 +80,14 @@ Mod 系统需要同时回答：
 6. prototype 不需要万能 `install(context)`、service locator、node_modules scanning
    或 load-order override。
 
-未满足时可以继续评审 contribution 分类和第二消费者证据，但不得建立 resolver、SDK
-或 public Mod ABI。
+当前 public surface 只包含 `defineSillyModMetadataV1`、显式 catalog resolver/runtime、typed extension points、
+selection successor 与 async resource handle。它不包含 facet-wide State/Save migration SDK、package discovery、
+下载、marketplace、runtime npm resolver 或通用 authoritative R2 adapter。后续能力仍必须满足其对应 gate 并由
+真实产品接受新的实施计划。
+
+可信 build-time identifier 只要求非空、trimmed 且不含控制字符；没有真实格式或 UX 预算时不得加入字符数
+硬上限。文件型 Artifact 继续在自己的 ingress 以总字节、深度、节点数和资源预算约束不可信输入，两种边界
+不得混用。
 
 ## 2. Vocabulary and layers
 
@@ -161,8 +174,11 @@ R2 rebootstrap/persistence handoff 创建 successor instance。两者都可以�
 
 ## 4. Author definition and facet factories
 
-V1 需要一个 JSON-safe metadata definition，以及按 package layer
-分开的纯、同步、无副作用 facet factory。以下只是合同草图，不是已实现 API：
+完整 capability 目标需要一个 JSON-safe metadata definition，以及按 package layer
+分开的纯、同步、无副作用 facet factory。当前 public Stage A 已实现 metadata 的 contract revision、稳定
+`modId`/version、engine API ranges、required/optional/conflict 与 facets，以及 application-owned typed
+contributions/extension points；尚未实现下例中的 State namespace、migration 和独立 Base/UI/Web/Tooling facet
+factory SDK。所以下例仍是后续完整合同草图，不是当前 `@sillymaker/composition/mod` API：
 
 ```ts
 // @example/management/mod — safe for project tooling and auxiliary inspection
@@ -524,8 +540,9 @@ Core → UI → Web 创建顺序和 Web → UI → Core 释放顺序。offline b
 GameSession writer。
 
 当前公开 tooling contribution contract 保持窄而正交：DevDock 接收可动态加载的 panel set/handle，
-Scene Inspector 接收 build-known `properties` tools。应用或私有 Mod Runtime 可以聚合这些普通 typed
-contributions，但 Host 只在公开边界 admission 一次；内部不再认证其 descriptor/来源。DevDock handle
+Scene Inspector 接收 build-known `properties` tools。应用或公开 `@sillymaker/composition/mod` runtime
+可以聚合这些普通 typed contributions，但 Host 只在公开边界 admission 一次；内部不再认证其
+descriptor/来源。DevDock handle
 和 Inspector binding 的同步或异步 `dispose` 都接入各自 owning lifecycle，application close、candidate
 rollback、successor retirement 与 final disposal 会等待已取得的资源退出。Scene tool 只得到当前
 Authoring Scene/facets/selection 和 revision-fenced operation port，不得到 Authoring Host、Session、source
@@ -543,21 +560,26 @@ production 是否包含同一扩展入口由产品显式决定，省略时 loade
 
 “可通过 npm 安装”和“游戏发布后仍能装 Mod”是两个不同里程碑。
 
-### Stage A — build-time trusted package
+### Stage A — build-time trusted package（focused runtime 已交付）
 
 第一阶段只支持在应用构建前安装和显式激活的可信 TypeScript/JavaScript
 package。它与应用同 bundle、同 realm，拥有普通 JavaScript 可获得的权限。
 
-这是 V1 的实现目标，也是 first-party VN/经营/养成包的起点。一个产品可以把 build-known catalog 与
+当前 `@sillymaker/composition/mod` 已交付这一层的 metadata、resolver、typed extension point、selection
+successor 与 async resource handle。它是 first-party VN/经营/养成包的起点。一个产品可以把 build-known catalog 与
 selection surface 带入 production，但 catalog 外任意路径、远端代码、npm runtime resolution 和公共安装格式
 仍不属于 Stage A。
 
-### Stage B — post-release declarative artifact
+### Stage B — post-release declarative artifact（首个产品子集已交付）
 
 优先开放可验证的纯数据/content/assets、Mod-owned OpenUI template/catalog
 或受约束 IR。它们无任意代码，可在 rebootstrap 时进入 resolver；schema、ID
 closure、resource budgets 和 digests 必须通过后才激活。Conversation
 中动态产生的 UiArtifactRevision 仍是产品数据，不因采用相同文档格式而成为 Mod。
+
+One Last Sound Check 的独立 Mod-enabled build 已交付这一层的第一个产品特定子集：bounded same-origin
+text/image overrides、exact product/version/story target、具名 replaceable slots 与完整 Web application
+successor。OpenUI、数值、布局、通用 container/installer 仍未交付。
 
 这是最适合真正“发布后
 Mod”的第二阶段，因为它能覆盖剧情、数值、文本、素材、布局和组件受控
@@ -599,20 +621,26 @@ Session 原子提交的数据。
 
 ## 11. Public package gate
 
-当前 `@sillymaker/*` 是 private source workspace package，不能据此宣称已有外部
-Mod SDK。开放第三方代码 Mod 之前至少需要：
+当前仓库中的 `@sillymaker/*` manifest 仍标记 private，尚未实际发布 registry package。Production Mod V1
+已经把 Base、State 与 Composition stage 成真实 JavaScript、`.d.ts`、source maps 和发布用 manifests，过滤
+private exports、去除 `src/**`/`workspace:*`，再由仓外临时 consumer 从 tarballs 安装并通过 Deno、Vite 与
+Chromium。这个 smoke 证明 focused `@sillymaker/composition/mod` 的 package Artifact 可消费，不等于 package
+已发布、形成完整 SDK，或满足 Deno Desktop production 资格。
+
+开放更广的第三方代码 Mod 之前仍至少需要：
 
 - 实际发布的 JavaScript、`.d.ts`、CSS 和 runtime assets，而不是导出仓库
   `src/**`；
 - 明确 conditional exports、side-effects 和 Browser/Deno Desktop 支持面；Electron 必须另经
   Host adapter promotion；
 - SillyMaker public API 与 first-party Mod 的 semver/兼容策略；
-- 在仓库外 consumer 中完成 Deno Desktop、Vite/browser GUI install/build smoke，并以辅助
-  headless conformance 验证 Base facet 不加载 React；
+- 在仓库外 consumer 中完成目标 Host 的 install/build smoke；当前已覆盖辅助 Deno runtime、Vite/browser
+  GUI，Deno Desktop package/GUI 仍待相应产品资格；
 - package、Mod、transitive dependencies 与资源的可复现 build identity；
 - 一条旧 Save + 新 Mod 版本的兼容/迁移验收。
 
-只发布类型或让 monorepo 内 `workspace:*` 编译通过，不满足这个 gate。
+只发布类型或让 monorepo 内 `workspace:*` 编译通过不满足这个 gate；当前 staged package smoke 也不能被写成
+已经上线 npm。
 
 ## 12. First-party capability strategy
 
@@ -629,8 +657,8 @@ VN 是 SillyMaker 的基础能力，应该以一等 first-party capability 交�
 搬走。Engine 保留可复用机制；focused `@sillymaker/vn` package 组合 interaction document/compiler/runtime
 policy 与选择性的 React presentation。Base 继续拥有 Narrative/State/Save/replay，UI 继续拥有 Managed
 Narrative Surface、Stage/Input 和通用 player primitives；应用拥有自己的 predicate/effect、内容、State、
-theme 与特殊表面。VN package 不导入 private Mod Runtime，应用 adapter 才拥有 literal loaders、selection
-controller 与 publication acknowledgement。
+theme 与特殊表面。VN package 不导入 Composition Mod runtime；应用 adapter 才显式导入 public
+`@sillymaker/composition/mod`、literal loaders、selection controller 与 publication acknowledgement。
 
 VN 本身是一组内聚能力，不是一个不可裁剪的大包：
 
@@ -646,12 +674,15 @@ VN 本身是一组内聚能力，不是一个不可裁剪的大包：
 减包。History presentation 是第一个真实 consumer：literal dynamic loader 首次选择时取得 renderer、入口、
 CSS 与 resource handle；R1 successor 在 React consumer commit acknowledgement 后切换，卸载到 `null` 时先关闭
 已打开 surface 再等待 owner 释放。它与 traditional static full preset 运行同一 Narrative authority；core-only
-build 不含 History implementation、loader 或 private controller。shared generic Narrative family 只保留通用
+build 不含 History implementation、loader、public selection controller 或其 private Direct transitive backend。
+shared generic Narrative family 只保留通用
 History 协作机制，authoritative History State/retention 仍由 Story/Save 拥有。改变其 schema/retention policy
 必须走 R2 compatibility/migration，不能冒充 presentation hot swap。
 
 DevDock load handle 与 Scene Inspector properties contribution 是公开的 build-known tooling output contracts；
-它们和 History 已证明 focused hot-swap/publication surface，但不是 public、完整的 Mod resolver/ABI/SDK。
+它们和 History 已证明 focused hot-swap/publication surface。应用可以把这些普通 typed outputs 作为 public Mod
+extension-point payload，但 output contract 本身不是 resolver，也不暴露 private Direct、Authoring Host、Context
+或 service locator。
 
 ### SLG should be capability slices
 
@@ -729,67 +760,31 @@ missing renderer/tool-contract 诊断和安全 fallback，而不是据此判定 
 详见
 [OpenUI integration research](../../research/2026-07-29-openui-genui-support.md)。
 
-## 14. Delivery sequence
+## 14. Delivery matrix
 
-本节是激活后的内部顺序，不是当前 roadmap 队列。进入 M0 前必须通过 §1.1
-Activation gate，并在独立 active plan 中记录证据。
+2026-08-29 的 [Production Mod V1 plan](../plans/2026-08-29-production-mod-v1.md) 已交付：
 
-### M0 — contract and terminology
+- public `defineSillyModMetadataV1`，exact/caret API/dependency ranges，required/optional/conflict 与 facets；
+- application-explicit data/code catalog、canonical dependency order、typed extension points、collision/compile
+  diagnostics 与 detached readonly resolved manifest；
+- complete selection successor、publication acknowledgement、candidate rollback、async resource handle cleanup，
+  private Direct backend 保持隐藏；
+- History R1 与 Engine Lab consumers，以及默认 build 的 structural exclusion；
+- staged Base/State/Composition publish candidates，仓外 tarball install、Deno resolver、Vite build、Chromium run；
+- One Last Sound Check 产品特定的 bounded text/image Stage B，包含显式 selection、enable/reload/disable 与完整
+  Web application successor。
 
-- 接受本文与 roadmap 方向；
-- 保持 live architecture/features 不宣称已实现；
-- 用 VN 和当前经营/养成实验审查 contribution 分类。
+尚未交付，且不能从上述能力推断出来：
 
-### M1 — first-party build-time prototype
+- 内建 Base/UI/Web/Tooling facet factory SDK、per-Mod State namespace/provenance 与 migration；
+- `@sillymaker/*` 的真实 registry 发布、semver support policy 与通用 third-party SDK 文档；
+- 通用 declarative container/installer，以及 OpenUI、数值、布局或受约束 IR surfaces；
+- public authoritative-gameplay R2 adapter、真实经营/时间经济 Mod consumer 与对应性能/Save migration 预算；
+- post-release trusted executable Artifact、download/update/marketplace/runtime npm resolution；
+- untrusted extension isolation。
 
-- focused type prototype：metadata + Base/UI facet factories、显式 application
-  activation 和 bundle metadata；
-- 一个 first-party VN composition + 至少两个独立 application consumers（VN Mod
-  本身不算 consumer）；
-- auxiliary headless resolution 不加载 React/UI facet，两个 GUI consumers 不用 `unknown`/cast
-  共享 factory；
-- 无 node_modules scanning、无 runtime install、无 Save migration 承诺。
-
-### M2 — resolver and diagnostics
-
-- required/optional/conflict graph 与 per-facet lifecycle graphs；
-- 每类 contribution 的 merge/collision behavior tests；
-- frozen resolved manifest、project inspect/check 与 build identity；
-- GameplayModules 仍汇入唯一 Authoring Kit graph；
-- 改变输入排列得到相同 topology/digest；实例初始化失败完整回滚并逆序 dispose；
-- UI surface 类贡献（route/window/overlay/input context）的合并合同基于
-  [Managed Surface lifecycle contract](surface-contract-harness.md)
-  已交付的统一 lifecycle authority；
-- M2 整体只有通过 §1.1 Activation gate 并由新的 active plan 接受后才能开始，不存在
-  “先落无前置合并类别”的实现许可。激活前只允许继续评审 contribution 分类和第二
-  消费者证据；不得落地 resolver、SDK、public ABI 或 production merge contract。
-
-### M3 — persistence
-
-- 前置：[save migration design](save-migration.md) 的 envelope
-  解码顺序改造与引擎级 migration registry 已落地；该项独立排期，不随本 track
-  延后；
-- Save 记录 per-facet Mod provenance；
-- Stateful Mod 相邻 schema migration；
-- 缺失/升级/降级/移除和 bridge migration 的原子失败测试；
-- same-schema Simulation drift 默认拒绝、exact adoption 成功、presentation-only
-  drift 仅警告。
-
-### M4 — external package SDK
-
-- buildable npm Artifacts、semver policy 和仓库外 consumer smoke；
-- first-party capability packages 通过同一路径消费，不使用 monorepo 特权。
-
-### M5 — post-release declarative Mods
-
-- 承载 content/assets/OpenUI templates/restricted IR 的 declarative Mod
-  Artifact；
-- 安装、校验、预算、启用/禁用与 rebootstrap 产品流程。
-
-### M6+ — code Artifact or isolation
-
-只在真实产品需求和 threat model 明确后进入 trusted ESM
-Artifact；不可信扩展另立安全设计，不由 M1–M5 自动推出。
+这些后续项各自需要真实消费者、独立 active plan 和相应 Host/Save/性能证据。trusted executable 只有在需求与
+threat model 明确后才进入；不可信扩展另立隔离设计，不能由当前 same-realm Stage A 自动推出。
 
 ## 15. Stop rules
 

@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 
 import { digestBytes, resolveGamePackageV1 } from "@sillymaker/base";
-import { ExtensionRuntimeErrorInternalV1 } from "@sillymaker/composition/internal/extension-runtime";
+import { SillyModErrorV1 } from "@sillymaker/composition/mod";
 
 import type {
   LabModConformanceRuntimeV1,
@@ -67,8 +67,8 @@ describe("Engine Lab application-local Mod conformance", () => {
     const plan = requireScorePlanV1(runtime);
 
     expect(runtime.activeIdentity).toEqual([
-      { modId: "mod.e2e.score-data", generation: "data.1" },
-      { modId: "mod.e2e.score-code", generation: "code.1" },
+      { modId: "mod.e2e.score-data", version: "1.0.0" },
+      { modId: "mod.e2e.score-code", version: "1.0.0" },
     ]);
     expect(plan.ruleIds).toEqual([
       "product.base-score",
@@ -105,11 +105,9 @@ describe("Engine Lab application-local Mod conformance", () => {
       failCodeSetup: true,
     }).catch((caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(ExtensionRuntimeErrorInternalV1);
-    expect((error as ExtensionRuntimeErrorInternalV1).code).toBe(
-      "extension_runtime.setup_failed",
-    );
-    expect(candidateEvents).toEqual(["code:load", "code:install", "code:cleanup"]);
+    expect(error).toBeInstanceOf(SillyModErrorV1);
+    expect((error as SillyModErrorV1).code).toBe("silly_mod.setup_failed");
+    expect(candidateEvents).toEqual(["code:load", "code:install"]);
     expect(predecessorPlan.apply(20)).toBe(26);
     expect(predecessorEvents).toEqual(["code:load", "code:install"]);
 

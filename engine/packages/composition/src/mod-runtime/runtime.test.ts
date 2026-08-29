@@ -1,22 +1,46 @@
 // SPDX-License-Identifier: MIT
-import {
-  defineExtensionFactoryInternalV1,
-  ExtensionRuntimeErrorInternalV1,
-  type ExtensionSetupScopeInternalV1,
-} from "../extension-runtime/internal.ts";
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  ApplicationModRuntimeErrorInternalV1,
-  createApplicationModRuntimeInternalV1,
-  createApplicationModSelectionControllerInternalV1,
-  type ApplicationCodeModDefinitionInternalV1,
-  type ApplicationModExtensionPointInternalV1,
-  type ApplicationModSourceInternalV1,
-} from "./internal.ts";
+  createSillyModRuntimeV1,
+  createSillyModSelectionControllerV1,
+  defineSillyModMetadataV1,
+  SillyModErrorV1,
+  type SillyCodeModDefinitionV1,
+  type SillyModExtensionPointV1,
+  type SillyModMetadataV1,
+  type SillyModSourceV1,
+} from "./index.ts";
 import * as publicComposition from "../index.ts";
 
-const pointV1: ApplicationModExtensionPointInternalV1<string, readonly string[]> = {
+const engineApiV1 = { composition: "1.0.0" } as const;
+
+interface TestMetadataInputV1 {
+  readonly modId: string;
+  readonly version?: string;
+  readonly requires?: SillyModMetadataV1["dependencies"]["requires"];
+  readonly optional?: SillyModMetadataV1["dependencies"]["optional"];
+  readonly conflicts?: SillyModMetadataV1["dependencies"]["conflicts"];
+  readonly engineApi?: Readonly<Record<string, string>>;
+  readonly facets?: readonly string[];
+}
+
+function metadataV1(input: TestMetadataInputV1): SillyModMetadataV1 {
+  return defineSillyModMetadataV1({
+    contractRevision: 1,
+    modId: input.modId,
+    version: input.version ?? "1.0.0",
+    engineApi: input.engineApi ?? { composition: "^1.0.0" },
+    dependencies: {
+      requires: input.requires ?? [],
+      optional: input.optional ?? [],
+      conflicts: input.conflicts ?? [],
+    },
+    facets: input.facets ?? ["base"],
+  });
+}
+
+const pointV1: SillyModExtensionPointV1<string, readonly string[]> = {
   pointId: "scene.decorations",
   contributionKind: "scene-decoration",
   collisionPolicy: "reject",
@@ -25,505 +49,543 @@ const pointV1: ApplicationModExtensionPointInternalV1<string, readonly string[]>
 
 function dataSourceV1(input: {
   readonly modId?: string;
-  readonly generation?: string;
-  readonly dependencies?: readonly string[];
+  readonly version?: string;
+  readonly requires?: SillyModMetadataV1["dependencies"]["requires"];
+  readonly optional?: SillyModMetadataV1["dependencies"]["optional"];
+  readonly conflicts?: SillyModMetadataV1["dependencies"]["conflicts"];
+  readonly engineApi?: Readonly<Record<string, string>>;
   readonly contributionId?: string;
   readonly pointId?: string;
   readonly contributionKind?: string;
   readonly payload?: string;
-} = {}): ApplicationModSourceInternalV1<string> {
+} = {}): SillyModSourceV1<string> {
+  const metadata = metadataV1({
+    modId: input.modId ?? "mod.data",
+    ...(input.version === undefined ? {} : { version: input.version }),
+    ...(input.requires === undefined ? {} : { requires: input.requires }),
+    ...(input.optional === undefined ? {} : { optional: input.optional }),
+    ...(input.conflicts === undefined ? {} : { conflicts: input.conflicts }),
+    ...(input.engineApi === undefined ? {} : { engineApi: input.engineApi }),
+  });
   return {
     kind: "data",
-    definition: {
-      modId: input.modId ?? "mod.data",
-      generation: input.generation ?? "data.1",
-      dependencies: input.dependencies ?? [],
-      contributions: [{
-        contributionId: input.contributionId ?? "decoration.data",
-        pointId: input.pointId ?? pointV1.pointId,
-        contributionKind: input.contributionKind ?? pointV1.contributionKind,
-        payload: input.payload ?? "data",
-      }],
-    },
+    metadata,
+    contributions: [{
+      contributionId: input.contributionId ?? `${metadata.modId}.decoration`,
+      pointId: input.pointId ?? pointV1.pointId,
+      contributionKind: input.contributionKind ?? pointV1.contributionKind,
+      payload: input.payload ?? metadata.modId,
+    }],
   };
 }
 
 function codeSourceV1(input: {
-  readonly definition?: ApplicationCodeModDefinitionInternalV1<string>;
+  readonly modId?: string;
+  readonly version?: string;
+  readonly requires?: SillyModMetadataV1["dependencies"]["requires"];
+  readonly contributionId?: string;
+  readonly payload?: string;
+  readonly setup?: SillyCodeModDefinitionV1<string>["setup"];
   readonly load?: () =>
-    | ApplicationCodeModDefinitionInternalV1<string>
-    | PromiseLike<
-      ApplicationCodeModDefinitionInternalV1<string>
-    >;
-} = {}): ApplicationModSourceInternalV1<string> {
-  const definition = input.definition ?? {
-    modId: "mod.code",
-    generation: "code.1",
-    dependencies: ["mod.data"],
+    | SillyCodeModDefinitionV1<string>
+    | PromiseLike<SillyCodeModDefinitionV1<string>>;
+} = {}): SillyModSourceV1<string> {
+  const metadata = metadataV1({
+    modId: input.modId ?? "mod.code",
+    ...(input.version === undefined ? {} : { version: input.version }),
+    requires: input.requires ?? [{ modId: "mod.data", version: "^1.0.0" }],
+    facets: ["base", "ui"],
+  });
+  const definition: SillyCodeModDefinitionV1<string> = {
     contributions: [{
-      contributionId: "decoration.code",
+      contributionId: input.contributionId ?? `${metadata.modId}.decoration`,
       pointId: pointV1.pointId,
       contributionKind: pointV1.contributionKind,
-      payload: "code",
+      payload: input.payload ?? metadata.modId,
     }],
+    ...(input.setup === undefined ? {} : { setup: input.setup }),
   };
   return {
     kind: "code",
-    modId: "mod.code",
-    generation: "code.1",
+    metadata,
     load: input.load ?? (() => definition),
   };
 }
 
 function createRuntimeV1(input: {
-  readonly catalog?: readonly ApplicationModSourceInternalV1<string>[];
+  readonly catalog?: readonly SillyModSourceV1<string>[];
   readonly activeModIds?: readonly string[];
-  readonly extensionPoints?: readonly ApplicationModExtensionPointInternalV1<
-    string,
-    readonly string[]
-  >[];
-}) {
-  return createApplicationModRuntimeInternalV1({
+  readonly extensionPoints?: readonly SillyModExtensionPointV1<string, readonly string[]>[];
+  readonly engineApi?: Readonly<Record<string, string>>;
+  readonly onLifecycleDiagnostic?: Parameters<
+    typeof createSillyModRuntimeV1
+  >[0]["onLifecycleDiagnostic"];
+} = {}) {
+  return createSillyModRuntimeV1({
     applicationGeneration: "application.1",
+    engineApi: input.engineApi ?? engineApiV1,
     catalog: input.catalog ?? [dataSourceV1(), codeSourceV1()],
     activeModIds: input.activeModIds ?? ["mod.data", "mod.code"],
     extensionPoints: input.extensionPoints ?? [pointV1],
+    ...(input.onLifecycleDiagnostic === undefined
+      ? {}
+      : { onLifecycleDiagnostic: input.onLifecycleDiagnostic }),
   });
-}
-
-function lifecycleCodeSourceV1(input: {
-  readonly modId: string;
-  readonly generation: string;
-  readonly payload: string;
-  readonly setup: (scope: ExtensionSetupScopeInternalV1) => unknown;
-}): ApplicationModSourceInternalV1<string> {
-  const lifecycle = defineExtensionFactoryInternalV1({
-    id: input.modId,
-    generation: input.generation,
-    setup: input.setup,
-  });
-  return {
-    kind: "code",
-    modId: input.modId,
-    generation: input.generation,
-    load: () => ({
-      modId: input.modId,
-      generation: input.generation,
-      dependencies: [],
-      contributions: [{
-        contributionId: `${input.modId}.decoration`,
-        pointId: pointV1.pointId,
-        contributionKind: pointV1.contributionKind,
-        payload: input.payload,
-      }],
-      lifecycle,
-    }),
-  };
 }
 
 async function expectModFailureV1(
-  promise: Promise<unknown>,
-  code: ApplicationModRuntimeErrorInternalV1["code"],
-): Promise<void> {
-  const error = await promise.catch((caught: unknown) => caught);
-  expect(error).toBeInstanceOf(ApplicationModRuntimeErrorInternalV1);
-  expect((error as ApplicationModRuntimeErrorInternalV1).code).toBe(code);
+  operation: Promise<unknown> | (() => unknown),
+  code: SillyModErrorV1["code"],
+): Promise<SillyModErrorV1> {
+  let error: unknown;
+  try {
+    if (typeof operation === "function") operation();
+    else await operation;
+  } catch (caught) {
+    error = caught;
+  }
+  expect(error).toBeInstanceOf(SillyModErrorV1);
+  expect((error as SillyModErrorV1).code).toBe(code);
+  return error as SillyModErrorV1;
 }
 
-describe("private application Mod Runtime", () => {
-  it("cold-compiles data and code contributions, mounts nested Direct lifecycles, and disposes", async () => {
-    const events: string[] = [];
-    const nested = defineExtensionFactoryInternalV1({
-      id: "mod.code.nested",
-      generation: "code.1",
-      async setup(scope) {
-        await scope.effect(() => {
-          events.push("nested:install");
-          return () => {
-            events.push("nested:cleanup");
-          };
-        });
-        return undefined;
-      },
-    });
-    const lifecycle = defineExtensionFactoryInternalV1({
-      id: "mod.code",
-      generation: "code.1",
-      async setup(scope) {
-        await scope.effect(() => {
-          events.push("code:install");
-          return () => {
-            events.push("code:cleanup");
-          };
-        });
-        await scope.mountChild(nested);
-        return undefined;
-      },
-    });
-    const codeDefinition: ApplicationCodeModDefinitionInternalV1<string> = {
-      modId: "mod.code",
-      generation: "code.1",
-      dependencies: ["mod.data"],
-      contributions: [{
-        contributionId: "decoration.shared",
-        pointId: pointV1.pointId,
-        contributionKind: pointV1.contributionKind,
-        payload: "code",
-      }],
-      lifecycle,
-    };
-    const load = vi.fn(async () => codeDefinition);
-
-    const runtime = await createRuntimeV1({
-      catalog: [
-        codeSourceV1({ load }),
-        dataSourceV1({ contributionId: "decoration.shared" }),
+describe("public trusted Silly Mod runtime", () => {
+  it("admits JSON-safe metadata once into a canonical value", async () => {
+    const metadata = metadataV1({
+      modId: "mod.metadata",
+      engineApi: { ui: "^1.2.0", composition: "1.0.0" },
+      requires: [
+        { modId: "mod.zeta", version: "^2.0.0" },
+        { modId: "mod.alpha", version: "*" },
       ],
-      activeModIds: ["mod.code", "mod.data"],
-      extensionPoints: [{ ...pointV1, collisionPolicy: "allow" }],
+      facets: ["ui", "base"],
     });
 
-    expect(load).toHaveBeenCalledOnce();
-    expect(runtime.activeIdentity).toEqual([
-      { modId: "mod.data", generation: "data.1" },
-      { modId: "mod.code", generation: "code.1" },
+    expect(Object.keys(metadata.engineApi)).toEqual(["composition", "ui"]);
+    expect(metadata.dependencies.requires.map((entry) => entry.modId)).toEqual([
+      "mod.alpha",
+      "mod.zeta",
     ]);
-    expect(runtime.compiledPoints).toEqual([{
-      pointId: pointV1.pointId,
-      value: ["data", "code"],
-    }]);
-    expect(events).toEqual(["code:install", "nested:install"]);
-    expect(runtime).not.toHaveProperty("activate");
-    expect(runtime).not.toHaveProperty("install");
-    expect(runtime).not.toHaveProperty("restart");
-    expect(publicComposition).not.toHaveProperty("createApplicationModRuntimeInternalV1");
-
-    await runtime.dispose();
-    await runtime.dispose();
-    expect(events).toEqual([
-      "code:install",
-      "nested:install",
-      "nested:cleanup",
-      "code:cleanup",
-    ]);
+    expect(metadata.facets).toEqual(["base", "ui"]);
+    await expectModFailureV1(
+      () => metadataV1({ modId: "mod.invalid", version: "latest" }),
+      "silly_mod.invalid_definition",
+    );
+    await expectModFailureV1(
+      () => metadataV1({ modId: "mod.invalid", engineApi: { composition: "^1" } }),
+      "silly_mod.invalid_definition",
+    );
+    await expectModFailureV1(
+      () =>
+        metadataV1({
+          modId: "mod.invalid",
+          requires: [{ modId: "mod.other", version: "^1.0.0" }],
+          optional: [{ modId: "mod.other", version: "^1.0.0" }],
+        }),
+      "silly_mod.duplicate",
+    );
   });
 
-  it("admits inactive catalog identity without walking its definition body", async () => {
-    const inactiveCodeLoad = vi.fn(() => {
-      throw new Error("inactive code must stay cold");
-    });
-    const inactive = dataSourceV1({
-      modId: "mod.inactive",
-      generation: "inactive.1",
-      dependencies: ["mod.missing", "mod.missing"],
+  it("does not impose an arbitrary length budget on trusted identifiers", async () => {
+    const suffix = "x".repeat(256);
+    const modId = `mod.${suffix}`;
+    const pointId = `scene.${suffix}`;
+    const contributionId = `decoration.${suffix}`;
+    const contributionKind = `kind.${suffix}`;
+    const point: SillyModExtensionPointV1<string, readonly string[]> = {
+      pointId,
+      contributionKind,
+      collisionPolicy: "reject",
+      compile: ({ contributions }) => contributions.map((entry) => entry.payload),
+    };
+    const runtime = await createSillyModRuntimeV1({
+      applicationGeneration: `application.${suffix}`,
+      engineApi: engineApiV1,
+      catalog: [dataSourceV1({
+        modId,
+        pointId,
+        contributionId,
+        contributionKind,
+        payload: "accepted",
+      })],
+      activeModIds: [modId],
+      extensionPoints: [point],
     });
 
-    const runtime = await createRuntimeV1({
-      catalog: [dataSourceV1(), inactive, codeSourceV1({ load: inactiveCodeLoad })],
+    expect(runtime.activeIdentity).toEqual([{ modId, version: "1.0.0" }]);
+    expect(runtime.compiledPoints).toEqual([{ pointId, value: ["accepted"] }]);
+    await runtime.dispose();
+  });
+
+  it("resolves dependencies and unrelated Mods canonically, independent of input order", async () => {
+    const base = dataSourceV1({ modId: "mod.base", payload: "base" });
+    const alpha = dataSourceV1({ modId: "mod.alpha", payload: "alpha" });
+    const dependent = dataSourceV1({
+      modId: "mod.dependent",
+      payload: "dependent",
+      requires: [{ modId: "mod.base", version: "^1.0.0" }],
+      optional: [{ modId: "mod.alpha", version: "1.0.0" }],
+    });
+    const first = await createRuntimeV1({
+      catalog: [dependent, base, alpha],
+      activeModIds: ["mod.dependent", "mod.base", "mod.alpha"],
+    });
+    const second = await createRuntimeV1({
+      catalog: [alpha, base, dependent],
+      activeModIds: ["mod.alpha", "mod.base", "mod.dependent"],
+    });
+
+    expect(first.activeIdentity).toEqual([
+      { modId: "mod.alpha", version: "1.0.0" },
+      { modId: "mod.base", version: "1.0.0" },
+      { modId: "mod.dependent", version: "1.0.0" },
+    ]);
+    expect(first.activeIdentity).toEqual(second.activeIdentity);
+    expect(first.compiledPoints[0]?.value).toEqual(["alpha", "base", "dependent"]);
+    expect(first.resolvedManifest).toEqual(second.resolvedManifest);
+    expect(first.resolvedManifest.orderedMods[2]?.contributions).toEqual([
+      {
+        pointId: "scene.decorations",
+        contributionId: "mod.dependent.decoration",
+      },
+    ]);
+    await Promise.all([first.dispose(), second.dispose()]);
+  });
+
+  it("reports engine API, dependency, cycle, conflict, and version failures", async () => {
+    await expectModFailureV1(
+      createRuntimeV1({
+        catalog: [dataSourceV1({ engineApi: { ui: "^1.0.0" } })],
+        activeModIds: ["mod.data"],
+      }),
+      "silly_mod.engine_api_missing",
+    );
+    await expectModFailureV1(
+      createRuntimeV1({
+        catalog: [dataSourceV1({ engineApi: { constructor: "*" } })],
+        activeModIds: ["mod.data"],
+        engineApi: {},
+      }),
+      "silly_mod.engine_api_missing",
+    );
+    await expectModFailureV1(
+      createRuntimeV1({
+        catalog: [dataSourceV1({ engineApi: { composition: "^2.0.0" } })],
+        activeModIds: ["mod.data"],
+      }),
+      "silly_mod.engine_api_incompatible",
+    );
+    await expectModFailureV1(
+      createRuntimeV1({
+        catalog: [
+          dataSourceV1({ requires: [{ modId: "mod.missing", version: "^1.0.0" }] }),
+        ],
+        activeModIds: ["mod.data"],
+      }),
+      "silly_mod.dependency_missing",
+    );
+    await expectModFailureV1(
+      createRuntimeV1({
+        catalog: [
+          dataSourceV1({ modId: "mod.base", version: "2.0.0" }),
+          dataSourceV1({
+            modId: "mod.dependent",
+            requires: [{ modId: "mod.base", version: "^1.0.0" }],
+          }),
+        ],
+        activeModIds: ["mod.base", "mod.dependent"],
+      }),
+      "silly_mod.dependency_incompatible",
+    );
+    await expectModFailureV1(
+      createRuntimeV1({
+        catalog: [
+          dataSourceV1({
+            modId: "mod.alpha",
+            requires: [{ modId: "mod.beta", version: "*" }],
+          }),
+          dataSourceV1({
+            modId: "mod.beta",
+            requires: [{ modId: "mod.alpha", version: "*" }],
+          }),
+        ],
+        activeModIds: ["mod.alpha", "mod.beta"],
+      }),
+      "silly_mod.dependency_cycle",
+    );
+    await expectModFailureV1(
+      createRuntimeV1({
+        catalog: [
+          dataSourceV1({
+            modId: "mod.alpha",
+            conflicts: [{ modId: "mod.beta", version: "^1.0.0" }],
+          }),
+          dataSourceV1({ modId: "mod.beta" }),
+        ],
+        activeModIds: ["mod.alpha", "mod.beta"],
+      }),
+      "silly_mod.conflict",
+    );
+  });
+
+  it("keeps delimiter-bearing contribution identities unambiguous in the manifest", async () => {
+    const firstPoint = {
+      ...pointV1,
+      pointId: "scene:decorations",
+    } satisfies SillyModExtensionPointV1<string, readonly string[]>;
+    const secondPoint = {
+      ...pointV1,
+      pointId: "scene",
+    } satisfies SillyModExtensionPointV1<string, readonly string[]>;
+    const first = await createRuntimeV1({
+      catalog: [dataSourceV1({
+        pointId: firstPoint.pointId,
+        contributionId: "alpha",
+      })],
       activeModIds: ["mod.data"],
+      extensionPoints: [firstPoint],
     });
-
-    expect(runtime.activeIdentity).toEqual([{ modId: "mod.data", generation: "data.1" }]);
-    expect(runtime.compiledPoints[0]?.value).toEqual(["data"]);
-    expect(inactiveCodeLoad).not.toHaveBeenCalled();
-    await runtime.dispose();
+    const second = await createRuntimeV1({
+      catalog: [dataSourceV1({
+        pointId: secondPoint.pointId,
+        contributionId: "decorations:alpha",
+      })],
+      activeModIds: ["mod.data"],
+      extensionPoints: [secondPoint],
+    });
+    try {
+      expect(first.resolvedManifest.orderedMods[0]?.contributions).toEqual([
+        { pointId: "scene:decorations", contributionId: "alpha" },
+      ]);
+      expect(second.resolvedManifest.orderedMods[0]?.contributions).toEqual([
+        { pointId: "scene", contributionId: "decorations:alpha" },
+      ]);
+      expect(first.resolvedManifest).not.toEqual(second.resolvedManifest);
+    } finally {
+      await Promise.all([first.dispose(), second.dispose()]);
+    }
   });
 
-  it("rejects missing dependencies, unknown targets, kind mismatches, and collisions", async () => {
-    await expectModFailureV1(
-      createRuntimeV1({
-        catalog: [dataSourceV1(), dataSourceV1()],
-        activeModIds: ["mod.data"],
-      }),
-      "mod_runtime.duplicate",
-    );
-    await expectModFailureV1(
-      createRuntimeV1({
-        catalog: [dataSourceV1({ dependencies: ["mod.missing"] })],
-        activeModIds: ["mod.data"],
-      }),
-      "mod_runtime.dependency_missing",
-    );
+  it("rejects unknown targets, kind mismatches, collisions, compile failures, and source mismatch", async () => {
     await expectModFailureV1(
       createRuntimeV1({
         catalog: [dataSourceV1({ pointId: "scene.unknown" })],
         activeModIds: ["mod.data"],
       }),
-      "mod_runtime.target_unknown",
+      "silly_mod.target_unknown",
     );
     await expectModFailureV1(
       createRuntimeV1({
-        catalog: [dataSourceV1({ contributionKind: "narrative" })],
+        catalog: [dataSourceV1({ contributionKind: "wrong-kind" })],
         activeModIds: ["mod.data"],
       }),
-      "mod_runtime.kind_mismatch",
+      "silly_mod.kind_mismatch",
     );
     await expectModFailureV1(
       createRuntimeV1({
         catalog: [
-          dataSourceV1({ contributionId: "shared" }),
-          codeSourceV1({
-            definition: {
-              modId: "mod.code",
-              generation: "code.1",
-              dependencies: ["mod.data"],
-              contributions: [{
-                contributionId: "shared",
-                pointId: pointV1.pointId,
-                contributionKind: pointV1.contributionKind,
-                payload: "code",
-              }],
-            },
-          }),
+          dataSourceV1({ modId: "mod.alpha", contributionId: "shared" }),
+          dataSourceV1({ modId: "mod.beta", contributionId: "shared" }),
         ],
+        activeModIds: ["mod.alpha", "mod.beta"],
       }),
-      "mod_runtime.collision",
-    );
-  });
-
-  it("rejects code load and identity failures before lifecycle setup", async () => {
-    const setup = vi.fn();
-    await expectModFailureV1(
-      createRuntimeV1({
-        catalog: [
-          codeSourceV1({
-            load: () => {
-              throw new Error("load failed");
-            },
-          }),
-        ],
-        activeModIds: ["mod.code"],
-      }),
-      "mod_runtime.load_failed",
+      "silly_mod.collision",
     );
     await expectModFailureV1(
       createRuntimeV1({
-        catalog: [
-          codeSourceV1({
-            load: () => ({
-              modId: "mod.other",
-              generation: "code.1",
-              dependencies: [],
-              contributions: [],
-              lifecycle: defineExtensionFactoryInternalV1({
-                id: "mod.other",
-                generation: "code.1",
-                setup,
-              }),
-            }),
-          }),
-        ],
-        activeModIds: ["mod.code"],
-      }),
-      "mod_runtime.identity_mismatch",
-    );
-    expect(setup).not.toHaveBeenCalled();
-  });
-
-  it("reports application compile failure without mounting code lifecycle", async () => {
-    const setup = vi.fn();
-    const definition: ApplicationCodeModDefinitionInternalV1<string> = {
-      modId: "mod.code",
-      generation: "code.1",
-      dependencies: [],
-      contributions: [],
-      lifecycle: defineExtensionFactoryInternalV1({
-        id: "mod.code",
-        generation: "code.1",
-        setup,
-      }),
-    };
-    await expectModFailureV1(
-      createRuntimeV1({
-        catalog: [codeSourceV1({ definition })],
-        activeModIds: ["mod.code"],
+        catalog: [dataSourceV1()],
+        activeModIds: ["mod.data"],
         extensionPoints: [{
           ...pointV1,
           compile: () => {
-            throw new Error("application compile failed");
+            throw new Error("compile failed");
           },
         }],
       }),
-      "mod_runtime.compile_failed",
+      "silly_mod.compile_failed",
     );
-    expect(setup).not.toHaveBeenCalled();
+    await expectModFailureV1(
+      createRuntimeV1({
+        catalog: [{
+          kind: "code",
+          metadata: metadataV1({ modId: "mod.code" }),
+          load: () => ({ contributions: null as never }),
+        }],
+        activeModIds: ["mod.code"],
+      }),
+      "silly_mod.invalid_definition",
+    );
   });
 
-  it("uses Direct parent-child rollback when code setup fails", async () => {
+  it("awaits setup handles, rolls back a failed candidate, and reports cleanup failures", async () => {
     const events: string[] = [];
-    const definition: ApplicationCodeModDefinitionInternalV1<string> = {
-      modId: "mod.code",
-      generation: "code.1",
-      dependencies: [],
-      contributions: [],
-      lifecycle: defineExtensionFactoryInternalV1({
-        id: "mod.code",
-        generation: "code.1",
-        async setup(scope) {
-          await scope.effect(() => {
-            events.push("install");
-            return () => {
-              events.push("rollback");
-            };
-          });
-          throw new Error("setup failed");
+    const rollbackOwner = codeSourceV1({
+      modId: "mod.alpha",
+      requires: [],
+      setup() {
+        events.push("alpha:setup");
+        return {
+          dispose: () => {
+            events.push("alpha:rollback");
+          },
+        };
+      },
+    });
+    const failure = codeSourceV1({
+      modId: "mod.failure",
+      requires: [{ modId: "mod.alpha", version: "^1.0.0" }],
+      setup() {
+        events.push("failure:setup");
+        throw new Error("setup failed");
+      },
+    });
+    await expectModFailureV1(
+      createRuntimeV1({
+        catalog: [failure, rollbackOwner],
+        activeModIds: ["mod.failure", "mod.alpha"],
+      }),
+      "silly_mod.setup_failed",
+    );
+    expect(events).toEqual(["alpha:setup", "failure:setup", "alpha:rollback"]);
+
+    let releaseCleanup!: () => void;
+    const cleanupGate = new Promise<void>((resolve) => {
+      releaseCleanup = resolve;
+    });
+    const first = codeSourceV1({
+      modId: "mod.first",
+      requires: [],
+      async setup() {
+        events.push("first:setup");
+        return {
+          async dispose() {
+            events.push("first:dispose:start");
+            await cleanupGate;
+            events.push("first:dispose:end");
+          },
+        };
+      },
+    });
+    const runtime = await createRuntimeV1({ catalog: [first], activeModIds: ["mod.first"] });
+    const disposal = runtime.dispose();
+    await vi.waitFor(() => expect(events).toContain("first:dispose:start"));
+    let disposed = false;
+    void disposal.then(() => {
+      disposed = true;
+    });
+    await Promise.resolve();
+    expect(disposed).toBe(false);
+    releaseCleanup();
+    await disposal;
+    expect(events).toContain("first:dispose:end");
+
+    const diagnostics: unknown[] = [];
+    const cleanupFailure = codeSourceV1({
+      modId: "mod.cleanup-failure",
+      requires: [],
+      setup: () => ({
+        dispose: () => {
+          throw new Error("cleanup failed");
         },
       }),
-    };
-
-    const error = await createRuntimeV1({
-      catalog: [codeSourceV1({ definition })],
-      activeModIds: ["mod.code"],
-    }).catch((caught: unknown) => caught);
-
-    expect(error).toBeInstanceOf(ExtensionRuntimeErrorInternalV1);
-    expect((error as ExtensionRuntimeErrorInternalV1).code).toBe(
-      "extension_runtime.setup_failed",
-    );
-    expect(events).toEqual(["install", "rollback"]);
+    });
+    const failingRuntime = await createRuntimeV1({
+      catalog: [cleanupFailure],
+      activeModIds: ["mod.cleanup-failure"],
+      onLifecycleDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
+    });
+    await failingRuntime.dispose();
+    expect(diagnostics).toEqual([expect.objectContaining({
+      code: "silly_mod.cleanup_failed",
+      modId: "mod.cleanup-failure",
+      version: "1.0.0",
+      phase: "dispose",
+    })]);
   });
 
-  it("replaces a complete immutable selection through candidate publication", async () => {
+  it("publishes complete successors and keeps the predecessor on candidate or publication failure", async () => {
     const events: string[] = [];
-    const base = lifecycleCodeSourceV1({
-      modId: "mod.base",
-      generation: "base.1",
-      payload: "base",
-      async setup(scope) {
-        await scope.effect(() => {
-          events.push("base:install");
-          return () => {
-            events.push("base:cleanup");
+    const source = (modId: string, setupFailure = false) =>
+      codeSourceV1({
+        modId,
+        requires: [],
+        payload: modId,
+        setup() {
+          events.push(`${modId}:setup`);
+          if (setupFailure) throw new Error("candidate setup failed");
+          return {
+            dispose: () => {
+              events.push(`${modId}:dispose`);
+            },
           };
-        });
-      },
-    });
-    const optional = lifecycleCodeSourceV1({
-      modId: "mod.optional",
-      generation: "optional.1",
-      payload: "optional",
-      async setup(scope) {
-        await scope.effect(() => {
-          events.push("optional:install");
-          return () => {
-            events.push("optional:cleanup");
-          };
-        });
-      },
-    });
-    const controller = createApplicationModSelectionControllerInternalV1({
+        },
+      });
+    const predecessor = source("mod.predecessor");
+    const successor = source("mod.successor");
+    const setupFailure = source("mod.setup-failure", true);
+    const controller = createSillyModSelectionControllerV1({
       applicationGeneration: "application.1",
-      extensionPoints: [{ ...pointV1, collisionPolicy: "allow" }],
+      engineApi: engineApiV1,
+      extensionPoints: [pointV1],
     });
-
     const first = await controller.activate({
       selectionGeneration: 1,
-      catalog: [base, optional],
-      activeModIds: ["mod.base"],
+      catalog: [predecessor],
+      activeModIds: ["mod.predecessor"],
     });
-    expect(first).toMatchObject({
-      applicationGeneration: "application.1",
-      selectionGeneration: 1,
-      activeIdentity: [{ modId: "mod.base", generation: "base.1" }],
-      compiledPoints: [{ pointId: pointV1.pointId, value: ["base"] }],
-    });
-    expect(events).toEqual(["base:install"]);
+    expect(controller.getState()).toEqual({ kind: "ready", current: first });
+
+    await expectModFailureV1(
+      controller.restart({
+        selectionGeneration: 2,
+        catalog: [setupFailure],
+        activeModIds: ["mod.setup-failure"],
+      }, () => undefined),
+      "silly_mod.setup_failed",
+    );
+    expect(controller.getCurrent()).toBe(first);
+
+    await expectModFailureV1(
+      controller.restart({
+        selectionGeneration: 3,
+        catalog: [successor],
+        activeModIds: ["mod.successor"],
+      }, () => {
+        events.push("publication:failed");
+        throw new Error("publication failed");
+      }),
+      "silly_mod.publication_failed",
+    );
+    expect(controller.getCurrent()).toBe(first);
+    expect(events).toContain("mod.successor:dispose");
 
     const second = await controller.restart({
-      selectionGeneration: 2,
-      catalog: [base, optional],
-      activeModIds: ["mod.base", "mod.optional"],
+      selectionGeneration: 4,
+      catalog: [successor],
+      activeModIds: ["mod.successor"],
     }, (candidate, previous) => {
-      expect(controller.getCurrent()).toBe(previous);
-      expect(candidate.compiledPoints[0]?.value).toEqual(["base", "optional"]);
-      expect(events).toEqual(["base:install", "base:install", "optional:install"]);
-      events.push("selection:publish");
+      expect(previous).toBe(first);
+      expect(controller.getCurrent()).toBe(first);
+      expect(candidate.resolvedManifest.orderedMods[0]?.modId).toBe("mod.successor");
+      events.push("publication:success");
     });
-
-    expect(second.selectionGeneration).toBe(2);
     expect(controller.getCurrent()).toBe(second);
-    expect(events).toEqual([
-      "base:install",
-      "base:install",
-      "optional:install",
-      "selection:publish",
-      "base:cleanup",
-    ]);
-    expect(controller).not.toHaveProperty("install");
-    expect(controller).not.toHaveProperty("uninstall");
-    expect(publicComposition).not.toHaveProperty(
-      "createApplicationModSelectionControllerInternalV1",
+    expect(events.indexOf("publication:success")).toBeLessThan(
+      events.lastIndexOf("mod.predecessor:dispose"),
     );
-
     await controller.dispose();
-    await controller.dispose();
-    expect(events).toEqual([
-      "base:install",
-      "base:install",
-      "optional:install",
-      "selection:publish",
-      "base:cleanup",
-      "optional:cleanup",
-      "base:cleanup",
-    ]);
   });
 
-  it("retains the predecessor and cleans each failed successor exactly once", async () => {
-    const events: string[] = [];
-    const predecessor = lifecycleCodeSourceV1({
-      modId: "mod.predecessor",
-      generation: "predecessor.1",
-      payload: "predecessor",
-      async setup(scope) {
-        await scope.effect(() => {
-          events.push("predecessor:install");
-          return () => {
-            events.push("predecessor:cleanup");
-          };
-        });
-      },
-    });
-    const compileFailure = dataSourceV1({
-      modId: "mod.compile-failure",
-      generation: "compile-failure.1",
-      payload: "compile-failure",
-    });
-    const setupFailure = lifecycleCodeSourceV1({
-      modId: "mod.setup-failure",
-      generation: "setup-failure.1",
-      payload: "setup-failure",
-      async setup(scope) {
-        await scope.effect(() => {
-          events.push("setup-failure:install");
-          return () => {
-            events.push("setup-failure:cleanup");
-          };
-        });
-        throw new Error("setup rejected candidate");
-      },
-    });
-    const publicationFailure = lifecycleCodeSourceV1({
-      modId: "mod.publication-failure",
-      generation: "publication-failure.1",
-      payload: "publication-failure",
-      async setup(scope) {
-        await scope.effect(() => {
-          events.push("publication-failure:install");
-          return () => {
-            events.push("publication-failure:cleanup");
-          };
-        });
-      },
-    });
-    const controller = createApplicationModSelectionControllerInternalV1({
+  it("keeps one predecessor across every resolver, loader, compiler, and setup rejection", async () => {
+    const predecessor = dataSourceV1({ modId: "mod.predecessor", payload: "predecessor" });
+    const controller = createSillyModSelectionControllerV1({
       applicationGeneration: "application.1",
+      engineApi: engineApiV1,
       extensionPoints: [{
         ...pointV1,
-        compile(input) {
-          const values = input.contributions.map((entry) => entry.payload);
-          if (values.includes("compile-failure")) {
-            throw new Error("compile rejected candidate");
-          }
+        compile({ contributions }) {
+          const values = contributions.map((entry) => entry.payload);
+          if (values.includes("compile-failure")) throw new Error("compile failed");
           return values;
         },
       }],
@@ -533,92 +595,140 @@ describe("private application Mod Runtime", () => {
       catalog: [predecessor],
       activeModIds: ["mod.predecessor"],
     });
-
-    const compileError = await controller.restart({
-      selectionGeneration: 2,
-      catalog: [compileFailure],
-      activeModIds: ["mod.compile-failure"],
-    }, () => undefined).catch((error: unknown) => error);
-    expect(compileError).toBeInstanceOf(ExtensionRuntimeErrorInternalV1);
-    expect((compileError as ExtensionRuntimeErrorInternalV1).code).toBe(
-      "extension_runtime.load_failed",
-    );
-    expect((compileError as Error).cause).toBeInstanceOf(
-      ApplicationModRuntimeErrorInternalV1,
-    );
-    expect(controller.getCurrent()).toBe(first);
-    expect(events).toEqual(["predecessor:install"]);
-
-    const setupError = await controller.restart({
-      selectionGeneration: 3,
-      catalog: [setupFailure],
-      activeModIds: ["mod.setup-failure"],
-    }, () => undefined).catch((error: unknown) => error);
-    expect(setupError).toBeInstanceOf(ExtensionRuntimeErrorInternalV1);
-    expect((setupError as ExtensionRuntimeErrorInternalV1).code).toBe(
-      "extension_runtime.setup_failed",
-    );
-    expect(controller.getCurrent()).toBe(first);
-    expect(events).toEqual([
-      "predecessor:install",
-      "setup-failure:install",
-      "setup-failure:cleanup",
-    ]);
-
-    const publicationError = await controller.restart({
-      selectionGeneration: 4,
-      catalog: [publicationFailure],
-      activeModIds: ["mod.publication-failure"],
-    }, () => {
-      events.push("publication-failure:publish");
-      throw new Error("publication rejected candidate");
-    }).catch((error: unknown) => error);
-    expect(publicationError).toBeInstanceOf(ExtensionRuntimeErrorInternalV1);
-    expect((publicationError as ExtensionRuntimeErrorInternalV1).code).toBe(
-      "extension_runtime.publication_failed",
-    );
-    expect(controller.getCurrent()).toBe(first);
-    expect(events).toEqual([
-      "predecessor:install",
-      "setup-failure:install",
-      "setup-failure:cleanup",
-      "publication-failure:install",
-      "publication-failure:publish",
-      "publication-failure:cleanup",
-    ]);
-
+    const duplicate = dataSourceV1({ modId: "mod.duplicate" });
+    const cycleAlpha = dataSourceV1({
+      modId: "mod.cycle-alpha",
+      requires: [{ modId: "mod.cycle-beta", version: "*" }],
+    });
+    const cycleBeta = dataSourceV1({
+      modId: "mod.cycle-beta",
+      requires: [{ modId: "mod.cycle-alpha", version: "*" }],
+    });
+    const conflictAlpha = dataSourceV1({
+      modId: "mod.conflict-alpha",
+      conflicts: [{ modId: "mod.conflict-beta", version: "*" }],
+    });
+    const conflictBeta = dataSourceV1({ modId: "mod.conflict-beta" });
+    const cases: readonly {
+      readonly code: SillyModErrorV1["code"];
+      readonly catalog: readonly SillyModSourceV1<string>[];
+      readonly activeModIds: readonly string[];
+    }[] = [
+      {
+        code: "silly_mod.duplicate",
+        catalog: [duplicate, duplicate],
+        activeModIds: ["mod.duplicate"],
+      },
+      {
+        code: "silly_mod.mod_unknown",
+        catalog: [],
+        activeModIds: ["mod.unknown"],
+      },
+      {
+        code: "silly_mod.dependency_missing",
+        catalog: [dataSourceV1({
+          modId: "mod.missing-dependent",
+          requires: [{ modId: "mod.missing", version: "*" }],
+        })],
+        activeModIds: ["mod.missing-dependent"],
+      },
+      {
+        code: "silly_mod.dependency_cycle",
+        catalog: [cycleAlpha, cycleBeta],
+        activeModIds: ["mod.cycle-alpha", "mod.cycle-beta"],
+      },
+      {
+        code: "silly_mod.conflict",
+        catalog: [conflictAlpha, conflictBeta],
+        activeModIds: ["mod.conflict-alpha", "mod.conflict-beta"],
+      },
+      {
+        code: "silly_mod.target_unknown",
+        catalog: [dataSourceV1({ modId: "mod.target", pointId: "point.missing" })],
+        activeModIds: ["mod.target"],
+      },
+      {
+        code: "silly_mod.kind_mismatch",
+        catalog: [dataSourceV1({ modId: "mod.kind", contributionKind: "wrong-kind" })],
+        activeModIds: ["mod.kind"],
+      },
+      {
+        code: "silly_mod.collision",
+        catalog: [
+          dataSourceV1({ modId: "mod.collision-alpha", contributionId: "shared" }),
+          dataSourceV1({ modId: "mod.collision-beta", contributionId: "shared" }),
+        ],
+        activeModIds: ["mod.collision-alpha", "mod.collision-beta"],
+      },
+      {
+        code: "silly_mod.load_failed",
+        catalog: [codeSourceV1({
+          modId: "mod.load-failure",
+          requires: [],
+          load: () => {
+            throw new Error("load failed");
+          },
+        })],
+        activeModIds: ["mod.load-failure"],
+      },
+      {
+        code: "silly_mod.compile_failed",
+        catalog: [dataSourceV1({ modId: "mod.compile", payload: "compile-failure" })],
+        activeModIds: ["mod.compile"],
+      },
+      {
+        code: "silly_mod.setup_failed",
+        catalog: [codeSourceV1({
+          modId: "mod.setup",
+          requires: [],
+          setup: () => {
+            throw new Error("setup failed");
+          },
+        })],
+        activeModIds: ["mod.setup"],
+      },
+    ];
+    let selectionGeneration = 2;
+    for (const candidate of cases) {
+      const publish = vi.fn();
+      await expectModFailureV1(
+        controller.restart({
+          selectionGeneration: selectionGeneration++,
+          catalog: candidate.catalog,
+          activeModIds: candidate.activeModIds,
+        }, publish),
+        candidate.code,
+      );
+      expect(publish).not.toHaveBeenCalled();
+      expect(controller.getCurrent()).toBe(first);
+      expect(controller.getState()).toEqual({ kind: "ready", current: first });
+    }
     await controller.dispose();
-    expect(events.at(-1)).toBe("predecessor:cleanup");
-    expect(events.filter((event) => event === "setup-failure:cleanup")).toHaveLength(1);
-    expect(events.filter((event) => event === "publication-failure:cleanup")).toHaveLength(1);
-    expect(events.filter((event) => event === "predecessor:cleanup")).toHaveLength(1);
   });
 
-  it("fences invalid and non-monotonic selection generations", async () => {
-    const controller = createApplicationModSelectionControllerInternalV1({
+  it("exposes only public errors and rejects stale selection generations", async () => {
+    const controller = createSillyModSelectionControllerV1({
       applicationGeneration: "application.1",
+      engineApi: engineApiV1,
       extensionPoints: [pointV1],
     });
-    const candidate = (selectionGeneration: number) => ({
-      selectionGeneration,
-      catalog: [dataSourceV1()],
+    const source = dataSourceV1();
+    await controller.activate({
+      selectionGeneration: 2,
+      catalog: [source],
       activeModIds: ["mod.data"],
     });
-
     await expectModFailureV1(
-      controller.activate(candidate(0)),
-      "mod_runtime.selection_generation_invalid",
+      controller.restart(
+        { selectionGeneration: 1, catalog: [source], activeModIds: ["mod.data"] },
+        () => undefined,
+      ),
+      "silly_mod.selection_generation_stale",
     );
-    await controller.activate(candidate(2));
-    await expectModFailureV1(
-      controller.restart(candidate(2), () => undefined),
-      "mod_runtime.selection_generation_stale",
-    );
-    await expectModFailureV1(
-      controller.restart(candidate(1), () => undefined),
-      "mod_runtime.selection_generation_stale",
-    );
-
     await controller.dispose();
+    await expectModFailureV1(controller.retry(), "silly_mod.disposed");
+
+    expect(publicComposition).not.toHaveProperty("createSillyModRuntimeV1");
+    expect(publicComposition).not.toHaveProperty("createApplicationModRuntimeInternalV1");
   });
 });

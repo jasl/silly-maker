@@ -189,27 +189,32 @@ this split with opening/ending packs, `src/tooling/narrative-flow.ts`, the tooli
 only authoring copy, and its Inspector binding. Run
 `deno task check:assets` after changing any pack or manifest topology; it reads
 every declared pack from its own application root and exercises the same Base
-bounded admission contract. The active Scalable Authoring / Addressable Runtime / Mods
-plan has delivered addressable acquire/release plus locale-addressable variants
+bounded admission contract. The completed Scalable Authoring / Addressable Runtime / Mods
+lane delivered addressable acquire/release plus locale-addressable variants
 and atomic active-locale reconciliation in this same text manifest/session.
 
-If one product needs first-party, build-known Mods, keep the extension vocabulary
-in that application rather than inventing a universal Story schema. Declare typed
+If one product needs trusted build-time Mods, keep the extension vocabulary in
+that application rather than inventing a universal Story schema. Declare typed
 extension points that cold-compile contributions into the same direct plans the
 base product already consumes; choose one immutable active set while constructing
-the application generation, and project its ordered `(modId, generation)` identity
+the application generation, and project its ordered `(modId, version)` identity
 into the application's existing BuildIdentity whenever it changes authoritative
-behavior. The private `@sillymaker/composition/internal/mod-runtime` loads only
-selected literal code sources, dependency-orders the set, and reuses Direct
-lifecycle/rollback. When a development product has a real optional surface, the
-private selection controller may stage and publish a complete successor set before
-retiring its predecessor; presentation/tooling uses R1, while authoritative
-gameplay changes still require the existing R2 Save/lease handoff. It does not
-discover packages, own a second State/Save/digest, or provide a public resolver,
-SDK, distribution mechanism, or arbitrary post-release code loader. Data/code
-inside the application realm remains trusted JavaScript; use resource-free
-loaders/compilers and put reversible effects under the lifecycle rather than
-expecting an engine sandbox.
+behavior. Public `@sillymaker/composition/mod` loads only application-explicit
+data or literal code sources, dependency-orders the set, and reuses the private
+Direct lifecycle/rollback. A real optional surface may stage and publish a
+complete successor set before retiring its predecessor; presentation/tooling
+uses R1, while authoritative gameplay still requires the existing R2 Save/lease
+handoff and a product-owned identity/migration policy. The public runtime does
+not discover packages, own a second State/Save/digest, resolve npm at runtime,
+download code, or provide a sandbox. Data/code inside the application realm
+remains trusted JavaScript; use resource-free loaders/compilers and put
+reversible effects under `setup()`'s explicit handle.
+
+Post-release declarative content is a separate boundary. One Last Sound Check's
+optional Mod-enabled build accepts only bounded product-specific text/image
+overrides for named slots, then reboots the complete Web application. Do not use
+duplicate IDs or last-wins Story composition as an override mechanism, and do
+not treat that product Artifact as a universal Story or executable Mod format.
 
 Declare responsive presentation at the application viewport boundary, not in gameplay State and not by letting
 individual components measure `window`. A fixed-canvas product may combine the authored fallback with ordered

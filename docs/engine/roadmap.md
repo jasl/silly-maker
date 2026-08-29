@@ -80,20 +80,25 @@ Session migration 与 predecessor retirement。外部 RPC 是并列 Host boundar
 普通静态游戏可以直接 mount 内聚 Game domain 并完全排除 dynamic extension backend。被选择的
 presentation/tooling Mod 可以通过 R1 successor 在保留 GameSession 的情况下热装卸；改变
 Simulation/权威领域的 Mod 通过 R2 exact Save + lease handoff 建立同窗 successor，不能原地改写
-存活 Session graph。两者都允许零 page reload，候选失败都保留 predecessor。
+存活 Session graph。两者都允许零 page reload。R1 候选失败和 R2 retirement 开始前的失败保留
+live predecessor；R2 disposal 开始后的 release failure 是 terminal。release 成功后的 startup failure
+只保留 controller selection 与 exact retryable handoff，不再声称旧 application 仍可服务。
 
 直接访问 `window`、DOM、IndexedDB、内部 `src/**` 或未公开 store 不受兼容承诺保护。Story 可使用明确的 Host/renderer escape hatch，但它们必须在 package ownership、Save 边界和测试中可见。
 
 ## 4. Current execution priority — production floor
 
 最近完成的有界 lane 是
-[VN Genre Mod、History Mod 与作者工作流](plans/2026-08-29-vn-genre-mod-authoring.md)：Template 和 One Last
-Sound Check 已共同消费 first-party VN interaction/compiler/runtime 共用层；History 已成为第一个真实 optional
-presentation Mod，交付开发期延迟加载、R1 selection successor、卸载和 production 结构排除；One Last Sound
-Check 的只读 VN Inspector contribution 与人类/Agent 共用的 structured Scene operation/CAS authority 位于同一
-Authoring Host，但不建立 Narrative/Text writer。Bookshop 已退役，不再作为第二套作者或测试路径。该关闭没有
-激活 public resolver/ABI/SDK/distribution，也没有把后续 Ren'Py 能力覆盖扩张为另一个脚本语言或运行时。
-当前没有自动激活的后继 lane。
+[Production Mod V1](plans/2026-08-29-production-mod-v1.md)：focused public
+`@sillymaker/composition/mod` 已承载 trusted build-time metadata/resolution、typed extension points、selection
+successor 与 async resource cleanup；仓外 tarball consumer 通过 Deno/Vite/Chromium；One Last Sound Check 的
+单独 Mod-enabled build 则验证产品特定的 post-release declarative text/image overrides。它没有激活 runtime npm
+resolution、marketplace、任意 post-release code、通用 authoritative gameplay R2 adapter 或不可信 sandbox。
+Template 保持无需修改的 structural negative control。当前没有自动激活的后继 lane。
+
+此前完成的 [VN Genre Mod、History Mod 与作者工作流](plans/2026-08-29-vn-genre-mod-authoring.md) 让 Template
+和 One Last Sound Check 共同消费 first-party VN interaction/compiler/runtime，共以 History 验证可选 R1
+presentation Mod，并交付只读 VN Inspector contribution；Bookshop 已退役，不再作为第二套作者或测试路径。
 
 在把 Story 成果提升为 engine-level genre pack、Mod、renderer 或 editor
 能力之前，按 [Production-floor sequence](plans/2026-07-30-production-floor-sequence.md)
@@ -697,8 +702,9 @@ Save 只存 stable semantic target，不存 renderer instance、decoded media �
 可复用的 SillyMaker-specific 输入、资源生命周期、Code Surface、Host 或 Inspector 映射时，才在
 首个真实消费者中提取 `contrib/*` 可选 integration package。Core 不依赖 contrib，产品未选择时
 该 integration 不进入最终 graph；`contrib` 是所有权和独立维护边界，不因目录或 package 形态
-自动成为 Composition plugin、private Mod 或 public Mod。public resolver/ABI/SDK/distribution 仍
-由 Track H 的独立 gates 与后续 accepted plan 决定。
+自动成为 Composition plugin 或 public Mod。真正需要独立选择、生命周期、冲突与结构排除的 integration 可以
+消费已经交付的 focused public Mod API；更广的 facet SDK、distribution/install、authoritative R2 与
+post-release trusted code 仍由 Track H 的独立 gates 与后续 accepted plan 决定。
 
 ## 11. Strategic track G — companion, Agent and GenUI
 
@@ -767,34 +773,35 @@ transport 或 production qualification。
 
 Agent workspace 需要 tab/split/task/approval/artifact/history 等独立领域模型；不要把现有游戏 Overlay 膨胀成桌面 WindowManager。流式半成品是 transient presentation；只有完整验证的 document 可持久化，replay 渲染保存 document 而不是重新调用模型。
 
-## 12. Strategic track H — Mod incubation
+## 12. Strategic track H — Production Mod layers
 
-[Mod design](design/mod-system.md) 的 public resolver/ABI/SDK/distribution 仍是 accepted direction /
-incubation，不是当前实现队列。2026-08-25 已关闭计划的 M5 激活 private、build-known、
-application-local Mod Runtime；2026-08-29 已关闭的 VN lane 在其上增加完整 selection successor，并以
-History presentation 作为第一个真实 application consumer。active set 在每个 generation 内仍冻结；开发期
-load/unload 通过候选 generation、publication acknowledgement 和 predecessor retirement 完成，不原地改
-registry。production 产品可以显式把相同扩展面包含进最终图，也可以完全结构排除，但这仍不构成公共生态、
-post-release install protocol 或任意代码宿主。
+[Production Mod V1 plan](plans/2026-08-29-production-mod-v1.md) 已激活并交付此前 incubation 中有真实消费者
+支撑的两层。Stage A 是 focused public `@sillymaker/composition/mod`：应用在 build-time 显式选择可信 package
+与 literal loaders，resolver 决定 dependency/conflict/collision 和 canonical order，runtime 冷编译
+application-owned typed extension points，再通过既有 private Direct lifecycle 与 acknowledged selection
+successor 管理资源。History presentation 是第一个真实 R1 consumer；仓外 tarball consumer 证明发布形态的
+JavaScript、`.d.ts`、Deno/Vite/Chromium 可消费，而不是只在 `workspace:*` 中类型通过。
 
-AR1 已选择的 private Direct Extension Runtime 不等于激活 Mod：它没有 resolver、manifest、
-public ABI、external SDK、post-release install 或 distribution，并且仍可从 ordinary
-no-extension game build 完全排除。历史 Cordis adapter/vendor 已删除。
+Stage B 的第一个产品纵切是 One Last Sound Check 的显式 Mod-enabled build：发布后的 bounded declarative
+Artifact 只能覆盖该产品声明的 text/image slots，经过 exact target/version/story、资源和闭包 admission 后，
+通过完整 Web application successor 应用。普通 build 结构排除 decoder/manager/Artifact。它不是通用安装格式、
+任意代码宿主或第二套 State/Save/runtime。
 
-激活 M0–M2 前必须同时满足：
+active set 在每个 generation 内仍冻结；开发期 load/unload 通过候选 generation、publication acknowledgement
+和 predecessor retirement 完成，不原地改 registry，也不在 command/reducer/render hot path 做动态 lookup。
+production 产品可以显式包含同一扩展面，也可以完全结构排除。private Direct backend 仍不是公共 Context 或
+service container；历史 Cordis adapter/vendor 保持删除。
 
-1. Managed Surface live families 已统一，registry 形状稳定；
-2. Save migration registry/fixtures 已成为发布能力；
-3. Snapshot 性能契约能承载目标经营 workload；
-4. 至少两个真实 first-party capability slice 需要独立选择/分发，而不是复制代码；
-5. external package smoke 证明 application 可在仓库外消费 engine；
-6. resolver/manifest 不需要万能 `install(context)` 或 load-order override。
+以下能力继续 evidence-gated，而不是由本轮顺带宣称完成：
 
-当前 first-party VN/History 工作就是该构建期可信 capability 阶段的产品化验证。发布后 declarative Mod、
-trusted code Artifact 与隔离扩展分别立项。不在没有产品需求时建设 untrusted sandbox。
+- 通用 post-release trusted-code Artifact、下载/更新/distribution protocol、marketplace 或 runtime npm resolver；
+- authoritative gameplay Mod 的公共 R2 adapter、identity/Save migration 产品合同和真实经营/时间经济消费者；
+- Deno Desktop package/production 资格与跨 Host 发布矩阵；
+- untrusted extension isolation。若将来需要，必须使用独立 origin/Worker/process + typed RPC，而不是给 same-realm
+  JavaScript 添加名义 sandbox。
 
-完成 PF7 或当前 private M5 都不激活 public Mod platform。即使上述 gates 全部满足，也必须另行接受
-新的 active implementation plan，才能开始 resolver、public ABI、external SDK 或 distribution 工作。
+后续晋级必须由真实产品证明所需权限、兼容/迁移、失败恢复、体积和性能预算；不得为满足 checklist 在简单 VN
+中制造第二套权威玩法。
 
 ## 13. Evidence and promotion
 

@@ -205,8 +205,10 @@ History retention.
 Development may expose load, unload and reload repeatedly. A production product
 may explicitly include the same extension surface, or select a core-only build
 that structurally omits the History implementation, CSS, literal loader and
-private controller. This does not expose a public Mod resolver, SDK or
-post-release arbitrary-code install path.
+public selection controller plus its private Direct transitive backend. History
+uses the public trusted build-time `@sillymaker/composition/mod` contract; that
+still does not provide package discovery, SDK distribution, runtime npm
+resolution or a post-release arbitrary-code install path.
 
 S4b.1c 的 Title/WholeCanvas 共存浏览器路线暴露并关闭了一项 Narrative Host
 corrective：readiness/focus settlement 必须在入队与 microtask 执行时复验 portal shell

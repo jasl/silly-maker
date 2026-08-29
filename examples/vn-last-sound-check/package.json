@@ -14,12 +14,14 @@
   },
   "scripts": {
     "dev": "deno run -A npm:vite",
+    "dev:mods": "deno run -A npm:vite --config vite.mods.config.ts",
     "build": "deno task build:web",
     "build:web": "deno run -A npm:vite build",
+    "build:web:mods": "deno run -A npm:vite build --config vite.mods.config.ts",
     "build:desktop": "deno run -A ./tools/app.mts desktop .",
     "deploy:cf": "deno task build && deno run -A npm:wrangler@4.123.0 deploy",
     "preview": "deno run -A npm:vite preview",
-    "clean": "rm -rf dist-web dist-desktop",
+    "clean": "rm -rf dist-web dist-web-mods dist-desktop",
     "app": "deno run -A ./tools/app.mts",
     "format": "deno fmt",
     "format:check": "deno fmt --check",
@@ -27,6 +29,7 @@
   },
   "dependencies": {
     "@sillymaker/base": "workspace:*",
+    "@sillymaker/composition": "workspace:*",
     "@sillymaker/ui": "workspace:*",
     "@sillymaker/vn": "workspace:*",
     "@sillymaker/web": "workspace:*",
@@ -35,7 +38,6 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
-    "@sillymaker/composition": "workspace:*",
     "@sillymaker/studio": "workspace:*",
     "@sillymaker/tooling": "workspace:*",
     "@types/node": "26.2.0",
