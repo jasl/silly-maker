@@ -180,8 +180,9 @@ export interface StoryDebugDockPropsV1 {
   /** Chip/menu corner; defaults to `top_right`. */
   readonly position?: DevDockPositionV1;
   /**
-   * Always-visible sibling of the collapsed chip (mute, host shortcuts).
-   * Not inside `summary`: clicks must not toggle the dock.
+   * Sibling of the collapsed chip (mute, host shortcuts). Not inside
+   * `summary`: clicks must not toggle the dock. Hidden while the panel
+   * is open — it belongs to the collapsed chip row.
    */
   readonly chipCompanion?: ReactNode;
   readonly expanded?: boolean;

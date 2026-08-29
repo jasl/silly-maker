@@ -14,10 +14,26 @@
   align-items: center;
   justify-content: flex-end;
   gap: var(--silly-space-1);
-  pointer-events: auto;
+
+  /* The host is layout only; its children take input. The expanded host
+     spans the surface height, and that empty strip must not eat stage
+     clicks. */
+  pointer-events: none;
   color: var(--silly-color-text);
   font-family: var(--silly-font-family);
   font-size: 12px;
+}
+
+.story-debug-dock-host > * {
+  pointer-events: auto;
+}
+
+/* Expanded, the host takes the padded surface height so the panel bounds
+   against the surface it is portaled into — the canvas clips overflow, so
+   a taller panel would silently vanish past the edge. */
+.story-debug-dock-host[data-debug-dock-expanded="true"] {
+  block-size: calc(100% - 2 * var(--silly-space-2));
+  align-items: flex-start;
 }
 
 .story-debug-dock-host[data-devdock-position="top_right"] {
@@ -46,9 +62,20 @@
 
 .story-debug-dock {
   display: flex;
+  min-block-size: 0;
+  max-block-size: 100%;
   flex-direction: column;
   align-items: flex-end;
   gap: var(--silly-space-1);
+}
+
+/* Browsers wrap non-summary <details> children in the ::details-content
+   box; left alone it refuses to shrink, so the panel would escape the
+   height-bounded host instead of scrolling. */
+.story-debug-dock::details-content {
+  display: flex;
+  min-block-size: 0;
+  flex-direction: column;
 }
 
 .story-debug-dock-host[data-devdock-position="bottom_right"] .story-debug-dock,
@@ -66,9 +93,17 @@
   align-items: center;
 }
 
+/* The companion belongs to the collapsed chip row. While the panel is
+   open it would strand beside the panel's far edge (bottom corners), so
+   the expanded dock hides it. */
+.story-debug-dock-host[data-debug-dock-expanded="true"] .story-debug-dock__chip-companion {
+  display: none;
+}
+
 .story-debug-dock__chip {
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
   cursor: pointer;
   user-select: none;
   list-style: none;
@@ -89,10 +124,16 @@
   display: grid;
   gap: var(--silly-space-2);
   min-inline-size: 17.5rem;
+
+  /* Inside the height-bounded details the panel is the shrinking child:
+     it scrolls internally instead of marching past the clipped surface
+     edge (bottom corners open upward). */
+  min-block-size: 0;
   padding: var(--silly-space-3);
   border: 1px solid var(--silly-color-border);
   border-radius: var(--silly-radius-card);
   background: var(--silly-color-surface-translucent);
+  overflow: auto;
 }
 
 .story-debug-dock__info {

@@ -518,6 +518,21 @@ describe("StoryDebugDockV1", () => {
     expect(css).toMatch(
       /\.story-debug-dock-host\s*\{[^}]*--silly-font-family:\s*var\(--silly-debug-font-family\);/su,
     );
+    // The expanded host spans the portal surface so the panel bounds and
+    // scrolls inside the clipping canvas (bottom corners open upward),
+    // and the chip companion yields to the open panel.
+    expect(css).toMatch(
+      /\.story-debug-dock-host\[data-debug-dock-expanded="true"\]\s*\{[^}]*block-size:/su,
+    );
+    expect(css).toMatch(
+      /\.story-debug-dock::details-content\s*\{[^}]*min-block-size:\s*0;/su,
+    );
+    expect(css).toMatch(
+      /\.story-debug-dock__panel\s*\{[^}]*min-block-size:\s*0;[^}]*overflow:\s*auto;/su,
+    );
+    expect(css).toMatch(
+      /\[data-debug-dock-expanded="true"\]\s+\.story-debug-dock__chip-companion\s*\{[^}]*display:\s*none;/su,
+    );
     expect(css).toMatch(
       /\.story-debug-dock__wipe\s*\{[^}]*--silly-font-family:\s*var\(--silly-debug-font-family\);/su,
     );
