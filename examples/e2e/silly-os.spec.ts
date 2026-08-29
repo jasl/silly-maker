@@ -746,6 +746,15 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
 
   await page.locator('[data-provider-id="openai"]').click();
   await expect(page.getByRole("button", { name: "Back to Providers" })).toBeFocused();
+  const modelCount = page.locator(".provider-settings__model-count");
+  await expect(modelCount).toHaveText(/^\d+ \/ 38$/u);
+  const modelCountLayout = await modelCount.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+    whiteSpace: getComputedStyle(element).whiteSpace,
+  }));
+  expect(modelCountLayout.whiteSpace).toBe("nowrap");
+  expect(modelCountLayout.scrollHeight).toBeLessThanOrEqual(modelCountLayout.clientHeight);
   const selectedModel = page.locator('[data-model-id="gpt-5.3-chat-latest"] input');
   const fallbackModel = page.locator('[data-model-id="gpt-4.1-mini"] input');
   const siblingModel = page.locator('[data-model-id="gpt-4.1-nano"] input');

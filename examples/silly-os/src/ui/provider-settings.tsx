@@ -1719,7 +1719,7 @@ export function ProviderSettingsV1({
                                       <h3 id="models-title">{copy.providerModelsTitle}</h3>
                                       <p>{copy.providerModelsDescription}</p>
                                     </div>
-                                    <span>
+                                    <span className="provider-settings__model-count">
                                       {String(
                                         enabledBuiltinModels.filter((model) =>
                                           model.providerId === inspectedProvider.providerId

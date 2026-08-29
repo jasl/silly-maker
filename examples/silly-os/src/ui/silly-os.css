@@ -1567,6 +1567,11 @@ body,
   gap: 20px;
 }
 
+.provider-settings__section-heading > div {
+  min-inline-size: 0;
+  flex: 1 1 auto;
+}
+
 .provider-settings__section-heading h3 {
   margin: 0;
   font-size: 14px;
@@ -1581,17 +1586,21 @@ body,
   line-height: 1.5;
 }
 
-.provider-settings__section-heading > span {
-  display: grid;
-  place-items: center;
-  min-inline-size: 26px;
+.provider-settings__model-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 40px;
   block-size: 24px;
-  padding-inline: 6px;
+  padding-inline: 8px;
+  flex: 0 0 auto;
   border-radius: 999px;
   color: var(--sos-ink-muted);
   background: var(--sos-surface-muted);
   font-size: 10px;
   font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .provider-settings__section-heading > svg {
