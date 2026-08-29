@@ -10,21 +10,22 @@ import {
   type ProgramRepositorySettleAgentRunInputV3,
   type ProgramRepositoryWithWorkspaceContinuationV1,
 } from "./program-repository.ts";
+import type { ProgramNetworkGrantMutationV1 } from "./program-network-grants.ts";
 import {
-  admitProgramRepositoryWorkerRequestEnvelopeV4,
-  admitProgramRepositoryWorkerResponseEnvelopeV4,
-  operationForProgramRepositoryWorkerMethodV4,
-  type ProgramRepositoryWorkerMethodV4,
-  type ProgramRepositoryWorkerRequestEnvelopeV4,
-  type ProgramRepositoryWorkerRequestV4,
-  type ProgramRepositoryWorkerSuccessV4,
+  admitProgramRepositoryWorkerRequestEnvelopeV5,
+  admitProgramRepositoryWorkerResponseEnvelopeV5,
+  operationForProgramRepositoryWorkerMethodV5,
+  type ProgramRepositoryWorkerMethodV5,
+  type ProgramRepositoryWorkerRequestEnvelopeV5,
+  type ProgramRepositoryWorkerRequestV5,
+  type ProgramRepositoryWorkerSuccessV5,
 } from "./program-repository-worker-protocol.ts";
 
 interface ProgramRepositoryWorkerMessageEventV4 {
   readonly data: unknown;
 }
 
-export interface ProgramRepositoryWorkerLikeV4 {
+export interface ProgramRepositoryWorkerLikeV5 {
   addEventListener(
     type: "message",
     listener: (event: ProgramRepositoryWorkerMessageEventV4) => void,
@@ -40,21 +41,22 @@ export interface ProgramRepositoryWorkerLikeV4 {
 }
 
 export interface CreateBrowserProgramRepositoryOptionsV3 {
-  readonly createWorker?: () => ProgramRepositoryWorkerLikeV4;
+  readonly createWorker?: () => ProgramRepositoryWorkerLikeV5;
 }
 
 interface PendingCallV4 {
-  readonly method: ProgramRepositoryWorkerMethodV4;
+  readonly method: ProgramRepositoryWorkerMethodV5;
   readonly operation: ProgramRepositoryOperationV3;
   readonly mutation: boolean;
   delivered: boolean;
-  readonly resolve: (record: ProgramRepositoryWorkerSuccessV4) => void;
+  readonly resolve: (record: ProgramRepositoryWorkerSuccessV5) => void;
   readonly reject: (error: unknown) => void;
 }
 
-function isMutationMethodV4(method: ProgramRepositoryWorkerMethodV4): boolean {
+function isMutationMethodV4(method: ProgramRepositoryWorkerMethodV5): boolean {
   return method === "create" || method === "apply_revision" ||
-    method === "settle_agent_run" || method === "decide";
+    method === "settle_agent_run" || method === "decide" ||
+    method === "set_program_network_grant";
 }
 
 function responseRequestIdV4(value: unknown): string | null {
@@ -70,10 +72,10 @@ function responseRequestIdV4(value: unknown): string | null {
   }
 }
 
-function defaultProgramRepositoryWorkerV4(): ProgramRepositoryWorkerLikeV4 {
+function defaultProgramRepositoryWorkerV4(): ProgramRepositoryWorkerLikeV5 {
   return new Worker(new URL("./program-repository.worker.ts", import.meta.url), {
     type: "module",
-    name: "sillyos-program-repository-v4",
+    name: "sillyos-program-repository-v5",
   });
 }
 
@@ -122,7 +124,7 @@ export function createBrowserProgramRepositoryV3(
     if (requestId === null) return;
     const call = pending.get(requestId);
     if (call === undefined) return;
-    const response = admitProgramRepositoryWorkerResponseEnvelopeV4(event.data, call.method);
+    const response = admitProgramRepositoryWorkerResponseEnvelopeV5(event.data, call.method);
     if (response.kind === "rejected" || response.value.requestId !== requestId) {
       terminateV4("unavailable");
       return;
@@ -145,21 +147,21 @@ export function createBrowserProgramRepositoryV3(
   worker.addEventListener("messageerror", onTransportLossV4);
 
   const callV4 = (
-    record: ProgramRepositoryWorkerRequestV4,
+    record: ProgramRepositoryWorkerRequestV5,
     allowDisposing = false,
-  ): Promise<ProgramRepositoryWorkerSuccessV4> => {
-    const operation = operationForProgramRepositoryWorkerMethodV4(record.method);
+  ): Promise<ProgramRepositoryWorkerSuccessV5> => {
+    const operation = operationForProgramRepositoryWorkerMethodV5(record.method);
     if (lifecycle === "disposed" || (lifecycle === "disposing" && !allowDisposing)) {
       return Promise.reject(createProgramRepositoryFailureV3("disposed", operation));
     }
     const requestId = `program-repository.rpc.${String(nextRequestId++)}`;
-    const candidate: ProgramRepositoryWorkerRequestEnvelopeV4 = {
-      revision: 4,
+    const candidate: ProgramRepositoryWorkerRequestEnvelopeV5 = {
+      revision: 5,
       kind: "rpc_request",
       requestId,
       record,
     };
-    const admitted = admitProgramRepositoryWorkerRequestEnvelopeV4(candidate);
+    const admitted = admitProgramRepositoryWorkerRequestEnvelopeV5(candidate);
     if (admitted.kind === "rejected") {
       return Promise.reject(
         new TypeError(`sillyos.program_repository.request.invalid${admitted.path}`),
@@ -209,6 +211,22 @@ export function createBrowserProgramRepositoryV3(
       const response = await callV4({ method: "load_workspace_continuation", programId });
       if (response.method !== "load_workspace_continuation") {
         throw new TypeError("invalid workspace continuation load response");
+      }
+      return response.value;
+    },
+
+    async loadProgramNetworkGrants(programId) {
+      const response = await callV4({ method: "load_program_network_grants", programId });
+      if (response.method !== "load_program_network_grants") {
+        throw new TypeError("invalid Program network grant load response");
+      }
+      return response.value;
+    },
+
+    async setProgramNetworkGrant(input: ProgramNetworkGrantMutationV1) {
+      const response = await callV4({ method: "set_program_network_grant", input });
+      if (response.method !== "set_program_network_grant") {
+        throw new TypeError("invalid Program network grant mutation response");
       }
       return response.value;
     },

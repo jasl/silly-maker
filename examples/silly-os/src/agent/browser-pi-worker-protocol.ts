@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 
 import { admitCreatorAgentSubmitTextV1 } from "../product/creator-agent-admission.ts";
+import {
+  admitProgramNetworkGrantSetV1,
+  type ProgramNetworkGrantV1,
+} from "../product/program-network-grants.ts";
 import { normalizeBrowserNetworkUrlV1 } from "../network/browser-network-url.ts";
 import { isBrowserPiDistributionIdentityV1 } from "./browser-pi-distribution.ts";
 import type { BrowserPiDistributionIdentityV1 } from "./browser-pi-distribution.ts";
@@ -149,6 +153,12 @@ export type BrowserPiWorkspaceRequestRecordV1 =
     readonly method: "acknowledge_workspace_receipts";
     readonly workspaceSessionId: string;
     readonly throughSequence: number;
+  }
+  | {
+    readonly method: "replace_network_grants";
+    readonly programId: string;
+    readonly workspaceSessionId: string;
+    readonly grants: readonly ProgramNetworkGrantV1[];
   };
 
 export interface BrowserPiWorkerWorkspaceRequestV1 {
@@ -340,7 +350,11 @@ export interface BrowserPiWorkspaceSnapshotWireV1 {
 
 export type BrowserPiWorkspaceSuccessResponseV1 =
   | {
-    readonly method: "attach_workspace" | "close_workspace" | "query_workspace";
+    readonly method:
+      | "attach_workspace"
+      | "close_workspace"
+      | "query_workspace"
+      | "replace_network_grants";
     readonly snapshot: BrowserPiWorkspaceSnapshotWireV1;
   }
   | {
@@ -885,6 +899,30 @@ function admitWorkspaceRequestRecordV1(value: unknown): BrowserPiWorkspaceReques
       throughSequence: acknowledge.throughSequence,
     };
   }
+  const replaceNetworkGrants = exactDataRecordV1(value, [
+    "method",
+    "programId",
+    "workspaceSessionId",
+    "grants",
+  ]);
+  if (
+    replaceNetworkGrants !== null &&
+    replaceNetworkGrants.method === "replace_network_grants" &&
+    isIdentifierV1(replaceNetworkGrants.workspaceSessionId)
+  ) {
+    const admitted = admitProgramNetworkGrantSetV1({
+      revision: 1,
+      programId: replaceNetworkGrants.programId,
+      grants: replaceNetworkGrants.grants,
+    });
+    if (admitted.kind === "rejected") return null;
+    return {
+      method: "replace_network_grants",
+      programId: admitted.value.programId,
+      workspaceSessionId: replaceNetworkGrants.workspaceSessionId,
+      grants: admitted.value.grants,
+    };
+  }
   return null;
 }
 
@@ -1345,11 +1383,13 @@ function admitWorkspaceSuccessResponseV1(
   if (
     ordinary !== null &&
     (ordinary.method === "attach_workspace" || ordinary.method === "close_workspace" ||
-      ordinary.method === "query_workspace")
+      ordinary.method === "query_workspace" || ordinary.method === "replace_network_grants")
   ) {
     const snapshot = admitBrowserPiWorkspaceSnapshotWireV1(ordinary.snapshot);
     if (
-      snapshot === null || (ordinary.method === "attach_workspace" && snapshot.phase !== "open") ||
+      snapshot === null ||
+      ((ordinary.method === "attach_workspace" || ordinary.method === "replace_network_grants") &&
+        snapshot.phase !== "open") ||
       (ordinary.method === "close_workspace" && snapshot.phase !== "closed")
     ) return null;
     return { method: ordinary.method, snapshot };

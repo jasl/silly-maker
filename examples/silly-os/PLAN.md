@@ -808,7 +808,7 @@ This release evidence proves shipped composition and bootstrap only. It does
 not prove a public-origin real-model call, arbitrary-site CORS, target redirect
 or missing-CORS behavior, N1/N2, or search.
 
-##### S2-N1 — durable Program grants
+##### S2-N1 — durable Program grants (closed 2026-08-29)
 
 After N0, add the smallest durable grant flow. **Allow for this Program** stores
 only `(programId, immutable normalized HTTPS origin, admitted operation)` in the
@@ -833,6 +833,21 @@ be recorded separately but is not deterministic closure authority. If this
 would require S3 key persistence, S4 transcript persistence, generic capability
 composition, or automatic replay of arbitrary Agent turns, retain terminal
 `approval_required` and stop instead of broadening the slice.
+
+N1 delivered on 2026-08-29. The existing Product Repository now owns one
+independent `program_network_grants` row per Program under physical schema V6;
+the V5→V6 upgrade preserves exact Program/continuation rows and adds no grant
+CAS or second repository. Each admitted submit replaces the Agent Worker's
+complete Program/workspace-bound grant cache before Pi RPC submission. Durable
+origin grants and exact one-shot URL permits remain separate, revoke updates
+the repository before Worker acknowledgement, and a failed revoke sync tears
+down the stale Worker. The minimal Chat disclosure exposes the explicit
+unchecked checkbox and exact revoke action. Focused contracts, the 465-case
+SillyOS suite, production build, and ordinary persistent Chromium/WebKit
+journeys prove Allow once, opt-in durable reuse across paths, cold reopen,
+revocation, exact raw IndexedDB tuples, and zero Provider credential/full-URL
+storage. This does not activate N2 download, cross-tab in-flight revocation,
+search, background access, or any authenticated Broker request.
 
 ##### S2-N2 — streamed `download` into the current Workspace
 

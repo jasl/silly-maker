@@ -20,6 +20,11 @@ import {
   type ProgramWorkspaceSnapshotReceiptV1,
 } from "../workspace/contracts.ts";
 import { createBrowserProgramRepositoryV3 } from "./browser-program-repository.ts";
+import type {
+  ProgramNetworkGrantMutationResultV1,
+  ProgramNetworkGrantMutationV1,
+  ProgramNetworkGrantSetV1,
+} from "./program-network-grants.ts";
 import {
   advanceBrowserProgramContinuationV1,
   applyProgramRepositoryAgentRunTerminalV3,
@@ -113,13 +118,17 @@ export interface BrowserProgramWorkspaceAuthorityV1 {
     input: BrowserProgramWorkspaceSettleAgentRunInputV1,
   ): Promise<ProgramRepositoryCommitResultV3>;
   decide(input: BrowserProgramWorkspaceDecideInputV1): Promise<ProgramRepositoryCommitResultV3>;
+  loadProgramNetworkGrants(programId: string): Promise<ProgramNetworkGrantSetV1 | null>;
+  setProgramNetworkGrant(
+    input: ProgramNetworkGrantMutationV1,
+  ): Promise<ProgramNetworkGrantMutationResultV1>;
   withAgentSubmitAdmission<T>(input: {
     readonly programId: string;
     readonly workspaceSessionId: string;
     readonly expectedProgramRevision: number;
     readonly expectedRepositoryRevision: number;
     readonly expectedGeneration: number;
-    readonly operation: () => Promise<T>;
+    readonly operation: (grants: ProgramNetworkGrantSetV1) => Promise<T>;
   }): Promise<T>;
   openWorkspace(input: {
     readonly programId: string;
@@ -1069,9 +1078,18 @@ export function createBrowserProgramWorkspaceAuthorityV1(
       });
     },
 
+    loadProgramNetworkGrants(programId) {
+      return serializeV1(() => repository.loadProgramNetworkGrants(programId));
+    },
+
+    setProgramNetworkGrant(input) {
+      return serializeV1(() => repository.setProgramNetworkGrant(input));
+    },
+
     withAgentSubmitAdmission(input) {
       return serializeV1(async () => {
         const pair = await requirePairV1(input.programId);
+        const grants = await repository.loadProgramNetworkGrants(input.programId);
         const program = pair.aggregate.snapshot.program;
         const active = activeWorkspace;
         if (
@@ -1091,7 +1109,10 @@ export function createBrowserProgramWorkspaceAuthorityV1(
         if (snapshot.descriptor.generation !== input.expectedGeneration) {
           throw authorityErrorV1("agent_submit_stale");
         }
-        return await input.operation();
+        if (grants === null || grants.programId !== input.programId) {
+          throw authorityErrorV1("network_grants_missing");
+        }
+        return await input.operation(grants);
       });
     },
 

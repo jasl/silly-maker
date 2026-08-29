@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   createBrowserProgramRepositoryV3,
-  type ProgramRepositoryWorkerLikeV4,
+  type ProgramRepositoryWorkerLikeV5,
 } from "../product/browser-program-repository.ts";
 import {
   createMemoryProgramRepositoryBackingV3,
@@ -18,8 +18,8 @@ import {
   type ProgramRepositorySettleAgentRunInputV3,
   type ProgramRepositoryWithWorkspaceContinuationV1,
 } from "../product/program-repository.ts";
-import { admitProgramRepositoryWorkerRequestEnvelopeV4 } from "../product/program-repository-worker-protocol.ts";
-import { createProgramRepositoryWorkerRuntimeV4 } from "../product/program-repository-worker-runtime.ts";
+import { admitProgramRepositoryWorkerRequestEnvelopeV5 } from "../product/program-repository-worker-protocol.ts";
+import { createProgramRepositoryWorkerRuntimeV5 } from "../product/program-repository-worker-runtime.ts";
 import { createCreatorSessionV1 } from "../product/creator-session.ts";
 import { createDeterministicFakeCreatorV1 } from "../product/fake-creator.ts";
 
@@ -27,7 +27,7 @@ interface WorkerMessageEventV4 {
   readonly data: unknown;
 }
 
-class FakeProgramRepositoryWorkerV4 implements ProgramRepositoryWorkerLikeV4 {
+class FakeProgramRepositoryWorkerV4 implements ProgramRepositoryWorkerLikeV5 {
   readonly messageListeners = new Set<(event: WorkerMessageEventV4) => void>();
   readonly errorListeners = new Set<() => void>();
   readonly messageErrorListeners = new Set<() => void>();
@@ -81,7 +81,7 @@ function createLoopbackWorkerV4(input: {
   readonly throwResponse?: () => boolean;
 }) {
   const worker = new FakeProgramRepositoryWorkerV4();
-  const runtime = createProgramRepositoryWorkerRuntimeV4({
+  const runtime = createProgramRepositoryWorkerRuntimeV5({
     repository: input.repository,
     postMessage: (message) => {
       if (input.throwResponse?.() === true) throw new Error("synthetic Worker post failure");
@@ -210,11 +210,11 @@ function acceptedProgramV3(workspaceId: string) {
   return { ...fixture, accepted, snapshotReceipt, decideInput };
 }
 
-describe("Browser ProgramRepositoryV3 Worker V4 boundary", () => {
+describe("Browser ProgramRepositoryV3 Worker V5 boundary", () => {
   it("rejects retired envelopes and the detached continuation mutation", () => {
     const fixture = acceptedProgramV3("workspace.worker.protocol");
     expect(
-      admitProgramRepositoryWorkerRequestEnvelopeV4({
+      admitProgramRepositoryWorkerRequestEnvelopeV5({
         revision: 3,
         kind: "rpc_request",
         requestId: "program-repository.rpc.legacy",
@@ -222,8 +222,8 @@ describe("Browser ProgramRepositoryV3 Worker V4 boundary", () => {
       }),
     ).toEqual({ kind: "rejected", path: "/revision" });
     expect(
-      admitProgramRepositoryWorkerRequestEnvelopeV4({
-        revision: 4,
+      admitProgramRepositoryWorkerRequestEnvelopeV5({
+        revision: 5,
         kind: "rpc_request",
         requestId: "program-repository.rpc.continuation-load",
         record: {
@@ -236,8 +236,8 @@ describe("Browser ProgramRepositoryV3 Worker V4 boundary", () => {
       value: { record: { method: "load_workspace_continuation" } },
     });
     expect(
-      admitProgramRepositoryWorkerRequestEnvelopeV4({
-        revision: 4,
+      admitProgramRepositoryWorkerRequestEnvelopeV5({
+        revision: 5,
         kind: "rpc_request",
         requestId: "program-repository.rpc.retired-continuation-insert",
         record: {
@@ -247,8 +247,8 @@ describe("Browser ProgramRepositoryV3 Worker V4 boundary", () => {
       }),
     ).toMatchObject({ kind: "rejected" });
     expect(
-      admitProgramRepositoryWorkerRequestEnvelopeV4({
-        revision: 4,
+      admitProgramRepositoryWorkerRequestEnvelopeV5({
+        revision: 5,
         kind: "rpc_request",
         requestId: "program-repository.rpc.accepted-decision",
         record: { method: "decide", input: fixture.decideInput },
@@ -263,8 +263,8 @@ describe("Browser ProgramRepositoryV3 Worker V4 boundary", () => {
       },
     });
     expect(
-      admitProgramRepositoryWorkerRequestEnvelopeV4({
-        revision: 4,
+      admitProgramRepositoryWorkerRequestEnvelopeV5({
+        revision: 5,
         kind: "rpc_request",
         requestId: "program-repository.rpc.invalid-rejected-decision",
         record: {
@@ -298,6 +298,22 @@ describe("Browser ProgramRepositoryV3 Worker V4 boundary", () => {
     await expect(repository.loadWorkspaceContinuation(fixture.program.programId)).resolves.toEqual(
       fixture.continuation,
     );
+    const networkGrant = {
+      origin: "https://assets.example",
+      operation: "download",
+    } as const;
+    await expect(repository.loadProgramNetworkGrants(fixture.program.programId)).resolves.toEqual({
+      revision: 1,
+      programId: fixture.program.programId,
+      grants: [],
+    });
+    await expect(repository.setProgramNetworkGrant({
+      programId: fixture.program.programId,
+      grant: networkGrant,
+      enabled: true,
+    })).resolves.toMatchObject({ kind: "committed", value: { grants: [networkGrant] } });
+    await expect(repository.loadProgramNetworkGrants(fixture.program.programId)).resolves
+      .toMatchObject({ grants: [networkGrant] });
     await expect(repository.list()).resolves.toEqual([
       expect.objectContaining({ updatedAt: 10, repositoryRevision: 1 }),
     ]);
@@ -455,7 +471,7 @@ describe("Browser ProgramRepositoryV3 Worker V4 boundary", () => {
       const requestId = (message as { readonly requestId: string }).requestId;
       queueMicrotask(() => {
         worker.emitMessage({
-          revision: 4,
+          revision: 5,
           kind: "rpc_response",
           requestId,
           record: { kind: "success", method: "create", value: null },

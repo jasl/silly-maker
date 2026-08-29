@@ -16,6 +16,7 @@ import {
   type CreatorAgentSubmitV1,
   type CreatorProgramRevisionCandidateV1,
 } from "../product/contracts.ts";
+import type { ProgramNetworkGrantV1 } from "../product/program-network-grants.ts";
 import {
   type WorkspaceAgentRunV1,
   type WorkspaceExecutionDescriptorV1,
@@ -107,11 +108,17 @@ export interface BrowserPiWorkerRuntimePortV1 {
   dispose(): void;
 }
 
-interface BrowserPiNetworkPermitV1 {
+interface BrowserPiOneShotNetworkPermitV1 {
   readonly programId: string;
   readonly workspaceSessionId: string;
   readonly operation: "fetch_url";
   readonly url: string;
+}
+
+interface BrowserPiDurableNetworkGrantCacheV1 {
+  readonly programId: string;
+  readonly workspaceSessionId: string;
+  readonly grants: readonly ProgramNetworkGrantV1[];
 }
 
 function selectionsShareCredentialScopeV1(
@@ -169,7 +176,8 @@ export function createBrowserPiWorkerRuntimeV1(input: {
   let workspacePhase: "open" | "closed" = "closed";
   let networkClient: BrowserNetworkBrokerClientV1 | null = null;
   let pendingNetworkApproval: BrowserPiNetworkApprovalRequestV1 | null = null;
-  let networkPermit: BrowserPiNetworkPermitV1 | null = null;
+  let oneShotNetworkPermit: BrowserPiOneShotNetworkPermitV1 | null = null;
+  let durableNetworkGrantCache: BrowserPiDurableNetworkGrantCacheV1 | null = null;
   let nextNetworkApprovalId = 1;
   let operationQueue = Promise.resolve();
   const emittedWorkspaceReceipts = new Set<string>();
@@ -342,9 +350,14 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     return run.settlement ?? Promise.resolve();
   };
 
-  const clearNetworkAuthorization = (): void => {
+  const clearTransientNetworkAuthorization = (): void => {
     pendingNetworkApproval = null;
-    networkPermit = null;
+    oneShotNetworkPermit = null;
+  };
+
+  const clearAllNetworkAuthorization = (): void => {
+    clearTransientNetworkAuthorization();
+    durableNetworkGrantCache = null;
   };
 
   const withRunNetworkSignalV1 = async <T>(
@@ -380,11 +393,18 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     ) throw new Error("Creator run was cancelled");
     const url = normalizeBrowserNetworkUrlV1(rawUrl);
     if (url === null) throw new TypeError("fetch_url requires one absolute HTTPS URL");
-    const permit = networkPermit;
-    const permitted = permit !== null && permit.programId === run.programId &&
+    const permit = oneShotNetworkPermit;
+    const oneShotPermitted = permit !== null && permit.programId === run.programId &&
       permit.workspaceSessionId === run.workspaceSessionId &&
       permit.operation === "fetch_url" && permit.url === url;
-    if (!permitted) {
+    const requestOrigin = new URL(url).origin;
+    const durable = durableNetworkGrantCache;
+    const durablyPermitted = durable !== null && durable.programId === run.programId &&
+      durable.workspaceSessionId === run.workspaceSessionId &&
+      durable.grants.some((grant) =>
+        grant.operation === "fetch_url" && grant.origin === requestOrigin
+      );
+    if (!oneShotPermitted && !durablyPermitted) {
       if (pendingNetworkApproval === null) {
         const approval = Object.freeze(
           {
@@ -397,7 +417,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
             runId: run.runId,
             toolCallId,
             operation: "fetch_url",
-            origin: new URL(url).origin,
+            origin: requestOrigin,
             url,
           } satisfies BrowserPiNetworkApprovalRequestV1,
         );
@@ -409,9 +429,9 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       throw new Error("Exact URL approval is required; approve it and retry the request");
     }
 
-    // A one-shot permit is consumed before any Broker request, including one
-    // that later fails or is cancelled.
-    networkPermit = null;
+    // Only the matching one-shot permit is consumed before the Broker request.
+    // A durable Program-origin grant remains cached for this Workspace session.
+    if (oneShotPermitted) oneShotNetworkPermit = null;
     const client = networkClient;
     if (client === null) throw new Error("Browser Network Broker is unavailable");
     const result = await withRunNetworkSignalV1(
@@ -584,9 +604,9 @@ export function createBrowserPiWorkerRuntimeV1(input: {
     }
     if (predecessor !== null && !predecessor.terminal) {
       const preserveApprovedPermit = predecessor.requestedFailure === "approval_required" &&
-        pendingNetworkApproval === null && networkPermit !== null;
+        pendingNetworkApproval === null && oneShotNetworkPermit !== null;
       await requestRunFailure(predecessor, "replaced");
-      if (!preserveApprovedPermit) clearNetworkAuthorization();
+      if (!preserveApprovedPermit) clearTransientNetworkAuthorization();
     }
     if (disposed || activeSessionId !== request.params.sessionId) return;
     const descriptorAfterDrain = workspaceClient?.getDescriptor() ?? null;
@@ -662,7 +682,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         onMutationRecord: handleMutationRecordV1,
       });
       workspacePhase = "open";
-      clearNetworkAuthorization();
+      clearAllNetworkAuthorization();
       post(Object.freeze({
         revision: 1,
         kind: "workspace_response",
@@ -694,7 +714,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         await requestRunFailure(run, "cancelled");
       }
       workspacePhase = "closed";
-      clearNetworkAuthorization();
+      clearAllNetworkAuthorization();
       post(Object.freeze({
         revision: 1,
         kind: "workspace_response",
@@ -718,6 +738,32 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       descriptor.workspaceSessionId !== record.workspaceSessionId
     ) {
       respondWorkspaceFailure(message.requestId, "workspace_mismatch");
+      return;
+    }
+    if (record.method === "replace_network_grants") {
+      if (
+        workspacePhase !== "open" || descriptor.programId !== record.programId
+      ) {
+        respondWorkspaceFailure(message.requestId, "workspace_mismatch");
+        return;
+      }
+      durableNetworkGrantCache = Object.freeze({
+        programId: record.programId,
+        workspaceSessionId: record.workspaceSessionId,
+        grants: Object.freeze(
+          record.grants.map((grant) => Object.freeze({ ...grant })),
+        ),
+      });
+      post(Object.freeze({
+        revision: 1,
+        kind: "workspace_response",
+        requestId: message.requestId,
+        ok: true,
+        response: Object.freeze({
+          method: "replace_network_grants",
+          snapshot: workspaceSnapshotV1(client.getDescriptor(), workspacePhase),
+        }),
+      }));
       return;
     }
     if (record.method === "acknowledge_workspace_receipts") {
@@ -870,13 +916,13 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         return;
       }
       if (message.decision === "allow_once") {
-        networkPermit = Object.freeze({
+        oneShotNetworkPermit = Object.freeze({
           programId: pending.programId,
           workspaceSessionId: pending.workspaceSessionId,
           operation: pending.operation,
           url: pending.url,
         });
-      } else networkPermit = null;
+      } else oneShotNetworkPermit = null;
       pendingNetworkApproval = null;
       post(Object.freeze({
         revision: 1,
@@ -1069,7 +1115,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
         if (predecessor !== null && !predecessor.terminal) {
           await requestRunFailure(predecessor, "replaced");
         }
-        clearNetworkAuthorization();
+        clearTransientNetworkAuthorization();
         activeRun = null;
         activeSessionId = `sillyos.session.${String(nextSessionId++)}`;
         post(Object.freeze({
@@ -1121,7 +1167,7 @@ export function createBrowserPiWorkerRuntimeV1(input: {
       configuredRuntime = null;
       configuredSelection = null;
       connectionReady = false;
-      clearNetworkAuthorization();
+      clearAllNetworkAuthorization();
       networkClient?.close();
       networkClient = null;
       const run = activeRun;

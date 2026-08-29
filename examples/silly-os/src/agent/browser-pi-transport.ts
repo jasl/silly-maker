@@ -13,6 +13,7 @@ import type {
   BrowserProgramWorkspaceAuthorityV1,
   BrowserProgramWorkspaceFatalV1,
 } from "../product/browser-program-workspace-authority.ts";
+import type { ProgramNetworkGrantV1 } from "../product/program-network-grants.ts";
 import type { BrowserWorkspaceHostSnapshotWireV1 } from "../workspace/browser-workspace-host-protocol.ts";
 import type { BrowserNetworkBrokerLeaseV1 } from "../network/browser-network-broker-frame-transport.ts";
 import {
@@ -80,6 +81,11 @@ export interface BrowserPiWorkerRawTransportV1 extends AgentRpcRawTransportInter
   acknowledgeWorkspaceReceipts(input: {
     readonly workspaceSessionId: string;
     readonly throughSequence: number;
+  }): Promise<BrowserPiWorkspaceSnapshotWireV1>;
+  replaceNetworkGrants(input: {
+    readonly programId: string;
+    readonly workspaceSessionId: string;
+    readonly grants: readonly ProgramNetworkGrantV1[];
   }): Promise<BrowserPiWorkspaceSnapshotWireV1>;
   subscribeWorkspaceReceipts(
     listener: (receipt: BrowserPiWorkspaceMutationReceiptWireV1) => void,
@@ -227,7 +233,8 @@ function transportErrorV1(code: string): TypeError {
 }
 
 function isWorkspaceMethodV1(method: PendingCallV1["method"]): boolean {
-  return method.endsWith("_workspace") || method === "acknowledge_workspace_receipts";
+  return method.endsWith("_workspace") || method === "acknowledge_workspace_receipts" ||
+    method === "replace_network_grants";
 }
 
 function hostDescriptorMatchesPiSnapshotV1(
@@ -960,6 +967,14 @@ export function createBrowserPiWorkerRawTransportV1({
         method: "acknowledge_workspace_receipts",
         workspaceSessionId: input.workspaceSessionId,
         throughSequence: input.throughSequence,
+      });
+    },
+    replaceNetworkGrants(input): Promise<BrowserPiWorkspaceSnapshotWireV1> {
+      return workspaceRequestV1({
+        method: "replace_network_grants",
+        programId: input.programId,
+        workspaceSessionId: input.workspaceSessionId,
+        grants: input.grants,
       });
     },
     subscribeWorkspaceReceipts(listener): () => void {

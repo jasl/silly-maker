@@ -66,10 +66,12 @@ S2-N0 还为固定 Pi 增加了一个窄 `fetch_url({ url })` 工具。模型首
 **Allow once** 后，产品通过普通新 run 重试并在请求前消费该精确许可。真正的 `GET` 只在独立
 origin、无 API key 的 Network Broker 中执行，不携带 Cookie、Authorization、referrer、body
 或自定义 header，只返回不超过 `256 KiB` 的声明 UTF-8 文本/JSON/XML。目标仍必须允许 Browser
-CORS；这不是任意网页抓取、搜索、持久授权或文件下载能力。当前三 origin artifact 已发布，
-但线上 artifact 可达不等于任意站点 CORS 或真实模型调用已经通过。下一步 N1 会在 Program
-级网络设置中增加显式 opt-in checkbox：未勾选仍是 **Allow once**，勾选只持久化该 Program
-对精确 normalized origin/operation 的授权；布局与视觉细节留给后续 UI 重做。
+CORS；这不是任意网页抓取、搜索或文件下载能力。N1 已增加 Program 级显式 opt-in：未勾选
+仍是 **Allow once**，勾选只持久化该 Program 对精确 normalized origin/operation 的授权，并可
+撤销。授权只进入普通 Product Repository，不包含完整 URL 或 API Key；Agent Worker 会在每次
+admitted submit 前同步当前 Program 的完整 grant set。当前三 origin artifact 已发布的仍是上一
+版本；线上 artifact 可达不等于任意站点 CORS 或真实模型调用已经通过，本轮 N1/N2/S3 完成后
+会重新部署。
 
 另有一个只在 `?agent=pi-test` 出现的 B0a 验证入口：它会把产品 lockfile 固定的
 `pi-agent-core` / `pi-ai` 0.84.3 懒加载进 Dedicated Worker，通过 typed RPC 运行真实

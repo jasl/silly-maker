@@ -2320,6 +2320,74 @@ body,
   gap: 6px;
 }
 
+.network-approval__remember {
+  display: flex;
+  align-items: center;
+  margin-block-start: 10px;
+  color: #62583d;
+  font-size: 11px;
+  gap: 7px;
+}
+
+.network-approval__remember input {
+  margin: 0;
+}
+
+.network-grants {
+  margin: 16px 0 0 38px;
+  padding: 10px 12px;
+  border: 1px solid #d9dad5;
+  border-radius: 12px;
+  background: #fbfbf9;
+}
+
+.network-grants__heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.network-grants p {
+  margin: 8px 0 0;
+  color: var(--sos-ink-muted);
+  font-size: 11px;
+}
+
+.network-grants ul {
+  display: grid;
+  margin: 8px 0 0;
+  padding: 0;
+  gap: 6px;
+  list-style: none;
+}
+
+.network-grants li,
+.network-grants li > span {
+  display: flex;
+  align-items: center;
+}
+
+.network-grants li {
+  justify-content: space-between;
+  min-inline-size: 0;
+  gap: 8px;
+}
+
+.network-grants li > span {
+  min-inline-size: 0;
+  gap: 6px;
+}
+
+.network-grants code {
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.network-grants small {
+  color: var(--sos-ink-muted);
+  font-size: 9px;
+}
+
 @keyframes silly-os-spin {
   to {
     transform: rotate(360deg);

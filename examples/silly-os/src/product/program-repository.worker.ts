@@ -2,7 +2,7 @@
 /// <reference lib="dom" />
 
 import { createIndexedDbProgramRepositoryV4 } from "./indexeddb-program-repository.ts";
-import { createProgramRepositoryWorkerRuntimeV4 } from "./program-repository-worker-runtime.ts";
+import { createProgramRepositoryWorkerRuntimeV5 } from "./program-repository-worker-runtime.ts";
 
 interface ProgramRepositoryDedicatedWorkerScopeV4 {
   readonly indexedDB: IDBFactory;
@@ -12,7 +12,7 @@ interface ProgramRepositoryDedicatedWorkerScopeV4 {
 
 const scopeV4 = self as unknown as ProgramRepositoryDedicatedWorkerScopeV4;
 const repositoryV4 = createIndexedDbProgramRepositoryV4({ indexedDB: scopeV4.indexedDB });
-const runtimeV4 = createProgramRepositoryWorkerRuntimeV4({
+const runtimeV4 = createProgramRepositoryWorkerRuntimeV5({
   repository: repositoryV4,
   // DedicatedWorkerGlobalScope.postMessage has no targetOrigin parameter.
   // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Worker has no targetOrigin

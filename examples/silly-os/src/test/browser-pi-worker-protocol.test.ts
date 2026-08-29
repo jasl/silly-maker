@@ -452,7 +452,7 @@ describe("Browser Pi Worker protocol", () => {
     expect(admitBrowserPiWorkerInboundMessageV1(rpcEnvelopeV1(invalidInner))).not.toBeNull();
   });
 
-  it("admits exact attach, close, query, and contiguous-prefix acknowledgement requests", () => {
+  it("admits exact Workspace lifecycle, network grant replacement, and acknowledgement requests", () => {
     expect(
       admitBrowserPiWorkerInboundMessageV1(
         workspaceEnvelopeV1({
@@ -480,6 +480,18 @@ describe("Browser Pi Worker protocol", () => {
       kind: "workspace_request",
       record: { method: "acknowledge_workspace_receipts", throughSequence: 3 },
     });
+    const replaceNetworkGrants = {
+      method: "replace_network_grants",
+      programId: programIdV1,
+      workspaceSessionId: workspaceSessionIdV1,
+      grants: [{ origin: "https://assets.example.test", operation: "fetch_url" }],
+    } as const;
+    expect(
+      admitBrowserPiWorkerInboundMessageV1(workspaceEnvelopeV1(replaceNetworkGrants)),
+    ).toEqual(expect.objectContaining({
+      kind: "workspace_request",
+      record: replaceNetworkGrants,
+    }));
 
     expect(
       admitBrowserPiWorkerInboundMessageV1(
@@ -499,6 +511,24 @@ describe("Browser Pi Worker protocol", () => {
         }),
       ),
     ).toBeNull();
+    for (
+      const invalid of [
+        { ...replaceNetworkGrants, grants: [{ ...replaceNetworkGrants.grants[0], extra: true }] },
+        {
+          ...replaceNetworkGrants,
+          grants: [{ origin: "https://assets.example.test/path", operation: "fetch_url" }],
+        },
+        {
+          ...replaceNetworkGrants,
+          grants: [{ origin: "https://assets.example.test", operation: "curl" }],
+        },
+        { ...replaceNetworkGrants, credential: "forbidden" },
+      ]
+    ) {
+      expect(
+        admitBrowserPiWorkerInboundMessageV1(workspaceEnvelopeV1(invalid)),
+      ).toBeNull();
+    }
   });
 
   it("admits close-retained snapshots and only acknowledgements that removed a prefix", () => {
@@ -530,6 +560,37 @@ describe("Browser Pi Worker protocol", () => {
         response: { method: "query_workspace", snapshot: closed },
       }),
     ).not.toBeNull();
+    expect(
+      admitBrowserPiWorkerWorkspaceOutboundMessageV1({
+        revision: 1,
+        kind: "workspace_response",
+        requestId: 25,
+        ok: true,
+        response: { method: "replace_network_grants", snapshot: snapshotV1("open", [], 3) },
+      }),
+    ).not.toBeNull();
+    expect(
+      admitBrowserPiWorkerWorkspaceOutboundMessageV1({
+        revision: 1,
+        kind: "workspace_response",
+        requestId: 26,
+        ok: true,
+        response: { method: "replace_network_grants", snapshot: closed },
+      }),
+    ).toBeNull();
+    expect(
+      admitBrowserPiWorkerWorkspaceOutboundMessageV1({
+        revision: 1,
+        kind: "workspace_response",
+        requestId: 27,
+        ok: true,
+        response: {
+          method: "replace_network_grants",
+          snapshot: snapshotV1("open", [], 3),
+          grants: [],
+        },
+      }),
+    ).toBeNull();
     expect(
       admitBrowserPiWorkerWorkspaceOutboundMessageV1({
         revision: 1,

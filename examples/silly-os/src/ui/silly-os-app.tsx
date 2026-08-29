@@ -20,6 +20,10 @@ import type {
   CreatorDurabilityStateV1,
 } from "../product/creator-controller.ts";
 import type { BrowserProgramWorkspaceAuthorityV1 } from "../product/browser-program-workspace-authority.ts";
+import type {
+  ProgramNetworkGrantSetV1,
+  ProgramNetworkGrantV1,
+} from "../product/program-network-grants.ts";
 import { browserWorkspaceDownloadFileNameMaximumUtf8BytesV1 } from "../workspace/browser-workspace-host-protocol.ts";
 import {
   browserProviderSettingsRevisionV2,
@@ -373,6 +377,10 @@ export function SillyOsAppV1({
   const [workspaceExport, setWorkspaceExport] = useState<WorkpieceWorkspaceExportV1>({
     phase: "idle",
   });
+  const [programNetworkGrants, setProgramNetworkGrants] = useState<
+    ProgramNetworkGrantSetV1 | null
+  >(null);
+  const [networkGrantMutationPending, setNetworkGrantMutationPending] = useState(false);
   const agentFactoryRef = useRef<
     BrowserCreatorAgentModuleV1["createBrowserCreatorAgentPortV1"] | null
   >(null);
@@ -391,6 +399,10 @@ export function SillyOsAppV1({
   const agentWorkspaceLifecycleRef = useRef<Promise<void>>(Promise.resolve());
   const agentTerminalSettlementRef = useRef<Promise<void>>(Promise.resolve());
   const workspaceExportEpochRef = useRef(0);
+  const networkGrantEpochRef = useRef(0);
+  const networkGrantMutationPendingRef = useRef(false);
+  const reportFailureRef = useRef(reportFailure);
+  reportFailureRef.current = reportFailure;
   const workspaceExportAbortRef = useRef<AbortController | null>(null);
   const claimedTerminalRunIdsRef = useRef(new Set<string>());
   const controllerSnapshot = useSyncExternalStore(
@@ -409,6 +421,19 @@ export function SillyOsAppV1({
     : null;
   const executionWorkspaceSessionId = agentSnapshot?.workspace.descriptor?.workspaceSessionId ??
     null;
+
+  useEffect(() => {
+    const epoch = ++networkGrantEpochRef.current;
+    setProgramNetworkGrants(null);
+    if (routedProgramId === null) return;
+    void workspaceAuthority.loadProgramNetworkGrants(routedProgramId).then((grants) => {
+      if (networkGrantEpochRef.current !== epoch) return;
+      setProgramNetworkGrants(grants);
+    }, (error: unknown) => {
+      if (networkGrantEpochRef.current !== epoch) return;
+      reportFailureRef.current("silly_os.browser_network_grants_load_failed", error);
+    });
+  }, [routedProgramId, workspaceAuthority]);
 
   const queueAgentPortTeardownV1 = useCallback((
     port: BrowserCreatorAgentPortV1,
@@ -1039,12 +1064,64 @@ export function SillyOsAppV1({
     return false;
   };
 
+  const mutateProgramNetworkGrantV1 = async (
+    programId: string,
+    grant: ProgramNetworkGrantV1,
+    enabled: boolean,
+  ): Promise<ProgramNetworkGrantSetV1 | null> => {
+    if (networkGrantMutationPendingRef.current || routedProgramId !== programId) return null;
+    networkGrantMutationPendingRef.current = true;
+    setNetworkGrantMutationPending(true);
+    try {
+      const mutation = await workspaceAuthority.setProgramNetworkGrant({
+        programId,
+        grant,
+        enabled,
+      });
+      if (mutation.kind === "missing") {
+        reportFailure("silly_os.browser_network_grant_failed", "program_missing");
+        return null;
+      }
+      const grants = mutation.value;
+      if (routedProgramId === programId) setProgramNetworkGrants(grants);
+      const port = agentPortRef.current;
+      const descriptor = port?.getSnapshot().workspace.descriptor ?? null;
+      if (port !== null && descriptor?.programId === programId) {
+        const synchronized = await port.synchronizeNetworkGrants(grants);
+        if (synchronized.kind !== "synchronized") {
+          // The durable mutation is authoritative. Terminate a Worker whose
+          // stale cache could otherwise retain a revoked origin.
+          forgetPiAgentV1();
+          reportFailure("silly_os.browser_network_grant_sync_failed", synchronized.diagnostic);
+          return null;
+        }
+      }
+      return grants;
+    } catch (error) {
+      reportFailure("silly_os.browser_network_grant_failed", error);
+      return null;
+    } finally {
+      networkGrantMutationPendingRef.current = false;
+      setNetworkGrantMutationPending(false);
+    }
+  };
+
   const resolveNetworkApprovalV1 = async (
     approvalId: string,
     decision: "allow_once" | "deny",
+    persistForProgram = false,
   ): Promise<boolean> => {
     const port = agentPortRef.current;
     if (port === null) return false;
+    const approval = port.getSnapshot().networkApproval;
+    if (approval === null || approval.approvalId !== approvalId) return false;
+    if (decision === "allow_once" && persistForProgram) {
+      const grants = await mutateProgramNetworkGrantV1(approval.programId, {
+        origin: approval.origin,
+        operation: approval.operation,
+      }, true);
+      if (grants === null || agentPortRef.current !== port) return false;
+    }
     let result: Awaited<ReturnType<BrowserCreatorAgentPortV1["resolveNetworkApproval"]>>;
     try {
       result = await port.resolveNetworkApproval({ approvalId, decision });
@@ -1062,6 +1139,13 @@ export function SillyOsAppV1({
       return false;
     }
     return sendFollowUpV1(result.retryText);
+  };
+
+  const revokeProgramNetworkGrantV1 = async (
+    grant: ProgramNetworkGrantV1,
+  ): Promise<boolean> => {
+    if (routedProgramId === null) return false;
+    return await mutateProgramNetworkGrantV1(routedProgramId, grant, false) !== null;
   };
 
   const retryAgentWorkspaceV1 = (): void => {
@@ -1453,6 +1537,12 @@ export function SillyOsAppV1({
                         pendingNetworkApproval.approvalId,
                         "allow_once",
                       ),
+                    onAllowForProgram: () =>
+                      resolveNetworkApprovalV1(
+                        pendingNetworkApproval.approvalId,
+                        "allow_once",
+                        true,
+                      ),
                     onDeny: () =>
                       resolveNetworkApprovalV1(
                         pendingNetworkApproval.approvalId,
@@ -1461,6 +1551,13 @@ export function SillyOsAppV1({
                   },
                 }),
               },
+              ...(programNetworkGrants === null ? {} : {
+                networkGrants: {
+                  grants: programNetworkGrants.grants,
+                  pending: networkGrantMutationPending,
+                  onRevoke: revokeProgramNetworkGrantV1,
+                },
+              }),
             })}
           />
         )}

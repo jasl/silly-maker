@@ -154,10 +154,11 @@ interface DurableWorkspaceContinuationV1 {
   readonly repositoryRevision: number;
 }
 
-interface DurableProgramDatabaseStateV5 {
-  readonly version: 5;
+interface DurableProgramDatabaseStateV6 {
+  readonly version: 6;
   readonly programRows: readonly unknown[];
   readonly continuationRows: readonly unknown[];
+  readonly networkGrantRows: readonly unknown[];
 }
 
 const workspaceExportManifestNameV1 = "sillyos-workspace.json";
@@ -176,9 +177,9 @@ async function readWorkspaceContinuationV1(
 ): Promise<DurableWorkspaceContinuationV1 | null> {
   return await page.evaluate(async (requestedProgramId) => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("sillymaker.example-silly-os.programs");
-      request.addEventListener("error", () => reject(request.error));
-      request.addEventListener("success", () => resolve(request.result));
+      const openRequest = indexedDB.open("sillymaker.example-silly-os.programs");
+      openRequest.addEventListener("error", () => reject(openRequest.error));
+      openRequest.addEventListener("success", () => resolve(openRequest.result));
     });
     try {
       return await new Promise<DurableWorkspaceContinuationV1 | null>((resolve, reject) => {
@@ -404,9 +405,9 @@ async function readDurableProgramV3(
 ): Promise<DurableProgramProjectionV3 | null> {
   return await page.evaluate(async (requestedProgramId) => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("sillymaker.example-silly-os.programs");
-      request.addEventListener("error", () => reject(request.error));
-      request.addEventListener("success", () => resolve(request.result));
+      const grantDatabaseRequest = indexedDB.open("sillymaker.example-silly-os.programs");
+      grantDatabaseRequest.addEventListener("error", () => reject(grantDatabaseRequest.error));
+      grantDatabaseRequest.addEventListener("success", () => resolve(grantDatabaseRequest.result));
     });
     try {
       return await new Promise<DurableProgramProjectionV3 | null>((resolve, reject) => {
@@ -421,7 +422,7 @@ async function readDurableProgramV3(
   }, programId);
 }
 
-async function readProgramDatabaseStateV5(page: Page): Promise<DurableProgramDatabaseStateV5> {
+async function readProgramDatabaseStateV6(page: Page): Promise<DurableProgramDatabaseStateV6> {
   return await page.evaluate(async () => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open("sillymaker.example-silly-os.programs");
@@ -430,7 +431,7 @@ async function readProgramDatabaseStateV5(page: Page): Promise<DurableProgramDat
     });
     try {
       const transaction = database.transaction(
-        ["programs", "workspace_continuations"],
+        ["programs", "workspace_continuations", "program_network_grants"],
         "readonly",
       );
       const readAllV1 = (storeName: string): Promise<unknown[]> =>
@@ -439,15 +440,17 @@ async function readProgramDatabaseStateV5(page: Page): Promise<DurableProgramDat
           request.addEventListener("error", () => reject(request.error));
           request.addEventListener("success", () => resolve(request.result));
         });
-      const [programRows, continuationRows] = await Promise.all([
+      const [programRows, continuationRows, networkGrantRows] = await Promise.all([
         readAllV1("programs"),
         readAllV1("workspace_continuations"),
+        readAllV1("program_network_grants"),
       ]);
       return {
         version: database.version,
         programRows,
         continuationRows,
-      } as DurableProgramDatabaseStateV5;
+        networkGrantRows,
+      } as DurableProgramDatabaseStateV6;
     } finally {
       database.close();
     }
@@ -1917,10 +1920,11 @@ test("Playwright WebKit's non-persistent context reports unavailable OPFS withou
   await expect(
     page.getByRole("button", { name: "Open program: Translation Workshop", exact: true }),
   ).toHaveCount(0);
-  await expect(readProgramDatabaseStateV5(page)).resolves.toEqual({
-    version: 5,
+  await expect(readProgramDatabaseStateV6(page)).resolves.toEqual({
+    version: 6,
     programRows: [],
     continuationRows: [],
+    networkGrantRows: [],
   });
 });
 
@@ -2213,7 +2217,8 @@ test("@mobile portrait uses one navigable pane without page overflow", async ({ 
   await expectNoPageOverflowV1(page);
 });
 
-test("the fixed Pi fetch_url tool requires one exact grant and crosses only the keyless Network Broker", async ({ durableProgramPage: page }) => {
+test("the fixed Pi fetch_url tool keeps one-shot and durable Program grants separate from the keyless Network Broker", async ({ durableProgramPage: page }) => {
+  test.setTimeout(120_000);
   const sentinelKey = "sillyos-network-key-must-not-cross-broker";
   const targetUrl = "https://network-target.test/assets/notes.txt?source=silly-os";
   const targetBody = "SillyOS Browser Broker physical response\n";
@@ -2227,7 +2232,7 @@ test("the fixed Pi fetch_url tool requires one exact grant and crosses only the 
   };
   const targetRequests: CapturedBrokerRequestV1[] = [];
 
-  await page.route(targetUrl, async (route) => {
+  await page.route("https://network-target.test/**", async (route) => {
     const request = route.request();
     targetRequests.push({
       method: request.method(),
@@ -2334,6 +2339,82 @@ test("the fixed Pi fetch_url tool requires one exact grant and crosses only the 
   await expect.poll(async () =>
     (await readDurableProgramV3(page, programId))?.agentRunReceipts.length ?? -1
   ).toBe(durableReceiptCount);
+
+  const durableTargetUrl = "https://network-target.test/assets/durable.txt?grant=program";
+  const durableRequirement = `${deterministicFetchUrlProbePrefixV1}${durableTargetUrl}`;
+  await composer.fill(durableRequirement);
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(approval).toBeVisible();
+  await approval.getByRole("checkbox", {
+    name: "Allow this destination for this Program",
+  }).check();
+  await approval.getByRole("button", { name: "Allow for this Program" }).click();
+  await expect.poll(() => targetRequests.length).toBe(2);
+  await expect(approval).toHaveCount(0);
+  await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v3");
+
+  const reusedTargetUrl = "https://network-target.test/assets/reused.txt?grant=durable";
+  const reusedRequirement = `${deterministicFetchUrlProbePrefixV1}${reusedTargetUrl}`;
+  await composer.fill(reusedRequirement);
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect.poll(() => targetRequests.length).toBe(3);
+  await expect(approval).toHaveCount(0);
+  await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v4");
+
+  const rawGrant = await page.evaluate(async (requestedProgramId) => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const grantDatabaseRequest = indexedDB.open("sillymaker.example-silly-os.programs");
+      grantDatabaseRequest.addEventListener("error", () => reject(grantDatabaseRequest.error));
+      grantDatabaseRequest.addEventListener("success", () => resolve(grantDatabaseRequest.result));
+    });
+    try {
+      return await new Promise<unknown>((resolve, reject) => {
+        const transaction = database.transaction("program_network_grants", "readonly");
+        const grantRequest = transaction.objectStore("program_network_grants").get(
+          requestedProgramId,
+        );
+        grantRequest.addEventListener("error", () => reject(grantRequest.error));
+        grantRequest.addEventListener("success", () => resolve(grantRequest.result));
+      });
+    } finally {
+      database.close();
+    }
+  }, programId);
+  expect(rawGrant).toEqual({
+    revision: 1,
+    programId,
+    grants: [{ operation: "fetch_url", origin: "https://network-target.test" }],
+  });
+  expect(JSON.stringify(rawGrant)).not.toContain(durableTargetUrl);
+  expect(JSON.stringify(rawGrant)).not.toContain(sentinelKey);
+
+  await page.getByRole("button", { name: "Creator home" }).click();
+  await expectProgramStorageReadyV1(page);
+  await page.reload();
+  await expectProgramStorageReadyV1(page);
+  await initializePiTestV1(page, sentinelKey);
+  await openRecentTranslationProgramV1(page, {
+    programId,
+    revision: 4,
+    status: "Preview",
+  });
+  const reopenedComposer = page.getByRole("textbox", { name: "Ask for a change…" });
+  const coldTargetUrl = "https://network-target.test/assets/cold.txt?grant=reopened";
+  await reopenedComposer.fill(`${deterministicFetchUrlProbePrefixV1}${coldTargetUrl}`);
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect.poll(() => targetRequests.length).toBe(4);
+  await expect(approval).toHaveCount(0);
+  await expect(page.locator('[data-proposal-status="pending"]')).toContainText("v5");
+
+  await page.getByRole("button", { name: "Revoke" }).click();
+  await expect(page.getByText("No destinations are allowed for this Program.")).toBeVisible();
+  const revokedTargetUrl = "https://network-target.test/assets/revoked.txt";
+  await reopenedComposer.fill(`${deterministicFetchUrlProbePrefixV1}${revokedTargetUrl}`);
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(approval).toBeVisible();
+  expect(targetRequests).toHaveLength(4);
+  await approval.getByRole("button", { name: "Deny" }).click();
+  await expect(approval).toHaveCount(0);
 
   for (const capturedRequest of targetRequests) {
     expect(capturedRequest.method).toBe("GET");

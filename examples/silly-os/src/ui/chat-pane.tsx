@@ -170,6 +170,17 @@ export interface ChatPanePropsV1 {
   readonly onSend: (text: string) => boolean | void | Promise<boolean | void>;
   readonly providerModel?: ComposerModelControlV1;
   readonly mutationPending?: boolean;
+  readonly networkGrants?: {
+    readonly grants: readonly {
+      readonly origin: string;
+      readonly operation: "fetch_url" | "download";
+    }[];
+    readonly pending: boolean;
+    readonly onRevoke: (grant: {
+      readonly origin: string;
+      readonly operation: "fetch_url" | "download";
+    }) => boolean | void | Promise<boolean | void>;
+  };
   readonly piAgentRun?: {
     readonly runtime: BrowserPiWorkerRuntimeV1;
     readonly status:
@@ -188,6 +199,7 @@ export interface ChatPanePropsV1 {
       readonly origin: string;
       readonly url: string;
       readonly onAllowOnce: () => boolean | void | Promise<boolean | void>;
+      readonly onAllowForProgram: () => boolean | void | Promise<boolean | void>;
       readonly onDeny: () => boolean | void | Promise<boolean | void>;
     };
   };
@@ -206,10 +218,12 @@ export function ChatPaneV1({
   onSend,
   providerModel,
   mutationPending = false,
+  networkGrants,
   piAgentRun,
 }: ChatPanePropsV1): ReactNode {
   const [draft, setDraft] = useState("");
   const [networkDecisionPending, setNetworkDecisionPending] = useState(false);
+  const [rememberNetworkOrigin, setRememberNetworkOrigin] = useState(false);
   const feedEndRef = useRef<HTMLDivElement>(null);
   const resourceInputRef = useRef<HTMLInputElement>(null);
   const liveAgent = piAgentRun?.runtime === "pi_provider";
@@ -228,6 +242,7 @@ export function ChatPaneV1({
 
   useEffect(() => {
     setNetworkDecisionPending(false);
+    setRememberNetworkOrigin(false);
   }, [networkApproval?.approvalId]);
 
   const resolveNetworkApprovalV1 = (
@@ -370,15 +385,31 @@ export function ChatPaneV1({
                 </dd>
               </div>
             </dl>
+            <label className="network-approval__remember">
+              <input
+                type="checkbox"
+                checked={rememberNetworkOrigin}
+                disabled={networkDecisionPending}
+                onChange={(event) => setRememberNetworkOrigin(event.currentTarget.checked)}
+              />
+              <span>{copy.networkApprovalRememberProgram}</span>
+            </label>
             <div className="network-approval__actions">
               <Button
                 type="button"
                 size="sm"
                 variant="primary"
                 disabled={networkDecisionPending}
-                onClick={() => resolveNetworkApprovalV1(networkApproval.onAllowOnce)}
+                onClick={() =>
+                  resolveNetworkApprovalV1(
+                    rememberNetworkOrigin
+                      ? networkApproval.onAllowForProgram
+                      : networkApproval.onAllowOnce,
+                  )}
               >
-                {copy.networkApprovalAllowOnce}
+                {rememberNetworkOrigin
+                  ? copy.networkApprovalAllowProgram
+                  : copy.networkApprovalAllowOnce}
               </Button>
               <Button
                 type="button"
@@ -391,6 +422,38 @@ export function ChatPaneV1({
               </Button>
             </div>
           </aside>
+        )}
+
+        {networkGrants !== undefined && (
+          <section className="network-grants" aria-labelledby="network-grants-heading">
+            <div className="network-grants__heading">
+              <Globe2 size={15} aria-hidden="true" />
+              <strong id="network-grants-heading">{copy.networkAccessTitle}</strong>
+            </div>
+            {networkGrants.grants.length === 0 ? <p>{copy.networkAccessEmpty}</p> : (
+              <ul>
+                {networkGrants.grants.map((grant) => (
+                  <li key={`${grant.operation}:${grant.origin}`}>
+                    <span>
+                      <code>{grant.origin}</code>
+                      <small>{grant.operation}</small>
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={networkGrants.pending || interactionPending}
+                      onClick={() => {
+                        void Promise.resolve(networkGrants.onRevoke(grant));
+                      }}
+                    >
+                      {copy.networkAccessRevoke}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         )}
 
         {program !== null && proposal !== null && (

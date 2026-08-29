@@ -68,6 +68,7 @@ export interface ProgramWorkspacePropsV1 {
   readonly providerModel?: ChatPanePropsV1["providerModel"];
   readonly homeDisabled?: boolean;
   readonly mutationPending?: boolean;
+  readonly networkGrants?: ChatPanePropsV1["networkGrants"];
   readonly piAgentRun?: ChatPanePropsV1["piAgentRun"];
   readonly executionWorkspace?: WorkpieceExecutionWorkspaceV1;
   readonly browserStorage?: WorkpieceBrowserStorageV1;
@@ -154,6 +155,7 @@ function ProgramWorkspaceReadyV1({
   providerModel,
   homeDisabled = false,
   mutationPending = false,
+  networkGrants,
   piAgentRun,
   executionWorkspace,
   browserStorage,
@@ -328,6 +330,7 @@ function ProgramWorkspaceReadyV1({
             onSend={onSend}
             mutationPending={mutationPending}
             {...(providerModel === undefined ? {} : { providerModel })}
+            {...(networkGrants === undefined ? {} : { networkGrants })}
             {...(piAgentRun === undefined ? {} : { piAgentRun })}
           />
         </div>

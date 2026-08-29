@@ -48,6 +48,12 @@ import type {
 import { serializeCreatorAgentSubmitV1 } from "../product/creator-agent-admission.ts";
 import type { CreatorAgentRunRequestV1, CreatorAgentSubmitV1 } from "../product/contracts.ts";
 import {
+  applyProgramNetworkGrantMutationV1,
+  cloneProgramNetworkGrantSetV1,
+  createEmptyProgramNetworkGrantSetV1,
+  type ProgramNetworkGrantSetV1,
+} from "../product/program-network-grants.ts";
+import {
   programWorkspaceSnapshotReceiptsEqualV1,
   type ProgramWorkspaceSnapshotReceiptV1,
   workspaceRootV1,
@@ -652,6 +658,7 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
   private nextRequestId = 1;
   private nextCheckpointOrdinal = 2;
   private controlledWorkerGeneration: number | null = null;
+  private readonly programNetworkGrants = new Map<string, ProgramNetworkGrantSetV1>();
   private disposed = false;
   closeWorkspaceCalls = 0;
   agentSubmitAdmissionCalls = 0;
@@ -725,6 +732,26 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
     throw new Error("test repository decision is unavailable");
   }
 
+  async loadProgramNetworkGrants(programId: string): Promise<ProgramNetworkGrantSetV1> {
+    return cloneProgramNetworkGrantSetV1(
+      this.programNetworkGrants.get(programId) ?? createEmptyProgramNetworkGrantSetV1(programId),
+    );
+  }
+
+  async setProgramNetworkGrant(
+    input: Parameters<BrowserProgramWorkspaceAuthorityV1["setProgramNetworkGrant"]>[0],
+  ): ReturnType<BrowserProgramWorkspaceAuthorityV1["setProgramNetworkGrant"]> {
+    const applied = applyProgramNetworkGrantMutationV1(
+      await this.loadProgramNetworkGrants(input.programId),
+      input,
+    );
+    if (applied.kind === "capacity_exceeded") {
+      throw new Error("test Program network grant capacity exceeded");
+    }
+    this.programNetworkGrants.set(input.programId, cloneProgramNetworkGrantSetV1(applied.value));
+    return { kind: applied.kind, value: cloneProgramNetworkGrantSetV1(applied.value) };
+  }
+
   async withAgentSubmitAdmission<T>(
     input: {
       readonly programId: string;
@@ -732,11 +759,13 @@ class TestBrowserProgramWorkspaceAuthorityV1 implements BrowserProgramWorkspaceA
       readonly expectedProgramRevision: number;
       readonly expectedRepositoryRevision: number;
       readonly expectedGeneration: number;
-      readonly operation: () => Promise<T>;
+      readonly operation: (
+        grants: ReturnType<typeof createEmptyProgramNetworkGrantSetV1>,
+      ) => Promise<T>;
     },
   ): Promise<T> {
     this.agentSubmitAdmissionCalls += 1;
-    return await input.operation();
+    return await input.operation(await this.loadProgramNetworkGrants(input.programId));
   }
 
   get readFileRangeRequests(): TestBrowserWorkspaceVolumeStateV1["readFileRangeRequests"] {
@@ -1101,6 +1130,12 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
   selectModelRequests = 0;
   startRequests = 0;
   testConnectionRequests = 0;
+  readonly requestOrder: string[] = [];
+  readonly networkGrantReplacements: Array<{
+    readonly programId: string;
+    readonly workspaceSessionId: string;
+    readonly grants: ProgramNetworkGrantSetV1["grants"];
+  }> = [];
   readonly workspaceReceiptAcknowledgements: number[] = [];
   private configuredRuntime: unknown = null;
   private configuredSelection: unknown = null;
@@ -1252,6 +1287,17 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
           ...this.workspace,
           receipts: this.workspace.receipts.filter((receipt) => receipt.sequence > throughSequence),
         };
+      } else if (record.method === "replace_network_grants") {
+        this.requestOrder.push("replace_network_grants");
+        this.networkGrantReplacements.push(structuredClone({
+          programId: record.programId,
+          workspaceSessionId: record.workspaceSessionId,
+          grants: record.grants,
+        }) as {
+          readonly programId: string;
+          readonly workspaceSessionId: string;
+          readonly grants: ProgramNetworkGrantSetV1["grants"];
+        });
       }
       const workspace = this.workspace;
       if (workspace === null) throw new Error("expected controlled Workspace snapshot");
@@ -1283,6 +1329,7 @@ class ControllableBrowserPiWorkerV1 implements BrowserPiWorkerLikeV1 {
       return;
     }
     if (record.method === "submit") {
+      this.requestOrder.push("submit");
       const execution = envelope.execution as BrowserPiWorkerExecutionBindingV1 | undefined;
       if (
         execution === undefined || this.workspace?.phase !== "open" ||
@@ -3049,6 +3096,160 @@ describe("SillyOS Browser Pi Worker runtime", () => {
     await workspaceAuthority.dispose();
   });
 
+  it("binds durable network grants to one exact Program Workspace and does not consume them", async () => {
+    const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
+    const brokerRequests: string[] = [];
+    const brokerLease = createTestNetworkBrokerLeaseV1({
+      onRequest: (url, respond) => {
+        brokerRequests.push(url);
+        respond();
+      },
+    });
+    const workspaceAuthority = testWorkspaceAuthorityV1();
+    const runtime = createBrowserPiWorkerRuntimeCoreV1({
+      postMessage: (message) => messages.push(structuredClone(message)),
+    });
+    runtime.receive({
+      revision: 1,
+      kind: "configure",
+      requestId: 1,
+      runtime: "deterministic_test",
+      selection: null,
+      credential: { kind: "api_key", value: "sentinel-network-key" },
+    }, [brokerLease.agentPort]);
+    const execution = await attachRuntimeWorkspaceV1(
+      runtime,
+      messages,
+      workspaceAuthority,
+      2,
+    );
+
+    runtime.receive(workspaceRequestV1(3, {
+      method: "replace_network_grants",
+      programId: "program.other",
+      workspaceSessionId: execution.workspaceSessionId,
+      grants: [{ origin: "https://example.test", operation: "fetch_url" }],
+    }));
+    runtime.receive(workspaceRequestV1(4, {
+      method: "replace_network_grants",
+      programId: execution.programId,
+      workspaceSessionId: "workspace.session.other",
+      grants: [{ origin: "https://example.test", operation: "fetch_url" }],
+    }));
+    await waitUntilV1(() =>
+      [3, 4].every((requestId) =>
+        messages.some((message) =>
+          message.kind === "workspace_response" && message.requestId === requestId &&
+          !message.ok && message.code === "workspace_mismatch"
+        )
+      )
+    );
+
+    runtime.receive(workspaceRequestV1(5, {
+      method: "replace_network_grants",
+      programId: execution.programId,
+      workspaceSessionId: execution.workspaceSessionId,
+      grants: [{ origin: "https://example.test", operation: "fetch_url" }],
+    }));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "workspace_response" && message.requestId === 5 && message.ok &&
+        message.response.method === "replace_network_grants"
+      )
+    );
+    runtime.receive(rpcRequestV1(6, { revision: 1, requestId: 1, method: "start" }));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "rpc_response" && message.requestId === 6 && message.ok
+      )
+    );
+    const url = "https://example.test/reference.txt?revision=durable";
+    const submitFetchV1 = (
+      requestId: number,
+      sessionId: string,
+      proposalId: string,
+      binding: BrowserPiWorkerExecutionBindingV1,
+    ): void => {
+      runtime.receive(rpcRequestV1(requestId, {
+        revision: 1,
+        requestId,
+        method: "submit",
+        params: {
+          sessionId,
+          text: serializeCreatorAgentSubmitV1({
+            ...submitV1,
+            proposalId,
+            text: `${deterministicFetchUrlProbePrefixV1}${url}`,
+          }),
+        },
+      }, binding));
+    };
+    submitFetchV1(
+      7,
+      "sillyos.session.1",
+      "workspace.preview.1.proposal.network.durable.1",
+      execution,
+    );
+    await waitUntilV1(() =>
+      brokerRequests.length === 1 && messages.some((message) =>
+        message.kind === "rpc_record" &&
+        (message.record as Readonly<Record<string, unknown>>).runId === "sillyos.run.1" &&
+        (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
+      )
+    );
+    submitFetchV1(
+      8,
+      "sillyos.session.1",
+      "workspace.preview.1.proposal.network.durable.2",
+      execution,
+    );
+    await waitUntilV1(() =>
+      brokerRequests.length === 2 && messages.some((message) =>
+        message.kind === "rpc_record" &&
+        (message.record as Readonly<Record<string, unknown>>).runId === "sillyos.run.2" &&
+        (message.record as Readonly<Record<string, unknown>>).kind === "run_completed"
+      )
+    );
+    expect(messages.some((message) => message.kind === "network_approval_required")).toBe(false);
+
+    runtime.receive(workspaceRequestV1(9, {
+      method: "close_workspace",
+      workspaceSessionId: execution.workspaceSessionId,
+    }));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "workspace_response" && message.requestId === 9 && message.ok
+      )
+    );
+    await workspaceAuthority.closeWorkspace(execution.workspaceSessionId);
+    const reopenedExecution = await attachRuntimeWorkspaceV1(
+      runtime,
+      messages,
+      workspaceAuthority,
+      10,
+    );
+    runtime.receive(rpcRequestV1(11, { revision: 1, requestId: 2, method: "start" }));
+    await waitUntilV1(() =>
+      messages.some((message) =>
+        message.kind === "rpc_response" && message.requestId === 11 && message.ok
+      )
+    );
+    submitFetchV1(
+      12,
+      "sillyos.session.2",
+      "workspace.preview.1.proposal.network.durable.3",
+      reopenedExecution,
+    );
+    await waitUntilV1(() =>
+      messages.some((message) => message.kind === "network_approval_required")
+    );
+    expect(brokerRequests).toEqual([url, url]);
+
+    runtime.dispose();
+    brokerLease.terminate();
+    await workspaceAuthority.dispose();
+  });
+
   it("requires exact fetch_url approval, then consumes one permit without sending the key", async () => {
     const messages: BrowserPiWorkerAnyOutboundMessageV1[] = [];
     const brokerMessages: unknown[] = [];
@@ -3415,7 +3616,11 @@ describe("SillyOS Browser Pi transport and product port", () => {
         applyRevision: repositoryUnavailable,
         settleAgentRun: repositoryUnavailable,
         decide: repositoryUnavailable,
-        withAgentSubmitAdmission: async (input) => await input.operation(),
+        loadProgramNetworkGrants: (programId) =>
+          Promise.resolve(createEmptyProgramNetworkGrantSetV1(programId)),
+        setProgramNetworkGrant: repositoryUnavailable,
+        withAgentSubmitAdmission: async (input) =>
+          await input.operation(createEmptyProgramNetworkGrantSetV1(input.programId)),
         openWorkspace: () =>
           Promise.reject(
             new BrowserWorkspaceHostControlErrorV1(hostCode, `synthetic ${hostCode}`),
@@ -3541,6 +3746,54 @@ describe("SillyOS Browser Pi transport and product port", () => {
     ).resolves.toMatchObject({ kind: "opened" });
     await expect(port.submit(productRunV1())).resolves.toMatchObject({ kind: "submitted" });
     expect(worker.testConnectionRequests).toBe(0);
+    await port.dispose();
+  });
+
+  it("replaces the complete Program grant set before submitting and rejects another scope", async () => {
+    const workspaceAuthority = new TestBrowserProgramWorkspaceAuthorityV1();
+    const grants = [
+      { origin: "https://downloads.example.test", operation: "download" as const },
+      { origin: "https://assets.example.test", operation: "fetch_url" as const },
+    ];
+    for (const grant of grants) {
+      await expect(workspaceAuthority.setProgramNetworkGrant({
+        programId: submitV1.programId,
+        grant,
+        enabled: true,
+      })).resolves.toMatchObject({ kind: "committed" });
+    }
+    const worker = new ControllableBrowserPiWorkerV1();
+    const port = createBrowserCreatorAgentPortV1({
+      runtime: "deterministic_test",
+      workspaceAuthority,
+      workerFactory: () => worker,
+    });
+    await expect(port.configureCredential("sentinel-browser-key")).resolves.toEqual({
+      kind: "configured",
+    });
+    await expect(
+      port.openWorkspace({ programId: submitV1.programId, workspaceId: workspaceIdV1 }),
+    ).resolves.toMatchObject({ kind: "opened" });
+
+    await expect(port.synchronizeNetworkGrants(
+      createEmptyProgramNetworkGrantSetV1("program.other"),
+    )).resolves.toEqual({
+      kind: "unavailable",
+      diagnostic: { code: "request_failed", path: "/networkGrants/scope" },
+    });
+    expect(worker.networkGrantReplacements).toEqual([]);
+
+    await expect(port.submit(productRunV1())).resolves.toEqual({
+      kind: "submitted",
+      agentRunId: "agent.run.product.1",
+    });
+    expect(worker.networkGrantReplacements).toEqual([{
+      programId: submitV1.programId,
+      workspaceSessionId: workspaceSessionIdV1,
+      grants,
+    }]);
+    expect(worker.requestOrder).toEqual(["replace_network_grants", "submit"]);
+    expect(workspaceAuthority.agentSubmitAdmissionCalls).toBe(1);
     await port.dispose();
   });
 

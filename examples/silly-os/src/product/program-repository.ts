@@ -17,6 +17,11 @@ import {
   programWorkspaceSnapshotReceiptsEqualV1,
   type ProgramWorkspaceSnapshotReceiptV1,
 } from "../workspace/contracts.ts";
+import type {
+  ProgramNetworkGrantMutationResultV1,
+  ProgramNetworkGrantMutationV1,
+  ProgramNetworkGrantSetV1,
+} from "./program-network-grants.ts";
 
 export const programRepositorySchemaVersionV3 = 3 as const;
 export const programRepositoryAggregateMaximumBytesV3 = 512 * 1024;
@@ -37,10 +42,12 @@ export type ProgramRepositoryOperationV3 =
   | "list"
   | "load"
   | "load_workspace_continuation"
+  | "load_program_network_grants"
   | "create"
   | "apply_revision"
   | "decide"
   | "settle_agent_run"
+  | "set_program_network_grant"
   | "dispose";
 
 export type ProgramRepositoryFailureCodeV3 =
@@ -220,9 +227,17 @@ export interface ProgramRepositoryWorkspaceContinuationV1 {
   ): Promise<BrowserProgramContinuationManifestV1 | null>;
 }
 
+export interface ProgramRepositoryNetworkGrantsV1 {
+  loadProgramNetworkGrants(programId: string): Promise<ProgramNetworkGrantSetV1 | null>;
+  setProgramNetworkGrant(
+    input: ProgramNetworkGrantMutationV1,
+  ): Promise<ProgramNetworkGrantMutationResultV1>;
+}
+
 export type ProgramRepositoryWithWorkspaceContinuationV1 =
   & ProgramRepositoryV3
-  & ProgramRepositoryWorkspaceContinuationV1;
+  & ProgramRepositoryWorkspaceContinuationV1
+  & ProgramRepositoryNetworkGrantsV1;
 
 export type ProgramRepositoryAdmissionResultV3<TValue> =
   | { readonly kind: "admitted"; readonly value: TValue }

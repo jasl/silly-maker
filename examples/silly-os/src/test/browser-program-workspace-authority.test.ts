@@ -417,6 +417,10 @@ function proxyRepositoryV1(
     load: overrides.load ?? ((programId) => delegate.load(programId)),
     loadWorkspaceContinuation: overrides.loadWorkspaceContinuation ??
       ((programId) => delegate.loadWorkspaceContinuation(programId)),
+    loadProgramNetworkGrants: overrides.loadProgramNetworkGrants ??
+      ((programId) => delegate.loadProgramNetworkGrants(programId)),
+    setProgramNetworkGrant: overrides.setProgramNetworkGrant ??
+      ((input) => delegate.setProgramNetworkGrant(input)),
     create: overrides.create ?? ((input) => delegate.create(input)),
     applyRevision: overrides.applyRevision ?? ((input) => delegate.applyRevision(input)),
     settleAgentRun: overrides.settleAgentRun ?? ((input) => delegate.settleAgentRun(input)),
@@ -1601,6 +1605,84 @@ describe("Browser Program workspace authority V1", () => {
       "sillyos.browser_program_workspace.agent_submit_stale",
     );
     expect(submitInvoked).toBe(false);
+    opened.environmentPort.close();
+    await harness.authority.detachWorkspaceEnvironment(
+      opened.snapshot.descriptor.workspaceSessionId,
+    );
+    await harness.authority.dispose();
+  });
+
+  it("admits only the complete grant set owned by the submitted Program", async () => {
+    const harness = authorityHarnessV1();
+    const first = await createProgramV1(harness, "workspace.authority.network-grants-a");
+    const second = await createProgramV1(harness, "workspace.authority.network-grants-b");
+    const firstGrants = [
+      { origin: "https://downloads.example.test", operation: "download" as const },
+      { origin: "https://assets.example.test", operation: "fetch_url" as const },
+    ];
+    const secondGrant = {
+      origin: "https://private.example.test",
+      operation: "fetch_url" as const,
+    };
+    for (const grant of firstGrants) {
+      await expect(harness.authority.setProgramNetworkGrant({
+        programId: first.fixture.programId,
+        grant,
+        enabled: true,
+      })).resolves.toMatchObject({ kind: "committed" });
+    }
+    await expect(harness.authority.setProgramNetworkGrant({
+      programId: second.fixture.programId,
+      grant: secondGrant,
+      enabled: true,
+    })).resolves.toMatchObject({ kind: "committed" });
+
+    await expect(harness.authority.loadProgramNetworkGrants(first.fixture.programId)).resolves
+      .toEqual({
+        revision: 1,
+        programId: first.fixture.programId,
+        grants: firstGrants,
+      });
+    await expect(harness.authority.loadProgramNetworkGrants(second.fixture.programId)).resolves
+      .toEqual({
+        revision: 1,
+        programId: second.fixture.programId,
+        grants: [secondGrant],
+      });
+
+    const opened = await harness.authority.openWorkspace(first.fixture);
+    let admittedGrants: unknown = null;
+    await expect(harness.authority.withAgentSubmitAdmission({
+      programId: first.fixture.programId,
+      workspaceSessionId: opened.snapshot.descriptor.workspaceSessionId,
+      expectedProgramRevision: 1,
+      expectedRepositoryRevision: 1,
+      expectedGeneration: opened.snapshot.descriptor.generation,
+      operation: (grants) => {
+        admittedGrants = grants;
+        return Promise.resolve("submitted" as const);
+      },
+    })).resolves.toBe("submitted");
+    expect(admittedGrants).toEqual({
+      revision: 1,
+      programId: first.fixture.programId,
+      grants: firstGrants,
+    });
+
+    let crossProgramOperationInvoked = false;
+    await expect(harness.authority.withAgentSubmitAdmission({
+      programId: second.fixture.programId,
+      workspaceSessionId: opened.snapshot.descriptor.workspaceSessionId,
+      expectedProgramRevision: 1,
+      expectedRepositoryRevision: 1,
+      expectedGeneration: opened.snapshot.descriptor.generation,
+      operation: () => {
+        crossProgramOperationInvoked = true;
+        return Promise.resolve("forbidden" as const);
+      },
+    })).rejects.toThrow("sillyos.browser_program_workspace.workspace_mismatch");
+    expect(crossProgramOperationInvoked).toBe(false);
+
     opened.environmentPort.close();
     await harness.authority.detachWorkspaceEnvironment(
       opened.snapshot.descriptor.workspaceSessionId,

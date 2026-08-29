@@ -30,15 +30,28 @@ import {
   type ProgramRepositoryOperationV3,
   type ProgramRepositoryWithWorkspaceContinuationV1,
 } from "./program-repository.ts";
+import {
+  applyProgramNetworkGrantMutationV1,
+  cloneProgramNetworkGrantSetV1,
+  createEmptyProgramNetworkGrantSetV1,
+  normalizeProgramNetworkGrantMutationV1,
+  type ProgramNetworkGrantSetV1,
+} from "./program-network-grants.ts";
 
 export const programRepositoryDatabaseNameV4 = "sillymaker.example-silly-os.programs";
-export const programRepositoryDatabaseVersionV5 = 5;
+export const programRepositoryDatabaseVersionV6 = 6;
 export const programRepositoryProgramObjectStoreNameV4 = "programs";
 export const programRepositoryWorkspaceContinuationObjectStoreNameV4 = "workspace_continuations";
+export const programRepositoryNetworkGrantObjectStoreNameV1 = "program_network_grants";
 
-const programRepositoryObjectStoreNamesV4 = [
+const programRepositoryPairObjectStoreNamesV4 = [
   programRepositoryProgramObjectStoreNameV4,
   programRepositoryWorkspaceContinuationObjectStoreNameV4,
+] as const;
+
+const programRepositoryObjectStoreNamesV6 = [
+  programRepositoryNetworkGrantObjectStoreNameV1,
+  ...programRepositoryPairObjectStoreNamesV4,
 ] as const;
 
 export interface CreateIndexedDbProgramRepositoryOptionsV4 {
@@ -136,18 +149,19 @@ function hasExactProgramStoreShapeV1(store: IDBObjectStore): boolean {
   return store.keyPath === "programId" && !store.autoIncrement && store.indexNames.length === 0;
 }
 
-function hasExactStoreNamesV1(database: IDBDatabase): boolean {
+function hasExactStoreNamesV1(database: IDBDatabase, expected: readonly string[]): boolean {
   return domStringListValuesV1(database.objectStoreNames).join("\0") ===
-    programRepositoryObjectStoreNamesV4.join("\0");
+    expected.join("\0");
 }
 
 function hasExactSchemaV1(database: IDBDatabase): boolean {
   try {
     if (
-      database.version !== programRepositoryDatabaseVersionV5 || !hasExactStoreNamesV1(database)
+      database.version !== programRepositoryDatabaseVersionV6 ||
+      !hasExactStoreNamesV1(database, programRepositoryObjectStoreNamesV6)
     ) return false;
-    const transaction = database.transaction(programRepositoryObjectStoreNamesV4, "readonly");
-    return programRepositoryObjectStoreNamesV4.every((storeName) =>
+    const transaction = database.transaction(programRepositoryObjectStoreNamesV6, "readonly");
+    return programRepositoryObjectStoreNamesV6.every((storeName) =>
       hasExactProgramStoreShapeV1(transaction.objectStore(storeName))
     );
   } catch {
@@ -155,8 +169,8 @@ function hasExactSchemaV1(database: IDBDatabase): boolean {
   }
 }
 
-function createCurrentStoresV1(database: IDBDatabase): void {
-  for (const storeName of programRepositoryObjectStoreNamesV4) {
+function createStoresV1(database: IDBDatabase, storeNames: readonly string[]): void {
+  for (const storeName of storeNames) {
     database.createObjectStore(storeName, {
       keyPath: "programId",
       autoIncrement: false,
@@ -170,20 +184,45 @@ function resetExactPhysicalV4V1(
 ): void {
   const database = request.result;
   const transaction = request.transaction;
-  if (transaction === null || !hasExactStoreNamesV1(database)) {
+  if (
+    transaction === null ||
+    !hasExactStoreNamesV1(database, programRepositoryPairObjectStoreNamesV4)
+  ) {
     throw createProgramRepositoryFailureV3("schema_invalid", operation);
   }
-  for (const storeName of programRepositoryObjectStoreNamesV4) {
+  for (const storeName of programRepositoryPairObjectStoreNamesV4) {
     if (!hasExactProgramStoreShapeV1(transaction.objectStore(storeName))) {
       throw createProgramRepositoryFailureV3("schema_invalid", operation);
     }
   }
   // The preview schema has no migration obligation. Delete both exact stores without
   // opening a cursor or reading a row, then create the Product Repository V5 catalog directly.
-  for (const storeName of programRepositoryObjectStoreNamesV4) {
+  for (const storeName of programRepositoryPairObjectStoreNamesV4) {
     database.deleteObjectStore(storeName);
   }
-  createCurrentStoresV1(database);
+  createStoresV1(database, programRepositoryObjectStoreNamesV6);
+}
+
+function upgradeExactPhysicalV5V1(
+  request: IDBOpenDBRequest,
+  operation: ProgramRepositoryOperationV3,
+): void {
+  const database = request.result;
+  const transaction = request.transaction;
+  if (
+    transaction === null ||
+    !hasExactStoreNamesV1(database, programRepositoryPairObjectStoreNamesV4)
+  ) {
+    throw createProgramRepositoryFailureV3("schema_invalid", operation);
+  }
+  for (const storeName of programRepositoryPairObjectStoreNamesV4) {
+    if (!hasExactProgramStoreShapeV1(transaction.objectStore(storeName))) {
+      throw createProgramRepositoryFailureV3("schema_invalid", operation);
+    }
+  }
+  // V5 already owns the exact Program/continuation pair. Add the independent
+  // non-secret grant store without reading, rewriting, or deleting either row.
+  createStoresV1(database, [programRepositoryNetworkGrantObjectStoreNameV1]);
 }
 
 function openDatabaseV1(input: {
@@ -195,7 +234,7 @@ function openDatabaseV1(input: {
   return new Promise((resolve, reject) => {
     let request: IDBOpenDBRequest;
     try {
-      request = input.indexedDB.open(input.databaseName, programRepositoryDatabaseVersionV5);
+      request = input.indexedDB.open(input.databaseName, programRepositoryDatabaseVersionV6);
     } catch (error) {
       reject(mapFailureV1(error, input.operation));
       return;
@@ -218,8 +257,8 @@ function openDatabaseV1(input: {
       }
       try {
         if (
-          (event.oldVersion !== 0 && event.oldVersion !== 4) ||
-          event.newVersion !== programRepositoryDatabaseVersionV5
+          (event.oldVersion !== 0 && event.oldVersion !== 4 && event.oldVersion !== 5) ||
+          event.newVersion !== programRepositoryDatabaseVersionV6
         ) {
           throw createProgramRepositoryFailureV3("schema_invalid", input.operation);
         }
@@ -227,10 +266,10 @@ function openDatabaseV1(input: {
           if (request.result.objectStoreNames.length !== 0) {
             throw createProgramRepositoryFailureV3("schema_invalid", input.operation);
           }
-          createCurrentStoresV1(request.result);
-        } else {
+          createStoresV1(request.result, programRepositoryObjectStoreNamesV6);
+        } else if (event.oldVersion === 4) {
           resetExactPhysicalV4V1(request, input.operation);
-        }
+        } else upgradeExactPhysicalV5V1(request, input.operation);
       } catch (error) {
         upgradeFailure = error;
         try {
@@ -290,6 +329,23 @@ function storedContinuationV1(
     return cloneBrowserProgramContinuationManifestV1(
       value as BrowserProgramContinuationManifestV1,
     );
+  } catch {
+    throw createProgramRepositoryFailureV3("schema_invalid", operation);
+  }
+}
+
+function storedNetworkGrantSetV1(
+  value: unknown,
+  programId: string,
+  operation: ProgramRepositoryOperationV3,
+): ProgramNetworkGrantSetV1 {
+  if (value === undefined) return createEmptyProgramNetworkGrantSetV1(programId);
+  try {
+    const grants = cloneProgramNetworkGrantSetV1(value as ProgramNetworkGrantSetV1);
+    if (grants.programId !== programId) {
+      throw new TypeError("Program network grant identity mismatch");
+    }
+    return grants;
   } catch {
     throw createProgramRepositoryFailureV3("schema_invalid", operation);
   }
@@ -407,7 +463,7 @@ export function createIndexedDbProgramRepositoryV4(
     let completion: Promise<void> | undefined;
     try {
       const database = await getDatabaseV1(operation);
-      transaction = database.transaction(programRepositoryObjectStoreNamesV4, "readwrite");
+      transaction = database.transaction(programRepositoryPairObjectStoreNamesV4, "readwrite");
       completion = transactionCompletionV1(transaction);
       void completion.catch(() => undefined);
       const current = await loadPairFromTransactionV1({ transaction, programId, operation });
@@ -457,7 +513,10 @@ export function createIndexedDbProgramRepositoryV4(
     async list() {
       try {
         const database = await getDatabaseV1("list");
-        const transaction = database.transaction(programRepositoryObjectStoreNamesV4, "readonly");
+        const transaction = database.transaction(
+          programRepositoryPairObjectStoreNamesV4,
+          "readonly",
+        );
         const completion = transactionCompletionV1(transaction);
         void completion.catch(() => undefined);
         const programRequest = transaction.objectStore(programRepositoryProgramObjectStoreNameV4)
@@ -505,7 +564,10 @@ export function createIndexedDbProgramRepositoryV4(
       const programId = normalizeProgramRepositoryProgramIdV3(rawProgramId);
       try {
         const database = await getDatabaseV1("load");
-        const transaction = database.transaction(programRepositoryObjectStoreNamesV4, "readonly");
+        const transaction = database.transaction(
+          programRepositoryPairObjectStoreNamesV4,
+          "readonly",
+        );
         const completion = transactionCompletionV1(transaction);
         void completion.catch(() => undefined);
         const pair = await loadPairFromTransactionV1({ transaction, programId, operation: "load" });
@@ -520,7 +582,10 @@ export function createIndexedDbProgramRepositoryV4(
       const programId = normalizeProgramRepositoryProgramIdV3(rawProgramId);
       try {
         const database = await getDatabaseV1("load_workspace_continuation");
-        const transaction = database.transaction(programRepositoryObjectStoreNamesV4, "readonly");
+        const transaction = database.transaction(
+          programRepositoryPairObjectStoreNamesV4,
+          "readonly",
+        );
         const completion = transactionCompletionV1(transaction);
         void completion.catch(() => undefined);
         const pair = await loadPairFromTransactionV1({
@@ -535,6 +600,114 @@ export function createIndexedDbProgramRepositoryV4(
       }
     },
 
+    async loadProgramNetworkGrants(rawProgramId) {
+      const programId = normalizeProgramRepositoryProgramIdV3(rawProgramId);
+      try {
+        const database = await getDatabaseV1("load_program_network_grants");
+        const transaction = database.transaction(programRepositoryObjectStoreNamesV6, "readonly");
+        const completion = transactionCompletionV1(transaction);
+        void completion.catch(() => undefined);
+        const pairPromise = loadPairFromTransactionV1({
+          transaction,
+          programId,
+          operation: "load_program_network_grants",
+        });
+        const grantRequest = transaction.objectStore(
+          programRepositoryNetworkGrantObjectStoreNameV1,
+        ).get(programId);
+        const [pair, grantRow] = await Promise.all([
+          pairPromise,
+          requestResultV1(grantRequest),
+        ]);
+        if (pair === null) {
+          if (grantRow !== undefined) {
+            throw createProgramRepositoryFailureV3(
+              "schema_invalid",
+              "load_program_network_grants",
+            );
+          }
+          await completion;
+          return null;
+        }
+        const grants = storedNetworkGrantSetV1(
+          grantRow,
+          programId,
+          "load_program_network_grants",
+        );
+        await completion;
+        return grants;
+      } catch (error) {
+        throw mapFailureV1(error, "load_program_network_grants");
+      }
+    },
+
+    async setProgramNetworkGrant(rawInput) {
+      const input = normalizeProgramNetworkGrantMutationV1(rawInput);
+      let transaction: IDBTransaction | undefined;
+      let completion: Promise<void> | undefined;
+      try {
+        const database = await getDatabaseV1("set_program_network_grant");
+        transaction = database.transaction(programRepositoryObjectStoreNamesV6, "readwrite");
+        completion = transactionCompletionV1(transaction);
+        void completion.catch(() => undefined);
+        const pairPromise = loadPairFromTransactionV1({
+          transaction,
+          programId: input.programId,
+          operation: "set_program_network_grant",
+        });
+        const grantStore = transaction.objectStore(
+          programRepositoryNetworkGrantObjectStoreNameV1,
+        );
+        const grantRequest = grantStore.get(input.programId);
+        const [pair, grantRow] = await Promise.all([
+          pairPromise,
+          requestResultV1(grantRequest),
+        ]);
+        if (pair === null) {
+          if (grantRow !== undefined) {
+            throw createProgramRepositoryFailureV3(
+              "schema_invalid",
+              "set_program_network_grant",
+            );
+          }
+          await completion;
+          return { kind: "missing" };
+        }
+        const current = storedNetworkGrantSetV1(
+          grantRow,
+          input.programId,
+          "set_program_network_grant",
+        );
+        const applied = applyProgramNetworkGrantMutationV1(current, input);
+        if (applied.kind === "capacity_exceeded") {
+          transaction.abort();
+          await completion.catch(() => undefined);
+          throw createProgramRepositoryFailureV3(
+            "quota_exceeded",
+            "set_program_network_grant",
+          );
+        }
+        if (applied.kind === "unchanged") {
+          await completion;
+          return {
+            kind: "unchanged",
+            value: cloneProgramNetworkGrantSetV1(applied.value),
+          };
+        }
+        const next = cloneProgramNetworkGrantSetV1(applied.value);
+        if (next.grants.length === 0) {
+          await requestResultV1(grantStore.delete(input.programId));
+        } else {
+          await requestResultV1(grantStore.put(next));
+        }
+        await completion;
+        return { kind: "committed", value: cloneProgramNetworkGrantSetV1(next) };
+      } catch (error) {
+        await abortAfterFailureV1(transaction, completion);
+        throw mapFailureV1(error, "set_program_network_grant");
+      }
+    },
+
     async create(rawInput) {
       const input = normalizeProgramRepositoryCreateInputV3(rawInput);
       const candidate = buildProgramRepositoryCreateV3(input);
@@ -543,7 +716,7 @@ export function createIndexedDbProgramRepositoryV4(
       let completion: Promise<void> | undefined;
       try {
         const database = await getDatabaseV1("create");
-        transaction = database.transaction(programRepositoryObjectStoreNamesV4, "readwrite");
+        transaction = database.transaction(programRepositoryPairObjectStoreNamesV4, "readwrite");
         completion = transactionCompletionV1(transaction);
         void completion.catch(() => undefined);
         const current = await loadPairFromTransactionV1({

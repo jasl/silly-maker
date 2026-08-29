@@ -5,7 +5,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   createIndexedDbProgramRepositoryV4,
-  programRepositoryDatabaseVersionV5,
+  programRepositoryDatabaseVersionV6,
+  programRepositoryNetworkGrantObjectStoreNameV1,
   programRepositoryProgramObjectStoreNameV4,
   programRepositoryWorkspaceContinuationObjectStoreNameV4,
 } from "../product/indexeddb-program-repository.ts";
@@ -328,6 +329,41 @@ for (
         repositoryRevision: 1,
         reviewBinding: { checkpointId: fixture.reviewedHead.checkpointId },
       });
+      await reopened.dispose();
+    });
+
+    it("persists idempotent grants without crossing Program boundaries", async () => {
+      const harness = createHarness();
+      const first = harness.open();
+      const alpha = createProgramFixtureV1(`workspace.${name.toLowerCase()}.network-alpha`);
+      const beta = createProgramFixtureV1(`workspace.${name.toLowerCase()}.network-beta`);
+      const alphaId = requireCurrentProgramV1(alpha.initial).program.programId;
+      const betaId = requireCurrentProgramV1(beta.initial).program.programId;
+      const grant = { origin: "https://assets.example", operation: "download" } as const;
+
+      await expect(first.loadProgramNetworkGrants(alphaId)).resolves.toBeNull();
+      await expect(first.setProgramNetworkGrant({ programId: alphaId, grant, enabled: true }))
+        .resolves.toEqual({ kind: "missing" });
+      await first.create(createInputV1(alpha, 100));
+      await first.create(createInputV1(beta, 101));
+      await expect(first.loadProgramNetworkGrants(alphaId)).resolves.toEqual({
+        revision: 1,
+        programId: alphaId,
+        grants: [],
+      });
+      await expect(first.setProgramNetworkGrant({ programId: alphaId, grant, enabled: true }))
+        .resolves.toMatchObject({ kind: "committed", value: { grants: [grant] } });
+      await expect(first.setProgramNetworkGrant({ programId: alphaId, grant, enabled: true }))
+        .resolves.toMatchObject({ kind: "unchanged", value: { grants: [grant] } });
+      await expect(first.loadProgramNetworkGrants(betaId)).resolves.toMatchObject({ grants: [] });
+      await first.dispose();
+
+      const reopened = harness.open();
+      await expect(reopened.loadProgramNetworkGrants(alphaId)).resolves.toMatchObject({
+        grants: [grant],
+      });
+      await expect(reopened.setProgramNetworkGrant({ programId: alphaId, grant, enabled: false }))
+        .resolves.toMatchObject({ kind: "committed", value: { grants: [] } });
       await reopened.dispose();
     });
 
@@ -1004,6 +1040,7 @@ describe("ProgramRepositoryV3 strict admission and pair integrity", () => {
     const backing = {
       programs: new Map<string, ProgramRepositoryAggregateV3>(),
       workspaceContinuations: continuationRows,
+      programNetworkGrants: new Map(),
     };
     const repository = createMemoryProgramRepositoryV3({ backing });
     const fixture = createProgramFixtureV1("workspace.memory.atomic");
@@ -1209,8 +1246,8 @@ function createExactPhysicalV4StoresV1(database: IDBDatabase): void {
   });
 }
 
-describe("IndexedDB ProgramRepository physical V5 contract", () => {
-  it("creates a fresh exact V5 two-store catalog", async () => {
+describe("IndexedDB ProgramRepository physical V6 contract", () => {
+  it("creates a fresh exact V6 three-store catalog", async () => {
     const indexedDB = new FakeIDBFactory();
     const databaseName = "sillyos-program-repository-v4-fresh";
     const repository = createIndexedDbProgramRepositoryV4({ indexedDB, databaseName });
@@ -1218,14 +1255,16 @@ describe("IndexedDB ProgramRepository physical V5 contract", () => {
     const database = await openRawDatabaseV1(
       indexedDB,
       databaseName,
-      programRepositoryDatabaseVersionV5,
+      programRepositoryDatabaseVersionV6,
     );
     expect([...database.objectStoreNames]).toEqual([
+      programRepositoryNetworkGrantObjectStoreNameV1,
       programRepositoryProgramObjectStoreNameV4,
       programRepositoryWorkspaceContinuationObjectStoreNameV4,
     ]);
     for (
       const storeName of [
+        programRepositoryNetworkGrantObjectStoreNameV1,
         programRepositoryProgramObjectStoreNameV4,
         programRepositoryWorkspaceContinuationObjectStoreNameV4,
       ]
@@ -1270,7 +1309,7 @@ describe("IndexedDB ProgramRepository physical V5 contract", () => {
     const current = await openRawDatabaseV1(
       indexedDB,
       databaseName,
-      programRepositoryDatabaseVersionV5,
+      programRepositoryDatabaseVersionV6,
     );
     for (
       const storeName of [
@@ -1288,6 +1327,42 @@ describe("IndexedDB ProgramRepository physical V5 contract", () => {
       ).resolves.toBe(0);
     }
     current.close();
+    await repository.dispose();
+  });
+
+  it("adds the grant store without rewriting exact V5 Program rows", async () => {
+    const indexedDB = new FakeIDBFactory();
+    const databaseName = "sillyos-program-repository-v5-preserve";
+    const fixture = createProgramFixtureV1("workspace.indexeddb.v5-preserve");
+    const source = createMemoryProgramRepositoryV3();
+    const created = await source.create(createInputV1(fixture, 100));
+    if (created.kind !== "committed") throw new Error("expected Program fixture");
+    await source.dispose();
+
+    const legacy = await openRawDatabaseV1(indexedDB, databaseName, 5, (database) => {
+      createExactPhysicalV4StoresV1(database);
+    });
+    const transaction = legacy.transaction(
+      [
+        programRepositoryProgramObjectStoreNameV4,
+        programRepositoryWorkspaceContinuationObjectStoreNameV4,
+      ],
+      "readwrite",
+    );
+    const completion = completeTransactionV1(transaction);
+    transaction.objectStore(programRepositoryProgramObjectStoreNameV4).put(created.aggregate);
+    transaction.objectStore(programRepositoryWorkspaceContinuationObjectStoreNameV4).put(
+      fixture.continuation,
+    );
+    await completion;
+    legacy.close();
+
+    const repository = createIndexedDbProgramRepositoryV4({ indexedDB, databaseName });
+    await expect(repository.load(created.aggregate.programId)).resolves.toEqual(created.aggregate);
+    await expect(repository.loadWorkspaceContinuation(created.aggregate.programId)).resolves
+      .toEqual(fixture.continuation);
+    await expect(repository.loadProgramNetworkGrants(created.aggregate.programId)).resolves
+      .toEqual({ revision: 1, programId: created.aggregate.programId, grants: [] });
     await repository.dispose();
   });
 
@@ -1320,8 +1395,8 @@ describe("IndexedDB ProgramRepository physical V5 contract", () => {
     ).rejects.toMatchObject({ code: "schema_invalid", operation: "initialize" });
 
     const futureFactory = new FakeIDBFactory();
-    const futureName = "sillyos-program-repository-v6-future";
-    (await openRawDatabaseV1(futureFactory, futureName, 6, (database) => {
+    const futureName = "sillyos-program-repository-v7-future";
+    (await openRawDatabaseV1(futureFactory, futureName, 7, (database) => {
       database.createObjectStore("future");
     })).close();
     await expect(
@@ -1357,7 +1432,7 @@ describe("IndexedDB ProgramRepository physical V5 contract", () => {
     const database = await openRawDatabaseV1(
       indexedDB,
       databaseName,
-      programRepositoryDatabaseVersionV5,
+      programRepositoryDatabaseVersionV6,
     );
     const transaction = database.transaction(
       programRepositoryWorkspaceContinuationObjectStoreNameV4,

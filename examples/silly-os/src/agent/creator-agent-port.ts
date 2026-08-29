@@ -26,6 +26,10 @@ import {
   type BrowserProgramWorkspaceAuthorityV1,
 } from "../product/browser-program-workspace-authority.ts";
 import {
+  admitProgramNetworkGrantSetV1,
+  type ProgramNetworkGrantSetV1,
+} from "../product/program-network-grants.ts";
+import {
   browserPiDistributionIdentityV1,
   type BrowserPiDistributionIdentityV1,
 } from "./browser-pi-distribution.ts";
@@ -156,6 +160,10 @@ export type CreatorAgentResolveNetworkApprovalResultV1 =
   }
   | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentDiagnosticV1 };
 
+export type CreatorAgentSynchronizeNetworkGrantsResultV1 =
+  | { readonly kind: "synchronized" }
+  | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentDiagnosticV1 };
+
 export type CreatorAgentOpenWorkspaceResultV1 =
   | { readonly kind: "opened"; readonly descriptor: WorkspaceExecutionDescriptorV1 }
   | { readonly kind: "unavailable"; readonly diagnostic: CreatorAgentWorkspaceDiagnosticV1 };
@@ -213,6 +221,9 @@ export interface CreatorAgentPortV1 {
     readonly approvalId: string;
     readonly decision: BrowserPiNetworkApprovalDecisionV1;
   }): Promise<CreatorAgentResolveNetworkApprovalResultV1>;
+  synchronizeNetworkGrants(
+    grants: ProgramNetworkGrantSetV1,
+  ): Promise<CreatorAgentSynchronizeNetworkGrantsResultV1>;
   acknowledgeTerminal(agentRunId: string): boolean;
   /** Explicitly terminates the Worker that owns the in-memory credential. */
   forget(): Promise<void>;
@@ -1699,6 +1710,42 @@ export function createBrowserCreatorAgentPortV1(
     };
   };
 
+  const synchronizeNetworkGrants = async (
+    raw: ProgramNetworkGrantSetV1,
+  ): Promise<CreatorAgentSynchronizeNetworkGrantsResultV1> => {
+    if (terminal || finishPromise !== null) {
+      return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/networkGrants") };
+    }
+    const admitted = admitProgramNetworkGrantSetV1(raw);
+    const descriptor = workspaceDescriptor;
+    if (
+      admitted.kind === "rejected" || descriptor === null || workspacePhase !== "open" ||
+      admitted.value.programId !== descriptor.programId
+    ) {
+      return {
+        kind: "unavailable",
+        diagnostic: diagnosticV1("request_failed", "/networkGrants/scope"),
+      };
+    }
+    const expectedEpoch = lifecycleEpoch;
+    try {
+      await transport.replaceNetworkGrants({
+        programId: admitted.value.programId,
+        workspaceSessionId: descriptor.workspaceSessionId,
+        grants: admitted.value.grants,
+      });
+    } catch {
+      return {
+        kind: "unavailable",
+        diagnostic: diagnosticV1("request_failed", "/networkGrants/synchronize"),
+      };
+    }
+    if (terminal || lifecycleEpoch !== expectedEpoch) {
+      return { kind: "unavailable", diagnostic: diagnosticV1("disposed", "/networkGrants") };
+    }
+    return { kind: "synchronized" };
+  };
+
   const acknowledgeWorkspaceReceiptsBeforeForgetV1 = async (
     throughSequence: number | null,
   ): Promise<boolean> => {
@@ -1947,11 +1994,17 @@ export function createBrowserCreatorAgentPortV1(
             expectedProgramRevision: normalized.run.baseProgramRevision,
             expectedRepositoryRevision: normalized.run.baseRepositoryRevision,
             expectedGeneration: submitWorkspace.generation,
-            operation: () =>
-              client.submit({
+            operation: async (grants) => {
+              await transport.replaceNetworkGrants({
+                programId: grants.programId,
+                workspaceSessionId: submitWorkspace.workspaceSessionId,
+                grants: grants.grants,
+              });
+              return await client.submit({
                 sessionId: expectedSessionId,
                 text: serializedSubmit,
-              }),
+              });
+            },
           });
           return { kind: "settled" as const, result };
         } catch {
@@ -2035,6 +2088,7 @@ export function createBrowserCreatorAgentPortV1(
       return { kind: "cancel_requested" };
     },
     resolveNetworkApproval,
+    synchronizeNetworkGrants,
     acknowledgeTerminal(agentRunId: string): boolean {
       const index = terminalRuns.findIndex(({ run }) => run.agentRunId === agentRunId);
       if (index < 0) return false;

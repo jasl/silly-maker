@@ -25,14 +25,26 @@ import {
   type ProgramRepositoryAggregateV3,
   type ProgramRepositoryWithWorkspaceContinuationV1,
 } from "./program-repository.ts";
+import {
+  applyProgramNetworkGrantMutationV1,
+  cloneProgramNetworkGrantSetV1,
+  createEmptyProgramNetworkGrantSetV1,
+  normalizeProgramNetworkGrantMutationV1,
+  type ProgramNetworkGrantSetV1,
+} from "./program-network-grants.ts";
 
 export interface MemoryProgramRepositoryBackingV3 {
   readonly programs: Map<string, ProgramRepositoryAggregateV3>;
   readonly workspaceContinuations: Map<string, BrowserProgramContinuationManifestV1>;
+  readonly programNetworkGrants: Map<string, ProgramNetworkGrantSetV1>;
 }
 
 export function createMemoryProgramRepositoryBackingV3(): MemoryProgramRepositoryBackingV3 {
-  return { programs: new Map(), workspaceContinuations: new Map() };
+  return {
+    programs: new Map(),
+    workspaceContinuations: new Map(),
+    programNetworkGrants: new Map(),
+  };
 }
 
 /** Deterministic V3 conformance adapter. It shares only an explicit backing. */
@@ -73,6 +85,25 @@ export function createMemoryProgramRepositoryV3(input: {
       throw createProgramRepositoryFailureV3("schema_invalid", operation);
     }
     return { aggregate, continuation };
+  };
+
+  const loadStoredNetworkGrantsV1 = (
+    programId: string,
+    operation: Parameters<typeof createProgramRepositoryFailureV3>[1],
+  ): ProgramNetworkGrantSetV1 | null => {
+    const pair = loadStoredPairV3(programId, operation);
+    if (pair === null) return null;
+    const stored = backing.programNetworkGrants.get(programId);
+    if (stored === undefined) return createEmptyProgramNetworkGrantSetV1(programId);
+    try {
+      const grants = cloneProgramNetworkGrantSetV1(stored);
+      if (grants.programId !== pair.aggregate.programId) {
+        throw new TypeError("Program network grant identity mismatch");
+      }
+      return grants;
+    } catch {
+      throw createProgramRepositoryFailureV3("schema_invalid", operation);
+    }
   };
 
   const writePairAtomicallyV3 = (pair: {
@@ -149,6 +180,47 @@ export function createMemoryProgramRepositoryV3(input: {
       assertAvailableV1("load_workspace_continuation");
       const programId = normalizeProgramRepositoryProgramIdV3(rawProgramId);
       return loadStoredPairV3(programId, "load_workspace_continuation")?.continuation ?? null;
+    },
+
+    async loadProgramNetworkGrants(rawProgramId) {
+      assertAvailableV1("load_program_network_grants");
+      const programId = normalizeProgramRepositoryProgramIdV3(rawProgramId);
+      return loadStoredNetworkGrantsV1(programId, "load_program_network_grants");
+    },
+
+    async setProgramNetworkGrant(rawInput) {
+      assertAvailableV1("set_program_network_grant");
+      const mutation = normalizeProgramNetworkGrantMutationV1(rawInput);
+      const current = loadStoredNetworkGrantsV1(
+        mutation.programId,
+        "set_program_network_grant",
+      );
+      if (current === null) return { kind: "missing" };
+      const applied = applyProgramNetworkGrantMutationV1(current, mutation);
+      if (applied.kind === "capacity_exceeded") {
+        throw createProgramRepositoryFailureV3("quota_exceeded", "set_program_network_grant");
+      }
+      if (applied.kind === "unchanged") {
+        return { kind: "unchanged", value: cloneProgramNetworkGrantSetV1(applied.value) };
+      }
+      const next = cloneProgramNetworkGrantSetV1(applied.value);
+      const previous = backing.programNetworkGrants.get(mutation.programId);
+      try {
+        if (next.grants.length === 0) backing.programNetworkGrants.delete(mutation.programId);
+        else backing.programNetworkGrants.set(mutation.programId, next);
+      } catch {
+        try {
+          if (previous === undefined) backing.programNetworkGrants.delete(mutation.programId);
+          else backing.programNetworkGrants.set(mutation.programId, previous);
+        } catch {
+          // The deterministic backing is unavailable if both mutation and rollback reject.
+        }
+        throw createProgramRepositoryFailureV3(
+          "transaction_aborted",
+          "set_program_network_grant",
+        );
+      }
+      return { kind: "committed", value: cloneProgramNetworkGrantSetV1(next) };
     },
 
     async create(rawInput) {

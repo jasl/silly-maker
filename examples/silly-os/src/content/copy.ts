@@ -89,7 +89,12 @@ export interface SillyOsCopyV1 {
   readonly networkApprovalOrigin: string;
   readonly networkApprovalUrl: string;
   readonly networkApprovalAllowOnce: string;
+  readonly networkApprovalRememberProgram: string;
+  readonly networkApprovalAllowProgram: string;
   readonly networkApprovalDeny: string;
+  readonly networkAccessTitle: string;
+  readonly networkAccessEmpty: string;
+  readonly networkAccessRevoke: string;
   readonly settings: string;
   readonly settingsBack: string;
   readonly providerSettingsTitle: string;
@@ -277,7 +282,12 @@ const englishV1: SillyOsCopyV1 = {
   networkApprovalOrigin: "Destination",
   networkApprovalUrl: "Full URL",
   networkApprovalAllowOnce: "Allow once",
+  networkApprovalRememberProgram: "Allow this destination for this Program",
+  networkApprovalAllowProgram: "Allow for this Program",
   networkApprovalDeny: "Deny",
+  networkAccessTitle: "Network access",
+  networkAccessEmpty: "No destinations are allowed for this Program.",
+  networkAccessRevoke: "Revoke",
   settings: "Settings",
   settingsBack: "Back to Agent Creator",
   providerSettingsTitle: "Providers",
@@ -487,7 +497,12 @@ const chineseV1: SillyOsCopyV1 = {
   networkApprovalOrigin: "目标站点",
   networkApprovalUrl: "完整 URL",
   networkApprovalAllowOnce: "仅允许一次",
+  networkApprovalRememberProgram: "为此 Program 允许该目标站点",
+  networkApprovalAllowProgram: "为此 Program 允许",
   networkApprovalDeny: "拒绝",
+  networkAccessTitle: "网络访问",
+  networkAccessEmpty: "此 Program 尚未允许任何目标站点。",
+  networkAccessRevoke: "撤销",
   settings: "设置",
   settingsBack: "返回 Agent Creator",
   providerSettingsTitle: "Provider",
