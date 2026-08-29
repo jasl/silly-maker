@@ -174,14 +174,14 @@ export interface SillyOsCopyV1 {
   readonly providerKeyPlaceholder: string;
   readonly providerReplacementKeyPlaceholder: string;
   readonly providerSaveCredential: string;
-  readonly providerReplaceCredential: string;
+  readonly providerUpdateCredential: string;
   readonly providerSaving: string;
   readonly providerCredentialSaved: string;
   readonly providerWorkerUnavailable: string;
   readonly providerConnectionPassed: string;
   readonly providerConnectionFailed: string;
-  readonly providerForget: string;
-  readonly providerForgetting: string;
+  readonly providerDeleteCredential: string;
+  readonly providerDeletingCredential: string;
   readonly credentialVaultTitle: string;
   readonly credentialVaultDescription: string;
   readonly credentialVaultLockedTitle: string;
@@ -395,7 +395,7 @@ const englishV1: SillyOsCopyV1 = {
     "The selected model is not available through this Provider in the current Browser build.",
   providerConnectionTitle: "Connection",
   providerConnectionDescription:
-    "Save or replace one API key across the fixed endpoint scopes shown below. It remains in the Credential Vault until you Forget it or clear site data. Model preferences and testing are separate.",
+    "Save or update one API key across the fixed endpoint scopes shown below. It remains in the Credential Vault until you delete it or clear site data. Model preferences and testing are separate.",
   providerConnectionModelLabel: "Test with model",
   providerConnectionModelDescription:
     "Choose any technically callable model from this Provider. This ignores visibility checkboxes and does not change your preferred model.",
@@ -417,18 +417,18 @@ const englishV1: SillyOsCopyV1 = {
   providerTestRequiresSavedKey: "Save an API key before testing this connection.",
   providerKeyLabel: "API key",
   providerKeyPlaceholder: "Paste the Provider API key",
-  providerReplacementKeyPlaceholder: "Paste a new key to replace the saved key",
-  providerSaveCredential: "Save key",
-  providerReplaceCredential: "Replace key",
+  providerReplacementKeyPlaceholder: "Paste a new key to update the saved key",
+  providerSaveCredential: "Save",
+  providerUpdateCredential: "Update",
   providerSaving: "Saving…",
-  providerCredentialSaved: "API key saved until you Forget it",
+  providerCredentialSaved: "API key saved in Credential Vault",
   providerWorkerUnavailable:
     "The Agent Worker is unavailable. The saved key remains in the Credential Vault and can be handed to a fresh Worker when the Agent restarts.",
   providerConnectionPassed: "Last connection test passed",
   providerConnectionFailed:
     "The optional connection test failed. Check the key, tested model, endpoint, and Browser access. This diagnostic does not change the saved key, model preferences, or Provider status; an Agent call reports its own failure.",
-  providerForget: "Forget API key",
-  providerForgetting: "Forgetting…",
+  providerDeleteCredential: "Delete saved API key",
+  providerDeletingCredential: "Deleting…",
   credentialVaultTitle: "Credential Vault",
   credentialVaultDescription:
     "Provider keys are saved here until you Forget them or clear site data. Fresh installs use Automatic unlock; Password mode adds explicit Lock and Unlock.",
@@ -645,7 +645,7 @@ const chineseV1: SillyOsCopyV1 = {
   selectedModelUnavailable: "当前浏览器版本无法通过这个 Provider 使用所选模型。",
   providerConnectionTitle: "连接配置",
   providerConnectionDescription:
-    "把同一个 API Key 保存或替换到下方固定的 Endpoint 范围。Key 会留在凭据保险库中，直到你选择“忘记”或清除站点数据；模型偏好与测试是独立设置。",
+    "把同一个 API Key 保存或更新到下方固定的 Endpoint 范围。Key 会留在凭据保险库中，直到你删除它或清除站点数据；模型偏好与测试是独立设置。",
   providerConnectionModelLabel: "使用此模型测试",
   providerConnectionModelDescription:
     "可选择此 Provider 中任何技术上可调用的模型；这里不受可见模型勾选影响，也不会改变首选模型。",
@@ -665,18 +665,18 @@ const chineseV1: SillyOsCopyV1 = {
   providerTestRequiresSavedKey: "请先保存 API Key，再测试此连接。",
   providerKeyLabel: "API Key",
   providerKeyPlaceholder: "粘贴 Provider API key",
-  providerReplacementKeyPlaceholder: "粘贴新 Key 来替换已保存的 Key",
-  providerSaveCredential: "保存 Key",
-  providerReplaceCredential: "替换 Key",
+  providerReplacementKeyPlaceholder: "粘贴新 Key 来更新已保存的 Key",
+  providerSaveCredential: "保存",
+  providerUpdateCredential: "更新",
   providerSaving: "正在保存……",
-  providerCredentialSaved: "API Key 会保存到你选择“忘记”为止",
+  providerCredentialSaved: "API Key 已保存到凭据保险库",
   providerWorkerUnavailable:
     "Agent Worker 当前不可用；已保存的 Key 仍留在凭据保险库中，Agent 重启后可交给新的 Worker。",
   providerConnectionPassed: "最近一次连接测试通过",
   providerConnectionFailed:
     "可选连接测试失败；请检查 Key、被测模型、Endpoint 与浏览器网络访问。该诊断不会改变已保存的 Key、模型偏好或 Provider 状态；Agent 调用失败时会单独报告。",
-  providerForget: "忘记 API Key",
-  providerForgetting: "正在忘记……",
+  providerDeleteCredential: "删除已保存的 API Key",
+  providerDeletingCredential: "正在删除……",
   credentialVaultTitle: "凭据保险库",
   credentialVaultDescription:
     "Provider Key 会保存在这里，直到你选择“忘记”或清除站点数据。新安装默认使用自动解锁；密码模式提供显式锁定与解锁。",

@@ -2031,6 +2031,21 @@ body,
   gap: 8px;
 }
 
+.provider-settings__credential-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.provider-settings__credential-actions > .silly-button:not(.silly-button--square) {
+  flex: 1 1 auto;
+}
+
+.provider-settings__delete-credential:hover:not(:disabled) {
+  color: #9b3f35;
+  background: #fff1ee;
+}
+
 .provider-settings__credential-form input {
   block-size: 36px;
   padding-inline: 10px;
@@ -4213,6 +4228,10 @@ body,
   .provider-settings__credential-form button,
   .provider-settings__connection-actions button {
     min-block-size: 44px;
+  }
+
+  .provider-settings__credential-actions > .silly-button--square {
+    inline-size: 44px;
   }
 
   .provider-settings__connection-status > svg {

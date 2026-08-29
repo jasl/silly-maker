@@ -898,7 +898,7 @@ function ProviderConnectionSectionV1({
   const statusCopy = saving
     ? copy.providerSaving
     : forgetting
-    ? copy.providerForgetting
+    ? copy.providerDeletingCredential
     : credentialFailed
     ? copy.providerWorkerUnavailable
     : testing
@@ -1042,13 +1042,31 @@ function ProviderConnectionSectionV1({
                     : <Eye size={16} aria-hidden="true" />}
                 </button>
               </span>
-              <Button type="submit" variant="primary" disabled={mutationPending}>
-                {saving
-                  ? copy.providerSaving
-                  : hasStoredBinding
-                  ? copy.providerReplaceCredential
-                  : copy.providerSaveCredential}
-              </Button>
+              <span className="provider-settings__credential-actions">
+                <Button type="submit" variant="primary" disabled={mutationPending}>
+                  {saving
+                    ? copy.providerSaving
+                    : hasStoredBinding
+                    ? copy.providerUpdateCredential
+                    : copy.providerSaveCredential}
+                </Button>
+                {storedSaveTargetBindings.length > 0
+                  ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      shape="square"
+                      icon={Trash2}
+                      className="provider-settings__delete-credential"
+                      aria-label={copy.providerDeleteCredential}
+                      title={copy.providerDeleteCredential}
+                      aria-busy={forgetting}
+                      disabled={mutationPending}
+                      onClick={() => onForgetCredential(Object.freeze(storedSaveTargetBindings))}
+                    />
+                  )
+                  : null}
+              </span>
             </div>
             {!target.custom
               ? (
@@ -1087,18 +1105,6 @@ function ProviderConnectionSectionV1({
               >
                 {testing ? copy.providerTesting : copy.providerTestConnection}
               </Button>
-              {storedSaveTargetBindings.length > 0
-                ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    disabled={mutationPending}
-                    onClick={() => onForgetCredential(Object.freeze(storedSaveTargetBindings))}
-                  >
-                    {forgetting ? copy.providerForgetting : copy.providerForget}
-                  </Button>
-                )
-                : null}
               <small>
                 {hasStoredBinding
                   ? copy.providerTestResultPointInTime

@@ -786,9 +786,9 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await page.getByRole("button", { name: "Hide API key" }).click();
   await keyInput.fill(sentinel);
   await expect(page.getByRole("button", { name: "Test connection" })).toBeDisabled();
-  await page.getByRole("button", { name: "Save key" }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(keyInput).toHaveValue("");
-  await expect(page.getByText("API key saved until you Forget it", { exact: true }))
+  await expect(page.getByText("API key saved in Credential Vault", { exact: true }))
     .toBeVisible();
   expect(providerProbeRequests).toHaveLength(0);
   await globalBack.click();
@@ -823,7 +823,7 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await expect(settings).toBeVisible();
   await expect(globalBack).toBeFocused();
   await page.locator('[data-provider-id="openai"]').click();
-  await expect(page.getByText("API key saved until you Forget it", { exact: true }))
+  await expect(page.getByText("API key saved in Credential Vault", { exact: true }))
     .toBeVisible();
   await connectionModelSelect.selectOption("gpt-4.1-nano");
   const testConnectionButton = page.getByRole("button", { name: "Test connection" });
@@ -888,7 +888,22 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await page.locator('[data-provider-id="openai"]').click();
   await expect(page.locator('.provider-settings__credential-form[data-key-saved="true"]'))
     .toBeVisible();
-  await expect(page.getByRole("button", { name: "Replace key" })).toBeVisible();
+  const savedCredentialControls = page.locator(".provider-settings__credential-controls");
+  await expect(
+    savedCredentialControls.getByRole("button", { name: "Update", exact: true }),
+  ).toBeVisible();
+  await expect(
+    savedCredentialControls.getByRole("button", {
+      name: "Delete saved API key",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.locator(".provider-settings__connection-actions").getByRole("button", {
+      name: "Delete saved API key",
+      exact: true,
+    }),
+  ).toHaveCount(0);
   await globalBack.click();
   await expect(providerWarning).toHaveCount(0);
   await expect(homeModelControl).toHaveAttribute("data-model-state", "ready");
@@ -1085,9 +1100,26 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await workspaceSettings.click();
   await page.getByRole("button", { name: "Providers", exact: true }).click();
   await page.locator('[data-provider-id="openai"]').click();
-  await expect(page.getByText("API key saved until you Forget it", { exact: true }))
+  await expect(page.getByText("API key saved in Credential Vault", { exact: true }))
     .toBeVisible();
-  await page.getByRole("button", { name: "Forget API key" }).click();
+  const mobileCredentialActions = page.locator(".provider-settings__credential-actions");
+  const mobileUpdateButton = mobileCredentialActions.getByRole("button", {
+    name: "Update",
+    exact: true,
+  });
+  const mobileDeleteButton = mobileCredentialActions.getByRole("button", {
+    name: "Delete saved API key",
+    exact: true,
+  });
+  const mobileUpdateBox = await mobileUpdateButton.boundingBox();
+  const mobileDeleteBox = await mobileDeleteButton.boundingBox();
+  expect(mobileUpdateBox).not.toBeNull();
+  expect(mobileDeleteBox).not.toBeNull();
+  expect(mobileUpdateBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+  expect(mobileDeleteBox?.width ?? 0).toBeGreaterThanOrEqual(44);
+  expect(mobileDeleteBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+  expect(Math.abs((mobileUpdateBox?.y ?? 0) - (mobileDeleteBox?.y ?? 0))).toBeLessThan(1);
+  await mobileDeleteButton.click();
   await expect(page.getByLabel("API key", { exact: true })).toBeVisible();
   await expect(page.locator('.provider-settings__credential-form[data-key-saved="false"]'))
     .toBeVisible();
@@ -1170,9 +1202,9 @@ test("ordinary Browser Settings adds, reloads, and removes a non-secret custom e
 
   const customKeyInput = page.getByLabel("API key", { exact: true });
   await customKeyInput.fill(customSentinel);
-  await page.getByRole("button", { name: "Save key" }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(customKeyInput).toHaveValue("");
-  await expect(page.getByText("API key saved until you Forget it", { exact: true }))
+  await expect(page.getByText("API key saved in Credential Vault", { exact: true }))
     .toBeVisible();
   await expect(page.locator('.provider-settings__credential-form[data-key-saved="true"]'))
     .toBeVisible();
@@ -1242,9 +1274,27 @@ test("ordinary Browser Settings adds, reloads, and removes a non-secret custom e
   await expect(page.getByText("8,192", { exact: true })).toBeVisible();
   await expect(page.locator('.provider-settings__credential-form[data-key-saved="true"]'))
     .toBeVisible();
-  await expect(page.getByRole("button", { name: "Replace key" })).toBeVisible();
+  await expect(
+    page.locator(".provider-settings__credential-controls").getByRole("button", {
+      name: "Update",
+      exact: true,
+    }),
+  ).toBeVisible();
 
-  await page.getByRole("button", { name: "Forget API key" }).click();
+  const customCredentialActions = page.locator(".provider-settings__credential-actions");
+  const customUpdateBox = await customCredentialActions.getByRole("button", {
+    name: "Update",
+    exact: true,
+  }).boundingBox();
+  const customDeleteBox = await customCredentialActions.getByRole("button", {
+    name: "Delete saved API key",
+    exact: true,
+  }).boundingBox();
+  expect(customUpdateBox).not.toBeNull();
+  expect(customDeleteBox).not.toBeNull();
+  expect(Math.abs((customUpdateBox?.y ?? 0) - (customDeleteBox?.y ?? 0))).toBeLessThan(1);
+
+  await page.getByRole("button", { name: "Delete saved API key" }).click();
   await expect(page.locator('.provider-settings__credential-form[data-key-saved="false"]'))
     .toBeVisible();
   await expect(reloadedProfile).toHaveAttribute("data-connection-status", "available");

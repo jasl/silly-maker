@@ -328,6 +328,13 @@ describe("SillyOS Provider connection and model independence", () => {
     expect(screen.getByRole("checkbox", { name: /GPT-4.1 nano/u })).not.toBeChecked();
     expect(screen.queryByRole("checkbox", { name: /Remember on this device/iu })).toBeNull();
     expect(document.body).not.toHaveTextContent(/session-only|Use remembered/iu);
+    expect(screen.getByRole("button", { name: copyV1.providerSaveCredential })).toBeVisible();
+    expect(screen.queryByRole("button", {
+      name: copyV1.providerUpdateCredential,
+    })).toBeNull();
+    expect(screen.queryByRole("button", {
+      name: copyV1.providerDeleteCredential,
+    })).toBeNull();
 
     const keyInput = screen.getByLabelText(copyV1.providerKeyLabel) as HTMLInputElement;
     const secret = "sk-test-secret";
@@ -416,18 +423,22 @@ describe("SillyOS Provider connection and model independence", () => {
     expect(onTestConnection).toHaveBeenCalledOnce();
   });
 
-  it("keys Saved, Replace, and Test to the exact endpoint of the selected test model", () => {
+  it("keys Saved, Update, and Test to the exact endpoint of the selected test model", () => {
     const view = renderSettingsV1({
       initialSection: "providers",
       vault: automaticVaultV1([openAiBindingV2]),
     });
     let connection = connectionSectionV1();
     const testModel = within(connection).getByRole("combobox");
-    expect(
-      within(connection).getByRole("button", {
-        name: copyV1.providerReplaceCredential,
-      }),
-    ).toBeVisible();
+    const updateCredential = within(connection).getByRole("button", {
+      name: copyV1.providerUpdateCredential,
+    });
+    const deleteCredential = within(connection).getByRole("button", {
+      name: copyV1.providerDeleteCredential,
+    });
+    expect(updateCredential).toBeVisible();
+    expect(deleteCredential).toBeVisible();
+    expect(updateCredential.parentElement).toBe(deleteCredential.parentElement);
     expect(
       within(connection).getByRole("button", {
         name: copyV1.providerTestConnection,
@@ -446,7 +457,7 @@ describe("SillyOS Provider connection and model independence", () => {
       }),
     ).toBeDisabled();
     expect(
-      within(connection).getByRole("button", { name: copyV1.providerForget }),
+      within(connection).getByRole("button", { name: copyV1.providerDeleteCredential }),
     ).toBeVisible();
 
     view.rerender(
@@ -460,7 +471,12 @@ describe("SillyOS Provider connection and model independence", () => {
     connection = connectionSectionV1();
     expect(
       within(connection).getByRole("button", {
-        name: copyV1.providerReplaceCredential,
+        name: copyV1.providerUpdateCredential,
+      }),
+    ).toBeVisible();
+    expect(
+      within(connection).getByRole("button", {
+        name: copyV1.providerDeleteCredential,
       }),
     ).toBeVisible();
     expect(
@@ -470,7 +486,7 @@ describe("SillyOS Provider connection and model independence", () => {
     ).toBeEnabled();
   });
 
-  it("keeps Save and Test separate and forgets every stored Provider endpoint scope", () => {
+  it("keeps Save, Delete, and Test separate and deletes every stored Provider endpoint scope", () => {
     const onSaveCredential = vi.fn();
     const onTestConnection = vi.fn();
     const onForgetCredential = vi.fn();
@@ -483,6 +499,29 @@ describe("SillyOS Provider connection and model independence", () => {
     });
 
     const connection = connectionSectionV1();
+    const credentialControls = connection.querySelector(
+      ".provider-settings__credential-controls",
+    );
+    const connectionActions = connection.querySelector(
+      ".provider-settings__connection-actions",
+    );
+    expect(credentialControls).not.toBeNull();
+    expect(connectionActions).not.toBeNull();
+    expect(
+      within(credentialControls as HTMLElement).getByRole("button", {
+        name: copyV1.providerUpdateCredential,
+      }),
+    ).toBeVisible();
+    expect(
+      within(credentialControls as HTMLElement).getByRole("button", {
+        name: copyV1.providerDeleteCredential,
+      }),
+    ).toBeVisible();
+    expect(
+      within(connectionActions as HTMLElement).queryByRole("button", {
+        name: copyV1.providerDeleteCredential,
+      }),
+    ).toBeNull();
     fireEvent.click(
       within(connection).getByRole("button", {
         name: copyV1.providerTestConnection,
@@ -492,7 +531,9 @@ describe("SillyOS Provider connection and model independence", () => {
     expect(onSaveCredential).not.toHaveBeenCalled();
     expect(onForgetCredential).not.toHaveBeenCalled();
 
-    fireEvent.click(within(connection).getByRole("button", { name: copyV1.providerForget }));
+    fireEvent.click(
+      within(connection).getByRole("button", { name: copyV1.providerDeleteCredential }),
+    );
     expect(onForgetCredential).toHaveBeenCalledWith([
       openAiBindingV2,
       openAiAlternateBindingV2,
