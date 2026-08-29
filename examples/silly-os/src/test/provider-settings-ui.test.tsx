@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getSillyOsCopyV1 } from "../content/copy.ts";
@@ -15,6 +15,7 @@ import {
   type ProviderSettingsVaultV1,
   ProviderSettingsV1,
 } from "../ui/provider-settings.tsx";
+import { SillyOsOverlayHostV1 } from "../ui/design-system/overlay-host.tsx";
 
 afterEach(cleanup);
 
@@ -156,8 +157,10 @@ function settingsPropsV1(
       workspace: { phase: "checking" },
     },
     clearAll: { phase: "idle" },
+    theme: "system",
     onBack: vi.fn(),
     onLocaleChange: vi.fn(),
+    onThemeChange: vi.fn(),
     onRetryCatalog: vi.fn(),
     onSaveCredential: vi.fn(),
     onTestConnection: vi.fn(),
@@ -177,7 +180,18 @@ function settingsPropsV1(
 
 function renderSettingsV1(overrides: Partial<ProviderSettingsPropsV1> = {}) {
   const props = settingsPropsV1(overrides);
-  return { props, ...render(<ProviderSettingsV1 {...props} />) };
+  return {
+    props,
+    ...render(settingsViewV1(props)),
+  };
+}
+
+function settingsViewV1(props: ProviderSettingsPropsV1) {
+  return (
+    <SillyOsOverlayHostV1>
+      <ProviderSettingsV1 {...props} />
+    </SillyOsOverlayHostV1>
+  );
 }
 
 function connectionSectionV1(): HTMLElement {
@@ -214,42 +228,24 @@ describe("SillyOS Settings information architecture", () => {
 
     const topbar = container.querySelector(".silly-os-settings__topbar");
     expect(topbar).not.toBeNull();
-    const localeTrigger = within(topbar as HTMLElement).getByRole("combobox", {
-      name: copyV1.settingsLanguage,
-    });
-    expect(localeTrigger).toHaveAttribute("data-selected-value", "en");
-    expect(localeTrigger).toHaveAttribute("aria-expanded", "false");
-    expect(container.querySelector(".silly-os-locale select")).toBeNull();
+    expect(
+      within(topbar as HTMLElement).getByRole("button", {
+        name: copyV1.productMenu,
+      }),
+    ).toHaveAttribute("data-open-settings", "settings");
 
-    fireEvent.click(localeTrigger);
-    const listbox = screen.getByRole("listbox", { name: copyV1.settingsLanguage });
-    expect(localeTrigger).toHaveAttribute("aria-expanded", "true");
-    expect(within(listbox).getAllByRole("option").map((option) => option.textContent?.trim()))
-      .toEqual(
-        [
-          "English",
-          "简体中文",
-        ],
-      );
-    fireEvent.click(within(listbox).getByRole("option", { name: "简体中文" }));
+    const localeSelect = screen.getByRole("combobox", { name: copyV1.settingsLanguage });
+    expect(localeSelect).toHaveValue("en");
+    expect(within(localeSelect).getAllByRole("option").map((option) => option.textContent?.trim()))
+      .toEqual(["English", "简体中文"]);
+    fireEvent.change(localeSelect, { target: { value: "zh-CN" } });
     expect(onLocaleChange).toHaveBeenCalledWith("zh-CN");
-    expect(localeTrigger).toHaveFocus();
-    expect(screen.queryByRole("listbox", { name: copyV1.settingsLanguage })).toBeNull();
 
-    onLocaleChange.mockClear();
-    fireEvent.keyDown(localeTrigger, { key: "ArrowDown" });
-    fireEvent.keyDown(localeTrigger, { key: "ArrowDown" });
-    fireEvent.keyDown(localeTrigger, { key: "Enter" });
-    expect(onLocaleChange).toHaveBeenCalledWith("zh-CN");
-    expect(localeTrigger).toHaveAttribute("aria-expanded", "false");
-
-    fireEvent.click(localeTrigger);
-    fireEvent.keyDown(localeTrigger, { key: "Escape" });
-    expect(localeTrigger).toHaveAttribute("aria-expanded", "false");
-
-    fireEvent.click(localeTrigger);
-    fireEvent.pointerDown(document.body);
-    expect(localeTrigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("radiogroup", { name: copyV1.settingsTheme })).toBeVisible();
+    expect(screen.getByRole("radio", { name: copyV1.themeSystem })).toHaveAttribute(
+      "data-state",
+      "on",
+    );
   });
 
   it("uses initialSection=providers as a direct Provider-settings entry", () => {
@@ -320,7 +316,7 @@ describe("SillyOS Settings information architecture", () => {
     expect(within(section).queryByText(copyV1.settingsStorageReportedTotal)).toBeNull();
   });
 
-  it("requires one accessible clear-all confirmation and keeps a pending clear non-dismissible", () => {
+  it("requires one accessible clear-all confirmation and keeps a pending clear non-dismissible", async () => {
     const onClearAllData = vi.fn();
     const view = renderSettingsV1({ onClearAllData });
     const trigger = screen.getByRole("button", { name: copyV1.settingsClearAllAction });
@@ -333,17 +329,15 @@ describe("SillyOS Settings information architecture", () => {
     expect(cancel).toHaveFocus();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("alertdialog")).toBeNull();
-    expect(trigger).toHaveFocus();
+    await waitFor(() => expect(trigger).toHaveFocus());
 
     fireEvent.click(trigger);
     dialog = screen.getByRole("alertdialog", { name: copyV1.settingsClearAllConfirmTitle });
-    const backdrop = document.querySelector<HTMLButtonElement>(
-      ".silly-os-settings__dialog-backdrop",
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: copyV1.settingsClearAllCancel }),
     );
-    if (backdrop === null) throw new Error("clear dialog backdrop missing");
-    fireEvent.click(backdrop);
     expect(screen.queryByRole("alertdialog")).toBeNull();
-    expect(trigger).toHaveFocus();
+    await waitFor(() => expect(trigger).toHaveFocus());
 
     fireEvent.click(trigger);
     dialog = screen.getByRole("alertdialog", { name: copyV1.settingsClearAllConfirmTitle });
@@ -355,9 +349,7 @@ describe("SillyOS Settings information architecture", () => {
     expect(onClearAllData).toHaveBeenCalledOnce();
 
     view.rerender(
-      <ProviderSettingsV1
-        {...settingsPropsV1({ onClearAllData, clearAll: { phase: "clearing" } })}
-      />,
+      settingsViewV1(settingsPropsV1({ onClearAllData, clearAll: { phase: "clearing" } })),
     );
     dialog = screen.getByRole("alertdialog", { name: copyV1.settingsClearAllConfirmTitle });
     expect(dialog).toHaveAttribute("aria-busy", "true");
@@ -370,12 +362,12 @@ describe("SillyOS Settings information architecture", () => {
     expect(screen.getByRole("alertdialog")).toBeVisible();
 
     view.rerender(
-      <ProviderSettingsV1
-        {...settingsPropsV1({
+      settingsViewV1(
+        settingsPropsV1({
           onClearAllData,
           clearAll: { phase: "failed", diagnosticCode: "workspace_busy" },
-        })}
-      />,
+        }),
+      ),
     );
     dialog = screen.getByRole("alertdialog", { name: copyV1.settingsClearAllConfirmTitle });
     expect(within(dialog).getByRole("alert")).toHaveAttribute(
@@ -388,7 +380,7 @@ describe("SillyOS Settings information architecture", () => {
       }),
     );
     expect(screen.queryByRole("alertdialog")).toBeNull();
-    expect(trigger).toHaveFocus();
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 });
 

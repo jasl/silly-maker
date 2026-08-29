@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
-import { ArrowLeft, CircleCheck, LayoutGrid, MessageCircle, Settings } from "lucide-react";
+import { ArrowLeft, CircleCheck, LayoutGrid, MessageCircle } from "lucide-react";
 import type { ReactNode } from "react";
 
 import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../content/copy.ts";
+import type { SillyOsThemeModeV1 } from "../product/browser-product-preferences-repository.ts";
 import { SillyButtonV1 as Button } from "./controls.tsx";
-import { LocaleSelectV1, SillyOsBrandV1 } from "./product-chrome.tsx";
+import { SillyOsBrandV1 } from "./product-chrome.tsx";
+import { ProductMenuV1 } from "./product-menu.tsx";
 
 export type WorkspaceMobilePaneV1 = "chat" | "preview" | "activity";
 
@@ -14,6 +16,8 @@ export function ProgramWorkspaceTopbarV1({
   homeDisabled = false,
   onHome,
   onLocaleChange,
+  theme,
+  onThemeChange,
   onOpenSettings,
 }: {
   readonly copy: SillyOsCopyV1;
@@ -21,6 +25,8 @@ export function ProgramWorkspaceTopbarV1({
   readonly homeDisabled?: boolean;
   readonly onHome: () => void;
   readonly onLocaleChange: (locale: SillyOsLocaleV1) => void;
+  readonly theme: SillyOsThemeModeV1;
+  readonly onThemeChange: (theme: SillyOsThemeModeV1) => void;
   readonly onOpenSettings?: () => void;
 }): ReactNode {
   return (
@@ -40,18 +46,14 @@ export function ProgramWorkspaceTopbarV1({
         <span className="program-workspace__title">{workspaceTitle}</span>
       </div>
       <div className="program-workspace__topbar-actions">
-        <LocaleSelectV1 copy={copy} onChange={onLocaleChange} />
-        {onOpenSettings !== undefined && (
-          <Button
-            variant="ghost"
-            shape="square"
-            size="sm"
-            icon={Settings}
-            aria-label={copy.settings}
-            data-open-settings="workspace"
-            onClick={onOpenSettings}
-          />
-        )}
+        <ProductMenuV1
+          copy={copy}
+          theme={theme}
+          surface="workspace"
+          onThemeChange={onThemeChange}
+          onLocaleChange={onLocaleChange}
+          {...(onOpenSettings === undefined ? {} : { onOpenSettings })}
+        />
       </div>
     </header>
   );

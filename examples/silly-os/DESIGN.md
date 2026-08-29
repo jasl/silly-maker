@@ -1726,12 +1726,13 @@ accumulated requirements.
 
 ## Visual system
 
-The visual tone is light, calm, flat, and tool-like. It borrows the reference's
-near-neutral surface hierarchy and compact density while using SillyMaker
-identity:
+The visual tone is calm, flat, and tool-like in both light and dark themes. It
+borrows the reference's near-neutral surface hierarchy and compact density
+while using SillyMaker identity. Light remains the first-run appearance when
+the operating system requests it; neither theme is a separate product skin:
 
-- near-white canvas, slightly raised/tinted work surfaces, and neutral 1px
-  hairlines;
+- near-white light canvas or near-black neutral dark canvas, slightly
+  raised/tinted work surfaces, and semantic 1px hairlines;
 - one blue primary accent and a restrained mint status accent; accent denotes
   intent, selection, focus, or status—not decoration;
 - modest radii, no liquid glass, fake reflections, textured canvas, oversized
@@ -1751,10 +1752,10 @@ public tokens, focus/reduced-motion behavior, form baseline, and primitive CSS
 before the product mounts. SillyOS binds its palette, typography, density,
 spacing, radius, and semantic aliases only at the Host-owned
 `[data-application-id="example-silly-os"]` boundary. An exclusive SillyOS
-document may select a light `color-scheme` before mount, but product palette,
-font, reset, and component recipes do not target `:root`, `html`, or `body`.
-Engine Tool Theme surfaces therefore remain able to rebind neutral tool tokens
-without inheriting SillyOS focus or product styling.
+document may select the resolved light or dark `color-scheme` before mount, but
+product palette, font, reset, and component recipes do not target `:root`,
+`html`, or `body`. Engine Tool Theme surfaces therefore remain able to rebind
+neutral tool tokens without inheriting SillyOS focus or product styling.
 
 The complete product design system has four layers:
 
@@ -1767,12 +1768,87 @@ The complete product design system has four layers:
 4. **surfaces** — Creator Home, Settings, Chat, Workspace View, and Activity,
    each verified across the responsive and keyboard matrix below.
 
-The current app has only the first bounded foundation mapping and the Button
-composition. Its large product stylesheet is a migration source, not proof that
-the component/pattern system is complete. Later slices inventory and migrate
-real repeated roles before creating an abstraction. Product appearance and
-workflow stay in SillyOS; only use-case-neutral primitives or interaction
-mechanics with independent evidence may be proposed upstream.
+The E0 checkpoint had only the first bounded foundation mapping and the Button
+composition. DS1a has since delivered the theme/chrome foundation described
+below, while the large product stylesheet remains a migration source rather
+than proof that the component/pattern system is complete. DS1 remains active
+and is not complete until DS1b–DS1e and their evidence close. Product
+appearance and workflow stay in SillyOS; only use-case-neutral primitives or
+interaction mechanics with an independent second real consumer (or a proved
+engine-wide baseline need) may be proposed upstream.
+
+### DS1 theme, preference, and component contract
+
+SillyOS owns one semantic token vocabulary for canvas, surfaces, text, borders,
+focus, intent, status, destructive actions, elevation, radius, density, and
+motion. Light and dark values bind to that same vocabulary at the application
+root. Components consume semantic roles rather than literal palette values or
+component-local dark overrides. `system`, `light`, and `dark` are the complete
+V1 theme-mode set; `system` follows the current media query and updates without
+reloading the application.
+
+Theme mode and interface locale are ordinary, non-secret product preferences,
+not Agent, Provider, Credential Vault, Program, or Workspace state. One
+product-owned Browser repository persists them on this device and distributes
+changes to other live SillyOS tabs. An explicit locale query parameter may
+override the stored locale for that navigation; it neither rewrites the stored
+choice nor yields to cross-tab preference updates while that navigation remains
+explicit. Otherwise the stored choice precedes browser-language fallback. A
+user change becomes the durable product choice. Every tab resolves `system`
+locally and reacts to system-theme changes.
+Clearing all SillyOS data clears this repository through the existing General
+data-management composition rather than inventing another reset path.
+
+The product bar exposes one shared, keyboard-accessible product menu in Creator
+Home, Program Workspace, and Settings. Its stable commands are:
+
+- **Theme** — a single-choice submenu or equivalent radio group for System,
+  Light, and Dark;
+- **Language** — a single-choice submenu generated from the maintained SillyOS
+  locale registry, so adding a locale does not require another chrome layout;
+- **Settings** — navigation to the default General category, represented as the
+  current destination rather than a duplicate action while already there.
+
+General Settings shows the same Theme and Language values through shared
+controls. The menu and Settings are two views over one preference authority;
+they may not maintain independent state, persistence, or option registries.
+
+Composite popovers and dialogs portal only into an internal overlay host owned
+by the mounted SillyOS application. They must not default to `document.body`,
+because doing so escapes the application token, theme, focus, and containment
+boundary. Overlay content retains accessible naming, Escape/outside-dismiss
+semantics where appropriate, focus trapping for modal dialogs, and focus return
+to its invoking control.
+
+DS1 uses product-scoped Tailwind CSS 4 utilities with the `sos:` prefix and
+without Preflight. Default and product themes are compiler references rather
+than emitted document roots; build admission rejects universal `--tw-*`
+fallbacks and global Tailwind custom-property registrations. It may derive
+accessible source composition from current shadcn patterns and focused Radix
+primitives, but SillyOS source and semantic tokens are authoritative. The
+confirmation-dialog composition uses native `dialog`, because the evaluated
+Radix modal path required CSP-incompatible dynamic scroll-lock styles. There is
+no runtime shadcn registry, DaisyUI theme, global utility reset, or unscoped
+generated CSS. Tailwind and product Radix
+dependencies remain inside `examples/silly-os`; their adoption neither changes
+SillyMaker's public UI API nor makes them engine dependencies.
+
+The delivered DS1a slice establishes the preference repository, cross-tab
+propagation, resolved light/dark tokens, pre-mount color scheme, internal
+overlay host, unified product menu, and matching General Settings controls. It
+must keep every currently reachable surface legible in both themes but does
+not claim that every legacy selector has become a shared component. Subsequent
+slices converge repeated controls first, then Creator/Provider/review/workpiece
+patterns, and finally complete surfaces. Once a real consumer migrates, its
+superseded hand-written control and styles are removed rather than retained as
+a permanent compatibility layer.
+
+DS1a is backed by focused preference/schema/cross-tab, navigation-only locale,
+pre-mount theme, menu/dialog/focus, Tailwind built-output, and token-containment
+tests; the existing product/build/security gates; and Chromium/WebKit rendered
+checks covering both themes, keyboard use, responsive layout, and English/
+Chinese switching. Later component and surface stages add their own long-
+content and visual fixtures before DS1 can be called complete.
 
 ## Responsive layout contract
 

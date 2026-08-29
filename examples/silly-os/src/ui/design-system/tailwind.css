@@ -1,0 +1,41 @@
+/* SPDX-License-Identifier: MIT */
+
+/* Product-local utilities only. Preflight stays disabled so SillyOS cannot
+   alter the engine Host, Tool Theme, or sibling application surfaces. */
+/* stylelint-disable at-rule-empty-line-before, at-rule-no-unknown, at-rule-prelude-no-invalid, import-notation -- Tailwind 4 directives extend CSS import syntax. */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme) theme(reference) prefix(sos);
+@import "tailwindcss/utilities.css" layer(utilities) prefix(sos) source(none);
+@source "../**/*.{ts,tsx}";
+
+@theme reference inline {
+  --font-sans: var(--silly-font-family);
+  --spacing: var(--silly-space-1);
+  --radius-control: var(--silly-radius-control);
+  --radius-card: var(--silly-radius-card);
+  --color-background: var(--sos-bg);
+  --color-foreground: var(--sos-ink);
+  --color-surface: var(--sos-surface);
+  --color-muted: var(--sos-surface-muted);
+  --color-muted-foreground: var(--sos-ink-muted);
+  --color-popover: var(--sos-surface-raised);
+  --color-popover-foreground: var(--sos-ink);
+  --color-border: var(--sos-line);
+  --color-ring: var(--sos-focus);
+  --color-accent: var(--sos-accent);
+  --color-accent-soft: var(--sos-accent-soft);
+  --color-danger: var(--sos-danger);
+  --color-backdrop: var(--sos-backdrop);
+  --shadow-control: var(--sos-shadow-control);
+  --shadow-overlay: var(--sos-shadow-overlay);
+  --shadow-dialog: var(--sos-shadow-dialog);
+  --height-control: var(--silly-control-min-size);
+  --min-height-control: var(--silly-control-min-size);
+}
+
+@layer components {
+  .silly-os [data-slot="alert-dialog-content"]::backdrop {
+    background: var(--sos-backdrop);
+  }
+}
+/* stylelint-enable at-rule-empty-line-before, at-rule-no-unknown, at-rule-prelude-no-invalid, import-notation */

@@ -538,6 +538,7 @@ async function expectNoPageOverflowV1(page: Page): Promise<void> {
 
 const openAIResponsesProbeUrlV1 = "https://api.openai.com/v1/responses";
 const browserProviderSettingsStorageKeyV2 = "sillymaker.example-silly-os.provider-settings.v2";
+const browserProductPreferencesStorageKeyV1 = "sillymaker.example-silly-os.product-preferences.v1";
 
 interface OpenAIResponsesProbeRequestV1 {
   readonly method: string;
@@ -728,6 +729,114 @@ test("SillyOS binds the shared UI foundation without leaking into Tool Theme", a
   expect(theme.tool.colorScheme).toBe("dark");
 });
 
+test("SillyOS restores a saved dark theme before the application entry mounts", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.addInitScript(({ storageKey }) => {
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify({ revision: 1, locale: "en", theme: "dark" }),
+    );
+  }, { storageKey: browserProductPreferencesStorageKeyV1 });
+
+  let releaseEntryV1: (() => void) | undefined;
+  const entryGateV1 = new Promise<void>((resolve) => {
+    releaseEntryV1 = resolve;
+  });
+  await page.route("**/src/application/entry.tsx", async (route) => {
+    await entryGateV1;
+    await route.continue();
+  });
+
+  await page.goto(sillyOsTargetUrlV1("?locale=en&agent=pi-test"), { waitUntil: "commit" });
+  try {
+    await expect(
+      page.locator('#sillymaker-application-boot-shell [data-sillymaker-boot-shell="pending"]'),
+    ).toBeVisible();
+    const beforeMount = await page.evaluate(() => ({
+      colorScheme: document.documentElement.style.colorScheme,
+      bootstrapScheme: document.documentElement.dataset.sillyOsColorScheme,
+      productMounted: document.querySelector(".silly-os") !== null,
+      themeColors: [...document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')]
+        .map((meta) => meta.content),
+    }));
+    expect(beforeMount).toEqual({
+      colorScheme: "dark",
+      bootstrapScheme: "dark",
+      productMounted: false,
+      themeColors: ["#101210"],
+    });
+  } finally {
+    releaseEntryV1?.();
+  }
+
+  await expect(page.locator(".silly-os")).toHaveAttribute("data-color-scheme", "dark");
+  await expect(page.locator(".silly-os")).toHaveAttribute("data-theme-mode", "dark");
+});
+
+test("an explicit URL locale does not replace the stored cross-tab preference", async ({ page }) => {
+  await page.addInitScript(({ storageKey }) => {
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify({ revision: 1, locale: "en", theme: "system" }),
+    );
+  }, { storageKey: browserProductPreferencesStorageKeyV1 });
+
+  await page.goto(sillyOsTargetUrlV1("?locale=zh-CN&agent=pi-test"));
+  await expect(page.locator(".silly-os")).toHaveAttribute("data-locale", "zh-CN");
+  expect(
+    await page.evaluate((storageKey) => {
+      const serialized = localStorage.getItem(storageKey);
+      return serialized === null ? null : JSON.parse(serialized).locale;
+    }, browserProductPreferencesStorageKeyV1),
+  ).toBe("en");
+
+  const sibling = await page.context().newPage();
+  try {
+    await sibling.goto(sillyOsTargetUrlV1("?agent=pi-test"));
+    await expect(sibling.locator(".silly-os")).toHaveAttribute("data-locale", "en");
+    await expect(page.locator(".silly-os")).toHaveAttribute("data-locale", "zh-CN");
+  } finally {
+    await sibling.close();
+  }
+});
+
+test("mounted tabs follow system theme and live product-preference changes", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto(sillyOsTargetUrlV1("?agent=pi-test"));
+  await expect(page.locator(".silly-os")).toHaveAttribute("data-theme-mode", "system");
+  await expect(page.locator(".silly-os")).toHaveAttribute("data-color-scheme", "light");
+
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(page.locator(".silly-os")).toHaveAttribute("data-color-scheme", "dark");
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator(".silly-os")).toHaveAttribute("data-color-scheme", "light");
+
+  const explicitLocalePage = await page.context().newPage();
+  const writerPage = await page.context().newPage();
+  try {
+    await explicitLocalePage.goto(sillyOsTargetUrlV1("?locale=en&agent=pi-test"));
+    await writerPage.goto(sillyOsTargetUrlV1("?agent=pi-test"));
+    await writerPage.evaluate((storageKey) => {
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({ revision: 1, locale: "zh-CN", theme: "dark" }),
+      );
+    }, browserProductPreferencesStorageKeyV1);
+
+    await expect(page.locator(".silly-os")).toHaveAttribute("data-locale", "zh-CN");
+    await expect(page.locator(".silly-os")).toHaveAttribute("data-theme-mode", "dark");
+    await expect(page.locator(".silly-os")).toHaveAttribute("data-color-scheme", "dark");
+    await expect(explicitLocalePage.locator(".silly-os")).toHaveAttribute("data-locale", "en");
+    await expect(explicitLocalePage.locator(".silly-os")).toHaveAttribute(
+      "data-theme-mode",
+      "dark",
+    );
+  } finally {
+    await explicitLocalePage.close();
+    await writerPage.close();
+  }
+});
+
 test("ordinary Browser Settings verifies a built-in Pi connection and preserves mobile navigation", async ({ durableProgramPage: page }) => {
   const sentinel = "sillyos-provider-settings-session-key";
   const vaultPassword = "sillyos-browser-vault-password";
@@ -774,12 +883,20 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await settingsGeneral.click();
   await expect(page.locator('[data-settings-section="general"]')).toBeVisible();
   await expect(page.getByRole("heading", { name: "General", level: 1 })).toBeVisible();
-  const generalLocaleSelects = page.getByRole("combobox", { name: "Language" });
-  await expect(generalLocaleSelects).toHaveCount(2);
-  for (let index = 0; index < await generalLocaleSelects.count(); index += 1) {
-    const box = await generalLocaleSelects.nth(index).boundingBox();
-    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
-  }
+  const generalLocaleSelect = page.getByRole("combobox", { name: "Language" });
+  await expect(generalLocaleSelect).toHaveCount(1);
+  const generalLocaleSelectBox = await generalLocaleSelect.boundingBox();
+  expect(generalLocaleSelectBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+  const clearAllDataButton = page.getByRole("button", { name: "Clear all data" });
+  await clearAllDataButton.click();
+  const clearAllDataDialog = page.getByRole("alertdialog", {
+    name: "Clear all SillyOS data?",
+  });
+  await expect(clearAllDataDialog).toBeVisible();
+  await expect(clearAllDataDialog.getByRole("button", { name: "Cancel" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(clearAllDataDialog).toHaveCount(0);
+  await expect(clearAllDataButton).toBeFocused();
   await settingsVault.click();
   const vaultPanel = page.locator('[data-vault-phase="unlocked"]');
   await expect(vaultPanel).toBeVisible();
@@ -808,43 +925,54 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   const globalBackBox = await globalBack.boundingBox();
   expect(globalBackBox?.width ?? 0).toBeGreaterThanOrEqual(44);
   expect(globalBackBox?.height ?? 0).toBeGreaterThanOrEqual(44);
-  const localeSelect = page.locator(
-    ".silly-os-settings__topbar .silly-os-locale__trigger",
-  );
-  await expect(localeSelect).toHaveCount(1);
-  await expect(localeSelect).toHaveAttribute("data-selected-value", "en");
-  await expect(page.locator(".silly-os-locale select")).toHaveCount(0);
-  await localeSelect.click();
-  const localeListbox = page.getByRole("listbox", { name: "Language" });
-  await expect(localeListbox).toBeVisible();
-  await expect(localeListbox.getByRole("option")).toHaveCount(2);
-  await expect(localeListbox.getByRole("option", { name: "English" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-  await settingsProviders.click();
-  await expect(localeListbox).toHaveCount(0);
-  const localeSelectBox = await localeSelect.boundingBox();
-  expect(localeSelectBox?.width ?? 0).toBeGreaterThanOrEqual(88);
-  expect(localeSelectBox?.height ?? 0).toBeGreaterThanOrEqual(44);
-  await localeSelect.press("ArrowDown");
-  await localeSelect.press("ArrowDown");
-  await expect(page.getByRole("option", { name: "简体中文" })).toHaveAttribute(
-    "data-active",
-    "true",
-  );
-  await localeSelect.press("Enter");
+  const productMenuTrigger = page.getByRole("button", { name: "SillyOS menu" });
+  const productMenuTriggerBox = await productMenuTrigger.boundingBox();
+  expect(productMenuTriggerBox?.width ?? 0).toBeGreaterThanOrEqual(44);
+  expect(productMenuTriggerBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+
+  await productMenuTrigger.click();
+  const productMenu = page.getByRole("menu", { name: "SillyOS menu" });
+  await expect(productMenu).toBeVisible();
+  const themeMenuItem = productMenu.getByRole("menuitem", { name: "Theme" });
+  await themeMenuItem.focus();
+  await themeMenuItem.press("ArrowRight");
+  await page.getByRole("menuitemradio", { name: "Dark" }).press("Enter");
+  await expect(page.locator(".silly-os")).toHaveAttribute("data-theme-mode", "dark");
+  await expect(page.locator(".silly-os")).toHaveAttribute("data-color-scheme", "dark");
+
+  await settingsGeneral.click();
+  await expect(page.getByRole("radio", { name: "Dark" })).toBeChecked();
+  await expect(generalLocaleSelect).toHaveValue("en");
+  await productMenuTrigger.click();
+  const languageMenuItem = productMenu.getByRole("menuitem", { name: "Language" });
+  await languageMenuItem.focus();
+  await languageMenuItem.press("ArrowRight");
+  await page.getByRole("menuitemradio", { name: "简体中文" }).press("Enter");
   await expect(page.locator(".silly-os")).toHaveAttribute("lang", "zh-CN");
   await expect(page.locator(".silly-os")).toHaveAttribute("data-locale", "zh-CN");
-  await expect(page.getByRole("heading", { name: "预设 Provider" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "通用", level: 1 })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "语言" })).toHaveValue("zh-CN");
   expect(new URL(page.url()).searchParams.get("locale")).toBe("zh-CN");
-  await localeSelect.click();
-  await page.getByRole("listbox", { name: "语言" }).getByRole("option", { name: "English" })
-    .click();
+
+  const localizedProductMenuTrigger = page.getByRole("button", { name: "SillyOS 菜单" });
+  await localizedProductMenuTrigger.click();
+  const localizedProductMenu = page.getByRole("menu", { name: "SillyOS 菜单" });
+  const localizedLanguageMenuItem = localizedProductMenu.getByRole("menuitem", { name: "语言" });
+  await localizedLanguageMenuItem.focus();
+  await localizedLanguageMenuItem.press("ArrowRight");
+  await page.getByRole("menuitemradio", { name: "English" }).press("Enter");
   await expect(page.locator(".silly-os")).toHaveAttribute("lang", "en");
   await expect(page.locator(".silly-os")).toHaveAttribute("data-locale", "en");
-  await expect(page.getByRole("heading", { name: "Built-in Providers" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "General", level: 1 })).toBeVisible();
+  await expect(generalLocaleSelect).toHaveValue("en");
   expect(new URL(page.url()).searchParams.get("locale")).toBe("en");
+
+  await productMenuTrigger.click();
+  await themeMenuItem.focus();
+  await themeMenuItem.press("ArrowRight");
+  await page.getByRole("menuitemradio", { name: "System" }).press("Enter");
+  await expect(page.locator(".silly-os")).toHaveAttribute("data-theme-mode", "system");
+  await settingsProviders.click();
   await expectNoPageOverflowV1(page);
 
   await expect(page.getByRole("heading", { name: "Built-in Providers" })).toBeVisible();
@@ -1005,6 +1133,7 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await expect(providerWarning).toBeVisible();
   await expect(homeModelControl).toHaveCount(0);
   await page.locator('[data-open-settings="home"]').click();
+  await page.getByRole("menuitem", { name: "Settings" }).click();
   await expect(page.locator('[data-settings-section="general"]')).toBeVisible();
   await page.getByRole("button", { name: "Credential Vault", exact: true }).click();
   await expect(page.locator('[data-vault-phase="locked"]')).toBeVisible();
@@ -1222,6 +1351,7 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
 
   const workspaceSettings = page.locator('[data-open-settings="workspace"]');
   await workspaceSettings.click();
+  await page.getByRole("menuitem", { name: "Settings" }).click();
   await expect(settings).toBeVisible();
   await expect(globalBack).toBeFocused();
   await globalBack.click();
@@ -1229,6 +1359,7 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
   await expect(workspaceSettings).toBeFocused();
 
   await workspaceSettings.click();
+  await page.getByRole("menuitem", { name: "Settings" }).click();
   await page.getByRole("button", { name: "Providers", exact: true }).click();
   await page.locator('[data-provider-id="openai"]').click();
   await expect(page.getByText("API key saved in Credential Vault", { exact: true }))
@@ -1392,6 +1523,7 @@ test("ordinary Browser Settings adds, reloads, and removes a non-secret custom e
     "ready",
   );
   await page.locator('[data-open-settings="home"]').click();
+  await page.getByRole("menuitem", { name: "Settings" }).click();
   await expect(page.locator('[data-settings-section="general"]')).toBeVisible();
   await page.getByRole("button", { name: "Providers", exact: true }).click();
   const reloadedProfile = page.locator("[data-custom-profile-id]");

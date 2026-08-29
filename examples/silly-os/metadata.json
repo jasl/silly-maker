@@ -2,6 +2,5 @@
   "name": "SillyOS Creator Preview",
   "description": "A creator-Agent workspace where human intent becomes an inspectable Program.",
   "lang": "zh-CN",
-  "author": "SillyMaker",
-  "themeColor": "#fcfcfb"
+  "author": "SillyMaker"
 }

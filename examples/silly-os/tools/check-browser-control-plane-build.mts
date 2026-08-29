@@ -29,6 +29,52 @@ async function collectBuildFilesV1(directory: URL, relativeDirectory = ""): Prom
 }
 
 const filesV1 = await collectBuildFilesV1(buildDirectoryV1);
+const themeBootstrapFileV1 = "silly-os-theme-bootstrap.js";
+if (!filesV1.includes(themeBootstrapFileV1)) {
+  failV1("artifact omits the fixed pre-mount product-theme bootstrap");
+}
+const themeBootstrapSourceV1 = await Deno.readTextFile(
+  new URL(themeBootstrapFileV1, buildDirectoryV1),
+);
+for (
+  const required of [
+    "sillymaker.example-silly-os.product-preferences.v1",
+    "new TextEncoder().encode(serialized).byteLength <= 512",
+    "Object.keys(stored).length === 3",
+    'stored.theme === "system"',
+    "prefers-color-scheme: dark",
+    "sillyOsColorScheme",
+  ]
+) {
+  if (!themeBootstrapSourceV1.includes(required)) {
+    failV1(`product-theme bootstrap omits fixed marker ${required}`);
+  }
+}
+
+const productDesignSystemCssFilesV1: string[] = [];
+for (const file of filesV1.filter((candidate) => candidate.endsWith(".css"))) {
+  const source = await Deno.readTextFile(new URL(file, buildDirectoryV1));
+  if (source.includes("[data-slot=alert-dialog-content]")) {
+    productDesignSystemCssFilesV1.push(file);
+    for (
+      const [label, pattern] of [
+        ["global Tailwind theme selector", /:root\s*,\s*:host/u],
+        [
+          "global Tailwind property fallback",
+          /\*\s*,\s*::?before\s*,\s*::?after\s*,\s*::backdrop/u,
+        ],
+        ["global Tailwind custom-property registration", /@property\s+--tw-/u],
+      ] as const
+    ) {
+      if (pattern.test(source)) failV1(`${file} contains ${label}`);
+    }
+  }
+}
+if (productDesignSystemCssFilesV1.length !== 1) {
+  failV1(
+    `artifact must contain exactly one scoped product design-system stylesheet, found ${productDesignSystemCssFilesV1.length}`,
+  );
+}
 const credentialVaultSourceRootV1 = new URL("../src/credential/", import.meta.url);
 const credentialVaultWorkerSourceEntryV1 = new URL(
   "browser-credential-vault.worker.ts",
@@ -209,6 +255,9 @@ if (/\son[a-z]+\s*=/iu.test(htmlV1)) {
 }
 if (/\b(?:href|src)\s*=\s*["']\s*javascript:/iu.test(htmlV1)) {
   failV1("built HTML contains a javascript URL");
+}
+if ((htmlV1.match(/<meta\b[^>]*\bname=["']theme-color["']/giu) ?? []).length !== 1) {
+  failV1("built HTML must contain exactly one product-owned theme-color meta");
 }
 
 const scriptTagsV1 = [...htmlV1.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/giu)];

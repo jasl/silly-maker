@@ -37,9 +37,21 @@ product `touch`; every changed entry publishes one durable generation and
 compound operations are bounded best effort rather than atomic transactions.
 Python, broader Wasm, BYO Sandbox, and editor integration remain inactive.
 N1/N2/Credential Vault are closed and deployed together from exact commit
-`ca4104b68312e115c698b9e0d5caeb7cdaf67789`. UI framework work belongs to the
-main engine lane and is intentionally out of scope here. S2-N0 remains part of
-that public release. Its
+`ca4104b68312e115c698b9e0d5caeb7cdaf67789`. The neutral engine UI foundation
+has since been absorbed through E0, and the owner activated DS1 on 2026-08-30
+as an `examples/silly-os` product lane. DS1a delivered that day and owns semantic
+light/dark tokens, device-local theme/locale preferences with cross-tab
+propagation, a product-local overlay host, and one accessible Theme/Language/
+Settings menu. Later DS1 slices converge every repeated product control,
+pattern, and surface; activation does not mean those migrations are already
+complete. Product-scoped Tailwind CSS 4 utilities run without Preflight or
+global generated theme/property output. Shadcn-derived focused Radix
+compositions remain product implementation detail; native `dialog` owns modal
+confirmation because the evaluated Radix modal path violated the fixed CSP.
+Do not upstream SillyOS recipes or dependencies. Only a neutrally reproducible
+general capability gap with an independent second real consumer (or a proved
+engine-wide baseline need) may enter a separate engine lane. S2-N0 remains part
+of that public release. Its
 deliberately bounded slice is only a product-fixed
 `fetch_url` Pi `AgentTool`, a third stable-origin keyless Network Broker, typed
 terminal approval/currentness handling, and session-only exact **Allow once**.

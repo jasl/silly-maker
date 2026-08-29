@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { randomBytes } from "node:crypto";
 
+import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, type Plugin } from "vite";
 
 import { createSillymakerAppViteConfigV1 } from "@sillymaker/tooling/vite";
@@ -195,6 +196,7 @@ export default defineConfig(async ({ command, isPreview }) => {
     ...config,
     plugins: [
       ...(config.plugins ?? []),
+      tailwindcss(),
       createSelectedOriginAgentWorkerDevelopmentPluginV1(),
       createCredentialVaultWorkerSecurityPluginV1(),
     ],

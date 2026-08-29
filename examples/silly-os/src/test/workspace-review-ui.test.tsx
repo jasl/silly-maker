@@ -495,6 +495,8 @@ describe("SillyOS Workspace review presentation", () => {
         }}
         onHome={vi.fn()}
         onLocaleChange={vi.fn()}
+        theme="system"
+        onThemeChange={vi.fn()}
         onAccept={vi.fn()}
         onReject={vi.fn()}
         onSend={vi.fn()}
@@ -523,6 +525,8 @@ describe("SillyOS Workspace review presentation", () => {
         }}
         onHome={vi.fn()}
         onLocaleChange={vi.fn()}
+        theme="system"
+        onThemeChange={vi.fn()}
         onAccept={vi.fn()}
         onReject={vi.fn()}
         onSend={vi.fn()}

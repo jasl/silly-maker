@@ -107,6 +107,12 @@ export interface SillyOsCopyV1 {
   readonly networkAccessToggle: string;
   readonly networkAccessDescription: string;
   readonly settings: string;
+  readonly productMenu: string;
+  readonly settingsTheme: string;
+  readonly settingsThemeDescription: string;
+  readonly themeSystem: string;
+  readonly themeLight: string;
+  readonly themeDark: string;
   readonly settingsBack: string;
   readonly settingsCategoryGeneral: string;
   readonly settingsCategoryProviders: string;
@@ -364,6 +370,12 @@ const englishV1: SillyOsCopyV1 = {
   networkAccessDescription:
     "Off by default. When enabled, Agent tools may fetch pages and download files over HTTPS for this Program. Full URL paths and queries may be sent to remote sites, and browser CORS still applies.",
   settings: "Settings",
+  productMenu: "SillyOS menu",
+  settingsTheme: "Theme",
+  settingsThemeDescription: "Use a light or dark appearance, or follow this device.",
+  themeSystem: "System",
+  themeLight: "Light",
+  themeDark: "Dark",
   settingsBack: "Back to Agent Creator",
   settingsCategoryGeneral: "General",
   settingsCategoryProviders: "Providers",
@@ -659,6 +671,12 @@ const chineseV1: SillyOsCopyV1 = {
   networkAccessDescription:
     "默认关闭。启用后，Agent 工具可以为此 Program 通过 HTTPS 抓取页面和下载文件；完整 URL 的路径与查询参数可能发送至远程站点，且仍受浏览器 CORS 限制。",
   settings: "设置",
+  productMenu: "SillyOS 菜单",
+  settingsTheme: "主题",
+  settingsThemeDescription: "使用浅色或深色外观，或跟随此设备的系统设置。",
+  themeSystem: "跟随系统",
+  themeLight: "浅色",
+  themeDark: "深色",
   settingsBack: "返回 Agent Creator",
   settingsCategoryGeneral: "通用",
   settingsCategoryProviders: "Provider",
@@ -865,12 +883,20 @@ function localeFromQueryV1(value: string | null): SillyOsLocaleV1 | null {
   )?.value ?? null;
 }
 
-/** Site-style locale selection without creating another runtime i18n authority. */
-export function resolveSillyOsCopyV1(): SillyOsCopyV1 {
-  if (typeof location !== "undefined") {
-    const locale = localeFromQueryV1(new URLSearchParams(location.search).get("locale"));
-    if (locale !== null) return getSillyOsCopyV1(locale);
-  }
+/** Returns only an explicit, admitted locale for the current navigation. */
+export function resolveSillyOsLocaleQueryOverrideV1(
+  search = typeof location === "undefined" ? "" : location.search,
+): SillyOsLocaleV1 | null {
+  return localeFromQueryV1(new URLSearchParams(search).get("locale"));
+}
+
+/** URL overrides the persisted preference; navigator remains the first-install fallback. */
+export function resolveSillyOsCopyV1(
+  preferredLocale: SillyOsLocaleV1 | null = null,
+): SillyOsCopyV1 {
+  const navigationLocale = resolveSillyOsLocaleQueryOverrideV1();
+  if (navigationLocale !== null) return getSillyOsCopyV1(navigationLocale);
+  if (preferredLocale !== null) return getSillyOsCopyV1(preferredLocale);
   if (typeof navigator !== "undefined") {
     const browserLocale = navigator.language.toLowerCase();
     const locale = sillyOsLocaleRegistryV1.find((candidate) =>

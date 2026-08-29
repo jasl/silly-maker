@@ -29,7 +29,12 @@ import {
   activeAgentUsesAnyCredentialBindingV1,
   shouldRevokeAgentAfterBuiltinModelVisibilityChangeV1,
 } from "../credential/provider-credential-currentness.ts";
-import { getSillyOsCopyV1, resolveSillyOsCopyV1, type SillyOsLocaleV1 } from "../content/copy.ts";
+import {
+  getSillyOsCopyV1,
+  resolveSillyOsCopyV1,
+  resolveSillyOsLocaleQueryOverrideV1,
+  type SillyOsLocaleV1,
+} from "../content/copy.ts";
 import type {
   CreatorControllerV1,
   CreatorDurabilityStateV1,
@@ -42,6 +47,16 @@ import {
 } from "../product/browser-data-reset-coordinator.ts";
 import type { BrowserProgramWorkspaceAuthorityV1 } from "../product/browser-program-workspace-authority.ts";
 import type { ProgramNetworkAccessV1 } from "../product/program-network-access.ts";
+import {
+  createBrowserProductPreferencesRepositoryV1,
+  defaultBrowserProductPreferencesSnapshotV1,
+  type BrowserProductPreferencesRepositoryV1,
+  type SillyOsThemeModeV1,
+} from "../product/browser-product-preferences-repository.ts";
+import {
+  applySillyOsDocumentPreferencesV1,
+  resolveSillyOsColorSchemeV1,
+} from "../product/browser-product-theme.ts";
 import {
   browserAgentPreferencesRevisionV1,
   createBrowserAgentPreferencesRepositoryV1,
@@ -64,6 +79,7 @@ import {
   canConsumeAgentTerminalV1,
 } from "./agent-terminal-acknowledgement.ts";
 import { CreatorHomeV1 } from "./creator-home.tsx";
+import { SillyOsOverlayHostV1 } from "./design-system/overlay-host.tsx";
 import { ProgramWorkspaceV1 } from "./program-workspace.tsx";
 import {
   type ProviderSettingsCatalogV1,
@@ -85,6 +101,7 @@ import { projectProviderSettingsCatalogV1 } from "./provider-settings-catalog.ts
 import type { WorkpieceWorkspaceExportV1 } from "./workpiece-pane.tsx";
 import "./design-system/tokens.css";
 import "./silly-os.css";
+import "./design-system/tailwind.css";
 
 export interface SillyOsAppPropsV1 {
   readonly controller: CreatorControllerV1;
@@ -174,6 +191,26 @@ function createAgentPreferencesRepositoryV1(): BrowserAgentPreferencesRepository
   } catch {
     return null;
   }
+}
+
+function createProductPreferencesRepositoryV1(): BrowserProductPreferencesRepositoryV1 | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return createBrowserProductPreferencesRepositoryV1({
+      storage: window.localStorage,
+      eventTarget: window,
+    });
+  } catch {
+    return null;
+  }
+}
+
+function subscribeUnavailableProductPreferencesV1(): () => void {
+  return () => undefined;
+}
+
+function getUnavailableProductPreferencesV1() {
+  return defaultBrowserProductPreferencesSnapshotV1;
 }
 
 function createDataResetCoordinatorV1(): BrowserDataResetCoordinatorV1 | null {
@@ -478,8 +515,19 @@ export function SillyOsAppV1({
   agentDrainRegistry,
   reportFailure,
 }: SillyOsAppPropsV1): ReactNode {
-  const initialCopy = resolveSillyOsCopyV1();
-  const [locale, setLocale] = useState<SillyOsLocaleV1>(initialCopy.locale);
+  const [productPreferencesRepository] = useState(createProductPreferencesRepositoryV1);
+  const productPreferences = useSyncExternalStore(
+    productPreferencesRepository?.subscribe ?? subscribeUnavailableProductPreferencesV1,
+    productPreferencesRepository?.getSnapshot ?? getUnavailableProductPreferencesV1,
+    getUnavailableProductPreferencesV1,
+  );
+  const [locale, setLocale] = useState<SillyOsLocaleV1>(() =>
+    resolveSillyOsCopyV1(productPreferences.locale).locale
+  );
+  const [systemPrefersDark, setSystemPrefersDark] = useState(() =>
+    typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches
+  );
+  const colorScheme = resolveSillyOsColorSchemeV1(productPreferences.theme, systemPrefersDark);
   const [piRuntime] = useState(requestedBrowserPiRuntimeV1);
   const internalPiTest = piRuntime === "deterministic_test";
   const [piAgentSetupStatus, setPiAgentSetupStatus] = useState<PiAgentSetupStatusV1>("loading");
@@ -624,6 +672,25 @@ export function SillyOsAppV1({
     : null;
   const executionWorkspaceSessionId = agentSnapshot?.workspace.descriptor?.workspaceSessionId ??
     null;
+
+  useEffect(() => {
+    if (typeof matchMedia !== "function") return undefined;
+    const query = matchMedia("(prefers-color-scheme: dark)");
+    const onChangeV1 = (event: MediaQueryListEvent): void => setSystemPrefersDark(event.matches);
+    setSystemPrefersDark(query.matches);
+    query.addEventListener("change", onChangeV1);
+    return () => query.removeEventListener("change", onChangeV1);
+  }, []);
+
+  useEffect(() => {
+    const navigationOverride = resolveSillyOsLocaleQueryOverrideV1();
+    const next = navigationOverride ?? resolveSillyOsCopyV1(productPreferences.locale).locale;
+    if (next !== locale) setLocale(next);
+  }, [locale, productPreferences.locale]);
+
+  useEffect(() => {
+    applySillyOsDocumentPreferencesV1({ document, locale, colorScheme });
+  }, [colorScheme, locale]);
 
   useEffect(() => {
     const epoch = ++networkAccessEpochRef.current;
@@ -943,10 +1010,26 @@ export function SillyOsAppV1({
   }, [internalPiTest, refreshStorageUsageV1, settingsOpen]);
 
   const changeLocaleV1 = (next: SillyOsLocaleV1): void => {
+    if (productPreferencesRepository !== null) {
+      try {
+        productPreferencesRepository.setLocale(next);
+      } catch (error) {
+        reportFailureRef.current("silly_os.product_preferences_save_failed", error);
+      }
+    }
     setLocale(next);
     const url = new URL(location.href);
     url.searchParams.set("locale", next);
     history.replaceState(history.state, "", url);
+  };
+
+  const changeThemeV1 = (next: SillyOsThemeModeV1): void => {
+    if (productPreferencesRepository === null) return;
+    try {
+      productPreferencesRepository.setTheme(next);
+    } catch (error) {
+      reportFailureRef.current("silly_os.product_preferences_save_failed", error);
+    }
   };
 
   const loadProviderCatalogV1 = useCallback((): void => {
@@ -1349,6 +1432,10 @@ export function SillyOsAppV1({
           }
           providerSettingsRepository.clear();
           agentPreferencesRepository.clear();
+          const url = new URL(location.href);
+          url.searchParams.delete("locale");
+          history.replaceState(history.state, "", url);
+          productPreferencesRepository?.clear();
         },
       });
 
@@ -2347,230 +2434,240 @@ export function SillyOsAppV1({
       className="silly-os"
       lang={locale}
       data-locale={locale}
+      data-theme-mode={productPreferences.theme}
+      data-color-scheme={colorScheme}
       data-program-storage-state={durability.phase}
       data-program-storage-operation={storageOperationV1(durability)}
       data-agent-workspace-state={agentSnapshot?.workspace.phase}
       data-workspace-export-state={workspaceExport.phase}
     >
-      {settingsOpen && !internalPiTest
-        ? (
-          <ProviderSettingsV1
-            copy={copy}
-            catalog={providerCatalog}
-            customProfiles={customProviderProfiles}
-            preferredBuiltinModel={providerSettingsSnapshot.preferredModel?.kind === "builtin"
-              ? providerSettingsSnapshot.preferredModel
-              : null}
-            connectionTest={connectionTest}
-            credentialOperation={credentialOperation}
-            credentialReceipt={credentialReceipt}
-            storageUsage={storageUsage}
-            clearAll={clearAll}
-            initialSection={settingsInitialSection}
-            onBack={closeSettingsV1}
-            onLocaleChange={changeLocaleV1}
-            onRetryCatalog={loadProviderCatalogV1}
-            enabledBuiltinModels={providerSettingsSnapshot.enabledBuiltinModels}
-            onSetBuiltinModelEnabled={setBuiltinModelEnabledV1}
-            vault={credentialVault}
-            onSetVaultPassword={setCredentialVaultPasswordV1}
-            onUseAutomaticVault={useAutomaticCredentialVaultV1}
-            onUnlockVault={unlockCredentialVaultV1}
-            onLockVault={lockCredentialVaultV1}
-            onRefreshStorageUsage={refreshStorageUsageV1}
-            onClearAllData={clearAllDataV1}
-            onSaveCredential={saveProviderCredentialV1}
-            onForgetCredential={forgetCredentialV1}
-            onTestConnection={testProviderConnectionV1}
-            onCreateCustomProfile={createCustomProviderProfileV1}
-            onRemoveCustomProfile={removeCustomProviderProfileV1}
-          />
-        )
-        : snapshot.route === "home"
-        ? (
-          <CreatorHomeV1
-            copy={copy}
-            createDisabled={durability.phase !== "ready" ||
-              !agentRuntimeUsableV1(piRuntime, piAgentSetupStatus) ||
-              reasoningEffortSelectionPending ||
-              (!internalPiTest && creatorProviderModelStatus !== "ready")}
-            programCatalog={{
-              status: durability.phase === "loading" && durability.operation === "catalog"
-                ? "loading"
-                : durability.phase === "failed" && durability.operation === "catalog"
-                ? "failed"
-                : "ready",
-              programs: controllerSnapshot.recentPrograms,
-              openDisabled: durability.phase !== "ready" ||
-                !agentRuntimeUsableV1(piRuntime, piAgentSetupStatus),
-              onOpen: (programId) => {
-                void controller.openProgram(programId).then((result) => {
-                  if (result.kind !== "completed") {
-                    reportFailure("silly_os.program_open_failed", result);
-                  }
-                });
-              },
-            }}
-            onLocaleChange={changeLocaleV1}
-            {...(internalPiTest
-              ? {
-                piAgentSetup: {
-                  runtime: "deterministic_test" as const,
-                  status: piAgentSetupStatus === "saving" ||
-                      piAgentSetupStatus === "credential_saved" ||
-                      piAgentSetupStatus === "testing"
-                    ? "initializing" as const
-                    : piAgentSetupStatus === "test_failed"
-                    ? "failed" as const
-                    : piAgentSetupStatus,
-                  onInitialize: (credential: string) =>
-                    savePiAgentCredentialV1(null, credential, true),
-                },
-              }
-              : {})}
-            {...(internalPiTest ? {} : {
-              onOpenSettings: openSettingsV1,
-              ...(usableProviderModelChoices.length > 0
-                ? { providerModel: creatorProviderModelV1("home") }
-                : {}),
-              ...(usableProviderModelChoices.length === 0
-                ? {
-                  providerSetup: {
-                    status: piAgentSetupStatus,
-                    onOpenSettings: openProviderSetupV1,
-                  },
-                }
-                : {}),
-            })}
-            onCreate={(intent, resourceNames) => {
-              void controller.submitIntent(intent).then(async (result) => {
-                if (result.kind !== "completed" || result.value.kind !== "created") {
-                  reportFailure("silly_os.creator_intent_rejected", result);
-                  return;
-                }
-                if (resourceNames.length === 0) return;
-                const resourceSummary = locale === "zh-CN"
-                  ? `已添加这些附件名称：${
-                    resourceNames.join("、")
-                  }。文件内容尚未发送给 Agent Host。`
-                  : `Added these attachment names: ${
-                    resourceNames.join(", ")
-                  }. File contents were not sent to an Agent Host.`;
-                await sendFollowUpV1(resourceSummary);
-              });
-            }}
-          />
-        )
-        : (
-          <ProgramWorkspaceV1
-            key={snapshot.workspace?.workspaceId}
-            copy={copy}
-            snapshot={snapshot}
-            workspaceReview={controllerSnapshot.workspaceReview}
-            homeDisabled={durability.phase === "saving" || agentMutationPending ||
-              agentWorkspaceLifecyclePending || workspaceExportPending}
-            mutationPending={durability.phase === "saving" || agentMutationPending ||
-              !executionWorkspaceReady || workspaceExportPending}
-            onHome={() => void openHomeV1()}
-            onLocaleChange={changeLocaleV1}
-            {...(internalPiTest ? {} : { onOpenSettings: openSettingsV1 })}
-            onAccept={() => {
-              const proposal = snapshot.proposal;
-              if (proposal === null) {
-                reportFailure("silly_os.proposal_unavailable", proposal);
-                return;
-              }
-              void controller.acceptProposal(proposal).then((result) => {
-                if (
-                  result.kind !== "completed" ||
-                  result.value.kind === "unavailable" || result.value.kind === "stale"
-                ) {
-                  reportFailure("silly_os.proposal_accept_failed", result);
-                }
-              });
-            }}
-            onReject={() => {
-              const proposal = snapshot.proposal;
-              if (proposal === null) {
-                reportFailure("silly_os.proposal_unavailable", proposal);
-                return;
-              }
-              void controller.rejectProposal(proposal).then((result) => {
-                if (
-                  result.kind !== "completed" ||
-                  result.value.kind === "unavailable" || result.value.kind === "stale"
-                ) {
-                  reportFailure("silly_os.proposal_reject_failed", result);
-                }
-              });
-            }}
-            onSend={sendFollowUpV1}
-            {...(internalPiTest ? {} : { providerModel: creatorProviderModelV1("workspace") })}
-            {...(programNetworkAccess?.programId !== routedProgramId ? {} : {
-              networkAccess: {
-                enabled: programNetworkAccess.enabled,
-                pending: networkAccessMutationPending,
-                onChange: setProgramNetworkAccessV1,
-              },
-            })}
-            {...(agentSnapshot === null ? {} : {
-              executionWorkspace: agentSnapshot.workspace,
-              onRetryExecutionWorkspace: retryAgentWorkspaceV1,
-              ...(workspaceExportAvailable
-                ? {
-                  workspaceExport,
-                  workspaceExportDisabled,
-                  onExportWorkspace: exportWorkspaceV1,
-                  onCancelWorkspaceExport: cancelWorkspaceExportV1,
-                }
-                : {}),
-              piAgentRun: {
-                runtime: piRuntime,
-                status: piAgentRunStatusV1(agentSnapshot.phase),
-                draft: agentSnapshot.draft,
-                diagnosticPath: agentSnapshot.diagnostic?.path ?? null,
-                onCancel: () => {
-                  const current = agentPortRef.current;
-                  const activeRunId = agentSnapshot.activeRunId;
-                  if (current === null || activeRunId === null) return;
-                  void current.cancel(activeRunId).then((result) => {
-                    if (result.kind === "unavailable") {
-                      reportFailure("silly_os.browser_pi_cancel_failed", result.diagnostic);
+      <SillyOsOverlayHostV1>
+        {settingsOpen && !internalPiTest
+          ? (
+            <ProviderSettingsV1
+              copy={copy}
+              catalog={providerCatalog}
+              customProfiles={customProviderProfiles}
+              preferredBuiltinModel={providerSettingsSnapshot.preferredModel?.kind === "builtin"
+                ? providerSettingsSnapshot.preferredModel
+                : null}
+              connectionTest={connectionTest}
+              credentialOperation={credentialOperation}
+              credentialReceipt={credentialReceipt}
+              storageUsage={storageUsage}
+              clearAll={clearAll}
+              initialSection={settingsInitialSection}
+              onBack={closeSettingsV1}
+              onLocaleChange={changeLocaleV1}
+              theme={productPreferences.theme}
+              onThemeChange={changeThemeV1}
+              onRetryCatalog={loadProviderCatalogV1}
+              enabledBuiltinModels={providerSettingsSnapshot.enabledBuiltinModels}
+              onSetBuiltinModelEnabled={setBuiltinModelEnabledV1}
+              vault={credentialVault}
+              onSetVaultPassword={setCredentialVaultPasswordV1}
+              onUseAutomaticVault={useAutomaticCredentialVaultV1}
+              onUnlockVault={unlockCredentialVaultV1}
+              onLockVault={lockCredentialVaultV1}
+              onRefreshStorageUsage={refreshStorageUsageV1}
+              onClearAllData={clearAllDataV1}
+              onSaveCredential={saveProviderCredentialV1}
+              onForgetCredential={forgetCredentialV1}
+              onTestConnection={testProviderConnectionV1}
+              onCreateCustomProfile={createCustomProviderProfileV1}
+              onRemoveCustomProfile={removeCustomProviderProfileV1}
+            />
+          )
+          : snapshot.route === "home"
+          ? (
+            <CreatorHomeV1
+              copy={copy}
+              createDisabled={durability.phase !== "ready" ||
+                !agentRuntimeUsableV1(piRuntime, piAgentSetupStatus) ||
+                reasoningEffortSelectionPending ||
+                (!internalPiTest && creatorProviderModelStatus !== "ready")}
+              programCatalog={{
+                status: durability.phase === "loading" && durability.operation === "catalog"
+                  ? "loading"
+                  : durability.phase === "failed" && durability.operation === "catalog"
+                  ? "failed"
+                  : "ready",
+                programs: controllerSnapshot.recentPrograms,
+                openDisabled: durability.phase !== "ready" ||
+                  !agentRuntimeUsableV1(piRuntime, piAgentSetupStatus),
+                onOpen: (programId) => {
+                  void controller.openProgram(programId).then((result) => {
+                    if (result.kind !== "completed") {
+                      reportFailure("silly_os.program_open_failed", result);
                     }
                   });
                 },
-                onForget: forgetPiAgentV1,
-              },
-            })}
-          />
-        )}
-      {(durability.phase === "saving" || durability.phase === "failed") && (
-        <aside
-          className={`program-storage-status is-${durability.phase}`}
-          role={durability.phase === "failed" ? "alert" : "status"}
-          aria-live="polite"
-        >
-          {durability.phase === "saving"
-            ? <LoaderCircle className="is-spinning" size={16} aria-hidden="true" />
-            : <TriangleAlert size={16} aria-hidden="true" />}
-          <span>
-            {durability.phase === "saving"
-              ? copy.savingProgram
-              : durability.code === "conflict"
-              ? copy.persistenceConflict
-              : copy.persistenceFailure}
-          </span>
-          {durability.phase === "failed" && durability.recovery !== null && (
-            <button
-              type="button"
-              onClick={() => void controller.retry()}
-            >
-              <RotateCcw size={14} aria-hidden="true" />
-              {copy.retry}
-            </button>
+              }}
+              onLocaleChange={changeLocaleV1}
+              theme={productPreferences.theme}
+              onThemeChange={changeThemeV1}
+              {...(internalPiTest
+                ? {
+                  piAgentSetup: {
+                    runtime: "deterministic_test" as const,
+                    status: piAgentSetupStatus === "saving" ||
+                        piAgentSetupStatus === "credential_saved" ||
+                        piAgentSetupStatus === "testing"
+                      ? "initializing" as const
+                      : piAgentSetupStatus === "test_failed"
+                      ? "failed" as const
+                      : piAgentSetupStatus,
+                    onInitialize: (credential: string) =>
+                      savePiAgentCredentialV1(null, credential, true),
+                  },
+                }
+                : {})}
+              {...(internalPiTest ? {} : {
+                onOpenSettings: openSettingsV1,
+                ...(usableProviderModelChoices.length > 0
+                  ? { providerModel: creatorProviderModelV1("home") }
+                  : {}),
+                ...(usableProviderModelChoices.length === 0
+                  ? {
+                    providerSetup: {
+                      status: piAgentSetupStatus,
+                      onOpenSettings: openProviderSetupV1,
+                    },
+                  }
+                  : {}),
+              })}
+              onCreate={(intent, resourceNames) => {
+                void controller.submitIntent(intent).then(async (result) => {
+                  if (result.kind !== "completed" || result.value.kind !== "created") {
+                    reportFailure("silly_os.creator_intent_rejected", result);
+                    return;
+                  }
+                  if (resourceNames.length === 0) return;
+                  const resourceSummary = locale === "zh-CN"
+                    ? `已添加这些附件名称：${
+                      resourceNames.join("、")
+                    }。文件内容尚未发送给 Agent Host。`
+                    : `Added these attachment names: ${
+                      resourceNames.join(", ")
+                    }. File contents were not sent to an Agent Host.`;
+                  await sendFollowUpV1(resourceSummary);
+                });
+              }}
+            />
+          )
+          : (
+            <ProgramWorkspaceV1
+              key={snapshot.workspace?.workspaceId}
+              copy={copy}
+              snapshot={snapshot}
+              workspaceReview={controllerSnapshot.workspaceReview}
+              homeDisabled={durability.phase === "saving" || agentMutationPending ||
+                agentWorkspaceLifecyclePending || workspaceExportPending}
+              mutationPending={durability.phase === "saving" || agentMutationPending ||
+                !executionWorkspaceReady || workspaceExportPending}
+              onHome={() => void openHomeV1()}
+              onLocaleChange={changeLocaleV1}
+              theme={productPreferences.theme}
+              onThemeChange={changeThemeV1}
+              {...(internalPiTest ? {} : { onOpenSettings: openSettingsV1 })}
+              onAccept={() => {
+                const proposal = snapshot.proposal;
+                if (proposal === null) {
+                  reportFailure("silly_os.proposal_unavailable", proposal);
+                  return;
+                }
+                void controller.acceptProposal(proposal).then((result) => {
+                  if (
+                    result.kind !== "completed" ||
+                    result.value.kind === "unavailable" || result.value.kind === "stale"
+                  ) {
+                    reportFailure("silly_os.proposal_accept_failed", result);
+                  }
+                });
+              }}
+              onReject={() => {
+                const proposal = snapshot.proposal;
+                if (proposal === null) {
+                  reportFailure("silly_os.proposal_unavailable", proposal);
+                  return;
+                }
+                void controller.rejectProposal(proposal).then((result) => {
+                  if (
+                    result.kind !== "completed" ||
+                    result.value.kind === "unavailable" || result.value.kind === "stale"
+                  ) {
+                    reportFailure("silly_os.proposal_reject_failed", result);
+                  }
+                });
+              }}
+              onSend={sendFollowUpV1}
+              {...(internalPiTest ? {} : { providerModel: creatorProviderModelV1("workspace") })}
+              {...(programNetworkAccess?.programId !== routedProgramId ? {} : {
+                networkAccess: {
+                  enabled: programNetworkAccess.enabled,
+                  pending: networkAccessMutationPending,
+                  onChange: setProgramNetworkAccessV1,
+                },
+              })}
+              {...(agentSnapshot === null ? {} : {
+                executionWorkspace: agentSnapshot.workspace,
+                onRetryExecutionWorkspace: retryAgentWorkspaceV1,
+                ...(workspaceExportAvailable
+                  ? {
+                    workspaceExport,
+                    workspaceExportDisabled,
+                    onExportWorkspace: exportWorkspaceV1,
+                    onCancelWorkspaceExport: cancelWorkspaceExportV1,
+                  }
+                  : {}),
+                piAgentRun: {
+                  runtime: piRuntime,
+                  status: piAgentRunStatusV1(agentSnapshot.phase),
+                  draft: agentSnapshot.draft,
+                  diagnosticPath: agentSnapshot.diagnostic?.path ?? null,
+                  onCancel: () => {
+                    const current = agentPortRef.current;
+                    const activeRunId = agentSnapshot.activeRunId;
+                    if (current === null || activeRunId === null) return;
+                    void current.cancel(activeRunId).then((result) => {
+                      if (result.kind === "unavailable") {
+                        reportFailure("silly_os.browser_pi_cancel_failed", result.diagnostic);
+                      }
+                    });
+                  },
+                  onForget: forgetPiAgentV1,
+                },
+              })}
+            />
           )}
-        </aside>
-      )}
+        {(durability.phase === "saving" || durability.phase === "failed") && (
+          <aside
+            className={`program-storage-status is-${durability.phase}`}
+            role={durability.phase === "failed" ? "alert" : "status"}
+            aria-live="polite"
+          >
+            {durability.phase === "saving"
+              ? <LoaderCircle className="is-spinning" size={16} aria-hidden="true" />
+              : <TriangleAlert size={16} aria-hidden="true" />}
+            <span>
+              {durability.phase === "saving"
+                ? copy.savingProgram
+                : durability.code === "conflict"
+                ? copy.persistenceConflict
+                : copy.persistenceFailure}
+            </span>
+            {durability.phase === "failed" && durability.recovery !== null && (
+              <button
+                type="button"
+                onClick={() => void controller.retry()}
+              >
+                <RotateCcw size={14} aria-hidden="true" />
+                {copy.retry}
+              </button>
+            )}
+          </aside>
+        )}
+      </SillyOsOverlayHostV1>
     </div>
   );
 }

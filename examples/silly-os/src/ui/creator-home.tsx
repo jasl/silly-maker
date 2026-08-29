@@ -8,16 +8,17 @@ import {
   Languages,
   Paperclip,
   PenTool,
-  Settings,
   Sparkles,
 } from "lucide-react";
 import { type FormEvent, type ReactNode, useRef, useState } from "react";
 
 import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../content/copy.ts";
 import type { PreviewProgramKindV1, ProgramProposalStatusV1 } from "../product/contracts.ts";
+import type { SillyOsThemeModeV1 } from "../product/browser-product-preferences-repository.ts";
 import { type ComposerModelControlV1, ComposerModelPickerV1 } from "./composer-model-picker.tsx";
 import { SillyButtonV1 as Button } from "./controls.tsx";
-import { LocaleSelectV1, SillyOsBrandV1 } from "./product-chrome.tsx";
+import { SillyOsBrandV1 } from "./product-chrome.tsx";
+import { ProductMenuV1 } from "./product-menu.tsx";
 
 const promptIconsV1 = [Languages, PenTool, Drama] as const;
 
@@ -25,6 +26,8 @@ export interface CreatorHomePropsV1 {
   readonly copy: SillyOsCopyV1;
   readonly onCreate: (intent: string, resourceNames: readonly string[]) => void;
   readonly onLocaleChange: (locale: SillyOsLocaleV1) => void;
+  readonly theme: SillyOsThemeModeV1;
+  readonly onThemeChange: (theme: SillyOsThemeModeV1) => void;
   readonly onOpenSettings?: () => void;
   readonly createDisabled?: boolean;
   readonly programCatalog?: {
@@ -63,6 +66,8 @@ export function CreatorHomeV1({
   copy,
   onCreate,
   onLocaleChange,
+  theme,
+  onThemeChange,
   onOpenSettings,
   createDisabled = false,
   piAgentSetup,
@@ -103,18 +108,14 @@ export function CreatorHomeV1({
       <header className="silly-os-topbar creator-home__topbar">
         <SillyOsBrandV1 copy={copy} />
         <div className="creator-home__topbar-actions">
-          <LocaleSelectV1 copy={copy} onChange={onLocaleChange} />
-          {onOpenSettings !== undefined && (
-            <Button
-              variant="ghost"
-              shape="square"
-              size="sm"
-              icon={Settings}
-              aria-label={copy.settings}
-              data-open-settings="home"
-              onClick={onOpenSettings}
-            />
-          )}
+          <ProductMenuV1
+            copy={copy}
+            theme={theme}
+            surface="home"
+            onThemeChange={onThemeChange}
+            onLocaleChange={onLocaleChange}
+            {...(onOpenSettings === undefined ? {} : { onOpenSettings })}
+          />
         </div>
       </header>
 

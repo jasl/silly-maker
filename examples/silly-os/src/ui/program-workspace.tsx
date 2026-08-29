@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import type { SillyOsCopyV1, SillyOsLocaleV1 } from "../content/copy.ts";
+import type { SillyOsThemeModeV1 } from "../product/browser-product-preferences-repository.ts";
 import type {
   CreatorSessionSnapshotV1,
   CreatorWorkspaceV1,
@@ -61,6 +62,8 @@ export interface ProgramWorkspacePropsV1 {
   readonly workspaceReview: ProgramWorkspaceReviewProjectionV1 | null;
   readonly onHome: () => void;
   readonly onLocaleChange: (locale: SillyOsLocaleV1) => void;
+  readonly theme: SillyOsThemeModeV1;
+  readonly onThemeChange: (theme: SillyOsThemeModeV1) => void;
   readonly onOpenSettings?: () => void;
   readonly onAccept: () => void;
   readonly onReject: () => void;
@@ -148,6 +151,8 @@ function ProgramWorkspaceReadyV1({
   program,
   onHome,
   onLocaleChange,
+  theme,
+  onThemeChange,
   onOpenSettings,
   onAccept,
   onReject,
@@ -299,6 +304,8 @@ function ProgramWorkspaceReadyV1({
         homeDisabled={homeDisabled}
         onHome={onHome}
         onLocaleChange={onLocaleChange}
+        theme={theme}
+        onThemeChange={onThemeChange}
         {...(onOpenSettings === undefined ? {} : { onOpenSettings })}
       />
 

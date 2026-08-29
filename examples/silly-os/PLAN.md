@@ -265,21 +265,107 @@ or deployed release. Its acceptance is the rebased product/unit/build/security
 gate plus a real computed-style Browser check for product-scope colors, normal
 and compact control geometry, focus tokens, and reduced motion.
 
-### DS1 — SillyOS component and pattern system (inactive)
+### DS1 — SillyOS component and pattern system (active; DS1a delivered 2026-08-30)
 
-The next design-system lane, when explicitly activated, inventories real
-Creator, Settings, Workspace, Chat, review, progress, empty/error, and overlay
-states before changing visual structure. It owns product semantic tokens,
-component variants, composite patterns, content rules, responsive behavior,
-accessibility states, and visual regression fixtures. It should migrate the
-current monolithic product CSS in bounded screen slices while retaining the
-accepted keyboard, IME, focus, anti-clipping, and mobile contracts.
+The owner has activated DS1 as a product lane. It inventories the real Creator,
+Settings, Workspace, Chat, review, progress, empty/error, and overlay states,
+then converges them in bounded screen slices while retaining the accepted
+keyboard, IME, focus, anti-clipping, responsive, reduced-motion, and mobile
+contracts. The complete lane owns product semantic tokens, component variants,
+composite patterns, content rules, accessibility states, and visual regression
+fixtures; activation is not evidence that those migrations are already
+complete.
+
+DS1 selects product-scoped Tailwind CSS 4 utilities with a `sos:` prefix and no
+Preflight/global reset. Tailwind is a build-time styling aid rather than a
+runtime product or engine contract. The accessible menu, selection, and related
+composite interactions follow current shadcn composition patterns over focused
+Radix packages, but SillyOS owns their source, semantics, tokens, and visual
+recipes. Modal confirmation uses native `dialog` behind the same product-owned
+composition: the evaluated Radix alert-dialog path injected dynamic scroll-lock
+styles and therefore did not satisfy the fixed control-plane CSP. The shadcn
+registry and DaisyUI are not additional runtime design authorities, and
+generated global `:root`, `html`, `body`, custom-property registrations, or
+unscoped element styles are inadmissible.
+
+The active sequence is:
+
+1. **DS1a — theme and chrome foundation (delivered 2026-08-30).** Add one
+   product-owned preference authority for `system`, `light`, or `dark` theme
+   mode and interface locale; persist those non-secret preferences on the
+   device and propagate changes to other live tabs. Map complete light and dark
+   semantic tokens at the SillyOS application boundary, react to system-theme
+   changes when `system` is selected, and keep pre-mount `color-scheme` aligned
+   with the resolved theme. Add an internal product overlay host so portals do
+   not escape the application token/focus boundary. Replace the separate
+   language and Settings actions in each product bar with one keyboard-
+   accessible product menu containing Theme, Language, and Settings. General
+   Settings consumes the same theme and locale authority. Existing reachable
+   surfaces must remain legible and operational in both resolved themes even
+   where their structural component migration is deferred.
+2. **DS1b — shared primitives.** Converge the currently repeated Button,
+   IconButton, field, native-select, segmented/toggle, tabs, menu, dialog,
+   status, progress, and overlay roles behind product-owned components. Reuse
+   the public SillyMaker physical primitives where their contract fits and use
+   focused Radix behavior where an accessible composite interaction is needed;
+   do not maintain parallel hand-written and shared implementations after a
+   consumer has migrated.
+3. **DS1c — product patterns.** Converge the Creator composer, model/reasoning
+   pickers, settings rows, Provider connection controls, proposal/review cards,
+   navigation, workpiece, and empty/error/loading states. Product vocabulary
+   and workflows remain explicit rather than hidden behind a generic widget
+   framework.
+4. **DS1d — surface convergence.** Migrate Creator Home, all three Settings
+   categories, Chat, Workspace View, and Activity in independently reviewable
+   slices. Each slice removes superseded selectors and recipes after its real
+   consumers move; the monolithic stylesheet is a migration source, not a
+   second permanent design system.
+5. **DS1e — closure.** Remove the remaining duplicate product controls and
+   dead styles, reconcile responsive and content fixtures, and run focused
+   component contracts plus Chromium/WebKit keyboard, contrast, theme,
+   anti-clipping, and visual-regression evidence. Only then may DS1 be marked
+   complete.
+
+DS1a is deliberately bounded: it does not redesign Creator/Workspace
+information architecture, migrate every screen component, activate a Mod,
+alter Agent/Provider/credential/Workspace contracts, or introduce a public
+SillyMaker theming/component ABI. It is accepted only after focused preference,
+cross-tab, menu/dialog, token-scope, and system-theme contracts pass together
+with the existing SillyOS suite/build/security gates and real Chromium/WebKit
+rendered checks.
+
+DS1a delivered that boundary on 2026-08-30. One strict non-secret preference
+repository now owns theme mode and locale with cross-tab propagation. An
+explicit locale query remains navigation-local and does not rewrite or yield to
+the stored preference. A fixed same-origin parser-blocking bootstrap restores
+the admitted saved theme before the deferred application entry without adding
+inline executable code; the build contains exactly one mutable theme-color
+metadata owner. The shared product menu, General controls, application-local
+overlay host, native confirmation dialog, semantic light/dark roles, and
+responsive focus geometry are live. Tailwind emits only `sos:` product
+utilities: the build gate rejects generated theme roots, universal `--tw-*`
+fallbacks, and global `@property --tw-*` registrations.
+
+Closure evidence is 70 SillyOS unit files / 576 tests, root typecheck and
+type-aware lint, Stylelint, the Browser control-plane build/security boundary,
+and the focused settings/theme/locale/menu/dialog suite in both Chromium and
+WebKit (10/10), including live `matchMedia` and cross-tab `storage` changes. A
+separate in-app Browser pass checked the dark Creator, General,
+unified menu, native modal backdrop/focus, and desktop layout. DS1 remains
+active: DS1b–DS1e still own complete primitive, pattern, surface, dead-style,
+and visual-fixture convergence, so DS1a does not claim that all product
+components have already migrated.
 
 SillyMaker remains the home only for neutral primitives and interaction
-mechanics that can be reproduced without SillyOS vocabulary and have another
-real consumer or an engine-wide baseline need. SillyOS palette, branding,
-Provider/Program semantics, settings information architecture, Creator
-composers, workpiece layouts, and product-specific component recipes stay here.
+mechanics that can be reproduced without SillyOS vocabulary. A DS1 discovery
+may be proposed upstream only when it is a neutral general capability gap and
+has an independent second real consumer (or a demonstrated engine-wide
+baseline need); any engine correction is reviewed and delivered in its own
+lane. SillyOS palette, theme recipes, branding, Provider/Program semantics,
+settings information architecture, Creator composers, workpiece layouts, and
+product-specific component recipes stay in `examples/silly-os`. Product-only
+Tailwind/Radix dependencies do not enter the engine packages merely because
+SillyOS uses them.
 
 ### M0 — first SillyOS public Mod consumer (inactive and evidence-gated)
 
