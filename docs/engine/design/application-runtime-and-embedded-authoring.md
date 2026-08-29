@@ -426,10 +426,11 @@ operation 得到相同结果。unknown kind/schema revision、stale draft revisi
 路径或 `FilePort`。operation 不持有 IO，不保存文件，不执行 HMR，也不是 gameplay command。
 V1 不承诺跨文档事务、任意 TypeScript AST 修改、operation log 持久化或通用命令总线。
 
-实现状态（2026-08-29）：AR2 已交付 Scene operation revision 1、严格 admission、pure reducer、共用
+实现状态（2026-08-29）：AR2 已交付初始 Scene structured operation 路径、严格 admission、pure reducer、共用
 local executor，以及既有 authoring session 上的 opaque document-successor identity、monotonic draft
-revision 和 conditional replace。Scene UI 与 non-UI caller 共用该路径。`@sillymaker/studio` 现在公开
-operation vocabulary、schema revision 和 execution result，供 build-known game/editor tools 编译；工具只从
+revision 和 conditional replace；Inspector-first M5 随后把当前 Scene operation vocabulary 演进至 revision 2。
+Scene UI 与 non-UI caller 共用该路径。`@sillymaker/studio` 现在公开 operation vocabulary、schema revision 和
+execution result，供 build-known game/editor tools 编译；工具只从
 `SceneInspectorRenderInputV1.execute` 获得已绑定 current document/revision 的执行端口。execution envelope、
 admission owner、executor、Authoring Host、Session 和 source IO 仍为内部实现。这不是 public Mod resolver/
 ABI/SDK、RPC schema、任意 operation handler registry 或持久化 operation log。

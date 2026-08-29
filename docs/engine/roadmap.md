@@ -101,6 +101,11 @@ Template 保持无需修改的 structural negative control。当前没有自动�
 单一 authority 与冷路径 Mod 设计，完成全仓检查、公共 package smoke、VN 两种构建和真实 Browser matrix。
 它没有激活新的功能 lane，SillyOS 仍在独立 worktree 孵化。
 
+[VN Authoring Source 与 Interactive Director V1](plans/2026-08-30-vn-authoring-source-interactive-director.md)
+已按所有者要求落盘为**候选计划**，目标是让现有 VN interaction 成为 versioned、稳定身份、可由同一 structured
+operation/CAS 路径编辑的作者源，并把 Director 作为延迟加载的 R1 tooling Mod。它尚未激活，不改变
+Production-floor current/next，也不包含新的 Ren'Py 运行能力、通用 Symbol Graph、Editor SDK 或 Cordis 复审。
+
 此前完成的 [VN Genre Mod、History Mod 与作者工作流](plans/2026-08-29-vn-genre-mod-authoring.md) 让 Template
 和 One Last Sound Check 共同消费 first-party VN interaction/compiler/runtime，共以 History 验证可选 R1
 presentation Mod，并交付只读 VN Inspector contribution；Bookshop 已退役，不再作为第二套作者或测试路径。
