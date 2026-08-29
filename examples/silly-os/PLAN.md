@@ -123,10 +123,12 @@ and do not by themselves accept the current overlay. Current source still does
 not add OAuth, multi-field cloud credentials, a Provider relay, remote-to-VFS
 download, HTTP requests, arbitrary headers, or a second Provider runtime, and
 it does not claim real custom-endpoint qualification until an exact custom route
-passes the later deployed-origin gate. S2-N0 is closed locally on 2026-08-29:
+passes the later deployed-origin gate. S2-N0 is closed and deployed on 2026-08-29:
 its fixed `fetch_url` and keyless Network Broker admit one exact approved HTTPS
 text request, including LAN/private destinations when the Browser permits it.
-They are not deployed and do not activate durable grants, download, or search.
+The build-matched control, Workspace Sandbox, and Broker release is recorded
+below; it does not activate durable grants, download, search, or public-origin
+real-model network qualification.
 The raw launcher is not the typed product RPC; the live Browser route is a
 separate product path. This plan remains local to `examples/silly-os`; the
 neutral async GUI disposer was delivered separately by the engine task and is
@@ -177,11 +179,13 @@ the selected target adapters may combine TypeScript, Workers, Wasm payloads, or
 a native companion behind the same typed workspace boundary.
 
 At most one phase below is active at a time. P1-B1a, P1-B1b, B1c-S0, S1a-0,
-S1a-1, S1b-1, S1b-2, S1b-3, S2-Q1, and S2-N0 are closed locally. The post-Q1
+S1a-1, S1b-1, S1b-2, S1b-3, S2-Q1, and S2-N0 are closed locally; the current
+build-matched three-origin artifact is also deployed. The post-Q1
 Browser Workspace namespace/file slice is implemented and locally verified.
 N0 adds only its fixed `fetch_url`, keyless third-origin Network Broker, and
 exact session-only **Allow once**; it does not activate a durable Program grant,
-remote download, search, or deployment automatically. The opt-in real QJS Agent-loop
+remote download, or search. Deployment remains a separately recorded release
+operation. The opt-in real QJS Agent-loop
 qualifier has passed once with Anthropic `claude-sonnet-4-5` in Chromium. A
 later phase may be refined before it
 starts, but it may not
@@ -641,7 +645,7 @@ native `bash` schema/result; just-bash owns the admitted command algorithms;
 the Sandbox Host owns Program volume generations and recovery. None of these
 semantics moves into the use-case-neutral SillyMaker engine.
 
-#### S2-N — explicit Browser network tools through a keyless Broker (active; N0 closed locally 2026-08-29)
+#### S2-N — explicit Browser network tools through a keyless Broker (active; N0 closed and deployed 2026-08-29)
 
 Network access is an explicit Program capability, not an ambient Workspace or
 guest-runtime property. SillyOS will ship fixed Pi `AgentTool` values named
@@ -697,13 +701,13 @@ generated code receive no Browser `fetch`; just-bash's bundled but unregistered
 `curl` remains unreachable. The Broker is not placed in an opaque-origin frame,
 because a stable Broker origin is part of the CORS and audit contract.
 
-##### S2-N0 — bounded `fetch_url` and session-only approval — closed locally 2026-08-29
+##### S2-N0 — bounded `fetch_url` and session-only approval — closed and deployed 2026-08-29
 
 N0 is the deliberately bounded first implementation slice. It adds one fixed
 `fetch_url` Pi `AgentTool`, the third-origin Broker, and the smallest
 session-only **Allow once** flow. It adds no persistent grant, no broad Settings
-surface, no `download`, no Provider relay, and no production-availability
-claim.
+surface, no `download`, and no Provider relay. Its deployed artifact
+availability does not widen those behavioral limits.
 
 The fixed request behavior is:
 
@@ -767,7 +771,8 @@ cancellation/currentness. A site's missing CORS, a Browser LNA refusal, or the
 inability to inspect a hostname's resolved IP is an expected product limit, not
 a reason to build a relay, DNS policy engine, or Browser workaround.
 
-Closure evidence is deliberately local. The focused Deno/Vitest suite passes
+Behavioral closure evidence remains controlled and local. The focused
+Deno/Vitest suite passes
 `454/454`, including exact protocol admission, streamed limits/MIME/deadlines,
 silent Broker-peer timeout, late-result currentness, rapid approval before the
 old run drains, and transient product projection. A mutation before approval
@@ -779,11 +784,29 @@ controlled physical journey passes in Chromium and persistent-profile WebKit:
 zero target request precedes approval; one exact `GET` follows **Allow once**;
 the request has no Authorization, Cookie, referrer, body, Provider-key sentinel,
 or Program/Workspace identity; denial causes no second request or durable Agent
-receipt. This evidence does not deploy the Broker, exercise a stochastic real
-model, prove arbitrary-site CORS, physically qualify redirect/missing-CORS
-behavior, or activate N1/N2/search. Playwright `route.fulfill()` was tried and
+receipt. This evidence is not itself a deployment receipt, does not exercise a
+stochastic real model, prove arbitrary-site CORS, physically qualify target
+redirect/missing-CORS behavior, or activate N1/N2/search. Playwright
+`route.fulfill()` was tried and
 falsified as evidence because it bypassed both Browser checks; N0 does not add a
 test-only TLS server/certificate framework merely to test Browser-owned behavior.
+
+The release operation separately deployed exact commit
+`329f8cc70a9b4a57d57c9653772dca519e3f9221` as control Cloudflare version
+`1dc1a247-ed98-4063-931f-2dd4fa681bee`, Workspace Sandbox version
+`7e1310ba-86c4-421e-b284-9015f1a3323b`, and Network Broker version
+`b005f590-bea4-4a55-8c15-db1a6a22292b`. Cloudflare Static Assets initially
+redirected the exact `.html` bootstrap path; final commit `329f8cc7` fixes both
+child deployments with `html_handling: "none"` and regression tests. The final
+control `/`, Broker `/network-broker.html`, and Sandbox
+`/workspace-sandbox.html` return direct HTTP 200 responses, embed the same
+source identity, and retain the exact control/Broker/Sandbox CSP split. A
+public Creator Home -> Settings smoke logged no warning or error; a disposable
+`?agent=pi-test` initialization reached `Pi test ready` with one active Broker
+frame and one active Sandbox frame, then closed without creating a Program.
+This release evidence proves shipped composition and bootstrap only. It does
+not prove a public-origin real-model call, arbitrary-site CORS, target redirect
+or missing-CORS behavior, N1/N2, or search.
 
 ##### S2-N1 — durable Program grants
 
@@ -795,6 +818,13 @@ transient; the Broker reads no repository and receives only a request already
 admitted by Product Core. Network grants are non-secret product preferences and
 never enter the Credential Vault, Workspace VFS, Pi transcript persistence, or
 Broker storage.
+
+The persistent choice is an explicit opt-in checkbox in the current Program's
+network settings. Unchecked preserves N0's **Allow once** behavior; checked may
+persist only the exact normalized `(programId, origin, operation)` grant and
+must never silently promote a one-time decision. Exact placement and visual
+polish are deferred with the broader UI rewrite, while the semantics,
+revocation, and Program scope are not.
 
 N1 requires cross-Program isolation, once-permit consumption, durable-grant cold
 reopen/revocation, zero request before grant, ordinary Chromium/WebKit journeys,
@@ -1173,8 +1203,9 @@ The accepted execution order is no longer the numeric subsection order:
     QuickJS/Wasm exclusion gate
     pass. Bounded admitted guest source diagnostics also reach the same native
     `bash` result in both engines with no mutation on failure; the product does
-    not forward a dedicated filename/stack field or Host exception. No
-    S1b-3/Q1 production deployment is claimed.
+    not forward a dedicated filename/stack field or Host exception. The
+    build-matched S1b-3/Q1 artifact is now deployed, but no public-origin
+    real-model read/edit/grep/qjs behavior is qualified by that release.
 12. **The post-Q1 namespace/file slice is implemented and locally verified:**
     fixed just-bash `mkdir`/`rm`/`cp`/`mv` and narrow product `touch` remain
     beneath Pi native `bash`; every changed entry publishes its own durable
@@ -1183,15 +1214,16 @@ The accepted execution order is no longer the numeric subsection order:
     One opt-in configured-Anthropic/Chromium write/write/bash-qjs loop passes
     with exact relational output and same-volume post-Forget bytes; Python
     remains absent.
-13. **S2-N0 is closed locally:** a keyless third-origin Broker, fixed
+13. **S2-N0 is closed and deployed:** a keyless third-origin Broker, fixed
     `fetch_url`, and session-only exact **Allow once** now cross the ordinary
     typed Pi path. Focused `454/454` contracts and controlled Chromium/
     persistent-WebKit journeys prove zero pre-approval request, bounded CORS
     HTTPS text fetch, rapid approval/retry currentness, denial, deadlines,
-    cancellation, credential-free wire shape, and separated builds. No
-    production Broker deployment, durable Program grant, remote-to-VFS
-    `download`, search, authenticated request, or arbitrary Browser egress is
-    claimed. S2-N1/N2 retain their own acceptance and stop conditions.
+    cancellation, credential-free wire shape, and separated builds. The exact
+    three-origin release receipt is recorded above. No durable Program grant,
+    remote-to-VFS `download`, search, authenticated request, arbitrary Browser
+    egress, or public-origin real-model network behavior is claimed. S2-N1/N2
+    retain their own acceptance and stop conditions.
     Python and other later S2 execution profiles, S3 Credential Vault, S4 Agent/OpenUI state,
     S5 BYO Sandbox/products, P1-D, and broader import/artifact work require their
     named predecessor and separate acceptance; none is retroactively part of the

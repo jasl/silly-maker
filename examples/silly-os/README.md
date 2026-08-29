@@ -66,7 +66,10 @@ S2-N0 还为固定 Pi 增加了一个窄 `fetch_url({ url })` 工具。模型首
 **Allow once** 后，产品通过普通新 run 重试并在请求前消费该精确许可。真正的 `GET` 只在独立
 origin、无 API key 的 Network Broker 中执行，不携带 Cookie、Authorization、referrer、body
 或自定义 header，只返回不超过 `256 KiB` 的声明 UTF-8 文本/JSON/XML。目标仍必须允许 Browser
-CORS；这不是任意网页抓取、搜索、持久授权或文件下载能力，也没有部署回执。
+CORS；这不是任意网页抓取、搜索、持久授权或文件下载能力。当前三 origin artifact 已发布，
+但线上 artifact 可达不等于任意站点 CORS 或真实模型调用已经通过。下一步 N1 会在 Program
+级网络设置中增加显式 opt-in checkbox：未勾选仍是 **Allow once**，勾选只持久化该 Program
+对精确 normalized origin/operation 的授权；布局与视觉细节留给后续 UI 重做。
 
 另有一个只在 `?agent=pi-test` 出现的 B0a 验证入口：它会把产品 lockfile 固定的
 `pi-agent-core` / `pi-ai` 0.84.3 懒加载进 Dedicated Worker，通过 typed RPC 运行真实
@@ -290,7 +293,8 @@ Chromium/WebKit 实际 nested-Worker harness、exact 10-file Sandbox graph、laz
 fresh Host/dedicated Pi-harness Worker cold reopen；control-build QuickJS/Wasm exclusion gate
 也已通过。Python、
 更广的 Wasm、BYO Sandbox 和 editor proof 均未
-激活。当前 Sandbox/live-tools/Q1 overlay 没有 production deployment receipt。
+激活。当前 Sandbox/live-tools/Q1 artifact 已随三 origin release 发布，但尚无 public-origin
+QJS 行为或真实模型 read/edit/grep/qjs 资格结果。
 候选路线与统一的 Browser/Deno 验收语料见
 [WASM-WORKSPACE-RESEARCH.md](./WASM-WORKSPACE-RESEARCH.md)。
 
@@ -403,14 +407,20 @@ family 之一并填写 model/limits，再用同一个 Connection 流程保存 ke
 只会恢复这个非秘密 profile；API key 和测试状态都不会恢复。一次测试成功只描述当前
 endpoint/key/model/API family 组合在本次浏览器会话中的那一次请求，不是使用前提。
 
-当前已资格化的 control-plane Cloudflare 部署是
+当前 Cloudflare 三 origin release 是
 [silly-os.jasl9187.workers.dev](https://silly-os.jasl9187.workers.dev/)。
-B1c-S0 提交 `a4cc8754b4c5f3050ff270a7c5a426b6c0d18176` 已于 2026-08-28 发布为
-Cloudflare 版本 `e1808054-af9f-446f-a913-22a39bf98e37`，并通过当时 control-plane 的
-Chromium/WebKit 响应与行为 smoke。它只托管静态产品；key 和模型请求从 Agent Worker 直接
-发送给所选 Provider，不经过 SillyOS 或 Cloudflare relay。B1a/B1b 的独立部署历史保留在
-[PLAN.md](./PLAN.md) 与 [DESIGN.md](./DESIGN.md)。S1a-1 尚无 production deployment receipt；
-不能从这个 URL 推断 ordinary independent-origin Authority 或 Sandbox 域名已经发布。
+精确提交 `329f8cc70a9b4a57d57c9653772dca519e3f9221` 已于 2026-08-29 发布为 control
+版本 `1dc1a247-ed98-4063-931f-2dd4fa681bee`、Workspace Sandbox 版本
+`7e1310ba-86c4-421e-b284-9015f1a3323b` 和 Network Broker 版本
+`b005f590-bea4-4a55-8c15-db1a6a22292b`。Control `/`、Broker
+`/network-broker.html`、Sandbox `/workspace-sandbox.html` 都直接返回 HTTP 200，三者嵌入同一
+source revision，control 组合校验也匹配两个 role-specific child identity，且保持精确 CSP
+分权。公开 Creator/Settings 与一次性 `?agent=pi-test` bootstrap
+smoke 无 console warning/error，并观察到两个独立 frame。它仍是静态客户端产品：Provider key
+和模型请求从 Agent Worker 直接发送给所选 Provider，不经过 SillyOS 或 Cloudflare relay；
+`fetch_url` 也只从无 key 的 Browser Broker 发出。B1a/B1b/B1c 的独立部署历史保留在
+[PLAN.md](./PLAN.md) 与 [DESIGN.md](./DESIGN.md)。这份回执不证明 public-origin 真实模型工具
+调用、任意站点 CORS、持久网络授权、download 或 search。
 
 开发资格检查会按精确 profile 从本目录的 `.env` 读取对应 Provider key，依次启动普通
 Chromium context 与运行后删除的一次性持久 WebKit profile，
