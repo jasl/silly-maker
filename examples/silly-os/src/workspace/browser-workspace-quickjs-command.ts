@@ -1,6 +1,4 @@
 // SPDX-License-Identifier: MIT
-/// <reference lib="webworker" />
-
 import {
   defineCommand,
   type Command,

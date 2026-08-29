@@ -1,0 +1,58 @@
+/* SPDX-License-Identifier: MIT */
+
+/* SillyMaker owns neutral interaction tokens and primitive behavior. SillyOS
+   binds its product identity only at the Host-provided application boundary;
+   no product palette or density leaks into sibling engine/tool surfaces. */
+[data-application-id="example-silly-os"] {
+  --silly-control-min-size: 36px;
+  --silly-control-min-size-compact: 28px;
+  --silly-text-size-base: 0.875rem;
+  --silly-text-size-compact: 0.75rem;
+  --silly-line-height-ui: 1.4;
+  --silly-line-height-readable: 1.6;
+  --silly-line-height-compact: 1.35;
+  --silly-font-family:
+    inter, ui-sans-serif, -apple-system, blinkmacsystemfont, "Segoe UI", "Noto Sans SC",
+    "PingFang SC", sans-serif;
+  --silly-space-1: 0.25rem;
+  --silly-space-2: 0.5rem;
+  --silly-space-3: 0.75rem;
+  --silly-space-4: 1rem;
+  --silly-radius-control: 0.5rem;
+  --silly-radius-card: 0.875rem;
+  --silly-color-canvas: #f6f6f4;
+  --silly-color-surface: #fff;
+  --silly-color-surface-translucent: rgb(255 255 255 / 94%);
+  --silly-color-text: #1d1d1b;
+  --silly-color-text-muted: #5f625e;
+  --silly-color-border: #c9cbc8;
+  --silly-color-control: #fff;
+  --silly-color-control-hover: #f4f4f1;
+  --silly-color-accent: #496bdf;
+  --silly-color-accent-text: #fff;
+  --silly-color-danger: #b42318;
+  --silly-focus-ring-inner: #315fc5;
+  --silly-focus-ring-outer: rgb(49 95 197 / 22%);
+  --sos-topbar-height: 56px;
+  --sos-pane-toolbar-height: 48px;
+  --sos-mobile-nav-height: 56px;
+  --sos-bg: var(--silly-color-canvas);
+  --sos-surface: var(--silly-color-surface);
+  --sos-surface-muted: #f2f2ef;
+  --sos-surface-raised: #fafaf8;
+  --sos-line: #e2e2de;
+  --sos-line-strong: var(--silly-color-border);
+  --sos-ink: var(--silly-color-text);
+  --sos-ink-soft: var(--silly-color-text-muted);
+  --sos-ink-muted: #858984;
+  --sos-accent: var(--silly-color-accent);
+  --sos-accent-dark: #3155c6;
+  --sos-accent-soft: #edf2ff;
+  --sos-teal: #167c78;
+  --sos-teal-soft: #e9f6f3;
+  --sos-blue: #496bdf;
+  --sos-focus: var(--silly-focus-ring-inner);
+  --sos-shadow: 0 18px 50px rgb(39 42 38 / 9%);
+
+  color-scheme: light;
+}

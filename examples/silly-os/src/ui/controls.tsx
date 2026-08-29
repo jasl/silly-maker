@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+import { Button } from "@sillymaker/ui";
 import type { LucideIcon } from "lucide-react";
 import { type ButtonHTMLAttributes, type ReactNode, type Ref, forwardRef } from "react";
 
@@ -24,17 +25,17 @@ export const SillyButtonV1 = forwardRef(function SillyButtonV1(
   ref: Ref<HTMLButtonElement>,
 ): ReactNode {
   const classes = [
-    "silly-button",
-    `silly-button--${variant}`,
-    `silly-button--${size}`,
-    `silly-button--${shape}`,
+    "silly-os-button",
+    `silly-os-button--${variant}`,
+    `silly-os-button--${size}`,
+    `silly-os-button--${shape}`,
     className,
   ].filter(Boolean).join(" ");
   return (
-    <button ref={ref} className={classes} disabled={disabled} {...props}>
+    <Button ref={ref} className={classes} disabled={disabled} {...props}>
       {Icon === undefined ? null : <Icon size={size === "sm" ? 14 : 16} aria-hidden="true" />}
       {children}
-    </button>
+    </Button>
   );
 });
 

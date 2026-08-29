@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-/// <reference lib="webworker" />
 // oxlint-disable unicorn/require-post-message-target-origin -- DedicatedWorkerGlobalScope has no targetOrigin argument.
 
 import { createBrowserWorkspaceEnvironmentClientV1 } from "../silly-os/src/agent/browser-workspace-environment-client.ts";
@@ -16,7 +15,16 @@ import {
 } from "../silly-os/src/agent/pi-workspace-tool-binder.ts";
 import type { WorkspaceExecutionDescriptorV1 } from "../silly-os/src/workspace/contracts.ts";
 
-const workerScopeV1 = self as unknown as DedicatedWorkerGlobalScope;
+interface HarnessPerformanceWorkerScopeV1 {
+  postMessage(message: unknown): void;
+  addEventListener(
+    type: "message",
+    listener: (event: MessageEvent<unknown>) => void,
+    options?: boolean | AddEventListenerOptions,
+  ): void;
+}
+
+const workerScopeV1 = globalThis as unknown as HarnessPerformanceWorkerScopeV1;
 const fixtureLineCountV1 = 2_048;
 const fixtureMatchStrideV1 = 16;
 const fixtureNeedleV1 = "SILLYOS_HARNESS_NEEDLE";

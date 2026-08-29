@@ -39,6 +39,7 @@
     "@earendil-works/pi-coding-agent": "0.84.3",
     "@jitl/quickjs-singlefile-browser-release-sync": "0.32.0",
     "@sillymaker/agent": "workspace:*",
+    "@sillymaker/ui": "workspace:*",
     "@sillymaker/web": "workspace:*",
     "client-zip": "2.5.0",
     "just-bash": "3.4.2",

@@ -642,6 +642,92 @@ async function routeSuccessfulOpenAIResponsesProbeV1(
   return observed;
 }
 
+test("SillyOS binds the shared UI foundation without leaking into Tool Theme", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto(sillyOsTargetUrlV1("?locale=en&agent=pi-test"));
+  const application = page.locator('[data-application-id="example-silly-os"]');
+  await expect(application).toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.styleSheets.length)).toBeGreaterThan(0);
+
+  const theme = await application.evaluate((root) => {
+    const productSurface = root.querySelector<HTMLElement>(".silly-os");
+    if (productSurface === null) throw new TypeError("SillyOS product surface is unavailable");
+
+    const normalButton = document.createElement("button");
+    normalButton.className =
+      "silly-button silly-os-button silly-os-button--secondary silly-os-button--base";
+    normalButton.textContent = "Normal";
+    productSurface.append(normalButton);
+    const compactButton = document.createElement("button");
+    compactButton.className =
+      "silly-button silly-os-button silly-os-button--secondary silly-os-button--sm";
+    compactButton.textContent = "Compact";
+    productSurface.append(compactButton);
+
+    const toolSurface = document.createElement("section");
+    toolSurface.dataset.sillyToolSurface = "true";
+    const toolButton = document.createElement("button");
+    toolButton.className = "silly-button";
+    toolButton.textContent = "Tool";
+    toolSurface.append(toolButton);
+    root.append(toolSurface);
+
+    compactButton.focus();
+    const rootStyle = getComputedStyle(root);
+    const productStyle = getComputedStyle(productSurface);
+    const normalStyle = getComputedStyle(normalButton);
+    const compactStyle = getComputedStyle(compactButton);
+    const toolStyle = getComputedStyle(toolSurface);
+    const toolButtonStyle = getComputedStyle(toolButton);
+    const result = {
+      product: {
+        canvas: rootStyle.getPropertyValue("--silly-color-canvas").trim(),
+        accent: rootStyle.getPropertyValue("--silly-color-accent").trim(),
+        fontFamily: productStyle.fontFamily,
+        fontSize: productStyle.fontSize,
+        normalBlockSize: normalStyle.blockSize,
+        normalMinBlockSize: normalStyle.minBlockSize,
+        compactBlockSize: compactStyle.blockSize,
+        compactMinBlockSize: compactStyle.minBlockSize,
+        focusOutlineColor: compactStyle.outlineColor,
+        transitionDuration: compactStyle.transitionDuration,
+      },
+      tool: {
+        canvas: toolStyle.getPropertyValue("--silly-color-canvas").trim(),
+        text: toolStyle.getPropertyValue("--silly-color-text").trim(),
+        fontFamily: toolStyle.fontFamily,
+        fontSize: toolStyle.fontSize,
+        controlBlockSize: toolButtonStyle.blockSize,
+        controlMinBlockSize: toolButtonStyle.minBlockSize,
+        colorScheme: toolStyle.colorScheme,
+      },
+    };
+    normalButton.remove();
+    compactButton.remove();
+    toolSurface.remove();
+    return result;
+  });
+
+  expect(theme.product.canvas).toBe("#f6f6f4");
+  expect(theme.product.accent).toBe("#496bdf");
+  expect(theme.product.fontFamily.toLowerCase()).toContain("inter");
+  expect(theme.product.fontSize).toBe("14px");
+  expect(theme.product.normalBlockSize).toBe("36px");
+  expect(theme.product.normalMinBlockSize).toBe("36px");
+  expect(theme.product.compactBlockSize).toBe("28px");
+  expect(theme.product.compactMinBlockSize).toBe("28px");
+  expect(theme.product.focusOutlineColor).toBe("rgb(49, 95, 197)");
+  expect(theme.product.transitionDuration).toBe("0s");
+  expect(theme.tool.canvas).toBe("#101014");
+  expect(theme.tool.text).toBe("#e7e9ee");
+  expect(theme.tool.fontFamily).not.toBe(theme.product.fontFamily);
+  expect(theme.tool.fontSize).toBe("14px");
+  expect(Number.parseFloat(theme.tool.controlBlockSize)).toBeGreaterThanOrEqual(28);
+  expect(Number.parseFloat(theme.tool.controlBlockSize)).toBeLessThan(30);
+  expect(theme.tool.controlMinBlockSize).toBe("28px");
+  expect(theme.tool.colorScheme).toBe("dark");
+});
+
 test("ordinary Browser Settings verifies a built-in Pi connection and preserves mobile navigation", async ({ durableProgramPage: page }) => {
   const sentinel = "sillyos-provider-settings-session-key";
   const vaultPassword = "sillyos-browser-vault-password";
@@ -672,7 +758,7 @@ test("ordinary Browser Settings verifies a built-in Pi connection and preserves 
       ((providerWarningBox?.y ?? 0) + (providerWarningBox?.height ?? 0)),
   ).toBeGreaterThanOrEqual(13);
   const composerControlRadii = await page.locator(
-    ".creator-composer textarea, .creator-composer__actions .silly-button",
+    ".creator-composer textarea, .creator-composer__actions .silly-os-button",
   ).evaluateAll((elements) => elements.map((element) => getComputedStyle(element).borderRadius));
   expect(new Set(composerControlRadii)).toEqual(new Set(["12px"]));
   await providerWarning.click();

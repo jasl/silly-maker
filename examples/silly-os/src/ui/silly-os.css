@@ -1,106 +1,26 @@
 /* SPDX-License-Identifier: MIT */
 /* stylelint-disable no-descending-specificity -- component sections stay readable and use
    product-namespaced selectors; later regions do not override earlier component contracts. */
-:root[data-mode="light"] {
-  color-scheme: light;
-}
-
-html,
-body,
-#root {
-  inline-size: 100%;
-  block-size: 100%;
-  min-inline-size: 0;
-  min-block-size: 0;
-  margin: 0;
-  overflow: hidden;
-}
-
 .silly-os {
-  --sos-topbar-height: 56px;
-  --sos-pane-toolbar-height: 48px;
-  --sos-mobile-nav-height: 56px;
-  --sos-bg: #f6f6f4;
-  --sos-surface: #fff;
-  --sos-surface-muted: #f2f2ef;
-  --sos-surface-raised: #fafaf8;
-  --sos-line: #e2e2de;
-  --sos-line-strong: #c9cbc8;
-  --sos-ink: #1d1d1b;
-  --sos-ink-soft: #5f625e;
-  --sos-ink-muted: #858984;
-  --sos-accent: #496bdf;
-  --sos-accent-dark: #3155c6;
-  --sos-accent-soft: #edf2ff;
-  --sos-teal: #167c78;
-  --sos-teal-soft: #e9f6f3;
-  --sos-blue: #496bdf;
-  --sos-focus: #315fc5;
-  --sos-shadow: 0 18px 50px rgb(39 42 38 / 9%);
-
-  box-sizing: border-box;
   inline-size: 100%;
   block-size: 100%;
   min-inline-size: 0;
   min-block-size: 0;
   overflow: hidden;
-  color: var(--sos-ink);
+  color: var(--silly-color-text);
   color-scheme: light;
-  background: var(--sos-bg);
-  font-family:
-    Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC",
-    "PingFang SC", sans-serif;
-  font-size: 14px;
+  background: var(--silly-color-canvas);
+  font-family: var(--silly-font-family);
+  font-size: var(--silly-text-size-base);
   font-synthesis: none;
   text-rendering: optimizelegibility;
-}
-
-.silly-os *,
-.silly-os *::before,
-.silly-os *::after {
-  box-sizing: inherit;
-}
-
-.silly-os button,
-.silly-os input,
-.silly-os textarea {
-  min-inline-size: 0;
-  margin: 0;
-  color: inherit;
-  font: inherit;
-}
-
-.silly-os button {
-  cursor: pointer;
-}
-
-.silly-os button:disabled {
-  cursor: default;
-}
-
-.silly-os input,
-.silly-os textarea {
-  border: 1px solid var(--sos-line);
-  border-radius: 10px;
-  outline: none;
-  background: var(--sos-surface);
-}
-
-.silly-os textarea {
-  resize: none;
-}
-
-.silly-os :focus-visible {
-  outline: 2px solid var(--sos-focus);
-  outline-offset: 2px;
-  box-shadow: none;
 }
 
 .silly-os [hidden] {
   display: none !important;
 }
 
-.silly-button {
+.silly-os-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -118,55 +38,56 @@ body,
   transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
-.silly-button:hover:not(:disabled) {
+.silly-os-button:hover:not(:disabled) {
   border-color: #afb3ae;
   background: #f4f4f1;
 }
 
-.silly-button--primary {
+.silly-os-button--primary {
   border-color: var(--sos-accent);
   color: #fff;
   background: var(--sos-accent);
 }
 
-.silly-button--primary:hover:not(:disabled) {
+.silly-os-button--primary:hover:not(:disabled) {
   border-color: var(--sos-accent-dark);
   background: var(--sos-accent-dark);
 }
 
-.silly-button--ghost {
+.silly-os-button--ghost {
   border-color: transparent;
   background: transparent;
 }
 
-.silly-button--ghost:hover:not(:disabled) {
+.silly-os-button--ghost:hover:not(:disabled) {
   border-color: transparent;
   background: var(--sos-surface-muted);
 }
 
-.silly-button--sm {
-  block-size: 28px;
+.silly-os-button--sm {
+  min-block-size: var(--silly-control-min-size-compact);
+  block-size: var(--silly-control-min-size-compact);
   padding-inline: 9px;
   gap: 5px;
   border-radius: 7px;
   font-size: 11px;
 }
 
-.silly-button--square {
+.silly-os-button--square {
   inline-size: 36px;
   padding: 0;
   flex: 0 0 auto;
 }
 
-.silly-button--square.silly-button--sm {
+.silly-os-button--square.silly-os-button--sm {
   inline-size: 28px;
 }
 
-.silly-button:disabled {
+.silly-os-button:disabled {
   opacity: 0.48;
 }
 
-.silly-button svg {
+.silly-os-button svg {
   flex: 0 0 auto;
 }
 
@@ -642,6 +563,7 @@ body,
   border: 0;
   border-radius: 12px;
   background: transparent;
+  resize: none;
   color: var(--sos-ink);
   font-size: 16px;
   line-height: 1.55;
@@ -691,7 +613,7 @@ body,
   border-block-start: 1px solid #efefec;
 }
 
-.creator-composer__actions .silly-button {
+.creator-composer__actions .silly-os-button {
   min-block-size: 36px;
   border-radius: 12px;
 }
@@ -704,7 +626,7 @@ body,
   gap: 6px;
 }
 
-.creator-composer__primary-actions > .silly-button {
+.creator-composer__primary-actions > .silly-os-button {
   flex: 0 0 auto;
 }
 
@@ -2518,7 +2440,7 @@ body,
   gap: 8px;
 }
 
-.provider-settings__credential-actions > .silly-button:not(.silly-button--square) {
+.provider-settings__credential-actions > .silly-os-button:not(.silly-os-button--square) {
   flex: 1 1 auto;
 }
 
@@ -3490,6 +3412,7 @@ body,
   border: 0;
   border-radius: 7px;
   background: transparent;
+  resize: none;
   font-size: 16px;
   line-height: 1.5;
 }
@@ -3508,7 +3431,7 @@ body,
   border-block-start: 1px solid #efefec;
 }
 
-.chat-composer__actions .silly-button {
+.chat-composer__actions .silly-os-button {
   min-inline-size: 36px;
   min-block-size: 36px;
   border-radius: 12px;
@@ -4515,7 +4438,8 @@ body,
   }
 
   .silly-os-topbar {
-    padding-inline: max(10px, env(safe-area-inset-left)) max(10px, env(safe-area-inset-right));
+    padding-inline: max(10px, var(--silly-safe-area-inline-start))
+      max(10px, var(--silly-safe-area-inline-end));
   }
 
   .silly-os-settings__topbar .silly-os-brand__name,
@@ -4573,7 +4497,7 @@ body,
   }
 
   .silly-os-settings__standalone {
-    padding: 22px 14px max(32px, env(safe-area-inset-bottom));
+    padding: 22px 14px max(32px, var(--silly-safe-area-block-end));
   }
 
   .silly-os-settings__standalone > header {
@@ -4610,8 +4534,8 @@ body,
     flex-direction: column;
   }
 
-  .silly-os-settings__storage-summary .silly-button,
-  .silly-os-settings__clear-row .silly-button {
+  .silly-os-settings__storage-summary .silly-os-button,
+  .silly-os-settings__clear-row .silly-os-button {
     inline-size: 100%;
     min-block-size: 44px;
   }
@@ -4628,7 +4552,7 @@ body,
     border-radius: 15px;
   }
 
-  .silly-os-settings__clear-dialog-actions .silly-button {
+  .silly-os-settings__clear-dialog-actions .silly-os-button {
     min-block-size: 44px;
     flex: 1;
   }
@@ -4661,7 +4585,7 @@ body,
   }
 
   .provider-settings__provider-list {
-    padding: 7px 8px max(10px, env(safe-area-inset-bottom));
+    padding: 7px 8px max(10px, var(--silly-safe-area-block-end));
   }
 
   .provider-settings__provider-list button {
@@ -4672,7 +4596,7 @@ body,
     display: flex;
     align-items: center;
     min-block-size: 44px;
-    padding-inline: max(10px, env(safe-area-inset-left)) 14px;
+    padding-inline: max(10px, var(--silly-safe-area-inline-start)) 14px;
     flex: 0 0 auto;
     gap: 6px;
     border: 0;
@@ -4685,7 +4609,7 @@ body,
   }
 
   .provider-settings__detail-scroll {
-    padding: 20px 14px max(32px, env(safe-area-inset-bottom));
+    padding: 20px 14px max(32px, var(--silly-safe-area-block-end));
   }
 
   .provider-settings__detail-heading {
@@ -4760,7 +4684,7 @@ body,
     min-block-size: 44px;
   }
 
-  .provider-settings__credential-actions > .silly-button--square {
+  .provider-settings__credential-actions > .silly-os-button--square {
     inline-size: 44px;
   }
 
@@ -4838,7 +4762,7 @@ body,
     gap: 8px;
   }
 
-  .creator-composer__actions .silly-button {
+  .creator-composer__actions .silly-os-button {
     min-block-size: 42px;
   }
 
@@ -4938,8 +4862,9 @@ body,
     grid-row: 3;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     min-block-size: var(--sos-mobile-nav-height);
-    padding: 4px max(8px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(8px,
-      env(safe-area-inset-left));
+    padding: 4px max(8px, var(--silly-safe-area-inline-end))
+      max(4px, var(--silly-safe-area-block-end))
+      max(8px, var(--silly-safe-area-inline-start));
     gap: 4px;
     border-block-start: 1px solid var(--sos-line);
     background: rgb(255 255 255 / 96%);
@@ -4989,7 +4914,7 @@ body,
     gap: 8px;
   }
 
-  .chat-composer__actions .silly-button {
+  .chat-composer__actions .silly-os-button {
     min-inline-size: 42px;
     min-block-size: 42px;
   }
@@ -5087,36 +5012,5 @@ body,
 
   .creator-home__ideas {
     margin-block-start: 28px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .creator-home__idea {
-    transition: none;
-  }
-
-  .creator-composer__model-popover {
-    animation: none;
-  }
-
-  .silly-os-locale__popover {
-    animation: none;
-  }
-
-  .creator-composer__model-chevron,
-  .creator-composer__model-option,
-  .creator-composer__model-settings,
-  .creator-composer__model-selector,
-  .silly-os-locale__chevron,
-  .silly-os-locale__option,
-  .silly-os-locale__trigger {
-    transition: none;
-  }
-
-  .pi-agent-run .is-spinning,
-  .program-storage-status .is-spinning,
-  .provider-settings__connection-status .is-spinning,
-  .workpiece-workspace-export .is-spinning {
-    animation: none;
   }
 }

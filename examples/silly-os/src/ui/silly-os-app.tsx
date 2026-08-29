@@ -83,6 +83,7 @@ import {
 } from "./provider-settings.tsx";
 import { projectProviderSettingsCatalogV1 } from "./provider-settings-catalog.ts";
 import type { WorkpieceWorkspaceExportV1 } from "./workpiece-pane.tsx";
+import "./design-system/tokens.css";
 import "./silly-os.css";
 
 export interface SillyOsAppPropsV1 {

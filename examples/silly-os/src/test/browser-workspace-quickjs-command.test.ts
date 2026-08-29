@@ -1,6 +1,4 @@
 // SPDX-License-Identifier: MIT
-/// <reference lib="webworker" />
-
 import { createCommandContext, InMemoryFs } from "just-bash/browser";
 import { describe, expect, it } from "vitest";
 

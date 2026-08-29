@@ -1073,10 +1073,11 @@ change a real product behavior.
 - Program presentation may use ordinary React and mature web packages. A
   third-party component remains responsible for ordinary same-realm browser
   behavior; SillyMaker does not invent a JavaScript sandbox around trusted UI.
-- The existing private, build-known Mod runtime is not a public ecosystem and
-  is not selected by the first preview. Agent-side capabilities use Pi's public
-  extension/tool mechanisms instead; they are not SillyMaker Mods, and arbitrary
-  generated code is not admitted as either kind of extension.
+- The focused public `@sillymaker/composition/mod` runtime is a trusted build-
+  time composition/lifecycle API, not a package ecosystem or sandbox, and is
+  not selected by the first preview. Agent-side capabilities use Pi's public
+  extension/tool mechanisms instead; they are not SillyMaker Mods, and
+  arbitrary generated code is not admitted as either kind of extension.
 - React presentation never owns Pi, provider streams, the Program database,
   workspace tools, companion processes, or external services. In Browser, a
   Dedicated Worker owns Pi and temporarily owns the user-supplied credential;
@@ -1744,6 +1745,34 @@ identity:
 Cloudflare's screenshot is framed by outside whitespace, a rounded container,
 and a presentation shadow. Those belong to the screenshot composition. The
 actual SillyOS application fills its visual viewport.
+
+The engine UI foundation is the neutral physical layer. The GUI Host loads its
+public tokens, focus/reduced-motion behavior, form baseline, and primitive CSS
+before the product mounts. SillyOS binds its palette, typography, density,
+spacing, radius, and semantic aliases only at the Host-owned
+`[data-application-id="example-silly-os"]` boundary. An exclusive SillyOS
+document may select a light `color-scheme` before mount, but product palette,
+font, reset, and component recipes do not target `:root`, `html`, or `body`.
+Engine Tool Theme surfaces therefore remain able to rebind neutral tool tokens
+without inheriting SillyOS focus or product styling.
+
+The complete product design system has four layers:
+
+1. **foundation mapping** — SillyMaker public tokens plus SillyOS semantic
+   color, typography, spacing, radius, elevation, motion, and density aliases;
+2. **primitives** — public SillyMaker semantic controls composed with product
+   variants, never copied engine behavior;
+3. **patterns** — product-owned composer, model picker, settings row, status,
+   proposal/review, navigation, workpiece, empty/error, and overlay contracts;
+4. **surfaces** — Creator Home, Settings, Chat, Workspace View, and Activity,
+   each verified across the responsive and keyboard matrix below.
+
+The current app has only the first bounded foundation mapping and the Button
+composition. Its large product stylesheet is a migration source, not proof that
+the component/pattern system is complete. Later slices inventory and migrate
+real repeated roles before creating an abstraction. Product appearance and
+workflow stay in SillyOS; only use-case-neutral primitives or interaction
+mechanics with independent evidence may be proposed upstream.
 
 ## Responsive layout contract
 

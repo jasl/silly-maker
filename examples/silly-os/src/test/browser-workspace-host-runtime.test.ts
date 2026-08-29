@@ -968,10 +968,12 @@ describe("SillyOS Browser Workspace Host runtime", () => {
       requestId: "network-download.backpressure",
       code: "sink_failed",
     });
-    expect(sink.messages.some((message) =>
-      (message as Readonly<Record<string, unknown>>).kind ===
-        "network_broker_download_chunk_ack"
-    )).toBe(false);
+    expect(
+      sink.messages.some((message) =>
+        (message as unknown as Readonly<Record<string, unknown>>).kind ===
+          "network_broker_download_chunk_ack"
+      ),
+    ).toBe(false);
     expect(opened.volume.files.has("assets/burst.bin")).toBe(false);
     await opened.runtime.dispose();
   });

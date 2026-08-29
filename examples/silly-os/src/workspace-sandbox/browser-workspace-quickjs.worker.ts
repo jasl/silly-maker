@@ -1,6 +1,4 @@
 // SPDX-License-Identifier: MIT
-/// <reference lib="webworker" />
-
 import quickJsVariant from "@jitl/quickjs-singlefile-browser-release-sync";
 import {
   DefaultIntrinsics,

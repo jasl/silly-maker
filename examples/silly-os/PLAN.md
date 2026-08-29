@@ -192,14 +192,17 @@ a native companion behind the same typed workspace boundary.
 
 At most one phase below is active at a time. P1-B1a, P1-B1b, B1c-S0, S1a-0,
 S1a-1, S1b-1, S1b-2, S1b-3, S2-Q1, S2-N0/N1/N2/N3, the original S3, S3-R1,
-D1, and P1-B1d reasoning effort are closed. The current build-matched
+D1, P1-B1d reasoning effort, and E0 engine-baseline absorption are closed. The current
+local source is rebased onto engine baseline
+`31461f362129e6192f70553a261ada225c2abf8b`; no follow-on design-system or Mod
+phase is active. The current build-matched
 three-origin artifact and fixed Vault Worker are deployed from commit
 `a17c3490c9940bb43fc8718df485322c2dee1052` (Sandbox
 `fb703131-3e37-4e7d-95f4-5b7afa9160cd`, Broker
 `07720852-ac1f-462b-8098-086410906839`, control/Vault
 `e0b61061-1a07-4e64-a963-74a0a7ee6420`). That release includes the S3-R1,
 S2-N3, D1 Browser data-management, and Pi reasoning-effort clean replacements.
-D2 remains inactive; no follow-on phase is active. The post-Q1 Browser
+D2 remains inactive. The post-Q1 Browser
 Workspace namespace/file slice is implemented and locally
 verified. N0's exact **Allow once** and N1's Program grants remain historical
 delivery records; N2 added bounded remote download, and S3
@@ -225,6 +228,75 @@ replacement rule: breaking product-private contracts may reset preview data,
 and the same slice deletes the superseded implementation, types, fixtures, and
 tests. Do not retain compatibility shims, dual schemas, deprecated aliases, or
 fallback behavior merely to preserve an earlier preview.
+
+## Engine absorption and product design-system sequence
+
+The owner activated this narrow lane on 2026-08-30 after the main engine/UI
+work closed. It absorbs only implemented public contracts whose ownership is
+already neutral. It does not move Program, Pi, Provider, credential, Workspace,
+Sandbox, or product workflow semantics into SillyMaker.
+
+### E0 — current engine baseline and UI foundation (closed locally 2026-08-30)
+
+E0 rebases the complete SillyOS product series onto exact engine baseline
+`31461f362129e6192f70553a261ada225c2abf8b` while retaining a named pre-rebase
+recovery branch. It accepts the upstream async GUI disposer and external
+version stamp as equivalent superseding implementations rather than replaying
+product copies. The first deliberately bounded UI slice then:
+
+1. consumes the GUI Host's automatically loaded `@sillymaker/ui/styles.css`
+   foundation and binds the SillyOS light palette, typography, density, focus,
+   radius, and neutral semantic aliases only at
+   `[data-application-id="example-silly-os"]`;
+2. removes document-global product palette/reset authority while retaining the
+   exclusive Host's pre-mount light `color-scheme` selection;
+3. composes the existing product `SillyButtonV1` variants over the public
+   `@sillymaker/ui` `Button`, preserving the current product API and visual
+   contract instead of rewriting screens;
+4. keeps reduced-motion and focus behavior under the engine foundation so
+   embedded Tool Theme surfaces can rebind their neutral tokens; and
+5. consumes the engine's logical safe-area tokens instead of repeating
+   physical `env(safe-area-inset-*)` reads; and
+6. preserves the full SillyOS Agent/Provider/Workspace contracts and final-
+   graph boundaries.
+
+E0 does **not** claim a complete design system, visual redesign, Mod consumer,
+or deployed release. Its acceptance is the rebased product/unit/build/security
+gate plus a real computed-style Browser check for product-scope colors, normal
+and compact control geometry, focus tokens, and reduced motion.
+
+### DS1 — SillyOS component and pattern system (inactive)
+
+The next design-system lane, when explicitly activated, inventories real
+Creator, Settings, Workspace, Chat, review, progress, empty/error, and overlay
+states before changing visual structure. It owns product semantic tokens,
+component variants, composite patterns, content rules, responsive behavior,
+accessibility states, and visual regression fixtures. It should migrate the
+current monolithic product CSS in bounded screen slices while retaining the
+accepted keyboard, IME, focus, anti-clipping, and mobile contracts.
+
+SillyMaker remains the home only for neutral primitives and interaction
+mechanics that can be reproduced without SillyOS vocabulary and have another
+real consumer or an engine-wide baseline need. SillyOS palette, branding,
+Provider/Program semantics, settings information architecture, Creator
+composers, workpiece layouts, and product-specific component recipes stay here.
+
+### M0 — first SillyOS public Mod consumer (inactive and evidence-gated)
+
+The focused public `@sillymaker/composition/mod` runtime is now available, but
+SillyOS does not select it merely because the engine can. A Program, Pi
+extension, Workspace file, generated application, suggested capability, QJS
+output, and OpenUI artifact are not SillyMaker Mods. The first valid consumer
+must be a product-shipped, lockfile/build-known capability that genuinely needs
+independent selection, replacement, diagnostics, or structural exclusion.
+
+The smallest candidate is a future presentation-only capability behind a
+closed admitted UI artifact catalog. It requires a literal trusted catalog, a
+SillyOS-owned React commit acknowledgement, failed-candidate predecessor
+retention, awaited cleanup, inert generated strings, and unselected final-graph
+exclusion. It receives no Pi, credential, repository, Workspace, network, DOM-
+owner, or mutation authority. No such consumer exists today, so the correct E0
+result is structural exclusion rather than a synthetic Mod framework.
 
 ## Browser security and execution sequence
 
@@ -1418,11 +1490,13 @@ process tree, Python, Git, and every CLI inhabit one `WebAssembly.Instance`.
 The volume is the mutable working copy; an accepted Program revision is an
 immutable snapshot of an exact volume generation plus product metadata.
 
-The engine's workspace-private `@sillymaker/composition/internal/mod-runtime`
-is not a public ABI, resolver, SDK, or distribution system. This product plan
-does not depend on it. A selected Pi extension may be a build-known,
-version-pinned product dependency, but it is not a SillyMaker Mod and it never
-turns generated TypeScript into an admitted runtime module.
+The focused public `@sillymaker/composition/mod` subpath is a supported trusted
+build-time metadata/resolution/lifecycle contract, but SillyOS does not select
+it without a real independently selectable product capability. Its private
+Direct implementation is not a public ABI, resolver, SDK, or execution
+sandbox. A selected Pi extension may be a build-known, version-pinned product
+dependency, but it is not a SillyMaker Mod and it never turns generated
+TypeScript into an admitted runtime module.
 
 The one neutral engine gap reproduced by S0 is now closed and consumed:
 SillyMaker's generic Vite tooling previously injected an executable inline
@@ -1438,8 +1512,9 @@ provider keys, OPFS/VFS, just-bash, Wasm payloads, Desktop or BYO sandbox
 adapters, persistence, receipts, and product workflows otherwise remain in
 `examples/silly-os`. Any additional engine candidate still requires a minimal
 neutral reproduction outside SillyOS, a second consumer, and evidence that a
-product-local adapter is insufficient. The engine's private Mod Runtime is never
-treated as the Pi plugin system, an execution sandbox, or a public ABI.
+product-local adapter is insufficient. The public Mod runtime is never treated
+as the Pi plugin system or an execution sandbox, and its private Direct backend
+is never treated as public ABI.
 
 ## Reference decisions
 
@@ -1773,8 +1848,8 @@ the one-time synthetic credential, runs Pi's real `Agent` with its deterministic
 faux provider, registers only `sillyos_propose_program_revision`, and returns
 only admitted product records. The same exact candidate/currentness check backs
 both deterministic and Pi-produced P0 successors. Forget/dispose terminates the
-Worker; no fallback to a host Pi, private Mod Runtime, or separate Agent loop
-exists.
+Worker; it never falls back to a host Pi, any SillyMaker Mod runtime, or a
+separate Agent loop.
 
 B0a evidence is seven focused Browser Pi tests covering fixed distribution
 identity, exact admission, unavailable setup, real Pi tool execution,

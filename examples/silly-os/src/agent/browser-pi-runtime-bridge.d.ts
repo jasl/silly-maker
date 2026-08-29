@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-import type { StreamFn } from "@earendil-works/pi-agent-core";
-import type { Api, Model } from "@earendil-works/pi-ai";
-
 import type { AgentTool } from "./pi-workspace-runtime-bridge.js";
 
 import type { CreatorAgentSubmitV1 } from "../product/contracts.ts";
@@ -42,10 +39,27 @@ export interface PiAgentRunInputV1 {
   readonly reasoningEffort: BrowserPiReasoningEffortV1;
 }
 
+/**
+ * Product-local structural boundary for the fixed Pi runtime.
+ *
+ * The implementation owns Pi's concrete provider/model/event types. Keeping
+ * them opaque here prevents third-party Provider SDK declarations from becoming
+ * part of SillyOS's public TypeScript surface.
+ */
+export interface PiSimpleStreamOptionsV1 {
+  readonly reasoning?: BrowserPiReasoningEffortV1;
+}
+
+export type PiStreamFnV1 = (
+  model: unknown,
+  context: unknown,
+  options?: PiSimpleStreamOptionsV1,
+) => unknown;
+
 export interface PiAgentRuntimeInputV1 extends PiAgentRunInputV1 {
-  readonly streamFn: StreamFn;
+  readonly streamFn: PiStreamFnV1;
   readonly getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
-  readonly model: Model<Api>;
+  readonly model: unknown;
   readonly systemPrompt: string;
 }
 
